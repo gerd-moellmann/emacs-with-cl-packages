@@ -1273,7 +1273,7 @@ is a multibyte string, it is regarded as a Unicode text.
 Otherwise, the script is regarded as a byte sequence in a Mac
 traditional encoding specified by `mac-system-script-code', just
 as in the Carbon(+AppKit) ports of Emacs 22 or the Mac port of
-Emacs 23-24.  In the latter case, the return value or the error
+Emacs 23-24.4.  In the latter case, the return value or the error
 message of `mac-do-applescript' is also a unibyte string in the
 Mac traditional encoding.
 
@@ -1295,7 +1295,7 @@ component.
 
 Set `mac-do-applescript-use-legacy-encoding' to t if you want
 strict compatibility with the Carbon(+AppKit) ports of Emacs 22
-or the Mac port of Emacs 23-24 about encoding of SCRIPT."
+or the Mac port of Emacs 23-24.4 about encoding of SCRIPT."
   (let ((use-legacy-encoding (and mac-do-applescript-use-legacy-encoding
 				  (not (multibyte-string-p script)))))
     (condition-case err
