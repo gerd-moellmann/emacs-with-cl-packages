@@ -4999,23 +4999,34 @@ mac_get_first_rect_for_range (struct window *w, const CFRange *range,
 {
   struct buffer *b = XBUFFER (w->contents);
   EMACS_INT start_charpos, end_charpos, min_charpos, max_charpos;
-  struct glyph_row *row, *r2;
+  struct glyph_row *row;
   struct glyph *glyph, *end, *left_glyph, *right_glyph;
   int x, left_x, right_x, text_area_width;
 
   start_charpos = BUF_BEGV (b) + range->location;
   end_charpos = start_charpos + range->length;
   if (range->length == 0)
-    end_charpos++;
+    {
+      end_charpos++;
+      row = row_containing_pos (w, start_charpos,
+				MATRIX_FIRST_TEXT_ROW (w->current_matrix),
+				NULL, 0);
+      if (row == NULL)
+	row = MATRIX_ROW (w->current_matrix, w->window_end_vpos);
+    }
+  else
+    {
+      struct glyph_row *r2;
 
-  /* Find the rows corresponding to START_CHARPOS and END_CHARPOS.  */
-  rows_from_pos_range (w, start_charpos, end_charpos, Qnil, &row, &r2);
-  if (row == NULL)
-    row = MATRIX_ROW (w->current_matrix, w->window_end_vpos);
-  if (r2 == NULL)
-    r2 = MATRIX_ROW (w->current_matrix, w->window_end_vpos);
-  if (row->y > r2->y)
-    row = r2;
+      /* Find the rows corresponding to START_CHARPOS and END_CHARPOS.  */
+      rows_from_pos_range (w, start_charpos, end_charpos, Qnil, &row, &r2);
+      if (row == NULL)
+	row = MATRIX_ROW (w->current_matrix, w->window_end_vpos);
+      if (r2 == NULL)
+	r2 = MATRIX_ROW (w->current_matrix, w->window_end_vpos);
+      if (row->y > r2->y)
+	row = r2;
+    }
 
   if (!row->reversed_p)
     {
