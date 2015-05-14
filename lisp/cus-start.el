@@ -317,7 +317,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					 (const alt) (const hyper)
 					 (const super)))) "22.1")
 	     (mac-right-control-modifier
-	      mac (choice (const :tag "Same as left one" Qleft)
+	      mac (choice (const :tag "Same as left one" left)
 			  (const :tag "No modifier" nil)
 			  (const control) (const meta) (const alt)
 			  (const hyper) (const super)
@@ -327,7 +327,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					 (const :tag "Function keys" :function)
 					 (const :tag "Mouse operations" :mouse))
 				 :value-type
-				 (choice (const :tag "Same as left one" Qleft)
+				 (choice (const :tag "Same as left one" left)
 					 (const :tag "No modifier" nil)
 					 (const control) (const meta)
 					 (const alt) (const hyper)
@@ -347,7 +347,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					 (const alt) (const hyper)
 					 (const super)))) "22.1")
 	     (mac-right-command-modifier
-	      mac (choice (const :tag "Same as left one" Qleft)
+	      mac (choice (const :tag "Same as left one" left)
 			  (const :tag "No modifier" nil)
 			  (const control) (const meta) (const alt)
 			  (const hyper) (const super)
@@ -357,7 +357,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					 (const :tag "Function keys" :function)
 					 (const :tag "Mouse operations" :mouse))
 				 :value-type
-				 (choice (const :tag "Same as left one" Qleft)
+				 (choice (const :tag "Same as left one" left)
 					 (const :tag "No modifier" nil)
 					 (const control) (const meta)
 					 (const alt) (const hyper)
@@ -377,7 +377,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					 (const alt) (const hyper)
 					 (const super)))) "22.1")
 	     (mac-right-option-modifier
-	      mac (choice (const :tag "Same as left one" Qleft)
+	      mac (choice (const :tag "Same as left one" left)
 			  (const :tag "No modifier (work as option)" nil)
 			  (const control) (const meta) (const alt)
 			  (const hyper) (const super)
@@ -387,7 +387,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					 (const :tag "Function keys" :function)
 					 (const :tag "Mouse operations" :mouse))
 				 :value-type
-				 (choice (const :tag "Same as left one" Qleft)
+				 (choice (const :tag "Same as left one" left)
 					 (const :tag "No modifier (work as option)" nil)
 					 (const control) (const meta)
 					 (const alt) (const hyper)
