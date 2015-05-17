@@ -459,7 +459,23 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	  (put-char-code-property (+ #x1F3FB i) 'general-category 'Sk)))
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
-     `([,(concat "[" modifications "].") 1 font-shape-gstring 0]))))
+     `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
+  ;; ZWJ Sequences (based on UTR #51 version 1.0 (draft 10), Annex E)
+  (let* ((zwj "\u200D") (man "\U0001F468") (woman "\U0001F469")
+	 (girl "\U0001F467") (boy "\U0001F466")
+	 (heart "\u2764\uFE0F") (kiss "\U0001F48B")
+	 (man-or-woman (concat "[" man woman "]"))
+	 (girl-or-boy (concat "[" girl boy "]"))
+	 (children (concat "\\(?:" girl "\\(?:" zwj girl-or-boy "\\)?"
+			   "\\|" boy "\\(?:" zwj boy "\\)?\\)")))
+    (set-char-table-range
+     composition-function-table (string-to-char zwj)
+     `([,(concat man ".\\(?:" man-or-woman zwj children
+		 "\\|" heart zwj "\\(?:" kiss zwj "\\)?" man "\\)")
+	1 font-shape-gstring -1]
+       [,(concat woman ".\\(?:" woman zwj children
+		 "\\|" heart zwj "\\(?:" kiss zwj "\\)?" man-or-woman "\\)")
+	1 font-shape-gstring -1]))))
 
 
 ;;;; Conversion between common flavors and Lisp string.
