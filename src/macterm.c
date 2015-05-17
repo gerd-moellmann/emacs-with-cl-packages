@@ -70,7 +70,7 @@ struct mac_display_info one_mac_display_info;
 /* The keysyms to use for the various modifiers.  */
 
 static Lisp_Object Qalt, Qhyper, Qsuper, Qcontrol, Qmeta, Qmodifier_value;
-static Lisp_Object QCordinary, QCfunction, QCmouse;
+static Lisp_Object QCordinary, QCfunction, QCmouse, QCbutton;
 
 static struct terminal *mac_create_terminal (struct mac_display_info *dpyinfo);
 static void x_update_end (struct frame *);
@@ -4655,6 +4655,29 @@ mac_modifier_map_lookup (Lisp_Object modifier_map, Lisp_Object kind)
     }
 }
 
+static bool
+mac_modifier_map_button (Lisp_Object modifier_map, ptrdiff_t *code)
+{
+  Lisp_Object value = Fplist_get (modifier_map, QCbutton);
+  ptrdiff_t c = *code;
+
+  while (CONSP (value) && c > 0)
+    value = XCDR (value), c--;
+  if (c == 0)
+    {
+      if (CONSP (value))
+	value = XCAR (value);
+      if (INTEGERP (value) && XINT (value) > 0 && *code != XINT (value) - 1)
+	{
+	  *code = XINT (value) - 1;
+
+	  return true;
+	}
+    }
+
+  return false;
+}
+
 /* Convert a Quartz event CGEVENT to an input event, and update
    `modifier', `code', `timestamp' (and also `kind' for key-down
    events) members of *BUF if BUF is not NULL.  Return bitwise-or of
@@ -4711,6 +4734,7 @@ mac_cgevent_to_input_event (CGEventRef cgevent, struct input_event *buf)
   Lisp_Object kind;
   int i, keycode, emacs_modifiers = 0;
   ptrdiff_t code = -1;
+  bool map_button_p = false;
   CGEventFlags mapped_flags = 0;
   CGEventMask type_mask;
   CGEventFlags flags = CGEventGetFlags (cgevent);
@@ -4759,18 +4783,25 @@ mac_cgevent_to_input_event (CGEventRef cgevent, struct input_event *buf)
     {
       code = CGEventGetIntegerValueField (cgevent, kCGMouseEventButtonNumber);
 
-      if (code == kCGMouseButtonLeft)
+      if (mac_wheel_button_is_mouse_2)
 	{
-	  if (!NILP (Vmac_emulate_three_button_mouse)
+	  if (code == kCGMouseButtonRight)
+	    code = kCGMouseButtonCenter;
+	  else if (code == kCGMouseButtonCenter)
+	    code = kCGMouseButtonRight;
+	}
+
+      if (NILP (Vmac_emulate_three_button_mouse))
+	map_button_p = true;
+      else
+	{
+	  if (code == kCGMouseButtonLeft
 	      && (flags & (kCGEventFlagMaskAlternate
 			   | kCGEventFlagMaskCommand)))
 	    {
 	      CGEventFlags mask_for_center =
 		(!EQ (Vmac_emulate_three_button_mouse, Qreverse)
-		 ? (mac_wheel_button_is_mouse_2
-		    ? kCGEventFlagMaskAlternate : kCGEventFlagMaskCommand)
-		 : (mac_wheel_button_is_mouse_2
-		    ? kCGEventFlagMaskCommand : kCGEventFlagMaskAlternate));
+		 ? kCGEventFlagMaskCommand : kCGEventFlagMaskAlternate);
 
 	      if (flags & mask_for_center)
 		{
@@ -4784,13 +4815,6 @@ mac_cgevent_to_input_event (CGEventRef cgevent, struct input_event *buf)
 			     | kCGEventFlagMaskCommand);
 		}
 	    }
-	}
-      if (mac_wheel_button_is_mouse_2)
-	{
-	  if (code == kCGMouseButtonRight)
-	    code = kCGMouseButtonCenter;
-	  else if (code == kCGMouseButtonCenter)
-	    code = kCGMouseButtonRight;
 	}
 
       kind = QCmouse;
@@ -4811,22 +4835,34 @@ mac_cgevent_to_input_event (CGEventRef cgevent, struct input_event *buf)
 
 	if (flags & mask_table[i].device_deps[RIGHT])
 	  {
-	    Lisp_Object right_modifier_symbol =
-	      mac_modifier_map_lookup (*modifier_maps[i][RIGHT], kind);
-
-	    if (!EQ (right_modifier_symbol, Qleft))
+	    if (map_button_p
+		&& mac_modifier_map_button (*modifier_maps[i][RIGHT], &code))
+	      map_button_p = lookup_left_p = false;
+	    else
 	      {
-		modifier_symbols[n++] = right_modifier_symbol;
-		if (!(flags & mask_table[i].device_deps[LEFT]))
-		  lookup_left_p = false;
+		Lisp_Object right_modifier_symbol =
+		  mac_modifier_map_lookup (*modifier_maps[i][RIGHT], kind);
+
+		if (!EQ (right_modifier_symbol, Qleft))
+		  {
+		    modifier_symbols[n++] = right_modifier_symbol;
+		    if (!(flags & mask_table[i].device_deps[LEFT]))
+		      lookup_left_p = false;
+		  }
 	      }
 	  }
 	if (lookup_left_p)
-	  modifier_symbols[n++] =
-	    mac_modifier_map_lookup (*modifier_maps[i][LEFT], kind);
+	  {
+	    if (map_button_p
+		&& mac_modifier_map_button (*modifier_maps[i][LEFT], &code))
+	      map_button_p = false;
+	    else
+	      modifier_symbols[n++] =
+		mac_modifier_map_lookup (*modifier_maps[i][LEFT], kind);
+	  }
 
 	flags &= ~mask_table[i].device_indep;
-	do
+	while (n > 0)
 	  {
 	    Lisp_Object modifier_symbol = modifier_symbols[--n];
 
@@ -4843,7 +4879,6 @@ mac_cgevent_to_input_event (CGEventRef cgevent, struct input_event *buf)
 		  }
 	      }
 	  }
-	while (n > 0);
       }
 
   if (buf == NULL)
@@ -5804,6 +5839,7 @@ syms_of_macterm (void)
   DEFSYM (QCordinary, ":ordinary");
   DEFSYM (QCfunction, ":function");
   DEFSYM (QCmouse, ":mouse");
+  DEFSYM (QCbutton, ":button");
 
   Fput (Qcontrol, Qmodifier_value, make_number (ctrl_modifier));
   Fput (Qmeta,    Qmodifier_value, make_number (meta_modifier));
@@ -5874,7 +5910,21 @@ SYMBOL :mouse SYMBOL)'.  The latter allows us to specify different
 behaviors among ordinary keys, function keys, and mouse operations.
 
 Each SYMBOL can be `control', `meta', `alt', `hyper', or `super' for
-the respective modifier.  The default is `control'.  */);
+the respective modifier.  The default is `control'.
+
+The property list form can include the `:button' property for button
+number mapping, which becomes active when the value of
+`mac-emulate-three-button-mouse' is nil.  The `:button' property can
+be either a positive integer specifying the destination of the primary
+button only, or a list (VALUE-FOR-PRIMARY-BUTTON VALUE-FOR-MOUSE-2
+VALUE-FOR-MOUSE-3 ...) of positive integers specifying the
+destinations of multiple buttons in order.  Note that the secondary
+button and the button 3 (usually the wheel button) correspond to
+mouse-3 and mouse-2 respectively if the value of
+`mac-wheel-button-is-mouse-2' is non-nil (default), and mouse-2 and
+mouse-3 respectively otherwise.  If a button is mapped to the same
+number as its source, then it behaves as if the button were not mapped
+so the `:mouse' property becomes in effect instead.  */);
   Vmac_control_modifier = Qcontrol;
 
   DEFVAR_LISP ("mac-right-control-modifier", Vmac_right_control_modifier,
@@ -5886,6 +5936,20 @@ behaviors among ordinary keys, function keys, and mouse operations.
 Each SYMBOL can be `control', `meta', `alt', `hyper', or `super' for
 the respective modifier.  The value `left' means the same setting as
 `mac-control-modifier'.  The default is `left'.
+
+The property list form can include the `:button' property for button
+number mapping, which becomes active when the value of
+`mac-emulate-three-button-mouse' is nil.  The `:button' property can
+be either a positive integer specifying the destination of the primary
+button only, or a list (VALUE-FOR-PRIMARY-BUTTON VALUE-FOR-MOUSE-2
+VALUE-FOR-MOUSE-3 ...) of positive integers specifying the
+destinations of multiple buttons in order.  Note that the secondary
+button and the button 3 (usually the wheel button) correspond to
+mouse-3 and mouse-2 respectively if the value of
+`mac-wheel-button-is-mouse-2' is non-nil (default), and mouse-2 and
+mouse-3 respectively otherwise.  If a button is mapped to the same
+number as its source, then it behaves as if the button were not mapped
+so the `:mouse' property becomes in effect instead.
 
 Note: the left and right versions cannot be distinguished on some
 environments such as Screen Sharing.  Also, certain combinations of a
@@ -5902,7 +5966,21 @@ behaviors among ordinary keys, function keys, and mouse operations.
 Each SYMBOL can be `control', `meta', `alt', `hyper', or `super' for
 the respective modifier.  If the value is nil then the key will act as
 the normal Mac option modifier, and the option key can be used to
-compose characters depending on the chosen Mac keyboard setting.  */);
+compose characters depending on the chosen Mac keyboard setting.
+
+The property list form can include the `:button' property for button
+number mapping, which becomes active when the value of
+`mac-emulate-three-button-mouse' is nil.  The `:button' property can
+be either a positive integer specifying the destination of the primary
+button only, or a list (VALUE-FOR-PRIMARY-BUTTON VALUE-FOR-MOUSE-2
+VALUE-FOR-MOUSE-3 ...) of positive integers specifying the
+destinations of multiple buttons in order.  Note that the secondary
+button and the button 3 (usually the wheel button) correspond to
+mouse-3 and mouse-2 respectively if the value of
+`mac-wheel-button-is-mouse-2' is non-nil (default), and mouse-2 and
+mouse-3 respectively otherwise.  If a button is mapped to the same
+number as its source, then it behaves as if the button were not mapped
+so the `:mouse' property becomes in effect instead.  */);
   Vmac_option_modifier = list4 (QCfunction, Qalt, QCmouse, Qalt);
 
   DEFVAR_LISP ("mac-right-option-modifier", Vmac_right_option_modifier,
@@ -5918,6 +5996,20 @@ compose characters depending on the chosen Mac keyboard setting.  The
 value `left' means the same setting as `mac-option-modifier'.  The
 default is `left'.
 
+The property list form can include the `:button' property for button
+number mapping, which becomes active when the value of
+`mac-emulate-three-button-mouse' is nil.  The `:button' property can
+be either a positive integer specifying the destination of the primary
+button only, or a list (VALUE-FOR-PRIMARY-BUTTON VALUE-FOR-MOUSE-2
+VALUE-FOR-MOUSE-3 ...) of positive integers specifying the
+destinations of multiple buttons in order.  Note that the secondary
+button and the button 3 (usually the wheel button) correspond to
+mouse-3 and mouse-2 respectively if the value of
+`mac-wheel-button-is-mouse-2' is non-nil (default), and mouse-2 and
+mouse-3 respectively otherwise.  If a button is mapped to the same
+number as its source, then it behaves as if the button were not mapped
+so the `:mouse' property becomes in effect instead.
+
 Note: the left and right versions cannot be distinguished on some
 environments such as Screen Sharing.  Also, certain combinations of a
 key with both versions of the same modifier do not emit events at the
@@ -5931,7 +6023,21 @@ SYMBOL :mouse SYMBOL)'.  The latter allows us to specify different
 behaviors among ordinary keys, function keys, and mouse operations.
 
 Each SYMBOL can be `control', `meta', `alt', `hyper', or `super' for
-the respective modifier.  The default is `meta'.  */);
+the respective modifier.  The default is `meta'.
+
+The property list form can include the `:button' property for button
+number mapping, which becomes active when the value of
+`mac-emulate-three-button-mouse' is nil.  The `:button' property can
+be either a positive integer specifying the destination of the primary
+button only, or a list (VALUE-FOR-PRIMARY-BUTTON VALUE-FOR-MOUSE-2
+VALUE-FOR-MOUSE-3 ...) of positive integers specifying the
+destinations of multiple buttons in order.  Note that the secondary
+button and the button 3 (usually the wheel button) correspond to
+mouse-3 and mouse-2 respectively if the value of
+`mac-wheel-button-is-mouse-2' is non-nil (default), and mouse-2 and
+mouse-3 respectively otherwise.  If a button is mapped to the same
+number as its source, then it behaves as if the button were not mapped
+so the `:mouse' property becomes in effect instead.  */);
   Vmac_command_modifier = Qmeta;
 
   DEFVAR_LISP ("mac-right-command-modifier", Vmac_right_command_modifier,
@@ -5943,6 +6049,20 @@ behaviors among ordinary keys, function keys, and mouse operations.
 Each SYMBOL can be `control', `meta', `alt', `hyper', or `super' for
 the respective modifier.  The value `left' means the same setting as
 `mac-command-modifier'.  The default is `left'.
+
+The property list form can include the `:button' property for button
+number mapping, which becomes active when the value of
+`mac-emulate-three-button-mouse' is nil.  The `:button' property can
+be either a positive integer specifying the destination of the primary
+button only, or a list (VALUE-FOR-PRIMARY-BUTTON VALUE-FOR-MOUSE-2
+VALUE-FOR-MOUSE-3 ...) of positive integers specifying the
+destinations of multiple buttons in order.  Note that the secondary
+button and the button 3 (usually the wheel button) correspond to
+mouse-3 and mouse-2 respectively if the value of
+`mac-wheel-button-is-mouse-2' is non-nil (default), and mouse-2 and
+mouse-3 respectively otherwise.  If a button is mapped to the same
+number as its source, then it behaves as if the button were not mapped
+so the `:mouse' property becomes in effect instead.
 
 Note: the left and right versions cannot be distinguished on some
 environments such as Screen Sharing.  Also, certain combinations of a
@@ -5958,18 +6078,45 @@ behaviors among ordinary keys, function keys, and mouse operations.
 
 Each SYMBOL can be `control', `meta', `alt', `hyper', or `super' for
 the respective modifier.  If the value is nil, then the key will act
-as the normal Mac function (fn) key.  */);
-  Vmac_function_modifier = Qnil;
+as the normal Mac function (fn) key.
+
+The property list form can include the `:button' property for button
+number mapping, which becomes active when the value of
+`mac-emulate-three-button-mouse' is nil.  The `:button' property can
+be either a positive integer specifying the destination of the primary
+button only, or a list (VALUE-FOR-PRIMARY-BUTTON VALUE-FOR-MOUSE-2
+VALUE-FOR-MOUSE-3 ...) of positive integers specifying the
+destinations of multiple buttons in order.  Note that the secondary
+button and the button 3 (usually the wheel button) correspond to
+mouse-3 and mouse-2 respectively if the value of
+`mac-wheel-button-is-mouse-2' is non-nil (default), and mouse-2 and
+mouse-3 respectively otherwise.  If a button is mapped to the same
+number as its source, then it behaves as if the button were not mapped
+so the `:mouse' property becomes in effect instead.
+
+The default value is `(:button 2)' meaning that the primary button is
+recognized as mouse-2 if the Mac function (fn) key is pressed.  */);
+  Vmac_function_modifier = list2 (QCbutton, make_number (2));
 
   DEFVAR_LISP ("mac-emulate-three-button-mouse",
 	       Vmac_emulate_three_button_mouse,
     doc: /* Specify a way of three button mouse emulation.
-The value can be nil, t, or the symbol `reverse'.
-A value of nil means that no emulation should be done and the modifiers
-should be placed on the mouse-1 event.
+The value can be nil, t, or the symbol `reverse'.  The latter two
+provide handy settings especially for one-button mice.
+
+A value of nil means that the modifier variable settings, if any, are
+used for mapping button numbers.  If you need more flexible settings
+than what t or the symbol `reverse' below provides, then set this
+variable to nil and customize the modifier variables
+`mac-control-modifier', `mac-right-control-modifier',
+`mac-option-modifier', `mac-right-option-modifier',
+`mac-command-modifier', `mac-right-command-modifier', and/or
+`mac-function-modifier' so their values have the `:button' property.
+
 t means that when the option-key is held down while pressing the mouse
 button, the click will register as mouse-2 and while the command-key
 is held down, the click will register as mouse-3.
+
 The symbol `reverse' means that the option-key will register for
 mouse-3 and the command-key will register for mouse-2.  */);
   Vmac_emulate_three_button_mouse = Qnil;
