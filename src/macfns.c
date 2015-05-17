@@ -3842,9 +3842,16 @@ mac_input_source_properties (TISInputSourceRef source, Lisp_Object format)
 		{
 		  CFStringRef str = NULL;
 
-		  /* Workaround for wrong icon image URL on OS X 10.10.  */
+		  /* Workaround for wrong icon image URL on OS X 10.10.
+		     I thought this is just a mistake and would be
+		     fixed immediately in response to the bug report I
+		     filed as rdar://19011378/, but Apple is unwilling
+		     to "fix" this for the reason that NSImage doesn't
+		     care about the extension of the image file.  So
+		     we extend this workaround to future versions of
+		     OS X.  */
 		  if (mac_operating_system_version.major == 10
-		      && mac_operating_system_version.minor == 10)
+		      && mac_operating_system_version.minor >= 10)
 		    {
 		      CFURLRef fixed =
 			mac_tis_create_fixed_icon_image_url (url);
