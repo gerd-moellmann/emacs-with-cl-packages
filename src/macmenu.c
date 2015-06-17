@@ -406,6 +406,9 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
       return Qnil;
     }
 
+  if (display_hourglass_p)
+    cancel_hourglass ();
+
   block_input ();
 
   /* Create a tree of widget_value objects
