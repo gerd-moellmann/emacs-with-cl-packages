@@ -1,5 +1,28 @@
+* emacs-24.5-mac-5.8 (2015-05-17)
+
+** Fixed bugs
+
+*** Display may corrupt just after loading fonts.
+Adapt a fix for Bug#20410.
+
+*** System-wide popups (such as "Emoji & Symbols") are placed wrong
+when the cursor is at end of line.
+
+*** The symbol `left' for mac-right-*-modifier variables is not
+properly presented in customization buffers.
+
+** Improvements
+
+*** Support ZWJ (ZERO WIDTH JOINER) sequences for emoji on OS X 10.10.3.
+
+*** Now the `:button' property in the value of a modifier variable
+(e.g., `mac-option-modifier') can be used for mapping button numbers.
+The default setting maps the primary button with `fn' to mouse-2.
+
+
 * emacs-24.5-mac-5.7 (2015-04-11)
 Based on Emacs 24.5.
+http://lists.gnu.org/archive/html/emacs-devel/2015-04/msg00586.html
 
 ** Improvements
 
