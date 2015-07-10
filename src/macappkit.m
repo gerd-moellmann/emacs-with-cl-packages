@@ -2327,6 +2327,20 @@ install_application_handler (void)
   return noErr;
 }
 
+Lisp_Object
+mac_application_state (void)
+{
+  Lisp_Object result = Qnil;
+
+  if (NSApp == nil)
+    return result;
+
+  result = Fcons (QChidden_p, Fcons ([NSApp isHidden] ? Qt : Qnil, result));
+  result = Fcons (QCactive_p, Fcons ([NSApp isActive] ? Qt : Qnil, result));
+
+  return result;
+}
+
 
 /************************************************************************
 			       Windows

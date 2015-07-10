@@ -512,6 +512,7 @@ extern bool name_is_separator (const char *);
 /* Defined in macfns.c */
 
 extern Lisp_Object Qbacking_scale_factor;
+extern Lisp_Object QCactive_p, QChidden_p;
 extern Lisp_Object QCdirection, QCduration;
 extern Lisp_Object Qfade_in, Qmove_in;
 extern Lisp_Object Qbars_swipe, Qcopy_machine, Qdissolve, Qflash, Qmod;

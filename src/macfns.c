@@ -4163,6 +4163,35 @@ OS X 10.4 or earlier.  */)
 
 
 /***********************************************************************
+			     Application
+ ***********************************************************************/
+
+Lisp_Object QCactive_p, QChidden_p;
+
+DEFUN ("mac-application-state", Fmac_application_state, Smac_application_state, 0, 0, 0,
+       doc: /* Return the current state of Emacs as a GUI application.
+The result is a property list containing the following names and values:
+
+`:active-p'
+    Non-nil means the application is active.
+`:hidden-p'
+    Non-nil means the application is hidden.
+
+If Emacs is not running as a GUI application, then the result is nil.  */)
+  (void)
+{
+  extern Lisp_Object mac_application_state (void);
+  Lisp_Object result;
+
+  block_input ();
+  result = mac_application_state ();
+  unblock_input();
+
+  return result;
+}
+
+
+/***********************************************************************
 			      Animation
  ***********************************************************************/
 
@@ -4379,6 +4408,8 @@ syms_of_macfns (void)
   DEFSYM (QClocalized_name, ":localized-name");
   DEFSYM (QClanguages, ":languages");
   DEFSYM (QCicon_image_file, ":icon-image-file");
+  DEFSYM (QCactive_p, ":active-p");
+  DEFSYM (QChidden_p, ":hidden-p");
   DEFSYM (QCdirection, ":direction");
   DEFSYM (QCduration, ":duration");
   DEFSYM (Qfade_in, "fade-in");
@@ -4537,5 +4568,6 @@ Chinese, Japanese, and Korean.  */);
   defsubr (&Smac_input_source_list);
   defsubr (&Smac_select_input_source);
   defsubr (&Smac_deselect_input_source);
+  defsubr (&Smac_application_state);
   defsubr (&Smac_start_animation);
 }

@@ -948,11 +948,20 @@ for the key symbol `apple-event' so it can be inspected later."
   (interactive "e")
   (push (cons 'apple-event (mac-event-ae event)) mac-startup-options))
 
+(declare-function mac-application-state "macfns.c" ())
+
 (defun mac-ae-reopen-application (event)
   "Show some frame in response to the Apple event EVENT.
 The frame to be shown is chosen from visible or iconified frames
 if possible.  If there's no such frame, a new frame is created."
   (interactive "e")
+  ;; OS X 10.10 sometimes makes hidden frames visible after the call
+  ;; to this function.
+  (let ((count 6))
+    (while (and (> count 0)
+		(plist-get (mac-application-state) :hidden-p))
+      (sit-for 0.017)
+      (setq count (1- count))))
   (unless (frame-visible-p (selected-frame))
     (let ((frame (or (car (visible-frame-list))
 		     (car (filtered-frame-list 'frame-visible-p)))))
