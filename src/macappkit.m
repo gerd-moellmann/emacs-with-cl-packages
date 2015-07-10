@@ -8595,7 +8595,7 @@ create_ok_cancel_buttons_view (void)
   NSView *view;
   NSButton *cancelButton, *okButton;
   NSDictionary *viewsDictionary;
-  NSArray *constraints;
+  NSArray *formats;
 
   cancelButton = [[NSButton alloc] init];
   [cancelButton setBezelStyle:NSRoundedBezelStyle];
@@ -8616,25 +8616,25 @@ create_ok_cancel_buttons_view (void)
   [view addSubview:okButton];
 
   viewsDictionary = NSDictionaryOfVariableBindings (cancelButton, okButton);
-  constraints = [NSLayoutConstraint
-		  constraintsWithVisualFormat:
-		    @"|-[cancelButton]-[okButton(==cancelButton)]-|"
-				      options:NSLayoutFormatAlignAllCenterY
-				      metrics:nil views:viewsDictionary];
+  formats = (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
+	     ? [NSArray arrayWithObjects:@"V:|-5-[cancelButton]-5-|",
+			@"[cancelButton]-[okButton(==cancelButton)]-|", nil]
+	     : [NSArray arrayWithObjects:@"V:|[cancelButton]-5-|",
+			@"|-[cancelButton]-[okButton(==cancelButton)]-|", nil]);
+  for (NSString *format in formats)
+    {
+      NSArray *constraints =
+	[NSLayoutConstraint
+	  constraintsWithVisualFormat:format
+			      options:NSLayoutFormatAlignAllCenterY
+			      metrics:nil views:viewsDictionary];
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-  [NSLayoutConstraint activateConstraints:constraints];
+      [NSLayoutConstraint activateConstraints:constraints];
 #else
-  [view addConstraints:constraints];
+      [view addConstraints:constraints];
 #endif
-  constraints = [NSLayoutConstraint
-		  constraintsWithVisualFormat:@"V:|[cancelButton]-5-|"
-				      options:0
-				      metrics:nil views:viewsDictionary];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-  [NSLayoutConstraint activateConstraints:constraints];
-#else
-  [view addConstraints:constraints];
-#endif
+    }
   [view setFrameSize:[view fittingSize]];
 
   MRC_RELEASE (cancelButton);
