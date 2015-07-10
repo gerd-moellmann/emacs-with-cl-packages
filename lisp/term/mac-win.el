@@ -2740,12 +2740,17 @@ standard ones in `x-handle-args'."
   ;; Create the default fontset.
   (create-default-fontset)
 
-  (set-fontset-font t nil (font-spec :family "Apple Symbols") nil 'prepend)
-  (if (and (string-match "darwin\\([0-9]+\\)" system-configuration)
-	   (>= (string-to-number (match-string 1 system-configuration)) 11))
-      ;; Built on Mac OS X 10.7 or later.
-      (set-fontset-font t nil (font-spec :family "Apple Color Emoji")
-			nil 'append))
+  (set-fontset-font t nil (font-spec :family "Apple Symbols"
+				     :registry "iso10646-1") nil 'prepend)
+  (when (and (string-match "darwin\\([0-9]+\\)" system-configuration)
+	     (>= (string-to-number (match-string 1 system-configuration)) 11))
+    ;; Built on Mac OS X 10.7 or later.
+    (let ((spec (font-spec :family "Apple Color Emoji" :registry "iso10646-1")))
+      (set-fontset-font t nil spec nil 'append)
+      ;; Work around lots of font lookups in emoji compositions.
+      (set-fontset-font t #xFE0F spec)	; Variation Selector 16
+      (set-fontset-font t '(#x1F1E6 . #x1F1FF) spec) ; Regional Indicator Syms
+      (set-fontset-font t '(#x1F3FB . #x1F3FF) spec))) ; Emoji Modifiers
   (mac-setup-composition-function-table)
   ;; (set-fontset-font t nil (font-spec :family "LastResort") nil 'append)
   (set-fontset-font t '(#x20000 . #x2FFFF)
