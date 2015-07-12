@@ -554,6 +554,12 @@ typedef id instancetype;
 - (void)setCoreGraphicsImages:(NSArray *)cgImages;
 @end
 
+/* Dummy protocol for specifying the return type of the selector
+   `item' that has multiple possibilities if unspecified.  */
+@protocol EmacsToolbarItemViewer
+- (NSToolbarItem *)item;
+@end
+
 @interface EmacsFrameController (Toolbar) <NSToolbarDelegate>
 - (void)setupToolBarWithVisibility:(BOOL)visible;
 - (void)updateToolbarDisplayMode;

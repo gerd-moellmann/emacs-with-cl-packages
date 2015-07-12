@@ -7378,7 +7378,7 @@ mac_get_default_scroll_bar_width (struct frame *f)
 	      hitTest:[event locationInWindow]];
   if ([hitView respondsToSelector:@selector(item)])
     {
-      id item = [hitView performSelector:@selector(item)];
+      NSToolbarItem *item = [(id <EmacsToolbarItemViewer>)hitView item];
 
       if ([item isKindOfClass:[EmacsToolbarItem class]])
 	{
