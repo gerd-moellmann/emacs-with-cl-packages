@@ -1070,6 +1070,17 @@ enum {
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
+typedef NSInteger NSGlyphProperty;
+
+@interface NSLayoutManager (AvailableOn101100AndLater)
+- (NSUInteger)getGlyphsInRange:(NSRange)glyphRange glyphs:(CGGlyph *)glyphBuffer
+		    properties:(NSGlyphProperty *)props
+	      characterIndexes:(NSUInteger *)charIndexBuffer
+		    bidiLevels:(unsigned char *)bidiLevelBuffer;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
 @interface NSSound (AvailableOn1050AndLater)
 - (void)setVolume:(float)volume;

@@ -14638,10 +14638,28 @@ mac_font_shape_1 (NSFont *font, NSString *string,
 
       /* For now we assume the direction is not changed within the
 	 string.  */
-      [layoutManager getGlyphsInRange:(NSMakeRange (glyphIndex, 1))
-			       glyphs:NULL characterIndexes:NULL
-		    glyphInscriptions:NULL elasticBits:NULL
-			   bidiLevels:&bidiLevel];
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+      if ([layoutManager
+	    respondsToSelector:@selector(getGlyphsInRange:glyphs:properties:characterIndexes:bidiLevels:)])
+#endif
+	{
+	  [layoutManager getGlyphsInRange:(NSMakeRange (glyphIndex, 1))
+				   glyphs:NULL properties:NULL
+			 characterIndexes:NULL bidiLevels:&bidiLevel];
+	}
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+      else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100 || MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+	{
+	  [layoutManager getGlyphsInRange:(NSMakeRange (glyphIndex, 1))
+				   glyphs:NULL characterIndexes:NULL
+			glyphInscriptions:NULL elasticBits:NULL
+			       bidiLevels:&bidiLevel];
+	}
+#endif
       if (bidiLevel & 1)
 	permutation = xmalloc (sizeof (NSUInteger) * used);
       else
