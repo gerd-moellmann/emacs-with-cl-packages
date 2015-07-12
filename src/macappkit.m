@@ -5828,6 +5828,9 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
 
   [super viewDidEndLiveResize];
   mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
+  /* Exit from select_and_poll_event so as to react to the frame size
+     change, especially in a full screen tile on OS X 10.11.  */
+  [NSApp postDummyEvent];
 }
 
 - (void)viewFrameDidChange:(NSNotification *)notification
