@@ -380,11 +380,11 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 
       GetEventParameter ([self _eventRef], kEventParamMouseLocation,
 			 typeHIPoint, NULL, sizeof (CGPoint), NULL, &position);
-      event = CGEventCreateMouseEvent (NULL, type, position,
+      event = CGEventCreateMouseEvent (NULL, (CGEventType) type, position,
 				       [self buttonNumber]);
       /* CGEventCreateMouseEvent on Mac OS X 10.4 does not set
 	 type.  */
-      CGEventSetType (event, type);
+      CGEventSetType (event, (CGEventType) type);
       if (NSEventMaskFromType (type)
 	  & (ANY_MOUSE_DOWN_EVENT_MASK | ANY_MOUSE_UP_EVENT_MASK))
 	{
@@ -418,9 +418,9 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   if (event == NULL)
     {
       event = CGEventCreate (NULL);
-      CGEventSetType (event, type);
+      CGEventSetType (event, (CGEventType) type);
     }
-  CGEventSetFlags (event, [self modifierFlags]);
+  CGEventSetFlags (event, (CGEventFlags) [self modifierFlags]);
   CGEventSetTimestamp (event, [self timestamp] * kSecondScale);
 
   return (CGEventRef) CF_AUTORELEASE (event);
