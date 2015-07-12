@@ -3792,6 +3792,11 @@ static CGRect unset_global_focus_view_frame (void);
   return MRC_AUTORELEASE (view);
 }
 
+- (NSSize)window:(NSWindow *)window willUseFullScreenContentSize:(NSSize)proposedSize
+{
+  return proposedSize;
+}
+
 - (NSApplicationPresentationOptions)window:(NSWindow *)window
       willUseFullScreenPresentationOptions:(NSApplicationPresentationOptions)proposedOptions
 {
