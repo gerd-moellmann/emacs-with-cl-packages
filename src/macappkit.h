@@ -669,6 +669,9 @@ typedef id instancetype;
 
 /* Class for SVG frame load delegate.  */
 @interface EmacsSVGLoader : NSObject
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+			    <WebFrameLoadDelegate>
+#endif
 {
   /* Frame and image data structures to which the SVG image is
      loaded.  */
