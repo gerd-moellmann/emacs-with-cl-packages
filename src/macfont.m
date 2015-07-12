@@ -3834,14 +3834,24 @@ mac_ctfont_create_preferred_family_for_attributes (CFDictionaryRef attributes)
 static inline double
 mac_ctfont_get_advance_width_for_glyph (CTFontRef font, CGGlyph glyph)
 {
-  return CTFontGetAdvancesForGlyphs (font, kCTFontDefaultOrientation,
+  return CTFontGetAdvancesForGlyphs (font,
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+				     kCTFontOrientationDefault,
+#else
+				     kCTFontDefaultOrientation,
+#endif
 				     &glyph, NULL, 1);
 }
 
 static inline CGRect
 mac_ctfont_get_bounding_rect_for_glyph (CTFontRef font, CGGlyph glyph)
 {
-  return CTFontGetBoundingRectsForGlyphs (font, kCTFontDefaultOrientation,
+  return CTFontGetBoundingRectsForGlyphs (font,
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+					  kCTFontOrientationDefault,
+#else
+					  kCTFontDefaultOrientation,
+#endif
 					  &glyph, NULL, 1);
 }
 
@@ -4301,7 +4311,7 @@ mac_font_copy_default_descriptors_for_language (CFStringRef language)
 #endif
     {
       CTFontRef user_font =
-	CTFontCreateUIFontForLanguage (kCTFontUserFontType, 0, language);
+	CTFontCreateUIFontForLanguage (kCTFontUIFontUser, 0, language);
 
       if (user_font)
 	{

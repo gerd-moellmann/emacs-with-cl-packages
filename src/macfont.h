@@ -111,8 +111,13 @@ enum {
 };
 
 enum {
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
+  MAC_CHARACTER_COLLECTION_IDENTITY_MAPPING = kCTCharacterCollectionIdentityMapping,
+  MAC_CHARACTER_COLLECTION_ADOBE_JAPAN1 = kCTCharacterCollectionAdobeJapan1
+#else
   MAC_CHARACTER_COLLECTION_IDENTITY_MAPPING = kCTIdentityMappingCharacterCollection,
   MAC_CHARACTER_COLLECTION_ADOBE_JAPAN1 = kCTAdobeJapan1CharacterCollection
+#endif
 };
 
 #define mac_font_descriptor_create_with_attributes \
