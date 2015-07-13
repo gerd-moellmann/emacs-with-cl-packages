@@ -315,21 +315,23 @@ modes have been enabled with Quartz Debug.app."
 ;;;; Composition
 (defconst mac-emoji-variation-characters-alist
   '((keycap . "#0123456789")
-    (non-keycap . "\u203C\u2049\u2139\u2194\u2195\u2196\u2197\u2198\
-\u2199\u21A9\u21AA\u231A\u231B\u24C2\u25AA\u25AB\
-\u25B6\u25C0\u25FB\u25FC\u25FD\u25FE\u2600\u2601\
-\u260E\u2611\u2614\u2615\u261D\u263A\u2648\u2649\
-\u264A\u264B\u264C\u264D\u264E\u264F\u2650\u2651\
-\u2652\u2653\u2660\u2663\u2665\u2666\u2668\u267B\
-\u267F\u2693\u26A0\u26A1\u26AA\u26AB\u26BD\u26BE\
-\u26C4\u26C5\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\
-\u26FD\u2702\u2708\u2709\u270C\u270F\u2712\u2714\
-\u2716\u2733\u2734\u2744\u2747\u2757\u2764\u27A1\
-\u2934\u2935\u2B05\u2B06\u2B07\u2B1B\u2B1C\u2B50\
-\u2B55\u303D\u3297\u3299\U0001F004\U0001F17F\U0001F21A\U0001F22F")
-    (mac-specific . "\u00a9\u00ae\u2122\U0001F170\U0001F171\U0001F17E"))
+    (non-keycap . "\u00a9\u00ae\u203C\u2049\u2122\u2139\u2194\u2195\
+\u2196\u2197\u2198\u2199\u21A9\u21AA\u231A\u231B\
+\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB\u25FC\u25FD\
+\u25FE\u2600\u2601\u260E\u2611\u2614\u2615\u261D\
+\u263A\u2648\u2649\u264A\u264B\u264C\u264D\u264E\
+\u264F\u2650\u2651\u2652\u2653\u2660\u2663\u2665\
+\u2666\u2668\u267B\u267F\u2693\u26A0\u26A1\u26AA\
+\u26AB\u26BD\u26BE\u26C4\u26C5\u26D4\u26EA\u26F2\
+\u26F3\u26F5\u26FA\u26FD\u2702\u2708\u2709\u270C\
+\u270F\u2712\u2714\u2716\u2733\u2734\u2744\u2747\
+\u2757\u2764\u27A1\u2934\u2935\u2B05\u2B06\u2B07\
+\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299\
+\U0001F004\U0001F170\U0001F171\U0001F17E\U0001F17F\U0001F202\U0001F21A\
+\U0001F22F\U0001F237"))
   "Groups of characters that are sensitive to variation selectors 15 and 16.
-It is an alist of label symbols vs sequences of characters.")
+It is an alist of label symbols vs sequences of characters.
+The entries are currently based on StandardizedVariants-8.0.0.txt.")
 
 (defconst mac-emoji-modifier-base-characters-alist
   '((primary . "\U0001F385\U0001F466\U0001F467\U0001F468\U0001F469\
@@ -354,7 +356,7 @@ It is an alist of label symbols vs sequences of characters.")
 \U0001F917\U0001F918"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on UTR #51 version 1.0 (draft 10).")
+The entries are currently based on UTR #51 version 1.0.")
 
 (defun mac-compose-gstring-for-variation-with-trailer (gstring)
   "Compose glyph-string GSTRING for graphic display.
@@ -454,13 +456,14 @@ second is a glyph for the variation selector 16 (U+FE0F)."
     ;; Emoji Modifiers
     (if (eq (get-char-code-property #x1F3FB 'general-category) 'Cn)
 	;; Change general category of the emoji modifiers for skin
-	;; tones (U+1F3FB - U+1F3FF) so cursor movement works right.
+	;; tones (U+1F3FB - U+1F3FF) in accordance with Unicode 8.0 so
+	;; cursor movement works right.
 	(dotimes (i (1+ (- #x1F3FF #x1F3FB)))
 	  (put-char-code-property (+ #x1F3FB i) 'general-category 'Sk)))
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
      `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
-  ;; ZWJ Sequences (based on UTR #51 version 1.0 (draft 10), Annex E)
+  ;; ZWJ Sequences (based on UTR #51 version 1.0, Annex E)
   (let* ((zwj "\u200D") (man "\U0001F468") (woman "\U0001F469")
 	 (girl "\U0001F467") (boy "\U0001F466")
 	 (heart "\u2764\uFE0F") (kiss "\U0001F48B")
@@ -945,11 +948,20 @@ for the key symbol `apple-event' so it can be inspected later."
   (interactive "e")
   (push (cons 'apple-event (mac-event-ae event)) mac-startup-options))
 
+(declare-function mac-application-state "macfns.c" ())
+
 (defun mac-ae-reopen-application (event)
   "Show some frame in response to the Apple event EVENT.
 The frame to be shown is chosen from visible or iconified frames
 if possible.  If there's no such frame, a new frame is created."
   (interactive "e")
+  ;; OS X 10.10 sometimes makes hidden frames visible after the call
+  ;; to this function.
+  (let ((count 6))
+    (while (and (> count 0)
+		(plist-get (mac-application-state) :hidden-p))
+      (sit-for 0.017)
+      (setq count (1- count))))
   (unless (frame-visible-p (selected-frame))
     (let ((frame (or (car (visible-frame-list))
 		     (car (filtered-frame-list 'frame-visible-p)))))
@@ -2737,12 +2749,17 @@ standard ones in `x-handle-args'."
   ;; Create the default fontset.
   (create-default-fontset)
 
-  (set-fontset-font t nil (font-spec :family "Apple Symbols") nil 'prepend)
-  (if (and (string-match "darwin\\([0-9]+\\)" system-configuration)
-	   (>= (string-to-number (match-string 1 system-configuration)) 11))
-      ;; Built on Mac OS X 10.7 or later.
-      (set-fontset-font t nil (font-spec :family "Apple Color Emoji")
-			nil 'append))
+  (set-fontset-font t nil (font-spec :family "Apple Symbols"
+				     :registry "iso10646-1") nil 'prepend)
+  (when (and (string-match "darwin\\([0-9]+\\)" system-configuration)
+	     (>= (string-to-number (match-string 1 system-configuration)) 11))
+    ;; Built on Mac OS X 10.7 or later.
+    (let ((spec (font-spec :family "Apple Color Emoji" :registry "iso10646-1")))
+      (set-fontset-font t nil spec nil 'append)
+      ;; Work around lots of font lookups in emoji compositions.
+      (set-fontset-font t #xFE0F spec)	; Variation Selector 16
+      (set-fontset-font t '(#x1F1E6 . #x1F1FF) spec) ; Regional Indicator Syms
+      (set-fontset-font t '(#x1F3FB . #x1F3FF) spec))) ; Emoji Modifiers
   (mac-setup-composition-function-table)
   ;; (set-fontset-font t nil (font-spec :family "LastResort") nil 'append)
   (set-fontset-font t '(#x20000 . #x2FFFF)

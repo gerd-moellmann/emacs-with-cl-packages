@@ -1,4 +1,29 @@
+* emacs-24.5-mac-5.9 (2015-07-13)
+
+** Fixed bugs
+
+*** Progress indicator is shown while tracking popup menu.
+
+*** Command-H followed by clicking the dock icon may create a new
+frame on OS X 10.10.
+
+*** Cancel/OK buttons in font dialog look fat on OS X 10.10.
+
+*** Several full screen glitches on OS X 10.11 Beta.
+Custom transition animation is disabled to work around some problems
+including crash.
+
+*** Visible bell not visible on OS X 10.11 Beta.
+
+** Improvements
+
+*** New function `mac-application-state' to obtain the current status
+as a GUI application.
+
+
+
 * emacs-24.5-mac-5.8 (2015-05-17)
+http://lists.gnu.org/archive/html/emacs-devel/2015-05/msg00476.html
 
 ** Fixed bugs
 

@@ -2763,6 +2763,9 @@ mac_flash (struct frame *f)
   mac_mask_rounded_bottom_corners (f, clip_rect, true);
 
   x_flush (f);
+  if (!(mac_operating_system_version.major == 10
+	&& mac_operating_system_version.minor <= 10))
+    mac_run_loop_run_once (0);
 
   {
     struct timespec delay = make_timespec (0, 150 * 1000 * 1000);
@@ -2795,6 +2798,9 @@ mac_flash (struct frame *f)
     mac_mask_rounded_bottom_corners (f, clip_rect, false);
 
   x_flush (f);
+  if (!(mac_operating_system_version.major == 10
+	&& mac_operating_system_version.minor <= 10))
+    mac_run_loop_run_once (0);
 
   unblock_input ();
 }

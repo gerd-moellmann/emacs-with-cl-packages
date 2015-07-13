@@ -1343,7 +1343,7 @@ cfproperty_list_create_with_lisp_1 (Lisp_Object obj,
 					   &kCFTypeDictionaryValueCallBacks);
 	      if (dictionary)
 		{
-		  int i, size = HASH_TABLE_SIZE (h);
+		  ptrdiff_t i, size = HASH_TABLE_SIZE (h);
 
 		  for (i = 0; i < size; ++i)
 		    if (!NILP (HASH_HASH (h, i)))
@@ -1832,7 +1832,7 @@ xrm_q_put_resource (XrmDatabase database, Lisp_Object quarks, Lisp_Object value)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (database);
   EMACS_UINT hash_code;
-  int i;
+  ptrdiff_t i;
   EMACS_INT max_nid;
   Lisp_Object node_id, key;
 
@@ -1883,7 +1883,7 @@ xrm_q_get_resource_1 (XrmDatabase database, Lisp_Object node_id,
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (database);
   Lisp_Object key, labels[3], value;
-  int i, k;
+  ptrdiff_t i, k;
 
   if (!CONSP (quark_name))
     return Fgethash (node_id, database, Qnil);
@@ -1939,7 +1939,8 @@ Lisp_Object
 xrm_get_resource (XrmDatabase database, const char *name, const char *class)
 {
   Lisp_Object key, query_cache, quark_name, quark_class, tmp;
-  int i, nn, nc;
+  ptrdiff_t i;
+  EMACS_INT nn, nc;
   struct Lisp_Hash_Table *h;
   EMACS_UINT hash_code;
 

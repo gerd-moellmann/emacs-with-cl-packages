@@ -380,11 +380,11 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 
       GetEventParameter ([self _eventRef], kEventParamMouseLocation,
 			 typeHIPoint, NULL, sizeof (CGPoint), NULL, &position);
-      event = CGEventCreateMouseEvent (NULL, type, position,
+      event = CGEventCreateMouseEvent (NULL, (CGEventType) type, position,
 				       [self buttonNumber]);
       /* CGEventCreateMouseEvent on Mac OS X 10.4 does not set
 	 type.  */
-      CGEventSetType (event, type);
+      CGEventSetType (event, (CGEventType) type);
       if (NSEventMaskFromType (type)
 	  & (ANY_MOUSE_DOWN_EVENT_MASK | ANY_MOUSE_UP_EVENT_MASK))
 	{
@@ -418,9 +418,9 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   if (event == NULL)
     {
       event = CGEventCreate (NULL);
-      CGEventSetType (event, type);
+      CGEventSetType (event, (CGEventType) type);
     }
-  CGEventSetFlags (event, [self modifierFlags]);
+  CGEventSetFlags (event, (CGEventFlags) [self modifierFlags]);
   CGEventSetTimestamp (event, [self timestamp] * kSecondScale);
 
   return (CGEventRef) CF_AUTORELEASE (event);
@@ -2327,6 +2327,20 @@ install_application_handler (void)
   return noErr;
 }
 
+Lisp_Object
+mac_application_state (void)
+{
+  Lisp_Object result = Qnil;
+
+  if (NSApp == nil)
+    return result;
+
+  result = Fcons (QChidden_p, Fcons ([NSApp isHidden] ? Qt : Qnil, result));
+  result = Fcons (QCactive_p, Fcons ([NSApp isActive] ? Qt : Qnil, result));
+
+  return result;
+}
+
 
 /************************************************************************
 			       Windows
@@ -3778,6 +3792,11 @@ static CGRect unset_global_focus_view_frame (void);
   return MRC_AUTORELEASE (view);
 }
 
+- (NSSize)window:(NSWindow *)window willUseFullScreenContentSize:(NSSize)proposedSize
+{
+  return proposedSize;
+}
+
 - (NSApplicationPresentationOptions)window:(NSWindow *)window
       willUseFullScreenPresentationOptions:(NSApplicationPresentationOptions)proposedOptions
 {
@@ -3795,6 +3814,21 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowWillEnterFullScreen:(NSNotification *)notification
 {
+  /* This part is executed in -[EmacsFrameController
+     window:startCustomAnimationToEnterFullScreenWithDuration:] on OS
+     X 10.10 and earlier.  Unfortunately this is a bit kludgy.  */
+  if (!(mac_operating_system_version.major == 10
+	&& mac_operating_system_version.minor <= 10))
+    {
+      if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
+	{
+	  fullscreenFrameParameterAfterTransition = &Qfullscreen;
+	  fullScreenTargetState = (WM_STATE_FULLSCREEN
+				   | WM_STATE_DEDICATED_DESKTOP);
+	}
+      [self preprocessWindowManagerStateChange:fullScreenTargetState];
+    }
+
   /* We used to detach/attach the overlay window in the
      `window:startCustomAnimationToExitFullScreenWithDuration:'
      delegate method, but this places the overlay window below the
@@ -3827,6 +3861,17 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification
 {
+  if (!(mac_operating_system_version.major == 10
+	&& mac_operating_system_version.minor <= 10))
+    {
+      if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
+	{
+	  fullscreenFrameParameterAfterTransition = &Qnil;
+	  fullScreenTargetState = 0;
+	}
+      [self preprocessWindowManagerStateChange:fullScreenTargetState];
+    }
+
   /* Called also when a full screen window is being closed.  */
   if (overlayWindow)
     [self detachOverlayWindow];
@@ -3856,7 +3901,16 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (NSArray *)customWindowsToEnterFullScreenForWindow:(NSWindow *)window
 {
-  return [NSArray arrayWithObject:window];
+  /* Custom transition animation is disabled on OS X 10.11 because (1)
+     it doesn't look as intended and (2) C-x 5 2 on a full screen
+     frame causes crash due to assertion failure in
+     -[NSToolbarFullScreenWindowManager getToolbarLayout]:
+     getToolbarLayout called with a nil content view.  */
+  if (mac_operating_system_version.major == 10
+      && mac_operating_system_version.minor <= 10)
+    return [NSArray arrayWithObject:window];
+  else
+    return nil;
 }
 
 - (void)window:(NSWindow *)window
@@ -3942,7 +3996,11 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (NSArray *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
 {
-  return [NSArray arrayWithObject:window];
+  if (mac_operating_system_version.major == 10
+      && mac_operating_system_version.minor <= 10)
+    return [NSArray arrayWithObject:window];
+  else
+    return nil;
 }
 
 - (void)window:(NSWindow *)window
@@ -5809,6 +5867,9 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
 
   [super viewDidEndLiveResize];
   mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
+  /* Exit from select_and_poll_event so as to react to the frame size
+     change, especially in a full screen tile on OS X 10.11.  */
+  [NSApp postDummyEvent];
 }
 
 - (void)viewFrameDidChange:(NSNotification *)notification
@@ -7364,7 +7425,7 @@ mac_get_default_scroll_bar_width (struct frame *f)
 	      hitTest:[event locationInWindow]];
   if ([hitView respondsToSelector:@selector(item)])
     {
-      id item = [hitView performSelector:@selector(item)];
+      NSToolbarItem *item = [(id <EmacsToolbarItemViewer>)hitView item];
 
       if ([item isKindOfClass:[EmacsToolbarItem class]])
 	{
@@ -8595,7 +8656,7 @@ create_ok_cancel_buttons_view (void)
   NSView *view;
   NSButton *cancelButton, *okButton;
   NSDictionary *viewsDictionary;
-  NSArray *constraints;
+  NSArray *formats;
 
   cancelButton = [[NSButton alloc] init];
   [cancelButton setBezelStyle:NSRoundedBezelStyle];
@@ -8616,25 +8677,25 @@ create_ok_cancel_buttons_view (void)
   [view addSubview:okButton];
 
   viewsDictionary = NSDictionaryOfVariableBindings (cancelButton, okButton);
-  constraints = [NSLayoutConstraint
-		  constraintsWithVisualFormat:
-		    @"|-[cancelButton]-[okButton(==cancelButton)]-|"
-				      options:NSLayoutFormatAlignAllCenterY
-				      metrics:nil views:viewsDictionary];
+  formats = (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
+	     ? [NSArray arrayWithObjects:@"V:|-5-[cancelButton]-5-|",
+			@"[cancelButton]-[okButton(==cancelButton)]-|", nil]
+	     : [NSArray arrayWithObjects:@"V:|[cancelButton]-5-|",
+			@"|-[cancelButton]-[okButton(==cancelButton)]-|", nil]);
+  for (NSString *format in formats)
+    {
+      NSArray *constraints =
+	[NSLayoutConstraint
+	  constraintsWithVisualFormat:format
+			      options:NSLayoutFormatAlignAllCenterY
+			      metrics:nil views:viewsDictionary];
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-  [NSLayoutConstraint activateConstraints:constraints];
+      [NSLayoutConstraint activateConstraints:constraints];
 #else
-  [view addConstraints:constraints];
+      [view addConstraints:constraints];
 #endif
-  constraints = [NSLayoutConstraint
-		  constraintsWithVisualFormat:@"V:|[cancelButton]-5-|"
-				      options:0
-				      metrics:nil views:viewsDictionary];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-  [NSLayoutConstraint activateConstraints:constraints];
-#else
-  [view addConstraints:constraints];
-#endif
+    }
   [view setFrameSize:[view fittingSize]];
 
   MRC_RELEASE (cancelButton);
@@ -14624,10 +14685,28 @@ mac_font_shape_1 (NSFont *font, NSString *string,
 
       /* For now we assume the direction is not changed within the
 	 string.  */
-      [layoutManager getGlyphsInRange:(NSMakeRange (glyphIndex, 1))
-			       glyphs:NULL characterIndexes:NULL
-		    glyphInscriptions:NULL elasticBits:NULL
-			   bidiLevels:&bidiLevel];
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+      if ([layoutManager
+	    respondsToSelector:@selector(getGlyphsInRange:glyphs:properties:characterIndexes:bidiLevels:)])
+#endif
+	{
+	  [layoutManager getGlyphsInRange:(NSMakeRange (glyphIndex, 1))
+				   glyphs:NULL properties:NULL
+			 characterIndexes:NULL bidiLevels:&bidiLevel];
+	}
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+      else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100 || MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+	{
+	  [layoutManager getGlyphsInRange:(NSMakeRange (glyphIndex, 1))
+				   glyphs:NULL characterIndexes:NULL
+			glyphInscriptions:NULL elasticBits:NULL
+			       bidiLevels:&bidiLevel];
+	}
+#endif
       if (bidiLevel & 1)
 	permutation = xmalloc (sizeof (NSUInteger) * used);
       else

@@ -554,6 +554,12 @@ typedef id instancetype;
 - (void)setCoreGraphicsImages:(NSArray *)cgImages;
 @end
 
+/* Dummy protocol for specifying the return type of the selector
+   `item' that has multiple possibilities if unspecified.  */
+@protocol EmacsToolbarItemViewer
+- (NSToolbarItem *)item;
+@end
+
 @interface EmacsFrameController (Toolbar) <NSToolbarDelegate>
 - (void)setupToolBarWithVisibility:(BOOL)visible;
 - (void)updateToolbarDisplayMode;
@@ -669,6 +675,9 @@ typedef id instancetype;
 
 /* Class for SVG frame load delegate.  */
 @interface EmacsSVGLoader : NSObject
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+			    <WebFrameLoadDelegate>
+#endif
 {
   /* Frame and image data structures to which the SVG image is
      loaded.  */
@@ -1067,6 +1076,17 @@ enum {
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSView (AvailableOn1090AndLater)
 - (void)setLayerUsesCoreImageFilters:(BOOL)usesFilters;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
+typedef NSInteger NSGlyphProperty;
+
+@interface NSLayoutManager (AvailableOn101100AndLater)
+- (NSUInteger)getGlyphsInRange:(NSRange)glyphRange glyphs:(CGGlyph *)glyphBuffer
+		    properties:(NSGlyphProperty *)props
+	      characterIndexes:(NSUInteger *)charIndexBuffer
+		    bidiLevels:(unsigned char *)bidiLevelBuffer;
 @end
 #endif
 
