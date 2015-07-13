@@ -3814,6 +3814,21 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowWillEnterFullScreen:(NSNotification *)notification
 {
+  /* This part is executed in -[EmacsFrameController
+     window:startCustomAnimationToEnterFullScreenWithDuration:] on OS
+     X 10.10 and earlier.  Unfortunately this is a bit kludgy.  */
+  if (!(mac_operating_system_version.major == 10
+	&& mac_operating_system_version.minor <= 10))
+    {
+      if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
+	{
+	  fullscreenFrameParameterAfterTransition = &Qfullscreen;
+	  fullScreenTargetState = (WM_STATE_FULLSCREEN
+				   | WM_STATE_DEDICATED_DESKTOP);
+	}
+      [self preprocessWindowManagerStateChange:fullScreenTargetState];
+    }
+
   /* We used to detach/attach the overlay window in the
      `window:startCustomAnimationToExitFullScreenWithDuration:'
      delegate method, but this places the overlay window below the
@@ -3846,6 +3861,17 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification
 {
+  if (!(mac_operating_system_version.major == 10
+	&& mac_operating_system_version.minor <= 10))
+    {
+      if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
+	{
+	  fullscreenFrameParameterAfterTransition = &Qnil;
+	  fullScreenTargetState = 0;
+	}
+      [self preprocessWindowManagerStateChange:fullScreenTargetState];
+    }
+
   /* Called also when a full screen window is being closed.  */
   if (overlayWindow)
     [self detachOverlayWindow];
@@ -3875,7 +3901,16 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (NSArray *)customWindowsToEnterFullScreenForWindow:(NSWindow *)window
 {
-  return [NSArray arrayWithObject:window];
+  /* Custom transition animation is disabled on OS X 10.11 because (1)
+     it doesn't look as intended and (2) C-x 5 2 on a full screen
+     frame causes crash due to assertion failure in
+     -[NSToolbarFullScreenWindowManager getToolbarLayout]:
+     getToolbarLayout called with a nil content view.  */
+  if (mac_operating_system_version.major == 10
+      && mac_operating_system_version.minor <= 10)
+    return [NSArray arrayWithObject:window];
+  else
+    return nil;
 }
 
 - (void)window:(NSWindow *)window
@@ -3961,7 +3996,11 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (NSArray *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
 {
-  return [NSArray arrayWithObject:window];
+  if (mac_operating_system_version.major == 10
+      && mac_operating_system_version.minor <= 10)
+    return [NSArray arrayWithObject:window];
+  else
+    return nil;
 }
 
 - (void)window:(NSWindow *)window
