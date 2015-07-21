@@ -8950,8 +8950,11 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	     is set when it is not a key equivalent.  But we keep this
 	     for binary compatibility.
 	     Update: this is necessary for passing Control-Tab to
-	     Emacs on Mac OS X 10.5 and later.  */
-	  [firstResponder keyDown:theEvent];
+	     Emacs on Mac OS X 10.5 and later.
+	     Update: don't pass power button events (keyCode == 127)
+	     on OS X 10.9 and later.  */
+	  if ([theEvent keyCode] != 127)
+	    [firstResponder keyDown:theEvent];
 
 	  return YES;
 	}
