@@ -11895,7 +11895,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 
       pageSize.width = ceil (pageSize.width);
       pageSize.height = ceil (pageSize.height);
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+      [textContainer setSize:pageSize];
+#else
       [textContainer setContainerSize:pageSize];
+#endif
 
       [layoutManager setDelegate:self];
     }
@@ -11922,7 +11926,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
       NSSize containerSize = NSMakeSize (ceil (NSMaxX (rect)),
 					 ceil (NSMaxY (rect)));
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+      [textContainer setSize:containerSize];
+#else
       [textContainer setContainerSize:containerSize];
+#endif
     }
 
   documentAttributes = MRC_RETAIN (docAttributes);
@@ -12128,7 +12136,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   NSTextContainer *textContainer =
     [[layoutManager textContainers] objectAtIndex:index];
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+  return [textContainer size];
+#else
   return [textContainer containerSize];
+#endif
 }
 
 - (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
@@ -12151,7 +12163,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   NSLayoutManager *layoutManager = [self layoutManager];
   NSTextContainer *textContainer =
     [[layoutManager textContainers] objectAtIndex:index];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+  NSSize containerSize = [textContainer size];
+#else
   NSSize containerSize = [textContainer containerSize];
+#endif
   NSRange glyphRange = [layoutManager glyphRangeForTextContainer:textContainer];
   NSAffineTransform *transform = [NSAffineTransform transform];
   NSGraphicsContext *gcontext =
@@ -12177,9 +12193,14 @@ didCompleteLayoutForTextContainer:(NSTextContainer *)aTextContainer
       NSLayoutManager *layoutManager = [self layoutManager];
       NSTextContainer *firstContainer =
 	[[layoutManager textContainers] objectAtIndex:0];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+      NSTextContainer *textContainer = [[NSTextContainer alloc]
+					 initWithSize:[firstContainer size]];
+#else
       NSSize containerSize = [firstContainer containerSize];
       NSTextContainer *textContainer = [[NSTextContainer alloc]
 					 initWithContainerSize:containerSize];
+#endif
 
       [aLayoutManager addTextContainer:textContainer];
       MRC_RELEASE (textContainer);
