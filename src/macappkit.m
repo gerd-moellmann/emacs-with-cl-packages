@@ -14552,10 +14552,14 @@ mac_font_get_glyph_for_cid (FontRef font, CharacterCollection collection,
     if (fontInTextStorage == nsFont
 	|| [[fontInTextStorage fontName] isEqualToString:[nsFont fontName]])
       {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+	result = [layoutManager CGGlyphAtIndex:0 isValidIndex:NULL];
+#else
 	NSGlyph glyph = [layoutManager glyphAtIndex:0];
 
 	if (glyph < [nsFont numberOfGlyphs])
 	  result = glyph;
+#endif
       }
 
     MRC_RELEASE (textStorage);
@@ -14857,8 +14861,12 @@ mac_font_shape_1 (NSFont *font, NSString *string,
 		  glyph_layouts[i].string_index = tmp;
 		}
 	    }
-	  gl->glyph_id = [layoutManager glyphAtIndex:glyphIndex];
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+	  gl->glyph_id = [layoutManager CGGlyphAtIndex:glyphIndex];
+#else
+	  gl->glyph_id = [layoutManager glyphAtIndex:glyphIndex];
+#endif
 	  location = [layoutManager locationForGlyphAtIndex:glyphIndex];
 	  gl->baseline_delta = spaceLocation.y - location.y;
 
