@@ -13575,6 +13575,38 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 static CFIndex mac_font_shape_1 (NSFont *, NSString *,
 				 struct mac_glyph_layout *, CFIndex, BOOL);
 
+@implementation NSLayoutManager (Emacs)
+
+/* Return union of enclosing rects for glyphRange in textContainer.  */
+
+- (NSRect)enclosingRectForGlyphRange:(NSRange)glyphRange
+		     inTextContainer:(NSTextContainer *)textContainer
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+  NSRect __block result = NSZeroRect;
+
+  [self enumerateEnclosingRectsForGlyphRange:glyphRange
+		    withinSelectedGlyphRange:(NSMakeRange (NSNotFound, 0))
+			     inTextContainer:textContainer
+				  usingBlock:^(NSRect rect, BOOL *stop) {
+      result = NSUnionRect (result, rect);
+    }];
+#else
+  NSRect result = NSZeroRect;
+  NSUInteger i, nrects;
+  NSRect *rects = [self rectArrayForGlyphRange:glyphRange
+		      withinSelectedGlyphRange:(NSMakeRange (NSNotFound, 0))
+			       inTextContainer:textContainer rectCount:&nrects];
+
+  for (i = 0; i < nrects; i++)
+    result = NSUnionRect (result, rects[i]);
+#endif
+
+  return result;
+}
+
+@end				// NSLayoutManager (Emacs)
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
 
 #define FONT_NAME_ATTRIBUTE (@"NSFontNameAttribute")
@@ -14773,14 +14805,12 @@ mac_font_shape_1 (NSFont *font, NSString *string,
 	totalAdvance = 0;
       else
 	{
-	  NSUInteger nrects;
-	  NSRect *glyphRects =
-	    [layoutManager
-	      rectArrayForGlyphRange:(NSMakeRange (0, numberOfGlyphs))
-	      withinSelectedGlyphRange:(NSMakeRange (NSNotFound, 0))
-		     inTextContainer:textContainer rectCount:&nrects];
+	  NSRect glyphRect =
+	    [layoutManager enclosingRectForGlyphRange:(NSMakeRange
+						       (0, numberOfGlyphs))
+				      inTextContainer:textContainer];
 
-	  totalAdvance = NSMaxX (glyphRects[0]);
+	  totalAdvance = NSMaxX (glyphRect);
 	}
 
       for (i = 0; i < used; i++)
@@ -14789,8 +14819,7 @@ mac_font_shape_1 (NSFont *font, NSString *string,
 	  NSPoint location;
 	  NSUInteger nextGlyphIndex;
 	  NSRange glyphRange;
-	  NSRect *glyphRects;
-	  NSUInteger nrects;
+	  NSRect glyphRect;
 
 	  if (!RIGHT_TO_LEFT_P)
 	    gl = glyph_layouts + i;
@@ -14827,12 +14856,10 @@ mac_font_shape_1 (NSFont *font, NSString *string,
 	      else
 		glyphRange = NSMakeRange (glyphIndex,
 					  nextGlyphIndex - glyphIndex);
-	      glyphRects =
-		[layoutManager
-		  rectArrayForGlyphRange:glyphRange
-		  withinSelectedGlyphRange:(NSMakeRange (NSNotFound, 0))
-			 inTextContainer:textContainer rectCount:&nrects];
-	      maxX = max (NSMaxX (glyphRects[0]), totalAdvance);
+	      glyphRect =
+		[layoutManager enclosingRectForGlyphRange:glyphRange
+					  inTextContainer:textContainer];
+	      maxX = max (NSMaxX (glyphRect), totalAdvance);
 	      gl->advance_delta = location.x - totalAdvance;
 	      gl->advance = maxX - totalAdvance;
 	      totalAdvance = maxX;
@@ -14847,12 +14874,10 @@ mac_font_shape_1 (NSFont *font, NSString *string,
 	      else
 		glyphRange = NSMakeRange (prevGlyphIndex,
 					  glyphIndex + 1 - prevGlyphIndex);
-	      glyphRects =
-		[layoutManager
-		  rectArrayForGlyphRange:glyphRange
-		  withinSelectedGlyphRange:(NSMakeRange (NSNotFound, 0))
-			 inTextContainer:textContainer rectCount:&nrects];
-	      minX = min (NSMinX (glyphRects[0]), totalAdvance);
+	      glyphRect =
+		[layoutManager enclosingRectForGlyphRange:glyphRange
+					  inTextContainer:textContainer];
+	      minX = min (NSMinX (glyphRect), totalAdvance);
 	      gl->advance = totalAdvance - minX;
 	      totalAdvance = minX;
 	      gl->advance_delta = location.x - totalAdvance;

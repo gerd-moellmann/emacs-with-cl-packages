@@ -747,6 +747,11 @@ typedef id instancetype;
 @end
 #endif
 
+@interface NSLayoutManager (Emacs)
+- (NSRect)enclosingRectForGlyphRange:(NSRange)glyphRange
+		     inTextContainer:(NSTextContainer *)textContainer;
+@end
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
 
 /* Class for locale objects used in kCTFontLanguagesAttribute
