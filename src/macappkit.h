@@ -342,6 +342,13 @@ typedef id instancetype;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+  /* The block called when the window ends live resize.  */
+  void (^liveResizeCompletionHandler) (void);
+
+  /* Whether transition effect should be set up when the window will
+     start live resize.  */
+  BOOL shouldLiveResizeTriggerTransition;
+
   /* Window manager state after the full screen transition.  */
   WMState fullScreenTargetState;
 
@@ -376,6 +383,11 @@ typedef id instancetype;
 - (NSBitmapImageRep *)bitmapImageRepInContentViewRect:(NSRect)rect;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
 - (BOOL)isWindowFrontmost;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+- (void)setupLiveResizeTransition;
+- (void)setShouldLiveResizeTriggerTransition:(BOOL)flag;
+- (void)setLiveResizeCompletionHandler:(void (^)(void))block;
+#endif
 @end
 
 /* Class for Emacs view that handles drawing events only.  It is used
@@ -461,9 +473,9 @@ typedef id instancetype;
 @end
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-/* Class for view used in full screen transition animations.  */
+/* Class for view used in live resize transition animations.  */
 
-@interface EmacsFullScreenTransitionView : NSView
+@interface EmacsLiveResizeTransitionView : NSView
 @end
 #endif
 

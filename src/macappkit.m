@@ -2539,7 +2539,16 @@ static CGRect unset_global_focus_view_frame (void);
       && [delegate window:self shouldForwardAction:_cmd to:target])
     [NSApp sendAction:_cmd to:target from:sender];
   else
-    [super zoom:sender];
+    {
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+      EmacsFrameController *frameController = (EmacsFrameController *) delegate;
+      [frameController setShouldLiveResizeTriggerTransition:YES];
+#endif
+      [super zoom:sender];
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+      [frameController setShouldLiveResizeTriggerTransition:NO];
+#endif
+    }
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem
@@ -3532,6 +3541,10 @@ static CGRect unset_global_focus_view_frame (void);
 
       [window suspendResizeTracking:currentEvent positionAdjustment:adjustment];
     }
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+  else if ([window inLiveResize])
+    [self setupLiveResizeTransition];
+#endif
 
   return result;
 }
@@ -3615,13 +3628,13 @@ static CGRect unset_global_focus_view_frame (void);
 }
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-- (EmacsFullScreenTransitionView *)fullScreenTransitionView
+- (EmacsLiveResizeTransitionView *)liveResizeTransitionView
 {
   struct frame *f = emacsFrame;
   struct window *root_window;
   CGFloat rootWindowMaxY;
   CALayer *rootLayer;
-  EmacsFullScreenTransitionView *view;
+  EmacsLiveResizeTransitionView *view;
   NSView *contentView = [emacsWindow contentView];
   NSRect contentViewRect = [contentView visibleRect];
   NSBitmapImageRep *bitmap =
@@ -3779,7 +3792,7 @@ static CGRect unset_global_focus_view_frame (void);
       return 1;
     });
 
-  view = [[EmacsFullScreenTransitionView alloc] initWithFrame:contentViewRect];
+  view = [[EmacsLiveResizeTransitionView alloc] initWithFrame:contentViewRect];
   [view setLayer:rootLayer];
   [view setWantsLayer:YES];
   [view setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
@@ -3790,6 +3803,62 @@ static CGRect unset_global_focus_view_frame (void);
     [view setLayerUsesCoreImageFilters:YES];
 
   return MRC_AUTORELEASE (view);
+}
+
+- (void)setShouldLiveResizeTriggerTransition:(BOOL)flag
+{
+  shouldLiveResizeTriggerTransition = flag;
+}
+
+- (void)setLiveResizeCompletionHandler:(void (^)(void))block
+{
+  MRC_RELEASE (liveResizeCompletionHandler);
+  liveResizeCompletionHandler = [block copy];
+}
+
+- (void)setupLiveResizeTransition
+{
+  if (liveResizeCompletionHandler == nil && [emacsWindow isMainWindow])
+    {
+      struct frame *f = emacsFrame;
+      GC gc = f->output_data.mac->normal_gc;
+      NSView *contentView = [emacsWindow contentView];
+      EmacsLiveResizeTransitionView *transitionView;
+
+      transitionView = [self liveResizeTransitionView];
+      [transitionView layer].backgroundColor = gc->cg_back_color;
+      [contentView addSubview:transitionView positioned:NSWindowAbove
+		   relativeTo:emacsView];
+      [self setLiveResizeCompletionHandler:^{
+	  [NS_ANIMATION_CONTEXT
+	    runAnimationGroup:^(NSAnimationContext *context) {
+	      CALayer *layer = [transitionView layer];
+
+	      [context setDuration:(10 / 60.0)];
+	      layer.beginTime = [layer convertTime:(CACurrentMediaTime ())
+					 fromLayer:nil] + 10 / 60.0;
+	      layer.fillMode = kCAFillModeBackwards;
+	      layer.opacity = 0;
+	    } completionHandler:^{
+	      [transitionView removeFromSuperview];
+	    }];
+	}];
+    }
+}
+
+- (void)windowWillStartLiveResize:(NSNotification *)notification
+{
+  if (shouldLiveResizeTriggerTransition)
+    [self setupLiveResizeTransition];
+}
+
+- (void)windowDidEndLiveResize:(NSNotification *)notification
+{
+  if (liveResizeCompletionHandler)
+    {
+      liveResizeCompletionHandler ();
+      [self setLiveResizeCompletionHandler:nil];
+    }
 }
 
 - (NSSize)window:(NSWindow *)window willUseFullScreenContentSize:(NSSize)proposedSize
@@ -3857,6 +3926,8 @@ static CGRect unset_global_focus_view_frame (void);
      visibility value.  */
   [self performSelector:@selector(restoreToolbarVisibility)
 	     withObject:nil afterDelay:0];
+  /* For resize in a split-view space on OS X 10.11.  */
+  [self setShouldLiveResizeTriggerTransition:YES];
 }
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification
@@ -3876,6 +3947,7 @@ static CGRect unset_global_focus_view_frame (void);
   if (overlayWindow)
     [self detachOverlayWindow];
   [self saveToolbarVisibility];
+  [self setShouldLiveResizeTriggerTransition:NO];
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
@@ -3920,10 +3992,10 @@ static CGRect unset_global_focus_view_frame (void);
   NSUInteger previousAutoresizingMask = [emacsView autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
-  EmacsFullScreenTransitionView *transitionView;
+  EmacsLiveResizeTransitionView *transitionView;
   CGFloat titleBarHeight;
 
-  transitionView = MRC_RETAIN ([self fullScreenTransitionView]);
+  transitionView = MRC_RETAIN ([self liveResizeTransitionView]);
 
   titleBarHeight = NSHeight (srcRect) - NSMaxY ([contentView frame]);
 
@@ -4011,10 +4083,10 @@ static CGRect unset_global_focus_view_frame (void);
   NSUInteger previousAutoresizingMask = [emacsView autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
-  EmacsFullScreenTransitionView *transitionView;
+  EmacsLiveResizeTransitionView *transitionView;
   CGFloat titleBarHeight;
 
-  transitionView = MRC_RETAIN ([self fullScreenTransitionView]);
+  transitionView = MRC_RETAIN ([self liveResizeTransitionView]);
 
   if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
     {
@@ -6215,14 +6287,14 @@ create_resize_indicator_image (void)
 @end				// EmacsOverlayView
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-@implementation EmacsFullScreenTransitionView
+@implementation EmacsLiveResizeTransitionView
 
 - (BOOL)isFlipped
 {
   return YES;
 }
 
-@end				// EmacsFullScreenTransitionView
+@end				// EmacsLiveResizeTransitionView
 #endif
 
 
