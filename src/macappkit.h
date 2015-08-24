@@ -70,6 +70,24 @@ typedef unsigned int NSUInteger;
 typedef id instancetype;
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100 && __has_feature (objc_generics)
+#define NSArrayG(ObjectType)		NSArray <ObjectType>
+#define NSMutableArrayG(ObjectType)	NSMutableArray <ObjectType>
+#define NSSetG(ObjectType)		NSSet <ObjectType>
+#define NSMutableSetG(ObjectType)	NSMutableSet <ObjectType>
+#define NSDictionaryG(KeyT, ObjectT)	NSDictionary <KeyT, ObjectT>
+#define NSMutableDictionaryG(KeyT, ObjectT) NSMutableDictionary <KeyT, ObjectT>
+#define NSEnumeratorG(ObjectType)	NSEnumerator <ObjectType>
+#else
+#define NSArrayG(ObjectType)		NSArray
+#define NSMutableArrayG(ObjectType)	NSMutableArray
+#define NSSetG(ObjectType)		NSSet
+#define NSMutableSetG(ObjectType)	NSMutableSet
+#define NSDictionaryG(KeyT, ObjectT)	NSDictionary
+#define NSMutableDictionaryG(KeyT, ObjectT) NSMutableDictionary
+#define NSEnumeratorG(ObjectType)	NSEnumerator
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
 /* If we add `<NSObject>' here as documented, the 64-bit binary
    compiled on Mac OS X 10.5 fails in startup at -[EmacsController
@@ -98,7 +116,7 @@ typedef id instancetype;
 - (Lisp_Object)lispString;
 - (Lisp_Object)UTF8LispString;
 - (Lisp_Object)UTF16LispString;
-- (NSArray *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator;
+- (NSArrayG (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator;
 @end
 
 @interface NSFont (Emacs)
@@ -220,7 +238,8 @@ typedef id instancetype;
 
   /* Saved key bindings with or without conflicts (currently, those
      for writing direction commands on Mac OS X 10.6).  */
-  NSDictionary *keyBindingsWithConflicts, *keyBindingsWithoutConflicts;
+  NSDictionaryG (NSString *, NSString *)
+    *keyBindingsWithConflicts, *keyBindingsWithoutConflicts;
 
   /* Help topic that the user selected using Help menu search.  */
   id selectedHelpTopic;
@@ -236,7 +255,7 @@ typedef id instancetype;
   NSTimer *flushTimer;
 
   /* Set of windows whose flush is deferred.  */
-  NSMutableSet *deferredFlushWindows;
+  NSMutableSetG (NSWindow *) *deferredFlushWindows;
 }
 - (int)getAndClearMenuItemSelection;
 - (void)storeInputEvent:(id)sender;
@@ -560,10 +579,10 @@ typedef id instancetype;
 @interface EmacsToolbarItem : NSToolbarItem
 {
   /* Array of CoreGraphics images of the item.  */
-  NSArray *coreGraphicsImages;
+  NSArrayG (id) *coreGraphicsImages;
 }
 - (void)setCoreGraphicsImage:(CGImageRef)cgImage;
-- (void)setCoreGraphicsImages:(NSArray *)cgImages;
+- (void)setCoreGraphicsImages:(NSArrayG (id) *)cgImages;
 @end
 
 /* Dummy protocol for specifying the return type of the selector
@@ -666,7 +685,7 @@ typedef id instancetype;
 @end
 
 @interface EmacsFrameController (DragAndDrop)
-- (void)registerEmacsViewForDraggedTypes:(NSArray *)pboardTypes;
+- (void)registerEmacsViewForDraggedTypes:(NSArrayG (NSString *) *)pboardTypes;
 - (void)setOverlayViewHighlighted:(BOOL)flag;
 @end
 
@@ -714,13 +733,15 @@ typedef id instancetype;
 /* Protocol for document rasterization.  */
 
 @protocol EmacsDocumentRasterizer <NSObject>
-- (instancetype)initWithURL:(NSURL *)url options:(NSDictionary *)options;
-- (instancetype)initWithData:(NSData *)data options:(NSDictionary *)options;
-+ (NSArray *)supportedTypes;
+- (instancetype)initWithURL:(NSURL *)url
+		    options:(NSDictionaryG (NSString *, id) *)options;
+- (instancetype)initWithData:(NSData *)data
+		     options:(NSDictionaryG (NSString *, id) *)options;
++ (NSArrayG (NSString *) *)supportedTypes;
 - (NSUInteger)pageCount;
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
 - (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
-- (NSDictionary *)documentAttributesOfPageAtIndex:(NSUInteger)index;
+- (NSDictionaryG (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index;
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
 	      inContext:(CGContextRef)ctx;
 @end
@@ -739,10 +760,10 @@ typedef id instancetype;
   /* The text storage and document attributes for the document to be
      rasterized.  */
   NSTextStorage *textStorage;
-  NSDictionary *documentAttributes;
+  NSDictionaryG (NSString *, id) *documentAttributes;
 }
 - (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
-		      documentAttributes:(NSDictionary *)docAttributes;
+		      documentAttributes:(NSDictionaryG (NSString *, id) *)docAttributes;
 @end
 
 @interface EmacsFrameController (Accessibility)
