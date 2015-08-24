@@ -480,6 +480,66 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 		 "\\|" heart zwj "\\(?:" kiss zwj "\\)?" man-or-woman "\\)")
 	1 font-shape-gstring -1]))))
 
+(defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"
+  "Sequence of characters used in automatic operator composition."
+  :package-version '(Mac\ port . "5.10")
+  :type 'string
+  :group 'mac)
+
+(defalias 'mac-auto-operator-composition-shape-gstring 'font-shape-gstring
+  "Alias function for `font-shape-gstring'.
+This is used for distinguishing `composition-function-table'
+rules added by `mac-auto-operator-composition-mode'.")
+
+(define-minor-mode mac-auto-operator-composition-mode
+  "Toggle Mac Auto Operator Composition mode.
+With a prefix argument ARG, enable Mac Auto Operator Composition
+mode if ARG is positive, and disable it otherwise.  If called
+from Lisp, enable the mode if ARG is omitted or nil.
+
+Mac Auto Operator Composition mode automatically composes
+consecutive occurrences of characters consisting of the elements
+of `mac-auto-operator-composition-characters' if the font
+supports such a composition.  Some fonts provide ligatures for
+several combinations of symbolic characters so such a combination
+looks like a single unit of an operator symbol in a programming
+language."
+  :init-value nil
+  :global t
+  :group 'mac
+  :package-version '(Mac\ port . "5.10")
+  (if mac-auto-operator-composition-mode
+      (when (eq (terminal-live-p (frame-terminal)) 'mac)
+	(let* ((regexp (regexp-opt
+			(mapcar 'char-to-string
+				mac-auto-operator-composition-characters)))
+	       (rule (vector (concat "." regexp "+") 0
+			     'mac-auto-operator-composition-shape-gstring))
+	       (last-old-rules (list nil))
+	       last-new-rules)
+	  (mapc (lambda (c)
+		  (let ((old-rules (aref composition-function-table c)))
+		    (when (listp old-rules)
+		      (unless (eq old-rules last-old-rules)
+			(setq last-old-rules old-rules)
+			(setq last-new-rules (cons rule old-rules)))
+		      (set-char-table-range composition-function-table c
+					    last-new-rules))))
+		mac-auto-operator-composition-characters))
+	(global-auto-composition-mode 1))
+    (map-char-table
+     (lambda (c rules)
+       (when (consp rules)
+	 (let (new-rules removed-p)
+	   (dolist (rule rules)
+	     (if (eq (aref rule 2) 'mac-auto-operator-composition-shape-gstring)
+		 (setq removed-p t)
+	       (push rule new-rules)))
+	   (if removed-p
+	       (set-char-table-range composition-function-table c
+				     (nreverse new-rules))))))
+     composition-function-table)))
+
 
 ;;;; Conversion between common flavors and Lisp string.
 

@@ -384,6 +384,12 @@ proportional fonts.  You can see the difference by putting the box
 cursor over Helvetica 12pt @samp{I}, whose ideal width is 3.33398 but
 displayed with the rounded width 3, for example.
 
+@findex mac-auto-operator-composition-mode
+  If @code{mac-auto-operator-composition-mode} global minor mode is
+enabled, it composes consecutive @acronym{ASCII} symbolic characters
+into a special glyph when the font supports such a composition
+typically via ligatures for operators in programming languages.
+
 @node Mac Images and Colors
 @section Images and Colors on the Mac Port
 @cindex Images and Colors (Mac port)
