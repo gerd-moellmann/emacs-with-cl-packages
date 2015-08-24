@@ -11937,7 +11937,9 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   layoutManager = [[NSLayoutManager alloc] init];
   textContainer = [[NSTextContainer alloc] init];
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
   [layoutManager setUsesScreenFonts:NO];
+#endif
 
   [layoutManager addTextContainer:textContainer];
   MRC_RELEASE (textContainer);
@@ -14685,7 +14687,7 @@ Boolean
 mac_screen_font_get_metrics (ScreenFontRef font, CGFloat *ascent,
 			     CGFloat *descent, CGFloat *leading)
 {
-  NSFont *nsFont = [(__bridge NSFont *)font printerFont];
+  NSFont *nsFont = (__bridge NSFont *) font;
   NSTextStorage *textStorage;
   NSLayoutManager *layoutManager;
   NSTextContainer *textContainer;
@@ -14699,7 +14701,6 @@ mac_screen_font_get_metrics (ScreenFontRef font, CGFloat *ascent,
 
   [textStorage setFont:nsFont];
   [textContainer setLineFragmentPadding:0];
-  [layoutManager setUsesScreenFonts:YES];
 
   [layoutManager addTextContainer:textContainer];
   MRC_RELEASE (textContainer);
@@ -14736,7 +14737,7 @@ mac_screen_font_shape (ScreenFontRef font, CFStringRef string,
 		       struct mac_glyph_layout *glyph_layouts,
 		       CFIndex glyph_len)
 {
-  return mac_font_shape_1 ([(__bridge NSFont *)font printerFont],
+  return mac_font_shape_1 ((__bridge NSFont *) font,
 			   (__bridge NSString *) string,
 			   glyph_layouts, glyph_len, YES);
 }
@@ -14765,7 +14766,6 @@ mac_font_shape_1 (NSFont *font, NSString *string,
 					  initWithString:@" "]))];
   [textStorage setFont:font];
   [textContainer setLineFragmentPadding:0];
-  [layoutManager setUsesScreenFonts:screen_font_p];
 
   [layoutManager addTextContainer:textContainer];
   MRC_RELEASE (textContainer);
