@@ -1,4 +1,27 @@
+* emacs-24.5-mac-5.10 (2015-08-25)
+
+** Fixed bugs
+
+*** Crash when pressing Command + power button on OS X 10.9 and later.
+
+** Improvements
+
+*** Accept localized font family names on Mac OS X 10.6 and later.
+
+*** Some resize operations on OS X 10.7 and later now involve
+transition animations by decomposing and distributing the current
+contents.  Examples include dragging with shift/option key pressed,
+zooming, and dragging full screen tiling border on OS X 10.11 Beta.
+
+*** New global minor mode `mac-auto-operator-composition-mode'.  If
+enabled, it composes consecutive ASCII symbolic characters into a
+special glyph when the font supports such a composition typically via
+ligatures for operators in programming languages.  Tested with Hasklig
+and Fira Code.
+
+
 * emacs-24.5-mac-5.9 (2015-07-13)
+http://lists.gnu.org/archive/html/emacs-devel/2015-07/msg00151.html
 
 ** Fixed bugs
 

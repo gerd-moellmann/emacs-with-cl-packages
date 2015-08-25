@@ -1110,7 +1110,6 @@ static CFStringRef
 macfont_create_family_with_symbol (Lisp_Object symbol)
 {
   CFStringRef result = NULL, family_name;
-  CFComparatorFunction family_name_comparator;
 
   if (macfont_get_family_cache_if_present (symbol, &result))
     return result ? CFRetain (result) : NULL;
@@ -1123,8 +1122,37 @@ macfont_create_family_with_symbol (Lisp_Object symbol)
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
   if (CTFontManagerCompareFontFamilyNames != NULL)
 #endif
+    /* This works in a case-insensitive way also with localized names
+       on Mac OS X 10.6 and later.  */
     {
-      family_name_comparator = CTFontManagerCompareFontFamilyNames;
+      FontDescriptorRef pat_desc = NULL;
+      CFDictionaryRef attributes =
+	CFDictionaryCreate (NULL,
+			    (const void **) &MAC_FONT_FAMILY_NAME_ATTRIBUTE,
+			    (const void **) &family_name, 1,
+			    &kCFTypeDictionaryKeyCallBacks,
+			    &kCFTypeDictionaryValueCallBacks);
+
+      if (attributes)
+	{
+	  pat_desc = mac_font_descriptor_create_with_attributes (attributes);
+	  CFRelease (attributes);
+	}
+      if (pat_desc)
+	{
+	  FontDescriptorRef desc =
+	    mac_font_descriptor_create_matching_font_descriptor (pat_desc,
+								 NULL);
+	  if (desc)
+	    {
+	      result =
+		mac_font_descriptor_copy_attribute (desc,
+						    MAC_FONT_FAMILY_NAME_ATTRIBUTE);
+	      CFRelease (desc);
+	    }
+	  macfont_set_family_cache (symbol, result);
+	  CFRelease (pat_desc);
+	}
     }
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
   else		     /* CTFontManagerCompareFontFamilyNames == NULL */
@@ -1132,39 +1160,36 @@ macfont_create_family_with_symbol (Lisp_Object symbol)
 #endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1060 */
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
     {
-      family_name_comparator = mac_font_family_compare;
+      if (mac_font_family_compare (family_name, CFSTR ("LastResort"), NULL)
+	  == kCFCompareEqualTo)
+	result = CFSTR ("LastResort");
+      else
+	{
+	  CFIndex i, count;
+	  CFArrayRef families = macfont_copy_available_families_cache ();
+
+	  if (families)
+	    {
+	      count = CFArrayGetCount (families);
+	      i = CFArrayBSearchValues (families, CFRangeMake (0, count),
+					(const void *) family_name,
+					mac_font_family_compare, NULL);
+	      if (i < count)
+		{
+		  CFStringRef name = CFArrayGetValueAtIndex (families, i);
+
+		  if (mac_font_family_compare (name, family_name, NULL)
+		      == kCFCompareEqualTo)
+		    result = CFRetain (name);
+		}
+	      CFRelease (families);
+	    }
+	}
+      macfont_set_family_cache (symbol, result);
     }
 #endif
 
-  if ((*family_name_comparator) (family_name, CFSTR ("LastResort"), NULL)
-      == kCFCompareEqualTo)
-    result = CFSTR ("LastResort");
-  else
-    {
-      CFIndex i, count;
-      CFArrayRef families = macfont_copy_available_families_cache ();
-
-      if (families)
-	{
-	  count = CFArrayGetCount (families);
-	  i = CFArrayBSearchValues (families, CFRangeMake (0, count),
-				    (const void *) family_name,
-				    family_name_comparator, NULL);
-	  if (i < count)
-	    {
-	      CFStringRef name = CFArrayGetValueAtIndex (families, i);
-
-	      if ((*family_name_comparator) (name, family_name, NULL)
-		  == kCFCompareEqualTo)
-		result = CFRetain (name);
-	    }
-	  CFRelease (families);
-	}
-    }
-
   CFRelease (family_name);
-
-  macfont_set_family_cache (symbol, result);
 
   return result;
 }
