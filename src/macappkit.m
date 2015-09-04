@@ -2623,6 +2623,12 @@ static CGRect unset_global_focus_view_frame (void);
 
   [self setupEmacsView];
   [self setupWindow];
+  if (!FRAME_TOOLTIP_P (f))
+    [[NSNotificationCenter defaultCenter]
+      addObserver:self
+	 selector:@selector(emacsMainViewFrameDidChange:)
+	     name:@"NSViewFrameDidChangeNotification"
+	   object:emacsView];
 
   return self;
 }
@@ -2849,9 +2855,10 @@ static CGRect unset_global_focus_view_frame (void);
   return emacsWindow;
 }
 
-#if !USE_ARC
 - (void)dealloc
 {
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+#if !USE_ARC
   [emacsView release];
   /* emacsWindow is released via released-when-closed.  */
   [hourglass release];
@@ -2861,8 +2868,8 @@ static CGRect unset_global_focus_view_frame (void);
   [overlayView release];
   [overlayWindow release];
   [super dealloc];
-}
 #endif
+}
 
 - (NSSize)hintedWindowFrameSize:(NSSize)frameSize allowsLarger:(BOOL)flag
 {
@@ -3591,6 +3598,27 @@ static CGRect unset_global_focus_view_frame (void);
     windowFrame.origin.y += dy;
 
   return windowFrame;
+}
+
+/* This used be in EmacsMainView, but it might live longer than the
+   window delegate on OS X 10.11 when closing a full screen window,
+   and might receive a bogus notification after the delegate has been
+   deallocated.  */
+
+- (void)emacsMainViewFrameDidChange:(NSNotification *)notification
+{
+  if (![emacsView inLiveResize]
+      && ([emacsView autoresizingMask]
+	  & (NSViewWidthSizable | NSViewHeightSizable)))
+    {
+      struct frame *f = emacsFrame;
+      NSRect frameRect = [emacsView frame];
+
+      mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
+      /* Exit from select_and_poll_event so as to react to the frame
+	 size change.  */
+      [NSApp postDummyEvent];
+    }
 }
 
 - (NSBitmapImageRep *)bitmapImageRepInContentViewRect:(NSRect)rect
@@ -4808,12 +4836,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   if (self == nil)
     return nil;
 
-  [[NSNotificationCenter defaultCenter]
-    addObserver:self
-    selector:@selector(viewFrameDidChange:)
-    name:@"NSViewFrameDidChangeNotification"
-    object:self];
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   if (mac_tracking_area_works_with_cursor_rects_invalidation_p ())
     {
@@ -4836,15 +4858,14 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   return self;
 }
 
+#if !USE_ARC
 - (void)dealloc
 {
-  [[NSNotificationCenter defaultCenter] removeObserver:self];
-#if !USE_ARC
   [rawKeyEvent release];
   [markedText release];
   [super dealloc];
-#endif
 }
+#endif
 
 - (struct frame *)emacsFrame
 {
@@ -5944,21 +5965,6 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
   /* Exit from select_and_poll_event so as to react to the frame size
      change, especially in a full screen tile on OS X 10.11.  */
   [NSApp postDummyEvent];
-}
-
-- (void)viewFrameDidChange:(NSNotification *)notification
-{
-  if (![self inLiveResize]
-      && ([self autoresizingMask] & (NSViewWidthSizable | NSViewHeightSizable)))
-    {
-      struct frame *f = [self emacsFrame];
-      NSRect frameRect = [self frame];
-
-      mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
-      /* Exit from select_and_poll_event so as to react to the frame
-	 size change.  */
-      [NSApp postDummyEvent];
-    }
 }
 
 @end				// EmacsMainView
