@@ -3864,25 +3864,19 @@ mac_handle_size_change (struct frame *f, int pixelwidth, int pixelheight)
   width = FRAME_PIXEL_TO_TEXT_WIDTH (f, pixelwidth);
   height = FRAME_PIXEL_TO_TEXT_HEIGHT (f, pixelheight);
 
-  if (width != FRAME_TEXT_WIDTH (f)
-      || height != FRAME_TEXT_HEIGHT (f)
-      || pixelwidth != FRAME_PIXEL_WIDTH (f)
-      || pixelheight != FRAME_PIXEL_HEIGHT (f))
-    {
-      /* We pass 1 for DELAY since we can't run Lisp code inside of
-	 a BLOCK_INPUT.  */
-      change_frame_size (f, width, height, 0, 1, 0, 1);
+  /* We pass 1 for DELAY since we can't run Lisp code inside of a
+     block_input.  */
+  change_frame_size (f, width, height, 0, 1, 0, 1);
 
-      /* If cursor was outside the new size, mark it as off.  */
-      mark_window_cursors_off (XWINDOW (f->root_window));
+  /* If cursor was outside the new size, mark it as off.  */
+  mark_window_cursors_off (XWINDOW (f->root_window));
 
-      /* Clear out any recollection of where the mouse highlighting
-	 was, since it might be in a place that's outside the new
-	 frame size.  Actually checking whether it is outside is a
-	 pain in the neck, so don't try--just let the highlighting be
-	 done afresh with new size.  */
-      cancel_mouse_face (f);
-    }
+  /* Clear out any recollection of where the mouse highlighting was,
+     since it might be in a place that's outside the new frame size.
+     Actually checking whether it is outside is a pain in the neck, so
+     don't try--just let the highlighting be done afresh with new
+     size.  */
+  cancel_mouse_face (f);
 }
 
 
