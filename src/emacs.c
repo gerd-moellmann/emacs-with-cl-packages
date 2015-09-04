@@ -184,7 +184,7 @@ static uprintmax_t heap_bss_diff;
    We mark being in the exec'd process by a daemon name argument of
    form "--daemon=\nFD0,FD1\nNAME" where FD are the pipe file descriptors,
    NAME is the original daemon name, if any. */
-#if defined NS_IMPL_COCOA || (defined HAVE_NTGUI && defined CYGWIN)
+#if defined NS_IMPL_COCOA || (defined HAVE_NTGUI && defined CYGWIN) || defined HAVE_MACGUI
 # define DAEMON_MUST_EXEC
 #endif
 
