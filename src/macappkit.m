@@ -3687,9 +3687,11 @@ static CGRect unset_global_focus_view_frame (void);
 
   mac_foreach_window (f, ^(struct window *w) {
       enum {MIN_X_SCALE = 1 << 0, MAX_X_SCALE = 1 << 1,
-	    MIN_Y_SCALE = 1 << 2, MAX_Y_SCALE = 1 << 3,  MAX_Y_OFFSET = 1 << 4};
-      NSRect rects[3];
-      int constraints[3];
+	    MIN_Y_SCALE = 1 << 2, MAX_Y_SCALE = 1 << 3, MAX_Y_OFFSET = 1 << 4,
+	    MIN_X_NEXT_MIN = 1 << 5};
+      NSString *nextLayerName = nil;
+      NSRect rects[4];
+      int constraints[4];
       int i, nrects = 1;
 
       rects[0] = NSMakeRect (WINDOW_LEFT_EDGE_X (w), WINDOW_TOP_EDGE_Y (w),
@@ -3699,6 +3701,7 @@ static CGRect unset_global_focus_view_frame (void);
 	{
 	  int x, y, width, height;
 	  int bottom_idx = 0, right_idx = 0, constraint_y = MIN_Y_SCALE;
+	  int bottom_fill_idx;
 	  CGFloat right_width, bottom_height;
 
 	  window_box (w, TEXT_AREA, &x, &y, &width, &height);
@@ -3710,7 +3713,10 @@ static CGRect unset_global_focus_view_frame (void);
 	  if (right_width > 0)
 	    right_idx = nrects++;
 	  if (bottom_height > 0)
-	    bottom_idx = nrects++;
+	    {
+	      bottom_fill_idx = nrects++;
+	      bottom_idx = nrects++;
+	    }
 	  else
 	    {
 	      if (NSMinY (rects[0]) >= rootWindowMaxY)
@@ -3725,11 +3731,16 @@ static CGRect unset_global_focus_view_frame (void);
 	    {
 	      NSDivideRect (rects[0], &rects[bottom_idx], &rects[0],
 			    bottom_height, NSMaxYEdge);
+	      NSDivideRect (rects[bottom_idx], &rects[bottom_fill_idx],
+			    &rects[bottom_idx], 1, NSMaxXEdge);
 	      if (NSMaxY (rects[bottom_idx]) == rootWindowMaxY)
 		/* Bottommost mode-line.  */
 		constraints[bottom_idx] = MIN_X_SCALE | MAX_Y_OFFSET;
 	      else
 		constraints[bottom_idx] = MIN_X_SCALE | MAX_Y_SCALE;
+	      constraints[bottom_fill_idx] =
+		(constraints[bottom_idx] ^ (MIN_X_SCALE
+					    | MAX_X_SCALE | MIN_X_NEXT_MIN));
 	    }
 	  if (right_idx)
 	    {
@@ -3750,6 +3761,11 @@ static CGRect unset_global_focus_view_frame (void);
 			NSWidth (rects[i]) / NSWidth (contentViewRect),
 			NSHeight (rects[i]) / NSHeight (contentViewRect));
 
+	  if (nextLayerName)
+	    {
+	      layer.name = nextLayerName;
+	      nextLayerName = nil;
+	    }
 	  layer.frame = NSRectToCGRect (rects[i]);
 	  layer.contents = image;
 	  layer.contentsRect = NSRectToCGRect (rect);
@@ -3780,6 +3796,22 @@ static CGRect unset_global_focus_view_frame (void);
 						   attribute:kCAConstraintWidth
 						       scale:scale
 						      offset:0]];
+	    }
+	  if (constraints[i] & MIN_X_NEXT_MIN)
+	    {
+	      CIFilter *filter = [CIFilter filterWithName:@"CIGaussianBlur"];
+
+	      [filter setDefaults];
+	      layer.filters = [NSArray arrayWithObject:filter];
+	      layer.masksToBounds = YES;
+	      attribute = kCAConstraintMinX;
+	      nextLayerName = [NSString stringWithFormat:@"layer-%p-%d",
+					w, i + 1];
+	      [layer addConstraint:[CA_CONSTRAINT
+				     constraintWithAttribute:attribute
+						  relativeTo:nextLayerName
+						   attribute:attribute]];
+
 	    }
 	  if (constraints[i] & (MIN_Y_SCALE | MAX_Y_SCALE | MAX_Y_OFFSET))
 	    {
