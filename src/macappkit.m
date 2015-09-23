@@ -14670,6 +14670,14 @@ mac_font_get_glyph_for_cid (FontRef font, CharacterCollection collection,
 }
 #endif
 
+CFIndex
+mac_font_get_weight (FontRef font)
+{
+  NSFont *nsFont = (__bridge NSFont *) font;
+
+  return [[NSFontManager sharedFontManager] weightOfFont:nsFont];
+}
+
 ScreenFontRef
 mac_screen_font_create_with_name (CFStringRef name, CGFloat size)
 {
