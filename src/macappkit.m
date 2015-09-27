@@ -2623,6 +2623,12 @@ static CGRect unset_global_focus_view_frame (void);
 
   [self setupEmacsView];
   [self setupWindow];
+  if (!FRAME_TOOLTIP_P (f))
+    [[NSNotificationCenter defaultCenter]
+      addObserver:self
+	 selector:@selector(emacsMainViewFrameDidChange:)
+	     name:@"NSViewFrameDidChangeNotification"
+	   object:emacsView];
 
   return self;
 }
@@ -2849,9 +2855,10 @@ static CGRect unset_global_focus_view_frame (void);
   return emacsWindow;
 }
 
-#if !USE_ARC
 - (void)dealloc
 {
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+#if !USE_ARC
   [emacsView release];
   /* emacsWindow is released via released-when-closed.  */
   [hourglass release];
@@ -2861,8 +2868,8 @@ static CGRect unset_global_focus_view_frame (void);
   [overlayView release];
   [overlayWindow release];
   [super dealloc];
-}
 #endif
+}
 
 - (NSSize)hintedWindowFrameSize:(NSSize)frameSize allowsLarger:(BOOL)flag
 {
@@ -3593,6 +3600,27 @@ static CGRect unset_global_focus_view_frame (void);
   return windowFrame;
 }
 
+/* This used be in EmacsMainView, but it might live longer than the
+   window delegate on OS X 10.11 when closing a full screen window,
+   and might receive a bogus notification after the delegate has been
+   deallocated.  */
+
+- (void)emacsMainViewFrameDidChange:(NSNotification *)notification
+{
+  if (![emacsView inLiveResize]
+      && ([emacsView autoresizingMask]
+	  & (NSViewWidthSizable | NSViewHeightSizable)))
+    {
+      struct frame *f = emacsFrame;
+      NSRect frameRect = [emacsView frame];
+
+      mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
+      /* Exit from select_and_poll_event so as to react to the frame
+	 size change.  */
+      [NSApp postDummyEvent];
+    }
+}
+
 - (NSBitmapImageRep *)bitmapImageRepInContentViewRect:(NSRect)rect
 {
   struct frame *f = emacsFrame;
@@ -3659,9 +3687,11 @@ static CGRect unset_global_focus_view_frame (void);
 
   mac_foreach_window (f, ^(struct window *w) {
       enum {MIN_X_SCALE = 1 << 0, MAX_X_SCALE = 1 << 1,
-	    MIN_Y_SCALE = 1 << 2, MAX_Y_SCALE = 1 << 3,  MAX_Y_OFFSET = 1 << 4};
-      NSRect rects[3];
-      int constraints[3];
+	    MIN_Y_SCALE = 1 << 2, MAX_Y_SCALE = 1 << 3, MAX_Y_OFFSET = 1 << 4,
+	    MIN_X_NEXT_MIN = 1 << 5};
+      NSString *nextLayerName = nil;
+      NSRect rects[4];
+      int constraints[4];
       int i, nrects = 1;
 
       rects[0] = NSMakeRect (WINDOW_LEFT_EDGE_X (w), WINDOW_TOP_EDGE_Y (w),
@@ -3671,6 +3701,7 @@ static CGRect unset_global_focus_view_frame (void);
 	{
 	  int x, y, width, height;
 	  int bottom_idx = 0, right_idx = 0, constraint_y = MIN_Y_SCALE;
+	  int bottom_fill_idx;
 	  CGFloat right_width, bottom_height;
 
 	  window_box (w, TEXT_AREA, &x, &y, &width, &height);
@@ -3682,7 +3713,10 @@ static CGRect unset_global_focus_view_frame (void);
 	  if (right_width > 0)
 	    right_idx = nrects++;
 	  if (bottom_height > 0)
-	    bottom_idx = nrects++;
+	    {
+	      bottom_fill_idx = nrects++;
+	      bottom_idx = nrects++;
+	    }
 	  else
 	    {
 	      if (NSMinY (rects[0]) >= rootWindowMaxY)
@@ -3697,11 +3731,16 @@ static CGRect unset_global_focus_view_frame (void);
 	    {
 	      NSDivideRect (rects[0], &rects[bottom_idx], &rects[0],
 			    bottom_height, NSMaxYEdge);
+	      NSDivideRect (rects[bottom_idx], &rects[bottom_fill_idx],
+			    &rects[bottom_idx], 1, NSMaxXEdge);
 	      if (NSMaxY (rects[bottom_idx]) == rootWindowMaxY)
 		/* Bottommost mode-line.  */
 		constraints[bottom_idx] = MIN_X_SCALE | MAX_Y_OFFSET;
 	      else
 		constraints[bottom_idx] = MIN_X_SCALE | MAX_Y_SCALE;
+	      constraints[bottom_fill_idx] =
+		(constraints[bottom_idx] ^ (MIN_X_SCALE
+					    | MAX_X_SCALE | MIN_X_NEXT_MIN));
 	    }
 	  if (right_idx)
 	    {
@@ -3722,6 +3761,11 @@ static CGRect unset_global_focus_view_frame (void);
 			NSWidth (rects[i]) / NSWidth (contentViewRect),
 			NSHeight (rects[i]) / NSHeight (contentViewRect));
 
+	  if (nextLayerName)
+	    {
+	      layer.name = nextLayerName;
+	      nextLayerName = nil;
+	    }
 	  layer.frame = NSRectToCGRect (rects[i]);
 	  layer.contents = image;
 	  layer.contentsRect = NSRectToCGRect (rect);
@@ -3752,6 +3796,22 @@ static CGRect unset_global_focus_view_frame (void);
 						   attribute:kCAConstraintWidth
 						       scale:scale
 						      offset:0]];
+	    }
+	  if (constraints[i] & MIN_X_NEXT_MIN)
+	    {
+	      CIFilter *filter = [CIFilter filterWithName:@"CIGaussianBlur"];
+
+	      [filter setDefaults];
+	      layer.filters = [NSArray arrayWithObject:filter];
+	      layer.masksToBounds = YES;
+	      attribute = kCAConstraintMinX;
+	      nextLayerName = [NSString stringWithFormat:@"layer-%p-%d",
+					w, i + 1];
+	      [layer addConstraint:[CA_CONSTRAINT
+				     constraintWithAttribute:attribute
+						  relativeTo:nextLayerName
+						   attribute:attribute]];
+
 	    }
 	  if (constraints[i] & (MIN_Y_SCALE | MAX_Y_SCALE | MAX_Y_OFFSET))
 	    {
@@ -4808,12 +4868,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   if (self == nil)
     return nil;
 
-  [[NSNotificationCenter defaultCenter]
-    addObserver:self
-    selector:@selector(viewFrameDidChange:)
-    name:@"NSViewFrameDidChangeNotification"
-    object:self];
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   if (mac_tracking_area_works_with_cursor_rects_invalidation_p ())
     {
@@ -4836,15 +4890,14 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   return self;
 }
 
+#if !USE_ARC
 - (void)dealloc
 {
-  [[NSNotificationCenter defaultCenter] removeObserver:self];
-#if !USE_ARC
   [rawKeyEvent release];
   [markedText release];
   [super dealloc];
-#endif
 }
+#endif
 
 - (struct frame *)emacsFrame
 {
@@ -5944,21 +5997,6 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
   /* Exit from select_and_poll_event so as to react to the frame size
      change, especially in a full screen tile on OS X 10.11.  */
   [NSApp postDummyEvent];
-}
-
-- (void)viewFrameDidChange:(NSNotification *)notification
-{
-  if (![self inLiveResize]
-      && ([self autoresizingMask] & (NSViewWidthSizable | NSViewHeightSizable)))
-    {
-      struct frame *f = [self emacsFrame];
-      NSRect frameRect = [self frame];
-
-      mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
-      /* Exit from select_and_poll_event so as to react to the frame
-	 size change.  */
-      [NSApp postDummyEvent];
-    }
 }
 
 @end				// EmacsMainView
@@ -14663,6 +14701,14 @@ mac_font_get_glyph_for_cid (FontRef font, CharacterCollection collection,
   }
 }
 #endif
+
+CFIndex
+mac_font_get_weight (FontRef font)
+{
+  NSFont *nsFont = (__bridge NSFont *) font;
+
+  return [[NSFontManager sharedFontManager] weightOfFont:nsFont];
+}
 
 ScreenFontRef
 mac_screen_font_create_with_name (CFStringRef name, CGFloat size)

@@ -166,10 +166,6 @@ extern CGGlyph mac_font_get_glyph_for_cid (FontRef, CharacterCollection,
 
 #define mac_nsctfont_copy_font_descriptor CTFontCopyFontDescriptor
 
-#ifndef kCTVersionNumber10_9
-#define kCTVersionNumber10_9 0x00060000
-#endif
-
 #else  /* MAC_OS_X_VERSION_MIN_REQUIRED < 1050 */
 
 typedef const struct _EmacsFont *FontRef;		      /* opaque */
@@ -245,6 +241,9 @@ extern FontDescriptorRef mac_nsctfont_copy_font_descriptor (void *);
 
 #endif	/* MAC_OS_X_VERSION_MIN_REQUIRED < 1050 */
 
+#ifndef kCTVersionNumber10_9
+#define kCTVersionNumber10_9 0x00060000
+#endif
 #define MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE \
   (CFSTR ("MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE"))
 
@@ -254,6 +253,7 @@ typedef const struct _EmacsScreenFont *ScreenFontRef; /* opaque */
 extern CFComparisonResult mac_font_family_compare (const void *,
 						   const void *, void *);
 extern CFStringRef mac_font_copy_default_name_for_charset_and_languages (CFCharacterSetRef, CFArrayRef);
+extern CFIndex mac_font_get_weight (FontRef);
 extern ScreenFontRef mac_screen_font_create_with_name (CFStringRef,
 						       CGFloat);
 extern CGFloat mac_screen_font_get_advance_width_for_glyph (ScreenFontRef,

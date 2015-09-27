@@ -472,7 +472,6 @@ typedef id instancetype;
 - (NSString *)string;
 - (NSRect)firstRectForCharacterRange:(NSRange)aRange
 			 actualRange:(NSRangePointer)actualRange;
-- (void)viewFrameDidChange:(NSNotification *)notification;
 @end
 
 /* Class for view in the overlay window of an Emacs frame window.  */
