@@ -1,4 +1,26 @@
+* emacs-24.5-mac-5.11 (2015-09-27)
+
+** Fixed bugs
+
+*** Crash when closing a fullscreen frame on OS X 10.11 GM Candidate.
+
+*** Daemon mode does not exec after fork at startup.  This is a
+regression introduced in 3.90.
+
+*** Display corrupts when zooming twice quickly.
+
+*** Crash when displaying etc/HELLO file on OS X 10.11 GM Candidate.
+It crashes when displaying Oriya characters with Arial Unicode MS.
+This happens even with TextEdit.app if you explicitly select the font.
+A workaround is added so Oriya Sangam MN is preferred by default.
+
+** Improvements
+
+*** Extend mode line areas while showing resize transition animation.
+
+
 * emacs-24.5-mac-5.10 (2015-08-25)
+http://lists.gnu.org/archive/html/emacs-devel/2015-08/msg00882.html
 
 ** Fixed bugs
 
