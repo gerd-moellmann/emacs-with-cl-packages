@@ -8,7 +8,7 @@
 
   This section briefly describes the peculiarities of using Emacs
 under Mac OS X with the Mac port.  This port provides a native GUI
-support for Mac OS X 10.4 -- 10.10.  Note that Emacs 23 and later
+support for Mac OS X 10.4 -- 10.11.  Note that Emacs 23 and later
 already contain the official GUI support via the NS (Cocoa) port for
 Mac OS X 10.4 and later (@pxref{Mac OS / GNUstep}).  So if it is good
 enough for you, then you don't need to try this.
@@ -479,15 +479,16 @@ images or reload files automatically.
 interpreted as those in the sRGB color space.  This may give a
 different look from other ports of GNU Emacs.
 
-  On OS X 10.10, one can blend and blur background colors of the
-focused frame with the contents behind it.  This can be customized per
-face by a special background stipple name @samp{alpha:@var{alpha}},
-where @var{alpha} is a decimal representation of a floating-point
-number from 0.0 (maximum transparency) to 1.0 (completely opaque).
-The number @var{alpha} may be followed by @samp{%} and in this case it
-should be from 0.0 to 100.0.  It can be specified as a ``File'' value
-for the Stipple attribute in @pxref{Face Customization}.
-Alternatively, it may be specified via either Lisp evaluation:
+  On OS X 10.10 and later, one can blend and blur background colors of
+the focused frame with the contents behind it.  This can be customized
+per face by a special background stipple name
+@samp{alpha:@var{alpha}}, where @var{alpha} is a decimal
+representation of a floating-point number from 0.0 (maximum
+transparency) to 1.0 (completely opaque).  The number @var{alpha} may
+be followed by @samp{%} and in this case it should be from 0.0 to
+100.0.  It can be specified as a ``File'' value for the Stipple
+attribute in @pxref{Face Customization}.  Alternatively, it may be
+specified via either Lisp evaluation:
 
 @example
 (set-face-stipple 'fringe "alpha:50%")
