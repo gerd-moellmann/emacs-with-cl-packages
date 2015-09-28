@@ -240,6 +240,14 @@ cfstring_create_with_string_noencode (Lisp_Object s)
   return string;
 }
 
+static CFIndex
+mac_font_get_weight (CTFontRef font)
+{
+  NSFont *nsFont = (NSFont *) font;
+
+  return [[NSFontManager sharedFontManager] weightOfFont:nsFont];
+}
+
 static CGFloat
 mac_screen_font_get_advance_width_for_glyph (ScreenFontRef font, CGGlyph glyph)
 {
