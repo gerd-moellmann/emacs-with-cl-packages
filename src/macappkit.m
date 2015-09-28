@@ -33,10 +33,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "keyboard.h"
 #include "intervals.h"
 #include "keymap.h"
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 || !USE_CT_GLYPH_INFO
 #include "macfont.h"
-#endif
 
 #import "macappkit.h"
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
