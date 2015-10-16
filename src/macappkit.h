@@ -49,6 +49,9 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifndef NSAppKitVersionNumber10_9
 #define NSAppKitVersionNumber10_9 1265
 #endif
+#ifndef NSAppKitVersionNumber10_10_Max
+#define NSAppKitVersionNumber10_10_Max 1349
+#endif
 
 #ifndef NSINTEGER_DEFINED
 typedef int NSInteger;

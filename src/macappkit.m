@@ -3950,8 +3950,7 @@ static CGRect unset_global_focus_view_frame (void);
   /* This part is executed in -[EmacsFrameController
      window:startCustomAnimationToEnterFullScreenWithDuration:] on OS
      X 10.10 and earlier.  Unfortunately this is a bit kludgy.  */
-  if (!(mac_operating_system_version.major == 10
-	&& mac_operating_system_version.minor <= 10))
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     {
       if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
 	{
@@ -3996,8 +3995,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification
 {
-  if (!(mac_operating_system_version.major == 10
-	&& mac_operating_system_version.minor <= 10))
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     {
       if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
 	{
@@ -4042,8 +4040,7 @@ static CGRect unset_global_focus_view_frame (void);
      frame causes crash due to assertion failure in
      -[NSToolbarFullScreenWindowManager getToolbarLayout]:
      getToolbarLayout called with a nil content view.  */
-  if (mac_operating_system_version.major == 10
-      && mac_operating_system_version.minor <= 10)
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max)
     return [NSArray arrayWithObject:window];
   else
     return nil;
@@ -4132,8 +4129,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (NSArrayG (NSWindow *) *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
 {
-  if (mac_operating_system_version.major == 10
-      && mac_operating_system_version.minor <= 10)
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max)
     return [NSArray arrayWithObject:window];
   else
     return nil;
