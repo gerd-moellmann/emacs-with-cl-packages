@@ -2981,9 +2981,15 @@ static CGRect unset_global_focus_view_frame (void);
 	   && (windowManagerState & WM_STATE_DEDICATED_DESKTOP))
 #endif
       )
-    behavior = ((windowManagerState & WM_STATE_STICKY)
-		? NSWindowCollectionBehaviorCanJoinAllSpaces
-		: NSWindowCollectionBehaviorMoveToActiveSpace);
+    {
+      behavior = ((windowManagerState & WM_STATE_STICKY)
+		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
+		  : NSWindowCollectionBehaviorMoveToActiveSpace);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+      if (has_full_screen_with_dedicated_desktop ())
+	behavior |= NSWindowCollectionBehaviorFullScreenAuxiliary;
+#endif
+    }
   else
     {
       behavior = ((windowManagerState & WM_STATE_STICKY)
