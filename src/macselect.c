@@ -604,12 +604,6 @@ static bool mac_ready_for_apple_events = false;
 Lisp_Object Qmac_apple_event_class, Qmac_apple_event_id;
 static Lisp_Object Qemacs_suspension_id;
 
-#if __LP64__ && MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-static AEEventHandlerUPP AE_USE_STANDARD_DISPATCH;
-#else
-#define AE_USE_STANDARD_DISPATCH ((AEEventHandlerUPP) kAEUseStandardDispatch)
-#endif
-
 struct apple_event_binding
 {
   UInt32 code;			/* Apple event class or ID.  */
@@ -912,18 +906,6 @@ DEFUN ("mac-process-deferred-apple-events", Fmac_process_deferred_apple_events, 
 
   block_input ();
   mac_ready_for_apple_events = true;
-#if __LP64__ && MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  {
-    SInt32 response;
-    OSErr err;
-
-    err = Gestalt (gestaltSystemVersion, &response);
-    if (err == noErr && response < 0x1060)
-      AE_USE_STANDARD_DISPATCH = (AEEventHandlerUPP) (long) 0xFFFFFFFF;
-    else
-      AE_USE_STANDARD_DISPATCH = (AEEventHandlerUPP) (int) 0xFFFFFFFF;
-  }
-#endif
   if (deferred_apple_events)
     {
       struct suspended_ae_info *prev, *tail, *next;
@@ -942,7 +924,8 @@ DEFUN ("mac-process-deferred-apple-events", Fmac_process_deferred_apple_events, 
 	{
 	  next = tail->next;
 	  AEResumeTheCurrentEvent (&tail->apple_event, &tail->reply,
-				   AE_USE_STANDARD_DISPATCH, 0);
+				   (AEEventHandlerUPP) kAEUseStandardDispatch,
+				   0);
 	  AEDisposeDesc (&tail->reply);
 	  AEDisposeDesc (&tail->apple_event);
 	  xfree (tail);
@@ -1057,7 +1040,7 @@ nil, which means the event is already resumed or expired.  */)
       AESetTheCurrentEvent (&ae->apple_event);
       AEResumeTheCurrentEvent (&ae->apple_event, &ae->reply,
 			       (EQ (error_code, Qt)
-				? AE_USE_STANDARD_DISPATCH
+				? (AEEventHandlerUPP) kAEUseStandardDispatch
 				: (AEEventHandlerUPP) kAENoDispatch), 0);
       AEDisposeDesc (&ae->reply);
       AEDisposeDesc (&ae->apple_event);

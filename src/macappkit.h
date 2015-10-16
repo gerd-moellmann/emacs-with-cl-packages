@@ -29,9 +29,6 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #define NSFoundationVersionNumber10_8_3 945.16
 #endif
 
-#ifndef NSAppKitVersionNumber10_5
-#define NSAppKitVersionNumber10_5 949
-#endif
 #ifndef NSAppKitVersionNumber10_6
 #define NSAppKitVersionNumber10_6 1038
 #endif
@@ -79,19 +76,6 @@ typedef id instancetype;
 #define NSMutableDictionaryOf(KeyT, ObjectT) NSMutableDictionary
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-/* If we add `<NSObject>' here as documented, the 64-bit binary
-   compiled on Mac OS X 10.5 fails in startup at -[EmacsController
-   methodSignatureForSelector:] when executed on Mac OS X 10.6.  */
-@protocol NSApplicationDelegate @end
-@protocol NSSoundDelegate @end
-@protocol NSWindowDelegate @end
-@protocol NSToolbarDelegate @end
-@protocol NSMenuDelegate @end
-@protocol NSUserInterfaceItemSearching @end
-@protocol NSLayoutManagerDelegate @end
-#endif
-
 @interface NSData (Emacs)
 - (Lisp_Object)lispString;
 @end
@@ -131,18 +115,8 @@ typedef id instancetype;
 
 @interface NSApplication (Emacs)
 - (void)postDummyEvent;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 - (void)runTemporarilyWithBlock:(void (^)(void))block;
-#else
-- (void)runTemporarilyWithInvocation:(NSInvocation *)invocation;
-#endif
 @end
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-@interface NSObject (Emacs)
-- (void)didRunTemporarilyWithInvocation:(NSInvocation *)invocation;
-@end
-#endif
 
 @interface NSScreen (Emacs)
 + (NSScreen *)screenContainingPoint:(NSPoint)aPoint;
@@ -198,18 +172,9 @@ typedef id instancetype;
   /* The item selected in the popup menu.  */
   int menuItemSelection;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
   /* Non-nil means left mouse tracking has been suspended and will be
      resumed when this block is called.  */
   void (^trackingResumeBlock)(void);
-#else
-  /* Non-nil means left mouse tracking has been suspended by this
-     object.  */
-  id trackingObject;
-
-  /* Selector used for resuming suspended left mouse tracking.  */
-  SEL trackingResumeSelector;
-#endif
 
   /* Whether a service provider for Emacs is registered as of
      applicationWillFinishLaunching: or not.  */
@@ -248,11 +213,7 @@ typedef id instancetype;
 - (void)storeInputEvent:(id)sender;
 - (void)setMenuItemSelectionToTag:(id)sender;
 - (void)storeEvent:(struct input_event *)bufp;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
- - (void)setTrackingResumeBlock:(void (^)(void))block;
-#else
-- (void)setTrackingObject:(id)object andResumeSelector:(SEL)selector;
-#endif
+- (void)setTrackingResumeBlock:(void (^)(void))block;
 - (NSTimeInterval)minimumIntervalForReadSocket;
 - (int)handleQueuedNSEventsWithHoldingQuitIn:(struct input_event *)bufp;
 - (void)cancelHelpEchoForEmacsFrame:(struct frame *)f;
@@ -345,7 +306,6 @@ typedef id instancetype;
   /* The view hosting Core Animation layers in the overlay window.  */
   NSView *layerHostingView;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   /* The block called when the window ends live resize.  */
   void (^liveResizeCompletionHandler) (void);
 
@@ -368,7 +328,6 @@ typedef id instancetype;
      boolean value meaning whether the transition has succeeded.  */
   NSMutableArrayOf (void (^)(EmacsWindow *, BOOL))
     *fullScreenTransitionCompletionHandlers;
-#endif
 }
 - (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
 - (void)setupEmacsView;
@@ -393,11 +352,9 @@ typedef id instancetype;
 - (NSBitmapImageRep *)bitmapImageRepInContentViewRect:(NSRect)rect;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
 - (BOOL)isWindowFrontmost;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 - (void)setupLiveResizeTransition;
 - (void)setShouldLiveResizeTriggerTransition:(BOOL)flag;
 - (void)setLiveResizeCompletionHandler:(void (^)(void))block;
-#endif
 @end
 
 /* Class for Emacs view that handles drawing events only.  It is used
@@ -480,12 +437,10 @@ typedef id instancetype;
 - (void)adjustWindowFrame;
 @end
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 /* Class for view used in live resize transition animations.  */
 
 @interface EmacsLiveResizeTransitionView : NSView
 @end
-#endif
 
 /* Class for scroller that doesn't do modal mouse tracking.  */
 
@@ -790,42 +745,10 @@ typedef id instancetype;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-@interface NSImage (AvailableOn1060AndLater)
-- (id)initWithCGImage:(CGImageRef)cgImage size:(NSSize)size;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
 @interface NSFileManager (AvailableOn1080AndLater)
 - (BOOL)trashItemAtURL:(NSURL *)url resultingItemURL:(NSURL **)outResultingURL
 		 error:(NSError **)error;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-enum {
-  NSApplicationPresentationDefault			= 0,
-  NSApplicationPresentationAutoHideDock			= 1 << 0,
-  NSApplicationPresentationHideDock			= 1 << 1,
-  NSApplicationPresentationAutoHideMenuBar		= 1 << 2,
-  NSApplicationPresentationHideMenuBar			= 1 << 3,
-  NSApplicationPresentationDisableAppleMenu		= 1 << 4,
-  NSApplicationPresentationDisableProcessSwitching	= 1 << 5,
-  NSApplicationPresentationDisableForceQuit		= 1 << 6,
-  NSApplicationPresentationDisableSessionTermination	= 1 << 7,
-  NSApplicationPresentationDisableHideApplication	= 1 << 8,
-  NSApplicationPresentationDisableMenuBarTransparency	= 1 << 9
-};
-typedef NSUInteger NSApplicationPresentationOptions;
-
-@interface NSApplication (AvailableOn1060AndLater)
-- (void)setPresentationOptions:(NSApplicationPresentationOptions)newOptions;
-- (NSApplicationPresentationOptions)presentationOptions;
-- (void)registerUserInterfaceItemSearchHandler:(id<NSUserInterfaceItemSearching>)handler;
-- (BOOL)searchString:(NSString *)searchString inUserInterfaceItemString:(NSString *)stringToSearch
-	 searchRange:(NSRange)searchRange foundRange:(NSRange *)foundRange;
-- (void)setHelpMenu:(NSMenu *)helpMenu;
 @end
 #endif
 
@@ -845,15 +768,6 @@ enum {
 enum {
   NSModalResponseOK	= NSOKButton
 };
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-typedef NSUInteger NSWindowNumberListOptions;
-
-@interface NSWindow (AvailableOn1060AndLater)
-- (void)setStyleMask:(NSUInteger)styleMask;
-+ (NSArray *)windowNumbersWithOptions:(NSWindowNumberListOptions)options;
-@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
@@ -904,41 +818,9 @@ enum {
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-@interface NSCursor (AvailableOn1060AndLater)
-+ (NSCursor *)dragLinkCursor;
-+ (NSCursor *)dragCopyCursor;
-+ (NSCursor *)contextualMenuCursor;
-/* The documentation says it is available on Mac OS X 10.5, but
-   actually it was not declared in the header.  */
-+ (NSCursor *)operationNotAllowedCursor;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSSavePanel (AvailableOn1090AndLater)
 - (void)setShowsTagField:(BOOL)flag;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-@interface NSMenu (AvailableOn1060AndLater)
-- (BOOL)popUpMenuPositioningItem:(NSMenuItem *)item
-		      atLocation:(NSPoint)location inView:(NSView *)view;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-enum {
-    NSEventTypeGesture          = 29,
-    NSEventTypeMagnify          = 30,
-    NSEventTypeSwipe            = 31,
-    NSEventTypeRotate           = 18
-};
-
-@interface NSEvent (AvailableOn1060AndLater)
-- (CGFloat)magnification;
-+ (NSUInteger)modifierFlags;
 @end
 #endif
 
@@ -981,7 +863,6 @@ enum {
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 @interface NSAnimationContext (AvailableOn1070AndLater)
 + (void)runAnimationGroup:(void (^)(NSAnimationContext *context))changes
         completionHandler:(void (^)(void))completionHandler;
@@ -990,13 +871,6 @@ enum {
 
 @interface CALayer (AvailableOn1070AndLater)
 @property CGFloat contentsScale;
-@end
-#endif
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-@interface NSFileHandle (AvailableOn1060AndLater)
-+ (id)fileHandleForReadingFromURL:(NSURL *)url error:(NSError **)error;
 @end
 #endif
 

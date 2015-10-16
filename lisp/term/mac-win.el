@@ -1890,7 +1890,7 @@ modifiers, it changes the global tool-bar visibility setting."
 (put 'change-toolbar-display-mode 'mac-action-key-paths '("tag"))
 (define-key mac-apple-event-map [action zoom] 'mac-handle-zoom)
 
-;;; Spotlight for Help (Mac OS X 10.6 and later)
+;;; Spotlight for Help
 
 (declare-function info-initialize "info" ())
 (declare-function Info-find-file "info" (filename &optional noerror))

@@ -3763,7 +3763,6 @@ static CFURLRef
 mac_tis_create_fixed_icon_image_url (CFURLRef url)
 {
   CFURLRef result = NULL, sansext = NULL, tiff = NULL;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   CFStringRef extension = CFURLCopyPathExtension (url);
 
   if (extension)
@@ -3786,7 +3785,6 @@ mac_tis_create_fixed_icon_image_url (CFURLRef url)
       else
 	CFRelease (tiff);
     }
-#endif
 
   return result;
 }

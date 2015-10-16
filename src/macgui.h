@@ -37,13 +37,6 @@ typedef Lisp_Object XrmDatabase;
 #undef min
 #define __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES 0
 #include <Carbon/Carbon.h>
-#ifdef check /* __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES is
-		not in effect.  */
-#undef check
-#undef verify
-#undef _GL_VERIFY_H
-#include <verify.h>
-#endif
 #undef free
 #define free unexec_free
 #undef malloc
@@ -89,10 +82,8 @@ typedef CGGlyph XChar2b;
   ((*(chp)) & 0x00ff)
 
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 #ifndef DRAWING_USE_GCD
 #define DRAWING_USE_GCD 1
-#endif
 #endif
 
 /* Emulate X GC's by keeping color info in a structure.  */

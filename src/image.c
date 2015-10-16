@@ -2676,9 +2676,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   CGRect rectangle, clip_rectangle;
   CGAffineTransform transform;
   Boolean has_alpha_p, gif_p, tiff_p;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
   dispatch_group_t group;
-#endif
 
   /* Open the file.  */
   specified_file = image_spec_value (img->spec, QCfile, NULL);
@@ -3128,38 +3126,32 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 		  return 0;
 		}
 	      CFRetain (obj);
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 	      group = dispatch_group_create ();
 	      dispatch_group_async
 		(group,
 		 dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT,
-					    0), ^
-#endif
-		 {
-		   CGContextRef mask_context =
-		     CGBitmapContextCreate (mask_img->data,
-					    mask_img->width, mask_img->height,
-					    8, mask_img->bytes_per_line,
-					    NULL, kCGImageAlphaOnly);
+					    0), ^{
+		  CGContextRef mask_context =
+		    CGBitmapContextCreate (mask_img->data,
+					   mask_img->width, mask_img->height,
+					   8, mask_img->bytes_per_line,
+					   NULL, kCGImageAlphaOnly);
 
-		   CGContextClearRect (mask_context,
-				       CGRectMake (0, 0, width, height));
-		   CGContextScaleCTM (mask_context, scale_factor, scale_factor);
-		   CGContextConcatCTM (mask_context, transform);
-		   CGContextClipToRect (mask_context, clip_rectangle);
-		   if (CFGetTypeID (obj) == CGImageGetTypeID ())
-		     CGContextDrawImage (mask_context, rectangle,
-					 (CGImageRef) obj);
-		   else
-		     mac_document_draw_page (mask_context, rectangle,
-					     (EmacsDocumentRef) obj,
-					     page_index);
-		   CGContextRelease (mask_context);
-		   CFRelease (obj);
-		 }
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-		 );
-#endif
+		  CGContextClearRect (mask_context,
+				      CGRectMake (0, 0, width, height));
+		  CGContextScaleCTM (mask_context, scale_factor, scale_factor);
+		  CGContextConcatCTM (mask_context, transform);
+		  CGContextClipToRect (mask_context, clip_rectangle);
+		  if (CFGetTypeID (obj) == CGImageGetTypeID ())
+		    CGContextDrawImage (mask_context, rectangle,
+					(CGImageRef) obj);
+		  else
+		    mac_document_draw_page (mask_context, rectangle,
+					    (EmacsDocumentRef) obj,
+					    page_index);
+		  CGContextRelease (mask_context);
+		  CFRelease (obj);
+		});
 	      rgba[0] = rgba[1] = rgba[2] = rgba[3] = 1.0f;
 	    }
 	  else
@@ -3224,10 +3216,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
   if (mask_img)
     {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       dispatch_group_wait (group, DISPATCH_TIME_FOREVER);
       dispatch_release (group);
-#endif
       /* Fill in the background_transparent field while we have the
 	 mask handy.  */
       image_background_transparent (img, f, mask_img);

@@ -444,8 +444,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 {
   NSImage *image;
 
-  if (flag
-      && [self instancesRespondToSelector:@selector(initWithCGImage:size:)])
+  if (flag)
     image = [[self alloc] initWithCGImage:cgImage size:NSZeroSize];
   else
     {
@@ -474,7 +473,6 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   [self postEvent:event atStart:YES];
 }
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 - (void)stopAfterCallingBlock:(void (^)(void))block
 {
   block ();
@@ -499,29 +497,6 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 	      order:0 modes:[NSArray arrayWithObject:NSDefaultRunLoopMode]];
   [self run];
 }
-#else
-- (void)stopAfterInvocation:(NSInvocation *)invocation
-{
-  [invocation invoke];
-  if ([[invocation target]
-	respondsToSelector:@selector(didRunTemporarilyWithInvocation:)])
-    [[invocation target] didRunTemporarilyWithInvocation:invocation];
-  [self stop:nil];
-  [self postDummyEvent];
-}
-
-/* Temporarily run the main event loop during the given
-   invocation.  */
-
-- (void)runTemporarilyWithInvocation:(NSInvocation *)invocation
-{
-  [[NSRunLoop currentRunLoop]
-    performSelector:@selector(stopAfterInvocation:)
-    target:self argument:invocation order:0
-    modes:[NSArray arrayWithObject:NSDefaultRunLoopMode]];
-  [self run];
-}
-#endif
 
 @end				// NSApplication (Emacs)
 
@@ -601,20 +576,11 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
     case kThemeArrowCursor:
       return [NSCursor arrowCursor];
     case kThemeCopyArrowCursor:
-      if ([NSCursor respondsToSelector:@selector(dragCopyCursor)])
-	return [NSCursor dragCopyCursor];
-      else
-	return nil;
+      return [NSCursor dragCopyCursor];
     case kThemeAliasArrowCursor:
-      if ([NSCursor respondsToSelector:@selector(dragLinkCursor)])
-	return [NSCursor dragLinkCursor];
-      else
-	return nil;
+      return [NSCursor dragLinkCursor];
     case kThemeContextualMenuArrowCursor:
-      if ([NSCursor respondsToSelector:@selector(contextualMenuCursor)])
-	return [NSCursor contextualMenuCursor];
-      else
-	return nil;
+      return [NSCursor contextualMenuCursor];
     case kThemeIBeamCursor:
       return [NSCursor IBeamCursor];
     case kThemeCrossCursor:
@@ -632,10 +598,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
     case kThemeResizeLeftRightCursor:
       return [NSCursor resizeLeftRightCursor];
     case kThemeNotAllowedCursor:
-      if ([NSCursor respondsToSelector:@selector(operationNotAllowedCursor)])
-	return [NSCursor operationNotAllowedCursor];
-      else
-	return nil;
+      return [NSCursor operationNotAllowedCursor];
     case kThemeResizeUpCursor:
       return [NSCursor resizeUpCursor];
     case kThemeResizeDownCursor:
@@ -688,20 +651,7 @@ static void (*impOrderOut) (id, SEL, id);
   if ([NSApp isRunning])
     (*impClose) (self, _cmd);
   else
-    {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-      [NSApp runTemporarilyWithBlock:^{(*impClose) (self, _cmd);}];
-#else
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-#endif
-    }
+    [NSApp runTemporarilyWithBlock:^{(*impClose) (self, _cmd);}];
 }
 
 /* Hide the receiver with running the main event loop if not.  Just
@@ -713,80 +663,10 @@ static void (*impOrderOut) (id, SEL, id);
   if ([NSApp isRunning])
     (*impOrderOut) (self, _cmd, sender);
   else
-    {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-      [NSApp runTemporarilyWithBlock:^{(*impOrderOut) (self, _cmd, sender);}];
-#else
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-      [invocation setArgument:&sender atIndex:2];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-#endif
-    }
+    [NSApp runTemporarilyWithBlock:^{(*impOrderOut) (self, _cmd, sender);}];
 }
 
 @end				// EmacsPosingWindow
-
-static EventRef current_text_input_event;
-
-static pascal OSStatus
-mac_handle_text_input_event (EventHandlerCallRef next_handler, EventRef event,
-			     void *data)
-{
-  OSStatus result;
-
-  switch (GetEventKind (event))
-    {
-    case kEventTextInputUpdateActiveInputArea:
-    case kEventTextInputUnicodeForKeyEvent:
-      {
-	EventRef saved_text_input_event = current_text_input_event;
-
-	current_text_input_event = RetainEvent (event);
-	result = CallNextEventHandler (next_handler, event);
-	current_text_input_event = saved_text_input_event;
-	ReleaseEvent (event);
-      }
-      break;
-
-    default:
-      emacs_abort ();
-    }
-
-  return result;
-}
-
-static OSStatus
-install_dispatch_handler (void)
-{
-  OSStatus err = noErr;
-
-  /* If this is installed to the event dispatcher on Mac OS X 10.6,
-     then keyboard navigation of the search field in the Help menu
-     stops working.  Note that getting the script-language record in
-     this way still works on 32-bit binary, but we abandon it.  */
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5)
-    {
-      static const EventTypeSpec specs[] =
-	{{kEventClassTextInput, kEventTextInputUpdateActiveInputArea},
-	 {kEventClassTextInput, kEventTextInputUnicodeForKeyEvent}};
-
-      /* Dummy object creation/destruction so +[NSTSMInputContext
-	 initialize] can install a handler to the event dispatcher
-	 target before install_dispatch_handler does that.  */
-      MRC_RELEASE ([[(NSClassFromString (@"NSTSMInputContext")) alloc] init]);
-      err = InstallEventHandler (GetEventDispatcherTarget (),
-				 mac_handle_text_input_event,
-				 GetEventTypeCount (specs), specs, NULL, NULL);
-    }
-
-  return err;
-}
 
 /* Return a pair of a type tag and a Lisp object converted form the
    NSValue object OBJ.  If the object is not an NSValue object or not
@@ -878,22 +758,11 @@ has_resize_indicator_at_bottom_right_p (void)
   return floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6;
 }
 
-/* Whether NSTrackingArea works with -[NSWindow
-   invalidateCursorRectsForView:].  */
-
-bool
-mac_tracking_area_works_with_cursor_rects_invalidation_p (void)
-{
-  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5);
-}
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 static bool
 has_full_screen_with_dedicated_desktop (void)
 {
   return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6);
 }
-#endif
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 /* Whether window's bottom corners need masking so they look rounded.
@@ -996,48 +865,18 @@ mac_appkit_version (void)
 double
 mac_system_uptime (void)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5))
-#endif
-    return [[NSProcessInfo processInfo] systemUptime];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-    {
-      Nanoseconds nanoseconds = AbsoluteToNanoseconds (UpTime ());
-
-      return nanoseconds.hi * 4.294967296 + nanoseconds.lo * 1e-9;
-    }
-#endif
+  return [[NSProcessInfo processInfo] systemUptime];
 }
 
 Boolean
 mac_is_current_process_frontmost (void)
 {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
   return [[NSRunningApplication currentApplication] isActive];
-#else
-  OSErr err;
-  ProcessSerialNumber front_psn;
-  static const ProcessSerialNumber current_psn = {0, kCurrentProcess};
-  Boolean front_p;
-
-  err = GetFrontProcess (&front_psn);
-  if (err == noErr)
-    err = SameProcess (&front_psn, &current_psn, &front_p);
-  if (err == noErr)
-    return front_p;
-  return false;
-#endif
 }
 
 void
 mac_bring_current_process_to_front (Boolean front_window_only_p)
 {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
   NSApplicationActivationOptions options;
 
   if (front_window_only_p)
@@ -1046,15 +885,6 @@ mac_bring_current_process_to_front (Boolean front_window_only_p)
     options = (NSApplicationActivateAllWindows
 	       | NSApplicationActivateIgnoringOtherApps);
   [[NSRunningApplication currentApplication] activateWithOptions:options];
-#else
-  static const ProcessSerialNumber current_psn = {0, kCurrentProcess};
-
-  if (front_window_only_p)
-    SetFrontProcessWithOptions (&current_psn,
-				kSetFrontProcessFrontWindowOnly);
-  else
-    SetFrontProcess (&current_psn);
-#endif
 }
 
 /* Move FILENAME to the trash without using the Finder and return
@@ -1118,7 +948,6 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
   return result;
 }
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 static int
 mac_foreach_window_1 (struct window *w, int (^block) (struct window *))
 {
@@ -1147,7 +976,6 @@ mac_foreach_window (struct frame *f, int (^block) (struct window *))
   if (WINDOWP (FRAME_ROOT_WINDOW (f)))
     mac_foreach_window_1 (XWINDOW (FRAME_ROOT_WINDOW (f)), block);
 }
-#endif
 
 
 /************************************************************************
@@ -1196,116 +1024,6 @@ static void mac_update_accessibility_display_options (void);
       AEDisposeDesc (&appleEvent);
     }
 }
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-- (void)setPresentationOptions:(NSApplicationPresentationOptions)newOptions
-{
-  /* [super respondsToSelector:selector] does not check the
-     availability of the selector in the superclass.  It just uses the
-     implementation of `respondsToSelector:' in the superclass (or its
-     ancestor) against the receiver object (i.e., self).  */
-  if ([[EmacsApplication superclass]
-	instancesRespondToSelector:@selector(setPresentationOptions:)])
-    [super setPresentationOptions:newOptions];
-  else
-    {
-      SystemUIMode mode, current_mode;
-      SystemUIOptions options = kNilOptions, current_options;
-      NSString *message = nil;
-
-      switch (newOptions & (NSApplicationPresentationAutoHideDock
-			    | NSApplicationPresentationHideDock
-			    | NSApplicationPresentationAutoHideMenuBar
-			    | NSApplicationPresentationHideMenuBar))
-	{
-	case NSApplicationPresentationDefault:
-	  /* 0000 */
-	  if (newOptions & (NSApplicationPresentationDisableProcessSwitching
-			    | NSApplicationPresentationDisableForceQuit
-			    | NSApplicationPresentationDisableSessionTermination))
-	    message = @"One of NSApplicationPresentationDisableForceQuit, NSApplicationPresentationDisableProcessSwitching, or NSApplicationPresentationDisableSessionTermination was specified without either NSApplicationPresentationHideDock or NSApplicationPresentationAutoHideDock";
-	  mode = kUIModeNormal;
-	  break;
-
-	case NSApplicationPresentationAutoHideDock:
-	  /* 0001 */
-	  mode = kUIModeContentSuppressed;
-	  break;
-
-	case NSApplicationPresentationHideDock:
-	  /* 0010 */
-	  mode = kUIModeContentHidden;
-	  break;
-
-	case (NSApplicationPresentationAutoHideMenuBar
-	      | NSApplicationPresentationAutoHideDock):
-	  /* 0101 */
-	  mode = kUIModeAllSuppressed;
-	  break;
-
-	case (NSApplicationPresentationAutoHideMenuBar
-	      | NSApplicationPresentationHideDock):
-	  /* 0110 */
-	  mode = kUIModeAllHidden;
-	  options = kUIOptionAutoShowMenuBar;
-	  break;
-
-	case (NSApplicationPresentationHideMenuBar
-	      | NSApplicationPresentationHideDock):
-	  /* 1010 */
-	  mode = kUIModeAllHidden;
-	  break;
-
-	default:
-	  if ((newOptions & (NSApplicationPresentationHideDock
-			     | NSApplicationPresentationAutoHideDock))
-	      == (NSApplicationPresentationHideDock
-		  | NSApplicationPresentationAutoHideDock))
-	    /* XX11: 0011 0111 1011 1111 */
-	    message = @"Both NSApplicationPresentationHideDock and NSApplicationPresentationAutoHideDock were specified; only one is allowed";
-	  else if ((newOptions & (NSApplicationPresentationHideMenuBar
-				  | NSApplicationPresentationAutoHideMenuBar))
-		   == (NSApplicationPresentationHideMenuBar
-		       | NSApplicationPresentationAutoHideMenuBar))
-	    /* 11XX: 1100 1101 1110 (1111) */
-	    message = @"Both NSApplicationPresentationHideMenuBar and NSApplicationPresentationAutoHideMenuBar were specified; only one is allowed";
-	  else if ((newOptions & (NSApplicationPresentationHideMenuBar
-				  | NSApplicationPresentationHideDock))
-		   == NSApplicationPresentationHideMenuBar)
-	    /* 1X0X: 1000 1001 (1100 1101) */
-	    message = @"NSApplicationPresentationHideMenuBar specified without NSApplicationPresentationHideDock";
-	  else
-	    /* XXXX: 0100 (...) */
-	    message = @"NSApplicationPresentationAutoHideMenuBar specified without either NSApplicationPresentationHideDock or NSApplicationPresentationAutoHideDock";
-	  break;
-	}
-
-      if ((newOptions & NSApplicationPresentationDisableMenuBarTransparency)
-	  && (mode == kUIModeContentSuppressed || mode == kUIModeContentHidden))
-	/* kUIOptionDisableMenuBarTransparency, but this constant was
-	   changed between 10.5 (1 << 7) and 10.6 (1 << 9).  */
-	options |= (1 << 7);
-
-      if (message)
-	[NSException raise:NSInvalidArgumentException format:@"%@", message];
-
-      options |= ((newOptions
-		   & (NSApplicationPresentationDisableAppleMenu
-		      | NSApplicationPresentationDisableProcessSwitching
-		      | NSApplicationPresentationDisableForceQuit
-		      | NSApplicationPresentationDisableSessionTermination
-		      | NSApplicationPresentationDisableHideApplication))
-		  >> 2);
-
-      /* If SetSystemUIMode is called unconditionally, then the menu
-	 bar does not get updated after Command-H -> Dock icon click
-	 on Mac OS X 10.5.  */
-      GetSystemUIMode (&current_mode, &current_options);
-      if (mode != current_mode || options != current_options)
-	SetSystemUIMode (mode, options);
-    }
-}
-#endif
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 /* Workarounds for memory leaks on OS X 10.9.  */
@@ -1371,8 +1089,6 @@ static void mac_update_accessibility_display_options (void);
   if (!serviceProviderRegistered)
     [NSApp setServicesProvider:self];
 
-  install_dispatch_handler ();
-
   macfont_update_antialias_threshold ();
   [[NSNotificationCenter defaultCenter]
     addObserver:self
@@ -1394,11 +1110,8 @@ static void mac_update_accessibility_display_options (void);
 	     object:nil];
     }
 
-  if ([NSApp respondsToSelector:@selector(registerUserInterfaceItemSearchHandler:)])
-    {
-      [NSApp registerUserInterfaceItemSearchHandler:self];
-      Vmac_help_topics = Qnil;
-    }
+  [NSApp registerUserInterfaceItemSearchHandler:self];
+  Vmac_help_topics = Qnil;
 
   /* Exit from the main event loop.  */
   [NSApp stop:nil];
@@ -1465,7 +1178,6 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
     }
 }
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 - (void)setTrackingResumeBlock:(void (^)(void))block
 {
   MRC_RELEASE (trackingResumeBlock);
@@ -1479,28 +1191,6 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 #define MOUSE_TRACKING_SUSPENDED_P()	(trackingResumeBlock != nil)
 #define MOUSE_TRACKING_RESUME()		trackingResumeBlock ()
 #define MOUSE_TRACKING_RESET()		[self setTrackingResumeBlock:nil]
-#else  /* MAC_OS_X_VERSION_MIN_REQUIRED < 1060 */
-- (void)setTrackingObject:(id)object andResumeSelector:(SEL)selector
-{
-  if (trackingObject != object)
-    {
-      MRC_RELEASE (trackingObject);
-      trackingObject = MRC_RETAIN (object);
-    }
-
-  trackingResumeSelector = selector;
-}
-
-#define MOUSE_TRACKING_SET_RESUMPTION(controller, obj, sel_name)	\
-  [(controller) setTrackingObject:(obj) andResumeSelector:@selector(sel_name)]
-
-/* These macros can only be used inside EmacsController.  */
-#define MOUSE_TRACKING_SUSPENDED_P()	(trackingObject != nil)
-#define MOUSE_TRACKING_RESUME()					\
-  [trackingObject performSelector:trackingResumeSelector]
-#define MOUSE_TRACKING_RESET()						\
-  [self setTrackingObject:nil andResumeSelector:@selector(dummy)]
-#endif  /* MAC_OS_X_VERSION_MIN_REQUIRED < 1060 */
 
 /* Minimum time interval between successive mac_read_socket calls.  */
 
@@ -1665,7 +1355,6 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
     }
   else
     {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       int __block result;
 
       [NSApp runTemporarilyWithBlock:^{
@@ -1673,29 +1362,6 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 	}];
 
       return result;
-#else
-      static NSInvocation *invocation = nil;
-      int result;
-
-      /* Cache the NSInvocation object because it is repeatedly used
-	 and the EmacsController object is singleton.  */
-      if (invocation == nil)
-	{
-	  NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-
-	  invocation = [NSInvocation invocationWithMethodSignature:signature];
-	  [invocation setTarget:self];
-	  [invocation setSelector:_cmd];
-	  [invocation retain];
-	}
-      [invocation setArgument:&bufp atIndex:2];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-
-      [invocation getReturnValue:&result];
-
-      return result;
-#endif
     }
 }
 
@@ -1929,7 +1595,6 @@ emacs_windows_need_display_p (void)
       WMState windowManagerState = [frameController windowManagerState];
       NSApplicationPresentationOptions options;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
       if (has_full_screen_with_dedicated_desktop ()
 	  && ((options = [NSApp presentationOptions],
 	       (options & NSApplicationPresentationFullScreen))
@@ -1949,9 +1614,7 @@ emacs_windows_need_display_p (void)
 	      [NSApp setPresentationOptions:options];
 	    }
 	}
-      else
-#endif
-      if (windowManagerState & WM_STATE_FULLSCREEN)
+      else if (windowManagerState & WM_STATE_FULLSCREEN)
 	{
 	  NSScreen *screen = [window screen];
 
@@ -1970,13 +1633,8 @@ emacs_windows_need_display_p (void)
 	}
       else if (windowManagerState & WM_STATE_NO_MENUBAR)
 	{
-	  NSArrayOf (NSNumber *) *windowNumbers;
-
-	  if ([NSWindow
-		respondsToSelector:@selector(windowNumbersWithOptions:)])
-	    windowNumbers = [NSWindow windowNumbersWithOptions:0];
-	  else
-	    windowNumbers = nil;
+	  NSArrayOf (NSNumber *) *windowNumbers =
+	    [NSWindow windowNumbersWithOptions:0];
 
 	  options = NSApplicationPresentationDefault;
 	  for (NSWindow *window in [NSApp windows])
@@ -1994,13 +1652,10 @@ emacs_windows_need_display_p (void)
 
 		frameController = (EmacsFrameController *) [window delegate];
 		windowManagerState = [frameController windowManagerState];
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 		if (has_full_screen_with_dedicated_desktop ()
 		    && (windowManagerState & WM_STATE_DEDICATED_DESKTOP))
 		  ;
-		else
-#endif
-		if (windowManagerState & WM_STATE_FULLSCREEN)
+		else if (windowManagerState & WM_STATE_FULLSCREEN)
 		  {
 		    NSScreen *screen = [window screen];
 
@@ -2033,7 +1688,6 @@ emacs_windows_need_display_p (void)
       WMState windowManagerState = [frameController windowManagerState];
       NSApplicationPresentationOptions options;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
       if (has_full_screen_with_dedicated_desktop ()
 	  && ((options = [NSApp presentationOptions],
 	       (options & NSApplicationPresentationFullScreen))
@@ -2048,9 +1702,7 @@ emacs_windows_need_display_p (void)
 	      [NSApp setPresentationOptions:options];
 	    }
 	}
-      else
-#endif
-      if (windowManagerState & WM_STATE_FULLSCREEN)
+      else if (windowManagerState & WM_STATE_FULLSCREEN)
 	{
 	  NSScreen *screen = [window screen];
 
@@ -2295,14 +1947,10 @@ static CGRect unset_global_focus_view_frame (void);
     [NSApp sendAction:_cmd to:target from:sender];
   else
     {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
       EmacsFrameController *frameController = (EmacsFrameController *) delegate;
       [frameController setShouldLiveResizeTriggerTransition:YES];
-#endif
       [super zoom:sender];
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
       [frameController setShouldLiveResizeTriggerTransition:NO];
-#endif
     }
 }
 
@@ -2576,11 +2224,9 @@ static CGRect unset_global_focus_view_frame (void);
       [window setShowsResizeIndicator:NO];
       [self setupOverlayWindowAndView];
       [self attachOverlayWindow];
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
       if (has_full_screen_with_dedicated_desktop ()
 	  && !(windowManagerState & WM_STATE_FULLSCREEN))
 	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
-#endif
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:NSWindowAnimationBehaviorDocumentWindow];
     }
@@ -2733,22 +2379,18 @@ static CGRect unset_global_focus_view_frame (void);
       behavior = ((windowManagerState & WM_STATE_STICKY)
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
 		  : NSWindowCollectionBehaviorMoveToActiveSpace);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
       if (has_full_screen_with_dedicated_desktop ())
 	behavior |= NSWindowCollectionBehaviorFullScreenAuxiliary;
-#endif
     }
   else
     {
       behavior = ((windowManagerState & WM_STATE_STICKY)
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
 		  : NSWindowCollectionBehaviorDefault);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
       if (has_full_screen_with_dedicated_desktop ()
 	  && (!(windowManagerState & WM_STATE_FULLSCREEN)
 	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
 	behavior |= NSWindowCollectionBehaviorFullScreenPrimary;
-#endif
     }
   [emacsWindow setCollectionBehavior:behavior];
 }
@@ -2838,7 +2480,6 @@ static CGRect unset_global_focus_view_frame (void);
       [self updateCollectionBehavior];
     }
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   if (has_full_screen_with_dedicated_desktop ()
       && (diff & WM_STATE_DEDICATED_DESKTOP))
     {
@@ -2882,9 +2523,7 @@ static CGRect unset_global_focus_view_frame (void);
 	  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLBOTH;
 	}
     }
-  else
-#endif
-    if (diff & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT
+  else if (diff & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT
 		| WM_STATE_FULLSCREEN))
       setFrameType = SET_FRAME_NECESSARY;
 
@@ -2969,10 +2608,8 @@ static CGRect unset_global_focus_view_frame (void);
       frameRect = [self postprocessWindowManagerStateChange:frameRect];
       [emacsWindow setFrame:frameRect display:YES];
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
       if (setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
 	[emacsWindow toggleFullScreen:nil];
-#endif
     }
 
   [emacsController updatePresentationOptions];
@@ -3278,10 +2915,8 @@ static CGRect unset_global_focus_view_frame (void);
 
       [window suspendResizeTracking:currentEvent positionAdjustment:adjustment];
     }
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   else if ([window inLiveResize])
     [self setupLiveResizeTransition];
-#endif
 
   return result;
 }
@@ -3385,7 +3020,6 @@ static CGRect unset_global_focus_view_frame (void);
   [emacsController storeEvent:&inev];
 }
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 - (EmacsLiveResizeTransitionView *)liveResizeTransitionViewWithDefaultBackground:(BOOL)flag
 {
   struct frame *f = emacsFrame;
@@ -4015,7 +3649,6 @@ static CGRect unset_global_focus_view_frame (void);
       [emacsView setFrame:[[emacsView superview] bounds]];
     }];
 }
-#endif
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
 			change:(NSDictionaryOf (NSString *, id) *)change
@@ -4675,21 +4308,20 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
 - (instancetype)initWithFrame:(NSRect)frameRect
 {
+  NSTrackingArea *trackingAreaForCursor;
+
   self = [super initWithFrame:frameRect];
   if (self == nil)
     return nil;
 
-  if (mac_tracking_area_works_with_cursor_rects_invalidation_p ())
-    {
-      NSTrackingArea *trackingAreaForCursor =
-	[[NSTrackingArea alloc] initWithRect:NSZeroRect
-				     options:(NSTrackingCursorUpdate
-					      | NSTrackingActiveInKeyWindow
-					      | NSTrackingInVisibleRect)
-				       owner:self userInfo:nil];
-      [self addTrackingArea:trackingAreaForCursor];
-      MRC_RELEASE (trackingAreaForCursor);
-    }
+  trackingAreaForCursor = [[NSTrackingArea alloc]
+			    initWithRect:NSZeroRect
+				 options:(NSTrackingCursorUpdate
+					  | NSTrackingActiveInKeyWindow
+					  | NSTrackingInVisibleRect)
+				   owner:self userInfo:nil];
+  [self addTrackingArea:trackingAreaForCursor];
+  MRC_RELEASE (trackingAreaForCursor);
 
   return self;
 }
@@ -5225,39 +4857,11 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   [self sendAction:action to:target];
 }
 
-static OSStatus
-get_text_input_script_language (ScriptLanguageRecord *slrec)
-{
-  OSStatus err = eventParameterNotFoundErr;
-
-  if (current_text_input_event)
-    {
-      ComponentInstance ci;
-
-      /* Don't rely on kEventParamTextInputSendSLRec if
-	 kEventParamTextInputSendComponentInstance is not
-	 available.  */
-      err = GetEventParameter (current_text_input_event,
-			       kEventParamTextInputSendComponentInstance,
-			       typeComponentInstance, NULL,
-			       sizeof (ComponentInstance), NULL, &ci);
-      if (err == noErr)
-	err = GetEventParameter (current_text_input_event,
-				 kEventParamTextInputSendSLRec,
-				 typeIntlWritingCode, NULL,
-				 sizeof (ScriptLanguageRecord), NULL, slrec);
-    }
-
-  return err;
-}
-
 - (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
 {
-  OSStatus err;
   struct frame *f = [self emacsFrame];
   NSString *charactersForASCIIKeystroke = nil;
   Lisp_Object arg = Qnil;
-  ScriptLanguageRecord slrec;
 
   /* While executing AppleScript, key events are directly delivered to
      the first responder's insertText:replacementRange: (not via
@@ -5324,15 +4928,6 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
 	}
     }
 
-  err = get_text_input_script_language (&slrec);
-  if (err == noErr)
-    {
-      arg = make_unibyte_string ((char *) &slrec,
-				 sizeof (ScriptLanguageRecord));
-      arg = list1 (Fcons (build_string ("tssl"),
-			  Fcons (build_string ("intl"), arg)));
-    }
-
   if (!NSEqualRanges (replacementRange, NSMakeRange (NSNotFound, 0)))
     arg = Fcons (Fcons (build_string ("replacementRange"),
 			Fcons (build_string ("Lisp"),
@@ -5382,21 +4977,10 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
 - (void)setMarkedText:(id)aString selectedRange:(NSRange)selectedRange
      replacementRange:(NSRange)replacementRange
 {
-  OSStatus err;
   struct frame *f = [self emacsFrame];
   Lisp_Object arg = Qnil;
-  ScriptLanguageRecord slrec;
 
   [self setMarkedText:aString];
-
-  err = get_text_input_script_language (&slrec);
-  if (err == noErr)
-    {
-      arg = make_unibyte_string ((char *) &slrec,
-				 sizeof (ScriptLanguageRecord));
-      arg = list1 (Fcons (build_string ("tssl"),
-			  Fcons (build_string ("intl"), arg)));
-    }
 
   if (!NSEqualRanges (replacementRange, NSMakeRange (NSNotFound, 0)))
     arg = Fcons (Fcons (build_string ("replacementRange"),
@@ -6098,7 +5682,6 @@ create_resize_indicator_image (void)
 
 @end				// EmacsOverlayView
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 @implementation EmacsLiveResizeTransitionView
 
 - (BOOL)isFlipped
@@ -6107,7 +5690,6 @@ create_resize_indicator_image (void)
 }
 
 @end				// EmacsLiveResizeTransitionView
-#endif
 
 
 /************************************************************************
@@ -7842,15 +7424,6 @@ static void update_dragged_types (void);
 	 in the frame.  */
       clear_mouse_face (hlinfo);
       hlinfo->mouse_face_mouse_frame = 0;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-      if (!mac_tracking_area_works_with_cursor_rects_invalidation_p ())
-	if (!dpyinfo->grabbed)
-	  {
-	    struct redisplay_interface *rif = FRAME_RIF (f);
-
-	    rif->define_frame_cursor (f, f->output_data.mac->nontext_cursor);
-	  }
-#endif
     }
 
   x = point.x;
@@ -8178,7 +7751,6 @@ mac_hide_hourglass (struct frame *f)
 
 @implementation EmacsSavePanel
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 /* Like the original runModal, but run the application event loop if
    not.  */
 
@@ -8197,34 +7769,6 @@ mac_hide_hourglass (struct frame *f)
       return response;
     }
 }
-#else
-/* Like the original runModalForDirectory:file:, but run the
-   application event loop if not.  */
-
-- (NSInteger)runModalForDirectory:(NSString *)path file:(NSString *)filename
-{
-  if ([NSApp isRunning])
-    return [super runModalForDirectory:path file:filename];
-  else
-    {
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-      NSInteger response;
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-      [invocation setArgument:&path atIndex:2];
-      [invocation setArgument:&filename atIndex:3];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-
-      [invocation getReturnValue:&response];
-
-      return response;
-    }
-}
-#endif
 
 /* Simulate kNavDontConfirmReplacement.  */
 
@@ -8237,7 +7781,6 @@ mac_hide_hourglass (struct frame *f)
 
 @implementation EmacsOpenPanel
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 /* Like the original runModal, but run the application event loop if
    not.  */
 
@@ -8256,38 +7799,6 @@ mac_hide_hourglass (struct frame *f)
       return response;
     }
 }
-#else
-/* Like the original runModalForDirectory:file:types:, but run the
-   application event loop if not.  */
-
-- (NSInteger)runModalForDirectory:(NSString *)absoluteDirectoryPath
-			     file:(NSString *)filename
-			    types:(NSArray *)fileTypes
-{
-  if ([NSApp isRunning])
-    return [super runModalForDirectory:absoluteDirectoryPath
-		  file:filename types:fileTypes];
-  else
-    {
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-      NSInteger response;
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-      [invocation setArgument:&absoluteDirectoryPath atIndex:2];
-      [invocation setArgument:&filename atIndex:3];
-      [invocation setArgument:&fileTypes atIndex:4];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-
-      [invocation getReturnValue:&response];
-
-      return response;
-    }
-}
-#endif
 
 @end				// EmacsOpenPanel
 
@@ -8334,7 +7845,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
       if ([savePanel respondsToSelector:@selector(setShowsTagField:)])
 	[savePanel setShowsTagField:NO];
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       [savePanel setDirectoryURL:[NSURL fileURLWithPath:directory
 					    isDirectory:YES]];
       if (nondirectory)
@@ -8347,12 +7857,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 	  if ([url isFileURL])
 	    file = [[url path] lispString];
 	}
-#else
-      response = [savePanel runModalForDirectory:directory
-					    file:nondirectory];
-      if (response == NSFileHandlingPanelOKButton)
-	file = [[savePanel filename] lispString];
-#endif
     }
   else
     {
@@ -8366,7 +7870,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
       [openPanel setCanChooseDirectories:YES];
       [openPanel setCanChooseFiles:(NILP (only_dir_p))];
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       [openPanel setDirectoryURL:[NSURL fileURLWithPath:directory
 					    isDirectory:YES]];
       if (nondirectory)
@@ -8380,12 +7883,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 	  if ([url isFileURL])
 	    file = [[url path] lispString];
 	}
-#else
-      response = [openPanel runModalForDirectory:directory
-					    file:nondirectory types:nil];
-      if (response == NSOKButton)
-	file = [[[openPanel filenames] objectAtIndex:0] lispString];
-#endif
     }
 
   unblock_input ();
@@ -8440,7 +7937,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 
 - (NSInteger)runModal
 {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
   NSInteger __block response;
 
   [NSApp runTemporarilyWithBlock:^{
@@ -8448,23 +7944,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
     }];
 
   return response;
-#else
-  NSMethodSignature *signature =
-    [NSApp methodSignatureForSelector:@selector(runModalForWindow:)];
-  NSInvocation *invocation =
-    [NSInvocation invocationWithMethodSignature:signature];
-  NSInteger response;
-
-  [invocation setTarget:NSApp];
-  [invocation setSelector:@selector(runModalForWindow:)];
-  [invocation setArgument:&self atIndex:2];
-
-  [NSApp runTemporarilyWithInvocation:invocation];
-
-  [invocation getReturnValue:&response];
-
-  return response;
-#endif
 }
 
 @end				// NSFontPanel (Emacs)
@@ -8810,7 +8289,6 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	    {
 	      /* This is necessary for avoiding hang when canceling
 		 pop-up dictionary with C-g on OS X 10.11.  */
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 	      BOOL __block sent;
 
 	      [NSApp runTemporarilyWithBlock:^{
@@ -8818,28 +8296,6 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 		}];
 
 	      return sent;
-#else
-	      SEL selector = @selector(sendAction:to:from:);
-	      NSMethodSignature *signature =
-		[NSApp methodSignatureForSelector:selector];
-	      NSInvocation *invocation =
-		[NSInvocation invocationWithMethodSignature:signature];
-	      SEL action = @selector(cancel:);
-	      id target = nil, sender = nil;
-	      BOOL sent;
-
-	      [invocation setTarget:NSApp];
-	      [invocation setSelector:selector];
-	      [invocation setArgument:&action atIndex:2];
-	      [invocation setArgument:&target atIndex:3];
-	      [invocation setArgument:&sender atIndex:4];
-
-	      [NSApp runTemporarilyWithInvocation:invocation];
-
-	      [invocation getReturnValue:&sent];
-
-	      return sent;
-#endif
 	    }
 	}
     }
@@ -8927,20 +8383,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
       [emacsController updatePresentationOptions];
     }
   else
-    {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-      [NSApp runTemporarilyWithBlock:^{[self trackMenuBar];}];
-#else
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-#endif
-    }
+    [NSApp runTemporarilyWithBlock:^{[self trackMenuBar];}];
 }
 
 - (NSMenu *)applicationDockMenu:(NSApplication *)sender
@@ -8962,19 +8405,8 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 	  [item setState:NSOnState];
 	else if ([window isMiniaturized])
 	  {
-	    NSImage *image;
+	    NSImage *image = [NSImage imageNamed:@"NSMenuItemDiamond"];
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	    if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5)
-	      {
-		if (_NSGetThemeImage != NULL)
-		  image = _NSGetThemeImage (0x9b);
-		else
-		  image = nil;
-	      }
-	    else
-#endif
-	      image = [NSImage imageNamed:@"NSMenuItemDiamond"];
 	    if (image)
 	      {
 		[item setOnStateImage:image];
@@ -8993,11 +8425,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 /* This might be called from a non-main thread.  */
 - (void)searchForItemsWithSearchString:(NSString *)searchString
 			   resultLimit:(NSInteger)resultLimit
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 		    matchedItemHandler:(void (^)(NSArray *items))handleMatchedItems
-#else
-		    matchedItemHandler:(id)handleMatchedItems
-#endif
 {
   NSMutableArrayOf (NSString *) *items =
     [NSMutableArray arrayWithCapacity:resultLimit];
@@ -9019,19 +8447,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 	  }
       }
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   handleMatchedItems (items);
-#else
-  {
-    struct handler_block {
-      void *isa;
-      int flags, reserved;
-      void (*invoke) (struct handler_block *, NSArray *);
-    } *block = (struct handler_block *) handleMatchedItems;
-
-    block->invoke (block, items);
-  }
-#endif
 }
 
 - (NSArrayOf (NSString *) *)localizedTitlesForItem:(id)item
@@ -9061,9 +8477,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 
 - (void)popUpMenu:(NSMenu *)menu atLocationInEmacsView:(NSPoint)location
 {
-  if (!mac_popup_menu_add_contextual_menu
-      && [menu respondsToSelector:
-		 @selector(popUpMenuPositioningItem:atLocation:inView:)])
+  if (!mac_popup_menu_add_contextual_menu)
     [menu popUpMenuPositioningItem:nil atLocation:location inView:emacsView];
   else
     {
@@ -9243,7 +8657,7 @@ mac_fill_menubar (widget_value *wv, bool deep_p)
       MRC_RELEASE (appleMenuItem);
 
       [NSApp setMainMenu:newMenu];
-      if (helpMenu && [NSApp respondsToSelector:@selector(setHelpMenu:)])
+      if (helpMenu)
 	[NSApp setHelpMenu:helpMenu];
     }
 
@@ -10626,7 +10040,6 @@ handle_action_invocation (NSInvocation *invocation)
     return [super executeAndReturnError:errorInfo];
   else
     {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       NSAppleEventDescriptor * __block result;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
@@ -10643,26 +10056,6 @@ handle_action_invocation (NSInvocation *invocation)
 	*errorInfo = MRC_AUTORELEASE (errorInfo1);
 
       return MRC_AUTORELEASE (result);
-#else
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-      NSAppleEventDescriptor *result;
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-      [invocation setArgument:&errorInfo atIndex:2];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-
-      [invocation getReturnValue:&result];
-
-      /* It is retained in didRunTemporarilyWithInvocation:. */
-      if (result == nil)
-	[*errorInfo autorelease];
-
-      return [result autorelease];
-#endif
     }
 }
 
@@ -10672,7 +10065,6 @@ handle_action_invocation (NSInvocation *invocation)
     return [super executeAndReturnDisplayValue:displayValue error:errorInfo];
   else
     {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       NSAppleEventDescriptor * __block result;
       NSAttributedString * __block displayValue1;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
@@ -10695,29 +10087,6 @@ handle_action_invocation (NSInvocation *invocation)
 	*errorInfo = MRC_AUTORELEASE (errorInfo1);
 
       return MRC_AUTORELEASE (result);
-#else
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-      NSAppleEventDescriptor *result;
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-      [invocation setArgument:&displayValue atIndex:2];
-      [invocation setArgument:&errorInfo atIndex:3];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-
-      [invocation getReturnValue:&result];
-
-      /* They are retained in didRunTemporarilyWithInvocation:. */
-      if (result)
-	[*displayValue autorelease];
-      else
-	[*errorInfo autorelease];
-
-      return [result autorelease];
-#endif
     }
 }
 
@@ -10727,7 +10096,6 @@ handle_action_invocation (NSInvocation *invocation)
     return [super executeAppleEvent:event error:errorInfo];
   else
     {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       NSAppleEventDescriptor * __block result;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
@@ -10744,75 +10112,8 @@ handle_action_invocation (NSInvocation *invocation)
 	*errorInfo = MRC_AUTORELEASE (errorInfo1);
 
       return MRC_AUTORELEASE (result);
-#else
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-      NSAppleEventDescriptor *result;
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-      [invocation setArgument:&event atIndex:2];
-      [invocation setArgument:&errorInfo atIndex:3];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-
-      [invocation getReturnValue:&result];
-
-      /* It is retained in didRunTemporarilyWithInvocation:. */
-      if (result == nil)
-	[*errorInfo autorelease];
-
-      return [result autorelease];
-#endif
     }
 }
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-- (void)didRunTemporarilyWithInvocation:(NSInvocation *)invocation
-{
-  NSAppleEventDescriptor *result;
-  NSAttributedString **displayValue;
-  NSDictionary **errorInfo;
-  SEL selector = [invocation selector];
-
-  if (selector == @selector(executeAndReturnError:))
-    {
-      [invocation getReturnValue:&result];
-      if (result == nil)
-	{
-	  [invocation getArgument:&errorInfo atIndex:2];
-	  [*errorInfo retain];
-	}
-      [result retain];
-    }
-  else if (selector == @selector(executeAndReturnDisplayValue:error:))
-    {
-      [invocation getReturnValue:&result];
-      if (result)
-	{
-	  [invocation getArgument:&displayValue atIndex:2];
-	  [*displayValue retain];
-	}
-      else
-	{
-	  [invocation getArgument:&errorInfo atIndex:3];
-	  [*errorInfo retain];
-	}
-      [result retain];
-    }
-  else if (selector == @selector(executeAppleEvent:error:))
-    {
-      [invocation getReturnValue:&result];
-      if (result == nil)
-	{
-	  [invocation getArgument:&errorInfo atIndex:3];
-	  [*errorInfo retain];
-	}
-      [result retain];
-    }
-}
-#endif
 
 @end				// EmacsOSAScript
 
@@ -10908,64 +10209,49 @@ mac_osa_create_script_from_file (Lisp_Object filename,
   EmacsOSAScript *result;
   Lisp_Object encoded;
   NSURL *url;
+  NSAppleEventDescriptor *dataDescriptor;
   NSDictionaryOf (NSString *, id) *errorInfo = nil;
   OSALanguage *language;
 
   filename = Fexpand_file_name (filename, Qnil);
   encoded = ENCODE_FILE (filename);
   url = [NSURL fileURLWithPath:[NSString stringWithLispString:encoded]];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-  {
-    NSAppleEventDescriptor *dataDescriptor =
-      [OSAScript scriptDataDescriptorWithContentsOfURL:url];
+  dataDescriptor = [OSAScript scriptDataDescriptorWithContentsOfURL:url];
 
-    if (dataDescriptor == nil)
-      result = nil;
-    else
-      {
-	NSError *error;
-
-	language = [OSALanguage languageForScriptDataDescriptor:dataDescriptor];
-	if (language == nil)
-	  {
-	    if (EQ (compiled_p_or_language, Qt))
-	      {
-		*error_data =
-		  list2 (build_string ("Can't obtain OSA language from file"),
-			 filename);
-
-		return nil;
-	      }
-	    language = mac_osa_language_from_lisp (compiled_p_or_language);
-	    if (language == nil)
-	      {
-		*error_data =
-		  list2 (build_string ("OSA language not available"),
-			 compiled_p_or_language);
-
-		return nil;
-	      }
-	  }
-	result = [[EmacsOSAScript alloc]
-		   initWithScriptDataDescriptor:dataDescriptor fromURL:url
-			       languageInstance:[language
-						  sharedLanguageInstance]
-			    usingStorageOptions:OSANull error:&error];
-	if (result == nil)
-	  errorInfo = [error userInfo];
-      }
-  }
-#else
-  language = mac_osa_language_from_lisp (compiled_p_or_language);
-  if (language == nil)
+  if (dataDescriptor == nil)
+    result = nil;
+  else
     {
-      *error_data = list2 (build_string ("OSA language not available"),
-			   compiled_p_or_language);
-      return nil;
-    }
-  result = [[EmacsOSAScript alloc] initWithContentsOfURL:url language:language
-						   error:&errorInfo];
-#endif
+      NSError *error;
+
+      language = [OSALanguage languageForScriptDataDescriptor:dataDescriptor];
+      if (language == nil)
+	{
+	  if (EQ (compiled_p_or_language, Qt))
+	    {
+	      *error_data =
+		list2 (build_string ("Can't obtain OSA language from file"),
+		       filename);
+
+	      return nil;
+	    }
+	  language = mac_osa_language_from_lisp (compiled_p_or_language);
+	  if (language == nil)
+	    {
+	      *error_data =
+		list2 (build_string ("OSA language not available"),
+		       compiled_p_or_language);
+
+	      return nil;
+	    }
+	}
+      result = [[EmacsOSAScript alloc]
+		 initWithScriptDataDescriptor:dataDescriptor fromURL:url
+			     languageInstance:[language sharedLanguageInstance]
+			  usingStorageOptions:OSANull error:&error];
+      if (result == nil)
+	errorInfo = [error userInfo];
+  }
   if (result == nil)
     {
       if (errorInfo)
@@ -11000,14 +10286,9 @@ mac_osa_create_script_from_code (Lisp_Object code,
 	}
       result = [[EmacsOSAScript alloc]
 		 initWithSource:[NSString stringWithLispString:code]
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 			fromURL:nil
 		 languageInstance:[language sharedLanguageInstance]
-		 usingStorageOptions:OSANull
-#else
-		       language:language
-#endif
-		];
+		 usingStorageOptions:OSANull];
       if (result == nil)
 	*error_data =
 	  list2 (build_string ("Can't create OSA script from source"),
@@ -11018,7 +10299,6 @@ mac_osa_create_script_from_code (Lisp_Object code,
       NSData *data = [NSData dataWithBytes:(SDATA (code))
 				    length:(SBYTES (code))];
       NSDictionaryOf (NSString *, id) *errorInfo = nil;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       NSError *error;
 
       result = [[EmacsOSAScript alloc] initWithCompiledData:data fromURL:nil
@@ -11026,10 +10306,6 @@ mac_osa_create_script_from_code (Lisp_Object code,
 						      error:&error];
       if (result == nil)
 	errorInfo = [error userInfo];
-#else
-      result = [[EmacsOSAScript alloc] initWithCompiledData:data
-						      error:&errorInfo];
-#endif
       if (result == nil)
 	{
 	  if (errorInfo)
@@ -11265,80 +10541,18 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
   transform = [NSAffineTransform transform];
   [transform scaleBy:scaleFactor];
   [transform translateXBy:(- NSMinX (rect)) yBy:(- NSMinY (rect))];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5))
-#endif
+  [NSGraphicsContext saveGraphicsState];
+  [NSGraphicsContext setCurrentContext:gcontext];
+  [transform concat];
+  if (!([self isOpaque] && NSContainsRect (rect, [self bounds])))
     {
       [NSGraphicsContext saveGraphicsState];
-      [NSGraphicsContext setCurrentContext:gcontext];
-      [transform concat];
-      if (!([self isOpaque] && NSContainsRect (rect, [self bounds])))
-	{
-	  [NSGraphicsContext saveGraphicsState];
-	  [(color ? color : [NSColor clearColor]) set];
-	  NSRectFill (rect);
-	  [NSGraphicsContext restoreGraphicsState];
-	}
-      /* This does not work on Mac OS X 10.5 especially for WebView,
-	 because of missing viewWillDraw calls in the case of
-	 non-window contexts?  */
-      [self displayRectIgnoringOpacity:rect inContext:gcontext];
+      [(color ? color : [NSColor clearColor]) set];
+      NSRectFill (rect);
       [NSGraphicsContext restoreGraphicsState];
     }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  else
-    {
-      NSRect bounds = [self bounds];
-      NSRect contentRect = NSMakeRect (bounds.origin.x, bounds.origin.y,
-				       bounds.size.width * scaleFactor,
-				       bounds.size.height * scaleFactor);
-      NSWindow *window =
-	[[NSWindow alloc] initWithContentRect:contentRect
-				    styleMask:(NSBorderlessWindowMask
-					       | NSUnscaledWindowMask)
-				      backing:NSBackingStoreBuffered
-					defer:NO];
-      NSView *contentView = [window contentView];
-      NSBitmapImageRep *rep;
-
-      if (![self isOpaque])
-	{
-	  if (color && [color alphaComponent] == 1.0)
-	    [window setBackgroundColor:color];
-	  else
-	    {
-	      [window setOpaque:NO];
-	      [window setBackgroundColor:(color ? color
-					  : [NSColor clearColor])];
-	    }
-	}
-      [contentView addSubview:self];
-      [contentView setBoundsSize:bounds.size];
-      [self display];
-      [self lockFocus];
-      rep = [[NSBitmapImageRep alloc]
-	      initWithFocusedViewRect:[self convertRect:bounds toView:nil]];
-      [self unlockFocus];
-      MRC_RELEASE (window);
-
-      [NSGraphicsContext saveGraphicsState];
-      [NSGraphicsContext setCurrentContext:gcontext];
-      [transform concat];
-      if (!([self isOpaque] && NSContainsRect (rect, bounds)))
-	{
-	  [NSGraphicsContext saveGraphicsState];
-	  [(color ? color : [NSColor clearColor]) set];
-	  NSRectFill (rect);
-	  [NSGraphicsContext restoreGraphicsState];
-	}
-      transform = [NSAffineTransform transform];
-      [transform scaleBy:(1 / scaleFactor)];
-      [transform concat];
-      [rep draw];
-      MRC_RELEASE (rep);
-      [NSGraphicsContext restoreGraphicsState];
-    }
-#endif
+  [self displayRectIgnoringOpacity:rect inContext:gcontext];
+  [NSGraphicsContext restoreGraphicsState];
   CGContextRelease (context);
 
   return ximg;
@@ -11484,7 +10698,6 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
     }
   else
     {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       bool __block result;
 
       [NSApp runTemporarilyWithBlock:^{
@@ -11492,23 +10705,6 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 	}];
 
       return result;
-#else
-      NSMethodSignature *signature = [self methodSignatureForSelector:_cmd];
-      NSInvocation *invocation =
-	[NSInvocation invocationWithMethodSignature:signature];
-      bool result;
-
-      [invocation setTarget:self];
-      [invocation setSelector:_cmd];
-      [invocation setArgument:&data atIndex:2];
-      [invocation setArgument:&backgroundColor atIndex:3];
-
-      [NSApp runTemporarilyWithInvocation:invocation];
-
-      [invocation getReturnValue:&result];
-
-      return result;
-#endif
     }
 }
 
@@ -11583,13 +10779,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   if (type && !UTTypeEqual ((__bridge CFStringRef) type, kUTTypePDF))
     goto error;
 
-  if ([NSFileHandle
-	respondsToSelector:@selector(fileHandleForReadingFromURL:error:)])
-    fileHandle = [NSFileHandle fileHandleForReadingFromURL:url error:NULL];
-  else if ([url isFileURL])
-    fileHandle = [NSFileHandle fileHandleForReadingAtPath:[url path]];
-  else
-    fileHandle = nil;
+  fileHandle = [NSFileHandle fileHandleForReadingFromURL:url error:NULL];
   data = [fileHandle readDataOfLength:5];
 
   if ([data length] < 5 || memcmp ([data bytes], "%PDF-", 5) != 0)
@@ -11792,72 +10982,12 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return self;
 }
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-+ (NSString *)documentTypeForFileType:(NSString *)documentType
-{
-  static NSDictionaryOf (NSString *, NSString *) *table;
-
-  if (table == nil)
-    table =
-      [[NSDictionary alloc]
-	initWithObjectsAndKeys:NSPlainTextDocumentType,	(id) kUTTypePlainText,
-	NSRTFTextDocumentType, (id) kUTTypeRTF,
-	NSRTFDTextDocumentType, (id) kUTTypeRTFD,
-	NSHTMLTextDocumentType, (id) kUTTypeHTML,
-	NSDocFormatTextDocumentType, @"com.microsoft.word.doc",
-	NSDocFormatTextDocumentType, @"com.microsoft.word.dot",
-	NSWordMLTextDocumentType, @"com.microsoft.word.wordml",
-	NSWebArchiveTextDocumentType, (id) kUTTypeWebArchive,
-	/* NSOfficeOpenXMLTextDocumentType */
-	@"NSOfficeOpenXML", @"org.openxmlformats.wordprocessingml.document",
-	@"NSOfficeOpenXML", @"org.openxmlformats.wordprocessingml.document.macroenabled",
-	@"NSOfficeOpenXML", @"org.openxmlformats.wordprocessingml.template",
-	@"NSOfficeOpenXML", @"org.openxmlformats.wordprocessingml.template.macroenabled",
-	/* NSOpenDocumentTextDocumentType */
-	@"NSOpenDocument", @"org.oasis-open.opendocument.text",
-	@"NSOpenDocument", @"org.oasis-open.opendocument.text-template",
-	@"NSOpenDocument", @"org.openoffice.text",
-	@"NSOpenDocument", @"org.openoffice.text-template",
-	nil];
-
-  return [table objectForKey:documentType];
-}
-
-+ (BOOL)adjustDocumentOptions:(NSDictionaryOf (NSString *, id) **)options
-{
-  NSString *fileType;
-
-  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5))
-    return YES;
-
-  fileType = [*options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
-  if (fileType)
-    {
-      NSMutableDictionaryOf (NSString *, id) *newOptions;
-      NSString *documentType = [self documentTypeForFileType:fileType];
-
-      if (documentType == nil)
-	return NO;
-
-      newOptions = [NSMutableDictionary dictionaryWithDictionary:*options];
-      [newOptions setObject:documentType forKey:NSDocumentTypeDocumentOption];
-      *options = newOptions;
-    }
-
-  return YES;
-}
-#endif
-
 - (instancetype)initWithURL:(NSURL *)url
 		    options:(NSDictionaryOf (NSString *, id) *)options
 {
   NSAttributedString *attrString;
   NSDictionaryOf (NSString *, id) *docAttributes;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (![[self class] adjustDocumentOptions:&options])
-    goto error;
-#endif
   attrString = [[NSAttributedString alloc]
 		 initWithURL:url options:options
 		 documentAttributes:&docAttributes error:NULL];
@@ -11884,10 +11014,6 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   NSAttributedString *attrString;
   NSDictionaryOf (NSString *, id) *docAttributes;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (![[self class] adjustDocumentOptions:&options])
-    goto error;
-#endif
   attrString = [[NSAttributedString alloc]
 		 initWithData:data options:options
 		 documentAttributes:&docAttributes error:NULL];
@@ -12016,12 +11142,6 @@ didCompleteLayoutForTextContainer:(NSTextContainer *)aTextContainer
 static NSArrayOf (Class <EmacsDocumentRasterizer>) *
 document_rasterizer_get_classes (void)
 {
-#if __LP64__ && MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-  /* If we load classes before dumping on Mac OS X 10.5 x86_64, then
-     the dumped executable fails to load on startup.  */
-  if (noninteractive)
-    return nil;
-#endif
   return [NSArray arrayWithObjects:[EmacsPDFDocument class],
 		  [EmacsDocumentRasterizer class],
 		  nil];
@@ -12152,31 +11272,10 @@ mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
 
   if ([nsurl isFileURL])
     {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-      if ([nsurl respondsToSelector:@selector(getResourceValue:forKey:error:)])
-#endif
-	{
-	  [[nsurl URLByResolvingSymlinksInPath]
-	    getResourceValue:&modificationDate
-		      forKey:NSURLAttributeModificationDateKey
-		       error:NULL];
-	}
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-      else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060 || MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	{
-	  NSString *path = [nsurl path];
-	  NSFileManager *fileManager = [NSFileManager defaultManager];
-	  NSDictionary *attributes;
-
-	  path = [path stringByResolvingSymlinksInPath];
-	  attributes = [fileManager attributesOfItemAtPath:path error:NULL];
-	  modificationDate = [attributes fileModificationDate];
-	}
-#endif
+      [[nsurl URLByResolvingSymlinksInPath]
+	getResourceValue:&modificationDate
+		  forKey:NSURLAttributeModificationDateKey
+		   error:NULL];
     }
 
   if (modificationDate)
@@ -12884,8 +11983,6 @@ mac_update_accessibility_status (struct frame *f)
   contentLayer.frame = CGRectMake (0, 0, NSWidth (rectInContentView),
 				   NSHeight (rectInContentView));
   contentLayer.contents = (id) [bitmap CGImage];
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5)
-    [contentLayer setValue:bitmap forKey:@"bitmapImageRep"];
   [layer addSublayer:contentLayer];
 
   return layer;
@@ -13099,23 +12196,6 @@ get_symbol_from_filter_input_key (NSString *key)
 		forKey:kCIInputCenterKey];
     }
 
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5
-      && [[[attributes objectForKey:kCIInputExtentKey]
-	    objectForKey:kCIAttributeType]
-	   isEqualToString:kCIAttributeTypeRectangle])
-    {
-      CGRect frame = layer.frame;
-#undef Z
-      CIVector *extent =
-	[CIVector vectorWithX:(CGRectGetMinX (frame) * scaleFactor)
-			    Y:(CGRectGetMinY (frame) * scaleFactor)
-			    Z:(CGRectGetWidth (frame) * scaleFactor)
-			    W:(CGRectGetHeight (frame) * scaleFactor)];
-#define Z (current_buffer->text->z)
-
-      [filter setValue:extent forKey:kCIInputExtentKey];
-    }
-
   if ([[attributes objectForKey:kCIAttributeFilterName]
 	isEqualToString:@"CIPageCurlWithShadowTransition"]
       /* Mac OS X 10.7 automatically sets inputBacksideImage for
@@ -13138,55 +12218,14 @@ get_symbol_from_filter_input_key (NSString *key)
 	  atfm = CGAffineTransformScale (atfm, scale, scale);
 	}
 
-      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_5)
-	{
-	  /* +[CIImage imageWithCGImage:] for inputBacksideImage
-	     causes crash when drawing on Mac OS X 10.5.  */
-	  NSBitmapImageRep *bitmap = [contentLayer
-				       valueForKey:@"bitmapImageRep"];
-
-	  image = MRC_AUTORELEASE ([[CIImage alloc]
-				     initWithBitmapImageRep:bitmap]);
-	}
-      else
-	image = [CIImage imageWithCGImage:((__bridge CGImageRef)
-					   contentLayer.contents)];
+      image = [CIImage imageWithCGImage:((__bridge CGImageRef)
+					 contentLayer.contents)];
       [filter setValue:[image imageByApplyingTransform:atfm]
 		forKey:@"inputBacksideImage"];
     }
 }
 
 /* Delegate Methods  */
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-- (id <CAAction>)actionForLayer:(CALayer *)layer forKey:(NSString *)event
-{
-  id action = nil;
-
-  if ([event isEqualToString:@"bounds"]
-      || [event isEqualToString:@"opacity"]
-      || [event isEqualToString:@"position"])
-    {
-      CABasicAnimation *animation =
-	[CABasicAnimation animationWithKeyPath:event];
-
-      [animation setValue:[layer superlayer] forKey:@"layerToBeRemoved"];
-      animation.delegate = self;
-      action = animation;
-    }
-
-  return action;
-}
-
-- (void)animationDidStop:(CAAnimation *)anim finished:(BOOL)flag
-{
-  CALayer *layer = [anim valueForKey:@"layerToBeRemoved"];
-
-  [CATransaction setValue:((id) kCFBooleanTrue)
-		   forKey:kCATransactionDisableActions];
-  [layer removeFromSuperlayer];
-}
-#endif
 
 @end
 
@@ -13287,14 +12326,10 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
     [CATransaction setValue:[NSNumber numberWithDouble:(XFLOATINT (duration))]
 		     forKey:kCATransactionAnimationDuration];
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
   [CATransaction setCompletionBlock:^{
       [CATransaction setDisableActions:YES];
       [layer removeFromSuperlayer];
     }];
-#else
-  contentLayer.delegate = frameController;
-#endif
   switch (anim_type)
     {
     case ANIM_TYPE_NONE:
@@ -13342,11 +12377,6 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 	[actions setObject:transition forKey:@"sublayers"];
 	MRC_RELEASE (transition);
 	layer.actions = actions;
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	[transition setValue:layer forKey:@"layerToBeRemoved"];
-	transition.delegate = frameController;
-#endif
 
 	newContentLayer = [CALayer layer];
 	newContentLayer.frame = contentLayer.frame;

@@ -44,16 +44,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <mach/mach.h>
 #include <servers/bootstrap.h>
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-#ifndef SELECT_USE_GCD
-#define SELECT_USE_GCD 1
-#endif
-#endif
-
 #include <sys/socket.h>
-#if !SELECT_USE_GCD
-#include <pthread.h>
-#endif
 
 
 /***********************************************************************
@@ -1407,45 +1398,8 @@ Lisp_Object
 cfproperty_list_to_string (CFPropertyListRef plist, CFPropertyListFormat format)
 {
   Lisp_Object result = Qnil;
-  CFDataRef data = NULL;
+  CFDataRef data = CFPropertyListCreateData (NULL, plist, format, 0, NULL);
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (CFPropertyListCreateData != NULL)
-#endif
-    {
-      data = CFPropertyListCreateData (NULL, plist, format, 0, NULL);
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  else				/* CFPropertyListCreateData == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1060 */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-    {
-      CFWriteStreamRef stream;
-
-      switch (format)
-	{
-	case kCFPropertyListXMLFormat_v1_0:
-	  data = CFPropertyListCreateXMLData (NULL, plist);
-	  break;
-
-	case kCFPropertyListBinaryFormat_v1_0:
-	  stream = CFWriteStreamCreateWithAllocatedBuffers (NULL, NULL);
-
-	  if (stream)
-	    {
-	      CFWriteStreamOpen (stream);
-	      if (CFPropertyListWriteToStream (plist, stream, format, NULL) > 0)
-		data = CFWriteStreamCopyProperty (stream,
-						  kCFStreamPropertyDataWritten);
-	      CFWriteStreamClose (stream);
-	      CFRelease (stream);
-	    }
-	  break;
-	}
-    }
-#endif
   if (data)
     {
       result = cfdata_to_lisp (data);
@@ -1470,26 +1424,9 @@ cfproperty_list_create_with_string (Lisp_Object string)
 				      kCFAllocatorNull);
   if (data)
     {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-      if (CFPropertyListCreateWithData != NULL)
-#endif
-	{
-	  result = CFPropertyListCreateWithData (NULL, data,
-						 kCFPropertyListImmutable,
-						 NULL, NULL);
-	}
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-      else		    /* CFPropertyListCreateWithData == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1060 */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	{
-	  result = CFPropertyListCreateFromXMLData (NULL, data,
-						    kCFPropertyListImmutable,
-						    NULL);
-	}
-#endif
+      result = CFPropertyListCreateWithData (NULL, data,
+					     kCFPropertyListImmutable,
+					     NULL, NULL);
       CFRelease (data);
     }
 
@@ -1509,26 +1446,9 @@ cfproperty_list_create_with_url (CFURLRef url)
     {
       if (CFReadStreamOpen (stream))
 	{
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	  if (CFPropertyListCreateWithStream != NULL)
-#endif
-	    {
-	      result = CFPropertyListCreateWithStream (NULL, stream, 0,
-						       kCFPropertyListImmutable,
-						       NULL, NULL);
-	    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	  else		  /* CFPropertyListCreateWithStream == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1060 */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	    {
-	      result = CFPropertyListCreateFromStream (NULL, stream, 0,
-						       kCFPropertyListImmutable,
-						       NULL, NULL);
-	    }
-#endif
+	  result = CFPropertyListCreateWithStream (NULL, stream, 0,
+						   kCFPropertyListImmutable,
+						   NULL, NULL);
 	  CFReadStreamClose (stream);
 	}
       CFRelease (stream);
@@ -2137,6 +2057,8 @@ containing an unresolvable alias.  */)
   (Lisp_Object filename)
 {
   Lisp_Object handler, result = Qnil;
+  Lisp_Object encoded_filename;
+  CFURLRef url;
 
   CHECK_STRING (filename);
   filename = Fexpand_file_name (filename, Qnil);
@@ -2148,98 +2070,59 @@ containing an unresolvable alias.  */)
     return call2 (handler, Qmac_file_alias_p, filename);
 
   block_input ();
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (CFURLCreateByResolvingBookmarkData != NULL)
-#endif
-    {
-      Lisp_Object encoded_filename = ENCODE_FILE (filename);
-      CFURLRef url =
-	CFURLCreateFromFileSystemRepresentation (NULL, SDATA (encoded_filename),
+  encoded_filename = ENCODE_FILE (filename);
+  url = CFURLCreateFromFileSystemRepresentation (NULL, SDATA (encoded_filename),
 						 SBYTES (encoded_filename),
 						 false);
-
-      if (url)
-	{
-	  CFBooleanRef is_alias_file = NULL, is_symbolic_link = NULL;
-
-	  if (CFURLCopyResourcePropertyForKey (url, kCFURLIsAliasFileKey,
-					       &is_alias_file, NULL)
-	      && CFBooleanGetValue (is_alias_file)
-	      /* kCFURLIsAliasFileKey returns true also for a symbolic
-		 link.  */
-	      && CFURLCopyResourcePropertyForKey (url, kCFURLIsSymbolicLinkKey,
-						  &is_symbolic_link, NULL)
-	      && !CFBooleanGetValue (is_symbolic_link))
-	    {
-	      CFDataRef data;
-	      Boolean stale_p;
-	      CFURLRef resolved_url = NULL;
-
-	      data = CFURLCreateBookmarkDataFromFile (NULL, url, NULL);
-	      if (data)
-		{
-		  CFURLBookmarkResolutionOptions options =
-		    (kCFBookmarkResolutionWithoutUIMask
-		     | kCFBookmarkResolutionWithoutMountingMask);
-
-		  resolved_url =
-		    CFURLCreateByResolvingBookmarkData (NULL, data, options,
-							NULL, NULL,
-							&stale_p, NULL);
-		  CFRelease (data);
-		}
-	      if (resolved_url)
-		{
-		  char buf[MAXPATHLEN];
-
-		  if (!stale_p
-		      && CFURLGetFileSystemRepresentation (resolved_url, true,
-							   (UInt8 *) buf,
-							   sizeof (buf)))
-		    result = make_unibyte_string (buf, strlen (buf));
-		  CFRelease (resolved_url);
-		}
-	      if (!STRINGP (result))
-		result = Qt;
-	    }
-	  if (is_alias_file)
-	    CFRelease (is_alias_file);
-	  if (is_symbolic_link)
-	    CFRelease (is_symbolic_link);
-	  CFRelease (url);
-	}
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  else		      /* CFURLCreateByResolvingBookmarkData == NULL */
-#endif
-#endif
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
+  if (url)
     {
-      OSStatus err;
-      FSRef fref;
+      CFBooleanRef is_alias_file = NULL, is_symbolic_link = NULL;
 
-      err = FSPathMakeRef (SDATA (ENCODE_FILE (filename)), &fref, NULL);
-      if (err == noErr)
+      if (CFURLCopyResourcePropertyForKey (url, kCFURLIsAliasFileKey,
+					   &is_alias_file, NULL)
+	  && CFBooleanGetValue (is_alias_file)
+	  /* kCFURLIsAliasFileKey returns true also for a symbolic
+	     link.  */
+	  && CFURLCopyResourcePropertyForKey (url, kCFURLIsSymbolicLinkKey,
+					      &is_symbolic_link, NULL)
+	  && !CFBooleanGetValue (is_symbolic_link))
 	{
-	  Boolean alias_p = false, folder_p;
+	  CFDataRef data;
+	  Boolean stale_p;
+	  CFURLRef resolved_url = NULL;
 
-	  err = FSResolveAliasFileWithMountFlags (&fref, false,
-						  &folder_p, &alias_p,
-						  kResolveAliasFileNoUI);
-	  if (err != noErr)
-	    result = Qt;
-	  else if (alias_p)
+	  data = CFURLCreateBookmarkDataFromFile (NULL, url, NULL);
+	  if (data)
+	    {
+	      CFURLBookmarkResolutionOptions options =
+		(kCFBookmarkResolutionWithoutUIMask
+		 | kCFBookmarkResolutionWithoutMountingMask);
+
+	      resolved_url =
+		CFURLCreateByResolvingBookmarkData (NULL, data, options,
+						    NULL, NULL, &stale_p, NULL);
+	      CFRelease (data);
+	    }
+	  if (resolved_url)
 	    {
 	      char buf[MAXPATHLEN];
 
-	      err = FSRefMakePath (&fref, (UInt8 *) buf, sizeof (buf));
-	      if (err == noErr)
+	      if (!stale_p
+		  && CFURLGetFileSystemRepresentation (resolved_url, true,
+						       (UInt8 *) buf,
+						       sizeof (buf)))
 		result = make_unibyte_string (buf, strlen (buf));
+	      CFRelease (resolved_url);
 	    }
+	  if (!STRINGP (result))
+	    result = Qt;
 	}
+      if (is_alias_file)
+	CFRelease (is_alias_file);
+      if (is_symbolic_link)
+	CFRelease (is_symbolic_link);
+      CFRelease (url);
     }
-#endif
   unblock_input ();
 
   if (STRINGP (result))
@@ -3030,12 +2913,10 @@ mac_get_system_script_code (void)
          (and user signals, see below).
    3. Otherwise
       -> Run the run loop in the main thread while calling `select' in
-         a secondary thread using either Pthreads with CFRunLoopSource
-         or Grand Central Dispatch (GCD, on Mac OS X 10.6 or later).
-         When the control returns from the `select' call, the
-         secondary thread sends a wakeup notification to the main
-         thread through either a CFSocket (for Pthreads with
-         CFRunLoopSource) or a dispatch source (for GCD).
+         a secondary thread using Grand Central Dispatch (GCD).  When
+         the control returns from the `select' call, the secondary
+         thread sends a wakeup notification to the main thread through
+         a dispatch source (for GCD).
    For Case 2 and 3, user signals such as SIGUSR1 are also handled
    through either a CFSocket or a dispatch source.  */
 
@@ -3073,22 +2954,13 @@ write_one_byte_to_fd (int fd)
   return rtnval;
 }
 
-#if SELECT_USE_GCD
 static dispatch_queue_t select_dispatch_queue;
-#else
-static void
-wakeup_callback (CFSocketRef s, CFSocketCallBackType type, CFDataRef address,
-		 const void *data, void *info)
-{
-  read_all_from_nonblocking_fd (CFSocketGetNative (s));
-  wokeup_from_run_loop_run_once_p = true;
-}
-#endif
 
 int
 init_wakeup_fds (void)
 {
   int result, i;
+  dispatch_source_t source;
 
   result = socketpair (AF_UNIX, SOCK_STREAM, 0, wakeup_fds);
   if (result < 0)
@@ -3103,45 +2975,21 @@ init_wakeup_fds (void)
 	  || fcntl (wakeup_fds[i], F_SETFD, flags | FD_CLOEXEC) == -1)
 	return -1;
     }
-#if SELECT_USE_GCD
-  {
-    dispatch_source_t source;
 
-    source = dispatch_source_create (DISPATCH_SOURCE_TYPE_READ, wakeup_fds[0],
-				     0, dispatch_get_main_queue ());
-    if (source == NULL)
-      return -1;
-    dispatch_source_set_event_handler (source, ^{
-	read_all_from_nonblocking_fd (dispatch_source_get_handle (source));
-	wokeup_from_run_loop_run_once_p = true;
-      });
-    dispatch_resume (source);
+  source = dispatch_source_create (DISPATCH_SOURCE_TYPE_READ, wakeup_fds[0],
+				   0, dispatch_get_main_queue ());
+  if (source == NULL)
+    return -1;
+  dispatch_source_set_event_handler (source, ^{
+      read_all_from_nonblocking_fd (dispatch_source_get_handle (source));
+      wokeup_from_run_loop_run_once_p = true;
+    });
+  dispatch_resume (source);
 
-    select_dispatch_queue = dispatch_queue_create ("org.gnu.Emacs.select",
-						   NULL);
-    if (select_dispatch_queue == NULL)
-      return -1;
-  }
-#else
-  {
-    CFSocketRef socket;
-    CFRunLoopSourceRef source;
+  select_dispatch_queue = dispatch_queue_create ("org.gnu.Emacs.select", NULL);
+  if (select_dispatch_queue == NULL)
+    return -1;
 
-    socket = CFSocketCreateWithNative (NULL, wakeup_fds[0],
-				       kCFSocketReadCallBack,
-				       wakeup_callback, NULL);
-    if (socket == NULL)
-      return -1;
-    source = CFSocketCreateRunLoopSource (NULL, socket, 0);
-    CFRelease (socket);
-    if (source == NULL)
-      return -1;
-    CFRunLoopAddSource ((CFRunLoopRef)
-			GetCFRunLoopFromEventLoop (GetCurrentEventLoop ()),
-			source, kCFRunLoopDefaultMode);
-    CFRelease (source);
-  }
-#endif
   return 0;
 }
 
@@ -3168,114 +3016,6 @@ mac_peek_next_event (void)
 
   return event;
 }
-
-#if !SELECT_USE_GCD
-static struct
-{
-  int value;
-  pthread_mutex_t mutex;
-  pthread_cond_t cond;
-} select_sem = {0, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER};
-
-static void
-select_sem_wait (void)
-{
-  pthread_mutex_lock (&select_sem.mutex);
-  while (select_sem.value <= 0)
-    pthread_cond_wait (&select_sem.cond, &select_sem.mutex);
-  select_sem.value--;
-  pthread_mutex_unlock (&select_sem.mutex);
-}
-
-static void
-select_sem_signal (void)
-{
-  pthread_mutex_lock (&select_sem.mutex);
-  select_sem.value++;
-  pthread_cond_signal (&select_sem.cond);
-  pthread_mutex_unlock (&select_sem.mutex);
-}
-
-static CFRunLoopSourceRef select_run_loop_source = NULL;
-static CFRunLoopRef select_run_loop = NULL;
-
-static struct
-{
-  int nfds;
-  fd_set *rfds, *wfds, *efds;
-  struct timespec *timeout;
-} select_args;
-
-static void
-select_perform (void *info)
-{
-  int qnfds = select_args.nfds;
-  fd_set qrfds, qwfds, qefds;
-  struct timespec qtimeout;
-  int r;
-
-  if (select_args.rfds)
-    qrfds = *select_args.rfds;
-  if (select_args.wfds)
-    qwfds = *select_args.wfds;
-  if (select_args.efds)
-    qefds = *select_args.efds;
-  if (select_args.timeout)
-    qtimeout = *select_args.timeout;
-
-  if (wakeup_fds[1] >= qnfds)
-    qnfds = wakeup_fds[1] + 1;
-  FD_SET (wakeup_fds[1], &qrfds);
-
-  r = pselect (qnfds, select_args.rfds ? &qrfds : NULL,
-	       select_args.wfds ? &qwfds : NULL,
-	       select_args.efds ? &qefds : NULL,
-	       select_args.timeout ? &qtimeout : NULL, NULL);
-  if (r < 0 || (r > 0 && !FD_ISSET (wakeup_fds[1], &qrfds)))
-    mac_wakeup_from_run_loop_run_once ();
-
-  select_sem_signal ();
-}
-
-static void
-select_fire (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
-	     struct timespec *timeout)
-{
-  select_args.nfds = nfds;
-  select_args.rfds = rfds;
-  select_args.wfds = wfds;
-  select_args.efds = efds;
-  select_args.timeout = timeout;
-
-  CFRunLoopSourceSignal (select_run_loop_source);
-  CFRunLoopWakeUp (select_run_loop);
-}
-
-static void *
-select_thread_main (void *arg)
-{
-  CFRunLoopSourceContext context = {0, NULL, NULL, NULL, NULL, NULL, NULL,
-				    NULL, NULL, select_perform};
-
-  select_run_loop = CFRunLoopGetCurrent ();
-  select_run_loop_source = CFRunLoopSourceCreate (NULL, 0, &context);
-  CFRunLoopAddSource (select_run_loop, select_run_loop_source,
-		      kCFRunLoopDefaultMode);
-  select_sem_signal ();
-  CFRunLoopRun ();
-}
-
-static void
-select_thread_launch (void)
-{
-  pthread_attr_t  attr;
-  pthread_t       thread;
-
-  pthread_attr_init (&attr);
-  pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
-  pthread_create (&thread, &attr, &select_thread_main, NULL);
-}
-#endif	/* !SELECT_USE_GCD */
 
 static int
 select_and_poll_event (int nfds, fd_set *rfds, fd_set *wfds,
@@ -3422,7 +3162,6 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
   block_input ();
   if (!detect_input_pending ())
     {
-#if SELECT_USE_GCD
       dispatch_sync (select_dispatch_queue, ^{});
       wokeup_from_run_loop_run_once_p = false;
       dispatch_async (select_dispatch_queue, ^{
@@ -3453,26 +3192,6 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
       dispatch_async (select_dispatch_queue, ^{
 	  read_all_from_nonblocking_fd (wakeup_fds[1]);
 	});
-#else
-      if (select_run_loop == NULL)
-	select_thread_launch ();
-
-      select_sem_wait ();
-      read_all_from_nonblocking_fd (wakeup_fds[1]);
-      wokeup_from_run_loop_run_once_p = false;
-      select_fire (nfds, rfds, wfds, efds, NULL);
-
-      do
-	{
-	  timeoutval = mac_run_loop_run_once (timeoutval);
-	}
-      while (timeoutval && !wokeup_from_run_loop_run_once_p
-	     && !mac_peek_next_event () && !detect_input_pending ());
-      if (timeoutval == 0)
-	timedout_p = true;
-
-      write_one_byte_to_fd (wakeup_fds[0]);
-#endif
     }
   unblock_input ();
 

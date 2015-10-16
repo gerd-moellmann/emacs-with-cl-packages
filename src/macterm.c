@@ -3640,27 +3640,11 @@ x_draw_bar_cursor (struct window *w, struct glyph_row *row, int width, enum text
 static void
 mac_define_frame_cursor (struct frame *f, Cursor cursor)
 {
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (mac_tracking_area_works_with_cursor_rects_invalidation_p ())
-#endif
+  if (f->output_data.mac->current_cursor != cursor)
     {
-      if (f->output_data.mac->current_cursor != cursor)
-	{
-	  f->output_data.mac->current_cursor = cursor;
-	  mac_invalidate_frame_cursor_rects (f);
-	}
+      f->output_data.mac->current_cursor = cursor;
+      mac_invalidate_frame_cursor_rects (f);
     }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  else
-#endif
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-    {
-      struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
-
-      if (dpyinfo->x_focus_frame == f)
-	mac_cursor_set (cursor);
-    }
-#endif
 }
 
 
@@ -6068,7 +6052,6 @@ OPTION-TYPE is a symbol specifying the type of startup options:
   DEFVAR_BOOL ("mac-drawing-use-gcd", mac_drawing_use_gcd,
     doc: /* Non-nil means graphical drawing uses GCD (Grand Central Dispatch).
 It allows us to perform graphical drawing operations in a non-main
-thread in some situations.  This variable has no effect on Mac OS X
-10.5 and earlier.  */);
+thread in some situations.  */);
   mac_drawing_use_gcd = 1;
 }

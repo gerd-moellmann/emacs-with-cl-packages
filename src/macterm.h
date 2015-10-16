@@ -653,7 +653,7 @@ extern Lisp_Object mac_get_selection_value (Selection, Lisp_Object);
 extern Lisp_Object mac_get_selection_target_list (Selection);
 extern Lisp_Object mac_dnd_default_known_types (void);
 
-#if defined (__clang__) && MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
+#ifdef __clang__
 #define MAC_USE_AUTORELEASE_LOOP 1
 extern void mac_autorelease_loop (Lisp_Object (^) (void));
 #else
@@ -661,7 +661,6 @@ extern void *mac_alloc_autorelease_pool (void);
 extern void mac_release_autorelease_pool (void *);
 #endif
 
-extern bool mac_tracking_area_works_with_cursor_rects_invalidation_p (void);
 extern Cursor mac_cursor_create (ThemeCursor, const XColor *, const XColor *);
 extern void mac_cursor_set (Cursor);
 extern void mac_cursor_release (Cursor);

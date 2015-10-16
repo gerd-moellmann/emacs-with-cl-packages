@@ -934,15 +934,11 @@ syms_of_macmenu (void)
   DEFVAR_LISP ("mac-help-topics", Vmac_help_topics,
     doc: /* List of strings shown as Help topics by Help menu search.
 Each element should be a unibyte string in UTF-8.  The special value t
-means not to recalculate help topics.  This customizable Help menu
-search feature works only when compiled and run on Mac OS X 10.6 and
-later, and otherwise the value is kept to t so as to avoid needless
-recalculation.  */);
+means not to recalculate help topics.  */);
   Vmac_help_topics = Qt;
 
   DEFVAR_BOOL ("mac-popup-menu-add-contextual-menu",
 	       mac_popup_menu_add_contextual_menu,
-    doc: /* Non-nil means contextual menu is added to popup menu.
-This works on OS X 10.6 and later.  */);
+    doc: /* Non-nil means contextual menu is added to popup menu.  */);
   mac_popup_menu_add_contextual_menu = 0;
 }
