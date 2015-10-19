@@ -2804,10 +2804,15 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (oldWindow)
     {
+      BOOL isKeyWindow = [oldWindow isKeyWindow];
+
       [window orderWindow:NSWindowBelow relativeTo:[oldWindow windowNumber]];
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:[oldWindow animationBehavior]];
       [oldWindow close];
+      /* This is necessary on OS X 10.11.  */
+      if (isKeyWindow)
+	[window makeKeyWindow];
     }
 
   if (!FRAME_TOOLTIP_P (f))
