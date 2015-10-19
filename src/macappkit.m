@@ -1140,6 +1140,17 @@ rounded_bottom_corners_need_masking_p (void)
 }
 #endif
 
+static bool
+can_auto_hide_menu_bar_without_hiding_dock (void)
+{
+  /* Needs to be linked on OS X 10.11 or later.  */
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max);
+#else
+  return false;
+#endif
+}
+
 /* Autorelease pool.  */
 
 #if __clang_major__ >= 3
@@ -2194,9 +2205,11 @@ emacs_windows_need_display_p (void)
 			  | NSApplicationPresentationAutoHideMenuBar))
 	      == NSApplicationPresentationFullScreen
 	      /* Application can be in full screen mode without hiding
-		 the dock on OS X 10.9.  */
-	      && (options & (NSApplicationPresentationHideDock
-			     | NSApplicationPresentationAutoHideDock)))
+		 the dock on OS X 10.9.  OS X prior to 10.11 cannot
+		 auto-hide the menu bar without hiding the dock.  */
+	      && (can_auto_hide_menu_bar_without_hiding_dock ()
+		  || (options & (NSApplicationPresentationHideDock
+				 | NSApplicationPresentationAutoHideDock))))
 	    {
 	      options |= NSApplicationPresentationAutoHideMenuBar;
 	      [NSApp setPresentationOptions:options];
@@ -2209,8 +2222,12 @@ emacs_windows_need_display_p (void)
 	  NSScreen *screen = [window screen];
 
 	  if ([screen canShowMenuBar])
-	    options = (NSApplicationPresentationAutoHideMenuBar
-		       | NSApplicationPresentationAutoHideDock);
+	    {
+	      options = NSApplicationPresentationAutoHideMenuBar;
+	      if (!can_auto_hide_menu_bar_without_hiding_dock ()
+		  || [screen containsDock])
+		options |= NSApplicationPresentationAutoHideDock;
+	    }
 	  else if ([screen containsDock])
 	    options = NSApplicationPresentationAutoHideDock;
 	  else
@@ -2256,8 +2273,12 @@ emacs_windows_need_display_p (void)
 		    NSScreen *screen = [window screen];
 
 		    if ([screen canShowMenuBar])
-		      options |= (NSApplicationPresentationAutoHideMenuBar
-				  | NSApplicationPresentationAutoHideDock);
+		      {
+			options |= NSApplicationPresentationAutoHideMenuBar;
+			if (!can_auto_hide_menu_bar_without_hiding_dock ()
+			    || [screen containsDock])
+			  options |= NSApplicationPresentationAutoHideDock;
+		      }
 		    else if ([screen containsDock])
 		      options |= NSApplicationPresentationAutoHideDock;
 		  }
@@ -2299,10 +2320,14 @@ emacs_windows_need_display_p (void)
 #endif
       if (windowManagerState & WM_STATE_FULLSCREEN)
 	{
-	  if ([[window screen] canShowMenuBar])
+	  NSScreen *screen = [window screen];
+
+	  if ([screen canShowMenuBar])
 	    {
-	      options = (NSApplicationPresentationAutoHideDock
-			 | NSApplicationPresentationDisableMenuBarTransparency);
+	      options = NSApplicationPresentationDisableMenuBarTransparency;
+	      if (!can_auto_hide_menu_bar_without_hiding_dock ()
+		  || [screen containsDock])
+		options |= NSApplicationPresentationAutoHideDock;
 	      [NSApp setPresentationOptions:options];
 	    }
 	}
