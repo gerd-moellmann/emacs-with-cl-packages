@@ -2854,7 +2854,8 @@ static CGRect unset_global_focus_view_frame (void);
       [self setupOverlayWindowAndView];
       [self attachOverlayWindow];
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-      if (has_full_screen_with_dedicated_desktop ())
+      if (has_full_screen_with_dedicated_desktop ()
+	  && !(windowManagerState & WM_STATE_FULLSCREEN))
 	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
 #endif
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
@@ -3026,7 +3027,9 @@ static CGRect unset_global_focus_view_frame (void);
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
 		  : NSWindowCollectionBehaviorDefault);
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-      if (has_full_screen_with_dedicated_desktop ())
+      if (has_full_screen_with_dedicated_desktop ()
+	  && (!(windowManagerState & WM_STATE_FULLSCREEN)
+	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
 	behavior |= NSWindowCollectionBehaviorFullScreenPrimary;
 #endif
     }
