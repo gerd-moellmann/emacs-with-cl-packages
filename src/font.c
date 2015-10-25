@@ -1490,16 +1490,8 @@ font_parse_fcname (char *name, ptrdiff_t len, Lisp_Object font)
         {
           struct font_driver_list *driver_list = font_driver_list;
           for ( ; driver_list; driver_list = driver_list->next)
-	    {
-#ifdef HAVE_MACGUI
-	      extern Lisp_Object macfont_driver_type;
-
-	      if (!EQ (macfont_driver_type, driver_list->driver->type))
-		continue;
-#endif
-	      if (driver_list->driver->filter_properties)
-		(*driver_list->driver->filter_properties) (font, extra_props);
-	    }
+            if (driver_list->driver->filter_properties)
+              (*driver_list->driver->filter_properties) (font, extra_props);
         }
 
     }

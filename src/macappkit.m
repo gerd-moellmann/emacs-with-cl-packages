@@ -36,9 +36,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "macfont.h"
 
 #import "macappkit.h"
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
 #import <objc/runtime.h>
-#endif
 
 #if USE_ARC
 #define MRC_RETAIN(receiver)		((id) (receiver))
@@ -104,76 +102,6 @@ enum {
   (CFOBJECT_TO_LISP_WITH_TAG					\
    | CFOBJECT_TO_LISP_DONT_DECODE_STRING			\
    | CFOBJECT_TO_LISP_DONT_DECODE_DICTIONARY_KEY)
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
-#define CA_LAYER	CALayer
-#define CA_TRANSACTION	CATransaction
-#define CA_BASIC_ANIMATION CABasicAnimation
-#define CA_TRANSITION	CATransition
-#define CA_MEDIA_TIMING_FUNCTION CAMediaTimingFunction
-#define NS_ANIMATION_CONTEXT NSAnimationContext
-#define CA_CONSTRAINT	CAConstraint
-#define CA_CONSTRAINT_LAYOUT_MANAGER	CAConstraintLayoutManager
-#else
-#define CA_LAYER	(NSClassFromString (@"CALayer"))
-#define CA_TRANSACTION	(NSClassFromString (@"CATransaction"))
-#define CA_BASIC_ANIMATION (NSClassFromString (@"CABasicAnimation"))
-#define CA_TRANSITION	(NSClassFromString (@"CATransition"))
-#define CA_MEDIA_TIMING_FUNCTION (NSClassFromString (@"CAMediaTimingFunction"))
-#define NS_ANIMATION_CONTEXT (NSClassFromString (@"NSAnimationContext"))
-#define CA_CONSTRAINT	(NSClassFromString (@"CAConstraint"))
-#define CA_CONSTRAINT_LAYOUT_MANAGER (NSClassFromString (@"CAConstraintLayoutManager"))
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-static inline NSRect
-NSRectFromCGRect (CGRect cgrect)
-{
-  union _ {NSRect ns; CGRect cg;};
-
-  return ((union _ *) &cgrect)->ns;
-}
-
-static inline CGRect
-NSRectToCGRect (NSRect nsrect)
-{
-  union _ {NSRect ns; CGRect cg;};
-
-  return ((union _ *) &nsrect)->cg;
-}
-
-static inline NSPoint
-NSPointFromCGPoint (CGPoint cgpoint)
-{
-  union _ {NSPoint ns; CGPoint cg;};
-
-  return ((union _ *) &cgpoint)->ns;
-}
-
-static inline CGPoint
-NSPointToCGPoint (NSPoint nspoint)
-{
-  union _ {NSPoint ns; CGPoint cg;};
-
-  return ((union _ *) &nspoint)->cg;
-}
-
-static inline NSSize
-NSSizeFromCGSize (CGSize cgsize)
-{
-  union _ {NSSize ns; CGSize cg;};
-
-  return ((union _ *) &cgsize)->ns;
-}
-
-static inline CGSize
-NSSizeToCGSize (NSSize nssize)
-{
-  union _ {NSSize ns; CGSize cg;};
-
-  return ((union _ *) &nssize)->cg;
-}
-#endif
 
 @implementation NSData (Emacs)
 
@@ -243,9 +171,9 @@ NSSizeToCGSize (NSSize nssize)
    specifies separating characters that are used instead of upper case
    letters.  */
 
-- (NSArrayG (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator
+- (NSArrayOf (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator
 {
-  NSMutableArrayG (NSString *) *result = [NSMutableArray arrayWithCapacity:0];
+  NSMutableArrayOf (NSString *) *result = [NSMutableArray arrayWithCapacity:0];
   NSUInteger length = [self length];
   NSRange upper = NSMakeRange (0, 0), rest = NSMakeRange (0, length);
 
@@ -337,37 +265,25 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 {
   CGEventRef event;
   NSEventType type = [self type];
-  static BOOL defaultEventSourceInitialized = NO;
 
-  if ([self respondsToSelector:@selector(CGEvent)])
+  event = [self CGEvent];
+  if (event)
     {
-      event = [self CGEvent];
-      if (event)
+      /* Unicode string is not set if the keyboard event comes from
+	 Screen Sharing on Mac OS X 10.6 and later.  */
+      if (NSEventMaskFromType (type) & (NSKeyDownMask | NSKeyUpMask))
 	{
-	  /* Unicode string is not set if the keyboard event comes
-	     from Screen Sharing on Mac OS X 10.6 and later.  */
-	  if (NSEventMaskFromType (type) & (NSKeyDownMask | NSKeyUpMask))
+	  UniCharCount length;
+
+	  CGEventKeyboardGetUnicodeString (event, 0, &length, NULL);
+	  if (length == 0)
 	    {
-	      UniCharCount length;
+	      EventRef eventRef = (EventRef) [self eventRef];
 
-	      CGEventKeyboardGetUnicodeString (event, 0, &length, NULL);
-	      if (length == 0)
-		{
-		  EventRef eventRef = (EventRef) [self eventRef];
-
-		  mac_cgevent_set_unicode_string_from_event_ref (event,
-								 eventRef);
-		}
+	      mac_cgevent_set_unicode_string_from_event_ref (event, eventRef);
 	    }
-	  return event;
 	}
-    }
-
-  /* Workaround for a bug on Mac OS X 10.4.  */
-  if (!defaultEventSourceInitialized)
-    {
-      CFRelease (CGEventCreate (NULL));
-      defaultEventSourceInitialized = YES;
+      return event;
     }
 
   event = NULL;
@@ -375,7 +291,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
     {
       CGPoint position = CGPointZero;
 
-      GetEventParameter ([self _eventRef], kEventParamMouseLocation,
+      GetEventParameter ((EventRef) [self eventRef], kEventParamMouseLocation,
 			 typeHIPoint, NULL, sizeof (CGPoint), NULL, &position);
       event = CGEventCreateMouseEvent (NULL, (CGEventType) type, position,
 				       [self buttonNumber]);
@@ -439,7 +355,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   while (NSMaxRange (range) < length)
     {
       Lisp_Object attrs = Qnil;
-      NSDictionaryG (NSString *, id) *attributes =
+      NSDictionaryOf (NSString *, id) *attributes =
 	[self attributesAtIndex:NSMaxRange (range) effectiveRange:&range];
 
       if (attributes)
@@ -466,42 +382,6 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 
 @implementation NSColor (Emacs)
 
-static NSColorSpace *
-get_srgb_color_space (void)
-{
-  static NSColorSpace *sRGBColorSpace;
-
-  if (sRGBColorSpace == nil)
-    {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-      if ([NSColorSpace respondsToSelector:@selector(sRGBColorSpace)])
-#endif
-	sRGBColorSpace = MRC_RETAIN ([NSColorSpace sRGBColorSpace]);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-      else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-	{
-	  CMProfileRef profile = mac_open_srgb_profile ();
-
-	  if (profile)
-	    {
-	      sRGBColorSpace = [[NSColorSpace alloc]
-				 initWithColorSyncProfile:profile];
-	      CMCloseProfile (profile);
-	    }
-	  else
-	    sRGBColorSpace =
-	      MRC_RETAIN ([NSColorSpace deviceRGBColorSpace]);
-	}
-#endif
-    }
-
-  return sRGBColorSpace;
-}
-
 + (NSColor *)colorWithXColorPixel:(unsigned long)pixel
 {
   CGFloat components[4];
@@ -515,7 +395,7 @@ get_srgb_color_space (void)
     return [self colorWithSRGBRed:components[0] green:components[1]
 			     blue:components[2] alpha:components[3]];
   else
-    return [self colorWithColorSpace:(get_srgb_color_space ())
+    return [self colorWithColorSpace:[NSColorSpace sRGBColorSpace]
 			  components:components count:4];
 }
 
@@ -526,23 +406,19 @@ get_srgb_color_space (void)
   else
     {
       NSColorSpace *colorSpace = [self colorSpace];
-      CGColorSpaceRef cgColorSpace = nil;
+      CGColorSpaceRef cgColorSpace;
       CGFloat *components;
 
-      if ([colorSpace respondsToSelector:@selector(CGColorSpace)])
+      cgColorSpace = [colorSpace CGColorSpace];
+      if (cgColorSpace)
 	{
-	  cgColorSpace = [colorSpace CGColorSpace];
-	  if (cgColorSpace)
-	    {
-	      components = alloca (sizeof (CGFloat)
-				   * [self numberOfComponents]);
-	      [self getComponents:components];
-	    }
+	  components = alloca (sizeof (CGFloat) * [self numberOfComponents]);
+	  [self getComponents:components];
 	}
-      if (cgColorSpace == nil)
+      else
 	{
 	  NSColor *colorInSRGB =
-	    [self colorUsingColorSpace:(get_srgb_color_space ())];
+	    [self colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
 
 	  if (colorInSRGB)
 	    {
@@ -571,8 +447,7 @@ get_srgb_color_space (void)
   if (flag
       && [self instancesRespondToSelector:@selector(initWithCGImage:size:)])
     image = [[self alloc] initWithCGImage:cgImage size:NSZeroSize];
-  else if ([NSBitmapImageRep
-	     instancesRespondToSelector:@selector(initWithCGImage:)])
+  else
     {
       NSBitmapImageRep *rep =
 	[[NSBitmapImageRep alloc] initWithCGImage:cgImage];
@@ -580,18 +455,6 @@ get_srgb_color_space (void)
       image = [[self alloc] initWithSize:[rep size]];
       [image addRepresentation:rep];
       MRC_RELEASE (rep);
-    }
-  else
-    {
-      NSRect rect = NSMakeRect (0, 0, CGImageGetWidth (cgImage),
-				CGImageGetHeight (cgImage));
-      CGContextRef context;
-
-      image = [[self alloc] initWithSize:rect.size];
-      [image lockFocus];
-      context = [[NSGraphicsContext currentContext] graphicsPort];
-      CGContextDrawImage (context, NSRectToCGRect (rect), cgImage);
-      [image unlockFocus];
     }
 
   return MRC_AUTORELEASE (image);
@@ -666,11 +529,7 @@ get_srgb_color_space (void)
 
 + (NSScreen *)screenContainingPoint:(NSPoint)aPoint
 {
-  NSArrayG (NSScreen *) *screens = [NSScreen screens];
-  NSEnumeratorG (NSScreen *) *enumerator = [screens objectEnumerator];
-  NSScreen *screen;
-
-  while ((screen = [enumerator nextObject]) != nil)
+  for (NSScreen *screen in [NSScreen screens])
     if (NSMouseInRect (aPoint, [screen frame], NO))
       return screen;
 
@@ -679,14 +538,11 @@ get_srgb_color_space (void)
 
 + (NSScreen *)closestScreenForRect:(NSRect)aRect
 {
-  NSArrayG (NSScreen *) *screens = [NSScreen screens];
-  NSEnumeratorG (NSScreen *) *enumerator = [screens objectEnumerator];
   NSPoint centerPoint = NSMakePoint (NSMidX (aRect), NSMidY (aRect));
   CGFloat maxArea = 0, minSquareDistance = CGFLOAT_MAX;
-  NSScreen *screen, *maxAreaScreen, *minDistanceScreen;
+  NSScreen *maxAreaScreen = nil, *minDistanceScreen = nil;
 
-  maxAreaScreen = minDistanceScreen = nil;
-  while ((screen = [enumerator nextObject]) != nil)
+  for (NSScreen *screen in [NSScreen screens])
     {
       NSRect frame = [screen frame];
       NSRect intersectionFrame = NSIntersectionRect (frame, aRect);
@@ -797,47 +653,30 @@ get_srgb_color_space (void)
 
 @implementation EmacsPosingWindow
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
 /* Variables to save implementations of the original -[NSWindow close]
    and -[NSWindow orderOut:].  */
 /* ARC requires a precise return type.  */
 static void (*impClose) (id, SEL);
 static void (*impOrderOut) (id, SEL, id);
-#endif
 
 + (void)setup
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020
-  if (method_getImplementation != NULL)
-#endif
-    {
-      Method methodCloseNew =
-	class_getInstanceMethod ([self class], @selector(close));
-      Method methodOrderOutNew =
-	class_getInstanceMethod ([self class], @selector(orderOut:));
-      IMP impCloseNew = method_getImplementation (methodCloseNew);
-      IMP impOrderOutNew = method_getImplementation (methodOrderOutNew);
-      const char *typeCloseNew = method_getTypeEncoding (methodCloseNew);
-      const char *typeOrderOutNew = method_getTypeEncoding (methodOrderOutNew);
+  Method methodCloseNew =
+    class_getInstanceMethod ([self class], @selector(close));
+  Method methodOrderOutNew =
+    class_getInstanceMethod ([self class], @selector(orderOut:));
+  IMP impCloseNew = method_getImplementation (methodCloseNew);
+  IMP impOrderOutNew = method_getImplementation (methodOrderOutNew);
+  const char *typeCloseNew = method_getTypeEncoding (methodCloseNew);
+  const char *typeOrderOutNew = method_getTypeEncoding (methodOrderOutNew);
 
-      impClose = ((void (*) (id, SEL))
-		  class_replaceMethod ([NSWindow class], @selector(close),
-				       impCloseNew, typeCloseNew));
-      impOrderOut = ((void (*) (id, SEL, id))
-		     class_replaceMethod ([NSWindow class],
-					  @selector(orderOut:),
-					  impOrderOutNew, typeOrderOutNew));
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020
-  else				/* method_getImplementation == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1050  */
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || (MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020)
-    {
-      [self poseAsClass:[NSWindow class]];
-    }
-#endif
+  impClose = ((void (*) (id, SEL))
+	      class_replaceMethod ([NSWindow class], @selector(close),
+				   impCloseNew, typeCloseNew));
+  impOrderOut = ((void (*) (id, SEL, id))
+		 class_replaceMethod ([NSWindow class],
+				      @selector(orderOut:),
+				      impOrderOutNew, typeOrderOutNew));
 }
 
 /* Close the receiver with running the main event loop if not.  Just
@@ -847,24 +686,7 @@ static void (*impOrderOut) (id, SEL, id);
 - (void)close
 {
   if ([NSApp isRunning])
-    {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020
-      if (method_getImplementation != NULL)
-#endif
-	{
-	  (*impClose) (self, _cmd);
-	}
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020
-      else			/* method_getImplementation == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1050  */
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || (MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020)
-	{
-	  [super close];
-	}
-#endif
-    }
+    (*impClose) (self, _cmd);
   else
     {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
@@ -889,24 +711,7 @@ static void (*impOrderOut) (id, SEL, id);
 - (void)orderOut:(id)sender
 {
   if ([NSApp isRunning])
-    {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020
-      if (method_getImplementation != NULL)
-#endif
-	{
-	  (*impOrderOut) (self, _cmd, sender);
-	}
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020
-      else			/* method_getImplementation == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1050  */
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || (MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020)
-	{
-	  [super orderOut:sender];
-	}
-#endif
-    }
+    (*impOrderOut) (self, _cmd, sender);
   else
     {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
@@ -956,30 +761,6 @@ mac_handle_text_input_event (EventHandlerCallRef next_handler, EventRef event,
   return result;
 }
 
-static BOOL handling_document_access_lock_document_p = NO;
-
-static pascal OSStatus
-mac_handle_document_access_event (EventHandlerCallRef next_handler,
-				  EventRef event, void *data)
-{
-  OSStatus result;
-
-  switch (GetEventKind (event))
-    {
-    case kEventTSMDocumentAccessLockDocument:
-    case kEventTSMDocumentAccessUnlockDocument:
-      handling_document_access_lock_document_p = YES;
-      result = CallNextEventHandler (next_handler, event);
-      handling_document_access_lock_document_p = NO;
-      break;
-
-    default:
-      emacs_abort ();
-    }
-
-  return result;
-}
-
 static OSStatus
 install_dispatch_handler (void)
 {
@@ -1001,17 +782,6 @@ install_dispatch_handler (void)
       MRC_RELEASE ([[(NSClassFromString (@"NSTSMInputContext")) alloc] init]);
       err = InstallEventHandler (GetEventDispatcherTarget (),
 				 mac_handle_text_input_event,
-				 GetEventTypeCount (specs), specs, NULL, NULL);
-    }
-
-  if (err == noErr)
-    {
-      static const EventTypeSpec specs[] =
-	{{kEventClassTSMDocumentAccess, kEventTSMDocumentAccessLockDocument},
-	 {kEventClassTSMDocumentAccess, kEventTSMDocumentAccessUnlockDocument}};
-
-      err = InstallEventHandler (GetEventDispatcherTarget (),
-				 mac_handle_document_access_event,
 				 GetEventTypeCount (specs), specs, NULL, NULL);
     }
 
@@ -1287,8 +1057,6 @@ mac_bring_current_process_to_front (Boolean front_window_only_p)
 #endif
 }
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-
 /* Move FILENAME to the trash without using the Finder and return
    whether it succeeded.  If CFERROR is non-NULL, *CFERROR is set on
    failure.  If trashing functionality is not available, return false
@@ -1321,46 +1089,34 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
     }
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
   else
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-    if (FSMoveObjectToTrashSync != NULL)
-#endif
-      {
-	OSStatus err;
-	FSRef fref;
+    {
+      OSStatus err;
+      FSRef fref;
 
-	err = FSPathMakeRefWithOptions ((const UInt8 *) filename,
-					kFSPathMakeRefDoNotFollowLeafSymlink,
-					&fref, NULL);
-	if (err == noErr)
-	  /* FSPathMoveObjectToTrashSync tries to delete the
-	     destination of the specified symbolic link.  So we use
-	     FSMoveObjectToTrashSync for an FSRef created with
-	     kFSPathMakeRefDoNotFollowLeafSymlink.  */
-	  err = FSMoveObjectToTrashSync (&fref, NULL,
-					 kFSFileOperationDefaultOptions);
-	if (err == noErr)
-	  result = true;
-	else
-	  {
-	    result = false;
-	    if (cferror)
-	      *cferror = CFErrorCreate (NULL, kCFErrorDomainOSStatus, err,
-					NULL);
-	  }
-      }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-    else
-      {
-	result = false;
-	if (cferror)
-	  *cferror = NULL;
-      }
-#endif
+      err = FSPathMakeRefWithOptions ((const UInt8 *) filename,
+				      kFSPathMakeRefDoNotFollowLeafSymlink,
+				      &fref, NULL);
+      if (err == noErr)
+	/* FSPathMoveObjectToTrashSync tries to delete the destination
+	   of the specified symbolic link.  So we use
+	   FSMoveObjectToTrashSync for an FSRef created with
+	   kFSPathMakeRefDoNotFollowLeafSymlink.  */
+	err = FSMoveObjectToTrashSync (&fref, NULL,
+				       kFSFileOperationDefaultOptions);
+      if (err == noErr)
+	result = true;
+      else
+	{
+	  result = false;
+	  if (cferror)
+	    *cferror = CFErrorCreate (NULL, kCFErrorDomainOSStatus, err,
+				      NULL);
+	}
+    }
 #endif
 
   return result;
 }
-#endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 static int
@@ -1525,7 +1281,6 @@ static void mac_update_accessibility_display_options (void);
 	}
 
       if ((newOptions & NSApplicationPresentationDisableMenuBarTransparency)
-	  && !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4)
 	  && (mode == kUIModeContentSuppressed || mode == kUIModeContentHidden))
 	/* kUIOptionDisableMenuBarTransparency, but this constant was
 	   changed between 10.5 (1 << 7) and 10.6 (1 << 9).  */
@@ -1612,8 +1367,7 @@ static void mac_update_accessibility_display_options (void);
   /* Try to suppress the warning "CFMessagePort: bootstrap_register():
      failed" displayed by the second instance of Emacs.  Strictly
      speaking, there's a race condition, but it is not critical
-     anyway.  Unfortunately, Mac OS X 10.4 still displays warnings at
-     -[NSApplication setServicesMenu:] or the first event loop.  */
+     anyway.  */
   if (!serviceProviderRegistered)
     [NSApp setServicesProvider:self];
 
@@ -1792,21 +1546,7 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 		 && key_code == 0x72 /* kVK_Help */
 		 && (flags & (NSControlKeyMask | NSAlternateKeyMask
 			      | NSCommandKeyMask)) == 0))
-	  {
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-	    /* This is a workaround for the problem that Control-Tab
-	       is not recognized on Mac OS X 10.4 and earlier.  */
-	    if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4
-		&& [[[NSApp keyWindow] firstResponder]
-		     isMemberOfClass:[EmacsMainView class]]
-		&& key_code == 0x30 /* kVK_Tab */
-		&& ((flags & (NSControlKeyMask | NSCommandKeyMask))
-		    == NSControlKeyMask)
-		&& [[NSApp mainMenu] performKeyEquivalent:event])
-	      break;
-#endif
-	    goto OTHER;
-	  }
+	  goto OTHER;
 
 	mac_cgevent_to_input_event (cgevent, &inev);
 
@@ -2034,7 +1774,7 @@ emacs_windows_need_display_p (void)
 			      withObject:nil];
       if (keyBindingsWithConflicts == nil)
 	{
-	  NSArrayG (NSString *) *writingDirectionCommands =
+	  NSArrayOf (NSString *) *writingDirectionCommands =
 	    [NSArray arrayWithObjects:@"insertRightToLeftSlash:",
 		     @"makeBaseWritingDirectionNatural:",
 		     @"makeBaseWritingDirectionLeftToRight:",
@@ -2042,17 +1782,14 @@ emacs_windows_need_display_p (void)
 		     @"makeTextWritingDirectionNatural:",
 		     @"makeTextWritingDirectionLeftToRight:",
 		     @"makeTextWritingDirectionRightToLeft:", nil];
-	  NSMutableDictionaryG (NSString *, NSString *) *dictionary;
-	  NSEnumeratorG (NSString *) *enumerator;
-	  NSString *key;
+	  NSMutableDictionaryOf (NSString *, NSString *) *dictionary;
 
 	  /* Replace entries for prefix keys and writing direction
 	     commands with dummy ones.  */
 	  keyBindingsWithConflicts =
 	    MRC_RETAIN ([keyBindingManager dictionary]);
 	  dictionary = [keyBindingsWithConflicts mutableCopy];
-	  enumerator = [keyBindingsWithConflicts keyEnumerator];
-	  while ((key = [enumerator nextObject]) != nil)
+	  for (NSString *key in keyBindingsWithConflicts)
 	    {
 	      id object = [keyBindingsWithConflicts objectForKey:key];
 
@@ -2112,16 +1849,13 @@ emacs_windows_need_display_p (void)
     }
   else
     {
-      NSEnumeratorG (NSWindow *) *enumerator =
-	[deferredFlushWindows objectEnumerator];
-
       MRC_RELEASE (lastFlushDate);
       lastFlushDate = [[NSDate alloc] init];
       [flushTimer invalidate];
       MRC_RELEASE (flushTimer);
       flushTimer = nil;
 
-      while ((window = [enumerator nextObject]) != nil)
+      for (NSWindow *window in deferredFlushWindows)
 	[window flushWindow];
       [deferredFlushWindows removeAllObjects];
     }
@@ -2236,9 +1970,7 @@ emacs_windows_need_display_p (void)
 	}
       else if (windowManagerState & WM_STATE_NO_MENUBAR)
 	{
-	  NSArrayG (NSWindow *) *windows = [NSApp windows];
-	  NSEnumeratorG (NSWindow *) *enumerator = [windows objectEnumerator];
-	  NSArrayG (NSNumber *) *windowNumbers;
+	  NSArrayOf (NSNumber *) *windowNumbers;
 
 	  if ([NSWindow
 		respondsToSelector:@selector(windowNumbersWithOptions:)])
@@ -2247,7 +1979,7 @@ emacs_windows_need_display_p (void)
 	    windowNumbers = nil;
 
 	  options = NSApplicationPresentationDefault;
-	  while ((window = [enumerator nextObject]) != nil)
+	  for (NSWindow *window in [NSApp windows])
 	    if ([window isKindOfClass:[EmacsWindow class]]
 		&& [window isVisible])
 	      {
@@ -2706,10 +2438,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   overlayWindow = window;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-  if (NSClassFromString (@"CALayer"))
-    [self setupLayerHostingView];
-#endif
+  [self setupLayerHostingView];
 }
 
 - (void)attachOverlayWindow;
@@ -2800,8 +2529,7 @@ static CGRect unset_global_focus_view_frame (void);
       [window setAlphaValue:[oldWindow alphaValue]];
       [window setBackgroundColor:[oldWindow backgroundColor]];
       [window setRepresentedFilename:[oldWindow representedFilename]];
-      if ([window respondsToSelector:@selector(setCollectionBehavior:)])
-	[window setCollectionBehavior:[oldWindow collectionBehavior]];
+      [window setCollectionBehavior:[oldWindow collectionBehavior]];
 
       [oldWindow setDelegate:nil];
       [self detachOverlayWindow];
@@ -2885,9 +2613,7 @@ static CGRect unset_global_focus_view_frame (void);
   [emacsView release];
   /* emacsWindow is released via released-when-closed.  */
   [hourglass release];
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   [layerHostingView release];
-#endif
   [overlayView release];
   [overlayWindow release];
   [super dealloc];
@@ -3067,8 +2793,7 @@ static CGRect unset_global_focus_view_frame (void);
   windowManagerState ^=
     (diff & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT
 	     | WM_STATE_FULLSCREEN | WM_STATE_DEDICATED_DESKTOP));
-  if ([emacsWindow respondsToSelector:@selector(setCollectionBehavior:)])
-    [self updateCollectionBehavior];
+  [self updateCollectionBehavior];
 
   return frameRect;
 }
@@ -3110,8 +2835,7 @@ static CGRect unset_global_focus_view_frame (void);
     {
       windowManagerState ^= (diff & (WM_STATE_STICKY | WM_STATE_NO_MENUBAR));
 
-      if ([emacsWindow respondsToSelector:@selector(setCollectionBehavior:)])
-	[self updateCollectionBehavior];
+      [self updateCollectionBehavior];
     }
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
@@ -3331,30 +3055,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (NSRect)centerScanEmacsViewRect:(NSRect)rect
 {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
-  /* The behavior of -[NSView centerScanRect:] depends on whether or
-     not the binary is linked on Mac OS X 10.5 or later.  */
   return [emacsView centerScanRect:rect];
-#else
-  NSWindow *window = [emacsView window];
-  CGFloat scaleFactor = [window userSpaceScaleFactor];
-
-  if (scaleFactor != 1.0)
-    {
-      CGFloat x, y;
-
-      rect = [emacsView convertRect:rect toView:nil];
-      x = round (rect.origin.x);
-      y = round (rect.origin.y);
-      rect.size.width = round (NSMaxX (rect)) - x;
-      rect.size.height = round (NSMaxY (rect)) - y;
-      rect.origin.x = x;
-      rect.origin.y = y;
-      rect = [emacsView convertRect:rect fromView:nil];
-    }
-
-  return rect;
-#endif
 }
 
 - (void)invalidateCursorRectsForEmacsView
@@ -3698,7 +3399,7 @@ static CGRect unset_global_focus_view_frame (void);
     [self bitmapImageRepInContentViewRect:contentViewRect];
   id image = (id) [bitmap CGImage];
 
-  rootLayer = [CA_LAYER layer];
+  rootLayer = [CALayer layer];
   contentViewRect.origin = NSZeroPoint;
   rootLayer.bounds = NSRectToCGRect (contentViewRect);
   rootLayer.contentsScale = [emacsWindow backingScaleFactor];
@@ -3707,7 +3408,7 @@ static CGRect unset_global_focus_view_frame (void);
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_7)
 #endif
     rootLayer.geometryFlipped = YES;
-  rootLayer.layoutManager = [CA_CONSTRAINT_LAYOUT_MANAGER layoutManager];
+  rootLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
   if (flag)
     rootLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
 
@@ -3781,8 +3482,8 @@ static CGRect unset_global_focus_view_frame (void);
 	}
       for (i = 0; i < nrects; i++)
 	{
-	  CALayer *layer = [CA_LAYER layer];
-	  NSMutableDictionaryG (NSString *, id <CAAction>) *actions;
+	  CALayer *layer = [CALayer layer];
+	  NSMutableDictionaryOf (NSString *, id <CAAction>) *actions;
 	  CAConstraintAttribute attribute;
 	  CGFloat scale;
 	  NSRect rect =
@@ -3820,7 +3521,7 @@ static CGRect unset_global_focus_view_frame (void);
 		  attribute = kCAConstraintMaxX;
 		  scale = NSMaxX (rect);
 		}
-	      [layer addConstraint:[CA_CONSTRAINT
+	      [layer addConstraint:[CAConstraint
 				     constraintWithAttribute:attribute
 						  relativeTo:@"superlayer"
 						   attribute:kCAConstraintWidth
@@ -3837,7 +3538,7 @@ static CGRect unset_global_focus_view_frame (void);
 	      attribute = kCAConstraintMinX;
 	      nextLayerName = [NSString stringWithFormat:@"layer-%p-%d",
 					w, i + 1];
-	      [layer addConstraint:[CA_CONSTRAINT
+	      [layer addConstraint:[CAConstraint
 				     constraintWithAttribute:attribute
 						  relativeTo:nextLayerName
 						   attribute:attribute]];
@@ -3870,7 +3571,7 @@ static CGRect unset_global_focus_view_frame (void);
 		      scale = NSMaxY (rect);
 		    }
 		}
-	      [layer addConstraint:[CA_CONSTRAINT
+	      [layer addConstraint:[CAConstraint
 				     constraintWithAttribute:attribute
 						  relativeTo:@"superlayer"
 						   attribute:srcAttr
@@ -3918,7 +3619,7 @@ static CGRect unset_global_focus_view_frame (void);
       [contentView addSubview:transitionView positioned:NSWindowAbove
 		   relativeTo:emacsView];
       [self setLiveResizeCompletionHandler:^{
-	  [NS_ANIMATION_CONTEXT
+	  [NSAnimationContext
 	    runAnimationGroup:^(NSAnimationContext *context) {
 	      CALayer *layer = [transitionView layer];
 
@@ -4139,7 +3840,7 @@ static CGRect unset_global_focus_view_frame (void);
   [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:NO];
 }
 
-- (NSArrayG (NSWindow *) *)customWindowsToEnterFullScreenForWindow:(NSWindow *)window
+- (NSArrayOf (NSWindow *) *)customWindowsToEnterFullScreenForWindow:(NSWindow *)window
 {
   /* Custom transition animation is disabled on OS X 10.11 because (1)
      it doesn't look as intended and (2) C-x 5 2 on a full screen
@@ -4160,7 +3861,7 @@ static CGRect unset_global_focus_view_frame (void);
 	  if (!success)
 	    [transitionView removeFromSuperview];
 	  else
-	    [NS_ANIMATION_CONTEXT
+	    [NSAnimationContext
 	      runAnimationGroup:^(NSAnimationContext *context) {
 		[context setDuration:(10 / 60.0)];
 		[transitionView layer].opacity = 0;
@@ -4220,7 +3921,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   NSEnableScreenUpdates ();
 
-  [NS_ANIMATION_CONTEXT runAnimationGroup:^(NSAnimationContext *context) {
+  [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
       CALayer *layer = [transitionView layer];
       NSRect destRectWithTitleBar =
 	NSMakeRect (NSMinX (destRect), NSMinY (destRect),
@@ -4228,7 +3929,7 @@ static CGRect unset_global_focus_view_frame (void);
 
       [context setDuration:(duration * .9)];
       [context
-	setTimingFunction:[CA_MEDIA_TIMING_FUNCTION
+	setTimingFunction:[CAMediaTimingFunction
 			    functionWithName:kCAMediaTimingFunctionDefault]];
       [[window animator] setFrame:destRectWithTitleBar display:YES];
       layer.beginTime = [layer convertTime:(CACurrentMediaTime ())
@@ -4248,7 +3949,7 @@ static CGRect unset_global_focus_view_frame (void);
     }];
 }
 
-- (NSArrayG (NSWindow *) *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
+- (NSArrayOf (NSWindow *) *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
 {
   return [self customWindowsToEnterFullScreenForWindow:window];
 }
@@ -4291,12 +3992,12 @@ static CGRect unset_global_focus_view_frame (void);
 
   NSEnableScreenUpdates ();
 
-  [NS_ANIMATION_CONTEXT runAnimationGroup:^(NSAnimationContext *context) {
+  [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
       CALayer *layer = [transitionView layer];
 
       [context setDuration:duration];
       [context
-	setTimingFunction:[CA_MEDIA_TIMING_FUNCTION
+	setTimingFunction:[CAMediaTimingFunction
 			    functionWithName:kCAMediaTimingFunctionDefault]];
       [[window animator] setFrame:destRect display:YES];
       layer.beginTime = [layer convertTime:(CACurrentMediaTime ())
@@ -4317,7 +4018,7 @@ static CGRect unset_global_focus_view_frame (void);
 #endif
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
-			change:(NSDictionaryG (NSString *, id) *)change
+			change:(NSDictionaryOf (NSString *, id) *)change
 		       context:(void *)context
 {
   if ([keyPath isEqualToString:@"alphaValue"])
@@ -4326,7 +4027,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (BOOL)isWindowFrontmost
 {
-  NSArrayG (NSWindow *) *orderedWindows = [NSApp orderedWindows];
+  NSArrayOf (NSWindow *) *orderedWindows = [NSApp orderedWindows];
 
   if ([orderedWindows count] > 0)
     {
@@ -4459,7 +4160,7 @@ mac_activate_frame_window (struct frame *f)
 static NSRect
 mac_get_base_screen_frame (void)
 {
-  NSArrayG (NSScreen *) *screens = [NSScreen screens];
+  NSArrayOf (NSScreen *) *screens = [NSScreen screens];
 
   if ([screens count] > 0)
     return [[screens objectAtIndex:0] frame];
@@ -4776,8 +4477,7 @@ mac_cursor_create (ThemeCursor shape, const XColor *fore_color,
   NSCursor *cursor = nil;
   NSImage *image;
   NSSize imageSize;
-  NSEnumeratorG (NSImageRep *) *enumerator;
-  NSImageRep *rep;
+  NSArrayOf (NSImageRep *) *reps;
   enum {RED, GREEN, BLUE, ALPHA, NCOMPONENTS = ALPHA} c;
   int fg[NCOMPONENTS], delta[NCOMPONENTS];
 
@@ -4806,11 +4506,11 @@ mac_cursor_create (ThemeCursor shape, const XColor *fore_color,
     }
 
   image = [cursor image];
-  enumerator = [[image representations] objectEnumerator];
+  reps = [image representations];
 
   imageSize = [image size];
   image = [[NSImage alloc] initWithSize:imageSize];
-  while ((rep = [enumerator nextObject]) != nil)
+  for (NSImageRep * __strong rep in reps)
     {
       NSInteger width = [rep pixelsWide], height = [rep pixelsHigh];
       unsigned char *data = xmalloc (width * height * 4);
@@ -4964,7 +4664,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
       if ([defaults objectForKey:@"ApplePressAndHoldEnabled"] == nil)
 	{
-	  NSDictionaryG (NSString *, NSString *) *appDefaults =
+	  NSDictionaryOf (NSString *, NSString *) *appDefaults =
 	    [NSDictionary dictionaryWithObject:@"NO"
 					forKey:@"ApplePressAndHoldEnabled"];
 
@@ -4979,24 +4679,17 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   if (self == nil)
     return nil;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   if (mac_tracking_area_works_with_cursor_rects_invalidation_p ())
     {
       NSTrackingArea *trackingAreaForCursor =
-	[
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
-	 [NSTrackingArea alloc]
-#else
-         [(NSClassFromString (@"NSTrackingArea")) alloc]
-#endif
-	    initWithRect:NSZeroRect options:(NSTrackingCursorUpdate
-					     | NSTrackingActiveInKeyWindow
-					     | NSTrackingInVisibleRect)
-	    owner:self userInfo:nil];
+	[[NSTrackingArea alloc] initWithRect:NSZeroRect
+				     options:(NSTrackingCursorUpdate
+					      | NSTrackingActiveInKeyWindow
+					      | NSTrackingInVisibleRect)
+				       owner:self userInfo:nil];
       [self addTrackingArea:trackingAreaForCursor];
       MRC_RELEASE (trackingAreaForCursor);
     }
-#endif
 
   return self;
 }
@@ -5678,30 +5371,6 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
 {
   NSRange replacementRange = NSMakeRange (NSNotFound, 0);
 
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4
-      && [aString isKindOfClass:[NSAttributedString class]])
-    {
-      NSString *rangeString =
-	[aString attribute:@"NSTextInputReplacementRangeAttributeName"
-		   atIndex:0 effectiveRange:NULL];
-
-      if (rangeString)
-	{
-	  NSRange attributesRange;
-	  NSRange aStringRange =
-	    NSMakeRange (0, [(NSAttributedString *)aString length]);
-	  NSDictionaryG (NSString *, id) *attributes =
-	    [aString attributesAtIndex:0
-		 longestEffectiveRange:&attributesRange inRange:aStringRange];
-
-	  if (NSEqualRanges (attributesRange, aStringRange)
-	      && [attributes count] == 1)
-	    aString = [aString string];
-
-	  replacementRange = NSRangeFromString (rangeString);
-	}
-    }
-
   [self insertText:aString replacementRange:replacementRange];
 }
 
@@ -5760,17 +5429,6 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
 {
   NSRange replacementRange = NSMakeRange (NSNotFound, 0);
 
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4
-      && [aString isKindOfClass:[NSAttributedString class]])
-    {
-      NSString *rangeString =
-	[aString attribute:@"NSTextInputReplacementRangeAttributeName"
-		   atIndex:0 effectiveRange:NULL];
-
-      if (rangeString)
-	replacementRange = NSRangeFromString (rangeString);
-    }
-
   [self setMarkedText:aString selectedRange:selRange
      replacementRange:replacementRange];
 }
@@ -5792,11 +5450,7 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
   return markedText != nil && [(NSString *)markedText length] != 0;
 }
 
-#ifdef NSINTEGER_DEFINED
 - (NSInteger)conversationIdentifier
-#else
-- (long)conversationIdentifier
-#endif
 {
   return (long) NSApp;
 }
@@ -6083,13 +5737,9 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
   return result;
 }
 
-- (NSArrayG (NSString *) *)validAttributesForMarkedText
+- (NSArrayOf (NSString *) *)validAttributesForMarkedText
 {
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4)
-    return [NSArray
-	     arrayWithObject:@"NSTextInputReplacementRangeAttributeName"];
-  else
-    return nil;
+  return nil;
 }
 
 - (NSString *)string
@@ -6097,9 +5747,6 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
   struct frame *f = [self emacsFrame];
   CFRange range;
   CFStringRef string;
-
-  if (handling_document_access_lock_document_p)
-    return nil;
 
   if (poll_suppress_count == 0 && !NILP (Vinhibit_quit))
     /* Don't try to get buffer contents as the gap might be being
@@ -6470,10 +6117,10 @@ create_resize_indicator_image (void)
 extern Lisp_Object Qgeometry, Qworkarea, Qmm_size, Qframes;
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-static NSArrayG (NSDictionary *) *
+static NSArrayOf (NSDictionary *) *
 mac_display_get_info_dictionaries (IOOptionBits options)
 {
-  NSMutableArrayG (NSDictionary *) *result =
+  NSMutableArrayOf (NSDictionary *) *result =
     [NSMutableArray arrayWithCapacity:0];
   CFDictionaryRef matching = IOServiceMatching ("IODisplayConnect");
 
@@ -6504,11 +6151,11 @@ mac_display_get_info_dictionaries (IOOptionBits options)
 
 static CFDictionaryRef
 mac_display_copy_info_dictionary_for_cgdisplay (CGDirectDisplayID displayID,
-						NSArrayG (NSDictionary *)
+						NSArrayOf (NSDictionary *)
 						*infoDictionaries)
 {
   CFDictionaryRef __block result = NULL;
-  NSMutableDictionaryG (NSString *, NSNumber *) *info =
+  NSMutableDictionaryOf (NSString *, NSNumber *) *info =
     [NSMutableDictionary dictionaryWithCapacity:3];
   uint32_t val;
 
@@ -6551,11 +6198,11 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
   NSRect baseScreenFrame = mac_get_base_screen_frame ();
   CGFloat baseScreenFrameMinX = NSMinX (baseScreenFrame);
   CGFloat baseScreenFrameMaxY = NSMaxY (baseScreenFrame);
-  NSArrayG (NSScreen *) *screens = [NSScreen screens];
+  NSArrayOf (NSScreen *) *screens = [NSScreen screens];
   NSUInteger i, count = [screens count];
   Lisp_Object monitor_frames = Fmake_vector (make_number (count), Qnil);
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-  NSArrayG (NSDictionary *) *infoDictionaries =
+  NSArrayOf (NSDictionary *) *infoDictionaries =
     mac_display_get_info_dictionaries (kIODisplayOnlyPreferredName);
 #endif
   struct gcpro gcpro1, gcpro2;
@@ -6687,17 +6334,10 @@ static BOOL NonmodalScrollerPagingBehavior;
   NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
 
   [userDefaults synchronize];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
   NonmodalScrollerButtonDelay =
     [userDefaults doubleForKey:@"NSScrollerButtonDelay"];
   NonmodalScrollerButtonPeriod =
     [userDefaults doubleForKey:@"NSScrollerButtonPeriod"];
-#else
-  NonmodalScrollerButtonDelay =
-    [userDefaults floatForKey:@"NSScrollerButtonDelay"];
-  NonmodalScrollerButtonPeriod =
-    [userDefaults floatForKey:@"NSScrollerButtonPeriod"];
-#endif
   NonmodalScrollerPagingBehavior =
     [userDefaults boolForKey:@"AppleScrollerPagingBehavior"];
 }
@@ -6959,11 +6599,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 	  if (minEdge > maximum)
 	    minEdge = maximum;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
 	  [self setDoubleValue:minEdge/maximum];
-#else
-	  [self setFloatValue:minEdge/maximum];
-#endif
 	}
 
       [self sendAction:[self action] to:[self target]];
@@ -7014,11 +6650,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 - (void)viewFrameDidChange:(NSNotification *)notification
 {
   BOOL enabled = [self isEnabled], tooSmall = NO;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
   double floatValue = [self doubleValue];
-#else
-  float floatValue = [self floatValue];
-#endif
   CGFloat knobProportion = [self knobProportion];
   const NSControlSize controlSizes[] =
     {NSRegularControlSize, NSSmallControlSize}; /* Descending */
@@ -7044,12 +6676,8 @@ static BOOL NonmodalScrollerPagingBehavior;
   if (i == count)
     tooSmall = YES;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
   [self setDoubleValue:0];
   [self setKnobProportion:0];
-#else
-  [self setFloatValue:0 knobProportion:0];
-#endif
   [self setEnabled:YES];
   knobRect = [self rectForPart:NSScrollerKnob];
   /* Avoid "Invalid rect passed to CoreUI: {{nan,nan},{nan,nan}}".  */
@@ -7070,12 +6698,8 @@ static BOOL NonmodalScrollerPagingBehavior;
   if (!tooSmall)
     {
       [self setEnabled:enabled];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
       [self setDoubleValue:floatValue];
       [self setKnobProportion:knobProportion];
-#else
-      [self setFloatValue:floatValue knobProportion:knobProportion];
-#endif
     }
   else
     {
@@ -7134,21 +6758,13 @@ static BOOL NonmodalScrollerPagingBehavior;
   if (knobSlotSpan < 0)
     {
       BOOL enabled = [self isEnabled];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
       double floatValue = [self doubleValue];
-#else
-      float floatValue = [self floatValue];
-#endif
       CGFloat knobProportion = [self knobProportion];
       NSRect bounds, knobSlotRect;
 
       bounds = [self bounds];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
       [self setDoubleValue:0];
       [self setKnobProportion:0];
-#else
-      [self setFloatValue:0 knobProportion:0];
-#endif
       [self setEnabled:YES];
       knobSlotRect = [self rectForPart:NSScrollerKnobSlot];
       if (NSHeight (bounds) >= NSWidth (bounds))
@@ -7156,12 +6772,8 @@ static BOOL NonmodalScrollerPagingBehavior;
       else
 	knobSlotSpan = NSWidth (knobSlotRect);
       [self setEnabled:enabled];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
       [self setDoubleValue:floatValue];
       [self setKnobProportion:knobProportion];
-#else
-      [self setFloatValue:floatValue knobProportion:knobProportion];
-#endif
     }
 
   return knobSlotSpan;
@@ -7439,12 +7051,8 @@ x_set_toolkit_scroll_bar_thumb (struct scroll_bar *bar, int portion,
       floatValue = top / (knobSlotSpan - size);
       knobProportion = size / knobSlotSpan;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
       [scroller setDoubleValue:floatValue];
       [scroller setKnobProportion:knobProportion];
-#else
-      [scroller setFloatValue:floatValue knobProportion:knobProportion];
-#endif
       [scroller setEnabled:YES];
     }
 
@@ -7496,7 +7104,7 @@ mac_get_default_scroll_bar_width (struct frame *f)
 							cgImage)]];
 }
 
-- (void)setCoreGraphicsImages:(NSArrayG (id) *)cgImages
+- (void)setCoreGraphicsImages:(NSArrayOf (id) *)cgImages
 {
   NSUInteger i, count;
   NSImage *image;
@@ -7510,7 +7118,7 @@ mac_get_default_scroll_bar_width (struct frame *f)
 			  exclusive:(count == 1)];
   for (i = 1; i < count; i++)
     {
-      NSArrayG (NSImageRep *) *reps =
+      NSArrayOf (NSImageRep *) *reps =
 	[[NSImage imageWithCGImage:((__bridge CGImageRef)
 				    [cgImages objectAtIndex:i])
 			 exclusive:NO] representations];
@@ -7551,13 +7159,13 @@ mac_get_default_scroll_bar_width (struct frame *f)
   return item;
 }
 
-- (NSArrayG (NSString *) *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar
+- (NSArrayOf (NSString *) *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar
 {
   return [NSArray arrayWithObjects:TOOLBAR_ICON_ITEM_IDENTIFIER,
 		  NSToolbarSeparatorItemIdentifier, nil];
 }
 
-- (NSArrayG (NSString *) *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar
+- (NSArrayOf (NSString *) *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar
 {
   return [NSArray arrayWithObject:TOOLBAR_ICON_ITEM_IDENTIFIER];
 }
@@ -7716,7 +7324,7 @@ update_frame_tool_bar (struct frame *f)
   NSWindow *window = [frameController emacsWindow];
   short rx, ry;
   NSToolbar *toolbar;
-  NSArrayG (__kindof NSToolbarItem *) *items;
+  NSArrayOf (__kindof NSToolbarItem *) *items;
   NSUInteger count;
   int i, pos, win_gravity = f->output_data.mac->toolbar_win_gravity;
   bool use_multiimage_icons_p = true;
@@ -7827,7 +7435,7 @@ update_frame_tool_bar (struct frame *f)
 	  else
 	    {
 	      CGImageRef cg_image = img->cg_image;
-	      NSArrayG (id) *cgImages;
+	      NSArrayOf (id) *cgImages;
 
 	      FRAME_BACKING_SCALE_FACTOR (f) = 2;
 	      img_id = lookup_image (f, image);
@@ -8235,9 +7843,7 @@ static void update_dragged_types (void);
       clear_mouse_face (hlinfo);
       hlinfo->mouse_face_mouse_frame = 0;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
       if (!mac_tracking_area_works_with_cursor_rects_invalidation_p ())
-#endif
 	if (!dpyinfo->grabbed)
 	  {
 	    struct redisplay_interface *rif = FRAME_RIF (f);
@@ -8286,17 +7892,15 @@ mac_event_to_emacs_modifiers (NSEvent *event)
 void
 mac_get_screen_info (struct mac_display_info *dpyinfo)
 {
-  NSArrayG (NSScreen *) *screens = [NSScreen screens];
+  NSArrayOf (NSScreen *) *screens = [NSScreen screens];
   NSWindowDepth depth = [[screens objectAtIndex:0] depth];
-  NSEnumeratorG (NSScreen *) *enumerator = [screens objectEnumerator];
-  NSScreen *screen;
   NSRect frame;
 
   dpyinfo->n_planes = NSBitsPerPixelFromDepth (depth);
   dpyinfo->color_p = dpyinfo->n_planes > NSBitsPerSampleFromDepth (depth);
 
   frame = NSZeroRect;
-  while ((screen = [enumerator nextObject]) != nil)
+  for (NSScreen *screen in screens)
     frame = NSUnionRect (frame, [screen frame]);
   dpyinfo->width = NSWidth (frame);
   dpyinfo->height = NSHeight (frame);
@@ -8385,25 +7989,8 @@ peek_if_next_event_activates_menu_bar (void)
 	  if ([screen canShowMenuBar])
 	    {
 	      NSRect frame = [screen frame];
-	      CGFloat menuBarHeight;
+	      CGFloat menuBarHeight = [[NSApp mainMenu] menuBarHeight];
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020
-	      /* -[NSMenu menuBarHeight] is unreliable on 10.4. */
-	      if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4))
-#endif
-		{
-		  menuBarHeight = [[NSApp mainMenu] menuBarHeight];
-		}
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020
-	      else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || (MAC_OS_X_VERSION_MIN_REQUIRED < 1050 && MAC_OS_X_VERSION_MIN_REQUIRED >= 1020)
-		{
-		  menuBarHeight = [NSMenuView menuBarHeight];
-		}
-#endif
 	      frame.origin.y = NSMaxY (frame) - menuBarHeight;
 	      frame.size.height = menuBarHeight;
 	      if (NSMouseInRect (mouseLocation, frame, NO))
@@ -8506,15 +8093,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 
 	  if (FRAME_MAC_P (f))
 	    {
-	      EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-
 	      x_flush (f);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-	      /* Mac OS X 10.4 seems not to reset the flag
-		 `viewsNeedDisplay' on autodisplay.  */
-	      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4)
-		[window setViewsNeedDisplay:NO];
-#endif
 	      /* Check which frames are still visible.  We do this
 		 here because there doesn't seem to be any direct
 		 notification that the visibility of a window has
@@ -8896,8 +8475,8 @@ create_ok_cancel_buttons_view (void)
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
   NSView *view;
   NSButton *cancelButton, *okButton;
-  NSDictionaryG (NSString *, id) *viewsDictionary;
-  NSArrayG (NSString *) *formats;
+  NSDictionaryOf (NSString *, id) *viewsDictionary;
+  NSArrayOf (NSString *) *formats;
 
   cancelButton = [[NSButton alloc] init];
   [cancelButton setBezelStyle:NSRoundedBezelStyle];
@@ -8925,7 +8504,7 @@ create_ok_cancel_buttons_view (void)
 			@"|-[cancelButton]-[okButton(==cancelButton)]-|", nil]);
   for (NSString *format in formats)
     {
-      NSArrayG (NSLayoutConstraint *) *constraints =
+      NSArrayOf (NSLayoutConstraint *) *constraints =
 	[NSLayoutConstraint
 	  constraintsWithVisualFormat:format
 			      options:NSLayoutFormatAlignAllCenterY
@@ -9088,7 +8667,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 {
   widget_value *wv;
   NSFont *menuFont = [NSFont menuFontOfSize:0];
-  NSDictionaryG (NSString *, id) *attributes =
+  NSDictionaryOf (NSString *, id) *attributes =
     [NSDictionary dictionaryWithObject:menuFont forKey:NSFontAttributeName];
   NSSize spaceSize = [@" " sizeWithAttributes:attributes];
   CGFloat maxTabStop = 0;
@@ -9136,8 +8715,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	}
     }
 
-  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4))
-    [self setDelegate:emacsController];
+  [self setDelegate:emacsController];
 }
 
 @end				// NSMenu (Emacs)
@@ -9164,7 +8742,8 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
       UInt32 code;
       Boolean isEnabled;
 
-      if (_IsSymbolicHotKeyEvent ([theEvent _eventRef], &code, &isEnabled)
+      if (_IsSymbolicHotKeyEvent ((EventRef) [theEvent eventRef], &code,
+				  &isEnabled)
 	  && isEnabled)
 	{
 	  if (code == 98 /* Show Help menu, Mac OS X 10.5 and later */
@@ -9367,10 +8946,8 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 - (NSMenu *)applicationDockMenu:(NSApplication *)sender
 {
   NSMenu *menu = [[NSMenu alloc] init];
-  NSEnumeratorG (NSWindow *) *enumerator = [[NSApp windows] objectEnumerator];
-  NSWindow *window;
 
-  while ((window = [enumerator nextObject]) != nil)
+  for (NSWindow *window in [NSApp windows])
     if ([window isKindOfClass:[EmacsFullscreenWindow class]]
 	&& ([window isVisible] || [window isMiniaturized]))
       {
@@ -9422,7 +8999,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 		    matchedItemHandler:(id)handleMatchedItems
 #endif
 {
-  NSMutableArrayG (NSString *) *items =
+  NSMutableArrayOf (NSString *) *items =
     [NSMutableArray arrayWithCapacity:resultLimit];
   Lisp_Object rest;
 
@@ -9457,7 +9034,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 #endif
 }
 
-- (NSArrayG (NSString *) *)localizedTitlesForItem:(id)item
+- (NSArrayOf (NSString *) *)localizedTitlesForItem:(id)item
 {
   return [NSArray arrayWithObject:item];
 }
@@ -10238,7 +9815,7 @@ get_pasteboard_data_type_from_symbol (Lisp_Object sym, Selection sel)
 
   if (dataType && sel)
     {
-      NSArrayG (NSString *) *array = [NSArray arrayWithObject:dataType];
+      NSArrayOf (NSString *) *array = [NSArray arrayWithObject:dataType];
 
       dataType = [(__bridge NSPasteboard *)sel availableTypeFromArray:array];
     }
@@ -10358,10 +9935,9 @@ Lisp_Object
 mac_get_selection_target_list (Selection sel)
 {
   Lisp_Object result = Qnil, rest, target, strings = Qnil;
-  NSArrayG (NSString *) *types = [(__bridge NSPasteboard *)sel types];
-  NSMutableSetG (NSString *) *typeSet;
+  NSArrayOf (NSString *) *types = [(__bridge NSPasteboard *)sel types];
+  NSMutableSetOf (NSString *) *typeSet;
   NSString *dataType;
-  NSEnumeratorG (NSString *) *enumerator;
 
   typeSet = [NSMutableSet setWithCapacity:[types count]];
   [typeSet addObjectsFromArray:types];
@@ -10376,8 +9952,7 @@ mac_get_selection_target_list (Selection sel)
 	[typeSet removeObject:dataType];
       }
 
-  enumerator = [typeSet objectEnumerator];
-  while ((dataType = [enumerator nextObject]) != nil)
+  for (NSString *dataType in typeSet)
     strings = Fcons ([dataType UTF8LispString], strings);
   result = nconc2 (result, strings);
 
@@ -10389,7 +9964,7 @@ mac_get_selection_target_list (Selection sel)
 			 Apple event support
 ***********************************************************************/
 
-static NSMutableSetG (NSNumber *) *registered_apple_event_specs;
+static NSMutableSetOf (NSNumber *) *registered_apple_event_specs;
 
 @implementation NSAppleEventDescriptor (Emacs)
 
@@ -10446,8 +10021,8 @@ register_apple_event_specs (Lisp_Object key, Lisp_Object binding,
 	}
       else if (!NILP (binding) && !EQ (binding, Qundefined))
 	{
-	  NSMutableSetG (NSNumber *) *set =
-	    (__bridge NSMutableSetG (NSNumber *) *) data;
+	  NSMutableSetOf (NSNumber *) *set =
+	    (__bridge NSMutableSetOf (NSNumber *) *) data;
 	  AEEventClass eventClass;
 	  AEEventID eventID;
 	  unsigned long long code;
@@ -10503,7 +10078,7 @@ init_apple_event_handler (void)
                       Drag and drop support
 ***********************************************************************/
 
-static NSMutableArrayG (NSString *) *registered_dragged_types;
+static NSMutableArrayOf (NSString *) *registered_dragged_types;
 
 @implementation EmacsMainView (DragAndDrop)
 
@@ -10587,7 +10162,7 @@ drag_operation_to_actions (NSDragOperation operation)
 
 @implementation EmacsFrameController (DragAndDrop)
 
-- (void)registerEmacsViewForDraggedTypes:(NSArrayG (NSString *) *)pboardTypes
+- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSString *) *)pboardTypes
 {
   [emacsView registerForDraggedTypes:pboardTypes];
 }
@@ -10607,7 +10182,7 @@ drag_operation_to_actions (NSDragOperation operation)
 static void
 update_dragged_types (void)
 {
-  NSMutableArrayG (NSString *) *array =
+  NSMutableArrayOf (NSString *) *array =
     [[NSMutableArray alloc] initWithCapacity:0];
   Lisp_Object rest, tail, frame;
 
@@ -10666,7 +10241,7 @@ mac_dnd_default_known_types (void)
 		     returnType:(NSString *)returnType
 {
   Selection sel;
-  NSArrayG (NSString *) *array;
+  NSArrayOf (NSString *) *array;
 
   if ([sendType length] == 0
       || (!NILP (Fx_selection_owner_p (Vmac_service_selection, Qnil))
@@ -10695,13 +10270,11 @@ mac_dnd_default_known_types (void)
 }
 
 - (BOOL)writeSelectionToPasteboard:(NSPasteboard *)pboard
-			     types:(NSArrayG (NSString *) *)types
+			     types:(NSArrayOf (NSString *) *)types
 {
   OSStatus err;
   Selection sel;
   NSPasteboard *servicePboard;
-  NSEnumeratorG (NSString *) *enumerator;
-  NSString *type;
   BOOL result = NO;
 
   err = mac_get_selection_from_symbol (Vmac_service_selection, false, &sel);
@@ -10711,8 +10284,7 @@ mac_dnd_default_known_types (void)
   [pboard declareTypes:[NSArray array] owner:nil];
 
   servicePboard = (__bridge NSPasteboard *) sel;
-  enumerator = [[servicePboard types] objectEnumerator];
-  while ((type = [enumerator nextObject]) != nil)
+  for (NSString *type in [servicePboard types])
     if ([types containsObject:type])
       {
 	NSData *data = [servicePboard dataForType:type];
@@ -10736,8 +10308,6 @@ copy_pasteboard_to_service_selection (NSPasteboard *pboard)
   OSStatus err;
   Selection sel;
   NSPasteboard *servicePboard;
-  NSEnumeratorG (NSString *) *enumerator;
-  NSString *type;
   BOOL result = NO;
 
   err = mac_get_selection_from_symbol (Vmac_service_selection, true, &sel);
@@ -10746,8 +10316,7 @@ copy_pasteboard_to_service_selection (NSPasteboard *pboard)
 
   servicePboard = (__bridge NSPasteboard *) sel;
   [servicePboard declareTypes:[NSArray array] owner:nil];
-  enumerator = [[pboard types] objectEnumerator];
-  while ((type = [enumerator nextObject]) != nil)
+  for (NSString *type in [pboard types])
     {
       NSData *data = [pboard dataForType:type];
 
@@ -10902,7 +10471,7 @@ handle_services_invocation (NSInvocation *invocation)
 static void
 update_services_menu_types (void)
 {
-  NSMutableArrayG (NSString *) *array = [NSMutableArray arrayWithCapacity:0];
+  NSMutableArrayOf (NSString *) *array = [NSMutableArray arrayWithCapacity:0];
   Lisp_Object rest;
 
   for (rest = Vselection_converter_alist; CONSP (rest);
@@ -11051,7 +10620,7 @@ handle_action_invocation (NSInvocation *invocation)
 
 @implementation EmacsOSAScript
 
-- (NSAppleEventDescriptor *)executeAndReturnError:(NSDictionaryG (NSString *, id) **)errorInfo
+- (NSAppleEventDescriptor *)executeAndReturnError:(NSDictionaryOf (NSString *, id) **)errorInfo
 {
   if (inhibit_window_system || [NSApp isRunning])
     return [super executeAndReturnError:errorInfo];
@@ -11059,7 +10628,7 @@ handle_action_invocation (NSInvocation *invocation)
     {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       NSAppleEventDescriptor * __block result;
-      NSDictionaryG (NSString *, id) * __block errorInfo1;
+      NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
       [NSApp runTemporarilyWithBlock:^{
 	  result = [self executeAndReturnError:&errorInfo1];
@@ -11097,7 +10666,7 @@ handle_action_invocation (NSInvocation *invocation)
     }
 }
 
-- (NSAppleEventDescriptor *)executeAndReturnDisplayValue:(NSAttributedString **)displayValue error:(NSDictionaryG (NSString *, id) **)errorInfo
+- (NSAppleEventDescriptor *)executeAndReturnDisplayValue:(NSAttributedString **)displayValue error:(NSDictionaryOf (NSString *, id) **)errorInfo
 {
   if (inhibit_window_system || [NSApp isRunning])
     return [super executeAndReturnDisplayValue:displayValue error:errorInfo];
@@ -11106,7 +10675,7 @@ handle_action_invocation (NSInvocation *invocation)
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       NSAppleEventDescriptor * __block result;
       NSAttributedString * __block displayValue1;
-      NSDictionaryG (NSString *, id) * __block errorInfo1;
+      NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
       [NSApp runTemporarilyWithBlock:^{
 	  result = [self executeAndReturnDisplayValue:&displayValue1
@@ -11152,7 +10721,7 @@ handle_action_invocation (NSInvocation *invocation)
     }
 }
 
-- (NSAppleEventDescriptor *)executeAppleEvent:(NSAppleEventDescriptor *)event error:(NSDictionaryG (NSString *, id) **)errorInfo;
+- (NSAppleEventDescriptor *)executeAppleEvent:(NSAppleEventDescriptor *)event error:(NSDictionaryOf (NSString *, id) **)errorInfo;
 {
   if (inhibit_window_system || [NSApp isRunning])
     return [super executeAppleEvent:event error:errorInfo];
@@ -11160,7 +10729,7 @@ handle_action_invocation (NSInvocation *invocation)
     {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       NSAppleEventDescriptor * __block result;
-      NSDictionaryG (NSString *, id) * __block errorInfo1;
+      NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
       [NSApp runTemporarilyWithBlock:^{
 	  result = [self executeAppleEvent:event error:&errorInfo1];
@@ -11251,11 +10820,9 @@ Lisp_Object
 mac_osa_language_list (bool long_format_p)
 {
   Lisp_Object result = Qnil, default_language_props = Qnil;
-  OSALanguage *defaultLanguage = [OSALanguage defaultLanguage], *language;
-  NSEnumeratorG (OSALanguage *) *enumerator;
+  OSALanguage *defaultLanguage = [OSALanguage defaultLanguage];
 
-  enumerator = [[OSALanguage availableLanguages] objectEnumerator];
-  while ((language = [enumerator nextObject]) != nil)
+  for (OSALanguage *language in [OSALanguage availableLanguages])
     {
       Lisp_Object language_props = [[language name] lispString];
 
@@ -11290,7 +10857,7 @@ mac_osa_language_list (bool long_format_p)
 }
 
 static Lisp_Object
-mac_osa_error_info_to_lisp (NSDictionaryG (NSString *, id) *errorInfo)
+mac_osa_error_info_to_lisp (NSDictionaryOf (NSString *, id) *errorInfo)
 {
   Lisp_Object result = Qnil;
   NSString *errorMessage = [errorInfo objectForKey:OSAScriptErrorMessage];
@@ -11341,7 +10908,7 @@ mac_osa_create_script_from_file (Lisp_Object filename,
   EmacsOSAScript *result;
   Lisp_Object encoded;
   NSURL *url;
-  NSDictionaryG (NSString *, id) *errorInfo = nil;
+  NSDictionaryOf (NSString *, id) *errorInfo = nil;
   OSALanguage *language;
 
   filename = Fexpand_file_name (filename, Qnil);
@@ -11450,7 +11017,7 @@ mac_osa_create_script_from_code (Lisp_Object code,
     {
       NSData *data = [NSData dataWithBytes:(SDATA (code))
 				    length:(SBYTES (code))];
-      NSDictionaryG (NSString *, id) *errorInfo = nil;
+      NSDictionaryOf (NSString *, id) *errorInfo = nil;
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       NSError *error;
 
@@ -11502,7 +11069,7 @@ mac_osa_compile (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 				  error_data);
   if (script)
     {
-      NSDictionaryG (NSString *, id) *errorInfo;
+      NSDictionaryOf (NSString *, id) *errorInfo;
       NSData *compiledData = [script compiledDataForType:nil
 				     usingStorageOptions:OSANull
 						   error:&errorInfo];
@@ -11620,7 +11187,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 				  error_data);
   if (script)
     {
-      NSDictionaryG (NSString *, id) *errorInfo;
+      NSDictionaryOf (NSString *, id) *errorInfo;
       NSAppleEventDescriptor *event = nil;
 
       if (![script compileAndReturnError:&errorInfo])
@@ -11996,7 +11563,7 @@ mac_svg_load_image (struct frame *f, struct image *img, unsigned char *contents,
 			Document rasterization
 ***********************************************************************/
 
-static NSMutableDictionaryG (id, NSDictionaryG (NSString *, id) *)
+static NSMutableDictionaryOf (id, NSDictionaryOf (NSString *, id) *)
   *documentRasterizerCache;
 static NSDate *documentRasterizerCacheOldestTimestamp;
 #define DOCUMENT_RASTERIZER_CACHE_DURATION 60.0
@@ -12007,7 +11574,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
    loading a PDF file.  */
 
 - (instancetype)initWithURL:(NSURL *)url
-		    options:(NSDictionaryG (NSString *, id) *)options
+		    options:(NSDictionaryOf (NSString *, id) *)options
 {
   NSFileHandle *fileHandle;
   NSData *data;
@@ -12044,7 +11611,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
    loading a PDF data.  */
 
 - (instancetype)initWithData:(NSData *)data
-		     options:(NSDictionaryG (NSString *, id) *)options
+		     options:(NSDictionaryOf (NSString *, id) *)options
 {
   NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
 
@@ -12065,7 +11632,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return self;
 }
 
-+ (NSArrayG (NSString *) *)supportedTypes
++ (NSArrayOf (NSString *) *)supportedTypes
 {
   return [NSArray arrayWithObject:((__bridge NSString *) kUTTypePDF)];
 }
@@ -12087,7 +11654,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return NULL;
 }
 
-- (NSDictionaryG (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
+- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
 {
   return [self documentAttributes];
 }
@@ -12121,7 +11688,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 
 @implementation EmacsDocumentRasterizer
 - (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
-		      documentAttributes:(NSDictionaryG (NSString *, id) *)docAttributes
+		      documentAttributes:(NSDictionaryOf (NSString *, id) *)docAttributes
 {
   NSLayoutManager *layoutManager;
   NSTextContainer *textContainer;
@@ -12228,7 +11795,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
 + (NSString *)documentTypeForFileType:(NSString *)documentType
 {
-  static NSDictionaryG (NSString *, NSString *) *table;
+  static NSDictionaryOf (NSString *, NSString *) *table;
 
   if (table == nil)
     table =
@@ -12256,7 +11823,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return [table objectForKey:documentType];
 }
 
-+ (BOOL)adjustDocumentOptions:(NSDictionaryG (NSString *, id) **)options
++ (BOOL)adjustDocumentOptions:(NSDictionaryOf (NSString *, id) **)options
 {
   NSString *fileType;
 
@@ -12266,7 +11833,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   fileType = [*options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
   if (fileType)
     {
-      NSMutableDictionaryG (NSString *, id) *newOptions;
+      NSMutableDictionaryOf (NSString *, id) *newOptions;
       NSString *documentType = [self documentTypeForFileType:fileType];
 
       if (documentType == nil)
@@ -12282,10 +11849,10 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 #endif
 
 - (instancetype)initWithURL:(NSURL *)url
-		    options:(NSDictionaryG (NSString *, id) *)options
+		    options:(NSDictionaryOf (NSString *, id) *)options
 {
   NSAttributedString *attrString;
-  NSDictionaryG (NSString *, id) *docAttributes;
+  NSDictionaryOf (NSString *, id) *docAttributes;
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
   if (![[self class] adjustDocumentOptions:&options])
@@ -12312,10 +11879,10 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 }
 
 - (instancetype)initWithData:(NSData *)data
-		     options:(NSDictionaryG (NSString *, id) *)options
+		     options:(NSDictionaryOf (NSString *, id) *)options
 {
   NSAttributedString *attrString;
-  NSDictionaryG (NSString *, id) *docAttributes;
+  NSDictionaryOf (NSString *, id) *docAttributes;
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
   if (![[self class] adjustDocumentOptions:&options])
@@ -12362,61 +11929,9 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return [[layoutManager textContainers] count];
 }
 
-+ (NSArrayG (NSString *) *)supportedTypes
++ (NSArrayOf (NSString *) *)supportedTypes
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if ([NSAttributedString respondsToSelector:@selector(textTypes)])
-#endif
-    return [NSAttributedString textTypes];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-    {
-      NSArray *textFileTypes = [NSAttributedString textFileTypes];
-      NSMutableArray *identifiers = [NSMutableArray
-				      arrayWithCapacity:[textFileTypes count]];
-      NSEnumerator *enumerator = [textFileTypes objectEnumerator];
-      NSString *textFileType;
-
-      while ((textFileType = [enumerator nextObject]) != nil)
-	{
-	  OSType hfsTypeCode = NSHFSTypeCodeFromFileType (textFileType);
-	  CFStringRef identifier;
-
-	  if (hfsTypeCode)
-	    {
-	      CFStringRef osTypeString = UTCreateStringForOSType (hfsTypeCode);
-
-	      if (osTypeString)
-		{
-		  identifier =
-		    UTTypeCreatePreferredIdentifierForTag (kUTTagClassOSType,
-							   osTypeString, NULL);
-		  CFRelease (osTypeString);
-		}
-	    }
-	  else
-	    identifier =
-	      UTTypeCreatePreferredIdentifierForTag (kUTTagClassFilenameExtension,
-						     (CFStringRef) textFileType,
-						     NULL);
-	  if (identifier)
-	    {
-	      NSString *string = (NSString *) identifier;
-
-	      if (![identifiers containsObject:string])
-		[identifiers addObject:string];
-
-	      CFRelease (identifier);
-	    }
-	}
-
-      return identifiers;
-    }
-#endif
+  return [NSAttributedString textTypes];
 }
 
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
@@ -12441,7 +11956,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return [backgroundColor copyCGColor];
 }
 
-- (NSDictionaryG (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
+- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
 {
   return documentAttributes;
 }
@@ -12498,7 +12013,7 @@ didCompleteLayoutForTextContainer:(NSTextContainer *)aTextContainer
 
 @end				// EmacsDocumentRasterizer
 
-static NSArrayG (Class <EmacsDocumentRasterizer>) *
+static NSArrayOf (Class <EmacsDocumentRasterizer>) *
 document_rasterizer_get_classes (void)
 {
 #if __LP64__ && MAC_OS_X_VERSION_MAX_ALLOWED < 1060
@@ -12515,14 +12030,10 @@ document_rasterizer_get_classes (void)
 CFArrayRef
 mac_document_copy_type_identifiers (void)
 {
-  NSArrayG (Class <EmacsDocumentRasterizer>) *classes =
-    document_rasterizer_get_classes ();
-  NSEnumeratorG (Class <EmacsDocumentRasterizer>) *enumerator =
-    [classes objectEnumerator];
-  Class <EmacsDocumentRasterizer> class;
-  NSMutableArrayG (NSString *) *identifiers = [NSMutableArray array];
+  NSMutableArrayOf (NSString *) *identifiers = [NSMutableArray array];
 
-  while ((class = [enumerator nextObject]) != Nil)
+  for (Class <EmacsDocumentRasterizer> class
+	 in document_rasterizer_get_classes ())
     [identifiers addObjectsFromArray:[class supportedTypes]];
 
   return CF_BRIDGING_RETAIN (identifiers);
@@ -12532,9 +12043,6 @@ static void
 document_cache_evict (void)
 {
   NSDate *currentDate, *oldestTimestamp;
-  NSArrayG (id) *keys;
-  NSEnumeratorG (id) *enumerator;
-  id key;
 
   if ([documentRasterizerCacheOldestTimestamp timeIntervalSinceNow]
       > - DOCUMENT_RASTERIZER_CACHE_DURATION)
@@ -12542,11 +12050,9 @@ document_cache_evict (void)
 
   currentDate = [NSDate date];
   oldestTimestamp = nil;
-  keys = [documentRasterizerCache allKeys];
-  enumerator = [keys objectEnumerator];
-  while ((key = [enumerator nextObject]) != nil)
+  for (id key in [documentRasterizerCache allKeys])
     {
-      NSDictionaryG (NSString *, id) *value =
+      NSDictionaryOf (NSString *, id) *value =
 	[documentRasterizerCache objectForKey:key];
       NSDate *timestamp = [value objectForKey:@"timestamp"];
 
@@ -12572,7 +12078,7 @@ document_cache_lookup (id key, NSDate *modificationDate)
 
   if (documentRasterizerCache)
     {
-      NSDictionaryG (NSString *, id) *dictionary =
+      NSDictionaryOf (NSString *, id) *dictionary =
 	[documentRasterizerCache objectForKey:key];
 
       if (dictionary
@@ -12590,7 +12096,7 @@ document_cache_set (id <NSCopying> key, id <EmacsDocumentRasterizer> document,
 		    NSDate *modificationDate)
 {
   NSDate *currentDate;
-  NSDictionaryG (NSString *, id) *value;
+  NSDictionaryOf (NSString *, id) *value;
 
   if (documentRasterizerCache == nil)
     documentRasterizerCache = [[NSMutableDictionary alloc] init];
@@ -12613,14 +12119,11 @@ document_cache_set (id <NSCopying> key, id <EmacsDocumentRasterizer> document,
 
 static id <EmacsDocumentRasterizer>
 document_rasterizer_create (id url_or_data,
-			    NSDictionaryG (NSString *, id) *options)
+			    NSDictionaryOf (NSString *, id) *options)
 {
   BOOL isURL = [url_or_data isKindOfClass:[NSURL class]];
-  NSArrayG (Class) *classes = document_rasterizer_get_classes ();
-  NSEnumeratorG (Class) *enumerator = [classes objectEnumerator];
-  Class class;
 
-  while ((class = [enumerator nextObject]) != Nil)
+  for (Class class in document_rasterizer_get_classes ())
     {
       id <EmacsDocumentRasterizer> document;
 
@@ -12642,8 +12145,8 @@ EmacsDocumentRef
 mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
 {
   NSURL *nsurl = (__bridge NSURL *) url;
-  NSDictionaryG (NSString *, id) *nsoptions =
-    (__bridge NSDictionaryG (NSString *, id) *) options;
+  NSDictionaryOf (NSString *, id) *nsoptions =
+    (__bridge NSDictionaryOf (NSString *, id) *) options;
   NSDate *modificationDate = nil;
   id <EmacsDocumentRasterizer> document = nil;
 
@@ -12669,25 +12172,8 @@ mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
 	  NSFileManager *fileManager = [NSFileManager defaultManager];
 	  NSDictionary *attributes;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-	  if ([fileManager
-		respondsToSelector:@selector(attributesOfItemAtPath:error:)])
-#endif
-	    {
-	      path = [path stringByResolvingSymlinksInPath];
-	      attributes = [fileManager attributesOfItemAtPath:path error:NULL];
-	    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-	  else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-	    {
-	      attributes = [fileManager fileAttributesAtPath:path
-						traverseLink:YES];
-	    }
-#endif
+	  path = [path stringByResolvingSymlinksInPath];
+	  attributes = [fileManager attributesOfItemAtPath:path error:NULL];
 	  modificationDate = [attributes fileModificationDate];
 	}
 #endif
@@ -12695,7 +12181,7 @@ mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
 
   if (modificationDate)
     {
-      NSDictionaryG (NSString *, id) *key =
+      NSDictionaryOf (NSString *, id) *key =
 	[NSDictionary dictionaryWithObjectsAndKeys:nsurl, @"URL",
 		      /* The value of nsoptions might be nil, but
 			 that's OK.  */
@@ -12718,9 +12204,9 @@ EmacsDocumentRef
 mac_document_create_with_data (CFDataRef data, CFDictionaryRef options)
 {
   NSData *nsdata = (__bridge NSData *) data;
-  NSDictionaryG (NSString *, id) *nsoptions =
-    (__bridge NSDictionaryG (NSString *, id) *) options;
-  NSDictionaryG (NSString *, id) *key =
+  NSDictionaryOf (NSString *, id) *nsoptions =
+    (__bridge NSDictionaryOf (NSString *, id) *) options;
+  NSDictionaryOf (NSString *, id) *key =
     [NSDictionary dictionaryWithObjectsAndKeys:nsdata, @"data",
 		  /* The value of nsoptions might be nil, but that's
 		     OK.  */
@@ -12826,16 +12312,12 @@ static const struct {
   {&NSAccessibilityInsertionPointLineNumberAttribute, NULL,
    ax_get_insertion_point_line_number},
   {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
     &NSAccessibilitySelectedTextRangesAttribute,
-#else
-    NULL,
-#endif
     CFSTR ("AXSelectedTextRanges"), ax_get_selected_text_ranges},
 };
 static const size_t ax_attribute_count =
   sizeof (ax_attribute_table) / sizeof (ax_attribute_table[0]);
-static NSArrayG (NSString *) *ax_attribute_names;
+static NSArrayOf (NSString *) *ax_attribute_names;
 static Lisp_Object ax_attribute_event_ids;
 
 static const struct {
@@ -12867,7 +12349,7 @@ static const struct {
 static const size_t ax_parameterized_attribute_count =
   (sizeof (ax_parameterized_attribute_table)
    / sizeof (ax_parameterized_attribute_table[0]));
-static NSArrayG (NSString *) *ax_parameterized_attribute_names;
+static NSArrayOf (NSString *) *ax_parameterized_attribute_names;
 
 static const struct {
   NSString *const *ns_name_ptr;
@@ -12877,7 +12359,7 @@ static const struct {
 };
 static const size_t ax_action_count =
   sizeof (ax_action_table) / sizeof (ax_action_table[0]);
-static NSArrayG (NSString *) *ax_action_names;
+static NSArrayOf (NSString *) *ax_action_names;
 static Lisp_Object ax_action_event_ids;
 
 static NSString *ax_selected_text_changed_notification;
@@ -12885,17 +12367,15 @@ static NSString *ax_selected_text_changed_notification;
 static Lisp_Object
 ax_name_to_symbol (NSString *name, NSString *prefix)
 {
-  NSArrayG (NSString *) *nameComponents =
+  NSArrayOf (NSString *) *nameComponents =
     [[name substringFromIndex:2] /* strip off leading "AX" */
       componentsSeparatedByCamelCasingWithCharactersInSet:nil];
-  NSMutableArrayG (NSString *) *symbolComponents =
+  NSMutableArrayOf (NSString *) *symbolComponents =
     [NSMutableArray arrayWithCapacity:[nameComponents count]];
-  NSEnumeratorG (NSString *) *enumerator = [nameComponents objectEnumerator];
-  NSString *component;
 
   if (prefix)
     [symbolComponents addObject:prefix];
-  while ((component = [enumerator nextObject]) != nil)
+  for (NSString *component in nameComponents)
     [symbolComponents addObject:[component lowercaseString]];
 
   return Fintern ([[symbolComponents componentsJoinedByString:@"-"]
@@ -12985,9 +12465,9 @@ mac_update_accessibility_display_options (void)
   return NO;
 }
 
-- (NSArrayG (NSString *) *)accessibilityAttributeNames
+- (NSArrayOf (NSString *) *)accessibilityAttributeNames
 {
-  static NSArrayG (NSString *) *names = nil;
+  static NSArrayOf (NSString *) *names = nil;
 
   if (names == nil)
     names = MRC_RETAIN ([[super accessibilityAttributeNames]
@@ -13132,9 +12612,9 @@ ax_get_selected_text_ranges (EmacsMainView *emacsView)
     [super accessibilitySetValue:value forAttribute:attribute];
 }
 
-- (NSArrayG (NSString *) *)accessibilityParameterizedAttributeNames
+- (NSArrayOf (NSString *) *)accessibilityParameterizedAttributeNames
 {
-  static NSArrayG (NSString *) *names = nil;
+  static NSArrayOf (NSString *) *names = nil;
 
   if (names == nil)
     names = MRC_RETAIN ([[super accessibilityAttributeNames]
@@ -13297,9 +12777,9 @@ ax_get_attributed_string_for_range (EmacsMainView *emacsView, id parameter)
     return [super accessibilityAttributeValue:attribute forParameter:parameter];
 }
 
-- (NSArrayG (NSString *) *)accessibilityActionNames
+- (NSArrayOf (NSString *) *)accessibilityActionNames
 {
-  static NSArrayG (NSString *) *names = nil;
+  static NSArrayOf (NSString *) *names = nil;
 
   if (names == nil)
     names = MRC_RETAIN ([[super accessibilityActionNames]
@@ -13360,13 +12840,11 @@ mac_update_accessibility_status (struct frame *f)
 			      Animation
 ***********************************************************************/
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-
 @implementation EmacsFrameController (Animation)
 
 - (void)setupLayerHostingView
 {
-  CALayer *rootLayer = [CA_LAYER layer];
+  CALayer *rootLayer = [CALayer layer];
 
   layerHostingView = [[NSView alloc] initWithFrame:[overlayView frame]];
   [layerHostingView setAutoresizingMask:(NSViewWidthSizable
@@ -13399,8 +12877,8 @@ mac_update_accessibility_status (struct frame *f)
     [self bitmapImageRepInContentViewRect:rectInContentView];
   CALayer *layer, *contentLayer;
 
-  layer = [CA_LAYER layer];
-  contentLayer = [CA_LAYER layer];
+  layer = [CALayer layer];
+  contentLayer = [CALayer layer];
   layer.frame = NSRectToCGRect (rectInContentView);
   layer.masksToBounds = YES;
   contentLayer.frame = CGRectMake (0, 0, NSWidth (rectInContentView),
@@ -13415,23 +12893,23 @@ mac_update_accessibility_status (struct frame *f)
 
 - (void)addLayer:(CALayer *)layer
 {
-  [CA_TRANSACTION setValue:((id) kCFBooleanTrue)
-		    forKey:kCATransactionDisableActions];
+  [CATransaction setValue:((id) kCFBooleanTrue)
+		   forKey:kCATransactionDisableActions];
   [[layerHostingView layer] addSublayer:layer];
-  [CA_TRANSACTION flush];
+  [CATransaction flush];
   [layerHostingView display];
 }
 
 static Lisp_Object
 get_symbol_from_filter_input_key (NSString *key)
 {
-  NSArrayG (NSString *) *components =
+  NSArrayOf (NSString *) *components =
     [key componentsSeparatedByCamelCasingWithCharactersInSet:nil];
   NSUInteger count = [components count];
 
   if (count > 1 && [[components objectAtIndex:0] isEqualToString:@"input"])
     {
-      NSMutableArrayG (NSString *) *symbolComponents =
+      NSMutableArrayOf (NSString *) *symbolComponents =
 	[NSMutableArray arrayWithCapacity:(count - 1)];
       NSUInteger index;
       Lisp_Object string;
@@ -13452,7 +12930,7 @@ get_symbol_from_filter_input_key (NSString *key)
   struct frame *f = emacsFrame;
   NSString *filterName;
   CIFilter *filter;
-  NSDictionaryG (NSString *, id) *attributes;
+  NSDictionaryOf (NSString *, id) *attributes;
   Lisp_Object type = Fplist_get (properties, QCtype);
 
   if (EQ (type, Qbars_swipe))
@@ -13600,7 +13078,7 @@ get_symbol_from_filter_input_key (NSString *key)
 
 - (void)adjustTransitionFilter:(CIFilter *)filter forLayer:(CALayer *)layer
 {
-  NSDictionaryG (NSString *, id) *attributes = [filter attributes];
+  NSDictionaryOf (NSString *, id) *attributes = [filter attributes];
   CGFloat scaleFactor;
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
@@ -13690,7 +13168,7 @@ get_symbol_from_filter_input_key (NSString *key)
       || [event isEqualToString:@"position"])
     {
       CABasicAnimation *animation =
-	[CA_BASIC_ANIMATION animationWithKeyPath:event];
+	[CABasicAnimation animationWithKeyPath:event];
 
       [animation setValue:[layer superlayer] forKey:@"layerToBeRemoved"];
       animation.delegate = self;
@@ -13704,8 +13182,8 @@ get_symbol_from_filter_input_key (NSString *key)
 {
   CALayer *layer = [anim valueForKey:@"layerToBeRemoved"];
 
-  [CA_TRANSACTION setValue:((id) kCFBooleanTrue)
-		    forKey:kCATransactionDisableActions];
+  [CATransaction setValue:((id) kCFBooleanTrue)
+		   forKey:kCATransactionDisableActions];
   [layer removeFromSuperlayer];
 }
 #endif
@@ -13806,8 +13284,8 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 
   duration = Fplist_get (properties, QCduration);
   if (NUMBERP (duration))
-    [CA_TRANSACTION setValue:[NSNumber numberWithDouble:(XFLOATINT (duration))]
-		      forKey:kCATransactionAnimationDuration];
+    [CATransaction setValue:[NSNumber numberWithDouble:(XFLOATINT (duration))]
+		     forKey:kCATransactionAnimationDuration];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
   [CATransaction setCompletionBlock:^{
@@ -13851,8 +13329,8 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 
     case ANIM_TYPE_TRANSITION_FILTER:
       {
-	CATransition *transition = [[CA_TRANSITION alloc] init];
-	NSMutableDictionaryG (NSString *, id <CAAction>) *actions;
+	CATransition *transition = [[CATransition alloc] init];
+	NSMutableDictionaryOf (NSString *, id <CAAction>) *actions;
 	CALayer *newContentLayer;
 
 	[frameController adjustTransitionFilter:transitionFilter
@@ -13870,7 +13348,7 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 	transition.delegate = frameController;
 #endif
 
-	newContentLayer = [CA_LAYER layer];
+	newContentLayer = [CALayer layer];
 	newContentLayer.frame = contentLayer.frame;
 	newContentLayer.opacity = 0;
 	[layer replaceSublayer:contentLayer with:newContentLayer];
@@ -13881,8 +13359,6 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
       emacs_abort ();
     }
 }
-
-#endif
 
 
 /***********************************************************************
@@ -13924,949 +13400,64 @@ static CFIndex mac_font_shape_1 (NSFont *, NSString *,
 
 @end				// NSLayoutManager (Emacs)
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-
-#define FONT_NAME_ATTRIBUTE (@"NSFontNameAttribute")
-#define FONT_FAMILY_ATTRIBUTE (@"NSFontFamilyAttribute")
-#define FONT_TRAITS_ATTRIBUTE (@"NSCTFontTraitsAttribute")
-#define FONT_SIZE_ATTRIBUTE (@"NSFontSizeAttribute")
-#define FONT_CASCADE_LIST_ATTRIBUTE (@"NSCTFontCascadeListAttribute")
-#define FONT_CHARACTER_SET_ATTRIBUTE (@"NSCTFontCharacterSetAttribute")
-#define FONT_LANGUAGES_ATTRIBUTE (@"NSCTFontLanguagesAttribute")
-#define FONT_FORMAT_ATTRIBUTE (@"NSCTFontFormatAttribute")
-#define FONT_SYMBOLIC_TRAIT (@"NSCTFontSymbolicTrait")
-#define FONT_WEIGHT_TRAIT (@"NSCTFontWeightTrait")
-#define FONT_WIDTH_TRAIT (@"NSCTFontProportionTrait")
-#define FONT_SLANT_TRAIT (@"NSCTFontSlantTrait")
-
-const CFStringRef MAC_FONT_NAME_ATTRIBUTE = (CFStringRef) FONT_NAME_ATTRIBUTE;
-const CFStringRef MAC_FONT_FAMILY_NAME_ATTRIBUTE = (CFStringRef) FONT_FAMILY_ATTRIBUTE;
-const CFStringRef MAC_FONT_TRAITS_ATTRIBUTE = (CFStringRef) FONT_TRAITS_ATTRIBUTE;
-const CFStringRef MAC_FONT_SIZE_ATTRIBUTE = (CFStringRef) FONT_SIZE_ATTRIBUTE;
-const CFStringRef MAC_FONT_CASCADE_LIST_ATTRIBUTE = (CFStringRef) FONT_CASCADE_LIST_ATTRIBUTE;
-const CFStringRef MAC_FONT_CHARACTER_SET_ATTRIBUTE = (CFStringRef) FONT_CHARACTER_SET_ATTRIBUTE;
-const CFStringRef MAC_FONT_LANGUAGES_ATTRIBUTE = (CFStringRef) FONT_LANGUAGES_ATTRIBUTE;
-const CFStringRef MAC_FONT_FORMAT_ATTRIBUTE = (CFStringRef) FONT_FORMAT_ATTRIBUTE;
-const CFStringRef MAC_FONT_SYMBOLIC_TRAIT = (CFStringRef) FONT_SYMBOLIC_TRAIT;
-const CFStringRef MAC_FONT_WEIGHT_TRAIT = (CFStringRef) FONT_WEIGHT_TRAIT;
-const CFStringRef MAC_FONT_WIDTH_TRAIT = (CFStringRef) FONT_WIDTH_TRAIT;
-const CFStringRef MAC_FONT_SLANT_TRAIT = (CFStringRef) FONT_SLANT_TRAIT;
-
-static BOOL mac_font_name_is_bogus (NSString *);
-static NSNumber *mac_font_weight_override_for_name (NSString *);
-
-static BOOL
-mac_font_name_is_bogus (NSString *fontName)
-{
-  return ([fontName hasPrefix:@"."]
-	  || ([fontName hasSuffix:@"Oblique"]
-	      && ([fontName isEqualToString:@"Courier-Oblique"]
-		  || [fontName isEqualToString:@"Courier-BoldOblique"]
-		  || [fontName isEqualToString:@"Helvetica-Oblique"]
-		  || [fontName isEqualToString:@"Helvetica-BoldOblique"])));
-}
-
-/* We override some weight trait values returned by NSFontDescriptor
-   in 10.4, so that they match with those returned by Core Text.  */
-
-static const struct
-{
-  NSString *fontName;
-  const float weight;
-} mac_font_weight_overrides [] =
-  {{@"HiraKakuPro-W6", 0.4},	/* 0.3 in 10.4 */
-   {@"HiraMinPro-W6", 0.4},	/* 0.3 in 10.4 */
-   {@"STFangsong", -0.4},	/* (5 - 5) * 0.1 in 10.3 */
-   {@"STHeiti", 0.24}};		/* (5 - 5) * 0.1 in 10.3 */
-
-static NSNumber *
-mac_font_weight_override_for_name (NSString *fontName)
-{
-  int i;
-
-  for (i = 0; i < (sizeof (mac_font_weight_overrides)
-		   / sizeof (mac_font_weight_overrides[0])); i++)
-    if ([fontName isEqualToString:mac_font_weight_overrides[i].fontName])
-      return [NSNumber numberWithFloat:mac_font_weight_overrides[i].weight];
-
-  return nil;
-}
-
-static Boolean get_glyphs_for_characters (NSFont *, const UniChar [],
-					  CGGlyph [], CFIndex);
-
-/* Like CTFontGetGlyphsForCharacters, but without cache.  This must be
-   used only in the cache implementation.  */
-
-static Boolean
-get_glyphs_for_characters (NSFont *font, const UniChar characters[],
-			   CGGlyph glyphs[], CFIndex count)
-{
-  Boolean result = true;
-  NSString *string = [NSString stringWithCharacters:characters length:count];
-  NSDictionary *attributes = [NSDictionary dictionaryWithObject:font
-					   forKey:NSFontAttributeName];
-  NSAttributedString *attributedString
-    = [[NSAttributedString alloc] initWithString:string attributes:attributes];
-  NSTextStorage *textStorage;
-  NSLayoutManager *layoutManager;
-  NSTextContainer *textContainer;
-  NSString *fontName = [font fontName];
-  CFIndex i;
-
-  textStorage = [[NSTextStorage alloc] init];
-  layoutManager = [[NSLayoutManager alloc] init];
-  textContainer = [[NSTextContainer alloc] init];
-
-  [layoutManager addTextContainer:textContainer];
-  [textContainer release];
-  [textStorage addLayoutManager:layoutManager];
-  [layoutManager release];
-
-  i = 0;
-  while (i < count)
-    {
-      NSRange range = NSMakeRange (i, (characters[i] >= 0xD800
-				       && characters[i] < 0xDC00) ? 2 : 1);
-      NSAttributedString *attributedSubstring
-	= [attributedString attributedSubstringFromRange:range];
-      NSFont *fontInTextStorage;
-
-      [textStorage setAttributedString:attributedSubstring];
-      fontInTextStorage = [textStorage attribute:NSFontAttributeName atIndex:0
-				       effectiveRange:NULL];
-      if (fontInTextStorage == font
-	  || [[fontInTextStorage fontName] isEqualToString:fontName])
-	glyphs[i] = [layoutManager glyphAtIndex:0];
-      else
-	{
-	  glyphs[i] = NSNullGlyph;
-	  result = false;
-	}
-      if (range.length == 2)
-	glyphs[i + 1] = 0;
-      i += range.length;
-    }
-
-  [attributedString release];
-  [textStorage release];
-
-  return result;
-}
-
-@implementation EmacsLocale
-
-/* Initialize the receiver using a given locale identifier.  */
-
-- (id)initWithLocaleIdentifier:(NSString *)string
-{
-  OSStatus err;
-
-  self = [self init];
-  if (self == nil)
-    return nil;
-
-  if ([string isEqualToString:@"zh-Hans"])
-    string = @"zh_CN";
-  else if ([string isEqualToString:@"zh-Hant"])
-    string = @"zh_TW";
-
-  err = LocaleStringToLangAndRegionCodes ([string UTF8String],
-					  &langCode, &regionCode);
-  if (err != noErr)
-    {
-      [self release];
-
-      return nil;
-    }
-
-  {
-    NSLocale *locale = [[NSLocale alloc] initWithLocaleIdentifier:string];
-
-    exemplarCharacterSet =
-      [[locale objectForKey:NSLocaleExemplarCharacterSet] retain];
-    [locale release];
-  }
-
-  return self;
-}
-
-- (void)dealloc
-{
-  [exemplarCharacterSet release];
-  [super dealloc];
-}
-
-/* Return a Boolean value indicating whether the receiver is
-   compatible with the given FONT.  */
-
-- (BOOL)isCompatibleWithFont:(NSFont *)font
-{
-  OSStatus err;
-  NSStringEncoding encoding = [font mostCompatibleStringEncoding];
-  CFStringEncoding fontEncoding =
-    CFStringConvertNSStringEncodingToEncoding (encoding);
-  ScriptCode fontScript;
-  LangCode fontLang;
-  BOOL result;
-
-  err = GetScriptInfoFromTextEncoding (fontEncoding, &fontScript, &fontLang);
-  if (err != noErr)
-    result = NO;
-  else if (langCode == fontLang)
-    result = YES;
-  else if (fontLang != kTextLanguageDontCare)
-    result = NO;
-  else
-    {
-      TextEncoding textEncoding;
-
-      err = GetTextEncodingFromScriptInfo (fontScript, langCode,
-					   regionCode, &textEncoding);
-      result = (err == noErr);
-    }
-
-  if (result == NO)
-    if (exemplarCharacterSet
-	&& [[font coveredCharacterSet] isSupersetOfSet:exemplarCharacterSet])
-      result = YES;
-
-  return result;
-}
-
-@end				// EmacsLocale
-
-@implementation EmacsFontDescriptor
-
-- (id)initWithFontAttributes:(NSDictionary *)attributes
-{
-  [self doesNotRecognizeSelector:_cmd];
-  [self release];
-
-  return nil;
-}
-
-+ (id)fontDescriptorWithFontAttributes:(NSDictionary *)attributes
-{
-  return [[[self alloc] initWithFontAttributes:attributes] autorelease];
-}
-
-+ (id)fontDescriptorWithFont:(NSFont *)font
-{
-  [self doesNotRecognizeSelector:_cmd];
-
-  return nil;
-}
-
-- (NSArray *)matchingFontDescriptorsWithMandatoryKeys:(NSSet *)mandatoryKeys
-{
-  NSMutableArray *locales = nil;
-  NSArray *languages = [self objectForKey:FONT_LANGUAGES_ATTRIBUTE];
-
-  if (languages)
-    {
-      NSEnumerator *enumerator;
-      NSString *language;
-
-      locales = [NSMutableArray arrayWithCapacity:[languages count]];
-      enumerator = [languages objectEnumerator];
-      while ((language = [enumerator nextObject]) != nil)
-	{
-	  EmacsLocale *locale =
-	    [[EmacsLocale alloc] initWithLocaleIdentifier:language];
-
-	  if (locale == nil)
-	    break;
-	  [locales addObject:locale];
-	  [locale release];
-	}
-      if (language)
-	return [NSArray array];
-    }
-
-  return [self matchingFontDescriptorsWithMandatoryKeys:mandatoryKeys
-	       locales:locales];
-}
-
-- (NSArray *)matchingFontDescriptorsWithMandatoryKeys:(NSSet *)mandatoryKeys
-					      locales:(NSArray *)locales
-{
-  [self doesNotRecognizeSelector:_cmd];
-
-  return nil;
-}
-
-- (EmacsFontDescriptor *)matchingFontDescriptorWithMandatoryKeys:(NSSet *)mandatoryKeys
-{
-  NSArray *descriptors =
-    [self matchingFontDescriptorsWithMandatoryKeys:mandatoryKeys];
-
-  return [descriptors count] > 0 ? [descriptors objectAtIndex:0] : nil;
-}
-
-- (id)objectForKey:(NSString *)anAttribute
-{
-  [self doesNotRecognizeSelector:_cmd];
-
-  return nil;
-}
-
-@end				// EmacsFontDescriptor
-
-#if USE_NS_FONT_DESCRIPTOR
-
-@implementation EmacsFDFontDescriptor
-
-- (id)initWithFontAttributes:(NSDictionary *)attributes
-{
-  NSFontDescriptor *descriptor;
-
-  descriptor = [NSFontDescriptor fontDescriptorWithFontAttributes:attributes];
-  if (descriptor == nil)
-    {
-      [self release];
-
-      return nil;
-    }
-
-  return [self initWithFontDescriptor:descriptor];
-}
-
-- (id)initWithFontDescriptor:(NSFontDescriptor *)aFontDescriptor
-{
-  self = [self init];
-  if (self == nil)
-    return nil;
-
-  fontDescriptor = [aFontDescriptor copy];
-  if (fontDescriptor == nil)
-    {
-      [self release];
-
-      return nil;
-    }
-
-  return self;
-}
-
-- (void)dealloc
-{
-  [fontDescriptor release];
-  [super dealloc];
-}
-
-- (NSFontDescriptor *)fontDescriptor
-{
-  return [[fontDescriptor retain] autorelease];
-}
-
-+ (id)fontDescriptorWithFontDescriptor:(NSFontDescriptor *)aFontDescriptor
-{
-  return [[[self alloc] initWithFontDescriptor:aFontDescriptor] autorelease];
-}
-
-+ (id)fontDescriptorWithFont:(NSFont *)font
-{
-  NSFontDescriptor *descriptor = [font fontDescriptor];
-  NSMutableDictionary *attributes =
-    [NSMutableDictionary dictionaryWithDictionary:[descriptor fontAttributes]];
-
-  /* On Mac OS 10.4, the above descriptor doesn't contain family or
-     size information.  */
-  [attributes setObject:[font familyName] forKey:FONT_FAMILY_ATTRIBUTE];
-  [attributes setObject:[NSNumber numberWithFloat:[font pointSize]]
-	      forKey:FONT_SIZE_ATTRIBUTE];
-
-  return [self fontDescriptorWithFontAttributes:attributes];
-}
-
-- (NSArray *)matchingFontDescriptorsWithMandatoryKeys:(NSSet *)mandatoryKeys
-{
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_4)
-    return [super matchingFontDescriptorsWithMandatoryKeys:mandatoryKeys];
-  else
-    return [fontDescriptor
-	     matchingFontDescriptorsWithMandatoryKeys:mandatoryKeys];
-}
-
-- (NSArray *)matchingFontDescriptorsWithMandatoryKeys:(NSSet *)mandatoryKeys
-					      locales:(NSArray *)locales
-{
-  NSFontDescriptor *lastResort = nil;
-  NSArray *descriptors;
-  NSMutableArray *result;
-  NSEnumerator *enumerator;
-  NSFontDescriptor *descriptor;
-
-  descriptors = [fontDescriptor
-		  matchingFontDescriptorsWithMandatoryKeys:mandatoryKeys];
-  result = [NSMutableArray arrayWithCapacity:[descriptors count]];
-
-  enumerator = [descriptors objectEnumerator];
-  while ((descriptor = [enumerator nextObject]) != nil)
-    {
-      NSString *fontName = [descriptor postscriptName];
-
-      if (mac_font_name_is_bogus (fontName))
-	continue;
-
-      if (locales)
-	{
-	  NSFont *font = [NSFont fontWithName:fontName size:0];
-	  NSEnumerator *localeEnumerator = [locales objectEnumerator];
-	  EmacsLocale *locale;
-
-	  while ((locale = [localeEnumerator nextObject]) != nil)
-	    if (![locale isCompatibleWithFont:font])
-	      break;
-	  if (locale)
-	    continue;
-	}
-
-      if ([fontName isEqualToString:@"LastResort"])
-	{
-	  lastResort = descriptor;
-	  continue;
-	}
-
-      [result addObject:[[self class]
-			  fontDescriptorWithFontDescriptor:descriptor]];
-    }
-
-  if ([result count] == 0 && lastResort)
-    result =
-      [NSMutableArray
-	arrayWithObject:[[self class]
-			  fontDescriptorWithFontDescriptor:lastResort]];
-
-  return result;
-}
-
-- (id)objectForKey:(NSString *)anAttribute
-{
-  id result = [fontDescriptor objectForKey:anAttribute];
-
-  if ([anAttribute isEqualToString:FONT_TRAITS_ATTRIBUTE])
-    {
-      NSString *fontName = [fontDescriptor postscriptName];
-      NSNumber *weight = mac_font_weight_override_for_name (fontName);
-
-      if (weight)
-	{
-	  NSMutableDictionary *traits =
-	    [NSMutableDictionary dictionaryWithDictionary:result];
-
-	  [traits setObject:weight forKey:FONT_WEIGHT_TRAIT];
-	  result = traits;
-	}
-    }
-
-  return result;
-}
-
-@end				// EmacsFDFontDescriptor
-
-#endif	/* USE_NS_FONT_DESCRIPTOR */
-
-FontDescriptorRef
-mac_font_descriptor_create_with_attributes (CFDictionaryRef attributes)
-{
-  EmacsFontDescriptor *result;
-
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return ((FontDescriptorRef)
-	    CTFontDescriptorCreateWithAttributes (attributes));
-#endif
-#if USE_NS_FONT_DESCRIPTOR
-    {
-      result =
-	[EmacsFDFontDescriptor
-	  fontDescriptorWithFontAttributes:((NSDictionary *) attributes)];
-    }
-#endif
-
-  return CF_BRIDGING_RETAIN (result);
-}
-
-CFArrayRef
-mac_font_descriptor_create_matching_font_descriptors (FontDescriptorRef descriptor,
-						      CFSetRef mandatoryAttributes)
-{
-  EmacsFontDescriptor *fontDescriptor = (EmacsFontDescriptor *) descriptor;
-  NSSet *mandatoryKeys = (NSSet *) mandatoryAttributes;
-  NSArray *result =
-    [fontDescriptor matchingFontDescriptorsWithMandatoryKeys:mandatoryKeys];
-
-  return CF_BRIDGING_RETAIN (result);
-}
-
-FontDescriptorRef
-mac_font_descriptor_create_matching_font_descriptor (FontDescriptorRef descriptor,
-						     CFSetRef mandatoryAttributes)
-{
-  EmacsFontDescriptor *fontDescriptor = (EmacsFontDescriptor *) descriptor;
-  NSSet *mandatoryKeys = (NSSet *) mandatoryAttributes;
-  EmacsFontDescriptor *result =
-    [fontDescriptor matchingFontDescriptorWithMandatoryKeys:mandatoryKeys];
-
-  return CF_BRIDGING_RETAIN (result);
-}
-
-CFTypeRef
-mac_font_descriptor_copy_attribute (FontDescriptorRef descriptor,
-				    CFStringRef attribute)
-{
-  EmacsFontDescriptor *fontDescriptor = (EmacsFontDescriptor *) descriptor;
-  id result = [fontDescriptor objectForKey:((NSString *) attribute)];
-
-  return CF_BRIDGING_RETAIN (result);
-}
-
-Boolean
-mac_font_descriptor_supports_languages (FontDescriptorRef descriptor,
-					CFArrayRef languages)
-{
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return mac_ctfont_descriptor_supports_languages (((CTFontDescriptorRef)
-						      descriptor), languages);
-#endif
-  {
-    Boolean result = true;
-    NSString *name =
-      [(EmacsFontDescriptor *)descriptor objectForKey:FONT_NAME_ATTRIBUTE];
-    NSFont *font = [NSFont fontWithName:name size:0];
-
-    if (font == nil)
-      result = false;
-    else
-      {
-	NSEnumerator *enumerator;
-	NSString *language;
-
-	enumerator = [(NSArray *)languages objectEnumerator];
-	while ((language = [enumerator nextObject]) != nil)
-	  {
-	    EmacsLocale *locale =
-	      [[EmacsLocale alloc] initWithLocaleIdentifier:language];
-	    BOOL isCompatible = [locale isCompatibleWithFont:font];
-
-	    [locale release];
-	    if (!isCompatible)
-	      {
-		result = false;
-		break;
-	      }
-	  }
-      }
-
-    return result;
-  }
-}
-
-FontRef
-mac_font_create_with_name (CFStringRef name, CGFloat size)
-{
-  NSFont *result;
-
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return (FontRef) CTFontCreateWithName (name, size, NULL);
-#endif
-  result = [NSFont fontWithName:((NSString *) name) size:size];
-
-  return CF_BRIDGING_RETAIN (result);
-}
-
-CGFloat
-mac_font_get_size (FontRef font)
-{
-  return [(NSFont *)font pointSize];
-}
-
-CFStringRef
-mac_font_copy_family_name (FontRef font)
-{
-  return CF_BRIDGING_RETAIN ([(NSFont *)font familyName]);
-}
-
-CFCharacterSetRef
-mac_font_copy_character_set (FontRef font)
-{
-  return CF_BRIDGING_RETAIN ([(NSFont *)font coveredCharacterSet]);
-}
-
-Boolean
-mac_font_get_glyphs_for_characters (FontRef font, const UniChar characters[],
-				    CGGlyph glyphs[], CFIndex count)
-{
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return CTFontGetGlyphsForCharacters ((CTFontRef) font, characters,
-					 glyphs, count);
-#endif
-#if USE_NS_FONT_DESCRIPTOR
-    {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-      return CTFontGetGlyphsForCharacters ((CTFontRef) font, characters,
-					   glyphs, count);
-#else
-      extern Boolean CTFontGetGlyphsForCharacters (const void *,
-						   const UniChar [],
-						   CGGlyph glyphs [],
-						   CFIndex) AVAILABLE_MAC_OS_X_VERSION_10_4_AND_LATER;
-
-      return CTFontGetGlyphsForCharacters (font, characters, glyphs, count);
-#endif
-    }
-#endif
-}
-
-CGFloat
-mac_font_get_ascent (FontRef font)
-{
-  return [(NSFont *)font ascender];
-}
-
-CGFloat
-mac_font_get_descent (FontRef font)
-{
-  return - [(NSFont *)font descender];
-}
-
-CGFloat
-mac_font_get_leading (FontRef font)
-{
-  return [(NSFont *)font leading];
-}
-
-CGFloat
-mac_font_get_underline_position (FontRef font)
-{
-  return [(NSFont *)font underlinePosition];
-}
-
-CGFloat
-mac_font_get_underline_thickness (FontRef font)
-{
-  return [(NSFont *)font underlineThickness];
-}
-
-CGFloat
-mac_font_get_advance_width_for_glyph (FontRef font, CGGlyph glyph)
-{
-  NSSize advancement = [(NSFont *)font advancementForGlyph:glyph];
-
-  return advancement.width;
-}
-
-CFStringRef
-mac_font_create_preferred_family_for_attributes (CFDictionaryRef attributes)
-{
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return mac_ctfont_create_preferred_family_for_attributes (attributes);
-#endif
-  {
-    CFStringRef result = NULL;
-    CFStringRef charsetString =
-      CFDictionaryGetValue (attributes,
-			    MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE);
-    CFIndex length;
-
-    if (charsetString
-	&& (length = CFStringGetLength (charsetString)) > 0)
-      {
-	CFArrayRef languages
-	  = CFDictionaryGetValue (attributes, MAC_FONT_LANGUAGES_ATTRIBUTE);
-
-	if (languages && CFArrayGetCount (languages) > 0)
-	  {
-	    CFCharacterSetRef charset =
-	      CFDictionaryGetValue (attributes,
-				    MAC_FONT_CHARACTER_SET_ATTRIBUTE);
-
-	    result = mac_font_copy_default_name_for_charset_and_languages (charset, languages);
-	  }
-	if (result == NULL)
-	  {
-	    NSMutableAttributedString *attrString =
-	      [[[NSMutableAttributedString alloc]
-		 initWithString:((NSString *) charsetString)] autorelease];
-	    NSRange attrStringRange, range;
-	    NSFont *font;
-
-	    attrStringRange = NSMakeRange(0, [attrString length]);
-	    [attrString fixFontAttributeInRange:attrStringRange];
-	    font = [attrString attribute:NSFontAttributeName atIndex:0
-			       longestEffectiveRange:&range
-				 inRange:attrStringRange];
-	    if (NSEqualRanges (range, attrStringRange))
-	      {
-		NSString *familyName = [font familyName];
-
-		if (![familyName isEqualToString:@"LastResort"])
-		  result = CF_BRIDGING_RETAIN (familyName);
-	      }
-	  }
-      }
-
-    return result;
-  }
-}
-
-CGRect
-mac_font_get_bounding_rect_for_glyph (FontRef font, CGGlyph glyph)
-{
-  NSRect rect = [(NSFont *)font boundingRectForGlyph:glyph];
-
-  return NSRectToCGRect (rect);
-}
-
-CGFontRef
-mac_font_copy_graphics_font (FontRef font)
-{
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return CTFontCopyGraphicsFont ((CTFontRef) font, NULL);
-#endif
-  {
-    ATSFontRef atsfont =
-      ATSFontFindFromPostScriptName ((CFStringRef) [(NSFont *)font fontName],
-				     kATSOptionFlagsDefault);
-
-    return CGFontCreateWithPlatformFont (&atsfont);
-  }
-}
-
-CFDataRef
-mac_font_copy_non_synthetic_table (FontRef font, FourCharCode table)
-{
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return CTFontCopyTable ((CTFontRef) font, table,
-			    kCTFontTableOptionExcludeSynthetic);
-#endif
-  {
-    OSStatus err;
-    CFMutableDataRef result = NULL;
-    ATSFontRef atsfont;
-    FSSpec fss;
-    FSRef fref;
-    HFSUniStr255 data_fork_name;
-    SInt16 fork_ref_num;
-
-    atsfont =
-      ATSFontFindFromPostScriptName ((CFStringRef) [(NSFont *)font fontName],
-				     kATSOptionFlagsDefault);
-    /* ATSFontGetTable is not useful for getting a UVS subtable of a
-       PostScript OpenType font as it returns a synthetic cmap table.
-       So we try to read a font file ourselves.  */
-    err = ATSFontGetFileSpecification (atsfont, &fss);
-    if (err == noErr)
-      err = FSpMakeFSRef (&fss, &fref);
-    if (err == noErr)
-      err = FSGetDataForkName (&data_fork_name);
-    if (err == noErr)
-      err = FSOpenFork (&fref, data_fork_name.length, data_fork_name.unicode,
-			fsRdPerm, &fork_ref_num);
-    if (err == noErr)
-      {
-	struct sfntDirectory dir;
-	ByteCount actual_count;
-
-	err = FSReadFork (fork_ref_num, fsFromStart, 0, sizeof_sfntDirectory,
-			  &dir, &actual_count);
-	if (err == noErr && actual_count == sizeof_sfntDirectory
-	    && (dir.format == EndianU32_NtoB ('OTTO')
-		|| dir.format == EndianU32_NtoB (0x00010000)))
-	  {
-	    int i, num_offsets = EndianU16_BtoN (dir.numOffsets);
-
-	    for (i = 0; i < num_offsets; i++)
-	      {
-		struct sfntDirectoryEntry dir_entry;
-		UInt32 tag, offset, length;
-
-		err = FSReadFork (fork_ref_num, fsAtMark, 0,
-				  sizeof (struct sfntDirectoryEntry),
-				  &dir_entry, &actual_count);
-		if (!(err == noErr
-		      && actual_count == sizeof (struct sfntDirectoryEntry)))
-		  break;
-
-		tag = EndianU32_BtoN (dir_entry.tableTag);
-		if (tag > table)
-		  break;
-		else if (tag < table)
-		  continue;
-
-		/* tag == table */
-		offset = EndianU32_BtoN (dir_entry.offset);
-		length = EndianU32_BtoN (dir_entry.length);
-		result = CFDataCreateMutable (NULL, length);
-		if (result)
-		  {
-		    CFDataSetLength (result, length);
-		    err = FSReadFork (fork_ref_num, fsFromStart, offset, length,
-				      CFDataGetMutableBytePtr (result),
-				      &actual_count);
-		    if (!(err == noErr && actual_count == length))
-		      {
-			CFRelease (result);
-			result = NULL;
-		      }
-		  }
-		break;
-	      }
-	  }
-	FSCloseFork (fork_ref_num);
-      }
-
-    if (result == NULL)
-      {
-	ByteCount size;
-
-	err = ATSFontGetTable (atsfont, table, 0, 0, NULL, &size);
-	if (err == noErr)
-	  result = CFDataCreateMutable (NULL, size);
-	if (result)
-	  {
-	    CFDataSetLength (result, size);
-	    err = ATSFontGetTable (atsfont, table, 0, size,
-				   CFDataGetMutableBytePtr (result), &size);
-	    if (err != noErr)
-	      {
-		CFRelease (result);
-		result = NULL;
-	      }
-	  }
-      }
-
-    return result;
-  }
-}
-
-CFArrayRef
-mac_font_create_available_families (void)
-{
-  NSArray *families = [[NSFontManager sharedFontManager] availableFontFamilies];
-  CFIndex count = [families count];
-  CFMutableArrayRef result =
-    CFArrayCreateMutableCopy (NULL, count, (CFArrayRef) families);
-
-  while (count-- > 0)
-    if (CFStringHasPrefix (CFArrayGetValueAtIndex (result, count),
-			   CFSTR (".")))
-      CFArrayRemoveValueAtIndex (result, count);
-
-  CFArraySortValues (result, CFRangeMake (0, CFArrayGetCount (result)),
-		     mac_font_family_compare, NULL);
-
-  return result;
-}
-
-FontDescriptorRef
-mac_nsctfont_copy_font_descriptor (void *font)
-{
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return (FontDescriptorRef) CTFontCopyFontDescriptor ((CTFontRef) font);
-#endif
-  {
-    EmacsFontDescriptor *result;
-    NSFont *nsFont = (NSFont *) font;
-
-#if USE_NS_FONT_DESCRIPTOR
-      {
-	result = [EmacsFDFontDescriptor fontDescriptorWithFont:nsFont];
-      }
-#endif
-
-    return CF_BRIDGING_RETAIN (result);
-  }
-}
-
-CFIndex
-mac_font_shape (FontRef font, CFStringRef string,
-		struct mac_glyph_layout *glyph_layouts, CFIndex glyph_len)
-{
-#if USE_CORE_TEXT
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return mac_ctfont_shape ((CTFontRef) font, string,
-			     glyph_layouts, glyph_len);
-#endif
-  return mac_font_shape_1 ((NSFont *) font, (NSString *) string,
-			   glyph_layouts, glyph_len, NO);
-}
-
-#endif	/* MAC_OS_X_VERSION_MIN_REQUIRED < 1050 */
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 || !USE_CT_GLYPH_INFO
+#if !USE_CT_GLYPH_INFO
 CGGlyph
-mac_font_get_glyph_for_cid (FontRef font, CharacterCollection collection,
+mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
 			    CGFontIndex cid)
 {
-#if USE_CORE_TEXT && USE_CT_GLYPH_INFO
-  if (EQ (macfont_driver_type, Qmac_ct))
-    return mac_ctfont_get_glyph_for_cid ((CTFontRef) font, collection, cid);
-#endif
-  {
-    CGGlyph result = kCGFontIndexInvalid;
-    NSFont *nsFont = (__bridge NSFont *) font;
-    unichar characters[] = {0xfffd};
-    NSString *string =
-      [NSString stringWithCharacters:characters
-			      length:(sizeof (characters)
-				      / sizeof (characters[0]))];
-    NSGlyphInfo *glyphInfo =
-      [NSGlyphInfo glyphInfoWithCharacterIdentifier:cid
-					 collection:((NSCharacterCollection)
-						     collection)
-					 baseString:string];
-    NSDictionaryG (NSString *, id) *attributes =
-      [NSDictionary dictionaryWithObjectsAndKeys:nsFont,NSFontAttributeName,
-		    glyphInfo,NSGlyphInfoAttributeName,nil];
-    NSTextStorage *textStorage =
-      [[NSTextStorage alloc] initWithString:string
-				 attributes:attributes];
-    NSLayoutManager *layoutManager = [[NSLayoutManager alloc] init];
-    NSTextContainer *textContainer = [[NSTextContainer alloc] init];
-    NSFont *fontInTextStorage;
+  CGGlyph result = kCGFontIndexInvalid;
+  NSFont *nsFont = (__bridge NSFont *) font;
+  unichar characters[] = {0xfffd};
+  NSString *string =
+    [NSString stringWithCharacters:characters
+			    length:(sizeof (characters)
+				    / sizeof (characters[0]))];
+  NSGlyphInfo *glyphInfo =
+    [NSGlyphInfo glyphInfoWithCharacterIdentifier:cid
+				       collection:((NSCharacterCollection)
+						   collection)
+				       baseString:string];
+  NSDictionaryOf (NSString *, id) *attributes =
+    [NSDictionary dictionaryWithObjectsAndKeys:nsFont,NSFontAttributeName,
+		  glyphInfo,NSGlyphInfoAttributeName,nil];
+  NSTextStorage *textStorage =
+    [[NSTextStorage alloc] initWithString:string
+			       attributes:attributes];
+  NSLayoutManager *layoutManager = [[NSLayoutManager alloc] init];
+  NSTextContainer *textContainer = [[NSTextContainer alloc] init];
+  NSFont *fontInTextStorage;
 
-    [layoutManager addTextContainer:textContainer];
-    MRC_RELEASE (textContainer);
-    [textStorage addLayoutManager:layoutManager];
-    MRC_RELEASE (layoutManager);
+  [layoutManager addTextContainer:textContainer];
+  MRC_RELEASE (textContainer);
+  [textStorage addLayoutManager:layoutManager];
+  MRC_RELEASE (layoutManager);
 
-    /* Force layout.  */
-    (void) [layoutManager glyphRangeForTextContainer:textContainer];
+  /* Force layout.  */
+  (void) [layoutManager glyphRangeForTextContainer:textContainer];
 
-    fontInTextStorage = [textStorage attribute:NSFontAttributeName atIndex:0
-				effectiveRange:NULL];
-    if (fontInTextStorage == nsFont
-	|| [[fontInTextStorage fontName] isEqualToString:[nsFont fontName]])
-      {
+  fontInTextStorage = [textStorage attribute:NSFontAttributeName atIndex:0
+			      effectiveRange:NULL];
+  if (fontInTextStorage == nsFont
+      || [[fontInTextStorage fontName] isEqualToString:[nsFont fontName]])
+    {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
-	result = [layoutManager CGGlyphAtIndex:0 isValidIndex:NULL];
+      result = [layoutManager CGGlyphAtIndex:0 isValidIndex:NULL];
 #else
-	NSGlyph glyph = [layoutManager glyphAtIndex:0];
+      NSGlyph glyph = [layoutManager glyphAtIndex:0];
 
-	if (glyph < [nsFont numberOfGlyphs])
-	  result = glyph;
+      if (glyph < [nsFont numberOfGlyphs])
+	result = glyph;
 #endif
-      }
+    }
 
-    MRC_RELEASE (textStorage);
+  MRC_RELEASE (textStorage);
 
-    return result;
-  }
+  return result;
 }
 #endif
 
 CFIndex
-mac_font_get_weight (FontRef font)
+mac_font_get_weight (CTFontRef font)
 {
   NSFont *nsFont = (__bridge NSFont *) font;
 
@@ -15270,12 +13861,10 @@ mac_sound_play (CFTypeRef mac_sound, Lisp_Object volume, Lisp_Object device)
 {
   NSSound *sound = (__bridge NSSound *) mac_sound;
 
-  if ((INTEGERP (volume) || FLOATP (volume))
-      && [sound respondsToSelector:@selector(setVolume:)])
+  if ((INTEGERP (volume) || FLOATP (volume)))
     [sound setVolume:(INTEGERP (volume) ? XFASTINT (volume) * 0.01f
 		      : (float) XFLOAT_DATA (volume))];
-  if (STRINGP (device)
-      && [sound respondsToSelector:@selector(setPlaybackDeviceIdentifier:)])
+  if (STRINGP (device))
     [sound setPlaybackDeviceIdentifier:[NSString stringWithLispString:device]];
 
   [sound setDelegate:emacsController];

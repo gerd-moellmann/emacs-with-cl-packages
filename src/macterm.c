@@ -104,73 +104,10 @@ static CGImageRef *fringe_bmp = 0;
 CGColorSpaceRef mac_cg_color_space_rgb;
 static CGColorRef mac_cg_color_black;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-CMProfileRef
-mac_open_srgb_profile (void)
-{
-  CMProfileRef profile = NULL;
-  OSStatus err;
-  FSRef profiles_folder, fref;
-  AEDesc desc;
-  static const UniChar name[] = {'s', 'R', 'G', 'B', ' ', 'P', 'r', 'o',
-				 'f', 'i', 'l', 'e', '.', 'i', 'c', 'c'};
-
-  err = FSFindFolder (kOnSystemDisk, kColorSyncProfilesFolderType,
-		      kDontCreateFolder, &profiles_folder);
-  if (err == noErr)
-    err = FSMakeFSRefUnicode (&profiles_folder,
-			      sizeof (name) / sizeof (name[0]), name,
-			      kUnicodeUTF8Format, &fref);
-  if (err == noErr)
-    err = AECoercePtr (typeFSRef, &fref, sizeof (fref), TYPE_FILE_NAME, &desc);
-  if (err == noErr)
-    {
-      Size size;
-      CMProfileLocation loc;
-
-      size = AEGetDescDataSize (&desc);
-      if (size < sizeof (loc.u.pathLoc.path))
-	err = AEGetDescData (&desc, loc.u.pathLoc.path, size);
-      if (err == noErr)
-	{
-	  loc.u.pathLoc.path[size] = '\0';
-	  loc.locType = cmPathBasedProfile;
-	  CMOpenProfile (&profile, &loc);
-	}
-      AEDisposeDesc (&desc);
-    }
-
-  return profile;
-}
-#endif
-
 static void
 init_cg_color (void)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (&kCGColorSpaceSRGB != NULL)
-#endif
-    mac_cg_color_space_rgb = CGColorSpaceCreateWithName (kCGColorSpaceSRGB);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-    {
-      CMProfileRef profile = mac_open_srgb_profile ();
-
-      if (profile)
-	{
-	  mac_cg_color_space_rgb =
-	    CGColorSpaceCreateWithPlatformColorSpace (profile);
-	  CMCloseProfile (profile);
-	}
-      if (mac_cg_color_space_rgb == NULL)
-	mac_cg_color_space_rgb = CGColorSpaceCreateDeviceRGB ();
-    }
-#endif
-
+  mac_cg_color_space_rgb = CGColorSpaceCreateWithName (kCGColorSpaceSRGB);
   {
     CGFloat rgba[] = {0.0f, 0.0f, 0.0f, 1.0f};
 
@@ -3703,7 +3640,6 @@ x_draw_bar_cursor (struct window *w, struct glyph_row *row, int width, enum text
 static void
 mac_define_frame_cursor (struct frame *f, Cursor cursor)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
   if (mac_tracking_area_works_with_cursor_rects_invalidation_p ())
 #endif
@@ -3716,7 +3652,6 @@ mac_define_frame_cursor (struct frame *f, Cursor cursor)
     }
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
   else
-#endif
 #endif
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
     {
@@ -4594,7 +4529,6 @@ mac_cgevent_update_unicode_string (CGEventRef cgevent)
   UInt32 keycode = CGEventGetIntegerValueField (cgevent,
 						kCGKeyboardEventKeycode);
   UCKeyboardLayout *uchr_ptr = NULL;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
   TISInputSourceRef source = TISCopyCurrentKeyboardLayoutInputSource ();
   CFDataRef uchr_data = NULL;
 
@@ -4603,15 +4537,6 @@ mac_cgevent_update_unicode_string (CGEventRef cgevent)
       TISGetInputSourceProperty (source, kTISPropertyUnicodeKeyLayoutData);
   if (uchr_data)
     uchr_ptr = (UCKeyboardLayout *) CFDataGetBytePtr (uchr_data);
-#else
-  OSStatus err;
-  KeyboardLayoutRef layout;
-
-  err = KLGetCurrentKeyboardLayout (&layout);
-  if (err == noErr)
-    err = KLGetKeyboardLayoutProperty (layout, kKLuchrData,
-				       (const void **) &uchr_ptr);
-#endif
 
   if (uchr_ptr)
     {
@@ -4636,10 +4561,8 @@ mac_cgevent_update_unicode_string (CGEventRef cgevent)
 	  result = true;
 	}
     }
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
   if (source)
     CFRelease (source);
-#endif
 
   return result;
 }
@@ -5542,20 +5465,10 @@ init_tis_notification_handler (void)
   CFNotificationCenterRef center = CFNotificationCenterGetDistributedCenter ();
 
   CFNotificationCenterAddObserver (center, NULL, mac_handle_tis_notification,
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
 				   kTISNotifySelectedKeyboardInputSourceChanged,
-#else
-				   CFSTR ("com.apple.Carbon.TISNotify"
-					  "SelectedKeyboardInputSourceChanged"),
-#endif
 				   NULL, CFNotificationSuspensionBehaviorDrop);
   CFNotificationCenterAddObserver (center, NULL, mac_handle_tis_notification,
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
 				   kTISNotifyEnabledKeyboardInputSourcesChanged,
-#else
-				   CFSTR ("com.apple.Carbon.TISNotify"
-					  "EnabledKeyboardInputSourcesChanged"),
-#endif
 				   NULL,
 				   CFNotificationSuspensionBehaviorCoalesce);
 }

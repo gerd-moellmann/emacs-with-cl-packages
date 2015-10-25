@@ -2267,9 +2267,7 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   Lisp_Object handler;
   Lisp_Object encoded_file;
   Lisp_Object operation;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   bool use_finder_p;
-#endif
 
   operation = Qdelete_file;
   if (!NILP (Ffile_directory_p (filename))
@@ -2288,7 +2286,6 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 
   block_input ();
   domain = NO_ERROR;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   use_finder_p = mac_system_move_file_to_trash_use_finder;
   if (!use_finder_p)
     {
@@ -2324,7 +2321,6 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 	}
     }
   if (use_finder_p)
-#endif
     {
       OSStatus err;
       const OSType finderSignature = 'MACS';
@@ -2941,9 +2937,9 @@ The conversion is performed using the converter provided by the system.
 Each encoding is specified by either a coding system symbol, a mime
 charset string, or an integer as a CFStringEncoding value.  An encoding
 of nil means UTF-16 in native byte order, no byte order mark.
-On Mac OS X 10.2 and later, you can do Unicode Normalization by
-specifying the optional argument NORMALIZATION-FORM with a symbol NFD,
-NFKD, NFC, NFKC, HFS+D, or HFS+C.
+You can do Unicode Normalization by specifying the optional argument
+NORMALIZATION-FORM with a symbol NFD, NFKD, NFC, NFKC, HFS+D, or
+HFS+C.
 On successful conversion, return the result string, else return nil.  */)
   (Lisp_Object string, Lisp_Object source, Lisp_Object target,
    Lisp_Object normalization_form)
@@ -3573,38 +3569,6 @@ mac_carbon_version_string ()
   if (value && CFGetTypeID (value) == CFStringGetTypeID ())
     result = cfstring_to_lisp_nodecode (value);
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (NILP (result))
-    {
-      CFPropertyListRef plist = NULL;
-      CFURLRef resource_url = CFBundleCopyResourceURL (bundle,
-						       CFSTR ("version"),
-						       CFSTR ("plist"), NULL);
-
-      if (resource_url)
-	{
-	  plist = cfproperty_list_create_with_url (resource_url);
-	  CFRelease (resource_url);
-	}
-      if (plist)
-	{
-	  if (CFGetTypeID (plist) == CFDictionaryGetTypeID ())
-	    {
-	      value = CFDictionaryGetValue (plist, CFSTR ("SourceVersion"));
-	      if (value && CFGetTypeID (value) == CFStringGetTypeID ())
-		{
-		  result = cfstring_to_lisp_nodecode (value);
-		  if (STRINGP (result)
-		      && CFStringHasSuffix (value, CFSTR ("0000")))
-		    result = Fsubstring (result, make_number (0),
-					 make_number (-4));
-		}
-	    }
-	  CFRelease (plist);
-	}
-    }
-#endif
-
   return result;
 }
 
@@ -3858,7 +3822,6 @@ syms_of_mac (void)
      doc: /* *Non-nil means that `system-move-file-to-trash' uses the Finder.
 Setting this variable non-nil enables us to use the `Put Back' context
 menu for trashed items, but it also affects the `Edit' - `Undo' menu
-in the Finder.  On Mac OS X 10.4 and earlier, this variable has no
-effect and trashing is always done via the Finder.  */);
+in the Finder.  */);
   mac_system_move_file_to_trash_use_finder = 0;
 }

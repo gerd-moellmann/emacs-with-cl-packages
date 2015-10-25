@@ -392,13 +392,6 @@ enum {
   KEY_EMACS_SUSPENSION_ID_ATTR	= 'esId' /* typeUInt32 */
 };
 
-/* Some constants that are not defined in older versions.  */
-/* kCGBitmapByteOrder32Host is defined in Universal SDK for 10.4 but
-   not in PPC SDK for 10.4.0.  */
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 && !defined (kCGBitmapByteOrder32Host)
-#define kCGBitmapByteOrder32Host 0
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED == 1060
 BLOCK_EXPORT void _Block_object_assign (void *, const void *, const int) AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
 BLOCK_EXPORT void _Block_object_dispose (const void *, const int) AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
@@ -442,9 +435,6 @@ extern void x_delete_terminal (struct terminal *terminal);
 #define XDrawLine(display, p, gc, x1, y1, x2, y2)	\
   mac_draw_line_to_pixmap (p, gc, x1, y1, x2, y2)
 extern void x_set_sticky (struct frame *, Lisp_Object, Lisp_Object);
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 || MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-extern CMProfileRef mac_open_srgb_profile (void);
-#endif
 extern void mac_begin_scale_mismatch_detection (struct frame *);
 extern bool mac_end_scale_mismatch_detection (struct frame *);
 extern void mac_draw_line_to_pixmap (Pixmap, GC, int, int, int, int);
@@ -584,9 +574,7 @@ extern double mac_appkit_version (void);
 extern double mac_system_uptime (void);
 extern Boolean mac_is_current_process_frontmost (void);
 extern void mac_bring_current_process_to_front (Boolean);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
 extern bool mac_trash_file (const char *, CFErrorRef *);
-#endif
 extern OSStatus install_application_handler (void);
 extern void mac_set_frame_window_title (struct frame *, CFStringRef);
 extern void mac_set_frame_window_modified (struct frame *, Boolean);
@@ -698,9 +686,7 @@ extern void mac_document_copy_page_info (EmacsDocumentRef, size_t, CGSize *,
 extern void mac_document_draw_page (CGContextRef, CGRect, EmacsDocumentRef,
 				    size_t);
 extern void mac_update_accessibility_status (struct frame *);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
 extern void mac_start_animation (Lisp_Object, Lisp_Object);
-#endif
 extern CFTypeRef mac_sound_create (Lisp_Object, Lisp_Object);
 extern void mac_sound_play (CFTypeRef, Lisp_Object, Lisp_Object);
 

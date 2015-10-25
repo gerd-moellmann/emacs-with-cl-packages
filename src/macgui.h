@@ -59,12 +59,6 @@ typedef Lisp_Object XrmDatabase;
 #define Z (current_buffer->text->z)
 #undef ALIGN
 
-#ifndef CGFLOAT_DEFINED
-typedef float CGFloat;
-#define CGFLOAT_MIN FLT_MIN
-#define CGFLOAT_MAX FLT_MAX
-#endif
-
 typedef void *Window;
 typedef void *Selection;
 

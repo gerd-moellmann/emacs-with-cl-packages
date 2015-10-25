@@ -1724,15 +1724,13 @@ sensitive to the variation selector.")
   "Hook run for a change to the selected keyboard input source.
 The hook functions are not called when Emacs is in the background
 even if the selected keyboard input source is changed outside
-Emacs.
-This hook is not used on Mac OS X 10.4."
+Emacs."
   :package-version '(Mac\ port . "5.2")
   :type 'hook
   :group 'mac)
 
 (defcustom mac-enabled-keyboard-input-sources-change-hook nil
-  "Hook run for a change to the set of enabled keyboard input sources.
-This hook is not used on Mac OS X 10.4."
+  "Hook run for a change to the set of enabled keyboard input sources."
   :package-version '(Mac\ port . "5.2")
   :type 'hook
   :group 'mac)
@@ -1777,8 +1775,7 @@ the mode if ARG is omitted or nil.
 Mac Auto ASCII mode automatically selects the most-recently-used
 ASCII-capable keyboard input source on some occasions: after
 prefix key (bound in the global keymap) press such as C-x and
-M-g, and at the start of minibuffer input.  This mode has no
-effect on Mac OS X 10.4.
+M-g, and at the start of minibuffer input.
 
 Strictly speaking, its implementation has a timing issue: the
 Lisp event queue may already have some input events that have

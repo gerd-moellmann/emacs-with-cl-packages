@@ -2950,21 +2950,13 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	      scale_factor = (img->target_backing_scale == 2 ? 2 : 1);
 	      has_alpha_p = true;
 	      if (default_bg == NULL)
-		{
-		  /* Specify the clear color as the default
-		     background, which actually results in the frame
-		     background.  We prefer not to use image masks for
-		     rasterized documents because proper text
-		     smoothing requires opaque background.  */
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
-		  default_bg =
-		    CGColorRetain (CGColorGetConstantColor (kCGColorClear));
-#else
-		  CGFloat rgba[] = {0.0f, 0.0f, 0.0f, 0.0f};
-
-		  default_bg = CGColorCreate (mac_cg_color_space_rgb, rgba);
-#endif
-		}
+		/* Specify the clear color as the default background,
+		   which actually results in the frame background.  We
+		   prefer not to use image masks for rasterized
+		   documents because proper text smoothing requires
+		   opaque background.  */
+		default_bg =
+		  CGColorRetain (CGColorGetConstantColor (kCGColorClear));
 	      if (attributes)
 		{
 		  metadata = Fcons (Qdocument_attributes,

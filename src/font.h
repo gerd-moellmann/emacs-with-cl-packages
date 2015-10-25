@@ -851,7 +851,6 @@ extern void syms_of_w32font (void);
 #endif	/* HAVE_NTGUI */
 #ifdef HAVE_MACGUI
 extern void mac_register_font_driver (struct frame *);
-extern struct font_driver macfont_driver;
 extern void syms_of_macfont (void);
 #endif	/* HAVE_MACGUI */
 #ifdef HAVE_NS

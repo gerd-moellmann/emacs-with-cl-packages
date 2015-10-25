@@ -3617,8 +3617,6 @@ static Lisp_Object QCascii_capable_p, QCenable_capable_p, QCselect_capable_p;
 static Lisp_Object QCenabled_p, QCselected_p, QCbundle_id, QCinput_mode_id;
 static Lisp_Object QClocalized_name, QClanguages, QCicon_image_file;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
-
 /* Return true if and only if LIST is a non-circular list of
    symbols.  */
 
@@ -3894,8 +3892,6 @@ mac_input_source_properties (TISInputSourceRef source, Lisp_Object format)
   return result;
 }
 
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 */
-
 DEFUN ("mac-input-source", Fmac_input_source, Smac_input_source, 0, 2, 0,
        doc: /* Return ID optionally with properties of input source SOURCE.
 Optional 1st arg SOURCE specifies an input source.  It can be a symbol
@@ -3976,20 +3972,12 @@ t, but PLIST only contains the properties given in FORMAT.
 
 If FORMAT is a symbol, then it is interpreted as a property above and
 the result is a cons (ID . VALUE) of an input source ID string and a
-value corresponding to the property.
-
-This function returns nil if compiled or run on Mac OS X 10.4 or
-earlier.  */)
+value corresponding to the property.  */)
   (Lisp_Object source, Lisp_Object format)
 {
   Lisp_Object result = Qnil;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   TISInputSourceRef input_source;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (TISInputSourceGetTypeID == NULL)
-    return Qnil;
-#endif
   check_window_system (NULL);
   mac_check_input_source (source, false);
   if (!(SYMBOLP (format) || mac_symbol_list_p (format)))
@@ -4003,7 +3991,6 @@ earlier.  */)
       CFRelease (input_source);
     }
   unblock_input ();
-#endif
 
   return result;
 }
@@ -4018,20 +4005,12 @@ this can have significant memory impact.
 
 Optional 2nd arg FORMAT must be a symbol or a list of symbols, and
 controls the format of the result.  See `mac-input-source' for their
-meanings.
-
-This function returns nil if compiled or run on Mac OS X 10.4 or
-earlier.  */)
+meanings.  */)
   (Lisp_Object type, Lisp_Object format)
 {
   Lisp_Object result = Qnil;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   CFArrayRef list = NULL;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (TISInputSourceGetTypeID == NULL)
-    return Qnil;
-#endif
   check_window_system (NULL);
   if (!(NILP (type) || EQ (type, Qt) || EQ (type, Qascii_capable_keyboard)))
     error ("TYPE must be nil, t, or `ascii-capable-keyboard'");
@@ -4059,7 +4038,6 @@ earlier.  */)
       CFRelease (list);
     }
   unblock_input ();
-#endif
 
   return result;
 }
@@ -4076,20 +4054,12 @@ SOURCE is set as the keyboard layout override rather than the new
 current keyboard input source.
 
 Return t if SOURCE could be successfully selected.  Otherwise, return
-nil.
-
-This function has no effect and returns nil if compiled or run on Mac
-OS X 10.4 or earlier.  */)
+nil.  */)
   (Lisp_Object source, Lisp_Object set_keyboard_layout_override_p)
 {
   Lisp_Object result = Qnil;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   TISInputSourceRef input_source;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (TISInputSourceGetTypeID == NULL)
-    return Qnil;
-#endif
   check_window_system (NULL);
   mac_check_input_source (source, false);
 
@@ -4110,7 +4080,6 @@ OS X 10.4 or earlier.  */)
       CFRelease (input_source);
     }
   unblock_input ();
-#endif
 
   return result;
 }
@@ -4123,20 +4092,12 @@ sources; calling it has no effect on other input sources.  So, unlike
 causes an error.  SOURCE must be t or a string, and cannot be omitted.
 
 Return t if SOURCE could be successfully deselected.  Otherwise,
-return nil.
-
-This function has no effect and returns nil if compiled or run on Mac
-OS X 10.4 or earlier.  */)
+return nil.  */)
   (Lisp_Object source)
 {
   Lisp_Object result = Qnil;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   TISInputSourceRef input_source;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (TISInputSourceGetTypeID == NULL)
-    return Qnil;
-#endif
   check_window_system (NULL);
   mac_check_input_source (source, true);
 
@@ -4149,7 +4110,6 @@ OS X 10.4 or earlier.  */)
       CFRelease (input_source);
     }
   unblock_input ();
-#endif
 
   return result;
 }
@@ -4274,23 +4234,15 @@ FRAME-OR-WINDOW as the source image, and the completely transparent
 image as the target, so the result of display changes that follow
 becomes visible gradually through the transparent part.
 
-This function has no effect and returns nil if compiled or run on Mac
-OS X 10.4 or earlier, or when FRAME-OR-WINDOW is of the frame that is
-not completely opaque.
+This function has no effect and returns nil when FRAME-OR-WINDOW is of
+the frame that is not completely opaque.
 usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
   (ptrdiff_t nargs, Lisp_Object *args)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   Lisp_Object frame_or_window, properties;
   struct frame *f;
   CGFloat alpha;
   ptrdiff_t count;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  extern CFTimeInterval CACurrentMediaTime (void) AVAILABLE_MAC_OS_X_VERSION_10_5_AND_LATER;
-
-  if (CACurrentMediaTime == NULL)
-    return Qnil;
-#endif
 
   frame_or_window = args[0];
   if (NILP (frame_or_window))
@@ -4319,9 +4271,6 @@ usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
   unblock_input ();
 
   return Qt;
-#else  /* MAC_OS_X_VERSION_MAX_ALLOWED < 1050 */
-  return Qnil;
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED < 1050 */
 }
 
 
