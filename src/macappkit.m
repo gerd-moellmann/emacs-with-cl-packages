@@ -3076,7 +3076,8 @@ static CGRect unset_global_focus_view_frame (void);
   windowManagerState ^=
     (diff & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT
 	     | WM_STATE_FULLSCREEN | WM_STATE_DEDICATED_DESKTOP));
-  [self updateCollectionBehavior];
+  if ([emacsWindow respondsToSelector:@selector(setCollectionBehavior:)])
+    [self updateCollectionBehavior];
 
   return frameRect;
 }
