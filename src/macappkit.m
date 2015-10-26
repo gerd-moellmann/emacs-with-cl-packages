@@ -2844,12 +2844,7 @@ static CGRect unset_global_focus_view_frame (void);
     {
       [window setAcceptsMouseMovedEvents:YES];
       if (!(windowManagerState & WM_STATE_FULLSCREEN))
-	{
-	  BOOL visible = (oldWindow == nil && FRAME_EXTERNAL_TOOL_BAR (f));
-
-	  [self setupToolBarWithVisibility:visible];
-	}
-
+	[self setupToolBarWithVisibility:(FRAME_EXTERNAL_TOOL_BAR (f))];
       [window setShowsResizeIndicator:NO];
       [self setupOverlayWindowAndView];
       [self attachOverlayWindow];
