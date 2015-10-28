@@ -4020,6 +4020,11 @@ static CGRect unset_global_focus_view_frame (void);
 	     withObject:nil afterDelay:0];
   /* For resize in a split-view space on OS X 10.11.  */
   [self setShouldLiveResizeTriggerTransition:YES];
+  /* This is necessary for executables compiled on OS X 10.10 or
+     earlier and run on OS X 10.11.  Without this, Emacs placed on the
+     left side of a split-view space tries to occupy maximum area.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    [emacsWindow setConstrainingToScreenSuspended:YES];
 }
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification
@@ -4039,6 +4044,8 @@ static CGRect unset_global_focus_view_frame (void);
     [self detachOverlayWindow];
   [self saveToolbarVisibility];
   [self setShouldLiveResizeTriggerTransition:NO];
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    [emacsWindow setConstrainingToScreenSuspended:NO];
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
