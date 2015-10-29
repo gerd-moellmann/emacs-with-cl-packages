@@ -4012,19 +4012,23 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsFrameController * __unsafe_unretained weakSelf = self;
   BOOL savedToolbarVisibility;
 
+  if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
+    {
+      /* Entering full screen is triggered by external events rather
+	 than explicit frame parameter changes from Lisp.  */
+      fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLSCREEN;
+      fullScreenTargetState = WM_STATE_FULLSCREEN | WM_STATE_DEDICATED_DESKTOP;
+    }
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[weakSelf storeFullScreenFrameParameter];
+    }];
   /* This part is executed in -[EmacsFrameController
      window:startCustomAnimationToEnterFullScreenWithDuration:] on OS
      X 10.10 and earlier.  Unfortunately this is a bit kludgy.  */
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
-    {
-      if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
-	{
-	  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLSCREEN;
-	  fullScreenTargetState = (WM_STATE_FULLSCREEN
-				   | WM_STATE_DEDICATED_DESKTOP);
-	}
-      [self preprocessWindowManagerStateChange:fullScreenTargetState];
-    }
+    [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
   /* We used to detach/attach the overlay window in the
      `window:startCustomAnimationToExitFullScreenWithDuration:'
@@ -4055,9 +4059,6 @@ static CGRect unset_global_focus_view_frame (void);
 - (void)windowDidEnterFullScreen:(NSNotification *)notification
 {
   [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:YES];
-
-  [self storeFullScreenFrameParameter];
-
   /* For resize in a split-view space on OS X 10.11.  */
   [self setShouldLiveResizeTriggerTransition:YES];
   /* This is necessary for executables compiled on OS X 10.10 or
@@ -4077,15 +4078,20 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsFrameController * __unsafe_unretained weakSelf = self;
   BOOL savedToolbarVisibility;
 
-  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+  if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
     {
-      if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
-	{
-	  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NIL;
-	  fullScreenTargetState = 0;
-	}
-      [self preprocessWindowManagerStateChange:fullScreenTargetState];
+      /* Exiting full screen is triggered by external events rather
+	 than explicit frame parameter changes from Lisp.  */
+      fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NIL;
+      fullScreenTargetState = 0;
     }
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[weakSelf storeFullScreenFrameParameter];
+    }];
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
   /* Called also when a full screen window is being closed.  */
   if (overlayWindow)
@@ -4129,9 +4135,6 @@ static CGRect unset_global_focus_view_frame (void);
 - (void)windowDidExitFullScreen:(NSNotification *)notification
 {
   [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:YES];
-
-  [self storeFullScreenFrameParameter];
-
   [emacsController updatePresentationOptions];
 }
 
@@ -4188,11 +4191,6 @@ static CGRect unset_global_focus_view_frame (void);
 
   titleBarHeight = NSHeight (srcRect) - NSMaxY ([contentView frame]);
 
-  if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
-    {
-      fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLSCREEN;
-      fullScreenTargetState = WM_STATE_FULLSCREEN | WM_STATE_DEDICATED_DESKTOP;
-    }
   destRect = [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
   NSDisableScreenUpdates ();
@@ -4272,11 +4270,6 @@ static CGRect unset_global_focus_view_frame (void);
 
   transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
 
-  if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
-    {
-      fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NIL;
-      fullScreenTargetState = 0;
-    }
   destRect = [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
   NSDisableScreenUpdates ();
