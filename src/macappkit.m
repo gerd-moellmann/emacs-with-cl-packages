@@ -3689,7 +3689,7 @@ static CGRect unset_global_focus_view_frame (void);
 }
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-- (EmacsLiveResizeTransitionView *)liveResizeTransitionView
+- (EmacsLiveResizeTransitionView *)liveResizeTransitionViewWithDefaultBackground:(BOOL)flag
 {
   struct frame *f = emacsFrame;
   struct window *root_window;
@@ -3712,6 +3712,8 @@ static CGRect unset_global_focus_view_frame (void);
 #endif
     rootLayer.geometryFlipped = YES;
   rootLayer.layoutManager = [CA_CONSTRAINT_LAYOUT_MANAGER layoutManager];
+  if (flag)
+    rootLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
 
   root_window = XWINDOW (FRAME_ROOT_WINDOW (f));
   rootWindowMaxY = (WINDOW_TOP_EDGE_Y (root_window)
@@ -3913,13 +3915,10 @@ static CGRect unset_global_focus_view_frame (void);
 {
   if (liveResizeCompletionHandler == nil && [emacsWindow isMainWindow])
     {
-      struct frame *f = emacsFrame;
-      GC gc = f->output_data.mac->normal_gc;
       NSView *contentView = [emacsWindow contentView];
-      EmacsLiveResizeTransitionView *transitionView;
+      EmacsLiveResizeTransitionView *transitionView =
+	[self liveResizeTransitionViewWithDefaultBackground:YES];
 
-      transitionView = [self liveResizeTransitionView];
-      [transitionView layer].backgroundColor = gc->cg_back_color;
       [contentView addSubview:transitionView positioned:NSWindowAbove
 		   relativeTo:emacsView];
       [self setLiveResizeCompletionHandler:^{
@@ -4092,7 +4091,7 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsLiveResizeTransitionView *transitionView;
   CGFloat titleBarHeight;
 
-  transitionView = MRC_RETAIN ([self liveResizeTransitionView]);
+  transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
 
   titleBarHeight = NSHeight (srcRect) - NSMaxY ([contentView frame]);
 
@@ -4152,7 +4151,6 @@ static CGRect unset_global_focus_view_frame (void);
       layer.opacity = 0;
     } completionHandler:^{
       [transitionView removeFromSuperview];
-      MRC_RELEASE (transitionView);
       [window setAlphaValue:previousAlphaValue];
       [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];
       [window setStyleMask:([window styleMask] | NSFullScreenWindowMask)];
@@ -4182,7 +4180,7 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsLiveResizeTransitionView *transitionView;
   CGFloat titleBarHeight;
 
-  transitionView = MRC_RETAIN ([self liveResizeTransitionView]);
+  transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
 
   if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
     {
@@ -4229,7 +4227,6 @@ static CGRect unset_global_focus_view_frame (void);
       layer.opacity = 0;
     } completionHandler:^{
       [transitionView removeFromSuperview];
-      MRC_RELEASE (transitionView);
       [window setAlphaValue:previousAlphaValue];
       [window setLevel:previousWindowLevel];
       [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];
