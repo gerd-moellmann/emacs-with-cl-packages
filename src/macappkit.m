@@ -3159,7 +3159,7 @@ static CGRect unset_global_focus_view_frame (void);
 				   | WM_STATE_MAXIMIZED_HORZ
 				   | WM_STATE_MAXIMIZED_VERT);
 	  [emacsWindow toggleFullScreen:nil];
-	  fullscreenFrameParameterAfterTransition = &Qfullboth;
+	  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLBOTH;
 	}
     }
   else
@@ -3973,6 +3973,29 @@ static CGRect unset_global_focus_view_frame (void);
   [[emacsWindow toolbar] setVisible:savedToolbarVisibility];
 }
 
+- (void)storeFullScreenFrameParameter
+{
+  Lisp_Object value;
+
+  switch (fullscreenFrameParameterAfterTransition)
+    {
+    case FULLSCREEN_PARAM_NIL:
+      value = Qnil;
+      break;
+    case FULLSCREEN_PARAM_FULLBOTH:
+      value = Qfullboth;
+      break;
+    case FULLSCREEN_PARAM_FULLSCREEN:
+      value = Qfullscreen;
+      break;
+    default:
+      return;
+    }
+
+  [self storeModifyFrameParametersEvent:(list1 (Fcons (Qfullscreen, value)))];
+  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NONE;
+}
+
 - (void)windowWillEnterFullScreen:(NSNotification *)notification
 {
   /* This part is executed in -[EmacsFrameController
@@ -3982,7 +4005,7 @@ static CGRect unset_global_focus_view_frame (void);
     {
       if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
 	{
-	  fullscreenFrameParameterAfterTransition = &Qfullscreen;
+	  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLSCREEN;
 	  fullScreenTargetState = (WM_STATE_FULLSCREEN
 				   | WM_STATE_DEDICATED_DESKTOP);
 	}
@@ -4003,14 +4026,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification
 {
-  if (fullscreenFrameParameterAfterTransition)
-    {
-      Lisp_Object alist =
-	list1 (Fcons (Qfullscreen, *fullscreenFrameParameterAfterTransition));
-
-      [self storeModifyFrameParametersEvent:alist];
-      fullscreenFrameParameterAfterTransition = NULL;
-    }
+  [self storeFullScreenFrameParameter];
 
   [self attachOverlayWindow];
   /* This is a workaround for the problem of not preserving toolbar
@@ -4032,7 +4048,7 @@ static CGRect unset_global_focus_view_frame (void);
     {
       if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
 	{
-	  fullscreenFrameParameterAfterTransition = &Qnil;
+	  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NIL;
 	  fullScreenTargetState = 0;
 	}
       [self preprocessWindowManagerStateChange:fullScreenTargetState];
@@ -4049,14 +4065,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
 {
-  if (fullscreenFrameParameterAfterTransition)
-    {
-      Lisp_Object alist =
-	list1 (Fcons (Qfullscreen, *fullscreenFrameParameterAfterTransition));
-
-      [self storeModifyFrameParametersEvent:alist];
-      fullscreenFrameParameterAfterTransition = NULL;
-    }
+  [self storeFullScreenFrameParameter];
 
   /* Called also when a full screen window is being closed.  */
   if (overlayWindow)
@@ -4097,7 +4106,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
     {
-      fullscreenFrameParameterAfterTransition = &Qfullscreen;
+      fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLSCREEN;
       fullScreenTargetState = WM_STATE_FULLSCREEN | WM_STATE_DEDICATED_DESKTOP;
     }
   destRect = [self preprocessWindowManagerStateChange:fullScreenTargetState];
@@ -4184,7 +4193,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
     {
-      fullscreenFrameParameterAfterTransition = &Qnil;
+      fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NIL;
       fullScreenTargetState = 0;
     }
   destRect = [self preprocessWindowManagerStateChange:fullScreenTargetState];

@@ -377,9 +377,12 @@ typedef id instancetype;
   /* Toolbar visibility saved for full screen transition.  */
   BOOL savedToolbarVisibility;
 
-  /* Pointer to the Lisp symbol that is set as `fullscreen' frame
-     parameter after the full screen transition.  */
-  Lisp_Object *fullscreenFrameParameterAfterTransition;
+  /* Enum value determining the symbol that is set as `fullscreen'
+     frame parameter after the full screen transition.  */
+  enum {
+    FULLSCREEN_PARAM_NONE, FULLSCREEN_PARAM_NIL,
+    FULLSCREEN_PARAM_FULLBOTH, FULLSCREEN_PARAM_FULLSCREEN
+  } fullscreenFrameParameterAfterTransition;
 #endif
 }
 - (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
