@@ -4109,8 +4109,21 @@ static CGRect unset_global_focus_view_frame (void);
     }];
 
   [self setShouldLiveResizeTriggerTransition:NO];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (!success)
+	[weakSelf setShouldLiveResizeTriggerTransition:YES];
+    }];
+
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
-    [emacsWindow setConstrainingToScreenSuspended:NO];
+    {
+      [emacsWindow setConstrainingToScreenSuspended:NO];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  if (!success)
+	    [window setConstrainingToScreenSuspended:YES];
+	}];
+    }
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
