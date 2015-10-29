@@ -3964,15 +3964,6 @@ static CGRect unset_global_focus_view_frame (void);
   return proposedOptions | NSApplicationPresentationAutoHideToolbar;
 }
 
-- (void)saveToolbarVisibility
-{
-  savedToolbarVisibility = [[emacsWindow toolbar] isVisible];
-}
-- (void)restoreToolbarVisibility
-{
-  [[emacsWindow toolbar] setVisible:savedToolbarVisibility];
-}
-
 - (void)storeFullScreenFrameParameter
 {
   Lisp_Object value;
@@ -4019,6 +4010,7 @@ static CGRect unset_global_focus_view_frame (void);
 - (void)windowWillEnterFullScreen:(NSNotification *)notification
 {
   EmacsFrameController * __unsafe_unretained weakSelf = self;
+  BOOL savedToolbarVisibility;
 
   /* This part is executed in -[EmacsFrameController
      window:startCustomAnimationToEnterFullScreenWithDuration:] on OS
@@ -4048,7 +4040,16 @@ static CGRect unset_global_focus_view_frame (void);
       [weakSelf attachOverlayWindow];
     }];
 
-  [self saveToolbarVisibility];
+  /* This is a workaround for the problem of not preserving toolbar
+     visibility value.  */
+  savedToolbarVisibility = [[emacsWindow toolbar] isVisible];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[[NSOperationQueue mainQueue] addOperationWithBlock:^{
+	    [[window toolbar] setVisible:savedToolbarVisibility];
+	  }];
+    }];
 }
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification
@@ -4057,10 +4058,6 @@ static CGRect unset_global_focus_view_frame (void);
 
   [self storeFullScreenFrameParameter];
 
-  /* This is a workaround for the problem of not preserving toolbar
-     visibility value.  */
-  [self performSelector:@selector(restoreToolbarVisibility)
-	     withObject:nil afterDelay:0];
   /* For resize in a split-view space on OS X 10.11.  */
   [self setShouldLiveResizeTriggerTransition:YES];
   /* This is necessary for executables compiled on OS X 10.10 or
@@ -4078,6 +4075,7 @@ static CGRect unset_global_focus_view_frame (void);
 - (void)windowWillExitFullScreen:(NSNotification *)notification
 {
   EmacsFrameController * __unsafe_unretained weakSelf = self;
+  BOOL savedToolbarVisibility;
 
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     {
@@ -4099,7 +4097,17 @@ static CGRect unset_global_focus_view_frame (void);
 	}];
     }
 
-  [self saveToolbarVisibility];
+  /* This is a workaround for the problem of not preserving toolbar
+     visibility value.  */
+  savedToolbarVisibility = [[emacsWindow toolbar] isVisible];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[[NSOperationQueue mainQueue] addOperationWithBlock:^{
+	    [[window toolbar] setVisible:savedToolbarVisibility];
+	  }];
+    }];
+
   [self setShouldLiveResizeTriggerTransition:NO];
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     [emacsWindow setConstrainingToScreenSuspended:NO];
@@ -4112,10 +4120,6 @@ static CGRect unset_global_focus_view_frame (void);
   [self storeFullScreenFrameParameter];
 
   [emacsController updatePresentationOptions];
-  /* This is a workaround for the problem of not preserving toolbar
-     visibility value.  */
-  [self performSelector:@selector(restoreToolbarVisibility)
-	     withObject:nil afterDelay:0];
 }
 
 - (void)windowDidFailToExitFullScreen:(NSWindow *)window

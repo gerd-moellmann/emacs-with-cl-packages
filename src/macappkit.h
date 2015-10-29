@@ -374,9 +374,6 @@ typedef id instancetype;
   /* Window manager state after the full screen transition.  */
   WMState fullScreenTargetState;
 
-  /* Toolbar visibility saved for full screen transition.  */
-  BOOL savedToolbarVisibility;
-
   /* Enum value determining the symbol that is set as `fullscreen'
      frame parameter after the full screen transition.  */
   enum {
