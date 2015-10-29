@@ -4150,7 +4150,28 @@ static CGRect unset_global_focus_view_frame (void);
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max)
     return [NSArray arrayWithObject:window];
   else
-    return nil;
+    {
+      EmacsLiveResizeTransitionView *transitionView =
+	[self liveResizeTransitionViewWithDefaultBackground:YES];
+
+      [[emacsWindow contentView] addSubview:transitionView
+				 positioned:NSWindowAbove relativeTo:emacsView];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  if (!success)
+	    [transitionView removeFromSuperview];
+	  else
+	    [NS_ANIMATION_CONTEXT
+	      runAnimationGroup:^(NSAnimationContext *context) {
+		[context setDuration:(10 / 60.0)];
+		[transitionView layer].opacity = 0;
+	      } completionHandler:^{
+		[transitionView removeFromSuperview];
+	      }];
+	}];
+
+      return nil;
+    }
 }
 
 - (void)window:(NSWindow *)window
@@ -4235,10 +4256,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (NSArrayG (NSWindow *) *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
 {
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max)
-    return [NSArray arrayWithObject:window];
-  else
-    return nil;
+  return [self customWindowsToEnterFullScreenForWindow:window];
 }
 
 - (void)window:(NSWindow *)window
