@@ -3996,8 +3996,30 @@ static CGRect unset_global_focus_view_frame (void);
   fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NONE;
 }
 
+- (void)addFullScreenTransitionCompletionHandler:(void (^)(EmacsWindow *,
+							   BOOL))block
+{
+  if (fullScreenTransitionCompletionHandlers == nil)
+    fullScreenTransitionCompletionHandlers =
+      [[NSMutableArray alloc] initWithCapacity:0];
+  [fullScreenTransitionCompletionHandlers
+    addObject:(MRC_AUTORELEASE ([block copy]))];
+}
+
+- (void)handleFullScreenTransitionCompletionForWindow:(EmacsWindow *)window
+					      success:(BOOL)flag
+{
+  for (void (^handler) (EmacsWindow *, BOOL)
+	 in fullScreenTransitionCompletionHandlers)
+    handler (window, flag);
+  MRC_RELEASE (fullScreenTransitionCompletionHandlers);
+  fullScreenTransitionCompletionHandlers = nil;
+}
+
 - (void)windowWillEnterFullScreen:(NSNotification *)notification
 {
+  EmacsFrameController * __unsafe_unretained weakSelf = self;
+
   /* This part is executed in -[EmacsFrameController
      window:startCustomAnimationToEnterFullScreenWithDuration:] on OS
      X 10.10 and earlier.  Unfortunately this is a bit kludgy.  */
@@ -4021,14 +4043,20 @@ static CGRect unset_global_focus_view_frame (void);
      detach/attach the overlay window in the
      `window{Will,Did}{Enter,Exit}FullScreen:' delegate methods.  */
   [self detachOverlayWindow];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      [weakSelf attachOverlayWindow];
+    }];
+
   [self saveToolbarVisibility];
 }
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification
 {
+  [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:YES];
+
   [self storeFullScreenFrameParameter];
 
-  [self attachOverlayWindow];
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
   [self performSelector:@selector(restoreToolbarVisibility)
@@ -4042,8 +4070,15 @@ static CGRect unset_global_focus_view_frame (void);
     [emacsWindow setConstrainingToScreenSuspended:YES];
 }
 
+- (void)windowDidFailToEnterFullScreen:(NSWindow *)window
+{
+  [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:NO];
+}
+
 - (void)windowWillExitFullScreen:(NSNotification *)notification
 {
+  EmacsFrameController * __unsafe_unretained weakSelf = self;
+
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     {
       if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
@@ -4056,7 +4091,14 @@ static CGRect unset_global_focus_view_frame (void);
 
   /* Called also when a full screen window is being closed.  */
   if (overlayWindow)
-    [self detachOverlayWindow];
+    {
+      [self detachOverlayWindow];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  [weakSelf attachOverlayWindow];
+	}];
+    }
+
   [self saveToolbarVisibility];
   [self setShouldLiveResizeTriggerTransition:NO];
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
@@ -4065,16 +4107,20 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
 {
+  [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:YES];
+
   [self storeFullScreenFrameParameter];
 
-  /* Called also when a full screen window is being closed.  */
-  if (overlayWindow)
-    [self attachOverlayWindow];
   [emacsController updatePresentationOptions];
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
   [self performSelector:@selector(restoreToolbarVisibility)
 	     withObject:nil afterDelay:0];
+}
+
+- (void)windowDidFailToExitFullScreen:(NSWindow *)window
+{
+  [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:NO];
 }
 
 - (NSArrayG (NSWindow *) *)customWindowsToEnterFullScreenForWindow:(NSWindow *)window

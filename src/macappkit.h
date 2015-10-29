@@ -383,6 +383,12 @@ typedef id instancetype;
     FULLSCREEN_PARAM_NONE, FULLSCREEN_PARAM_NIL,
     FULLSCREEN_PARAM_FULLBOTH, FULLSCREEN_PARAM_FULLSCREEN
   } fullscreenFrameParameterAfterTransition;
+
+  /* Array of blocks called when the window completes full screen
+     transition.  Each block is called with the window object and a
+     boolean value meaning whether the transition has succeeded.  */
+  NSMutableArrayG (void (^)(EmacsWindow *, BOOL))
+    *fullScreenTransitionCompletionHandlers;
 #endif
 }
 - (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
