@@ -33,10 +33,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "keyboard.h"
 #include "intervals.h"
 #include "keymap.h"
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050 || !USE_CT_GLYPH_INFO
 #include "macfont.h"
-#endif
 
 #import "macappkit.h"
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
@@ -1143,6 +1140,17 @@ rounded_bottom_corners_need_masking_p (void)
 }
 #endif
 
+static bool
+can_auto_hide_menu_bar_without_hiding_dock (void)
+{
+  /* Needs to be linked on OS X 10.11 or later.  */
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max);
+#else
+  return false;
+#endif
+}
+
 /* Autorelease pool.  */
 
 #if __clang_major__ >= 3
@@ -2197,9 +2205,11 @@ emacs_windows_need_display_p (void)
 			  | NSApplicationPresentationAutoHideMenuBar))
 	      == NSApplicationPresentationFullScreen
 	      /* Application can be in full screen mode without hiding
-		 the dock on OS X 10.9.  */
-	      && (options & (NSApplicationPresentationHideDock
-			     | NSApplicationPresentationAutoHideDock)))
+		 the dock on OS X 10.9.  OS X prior to 10.11 cannot
+		 auto-hide the menu bar without hiding the dock.  */
+	      && (can_auto_hide_menu_bar_without_hiding_dock ()
+		  || (options & (NSApplicationPresentationHideDock
+				 | NSApplicationPresentationAutoHideDock))))
 	    {
 	      options |= NSApplicationPresentationAutoHideMenuBar;
 	      [NSApp setPresentationOptions:options];
@@ -2212,8 +2222,12 @@ emacs_windows_need_display_p (void)
 	  NSScreen *screen = [window screen];
 
 	  if ([screen canShowMenuBar])
-	    options = (NSApplicationPresentationAutoHideMenuBar
-		       | NSApplicationPresentationAutoHideDock);
+	    {
+	      options = NSApplicationPresentationAutoHideMenuBar;
+	      if (!can_auto_hide_menu_bar_without_hiding_dock ()
+		  || [screen containsDock])
+		options |= NSApplicationPresentationAutoHideDock;
+	    }
 	  else if ([screen containsDock])
 	    options = NSApplicationPresentationAutoHideDock;
 	  else
@@ -2259,8 +2273,12 @@ emacs_windows_need_display_p (void)
 		    NSScreen *screen = [window screen];
 
 		    if ([screen canShowMenuBar])
-		      options |= (NSApplicationPresentationAutoHideMenuBar
-				  | NSApplicationPresentationAutoHideDock);
+		      {
+			options |= NSApplicationPresentationAutoHideMenuBar;
+			if (!can_auto_hide_menu_bar_without_hiding_dock ()
+			    || [screen containsDock])
+			  options |= NSApplicationPresentationAutoHideDock;
+		      }
 		    else if ([screen containsDock])
 		      options |= NSApplicationPresentationAutoHideDock;
 		  }
@@ -2302,10 +2320,14 @@ emacs_windows_need_display_p (void)
 #endif
       if (windowManagerState & WM_STATE_FULLSCREEN)
 	{
-	  if ([[window screen] canShowMenuBar])
+	  NSScreen *screen = [window screen];
+
+	  if ([screen canShowMenuBar])
 	    {
-	      options = (NSApplicationPresentationAutoHideDock
-			 | NSApplicationPresentationDisableMenuBarTransparency);
+	      options = NSApplicationPresentationDisableMenuBarTransparency;
+	      if (!can_auto_hide_menu_bar_without_hiding_dock ()
+		  || [screen containsDock])
+		options |= NSApplicationPresentationAutoHideDock;
 	      [NSApp setPresentationOptions:options];
 	    }
 	}
@@ -2807,27 +2829,28 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (oldWindow)
     {
+      BOOL isKeyWindow = [oldWindow isKeyWindow];
+
       [window orderWindow:NSWindowBelow relativeTo:[oldWindow windowNumber]];
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:[oldWindow animationBehavior]];
       [oldWindow close];
+      /* This is necessary on OS X 10.11.  */
+      if (isKeyWindow)
+	[window makeKeyWindow];
     }
 
   if (!FRAME_TOOLTIP_P (f))
     {
       [window setAcceptsMouseMovedEvents:YES];
       if (!(windowManagerState & WM_STATE_FULLSCREEN))
-	{
-	  BOOL visible = (oldWindow == nil && FRAME_EXTERNAL_TOOL_BAR (f));
-
-	  [self setupToolBarWithVisibility:visible];
-	}
-
+	[self setupToolBarWithVisibility:(FRAME_EXTERNAL_TOOL_BAR (f))];
       [window setShowsResizeIndicator:NO];
       [self setupOverlayWindowAndView];
       [self attachOverlayWindow];
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-      if (has_full_screen_with_dedicated_desktop ())
+      if (has_full_screen_with_dedicated_desktop ()
+	  && !(windowManagerState & WM_STATE_FULLSCREEN))
 	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
 #endif
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
@@ -2984,16 +3007,24 @@ static CGRect unset_global_focus_view_frame (void);
 	   && (windowManagerState & WM_STATE_DEDICATED_DESKTOP))
 #endif
       )
-    behavior = ((windowManagerState & WM_STATE_STICKY)
-		? NSWindowCollectionBehaviorCanJoinAllSpaces
-		: NSWindowCollectionBehaviorMoveToActiveSpace);
+    {
+      behavior = ((windowManagerState & WM_STATE_STICKY)
+		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
+		  : NSWindowCollectionBehaviorMoveToActiveSpace);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+      if (has_full_screen_with_dedicated_desktop ())
+	behavior |= NSWindowCollectionBehaviorFullScreenAuxiliary;
+#endif
+    }
   else
     {
       behavior = ((windowManagerState & WM_STATE_STICKY)
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
 		  : NSWindowCollectionBehaviorDefault);
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-      if (has_full_screen_with_dedicated_desktop ())
+      if (has_full_screen_with_dedicated_desktop ()
+	  && (!(windowManagerState & WM_STATE_FULLSCREEN)
+	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
 	behavior |= NSWindowCollectionBehaviorFullScreenPrimary;
 #endif
     }
@@ -3040,7 +3071,8 @@ static CGRect unset_global_focus_view_frame (void);
   windowManagerState ^=
     (diff & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT
 	     | WM_STATE_FULLSCREEN | WM_STATE_DEDICATED_DESKTOP));
-  [self updateCollectionBehavior];
+  if ([emacsWindow respondsToSelector:@selector(setCollectionBehavior:)])
+    [self updateCollectionBehavior];
 
   return frameRect;
 }
@@ -3127,7 +3159,7 @@ static CGRect unset_global_focus_view_frame (void);
 				   | WM_STATE_MAXIMIZED_HORZ
 				   | WM_STATE_MAXIMIZED_VERT);
 	  [emacsWindow toggleFullScreen:nil];
-	  fullscreenFrameParameterAfterTransition = &Qfullboth;
+	  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLBOTH;
 	}
     }
   else
@@ -3657,7 +3689,7 @@ static CGRect unset_global_focus_view_frame (void);
 }
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-- (EmacsLiveResizeTransitionView *)liveResizeTransitionView
+- (EmacsLiveResizeTransitionView *)liveResizeTransitionViewWithDefaultBackground:(BOOL)flag
 {
   struct frame *f = emacsFrame;
   struct window *root_window;
@@ -3680,6 +3712,8 @@ static CGRect unset_global_focus_view_frame (void);
 #endif
     rootLayer.geometryFlipped = YES;
   rootLayer.layoutManager = [CA_CONSTRAINT_LAYOUT_MANAGER layoutManager];
+  if (flag)
+    rootLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
 
   root_window = XWINDOW (FRAME_ROOT_WINDOW (f));
   rootWindowMaxY = (WINDOW_TOP_EDGE_Y (root_window)
@@ -3881,13 +3915,10 @@ static CGRect unset_global_focus_view_frame (void);
 {
   if (liveResizeCompletionHandler == nil && [emacsWindow isMainWindow])
     {
-      struct frame *f = emacsFrame;
-      GC gc = f->output_data.mac->normal_gc;
       NSView *contentView = [emacsWindow contentView];
-      EmacsLiveResizeTransitionView *transitionView;
+      EmacsLiveResizeTransitionView *transitionView =
+	[self liveResizeTransitionViewWithDefaultBackground:YES];
 
-      transitionView = [self liveResizeTransitionView];
-      [transitionView layer].backgroundColor = gc->cg_back_color;
       [contentView addSubview:transitionView positioned:NSWindowAbove
 		   relativeTo:emacsView];
       [self setLiveResizeCompletionHandler:^{
@@ -3933,31 +3964,71 @@ static CGRect unset_global_focus_view_frame (void);
   return proposedOptions | NSApplicationPresentationAutoHideToolbar;
 }
 
-- (void)saveToolbarVisibility
+- (void)storeFullScreenFrameParameter
 {
-  savedToolbarVisibility = [[emacsWindow toolbar] isVisible];
+  Lisp_Object value;
+
+  switch (fullscreenFrameParameterAfterTransition)
+    {
+    case FULLSCREEN_PARAM_NIL:
+      value = Qnil;
+      break;
+    case FULLSCREEN_PARAM_FULLBOTH:
+      value = Qfullboth;
+      break;
+    case FULLSCREEN_PARAM_FULLSCREEN:
+      value = Qfullscreen;
+      break;
+    default:
+      return;
+    }
+
+  [self storeModifyFrameParametersEvent:(list1 (Fcons (Qfullscreen, value)))];
+  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NONE;
 }
-- (void)restoreToolbarVisibility
+
+- (void)addFullScreenTransitionCompletionHandler:(void (^)(EmacsWindow *,
+							   BOOL))block
 {
-  [[emacsWindow toolbar] setVisible:savedToolbarVisibility];
+  if (fullScreenTransitionCompletionHandlers == nil)
+    fullScreenTransitionCompletionHandlers =
+      [[NSMutableArray alloc] initWithCapacity:0];
+  [fullScreenTransitionCompletionHandlers
+    addObject:(MRC_AUTORELEASE ([block copy]))];
+}
+
+- (void)handleFullScreenTransitionCompletionForWindow:(EmacsWindow *)window
+					      success:(BOOL)flag
+{
+  for (void (^handler) (EmacsWindow *, BOOL)
+	 in fullScreenTransitionCompletionHandlers)
+    handler (window, flag);
+  MRC_RELEASE (fullScreenTransitionCompletionHandlers);
+  fullScreenTransitionCompletionHandlers = nil;
 }
 
 - (void)windowWillEnterFullScreen:(NSNotification *)notification
 {
+  EmacsFrameController * __unsafe_unretained weakSelf = self;
+  BOOL savedToolbarVisibility;
+
+  if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
+    {
+      /* Entering full screen is triggered by external events rather
+	 than explicit frame parameter changes from Lisp.  */
+      fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLSCREEN;
+      fullScreenTargetState = WM_STATE_FULLSCREEN | WM_STATE_DEDICATED_DESKTOP;
+    }
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[weakSelf storeFullScreenFrameParameter];
+    }];
   /* This part is executed in -[EmacsFrameController
      window:startCustomAnimationToEnterFullScreenWithDuration:] on OS
      X 10.10 and earlier.  Unfortunately this is a bit kludgy.  */
-  if (!(mac_operating_system_version.major == 10
-	&& mac_operating_system_version.minor <= 10))
-    {
-      if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
-	{
-	  fullscreenFrameParameterAfterTransition = &Qfullscreen;
-	  fullScreenTargetState = (WM_STATE_FULLSCREEN
-				   | WM_STATE_DEDICATED_DESKTOP);
-	}
-      [self preprocessWindowManagerStateChange:fullScreenTargetState];
-    }
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
   /* We used to detach/attach the overlay window in the
      `window:startCustomAnimationToExitFullScreenWithDuration:'
@@ -3968,68 +4039,108 @@ static CGRect unset_global_focus_view_frame (void);
      detach/attach the overlay window in the
      `window{Will,Did}{Enter,Exit}FullScreen:' delegate methods.  */
   [self detachOverlayWindow];
-  [self saveToolbarVisibility];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      [weakSelf attachOverlayWindow];
+    }];
+
+  /* This is a workaround for the problem of not preserving toolbar
+     visibility value.  */
+  savedToolbarVisibility = [[emacsWindow toolbar] isVisible];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[[NSOperationQueue mainQueue] addOperationWithBlock:^{
+	    [[window toolbar] setVisible:savedToolbarVisibility];
+	  }];
+    }];
 }
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification
 {
-  if (fullscreenFrameParameterAfterTransition)
-    {
-      Lisp_Object alist =
-	list1 (Fcons (Qfullscreen, *fullscreenFrameParameterAfterTransition));
-
-      [self storeModifyFrameParametersEvent:alist];
-      fullscreenFrameParameterAfterTransition = NULL;
-    }
-
-  [self attachOverlayWindow];
-  /* This is a workaround for the problem of not preserving toolbar
-     visibility value.  */
-  [self performSelector:@selector(restoreToolbarVisibility)
-	     withObject:nil afterDelay:0];
+  [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:YES];
   /* For resize in a split-view space on OS X 10.11.  */
   [self setShouldLiveResizeTriggerTransition:YES];
+  /* This is necessary for executables compiled on OS X 10.10 or
+     earlier and run on OS X 10.11.  Without this, Emacs placed on the
+     left side of a split-view space tries to occupy maximum area.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    [emacsWindow setConstrainingToScreenSuspended:YES];
+}
+
+- (void)windowDidFailToEnterFullScreen:(NSWindow *)window
+{
+  [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:NO];
 }
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification
 {
-  if (!(mac_operating_system_version.major == 10
-	&& mac_operating_system_version.minor <= 10))
+  EmacsFrameController * __unsafe_unretained weakSelf = self;
+  BOOL savedToolbarVisibility;
+
+  if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
     {
-      if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
-	{
-	  fullscreenFrameParameterAfterTransition = &Qnil;
-	  fullScreenTargetState = 0;
-	}
-      [self preprocessWindowManagerStateChange:fullScreenTargetState];
+      /* Exiting full screen is triggered by external events rather
+	 than explicit frame parameter changes from Lisp.  */
+      fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NIL;
+      fullScreenTargetState = 0;
     }
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[weakSelf storeFullScreenFrameParameter];
+    }];
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
   /* Called also when a full screen window is being closed.  */
   if (overlayWindow)
-    [self detachOverlayWindow];
-  [self saveToolbarVisibility];
+    {
+      [self detachOverlayWindow];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  [weakSelf attachOverlayWindow];
+	}];
+    }
+
+  /* This is a workaround for the problem of not preserving toolbar
+     visibility value.  */
+  savedToolbarVisibility = [[emacsWindow toolbar] isVisible];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[[NSOperationQueue mainQueue] addOperationWithBlock:^{
+	    [[window toolbar] setVisible:savedToolbarVisibility];
+	  }];
+    }];
+
   [self setShouldLiveResizeTriggerTransition:NO];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (!success)
+	[weakSelf setShouldLiveResizeTriggerTransition:YES];
+    }];
+
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    {
+      [emacsWindow setConstrainingToScreenSuspended:NO];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  if (!success)
+	    [window setConstrainingToScreenSuspended:YES];
+	}];
+    }
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
 {
-  if (fullscreenFrameParameterAfterTransition)
-    {
-      Lisp_Object alist =
-	list1 (Fcons (Qfullscreen, *fullscreenFrameParameterAfterTransition));
-
-      [self storeModifyFrameParametersEvent:alist];
-      fullscreenFrameParameterAfterTransition = NULL;
-    }
-
-  /* Called also when a full screen window is being closed.  */
-  if (overlayWindow)
-    [self attachOverlayWindow];
+  [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:YES];
   [emacsController updatePresentationOptions];
-  /* This is a workaround for the problem of not preserving toolbar
-     visibility value.  */
-  [self performSelector:@selector(restoreToolbarVisibility)
-	     withObject:nil afterDelay:0];
+}
+
+- (void)windowDidFailToExitFullScreen:(NSWindow *)window
+{
+  [self handleFullScreenTransitionCompletionForWindow:emacsWindow success:NO];
 }
 
 - (NSArrayG (NSWindow *) *)customWindowsToEnterFullScreenForWindow:(NSWindow *)window
@@ -4039,11 +4150,31 @@ static CGRect unset_global_focus_view_frame (void);
      frame causes crash due to assertion failure in
      -[NSToolbarFullScreenWindowManager getToolbarLayout]:
      getToolbarLayout called with a nil content view.  */
-  if (mac_operating_system_version.major == 10
-      && mac_operating_system_version.minor <= 10)
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max)
     return [NSArray arrayWithObject:window];
   else
-    return nil;
+    {
+      EmacsLiveResizeTransitionView *transitionView =
+	[self liveResizeTransitionViewWithDefaultBackground:YES];
+
+      [[emacsWindow contentView] addSubview:transitionView
+				 positioned:NSWindowAbove relativeTo:emacsView];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  if (!success)
+	    [transitionView removeFromSuperview];
+	  else
+	    [NS_ANIMATION_CONTEXT
+	      runAnimationGroup:^(NSAnimationContext *context) {
+		[context setDuration:(10 / 60.0)];
+		[transitionView layer].opacity = 0;
+	      } completionHandler:^{
+		[transitionView removeFromSuperview];
+	      }];
+	}];
+
+      return nil;
+    }
 }
 
 - (void)window:(NSWindow *)window
@@ -4056,15 +4187,10 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsLiveResizeTransitionView *transitionView;
   CGFloat titleBarHeight;
 
-  transitionView = MRC_RETAIN ([self liveResizeTransitionView]);
+  transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
 
   titleBarHeight = NSHeight (srcRect) - NSMaxY ([contentView frame]);
 
-  if (!(fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP))
-    {
-      fullscreenFrameParameterAfterTransition = &Qfullscreen;
-      fullScreenTargetState = WM_STATE_FULLSCREEN | WM_STATE_DEDICATED_DESKTOP;
-    }
   destRect = [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
   NSDisableScreenUpdates ();
@@ -4116,7 +4242,6 @@ static CGRect unset_global_focus_view_frame (void);
       layer.opacity = 0;
     } completionHandler:^{
       [transitionView removeFromSuperview];
-      MRC_RELEASE (transitionView);
       [window setAlphaValue:previousAlphaValue];
       [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];
       [window setStyleMask:([window styleMask] | NSFullScreenWindowMask)];
@@ -4129,11 +4254,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (NSArrayG (NSWindow *) *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
 {
-  if (mac_operating_system_version.major == 10
-      && mac_operating_system_version.minor <= 10)
-    return [NSArray arrayWithObject:window];
-  else
-    return nil;
+  return [self customWindowsToEnterFullScreenForWindow:window];
 }
 
 - (void)window:(NSWindow *)window
@@ -4147,13 +4268,8 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsLiveResizeTransitionView *transitionView;
   CGFloat titleBarHeight;
 
-  transitionView = MRC_RETAIN ([self liveResizeTransitionView]);
+  transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
 
-  if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
-    {
-      fullscreenFrameParameterAfterTransition = &Qnil;
-      fullScreenTargetState = 0;
-    }
   destRect = [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
   NSDisableScreenUpdates ();
@@ -4194,7 +4310,6 @@ static CGRect unset_global_focus_view_frame (void);
       layer.opacity = 0;
     } completionHandler:^{
       [transitionView removeFromSuperview];
-      MRC_RELEASE (transitionView);
       [window setAlphaValue:previousAlphaValue];
       [window setLevel:previousWindowLevel];
       [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];

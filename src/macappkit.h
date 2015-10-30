@@ -49,6 +49,9 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifndef NSAppKitVersionNumber10_9
 #define NSAppKitVersionNumber10_9 1265
 #endif
+#ifndef NSAppKitVersionNumber10_10_Max
+#define NSAppKitVersionNumber10_10_Max 1349
+#endif
 
 #ifndef NSINTEGER_DEFINED
 typedef int NSInteger;
@@ -371,12 +374,18 @@ typedef id instancetype;
   /* Window manager state after the full screen transition.  */
   WMState fullScreenTargetState;
 
-  /* Toolbar visibility saved for full screen transition.  */
-  BOOL savedToolbarVisibility;
+  /* Enum value determining the symbol that is set as `fullscreen'
+     frame parameter after the full screen transition.  */
+  enum {
+    FULLSCREEN_PARAM_NONE, FULLSCREEN_PARAM_NIL,
+    FULLSCREEN_PARAM_FULLBOTH, FULLSCREEN_PARAM_FULLSCREEN
+  } fullscreenFrameParameterAfterTransition;
 
-  /* Pointer to the Lisp symbol that is set as `fullscreen' frame
-     parameter after the full screen transition.  */
-  Lisp_Object *fullscreenFrameParameterAfterTransition;
+  /* Array of blocks called when the window completes full screen
+     transition.  Each block is called with the window object and a
+     boolean value meaning whether the transition has succeeded.  */
+  NSMutableArrayG (void (^)(EmacsWindow *, BOOL))
+    *fullScreenTransitionCompletionHandlers;
 #endif
 }
 - (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;

@@ -4206,21 +4206,26 @@ face_before_or_after_it_pos (struct it *it, int before_p)
 	      /* With bidi iteration, the character before the current
 		 in the visual order cannot be found by simple
 		 iteration, because "reverse" reordering is not
-		 supported.  Instead, we need to use the move_it_*
-		 family of functions.  */
+		 supported.  Instead, we need to start from the string
+		 beginning and go all the way to the current string
+		 position, remembering the previous position.  */
 	      /* Ignore face changes before the first visible
 		 character on this display line.  */
 	      if (it->current_x <= it->first_visible_x)
 		return it->face_id;
 	      SAVE_IT (it_copy, *it, it_copy_data);
-	      /* Implementation note: Since move_it_in_display_line
-		 works in the iterator geometry, and thinks the first
-		 character is always the leftmost, even in R2L lines,
-		 we don't need to distinguish between the R2L and L2R
-		 cases here.  */
-	      move_it_in_display_line (&it_copy, SCHARS (it_copy.string),
-				       it_copy.current_x - 1, MOVE_TO_X);
-	      charpos = IT_STRING_CHARPOS (it_copy);
+	      IT_STRING_CHARPOS (it_copy) = 0;
+	      bidi_init_it (0, 0, FRAME_WINDOW_P (it_copy.f), &it_copy.bidi_it);
+
+	      do
+		{
+		  charpos = IT_STRING_CHARPOS (it_copy);
+		  if (charpos >= SCHARS (it->string))
+		    break;
+		  bidi_move_to_visually_next (&it_copy.bidi_it);
+		}
+	      while (IT_STRING_CHARPOS (it_copy) != IT_STRING_CHARPOS (*it));
+
 	      RESTORE_IT (it, it, it_copy_data);
 	    }
 	  else
@@ -4300,11 +4305,15 @@ face_before_or_after_it_pos (struct it *it, int before_p)
 	{
 	  if (before_p)
 	    {
+	      int current_x;
+
 	      /* With bidi iteration, the character before the current
 		 in the visual order cannot be found by simple
 		 iteration, because "reverse" reordering is not
 		 supported.  Instead, we need to use the move_it_*
-		 family of functions.  */
+		 family of functions, and move to the previous
+		 character starting from the beginning of the visual
+		 line.  */
 	      /* Ignore face changes before the first visible
 		 character on this display line.  */
 	      if (it->current_x <= it->first_visible_x)
@@ -4315,8 +4324,9 @@ face_before_or_after_it_pos (struct it *it, int before_p)
 		 character is always the leftmost, even in R2L lines,
 		 we don't need to distinguish between the R2L and L2R
 		 cases here.  */
-	      move_it_in_display_line (&it_copy, ZV,
-				       it_copy.current_x - 1, MOVE_TO_X);
+	      current_x = it_copy.current_x;
+	      move_it_vertically_backward (&it_copy, 0);
+	      move_it_in_display_line (&it_copy, ZV, current_x - 1, MOVE_TO_X);
 	      pos = it_copy.current.pos;
 	      RESTORE_IT (it, it, it_copy_data);
 	    }
@@ -13983,6 +13993,7 @@ redisplay_internal (void)
 	      bool gcscrollbars
 		/* Only GC scrollbars when we redisplay the whole frame.  */
 		= f->redisplay || !REDISPLAY_SOME_P ();
+	      bool f_redisplay_flag = f->redisplay;
 	      /* Mark all the scroll bars to be removed; we'll redeem
 		 the ones we want when we redisplay their windows.  */
 	      if (gcscrollbars && FRAME_TERMINAL (f)->condemn_scroll_bars_hook)
@@ -14025,6 +14036,20 @@ redisplay_internal (void)
 		      if (hscroll_windows (f->root_window))
 			goto retry_frame;
 		    }
+
+		  /* If the frame's redisplay flag was not set before
+		     we went about redisplaying its windows, but it is
+		     set now, that means we employed some redisplay
+		     optimizations inside redisplay_windows, and
+		     bypassed producing some screen lines.  But if
+		     f->redisplay is now set, it might mean the old
+		     faces are no longer valid (e.g., if redisplaying
+		     some window called some Lisp which defined a new
+		     face or redefined an existing face), so trying to
+		     use them in update_frame will segfault.
+		     Therefore, we must redisplay this frame.  */
+		  if (!f_redisplay_flag && f->redisplay)
+		    goto retry_frame;
 
 		  /* Prevent various kinds of signals during display
 		     update.  stdio is not robust about handling
@@ -14079,8 +14104,10 @@ redisplay_internal (void)
       /* Compare desired and current matrices, perform output.  */
 
     update:
-      /* If fonts changed, display again.  */
-      if (sf->fonts_changed)
+      /* If fonts changed, display again.  Likewise if redisplay_window_1
+	 above caused some change (e.g., a change in faces) that requires
+	 considering the entire frame again.  */
+      if (sf->fonts_changed || sf->redisplay)
 	goto retry;
 
       /* Prevent various kinds of signals during display update.

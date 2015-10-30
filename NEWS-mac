@@ -1,4 +1,38 @@
+* emacs-24.5-mac-5.12 (2015-10-30)
+
+** Fixed bugs
+
+*** Invoking Ediff from a fullscreen frame creates a fullscreen
+Control Panel on OS X 10.11 (does not happen on OS X 10.11.1).
+
+*** Changing a frame to/from fullboth does not make the frame key
+window on OS X 10.11.
+
+*** Making a fullboth frame fullscreen does not keep the tool bar
+visibility on OS X 10.7 and later.
+
+*** If the executable is built on an older OS/SDK and run on OS X
+10.11, the frame placed in the left part of Split View gets maximized.
+Reported by Alan Schmitt.
+
+*** Crash when making a frame fullscreen/fullboth on Mac OS X 10.4.
+
+*** Crash by infinite recursion while displaying box face.
+Apply a fix for Bug#21428.
+
+*** Crash when redisplaying a window changes faces or fonts.
+Apply a fix for Bug#21428.
+
+** Improvements
+
+*** Fullscreen/fullboth frames no longer hide the Dock unnecessarily
+if compiled and run on OS X 10.11.
+
+*** Fullscreen transition animation looks a bit better on OS X 10.11.
+
+
 * emacs-24.5-mac-5.11 (2015-09-27)
+http://lists.gnu.org/archive/html/emacs-devel/2015-09/msg01020.html
 
 ** Fixed bugs
 
