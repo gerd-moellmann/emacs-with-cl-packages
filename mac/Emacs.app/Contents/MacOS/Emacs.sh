@@ -43,9 +43,12 @@ case ${SHLVL} in
     *) exec "$@" ;;
 esac
 
-case $(basename "${SHELL}") in
+case ${SHELL##*/} in
     bash)	exec -l "${SHELL}" --login -c 'exec "$@"' - "$@" ;;
     ksh|sh|zsh)	exec -l "${SHELL}" -c 'exec "$@"' - "$@" ;;
     csh|tcsh)	exec -l "${SHELL}" -c 'exec $argv:q' "$@" ;;
-    *)		exec "$@" ;;
+    es|rc)	exec -l "${SHELL}" -l -c 'exec $*' "$@" ;;
 esac
+
+# Fall back on bash.
+exec -l /bin/bash --login -c 'exec "$@"' - "$@" ;;
