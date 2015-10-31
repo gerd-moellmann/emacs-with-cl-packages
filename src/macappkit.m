@@ -4078,6 +4078,10 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsFrameController * __unsafe_unretained weakSelf = self;
   BOOL savedToolbarVisibility;
 
+  /* Called also when a full screen window is being closed.  */
+  if (overlayWindow == nil)
+    return;
+
   if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
     {
       /* Exiting full screen is triggered by external events rather
@@ -4093,15 +4097,11 @@ static CGRect unset_global_focus_view_frame (void);
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
-  /* Called also when a full screen window is being closed.  */
-  if (overlayWindow)
-    {
-      [self detachOverlayWindow];
-      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
-						       BOOL success) {
-	  [weakSelf attachOverlayWindow];
-	}];
-    }
+  [self detachOverlayWindow];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      [weakSelf attachOverlayWindow];
+    }];
 
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
