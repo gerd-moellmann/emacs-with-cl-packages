@@ -1,4 +1,18 @@
+* emacs-24.5-mac-5.13 (2015-10-31)
+
+** Fixed bugs
+
+*** Closing a fullscreen frame may cause crash or Lisp error in
+frame-live-p.
+
+** Improvements
+
+*** Fullboth frames are no longer eligible to become fullscreen via
+Mission Control on OS X 10.11 (this change is actually made in 5.12).
+
+
 * emacs-24.5-mac-5.12 (2015-10-30)
+http://lists.gnu.org/archive/html/emacs-devel/2015-10/msg02465.html
 
 ** Fixed bugs
 
