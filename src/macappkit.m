@@ -3891,9 +3891,9 @@ static CGRect unset_global_focus_view_frame (void);
   [view setLayer:rootLayer];
   [view setWantsLayer:YES];
   [view setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
-  /* Actually we don't use any Core Image filters in full screen
-     transitions, but this works as a workaround for the strange
-     problem of image color alteration on OS X 10.9.  */
+  /* Now we do use Core Image filters in live resize transitions.
+     Even if we didn't use them, this would work as a workaround for
+     the strange problem of image color alteration on OS X 10.9.  */
   if ([view respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
     [view setLayerUsesCoreImageFilters:YES];
 
