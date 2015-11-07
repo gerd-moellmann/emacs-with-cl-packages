@@ -5470,6 +5470,20 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   [self mouseMoved:theEvent];
 }
 
+- (void)pressureChangeWithEvent:(NSEvent *)event
+{
+  NSInteger stage = [event stage];
+
+  if (pressureEventStage != stage)
+    {
+      if (stage == 2
+	  && [[NSUserDefaults standardUserDefaults]
+	       boolForKey:@"com.apple.trackpad.forceClick"])
+	[NSApp sendAction:@selector(quickLookPreviewItems:) to:nil from:nil];
+      pressureEventStage = stage;
+    }
+}
+
 - (void)cursorUpdate:(NSEvent *)event
 {
   struct frame *f = [self emacsFrame];
