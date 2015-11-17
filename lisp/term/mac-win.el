@@ -417,7 +417,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 (defun mac-setup-composition-function-table ()
   ;; Regional Indicator Symbols
   (set-char-table-range composition-function-table '(#x1F1E6 . #x1F1FF)
-			'(["[\x1F1E6-\x1F1FF]+" 0 font-shape-gstring]))
+			'([".[\x1F1E6-\x1F1FF]" 0 font-shape-gstring]))
   (let ((variations
 	 (mapconcat 'cdr mac-emoji-variation-characters-alist ""))
 	(modifications
