@@ -9228,7 +9228,45 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 
       if ([[theEvent charactersIgnoringModifiers] length] == 1
 	  && mac_keydown_cgevent_quit_p ([theEvent coreGraphicsEvent]))
-	return [NSApp sendAction:@selector(cancel:) to:nil from:nil];
+	{
+	  if ([NSApp isRunning])
+	    return [NSApp sendAction:@selector(cancel:) to:nil from:nil];
+	  else
+	    {
+	      /* This is necessary for avoiding hang when canceling
+		 pop-up dictionary with C-g on OS X 10.11.  */
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
+	      BOOL __block sent;
+
+	      [NSApp runTemporarilyWithBlock:^{
+		  sent = [NSApp sendAction:@selector(cancel:) to:nil from:nil];
+		}];
+
+	      return sent;
+#else
+	      SEL selector = @selector(sendAction:to:from:);
+	      NSMethodSignature *signature =
+		[NSApp methodSignatureForSelector:selector];
+	      NSInvocation *invocation =
+		[NSInvocation invocationWithMethodSignature:signature];
+	      SEL action = @selector(cancel:);
+	      id target = nil, sender = nil;
+	      BOOL sent;
+
+	      [invocation setTarget:NSApp];
+	      [invocation setSelector:selector];
+	      [invocation setArgument:&action atIndex:2];
+	      [invocation setArgument:&target atIndex:3];
+	      [invocation setArgument:&sender atIndex:4];
+
+	      [NSApp runTemporarilyWithInvocation:invocation];
+
+	      [invocation getReturnValue:&sent];
+
+	      return sent;
+#endif
+	    }
+	}
     }
 
   return NO;
