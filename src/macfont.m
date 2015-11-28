@@ -4578,7 +4578,7 @@ macfont_nsctfont_to_spec (void *font)
 
   return spec;
 }
-#endif	/* !HAVE_NS */ 
+#endif	/* !HAVE_NS */
 
 void
 mac_register_font_driver (struct frame *f)
