@@ -2457,18 +2457,18 @@ non-nil, and the input device supports it."
 			    (set-window-vscroll nil 0 t)
 			    (setq target-y (cadr target-coord))
 			    (cond ((null target-y)
-			    	   ;; Image is completely invisible
-			    	   ;; but its descent is visible in
-			    	   ;; the first row.
-			    	   (setq target-y
-			    		 (- first-y (cdr (posn-object-x-y
-			    				  target-posn)))))
-			    	  ((= target-y first-y)
-			    	   ;; Image is partly invisible in the
-			    	   ;; first row.
-			    	   (setq target-y
-			    		 (- first-y (or (nth 2 target-coord)
-			    				0)))))
+				   ;; Image is completely invisible
+				   ;; but its descent is visible in
+				   ;; the first row.
+				   (setq target-y
+					 (- first-y (cdr (posn-object-x-y
+							  target-posn)))))
+				  ((= target-y first-y)
+				   ;; Image is partly invisible in the
+				   ;; first row.
+				   (setq target-y
+					 (- first-y (or (nth 2 target-coord)
+							0)))))
 			    (setq target-y (+ target-y delta-y)))
 			  (setq target-row
 				(cdr (posn-actual-col-row target-posn)))

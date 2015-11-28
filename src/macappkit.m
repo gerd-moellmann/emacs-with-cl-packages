@@ -1371,7 +1371,7 @@ mac_foreach_window_1 (struct window *w, int (^block) (struct window *))
   for (cont = 1; w && cont;)
     {
       if (WINDOWP (w->contents))
- 	cont = mac_foreach_window_1 (XWINDOW (w->contents), block);
+	cont = mac_foreach_window_1 (XWINDOW (w->contents), block);
       else
 	cont = block (w);
 
@@ -4304,7 +4304,7 @@ static CGRect unset_global_focus_view_frame (void);
 			    functionWithName:kCAMediaTimingFunctionDefault]];
       [[window animator] setFrame:destRect display:YES];
       layer.beginTime = [layer convertTime:(CACurrentMediaTime ())
-      				 fromLayer:nil] + duration * (1 - 1.0 / 5);
+				 fromLayer:nil] + duration * (1 - 1.0 / 5);
       layer.speed = 5;
       layer.fillMode = kCAFillModeBackwards;
       layer.opacity = 0;
@@ -6868,7 +6868,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 		knobRect.origin.y = knobSlotRect.origin.y;
 #if 0		      /* This might be better if no overscrolling.  */
 	      else if (NSMaxY (knobRect) > NSMaxY (knobSlotRect))
-	      	knobRect.origin.y = NSMaxY (knobSlotRect) - NSHeight (knobRect);
+		knobRect.origin.y = NSMaxY (knobSlotRect) - NSHeight (knobRect);
 #endif
 	    }
 	  else
