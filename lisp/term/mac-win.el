@@ -481,10 +481,62 @@ second is a glyph for the variation selector 16 (U+FE0F)."
   :type 'string
   :group 'mac)
 
-(defalias 'mac-auto-operator-composition-shape-gstring 'font-shape-gstring
-  "Alias function for `font-shape-gstring'.
-This is used for distinguishing `composition-function-table'
-rules added by `mac-auto-operator-composition-mode'.")
+(defcustom mac-auto-operator-composition-max-length 4
+  "Maximum length of strings used in automatic operator composition."
+  :package-version '(Mac\ port . "5.14")
+  :type 'integer
+  :group 'mac)
+
+(declare-function mac-font-gstring-shape-nocache "macfont.m" (gstring))
+
+(defvar mac-auto-operator-composition-cache (make-hash-table :test 'equal))
+
+(defun mac-copy-gstring (gstring &optional prefix-len)
+  (or prefix-len (setq prefix-len (lgstring-char-len gstring)))
+  (let ((header (lgstring-header gstring))
+	(new-header (make-vector (1+ prefix-len) nil))
+	(new-gstring (make-vector (length gstring) nil)))
+    (dotimes (i (length new-header))
+      (aset new-header i (aref header i)))
+    (lgstring-set-header new-gstring new-header)
+    (dotimes (i prefix-len)
+      (lgstring-set-glyph new-gstring i
+			  (lglyph-copy (lgstring-glyph gstring i))))
+    new-gstring))
+
+(defun mac-gstring-prefix-p (gstring1 gstring2)
+  (and (eq (lgstring-font gstring1) (lgstring-font gstring2))
+       (let* ((len1 (lgstring-glyph-len gstring1))
+	      (minlen (min len1 (lgstring-glyph-len gstring2)))
+	      (i 0))
+	 (while (and (< i minlen)
+		     (equal (lgstring-glyph gstring1 i)
+			    (lgstring-glyph gstring2 i))
+		     (lgstring-glyph gstring1 i))
+	   (setq i (1+ i)))
+	 (or (= i len1)
+	     (and (< i len1) (null (lgstring-glyph gstring1 i)))))))
+
+(defun mac-auto-operator-composition-shape-gstring (gstring)
+  "Like `font-shape-gstring', but return nil unless GSTRING is minimal.
+GSTRING is minimal if and only if none of its proper prefixes is
+shaped as a prefix of the shaped GSTRING."
+  (if (gethash (lgstring-header gstring) mac-auto-operator-composition-cache)
+      nil
+    (let ((full (mac-font-gstring-shape-nocache (mac-copy-gstring gstring)))
+	  (char-len (lgstring-char-len gstring))
+	  (i 1))
+      (while (and full (< i char-len))
+	(let ((partial (mac-font-gstring-shape-nocache
+			(mac-copy-gstring gstring i))))
+	  (if (and partial (mac-gstring-prefix-p partial full))
+	      (setq full nil)))
+	(setq i (1+ i)))
+      (if full
+	  (font-shape-gstring gstring)
+	(puthash (copy-sequence (lgstring-header gstring)) t
+		 mac-auto-operator-composition-cache)
+	nil))))
 
 (define-minor-mode mac-auto-operator-composition-mode
   "Toggle Mac Auto Operator Composition mode.
@@ -508,16 +560,22 @@ language."
 	(let* ((regexp (regexp-opt
 			(mapcar 'char-to-string
 				mac-auto-operator-composition-characters)))
-	       (rule (vector (concat "." regexp "+") 0
-			     'mac-auto-operator-composition-shape-gstring))
+	       (rules `([,(concat "." regexp) 0
+			 mac-auto-operator-composition-shape-gstring]))
 	       (last-old-rules (list nil))
 	       last-new-rules)
+	  (let ((i 2))
+	    (while (< i mac-auto-operator-composition-max-length)
+	      (push `[,(format ".%s\\{%d\\}" regexp i) 0
+		      mac-auto-operator-composition-shape-gstring]
+		    rules)
+	      (setq i (1+ i))))
 	  (mapc (lambda (c)
 		  (let ((old-rules (aref composition-function-table c)))
 		    (when (listp old-rules)
 		      (unless (eq old-rules last-old-rules)
 			(setq last-old-rules old-rules)
-			(setq last-new-rules (cons rule old-rules)))
+			(setq last-new-rules (append rules old-rules)))
 		      (set-char-table-range composition-function-table c
 					    last-new-rules))))
 		mac-auto-operator-composition-characters))
@@ -533,7 +591,8 @@ language."
 	   (if removed-p
 	       (set-char-table-range composition-function-table c
 				     (nreverse new-rules))))))
-     composition-function-table)))
+     composition-function-table)
+    (clrhash mac-auto-operator-composition-cache)))
 
 
 ;;;; Conversion between common flavors and Lisp string.

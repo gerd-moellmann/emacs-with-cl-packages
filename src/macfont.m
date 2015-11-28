@@ -3425,6 +3425,43 @@ macfont_shape (Lisp_Object lgstring)
   return make_number (used);
 }
 
+#ifdef HAVE_MACGUI
+DEFUN ("mac-font-gstring-shape-nocache", Fmac_font_gstring_shape_nocache, Smac_font_gstring_shape_nocache, 1, 1, 0,
+       doc: /* Like `font-gstring-shape', but don't put the result to the internal cache. */)
+  (Lisp_Object gstring)
+{
+  struct font *font;
+  Lisp_Object font_object, n;
+  ptrdiff_t i;
+
+  if (! composition_gstring_p (gstring))
+    signal_error ("Invalid glyph-string: ", gstring);
+  if (! NILP (LGSTRING_ID (gstring)))
+    return gstring;
+  font_object = LGSTRING_FONT (gstring);
+  CHECK_FONT_OBJECT (font_object);
+  font = XFONT_OBJECT (font_object);
+  if (! font->driver->shape)
+    return Qnil;
+
+  /* Try at most three times with larger gstring each time.  */
+  for (i = 0; i < 3; i++)
+    {
+      n = font->driver->shape (gstring);
+      if (INTEGERP (n))
+	break;
+      gstring = larger_vector (gstring,
+			       LGSTRING_GLYPH_LEN (gstring), -1);
+    }
+  if (i == 3 || XINT (n) == 0)
+    return Qnil;
+  if (XINT (n) < LGSTRING_GLYPH_LEN (gstring))
+    LGSTRING_SET_GLYPH (gstring, XINT (n), Qnil);
+
+  return gstring;
+}
+#endif
+
 /* Structures for the UVS subtable (format 14) in the cmap table.  */
 typedef UInt8 UINT24[3];
 
@@ -4611,4 +4648,8 @@ syms_of_macfont (void)
 
   macfont_family_cache = Qnil;
   staticpro (&macfont_family_cache);
+
+#ifdef HAVE_MACGUI
+  defsubr (&Smac_font_gstring_shape_nocache);
+#endif
 }
