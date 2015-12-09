@@ -823,7 +823,7 @@ mac_font_descriptor_get_adjusted_weight (FontDescriptorRef desc, CGFloat val)
 {
   long percent_val = lround (val * 100);
 
-  if (percent_val == -40 || percent_val == 56)
+  if (percent_val == -40)
     {
       FontRef font = NULL;
       CFStringRef name =
@@ -838,19 +838,10 @@ mac_font_descriptor_get_adjusted_weight (FontDescriptorRef desc, CGFloat val)
 	{
 	  CFIndex weight = mac_font_get_weight (font);
 
-	  if (percent_val == -40)
-	    {
-	      /* Workaround for crash when displaying Oriya characters
-		 with Arial Unicode MS on OS X 10.11.  */
-	      if (weight == 5)
-		val = 0;
-	    }
-	  else			/* percent_val == 56 */
-	    {
-	      if (weight == 9)
-		/* Adjustment for HiraginoSans-W7 on OS X 10.11.  */
-		val = 0.4;
-	    }
+	  /* Workaround for crash when displaying Oriya characters
+	     with Arial Unicode MS on OS X 10.11.  */
+	  if (weight == 5)
+	    val = 0;
 	  CFRelease (font);
 	}
     }
@@ -3425,6 +3416,43 @@ macfont_shape (Lisp_Object lgstring)
   return make_number (used);
 }
 
+#ifdef HAVE_MACGUI
+DEFUN ("mac-font-gstring-shape-nocache", Fmac_font_gstring_shape_nocache, Smac_font_gstring_shape_nocache, 1, 1, 0,
+       doc: /* Like `font-gstring-shape', but don't put the result to the internal cache. */)
+  (Lisp_Object gstring)
+{
+  struct font *font;
+  Lisp_Object font_object, n;
+  ptrdiff_t i;
+
+  if (! composition_gstring_p (gstring))
+    signal_error ("Invalid glyph-string: ", gstring);
+  if (! NILP (LGSTRING_ID (gstring)))
+    return gstring;
+  font_object = LGSTRING_FONT (gstring);
+  CHECK_FONT_OBJECT (font_object);
+  font = XFONT_OBJECT (font_object);
+  if (! font->driver->shape)
+    return Qnil;
+
+  /* Try at most three times with larger gstring each time.  */
+  for (i = 0; i < 3; i++)
+    {
+      n = font->driver->shape (gstring);
+      if (INTEGERP (n))
+	break;
+      gstring = larger_vector (gstring,
+			       LGSTRING_GLYPH_LEN (gstring), -1);
+    }
+  if (i == 3 || XINT (n) == 0)
+    return Qnil;
+  if (XINT (n) < LGSTRING_GLYPH_LEN (gstring))
+    LGSTRING_SET_GLYPH (gstring, XINT (n), Qnil);
+
+  return gstring;
+}
+#endif
+
 /* Structures for the UVS subtable (format 14) in the cmap table.  */
 typedef UInt8 UINT24[3];
 
@@ -4541,7 +4569,7 @@ macfont_nsctfont_to_spec (void *font)
 
   return spec;
 }
-#endif	/* !HAVE_NS */ 
+#endif	/* !HAVE_NS */
 
 void
 mac_register_font_driver (struct frame *f)
@@ -4611,4 +4639,8 @@ syms_of_macfont (void)
 
   macfont_family_cache = Qnil;
   staticpro (&macfont_family_cache);
+
+#ifdef HAVE_MACGUI
+  defsubr (&Smac_font_gstring_shape_nocache);
+#endif
 }

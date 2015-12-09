@@ -158,7 +158,7 @@ typedef struct _XGC
 #define YNegative 	0x0020
 
 typedef struct {
-    	long flags;	/* marks which fields in this structure are defined */
+	long flags;	/* marks which fields in this structure are defined */
 #if 0
 	int x, y;		/* obsolete for new window mgrs, but clients */
 	int width, height;	/* should set so old wm's don't mess up */
@@ -167,7 +167,7 @@ typedef struct {
 #if 0
 	int max_width, max_height;
 #endif
-    	int width_inc, height_inc;
+	int width_inc, height_inc;
 #if 0
 	struct {
 		int x;	/* numerator */

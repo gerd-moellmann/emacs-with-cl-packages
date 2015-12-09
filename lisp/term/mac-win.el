@@ -334,29 +334,19 @@ It is an alist of label symbols vs sequences of characters.
 The entries are currently based on StandardizedVariants-8.0.0.txt.")
 
 (defconst mac-emoji-modifier-base-characters-alist
-  '((primary . "\U0001F385\U0001F466\U0001F467\U0001F468\U0001F469\
-\U0001F46E\U0001F470\U0001F471\U0001F472\U0001F473\U0001F474\U0001F475\
-\U0001F476\U0001F477\U0001F478\U0001F47C\U0001F481\U0001F482\U0001F486\
-\U0001F487\U0001F645\U0001F646\U0001F647\U0001F64B\U0001F64D\U0001F64E")
-    (secondary . "\u261D\u2639\u263A\u270A\u270B\u270C\u270D\
-\U0001F3C2\U0001F3C3\U0001F3C4\U0001F3C7\U0001F3CA\U0001F442\U0001F443\
+  '((t . "\u261D\u26F9\u270A\u270B\u270C\u270D\
+\U0001F385\U0001F3C3\U0001F3C4\U0001F3CA\U0001F3CB\U0001F442\U0001F443\
 \U0001F446\U0001F447\U0001F448\U0001F449\U0001F44A\U0001F44B\U0001F44C\
-\U0001F44D\U0001F44E\U0001F44F\U0001F450\U0001F47F\U0001F483\U0001F485\
-\U0001F4AA\U0001F590\U0001F595\U0001F596\U0001F600\U0001F601\U0001F602\
-\U0001F603\U0001F604\U0001F605\U0001F606\U0001F607\U0001F608\U0001F609\
-\U0001F60A\U0001F60B\U0001F60C\U0001F60D\U0001F60E\U0001F60F\U0001F610\
-\U0001F611\U0001F612\U0001F613\U0001F614\U0001F615\U0001F616\U0001F617\
-\U0001F618\U0001F619\U0001F61A\U0001F61B\U0001F61C\U0001F61D\U0001F61E\
-\U0001F61F\U0001F620\U0001F621\U0001F622\U0001F623\U0001F624\U0001F625\
-\U0001F626\U0001F627\U0001F628\U0001F629\U0001F62A\U0001F62B\U0001F62C\
-\U0001F62D\U0001F62E\U0001F62F\U0001F630\U0001F631\U0001F632\U0001F633\
-\U0001F634\U0001F635\U0001F636\U0001F637\U0001F641\U0001F642\U0001F643\
-\U0001F644\U0001F64C\U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\
-\U0001F6C0\U0001F910\U0001F911\U0001F912\U0001F913\U0001F914\U0001F915\
-\U0001F917\U0001F918"))
+\U0001F44D\U0001F44E\U0001F44F\U0001F450\U0001F466\U0001F467\U0001F468\
+\U0001F469\U0001F46E\U0001F470\U0001F471\U0001F472\U0001F473\U0001F474\
+\U0001F475\U0001F476\U0001F477\U0001F478\U0001F47C\U0001F481\U0001F482\
+\U0001F483\U0001F485\U0001F486\U0001F487\U0001F4AA\U0001F575\U0001F590\
+\U0001F595\U0001F596\U0001F645\U0001F646\U0001F647\U0001F64B\U0001F64C\
+\U0001F64D\U0001F64E\U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\
+\U0001F6C0\U0001F918"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on UTR #51 version 1.0.")
+The entries are currently based on UTR #51 version 2.0.")
 
 (defun mac-compose-gstring-for-variation-with-trailer (gstring)
   "Compose glyph-string GSTRING for graphic display.
@@ -427,7 +417,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 (defun mac-setup-composition-function-table ()
   ;; Regional Indicator Symbols
   (set-char-table-range composition-function-table '(#x1F1E6 . #x1F1FF)
-			'(["[\x1F1E6-\x1F1FF]+" 0 font-shape-gstring]))
+			'([".[\x1F1E6-\x1F1FF]" 0 font-shape-gstring]))
   (let ((variations
 	 (mapconcat 'cdr mac-emoji-variation-characters-alist ""))
 	(modifications
@@ -463,21 +453,26 @@ second is a glyph for the variation selector 16 (U+FE0F)."
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
      `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
-  ;; ZWJ Sequences (based on UTR #51 version 1.0, Annex E)
+  ;; From Emoji ZWJ Sequence Catalog for UTR #51, version 2.0.
   (let* ((zwj "\u200D") (man "\U0001F468") (woman "\U0001F469")
 	 (girl "\U0001F467") (boy "\U0001F466")
-	 (heart "\u2764\uFE0F") (kiss "\U0001F48B")
+	 (heavy-black-heart-emoji-vs "\u2764\uFE0F") (kiss-mark "\U0001F48B")
+	 (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
 	 (man-or-woman (concat "[" man woman "]"))
 	 (girl-or-boy (concat "[" girl boy "]"))
 	 (children (concat "\\(?:" girl "\\(?:" zwj girl-or-boy "\\)?"
 			   "\\|" boy "\\(?:" zwj boy "\\)?\\)")))
     (set-char-table-range
      composition-function-table (string-to-char zwj)
-     `([,(concat man ".\\(?:" man-or-woman zwj children
-		 "\\|" heart zwj "\\(?:" kiss zwj "\\)?" man "\\)")
+     `([,(concat man ".\\(?:" man-or-woman zwj children "\\|"
+		 heavy-black-heart-emoji-vs zwj
+		 "\\(?:" kiss-mark zwj "\\)?" man "\\)")
 	1 font-shape-gstring -1]
-       [,(concat woman ".\\(?:" woman zwj children
-		 "\\|" heart zwj "\\(?:" kiss zwj "\\)?" man-or-woman "\\)")
+       [,(concat woman ".\\(?:" woman zwj children "\\|"
+		 heavy-black-heart-emoji-vs zwj
+		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman "\\)")
+	1 font-shape-gstring -1]
+       [,(concat eye zwj left-speech-bubble)
 	1 font-shape-gstring -1]))))
 
 (defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"
@@ -486,10 +481,62 @@ second is a glyph for the variation selector 16 (U+FE0F)."
   :type 'string
   :group 'mac)
 
-(defalias 'mac-auto-operator-composition-shape-gstring 'font-shape-gstring
-  "Alias function for `font-shape-gstring'.
-This is used for distinguishing `composition-function-table'
-rules added by `mac-auto-operator-composition-mode'.")
+(defcustom mac-auto-operator-composition-max-length 4
+  "Maximum length of strings used in automatic operator composition."
+  :package-version '(Mac\ port . "5.14")
+  :type 'integer
+  :group 'mac)
+
+(declare-function mac-font-gstring-shape-nocache "macfont.m" (gstring))
+
+(defvar mac-auto-operator-composition-cache (make-hash-table :test 'equal))
+
+(defun mac-copy-gstring (gstring &optional prefix-len)
+  (or prefix-len (setq prefix-len (lgstring-char-len gstring)))
+  (let ((header (lgstring-header gstring))
+	(new-header (make-vector (1+ prefix-len) nil))
+	(new-gstring (make-vector (length gstring) nil)))
+    (dotimes (i (length new-header))
+      (aset new-header i (aref header i)))
+    (lgstring-set-header new-gstring new-header)
+    (dotimes (i prefix-len)
+      (lgstring-set-glyph new-gstring i
+			  (lglyph-copy (lgstring-glyph gstring i))))
+    new-gstring))
+
+(defun mac-gstring-prefix-p (gstring1 gstring2)
+  (and (eq (lgstring-font gstring1) (lgstring-font gstring2))
+       (let* ((len1 (lgstring-glyph-len gstring1))
+	      (minlen (min len1 (lgstring-glyph-len gstring2)))
+	      (i 0))
+	 (while (and (< i minlen)
+		     (equal (lgstring-glyph gstring1 i)
+			    (lgstring-glyph gstring2 i))
+		     (lgstring-glyph gstring1 i))
+	   (setq i (1+ i)))
+	 (or (= i len1)
+	     (and (< i len1) (null (lgstring-glyph gstring1 i)))))))
+
+(defun mac-auto-operator-composition-shape-gstring (gstring)
+  "Like `font-shape-gstring', but return nil unless GSTRING is minimal.
+GSTRING is minimal if and only if none of its proper prefixes is
+shaped as a prefix of the shaped GSTRING."
+  (if (gethash (lgstring-header gstring) mac-auto-operator-composition-cache)
+      nil
+    (let ((full (mac-font-gstring-shape-nocache (mac-copy-gstring gstring)))
+	  (char-len (lgstring-char-len gstring))
+	  (i 1))
+      (while (and full (< i char-len))
+	(let ((partial (mac-font-gstring-shape-nocache
+			(mac-copy-gstring gstring i))))
+	  (if (and partial (mac-gstring-prefix-p partial full))
+	      (setq full nil)))
+	(setq i (1+ i)))
+      (if full
+	  (font-shape-gstring gstring)
+	(puthash (copy-sequence (lgstring-header gstring)) t
+		 mac-auto-operator-composition-cache)
+	nil))))
 
 (define-minor-mode mac-auto-operator-composition-mode
   "Toggle Mac Auto Operator Composition mode.
@@ -513,16 +560,22 @@ language."
 	(let* ((regexp (regexp-opt
 			(mapcar 'char-to-string
 				mac-auto-operator-composition-characters)))
-	       (rule (vector (concat "." regexp "+") 0
-			     'mac-auto-operator-composition-shape-gstring))
+	       (rules `([,(concat "." regexp) 0
+			 mac-auto-operator-composition-shape-gstring]))
 	       (last-old-rules (list nil))
 	       last-new-rules)
+	  (let ((i 2))
+	    (while (< i mac-auto-operator-composition-max-length)
+	      (push `[,(format ".%s\\{%d\\}" regexp i) 0
+		      mac-auto-operator-composition-shape-gstring]
+		    rules)
+	      (setq i (1+ i))))
 	  (mapc (lambda (c)
 		  (let ((old-rules (aref composition-function-table c)))
 		    (when (listp old-rules)
 		      (unless (eq old-rules last-old-rules)
 			(setq last-old-rules old-rules)
-			(setq last-new-rules (cons rule old-rules)))
+			(setq last-new-rules (append rules old-rules)))
 		      (set-char-table-range composition-function-table c
 					    last-new-rules))))
 		mac-auto-operator-composition-characters))
@@ -538,7 +591,8 @@ language."
 	   (if removed-p
 	       (set-char-table-range composition-function-table c
 				     (nreverse new-rules))))))
-     composition-function-table)))
+     composition-function-table)
+    (clrhash mac-auto-operator-composition-cache)))
 
 
 ;;;; Conversion between common flavors and Lisp string.
@@ -2403,18 +2457,18 @@ non-nil, and the input device supports it."
 			    (set-window-vscroll nil 0 t)
 			    (setq target-y (cadr target-coord))
 			    (cond ((null target-y)
-			    	   ;; Image is completely invisible
-			    	   ;; but its descent is visible in
-			    	   ;; the first row.
-			    	   (setq target-y
-			    		 (- first-y (cdr (posn-object-x-y
-			    				  target-posn)))))
-			    	  ((= target-y first-y)
-			    	   ;; Image is partly invisible in the
-			    	   ;; first row.
-			    	   (setq target-y
-			    		 (- first-y (or (nth 2 target-coord)
-			    				0)))))
+				   ;; Image is completely invisible
+				   ;; but its descent is visible in
+				   ;; the first row.
+				   (setq target-y
+					 (- first-y (cdr (posn-object-x-y
+							  target-posn)))))
+				  ((= target-y first-y)
+				   ;; Image is partly invisible in the
+				   ;; first row.
+				   (setq target-y
+					 (- first-y (or (nth 2 target-coord)
+							0)))))
 			    (setq target-y (+ target-y delta-y)))
 			  (setq target-row
 				(cdr (posn-actual-col-row target-posn)))

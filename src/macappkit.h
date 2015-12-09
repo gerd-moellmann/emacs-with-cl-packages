@@ -470,6 +470,9 @@ typedef id instancetype;
 
   /* Modifiers in the last normal (non-momentum) wheel event.  */
   int savedWheelModifiers;
+
+  /* Stage of the last gesture event of type NSEventTypePressure.  */
+  NSInteger pressureEventStage;
 }
 - (struct frame *)emacsFrame;
 - (id)target;
@@ -1089,6 +1092,12 @@ enum {
 enum {
     NSEventPhaseMayBegin    = 0x1 << 5
 };
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
+@interface NSEvent (AvailableOn101003AndLater)
+- (NSInteger)stage;
+@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070

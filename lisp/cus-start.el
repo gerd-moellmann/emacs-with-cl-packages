@@ -784,7 +784,7 @@ since it could result in memory overflow and make Emacs crash."
 		       (eq system-type 'ms-dos))
 		      ((string-match "\\`w32-" (symbol-name symbol))
 		       (eq system-type 'windows-nt))
- 		      ((string-match "\\`mac-" (symbol-name symbol))
+		      ((string-match "\\`mac-" (symbol-name symbol))
 		       (boundp 'mac-carbon-version-string))
 		      ((string-match "\\`ns-" (symbol-name symbol))
 		       (featurep 'ns))

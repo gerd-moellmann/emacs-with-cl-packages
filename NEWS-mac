@@ -1,4 +1,25 @@
+* emacs-24.5-mac-5.14 (2015-12-09)
+
+** Fixed bugs
+
+*** mac-auto-operator-composition-mode breaks syntax highlighting.
+Reported by James Reeves.
+
+*** Hang when canceling pop-up dictionary with C-g on OS X 10.11.
+Reported by Max Siegel.
+
+** Improvements
+
+*** Force clicking with a pressure-sensitive trackpad now pops up a
+Quick Look window to look up the word under the pointer in the
+dictionaries.
+Note: This is currently hard-coded.  Also, unlike Command-Control-D or
+three-finger tap, it is not easy or often impossible to specify the
+region of the text you look up because down-mouse-1 event resets it.
+
+
 * emacs-24.5-mac-5.13 (2015-10-31)
+http://lists.gnu.org/archive/html/emacs-devel/2015-10/msg02522.html
 
 ** Fixed bugs
 

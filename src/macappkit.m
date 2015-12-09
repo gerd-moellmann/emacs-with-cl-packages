@@ -1371,7 +1371,7 @@ mac_foreach_window_1 (struct window *w, int (^block) (struct window *))
   for (cont = 1; w && cont;)
     {
       if (WINDOWP (w->contents))
- 	cont = mac_foreach_window_1 (XWINDOW (w->contents), block);
+	cont = mac_foreach_window_1 (XWINDOW (w->contents), block);
       else
 	cont = block (w);
 
@@ -3891,9 +3891,9 @@ static CGRect unset_global_focus_view_frame (void);
   [view setLayer:rootLayer];
   [view setWantsLayer:YES];
   [view setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
-  /* Actually we don't use any Core Image filters in full screen
-     transitions, but this works as a workaround for the strange
-     problem of image color alteration on OS X 10.9.  */
+  /* Now we do use Core Image filters in live resize transitions.
+     Even if we didn't use them, this would work as a workaround for
+     the strange problem of image color alteration on OS X 10.9.  */
   if ([view respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
     [view setLayerUsesCoreImageFilters:YES];
 
@@ -4304,7 +4304,7 @@ static CGRect unset_global_focus_view_frame (void);
 			    functionWithName:kCAMediaTimingFunctionDefault]];
       [[window animator] setFrame:destRect display:YES];
       layer.beginTime = [layer convertTime:(CACurrentMediaTime ())
-      				 fromLayer:nil] + duration * (1 - 1.0 / 5);
+				 fromLayer:nil] + duration * (1 - 1.0 / 5);
       layer.speed = 5;
       layer.fillMode = kCAFillModeBackwards;
       layer.opacity = 0;
@@ -5468,6 +5468,20 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 - (void)otherMouseDragged:(NSEvent *)theEvent
 {
   [self mouseMoved:theEvent];
+}
+
+- (void)pressureChangeWithEvent:(NSEvent *)event
+{
+  NSInteger stage = [event stage];
+
+  if (pressureEventStage != stage)
+    {
+      if (stage == 2
+	  && [[NSUserDefaults standardUserDefaults]
+	       boolForKey:@"com.apple.trackpad.forceClick"])
+	[NSApp sendAction:@selector(quickLookPreviewItems:) to:nil from:nil];
+      pressureEventStage = stage;
+    }
 }
 
 - (void)cursorUpdate:(NSEvent *)event
@@ -6854,7 +6868,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 		knobRect.origin.y = knobSlotRect.origin.y;
 #if 0		      /* This might be better if no overscrolling.  */
 	      else if (NSMaxY (knobRect) > NSMaxY (knobSlotRect))
-	      	knobRect.origin.y = NSMaxY (knobSlotRect) - NSHeight (knobRect);
+		knobRect.origin.y = NSMaxY (knobSlotRect) - NSHeight (knobRect);
 #endif
 	    }
 	  else
@@ -9214,7 +9228,45 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 
       if ([[theEvent charactersIgnoringModifiers] length] == 1
 	  && mac_keydown_cgevent_quit_p ([theEvent coreGraphicsEvent]))
-	return [NSApp sendAction:@selector(cancel:) to:nil from:nil];
+	{
+	  if ([NSApp isRunning])
+	    return [NSApp sendAction:@selector(cancel:) to:nil from:nil];
+	  else
+	    {
+	      /* This is necessary for avoiding hang when canceling
+		 pop-up dictionary with C-g on OS X 10.11.  */
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
+	      BOOL __block sent;
+
+	      [NSApp runTemporarilyWithBlock:^{
+		  sent = [NSApp sendAction:@selector(cancel:) to:nil from:nil];
+		}];
+
+	      return sent;
+#else
+	      SEL selector = @selector(sendAction:to:from:);
+	      NSMethodSignature *signature =
+		[NSApp methodSignatureForSelector:selector];
+	      NSInvocation *invocation =
+		[NSInvocation invocationWithMethodSignature:signature];
+	      SEL action = @selector(cancel:);
+	      id target = nil, sender = nil;
+	      BOOL sent;
+
+	      [invocation setTarget:NSApp];
+	      [invocation setSelector:selector];
+	      [invocation setArgument:&action atIndex:2];
+	      [invocation setArgument:&target atIndex:3];
+	      [invocation setArgument:&sender atIndex:4];
+
+	      [NSApp runTemporarilyWithInvocation:invocation];
+
+	      [invocation getReturnValue:&sent];
+
+	      return sent;
+#endif
+	    }
+	}
     }
 
   return NO;
