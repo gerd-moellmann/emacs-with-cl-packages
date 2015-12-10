@@ -362,7 +362,7 @@ run_timers (void)
 	}
 #ifdef DARWIN_OS
       /* Fix for Ctrl-G.  Perhaps this should apply to all platforms. */
-      t->fn (t); 
+      t->fn (t);
 #endif
     }
 
