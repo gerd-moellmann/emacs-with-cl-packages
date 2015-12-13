@@ -3002,11 +3002,7 @@ static CGRect unset_global_focus_view_frame (void);
   NSWindowCollectionBehavior behavior;
 
   if ((windowManagerState & WM_STATE_NO_MENUBAR)
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-      && !(has_full_screen_with_dedicated_desktop ()
-	   && (windowManagerState & WM_STATE_DEDICATED_DESKTOP))
-#endif
-      )
+      && !(windowManagerState & WM_STATE_FULLSCREEN))
     {
       behavior = ((windowManagerState & WM_STATE_STICKY)
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
