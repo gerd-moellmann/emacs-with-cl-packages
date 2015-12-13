@@ -4024,7 +4024,9 @@ x_set_window_size (struct frame *f, int change_gravity, int width, int height, b
 
   check_frame_size (f, &width, &height, pixelwise);
 
-  if (NILP (tip_frame) || XFRAME (tip_frame) != f)
+  if ((NILP (tip_frame) || XFRAME (tip_frame) != f)
+      /* Don't override pending size change.  */
+      && f->new_height == 0 && f->new_width == 0)
     {
       int text_width, text_height;
 

@@ -51,4 +51,4 @@ case ${SHELL##*/} in
 esac
 
 # Fall back on bash.
-exec -l /bin/bash --login -c 'exec "$@"' - "$@" ;;
+exec -l /bin/bash --login -c 'exec "$@"' - "$@"

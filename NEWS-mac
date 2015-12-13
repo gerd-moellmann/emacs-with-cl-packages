@@ -1,4 +1,18 @@
+* emacs-24.5-mac-5.15 (2015-12-13)
+
+** Fixed bugs
+
+*** Pure space overflow on 32-bit build.
+
+*** Can't invoke from Finder if user's login shell is fish.
+This is a regression introduced in 5.12.
+
+*** Changing default font causes display corruption in some cases.
+Reported by Leo.
+
+
 * emacs-24.5-mac-5.14 (2015-12-09)
+http://lists.gnu.org/archive/html/emacs-devel/2015-12/msg00334.html
 
 ** Fixed bugs
 
@@ -1703,7 +1717,7 @@ http://lists.gnu.org/archive/html/emacs-devel/2009-06/msg00532.html
 
 *** Assertion failure in mac_set_font.
 
-*** "Hide" in Login Items does not work. 
+*** "Hide" in Login Items does not work.
 
 *** (mac-pasteboard-string-to-string "\342\204\246" 'mac-roman) gives
 GREEK CAPITAL LETTER OMEGA instead of OHM SIGN (likewise for
