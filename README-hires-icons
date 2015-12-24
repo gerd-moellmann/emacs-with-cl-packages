@@ -47,5 +47,5 @@ The mapping is mostly derived from x-gtk-stock-map in
 lisp/term/x-win.el.
 
 * The file splash@2x.png is generated from splash.svg in GNU Emacs
-24.3 using `rsvg-convert'.  The original data is licensed under the
+25.0.50 using `rsvg-convert'.  The original data is licensed under the
 GNU General Public License version 3 or later.
