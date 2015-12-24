@@ -32,9 +32,6 @@
 
 ;;; Code:
 
-;; For Emacs <22.2 and XEmacs.
-(eval-and-compile
-  (unless (fboundp 'declare-function) (defmacro declare-function (&rest r))))
 (eval-when-compile
   (require 'cl))
 
@@ -316,14 +313,10 @@ Symbols are also allowed; their print names are used instead."
 
 ;; Every version of Emacs Gnus supports has built-in float-time.
 ;; The featurep test silences an irritating compiler warning.
-(eval-and-compile
+(defalias 'gnus-float-time
   (if (or (featurep 'emacs)
 	  (fboundp 'float-time))
-      (defalias 'gnus-float-time 'float-time)
-    (defun gnus-float-time (&optional time)
-      "Convert time value TIME to a floating point number.
-TIME defaults to the current time."
-      (time-to-seconds (or time (current-time))))))
+      'float-time 'time-to-seconds))
 
 ;;; Keymap macros.
 
@@ -392,19 +385,20 @@ TIME defaults to the current time."
 
 (defun gnus-seconds-today ()
   "Return the number of seconds passed today."
-  (let ((now (decode-time (current-time))))
+  (let ((now (decode-time)))
     (+ (car now) (* (car (cdr now)) 60) (* (car (nthcdr 2 now)) 3600))))
 
 (defun gnus-seconds-month ()
   "Return the number of seconds passed this month."
-  (let ((now (decode-time (current-time))))
+  (let ((now (decode-time)))
     (+ (car now) (* (car (cdr now)) 60) (* (car (nthcdr 2 now)) 3600)
        (* (- (car (nthcdr 3 now)) 1) 3600 24))))
 
 (defun gnus-seconds-year ()
   "Return the number of seconds passed this year."
-  (let ((now (decode-time (current-time)))
-	(days (format-time-string "%j" (current-time))))
+  (let* ((current (current-time))
+	 (now (decode-time current))
+	 (days (format-time-string "%j" current)))
     (+ (car now) (* (car (cdr now)) 60) (* (car (nthcdr 2 now)) 3600)
        (* (- (string-to-number days) 1) 3600 24))))
 
@@ -859,10 +853,6 @@ If there's no subdirectory, delete DIRECTORY as well."
 	  (setq beg (point)))
 	(gnus-put-text-property beg (point) prop val)))))
 
-(declare-function gnus-overlay-put  "gnus" (overlay prop value))
-(declare-function gnus-make-overlay "gnus"
-                  (beg end &optional buffer front-advance rear-advance))
-
 (defsubst gnus-put-overlay-excluding-newlines (beg end prop val)
   "The same as `put-text-property', but don't put this prop on any newlines in the region."
   (save-match-data
@@ -870,11 +860,9 @@ If there's no subdirectory, delete DIRECTORY as well."
       (save-restriction
 	(goto-char beg)
 	(while (re-search-forward gnus-emphasize-whitespace-regexp end 'move)
-	  (gnus-overlay-put
-	   (gnus-make-overlay beg (match-beginning 0))
-	   prop val)
+	  (overlay-put (make-overlay beg (match-beginning 0)) prop val)
 	  (setq beg (point)))
-	(gnus-overlay-put (gnus-make-overlay beg (point)) prop val)))))
+	(overlay-put (make-overlay beg (point)) prop val)))))
 
 (defun gnus-put-text-property-excluding-characters-with-faces (beg end prop val)
   "The same as `put-text-property', except where `gnus-face' is set.
@@ -1384,18 +1372,25 @@ Return the modified alist."
 
 (if (fboundp 'union)
     (defalias 'gnus-union 'union)
-  (defun gnus-union (l1 l2)
-    "Set union of lists L1 and L2."
+  (defun gnus-union (l1 l2 &rest keys)
+    "Set union of lists L1 and L2.
+If KEYS contains the `:test' and `equal' pair, use `equal' to compare
+items in lists, otherwise use `eq'."
     (cond ((null l1) l2)
 	  ((null l2) l1)
 	  ((equal l1 l2) l1)
 	  (t
 	   (or (>= (length l1) (length l2))
 	       (setq l1 (prog1 l2 (setq l2 l1))))
-	   (while l2
-	     (or (member (car l2) l1)
-		 (push (car l2) l1))
-	     (pop l2))
+	   (if (eq 'equal (plist-get keys :test))
+	       (while l2
+		 (or (member (car l2) l1)
+		     (push (car l2) l1))
+		 (pop l2))
+	     (while l2
+	       (or (memq (car l2) l1)
+		   (push (car l2) l1))
+	       (pop l2)))
 	   l1))))
 
 (declare-function gnus-add-text-properties "gnus"
@@ -1498,7 +1493,7 @@ sure of changing the value of `foo'."
 (defvar gnus-directory-sep-char-regexp "/"
   "The regexp of directory separator character.
 If you find some problem with the directory separator character, try
-\"[/\\\\\]\" for some systems.")
+\"[/\\\\]\" for some systems.")
 
 (defun gnus-url-unhex (x)
   (if (> x ?9)
@@ -1581,8 +1576,10 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
 
 
 (declare-function iswitchb-read-buffer "iswitchb"
-		  (prompt &optional default require-match start matches-set))
+		  (prompt &optional default require-match
+			  _predicate start matches-set))
 (defvar iswitchb-temp-buflist)
+(defvar iswitchb-mode)
 
 (defun gnus-iswitchb-completing-read (prompt collection &optional require-match
                                             initial-input history def)
@@ -1913,17 +1910,25 @@ Sizes are in pixels."
                    image)))
       image)))
 
+(eval-when-compile (require 'gmm-utils))
 (defun gnus-recursive-directory-files (dir)
-  "Return all regular files below DIR."
-  (let (files)
-    (dolist (file (directory-files dir t))
-      (when (and (not (member (file-name-nondirectory file) '("." "..")))
-		 (file-readable-p file))
-	(cond
-	 ((file-regular-p file)
-	  (push file files))
-	 ((file-directory-p file)
-	  (setq files (append (gnus-recursive-directory-files file) files))))))
+  "Return all regular files below DIR.
+The first found will be returned if a file has hard or symbolic links."
+  (let (files attr attrs)
+    (gmm-labels
+	((fn (directory)
+	     (dolist (file (directory-files directory t))
+	       (setq attr (file-attributes (file-truename file)))
+	       (when (and (not (member attr attrs))
+			  (not (member (file-name-nondirectory file)
+				       '("." "..")))
+			  (file-readable-p file))
+		 (push attr attrs)
+		 (cond ((file-regular-p file)
+			(push file files))
+		       ((file-directory-p file)
+			(fn file)))))))
+      (fn dir))
     files))
 
 (defun gnus-list-memq-of-list (elements list)
@@ -1975,6 +1980,11 @@ to case differences."
 	   (if ignore-case
 	       (string-equal (downcase str1) (downcase prefix))
 	     (string-equal str1 prefix))))))
+
+(defalias 'gnus-format-message
+  (if (fboundp 'format-message) 'format-message
+    ;; for Emacs < 25, and XEmacs, don't worry about quote translation.
+    'format))
 
 ;; Simple check: can be a macro but this way, although slow, it's really clear.
 ;; We don't use `bound-and-true-p' because it's not in XEmacs.

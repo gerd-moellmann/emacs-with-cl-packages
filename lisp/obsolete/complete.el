@@ -963,7 +963,7 @@ or properties are considered."
  Environment vars are converted to their values."
    (interactive)
    (let* ((end (point))
-          (beg (if (re-search-backward "[^\\][ \t\n\"\`\'][^ \t\n\"\`\']"
+          (beg (if (re-search-backward "[^\\][ \t\n\"`'][^ \t\n\"`']"
 				       (point-min) t)
                    (+ (point) 2)
                    (point-min)))
@@ -1074,7 +1074,7 @@ absolute rather than relative to some directory on the SEARCH-PATH."
 	  (setq search-path
 		(mapcar (lambda (dir) (concat dir subdir))
 			search-path)
-		file ))
+		file nil))
       ;; Make list of completions in each directory on search-path
       (while search-path
 	(let* ((dir (car search-path))

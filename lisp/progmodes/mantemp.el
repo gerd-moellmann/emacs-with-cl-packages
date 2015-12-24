@@ -89,7 +89,7 @@
   (save-excursion
     (goto-char (point-min))
     (message "Removing comments")
-    (while (re-search-forward "^[A-z\.()+0-9: ]*`\\|'.*$" nil t)
+    (while (re-search-forward "^[A-z.()+0-9: ]*`\\|'.*$" nil t)
       (replace-match ""))))
 
 (defun mantemp-remove-memfuncs ()
@@ -128,7 +128,7 @@
 
 (defun mantemp-insert-cxx-syntax ()
   "Insert C++ syntax around each template class and function.
-Insert 'template class' for classes, 'template' for
+Insert `template class' for classes, `template' for
 functions and add the statement delimiter `;' at the end of
 the lines."
   (save-excursion

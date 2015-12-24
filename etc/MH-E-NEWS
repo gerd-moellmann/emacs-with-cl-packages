@@ -23,6 +23,8 @@ Ensure that `mh-x-face-file' is a string before trying to use it
 
 Fix this error (closes SF #471).
 
+
+
 * Changes in MH-E 8.5
 
 Version 8.5 fixes bugs when incorporating or forwarding mail.

@@ -138,7 +138,6 @@ If nil, TAB always indents current line."
     (define-key map "\C-c\t"   'indent-according-to-mode)
     (define-key map "\M-\C-\\" 'vera-indent-region)
     (define-key map "\C-c\C-c" 'vera-comment-uncomment-region)
-    (define-key map "\C-c\C-f" 'vera-fontify-buffer)
     (define-key map "\C-c\C-v" 'vera-version)
     (define-key map "\M-\t"    'tab-to-tab-stop)
     ;; Electric key bindings.
@@ -171,8 +170,6 @@ If nil, TAB always indents current line."
     ["Indent Line"		indent-according-to-mode t]
     ["Indent Region"		vera-indent-region (mark)]
     ["Indent Buffer"		vera-indent-buffer t]
-    "--"
-    ["Fontify Buffer"		vera-fontify-buffer t]
     "--"
     ["Documentation"		describe-mode]
     ["Version"			vera-version t]
@@ -262,7 +259,7 @@ Usage:
 
   INDENTATION:  Typing `TAB' at the beginning of a line indents the line.
     The amount of indentation is specified by option `vera-basic-offset'.
-    Indentation can be done for an entire region \(`M-C-\\') or buffer (menu).
+    Indentation can be done for an entire region (`M-C-\\') or buffer (menu).
     `TAB' always indents the line if option `vera-intelligent-tab' is nil.
 
   WORD/COMMAND COMPLETION:  Typing `TAB' after a (not completed) word looks
@@ -686,7 +683,8 @@ Adapted from `font-lock-match-c-style-declaration-item-and-skip-to-next'."
   "Font lock mode face used to highlight interface names."
   :group 'font-lock-highlighting-faces)
 
-(defalias 'vera-fontify-buffer 'font-lock-fontify-buffer)
+(define-obsolete-function-alias 'vera-fontify-buffer
+  'font-lock-fontify-buffer "25.1")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Indentation
@@ -872,7 +870,7 @@ This function does not modify point or mark."
 	    (beginning-of-line)))))))
 
 (defmacro vera-prepare-search (&rest body)
-  "Execute BODY with a syntax table that includes '_'."
+  "Execute BODY with a syntax table that includes `_'."
   `(with-syntax-table vera-mode-ext-syntax-table ,@body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

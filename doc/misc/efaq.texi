@@ -1,8 +1,8 @@
 \input texinfo   @c -*- mode: texinfo; -*-
 @c %**start of header
-@setfilename ../../info/efaq
+@setfilename ../../info/efaq.info
 @settitle GNU Emacs FAQ
-@documentencoding UTF-8
+@include docstyle.texi
 @c %**end of header
 
 @include emacsver.texi
@@ -861,7 +861,6 @@ You can get Tkinfo at
 @cindex Files included with Emacs
 @cindex @file{COPYING}, description of file
 @cindex @file{DISTRIB}, description of file
-@cindex @file{GNU}, description of file
 @cindex @file{MACHINES}, description of file
 @cindex @file{NEWS}, description of file
 
@@ -882,9 +881,6 @@ GNU General Public License
 
 @item DISTRIB
 Emacs Availability Information
-
-@item GNU
-The GNU Manifesto
 
 @item MACHINES
 Status of Emacs on Various Machines and Systems
@@ -1473,7 +1469,7 @@ machine at which Emacs was invoked.  This is done by setting
 @code{frame-title-format} to the default value of
 
 @lisp
-(multiple-frames "%b" ("" invocation-name "@@" system-name))
+(multiple-frames "%b" ("" invocation-name "@@" (system-name)))
 @end lisp
 
 To modify the behavior such that frame titlebars contain the buffer's
@@ -2093,8 +2089,8 @@ parenthesis, it simply inserts a % like normal.
 (defun match-paren (arg)
   "Go to the matching paren if on a paren; otherwise insert %."
   (interactive "p")
-  (cond ((looking-at "\\s\(") (forward-list 1) (backward-char 1))
-        ((looking-at "\\s\)") (forward-char 1) (backward-list 1))
+  (cond ((looking-at "\\s(") (forward-list 1) (backward-char 1))
+        ((looking-at "\\s)") (forward-char 1) (backward-list 1))
         (t (self-insert-command (or arg 1)))))
 @end lisp
 
@@ -3674,7 +3670,7 @@ for deleting the previous character outside of Emacs.  On many Unix
 systems, this command will remap @key{DEL}:
 
 @example
-stty erase `^?'
+stty erase '^?'
 @end example
 
 @item
@@ -3770,8 +3766,8 @@ You can swap two keys (or key sequences) by using the
 into @key{DEL} and @key{DEL} to @kbd{C-h}, use
 
 @lisp
-(keyboard-translate ?\C-h ?\C-?)  ; translate `C-h' to DEL
-(keyboard-translate ?\C-? ?\C-h)  ; translate DEL to `C-h'.
+(keyboard-translate ?\C-h ?\C-?)  ; translate 'C-h' to DEL
+(keyboard-translate ?\C-? ?\C-h)  ; translate DEL to 'C-h'.
 @end lisp
 
 @noindent

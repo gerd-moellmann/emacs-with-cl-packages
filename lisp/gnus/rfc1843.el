@@ -31,10 +31,6 @@
 
 ;;; Code:
 
-;; For Emacs <22.2 and XEmacs.
-(eval-and-compile
-  (unless (fboundp 'declare-function) (defmacro declare-function (&rest r))))
-
 (eval-when-compile (require 'cl))
 (require 'mm-util)
 
@@ -50,11 +46,11 @@
 
 (defvar rfc1843-hzp-word-regexp
   "~\\({\\([\041-\167][\041-\176]\\| \\)+\\|\
-\[<>]\\([\041-\175][\041-\176]\\| \\)+\\)\\(~}\\|$\\)")
+[<>]\\([\041-\175][\041-\176]\\| \\)+\\)\\(~}\\|$\\)")
 
 (defvar rfc1843-hzp-word-regexp-strictly
   "~\\({\\([\041-\167][\041-\176]\\)+\\|\
-\[<>]\\([\041-\175][\041-\176]\\)+\\)\\(~}\\|$\\)")
+[<>]\\([\041-\175][\041-\176]\\)+\\)\\(~}\\|$\\)")
 
 (defcustom rfc1843-decode-loosely nil
   "Loosely check HZ encoding if non-nil.

@@ -22,8 +22,6 @@
 
 ;;; Commentary:
 
-;; Note: You need to have `w3' installed for some functions to work.
-
 ;;; Code:
 
 (eval-when-compile (require 'cl))
@@ -38,7 +36,6 @@
 (eval-and-compile
   (ignore-errors
     (require 'url)))
-(autoload 'w3-parse-buffer "w3-parse")
 
 (nnoo-declare nnweb)
 
@@ -441,7 +438,7 @@ Valid types include `google', `dejanews', and `gmane'.")
   t)
 
 (defun nnweb-google-identity (url)
-  "Return an unique identifier based on URL."
+  "Return a unique identifier based on URL."
   (if (string-match "selm=\\([^ &>]+\\)" url)
       (match-string 1 url)
     url))
@@ -527,7 +524,7 @@ Valid types include `google', `dejanews', and `gmane'.")
     url))
 
 ;;;
-;;; General web/w3 interface utility functions
+;;; General web interface utility functions
 ;;;
 
 (defun nnweb-insert-html (parse)

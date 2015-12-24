@@ -504,6 +504,9 @@ typedef id instancetype;
   /* This is used for saving the `code' and `modifiers' members of an
      input event for a scroller click with the control modifier.  */
   struct input_event inputEvent;
+
+  /* Values in the last mac_set_scroll_bar_thumb call.  */
+  int whole, portion;
 }
 - (void)setEmacsScrollBar:(struct scroll_bar *)bar;
 - (struct scroll_bar *)emacsScrollBar;
@@ -514,6 +517,10 @@ typedef id instancetype;
 - (CGFloat)clickPositionInFrame;
 - (ptrdiff_t)inputEventCode;
 - (int)inputEventModifiers;
+- (int)whole;
+- (void)setWhole:(int)theWhole;
+- (int)portion;
+- (void)setPortion:(int)thePortion;
 @end
 
 @interface EmacsFrameController (ScrollBar)
@@ -569,7 +576,7 @@ typedef id instancetype;
 @interface EmacsFrameController (EventHandling)
 - (void)noteEnterEmacsView;
 - (void)noteLeaveEmacsView;
-- (int)noteMouseMovement:(NSPoint)point;
+- (BOOL)noteMouseMovement:(NSPoint)point;
 @end
 
 @interface EmacsFrameController (Hourglass)
@@ -662,14 +669,14 @@ typedef id instancetype;
   bool (*checkImageSizeFunc) (struct frame *, int, int);
 
   /* Function called when reporting image load errors.  */
-  void (*imageErrorFunc) (const char *, Lisp_Object, Lisp_Object);
+  void (*imageErrorFunc) (const char *, ...);
 
   /* Whether a page load has completed.  */
   BOOL isLoaded;
 }
 - (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
 		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
-		    imageErrorFunc:(void (*)(const char *, Lisp_Object, Lisp_Object))imageError;
+		    imageErrorFunc:(void (*)(const char *, ...))imageError;
 - (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor;
 @end
 

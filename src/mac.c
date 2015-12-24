@@ -128,7 +128,7 @@ mac_four_char_code_to_string (FourCharCode code)
    Return non-zero if and only if STRING correctly represents four
    char code (i.e., 4-byte Lisp string).  */
 
-Boolean
+bool
 mac_string_to_four_char_code (Lisp_Object string, FourCharCode *code)
 {
   if (!(STRINGP (string) && SBYTES (string) == sizeof (FourCharCode)))
@@ -143,8 +143,6 @@ mac_string_to_four_char_code (Lisp_Object string, FourCharCode *code)
 /***********************************************************************
 		  Conversions on Apple event objects
  ***********************************************************************/
-
-static Lisp_Object Qundecoded_file_name;
 
 static struct {
   AEKeyword keyword;
@@ -253,7 +251,7 @@ mac_aelist_to_lisp (const AEDescList *desc_list)
   if (desc_list->descriptorType == typeAppleEvent && !attribute_p)
     {
       attribute_p = true;
-      count = sizeof (ae_attr_table) / sizeof (ae_attr_table[0]);
+      count = ARRAYELTS (ae_attr_table);
       goto again;
     }
 
@@ -455,8 +453,7 @@ create_apple_event_from_lisp (Lisp_Object apple_event, AppleEvent *result)
 	  data = XCDR (XCDR (attr));
 	  if (!mac_string_to_four_char_code (type, &desc_type))
 	    continue;
-	  for (i = 0; i < sizeof (ae_attr_table) / sizeof (ae_attr_table[0]);
-	       i++)
+	  for (i = 0; i < ARRAYELTS (ae_attr_table); i++)
 	    if (EQ (name, ae_attr_table[i].symbol))
 	      {
 		switch (desc_type)
@@ -737,10 +734,6 @@ mac_event_parameters_to_lisp (EventRef event, UInt32 num_params,
 /***********************************************************************
 	 Conversion between Lisp and Core Foundation objects
  ***********************************************************************/
-
-Lisp_Object Qstring, Qnumber, Qboolean, Qdate, Qarray, Qdictionary;
-Lisp_Object Qrange, Qpoint;
-static Lisp_Object Qdescription;
 
 struct cfdict_context
 {
@@ -1045,9 +1038,6 @@ cfobject_to_lisp (CFTypeRef obj, int flags, int hash_bound)
 {
   CFTypeID type_id = CFGetTypeID (obj);
   Lisp_Object tag = Qnil, result = Qnil;
-  struct gcpro gcpro1, gcpro2;
-
-  GCPRO2 (tag, result);
 
   if (type_id == CFStringGetTypeID ())
     {
@@ -1139,8 +1129,6 @@ cfobject_to_lisp (CFTypeRef obj, int flags, int hash_bound)
 	    }
 	}
     }
-
-  UNGCPRO;
 
   if (flags & CFOBJECT_TO_LISP_WITH_TAG)
     result = Fcons (tag, result);
@@ -1814,7 +1802,7 @@ xrm_q_get_resource_1 (XrmDatabase database, Lisp_Object node_id,
   labels[2] = SINGLE_COMPONENT;
 
   key = Fcons (node_id, Qnil);
-  for (k = 0; k < sizeof (labels) / sizeof (*labels); k++)
+  for (k = 0; k < ARRAYELTS (labels); k++)
     {
       XSETCDR (key, labels[k]);
       i = hash_lookup (h, key, NULL);
@@ -1953,7 +1941,6 @@ xrm_get_preference_database (const char *application)
   Lisp_Object quarks = Qnil, value = Qnil;
   CFPropertyListRef plist;
   int iu, ih;
-  struct gcpro gcpro1, gcpro2, gcpro3;
 
   user_doms[0] = kCFPreferencesCurrentUser;
   user_doms[1] = kCFPreferencesAnyUser;
@@ -1961,8 +1948,6 @@ xrm_get_preference_database (const char *application)
   host_doms[1] = kCFPreferencesAnyHost;
 
   database = xrm_create_database ();
-
-  GCPRO3 (database, quarks, value);
 
   app_id = kCFPreferencesCurrentApplication;
   if (application)
@@ -1977,8 +1962,8 @@ xrm_get_preference_database (const char *application)
   key_set = CFSetCreateMutable (NULL, 0, &kCFCopyStringSetCallBacks);
   if (key_set == NULL)
     goto out;
-  for (iu = 0; iu < sizeof (user_doms) / sizeof (*user_doms) ; iu++)
-    for (ih = 0; ih < sizeof (host_doms) / sizeof (*host_doms); ih++)
+  for (iu = 0; iu < ARRAYELTS (user_doms); iu++)
+    for (ih = 0; ih < ARRAYELTS (host_doms); ih++)
       {
 	key_array = CFPreferencesCopyKeyList (app_id, user_doms[iu],
 					      host_doms[ih]);
@@ -2017,14 +2002,10 @@ xrm_get_preference_database (const char *application)
   if (app_id)
     CFRelease (app_id);
 
-  UNGCPRO;
-
   return database;
 }
 
 
-Lisp_Object Qmac_file_alias_p;
-
 /* Convert a lisp string to the 4 byte character code.  */
 
 OSType
@@ -2130,7 +2111,10 @@ containing an unresolvable alias.  */)
       char *p = SSDATA (result);
 
       if (p[0] == '/' && strchr (p, ':'))
-	result = concat2 (build_string ("/:"), result);
+	{
+	  AUTO_STRING (slash_colon, "/:");
+	  result = concat2 (slash_colon, result);
+	}
       result = DECODE_FILE (result);
     }
 
@@ -2156,7 +2140,7 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   if (!NILP (Ffile_directory_p (filename))
       && NILP (Ffile_symlink_p (filename)))
     {
-      operation = intern ("delete-directory");
+      operation = Qdelete_directory;
       filename = Fdirectory_file_name (filename);
     }
   filename = Fexpand_file_name (filename, Qnil);
@@ -2284,12 +2268,10 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 	{
 	  if (NILP (errstring))
 	    {
-	      char *prefix =
-		(domain == OSSTATUS_ERROR ? "Mac error "
-		 : (domain == COCOA_ERROR ? "Cocoa error "
-		    : "other error "));
-
-	      errstring = concat2 (build_string (prefix),
+	      AUTO_STRING (prefix, (domain == OSSTATUS_ERROR ? "Mac error "
+				    : (domain == COCOA_ERROR ? "Cocoa error "
+				       : "other error ")));
+	      errstring = concat2 (prefix,
 				   Fnumber_to_string (make_number (code)));
 	    }
 
@@ -2301,9 +2283,6 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   return Qnil;
 }
 
-
-Lisp_Object Qapp_name;
-Lisp_Object QCinfo, QCversion, QCsub_type, QCmanufacturer, QCfeatures;
 
 DEFUN ("mac-osa-language-list", Fmac_osa_language_list, Smac_osa_language_list, 0, 1, 0,
        doc: /* Return a list of available OSA languages.
@@ -2491,9 +2470,6 @@ Each type should be a string of length 4 or the symbol
 }
 
 
-static Lisp_Object Qxml, Qxml1, Qbinary1, QCmime_charset;
-static Lisp_Object QNFD, QNFKD, QNFC, QNFKC, QHFS_plus_D, QHFS_plus_C;
-
 DEFUN ("mac-get-preference", Fmac_get_preference, Smac_get_preference, 1, 4, 0,
        doc: /* Return the application preference value for KEY.
 KEY is either a string specifying a preference key, or a list of key
@@ -2513,7 +2489,6 @@ return value (see `mac-convert-property-list').  FORMAT also accepts
   CFStringRef app_id, key_str;
   CFPropertyListRef app_plist = NULL, plist;
   Lisp_Object result = Qnil, tmp;
-  struct gcpro gcpro1, gcpro2;
 
   if (STRINGP (key))
     key = Fcons (key, Qnil);
@@ -2532,8 +2507,6 @@ return value (see `mac-convert-property-list').  FORMAT also accepts
   CHECK_SYMBOL (format);
   if (!NILP (hash_bound))
     CHECK_NUMBER (hash_bound);
-
-  GCPRO2 (key, format);
 
   block_input ();
 
@@ -2591,8 +2564,6 @@ return value (see `mac-convert-property-list').  FORMAT also accepts
 
   unblock_input ();
 
-  UNGCPRO;
-
   return result;
 }
 
@@ -2637,14 +2608,11 @@ otherwise.  */)
 {
   Lisp_Object result = Qnil;
   CFPropertyListRef plist;
-  struct gcpro gcpro1, gcpro2;
 
   if (!CONSP (property_list))
     CHECK_STRING (property_list);
   if (!NILP (hash_bound))
     CHECK_NUMBER (hash_bound);
-
-  GCPRO2 (property_list, format);
 
   block_input ();
 
@@ -2668,8 +2636,6 @@ otherwise.  */)
     }
 
   unblock_input ();
-
-  UNGCPRO;
 
   return result;
 }
@@ -2828,7 +2794,6 @@ On successful conversion, return the result string, else return nil.  */)
    Lisp_Object normalization_form)
 {
   Lisp_Object result = Qnil;
-  struct gcpro gcpro1, gcpro2, gcpro3, gcpro4;
   CFStringEncoding src_encoding, tgt_encoding;
   CFStringRef str = NULL;
 
@@ -2838,8 +2803,6 @@ On successful conversion, return the result string, else return nil.  */)
   if (!INTEGERP (target) && !STRINGP (target))
     CHECK_SYMBOL (target);
   CHECK_SYMBOL (normalization_form);
-
-  GCPRO4 (string, source, target, normalization_form);
 
   block_input ();
 
@@ -2878,8 +2841,6 @@ On successful conversion, return the result string, else return nil.  */)
     }
 
   unblock_input ();
-
-  UNGCPRO;
 
   return result;
 }
@@ -3482,13 +3443,11 @@ syms_of_mac (void)
 {
   DEFSYM (Qundecoded_file_name, "undecoded-file-name");
 
-  DEFSYM (Qstring, "string");
   DEFSYM (Qnumber, "number");
   DEFSYM (Qboolean, "boolean");
   DEFSYM (Qdate, "date");
   DEFSYM (Qarray, "array");
   DEFSYM (Qdictionary, "dictionary");
-  DEFSYM (Qrange, "range");
   DEFSYM (Qpoint, "point");
   DEFSYM (Qdescription, "description");
 
@@ -3517,7 +3476,7 @@ syms_of_mac (void)
   {
     int i;
 
-    for (i = 0; i < sizeof (ae_attr_table) / sizeof (ae_attr_table[0]); i++)
+    for (i = 0; i < ARRAYELTS (ae_attr_table); i++)
       DEFSYM (ae_attr_table[i].symbol, ae_attr_table[i].name);
   }
 

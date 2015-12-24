@@ -255,7 +255,7 @@ time-stamped file itself.")
   "Update the time stamp string(s) in the buffer.
 A template in a file can be automatically updated with a new time stamp
 every time you save the file.  Add this line to your init file:
-    (add-hook 'before-save-hook 'time-stamp)
+    (add-hook \\='before-save-hook \\='time-stamp)
 or customize `before-save-hook' through Custom.
 Normally the template must appear in the first 8 lines of a file and
 look like one of the following:
@@ -420,16 +420,8 @@ format the string."
   (or ts-format
       (setq ts-format time-stamp-format))
   (if (stringp ts-format)
-      (if (stringp time-stamp-time-zone)
-	  (let ((ts-real-time-zone (getenv "TZ")))
-	    (unwind-protect
-		(progn
-		  (setenv "TZ" time-stamp-time-zone)
-		  (format-time-string
-		   (time-stamp-string-preprocess ts-format)))
-	      (setenv "TZ" ts-real-time-zone)))
-	(format-time-string
-	 (time-stamp-string-preprocess ts-format)))
+      (format-time-string (time-stamp-string-preprocess ts-format)
+                          nil time-stamp-time-zone)
     ;; handle version 1 compatibility
     (cond ((or (eq time-stamp-old-format-warn 'error)
 	       (and (eq time-stamp-old-format-warn 'ask)
@@ -685,7 +677,7 @@ otherwise the value of the function `system-name'."
 ;;; the rest of this file is for version 1 compatibility
 
 (defun time-stamp-fconcat (list sep)
-  "Similar to (mapconcat 'funcall LIST SEP) but LIST allows literals.
+  "Similar to (mapconcat \\='funcall LIST SEP) but LIST allows literals.
 If an element of LIST is a symbol, it is funcalled to get the string to use;
 the separator SEP is used between two strings obtained by funcalling a
 symbol.  Otherwise the element itself is inserted; no separator is used

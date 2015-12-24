@@ -20,15 +20,13 @@
 
 ## Commentary:
 ##
-## This file is inserted in src/Makefile if AUTO_DEPEND=no.
+## This file is included in src/Makefile if AUTO_DEPEND=no.
 ## It defines static dependencies between the various source files.
 
 ## FIXME some of these dependencies are platform-specific.
 ## Eg callproc.c only depends on w32.h for WINDOWSNT builds.
 ## One way to fix this would be to replace w32.h (etc) by $(W32_H),
 ## a variable set by configure.  Does not seem worth the trouble.
-## Since the w32 build does not even use this file, you might ask
-## why these dependencies are here at all...
 
 ## nsgui.h: In fact, every .o file depends directly or indirectly on
 ## dispextern.h and hence nsgui.h under NS.  But the ones that actually

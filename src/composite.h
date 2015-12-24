@@ -156,7 +156,7 @@ struct composition {
   /* How many columns the overall glyphs occupy on the screen.  This
      gives an approximate value for column calculation in
      Fcurrent_column, and etc.  */
-  unsigned short width;
+  int width;
 
   /* Method of the composition.  */
   enum composition_method method;
@@ -190,7 +190,6 @@ extern ptrdiff_t n_compositions;
 #define CHECK_BORDER	(CHECK_HEAD | CHECK_TAIL)
 #define CHECK_ALL	(CHECK_BORDER | CHECK_INSIDE)
 
-extern Lisp_Object Qcomposition;
 extern Lisp_Object composition_hash_table;
 extern ptrdiff_t get_composition_id (ptrdiff_t, ptrdiff_t, ptrdiff_t,
 				     Lisp_Object, Lisp_Object);

@@ -122,9 +122,9 @@ cookies  -- never accept HTTP cookies
 
 Samples:
 
- (setq url-privacy-level 'high)
- (setq url-privacy-level '(email lastloc))    ;; equivalent to 'high
- (setq url-privacy-level '(os))
+ (setq url-privacy-level \\='high)
+ (setq url-privacy-level \\='(email lastloc))    ;; equivalent to \\='high
+ (setq url-privacy-level \\='(os))
 
 ::NOTE::
 This variable controls several other variables and is _NOT_ automatically
@@ -209,6 +209,9 @@ document."
 (defvar url-request-extra-headers nil
   "A list of extra headers to send with the next request.
 Should be an assoc list of headers/contents.")
+
+(defvar url-request-noninteractive nil
+  "If non-nil, the request is done in a noninteractive context.")
 
 (defvar url-request-method nil "The method to use for the next request.")
 

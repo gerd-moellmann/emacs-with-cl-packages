@@ -370,13 +370,13 @@ This overrides `erc-server-coding-system' depending on the
 current target as returned by `erc-default-target'.
 
 Example: If you know that the channel #linux-ru uses the coding-system
-`cyrillic-koi8', then add '(\"#linux-ru\" . cyrillic-koi8) to the
+`cyrillic-koi8', then add (\"#linux-ru\" . cyrillic-koi8) to the
 alist."
   :group 'erc-server
   :type '(repeat (cons (string :tag "Target")
                        coding-system)))
 
-(defcustom erc-server-connect-function 'open-network-stream
+(defcustom erc-server-connect-function 'erc-open-network-stream
   "Function used to initiate a connection.
 It should take same arguments as `open-network-stream' does."
   :group 'erc-server
@@ -505,6 +505,10 @@ The current buffer is given by BUFFER."
          (memq (process-status erc-server-process) '(run open)))))
 
 ;;;; Connecting to a server
+(defun erc-open-network-stream (name buffer host service)
+  "As `open-network-stream', but does non-blocking IO"
+  (make-network-process :name name :buffer  buffer
+                        :host host :service service :nowait t))
 
 (defun erc-server-connect (server port buffer)
   "Perform the connection and login using the specified SERVER and PORT.
@@ -565,9 +569,14 @@ Make sure you are in an ERC buffer when running this."
       (setq erc-server-last-sent-time 0)
       (setq erc-server-lines-sent 0)
       (let ((erc-server-connect-function (or erc-session-connector
-                                             'open-network-stream)))
+                                             'erc-open-network-stream)))
         (erc-open erc-session-server erc-session-port erc-server-current-nick
                   erc-session-user-full-name t erc-session-password)))))
+
+(defun erc-server-delayed-reconnect (event buffer)
+  (if (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (erc-server-reconnect))))
 
 (defun erc-server-filter-function (process string)
   "The process filter for the ERC server."
@@ -615,17 +624,16 @@ EVENT is the message received from the closed connection process."
            (or erc-server-timed-out
                (not (string-match "^deleted" event)))
            ;; open-network-stream-nowait error for connection refused
-           (not (string-match "^failed with code 111" event)))))
+           (if (string-match "^failed with code 111" event) 'nonblocking t))))
 
 (defun erc-process-sentinel-2 (event buffer)
   "Called when `erc-process-sentinel-1' has detected an unexpected disconnect."
   (if (not (buffer-live-p buffer))
       (erc-update-mode-line)
     (with-current-buffer buffer
-      (let ((reconnect-p (erc-server-reconnect-p event)))
-        (erc-display-message nil 'error (current-buffer)
-                             (if reconnect-p 'disconnected
-                               'disconnected-noreconnect))
+      (let ((reconnect-p (erc-server-reconnect-p event)) message delay)
+        (setq message (if reconnect-p 'disconnected 'disconnected-noreconnect))
+        (erc-display-message nil 'error (current-buffer) message)
         (if (not reconnect-p)
             ;; terminate, do not reconnect
             (progn
@@ -637,23 +645,16 @@ EVENT is the message received from the closed connection process."
           ;; reconnect
           (condition-case err
               (progn
-                (setq erc-server-reconnecting nil)
-                (erc-server-reconnect)
-                (setq erc-server-reconnect-count 0))
-            (error (when (buffer-live-p buffer)
-                     (set-buffer buffer)
-                     (if (integerp erc-server-reconnect-attempts)
-                         (setq erc-server-reconnect-count
-                               (1+ erc-server-reconnect-count))
-                       (message "%s ... %s"
-                                "Reconnecting until we succeed"
-                                "kill the ERC server buffer to stop"))
-                     (if (numberp erc-server-reconnect-timeout)
-                         (run-at-time erc-server-reconnect-timeout nil
-                                      #'erc-process-sentinel-2
-                                      event buffer)
-                       (error (concat "`erc-server-reconnect-timeout`"
-                                      " must be a number")))))))))))
+                (setq erc-server-reconnecting   nil
+                      erc-server-reconnect-count (1+ erc-server-reconnect-count))
+                (setq delay erc-server-reconnect-timeout)
+                (run-at-time delay nil
+                             #'erc-server-delayed-reconnect event buffer))
+            (error (unless (integerp erc-server-reconnect-attempts)
+                     (message "%s ... %s"
+                              "Reconnecting until we succeed"
+                              "kill the ERC server buffer to stop"))
+                   (erc-server-delayed-reconnect event buffer))))))))
 
 (defun erc-process-sentinel-1 (event buffer)
   "Called when `erc-process-sentinel' has decided that we're disconnecting.
@@ -1082,7 +1083,7 @@ As an example:
 Would expand to:
 
   (prog2
-      (defvar erc-server-311-functions 'erc-server-311
+      (defvar erc-server-311-functions \\='erc-server-311
         \"Some non-generic variable documentation.
 
   Hook called upon receiving a 311 server response.
@@ -1100,12 +1101,12 @@ Would expand to:
   add things to `erc-server-311-functions' instead.\"
         (do-stuff-with-whois proc parsed))
 
-    (puthash \"311\" 'erc-server-311-functions erc-server-responses)
-    (puthash \"WHOIS\" 'erc-server-WHOIS-functions erc-server-responses)
-    (puthash \"WI\" 'erc-server-WI-functions erc-server-responses)
+    (puthash \"311\" \\='erc-server-311-functions erc-server-responses)
+    (puthash \"WHOIS\" \\='erc-server-WHOIS-functions erc-server-responses)
+    (puthash \"WI\" \\='erc-server-WI-functions erc-server-responses)
 
-    (defalias 'erc-server-WHOIS 'erc-server-311)
-    (defvar erc-server-WHOIS-functions 'erc-server-311
+    (defalias \\='erc-server-WHOIS \\='erc-server-311)
+    (defvar erc-server-WHOIS-functions \\='erc-server-311
       \"Some non-generic variable documentation.
 
   Hook called upon receiving a WHOIS server response.
@@ -1116,8 +1117,8 @@ Would expand to:
 
   See also `erc-server-311'.\")
 
-    (defalias 'erc-server-WI 'erc-server-311)
-    (defvar erc-server-WI-functions 'erc-server-311
+    (defalias \\='erc-server-WI \\='erc-server-311)
+    (defvar erc-server-WI-functions \\='erc-server-311
       \"Some non-generic variable documentation.
 
   Hook called upon receiving a WI server response.
@@ -1136,7 +1137,8 @@ Would expand to:
                         aliases))
   (let* ((hook-name (intern (format "erc-server-%s-functions" name)))
          (fn-name (intern (format "erc-server-%s" name)))
-         (hook-doc (format "%sHook called upon receiving a %%s server response.
+         (hook-doc (format-message "\
+%sHook called upon receiving a %%s server response.
 Each function is called with two arguments, the process associated
 with the response and the parsed response.  If the function returns
 non-nil, stop processing the hook.  Otherwise, continue.
@@ -1146,7 +1148,8 @@ See also `%s'."
                                (concat extra-var-doc "\n\n")
                              "")
                            fn-name))
-         (fn-doc (format "%sHandler for a %s server response.
+         (fn-doc (format-message "\
+%sHandler for a %s server response.
 PROC is the server process which returned the response.
 PARSED is the actual response as an `erc-response' struct.
 If you want to add responses don't modify this function, but rather
@@ -1539,7 +1542,7 @@ A server may send more than one 005 message."
     (while (erc-response.command-args parsed)
       (let ((section (pop (erc-response.command-args parsed))))
         ;; fill erc-server-parameters
-        (when (string-match "^\\([A-Z]+\\)\=\\(.*\\)$\\|^\\([A-Z]+\\)$"
+        (when (string-match "^\\([A-Z]+\\)=\\(.*\\)$\\|^\\([A-Z]+\\)$"
                             section)
           (add-to-list 'erc-server-parameters
                        `(,(or (match-string 1 section)

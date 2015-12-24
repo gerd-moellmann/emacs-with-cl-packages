@@ -26,8 +26,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifndef EMACS_CCL_H
 #define EMACS_CCL_H
 
-#include "character.h" /* For MAX_MULTIBYTE_LENGTH */
-
 /* Macros for exit status of CCL program.  */
 #define CCL_STAT_SUCCESS	0 /* Terminated successfully.  */
 #define CCL_STAT_SUSPEND_BY_SRC	1 /* Terminated by empty input.  */
@@ -80,8 +78,6 @@ extern bool setup_ccl_program (struct ccl_program *, Lisp_Object);
 
 extern void ccl_driver (struct ccl_program *, int *, int *, int, int,
                         Lisp_Object);
-
-extern Lisp_Object Qccl, Qcclp;
 
 #define CHECK_CCL_PROGRAM(x)			\
   do {						\

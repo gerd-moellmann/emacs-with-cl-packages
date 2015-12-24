@@ -1,8 +1,8 @@
 \input texinfo
 
-@setfilename gnus-coding
+@setfilename gnus-coding.info
 @settitle Gnus Coding Style and Maintenance Guide
-@documentencoding UTF-8
+@include docstyle.texi
 @syncodeindex fn cp
 @syncodeindex vr cp
 @syncodeindex pg cp

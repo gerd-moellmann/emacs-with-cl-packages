@@ -1160,7 +1160,7 @@ the file \"/home/user/Mail/.namazu/mknmzrc\" with the following
 contents:
 
      package conf;  # Don't remove this line!
-     $ADDRESS = 'user@localhost';
+     $ADDRESS = \\='user@localhost\\=';
      $ALLOW_FILE = \"[0-9]*\";
      $EXCLUDE_PATH = \"^/home/user/Mail/(mhe-index|spam)\";
 
@@ -1247,7 +1247,7 @@ is used to search."
   (prog1
       (block nil
         (when (eobp) (return nil))
-        (when (search-forward-regexp "^\+" (mh-line-end-position) t)
+        (when (search-forward-regexp "^\\+" (mh-line-end-position) t)
           (setq mh-index-pick-folder
                 (buffer-substring-no-properties (mh-line-beginning-position)
                                                 (mh-line-end-position)))

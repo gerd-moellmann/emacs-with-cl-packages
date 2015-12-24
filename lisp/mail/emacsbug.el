@@ -43,11 +43,6 @@
 (define-obsolete-variable-alias 'report-emacs-bug-pretest-address
   'report-emacs-bug-address "24.1")
 
-(defcustom report-emacs-bug-address "bug-gnu-emacs@gnu.org"
-  "Address of mailing list for GNU Emacs bugs."
-  :group 'emacsbug
-  :type 'string)
-
 (defcustom report-emacs-bug-mac-address "mituharu+bug-gnu-emacs-mac@math.s.chiba-u.ac.jp"
   "Address for reporting GNU Emacs Mac port specific bugs."
   :group 'emacsbug
@@ -237,7 +232,7 @@ usually do not have translators for other languages.\n\n")))
 
     (insert "Please describe exactly what actions triggered the bug, and\n"
 	    "the precise symptoms of the bug.  If you can, give a recipe\n"
-	    "starting from `emacs -Q':\n\n")
+	    "starting from 'emacs -Q':\n\n")
     (let ((txt (delete-and-extract-region
                 (save-excursion (rfc822-goto-eoh) (line-beginning-position 2))
                 (point))))
@@ -247,7 +242,7 @@ usually do not have translators for other languages.\n\n")))
 
     (insert "If Emacs crashed, and you have the Emacs process in the gdb debugger,\n"
 	    "please include the output from the following gdb commands:\n"
-	    "    `bt full' and `xbacktrace'.\n")
+	    "    'bt full' and 'xbacktrace'.\n")
 
     (let ((debug-file (expand-file-name "DEBUG" data-directory)))
       (if (file-readable-p debug-file)
@@ -262,7 +257,7 @@ usually do not have translators for other languages.\n\n")))
     (if (fboundp 'x-server-vendor)
 	(condition-case nil
             ;; This is used not only for X11 but also W32 and others.
-	    (insert "Windowing system distributor `" (x-server-vendor)
+	    (insert "Windowing system distributor '" (x-server-vendor)
                     "', version "
 		    (mapconcat 'number-to-string (x-server-version) ".") "\n")
 	  (error t)))
@@ -275,9 +270,11 @@ usually do not have translators for other languages.\n\n")))
 	  (insert "System " lsb "\n")))
     (when (and system-configuration-options
 	       (not (equal system-configuration-options "")))
-      (insert "Configured using:\n `configure "
+      (insert "Configured using:\n 'configure "
 	      system-configuration-options "'\n\n")
       (fill-region (line-beginning-position -1) (point)))
+    (insert "Configured features:\n" system-configuration-features "\n\n")
+    (fill-region (line-beginning-position -1) (point))
     (insert "Important settings:\n")
     (mapc
      (lambda (var)
@@ -315,7 +312,7 @@ usually do not have translators for other languages.\n\n")))
 	    (insert-buffer-substring message-buf beg-pos end-pos))))
     ;; After Recent messages, to avoid the messages produced by
     ;; list-load-path-shadows.
-    (unless (looking-back "\n")
+    (unless (looking-back "\n" (1- (point)))
       (insert "\n"))
     (insert "\n")
     (insert "Load-path shadows:\n")
@@ -335,7 +332,7 @@ usually do not have translators for other languages.\n\n")))
 
     (insert (format "\nMemory information:\n"))
     (pp (garbage-collect) (current-buffer))
-    
+
     ;; This is so the user has to type something in order to send easily.
     (use-local-map (nconc (make-sparse-keymap) (current-local-map)))
     (define-key (current-local-map) "\C-c\C-i" 'info-emacs-bug)
@@ -437,7 +434,8 @@ and send the mail again%s."
 					 (regexp-quote (system-name)))
 				 from))
 	       (not (yes-or-no-p
-		     (format "Is `%s' really your email address? " from)))
+		     (format-message "Is `%s' really your email address? "
+                                     from)))
 	       (error "Please edit the From address and try again"))))))
 
 

@@ -34,4 +34,37 @@
     (goto-char (point-min))
     (should (search-forward "autoloaded Lisp macro" (line-end-position)))))
 
+(defun abc\\\[universal-argument\]b\`c\'d\\e\"f (x)
+  "A function with a funny name.
+
+\(fn XYZZY)"
+  x)
+
+(defun defgh\\\[universal-argument\]b\`c\'d\\e\"f (x)
+  "Another function with a funny name."
+  x)
+
+(ert-deftest help-fns-test-funny-names ()
+  "Test for help with functions with funny names."
+  (describe-function 'abc\\\[universal-argument\]b\`c\'d\\e\"f)
+  (with-current-buffer "*Help*"
+    (goto-char (point-min))
+    (should (search-forward
+             "(abc\\\\\\[universal-argument\\]b\\`c\\'d\\\\e\\\"f XYZZY)")))
+  (describe-function 'defgh\\\[universal-argument\]b\`c\'d\\e\"f)
+  (with-current-buffer "*Help*"
+    (goto-char (point-min))
+    (should (search-forward
+             "(defgh\\\\\\[universal-argument\\]b\\`c\\'d\\\\e\\\"f X)"))))
+
+(ert-deftest help-fns-test-describe-symbol ()
+  "Test the `describe-symbol' function."
+  ;; 'describe-symbol' would originally signal an error for
+  ;; 'font-lock-comment-face'.
+  (describe-symbol 'font-lock-comment-face)
+  (with-current-buffer "*Help*"
+    (should (> (point-max) 1))
+    (goto-char (point-min))
+    (should (looking-at "^font-lock-comment-face is "))))
+
 ;;; help-fns.el ends here

@@ -31,6 +31,9 @@ typedef Lisp_Object XrmDatabase;
 #undef free
 #undef malloc
 #undef realloc
+#ifdef INFINITY
+#define INFINITY_DEFINED 1
+#endif
 /* Macros max and min defined in lisp.h conflict with those in
    precompiled header Carbon.h.  */
 #undef max
@@ -47,7 +50,9 @@ typedef Lisp_Object XrmDatabase;
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #undef max
 #define max(a, b) ((a) > (b) ? (a) : (b))
+#ifndef INFINITY_DEFINED
 #undef INFINITY
+#endif
 #undef Z
 #define Z (current_buffer->text->z)
 #undef ALIGN

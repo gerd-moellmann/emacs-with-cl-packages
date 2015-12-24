@@ -546,12 +546,12 @@ spawn (const char *progname, char *cmdline, const char *dir, int *retcode)
   memset (&start, 0, sizeof (start));
   start.cb = sizeof (start);
 
-  /* CreateProcess handles batch files as progname specially.  This
+  /* CreateProcess handles batch files as progname specially. This
      special handling fails when both the batch file and arguments are
      quoted.  We pass NULL as progname to avoid the special
      handling. */
   if (progname != NULL && cmdline[0] == '"' && batch_file_p (progname))
-    progname = NULL;
+      progname = NULL;
 
   if (CreateProcess (progname, cmdline, &sec_attrs, NULL, TRUE,
 		     0, envblock, dir, &start, &child))

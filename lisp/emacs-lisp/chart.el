@@ -280,7 +280,7 @@ START and END represent the boundary."
   "Draw axis information based upon a range to be spread along the edge.
 A is the chart to draw.  DIR is the direction.
 MARGIN, ZONE, START, and END specify restrictions in chart space."
-  (call-next-method)
+  (cl-call-next-method)
   ;; We prefer about 5 spaces between each value
   (let* ((i (car (oref a bounds)))
 	 (e (cdr (oref a bounds)))
@@ -333,7 +333,7 @@ Automatically compensates for direction."
   "Draw axis information based upon A range to be spread along the edge.
 Optional argument DIR is the direction of the chart.
 Optional arguments MARGIN, ZONE, START and END specify boundaries of the drawing."
-  (call-next-method)
+  (cl-call-next-method)
   ;; We prefer about 5 spaces between each value
   (let* ((i 0)
 	 (s (oref a items))
@@ -422,7 +422,7 @@ or is created with the bounds of SEQ."
 	(if (stringp (car (oref seq data)))
 	    (let ((labels (oref seq data)))
 	      (if (not axis)
-		  (setq axis (make-instance chart-axis-names
+		  (setq axis (make-instance 'chart-axis-names
 					    :name (oref seq name)
 					    :items labels
 					    :chart c))
@@ -430,7 +430,7 @@ or is created with the bounds of SEQ."
 	  (let ((range (cons 0 1))
 		(l (oref seq data)))
 	    (if (not axis)
-		(setq axis (make-instance chart-axis-range
+		(setq axis (make-instance 'chart-axis-range
 					  :name (oref seq name)
 					  :chart c)))
 	    (while l
@@ -479,7 +479,7 @@ See `chart-sort-matchlist' for more details."
 
 (defun chart-sort-matchlist (namelst numlst pred)
   "Sort NAMELST and NUMLST (both sequence objects) based on predicate PRED.
-PRED should be the equivalent of '<, except it must expect two
+PRED should be the equivalent of `<', except it must expect two
 cons cells of the form (NAME . NUM).  See `sort' for more details."
   ;; 1 - create 1 list of cons cells
   (let ((newlist nil)
@@ -571,25 +571,25 @@ R1 and R2 are dotted pairs.  Colorize it with FACE."
 (defun chart-bar-quickie (dir title namelst nametitle numlst numtitle
 			      &optional max sort-pred)
   "Wash over the complex EIEIO stuff and create a nice bar chart.
-Create it going in direction DIR ['horizontal 'vertical] with TITLE
+Create it going in direction DIR [`horizontal' `vertical'] with TITLE
 using a name sequence NAMELST labeled NAMETITLE with values NUMLST
 labeled NUMTITLE.
 Optional arguments:
 Set the chart's max element display to MAX, and sort lists with
 SORT-PRED if desired."
-  (let ((nc (make-instance chart-bar
+  (let ((nc (make-instance 'chart-bar
 			   :title title
 			   :key-label "8-m"  ; This is a text key pic
 			   :direction dir
 			   ))
 	(iv (eq dir 'vertical)))
     (chart-add-sequence nc
-			(make-instance chart-sequece
+			(make-instance 'chart-sequece
 				       :data namelst
 				       :name nametitle)
 			(if iv 'x-axis 'y-axis))
     (chart-add-sequence nc
-			(make-instance chart-sequece
+			(make-instance 'chart-sequece
 				       :data numlst
 				       :name numtitle)
 			(if iv 'y-axis 'x-axis))

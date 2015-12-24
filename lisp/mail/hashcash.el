@@ -47,10 +47,6 @@
 
 ;;; Code:
 
-;; For Emacs <22.2 and XEmacs.
-(eval-and-compile
-  (unless (fboundp 'declare-function) (defmacro declare-function (&rest r))))
-
 (eval-when-compile (require 'cl))	; for case
 
 (defgroup hashcash nil
@@ -101,7 +97,7 @@ If this is not in your PATH, specify an absolute file name."
 
 (defcustom hashcash-extra-generate-parameters nil
   "A list of parameter strings passed to `hashcash-program' when minting.
-For example, you may want to set this to '(\"-Z2\") to reduce header length."
+For example, you may want to set this to (\"-Z2\") to reduce header length."
   :type '(repeat string)
   :group 'hashcash)
 

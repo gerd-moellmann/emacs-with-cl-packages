@@ -36,7 +36,7 @@
 
 (defcustom cedet-global-gtags-command "gtags"
   "Command name for the GNU Global gtags executable.
-GTAGS is used to create the tags table queried by the 'global' command."
+GTAGS is used to create the tags table queried by the `global' command."
   :type 'string
   :group 'cedet)
 
@@ -93,11 +93,19 @@ SCOPE is the scope of the search, such as 'project or 'subdirs."
     (apply 'call-process cedet-global-gtags-command
 	   nil b nil
 	   flags)
+
+    ;; Check for warnings.
+    (with-current-buffer b
+      (goto-char (point-min))
+      (when (re-search-forward "Error\\|Warning\\|invalid" nil t)
+	(error "Output:\n%S" (buffer-string))))
+
     b))
 
 (defun cedet-gnu-global-expand-filename (filename)
   "Expand the FILENAME with GNU Global.
-Return a fully qualified filename."
+Return a list of absolute filenames or nil if none found.
+Signal an error if Gnu global not available."
   (interactive "sFile: ")
   (let ((ans (with-current-buffer (cedet-gnu-global-call (list "-Pa" filename))
 	       (goto-char (point-min))
@@ -179,10 +187,14 @@ If a database already exists, then just update it."
   (let ((root (cedet-gnu-global-root dir)))
     (if root (setq dir root))
     (let ((default-directory dir))
-      (cedet-gnu-global-gtags-call
-       (when root
-	 '("-i");; Incremental update flag.
-	 )))))
+      (if root
+          ;; Incremental update. This can be either "gtags -i" or
+          ;; "global -u"; the gtags manpage says it's better to use
+          ;; "global -u".
+	  (cedet-gnu-global-call (list "-u"))
+	(cedet-gnu-global-gtags-call nil)
+	)
+      )))
 
 (provide 'cedet-global)
 

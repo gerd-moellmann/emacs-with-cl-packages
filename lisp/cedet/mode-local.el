@@ -48,6 +48,13 @@
 
 (eval-when-compile (require 'cl))
 
+(require 'find-func)
+;; For find-function-regexp-alist. It is tempting to replace this
+;; ‘require’ by (defvar find-function-regexp-alist) and
+;; with-eval-after-load, but model-local.el is typically loaded when a
+;; semantic autoload is invoked, and something in semantic loads
+;; find-func.el before mode-local.el, so the eval-after-load is lost.
+
 ;;; Misc utilities
 ;;
 (defun mode-local-map-file-buffers (function &optional predicate buffers)
@@ -597,7 +604,7 @@ PROMPT, INITIAL, HIST, and DEFAULT are the same as for `completing-read'."
 ;;
 (defun overload-docstring-extension (overload)
   "Return the doc string that augments the description of OVERLOAD."
-  (let ((doc "\n\This function can be overloaded\
+  (let ((doc "\nThis function can be overloaded\
  with `define-mode-local-override'.")
         (sym (overload-obsoleted-by overload)))
     (when sym
@@ -620,18 +627,144 @@ SYMBOL is a function that can be overridden."
       (beginning-of-line)
       (forward-line -1))
     (let ((inhibit-read-only t))
-      (insert (overload-docstring-extension symbol) "\n")
+      (insert (substitute-command-keys (overload-docstring-extension symbol))
+              "\n")
       ;; NOTE TO SELF:
       ;; LIST ALL LOADED OVERRIDES FOR SYMBOL HERE
       )))
+
+(defun describe-mode-local-overload (symbol)
+  "For `help-fns-describe-function-functions'; add overloads for SYMBOL."
+  (when (get symbol 'mode-local-overload)
+    (let ((default (or (intern-soft (format "%s-default" (symbol-name symbol)))
+		       symbol))
+	  (override (with-current-buffer describe-function-orig-buffer
+                      (fetch-overload symbol)))
+          modes)
+
+      (insert (substitute-command-keys (overload-docstring-extension symbol))
+              "\n\n")
+      (insert (format-message "default function: `%s'\n" default))
+      (if override
+	  (insert (format-message "\noverride in buffer `%s': `%s'\n"
+				  describe-function-orig-buffer override))
+	(insert (format-message "\nno override in buffer `%s'\n"
+				describe-function-orig-buffer)))
+
+      (mapatoms
+       (lambda (sym) (when (get sym 'mode-local-symbol-table) (push sym modes)))
+       obarray)
+
+      (dolist (mode modes)
+	(let* ((major-mode mode)
+	       (override (fetch-overload symbol)))
+
+	  (when override
+	    (insert (format-message "\noverride in mode `%s': `%s'\n"
+				    major-mode override))
+            )))
+      )))
+
+(add-hook 'help-fns-describe-function-functions 'describe-mode-local-overload)
+
+(declare-function xref-item-location "xref" (xref))
+
+(defun xref-mode-local--override-present (sym xrefs)
+  "Return non-nil if SYM is in XREFS."
+  (let (result)
+    (while (and (null result)
+		xrefs)
+      (when (equal sym (car (xref-elisp-location-symbol (xref-item-location (pop xrefs)))))
+	(setq result t)))
+    result))
+
+(defun xref-mode-local-overload (symbol)
+  "For `elisp-xref-find-def-functions'; add overloads for SYMBOL."
+  ;; Current buffer is the buffer where xref-find-definitions was invoked.
+  (when (get symbol 'mode-local-overload)
+    (let* ((symbol-file (find-lisp-object-file-name symbol (symbol-function symbol)))
+	   (default (intern-soft (format "%s-default" (symbol-name symbol))))
+	   (default-file (when default (find-lisp-object-file-name default (symbol-function default))))
+	   modes
+	   xrefs)
+
+      (mapatoms
+       (lambda (sym) (when (get sym 'mode-local-symbol-table) (push sym modes)))
+       obarray)
+
+      ;; mode-local-overrides are inherited from parent modes; we
+      ;; don't want to list the same function twice. So order ‘modes’
+      ;; with parents first, and check for duplicates.
+
+      (setq modes
+	    (sort modes
+		  (lambda (a b)
+		    (not (equal b (get a 'mode-local-parent)))))) ;; a is not a child, or not a child of b
+
+      (dolist (mode modes)
+	(let* ((major-mode mode)
+	       (override (fetch-overload symbol))
+	       (override-file (when override (find-lisp-object-file-name override (symbol-function override)))))
+
+	  (when (and override override-file)
+	    (let ((meta-name (cons override major-mode))
+		  ;; For the declaration:
+		  ;;
+		  ;;(define-mode-local-override xref-elisp-foo c-mode
+		  ;;
+		  ;; The override symbol name is
+		  ;; "xref-elisp-foo-c-mode". The summary should match
+		  ;; the declaration, so strip the mode from the
+		  ;; symbol name.
+		  (summary (format elisp--xref-format-extra
+				   'define-mode-local-override
+				   (substring (symbol-name override) 0 (- (1+ (length (symbol-name major-mode)))))
+				   major-mode)))
+
+	      (unless (xref-mode-local--override-present override xrefs)
+		(push (elisp--xref-make-xref
+		       'define-mode-local-override meta-name override-file summary)
+		      xrefs))))))
+
+      ;; %s-default is interned whether it is a separate function or
+      ;; not, so we have to check that here.
+      (when (and (functionp default) default-file)
+	(push (elisp--xref-make-xref nil default default-file) xrefs))
+
+      (when symbol-file
+	(push (elisp--xref-make-xref 'define-overloadable-function symbol symbol-file) xrefs))
+
+      xrefs)))
+
+(add-hook 'elisp-xref-find-def-functions 'xref-mode-local-overload)
+
+(defconst xref-mode-local-find-overloadable-regexp
+  "(\\(\\(define-overloadable-function\\)\\|\\(define-overload\\)\\) +%s"
+  "Regexp used by `xref-find-definitions' when searching for a
+  mode-local overloadable function definition.")
+
+(defun xref-mode-local-find-override (meta-name)
+  "Function used by `xref-find-definitions' when searching for an
+  override of a mode-local overloadable function.
+META-NAME is a cons (OVERLOADABLE-SYMBOL . MAJOR-MODE)."
+  (let* ((override (car meta-name))
+	 (mode (cdr meta-name))
+	 (regexp (format "(define-mode-local-override +%s +%s"
+			 (substring (symbol-name override) 0 (- (1+ (length (symbol-name mode)))))
+			 mode)))
+    (re-search-forward regexp nil t)
+    ))
+
+(add-to-list 'find-function-regexp-alist '(define-overloadable-function . xref-mode-local-find-overloadable-regexp))
+(add-to-list 'find-function-regexp-alist (cons 'define-mode-local-override #'xref-mode-local-find-override))
 
 ;; Help for mode-local bindings.
 (defun mode-local-print-binding (symbol)
   "Print the SYMBOL binding."
   (let ((value (symbol-value symbol)))
-    (princ (format "\n     `%s' value is\n       " symbol))
+    (princ (format-message "\n     `%s' value is\n       " symbol))
     (if (and value (symbolp value))
-        (princ (format "`%s'" value))
+        (princ (format-message "`%s'" value))
       (let ((pt (point)))
         (pp value)
         (save-excursion
@@ -689,7 +822,7 @@ SYMBOL is a function that can be overridden."
       )
      ((symbolp buffer-or-mode)
       (setq mode buffer-or-mode)
-      (princ (format "`%s'\n" buffer-or-mode))
+      (princ (format-message "`%s'\n" buffer-or-mode))
       )
      ((signal 'wrong-type-argument
               (list 'buffer-or-mode buffer-or-mode))))
@@ -699,7 +832,7 @@ SYMBOL is a function that can be overridden."
     (while mode
       (setq table (get mode 'mode-local-symbol-table))
       (when table
-        (princ (format "\n- From `%s'\n" mode))
+        (princ (format-message "\n- From `%s'\n" mode))
         (mode-local-print-bindings table))
       (setq mode (get-mode-local-parent mode)))))
 
@@ -740,24 +873,6 @@ invoked interactively."
           t (symbol-name major-mode))))
   (when (setq mode (intern-soft mode))
     (mode-local-describe-bindings-1 mode (called-interactively-p 'any))))
-
-;; ;;; find-func support (Emacs 21.4, or perhaps 22.1)
-;; ;;
-;; (condition-case nil
-;;     ;; Try to get find-func so we can modify it.
-;;     (require 'find-func)
-;;   (error nil))
-
-;; (when (boundp 'find-function-regexp)
-;;   (unless (string-match "ine-overload" find-function-regexp)
-;;     (if (string-match "(def\\\\(" find-function-regexp)
-;; 	(let ((end (match-end 0))
-;; 	      )
-;; 	  (setq find-function-regexp
-;; 		(concat (substring find-function-regexp 0 end)
-;; 			"ine-overload\\|ine-mode-local-override\\|"
-;; 			"ine-child-mode\\|"
-;; 			(substring find-function-regexp end)))))))
 
 ;;; edebug support
 ;;

@@ -7,6 +7,11 @@ let c = 1,
 var e = 100500,
     + 1;
 
+function test ()
+{
+  return /[/]/.test ('/')     // (bug#19397)
+}
+
 var f = bar('/protocols/')
 baz();
 
@@ -55,3 +60,37 @@ var evens = [e for each (e in range(0, 21))
 a++
 b +=
   c
+
+baz(`http://foo.bar/${tee}`)
+  .qux();
+
+`multiline string
+       contents
+  are kept
+        unchanged!`
+
+class A {
+  * x() {
+    return 1
+      * 2;
+  }
+}
+
+if (true)
+  1
+else
+  2
+
+Foobar
+  .find()
+  .catch((err) => {
+    return 2;
+  })
+  .then((num) => {
+    console.log(num);
+  });
+
+// Local Variables:
+// indent-tabs-mode: nil
+// js-indent-level: 2
+// End:

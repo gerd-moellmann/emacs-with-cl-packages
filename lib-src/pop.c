@@ -42,10 +42,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #endif
 #include <pop.h>
 
-#ifdef sun
-#include <malloc.h>
-#endif /* sun */
-
 #ifdef HESIOD
 #include <hesiod.h>
 /*
@@ -1397,8 +1393,7 @@ sendline (popserver server, const char *line)
      over a few dozen messages, and is a big chunk of the time we
      spend fetching mail from a server close by.  */
   buf = alloca (strlen (line) + 3);
-  strcpy (buf, line);
-  strcat (buf, "\r\n");
+  strcpy (stpcpy (buf, line), "\r\n");
   ret = fullwrite (server->file, buf, strlen (buf));
 
   if (ret < 0)

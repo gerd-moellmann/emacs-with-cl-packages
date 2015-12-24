@@ -34,6 +34,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "intervals.h"
 #include "keymap.h"
 #include "macfont.h"
+#include "menu.h"
 
 #import "macappkit.h"
 #import <objc/runtime.h>
@@ -868,14 +869,14 @@ mac_system_uptime (void)
   return [[NSProcessInfo processInfo] systemUptime];
 }
 
-Boolean
+bool
 mac_is_current_process_frontmost (void)
 {
   return [[NSRunningApplication currentApplication] isActive];
 }
 
 void
-mac_bring_current_process_to_front (Boolean front_window_only_p)
+mac_bring_current_process_to_front (bool front_window_only_p)
 {
   NSApplicationActivationOptions options;
 
@@ -1262,7 +1263,7 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
       if (do_help > 0)
 	{
-	  any_help_event_p = 1;
+	  any_help_event_p = true;
 	  gen_help_event (help_echo_string, frame, help_echo_window,
 			  help_echo_object, help_echo_pos);
 	}
@@ -3006,7 +3007,7 @@ static CGRect unset_global_focus_view_frame (void);
 {
   struct frame *f = emacsFrame;
   struct input_event inev;
-  Lisp_Object Qframe = intern ("frame"), tag_Lisp = build_string ("Lisp");
+  Lisp_Object tag_Lisp = build_string ("Lisp");
   Lisp_Object arg;
 
   EVENT_INIT (inev);
@@ -3686,14 +3687,14 @@ mac_set_frame_window_title (struct frame *f, CFStringRef string)
 }
 
 void
-mac_set_frame_window_modified (struct frame *f, Boolean modified)
+mac_set_frame_window_modified (struct frame *f, bool modified)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   [window setDocumentEdited:modified];
 }
 
-Boolean
+bool
 mac_is_frame_window_visible (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
@@ -3701,7 +3702,7 @@ mac_is_frame_window_visible (struct frame *f)
   return [window isVisible] || [window isMiniaturized];
 }
 
-Boolean
+bool
 mac_is_frame_window_collapsed (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
@@ -3710,8 +3711,7 @@ mac_is_frame_window_collapsed (struct frame *f)
 }
 
 static void
-mac_bring_frame_window_to_front_and_activate (struct frame *f,
-					      Boolean activate_p)
+mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 {
   EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
@@ -3762,7 +3762,7 @@ mac_show_frame_window (struct frame *f)
 }
 
 OSStatus
-mac_collapse_frame_window (struct frame *f, Boolean collapse)
+mac_collapse_frame_window (struct frame *f, bool collapse)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
@@ -3774,7 +3774,7 @@ mac_collapse_frame_window (struct frame *f, Boolean collapse)
   return noErr;
 }
 
-Boolean
+bool
 mac_is_frame_window_frontmost (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
@@ -3802,12 +3802,12 @@ mac_get_base_screen_frame (void)
 }
 
 OSStatus
-mac_move_frame_window_structure (struct frame *f, short h, short v)
+mac_move_frame_window_structure (struct frame *f, int x, int y)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
   NSRect baseScreenFrame = mac_get_base_screen_frame ();
-  NSPoint topLeft = NSMakePoint (h + NSMinX (baseScreenFrame),
-				 -v + NSMaxY (baseScreenFrame));
+  NSPoint topLeft = NSMakePoint (x + NSMinX (baseScreenFrame),
+				 -y + NSMaxY (baseScreenFrame));
 
   [window setFrameTopLeftPoint:topLeft];
 
@@ -3815,7 +3815,7 @@ mac_move_frame_window_structure (struct frame *f, short h, short v)
 }
 
 void
-mac_move_frame_window (struct frame *f, short h, short v, Boolean front)
+mac_move_frame_window (struct frame *f, int x, int y, bool front)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
   NSView *contentView = [window contentView];
@@ -3824,16 +3824,16 @@ mac_move_frame_window (struct frame *f, short h, short v, Boolean front)
 
   contentViewFrame = [contentView convertRect:[contentView bounds] toView:nil];
   baseScreenFrame = mac_get_base_screen_frame ();
-  windowFrameOrigin.x = (h - NSMinX (contentViewFrame)
+  windowFrameOrigin.x = (x - NSMinX (contentViewFrame)
 			 + NSMinX (baseScreenFrame));
-  windowFrameOrigin.y = (-(v + NSMaxY (contentViewFrame))
+  windowFrameOrigin.y = (-(y + NSMaxY (contentViewFrame))
 			 + NSMaxY (baseScreenFrame));
 
   [window setFrameOrigin:windowFrameOrigin];
 }
 
 void
-mac_size_frame_window (struct frame *f, short w, short h, Boolean update)
+mac_size_frame_window (struct frame *f, int w, int h, bool update)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
   NSView *contentView;
@@ -3880,7 +3880,7 @@ mac_get_frame_window_alpha (struct frame *f, CGFloat *out_alpha)
 }
 
 void
-mac_get_window_structure_bounds (struct frame *f, NativeRectangle *bounds)
+mac_get_frame_window_structure_bounds (struct frame *f, NativeRectangle *bounds)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
   NSRect baseScreenFrame = mac_get_base_screen_frame ();
@@ -3892,28 +3892,117 @@ mac_get_window_structure_bounds (struct frame *f, NativeRectangle *bounds)
 		     NSWidth (windowFrame), NSHeight (windowFrame));
 }
 
-void
-mac_get_frame_mouse (struct frame *f, Point *point)
+CGFloat
+mac_get_frame_window_title_bar_height (struct frame *f)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  NSRect windowFrame = [window frame];
+  NSRect rect = [NSWindow contentRectForFrameRect:windowFrame
+					styleMask:[window styleMask]];
+
+  rect.origin = NSZeroPoint;
+  rect = [[window contentView] convertRect:rect toView:nil];
+
+  return NSHeight (windowFrame) - NSHeight (rect);
+}
+
+CGSize
+mac_get_frame_window_menu_bar_size (struct frame *f)
+{
+  NSSize menuBarSize = NSZeroSize;
+
+  if ([NSMenu menuBarVisible])
+    {
+      NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+      NSScreen *screen = [window screen];
+
+      if (![screen canShowMenuBar])
+	screen = [[NSScreen screens] objectAtIndex:0];
+      if (screen)
+	menuBarSize.width = NSWidth ([screen frame]);
+      menuBarSize.height = [[NSApp mainMenu] menuBarHeight];
+    }
+
+  return NSSizeToCGSize (menuBarSize);
+}
+
+CGRect
+mac_get_frame_window_tool_bar_rect (struct frame *f)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  NSView *contentView = [window contentView];
+  NSRect rect;
+  CGFloat toolBarHeight;
+
+  if (FRAME_NATIVE_TOOL_BAR_P (f))
+    {
+      if (FRAME_TOOL_BAR_HEIGHT (f))
+	{
+	  rect = [contentView frame];
+	  toolBarHeight = FRAME_TOOL_BAR_HEIGHT (f);
+	  rect.origin.y += NSHeight (rect) - toolBarHeight;
+	  rect.size.height = toolBarHeight;
+	}
+      else
+	rect = NSZeroRect;
+    }
+  else
+    {
+      NSToolbar *toolbar = [window toolbar];
+
+      if (toolbar && [toolbar isVisible])
+	{
+	  rect = [contentView frame];
+	  toolBarHeight =
+	    (NSHeight ([NSWindow contentRectForFrameRect:[window frame]
+					       styleMask:[window styleMask]])
+	     - NSHeight (rect));
+	  rect.origin.y += NSHeight (rect);
+	  rect.size.height = toolBarHeight;
+	}
+      else
+	rect = NSZeroRect;
+    }
+
+  return NSRectToCGRect ([contentView convertRect:rect toView:nil]);
+}
+
+CGRect
+mac_get_frame_window_content_rect (struct frame *f, bool inner_p)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  NSView *contentView = [window contentView];
+  NSRect rect = [contentView bounds];
+
+  if (inner_p)
+    {
+      rect = NSInsetRect (rect, FRAME_INTERNAL_BORDER_WIDTH (f),
+			  FRAME_INTERNAL_BORDER_WIDTH (f));
+      if (FRAME_NATIVE_TOOL_BAR_P (f))
+	rect.size.height -= FRAME_TOOL_BAR_HEIGHT (f);
+    }
+
+  return NSRectToCGRect ([contentView convertRect:rect toView:nil]);
+}
+
+CGPoint
+mac_get_frame_mouse (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
   NSPoint mouseLocation = [NSEvent mouseLocation];
 
-  mouseLocation =
-    [frameController convertEmacsViewPointFromScreen:mouseLocation];
-  /* Header file for SetPt is not available on Mac OS X 10.7.  */
-  point->h = mouseLocation.x;
-  point->v = mouseLocation.y;
+  return NSPointToCGPoint ([frameController
+			     convertEmacsViewPointFromScreen:mouseLocation]);
 }
 
-void
-mac_get_global_mouse (Point *point)
+CGPoint
+mac_get_global_mouse ()
 {
   NSPoint mouseLocation = [NSEvent mouseLocation];
   NSRect baseScreenFrame = mac_get_base_screen_frame ();
 
-  /* Header file for SetPt is not available on Mac OS X 10.7.  */
-  point->h = mouseLocation.x - NSMinX (baseScreenFrame);
-  point->v = - mouseLocation.y + NSMaxY (baseScreenFrame);
+  return CGPointMake (mouseLocation.x - NSMinX (baseScreenFrame),
+		      - mouseLocation.y + NSMaxY (baseScreenFrame));
 }
 
 void
@@ -4227,7 +4316,7 @@ mac_invalidate_frame_cursor_rects (struct frame *f)
 
 void
 mac_mask_rounded_bottom_corners (struct frame *f, CGRect clip_rect,
-				 Boolean direct_p)
+				 bool direct_p)
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   if (rounded_bottom_corners_need_masking_p ())
@@ -4459,7 +4548,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     XSETINT (inputEvent.x, x);
     XSETINT (inputEvent.y, y);
 
-    window = window_from_coordinates (f, x, y, 0, 1);
+    window = window_from_coordinates (f, x, y, 0, true);
     if (EQ (window, f->tool_bar_window))
       {
 	if (down_p)
@@ -4481,7 +4570,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
       dpyinfo->last_mouse_frame = f;
 
       if (!tool_bar_p)
-	last_tool_bar_item = -1;
+	f->last_tool_bar_item = -1;
     }
   else
     dpyinfo->grabbed &= ~(1 << [theEvent buttonNumber]);
@@ -4490,7 +4579,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
      subsequent mouse-movement Emacs events should reflect only motion
      after the ButtonPress.  */
   if (f != 0)
-    f->mouse_moved = 0;
+    f->mouse_moved = false;
 
   inputEvent.modifiers |= (down_p ? down_modifier : up_modifier);
   if (inputEvent.kind == MOUSE_CLICK_EVENT)
@@ -4637,7 +4726,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     return;
 
   if (point.x < 0 || point.y < 0
-      || EQ (window_from_coordinates (f, point.x, point.y, 0, 1),
+      || EQ (window_from_coordinates (f, point.x, point.y, 0, true),
 	     f->tool_bar_window))
     return;
 
@@ -4727,7 +4816,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
   if (hlinfo->mouse_face_hidden)
     {
-      hlinfo->mouse_face_hidden = 0;
+      hlinfo->mouse_face_hidden = false;
       clear_mouse_face (hlinfo);
     }
 
@@ -4735,7 +4824,8 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   if (!NILP (Vmouse_autoselect_window))
     {
       static Lisp_Object last_mouse_window;
-      Lisp_Object window = window_from_coordinates (f, point.x, point.y, 0, 0);
+      Lisp_Object window = window_from_coordinates (f, point.x, point.y, 0,
+						    false);
 
       /* Window will be selected only when it is not selected now and
 	 last mouse movement event was not in it.  Minibuffer window
@@ -4828,7 +4918,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
       && !EQ (f->tool_bar_window, hlinfo->mouse_face_window))
     {
       clear_mouse_face (hlinfo);
-      hlinfo->mouse_face_hidden = 1;
+      hlinfo->mouse_face_hidden = true;
     }
 
   mapped_flags = mac_cgevent_to_input_event (cgevent, NULL);
@@ -5294,7 +5384,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   point = [frameController convertEmacsViewPointFromScreen:thePoint];
   x = point.x;
   y = point.y;
-  window = window_from_coordinates (f, x, y, &part, 1);
+  window = window_from_coordinates (f, x, y, &part, true);
   if (!WINDOWP (window) || !EQ (window, f->selected_window))
     return result;
 
@@ -5696,8 +5786,6 @@ create_resize_indicator_image (void)
 			Multi-monitor support
  ************************************************************************/
 
-extern Lisp_Object Qgeometry, Qworkarea, Qmm_size, Qframes;
-
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
 static NSArrayOf (NSDictionary *) *
 mac_display_get_info_dictionaries (IOOptionBits options)
@@ -5787,9 +5875,6 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
   NSArrayOf (NSDictionary *) *infoDictionaries =
     mac_display_get_info_dictionaries (kIODisplayOnlyPreferredName);
 #endif
-  struct gcpro gcpro1, gcpro2;
-
-  GCPRO2 (attributes_list, monitor_frames);
 
   FOR_EACH_FRAME (rest, frame)
     {
@@ -5880,8 +5965,6 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
 
       attributes_list = Fcons (attributes, attributes_list);
     }
-
-  UNGCPRO;
 
   return attributes_list;
 }
@@ -6236,7 +6319,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   CGFloat knobProportion = [self knobProportion];
   const NSControlSize controlSizes[] =
     {NSRegularControlSize, NSSmallControlSize}; /* Descending */
-  int i, count = sizeof (controlSizes) / sizeof (controlSizes[0]);
+  int i, count = ARRAYELTS (controlSizes);
   NSRect knobRect, bounds = [self bounds];
   CGFloat shorterDimension = min (NSWidth (bounds), NSHeight (bounds));
 
@@ -6449,6 +6532,26 @@ static BOOL NonmodalScrollerPagingBehavior;
     [super mouseUp:theEvent];
 }
 
+- (int)whole
+{
+  return whole;
+}
+
+- (void)setWhole:(int)theWhole;
+{
+  whole = theWhole;
+}
+
+- (int)portion
+{
+  return portion;
+}
+
+- (void)setPortion:(int)thePortion;
+{
+  portion = thePortion;
+}
+
 @end				// EmacsScroller
 
 @implementation EmacsMainView (ScrollBar)
@@ -6473,6 +6576,27 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part, NSUInteger flags)
   return -1;
 }
 
+static int
+scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
+					     NSUInteger flags)
+{
+  switch (part)
+    {
+    case NSScrollerDecrementLine:	return ((flags & NSAlternateKeyMask)
+						? scroll_bar_before_handle
+						: scroll_bar_left_arrow);
+    case NSScrollerIncrementLine:	return ((flags & NSAlternateKeyMask)
+						? scroll_bar_after_handle
+						: scroll_bar_right_arrow);
+    case NSScrollerDecrementPage:	return scroll_bar_before_handle;
+    case NSScrollerIncrementPage:	return scroll_bar_after_handle;
+    case NSScrollerKnob:		return scroll_bar_horizontal_handle;
+    case NSScrollerNoPart:		return scroll_bar_end_scroll;
+    }
+
+  return -1;
+}
+
 /* Generate an Emacs input event in response to a scroller action sent
    from SENDER to the receiver Emacs view, and then send the action
    associated to the view to the target of the view.  */
@@ -6483,13 +6607,23 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part, NSUInteger flags)
   NSScrollerPart hitPart = [sender hitPart];
   int modifiers = [sender inputEventModifiers];
   NSEvent *currentEvent = [NSApp currentEvent];
+  NSUInteger modifierFlags = [currentEvent modifierFlags];
 
   EVENT_INIT (inputEvent);
   inputEvent.arg = Qnil;
-  inputEvent.kind = SCROLL_BAR_CLICK_EVENT;
   inputEvent.frame_or_window = bar->window;
-  inputEvent.part =
-    scroller_part_to_scroll_bar_part (hitPart, [currentEvent modifierFlags]);
+  if (bar->horizontal)
+    {
+      inputEvent.kind = HORIZONTAL_SCROLL_BAR_CLICK_EVENT;
+      inputEvent.part =
+	scroller_part_to_horizontal_scroll_bar_part (hitPart, modifierFlags);
+    }
+  else
+    {
+      inputEvent.kind = SCROLL_BAR_CLICK_EVENT;
+      inputEvent.part =
+	scroller_part_to_scroll_bar_part (hitPart, modifierFlags);
+    }
   inputEvent.timestamp = [currentEvent timestamp] * 1000;
   inputEvent.modifiers = modifiers;
 
@@ -6516,14 +6650,30 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part, NSUInteger flags)
       CGFloat knobSlotSpan = [sender knobSlotSpan];
       CGFloat minKnobSpan = [sender minKnobSpan];
       CGFloat maximum = knobSlotSpan - minKnobSpan;
+      int whole = [sender whole], portion = [sender portion];
 
       if (minEdge < 0)
 	minEdge = 0;
       if (minEdge > maximum)
 	minEdge = maximum;
 
-      XSETINT (inputEvent.x, minEdge);
-      XSETINT (inputEvent.y, maximum);
+      if (bar->horizontal && whole > 0)
+	{
+	  /* The default horizontal scroll bar drag handler assumes
+	     previously-set `whole' value to be preserved and doesn't
+	     want overscrolling.  */
+	  int position = lround (whole * minEdge / maximum);
+
+	  if (position > whole - portion)
+	    position = whole - portion;
+	  XSETINT (inputEvent.x, position);
+	  XSETINT (inputEvent.y, whole);
+	}
+      else
+	{
+	  XSETINT (inputEvent.x, minEdge);
+	  XSETINT (inputEvent.y, maximum);
+	}
     }
 
   [self sendAction:action to:target];
@@ -6541,8 +6691,11 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part, NSUInteger flags)
 
   [scroller setEmacsScrollBar:bar];
   [scroller setAction:@selector(convertScrollerAction:)];
-  if (WINDOW_RIGHTMOST_P (w) && WINDOW_HAS_VERTICAL_SCROLL_BAR_ON_RIGHT (w))
+  if (!bar->horizontal
+      && WINDOW_RIGHTMOST_P (w) && WINDOW_HAS_VERTICAL_SCROLL_BAR_ON_RIGHT (w))
     [scroller setAutoresizingMask:NSViewMinXMargin];
+  else if (bar->horizontal && WINDOW_BOTTOMMOST_P (w))
+    [scroller setAutoresizingMask:NSViewMinYMargin];
   [emacsView addSubview:scroller];
   MRC_RELEASE (scroller);
   SET_SCROLL_BAR_SCROLLER (bar, scroller);
@@ -6584,8 +6737,11 @@ mac_update_scroll_bar_bounds (struct scroll_bar *bar)
 
   [scroller setFrame:frame];
   [scroller setNeedsDisplay:YES];
-  if (WINDOW_RIGHTMOST_P (w) && WINDOW_HAS_VERTICAL_SCROLL_BAR_ON_RIGHT (w))
+  if (!bar->horizontal
+      && WINDOW_RIGHTMOST_P (w) && WINDOW_HAS_VERTICAL_SCROLL_BAR_ON_RIGHT (w))
     [scroller setAutoresizingMask:NSViewMinXMargin];
+  else if (bar->horizontal && WINDOW_BOTTOMMOST_P (w))
+    [scroller setAutoresizingMask:NSViewMinYMargin];
   else
     [scroller setAutoresizingMask:NSViewNotSizable];
 }
@@ -6604,8 +6760,8 @@ mac_redraw_scroll_bar (struct scroll_bar *bar)
    displaying PORTION out of a whole WHOLE, and our position POSITION.  */
 
 void
-x_set_toolkit_scroll_bar_thumb (struct scroll_bar *bar, int portion,
-				int position, int whole)
+mac_set_scroll_bar_thumb (struct scroll_bar *bar, int portion, int position,
+			  int whole)
 {
   EmacsScroller *scroller = SCROLL_BAR_SCROLLER (bar);
   CGFloat minKnobSpan;
@@ -6635,6 +6791,8 @@ x_set_toolkit_scroll_bar_thumb (struct scroll_bar *bar, int portion,
 
       [scroller setDoubleValue:floatValue];
       [scroller setKnobProportion:knobProportion];
+      [scroller setWhole:whole];
+      [scroller setPortion:portion];
       [scroller setEnabled:YES];
     }
 
@@ -6651,6 +6809,11 @@ mac_get_default_scroll_bar_width (struct frame *f)
 	  ];
 }
 
+int
+mac_get_default_scroll_bar_height (struct frame *f)
+{
+  return mac_get_default_scroll_bar_width (f);
+}
 
 /***********************************************************************
 			       Tool-bars
@@ -6889,7 +7052,7 @@ mac_get_default_scroll_bar_width (struct frame *f)
 
 /* Whether the toolbar for the frame F is visible.  */
 
-Boolean
+bool
 mac_is_frame_window_toolbar_visible (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
@@ -6904,7 +7067,7 @@ update_frame_tool_bar (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
   NSWindow *window = [frameController emacsWindow];
-  short rx, ry;
+  int rx, ry;
   NSToolbar *toolbar;
   NSArrayOf (__kindof NSToolbarItem *) *items;
   NSUInteger count;
@@ -6914,7 +7077,7 @@ update_frame_tool_bar (struct frame *f)
   block_input ();
 
   if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_get_window_gravity_reference_point (f, win_gravity, &rx, &ry);
+    mac_get_frame_window_gravity_reference_point (f, win_gravity, &rx, &ry);
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   use_multiimage_icons_p =
@@ -7080,7 +7243,7 @@ update_frame_tool_bar (struct frame *f)
 
   win_gravity = f->output_data.mac->toolbar_win_gravity;
   if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_move_window_to_gravity_reference_point (f, win_gravity, rx, ry);
+    mac_move_frame_window_to_gravity_reference_point (f, win_gravity, rx, ry);
   f->output_data.mac->toolbar_win_gravity = 0;
 
   unblock_input ();
@@ -7093,21 +7256,21 @@ void
 free_frame_tool_bar (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  short rx, ry;
+  int rx, ry;
   NSToolbar *toolbar;
   int win_gravity = f->output_data.mac->toolbar_win_gravity;
 
   block_input ();
 
   if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_get_window_gravity_reference_point (f, win_gravity, &rx, &ry);
+    mac_get_frame_window_gravity_reference_point (f, win_gravity, &rx, &ry);
 
   toolbar = [window toolbar];
   if ([toolbar isVisible])
     [toolbar setVisible:NO];
 
   if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_move_window_to_gravity_reference_point (f, win_gravity, rx, ry);
+    mac_move_frame_window_to_gravity_reference_point (f, win_gravity, rx, ry);
   f->output_data.mac->toolbar_win_gravity = 0;
 
   unblock_input ();
@@ -7390,7 +7553,7 @@ static void update_dragged_types (void);
 
   /* This corresponds to EnterNotify for an X11 window for some
      popup (from note_mouse_movement in xterm.c).  */
-  f->mouse_moved = 1;
+  f->mouse_moved = true;
   note_mouse_highlight (f, -1, -1);
   dpyinfo->last_mouse_glyph_frame = NULL;
 }
@@ -7404,7 +7567,7 @@ static void update_dragged_types (void);
    setting mouse_moved.  If not, ask for another motion event, so we
    can check again the next time it moves.  */
 
-- (int)noteMouseMovement:(NSPoint)point
+- (BOOL)noteMouseMovement:(NSPoint)point
 {
   struct frame *f = emacsFrame;
   struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
@@ -7433,7 +7596,7 @@ static void update_dragged_types (void);
   if (f != dpyinfo->last_mouse_glyph_frame
       || x < r->x || x - r->x >= r->width || y < r->y || y - r->y >= r->height)
     {
-      f->mouse_moved = 1;
+      f->mouse_moved = true;
       [emacsView lockFocus];
       set_global_focus_view_frame (f);
       note_mouse_highlight (f, x, y);
@@ -7442,10 +7605,10 @@ static void update_dragged_types (void);
       /* Remember which glyph we're now on.  */
       remember_mouse_glyph (f, x, y, r);
       dpyinfo->last_mouse_glyph_frame = f;
-      return 1;
+      return true;
     }
 
-  return 0;
+  return false;
 }
 
 @end				// EmacsFrameController (EventHandling)
@@ -7728,9 +7891,12 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 void
 mac_show_hourglass (struct frame *f)
 {
-  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+  if (!FRAME_TOOLTIP_P (f))
+    {
+      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
-  [frameController showHourglass:nil];
+      [frameController showHourglass:nil];
+    }
 }
 
 /* Hide the spinning progress indicator for the frame F.  Do nothing
@@ -7739,9 +7905,12 @@ mac_show_hourglass (struct frame *f)
 void
 mac_hide_hourglass (struct frame *f)
 {
-  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+  if (!FRAME_TOOLTIP_P (f))
+    {
+      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
-  [frameController hideHourglass:nil];
+      [frameController hideHourglass:nil];
+    }
 }
 
 
@@ -7812,12 +7981,10 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
   struct frame *f = SELECTED_FRAME ();
   Lisp_Object file = Qnil;
   ptrdiff_t count = SPECPDL_INDEX ();
-  struct gcpro gcpro1, gcpro2, gcpro3, gcpro4, gcpro5, gcpro6;
   NSString *directory, *nondirectory = nil;
 
   check_window_system (f);
 
-  GCPRO6 (prompt, dir, default_filename, mustmatch, file, only_dir_p);
   CHECK_STRING (prompt);
   CHECK_STRING (dir);
 
@@ -7886,8 +8053,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
     }
 
   unblock_input ();
-
-  UNGCPRO;
 
   /* Make "Cancel" equivalent to C-g.  */
   if (NILP (file))
@@ -8710,7 +8875,7 @@ mac_fake_menu_bar_click (EventPriority priority)
 	    {kEventParamClickCount, typeUInt32, sizeof (UInt32), &count}};
 	  int j;
 
-	  for (j = 0; j < sizeof (params) / sizeof (params[0]); j++)
+	  for (j = 0; j < ARRAYELTS (params); j++)
 	    if (err == noErr)
 	      err = SetEventParameter (event, params[j].name, params[j].type,
 				       params[j].size, params[j].data);
@@ -9658,7 +9823,7 @@ mac_dnd_default_known_types (void)
   NSArrayOf (NSString *) *array;
 
   if ([sendType length] == 0
-      || (!NILP (Fx_selection_owner_p (Vmac_service_selection, Qnil))
+      || (!NILP (Fmac_selection_owner_p (Vmac_service_selection, Qnil))
 	  && mac_get_selection_from_symbol (Vmac_service_selection, false,
 					    &sel) == noErr
 	  && sel
@@ -9874,8 +10039,7 @@ handle_services_invocation (NSInvocation *invocation)
 	  if (err == noErr)
 	    err = mac_store_event_ref_as_apple_event (0, 0, Qservice,
 						      Qperform, event,
-						      (sizeof (names)
-						       / sizeof (names[0])),
+						      ARRAYELTS (names),
 						      names, types);
 	  ReleaseEvent (event);
 	}
@@ -10010,7 +10174,7 @@ handle_action_invocation (NSInvocation *invocation)
 	      Lisp_Object frame;
 
 	      XSETFRAME (frame, [delegate emacsFrame]);
-	      arg = Fcons (Fcons (intern ("frame"),
+	      arg = Fcons (Fcons (Qframe,
 				  Fcons (build_string ("Lisp"), frame)),
 			 arg);
 	    }
@@ -10564,7 +10728,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 
 - (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
 		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
-		    imageErrorFunc:(void (*)(const char *, Lisp_Object, Lisp_Object))imageError
+		    imageErrorFunc:(void (*)(const char *, ...))imageError
 {
   self = [super init];
 
@@ -10654,8 +10818,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       @catch (NSException *exception)
 	{
 	  MRC_RELEASE (webView);
-	  (*imageErrorFunc) ("Error reading SVG image `%s'",
-			     emacsImage->spec, Qnil);
+	  (*imageErrorFunc) ("Error reading SVG image `%s'", emacsImage->spec);
 
 	  return 0;
 	}
@@ -10681,8 +10844,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       if (!(*checkImageSizeFunc) (emacsFrame, width, height))
 	{
 	  MRC_RELEASE (webView);
-	  (*imageErrorFunc) ("Invalid image size (see `max-image-size')",
-			     Qnil, Qnil);
+	  (*imageErrorFunc) ("Invalid image size (see `max-image-size')");
 
 	  return 0;
 	}
@@ -10731,8 +10893,7 @@ bool
 mac_svg_load_image (struct frame *f, struct image *img, unsigned char *contents,
 		    ptrdiff_t size, XColor *color,
 		    bool (*check_image_size_func) (struct frame *, int, int),
-		    void (*image_error_func) (const char *, Lisp_Object,
-					      Lisp_Object))
+		    void (*image_error_func) (const char *, ...))
 {
   EmacsSVGLoader *loader =
     [[EmacsSVGLoader alloc] initWithEmacsFrame:f emacsImage:img
@@ -11414,8 +11575,7 @@ static const struct {
     &NSAccessibilitySelectedTextRangesAttribute,
     CFSTR ("AXSelectedTextRanges"), ax_get_selected_text_ranges},
 };
-static const size_t ax_attribute_count =
-  sizeof (ax_attribute_table) / sizeof (ax_attribute_table[0]);
+static const size_t ax_attribute_count = ARRAYELTS (ax_attribute_table);
 static NSArrayOf (NSString *) *ax_attribute_names;
 static Lisp_Object ax_attribute_event_ids;
 
@@ -11446,8 +11606,7 @@ static const struct {
    ax_get_attributed_string_for_range},
 };
 static const size_t ax_parameterized_attribute_count =
-  (sizeof (ax_parameterized_attribute_table)
-   / sizeof (ax_parameterized_attribute_table[0]));
+  ARRAYELTS (ax_parameterized_attribute_table);
 static NSArrayOf (NSString *) *ax_parameterized_attribute_names;
 
 static const struct {
@@ -11456,8 +11615,7 @@ static const struct {
 } ax_action_table[] = {
   {&NSAccessibilityShowMenuAction, NULL},
 };
-static const size_t ax_action_count =
-  sizeof (ax_action_table) / sizeof (ax_action_table[0]);
+static const size_t ax_action_count = ARRAYELTS (ax_action_table);
 static NSArrayOf (NSString *) *ax_action_names;
 static Lisp_Object ax_action_event_ids;
 
@@ -12016,7 +12174,8 @@ get_symbol_from_filter_input_key (NSString *key)
 				      lowercaseString]];
       string = [[symbolComponents componentsJoinedByString:@"-"]
 		 UTF8LispString];
-      return Fintern (concat2 (build_string (":"), string), Qnil);
+      AUTO_STRING (colon, ":");
+      return Fintern (concat2 (colon, string), Qnil);
     }
   else
     return Qnil;
@@ -12440,8 +12599,7 @@ mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
   unichar characters[] = {0xfffd};
   NSString *string =
     [NSString stringWithCharacters:characters
-			    length:(sizeof (characters)
-				    / sizeof (characters[0]))];
+			    length:(ARRAYELTS (characters))];
   NSGlyphInfo *glyphInfo =
     [NSGlyphInfo glyphInfoWithCharacterIdentifier:cid
 				       collection:((NSCharacterCollection)

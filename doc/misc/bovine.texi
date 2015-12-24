@@ -1,10 +1,10 @@
 \input texinfo  @c -*-texinfo-*-
 @c %**start of header
-@setfilename ../../info/bovine
+@setfilename ../../info/bovine.info
 @set TITLE  Bovine parser development
 @set AUTHOR Eric M. Ludlam, David Ponce, and Richard Y. Kim
 @settitle @value{TITLE}
-@documentencoding UTF-8
+@include docstyle.texi
 
 @c *************************************************************************
 @c @ Header

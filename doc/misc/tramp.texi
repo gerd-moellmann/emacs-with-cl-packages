@@ -1,8 +1,8 @@
-\input texinfo   @c -*-texinfo-*-
-@setfilename ../../info/tramp
+\input texinfo   @c -*- mode: texinfo; coding: utf-8 -*-
+@setfilename ../../info/tramp.info
 @c %**start of header
 @settitle TRAMP User Manual
-@documentencoding UTF-8
+@include docstyle.texi
 @c %**end of header
 
 @c This is *so* much nicer :)
@@ -91,7 +91,7 @@ copy and modify this GNU manual.''
 @titlepage
 @title @value{tramp} version @value{trampver} User Manual
 @author by Daniel Pittman
-@author based on documentation by Kai Gro@ss{}johann
+@author based on documentation by Kai Großjohann
 @page
 @insertcopying
 @end titlepage
@@ -105,8 +105,8 @@ copy and modify this GNU manual.''
 This file documents @value{tramp} version @value{trampver}, a remote file
 editing package for @value{emacsname}.
 
-@value{tramp} stands for `Transparent Remote (file) Access, Multiple
-Protocol'.  This package provides remote file editing, similar to
+@value{tramp} stands for ``Transparent Remote (file) Access, Multiple
+Protocol''.  This package provides remote file editing, similar to
 @value{ftppackagename}.
 
 The difference is that @value{ftppackagename} uses FTP to transfer
@@ -217,7 +217,7 @@ Configuring @value{tramp} for use
 * Connection caching::          Reusing connection related information.
 * Predefined connection information::
                                 Setting own connection related information.
-* Remote Programs::             How @value{tramp} finds and uses programs on the remote host.
+* Remote programs::             How @value{tramp} finds and uses programs on the remote host.
 * Remote shell setup::          Remote shell setup hints.
 * Android shell setup::         Android shell setup hints.
 * Auto-save and Backup::        Auto-save and Backup.
@@ -429,6 +429,14 @@ Or follow the example session below:
 @end example
 
 @noindent
+If you reside behind a firewall, you could use
+
+@example
+] @strong{git config --global http.proxy http://user:pwd@@proxy.server.com:8080}
+] @strong{git clone http://git.savannah.gnu.org/r/tramp.git}
+@end example
+
+@noindent
 Tramp developers use instead
 
 @example
@@ -524,6 +532,15 @@ can use to connect to remote hosts and transfer files
 If you don't know which method is right for you, see @xref{Default
 Method}.
 
+@strong{Note} that the following descriptions reference the setting of
+user options or variables, not all of which are autoloaded by
+@value{emacsname}.  All examples assume that you have loaded
+@value{tramp} first:
+
+@lisp
+(require 'tramp)
+@end lisp
+
 
 @menu
 * Connection types::            Types of connections made to remote hosts.
@@ -548,7 +565,7 @@ Method}.
 * Connection caching::          Reusing connection related information.
 * Predefined connection information::
                                 Setting own connection related information.
-* Remote Programs::             How @value{tramp} finds and uses programs on the remote host.
+* Remote programs::             How @value{tramp} finds and uses programs on the remote host.
 * Remote shell setup::          Remote shell setup hints.
 * Android shell setup::         Android shell setup hints.
 * Auto-save and Backup::        Auto-save and Backup.
@@ -622,7 +639,7 @@ it may require access to external commands to perform that task.
 @command{mimencode} (part of the @command{metamail} package) or
 @command{uuencode} on the remote host.  The first reliable command
 will be used.  The search path can be customized, see @ref{Remote
-Programs}.
+programs}.
 
 If both commands aren't available on the remote host, @value{tramp}
 transfers a small piece of Perl code to the remote host, and tries to
@@ -704,7 +721,7 @@ the remote host, this option uses @samp{ssh -t -t @var{host} -l
 @var{user} /bin/sh} to open a connection.  This is useful for users
 where the normal login shell is set up to ask them a number of
 questions when logging in.  This procedure avoids these questions, and
-just gives @value{tramp} a more-or-less `standard' login shell to work
+just gives @value{tramp} a more-or-less ``standard'' login shell to work
 with.
 
 Note that this procedure does not eliminate questions asked by
@@ -856,7 +873,7 @@ the remote host, this option uses @samp{ssh -t -t @var{host} -l
 @var{user} /bin/sh} to open a connection.  This is useful for users
 where the normal login shell is set up to ask them a number of
 questions when logging in.  This procedure avoids these questions, and
-just gives @value{tramp} a more-or-less `standard' login shell to work
+just gives @value{tramp} a more-or-less ``standard'' login shell to work
 with.
 
 This is also useful for Windows users where @command{ssh}, when
@@ -1001,16 +1018,17 @@ name.
 This special method uses the Android Debug Bridge for accessing
 Android devices.  The Android Debug Bridge must be installed locally.
 Some GNU/Linux distributions offer it for installation, otherwise it
-can be installed as part of the Android SDK.  If the @command{adb}
+can be installed as part of the Android SDK@.  If the @command{adb}
 program is not found via the @env{PATH} environment variable, the
 variable @var{tramp-adb-program} must point to its absolute path.
 
-Tramp does not connect Android devices to @command{adb}.  This must be
-performed outside @value{emacsname}.  If there is exactly one Android
-device connected to @command{adb}, a host name is not needed in the
-remote file name.  The default @value{tramp} name to be used is
-@file{@trampfn{adb, , ,}} therefore.  Otherwise, one could find
-potential host names with the command @command{adb devices}.
+@value{tramp} does not connect Android devices to @command{adb},
+unless the custom option @option{tramp-adb-connect-if-not-connected}
+is non-@code{nil}.  If there is exactly one Android device connected
+to @command{adb}, a host name is not needed in the remote file name.
+The default @value{tramp} name to be used is @file{@trampfn{adb, , ,}},
+therefore.  Otherwise, one could find potential host names with the
+command @command{adb devices}.
 
 Usually, the @command{adb} method does not need any user name.  It
 runs under the permissions of the @command{adbd} process on the
@@ -1018,6 +1036,11 @@ Android device.  If a user name is specified, @value{tramp} applies an
 @command{su} on the device.  This does not work with all Android
 devices, especially with unrooted ones.  In that case, an error
 message is displayed.
+
+If a device shall be connected via TCP/IP, it is possible to declare
+the port number to be used like @file{device#42}.  Without a port
+number, the default value as declared in @command{adb} will be used.
+Port numbers are not applicable to Android devices connected via USB.
 
 @end table
 
@@ -1039,6 +1062,16 @@ Therefore, your @value{emacsname} must have D-Bus integration,
 @pxref{Top, , D-Bus, dbus}.
 
 @table @asis
+@item @option{afp}
+@cindex method afp
+@cindex afp method
+
+Access to Mac OS X volumes via the Apple Filing Protocol is offered by
+this method.  The access must always be performed with a leading
+volume (share) name, like @file{@trampfn{afp, user, host, /volume}}.
+
+
+
 @item @option{dav}
 @cindex method dav
 @cindex method davs
@@ -1081,11 +1114,13 @@ FUSE, it also needs the SYNCE-GVFS plugin.
 
 @end table
 
+@vindex tramp-gvfs-methods
 @defopt tramp-gvfs-methods
-This customer option, a list, defines the external methods which shall
-be used with GVFS@.  Per default, these are @option{dav},
-@option{davs}, @option{obex}, @option{sftp} and @option{synce}.  Other
-possible values are @option{ftp} and @option{smb}.
+This custom option, a list, defines the external methods which shall
+be used with GVFS@.  Per default, these are @option{afp},
+@option{dav}, @option{davs}, @option{obex}, @option{sftp} and
+@option{synce}.  Other possible values are @option{ftp} and
+@option{smb}.
 @end defopt
 @end ifset
 
@@ -1355,8 +1390,8 @@ bastion host.
 @vindex tramp-default-proxies-alist
 @defopt tramp-default-proxies-alist
 In order to specify multiple hops, it is possible to define a proxy
-host to pass through, via the variable
-@code{tramp-default-proxies-alist}.  This variable keeps a list of
+host to pass through, via the custom option
+@option{tramp-default-proxies-alist}.  This variable keeps a list of
 triples (@var{host} @var{user} @var{proxy}).
 
 The first matching item specifies the proxy host to be passed for a
@@ -1470,9 +1505,9 @@ Sometimes they offer limited features only, like running @command{rbash}
 
 @vindex tramp-restricted-shell-hosts-alist
 @defopt tramp-restricted-shell-hosts-alist
-This variable keeps a list of regular expressions, which denote hosts
-running a registered shell like "rbash".  Those hosts can be used as
-proxies only.
+This custom option keeps a list of regular expressions, which denote
+hosts running a registered shell like @command{rbash}.  Those hosts
+can be used as proxies only.
 
 If the bastion host from the example above runs a restricted shell,
 you shall apply
@@ -1719,10 +1754,10 @@ Using such persistent information can be disabled by setting
 @code{tramp-persistency-file-name} to @code{nil}.
 
 Once consequence of reusing connection related information is that
-@var{tramp} needs to distinguish hosts.  If you, for example, run a
+@value{tramp} needs to distinguish hosts.  If you, for example, run a
 local @code{sshd} on port 3001, which tunnels @command{ssh} to another
 host, you could access both @file{@trampfn{ssh, , localhost,}} and
-@file{@trampfn{ssh, , localhost#3001,}}.  @var{tramp} would use the
+@file{@trampfn{ssh, , localhost#3001,}}.  @value{tramp} would use the
 same host related information (like paths, Perl variants, etc) for
 both connections, although the information is valid only for one of
 them.
@@ -1741,10 +1776,11 @@ connection again.
 @node Predefined connection information
 @section Setting own connection related information
 
-Sometimes, @var{tramp} is not able to detect correct connection
-related information.  In such cases, you could tell @var{tramp} which
-value it has to take.  Since this could result in errors, it has to be
-used with care.
+Sometimes, method specific arguments in @code{tramp-methods} do not
+fit your needs.  Sometimes, @value{tramp} is not able to detect
+correct connection related information.  In such cases, you could tell
+@value{tramp} which value it has to take.  Since this could result in
+errors, it has to be used with care.
 
 @vindex tramp-connection-properties
 Such settings can be performed via the list
@@ -1752,13 +1788,35 @@ Such settings can be performed via the list
 form @code{(@var{regexp} @var{property} @var{value})}.  @var{regexp}
 matches remote file names for which a property shall be predefined.
 It can be @code{nil}.  @var{property} is a string, and @var{value} the
-corresponding value.  @var{property} could be any property found in
-the file @code{tramp-persistency-file-name}.
+corresponding value.
 
-A special property is @code{"busybox"}.  This must be set, if the
-remote host runs a very restricted busybox as shell, which closes the
+@var{property} could be any method specific parameter found in
+@code{tramp-methods}. The parameter key in @code{tramp-methods} is a
+symbol name @code{tramp-<foo>}. In order to overwrite it,
+@var{property} must be the string @samp{<foo>}.  If you, for example,
+want to change the remote shell to be used on a remote machine, you
+could apply
+
+@lisp
+(add-to-list 'tramp-connection-properties
+             (list (regexp-quote "@trampfn{ssh, user, randomhost.your.domain,}")
+                   "remote-shell" "/bin/ksh"))
+(add-to-list 'tramp-connection-properties
+             (list (regexp-quote "@trampfn{ssh, user, randomhost.your.domain,}")
+                   "remote-shell-login" '("-")))
+@end lisp
+
+This would overwrite the @code{tramp-remote-shell} and
+@code{tramp-remote-shell-login} parameters in @code{tramp-methods}, to
+be used on that remote host.
+
+@var{property} could also be any property found in the file
+@code{tramp-persistency-file-name}.
+
+A special property is @samp{busybox}.  This must be set, if the remote
+host runs a very restricted busybox as shell, which closes the
 connection at will.  Since there is no reliable test for this,
-@var{tramp} must be indicated this way.  Example:
+@value{tramp} must be indicated this way.  Example:
 
 @lisp
 (add-to-list 'tramp-connection-properties
@@ -1767,7 +1825,7 @@ connection at will.  Since there is no reliable test for this,
 @end lisp
 
 
-@node Remote Programs
+@node Remote programs
 @section How @value{tramp} finds and uses programs on the remote host
 
 @value{tramp} depends on a number of programs on the remote host in order to
@@ -1788,8 +1846,9 @@ remote file access.
 @vindex tramp-own-remote-path
 @defopt tramp-remote-path
 When @value{tramp} connects to the remote host, it searches for the
-programs that it can use.  The variable @code{tramp-remote-path}
-controls the directories searched on the remote host.
+programs that it can use.  The custom option
+@option{tramp-remote-path} controls the directories searched on the
+remote host.
 
 By default, this is set to a reasonable set of defaults for most
 hosts.  The symbol @code{tramp-default-remote-path} is a place
@@ -1798,7 +1857,7 @@ command @command{getconf PATH} on your remote host.  For example,
 on Debian GNU/Linux this is @file{/bin:/usr/bin}, whereas on Solaris
 this is @file{/usr/xpg4/bin:/usr/ccs/bin:/usr/bin:/opt/SUNWspro/bin}.
 It is recommended to apply this symbol on top of
-@code{tramp-remote-path}.
+@option{tramp-remote-path}.
 
 It is possible, however, that your local (or remote ;) system
 administrator has put the tools you want in some obscure local
@@ -1813,9 +1872,6 @@ To add a directory to the remote search path, you could use code such
 as:
 
 @lisp
-@i{;; We load @value{tramp} to define the variable.}
-(require 'tramp)
-@i{;; We have @command{perl} in "/usr/local/perl/bin"}
 (add-to-list 'tramp-remote-path "/usr/local/perl/bin")
 @end lisp
 
@@ -1884,7 +1940,7 @@ to be set correctly to recognize the shell prompt on the remote host.
 
 Note that @value{tramp} requires the match for @code{shell-prompt-pattern}
 to be at the end of the buffer.  Many people have something like the
-following as the value for the variable: @code{"^[^>$][>$] *"}.  Now
+following as the value for the variable: @samp{^[^>$][>$] *}.  Now
 suppose your shell prompt is @code{a <b> c $ }.  In this case,
 @value{tramp} recognizes the @code{>} character as the end of the prompt,
 but it is not at the end of the buffer.
@@ -1927,7 +1983,7 @@ of your (local or remote) host, you might need to adapt this.  Example:
           "password" "Password"
           ;; Deutsch
           "passwort" "Passwort"
-          ;; Fran@,{c}ais
+          ;; Français
           "mot de passe" "Mot de passe") t)
       ".*:\0? *"))
 @end lisp
@@ -2088,6 +2144,7 @@ parameter, you could overwrite the syntax with the following form:
 @noindent
 with @samp{192.168.0.1} being the IP address of your remote host
 (@pxref{Predefined connection information}).
+
 @end table
 
 
@@ -2201,7 +2258,7 @@ When
 is @code{nil} (the default), such problems do not occur.
 
 Therefore, it is useful to set special values for @value{tramp}
-files.  For example, the following statement effectively `turns off'
+files.  For example, the following statement effectively ``turns off''
 the effect of
 @ifset emacs
 @code{backup-directory-alist}
@@ -2591,11 +2648,12 @@ files by other processes.  Therefore, during file name completion, the
 remote directory contents are reread regularly in order to detect such
 changes, which would be invisible otherwise (@pxref{Connection caching}).
 
+@vindex tramp-completion-reread-directory-timeout
 @defopt tramp-completion-reread-directory-timeout
-This variable defines the number of seconds since last remote command
-before rereading a directory contents.  A value of 0 would require an
-immediate reread during file name completion, @code{nil} means to use
-always cached values for the directory contents.
+This custom option defines the number of seconds since last remote
+command before rereading a directory contents.  A value of 0 would
+require an immediate reread during file name completion, @code{nil}
+means to use always cached values for the directory contents.
 @end defopt
 
 
@@ -2633,9 +2691,10 @@ remotehost, /path}} would be sufficient from now on.
 
 @vindex tramp-save-ad-hoc-proxies
 @defopt tramp-save-ad-hoc-proxies
-This customer option controls whether ad-hoc definitions are kept
-persistently in @code{tramp-default-proxies-alist}.  That means, those
-definitions are available also for future @value{emacsname} sessions.
+This custom option controls whether ad-hoc definitions are kept
+persistently in @option{tramp-default-proxies-alist}.  That means,
+those definitions are available also for future @value{emacsname}
+sessions.
 @end defopt
 
 
@@ -2677,7 +2736,7 @@ this is welcome!
 When your program is not found in the default search path
 @value{tramp} sets on the remote host, you should either use an
 absolute path, or extend @code{tramp-remote-path} (see @ref{Remote
-Programs}):
+programs}):
 
 @lisp
 (add-to-list 'tramp-remote-path "~/bin")
@@ -2687,8 +2746,8 @@ Programs}):
 The environment for your program can be adapted by customizing
 @code{tramp-remote-process-environment}.  This variable is a list of
 strings.  It is structured like @code{process-environment}.  Each
-element is a string of the form @code{"ENVVARNAME=VALUE"}.  An entry
-@code{"ENVVARNAME="} disables the corresponding environment variable,
+element is a string of the form @samp{ENVVARNAME=VALUE}.  An entry
+@samp{ENVVARNAME=} disables the corresponding environment variable,
 which might have been set in your init file like @file{~/.profile}.
 
 @noindent
@@ -2710,6 +2769,21 @@ following code in your @file{.emacs}:
   (setenv "HISTORY" nil)
   (setq tramp-remote-process-environment process-environment))
 @end lisp
+
+When running @code{process-file} or @code{start-file-process} on a
+remote @code{default-directory}, the default settings in
+@code{process-environment} are not used as it is the case for local
+processes.  However, if you need environment variables other than set
+in @code{tramp-remote-process-environment}, you can let-bind them to
+@code{process-environment}. Only those variables will be set then:
+
+@lisp
+(let ((process-environment (cons "HGPLAIN=1" process-environment)))
+  (process-file @dots{}))
+@end lisp
+
+This works only for environment variables which are not set already in
+@code{process-environment}.
 
 If you use other @value{emacsname} packages which do not run
 out-of-the-box on a remote host, please let us know.  We will try to
@@ -2828,7 +2902,7 @@ uid=0(root) gid=0(root) groups=0(root)
 @cindex gdb
 @cindex perldb
 
-@file{gud.el} offers an unified interface to several symbolic
+@file{gud.el} offers a unified interface to several symbolic
 debuggers
 @ifset emacs
 @ifinfo
@@ -3230,7 +3304,7 @@ file name completion, report a bug to the @value{tramp} developers.
 File name completion does not work in large directories
 
 @value{tramp} uses globbing for some operations.  (Globbing means to use the
-shell to expand wildcards such as `*.c'.)  This might create long
+shell to expand wildcards such as @samp{*.c}.)  This might create long
 command lines, especially in directories with many files.  Some shells
 choke on long command lines, or don't cope well with the globbing
 itself.
@@ -3636,6 +3710,24 @@ I would like to thank all @value{tramp} users who have contributed to
 the different recipes!
 
 
+@item I have saved @value{tramp} file names as indicated.  But it
+doesn't work in a new @value{emacsname} session!
+
+If you have saved an ad-hoc multi-hop @value{tramp} file name
+(@pxref{Ad-hoc multi-hops}) via bookmarks, recent files,
+@ifset emacs
+filecache, bbdb,
+@end ifset
+or another package, you must use the full ad-hoc file name including
+all hops, like @file{@trampfn{ssh, bird,
+bastion|ssh@value{postfixhop}news.my.domain, /opt/news/etc}}.
+
+Alternatively, if you save only the abbreviated multi-hop file name
+@file{@trampfn{ssh, news, news.my.domain, /opt/news/etc}}, the custom
+option @code{tramp-save-ad-hoc-proxies} must be set to a to a
+non-@code{nil} value.
+
+
 @ifset emacs
 @item
 How can I use @value{tramp} to connect to a remote @value{emacsname}
@@ -3904,7 +3996,6 @@ Sometimes, it might be even necessary to step through @value{tramp}
 function call traces.  Such traces are enabled by the following code:
 
 @lisp
-(require 'tramp)
 (require 'trace)
 (dolist (elt (all-completions "tramp-" obarray 'functionp))
   (trace-function-background (intern elt)))

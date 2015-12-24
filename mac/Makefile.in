@@ -88,7 +88,7 @@ Emacs.app/Contents/MacOS/Emacs: ../src/emacs${EXEEXT}
 all: macosx-app
 
 
-.PHONY: clean distclean maintainer-clean
+.PHONY: clean distclean bootstrap-clean maintainer-clean
 
 clean:
 	rm -rf ${lprojdirs}
@@ -99,6 +99,6 @@ distclean: clean
 	rm -f Emacs.app/Contents/Info.plist \
 	  Emacs.app/Contents/Resources/English.lproj/InfoPlist.strings
 
-maintainer-clean: distclean
+bootstrap-clean maintainer-clean: distclean
 
 ### Makefile.in ends here

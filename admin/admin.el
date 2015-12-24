@@ -28,10 +28,6 @@
 
 (defvar add-log-time-format)		; in add-log
 
-;; Does this information need to be in every ChangeLog, as opposed to
-;; just the top-level one?  Only if you allow changes the same
-;; day as the release.
-;; http://lists.gnu.org/archive/html/emacs-devel/2013-03/msg00161.html
 (defun add-release-logs (root version &optional date)
   "Add \"Version VERSION released.\" change log entries in ROOT.
 Root must be the root of an Emacs source tree.
@@ -42,14 +38,12 @@ Optional argument DATE is the release date, default today."
 					  emacs-minor-version))
 		     (read-string "Release date: "
 				  (progn (require 'add-log)
-					 (let ((add-log-time-zone-rule t))
-					   (funcall add-log-time-format))))))
+                                         (funcall add-log-time-format nil t)))))
   (setq root (expand-file-name root))
   (unless (file-exists-p (expand-file-name "src/emacs.c" root))
     (user-error "%s doesn't seem to be the root of an Emacs source tree" root))
   (require 'add-log)
-  (or date (setq date (let ((add-log-time-zone-rule t))
-			(funcall add-log-time-format))))
+  (or date (setq date (funcall add-log-time-format nil t)))
   (let* ((logs (process-lines "find" root "-name" "ChangeLog"))
 	 (entry (format "%s  %s  <%s>\n\n\t* Version %s released.\n\n"
 			date
@@ -94,79 +88,21 @@ Root must be the root of an Emacs source tree."
 		       (rx (and "AC_INIT" (1+ (not (in ?,)))
                                 ?, (0+ space)
                                 (submatch (1+ (in "0-9."))))))
-  (set-version-in-file root "doc/emacs/emacsver.texi" version
-		       (rx (and "EMACSVER" (1+ space)
-				(submatch (1+ (in "0-9."))))))
-  (set-version-in-file root "doc/man/emacs.1" version
-		       (rx (and ".TH EMACS" (1+ not-newline)
-                                "GNU Emacs" (1+ space)
-				(submatch (1+ (in "0-9."))))))
-  (set-version-in-file root "nt/config.nt" version
-		       (rx (and bol "#" (0+ blank) "define" (1+ blank)
-				"VERSION" (1+ blank) "\""
-				(submatch (1+ (in "0-9."))))))
+  ;; TODO: msdos could easily extract the version number from
+  ;; configure.ac with sed, rather than duplicating the information.
   (set-version-in-file root "msdos/sed2v2.inp" version
 		       (rx (and bol "/^#undef " (1+ not-newline)
 				"define VERSION" (1+ space) "\""
 				(submatch (1+ (in "0-9."))))))
-  (set-version-in-file root "nt/makefile.w32-in" version
-		       (rx (and "VERSION" (0+ space) "=" (0+ space)
-				(submatch (1+ (in "0-9."))))))
-  ;; nt/emacs.rc also contains the version number, but in an awkward
-  ;; format. It must contain four components, separated by commas, and
-  ;; in two places those commas are followed by space, in two other
-  ;; places they are not.
-  (let* ((version-components (append (split-string version "\\.")
-				     '("0" "0")))
-	 (comma-version
-	  (concat (car version-components) ","
-		  (cadr version-components) ","
-		  (cadr (cdr version-components)) ","
-		  (cadr (cdr (cdr version-components)))))
-	 (comma-space-version
-	  (concat (car version-components) ", "
-		  (cadr version-components) ", "
-		  (cadr (cdr version-components)) ", "
-		  (cadr (cdr (cdr version-components))))))
-    (set-version-in-file root "nt/emacs.rc" comma-version
-			 (rx (and "FILEVERSION" (1+ space)
-				  (submatch (1+ (in "0-9,"))))))
-    (set-version-in-file root "nt/emacs.rc" comma-version
-			 (rx (and "PRODUCTVERSION" (1+ space)
-				  (submatch (1+ (in "0-9,"))))))
-    (set-version-in-file root "nt/emacs.rc" comma-space-version
-			 (rx (and "\"FileVersion\"" (0+ space) ?, (0+ space)
-				  ?\" (submatch (1+ (in "0-9, "))) "\\0\"")))
-    (set-version-in-file root "nt/emacs.rc" comma-space-version
-			 (rx (and "\"ProductVersion\"" (0+ space) ?,
-				  (0+ space) ?\" (submatch (1+ (in "0-9, ")))
-				  "\\0\"")))
-    ;; Likewise for emacsclient.rc
-    (set-version-in-file root "nt/emacsclient.rc" comma-version
-			 (rx (and "FILEVERSION" (1+ space)
-				  (submatch (1+ (in "0-9,"))))))
-    (set-version-in-file root "nt/emacsclient.rc" comma-version
-			 (rx (and "PRODUCTVERSION" (1+ space)
-				  (submatch (1+ (in "0-9,"))))))
-    (set-version-in-file root "nt/emacsclient.rc" comma-space-version
-			 (rx (and "\"FileVersion\"" (0+ space) ?, (0+ space)
-				  ?\" (submatch (1+ (in "0-9, "))) "\\0\"")))
-    (set-version-in-file root "nt/emacsclient.rc" comma-space-version
-			 (rx (and "\"ProductVersion\"" (0+ space) ?,
-				  (0+ space) ?\" (submatch (1+ (in "0-9, ")))
-				  "\\0\"")))
-    ;; Major version only.
-    (when (string-match "\\([0-9]\\{2,\\}\\)" version)
-      (setq version (match-string 1 version))
-      (set-version-in-file root "src/msdos.c" version
-			   (rx (and "Vwindow_system_version" (1+ not-newline)
-				    ?\( (submatch (1+ (in "0-9"))) ?\))))
-      (set-version-in-file root "etc/refcards/ru-refcard.tex" version
-			   "\\\\newcommand{\\\\versionemacs}\\[0\\]\
-{\\([0-9]\\{2,\\}\\)}.+%.+version of Emacs")
-      (set-version-in-file root "etc/refcards/emacsver.tex" version
-			   "\\\\def\\\\versionemacs\
-{\\([0-9]\\{2,\\}\\)}.+%.+version of Emacs")))
+  ;; Major version only.
+  (when (string-match "\\([0-9]\\{2,\\}\\)" version)
+    (setq version (match-string 1 version))
+    (set-version-in-file root "src/msdos.c" version
+			 (rx (and "Vwindow_system_version" (1+ not-newline)
+				  ?\( (submatch (1+ (in "0-9"))) ?\))))
+    (set-version-in-file root "etc/refcards/ru-refcard.tex" version
+			 "\\\\newcommand{\\\\versionemacs}\\[0\\]\
+{\\([0-9]\\{2,\\}\\)}.+%.+version of Emacs"))
   (message "Setting version numbers...done"))
 
 ;; Note this makes some assumptions about form of short copyright.
@@ -189,10 +125,6 @@ Root must be the root of an Emacs source tree."
 		       (rx (and bol "/^#undef " (1+ not-newline)
 				"define COPYRIGHT" (1+ space)
 				?\" (submatch (1+ (not (in ?\")))) ?\")))
-  (set-version-in-file root "nt/config.nt" copyright
-		       (rx (and bol "#" (0+ blank) "define" (1+ blank)
-				"COPYRIGHT" (1+ blank)
-				?\" (submatch (1+ (not (in ?\")))) ?\")))
   (set-version-in-file root "lib-src/rcs2log" copyright
         	       (rx (and "Copyright" (0+ space) ?= (0+ space)
         			?\' (submatch (1+ nonl)))))
@@ -201,7 +133,7 @@ Root must be the root of an Emacs source tree."
     (set-version-in-file root "etc/refcards/ru-refcard.tex" copyright
 			 "\\\\newcommand{\\\\cyear}\\[0\\]\
 {\\([0-9]\\{4\\}\\)}.+%.+copyright year")
-    (set-version-in-file root "etc/refcards/emacsver.tex" copyright
+    (set-version-in-file root "etc/refcards/emacsver.tex.in" copyright
 			 "\\\\def\\\\year\
 {\\([0-9]\\{4\\}\\)}.+%.+copyright year"))
   (message "Setting copyrights...done"))
@@ -252,6 +184,7 @@ Optional argument TYPE is type of output (nil means all)."
 	 (ps-dir (expand-file-name "ps" dest))
 	 (pdf-dir (expand-file-name "pdf" dest))
 	 (emacs (expand-file-name "doc/emacs/emacs.texi" root))
+	 (emacs-xtra (expand-file-name "doc/emacs/emacs-xtra.texi" root))
 	 (elisp (expand-file-name "doc/lispref/elisp.texi" root))
 	 (eintr (expand-file-name "doc/lispintro/emacs-lisp-intro.texi" root))
 	 (misc (manual-misc-manuals root)))
@@ -265,10 +198,14 @@ Optional argument TYPE is type of output (nil means all)."
 	(manual-html-node emacs (expand-file-name "emacs" html-node-dir)))
     (if (member type '(nil "emacs" "emacs-mono"))
 	(manual-html-mono emacs (expand-file-name "emacs.html" html-mono-dir)))
-    (if (member type '(nil "emacs" "emacs-pdf" "pdf"))
-	(manual-pdf emacs (expand-file-name "emacs.pdf" pdf-dir)))
-    (if (member type '(nil "emacs" "emacs-ps" "ps"))
-	(manual-ps emacs (expand-file-name "emacs.ps" ps-dir)))
+    (when (member type '(nil "emacs" "emacs-pdf" "pdf"))
+      (manual-pdf emacs (expand-file-name "emacs.pdf" pdf-dir))
+      ;; emacs-xtra exists only in pdf/ps format.
+      ;; In other formats it is included in the Emacs manual.
+      (manual-pdf emacs-xtra (expand-file-name "emacs-xtra.pdf" pdf-dir)))
+    (when (member type '(nil "emacs" "emacs-ps" "ps"))
+      (manual-ps emacs (expand-file-name "emacs.ps" ps-dir))
+      (manual-ps emacs-xtra (expand-file-name "emacs-xtra.ps" ps-dir)))
     (if (member type '(nil "elisp" "elisp-node"))
 	(manual-html-node elisp (expand-file-name "elisp" html-node-dir)))
     (if (member type '(nil "elisp" "elisp-mono"))
@@ -611,7 +548,7 @@ style=\"text-align:left\">")
 
 
 (defconst make-manuals-dist-output-variables
-  `(("@srcdir@" . ".")
+  `(("@\\(top_\\)?srcdir@" . ".")	; top_srcdir is wrong, but not used
     ("^\\(\\(?:texinfo\\|buildinfo\\|emacs\\)dir *=\\).*" . "\\1 .")
     ("^\\(clean:.*\\)" . "\\1 infoclean")
     ("@MAKEINFO@" . "makeinfo")
@@ -650,16 +587,18 @@ style=\"text-align:left\">")
     (copy-file "../doc/misc/texinfo.tex" stem)
     (or (equal type "emacs") (copy-file "../doc/emacs/emacsver.texi" stem))
     (dolist (file (directory-files (format "../doc/%s" type) t))
-      (if (or (string-match-p "\\(\\.texi\\'\\|/ChangeLog\\|/README\\'\\)" file)
+      (if (or (string-match-p "\\(\\.texi\\'\\|/README\\'\\)" file)
 	      (and (equal type "lispintro")
 		   (string-match-p "\\.\\(eps\\|pdf\\)\\'" file)))
 	  (copy-file file stem)))
     (with-temp-buffer
-      (insert-file-contents (format "../doc/%s/Makefile.in" type))
-      (dolist (cons make-manuals-dist-output-variables)
-	(while (re-search-forward (car cons) nil t)
-	  (replace-match (cdr cons) t))
-	(goto-char (point-min)))
+      (let ((outvars make-manuals-dist-output-variables))
+	(push `("@version@" . ,version) outvars)
+	(insert-file-contents (format "../doc/%s/Makefile.in" type))
+	(dolist (cons outvars)
+	  (while (re-search-forward (car cons) nil t)
+	    (replace-match (cdr cons) t))
+	  (goto-char (point-min))))
       (let (ats)
 	(while (re-search-forward "@[a-zA-Z_]+@" nil t)
 	  (setq ats t)
@@ -735,8 +674,8 @@ If optional argument OLD is non-nil, also scan for `defvar's."
 	      (and (not old)
 		   (equal "custom" (match-string 2))
 		   (not (memq :type form))
-		   (display-warning 'custom
-				    (format "Missing type in: `%s'" form)))
+		   (display-warning
+                    'custom (format-message "Missing type in: `%s'" form)))
 	      (setq ver (car (cdr-safe (memq :version form))))
 	      (if (equal "group" (match-string 2))
 		  ;; Group :version could be old.
@@ -750,7 +689,7 @@ If optional argument OLD is non-nil, also scan for `defvar's."
 		       (setq grp (car (cdr-safe grp))) ; (quote foo) -> foo
 		       (setq ver (assq grp glist))))
 		(setq alist (cons (cons var ver) alist))))
-          (if form (message "Malformed defcustom: `%s'" form)))))
+          (if form (format-message "Malformed defcustom: `%s'" form)))))
     (message "%sdone" m)
     alist))
 
@@ -842,7 +781,8 @@ changes (in a non-trivial way).  This function does not check for that."
 	(message "No missing :version tags")
       (pop-to-buffer "*cusver*")
       (erase-buffer)
-      (insert "These `defcustom's might be missing :version tags:\n\n")
+      (insert (substitute-command-keys
+               "These `defcustom's might be missing :version tags:\n\n"))
       (dolist (elem result)
 	(let* ((str (file-relative-name (car elem) newdir))
 	       (strlen (length str)))

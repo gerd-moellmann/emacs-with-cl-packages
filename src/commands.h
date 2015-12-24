@@ -16,6 +16,10 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 
+#ifndef EMACS_COMMANDS_H
+#define EMACS_COMMANDS_H
+
+#include "lisp.h"
 
 #define Ctl(c) ((c)&037)
 
@@ -40,6 +44,4 @@ extern Lisp_Object unread_switch_frame;
 
 #define INTERACTIVE (NILP (Vexecuting_kbd_macro) && !noninteractive)
 
-/* Set this nonzero to force reconsideration of mode line.  */
-
-extern int update_mode_lines;
+#endif /* EMACS_COMMANDS_H */
