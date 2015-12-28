@@ -25,14 +25,12 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <errno.h>
 
 #include "lisp.h"
-#include "process.h"
 #include "systime.h"
 #include "sysselect.h"
 #include "blockinput.h"
 
 #include "macterm.h"
 
-#include "charset.h"
 #include "coding.h"
 
 #include <sys/stat.h>

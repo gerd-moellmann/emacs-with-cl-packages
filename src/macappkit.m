@@ -22,7 +22,6 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "macterm.h"
 
-#include "charset.h"
 #include "character.h"
 #include "frame.h"
 #include "dispextern.h"
@@ -31,7 +30,6 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "window.h"
 #include "keyboard.h"
-#include "intervals.h"
 #include "keymap.h"
 #include "macfont.h"
 #include "menu.h"
