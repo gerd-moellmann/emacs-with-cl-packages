@@ -5842,6 +5842,25 @@ syms_of_macterm (void)
 
   DEFSYM (Qkeyboard_modifiers, "keyboard-modifiers");
 
+  DEFSYM (QCdirection_inverted_from_device_p,
+	  ":direction-inverted-from-device-p");
+  DEFSYM (QCdelta_x, ":delta-x");
+  DEFSYM (QCdelta_y, ":delta-y");
+  DEFSYM (QCdelta_z, ":delta-z");
+  DEFSYM (QCscrolling_delta_x, ":scrolling-delta-x");
+  DEFSYM (QCscrolling_delta_y, ":scrolling-delta-y");
+  DEFSYM (QCphase, ":phase");
+  DEFSYM (QCmomentum_phase, ":momentum-phase");
+  DEFSYM (QCswipe_tracking_from_scroll_events_enabled_p,
+	  ":swipe-tracking-from-scroll-events-enabled-p");
+  DEFSYM (Qbegan, "began");
+  DEFSYM (Qstationary, "stationary");
+  DEFSYM (Qchanged, "changed");
+  DEFSYM (Qended, "ended");
+  DEFSYM (Qcancelled, "cancelled");
+  DEFSYM (Qmay_begin, "may-begin");
+  DEFSYM (QCmagnification, ":magnification");
+
   staticpro (&x_display_rdb_list);
   x_display_rdb_list = Qnil;
 

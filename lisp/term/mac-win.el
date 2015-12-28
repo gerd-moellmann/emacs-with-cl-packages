@@ -2113,19 +2113,21 @@ EVENT has no modifier keys, `mac-mouse-wheel-smooth-scroll' is
 non-nil, and the input device supports it."
   (interactive (list last-input-event))
   (setq mac-ignore-momentum-wheel-events nil)
-  ;; (nth 3 event) is a list of the following form:
-  ;; (isDirectionInvertedFromDevice	; nil (normal) or t (inverted)
-  ;;  (deltaX deltaY deltaZ)		; floats
-  ;;  (scrollingDeltaX scrollingDeltaY) ; nil or floats
-  ;;  (phase momentumPhase)		; nil, nil and an integer, or integers
-  ;;  isSwipeTrackingFromScrollEventsEnabled ; nil or t
-  ;;  )
-  ;; The list might end early if the remaining elements are all nil.
+  ;; (nth 3 event) is a plist that may contain the following keys:
+  ;; :direction-inverted-from-device-p		(boolean)
+  ;; :delta-x, :delta-y, :delta-z		(floats)
+  ;; :scrolling-delta-x, :scrolling-delta-y	(floats)
+  ;; :phase, :momentum-phase			(symbols)
+  ;;	possible value: `none', `began', `stationary', `changed',
+  ;;			`ended', `cancelled', or `may-begin'
+  ;; :swipe-tracking-from-scroll-events-enabled-p (boolean)
   ;; TODO: horizontal scrolling
   (if (not (memq (event-basic-type event) '(wheel-up wheel-down)))
       (when (and (memq (event-basic-type event) '(wheel-left wheel-right))
-		 (nth 4 (nth 3 event)) ;; "Swipe between pages" enabled.
-		 (eq (nth 1 (nth 3 (nth 3 event))) 1)) ;; NSEventPhaseBegan
+                 ;; "Swipe between pages" enabled.
+		 (plist-get (nth 3 event)
+                            :swipe-tracking-from-scroll-events-enabled-p)
+		 (eq (plist-get (nth 3 event) :momentum-phase) 'began))
 	;; Post a swipe event when the momentum phase begins for
 	;; horizontal wheel events.
 	(setq mac-ignore-momentum-wheel-events t)
@@ -2140,10 +2142,11 @@ non-nil, and the input device supports it."
 	      unread-command-events))
     (if (or (not mac-mouse-wheel-smooth-scroll)
 	    (delq 'click (delq 'double (delq 'triple (event-modifiers event))))
-	    (null (nth 1 (nth 2 (nth 3 event)))))
+	    (null (plist-get (nth 3 event) :scrolling-delta-y)))
 	(if (or (null (nth 3 event))
-		(and (/= (nth 1 (nth 1 (nth 3 event))) 0.0)
-		     (= (or (nth 1 (nth 3 (nth 3 event))) 0) 0)))
+		(and (/= (plist-get (nth 3 event) :delta-y) 0.0)
+		     (eq (or (plist-get (nth 3 event) :momentum-phase) 'none)
+                         'none)))
 	    (mwheel-scroll event))
       ;; TODO: ignore momentum scroll events after buffer switch.
       (let* ((window-to-scroll (if mouse-wheel-follow-mouse
@@ -2184,8 +2187,7 @@ non-nil, and the input device supports it."
 		     (+ (- (car first-height)
 			   (- first-y (max (nth 2 first-height) 0)))
 			(nth 3 first-height)))))
-	     (scroll-amount (nth 3 event))
-	     (delta-y (- (round (nth 1 (nth 2 scroll-amount)))))
+	     (delta-y (- (round (plist-get (nth 3 event) :scrolling-delta-y))))
 	     (scroll-conservatively 0)
 	     scroll-preserve-screen-position
 	     auto-window-vscroll
@@ -2575,7 +2577,7 @@ The actual magnification is performed by `text-scale-mode'."
   (require 'face-remap)
   (let ((original-selected-window (selected-window)))
     (with-selected-window (posn-window (event-start event))
-      (let ((magnification (car (nth 3 event)))
+      (let ((magnification (plist-get (nth 3 event) :magnification))
 	    (level
 	     (round (log mac-text-scale-magnification text-scale-mode-step))))
 	;; Sync with text-scale-mode-amount.

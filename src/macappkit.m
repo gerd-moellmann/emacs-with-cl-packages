@@ -4640,30 +4640,44 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 	}
       if ([theEvent respondsToSelector:@selector(phase)])
 	{
-	  phase = make_number ([theEvent phase]);
-	  momentumPhase = make_number ([theEvent momentumPhase]);
+	  int i;
+
+	  for (i = 0; i < 2; i++)
+	    {
+	      NSEventPhase val = (i == 0 ? [theEvent phase]
+				  : [theEvent momentumPhase]);
+	      Lisp_Object obj;
+
+	      switch (val)
+		{
+		case NSEventPhaseNone:		obj = Qnone;		break;
+		case NSEventPhaseBegan:		obj = Qbegan;		break;
+		case NSEventPhaseStationary:	obj = Qstationary;	break;
+		case NSEventPhaseChanged:	obj = Qchanged;		break;
+		case NSEventPhaseEnded:		obj = Qended;		break;
+		case NSEventPhaseCancelled:	obj = Qcancelled;	break;
+		case NSEventPhaseMayBegin:	obj = Qmay_begin;	break;
+		default:			obj = make_number (val);
+		}
+	      if (i == 0)
+		phase = obj;
+	      else
+		momentumPhase = obj;
+	    }
 	}
       else if ([theEvent respondsToSelector:@selector(_scrollPhase)])
 	{
 	  switch ([theEvent _scrollPhase])
 	    {
-	    case 0:
-	      momentumPhase = make_number (NSEventPhaseNone);
-	      break;
-	    case 1:
-	      momentumPhase = make_number (NSEventPhaseBegan);
-	      break;
-	    case 2:
-	      momentumPhase = make_number (NSEventPhaseChanged);
-	      break;
-	    case 3:
-	      momentumPhase = make_number (NSEventPhaseEnded);
-	      break;
+	    case 0:	momentumPhase = Qnone;		break;
+	    case 1:	momentumPhase = Qbegan;		break;
+	    case 2:	momentumPhase = Qchanged;	break;
+	    case 3:	momentumPhase = Qended;		break;
 	    }
 	}
       if (!NILP (momentumPhase))
 	{
-	  if (EQ (momentumPhase, make_number (NSEventPhaseNone)))
+	  if (EQ (momentumPhase, Qnone))
 	    {
 	      savedWheelPoint = point;
 	      savedWheelModifiers = modifiers;
@@ -4721,8 +4735,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
      NSEventPhaseCancelled, resp.) on OS X 10.8.  We ignore them for
      now because they interfere with `mouse--strip-first-event'.  */
   if (type == NSScrollWheel
-      && (EQ (phase, make_number (NSEventPhaseMayBegin))
-	  || EQ (phase, make_number (NSEventPhaseCancelled))))
+      && (EQ (phase, Qmay_begin) || EQ (phase, Qcancelled)))
     return;
 
   if (point.x < 0 || point.y < 0
@@ -4733,32 +4746,37 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   EVENT_INIT (inputEvent);
   if (type == NSScrollWheel || type == NSEventTypeSwipe)
     {
-      inputEvent.arg = list1 (isDirectionInvertedFromDevice ? Qt : Qnil);
+      if (isDirectionInvertedFromDevice)
+	inputEvent.arg = list2 (QCdirection_inverted_from_device_p, Qt);
       if (type == NSScrollWheel)
 	{
 	  inputEvent.arg = nconc2 (inputEvent.arg,
-				   list1 (list3 (make_float (deltaX),
-						 make_float (deltaY),
-						 make_float (deltaZ))));
+				   listn (CONSTYPE_HEAP, 6,
+					  QCdelta_x, make_float (deltaX),
+					  QCdelta_y, make_float (deltaY),
+					  QCdelta_z, make_float (deltaZ)));
 	  if (scrollingDeltaX != 0 || scrollingDeltaY != 0)
 	    inputEvent.arg = nconc2 (inputEvent.arg,
-				     list1 (list2
-					    (make_float (scrollingDeltaX),
-					     make_float (scrollingDeltaY))));
-	  else if (!NILP (phase) || !NILP (momentumPhase))
-	    inputEvent.arg = nconc2 (inputEvent.arg, list1 (Qnil));
-	  if (!NILP (phase) || !NILP (momentumPhase))
+				     list4 (QCscrolling_delta_x,
+					    make_float (scrollingDeltaX),
+					    QCscrolling_delta_y,
+					    make_float (scrollingDeltaY)));
+	  if (!NILP (phase))
+	    inputEvent.arg = nconc2 (inputEvent.arg, list2 (QCphase, phase));
+	  if (!NILP (momentumPhase))
 	    inputEvent.arg = nconc2 (inputEvent.arg,
-				     list1 (list2 (phase, momentumPhase)));
+				     list2 (QCmomentum_phase, momentumPhase));
 	  if (isSwipeTrackingFromScrollEventsEnabled)
-	    inputEvent.arg = nconc2 (inputEvent.arg,
-				     list1 (Qt));
+	    inputEvent.arg =
+	      nconc2 (inputEvent.arg,
+		      list2 (QCswipe_tracking_from_scroll_events_enabled_p,
+			     Qt));
 	}
     }
   else if (type == NSEventTypeMagnify || type == NSEventTypeGesture)
-    inputEvent.arg = Fcons (make_float (deltaY), Qnil);
+    inputEvent.arg = list2 (QCmagnification, make_float (deltaY));
   else if (type == NSEventTypeRotate)
-    inputEvent.arg = Fcons (make_float (deltaX), Qnil);
+    inputEvent.arg = list2 (QCrotation, make_float (deltaX));
   else
     inputEvent.arg = Qnil;
   inputEvent.kind = (deltaY != 0 || scrollingDeltaY != 0
