@@ -625,6 +625,13 @@ typedef id instancetype;
 - (instancetype)initWithWidgetValue:(widget_value *)wv;
 @end
 
+@interface EmacsPrintProxyView : NSView
+{
+  NSArrayOf (NSView *) *views;
+}
+- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
+@end
+
 @interface NSPasteboard (Emacs)
 - (BOOL)setLispObject:(Lisp_Object)lispObject forType:(NSString *)dataType;
 - (Lisp_Object)lispObjectForType:(NSString *)dataType;
@@ -879,6 +886,14 @@ enum {
 @interface CALayer (AvailableOn1070AndLater)
 @property CGFloat contentsScale;
 @end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+enum {
+  NSPaperOrientationPortrait	= NSPortraitOrientation,
+  NSPaperOrientationLandscape	= NSLandscapeOrientation
+};
+typedef NSInteger NSPaperOrientation;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000

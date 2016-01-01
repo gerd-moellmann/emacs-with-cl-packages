@@ -634,6 +634,10 @@ extern Lisp_Object mac_file_dialog (Lisp_Object, Lisp_Object, Lisp_Object,
 				    Lisp_Object, Lisp_Object);
 extern Lisp_Object mac_font_dialog (struct frame *f);
 extern int mac_activate_menubar (struct frame *);
+extern void mac_page_setup_dialog (void);
+extern Lisp_Object mac_get_page_setup (void);
+extern Lisp_Object mac_export_frames (Lisp_Object, Lisp_Object);
+extern void mac_print_frames_dialog (Lisp_Object);
 extern OSStatus mac_get_selection_from_symbol (Lisp_Object, bool, Selection *);
 extern bool mac_valid_selection_target_p (Lisp_Object);
 extern OSStatus mac_clear_selection (Selection *);

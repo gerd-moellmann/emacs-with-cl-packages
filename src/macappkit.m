@@ -9271,6 +9271,267 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
 
 /***********************************************************************
+			       Printing
+ ***********************************************************************/
+
+@implementation EmacsPrintProxyView
+
+- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
+{
+  CGFloat width = 0, height = 0;
+
+  for (NSView *view in theViews)
+    {
+      NSRect rect = [view visibleRect];
+
+      if (width < NSWidth (rect))
+	width = NSWidth (rect);
+      height += NSHeight (rect);
+    }
+
+  self = [self initWithFrame:NSMakeRect (0, 0, width, height)];
+  if (self == nil)
+    return nil;
+
+  views = [theViews copy];
+
+  return self;
+}
+
+#if !USE_ARC
+- (void)dealloc
+{
+  MRC_RELEASE (views);
+  [super dealloc];
+}
+#endif
+
+- (void)print:(id)sender
+{
+  [NSApp runTemporarilyWithBlock:^{
+      [[NSPrintOperation printOperationWithView:self] runOperation];
+    }];
+}
+
+- (BOOL)knowsPageRange:(NSRangePointer)range
+{
+  range->location = 1;
+  range->length = [views count];
+
+  return YES;
+}
+
+- (NSRect)rectForPage:(NSInteger)page
+{
+  NSRect rect = [[views objectAtIndex:(page - 1)] visibleRect];
+  NSInteger i;
+
+  rect.origin = NSZeroPoint;
+  for (i = 0; i < page - 1; i++)
+    rect.origin.y += NSHeight ([[views objectAtIndex:i] visibleRect]);
+
+  return rect;
+}
+
+- (void)drawRect:(NSRect)aRect
+{
+  CGFloat y = 0;
+  NSInteger i = 0, pageCount = [views count];
+
+  while (y < NSMinY (aRect) && i < pageCount)
+    {
+      NSView *view = [views objectAtIndex:i++];
+
+      y += NSHeight ([view visibleRect]);
+    }
+  while (y < NSMaxY (aRect) && i < pageCount)
+    {
+      NSView *view = [views objectAtIndex:i++];
+      NSRect rect = [view visibleRect];
+      NSAffineTransform *transform = [NSAffineTransform transform];
+
+      [NSGraphicsContext saveGraphicsState];
+      [transform translateXBy:(- NSMinX (rect)) yBy:(y - NSMinY (rect))];
+      [transform concat];
+      [view displayRectIgnoringOpacity:rect
+			     inContext:[NSGraphicsContext currentContext]];
+      [NSGraphicsContext restoreGraphicsState];
+      y += NSHeight ([view visibleRect]);
+    }
+}
+
+@end				// EmacsPrintProxyView
+
+static void
+mac_cgcontext_release (Lisp_Object arg)
+{
+  CGContextRef context = (CGContextRef) XSAVE_POINTER (arg, 0);
+
+  block_input ();
+  CGContextRelease (context);
+  unblock_input ();
+}
+
+Lisp_Object
+mac_export_frames (Lisp_Object frames, Lisp_Object type)
+{
+  Lisp_Object result = Qnil;
+  struct frame *f;
+  NSWindow *window;
+  NSView *contentView;
+  int count = SPECPDL_INDEX ();
+
+  specbind (Qredisplay_dont_pause, Qt);
+  redisplay_preserve_echo_area (31);
+
+  f = XFRAME (XCAR (frames));
+  frames = XCDR (frames);
+
+  block_input ();
+  window = FRAME_MAC_WINDOW_OBJECT (f);
+  contentView = [window contentView];
+  if (EQ (type, Qpng))
+    {
+      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+      NSBitmapImageRep *bitmap =
+	[frameController
+	  bitmapImageRepInContentViewRect:[contentView visibleRect]];
+      NSData *data = [bitmap representationUsingType:NSPNGFileType
+					  properties:[NSDictionary dictionary]];
+
+      if (data)
+	result = [data lispString];
+    }
+  else if (EQ (type, Qpdf))
+    {
+      CGRect mediaBox = NSRectToCGRect ([contentView visibleRect]);
+      CGContextRef context = NULL;
+      NSMutableData *data = [NSMutableData dataWithCapacity:0];
+      CGDataConsumerRef consumer =
+	CGDataConsumerCreateWithCFData ((__bridge CFMutableDataRef) data);
+
+      if (consumer)
+	{
+	  context = CGPDFContextCreate (consumer, &mediaBox, NULL);
+	  CGDataConsumerRelease (consumer);
+	}
+      if (context)
+	{
+	  record_unwind_protect (mac_cgcontext_release,
+				 make_save_ptr (context));
+	  while (1)
+	    {
+	      NSData *mediaBoxData =
+		[NSData dataWithBytes:&mediaBox length:(sizeof (CGRect))];
+	      NSDictionary *pageInfo =
+		[NSDictionary dictionaryWithObject:mediaBoxData
+					    forKey:((__bridge NSString *)
+						    kCGPDFContextMediaBox)];
+	      NSGraphicsContext *gcontext =
+		[NSGraphicsContext graphicsContextWithGraphicsPort:context
+							   flipped:NO];
+
+	      CGPDFContextBeginPage (context,
+				     (__bridge CFDictionaryRef) pageInfo);
+	      [contentView
+		displayRectIgnoringOpacity:(NSRectFromCGRect (mediaBox))
+				 inContext:gcontext];
+	      CGPDFContextEndPage (context);
+
+	      if (NILP (frames))
+		break;
+
+	      f = XFRAME (XCAR (frames));
+	      frames = XCDR (frames);
+	      window = FRAME_MAC_WINDOW_OBJECT (f);
+	      contentView = [window contentView];
+	      mediaBox = NSRectToCGRect ([contentView visibleRect]);
+
+	      unblock_input ();
+	      QUIT;
+	      block_input ();
+	    }
+
+	  CGPDFContextClose (context);
+	  result = [data lispString];
+	}
+    }
+  unblock_input ();
+
+  unbind_to (count, Qnil);
+
+  return result;
+}
+
+void
+mac_page_setup_dialog (void)
+{
+  [NSApp runTemporarilyWithBlock:^{
+      [[NSPageLayout pageLayout] runModal];
+    }];
+}
+
+Lisp_Object
+mac_get_page_setup (void)
+{
+  NSPrintInfo *printInfo = [NSPrintInfo sharedPrintInfo];
+  NSSize paperSize = [printInfo paperSize];
+  NSPaperOrientation orientation = [printInfo orientation];
+  CGFloat leftMargin, rightMargin, topMargin, bottomMargin;
+  CGFloat pageWidth, pageHeight;
+  Lisp_Object orientation_symbol;
+
+  leftMargin = [printInfo leftMargin];
+  rightMargin = [printInfo rightMargin];
+  topMargin = [printInfo topMargin];
+  bottomMargin = [printInfo bottomMargin];
+
+  if (orientation == NSPaperOrientationPortrait)
+    {
+      orientation_symbol = Qportrait;
+      pageWidth = paperSize.width - leftMargin - rightMargin;
+      pageHeight = paperSize.height - topMargin - bottomMargin;
+    }
+  else
+    {
+      orientation_symbol = Qlandscape;
+      pageWidth = paperSize.width - topMargin - bottomMargin;
+      pageHeight = paperSize.height - leftMargin - rightMargin;
+    }
+
+  return listn (CONSTYPE_HEAP, 7,
+		Fcons (Qorientation, orientation_symbol),
+		Fcons (Qwidth, make_float (pageWidth)),
+		Fcons (Qheight, make_float (pageHeight)),
+		Fcons (Qleft_margin, make_float (leftMargin)),
+		Fcons (Qright_margin, make_float (rightMargin)),
+		Fcons (Qtop_margin, make_float (topMargin)),
+		Fcons (Qbottom_margin, make_float (bottomMargin)));
+}
+
+void
+mac_print_frames_dialog (Lisp_Object frames)
+{
+  EmacsPrintProxyView *printProxyView;
+  NSMutableArrayOf (NSView *) *views = [NSMutableArray arrayWithCapacity:0];
+
+  while (!NILP (frames))
+    {
+      struct frame *f = XFRAME (XCAR (frames));
+      NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+      NSView *contentView = [window contentView];
+
+      [views addObject:contentView];
+      frames = XCDR (frames);
+    }
+
+  printProxyView = [[EmacsPrintProxyView alloc] initWithViews:views];
+  [printProxyView print:nil];
+  MRC_RELEASE (printProxyView);
+}
+
+
+/***********************************************************************
 			  Selection support
 ***********************************************************************/
 

@@ -3799,6 +3799,133 @@ This is for internal use only.  Use `mac-font-panel-mode' instead.  */)
 
 
 /***********************************************************************
+			       Printing
+ ***********************************************************************/
+
+DEFUN ("mac-export-frames", Fmac_export_frames, Smac_export_frames, 0, 2, 0,
+       doc: /* Return image data of FRAMES in TYPE format.
+FRAMES should be nil (the selected frame), a frame, or a list of
+frames (each of which corresponds to one page).  Each frame should be
+visible.  Optional arg TYPE should be either `pdf' (default) or
+`png'.  */)
+     (Lisp_Object frames, Lisp_Object type)
+{
+  Lisp_Object rest, tmp;
+
+  if (!CONSP (frames))
+    frames = list1 (frames);
+
+  tmp = Qnil;
+  for (rest = frames; CONSP (rest); rest = XCDR (rest))
+    {
+      struct frame *f = decode_window_system_frame (XCAR (rest));
+      Lisp_Object frame;
+
+      XSETFRAME (frame, f);
+      if (!FRAME_VISIBLE_P (f))
+	error ("Frames to be exported must be visible.");
+      tmp = Fcons (frame, tmp);
+    }
+  frames = Fnreverse (tmp);
+
+  if (NILP (type))
+    type = Qpdf;
+  else if (EQ (type, Qpdf))
+    ;
+  else if (EQ (type, Qpng))
+    {
+      if (!NILP (XCDR (frames)))
+	error ("PNG export cannot handle multiple frames.");
+    }
+  else
+    error ("Unsupported export type");
+
+  return mac_export_frames (frames, type);
+}
+
+DEFUN ("mac-page-setup-dialog", Fmac_page_setup_dialog, Smac_page_setup_dialog,
+       0, 0, 0,
+       doc: /* Pop up a page setup dialog.
+The current page setup can be obtained using `mac-get-page-setup'.  */)
+     (void)
+{
+  block_input ();
+  mac_page_setup_dialog ();
+  unblock_input ();
+
+  return Qnil;
+}
+
+DEFUN ("mac-get-page-setup", Fmac_get_page_setup, Smac_get_page_setup, 0, 0, 0,
+       doc: /* Return the value of the current page setup.
+The return value is an alist containing the following keys:
+
+  orientation: page orientation (symbol `portrait' or `landscape').
+  width, height: page width/height in points not including margins.
+  left-margin, right-margin, top-margin, bottom-margin: print margins,
+	which is the parts of the page that the printer cannot print
+	on, in points.
+
+The paper width can be obtained as the sum of width, left-margin, and
+right-margin values if the page orientation is `portrait'.  Otherwise,
+it is the sum of width, top-margin, and bottom-margin values.
+Likewise, the paper height is the sum of height, top-margin, and
+bottom-margin values if the page orientation is `portrait'.
+Otherwise, it is the sum of height, left-margin, and right-margin
+values.  */)
+     (void)
+{
+  Lisp_Object result;
+
+  block_input ();
+  result = mac_get_page_setup ();
+  unblock_input ();
+
+  return result;
+}
+
+DEFUN ("mac-print-frames-dialog", Fmac_print_frames_dialog,
+       Smac_print_frames_dialog, 0, 1, "",
+       doc: /* Pop up a print dialog to print the current contents of FRAMES.
+FRAMES should be nil (the selected frame), a frame, or a list of
+frames (each of which corresponds to one page).  Each frame should be
+visible.  */)
+     (Lisp_Object frames)
+{
+  Lisp_Object rest, tmp;
+  int count;
+
+  if (!CONSP (frames))
+    frames = list1 (frames);
+
+  tmp = Qnil;
+  for (rest = frames; CONSP (rest); rest = XCDR (rest))
+    {
+      struct frame *f = decode_window_system_frame (XCAR (rest));
+      Lisp_Object frame;
+
+      XSETFRAME (frame, f);
+      if (!FRAME_VISIBLE_P (f))
+	error ("Frames to be printed must be visible.");
+      tmp = Fcons (frame, tmp);
+    }
+  frames = Fnreverse (tmp);
+
+  /* Make sure the current matrices are up-to-date.  */
+  count = SPECPDL_INDEX ();
+  specbind (Qredisplay_dont_pause, Qt);
+  redisplay_preserve_echo_area (32);
+  unbind_to (count, Qnil);
+
+  block_input ();
+  mac_print_frames_dialog (frames);
+  unblock_input ();
+
+  return Qnil;
+}
+
+
+/***********************************************************************
 			  Text Input Source
  ***********************************************************************/
 
@@ -4506,6 +4633,12 @@ syms_of_macfns (void)
   DEFSYM (Qmono, "mono");
   DEFSYM (Qbacking_scale_factor, "backing-scale-factor");
   DEFSYM (Qfont_param, "font-parameter");
+  DEFSYM (Qpdf, "pdf");
+  DEFSYM (Qorientation, "orientation");
+  DEFSYM (Qtop_margin, "top-margin");
+  DEFSYM (Qbottom_margin, "bottom-margin");
+  DEFSYM (Qportrait, "portrait");
+  DEFSYM (Qlandscape, "landscape");
   DEFSYM (Qkeyboard, "keyboard");
   DEFSYM (Qkeyboard_layout, "keyboard-layout");
   DEFSYM (Qascii_capable_keyboard, "ascii-capable-keyboard");
@@ -4680,6 +4813,10 @@ Chinese, Japanese, and Korean.  */);
 
   defsubr (&Sx_select_font);
   defsubr (&Smac_set_font_panel_visible_p);
+  defsubr (&Smac_export_frames);
+  defsubr (&Smac_page_setup_dialog);
+  defsubr (&Smac_get_page_setup);
+  defsubr (&Smac_print_frames_dialog);
   defsubr (&Smac_input_source);
   defsubr (&Smac_input_source_list);
   defsubr (&Smac_select_input_source);
