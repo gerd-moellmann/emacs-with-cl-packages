@@ -1,6 +1,6 @@
 /* Storage allocation and gc for GNU Emacs Lisp interpreter.
 
-Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2015 Free Software
+Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2016 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -5356,7 +5356,10 @@ compact_font_cache_entry (Lisp_Object entry)
       /* Consider OBJ if it is (font-spec . [font-entity font-entity ...]).  */
       if (CONSP (obj) && GC_FONT_SPEC_P (XCAR (obj))
 	  && !VECTOR_MARKED_P (GC_XFONT_SPEC (XCAR (obj)))
-	  && VECTORP (XCDR (obj)))
+	  /* Don't use VECTORP here, as that calls ASIZE, which could
+	     hit assertion violation during GC.  */
+	  && (VECTORLIKEP (XCDR (obj))
+	      && ! (gc_asize (XCDR (obj)) & PSEUDOVECTOR_FLAG)))
 	{
 	  ptrdiff_t i, size = gc_asize (XCDR (obj));
 	  Lisp_Object obj_cdr = XCDR (obj);

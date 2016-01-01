@@ -1,6 +1,6 @@
 ;; xref.el --- Cross-referencing commands              -*-lexical-binding:t-*-
 
-;; Copyright (C) 2014-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2016 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -246,7 +246,7 @@ find a search tool; by default, this uses \"find | grep\" in the
    (let ((pr (project-current t)))
      (append
       (project-roots pr)
-      (project-library-roots pr)))))
+      (project-external-roots pr)))))
 
 (cl-defgeneric xref-backend-apropos (backend pattern)
   "Find all symbols that match PATTERN.

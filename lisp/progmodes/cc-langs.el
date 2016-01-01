@@ -1,6 +1,6 @@
 ;;; cc-langs.el --- language specific settings for CC Mode -*- coding: utf-8 -*-
 
-;; Copyright (C) 1985, 1987, 1992-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2016 Free Software Foundation, Inc.
 
 ;; Authors:    2002- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -1432,6 +1432,14 @@ properly."
 	     "\\|")
 	    "\\)\\s *"))
 (c-lang-setvar comment-start-skip (c-lang-const comment-start-skip))
+
+(c-lang-defconst comment-end-can-be-escaped
+  "When non-nil, escaped EOLs inside comments are valid.
+This works in Emacs >= 25.1."
+  t nil
+  (c c++ objc) t)
+(c-lang-setvar comment-end-can-be-escaped
+	       (c-lang-const comment-end-can-be-escaped))
 
 (c-lang-defconst c-syntactic-ws-start
   ;; Regexp matching any sequence that can start syntactic whitespace.

@@ -1,6 +1,6 @@
 ;;; lisp-mode.el --- Lisp mode, and its idiosyncratic commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1999-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1999-2016 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: lisp, languages
@@ -106,6 +106,7 @@
 				"define-global-minor-mode"
 				"define-globalized-minor-mode"
 				"define-derived-mode" "define-generic-mode"
+				"ert-deftest"
 				"cl-defun" "cl-defsubst" "cl-defmacro"
 				"cl-define-compiler-macro" "cl-defgeneric"
 				"cl-defmethod"
@@ -271,7 +272,7 @@ This will generate compile-time constants from BINDINGS."
                  "define-derived-mode" "define-minor-mode"
                  "define-generic-mode" "define-global-minor-mode"
                  "define-globalized-minor-mode" "define-skeleton"
-                 "define-widget"))
+                 "define-widget" "ert-deftest"))
      (el-vdefs '("defconst" "defcustom" "defvaralias" "defvar-local"
                  "defface"))
      (el-tdefs '("defgroup" "deftheme"))
@@ -487,6 +488,9 @@ This will generate compile-time constants from BINDINGS."
   "Default expressions to highlight in Lisp modes.")
 
 (defun lisp-string-in-doc-position-p (listbeg startpos)
+   "Return true if a doc string may occur at STARTPOS inside a list.
+LISTBEG is the position of the start of the innermost list
+containing STARTPOS."
   (let* ((firstsym (and listbeg
                         (save-excursion
                           (goto-char listbeg)
@@ -517,6 +521,9 @@ This will generate compile-time constants from BINDINGS."
                 (= (point) startpos))))))
 
 (defun lisp-string-after-doc-keyword-p (listbeg startpos)
+  "Return true if `:documentation' symbol ends at STARTPOS inside a list.
+LISTBEG is the position of the start of the innermost list
+containing STARTPOS."
   (and listbeg                          ; We are inside a Lisp form.
        (save-excursion
          (goto-char startpos)
@@ -525,6 +532,9 @@ This will generate compile-time constants from BINDINGS."
                   (looking-at ":documentation\\_>"))))))
 
 (defun lisp-font-lock-syntactic-face-function (state)
+  "Return syntactic face function for the position represented by STATE.
+STATE is a `parse-partial-sexp' state, and the returned function is the
+Lisp font lock syntactic face function."
   (if (nth 3 state)
       ;; This might be a (doc)string or a |...| symbol.
       (let ((startpos (nth 8 state)))
