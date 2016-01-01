@@ -1,5 +1,5 @@
 /* Functions for GUI implemented with Cocoa AppKit on the Mac OS.
-   Copyright (C) 2008-2015  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2016  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -4546,7 +4546,20 @@ mac_get_frame_window_alpha (struct frame *f, CGFloat *out_alpha)
 }
 
 void
-mac_get_window_structure_bounds (struct frame *f, NativeRectangle *bounds)
+mac_set_frame_window_structure_bounds (struct frame *f, NativeRectangle bounds)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  NSRect baseScreenFrame = mac_get_base_screen_frame ();
+
+  [window setFrame:(NSMakeRect (bounds.x + NSMinX (baseScreenFrame),
+				(- (bounds.y + bounds.height)
+				 + NSMaxY (baseScreenFrame)),
+				bounds.width, bounds.height))
+	   display:NO];
+}
+
+void
+mac_get_frame_window_structure_bounds (struct frame *f, NativeRectangle *bounds)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
   NSRect baseScreenFrame = mac_get_base_screen_frame ();
@@ -7713,8 +7726,8 @@ void
 update_frame_tool_bar (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
-  NSWindow *window = [frameController emacsWindow];
-  short rx, ry;
+  EmacsWindow *window;
+  NativeRectangle r;
   NSToolbar *toolbar;
   NSArrayG (__kindof NSToolbarItem *) *items;
   NSUInteger count;
@@ -7723,8 +7736,11 @@ update_frame_tool_bar (struct frame *f)
 
   block_input ();
 
-  if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_get_window_gravity_reference_point (f, win_gravity, &rx, &ry);
+  window = [frameController emacsWindow];
+  mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
+  /* Shrinking the toolbar height with preserving the whole window
+     height (e.g., fullheight) seems to be problematic.  */
+  [window setConstrainingToScreenSuspended:YES];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   use_multiimage_icons_p =
@@ -7888,9 +7904,12 @@ update_frame_tool_bar (struct frame *f)
   if (![toolbar isVisible])
     [toolbar setVisible:YES];
 
+  [window setConstrainingToScreenSuspended:NO];
   win_gravity = f->output_data.mac->toolbar_win_gravity;
-  if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_move_window_to_gravity_reference_point (f, win_gravity, rx, ry);
+  r.width = 0;
+  if (!([frameController windowManagerState] & WM_STATE_MAXIMIZED_VERT))
+    r.height = 0;
+  mac_set_frame_window_gravity_reference_bounds (f, win_gravity, r);
   f->output_data.mac->toolbar_win_gravity = 0;
 
   unblock_input ();
@@ -7902,22 +7921,32 @@ update_frame_tool_bar (struct frame *f)
 void
 free_frame_tool_bar (struct frame *f)
 {
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  short rx, ry;
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+  EmacsWindow *window;
   NSToolbar *toolbar;
-  int win_gravity = f->output_data.mac->toolbar_win_gravity;
 
   block_input ();
 
-  if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_get_window_gravity_reference_point (f, win_gravity, &rx, &ry);
-
+  window = [frameController emacsWindow];
   toolbar = [window toolbar];
   if ([toolbar isVisible])
-    [toolbar setVisible:NO];
+    {
+      int win_gravity = f->output_data.mac->toolbar_win_gravity;
+      NativeRectangle r;
 
-  if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_move_window_to_gravity_reference_point (f, win_gravity, rx, ry);
+      mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
+      /* Shrinking the toolbar height with preserving the whole window
+	 height (e.g., fullheight) seems to be problematic.  */
+      [window setConstrainingToScreenSuspended:YES];
+
+      [toolbar setVisible:NO];
+
+      [window setConstrainingToScreenSuspended:NO];
+      r.width = 0;
+      if (!([frameController windowManagerState] & WM_STATE_MAXIMIZED_VERT))
+	r.height = 0;
+      mac_set_frame_window_gravity_reference_bounds (f, win_gravity, r);
+    }
   f->output_data.mac->toolbar_win_gravity = 0;
 
   unblock_input ();

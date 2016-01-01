@@ -2670,7 +2670,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
      spec, then the background is filled with the specified color on
      top of the frame background, in case the former isn't opaque.  */
   CGColorRef default_bg;
-  int width, height, scale_factor;
+  size_t width, height;
+  double rotation = 0;
   XImagePtr ximg = NULL, mask_img;
   CGContextRef context;
   CGRect rectangle, clip_rectangle;
@@ -2789,9 +2790,10 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
 		  if (cg_image)
 		    {
-		      scale_factor = (img->target_backing_scale == 2 ? 2 : 1);
-		      width = CGImageGetWidth (cg_image) / scale_factor;
-		      height = CGImageGetHeight (cg_image) / scale_factor;
+		      width = CGImageGetWidth (cg_image);
+		      height = CGImageGetHeight (cg_image);
+		      if (img->target_backing_scale == 2)
+			width /= 2, height /= 2;
 		      obj = cg_image;
 		      default_bg = NULL;
 		    }
@@ -2947,7 +2949,6 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	      page_index = ino;
 	      if (img->target_backing_scale == 0)
 		img->target_backing_scale = FRAME_BACKING_SCALE_FACTOR (f);
-	      scale_factor = (img->target_backing_scale == 2 ? 2 : 1);
 	      has_alpha_p = true;
 	      if (default_bg == NULL)
 		{
@@ -2999,9 +3000,22 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   if (type == NULL)
     {
       int desired_width, desired_height;
+      Lisp_Object value = image_spec_value (img->spec, QCrotation, NULL);
+
+      if (FLOATP (value))
+	rotation = XFLOAT_DATA (value);
 
       compute_image_size (width, height, img->spec,
 			  &desired_width, &desired_height);
+
+      /* Don't share image data between multiple backing scale factors
+	 if the image involves non-integral transformations.  */
+      if (img->target_backing_scale == 0
+	  && ((desired_width != -1 && desired_height != -1
+	       && width != 0 && height != 0
+	       && (desired_width % width != 0 || desired_height % height != 0))
+	      || fmod (rotation, 90) != 0))
+	img->target_backing_scale = FRAME_BACKING_SCALE_FACTOR (f);
 
       if (desired_width != -1 && desired_height != -1)
 	{
@@ -3065,40 +3079,37 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
   clip_rectangle = CGRectMake (0, 0, width, height);
 
-  transform = CGAffineTransformIdentity;
-  if (type == NULL)
+  if (rotation == 0)
+    transform = CGAffineTransformIdentity;
+  else
     {
-      Lisp_Object value = image_spec_value (img->spec, QCrotation, NULL);
+      CGRect rotated_clip;
+      CGFloat ceil_width, ceil_height;
 
-      if (FLOATP (value))
-	{
-	  double rotation = XFLOAT_DATA (value);
-	  CGRect rotated_clip;
-	  CGFloat ceil_width, ceil_height;
-
-	  transform = CGAffineTransformMakeRotation (- rotation * M_PI / 180);
-	  rotated_clip = CGRectApplyAffineTransform (clip_rectangle, transform);
-	  ceil_width = ceil (CGRectGetWidth (rotated_clip));
-	  ceil_height = ceil (CGRectGetHeight (rotated_clip));
-	  transform.tx = - (CGRectGetMinX (rotated_clip)
-			    - (ceil_width - CGRectGetWidth (rotated_clip))/2);
-	  transform.ty = - (CGRectGetMinY (rotated_clip)
-			    - (ceil_height - CGRectGetHeight (rotated_clip))/2);
-	  width = ceil_width;
-	  height = ceil_height;
-	}
+      transform = CGAffineTransformMakeRotation (- rotation * M_PI / 180);
+      rotated_clip = CGRectApplyAffineTransform (clip_rectangle, transform);
+      ceil_width = ceil (CGRectGetWidth (rotated_clip));
+      ceil_height = ceil (CGRectGetHeight (rotated_clip));
+      transform.tx = - (CGRectGetMinX (rotated_clip)
+			- (ceil_width - CGRectGetWidth (rotated_clip))/2);
+      transform.ty = - (CGRectGetMinY (rotated_clip)
+			- (ceil_height - CGRectGetHeight (rotated_clip))/2);
+      width = ceil_width;
+      height = ceil_height;
     }
 
-  width *= scale_factor;
-  height *= scale_factor;
-
-  if (!check_image_size (f, width, height))
+  if (! (width <= (img->target_backing_scale == 2 ? INT_MAX / 2 : INT_MAX)
+	 && height <= (img->target_backing_scale == 2 ? INT_MAX / 2 : INT_MAX)
+	 && check_image_size (f, width, height)))
     {
       CFRelease (obj);
       CGColorRelease (default_bg);
       image_error ("Invalid image size (see `max-image-size')", Qnil, Qnil);
       return 0;
     }
+
+  if (img->target_backing_scale == 2)
+    width *= 2, height *= 2;
 
   if (!x_create_x_image_and_pixmap (f, width, height, 0, &ximg, &img->pixmap))
     {
@@ -3114,7 +3125,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 				   kCGImageAlphaNoneSkipFirst
 				   | kCGBitmapByteOrder32Host);
   mask_img = NULL;
-  if (has_alpha_p || !CGAffineTransformIsIdentity (transform))
+  if (has_alpha_p || fmod (rotation, 90) != 0)
     {
       Lisp_Object specified_bg;
       XColor color;
@@ -3152,7 +3163,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
 		   CGContextClearRect (mask_context,
 				       CGRectMake (0, 0, width, height));
-		   CGContextScaleCTM (mask_context, scale_factor, scale_factor);
+		   if (img->target_backing_scale == 2)
+		     CGContextScaleCTM (mask_context, 2, 2);
 		   CGContextConcatCTM (mask_context, transform);
 		   CGContextClipToRect (mask_context, clip_rectangle);
 		   if (CFGetTypeID (obj) == CGImageGetTypeID ())
@@ -3207,7 +3219,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	}
       CGColorRelease (default_bg);
     }
-  CGContextScaleCTM (context, scale_factor, scale_factor);
+  if (img->target_backing_scale == 2)
+    CGContextScaleCTM (context, 2, 2);
   CGContextConcatCTM (context, transform);
   CGContextClipToRect (context, clip_rectangle);
   if (CFGetTypeID (obj) == CGImageGetTypeID ())
@@ -4932,7 +4945,8 @@ xpm_load_image (struct frame *f,
   int LA1;
   void (*put_color_table) (Lisp_Object, const unsigned char *, int, Lisp_Object);
   Lisp_Object (*get_color_table) (Lisp_Object, const unsigned char *, int);
-  Lisp_Object frame, color_symbols, color_table;
+  Lisp_Object frame, color_symbols, color_table, all_colors;
+  EMACS_INT mask_color;
   int best_key;
   bool have_mask = false;
   XImagePtr ximg = NULL, mask_img = NULL;
@@ -5014,6 +5028,7 @@ xpm_load_image (struct frame *f,
   else
     color_table = xpm_make_color_table_h (&put_color_table,
 					  &get_color_table);
+  all_colors = Qnil;
 
   while (num_colors-- > 0)
     {
@@ -5084,9 +5099,27 @@ xpm_load_image (struct frame *f,
 	    color_val = make_number (cdef.pixel);
 	}
       if (!NILP (color_val))
-	(*put_color_table) (color_table, beg, chars_per_pixel, color_val);
+	{
+	  (*put_color_table) (color_table, beg, chars_per_pixel, color_val);
+	  if (!EQ (color_val, Qt))
+	    all_colors = Fcons (color_val, all_colors);
+	}
 
       expect (',');
+    }
+
+  /* Find a color that does not appear in the color table */
+  mask_color = 0;
+  while (mask_color < 0xFFFFFF)
+    {
+      Lisp_Object rest;
+
+      for (rest = all_colors; !NILP (rest); rest = XCDR (rest))
+	if (XINT (XCAR (rest)) == mask_color)
+	  break;
+      if (NILP (rest))
+	break;
+      mask_color++;
     }
 
   for (y = 0; y < height; y++)
@@ -5103,8 +5136,7 @@ xpm_load_image (struct frame *f,
 	    (*get_color_table) (color_table, data, chars_per_pixel);
 
 	  XPutPixel (ximg, x, y,
-		     (INTEGERP (color_val) ? XINT (color_val)
-		      : FRAME_FOREGROUND_PIXEL (f)));
+		     INTEGERP (color_val) ? XINT (color_val) : mask_color);
 #ifndef HAVE_NS
 	  XPutPixel (mask_img, x, y,
 		     (!EQ (color_val, Qt) ? PIX_MASK_DRAW
@@ -9314,17 +9346,56 @@ imagemagick_load_image (struct frame *f, struct image *img,
     PixelSetBlue  (bg_wand, (double) bgcolor.blue  / 65535);
   }
 
+#ifndef HAVE_MACGUI
   compute_image_size (MagickGetImageWidth (image_wand),
 		      MagickGetImageHeight (image_wand),
 		      img->spec, &desired_width, &desired_height);
+#else
+  width = MagickGetImageWidth (image_wand);
+  height = MagickGetImageHeight (image_wand);
+  if (img->target_backing_scale == 2)
+    width /= 2, height /= 2;
+  compute_image_size (width, height,
+		      img->spec, &desired_width, &desired_height);
 
-#ifdef HAVE_MACGUI
+  /* Don't share image data between multiple backing scale factors if
+     the image involves non-integral transformations.  */
+  if (img->target_backing_scale == 0)
+    {
+      bool non_integral_transform_p = false;
+
+      if (desired_width != -1 && desired_height != -1
+	  && width != 0 && height != 0
+	  && (desired_width % width != 0 || desired_height % height != 0))
+	non_integral_transform_p = true;
+      else
+	{
+	  value = image_spec_value (img->spec, QCrotation, NULL);
+	  if (FLOATP (value))
+	    {
+	      rotation = extract_float (value);
+	      if (fmod (rotation, 90) != 0)
+		non_integral_transform_p = true;
+	    }
+	}
+      if (non_integral_transform_p)
+	img->target_backing_scale = FRAME_BACKING_SCALE_FACTOR (f);
+    }
+
   if (img->target_backing_scale == 2)
     {
-      if (desired_width > 0)
+      if (desired_width == -1)
+	desired_width = width;
+      if (desired_height == -1)
+	desired_height = height;
+      if (desired_width <= INT_MAX / 2)
 	desired_width *= 2;
-      if (desired_height > 0)
+      else
+	desired_width = INT_MAX;
+      if (desired_height <= INT_MAX / 2)
 	desired_height *= 2;
+      else
+	desired_height = INT_MAX;
     }
 #endif
   if (desired_width != -1 && desired_height != -1)

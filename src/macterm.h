@@ -1,6 +1,6 @@
 /* Display module for Mac OS.
    Copyright (C) 2000-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2015  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -465,10 +465,10 @@ extern void mac_set_background (GC, unsigned long);
 extern void mac_focus_changed (int, struct mac_display_info *,
 			       struct frame *, struct input_event *);
 extern struct frame *mac_focus_frame (struct mac_display_info *);
-extern void mac_move_window_to_gravity_reference_point (struct frame *,
-							int, short, short);
-extern void mac_get_window_gravity_reference_point (struct frame *, int,
-						    short *, short *);
+extern void mac_set_frame_window_gravity_reference_bounds (struct frame *, int,
+							   NativeRectangle);
+extern void mac_get_frame_window_gravity_reference_bounds (struct frame *, int,
+							   NativeRectangle *);
 extern void mac_handle_origin_change (struct frame *);
 extern void mac_handle_size_change (struct frame *, int, int);
 extern void mac_handle_visibility_change (struct frame *);
@@ -612,7 +612,10 @@ extern CGRect mac_rect_make (struct frame *, CGFloat, CGFloat,
 #else
 #define mac_rect_make(f, x, y, w, h)	CGRectMake (x, y, w, h)
 #endif
-extern void mac_get_window_structure_bounds (struct frame *, NativeRectangle *);
+extern void mac_set_frame_window_structure_bounds (struct frame *,
+						   NativeRectangle);
+extern void mac_get_frame_window_structure_bounds (struct frame *,
+						   NativeRectangle *);
 extern void mac_get_frame_mouse (struct frame *, Point *);
 extern void mac_convert_frame_point_to_global (struct frame *, int *, int *);
 extern void mac_update_proxy_icon (struct frame *);

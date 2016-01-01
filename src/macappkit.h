@@ -1,5 +1,5 @@
 /* Definitions and headers for AppKit framework on the Mac OS.
-   Copyright (C) 2008-2015  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2016  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -65,8 +65,12 @@ typedef unsigned int NSUInteger;
 #endif
 
 #if !USE_ARC
+#ifndef __unsafe_unretained
 #define __unsafe_unretained
+#endif
+#ifndef __autoreleasing
 #define __autoreleasing
+#endif
 #endif
 
 #if !__has_feature (objc_instancetype)

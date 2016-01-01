@@ -1,6 +1,6 @@
 /* Menu support for GNU Emacs on Mac OS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2015  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 

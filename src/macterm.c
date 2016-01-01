@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on the Mac OS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2015  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -3408,33 +3408,39 @@ x_scroll_bar_clear (struct frame *f)
  ***********************************************************************/
 
 void
-mac_move_window_to_gravity_reference_point (struct frame *f, int win_gravity,
-					    short x, short y)
+mac_set_frame_window_gravity_reference_bounds (struct frame *f, int win_gravity,
+					       NativeRectangle r)
 {
   NativeRectangle bounds;
-  short left, top;
 
-  mac_get_window_structure_bounds (f, &bounds);
+  mac_get_frame_window_structure_bounds (f, &bounds);
+
+  if (r.width <= 0)
+    r.width = bounds.width;
+  if (r.height <= 0)
+    r.height = bounds.height;
 
   switch (win_gravity)
     {
     case NorthWestGravity:
     case WestGravity:
     case SouthWestGravity:
-      left = x;
       break;
 
     case NorthGravity:
     case CenterGravity:
     case SouthGravity:
-      left = x - bounds.width / 2;
+      r.x -= r.width / 2;
       break;
 
     case NorthEastGravity:
     case EastGravity:
     case SouthEastGravity:
-      left = x - bounds.width;
+      r.x -= r.width;
       break;
+
+    default:
+      r.x = bounds.x;
     }
 
   switch (win_gravity)
@@ -3442,51 +3448,52 @@ mac_move_window_to_gravity_reference_point (struct frame *f, int win_gravity,
     case NorthWestGravity:
     case NorthGravity:
     case NorthEastGravity:
-      top = y;
       break;
 
     case WestGravity:
     case CenterGravity:
     case EastGravity:
-      top = y - bounds.height / 2;
+      r.y -= r.height / 2;
       break;
 
     case SouthWestGravity:
     case SouthGravity:
     case SouthEastGravity:
-      top = y - bounds.height;
+      r.y -= r.height;
       break;
+
+    default:
+      r.y = bounds.y;
     }
 
-  mac_move_frame_window_structure (f, left, top);
+  if (r.x != bounds.x || r.y != bounds.y
+      || r.width != bounds.width || r.height != bounds.height)
+    mac_set_frame_window_structure_bounds (f, r);
 }
 
 void
-mac_get_window_gravity_reference_point (struct frame *f, int win_gravity,
-					short *x, short *y)
+mac_get_frame_window_gravity_reference_bounds (struct frame *f, int win_gravity,
+					       NativeRectangle *r)
 {
-  NativeRectangle bounds;
-
-  mac_get_window_structure_bounds (f, &bounds);
+  mac_get_frame_window_structure_bounds (f, r);
 
   switch (win_gravity)
     {
     case NorthWestGravity:
     case WestGravity:
     case SouthWestGravity:
-      *x = bounds.x;
       break;
 
     case NorthGravity:
     case CenterGravity:
     case SouthGravity:
-      *x = bounds.x + bounds.width / 2;
+      r->x += r->width / 2;
       break;
 
     case NorthEastGravity:
     case EastGravity:
     case SouthEastGravity:
-      *x = bounds.x + bounds.width;
+      r->x += r->width;
       break;
     }
 
@@ -3495,19 +3502,18 @@ mac_get_window_gravity_reference_point (struct frame *f, int win_gravity,
     case NorthWestGravity:
     case NorthGravity:
     case NorthEastGravity:
-      *y = bounds.y;
       break;
 
     case WestGravity:
     case CenterGravity:
     case EastGravity:
-      *y = bounds.y + bounds.height / 2;
+      r->y += r->height / 2;
       break;
 
     case SouthWestGravity:
     case SouthGravity:
     case SouthEastGravity:
-      *y = bounds.y + bounds.height;
+      r->y += r->height;
       break;
     }
 }
@@ -3897,7 +3903,7 @@ x_calc_absolute_position (struct frame *f)
   /* Find the offsets of the outside upper-left corner of
      the inner window, with respect to the outer window.  */
   block_input ();
-  mac_get_window_structure_bounds (f, &bounds);
+  mac_get_frame_window_structure_bounds (f, &bounds);
   unblock_input ();
 
   /* Treat negative positions as relative to the leftmost bottommost

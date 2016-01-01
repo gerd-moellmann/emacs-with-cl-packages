@@ -18410,6 +18410,10 @@ The images can be removed again with \\[org-ctrl-c-ctrl-c]."
 	   org-latex-create-formula-image-program)
 	  (message msg "done.  Use `C-c C-c' to remove images."))))))
 
+(declare-function mac-possibly-use-high-resolution-monitors-p
+		  "term/mac-win" ())
+(declare-function mac-high-resolution-image-file-name
+		  "term/mac-win" (filename &optional scale))
 (defun org-format-latex (prefix &optional dir overlays msg at
 				forbuffer processing-type)
   "Replace LaTeX fragments with links to an image, and produce images.
@@ -18425,7 +18429,7 @@ Some of the options can be changed using the variable
 	 (re-list org-latex-regexps)
 	 (cnt 0) txt hash link beg end re e checkdir
 	 string
-	 m n block-type block linkfile movefile ov)
+	 m n block-type block linkfile movefile move2xfile ov)
     ;; Check the different regular expressions
     (while (setq e (pop re-list))
       (setq m (car e) re (nth 1 e) n (nth 2 e) block-type (nth 3 e)
@@ -18476,14 +18480,21 @@ Some of the options can be changed using the variable
 					org-format-latex-options
 					forbuffer txt fg bg)))
 		      linkfile (format "%s_%s.png" prefix hash)
-		      movefile (format "%s_%s.png" absprefix hash)))
+		      movefile (format "%s_%s.png" absprefix hash))
+		(if (and (fboundp 'mac-high-resolution-image-file-name)
+			 (mac-possibly-use-high-resolution-monitors-p))
+		    (setq move2xfile
+			  (mac-high-resolution-image-file-name movefile))))
 	      (setq link (concat block "[[file:" linkfile "]]" block))
 	      (if msg (message msg cnt))
 	      (goto-char beg)
 	      (unless checkdir	      ; Ensure the directory exists.
 		(setq checkdir t)
 		(or (file-directory-p todir) (make-directory todir t)))
-	      (unless (file-exists-p movefile)
+	      (unless (and (file-exists-p movefile)
+			   (or (null move2xfile) (file-exists-p move2xfile)))
+		(if move2xfile
+		    (setq optnew (plist-put optnew :to2xfile move2xfile)))
 		(org-create-formula-image
 		 txt movefile optnew forbuffer processing-type))
 	      (if overlays
@@ -18673,6 +18684,8 @@ share a good deal of logic."
 	 (texfile (concat texfilebase ".tex"))
 	 (dvifile (concat texfilebase ".dvi"))
 	 (pngfile (concat texfilebase ".png"))
+	 (png2xfile (and (plist-get options :to2xfile)
+			 (mac-high-resolution-image-file-name pngfile)))
 	 (fnh (if (featurep 'xemacs)
                   (font-height (face-font 'default))
                 (face-attribute 'default :height nil)))
@@ -18706,13 +18719,30 @@ share a good deal of logic."
 			    "-T" "tight"
 			    "-o" pngfile
 			    dvifile)
-	    (call-process "dvipng" nil nil nil
-			  "-fg" fg "-bg" bg
-			  "-D" dpi
-			  ;;"-x" scale "-y" scale
-			  "-T" "tight"
-			  "-o" pngfile
-			  dvifile))
+	    (let ((process (and png2xfile
+				(start-process
+				 "org-create-formula-image-with-dvipng" nil
+				 "dvipng"
+				 "-fg" fg "-bg" bg
+				 "-D" (number-to-string
+				       (* (string-to-number dpi) 2))
+				 ;;"-x" scale "-y" scale
+				 "-T" "tight"
+				 "-o" png2xfile
+				 dvifile))))
+	      (unwind-protect
+		  (progn
+		    (call-process "dvipng" nil nil nil
+				  "-fg" fg "-bg" bg
+				  "-D" dpi
+				  ;;"-x" scale "-y" scale
+				  "-T" "tight"
+				  "-o" pngfile
+				  dvifile)
+		    (while (process-live-p process)
+		      (accept-process-output process nil nil 0)))
+		(if process
+		    (delete-process process)))))
 	(error nil))
       (if (not (file-exists-p pngfile))
 	  (if org-format-latex-signal-error
@@ -18721,6 +18751,11 @@ share a good deal of logic."
 	    nil)
 	;; Use the requested file name and clean up
 	(copy-file pngfile tofile 'replace)
+	(when (and png2xfile (file-exists-p png2xfile))
+	  (let ((to2xfile (plist-get options :to2xfile)))
+	    (if to2xfile
+		(copy-file png2xfile to2xfile 'replace)))
+	  (delete-file png2xfile))
 	(loop for e in '(".dvi" ".tex" ".aux" ".log" ".png" ".out") do
 	      (if (file-exists-p (concat texfilebase e))
 		  (delete-file (concat texfilebase e))))
@@ -18738,6 +18773,8 @@ share a good deal of logic."
 	 (texfile (concat texfilebase ".tex"))
 	 (pdffile (concat texfilebase ".pdf"))
 	 (pngfile (concat texfilebase ".png"))
+	 (png2xfile (and (plist-get options :to2xfile)
+			 (mac-high-resolution-image-file-name pngfile)))
 	 (fnh (if (featurep 'xemacs)
                   (font-height (face-font 'default))
                 (face-attribute 'default :height nil)))
@@ -18776,14 +18813,32 @@ share a good deal of logic."
 			    "-quality" "100"
 			    ;; "-sharpen" "0x1.0"
 			    pngfile)
-	    (call-process "convert" nil nil nil
-			  "-density" dpi
-			  "-trim"
-			  "-antialias"
-			  pdffile
-			  "-quality" "100"
-			  ;; "-sharpen" "0x1.0"
-			  pngfile))
+	    (let ((process (and png2xfile
+				(start-process
+				 "org-create-formula-image-with-imagemagick" nil
+				 "convert"
+				 "-density" (number-to-string
+					     (* (string-to-number dpi) 2))
+				 "-trim"
+				 "-antialias"
+				 pdffile
+				 "-quality" "100"
+				 ;; "-sharpen" "0x1.0"
+				 png2xfile))))
+	      (unwind-protect
+		  (progn
+		    (call-process "convert" nil nil nil
+				  "-density" dpi
+				  "-trim"
+				  "-antialias"
+				  pdffile
+				  "-quality" "100"
+				  ;; "-sharpen" "0x1.0"
+				  pngfile)
+		    (while (process-live-p process)
+		      (accept-process-output process nil nil 0)))
+		(if process
+		    (delete-process process)))))
 	(error nil))
       (if (not (file-exists-p pngfile))
 	  (if org-format-latex-signal-error
@@ -18792,6 +18847,11 @@ share a good deal of logic."
 	    nil)
 	;; Use the requested file name and clean up
 	(copy-file pngfile tofile 'replace)
+	(when (and png2xfile (file-exists-p png2xfile))
+	  (let ((to2xfile (plist-get options :to2xfile)))
+	    (if to2xfile
+		(copy-file png2xfile to2xfile 'replace)))
+	  (delete-file png2xfile))
 	(loop for e in '(".pdf" ".tex" ".aux" ".log" ".png") do
 	      (if (file-exists-p (concat texfilebase e))
 		  (delete-file (concat texfilebase e))))

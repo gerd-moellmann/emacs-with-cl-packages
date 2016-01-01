@@ -1,4 +1,28 @@
+* emacs-24.5-mac-5.16 (2016-04-23)
+
+** Fixed bugs
+
+*** M-x tool-bar-mode RET for a fullheight/maximized frame fails on
+its first invocation.
+
+*** Wrong size calculations for 2x genuine imagemagick images.  For
+example, (image-size (create-image "splash.png" 'imagemagick nil
+:max-height 300)) is larger than the one without the :max-height
+property if the frame is on a Retina display.
+
+** Improvements
+
+*** For frames on a Retina display, image-io/imagemagick image
+descriptors involving non-integral transformations such as shrinking
+or rotation are now processed with 2x pixel buffer even if the source
+image file/data is for 1x.  For example, (insert-image (create-image
+"gnus/gnus.png" 'imagemagick nil :max-height 100)) now looks crisper.
+
+*** Org mode LaTeX fragments preview may also create 2x images.
+
+
 * emacs-24.5-mac-5.15 (2015-12-13)
+http://lists.gnu.org/archive/html/emacs-devel/2015-12/msg00543.html
 
 ** Fixed bugs
 
