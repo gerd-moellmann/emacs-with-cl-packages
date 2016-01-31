@@ -499,8 +499,13 @@ parameters \(point-min) and \(point-max).")
   ;; For documentation see the following c-lang-defvar of the same name.
   ;; The value here may be a list of functions or a single function.
   t 'c-change-expand-fl-region
-  (c c++ objc) '(c-neutralize-syntax-in-and-mark-CPP
-		 c-change-expand-fl-region)
+  (c objc) '(c-neutralize-syntax-in-and-mark-CPP
+	     c-change-expand-fl-region)
+  c++ '(c-neutralize-syntax-in-and-mark-CPP
+	c-restore-<>-properties
+	c-change-expand-fl-region)
+  java '(c-restore-<>-properties
+	 c-change-expand-fl-region)
   awk 'c-awk-extend-and-syntax-tablify-region)
 (c-lang-defvar c-before-font-lock-functions
 	       (let ((fs (c-lang-const c-before-font-lock-functions)))
@@ -526,8 +531,8 @@ When the mode is initialized, these functions are called with
 parameters \(point-min), \(point-max) and <buffer size>.")
 
 (c-lang-defconst c-before-context-fontification-functions
-  awk nil
-  t 'c-context-expand-fl-region)
+  t 'c-context-expand-fl-region
+  awk nil)
   ;; For documentation see the following c-lang-defvar of the same name.
   ;; The value here may be a list of functions or a single function.
 (c-lang-defvar c-before-context-fontification-functions
@@ -1213,6 +1218,14 @@ operators."
       "\\<\\>"))
 (c-lang-defvar c-assignment-op-regexp
   (c-lang-const c-assignment-op-regexp))
+
+(c-lang-defconst c-:$-multichar-token-regexp
+  ;; Regexp matching all tokens ending in ":" which are longer than one char.
+  ;; Currently (2016-01-07) only used in C++ Mode.
+  t (c-make-keywords-re nil
+      (c-filter-ops (c-lang-const c-operators) t ".+:$")))
+(c-lang-defvar c-:$-multichar-token-regexp
+  (c-lang-const c-:$-multichar-token-regexp))
 
 (c-lang-defconst c-<>-multichar-token-regexp
   ;; Regexp matching all tokens containing "<" or ">" which are longer
@@ -1967,8 +1980,8 @@ will be handled."
 	 ;; In CORBA CIDL:
 	 "bindsTo" "delegatesTo" "implements" "proxy" "storedOn")
   ;; Note: "const" is not used in Java, but it's still a reserved keyword.
-  java '("abstract" "const" "final" "native" "private" "protected" "public"
-	 "static" "strictfp" "synchronized" "transient" "volatile")
+  java '("abstract" "const" "default" "final" "native" "private" "protected"
+	 "public" "static" "strictfp" "synchronized" "transient" "volatile")
   pike '("final" "inline" "local" "nomask" "optional" "private" "protected"
 	 "public" "static" "variant"))
 
@@ -3245,6 +3258,19 @@ way."
   ;; Objective-C.
   objc t)
 (c-lang-defvar c-type-decl-end-used (c-lang-const c-type-decl-end-used))
+
+(c-lang-defconst c-maybe-decl-faces
+  "List of faces that might be put at the start of a type when
+`c-font-lock-declarations' runs.  This must be evaluated (with `eval') at
+runtime to get the actual list of faces.  This ensures that face name
+aliases in Emacs are resolved."
+  t '(list nil
+	   font-lock-type-face
+	   c-reference-face-name
+	   font-lock-keyword-face)
+  java (append (c-lang-const c-maybe-decl-faces)
+	       '(font-lock-preprocessor-face)))
+(c-lang-defvar c-maybe-decl-faces (c-lang-const c-maybe-decl-faces))
 
 
 ;;; Wrap up the `c-lang-defvar' system.

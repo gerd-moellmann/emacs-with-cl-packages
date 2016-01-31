@@ -42,6 +42,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "blockinput.h"
 #include "keymap.h"
 #include "frame.h"
+#include "xwidget.h"
 
 #ifdef WINDOWSNT
 #include "w32heap.h"		/* for mmap_* */
@@ -1746,6 +1747,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
   unlock_buffer (b);
 
   kill_buffer_processes (buffer);
+  kill_buffer_xwidgets (buffer);
 
   /* Killing buffer processes may run sentinels which may have killed
      our buffer.  */
@@ -5630,13 +5632,7 @@ Decimal digits after the % specify field width to which to pad.  */);
 		     doc: /* Symbol for current buffer's major mode.
 The default value (normally `fundamental-mode') affects new buffers.
 A value of nil means to use the current buffer's major mode, provided
-it is not marked as "special".
-
-When a mode is used by default, `find-file' switches to it before it
-reads the contents into the buffer and before it finishes setting up
-the buffer.  Thus, the mode and its hooks should not expect certain
-variables such as `buffer-read-only' and `buffer-file-coding-system'
-to be set up.  */);
+it is not marked as "special".  */);
 
   DEFVAR_PER_BUFFER ("mode-name", &BVAR (current_buffer, mode_name),
                      Qnil,
@@ -5803,11 +5799,14 @@ you probably should set this to -2 in that buffer.  */);
   DEFVAR_PER_BUFFER ("selective-display", &BVAR (current_buffer, selective_display),
 		     Qnil,
 		     doc: /* Non-nil enables selective display.
+
 An integer N as value means display only lines
 that start with less than N columns of space.
+
 A value of t means that the character ^M makes itself and
 all the rest of the line invisible; also, when saving the buffer
-in a file, save the ^M as a newline.  */);
+in a file, save the ^M as a newline.  This usage is obsolete; use
+overlays or text properties instead.  */);
 
   DEFVAR_PER_BUFFER ("selective-display-ellipses",
 		     &BVAR (current_buffer, selective_display_ellipses),
@@ -6201,11 +6200,11 @@ all windows or just the selected window.
 
 Lisp programs may give this variable certain special values:
 
-- A value of `lambda' enables Transient Mark mode temporarily.
-  It is disabled again after any subsequent action that would
+- The symbol `lambda' enables Transient Mark mode temporarily.
+  The mode is disabled again after any subsequent action that would
   normally deactivate the mark (e.g. buffer modification).
 
-- A value of (only . OLDVAL) enables Transient Mark mode
+- The pair (only . OLDVAL) enables Transient Mark mode
   temporarily.  After any subsequent point motion command that is
   not shift-translated, or any other action that would normally
   deactivate the mark (e.g. buffer modification), the value of

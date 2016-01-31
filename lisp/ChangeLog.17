@@ -3951,7 +3951,8 @@
 
 2014-12-22  Artur Malabarba  <bruce.connor.am@gmail.com>
 
-	* let-alist.el (let-alist): Use `make-symbol' instead of `gensym'.
+	* emacs-lisp/let-alist.el (let-alist): Use `make-symbol'
+	instead of `gensym'.
 
 2014-12-20  Michael Albinus  <michael.albinus@gmx.de>
 
@@ -3963,7 +3964,7 @@
 
 2014-12-19  Artur Malabarba  <bruce.connor.am@gmail.com>
 
-	* let-alist.el (let-alist): Enable access to deeper alists by
+	* emacs-lisp/let-alist.el (let-alist): Enable access to deeper alists by
 	using dots inside the dotted symbols.
 
 2014-12-19  Alan Mackenzie  <acm@muc.de>
@@ -4005,7 +4006,7 @@
 
 2014-12-18  Artur Malabarba  <bruce.connor.am@gmail.com>
 
-	* let-alist.el (let-alist): Evaluate the `alist' argument only once.
+	* emacs-lisp/let-alist.el (let-alist): Evaluate the `alist' argument only once.
 
 2014-12-18  Sam Steingold  <sds@gnu.org>
 
@@ -4141,7 +4142,7 @@
 
 2014-12-14  Artur Malabarba  <bruce.connor.am@gmail.com>
 
-	* let-alist.el: Add lexical binding.
+	* emacs-lisp/let-alist.el: Add lexical binding.
 
 2014-12-14  Steve Purcell  <steve@sanityinc.com>  (tiny change)
 
@@ -4273,7 +4274,7 @@
 
 2014-12-10  Artur Malabarba  <bruce.connor.am@gmail.com>
 
-	* let-alist.el: Add new package and macro.
+	* emacs-lisp/let-alist.el: Add new package and macro.
 
 2014-12-10  Eric S. Raymond  <esr@snark.thyrsus.com>
 
@@ -4436,7 +4437,7 @@
 
 2014-12-07  Lars Magne Ingebrigtsen  <larsi@gnus.org>
 
-	* net/eww.el (eww-follow-link): Revert prefix behaviour to
+	* net/eww.el (eww-follow-link): Revert prefix behavior to
 	previous behavior.
 	(eww-copy-page-url): Add doc string.
 
@@ -9139,7 +9140,7 @@
 2014-06-30  Grégoire Jadi  <daimrod@gmail.com>
 
 	* net/rcirc.el (rcirc-buffer-process): Restore previous
-	behaviour.  (Bug#17772)
+	behavior.  (Bug#17772)
 
 2014-06-29  Alan Mackenzie  <acm@muc.de>
 

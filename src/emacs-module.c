@@ -35,8 +35,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* Feature tests.  */
 
-/* True if __attribute__ ((cleanup (...))) works, false otherwise.  */
-#ifdef HAVE_VAR_ATTRIBUTE_CLEANUP
+#if __has_attribute (cleanup)
 enum { module_has_cleanup = true };
 #else
 enum { module_has_cleanup = false };
@@ -64,6 +63,12 @@ enum
 	 && alignof (Lisp_Object) == alignof (emacs_value)
 	 && INTPTR_MAX == EMACS_INT_MAX)
   };
+
+/* Function prototype for module user-pointer finalizers.  These
+   should not throw C++ exceptions, so emacs-module.h declares the
+   corresponding interfaces with EMACS_NOEXCEPT.  There is only C code
+   in this module, though, so this constraint is not enforced here.  */
+typedef void (*emacs_finalizer_function) (void *);
 
 
 /* Private runtime and environment members.  */

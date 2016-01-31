@@ -35,6 +35,7 @@
 (require 'browse-url)
 (require 'subr-x)
 (require 'dom)
+(require 'seq)
 
 (defgroup shr nil
   "Simple HTML Renderer"
@@ -1361,7 +1362,7 @@ The preference is a float determined from `shr-prefer-media-type'."
         (start (point)))
     (unless url
       (setq url (car (shr--extract-best-source dom))))
-    (if image
+    (if (> (length image) 0)
         (shr-tag-img nil image)
       (shr-insert " [video] "))
     (shr-urlify start (shr-expand-url url))))
@@ -1600,7 +1601,9 @@ The preference is a float determined from `shr-prefer-media-type'."
     (shr-insert-table (shr-make-table dom sketch-widths t) sketch-widths)))
 
 (defun shr-table-body (dom)
-  (let ((tbodies (dom-by-tag dom 'tbody)))
+  (let ((tbodies (seq-filter (lambda (child)
+                               (eq (dom-tag child) 'tbody))
+                             (dom-non-text-children dom))))
     (cond
      ((null tbodies)
       dom)

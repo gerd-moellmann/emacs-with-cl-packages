@@ -27,6 +27,11 @@
 ;; current project, without having to know which package handles
 ;; detection of that project type, parsing its config files, etc.
 ;;
+;; NOTE: The project API is still experimental and can change in major,
+;; backward-incompatible ways.  Everyone is encouraged to try it, and
+;; report to us any problems or use cases we hadn't anticipated, by
+;; sending an email to emacs-devel, or `M-x report-emacs-bug'.
+;;
 ;; Infrastructure:
 ;;
 ;; Function `project-current', to determine the current project
@@ -45,10 +50,12 @@
 
 ;;; TODO:
 
-;; * Commands `project-find-file' and `project-or-external-find-file'.
-;;   Currently blocked on adding a new completion style that would let
-;;   the user enter just the base file name (or a part of it), and get
-;;   it expanded to the absolute file name.
+;; * Reliably cache the list of files in the project, probably using
+;;   filenotify.el (if supported) to invalidate.  And avoiding caching
+;;   if it's not available (manual cache invalidation is not nice).
+;;
+;; * Allow the backend to override the file-listing logic?  Maybe also
+;;   to delegate file name completion to an external tool.
 ;;
 ;; * Build tool related functionality.  Start with a `project-build'
 ;;   command, which should provide completions on tasks to run, and
@@ -147,12 +154,41 @@ end it with `/'.  DIR must be one of `project-roots' or
     vc-directory-exclusion-list)
    grep-find-ignored-files))
 
+(cl-defgeneric project-file-completion-table (project dirs)
+  "Return a completion table for files in directories DIRS in PROJECT.
+DIRS is a list of absolute directories; it should be some
+subset of the project roots and external roots.
+
+The default implementation uses `find-program'.  PROJECT is used
+to find the list of ignores for each directory."
+  ;; FIXME: Uniquely abbreviate the roots?
+  (require 'xref)
+  (let ((all-files
+	 (cl-mapcan
+	  (lambda (dir)
+	    (let ((command
+		   (format "%s %s %s -type f -print0"
+			   find-program
+			   dir
+			   (xref--find-ignores-arguments
+			    (project-ignores project dir)
+			    (expand-file-name dir)))))
+	      (split-string (shell-command-to-string command) "\0" t)))
+	  dirs)))
+    (lambda (string pred action)
+      (cond
+       ((eq action 'metadata)
+	'(metadata . ((category . project-file))))
+       (t
+	(complete-with-action action all-files string pred))))))
+
 (defgroup project-vc nil
   "Project implementation using the VC package."
+  :version "25.1"
   :group 'tools)
 
 (defcustom project-vc-ignores nil
-  "List ot patterns to include in `project-ignores'."
+  "List of patterns to include in `project-ignores'."
   :type '(repeat string)
   :safe 'listp)
 
@@ -251,13 +287,14 @@ DIRS must contain directory names."
 (defun project--value-in-dir (var dir)
   (with-temp-buffer
     (setq default-directory dir)
-    (hack-dir-local-variables-non-file-buffer)
+    (let ((enable-local-variables :all))
+      (hack-dir-local-variables-non-file-buffer))
     (symbol-value var)))
 
 (declare-function grep-read-files "grep")
-(declare-function xref-collect-matches "xref")
 (declare-function xref--show-xrefs "xref")
 (declare-function xref-backend-identifier-at-point "xref")
+(declare-function xref--find-ignores-arguments "xref")
 
 ;;;###autoload
 (defun project-find-regexp (regexp)
@@ -285,8 +322,8 @@ pattern to search for."
     (project--find-regexp-in dirs regexp pr)))
 
 (defun project--read-regexp ()
-  (read-regexp "Find regexp"
-               (xref-backend-identifier-at-point (xref-find-backend))))
+  (let ((id (xref-backend-identifier-at-point (xref-find-backend))))
+    (read-regexp "Find regexp" (and id (regexp-quote id)))))
 
 (defun project--find-regexp-in (dirs regexp project)
   (require 'grep)
@@ -301,6 +338,58 @@ pattern to search for."
     (unless xrefs
       (user-error "No matches for: %s" regexp))
     (xref--show-xrefs xrefs nil)))
+
+;;;###autoload
+(defun project-find-file ()
+  "Visit a file (with completion) in the current project's roots.
+The completion default is the filename at point, if one is
+recognized."
+  (interactive)
+  (let* ((pr (project-current t))
+         (dirs (project-roots pr)))
+    (project-find-file-in (thing-at-point 'filename) dirs pr)))
+
+;;;###autoload
+(defun project-or-external-find-file ()
+  "Visit a file (with completion) in the current project's roots or external roots.
+The completion default is the filename at point, if one is
+recognized."
+  (interactive)
+  (let* ((pr (project-current t))
+         (dirs (append
+                (project-roots pr)
+                (project-external-roots pr))))
+    (project-find-file-in (thing-at-point 'filename) dirs pr)))
+
+(defun project-find-file-in (filename dirs project)
+  "Complete FILENAME in DIRS in PROJECT and visit the result."
+  (let* ((table (project-file-completion-table project dirs))
+         (file (project--completing-read-strict
+                "Find file" table nil nil
+                filename)))
+    (if (string= file "")
+        (user-error "You didn't specify the file")
+      (find-file file))))
+
+(defun project--completing-read-strict (prompt
+                                        collection &optional predicate
+                                        hist default inherit-input-method)
+  ;; Tried both expanding the default before showing the prompt, and
+  ;; removing it when it has no matches.  Neither seems natural
+  ;; enough.  Removal is confusing; early expansion makes the prompt
+  ;; too long.
+  (let* ((new-prompt (if default
+                         (format "%s (default %s): " prompt default)
+                       (format "%s: " prompt)))
+         (res (completing-read new-prompt
+                               collection predicate t
+                               nil hist default inherit-input-method)))
+    (if (and (equal res default)
+             (not (test-completion res collection predicate)))
+        (completing-read (format "%s: " prompt)
+                         collection predicate t res hist nil
+                         inherit-input-method)
+      res)))
 
 (provide 'project)
 ;;; project.el ends here

@@ -933,12 +933,12 @@ extraclean: $(extraclean_dirs:=_extraclean)
 TAGS tags: lib lib-src src
 	$(MAKE) -C src tags
 
-check: all
+check check-expensive: all
 	@if test ! -d test/automated; then \
 	  echo "You do not seem to have the test/ directory."; \
 	  echo "Maybe you are using a release tarfile, rather than a repository checkout."; \
 	else \
-	  $(MAKE) -C test/automated check; \
+	  $(MAKE) -C test/automated $@; \
 	fi
 
 dist:
@@ -955,7 +955,7 @@ $(DOCS):
 	$(MAKE) -C doc/$(subst -, ,$@)
 
 .PHONY: $(DOCS) docs pdf ps
-.PHONY: info dvi dist check html info-real info-dir check-info
+.PHONY: info dvi dist check check-expensive html info-real info-dir check-info
 
 ## TODO add etc/refcards.
 docs: $(DOCS)
@@ -1101,7 +1101,7 @@ bootstrap: bootstrap-clean
 	$(MAKE) all
 
 .PHONY: ChangeLog change-history change-history-commit change-history-nocommit
-.PHONY: master-branch-is-current unchanged-history-files
+.PHONY: emacs-25-branch-is-current unchanged-history-files
 
 CHANGELOG = ChangeLog
 emacslog = build-aux/gitlog-to-emacslog
@@ -1118,8 +1118,8 @@ ChangeLog:
 	  ./$(emacslog) -o $(CHANGELOG) -n $(CHANGELOG_HISTORY_INDEX_MAX)
 
 # Check that we are in a good state for changing history.
-master-branch-is-current:
-	git branch | grep -q '^\* master$$'
+emacs-25-branch-is-current:
+	git branch | grep -q '^\* emacs-25$$'
 unchanged-history-files:
 	x=$$(git diff-files --name-only $(CHANGELOG_N) $(emacslog)) && \
 	  test -z "$$x"
@@ -1129,7 +1129,7 @@ new_commit_regexp = ^commit [0123456789abcdef]* (inclusive)
 
 # Copy newer commit messages to the start of the ChangeLog history file,
 # and consider them to be older.
-change-history-nocommit: master-branch-is-current unchanged-history-files
+change-history-nocommit: emacs-25-branch-is-current unchanged-history-files
 	-rm -f ChangeLog.tmp
 	$(MAKE) ChangeLog CHANGELOG=ChangeLog.tmp
 	sed '/^This file records repository revisions/,$$d' \

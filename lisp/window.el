@@ -2005,7 +2005,7 @@ SIDE can be any of the symbols `left', `top', `right' or
 
 ;; Predecessors to the below have been devised by Julian Assange in
 ;; change-windows-intuitively.el and Hovav Shacham in windmove.el.
-;; Neither of these allow to selectively ignore specific windows
+;; Neither of these allow one to selectively ignore specific windows
 ;; (windows whose `no-other-window' parameter is non-nil) as targets of
 ;; the movement.
 (defun window-in-direction (direction &optional window ignore sign wrap mini)
@@ -2034,7 +2034,7 @@ has one, and a window at the bottom of the frame otherwise.
 Optional argument MINI nil means to return the minibuffer window
 if and only if it is currently active.  MINI non-nil means to
 return the minibuffer window even when it's not active.  However,
-if WRAP non-nil, always act as if MINI were nil.
+if WRAP is non-nil, always act as if MINI were nil.
 
 Return nil if no suitable window can be found."
   (setq window (window-normalize-window window t))

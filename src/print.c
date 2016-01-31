@@ -32,6 +32,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "disptab.h"
 #include "intervals.h"
 #include "blockinput.h"
+#include "xwidget.h"
 
 #include <c-ctype.h>
 #include <float.h>
@@ -200,6 +201,13 @@ printchar_to_stream (unsigned int ch, FILE *stream)
 {
   Lisp_Object dv IF_LINT (= Qnil);
   ptrdiff_t i = 0, n = 1;
+  Lisp_Object coding_system = Vlocale_coding_system;
+  bool encode_p = false;
+
+  if (!NILP (Vcoding_system_for_write))
+    coding_system = Vcoding_system_for_write;
+  if (!NILP (coding_system))
+    encode_p = true;
 
   if (CHAR_VALID_P (ch) && DISP_TABLE_P (Vstandard_display_table))
     {
@@ -228,8 +236,11 @@ printchar_to_stream (unsigned int ch, FILE *stream)
 	  unsigned char mbstr[MAX_MULTIBYTE_LENGTH];
 	  int len = CHAR_STRING (ch, mbstr);
 	  Lisp_Object encoded_ch =
-	    ENCODE_SYSTEM (make_multibyte_string ((char *) mbstr, 1, len));
+	    make_multibyte_string ((char *) mbstr, 1, len);
 
+	  if (encode_p)
+	    encoded_ch = code_convert_string_norecord (encoded_ch,
+						       coding_system, true);
 	  fwrite (SSDATA (encoded_ch), 1, SBYTES (encoded_ch), stream);
 #ifdef WINDOWSNT
 	  if (print_output_debug_flag && stream == stderr)
@@ -1724,6 +1735,11 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 	{
 	  print_c_string ("#<subr ", printcharfun);
 	  print_c_string (XSUBR (obj)->symbol_name, printcharfun);
+	  printchar ('>', printcharfun);
+	}
+      else if (XWIDGETP (obj) || XWIDGET_VIEW_P (obj))
+	{
+	  print_c_string ("#<xwidget ", printcharfun);
 	  printchar ('>', printcharfun);
 	}
       else if (WINDOWP (obj))

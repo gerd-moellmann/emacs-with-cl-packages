@@ -189,7 +189,7 @@ BINDINGS is a list of (VARIABLE . VALUE).
 Optional argument PLIST is a property list each VARIABLE symbol will
 be set to.  The following properties have special meaning:
 
-- `constant-flag' if non-nil, prevent to rebind variables.
+- `constant-flag' if non-nil, prevent rebinding variables.
 - `mode-variable-flag' if non-nil, define mode variables.
 - `override-flag' if non-nil, define override functions.
 
@@ -544,7 +544,7 @@ default is to call the function `NAME-default' with the appropriate
 arguments.
 
 BODY can also include an override form that specifies which part of
-BODY is specifically overridden.  This permits to specify common code
+BODY is specifically overridden.  This permits specifying common code
 run for both default and overridden implementations.
 An override form is one of:
 
@@ -633,6 +633,9 @@ SYMBOL is a function that can be overridden."
       ;; LIST ALL LOADED OVERRIDES FOR SYMBOL HERE
       )))
 
+;; We are called from describe-function in help-fns.el, where this is defined.
+(defvar describe-function-orig-buffer)
+
 (defun describe-mode-local-overload (symbol)
   "For `help-fns-describe-function-functions'; add overloads for SYMBOL."
   (when (get symbol 'mode-local-overload)
@@ -667,7 +670,7 @@ SYMBOL is a function that can be overridden."
 
 (add-hook 'help-fns-describe-function-functions 'describe-mode-local-overload)
 
-(declare-function xref-item-location "xref" (xref))
+(declare-function xref-item-location "xref" (xref) t)
 
 (defun xref-mode-local--override-present (sym xrefs)
   "Return non-nil if SYM is in XREFS."

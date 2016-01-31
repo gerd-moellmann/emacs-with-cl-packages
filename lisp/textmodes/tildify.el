@@ -282,7 +282,7 @@ corresponding text part and can be either:
 
 CALLBACK is a function accepting two arguments -- REG-BEG and REG-END -- that
 will be called for portions of the buffer outside of the environments defined by
-PAIRS regexes.
+PAIRS regexps.
 
 The function will return as soon as CALLBACK returns nil or point goes past END.
 CALLBACK may be called on portions of the buffer outside of [BEG END); in fact
@@ -417,7 +417,7 @@ current `case-fold-search' setting."
   "A list of predicate functions for `tildify-space' function."
   :version "25.1"
   :group 'tildify
-  :type '(repeat 'function))
+  :type '(repeat function))
 
 (defcustom tildify-double-space-undos t
   "Weather `tildify-space' should undo hard space when space is typed again."
@@ -479,7 +479,7 @@ which is assumed to be a space character, should be replaced with a hard space."
 
 ;;;###autoload
 (define-minor-mode tildify-mode
-  "Adds electric behaviour to space character.
+  "Adds electric behavior to space character.
 
 When space is inserted into a buffer in a position where hard space is required
 instead (determined by `tildify-space-pattern' and `tildify-space-predicates'),

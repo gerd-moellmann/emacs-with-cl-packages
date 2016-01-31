@@ -91,6 +91,7 @@ AC_DEFUN([gl_EARLY],
   # Code from module gettimeofday:
   # Code from module gitlog-to-changelog:
   # Code from module group-member:
+  # Code from module ignore-value:
   # Code from module include_next:
   # Code from module intprops:
   # Code from module inttypes-incomplete:
@@ -435,7 +436,8 @@ AC_DEFUN([gl_INIT],
   {
     if ! $gl_gnulib_enabled_dirfd; then
       gl_FUNC_DIRFD
-      if test $ac_cv_func_dirfd = no && test $gl_cv_func_dirfd_macro = no; then
+      if test $ac_cv_func_dirfd = no && test $gl_cv_func_dirfd_macro = no \
+         || test $REPLACE_DIRFD = 1; then
         AC_LIBOBJ([dirfd])
         gl_PREREQ_DIRFD
       fi
@@ -905,6 +907,7 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/gettimeofday.c
   lib/gl_openssl.h
   lib/group-member.c
+  lib/ignore-value.h
   lib/intprops.h
   lib/inttypes.in.h
   lib/lstat.c

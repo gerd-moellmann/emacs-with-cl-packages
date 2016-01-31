@@ -799,6 +799,9 @@ enum pvec_type
   PVEC_WINDOW_CONFIGURATION,
   PVEC_SUBR,
   PVEC_OTHER,
+  PVEC_XWIDGET,
+  PVEC_XWIDGET_VIEW,
+
   /* These should be last, check internal_equal to see why.  */
   PVEC_COMPILED,
   PVEC_CHAR_TABLE,
@@ -2087,7 +2090,7 @@ struct Lisp_Marker
   /* For markers that point somewhere,
      this is used to chain of all the markers in a given buffer.  */
   /* We could remove it and use an array in buffer_text instead.
-     That would also allow to preserve it ordered.  */
+     That would also allow us to preserve it ordered.  */
   struct Lisp_Marker *next;
   /* This is the char position where the marker points.  */
   ptrdiff_t charpos;
@@ -3587,6 +3590,7 @@ extern void parse_str_as_multibyte (const unsigned char *, ptrdiff_t,
 				    ptrdiff_t *, ptrdiff_t *);
 
 /* Defined in alloc.c.  */
+extern void *my_heap_start (void);
 extern void check_pure_size (void);
 extern void free_misc (Lisp_Object);
 extern void allocate_string_data (struct Lisp_String *, EMACS_INT, EMACS_INT);
@@ -3597,6 +3601,13 @@ extern bool survives_gc_p (Lisp_Object);
 extern void mark_object (Lisp_Object);
 #if defined REL_ALLOC && !defined SYSTEM_MALLOC && !defined HYBRID_MALLOC
 extern void refill_memory_reserve (void);
+#endif
+#ifdef DOUG_LEA_MALLOC
+extern void alloc_unexec_pre (void);
+extern void alloc_unexec_post (void);
+#else
+INLINE void alloc_unexec_pre (void) {}
+INLINE void alloc_unexec_post (void) {}
 #endif
 extern const char *pending_malloc_warning;
 extern Lisp_Object zero_vector;
@@ -3927,7 +3938,7 @@ extern bool let_shadows_global_binding_p (Lisp_Object symbol);
 
 #ifdef HAVE_MODULES
 /* Defined in alloc.c.  */
-extern Lisp_Object make_user_ptr (void (*finalizer) (void*), void *p);
+extern Lisp_Object make_user_ptr (void (*finalizer) (void *), void *p);
 
 /* Defined in emacs-module.c.  */
 extern void module_init (void);
@@ -4313,15 +4324,21 @@ extern void init_font (void);
 extern void syms_of_fontset (void);
 #endif
 
+/* Defined in inotify.c */
+#ifdef HAVE_INOTIFY
+extern void syms_of_inotify (void);
+#endif
+
+/* Defined in kqueue.c */
+#ifdef HAVE_KQUEUE
+extern void globals_of_kqueue (void);
+extern void syms_of_kqueue (void);
+#endif
+
 /* Defined in gfilenotify.c */
 #ifdef HAVE_GFILENOTIFY
 extern void globals_of_gfilenotify (void);
 extern void syms_of_gfilenotify (void);
-#endif
-
-/* Defined in inotify.c */
-#ifdef HAVE_INOTIFY
-extern void syms_of_inotify (void);
 #endif
 
 #ifdef HAVE_W32NOTIFY

@@ -271,7 +271,7 @@ bindings for that purpose.
   The Imenu facility offers a way to find the major definitions in
 a file by name.  It is also useful in text formatter major modes,
 where it treats each chapter, section, etc., as a definition.
-(@xref{Tags}, for a more powerful feature that handles multiple files
+(@xref{Xref}, for a more powerful feature that handles multiple files
 together.)
 
 @findex imenu
@@ -1368,7 +1368,7 @@ which generates its completion list in a flexible way.  If Semantic
 mode is enabled, it tries to use the Semantic parser data for
 completion (@pxref{Semantic}).  If Semantic mode is not enabled or
 fails at performing completion, it tries to complete using the
-selected tags table (@pxref{Tags}).  If in Emacs Lisp mode, it
+selected tags table (@pxref{Tags Tables}).  If in Emacs Lisp mode, it
 performs completion using the function, variable, or property names
 defined in the current Emacs session.
 

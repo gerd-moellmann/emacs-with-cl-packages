@@ -1450,7 +1450,7 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
     (define-key map "." 'dired-clean-directory)
     (define-key map "~" 'dired-flag-backup-files)
     ;; Upper case keys (except !) for operating on the marked files
-    (define-key map "A" 'dired-do-search)
+    (define-key map "A" 'dired-do-find-regexp)
     (define-key map "C" 'dired-do-copy)
     (define-key map "B" 'dired-do-byte-compile)
     (define-key map "D" 'dired-do-delete)
@@ -1460,7 +1460,7 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
     (define-key map "M" 'dired-do-chmod)
     (define-key map "O" 'dired-do-chown)
     (define-key map "P" 'dired-do-print)
-    (define-key map "Q" 'dired-do-query-replace-regexp)
+    (define-key map "Q" 'dired-do-find-regexp-and-replace)
     (define-key map "R" 'dired-do-rename)
     (define-key map "S" 'dired-do-symlink)
     (define-key map "T" 'dired-do-touch)
@@ -2806,7 +2806,9 @@ It runs the hook `dired-initial-position-hook'."
 (defun dired-current-directory (&optional localp)
   "Return the name of the subdirectory to which this line belongs.
 This returns a string with trailing slash, like `default-directory'.
-Optional argument means return a file name relative to `default-directory'."
+Optional argument means return a file name relative to `default-directory',
+in which case the value could be an empty string if `default-directory'
+is the directory where the file on this line resides."
   (let ((here (point))
 	(alist (or dired-subdir-alist
 		   ;; probably because called in a non-dired buffer
@@ -3903,7 +3905,7 @@ Ask means pop up a menu for the user to select one of copy, move or link."
 
 ;;; Start of automatically extracted autoloads.
 
-;;;### (autoloads nil "dired-aux" "dired-aux.el" "7b7e39be8bcaf5f35b2735c3f5635f40")
+;;;### (autoloads nil "dired-aux" "dired-aux.el" "11abafc4f164a0e7599096a5f8deb455")
 ;;; Generated autoloads from dired-aux.el
 
 (autoload 'dired-diff "dired-aux" "\
@@ -4406,6 +4408,16 @@ with the command \\[tags-loop-continue].
 
 \(fn FROM TO &optional DELIMITED)" t nil)
 
+(autoload 'dired-do-find-regexp "dired-aux" "\
+Find all matches for REGEXP in all marked files, recursively.
+
+\(fn REGEXP)" t nil)
+
+(autoload 'dired-do-find-regexp-and-replace "dired-aux" "\
+Replace matches of FROM with TO, in all marked files, recursively.
+
+\(fn FROM TO)" t nil)
+
 (autoload 'dired-show-file-type "dired-aux" "\
 Print the type of FILE, according to the `file' command.
 If you give a prefix to this command, and FILE is a symbolic
@@ -4416,7 +4428,7 @@ instead.
 
 ;;;***
 
-;;;### (autoloads nil "dired-x" "dired-x.el" "26ec84bf71edaf13ce45aeab60b7f31f")
+;;;### (autoloads nil "dired-x" "dired-x.el" "8dae922d1549647835460b6cb70af4df")
 ;;; Generated autoloads from dired-x.el
 
 (autoload 'dired-jump "dired-x" "\

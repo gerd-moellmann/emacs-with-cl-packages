@@ -192,6 +192,7 @@ Advanced Features
 * Network Security::    Managing the network security.
 * Document View::       Viewing PDF, PS and DVI files.
 * EWW::                 A web browser in Emacs.
+* Embedded WebKit Widgets:: Embedding browser widgets in Emacs buffers.
 * Shell::               Executing shell commands from Emacs.
 * Emacs Server::        Using Emacs as an editing server.
 * Printing::            Printing hardcopies of buffers or regions.
@@ -221,7 +222,7 @@ Appendices
 * GNU Free Documentation License:: The license for this documentation.
 * Emacs Invocation::    Hairy startup options.
 * X Resources::         X resources for customizing Emacs.
-* Antinews::            Information about Emacs version 23.
+* Antinews::            Information about Emacs version 24.
 * Mac Port::            Using Emacs under Mac OS X with the Mac port.
 * Mac OS / GNUstep::    Using Emacs under Mac OS and GNUstep.
 * Microsoft Windows::   Using Emacs on Microsoft Windows and MS-DOS.
@@ -789,8 +790,8 @@ Maintaining Large Programs
 
 * Version Control::     Using version control systems.
 * Change Log::          Maintaining a change history for your program.
-* Tags::                Go directly to any function in your program in one
-                          command.  Tags remembers which file it is in.
+* Xref::                Find definitions and references of any function,
+                          method, struct, macro, @dots{} in your program.
 * EDE::                 An integrated development environment for Emacs.
 @ifnottex
 * Emerge::              A convenient way of merging two versions of a program.
@@ -862,15 +863,25 @@ Change Logs
 * Change Log Commands:: Commands for editing change log files.
 * Format of ChangeLog:: What the change log file looks like.
 
+Xref
+
+* Find Identifiers::    Commands to find where an identifier is defined
+                          or referenced, to list identifiers, etc.
+* Tags Tables::         Tags table records which file defines a symbol.
+* Select Tags Table::   How to visit a specific tags table.
+
+Find Identifiers
+
+* Looking Up Identifiers:: Commands to find the definition of a specific tag.
+* Xref Commands::          Commands in the @file{*xref*} buffer.
+* Identifier Search::      Searching and replacing identifiers.
+* List Identifiers::       Listing identifiers and completing on them.
+
 Tags Tables
 
 * Tag Syntax::          Tag syntax for various types of code and text files.
 * Create Tags Table::   Creating a tags table with @command{etags}.
 * Etags Regexps::       Create arbitrary tags using regular expressions.
-* Select Tags Table::   How to visit a tags table.
-* Find Tag::            Commands to find the definition of a specific tag.
-* Tags Search::         Using a tags table for searching and replacing.
-* List Tags::           Using tags for completion, and listing them.
 
 @ifnottex
 Merging Files with Emerge

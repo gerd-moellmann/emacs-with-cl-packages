@@ -637,10 +637,11 @@ ns_menu_bar_should_be_hidden (void)
 
 static CGFloat
 ns_menu_bar_height (NSScreen *screen)
-/* The height of the menu bar, if visible. */
-{
-  //  NSTRACE ("ns_menu_bar_height");
+/* The height of the menu bar, if visible.
 
+   Note: Don't use this when fullscreen is enabled -- the screen
+   sometimes includes, sometimes excludes the menu bar area. */
+{
   CGFloat res;
 
   if (ns_menu_bar_should_be_hidden())
@@ -660,7 +661,7 @@ ns_menu_bar_height (NSScreen *screen)
 
     }
 
-  // NSTRACE_MSG (NSTRACE_FMT_RETURN "%.0f", res);
+  NSTRACE ("ns_menu_bar_height " NSTRACE_FMT_RETURN " %.0f", res);
 
   return res;
 }
@@ -714,7 +715,7 @@ ns_menu_bar_height (NSScreen *screen)
 //    Result: Menu bar visible, frame placed immediately below the menu.
 //
 
-static NSRect constrain_frame_rect(NSRect frameRect)
+static NSRect constrain_frame_rect(NSRect frameRect, bool isFullscreen)
 {
   NSTRACE ("constrain_frame_rect(" NSTRACE_FMT_RECT ")",
              NSTRACE_ARG_RECT (frameRect));
@@ -746,7 +747,11 @@ static NSRect constrain_frame_rect(NSRect frameRect)
         {
           multiscreenRect = NSUnionRect (multiscreenRect, scrRect);
 
-          menu_bar_height = max(menu_bar_height, ns_menu_bar_height (s));
+          if (!isFullscreen)
+            {
+              CGFloat screen_menu_bar_height = ns_menu_bar_height (s);
+              menu_bar_height = max(menu_bar_height, screen_menu_bar_height);
+            }
         }
     }
 
@@ -840,7 +845,7 @@ ns_constrain_all_frames (void)
           if (![view isFullscreen])
             {
               [[view window]
-                setFrame:constrain_frame_rect([[view window] frame])
+                setFrame:constrain_frame_rect([[view window] frame], false)
                  display:NO];
             }
         }
@@ -1150,19 +1155,35 @@ ns_clip_to_row (struct window *w, struct glyph_row *row,
 {
   // Number of currently active bell:s.
   unsigned int nestCount;
+  bool isAttached;
 }
 - (void)show:(NSView *)view;
 - (void)hide;
+- (void)remove;
 @end
 
 @implementation EmacsBell
 
 - (id)init;
 {
+  NSTRACE ("[EmacsBell init]");
   if ((self = [super init]))
     {
       nestCount = 0;
+      isAttached = false;
+#ifdef NS_IMPL_GNUSTEP
+      // GNUstep doesn't provide named images.  This was reported in
+      // 2011, see https://savannah.gnu.org/bugs/?33396
+      //
+      // As a drop in replacement, a semitransparent gray square is used.
+      self.image = [[NSImage alloc] initWithSize:NSMakeSize(32, 32)];
+      [self.image lockFocus];
+      [[NSColor colorForEmacsRed:0.5 green:0.5 blue:0.5 alpha:0.5] set];
+      NSRectFill(NSMakeRect(0, 0, 32, 32));
+      [self.image unlockFocus];
+#else
       self.image = [NSImage imageNamed:NSImageNameCaution];
+#endif
     }
   return self;
 }
@@ -1183,6 +1204,7 @@ ns_clip_to_row (struct window *w, struct glyph_row *row,
       [self setFrameOrigin:pos];
       [self setFrameSize:self.image.size];
 
+      isAttached = true;
       [[[view window] contentView] addSubview:self
                                    positioned:NSWindowAbove
                                    relativeTo:nil];
@@ -1199,16 +1221,30 @@ ns_clip_to_row (struct window *w, struct glyph_row *row,
   // Note: Trace output from this method isn't shown, reason unknown.
   // NSTRACE ("[EmacsBell hide]");
 
-  --nestCount;
+  if (nestCount > 0)
+    --nestCount;
 
   // Remove the image once the last bell became inactive.
   if (nestCount == 0)
     {
+      [self remove];
+    }
+}
+
+
+-(void)remove
+{
+  if (isAttached)
+    {
       [self removeFromSuperview];
+      isAttached = false;
     }
 }
 
 @end
+
+
+static EmacsBell * bell_view = nil;
 
 static void
 ns_ring_bell (struct frame *f)
@@ -1222,7 +1258,6 @@ ns_ring_bell (struct frame *f)
       struct frame *frame = SELECTED_FRAME ();
       NSView *view;
 
-      static EmacsBell * bell_view = nil;
       if (bell_view == nil)
         {
           bell_view = [[EmacsBell alloc] init];
@@ -1242,6 +1277,18 @@ ns_ring_bell (struct frame *f)
   else
     {
       NSBeep ();
+    }
+}
+
+
+static void hide_bell ()
+/* --------------------------------------------------------------------------
+     Ensure the bell is hidden.
+   -------------------------------------------------------------------------- */
+{
+  if (bell_view != nil)
+    {
+      [bell_view remove];
     }
 }
 
@@ -1543,7 +1590,6 @@ x_set_window_size (struct frame *f,
   NSRect wr = [window frame];
   int tb = FRAME_EXTERNAL_TOOL_BAR (f);
   int pixelwidth, pixelheight;
-  int rows, cols;
   int orig_height = wr.size.height;
 
   NSTRACE ("x_set_window_size");
@@ -1561,15 +1607,11 @@ x_set_window_size (struct frame *f,
     {
       pixelwidth = FRAME_TEXT_TO_PIXEL_WIDTH (f, width);
       pixelheight = FRAME_TEXT_TO_PIXEL_HEIGHT (f, height);
-      cols = FRAME_PIXEL_WIDTH_TO_TEXT_COLS (f, pixelwidth);
-      rows = FRAME_PIXEL_HEIGHT_TO_TEXT_LINES (f, pixelheight);
     }
   else
     {
       pixelwidth =  FRAME_TEXT_COLS_TO_PIXEL_WIDTH   (f, width);
       pixelheight = FRAME_TEXT_LINES_TO_PIXEL_HEIGHT (f, height);
-      cols = width;
-      rows = height;
     }
 
   /* If we have a toolbar, take its height into account. */
@@ -2328,6 +2370,8 @@ ns_copy_bits (struct frame *f, NSRect src, NSRect dest)
 {
   if (FRAME_NS_VIEW (f))
     {
+      hide_bell();              // Ensure the bell image isn't scrolled.
+
       ns_focus (f, &dest, 1);
       [FRAME_NS_VIEW (f) scrollRect: src
                                  by: NSMakeSize (dest.origin.x - src.origin.x,
@@ -2600,13 +2644,13 @@ ns_draw_fringe_bitmap (struct window *w, struct glyph_row *row,
         [img setXBMColor: bm_color];
       }
 
+#ifdef NS_IMPL_COCOA
       // Note: For periodic images, the full image height is "h + hd".
       // By using the height h, a suitable part of the image is used.
       NSRect fromRect = NSMakeRect(0, 0, p->wd, p->h);
 
       NSTRACE_RECT ("fromRect", fromRect);
 
-#ifdef NS_IMPL_COCOA
       [img drawInRect: r
               fromRect: fromRect
              operation: NSCompositeSourceOver
@@ -6326,7 +6370,6 @@ not_in_argv (NSString *arg)
   if (oldr != rows || oldc != cols || neww != oldw || newh != oldh)
     {
       NSView *view = FRAME_NS_VIEW (emacsframe);
-      NSWindow *win = [view window];
 
       change_frame_size (emacsframe,
                          FRAME_PIXEL_TO_TEXT_WIDTH (emacsframe, neww),
@@ -6612,7 +6655,7 @@ not_in_argv (NSString *arg)
   NSString *name;
 
   NSTRACE ("[EmacsView initFrameFromEmacs:]");
-  NSTRACE_MSG ("cols:%d lines:%d\n", f->text_cols, f->text_lines);
+  NSTRACE_MSG ("cols:%d lines:%d", f->text_cols, f->text_lines);
 
   windowClosing = NO;
   processingCompose = NO;
@@ -7061,14 +7104,25 @@ not_in_argv (NSString *arg)
 
 - (BOOL)isFullscreen
 {
-  NSTRACE ("[EmacsView isFullscreen]");
+  BOOL res;
 
-  if (! fs_is_native) return nonfs_window != nil;
+  if (! fs_is_native)
+    {
+      res = (nonfs_window != nil);
+    }
+  else
+    {
 #ifdef HAVE_NATIVE_FS
-  return ([[self window] styleMask] & NSFullScreenWindowMask) != 0;
+      res = (([[self window] styleMask] & NSFullScreenWindowMask) != 0);
 #else
-  return NO;
+      res = NO;
 #endif
+    }
+
+  NSTRACE ("[EmacsView isFullscreen] " NSTRACE_FMT_RETURN " %d",
+           (int) res);
+
+  return res;
 }
 
 #ifdef HAVE_NATIVE_FS
@@ -7734,7 +7788,8 @@ not_in_argv (NSString *arg)
 #endif
 #endif
 
-  return constrain_frame_rect(frameRect);
+  return constrain_frame_rect(frameRect,
+                              [(EmacsView *)[self delegate] isFullscreen]);
 }
 
 
@@ -7747,8 +7802,6 @@ not_in_argv (NSString *arg)
 
 - (void)zoom:(id)sender
 {
-  struct frame * f = SELECTED_FRAME ();
-
   NSTRACE ("[EmacsWindow zoom:]");
 
   ns_update_auto_hide_menu_bar();

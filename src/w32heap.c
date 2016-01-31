@@ -100,8 +100,8 @@ typedef struct _RTL_HEAP_PARAMETERS {
    special segment to the executable.  In order to be able to do this
    without losing too much space, we need to create a Windows heap at
    the specific address of the static array.  The RtlCreateHeap
-   available inside the NT kernel since XP will do this.  It allows to
-   create a non-growable heap at a specific address.  So before
+   available inside the NT kernel since XP will do this.  It allows the
+   creation of a non-growable heap at a specific address.  So before
    dumping, we create a non-growable heap at the address of the
    dumped_data[] array.  After dumping, we reuse memory allocated
    there without being able to free it (but most of it is not meant to
@@ -258,9 +258,18 @@ init_heap (void)
 	}
 #endif
 
-      the_malloc_fn = malloc_after_dump;
-      the_realloc_fn = realloc_after_dump;
-      the_free_fn = free_after_dump;
+      if (os_subtype == OS_9X)
+        {
+          the_malloc_fn = malloc_after_dump_9x;
+          the_realloc_fn = realloc_after_dump_9x;
+          the_free_fn = free_after_dump_9x;
+        }
+      else
+        {
+          the_malloc_fn = malloc_after_dump;
+          the_realloc_fn = realloc_after_dump;
+          the_free_fn = free_after_dump;
+        }
     }
   else
     {
@@ -291,9 +300,18 @@ init_heap (void)
 	  exit (-1);
 	}
       heap = s_pfn_Rtl_Create_Heap (0, data_region_base, 0, 0, NULL, &params);
-      the_malloc_fn = malloc_before_dump;
-      the_realloc_fn = realloc_before_dump;
-      the_free_fn = free_before_dump;
+
+      if (os_subtype == OS_9X)
+        {
+          fprintf (stderr, "Cannot dump Emacs on Windows 9X; exiting.\n");
+          exit (-1);
+        }
+      else
+        {
+          the_malloc_fn = malloc_before_dump;
+          the_realloc_fn = realloc_before_dump;
+          the_free_fn = free_before_dump;
+        }
     }
 
   /* Update system version information to match current system.  */
@@ -501,6 +519,65 @@ free_before_dump (void *ptr)
 	     error here.  */
 	  eassert (i < blocks_number);
 	}
+    }
+}
+
+/* On Windows 9X, HeapAlloc may return pointers that are not aligned
+   on 8-byte boundary, alignment which is required by the Lisp memory
+   management.  To circumvent this problem, manually enforce alignment
+   on Windows 9X.  */
+
+void *
+malloc_after_dump_9x (size_t size)
+{
+  void *p = malloc_after_dump (size + 8);
+  void *pa;
+  if (p == NULL)
+    return p;
+  pa = (void*)(((intptr_t)p + 8) & ~7);
+  *((void**)pa-1) = p;
+  return pa;
+}
+
+void *
+realloc_after_dump_9x (void *ptr, size_t size)
+{
+  if (FREEABLE_P (ptr))
+    {
+      void *po = *((void**)ptr-1);
+      void *p;
+      void *pa;
+      p = realloc_after_dump (po, size + 8);
+      if (p == NULL)
+        return p;
+      pa = (void*)(((intptr_t)p + 8) & ~7);
+      if (ptr != NULL &&
+          (char*)pa - (char*)p != (char*)ptr - (char*)po)
+        {
+          /* Handle the case where alignment in pre-realloc and
+             post-realloc blocks does not match.  */
+          MoveMemory (pa, (void*)((char*)p + ((char*)ptr - (char*)po)), size);
+        }
+      *((void**)pa-1) = p;
+      return pa;
+    }
+  else
+    {
+      /* Non-freeable pointers have no alignment-enforcing header
+         (since dumping is not allowed on Windows 9X).  */
+      void* p = malloc_after_dump_9x (size);
+      if (p != NULL)
+	CopyMemory (p, ptr, size);
+      return p;
+    }
+}
+
+void
+free_after_dump_9x (void *ptr)
+{
+  if (FREEABLE_P (ptr))
+    {
+      free_after_dump (*((void**)ptr-1));
     }
 }
 

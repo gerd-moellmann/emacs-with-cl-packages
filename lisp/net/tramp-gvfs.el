@@ -86,7 +86,7 @@
 
 ;; Restrictions:
 
-;; * The current GVFS implementation does not allow to write on the
+;; * The current GVFS implementation does not allow writing on the
 ;;   remote bluetooth device via OBEX.
 ;;
 ;; * Two shares of the same SMB server cannot be mounted in parallel.
@@ -1617,7 +1617,11 @@ connection if a previous connection has died for some reason."
 	;; is marked with the fuse-mountpoint "/".  We shall react.
 	(when (string-equal
 	       (tramp-get-file-property vec "/" "fuse-mountpoint" "") "/")
-	  (tramp-error vec 'file-error "FUSE mount denied")))))
+	  (tramp-error vec 'file-error "FUSE mount denied"))
+
+	;; Mark it as connected.
+	(tramp-set-connection-property
+	 (tramp-get-connection-process vec) "connected" t))))
 
   ;; In `tramp-check-cached-permissions', the connection properties
   ;; {uig,gid}-{integer,string} are used.  We set them to their local

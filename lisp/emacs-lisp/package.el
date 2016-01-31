@@ -182,7 +182,13 @@ If VERSION is a string, only that version is ever loaded.
  Any other version, even if newer, is silently ignored.
  Hence, the package is \"held\" at that version.
 If VERSION is nil, the package is not loaded (it is \"disabled\")."
-  :type '(repeat symbol)
+  :type '(repeat (choice (const all)
+                         (list :tag "Specific package"
+                               (symbol :tag "Package name")
+                               (choice :tag "Version"
+                                (const :tag "disable" nil)
+                                (const :tag "most recent" t)
+                                (string :tag "specific version")))))
   :risky t
   :version "24.1")
 
@@ -328,6 +334,7 @@ by running `package-install-selected-packages'.
 To check if a package is contained in this list here, use
 `package--user-selected-p', as it may populate the variable with
 a sane initial value."
+  :version "25.1"
   :type '(repeat symbol))
 
 (defcustom package-menu-async t
@@ -2653,6 +2660,7 @@ omitted from the package menu.  To toggle this, type \\[package-menu-toggle-hidi
 
 Values can be interactively added to this list by typing
 \\[package-menu-hide-package] on a package"
+  :version "25.1"
   :type '(repeat (regexp :tag "Hide packages with name matching")))
 
 (defun package-menu--refresh (&optional packages keywords)
