@@ -5027,7 +5027,8 @@ xpm_load_image (struct frame *f,
   int LA1;
   void (*put_color_table) (Lisp_Object, const unsigned char *, int, Lisp_Object);
   Lisp_Object (*get_color_table) (Lisp_Object, const unsigned char *, int);
-  Lisp_Object frame, color_symbols, color_table;
+  Lisp_Object frame, color_symbols, color_table, all_colors;
+  EMACS_INT mask_color;
   int best_key;
   bool have_mask = false;
   XImagePtr ximg = NULL, mask_img = NULL;
@@ -5109,6 +5110,7 @@ xpm_load_image (struct frame *f,
   else
     color_table = xpm_make_color_table_h (&put_color_table,
 					  &get_color_table);
+  all_colors = Qnil;
 
   while (num_colors-- > 0)
     {
@@ -5179,9 +5181,27 @@ xpm_load_image (struct frame *f,
 	    color_val = make_number (cdef.pixel);
 	}
       if (!NILP (color_val))
-	(*put_color_table) (color_table, beg, chars_per_pixel, color_val);
+	{
+	  (*put_color_table) (color_table, beg, chars_per_pixel, color_val);
+	  if (!EQ (color_val, Qt))
+	    all_colors = Fcons (color_val, all_colors);
+	}
 
       expect (',');
+    }
+
+  /* Find a color that does not appear in the color table */
+  mask_color = 0;
+  while (mask_color < 0xFFFFFF)
+    {
+      Lisp_Object rest;
+
+      for (rest = all_colors; !NILP (rest); rest = XCDR (rest))
+	if (XINT (XCAR (rest)) == mask_color)
+	  break;
+      if (NILP (rest))
+	break;
+      mask_color++;
     }
 
   for (y = 0; y < height; y++)
@@ -5198,8 +5218,7 @@ xpm_load_image (struct frame *f,
 	    (*get_color_table) (color_table, data, chars_per_pixel);
 
 	  XPutPixel (ximg, x, y,
-		     (INTEGERP (color_val) ? XINT (color_val)
-		      : FRAME_FOREGROUND_PIXEL (f)));
+		     INTEGERP (color_val) ? XINT (color_val) : mask_color);
 #ifndef HAVE_NS
 	  XPutPixel (mask_img, x, y,
 		     (!EQ (color_val, Qt) ? PIX_MASK_DRAW
