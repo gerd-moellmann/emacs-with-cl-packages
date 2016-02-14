@@ -3319,6 +3319,7 @@ init_mac_osx_environment (void)
   CFBundleRef bundle;
   CFURLRef bundleURL;
   CFStringRef cf_app_bundle_pathname;
+  CFLocaleRef locale;
   int app_bundle_pathname_len;
   char *app_bundle_pathname;
   char *p, *q;
@@ -3432,6 +3433,19 @@ init_mac_osx_environment (void)
 	inhibit_window_system = 1;
       else
 	CFRelease (session_dict);
+    }
+
+  /* OS X doesn't set any environment variables for the locale when
+     run from the GUI. Get the locale from the OS and set LANG. */
+  locale = CFLocaleCopyCurrent ();
+  if (locale)
+    {
+      Lisp_Object identifier =
+	cfstring_to_lisp (CFLocaleGetIdentifier (locale));
+
+      /* Set LANG to locale, but not if LANG is already set. */
+      setenv ("LANG", SDATA (identifier), 0);
+      CFRelease (locale);
     }
 }
 

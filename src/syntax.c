@@ -1536,9 +1536,15 @@ DEFUN ("forward-word", Fforward_word, Sforward_word, 0, 1, "^p",
        doc: /* Move point forward ARG words (backward if ARG is negative).
 If ARG is omitted or nil, move point forward one word.
 Normally returns t.
-If an edge of the buffer or a field boundary is reached, point is left there
-and the function returns nil.  Field boundaries are not noticed if
-`inhibit-field-text-motion' is non-nil.  */)
+If an edge of the buffer or a field boundary is reached, point is
+left there and the function returns nil.  Field boundaries are not
+noticed if `inhibit-field-text-motion' is non-nil.
+
+The word boundaries are normally determined by the buffer's syntax
+table, but `find-word-boundary-function-table', such as set up
+by `subword-mode', can change that.  If a Lisp program needs to
+move by words determined strictly by the syntax table, it should
+use `forward-word-strictly' instead.  */)
   (Lisp_Object arg)
 {
   Lisp_Object tmp;
@@ -3695,11 +3701,11 @@ Each function is called with two arguments; POS and LIMIT.
 POS and LIMIT are character positions in the current buffer.
 
 If POS is less than LIMIT, POS is at the first character of a word,
-and the return value of a function is a position after the last
-character of that word.
+and the return value of a function should be a position after the
+last character of that word.
 
 If POS is not less than LIMIT, POS is at the last character of a word,
-and the return value of a function is a position at the first
+and the return value of a function should be a position at the first
 character of that word.
 
 In both cases, LIMIT bounds the search. */);

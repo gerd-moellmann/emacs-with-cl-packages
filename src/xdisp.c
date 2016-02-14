@@ -825,6 +825,7 @@ static Lisp_Object redisplay_window_1 (Lisp_Object);
 static bool set_cursor_from_row (struct window *, struct glyph_row *,
 				 struct glyph_matrix *, ptrdiff_t, ptrdiff_t,
 				 int, int);
+static bool cursor_row_fully_visible_p (struct window *, bool, bool);
 static bool update_menu_bar (struct frame *, bool, bool);
 static bool try_window_reusing_current_matrix (struct window *);
 static int try_window_id (struct window *);
@@ -7240,14 +7241,23 @@ get_next_display_element (struct it *it)
 		     buffer position is stored in the 'position'
 		     member of the iteration stack slot below the
 		     current one, see handle_single_display_spec.  By
-		     contrast, it->current.pos was is not yet updated
+		     contrast, it->current.pos was not yet updated
 		     to point to that buffer position; that will
 		     happen in pop_it, after we finish displaying the
 		     current string.  Note that we already checked
 		     above that it->sp is positive, so subtracting one
 		     from it is safe.  */
 		  if (it->from_disp_prop_p)
-		    pos = (it->stack + it->sp - 1)->position;
+		    {
+		      int stackp = it->sp - 1;
+
+		      /* Find the stack level with data from buffer.  */
+		      while (stackp >= 0
+			     && STRINGP ((it->stack + stackp)->string))
+			stackp--;
+		      eassert (stackp >= 0);
+		      pos = (it->stack + stackp)->position;
+		    }
 		  else
 		    INC_TEXT_POS (pos, it->multibyte_p);
 
@@ -13904,11 +13914,16 @@ redisplay_internal (void)
 	      eassert (this_line_vpos == it.vpos);
 	      eassert (this_line_y == it.current_y);
 	      set_cursor_from_row (w, row, w->current_matrix, 0, 0, 0, 0);
+	      if (cursor_row_fully_visible_p (w, false, true))
+		{
 #ifdef GLYPH_DEBUG
-	      *w->desired_matrix->method = 0;
-	      debug_method_add (w, "optimization 3");
+		  *w->desired_matrix->method = 0;
+		  debug_method_add (w, "optimization 3");
 #endif
-	      goto update;
+		  goto update;
+		}
+	      else
+		goto cancel;
 	    }
 	  else
 	    goto cancel;

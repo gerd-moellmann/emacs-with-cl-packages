@@ -966,7 +966,7 @@ element is the data blob and the second element is the content-type."
                             (image-animated-p image))))
             (image-animate image nil 60)))
 	image)
-    (insert alt)))
+    (insert (or alt ""))))
 
 (defun shr-rescale-image (data &optional content-type)
   "Rescale DATA, if too big, to fit the current buffer."
@@ -1409,9 +1409,7 @@ The preference is a float determined from `shr-prefer-media-type'."
 	      (and shr-blocked-images
 		   (string-match shr-blocked-images url)))
 	  (setq shr-start (point))
-	  (if (> (string-width alt) 8)
-	      (shr-insert (truncate-string-to-width alt 8))
-	    (shr-insert alt)))
+          (shr-insert alt))
 	 ((and (not shr-ignore-cache)
 	       (url-is-cached (shr-encode-url url)))
 	  (funcall shr-put-image-function (shr-get-image-data url) alt))
@@ -1754,17 +1752,18 @@ The preference is a float determined from `shr-prefer-media-type'."
 				 align)))
 	      (dolist (line lines)
 		(end-of-line)
-		(let ((start (point)))
-		  (insert
-		   line
-		   (propertize " "
-			       'display `(space :align-to (,pixel-align))
-			       'face (and (> (length line) 0)
-					  (shr-face-background
-					   (get-text-property
-					    (1- (length line)) 'face line)))
-			       'shr-table-indent shr-table-id)
-		   shr-table-vertical-line)
+		(let ((start (point))
+                      (background (and (> (length line) 0)
+                                       (shr-face-background
+                                        (get-text-property
+                                         (1- (length line)) 'face line))))
+                      (space (propertize
+                              " "
+                              'display `(space :align-to (,pixel-align))
+                              'shr-table-indent shr-table-id)))
+                  (when background
+                    (setq space (propertize space 'face background)))
+		  (insert line space shr-table-vertical-line)
 		  (shr-colorize-region
 		   start (1- (point)) (nth 5 column) (nth 6 column)))
 		(forward-line 1))
@@ -1787,13 +1786,15 @@ The preference is a float determined from `shr-prefer-media-type'."
 
 (defun shr-face-background (face)
   (and (consp face)
-       (let ((background nil))
-	 (dolist (elem face)
-	   (when (and (consp elem)
-		      (eq (car elem) :background))
-	     (setq background (cadr elem))))
-	 (and background
-	      (list :background background)))))
+       (or (and (plist-get face :background)
+                (list :background (plist-get face :background)))
+           (let ((background nil))
+             (dolist (elem face)
+               (when (and (consp elem)
+                          (eq (car elem) :background))
+                 (setq background (cadr elem))))
+             (and background
+                  (list :background background))))))
 
 (defun shr-expand-alignments (start end)
   (while (< (setq start (next-single-property-change

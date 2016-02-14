@@ -11789,7 +11789,7 @@ renderer.  If set to @code{gnus-w3m}, it uses @code{w3m}.
 @item gnus-blocked-images
 @vindex gnus-blocked-images
 External images that have @acronym{URL}s that match this regexp won't
-be fetched and displayed.  For instance, do block all @acronym{URL}s
+be fetched and displayed.  For instance, to block all @acronym{URL}s
 that have the string ``ads'' in them, do the following:
 
 @lisp
@@ -14325,7 +14325,7 @@ Here's a complete example @code{nnimap} backend with a client-side
 @example
 (nnimap "imap.example.com"
         (nnimap-inbox "INBOX")
-        (nnimap-split-methods
+        (nnimap-split-fancy
          (| ("MailScanner-SpamCheck" "spam" "spam.detected")
             (to "foo@@bar.com" "foo")
             "undecided")))

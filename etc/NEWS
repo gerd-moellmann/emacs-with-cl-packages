@@ -181,10 +181,6 @@ by default, and must be enabled by using the `--with-modules' option
 at configure time.
 
 +++
-** A second dir-local file (.dir-locals-2.el) is now accepted.
-See the variable `dir-locals-file-2' for more information.
-
-+++
 ** Network security (TLS/SSL certificate validity and the like) is
 added via the new Network Security Manager (NSM) and controlled via
 the `network-security-level' variable.
@@ -282,12 +278,17 @@ as you type.  See also the new variable ‘text-quoting-style’.
 ** New minor mode global-eldoc-mode is enabled by default.
 
 ---
-** Emacs now supports "bracketed paste mode" when running on a terminal
-that supports it.  This facility allows Emacs to understand pasted
-chunks of text as strings to be inserted, instead of interpreting each
-character in the pasted text as actual user input.  This results in a
-paste experience similar to that under a window system, and significant
-performance improvements when pasting large amounts of text.
+** Emacs now uses "bracketed paste mode" on text terminals that support it.
+Bracketed paste mode causes text terminals to wrap pasted text in special
+escape sequences that allow Emacs to tell the difference between text
+you type and text you paste from other applications.  Emacs then
+avoids interpreting each character in the pasted text as it does with
+keyboard input, which results in a paste experience similar to that
+under a window system, and significant performance improvements when
+pasting large amounts of text.
+
+Bracketed paste mode is disabled by default, so Emacs automatically
+enables it at startup if the terminal supports it.
 
 +++
 ** Emacs now supports the latest version of the UBA.
@@ -320,6 +321,11 @@ default.
 unsaved customizations and prompts user to customize (if found).  It
 is intended for adding to 'kill-emacs-query-functions'.
 
++++
+** The old `C-x w' bindings in hi-lock-mode are officially deprecated
+in favor of the global `M-s h' bindings introduced in Emacs-23.1.
+They'll disappear soon.
+
 
 * Changes in Specialized Modes and Packages in Emacs 25.1
 
@@ -351,6 +357,20 @@ to version 206, you can do this with C-u C-u M-x desktop-save.
 ** New function `bookmark-set-no-overwrite' bound to C-x r M.
 It raises an error if a bookmark of that name already exists,
 unlike `bookmark-set' which silently updates an existing bookmark.
+
+** Gnus
+
++++
+*** New user options `mm-html-inhibit-images' and `mm-html-blocked-images'
+now control how mm-* functions fetch and display images in an HTML
+message.  Gnus still uses `gnus-inhibit-images' and `gnus-blocked-images'
+for that purpose, i.e., binds mm-html- variables with those gnus-
+variables, but other packages do not have to bind gnus- variables now.
+
+---
+*** `mm-inline-text-html-with-images' has been removed.
+Use `mm-html-inhibit-images' instead.  Note that the value is opposite
+in meaning.
 
 ** IMAP
 
@@ -432,6 +452,37 @@ specified message types for the respective specified targets.
 ---
 *** Reconnection is now asynchronous.
 
+---
+*** Nick completion is now case-insensitive again after inadvertently
+being made case-sensitive in Emacs 24.2.
+
+** MPC
+
+---
+*** New commands, key binds, and menu items.
+
+**** `<' and `>' for navigating previous and next tracks in playlist
+
+**** New play/pause command `mpc-toggle-play' bound to `s'
+
+**** `g' bound to new command `mpc-seek-current' will navigate current
+     track.
+
+**** New commands `mpc-toggle-{consume,repeat,single,shuffle}' for
+     toggling playback modes.
+
+---
+*** Now supports connecting to a UNIX domain socket.
+
+---
+*** Looks at more image file names to use as album art.
+Case-insensitively tries for .folder.png (freedesktop) and folder.jpg
+(XP) in addition to cover.jpg.
+
+---
+*** Searches in more locations for MPD configuration files.
+MPD supports the XDG base directory specification since version 0.17.6.
+
 ** Midnight-mode
 
 ---
@@ -496,7 +547,7 @@ which were installed by the user (as opposed to installed as
 dependencies).  This variable can also be manually customized.
 
 ---
-*** New command `package-install-user-selected-packages' installs all
+*** New command `package-install-selected-packages' installs all
 packages from `package-selected-packages' which are currently missing.
 
 ---
@@ -559,7 +610,7 @@ item as before.
 ** Search and Replace
 
 +++
-*** New user option `search-default-regexp-mode'
+*** New user option `search-default-mode'
 specifies the default mode for I-search.
 
 +++
@@ -683,6 +734,10 @@ stands inside it, and certain parens can be highlighted when point is
 at BOL or EOL, or in whitespace there.  To enable these, customize,
 respectively, `show-paren-when-point-inside-paren' or
 `show-paren-when-point-in-periphery'.
+
+---
+** If gpg2 exists on the system, it is now used as the default value
+of `epg-gpg-program' (instead of gpg).
 
 ** Lisp mode
 
@@ -918,6 +973,11 @@ comparing with the next window, customize the new option
 *** Two new faces `compare-windows-removed' and `compare-windows-added'
 replace the face `compare-windows', which is now an obsolete alias for
 `compare-windows-added'.
+
+---
+*** The VC state indicator in the mode line now has different faces
+corresponding to each of the possible states.  See the `vc-faces'
+customization group.
 
 ---
 *** `log-edit-insert-changelog' converts "(tiny change)" to
@@ -1215,7 +1275,8 @@ The main entry points are `cl-defgeneric' and `cl-defmethod'.  See the
 node "Generic Functions" in the Emacs Lisp manual for more details.
 
 ---
-** scss-mode (a minor variant of css-mode)
+** scss-mode (a minor variant of css-mode) is a major mode for editing
+SCSS (Sassy CSS) files.
 
 ---
 ** let-alist is a new macro (and a package) that allows one to easily
@@ -1260,6 +1321,14 @@ eliminated.
 ** `syntax-begin-function' is declared obsolete.
 Removed font-lock-beginning-of-syntax-function and the SYNTAX-BEGIN
 slot in font-lock-defaults.
+
++++
+** The new implementation of Subword mode affects word movement everywhere.
+When Subword mode is turned on, `forward-word', `backward-word', and
+everything that uses them will move by sub-words, effectively
+overriding the buffer's syntax table.  Lisp programs that shouldn't be
+affected by Subword mode should call the new functions
+`forward-word-strictly' and `backward-word-strictly' instead.
 
 +++
 ** `package-initialize' now sets `package-enable-at-startup' to nil if
@@ -1526,8 +1595,14 @@ counterparts `string-lessp' and `string-equal'.
 
 ---
 *** The ls-lisp package uses `string-collate-lessp' to sort file names.
-If you want the old, locale-independent sorting, customize the new
-option `ls-lisp-use-string-collate' to a nil value.
+The effect is that, on systems that use ls-lisp for Dired, the default
+sort order of the files in Dired is now different from what it was in
+previous versions of Emacs.  In particular, the file names are sorted
+disregarding punctuation, accents, and diacritics, and letter case is
+ignored.  For example, files whose name begin with a period will no
+longer appear near the beginning of the directory listing.  If you
+want the old, locale-independent sorting, customize the new option
+`ls-lisp-use-string-collate' to the nil value.
 
 +++
 *** The MS-Windows specific variable `w32-collate-ignore-punctuation',

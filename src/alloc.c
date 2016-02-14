@@ -805,8 +805,10 @@ malloc_unblock_input (void)
       malloc_probe (size);			\
   } while (0)
 
+static void *lmalloc (size_t) ATTRIBUTE_MALLOC_SIZE ((1));
+static void *lrealloc (void *, size_t);
 
-/* Like malloc but check for no memory and block interrupt input..  */
+/* Like malloc but check for no memory and block interrupt input.  */
 
 void *
 xmalloc (size_t size)
@@ -814,7 +816,7 @@ xmalloc (size_t size)
   void *val;
 
   MALLOC_BLOCK_INPUT;
-  val = malloc (size);
+  val = lmalloc (size);
   MALLOC_UNBLOCK_INPUT;
 
   if (!val && size)
@@ -831,7 +833,7 @@ xzalloc (size_t size)
   void *val;
 
   MALLOC_BLOCK_INPUT;
-  val = malloc (size);
+  val = lmalloc (size);
   MALLOC_UNBLOCK_INPUT;
 
   if (!val && size)
@@ -852,9 +854,9 @@ xrealloc (void *block, size_t size)
   /* We must call malloc explicitly when BLOCK is 0, since some
      reallocs don't do this.  */
   if (! block)
-    val = malloc (size);
+    val = lmalloc (size);
   else
-    val = realloc (block, size);
+    val = lrealloc (block, size);
   MALLOC_UNBLOCK_INPUT;
 
   if (!val && size)
@@ -1056,7 +1058,7 @@ lisp_malloc (size_t nbytes, enum mem_type type)
   allocated_mem_type = type;
 #endif
 
-  val = malloc (nbytes);
+  val = lmalloc (nbytes);
 
 #if ! USE_LSB_TAG
   /* If the memory just allocated cannot be addressed thru a Lisp
@@ -1108,15 +1110,18 @@ lisp_free (void *block)
 
 /* Use aligned_alloc if it or a simple substitute is available.
    Address sanitization breaks aligned allocation, as of gcc 4.8.2 and
-   clang 3.3 anyway.  */
+   clang 3.3 anyway.  Aligned allocation is incompatible with
+   unexmacosx.c, so don't use it on Darwin.  */
 
-#if ! ADDRESS_SANITIZER
+#if ! ADDRESS_SANITIZER && !defined DARWIN_OS
 # if !defined SYSTEM_MALLOC && !defined DOUG_LEA_MALLOC && !defined HYBRID_MALLOC
 #  define USE_ALIGNED_ALLOC 1
+#  ifndef HAVE_ALIGNED_ALLOC
 /* Defined in gmalloc.c.  */
 void *aligned_alloc (size_t, size_t);
+#  endif
 # elif defined HYBRID_MALLOC
-#  if defined ALIGNED_ALLOC || defined HAVE_POSIX_MEMALIGN
+#  if defined HAVE_ALIGNED_ALLOC || defined HAVE_POSIX_MEMALIGN
 #   define USE_ALIGNED_ALLOC 1
 #   define aligned_alloc hybrid_aligned_alloc
 /* Defined in gmalloc.c.  */
@@ -1354,6 +1359,84 @@ lisp_align_free (void *block)
       free (ABLOCKS_BASE (abase));
     }
   MALLOC_UNBLOCK_INPUT;
+}
+
+#if !defined __GNUC__ && !defined __alignof__
+# define __alignof__(type) alignof (type)
+#endif
+
+/* True if malloc returns a multiple of GCALIGNMENT.  In practice this
+   holds if __alignof__ (max_align_t) is a multiple.  Use __alignof__
+   if available, as otherwise this check would fail with GCC x86.
+   This is a macro, not an enum constant, for portability to HP-UX
+   10.20 cc and AIX 3.2.5 xlc.  */
+#define MALLOC_IS_GC_ALIGNED (__alignof__ (max_align_t) % GCALIGNMENT == 0)
+
+/* True if P is suitably aligned for SIZE, where Lisp alignment may be
+   needed if SIZE is Lisp-aligned.  */
+
+static bool
+laligned (void *p, size_t size)
+{
+  return (MALLOC_IS_GC_ALIGNED || (intptr_t) p % GCALIGNMENT == 0
+	  || size % GCALIGNMENT != 0);
+}
+
+/* Like malloc and realloc except that if SIZE is Lisp-aligned, make
+   sure the result is too, if necessary by reallocating (typically
+   with larger and larger sizes) until the allocator returns a
+   Lisp-aligned pointer.  Code that needs to allocate C heap memory
+   for a Lisp object should use one of these functions to obtain a
+   pointer P; that way, if T is an enum Lisp_Type value and L ==
+   make_lisp_ptr (P, T), then XPNTR (L) == P and XTYPE (L) == T.
+
+   On typical modern platforms these functions' loops do not iterate.
+   On now-rare (and perhaps nonexistent) platforms, the loops in
+   theory could repeat forever.  If an infinite loop is possible on a
+   platform, a build would surely loop and the builder can then send
+   us a bug report.  Adding a counter to try to detect any such loop
+   would complicate the code (and possibly introduce bugs, in code
+   that's never really exercised) for little benefit.  */
+
+static void *
+lmalloc (size_t size)
+{
+#if USE_ALIGNED_ALLOC
+  if (! MALLOC_IS_GC_ALIGNED)
+    return aligned_alloc (GCALIGNMENT, size);
+#endif
+
+  void *p;
+  while (true)
+    {
+      p = malloc (size);
+      if (laligned (p, size))
+	break;
+      free (p);
+      size_t bigger;
+      if (! INT_ADD_WRAPV (size, GCALIGNMENT, &bigger))
+	size = bigger;
+    }
+
+  eassert ((intptr_t) p % GCALIGNMENT == 0);
+  return p;
+}
+
+static void *
+lrealloc (void *p, size_t size)
+{
+  while (true)
+    {
+      p = realloc (p, size);
+      if (laligned (p, size))
+	break;
+      size_t bigger;
+      if (! INT_ADD_WRAPV (size, GCALIGNMENT, &bigger))
+	size = bigger;
+    }
+
+  eassert ((intptr_t) p % GCALIGNMENT == 0);
+  return p;
 }
 
 
