@@ -3442,9 +3442,10 @@ init_mac_osx_environment (void)
     {
       Lisp_Object identifier =
 	cfstring_to_lisp (CFLocaleGetIdentifier (locale));
+      AUTO_STRING (encoding, ".UTF-8");
 
       /* Set LANG to locale, but not if LANG is already set. */
-      setenv ("LANG", SDATA (identifier), 0);
+      setenv ("LANG", SDATA (concat2 (identifier, encoding)), 0);
       CFRelease (locale);
     }
 }
