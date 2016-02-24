@@ -453,10 +453,10 @@ extern void mac_set_background (GC, unsigned long);
 extern void mac_focus_changed (int, struct mac_display_info *,
 			       struct frame *, struct input_event *);
 extern struct frame *mac_focus_frame (struct mac_display_info *);
-extern void mac_move_frame_window_to_gravity_reference_point (struct frame *,
-							      int, int, int);
-extern void mac_get_frame_window_gravity_reference_point (struct frame *, int,
-							  int *, int *);
+extern void mac_set_frame_window_gravity_reference_bounds (struct frame *, int,
+							   NativeRectangle);
+extern void mac_get_frame_window_gravity_reference_bounds (struct frame *, int,
+							   NativeRectangle *);
 extern void mac_handle_origin_change (struct frame *);
 extern void mac_handle_size_change (struct frame *, int, int);
 extern void mac_handle_visibility_change (struct frame *);
@@ -586,6 +586,8 @@ extern CGRect mac_rect_make (struct frame *, CGFloat, CGFloat,
 #else
 #define mac_rect_make(f, x, y, w, h)	CGRectMake (x, y, w, h)
 #endif
+extern void mac_set_frame_window_structure_bounds (struct frame *,
+						   NativeRectangle);
 extern void mac_get_frame_window_structure_bounds (struct frame *,
 						   NativeRectangle *);
 extern CGFloat mac_get_frame_window_title_bar_height (struct frame *);

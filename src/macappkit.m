@@ -3878,6 +3878,19 @@ mac_get_frame_window_alpha (struct frame *f, CGFloat *out_alpha)
 }
 
 void
+mac_set_frame_window_structure_bounds (struct frame *f, NativeRectangle bounds)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  NSRect baseScreenFrame = mac_get_base_screen_frame ();
+
+  [window setFrame:(NSMakeRect (bounds.x + NSMinX (baseScreenFrame),
+				(- (bounds.y + bounds.height)
+				 + NSMaxY (baseScreenFrame)),
+				bounds.width, bounds.height))
+	   display:NO];
+}
+
+void
 mac_get_frame_window_structure_bounds (struct frame *f, NativeRectangle *bounds)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
@@ -7083,7 +7096,7 @@ update_frame_tool_bar (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
   NSWindow *window = [frameController emacsWindow];
-  int rx, ry;
+  NativeRectangle r;
   NSToolbar *toolbar;
   NSArrayOf (__kindof NSToolbarItem *) *items;
   NSUInteger count;
@@ -7092,8 +7105,7 @@ update_frame_tool_bar (struct frame *f)
 
   block_input ();
 
-  if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_get_frame_window_gravity_reference_point (f, win_gravity, &rx, &ry);
+  mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   use_multiimage_icons_p =
@@ -7258,8 +7270,11 @@ update_frame_tool_bar (struct frame *f)
     [toolbar setVisible:YES];
 
   win_gravity = f->output_data.mac->toolbar_win_gravity;
-  if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_move_frame_window_to_gravity_reference_point (f, win_gravity, rx, ry);
+  if (!(EQ (frame_inhibit_implied_resize, Qt)
+	|| (CONSP (frame_inhibit_implied_resize)
+	    && !NILP (Fmemq (Qtool_bar_lines, frame_inhibit_implied_resize)))))
+    r.width = r.height = 0;
+  mac_set_frame_window_gravity_reference_bounds (f, win_gravity, r);
   f->output_data.mac->toolbar_win_gravity = 0;
 
   unblock_input ();
@@ -7272,21 +7287,23 @@ void
 free_frame_tool_bar (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  int rx, ry;
+  NativeRectangle r;
   NSToolbar *toolbar;
   int win_gravity = f->output_data.mac->toolbar_win_gravity;
 
   block_input ();
 
-  if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_get_frame_window_gravity_reference_point (f, win_gravity, &rx, &ry);
+  mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
 
   toolbar = [window toolbar];
   if ([toolbar isVisible])
     [toolbar setVisible:NO];
 
-  if (win_gravity >= NorthWestGravity && win_gravity <= SouthEastGravity)
-    mac_move_frame_window_to_gravity_reference_point (f, win_gravity, rx, ry);
+  if (!(EQ (frame_inhibit_implied_resize, Qt)
+	|| (CONSP (frame_inhibit_implied_resize)
+	    && !NILP (Fmemq (Qtool_bar_lines, frame_inhibit_implied_resize)))))
+    r.width = r.height = 0;
+  mac_set_frame_window_gravity_reference_bounds (f, win_gravity, r);
   f->output_data.mac->toolbar_win_gravity = 0;
 
   unblock_input ();

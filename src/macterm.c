@@ -3465,33 +3465,39 @@ x_scroll_bar_clear (struct frame *f)
  ***********************************************************************/
 
 void
-mac_move_frame_window_to_gravity_reference_point (struct frame *f,
-						  int win_gravity, int x, int y)
+mac_set_frame_window_gravity_reference_bounds (struct frame *f, int win_gravity,
+					       NativeRectangle r)
 {
   NativeRectangle bounds;
-  int left, top;
 
   mac_get_frame_window_structure_bounds (f, &bounds);
 
+  if (r.width <= 0)
+    r.width = bounds.width;
+  if (r.height <= 0)
+    r.height = bounds.height;
+
   switch (win_gravity)
     {
     case NorthWestGravity:
     case WestGravity:
     case SouthWestGravity:
-      left = x;
       break;
 
     case NorthGravity:
     case CenterGravity:
     case SouthGravity:
-      left = x - bounds.width / 2;
+      r.x -= r.width / 2;
       break;
 
     case NorthEastGravity:
     case EastGravity:
     case SouthEastGravity:
-      left = x - bounds.width;
+      r.x -= r.width;
       break;
+
+    default:
+      r.x = bounds.x;
     }
 
   switch (win_gravity)
@@ -3499,51 +3505,52 @@ mac_move_frame_window_to_gravity_reference_point (struct frame *f,
     case NorthWestGravity:
     case NorthGravity:
     case NorthEastGravity:
-      top = y;
       break;
 
     case WestGravity:
     case CenterGravity:
     case EastGravity:
-      top = y - bounds.height / 2;
+      r.y -= r.height / 2;
       break;
 
     case SouthWestGravity:
     case SouthGravity:
     case SouthEastGravity:
-      top = y - bounds.height;
+      r.y -= r.height;
       break;
+
+    default:
+      r.y = bounds.y;
     }
 
-  mac_move_frame_window_structure (f, left, top);
+  if (r.x != bounds.x || r.y != bounds.y
+      || r.width != bounds.width || r.height != bounds.height)
+    mac_set_frame_window_structure_bounds (f, r);
 }
 
 void
-mac_get_frame_window_gravity_reference_point (struct frame *f, int win_gravity,
-					      int *x, int *y)
+mac_get_frame_window_gravity_reference_bounds (struct frame *f, int win_gravity,
+					       NativeRectangle *r)
 {
-  NativeRectangle bounds;
-
-  mac_get_frame_window_structure_bounds (f, &bounds);
+  mac_get_frame_window_structure_bounds (f, r);
 
   switch (win_gravity)
     {
     case NorthWestGravity:
     case WestGravity:
     case SouthWestGravity:
-      *x = bounds.x;
       break;
 
     case NorthGravity:
     case CenterGravity:
     case SouthGravity:
-      *x = bounds.x + bounds.width / 2;
+      r->x += r->width / 2;
       break;
 
     case NorthEastGravity:
     case EastGravity:
     case SouthEastGravity:
-      *x = bounds.x + bounds.width;
+      r->x += r->width;
       break;
     }
 
@@ -3552,19 +3559,18 @@ mac_get_frame_window_gravity_reference_point (struct frame *f, int win_gravity,
     case NorthWestGravity:
     case NorthGravity:
     case NorthEastGravity:
-      *y = bounds.y;
       break;
 
     case WestGravity:
     case CenterGravity:
     case EastGravity:
-      *y = bounds.y + bounds.height / 2;
+      r->y += r->height / 2;
       break;
 
     case SouthWestGravity:
     case SouthGravity:
     case SouthEastGravity:
-      *y = bounds.y + bounds.height;
+      r->y += r->height;
       break;
     }
 }
