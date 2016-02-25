@@ -7095,7 +7095,7 @@ void
 update_frame_tool_bar (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
-  NSWindow *window = [frameController emacsWindow];
+  NSWindow *window;
   NativeRectangle r;
   NSToolbar *toolbar;
   NSArrayOf (__kindof NSToolbarItem *) *items;
@@ -7105,6 +7105,7 @@ update_frame_tool_bar (struct frame *f)
 
   block_input ();
 
+  window = [frameController emacsWindow];
   mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
@@ -7286,13 +7287,14 @@ update_frame_tool_bar (struct frame *f)
 void
 free_frame_tool_bar (struct frame *f)
 {
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  NSWindow *window;
   NativeRectangle r;
   NSToolbar *toolbar;
   int win_gravity = f->output_data.mac->toolbar_win_gravity;
 
   block_input ();
 
+  window = FRAME_MAC_WINDOW_OBJECT (f);
   mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
 
   toolbar = [window toolbar];
