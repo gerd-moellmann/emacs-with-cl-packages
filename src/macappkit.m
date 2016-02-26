@@ -7095,7 +7095,7 @@ void
 update_frame_tool_bar (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
-  NSWindow *window;
+  EmacsWindow *window;
   NativeRectangle r;
   NSToolbar *toolbar;
   NSArrayOf (__kindof NSToolbarItem *) *items;
@@ -7107,6 +7107,9 @@ update_frame_tool_bar (struct frame *f)
 
   window = [frameController emacsWindow];
   mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
+  /* Shrinking the toolbar height with preserving the whole window
+     height (e.g., fullheight) seems to be problematic.  */
+  [window setConstrainingToScreenSuspended:YES];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   use_multiimage_icons_p =
@@ -7270,11 +7273,16 @@ update_frame_tool_bar (struct frame *f)
   if (![toolbar isVisible])
     [toolbar setVisible:YES];
 
+  [window setConstrainingToScreenSuspended:NO];
   win_gravity = f->output_data.mac->toolbar_win_gravity;
   if (!(EQ (frame_inhibit_implied_resize, Qt)
 	|| (CONSP (frame_inhibit_implied_resize)
 	    && !NILP (Fmemq (Qtool_bar_lines, frame_inhibit_implied_resize)))))
-    r.width = r.height = 0;
+    {
+      r.width = 0;
+      if (!([frameController windowManagerState] & WM_STATE_MAXIMIZED_VERT))
+	r.height = 0;
+    }
   mac_set_frame_window_gravity_reference_bounds (f, win_gravity, r);
   f->output_data.mac->toolbar_win_gravity = 0;
 
@@ -7287,12 +7295,13 @@ update_frame_tool_bar (struct frame *f)
 void
 free_frame_tool_bar (struct frame *f)
 {
-  NSWindow *window;
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+  EmacsWindow *window;
   NSToolbar *toolbar;
 
   block_input ();
 
-  window = FRAME_MAC_WINDOW_OBJECT (f);
+  window = [frameController emacsWindow];
   toolbar = [window toolbar];
   if ([toolbar isVisible])
     {
@@ -7300,14 +7309,22 @@ free_frame_tool_bar (struct frame *f)
       NativeRectangle r;
 
       mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
+      /* Shrinking the toolbar height with preserving the whole window
+	 height (e.g., fullheight) seems to be problematic.  */
+      [window setConstrainingToScreenSuspended:YES];
 
       [toolbar setVisible:NO];
 
+      [window setConstrainingToScreenSuspended:NO];
       if (!(EQ (frame_inhibit_implied_resize, Qt)
 	    || (CONSP (frame_inhibit_implied_resize)
 		&& !NILP (Fmemq (Qtool_bar_lines,
 				 frame_inhibit_implied_resize)))))
-	r.width = r.height = 0;
+	{
+	  r.width = 0;
+	  if (!([frameController windowManagerState] & WM_STATE_MAXIMIZED_VERT))
+	    r.height = 0;
+	}
       mac_set_frame_window_gravity_reference_bounds (f, win_gravity, r);
     }
   f->output_data.mac->toolbar_win_gravity = 0;
