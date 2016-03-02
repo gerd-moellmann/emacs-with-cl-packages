@@ -402,6 +402,10 @@ Currently this means either text/html or application/xhtml+xml."
 		(condition-case nil
 		    (decode-coding-region (point) (point-max) encode)
 		  (coding-system-error nil))
+                (save-excursion
+                  ;; Remove CRLF before parsing.
+                  (while (re-search-forward "\r$" nil t)
+                    (replace-match "" t t)))
 		(libxml-parse-html-region (point) (point-max))))))
 	(source (and (null document)
 		     (buffer-substring (point) (point-max)))))
@@ -603,6 +607,21 @@ Currently this means either text/html or application/xhtml+xml."
 	  (html-mode))))
     (view-buffer buf)))
 
+(defun eww-toggle-paragraph-direction ()
+  "Cycle the paragraph direction between left-to-right, right-to-left and auto."
+  (interactive)
+  (setq bidi-paragraph-direction
+        (cond ((eq bidi-paragraph-direction 'left-to-right)
+               nil)
+              ((eq bidi-paragraph-direction 'right-to-left)
+               'left-to-right)
+              (t
+               'right-to-left)))
+  (message "The paragraph direction is now %s"
+           (if (null bidi-paragraph-direction)
+               "automatic"
+             bidi-paragraph-direction)))
+
 (defun eww-readable ()
   "View the main \"readable\" parts of the current web page.
 This command uses heuristics to find the parts of the web page that
@@ -686,6 +705,7 @@ the like."
     (define-key map "E" 'eww-set-character-encoding)
     (define-key map "S" 'eww-list-buffers)
     (define-key map "F" 'eww-toggle-fonts)
+    (define-key map "D" 'eww-toggle-paragraph-direction)
 
     (define-key map "b" 'eww-add-bookmark)
     (define-key map "B" 'eww-list-bookmarks)
@@ -710,7 +730,8 @@ the like."
 	["Add bookmark" eww-add-bookmark t]
 	["List bookmarks" eww-list-bookmarks t]
 	["List cookies" url-cookie-list t]
-       ["Character Encoding" eww-set-character-encoding]))
+        ["Character Encoding" eww-set-character-encoding]
+        ["Toggle Paragraph Direction" eww-toggle-paragraph-direction]))
     map))
 
 (defvar eww-tool-bar-map
@@ -1498,11 +1519,10 @@ If CHARSET is nil then use UTF-8."
 (defun eww-toggle-fonts ()
   "Toggle whether to use monospaced or font-enabled layouts."
   (interactive)
-  (message "Fonts are now %s"
-	   (if (setq shr-use-fonts (not shr-use-fonts))
-	       "on"
-	     "off"))
-  (eww-reload))
+  (setq shr-use-fonts (not shr-use-fonts))
+  (eww-reload)
+  (message "Proportional fonts are now %s"
+           (if shr-use-fonts "on" "off")))
 
 ;;; Bookmarks code
 

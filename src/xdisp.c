@@ -11238,6 +11238,7 @@ clear_garbaged_frames (void)
   if (frame_garbaged)
     {
       Lisp_Object tail, frame;
+      struct frame *sf = SELECTED_FRAME ();
 
       FOR_EACH_FRAME (tail, frame)
 	{
@@ -11245,7 +11246,13 @@ clear_garbaged_frames (void)
 
 	  if (FRAME_VISIBLE_P (f) && FRAME_GARBAGED_P (f))
 	    {
-	      if (f->resized_p)
+	      if (f->resized_p
+		  /* It makes no sense to redraw a non-selected TTY
+		     frame, since that will actually clear the
+		     selected frame, and might leave the selected
+		     frame with corrupted display, if it happens not
+		     to be marked garbaged.  */
+		  && !(f != sf && (FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f))))
 		redraw_frame (f);
 	      else
 		clear_current_matrices (f);
@@ -16955,7 +16962,7 @@ redisplay_window (Lisp_Object window, bool just_this_one_p)
       if (scroll_conservatively > SCROLL_LIMIT)
 	{
 	  int window_total_lines
-	    = WINDOW_TOTAL_LINES (w) * FRAME_LINE_HEIGHT (f) * frame_line_height;
+	    = WINDOW_TOTAL_LINES (w) * FRAME_LINE_HEIGHT (f) / frame_line_height;
 	  int margin =
 	    scroll_margin > 0
 	    ? min (scroll_margin, window_total_lines / 4)

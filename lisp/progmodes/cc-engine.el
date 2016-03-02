@@ -3241,7 +3241,7 @@ comment at the start of cc-engine.el for more info."
   ;; pair element into an open paren element.  Doing that would mean that the
   ;; new open paren wouldn't have the required preceding paren pair element.
   ;;
-  ;; This function is called from c-after-change.
+  ;; This function is called from c-before-change.
 
   ;; The caches of non-literals:
   ;; Note that we use "<=" for the possibility of the second char of a two-char
@@ -3265,7 +3265,7 @@ comment at the start of cc-engine.el for more info."
     ;; below `here'.  To maintain its consistency, we may need to insert a new
     ;; brace pair.
     (let ((here-bol (c-point 'bol here))
-	  too-high-pa		  ; recorded {/(/[ next above here, or nil.
+	  too-high-pa  ; recorded {/(/[ next above or just below here, or nil.
 	  dropped-cons		  ; was the last removed element a brace pair?
 	  pa)
       ;; The easy bit - knock over-the-top bits off `c-state-cache'.
@@ -3277,7 +3277,7 @@ comment at the start of cc-engine.el for more info."
 
       ;; Do we need to add in an earlier brace pair, having lopped one off?
       (if (and dropped-cons
-	       (< too-high-pa (+ here c-state-cache-too-far)))
+	       (<= too-high-pa here))
 	  (c-append-lower-brace-pair-to-state-cache too-high-pa here here-bol))
       (setq c-state-cache-good-pos (or (c-state-cache-after-top-paren)
 				       (c-state-get-min-scan-pos)))))
@@ -6056,7 +6056,10 @@ comment at the start of cc-engine.el for more info."
 		   ;; Stop on ',', '|', '&', '+' and '-' to catch
 		   ;; common binary operators that could be between
 		   ;; two comparison expressions "a<b" and "c>d".
-		   "[<;{},|+&-]\\|[>)]"
+		   ;; 2016-02-11: C++11 templates can now contain arithmetic
+		   ;; expressions, so template detection in C++ is now less
+		   ;; robust than it was.
+		   c-<>-notable-chars-re
 		   nil t t))
 
 		(cond
@@ -6064,7 +6067,9 @@ comment at the start of cc-engine.el for more info."
 		  ;; Either an operator starting with '>' or the end of
 		  ;; the angle bracket arglist.
 
-		  (if (looking-at c->-op-without->-cont-regexp)
+		  (if (save-excursion
+			(c-backward-token-2)
+			(looking-at c-multichar->-op-not->>-regexp))
 		      (progn
 			(goto-char (match-end 0))
 			t)		; Continue the loop.
@@ -6133,6 +6138,11 @@ comment at the start of cc-engine.el for more info."
 		      ;; (forward-char) ; NO!  We've already gone over the <.
 		      )))
 		  t)			; carry on looping.
+
+		 ((and
+		   (eq (char-before) ?\()
+		   (c-go-up-list-forward)
+		   (eq (char-before) ?\))))
 
 		 ((and (not c-restricted-<>-arglists)
 		       (or (and (eq (char-before) ?&)

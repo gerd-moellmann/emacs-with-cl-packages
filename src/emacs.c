@@ -1346,8 +1346,8 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
     init_mac_osx_environment ();
 #endif
 #ifdef HAVE_NS
-  /* Initialise the locale from user defaults. */
-  ns_init_locale();
+  /* Initialize the locale from user defaults.  */
+  ns_init_locale ();
 #endif
 
   /* Initialize and GC-protect Vinitial_environment and

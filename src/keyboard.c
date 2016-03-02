@@ -427,6 +427,15 @@ kset_system_key_syms (struct kboard *kb, Lisp_Object val)
 }
 
 
+static bool
+echo_keystrokes_p (void)
+{
+  return (!cursor_in_echo_area)
+	 && (FLOATP (Vecho_keystrokes) ? XFLOAT_DATA (Vecho_keystrokes) > 0.0
+	     : INTEGERP (Vecho_keystrokes) ? XINT (Vecho_keystrokes) > 0
+             : false);
+}
+
 /* Add C to the echo string, without echoing it immediately.  C can be
    a character, which is pretty-printed, or a symbol, whose name is
    printed.  */
@@ -568,7 +577,9 @@ echo_update (void)
 static void
 echo_now (void)
 {
-  if (!current_kboard->immediate_echo)
+  if (!current_kboard->immediate_echo
+      /* This test breaks calls that use `echo_now' to display the echo_prompt.
+         && echo_keystrokes_p () */)
     {
       current_kboard->immediate_echo = true;
       echo_update ();
@@ -2320,13 +2331,6 @@ read_decoded_event_from_main_queue (struct timespec *end_time,
     }
 }
 
-static bool
-echo_keystrokes_p (void)
-{
-  return (FLOATP (Vecho_keystrokes) ? XFLOAT_DATA (Vecho_keystrokes) > 0.0
-	  : INTEGERP (Vecho_keystrokes) ? XINT (Vecho_keystrokes) > 0 : false);
-}
-
 /* Read a character from the keyboard; call the redisplay if needed.  */
 /* commandflag 0 means do not autosave, but do redisplay.
    -1 means do not redisplay, but do autosave.
@@ -3270,33 +3274,37 @@ record_char (Lisp_Object c)
   else
     store_kbd_macro_char (c);
 
-  if (!recorded)
+  /* recent_keys should not include events from keyboard macros.  */
+  if (NILP (Vexecuting_kbd_macro))
     {
-      total_keys += total_keys < NUM_RECENT_KEYS;
-      ASET (recent_keys, recent_keys_index, c);
-      if (++recent_keys_index >= NUM_RECENT_KEYS)
-	recent_keys_index = 0;
-    }
-  else if (recorded < 0)
-    {
-      /* We need to remove one or two events from recent_keys.
-         To do this, we simply put nil at those events and move the
-	 recent_keys_index backwards over those events.  Usually,
-	 users will never see those nil events, as they will be
-	 overwritten by the command keys entered to see recent_keys
-	 (e.g. C-h l).  */
-
-      while (recorded++ < 0 && total_keys > 0)
+      if (!recorded)
 	{
-	  if (total_keys < NUM_RECENT_KEYS)
-	    total_keys--;
-	  if (--recent_keys_index < 0)
-	    recent_keys_index = NUM_RECENT_KEYS - 1;
-	  ASET (recent_keys, recent_keys_index, Qnil);
+	  total_keys += total_keys < NUM_RECENT_KEYS;
+	  ASET (recent_keys, recent_keys_index, c);
+	  if (++recent_keys_index >= NUM_RECENT_KEYS)
+	    recent_keys_index = 0;
 	}
-    }
+      else if (recorded < 0)
+	{
+	  /* We need to remove one or two events from recent_keys.
+	     To do this, we simply put nil at those events and move the
+	     recent_keys_index backwards over those events.  Usually,
+	     users will never see those nil events, as they will be
+	     overwritten by the command keys entered to see recent_keys
+	     (e.g. C-h l).  */
 
-  num_nonmacro_input_events++;
+	  while (recorded++ < 0 && total_keys > 0)
+	    {
+	      if (total_keys < NUM_RECENT_KEYS)
+		total_keys--;
+	      if (--recent_keys_index < 0)
+		recent_keys_index = NUM_RECENT_KEYS - 1;
+	      ASET (recent_keys, recent_keys_index, Qnil);
+	    }
+	}
+
+      num_nonmacro_input_events++;
+    }
 
   /* Write c to the dribble file.  If c is a lispy event, write
      the event's symbol to the dribble file, in <brackets>.  Bleaugh.
@@ -8998,11 +9006,15 @@ read_key_sequence (Lisp_Object *keybuf, int bufsize, Lisp_Object prompt,
 	     of echoing, so that it serves as a prompt for the next
 	     character.  */
 	  kset_echo_prompt (current_kboard, prompt);
+          /* FIXME: This use of echo_now doesn't look quite right and is ugly
+             since it forces us to fiddle with current_kboard->immediate_echo
+             before and after.  */
 	  current_kboard->immediate_echo = false;
 	  echo_now ();
+          if (!echo_keystrokes_p ())
+	    current_kboard->immediate_echo = false;
 	}
-      else if (cursor_in_echo_area
-	       && echo_keystrokes_p ())
+      else if (echo_keystrokes_p ())
 	/* This doesn't put in a dash if the echo buffer is empty, so
 	   you don't always see a dash hanging out in the minibuffer.  */
 	echo_dash ();
@@ -11735,10 +11747,10 @@ It's called with one argument, the help string to display.  */);
   DEFVAR_LISP ("disable-point-adjustment", Vdisable_point_adjustment,
 	       doc: /* If non-nil, suppress point adjustment after executing a command.
 
-After a command is executed, if point is moved into a region that has
-special properties (e.g. composition, display), we adjust point to
-the boundary of the region.  But, when a command sets this variable to
-non-nil, we suppress the point adjustment.
+After a command is executed, if point moved into a region that has
+special properties (e.g. composition, display), Emacs adjusts point to
+the boundary of the region.  But when a command leaves this variable at
+a non-nil value (e.g., with a setq), this point adjustment is suppressed.
 
 This variable is set to nil before reading a command, and is checked
 just after executing the command.  */);
@@ -11746,11 +11758,11 @@ just after executing the command.  */);
 
   DEFVAR_LISP ("global-disable-point-adjustment",
 	       Vglobal_disable_point_adjustment,
-	       doc: /* If non-nil, always suppress point adjustment.
+	       doc: /* If non-nil, always suppress point adjustments.
 
-The default value is nil, in which case, point adjustment are
-suppressed only after special commands that set
-`disable-point-adjustment' (which see) to non-nil.  */);
+The default value is nil, in which case point adjustments are
+suppressed only after special commands that leave
+`disable-point-adjustment' (which see) at a non-nil value.  */);
   Vglobal_disable_point_adjustment = Qnil;
 
   DEFVAR_LISP ("minibuffer-message-timeout", Vminibuffer_message_timeout,

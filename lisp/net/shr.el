@@ -1206,7 +1206,7 @@ ones, in case fg and bg are nil."
   (shr-ensure-paragraph))
 
 (defun shr-tag-div (dom)
-  (shr-ensure-newline)
+  (shr-ensure-paragraph)
   (shr-generic dom)
   (shr-ensure-newline))
 
@@ -1791,7 +1791,8 @@ The preference is a float determined from `shr-prefer-media-type'."
            (let ((background nil))
              (dolist (elem face)
                (when (and (consp elem)
-                          (eq (car elem) :background))
+                          (eq (car elem) :background)
+                          (not background))
                  (setq background (cadr elem))))
              (and background
                   (list :background background))))))

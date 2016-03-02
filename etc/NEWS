@@ -439,7 +439,14 @@ additionally need to add `getSelection' to `xterm-extra-capabilities'.
 *** `xterm-mouse-mode' now supports mouse-tracking (if your xterm supports it).
 
 ---
-** The `save-place' variable is replaced by `save-place-mode'.
+** The way to turn on and off `save-place' mode has changed.
+It is no longer sufficient to load the saveplace library and set
+`save-place' non-nil.  Instead, use the two new minor modes:
+`save-place-mode' turns on saving last place in every file, and
+`save-place-local-mode' does that only for the file in whose buffer it
+is invoked.  The `save-place' variable is now an obsolete alias for
+`save-place-mode', which replaces it, and `toggle-save-place' is an
+obsolete alias for the new `save-place-local-mode' command.
 
 ** ERC
 
@@ -551,6 +558,11 @@ dependencies).  This variable can also be manually customized.
 packages from `package-selected-packages' which are currently missing.
 
 ---
+*** `package-install' function now takes a DONT-SELECT argument.  If
+this function is called interactively or if DONT-SELECT is nil, add the
+package being installed to `package-selected-packages'.
+
+---
 *** New command `package-autoremove' removes all packages which were
 installed strictly as dependencies but are no longer needed.
 
@@ -610,10 +622,6 @@ item as before.
 ** Search and Replace
 
 +++
-*** New user option `search-default-mode'
-specifies the default mode for I-search.
-
-+++
 *** `isearch' and `query-replace' can now perform character folding in matches.
 Isearch does that by default, while `query-replace' will do that if
 the new variable `replace-character-fold' is customized to a non-nil
@@ -627,6 +635,18 @@ For instance, the " will match all variants of double quotes (like “
 and ”), and the letter a will match all of its accented cousins, even
 those composed of multiple characters, as well as many other symbols
 like ℀, ℁, ⒜, and ⓐ.
+
+Character folding is enabled by customizing `search-default-mode' to
+the value `character-fold-to-regexp'.  If you want to turn character
+folding off, customize the value of `search-default-mode' to the `nil'
+value.  You can also toggle character folding in the middle of a
+search by typing `M-s ''.
+
++++
+*** New user option `search-default-mode'.
+This option specifies the default mode for Isearch.  The default
+value, `character-fold-to-regexp' specifies that Isearch should fold
+characters when searching.
 
 +++
 *** New function `character-fold-to-regexp' can be used
@@ -688,6 +708,10 @@ customize the `shr-use-fonts' variable.
 *** A new command `R' (`eww-readable') will try do identify the main
 textual parts of a web page and display only that, leaving menus and
 the like off the page.
+
++++
+*** A new command `D' (`eww-toggle-paragraph-direction') allows you to
+toggle the paragraph direction between left-to-right and right-to-left.
 
 ---
 *** You can now use several eww buffers in parallel by renaming eww
@@ -902,6 +926,10 @@ a function.
 *** The new interface variable `url-request-noninteractive' can be used
 to specify that we're running in a noninteractive context, and that
 we should not be queried about things like TLS certificate validity.
+
+---
+*** `url-mime-accept-string' can now be used as in "interface"
+variable, meaning you can bind it around an `url-retrieve' call.
 
 ---
 *** If URL is used with a https connection, the first callback argument
@@ -1198,9 +1226,15 @@ make the new option `eshell-destroy-buffer-when-process-dies' non-nil.
 ** tar-mode: new `tar-new-entry' command, allowing for new members to
 be added to the archive.
 
+** Autorevert
+
 ---
-** Autorevert: dired buffers are also auto-reverted via file
-notifications, if Emacs is compiled with file notification support.
+*** Dired buffers are also auto-reverted via file notifications, if
+Emacs is compiled with file notification support.
+
+---
+*** `auto-revert-use-notify' is set to nil in `global-auto-revert-mode'.
+See <http://debbugs.gnu.org/22814>.
 
 ** File Notifications
 
@@ -1267,7 +1301,9 @@ few or no entries have changed.
 minibuffer instead of a graphical dialog, depending on whether the gpg
 command is called from Emacs (i.e., INSIDE_EMACS environment variable
 is set).  This feature requires newer versions of GnuPG (2.1.5 or
-later) and Pinentry (0.9.5 or later).
+later) and Pinentry (0.9.5 or later).  To use this feature, add
+"allow-emacs-pinentry" to "~/.gnupg/gpg-agent.conf" and reload the
+configuration with "gpgconf --reload gpg-agent".
 
 +++
 ** cl-generic.el provides CLOS-style multiple-dispatch generic functions.
