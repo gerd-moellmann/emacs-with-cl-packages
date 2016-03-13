@@ -6,8 +6,8 @@ This file is part of GNU Emacs Mac port.
 
 GNU Emacs Mac port is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs Mac port is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -361,7 +361,7 @@ DEFUN ("mac-own-selection-internal", Fmac_own_selection_internal,
        Smac_own_selection_internal, 2, 3, 0,
        doc: /* Assert a selection of type SELECTION and value VALUE.
 SELECTION is a symbol, typically `PRIMARY', `SECONDARY', or `CLIPBOARD'.
-(Those are literal upper-case symbol names, since that's what X expects.)
+\(Those are literal upper-case symbol names, since that's what X expects.)
 VALUE is typically a string, or a cons of two markers, but may be
 anything that the functions on `selection-converter-alist' know about.
 
@@ -388,7 +388,7 @@ DEFUN ("mac-get-selection-internal", Fmac_get_selection_internal,
        Smac_get_selection_internal, 2, 4, 0,
        doc: /* Return text selected from some Mac application.
 SELECTION-SYMBOL is typically `PRIMARY', `SECONDARY', or `CLIPBOARD'.
-(Those are literal upper-case symbol names, since that's what X expects.)
+\(Those are literal upper-case symbol names, since that's what X expects.)
 TARGET-TYPE is the type of data desired, typically `STRING'.
 
 On Mac, TIME-STAMP and TERMINAL are unused.  */)
@@ -492,7 +492,7 @@ DEFUN ("mac-selection-owner-p", Fmac_selection_owner_p, Smac_selection_owner_p,
        doc: /* Whether the current Emacs process owns the given SELECTION.
 The arg should be the name of the selection in question, typically one of
 the symbols `PRIMARY', `SECONDARY', or `CLIPBOARD'.
-(Those are literal upper-case symbol names, since that's what X expects.)
+\(Those are literal upper-case symbol names, since that's what X expects.)
 For convenience, the symbol nil is the same as `PRIMARY',
 and t is the same as `SECONDARY'.
 
@@ -1099,15 +1099,15 @@ a desired type to which the selection should be converted;
 and the local selection value (whatever was given to `mac-own-selection').
 
 The function should return the value to send to the Pasteboard Manager
-(must be a string).  A return value of nil
+\(must be a string).  A return value of nil
 means that the conversion could not be done.  */);
   Vselection_converter_alist = Qnil;
 
   DEFVAR_LISP ("x-lost-selection-functions", Vx_lost_selection_functions,
 	       doc: /* A list of functions to be called when Emacs loses a selection.
-(This happens when a Lisp program explicitly clears the selection.)
+\(This happens when a Lisp program explicitly clears the selection.)
 The functions are called with one argument, the selection type
-(a symbol, typically `PRIMARY', `SECONDARY', or `CLIPBOARD').  */);
+\(a symbol, typically `PRIMARY', `SECONDARY', or `CLIPBOARD').  */);
   Vx_lost_selection_functions = Qnil;
 
   DEFVAR_LISP ("mac-apple-event-map", Vmac_apple_event_map,
