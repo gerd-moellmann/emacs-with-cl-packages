@@ -3486,12 +3486,11 @@ syms_of_mac (void)
   DEFSYM (QHFS_plus_D, "HFS+D");
   DEFSYM (QHFS_plus_C, "HFS+C");
 
-  {
-    int i;
-
-    for (i = 0; i < ARRAYELTS (ae_attr_table); i++)
-      DEFSYM (ae_attr_table[i].symbol, ae_attr_table[i].name);
-  }
+  for (int i = 0; i < ARRAYELTS (ae_attr_table); i++)
+    {
+      ae_attr_table[i].symbol = intern_c_string (ae_attr_table[i].name);
+      staticpro (&ae_attr_table[i].symbol);
+    }
 
   defsubr (&Smac_osa_language_list);
   defsubr (&Smac_osa_compile);
