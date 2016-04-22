@@ -5,8 +5,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -796,7 +796,8 @@ w32font_list_internal (struct frame *f, Lisp_Object font_spec,
 	  && !EQ (spec_charset, Qiso10646_1)
 	  && !EQ (spec_charset, Qunicode_bmp)
 	  && !EQ (spec_charset, Qunicode_sip)
-	  && !EQ (spec_charset, Qunknown))
+	  && !EQ (spec_charset, Qunknown)
+	  && !EQ (spec_charset, Qascii_0))
 	return Qnil;
     }
 

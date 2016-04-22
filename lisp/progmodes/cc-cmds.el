@@ -1595,12 +1595,12 @@ defun."
       (push-mark))
 
   (c-save-buffer-state
-      (beginning-of-defun-function end-of-defun-function
+      (beginning-of-defun-function
+       end-of-defun-function
        (start (point))
-       (paren-state (copy-tree (c-parse-state))) ; This must not share list
-					; structure with other users of c-state-cache.
+       (paren-state (c-parse-state))
        (orig-point-min (point-min)) (orig-point-max (point-max))
-       lim			    ; Position of { which has been widened to.
+       lim		    ; Position of { which has been widened to.
        where pos case-fold-search)
 
     (save-restriction
@@ -1719,10 +1719,10 @@ the open-parenthesis that starts a defun; see `beginning-of-defun'."
       (push-mark))
 
   (c-save-buffer-state
-      (beginning-of-defun-function end-of-defun-function
+      (beginning-of-defun-function
+       end-of-defun-function
        (start (point))
-       (paren-state (copy-tree (c-parse-state))) ; This must not share list
-				  ; structure with other users of c-state-cache.
+       (paren-state (c-parse-state))
        (orig-point-min (point-min)) (orig-point-max (point-max))
        lim
        where pos case-fold-search)
@@ -1759,7 +1759,7 @@ the open-parenthesis that starts a defun; see `beginning-of-defun'."
 
       ;; Do we need to move forward from the brace to the semicolon?
       (when (eq arg 0)
-	(if (c-in-function-trailer-p) ; after "}" of struct/enum, etc.
+	(if (c-in-function-trailer-p)	; after "}" of struct/enum, etc.
 	    (c-syntactic-re-search-forward ";"))
 
 	(setq pos (point))

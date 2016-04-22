@@ -1758,27 +1758,32 @@ This performs fontification according to `js--class-styles'."
                     (eq (char-after) ??))))
          (not (and
                (eq (char-after) ?*)
-               (looking-at (concat "\\* *" js--name-re " *("))
+               ;; Generator method (possibly using computed property).
+               (looking-at (concat "\\* *\\(?:\\[\\|" js--name-re " *(\\)"))
                (save-excursion
-                 (goto-char (1- (match-end 0)))
-                 (let (forward-sexp-function) (forward-sexp))
-                 (js--forward-syntactic-ws)
-                 (eq (char-after) ?{)))))))
+                 (js--backward-syntactic-ws)
+                 ;; We might misindent some expressions that would
+                 ;; return NaN anyway.  Shouldn't be a problem.
+                 (memq (char-before) '(?, ?} ?{))))))))
 
 (defun js--continued-expression-p ()
   "Return non-nil if the current line continues an expression."
   (save-excursion
     (back-to-indentation)
-    (or (js--looking-at-operator-p)
-        (and (js--re-search-backward "\n" nil t)
-	     (progn
-	       (skip-chars-backward " \t")
-	       (or (bobp) (backward-char))
-	       (and (> (point) (point-min))
-                    (save-excursion (backward-char) (not (looking-at "[/*]/")))
-                    (js--looking-at-operator-p)
-		    (and (progn (backward-char)
-				(not (looking-at "+\\+\\|--\\|/[/*]"))))))))))
+    (if (js--looking-at-operator-p)
+        (or (not (memq (char-after) '(?- ?+)))
+            (progn
+              (forward-comment (- (point)))
+              (not (memq (char-before) '(?, ?\[ ?\()))))
+      (and (js--re-search-backward "\n" nil t)
+           (progn
+             (skip-chars-backward " \t")
+             (or (bobp) (backward-char))
+             (and (> (point) (point-min))
+                  (save-excursion (backward-char) (not (looking-at "[/*]/")))
+                  (js--looking-at-operator-p)
+                  (and (progn (backward-char)
+                              (not (looking-at "+\\+\\|--\\|/[/*]"))))))))))
 
 
 (defun js--end-of-do-while-loop-p ()

@@ -4101,6 +4101,8 @@ x_set_window_size (struct frame *f, bool change_gravity,
   SET_FRAME_GARBAGED (f);
 
   unblock_input ();
+
+  do_pending_window_change (false);
 }
 
 /* Move the mouse to position pixel PIX_X, PIX_Y relative to frame F.  */

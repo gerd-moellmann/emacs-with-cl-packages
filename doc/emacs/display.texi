@@ -1087,6 +1087,23 @@ To disable this, change the variable
 @code{overflow-newline-into-fringe} to @code{nil}; this causes Emacs
 to continue or truncate lines that are exactly as wide as the window.
 
+  If you customize @code{fringe-mode} to remove the fringes on one or
+both sides of the window display, the features that display on the
+fringe are not available.  Indicators of line continuation and
+truncation are an exception: when fringes are not available, Emacs
+uses the leftmost and rightmost character cells to indicate
+continuation and truncation with special ASCII characters, see
+@ref{Continuation Lines}, and @ref{Line Truncation}.  This reduces the
+width available for displaying text on each line, because the
+character cells used for truncation and continuation indicators are
+reserved for that purpose.  Since buffer text can include
+bidirectional text, and thus both left-to-right and right-to-left
+paragraphs (@pxref{Bidirectional Editing}), removing only one of the
+fringes still reserves two character cells, one on each side of the
+window, for truncation and continuation indicators, because these
+indicators are displayed on opposite sides of the window in
+right-to-left paragraphs.
+
 @node Displaying Boundaries
 @section Displaying Boundaries
 
@@ -1476,15 +1493,18 @@ elisp, The Emacs Lisp Reference Manual}.
 
 @cindex glyphless characters
 @cindex characters with no font glyphs
+@cindex glyphless-char face
   On graphical displays, some characters may have no glyphs in any of
 the fonts available to Emacs.  These @dfn{glyphless characters} are
 normally displayed as boxes containing the hexadecimal character code.
 Similarly, on text terminals, characters that cannot be displayed
 using the terminal encoding (@pxref{Terminal Coding}) are normally
 displayed as question signs.  You can control the display method by
-customizing the variable @code{glyphless-char-display-control}.
-@xref{Glyphless Chars,, Glyphless Character Display, elisp, The Emacs
-Lisp Reference Manual}, for details.
+customizing the variable @code{glyphless-char-display-control}.  You
+can also customize the @code{glyphless-char} face to make these
+characters more prominent on display.  @xref{Glyphless Chars,,
+Glyphless Character Display, elisp, The Emacs Lisp Reference Manual},
+for details.
 
 @cindex curly quotes
 @cindex curved quotes
@@ -1598,7 +1618,6 @@ screen lines.  Setting the variable @code{truncate-lines} in any way
 makes it local to the current buffer; until that time, the default
 value, which is normally @code{nil}, is in effect.
 
-@vindex truncate-partial-width-windows
   If a split window becomes too narrow, Emacs may automatically enable
 line truncation.  @xref{Split Window}, for the variable
 @code{truncate-partial-width-windows} which controls this.

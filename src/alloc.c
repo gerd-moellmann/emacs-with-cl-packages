@@ -7,8 +7,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -3733,7 +3733,6 @@ make_save_ptr_int (void *a, ptrdiff_t b)
   return val;
 }
 
-#if ! (defined USE_X_TOOLKIT || defined USE_GTK)
 Lisp_Object
 make_save_ptr_ptr (void *a, void *b)
 {
@@ -3744,7 +3743,6 @@ make_save_ptr_ptr (void *a, void *b)
   p->data[1].pointer = b;
   return val;
 }
-#endif
 
 Lisp_Object
 make_save_funcptr_ptr_obj (void (*a) (void), void *b, Lisp_Object c)

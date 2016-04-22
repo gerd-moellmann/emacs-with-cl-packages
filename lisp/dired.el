@@ -2736,9 +2736,18 @@ instead of `dired-actual-switches'."
 		 (save-excursion
 		   (goto-char (point-min))
 		   (dired-goto-file-1 file file (point-max)))
-		 ;; Otherwise, look for it as a relative name.  The
-		 ;; hair is to get the result of `dired-goto-subdir'
-		 ;; without calling it if we don't have any subdirs.
+                 ;; Next, look for it as a relative name with leading
+                 ;; subdirectories.  (This happens in Dired buffers
+                 ;; created by find-dired, for example.)
+                 (save-excursion
+                   (goto-char (point-min))
+                   (dired-goto-file-1 (file-relative-name file
+                                                          default-directory)
+                                      file (point-max)))
+		 ;; Otherwise, look for it as a relative name, a base
+		 ;; name only.  The hair is to get the result of
+		 ;; `dired-goto-subdir' without calling it if we don't
+		 ;; have any subdirs.
 		 (save-excursion
 		   (when (if (string= dir (expand-file-name default-directory))
 			     (goto-char (point-min))
@@ -3344,7 +3353,12 @@ object files--just `.o' will mark more than you might think."
 (defun dired-mark-files-containing-regexp (regexp &optional marker-char)
   "Mark all files with contents containing REGEXP for use in later commands.
 A prefix argument means to unmark them instead.
-`.' and `..' are never marked."
+`.' and `..' are never marked.
+
+Note that if a file is visited in an Emacs buffer, this command will
+look in the buffer without revisiting the file, so the results might
+be inconsistent with the file on disk if its contents has changed
+since it was last visited."
   (interactive
    (list (read-regexp (concat (if current-prefix-arg "Unmark" "Mark")
                               " files containing (regexp): ")
@@ -4428,7 +4442,7 @@ instead.
 
 ;;;***
 
-;;;### (autoloads nil "dired-x" "dired-x.el" "8dae922d1549647835460b6cb70af4df")
+;;;### (autoloads nil "dired-x" "dired-x.el" "f00ad5ec7383d017263855ad8add60a3")
 ;;; Generated autoloads from dired-x.el
 
 (autoload 'dired-jump "dired-x" "\

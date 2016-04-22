@@ -6,8 +6,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -3154,9 +3154,45 @@ deliver_wm_chars (int do_translate, HWND hwnd, UINT msg, UINT wParam,
 	      SHORT r = VkKeyScanW (*b), bitmap = 0x1FF;
 
 	      FPRINTF_WM_CHARS((stderr, "VkKeyScanW %#06x %#04x\n", (int)r,
-			       wParam));
+				wParam));
 	      if ((r & 0xFF) == wParam)
 		bitmap = r>>8; /* *b is reachable via simple interface */
+	      else
+		{
+		  /* VkKeyScanW() (essentially) returns the FIRST key with
+		     the specified character; so here the pressed key is the
+		     SECONDARY key producing the character.
+
+		     Essentially, we have no information about the "role" of
+		     modifiers on this key: which contribute into the
+		     produced character (so "are consumed"), and which are
+		     "extra" (must attache to bindable events).
+
+		     The default above would consume ALL modifiers, so the
+		     character is reported "as is".  However, on many layouts
+		     the ordering of the keys (in the layout table) is not
+		     thought out well, so the "secondary" keys are often those
+		     which the users would prefer to use with Alt-CHAR.
+		     (Moreover - with e.g. Czech-QWERTY - the ASCII
+		     punctuation is accessible from two equally [nu]preferable
+		     AltGr-keys.)
+
+		     SO:   Heuristic: if the reported char is ASCII, AND Meta
+		     modifier is a candidate, behave as if Meta is present
+		     (fallback to the legacy branch; bug#23251).
+
+		     (This would break layouts
+		     - delivering ASCII characters
+		     - on SECONDARY keys
+		     - with not Shift/AltGr-like modifier combinations.
+		     All 3 conditions together must be pretty exotic
+		     cases - and a workaround exists: use "primary" keys!) */
+		  if (*b < 0x80
+		      && (wmsg.dwModifiers
+			  & (alt_modifier | meta_modifier
+			     | super_modifier | hyper_modifier)))
+		    return 0;
+		}
 	      if (*type_CtrlAlt == 'a') /* Simple Alt seen */
 		{
 		  if ((bitmap & ~1) == 0) /* 1: KBDSHIFT */
@@ -5207,7 +5243,7 @@ x_get_focus_frame (struct frame *frame)
 
 DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
        doc: /* Internal function called by `color-defined-p', which see.
-(Note that the Nextstep version of this function ignores FRAME.)  */)
+\(Note that the Nextstep version of this function ignores FRAME.)  */)
   (Lisp_Object color, Lisp_Object frame)
 {
   XColor foo;
@@ -5349,7 +5385,7 @@ If omitted or nil, that stands for the selected frame's display.  */)
 DEFUN ("x-server-vendor", Fx_server_vendor, Sx_server_vendor, 0, 1, 0,
        doc: /* Return the "vendor ID" string of the GUI software on TERMINAL.
 
-(Labeling every distributor as a "vendor" embodies the false assumption
+\(Labeling every distributor as a "vendor" embodies the false assumption
 that operating systems cannot be developed and distributed noncommercially.)
 
 For GNU and Unix systems, this queries the X server software; for
@@ -5751,7 +5787,7 @@ DISPLAY is the name of the display to connect to.
 Optional second arg XRM-STRING is a string of resources in xrdb format.
 If the optional third arg MUST-SUCCEED is non-nil,
 terminate Emacs if we can't open the connection.
-(In the Nextstep version, the last two arguments are currently ignored.)  */)
+\(In the Nextstep version, the last two arguments are currently ignored.)  */)
   (Lisp_Object display, Lisp_Object xrm_string, Lisp_Object must_succeed)
 {
   char *xrm_option;
@@ -8090,7 +8126,7 @@ DEFUN ("w32-set-mouse-absolute-pixel-position", Fw32_set_mouse_absolute_pixel_po
        Sw32_set_mouse_absolute_pixel_position, 2, 2, 0,
        doc: /* Move mouse pointer to absolute pixel position (X, Y).
 The coordinates X and Y are interpreted in pixels relative to a position
-(0, 0) of the selected frame's display.  */)
+\(0, 0) of the selected frame's display.  */)
   (Lisp_Object x, Lisp_Object y)
 {
   UINT trail_num = 0;

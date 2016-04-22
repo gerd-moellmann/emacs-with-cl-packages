@@ -22723,7 +22723,7 @@ contains commented lines.  Otherwise, comment them."
   "Non-nil when TIMESTAMP has a time specified."
   (org-element-property :hour-start timestamp))
 
-(defun org-timestamp-format (timestamp format &optional end utc)
+(defun org-timestamp-format (timestamp format &optional end zone)
   "Format a TIMESTAMP element into a string.
 
 FORMAT is a format specifier to be passed to
@@ -22732,8 +22732,9 @@ FORMAT is a format specifier to be passed to
 When optional argument END is non-nil, use end of date-range or
 time-range, if possible.
 
-When optional argument UTC is non-nil, time will be expressed as
-Universal Time."
+The optional ZONE is omitted or nil for Emacs local time, t for
+Universal Time, `wall' for system wall clock time, or a string as in
+the TZ environment variable."
   (format-time-string
    format
    (apply 'encode-time
@@ -22743,7 +22744,7 @@ Universal Time."
                  (if end '(:minute-end :hour-end :day-end :month-end :year-end)
                    '(:minute-start :hour-start :day-start :month-start
                                    :year-start)))))
-   utc))
+   zone))
 
 (defun org-timestamp-split-range (timestamp &optional end)
   "Extract a timestamp object from a date or time range.

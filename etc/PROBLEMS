@@ -459,11 +459,9 @@ smart.  It sees that the Shell uses terminal type 'unknown' and turns
 on the flag to output ^M at the end of each line.  You can fix the
 problem by adding this to your .cshrc file:
 
-    if ($?EMACS) then
-        if ("$EMACS" =~ /*) then
-            unset edit
-            stty  -icrnl -onlcr -echo susp ^Z
-        endif
+    if ($?INSIDE_EMACS && $?tcsh)
+        unset edit
+        stty -icrnl -onlcr -echo susp ^Z
     endif
 
 *** Emacs startup on GNU/Linux systems (and possibly other systems) is slow.
@@ -2222,11 +2220,11 @@ month names with consistent widths for some locales on some versions
 of Windows.  This is caused by a deficiency in the underlying system
 library function.
 
-** Problems with set-time-zone-rule function
+** Non-US time zones.
 
-The function set-time-zone-rule gives incorrect results for many
-non-US timezones.  This is due to over-simplistic handling of
-daylight savings switchovers by the Windows libraries.
+Many non-US time zones are implemented incorrectly.  This is due to
+over-simplistic handling of daylight savings switchovers by the
+Windows libraries.
 
 ** Files larger than 4GB report wrong size in a 32-bit Windows build
 

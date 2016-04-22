@@ -396,6 +396,9 @@ This will generate compile-time constants from BINDINGS."
        lisp-el-font-lock-keywords-1
        `( ;; Regexp negated char group.
          ("\\[\\(\\^\\)" 1 font-lock-negation-char-face prepend)
+         ;; Erroneous structures.
+         (,(concat "(" el-errs-re "\\_>")
+          (1 font-lock-warning-face))
          ;; Control structures.  Common Lisp forms.
          (lisp--el-match-keyword . 1)
          ;; Exit/Feature symbols as constants.
@@ -403,14 +406,11 @@ This will generate compile-time constants from BINDINGS."
                    "[ \t']*\\(" lisp-mode-symbol-regexp "\\)?")
            (1 font-lock-keyword-face)
            (2 font-lock-constant-face nil t))
-         ;; Erroneous structures.
-         (,(concat "(" el-errs-re "\\_>")
-          (1 font-lock-warning-face prepend))
          ;; Words inside \\[] tend to be for `substitute-command-keys'.
          (,(concat "\\\\\\\\\\[\\(" lisp-mode-symbol-regexp "\\)\\]")
           (1 font-lock-constant-face prepend))
-         ;; Words inside ‘’ and '' and `' tend to be symbol names.
-         (,(concat "['`‘]\\(\\(?:\\sw\\|\\s_\\|\\\\.\\)"
+         ;; Words inside ‘’ and `' tend to be symbol names.
+         (,(concat "[`‘]\\(\\(?:\\sw\\|\\s_\\|\\\\.\\)"
                    lisp-mode-symbol-regexp "\\)['’]")
           (1 font-lock-constant-face prepend))
          ;; Constant values.
@@ -461,8 +461,8 @@ This will generate compile-time constants from BINDINGS."
          ;; Erroneous structures.
          (,(concat "(" cl-errs-re "\\_>")
            (1 font-lock-warning-face))
-         ;; Words inside ‘’ and '' and `' tend to be symbol names.
-         (,(concat "['`‘]\\(\\(?:\\sw\\|\\s_\\|\\\\.\\)"
+         ;; Words inside ‘’ and `' tend to be symbol names.
+         (,(concat "[`‘]\\(\\(?:\\sw\\|\\s_\\|\\\\.\\)"
                    lisp-mode-symbol-regexp "\\)['’]")
           (1 font-lock-constant-face prepend))
          ;; Constant values.

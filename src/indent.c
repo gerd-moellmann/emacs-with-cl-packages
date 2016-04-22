@@ -6,8 +6,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -2036,7 +2036,7 @@ whether or not it is currently displayed in some window.  */)
       bool disp_string_at_start_p = 0;
       ptrdiff_t nlines = XINT (lines);
       int vpos_init = 0;
-      double start_col;
+      double start_col IF_LINT (= 0);
       int start_x IF_LINT (= 0);
       int to_x = -1;
 

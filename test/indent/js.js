@@ -72,7 +72,12 @@ baz(`http://foo.bar/${tee}`)
 class A {
   * x() {
     return 1
-      * 2;
+      * a(2);
+  }
+
+  *[Symbol.iterator]() {
+    yield "Foo";
+    yield "Bar";
   }
 }
 
@@ -89,6 +94,12 @@ Foobar
   .then((num) => {
     console.log(num);
   });
+
+var arr = [
+  -1, 2,
+  -3, 4 +
+    -5
+];
 
 // Local Variables:
 // indent-tabs-mode: nil

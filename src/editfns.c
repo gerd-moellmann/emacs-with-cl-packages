@@ -6,8 +6,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -1456,7 +1456,7 @@ time_overflow (void)
   error ("Specified time is not representable");
 }
 
-static void
+static _Noreturn void
 invalid_time (void)
 {
   error ("Invalid time specification");
@@ -1848,7 +1848,9 @@ lisp_time_struct (Lisp_Object specified_time, int *plen)
   Lisp_Object high, low, usec, psec;
   struct lisp_time t;
   int len = disassemble_lisp_time (specified_time, &high, &low, &usec, &psec);
-  int val = len ? decode_time_components (high, low, usec, psec, &t, 0) : 0;
+  if (!len)
+    invalid_time ();
+  int val = decode_time_components (high, low, usec, psec, &t, 0);
   check_time_validity (val);
   *plen = len;
   return t;
@@ -1895,7 +1897,7 @@ DEFUN ("float-time", Ffloat_time, Sfloat_time, 0, 1, 0,
        doc: /* Return the current time, as a float number of seconds since the epoch.
 If SPECIFIED-TIME is given, it is the time to convert to float
 instead of the current time.  The argument should have the form
-(HIGH LOW) or (HIGH LOW USEC) or (HIGH LOW USEC PSEC).  Thus,
+\(HIGH LOW) or (HIGH LOW USEC) or (HIGH LOW USEC PSEC).  Thus,
 you can use times from `current-time' and from `file-attributes'.
 SPECIFIED-TIME can also have the form (HIGH . LOW), but this is
 considered obsolete.
@@ -1967,10 +1969,10 @@ DEFUN ("format-time-string", Fformat_time_string, Sformat_time_string, 1, 3, 0,
        doc: /* Use FORMAT-STRING to format the time TIME, or now if omitted.
 TIME is specified as (HIGH LOW USEC PSEC), as returned by
 `current-time' or `file-attributes'.  The obsolete form (HIGH . LOW)
-is also still accepted.
-The optional ZONE is omitted or nil for Emacs local time, t for
-Universal Time, `wall' for system wall clock time, or a string as in
-`set-time-zone-rule' for a time zone rule.
+is also still accepted.  The optional ZONE is omitted or nil for Emacs
+local time, t for Universal Time, `wall' for system wall clock time,
+or a string as in the TZ environment variable.
+
 The value is a copy of FORMAT-STRING, but with certain constructs replaced
 by text that describes the specified date and time in TIME:
 
@@ -2084,7 +2086,7 @@ as from `current-time' and `file-attributes', or nil to use the
 current time.  The obsolete form (HIGH . LOW) is also still accepted.
 The optional ZONE is omitted or nil for Emacs local time, t for
 Universal Time, `wall' for system wall clock time, or a string as in
-`set-time-zone-rule' for a time zone rule.
+the TZ environment variable.
 
 The list has the following nine members: SEC is an integer between 0
 and 60; SEC is 60 for a leap second, which only some operating systems
@@ -2149,9 +2151,9 @@ DEFUN ("encode-time", Fencode_time, Sencode_time, 6, MANY, 0,
 This is the reverse operation of `decode-time', which see.
 The optional ZONE is omitted or nil for Emacs local time, t for
 Universal Time, `wall' for system wall clock time, or a string as in
-`set-time-zone-rule' for a time zone rule.  It can also be a list (as
-from `current-time-zone') or an integer (as from `decode-time')
-applied without consideration for daylight saving time.
+the TZ environment variable.  It can also be a list (as from
+`current-time-zone') or an integer (as from `decode-time') applied
+without consideration for daylight saving time.
 
 You can pass more than 7 arguments; then the first six arguments
 are used as SECOND through YEAR, and the *last* argument is used as ZONE.
@@ -2211,7 +2213,7 @@ but this is considered obsolete.
 
 The optional ZONE is omitted or nil for Emacs local time, t for
 Universal Time, `wall' for system wall clock time, or a string as in
-`set-time-zone-rule' for a time zone rule.  */)
+the TZ environment variable.  */)
   (Lisp_Object specified_time, Lisp_Object zone)
 {
   time_t value = lisp_seconds_argument (specified_time);
@@ -2284,11 +2286,11 @@ OFFSET is an integer number of seconds ahead of UTC (east of Greenwich).
 NAME is a string giving the name of the time zone.
 If SPECIFIED-TIME is given, the time zone offset is determined from it
 instead of using the current time.  The argument should have the form
-(HIGH LOW . IGNORED).  Thus, you can use times obtained from
+\(HIGH LOW . IGNORED).  Thus, you can use times obtained from
 `current-time' and from `file-attributes'.  SPECIFIED-TIME can also
 have the form (HIGH . LOW), but this is considered obsolete.
 Optional second arg ZONE is omitted or nil for the local time zone, or
-a string as in `set-time-zone-rule'.
+a string as in the TZ environment variable.
 
 Some operating systems cannot provide all this information to Emacs;
 in this case, `current-time-zone' returns a list containing nil for
@@ -2329,8 +2331,11 @@ the data it can't find.  */)
 
 DEFUN ("set-time-zone-rule", Fset_time_zone_rule, Sset_time_zone_rule, 1, 1, 0,
        doc: /* Set the Emacs local time zone using TZ, a string specifying a time zone rule.
-If TZ is nil or `wall', use system wall clock time.  If TZ is t, use
-Universal Time.  If TZ is an integer, treat it as in `encode-time'.
+
+If TZ is nil or `wall', use system wall clock time; this differs from
+the usual Emacs convention where nil means current local time.  If TZ
+is t, use Universal Time.  If TZ is an integer, treat it as in
+`encode-time'.
 
 Instead of calling this function, you typically want something else.
 To temporarily use a different time zone rule for just one invocation
@@ -3627,7 +3632,7 @@ save_restriction_restore (Lisp_Object data)
 DEFUN ("save-restriction", Fsave_restriction, Ssave_restriction, 0, UNEVALLED, 0,
        doc: /* Execute BODY, saving and restoring current buffer's restrictions.
 The buffer's restrictions make parts of the beginning and end invisible.
-(They are set up with `narrow-to-region' and eliminated with `widen'.)
+\(They are set up with `narrow-to-region' and eliminated with `widen'.)
 This special form, `save-restriction', saves the current buffer's restrictions
 when it is entered, and restores them when it is exited.
 So any `narrow-to-region' within BODY lasts only until the end of the form.
