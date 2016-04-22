@@ -929,9 +929,13 @@ Should be invoked when the cached images aren't up-to-date."
 
 (declare-function mac-possibly-use-high-resolution-monitors-p
 		  "term/mac-win" ())
+(declare-function mac-high-resolution-image-file-name
+		  "term/mac-win" (filename &optional scale))
+(defun doc-view-additional-conversion-targets-mac-2x (target resolution)
+  (list (cons (mac-high-resolution-image-file-name target) (* resolution 2))))
 
 (defvar doc-view-additional-conversion-targets-function
-  (if (and (fboundp 'mac-possibly-use-high-resolution-monitors-p)
+  (if (and (fboundp 'mac-high-resolution-image-file-name)
 	   (mac-possibly-use-high-resolution-monitors-p))
       'doc-view-additional-conversion-targets-mac-2x)
   "Function called to get additional conversion targets.
@@ -943,11 +947,6 @@ value respectively, and return a list of pairs (TARGET
 RESOLUTION is the corresponding resolution value.
 This variable is added by Emacs Mac port for high-resolution
 support.")
-
-(defun doc-view-additional-conversion-targets-mac-2x (target resolution)
-  (let ((pos (or (string-match "\\.[^./]*\\'" target) (length target))))
-    (list (cons (concat (substring target 0 pos) "@2x" (substring target pos))
-		(* resolution 2)))))
 
 (defun doc-view-multiplex-conversion (converter source target page callback)
   "Call CONVERTER taking account of additional conversion targets.

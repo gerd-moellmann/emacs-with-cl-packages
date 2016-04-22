@@ -152,6 +152,13 @@ modes have been enabled with Quartz Debug.app."
    (cl-loop for attributes in (display-monitor-attributes-list)
 	    if (eq (cdr (assq 'backing-scale-factor attributes)) 2) return t)))
 
+(defun mac-high-resolution-image-file-name (filename &optional scale)
+  "Return the name of high-resolution image file for FILENAME.
+The optional arg SCALE is the scale factor, and defaults to 2."
+  (let ((pos (or (string-match "\\.[^./]*\\'" filename) (length filename))))
+    (format "%s@%dx%s" (substring filename 0 pos) (or scale 2)
+	    (substring filename pos))))
+
 
 ;;;; Modifier keys
 
