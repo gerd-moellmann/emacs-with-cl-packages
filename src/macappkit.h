@@ -52,8 +52,12 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #endif
 
 #if !USE_ARC
+#ifndef __unsafe_unretained
 #define __unsafe_unretained
+#endif
+#ifndef __autoreleasing
 #define __autoreleasing
+#endif
 #endif
 
 #if !__has_feature (objc_instancetype)
