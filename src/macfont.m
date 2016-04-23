@@ -2390,8 +2390,8 @@ macfont_list (struct frame *f, Lisp_Object spec)
 #else
           /* Don't use a color bitmap font until it is supported on
 	     free platforms.  */
-#endif
           if (sym_traits & kCTFontTraitColorGlyphs)
+#endif
             continue;
 
           if (j > 0
