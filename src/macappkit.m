@@ -6116,21 +6116,15 @@ static BOOL NonmodalScrollerPagingBehavior;
 
 - (void)postMouseDraggedEvent:(NSTimer *)theTimer
 {
-  NSUInteger flags;
-  NSEvent *event;
+  NSEvent *event =
+    [NSEvent mouseEventWithType:NSLeftMouseDragged
+		       location:[[self window]
+				  mouseLocationOutsideOfEventStream]
+		  modifierFlags:[NSEvent modifierFlags] timestamp:0
+		   windowNumber:[[self window] windowNumber]
+			context:[NSGraphicsContext currentContext]
+		    eventNumber:0 clickCount:1 pressure:0];
 
-  if ([NSEvent respondsToSelector:@selector(modifierFlags)])
-    flags = [NSEvent modifierFlags];
-  else
-    flags = CGEventSourceFlagsState (kCGEventSourceStateCombinedSessionState);
-
-  event = [NSEvent mouseEventWithType:NSLeftMouseDragged
-			     location:[[self window]
-					mouseLocationOutsideOfEventStream]
-			modifierFlags:flags timestamp:0
-			 windowNumber:[[self window] windowNumber]
-			      context:[NSGraphicsContext currentContext]
-			  eventNumber:0 clickCount:1 pressure:0];
   [NSApp postEvent:event atStart:NO];
   MRC_RELEASE (timer);
   timer = nil;
