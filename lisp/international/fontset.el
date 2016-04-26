@@ -757,6 +757,7 @@
   ;; Unicode fonts.  We exclude the latter because users don't like us
   ;; invading on their font setups where they have good support from
   ;; other fonts.
+  (unless (featurep 'mac)
   (dolist (symbol-subgroup
            '((#x2000 . #x2012)	;; General Punctuation
              (#x2015 . #x2017)
@@ -813,6 +814,7 @@
              (#x1F780 . #x1F7FF)	;; Geometric Shapes Extended
              (#x1F800 . #x1F8FF)))	;; Supplemental Arrows-C
     (set-fontset-font "fontset-default" symbol-subgroup "Symbola" nil 'prepend))
+  )
   ;; Box Drawing and Block Elements
   (set-fontset-font "fontset-default" '(#x2500 . #x259F)
                     "FreeMono" nil 'prepend)
