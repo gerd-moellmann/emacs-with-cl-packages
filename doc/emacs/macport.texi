@@ -452,13 +452,19 @@ high-resolution environment, and there is another file named
 automatically.  DocView mode (@pxref{Document View}) is modified so it
 can automatically take advantage of this feature.
 
+  For an image created from its raw data rather than a file, you can
+use the @code{:data-2x} property to provide the high-resolution data.
+It can be specified either as a property of the image descriptor
+(@pxref{Image Descriptors,,, elisp, The Emacs Lisp Reference Manual})
+or as a text property of the first character of the standard
+resolution data (if it is given as a string).
+
   An alternative way to support high-resolution is to use the TIFF
 image format.  A single TIFF file or data can contain multiple images
 for multiple resolutions, typically the one with standard width and
 height, and the one with width and height doubled.  If an image
-descriptor (@pxref{Image Descriptors,,, elisp, The Emacs Lisp
-Reference Manual}) for a TIFF file or data does not contain an
-explicit @code{:index} property specifying the image number, then an
+descriptor for a TIFF file or data does not contain an explicit
+@code{:index} property specifying the image number, then an
 appropriate image is automatically selected from the images in the
 file or data.  If tool bar icons are provided by TIFF files, they are
 preferred on the Mac port.
