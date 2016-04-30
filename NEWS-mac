@@ -1,4 +1,22 @@
+* emacs-24.5-mac-5.17 (2016-04-30)
+
+** Fixed bugs
+
+*** Shrunken image size on a Retina display is wrong if it is created
+from the raw data using genuine ImageMagick.
+Reported by Sean Farley.
+
+** Improvements
+
+*** When you create an image from the raw data as opposed to a file,
+you can now provide 2x data for high-resolution environments via the
+`:data-2x' property.  It can be specified either as a property of the
+image descriptor or as a text property of the first character of the
+standard resolution data (if it is given as a string).
+
+
 * emacs-24.5-mac-5.16 (2016-04-23)
+http://lists.gnu.org/archive/html/emacs-devel/2016-04/msg00648.html
 
 ** Fixed bugs
 

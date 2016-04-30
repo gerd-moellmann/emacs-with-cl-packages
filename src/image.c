@@ -692,7 +692,7 @@ static Lisp_Object QCcrop, QCrotation;
 
 static Lisp_Object Qcount, Qextension_data, Qdelay;
 #ifdef HAVE_MACGUI
-static Lisp_Object Qdocument_attributes;
+static Lisp_Object Qdocument_attributes, QCdata_2x;
 #endif
 static Lisp_Object Qlaplace, Qemboss, Qedge_detection, Qheuristic;
 
@@ -1561,7 +1561,20 @@ search_image_cache (struct frame *f, Lisp_Object spec, EMACS_UINT hash)
 	    || img->target_backing_scale == FRAME_BACKING_SCALE_FACTOR (f))
 #endif
 	)
-      break;
+      {
+#ifdef HAVE_MACGUI
+	/* Fequal above does not compare text properties.  */
+	Lisp_Object data = image_spec_value (img->spec, QCdata, NULL);
+
+	if (!STRINGP (data)
+	    || !NILP (Fequal
+		      (Fget_text_property (make_number (0), QCdata_2x, data),
+		       Fget_text_property (make_number (0), QCdata_2x,
+					   image_spec_value (spec, QCdata,
+							     NULL)))))
+#endif
+	  break;
+      }
   return img;
 }
 
@@ -2502,6 +2515,7 @@ slurp_file (char *file, ptrdiff_t *size)
  ***********************************************************************/
 
 static void compute_image_size (size_t, size_t, Lisp_Object, int *, int *);
+static bool xbm_image_p (Lisp_Object object);
 
 /* Return the name of 2x image file that corresponds to the given
    ENCODED_FILE_NAME.  Return nil if the 2x file doesn't exist or not
@@ -2550,6 +2564,51 @@ mac_preprocess_image_for_2x_file (struct frame *f, struct image *img,
     }
 
   return file;
+}
+
+static Lisp_Object
+mac_preprocess_image_for_2x_data (struct frame *f, struct image *img,
+				  Lisp_Object data, bool xbm_p)
+{
+  Lisp_Object data_2x = image_spec_value (img->spec, QCdata_2x, NULL);
+
+  if (NILP (data_2x) && STRINGP (data))
+    data_2x = Fget_text_property (make_number (0), QCdata_2x, data);
+  if (xbm_p && !NILP (data_2x))
+    {
+      /* Check validity of 2x data by creating a fake image spec.  */
+      Lisp_Object rev_spec = Qnil, tail;
+
+      for (tail = XCDR (img->spec);
+	   CONSP (tail) && CONSP (XCDR (tail));
+	   tail = XCDR (XCDR (tail)))
+	{
+	  Lisp_Object key = XCAR (tail), value = XCAR (XCDR (tail));
+
+	  if (EQ (key, QCdata_2x))
+	    continue;
+	  else if (EQ (key, QCdata))
+	    value = data_2x;
+	  else if (EQ (key, QCwidth) || EQ (key, QCheight))
+	    {
+	      if (!RANGED_INTEGERP (1, value, INT_MAX / 2))
+		break;
+	      value = make_number (XFASTINT (value) * 2);
+	    }
+	  rev_spec = Fcons (value, Fcons (key, rev_spec));
+	}
+      if ((CONSP (tail) && CONSP (XCDR (tail)))
+	  || !xbm_image_p (Fcons (Qimage, Fnreverse (rev_spec))))
+	data_2x = Qnil;
+    }
+  if (xbm_p ? !NILP (data_2x) : STRINGP (data_2x))
+    {
+      img->target_backing_scale = FRAME_BACKING_SCALE_FACTOR (f);
+      if (img->target_backing_scale == 2)
+	data = data_2x;
+    }
+
+  return data;
 }
 
 static void
@@ -2706,6 +2765,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	  image_error ("Invalid image data `%s'", specified_data, Qnil);
 	  return 0;
 	}
+      specified_data = mac_preprocess_image_for_2x_data (f, img,
+							 specified_data, false);
       data = CFDataCreate (NULL, SDATA (specified_data),
 			   SBYTES (specified_data));
     }
@@ -3925,9 +3986,6 @@ xbm_load (struct frame *f, struct image *img)
 
       success_p = xbm_load_image (f, img, contents, contents + size);
       xfree (contents);
-#ifdef HAVE_MACGUI
-      mac_postprocess_image_for_2x (img);
-#endif
     }
   else
     {
@@ -3942,6 +4000,9 @@ xbm_load (struct frame *f, struct image *img)
 
       /* See if data looks like an in-memory XBM file.  */
       data = image_spec_value (img->spec, QCdata, NULL);
+#ifdef HAVE_MACGUI
+      data = mac_preprocess_image_for_2x_data (f, img, data, true);
+#endif
       in_memory_file_p = xbm_file_p (data);
 
       /* Parse the image specification.  */
@@ -3961,6 +4022,10 @@ xbm_load (struct frame *f, struct image *img)
 			   Qnil, Qnil);
 	      return 0;
 	    }
+#ifdef HAVE_MACGUI
+	  if (img->target_backing_scale == 2)
+	    img->width *= 2, img->height *= 2;
+#endif
 	}
 
       /* Get foreground and background colors, maybe allocate colors.  */
@@ -4039,6 +4104,10 @@ xbm_load (struct frame *f, struct image *img)
 	    }
 	}
     }
+#ifdef HAVE_MACGUI
+  if (success_p)
+    mac_postprocess_image_for_2x (img);
+#endif
 
   return success_p;
 }
@@ -5222,9 +5291,6 @@ xpm_load (struct frame *f,
 
       success_p = xpm_load_image (f, img, contents, contents + size);
       xfree (contents);
-#ifdef HAVE_MACGUI
-      mac_postprocess_image_for_2x (img);
-#endif
     }
   else
     {
@@ -5236,9 +5302,16 @@ xpm_load (struct frame *f,
 	  image_error ("Invalid image data `%s'", data, Qnil);
 	  return 0;
 	}
+#ifdef HAVE_MACGUI
+      data = mac_preprocess_image_for_2x_data (f, img, data, false);
+#endif
       success_p = xpm_load_image (f, img, SDATA (data),
 				  SDATA (data) + SBYTES (data));
     }
+#ifdef HAVE_MACGUI
+  if (success_p)
+    mac_postprocess_image_for_2x (img);
+#endif
 
   return success_p;
 }
@@ -6226,6 +6299,9 @@ pbm_load (struct frame *f, struct image *img)
 	  image_error ("Invalid image data `%s'", data, Qnil);
 	  return 0;
 	}
+#ifdef HAVE_MACGUI
+      data = mac_preprocess_image_for_2x_data (f, img, data, false);
+#endif
       p = SDATA (data);
       end = p + SBYTES (data);
     }
@@ -9656,9 +9732,6 @@ imagemagick_load (struct frame *f, struct image *img)
       file = mac_preprocess_image_for_2x_file (f, img, file);
 #endif
       success_p = imagemagick_load_image (f, img, 0, 0, SSDATA (file));
-#ifdef HAVE_MACGUI
-      mac_postprocess_image_for_2x (img);
-#endif
     }
   /* Else its not a file, its a lisp object.  Load the image from a
      lisp object rather than a file.  */
@@ -9672,9 +9745,16 @@ imagemagick_load (struct frame *f, struct image *img)
 	  image_error ("Invalid image data `%s'", data, Qnil);
 	  return 0;
 	}
+#ifdef HAVE_MACGUI
+      data = mac_preprocess_image_for_2x_data (f, img, data, false);
+#endif
       success_p = imagemagick_load_image (f, img, SDATA (data),
                                           SBYTES (data), NULL);
     }
+#ifdef HAVE_MACGUI
+  if (success_p)
+    mac_postprocess_image_for_2x (img);
+#endif
 
   return success_p;
 }
@@ -10142,6 +10222,9 @@ svg_load (struct frame *f, struct image *img)
 	  image_error ("Invalid image data `%s'", data, Qnil);
 	  return 0;
 	}
+#ifdef HAVE_MACGUI
+      data = mac_preprocess_image_for_2x_data (f, img, data, false);
+#endif
       success_p = svg_load_image (f, img, SDATA (data), SBYTES (data));
     }
 
@@ -10396,6 +10479,7 @@ svg_load (struct frame *f, struct image *img)
 	  image_error ("Invalid image data `%s'", data, Qnil);
 	  return 0;
 	}
+      data = mac_preprocess_image_for_2x_data (f, img, data, false);
       success_p = mac_svg_load_image (f, img, SDATA (data), SBYTES (data),
 				      &background,
 				      check_image_size, image_error);
@@ -10869,6 +10953,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
   DEFSYM (Qdelay, "delay");
 #ifdef HAVE_MACGUI
   DEFSYM (Qdocument_attributes, "document-attributes");
+  DEFSYM (QCdata_2x, ":data-2x");
 #endif
 
   DEFSYM (QCascent, ":ascent");
