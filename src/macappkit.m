@@ -2234,8 +2234,7 @@ static CGRect unset_global_focus_view_frame (void);
       [window setAutodisplay:NO];
       [window setHasShadow:YES];
       [window setLevel:NSScreenSaverWindowLevel];
-      if ([window respondsToSelector:@selector(setIgnoresMouseEvents:)])
-	[window setIgnoresMouseEvents:YES];
+      [window setIgnoresMouseEvents:YES];
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:NSWindowAnimationBehaviorNone];
     }
