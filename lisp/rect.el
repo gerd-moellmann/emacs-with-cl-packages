@@ -370,7 +370,7 @@ no text on the right side of the rectangle."
   "Delete all whitespace following a specified column in each line.
 The left edge of the rectangle specifies the position in each line
 at which whitespace deletion should begin.  On each line in the
-rectangle, all continuous whitespace starting at that column is deleted.
+rectangle, all contiguous whitespace starting at that column is deleted.
 
 When called from a program the rectangle's corners are START and END.
 With a prefix (or a FILL) argument, also fill too short lines."
@@ -783,7 +783,7 @@ Ignores `line-move-visual'."
                      (if (not old)
                          (let ((ol (make-overlay left right)))
                            (overlay-put ol 'window window)
-                           (overlay-put ol 'face 'rectangle-preview)
+                           (overlay-put ol 'face 'region)
                            ol)
                        (let ((ol (pop old)))
                          (move-overlay ol left right (current-buffer))
@@ -815,7 +815,7 @@ Ignores `line-move-visual'."
                      (overlay-put ol 'after-string nil)))
                 ((< mright rightcol)    ;`rightcol' is past EOL.
                  (let ((str (rectangle--space-to rightcol)))
-                   (put-text-property 0 (length str) 'face 'rectangle-preview str)
+                   (put-text-property 0 (length str) 'face 'region str)
                    ;; If cursor happens to be here, draw it at the right place.
                    (rectangle--place-cursor leftcol left str)
                    (overlay-put ol 'after-string str)))
@@ -827,7 +827,7 @@ Ignores `line-move-visual'."
                      (overlay-put ol 'after-string nil)
                    (goto-char right)
                    (let ((str (rectangle--space-to rightcol)))
-                     (put-text-property 0 (length str) 'face 'rectangle-preview str)
+                     (put-text-property 0 (length str) 'face 'region str)
                      (when (= left right)
                        (rectangle--place-cursor leftcol left str))
                      (overlay-put ol 'after-string str))))
@@ -837,7 +837,7 @@ Ignores `line-move-visual'."
                  ;; Make zero-width rectangles visible!
                  (overlay-put ol 'after-string
                               (concat (propertize " "
-                                                  'face '(rectangle-preview (:height 0.2)))
+                                                  'face '(region (:height 0.2)))
                                       (overlay-get ol 'after-string))))
                (push ol nrol)))
            start end))

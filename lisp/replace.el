@@ -191,18 +191,15 @@ wants to replace FROM with TO."
 	    ;; a region in order to specify the minibuffer input.
 	    ;; That should not clobber the region for the query-replace itself.
 	    (save-excursion
-              ;; The `with-current-buffer' ensures that the binding
-              ;; for `text-property-default-nonsticky' isn't a buffer
-              ;; local binding in the current buffer, which
-              ;; `read-from-minibuffer' wouldn't see.
-              (with-current-buffer (window-buffer (minibuffer-window))
-                (let ((text-property-default-nonsticky
-                       (cons '(separator . t) text-property-default-nonsticky)))
-                  (if regexp-flag
-                      (read-regexp prompt nil 'query-replace-from-to-history)
-                    (read-from-minibuffer
-                     prompt nil nil nil 'query-replace-from-to-history
-                     (car (if regexp-flag regexp-search-ring search-ring)) t))))))
+              (minibuffer-with-setup-hook
+                  (lambda ()
+                    (setq-local text-property-default-nonsticky
+                                (cons '(separator . t) text-property-default-nonsticky)))
+                (if regexp-flag
+                    (read-regexp prompt nil 'query-replace-from-to-history)
+                  (read-from-minibuffer
+                   prompt nil nil nil 'query-replace-from-to-history
+                   (car (if regexp-flag regexp-search-ring search-ring)) t)))))
            (to))
       (if (and (zerop (length from)) query-replace-defaults)
 	  (cons (caar query-replace-defaults)
@@ -301,6 +298,10 @@ In Transient Mark mode, if the mark is active, operate on the contents
 of the region.  Otherwise, operate from point to the end of the buffer's
 accessible portion.
 
+In interactive use, the prefix arg (non-nil DELIMITED in
+non-interactive use), means replace only matches surrounded by
+word boundaries.  A negative prefix arg means replace backward.
+
 Use \\<minibuffer-local-map>\\[next-history-element] \
 to pull the last incremental search string to the minibuffer
 that reads FROM-STRING, or invoke replacements from
@@ -326,10 +327,6 @@ regexp in `search-whitespace-regexp'.
 If `replace-character-fold' is non-nil, matching uses character folding,
 i.e. it ignores diacritics and other differences between equivalent
 character strings.
-
-Third arg DELIMITED (prefix arg if interactive), if non-nil, means replace
-only matches surrounded by word boundaries.  A negative prefix arg means
-replace backward.
 
 Fourth and fifth arg START and END specify the region to operate on.
 
@@ -1997,7 +1994,9 @@ but coerced to the correct value of INTEGERS."
 FIXEDCASE, LITERAL are passed to `replace-match' (which see).
 After possibly editing it (if `\\?' is present), NEWTEXT is also
 passed to `replace-match'.  If NOEDIT is true, no check for `\\?'
-is made (to save time).  MATCH-DATA is used for the replacement.
+is made (to save time).
+MATCH-DATA is used for the replacement, and is a data structure
+as returned from the `match-data' function.
 In case editing is done, it is changed to use markers.  BACKWARD is
 used to reverse the replacement direction.
 

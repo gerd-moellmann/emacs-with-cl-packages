@@ -8495,10 +8495,10 @@ WINDOWS is a list of windows associated with PROCESS.  REDUCER is
 a two-argument function used to combine the widths and heights of
 the given windows."
   (when windows
-    (let ((width (window-body-width (car windows)))
+    (let ((width (window-max-chars-per-line (car windows)))
           (height (window-body-height (car windows))))
       (dolist (window (cdr windows))
-        (setf width (funcall reducer width (window-body-width window)))
+        (setf width (funcall reducer width (window-max-chars-per-line window)))
         (setf height (funcall reducer height (window-body-height window))))
       (cons width height))))
 
@@ -8520,38 +8520,40 @@ A window is associated with a process if that window is
 displaying that processes's buffer."
   (let ((processes (process-list))
         (process-windows nil))
-    (walk-windows
-     (lambda (window)
-       (let ((buffer (window-buffer window))
-             (iter processes))
-         (while (let ((process (car iter)))
-                  (if (and (process-live-p process)
-                           (eq buffer (process-buffer process)))
-                      (let ((procwin (assq process process-windows)))
-                        ;; Add this window to the list of windows
-                        ;; displaying process.
-                        (if procwin
-                            (push window (cdr procwin))
-                          (push (list process window) process-windows))
-                        ;; We found our process for this window, so
-                        ;; stop iterating over the process list.
-                        nil)
-                    (setf iter (cdr iter)))))))
-     1 t)
+    (if processes
+        (walk-windows
+         (lambda (window)
+           (let ((buffer (window-buffer window))
+                 (iter processes))
+             (while (let ((process (car iter)))
+                      (if (and (process-live-p process)
+                               (eq buffer (process-buffer process)))
+                          (let ((procwin (assq process process-windows)))
+                            ;; Add this window to the list of windows
+                            ;; displaying process.
+                            (if procwin
+                                (push window (cdr procwin))
+                              (push (list process window) process-windows))
+                            ;; We found our process for this window, so
+                            ;; stop iterating over the process list.
+                            nil)
+                        (setf iter (cdr iter)))))))
+         1 t))
     process-windows))
 
 (defun window--adjust-process-windows ()
   "Update process window sizes to match the current window configuration."
-  (dolist (procwin (window--process-window-list))
-    (let ((process (car procwin)))
-      (with-demoted-errors "Error adjusting window size: %S"
-        (with-current-buffer (process-buffer process)
-          (let ((size (funcall
-                       (or (process-get process 'adjust-window-size-function)
-                           window-adjust-process-window-size-function)
-                       process (cdr procwin))))
-            (when size
-              (set-process-window-size process (cdr size) (car size)))))))))
+  (when (fboundp 'process-list)
+    (dolist (procwin (window--process-window-list))
+      (let ((process (car procwin)))
+        (with-demoted-errors "Error adjusting window size: %S"
+          (with-current-buffer (process-buffer process)
+            (let ((size (funcall
+                         (or (process-get process 'adjust-window-size-function)
+                             window-adjust-process-window-size-function)
+                         process (cdr procwin))))
+              (when size
+                (set-process-window-size process (cdr size) (car size))))))))))
 
 (add-hook 'window-configuration-change-hook 'window--adjust-process-windows)
 

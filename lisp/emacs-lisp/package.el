@@ -1214,7 +1214,7 @@ errors."
           (unless (and (eq package-check-signature 'allow-unsigned)
                        (eq (epg-signature-status sig) 'no-pubkey))
             (setq had-fatal-error t))))
-      (when (and (null good-signatures) had-fatal-error)
+      (when (or (null good-signatures) had-fatal-error)
         (package--display-verify-error context sig-file)
         (signal 'bad-signature (list sig-file)))
       good-signatures)))
@@ -1426,7 +1426,10 @@ If `user-init-file' does not mention `(package-initialize)', add
 it to the file.
 If called as part of loading `user-init-file', set
 `package-enable-at-startup' to nil, to prevent accidentally
-loading packages twice."
+loading packages twice.
+It is not necessary to adjust `load-path' or `require' the
+individual packages after calling `package-initialize' -- this is
+taken care of by `package-initialize'."
   (interactive)
   (setq package-alist nil)
   (if (equal user-init-file load-file-name)
@@ -1986,7 +1989,8 @@ Downloads and installs required packages as needed."
             ((derived-mode-p 'tar-mode)
              (package-tar-file-info))
             (t
-             (package-buffer-info))))
+             (save-excursion
+              (package-buffer-info)))))
          (name (package-desc-name pkg-desc)))
     ;; Download and install the dependencies.
     (let* ((requires (package-desc-reqs pkg-desc))

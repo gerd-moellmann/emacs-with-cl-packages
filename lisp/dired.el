@@ -3919,7 +3919,7 @@ Ask means pop up a menu for the user to select one of copy, move or link."
 
 ;;; Start of automatically extracted autoloads.
 
-;;;### (autoloads nil "dired-aux" "dired-aux.el" "17b411edeac40022109eb6f705b83079")
+;;;### (autoloads nil "dired-aux" "dired-aux.el" "8346506b9ef7167fd55b5eac7e6617a1")
 ;;; Generated autoloads from dired-aux.el
 
 (autoload 'dired-diff "dired-aux" "\
@@ -4423,12 +4423,24 @@ with the command \\[tags-loop-continue].
 \(fn FROM TO &optional DELIMITED)" t nil)
 
 (autoload 'dired-do-find-regexp "dired-aux" "\
-Find all matches for REGEXP in all marked files, recursively.
+Find all matches for REGEXP in all marked files.
+For any marked directory, all of its files are searched recursively.
+However, files matching `grep-find-ignored-files' and subdirectories
+matching `grep-find-ignored-directories' are skipped in the marked
+directories.
+
+REGEXP should use constructs supported by your local `grep' command.
 
 \(fn REGEXP)" t nil)
 
 (autoload 'dired-do-find-regexp-and-replace "dired-aux" "\
-Replace matches of FROM with TO, in all marked files, recursively.
+Replace matches of FROM with TO, in all marked files.
+For any marked directory, matches in all of its files are replaced,
+recursively.  However, files matching `grep-find-ignored-files'
+and subdirectories matching `grep-find-ignored-directories' are skipped
+in the marked directories.
+
+REGEXP should use constructs supported by your local `grep' command.
 
 \(fn FROM TO)" t nil)
 

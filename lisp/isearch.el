@@ -837,10 +837,10 @@ See the command `isearch-forward-symbol' for more information."
        (buffer-substring-no-properties (car bounds) (cdr bounds))))
      (t
       (setq isearch-error "No symbol at point")
+      (isearch-push-state)
       (isearch-update)))))
 
 
-(defvar cursor-sensor-inhibit)
 ;; isearch-mode only sets up incremental search for the minor mode.
 ;; All the work is done by the isearch-mode commands.
 
@@ -973,8 +973,6 @@ The last thing is to trigger a new round of lazy highlighting."
         (setq cursor-sensor-inhibit (delq 'isearch cursor-sensor-inhibit))))
     (setq isearch--current-buffer (current-buffer))
     (make-local-variable 'cursor-sensor-inhibit)
-    (unless (boundp 'cursor-sensor-inhibit)
-      (setq cursor-sensor-inhibit nil))
     ;; Suspend things like cursor-intangible during Isearch so we can search
     ;; even within intangible text.
     (push 'isearch cursor-sensor-inhibit))
@@ -2665,8 +2663,9 @@ the word mode."
   "Non-default value overrides the behavior of `isearch-search-fun-default'.
 This variable's value should be a function, which will be called
 with no arguments, and should return a function that takes three
-arguments: STRING, BOUND, and NOERROR.  See `re-search-forward'
-for the meaning of BOUND and NOERROR arguments.
+arguments: STRING, BOUND, and NOERROR.  STRING is the string to
+be searched for.  See `re-search-forward' for the meaning of
+BOUND and NOERROR arguments.
 
 This returned function will be used by `isearch-search-string' to
 search for the first occurrence of STRING.")
