@@ -293,8 +293,11 @@ mac_get_foreign_selection (Lisp_Object selection_symbol,
   if (err == noErr && sel)
     {
       if (EQ (target_type, QTARGETS))
-	result = CALLN (Fvconcat, list1 (QTARGETS),
-			mac_get_selection_target_list (sel));
+	{
+	  AUTO_LIST1 (targets, QTARGETS);
+	  result = CALLN (Fvconcat, targets,
+			  mac_get_selection_target_list (sel));
+	}
       else
 	{
 	  result = mac_get_selection_value (sel, target_type);
