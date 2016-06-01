@@ -1232,7 +1232,7 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 	    /* Avoid activating context help mode with `help' key.  */
 	    && !([[[NSApp keyWindow] firstResponder]
 		   isMemberOfClass:[EmacsMainView class]]
-		 && key_code == 0x72 /* kVK_Help */
+		 && key_code == kVK_Help
 		 && (flags & (NSControlKeyMask | NSAlternateKeyMask
 			      | NSCommandKeyMask)) == 0))
 	  goto OTHER;
