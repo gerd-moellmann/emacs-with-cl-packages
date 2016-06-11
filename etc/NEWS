@@ -361,6 +361,10 @@ recommended to do this as soon as you have firmly upgraded to Emacs
 25.1 (or later).  Should you ever need to downgrade your desktop file
 to version 206, you can do this with 'C-u C-u M-x desktop-save'.
 
+---
+*** desktop-restore-in-current-display now defaults to t, not nil.
+That is, Emacs by default now restores frames into the current display.
+
 +++
 ** New function 'bookmark-set-no-overwrite' bound to 'C-x r M'.
 It raises an error if a bookmark of that name already exists,
@@ -633,11 +637,11 @@ as many other symbols like U+249C (PARENTHESIZED LATIN SMALL LETTER
 A).
 
 Character folding is enabled by customizing 'search-default-mode' to
-the value 'character-fold-to-regexp'.  You can also toggle character
+the value 'char-fold-to-regexp'.  You can also toggle character
 folding in the middle of a search by typing 'M-s ''.
 
 'query-replace' honors character folding if the new variable
-'replace-character-fold' is customized to a non-nil value.
+'replace-char-fold' is customized to a non-nil value.
 
 +++
 *** New user option 'search-default-mode'.
@@ -647,9 +651,9 @@ value, nil specifies that Isearch does literal searches (however,
 as in previous Emacs versions).
 
 +++
-*** New function 'character-fold-to-regexp' can be used
+*** New function 'char-fold-to-regexp' can be used
 by searching commands to produce a regexp matching anything that
-character-folds into STRING.
+char-folds into STRING.
 
 +++
 *** The new 'M-s M-w' key binding uses eww to search the web for the
@@ -1676,7 +1680,8 @@ codeset is "UTF-8" (as in "en_US.UTF-8").  This is needed because
 MS-Windows doesn't support UTF-8 as codeset in its locales.
 
 +++
-** New function 'alist-get', which is also a valid place (aka lvalue).
+** New function 'alist-get', which is a generalized variable
+suitable for use with 'setf'.
 
 +++
 ** New function 'funcall-interactively', which works like 'funcall'

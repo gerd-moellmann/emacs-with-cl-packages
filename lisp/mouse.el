@@ -406,7 +406,15 @@ must be one of the symbols `header', `mode', or `vertical'."
 			   (or (not resize-mini-windows)
 			       (eq minibuffer-window
 				   (active-minibuffer-window)))))))
-	  (setq draggable nil))))
+	  (setq draggable nil)))
+     ((eq line 'vertical)
+      (let ((divider-width (frame-right-divider-width frame)))
+        (when (and (or (not (numberp divider-width))
+                       (zerop divider-width))
+                   (eq (cdr (assq 'vertical-scroll-bars
+                                  (frame-parameters frame)))
+                       'left))
+	(setq window (window-in-direction 'left window t))))))
 
     (let* ((exitfun nil)
            (move
@@ -558,7 +566,12 @@ command alters the kill ring or not."
   (mouse-minibuffer-check click)
   (select-window (posn-window (event-start click)))
   (let ((beg (posn-point (event-start click)))
-	(end (posn-point (event-end click)))
+        (end
+         (if (eq (posn-window (event-end click)) (selected-window))
+             (posn-point (event-end click))
+           ;; If the mouse ends up in any other window or on the menu
+           ;; bar, use `window-point' of selected window (Bug#23707).
+           (window-point)))
         (click-count (event-click-count click)))
     (let ((drag-start (terminal-parameter nil 'mouse-drag-start)))
       (when drag-start

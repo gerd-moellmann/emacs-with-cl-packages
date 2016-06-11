@@ -3795,14 +3795,14 @@ Choose `cfengine2-mode' or `cfengine3-mode' by buffer contents.
 
 ;;;***
 
-;;;### (autoloads nil "character-fold" "character-fold.el" (22330
-;;;;;;  59913 751324 119000))
-;;; Generated autoloads from character-fold.el
+;;;### (autoloads nil "char-fold" "char-fold.el" (22363 8343 507348
+;;;;;;  797000))
+;;; Generated autoloads from char-fold.el
 
-(autoload 'character-fold-to-regexp "character-fold" "\
-Return a regexp matching anything that character-folds into STRING.
+(autoload 'char-fold-to-regexp "char-fold" "\
+Return a regexp matching anything that char-folds into STRING.
 Any character in STRING that has an entry in
-`character-fold-table' is replaced with that entry (which is a
+`char-fold-table' is replaced with that entry (which is a
 regexp) and other characters are `regexp-quote'd.
 
 If the resulting regexp would be too long for Emacs to handle,
@@ -6042,8 +6042,8 @@ the first time the mode is used.
 
 ;;;***
 
-;;;### (autoloads nil "descr-text" "descr-text.el" (22330 59913 737324
-;;;;;;  162000))
+;;;### (autoloads nil "descr-text" "descr-text.el" (22363 8343 507348
+;;;;;;  797000))
 ;;; Generated autoloads from descr-text.el
 
 (autoload 'describe-text-properties "descr-text" "\
@@ -6092,8 +6092,7 @@ This function is meant to be used as a value of
 
 ;;;***
 
-;;;### (autoloads nil "desktop" "desktop.el" (22330 59913 752324
-;;;;;;  116000))
+;;;### (autoloads nil "desktop" "desktop.el" (22363 8343 508348 793000))
 ;;; Generated autoloads from desktop.el
 
 (defvar desktop-save-mode nil "\
@@ -10897,8 +10896,8 @@ Visit the file you click on in another window.
 
 ;;;***
 
-;;;### (autoloads nil "find-func" "emacs-lisp/find-func.el" (22331
-;;;;;;  17377 951348 457000))
+;;;### (autoloads nil "find-func" "emacs-lisp/find-func.el" (22363
+;;;;;;  8343 508348 793000))
 ;;; Generated autoloads from emacs-lisp/find-func.el
 
 (autoload 'find-library "find-func" "\
@@ -11380,8 +11379,8 @@ selected if the original window is the first one in the frame.
 
 ;;;***
 
-;;;### (autoloads nil "footnote" "mail/footnote.el" (22330 59913
-;;;;;;  947323 514000))
+;;;### (autoloads nil "footnote" "mail/footnote.el" (22363 8343 521348
+;;;;;;  743000))
 ;;; Generated autoloads from mail/footnote.el
 (push (purecopy '(footnote 0 19)) package--builtin-versions)
 
@@ -11391,7 +11390,7 @@ With a prefix argument ARG, enable Footnote mode if ARG is
 positive, and disable it otherwise.  If called from Lisp, enable
 the mode if ARG is omitted or nil.
 
-Footnode mode is a buffer-local minor mode.  If enabled, it
+Footnote mode is a buffer-local minor mode.  If enabled, it
 provides footnote support for `message-mode'.  To get started,
 play around with the following keys:
 \\{footnote-minor-mode-map}
@@ -13478,8 +13477,8 @@ different regions.  With numeric argument ARG, behaves like
 
 ;;;***
 
-;;;### (autoloads nil "help-fns" "help-fns.el" (22331 17372 37369
-;;;;;;  462000))
+;;;### (autoloads nil "help-fns" "help-fns.el" (22363 8343 512348
+;;;;;;  778000))
 ;;; Generated autoloads from help-fns.el
 
 (autoload 'describe-function "help-fns" "\
@@ -19797,7 +19796,7 @@ Coloring:
 
 ;;;***
 
-;;;### (autoloads nil "org" "org/org.el" (22331 17372 87369 285000))
+;;;### (autoloads nil "org" "org/org.el" (22363 8343 528348 716000))
 ;;; Generated autoloads from org/org.el
 
 (autoload 'org-babel-do-load-languages "org" "\
@@ -20483,8 +20482,8 @@ See the command `outline-mode' for more information on this mode.
 
 ;;;***
 
-;;;### (autoloads nil "package" "emacs-lisp/package.el" (22331 17377
-;;;;;;  952348 454000))
+;;;### (autoloads nil "package" "emacs-lisp/package.el" (22363 8343
+;;;;;;  509348 790000))
 ;;; Generated autoloads from emacs-lisp/package.el
 (push (purecopy '(package 1 1 0)) package--builtin-versions)
 
@@ -21397,8 +21396,8 @@ Ignores leading comment characters.
 
 ;;;***
 
-;;;### (autoloads nil "printing" "printing.el" (22330 59913 914323
-;;;;;;  615000))
+;;;### (autoloads nil "printing" "printing.el" (22363 8343 529348
+;;;;;;  712000))
 ;;; Generated autoloads from printing.el
 (push (purecopy '(printing 6 9 3)) package--builtin-versions)
 
@@ -22385,8 +22384,8 @@ Optional argument FACE specifies the face to do the highlighting.
 
 ;;;***
 
-;;;### (autoloads nil "python" "progmodes/python.el" (22331 17372
-;;;;;;  98369 246000))
+;;;### (autoloads nil "python" "progmodes/python.el" (22363 8343
+;;;;;;  530348 709000))
 ;;; Generated autoloads from progmodes/python.el
 (push (purecopy '(python 0 25 1)) package--builtin-versions)
 
@@ -22831,8 +22830,7 @@ matching parts of the target buffer will be highlighted.
 
 ;;;***
 
-;;;### (autoloads nil "recentf" "recentf.el" (22330 59913 915323
-;;;;;;  612000))
+;;;### (autoloads nil "recentf" "recentf.el" (22363 8343 534348 693000))
 ;;; Generated autoloads from recentf.el
 
 (defvar recentf-mode nil "\
@@ -23803,8 +23801,8 @@ for modes derived from Text mode, like Mail mode.
 
 ;;;***
 
-;;;### (autoloads nil "ruby-mode" "progmodes/ruby-mode.el" (22331
-;;;;;;  17377 954348 447000))
+;;;### (autoloads nil "ruby-mode" "progmodes/ruby-mode.el" (22363
+;;;;;;  8343 531348 705000))
 ;;; Generated autoloads from progmodes/ruby-mode.el
 (push (purecopy '(ruby-mode 1 2)) package--builtin-versions)
 
@@ -24776,7 +24774,7 @@ only these files will be asked to be saved.
 
 ;;;***
 
-;;;### (autoloads nil "ses" "ses.el" (22331 17372 106369 217000))
+;;;### (autoloads nil "ses" "ses.el" (22363 8343 535348 689000))
 ;;; Generated autoloads from ses.el
 
 (autoload 'ses-mode "ses" "\
@@ -29931,7 +29929,7 @@ If FILE-NAME is non-nil, save the result to FILE-NAME.
 
 ;;;***
 
-;;;### (autoloads nil "vc" "vc/vc.el" (22330 59914 13323 310000))
+;;;### (autoloads nil "vc" "vc/vc.el" (22363 8343 539348 674000))
 ;;; Generated autoloads from vc/vc.el
 
 (defvar vc-checkout-hook nil "\
@@ -30304,8 +30302,8 @@ Name of the format file in a .bzr directory.")
 
 ;;;***
 
-;;;### (autoloads nil "vc-cvs" "vc/vc-cvs.el" (22331 17372 123369
-;;;;;;  157000))
+;;;### (autoloads nil "vc-cvs" "vc/vc-cvs.el" (22363 8343 539348
+;;;;;;  674000))
 ;;; Generated autoloads from vc/vc-cvs.el
 (defun vc-cvs-registered (f)
   "Return non-nil if file F is registered with CVS."
@@ -30665,8 +30663,8 @@ Key bindings specific to `verilog-mode-map' are:
 
 ;;;***
 
-;;;### (autoloads nil "vhdl-mode" "progmodes/vhdl-mode.el" (22330
-;;;;;;  59913 977323 421000))
+;;;### (autoloads nil "vhdl-mode" "progmodes/vhdl-mode.el" (22363
+;;;;;;  8343 534348 693000))
 ;;; Generated autoloads from progmodes/vhdl-mode.el
 
 (autoload 'vhdl-mode "vhdl-mode" "\
@@ -31034,7 +31032,7 @@ Usage:
   SPECIAL MENUES:
     As an alternative to the speedbar, an index menu can be added (set
     option `vhdl-index-menu' to non-nil) or made accessible as a mouse menu
-    (e.g. add \"(global-set-key '[S-down-mouse-3] 'imenu)\" to your start-up
+    (e.g. add \"(global-set-key [S-down-mouse-3] \\='imenu)\" to your start-up
     file) for browsing the file contents (is not populated if buffer is
     larger than 256000).  Also, a source file menu can be
     added (set option `vhdl-source-file-menu' to non-nil) for browsing the
@@ -31265,7 +31263,7 @@ Convert Vietnamese characters of the current buffer to `VIQR' mnemonics.
 
 ;;;***
 
-;;;### (autoloads nil "view" "view.el" (22330 59913 915323 612000))
+;;;### (autoloads nil "view" "view.el" (22363 8343 540348 670000))
 ;;; Generated autoloads from view.el
 
 (defvar view-remove-frame-by-deleting t "\
@@ -31448,7 +31446,7 @@ x	exchanges point and mark.
 	  Mark ring is pushed at start of every successful search and when
 	  jump to line occurs.  The mark is set on jump to buffer start or end.
 \\[point-to-register]	save current position in character register.
-'	go to position saved in character register.
+\\='	go to position saved in character register.
 s	do forward incremental search.
 r	do reverse incremental search.
 \\[View-search-regexp-forward]	searches forward for regular expression, starting after current page.
@@ -32702,7 +32700,7 @@ Zone out, completely.
 ;;;;;;  "vc/ediff-vers.el" "vc/ediff-wind.el" "vc/pcvs-info.el" "vc/pcvs-parse.el"
 ;;;;;;  "vc/pcvs-util.el" "vc/vc-dav.el" "vc/vc-filewise.el" "vcursor.el"
 ;;;;;;  "vt-control.el" "vt100-led.el" "w32-fns.el" "w32-vars.el"
-;;;;;;  "x-dnd.el") (22331 19288 214877 938000))
+;;;;;;  "x-dnd.el") (22363 15048 356870 124000))
 
 ;;;***
 
