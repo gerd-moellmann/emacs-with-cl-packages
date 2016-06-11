@@ -356,13 +356,15 @@ The entries are currently based on StandardizedVariants-8.0.0.txt.")
 \U0001F44D\U0001F44E\U0001F44F\U0001F450\U0001F466\U0001F467\U0001F468\
 \U0001F469\U0001F46E\U0001F470\U0001F471\U0001F472\U0001F473\U0001F474\
 \U0001F475\U0001F476\U0001F477\U0001F478\U0001F47C\U0001F481\U0001F482\
-\U0001F483\U0001F485\U0001F486\U0001F487\U0001F4AA\U0001F575\U0001F590\
-\U0001F595\U0001F596\U0001F645\U0001F646\U0001F647\U0001F64B\U0001F64C\
-\U0001F64D\U0001F64E\U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\
-\U0001F6C0\U0001F918"))
+\U0001F483\U0001F485\U0001F486\U0001F487\U0001F4AA\U0001F575\U0001F57A\
+\U0001F590\U0001F595\U0001F596\U0001F645\U0001F646\U0001F647\U0001F64B\
+\U0001F64C\U0001F64D\U0001F64E\U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\
+\U0001F6B6\U0001F6C0\U0001F918\U0001F919\U0001F91A\U0001F91B\U0001F91C\
+\U0001F91D\U0001F91E\U0001F926\U0001F930\U0001F933\U0001F934\U0001F935\
+\U0001F936\U0001F937\U0001F938\U0001F939\U0001F93C\U0001F93D\U0001F93E"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on UTR #51 version 2.0.")
+The entries are currently based on emoji-sequences.txt 3.0 draft.")
 
 (defun mac-compose-gstring-for-variation-with-trailer (gstring)
   "Compose glyph-string GSTRING for graphic display.
@@ -469,7 +471,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
      `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
-  ;; From Emoji ZWJ Sequence Catalog for UTR #51, version 2.0.
+  ;; From emoji-zwj-sequences.txt, 3.0 draft.
   (let* ((zwj "\u200D") (man "\U0001F468") (woman "\U0001F469")
 	 (girl "\U0001F467") (boy "\U0001F466")
 	 (heavy-black-heart-emoji-vs "\u2764\uFE0F") (kiss-mark "\U0001F48B")
