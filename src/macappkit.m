@@ -241,11 +241,17 @@ enum {
 - (NSEvent *)mouseEventByChangingType:(NSEventType)type
 			  andLocation:(NSPoint)location
 {
-  return [NSEvent mouseEventWithType:type location:location
-		  modifierFlags:[self modifierFlags] timestamp:[self timestamp]
-		  windowNumber:[self windowNumber] context:[self context]
+  return [NSEvent
+	   mouseEventWithType:type location:location
+		modifierFlags:[self modifierFlags] timestamp:[self timestamp]
+		 windowNumber:[self windowNumber]
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+		      context:nil
+#else
+		      context:[self context]
+#endif
 		  eventNumber:[self eventNumber] clickCount:[self clickCount]
-		  pressure:[self pressure]];
+		     pressure:[self pressure]];
 }
 
 static void
