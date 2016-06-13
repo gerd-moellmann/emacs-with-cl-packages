@@ -824,6 +824,18 @@ enum {
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+enum {
+  NSWindowStyleMaskBorderless		= NSBorderlessWindowMask,
+  NSWindowStyleMaskTitled		= NSTitledWindowMask,
+  NSWindowStyleMaskClosable		= NSClosableWindowMask,
+  NSWindowStyleMaskMiniaturizable	= NSMiniaturizableWindowMask,
+  NSWindowStyleMaskResizable		= NSResizableWindowMask,
+  NSWindowStyleMaskFullScreen		= NSFullScreenWindowMask
+};
+typedef NSUInteger NSWindowStyleMask;
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 @interface NSScreen (AvailableOn1070AndLater)
 - (CGFloat)backingScaleFactor;
@@ -880,6 +892,49 @@ enum {
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+enum {
+  NSEventTypeLeftMouseDown	= NSLeftMouseDown,
+  NSEventTypeLeftMouseUp	= NSLeftMouseUp,
+  NSEventTypeMouseMoved		= NSMouseMoved,
+  NSEventTypeLeftMouseDragged	= NSLeftMouseDragged,
+  NSEventTypeKeyDown		= NSKeyDown,
+  NSEventTypeKeyUp		= NSKeyUp,
+  NSEventTypeApplicationDefined	= NSApplicationDefined,
+  NSEventTypeScrollWheel	= NSScrollWheel
+};
+
+enum {
+  NSEventMaskLeftMouseDown	= NSLeftMouseDownMask,
+  NSEventMaskLeftMouseUp	= NSLeftMouseUpMask,
+  NSEventMaskRightMouseDown	= NSRightMouseDownMask,
+  NSEventMaskRightMouseUp	= NSRightMouseUpMask,
+  NSEventMaskMouseMoved		= NSMouseMovedMask,
+  NSEventMaskLeftMouseDragged	= NSLeftMouseDraggedMask,
+  NSEventMaskRightMouseDragged	= NSRightMouseDraggedMask,
+  NSEventMaskMouseEntered	= NSMouseEnteredMask,
+  NSEventMaskMouseExited	= NSMouseExitedMask,
+  NSEventMaskKeyDown		= NSKeyDownMask,
+  NSEventMaskKeyUp		= NSKeyUpMask,
+  NSEventMaskScrollWheel	= NSScrollWheelMask,
+  NSEventMaskOtherMouseDown	= NSOtherMouseDownMask,
+  NSEventMaskOtherMouseUp	= NSOtherMouseUpMask,
+  NSEventMaskOtherMouseDragged	= NSOtherMouseDraggedMask,
+  NSEventMaskAny		= NSAnyEventMask
+};
+
+enum {
+  NSEventModifierFlagCapsLock	= NSAlphaShiftKeyMask,
+  NSEventModifierFlagShift	= NSShiftKeyMask,
+  NSEventModifierFlagControl	= NSControlKeyMask,
+  NSEventModifierFlagOption	= NSAlternateKeyMask,
+  NSEventModifierFlagCommand	= NSCommandKeyMask,
+  NSEventModifierFlagNumericPad	= NSNumericPadKeyMask,
+  NSEventModifierFlagHelp	= NSHelpKeyMask,
+  NSEventModifierFlagFunction	= NSFunctionKeyMask
+};
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 @interface NSAnimationContext (AvailableOn1070AndLater)
 + (void)runAnimationGroup:(void (^)(NSAnimationContext *context))changes
@@ -912,6 +967,19 @@ typedef NSInteger NSPaperOrientation;
 @interface NSView (AvailableOn1090AndLater)
 - (void)setLayerUsesCoreImageFilters:(BOOL)usesFilters;
 @end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+enum {
+  NSCompositingOperationSourceOver = NSCompositeSourceOver
+};
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+enum {
+  NSControlSizeRegular	= NSRegularControlSize,
+  NSControlSizeSmall	= NSSmallControlSize
+};
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
