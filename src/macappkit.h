@@ -886,6 +886,10 @@ enum {
 };
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
+typedef NSUInteger NSEventModifierFlags;
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
 @interface NSEvent (AvailableOn101003AndLater)
 - (NSInteger)stage;
@@ -967,6 +971,10 @@ typedef NSInteger NSPaperOrientation;
 @interface NSView (AvailableOn1090AndLater)
 - (void)setLayerUsesCoreImageFilters:(BOOL)usesFilters;
 @end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
+typedef NSUInteger NSAutoresizingMaskOptions;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200

@@ -1234,7 +1234,7 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
     case NSEventTypeKeyDown:
       {
 	CGEventRef cgevent = [event coreGraphicsEvent];
-	NSUInteger flags = [event modifierFlags];
+	NSEventModifierFlags flags = [event modifierFlags];
 	unsigned short key_code = [event keyCode];
 
 	if (!(mac_cgevent_to_input_event (cgevent, NULL)
@@ -3528,7 +3528,8 @@ static CGRect unset_global_focus_view_frame (void);
   startCustomAnimationToEnterFullScreenWithDuration:(NSTimeInterval)duration
 {
   CGFloat previousAlphaValue = [window alphaValue];
-  NSUInteger previousAutoresizingMask = [emacsView autoresizingMask];
+  NSAutoresizingMaskOptions previousAutoresizingMask = [emacsView
+							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
   EmacsLiveResizeTransitionView *transitionView;
@@ -3609,7 +3610,8 @@ static CGRect unset_global_focus_view_frame (void);
 {
   CGFloat previousAlphaValue = [window alphaValue];
   NSInteger previousWindowLevel = [window level];
-  NSUInteger previousAutoresizingMask = [emacsView autoresizingMask];
+  NSAutoresizingMaskOptions previousAutoresizingMask = [emacsView
+							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
   EmacsLiveResizeTransitionView *transitionView;
@@ -6598,7 +6600,8 @@ static BOOL NonmodalScrollerPagingBehavior;
 @implementation EmacsMainView (ScrollBar)
 
 static int
-scroller_part_to_scroll_bar_part (NSScrollerPart part, NSUInteger flags)
+scroller_part_to_scroll_bar_part (NSScrollerPart part,
+				  NSEventModifierFlags flags)
 {
   switch (part)
     {
@@ -6621,7 +6624,7 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part, NSUInteger flags)
 
 static int
 scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
-					     NSUInteger flags)
+					     NSEventModifierFlags flags)
 {
   switch (part)
     {
@@ -6652,7 +6655,7 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
   NSScrollerPart hitPart = [sender hitPart];
   int modifiers = [sender inputEventModifiers];
   NSEvent *currentEvent = [NSApp currentEvent];
-  NSUInteger modifierFlags = [currentEvent modifierFlags];
+  NSEventModifierFlags modifierFlags = [currentEvent modifierFlags];
 
   EVENT_INIT (inputEvent);
   inputEvent.arg = Qnil;
@@ -8498,7 +8501,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
     }
   else if ([theEvent type] == NSEventTypeKeyDown)
     {
-      NSUInteger flags = [theEvent modifierFlags];
+      NSEventModifierFlags flags = [theEvent modifierFlags];
 
       flags &= ANY_KEY_MODIFIER_FLAGS_MASK;
 
@@ -10458,7 +10461,7 @@ handle_action_invocation (NSInvocation *invocation)
   Lisp_Object name_symbol =
     intern (SSDATA ([[name substringToIndex:([name length] - 1)]
 		      UTF8LispString]));
-  NSUInteger flags = [[NSApp currentEvent] modifierFlags];
+  CGEventFlags flags = (CGEventFlags) [[NSApp currentEvent] modifierFlags];
   UInt32 modifiers = mac_cgevent_flags_to_modifiers (flags);
 
   arg = Fcons (Fcons (build_string ("kmod"), /* kEventParamKeyModifiers */
