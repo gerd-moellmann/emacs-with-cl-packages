@@ -484,7 +484,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   [self postEvent:event atStart:YES];
 }
 
-- (void)stopAfterCallingBlock:(void (^)(void))block
+- (void)stopAfterCallingBlock:(void (NS_NOESCAPE ^)(void))block
 {
   block ();
   [self stop:nil];
@@ -825,7 +825,7 @@ can_auto_hide_menu_bar_without_hiding_dock (void)
 
 #if MAC_USE_AUTORELEASE_LOOP
 void
-mac_autorelease_loop (Lisp_Object (^body) (void))
+mac_autorelease_loop (Lisp_Object (CF_NOESCAPE ^body) (void))
 {
   Lisp_Object val;
 
@@ -960,7 +960,8 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
 }
 
 static int
-mac_foreach_window_1 (struct window *w, int (^block) (struct window *))
+mac_foreach_window_1 (struct window *w,
+		      int (CF_NOESCAPE ^block) (struct window *))
 {
   int cont;
 
@@ -981,7 +982,7 @@ mac_foreach_window_1 (struct window *w, int (^block) (struct window *))
    USER_DATA.  Stops when BLOCK returns 0.  */
 
 static void
-mac_foreach_window (struct frame *f, int (^block) (struct window *))
+mac_foreach_window (struct frame *f, int (CF_NOESCAPE ^block) (struct window *))
 {
   /* delete_frame may set FRAME_ROOT_WINDOW (f) to Qnil.  */
   if (WINDOWP (FRAME_ROOT_WINDOW (f)))

@@ -80,6 +80,10 @@ typedef id instancetype;
 #define NSMutableDictionaryOf(KeyT, ObjectT) NSMutableDictionary
 #endif
 
+#ifndef NS_NOESCAPE
+#define NS_NOESCAPE CF_NOESCAPE
+#endif
+
 @interface NSData (Emacs)
 - (Lisp_Object)lispString;
 @end
