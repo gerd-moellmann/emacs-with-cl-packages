@@ -670,7 +670,7 @@ extern Lisp_Object mac_dnd_default_known_types (void);
 
 #if defined (__clang__) && MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 #define MAC_USE_AUTORELEASE_LOOP 1
-extern void mac_autorelease_loop (Lisp_Object (^) (void));
+extern void mac_autorelease_loop (Lisp_Object (CF_NOESCAPE ^) (void));
 #else
 extern void *mac_alloc_autorelease_pool (void);
 extern void mac_release_autorelease_pool (void *);

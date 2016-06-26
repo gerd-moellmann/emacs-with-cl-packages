@@ -65,6 +65,14 @@ typedef float CGFloat;
 #define CGFLOAT_MAX FLT_MAX
 #endif
 
+#ifndef CF_NOESCAPE
+#if __has_attribute (noescape)
+#define CF_NOESCAPE __attribute__ ((noescape))
+#else
+#define CF_NOESCAPE
+#endif
+#endif
+
 typedef void *Window;
 typedef void *Selection;
 

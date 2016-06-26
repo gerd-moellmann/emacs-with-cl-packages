@@ -79,25 +79,31 @@ CF_AUTORELEASE (CFTypeRef X)
  ************************************************************************/
 
 enum {
-  ANY_MOUSE_EVENT_MASK = (NSLeftMouseDownMask | NSLeftMouseUpMask
-			  | NSRightMouseDownMask | NSRightMouseUpMask
-			  | NSMouseMovedMask
-			  | NSLeftMouseDraggedMask | NSRightMouseDraggedMask
-			  | NSMouseEnteredMask | NSMouseExitedMask
-			  | NSScrollWheelMask
-			  | NSOtherMouseDownMask | NSOtherMouseUpMask
-			  | NSOtherMouseDraggedMask),
-  ANY_MOUSE_DOWN_EVENT_MASK = (NSLeftMouseDownMask | NSRightMouseDownMask
-			       | NSOtherMouseDownMask),
-  ANY_MOUSE_UP_EVENT_MASK = (NSLeftMouseUpMask | NSRightMouseUpMask
-			     | NSOtherMouseUpMask)
+  ANY_MOUSE_EVENT_MASK = (NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp
+			  | NSEventMaskRightMouseDown | NSEventMaskRightMouseUp
+			  | NSEventMaskMouseMoved
+			  | NSEventMaskLeftMouseDragged
+			  | NSEventMaskRightMouseDragged
+			  | NSEventMaskMouseEntered | NSEventMaskMouseExited
+			  | NSEventMaskScrollWheel
+			  | NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp
+			  | NSEventMaskOtherMouseDragged),
+  ANY_MOUSE_DOWN_EVENT_MASK = (NSEventMaskLeftMouseDown
+			       | NSEventMaskRightMouseDown
+			       | NSEventMaskOtherMouseDown),
+  ANY_MOUSE_UP_EVENT_MASK = (NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp
+			     | NSEventMaskOtherMouseUp)
 };
 
 enum {
-  ANY_KEY_MODIFIER_FLAGS_MASK = (NSAlphaShiftKeyMask | NSShiftKeyMask
-				 | NSControlKeyMask | NSAlternateKeyMask
-				 | NSCommandKeyMask | NSNumericPadKeyMask
-				 | NSHelpKeyMask | NSFunctionKeyMask)
+  ANY_KEY_MODIFIER_FLAGS_MASK = (NSEventModifierFlagCapsLock
+				 | NSEventModifierFlagShift
+				 | NSEventModifierFlagControl
+				 | NSEventModifierFlagOption
+				 | NSEventModifierFlagCommand
+				 | NSEventModifierFlagNumericPad
+				 | NSEventModifierFlagHelp
+				 | NSEventModifierFlagFunction)
 };
 
 #define CFOBJECT_TO_LISP_FLAGS_FOR_EVENT			\
@@ -308,11 +314,17 @@ NSSizeToCGSize (NSSize nssize)
 - (NSEvent *)mouseEventByChangingType:(NSEventType)type
 			  andLocation:(NSPoint)location
 {
-  return [NSEvent mouseEventWithType:type location:location
-		  modifierFlags:[self modifierFlags] timestamp:[self timestamp]
-		  windowNumber:[self windowNumber] context:[self context]
+  return [NSEvent
+	   mouseEventWithType:type location:location
+		modifierFlags:[self modifierFlags] timestamp:[self timestamp]
+		 windowNumber:[self windowNumber]
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+		      context:nil
+#else
+		      context:[self context]
+#endif
 		  eventNumber:[self eventNumber] clickCount:[self clickCount]
-		  pressure:[self pressure]];
+		     pressure:[self pressure]];
 }
 
 static void
@@ -346,7 +358,8 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 	{
 	  /* Unicode string is not set if the keyboard event comes
 	     from Screen Sharing on Mac OS X 10.6 and later.  */
-	  if (NSEventMaskFromType (type) & (NSKeyDownMask | NSKeyUpMask))
+	  if (NSEventMaskFromType (type)
+	      & (NSEventMaskKeyDown | NSEventMaskKeyUp))
 	    {
 	      UniCharCount length;
 
@@ -391,10 +404,10 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 				      [self pressure]);
 	}
     }
-  else if (NSEventMaskFromType (type) & (NSKeyDownMask | NSKeyUpMask))
+  else if (NSEventMaskFromType (type) & (NSEventMaskKeyDown | NSEventMaskKeyUp))
     {
       event = CGEventCreateKeyboardEvent (NULL, [self keyCode],
-					  type == NSKeyDown);
+					  type == NSEventTypeKeyDown);
       CGEventSetIntegerValueField (event, kCGKeyboardEventAutorepeat,
 				   [self isARepeat]);
 #if __LP64__
@@ -603,7 +616,7 @@ get_srgb_color_space (void)
 
 - (void)postDummyEvent
 {
-  NSEvent *event = [NSEvent otherEventWithType:NSApplicationDefined
+  NSEvent *event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined
 			    location:NSZeroPoint modifierFlags:0
 			    timestamp:0 windowNumber:0 context:nil
 			    subtype:0 data1:0 data2:0];
@@ -612,7 +625,7 @@ get_srgb_color_space (void)
 }
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-- (void)stopAfterCallingBlock:(void (^)(void))block
+- (void)stopAfterCallingBlock:(void (NS_NOESCAPE ^)(void))block
 {
   block ();
   [self stop:nil];
@@ -1175,7 +1188,7 @@ can_auto_hide_menu_bar_without_hiding_dock (void)
 
 #if MAC_USE_AUTORELEASE_LOOP
 void
-mac_autorelease_loop (Lisp_Object (^body) (void))
+mac_autorelease_loop (Lisp_Object (CF_NOESCAPE ^body) (void))
 {
   Lisp_Object val;
 
@@ -1364,7 +1377,8 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 static int
-mac_foreach_window_1 (struct window *w, int (^block) (struct window *))
+mac_foreach_window_1 (struct window *w,
+		      int (CF_NOESCAPE ^block) (struct window *))
 {
   int cont;
 
@@ -1385,7 +1399,7 @@ mac_foreach_window_1 (struct window *w, int (^block) (struct window *))
    USER_DATA.  Stops when BLOCK returns 0.  */
 
 static void
-mac_foreach_window (struct frame *f, int (^block) (struct window *))
+mac_foreach_window (struct frame *f, int (CF_NOESCAPE ^block) (struct window *))
 {
   /* delete_frame may set FRAME_ROOT_WINDOW (f) to Qnil.  */
   if (WINDOWP (FRAME_ROOT_WINDOW (f)))
@@ -1754,10 +1768,16 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
 - (NSTimeInterval)minimumIntervalForReadSocket
 {
+  NSTimeInterval interval = READ_SOCKET_MIN_INTERVAL;
+
   if (MOUSE_TRACKING_SUSPENDED_P ())
-    return READ_SOCKET_MIN_INTERVAL * 6;
-  else
-    return READ_SOCKET_MIN_INTERVAL;
+    interval *= 6;
+  else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    /* A large interval value affects responsiveness on OS X
+       10.11.  */
+    interval *= .1;
+
+  return interval;
 }
 
 /* Handle the NSEvent EVENT.  */
@@ -1776,22 +1796,23 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
   switch ([event type])
     {
-    case NSKeyDown:
+    case NSEventTypeKeyDown:
       {
 	CGEventRef cgevent = [event coreGraphicsEvent];
-	NSUInteger flags = [event modifierFlags];
+	NSEventModifierFlags flags = [event modifierFlags];
 	unsigned short key_code = [event keyCode];
 
 	if (!(mac_cgevent_to_input_event (cgevent, NULL)
 	      & ~(mac_pass_command_to_system ? kCGEventFlagMaskCommand : 0)
 	      & ~(mac_pass_control_to_system ? kCGEventFlagMaskControl : 0))
-	    && ([NSApp keyWindow] || (flags & NSCommandKeyMask))
+	    && ([NSApp keyWindow] || (flags & NSEventModifierFlagCommand))
 	    /* Avoid activating context help mode with `help' key.  */
 	    && !([[[NSApp keyWindow] firstResponder]
 		   isMemberOfClass:[EmacsMainView class]]
 		 && key_code == 0x72 /* kVK_Help */
-		 && (flags & (NSControlKeyMask | NSAlternateKeyMask
-			      | NSCommandKeyMask)) == 0))
+		 && (flags & (NSEventModifierFlagControl
+			      | NSEventModifierFlagOption
+			      | NSEventModifierFlagCommand)) == 0))
 	  {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
 	    /* This is a workaround for the problem that Control-Tab
@@ -1872,13 +1893,14 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 	{
 	  NSEvent *leftMouseEvent =
 	    [NSApp
-	      nextEventMatchingMask:(NSLeftMouseDraggedMask|NSLeftMouseUpMask)
+	      nextEventMatchingMask:(NSEventMaskLeftMouseDragged
+				     | NSEventMaskLeftMouseUp)
 			  untilDate:expiration
 			     inMode:NSDefaultRunLoopMode dequeue:NO];
 
 	  if (leftMouseEvent)
 	    {
-	      if ([leftMouseEvent type] == NSLeftMouseDragged)
+	      if ([leftMouseEvent type] == NSEventTypeLeftMouseDragged)
 		MOUSE_TRACKING_RESUME ();
 	      MOUSE_TRACKING_RESET ();
 	    }
@@ -1910,7 +1932,7 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
 	  mask = ((!MOUSE_TRACKING_SUSPENDED_P ()
 		   && dpyinfo->saved_menu_event == NULL)
-		  ? NSAnyEventMask : (NSAnyEventMask & ~ANY_MOUSE_EVENT_MASK));
+		  ? NSEventMaskAny : (NSEventMaskAny & ~ANY_MOUSE_EVENT_MASK));
 	  event = [NSApp nextEventMatchingMask:mask untilDate:expiration
 			 inMode:NSDefaultRunLoopMode dequeue:YES];
 
@@ -2087,43 +2109,50 @@ emacs_windows_need_display_p (void)
 
 - (void)flushWindow:(NSWindow *)window force:(BOOL)flag
 {
-  NSTimeInterval timeInterval;
-
-  if (deferredFlushWindows == nil)
-    deferredFlushWindows = [[NSMutableSet alloc] initWithCapacity:0];
-  if (window)
-    [deferredFlushWindows addObject:window];
-
-  if (!flag && lastFlushDate
-      && (timeInterval = - [lastFlushDate timeIntervalSinceNow],
-	  timeInterval < FLUSH_WINDOW_MIN_INTERVAL))
-    {
-      if (![flushTimer isValid])
-	{
-	  MRC_RELEASE (flushTimer);
-	  timeInterval = FLUSH_WINDOW_MIN_INTERVAL - timeInterval;
-	  flushTimer =
-	    MRC_RETAIN ([NSTimer scheduledTimerWithTimeInterval:timeInterval
-							 target:self
-						       selector:@selector(processDeferredFlushWindow:)
-						       userInfo:nil
-							repeats:NO]);
-	}
-    }
+  /* Deferring flush seems to be unnecessary and give a reverse effect
+     on OS X 10.11.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    [window flushWindow];
   else
     {
-      NSEnumeratorG (NSWindow *) *enumerator =
-	[deferredFlushWindows objectEnumerator];
+      NSTimeInterval timeInterval;
 
-      MRC_RELEASE (lastFlushDate);
-      lastFlushDate = [[NSDate alloc] init];
-      [flushTimer invalidate];
-      MRC_RELEASE (flushTimer);
-      flushTimer = nil;
+      if (deferredFlushWindows == nil)
+	deferredFlushWindows = [[NSMutableSet alloc] initWithCapacity:0];
+      if (window)
+	[deferredFlushWindows addObject:window];
 
-      while ((window = [enumerator nextObject]) != nil)
-	[window flushWindow];
-      [deferredFlushWindows removeAllObjects];
+      if (!flag && lastFlushDate
+	  && (timeInterval = - [lastFlushDate timeIntervalSinceNow],
+	      timeInterval < FLUSH_WINDOW_MIN_INTERVAL))
+	{
+	  if (![flushTimer isValid])
+	    {
+	      MRC_RELEASE (flushTimer);
+	      timeInterval = FLUSH_WINDOW_MIN_INTERVAL - timeInterval;
+	      flushTimer =
+		MRC_RETAIN ([NSTimer scheduledTimerWithTimeInterval:timeInterval
+							     target:self
+							   selector:@selector(processDeferredFlushWindow:)
+							   userInfo:nil
+							    repeats:NO]);
+	    }
+	}
+      else
+	{
+	  NSEnumeratorG (NSWindow *) *enumerator =
+	    [deferredFlushWindows objectEnumerator];
+
+	  MRC_RELEASE (lastFlushDate);
+	  lastFlushDate = [[NSDate alloc] init];
+	  [flushTimer invalidate];
+	  MRC_RELEASE (flushTimer);
+	  flushTimer = nil;
+
+	  while ((window = [enumerator nextObject]) != nil)
+	    [window flushWindow];
+	  [deferredFlushWindows removeAllObjects];
+	}
     }
 }
 
@@ -2379,7 +2408,7 @@ static CGRect unset_global_focus_view_frame (void);
 @implementation EmacsWindow
 
 - (instancetype)initWithContentRect:(NSRect)contentRect
-			  styleMask:(NSUInteger)windowStyle
+			  styleMask:(NSWindowStyleMask)windowStyle
 			    backing:(NSBackingStoreType)bufferingType
 			      defer:(BOOL)deferCreation
 {
@@ -2429,8 +2458,9 @@ static CGRect unset_global_focus_view_frame (void);
 	    <= resizeTrackingStartWindowSize.height))
 	locationInWindow.y -= adjustment.y;
     }
-  mouseUpEvent = MRC_RETAIN ([event mouseEventByChangingType:NSLeftMouseUp
-						 andLocation:locationInWindow]);
+  mouseUpEvent = MRC_RETAIN ([event
+			       mouseEventByChangingType:NSEventTypeLeftMouseUp
+					    andLocation:locationInWindow]);
   [NSApp postEvent:mouseUpEvent atStart:YES];
   MOUSE_TRACKING_SET_RESUMPTION (emacsController, self, resumeResizeTracking);
 }
@@ -2492,13 +2522,14 @@ static CGRect unset_global_focus_view_frame (void);
 	}
 
       hysteresisCancelDragEvent =
-	[mouseUpEvent mouseEventByChangingType:NSLeftMouseDragged
+	[mouseUpEvent mouseEventByChangingType:NSEventTypeLeftMouseDragged
 				   andLocation:hysteresisCancelLocation];
       [NSApp postEvent:hysteresisCancelDragEvent atStart:YES];
     }
 
-  mouseDownEvent = [mouseUpEvent mouseEventByChangingType:NSLeftMouseDown
-					      andLocation:location];
+  mouseDownEvent = [mouseUpEvent
+		     mouseEventByChangingType:NSEventTypeLeftMouseDown
+				  andLocation:location];
   MRC_RELEASE (mouseUpEvent);
   mouseUpEvent = nil;
   [NSApp postEvent:mouseDownEvent atStart:YES];
@@ -2506,7 +2537,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)sendEvent:(NSEvent *)event
 {
-  if ([event type] == NSLeftMouseDown
+  if ([event type] == NSEventTypeLeftMouseDown
       && [event eventNumber] != resizeTrackingEventNumber)
     [self setupResizeTracking:event];
 
@@ -2687,7 +2718,7 @@ static CGRect unset_global_focus_view_frame (void);
     return;
 
   window = [[NSWindow alloc] initWithContentRect:contentRect
-				       styleMask:NSBorderlessWindowMask
+				       styleMask:NSWindowStyleMaskBorderless
 					 backing:NSBackingStoreBuffered
 					   defer:YES];
   [window setBackgroundColor:[NSColor clearColor]];
@@ -2733,7 +2764,7 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsWindow *oldWindow = emacsWindow;
   Class windowClass;
   NSRect contentRect;
-  NSUInteger windowStyle;
+  NSWindowStyleMask windowStyle;
   EmacsWindow *window;
   id visualEffectView;
 
@@ -2742,19 +2773,20 @@ static CGRect unset_global_focus_view_frame (void);
       if (windowManagerState & WM_STATE_FULLSCREEN)
 	{
 	  windowClass = [EmacsFullscreenWindow class];
-	  windowStyle = NSBorderlessWindowMask;
+	  windowStyle = NSWindowStyleMaskBorderless;
 	}
       else
 	{
 	  windowClass = [EmacsWindow class];
-	  windowStyle = (NSTitledWindowMask | NSClosableWindowMask
-			 | NSMiniaturizableWindowMask | NSResizableWindowMask);
+	  windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+			 | NSWindowStyleMaskMiniaturizable
+			 | NSWindowStyleMaskResizable);
 	}
     }
   else
     {
       windowClass = [EmacsWindow class];
-      windowStyle = NSBorderlessWindowMask;
+      windowStyle = NSWindowStyleMaskBorderless;
     }
 
   if (oldWindow == nil)
@@ -2861,8 +2893,7 @@ static CGRect unset_global_focus_view_frame (void);
       [window setAutodisplay:NO];
       [window setHasShadow:YES];
       [window setLevel:NSScreenSaverWindowLevel];
-      if ([window respondsToSelector:@selector(setIgnoresMouseEvents:)])
-	[window setIgnoresMouseEvents:YES];
+      [window setIgnoresMouseEvents:YES];
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:NSWindowAnimationBehaviorNone];
     }
@@ -2947,7 +2978,7 @@ static CGRect unset_global_focus_view_frame (void);
 	{
 	  NSEvent *currentEvent = [NSApp currentEvent];
 
-	  if ([currentEvent type] == NSLeftMouseUp)
+	  if ([currentEvent type] == NSEventTypeLeftMouseUp)
 	    {
 	      /* Probably end of title bar dragging.  */
 	      NSWindow *eventWindow = [currentEvent window];
@@ -3129,7 +3160,7 @@ static CGRect unset_global_focus_view_frame (void);
       else if (newState & WM_STATE_DEDICATED_DESKTOP)
 	{
 #if 1
-	  /* We once used windows with NSFullScreenWindowMask for
+	  /* We once used windows with NSWindowStyleMaskFullScreen for
 	     fullboth frames instead of window class replacement, but
 	     the use of such windows on non-dedicated Space seems to
 	     lead to several glitches.  So we have to replace the
@@ -3147,8 +3178,8 @@ static CGRect unset_global_focus_view_frame (void);
 	  /* Direct transition fullscreen -> fullboth is not trivial
 	     even if we use -[NSWindow setStyleMask:], which is
 	     available from 10.6, instead of window class replacement,
-	     because AppKit strips off NSFullScreenWindowMask after
-	     exiting from the full screen mode.  We make such a
+	     because AppKit strips off NSWindowStyleMaskFullScreen
+	     after exiting from the full screen mode.  We make such a
 	     transition via maximized state, i.e, fullscreen ->
 	     maximized -> fullboth.  */
 	  fullScreenTargetState = ((newState & ~WM_STATE_FULLSCREEN)
@@ -3198,12 +3229,13 @@ static CGRect unset_global_focus_view_frame (void);
 	    }
 	  else
 	    {
-	      /* Changing NSFullScreenWindowMask does not preserve the
-		 toolbar visibility value on Mac OS X 10.7.  */
+	      /* Changing NSWindowStyleMaskFullScreen does not
+		 preserve the toolbar visibility value on Mac OS X
+		 10.7.  */
 	      BOOL isToolbarVisible = [[emacsWindow toolbar] isVisible];
 
 	      [emacsWindow setStyleMask:([emacsWindow styleMask]
-					 ^ NSFullScreenWindowMask)];
+					 ^ NSWindowStyleMaskFullScreen)];
 	      [emacsWindow setHasShadow:(!(newState & WM_STATE_FULLSCREEN))];
 	      [[emacsWindow toolbar] setVisible:isToolbarVisible];
 	      if ([emacsWindow isKeyWindow])
@@ -3232,12 +3264,12 @@ static CGRect unset_global_focus_view_frame (void);
 #if 0
       else
 	{
-	  NSUInteger styleMask = [emacsWindow styleMask];
+	  NSWindowStyleMask styleMask = [emacsWindow styleMask];
 
 	  if (showsResizeIndicator)
-	    styleMask |= NSResizableWindowMask;
+	    styleMask |= NSWindowStyleMaskResizable;
 	  else
-	    styleMask &= ~NSResizableWindowMask;
+	    styleMask &= ~NSWindowStyleMaskResizable;
 	  [emacsWindow setStyleMask:styleMask];
 	}
 #endif
@@ -3543,7 +3575,7 @@ static CGRect unset_global_focus_view_frame (void);
 {
   EmacsWindow *window = (EmacsWindow *) sender;
   NSEvent *currentEvent = [NSApp currentEvent];
-  BOOL leftMouseDragged = ([currentEvent type] == NSLeftMouseDragged);
+  BOOL leftMouseDragged = ([currentEvent type] == NSEventTypeLeftMouseDragged);
   NSSize result;
 
   if (windowManagerState & WM_STATE_FULLSCREEN)
@@ -3569,7 +3601,7 @@ static CGRect unset_global_focus_view_frame (void);
   if (leftMouseDragged
       && (has_resize_indicator_at_bottom_right_p ()
 	  || !([currentEvent modifierFlags]
-	       & (NSShiftKeyMask | NSAlternateKeyMask))))
+	       & (NSEventModifierFlagShift | NSEventModifierFlagOption))))
     {
       NSRect frameRect = [window frame];
       NSPoint adjustment = NSMakePoint (result.width - NSWidth (frameRect),
@@ -4177,7 +4209,8 @@ static CGRect unset_global_focus_view_frame (void);
   startCustomAnimationToEnterFullScreenWithDuration:(NSTimeInterval)duration
 {
   CGFloat previousAlphaValue = [window alphaValue];
-  NSUInteger previousAutoresizingMask = [emacsView autoresizingMask];
+  NSAutoresizingMaskOptions previousAutoresizingMask = [emacsView
+							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
   EmacsLiveResizeTransitionView *transitionView;
@@ -4191,7 +4224,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   NSDisableScreenUpdates ();
 
-  [window setStyleMask:([window styleMask] | NSFullScreenWindowMask)];
+  [window setStyleMask:([window styleMask] | NSWindowStyleMaskFullScreen)];
 
   destRect = [self postprocessWindowManagerStateChange:destRect];
   /* The line below used to be [window setFrame:destRect display:NO],
@@ -4201,15 +4234,15 @@ static CGRect unset_global_focus_view_frame (void);
 
   [emacsView setAutoresizingMask:(NSViewMaxXMargin | NSViewMinYMargin)];
   [(EmacsWindow *)window setConstrainingToScreenSuspended:YES];
-  /* We no longer set NSFullScreenWindowMask until the transition
+  /* We no longer set NSWindowStyleMaskFullScreen until the transition
      animation completes because OS X 10.10 places such a window at
      the center of screen and also makes calls to
      -window:willUseFullScreenContentSize: or
      -windowWillUseStandardFrame:defaultFrame:.  For the same reason,
      we shorten the given animation duration below a bit so as to
-     avoid adding NSFullScreenWindowMask before the completion of the
-     transition animation.  */
-  [window setStyleMask:([window styleMask] & ~NSFullScreenWindowMask)];
+     avoid adding NSWindowStyleMaskFullScreen before the completion of
+     the transition animation.  */
+  [window setStyleMask:([window styleMask] & ~NSWindowStyleMaskFullScreen)];
   [window setFrame:srcRect display:NO];
 
   [contentView addSubview:transitionView positioned:NSWindowAbove
@@ -4240,7 +4273,7 @@ static CGRect unset_global_focus_view_frame (void);
       [transitionView removeFromSuperview];
       [window setAlphaValue:previousAlphaValue];
       [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];
-      [window setStyleMask:([window styleMask] | NSFullScreenWindowMask)];
+      [window setStyleMask:([window styleMask] | NSWindowStyleMaskFullScreen)];
       [window setFrame:destRect display:NO];
       [emacsView setAutoresizingMask:previousAutoresizingMask];
       /* Mac OS X 10.7 needs this.  */
@@ -4258,7 +4291,8 @@ static CGRect unset_global_focus_view_frame (void);
 {
   CGFloat previousAlphaValue = [window alphaValue];
   NSInteger previousWindowLevel = [window level];
-  NSUInteger previousAutoresizingMask = [emacsView autoresizingMask];
+  NSAutoresizingMaskOptions previousAutoresizingMask = [emacsView
+							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
   EmacsLiveResizeTransitionView *transitionView;
@@ -4270,7 +4304,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   NSDisableScreenUpdates ();
 
-  [window setStyleMask:([window styleMask] & ~NSFullScreenWindowMask)];
+  [window setStyleMask:([window styleMask] & ~NSWindowStyleMaskFullScreen)];
 
   destRect = [self postprocessWindowManagerStateChange:destRect];
   [window setFrame:destRect display:NO];
@@ -5224,7 +5258,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
   switch (type)
     {
-    case NSScrollWheel:
+    case NSEventTypeScrollWheel:
       if ([theEvent respondsToSelector:@selector(hasPreciseScrollingDeltas)]
 	  && [theEvent hasPreciseScrollingDeltas])
 	{
@@ -5319,7 +5353,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
      than scrolling) on trackpads produces NSEventPhaseMayBegin (and
      NSEventPhaseCancelled, resp.) on OS X 10.8.  We ignore them for
      now because they interfere with `mouse--strip-first-event'.  */
-  if (type == NSScrollWheel
+  if (type == NSEventTypeScrollWheel
       && (EQ (phase, make_number (NSEventPhaseMayBegin))
 	  || EQ (phase, make_number (NSEventPhaseCancelled))))
     return;
@@ -5330,10 +5364,10 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     return;
 
   EVENT_INIT (inputEvent);
-  if (type == NSScrollWheel || type == NSEventTypeSwipe)
+  if (type == NSEventTypeScrollWheel || type == NSEventTypeSwipe)
     {
       inputEvent.arg = list1 (isDirectionInvertedFromDevice ? Qt : Qnil);
-      if (type == NSScrollWheel)
+      if (type == NSEventTypeScrollWheel)
 	{
 	  inputEvent.arg = nconc2 (inputEvent.arg,
 				   list1 (list3 (make_float (deltaX),
@@ -5370,7 +5404,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 	: (deltaY > 0 || scrollingDeltaY > 0 ? up_modifier
 	   : (deltaX < 0 || scrollingDeltaX < 0 ? down_modifier
 	      : up_modifier)))
-     | (type == NSScrollWheel ? 0
+     | (type == NSEventTypeScrollWheel ? 0
 	: (type == NSEventTypeSwipe ? drag_modifier : click_modifier)));
   XSETINT (inputEvent.x, point.x);
   XSETINT (inputEvent.y, point.y);
@@ -5534,7 +5568,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 	return;
     }
 
-  if ([theEvent type] == NSKeyUp)
+  if ([theEvent type] == NSEventTypeKeyUp)
     return;
 
   EVENT_INIT (inputEvent);
@@ -5600,7 +5634,7 @@ get_text_input_script_language (ScriptLanguageRecord *slrec)
       unichar character;
 
       if (rawKeyEventHasMappedFlags
-	  || [rawKeyEvent type] == NSKeyUp
+	  || [rawKeyEvent type] == NSEventTypeKeyUp
 	  || ([aString isKindOfClass:[NSString class]]
 	      && [aString isEqualToString:[rawKeyEvent characters]]
 	      && [(NSString *)aString length] == 1
@@ -6382,8 +6416,8 @@ create_resize_indicator_image (void)
 		0, RESIZE_CONTROL_WIDTH, RESIZE_CONTROL_HEIGHT);
   NSWindow *window =
     [[NSWindow alloc] initWithContentRect:contentRect
-				styleMask:(NSTitledWindowMask
-					   | NSResizableWindowMask)
+				styleMask:(NSWindowStyleMaskTitled
+					   | NSWindowStyleMaskResizable)
 				  backing:NSBackingStoreBuffered
 				    defer:NO];
   NSView *frameView = [[window contentView] superview];
@@ -6431,7 +6465,8 @@ create_resize_indicator_image (void)
       [resizeIndicatorImage
 	drawAtPoint:(NSMakePoint (NSWidth ([self bounds])
 				  - [resizeIndicatorImage size].width, 0))
-	   fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
+	   fromRect:NSZeroRect operation:NSCompositingOperationSourceOver
+	   fraction:1.0];
     }
 }
 
@@ -6803,7 +6838,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   else
     flags = CGEventSourceFlagsState (kCGEventSourceStateCombinedSessionState);
 
-  event = [NSEvent mouseEventWithType:NSLeftMouseDragged
+  event = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDragged
 			     location:[[self window]
 					mouseLocationOutsideOfEventStream]
 			modifierFlags:flags timestamp:0
@@ -6847,7 +6882,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   else
     {
       jumpsToClickedSpot = [self pagingBehavior];
-      if ([theEvent modifierFlags] & NSAlternateKeyMask)
+      if ([theEvent modifierFlags] & NSEventModifierFlagOption)
 	jumpsToClickedSpot = !jumpsToClickedSpot;
     }
 
@@ -7034,7 +7069,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 #endif
   CGFloat knobProportion = [self knobProportion];
   const NSControlSize controlSizes[] =
-    {NSRegularControlSize, NSSmallControlSize}; /* Descending */
+    {NSControlSizeRegular, NSControlSizeSmall}; /* Descending */
   int i, count = sizeof (controlSizes) / sizeof (controlSizes[0]);
   NSRect knobRect, bounds = [self bounds];
   CGFloat shorterDimension = min (NSWidth (bounds), NSHeight (bounds));
@@ -7273,14 +7308,17 @@ static BOOL NonmodalScrollerPagingBehavior;
 @implementation EmacsMainView (ScrollBar)
 
 static int
-scroller_part_to_scroll_bar_part (NSScrollerPart part, NSUInteger flags)
+scroller_part_to_scroll_bar_part (NSScrollerPart part,
+				  NSEventModifierFlags flags)
 {
   switch (part)
     {
-    case NSScrollerDecrementLine:	return ((flags & NSAlternateKeyMask)
+    case NSScrollerDecrementLine:	return ((flags
+						 & NSEventModifierFlagOption)
 						? scroll_bar_above_handle
 						: scroll_bar_up_arrow);
-    case NSScrollerIncrementLine:	return ((flags & NSAlternateKeyMask)
+    case NSScrollerIncrementLine:	return ((flags
+						 & NSEventModifierFlagOption)
 						? scroll_bar_below_handle
 						: scroll_bar_down_arrow);
     case NSScrollerDecrementPage:	return scroll_bar_above_handle;
@@ -7467,7 +7505,7 @@ x_set_toolkit_scroll_bar_thumb (struct scroll_bar *bar, int portion,
 int
 mac_get_default_scroll_bar_width (struct frame *f)
 {
-  return [EmacsScroller scrollerWidthForControlSize:NSRegularControlSize
+  return [EmacsScroller scrollerWidthForControlSize:NSControlSizeRegular
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
 				      scrollerStyle:NSScrollerStyleLegacy
 #endif
@@ -7669,7 +7707,7 @@ mac_get_default_scroll_bar_width (struct frame *f)
   NSView *hitView;
 
   /* Return if mouse dragged.  */
-  if ([event type] != NSMouseMoved)
+  if ([event type] != NSEventTypeMouseMoved)
     return;
 
   if (!VECTORP (f->tool_bar_items))
@@ -7970,7 +8008,7 @@ free_frame_tool_bar (struct frame *f)
 - (void)suspendSliderTracking:(NSEvent *)event
 {
   mouseUpEvent =
-    MRC_RETAIN ([event mouseEventByChangingType:NSLeftMouseUp
+    MRC_RETAIN ([event mouseEventByChangingType:NSEventTypeLeftMouseUp
 				    andLocation:[event locationInWindow]]);
   [NSApp postEvent:mouseUpEvent atStart:YES];
   MOUSE_TRACKING_SET_RESUMPTION (emacsController, self, resumeSliderTracking);
@@ -7993,8 +8031,9 @@ free_frame_tool_bar (struct frame *f)
   else if (location.y > NSMaxY (trackRect))
     location.y = NSMaxY (trackRect);
 
-  mouseDownEvent = [mouseUpEvent mouseEventByChangingType:NSLeftMouseDown
-				 andLocation:location];
+  mouseDownEvent = [mouseUpEvent
+		     mouseEventByChangingType:NSEventTypeLeftMouseDown
+				  andLocation:location];
   MRC_RELEASE (mouseUpEvent);
   mouseUpEvent = nil;
   [NSApp postEvent:mouseDownEvent atStart:YES];
@@ -8002,7 +8041,7 @@ free_frame_tool_bar (struct frame *f)
 
 - (void)sendEvent:(NSEvent *)event
 {
-  if ([event type] == NSLeftMouseDown)
+  if ([event type] == NSEventTypeLeftMouseDown)
     {
       NSView *contentView = [self contentView], *hitView;
 
@@ -8078,7 +8117,7 @@ free_frame_tool_bar (struct frame *f)
     return;
 
   currentEvent = [NSApp currentEvent];
-  if ([currentEvent type] == NSLeftMouseDragged)
+  if ([currentEvent type] == NSEventTypeLeftMouseDragged)
     [fontPanel suspendSliderTracking:currentEvent];
 
   oldFont = [self fontForFace:DEFAULT_FACE_ID character:0 position:-1
@@ -9202,10 +9241,10 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	}
       else
 	{
-	  if ([theEvent type] == NSKeyDown
+	  if ([theEvent type] == NSEventTypeKeyDown
 	      && (([theEvent modifierFlags]
 		   & 0xffff0000UL) /* NSDeviceIndependentModifierFlagsMask */
-		  == ((1UL << 31) | NSCommandKeyMask))
+		  == ((1UL << 31) | NSEventModifierFlagCommand))
 	      && [[theEvent charactersIgnoringModifiers] isEqualToString:@"c"])
 	    {
 	      /* Probably Command-C from "Speak selected text."  */
@@ -9229,13 +9268,13 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	  return YES;
 	}
     }
-  else if ([theEvent type] == NSKeyDown)
+  else if ([theEvent type] == NSEventTypeKeyDown)
     {
-      NSUInteger flags = [theEvent modifierFlags];
+      NSEventModifierFlags flags = [theEvent modifierFlags];
 
       flags &= ANY_KEY_MODIFIER_FLAGS_MASK;
 
-      if (flags == NSCommandKeyMask)
+      if (flags == NSEventModifierFlagCommand)
 	{
 	  NSString *characters = [theEvent charactersIgnoringModifiers];
 	  SEL action = NULL;
@@ -9343,7 +9382,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 
       while (1)
 	{
-	  NSEvent *event = [NSApp nextEventMatchingMask:NSAnyEventMask
+	  NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny
 				  untilDate:expiration
 				  inMode:NSDefaultRunLoopMode dequeue:YES];
 	  NSDate *limitDate;
@@ -9520,7 +9559,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
   else
     {
       NSEvent *event =
-	[NSEvent mouseEventWithType:NSLeftMouseDown
+	[NSEvent mouseEventWithType:NSEventTypeLeftMouseDown
 			   location:[emacsView convertPoint:location toView:nil]
 		      modifierFlags:0 timestamp:0
 		       windowNumber:[[emacsView window] windowNumber]
@@ -9598,7 +9637,8 @@ init_menu_bar (void)
 	     action:@selector(hide:) keyEquivalent:@"h"];
   [[appleMenu addItemWithTitle:@"Hide Others"
 	      action:@selector(hideOtherApplications:) keyEquivalent:@"h"]
-    setKeyEquivalentModifierMask:(NSAlternateKeyMask | NSCommandKeyMask)];
+    setKeyEquivalentModifierMask:(NSEventModifierFlagOption
+				  | NSEventModifierFlagCommand)];
   [appleMenu addItemWithTitle:@"Show All"
 	     action:@selector(unhideAllApplications:) keyEquivalent:@""];
   [appleMenu addItem:[NSMenuItem separatorItem]];
@@ -9997,7 +10037,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 {
   BOOL quit = NO;
 
-  if ([theEvent type] == NSKeyDown)
+  if ([theEvent type] == NSEventTypeKeyDown)
     {
       NSString *characters = [theEvent characters];
 
@@ -10050,7 +10090,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
     CF_BRIDGING_RETAIN (MRC_AUTORELEASE
 			([[NSPanel alloc]
 			   initWithContentRect:[dialogView frame]
-				     styleMask:NSTitledWindowMask
+				     styleMask:NSWindowStyleMaskTitled
 				       backing:NSBackingStoreBuffered
 					 defer:YES]));
   NSPanel * __unsafe_unretained panel = (__bridge NSPanel *) cfpanel;
@@ -11005,7 +11045,7 @@ handle_action_invocation (NSInvocation *invocation)
   Lisp_Object name_symbol =
     intern (SSDATA ([[name substringToIndex:([name length] - 1)]
 		      UTF8LispString]));
-  NSUInteger flags = [[NSApp currentEvent] modifierFlags];
+  CGEventFlags flags = (CGEventFlags) [[NSApp currentEvent] modifierFlags];
   UInt32 modifiers = mac_cgevent_flags_to_modifiers (flags);
 
   arg = Fcons (Fcons (build_string ("kmod"), /* kEventParamKeyModifiers */
