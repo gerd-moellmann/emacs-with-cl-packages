@@ -1504,40 +1504,47 @@ emacs_windows_need_display_p (void)
 
 - (void)flushWindow:(NSWindow *)window force:(BOOL)flag
 {
-  NSTimeInterval timeInterval;
-
-  if (deferredFlushWindows == nil)
-    deferredFlushWindows = [[NSMutableSet alloc] initWithCapacity:0];
-  if (window)
-    [deferredFlushWindows addObject:window];
-
-  if (!flag && lastFlushDate
-      && (timeInterval = - [lastFlushDate timeIntervalSinceNow],
-	  timeInterval < FLUSH_WINDOW_MIN_INTERVAL))
-    {
-      if (![flushTimer isValid])
-	{
-	  MRC_RELEASE (flushTimer);
-	  timeInterval = FLUSH_WINDOW_MIN_INTERVAL - timeInterval;
-	  flushTimer =
-	    MRC_RETAIN ([NSTimer scheduledTimerWithTimeInterval:timeInterval
-							 target:self
-						       selector:@selector(processDeferredFlushWindow:)
-						       userInfo:nil
-							repeats:NO]);
-	}
-    }
+  /* Deferring flush seems to be unnecessary and give a reverse effect
+     on OS X 10.11.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    [window flushWindow];
   else
     {
-      MRC_RELEASE (lastFlushDate);
-      lastFlushDate = [[NSDate alloc] init];
-      [flushTimer invalidate];
-      MRC_RELEASE (flushTimer);
-      flushTimer = nil;
+      NSTimeInterval timeInterval;
 
-      for (NSWindow *window in deferredFlushWindows)
-	[window flushWindow];
-      [deferredFlushWindows removeAllObjects];
+      if (deferredFlushWindows == nil)
+	deferredFlushWindows = [[NSMutableSet alloc] initWithCapacity:0];
+      if (window)
+	[deferredFlushWindows addObject:window];
+
+      if (!flag && lastFlushDate
+	  && (timeInterval = - [lastFlushDate timeIntervalSinceNow],
+	      timeInterval < FLUSH_WINDOW_MIN_INTERVAL))
+	{
+	  if (![flushTimer isValid])
+	    {
+	      MRC_RELEASE (flushTimer);
+	      timeInterval = FLUSH_WINDOW_MIN_INTERVAL - timeInterval;
+	      flushTimer =
+		MRC_RETAIN ([NSTimer scheduledTimerWithTimeInterval:timeInterval
+							     target:self
+							   selector:@selector(processDeferredFlushWindow:)
+							   userInfo:nil
+							    repeats:NO]);
+	    }
+	}
+      else
+	{
+	  MRC_RELEASE (lastFlushDate);
+	  lastFlushDate = [[NSDate alloc] init];
+	  [flushTimer invalidate];
+	  MRC_RELEASE (flushTimer);
+	  flushTimer = nil;
+
+	  for (NSWindow *window in deferredFlushWindows)
+	    [window flushWindow];
+	  [deferredFlushWindows removeAllObjects];
+	}
     }
 }
 
