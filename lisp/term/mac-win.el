@@ -481,12 +481,6 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	 [,regexp-modified 1 mac-compose-gstring-for-variation-with-trailer 0]
 	 [,regexp-all 1 mac-compose-gstring-for-emoji-style-variation 0])))
     ;; Emoji Modifiers
-    (if (eq (get-char-code-property #x1F3FB 'general-category) 'Cn)
-	;; Change general category of the emoji modifiers for skin
-	;; tones (U+1F3FB - U+1F3FF) in accordance with Unicode 8.0 so
-	;; cursor movement works right.
-	(dotimes (i (1+ (- #x1F3FF #x1F3FB)))
-	  (put-char-code-property (+ #x1F3FB i) 'general-category 'Sk)))
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
      `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
