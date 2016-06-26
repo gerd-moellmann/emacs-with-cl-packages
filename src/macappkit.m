@@ -1210,10 +1210,16 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
 - (NSTimeInterval)minimumIntervalForReadSocket
 {
+  NSTimeInterval interval = READ_SOCKET_MIN_INTERVAL;
+
   if (MOUSE_TRACKING_SUSPENDED_P ())
-    return READ_SOCKET_MIN_INTERVAL * 6;
-  else
-    return READ_SOCKET_MIN_INTERVAL;
+    interval *= 6;
+  else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+    /* A large interval value affects responsiveness on OS X
+       10.11.  */
+    interval *= .1;
+
+  return interval;
 }
 
 /* Handle the NSEvent EVENT.  */
