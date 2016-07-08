@@ -44,6 +44,9 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifndef NSAppKitVersionNumber10_10_Max
 #define NSAppKitVersionNumber10_10_Max 1349
 #endif
+#ifndef NSAppKitVersionNumber10_11
+#define NSAppKitVersionNumber10_11 1404
+#endif
 
 #ifndef USE_ARC
 #if defined (__clang__) && __has_feature (objc_arc)

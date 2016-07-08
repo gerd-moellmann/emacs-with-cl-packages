@@ -2935,6 +2935,7 @@ static CGRect unset_global_focus_view_frame (void);
     }
 
   if (leftMouseDragged
+      && floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11
       && (has_resize_indicator_at_bottom_right_p ()
 	  || !([currentEvent modifierFlags]
 	       & (NSEventModifierFlagShift | NSEventModifierFlagOption))))
