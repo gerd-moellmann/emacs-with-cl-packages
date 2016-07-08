@@ -2897,6 +2897,8 @@ static CGRect unset_global_focus_view_frame (void);
       MRC_RELEASE (overlayWindow);
       overlayWindow = nil;
     }
+  [emacsView removeFromSuperview];
+  [emacsWindow setDelegate:nil];
 }
 
 - (void)windowWillMove:(NSNotification *)notification
