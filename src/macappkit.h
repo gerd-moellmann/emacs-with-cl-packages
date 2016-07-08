@@ -994,6 +994,12 @@ enum {
 };
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+@interface PDFPage (AvailableOn101200AndLater)
+- (void) drawWithBox: (PDFDisplayBox) box toContext:(CGContextRef)context;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
 typedef NSInteger NSGlyphProperty;
 

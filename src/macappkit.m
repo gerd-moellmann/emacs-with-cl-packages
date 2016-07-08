@@ -11368,23 +11368,39 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   PDFPage *page = [self pageAtIndex:index];
   NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
   int rotation = [page rotation];
-  NSAffineTransform *transform = [NSAffineTransform transform];
   CGFloat width, height;
-  NSGraphicsContext *gcontext;
 
   if (rotation == 0 || rotation == 180)
     width = ceil (NSWidth (bounds)), height = ceil (NSHeight (bounds));
   else
     width = ceil (NSHeight (bounds)), height = ceil (NSWidth (bounds));
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+  if ([page respondsToSelector:@selector(drawWithBox:toContext:)])
+#endif
+    {
+      CGContextSaveGState (ctx);
+      CGContextTranslateCTM (ctx, NSMinX (rect), NSMinY (rect));
+      CGContextScaleCTM (ctx, NSWidth (rect) / width, NSHeight (rect) / height);
+      [page drawWithBox:kPDFDisplayBoxTrimBox toContext:ctx];
+      CGContextRestoreGState (ctx);
+    }
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+  else
+    {
+      NSAffineTransform *transform = [NSAffineTransform transform];
+      NSGraphicsContext *gcontext =
+	[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
 
-  gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
-  [NSGraphicsContext saveGraphicsState];
-  [NSGraphicsContext setCurrentContext:gcontext];
-  [transform translateXBy:(NSMinX (rect)) yBy:(NSMinY (rect))];
-  [transform scaleXBy:(NSWidth (rect) / width) yBy:(NSHeight (rect) / height)];
-  [transform concat];
-  [page drawWithBox:kPDFDisplayBoxTrimBox];
-  [NSGraphicsContext restoreGraphicsState];
+      [NSGraphicsContext saveGraphicsState];
+      [NSGraphicsContext setCurrentContext:gcontext];
+      [transform translateXBy:(NSMinX (rect)) yBy:(NSMinY (rect))];
+      [transform scaleXBy:(NSWidth (rect) / width)
+		      yBy:(NSHeight (rect) / height)];
+      [transform concat];
+      [page drawWithBox:kPDFDisplayBoxTrimBox];
+      [NSGraphicsContext restoreGraphicsState];
+    }
+#endif
 }
 
 @end				// EmacsPDFDocument
