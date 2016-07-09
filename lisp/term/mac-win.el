@@ -1783,6 +1783,11 @@ modifiers, it changes the global tool-bar visibility setting."
     (let ((frame (cdr (mac-ae-parameter ae 'frame))))
       (set-frame-parameter frame 'fullscreen nil))))
 
+(defun mac-handle-new-window-for-tab (event)
+  "Create a new frame for tab in response to EVENT."
+  (interactive "e")
+  (make-frame-command))
+
 (define-key mac-apple-event-map [action about] 'mac-handle-about)
 (define-key mac-apple-event-map [action copy] 'mac-handle-copy)
 (define-key mac-apple-event-map [action preferences] 'mac-handle-preferences)
@@ -1792,6 +1797,8 @@ modifiers, it changes the global tool-bar visibility setting."
  'mac-handle-change-toolbar-display-mode)
 (put 'change-toolbar-display-mode 'mac-action-key-paths '("tag"))
 (define-key mac-apple-event-map [action zoom] 'mac-handle-zoom)
+(define-key mac-apple-event-map [action newWindowForTab]
+  'mac-handle-new-window-for-tab)
 
 ;;; Spotlight for Help
 
