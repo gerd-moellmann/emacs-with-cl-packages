@@ -12374,7 +12374,7 @@ ax_get_rtf_for_range (EmacsMainView *emacsView, id parameter)
 
   return [attributedString
 	   RTFFromRange:(NSMakeRange (0, [attributedString length]))
-	   documentAttributes:nil];
+	   documentAttributes:[NSDictionary dictionary]];
 }
 
 static id
