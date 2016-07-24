@@ -224,7 +224,7 @@ Like in `substring', negative values are counted from the end.
 The strings are compared by the numeric values of their characters.
 For instance, STR1 is "less than" STR2 if its first differing
 character has a smaller numeric value.  If IGNORE-CASE is non-nil,
-characters are converted to lower-case before comparing them.  Unibyte
+characters are converted to upper-case before comparing them.  Unibyte
 strings are converted to multibyte for comparison.
 
 The value is t if the strings (or specified portions) match.
@@ -403,8 +403,7 @@ the codeset part of the locale cannot be \"UTF-8\" on MS-Windows.
 If your system does not support a locale environment, this function
 behaves like `string-equal'.
 
-Do NOT use this function to compare file names for equality, only
-for sorting them.  */)
+Do NOT use this function to compare file names for equality.  */)
   (Lisp_Object s1, Lisp_Object s2, Lisp_Object locale, Lisp_Object ignore_case)
 {
 #if defined __STDC_ISO_10646__ || defined WINDOWSNT

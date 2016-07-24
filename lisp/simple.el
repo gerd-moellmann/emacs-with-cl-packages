@@ -2845,18 +2845,6 @@ buffers that were changed during the last command.")
 
 If set to non-nil, this will effectively disable the timer.")
 
-(defvar-local undo-auto-disable-boundaries nil
-  "Disable the automatic addition of boundaries.
-
-If set to non-nil, `undo-boundary' will not be called
-automatically in a buffer either at the end of a command, or as a
-result of `undo-auto-current-boundary-timer'.
-
-When this is set to non-nil, it is important to ensure that
-`undo-boundary' is called frequently enough. Failure to do so
-will result in user-visible warnings that the situation is
-probably a bug.")
-
 (defvar undo-auto--this-command-amalgamating nil
   "Non-nil if `this-command' should be amalgamated.
 This variable is set to nil by `undo-auto--boundaries' and is set
@@ -2896,8 +2884,7 @@ REASON describes the reason that the boundary is being added; see
   (dolist (b undo-auto--undoably-changed-buffers)
           (when (buffer-live-p b)
             (with-current-buffer b
-              (unless undo-auto-disable-boundaries
-                (undo-auto--ensure-boundary cause)))))
+              (undo-auto--ensure-boundary cause))))
   (setq undo-auto--undoably-changed-buffers nil))
 
 (defun undo-auto--boundary-timer ()
@@ -2922,10 +2909,10 @@ default values.")
   "Add an `undo-boundary' in appropriate buffers."
   (undo-auto--boundaries
    (let ((amal undo-auto--this-command-amalgamating))
-     (setq undo-auto--this-command-amalgamating nil)
-     (if amal
-         'amalgamate
-       'command))))
+       (setq undo-auto--this-command-amalgamating nil)
+       (if amal
+           'amalgamate
+         'command))))
 
 (defun undo-auto-amalgamate ()
   "Amalgamate undo if necessary.
@@ -2959,9 +2946,17 @@ behavior."
                         (cdr buffer-undo-list))))))
         (setq undo-auto--last-boundary-cause 0)))))
 
+;; This function is called also from one place in fileio.c. We call
+;; this function, rather than undoable-change because it reduces the
+;; number of lisp functions we have to use fboundp for to avoid
+;; bootstrap issues.
+(defun undo-auto--undoable-change-no-timer ()
+  "Record `current-buffer' as changed."
+  (add-to-list 'undo-auto--undoably-changed-buffers (current-buffer)))
+
 (defun undo-auto--undoable-change ()
   "Called after every undoable buffer change."
-  (add-to-list 'undo-auto--undoably-changed-buffers (current-buffer))
+  (undo-auto--undoable-change-no-timer)
   (undo-auto--boundary-ensure-timer))
 ;; End auto-boundary section
 
