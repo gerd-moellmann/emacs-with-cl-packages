@@ -1,6 +1,6 @@
 ;;; gnus-mlspl.el --- a group params-based mail splitting mechanism
 
-;; Copyright (C) 1998-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2016 Free Software Foundation, Inc.
 
 ;; Author: Alexandre Oliva <oliva@lsd.ic.unicamp.br>
 ;; Keywords: news, mail
@@ -100,7 +100,7 @@ See `gnus-group-split-fancy' for more information.
   "Uses information from group parameters in order to split mail.
 It can be embedded into `nnmail-split-fancy' lists with the SPLIT
 
-\(: gnus-group-split-fancy GROUPS NO-CROSSPOST CATCH-ALL\)
+\(: gnus-group-split-fancy GROUPS NO-CROSSPOST CATCH-ALL)
 
 GROUPS may be a regular expression or a list of group names, that will
 be used to select candidate groups.  If it is omitted or nil, all
@@ -122,9 +122,9 @@ clauses will be generated.
 If CATCH-ALL is nil, no catch-all handling is performed, regardless of
 catch-all marks in group parameters.  Otherwise, if there is no
 selected group whose SPLIT-REGEXP matches the empty string, nor is
-there a selected group whose SPLIT-SPEC is 'catch-all, this fancy
+there a selected group whose SPLIT-SPEC is `catch-all', this fancy
 split (say, a group name) will be appended to the returned SPLIT list,
-as the last element of a '| SPLIT.
+as the last element of a `|' SPLIT.
 
 For example, given the following group parameters:
 
@@ -146,20 +146,27 @@ Calling (gnus-group-split-fancy nil nil \"mail.others\") returns:
       (any \"\\\\(foo@nowhere\\\\.gov\\\\|foo@localhost\\\\|foo-redist@home\\\\)\"
 	   - \"bugs-foo\" - \"rambling-foo\" \"mail.foo\"))
    \"mail.others\")"
-  (let* ((newsrc (cdr gnus-newsrc-alist))
-	 split)
-    (dolist (info newsrc)
-      (let ((group (gnus-info-group info))
-	    (params (gnus-info-params info)))
-	;; For all GROUPs that match the specified GROUPS
-	(when (or (not groups)
-		  (and (listp groups)
-		       (memq group groups))
-		  (and (stringp groups)
-		       (string-match groups group)))
-	  (let ((split-spec (assoc 'split-spec params)) group-clean)
-	    ;; Remove backend from group name
-	    (setq group-clean (string-match ":" group))
+  (let ((group-names (if (and (listp groups)
+                             (not (null groups)))
+			 groups
+		       (delete-dups
+			(delq nil
+			      (mapcar
+			       (lambda (info)
+				 (let ((group (gnus-info-group info)))
+				   (if (or (not groups)
+					   (and (stringp groups)
+						(string-match groups group)))
+				       group)))
+			       (append gnus-newsrc-alist gnus-parameters))))))
+       split)
+    (dolist (group group-names)
+      (let ((params (gnus-group-find-parameter group)))
+       ;; Skip groups without param (or nonexistent)
+       (when (not (null params))
+         (let ((split-spec (assoc 'split-spec params)) group-clean)
+           ;; Remove backend from group name
+           (setq group-clean (string-match ":" group))
 	    (setq group-clean
 		  (if group-clean
 		      (substring group (1+ group-clean))

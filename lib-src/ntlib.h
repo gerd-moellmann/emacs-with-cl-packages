@@ -1,12 +1,12 @@
 /* Utility and Unix shadow routines for GNU Emacs support programs on NT.
-   Copyright (C) 1994, 2002-2015 Free Software Foundation, Inc.
+   Copyright (C) 1994, 2002-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -90,7 +90,6 @@ int mkostemp (char * template, int flags);
 #define locking   _locking
 #define logb      _logb
 #define _longjmp  longjmp
-#define lseek     _lseek
 #define popen     _popen
 #define pclose    _pclose
 #define umask	  _umask
@@ -103,4 +102,3 @@ int mkostemp (char * template, int flags);
 #undef _WINSOCK_H
 
 /* end of ntlib.h */
-

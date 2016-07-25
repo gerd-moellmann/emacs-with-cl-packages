@@ -1,4 +1,25 @@
+* emacs-25.1-rc1-mac-5.90 (2016-07-25)
+Based on Emacs 25.1 release candidate.
+Drop support for Mac OS X 10.4 and 10.5.
+Official git repository is https://bitbucket.org/mituharu/emacs-mac.git
+
+** Fixed bugs
+
+*** Crash when closing a fullscreen frame on macOS 10.12 Beta.
+
+*** Can't resize a frame by dragging its edge on macOS 10.12 Beta.
+
+*** Cyrillic text composition in HELLO file is shown wrong with Menlo.
+
+** Improvements
+
+*** New functions `mac-export-frames', `mac-page-setup-dialog',
+`mac-get-page-setup', and `mac-print-frames-dialog'.  They correspond
+to x-* functions provided in the cairo build together with GTK+.
+
+
 * emacs-24.5-mac-5.18 (2016-06-26)
+http://lists.gnu.org/archive/html/emacs-devel/2016-06/msg00601.html
 
 ** Fixed bugs
 

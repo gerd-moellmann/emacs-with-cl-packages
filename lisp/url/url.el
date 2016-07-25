@@ -1,9 +1,10 @@
 ;;; url.el --- Uniform Resource Locator retrieval tool  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-1999, 2001, 2004-2015 Free Software Foundation,
+;; Copyright (C) 1996-1999, 2001, 2004-2016 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Bill Perry <wmperry@gnu.org>
+;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: comm, data, processes, hypermedia
 
 ;; This file is part of GNU Emacs.
@@ -224,7 +225,10 @@ URL-encoded before it's used."
   "Retrieve URL synchronously.
 Return the buffer containing the data, or nil if there are no data
 associated with it (the case for dired, info, or mailto URLs that need
-no further processing).  URL is either a string or a parsed URL."
+no further processing).  URL is either a string or a parsed URL.
+If SILENT is non-nil, don't display progress reports and similar messages.
+If INHIBIT-COOKIES is non-nil, cookies will neither be stored nor sent
+to the server."
   (url-do-setup)
 
   (let ((retrieval-done nil)

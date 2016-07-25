@@ -1,5 +1,5 @@
 /* provide a replacement fdopendir function
-   Copyright (C) 2004-2015 Free Software Foundation, Inc.
+   Copyright (C) 2004-2016 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -62,6 +62,41 @@ static DIR *fd_clone_opendir (int, struct saved_cwd const *);
    If this function returns successfully, FD is under control of the
    dirent.h system, and the caller should not close or modify the state of
    FD other than by the dirent.h functions.  */
+# ifdef __KLIBC__
+#  include <InnoTekLIBC/backend.h>
+
+DIR *
+fdopendir (int fd)
+{
+  char path[_MAX_PATH];
+  DIR *dirp;
+
+  /* Get a path from fd */
+  if (__libc_Back_ioFHToPath (fd, path, sizeof (path)))
+    return NULL;
+
+  dirp = opendir (path);
+  if (!dirp)
+    return NULL;
+
+  /* Unregister fd registered by opendir() */
+  _gl_unregister_dirp_fd (dirfd (dirp));
+
+  /* Register our fd */
+  if (_gl_register_dirp_fd (fd, dirp))
+    {
+      int saved_errno = errno;
+
+      closedir (dirp);
+
+      errno = saved_errno;
+
+      dirp = NULL;
+    }
+
+  return dirp;
+}
+# else
 DIR *
 fdopendir (int fd)
 {
@@ -84,6 +119,7 @@ fdopendir (int fd)
 
   return dir;
 }
+# endif
 
 /* Like fdopendir, except that if OLDER_DUPFD is not -1, it is known
    to be a dup of FD which is less than FD - 1 and which will be
@@ -93,7 +129,7 @@ fdopendir (int fd)
    That way, barring race conditions, fd_clone_opendir returns a
    stream whose file descriptor is FD.
 
-   If REPLACE_CHDIR or CWD is null, use opendir ("/proc/self/fd/...",
+   If REPLACE_FCHDIR or CWD is null, use opendir ("/proc/self/fd/...",
    falling back on fchdir metadata.  Otherwise, CWD is a saved version
    of the working directory; use fchdir/opendir(".")/restore_cwd(CWD).  */
 static DIR *
@@ -156,7 +192,16 @@ fd_clone_opendir (int fd, struct saved_cwd const *cwd)
       if (! dir && EXPECTED_ERRNO (saved_errno))
         {
           char const *name = _gl_directory_name (fd);
-          return (name ? opendir (name) : NULL);
+          DIR *dp = name ? opendir (name) : NULL;
+
+          /* The caller has done an elaborate dance to arrange for opendir to
+             consume just the right file descriptor.  If dirfd returns -1,
+             though, we're on a system like mingw where opendir does not
+             consume a file descriptor.  Consume it via 'dup' instead.  */
+          if (dp && dirfd (dp) < 0)
+            dup (fd);
+
+          return dp;
         }
 # endif
       errno = saved_errno;

@@ -6,8 +6,8 @@ This file is part of GNU Emacs Mac port.
 
 GNU Emacs Mac port is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs Mac port is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,28 +22,16 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "macterm.h"
 #include "blockinput.h"
-#include "character.h"
 #include "keymap.h"
 #include "termhooks.h"
 #include "keyboard.h"
 
-static Lisp_Object QSECONDARY, QTIMESTAMP, QTARGETS;
-
-static Lisp_Object Qforeign_selection;
-static Lisp_Object Qx_lost_selection_functions;
-
 #define LOCAL_SELECTION(selection_symbol,dpyinfo)			\
   assq_no_quit (selection_symbol, dpyinfo->terminal->Vselection_alist)
 
-/* A selection name (represented as a Lisp symbol) can be associated
-   with a pasteboard via `mac-pasteboard-name' property.  Likewise for
-   a selection type with a pasteboard data type via
-   `mac-pasteboard-data-type'.  */
-Lisp_Object Qmac_pasteboard_name, Qmac_pasteboard_data_type;
-
 
 static bool
-x_selection_owner_p (Lisp_Object selection, struct mac_display_info *dpyinfo)
+mac_selection_owner_p (Lisp_Object selection, struct mac_display_info *dpyinfo)
 {
   OSStatus err;
   Selection sel;
@@ -81,18 +69,15 @@ x_selection_owner_p (Lisp_Object selection, struct mac_display_info *dpyinfo)
    our selection.  */
 
 static void
-x_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
-		 Lisp_Object frame)
+mac_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
+		   Lisp_Object frame)
 {
   struct frame *f = XFRAME (frame);
   struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
   Time timestamp = mac_system_uptime () * 1000;
   OSStatus err;
   Selection sel;
-  struct gcpro gcpro1, gcpro2;
   Lisp_Object rest, handler_fn, value, target_type;
-
-  GCPRO2 (selection_name, selection_value);
 
   block_input ();
 
@@ -136,8 +121,6 @@ x_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
     }
 
   unblock_input ();
-
-  UNGCPRO;
 
   if (sel && err != noErr)
     error ("Can't set selection");
@@ -185,18 +168,18 @@ x_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
    Return nil, a string, a vector, a symbol, an integer, or a cons
    that CONS_TO_INTEGER could plausibly handle.
    This function is used both for remote requests (LOCAL_REQUEST is zero)
-   and for local x-get-selection-internal (LOCAL_REQUEST is nonzero).
+   and for local mac-get-selection-internal (LOCAL_REQUEST is nonzero).
 
    This calls random Lisp code, and may signal or gc.  */
 
 static Lisp_Object
-x_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
-		       int local_request, struct mac_display_info *dpyinfo)
+mac_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
+			 bool local_request, struct mac_display_info *dpyinfo)
 {
   Lisp_Object local_value;
   Lisp_Object handler_fn, value, type, check;
 
-  if (!x_selection_owner_p (selection_symbol, dpyinfo))
+  if (!mac_selection_owner_p (selection_symbol, dpyinfo))
     return Qnil;
 
   local_value = LOCAL_SELECTION (selection_symbol, dpyinfo);
@@ -217,8 +200,6 @@ x_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
 
       CHECK_SYMBOL (target_type);
       handler_fn = Fcdr (Fassq (target_type, Vselection_converter_alist));
-      /* gcpro is not needed here since nothing but HANDLER_FN
-	 is live, and that ought to be a symbol.  */
 
       if (!NILP (handler_fn))
 	value = call3 (handler_fn,
@@ -254,7 +235,7 @@ x_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
    We do this when about to delete a frame.  */
 
 void
-x_clear_frame_selections (struct frame *f)
+mac_clear_frame_selections (struct frame *f)
 {
   Lisp_Object frame;
   Lisp_Object rest;
@@ -268,11 +249,10 @@ x_clear_frame_selections (struct frame *f)
 	 && EQ (frame, XCAR (XCDR (XCDR (XCDR (XCAR (t->Vselection_alist)))))))
     {
       /* Run the `x-lost-selection-functions' abnormal hook.  */
-      Lisp_Object args[2];
-      args[0] = Qx_lost_selection_functions;
-      args[1] = Fcar (Fcar (t->Vselection_alist));
-      if (x_selection_owner_p (args[1], dpyinfo))
-	Frun_hook_with_args (2, args);
+      Lisp_Object selection = Fcar (Fcar (t->Vselection_alist));
+
+      if (mac_selection_owner_p (selection, dpyinfo))
+	CALLN (Frun_hook_with_args, Qx_lost_selection_functions, selection);
 
       tset_selection_alist (t, XCDR (t->Vselection_alist));
     }
@@ -282,11 +262,10 @@ x_clear_frame_selections (struct frame *f)
     if (CONSP (XCDR (rest))
 	&& EQ (frame, XCAR (XCDR (XCDR (XCDR (XCAR (XCDR (rest))))))))
       {
-	Lisp_Object args[2];
-	args[0] = Qx_lost_selection_functions;
-	args[1] = XCAR (XCAR (XCDR (rest)));
-	if (x_selection_owner_p (args[1], dpyinfo))
-	  Frun_hook_with_args (2, args);
+	Lisp_Object selection = XCAR (XCAR (XCDR (rest)));
+
+	if (mac_selection_owner_p (selection, dpyinfo))
+	  CALLN (Frun_hook_with_args, Qx_lost_selection_functions, selection);
 	XSETCDR (rest, XCDR (XCDR (rest)));
 	break;
       }
@@ -296,8 +275,9 @@ x_clear_frame_selections (struct frame *f)
    Converts this to Lisp data and returns it.  */
 
 static Lisp_Object
-x_get_foreign_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
-			 Lisp_Object time_stamp, Lisp_Object frame)
+mac_get_foreign_selection (Lisp_Object selection_symbol,
+			   Lisp_Object target_type, Lisp_Object time_stamp,
+			   Lisp_Object frame)
 {
   struct frame *f = XFRAME (frame);
   OSStatus err;
@@ -314,11 +294,9 @@ x_get_foreign_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
     {
       if (EQ (target_type, QTARGETS))
 	{
-	  Lisp_Object args[2];
-
-	  args[0] = list1 (QTARGETS);
-	  args[1] = mac_get_selection_target_list (sel);
-	  result = Fvconcat (2, args);
+	  AUTO_LIST1 (targets, QTARGETS);
+	  result = CALLN (Fvconcat, targets,
+			  mac_get_selection_target_list (sel));
 	}
       else
 	{
@@ -342,7 +320,7 @@ x_get_foreign_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
    be found, return NULL.  */
 
 static struct frame *
-frame_for_x_selection (Lisp_Object object)
+frame_for_mac_selection (Lisp_Object object)
 {
   Lisp_Object tail, frame;
   struct frame *f;
@@ -362,7 +340,7 @@ frame_for_x_selection (Lisp_Object object)
     }
   else if (TERMINALP (object))
     {
-      struct terminal *t = get_terminal (object, 1);
+      struct terminal *t = decode_live_terminal (object);
       if (t->type == output_mac)
 	FOR_EACH_FRAME (tail, frame)
 	  {
@@ -382,8 +360,8 @@ frame_for_x_selection (Lisp_Object object)
 }
 
 
-DEFUN ("x-own-selection-internal", Fx_own_selection_internal,
-       Sx_own_selection_internal, 2, 3, 0,
+DEFUN ("mac-own-selection-internal", Fmac_own_selection_internal,
+       Smac_own_selection_internal, 2, 3, 0,
        doc: /* Assert a selection of type SELECTION and value VALUE.
 SELECTION is a symbol, typically `PRIMARY', `SECONDARY', or `CLIPBOARD'.
 \(Those are literal upper-case symbol names, since that's what X expects.)
@@ -400,7 +378,7 @@ nil, it defaults to the selected frame.  */)
 
   CHECK_SYMBOL (selection);
   if (NILP (value)) error ("VALUE may not be nil");
-  x_own_selection (selection, value, frame);
+  mac_own_selection (selection, value, frame);
   return value;
 }
 
@@ -409,8 +387,8 @@ nil, it defaults to the selected frame.  */)
    simply return our selection value.  If we are not the owner, this
    will block until all of the data has arrived.  */
 
-DEFUN ("x-get-selection-internal", Fx_get_selection_internal,
-       Sx_get_selection_internal, 2, 4, 0,
+DEFUN ("mac-get-selection-internal", Fmac_get_selection_internal,
+       Smac_get_selection_internal, 2, 4, 0,
        doc: /* Return text selected from some Mac application.
 SELECTION-SYMBOL is typically `PRIMARY', `SECONDARY', or `CLIPBOARD'.
 \(Those are literal upper-case symbol names, since that's what X expects.)
@@ -421,24 +399,22 @@ On Mac, TIME-STAMP and TERMINAL are unused.  */)
    Lisp_Object time_stamp, Lisp_Object terminal)
 {
   Lisp_Object val = Qnil;
-  struct gcpro gcpro1, gcpro2;
-  struct frame *f = frame_for_x_selection (terminal);
-  GCPRO2 (target_type, val); /* we store newly consed data into these */
+  struct frame *f = frame_for_mac_selection (terminal);
 
   CHECK_SYMBOL (selection_symbol);
   CHECK_SYMBOL (target_type);
   if (!f)
     error ("Selection unavailable for this frame");
 
-  val = x_get_local_selection (selection_symbol, target_type, 1,
-			       FRAME_DISPLAY_INFO (f));
+  val = mac_get_local_selection (selection_symbol, target_type, true,
+				 FRAME_DISPLAY_INFO (f));
 
   if (NILP (val) && FRAME_LIVE_P (f))
     {
       Lisp_Object frame;
       XSETFRAME (frame, f);
-      RETURN_UNGCPRO (x_get_foreign_selection (selection_symbol, target_type,
-					       time_stamp, frame));
+      return mac_get_foreign_selection (selection_symbol, target_type,
+					time_stamp, frame);
     }
 
   if (CONSP (val) && SYMBOLP (XCAR (val)))
@@ -447,11 +423,11 @@ On Mac, TIME-STAMP and TERMINAL are unused.  */)
       if (CONSP (val) && NILP (XCDR (val)))
 	val = XCAR (val);
     }
-  RETURN_UNGCPRO (val);
+  return val;
 }
 
-DEFUN ("x-disown-selection-internal", Fx_disown_selection_internal,
-       Sx_disown_selection_internal, 1, 3, 0,
+DEFUN ("mac-disown-selection-internal", Fmac_disown_selection_internal,
+       Smac_disown_selection_internal, 1, 3, 0,
        doc: /* If we own the selection SELECTION, disown it.
 Disowning it means there is no such selection.
 
@@ -462,11 +438,11 @@ frame's display, or the first available display.
 On Mac, the TIME-OBJECT and TERMINAL arguments are unused.  */)
   (Lisp_Object selection, Lisp_Object time_object, Lisp_Object terminal)
 {
-  struct frame *f = frame_for_x_selection (terminal);
+  struct frame *f = frame_for_mac_selection (terminal);
   OSStatus err;
   Selection sel;
   Lisp_Object local_selection_data;
-  struct x_display_info *dpyinfo;
+  struct mac_display_info *dpyinfo;
   Lisp_Object Vselection_alist;
 
   if (!f)
@@ -475,7 +451,7 @@ On Mac, the TIME-OBJECT and TERMINAL arguments are unused.  */)
   dpyinfo = FRAME_DISPLAY_INFO (f);
   CHECK_SYMBOL (selection);
 
-  if (!x_selection_owner_p (selection, dpyinfo))
+  if (!mac_selection_owner_p (selection, dpyinfo))
     return Qnil;  /* Don't disown the selection when we're not the owner.  */
 
   local_selection_data = LOCAL_SELECTION (selection, dpyinfo);
@@ -499,13 +475,7 @@ On Mac, the TIME-OBJECT and TERMINAL arguments are unused.  */)
   tset_selection_alist (dpyinfo->terminal, Vselection_alist);
 
   /* Run the `x-lost-selection-functions' abnormal hook.  */
-
-  {
-    Lisp_Object args[2];
-    args[0] = Qx_lost_selection_functions;
-    args[1] = selection;
-    Frun_hook_with_args (2, args);
-  }
+  CALLN (Frun_hook_with_args, Qx_lost_selection_functions, selection);
 
   redisplay_preserve_echo_area (20);
 
@@ -520,7 +490,7 @@ On Mac, the TIME-OBJECT and TERMINAL arguments are unused.  */)
   return Qt;
 }
 
-DEFUN ("x-selection-owner-p", Fx_selection_owner_p, Sx_selection_owner_p,
+DEFUN ("mac-selection-owner-p", Fmac_selection_owner_p, Smac_selection_owner_p,
        0, 2, 0,
        doc: /* Whether the current Emacs process owns the given SELECTION.
 The arg should be the name of the selection in question, typically one of
@@ -534,20 +504,20 @@ server to query.  If omitted or nil, that stands for the selected
 frame's display, or the first available display.  */)
   (Lisp_Object selection, Lisp_Object terminal)
 {
-  struct frame *f = frame_for_x_selection (terminal);
+  struct frame *f = frame_for_mac_selection (terminal);
 
   CHECK_SYMBOL (selection);
   if (EQ (selection, Qnil)) selection = QPRIMARY;
   if (EQ (selection, Qt)) selection = QSECONDARY;
 
-  if (f && x_selection_owner_p (selection, FRAME_DISPLAY_INFO (f)))
+  if (f && mac_selection_owner_p (selection, FRAME_DISPLAY_INFO (f)))
     return Qt;
   else
     return Qnil;
 }
 
-DEFUN ("x-selection-exists-p", Fx_selection_exists_p, Sx_selection_exists_p,
-       0, 2, 0,
+DEFUN ("mac-selection-exists-p", Fmac_selection_exists_p,
+       Smac_selection_exists_p, 0, 2, 0,
        doc: /* Whether there is an owner for the given selection.
 SELECTION should be the name of the selection in question, typically
 one of the symbols `PRIMARY', `SECONDARY', or `CLIPBOARD' (X expects
@@ -562,7 +532,7 @@ frame's display, or the first available display.  */)
   OSStatus err;
   Selection sel;
   Lisp_Object result = Qnil, rest;
-  struct frame *f = frame_for_x_selection (terminal);
+  struct frame *f = frame_for_mac_selection (terminal);
   struct mac_display_info *dpyinfo;
 
   CHECK_SYMBOL (selection);
@@ -574,7 +544,7 @@ frame's display, or the first available display.  */)
 
   dpyinfo = FRAME_DISPLAY_INFO (f);
 
-  if (x_selection_owner_p (selection, dpyinfo))
+  if (mac_selection_owner_p (selection, dpyinfo))
     return Qt;
 
   block_input ();
@@ -601,14 +571,6 @@ frame's display, or the first available display.  */)
 			 Apple event support
 ***********************************************************************/
 static bool mac_ready_for_apple_events = false;
-Lisp_Object Qmac_apple_event_class, Qmac_apple_event_id;
-static Lisp_Object Qemacs_suspension_id;
-
-#if __LP64__ && MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-static AEEventHandlerUPP AE_USE_STANDARD_DISPATCH;
-#else
-#define AE_USE_STANDARD_DISPATCH ((AEEventHandlerUPP) kAEUseStandardDispatch)
-#endif
 
 struct apple_event_binding
 {
@@ -912,18 +874,6 @@ DEFUN ("mac-process-deferred-apple-events", Fmac_process_deferred_apple_events, 
 
   block_input ();
   mac_ready_for_apple_events = true;
-#if __LP64__ && MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  {
-    SInt32 response;
-    OSErr err;
-
-    err = Gestalt (gestaltSystemVersion, &response);
-    if (err == noErr && response < 0x1060)
-      AE_USE_STANDARD_DISPATCH = (AEEventHandlerUPP) (long) 0xFFFFFFFF;
-    else
-      AE_USE_STANDARD_DISPATCH = (AEEventHandlerUPP) (int) 0xFFFFFFFF;
-  }
-#endif
   if (deferred_apple_events)
     {
       struct suspended_ae_info *prev, *tail, *next;
@@ -942,7 +892,8 @@ DEFUN ("mac-process-deferred-apple-events", Fmac_process_deferred_apple_events, 
 	{
 	  next = tail->next;
 	  AEResumeTheCurrentEvent (&tail->apple_event, &tail->reply,
-				   AE_USE_STANDARD_DISPATCH, 0);
+				   (AEEventHandlerUPP) kAEUseStandardDispatch,
+				   0);
 	  AEDisposeDesc (&tail->reply);
 	  AEDisposeDesc (&tail->apple_event);
 	  xfree (tail);
@@ -955,7 +906,8 @@ DEFUN ("mac-process-deferred-apple-events", Fmac_process_deferred_apple_events, 
   return Qt;
 }
 
-DEFUN ("mac-cleanup-expired-apple-events", Fmac_cleanup_expired_apple_events, Smac_cleanup_expired_apple_events, 0, 0, 0,
+DEFUN ("mac-cleanup-expired-apple-events", Fmac_cleanup_expired_apple_events,
+       Smac_cleanup_expired_apple_events, 0, 0, 0,
        doc: /* Clean up expired Apple events.
 Return the number of expired events.   */)
   (void)
@@ -969,7 +921,8 @@ Return the number of expired events.   */)
   return make_number (nexpired);
 }
 
-DEFUN ("mac-ae-set-reply-parameter", Fmac_ae_set_reply_parameter, Smac_ae_set_reply_parameter, 3, 3, 0,
+DEFUN ("mac-ae-set-reply-parameter", Fmac_ae_set_reply_parameter,
+       Smac_ae_set_reply_parameter, 3, 3, 0,
        doc: /* Set parameter KEYWORD to DESCRIPTOR on reply of APPLE-EVENT.
 KEYWORD is a 4-byte string.  DESCRIPTOR is a Lisp representation of an
 Apple event descriptor.  It has the form of (TYPE . DATA), where TYPE
@@ -1017,7 +970,8 @@ Return t if the parameter is successfully set.  Otherwise return nil.  */)
   return result;
 }
 
-DEFUN ("mac-resume-apple-event", Fmac_resume_apple_event, Smac_resume_apple_event, 1, 2, 0,
+DEFUN ("mac-resume-apple-event", Fmac_resume_apple_event,
+       Smac_resume_apple_event, 1, 2, 0,
        doc: /* Resume handling of APPLE-EVENT.
 Every Apple event handled by the Lisp interpreter is suspended first.
 This function resumes such a suspended event either to complete Apple
@@ -1057,7 +1011,7 @@ nil, which means the event is already resumed or expired.  */)
       AESetTheCurrentEvent (&ae->apple_event);
       AEResumeTheCurrentEvent (&ae->apple_event, &ae->reply,
 			       (EQ (error_code, Qt)
-				? AE_USE_STANDARD_DISPATCH
+				? (AEEventHandlerUPP) kAEUseStandardDispatch
 				: (AEEventHandlerUPP) kAENoDispatch), 0);
       AEDisposeDesc (&ae->reply);
       AEDisposeDesc (&ae->apple_event);
@@ -1069,7 +1023,8 @@ nil, which means the event is already resumed or expired.  */)
   return result;
 }
 
-DEFUN ("mac-send-apple-event-internal", Fmac_send_apple_event_internal, Smac_send_apple_event_internal, 1, 2, 0,
+DEFUN ("mac-send-apple-event-internal", Fmac_send_apple_event_internal,
+       Smac_send_apple_event_internal, 1, 2, 0,
        doc: /* Send APPLE-EVENT with SEND-MODE.
 This is for internal use only.  Use `mac-send-apple-event' instead.
 
@@ -1125,20 +1080,14 @@ Otherwise, return the error code as an integer.  */)
 }
 
 
-/***********************************************************************
-                      Drag and drop support
-***********************************************************************/
-Lisp_Object QCactions, Qcopy, Qlink, Qgeneric, Qprivate, Qmove, Qdelete;
-
-
 void
 syms_of_macselect (void)
 {
-  defsubr (&Sx_get_selection_internal);
-  defsubr (&Sx_own_selection_internal);
-  defsubr (&Sx_disown_selection_internal);
-  defsubr (&Sx_selection_owner_p);
-  defsubr (&Sx_selection_exists_p);
+  defsubr (&Smac_get_selection_internal);
+  defsubr (&Smac_own_selection_internal);
+  defsubr (&Smac_disown_selection_internal);
+  defsubr (&Smac_selection_owner_p);
+  defsubr (&Smac_selection_exists_p);
   defsubr (&Smac_process_deferred_apple_events);
   defsubr (&Smac_cleanup_expired_apple_events);
   defsubr (&Smac_resume_apple_event);
@@ -1150,7 +1099,7 @@ syms_of_macselect (void)
 These functions are called to convert the selection, with three args:
 the name of the selection (typically `PRIMARY', `SECONDARY', or `CLIPBOARD');
 a desired type to which the selection should be converted;
-and the local selection value (whatever was given to `x-own-selection').
+and the local selection value (whatever was given to `mac-own-selection').
 
 The function should return the value to send to the Pasteboard Manager
 \(must be a string).  A return value of nil
@@ -1182,6 +1131,11 @@ The types are chosen in the order they appear in the list.  */);
   DEFSYM (QTARGETS, "TARGETS");
   DEFSYM (Qforeign_selection, "foreign-selection");
   DEFSYM (Qx_lost_selection_functions, "x-lost-selection-functions");
+
+  /* A selection name (represented as a Lisp symbol) can be associated
+     with a pasteboard via `mac-pasteboard-name' property.  Likewise
+     for a selection type with a pasteboard data type via
+     `mac-pasteboard-data-type'.  */
   DEFSYM (Qmac_pasteboard_name, "mac-pasteboard-name");
   DEFSYM (Qmac_pasteboard_data_type, "mac-pasteboard-data-type");
   DEFSYM (Qmac_apple_event_class, "mac-apple-event-class");

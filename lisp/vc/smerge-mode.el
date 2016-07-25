@@ -1,6 +1,6 @@
 ;;; smerge-mode.el --- Minor mode to resolve diff3 conflicts -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2016 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: vc, tools, revision control, merge, diff3, cvs, conflict
@@ -735,17 +735,17 @@ major modes.  Uses `smerge-resolve-function' to do the actual work."
 	  (smerge-auto-leave))))))
 
 (defun smerge-diff-base-mine ()
-  "Diff 'base' and 'mine' version in current conflict region."
+  "Diff `base' and `mine' version in current conflict region."
   (interactive)
   (smerge-diff 2 1))
 
 (defun smerge-diff-base-other ()
-  "Diff 'base' and 'other' version in current conflict region."
+  "Diff `base' and `other' version in current conflict region."
   (interactive)
   (smerge-diff 2 3))
 
 (defun smerge-diff-mine-other ()
-  "Diff 'mine' and 'other' version in current conflict region."
+  "Diff `mine' and `other' version in current conflict region."
   (interactive)
   (smerge-diff 1 3))
 
@@ -1131,6 +1131,19 @@ repeating the command will highlight other two parts."
 			   '((smerge . refine) (face . smerge-refined-removed)))
 			 (unless smerge-use-changed-face
 			   '((smerge . refine) (face . smerge-refined-added))))))
+
+(defun smerge-swap ()
+  "Swap the \"Mine\" and the \"Other\" chunks.
+Can be used before things like `smerge-keep-all' or `smerge-resolve' where the
+ordering can have some subtle influence on the result, such as preferring the
+spacing of the \"Other\" chunk."
+  (interactive)
+  (smerge-match-conflict)
+  (goto-char (match-beginning 3))
+  (let ((txt3 (delete-and-extract-region (point) (match-end 3))))
+    (insert (delete-and-extract-region (match-beginning 1) (match-end 1)))
+    (goto-char (match-beginning 1))
+    (insert txt3)))
 
 (defun smerge-diff (n1 n2)
   (smerge-match-conflict)

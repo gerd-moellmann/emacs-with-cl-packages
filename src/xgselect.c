@@ -1,13 +1,13 @@
 /* Function for handling the GLib event loop.
 
-Copyright (C) 2009-2015 Free Software Foundation, Inc.
+Copyright (C) 2009-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,9 +26,8 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <glib.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <timespec.h>
-#include "frame.h"
 #include "blockinput.h"
+#include "systime.h"
 #ifdef HAVE_MACGUI
 #include "macterm.h"
 #endif
@@ -53,13 +52,13 @@ xg_select (int fds_lim, fd_set *rfds, fd_set *wfds, fd_set *efds,
   struct timespec const *tmop = timeout;
 
   GMainContext *context;
-  int have_wfds = wfds != NULL;
+  bool have_wfds = wfds != NULL;
   GPollFD gfds_buf[128];
   GPollFD *gfds = gfds_buf;
-  int gfds_size = sizeof gfds_buf / sizeof *gfds_buf;
+  int gfds_size = ARRAYELTS (gfds_buf);
   int n_gfds, retval = 0, our_fds = 0, max_fds = fds_lim - 1;
   bool context_acquired = false;
-  int i, nfds, tmo_in_millisec = -1;
+  int i, nfds, tmo_in_millisec;
   bool need_to_dispatch;
   USE_SAFE_ALLOCA;
 
@@ -99,13 +98,13 @@ xg_select (int fds_lim, fd_set *rfds, fd_set *wfds, fd_set *efds,
         {
           FD_SET (gfds[i].fd, &all_wfds);
           if (gfds[i].fd > max_fds) max_fds = gfds[i].fd;
-          have_wfds = 1;
+          have_wfds = true;
         }
     }
 
   SAFE_FREE ();
 
-  if (tmo_in_millisec >= 0)
+  if (n_gfds >= 0 && tmo_in_millisec >= 0)
     {
       tmo = make_timespec (tmo_in_millisec / 1000,
 			   1000 * 1000 * (tmo_in_millisec % 1000));

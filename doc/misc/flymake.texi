@@ -1,18 +1,18 @@
 \input texinfo   @c -*-texinfo-*-
 @comment %**start of header
-@setfilename ../../info/flymake
+@setfilename ../../info/flymake.info
 @set VERSION 0.3
 @set UPDATED April 2004
 @settitle GNU Flymake @value{VERSION}
+@include docstyle.texi
 @syncodeindex pg cp
-@documentencoding UTF-8
 @comment %**end of header
 
 @copying
 This manual is for GNU Flymake (version @value{VERSION}, @value{UPDATED}),
 which is a universal on-the-fly syntax checker for GNU Emacs.
 
-Copyright @copyright{} 2004--2015 Free Software Foundation, Inc.
+Copyright @copyright{} 2004--2016 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -717,7 +717,7 @@ sort error menu items, which shows error messages first.
 Flymake is also able to interpret error message patterns missing err-text-idx
 information.  This is done by merely taking the rest of the matched line
 (@code{(substring line (match-end 0))}) as error text.  This trick allows
-to make use of a huge collection of error message line patterns from
+making use of a huge collection of error message line patterns from
 @code{compile.el}.  All these error patterns are appended to
 the end of @code{flymake-err-line-patterns}.
 

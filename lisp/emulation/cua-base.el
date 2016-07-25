@@ -1,6 +1,6 @@
 ;;; cua-base.el --- emulate CUA key bindings
 
-;; Copyright (C) 1997-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2016 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Keywords: keyboard emulations convenience cua
@@ -302,7 +302,7 @@ is not turned on."
 If there is additional input within this time, the prefix key is
 used as a normal prefix key.  So typing a key sequence quickly will
 inhibit overriding the prefix key.
-As a special case, if the prefix keys repeated within this time, the
+As a special case, if the prefix key is repeated within this time, the
 first prefix key is discarded, so typing a prefix key twice in quick
 succession will also inhibit overriding the prefix key.
 If the value is nil, use a shifted prefix key to inhibit the override."
@@ -685,7 +685,7 @@ a cons (TYPE . COLOR), then both properties are affected."
 (defvar cua--prefix-override-timer nil)
 (defvar cua--prefix-override-length nil)
 
-(defun cua--prefix-override-replay (arg repeat)
+(defun cua--prefix-override-replay (repeat)
   (let* ((keys (this-command-keys))
 	 (i (length keys))
 	 (key (aref keys (1- i))))
@@ -705,21 +705,23 @@ a cons (TYPE . COLOR), then both properties are affected."
     ;; Don't record this command
     (setq this-command last-command)
     ;; Restore the prefix arg
-    (setq prefix-arg arg)
-    (reset-this-command-lengths)
+    ;; This should make it so that exchange-point-and-mark gets the prefix when
+    ;; you do C-u C-x C-x C-x work (where the C-u is properly passed to the C-x
+    ;; C-x binding after the first C-x C-x was rewritten to just C-x).
+    (prefix-command-preserve-state)
     ;; Push the key back on the event queue
     (setq unread-command-events (cons key unread-command-events))))
 
-(defun cua--prefix-override-handler (arg)
+(defun cua--prefix-override-handler ()
   "Start timer waiting for prefix key to be followed by another key.
 Repeating prefix key when region is active works as a single prefix key."
-  (interactive "P")
-  (cua--prefix-override-replay arg 0))
+  (interactive)
+  (cua--prefix-override-replay 0))
 
-(defun cua--prefix-repeat-handler (arg)
+(defun cua--prefix-repeat-handler ()
   "Repeating prefix key when region is active works as a single prefix key."
-  (interactive "P")
-  (cua--prefix-override-replay arg 1))
+  (interactive)
+  (cua--prefix-override-replay 1))
 
 (defun cua--prefix-copy-handler (arg)
   "Copy region/rectangle, then replay last key."
@@ -742,7 +744,8 @@ Repeating prefix key when region is active works as a single prefix key."
   (when (= (length (this-command-keys)) cua--prefix-override-length)
     (setq unread-command-events (cons 'timeout unread-command-events))
     (if prefix-arg
-      (reset-this-command-lengths)
+        nil
+      ;; FIXME: Why?
       (setq overriding-terminal-local-map nil))
     (cua--select-keymaps)))
 
@@ -755,8 +758,9 @@ Repeating prefix key when region is active works as a single prefix key."
   (call-interactively this-command))
 
 (defun cua--keep-active ()
-  (setq mark-active t
-	deactivate-mark nil))
+  (when (mark t)
+    (setq mark-active t
+          deactivate-mark nil)))
 
 (defun cua--deactivate (&optional now)
   (if (not now)
@@ -789,6 +793,8 @@ Repeating prefix key when region is active works as a single prefix key."
 
 
 ;;; Region specific commands
+
+(declare-function delete-active-region "delsel" (&optional killp))
 
 (defun cua-delete-region ()
   "Delete the active region.
@@ -942,7 +948,7 @@ See also `exchange-point-and-mark'."
   (cond ((null cua-enable-cua-keys)
 	 (exchange-point-and-mark arg))
 	(arg
-	 (setq mark-active t))
+         (when (mark t) (setq mark-active t)))
 	(t
 	 (let (mark-active)
 	   (exchange-point-and-mark)
@@ -1104,19 +1110,6 @@ If ARG is the atom `-', scroll upward by nearly full screen."
 	(cancel-timer cua--prefix-override-timer))
     (setq cua--prefix-override-timer nil))
 
-  (cond
-   ;; Only symbol commands can have necessary properties
-   ((not (symbolp this-command))
-    nil)
-
-   ((not (eq (get this-command 'CUA) 'move))
-    nil)
-
-   ;; Set mark if user explicitly said to do so
-   (cua--rectangle ;FIXME: ??
-    (unless (region-active-p)
-      (push-mark-command nil nil))))
-
   ;; Detect extension of rectangles by mouse or other movement
   (setq cua--buffer-and-point-before-command
 	(if cua--rectangle (cons (current-buffer) (point)))))
@@ -1223,25 +1216,28 @@ If ARG is the atom `-', scroll upward by nearly full screen."
 
 (defvar cua--keymaps-initialized nil)
 
-(defun cua--shift-control-prefix (prefix arg)
+(defun cua--shift-control-prefix (prefix)
   ;; handle S-C-x and S-C-c by emulating the fast double prefix function.
   ;; Don't record this command
   (setq this-command last-command)
   ;; Restore the prefix arg
-  (setq prefix-arg arg)
-  (reset-this-command-lengths)
+  ;; This should make it so that exchange-point-and-mark gets the prefix when
+  ;; you do C-u S-C-x C-x work (where the C-u is properly passed to the C-x
+  ;; C-x binding after the first S-C-x was rewritten to just C-x).
+  (prefix-command-preserve-state)
   ;; Activate the cua--prefix-repeat-keymap
   (setq cua--prefix-override-timer 'shift)
   ;; Push duplicate keys back on the event queue
-  (setq unread-command-events (cons prefix (cons prefix unread-command-events))))
+  (setq unread-command-events
+        (cons prefix (cons prefix unread-command-events))))
 
-(defun cua--shift-control-c-prefix (arg)
-  (interactive "P")
-  (cua--shift-control-prefix ?\C-c arg))
+(defun cua--shift-control-c-prefix ()
+  (interactive)
+  (cua--shift-control-prefix ?\C-c))
 
-(defun cua--shift-control-x-prefix (arg)
-  (interactive "P")
-  (cua--shift-control-prefix ?\C-x arg))
+(defun cua--shift-control-x-prefix ()
+  (interactive)
+  (cua--shift-control-prefix ?\C-x))
 
 (defun cua--init-keymaps ()
   ;; Cache actual rectangle modifier key.
@@ -1315,33 +1311,6 @@ If ARG is the atom `-', scroll upward by nearly full screen."
   (define-key cua--region-keymap [remap keyboard-quit]		'cua-cancel)
   )
 
-
-;; Setup standard movement commands to be recognized by CUA.
-
-(dolist (cmd
- '(forward-char backward-char
-   right-char left-char
-   right-word left-word
-   next-line previous-line
-   forward-word backward-word
-   end-of-line beginning-of-line
-   end-of-visual-line beginning-of-visual-line
-   move-end-of-line move-beginning-of-line
-   end-of-buffer beginning-of-buffer
-   scroll-up scroll-down
-   scroll-up-command scroll-down-command
-   up-list down-list backward-up-list
-   end-of-defun beginning-of-defun
-   forward-sexp backward-sexp
-   forward-list backward-list
-   forward-sentence backward-sentence
-   forward-paragraph backward-paragraph
-   ;; CC mode motion commands
-   c-forward-conditional c-backward-conditional
-   c-down-conditional c-up-conditional
-   c-down-conditional-with-else c-up-conditional-with-else
-   c-beginning-of-statement c-end-of-statement))
-  (put cmd 'CUA 'move))
 
 ;; State prior to enabling cua-mode
 ;; Value is a list with the following elements:

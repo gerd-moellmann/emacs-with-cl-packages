@@ -1,12 +1,12 @@
 /* Definitions and global variables for intervals.
-   Copyright (C) 1993-1994, 2000-2015 Free Software Foundation, Inc.
+   Copyright (C) 1993-1994, 2000-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,7 +16,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#include "dispextern.h"
+#ifndef EMACS_INTERVALS_H
+#define EMACS_INTERVALS_H
 
 INLINE_HEADER_BEGIN
 
@@ -197,6 +198,7 @@ set_interval_plist (INTERVAL i, Lisp_Object plist)
 /* Is this interval writable?  Replace later with cache access.  */
 #define INTERVAL_WRITABLE_P(i)					\
   (i && (NILP (textget ((i)->plist, Qread_only))		\
+         || !NILP (textget ((i)->plist, Qinhibit_read_only))	\
 	 || ((CONSP (Vinhibit_read_only)			\
 	      ? !NILP (Fmemq (textget ((i)->plist, Qread_only),	\
 			      Vinhibit_read_only))		\
@@ -222,7 +224,7 @@ set_interval_plist (INTERVAL i, Lisp_Object plist)
 #define TEXT_PROP_MEANS_INVISIBLE(prop)					\
   (EQ (BVAR (current_buffer, invisibility_spec), Qt)			\
    ? !NILP (prop)							\
-   : invisible_p (prop, BVAR (current_buffer, invisibility_spec)))
+   : invisible_prop (prop, BVAR (current_buffer, invisibility_spec)))
 
 /* Declared in alloc.c.  */
 
@@ -268,25 +270,9 @@ extern INTERVAL validate_interval_range (Lisp_Object, Lisp_Object *,
 extern INTERVAL interval_of (ptrdiff_t, Lisp_Object);
 
 /* Defined in xdisp.c.  */
-extern int invisible_p (Lisp_Object, Lisp_Object);
+extern int invisible_prop (Lisp_Object, Lisp_Object);
 
-/* Declared in textprop.c.  */
-
-/* Types of hooks.  */
-extern Lisp_Object Qpoint_left;
-extern Lisp_Object Qpoint_entered;
-extern Lisp_Object Qmodification_hooks;
-extern Lisp_Object Qcategory;
-extern Lisp_Object Qlocal_map;
-extern Lisp_Object Qkeymap;
-
-/* Visual properties text (including strings) may have.  */
-extern Lisp_Object Qfont;
-extern Lisp_Object Qinvisible, Qintangible;
-
-/* Sticky properties.  */
-extern Lisp_Object Qfront_sticky, Qrear_nonsticky;
-
+/* Defined in textprop.c.  */
 extern Lisp_Object copy_text_properties (Lisp_Object, Lisp_Object,
                                          Lisp_Object, Lisp_Object,
                                          Lisp_Object, Lisp_Object);
@@ -307,6 +293,6 @@ extern int text_property_stickiness (Lisp_Object prop, Lisp_Object pos,
 
 extern void syms_of_textprop (void);
 
-#include "composite.h"
-
 INLINE_HEADER_END
+
+#endif /* EMACS_INTERVALS_H */

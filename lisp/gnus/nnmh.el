@@ -1,6 +1,6 @@
 ;;; nnmh.el --- mhspool access for Gnus
 
-;; Copyright (C) 1995-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2016 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -109,7 +109,7 @@ as unread by Gnus.")
 	  (and large
 	       (zerop (% count 20))
 	       (nnheader-message 5 "nnmh: Receiving headers... %d%%"
-				 (/ (* count 100) number))))
+				 (floor (* count 100.0) number))))
 
 	(when large
 	  (nnheader-message 5 "nnmh: Receiving headers...done"))

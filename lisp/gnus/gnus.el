@@ -1,6 +1,6 @@
 ;;; gnus.el --- a newsreader for GNU Emacs
 
-;; Copyright (C) 1987-1990, 1993-1998, 2000-2015 Free Software
+;; Copyright (C) 1987-1990, 1993-1998, 2000-2016 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -28,10 +28,6 @@
 ;;; Code:
 
 (eval '(run-hooks 'gnus-load-hook))
-
-;; For Emacs <22.2 and XEmacs.
-(eval-and-compile
-  (unless (fboundp 'declare-function) (defmacro declare-function (&rest r))))
 
 (eval-when-compile (require 'cl))
 (require 'wid-edit)
@@ -308,15 +304,6 @@ be set in `.emacs' instead."
   :type 'boolean)
 
 (unless (featurep 'gnus-xmas)
-  (defalias 'gnus-make-overlay 'make-overlay)
-  (defalias 'gnus-delete-overlay 'delete-overlay)
-  (defalias 'gnus-overlay-get 'overlay-get)
-  (defalias 'gnus-overlay-put 'overlay-put)
-  (defalias 'gnus-move-overlay 'move-overlay)
-  (defalias 'gnus-overlay-buffer 'overlay-buffer)
-  (defalias 'gnus-overlay-start 'overlay-start)
-  (defalias 'gnus-overlay-end 'overlay-end)
-  (defalias 'gnus-overlays-in 'overlays-in)
   (defalias 'gnus-extent-detached-p 'ignore)
   (defalias 'gnus-extent-start-open 'ignore)
   (defalias 'gnus-mail-strip-quoted-names 'mail-strip-quoted-names)
@@ -1321,11 +1308,11 @@ news is to be fetched, the second is the address.
 For instance, if you want to get your news via \"flab.flab.edu\" using
 NNTP, you could say:
 
-\(setq gnus-select-method '(nntp \"flab.flab.edu\"))
+\(setq gnus-select-method \\='(nntp \"flab.flab.edu\"))
 
 If you want to use your local spool, say:
 
-\(setq gnus-select-method (list 'nnspool (system-name)))
+\(setq gnus-select-method (list \\='nnspool (system-name)))
 
 If you use this variable, you must set `gnus-nntp-server' to nil.
 
@@ -1374,8 +1361,8 @@ group (or nil) as a parameter.
 If you want to save your mail in one group and the news articles you
 write in another group, you could say something like:
 
- \(setq gnus-message-archive-group
-	'((if (message-news-p)
+  (setq gnus-message-archive-group
+	\\='((if (message-news-p)
 	      \"misc-news\"
 	    \"misc-mail\")))
 
@@ -1410,7 +1397,7 @@ This is a list where each element is a complete select method (see
 If, for instance, you want to read your mail with the nnml back end,
 you could set this variable:
 
-\(setq gnus-secondary-select-methods '((nnml \"\")))"
+\(setq gnus-secondary-select-methods \\='((nnml \"\")))"
   :group 'gnus-server
   :type '(repeat gnus-select-method))
 
@@ -1615,7 +1602,7 @@ slower."
   :type 'string)
 
 (defcustom gnus-valid-select-methods
-  '(("nntp" post address prompt-address physical-address)
+  '(("nntp" post address prompt-address physical-address cloud)
     ("nnspool" post address)
     ("nnvirtual" post-mail virtual prompt-address)
     ("nnmbox" mail respool address)
@@ -1632,7 +1619,7 @@ slower."
     ("nnrss" none global)
     ("nnagent" post-mail)
     ("nnimap" post-mail address prompt-address physical-address respool
-     server-marks)
+     server-marks cloud)
     ("nnmaildir" mail respool address server-marks)
     ("nnnil" none))
   "*An alist of valid select methods.
@@ -1650,6 +1637,7 @@ this variable.  I think."
 					     (const post-mail))
 			(checklist :inline t :greedy t
 				   (const :format "%v " address)
+				   (const cloud)
 				   (const global)
 				   (const :format "%v " prompt-address)
 				   (const :format "%v " physical-address)
@@ -2409,7 +2397,7 @@ less space and be faster as a result.
 This variable can also be a list of visual elements to switch on.  For
 instance, to switch off all visual things except menus, you can say:
 
-   (setq gnus-visual '(menu))
+   (setq gnus-visual \\='(menu))
 
 Valid elements include `summary-highlight', `group-highlight',
 `article-highlight', `mouse-face', `summary-menu', `group-menu',
@@ -2530,10 +2518,10 @@ This should be an alist for Emacs, or a plist for XEmacs."
   "Which information should be exposed in the User-Agent header.
 
 Can be a list of symbols or a string.  Valid symbols are `gnus'
-\(show Gnus version\) and `emacs' \(show Emacs version\).  In
+\(show Gnus version) and `emacs' \(show Emacs version).  In
 addition to the Emacs version, you can add `codename' \(show
-\(S\)XEmacs codename\) or either `config' \(show system
-configuration\) or `type' \(show system type\).  If you set it to
+\(S)XEmacs codename) or either `config' \(show system
+configuration) or `type' \(show system type).  If you set it to
 a string, be sure to use a valid format, see RFC 2616."
 
   :version "22.1"
@@ -2704,7 +2692,10 @@ such as a mark that says whether an article is stored in the cache
 			gnus-newsrc-last-checked-date
 			gnus-newsrc-alist gnus-server-alist
 			gnus-killed-list gnus-zombie-list
-			gnus-topic-topology gnus-topic-alist)
+			gnus-topic-topology gnus-topic-alist
+			gnus-cloud-sequence
+			gnus-cloud-covered-servers
+			gnus-cloud-file-timestamps)
   "Gnus variables saved in the quick startup file.")
 
 (defvar gnus-newsrc-alist nil

@@ -1,6 +1,6 @@
 ;;; ruby-mode-tests.el --- Test suite for ruby-mode
 
-;; Copyright (C) 2012-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2016 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -61,7 +61,7 @@ VALUES-PLIST is a list with alternating index and value elements."
 
 (defun ruby-assert-face (content pos face)
   (ruby-with-temp-buffer content
-    (font-lock-fontify-buffer)
+    (font-lock-ensure nil nil)
     (should (eq face (get-text-property pos 'face)))))
 
 (ert-deftest ruby-indent-after-symbol-made-from-string-interpolation ()
@@ -90,6 +90,15 @@ VALUES-PLIST is a list with alternating index and value elements."
 
 (ert-deftest ruby-no-heredoc-inside-quotes ()
   (ruby-assert-state "\"<<\", \"\",\nfoo" 3 nil))
+
+(ert-deftest ruby-no-heredoc-left-shift ()
+  ;; We can't really detect the left shift operator (like in similar
+  ;; cases, it depends on the type of foo), so we just require for <<
+  ;; to be preceded by a character from a known set.
+  (ruby-assert-state "foo(a<<b)" 3 nil))
+
+(ert-deftest ruby-no-heredoc-class-self ()
+  (ruby-assert-state "class <<self\nend" 3 nil))
 
 (ert-deftest ruby-exit!-font-lock ()
   (ruby-assert-face "exit!" 5 font-lock-builtin-face))
@@ -136,6 +145,9 @@ VALUES-PLIST is a list with alternating index and value elements."
 
 (ert-deftest ruby-slash-char-literal-is-not-mistaken-for-regexp ()
   (ruby-assert-state "?/" 3 nil))
+
+(ert-deftest ruby-regexp-is-not-mistaken-for-slash-symbol ()
+  (ruby-assert-state "x = /foo:/" 3 nil))
 
 (ert-deftest ruby-indent-simple ()
   (ruby-should-indent-buffer
@@ -420,7 +432,7 @@ VALUES-PLIST is a list with alternating index and value elements."
     (ruby-with-temp-buffer s
       (goto-char (point-min))
       (ruby-mode)
-      (font-lock-fontify-buffer)
+      (syntax-propertize (point-max))
       (search-forward "tee")
       (should (string= (thing-at-point 'symbol) "tee")))))
 
@@ -438,6 +450,14 @@ VALUES-PLIST is a list with alternating index and value elements."
     (ruby-assert-face s 4 font-lock-variable-name-face)
     (ruby-assert-face s 10 font-lock-string-face)
     ;; It's confused by the closing paren in the middle.
+    (ruby-assert-state s 8 nil)))
+
+(ert-deftest ruby-interpolation-inside-another-interpolation ()
+  :expected-result :failed
+  (let ((s "\"#{[a, b, c].map { |v| \"#{v}\" }.join}\""))
+    (ruby-assert-face s 1 font-lock-string-face)
+    (ruby-assert-face s 2 font-lock-variable-name-face)
+    (ruby-assert-face s 38 font-lock-string-face)
     (ruby-assert-state s 8 nil)))
 
 (ert-deftest ruby-interpolation-inside-double-quoted-percent-literals ()
@@ -460,6 +480,14 @@ VALUES-PLIST is a list with alternating index and value elements."
   ;; No folding of case.
   (ruby-assert-face "%S{foo}" 4 nil)
   (ruby-assert-face "%R{foo}" 4 nil))
+
+(ert-deftest ruby-no-nested-percent-literals ()
+  (ruby-with-temp-buffer "a = %w[b %()]"
+    (syntax-propertize (point))
+    (should (null (nth 8 (syntax-ppss))))
+    (should (eq t (nth 3 (syntax-ppss (1- (point-max))))))
+    (search-backward "[")
+    (should (eq t (nth 3 (syntax-ppss))))))
 
 (ert-deftest ruby-add-log-current-method-examples ()
   (let ((pairs '(("foo" . "#foo")

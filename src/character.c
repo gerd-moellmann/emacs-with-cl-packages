@@ -1,6 +1,6 @@
 /* Basic character support.
 
-Copyright (C) 2001-2015 Free Software Foundation, Inc.
+Copyright (C) 2001-2016 Free Software Foundation, Inc.
 Copyright (C) 1995, 1997, 1998, 2001 Electrotechnical Laboratory, JAPAN.
   Licensed to the Free Software Foundation.
 Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
@@ -11,8 +11,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,38 +25,21 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 /* At first, see the document in `character.h' to understand the code
    in this file.  */
 
-#ifdef emacs
 #include <config.h>
-#endif
 
 #include <stdio.h>
-
-#ifdef emacs
 
 #include <sys/types.h>
 #include <intprops.h>
 #include "lisp.h"
 #include "character.h"
 #include "buffer.h"
-#include "charset.h"
 #include "composite.h"
 #include "disptab.h"
-
-#else  /* not emacs */
-
-#include "mulelib.h"
-
-#endif /* emacs */
-
-Lisp_Object Qcharacterp;
-
-static Lisp_Object Qauto_fill_chars;
 
 /* Char-table of information about which character to unify to which
    Unicode character.  Mainly used by the macro MAYBE_UNIFY_CHAR.  */
 Lisp_Object Vchar_unify_table;
-
-static Lisp_Object Qchar_script_table;
 
 
 
@@ -233,45 +216,21 @@ translate_char (Lisp_Object table, int c)
   return c;
 }
 
-/* Convert ASCII or 8-bit character C to unibyte.  If C is none of
-   them, return (C & 0xFF).  */
-
-int
-multibyte_char_to_unibyte (int c)
-{
-  if (c < 0x80)
-    return c;
-  if (CHAR_BYTE8_P (c))
-    return CHAR_TO_BYTE8 (c);
-  return (c & 0xFF);
-}
-
-/* Like multibyte_char_to_unibyte, but return -1 if C is not supported
-   by charset_unibyte.  */
-
-int
-multibyte_char_to_unibyte_safe (int c)
-{
-  if (c < 0x80)
-    return c;
-  if (CHAR_BYTE8_P (c))
-    return CHAR_TO_BYTE8 (c);
-  return -1;
-}
-
 DEFUN ("characterp", Fcharacterp, Scharacterp, 1, 2, 0,
        doc: /* Return non-nil if OBJECT is a character.
 In Emacs Lisp, characters are represented by character codes, which
 are non-negative integers.  The function `max-char' returns the
 maximum character code.
-usage: (characterp OBJECT)  */)
+usage: (characterp OBJECT)  */
+       attributes: const)
   (Lisp_Object object, Lisp_Object ignore)
 {
   return (CHARACTERP (object) ? Qt : Qnil);
 }
 
 DEFUN ("max-char", Fmax_char, Smax_char, 0, 0, 0,
-       doc: /* Return the character of the maximum code.  */)
+       doc: /* Return the character of the maximum code.  */
+       attributes: const)
   (void)
 {
   return make_number (MAX_CHAR);
@@ -333,9 +292,8 @@ char_width (int c, struct Lisp_Char_Table *dp)
 	    if (CHARACTERP (ch))
 	      {
 		int w = CHAR_WIDTH (XFASTINT (ch));
-		if (INT_ADD_OVERFLOW (width, w))
+		if (INT_ADD_WRAPV (width, w, &width))
 		  string_overflow ();
-		width += w;
 	      }
 	  }
     }
@@ -380,20 +338,16 @@ c_string_width (const unsigned char *str, ptrdiff_t len, int precision,
       int c = STRING_CHAR_AND_LENGTH (str + i_byte, bytes);
       ptrdiff_t thiswidth = char_width (c, dp);
 
-      if (precision <= 0)
-	{
-	  if (INT_ADD_OVERFLOW (width, thiswidth))
-	    string_overflow ();
-	}
-      else if (precision - width < thiswidth)
+      if (0 < precision && precision - width < thiswidth)
 	{
 	  *nchars = i;
 	  *nbytes = i_byte;
 	  return width;
 	}
+      if (INT_ADD_WRAPV (thiswidth, width, &width))
+	string_overflow ();
       i++;
       i_byte += bytes;
-      width += thiswidth;
   }
 
   if (precision > 0)
@@ -467,22 +421,16 @@ lisp_string_width (Lisp_Object string, ptrdiff_t precision,
 	  thiswidth = char_width (c, dp);
 	}
 
-      if (precision <= 0)
-	{
-#ifdef emacs
-	  if (INT_ADD_OVERFLOW (width, thiswidth))
-	    string_overflow ();
-#endif
-	}
-      else if (precision - width < thiswidth)
+      if (0 < precision && precision - width < thiswidth)
 	{
 	  *nchars = i;
 	  *nbytes = i_byte;
 	  return width;
 	}
+      if (INT_ADD_WRAPV (thiswidth, width, &width))
+	string_overflow ();
       i += chars;
       i_byte += bytes;
-      width += thiswidth;
     }
 
   if (precision > 0)
@@ -688,9 +636,8 @@ count_size_as_multibyte (const unsigned char *str, ptrdiff_t len)
   for (bytes = 0; str < endp; str++)
     {
       int n = *str < 0x80 ? 1 : 2;
-      if (INT_ADD_OVERFLOW (bytes, n))
+      if (INT_ADD_WRAPV (bytes, n, &bytes))
         string_overflow ();
-      bytes += n;
     }
   return bytes;
 }
@@ -826,6 +773,7 @@ string_escape_byte8 (Lisp_Object string)
   ptrdiff_t nbytes = SBYTES (string);
   bool multibyte = STRING_MULTIBYTE (string);
   ptrdiff_t byte8_count;
+  ptrdiff_t thrice_byte8_count, uninit_nchars, uninit_nbytes;
   const unsigned char *src, *src_end;
   unsigned char *dst;
   Lisp_Object val;
@@ -839,23 +787,23 @@ string_escape_byte8 (Lisp_Object string)
   if (byte8_count == 0)
     return string;
 
+  if (INT_MULTIPLY_WRAPV (byte8_count, 3, &thrice_byte8_count))
+    string_overflow ();
+
   if (multibyte)
     {
-      if ((MOST_POSITIVE_FIXNUM - nchars) / 3 < byte8_count
-	  || (STRING_BYTES_BOUND - nbytes) / 2 < byte8_count)
-	string_overflow ();
-
       /* Convert 2-byte sequence of byte8 chars to 4-byte octal.  */
-      val = make_uninit_multibyte_string (nchars + byte8_count * 3,
-					  nbytes + byte8_count * 2);
+      if (INT_ADD_WRAPV (nchars, thrice_byte8_count, &uninit_nchars)
+	  || INT_ADD_WRAPV (nbytes, 2 * byte8_count, &uninit_nbytes))
+	string_overflow ();
+      val = make_uninit_multibyte_string (uninit_nchars, uninit_nbytes);
     }
   else
     {
-      if ((STRING_BYTES_BOUND - nbytes) / 3 < byte8_count)
-	string_overflow ();
-
       /* Convert 1-byte sequence of byte8 chars to 4-byte octal.  */
-      val = make_uninit_string (nbytes + byte8_count * 3);
+      if (INT_ADD_WRAPV (thrice_byte8_count, nbytes, &uninit_nbytes))
+	string_overflow ();
+      val = make_uninit_string (uninit_nbytes);
     }
 
   src = SDATA (string);
@@ -871,7 +819,7 @@ string_escape_byte8 (Lisp_Object string)
 	  {
 	    c = STRING_CHAR_ADVANCE (src);
 	    c = CHAR_TO_BYTE8 (c);
-	    dst += sprintf ((char *) dst, "\\%03o", c);
+	    dst += sprintf ((char *) dst, "\\%03o", c + 0u);
 	  }
 	else
 	  while (len--) *dst++ = *src++;
@@ -881,7 +829,7 @@ string_escape_byte8 (Lisp_Object string)
       {
 	c = *src++;
 	if (c >= 0x80)
-	  dst += sprintf ((char *) dst, "\\%03o", c);
+	  dst += sprintf ((char *) dst, "\\%03o", c + 0u);
 	else
 	  *dst++ = c;
       }
@@ -1012,7 +960,74 @@ character is not ASCII nor 8-bit character, an error is signaled.  */)
   return make_number (c);
 }
 
-#ifdef emacs
+/* Return true if C is an alphabetic character.  */
+bool
+alphabeticp (int c)
+{
+  Lisp_Object category = CHAR_TABLE_REF (Vunicode_category_table, c);
+  if (! INTEGERP (category))
+    return false;
+  EMACS_INT gen_cat = XINT (category);
+
+  /* See UTS #18.  There are additional characters that should be
+     here, those designated as Other_uppercase, Other_lowercase,
+     and Other_alphabetic; FIXME.  */
+  return (gen_cat == UNICODE_CATEGORY_Lu
+	  || gen_cat == UNICODE_CATEGORY_Ll
+	  || gen_cat == UNICODE_CATEGORY_Lt
+	  || gen_cat == UNICODE_CATEGORY_Lm
+	  || gen_cat == UNICODE_CATEGORY_Lo
+	  || gen_cat == UNICODE_CATEGORY_Mn
+	  || gen_cat == UNICODE_CATEGORY_Mc
+	  || gen_cat == UNICODE_CATEGORY_Me
+	  || gen_cat == UNICODE_CATEGORY_Nl);
+}
+
+/* Return true if C is a decimal-number character.  */
+bool
+decimalnump (int c)
+{
+  Lisp_Object category = CHAR_TABLE_REF (Vunicode_category_table, c);
+  if (! INTEGERP (category))
+    return false;
+  EMACS_INT gen_cat = XINT (category);
+
+  /* See UTS #18.  */
+  return gen_cat == UNICODE_CATEGORY_Nd;
+}
+
+/* Return true if C is a graphic character.  */
+bool
+graphicp (int c)
+{
+  Lisp_Object category = CHAR_TABLE_REF (Vunicode_category_table, c);
+  if (! INTEGERP (category))
+    return false;
+  EMACS_INT gen_cat = XINT (category);
+
+  /* See UTS #18.  */
+  return (!(gen_cat == UNICODE_CATEGORY_Zs /* space separator */
+	    || gen_cat == UNICODE_CATEGORY_Zl /* line separator */
+	    || gen_cat == UNICODE_CATEGORY_Zp /* paragraph separator */
+	    || gen_cat == UNICODE_CATEGORY_Cc /* control */
+	    || gen_cat == UNICODE_CATEGORY_Cs /* surrogate */
+	    || gen_cat == UNICODE_CATEGORY_Cn)); /* unassigned */
+}
+
+/* Return true if C is a printable character.  */
+bool
+printablep (int c)
+{
+  Lisp_Object category = CHAR_TABLE_REF (Vunicode_category_table, c);
+  if (! INTEGERP (category))
+    return false;
+  EMACS_INT gen_cat = XINT (category);
+
+  /* See UTS #18.  */
+  return (!(gen_cat == UNICODE_CATEGORY_Cc /* control */
+	    || gen_cat == UNICODE_CATEGORY_Cs /* surrogate */
+	    || gen_cat == UNICODE_CATEGORY_Cn)); /* unassigned */
+}
 
 void
 syms_of_character (void)
@@ -1093,5 +1108,3 @@ See The Unicode Standard for the meaning of those values.  */);
   /* The correct char-table is setup in characters.el.  */
   Vunicode_category_table = Qnil;
 }
-
-#endif /* emacs */

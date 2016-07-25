@@ -1,9 +1,9 @@
 ;;; edt-mapper.el --- create an EDT LK-201 map file for X-Windows Emacs
 
-;; Copyright (C) 1994-1995, 2000-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1995, 2000-2016 Free Software Foundation, Inc.
 
-;; Author: Kevin Gallagher <Kevin.Gallagher@boeing.com>
-;; Maintainer: Kevin Gallagher <Kevin.Gallagher@boeing.com>
+;; Author: Kevin Gallagher <kevin.gal@verizon.net>
+;; Maintainer: Kevin Gallagher <kevin.gal@verizon.net>
 ;; Keywords: emulations
 ;; Package: edt
 
@@ -105,7 +105,7 @@
 ;;;  Determine Window System, and X Server Vendor (if appropriate).
 ;;;
 (defconst edt-window-system (if (featurep 'xemacs) (console-type) window-system)
-  "Indicates window system \(in GNU Emacs\) or console type \(in XEmacs\).")
+  "Indicates window system (in GNU Emacs) or console type (in XEmacs).")
 
 (declare-function x-server-vendor "xfns.c" (&optional terminal))
 

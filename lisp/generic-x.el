@@ -1,6 +1,6 @@
 ;;; generic-x.el --- A collection of generic modes
 
-;; Copyright (C) 1997-1998, 2001-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2001-2016 Free Software Foundation, Inc.
 
 ;; Author:  Peter Breton <pbreton@cs.umb.edu>
 ;; Created: Tue Oct 08 1996
@@ -62,7 +62,7 @@
 ;; Folding mode should use invisible text properties instead.  -- Dave
 ;; Love]
 ;;
-;; From Anders Lindgren <andersl@csd.uu.se>
+;; From Anders Lindgren
 ;;
 ;; Problem summary: Wayne Adams has found a problem when using folding
 ;; mode in conjunction with font-lock for a mode defined in
@@ -1315,7 +1315,7 @@ like an INI file.  You can add this hook to `find-file-hook'."
 ;;;	comment-start-skip	     ""
 	)
   ;; (set-syntax-table rul-generic-mode-syntax-table)
-  (setq font-lock-syntax-table rul-generic-mode-syntax-table))
+  (setq-local font-lock-syntax-table rul-generic-mode-syntax-table))
 
 ;; moved mode-definition behind defun-definition to be warning-free - 15.11.02/RSan
 (define-generic-mode rul-generic-mode
@@ -1650,7 +1650,7 @@ like an INI file.  You can add this hook to `find-file-hook'."
 (defun named-database-print-serial ()
   "Print a serial number based on the current date."
   (interactive)
-  (insert (format-time-string named-database-time-string (current-time)))))
+  (insert (format-time-string named-database-time-string))))
 
 (when (memq 'resolve-conf-generic-mode generic-extras-enable-list)
 

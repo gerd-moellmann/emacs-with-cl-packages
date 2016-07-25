@@ -1,4 +1,4 @@
-;;; mac-win.el --- parse switches controlling interface with Mac window system -*-coding: utf-8-*-
+;;; mac-win.el --- parse switches controlling interface with Mac window system -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1999-2008  Free Software Foundation, Inc.
 ;; Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
@@ -28,6 +28,11 @@
 ;; that Mac windows are to be used.  Command line switches are parsed and those
 ;; pertaining to Mac are processed and removed from the command line.  The
 ;; Mac display is opened and hooks are set for popping up the initial window.
+
+;; Beginning in Emacs 23, the act of loading this file should not have
+;; the side effect of initializing the window system or processing
+;; command line arguments (this file is now loaded in loadup.el).  See
+;; `handle-args-function' and `window-system-initialization' for more details.
 
 ;; startup.el will then examine startup files, and eventually call the hooks
 ;; which create the first window(s).
@@ -69,6 +74,7 @@
 ;; (if (not (eq window-system 'mac))
 ;;     (error "%s: Loading mac-win.el but not compiled for Mac" (invocation-name)))
 
+(require 'term/common-win)
 (require 'frame)
 (require 'mouse)
 (require 'scroll-bar)
@@ -133,6 +139,9 @@
 
 
 ;;;; Utility functions
+(declare-function mac-get-preference "mac.c"
+                  (key &optional application format hash-bound))
+
 (defun mac-possibly-use-high-resolution-monitors-p ()
   "Return non-nil if high-resolution monitors can possibly be used.
 Namely, either a Retina display is connected or HiDPI display
@@ -472,12 +481,6 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	 [,regexp-modified 1 mac-compose-gstring-for-variation-with-trailer 0]
 	 [,regexp-all 1 mac-compose-gstring-for-emoji-style-variation 0])))
     ;; Emoji Modifiers
-    (if (eq (get-char-code-property #x1F3FB 'general-category) 'Cn)
-	;; Change general category of the emoji modifiers for skin
-	;; tones (U+1F3FB - U+1F3FF) in accordance with Unicode 8.0 so
-	;; cursor movement works right.
-	(dotimes (i (1+ (- #x1F3FF #x1F3FB)))
-	  (put-char-code-property (+ #x1F3FB i) 'general-category 'Sk)))
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
      `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
@@ -725,159 +728,31 @@ language."
 
 ;;;; Selections
 
-;; We keep track of the last text selected here, so we can check the
-;; current selection against it, and avoid passing back our own text
-;; from x-selection-value.
-(defvar x-last-selected-text-clipboard nil
-  "The value of the CLIPBOARD selection last time we selected or
-pasted text.")
-(defvar x-last-selected-text-primary nil
-  "The value of the PRIMARY selection last time we selected or
-pasted text.")
-
-(defcustom x-select-enable-primary nil
-  "Non-nil means cutting and pasting uses the primary selection."
-  :type 'boolean
-  :group 'killing)
-
-(declare-function x-get-selection-internal "macselect.c"
-		  (selection-symbol target-type &optional time-stamp))
-
-(defun x-get-selection (&optional type data-type)
-  "Return the value of a selection.
-The argument TYPE (default `PRIMARY') says which selection,
-and the argument DATA-TYPE (default `STRING') says
-how to convert the data.
-
-TYPE may be any symbol \(but nil stands for `PRIMARY').  However,
-only a few symbols are commonly used.  They conventionally have
-all upper-case names.  The most often used ones, in addition to
-`PRIMARY', are `SECONDARY' and `CLIPBOARD'.
-
-DATA-TYPE is usually `STRING', but can also be one of the symbols
-in `selection-converter-alist', which see."
-  (let ((data (x-get-selection-internal (or type 'PRIMARY)
-					(or data-type 'STRING)))
-	(coding (or next-selection-coding-system
-		    selection-coding-system)))
-    (when (and (stringp data)
-	       (setq data-type (get-text-property 0 'foreign-selection data)))
-      (cond ((eq data-type 'NSStringPboardType)
-	     (setq data (mac-pasteboard-string-to-string data coding))))
-      (put-text-property 0 (length data) 'foreign-selection data-type data))
-    data))
-
-(defun x-selection-value-internal (type)
-  (let ((data-types '(NSStringPboardType))
-	text tiff-image)
-    (while (and (null text) data-types)
-      (setq text (condition-case nil
-		     (x-get-selection type (car data-types))
-		   (error nil)))
-      (setq data-types (cdr data-types)))
+(defun mac-selection-value-internal (type)
+  (let ((request-type 'NSStringPboardType)
+	text)
+    (with-demoted-errors "mac-selection-value-internal: %S"
+      (if (consp request-type)
+          (while (and request-type (not text))
+            (setq text (gui-get-selection type (car request-type)))
+            (setq request-type (cdr request-type)))
+        (setq text (gui-get-selection type request-type))))
     (if text
 	(remove-text-properties 0 (length text) '(foreign-selection nil) text))
-    (setq tiff-image (condition-case nil
-			 (x-get-selection type 'NSTIFFPboardType)
-		       (error nil)))
-    (when tiff-image
-      (remove-text-properties 0 (length tiff-image)
-			      '(foreign-selection nil) tiff-image)
-      (if text
-	  (setq text (list text (mac-TIFF-to-string tiff-image text)))
-	(setq text (mac-TIFF-to-string tiff-image))))
+    (with-demoted-errors "mac-selection-value-internal: %S"
+      (let ((tiff-image (gui-get-selection type 'NSTIFFPboardType)))
+        (when tiff-image
+          (remove-text-properties 0 (length tiff-image)
+                                  '(foreign-selection nil) tiff-image)
+          (if text
+              (setq text (list text (mac-TIFF-to-string tiff-image text)))
+            (setq text (mac-TIFF-to-string tiff-image))))))
     text))
-
-(defun mac-selection-value-equal (v1 v2)
-  (let ((equal-so-far t))
-    (while (and (consp v1) (consp v2) equal-so-far)
-      (setq equal-so-far
-	    (mac-selection-value-equal (car v1) (car v2)))
-      (setq v1 (cdr v1) v2 (cdr v2)))
-    (and equal-so-far
-	 (if (not (and (stringp v1) (stringp v2)))
-	     (equal v1 v2)
-	   (and (string= v1 v2)
-		(equal (get-text-property 0 'display v1)
-		       (get-text-property 0 'display v2)))))))
-
-;; Return the value of the current selection.
-;; Treat empty strings as if they were unset.
-;; If this function is called twice and finds the same text,
-;; it returns nil the second time.  This is so that a single
-;; selection won't be added to the kill ring over and over.
-(defun x-selection-value ()
-  ;; With multi-tty, this function may be called from a tty frame.
-  (when (eq (framep (selected-frame)) 'mac)
-    (let (clip-text primary-text selection-value)
-      (when x-select-enable-clipboard
-	(setq clip-text (x-selection-value-internal 'CLIPBOARD))
-	(if (equal clip-text "") (setq clip-text nil))
-
-	;; Check the CLIPBOARD selection for 'newness', is it different
-	;; from what we remembered them to be last time we did a
-	;; cut/paste operation.
-	(setq clip-text
-	      (cond ;; check clipboard
-	       ((or (not clip-text) (equal clip-text ""))
-		(setq x-last-selected-text-clipboard nil))
-	       ((eq      clip-text x-last-selected-text-clipboard) nil)
-	       ((mac-selection-value-equal clip-text
-					   x-last-selected-text-clipboard)
-		;; Record the newer string,
-		;; so subsequent calls can use the `eq' test.
-		(setq x-last-selected-text-clipboard clip-text)
-		nil)
-	       (t
-		(setq x-last-selected-text-clipboard clip-text)))))
-
-      (when x-select-enable-primary
-	(setq primary-text (x-selection-value-internal 'PRIMARY))
-	;; Check the PRIMARY selection for 'newness', is it different
-	;; from what we remembered them to be last time we did a
-	;; cut/paste operation.
-	(setq primary-text
-	      (cond ;; check primary selection
-	       ((or (not primary-text) (equal primary-text ""))
-		(setq x-last-selected-text-primary nil))
-	       ((eq      primary-text x-last-selected-text-primary) nil)
-	       ((mac-selection-value-equal primary-text
-					   x-last-selected-text-primary)
-		;; Record the newer string,
-		;; so subsequent calls can use the `eq' test.
-		(setq x-last-selected-text-primary primary-text)
-		nil)
-	       (t
-		(setq x-last-selected-text-primary primary-text)))))
-
-      ;; As we have done one selection, clear this now.
-      (setq next-selection-coding-system nil)
-
-      ;; At this point we have recorded the current values for the
-      ;; selection from clipboard (if we are supposed to) and primary,
-      ;; So return the first one that has changed (which is the first
-      ;; non-null one).
-      (setq selection-value (or clip-text primary-text))
-      ;; If the selection-value contains multiple items, we need to
-      ;; protect the saved x-last-selected-text-clipboard/primary from
-      ;; caller's nreverse.
-      (if (listp selection-value)
-	  (setq selection-value (copy-sequence selection-value)))
-      selection-value)))
 
 (define-obsolete-function-alias 'x-cut-buffer-or-selection-value
   'x-selection-value "24.1")
 
 ;; Arrange for the kill and yank functions to set and check the clipboard.
-(setq interprogram-cut-function 'x-select-text)
-(setq interprogram-paste-function 'x-selection-value)
-
-;; Make paste from other applications use the decoding in x-select-request-type
-;; and not just STRING.
-(defun x-get-selection-value ()
-  "Get the current value of the PRIMARY selection.
-Request data types in the order specified by `x-select-request-type'."
-  (x-selection-value-internal 'PRIMARY))
 
 (defun mac-setup-selection-properties ()
   (put 'CLIPBOARD 'mac-pasteboard-name
@@ -1092,7 +967,7 @@ for the key symbol `apple-event' so it can be inspected later."
 
 (declare-function mac-application-state "macfns.c" ())
 
-(defun mac-ae-reopen-application (event)
+(defun mac-ae-reopen-application (_event)
   "Show some frame in response to the Apple event EVENT.
 The frame to be shown is chosen from visible or iconified frames
 if possible.  If there's no such frame, a new frame is created."
@@ -1500,7 +1375,7 @@ the mode if ARG is omitted or nil."
   :group 'mac
   (mac-set-font-panel-visible-p mac-font-panel-mode))
 
-(defun mac-handle-font-panel-closed (event)
+(defun mac-handle-font-panel-closed (_event)
   "Update internal status in response to font panel closed EVENT."
   (interactive "e")
   ;; Synchronize with the minor mode variable.
@@ -1752,15 +1627,13 @@ sensitive to the variation selector.")
   "Hook run for a change to the selected keyboard input source.
 The hook functions are not called when Emacs is in the background
 even if the selected keyboard input source is changed outside
-Emacs.
-This hook is not used on Mac OS X 10.4."
+Emacs."
   :package-version '(Mac\ port . "5.2")
   :type 'hook
   :group 'mac)
 
 (defcustom mac-enabled-keyboard-input-sources-change-hook nil
-  "Hook run for a change to the set of enabled keyboard input sources.
-This hook is not used on Mac OS X 10.4."
+  "Hook run for a change to the set of enabled keyboard input sources."
   :package-version '(Mac\ port . "5.2")
   :type 'hook
   :group 'mac)
@@ -1805,8 +1678,7 @@ the mode if ARG is omitted or nil.
 Mac Auto ASCII mode automatically selects the most-recently-used
 ASCII-capable keyboard input source on some occasions: after
 prefix key (bound in the global keymap) press such as C-x and
-M-g, and at the start of minibuffer input.  This mode has no
-effect on Mac OS X 10.4.
+M-g, and at the start of minibuffer input.
 
 Strictly speaking, its implementation has a timing issue: the
 Lisp event queue may already have some input events that have
@@ -1845,16 +1717,16 @@ be processed by the Lisp interpreter."
     (remove-hook 'minibuffer-setup-hook 'mac-auto-ascii-select-input-source)))
 
 ;;; Converted Actions
-(defun mac-handle-about (event)
+(defun mac-handle-about (_event)
   "Display the *About GNU Emacs* buffer in response to EVENT."
   (interactive "e")
   (if (use-fancy-splash-screens-p)
-      (mac-start-animation (fancy-splash-frame) :type 'mod :duration 0.5))
+      (mac-start-animation (fancy-splash-frame) :type 'ripple :duration 0.5))
   ;; Convert a event bound in special-event-map to a normal event.
   (setq unread-command-events
 	(append '(menu-bar help-menu about-emacs) unread-command-events)))
 
-(defun mac-handle-copy (event)
+(defun mac-handle-copy (_event)
   "Copy the selected text to the clipboard.
 This is used in response to \"Speak selected text.\""
   (interactive "e")
@@ -1862,9 +1734,9 @@ This is used in response to \"Speak selected text.\""
 	 (condition-case nil
 	     (buffer-substring-no-properties (region-beginning) (region-end))
 	   (error ""))))
-    (x-set-selection 'CLIPBOARD string)))
+    (gui-set-selection 'CLIPBOARD string)))
 
-(defun mac-handle-preferences (event)
+(defun mac-handle-preferences (_event)
   "Display the `Mac' customization group in response to EVENT."
   (interactive "e")
   (mac-start-animation (selected-window) :type 'swipe :duration 0.5)
@@ -1911,6 +1783,11 @@ modifiers, it changes the global tool-bar visibility setting."
     (let ((frame (cdr (mac-ae-parameter ae 'frame))))
       (set-frame-parameter frame 'fullscreen nil))))
 
+(defun mac-handle-new-window-for-tab (event)
+  "Create a new frame for tab in response to EVENT."
+  (interactive "e")
+  (make-frame-command))
+
 (define-key mac-apple-event-map [action about] 'mac-handle-about)
 (define-key mac-apple-event-map [action copy] 'mac-handle-copy)
 (define-key mac-apple-event-map [action preferences] 'mac-handle-preferences)
@@ -1920,8 +1797,10 @@ modifiers, it changes the global tool-bar visibility setting."
  'mac-handle-change-toolbar-display-mode)
 (put 'change-toolbar-display-mode 'mac-action-key-paths '("tag"))
 (define-key mac-apple-event-map [action zoom] 'mac-handle-zoom)
+(define-key mac-apple-event-map [action newWindowForTab]
+  'mac-handle-new-window-for-tab)
 
-;;; Spotlight for Help (Mac OS X 10.6 and later)
+;;; Spotlight for Help
 
 (declare-function info-initialize "info" ())
 (declare-function Info-find-file "info" (filename &optional noerror))
@@ -2043,15 +1922,15 @@ modifiers, it changes the global tool-bar visibility setting."
   (let (data file-urls)
     (setq data
 	  (condition-case nil
-	      (x-get-selection mac-service-selection 'NSFilenamesPboardType)
+	      (gui-get-selection mac-service-selection 'NSFilenamesPboardType)
 	    (error nil)))
     (if data
 	(setq file-urls
 	      (mac-pasteboard-filenames-to-file-urls data)))
     (when (null file-urls)
       (setq data (condition-case nil
-		     (x-get-selection mac-service-selection
-				      'NSStringPboardType)
+		     (gui-get-selection mac-service-selection
+                                        'NSStringPboardType)
 		   (error nil)))
       (when data
 	(if (string-match "\\`[[:space:]\n]*[^[:space:]\n]" data)
@@ -2079,7 +1958,7 @@ modifiers, it changes the global tool-bar visibility setting."
   "Create a new buffer containing the selection value for Services."
   (interactive)
   (switch-to-buffer (generate-new-buffer "*untitled*"))
-  (insert (x-selection-value-internal mac-service-selection))
+  (insert (gui-get-selection mac-service-selection 'NSStringPboardType))
   (sit-for 0)
   (save-buffer) ; It pops up the save dialog.
   )
@@ -2090,17 +1969,17 @@ modifiers, it changes the global tool-bar visibility setting."
   (compose-mail)
   (rfc822-goto-eoh)
   (forward-line 1)
-  (insert (x-selection-value-internal mac-service-selection) "\n"))
+  (insert (gui-get-selection mac-service-selection 'NSStringPboardType) "\n"))
 
 (defun mac-service-mail-to ()
   "Prepare a mail buffer to be sent to the selection value for Services."
   (interactive)
-  (compose-mail (x-selection-value-internal mac-service-selection)))
+  (compose-mail (gui-get-selection mac-service-selection 'NSStringPboardType)))
 
 (defun mac-service-insert-text ()
   "Insert the selection value for Services."
   (interactive)
-  (let ((text (x-selection-value-internal mac-service-selection)))
+  (let ((text (mac-selection-value-internal mac-service-selection)))
     (if (null text)
 	(message "Emacs does not understand the output from the Services menu.")
       (if (not buffer-read-only)
@@ -2254,6 +2133,7 @@ See also `mac-dnd-known-types'."
   :type 'boolean)
 
 (defvar mac-ignore-momentum-wheel-events)
+(defvar mac-redisplay-dont-reset-vscroll)
 
 (defun mac-mwheel-scroll (event)
   "Scroll up or down according to the EVENT.
@@ -2262,19 +2142,21 @@ EVENT has no modifier keys, `mac-mouse-wheel-smooth-scroll' is
 non-nil, and the input device supports it."
   (interactive (list last-input-event))
   (setq mac-ignore-momentum-wheel-events nil)
-  ;; (nth 3 event) is a list of the following form:
-  ;; (isDirectionInvertedFromDevice	; nil (normal) or t (inverted)
-  ;;  (deltaX deltaY deltaZ)		; floats
-  ;;  (scrollingDeltaX scrollingDeltaY) ; nil or floats
-  ;;  (phase momentumPhase)		; nil, nil and an integer, or integers
-  ;;  isSwipeTrackingFromScrollEventsEnabled ; nil or t
-  ;;  )
-  ;; The list might end early if the remaining elements are all nil.
+  ;; (nth 3 event) is a plist that may contain the following keys:
+  ;; :direction-inverted-from-device-p		(boolean)
+  ;; :delta-x, :delta-y, :delta-z		(floats)
+  ;; :scrolling-delta-x, :scrolling-delta-y	(floats)
+  ;; :phase, :momentum-phase			(symbols)
+  ;;	possible value: `none', `began', `stationary', `changed',
+  ;;			`ended', `cancelled', or `may-begin'
+  ;; :swipe-tracking-from-scroll-events-enabled-p (boolean)
   ;; TODO: horizontal scrolling
   (if (not (memq (event-basic-type event) '(wheel-up wheel-down)))
       (when (and (memq (event-basic-type event) '(wheel-left wheel-right))
-		 (nth 4 (nth 3 event)) ;; "Swipe between pages" enabled.
-		 (eq (nth 1 (nth 3 (nth 3 event))) 1)) ;; NSEventPhaseBegan
+                 ;; "Swipe between pages" enabled.
+		 (plist-get (nth 3 event)
+                            :swipe-tracking-from-scroll-events-enabled-p)
+		 (eq (plist-get (nth 3 event) :momentum-phase) 'began))
 	;; Post a swipe event when the momentum phase begins for
 	;; horizontal wheel events.
 	(setq mac-ignore-momentum-wheel-events t)
@@ -2289,10 +2171,11 @@ non-nil, and the input device supports it."
 	      unread-command-events))
     (if (or (not mac-mouse-wheel-smooth-scroll)
 	    (delq 'click (delq 'double (delq 'triple (event-modifiers event))))
-	    (null (nth 1 (nth 2 (nth 3 event)))))
+	    (null (plist-get (nth 3 event) :scrolling-delta-y)))
 	(if (or (null (nth 3 event))
-		(and (/= (nth 1 (nth 1 (nth 3 event))) 0.0)
-		     (= (or (nth 1 (nth 3 (nth 3 event))) 0) 0)))
+		(and (/= (plist-get (nth 3 event) :delta-y) 0.0)
+		     (eq (or (plist-get (nth 3 event) :momentum-phase) 'none)
+                         'none)))
 	    (mwheel-scroll event))
       ;; TODO: ignore momentum scroll events after buffer switch.
       (let* ((window-to-scroll (if mouse-wheel-follow-mouse
@@ -2333,8 +2216,7 @@ non-nil, and the input device supports it."
 		     (+ (- (car first-height)
 			   (- first-y (max (nth 2 first-height) 0)))
 			(nth 3 first-height)))))
-	     (scroll-amount (nth 3 event))
-	     (delta-y (- (round (nth 1 (nth 2 scroll-amount)))))
+	     (delta-y (- (round (plist-get (nth 3 event) :scrolling-delta-y))))
 	     (scroll-conservatively 0)
 	     scroll-preserve-screen-position
 	     auto-window-vscroll
@@ -2724,7 +2606,7 @@ The actual magnification is performed by `text-scale-mode'."
   (require 'face-remap)
   (let ((original-selected-window (selected-window)))
     (with-selected-window (posn-window (event-start event))
-      (let ((magnification (car (nth 3 event)))
+      (let ((magnification (plist-get (nth 3 event) :magnification))
 	    (level
 	     (round (log mac-text-scale-magnification text-scale-mode-step))))
 	;; Sync with text-scale-mode-amount.
@@ -2803,10 +2685,12 @@ The actual magnification is performed by `text-scale-mode'."
 
 ;;; Window system initialization.
 
-(defun x-win-suspend-error ()
+(defun mac-win-suspend-error ()
   "Report an error when a suspend is attempted.
-This returns an error if any Emacs frames are X frames, or always under W32 or Mac."
-  (error "Suspending an Emacs running under Mac makes no sense"))
+This returns an error if any Emacs frames are Mac frames."
+  ;; Don't allow suspending if any of the frames are Mac frames.
+  (if (memq 'mac (mapcar #'window-system (frame-list)))
+      (error "Cannot suspend Emacs while running under Mac")))
 
 (defvar mac-initialized nil
   "Non-nil if the Mac window system has been initialized.")
@@ -2867,7 +2751,8 @@ standard ones in `x-handle-args'."
   (mac-start-animation (selected-window) :type 'fade-out)
   (exit-splash-screen))
 
-(defun mac-initialize-window-system (&optional _display)
+(cl-defmethod window-system-initialization (&context (window-system mac)
+                                            &optional _display)
   "Initialize Emacs for Mac GUI frames."
   (cl-assert (not mac-initialized))
 
@@ -2947,7 +2832,7 @@ standard ones in `x-handle-args'."
 		(cons '(reverse . t) default-frame-alist)))))
 
   ;; Don't let Emacs suspend under Mac.
-  (add-hook 'suspend-hook 'x-win-suspend-error)
+  (add-hook 'suspend-hook 'mac-win-suspend-error)
 
   ;; Turn off window-splitting optimization; Mac is usually fast enough
   ;; that this is only annoying.
@@ -2997,9 +2882,40 @@ standard ones in `x-handle-args'."
   (add-to-list 'display-format-alist '("\\`Mac\\'" . mac))
   (setq mac-initialized t))
 
-(add-to-list 'handle-args-function-alist '(mac . mac-handle-args))
-(add-to-list 'frame-creation-function-alist '(mac . x-create-frame-with-faces))
-(add-to-list 'window-system-initialization-alist '(mac . mac-initialize-window-system))
+(declare-function mac-own-selection-internal "macselect.c"
+		  (selection value &optional frame))
+(declare-function mac-disown-selection-internal "macselect.c"
+		  (selection &optional time-object terminal))
+(declare-function mac-selection-owner-p "macselect.c"
+		  (&optional selection terminal))
+(declare-function mac-selection-exists-p "macselect.c"
+		  (&optional selection terminal))
+(declare-function mac-get-selection-internal "macselect.c"
+		  (selection-symbol target-type &optional time-stamp terminal))
+
+(cl-defmethod handle-args-function (args &context (window-system mac))
+  (mac-handle-args args))
+
+(cl-defmethod frame-creation-function (params &context (window-system mac))
+  (x-create-frame-with-faces params))
+
+(cl-defmethod gui-backend-set-selection (selection value
+                                         &context (window-system mac))
+  (if value (mac-own-selection-internal selection value)
+    (mac-disown-selection-internal selection)))
+
+(cl-defmethod gui-backend-selection-owner-p (selection
+                                             &context (window-system mac))
+  (mac-selection-owner-p selection))
+
+(cl-defmethod gui-backend-selection-exists-p (selection
+                                              &context (window-system mac))
+  (mac-selection-exists-p selection))
+
+(cl-defmethod gui-backend-get-selection (selection-symbol target-type
+                                         &context (window-system mac)
+                                         &optional time-stamp terminal)
+  (mac-get-selection-internal selection-symbol target-type time-stamp terminal))
 
 ;; Initiate drag and drop
 (define-key special-event-map [drag-n-drop] 'mac-dnd-handle-drag-n-drop-event)

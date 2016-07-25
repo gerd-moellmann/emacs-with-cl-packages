@@ -1,6 +1,6 @@
 ;;; hashcash.el --- Add hashcash payments to email
 
-;; Copyright (C) 2003-2005, 2007-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2005, 2007-2016 Free Software Foundation, Inc.
 
 ;; Written by: Paul Foley <mycroft@actrix.gen.nz> (1997-2002)
 ;; Maintainer: Paul Foley <mycroft@actrix.gen.nz>
@@ -46,10 +46,6 @@
 ;;    (add-hook 'message-send-hook 'hashcash-wait-or-cancel)
 
 ;;; Code:
-
-;; For Emacs <22.2 and XEmacs.
-(eval-and-compile
-  (unless (fboundp 'declare-function) (defmacro declare-function (&rest r))))
 
 (eval-when-compile (require 'cl))	; for case
 
@@ -101,7 +97,7 @@ If this is not in your PATH, specify an absolute file name."
 
 (defcustom hashcash-extra-generate-parameters nil
   "A list of parameter strings passed to `hashcash-program' when minting.
-For example, you may want to set this to '(\"-Z2\") to reduce header length."
+For example, you may want to set this to (\"-Z2\") to reduce header length."
   :type '(repeat string)
   :group 'hashcash)
 

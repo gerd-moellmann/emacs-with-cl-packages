@@ -1,6 +1,6 @@
 ;;; semantic/symref/global.el --- Use GNU Global for symbol references
 
-;; Copyright (C) 2008-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2016 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <eric@siege-engine.com>
 
@@ -38,7 +38,7 @@ the hit list.
 
 See the function `cedet-gnu-global-search' for more details.")
 
-(defmethod semantic-symref-perform-search ((tool semantic-symref-tool-global))
+(cl-defmethod semantic-symref-perform-search ((tool semantic-symref-tool-global))
   "Perform a search with GNU Global."
   (let ((b (cedet-gnu-global-search (oref tool :searchfor)
 				    (oref tool :searchtype)
@@ -49,7 +49,10 @@ See the function `cedet-gnu-global-search' for more details.")
     (semantic-symref-parse-tool-output tool b)
     ))
 
-(defmethod semantic-symref-parse-tool-output-one-line ((tool semantic-symref-tool-global))
+(defconst semantic-symref-global--line-re
+  "^\\([^ ]+\\) +\\([0-9]+\\) \\([^ ]+\\) ")
+
+(cl-defmethod semantic-symref-parse-tool-output-one-line ((tool semantic-symref-tool-global))
   "Parse one line of grep output, and return it as a match list.
 Moves cursor to end of the match."
   (cond ((or (eq (oref tool :resulttype) 'file)
@@ -57,8 +60,13 @@ Moves cursor to end of the match."
 	 ;; Search for files
 	 (when (re-search-forward "^\\([^\n]+\\)$" nil t)
 	   (match-string 1)))
+        ((eq (oref tool :resulttype) 'line-and-text)
+         (when (re-search-forward semantic-symref-global--line-re nil t)
+           (list (string-to-number (match-string 2))
+                 (match-string 3)
+                 (buffer-substring-no-properties (point) (line-end-position)))))
 	(t
-	 (when (re-search-forward "^\\([^ ]+\\) +\\([0-9]+\\) \\([^ ]+\\) " nil t)
+	 (when (re-search-forward semantic-symref-global--line-re nil t)
 	   (cons (string-to-number (match-string 2))
 		 (match-string 3))
 	   ))))

@@ -1,6 +1,6 @@
 ;;; forms.el --- Forms mode: edit a file as a form to fill in
 
-;; Copyright (C) 1991, 1994-1997, 2001-2015 Free Software Foundation,
+;; Copyright (C) 1991, 1994-1997, 2001-2016 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Johan Vromans <jvromans@squirrel.nl>
@@ -297,9 +297,6 @@
 
 ;;; Global variables and constants:
 
-(provide 'forms)			;;; official
-(provide 'forms-mode)			;;; for compatibility
-
 (defcustom forms-mode-hook nil
   "Hook run upon entering Forms mode."
   :group 'forms
@@ -443,6 +440,7 @@ Also, initial position is at last record."
 
 ;;;###autoload
 (defun forms-mode (&optional primary)
+  ;; FIXME: use define-derived-mode
   "Major mode to visit files in a field-structured manner using a form.
 
 Commands:                        Equivalent keys in read-only mode:
@@ -591,7 +589,14 @@ Commands:                        Equivalent keys in read-only mode:
 	(make-local-variable 'forms--dynamic-text)
 
 	;; Prevent accidental overwrite of the control file and auto-save.
-	(set-visited-file-name nil)
+        ;; We bind change-major-mode-with-file-name to nil to prevent
+        ;; set-visited-file-name from calling set-auto-mode, which
+        ;; might kill all local variables and set forms-file nil,
+        ;; which will then barf in find-file-noselect below.  This can
+        ;; happen when the user sets the default major mode that is
+        ;; different from the Fundamental mode.
+        (let (change-major-mode-with-file-name)
+          (set-visited-file-name nil))
 
 	;; Prepare this buffer for further processing.
 	(setq buffer-read-only nil)
@@ -637,6 +642,8 @@ Commands:                        Equivalent keys in read-only mode:
   (setq major-mode 'forms-mode)
   (setq mode-name "Forms")
 
+  (cursor-intangible-mode 1)
+
   ;; find the data file
   (setq forms--file-buffer (find-file-noselect forms-file))
 
@@ -647,7 +654,7 @@ Commands:                        Equivalent keys in read-only mode:
 	(with-current-buffer forms--file-buffer
 	  (let ((inhibit-read-only t)
 		(file-modified (buffer-modified-p)))
-	    (run-hooks 'read-file-filter)
+	    (mapc #'funcall read-file-filter)
 	    (if (not file-modified) (set-buffer-modified-p nil)))
 	  (if write-file-filter
 	      (add-hook 'write-file-functions write-file-filter nil t)))
@@ -692,10 +699,12 @@ Commands:                        Equivalent keys in read-only mode:
 	(insert
 	 "GNU Emacs Forms Mode\n\n"
 	 (if (file-exists-p forms-file)
-	     (concat "No records available in file `" forms-file "'\n\n")
-	   (format "Creating new file `%s'\nwith %d field%s per record\n\n"
-		   forms-file forms-number-of-fields
-		   (if (= 1 forms-number-of-fields) "" "s")))
+	     (format-message
+	      "No records available in file `%s'\n\n" forms-file)
+	   (format-message
+	    "Creating new file `%s'\nwith %d field%s per record\n\n"
+	    forms-file forms-number-of-fields
+	    (if (= 1 forms-number-of-fields) "" "s")))
 	 "Use " (substitute-command-keys "\\[forms-insert-record]")
 	 " to create new records.\n")
 	(setq forms--current-record 1)
@@ -921,7 +930,7 @@ Commands:                        Equivalent keys in read-only mode:
 	      ,@(if (numberp (car forms-format-list))
 		    nil
 		  '((add-text-properties (point-min) (1+ (point-min))
-					 '(front-sticky (read-only intangible)))))
+					 '(front-sticky (read-only cursor-intangible)))))
 	      ;; Prevent insertion after the last text.
 	      (remove-text-properties (1- (point)) (point)
 				      '(rear-nonsticky)))
@@ -1005,10 +1014,10 @@ Commands:                        Equivalent keys in read-only mode:
 	 (point))
        (list 'face forms--ro-face	; read-only appearance
 	     'read-only ,@(list (1+ forms--marker))
-	     'intangible ,@(list (1+ forms--marker))
+	     'cursor-intangible ,@(list (1+ forms--marker))
 	     'insert-in-front-hooks '(forms--iif-hook)
 	     'rear-nonsticky '(face read-only insert-in-front-hooks
-				    intangible)))))
+				    cursor-intangible)))))
 
    ((numberp el)
     `((let ((here (point)))
@@ -1034,10 +1043,10 @@ Commands:                        Equivalent keys in read-only mode:
 	 (point))
        (list 'face forms--ro-face
 	     'read-only ,@(list (1+ forms--marker))
-	     'intangible ,@(list (1+ forms--marker))
+	     'cursor-intangible ,@(list (1+ forms--marker))
 	     'insert-in-front-hooks '(forms--iif-hook)
 	     'rear-nonsticky '(read-only face insert-in-front-hooks
-					 intangible)))))
+					 cursor-intangible)))))
 
    ;; end of cond
    ))
@@ -1755,7 +1764,7 @@ Otherwise enables edit mode if the visited file is writable."
 With ARG: store the record after the current one.
 If `forms-new-record-filter' contains the name of a function,
 it is called to fill (some of) the fields with default values.
-If `forms-insert-after is non-nil, the default behavior is to insert
+If `forms-insert-after' is non-nil, the default behavior is to insert
 after the current record."
 
   (interactive "P")
@@ -2055,4 +2064,6 @@ Usage: (setq forms-number-of-fields
 	  (goto-char (point-max))
 	  (insert ret)))))
 
+(provide 'forms-mode)			; for compatibility
+(provide 'forms)
 ;;; forms.el ends here

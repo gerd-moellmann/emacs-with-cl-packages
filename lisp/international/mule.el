@@ -1,6 +1,6 @@
 ;;; mule.el --- basic commands for multilingual environment
 
-;; Copyright (C) 1997-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2016 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -665,8 +665,8 @@ without any conversions.
 
 VALUE is the EOL (end-of-line) format of the coding system.  It must be
 one of `unix', `dos', `mac'.  The symbol `unix' means Unix-like EOL
-\(i.e. a single LF character), `dos' means DOS-like EOL \(i.e. a sequence
-of CR followed by LF), and `mac' means Mac-like EOL \(i.e. a single CR).
+\(i.e., a single LF character), `dos' means DOS-like EOL \(i.e., a sequence
+of CR followed by LF), and `mac' means Mac-like EOL \(i.e., a single CR).
 If omitted, Emacs detects the EOL format automatically when decoding.
 
 `:charset-list' (required if `:coding-type' is `charset' or `shift-jis')
@@ -1445,42 +1445,35 @@ graphical terminals."
   (let ((coding-type (coding-system-type coding-system))
 	(saved-meta-mode
 	 (terminal-parameter terminal 'keyboard-coding-saved-meta-mode)))
-    (if (not (eq coding-type 'raw-text))
-	(let (accept-8-bit)
-	  (if (not (or (coding-system-get coding-system :suitable-for-keyboard)
-		       (coding-system-get coding-system :ascii-compatible-p)))
-	      (error "Unsuitable coding system for keyboard: %s" coding-system))
-	  (cond ((memq coding-type '(charset utf-8 shift-jis big5 ccl))
-		 (setq accept-8-bit t))
-		((eq coding-type 'iso-2022)
-		 (let ((flags (coding-system-get coding-system :flags)))
-		   (or (memq '7-bit flags)
-		       (setq accept-8-bit t))))
-		(t
-		 (error "Unsupported coding system for keyboard: %s"
-			coding-system)))
-	  (if accept-8-bit
-	      (progn
-		(or saved-meta-mode
-		    (set-terminal-parameter terminal
-					    'keyboard-coding-saved-meta-mode
-					    (cons (nth 2 (current-input-mode))
-						  nil)))
-		(set-input-meta-mode 8 terminal))
-	    (when saved-meta-mode
-	      (set-input-meta-mode (car saved-meta-mode) terminal)
-	      (set-terminal-parameter terminal
-				      'keyboard-coding-saved-meta-mode
-				      nil)))
-	  ;; Avoid end-of-line conversion.
-	  (setq coding-system
-		(coding-system-change-eol-conversion coding-system 'unix)))
-
-      (when saved-meta-mode
-	(set-input-meta-mode (car saved-meta-mode) terminal)
-	(set-terminal-parameter terminal
-				'keyboard-coding-saved-meta-mode
-				nil))))
+    (let (accept-8-bit)
+      (if (not (or (coding-system-get coding-system :suitable-for-keyboard)
+                   (coding-system-get coding-system :ascii-compatible-p)))
+          (error "Unsuitable coding system for keyboard: %s" coding-system))
+      (cond ((memq coding-type '(raw-text charset utf-8 shift-jis big5 ccl))
+             (setq accept-8-bit t))
+            ((eq coding-type 'iso-2022)
+             (let ((flags (coding-system-get coding-system :flags)))
+               (or (memq '7-bit flags)
+                   (setq accept-8-bit t))))
+            (t
+             (error "Unsupported coding system for keyboard: %s"
+                    coding-system)))
+      (if accept-8-bit
+          (progn
+            (or saved-meta-mode
+                (set-terminal-parameter terminal
+                                        'keyboard-coding-saved-meta-mode
+                                        (cons (nth 2 (current-input-mode))
+                                              nil)))
+            (set-input-meta-mode 8 terminal))
+        (when saved-meta-mode
+          (set-input-meta-mode (car saved-meta-mode) terminal)
+          (set-terminal-parameter terminal
+                                  'keyboard-coding-saved-meta-mode
+                                  nil)))
+      ;; Avoid end-of-line conversion.
+      (setq coding-system
+            (coding-system-change-eol-conversion coding-system 'unix))))
   (set-keyboard-coding-system-internal coding-system terminal)
   (setq keyboard-coding-system coding-system))
 
@@ -2002,7 +1995,7 @@ use \"coding: 'raw-text\" instead."
 		(goto-char pos)
 		(when (and set-auto-coding-for-load
 			   (re-search-forward re-unibyte tail-end t))
-                  (display-warning 'mule "`unibyte: t' is obsolete; \
+                  (display-warning 'mule "\"unibyte: t\" is obsolete; \
 use \"coding: 'raw-text\" instead." :warning)
 		  (setq coding-system 'raw-text))
 		(when (and (not coding-system)
@@ -2317,7 +2310,13 @@ ALIST is an alist, each element has the form (FROM . TO).
 FROM and TO are a character or a vector of characters.
 If FROM is a character, that character is translated to TO.
 If FROM is a vector of characters, that sequence is translated to TO.
-The first extra-slot of the value is a translation table for reverse mapping."
+The first extra-slot of the value is a translation table for reverse mapping.
+
+FROM and TO may be nil.  If TO is nil, the translation from FROM
+to nothing is defined in the translation table and that element
+is ignored in the reverse map.  If FROM is nil, the translation
+from TO to nothing is defined in the reverse map only.  A vector
+of length zero has the same meaning as specifying nil."
   (let ((tables (vector (make-char-table 'translation-table)
 			(make-char-table 'translation-table)))
 	table max-lookup from to idx val)
@@ -2330,20 +2329,23 @@ The first extra-slot of the value is a translation table for reverse mapping."
 	  (setq from (cdr elt) to (car elt)))
 	(if (characterp from)
 	    (setq idx from)
-	  (setq idx (aref from 0)
-		max-lookup (max max-lookup (length from))))
-	(setq val (aref table idx))
-	(if val
-	    (progn
-	      (or (consp val)
-		  (setq val (list (cons (vector idx) val))))
-	      (if (characterp from)
-		  (setq from (vector from)))
-	      (setq val (nconc val (list (cons from to)))))
-	  (if (characterp from)
-	      (setq val to)
-	    (setq val (list (cons from to)))))
-	(aset table idx val))
+	  (if (= (length from) 0)
+	      (setq idx nil)
+	    (setq idx (aref from 0)
+		  max-lookup (max max-lookup (length from)))))
+	(when idx
+	  (setq val (aref table idx))
+	  (if val
+	      (progn
+		(or (consp val)
+		    (setq val (list (cons (vector idx) val))))
+		(if (characterp from)
+		    (setq from (vector from)))
+		(setq val (nconc val (list (cons from to)))))
+	    (if (characterp from)
+		(setq val to)
+	      (setq val (list (cons from to)))))
+	  (aset table idx val)))
       (set-char-table-extra-slot table 1 max-lookup))
     (set-char-table-extra-slot (aref tables 0) 0 (aref tables 1))
     (aref tables 0)))

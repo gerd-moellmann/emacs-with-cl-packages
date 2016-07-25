@@ -1,6 +1,6 @@
 ;;; gnus-start.el --- startup functions for Gnus
 
-;; Copyright (C) 1996-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2016 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -30,6 +30,7 @@
 (require 'gnus-spec)
 (require 'gnus-range)
 (require 'gnus-util)
+(require 'gnus-cloud)
 (autoload 'message-make-date "message")
 (autoload 'gnus-agent-read-servers-validate "gnus-agent")
 (autoload 'gnus-agent-save-local "gnus-agent")
@@ -123,7 +124,7 @@ servers.
 
 E.g.:
   (setq gnus-check-new-newsgroups
-	'((nntp \"some.server\") (nntp \"other.server\")))
+	\\='((nntp \"some.server\") (nntp \"other.server\")))
 
 If this variable is nil, then you have to tell Gnus explicitly to
 check for new newsgroups with \\<gnus-group-mode-map>\\[gnus-find-new-newsgroups]."
@@ -861,7 +862,9 @@ If REGEXP is given, lines that match it will be deleted."
 	    (goto-char (match-beginning 0))
 	    (delete-region (point-at-bol) end))))
       (goto-char (point-max))
-      (insert string "\n")
+      ;; Make sure that each dribble entry is a single line, so that
+      ;; the "remove" code above works.
+      (insert (replace-regexp-in-string "\n" "\\\\n" string) "\n")
       ;; This has been commented by Josh Huber <huber@alum.wpi.edu>
       ;; It causes problems with both XEmacs and Emacs 21, and doesn't
       ;; seem to be of much value. (FIXME: remove this after we make sure
@@ -888,6 +891,11 @@ If REGEXP is given, lines that match it will be deleted."
       (setq buffer-save-without-query t)
       (erase-buffer)
       (setq buffer-file-name dribble-file)
+      ;; The buffer may be shrunk a lot when deleting old entries.
+      ;; It caused the auto-saving to stop.
+      (if (featurep 'emacs)
+	  (set (make-local-variable 'auto-save-include-big-deletions) t)
+	(set (make-local-variable 'disable-auto-save-when-buffer-shrinks) nil))
       (auto-save-mode t)
       (buffer-disable-undo)
       (bury-buffer (current-buffer))
@@ -1461,7 +1469,7 @@ newsgroup."
   "Check whether a group has been activated or not.
 If SCAN, request a scan of that group as well.  If METHOD, use
 that select method instead of determining the method based on the
-group name.  If DONT-CHECK, don't check check whether the group
+group name.  If DONT-CHECK, don't check whether the group
 actually exists.  If DONT-SUB-CHECK or DONT-CHECK, don't let the
 backend check whether the group actually exists."
   (let ((method (or method (inline (gnus-find-method-for-group group))))
@@ -1666,10 +1674,11 @@ backend check whether the group actually exists."
 	(push (setq method-group-list (list method method-type nil nil))
 	      type-cache))
       ;; Only add groups that need updating.
-      (if (funcall (if one-level #'= #'<=) (gnus-info-level info)
-	      (if (eq (cadr method-group-list) 'foreign)
-		  foreign-level
-		alevel))
+      (if (or (and foreign-level (null (numberp foreign-level)))
+	      (funcall (if one-level #'= #'<=) (gnus-info-level info)
+		       (if (eq (cadr method-group-list) 'foreign)
+			   foreign-level
+			 alevel)))
 	  (setcar (nthcdr 2 method-group-list)
 		  (cons info (nth 2 method-group-list)))
 	;; The group is inactive, so we nix out the number of unread articles.
@@ -2363,7 +2372,7 @@ If FORCE is non-nil, the .newsrc file is read."
                   (while (let (c
                                (cursor-in-echo-area t)
                                (echo-keystrokes 0))
-                           (message "Convert gnus from version '%s' to '%s'? (n/y/?)"
+                           (message "Convert gnus from version `%s' to `%s'? (n/y/?)"
                                     gnus-newsrc-file-version gnus-version)
                            (setq c (read-char-exclusive))
 
@@ -2384,8 +2393,8 @@ If FORCE is non-nil, the .newsrc file is read."
 
               (funcall func convert-to)))
           (gnus-dribble-enter
-           (format ";Converted gnus from version '%s' to '%s'."
-                   gnus-newsrc-file-version gnus-version)))))))
+           (gnus-format-message ";Converted gnus from version `%s' to `%s'."
+				gnus-newsrc-file-version gnus-version)))))))
 
 (defun gnus-convert-mark-converter-prompt (converter no-prompt)
   "Indicate whether CONVERTER requires gnus-convert-old-newsrc to
@@ -2777,6 +2786,7 @@ If FORCE is non-nil, the .newsrc file is read."
       'msdos-long-file-names
       (lambda () t))))
 
+(defvar gnus-save-newsrc-file-last-timestamp nil)
 (defun gnus-save-newsrc-file (&optional force)
   "Save .newsrc file."
   ;; Note: We cannot save .newsrc file if all newsgroups are removed
@@ -2815,12 +2825,29 @@ If FORCE is non-nil, the .newsrc file is read."
 	  (erase-buffer)
           (gnus-message 5 "Saving %s.eld..." gnus-current-startup-file)
 
+          ;; check timestamp of `gnus-current-startup-file'.eld against
+          ;; `gnus-save-newsrc-file-last-timestamp'
+          (let* ((checkfile (concat gnus-current-startup-file ".eld"))
+                 (mtime (nth 5 (file-attributes checkfile))))
+            (when (and gnus-save-newsrc-file-last-timestamp
+                       (time-less-p gnus-save-newsrc-file-last-timestamp
+                                    mtime))
+              (unless (y-or-n-p
+                       (format "%s was updated externally after %s, save?"
+                               checkfile
+                               (format-time-string
+                                "%c"
+                                gnus-save-newsrc-file-last-timestamp)))
+                (error "Couldn't save %s: updated externally" checkfile))))
+
           (if gnus-save-startup-file-via-temp-buffer
               (let ((coding-system-for-write gnus-ding-file-coding-system)
                     (standard-output (current-buffer)))
                 (gnus-gnus-to-quick-newsrc-format)
                 (gnus-run-hooks 'gnus-save-quick-newsrc-hook)
-                (save-buffer))
+                (save-buffer)
+                (setq gnus-save-newsrc-file-last-timestamp
+                            (nth 5 (file-attributes buffer-file-name))))
             (let ((coding-system-for-write gnus-ding-file-coding-system)
                   (version-control gnus-backup-startup-file)
                   (startup-file (concat gnus-current-startup-file ".eld"))
@@ -2855,7 +2882,9 @@ If FORCE is non-nil, the .newsrc file is read."
 
                       ;; Replace the existing startup file with the temp file.
                       (rename-file working-file startup-file t)
-                      (gnus-set-file-modes startup-file setmodes)))
+                      (gnus-set-file-modes startup-file setmodes)
+                      (setq gnus-save-newsrc-file-last-timestamp
+                            (nth 5 (file-attributes startup-file)))))
                 (condition-case nil
                     (delete-file working-file)
                   (file-error nil)))))

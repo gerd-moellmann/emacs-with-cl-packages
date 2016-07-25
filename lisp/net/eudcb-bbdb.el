@@ -1,9 +1,10 @@
-;;; eudcb-bbdb.el --- Emacs Unified Directory Client - BBDB Backend -*- coding: utf-8 -*-
+;;; eudcb-bbdb.el --- Emacs Unified Directory Client - BBDB Backend
 
-;; Copyright (C) 1998-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2016 Free Software Foundation, Inc.
 
 ;; Author: Oscar Figueiredo <oscar@cpe.fr>
-;; Maintainer: Pavel Janík <Pavel@Janik.cz>
+;;         Pavel Janík <Pavel@Janik.cz>
+;; Maintainer: Thomas Fitzsimmons <fitzsim@fitzsim.org>
 ;; Keywords: comm
 ;; Package: eudc
 
@@ -40,6 +41,16 @@
 ;; I don't want to use mapcar*
 (defvar eudc-bbdb-current-query nil)
 (defvar eudc-bbdb-current-return-attributes nil)
+
+(defun eudc-bbdb-field (field-symbol)
+  "Convert FIELD-SYMBOL so that it is recognized by the current BBDB version.
+BBDB < 3 used `net'; BBDB >= 3 uses `mail'."
+  ;; This just-in-time translation permits upgrading from BBDB 2 to
+  ;; BBDB 3 without restarting Emacs.
+  (if (and (eq field-symbol 'net)
+	   (eudc--using-bbdb-3-or-newer-p))
+      'mail
+    field-symbol))
 
 (defvar eudc-bbdb-attributes-translation-alist
   '((name . lastname)
@@ -84,7 +95,9 @@
                    (progn
                      (setq bbdb-val
                            (eval (list (intern (concat "bbdb-record-"
-                                                       (symbol-name attr)))
+                                                       (symbol-name
+                                                        (eudc-bbdb-field
+                                                         attr))))
                                        'record)))
                      (if (listp bbdb-val)
                          (if eudc-bbdb-enable-substring-matches
@@ -167,7 +180,7 @@ The record is filtered according to `eudc-bbdb-current-return-attributes'"
 	(setq val (eval
 		   (list (intern
 			  (concat "bbdb-record-"
-				  (symbol-name attr)))
+				  (symbol-name (eudc-bbdb-field attr))))
 			 'record))))
        (t
 	(error "Unknown BBDB attribute")))

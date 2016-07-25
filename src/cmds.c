@@ -1,13 +1,13 @@
 /* Simple built-in editing commands.
 
-Copyright (C) 1985, 1993-1998, 2001-2015 Free Software Foundation, Inc.
+Copyright (C) 1985, 1993-1998, 2001-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,16 +25,9 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "character.h"
 #include "buffer.h"
 #include "syntax.h"
-#include "window.h"
 #include "keyboard.h"
 #include "keymap.h"
-#include "dispextern.h"
 #include "frame.h"
-
-static Lisp_Object Qkill_forward_chars, Qkill_backward_chars;
-
-/* A possible value for a buffer's overwrite-mode variable.  */
-static Lisp_Object Qoverwrite_mode_binary;
 
 static int internal_self_insert (int, EMACS_INT);
 
@@ -115,10 +108,17 @@ DEFUN ("forward-line", Fforward_line, Sforward_line, 0, 1, "^p",
 Precisely, if point is on line I, move to the start of line I + N
 \("start of line" in the logical order).
 If there isn't room, go as far as possible (no error).
+
 Returns the count of lines left to move.  If moving forward,
-that is N - number of lines moved; if backward, N + number moved.
-With positive N, a non-empty line at the end counts as one line
-successfully moved (for the return value).  */)
+that is N minus number of lines moved; if backward, N plus number
+moved.
+
+Exception: With positive N, a non-empty line at the end of the
+buffer, or of its accessible portion, counts as one line
+successfully moved (for the return value).  This means that the
+function will move point to the end of such a line and will count
+it as a line moved across, even though there is no next line to
+go to its beginning.  */)
   (Lisp_Object n)
 {
   ptrdiff_t opoint = PT, pos, pos_byte, shortage, count;
@@ -131,12 +131,7 @@ successfully moved (for the return value).  */)
       count = XINT (n);
     }
 
-  if (count <= 0)
-    pos = find_newline (PT, PT_BYTE, BEGV, BEGV_BYTE, count - 1,
-			&shortage, &pos_byte, 1);
-  else
-    pos = find_newline (PT, PT_BYTE, ZV, ZV_BYTE, count,
-			&shortage, &pos_byte, 1);
+  shortage = scan_newline_from_point (count, &pos, &pos_byte);
 
   SET_PT_BOTH (pos, pos_byte);
 
@@ -237,6 +232,9 @@ because it respects values of `delete-active-region' and `overwrite-mode'.  */)
 
   CHECK_NUMBER (n);
 
+  if (eabs (XINT (n)) < 2)
+    call0 (Qundo_auto_amalgamate);
+
   pos = PT + XINT (n);
   if (NILP (killflag))
     {
@@ -262,8 +260,6 @@ because it respects values of `delete-active-region' and `overwrite-mode'.  */)
   return Qnil;
 }
 
-static int nonundocount;
-
 /* Note that there's code in command_loop_1 which typically avoids
    calling this.  */
 DEFUN ("self-insert-command", Fself_insert_command, Sself_insert_command, 1, 1, "p",
@@ -277,34 +273,13 @@ After insertion, the value of `auto-fill-function' is called if the
 At the end, it runs `post-self-insert-hook'.  */)
   (Lisp_Object n)
 {
-  bool remove_boundary = 1;
   CHECK_NUMBER (n);
 
-  if (XFASTINT (n) < 0)
-    error ("Negative repetition argument %"pI"d", XFASTINT (n));
+  if (XINT (n) < 0)
+    error ("Negative repetition argument %"pI"d", XINT (n));
 
-  if (!EQ (Vthis_command, KVAR (current_kboard, Vlast_command)))
-    nonundocount = 0;
-
-  if (NILP (Vexecuting_kbd_macro)
-      && !EQ (minibuf_window, selected_window))
-    {
-      if (nonundocount <= 0 || nonundocount >= 20)
-	{
-	  remove_boundary = 0;
-	  nonundocount = 0;
-	}
-      nonundocount++;
-    }
-
-  if (remove_boundary
-      && CONSP (BVAR (current_buffer, undo_list))
-      && NILP (XCAR (BVAR (current_buffer, undo_list)))
-      /* Only remove auto-added boundaries, not boundaries
-	 added be explicit calls to undo-boundary.  */
-      && EQ (BVAR (current_buffer, undo_list), last_undo_boundary))
-    /* Remove the undo_boundary that was just pushed.  */
-    bset_undo_list (current_buffer, XCDR (BVAR (current_buffer, undo_list)));
+  if (XFASTINT (n) < 2)
+    call0 (Qundo_auto_amalgamate);
 
   /* Barf if the key that invoked this was not a character.  */
   if (!CHARACTERP (last_command_event))
@@ -314,8 +289,8 @@ At the end, it runs `post-self-insert-hook'.  */)
 				    XINT (last_command_event));
     int val = internal_self_insert (character, XFASTINT (n));
     if (val == 2)
-      nonundocount = 0;
-    frame_make_pointer_invisible ();
+      Fset (Qundo_auto__this_command_amalgamating, Qnil);
+    frame_make_pointer_invisible (SELECTED_FRAME ());
   }
 
   return Qnil;
@@ -326,9 +301,6 @@ At the end, it runs `post-self-insert-hook'.  */)
    If this insertion is suitable for direct output (completely simple),
    return 0.  A value of 1 indicates this *might* not have been simple.
    A value of 2 means this did things that call for an undo boundary.  */
-
-static Lisp_Object Qexpand_abbrev;
-static Lisp_Object Qpost_self_insert_hook;
 
 static int
 internal_self_insert (int c, EMACS_INT n)
@@ -359,9 +331,7 @@ internal_self_insert (int c, EMACS_INT n)
     }
   else
     {
-      str[0] = (SINGLE_BYTE_CHAR_P (c)
-		? c
-		: multibyte_char_to_unibyte (c));
+      str[0] = SINGLE_BYTE_CHAR_P (c) ? c : CHAR_TO_BYTE8 (c);
       len = 1;
     }
   if (!NILP (overwrite)
@@ -477,8 +447,8 @@ internal_self_insert (int c, EMACS_INT n)
 	  string = concat2 (string, tem);
 	}
 
-      replace_range (PT, PT + chars_to_delete, string, 1, 1, 1);
-      Fforward_char (make_number (n + spaces_to_insert));
+      replace_range (PT, PT + chars_to_delete, string, 1, 1, 1, 0);
+      Fforward_char (make_number (n));
     }
   else if (n > 1)
     {
@@ -514,7 +484,7 @@ internal_self_insert (int c, EMACS_INT n)
     }
 
   /* Run hooks for electric keys.  */
-  Frun_hooks (1, &Qpost_self_insert_hook);
+  run_hook (Qpost_self_insert_hook);
 
   return hairy;
 }
@@ -524,9 +494,15 @@ internal_self_insert (int c, EMACS_INT n)
 void
 syms_of_cmds (void)
 {
-  DEFSYM (Qkill_backward_chars, "kill-backward-chars");
+  DEFSYM (Qundo_auto_amalgamate, "undo-auto-amalgamate");
+  DEFSYM (Qundo_auto__this_command_amalgamating,
+          "undo-auto--this-command-amalgamating");
+
   DEFSYM (Qkill_forward_chars, "kill-forward-chars");
+
+  /* A possible value for a buffer's overwrite-mode variable.  */
   DEFSYM (Qoverwrite_mode_binary, "overwrite-mode-binary");
+
   DEFSYM (Qexpand_abbrev, "expand-abbrev");
   DEFSYM (Qpost_self_insert_hook, "post-self-insert-hook");
 
@@ -551,7 +527,6 @@ keys_of_cmds (void)
 {
   int n;
 
-  nonundocount = 0;
   initial_define_key (global_map, Ctl ('I'), "self-insert-command");
   for (n = 040; n < 0177; n++)
     initial_define_key (global_map, n, "self-insert-command");

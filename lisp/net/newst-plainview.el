@@ -1,11 +1,10 @@
 ;;; newst-plainview.el --- Single buffer frontend for newsticker.
 
-;; Copyright (C) 2003-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2016 Free Software Foundation, Inc.
 
 ;; Author:      Ulf Jasper <ulf.jasper@web.de>
 ;; Filename:    newst-plainview.el
 ;; URL:         http://www.nongnu.org/newsticker
-;; Time-stamp:  "Mon 11-Feb-2013 20:27:11 gm on skiddaw"
 ;; Package:     newsticker
 
 ;; ======================================================================
@@ -229,7 +228,7 @@ Each function is called after one of `newsticker-next-item',
 `newsticker-next-new-item', `newsticker-previous-item',
 `newsticker-previous-new-item' has been called.
 
-The default value 'newsticker--buffer-make-item-completely-visible
+The default value `newsticker--buffer-make-item-completely-visible'
 assures that the current item is always completely visible."
   :type 'hook
   :options '(newsticker--buffer-make-item-completely-visible)
@@ -241,7 +240,7 @@ assures that the current item is always completely visible."
 Each function is called after one of `newsticker-next-feed', and
 `newsticker-previous-feed' has been called.
 
-The default value 'newsticker--buffer-make-item-completely-visible
+The default value `newsticker--buffer-make-item-completely-visible'
 assures that the current feed is completely visible."
   :type 'hook
   :options '(newsticker--buffer-make-item-completely-visible)
@@ -252,7 +251,7 @@ assures that the current feed is completely visible."
   "List of functions run after the newsticker buffer has been updated.
 Each function is called after `newsticker-buffer-update' has been called.
 
-The default value '`newsticker-w3m-show-inline-images' loads inline
+The default value `newsticker-w3m-show-inline-images' loads inline
 images."
   :type 'hook
   :group 'newsticker-plainview-hooks)
@@ -264,7 +263,7 @@ Each function is called after
 `newsticker-toggle-auto-narrow-to-feed' or
 `newsticker-toggle-auto-narrow-to-item' has been called.
 
-The default value '`newsticker-w3m-show-inline-images' loads inline
+The default value `newsticker-w3m-show-inline-images' loads inline
 images."
   :type 'hook
   :group 'newsticker-plainview-hooks)
@@ -1525,8 +1524,8 @@ Scans the buffer between START and END."
 
 (defun newsticker--buffer-set-invisibility (start end)
   "Add invisibility properties according to nt-type property.
-Scans the buffer between START and END.  Sets the 'invisible
-property to '(<nt-type>-<nt-age> <nt-type> <nt-age>)."
+Scans the buffer between START and END.  Sets the `invisible'
+property to (<nt-type>-<nt-age> <nt-type> <nt-age>)."
   (save-excursion
     ;; reset invisibility settings
     (put-text-property start end 'invisible nil)

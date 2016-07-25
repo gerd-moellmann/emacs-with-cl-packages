@@ -1,14 +1,14 @@
 /* simulate `sbrk' with an array in .bss, for `unexec' support for Cygwin;
    complete rewrite of xemacs Cygwin `unexec' code
 
-   Copyright (C) 2004-2015 Free Software Foundation, Inc.
+   Copyright (C) 2004-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -20,30 +20,23 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include <stdio.h>
-
 #include "lisp.h"
-
 #include <unistd.h>
+#include <stdlib.h>		/* for exit */
 
-#ifdef __x86_64__
 #ifdef ENABLE_CHECKING
 #define STATIC_HEAP_SIZE	(28 * 1024 * 1024)
 #else
 #define STATIC_HEAP_SIZE	(19 * 1024 * 1024)
 #endif
-#else  /* x86 */
-#ifdef ENABLE_CHECKING
-#define STATIC_HEAP_SIZE	(18 * 1024 * 1024)
-#else
-#define STATIC_HEAP_SIZE	(13 * 1024 * 1024)
-#endif
-#endif	/* x86 */
 
 int debug_sheap = 0;
 
 #define BLOCKSIZE 4096
 
 char bss_sbrk_buffer[STATIC_HEAP_SIZE];
+/* The following is needed in gmalloc.c */
+void *bss_sbrk_buffer_end = bss_sbrk_buffer + STATIC_HEAP_SIZE;
 char *bss_sbrk_ptr;
 char *max_bss_sbrk_ptr;
 int bss_sbrk_did_unexec;

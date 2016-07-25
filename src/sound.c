@@ -1,13 +1,13 @@
 /* sound.c -- sound support.
 
-Copyright (C) 1998-1999, 2001-2015 Free Software Foundation, Inc.
+Copyright (C) 1998-1999, 2001-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -46,7 +46,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <errno.h>
 
 #include "lisp.h"
-#include "dispextern.h"
 #include "atimer.h"
 #include "syssignal.h"
 /* END: Common Includes */
@@ -86,10 +85,12 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 /* BEGIN: Windows Specific Includes */
 #include <stdio.h>
 #include <limits.h>
+#include <mbstring.h>
 #include <windows.h>
 #include <mmsystem.h>
 
 #include "coding.h"
+#include "w32common.h"
 #include "w32.h"
 /* END: Windows Specific Includes */
 
@@ -99,12 +100,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #endif /* HAVE_MACGUI */
 
 /* BEGIN: Common Definitions */
-
-/* Symbols.  */
-
-static Lisp_Object QCvolume, QCdevice;
-static Lisp_Object Qsound;
-static Lisp_Object Qplay_sound_functions;
 
 /* Indices of attributes in a sound attributes vector.  */
 
@@ -570,12 +565,11 @@ wav_play (struct sound *s, struct sound_device *sd)
 	       SBYTES (s->data) - sizeof *header);
   else
     {
-      char *buffer;
       ptrdiff_t nbytes = 0;
       ptrdiff_t blksize = sd->period_size ? sd->period_size (sd) : 2048;
       ptrdiff_t data_left = header->data_length;
-
-      buffer = alloca (blksize);
+      USE_SAFE_ALLOCA;
+      char *buffer = SAFE_ALLOCA (blksize);
       lseek (s->fd, sizeof *header, SEEK_SET);
       while (data_left > 0
              && (nbytes = emacs_read (s->fd, buffer, blksize)) > 0)
@@ -588,6 +582,7 @@ wav_play (struct sound *s, struct sound_device *sd)
 
       if (nbytes < 0)
 	sound_perror ("Error reading sound file");
+      SAFE_FREE ();
     }
 }
 
@@ -662,19 +657,20 @@ au_play (struct sound *s, struct sound_device *sd)
   else
     {
       ptrdiff_t blksize = sd->period_size ? sd->period_size (sd) : 2048;
-      char *buffer;
       ptrdiff_t nbytes;
 
       /* Seek */
       lseek (s->fd, header->data_offset, SEEK_SET);
 
       /* Copy sound data to the device.  */
-      buffer = alloca (blksize);
+      USE_SAFE_ALLOCA;
+      char *buffer = SAFE_ALLOCA (blksize);
       while ((nbytes = emacs_read (s->fd, buffer, blksize)) > 0)
 	sd->write (sd, buffer, nbytes);
 
       if (nbytes < 0)
 	sound_perror ("Error reading sound file");
+      SAFE_FREE ();
     }
 }
 
@@ -708,7 +704,7 @@ vox_configure (struct sound_device *sd)
 {
   int val;
 #ifdef USABLE_SIGIO
-  sigset_t blocked;
+  sigset_t oldset, blocked;
 #endif
 
   eassert (sd->fd >= 0);
@@ -720,7 +716,7 @@ vox_configure (struct sound_device *sd)
 #ifdef USABLE_SIGIO
   sigemptyset (&blocked);
   sigaddset (&blocked, SIGIO);
-  pthread_sigmask (SIG_BLOCK, &blocked, 0);
+  pthread_sigmask (SIG_BLOCK, &blocked, &oldset);
 #endif
 
   val = sd->format;
@@ -754,7 +750,7 @@ vox_configure (struct sound_device *sd)
 
   turn_on_atimers (1);
 #ifdef USABLE_SIGIO
-  pthread_sigmask (SIG_UNBLOCK, &blocked, 0);
+  pthread_sigmask (SIG_SETMASK, &oldset, 0);
 #endif
 }
 
@@ -770,10 +766,10 @@ vox_close (struct sound_device *sd)
 	 be interrupted by a signal.  Block the ones we know to cause
 	 troubles.  */
 #ifdef USABLE_SIGIO
-      sigset_t blocked;
+      sigset_t blocked, oldset;
       sigemptyset (&blocked);
       sigaddset (&blocked, SIGIO);
-      pthread_sigmask (SIG_BLOCK, &blocked, 0);
+      pthread_sigmask (SIG_BLOCK, &blocked, &oldset);
 #endif
       turn_on_atimers (0);
 
@@ -782,7 +778,7 @@ vox_close (struct sound_device *sd)
 
       turn_on_atimers (1);
 #ifdef USABLE_SIGIO
-      pthread_sigmask (SIG_UNBLOCK, &blocked, 0);
+      pthread_sigmask (SIG_SETMASK, &oldset, 0);
 #endif
 
       /* Close the device.  */
@@ -1209,38 +1205,83 @@ alsa_init (struct sound_device *sd)
 
 /* BEGIN: Windows specific functions */
 
-#define SOUND_WARNING(fun, error, text)            \
-  {                                                \
-    char buf[1024];                                \
-    char err_string[MAXERRORLENGTH];               \
-    fun (error, err_string, sizeof (err_string));  \
-    _snprintf (buf, sizeof (buf), "%s\nError: %s", \
-	       text, err_string);		   \
-    sound_warning (buf);                           \
-  }
+#define SOUND_WARNING(func, error, text)		\
+  do {							\
+    char buf[1024];					\
+    char err_string[MAXERRORLENGTH];			\
+    func (error, err_string, sizeof (err_string));	\
+    _snprintf (buf, sizeof (buf), "%s\nMCI Error: %s",	\
+	       text, err_string);			\
+    message_with_string ("%s", build_string (buf), 1);	\
+  } while (0)
 
 static int
 do_play_sound (const char *psz_file, unsigned long ui_volume)
 {
   int i_result = 0;
   MCIERROR mci_error = 0;
-  char sz_cmd_buf[520] = {0};
-  char sz_ret_buf[520] = {0};
+  char sz_cmd_buf_a[520];
+  char sz_ret_buf_a[520];
   MMRESULT mm_result = MMSYSERR_NOERROR;
   unsigned long ui_volume_org = 0;
   BOOL b_reset_volume = FALSE;
+  char warn_text[560];
 
-  memset (sz_cmd_buf, 0, sizeof (sz_cmd_buf));
-  memset (sz_ret_buf, 0, sizeof (sz_ret_buf));
-  sprintf (sz_cmd_buf,
-           "open \"%s\" alias GNUEmacs_PlaySound_Device wait",
-           psz_file);
-  mci_error = mciSendString (sz_cmd_buf, sz_ret_buf, sizeof (sz_ret_buf), NULL);
+  /* Since UNICOWS.DLL includes only a stub for mciSendStringW, we
+     need to encode the file in the ANSI codepage on Windows 9X even
+     if w32_unicode_filenames is non-zero.  */
+  if (w32_major_version <= 4 || !w32_unicode_filenames)
+    {
+      char fname_a[MAX_PATH], shortname[MAX_PATH], *fname_to_use;
+
+      filename_to_ansi (psz_file, fname_a);
+      fname_to_use = fname_a;
+      /* If the file name is not encodable in ANSI, try its short 8+3
+	 alias.  This will only work if w32_unicode_filenames is
+	 non-zero.  */
+      if (_mbspbrk ((const unsigned char *)fname_a,
+		    (const unsigned char *)"?"))
+	{
+	  if (w32_get_short_filename (psz_file, shortname, MAX_PATH))
+	    fname_to_use = shortname;
+	  else
+	    mci_error = MCIERR_FILE_NOT_FOUND;
+	}
+
+      if (!mci_error)
+	{
+	  memset (sz_cmd_buf_a, 0, sizeof (sz_cmd_buf_a));
+	  memset (sz_ret_buf_a, 0, sizeof (sz_ret_buf_a));
+	  sprintf (sz_cmd_buf_a,
+		   "open \"%s\" alias GNUEmacs_PlaySound_Device wait",
+		   fname_to_use);
+	  mci_error = mciSendStringA (sz_cmd_buf_a,
+				      sz_ret_buf_a, sizeof (sz_ret_buf_a), NULL);
+	}
+    }
+  else
+    {
+      wchar_t sz_cmd_buf_w[520];
+      wchar_t sz_ret_buf_w[520];
+      wchar_t fname_w[MAX_PATH];
+
+      filename_to_utf16 (psz_file, fname_w);
+      memset (sz_cmd_buf_w, 0, sizeof (sz_cmd_buf_w));
+      memset (sz_ret_buf_w, 0, sizeof (sz_ret_buf_w));
+      /* _swprintf is not available on Windows 9X, so we construct the
+	 UTF-16 command string by hand.  */
+      wcscpy (sz_cmd_buf_w, L"open \"");
+      wcscat (sz_cmd_buf_w, fname_w);
+      wcscat (sz_cmd_buf_w, L"\" alias GNUEmacs_PlaySound_Device wait");
+      mci_error = mciSendStringW (sz_cmd_buf_w,
+				  sz_ret_buf_w, ARRAYELTS (sz_ret_buf_w) , NULL);
+    }
   if (mci_error != 0)
     {
-      SOUND_WARNING (mciGetErrorString, mci_error,
-		     "The open mciSendString command failed to open "
-		     "the specified sound file.");
+      strcpy (warn_text,
+	      "mciSendString: 'open' command failed to open sound file ");
+      strcat (warn_text, psz_file);
+      SOUND_WARNING (mciGetErrorString, mci_error, warn_text);
       i_result = (int) mci_error;
       return i_result;
     }
@@ -1254,44 +1295,47 @@ do_play_sound (const char *psz_file, unsigned long ui_volume)
           if (mm_result != MMSYSERR_NOERROR)
             {
 	      SOUND_WARNING (waveOutGetErrorText, mm_result,
-			     "waveOutSetVolume failed to set the volume level "
-			     "of the WAVE_MAPPER device.\n"
-			     "As a result, the user selected volume level will "
-			     "not be used.");
+			     "waveOutSetVolume: failed to set the volume level"
+			     " of the WAVE_MAPPER device.\n"
+			     "As a result, the user selected volume level will"
+			     " not be used.");
             }
         }
       else
         {
           SOUND_WARNING (waveOutGetErrorText, mm_result,
-			 "waveOutGetVolume failed to obtain the original "
-                         "volume level of the WAVE_MAPPER device.\n"
-                         "As a result, the user selected volume level will "
-                         "not be used.");
+			 "waveOutGetVolume: failed to obtain the original"
+                         " volume level of the WAVE_MAPPER device.\n"
+                         "As a result, the user selected volume level will"
+                         " not be used.");
         }
     }
-  memset (sz_cmd_buf, 0, sizeof (sz_cmd_buf));
-  memset (sz_ret_buf, 0, sizeof (sz_ret_buf));
-  strcpy (sz_cmd_buf, "play GNUEmacs_PlaySound_Device wait");
-  mci_error = mciSendString (sz_cmd_buf, sz_ret_buf, sizeof (sz_ret_buf), NULL);
+  memset (sz_cmd_buf_a, 0, sizeof (sz_cmd_buf_a));
+  memset (sz_ret_buf_a, 0, sizeof (sz_ret_buf_a));
+  strcpy (sz_cmd_buf_a, "play GNUEmacs_PlaySound_Device wait");
+  mci_error = mciSendStringA (sz_cmd_buf_a, sz_ret_buf_a, sizeof (sz_ret_buf_a),
+			      NULL);
   if (mci_error != 0)
     {
-      SOUND_WARNING (mciGetErrorString, mci_error,
-		     "The play mciSendString command failed to play the "
-		     "opened sound file.");
+      strcpy (warn_text,
+	      "mciSendString: 'play' command failed to play sound file ");
+      strcat (warn_text, psz_file);
+      SOUND_WARNING (mciGetErrorString, mci_error, warn_text);
       i_result = (int) mci_error;
     }
-  memset (sz_cmd_buf, 0, sizeof (sz_cmd_buf));
-  memset (sz_ret_buf, 0, sizeof (sz_ret_buf));
-  strcpy (sz_cmd_buf, "close GNUEmacs_PlaySound_Device wait");
-  mci_error = mciSendString (sz_cmd_buf, sz_ret_buf, sizeof (sz_ret_buf), NULL);
+  memset (sz_cmd_buf_a, 0, sizeof (sz_cmd_buf_a));
+  memset (sz_ret_buf_a, 0, sizeof (sz_ret_buf_a));
+  strcpy (sz_cmd_buf_a, "close GNUEmacs_PlaySound_Device wait");
+  mci_error = mciSendStringA (sz_cmd_buf_a, sz_ret_buf_a, sizeof (sz_ret_buf_a),
+			      NULL);
   if (b_reset_volume == TRUE)
     {
       mm_result = waveOutSetVolume ((HWAVEOUT) WAVE_MAPPER, ui_volume_org);
       if (mm_result != MMSYSERR_NOERROR)
         {
           SOUND_WARNING (waveOutGetErrorText, mm_result,
-			 "waveOutSetVolume failed to reset the original volume "
-                         "level of the WAVE_MAPPER device.");
+			 "waveOutSetVolume: failed to reset the original"
+                         " volume level of the WAVE_MAPPER device.");
         }
     }
   return i_result;
@@ -1310,15 +1354,10 @@ Internal use only, use `play-sound' instead.  */)
   Lisp_Object attrs[SOUND_ATTR_SENTINEL];
   ptrdiff_t count = SPECPDL_INDEX ();
 
-#ifndef WINDOWSNT
-  Lisp_Object file;
-  struct gcpro gcpro1, gcpro2;
-  Lisp_Object args[2];
 #ifdef HAVE_MACGUI
   CFTypeRef mac_sound;
 #endif
-#else /* WINDOWSNT */
-  Lisp_Object lo_file;
+#ifdef WINDOWSNT
   unsigned long ui_volume_tmp = UINT_MAX;
   unsigned long ui_volume = UINT_MAX;
 #endif /* WINDOWSNT */
@@ -1327,13 +1366,14 @@ Internal use only, use `play-sound' instead.  */)
   if (!parse_sound (sound, attrs))
     error ("Invalid sound specification");
 
+  Lisp_Object file = Qnil;
+
 #if !defined WINDOWSNT && !defined HAVE_MACGUI
-  file = Qnil;
-  GCPRO2 (sound, file);
   current_sound_device = xzalloc (sizeof *current_sound_device);
   current_sound = xzalloc (sizeof *current_sound);
   record_unwind_protect_void (sound_cleanup);
-  current_sound->header = alloca (MAX_SOUND_HEADER_BYTES);
+  char headerbuf[MAX_SOUND_HEADER_BYTES];
+  current_sound->header = headerbuf;
 
   if (STRINGP (attrs[SOUND_FILE]))
     {
@@ -1369,9 +1409,7 @@ Internal use only, use `play-sound' instead.  */)
   else if (FLOATP (attrs[SOUND_VOLUME]))
     current_sound_device->volume = XFLOAT_DATA (attrs[SOUND_VOLUME]) * 100;
 
-  args[0] = Qplay_sound_functions;
-  args[1] = sound;
-  Frun_hook_with_args (2, args);
+  CALLN (Frun_hook_with_args, Qplay_sound_functions, sound);
 
 #ifdef HAVE_ALSA
   if (!alsa_init (current_sound_device))
@@ -1385,16 +1423,10 @@ Internal use only, use `play-sound' instead.  */)
   /* Play the sound.  */
   current_sound->play (current_sound, current_sound_device);
 
-  /* Clean up.  */
-  UNGCPRO;
-
 #elif defined WINDOWSNT
 
-  lo_file = Fexpand_file_name (attrs[SOUND_FILE], Vdata_directory);
-  lo_file = ENCODE_FILE (lo_file);
-  /* Since UNICOWS.DLL includes only a stub for mciSendStringW, we
-     need to encode the file in the ANSI codepage.  */
-  lo_file = ansi_encode_filename (lo_file);
+  file = Fexpand_file_name (attrs[SOUND_FILE], Vdata_directory);
+  file = ENCODE_FILE (file);
   if (INTEGERP (attrs[SOUND_VOLUME]))
     {
       ui_volume_tmp = XFASTINT (attrs[SOUND_VOLUME]);
@@ -1403,6 +1435,9 @@ Internal use only, use `play-sound' instead.  */)
     {
       ui_volume_tmp = XFLOAT_DATA (attrs[SOUND_VOLUME]) * 100;
     }
+
+  CALLN (Frun_hook_with_args, Qplay_sound_functions, sound);
+
   /*
     Based on some experiments I have conducted, a value of 100 or less
     for the sound volume is much too low.  You cannot even hear it.
@@ -1416,14 +1451,11 @@ Internal use only, use `play-sound' instead.  */)
     {
       ui_volume = ui_volume_tmp * (UINT_MAX / 100);
     }
-  do_play_sound (SDATA (lo_file), ui_volume);
+  (void)do_play_sound (SSDATA (file), ui_volume);
 
 #else /* HAVE_MACGUI */
   if (inhibit_window_system || noninteractive)
     error ("Sound support on Mac requires a window system");
-
-  file = Qnil;
-  GCPRO2 (sound, file);
 
   if (STRINGP (attrs[SOUND_FILE]))
     {
@@ -1447,20 +1479,15 @@ Internal use only, use `play-sound' instead.  */)
   if (mac_sound == NULL)
     error ("Unknown sound format");
 
-  args[0] = Qplay_sound_functions;
-  args[1] = sound;
-  Frun_hook_with_args (2, args);
+  CALLN (Frun_hook_with_args, Qplay_sound_functions, sound);
 
   block_input ();
   mac_sound_play (mac_sound, attrs[SOUND_VOLUME], attrs[SOUND_DEVICE]);
   CFRelease (mac_sound);
   unblock_input ();
-
-  UNGCPRO;
 #endif /* HAVE_MACGUI */
 
-  unbind_to (count, Qnil);
-  return Qnil;
+  return unbind_to (count, Qnil);
 }
 
 /***********************************************************************

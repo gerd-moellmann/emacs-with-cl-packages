@@ -1,12 +1,12 @@
 /* Asynchronous timers.
-   Copyright (C) 2000-2015 Free Software Foundation, Inc.
+   Copyright (C) 2000-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -77,5 +77,8 @@ void init_atimer (void);
 void turn_on_atimers (bool);
 void stop_other_atimers (struct atimer *);
 void run_all_atimers (void);
+#ifdef HAVE_TIMERFD
+void timerfd_callback (int, void *);
+#endif
 
 #endif /* EMACS_ATIMER_H */

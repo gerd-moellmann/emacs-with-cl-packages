@@ -6,8 +6,8 @@ This file is part of GNU Emacs Mac port.
 
 GNU Emacs Mac port is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs Mac port is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,14 +25,12 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <errno.h>
 
 #include "lisp.h"
-#include "process.h"
 #include "systime.h"
 #include "sysselect.h"
 #include "blockinput.h"
 
 #include "macterm.h"
 
-#include "charset.h"
 #include "coding.h"
 
 #include <sys/stat.h>
@@ -44,16 +42,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <mach/mach.h>
 #include <servers/bootstrap.h>
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-#ifndef SELECT_USE_GCD
-#define SELECT_USE_GCD 1
-#endif
-#endif
-
 #include <sys/socket.h>
-#if !SELECT_USE_GCD
-#include <pthread.h>
-#endif
 
 
 /***********************************************************************
@@ -137,7 +126,7 @@ mac_four_char_code_to_string (FourCharCode code)
    Return non-zero if and only if STRING correctly represents four
    char code (i.e., 4-byte Lisp string).  */
 
-Boolean
+bool
 mac_string_to_four_char_code (Lisp_Object string, FourCharCode *code)
 {
   if (!(STRINGP (string) && SBYTES (string) == sizeof (FourCharCode)))
@@ -152,8 +141,6 @@ mac_string_to_four_char_code (Lisp_Object string, FourCharCode *code)
 /***********************************************************************
 		  Conversions on Apple event objects
  ***********************************************************************/
-
-static Lisp_Object Qundecoded_file_name;
 
 static struct {
   AEKeyword keyword;
@@ -262,7 +249,7 @@ mac_aelist_to_lisp (const AEDescList *desc_list)
   if (desc_list->descriptorType == typeAppleEvent && !attribute_p)
     {
       attribute_p = true;
-      count = sizeof (ae_attr_table) / sizeof (ae_attr_table[0]);
+      count = ARRAYELTS (ae_attr_table);
       goto again;
     }
 
@@ -464,8 +451,7 @@ create_apple_event_from_lisp (Lisp_Object apple_event, AppleEvent *result)
 	  data = XCDR (XCDR (attr));
 	  if (!mac_string_to_four_char_code (type, &desc_type))
 	    continue;
-	  for (i = 0; i < sizeof (ae_attr_table) / sizeof (ae_attr_table[0]);
-	       i++)
+	  for (i = 0; i < ARRAYELTS (ae_attr_table); i++)
 	    if (EQ (name, ae_attr_table[i].symbol))
 	      {
 		switch (desc_type)
@@ -746,10 +732,6 @@ mac_event_parameters_to_lisp (EventRef event, UInt32 num_params,
 /***********************************************************************
 	 Conversion between Lisp and Core Foundation objects
  ***********************************************************************/
-
-Lisp_Object Qstring, Qnumber, Qboolean, Qdate, Qarray, Qdictionary;
-Lisp_Object Qrange, Qpoint;
-static Lisp_Object Qdescription;
 
 struct cfdict_context
 {
@@ -1054,9 +1036,6 @@ cfobject_to_lisp (CFTypeRef obj, int flags, int hash_bound)
 {
   CFTypeID type_id = CFGetTypeID (obj);
   Lisp_Object tag = Qnil, result = Qnil;
-  struct gcpro gcpro1, gcpro2;
-
-  GCPRO2 (tag, result);
 
   if (type_id == CFStringGetTypeID ())
     {
@@ -1148,8 +1127,6 @@ cfobject_to_lisp (CFTypeRef obj, int flags, int hash_bound)
 	    }
 	}
     }
-
-  UNGCPRO;
 
   if (flags & CFOBJECT_TO_LISP_WITH_TAG)
     result = Fcons (tag, result);
@@ -1407,45 +1384,8 @@ Lisp_Object
 cfproperty_list_to_string (CFPropertyListRef plist, CFPropertyListFormat format)
 {
   Lisp_Object result = Qnil;
-  CFDataRef data = NULL;
+  CFDataRef data = CFPropertyListCreateData (NULL, plist, format, 0, NULL);
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (CFPropertyListCreateData != NULL)
-#endif
-    {
-      data = CFPropertyListCreateData (NULL, plist, format, 0, NULL);
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  else				/* CFPropertyListCreateData == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1060 */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-    {
-      CFWriteStreamRef stream;
-
-      switch (format)
-	{
-	case kCFPropertyListXMLFormat_v1_0:
-	  data = CFPropertyListCreateXMLData (NULL, plist);
-	  break;
-
-	case kCFPropertyListBinaryFormat_v1_0:
-	  stream = CFWriteStreamCreateWithAllocatedBuffers (NULL, NULL);
-
-	  if (stream)
-	    {
-	      CFWriteStreamOpen (stream);
-	      if (CFPropertyListWriteToStream (plist, stream, format, NULL) > 0)
-		data = CFWriteStreamCopyProperty (stream,
-						  kCFStreamPropertyDataWritten);
-	      CFWriteStreamClose (stream);
-	      CFRelease (stream);
-	    }
-	  break;
-	}
-    }
-#endif
   if (data)
     {
       result = cfdata_to_lisp (data);
@@ -1470,26 +1410,9 @@ cfproperty_list_create_with_string (Lisp_Object string)
 				      kCFAllocatorNull);
   if (data)
     {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-      if (CFPropertyListCreateWithData != NULL)
-#endif
-	{
-	  result = CFPropertyListCreateWithData (NULL, data,
-						 kCFPropertyListImmutable,
-						 NULL, NULL);
-	}
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-      else		    /* CFPropertyListCreateWithData == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1060 */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	{
-	  result = CFPropertyListCreateFromXMLData (NULL, data,
-						    kCFPropertyListImmutable,
-						    NULL);
-	}
-#endif
+      result = CFPropertyListCreateWithData (NULL, data,
+					     kCFPropertyListImmutable,
+					     NULL, NULL);
       CFRelease (data);
     }
 
@@ -1509,26 +1432,9 @@ cfproperty_list_create_with_url (CFURLRef url)
     {
       if (CFReadStreamOpen (stream))
 	{
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	  if (CFPropertyListCreateWithStream != NULL)
-#endif
-	    {
-	      result = CFPropertyListCreateWithStream (NULL, stream, 0,
-						       kCFPropertyListImmutable,
-						       NULL, NULL);
-	    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	  else		  /* CFPropertyListCreateWithStream == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1060 */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-	    {
-	      result = CFPropertyListCreateFromStream (NULL, stream, 0,
-						       kCFPropertyListImmutable,
-						       NULL, NULL);
-	    }
-#endif
+	  result = CFPropertyListCreateWithStream (NULL, stream, 0,
+						   kCFPropertyListImmutable,
+						   NULL, NULL);
 	  CFReadStreamClose (stream);
 	}
       CFRelease (stream);
@@ -1894,7 +1800,7 @@ xrm_q_get_resource_1 (XrmDatabase database, Lisp_Object node_id,
   labels[2] = SINGLE_COMPONENT;
 
   key = Fcons (node_id, Qnil);
-  for (k = 0; k < sizeof (labels) / sizeof (*labels); k++)
+  for (k = 0; k < ARRAYELTS (labels); k++)
     {
       XSETCDR (key, labels[k]);
       i = hash_lookup (h, key, NULL);
@@ -2033,7 +1939,6 @@ xrm_get_preference_database (const char *application)
   Lisp_Object quarks = Qnil, value = Qnil;
   CFPropertyListRef plist;
   int iu, ih;
-  struct gcpro gcpro1, gcpro2, gcpro3;
 
   user_doms[0] = kCFPreferencesCurrentUser;
   user_doms[1] = kCFPreferencesAnyUser;
@@ -2041,8 +1946,6 @@ xrm_get_preference_database (const char *application)
   host_doms[1] = kCFPreferencesAnyHost;
 
   database = xrm_create_database ();
-
-  GCPRO3 (database, quarks, value);
 
   app_id = kCFPreferencesCurrentApplication;
   if (application)
@@ -2057,8 +1960,8 @@ xrm_get_preference_database (const char *application)
   key_set = CFSetCreateMutable (NULL, 0, &kCFCopyStringSetCallBacks);
   if (key_set == NULL)
     goto out;
-  for (iu = 0; iu < sizeof (user_doms) / sizeof (*user_doms) ; iu++)
-    for (ih = 0; ih < sizeof (host_doms) / sizeof (*host_doms); ih++)
+  for (iu = 0; iu < ARRAYELTS (user_doms); iu++)
+    for (ih = 0; ih < ARRAYELTS (host_doms); ih++)
       {
 	key_array = CFPreferencesCopyKeyList (app_id, user_doms[iu],
 					      host_doms[ih]);
@@ -2097,14 +2000,10 @@ xrm_get_preference_database (const char *application)
   if (app_id)
     CFRelease (app_id);
 
-  UNGCPRO;
-
   return database;
 }
 
 
-Lisp_Object Qmac_file_alias_p;
-
 /* Convert a lisp string to the 4 byte character code.  */
 
 OSType
@@ -2137,6 +2036,8 @@ containing an unresolvable alias.  */)
   (Lisp_Object filename)
 {
   Lisp_Object handler, result = Qnil;
+  Lisp_Object encoded_filename;
+  CFURLRef url;
 
   CHECK_STRING (filename);
   filename = Fexpand_file_name (filename, Qnil);
@@ -2148,98 +2049,59 @@ containing an unresolvable alias.  */)
     return call2 (handler, Qmac_file_alias_p, filename);
 
   block_input ();
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  if (CFURLCreateByResolvingBookmarkData != NULL)
-#endif
-    {
-      Lisp_Object encoded_filename = ENCODE_FILE (filename);
-      CFURLRef url =
-	CFURLCreateFromFileSystemRepresentation (NULL, SDATA (encoded_filename),
+  encoded_filename = ENCODE_FILE (filename);
+  url = CFURLCreateFromFileSystemRepresentation (NULL, SDATA (encoded_filename),
 						 SBYTES (encoded_filename),
 						 false);
-
-      if (url)
-	{
-	  CFBooleanRef is_alias_file = NULL, is_symbolic_link = NULL;
-
-	  if (CFURLCopyResourcePropertyForKey (url, kCFURLIsAliasFileKey,
-					       &is_alias_file, NULL)
-	      && CFBooleanGetValue (is_alias_file)
-	      /* kCFURLIsAliasFileKey returns true also for a symbolic
-		 link.  */
-	      && CFURLCopyResourcePropertyForKey (url, kCFURLIsSymbolicLinkKey,
-						  &is_symbolic_link, NULL)
-	      && !CFBooleanGetValue (is_symbolic_link))
-	    {
-	      CFDataRef data;
-	      Boolean stale_p;
-	      CFURLRef resolved_url = NULL;
-
-	      data = CFURLCreateBookmarkDataFromFile (NULL, url, NULL);
-	      if (data)
-		{
-		  CFURLBookmarkResolutionOptions options =
-		    (kCFBookmarkResolutionWithoutUIMask
-		     | kCFBookmarkResolutionWithoutMountingMask);
-
-		  resolved_url =
-		    CFURLCreateByResolvingBookmarkData (NULL, data, options,
-							NULL, NULL,
-							&stale_p, NULL);
-		  CFRelease (data);
-		}
-	      if (resolved_url)
-		{
-		  char buf[MAXPATHLEN];
-
-		  if (!stale_p
-		      && CFURLGetFileSystemRepresentation (resolved_url, true,
-							   (UInt8 *) buf,
-							   sizeof (buf)))
-		    result = make_unibyte_string (buf, strlen (buf));
-		  CFRelease (resolved_url);
-		}
-	      if (!STRINGP (result))
-		result = Qt;
-	    }
-	  if (is_alias_file)
-	    CFRelease (is_alias_file);
-	  if (is_symbolic_link)
-	    CFRelease (is_symbolic_link);
-	  CFRelease (url);
-	}
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-  else		      /* CFURLCreateByResolvingBookmarkData == NULL */
-#endif
-#endif
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
+  if (url)
     {
-      OSStatus err;
-      FSRef fref;
+      CFBooleanRef is_alias_file = NULL, is_symbolic_link = NULL;
 
-      err = FSPathMakeRef (SDATA (ENCODE_FILE (filename)), &fref, NULL);
-      if (err == noErr)
+      if (CFURLCopyResourcePropertyForKey (url, kCFURLIsAliasFileKey,
+					   &is_alias_file, NULL)
+	  && CFBooleanGetValue (is_alias_file)
+	  /* kCFURLIsAliasFileKey returns true also for a symbolic
+	     link.  */
+	  && CFURLCopyResourcePropertyForKey (url, kCFURLIsSymbolicLinkKey,
+					      &is_symbolic_link, NULL)
+	  && !CFBooleanGetValue (is_symbolic_link))
 	{
-	  Boolean alias_p = false, folder_p;
+	  CFDataRef data;
+	  Boolean stale_p;
+	  CFURLRef resolved_url = NULL;
 
-	  err = FSResolveAliasFileWithMountFlags (&fref, false,
-						  &folder_p, &alias_p,
-						  kResolveAliasFileNoUI);
-	  if (err != noErr)
-	    result = Qt;
-	  else if (alias_p)
+	  data = CFURLCreateBookmarkDataFromFile (NULL, url, NULL);
+	  if (data)
+	    {
+	      CFURLBookmarkResolutionOptions options =
+		(kCFBookmarkResolutionWithoutUIMask
+		 | kCFBookmarkResolutionWithoutMountingMask);
+
+	      resolved_url =
+		CFURLCreateByResolvingBookmarkData (NULL, data, options,
+						    NULL, NULL, &stale_p, NULL);
+	      CFRelease (data);
+	    }
+	  if (resolved_url)
 	    {
 	      char buf[MAXPATHLEN];
 
-	      err = FSRefMakePath (&fref, (UInt8 *) buf, sizeof (buf));
-	      if (err == noErr)
+	      if (!stale_p
+		  && CFURLGetFileSystemRepresentation (resolved_url, true,
+						       (UInt8 *) buf,
+						       sizeof (buf)))
 		result = make_unibyte_string (buf, strlen (buf));
+	      CFRelease (resolved_url);
 	    }
+	  if (!STRINGP (result))
+	    result = Qt;
 	}
+      if (is_alias_file)
+	CFRelease (is_alias_file);
+      if (is_symbolic_link)
+	CFRelease (is_symbolic_link);
+      CFRelease (url);
     }
-#endif
   unblock_input ();
 
   if (STRINGP (result))
@@ -2247,7 +2109,10 @@ containing an unresolvable alias.  */)
       char *p = SSDATA (result);
 
       if (p[0] == '/' && strchr (p, ':'))
-	result = concat2 (build_string ("/:"), result);
+	{
+	  AUTO_STRING (slash_colon, "/:");
+	  result = concat2 (slash_colon, result);
+	}
       result = DECODE_FILE (result);
     }
 
@@ -2267,15 +2132,13 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   Lisp_Object handler;
   Lisp_Object encoded_file;
   Lisp_Object operation;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   bool use_finder_p;
-#endif
 
   operation = Qdelete_file;
   if (!NILP (Ffile_directory_p (filename))
       && NILP (Ffile_symlink_p (filename)))
     {
-      operation = intern ("delete-directory");
+      operation = Qdelete_directory;
       filename = Fdirectory_file_name (filename);
     }
   filename = Fexpand_file_name (filename, Qnil);
@@ -2288,7 +2151,6 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 
   block_input ();
   domain = NO_ERROR;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   use_finder_p = mac_system_move_file_to_trash_use_finder;
   if (!use_finder_p)
     {
@@ -2324,7 +2186,6 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 	}
     }
   if (use_finder_p)
-#endif
     {
       OSStatus err;
       const OSType finderSignature = 'MACS';
@@ -2405,12 +2266,10 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 	{
 	  if (NILP (errstring))
 	    {
-	      char *prefix =
-		(domain == OSSTATUS_ERROR ? "Mac error "
-		 : (domain == COCOA_ERROR ? "Cocoa error "
-		    : "other error "));
-
-	      errstring = concat2 (build_string (prefix),
+	      AUTO_STRING (prefix, (domain == OSSTATUS_ERROR ? "Mac error "
+				    : (domain == COCOA_ERROR ? "Cocoa error "
+				       : "other error ")));
+	      errstring = concat2 (prefix,
 				   Fnumber_to_string (make_number (code)));
 	    }
 
@@ -2422,9 +2281,6 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   return Qnil;
 }
 
-
-Lisp_Object Qapp_name;
-Lisp_Object QCinfo, QCversion, QCsub_type, QCmanufacturer, QCfeatures;
 
 DEFUN ("mac-osa-language-list", Fmac_osa_language_list, Smac_osa_language_list, 0, 1, 0,
        doc: /* Return a list of available OSA languages.
@@ -2612,9 +2468,6 @@ Each type should be a string of length 4 or the symbol
 }
 
 
-static Lisp_Object Qxml, Qxml1, Qbinary1, QCmime_charset;
-static Lisp_Object QNFD, QNFKD, QNFC, QNFKC, QHFS_plus_D, QHFS_plus_C;
-
 DEFUN ("mac-get-preference", Fmac_get_preference, Smac_get_preference, 1, 4, 0,
        doc: /* Return the application preference value for KEY.
 KEY is either a string specifying a preference key, or a list of key
@@ -2634,7 +2487,6 @@ return value (see `mac-convert-property-list').  FORMAT also accepts
   CFStringRef app_id, key_str;
   CFPropertyListRef app_plist = NULL, plist;
   Lisp_Object result = Qnil, tmp;
-  struct gcpro gcpro1, gcpro2;
 
   if (STRINGP (key))
     key = Fcons (key, Qnil);
@@ -2653,8 +2505,6 @@ return value (see `mac-convert-property-list').  FORMAT also accepts
   CHECK_SYMBOL (format);
   if (!NILP (hash_bound))
     CHECK_NUMBER (hash_bound);
-
-  GCPRO2 (key, format);
 
   block_input ();
 
@@ -2712,8 +2562,6 @@ return value (see `mac-convert-property-list').  FORMAT also accepts
 
   unblock_input ();
 
-  UNGCPRO;
-
   return result;
 }
 
@@ -2758,14 +2606,11 @@ otherwise.  */)
 {
   Lisp_Object result = Qnil;
   CFPropertyListRef plist;
-  struct gcpro gcpro1, gcpro2;
 
   if (!CONSP (property_list))
     CHECK_STRING (property_list);
   if (!NILP (hash_bound))
     CHECK_NUMBER (hash_bound);
-
-  GCPRO2 (property_list, format);
 
   block_input ();
 
@@ -2789,8 +2634,6 @@ otherwise.  */)
     }
 
   unblock_input ();
-
-  UNGCPRO;
 
   return result;
 }
@@ -2941,15 +2784,14 @@ The conversion is performed using the converter provided by the system.
 Each encoding is specified by either a coding system symbol, a mime
 charset string, or an integer as a CFStringEncoding value.  An encoding
 of nil means UTF-16 in native byte order, no byte order mark.
-On Mac OS X 10.2 and later, you can do Unicode Normalization by
-specifying the optional argument NORMALIZATION-FORM with a symbol NFD,
-NFKD, NFC, NFKC, HFS+D, or HFS+C.
+You can do Unicode Normalization by specifying the optional argument
+NORMALIZATION-FORM with a symbol NFD, NFKD, NFC, NFKC, HFS+D, or
+HFS+C.
 On successful conversion, return the result string, else return nil.  */)
   (Lisp_Object string, Lisp_Object source, Lisp_Object target,
    Lisp_Object normalization_form)
 {
   Lisp_Object result = Qnil;
-  struct gcpro gcpro1, gcpro2, gcpro3, gcpro4;
   CFStringEncoding src_encoding, tgt_encoding;
   CFStringRef str = NULL;
 
@@ -2959,8 +2801,6 @@ On successful conversion, return the result string, else return nil.  */)
   if (!INTEGERP (target) && !STRINGP (target))
     CHECK_SYMBOL (target);
   CHECK_SYMBOL (normalization_form);
-
-  GCPRO4 (string, source, target, normalization_form);
 
   block_input ();
 
@@ -3000,8 +2840,6 @@ On successful conversion, return the result string, else return nil.  */)
 
   unblock_input ();
 
-  UNGCPRO;
-
   return result;
 }
 
@@ -3034,12 +2872,10 @@ mac_get_system_script_code (void)
          (and user signals, see below).
    3. Otherwise
       -> Run the run loop in the main thread while calling `select' in
-         a secondary thread using either Pthreads with CFRunLoopSource
-         or Grand Central Dispatch (GCD, on Mac OS X 10.6 or later).
-         When the control returns from the `select' call, the
-         secondary thread sends a wakeup notification to the main
-         thread through either a CFSocket (for Pthreads with
-         CFRunLoopSource) or a dispatch source (for GCD).
+         a secondary thread using Grand Central Dispatch (GCD).  When
+         the control returns from the `select' call, the secondary
+         thread sends a wakeup notification to the main thread through
+         a dispatch source (for GCD).
    For Case 2 and 3, user signals such as SIGUSR1 are also handled
    through either a CFSocket or a dispatch source.  */
 
@@ -3077,22 +2913,13 @@ write_one_byte_to_fd (int fd)
   return rtnval;
 }
 
-#if SELECT_USE_GCD
 static dispatch_queue_t select_dispatch_queue;
-#else
-static void
-wakeup_callback (CFSocketRef s, CFSocketCallBackType type, CFDataRef address,
-		 const void *data, void *info)
-{
-  read_all_from_nonblocking_fd (CFSocketGetNative (s));
-  wokeup_from_run_loop_run_once_p = true;
-}
-#endif
 
 int
 init_wakeup_fds (void)
 {
   int result, i;
+  dispatch_source_t source;
 
   result = socketpair (AF_UNIX, SOCK_STREAM, 0, wakeup_fds);
   if (result < 0)
@@ -3107,45 +2934,21 @@ init_wakeup_fds (void)
 	  || fcntl (wakeup_fds[i], F_SETFD, flags | FD_CLOEXEC) == -1)
 	return -1;
     }
-#if SELECT_USE_GCD
-  {
-    dispatch_source_t source;
 
-    source = dispatch_source_create (DISPATCH_SOURCE_TYPE_READ, wakeup_fds[0],
-				     0, dispatch_get_main_queue ());
-    if (source == NULL)
-      return -1;
-    dispatch_source_set_event_handler (source, ^{
-	read_all_from_nonblocking_fd (dispatch_source_get_handle (source));
-	wokeup_from_run_loop_run_once_p = true;
-      });
-    dispatch_resume (source);
+  source = dispatch_source_create (DISPATCH_SOURCE_TYPE_READ, wakeup_fds[0],
+				   0, dispatch_get_main_queue ());
+  if (source == NULL)
+    return -1;
+  dispatch_source_set_event_handler (source, ^{
+      read_all_from_nonblocking_fd (dispatch_source_get_handle (source));
+      wokeup_from_run_loop_run_once_p = true;
+    });
+  dispatch_resume (source);
 
-    select_dispatch_queue = dispatch_queue_create ("org.gnu.Emacs.select",
-						   NULL);
-    if (select_dispatch_queue == NULL)
-      return -1;
-  }
-#else
-  {
-    CFSocketRef socket;
-    CFRunLoopSourceRef source;
+  select_dispatch_queue = dispatch_queue_create ("org.gnu.Emacs.select", NULL);
+  if (select_dispatch_queue == NULL)
+    return -1;
 
-    socket = CFSocketCreateWithNative (NULL, wakeup_fds[0],
-				       kCFSocketReadCallBack,
-				       wakeup_callback, NULL);
-    if (socket == NULL)
-      return -1;
-    source = CFSocketCreateRunLoopSource (NULL, socket, 0);
-    CFRelease (socket);
-    if (source == NULL)
-      return -1;
-    CFRunLoopAddSource ((CFRunLoopRef)
-			GetCFRunLoopFromEventLoop (GetCurrentEventLoop ()),
-			source, kCFRunLoopDefaultMode);
-    CFRelease (source);
-  }
-#endif
   return 0;
 }
 
@@ -3172,114 +2975,6 @@ mac_peek_next_event (void)
 
   return event;
 }
-
-#if !SELECT_USE_GCD
-static struct
-{
-  int value;
-  pthread_mutex_t mutex;
-  pthread_cond_t cond;
-} select_sem = {0, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER};
-
-static void
-select_sem_wait (void)
-{
-  pthread_mutex_lock (&select_sem.mutex);
-  while (select_sem.value <= 0)
-    pthread_cond_wait (&select_sem.cond, &select_sem.mutex);
-  select_sem.value--;
-  pthread_mutex_unlock (&select_sem.mutex);
-}
-
-static void
-select_sem_signal (void)
-{
-  pthread_mutex_lock (&select_sem.mutex);
-  select_sem.value++;
-  pthread_cond_signal (&select_sem.cond);
-  pthread_mutex_unlock (&select_sem.mutex);
-}
-
-static CFRunLoopSourceRef select_run_loop_source = NULL;
-static CFRunLoopRef select_run_loop = NULL;
-
-static struct
-{
-  int nfds;
-  fd_set *rfds, *wfds, *efds;
-  struct timespec *timeout;
-} select_args;
-
-static void
-select_perform (void *info)
-{
-  int qnfds = select_args.nfds;
-  fd_set qrfds, qwfds, qefds;
-  struct timespec qtimeout;
-  int r;
-
-  if (select_args.rfds)
-    qrfds = *select_args.rfds;
-  if (select_args.wfds)
-    qwfds = *select_args.wfds;
-  if (select_args.efds)
-    qefds = *select_args.efds;
-  if (select_args.timeout)
-    qtimeout = *select_args.timeout;
-
-  if (wakeup_fds[1] >= qnfds)
-    qnfds = wakeup_fds[1] + 1;
-  FD_SET (wakeup_fds[1], &qrfds);
-
-  r = pselect (qnfds, select_args.rfds ? &qrfds : NULL,
-	       select_args.wfds ? &qwfds : NULL,
-	       select_args.efds ? &qefds : NULL,
-	       select_args.timeout ? &qtimeout : NULL, NULL);
-  if (r < 0 || (r > 0 && !FD_ISSET (wakeup_fds[1], &qrfds)))
-    mac_wakeup_from_run_loop_run_once ();
-
-  select_sem_signal ();
-}
-
-static void
-select_fire (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
-	     struct timespec *timeout)
-{
-  select_args.nfds = nfds;
-  select_args.rfds = rfds;
-  select_args.wfds = wfds;
-  select_args.efds = efds;
-  select_args.timeout = timeout;
-
-  CFRunLoopSourceSignal (select_run_loop_source);
-  CFRunLoopWakeUp (select_run_loop);
-}
-
-static void *
-select_thread_main (void *arg)
-{
-  CFRunLoopSourceContext context = {0, NULL, NULL, NULL, NULL, NULL, NULL,
-				    NULL, NULL, select_perform};
-
-  select_run_loop = CFRunLoopGetCurrent ();
-  select_run_loop_source = CFRunLoopSourceCreate (NULL, 0, &context);
-  CFRunLoopAddSource (select_run_loop, select_run_loop_source,
-		      kCFRunLoopDefaultMode);
-  select_sem_signal ();
-  CFRunLoopRun ();
-}
-
-static void
-select_thread_launch (void)
-{
-  pthread_attr_t  attr;
-  pthread_t       thread;
-
-  pthread_attr_init (&attr);
-  pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
-  pthread_create (&thread, &attr, &select_thread_main, NULL);
-}
-#endif	/* !SELECT_USE_GCD */
 
 static int
 select_and_poll_event (int nfds, fd_set *rfds, fd_set *wfds,
@@ -3426,7 +3121,6 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
   block_input ();
   if (!detect_input_pending ())
     {
-#if SELECT_USE_GCD
       dispatch_sync (select_dispatch_queue, ^{});
       wokeup_from_run_loop_run_once_p = false;
       dispatch_async (select_dispatch_queue, ^{
@@ -3457,26 +3151,6 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
       dispatch_async (select_dispatch_queue, ^{
 	  read_all_from_nonblocking_fd (wakeup_fds[1]);
 	});
-#else
-      if (select_run_loop == NULL)
-	select_thread_launch ();
-
-      select_sem_wait ();
-      read_all_from_nonblocking_fd (wakeup_fds[1]);
-      wokeup_from_run_loop_run_once_p = false;
-      select_fire (nfds, rfds, wfds, efds, NULL);
-
-      do
-	{
-	  timeoutval = mac_run_loop_run_once (timeoutval);
-	}
-      while (timeoutval && !wokeup_from_run_loop_run_once_p
-	     && !mac_peek_next_event () && !detect_input_pending ());
-      if (timeoutval == 0)
-	timedout_p = true;
-
-      write_one_byte_to_fd (wakeup_fds[0]);
-#endif
     }
   unblock_input ();
 
@@ -3573,38 +3247,6 @@ mac_carbon_version_string ()
   if (value && CFGetTypeID (value) == CFStringGetTypeID ())
     result = cfstring_to_lisp_nodecode (value);
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (NILP (result))
-    {
-      CFPropertyListRef plist = NULL;
-      CFURLRef resource_url = CFBundleCopyResourceURL (bundle,
-						       CFSTR ("version"),
-						       CFSTR ("plist"), NULL);
-
-      if (resource_url)
-	{
-	  plist = cfproperty_list_create_with_url (resource_url);
-	  CFRelease (resource_url);
-	}
-      if (plist)
-	{
-	  if (CFGetTypeID (plist) == CFDictionaryGetTypeID ())
-	    {
-	      value = CFDictionaryGetValue (plist, CFSTR ("SourceVersion"));
-	      if (value && CFGetTypeID (value) == CFStringGetTypeID ())
-		{
-		  result = cfstring_to_lisp_nodecode (value);
-		  if (STRINGP (result)
-		      && CFStringHasSuffix (value, CFSTR ("0000")))
-		    result = Fsubstring (result, make_number (0),
-					 make_number (-4));
-		}
-	    }
-	  CFRelease (plist);
-	}
-    }
-#endif
-
   return result;
 }
 
@@ -3677,6 +3319,7 @@ init_mac_osx_environment (void)
   CFBundleRef bundle;
   CFURLRef bundleURL;
   CFStringRef cf_app_bundle_pathname;
+  CFLocaleRef locale;
   int app_bundle_pathname_len;
   char *app_bundle_pathname;
   char *p, *q;
@@ -3791,6 +3434,20 @@ init_mac_osx_environment (void)
       else
 	CFRelease (session_dict);
     }
+
+  /* OS X doesn't set any environment variables for the locale when
+     run from the GUI. Get the locale from the OS and set LANG. */
+  locale = CFLocaleCopyCurrent ();
+  if (locale)
+    {
+      Lisp_Object identifier =
+	cfstring_to_lisp (CFLocaleGetIdentifier (locale));
+      AUTO_STRING (encoding, ".UTF-8");
+
+      /* Set LANG to locale, but not if LANG is already set. */
+      setenv ("LANG", SDATA (concat2 (identifier, encoding)), 0);
+      CFRelease (locale);
+    }
 }
 
 
@@ -3799,13 +3456,11 @@ syms_of_mac (void)
 {
   DEFSYM (Qundecoded_file_name, "undecoded-file-name");
 
-  DEFSYM (Qstring, "string");
   DEFSYM (Qnumber, "number");
   DEFSYM (Qboolean, "boolean");
   DEFSYM (Qdate, "date");
   DEFSYM (Qarray, "array");
   DEFSYM (Qdictionary, "dictionary");
-  DEFSYM (Qrange, "range");
   DEFSYM (Qpoint, "point");
   DEFSYM (Qdescription, "description");
 
@@ -3831,12 +3486,11 @@ syms_of_mac (void)
   DEFSYM (QHFS_plus_D, "HFS+D");
   DEFSYM (QHFS_plus_C, "HFS+C");
 
-  {
-    int i;
-
-    for (i = 0; i < sizeof (ae_attr_table) / sizeof (ae_attr_table[0]); i++)
-      DEFSYM (ae_attr_table[i].symbol, ae_attr_table[i].name);
-  }
+  for (int i = 0; i < ARRAYELTS (ae_attr_table); i++)
+    {
+      ae_attr_table[i].symbol = intern_c_string (ae_attr_table[i].name);
+      staticpro (&ae_attr_table[i].symbol);
+    }
 
   defsubr (&Smac_osa_language_list);
   defsubr (&Smac_osa_compile);
@@ -3858,7 +3512,6 @@ syms_of_mac (void)
      doc: /* *Non-nil means that `system-move-file-to-trash' uses the Finder.
 Setting this variable non-nil enables us to use the `Put Back' context
 menu for trashed items, but it also affects the `Edit' - `Undo' menu
-in the Finder.  On Mac OS X 10.4 and earlier, this variable has no
-effect and trashing is always done via the Finder.  */);
+in the Finder.  */);
   mac_system_move_file_to_trash_use_finder = 0;
 }

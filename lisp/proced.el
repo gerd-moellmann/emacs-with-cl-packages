@@ -1,6 +1,6 @@
 ;;; proced.el --- operate on system processes like dired
 
-;; Copyright (C) 2008-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2016 Free Software Foundation, Inc.
 
 ;; Author: Roland Winkler <winkler@gnu.org>
 ;; Keywords: Processes, Unix
@@ -48,8 +48,6 @@
 ;;   What about something like `proced-restart-pid'?
 
 ;;; Code:
-
-(require 'time-date)                 ; for `with-decoded-time-value'
 
 (defgroup proced nil
   "Proced mode."
@@ -161,15 +159,15 @@ argument, the value of the attribute.  The value nil means take as is.
 
 If JUSTIFY is an integer, its modulus gives the width of the attribute
 values formatted with FORMAT.  If JUSTIFY is positive, NAME appears
-right-justified, otherwise it appears left-justified.  If JUSTIFY is 'left
-or 'right, the field width is calculated from all field values in the listing.
-If JUSTIFY is 'left, the field values are formatted left-justified and
+right-justified, otherwise it appears left-justified.  If JUSTIFY is `left'
+or `right', the field width is calculated from all field values in the listing.
+If JUSTIFY is `left', the field values are formatted left-justified and
 right-justified otherwise.
 
 PREDICATE is the predicate for sorting and filtering the process listing
 based on attribute KEY.  PREDICATE takes two arguments P1 and P2,
 the corresponding attribute values of two processes.  PREDICATE should
-return 'equal if P1 has same rank like P2.  Any other non-nil value says
+return `equal' if P1 has same rank like P2.  Any other non-nil value says
 that P1 is \"less than\" P2, or nil if not.
 If PREDICATE is nil the attribute cannot be sorted.
 
@@ -180,7 +178,7 @@ SORT-SCHEME is a list (KEY1 KEY2 ...) defining a hierarchy of rules
 for sorting the process listing.  KEY1, KEY2, ... are KEYs appearing as cars
 of `proced-grammar-alist'.  First the PREDICATE of KEY1 is evaluated.
 If it yields non-equal, it defines the sort order for the corresponding
-processes.  If it evaluates to 'equal the PREDICATE of KEY2 is evaluated, etc.
+processes.  If it evaluates to `equal' the PREDICATE of KEY2 is evaluated, etc.
 
 REFINER can be a list of flags (LESS-B EQUAL-B LARGER-B) used by the command
 `proced-refine' (see there) to refine the listing based on attribute KEY.
@@ -188,7 +186,7 @@ This command compares the value of attribute KEY of every process with
 the value of attribute KEY of the process at the position of point
 using PREDICATE.
 If PREDICATE yields non-nil, the process is accepted if LESS-B is non-nil.
-If PREDICATE yields 'equal, the process is accepted if EQUAL-B is non-nil.
+If PREDICATE yields `equal', the process is accepted if EQUAL-B is non-nil.
 If PREDICATE yields nil, the process is accepted if LARGER-B is non-nil.
 
 REFINER can also be a list (FUNCTION HELP-ECHO).
@@ -465,6 +463,7 @@ Important: the match ends just after the marker.")
     (define-key km "\C-n" 'next-line)
     (define-key km "\C-p" 'previous-line)
     (define-key km "\C-?" 'previous-line)
+    (define-key km [?\S-\ ] 'previous-line)
     (define-key km [down] 'next-line)
     (define-key km [up] 'previous-line)
     ;; marking
@@ -1186,17 +1185,8 @@ Return nil otherwise."
 (defun proced-time-lessp (t1 t2)
   "Return t if time value T1 is less than time value T2.
 Return `equal' if T1 equals T2.  Return nil otherwise."
-  (with-decoded-time-value ((high1 low1 micro1 pico1 type1 t1)
-			    (high2 low2 micro2 pico2 type2 t2))
-    (cond ((< high1 high2))
-          ((< high2 high1) nil)
-          ((< low1 low2))
-          ((< low2 low1) nil)
-          ((< micro1 micro2))
-          ((< micro2 micro1) nil)
-	  ((< pico1 pico2))
-	  ((< pico2 pico1) nil)
-          (t 'equal))))
+  (or (time-less-p t1 t2)
+      (if (not (time-less-p t2 t1)) 'equal)))
 
 ;;; Sorting
 
@@ -1261,9 +1251,9 @@ When called interactively, an empty string means nil, i.e., no sorting.
 
 Prefix ARG controls sort order:
 - If prefix ARG is positive (negative), sort in ascending (descending) order.
-- If ARG is nil or 'no-arg and SCHEME is equal to the previous sorting scheme,
+- If ARG is nil or `no-arg' and SCHEME is equal to the previous sorting scheme,
   reverse the sorting order.
-- If ARG is nil or 'no-arg and SCHEME differs from the previous sorting scheme,
+- If ARG is nil or `no-arg' and SCHEME differs from the previous sorting scheme,
   adopt the sorting order defined for SCHEME in `proced-grammar-alist'.
 
 Set variable `proced-sort' to SCHEME.  The current sort scheme is displayed
@@ -1926,7 +1916,7 @@ and \f (formfeed) at the end."
       (let (buffer-read-only)
 	(cond ((stringp log)
 	       (insert (if args
-			   (apply 'format log args)
+			   (apply #'format-message log args)
 			 log)))
 	      ((bufferp log)
 	       (insert-buffer-substring log))
@@ -1935,8 +1925,8 @@ and \f (formfeed) at the end."
 	       (unless (bolp)
 		 (insert "\n"))
 	       (insert (current-time-string)
-		       "\tBuffer `" (buffer-name obuf) "', "
-                       (format "signal `%s'\n" (car args)))
+		       (format-message "\tBuffer `%s', signal `%s'\n"
+				       (buffer-name obuf) (car args)))
 	       (goto-char (point-max))
 	       (insert "\f\n")))))))
 

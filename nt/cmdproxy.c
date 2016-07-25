@@ -1,5 +1,5 @@
 /* Proxy shell designed for use with Emacs on Windows 95 and NT.
-   Copyright (C) 1997, 2001-2015 Free Software Foundation, Inc.
+   Copyright (C) 1997, 2001-2016 Free Software Foundation, Inc.
 
    Accepts subset of Unix sh(1) command-line options, for compatibility
    with elisp code written for Unix.  When possible, executes external
@@ -16,8 +16,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -546,12 +546,12 @@ spawn (const char *progname, char *cmdline, const char *dir, int *retcode)
   memset (&start, 0, sizeof (start));
   start.cb = sizeof (start);
 
-  /* CreateProcess handles batch files as progname specially.  This
+  /* CreateProcess handles batch files as progname specially. This
      special handling fails when both the batch file and arguments are
      quoted.  We pass NULL as progname to avoid the special
      handling. */
   if (progname != NULL && cmdline[0] == '"' && batch_file_p (progname))
-    progname = NULL;
+      progname = NULL;
 
   if (CreateProcess (progname, cmdline, &sec_attrs, NULL, TRUE,
 		     0, envblock, dir, &start, &child))

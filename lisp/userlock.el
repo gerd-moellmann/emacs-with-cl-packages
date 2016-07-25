@@ -1,6 +1,6 @@
 ;;; userlock.el --- handle file access contention between multiple users
 
-;; Copyright (C) 1985-1986, 2001-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 2001-2016 Free Software Foundation, Inc.
 
 ;; Author: Richard King
 ;; (according to authors.el)
@@ -38,7 +38,7 @@
 (defun ask-user-about-lock (file opponent)
   "Ask user what to do when he wants to edit FILE but it is locked by OPPONENT.
 This function has a choice of three things to do:
-  do (signal 'file-locked (list FILE OPPONENT))
+  do (signal \\='file-locked (list FILE OPPONENT))
     to refrain from editing the file
   return t (grab the lock on the file)
   return nil (edit the file even though it is locked).
@@ -101,7 +101,7 @@ You can <q>uit; don't modify this file.")
 (defun ask-user-about-supersession-threat (fn)
   "Ask a user who is about to modify an obsolete buffer what to do.
 This function has two choices: it can return, in which case the modification
-of the buffer will proceed, or it can (signal 'file-supersession (file)),
+of the buffer will proceed, or it can (signal \\='file-supersession (file)),
 in which case the proposed buffer modification will not be made.
 
 You can rewrite this to use any criterion you like to choose which one to do.
@@ -142,7 +142,7 @@ If you say `r' to revert, the contents of the buffer are refreshed
 from the file on disk.
 If you say `n', the change you started to make will be aborted.
 
-Usually, you should type `n' and then `M-x revert-buffer',
+Usually, you should type `n' and then `\\[revert-buffer]',
 to get the latest version of the file, then make the change again.")
     (with-current-buffer standard-output
       (help-mode))))

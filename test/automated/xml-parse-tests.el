@@ -1,6 +1,6 @@
 ;;; xml-parse-tests.el --- Test suite for XML parsing.
 
-;; Copyright (C) 2012-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2016 Free Software Foundation, Inc.
 
 ;; Author: Chong Yidong <cyd@stupidchicken.com>
 ;; Keywords:       internal
@@ -72,7 +72,12 @@
     ;; Invalid XML names
     "<0foo>abc</0foo>"
     "<‿foo>abc</‿foo>"
-    "<f¿>abc</f¿>")
+    "<f¿>abc</f¿>"
+    ;; Two root tags
+    "<a/><b></b>"
+    ;; Bug#16344
+    "<!----><x>< /x>"
+    "<a>< b/></a>")
   "List of XML strings that should signal an error in the parser")
 
 (defvar xml-parse-tests--qnames

@@ -1,5 +1,5 @@
 /* Deal with the X Resource Manager.
-   Copyright (C) 1990, 1993-1994, 2000-2015 Free Software Foundation,
+   Copyright (C) 1990, 1993-1994, 2000-2016 Free Software Foundation,
    Inc.
 
 Author: Joseph Arceneaux
@@ -9,8 +9,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -41,11 +41,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <X11/Xresource.h>
 #ifdef HAVE_PWD_H
 #include <pwd.h>
-#endif
-
-#ifdef USE_MOTIF
-/* For Vdouble_click_time.  */
-#include "keyboard.h"
 #endif
 
 /* X file search path processing.  */
@@ -119,8 +114,8 @@ magic_db (const char *string, ptrdiff_t string_len, const char *class,
   while (p < string + string_len)
     {
       /* The chunk we're about to stick on the end of result.  */
-      const char *next = NULL;
-      ptrdiff_t next_len;
+      const char *next = p;
+      ptrdiff_t next_len = 1;
 
       if (*p == '%')
 	{
@@ -137,10 +132,13 @@ magic_db (const char *string, ptrdiff_t string_len, const char *class,
 		break;
 
 	      case 'C':
-		next = (x_customization_string
-			? x_customization_string
-			: "");
-		next_len = strlen (next);
+		if (x_customization_string)
+		  {
+		    next = x_customization_string;
+		    next_len = strlen (next);
+		  }
+		else
+		  next_len = 0;
 		break;
 
 	      case 'N':
@@ -176,17 +174,11 @@ magic_db (const char *string, ptrdiff_t string_len, const char *class,
 		return NULL;
 	      }
 	}
-      else
-	next = p, next_len = 1;
 
       /* Do we have room for this component followed by a '\0'?  */
       if (path_size - path_len <= next_len)
-	{
-	  if (min (PTRDIFF_MAX, SIZE_MAX) / 2 - 1 - path_len < next_len)
-	    memory_full (SIZE_MAX);
-	  path_size = (path_len + next_len + 1) * 2;
-	  path = xrealloc (path, path_size);
-	}
+	path = xpalloc (path, &path_size, path_len - path_size + next_len + 1,
+			-1, sizeof *path);
 
       memcpy (path + path_len, next, next_len);
       path_len += next_len;
@@ -232,9 +224,10 @@ gethomedir (void)
   if (ptr == NULL)
     return xstrdup ("/");
 
-  copy = xmalloc (strlen (ptr) + 2);
-  strcpy (copy, ptr);
-  return strcat (copy, "/");
+  ptrdiff_t len = strlen (ptr);
+  copy = xmalloc (len + 2);
+  strcpy (copy + len, "/");
+  return memcpy (copy, ptr, len);
 }
 
 
@@ -334,6 +327,7 @@ get_user_app (const char *class)
   return db;
 }
 
+static char const xdefaults[] = ".Xdefaults";
 
 static XrmDatabase
 get_user_db (Display *display)
@@ -351,16 +345,12 @@ get_user_db (Display *display)
     db = XrmGetStringDatabase (xdefs);
   else
     {
-      char *home;
-      char *xdefault;
-
-      home = gethomedir ();
-      xdefault = xmalloc (strlen (home) + sizeof ".Xdefaults");
-      strcpy (xdefault, home);
-      strcat (xdefault, ".Xdefaults");
-      db = XrmGetFileDatabase (xdefault);
-      xfree (home);
-      xfree (xdefault);
+      char *home = gethomedir ();
+      ptrdiff_t homelen = strlen (home);
+      char *filename = xrealloc (home, homelen + sizeof xdefaults);
+      strcpy (filename + homelen, xdefaults);
+      db = XrmGetFileDatabase (filename);
+      xfree (filename);
     }
 
 #ifdef HAVE_XSCREENRESOURCESTRING
@@ -380,24 +370,23 @@ static XrmDatabase
 get_environ_db (void)
 {
   XrmDatabase db;
-  char *p;
-  char *path = 0;
+  char *p = getenv ("XENVIRONMENT");
+  char *filename = 0;
 
-  if ((p = getenv ("XENVIRONMENT")) == NULL)
+  if (!p)
     {
-      static char const xdefaults[] = ".Xdefaults-";
       char *home = gethomedir ();
-      char const *host = SSDATA (Vsystem_name);
-      ptrdiff_t pathsize = (strlen (home) + sizeof xdefaults
-			    + SBYTES (Vsystem_name));
-      path = xrealloc (home, pathsize);
-      strcat (strcat (path, xdefaults), host);
-      p = path;
+      ptrdiff_t homelen = strlen (home);
+      Lisp_Object system_name = Fsystem_name ();
+      ptrdiff_t filenamesize = (homelen + sizeof xdefaults
+				+ SBYTES (system_name));
+      p = filename = xrealloc (home, filenamesize);
+      lispstpcpy (stpcpy (filename + homelen, xdefaults), system_name);
     }
 
   db = XrmGetFileDatabase (p);
 
-  xfree (path);
+  xfree (filename);
 
   return db;
 }
@@ -452,6 +441,10 @@ x_load_resources (Display *display, const char *xrm_string,
   XrmPutLineResource (&rdb, line);
   sprintf (line, "%s*verticalScrollBar.troughColor: grey75", myclass);
   XrmPutLineResource (&rdb, line);
+  sprintf (line, "%s*horizontalScrollBar.background: grey75", myclass);
+  XrmPutLineResource (&rdb, line);
+  sprintf (line, "%s*horizontalScrollBar.troughColor: grey75", myclass);
+  XrmPutLineResource (&rdb, line);
   sprintf (line, "%s.dialog*.background: grey75", myclass);
   XrmPutLineResource (&rdb, line);
   sprintf (line, "%s*fsb.Text.background: white", myclass);
@@ -498,6 +491,8 @@ x_load_resources (Display *display, const char *xrm_string,
   sprintf (line, "*XlwMenu*background: grey75");
   XrmPutLineResource (&rdb, line);
   sprintf (line, "Emacs*verticalScrollBar.background: grey75");
+  XrmPutLineResource (&rdb, line);
+  sprintf (line, "Emacs*horizontalScrollBar.background: grey75");
   XrmPutLineResource (&rdb, line);
 
 #endif /* not USE_MOTIF */
@@ -664,7 +659,7 @@ main (int argc, char **argv)
   /* In a real program, you'd want to also do this: */
   display->db = xdb;
 
-  while (1)
+  while (true)
     {
       char query_name[90];
       char query_class[90];

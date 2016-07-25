@@ -4,6 +4,14 @@ if something_wrong?             # ruby-move-to-block-skips-heredoc
   end
   eowarn
   foo
+
+  foo(<<~squiggly)
+  end
+  squiggly
+end
+
+def foo
+  %^bar^
 end
 
 # Percent literals.
@@ -16,8 +24,8 @@ d = %(hello (nested) world)
 # Don't propertize percent literals inside strings.
 "(%s, %s)" % [123, 456]
 
-"abc/#{def}ghi"
-"abc\#{def}ghi"
+"abc/#{ddf}ghi"
+"abc\#{ddf}ghi"
 
 # Or inside comments.
 x = # "tot %q/to"; =
@@ -35,6 +43,10 @@ x = toto / foo if /do bar/ =~ "dobar"
 # Regexp options are highlighted.
 
 /foo/xi != %r{bar}mo.tee
+
+foo { /"tee/
+  bar { |qux| /'fee"/ }         # bug#20026
+}
 
 bar(class: XXX) do              # ruby-indent-keyword-label
   foo
@@ -156,6 +168,15 @@ if x == :!=
   something
 end
 
+qux :+,
+    bar,
+    :[]=,
+    bar,
+    :a
+
+b = $:
+c = ??
+
 # Example from http://www.ruby-doc.org/docs/ProgrammingRuby/html/language.html
 d = 4 + 5 +      # no '\' needed
     6 + 7
@@ -182,6 +203,9 @@ class C
     self.end
     D.new.class
   end
+
+  def begin
+  end
 end
 
 a = foo(j, k) -
@@ -198,7 +222,7 @@ foo.
   bar
 
 # https://github.com/rails/rails/blob/17f5d8e062909f1fcae25351834d8e89967b645e/activesupport/lib/active_support/time_with_zone.rb#L206
-foo
+foo # comment intended to confuse the tokenizer
   .bar
 
 z = {
@@ -210,6 +234,9 @@ z = {
 
 foo if
   bar
+
+fail "stuff" \
+  unless all_fine?
 
 if foo?
   bar
@@ -268,16 +295,38 @@ foo > bar &&
   tee < qux
 
 zux do
-  foo == bar and
+  foo == bar &&
     tee == qux
+
+  a = 3 and
+    b = 4
 end
+
+foo + bar ==
+  tee + qux
+
+1 .. 2 &&
+     3
+
+3 < 4 +
+    5
+
+10 << 4 ^
+  20
+
+100 + 2 >>
+  3
+
+2 ** 10 /
+  2
 
 foo ^
   bar
 
 foo_bar_tee(1, 2, 3)
-  .qux.bar
-  .tee
+  .qux&.bar
+  .tee.bar
+  &.tee
 
 foo do
   bar
@@ -288,6 +337,11 @@ def bar
   foo
     .baz
 end
+
+abc(foo
+      .bar,
+    tee
+      .qux)
 
 # http://stackoverflow.com/questions/17786563/emacs-ruby-mode-if-expressions-indentation
 tee = if foo
@@ -372,6 +426,17 @@ zoo
 a.records().map(&:b).zip(
   foo)
 
+foo1 =
+  subject.update(
+    1
+  )
+
+foo2 =
+  subject.
+    update(
+      2
+    )
+
 # FIXME: This is not consistent with the example below it, but this
 # offset only happens if the colon is at eol, which wouldn't be often.
 # Tokenizing `bar:' as `:bar =>' would be better, but it's hard to
@@ -381,6 +446,12 @@ foo(bar:
 
 foo(:bar =>
     tee)
+
+regions = foo(
+  OpenStruct.new(id: 0, name: "foo") => [
+    10
+  ]
+)
 
 {'a' => {
    'b' => 'c',

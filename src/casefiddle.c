@@ -1,14 +1,14 @@
 /* GNU Emacs case conversion functions.
 
-Copyright (C) 1985, 1994, 1997-1999, 2001-2015 Free Software Foundation,
+Copyright (C) 1985, 1994, 1997-1999, 2001-2016 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -30,8 +30,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "keymap.h"
 
 enum case_action {CASE_UP, CASE_DOWN, CASE_CAPITALIZE, CASE_CAPITALIZE_UP};
-
-Lisp_Object Qidentity;
 
 static Lisp_Object
 casify_object (enum case_action flag, Lisp_Object obj)
@@ -116,15 +114,15 @@ casify_object (enum case_action flag, Lisp_Object obj)
       ptrdiff_t i, i_byte, size = SCHARS (obj);
       int len;
       USE_SAFE_ALLOCA;
-      ptrdiff_t o_size = (size < STRING_BYTES_BOUND / MAX_MULTIBYTE_LENGTH
-			  ? size * MAX_MULTIBYTE_LENGTH
-			  : STRING_BYTES_BOUND);
+      ptrdiff_t o_size;
+      if (INT_MULTIPLY_WRAPV (size, MAX_MULTIBYTE_LENGTH, &o_size))
+	o_size = PTRDIFF_MAX;
       unsigned char *dst = SAFE_ALLOCA (o_size);
       unsigned char *o = dst;
 
       for (i = i_byte = 0; i < size; i++, i_byte += len)
 	{
-	  if (o_size - (o - dst) < MAX_MULTIBYTE_LENGTH)
+	  if (o_size - MAX_MULTIBYTE_LENGTH < o - dst)
 	    string_overflow ();
 	  c = STRING_CHAR_AND_LENGTH (SDATA (obj) + i_byte, len);
 	  if (inword && flag != CASE_CAPITALIZE_UP)
@@ -308,14 +306,30 @@ See also `capitalize-region'.  */)
   return Qnil;
 }
 
-DEFUN ("downcase-region", Fdowncase_region, Sdowncase_region, 2, 2, "r",
+DEFUN ("downcase-region", Fdowncase_region, Sdowncase_region, 2, 3,
+       "(list (region-beginning) (region-end) (region-noncontiguous-p))",
        doc: /* Convert the region to lower case.  In programs, wants two arguments.
 These arguments specify the starting and ending character numbers of
 the region to operate on.  When used as a command, the text between
 point and the mark is operated on.  */)
-  (Lisp_Object beg, Lisp_Object end)
+  (Lisp_Object beg, Lisp_Object end, Lisp_Object region_noncontiguous_p)
 {
-  casify_region (CASE_DOWN, beg, end);
+  Lisp_Object bounds = Qnil;
+
+  if (!NILP (region_noncontiguous_p))
+    {
+      bounds = call1 (Fsymbol_value (intern ("region-extract-function")),
+		      intern ("bounds"));
+
+      while (CONSP (bounds))
+	{
+	  casify_region (CASE_DOWN, XCAR (XCAR (bounds)), XCDR (XCAR (bounds)));
+	  bounds = XCDR (bounds);
+	}
+    }
+  else
+    casify_region (CASE_DOWN, beg, end);
+
   return Qnil;
 }
 

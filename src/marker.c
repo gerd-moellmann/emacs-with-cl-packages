@@ -1,13 +1,13 @@
 /* Markers: examining, setting and deleting.
-   Copyright (C) 1985, 1997-1998, 2001-2015 Free Software Foundation,
+   Copyright (C) 1985, 1997-1998, 2001-2016 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -412,8 +412,7 @@ Returns nil if MARKER points into a dead buffer.  */)
 }
 
 DEFUN ("marker-position", Fmarker_position, Smarker_position, 1, 1, 0,
-       doc: /* Return the position MARKER points at, as a character number.
-Returns nil if MARKER points nowhere.  */)
+       doc: /* Return the position of MARKER, or nil if it points nowhere.  */)
   (Lisp_Object marker)
 {
   CHECK_MARKER (marker);
@@ -455,21 +454,8 @@ attach_marker (struct Lisp_Marker *m, struct buffer *b,
 static struct buffer *
 live_buffer (Lisp_Object buffer)
 {
-  struct buffer *b;
-
-  if (NILP (buffer))
-    {
-      b = current_buffer;
-      eassert (BUFFER_LIVE_P (b));
-    }
-  else
-    {
-      CHECK_BUFFER (buffer);
-      b = XBUFFER (buffer);
-      if (!BUFFER_LIVE_P (b))
-       b = NULL;
-    }
-  return b;
+  struct buffer *b = decode_buffer (buffer);
+  return BUFFER_LIVE_P (b) ? b : NULL;
 }
 
 /* Internal function to set MARKER in BUFFER at POSITION.  Non-zero

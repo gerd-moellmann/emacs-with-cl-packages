@@ -1,13 +1,13 @@
 /* Interface definitions for display code.
 
-Copyright (C) 1985, 1993-1994, 1997-2015 Free Software Foundation, Inc.
+Copyright (C) 1985, 1993-1994, 1997-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -126,7 +126,8 @@ enum window_part
   ON_RIGHT_FRINGE,
   ON_LEFT_MARGIN,
   ON_RIGHT_MARGIN,
-  ON_SCROLL_BAR,
+  ON_VERTICAL_SCROLL_BAR,
+  ON_HORIZONTAL_SCROLL_BAR,
   ON_RIGHT_DIVIDER,
   ON_BOTTOM_DIVIDER
 };
@@ -354,7 +355,10 @@ enum glyph_type
   IMAGE_GLYPH,
 
   /* Glyph is a space of fractional width and/or height.  */
-  STRETCH_GLYPH
+  STRETCH_GLYPH,
+
+  /* Glyph is an external widget drawn by the GUI toolkit.  */
+  XWIDGET_GLYPH
 };
 
 
@@ -396,10 +400,9 @@ struct glyph
 
   /* Lisp object source of this glyph.  Currently either a buffer or a
      string, if the glyph was produced from characters which came from
-     a buffer or a string; or Lisp integer zero (a.k.a. "null object")
-     if the glyph was inserted by redisplay for its own purposes, such
-     as padding or truncation/continuation glyphs, or the
-     overlay-arrow glyphs on TTYs.  */
+     a buffer or a string; or nil if the glyph was inserted by
+     redisplay for its own purposes, such as padding, truncation, or
+     continuation glyphs, or the overlay-arrow glyphs on TTYs.  */
   Lisp_Object object;
 
   /* Width in pixels.  */
@@ -452,8 +455,8 @@ struct glyph
   /* True means don't display cursor here.  */
   bool_bf avoid_cursor_p : 1;
 
-  /* Resolved bidirectional level of this character [0..63].  */
-  unsigned resolved_level : 5;
+  /* Resolved bidirectional level of this character [0..127].  */
+  unsigned resolved_level : 7;
 
   /* Resolved bidirectional type of this character, see enum
      bidi_type_t below.  Note that according to UAX#9, only some
@@ -506,6 +509,11 @@ struct glyph
 
     /* Image ID for image glyphs (type == IMAGE_GLYPH).  */
     int img_id;
+
+#ifdef HAVE_XWIDGETS
+    /* Xwidget reference (type == XWIDGET_GLYPH).  */
+    struct xwidget *xwidget;
+#endif
 
     /* Sub-structure for type == STRETCH_GLYPH.  */
     struct
@@ -1314,9 +1322,6 @@ struct glyph_string
   /* True means the background of this string has been drawn.  */
   bool_bf background_filled_p : 1;
 
-  /* True means glyph string must be drawn with 16-bit functions.  */
-  bool_bf two_byte_p : 1;
-
   /* True means that the original font determined for drawing this glyph
      string could not be loaded.  The member `font' has been set to
      the frame's default font in this case.  */
@@ -1360,6 +1365,9 @@ struct glyph_string
 
   /* Image, if any.  */
   struct image *img;
+
+  /* Xwidget.  */
+  struct xwidget *xwidget;
 
   /* Slice */
   struct glyph_slice slice;
@@ -1536,6 +1544,13 @@ struct glyph_string
    + (FRAME_LINE_HEIGHT ((F)) - FONT_HEIGHT ((FONT))		\
       + (FRAME_LINE_HEIGHT ((F)) > FONT_HEIGHT ((FONT)))) / 2	\
    - (FONT_DESCENT (FRAME_FONT (F)) - FRAME_BASELINE_OFFSET (F)))
+
+/* A heuristic test for fonts that claim they need a preposterously
+   large vertical space.  The heuristics is in the factor of 3.  We
+   ignore the ascent and descent values reported by such fonts, and
+   instead go by the values reported for individual glyphs.  */
+#define FONT_TOO_HIGH(ft)						\
+  ((ft)->pixel_size > 0 && (ft)->ascent + (ft)->descent > 3*(ft)->pixel_size)
 
 
 /***********************************************************************
@@ -1724,8 +1739,10 @@ struct face
      attributes except the font.  */
   struct face *ascii_face;
 
-  /* Extra member that a font-driver uses privately.  */
+#if defined HAVE_XFT || defined HAVE_FREETYPE
+/* Extra member that a font-driver uses privately.  */
   void *extra;
+#endif
 };
 
 
@@ -1803,16 +1820,6 @@ struct face_cache
   bool_bf menu_face_changed_p : 1;
 };
 
-
-/* Prepare face FACE for use on frame F.  This must be called before
-   using X resources of FACE.  */
-
-#define PREPARE_FACE_FOR_DISPLAY(F, FACE)	\
-  do {						\
-     if ((FACE)->gc == 0)			\
-       prepare_face_for_display ((F), (FACE));	\
-  } while (false)
-
 /* Return a pointer to the face with ID on frame F, or null if such a
    face doesn't exist.  */
 
@@ -1868,13 +1875,15 @@ GLYPH_CODE_P (Lisp_Object gc)
 	       : TYPE_MAXIMUM (EMACS_INT)))));
 }
 
-/* Non-zero means face attributes have been changed since the last
+/* True means face attributes have been changed since the last
    redisplay.  Used in redisplay_internal.  */
 
-extern int face_change_count;
+extern bool face_change;
 
 /* For reordering of bidirectional text.  */
-#define BIDI_MAXLEVEL 64
+
+/* UAX#9's max_depth value.  */
+#define BIDI_MAXDEPTH 125
 
 /* Data type for describing the bidirectional character types.  The
    first 7 must be at the beginning, because they are the only values
@@ -1911,23 +1920,40 @@ typedef enum {
   NEUTRAL_ON	/* other neutrals */
 } bidi_type_t;
 
+/* Data type for describing the Bidi Paired Bracket Type of a character.
+
+   The order of members must be in sync with the 8th element of the
+   member of unidata-prop-alist (in admin/unidata/unidata-gen.el) for
+   Unicode character property `bracket-type'.  */
+typedef enum {
+  BIDI_BRACKET_NONE = 1,
+  BIDI_BRACKET_OPEN,
+  BIDI_BRACKET_CLOSE
+} bidi_bracket_type_t;
+
 /* The basic directionality data type.  */
-typedef enum { NEUTRAL_DIR, L2R, R2L } bidi_dir_t;
+typedef enum { NEUTRAL_DIR = 0, L2R, R2L } bidi_dir_t;
 
 /* Data type for storing information about characters we need to
    remember.  */
 struct bidi_saved_info {
-  ptrdiff_t bytepos, charpos;	/* character's buffer position */
+  ptrdiff_t charpos;		/* character's buffer position */
   bidi_type_t type;		/* character's resolved bidi type */
-  bidi_type_t type_after_w1;	/* original type of the character, after W1 */
-  bidi_type_t orig_type;	/* type as we found it in the buffer */
+  bidi_type_t orig_type;	/* bidi type as we found it in the buffer */
 };
 
-/* Data type for keeping track of saved embedding levels and override
-   status information.  */
+/* Data type for keeping track of information about saved embedding
+   levels, override status, isolate status, and isolating sequence
+   runs.  This should be as tightly packed as possible, because there
+   are 127 such entries in each iterator state, and so the size of
+   cache is directly affected by the size of this struct.  */
 struct bidi_stack {
-  int level;
-  bidi_dir_t override;
+  ptrdiff_t next_for_neutral_pos;
+  unsigned next_for_neutral_type : 3;
+  unsigned last_strong_type : 3;
+  unsigned prev_for_neutral_type : 3;
+  unsigned char level;
+  unsigned char flags;		/* sos, override, isolate_status */
 };
 
 /* Data type for storing information about a string being iterated on.  */
@@ -1952,22 +1978,24 @@ struct bidi_it {
   ptrdiff_t nchars;		/* its "length", usually 1; it's > 1 for a run
 				   of characters covered by a display string */
   ptrdiff_t ch_len;		/* its length in bytes */
-  bidi_type_t type;		/* bidi type of this character, after
+  bidi_type_t type;		/* final bidi type of this character, after
 				   resolving weak and neutral types */
-  bidi_type_t type_after_w1;	/* original type, after overrides and W1 */
-  bidi_type_t orig_type;	/* original type, as found in the buffer */
-  int resolved_level;		/* final resolved level of this character */
-  int invalid_levels;		/* how many PDFs to ignore */
-  int invalid_rl_levels;	/* how many PDFs from RLE/RLO to ignore */
+  bidi_type_t type_after_wn;	/* bidi type after overrides and Wn */
+  bidi_type_t orig_type;	/* original bidi type, as found in the buffer */
+  signed char resolved_level;	/* final resolved level of this character */
+  signed char isolate_level;	/* count of isolate initiators unmatched by PDI */
+  ptrdiff_t invalid_levels;	/* how many PDFs to ignore */
+  ptrdiff_t invalid_isolates;	/* how many PDIs to ignore */
   struct bidi_saved_info prev;	/* info about previous character */
   struct bidi_saved_info last_strong; /* last-seen strong directional char */
   struct bidi_saved_info next_for_neutral; /* surrounding characters for... */
   struct bidi_saved_info prev_for_neutral; /* ...resolving neutrals */
   struct bidi_saved_info next_for_ws; /* character after sequence of ws */
+  ptrdiff_t bracket_pairing_pos;	/* position of pairing bracket */
+  bidi_type_t bracket_enclosed_type;	/* type for bracket resolution */
   ptrdiff_t next_en_pos;	/* pos. of next char for determining ET type */
   bidi_type_t next_en_type;	/* type of char at next_en_pos */
-  ptrdiff_t ignore_bn_limit;	/* position until which to ignore BNs */
-  bidi_dir_t sor;		/* direction of start-of-run in effect */
+  bidi_dir_t sos;		/* direction of start-of-sequence in effect */
   int scan_dir;			/* direction of text scan, 1: forw, -1: back */
   ptrdiff_t disp_pos;		/* position of display string after ch */
   int disp_prop;		/* if non-zero, there really is a
@@ -1977,12 +2005,11 @@ struct bidi_it {
   /* Note: Everything from here on is not copied/saved when the bidi
      iterator state is saved, pushed, or popped.  So only put here
      stuff that is not part of the bidi iterator's state!  */
-  struct bidi_stack level_stack[BIDI_MAXLEVEL]; /* stack of embedding levels */
+  struct bidi_stack level_stack[BIDI_MAXDEPTH+2+1]; /* directional status stack */
   struct bidi_string_data string;	/* string to reorder */
   struct window *w;		/* the window being displayed */
   bidi_dir_t paragraph_dir;	/* current paragraph direction */
   ptrdiff_t separator_limit;	/* where paragraph separator should end */
-  bool_bf prev_was_pdf : 1;	/* if true, previous char was PDF */
   bool_bf first_elt : 1;	/* if true, examine current char first */
   bool_bf new_paragraph : 1;	/* if true, we expect a new paragraph */
   bool_bf frame_window_p : 1;	/* true if displaying on a GUI frame */
@@ -2094,7 +2121,10 @@ enum display_element_type
   IT_TRUNCATION,
 
   /* Continuation glyphs.  See the comment for IT_TRUNCATION.  */
-  IT_CONTINUATION
+  IT_CONTINUATION,
+
+  /* Xwidget.  */
+  IT_XWIDGET
 };
 
 
@@ -2158,6 +2188,7 @@ enum it_method {
   GET_FROM_C_STRING,
   GET_FROM_IMAGE,
   GET_FROM_STRETCH,
+  GET_FROM_XWIDGET,
   NUM_IT_METHODS
 };
 
@@ -2371,14 +2402,14 @@ struct it
 	struct it_slice slice;
 	ptrdiff_t image_id;
       } image;
-      /* method == GET_FROM_COMPOSITION */
-      struct {
-	Lisp_Object object;
-      } comp;
       /* method == GET_FROM_STRETCH */
       struct {
 	Lisp_Object object;
       } stretch;
+      /* method == GET_FROM_XWIDGET */
+      struct {
+	Lisp_Object object;
+      } xwidget;
     } u;
 
     /* Current text and display positions.  */
@@ -2503,6 +2534,9 @@ struct it
   /* If what == IT_IMAGE, the id of the image to display.  */
   ptrdiff_t image_id;
 
+  /* If what == IT_XWIDGET.  */
+  struct xwidget *xwidget;
+
   /* Values from `slice' property.  */
   struct it_slice slice;
 
@@ -2522,11 +2556,11 @@ struct it
      Object is normally the buffer which is being rendered, but it can
      also be a Lisp string in case the current display element comes
      from an overlay string or from a display string (before- or
-     after-string).  It may also be nil when a C string is being
-     rendered, e.g., during mode-line or header-line update.  It can
-     also be a cons cell of the form `(space ...)', when we produce a
-     stretch glyph from a `display' specification.  Finally, it can be
-     a zero-valued Lisp integer, but only temporarily, when we are
+     after-string).  It may also be a zero-valued Lisp integer when a
+     C string is being rendered, e.g., during mode-line or header-line
+     update.  It can also be a cons cell of the form `(space ...)',
+     when we produce a stretch glyph from a `display' specification.
+     Finally, it can be nil, but only temporarily, when we are
      producing special glyphs for display purposes, like truncation
      and continuation glyphs, or blanks that extend each line to the
      edge of the window on a TTY.
@@ -2844,44 +2878,50 @@ struct redisplay_interface
                                 int h, int wd);
   void (*destroy_fringe_bitmap) (int which);
 
-/* Compute left and right overhang of glyph string S.
-   A NULL pointer if platform does not support this. */
+  /* Compute left and right overhang of glyph string S.
+     A NULL pointer if platform does not support this. */
   void (*compute_glyph_string_overhangs) (struct glyph_string *s);
 
-/* Draw a glyph string S.  */
+  /* Draw a glyph string S.  */
   void (*draw_glyph_string) (struct glyph_string *s);
 
-/* Define cursor CURSOR on frame F.  */
+  /* Define cursor CURSOR on frame F.  */
   void (*define_frame_cursor) (struct frame *f, Cursor cursor);
 
-/* Clear the area at (X,Y,WIDTH,HEIGHT) of frame F.  */
+  /* Clear the area at (X,Y,WIDTH,HEIGHT) of frame F.  */
   void (*clear_frame_area) (struct frame *f, int x, int y,
                             int width, int height);
 
-/* Draw specified cursor CURSOR_TYPE of width CURSOR_WIDTH
-   at row GLYPH_ROW on window W if ON_P is true.  If ON_P is
-   false, don't draw cursor.  If ACTIVE_P is true, system caret
-   should track this cursor (when applicable).  */
+  /* Draw specified cursor CURSOR_TYPE of width CURSOR_WIDTH
+     at row GLYPH_ROW on window W if ON_P is true.  If ON_P is
+     false, don't draw cursor.  If ACTIVE_P is true, system caret
+     should track this cursor (when applicable).  */
   void (*draw_window_cursor) (struct window *w,
 			      struct glyph_row *glyph_row,
 			      int x, int y,
 			      enum text_cursor_kinds cursor_type,
 			      int cursor_width, bool on_p, bool active_p);
 
-/* Draw vertical border for window W from (X,Y_0) to (X,Y_1).  */
+  /* Draw vertical border for window W from (X,Y_0) to (X,Y_1).  */
   void (*draw_vertical_window_border) (struct window *w,
                                        int x, int y_0, int y_1);
 
-/* Draw window divider for window W from (X_0, Y_0) to (X_1, ,Y_1).  */
+  /* Draw window divider for window W from (X_0, Y_0) to (X_1, ,Y_1).  */
   void (*draw_window_divider) (struct window *w,
 			       int x_0, int x_1, int y_0, int y_1);
 
-/* Shift display of frame F to make room for inserted glyphs.
-   The area at pixel (X,Y) of width WIDTH and height HEIGHT is
-   shifted right by SHIFT_BY pixels.  */
+  /* Shift display of frame F to make room for inserted glyphs.
+     The area at pixel (X,Y) of width WIDTH and height HEIGHT is
+     shifted right by SHIFT_BY pixels.  */
   void (*shift_glyphs_for_insert) (struct frame *f,
                                    int x, int y, int width,
                                    int height, int shift_by);
+
+  /* Start display hourglass cursor on frame F.  */
+  void (*show_hourglass) (struct frame *f);
+
+  /* Cancel hourglass cursor on frame F.  */
+  void (*hide_hourglass) (struct frame *f);
 
 #endif /* HAVE_WINDOW_SYSTEM */
 };
@@ -2898,8 +2938,8 @@ struct redisplay_interface
 
 struct image_type
 {
-  /* A symbol uniquely identifying the image type, .e.g `jpeg'.  */
-  Lisp_Object *type;
+  /* Index of a symbol uniquely identifying the image type, e.g., 'jpeg'.  */
+  int type;
 
   /* Check that SPEC is a valid image specification for the given
      image type.  Value is true if SPEC is valid.  */
@@ -2934,6 +2974,10 @@ struct image
   /* Pixmaps of the image.  */
   Pixmap pixmap, mask;
 
+#ifdef USE_CAIRO
+  void *cr_data;
+  void *cr_data2;
+#endif
 #ifdef HAVE_X_WINDOWS
   /* X images of the image, corresponding to the above Pixmaps.
      Non-NULL means it and its Pixmap counterpart may be out of sync
@@ -3179,6 +3223,7 @@ extern void bidi_push_it (struct bidi_it *);
 extern void bidi_pop_it (struct bidi_it *);
 extern void *bidi_shelve_cache (void);
 extern void bidi_unshelve_cache (void *, bool);
+extern ptrdiff_t bidi_find_first_overridden (struct bidi_it *);
 
 /* Defined in xdisp.c */
 
@@ -3187,12 +3232,11 @@ struct glyph_row *row_containing_pos (struct window *, ptrdiff_t,
                                       struct glyph_row *, int);
 int line_bottom_y (struct it *);
 int default_line_pixel_height (struct window *);
-int display_prop_intangible_p (Lisp_Object, Lisp_Object, ptrdiff_t, ptrdiff_t);
+bool display_prop_intangible_p (Lisp_Object, Lisp_Object, ptrdiff_t, ptrdiff_t);
 void resize_echo_area_exactly (void);
-int resize_mini_window (struct window *, int);
-#if defined USE_TOOLKIT_SCROLL_BARS && !defined USE_GTK
+bool resize_mini_window (struct window *, bool);
 void set_vertical_scroll_bar (struct window *);
-#endif
+void set_horizontal_scroll_bar (struct window *);
 int try_window (Lisp_Object, struct text_pos, int);
 void window_box (struct window *, enum glyph_row_area,
 		 int *, int *, int *, int *);
@@ -3202,14 +3246,13 @@ int window_box_width (struct window *, enum glyph_row_area);
 int window_box_left (struct window *, enum glyph_row_area);
 int window_box_left_offset (struct window *, enum glyph_row_area);
 int window_box_right (struct window *, enum glyph_row_area);
-int window_box_right_offset (struct window *, enum glyph_row_area);
 int estimate_mode_line_height (struct frame *, enum face_id);
 int move_it_to (struct it *, ptrdiff_t, int, int, int, int);
 void pixel_to_glyph_coords (struct frame *, int, int, int *, int *,
-                            NativeRectangle *, int);
+                            NativeRectangle *, bool);
 void remember_mouse_glyph (struct frame *, int, int, NativeRectangle *);
 
-void mark_window_display_accurate (Lisp_Object, int);
+void mark_window_display_accurate (Lisp_Object, bool);
 void redisplay_preserve_echo_area (int);
 void init_iterator (struct it *, struct window *, ptrdiff_t,
                     ptrdiff_t, struct glyph_row *, enum face_id);
@@ -3225,7 +3268,6 @@ void move_it_in_display_line (struct it *it,
 			      enum move_operation_enum op);
 bool in_display_vector_p (struct it *);
 int frame_mode_line_height (struct frame *);
-extern Lisp_Object Qtool_bar;
 extern bool redisplaying_p;
 extern bool help_echo_showing_p;
 extern Lisp_Object help_echo_string, help_echo_window;
@@ -3236,11 +3278,14 @@ extern void reseat_at_previous_visible_line_start (struct it *);
 extern Lisp_Object lookup_glyphless_char_display (int, struct it *);
 extern ptrdiff_t compute_display_string_pos (struct text_pos *,
 					     struct bidi_string_data *,
-					     struct window *, int, int *);
+					     struct window *, bool, int *);
 extern ptrdiff_t compute_display_string_end (ptrdiff_t,
 					     struct bidi_string_data *);
 extern void produce_stretch_glyph (struct it *);
 extern int merge_glyphless_glyph_face (struct it *);
+extern void forget_escape_and_glyphless_faces (void);
+
+extern void get_font_ascent_descent (struct font *, int *, int *);
 
 #ifdef HAVE_WINDOW_SYSTEM
 
@@ -3265,9 +3310,7 @@ extern void draw_phys_cursor_glyph (struct window *,
                                     enum draw_glyphs_face);
 extern void get_phys_cursor_geometry (struct window *, struct glyph_row *,
                                       struct glyph *, int *, int *, int *);
-#if HAVE_NTGUI
 extern void erase_phys_cursor (struct window *);
-#endif
 extern void display_and_set_cursor (struct window *, bool, int, int, int, int);
 extern void x_update_cursor (struct frame *, bool);
 extern void x_clear_cursor (struct window *);
@@ -3281,21 +3324,20 @@ extern void get_glyph_string_clip_rect (struct glyph_string *,
 extern Lisp_Object find_hot_spot (Lisp_Object, int, int);
 
 extern void handle_tool_bar_click (struct frame *,
-                                   int, int, int, int);
+                                   int, int, bool, int);
 
 extern void expose_frame (struct frame *, int, int, int, int);
-extern int x_intersect_rectangles (XRectangle *, XRectangle *,
-                                   XRectangle *);
+extern bool x_intersect_rectangles (XRectangle *, XRectangle *, XRectangle *);
 #endif	/* HAVE_WINDOW_SYSTEM */
 
 extern void note_mouse_highlight (struct frame *, int, int);
 extern void x_clear_window_mouse_face (struct window *);
 extern void cancel_mouse_face (struct frame *);
-extern int clear_mouse_face (Mouse_HLInfo *);
+extern bool clear_mouse_face (Mouse_HLInfo *);
 extern bool cursor_in_mouse_face_p (struct window *w);
 extern void tty_draw_row_with_mouse_face (struct window *, struct glyph_row *,
 					  int, int, enum draw_glyphs_face);
-extern void display_tty_menu_item (const char *, int, int, int, int, int);
+extern void display_tty_menu_item (const char *, int, int, int, int, bool);
 
 /* Flags passed to try_window.  */
 #define TRY_WINDOW_CHECK_MARGINS	(1 << 0)
@@ -3306,7 +3348,6 @@ void draw_fringe_bitmap (struct window *, struct glyph_row *, int);
 void draw_row_fringe_bitmaps (struct window *, struct glyph_row *);
 bool draw_window_fringes (struct window *, bool);
 bool update_window_fringes (struct window *, bool);
-void compute_fringe_widths (struct frame *, bool);
 
 #ifdef HAVE_NTGUI
 void w32_init_fringe (struct redisplay_interface *);
@@ -3314,6 +3355,9 @@ void w32_reset_fringes (void);
 #endif
 #ifdef HAVE_MACGUI
 void mac_init_fringe (struct redisplay_interface *);
+#endif
+#ifdef USE_CAIRO
+void x_cr_init_fringe (struct redisplay_interface *);
 #endif
 
 extern unsigned row_hash (struct glyph_row *);
@@ -3371,7 +3415,6 @@ void unrequest_sigio (void);
 bool tabs_safe_p (int);
 void init_baud_rate (int);
 void init_sigio (int);
-void ignore_sigio (void);
 
 /* Defined in xfaces.c.  */
 
@@ -3383,35 +3426,31 @@ void x_free_colors (struct frame *, unsigned long *, int);
 void update_face_from_frame_parameter (struct frame *, Lisp_Object,
                                        Lisp_Object);
 Lisp_Object tty_color_name (struct frame *, int);
-void clear_face_cache (int);
-#ifdef MSDOS
+void clear_face_cache (bool);
 unsigned long load_color (struct frame *, struct face *, Lisp_Object,
                           enum lface_attribute_index);
-#endif
 char *choose_face_font (struct frame *, Lisp_Object *, Lisp_Object,
                         int *);
+#ifdef HAVE_WINDOW_SYSTEM
 void prepare_face_for_display (struct frame *, struct face *);
-int lookup_named_face (struct frame *, Lisp_Object, int);
+#endif
+int lookup_named_face (struct frame *, Lisp_Object, bool);
 int lookup_basic_face (struct frame *, int);
 int smaller_face (struct frame *, int, int);
 int face_with_height (struct frame *, int, int);
-int lookup_derived_face (struct frame *, Lisp_Object, int, int);
+int lookup_derived_face (struct frame *, Lisp_Object, int, bool);
 void init_frame_faces (struct frame *);
 void free_frame_faces (struct frame *);
 void recompute_basic_faces (struct frame *);
-int face_at_buffer_position (struct window *w, ptrdiff_t pos,
-                             ptrdiff_t *endptr, ptrdiff_t limit,
-                             int mouse, int base_face_id);
-int face_for_overlay_string (struct window *w, ptrdiff_t pos,
-                             ptrdiff_t *endptr, ptrdiff_t limit,
-                             int mouse, Lisp_Object overlay);
-int face_at_string_position (struct window *w, Lisp_Object string,
-                             ptrdiff_t pos, ptrdiff_t bufpos,
-                             ptrdiff_t *endptr, enum face_id, int mouse);
+int face_at_buffer_position (struct window *, ptrdiff_t, ptrdiff_t *, ptrdiff_t,
+                             bool, int);
+int face_for_overlay_string (struct window *, ptrdiff_t, ptrdiff_t *, ptrdiff_t,
+                             bool, Lisp_Object);
+int face_at_string_position (struct window *, Lisp_Object, ptrdiff_t, ptrdiff_t,
+                             ptrdiff_t *, enum face_id, bool);
 int merge_faces (struct frame *, Lisp_Object, int, int);
 int compute_char_face (struct frame *, int, Lisp_Object);
 void free_all_realized_faces (Lisp_Object);
-extern Lisp_Object Qforeground_color, Qbackground_color;
 extern char unspecified_fg[], unspecified_bg[];
 
 /* Defined in xfns.c.  */
@@ -3429,6 +3468,7 @@ void gamma_correct (struct frame *, unsigned long *);
 #ifdef HAVE_WINDOW_SYSTEM
 
 void x_implicitly_set_name (struct frame *, Lisp_Object, Lisp_Object);
+void x_change_tool_bar_height (struct frame *f, int);
 
 extern Lisp_Object tip_frame;
 extern Window tip_window;
@@ -3437,14 +3477,6 @@ extern frame_parm_handler mac_frame_parm_handlers[];
 
 extern void start_hourglass (void);
 extern void cancel_hourglass (void);
-extern bool hourglass_shown_p;
-/* If non-null, an asynchronous timer that, when it expires, displays
-   an hourglass cursor on all frames.  */
-extern struct atimer *hourglass_atimer;
-
-/* Each GUI implements these.  FIXME: move into RIF. */
-extern void show_hourglass (struct atimer *);
-extern void hide_hourglass (void);
 
 /* Returns the background color of IMG, calculating one heuristically if
    necessary.  If non-zero, XIMG is an existing XImage object to use for
@@ -3467,11 +3499,11 @@ extern void hide_hourglass (void);
 #endif /* HAVE_WINDOW_SYSTEM */
 
 
-/* Defined in xmenu.c  */
+/* Defined in xmenu.c.  */
 
 int popup_activated (void);
 
-/* Defined in dispnew.c */
+/* Defined in dispnew.c.  */
 
 extern Lisp_Object buffer_posn_from_coords (struct window *,
                                             int *, int *,
@@ -3507,16 +3539,15 @@ void blank_row (struct window *, struct glyph_row *, int);
 void clear_glyph_matrix_rows (struct glyph_matrix *, int, int);
 void clear_glyph_row (struct glyph_row *);
 void prepare_desired_row (struct window *, struct glyph_row *, bool);
-void update_single_window (struct window *, bool);
+void update_single_window (struct window *);
 void do_pending_window_change (bool);
 void change_frame_size (struct frame *, int, int, bool, bool, bool, bool);
 void init_display (void);
 void syms_of_display (void);
-extern Lisp_Object Qredisplay_dont_pause;
 extern void spec_glyph_lookup_face (struct window *, GLYPH *);
 extern void fill_up_frame_row_with_spaces (struct glyph_row *, int);
 
-/* Defined in terminal.c */
+/* Defined in terminal.c.  */
 
 extern void ring_bell (struct frame *);
 extern void update_begin (struct frame *);
@@ -3544,7 +3575,6 @@ extern void calculate_costs (struct frame *);
 extern void produce_glyphs (struct it *);
 extern bool tty_capable_p (struct tty_display_info *, unsigned);
 extern void set_tty_color_mode (struct tty_display_info *, struct frame *);
-extern struct terminal *get_named_tty (const char *);
 extern void create_tty_output (struct frame *);
 extern struct terminal *init_tty (const char *, const char *, bool);
 extern void tty_append_glyph (struct it *);
@@ -3552,13 +3582,13 @@ extern void tty_append_glyph (struct it *);
 
 /* Defined in scroll.c */
 
-extern int scrolling_max_lines_saved (int, int, int *, int *, int *);
+extern int scrolling_max_lines_saved (int, int, unsigned *, unsigned *, int *);
 extern void do_line_insertion_deletion_costs (struct frame *, const char *,
                                               const char *, const char *,
 					      const char *, const char *,
 					      const char *, int);
-void scrolling_1 (struct frame *, int, int, int, int *, int *, int *,
-                  int *, int);
+void scrolling_1 (struct frame *, int, int, int, int *, int *, unsigned *,
+                  unsigned *, int);
 
 /* Defined in frame.c */
 

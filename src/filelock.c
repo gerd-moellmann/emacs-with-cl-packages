@@ -1,6 +1,6 @@
 /* Lock files for editing.
 
-Copyright (C) 1985-1987, 1993-1994, 1996, 1998-2015 Free Software
+Copyright (C) 1985-1987, 1993-1994, 1996, 1998-2016 Free Software
 Foundation, Inc.
 
 Author: Richard King
@@ -10,8 +10,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -45,17 +45,15 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <c-ctype.h>
 
 #include "lisp.h"
-#include "character.h"
 #include "buffer.h"
 #include "coding.h"
-#include "systime.h"
 #ifdef WINDOWSNT
 #include <share.h>
 #include <sys/socket.h>	/* for fcntl */
 #include "w32.h"	/* for dostounix_filename */
 #endif
 
-#ifdef CLASH_DETECTION
+#ifndef MSDOS
 
 #ifdef HAVE_UTMP_H
 #include <utmp.h>
@@ -211,8 +209,6 @@ get_boot_time (void)
 					    WTMP_FILE, counter);
 	  if (! NILP (Ffile_exists_p (tempname)))
 	    {
-	      Lisp_Object args[6];
-
 	      /* The utmp functions on mescaline.gnu.org accept only
 		 file names up to 8 characters long.  Choose a 2
 		 character long prefix, and call make_temp_file with
@@ -221,13 +217,9 @@ get_boot_time (void)
 	      filename = Fexpand_file_name (build_string ("wt"),
 					    Vtemporary_file_directory);
 	      filename = make_temp_name (filename, 1);
-	      args[0] = build_string ("gzip");
-	      args[1] = Qnil;
-	      args[2] = list2 (QCfile, filename);
-	      args[3] = Qnil;
-	      args[4] = build_string ("-cd");
-	      args[5] = tempname;
-	      Fcall_process (6, args);
+	      CALLN (Fcall_process, build_string ("gzip"), Qnil,
+		     list2 (QCfile, filename), Qnil,
+		     build_string ("-cd"), tempname);
 	      delete_flag = 1;
 	    }
 	}
@@ -594,9 +586,10 @@ current_lock_owner (lock_info_type *owner, char *lfname)
     return -1;
 
   /* On current host?  */
-  if (STRINGP (Vsystem_name)
-      && dot - (at + 1) == SBYTES (Vsystem_name)
-      && memcmp (at + 1, SSDATA (Vsystem_name), SBYTES (Vsystem_name)) == 0)
+  Lisp_Object system_name = Fsystem_name ();
+  if (STRINGP (system_name)
+      && dot - (at + 1) == SBYTES (system_name)
+      && memcmp (at + 1, SSDATA (system_name), SBYTES (system_name)) == 0)
     {
       if (pid == getpid ())
         ret = 2; /* We own it.  */
@@ -673,12 +666,7 @@ lock_file (Lisp_Object fn)
   Lisp_Object orig_fn, encoded_fn;
   char *lfname;
   lock_info_type lock_info;
-  struct gcpro gcpro1;
   USE_SAFE_ALLOCA;
-
-  /* Don't do locking if the user has opted out.  */
-  if (! create_lockfiles)
-    return;
 
   /* Don't do locking while dumping Emacs.
      Uncompressing wtmp files uses call-process, which does not work
@@ -687,7 +675,6 @@ lock_file (Lisp_Object fn)
     return;
 
   orig_fn = fn;
-  GCPRO1 (fn);
   fn = Fexpand_file_name (fn, Qnil);
 #ifdef WINDOWSNT
   /* Ensure we have only '/' separators, to avoid problems with
@@ -696,9 +683,6 @@ lock_file (Lisp_Object fn)
   dostounix_filename (SSDATA (fn));
 #endif
   encoded_fn = ENCODE_FILE (fn);
-
-  /* Create the name of the lock-file for file fn */
-  MAKE_LOCK_NAME (lfname, encoded_fn);
 
   /* See if this file is visited and has changed on disk since it was
      visited.  */
@@ -714,27 +698,33 @@ lock_file (Lisp_Object fn)
 
   }
 
-  /* Try to lock the lock.  */
-  if (0 < lock_if_free (&lock_info, lfname))
+  /* Don't do locking if the user has opted out.  */
+  if (create_lockfiles)
     {
-      /* Someone else has the lock.  Consider breaking it.  */
-      Lisp_Object attack;
-      char *dot = lock_info.dot;
-      ptrdiff_t pidlen = lock_info.colon - (dot + 1);
-      static char const replacement[] = " (pid ";
-      int replacementlen = sizeof replacement - 1;
-      memmove (dot + replacementlen, dot + 1, pidlen);
-      strcpy (dot + replacementlen + pidlen, ")");
-      memcpy (dot, replacement, replacementlen);
-      attack = call2 (intern ("ask-user-about-lock"), fn,
-		      build_string (lock_info.user));
-      /* Take the lock if the user said so.  */
-      if (!NILP (attack))
-	lock_file_1 (lfname, 1);
-    }
 
-  UNGCPRO;
-  SAFE_FREE ();
+      /* Create the name of the lock-file for file fn */
+      MAKE_LOCK_NAME (lfname, encoded_fn);
+
+      /* Try to lock the lock.  */
+      if (0 < lock_if_free (&lock_info, lfname))
+	{
+	  /* Someone else has the lock.  Consider breaking it.  */
+	  Lisp_Object attack;
+	  char *dot = lock_info.dot;
+	  ptrdiff_t pidlen = lock_info.colon - (dot + 1);
+	  static char const replacement[] = " (pid ";
+	  int replacementlen = sizeof replacement - 1;
+	  memmove (dot + replacementlen, dot + 1, pidlen);
+	  strcpy (dot + replacementlen + pidlen, ")");
+	  memcpy (dot, replacement, replacementlen);
+	  attack = call2 (intern ("ask-user-about-lock"), fn,
+			  build_string (lock_info.user));
+	  /* Take the lock if the user said so.  */
+	  if (!NILP (attack))
+	    lock_file_1 (lfname, 1);
+	}
+      SAFE_FREE ();
+    }
 }
 
 void
@@ -753,6 +743,19 @@ unlock_file (Lisp_Object fn)
 
   SAFE_FREE ();
 }
+
+#else  /* MSDOS */
+void
+lock_file (Lisp_Object fn)
+{
+}
+
+void
+unlock_file (Lisp_Object fn)
+{
+}
+
+#endif	/* MSDOS */
 
 void
 unlock_all_files (void)
@@ -773,7 +776,9 @@ DEFUN ("lock-buffer", Flock_buffer, Slock_buffer,
        0, 1, 0,
        doc: /* Lock FILE, if current buffer is modified.
 FILE defaults to current buffer's visited file,
-or else nothing is done if current buffer isn't visiting a file.  */)
+or else nothing is done if current buffer isn't visiting a file.
+
+If the option `create-lockfiles' is nil, this does nothing.  */)
   (Lisp_Object file)
 {
   if (NILP (file))
@@ -815,6 +820,9 @@ The value is nil if the FILENAME is not locked,
 t if it is locked by you, else a string saying which user has locked it.  */)
   (Lisp_Object filename)
 {
+#ifdef MSDOS
+  return Qnil;
+#else
   Lisp_Object ret;
   char *lfname;
   int owner;
@@ -835,9 +843,8 @@ t if it is locked by you, else a string saying which user has locked it.  */)
 
   SAFE_FREE ();
   return ret;
+#endif
 }
-
-#endif /* CLASH_DETECTION */
 
 void
 syms_of_filelock (void)
@@ -850,9 +857,7 @@ syms_of_filelock (void)
 	       doc: /* Non-nil means use lockfiles to avoid editing collisions.  */);
   create_lockfiles = 1;
 
-#ifdef CLASH_DETECTION
   defsubr (&Sunlock_buffer);
   defsubr (&Slock_buffer);
   defsubr (&Sfile_locked_p);
-#endif
 }

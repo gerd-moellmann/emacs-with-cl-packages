@@ -1,13 +1,13 @@
 /* Call a Lisp function interactively.
-   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2015 Free Software
+   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2016 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -23,23 +23,9 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "character.h"
 #include "buffer.h"
-#include "commands.h"
 #include "keyboard.h"
 #include "window.h"
-#include "keymap.h"
 
-Lisp_Object Qminus, Qplus;
-static Lisp_Object Qcall_interactively;
-static Lisp_Object Qcommand_debug_status;
-static Lisp_Object Qenable_recursive_minibuffers;
-
-static Lisp_Object Qhandle_shift_selection;
-static Lisp_Object Qread_number;
-
-Lisp_Object Qmouse_leave_buffer_hook;
-
-static Lisp_Object Qlist, Qlet, Qletx, Qsave_excursion, Qprogn, Qif;
-Lisp_Object Qwhen;
 static Lisp_Object preserved_fns;
 
 /* Marker used within call-interactively to refer to point.  */
@@ -55,20 +41,24 @@ For example, write
  (defun foo (arg buf) "Doc string" (interactive "P\\nbbuffer: ") .... )
  to make ARG be the raw prefix argument, and set BUF to an existing buffer,
  when `foo' is called as a command.
-The "call" to `interactive' is actually a declaration rather than a function;
- it tells `call-interactively' how to read arguments
- to pass to the function.
-When actually called, `interactive' just returns nil.
 
-Usually the argument of `interactive' is a string containing a code letter
- followed optionally by a prompt.  (Some code letters do not use I/O to get
- the argument and do not use prompts.)  To get several arguments, concatenate
- the individual strings, separating them by newline characters.
-Prompts are passed to format, and may use % escapes to print the
+The "call" to `interactive' is actually a declaration rather than a
+ function; it tells `call-interactively' how to read arguments to pass
+ to the function.  When actually called, `interactive' just returns
+ nil.
+
+Usually the argument of `interactive' is a string containing a code
+ letter followed optionally by a prompt.  (Some code letters do not
+ use I/O to get the argument and do not use prompts.)  To pass several
+ arguments to the command, concatenate the individual strings,
+ separating them by newline characters.
+
+Prompts are passed to `format', and may use % escapes to print the
  arguments that have already been read.
 If the argument is not a string, it is evaluated to get a list of
- arguments to pass to the function.
-Just `(interactive)' means pass no args when calling interactively.
+ arguments to pass to the command.
+Just `(interactive)' means pass no arguments to the command when
+ calling interactively.
 
 Code letters available are:
 a -- Function name: symbol with a function definition.
@@ -113,7 +103,8 @@ If the string begins with `^' and `shift-select-mode' is non-nil,
  Emacs first calls the function `handle-shift-selection'.
 You may use `@', `*', and `^' together.  They are processed in the
  order that they appear, before reading any arguments.
-usage: (interactive &optional ARGS)  */)
+usage: (interactive &optional ARG-DESCRIPTOR)  */
+       attributes: const)
   (Lisp_Object args)
 {
   return Qnil;
@@ -233,6 +224,34 @@ fix_command (Lisp_Object input, Lisp_Object values)
     }
 }
 
+/* Helper function to call `read-file-name' from C.  */
+
+static Lisp_Object
+read_file_name (Lisp_Object default_filename, Lisp_Object mustmatch,
+		Lisp_Object initial, Lisp_Object predicate)
+{
+  return CALLN (Ffuncall, intern ("read-file-name"),
+		callint_message, Qnil, default_filename,
+		mustmatch, initial, predicate);
+}
+
+/* BEWARE: Calling this directly from C would defeat the purpose!  */
+DEFUN ("funcall-interactively", Ffuncall_interactively, Sfuncall_interactively,
+       1, MANY, 0, doc: /* Like `funcall' but marks the call as interactive.
+I.e. arrange that within the called function `called-interactively-p' will
+return non-nil.
+usage: (funcall-interactively FUNCTION &rest ARGUMENTS)  */)
+     (ptrdiff_t nargs, Lisp_Object *args)
+{
+  ptrdiff_t speccount = SPECPDL_INDEX ();
+  temporarily_switch_to_single_kboard (NULL);
+
+  /* Nothing special to do here, all the work is inside
+     `called-interactively-p'.  Which will look for us as a marker in the
+     backtrace.  */
+  return unbind_to (speccount, Ffuncall (nargs, args));
+}
+
 DEFUN ("call-interactively", Fcall_interactively, Scall_interactively, 1, 3, 0,
        doc: /* Call FUNCTION, providing args according to its interactive calling specs.
 Return the value FUNCTION returns.
@@ -253,13 +272,14 @@ invoke it.  If KEYS is omitted or nil, the return value of
 {
   /* `args' will contain the array of arguments to pass to the function.
      `visargs' will contain the same list but in a nicer form, so that if we
-     pass it to `Fformat' it will be understandable to a human.  */
+     pass it to `Fformat_message' it will be understandable to a human.  */
   Lisp_Object *args, *visargs;
   Lisp_Object specs;
   Lisp_Object filter_specs;
   Lisp_Object teml;
   Lisp_Object up_event;
   Lisp_Object enable;
+  USE_SAFE_ALLOCA;
   ptrdiff_t speccount = SPECPDL_INDEX ();
 
   /* The index of the next element of this_command_keys to examine for
@@ -278,7 +298,6 @@ invoke it.  If KEYS is omitted or nil, the return value of
   ptrdiff_t i, nargs;
   ptrdiff_t mark;
   bool arg_from_tty = 0;
-  struct gcpro gcpro1, gcpro2, gcpro3, gcpro4, gcpro5;
   ptrdiff_t key_count;
   bool record_then_fail = 0;
 
@@ -320,32 +339,24 @@ invoke it.  If KEYS is omitted or nil, the return value of
   /* Set SPECS to the interactive form, or barf if not interactive.  */
   {
     Lisp_Object form;
-    GCPRO2 (function, prefix_arg);
     form = Finteractive_form (function);
-    UNGCPRO;
     if (CONSP (form))
       specs = filter_specs = Fcar (XCDR (form));
     else
       wrong_type_argument (Qcommandp, function);
   }
 
-  /* If SPECS is set to a string, use it as an interactive prompt.  */
-  if (STRINGP (specs))
-    /* Make a copy of string so that if a GC relocates specs,
-       `string' will still be valid.  */
-    string = xlispstrdupa (specs);
-  else
+  /* If SPECS is not a string, invent one.  */
+  if (! STRINGP (specs))
     {
       Lisp_Object input;
       Lisp_Object funval = Findirect_function (function, Qt);
       uintmax_t events = num_input_events;
       input = specs;
       /* Compute the arg values using the user's expression.  */
-      GCPRO2 (input, filter_specs);
       specs = Feval (specs,
  		     CONSP (funval) && EQ (Qclosure, XCAR (funval))
 		     ? CAR_SAFE (XCDR (funval)) : Qnil);
-      UNGCPRO;
       if (events != num_input_events || !NILP (record_flag))
 	{
 	  /* We should record this command on the command history.  */
@@ -374,9 +385,16 @@ invoke it.  If KEYS is omitted or nil, the return value of
       Vreal_this_command = save_real_this_command;
       kset_last_command (current_kboard, save_last_command);
 
-      temporarily_switch_to_single_kboard (NULL);
-      return unbind_to (speccount, apply1 (function, specs));
+      Lisp_Object result
+	= unbind_to (speccount, CALLN (Fapply, Qfuncall_interactively,
+				       function, specs));
+      SAFE_FREE ();
+      return result;
     }
+
+  /* SPECS is set to a string; use it as an interactive prompt.
+     Copy it so that STRING will be valid even if a GC relocates SPECS.  */
+  SAFE_ALLOCA_STRING (string, specs);
 
   /* Here if function specifies a string to control parsing the defaults.  */
 
@@ -403,13 +421,13 @@ invoke it.  If KEYS is omitted or nil, the return value of
 		    {
 		      if (! (*p == 'r' || *p == 'p' || *p == 'P'
 			     || *p == '\n'))
-			Fbarf_if_buffer_read_only ();
+			Fbarf_if_buffer_read_only (Qnil);
 		      p++;
 		    }
 		  record_then_fail = 1;
 		}
 	      else
-		Fbarf_if_buffer_read_only ();
+		Fbarf_if_buffer_read_only (Qnil);
 	    }
 	}
       /* Ignore this for semi-compatibility with Lucid.  */
@@ -432,7 +450,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
 		error ("Attempt to select inactive minibuffer window");
 
 	      /* If the current buffer wants to clean up, let it.  */
-              Frun_hooks (1, &Qmouse_leave_buffer_hook);
+              run_hook (Qmouse_leave_buffer_hook);
 
 	      Fselect_window (w, Qnil);
 	    }
@@ -446,10 +464,11 @@ invoke it.  If KEYS is omitted or nil, the return value of
       else break;
     }
 
-  /* Count the number of arguments, which is one plus the number of arguments
-     the interactive spec would have us give to the function.  */
+  /* Count the number of arguments, which is two (the function itself and
+     `funcall-interactively') plus the number of arguments the interactive spec
+     would have us give to the function.  */
   tem = string;
-  for (nargs = 1; *tem; )
+  for (nargs = 2; *tem; )
     {
       /* 'r' specifications ("point and mark as 2 numeric args")
 	 produce *two* arguments.  */
@@ -464,37 +483,29 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	break;
     }
 
-  if (min (MOST_POSITIVE_FIXNUM,
-	   min (PTRDIFF_MAX, SIZE_MAX) / word_size)
-      < nargs)
+  if (MOST_POSITIVE_FIXNUM < min (PTRDIFF_MAX, SIZE_MAX) / word_size
+      && MOST_POSITIVE_FIXNUM < nargs)
     memory_full (SIZE_MAX);
 
-  args = alloca (nargs * sizeof *args);
-  visargs = alloca (nargs * sizeof *visargs);
-  varies = alloca (nargs * sizeof *varies);
+  /* Allocate them all at one go.  This wastes a bit of memory, but
+     it's OK to trade space for speed.  */
+  SAFE_NALLOCA (args, 3, nargs);
+  visargs = args + nargs;
+  varies = (signed char *) (visargs + nargs);
 
-  for (i = 0; i < nargs; i++)
-    {
-      args[i] = Qnil;
-      visargs[i] = Qnil;
-      varies[i] = 0;
-    }
-
-  GCPRO5 (prefix_arg, function, *args, *visargs, up_event);
-  gcpro3.nvars = nargs;
-  gcpro4.nvars = nargs;
+  memclear (args, nargs * (2 * word_size + 1));
 
   if (!NILP (enable))
     specbind (Qenable_recursive_minibuffers, Qt);
 
   tem = string;
-  for (i = 1; *tem; i++)
+  for (i = 2; *tem; i++)
     {
-      visargs[0] = make_string (tem + 1, strcspn (tem + 1, "\n"));
-      if (strchr (SSDATA (visargs[0]), '%'))
-	callint_message = Fformat (i, visargs);
+      visargs[1] = make_string (tem + 1, strcspn (tem + 1, "\n"));
+      if (strchr (SSDATA (visargs[1]), '%'))
+	callint_message = Fformat_message (i - 1, visargs + 1);
       else
-	callint_message = visargs[0];
+	callint_message = visargs[1];
 
       switch (*tem)
 	{
@@ -511,13 +522,13 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	  args[i] = Fcurrent_buffer ();
 	  if (EQ (selected_window, minibuf_window))
 	    args[i] = Fother_buffer (args[i], Qnil, Qnil);
-	  args[i] = Fread_buffer (callint_message, args[i], Qt);
+	  args[i] = Fread_buffer (callint_message, args[i], Qt, Qnil);
 	  break;
 
 	case 'B':		/* Name of buffer, possibly nonexistent.  */
 	  args[i] = Fread_buffer (callint_message,
 				  Fother_buffer (Fcurrent_buffer (), Qnil, Qnil),
-				  Qnil);
+				  Qnil, Qnil);
 	  break;
 
         case 'c':		/* Character.  */
@@ -551,25 +562,21 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	  break;
 
 	case 'D':		/* Directory name.  */
-	  args[i] = Fread_file_name (callint_message, Qnil,
-				     BVAR (current_buffer, directory), Qlambda, Qnil,
-				     Qfile_directory_p);
+	  args[i] = read_file_name (BVAR (current_buffer, directory), Qlambda, Qnil,
+				    Qfile_directory_p);
 	  break;
 
 	case 'f':		/* Existing file name.  */
-	  args[i] = Fread_file_name (callint_message,
-				     Qnil, Qnil, Qlambda, Qnil, Qnil);
+	  args[i] = read_file_name (Qnil, Qlambda, Qnil, Qnil);
 	  break;
 
 	case 'F':		/* Possibly nonexistent file name.  */
-	  args[i] = Fread_file_name (callint_message,
-				     Qnil, Qnil, Qnil, Qnil, Qnil);
+	  args[i] = read_file_name (Qnil, Qnil, Qnil, Qnil);
 	  break;
 
 	case 'G':		/* Possibly nonexistent file name,
 				   default to directory alone.  */
-	  args[i] = Fread_file_name (callint_message,
-				     Qnil, Qnil, Qnil, empty_unibyte_string, Qnil);
+	  args[i] = read_file_name (Qnil, Qnil, empty_unibyte_string, Qnil);
 	  break;
 
 	case 'i':		/* Ignore an argument -- Does not do I/O.  */
@@ -599,9 +606,9 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	      {
 		Lisp_Object tem2;
 
-		teml = Fget (teml, intern ("event-symbol-elements"));
+		teml = Fget (teml, Qevent_symbol_elements);
 		/* Ignore first element, which is the base key.  */
-		tem2 = Fmemq (intern ("down"), Fcdr (teml));
+		tem2 = Fmemq (Qdown, Fcdr (teml));
 		if (! NILP (tem2))
 		  up_event = Fread_event (Qnil, Qnil, Qnil);
 	      }
@@ -631,9 +638,9 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	      {
 		Lisp_Object tem2;
 
-		teml = Fget (teml, intern ("event-symbol-elements"));
+		teml = Fget (teml, Qevent_symbol_elements);
 		/* Ignore first element, which is the base key.  */
-		tem2 = Fmemq (intern ("down"), Fcdr (teml));
+		tem2 = Fmemq (Qdown, Fcdr (teml));
 		if (! NILP (tem2))
 		  up_event = Fread_event (Qnil, Qnil, Qnil);
 	      }
@@ -749,7 +756,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
 				   argument if no prefix.  */
 	  if (NILP (prefix_arg))
 	    {
-	      args[i] = Qnil;
+	      /* args[i] = Qnil; */
 	      varies[i] = -1;
 	    }
 	  else
@@ -789,21 +796,22 @@ invoke it.  If KEYS is omitted or nil, the return value of
 
   QUIT;
 
-  args[0] = function;
+  args[0] = Qfuncall_interactively;
+  args[1] = function;
 
   if (arg_from_tty || !NILP (record_flag))
     {
       /* We don't need `visargs' any more, so let's recycle it since we need
 	 an array of just the same size.  */
-      visargs[0] = function;
-      for (i = 1; i < nargs; i++)
+      visargs[1] = function;
+      for (i = 2; i < nargs; i++)
 	{
 	  if (varies[i] > 0)
 	    visargs[i] = list1 (intern (callint_argfuns[varies[i]]));
 	  else
 	    visargs[i] = quotify_arg (args[i]);
 	}
-      Vcommand_history = Fcons (Flist (nargs, visargs),
+      Vcommand_history = Fcons (Flist (nargs - 1, visargs + 1),
 				Vcommand_history);
       /* Don't keep command history around forever.  */
       if (INTEGERP (Vhistory_length) && XINT (Vhistory_length) > 0)
@@ -816,12 +824,12 @@ invoke it.  If KEYS is omitted or nil, the return value of
 
   /* If we used a marker to hold point, mark, or an end of the region,
      temporarily, convert it to an integer now.  */
-  for (i = 1; i < nargs; i++)
+  for (i = 2; i < nargs; i++)
     if (varies[i] >= 1 && varies[i] <= 4)
       XSETINT (args[i], marker_position (args[i]));
 
   if (record_then_fail)
-    Fbarf_if_buffer_read_only ();
+    Fbarf_if_buffer_read_only (Qnil);
 
   Vthis_command = save_this_command;
   Vthis_original_command = save_this_original_command;
@@ -829,13 +837,10 @@ invoke it.  If KEYS is omitted or nil, the return value of
   kset_last_command (current_kboard, save_last_command);
 
   {
-    Lisp_Object val;
-    specbind (Qcommand_debug_status, Qnil);
-
-    temporarily_switch_to_single_kboard (NULL);
-    val = Ffuncall (nargs, args);
-    UNGCPRO;
-    return unbind_to (speccount, val);
+    Lisp_Object val = Ffuncall (nargs, args);
+    val = unbind_to (speccount, val);
+    SAFE_FREE ();
+    return val;
   }
 }
 
@@ -888,8 +893,7 @@ syms_of_callint (void)
   DEFSYM (Qplus, "+");
   DEFSYM (Qhandle_shift_selection, "handle-shift-selection");
   DEFSYM (Qread_number, "read-number");
-  DEFSYM (Qcall_interactively, "call-interactively");
-  DEFSYM (Qcommand_debug_status, "command-debug-status");
+  DEFSYM (Qfuncall_interactively, "funcall-interactively");
   DEFSYM (Qenable_recursive_minibuffers, "enable-recursive-minibuffers");
   DEFSYM (Qmouse_leave_buffer_hook, "mouse-leave-buffer-hook");
 
@@ -946,5 +950,6 @@ a way to turn themselves off when a mouse command switches windows.  */);
 
   defsubr (&Sinteractive);
   defsubr (&Scall_interactively);
+  defsubr (&Sfuncall_interactively);
   defsubr (&Sprefix_numeric_value);
 }

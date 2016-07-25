@@ -1,5 +1,5 @@
 /* CCL (Code Conversion Language) interpreter.
-   Copyright (C) 2001-2015 Free Software Foundation, Inc.
+   Copyright (C) 2001-2016 Free Software Foundation, Inc.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
      2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
@@ -12,8 +12,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -33,21 +33,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "charset.h"
 #include "ccl.h"
 #include "coding.h"
-
-Lisp_Object Qccl, Qcclp;
-
-/* This symbol is a property which associates with ccl program vector.
-   Ex: (get 'ccl-big5-encoder 'ccl-program) returns ccl program vector.  */
-static Lisp_Object Qccl_program;
-
-/* These symbols are properties which associate with code conversion
-   map and their ID respectively.  */
-static Lisp_Object Qcode_conversion_map;
-static Lisp_Object Qcode_conversion_map_id;
-
-/* Symbols of ccl program have this property, a value of the property
-   is an index for Vccl_program_table. */
-static Lisp_Object Qccl_program_idx;
 
 /* Table of registered CCL programs.  Each element is a vector of
    NAME, CCL_PROG, RESOLVEDP, and UPDATEDP, where NAME (symbol) is the
@@ -1728,7 +1713,7 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 	case CCL_STAT_INVALID_CMD:
 	  msglen = sprintf (msg,
 			    "\nCCL: Invalid command %x (ccl_code = %x) at %d.",
-			    code & 0x1F, code, this_ic);
+			    code & 0x1Fu, code + 0u, this_ic);
 #ifdef CCL_DEBUG
 	  {
 	    int i = ccl_backtrace_idx - 1;
@@ -2086,12 +2071,10 @@ usage: (ccl-execute-on-string CCL-PROGRAM STATUS STRING &optional CONTINUE UNIBY
     }
 
   buf_magnification = ccl.buf_magnification ? ccl.buf_magnification : 1;
-
-  if ((min (PTRDIFF_MAX, SIZE_MAX) - 256) / buf_magnification < str_bytes)
+  outbufsize = str_bytes;
+  if (INT_MULTIPLY_WRAPV (buf_magnification, outbufsize, &outbufsize)
+      || INT_ADD_WRAPV (256, outbufsize, &outbufsize))
     memory_full (SIZE_MAX);
-  outbufsize = (ccl.buf_magnification
-		? str_bytes * ccl.buf_magnification + 256
-		: str_bytes + 256);
   outp = outbuf = xmalloc (outbufsize);
 
   consumed_chars = consumed_bytes = 0;
@@ -2160,11 +2143,8 @@ usage: (ccl-execute-on-string CCL-PROGRAM STATUS STRING &optional CONTINUE UNIBY
     ASET (status, i, make_number (ccl.reg[i]));
   ASET (status, 8, make_number (ccl.ic));
 
-  if (NILP (unibyte_p))
-    val = make_multibyte_string ((char *) outbuf, produced_chars,
-				 outp - outbuf);
-  else
-    val = make_unibyte_string ((char *) outbuf, produced_chars);
+  val = make_specified_string ((const char *) outbuf, produced_chars,
+			       outp - outbuf, NILP (unibyte_p));
   xfree (outbuf);
 
   return val;
@@ -2300,8 +2280,13 @@ syms_of_ccl (void)
 
   DEFSYM (Qccl, "ccl");
   DEFSYM (Qcclp, "cclp");
-  DEFSYM (Qccl_program, "ccl-program");
+
+  /* Symbols of ccl program have this property, a value of the property
+     is an index for Vccl_program_table. */
   DEFSYM (Qccl_program_idx, "ccl-program-idx");
+
+  /* These symbols are properties which associate with code conversion
+     map and their ID respectively.  */
   DEFSYM (Qcode_conversion_map, "code-conversion-map");
   DEFSYM (Qcode_conversion_map_id, "code-conversion-map-id");
 

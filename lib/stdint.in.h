@@ -1,4 +1,4 @@
-/* Copyright (C) 2001-2002, 2004-2015 Free Software Foundation, Inc.
+/* Copyright (C) 2001-2002, 2004-2016 Free Software Foundation, Inc.
    Written by Paul Eggert, Bruno Haible, Sam Steingold, Peter Burwood.
    This file is part of gnulib.
 
@@ -283,12 +283,17 @@ typedef gl_uint_fast32_t gl_uint_fast16_t;
 
 /* 7.18.1.4. Integer types capable of holding object pointers */
 
+/* kLIBC's stdint.h defines _INTPTR_T_DECLARED and needs its own
+   definitions of intptr_t and uintptr_t (which use int and unsigned)
+   to avoid clashes with declarations of system functions like sbrk.  */
+#ifndef _INTPTR_T_DECLARED
 #undef intptr_t
 #undef uintptr_t
 typedef long int gl_intptr_t;
 typedef unsigned long int gl_uintptr_t;
 #define intptr_t gl_intptr_t
 #define uintptr_t gl_uintptr_t
+#endif
 
 /* 7.18.1.5. Greatest-width integer types */
 

@@ -1,6 +1,6 @@
 ;;; viper-cmd.el --- Vi command support for Viper
 
-;; Copyright (C) 1997-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2016 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -961,11 +961,11 @@ Suffixes such as .el or .elc should be stripped."
 (defun viper-ESC (arg)
   "Emulate ESC key in Emacs.
 Prevents multiple escape keystrokes if viper-no-multiple-ESC is true.
-If viper-no-multiple-ESC is 'twice double ESC would ding in vi-state.
+If `viper-no-multiple-ESC' is `twice' double ESC would ding in vi-state.
 Other ESC sequences are emulated via the current Emacs's major mode
 keymap.  This is more convenient on TTYs, since this won't block
 function keys such as up, down, etc.  ESC will also will also work as
-a Meta key in this case.  When viper-no-multiple-ESC is nil, ESC works
+a Meta key in this case.  When `viper-no-multiple-ESC' is nil, ESC works
 as a Meta key and any number of multiple escapes are allowed."
   (interactive "P")
   (let (char)
@@ -1536,7 +1536,7 @@ as a Meta key and any number of multiple escapes are allowed."
 (defun viper-repeat (arg)
   "Re-execute last destructive command.
 Use the info in viper-d-com, which has the form
-\(com val ch reg inserted-text command-keys\),
+\(com val ch reg inserted-text command-keys),
 where `com' is the command to be re-executed, `val' is the
 argument to `com', `ch' is a flag for repeat, and `reg' is optional;
 if it exists, it is the name of the register for `com'.
@@ -1715,8 +1715,9 @@ invokes the command before that, etc."
       (let ((inhibit-quit t)
 	    tmp tmp2)
 	(setq viper-undo-needs-adjustment nil)
-	(if (listp buffer-undo-list)
-	    (if (setq tmp (memq viper-buffer-undo-list-mark buffer-undo-list))
+	(when (listp buffer-undo-list)
+          (let ((had-boundary (null (car buffer-undo-list))))
+            (if (setq tmp (memq viper-buffer-undo-list-mark buffer-undo-list))
 		(progn
 		  (setq tmp2 (cdr tmp)) ; the part after mark
 
@@ -1729,8 +1730,11 @@ invokes the command before that, etc."
 			(delq viper-buffer-undo-list-mark buffer-undo-list))
 		  ;; restore tail of buffer-undo-list
 		  (setq buffer-undo-list (nconc buffer-undo-list tmp2)))
-	      (setq buffer-undo-list (delq nil buffer-undo-list)))))
-    ))
+	      (setq buffer-undo-list (delq nil buffer-undo-list)))
+            ;; The top-level loop only adds boundaries if there has been
+            ;; modifications in the buffer, so make sure we don't accidentally
+            ;; drop the "final" boundary (bug#22295).
+	    (if had-boundary (undo-boundary)))))))
 
 
 (defun viper-set-complex-command-for-undo ()
@@ -1751,8 +1755,8 @@ invokes the command before that, etc."
 
     (setq this-command 'viper-display-current-destructive-command)
 
-    (message " `.' runs  %s%s"
-	     (concat "`" (viper-array-to-string keys) "'")
+    (message " `.' runs  `%s'%s"
+	     (viper-array-to-string keys)
 	     (viper-abbreviate-string
 	      (if (featurep 'xemacs)
 		  (replace-in-string ; xemacs
@@ -1763,7 +1767,8 @@ invokes the command before that, etc."
 		text ; emacs
 		)
 	      max-text-len
-	      "  inserting  `" "'" "    ......."))
+	      (format-message "  inserting  `") (format-message "'")
+	      "    ......."))
     ))
 
 
@@ -3423,7 +3428,7 @@ controlled by the sign of prefix numeric value."
 	      ((re-search-backward "[][(){}]" beg-lim t))
 	      (t
 	       (error "No matching character on line"))))
-      (cond ((looking-at "[\(\[{]")
+      (cond ((looking-at "[([{]")
 	     (if com (viper-move-marker-locally 'viper-com-point (point)))
 	     (forward-sexp 1)
 	     (if com
@@ -3447,7 +3452,7 @@ controlled by the sign of prefix numeric value."
   (interactive)
   (setq viper-parse-sexp-ignore-comments
 	(not viper-parse-sexp-ignore-comments))
-  (princ (format
+  (princ (format-message
 	  "From now on, `%%' will %signore parentheses inside comment fields"
 	  (if viper-parse-sexp-ignore-comments "" "NOT "))))
 
@@ -3639,24 +3644,26 @@ the Emacs binding of `/'."
   (let (msg)
     (cond ((or (eq arg 1)
 	       (and (null arg)
-		    (y-or-n-p (format "Search style: '%s'.  Want '%s'? "
-				      (if viper-case-fold-search
-					  "case-insensitive" "case-sensitive")
-				      (if viper-case-fold-search
-					  "case-sensitive"
-					"case-insensitive")))))
+		    (y-or-n-p (format-message
+                               "Search style: `%s'.  Want `%s'? "
+                               (if viper-case-fold-search
+                                   "case-insensitive" "case-sensitive")
+                               (if viper-case-fold-search
+                                   "case-sensitive"
+                                 "case-insensitive")))))
 	   (setq viper-case-fold-search (null viper-case-fold-search))
 	   (if viper-case-fold-search
 	       (setq msg "Search becomes case-insensitive")
 	     (setq msg "Search becomes case-sensitive")))
 	  ((or (eq arg 2)
 	       (and (null arg)
-		    (y-or-n-p (format "Search style: '%s'.  Want '%s'? "
-				      (if viper-re-search
-					  "regexp-search" "vanilla-search")
-				      (if viper-re-search
-					  "vanilla-search"
-					"regexp-search")))))
+		    (y-or-n-p (format-message
+                               "Search style: `%s'.  Want `%s'? "
+                               (if viper-re-search
+                                   "regexp-search" "vanilla-search")
+                               (if viper-re-search
+                                   "vanilla-search"
+                                 "regexp-search")))))
 	   (setq viper-re-search (null viper-re-search))
 	   (if viper-re-search
 	       (setq msg "Search becomes regexp-style")
@@ -3730,7 +3737,7 @@ With a prefix argument, this function unsets the macros.
 If the optional prefix argument is non-nil and specifies a valid major mode,
 this sets the macros only in the macros in that major mode.  Otherwise,
 the macros are set in the current major mode.
-\(When unsetting the macros, the second argument has no effect.\)"
+\(When unsetting the macros, the second argument has no effect.)"
   (interactive "P")
   (or noninteractive
       (if (not unset)
@@ -3977,7 +3984,7 @@ Null string will repeat previous search."
   (let (buffer buffer-name)
     (setq buffer-name
 	  (funcall viper-read-buffer-function
-		   (format "Kill buffer \(%s\): "
+		   (format "Kill buffer (%s): "
 			   (buffer-name (current-buffer)))))
     (setq buffer
 	  (if (null buffer-name)
@@ -3986,7 +3993,7 @@ Null string will repeat previous search."
     (if (null buffer) (error "`%s': No such buffer" buffer-name))
     (if (or (not (buffer-modified-p buffer))
 	    (y-or-n-p
-	     (format
+	     (format-message
 	      "Buffer `%s' is modified, are you sure you want to kill it? "
 	      buffer-name)))
 	(kill-buffer buffer)
@@ -4339,7 +4346,7 @@ and regexp replace."
 	  (query-replace-regexp
 	   str
 	   (viper-read-string-with-history
-	    (format "Query replace regexp `%s' with: " str)
+	    (format-message "Query replace regexp `%s' with: " str)
 	    nil  ; no initial
 	    'viper-replace1-history
 	    (car viper-replace1-history) ; default
@@ -4347,7 +4354,7 @@ and regexp replace."
 	(query-replace
 	 str
 	 (viper-read-string-with-history
-	  (format "Query replace `%s' with: " str)
+	  (format-message "Query replace `%s' with: " str)
 	  nil  ; no initial
 	  'viper-replace1-history
 	  (car viper-replace1-history) ; default
@@ -4400,7 +4407,7 @@ and regexp replace."
 ;; etc.
 (defun viper-cycle-through-mark-ring ()
   "Visit previous locations on the mark ring.
-One can use `` and '' to temporarily jump 1 step back."
+One can use \\=`\\=` and \\='\\=' to temporarily jump 1 step back."
   (let* ((sv-pt (point)))
        ;; if repeated `m,' command, pop the previously saved mark.
        ;; Prev saved mark is actually prev saved point.  It is used if the
@@ -4533,7 +4540,7 @@ One can use `` and '' to temporarily jump 1 step back."
   (interactive)
   (if viper-cted
       (let ((p (point)) (c (current-column)) bol (indent t))
-	(if (looking-back "[0^]")
+	(if (looking-back "[0^]" (1- (point)))
 	    (progn
 	      (if (eq ?^ (preceding-char))
 		  (setq viper-preserve-indent t))
@@ -4545,7 +4552,7 @@ One can use `` and '' to temporarily jump 1 step back."
 	(delete-region (point) p)
 	(if indent
 	    (indent-to (- c viper-shift-width)))
-	(if (or (bolp) (looking-back "[^ \t]"))
+	(if (or (bolp) (looking-back "[^ \t]" (1- (point))))
 	    (setq viper-cted nil)))))
 
 ;; do smart indent
@@ -4585,7 +4592,7 @@ One can use `` and '' to temporarily jump 1 step back."
 ;; Viewing registers
 
 (defun viper-ket-function (arg)
-  "Function called by \], the ket.  View registers and call \]\]."
+  "Function called by ], the ket.  View registers and call ]]."
   (interactive "P")
   (let ((reg (read-char)))
     (cond ((viper-valid-register reg '(letter Letter))
@@ -4602,7 +4609,7 @@ One can use `` and '' to temporarily jump 1 step back."
 	      viper-InvalidRegister reg)))))
 
 (defun viper-brac-function (arg)
-  "Function called by \[, the brac.  View textmarkers and call \[\[."
+  "Function called by [, the brac.  View textmarkers and call [[."
   (interactive "P")
   (let ((reg (read-char)))
     (cond ((viper= ?\[ reg)
@@ -4636,12 +4643,12 @@ One can use `` and '' to temporarily jump 1 step back."
 					  (substring text 0 (- pos s))
 					  reg (substring text (- pos s)))))
 		     (princ
-		      (format
+		      (format-message
 		       "Textmarker `%c' is in buffer `%s' at line %d.\n"
 				     reg (buffer-name buf) line-no))
 		     (princ (format "Here is some text around %c:\n\n %s"
 				     reg text)))
-		 (princ (format viper-EmptyTextmarker reg))))
+		 (princ (format-message viper-EmptyTextmarker reg))))
 	     ))
 	  (t (error viper-InvalidTextmarker reg)))))
 
@@ -4782,10 +4789,10 @@ sensitive for VI-style look-and-feel."
 	  (setq repeated t))
 	(setq dont-change-unless t
 	      level-changed t)
-	(insert "
+	(insert (substitute-command-keys "
 Please specify your level of familiarity with the venomous VI PERil
 \(and the VI Plan for Emacs Rescue).
-You can change it at any time by typing `M-x viper-set-expert-level RET'
+You can change it at any time by typing `\\[viper-set-expert-level]'
 
  1 -- BEGINNER: Almost all Emacs features are suppressed.
        Feels almost like straight Vi.  File name completion and
@@ -4803,7 +4810,7 @@ You can change it at any time by typing `M-x viper-set-expert-level RET'
        viper-electric-mode, viper-want-ctl-h-help, viper-want-emacs-keys-in-vi,
        and viper-want-emacs-keys-in-insert.  Adjust these to your taste.
 
-Please, specify your level now: ")
+Please, specify your level now: "))
 
 	(setq viper-expert-level (- (viper-read-char-exclusive) ?0))
 	) ; end while
@@ -4978,7 +4985,7 @@ back trace of the execution that leads to the error.  Please include this
 trace in your bug report.
 
 If you believe that one of Viper's commands goes into an infinite loop
-\(e.g., Emacs freezes\), type:
+\(e.g., Emacs freezes), type:
 
     M-x set-variable <Return> debug-on-quit <Return> t <Return>
 

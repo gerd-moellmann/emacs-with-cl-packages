@@ -1,6 +1,6 @@
 Emacs TODO List                                                   -*-outline-*-
 
-Copyright (C) 2001-2015 Free Software Foundation, Inc.
+Copyright (C) 2001-2016 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 
@@ -13,9 +13,12 @@ the latest version of this file in the Emacs source code repository.
 
 Since Emacs is an FSF-copyrighted package, please be prepared to sign
 legal papers to transfer the copyright on your work to the FSF.
-For more details on this, see the section "Copyright Assignment"
-in etc/CONTRIBUTE.  That file also contains some more practical
-details about getting involved.
+Copyright assignment is a simple process.  Residents of some countries
+can do it entirely electronically.  We can help you get started, and
+answer any questions you may have (or point you to the people with the
+answers), at the emacs-devel@gnu.org mailing list.
+
+For more information about getting involved, see the CONTRIBUTE file.
 
 As well as the issues listed here, there are bug reports at
 <http://debbugs.gnu.org>.  Bugs tagged "easy" ought to be suitable for
@@ -26,12 +29,62 @@ are the ones we consider more important, but these also may be
 difficult to fix.  Bugs with severity "minor" may be simpler, but this
 is not always true.
 
-* Tentative plan for Emacs-24
+* Speed up Elisp execution
+** Speed up function calls
+Change src/bytecode.c so that calls from byte-code functions to byte-code
+functions don't go through Ffuncall/funcall_lambda/exec_byte_code but instead
+stay within exec_byte_code.
+
+** Add new 'switch' byte-code
+This byte-code would take one argument from the stack (the object to test)
+and one argument from the constant-pool (a switch table, implemented as an
+eq-hashtable) and would jump to the "label" contained in the hashtable.
+
+Then add a 'case' special-form that can be compiled to this byte-code.
+This would behave just like cl-case, but instead of expanding to cond+eq it
+would be its own special form and would be compiled specially.
+
+Then change pcase to use 'case' when applicable.
+
+Then change the byte-compiler to recognize (cond ((eq x 'foo) bar) ...)
+and turn it into a 'case' for more efficient execution.
+
+** Improve the byte-compiler to recognize immutable (lexical) bindings
+and get rid of them if they're used only once and/or they're bound to
+a constant expression.
+
+Such things aren't present in hand-written code, but macro expansion and
+defsubst can often end up generating things like
+(funcall (lambda (arg) (body)) actual) which then get optimized to
+(let ((arg actual)) (body)) but should additionally get optimized further
+when 'actual' is a constant/copyable expression.
+
+** Add an "indirect goto" byte-code and use it for local lambda expressions.
+E.g. when you have code like
+
+   (let ((foo (lambda (x) bar)))
+     (dosomething
+      (funcall foo toto)
+      (blabla (funcall foo titi))))
+
+turn those 'funcalls' into jumps and their return into indirect jumps back.
+
+** Compile efficiently local recursive functions
+
+Similar to the previous point, we should be able to handle something like
+
+   (letrec ((loop () (blabla) (if (toto) (loop))))
+     (loop))
+
+which ideally should generate the same byte-code as
+
+   (while (progn (blabla) (toto)))
+
+* Things that were planned for Emacs-24
 
 ** concurrency: including it as an "experimental" compile-time option
-  sounds good.  Of course there might still be big questions around
-  "which form of concurrency" we'll want.
-** Overhaul of customize: sounds wonderful.
+  sounds good.  Of course there might still be big questions around "which form
+  of concurrency" we'll want.
 ** better support for dynamic embedded graphics: I like this idea (my
   mpc.el code could use it for the volume widget), though I wonder if the
   resulting efficiency will be sufficient.
@@ -43,10 +96,6 @@ is not always true.
 ** Random things that cross my mind right now that I'd like to see (some of
 them from my local hacks), but it's not obvious at all whether they'll
 make it.
-*** multiple inheritance for keymaps (to get rid of the
-  fix_submap_inheritance hack and to more cleanly express the
-  relationship between minibuffer-local-*-map): I've had this locally
-  for a long time, but the details of the semantics is somewhat ... delicate.
 *** prog-mode could/should provide a better fill-paragraph default
   that uses syntax-tables to recognize string/comment boundaries.
 *** provide more completion-at-point-functions.  Make existing
@@ -56,6 +105,21 @@ make it.
   "FOO-tab -> ?\FOO-\t", "uppercase -> lowercase", "[fringe KEY...] ->
   [KEY]", "H-FOO -> M-FOO", "C-x C-y FOO -> H-FOO", ...
 
+* Things related to elpa.gnu.org.
+
+** Move idlwave to elpa.gnu.org.
+Need to sync up the Emacs and external versions.
+See <http://lists.gnu.org/archive/html/emacs-devel/2014-07/msg00008.html>
+
+** Move Org mode to elpa.gnu.org.
+See <http://lists.gnu.org/archive/html/emacs-devel/2014-08/msg00300.html>
+<http://lists.gnu.org/archive/html/emacs-devel/2014-11/msg00257.html>
+
+** Move verilog-mode to elpa.gnu.org.
+See <http://lists.gnu.org/archive/html/emacs-devel/2015-02/msg01180.html>
+
+** Move vhdl-mode to elpa.gnu.org.
+See <http://lists.gnu.org/archive/html/emacs-devel/2015-02/msg01180.html>
 
 * Simple tasks. These don't require much Emacs knowledge, they are
 suitable for anyone from beginners to experts.
@@ -72,10 +136,10 @@ It can use the same icons as gud.
 ** Check what minor modes don't use define-minor-mode and convert them
 to use it.
 
-** Convert all defvars with leading `*' in the doc-strings into defcustoms
+** Convert all defvars with leading '*' in the doc-strings into defcustoms
 of appropriate :type and :group.
 
-** Remove any leading `*'s from defcustom doc-strings.
+** Remove any leading '*'s from defcustom doc-strings.
 [done?] [A lot of them are in CC Mode.]
 
 ** Remove unnecessary autoload cookies from defcustoms.
@@ -102,8 +166,6 @@ I suggest totally rewriting that part of Flymake, using the simplest
 mechanism that suffices for the specific needs.  That will be easy
 for users to customize.
 
-** Compute the list of active keymaps *after* reading the first event.
-
 ** Distribute a bar cursor of width > 1 evenly between the two glyphs
    on each side of the bar (what to do at the edges?).
 
@@ -118,10 +180,6 @@ for users to customize.
   the ring may not correspond to the text as displayed to the user.
   It ought to be possible to omit text which is invisible (due to a
   text-property, overlay, or selective display) from the kill-ring.
-
-** Change the way define-minor-mode handles autoloading.
-  It should not generate :require.  Or :require in defcustom
-  should not be recorded in the user's custom-set-variables call.
 
 ** Feature to change cursor shape when Emacs is idle (for more than
   a specified time).
@@ -143,11 +201,6 @@ for users to customize.
   See rms message of 11 Dec 05 in
   http://lists.gnu.org/archive/html/emacs-pretest-bug/2005-12/msg00165.html,
   and the rest of that discussion.
-
-** Height returned by frame-parameter ... and height given to
-   make-frame does not mean the same thing.  The former includes menu and
-   tool bar lines, the latter don't.  frame-parameter should return height
-   without menu and tool bar lines.
 
 ** In Emacs Info, examples of using Customize should be clickable
    and they should create Custom buffers.
@@ -185,8 +238,8 @@ Change them to use report-emacs-bug.
 ** Add a defcustom that supplies a function to name numeric backup files,
 like make-backup-file-name-function for non-numeric backup files.
 
-** `dired-mode' should specify the semantics of `buffer-modified-p' for
-dired buffers and DTRT WRT `auto-revert-mode'.
+** 'dired-mode' should specify the semantics of 'buffer-modified-p' for
+dired buffers and DTRT WRT 'auto-revert-mode'.
 
 ** Check uses of prin1 for error-handling.
 http://lists.gnu.org/archive/html/emacs-devel/2008-08/msg00456.html
@@ -200,14 +253,63 @@ http://lists.gnu.org/archive/html/emacs-devel/2013-11/msg00515.html
     processing.  That is why we added text properties and variable
     width fonts.  However, more features are still needed to achieve this.
 
-** Extended text-properties (to make overlays "obsolete")
+** Extend text-properties and overlays
 *** Several text-property planes
 This would get us rid of font-lock-face property (and I'd be happy to
 get rid of char-property-alias-alist as well) since font-lock would
-simply use the `face' property in the `font-lock' plane.
-Each property would come with an Elisp merge-function.  The merge
-would be performed in add-text-properties.
-*** zero-width text-properties.
+simply use the 'face' property in the 'font-lock' plane.
+
+Basically 'put-text-property' and friends would take an extra argument PLANE
+(maybe the best backward-compatible way to do that is to make it so that
+PROPERTY can be a cons cell (PLANE . PROP)).  So font-lock would
+do (put-text-property start end '(font-lock . face) value).
+
+All the properties coming from the various planes would get merged via an Elisp
+function (so it can merge 'face' differently than 'keymap' or it could give
+different priorities to different planes (we could imagine enabling/disabling
+planes)).  The merging would not happen lazily while looking up properties but
+instead it would take place eagerly in 'add-text-properties'.  This is based on
+the idea that it's much more frequent to lookup properties than to
+modify them.  Also, when properties are looked up during redisplay, we
+generally can't run Elisp code, whereas we generally can do that when
+properties are added.
+
+*** Move overlays to intervals.c
+
+Currently overlays are implemented as (two) sorted singly linked lists (one
+for overlays_before some position and one for overlay_after that
+position, for some quirky definition of "before" and "after").
+The function 'overlay-recenter' changes the position used for the split
+(and is called internally in various situations).
+
+Each overlay is itself implemented with two markers (which keep track of
+the overlay-start and overlay-end).  Markers are implemented as
+a non-sorted singly linked list of markers.  So every text
+insertion/deletion requires O(N) time, where N is the number of markers
+since we have to go down that list to update those markers that are
+affected by the modification.
+
+You can start in src/buffer.[ch], maybe grepping for overlays_before for
+a starting point.
+
+Text-properties, OTOH, are implemented with a (mostly) balanced binary
+tree.  This is implemented in src/intervals.[ch].
+
+So we'd like to change overlays so that they don't use markers (and we
+don't keep them in two sorted singly-linked lists) any more.  Instead,
+we'll store them inside the balanced binary tree used for
+text-properties.  I think we can use the "augmented tree" approach
+described in https://en.wikipedia.org/wiki/Interval_tree.
+
+To ease up debugging during development, I'd guess the implementation
+would first add the new stuff, keeping the old stuff (i.e. add to
+Lisp_Overlay whichever fields are needed for the new code, while keeping
+the old ones, add needed overlay fields to the intervals tree, but keep
+the old fields, the overlays_before etc...).  This way, you can add
+consistency checks that make sure the new code computes the same results
+as the old code.  And once that works well, we can remove the old code
+and old fields.
+
 ** Having tabs above a window to switch buffers in it.
 
 ** "Perspectives" are named persistent window configurations.  We have
@@ -308,32 +410,26 @@ familiar with GNUstep and Objective C.
 
 * Other features we would like:
 
+** A more modern printing interface.  One that pops up a dialog that lets
+you choose printer, page style, etc.
+Integration with the Gtk print dialog is apparently difficult.  See eg:
+http://lists.gnu.org/archive/html/emacs-devel/2009-03/msg00501.html
+http://lists.gnu.org/archive/html/emacs-devel/2009-04/msg00034.html
+
 ** Allow frames(terminals) created by emacsclient to inherit their environment
 from the emacsclient process.
 
-** Remove the default toggling behavior of minor modes when called from elisp
-rather than interactively.  This a trivial one-liner in easy-mode.el.
-
 ** Give Tar mode all the features of Archive mode.
 
-** Create a category of errors called `process-error'
+** Create a category of errors called 'process-error'
   for some or all errors associated with using subprocesses.
 
-** Maybe reinterpret `parse-error' as a category of errors
+** Maybe reinterpret 'parse-error' as a category of errors
   and put some other errors under it.
-
-** A function to tell you the argument pattern of functions.
-  See `function-arity' in http://www.loveshack.ukfsn.org/emacs/fx-misc.el.
 
 ** Make byte-compile warn when a doc string is too wide.
 
 ** Make byte-optimization warnings issue accurate line numbers.
-
-** A function to check for customizable options that have been
-  set but not saved, and ask the user whether to save them.
-  This could go in kill-emacs-query-functions, to remind people
-  to save their changes. If the user says yes, show them
-  in a Custom buffer using customize-customized.
 
 ** Record the sxhash of the default value for customized variables
   and notify the user (maybe by adding a menu item or toolbar button,
@@ -343,7 +439,7 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
   customization buffers.
 
 ** Emacs Lisp mode could put an overlay on the defun for every
-  function that has advice.  The overlay could have `after-text' like
+  function that has advice.  The overlay could have 'after-text' like
   " [Function has advice]".  It might look like (defun foo [Function
   has advice] (x y) The overlay could also be a button that you could
   use to view the advice.
@@ -362,7 +458,7 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
    H-S-C-M-s-double-wheel-up, ...
 
 ** Beefed-up syntax-tables.
-*** recognize multi-character syntactic entities like `begin' and `end'.
+*** recognize multi-character syntactic entities like 'begin' and 'end'.
 *** nested string-delimiters (for PostScript's (foo(bar)baz) strings).
 *** support for infix operators (with precedence).
 *** support for the $ (paired delimiter) in parse-partial-sexp.
@@ -396,15 +492,14 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
 ** Give start-process the ability to direct standard-error
   output to a different filter.
 
-** Make desktop.el save the "frame configuration" of Emacs (in some
-  useful sense).
-
 ** Give desktop.el a feature to switch between different named desktops.
 
 ** Add a cpio mode, more or less like tar mode.
 
 ** Save undo information in special temporary files, and reload it
   when needed for undoing.  This could extend undo capacity.
+  undo-tree, in ELPA, already does this; its saving code could be
+  integrated without requiring the use of undo-tree.
 
 ** Change the Windows NT menu code
   so that it handles the deep_p argument and avoids
@@ -422,28 +517,9 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
   Check the assignments file for other packages which might go in and
   have been missed.
 
-** Make keymaps a first-class Lisp object (this means a rewrite of
-  keymap.c).  What should it do apart from being opaque ?
-  multiple inheritance ?  faster where-is ?  no more fix_submap_inheritance ?
-  what else ?
-
-** Implement popular parts of the rest of the CL functions as compiler
-  macros in cl-macs.  [Is this still relevant now that cl-lib exists?]
-
 ** Make compiler warnings about functions that might be undefined at run time
  smarter, so that they know which files are required by the file being
  compiled and don't warn about functions defined in them.
-
-** Highlight rectangles (`mouse-track-rectangle-p' in XEmacs).  Already in CUA,
-  but it's a valuable feature worth making more general.
-  [Basic support added 2013/10:
-  http://lists.gnu.org/archive/html/emacs-devel/2013-10/msg00904.html ]
-
-** Eliminate the storm of warnings concerning char/unsigned char
-  mismatches that we get with GCC 4.x and proprietary compilers on
-  various systems.  They make it difficult to spot the important warnings.
-
-** Fix anything necessary to use `long long' EMACS_INTs with GCC.
 
 ** Split out parts of lisp.h.
 
@@ -452,11 +528,6 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
 ** Allow auto-compression-mode to use zlib calls if zlib is available.
   [It's required for PNG, so may be linked anyhow.]
 
-** Add a --pristine startup flag which does -q --no-site-file plus
-  ignoring X resources (Doze equivalents?) and most of the
-  environment.  What should not be ignored needs consideration.
-  [Do the existing -Q and -D cover this, or is more needed?]
-
 ** Improve the GC (generational, incremental).  (We may be able to use
   the Boehm collector.)  [See the Boehm-GC branch in CVS for work on this.]
 
@@ -464,7 +535,8 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
 
 ** Add definitions for symbol properties, for documentation purposes.
 
-** Add horizontal scroll bars.
+** Temporarily remove scroll bars when they are not needed, typically
+  when a buffer can be fully displayed in its window.
 
 ** Provide an optional feature which computes a scroll bar slider's
   size and its position from lines instead of characters.
@@ -482,26 +554,15 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
   (Requires recursing through display properties).  Provide some way
   to simulate mouse-clicks on marginal text without a mouse.
 
-** Implement Lisp functions to determine properly whether a character
-  is displayable (particularly needed in XFree 4, sigh).  Use it to
-  define useful glyphs that may be displayed as images or unicodes
-  (with ASCIIfied fallback via latin1-disp).  Examples include
-  box-drawing graphics in Custom buffers, W3 rules and tables, and
-  tree displays generally, mode-line mail indicator.  [See work done
-  already for Emacs 23 and consult fx.]
-
 ** Extend ps-print to deal with multiple font sizes, images, and extra
   encodings.
-
-** Make byte-compile avoid binding an expanded defsubst's args
-  when the body only calls primitives.
 
 ** Use the XIE X extension, if available, for image display.
 
 ** Make monochrome images display using the foreground and background
   colors of the applicable faces.
 
-** Make `format-time-string' preserve text properties like `format'.
+** Make 'format-time-string' preserve text properties like 'format'.
 
 ** Optionally make the cursor a little thinner at the end of a line
   or the end of the buffer.
@@ -540,24 +601,24 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
   the XPMs so that the color versions work generally.  (Requires care
   with the color used for the transparent regions.)
 
-** Convenient access to the `values' variable.  It would be nice to have an
+** Convenient access to the 'values' variable.  It would be nice to have an
   interface that would show you the printed reps of the elements of the
   list in a menu, let you select one of the values, and put it into some
-  other variable, without changing the value of `values'.
+  other variable, without changing the value of 'values'.
 
 ** (Controlled by a flag) make open and close syntax match exactly,
-  i.e. `(' doesn't match `]'.
+  i.e. '(' doesn't match ']'.
 
-** Specify parameter ID-FORMAT in all calls to `file-attributes' and
-  `directory-files-and-attributes' where attributes UID or GID are used.
+** Specify parameter ID-FORMAT in all calls to 'file-attributes' and
+  'directory-files-and-attributes' where attributes UID or GID are used.
   Whenever possible, use value 'string.
   When done, change meaning of default value from 'integer to 'string.
   If value 'integer is used nowhere, remove the parameter ID-FORMAT from
-  the definition of `file-attributes' and `directory-files-and-attributes'
+  the definition of 'file-attributes' and 'directory-files-and-attributes'
   and from the calls.
 
 ** Make language-info-alist customizable.  Currently a user can customize
-  only the variable `current-language-environment'.
+  only the variable 'current-language-environment'.
 
 ** Improve language environment handling so that Emacs can fit
   better to a users locale.  Currently Emacs uses utf-8 language
@@ -572,7 +633,7 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
   characters and phrase boundaries, sentence endings, collation for
   sorting (at least for unicodes), HTTP Accept-language, patterns for
   directory listings and compilation messages, yes-or-no replies,
-  common menu items when the toolkit supports it ...  `locale-info'
+  common menu items when the toolkit supports it ...  'locale-info'
   needs extending for LC_COLLATE &c.  [fx started on this.]
 
 ** Eliminate the current restriction on header printing by ps-print.
@@ -596,7 +657,7 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
    Info, but also with regard to namespace), and give the value of
    lisp expressions, e.g auto-mode-alist, the right face.
 
-** Possibly make `list-holidays' eval items in the calendar-holidays variable.
+** Possibly make 'list-holidays' eval items in the calendar-holidays variable.
    See thread
    <http://lists.gnu.org/archive/html/emacs-devel/2006-02/msg01034.html>.
    [rgm@gnu.org will look at this after 22.1]
@@ -614,15 +675,243 @@ rather than interactively.  This a trivial one-liner in easy-mode.el.
 
 ** NeXTstep port
 
+*** Missing features
+
+This sections contains features found in other official Emacs ports.
+
+**** Support for xwidgets
+
+Emacs 25 has support for xwidgets, a system to include operating
+system components into an Emacs buffer.  The components range from
+simple buttons to webkit (effectively, a web browser).
+
+Currently, xwidgets works only for the gtk+ framework but it is
+designed to be compatible with multiple Emacs ports.
+
+**** Respect 'frame-inhibit-implied-resize'
+
+When the variable 'frame-inhibit-implied-resize' is non-nil, frames
+should not be resized when operations like changing font or toggling
+the tool bar is performed.
+
+Unfortunately, the tool bar (and possible other operations) always
+resize the frame.
+
+**** Support 'proced' (implement 'process-attributes')
+
+Unfortunately, a user-level process like Emacs does not have the
+privileges to get information about other processes under OS X.
+
+There are other ways to do this:
+
+ 1) Spawn "ps" and parse the output ("ps" has superuser privileges).
+
+ 2) Sign Emacs as part of the distribution process.
+
+ 3) Ask the user to self-sign Emacs, if this feature is of interest.
+
+Anders Lindgren <andlind@gmail.com> has implemented
+'process-attributes' for OS X, which currently only work when
+running Emacs as root.
+
+See this article by Bozhidar Batsov for an overview of Proced:
+http://emacsredux.com/blog/2013/05/02/manage-processes-with-proced/
+
+**** Tooltip properties
+
+Tooltip properties like the background color and font are hard-wired,
+even though Emacs allows a user to customize such features.
+
+*** New features
+
+This section contains features unique to Nextstep and/or OS X.
+
+**** PressAndHold for writing accented character
+
+On OS X, many application support the press and hold pattern to
+invoke a menu of accented characters.  (See example at
+https://support.apple.com/en-us/HT201586 .)
+
+Currently, this doesn't work in Emacs.
+
+Note that "ns-win.el" explicitly disables this.
+
+Note: This feature might not be allowed to be implemented until also
+implemented in Emacs for a free system.
+
+**** Floating scroll bars
+
+In modern OS X applications, the scroll bar often floats over the
+content, and is invisible unless actually used.  This makes the user
+interface less cluttered and more area could be used to contain text.
+
+With floating scroll bars, the user interface would look like it does
+when they are disabled today.  However, they will be made visible when
+a scroll action is initiated, e.g. by putting two fingers on a
+trackpad.
+
+Note: This feature might not be allowed to be implemented until also
+implemented in Emacs for a free system.
+
+*** Features from the "mac" port
+
+This section contains features available in the "mac" Emacs port.
+
+As the "mac" port (as of this writing) isn't an official Emacs port,
+it might contain features not following the FSF rule "must exist on
+free systems".
+
+The "mac" port is based on the Emacs 22 C-based Carbon interface.
+It has been maintained in parallel to the official Cocoa-based NS
+interface.  The Carbon interface has been enhanced, and a number of the
+features of that interface could be implemented NS.
+
+**** Smooth scrolling -- maybe not a good idea
+
+Today, by default, scrolling with a trackpad makes the text move in
+steps of five lines.  (Scrolling with SHIFT scrolls one line at a time.)
+
+The "mac" port provides smooth, pixel-based, scrolling.  This is a very
+popular features.  However, there are drawbacks to this method: what
+happens if only a fraction of a line is visible at the top of a
+window, is the partially visible text considered part of the window or
+not?  (Technically, what should 'window-start' return.)
+
+An alternative would be to make one-line scrolling the default on NS
+(or in Emacs in general).
+
+Note: This feature might not be allowed to be implemented until also
+implemented in Emacs for a free system.
+
+**** Mouse gestures
+
+The "mac" port defines the gestures 'swipe-left/right/up/down',
+'magnify-up/down', and 'rotate-left/right'.
+
+It also binds the magnification commands to change the font
+size.  (This should be not be done in a specific interface, instead
+Emacs should do this binding globally.)
+
+Note: This feature might not be allowed to be implemented until also
+implemented in Emacs for a free system.
+
+**** Synthesize bold fonts
+
+*** Open issues
+
+This section contains issues where there is an ongoing debate.
+
+**** Key bindings of CMD and ALT
+
+Currently in the "ns" port, ALT is bound to Meta and CMD is bound to
+Super -- allowing the user to use typical OS X commands like CMD-A to
+mark everything.
+
+Unfortunately, when using an international keyboard, you can't type
+normal characters like "(" etc.
+
+There are many alternative key bindings.  One solution is to bind CMD
+to Meta and pass ALT to the system.  In fact, this is what Emacs did up
+to, and including, version 22.  Also, this is how the "mac" port binds
+the keys.
+
+One could envision asymmetrical variants as well, however, this is
+inappropriate for the default setting.
+
+See the discussion on emacs-devel:
+https://lists.gnu.org/archive/html/emacs-devel/2015-12/msg01575.html
+https://lists.gnu.org/archive/html/emacs-devel/2016-01/msg00008.html
+
+*** Internal development features
+
+**** Regression test system (or at least a checklist)
+
+Today, after each change to the user interface, Emacs must be manually
+tested.  Often, small details are overlooked ("Oh, I didn't test
+toggling the tool-bar in one of the full screen modes, when multiple
+frame were open -- silly me.")
+
+It would be an enormous help if this could be tested automatically.
+Many features are generic, however, the NS interface provides a number
+of unique features.
+
+**** Existing packages
+
+Note that there is a generic UI test named frame-test.el, see
+http://debbugs.gnu.org/21415#284 .
+The NS interface passes this, with the exception of two toolbar-related errors.
+
+**** Anders frame test
+
+Anders Lindgren <andlind@gmail.com> has implemented some (very basic)
+tests for full screen, toolbar, and auto-hiding the menu bar.
+
+**** Make sure all build variants work
+
+Emacs can be build in a number of different ways.  For each feature,
+consider if is really is "NS" specific, or if it should be applied to
+all build versions.
+
+- With the "NS" interface.  This is the normal way to build Emacs on OS X.
+
+- With the "X11" interface.  On OS X, this is mainly of interest to
+  developers of Emacs to get a "reference" interface implementations.
+  However, it might be of interest for people working remotely, as X11
+  applications can be used over a network connection.
+
+- Console only.
+
 *** Bugs
 
+**** Incorrect translation of Super modifier with Ctrl or Meta on OS X
+
+When pressing 'M-s-a', Emacs replies "M-s-å is undefined".  What
+happened is a mix of Emacs view that Meta and Super has been pressed,
+and OS X view that ALT-a should yield "å" (U+00E5 LATIN SMALL LETTER A
+WITH RING ABOVE).
+
+The bug reports suggest two different patches; unfortunately, neither
+works properly.  For example:
+
+   Use a Swedish keyboard layout
+
+   (setq ns-alternate-modifier nil)
+
+   "CMD-ALT-9"
+
+Today, this correctly yields that s-] is undefined.  With either
+of the two patches, Emacs responds that s-9 was pressed.
+
+More investigation is needed to fix this problem.
+
+Links:
+- http://debbugs.gnu.org/19977
+- http://debbugs.gnu.org/21330
+- http://debbugs.gnu.org/21551
+
+**** Toggling the toolbar in fullheight or maximized modes
+
+The toolbar, in the NS interface, is not considered part of the text
+area.  When it is toggled, the Emacs frame change height accordingly.
+
+Unfortunately, this also occurs when the frame is in fullheight or
+maximized modes (N.B. this is not the same as "fullscreen").  The
+effect is that the full frame size either increases (stretching down
+below the lower edge of the screen) or decreases (leaving space
+between the lower edge of the frame and the lower edge of the screen).
+
+A better solution would be for the frame to retain its size,
+i.e. change the text area.
+
+This is related to the 'frame-inhibit-implied-resize' issue.
+
 **** The event loop does not redraw.
-     A problem is that redraw don't happen during resize,
-     because we can't break out from the NSapp loop during resize.
-     There was a special trick to detect mouse press in the lower right
-     corner and track mouse movements, but this did not work well, and was
-     not scalable to the new Lion "resize on every window edge" behavior.
-     [As of trunk r109635, 2012-08-15, the event loop no longer polls.]
+A problem is that redraw don't happen during resize,
+because we can't break out from the NSapp loop during resize.
+There was a special trick to detect mouse press in the lower right
+corner and track mouse movements, but this did not work well, and was
+not scalable to the new Lion "resize on every window edge" behavior.
+[As of trunk r109635, 2012-08-15, the event loop no longer polls.]
 
 **** (mouse-avoidance-mode 'banish) then minimize Emacs, will pop window back
 up on top of all others (probably fixed in bug#17439)
@@ -1114,10 +1403,6 @@ elements
 **** In rng-valid, instead of using modification-hooks and
 insert-behind-hooks on dependent overlays, use same technique as nxml-mode.
 
-**** Port to XEmacs.  Issues include: Unicode (XEmacs seems to be based on
-Mule-UCS); overlays/text properties vs extents; absence of
-fontification-functions hook.
-
 *** Fontification
 
 **** Allow face to depend on element qname, attribute qname, attribute
@@ -1186,12 +1471,21 @@ systems for HTML/XML files automatically."
 
 **** Leverage char-displayable-p.
 
+** RefTeX
+
+*** Provide a wdired-like mode for editing RefTeX TOC buffers.
+As a first step, renaming of sections could be supported.  Ultimately,
+it would be great if it also supported moving sections, e.g., by
+killing and yanking or providing org-mode like "move section
+upwards/downwards" commands.  However, that's not so easy in the
+presence of multi-file documents.
+
 * Internal changes
 
 ** Cleanup all the GC_ mark bit stuff -- there is no longer any distinction
    since the mark bit is no longer stored in the Lisp_Object itself.
 
-** Refine the `predicate' arg to read-file-name.
+** Refine the 'predicate' arg to read-file-name.
    Currently, it mixes up the predicate to apply when doing completion and the
    one to use when terminating the selection.
 
@@ -1201,10 +1495,6 @@ systems for HTML/XML files automatically."
 
 ** Replace linum.el with nlinum.el
    http://lists.gnu.org/archive/html/emacs-devel/2013-08/msg00379.html
-
-** Use pcomplete by default in shell-mode.
-   This means to make it behave (by default) more like the current code.
-   Use it also for read-shell-command, M-x compile, ...
 
 ** Merge sendmail.el and messages.el.
    Probably not a complete merge, but at least arrange for messages.el to be
@@ -1243,13 +1533,10 @@ for vc-rcs-update-changelog.
 
 * Other known bugs:
 
-** `make-frame' forgets unhandled parameters, at least for X11 frames.
+** 'make-frame' forgets unhandled parameters, at least for X11 frames.
 
 ** a two-char comment-starter whose two chars are symbol constituents will
 not be noticed if it appears within a word.
-
-** Fix unexelf.c to handle the .data.rel and .data.rel.local
-   sections made by GCC 3.4 on IRIX.
 
 
 This file is part of GNU Emacs.
@@ -1266,3 +1553,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+
+;; Local Variables:
+;; coding: utf-8
+;; End:

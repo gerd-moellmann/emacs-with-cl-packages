@@ -1,6 +1,6 @@
 ;;; image-mode.el --- support for visiting image files  -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2005-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2016 Free Software Foundation, Inc.
 ;;
 ;; Author: Richard Stallman <rms@gnu.org>
 ;; Keywords: multimedia
@@ -49,6 +49,26 @@
   "Special hook run when image data is requested in a new window.
 It is called with one argument, the initial WINPROPS.")
 
+;; FIXME this doesn't seem mature yet. Document in manual when it is.
+(defvar image-transform-resize nil
+  "The image resize operation.
+Its value should be one of the following:
+ - nil, meaning no resizing.
+ - `fit-height', meaning to fit the image to the window height.
+ - `fit-width', meaning to fit the image to the window width.
+ - A number, which is a scale factor (the default size is 1).")
+
+(defvar image-transform-scale 1.0
+  "The scale factor of the image being displayed.")
+
+(defvar image-transform-rotation 0.0
+  "Rotation angle for the image in the current Image mode buffer.")
+
+(defvar image-transform-right-angle-fudge 0.0001
+  "Snap distance to a multiple of a right angle.
+There's no deep theory behind the default value, it should just
+be somewhat larger than ImageMagick's MagickEpsilon.")
+
 (defun image-mode-winprops (&optional window cleanup)
   "Return winprops of WINDOW.
 A winprops object has the shape (WINDOW . ALIST).
@@ -90,6 +110,8 @@ otherwise it defaults to t, used for times when the buffer is not displayed."
 
 (defun image-mode-window-put (prop val &optional winprops)
   (unless (consp winprops) (setq winprops (image-mode-winprops winprops)))
+  (unless (eq t (car winprops))
+    (image-mode-window-put prop val t))
   (setcdr winprops (cons (cons prop val)
                          (delq (assq prop (cdr winprops)) (cdr winprops)))))
 
@@ -131,6 +153,8 @@ otherwise it defaults to t, used for times when the buffer is not displayed."
                          (selected-window))))
 
 (declare-function image-size "image.c" (spec &optional pixels frame))
+(declare-function xwidget-info "xwidget.c" (xwidget))
+(declare-function xwidget-at "xwidget.el" (pos))
 
 (defun image-display-size (spec &optional pixels frame)
   "Wrapper around `image-size', handling slice display properties.
@@ -138,24 +162,29 @@ Like `image-size', the return value is (WIDTH . HEIGHT).
 WIDTH and HEIGHT are in canonical character units if PIXELS is
 nil, and in pixel units if PIXELS is non-nil.
 
-If SPEC is an image display property, this function is equivalent
-to `image-size'.  If SPEC is a list of properties containing
-`image' and `slice' properties, return the display size taking
-the slice property into account.  If the list contains `image'
-but not `slice', return the `image-size' of the specified image."
-  (if (eq (car spec) 'image)
-      (image-size spec pixels frame)
-    (let ((image (assoc 'image spec))
-	  (slice (assoc 'slice spec)))
-      (cond ((and image slice)
-	     (if pixels
-		 (cons (nth 3 slice) (nth 4 slice))
-	       (cons (/ (float (nth 3 slice)) (frame-char-width frame))
-		     (/ (float (nth 4 slice)) (frame-char-height frame)))))
-	    (image
-	     (image-size image pixels frame))
-	    (t
-	     (error "Invalid image specification: %s" spec))))))
+If SPEC is an image display property, this function is equivalent to
+`image-size'.  If SPEC represents an xwidget object, defer to `xwidget-info'.
+If SPEC is a list of properties containing `image' and `slice' properties,
+return the display size taking the slice property into account.  If the list
+contains `image' but not `slice', return the `image-size' of the specified
+image."
+  (cond ((eq (car spec) 'xwidget)
+         (let ((xwi (xwidget-info (xwidget-at (point-min)))))
+           (cons (aref xwi 2) (aref xwi 3))))
+        ((eq (car spec) 'image)
+         (image-size spec pixels frame))
+        (t (let ((image (assoc 'image spec))
+                 (slice (assoc 'slice spec)))
+             (cond ((and image slice)
+                    (if pixels
+                        (cons (nth 3 slice) (nth 4 slice))
+                      (cons (/ (float (nth 3 slice)) (frame-char-width frame))
+                            (/ (float (nth 4 slice))
+                               (frame-char-height frame)))))
+                   (image
+                    (image-size image pixels frame))
+                   (t
+                    (error "Invalid image specification: %s" spec)))))))
 
 (defun image-forward-hscroll (&optional n)
   "Scroll image in current window to the left by N character widths.
@@ -358,6 +387,7 @@ call."
     (define-key map "a-" 'image-decrease-speed)
     (define-key map "a0" 'image-reset-speed)
     (define-key map "ar" 'image-reverse-speed)
+    (define-key map "k" 'image-kill-buffer)
     (define-key map [remap forward-char] 'image-forward-hscroll)
     (define-key map [remap backward-char] 'image-backward-hscroll)
     (define-key map [remap right-char] 'image-forward-hscroll)
@@ -377,8 +407,6 @@ call."
 	["Show as Text" image-toggle-display :active t
 	 :help "Show image as text"]
 	"--"
-	["Fit Frame to Image" image-mode-fit-frame :active t
-	 :help "Resize frame to match image"]
 	["Fit to Window Height" image-transform-fit-to-height
 	 :visible (eq image-type 'imagemagick)
 	 :help "Resize image to match the window height"]
@@ -388,6 +416,9 @@ call."
 	["Rotate Image..." image-transform-set-rotation
 	 :visible (eq image-type 'imagemagick)
 	 :help "Rotate the image"]
+	["Reset Transformations" image-transform-reset
+	 :visible (eq image-type 'imagemagick)
+	 :help "Reset all image transformations"]
 	"--"
 	["Show Thumbnails"
 	 (lambda ()
@@ -399,6 +430,9 @@ call."
          :help "Move to next image in this directory"]
 	["Previous Image" image-previous-file :active buffer-file-name
          :help "Move to previous image in this directory"]
+	"--"
+	["Fit Frame to Image" image-mode-fit-frame :active t
+	 :help "Resize frame to match image"]
 	"--"
 	["Animate Image" image-toggle-animation :style toggle
 	 :selected (let ((image (image-get-display-property)))
@@ -631,13 +665,35 @@ was inserted."
 			   (not (and (boundp 'archive-superior-buffer)
 				     archive-superior-buffer))
 			   (not (and (boundp 'tar-superior-buffer)
-				     tar-superior-buffer)))))
+				     tar-superior-buffer))
+                           ;; This means the buffer holds the
+                           ;; decrypted content (bug#21870).
+                           (not (and (boundp 'epa-file-encrypt-to)
+                                     (local-variable-p
+                                      'epa-file-encrypt-to))))))
 	 (file-or-data (if data-p
 			   (string-make-unibyte
 			    (buffer-substring-no-properties (point-min) (point-max)))
 			 filename))
-	 (type (image-type file-or-data nil data-p))
-	 (image (create-image file-or-data type data-p))
+	 ;; If we have a `fit-width' or a `fit-height', don't limit
+	 ;; the size of the image to the window size.
+	 (edges (and (null image-transform-resize)
+		     (window-inside-pixel-edges
+		      (get-buffer-window (current-buffer)))))
+	 (type (if (featurep 'mac)
+                   (let ((image-type (image-type file-or-data nil data-p)))
+                     (if (memq (intern (upcase (symbol-name image-type)))
+                               (imagemagick-types))
+                         'imagemagick
+                       image-type))
+                 (if (fboundp 'imagemagick-types)
+                     'imagemagick
+                   (image-type file-or-data nil data-p))))
+	 (image (if (not edges)
+		    (create-image file-or-data type data-p)
+		  (create-image file-or-data type data-p
+				:max-width (- (nth 2 edges) (nth 0 edges))
+				:max-height (- (nth 3 edges) (nth 1 edges)))))
 	 (inhibit-read-only t)
 	 (buffer-undo-list t)
 	 (modified (buffer-modified-p))
@@ -684,6 +740,11 @@ the image by calling `image-mode'."
   (if (image-get-display-property)
       (image-mode-as-text)
     (image-mode)))
+
+(defun image-kill-buffer ()
+  "Kill the current buffer."
+  (interactive)
+  (kill-buffer (current-buffer)))
 
 (defun image-after-revert-hook ()
   (when (image-get-display-property)
@@ -888,26 +949,6 @@ replacing the current Image mode buffer."
 ;;   nil "image-transform" image-transform-minor-mode-map)
 
 
-;; FIXME this doesn't seem mature yet. Document in manual when it is.
-(defvar image-transform-resize nil
-  "The image resize operation.
-Its value should be one of the following:
- - nil, meaning no resizing.
- - `fit-height', meaning to fit the image to the window height.
- - `fit-width', meaning to fit the image to the window width.
- - A number, which is a scale factor (the default size is 1).")
-
-(defvar image-transform-scale 1.0
-  "The scale factor of the image being displayed.")
-
-(defvar image-transform-rotation 0.0
-  "Rotation angle for the image in the current Image mode buffer.")
-
-(defvar image-transform-right-angle-fudge 0.0001
-  "Snap distance to a multiple of a right angle.
-There's no deep theory behind the default value, it should just
-be somewhat larger than ImageMagick's MagickEpsilon.")
-
 (defsubst image-transform-width (width height)
   "Return the bounding box width of a rotated WIDTH x HEIGHT rectangle.
 The rotation angle is the value of `image-transform-rotation' in degrees."
@@ -1087,6 +1128,16 @@ ROTATION should be in degrees.  This command has no effect unless
 Emacs is compiled with ImageMagick support."
   (interactive "nRotation angle (in degrees): ")
   (setq image-transform-rotation (float (mod rotation 360)))
+  (image-toggle-display-image))
+
+(defun image-transform-reset ()
+  "Display the current image with the default size and rotation.
+This command has no effect unless Emacs is compiled with
+ImageMagick support."
+  (interactive)
+  (setq image-transform-resize nil
+	image-transform-rotation 0.0
+	image-transform-scale 1)
   (image-toggle-display-image))
 
 (provide 'image-mode)

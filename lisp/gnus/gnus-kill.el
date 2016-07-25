@@ -1,6 +1,6 @@
 ;;; gnus-kill.el --- kill commands for Gnus
 
-;; Copyright (C) 1995-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2016 Free Software Foundation, Inc.
 
 ;; Author: Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -47,11 +47,9 @@
   :group 'gnus-score-kill
   :type 'boolean)
 
-(defcustom gnus-winconf-kill-file nil
+(defvar gnus-winconf-kill-file nil
   "What does this do, Lars?
-I don't know, Per."
-  :group 'gnus-score-kill
-  :type 'sexp)
+I don't know, Per.")
 
 (defcustom gnus-kill-killed t
   "*If non-nil, Gnus will apply kill files to already killed articles.

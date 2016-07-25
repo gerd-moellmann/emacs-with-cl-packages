@@ -1,11 +1,11 @@
 \input texinfo   @c -*-texinfo-*-
-@setfilename ../../info/speedbar
+@setfilename ../../info/speedbar.info
 @settitle Speedbar: File/Tag summarizing utility
-@documentencoding UTF-8
+@include docstyle.texi
 @syncodeindex fn cp
 
 @copying
-Copyright @copyright{} 1999--2015 Free Software Foundation, Inc.
+Copyright @copyright{} 1999--2016 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -43,16 +43,16 @@ modify this GNU manual.''
 
 Speedbar is a program for Emacs which can be used to summarize
 information related to the current buffer.  Its original inspiration
-is the `explorer' often used in modern development environments, office
+is the ``explorer'' often used in modern development environments, office
 packages, and web browsers.
 
 Speedbar displays a narrow frame in which a tree view is shown.  This
 tree view defaults to containing a list of files and directories.  Files
-can be `expanded' to list tags inside. Directories can be expanded to
+can be ``expanded'' to list tags inside. Directories can be expanded to
 list the files within itself.  Each file or tag can be jumped to
 immediately.
 
-Speedbar expands upon `explorer' windows by maintaining context with the
+Speedbar expands upon ``explorer'' windows by maintaining context with the
 user.  For example, when using the file view, the current buffer's file
 is highlighted.  Speedbar also mimics the explorer windows by providing
 multiple display modes.  These modes come in two flavors.  Major display
@@ -61,8 +61,8 @@ only when a buffer of the applicable type is shown.  This allows
 authors of other packages to provide speedbar summaries customized to
 the needs of that mode.
 
-Throughout this manual, activities are defined as `clicking on', or
-`expanding' items.  Clicking means using @kbd{Mouse-2} on a
+Throughout this manual, activities are defined as ``clicking on'', or
+``expanding'' items.  Clicking means using @kbd{mouse-2} on a
 button.  Expanding refers to clicking on an expansion button to display
 an expanded summary of the entry the expansion button is
 on.  @xref{Basic Navigation}.
@@ -231,9 +231,9 @@ Groups summarize information in a single line, and provide a high level
 view of more complex systems, like a directory tree, or manual chapters.
 
 Groups appear at different indentation levels, and are prefixed with a
-@samp{+} in some sort of `box'.  The group name will summarize the
+@samp{+} in some sort of ``box''.  The group name will summarize the
 information within it, and the expansion box will display that
-information inline.  In File mode, directories and files are `groups'
+information inline.  In File mode, directories and files are ``groups''
 where the @samp{+} is surrounded by brackets like this:
 
 @example
@@ -246,7 +246,7 @@ In this example, we see both open and closed directories, in addition to
 a file.  The directories have a box consisting of angle brackets, and a
 file uses square brackets.
 
-In all modes, a group can be `edited' by pressing @kbd{RET}, meaning a
+In all modes, a group can be ``edited'' by pressing @kbd{RET}, meaning a
 file will be opened, or a directory explicitly opened in speedbar.  A
 group can be expanded or contracted using @kbd{+} or
 @kbd{-}.  @xref{Basic Key Bindings}.
@@ -292,7 +292,7 @@ Unadorned text will generally be colorless, and not clickable.
 Each type of Group, item indicator, and label is given a different
 color.  The colors chosen are dependent on whether the background color
 is light or dark.
-Of important note is that the `current item', which may be a buffer or
+Of important note is that the ``current item'', which may be a buffer or
 file name, is highlighted red, and underlined.
 
 Colors can be customized from the group @code{speedbar-faces}.  Some
@@ -316,29 +316,29 @@ with the mouse, or affected by the menu.
 The mouse bindings are:
 
 @table @kbd
-@item Mouse-1
+@item mouse-1
 Move cursor to that location.
-@item Mouse-2
-@itemx Double-Mouse-1
-Activate the current button.  @kbd{Double-Mouse-1} is called a @dfn{double
+@item mouse-2
+@itemx Double-mouse-1
+Activate the current button.  @kbd{Double-mouse-1} is called a @dfn{double
 click} on other platforms, and is useful for windows users with two
 button mice.
-@c Isn't it true that with two-button mice, the right button is Mouse-2?
-@c On GNU/Linux, the right button is Mouse-3.
-@item S-Mouse-2
-@itemx S-Double-Mouse-1
+@c Isn't it true that with two-button mice, the right button is mouse-2?
+@c On GNU/Linux, the right button is mouse-3.
+@item S-mouse-2
+@itemx S-Double-mouse-1
 @cindex power click
-This has the same effect as @kbd{Mouse-2}, except it is called a power
+This has the same effect as @kbd{mouse-2}, except it is called a power
 click.  This means that if a group with an expansion button @samp{+} is
 clicked, any caches are flushed, and subitems re-read.  If it is a name,
 it will be opened in a new frame.
-@item Mouse-3
+@item mouse-3
 Activate the speedbar menu.  The item selected affects the line clicked,
 not the line where the cursor was.
-@item Mouse-1 @r{(mode line)}
+@item mouse-1 @r{(mode line)}
 Activate the menu.  This affects the item the cursor is on before the
 click, since the mouse was not clicked on anything.
-@item C-Mouse-1
+@item C-mouse-1
 Buffers sub-menu.  The buffer in the attached frame is switched.
 @end table
 
@@ -355,7 +355,7 @@ You can display different data by using different display modes.  These
 specialized modes make it easier to navigate the relevant pieces of
 information, such as files and directories, or buffers.
 
-In the main menu, found by clicking @kbd{Mouse-3}, there is a submenu
+In the main menu, found by clicking @kbd{mouse-3}, there is a submenu
 labeled @samp{Displays}.  This submenu lets you easily choose between
 different display modes.
 
@@ -1128,7 +1128,7 @@ The conventions allow almost anything to be inserted, but several helper
 functions are provided to make it easy to create the standardized
 buttons.
 
-To understand the built in functions, each `button' in speedbar consists
+To understand the built in functions, each ``button'' in speedbar consists
 of four important pieces of data.  The text to be displayed, token
 data to be associated with the text, a function to call, and some face to
 display it in.

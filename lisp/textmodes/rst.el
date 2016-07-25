@@ -1,6 +1,6 @@
 ;;; rst.el --- Mode for viewing and editing reStructuredText-documents.
 
-;; Copyright (C) 2003-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2016 Free Software Foundation, Inc.
 
 ;; Maintainer: Stefan Merten <smerten@oekonux.de>
 ;; Author: Stefan Merten <smerten@oekonux.de>,
@@ -218,7 +218,7 @@ and before TAIL-RE and DELIM-RE in VAR or DEFAULT for no match."
 ;; Use CVSHeader to really get information from CVS and not other version
 ;; control systems.
 (defconst rst-cvs-header
-  "$CVSHeader: sm/rst_el/rst.el,v 1.327.2.6 2012-10-07 13:05:50 stefan Exp $")
+  "$CVSHeader: sm/rst_el/rst.el,v 1.327.2.26 2015/10/04 09:26:04 stefan Exp $")
 (defconst rst-cvs-rev
   (rst-extract-version "\\$" "CVSHeader: \\S + " "[0-9]+\\(?:\\.[0-9]+\\)+"
 		       " .*" rst-cvs-header "0.0")
@@ -232,22 +232,22 @@ and before TAIL-RE and DELIM-RE in VAR or DEFAULT for no match."
 ;; Use LastChanged... to really get information from SVN.
 (defconst rst-svn-rev
   (rst-extract-version "\\$" "LastChangedRevision: " "[0-9]+" " "
-		       "$LastChangedRevision: 7515 $")
+		       "$LastChangedRevision: 7925 $")
   "The SVN revision of this file.
 SVN revision is the upstream (docutils) revision.")
 (defconst rst-svn-timestamp
   (rst-extract-version "\\$" "LastChangedDate: " ".+?+" " "
-		       "$LastChangedDate: 2012-09-20 23:28:53 +0200 (Thu, 20 Sep 2012) $")
+		       "$LastChangedDate: 2015-10-04 11:21:35 +0200 (Sun, 04 Oct 2015) $")
   "The SVN time stamp of this file.")
 
 ;; Maintained by the release process.
 (defconst rst-official-version
   (rst-extract-version "%" "OfficialVersion: " "[0-9]+\\(?:\\.[0-9]+\\)+" " "
-		       "%OfficialVersion: 1.4.0 %")
+		       "%OfficialVersion: 1.4.1 %")
   "Official version of the package.")
 (defconst rst-official-cvs-rev
   (rst-extract-version "[%$]" "Revision: " "[0-9]+\\(?:\\.[0-9]+\\)+" " "
-		       "%Revision: 1.327 %")
+		       "%Revision: 1.327.2.25 %")
   "CVS revision of this file in the official version.")
 
 (defconst rst-version
@@ -267,6 +267,7 @@ in parentheses follows the development revision and the time stamp.")
     ("1.3.0" . "24.3")
     ("1.3.1" . "24.3")
     ("1.4.0" . "24.3")
+    ("1.4.1" . "24.5")
     ))
 
 (unless (assoc rst-official-version rst-package-emacs-version-alist)
@@ -296,7 +297,7 @@ in parentheses follows the development revision and the time stamp.")
 ;; syntax.
 (defconst rst-bullets
   ;; Sorted so they can form a character class when concatenated.
-  '(?- ?* ?+ ?\u2022 ?\u2023 ?\u2043)
+  '(?- ?* ?+ ?• ?‣ ?⁃)
   "List of all possible bullet characters for bulleted lists.")
 
 (defconst rst-uri-schemes
@@ -392,8 +393,8 @@ in parentheses follows the development revision and the time stamp.")
 				        ; item tag.
 
     ;; Inline markup (`ilm')
-    (ilm-pfx (:alt "^" hws-prt "[-'\"([{<\u2018\u201c\u00ab\u2019/:]"))
-    (ilm-sfx (:alt "$" hws-prt "[]-'\")}>\u2019\u201d\u00bb/:.,;!?\\]"))
+    (ilm-pfx (:alt "^" hws-prt "[-'\"([{<‘“«’/:]"))
+    (ilm-sfx (:alt "$" hws-prt "[]-'\")}>’”»/:.,;!?\\]"))
 
     ;; Inline markup content (`ilc')
     (ilcsgl-tag "\\S ") ; A single non-white character.
@@ -442,7 +443,7 @@ in parentheses follows the development revision and the time stamp.")
     (opt-tag (:shy optsta-tag optnam-tag optarg-tag "?")) ; A complete option.
 
     ;; Footnotes and citations (`fnc')
-    (fncnam-prt "[^\]\n]") ; Part of a footnote or citation name.
+    (fncnam-prt "[^]\n]") ; Part of a footnote or citation name.
     (fncnam-tag fncnam-prt "+") ; A footnote or citation name.
     (fnc-tag "\\[" fncnam-tag "]") ; A complete footnote or citation tag.
     (fncdef-tag-2 (:grp exm-sta)
@@ -512,7 +513,7 @@ in parentheses follows the development revision and the time stamp.")
 				   ; colon tag.
 
     ;; Comments (`cmt')
-    (cmt-sta-1 (:grp exm-sta) "[^\[|_\n]"
+    (cmt-sta-1 (:grp exm-sta) "[^[|_\n]"
 	       (:alt "[^:\n]" (:seq ":" (:alt "[^:\n]" "$")))
 	       "*$") ; Start of a comment block; first group is explicit markup
 		     ; start.
@@ -528,7 +529,7 @@ argument list for `rst-re'.")
 
 (defvar rst-re-alist) ; Forward declare to use it in `rst-re'.
 
-;; FIXME: Use `sregex` or `rx` instead of re-inventing the wheel.
+;; FIXME: Use `sregex' or `rx' instead of re-inventing the wheel.
 (rst-testcover-add-compose 'rst-re)
 ;; testcover: ok.
 (defun rst-re (&rest args)
@@ -778,12 +779,12 @@ This inherits from Text mode.")
     (modify-syntax-entry ?\\ "\\" st)
     (modify-syntax-entry ?_ "." st)
     (modify-syntax-entry ?| "." st)
-    (modify-syntax-entry ?\u00ab "." st)
-    (modify-syntax-entry ?\u00bb "." st)
-    (modify-syntax-entry ?\u2018 "." st)
-    (modify-syntax-entry ?\u2019 "." st)
-    (modify-syntax-entry ?\u201c "." st)
-    (modify-syntax-entry ?\u201d "." st)
+    (modify-syntax-entry ?« "." st)
+    (modify-syntax-entry ?» "." st)
+    (modify-syntax-entry ?‘ "." st)
+    (modify-syntax-entry ?’ "." st)
+    (modify-syntax-entry ?“ "." st)
+    (modify-syntax-entry ?” "." st)
     st)
   "Syntax table used while in `rst-mode'.")
 
@@ -1512,8 +1513,8 @@ PFXARG (alternate behavior).
 
 This function is a bit of a swiss knife.  It is meant to adjust
 the adornments of a section title in reStructuredText.  It tries
-to deal with all the possible cases gracefully and to do `the
-right thing' in all cases.
+to deal with all the possible cases gracefully and to do \"the
+right thing\" in all cases.
 
 See the documentations of `rst-adjust-adornment-work' and
 `rst-promote-region' for full details.
@@ -2138,15 +2139,15 @@ for completion and choices.
 
  (a) If user selects bullets or #, it's just added.
  (b) If user selects enumerations, a further prompt is given.  User needs to
-     input a starting item, for example 'e' for 'A)' style.
+     input a starting item, for example `e' for `A)' style.
 
 The position of the new list is arranged according to whether or not the
 current line and the previous line are blank lines.
 
 2. When continuing a list, one thing needs to be noticed:
 
-List style alphabetical list, such as 'a.', and roman numerical list, such as
-'i.', have some overlapping items, for example 'v.' The function can deal with
+List style alphabetical list, such as `a.', and roman numerical list, such as
+`i.', have some overlapping items, for example `v.' The function can deal with
 the problem elegantly in most situations.  But when those overlapped list are
 preceded by a blank line, it is hard to determine which type to use
 automatically.  The function uses alphabetical list by default.  If you want
@@ -3121,7 +3122,7 @@ newlines as mandated by `comment-line-break-function'."
 
 (defun rst-comment-region (beg end &optional arg)
   "Comment or uncomment the current region.
-Region is from from BEG to END.  Uncomment if ARG."
+Region is from BEG to END.  Uncomment if ARG."
   (save-excursion
     (if (consp arg)
 	(rst-uncomment-region beg end arg)
@@ -3571,8 +3572,8 @@ of your own."
     ;;        properties on comments and literal blocks so they are *not*
     ;;        inline fontified.  See (elisp)Search-based Fontification.
 
-    ;; FIXME: And / or use `syntax-propertize` functions as in `octave-mod.el`
-    ;;        and other V24 modes.  May make `font-lock-extend-region`
+    ;; FIXME: And / or use `syntax-propertize' functions as in `octave-mod.el'
+    ;;        and other V24 modes.  May make `font-lock-extend-region'
     ;;        superfluous.
 
     ;; `Comments`_
@@ -3952,11 +3953,11 @@ string)) to be used for converting the document."
   :package-version "1.2.0")
 (rst-testcover-defcustom)
 
-;; FIXME: Must be `defcustom`.
+;; FIXME: Must be defcustom.
 (defvar rst-compile-primary-toolset 'html
   "The default tool-set for `rst-compile'.")
 
-;; FIXME: Must be `defcustom`.
+;; FIXME: Must be defcustom.
 (defvar rst-compile-secondary-toolset 'latex
   "The default tool-set for `rst-compile' with a prefix argument.")
 
@@ -4035,7 +4036,7 @@ buffer, if the region is not selected."
      (cadr (assq 'pseudoxml rst-compile-toolsets))
      standard-output)))
 
-;; FIXME: Should be `defcustom`.
+;; FIXME: Should be defcustom.
 (defvar rst-pdf-program "xpdf"
   "Program used to preview PDF files.")
 
@@ -4052,7 +4053,7 @@ buffer, if the region is not selected."
     ;; output.
     ))
 
-;; FIXME: Should be `defcustom` or use something like `browse-url`.
+;; FIXME: Should be defcustom or use something like `browse-url'.
 (defvar rst-slides-program "firefox"
   "Program used to preview S5 slides.")
 
@@ -4161,7 +4162,7 @@ cand replace with char: ")
         (let ((width (current-column)))
           (rst-delete-entire-line)
           (insert-char tochar width)))
-      (message (format "%d lines replaced." found)))))
+      (message "%d lines replaced." found))))
 
 ;; FIXME: Unbound command - should be bound or removed.
 (defun rst-join-paragraph ()

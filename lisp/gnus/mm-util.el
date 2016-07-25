@@ -1,6 +1,6 @@
 ;;; mm-util.el --- Utility functions for Mule and low level things
 
-;; Copyright (C) 1998-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2016 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	MORIOKA Tomohiko <morioka@jaist.ac.jp>
@@ -22,10 +22,6 @@
 ;;; Commentary:
 
 ;;; Code:
-
-;; For Emacs <22.2 and XEmacs.
-(eval-and-compile
-  (unless (fboundp 'declare-function) (defmacro declare-function (&rest r))))
 
 (eval-when-compile (require 'cl))
 (require 'mail-prsvr)
@@ -500,9 +496,9 @@ Unless LIST is given, `mm-codepage-ibm-list' is used."
       (windows-1257 . (mm-codepage-setup 1257 t))))
   "An alist of (CHARSET . FORM) pairs.
 If an article is encoded in an unknown CHARSET, FORM is
-evaluated.  This allows to load additional libraries providing
-charsets on demand.  If supported by your Emacs version, you
-could use `autoload-coding-system' here."
+evaluated.  This allows the loading of additional libraries
+providing charsets on demand.  If supported by your Emacs
+version, you could use `autoload-coding-system' here."
   :version "22.1" ;; Gnus 5.10.9
   :type '(list (set :inline t
 		    (const (windows-1250 . (mm-codepage-setup 1250 t)))
@@ -1062,11 +1058,10 @@ This affects whether coding conversion should be attempted generally."
 		(length (memq (coding-system-base b) priorities)))
 	   t))))
 
-(eval-when-compile
-  (autoload 'latin-unity-massage-name "latin-unity")
-  (autoload 'latin-unity-maybe-remap "latin-unity")
-  (autoload 'latin-unity-representations-feasible-region "latin-unity")
-  (autoload 'latin-unity-representations-present-region "latin-unity"))
+(declare-function latin-unity-massage-name "ext:latin-unity")
+(declare-function latin-unity-maybe-remap "ext:latin-unity")
+(declare-function latin-unity-representations-feasible-region "ext:latin-unity")
+(declare-function latin-unity-representations-present-region "ext:latin-unity")
 
 (defvar latin-unity-coding-systems)
 (defvar latin-unity-ucs-list)
@@ -1079,7 +1074,7 @@ can be encoded using a single one of the corresponding coding systems.
 
 It treats `mm-coding-system-priorities' as the list of preferred
 coding systems; a useful example setting for this list in Western
-Europe would be '(iso-8859-1 iso-8859-15 utf-8), which would default
+Europe would be (iso-8859-1 iso-8859-15 utf-8), which would default
 to the very standard Latin 1 coding system, and only move to coding
 systems that are less supported as is necessary to encode the
 characters that exist in the buffer.
@@ -1245,6 +1240,7 @@ better ways to do a similar thing.  The previous version of this macro
 bound the default value of `enable-multibyte-characters' to nil while
 evaluating FORMS but it is no longer done.  So, some programs assuming
 it if any may malfunction."
+  (declare (obsolete nil "25.1") (indent 0) (debug t))
   (if (featurep 'xemacs)
       `(progn ,@forms)
     (let ((multibyte (make-symbol "multibyte")))
@@ -1255,8 +1251,6 @@ it if any may malfunction."
 	     (progn ,@forms)
 	   (when ,multibyte
 	     (set-buffer-multibyte t)))))))
-(put 'mm-with-unibyte-current-buffer 'lisp-indent-function 0)
-(put 'mm-with-unibyte-current-buffer 'edebug-form-spec '(body))
 
 (defun mm-find-charset-region (b e)
   "Return a list of Emacs charsets in the region B to E."

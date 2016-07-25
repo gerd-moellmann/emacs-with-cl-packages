@@ -1,6 +1,6 @@
 ;;; term.el --- general command interpreter in a window stuff
 
-;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2015 Free Software
+;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2016 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Per Bothner <per@bothner.com>
@@ -110,19 +110,6 @@
 ;;
 ;;             ----------------------------------------
 ;;
-;;  If you'd like to check out my complete configuration, you can download
-;; it from http://www.polito.it/~s64912/things.html, it's ~500k in size and
-;; contains my .cshrc, .emacs and my whole site-lisp subdirectory.  (notice
-;; that this term.el may be newer/older than the one in there, please
-;; check!)
-;;
-;;  This complete configuration contains, among other things, a complete
-;; rectangular marking solution (based on rect-mark.el and
-;; pc-bindings.el) and should be a good example of how extensively Emacs
-;; can be configured on a ppp-connected ws.
-;;
-;;             ----------------------------------------
-;;
 ;;  TODO:
 ;;
 ;;  - Add hooks to allow raw-mode keys to be configurable
@@ -165,15 +152,13 @@
 ;;  full advantage of this package
 ;;
 ;;  (add-hook 'term-mode-hook
-;;  		  (function
-;;  		   (lambda ()
-;;  			 (setq term-prompt-regexp "^[^#$%>\n]*[#$%>] *")
-;;  			 (make-local-variable 'mouse-yank-at-point)
-;;  			 (make-local-variable 'transient-mark-mode)
-;;  			 (setq mouse-yank-at-point t)
-;;  			 (setq transient-mark-mode nil)
-;;  			 (auto-fill-mode -1)
-;;  			 (setq tab-width 8 ))))
+;;  	      (function
+;;  	       (lambda ()
+;;  	             (setq term-prompt-regexp "^[^#$%>\n]*[#$%>] *")
+;;  	             (setq-local mouse-yank-at-point t)
+;;  	             (setq-local transient-mark-mode nil)
+;;  	             (auto-fill-mode -1)
+;;  	             (setq tab-width 8 ))))
 ;;
 ;;
 ;;             ----------------------------------------
@@ -247,85 +232,47 @@
 ;;             ----------------------------------------
 ;;
 ;;  Notice: for directory/host/user tracking you need to have something
-;; like this in your shell startup script ( this is for tcsh but should
-;; be quite easy to port to other shells )
+;; like this in your shell startup script (this is for a POSIXish shell
+;; like Bash but should be quite easy to port to other shells)
 ;;
 ;;             ----------------------------------------
 ;;
-;;
-;;  	 set os = `uname`
-;;  	 set host = `hostname`
-;;  	 set date = `date`
+;;  # Set HOSTNAME if not already set.
+;;	: ${HOSTNAME=$(uname -n)}
 ;;
 ;;  # su does not change this but I'd like it to
 ;;
-;;  	 set user = `whoami`
+;;	USER=$(whoami)
 ;;
 ;;  # ...
 ;;
-;;  	 if ( eterm =~ $TERM ) then
+;;	case $TERM in
+;;	    eterm*)
 ;;
-;;  		echo --------------------------------------------------------------
-;;  		echo Hello $user
-;;  		echo Today is $date
-;;  		echo We are on $host running $os under Emacs term mode
-;;  		echo --------------------------------------------------------------
+;;		printf '%s\n' \
+;;		 -------------------------------------------------------------- \
+;;		 "Hello $user" \
+;;		 "Today is $(date)" \
+;;		 "We are on $HOSTNAME running $(uname) under Emacs term mode" \
+;;		 --------------------------------------------------------------
 ;;
-;;  		setenv EDITOR emacsclient
+;;		export EDITOR=emacsclient
 ;;
-;;   # Notice: $host and $user have been set before to 'hostname' and 'whoami'
-;;   # this is necessary because, f.e., certain versions of 'su' do not change
-;;   # $user, YMMV: if you don't want to fiddle with them define a couple
-;;   # of new variables and use these instead.
-;;   # NOTICE that there is a space between "AnSiT?" and $whatever NOTICE
+;;		# The \033 stands for ESC.
+;;		# There is a space between "AnSiT?" and $whatever.
 ;;
-;;   # These are because we want the real cwd in the messages, not the login
-;;   # time one !
+;;		cd()    { command cd    "$@"; printf '\033AnSiTc %s\n' "$PWD"; }
+;;		pushd() { command pushd "$@"; printf '\033AnSiTc %s\n' "$PWD"; }
+;;		popd()  { command popd  "$@"; printf '\033AnSiTc %s\n' "$PWD"; }
 ;;
-;; 		set cwd_hack='$cwd'
-;; 		set host_hack='$host'
-;; 		set user_hack='$user'
+;;		printf '\033AnSiTc %s\n' "$PWD"
+;;		printf '\033AnSiTh %s\n' "$HOSTNAME"
+;;		printf '\033AnSiTu %s\n' "$USER"
 ;;
-;;   # Notice that the ^[ character is an ESC, not two chars.  You can
-;;   # get it in various ways, for example by typing
-;;   # echo -e '\033' > escape.file
-;;   # or by using your favorite editor
-;;
-;; 		foreach temp (cd pushd)
-;; 			alias $temp "$temp \!* ; echo 'AnSiTc' $cwd_hack"
-;; 		end
-;;   		alias popd 'popd ;echo "AnSiTc" $cwd'
-;;
-;;   # Every command that can modify the user/host/directory should be aliased
-;;   # as follows for the tracking mechanism to work.
-;;
-;; 		foreach temp ( rlogin telnet rsh sh ksh csh tcsh zsh bash tcl su )
-;; 			alias $temp "$temp \!* ; echo 'AnSiTh' $host_hack ; \
-;; 					echo 'AnSiTu' $user_hack ;echo 'AnSiTc' $cwd_hack"
-;; 		end
-;;
-;;   # Start up & use color ls
-;;
-;; 		echo "AnSiTh" $host
-;; 		echo "AnSiTu" $user
-;; 		echo "AnSiTc" $cwd
-;;
-;;   # some housekeeping
-;;
-;; 		unset cwd_hack
-;; 		unset host_hack
-;; 		unset user_hack
-;; 		unset temp
-;;
-;; 		eval `/bin/dircolors /home/marco/.emacs_dircolors`
-;;    endif
+;;		eval $(dircolors $HOME/.emacs_dircolors)
+;;	esac
 ;;
 ;;  # ...
-;;
-;;  # Let's not clutter user space
-;;
-;;  	 unset os
-;;  	 unset date
 ;;
 ;;
 
@@ -968,19 +915,6 @@ is buffer-local."
 
 (term-set-escape-char (or term-escape-char ?\C-c))
 
-(defvar overflow-newline-into-fringe)
-
-(defun term-window-width ()
-  (if (and (not (featurep 'xemacs))
-	   (display-graphic-p)
-	   overflow-newline-into-fringe
-	   ;; Subtract 1 from the width when any fringe has zero width,
-	   ;; not just the right fringe.  Bug#18601.
-	   (/= (frame-parameter nil 'left-fringe) 0)
-	   (/= (frame-parameter nil 'right-fringe) 0))
-      (window-body-width)
-    (1- (window-body-width))))
-
 
 (put 'term-mode 'mode-class 'special)
 
@@ -1067,7 +1001,7 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (setq buffer-display-table term-display-table)
   (set (make-local-variable 'term-home-marker) (copy-marker 0))
   (set (make-local-variable 'term-height) (1- (window-height)))
-  (set (make-local-variable 'term-width) (term-window-width))
+  (set (make-local-variable 'term-width) (window-max-chars-per-line))
   (set (make-local-variable 'term-last-input-start) (make-marker))
   (set (make-local-variable 'term-last-input-end) (make-marker))
   (set (make-local-variable 'term-last-input-match) "")
@@ -1147,7 +1081,7 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (make-local-variable 'term-scroll-show-maximum-output)
   (make-local-variable 'term-ptyp)
   (make-local-variable 'term-exec-hook)
-  (make-local-variable 'term-vertical-motion)
+  (set (make-local-variable 'term-vertical-motion) 'vertical-motion)
   (set (make-local-variable 'term-pending-delete-marker) (make-marker))
   (make-local-variable 'term-current-face)
   (term-ansi-reset)
@@ -1156,6 +1090,24 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (set (make-local-variable 'cua-mode) nil)
 
   (set (make-local-variable 'font-lock-defaults) '(nil t))
+
+  (add-function :filter-return
+                (local 'window-adjust-process-window-size-function)
+                (lambda (size)
+                  (when size
+                    (term-reset-size (cdr size) (car size)))
+                  size))
+
+  ;; Without the below setting, term-mode and ansi-term behave
+  ;; sluggishly when the buffer includes a lot of whitespace
+  ;; characters.
+  ;;
+  ;; There's a larger problem here with supporting bidirectional text:
+  ;; the application that writes to the terminal could have its own
+  ;; ideas about displaying bidirectional text, and might not want us
+  ;; reordering the text or deciding on base paragraph direction.  One
+  ;; such application is Emacs in TTY mode...  FIXME.
+  (setq bidi-paragraph-direction 'left-to-right)
 
   (easy-menu-add term-terminal-menu)
   (easy-menu-add term-signals-menu)
@@ -1198,12 +1150,6 @@ Entry to this mode runs the hooks on `term-mode-hook'."
       (when (not found)
 	(goto-char save-point)))
     found))
-
-(defun term-check-size (process)
-  (when (or (/= term-height (window-text-height))
-	    (/= term-width (term-window-width)))
-    (term-reset-size (window-text-height) (term-window-width))
-    (set-process-window-size process term-height term-width)))
 
 (defun term-send-raw-string (chars)
   (deactivate-mark)
@@ -1254,16 +1200,7 @@ without any interpretation."
     (run-hooks 'mouse-leave-buffer-hook)
     (setq this-command 'yank)
     (mouse-set-point click)
-    (term-send-raw-string
-     ;; From `mouse-yank-primary':
-     (or (if (fboundp 'x-get-selection-value)
-             (if (eq system-type 'windows-nt)
-                 (or (x-get-selection 'PRIMARY)
-                     (x-get-selection-value))
-               (or (x-get-selection-value)
-                   (x-get-selection 'PRIMARY)))
-	   (x-get-selection 'PRIMARY))
-	 (error "No selection is available")))))
+    (term-send-raw-string (gui-get-primary-selection))))
 
 (defun term-paste ()
   "Insert the last stretch of killed text at point."
@@ -1493,7 +1430,7 @@ Using \"emacs\" loses, because bash disables editing if $TERM == emacs.")
 :UP=\\E[%%dA:DO=\\E[%%dB:LE=\\E[%%dD:RI=\\E[%%dC\
 :kl=\\EOD:kd=\\EOB:kr=\\EOC:ku=\\EOA:kN=\\E[6~:kP=\\E[5~:@7=\\E[4~:kh=\\E[1~\
 :mk=\\E[8m:cb=\\E[1K:op=\\E[39;49m:Co#8:pa#64:AB=\\E[4%%dm:AF=\\E[3%%dm:cr=^M\
-:bl=^G:do=^J:le=^H:ta=^I:se=\\E[27m:ue=\\E24m\
+:bl=^G:do=^J:le=^H:ta=^I:se=\\E[27m:ue=\\E[24m\
 :kb=^?:kD=^[[3~:sc=\\E7:rc=\\E8:r1=\\Ec:"
   ;; : -undefine ic
   ;; don't define :te=\\E[2J\\E[?47l\\E8:ti=\\E7\\E[?47h\
@@ -1515,11 +1452,13 @@ Using \"emacs\" loses, because bash disables editing if $TERM == emacs.")
 	   (format "TERMINFO=%s" data-directory)
 	   (format term-termcap-format "TERMCAP="
 		   term-term-name term-height term-width)
-	   ;; We are going to get rid of the binding for EMACS,
-	   ;; probably in Emacs 23, because it breaks
-	   ;; `./configure' of some packages that expect it to
+
+	   ;; This is for backwards compatibility with Bash 4.3 and earlier.
+	   ;; Remove this hack once Bash 4.4-or-later is common, because
+	   ;; it breaks './configure' of some packages that expect it to
 	   ;; say where to find EMACS.
 	   (format "EMACS=%s (term:%s)" emacs-version term-protocol-version)
+
 	   (format "INSIDE_EMACS=%s,term:%s" emacs-version term-protocol-version)
 	   (format "LINES=%d" term-height)
 	   (format "COLUMNS=%d" term-width))
@@ -1664,7 +1603,7 @@ See also `term-read-input-ring'."
       (let ((ch (read-event)))
 	(if (eq ch ?\s)
 	    (set-window-configuration conf)
-	  (setq unread-command-events (list ch)))))))
+	  (push ch unread-command-events))))))
 
 
 (defun term-regexp-arg (prompt)
@@ -1934,7 +1873,7 @@ A useful command to bind to SPC.  See `term-replace-by-expanded-history'."
 (defun term-within-quotes (beg end)
   "Return t if the number of quotes between BEG and END is odd.
 Quotes are single and double."
-  (let ((countsq (term-how-many-region "\\(^\\|[^\\\\]\\)\'" beg end))
+  (let ((countsq (term-how-many-region "\\(^\\|[^\\\\]\\)'" beg end))
 	(countdq (term-how-many-region "\\(^\\|[^\\\\]\\)\"" beg end)))
     (or (= (mod countsq 2) 1) (= (mod countdq 2) 1))))
 
@@ -2193,7 +2132,7 @@ The prompt skip is done by skipping text matching the regular expression
 (defun term-read-noecho (prompt &optional stars)
   "Read a single line of text from user without echoing, and return it.
 Prompt with argument PROMPT, a string.  Optional argument STARS causes
-input to be echoed with '*' characters on the prompt line.  Input ends with
+input to be echoed with `*' characters on the prompt line.  Input ends with
 RET, LFD, or ESC.  DEL or C-h rubs out.  C-u kills line.  C-g aborts (if
 `inhibit-quit' is set because e.g. this function was called from a process
 filter and C-g is pressed, this function returns nil rather than a string).
@@ -2783,15 +2722,11 @@ See `term-prompt-regexp'."
 	(when (/= (point) (process-mark proc))
 	  (setq save-point (point-marker)))
 
-	;; Note if the window size has changed.  We used to reset
-	;; point too, but that gives incorrect results (Bug#4635).
-	(if (eq (window-buffer) (current-buffer))
-	    (progn
-	      (setq term-vertical-motion (symbol-function 'vertical-motion))
-	      (term-check-size proc))
-	  (setq term-vertical-motion
-		(symbol-function 'term-buffer-vertical-motion)))
-	(setq save-marker (copy-marker (process-mark proc)))
+        (setf term-vertical-motion
+              (if (eq (window-buffer) (current-buffer))
+                  'vertical-motion
+                'term-buffer-vertical-motion))
+        (setq save-marker (copy-marker (process-mark proc)))
 	(goto-char (process-mark proc))
 
 	(save-restriction
@@ -3093,9 +3028,7 @@ See `term-prompt-regexp'."
 		   (eq (window-buffer selected) (current-buffer)))
 	  (term-display-line (car term-pending-frame)
 			     (cdr term-pending-frame))
-	  (setq term-pending-frame nil)
-	  ;; We have created a new window, so check the window size.
-	  (term-check-size proc))
+          (setq term-pending-frame nil))
 
 	;; Scroll each window displaying the buffer but (by default)
 	;; only if the point matches the process-mark we started with.
@@ -3635,7 +3568,7 @@ all pending output has been dealt with."))
 	    (if (< down 0) term-scroll-start term-scroll-end))))
     (when (or (and (< down 0) (< scroll-needed 0))
 	      (and (> down 0) (> scroll-needed 0)))
-      (let ((save-point (copy-marker (point))) (save-top))
+      (let ((save-point (point-marker)) (save-top))
 	(goto-char term-home-marker)
 	(cond (term-scroll-with-delete
 	       (if (< down 0)
@@ -4149,7 +4082,9 @@ Typing SPC flushes the help buffer."
 	    (set-window-configuration conf))
 	(if (eq first ?\s)
 	    (set-window-configuration conf)
-	  (setq unread-command-events (listify-key-sequence key)))))))
+	  (setq unread-command-events
+                (nconc (listify-key-sequence key)
+                       unread-command-events)))))))
 
 ;; I need a make-term that doesn't surround with *s -mm
 (defun term-ansi-make-term (name program &optional startfile &rest switches)

@@ -1,6 +1,6 @@
 ;;; semantic/symref/cscope.el --- Semantic-symref support via cscope.
 
-;;; Copyright (C) 2009-2015 Free Software Foundation, Inc.
+;;; Copyright (C) 2009-2016 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <eric@siege-engine.com>
 
@@ -42,7 +42,7 @@ the hit list.
 
 See the function `cedet-cscope-search' for more details.")
 
-(defmethod semantic-symref-perform-search ((tool semantic-symref-tool-cscope))
+(cl-defmethod semantic-symref-perform-search ((tool semantic-symref-tool-cscope))
   "Perform a search with GNU Global."
   (let* ((rootproj (when (and (featurep 'ede) ede-minor-mode)
 		     (ede-toplevel)))
@@ -60,7 +60,10 @@ See the function `cedet-cscope-search' for more details.")
     (semantic-symref-parse-tool-output tool b)
     ))
 
-(defmethod semantic-symref-parse-tool-output-one-line ((tool semantic-symref-tool-cscope))
+(defconst semantic-symref-cscope--line-re
+  "^\\([^ ]+\\) [^ ]+ \\([0-9]+\\) ")
+
+(cl-defmethod semantic-symref-parse-tool-output-one-line ((tool semantic-symref-tool-cscope))
   "Parse one line of grep output, and return it as a match list.
 Moves cursor to end of the match."
   (cond ((eq (oref tool :resulttype) 'file)
@@ -78,8 +81,13 @@ Moves cursor to end of the match."
 	       ;; We have to return something at this point.
 	       subtxt)))
 	 )
-	(t
-	 (when (re-search-forward "^\\([^ ]+\\) [^ ]+ \\([0-9]+\\) " nil t)
+        ((eq (oref tool :resulttype) 'line-and-text)
+         (when (re-search-forward semantic-symref-cscope--line-re nil t)
+           (list (string-to-number (match-string 2))
+                 (expand-file-name (match-string 1))
+                 (buffer-substring-no-properties (point) (line-end-position)))))
+	(t ; :resulttype is 'line
+	 (when (re-search-forward semantic-symref-cscope--line-re nil t)
 	   (cons (string-to-number (match-string 2))
 		 (expand-file-name (match-string 1)))
 	   ))))

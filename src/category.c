@@ -1,6 +1,6 @@
 /* GNU Emacs routines to deal with category tables.
 
-Copyright (C) 1998, 2001-2015 Free Software Foundation, Inc.
+Copyright (C) 1998, 2001-2016 Free Software Foundation, Inc.
 Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
   2005, 2006, 2007, 2008, 2009, 2010, 2011
   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -13,8 +13,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -33,15 +33,13 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "character.h"
 #include "buffer.h"
-#include "charset.h"
 #include "category.h"
-#include "keymap.h"
 
 /* This setter is used only in this file, so it can be private.  */
 static void
 bset_category_table (struct buffer *b, Lisp_Object val)
 {
-  b->INTERNAL_FIELD (category_table) = val;
+  b->category_table_ = val;
 }
 
 /* The version number of the latest category table.  Each category
@@ -53,8 +51,6 @@ bset_category_table (struct buffer *b, Lisp_Object val)
 
    For the moment, we are not using this feature.  */
 static int category_table_version;
-
-static Lisp_Object Qcategory_table, Qcategoryp, Qcategorysetp, Qcategory_table_p;
 
 /* Category set staff.  */
 
@@ -96,7 +92,7 @@ those categories.  */)
   (Lisp_Object categories)
 {
   Lisp_Object val;
-  int len;
+  ptrdiff_t len;
 
   CHECK_STRING (categories);
   val = MAKE_CATEGORY_SET;
@@ -493,7 +489,7 @@ between C1 and C2.
 
 For instance, to tell that there's a word boundary between Hiragana
 and Katakana (both are in the same script `kana'),
-the element `(?H . ?K) should be in this list.  */);
+the element `(?H . ?K)' should be in this list.  */);
 
   Vword_combining_categories = Qnil;
 

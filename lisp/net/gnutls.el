@@ -1,6 +1,6 @@
 ;;; gnutls.el --- Support SSL/TLS connections through GnuTLS
 
-;; Copyright (C) 2010-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2016 Free Software Foundation, Inc.
 
 ;; Author: Ted Zlatanov <tzz@lifelogs.com>
 ;; Keywords: comm, tls, ssl, encryption
@@ -41,7 +41,7 @@
   "Emacs interface to the GnuTLS library."
   :version "24.1"
   :prefix "gnutls-"
-  :group 'net-utils)
+  :group 'comm)
 
 (defcustom gnutls-algorithm-priority nil
   "If non-nil, this should be a TLS priority string.
@@ -67,10 +67,11 @@ set this variable to \"normal:-dhe-rsa\"."
 
 (defcustom gnutls-trustfiles
   '(
-    "/etc/ssl/certs/ca-certificates.crt" ; Debian, Ubuntu, Gentoo and Arch Linux
-    "/etc/pki/tls/certs/ca-bundle.crt"   ; Fedora and RHEL
-    "/etc/ssl/ca-bundle.pem"             ; Suse
-    "/usr/ssl/certs/ca-bundle.crt"       ; Cygwin
+    "/etc/ssl/certs/ca-certificates.crt"     ; Debian, Ubuntu, Gentoo and Arch Linux
+    "/etc/pki/tls/certs/ca-bundle.crt"       ; Fedora and RHEL
+    "/etc/ssl/ca-bundle.pem"                 ; Suse
+    "/usr/ssl/certs/ca-bundle.crt"           ; Cygwin
+    "/usr/local/share/certs/ca-root-nss.crt" ; FreeBSD
     )
   "List of CA bundle location filenames or a function returning said list.
 The files may be in PEM or DER format, as per the GnuTLS documentation.
@@ -111,9 +112,9 @@ specifying a port number to connect to.
 
 Usage example:
 
-  \(with-temp-buffer
-    \(open-gnutls-stream \"tls\"
-                        \(current-buffer)
+  (with-temp-buffer
+    (open-gnutls-stream \"tls\"
+                        (current-buffer)
                         \"your server goes here\"
                         \"imaps\"))
 
@@ -189,12 +190,10 @@ here's a recent version of the list.
 It must be omitted, a number, or nil; if omitted or nil it
 defaults to GNUTLS_VERIFY_ALLOW_X509_V1_CA_CRT."
   (let* ((type (or type 'gnutls-x509pki))
-         (trustfiles (or trustfiles
-                         (delq nil
-                               (mapcar (lambda (f) (and f (file-exists-p f) f))
-                                       (if (functionp gnutls-trustfiles)
-                                           (funcall gnutls-trustfiles)
-                                         gnutls-trustfiles)))))
+	 ;; The gnutls library doesn't understand files delivered via
+	 ;; the special handlers, so ignore all files found via those.
+	 (file-name-handler-alist nil)
+         (trustfiles (or trustfiles (gnutls-trustfiles)))
          (priority-string (or priority-string
                               (cond
                                ((eq type 'gnutls-anon)
@@ -211,11 +210,13 @@ defaults to GNUTLS_VERIFY_ALLOW_X509_V1_CA_CRT."
                              t)
                             ;; if a list, look for hostname matches
                             ((listp gnutls-verify-error)
-                             (cl-mapcan
-                              (lambda (check)
-                                (when (string-match (car check) hostname)
-                                  (cdr check)))
-                              gnutls-verify-error))
+                             (apply 'append
+                                    (mapcar
+                                     (lambda (check)
+                                       (when (string-match (nth 0 check)
+                                                           hostname)
+                                         (nth 1 check)))
+                                     gnutls-verify-error)))
                             ;; else it's nil
                             (t nil))))
          (min-prime-bits (or min-prime-bits gnutls-min-prime-bits))
@@ -245,6 +246,14 @@ defaults to GNUTLS_VERIFY_ALLOW_X509_V1_CA_CRT."
 
     process))
 
+(defun gnutls-trustfiles ()
+  "Return a list of usable trustfiles."
+  (delq nil
+        (mapcar (lambda (f) (and f (file-exists-p f) f))
+                (if (functionp gnutls-trustfiles)
+                    (funcall gnutls-trustfiles)
+                  gnutls-trustfiles))))
+
 (declare-function gnutls-error-string "gnutls.c" (error))
 
 (defun gnutls-message-maybe (doit format &rest params)
@@ -254,7 +263,7 @@ defaults to GNUTLS_VERIFY_ALLOW_X509_V1_CA_CRT."
     (message "%s: (err=[%s] %s) %s"
              "gnutls.el"
              doit (gnutls-error-string doit)
-             (apply 'format format (or params '(nil))))))
+             (apply #'format-message format (or params '(nil))))))
 
 (provide 'gnutls)
 

@@ -1,12 +1,12 @@
 /* Definitions and headers for communication on the Microsoft Windows API.
-   Copyright (C) 1995, 2001-2015 Free Software Foundation, Inc.
+   Copyright (C) 1995, 2001-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,13 +22,10 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "systime.h" /* for Time */
 
-/* Local memory management for menus.  */
+/* FIXME: old local memory management for menus.  */
 #define local_heap (GetProcessHeap ())
 #define local_alloc(n) (HeapAlloc (local_heap, HEAP_ZERO_MEMORY, (n)))
 #define local_free(p) (HeapFree (local_heap, 0, ((LPVOID) (p))))
-
-#define malloc_widget_value() ((widget_value *) local_alloc (sizeof (widget_value)))
-#define free_widget_value(wv) (local_free ((wv)))
 
 /* Emulate X GC's by keeping color and font info in a structure.  */
 typedef struct _XGCValues

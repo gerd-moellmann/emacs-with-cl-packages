@@ -1,12 +1,12 @@
 /* Dump Emacs in Mach-O format for use on Mac OS X.
-   Copyright (C) 2001-2015 Free Software Foundation, Inc.
+   Copyright (C) 2001-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -99,17 +99,17 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "unexec.h"
 #include "lisp.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <mach/mach.h>
+#include <mach/vm_map.h>
 #include <mach-o/loader.h>
 #include <mach-o/reloc.h>
-#if defined (__ppc__)
-#include <mach-o/ppc/reloc.h>
-#endif
 #ifdef HAVE_MALLOC_MALLOC_H
 #include <malloc/malloc.h>
 #else
@@ -219,10 +219,27 @@ unexec_read (void *dest, size_t n)
 static int
 unexec_write (off_t dest, const void *src, size_t count)
 {
+  task_t task = mach_task_self();
+  if (task == MACH_PORT_NULL || task == MACH_PORT_DEAD)
+    return false;
+
   if (lseek (outfd, dest, SEEK_SET) != dest)
     return 0;
 
-  return write (outfd, src, count) == count;
+  /* We use the Mach virtual memory API to read our process memory
+     because using src directly would be undefined behavior and fails
+     under Address Sanitizer.  */
+  bool success = false;
+  vm_offset_t data;
+  mach_msg_type_number_t data_count;
+  if (vm_read (task, (uintptr_t) src, count, &data, &data_count)
+      == KERN_SUCCESS)
+    {
+      success =
+        write (outfd, (const void *) (uintptr_t) data, data_count) == count;
+      vm_deallocate (task, data, data_count);
+    }
+  return success;
 }
 
 /* Write COUNT bytes of zeros to outfd starting at offset DEST.
@@ -826,7 +843,6 @@ copy_data_segment (struct load_command *lc)
 	 file.  */
       if (strncmp (sectp->sectname, SECT_DATA, 16) == 0)
 	{
-	  extern char my_edata[];
 	  unsigned long my_size;
 
 	  /* The __data section is basically dumped from memory.  But
@@ -857,7 +873,6 @@ copy_data_segment (struct load_command *lc)
 	}
       else if (strncmp (sectp->sectname, SECT_BSS, 16) == 0)
 	{
-	  extern char *my_endbss_static;
 	  unsigned long my_size;
 
 	  sectp->flags = S_REGULAR;
@@ -1075,52 +1090,14 @@ unrelocate (const char *name, off_t reloff, int nrel, vm_address_t base)
 			  name, i, reloc_info.r_type);
 	  }
       else
-	switch (sc_reloc_info->r_type)
-	  {
-#if defined (__ppc__)
-	  case PPC_RELOC_PB_LA_PTR:
-	    /* nothing to do for prebound lazy pointer */
-	    break;
-#endif
-	  default:
-	    unexec_error ("unrelocate: %s:%d cannot handle scattered type = %d",
-			  name, i, sc_reloc_info->r_type);
-	  }
+        unexec_error ("unrelocate: %s:%d cannot handle scattered type = %d",
+                      name, i, sc_reloc_info->r_type);
     }
 
   if (nrel > 0)
     printf ("Fixed up %d/%d %s relocation entries in data segment.\n",
 	    unreloc_count, nrel, name);
 }
-
-#if __ppc64__
-/* Rebase r_address in the relocation table.  */
-static void
-rebase_reloc_address (off_t reloff, int nrel, long linkedit_delta, long diff)
-{
-  int i;
-  struct relocation_info reloc_info;
-  struct scattered_relocation_info *sc_reloc_info
-    = (struct scattered_relocation_info *) &reloc_info;
-
-  for (i = 0; i < nrel; i++, reloff += sizeof (reloc_info))
-    {
-      if (lseek (infd, reloff - linkedit_delta, L_SET)
-	  != reloff - linkedit_delta)
-	unexec_error ("rebase_reloc_table: cannot seek to reloc_info");
-      if (!unexec_read (&reloc_info, sizeof (reloc_info)))
-	unexec_error ("rebase_reloc_table: cannot read reloc_info");
-
-      if (sc_reloc_info->r_scattered == 0
-	  && reloc_info.r_type == GENERIC_RELOC_VANILLA)
-	{
-	  reloc_info.r_address -= diff;
-	  if (!unexec_write (reloff, &reloc_info, sizeof (reloc_info)))
-	    unexec_error ("rebase_reloc_table: cannot write reloc_info");
-	}
-    }
-}
-#endif
 
 /* Copy a LC_DYSYMTAB load command from the input file to the output
    file, adjusting the file offset fields.  */
@@ -1131,28 +1108,8 @@ copy_dysymtab (struct load_command *lc, long delta)
   vm_address_t base;
 
 #ifdef _LP64
-#if __ppc64__
-  {
-    int i;
-
-    base = 0;
-    for (i = 0; i < nlc; i++)
-      if (lca[i]->cmd == LC_SEGMENT)
-	{
-	  struct segment_command *scp = (struct segment_command *) lca[i];
-
-	  if (scp->vmaddr + scp->vmsize > 0x100000000
-	      && (scp->initprot & VM_PROT_WRITE) != 0)
-	    {
-	      base = data_segment_scp->vmaddr;
-	      break;
-	    }
-	}
-  }
-#else
   /* First writable segment address.  */
   base = data_segment_scp->vmaddr;
-#endif
 #else
   /* First segment address in the file (unless MH_SPLIT_SEGS set). */
   base = 0;
@@ -1178,29 +1135,6 @@ copy_dysymtab (struct load_command *lc, long delta)
     unexec_error ("cannot write symtab command to header");
 
   curr_header_offset += lc->cmdsize;
-
-#if __ppc64__
-  /* Check if the relocation base needs to be changed.  */
-  if (base == 0)
-    {
-      vm_address_t newbase = 0;
-      int i;
-
-      for (i = 0; i < num_unexec_regions; i++)
-	if (unexec_regions[i].range.address + unexec_regions[i].range.size
-	    > 0x100000000)
-	  {
-	    newbase = data_segment_scp->vmaddr;
-	    break;
-	  }
-
-      if (newbase)
-	{
-	  rebase_reloc_address (dstp->locreloff, dstp->nlocrel, delta, newbase);
-	  rebase_reloc_address (dstp->extreloff, dstp->nextrel, delta, newbase);
-	}
-    }
-#endif
 }
 
 /* Copy a LC_TWOLEVEL_HINTS load command from the input file to the output
@@ -1394,14 +1328,14 @@ unexec (const char *outfile, const char *infile)
   infd = emacs_open (infile, O_RDONLY, 0);
   if (infd < 0)
     {
-      unexec_error ("cannot open input file `%s'", infile);
+      unexec_error ("%s: %s", infile, strerror (errno));
     }
 
-  outfd = emacs_open (outfile, O_WRONLY | O_TRUNC | O_CREAT, 0755);
+  outfd = emacs_open (outfile, O_WRONLY | O_TRUNC | O_CREAT, 0777);
   if (outfd < 0)
     {
       emacs_close (infd);
-      unexec_error ("cannot open output file `%s'", outfile);
+      unexec_error ("%s: %s", outfile, strerror (errno));
     }
 
   build_region_list ();

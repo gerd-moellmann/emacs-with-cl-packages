@@ -1,5 +1,5 @@
 /* GNU Emacs routines to deal with case tables.
-   Copyright (C) 1993-1994, 2001-2015 Free Software Foundation, Inc.
+   Copyright (C) 1993-1994, 2001-2016 Free Software Foundation, Inc.
 
 Author: Howard Gayle
 
@@ -7,8 +7,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -21,10 +21,8 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <config.h>
 
 #include "lisp.h"
-#include "character.h"
 #include "buffer.h"
 
-static Lisp_Object Qcase_table_p, Qcase_table;
 Lisp_Object Vascii_downcase_table;
 static Lisp_Object Vascii_upcase_table;
 Lisp_Object Vascii_canon_table;

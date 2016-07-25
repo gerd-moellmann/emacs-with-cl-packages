@@ -1,6 +1,6 @@
 /* Utility and Unix shadow routines for GNU Emacs support programs on NT.
 
-Copyright (C) 1994, 2001-2015 Free Software Foundation, Inc.
+Copyright (C) 1994, 2001-2016 Free Software Foundation, Inc.
 
 Author: Geoff Voelker (voelker@cs.washington.edu)
 Created: 10-8-94
@@ -9,8 +9,8 @@ This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -302,7 +302,7 @@ is_exec (const char * name)
 	 stricmp (p, ".cmd") == 0));
 }
 
-/* FIXME?  This is in config.nt now - is this still needed?  */
+/* FIXME?  This is in configure.ac now - is this still needed?  */
 #define IS_DIRECTORY_SEP(x) ((x) == '/' || (x) == '\\')
 
 /* We need this because nt/inc/sys/stat.h defines struct stat that is

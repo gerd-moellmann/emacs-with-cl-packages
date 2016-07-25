@@ -6,8 +6,8 @@ This file is part of GNU Emacs Mac port.
 
 GNU Emacs Mac port is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs Mac port is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,14 +25,11 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "lisp.h"
 #include "keyboard.h"
-#include "keymap.h"
 #include "frame.h"
 #include "termhooks.h"
 #include "window.h"
 #include "blockinput.h"
-#include "character.h"
 #include "buffer.h"
-#include "charset.h"
 #include "coding.h"
 
 /* This may include sys/types.h, and that somehow loses
@@ -45,27 +42,22 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <sys/types.h>
 #endif
 
-#include "dispextern.h"
-
 #undef HAVE_MULTILINGUAL_MENU
 
 #include "menu.h"
-
-static Lisp_Object Qdebug_on_next_call;
 
 extern void mac_fill_menubar (widget_value *, bool);
 extern int create_and_show_popup_menu (struct frame *, widget_value *,
 				       int, int, bool);
 extern int create_and_show_dialog (struct frame *, widget_value *);
 
-static Lisp_Object mac_dialog_show (struct frame *, bool, Lisp_Object,
-				    Lisp_Object, const char **);
 
 /* Nonzero means a menu is currently active.  */
 int popup_activated_flag;
 
 
-DEFUN ("x-menu-bar-open-internal", Fx_menu_bar_open_internal, Sx_menu_bar_open_internal, 0, 1, "i",
+DEFUN ("mac-menu-bar-open-internal", Fmac_menu_bar_open_internal,
+       Smac_menu_bar_open_internal, 0, 1, "i",
        doc: /* Start key navigation of the menu bar in FRAME.
 This initially opens the first menu bar item and you can then navigate with the
 arrow keys, select a menu entry with the return key or cancel with the
@@ -77,7 +69,7 @@ If FRAME is nil or not given, use the selected frame.  */)
   int selection;
   struct frame *f = decode_window_system_frame (frame);
 
-  set_frame_menubar (f, 0, 1);
+  set_frame_menubar (f, false, true);
   block_input ();
   selection = mac_activate_menubar (f);
   unblock_input ();
@@ -108,7 +100,7 @@ x_activate_menubar (struct frame *f)
 
   eassert (FRAME_MAC_P (f));
 
-  set_frame_menubar (f, 0, 1);
+  set_frame_menubar (f, false, true);
   block_input ();
   selection = mac_activate_menubar (f);
   unblock_input ();
@@ -140,7 +132,7 @@ set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
   /* This seems to be unnecessary for Carbon.  */
 #if 0
   if (! menubar_widget)
-    deep_p = 1;
+    deep_p = true;
 #endif
 
   if (deep_p)
@@ -231,12 +223,8 @@ set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
       /* Convert menu_items into widget_value trees
 	 to display the menu.  This cannot evaluate Lisp code.  */
 
-      wv = xmalloc_widget_value ();
-      wv->name = "menubar";
-      wv->value = 0;
-      wv->enabled = 1;
+      wv = make_widget_value ("menubar", NULL, true, Qnil);
       wv->button_type = BUTTON_TYPE_NONE;
-      wv->help = Qnil;
       first_wv = wv;
 
       for (i = 0; submenu_start[i] >= 0; i++)
@@ -249,7 +237,7 @@ set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
 	  else
 	    first_wv->contents = wv;
 	  /* Don't set wv->name here; GC during the loop might relocate it.  */
-	  wv->enabled = 1;
+	  wv->enabled = true;
 	  wv->button_type = BUTTON_TYPE_NONE;
 	  prev_wv = wv;
 	}
@@ -301,12 +289,8 @@ set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
       /* Make a widget-value tree containing
 	 just the top level menu bar strings.  */
 
-      wv = xmalloc_widget_value ();
-      wv->name = "menubar";
-      wv->value = 0;
-      wv->enabled = 1;
+      wv = make_widget_value ("menubar", NULL, true, Qnil);
       wv->button_type = BUTTON_TYPE_NONE;
-      wv->help = Qnil;
       first_wv = wv;
 
       items = FRAME_MENU_BAR_ITEMS (f);
@@ -318,12 +302,8 @@ set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
 	  if (NILP (string))
 	    break;
 
-	  wv = xmalloc_widget_value ();
-	  wv->name = SSDATA (string);
-	  wv->value = 0;
-	  wv->enabled = 1;
+	  wv = make_widget_value (SSDATA (string), NULL, true, Qnil);
 	  wv->button_type = BUTTON_TYPE_NONE;
-	  wv->help = Qnil;
 	  /* This prevents lwlib from assuming this
 	     menu item is really supposed to be empty.  */
 	  /* The intptr_t cast avoids a warning.
@@ -374,8 +354,9 @@ free_frame_menubar (struct frame *f)
 /* F is the frame the menu is for.
    X and Y are the frame-relative specified position,
    relative to the inside upper left corner of the frame F.
-   FOR_CLICK is 1 if this menu was invoked for a mouse click.
-   KEYMAPS is true if this menu was specified with keymaps;
+   Bitfield MENUFLAGS bits are:
+   MENU_FOR_CLICK is set if this menu was invoked for a mouse click.
+   MENU_KEYMAPS is set if this menu was specified with keymaps;
     in that case, we return a list containing the chosen item's value
     and perhaps also the pane's prefix.
    TITLE is the specified menu title.
@@ -383,7 +364,7 @@ free_frame_menubar (struct frame *f)
    (We return nil on failure, but the value doesn't actually matter.)  */
 
 Lisp_Object
-mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
+mac_menu_show (struct frame *f, int x, int y, int menuflags,
 	       Lisp_Object title, const char **error_name)
 {
   int i, selection;
@@ -393,8 +374,6 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
   Lisp_Object *subprefix_stack
     = alloca (menu_items_used * sizeof *subprefix_stack);
   int submenu_depth = 0;
-
-  int first_pane;
 
   eassert (FRAME_MAC_P (f));
 
@@ -413,14 +392,10 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
 
   /* Create a tree of widget_value objects
      representing the panes and their items.  */
-  wv = xmalloc_widget_value ();
-  wv->name = "menu";
-  wv->value = 0;
-  wv->enabled = true;
+  wv = make_widget_value ("menu", NULL, true, Qnil);
   wv->button_type = BUTTON_TYPE_NONE;
-  wv->help = Qnil;
   first_wv = wv;
-  first_pane = 1;
+  bool first_pane = true;
 
   /* Loop over all panes and items, filling in the tree.  */
   i = 0;
@@ -431,14 +406,14 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
 	  submenu_stack[submenu_depth++] = save_wv;
 	  save_wv = prev_wv;
 	  prev_wv = 0;
-	  first_pane = 1;
+	  first_pane = true;
 	  i++;
 	}
       else if (EQ (AREF (menu_items, i), Qlambda))
 	{
 	  prev_wv = save_wv;
 	  save_wv = submenu_stack[--submenu_depth];
-	  first_pane = 0;
+	  first_pane = false;
 	  i++;
 	}
       else if (EQ (AREF (menu_items, i), Qt)
@@ -474,20 +449,16 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
 	  /* If the pane has a meaningful name,
 	     make the pane a top-level menu item
 	     with its items as a submenu beneath it.  */
-	  if (!keymaps && strcmp (pane_string, ""))
+	  if (!(menuflags & MENU_KEYMAPS) && strcmp (pane_string, ""))
 	    {
-	      wv = xmalloc_widget_value ();
+	      wv = make_widget_value (pane_string, NULL, true, Qnil);
 	      if (save_wv)
 		save_wv->next = wv;
 	      else
 		first_wv->contents = wv;
-	      wv->name = pane_string;
-	      if (keymaps && !NILP (prefix))
+	      if ((menuflags & MENU_KEYMAPS) && !NILP (prefix))
 		wv->name++;
-	      wv->value = 0;
-	      wv->enabled = 1;
 	      wv->button_type = BUTTON_TYPE_NONE;
-	      wv->help = Qnil;
 	      save_wv = wv;
 	      prev_wv = 0;
 	    }
@@ -496,7 +467,7 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
 	      save_wv = wv;
 	      prev_wv = 0;
 	    }
-	  first_pane = 0;
+	  first_pane = false;
 	  i += MENU_ITEMS_PANE_LENGTH;
 	}
       else
@@ -525,19 +496,17 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
 	    }
 #endif /* not HAVE_MULTILINGUAL_MENU */
 
-	  wv = xmalloc_widget_value ();
+	  wv = make_widget_value (SSDATA (item_name), NULL, !NILP (enable),
+				  STRINGP (help) ? help : Qnil);
 	  if (prev_wv)
 	    prev_wv->next = wv;
 	  else
 	    save_wv->contents = wv;
-	  wv->name = SSDATA (item_name);
 	  if (!NILP (descrip))
 	    wv->key = SSDATA (descrip);
-	  wv->value = 0;
 	  /* Use the contents index as call_data, since we are
              restricted to 16-bits.  */
 	  wv->call_data = !NILP (def) ? (void *) (intptr_t) i : 0;
-	  wv->enabled = !NILP (enable);
 
 	  if (NILP (type))
 	    wv->button_type = BUTTON_TYPE_NONE;
@@ -550,11 +519,6 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
 
 	  wv->selected = !NILP (selected);
 
-          if (! STRINGP (help))
-	    help = Qnil;
-
-	  wv->help = help;
-
 	  prev_wv = wv;
 
 	  i += MENU_ITEMS_ITEM_LENGTH;
@@ -564,30 +528,25 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
   /* Deal with the title, if it is non-nil.  */
   if (!NILP (title))
     {
-      widget_value *wv_title = xmalloc_widget_value ();
-      widget_value *wv_sep = xmalloc_widget_value ();
+      widget_value *wv_title;
+      widget_value *wv_sep = make_widget_value ("--", NULL, false, Qnil);
 
-      /* Maybe replace this separator with a bitmap or owner-draw item
-	 so that it looks better.  Having two separators looks odd.  */
-      wv_sep->name = "--";
       wv_sep->next = first_wv->contents;
-      wv_sep->help = Qnil;
 
 #ifndef HAVE_MULTILINGUAL_MENU
       if (STRING_MULTIBYTE (title))
 	title = ENCODE_MENU_STRING (title);
 #endif
 
-      wv_title->name = SSDATA (title);
-      wv_title->enabled = 0;
+      wv_title = make_widget_value (SSDATA (title), NULL, false, Qnil);
       wv_title->button_type = BUTTON_TYPE_NONE;
-      wv_title->help = Qnil;
       wv_title->next = wv_sep;
       first_wv->contents = wv_title;
     }
 
   /* Actually create and show the menu until popped down.  */
-  selection = create_and_show_popup_menu (f, first_wv, x, y, for_click);
+  selection = create_and_show_popup_menu (f, first_wv, x, y,
+					  menuflags & MENU_FOR_CLICK);
 
   /* Free the widget_value objects we used to specify the contents.  */
   free_menubar_widget_value_tree (first_wv);
@@ -629,7 +588,7 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
 		= AREF (menu_items, i + MENU_ITEMS_ITEM_VALUE);
 	      if (selection == i)
 		{
-		  if (keymaps)
+		  if (menuflags & MENU_KEYMAPS)
 		    {
 		      int j;
 
@@ -647,7 +606,7 @@ mac_menu_show (struct frame *f, int x, int y, bool for_click, bool keymaps,
 	    }
 	}
     }
-  else if (!for_click)
+  else if (!(menuflags & MENU_FOR_CLICK))
     {
       unblock_input ();
       /* Make "Cancel" equivalent to C-g.  */
@@ -672,11 +631,8 @@ cleanup_widget_value_tree (void *arg)
 }
 
 static Lisp_Object
-mac_dialog_show (struct frame *f,
-		 bool keymaps,
-		 Lisp_Object title,
-		 Lisp_Object header,
-		 const char **error_name)
+mac_dialog_show (struct frame *f, Lisp_Object title,
+		 Lisp_Object header, const char **error_name)
 {
   int i, selection, nb_buttons=0;
   char dialog_name[6];
@@ -685,8 +641,8 @@ mac_dialog_show (struct frame *f,
 
   /* Number of elements seen so far, before boundary.  */
   int left_count = 0;
-  /* 1 means we've seen the boundary between left-hand elts and right-hand.  */
-  int boundary_seen = 0;
+  /* Whether we've seen the boundary between left-hand elts and right-hand.  */
+  bool boundary_seen = false;
 
   ptrdiff_t specpdl_count = SPECPDL_INDEX ();
 
@@ -703,19 +659,12 @@ mac_dialog_show (struct frame *f,
   /* Create a tree of widget_value objects
      representing the text label and buttons.  */
   {
-    Lisp_Object pane_name, prefix;
+    Lisp_Object pane_name;
     const char *pane_string;
     pane_name = AREF (menu_items, MENU_ITEMS_PANE_NAME);
-    prefix = AREF (menu_items, MENU_ITEMS_PANE_PREFIX);
     pane_string = (NILP (pane_name)
 		   ? "" : SSDATA (pane_name));
-    prev_wv = xmalloc_widget_value ();
-    prev_wv->value = pane_string;
-    if (keymaps && !NILP (prefix))
-      prev_wv->name++;
-    prev_wv->enabled = 1;
-    prev_wv->name = "message";
-    prev_wv->help = Qnil;
+    prev_wv = make_widget_value ("message", (char *) pane_string, true, Qnil);
     first_wv = prev_wv;
 
     /* Loop over all panes and items, filling in the tree.  */
@@ -740,7 +689,7 @@ mac_dialog_show (struct frame *f,
 	  {
 	    /* This is the boundary between left-side elts
 	       and right-side elts.  Stop incrementing right_count.  */
-	    boundary_seen = 1;
+	    boundary_seen = true;
 	    i++;
 	    continue;
 	  }
@@ -751,16 +700,14 @@ mac_dialog_show (struct frame *f,
 	    return Qnil;
 	  }
 
-	wv = xmalloc_widget_value ();
+	wv = make_widget_value (button_names[nb_buttons],
+				SSDATA (item_name),
+				!NILP (enable), Qnil);
 	prev_wv->next = wv;
-	wv->name = button_names[nb_buttons];
 	if (!NILP (descrip))
 	  wv->key = SSDATA (descrip);
-	wv->value = SSDATA (item_name);
 	wv->call_data = (void *) (intptr_t) i;
 	  /* menu item is identified by its index in menu_items table */
-	wv->enabled = !NILP (enable);
-	wv->help = Qnil;
 	prev_wv = wv;
 
 	if (! boundary_seen)
@@ -775,9 +722,7 @@ mac_dialog_show (struct frame *f,
     if (! boundary_seen)
       left_count = nb_buttons - nb_buttons / 2;
 
-    wv = xmalloc_widget_value ();
-    wv->name = dialog_name;
-    wv->help = Qnil;
+    wv = make_widget_value (dialog_name, NULL, false, Qnil);
 
     /*  Frame title: 'Q' = Question, 'I' = Information.
         Can also have 'E' = Error if, one day, we want
@@ -813,20 +758,13 @@ mac_dialog_show (struct frame *f,
      the proper value.  */
   if (selection != 0)
     {
-      Lisp_Object prefix;
-
-      prefix = Qnil;
       i = 0;
       while (i < menu_items_used)
 	{
 	  Lisp_Object entry;
 
 	  if (EQ (AREF (menu_items, i), Qt))
-	    {
-	      prefix
-		= AREF (menu_items, i + MENU_ITEMS_PANE_PREFIX);
-	      i += MENU_ITEMS_PANE_LENGTH;
-	    }
+	    i += MENU_ITEMS_PANE_LENGTH;
 	  else if (EQ (AREF (menu_items, i), Qquote))
 	    {
 	      /* This is the boundary between left-side elts and
@@ -838,15 +776,7 @@ mac_dialog_show (struct frame *f,
 	      entry
 		= AREF (menu_items, i + MENU_ITEMS_ITEM_VALUE);
 	      if (selection == i)
-		{
-		  if (keymaps)
-		    {
-		      entry = list1 (entry);
-		      if (!NILP (prefix))
-			entry = Fcons (prefix, entry);
-		    }
-		  return entry;
-		}
+		return entry;
 	      i += MENU_ITEMS_ITEM_LENGTH;
 	    }
 	}
@@ -877,7 +807,7 @@ mac_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
 
   /* Display them in a dialog box.  */
   block_input ();
-  selection = mac_dialog_show (f, 0, title, header, &error_name);
+  selection = mac_dialog_show (f, title, header, &error_name);
   unblock_input ();
 
   unbind_to (specpdl_count, Qnil);
@@ -905,7 +835,7 @@ name_is_separator (const char *name)
 
 /* Detect if a menu is currently active.  */
 
-int ATTRIBUTE_CONST
+int
 popup_activated (void)
 {
   return popup_activated_flag;
@@ -924,25 +854,20 @@ void
 syms_of_macmenu (void)
 {
   DEFSYM (Qdebug_on_next_call, "debug-on-next-call");
-
   defsubr (&Smenu_or_popup_active_p);
 
-  defsubr (&Sx_menu_bar_open_internal);
+  defsubr (&Smac_menu_bar_open_internal);
   Ffset (intern_c_string ("accelerate-menu"),
-	 intern_c_string (Sx_menu_bar_open_internal.symbol_name));
+	 intern_c_string (Smac_menu_bar_open_internal.symbol_name));
 
   DEFVAR_LISP ("mac-help-topics", Vmac_help_topics,
     doc: /* List of strings shown as Help topics by Help menu search.
 Each element should be a unibyte string in UTF-8.  The special value t
-means not to recalculate help topics.  This customizable Help menu
-search feature works only when compiled and run on Mac OS X 10.6 and
-later, and otherwise the value is kept to t so as to avoid needless
-recalculation.  */);
+means not to recalculate help topics.  */);
   Vmac_help_topics = Qt;
 
   DEFVAR_BOOL ("mac-popup-menu-add-contextual-menu",
 	       mac_popup_menu_add_contextual_menu,
-    doc: /* Non-nil means contextual menu is added to popup menu.
-This works on OS X 10.6 and later.  */);
+    doc: /* Non-nil means contextual menu is added to popup menu.  */);
   mac_popup_menu_add_contextual_menu = 0;
 }

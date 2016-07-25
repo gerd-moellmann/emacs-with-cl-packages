@@ -6,8 +6,8 @@ This file is part of GNU Emacs Mac port.
 
 GNU Emacs Mac port is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs Mac port is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -31,19 +31,15 @@ typedef Lisp_Object XrmDatabase;
 #undef free
 #undef malloc
 #undef realloc
+#ifdef INFINITY
+#define INFINITY_DEFINED 1
+#endif
 /* Macros max and min defined in lisp.h conflict with those in
    precompiled header Carbon.h.  */
 #undef max
 #undef min
 #define __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES 0
 #include <Carbon/Carbon.h>
-#ifdef check /* __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES is
-		not in effect.  */
-#undef check
-#undef verify
-#undef _GL_VERIFY_H
-#include <verify.h>
-#endif
 #undef free
 #define free unexec_free
 #undef malloc
@@ -54,16 +50,12 @@ typedef Lisp_Object XrmDatabase;
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #undef max
 #define max(a, b) ((a) > (b) ? (a) : (b))
+#ifndef INFINITY_DEFINED
 #undef INFINITY
+#endif
 #undef Z
 #define Z (current_buffer->text->z)
 #undef ALIGN
-
-#ifndef CGFLOAT_DEFINED
-typedef float CGFloat;
-#define CGFLOAT_MIN FLT_MIN
-#define CGFLOAT_MAX FLT_MAX
-#endif
 
 #ifndef CF_NOESCAPE
 #if __has_attribute (noescape)
@@ -103,10 +95,8 @@ typedef CGGlyph XChar2b;
   ((*(chp)) & 0x00ff)
 
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 #ifndef DRAWING_USE_GCD
 #define DRAWING_USE_GCD 1
-#endif
 #endif
 
 /* Emulate X GC's by keeping color info in a structure.  */

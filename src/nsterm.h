@@ -1,13 +1,13 @@
 /* Definitions and headers for communication with NeXT/Open/GNUstep API.
-   Copyright (C) 1989, 1993, 2005, 2008-2015 Free Software Foundation,
+   Copyright (C) 1989, 1993, 2005, 2008-2016 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,12 +27,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifdef HAVE_NS
 
 #ifdef NS_IMPL_COCOA
-#ifndef MAC_OS_X_VERSION_10_4
-#define MAC_OS_X_VERSION_10_4 1040
-#endif
-#ifndef MAC_OS_X_VERSION_10_5
-#define MAC_OS_X_VERSION_10_5 1050
-#endif
 #ifndef MAC_OS_X_VERSION_10_6
 #define MAC_OS_X_VERSION_10_6 1060
 #endif
@@ -58,26 +52,306 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
    versions.
    On Cocoa >= 10.5, functions expect CGFloat*. Make compatible type.  */
 #ifdef NS_IMPL_COCOA
-
-#ifndef NS_HAVE_NSINTEGER
-#if defined (__LP64__) && __LP64__
-typedef double CGFloat;
-typedef long NSInteger;
-typedef unsigned long NSUInteger;
-#else
-typedef float CGFloat;
-typedef int NSInteger;
-typedef unsigned int NSUInteger;
-#endif /* not LP64 */
-#endif /* not NS_HAVE_NSINTEGER */
-
 typedef CGFloat EmacsCGFloat;
-
 #elif GNUSTEP_GUI_MAJOR_VERSION > 0 || GNUSTEP_GUI_MINOR_VERSION >= 22
 typedef CGFloat EmacsCGFloat;
 #else
 typedef float EmacsCGFloat;
 #endif
+
+/* ==========================================================================
+
+   Trace support
+
+   ========================================================================== */
+
+/* Uncomment the following line to enable trace.
+
+   Uncomment suitable NSTRACE_GROUP_xxx lines to trace more.
+
+   Hint: keep the trailing whitespace -- the version control system
+   will reject accidental commits. */
+
+/* #define NSTRACE_ENABLED 1          */
+
+
+/* When non-zero, trace output is enabled for all parts, except those
+   explicitly disabled. */
+/* #define NSTRACE_ALL_GROUPS     1     */
+
+/* When non-zero, trace output is enabled in the corresponding part. */
+/* #define NSTRACE_GROUP_EVENTS  1     */
+/* #define NSTRACE_GROUP_UPDATES 1     */
+/* #define NSTRACE_GROUP_FRINGE  1     */
+/* #define NSTRACE_GROUP_COLOR   1     */
+/* #define NSTRACE_GROUP_GLYPHS  1     */
+/* #define NSTRACE_GROUP_FOCUS   1     */
+
+
+/* Print a call tree containing all annotated functions.
+
+   The call structure of the functions is represented using
+   indentation and vertical lines.  Extra information is printed using
+   horizontal lines that connect to the vertical line.
+
+   The return value is represented using the arrow "->>".  For simple
+   functions, the arrow can be printed on the same line as the
+   function name.  If more output is printed, it is connected to the
+   vertical line of the function.
+
+   The first column contains the file name, the second the line
+   number, and the third a number increasing for each trace line.
+
+   Note, when trace output from several threads are mixed, the output
+   can become misaligned, as all threads (currently) share one state.
+   This is post prominent when the EVENTS part is enabled.
+
+   Note that the trace system, when enabled, use the GCC/Clang
+   "cleanup" extension. */
+
+/*   For example, the following is the output of `M-x
+     toggle-frame-maximized RET'.
+
+     (Long lines manually split to reduced width):
+
+nsterm.m  : 1608: [  354]  ns_fullscreen_hook
+nsterm.m  : 7180: [  355]  | [EmacsView handleFS]
+nsterm.m  : 7209: [  356]  | +--- FULLSCREEN_MAXIMIZED
+nsterm.m  : 7706: [  357]  | | [EmacsWindow performZoom:]
+nsterm.m  : 7715: [  358]  | | | [EmacsWindow zoom:]
+nsterm.m  :  882: [  359]  | | | | ns_update_auto_hide_menu_bar
+nsterm.m  : 6752: [  360]  | | | |
+  [EmacsView windowWillUseStandardFrame:defaultFrame:(X:0 Y:0)/(W:1600 H:1177)]
+nsterm.m  : 6753: [  361]  | | | | +--- fs_state: FULLSCREEN_NONE
+nsterm.m  : 6754: [  362]  | | | | +--- fs_before_fs: -1
+nsterm.m  : 6755: [  363]  | | | | +--- next_maximized: FULLSCREEN_MAXIMIZED
+nsterm.m  : 6756: [  364]  | | | | +--- ns_userRect: (X:0 Y:0)/(W:0 H:0)
+nsterm.m  : 6757: [  365]  | | | | +---
+                                      [sender frame]: (X:0 Y:626)/(W:595 H:551)
+nsterm.m  : 6781: [  366]  | | | | +---
+                                     ns_userRect (2): (X:0 Y:626)/(W:595 H:551)
+nsterm.m  : 6821: [  367]  | | | | +--- FULLSCREEN_MAXIMIZED
+nsterm.m  : 7232: [  368]  | | | | |
+                                    [EmacsView setFSValue:FULLSCREEN_MAXIMIZED]
+nsterm.m  : 6848: [  369]  | | | | +---
+                                   Final ns_userRect: (X:0 Y:626)/(W:595 H:551)
+nsterm.m  : 6849: [  370]  | | | | +--- Final maximized_width: 1600
+nsterm.m  : 6850: [  371]  | | | | +--- Final maximized_height: 1177
+nsterm.m  : 6851: [  372]  | | | | +--- Final next_maximized: -1
+nsterm.m  : 6322: [  373]  | | | | |
+                           [EmacsView windowWillResize:toSize: (W:1600 H:1177)]
+nsterm.m  : 6323: [  374]  | | | | | +---
+                                      [sender frame]: (X:0 Y:626)/(W:595 H:551)
+nsterm.m  : 6324: [  375]  | | | | | +--- fs_state: FULLSCREEN_MAXIMIZED
+nsterm.m  : 7027: [  376]  | | | | | | [EmacsView isFullscreen]
+nsterm.m  : 6387: [  377]  | | | | | +--- cols: 223  rows: 79
+nsterm.m  : 6412: [  378]  | | | | | +->> (W:1596 H:1167)
+nsterm.m  : 6855: [  379]  | | | | +->> (X:0 Y:0)/(W:1600 H:1177)
+*/
+
+#ifndef NSTRACE_ENABLED
+#define NSTRACE_ENABLED 0
+#endif
+
+#if NSTRACE_ENABLED
+
+#ifndef NSTRACE_ALL_GROUPS
+#define NSTRACE_ALL_GROUPS 0
+#endif
+
+#ifndef NSTRACE_GROUP_EVENTS
+#define NSTRACE_GROUP_EVENTS NSTRACE_ALL_GROUPS
+#endif
+
+#ifndef NSTRACE_GROUP_UPDATES
+#define NSTRACE_GROUP_UPDATES NSTRACE_ALL_GROUPS
+#endif
+
+#ifndef NSTRACE_GROUP_FRINGE
+#define NSTRACE_GROUP_FRINGE NSTRACE_ALL_GROUPS
+#endif
+
+#ifndef NSTRACE_GROUP_COLOR
+#define NSTRACE_GROUP_COLOR NSTRACE_ALL_GROUPS
+#endif
+
+#ifndef NSTRACE_GROUP_GLYPHS
+#define NSTRACE_GROUP_GLYPHS NSTRACE_ALL_GROUPS
+#endif
+
+#ifndef NSTRACE_GROUP_FOCUS
+#define NSTRACE_GROUP_FOCUS NSTRACE_ALL_GROUPS
+#endif
+
+extern volatile int nstrace_num;
+extern volatile int nstrace_depth;
+extern volatile int nstrace_enabled_global;
+
+void nstrace_leave(int *);
+void nstrace_restore_global_trace_state(int *);
+char const * nstrace_fullscreen_type_name (int);
+
+/* printf-style trace output.  Output is aligned with contained heading. */
+#define NSTRACE_MSG_NO_DASHES(...)                                          \
+  do                                                                        \
+    {                                                                       \
+      if (nstrace_enabled)                                                  \
+        {                                                                   \
+          fprintf (stderr, "%-10s:%5d: [%5d]%.*s",                          \
+                   __FILE__, __LINE__, nstrace_num++,                       \
+                   2*nstrace_depth, "  | | | | | | | | | | | | | | | ..");  \
+          fprintf (stderr, __VA_ARGS__);                                    \
+          fprintf (stderr, "\n");                                           \
+        }                                                                   \
+    }                                                                       \
+  while(0)
+
+#define NSTRACE_MSG(...) NSTRACE_MSG_NO_DASHES("+--- " __VA_ARGS__)
+
+
+
+/* Macros for printing complex types.
+
+   NSTRACE_FMT_what     -- Printf format string for "what".
+   NSTRACE_ARG_what(x)  -- Printf argument for "what". */
+
+#define NSTRACE_FMT_SIZE        "(W:%.0f H:%.0f)"
+#define NSTRACE_ARG_SIZE(elt)   (elt).width, (elt).height
+
+#define NSTRACE_FMT_POINT       "(X:%.0f Y:%.0f)"
+#define NSTRACE_ARG_POINT(elt)  (elt).x, (elt).y
+
+#define NSTRACE_FMT_RECT        NSTRACE_FMT_POINT "/" NSTRACE_FMT_SIZE
+#define NSTRACE_ARG_RECT(elt)   \
+  NSTRACE_ARG_POINT((elt).origin), NSTRACE_ARG_SIZE((elt).size)
+
+#define NSTRACE_FMT_FSTYPE      "%s"
+#define NSTRACE_ARG_FSTYPE(elt) nstrace_fullscreen_type_name(elt)
+
+
+/* Macros for printing complex types as extra information. */
+
+#define NSTRACE_SIZE(str,size)                                          \
+  NSTRACE_MSG (str ": " NSTRACE_FMT_SIZE,                               \
+               NSTRACE_ARG_SIZE (size));
+
+#define NSTRACE_POINT(str,point)                                        \
+  NSTRACE_MSG (str ": " NSTRACE_FMT_POINT,                              \
+               NSTRACE_ARG_POINT (point));
+
+#define NSTRACE_RECT(str,rect)                                          \
+  NSTRACE_MSG (str ": " NSTRACE_FMT_RECT,                               \
+               NSTRACE_ARG_RECT (rect));
+
+#define NSTRACE_FSTYPE(str,fs_type)                                     \
+  NSTRACE_MSG (str ": " NSTRACE_FMT_FSTYPE,                             \
+               NSTRACE_ARG_FSTYPE (fs_type));
+
+
+/* Return value macros.
+
+   NSTRACE_RETURN(fmt, ...) - Print a return value, support printf-style
+                              format string and arguments.
+
+   NSTRACE_RETURN_what(obj) - Print a return value of kind WHAT.
+
+   NSTRACE_FMT_RETURN - A string literal representing a returned
+                        value.  Useful when creating a format string
+                        to printf-like constructs like NSTRACE(). */
+
+#define NSTRACE_FMT_RETURN "->>"
+
+#define NSTRACE_RETURN(...) \
+  NSTRACE_MSG_NO_DASHES ("+" NSTRACE_FMT_RETURN " " __VA_ARGS__)
+
+#define NSTRACE_RETURN_SIZE(size) \
+  NSTRACE_RETURN(NSTRACE_FMT_SIZE, NSTRACE_ARG_SIZE(size))
+
+#define NSTRACE_RETURN_POINT(point) \
+  NSTRACE_RETURN(NSTRACE_FMT_POINT, NSTRACE_ARG_POINT(point))
+
+#define NSTRACE_RETURN_RECT(rect) \
+  NSTRACE_RETURN(NSTRACE_FMT_RECT, NSTRACE_ARG_RECT(rect))
+
+
+/* Function enter macros.
+
+   NSTRACE (fmt, ...) -- Enable trace output in current block
+                         (typically a function).  Accepts printf-style
+                         arguments.
+
+   NSTRACE_WHEN (cond, fmt, ...) -- Enable trace output when COND is true.
+
+   NSTRACE_UNLESS (cond, fmt, ...) -- Enable trace output unless COND is
+                                      true. */
+
+
+
+#define NSTRACE_WHEN(cond, ...)                                         \
+  __attribute__((cleanup(nstrace_restore_global_trace_state)))          \
+  int nstrace_saved_enabled_global = nstrace_enabled_global;            \
+  __attribute__((cleanup(nstrace_leave)))                               \
+  int nstrace_enabled = nstrace_enabled_global && (cond);               \
+  if (nstrace_enabled) { ++nstrace_depth; }                             \
+  else { nstrace_enabled_global = 0; }                                  \
+  NSTRACE_MSG_NO_DASHES(__VA_ARGS__);
+
+/* Unsilence called functions.
+
+   Concretely, this us used to allow "event" functions to be silenced
+   while trace output can be printed for functions they call. */
+#define NSTRACE_UNSILENCE() do { nstrace_enabled_global = 1; } while(0)
+
+#endif /* NSTRACE_ENABLED */
+
+#define NSTRACE(...)              NSTRACE_WHEN(1, __VA_ARGS__)
+#define NSTRACE_UNLESS(cond, ...) NSTRACE_WHEN(!(cond), __VA_ARGS__)
+
+/* Non-trace replacement versions. */
+#ifndef NSTRACE_WHEN
+#define NSTRACE_WHEN(...)
+#endif
+
+#ifndef NSTRACE_MSG
+#define NSTRACE_MSG(...)
+#endif
+
+#ifndef NSTRACE_SIZE
+#define NSTRACE_SIZE(str,size)
+#endif
+
+#ifndef NSTRACE_POINT
+#define NSTRACE_POINT(str,point)
+#endif
+
+#ifndef NSTRACE_RECT
+#define NSTRACE_RECT(str,rect)
+#endif
+
+#ifndef NSTRACE_FSTYPE
+#define NSTRACE_FSTYPE(str,fs_type)
+#endif
+
+#ifndef NSTRACE_RETURN_SIZE
+#define NSTRACE_RETURN_SIZE(size)
+#endif
+
+#ifndef NSTRACE_RETURN_POINT
+#define NSTRACE_RETURN_POINT(point)
+#endif
+
+#ifndef NSTRACE_RETURN_RECT
+#define NSTRACE_RETURN_RECT(rect)
+#endif
+
+#ifndef NSTRACE_RETURN_FSTYPE
+#define NSTRACE_RETURN_FSTYPE(fs_type)
+#endif
+
+#ifndef NSTRACE_UNSILENCE
+#define NSTRACE_UNSILENCE()
+#endif
+
 
 /* ==========================================================================
 
@@ -139,7 +413,7 @@ typedef float EmacsCGFloat;
 
 @class EmacsToolbar;
 
-#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+#ifdef NS_IMPL_COCOA
 @interface EmacsView : NSView <NSTextInput, NSWindowDelegate>
 #else
 @interface EmacsView : NSView <NSTextInput>
@@ -194,6 +468,14 @@ typedef float EmacsCGFloat;
 #ifdef NS_IMPL_GNUSTEP
 - (void)windowDidMove: (id)sender;
 #endif
+- (int)fullscreenState;
+
+/* Non-notification versions of NSView methods. Used for direct calls. */
+- (void)windowWillEnterFullScreen;
+- (void)windowDidEnterFullScreen;
+- (void)windowWillExitFullScreen;
+- (void)windowDidExitFullScreen;
+- (void)windowDidBecomeKey;
 @end
 
 
@@ -217,7 +499,7 @@ typedef float EmacsCGFloat;
 
    ========================================================================== */
 
-#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+#ifdef NS_IMPL_COCOA
 @interface EmacsMenu : NSMenu  <NSMenuDelegate>
 #else
 @interface EmacsMenu : NSMenu
@@ -249,7 +531,7 @@ typedef float EmacsCGFloat;
 
 @class EmacsImage;
 
-#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+#ifdef NS_IMPL_COCOA
 @interface EmacsToolbar : NSToolbar <NSToolbarDelegate>
 #else
 @interface EmacsToolbar : NSToolbar
@@ -305,7 +587,7 @@ typedef float EmacsCGFloat;
 - (void)timeout_handler: (NSTimer *)timedEntry;
 @end
 
-#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+#ifdef NS_IMPL_COCOA
 @interface EmacsTooltip : NSObject <NSWindowDelegate>
 #else
 @interface EmacsTooltip : NSObject
@@ -361,13 +643,12 @@ typedef float EmacsCGFloat;
   NSBitmapImageRep *bmRep; /* used for accessing pixel data */
   unsigned char *pixmapData[5]; /* shortcut to access pixel data */
   NSColor *stippleMask;
+  unsigned long xbm_fg;
 }
 + allocInitFromFile: (Lisp_Object)file;
 - (void)dealloc;
 - initFromXBM: (unsigned char *)bits width: (int)w height: (int)h
-         flip: (BOOL)flip;
-- initFromSkipXBM: (unsigned char *)bits width: (int)w height: (int)h
-             flip: (BOOL)flip length: (int)length;
+                  fg: (unsigned long)fg bg: (unsigned long)bg;
 - setXBMColor: (NSColor *)color;
 - initForXPMWithDepth: (int)depth width: (int)width height: (int)height;
 - (void)setPixmapData;
@@ -396,7 +677,7 @@ typedef float EmacsCGFloat;
    CGFloat last_mouse_offset;
    float min_portion;
    int pixel_height;
-   int last_hit_part;
+   enum scroll_bar_part last_hit_part;
 
    BOOL condemned;
 
@@ -408,7 +689,6 @@ typedef float EmacsCGFloat;
 
 - initFrame: (NSRect )r window: (Lisp_Object)win;
 - (void)setFrame: (NSRect)r;
-- (void)dealloc;
 
 - setPosition: (int) position portion: (int) portion whole: (int) whole;
 - (int) checkSamePosition: (int)position portion: (int)portion
@@ -418,6 +698,7 @@ typedef float EmacsCGFloat;
 - condemn;
 - reprieve;
 - (bool)judge;
++ (CGFloat)scrollerWidth;
 @end
 
 
@@ -600,6 +881,9 @@ struct ns_display_info
   /* The cursor to use for vertical scroll bars. */
   Cursor vertical_scroll_bar_cursor;
 
+  /* The cursor to use for horizontal scroll bars. */
+  Cursor horizontal_scroll_bar_cursor;
+
   /* Information about the range of text currently shown in
      mouse-face.  */
   Mouse_HLInfo mouse_highlight;
@@ -696,6 +980,9 @@ struct ns_output
 
   /* Non-zero if we are zooming (maximizing) the frame.  */
   int zooming;
+
+  /* Non-zero if we are doing an animation, e.g. toggling the tool bar. */
+  int in_animation;
 };
 
 /* this dummy decl needed to support TTYs */
@@ -740,19 +1027,34 @@ struct x_output
 #endif
 
 /* Compute pixel size for vertical scroll bars */
-#define NS_SCROLL_BAR_WIDTH(f)                              \
-(FRAME_HAS_VERTICAL_SCROLL_BARS (f)                          \
- ? rint (FRAME_CONFIG_SCROLL_BAR_WIDTH (f) > 0               \
-        ? FRAME_CONFIG_SCROLL_BAR_WIDTH (f)                 \
-        : (FRAME_SCROLL_BAR_COLS (f) * FRAME_COLUMN_WIDTH (f)))   \
- : 0)
+#define NS_SCROLL_BAR_WIDTH(f)						\
+  (FRAME_HAS_VERTICAL_SCROLL_BARS (f)					\
+   ? rint (FRAME_CONFIG_SCROLL_BAR_WIDTH (f) > 0			\
+	   ? FRAME_CONFIG_SCROLL_BAR_WIDTH (f)				\
+	   : (FRAME_SCROLL_BAR_COLS (f) * FRAME_COLUMN_WIDTH (f)))	\
+   : 0)
+
+/* Compute pixel size for horizontal scroll bars */
+#define NS_SCROLL_BAR_HEIGHT(f)						\
+  (FRAME_HAS_HORIZONTAL_SCROLL_BARS (f)					\
+   ? rint (FRAME_CONFIG_SCROLL_BAR_HEIGHT (f) > 0			\
+	   ? FRAME_CONFIG_SCROLL_BAR_HEIGHT (f)				\
+	   : (FRAME_SCROLL_BAR_LINES (f) * FRAME_LINE_HEIGHT (f)))	\
+   : 0)
 
 /* Difference btwn char-column-calculated and actual SB widths.
    This is only a concern for rendering when SB on left. */
-#define NS_SCROLL_BAR_ADJUST(w, f)		\
-(WINDOW_HAS_VERTICAL_SCROLL_BAR_ON_LEFT (w) ?	\
-    (FRAME_SCROLL_BAR_COLS (f) * FRAME_COLUMN_WIDTH (f)	\
-        - NS_SCROLL_BAR_WIDTH (f)) : 0)
+#define NS_SCROLL_BAR_ADJUST(w, f)				\
+  (WINDOW_HAS_VERTICAL_SCROLL_BAR_ON_LEFT (w) ?			\
+   (FRAME_SCROLL_BAR_COLS (f) * FRAME_COLUMN_WIDTH (f)		\
+    - NS_SCROLL_BAR_WIDTH (f)) : 0)
+
+/* Difference btwn char-line-calculated and actual SB heights.
+   This is only a concern for rendering when SB on top. */
+#define NS_SCROLL_BAR_ADJUST_HORIZONTALLY(w, f)		\
+  (WINDOW_HAS_HORIZONTAL_SCROLL_BARS (w) ?		\
+   (FRAME_SCROLL_BAR_LINES (f) * FRAME_LINE_HEIGHT (f)	\
+    - NS_SCROLL_BAR_HEIGHT (f)) : 0)
 
 /* XXX: fix for GNUstep inconsistent accounting for titlebar */
 #ifdef NS_IMPL_GNUSTEP
@@ -771,8 +1073,8 @@ struct x_output
 
 /* First position where characters can be shown (instead of scrollbar, if
    it is on left. */
-#define FIRST_CHAR_POSITION(f) \
-  (! (FRAME_HAS_VERTICAL_SCROLL_BARS_ON_LEFT (f)) ? 0 \
+#define FIRST_CHAR_POSITION(f)				\
+  (! (FRAME_HAS_VERTICAL_SCROLL_BARS_ON_LEFT (f)) ? 0	\
    : FRAME_SCROLL_BAR_COLS (f))
 
 extern struct ns_display_info *ns_term_init (Lisp_Object display_name);
@@ -795,7 +1097,6 @@ struct glyph_string;
 void ns_dump_glyphstring (struct glyph_string *s);
 
 /* Implemented in nsterm, published in or needed from nsfns. */
-extern Lisp_Object Qfontsize;
 extern Lisp_Object ns_list_fonts (struct frame *f, Lisp_Object pattern,
                                   int size, int maxnames);
 extern void ns_clear_frame (struct frame *f);
@@ -840,6 +1141,8 @@ extern void  ns_retain_object (void *obj);
 extern void *ns_alloc_autorelease_pool (void);
 extern void ns_release_autorelease_pool (void *);
 extern const char *ns_get_defaults_value (const char *key);
+extern void ns_init_locale (void);
+
 
 /* in nsmenu */
 extern void update_frame_tool_bar (struct frame *f);
@@ -849,7 +1152,7 @@ extern void find_and_call_menu_selection (struct frame *f,
 extern Lisp_Object find_and_return_menu_selection (struct frame *f,
                                                    bool keymaps,
                                                    void *client_data);
-extern Lisp_Object ns_popup_dialog (Lisp_Object position, Lisp_Object header,
+extern Lisp_Object ns_popup_dialog (struct frame *, Lisp_Object header,
                                     Lisp_Object contents);
 
 #define NSAPP_DATA2_RUNASSCRIPT 10
@@ -868,7 +1171,8 @@ extern void syms_of_nsselect (void);
 
 /* From nsimage.m, needed in image.c */
 struct image;
-extern void *ns_image_from_XBM (unsigned char *bits, int width, int height);
+extern void *ns_image_from_XBM (unsigned char *bits, int width, int height,
+                                unsigned long fg, unsigned long bg);
 extern void *ns_image_for_XPM (int width, int height, int depth);
 extern void *ns_image_from_file (Lisp_Object file);
 extern bool ns_load_image (struct frame *f, struct image *img,
@@ -889,6 +1193,9 @@ extern int ns_select (int nfds, fd_set *readfds, fd_set *writefds,
 		      sigset_t const *sigmask);
 extern unsigned long ns_get_rgb_color (struct frame *f,
                                        float r, float g, float b, float a);
+
+extern void ns_init_events ();
+extern void ns_finish_events ();
 
 #ifdef __OBJC__
 /* From nsterm.m, needed in nsfont.m. */
@@ -913,6 +1220,7 @@ extern char gnustep_base_version[];  /* version tracking */
 #define SCREENMAX 16000
 
 #define NS_SCROLL_BAR_WIDTH_DEFAULT     [EmacsScroller scrollerWidth]
+#define NS_SCROLL_BAR_HEIGHT_DEFAULT    [EmacsScroller scrollerHeight]
 /* This is to match emacs on other platforms, ugly though it is. */
 #define NS_SELECTION_BG_COLOR_DEFAULT	@"LightGoldenrod2";
 #define NS_SELECTION_FG_COLOR_DEFAULT	@"Black";

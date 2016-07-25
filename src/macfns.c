@@ -6,8 +6,8 @@ This file is part of GNU Emacs Mac port.
 
 GNU Emacs Mac port is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs Mac port is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,32 +27,20 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "macterm.h"
 #include "frame.h"
 #include "window.h"
-#include "character.h"
 #include "buffer.h"
-#include "intervals.h"
 #include "dispextern.h"
 #include "keyboard.h"
 #include "blockinput.h"
-#include <epaths.h>
 #include "charset.h"
 #include "coding.h"
-#include "fontset.h"
-#include "systime.h"
 #include "termhooks.h"
-#include "atimer.h"
 #include "font.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
 
-static Lisp_Object Qsuppress_icon;
-static Lisp_Object Qundefined_color;
-static Lisp_Object Qcancel_timer;
-Lisp_Object Qgeometry, Qworkarea, Qmm_size, Qframes, Qbacking_scale_factor;
-Lisp_Object Qfont_param;
-
-#ifdef GLYPH_DEBUG
 static ptrdiff_t image_cache_refcount;
+#ifdef GLYPH_DEBUG
 static int dpyinfo_refcount;
 #endif
 
@@ -81,7 +69,7 @@ check_x_display_info (Lisp_Object object)
     }
   else if (TERMINALP (object))
     {
-      struct terminal *t = get_terminal (object, 1);
+      struct terminal *t = decode_live_terminal (object);
 
       if (t->type != output_mac)
         error ("Terminal %d is not a Mac display", t->id);
@@ -888,7 +876,7 @@ mac_color_map_lookup (const char *colorname)
 
   block_input ();
 
-  for (i = 0; i < sizeof (mac_color_map) / sizeof (mac_color_map[0]); i++)
+  for (i = 0; i < ARRAYELTS (mac_color_map); i++)
     if (xstrcasecmp (colorname, mac_color_map[i].name) == 0)
       {
         ret = make_number (mac_color_map[i].color);
@@ -1097,7 +1085,9 @@ mac_defined_color (struct frame *f, const char *color,
 
   tem = x_to_mac_color (color);
 
-  if (!NILP (tem))
+  if (NILP (tem))
+    return false;
+  else
     {
       mac_color_ref = XUINT (tem);
       if (f)
@@ -1111,11 +1101,7 @@ mac_defined_color (struct frame *f, const char *color,
       color_def->green = GREEN16_FROM_ULONG (mac_color_ref);
       color_def->blue = BLUE16_FROM_ULONG (mac_color_ref);
 
-      return 1;
-    }
-  else
-    {
-      return 0;
+      return true;
     }
 }
 
@@ -1234,31 +1220,52 @@ x_set_background_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
     }
 }
 
+/* This array must stay in sync with the mouse_cursor_types array below!  */
+enum mouse_cursor {
+  mouse_cursor_text,
+  mouse_cursor_nontext,
+  mouse_cursor_hourglass,
+  mouse_cursor_mode,
+  mouse_cursor_hand,
+  mouse_cursor_horizontal_drag,
+  mouse_cursor_vertical_drag,
+  mouse_cursor_max
+};
+
+struct mouse_cursor_types {
+  /* Printable name for error messages (optional).  */
+  const char *name;
+
+  /* Lisp variable controlling the cursor shape.  */
+  /* FIXME: A couple of these variables are defined in the C code but
+     are not actually accessible from Lisp.  They should probably be
+     made accessible or removed.  */
+  Lisp_Object *shape_var_ptr;
+
+  /* The default shape.  */
+  ThemeCursor default_shape;
+};
+
+/* This array must stay in sync with enum mouse_cursor above!  */
+static const struct mouse_cursor_types mouse_cursor_types[] = {
+  { "text",      &Vx_pointer_shape,                kThemeIBeamCursor },
+  { "nontext",   &Vx_nontext_pointer_shape,        kThemeArrowCursor },
+  { "hourglass", &Vx_hourglass_pointer_shape,      kThemeWatchCursor },
+  { "modeline",  &Vx_mode_pointer_shape,           kThemeArrowCursor },
+  { NULL,        &Vx_sensitive_text_pointer_shape, kThemePointingHandCursor },
+  { NULL,        &Vx_window_horizontal_drag_shape, kThemeResizeLeftRightCursor },
+  { NULL,        &Vx_window_vertical_drag_shape,   kThemeResizeUpDownCursor },
+};
+
 static void
 x_set_mouse_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   struct mac_output *mac = f->output_data.mac;
-  enum cursor {TEXT, NONTEXT, MODELINE, HAND, HOURGLASS,
-	       HORIZONTAL_DRAG, VERTICAL_DRAG, NCURSORS} i;
-  struct {
-    Lisp_Object lisp_value;
-    Cursor *dst;
-  } table[NCURSORS] = {
-    {Vx_pointer_shape,			&mac->text_cursor},
-    {Vx_nontext_pointer_shape,		&mac->nontext_cursor},
-    {Vx_mode_pointer_shape,		&mac->modeline_cursor},
-    {Vx_sensitive_text_pointer_shape,	&mac->hand_cursor},
-    {Vx_hourglass_pointer_shape,	&mac->hourglass_cursor},
-    {Vx_window_horizontal_drag_shape,	&mac->horizontal_drag_cursor},
-    {Vx_window_vertical_drag_shape,	&mac->vertical_drag_cursor}
-  };
-  ThemeCursor shapes[NCURSORS] = {
-    kThemeIBeamCursor, kThemeArrowCursor, kThemeArrowCursor,
-    kThemePointingHandCursor, kThemeWatchCursor,
-    kThemeResizeLeftRightCursor, kThemeResizeUpDownCursor
-  };
   unsigned long pixel = x_decode_color (f, arg, BLACK_PIX_DEFAULT (f));
   unsigned long mask_color = FRAME_BACKGROUND_PIXEL (f);
+  XColor fore_color, back_color;
+  ThemeCursor shapes[mouse_cursor_max];
+  int i;
 
   /* Don't let pointers be invisible.  */
   if (mask_color == pixel)
@@ -1266,29 +1273,39 @@ x_set_mouse_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
   mac->mouse_pixel = pixel;
 
-  for (i = 0; i < NCURSORS; i++)
-    if (!NILP (table[i].lisp_value))
-      {
-	CHECK_NUMBER (table[i].lisp_value);
-	shapes[i] = XINT (table[i].lisp_value);
-      }
+  for (i = 0; i < mouse_cursor_max; i++)
+    {
+      Lisp_Object shape_var = *mouse_cursor_types[i].shape_var_ptr;
+      if (!NILP (shape_var))
+	{
+	  CHECK_TYPE_RANGED_INTEGER (unsigned, shape_var);
+	  shapes[i] = XINT (shape_var);
+	}
+      else
+	shapes[i] = mouse_cursor_types[i].default_shape;
+    }
 
   block_input ();
 
-  {
-    XColor fore_color, back_color;
+  fore_color.pixel = mac->mouse_pixel;
+  x_query_color (f, &fore_color);
+  back_color.pixel = mask_color;
+  x_query_color (f, &back_color);
 
-    fore_color.pixel = mac->mouse_pixel;
-    x_query_color (f, &fore_color);
-    back_color.pixel = mask_color;
-    x_query_color (f, &back_color);
+#define INSTALL_CURSOR(FIELD, SHORT_INDEX)				\
+  mac_cursor_release (mac->FIELD);					\
+  mac->FIELD = mac_cursor_create (shapes[mouse_cursor_ ## SHORT_INDEX], \
+				  &fore_color, &back_color);
 
-    for (i = 0; i < NCURSORS; i++)
-      {
-	mac_cursor_release (*table[i].dst);
-	*table[i].dst = mac_cursor_create (shapes[i], &fore_color, &back_color);
-      }
-  }
+  INSTALL_CURSOR (text_cursor, text);
+  INSTALL_CURSOR (nontext_cursor, nontext);
+  INSTALL_CURSOR (hourglass_cursor, hourglass);
+  INSTALL_CURSOR (modeline_cursor, mode);
+  INSTALL_CURSOR (hand_cursor, hand);
+  INSTALL_CURSOR (horizontal_drag_cursor, horizontal_drag);
+  INSTALL_CURSOR (vertical_drag_cursor, vertical_drag);
+
+#undef INSTALL_CURSOR
 
   if (FRAME_MAC_WINDOW (f) != 0)
     FRAME_TERMINAL (f)->rif->define_frame_cursor (f, mac->text_cursor);
@@ -1333,8 +1350,8 @@ x_set_cursor_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
       if (FRAME_VISIBLE_P (f))
 	{
-	  x_update_cursor (f, 0);
-	  x_update_cursor (f, 1);
+	  x_update_cursor (f, false);
+	  x_update_cursor (f, true);
 	}
     }
 
@@ -1382,11 +1399,11 @@ x_set_cursor_type (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 }
 
 
-void
+static void
 x_set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 {
   /* Make sure we redisplay all windows in this frame.  */
-  windows_or_buffers_changed = 59;
+  fset_redisplay (f);
 
   FRAME_MENU_BAR_LINES (f) = 0;
   FRAME_MENU_BAR_HEIGHT (f) = 0;
@@ -1394,7 +1411,7 @@ x_set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
   FRAME_EXTERNAL_MENU_BAR (f) = 1;
   if (FRAME_MAC_P (f) && f->output_data.mac->menubar_widget == 0)
     /* Make sure next redisplay shows the menu bar.  */
-    XWINDOW (FRAME_SELECTED_WINDOW (f))->update_mode_line = 1;
+    XWINDOW (FRAME_SELECTED_WINDOW (f))->update_mode_line = true;
   adjust_frame_glyphs (f);
 
   /* We don't use this value for controlling visibility of the menu
@@ -1418,8 +1435,6 @@ void
 x_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 {
   int nlines;
-  int delta, root_height;
-  int unit = FRAME_LINE_HEIGHT (f);
 
   /* Treat tool bars like menu bars.  */
   if (FRAME_MINIBUF_ONLY_P (f))
@@ -1431,80 +1446,114 @@ x_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
   else
     nlines = 0;
 
-  /* Make sure we redisplay all windows in this frame.  */
-  windows_or_buffers_changed = 60;
+  x_change_tool_bar_height (f, nlines * FRAME_LINE_HEIGHT (f));
+}
 
+/* Set the pixel height of the tool bar of frame F to HEIGHT.  */
+void
+x_change_tool_bar_height (struct frame *f, int height)
+{
   if (!FRAME_NATIVE_TOOL_BAR_P (f))
     {
       FRAME_TOOL_BAR_LINES (f) = 0;
       FRAME_TOOL_BAR_HEIGHT (f) = 0;
-      if (nlines)
+      if (height)
 	{
-	  FRAME_EXTERNAL_TOOL_BAR (f) = 1;
+	  FRAME_EXTERNAL_TOOL_BAR (f) = true;
 	  block_input ();
 	  if (FRAME_MAC_P (f)
 	      && !mac_is_frame_window_toolbar_visible (f))
 	    /* Make sure next redisplay shows the tool bar.  */
-	    XWINDOW (FRAME_SELECTED_WINDOW (f))->update_mode_line = 1;
+	    XWINDOW (FRAME_SELECTED_WINDOW (f))->update_mode_line = true;
 	  unblock_input ();
 	}
       else
 	{
 	  if (FRAME_EXTERNAL_TOOL_BAR (f))
 	    free_frame_tool_bar (f);
-	  FRAME_EXTERNAL_TOOL_BAR (f) = 0;
+	  FRAME_EXTERNAL_TOOL_BAR (f) = false;
 	}
     }
   else
     {
-      /* DELTA is in pixels now.  */
-      delta = (nlines - FRAME_TOOL_BAR_LINES (f)) * unit;
+      int unit = FRAME_LINE_HEIGHT (f);
+      int old_height = FRAME_TOOL_BAR_HEIGHT (f);
+      int lines = (height + unit - 1) / unit;
+      Lisp_Object fullscreen;
 
-      /* Don't resize the tool-bar to more than we have room for.  Note: The
-	 calculations below and the subsequent call to resize_frame_windows
-	 are inherently flawed because they can make the toolbar higher than
-	 the containing frame.  */
-      if (delta > 0)
+      /* Make sure we redisplay all windows in this frame.  */
+      fset_redisplay (f);
+
+      /* Recalculate tool bar and frame text sizes.  */
+      FRAME_TOOL_BAR_HEIGHT (f) = height;
+      FRAME_TOOL_BAR_LINES (f) = lines;
+      /* Store the `tool-bar-lines' and `height' frame parameters.  */
+      store_frame_param (f, Qtool_bar_lines, make_number (lines));
+      store_frame_param (f, Qheight, make_number (FRAME_LINES (f)));
+
+      /* We also have to make sure that the internal border at the top
+	 of the frame, below the menu bar or tool bar, is redrawn when
+	 the tool bar disappears.  This is so because the internal
+	 border is below the tool bar if one is displayed, but is
+	 below the menu bar if there isn't a tool bar.  The tool bar
+	 draws into the area below the menu bar.  */
+      if (FRAME_MAC_WINDOW (f) && FRAME_TOOL_BAR_HEIGHT (f) == 0)
 	{
-	  root_height = WINDOW_PIXEL_HEIGHT (XWINDOW (FRAME_ROOT_WINDOW (f)));
-	  if (root_height - delta < unit)
-	    {
-	      delta = root_height - unit;
-	      /* When creating a new frame and toolbar mode is enabled, we
-		 need at least one toolbar line.  */
-	      nlines = max (FRAME_TOOL_BAR_LINES (f) + delta / unit, 1);
-	    }
+	  clear_frame (f);
+	  clear_current_matrices (f);
 	}
 
-      FRAME_TOOL_BAR_LINES (f) = nlines;
-      FRAME_TOOL_BAR_HEIGHT (f) = nlines * FRAME_LINE_HEIGHT (f);
-      resize_frame_windows (f, FRAME_TEXT_HEIGHT (f), 0, 1);
+      if ((height < old_height) && WINDOWP (f->tool_bar_window))
+	clear_glyph_matrix (XWINDOW (f->tool_bar_window)->current_matrix);
+
+      /* Recalculate toolbar height.  */
+      f->n_tool_bar_rows = 0;
+      if (old_height == 0
+	  && (!f->after_make_frame
+	      || NILP (frame_inhibit_implied_resize)
+	      || (CONSP (frame_inhibit_implied_resize)
+		  && NILP (Fmemq (Qtool_bar_lines,
+				  frame_inhibit_implied_resize)))))
+	f->tool_bar_redisplayed = f->tool_bar_resized = false;
+
+      adjust_frame_size (f, -1, -1,
+			 ((!f->tool_bar_resized
+			   && (NILP (fullscreen =
+				     get_frame_param (f, Qfullscreen))
+			       || EQ (fullscreen, Qfullwidth))) ? 1
+			  : (old_height == 0 || height == 0) ? 2
+			  : 4),
+			 false, Qtool_bar_lines);
+
+      f->tool_bar_resized = f->tool_bar_redisplayed;
+
+      /* adjust_frame_size might not have done anything, garbage frame
+	 here.  */
       adjust_frame_glyphs (f);
+      SET_FRAME_GARBAGED (f);
+      if (FRAME_MAC_WINDOW (f))
+	x_clear_under_internal_border (f);
+    }
+}
 
-      /* If the tool bar height gets changed, the internal border
-	 below the top margin has to be cleared.  It was formerly part
-	 of the display of the larger tool bar, and updating windows
-	 won't clear it.  */
-      if (delta)
+static void
+x_set_internal_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+{
+  int border;
+
+  CHECK_TYPE_RANGED_INTEGER (int, arg);
+  border = max (XINT (arg), 0);
+
+  if (border != FRAME_INTERNAL_BORDER_WIDTH (f))
+    {
+      FRAME_INTERNAL_BORDER_WIDTH (f) = border;
+
+      if (FRAME_MAC_WINDOW (f) != 0)
 	{
-	  int height = FRAME_INTERNAL_BORDER_WIDTH (f);
-	  int width = FRAME_PIXEL_WIDTH (f);
+	  adjust_frame_size (f, -1, -1, 3, false, Qinternal_border_width);
 
-	  /* height can be zero here. */
-	  if (height > 0 && width > 0)
-	    {
-	      int y = FRAME_TOP_MARGIN_HEIGHT (f);
-
-	      block_input ();
-	      mac_clear_area (f, 0, y, width, height);
-	      unblock_input ();
-	    }
-
-	  if (delta < 0 && WINDOWP (f->tool_bar_window))
-	    clear_glyph_matrix (XWINDOW (f->tool_bar_window)->current_matrix);
+	  x_clear_under_internal_border (f);
 	}
-
-      run_window_configuration_change_hook (f);
     }
 }
 
@@ -1539,12 +1588,12 @@ x_set_name_internal (struct frame *f, Lisp_Object name)
        name; if NAME is a string, set F's name to NAME and set
        F->explicit_name; if NAME is Qnil, then clear F->explicit_name.
 
-   If EXPLICIT is zero, that indicates that Emacs redisplay code is
+   If EXPLICIT is false, that indicates that Emacs redisplay code is
        suggesting a new name, which lisp code should override; if
        F->explicit_name is set, ignore the new name; otherwise, set it.  */
 
 void
-x_set_name (struct frame *f, Lisp_Object name, int explicit)
+x_set_name (struct frame *f, Lisp_Object name, bool explicit)
 {
   /* Make sure that requests from lisp code override requests from
      Emacs redisplay code.  */
@@ -1593,7 +1642,7 @@ x_set_name (struct frame *f, Lisp_Object name, int explicit)
 static void
 x_explicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
-  x_set_name (f, arg, 1);
+  x_set_name (f, arg, true);
 }
 
 /* This function should be called by Emacs redisplay code to set the
@@ -1602,7 +1651,7 @@ x_explicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 void
 x_implicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
-  x_set_name (f, arg, 0);
+  x_set_name (f, arg, false);
 }
 
 /* Change the title of frame F to NAME.
@@ -1640,6 +1689,19 @@ x_set_scroll_bar_default_width (struct frame *f)
   FRAME_CONFIG_SCROLL_BAR_WIDTH (f) = minw;
 }
 
+void
+x_set_scroll_bar_default_height (struct frame *f)
+{
+  int minh, unit = FRAME_LINE_HEIGHT (f);
+
+  block_input ();
+  minh = mac_get_default_scroll_bar_height (f);
+  unblock_input ();
+
+  FRAME_CONFIG_SCROLL_BAR_LINES (f) = (minh + unit - 1) / unit;
+  FRAME_CONFIG_SCROLL_BAR_HEIGHT (f) = minh;
+}
+
 static void
 mac_set_font (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
@@ -1657,7 +1719,7 @@ mac_set_font (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 }
 
 void
-mac_update_title_bar (struct frame *f, int save_match_data)
+mac_update_title_bar (struct frame *f, bool save_match_data)
 {
   struct window *w;
   bool modified_p;
@@ -1737,9 +1799,9 @@ mac_window (struct frame *f)
      the server hasn't been told.  */
   {
     Lisp_Object name;
-    int explicit = f->explicit_name;
+    bool explicit = f->explicit_name;
 
-    f->explicit_name = 0;
+    f->explicit_name = false;
     name = f->name;
     fset_name (f, Qnil);
     x_set_name (f, name, explicit);
@@ -1845,6 +1907,17 @@ unwind_create_frame (Lisp_Object frame)
       struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
 #endif
 
+      /* If the frame's image cache refcount is still the same as our
+	 private shadow variable, it means we are unwinding a frame
+	 for which we didn't yet call init_frame_faces, where the
+	 refcount is incremented.  Therefore, we increment it here, so
+	 that free_frame_faces, called in x_free_frame_resources
+	 below, will not mistakenly decrement the counter that was not
+	 incremented yet to account for this new frame.  */
+      if (FRAME_IMAGE_CACHE (f) != NULL
+	  && FRAME_IMAGE_CACHE (f)->refcount == image_cache_refcount)
+	FRAME_IMAGE_CACHE (f)->refcount++;
+
       x_free_frame_resources (f);
       free_glyphs (f);
 
@@ -1863,12 +1936,6 @@ static void
 do_unwind_create_frame (Lisp_Object frame)
 {
   unwind_create_frame (frame);
-}
-
-static void
-unwind_create_frame_1 (Lisp_Object val)
-{
-  inhibit_lisp_code = val;
 }
 
 static void
@@ -1924,12 +1991,11 @@ x_default_font_parameter (struct frame *f, Lisp_Object parms)
 DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
        1, 1, 0,
        doc: /* Make a new window, which is called a "frame" in Emacs terms.
-Return an Emacs frame object.
-PARMS is an alist of frame parameters.
+Return an Emacs frame object.  PARMS is an alist of frame parameters.
 If the parameters specify that the frame should not have a minibuffer,
-and do not specify a specific minibuffer window to use,
-then `default-minibuffer-frame' must be a frame whose minibuffer can
-be shared by the new frame.
+and do not specify a specific minibuffer window to use, then
+`default-minibuffer-frame' must be a frame whose minibuffer can be
+shared by the new frame.
 
 This function is an internal primitive--use `make-frame' instead.  */)
   (Lisp_Object parms)
@@ -1937,15 +2003,15 @@ This function is an internal primitive--use `make-frame' instead.  */)
   struct frame *f;
   Lisp_Object frame, tem;
   Lisp_Object name;
-  int minibuffer_only = 0;
+  bool minibuffer_only = false;
   long window_prompting = 0;
   int width, height;
-  ptrdiff_t count = SPECPDL_INDEX (), count2;
-  struct gcpro gcpro1, gcpro2, gcpro3, gcpro4;
+  ptrdiff_t count = SPECPDL_INDEX ();
   Lisp_Object display;
   struct mac_display_info *dpyinfo = NULL;
   Lisp_Object parent;
   struct kboard *kb;
+  int x_width = 0, x_height = 0;
 
   parms = Fcopy_alist (parms);
 
@@ -1980,11 +2046,7 @@ This function is an internal primitive--use `make-frame' instead.  */)
   if (! NILP (parent))
     CHECK_NUMBER (parent);
 
-  /* make_frame_without_minibuffer can run Lisp code and garbage collect.  */
-  /* No need to protect DISPLAY because that's not used after passing
-     it to make_frame_without_minibuffer.  */
   frame = Qnil;
-  GCPRO4 (parms, parent, name, frame);
   tem = x_get_arg (dpyinfo, parms, Qminibuffer, "minibuffer", "Minibuffer",
 		   RES_TYPE_SYMBOL);
   if (EQ (tem, Qnone) || NILP (tem))
@@ -1992,12 +2054,12 @@ This function is an internal primitive--use `make-frame' instead.  */)
   else if (EQ (tem, Qonly))
     {
       f = make_minibuffer_frame ();
-      minibuffer_only = 1;
+      minibuffer_only = true;
     }
   else if (WINDOWP (tem))
     f = make_frame_without_minibuffer (tem, kb, display);
   else
-    f = make_frame (1);
+    f = make_frame (true);
 
   XSETFRAME (frame, f);
 
@@ -2025,12 +2087,12 @@ This function is an internal primitive--use `make-frame' instead.  */)
   if (!NILP (parent))
     {
       f->output_data.mac->parent_desc = (Window) XFASTINT (parent);
-      f->output_data.mac->explicit_parent = 1;
+      f->output_data.mac->explicit_parent = true;
     }
   else
     {
       f->output_data.mac->parent_desc = FRAME_DISPLAY_INFO (f)->root_window;
-      f->output_data.mac->explicit_parent = 0;
+      f->output_data.mac->explicit_parent = false;
     }
 
   /* Set the name; the functions to which we pass f expect the name to
@@ -2043,12 +2105,18 @@ This function is an internal primitive--use `make-frame' instead.  */)
   else
     {
       fset_name (f, name);
-      f->explicit_name = 1;
-      /* use the frame's title when getting resources for this frame.  */
+      f->explicit_name = true;
+      /* Use the frame's title when getting resources for this frame.  */
       specbind (Qx_resource_name, name);
     }
 
   mac_register_font_driver (f);
+
+  image_cache_refcount =
+    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
+#ifdef GLYPH_DEBUG
+  dpyinfo_refcount = dpyinfo->reference_count;
+#endif /* GLYPH_DEBUG */
 
   x_default_parameter (f, parms, Qfont_backend, Qnil,
 		       "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -2086,7 +2154,9 @@ This function is an internal primitive--use `make-frame' instead.  */)
 		       NULL, NULL, RES_TYPE_NUMBER);
   x_default_parameter (f, parms, Qvertical_scroll_bars, Qright,
 		       "verticalScrollBars", "ScrollBars", RES_TYPE_SYMBOL);
-
+  x_default_parameter (f, parms, Qhorizontal_scroll_bars, Qnil,
+		       "horizontalScrollBars", "ScrollBars",
+		       RES_TYPE_SYMBOL);
   /* Also do the stuff which must be set before the window exists.  */
   x_default_parameter (f, parms, Qforeground_color, build_string ("black"),
 		       "foreground", "Foreground", RES_TYPE_STRING);
@@ -2108,38 +2178,23 @@ This function is an internal primitive--use `make-frame' instead.  */)
   x_default_parameter (f, parms, Qalpha, Qnil,
 		       "alpha", "Alpha", RES_TYPE_NUMBER);
 
-#ifdef GLYPH_DEBUG
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-  dpyinfo_refcount = dpyinfo->reference_count;
-#endif /* GLYPH_DEBUG */
-
-  /* Init faces before x_default_parameter is called for scroll-bar
-     parameters because that function calls x_set_scroll_bar_width,
-     which calls change_frame_size, which calls Fset_window_buffer,
-     which runs hooks, which call Fvertical_motion.  At the end, we
-     end up in init_iterator with a null face cache, which should not
-     happen.  */
+  /* Init faces before x_default_parameter is called for the
+     scroll-bar-width parameter because otherwise we end up in
+     init_iterator with a null face cache, which should not happen.  */
   init_frame_faces (f);
 
-  /* Temporary disable window-configuration-change-hook to avoid
-     an infloop in next_frame and access to uninitialized frame
-     from Lisp code (Bug#18161).  */
+  /* The following call of change_frame_size is needed since otherwise
+     x_set_tool_bar_lines will already work with the character sizes
+     installed by init_frame_faces while the frame's pixel size is
+     still calculated from a character size of 1 and we subsequently
+     hit the (height >= 0) assertion in window_box_height.
 
-  count2 = SPECPDL_INDEX ();
-  record_unwind_protect (unwind_create_frame_1, inhibit_lisp_code);
-  inhibit_lisp_code = Qt;
-
-  /* PXW: This is a duplicate from below.  We have to do it here since
-     otherwise x_set_tool_bar_lines will work with the character sizes
-     installed by init_frame_faces while the frame's pixel size is still
-     calculated from a character size of 1 and we subsequently hit the
-     eassert (height >= 0) assertion in window_box_height.  The
-     non-pixelwise code apparently worked around this because it had one
-     frame line vs one toolbar line which left us with a zero root
-     window height which was obviously wrong as well ...  */
-  change_frame_size (f, FRAME_COLS (f) * FRAME_COLUMN_WIDTH (f),
-		     FRAME_LINES (f) * FRAME_LINE_HEIGHT (f), 1, 0, 0, 1);
+     The non-pixelwise code apparently worked around this because it
+     had one frame line vs one toolbar line which left us with a zero
+     root window height which was obviously wrong as well ...  */
+  adjust_frame_size (f, FRAME_COLS (f) * FRAME_COLUMN_WIDTH (f),
+		     FRAME_LINES (f) * FRAME_LINE_HEIGHT (f), 5, true,
+		     Qx_create_frame_1);
 
   /* Set the menu-bar-lines and tool-bar-lines parameters.  We don't
      look up the X resources controlling the menu-bar and tool-bar
@@ -2151,22 +2206,18 @@ This function is an internal primitive--use `make-frame' instead.  */)
 		       ? make_number (0) : make_number (1),
 		       NULL, NULL, RES_TYPE_NUMBER);
 
-  unbind_to (count2, Qnil);
-
   x_default_parameter (f, parms, Qbuffer_predicate, Qnil,
 		       "bufferPredicate", "BufferPredicate",
 		       RES_TYPE_SYMBOL);
   x_default_parameter (f, parms, Qtitle, Qnil,
 		       "title", "Title", RES_TYPE_STRING);
-  x_default_parameter (f, parms, Qfullscreen, Qnil,
-                       "fullscreen", "Fullscreen", RES_TYPE_SYMBOL);
 #if 0
   x_default_parameter (f, parms, Qtool_bar_position,
-                       f->tool_bar_position, 0, 0, RES_TYPE_SYMBOL);
+                       FRAME_TOOL_BAR_POSITION (f), 0, 0, RES_TYPE_SYMBOL);
 #endif
 
   /* Compute the size of the window.  */
-  window_prompting = x_figure_window_size (f, parms, 1);
+  window_prompting = x_figure_window_size (f, parms, true, &x_width, &x_height);
 
   tem = x_get_arg (dpyinfo, parms, Qunsplittable, 0, 0, RES_TYPE_BOOLEAN);
   f->no_split = minibuffer_only || EQ (tem, Qt);
@@ -2203,22 +2254,33 @@ This function is an internal primitive--use `make-frame' instead.  */)
   x_default_parameter (f, parms, Qscroll_bar_width, Qnil,
 		       "scrollBarWidth", "ScrollBarWidth",
 		       RES_TYPE_NUMBER);
+  x_default_parameter (f, parms, Qscroll_bar_height, Qnil,
+		       "scrollBarHeight", "ScrollBarHeight",
+		       RES_TYPE_NUMBER);
 
-  /* Dimensions, especially FRAME_LINES (f), must be done via change_frame_size.
-     Change will not be effected unless different from the current
-     FRAME_LINES (f).  */
-  width = FRAME_TEXT_WIDTH (f);
-  height = FRAME_TEXT_HEIGHT (f);
-  FRAME_TEXT_HEIGHT (f) = 0;
-  SET_FRAME_WIDTH (f, 0);
-  change_frame_size (f, width, height, 1, 0, 0, 1);
+  /* Consider frame official, now.  */
+  f->can_x_set_window_size = true;
+
+  if (x_width > 0)
+    SET_FRAME_WIDTH (f, x_width);
+  if (x_height > 0)
+    SET_FRAME_HEIGHT (f, x_height);
 
   /* Tell the server what size and position, etc, we want, and how
      badly we want them.  This should be done after we have the menu
      bar so that its size can be taken into account.  */
   block_input ();
-  x_wm_set_size_hint (f, window_prompting, 0);
+  x_wm_set_size_hint (f, window_prompting, false);
   unblock_input ();
+
+  adjust_frame_size (f, FRAME_TEXT_WIDTH (f), FRAME_TEXT_HEIGHT (f),
+		     0, true, Qx_create_frame_2);
+
+  /* Process fullscreen parameter here in the hope that normalizing a
+     fullheight/fullwidth frame will produce the size set by the last
+     adjust_frame_size call.  */
+  x_default_parameter (f, parms, Qfullscreen, Qnil,
+		       "fullscreen", "Fullscreen", RES_TYPE_SYMBOL);
 
   /* Make the window appear on the frame and enable display, unless
      the caller says not to.  However, with explicit parent, Emacs
@@ -2254,8 +2316,6 @@ This function is an internal primitive--use `make-frame' instead.  */)
   for (tem = parms; CONSP (tem); tem = XCDR (tem))
     if (CONSP (XCAR (tem)) && !NILP (XCAR (XCAR (tem))))
       fset_param_alist (f, Fcons (XCAR (tem), f->param_alist));
-
-  UNGCPRO;
 
   /* Make sure windows on this frame appear in calls to next-window
      and similar functions.  */
@@ -2294,8 +2354,8 @@ x_focus_frame (struct frame *f)
 
 
 DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
-       doc: /* Internal function called by `color-defined-p', which see
-.\(Note that the Nextstep version of this function ignores FRAME.)  */)
+       doc: /* Internal function called by `color-defined-p', which see.
+\(Note that the Nextstep version of this function ignores FRAME.)  */)
   (Lisp_Object color, Lisp_Object frame)
 {
   XColor foo;
@@ -2303,7 +2363,7 @@ DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
 
   CHECK_STRING (color);
 
-  if (mac_defined_color (f, SSDATA (color), &foo, 0))
+  if (mac_defined_color (f, SSDATA (color), &foo, false))
     return Qt;
   else
     return Qnil;
@@ -2318,7 +2378,7 @@ DEFUN ("xw-color-values", Fxw_color_values, Sxw_color_values, 1, 2, 0,
 
   CHECK_STRING (color);
 
-  if (mac_defined_color (f, SSDATA (color), &foo, 0))
+  if (mac_defined_color (f, SSDATA (color), &foo, false))
     return list3i (foo.red, foo.green, foo.blue);
   else
     return Qnil;
@@ -2564,6 +2624,82 @@ If omitted or nil, that stands for the selected frame's display.  */)
   return Qnil;
 }
 
+/* Return geometric attributes of FRAME.  According to the value of
+   ATTRIBUTES return the outer edges of FRAME (Qouter_edges), the native
+   edges of FRAME (Qnative_edges), or the inner edges of frame
+   (Qinner_edges).  Any other value means to return the geometry as
+   returned by Fmac_frame_geometry.  */
+static Lisp_Object
+frame_geometry (Lisp_Object frame, Lisp_Object attribute)
+{
+  struct frame *f = decode_live_frame (frame);
+  NativeRectangle outer_bounds;
+  Lisp_Object result;
+
+  if (FRAME_INITIAL_P (f) || !FRAME_MAC_P (f))
+    return Qnil;
+
+  block_input ();
+  mac_get_frame_window_structure_bounds (f, &outer_bounds);
+  if (EQ (attribute, Qouter_edges))
+    result = list4 (make_number (outer_bounds.x), make_number (outer_bounds.y),
+		    make_number (outer_bounds.x + outer_bounds.width),
+		    make_number (outer_bounds.y + outer_bounds.height));
+  else if (EQ (attribute, Qnative_edges) || EQ (attribute, Qinner_edges))
+    {
+      CGRect rect = mac_get_frame_window_content_rect (f, EQ (attribute,
+							      Qinner_edges));
+
+      result = list4 (make_number (outer_bounds.x
+				   + lround (CGRectGetMinX (rect))),
+		      make_number (outer_bounds.y + outer_bounds.height
+				   - lround (CGRectGetMaxY (rect))),
+		      make_number (outer_bounds.x
+				   + lround (CGRectGetMaxX (rect))),
+		      make_number (outer_bounds.y + outer_bounds.height
+				   - lround (CGRectGetMinY (rect))));
+    }
+  else
+    {
+      CGFloat title_bar_height = mac_get_frame_window_title_bar_height (f);
+      CGSize menu_bar_size = mac_get_frame_window_menu_bar_size (f);
+      CGRect rect = mac_get_frame_window_tool_bar_rect (f);
+      int tool_bar_width =
+	lround (CGRectGetMaxX (rect)) - lround (CGRectGetMinX (rect));
+      int tool_bar_height =
+	lround (CGRectGetMaxY (rect)) - lround (CGRectGetMinY (rect));
+
+      result =
+	listn (CONSTYPE_HEAP, 10,
+	       Fcons (Qouter_position,
+		      Fcons (make_number (outer_bounds.x),
+			     make_number (outer_bounds.y))),
+	       Fcons (Qouter_size,
+		      Fcons (make_number (outer_bounds.width),
+			     make_number (outer_bounds.height))),
+	       Fcons (Qexternal_border_size,
+		      Fcons (make_number (0), make_number (0))),
+	       Fcons (Qtitle_bar_size,
+		      Fcons (make_number (outer_bounds.width),
+			     make_number (lround (title_bar_height)))),
+	       Fcons (Qmenu_bar_external, Qt),
+	       Fcons (Qmenu_bar_size,
+		      Fcons (make_number (lround (menu_bar_size.width)),
+			     make_number (lround (menu_bar_size.height)))),
+	       Fcons (Qtool_bar_external,
+		      !FRAME_NATIVE_TOOL_BAR_P (f) ? Qt : Qnil),
+	       Fcons (Qtool_bar_position, Qtop),
+	       Fcons (Qtool_bar_size,
+		      Fcons (make_number (tool_bar_width),
+			     make_number (tool_bar_height))),
+	       Fcons (Qinternal_border_width,
+		      make_number (FRAME_INTERNAL_BORDER_WIDTH (f))));
+    }
+  unblock_input ();
+
+  return result;
+}
+
 DEFUN ("mac-display-monitor-attributes-list", Fmac_display_monitor_attributes_list,
        Smac_display_monitor_attributes_list,
        0, 1, 0,
@@ -2593,6 +2729,117 @@ Internal use only, use `display-monitor-attributes-list' instead.  */)
   return attributes_list;
 }
 
+DEFUN ("mac-frame-geometry", Fmac_frame_geometry, Smac_frame_geometry, 0, 1, 0,
+       doc: /* Return geometric attributes of FRAME.
+FRAME must be a live frame and defaults to the selected one.  The return
+value is an association list of the attributes listed below.  All height
+and width values are in pixels.
+
+`outer-position' is a cons of the outer left and top edges of FRAME
+  relative to the origin - the position (0, 0) - of FRAME's display.
+
+`outer-size' is a cons of the outer width and height of FRAME.  The
+  outer size includes the title bar and the external borders as well as
+  any menu and/or tool bar of frame.
+
+`external-border-size' is a cons of the horizontal and vertical width of
+  FRAME's external borders as supplied by the window manager.
+
+`title-bar-size' is a cons of the width and height of the title bar of
+  FRAME as supplied by the window manager.  If both of them are zero,
+  FRAME has no title bar.  If only the width is zero, Emacs was not
+  able to retrieve the width information.
+
+`menu-bar-external', if non-nil, means the menu bar is external (never
+  included in the inner edges of FRAME).
+
+`menu-bar-size' is a cons of the width and height of the menu bar of
+  FRAME.
+
+`tool-bar-external', if non-nil, means the tool bar is external (never
+  included in the inner edges of FRAME).
+
+`tool-bar-position' tells on which side the tool bar on FRAME is and can
+  be one of `left', `top', `right' or `bottom'.  If this is nil, FRAME
+  has no tool bar.
+
+`tool-bar-size' is a cons of the width and height of the tool bar of
+  FRAME.
+
+`internal-border-width' is the width of the internal border of
+  FRAME.  */)
+  (Lisp_Object frame)
+{
+  return frame_geometry (frame, Qnil);
+}
+
+DEFUN ("mac-frame-edges", Fmac_frame_edges, Smac_frame_edges, 0, 2, 0,
+       doc: /* Return edge coordinates of FRAME.
+FRAME must be a live frame and defaults to the selected one.  The return
+value is a list of the form (LEFT, TOP, RIGHT, BOTTOM).  All values are
+in pixels relative to the origin - the position (0, 0) - of FRAME's
+display.
+
+If optional argument TYPE is the symbol `outer-edges', return the outer
+edges of FRAME.  The outer edges comprise the decorations of the window
+manager (like the title bar or external borders) as well as any external
+menu or tool bar of FRAME.  If optional argument TYPE is the symbol
+`native-edges' or nil, return the native edges of FRAME.  The native
+edges exclude the decorations of the window manager and any external
+menu or tool bar of FRAME.  If TYPE is the symbol `inner-edges', return
+the inner edges of FRAME.  These edges exclude title bar, any borders,
+menu bar or tool bar of FRAME.  */)
+  (Lisp_Object frame, Lisp_Object type)
+{
+  return frame_geometry (frame, ((EQ (type, Qouter_edges)
+				  || EQ (type, Qinner_edges))
+				 ? type
+				 : Qnative_edges));
+}
+
+DEFUN ("mac-mouse-absolute-pixel-position", Fmac_mouse_absolute_pixel_position,
+       Smac_mouse_absolute_pixel_position, 0, 0, 0,
+       doc: /* Return absolute position of mouse cursor in pixels.
+The position is returned as a cons cell (X . Y) of the coordinates of
+the mouse cursor position in pixels relative to a position (0, 0) of the
+selected frame's display.  */)
+  (void)
+{
+  struct frame *f = SELECTED_FRAME ();
+  CGPoint point;
+
+  if (FRAME_INITIAL_P (f) || !FRAME_MAC_P (f))
+    return Qnil;
+
+  block_input ();
+  point = mac_get_global_mouse ();
+  unblock_input ();
+
+  return Fcons (make_number (point.x), make_number (point.y));
+}
+
+DEFUN ("mac-set-mouse-absolute-pixel-position",
+       Fmac_set_mouse_absolute_pixel_position,
+       Smac_set_mouse_absolute_pixel_position, 2, 2, 0,
+       doc: /* Move mouse pointer to absolute pixel position (X, Y).
+The coordinates X and Y are interpreted in pixels relative to a position
+\(0, 0) of the selected frame's display.  */)
+  (Lisp_Object x, Lisp_Object y)
+{
+  struct frame *f = SELECTED_FRAME ();
+
+  if (FRAME_INITIAL_P (f) || !FRAME_MAC_P (f))
+    return Qnil;
+
+  CHECK_TYPE_RANGED_INTEGER (int, x);
+  CHECK_TYPE_RANGED_INTEGER (int, y);
+
+  block_input ();
+  CGWarpMouseCursorPosition (CGPointMake (XINT (x), XINT (y)));
+  unblock_input ();
+
+  return Qnil;
+}
 
 /* Return the display structure for the display named NAME.
    Open a new connection if necessary.  */
@@ -2768,71 +3015,6 @@ value.  */)
 
 
 /***********************************************************************
-				Busy cursor
- ***********************************************************************/
-
-/* Timer function of hourglass_atimer.  TIMER is equal to
-   hourglass_atimer.
-
-   On Mac, busy status is shown by the progress indicator (chasing
-   arrows) at the upper-right corner of each frame instead of the
-   hourglass pointer.  */
-
-void
-show_hourglass (struct atimer *timer)
-{
-  /* The timer implementation will cancel this timer automatically
-     after this function has run.  Set hourglass_atimer to null
-     so that we know the timer doesn't have to be canceled.  */
-  hourglass_atimer = NULL;
-
-  if (!hourglass_shown_p)
-    {
-      Lisp_Object rest, frame;
-
-      block_input ();
-
-      FOR_EACH_FRAME (rest, frame)
-	{
-	  struct frame *f = XFRAME (frame);
-
-	  if (FRAME_LIVE_P (f) && FRAME_MAC_P (f) && !EQ (frame, tip_frame))
-	    mac_show_hourglass (f);
-	}
-
-      hourglass_shown_p = 1;
-      unblock_input ();
-    }
-}
-
-
-/* Hide the progress indicators on all frames, if it is currently
-   shown.  */
-
-void
-hide_hourglass (void)
-{
-  if (hourglass_shown_p)
-    {
-      Lisp_Object rest, frame;
-
-      block_input ();
-      FOR_EACH_FRAME (rest, frame)
-	{
-	  struct frame *f = XFRAME (frame);
-
-	  if (FRAME_MAC_P (f))
-	    mac_hide_hourglass (f);
-	}
-
-      hourglass_shown_p = 0;
-      unblock_input ();
-    }
-}
-
-
-
-/***********************************************************************
 				Tool tips
  ***********************************************************************/
 
@@ -2885,10 +3067,10 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
   Lisp_Object name;
   int width, height;
   ptrdiff_t count = SPECPDL_INDEX ();
-  struct gcpro gcpro1, gcpro2, gcpro3;
-  int face_change_count_before = face_change_count;
+  bool face_change_before = face_change;
   Lisp_Object buffer;
   struct buffer *old_buffer;
+  int x_width = 0, x_height = 0;
 
   if (!dpyinfo->terminal->name)
     error ("Terminal is not live, can't create new frames on it");
@@ -2903,14 +3085,14 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
     error ("Invalid frame name--not a string or nil");
 
   frame = Qnil;
-  GCPRO3 (parms, name, frame);
-  f = make_frame (1);
+  f = make_frame (true);
   XSETFRAME (frame, f);
 
-  buffer = Fget_buffer_create (build_string (" *tip*"));
+  AUTO_STRING (tip, " *tip*");
+  buffer = Fget_buffer_create (tip);
   /* Use set_window_buffer instead of Fset_window_buffer (see
      discussion of bug#11984, bug#12025, bug#12026).  */
-  set_window_buffer (FRAME_ROOT_WINDOW (f), buffer, 0, 0);
+  set_window_buffer (FRAME_ROOT_WINDOW (f), buffer, false, false);
   old_buffer = current_buffer;
   set_buffer_internal_1 (XBUFFER (buffer));
   bset_truncate_lines (current_buffer, Qnil);
@@ -2938,24 +3120,30 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
   fset_icon_name (f, Qnil);
 /*   FRAME_X_DISPLAY_INFO (f) = dpyinfo; */
   f->output_data.mac->parent_desc = FRAME_DISPLAY_INFO (f)->root_window;
-  f->output_data.mac->explicit_parent = 0;
+  f->output_data.mac->explicit_parent = false;
 
   /* Set the name; the functions to which we pass f expect the name to
      be set.  */
   if (EQ (name, Qunbound) || NILP (name))
     {
       fset_name (f, build_string (dpyinfo->mac_id_name));
-      f->explicit_name = 0;
+      f->explicit_name = false;
     }
   else
     {
       fset_name (f, name);
-      f->explicit_name = 1;
+      f->explicit_name = true;
       /* use the frame's title when getting resources for this frame.  */
       specbind (Qx_resource_name, name);
     }
 
   mac_register_font_driver (f);
+
+  image_cache_refcount =
+    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
+#ifdef GLYPH_DEBUG
+  dpyinfo_refcount = dpyinfo->reference_count;
+#endif /* GLYPH_DEBUG */
 
   x_default_parameter (f, parms, Qfont_backend, Qnil,
 		       "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -3001,23 +3189,14 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
   x_default_parameter (f, parms, Qborder_color, build_string ("black"),
 		       "borderColor", "BorderColor", RES_TYPE_STRING);
 
-#ifdef GLYPH_DEBUG
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-  dpyinfo_refcount = dpyinfo->reference_count;
-#endif /* GLYPH_DEBUG */
-
-  /* Init faces before x_default_parameter is called for scroll-bar
-     parameters because that function calls x_set_scroll_bar_width,
-     which calls change_frame_size, which calls Fset_window_buffer,
-     which runs hooks, which call Fvertical_motion.  At the end, we
-     end up in init_iterator with a null face cache, which should not
-     happen.  */
+  /* Init faces before x_default_parameter is called for the
+     scroll-bar-width parameter because otherwise we end up in
+     init_iterator with a null face cache, which should not happen.  */
   init_frame_faces (f);
 
   f->output_data.mac->parent_desc = FRAME_DISPLAY_INFO (f)->root_window;
 
-  x_figure_window_size (f, parms, 0);
+  x_figure_window_size (f, parms, false, &x_width, &x_height);
 
   block_input ();
 
@@ -3043,12 +3222,15 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
   width = FRAME_COLS (f);
   height = FRAME_LINES (f);
   SET_FRAME_COLS (f, 0);
-  FRAME_LINES (f) = 0;
-  change_frame_size (f, width, height, 1, 0, 0, 0);
+  SET_FRAME_LINES (f, 0);
+  change_frame_size (f, width, height, true, false, false, false);
 
   /* Add `tooltip' frame parameter's default value. */
   if (NILP (Fframe_parameter (frame, Qtooltip)))
-    Fmodify_frame_parameters (frame, list1 (Fcons (Qtooltip, Qt)));
+    {
+      AUTO_FRAME_ARG (arg, Qtooltip, Qt);
+      Fmodify_frame_parameters (frame, arg);
+    }
 
   /* FIXME - can this be done in a similar way to normal frames?
      http://lists.gnu.org/archive/html/emacs-devel/2007-10/msg00641.html */
@@ -3058,14 +3240,17 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
     Lisp_Object disptype;
 
     if (FRAME_DISPLAY_INFO (f)->n_planes == 1)
-      disptype = intern ("mono");
+      disptype = Qmono;
     else if (!FRAME_DISPLAY_INFO (f)->color_p)
       disptype = intern ("grayscale");
     else
       disptype = intern ("color");
 
     if (NILP (Fframe_parameter (frame, Qdisplay_type)))
-      Fmodify_frame_parameters (frame, list1 (Fcons (Qdisplay_type, disptype)));
+      {
+	AUTO_FRAME_ARG (arg, Qdisplay_type, disptype);
+	Fmodify_frame_parameters (frame, arg);
+      }
   }
 
   /* Set up faces after all frame parameters are known.  This call
@@ -3084,12 +3269,13 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
     call2 (Qface_set_after_frame_default, frame, Qnil);
 
     if (!EQ (bg, Fframe_parameter (frame, Qbackground_color)))
-      Fmodify_frame_parameters (frame, list1 (Fcons (Qbackground_color, bg)));
+      {
+	AUTO_FRAME_ARG (arg, Qbackground_color, bg);
+	Fmodify_frame_parameters (frame, arg);
+      }
   }
 
-  f->no_split = 1;
-
-  UNGCPRO;
+  f->no_split = true;
 
   /* Now that the frame will be official, it counts as a reference to
      its display and terminal.  */
@@ -3100,14 +3286,14 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
      below.  And the frame needs to be on Vframe_list or making it
      visible won't work.  */
   Vframe_list = Fcons (frame, Vframe_list);
-
+  f->can_x_set_window_size = true;
 
   /* Setting attributes of faces of the tooltip frame from resources
-     and similar will increment face_change_count, which leads to the
-     clearing of all current matrices.  Since this isn't necessary
-     here, avoid it by resetting face_change_count to the value it
-     had before we created the tip frame.  */
-  face_change_count = face_change_count_before;
+     and similar will set face_change, which leads to the clearing of
+     all current matrices.  Since this isn't necessary here, avoid it
+     by resetting face_change to the value it had before we created
+     the tip frame.  */
+  face_change = face_change_before;
 
   /* Discard the unwind_protect.  */
   return unbind_to (count, frame);
@@ -3123,7 +3309,7 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms,
 static void
 compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx, Lisp_Object dy, int width, int height, int *root_x, int *root_y)
 {
-  Lisp_Object left, top;
+  Lisp_Object left, top, right, bottom;
   CGRect bounds =
     CGRectMake (0, 0, x_display_pixel_width (FRAME_DISPLAY_INFO (f)),
 		x_display_pixel_height (FRAME_DISPLAY_INFO (f)));
@@ -3131,22 +3317,22 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx, Lisp_Object 
   /* User-specified position?  */
   left = Fcdr (Fassq (Qleft, parms));
   top  = Fcdr (Fassq (Qtop, parms));
+  right = Fcdr (Fassq (Qright, parms));
+  bottom = Fcdr (Fassq (Qbottom, parms));
 
   /* Move the tooltip window where the mouse pointer is.  Resize and
      show it.  */
-  if (!INTEGERP (left) || !INTEGERP (top))
+  if ((!INTEGERP (left) && !INTEGERP (right))
+      || (!INTEGERP (top) && !INTEGERP (bottom)))
     {
-      Point mouse_pos;
       CGPoint point;
       CGError err;
       uint32_t count;
 
       block_input ();
-      mac_get_global_mouse (&mouse_pos);
-      *root_x = mouse_pos.h;
-      *root_y = mouse_pos.v;
-      point.x = mouse_pos.h;
-      point.y = mouse_pos.v;
+      point = mac_get_global_mouse ();
+      *root_x = point.x;
+      *root_y = point.y;
       err = CGGetDisplaysWithPoint (point, 0, NULL, &count);
       if (err == kCGErrorSuccess)
 	{
@@ -3169,6 +3355,8 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx, Lisp_Object 
 
   if (INTEGERP (top))
     *root_y = XINT (top);
+  else if (INTEGERP (bottom))
+    *root_y = XINT (bottom) - height;
   else if (*root_y + XINT (dy) <= CGRectGetMinY (bounds))
     *root_y = CGRectGetMinY (bounds); /* Can happen for negative dy */
   else if (*root_y + XINT (dy) + height <= CGRectGetMaxY (bounds))
@@ -3183,6 +3371,8 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx, Lisp_Object 
 
   if (INTEGERP (left))
     *root_x = XINT (left);
+  else if (INTEGERP (right))
+    *root_x = XINT (right) - width;
   else if (*root_x + XINT (dx) <= CGRectGetMinX (bounds))
     *root_x = CGRectGetMinX (bounds); /* Can happen for negative dx */
   else if (*root_x + XINT (dx) + width <= CGRectGetMaxX (bounds))
@@ -3212,12 +3402,18 @@ Automatically hide the tooltip after TIMEOUT seconds.  TIMEOUT nil
 means use the default timeout of 5 seconds.
 
 If the list of frame parameters PARMS contains a `left' parameter,
-the tooltip is displayed at that x-position.  Otherwise it is
-displayed at the mouse position, with offset DX added (default is 5 if
-DX isn't specified).  Likewise for the y-position; if a `top' frame
-parameter is specified, it determines the y-position of the tooltip
-window, otherwise it is displayed at the mouse position, with offset
-DY added (default is -10).
+display the tooltip at that x-position.  If the list of frame parameters
+PARMS contains no `left' but a `right' parameter, display the tooltip
+right-adjusted at that x-position. Otherwise display it at the
+x-position of the mouse, with offset DX added (default is 5 if DX isn't
+specified).
+
+Likewise for the y-position: If a `top' frame parameter is specified, it
+determines the position of the upper edge of the tooltip window.  If a
+`bottom' parameter but no `top' frame parameter is specified, it
+determines the position of the lower edge of the tooltip window.
+Otherwise display the tooltip window at the y-position of the mouse,
+with offset DY added (default is -10).
 
 A tooltip's maximum size is specified by `x-max-tooltip-size'.
 Text larger than the specified size is clipped.  */)
@@ -3228,14 +3424,12 @@ Text larger than the specified size is clipped.  */)
   int root_x, root_y;
   struct buffer *old_buffer;
   struct text_pos pos;
-  int i, width, height, seen_reversed_p;
-  struct gcpro gcpro1, gcpro2, gcpro3, gcpro4;
+  int i, width, height;
+  bool seen_reversed_p;
   int old_windows_or_buffers_changed = windows_or_buffers_changed;
   ptrdiff_t count = SPECPDL_INDEX ();
 
   specbind (Qinhibit_redisplay, Qt);
-
-  GCPRO4 (string, parms, frame, timeout);
 
   CHECK_STRING (string);
   if (SCHARS (string) == 0)
@@ -3343,7 +3537,7 @@ Text larger than the specified size is clipped.  */)
 
   FRAME_TOTAL_COLS (f) = w->total_cols;
   adjust_frame_glyphs (f);
-  w->pseudo_window_p = 1;
+  w->pseudo_window_p = true;
 
   /* Display the tooltip text in a temporary buffer.  */
   old_buffer = current_buffer;
@@ -3355,7 +3549,8 @@ Text larger than the specified size is clipped.  */)
   try_window (FRAME_ROOT_WINDOW (f), pos, TRY_WINDOW_IGNORE_FONTS_CHANGE);
 
   /* Compute width and height of the tooltip.  */
-  width = height = seen_reversed_p = 0;
+  width = height = 0;
+  seen_reversed_p = false;
   for (i = 0; i < w->desired_matrix->nrows; ++i)
     {
       struct glyph_row *row = &w->desired_matrix->rows[i];
@@ -3367,7 +3562,7 @@ Text larger than the specified size is clipped.  */)
 	break;
 
       /* Let the row go over the full width of the frame.  */
-      row->full_width_p = 1;
+      row->full_width_p = true;
 
       row_width = row->pixel_width;
       if (row->used[TEXT_AREA])
@@ -3377,7 +3572,7 @@ Text larger than the specified size is clipped.  */)
 	  if (!row->reversed_p)
 	    {
 	      last = &row->glyphs[TEXT_AREA][row->used[TEXT_AREA] - 1];
-	      if (INTEGERP (last->object))
+	      if (NILP (last->object))
 		row_width -= last->pixel_width;
 	    }
 	  else
@@ -3387,10 +3582,10 @@ Text larger than the specified size is clipped.  */)
 		 Don't count that glyph.  */
 	      struct glyph *g = row->glyphs[TEXT_AREA];
 
-	      if (g->type == STRETCH_GLYPH && INTEGERP (g->object))
+	      if (g->type == STRETCH_GLYPH && NILP (g->object))
 		{
 		  row_width -= g->pixel_width;
-		  seen_reversed_p = 1;
+		  seen_reversed_p = true;
 		}
 	    }
 	}
@@ -3426,12 +3621,12 @@ Text larger than the specified size is clipped.  */)
 
 	  if (!row->enabled_p || !MATRIX_ROW_DISPLAYS_TEXT_P (row))
 	    break;
-	  row->full_width_p = 1;
+	  row->full_width_p = true;
 	  row_width = row->pixel_width;
 	  if (row->used[TEXT_AREA] && !row->reversed_p)
 	    {
 	      last = &row->glyphs[TEXT_AREA][row->used[TEXT_AREA] - 1];
-	      if (INTEGERP (last->object))
+	      if (NILP (last->object))
 		row_width -= last->pixel_width;
 	    }
 
@@ -3464,8 +3659,8 @@ Text larger than the specified size is clipped.  */)
   FRAME_PIXEL_HEIGHT (f) = height;
 
   /* Draw into the window.  */
-  w->must_be_updated_p = 1;
-  update_single_window (w, 1);
+  w->must_be_updated_p = true;
+  update_single_window (w);
 
   /* Restore original current buffer.  */
   set_buffer_internal_1 (old_buffer);
@@ -3476,7 +3671,6 @@ Text larger than the specified size is clipped.  */)
   tip_timer = call3 (intern ("run-at-time"), timeout, Qnil,
 		     intern ("x-hide-tip"));
 
-  UNGCPRO;
   return unbind_to (count, Qnil);
 }
 
@@ -3488,7 +3682,6 @@ Value is t if tooltip was open, nil otherwise.  */)
 {
   ptrdiff_t count;
   Lisp_Object deleted, frame, timer;
-  struct gcpro gcpro1, gcpro2;
 
   /* Return quickly if nothing to do.  */
   if (NILP (tip_timer) && NILP (tip_frame))
@@ -3496,7 +3689,6 @@ Value is t if tooltip was open, nil otherwise.  */)
 
   frame = tip_frame;
   timer = tip_timer;
-  GCPRO2 (frame, timer);
   tip_frame = tip_timer = deleted = Qnil;
 
   count = SPECPDL_INDEX ();
@@ -3516,7 +3708,6 @@ Value is t if tooltip was open, nil otherwise.  */)
       deleted = Qt;
     }
 
-  UNGCPRO;
   return unbind_to (count, deleted);
 }
 
@@ -3608,16 +3799,135 @@ This is for internal use only.  Use `mac-font-panel-mode' instead.  */)
 
 
 /***********************************************************************
+			       Printing
+ ***********************************************************************/
+
+DEFUN ("mac-export-frames", Fmac_export_frames, Smac_export_frames, 0, 2, 0,
+       doc: /* Return image data of FRAMES in TYPE format.
+FRAMES should be nil (the selected frame), a frame, or a list of
+frames (each of which corresponds to one page).  Each frame should be
+visible.  Optional arg TYPE should be either `pdf' (default) or
+`png'.  */)
+     (Lisp_Object frames, Lisp_Object type)
+{
+  Lisp_Object rest, tmp;
+
+  if (!CONSP (frames))
+    frames = list1 (frames);
+
+  tmp = Qnil;
+  for (rest = frames; CONSP (rest); rest = XCDR (rest))
+    {
+      struct frame *f = decode_window_system_frame (XCAR (rest));
+      Lisp_Object frame;
+
+      XSETFRAME (frame, f);
+      if (!FRAME_VISIBLE_P (f))
+	error ("Frames to be exported must be visible.");
+      tmp = Fcons (frame, tmp);
+    }
+  frames = Fnreverse (tmp);
+
+  if (NILP (type))
+    type = Qpdf;
+  else if (EQ (type, Qpdf))
+    ;
+  else if (EQ (type, Qpng))
+    {
+      if (!NILP (XCDR (frames)))
+	error ("PNG export cannot handle multiple frames.");
+    }
+  else
+    error ("Unsupported export type");
+
+  return mac_export_frames (frames, type);
+}
+
+DEFUN ("mac-page-setup-dialog", Fmac_page_setup_dialog, Smac_page_setup_dialog,
+       0, 0, 0,
+       doc: /* Pop up a page setup dialog.
+The current page setup can be obtained using `mac-get-page-setup'.  */)
+     (void)
+{
+  block_input ();
+  mac_page_setup_dialog ();
+  unblock_input ();
+
+  return Qnil;
+}
+
+DEFUN ("mac-get-page-setup", Fmac_get_page_setup, Smac_get_page_setup, 0, 0, 0,
+       doc: /* Return the value of the current page setup.
+The return value is an alist containing the following keys:
+
+  orientation: page orientation (symbol `portrait' or `landscape').
+  width, height: page width/height in points not including margins.
+  left-margin, right-margin, top-margin, bottom-margin: print margins,
+	which is the parts of the page that the printer cannot print
+	on, in points.
+
+The paper width can be obtained as the sum of width, left-margin, and
+right-margin values if the page orientation is `portrait'.  Otherwise,
+it is the sum of width, top-margin, and bottom-margin values.
+Likewise, the paper height is the sum of height, top-margin, and
+bottom-margin values if the page orientation is `portrait'.
+Otherwise, it is the sum of height, left-margin, and right-margin
+values.  */)
+     (void)
+{
+  Lisp_Object result;
+
+  block_input ();
+  result = mac_get_page_setup ();
+  unblock_input ();
+
+  return result;
+}
+
+DEFUN ("mac-print-frames-dialog", Fmac_print_frames_dialog,
+       Smac_print_frames_dialog, 0, 1, "",
+       doc: /* Pop up a print dialog to print the current contents of FRAMES.
+FRAMES should be nil (the selected frame), a frame, or a list of
+frames (each of which corresponds to one page).  Each frame should be
+visible.  */)
+     (Lisp_Object frames)
+{
+  Lisp_Object rest, tmp;
+  int count;
+
+  if (!CONSP (frames))
+    frames = list1 (frames);
+
+  tmp = Qnil;
+  for (rest = frames; CONSP (rest); rest = XCDR (rest))
+    {
+      struct frame *f = decode_window_system_frame (XCAR (rest));
+      Lisp_Object frame;
+
+      XSETFRAME (frame, f);
+      if (!FRAME_VISIBLE_P (f))
+	error ("Frames to be printed must be visible.");
+      tmp = Fcons (frame, tmp);
+    }
+  frames = Fnreverse (tmp);
+
+  /* Make sure the current matrices are up-to-date.  */
+  count = SPECPDL_INDEX ();
+  specbind (Qredisplay_dont_pause, Qt);
+  redisplay_preserve_echo_area (32);
+  unbind_to (count, Qnil);
+
+  block_input ();
+  mac_print_frames_dialog (frames);
+  unblock_input ();
+
+  return Qnil;
+}
+
+
+/***********************************************************************
 			  Text Input Source
  ***********************************************************************/
-static Lisp_Object Qkeyboard, Qkeyboard_layout;
-static Lisp_Object Qascii_capable_keyboard, Qascii_capable_keyboard_layout;
-static Lisp_Object Qkeyboard_layout_override;
-static Lisp_Object QCascii_capable_p, QCenable_capable_p, QCselect_capable_p;
-static Lisp_Object QCenabled_p, QCselected_p, QCbundle_id, QCinput_mode_id;
-static Lisp_Object QClocalized_name, QClanguages, QCicon_image_file;
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
 
 /* Return true if and only if LIST is a non-circular list of
    symbols.  */
@@ -3765,7 +4075,6 @@ static CFURLRef
 mac_tis_create_fixed_icon_image_url (CFURLRef url)
 {
   CFURLRef result = NULL, sansext = NULL, tiff = NULL;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   CFStringRef extension = CFURLCopyPathExtension (url);
 
   if (extension)
@@ -3788,7 +4097,6 @@ mac_tis_create_fixed_icon_image_url (CFURLRef url)
       else
 	CFRelease (tiff);
     }
-#endif
 
   return result;
 }
@@ -3871,7 +4179,7 @@ mac_input_source_properties (TISInputSourceRef source, Lisp_Object format)
 		}
 	    }
 
-	  for (i = sizeof (keys) / sizeof (*keys); i > 0; i--)
+	  for (i = ARRAYELTS (keys); i > 0; i--)
 	    if (EQ (format, Qt)
 		|| (SYMBOLP (format) ? EQ (format, keys[i-1].sym)
 		    : !NILP (Fmemq (keys[i-1].sym, format))))
@@ -3893,8 +4201,6 @@ mac_input_source_properties (TISInputSourceRef source, Lisp_Object format)
 
   return result;
 }
-
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 */
 
 DEFUN ("mac-input-source", Fmac_input_source, Smac_input_source, 0, 2, 0,
        doc: /* Return ID optionally with properties of input source SOURCE.
@@ -3976,20 +4282,12 @@ t, but PLIST only contains the properties given in FORMAT.
 
 If FORMAT is a symbol, then it is interpreted as a property above and
 the result is a cons (ID . VALUE) of an input source ID string and a
-value corresponding to the property.
-
-This function returns nil if compiled or run on Mac OS X 10.4 or
-earlier.  */)
+value corresponding to the property.  */)
   (Lisp_Object source, Lisp_Object format)
 {
   Lisp_Object result = Qnil;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   TISInputSourceRef input_source;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (TISInputSourceGetTypeID == NULL)
-    return Qnil;
-#endif
   check_window_system (NULL);
   mac_check_input_source (source, false);
   if (!(SYMBOLP (format) || mac_symbol_list_p (format)))
@@ -4003,7 +4301,6 @@ earlier.  */)
       CFRelease (input_source);
     }
   unblock_input ();
-#endif
 
   return result;
 }
@@ -4018,20 +4315,12 @@ this can have significant memory impact.
 
 Optional 2nd arg FORMAT must be a symbol or a list of symbols, and
 controls the format of the result.  See `mac-input-source' for their
-meanings.
-
-This function returns nil if compiled or run on Mac OS X 10.4 or
-earlier.  */)
+meanings.  */)
   (Lisp_Object type, Lisp_Object format)
 {
   Lisp_Object result = Qnil;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   CFArrayRef list = NULL;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (TISInputSourceGetTypeID == NULL)
-    return Qnil;
-#endif
   check_window_system (NULL);
   if (!(NILP (type) || EQ (type, Qt) || EQ (type, Qascii_capable_keyboard)))
     error ("TYPE must be nil, t, or `ascii-capable-keyboard'");
@@ -4059,7 +4348,6 @@ earlier.  */)
       CFRelease (list);
     }
   unblock_input ();
-#endif
 
   return result;
 }
@@ -4076,20 +4364,12 @@ SOURCE is set as the keyboard layout override rather than the new
 current keyboard input source.
 
 Return t if SOURCE could be successfully selected.  Otherwise, return
-nil.
-
-This function has no effect and returns nil if compiled or run on Mac
-OS X 10.4 or earlier.  */)
+nil.  */)
   (Lisp_Object source, Lisp_Object set_keyboard_layout_override_p)
 {
   Lisp_Object result = Qnil;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   TISInputSourceRef input_source;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (TISInputSourceGetTypeID == NULL)
-    return Qnil;
-#endif
   check_window_system (NULL);
   mac_check_input_source (source, false);
 
@@ -4110,7 +4390,6 @@ OS X 10.4 or earlier.  */)
       CFRelease (input_source);
     }
   unblock_input ();
-#endif
 
   return result;
 }
@@ -4123,20 +4402,12 @@ sources; calling it has no effect on other input sources.  So, unlike
 causes an error.  SOURCE must be t or a string, and cannot be omitted.
 
 Return t if SOURCE could be successfully deselected.  Otherwise,
-return nil.
-
-This function has no effect and returns nil if compiled or run on Mac
-OS X 10.4 or earlier.  */)
+return nil.  */)
   (Lisp_Object source)
 {
   Lisp_Object result = Qnil;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   TISInputSourceRef input_source;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  if (TISInputSourceGetTypeID == NULL)
-    return Qnil;
-#endif
   check_window_system (NULL);
   mac_check_input_source (source, true);
 
@@ -4149,7 +4420,6 @@ OS X 10.4 or earlier.  */)
       CFRelease (input_source);
     }
   unblock_input ();
-#endif
 
   return result;
 }
@@ -4158,8 +4428,6 @@ OS X 10.4 or earlier.  */)
 /***********************************************************************
 			     Application
  ***********************************************************************/
-
-Lisp_Object QCactive_p, QChidden_p;
 
 DEFUN ("mac-application-state", Fmac_application_state, Smac_application_state, 0, 0, 0,
        doc: /* Return the current state of Emacs as a GUI application.
@@ -4187,11 +4455,6 @@ If Emacs is not running as a GUI application, then the result is nil.  */)
 /***********************************************************************
 			      Animation
  ***********************************************************************/
-
-Lisp_Object QCdirection, QCduration;
-Lisp_Object Qfade_in, Qmove_in;
-Lisp_Object Qbars_swipe, Qcopy_machine, Qdissolve, Qflash, Qmod;
-Lisp_Object Qpage_curl, Qpage_curl_with_shadow, Qripple, Qswipe;
 
 DEFUN ("mac-start-animation", Fmac_start_animation, Smac_start_animation, 1, MANY, 0,
        doc: /* Start animation effect for FRAME-OR-WINDOW.
@@ -4274,23 +4537,15 @@ FRAME-OR-WINDOW as the source image, and the completely transparent
 image as the target, so the result of display changes that follow
 becomes visible gradually through the transparent part.
 
-This function has no effect and returns nil if compiled or run on Mac
-OS X 10.4 or earlier, or when FRAME-OR-WINDOW is of the frame that is
-not completely opaque.
+This function has no effect and returns nil when FRAME-OR-WINDOW is of
+the frame that is not completely opaque.
 usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
   (ptrdiff_t nargs, Lisp_Object *args)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   Lisp_Object frame_or_window, properties;
   struct frame *f;
   CGFloat alpha;
   ptrdiff_t count;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-  extern CFTimeInterval CACurrentMediaTime (void) AVAILABLE_MAC_OS_X_VERSION_10_5_AND_LATER;
-
-  if (CACurrentMediaTime == NULL)
-    return Qnil;
-#endif
 
   frame_or_window = args[0];
   if (NILP (frame_or_window))
@@ -4319,9 +4574,6 @@ usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
   unblock_input ();
 
   return Qt;
-#else  /* MAC_OS_X_VERSION_MAX_ALLOWED < 1050 */
-  return Qnil;
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED < 1050 */
 }
 
 
@@ -4352,17 +4604,19 @@ frame_parm_handler mac_frame_parm_handlers[] =
   x_set_mouse_color,
   x_explicitly_set_name,
   x_set_scroll_bar_width,
+  x_set_scroll_bar_height,
   x_set_title,
   x_set_unsplittable,
   x_set_vertical_scroll_bars,
+  x_set_horizontal_scroll_bars,
   x_set_visibility,
   x_set_tool_bar_lines,
   0, /* MAC_TODO: x_set_scroll_bar_foreground, */
   0, /* MAC_TODO: x_set_scroll_bar_background, */
   x_set_screen_gamma,
   x_set_line_spacing,
-  x_set_fringe_width,
-  x_set_fringe_width,
+  x_set_left_fringe,
+  x_set_right_fringe,
   0, /* x_set_wait_for_wm, */
   x_set_fullscreen,
   x_set_font_backend,
@@ -4374,18 +4628,17 @@ frame_parm_handler mac_frame_parm_handlers[] =
 void
 syms_of_macfns (void)
 {
-  /* The section below is built by the lisp expression at the top of the file,
-     just above where these variables are declared.  */
-  /*&&& init symbols here &&&*/
-  DEFSYM (Qsuppress_icon, "suppress-icon");
   DEFSYM (Qundefined_color, "undefined-color");
   DEFSYM (Qcancel_timer, "cancel-timer");
-  DEFSYM (Qgeometry, "geometry");
-  DEFSYM (Qworkarea, "workarea");
-  DEFSYM (Qmm_size, "mm-size");
-  DEFSYM (Qframes, "frames");
+  DEFSYM (Qmono, "mono");
   DEFSYM (Qbacking_scale_factor, "backing-scale-factor");
   DEFSYM (Qfont_param, "font-parameter");
+  DEFSYM (Qpdf, "pdf");
+  DEFSYM (Qorientation, "orientation");
+  DEFSYM (Qtop_margin, "top-margin");
+  DEFSYM (Qbottom_margin, "bottom-margin");
+  DEFSYM (Qportrait, "portrait");
+  DEFSYM (Qlandscape, "landscape");
   DEFSYM (Qkeyboard, "keyboard");
   DEFSYM (Qkeyboard_layout, "keyboard-layout");
   DEFSYM (Qascii_capable_keyboard, "ascii-capable-keyboard");
@@ -4416,7 +4669,6 @@ syms_of_macfns (void)
   DEFSYM (Qpage_curl_with_shadow, "page-curl-with-shadow");
   DEFSYM (Qripple, "ripple");
   DEFSYM (Qswipe, "swipe");
-  /* This is the end of symbol initialization.  */
 
   Fput (Qundefined_color, Qerror_conditions,
 	listn (CONSTYPE_PURE, 2, Qundefined_color, Qerror));
@@ -4429,7 +4681,7 @@ Changing the value does not affect existing frames
 unless you set the mouse color.  */);
   Vx_pointer_shape = Qnil;
 
-#if 0 /* This doesn't really do anything.  */
+#if false /* This doesn't really do anything.  */
   DEFVAR_LISP ("x-nontext-pointer-shape", Vx_nontext_pointer_shape,
     doc: /* The shape of the pointer when not over text.
 This variable takes effect when you create a new frame
@@ -4443,7 +4695,7 @@ This variable takes effect when you create a new frame
 or when you set the mouse color.  */);
   Vx_hourglass_pointer_shape = Qnil;
 
-#if 0 /* This doesn't really do anything.  */
+#if false /* This doesn't really do anything.  */
   DEFVAR_LISP ("x-mode-pointer-shape", Vx_mode_pointer_shape,
     doc: /* The shape of the pointer when over the mode line.
 This variable takes effect when you create a new frame
@@ -4504,14 +4756,14 @@ Chinese, Japanese, and Korean.  */);
   DEFVAR_LISP ("mac-carbon-version-string", Vmac_carbon_version_string,
     doc: /* Version info for Carbon API.  */);
   {
-    Lisp_Object args[3];
+    Lisp_Object version = mac_carbon_version_string ();
 
-    args[0] = build_string ("%s AppKit %g");
-    args[1] = mac_carbon_version_string ();
-    if (!STRINGP (args[1]))
-      args[1] = build_string ("Unknown");
-    args[2] = make_float (mac_appkit_version ());
-    Vmac_carbon_version_string = Fpurecopy (Fformat (3, args));
+    AUTO_STRING (format, "%s AppKit %g");
+    if (!STRINGP (version))
+      version = build_string ("Unknown");
+    Vmac_carbon_version_string =
+      Fpurecopy (CALLN (Fformat, format, version,
+			make_float (mac_appkit_version ())));
   }
 
   /* X window properties.  */
@@ -4537,6 +4789,10 @@ Chinese, Japanese, and Korean.  */);
   defsubr (&Sx_display_backing_store);
   defsubr (&Sx_display_save_under);
   defsubr (&Smac_display_monitor_attributes_list);
+  defsubr (&Smac_frame_geometry);
+  defsubr (&Smac_frame_edges);
+  defsubr (&Smac_mouse_absolute_pixel_position);
+  defsubr (&Smac_set_mouse_absolute_pixel_position);
   defsubr (&Sx_create_frame);
   defsubr (&Sx_open_connection);
   defsubr (&Sx_close_connection);
@@ -4557,6 +4813,10 @@ Chinese, Japanese, and Korean.  */);
 
   defsubr (&Sx_select_font);
   defsubr (&Smac_set_font_panel_visible_p);
+  defsubr (&Smac_export_frames);
+  defsubr (&Smac_page_setup_dialog);
+  defsubr (&Smac_get_page_setup);
+  defsubr (&Smac_print_frames_dialog);
   defsubr (&Smac_input_source);
   defsubr (&Smac_input_source_list);
   defsubr (&Smac_select_input_source);

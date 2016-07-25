@@ -1,7 +1,7 @@
 ;;; derived.el --- allow inheritance of major modes
 ;; (formerly mode-clone.el)
 
-;; Copyright (C) 1993-1994, 1999, 2001-2015 Free Software Foundation,
+;; Copyright (C) 1993-1994, 1999, 2001-2016 Free Software Foundation,
 ;; Inc.
 
 ;; Author: David Megginson (dmeggins@aix1.uottawa.ca)
@@ -162,7 +162,13 @@ The new mode runs the hook constructed by the function
 See Info node `(elisp)Derived Modes' for more details."
   (declare (debug (&define name symbolp sexp [&optional stringp]
 			   [&rest keywordp sexp] def-body))
-	   (doc-string 4))
+	   (doc-string 4)
+	   ;; Ask not what
+	   ;;(indent 3)
+	   ;; can do for you, ask what it can do to others. IOW, the
+	   ;; missing of indentation setting here is the indentation
+	   ;; setting and not an oversight.
+	   )
 
   (when (and docstring (not (stringp docstring)))
     ;; Some trickiness, since what appears to be the docstring may really be
@@ -330,8 +336,11 @@ which more-or-less shadow%s %s's corresponding table%s."
 			"\n\nThis mode "
 		      (concat
 		       "\n\nIn addition to any hooks its parent mode "
-		       (if (string-match (regexp-quote (format "`%s'" parent))
-					 docstring) nil
+		       (if (string-match (format "[`‘]%s['’]"
+                                                 (regexp-quote
+						  (symbol-name parent)))
+					 docstring)
+                           nil
 			 (format "`%s' " parent))
 		       "might have run,\nthis mode "))
 		    (format "runs the hook `%s'" hook)

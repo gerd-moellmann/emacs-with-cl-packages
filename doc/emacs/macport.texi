@@ -8,10 +8,10 @@
 
   This section briefly describes the peculiarities of using Emacs
 under Mac OS X with the Mac port.  This port provides a native GUI
-support for Mac OS X 10.4 -- 10.11.  Note that Emacs 23 and later
+support for Mac OS X 10.6 -- 10.11.  Note that Emacs 23 and later
 already contain the official GUI support via the NS (Cocoa) port for
-Mac OS X 10.4 and later (@pxref{Mac OS / GNUstep}).  So if it is good
-enough for you, then you don't need to try this.
+Mac OS X (@pxref{Mac OS / GNUstep}).  So if it is good enough for you,
+then you don't need to try this.
 
   The Mac port is a descendant of the following ports for Mac OS X:
 
@@ -85,8 +85,8 @@ Invocation}), you can also specify temporary Preference settings,
 which are only applied to a specific invocation, as command line
 options just as in other Cocoa applications (e.g.,
 @samp{-AppleAntiAliasingThreshold 14}).  An alternative way to specify
-command line options on Mac OS X 10.6 and later is to use the
-@samp{--args} option in the @command{open} command.
+command line options is to use the @samp{--args} option in the
+@command{open} command.
 
   Holding shift key on startup is recognized as the @samp{-Q} option,
 which means to start Emacs with minimum customizations.
@@ -209,11 +209,11 @@ defaults write org.gnu.Emacs ApplePressAndHoldEnabled YES
 @end example
 
 @findex mac-auto-ascii-mode
-  There is a global minor mode @code{mac-auto-ascii-mode} for Mac OS X
-10.5 and later.  If enabled, it automatically selects the
-most-recently-used @acronym{ASCII}-capable keyboard input source on
-some occasions: after prefix key (bound in the global keymap) press
-such as @kbd{C-x} and @kbd{M-g}, and at the start of minibuffer input.
+  There is a global minor mode @code{mac-auto-ascii-mode}.  If
+enabled, it automatically selects the most-recently-used
+@acronym{ASCII}-capable keyboard input source on some occasions: after
+prefix key (bound in the global keymap) press such as @kbd{C-x} and
+@kbd{M-g}, and at the start of minibuffer input.
 
 @vindex mac-pass-command-to-system
 @vindex mac-pass-control-to-system
@@ -271,8 +271,7 @@ functionality is provided by tapping (or double-tapping on Mac OS X
   In addition to the standard Emacs events, the Mac port also accepts
 several gesture events on newer mice/trackpads, and some gestures have
 default bindings.  For example, fullscreen can be turned on/off by
-pinching out/in on a newer trackpad with the shift key on Mac OS X
-10.5.2 and later.
+pinching out/in on a newer trackpad with the shift key.
 
   The Mac port also provides Apple event sending with (a)synchronous
 reply handling.  @acronym{ODB} Editor Suite support is added as an
@@ -348,24 +347,23 @@ use overstriking instead by customizing the variable
 @end example
 
 @vindex mac-text-scale-standard-width
-  If you are using newer trackpads with Mac OS X 10.5.2 and later,
-then you can scale text size by pinch out/in.  On Mac OS X 10.7 and
-later, double-tapping either a touch-sensitive mouse with one finger
-or a trackpad with two fingers changes the buffer text scaling to
-unscaled if previously scaled.  And if previously unscaled and the
-pointer is either before the indentation or after the end of line,
-then the buffer text is scaled so the default font occupies at least
+  If you are using newer trackpads, then you can scale text size by
+pinch out/in.  On Mac OS X 10.7 and later, double-tapping either a
+touch-sensitive mouse with one finger or a trackpad with two fingers
+changes the buffer text scaling to unscaled if previously scaled.  And
+if previously unscaled and the pointer is either before the
+indentation or after the end of line, then the buffer text is scaled
+so the default font occupies at least
 @code{mac-text-scale-standard-width} columns in the tapped window.  If
 previously unscaled and the pointer is between the indentation and the
 end of line, then the buffer text is scaled to approximately 150%.
 
-  The Mac port provides a couple of font backends, @code{mac-ct} using
-the Core Text framework introduced in Mac OS X 10.5, and @code{mac-fd}
-using NSFontDescriptor expanded in Mac OS X 10.4.  An appropriate font
-backend is selected automatically depending on the @acronym{OS}
-version at startup, and one backend is used at a time.
+  The Mac port provides a font backends, @code{mac-ct} using the Core
+Text framework.  It was originally developed for the Mac port based on
+Emacs version 23, but has also been used by the NS port since version
+24.4.
 
-  All these backends support Unicode character display including
+  This backend supports Unicode character display including
 non-@acronym{BMP} ones, Complex Text Layout such as Devanagari, and
 glyph selection with variation selectors.  Most of Adobe-Japan1
 ideographic glyphs are accessible via @acronym{IVSes} (Ideographic
@@ -379,7 +377,7 @@ flags.  Variation Selectors 15 (text-style) and 16 (emoji-style) are
 also supported.  On OS X 10.10.3 and later, emoji modifiers for skin
 tones (U+1F3FB -- U+1F3FF) are supported as well.
 
-  They also use non-integral x positions for displaying antialiased
+  It also uses non-integral x positions for displaying antialiased
 proportional fonts.  You can see the difference by putting the box
 cursor over Helvetica 12pt @samp{I}, whose ideal width is 3.33398 but
 displayed with the rounded width 3, for example.
@@ -526,7 +524,7 @@ screen mode, both values are necessarily synonymous.
 pressing the button on the title bar turns on the system-wide full
 screen mode on Mac OS X 10.7 and later.  The other @samp{fullboth}
 full screen can be turned on by pinching out on a newer trackpad with
-the shift key on Mac OS X 10.5.2 and later.
+the shift key.
 
   Unlike the original Emacs, enabling or disabling Menu Bar mode
 (@pxref{Menu Bars}) does not affect the appearance of the menu bar on
@@ -580,14 +578,14 @@ representation).
 
 @findex mac-start-animation
   The function @code{mac-start-animation} starts animation effect
-using Core Animation on Mac OS X 10.5 and later.
+using Core Animation.
 
 @findex mac-input-source
 @findex mac-input-source-list
 @findex mac-select-input-source
 @findex mac-deselect-input-source
 There are some functions and hooks for interaction with Text Input
-Source Services on Mac OS X 10.5 and later: @code{mac-input-source},
+Source Services: @code{mac-input-source},
 @code{mac-input-source-list}, @code{mac-select-input-source},
 @code{mac-deselect-input-source},
 @code{mac-selected-keyboard-input-source-change-hook}, and

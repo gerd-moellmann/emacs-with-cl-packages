@@ -1,6 +1,6 @@
-;;; texinfo.el --- major mode for editing Texinfo files -*- coding: utf-8 -*-
+;;; texinfo.el --- major mode for editing Texinfo files
 
-;; Copyright (C) 1985, 1988-1993, 1996-1997, 2000-2015 Free Software
+;; Copyright (C) 1985, 1988-1993, 1996-1997, 2000-2016 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Robert J. Chassell
@@ -86,7 +86,7 @@ command to gain use of `next-error'."
   "Make Info file from current buffer.
 
 Use the \\[next-error] command to move to the next error
-\(if there are errors\)."
+\(if there are errors)."
   t nil)
 
 (autoload 'kill-compilation
@@ -391,7 +391,7 @@ Subexpression 1 is what goes into the corresponding `@end' statement.")
 	(unless (get-char-property start 'text-clones)
 	  (if endp
 	      (texinfo-last-unended-begin)
-	    (forward-word 1)
+	    (forward-word-strictly 1)
 	    (texinfo-next-unmatched-end))
 	  (skip-syntax-forward "^w")
 	  (when (looking-at
@@ -689,8 +689,8 @@ Puts point on a blank line between them."
   '("example\\>" "smallexample\\>" "lisp\\>"))
 (defun texinfo-insert-quote (&optional arg)
   "Insert the appropriate quote mark for Texinfo.
-Usually inserts the value of `texinfo-open-quote' (normally ``) or
-`texinfo-close-quote' (normally ''), depending on the context.
+Usually inserts the value of `texinfo-open-quote' (normally \\=`\\=`) or
+`texinfo-close-quote' (normally \\='\\='), depending on the context.
 With prefix argument or inside @code or @example, inserts a plain \"."
   (interactive "*P")
   (let ((top (or (save-excursion (re-search-backward "@node\\>" nil t))
@@ -736,7 +736,7 @@ With prefix argument or inside @code or @example, inserts a plain \"."
   "Insert the matching `@end' for the last Texinfo command that needs one."
 	 (ignore-errors
 	   (save-excursion
-      (backward-word 1)
+             (backward-word-strictly 1)
 	     (texinfo-last-unended-begin)
       (or (match-string 1) '-)))
   \n "@end " str \n \n)

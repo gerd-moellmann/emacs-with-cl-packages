@@ -1,6 +1,7 @@
 \input texinfo    @c -*-coding:utf-8 -*-
-@setfilename efaq-w32
+@setfilename ../../info/efaq-w32.info
 @settitle GNU Emacs FAQ For MS Windows
+@include docstyle.texi
 @setchapternewpage odd
 @syncodeindex pg cp
 @syncodeindex ky cp
@@ -13,16 +14,13 @@ Answers to Frequently asked Questions about using Emacs on Microsoft Windows.
 
 @include emacsver.texi
 
-@documentencoding utf-8
-@documentlanguage en
-
 @copying
-Copyright @copyright{} 2008, 2010-2015 Free Software Foundation, Inc.
+Copyright @copyright{} 2008, 2010-2016 Free Software Foundation, Inc.
 
 @quotation
 This list of frequently asked questions about GNU Emacs on MS Windows
 with answers (``FAQ'') may be translated into other languages,
-transformed into other formats (e.g. Texinfo, Info, WWW), and updated
+transformed into other formats (e.g., Texinfo, Info, WWW), and updated
 with new information.
 
 The same conditions apply to any derivative of the FAQ as apply to the FAQ
@@ -161,26 +159,25 @@ instructions (requires DJGPP).
 @node Downloading
 @section Where can I download Emacs?
 
-@cindex precompiled binaries
-@cindex where to get Emacs binaries
-Pre-compiled versions are distributed from
-@uref{http://ftpmirror.gnu.org/emacs/windows/, ftp.gnu.org mirrors}.
-Emacs binaries are distributed as zip files, digitally signed by the
-developer who built them.  Generally most users will want the file
-@file{emacs-@value{EMACSVER}-bin-i686-pc-mingw.zip} for the 32-bit
-build, and @file{emacs-@value{EMACSVER}-bin-x86_64-w64-mingw32.zip}
-for the 64-bit build.  The zip archive contains everything you need to
-get started.
-
+@cindex getting Emacs
 @cindex where to get sources
 @cindex Emacs source code
 @cindex source for Emacs
-The latest source is available from
-@uref{http://ftpmirror.gnu.org/emacs/, ftp.gnu.org mirrors}.  It is
-distributed as a compressed tar file, digitally signed by the maintainer
-who made the release.
+You can download Emacs releases from
+@uref{http://ftpmirror.gnu.org/emacs/, ftp.gnu.org mirrors}.  They
+are distributed as compressed tar files, digitally signed by the
+maintainer who made the release.
 
-@cindex getting Emacs
+@cindex precompiled binaries
+@cindex where to get Emacs binaries
+Pre-compiled binaries for MS Windows may be made available on a
+best-effort basis in the @file{windows} subdirectory of the above ftp
+site (as zip files digitally signed by the person who built them).
+See the @file{README} file in that directory for more information.
+Building Emacs from source yourself should be straightforward,
+following the instructions in @file{nt/INSTALL}, so we encourage you
+to give it a try.  @xref{Compiling}.
+
 @cindex latest development version of Emacs
 @cindex Emacs Development
 The development version of Emacs is available from
@@ -594,7 +591,7 @@ Subject: Re: Re[2]: problem with caps/ctrl swap on NT 4.0
 @smallexample
 It's a binary value that lets you map keystrokes in the low-level keyboard
 drivers in NT.  As a result you don't have to worry about applications
-bypassing mappings that you've done at a higher level (i.e. it just works).
+bypassing mappings that you've done at a higher level (i.e., it just works).
 
 Here's the format of the value:
 
@@ -674,7 +671,7 @@ The minor mode @code{transient-mark-mode} changes the behavior of
 the mark in two ways.  First, it distinguishes between an active mark
 that has just been defined or reactivated, and an inactive mark.  When
 the mark is active, some commands that normally act on lines, words,
-buffers etc. will instead act on the region.  An inactive mark needs
+buffers, etc., will instead act on the region.  An inactive mark needs
 to be reactivated to operate on it, unless @code{mark-even-if-inactive}
 is set.  Secondly, @code{transient-mark-mode} also highlights the
 region when it is active, providing the same visual clue that you get
@@ -1091,9 +1088,7 @@ Normally Emacs should initialize @code{locale-coding-system} appropriately
 based on your locale, which will let Emacs use font names in your local
 language successfully.
 
-@c This feature disappeared in Emacs 23, but I'm keeping its
-@c description here, since I think it was a mistake to remove it, and
-@c resurrecting it doesn't sound too problematic.
+@c This feature disappeared in Emacs 23, and was resurrected in 25.1.
 @node Font menu
 @section How can I have Emacs use a font menu like on X?
 @cindex fonts, displaying a menu
@@ -1111,8 +1106,8 @@ Place the following in your init file:
 * Add fonts to menu::
 @end menu
 
-@c This variable still exists, but will have no effect until
-@c w32-use-w32-font-dialog support is resurrected, see above.
+@c This variable had no effect between v23 and v25.1, where
+@c w32-use-w32-font-dialog support was resurrected, see above.
 @node Add fonts to menu
 @subsection How can I add my font to the font menu?
 @cindex font menu, adding fonts
@@ -2031,8 +2026,8 @@ select it.  For arguments, use @option{+$(CurLine)}
 (the quotes around FilePath handle paths with spaces in them). Set the
 Menu Text to say "Em&acs". The @option{+$(CurLine)} will set point in
 Emacs to the same line as the cursor position in VC++. The ampersand
-in the word @code{Em&acs} allows you to select emacs from the keyboard. (E
-is already used for the OLE control test container.)
+in the word @code{Em&acs} allows you to select emacs from the keyboard.
+(E is already used for the OLE control test container.)
 
 You should now be able to go to any source file in your project. Then,
 use the pull-down menu @code{Tools->Emacs}. The active file in your
@@ -2066,7 +2061,6 @@ Jonathan Arnold has written an
 @cindex mercurial, version control integration with Emacs
 @cindex hg, version control integration with Emacs
 @cindex monotone, version control integration with Emacs
-@cindex mcvs, version control integration with Emacs
 
 If you are using a graphical revision control tool already, check if
 it comes with command-line tools.  Many such GUI tools are just

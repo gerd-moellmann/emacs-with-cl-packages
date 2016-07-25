@@ -1,10 +1,9 @@
 1. What's this?
 
-This is "Mac port" addition to GNU Emacs 24.  This provides a native
-GUI support for Mac OS X 10.4 - 10.11.  Note that Emacs 23 and later
-already contain the official GUI support via the NS (Cocoa) port for
-Mac OS X 10.4 and later.  So if it is good enough for you, then you
-don't need to try this.
+This is "Mac port" addition to GNU Emacs 25.  This provides a native
+GUI support for Mac OS X 10.6 - 10.11.  Note that Emacs 23 and later
+already contain the official GUI support via the NS (Cocoa) port.  So
+if it is good enough for you, then you don't need to try this.
 
   *** IMPORTANT NOTE ***
 
@@ -101,7 +100,7 @@ The Mac port is a descendant of the following ports for Mac OS X:
       * Update display while the resize control (or the slider in the
 	font panel) is being dragged
 
-Being a port of Emacs 24, the Mac port also supports the following
+Being a port of Emacs 25, the Mac port also supports the following
 Emacs 23 features besides those inherited from the above ancestors:
 
   * The `fullscreen' frame parameter, with all values supported:
@@ -136,7 +135,7 @@ Emacs 23 features besides those inherited from the above ancestors:
     Sequences) even for the OS-bundled Hiragino fonts, which do not
     contain the UVS subtable in their cmap table as of Mac OS X 10.6.
 
-It also supports the following Emacs 24 features that are not
+It also supports the following Emacs 24-25 features that are not
 supported on all the standard platforms/ports:
 
   * Can be compiled with the ImageMagick support.  Even without the
@@ -144,8 +143,9 @@ supported on all the standard platforms/ports:
     Image I/O framework so you can scale and rotate images.
   * The variable `tool-bar-style' works like in GTK+.  The values
     `both-horiz', `text-image-horiz' are synonymous with `both'.
+  * Horizontal scroll bar support.
 
-In addition to the standard Emacs 24 features, the Mac port includes
+In addition to the standard Emacs 25 features, the Mac port includes
 the following Mac-specific ones:
 
   * Pixel-based mouse wheel smooth scroll for newer mice/trackpads.
@@ -198,6 +198,16 @@ the following Mac-specific ones:
     swiping/flicking, exiting from the splash screen by typing "q",
     and the "About Emacs" and "Preferences..." menu items in the
     application menu (labeled "Emacs") in the menu bar.
+  * High-resolution image display support for Retina displays.
+    Dynamic resolution change is also supported.  For bitmap formats,
+    high-resolution data can be specified either by the "@2x" file
+    name convention, the ":data-2x" property, or multi-image TIFF.
+    Shrinking a large image with the "imagemagick" (or Mac-specific
+    "image-io") image type also works but gives a non-optimal result
+    on dynamic resolution change.  For vector formats, images are
+    automatically re-rendered according to the resolution of the
+    frame.  DocView mode and LaTeX fragment preview in Org mode are
+    modified so they can take advantage of this feature.
 
 As Quickdraw-style font rendering is considered obsolete as of Mac OS
 X 10.5, the variable `mac-allow-anti-aliasing', which was supported in
@@ -217,27 +227,16 @@ Dock without separating a GUI process (not thread) from the main Emacs
 
 2. Build instructions
 
-  NOTE: Some older versions of Xcode for Mac OS X 10.4 are known to be
-  incompatible with newer versions of WebKit.  At least, Xcode 2.4.1
-  works, but Xcode 2.1 has some problems.
+  a. If you got this from the git repository, then skip to Step h.
 
-  a. Get the official GNU Emacs 24.X distribution tarball from some
+  b. Get the official GNU Emacs 25.X distribution tarball from some
      GNU mirror site if this file is part of
-     emacs-24.X-mac-V.W.tar.gz.  Or get the GNU Emacs 24.X.9Y pretest
-     tarball from ftp://alpha.gnu.org/gnu/emacs/pretest/ if this is
-     part of emacs-24.X.9Y-mac-V.W.tar.gz.
-     Untar the tarball.  Let EMACS_SOURCE_TOP be the top directory of
-     the source tree.
+     emacs-25.X-mac-V.W.tar.gz.  Untar the tarball.  Let
+     EMACS_SOURCE_TOP be the top directory of the source tree.
 
-  b. Apply the patch `patch-mac' to the source tree.
+  c. Apply the patch `patch-mac' to the source tree.
 
-  c. Copy the subdirectory `mac' to `EMACS_SOURCE_TOP'.
-
-  d. [Optional]
-     If you want to use the icon bundled with Emacs 24, then copy
-     `EMACS_SOURCE_TOP/nextstep/Cocoa/Emacs.base/Contents/Resources/Emacs.icns'
-     to `EMACS_SOURCE_TOP/mac/Emacs.app/Contents/Resources/Emacs.icns'
-     by overriding the latter.
+  d. Copy the subdirectory `mac' to `EMACS_SOURCE_TOP'.
 
   e. [Optional, recommended for Retina Display]
      If you want to use high resolution versions of some tool bar
@@ -252,7 +251,14 @@ Dock without separating a GUI process (not thread) from the main Emacs
   g. Copy `lisp/term/mac-win.el' to
      `EMACS_SOURCE_TOP/lisp/term/mac-win.el'.
 
-  h. Run configure with the "--with-mac" option.  You may also want to
+  h. [Optional]
+     If you want to use the icon bundled with Emacs 25, then copy
+     `EMACS_SOURCE_TOP/nextstep/Cocoa/Emacs.base/Contents/Resources/Emacs.icns'
+     to `EMACS_SOURCE_TOP/mac/Emacs.app/Contents/Resources/Emacs.icns'
+     by overriding the latter.
+
+  i. Run the configure command (unlike the previous version, the
+     "--with-mac" option is now default).  You may also want to
      additionally specify "--enable-mac-app" to install the
      application bundle `Emacs.app' to /Applications.  If you want it
      to install in a different location, specify
@@ -265,9 +271,9 @@ Dock without separating a GUI process (not thread) from the main Emacs
      on Mac OS X 10.7 with Xcode 4.2 or later, then specify
      CC="clang -fobjc-arc".
 
-  i. make && make install.
+  j. make && make install.
 
-  j. open /Applications/Emacs.app (or MACAPPDIR/Emacs.app) if
+  k. open /Applications/Emacs.app (or MACAPPDIR/Emacs.app) if
      `--enable-mac-app' was specified.  Otherwise, open
      EMACS_SOURCE_TOP/mac/Emacs.app.
 

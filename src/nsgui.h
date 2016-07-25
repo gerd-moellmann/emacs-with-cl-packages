@@ -1,12 +1,12 @@
 /* Definitions and headers for communication on the NeXT/Open/GNUstep API.
-   Copyright (C) 1995, 2005, 2008-2015 Free Software Foundation, Inc.
+   Copyright (C) 1995, 2005, 2008-2016 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -48,11 +48,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #undef _GL_VERIFY_H
 #include <verify.h>
 
-/* menu-related */
-#define free_widget_value(wv) xfree (wv)
-#define malloc_widget_value() ((widget_value *) memset (xmalloc \
-    (sizeof (widget_value)), 0, sizeof (widget_value)))
-
 /* Emulate XCharStruct.  */
 typedef struct _XCharStruct
 {
@@ -73,10 +68,10 @@ typedef unichar XChar2b;
   (*(chp) = ((XChar2b)((((b1) & 0x00ff) << 8) | ((b2) & 0x00ff))))
 
 #define XCHAR2B_BYTE1(chp) \
- (((*chp) & 0xff00) >> 8)
+  ((*(chp) & 0xff00) >> 8)
 
 #define XCHAR2B_BYTE2(chp) \
- ((*chp) & 0x00ff)
+  (*(chp) & 0x00ff)
 
 
 /* XXX: xfaces requires these structures, but the question is are we

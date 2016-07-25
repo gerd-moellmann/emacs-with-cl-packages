@@ -1,6 +1,6 @@
 ;;; qp.el --- Quoted-Printable functions
 
-;; Copyright (C) 1998-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2016 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail, extensions
@@ -143,7 +143,8 @@ encode lines starting with \"From\"."
 	     (and (boundp 'mm-use-ultra-safe-encoding)
 		  mm-use-ultra-safe-encoding)))
 	(when (or fold mm-use-ultra-safe-encoding)
-	  (let ((tab-width 1))		; HTAB is one character.
+	  (let ((tab-width 1)		; HTAB is one character.
+		(case-fold-search nil))
 	    (goto-char (point-min))
 	    (while (not (eobp))
 	      ;; In ultra-safe mode, encode "From " at the beginning

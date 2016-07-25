@@ -1,6 +1,6 @@
 ;;; quickurl.el --- insert a URL based on text at point in buffer
 
-;; Copyright (C) 1999-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2016 Free Software Foundation, Inc.
 
 ;; Author: Dave Pearson <davep@davep.org>
 ;; Maintainer: Dave Pearson <davep@davep.org>
@@ -347,7 +347,7 @@ It is assumed that the URL is either \"unguarded\" or is wrapped inside an
         ;; need to do a little more work to get to where we want to be.
         (when (thing-at-point-looking-at thing-at-point-markedup-url-regexp)
           (search-backward "<URL:"))
-        (backward-word 1)
+        (backward-word-strictly 1)
         (let ((word (funcall quickurl-grab-lookup-function)))
           (when word
             (quickurl-make-url

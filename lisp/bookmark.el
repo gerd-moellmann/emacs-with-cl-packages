@@ -1,6 +1,6 @@
 ;;; bookmark.el --- set bookmarks, maybe annotate them, jump to them later
 
-;; Copyright (C) 1993-1997, 2001-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1997, 2001-2016 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Maintainer: Karl Fogel <kfogel@red-bean.com>
@@ -74,7 +74,7 @@ bookmark is to set this variable to 1 (or 0, which produces the same
 behavior.)
 
 To specify the file in which to save them, modify the variable
-`bookmark-default-file', which is `~/.emacs.bmk' by default."
+`bookmark-default-file'."
   :type '(choice (const nil) integer (other t))
   :group 'bookmark)
 
@@ -138,7 +138,7 @@ This is as opposed to inline text at the top of the buffer."
 
 (defconst bookmark-bmenu-inline-header-height 2
   "Number of lines used for the *Bookmark List* header
-\(only significant when `bookmark-bmenu-use-header-line' is nil\).")
+\(only significant when `bookmark-bmenu-use-header-line' is nil).")
 
 (defconst bookmark-bmenu-marks-width 2
   "Number of columns (chars) used for the *Bookmark List* marks column,
@@ -196,6 +196,7 @@ A non-nil value may result in truncated bookmark names."
 
 ;;;###autoload (define-key ctl-x-r-map "b" 'bookmark-jump)
 ;;;###autoload (define-key ctl-x-r-map "m" 'bookmark-set)
+;;;###autoload (define-key ctl-x-r-map "M" 'bookmark-set-no-overwrite)
 ;;;###autoload (define-key ctl-x-r-map "l" 'bookmark-bmenu-list)
 
 ;;;###autoload
@@ -204,6 +205,7 @@ A non-nil value may result in truncated bookmark names."
     ;; Read the help on all of these functions for details...
     (define-key map "x" 'bookmark-set)
     (define-key map "m" 'bookmark-set) ;"m"ark
+    (define-key map "M" 'bookmark-set-no-overwrite) ;"M"aybe mark
     (define-key map "j" 'bookmark-jump)
     (define-key map "g" 'bookmark-jump) ;"g"o
     (define-key map "o" 'bookmark-jump-other-window)
@@ -754,31 +756,19 @@ This expects to be called from `point-min' in a bookmark file."
     (define-key map "\C-w" 'bookmark-yank-word)
     map))
 
-;;;###autoload
-(defun bookmark-set (&optional name no-overwrite)
-  "Set a bookmark named NAME at the current location.
-If name is nil, then prompt the user.
+(defun bookmark-set-internal (prompt name overwrite-or-push)
+  "Interactively set a bookmark named NAME at the current location.
 
-With a prefix arg (non-nil NO-OVERWRITE), do not overwrite any
-existing bookmark that has the same name as NAME, but instead push the
-new bookmark onto the bookmark alist.  The most recently set bookmark
-with name NAME is thus the one in effect at any given time, but the
-others are still there, should the user decide to delete the most
-recent one.
+Begin the interactive prompt with PROMPT, followed by a space, a
+generated default name in parentheses, a colon and a space.
 
-To yank words from the text of the buffer and use them as part of the
-bookmark name, type C-w while setting a bookmark.  Successive C-w's
-yank successive words.
-
-Typing C-u inserts (at the bookmark name prompt) the name of the last
-bookmark used in the document where the new bookmark is being set;
-this helps you use a single bookmark name to track progress through a
-large document.  If there is no prior bookmark for this document, then
-C-u inserts an appropriate name based on the buffer or file.
-
-Use \\[bookmark-delete] to remove bookmarks (you give it a name and
-it removes only the first instance of a bookmark with that name from
-the list of bookmarks.)"
+If OVERWRITE-OR-PUSH is nil, then error if there is already a
+bookmark named NAME; if `overwrite', then replace any existing
+bookmark if there is one; if `push' then push the new bookmark
+onto the bookmark alist.  The `push' behavior means that among
+bookmarks named NAME, this most recently set one becomes the one in
+effect, but the others are still there, in order, if the topmost one
+is ever deleted."
   (interactive (list nil current-prefix-arg))
   (unwind-protect
        (let* ((record (bookmark-make-record))
@@ -807,18 +797,92 @@ the list of bookmarks.)"
          (let ((str
                 (or name
                     (read-from-minibuffer
-                     (format "Set bookmark (%s): " default)
+                     (format "%s (default: \"%s\"): " prompt default)
                      nil
                      bookmark-minibuffer-read-name-map
                      nil nil defaults))))
            (and (string-equal str "") (setq str default))
-           (bookmark-store str (cdr record) no-overwrite)
+
+           (cond
+            ((eq overwrite-or-push nil)
+             (if (bookmark-get-bookmark str t)
+                 (error "A bookmark named \"%s\" already exists." str)
+               (bookmark-store str (cdr record) nil)))
+            ((eq overwrite-or-push 'overwrite)
+             (bookmark-store str (cdr record) nil))
+            ((eq overwrite-or-push 'push)
+             (bookmark-store str (cdr record) t))
+            (t
+             (error "Unrecognized value for `overwrite-or-push': %S"
+                    overwrite-or-push)))
 
            ;; Ask for an annotation buffer for this bookmark
            (when bookmark-use-annotations
              (bookmark-edit-annotation str))))
     (setq bookmark-yank-point nil)
     (setq bookmark-current-buffer nil)))
+
+
+;;;###autoload
+(defun bookmark-set (&optional name no-overwrite)
+  "Set a bookmark named NAME at the current location.
+If NAME is nil, then prompt the user.
+
+With a prefix arg (non-nil NO-OVERWRITE), do not overwrite any
+existing bookmark that has the same name as NAME, but instead push the
+new bookmark onto the bookmark alist.  The most recently set bookmark
+with name NAME is thus the one in effect at any given time, but the
+others are still there, should the user decide to delete the most
+recent one.
+
+To yank words from the text of the buffer and use them as part of the
+bookmark name, type C-w while setting a bookmark.  Successive C-w's
+yank successive words.
+
+Typing C-u inserts (at the bookmark name prompt) the name of the last
+bookmark used in the document where the new bookmark is being set;
+this helps you use a single bookmark name to track progress through a
+large document.  If there is no prior bookmark for this document, then
+C-u inserts an appropriate name based on the buffer or file.
+
+Use \\[bookmark-delete] to remove bookmarks (you give it a name and
+it removes only the first instance of a bookmark with that name from
+the list of bookmarks.)"
+  (interactive (list nil current-prefix-arg))
+  (let ((prompt
+         (if no-overwrite "Set bookmark" "Set bookmark unconditionally")))
+    (bookmark-set-internal prompt name (if no-overwrite 'push 'overwrite))))
+
+;;;###autoload
+(defun bookmark-set-no-overwrite (&optional name push-bookmark)
+  "Set a bookmark named NAME at the current location.
+If NAME is nil, then prompt the user.
+
+If a bookmark named NAME already exists and prefix argument
+PUSH-BOOKMARK is non-nil, then push the new bookmark onto the
+bookmark alist.  Pushing it means that among bookmarks named
+NAME, this one becomes the one in effect, but the others are
+still there, in order, and become effective again if the user
+ever deletes the most recent one.
+
+Otherwise, if a bookmark named NAME already exists but PUSH-BOOKMARK
+is nil, raise an error.
+
+To yank words from the text of the buffer and use them as part of the
+bookmark name, type C-w while setting a bookmark.  Successive C-w's
+yank successive words.
+
+Typing C-u inserts (at the bookmark name prompt) the name of the last
+bookmark used in the document where the new bookmark is being set;
+this helps you use a single bookmark name to track progress through a
+large document.  If there is no prior bookmark for this document, then
+C-u inserts an appropriate name based on the buffer or file.
+
+Use \\[bookmark-delete] to remove bookmarks (you give it a name and
+it removes only the first instance of a bookmark with that name from
+the list of bookmarks.)"
+  (interactive (list nil current-prefix-arg))
+  (bookmark-set-internal "Set bookmark" name (if push-bookmark 'push nil)))
 
 
 (defun bookmark-kill-line (&optional newline-too)
@@ -842,8 +906,11 @@ whose annotation is being edited.")
   "Return default annotation text for BOOKMARK-NAME.
 The default annotation text is simply some text explaining how to use
 annotations."
-  (concat "#  Type the annotation for bookmark '" bookmark-name "' here.\n"
-	  "#  All lines which start with a '#' will be deleted.\n"
+  (concat (format-message
+           "#  Type the annotation for bookmark `%s' here.\n"
+           bookmark-name)
+	  (format-message
+           "#  All lines which start with a `#' will be deleted.\n")
 	  "#  Type C-c C-c when done.\n#\n"
 	  "#  Author: " (user-full-name) " <" (user-login-name) "@"
 	  (system-name) ">\n"
@@ -1298,8 +1365,8 @@ is greater than `bookmark-alist-modification-count'."
 
 ;;;###autoload
 (defun bookmark-write ()
-  "Write bookmarks to a file (reading the file name with the minibuffer).
-Don't use this in Lisp programs; use `bookmark-save' instead."
+  "Write bookmarks to a file (reading the file name with the minibuffer)."
+  (declare (interactive-only bookmark-save))
   (interactive)
   (bookmark-maybe-load-default-file)
   (bookmark-save t))
@@ -1414,9 +1481,9 @@ while loading.
 If you load a file that doesn't contain a proper bookmark alist, you
 will corrupt Emacs's bookmark list.  Generally, you should only load
 in files that were created with the bookmark functions in the first
-place.  Your own personal bookmark file, `~/.emacs.bmk', is
-maintained automatically by Emacs; you shouldn't need to load it
-explicitly.
+place.  Your own personal bookmark file, specified by the variable
+`bookmark-default-file', is maintained automatically by Emacs; you
+shouldn't need to load it explicitly.
 
 If you load a file containing bookmarks with the same names as
 bookmarks already present in your Emacs, the new bookmarks will get
@@ -1540,7 +1607,7 @@ deletion, or > if it is flagged for displaying."
   (let ((inhibit-read-only t))
     (erase-buffer)
     (if (not bookmark-bmenu-use-header-line)
-      (insert "% Bookmark\n- --------\n"))    
+      (insert "% Bookmark\n- --------\n"))
     (add-text-properties (point-min) (point)
 			 '(font-lock-face bookmark-menu-heading))
     (dolist (full-record (bookmark-maybe-sort-alist))
@@ -1581,9 +1648,9 @@ deletion, or > if it is flagged for displaying."
 (defun bookmark-bmenu-set-header ()
   "Sets the immutable header line."
   (let ((header (concat "%% " "Bookmark")))
-    (when bookmark-bmenu-toggle-filenames 
-      (setq header (concat header 
-			   (make-string (- bookmark-bmenu-file-column 
+    (when bookmark-bmenu-toggle-filenames
+      (setq header (concat header
+			   (make-string (- bookmark-bmenu-file-column
 					   (- (length header) 3))  ?\s)
 			   "File")))
     (let ((pos 0))
@@ -1756,7 +1823,7 @@ if an annotation exists."
   (save-selected-window
     (pop-to-buffer (get-buffer-create "*Bookmark Annotation*") t)
     (delete-region (point-min) (point-max))
-    (dolist (full-record bookmark-alist)
+    (dolist (full-record (bookmark-maybe-sort-alist))
       (let* ((name (bookmark-name-from-full-record full-record))
              (ann  (bookmark-get-annotation full-record)))
         (insert (concat name ":\n"))
@@ -2064,7 +2131,8 @@ To carry out the deletions that you've marked, use \\<bookmark-bmenu-mode-map>\\
 (defun bookmark-bmenu-goto-bookmark (name)
   "Move point to bookmark with name NAME."
   (goto-char (point-min))
-  (while (not (equal name (bookmark-bmenu-bookmark)))
+  (while (not (or (equal name (bookmark-bmenu-bookmark))
+                  (eobp)))
     (forward-line 1))
   (forward-line 0))
 

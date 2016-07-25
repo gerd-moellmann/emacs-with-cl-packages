@@ -1,6 +1,6 @@
-;;; compile.el --- run compiler as inferior of Emacs, parse error messages
+;;; compile.el --- run compiler as inferior of Emacs, parse error messages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1993-1999, 2001-2015 Free Software
+;; Copyright (C) 1985-1987, 1993-1999, 2001-2016 Free Software
 ;; Foundation, Inc.
 
 ;; Authors: Roland McGrath <roland@gnu.org>,
@@ -134,7 +134,7 @@ and a string describing how the process finished.")
 ;; emacs -batch -l compile-tests.el -f ert-run-tests-batch-and-exit
 
 (defvar compilation-error-regexp-alist-alist
-  '((absoft
+  `((absoft
      "^\\(?:[Ee]rror on \\|[Ww]arning on\\( \\)\\)?[Ll]ine[ \t]+\\([0-9]+\\)[ \t]+\
 of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
 
@@ -145,7 +145,7 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
      " in line \\([0-9]+\\) of file \\([^ \n]+[^. \n]\\)\\.? " 2 1)
 
     (ant
-     "^[ \t]*\\[[^] \n]+\\][ \t]*\\([^: \n]+\\):\\([0-9]+\\):\\(?:\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+\\):\\)?\
+     "^[ \t]*\\[[^] \n]+\\][ \t]*\\(\\(?:[A-Za-z]:\\\\\\)?[^: \n]+\\):\\([0-9]+\\):\\(?:\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+\\):\\)?\
 \\( warning\\)?" 1 (2 . 4) (3 . 5) (6))
 
     (bash
@@ -167,7 +167,7 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
 
     (cucumber
      "\\(?:^cucumber\\(?: -p [^[:space:]]+\\)?\\|#\\)\
-\\(?: \\)\\([^\(].*\\):\\([1-9][0-9]*\\)" 1 2)
+\\(?: \\)\\([^(].*\\):\\([1-9][0-9]*\\)" 1 2)
 
     (msft
      ;; Must be before edg-1, so that MSVC's longer messages are
@@ -216,7 +216,7 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
     ;; due to matching filenames via \\(.*?\\).  This might be faster.
     (maven
      ;; Maven is a popular free software build tool for Java.
-     "\\([^ \n]\\(?:[^\n :]\\| [^-/\n]\\|:[^ \n]\\)*?\\):\\[\\([0-9]+\\),\\([0-9]+\\)\\] " 1 2 3)
+     "\\(\\[WARNING\\] *\\)?\\([^ \n]\\(?:[^\n :]\\| [^-/\n]\\|:[^ \n]\\)*?\\):\\[\\([0-9]+\\),\\([0-9]+\\)\\] " 2 3 4 (1))
 
     (jikes-line
      "^ *\\([0-9]+\\)\\.[ \t]+.*\n +\\(<-*>\n\\*\\*\\* \\(?:Error\\|Warnin\\(g\\)\\)\\)"
@@ -230,7 +230,7 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
      1 2 3 (4 . 5))
 
     (ruby-Test::Unit
-     "^[\t ]*\\[\\([^\(].*\\):\\([1-9][0-9]*\\)\\(\\]\\)?:in " 1 2)
+     "^[\t ]*\\[\\([^(].*\\):\\([1-9][0-9]*\\)\\(\\]\\)?:in " 1 2)
 
     (gnu
      ;; The first line matches the program name for
@@ -255,16 +255,46 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
      ;; can be composed of any non-newline char, but it also rules out some
      ;; valid but unlikely cases, such as a trailing space or a space
      ;; followed by a -, or a colon followed by a space.
-
+     ;;
      ;; The "in \\|from " exception was added to handle messages from Ruby.
-     "^\\(?:[[:alpha:]][-[:alnum:].]+: ?\\|[ \t]+\\(?:in \\|from \\)\\)?\
-\\([0-9]*[^0-9\n]\\(?:[^\n :]\\| [^-/\n]\\|:[^ \n]\\)*?\\): ?\
-\\([0-9]+\\)\\(?:-\\(?4:[0-9]+\\)\\(?:\\.\\(?5:[0-9]+\\)\\)?\
-\\|[.:]\\(?3:[0-9]+\\)\\(?:-\\(?:\\(?4:[0-9]+\\)\\.\\)?\\(?5:[0-9]+\\)\\)?\\)?:\
-\\(?: *\\(\\(?:Future\\|Runtime\\)?[Ww]arning\\|W:\\)\\|\
- *\\([Ii]nfo\\(?:\\>\\|rmationa?l?\\)\\|I:\\|\\[ skipping .+ \\]\\|\
-\\(?:instantiated\\|required\\) from\\|[Nn]ote\\)\\|\
- *[Ee]rror\\|[0-9]?\\(?:[^0-9\n]\\|$\\)\\|[0-9][0-9][0-9]\\)"
+     ,(rx
+       bol
+       (? (| (regexp "[[:alpha:]][-[:alnum:].]+: ?")
+             (regexp "[ \t]+\\(?:in \\|from\\)")))
+       (group-n 1 (: (regexp "[0-9]*[^0-9\n]")
+                     (*? (| (regexp "[^\n :]")
+                            (regexp " [^-/\n]")
+                            (regexp ":[^ \n]")))))
+       (regexp ": ?")
+       (group-n 2 (regexp "[0-9]+"))
+       (? (| (: "-"
+                (group-n 4 (regexp "[0-9]+"))
+                (? "." (group-n 5 (regexp "[0-9]+"))))
+             (: (in ".:")
+                (group-n 3 (regexp "[0-9]+"))
+                (? "-"
+                   (? (group-n 4 (regexp "[0-9]+")) ".")
+                   (group-n 5 (regexp "[0-9]+"))))))
+       ":"
+       (| (: (* " ")
+             (group-n 6 (| "FutureWarning"
+                           "RuntimeWarning"
+                           "Warning"
+                           "warning"
+                           "W:")))
+          (: (* " ")
+             (group-n 7 (| (regexp "[Ii]nfo\\(?:\\>\\|rmationa?l?\\)")
+                           "I:"
+                           (: "[ skipping " (+ ".") " ]")
+                           "instantiated from"
+                           "required from"
+                           (regexp "[Nn]ote"))))
+          (: (* " ")
+             (regexp "[Ee]rror"))
+          (: (regexp "[0-9]?")
+             (| (regexp "[^0-9\n]")
+                eol))
+          (regexp "[0-9][0-9][0-9]")))
      1 (2 . 4) (3 . 5) (6 . 7))
 
     (lcc
@@ -347,7 +377,7 @@ File = \\(.+\\), Line = \\([0-9]+\\)\\(?:, Column = \\([0-9]+\\)\\)?"
      3 4 5 (1 . 2))
 
     (sun-ada
-     "^\\([^, \n\t]+\\), line \\([0-9]+\\), char \\([0-9]+\\)[:., \(-]" 1 2 3)
+     "^\\([^, \n\t]+\\), line \\([0-9]+\\), char \\([0-9]+\\)[:., (-]" 1 2 3)
 
     (watcom
      "^[ \t]*\\(\\(?:[a-zA-Z]:\\)?[^:(\t\n]+\\)(\\([0-9]+\\)): ?\
@@ -447,6 +477,30 @@ File = \\(.+\\), Line = \\([0-9]+\\)\\(?:, Column = \\([0-9]+\\)\\)?"
      ;;
      "^\\([^ \t\r\n(]+\\) (\\([0-9]+\\):\\([0-9]+\\)) "
      1 2 3)
+
+    ;; Guile compilation yields file-headers in the following format:
+    ;;
+    ;;   In sourcefile.scm:
+    ;;
+    ;; We need to catch those, but we also need to be aware that Emacs
+    ;; byte-compilation yields compiler headers in similar form of
+    ;; those:
+    ;;
+    ;;   In toplevel form:
+    ;;   In end of data:
+    ;;
+    ;; We want to catch the Guile file-headers but not the Emacs
+    ;; byte-compilation headers, because that will cause next-error
+    ;; and prev-error to break, because the files "toplevel form" and
+    ;; "end of data" does not exist.
+    ;;
+    ;; To differentiate between these two cases, we require that the
+    ;; file-match must always contain an extension.
+    ;;
+    ;; We should also only treat this as "info", not "error", because
+    ;; we do not know what lines will follow.
+    (guile-file "^In \\(.+\\..+\\):\n" 1 nil nil 0)
+    (guile-line "^ *\\([0-9]+\\): *\\([0-9]+\\)" nil 1 2)
     )
   "Alist of values for `compilation-error-regexp-alist'.")
 
@@ -618,11 +672,11 @@ The value nil as an element means to try the default directory."
 Sometimes it is useful for files to supply local values for this variable.
 You might also use mode hooks to specify it in certain modes, like this:
 
-    (add-hook 'c-mode-hook
+    (add-hook \\='c-mode-hook
        (lambda ()
 	 (unless (or (file-exists-p \"makefile\")
 		     (file-exists-p \"Makefile\"))
-	   (set (make-local-variable 'compile-command)
+	   (set (make-local-variable \\='compile-command)
 		(concat \"make -k \"
 			(if buffer-file-name
 			  (shell-quote-argument
@@ -897,7 +951,7 @@ from a different message."
 (defvar compilation--previous-directory-cache nil
   "A pair (POS . RES) caching the result of previous directory search.
 Basically, this pair says that calling
-   (previous-single-property-change POS 'compilation-directory)
+   (previous-single-property-change POS \\='compilation-directory)
 returned RES, i.e. there is no change of `compilation-directory' between
 POS and RES.")
 (make-variable-buffer-local 'compilation--previous-directory-cache)
@@ -913,7 +967,7 @@ POS and RES.")
    (t (setq compilation--previous-directory-cache nil))))
 
 (defun compilation--previous-directory (pos)
-  "Like (previous-single-property-change POS 'compilation-directory), but faster."
+  "Like (previous-single-property-change POS \\='compilation-directory), but faster."
   ;; This avoids an N² behavior when there's no/few compilation-directory
   ;; entries, in which case each call to previous-single-property-change
   ;; ends up having to walk very far back to find the last change.
@@ -937,19 +991,12 @@ POS and RES.")
                     (cons (copy-marker pos) (if prev (copy-marker prev))))
               prev)
              ((and prev (= prev cache))
-              (if cache
-                  (set-marker (car compilation--previous-directory-cache) pos)
-                (setq compilation--previous-directory-cache
-                      (cons (copy-marker pos) nil)))
+              (set-marker (car compilation--previous-directory-cache) pos)
               (cdr compilation--previous-directory-cache))
              (t
-              (if cache
-                  (progn
-                    (set-marker cache pos)
-                    (setcdr compilation--previous-directory-cache
-                            (copy-marker prev)))
-                (setq compilation--previous-directory-cache
-                      (cons (copy-marker pos) (if prev (copy-marker prev)))))
+              (set-marker cache pos)
+              (setcdr compilation--previous-directory-cache
+                      (copy-marker prev))
               prev))))
       (if (markerp res) (marker-position res) res))))
 
@@ -1078,13 +1125,25 @@ POS and RES.")
     (compilation-internal-error-properties
      file line end-line col end-col type fmt)))
 
+(defun compilation-beginning-of-line (&optional n)
+  "Like `beginning-of-line', but accounts for lines hidden by `selective-display'."
+  (if (or (not (eq selective-display t))
+          (null n)
+          (= n 1))
+      (beginning-of-line n)
+    (re-search-forward "[\n\r]" nil 'end (1- n))
+    (if (< n 0)
+        (beginning-of-line))))
+
 (defun compilation-move-to-column (col screen)
   "Go to column COL on the current line.
 If SCREEN is non-nil, columns are screen columns, otherwise, they are
 just char-counts."
   (setq col (- col compilation-first-column))
   (if screen
-      (move-to-column (max col 0))
+      ;; Presumably, the compilation tool doesn't know about our current
+      ;; `tab-width' setting, so it probably assumed 8-wide TABs (bug#21038).
+      (let ((tab-width 8)) (move-to-column (max col 0)))
     (goto-char (min (+ (line-beginning-position) col) (line-end-position)))))
 
 (defun compilation-internal-error-properties (file line end-line col end-col type fmts)
@@ -1134,13 +1193,15 @@ FMTS is a list of format specs for transforming the file name.
 	    (goto-char (marker-position marker))
 	    ;; Set end-marker if appropriate and go to line.
 	    (if (not (or end-col end-line))
-		(beginning-of-line (- line marker-line -1))
-	      (beginning-of-line (- (or end-line line) marker-line -1))
+		(compilation-beginning-of-line (- line marker-line -1))
+	      (compilation-beginning-of-line (- (or end-line line)
+                                                marker-line -1))
 	      (if (or (null end-col) (< end-col 0))
 		  (end-of-line)
 		(compilation-move-to-column end-col screen-columns))
 	      (setq end-marker (point-marker))
-	      (when end-line (beginning-of-line (- line end-line -1))))
+	      (when end-line
+                (compilation-beginning-of-line (- line end-line -1))))
 	    (if col
 		(compilation-move-to-column col screen-columns)
 	      (forward-to-indentation 0))
@@ -1436,9 +1497,9 @@ Additionally, with universal prefix arg, compilation buffer will be in
 comint mode, i.e. interactive.
 
 To run more than one compilation at once, start one then rename
-the \`*compilation*' buffer to some other name with
+the `*compilation*' buffer to some other name with
 \\[rename-buffer].  Then _switch buffers_ and start the new compilation.
-It will create a new \`*compilation*' buffer.
+It will create a new `*compilation*' buffer.
 
 On most systems, termination of the main compilation process
 kills its subprocesses.
@@ -1641,11 +1702,7 @@ Returns the compilation buffer created."
 		(list "TERM=emacs"
 		      (format "TERMCAP=emacs:co#%d:tc=unknown:"
 			      (window-width))))
-	      ;; Set the EMACS variable, but
-	      ;; don't override users' setting of $EMACS.
-	      (unless (getenv "EMACS")
-		(list "EMACS=t"))
-	      (list "INSIDE_EMACS=t")
+	      (list (format "INSIDE_EMACS=%s,compile" emacs-version))
 	      (copy-sequence process-environment))))
 	(set (make-local-variable 'compilation-arguments)
 	     (list command mode name-function highlight-regexp))
@@ -1679,7 +1736,7 @@ Returns the compilation buffer created."
 	    (funcall compilation-process-setup-function))
 	(and outwin (compilation-set-window-height outwin))
 	;; Start the compilation.
-	(if (fboundp 'start-process)
+	(if (fboundp 'make-process)
 	    (let ((proc
 		   (if (eq mode t)
 		       ;; comint uses `start-file-process'.
@@ -2054,8 +2111,7 @@ Optional argument MINOR indicates this is called from
   (if minor
       (progn
 	(font-lock-add-keywords nil (compilation-mode-font-lock-keywords))
-	(if font-lock-mode
-            (font-lock-fontify-buffer)))
+        (font-lock-flush))
     (setq font-lock-defaults '(compilation-mode-font-lock-keywords t))))
 
 (defun compilation--unsetup ()
@@ -2064,8 +2120,7 @@ Optional argument MINOR indicates this is called from
   (remove-hook 'before-change-functions 'compilation--flush-parse t)
   (kill-local-variable 'compilation--parsed)
   (compilation--remove-properties)
-  (if font-lock-mode
-      (font-lock-fontify-buffer)))
+  (font-lock-flush))
 
 ;;;###autoload
 (define-minor-mode compilation-shell-minor-mode
@@ -2271,6 +2326,7 @@ looking for the next message."
   (or (compilation-buffer-p (current-buffer))
       (error "Not in a compilation buffer"))
   (or pt (setq pt (point)))
+  (compilation--ensure-parse pt)
   (let* ((msg (get-text-property pt 'compilation-message))
          ;; `loc', `msg', and `last' are used by the compilation-loop macro.
 	 (loc (and msg (compilation--message->loc msg)))
@@ -2283,7 +2339,8 @@ looking for the next message."
 						    (line-beginning-position)))
 	  (unless (setq msg (get-text-property (max (1- pt) (point-min))
                                                'compilation-message))
-	    (setq pt (next-single-property-change pt 'compilation-message nil
+	    (setq pt (compilation-next-single-property-change
+                      pt 'compilation-message nil
 						  (line-end-position)))
 	    (or (setq msg (get-text-property pt 'compilation-message))
 		(setq pt (point)))))
@@ -2294,7 +2351,6 @@ looking for the next message."
 				"No more %ss yet"
 			      "Moved past last %s")
 			    (point-max))
-        (compilation--ensure-parse pt)
 	;; Don't move "back" to message at or before point.
 	;; Pass an explicit (point-min) to make sure pt is non-nil.
 	(setq pt (previous-single-property-change
@@ -2425,7 +2481,7 @@ This is the value of `next-error-function' in Compilation buffers."
             ;; Treat file's found lines in forward order, 1 by 1.
             (dolist (line (reverse (cddr (compilation--loc->file-struct loc))))
               (when (car line)		; else this is a filename w/o a line#
-                (beginning-of-line (- (car line) last -1))
+                (compilation-beginning-of-line (- (car line) last -1))
                 (setq last (car line)))
               ;; Treat line's found columns and store/update a marker for each.
               (dolist (col (cdr line))
@@ -2497,13 +2553,13 @@ displays at the top of the window; there is no arrow."
   (if (integerp compilation-context-lines)
       (set-window-start w (save-excursion
 			    (goto-char mk)
-			    (beginning-of-line
+			    (compilation-beginning-of-line
 			     (- 1 compilation-context-lines))
 			    (point)))
     ;; If there is no left fringe.
-    (if (equal (car (window-fringes)) 0)
-	(set-window-start w (save-excursion
-			      (goto-char mk)
+    (when (equal (car (window-fringes w)) 0)
+      (set-window-start w (save-excursion
+                            (goto-char mk)
 			    (beginning-of-line 1)
 			    (point)))))
     (set-window-point w mk))
@@ -2550,7 +2606,7 @@ and overlay is highlighted between MK and END-MK."
 	(goto-char mk)))
     (if end-mk
         (push-mark end-mk t)
-      (if mark-active (setq mark-active)))
+      (if mark-active (setq mark-active nil)))
     ;; If hideshow got in the way of
     ;; seeing the right place, open permanently.
     (dolist (ov (overlays-at (point)))
@@ -2697,7 +2753,9 @@ FILE should be (FILENAME) or (RELATIVE-FILENAME . DIRNAME).
 In the former case, FILENAME may be relative or absolute.
 
 The file-structure looks like this:
-  ((FILENAME [DIR-FROM-PREV-MSG]) FMT LINE-STRUCT...)"
+  ((FILENAME [TRUE-DIRNAME]) FMT ...)
+
+TRUE-DIRNAME is the `file-truename' of DIRNAME, if given."
   (or (gethash file compilation-locs)
       ;; File was not previously encountered, at least not in the form passed.
       ;; Let's normalize it and look again.
@@ -2752,7 +2810,7 @@ The file-structure looks like this:
   (let ((fs (compilation-get-file-structure file)))
     (cl-assert (eq fs (gethash file compilation-locs)))
     (cl-assert (eq fs (gethash (cons (caar fs) (cadr (car fs)))
-                            compilation-locs)))
+                               compilation-locs)))
     (maphash (lambda (k v)
                (if (eq v fs) (remhash k compilation-locs)))
              compilation-locs)))

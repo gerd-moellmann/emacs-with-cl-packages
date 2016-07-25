@@ -1,6 +1,6 @@
 ;;; indent.el --- indentation commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1995, 2001-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1995, 2001-2016 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Package: emacs
@@ -86,6 +86,22 @@ that case, indent by aligning to the previous non-blank line."
     ;; The normal case.
     (funcall indent-line-function)))
 
+(defun indent--default-inside-comment ()
+  (unless (or (> (current-column) (current-indentation))
+              (eq this-command last-command))
+    (let ((ppss (syntax-ppss)))
+      (when (nth 4 ppss)
+        (indent-line-to
+         (save-excursion
+           (forward-line -1)
+           (skip-chars-forward " \t")
+           (when (< (1- (point)) (nth 8 ppss) (line-end-position))
+             (goto-char (nth 8 ppss))
+             (when (looking-at comment-start-skip)
+               (goto-char (match-end 0))))
+           (current-column)))
+        t))))
+
 (defun indent-for-tab-command (&optional arg)
   "Indent the current line or region, or insert a tab, as appropriate.
 This function either inserts a tab, or indents the current line,
@@ -124,7 +140,11 @@ prefix argument is ignored."
 	  (old-indent (current-indentation)))
 
       ;; Indent the line.
-      (funcall indent-line-function)
+      (or (not (eq (funcall indent-line-function) 'noindent))
+          (indent--default-inside-comment)
+          (when (or (<= (current-column) (current-indentation))
+                    (not (eq tab-always-indent 'complete)))
+            (funcall (default-value 'indent-line-function))))
 
       (cond
        ;; If the text was already indented right, try completion.
@@ -537,7 +557,7 @@ column to indent to; if it is nil, use one of the three methods above."
   ;; In most cases, reindenting modifies the buffer, but it may also
   ;; leave it unmodified, in which case we have to deactivate the mark
   ;; by hand.
-  (deactivate-mark))
+  (setq deactivate-mark t))
 
 (defun indent-relative-maybe ()
   "Indent a new line like previous nonblank line.
@@ -590,7 +610,7 @@ See also `indent-relative-maybe'."
   "List of tab stop positions used by `tab-to-tab-stop'.
 This should be nil, or a list of integers, ordered from smallest to largest.
 It implicitly extends to infinity through repetition of the last step.
-For example, '(1 2 5) is equivalent to '(1 2 5 8 11 ...).  If the list has
+For example, (1 2 5) is equivalent to (1 2 5 8 11 ...).  If the list has
 fewer than 2 elements, `tab-width' is used as the \"last step\".
 A value of nil means a tab stop every `tab-width' columns."
   :group 'indent

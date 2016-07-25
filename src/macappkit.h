@@ -5,8 +5,8 @@ This file is part of GNU Emacs Mac port.
 
 GNU Emacs Mac port is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs Mac port is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -20,9 +20,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 #import <Quartz/Quartz.h>
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
 #import <QuartzCore/QuartzCore.h>
-#endif
 #import <IOKit/graphics/IOGraphicsLib.h>
 #import <OSAKit/OSAKit.h>
 #define Z (current_buffer->text->z)
@@ -31,12 +29,6 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #define NSFoundationVersionNumber10_8_3 945.16
 #endif
 
-#ifndef NSAppKitVersionNumber10_4
-#define NSAppKitVersionNumber10_4 824
-#endif
-#ifndef NSAppKitVersionNumber10_5
-#define NSAppKitVersionNumber10_5 949
-#endif
 #ifndef NSAppKitVersionNumber10_6
 #define NSAppKitVersionNumber10_6 1038
 #endif
@@ -52,10 +44,8 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifndef NSAppKitVersionNumber10_10_Max
 #define NSAppKitVersionNumber10_10_Max 1349
 #endif
-
-#ifndef NSINTEGER_DEFINED
-typedef int NSInteger;
-typedef unsigned int NSUInteger;
+#ifndef NSAppKitVersionNumber10_11
+#define NSAppKitVersionNumber10_11 1404
 #endif
 
 #ifndef USE_ARC
@@ -78,38 +68,19 @@ typedef id instancetype;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100 && __has_feature (objc_generics)
-#define NSArrayG(ObjectType)		NSArray <ObjectType>
-#define NSMutableArrayG(ObjectType)	NSMutableArray <ObjectType>
-#define NSSetG(ObjectType)		NSSet <ObjectType>
-#define NSMutableSetG(ObjectType)	NSMutableSet <ObjectType>
-#define NSDictionaryG(KeyT, ObjectT)	NSDictionary <KeyT, ObjectT>
-#define NSMutableDictionaryG(KeyT, ObjectT) NSMutableDictionary <KeyT, ObjectT>
-#define NSEnumeratorG(ObjectType)	NSEnumerator <ObjectType>
+#define NSArrayOf(ObjectType)		NSArray <ObjectType>
+#define NSMutableArrayOf(ObjectType)	NSMutableArray <ObjectType>
+#define NSSetOf(ObjectType)		NSSet <ObjectType>
+#define NSMutableSetOf(ObjectType)	NSMutableSet <ObjectType>
+#define NSDictionaryOf(KeyT, ObjectT)	NSDictionary <KeyT, ObjectT>
+#define NSMutableDictionaryOf(KeyT, ObjectT) NSMutableDictionary <KeyT, ObjectT>
 #else
-#define NSArrayG(ObjectType)		NSArray
-#define NSMutableArrayG(ObjectType)	NSMutableArray
-#define NSSetG(ObjectType)		NSSet
-#define NSMutableSetG(ObjectType)	NSMutableSet
-#define NSDictionaryG(KeyT, ObjectT)	NSDictionary
-#define NSMutableDictionaryG(KeyT, ObjectT) NSMutableDictionary
-#define NSEnumeratorG(ObjectType)	NSEnumerator
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-/* If we add `<NSObject>' here as documented, the 64-bit binary
-   compiled on Mac OS X 10.5 fails in startup at -[EmacsController
-   methodSignatureForSelector:] when executed on Mac OS X 10.6.  */
-@protocol NSApplicationDelegate @end
-@protocol NSSoundDelegate @end
-@protocol NSWindowDelegate @end
-@protocol NSToolbarDelegate @end
-@protocol NSMenuDelegate @end
-@protocol NSUserInterfaceItemSearching @end
-@protocol NSLayoutManagerDelegate @end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-@protocol NSTextInputClient @end
+#define NSArrayOf(ObjectType)		NSArray
+#define NSMutableArrayOf(ObjectType)	NSMutableArray
+#define NSSetOf(ObjectType)		NSSet
+#define NSMutableSetOf(ObjectType)	NSMutableSet
+#define NSDictionaryOf(KeyT, ObjectT)	NSDictionary
+#define NSMutableDictionaryOf(KeyT, ObjectT) NSMutableDictionary
 #endif
 
 #ifndef NS_NOESCAPE
@@ -127,7 +98,7 @@ typedef id instancetype;
 - (Lisp_Object)lispString;
 - (Lisp_Object)UTF8LispString;
 - (Lisp_Object)UTF16LispString;
-- (NSArrayG (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator;
+- (NSArrayOf (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator;
 @end
 
 @interface NSFont (Emacs)
@@ -155,18 +126,8 @@ typedef id instancetype;
 
 @interface NSApplication (Emacs)
 - (void)postDummyEvent;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 - (void)runTemporarilyWithBlock:(void (^)(void))block;
-#else
-- (void)runTemporarilyWithInvocation:(NSInvocation *)invocation;
-#endif
 @end
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
-@interface NSObject (Emacs)
-- (void)didRunTemporarilyWithInvocation:(NSInvocation *)invocation;
-@end
-#endif
 
 @interface NSScreen (Emacs)
 + (NSScreen *)screenContainingPoint:(NSPoint)aPoint;
@@ -222,18 +183,9 @@ typedef id instancetype;
   /* The item selected in the popup menu.  */
   int menuItemSelection;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
   /* Non-nil means left mouse tracking has been suspended and will be
      resumed when this block is called.  */
   void (^trackingResumeBlock)(void);
-#else
-  /* Non-nil means left mouse tracking has been suspended by this
-     object.  */
-  id trackingObject;
-
-  /* Selector used for resuming suspended left mouse tracking.  */
-  SEL trackingResumeSelector;
-#endif
 
   /* Whether a service provider for Emacs is registered as of
      applicationWillFinishLaunching: or not.  */
@@ -249,7 +201,7 @@ typedef id instancetype;
 
   /* Saved key bindings with or without conflicts (currently, those
      for writing direction commands on Mac OS X 10.6).  */
-  NSDictionaryG (NSString *, NSString *)
+  NSDictionaryOf (NSString *, NSString *)
     *keyBindingsWithConflicts, *keyBindingsWithoutConflicts;
 
   /* Help topic that the user selected using Help menu search.  */
@@ -266,17 +218,13 @@ typedef id instancetype;
   NSTimer *flushTimer;
 
   /* Set of windows whose flush is deferred.  */
-  NSMutableSetG (NSWindow *) *deferredFlushWindows;
+  NSMutableSetOf (NSWindow *) *deferredFlushWindows;
 }
 - (int)getAndClearMenuItemSelection;
 - (void)storeInputEvent:(id)sender;
 - (void)setMenuItemSelectionToTag:(id)sender;
 - (void)storeEvent:(struct input_event *)bufp;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
- - (void)setTrackingResumeBlock:(void (^)(void))block;
-#else
-- (void)setTrackingObject:(id)object andResumeSelector:(SEL)selector;
-#endif
+- (void)setTrackingResumeBlock:(void (^)(void))block;
 - (NSTimeInterval)minimumIntervalForReadSocket;
 - (int)handleQueuedNSEventsWithHoldingQuitIn:(struct input_event *)bufp;
 - (void)cancelHelpEchoForEmacsFrame:(struct frame *)f;
@@ -366,12 +314,9 @@ typedef id instancetype;
      is relative to the top left corner of the screen.  */
   NSRect savedFrame;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
   /* The view hosting Core Animation layers in the overlay window.  */
   NSView *layerHostingView;
-#endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   /* The block called when the window ends live resize.  */
   void (^liveResizeCompletionHandler) (void);
 
@@ -392,9 +337,8 @@ typedef id instancetype;
   /* Array of blocks called when the window completes full screen
      transition.  Each block is called with the window object and a
      boolean value meaning whether the transition has succeeded.  */
-  NSMutableArrayG (void (^)(EmacsWindow *, BOOL))
+  NSMutableArrayOf (void (^)(EmacsWindow *, BOOL))
     *fullScreenTransitionCompletionHandlers;
-#endif
 }
 - (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
 - (void)setupEmacsView;
@@ -419,11 +363,9 @@ typedef id instancetype;
 - (NSBitmapImageRep *)bitmapImageRepInContentViewRect:(NSRect)rect;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
 - (BOOL)isWindowFrontmost;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 - (void)setupLiveResizeTransition;
 - (void)setShouldLiveResizeTriggerTransition:(BOOL)flag;
 - (void)setLiveResizeCompletionHandler:(void (^)(void))block;
-#endif
 @end
 
 /* Class for Emacs view that handles drawing events only.  It is used
@@ -436,11 +378,7 @@ typedef id instancetype;
 /* Class for Emacs view that also handles input events.  Used by
    ordinary frames.  */
 
-@interface EmacsMainView : EmacsView <NSTextInputClient
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-				      , NSTextInput
-#endif
-				      >
+@interface EmacsMainView : EmacsView <NSTextInputClient>
 {
   /* Target object to which the EmacsMainView object sends
      actions.  */
@@ -510,12 +448,10 @@ typedef id instancetype;
 - (void)adjustWindowFrame;
 @end
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 /* Class for view used in live resize transition animations.  */
 
 @interface EmacsLiveResizeTransitionView : NSView
 @end
-#endif
 
 /* Class for scroller that doesn't do modal mouse tracking.  */
 
@@ -579,6 +515,9 @@ typedef id instancetype;
   /* This is used for saving the `code' and `modifiers' members of an
      input event for a scroller click with the control modifier.  */
   struct input_event inputEvent;
+
+  /* Values in the last mac_set_scroll_bar_thumb call.  */
+  int whole, portion;
 }
 - (void)setEmacsScrollBar:(struct scroll_bar *)bar;
 - (struct scroll_bar *)emacsScrollBar;
@@ -589,6 +528,10 @@ typedef id instancetype;
 - (CGFloat)clickPositionInFrame;
 - (ptrdiff_t)inputEventCode;
 - (int)inputEventModifiers;
+- (int)whole;
+- (void)setWhole:(int)theWhole;
+- (int)portion;
+- (void)setPortion:(int)thePortion;
 @end
 
 @interface EmacsFrameController (ScrollBar)
@@ -598,10 +541,10 @@ typedef id instancetype;
 @interface EmacsToolbarItem : NSToolbarItem
 {
   /* Array of CoreGraphics images of the item.  */
-  NSArrayG (id) *coreGraphicsImages;
+  NSArrayOf (id) *coreGraphicsImages;
 }
 - (void)setCoreGraphicsImage:(CGImageRef)cgImage;
-- (void)setCoreGraphicsImages:(NSArrayG (id) *)cgImages;
+- (void)setCoreGraphicsImages:(NSArrayOf (id) *)cgImages;
 @end
 
 /* Dummy protocol for specifying the return type of the selector
@@ -644,7 +587,7 @@ typedef id instancetype;
 @interface EmacsFrameController (EventHandling)
 - (void)noteEnterEmacsView;
 - (void)noteLeaveEmacsView;
-- (int)noteMouseMovement:(NSPoint)point;
+- (BOOL)noteMouseMovement:(NSPoint)point;
 @end
 
 @interface EmacsFrameController (Hourglass)
@@ -674,7 +617,6 @@ typedef id instancetype;
 @end
 
 @interface NSEvent (Undocumented)
-- (EventRef)_eventRef;
 - (BOOL)_continuousScroll;
 - (NSInteger)_scrollPhase;
 - (CGFloat)deviceDeltaX;
@@ -694,6 +636,13 @@ typedef id instancetype;
 - (instancetype)initWithWidgetValue:(widget_value *)wv;
 @end
 
+@interface EmacsPrintProxyView : NSView
+{
+  NSArrayOf (NSView *) *views;
+}
+- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
+@end
+
 @interface NSPasteboard (Emacs)
 - (BOOL)setLispObject:(Lisp_Object)lispObject forType:(NSString *)dataType;
 - (Lisp_Object)lispObjectForType:(NSString *)dataType;
@@ -704,7 +653,7 @@ typedef id instancetype;
 @end
 
 @interface EmacsFrameController (DragAndDrop)
-- (void)registerEmacsViewForDraggedTypes:(NSArrayG (NSString *) *)pboardTypes;
+- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSString *) *)pboardTypes;
 - (void)setOverlayViewHighlighted:(BOOL)flag;
 @end
 
@@ -738,14 +687,14 @@ typedef id instancetype;
   bool (*checkImageSizeFunc) (struct frame *, int, int);
 
   /* Function called when reporting image load errors.  */
-  void (*imageErrorFunc) (const char *, Lisp_Object, Lisp_Object);
+  void (*imageErrorFunc) (const char *, ...);
 
   /* Whether a page load has completed.  */
   BOOL isLoaded;
 }
 - (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
 		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
-		    imageErrorFunc:(void (*)(const char *, Lisp_Object, Lisp_Object))imageError;
+		    imageErrorFunc:(void (*)(const char *, ...))imageError;
 - (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor;
 @end
 
@@ -753,14 +702,14 @@ typedef id instancetype;
 
 @protocol EmacsDocumentRasterizer <NSObject>
 - (instancetype)initWithURL:(NSURL *)url
-		    options:(NSDictionaryG (NSString *, id) *)options;
+		    options:(NSDictionaryOf (NSString *, id) *)options;
 - (instancetype)initWithData:(NSData *)data
-		     options:(NSDictionaryG (NSString *, id) *)options;
-+ (NSArrayG (NSString *) *)supportedTypes;
+		     options:(NSDictionaryOf (NSString *, id) *)options;
++ (NSArrayOf (NSString *) *)supportedTypes;
 - (NSUInteger)pageCount;
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
 - (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
-- (NSDictionaryG (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index;
+- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index;
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
 	      inContext:(CGContextRef)ctx;
 @end
@@ -779,17 +728,16 @@ typedef id instancetype;
   /* The text storage and document attributes for the document to be
      rasterized.  */
   NSTextStorage *textStorage;
-  NSDictionaryG (NSString *, id) *documentAttributes;
+  NSDictionaryOf (NSString *, id) *documentAttributes;
 }
 - (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
-		      documentAttributes:(NSDictionaryG (NSString *, id) *)docAttributes;
+		      documentAttributes:(NSDictionaryOf (NSString *, id) *)docAttributes;
 @end
 
 @interface EmacsFrameController (Accessibility)
 - (void)postAccessibilityNotificationsToEmacsView;
 @end
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
 @interface EmacsFrameController (Animation)
 - (void)setupLayerHostingView;
 - (CALayer *)layerForRect:(NSRect)rect;
@@ -797,80 +745,17 @@ typedef id instancetype;
 - (CIFilter *)transitionFilterFromProperties:(Lisp_Object)properties;
 - (void)adjustTransitionFilter:(CIFilter *)filter forLayer:(CALayer *)layer;
 @end
-#endif
 
 @interface NSLayoutManager (Emacs)
 - (NSRect)enclosingRectForGlyphRange:(NSRange)glyphRange
 		     inTextContainer:(NSTextContainer *)textContainer;
 @end
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1050
-
-/* Class for locale objects used in kCTFontLanguagesAttribute
-   emulation.  */
-
-@interface EmacsLocale : NSObject
-{
-  /* Mac OS language and region codes for the locale.  */
-  LangCode langCode;
-  RegionCode regionCode;
-
-  /* Exemplar character set for the locale.  */
-  NSCharacterSet *exemplarCharacterSet;
-}
-- (id)initWithLocaleIdentifier:(NSString *)string;
-- (BOOL)isCompatibleWithFont:(NSFont *)font;
-@end
-
-/* Class for CTFontDescriptor replacement for < 10.5 systems.  Some
-   selectors are compatible with those for NSFontDescriptor, so
-   toll-free bridged CTFontDescriptor can also respond to them.
-   Implementations of some methods are dummy and each subclass
-   (EmacsFDFontDescriptor or EmacsFMFontDescriptor below) should
-   override them.  */
-
-@interface EmacsFontDescriptor : NSObject
-- (id)initWithFontAttributes:(NSDictionary *)attributes;
-+ (id)fontDescriptorWithFontAttributes:(NSDictionary *)attributes;
-+ (id)fontDescriptorWithFont:(NSFont *)font;
-- (NSArray *)matchingFontDescriptorsWithMandatoryKeys:(NSSet *)mandatoryKeys;
-- (NSArray *)matchingFontDescriptorsWithMandatoryKeys:(NSSet *)mandatoryKeys
-					      locales:(NSArray *)locales;
-- (EmacsFontDescriptor *)matchingFontDescriptorWithMandatoryKeys:(NSSet *)mandatoryKeys;
-- (id)objectForKey:(NSString *)anAttribute;
-@end
-
-#if USE_NS_FONT_DESCRIPTOR
-@interface EmacsFDFontDescriptor : EmacsFontDescriptor
-{
-  NSFontDescriptor *fontDescriptor;
-}
-- (id)initWithFontDescriptor:(NSFontDescriptor *)aFontDescriptor;
-- (NSFontDescriptor *)fontDescriptor;
-+ (id)fontDescriptorWithFontDescriptor:(NSFontDescriptor *)aFontDescriptor;
-@end
-
-#endif
-
-#endif	/* MAC_OS_X_VERSION_MIN_REQUIRED < 1050 */
-
 @interface EmacsController (Sound) <NSSoundDelegate>
 @end
 
 /* Some methods that are not declared in older versions.  Should be
    used with some runtime check such as `respondsToSelector:'. */
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-@interface NSNumber (AvailableOn1050AndLater)
-+ (NSNumber *)numberWithInteger:(NSInteger)value;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-@interface NSAttributedString (AvailableOn1050AndLater)
-+ (NSArray *)textTypes;
-@end
-#endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 @interface NSColor (AvailableOn1070AndLater)
@@ -885,54 +770,10 @@ typedef id instancetype;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-@interface NSColorSpace (AvailableOn1050AndLater)
-- (CGColorSpaceRef)CGColorSpace;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-@interface NSImage (AvailableOn1060AndLater)
-- (id)initWithCGImage:(CGImageRef)cgImage size:(NSSize)size;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-@interface NSBitmapImageRep (AvailableOn1050AndLater)
-- (id)initWithCGImage:(CGImageRef)cgImage;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
 @interface NSFileManager (AvailableOn1080AndLater)
 - (BOOL)trashItemAtURL:(NSURL *)url resultingItemURL:(NSURL **)outResultingURL
 		 error:(NSError **)error;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-enum {
-  NSApplicationPresentationDefault			= 0,
-  NSApplicationPresentationAutoHideDock			= 1 << 0,
-  NSApplicationPresentationHideDock			= 1 << 1,
-  NSApplicationPresentationAutoHideMenuBar		= 1 << 2,
-  NSApplicationPresentationHideMenuBar			= 1 << 3,
-  NSApplicationPresentationDisableAppleMenu		= 1 << 4,
-  NSApplicationPresentationDisableProcessSwitching	= 1 << 5,
-  NSApplicationPresentationDisableForceQuit		= 1 << 6,
-  NSApplicationPresentationDisableSessionTermination	= 1 << 7,
-  NSApplicationPresentationDisableHideApplication	= 1 << 8,
-  NSApplicationPresentationDisableMenuBarTransparency	= 1 << 9
-};
-typedef NSUInteger NSApplicationPresentationOptions;
-
-@interface NSApplication (AvailableOn1060AndLater)
-- (void)setPresentationOptions:(NSApplicationPresentationOptions)newOptions;
-- (NSApplicationPresentationOptions)presentationOptions;
-- (void)registerUserInterfaceItemSearchHandler:(id<NSUserInterfaceItemSearching>)handler;
-- (BOOL)searchString:(NSString *)searchString inUserInterfaceItemString:(NSString *)stringToSearch
-	 searchRange:(NSRange)searchRange foundRange:(NSRange *)foundRange;
-- (void)setHelpMenu:(NSMenu *)helpMenu;
 @end
 #endif
 
@@ -952,29 +793,6 @@ enum {
 enum {
   NSModalResponseOK	= NSOKButton
 };
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-enum {
-  NSWindowCollectionBehaviorDefault		= 0,
-  NSWindowCollectionBehaviorCanJoinAllSpaces	= 1 << 0,
-  NSWindowCollectionBehaviorMoveToActiveSpace	= 1 << 1
-};
-typedef NSUInteger NSWindowCollectionBehavior;
-
-@interface NSWindow (AvailableOn1050AndLater)
-- (NSWindowCollectionBehavior)collectionBehavior;
-- (void)setCollectionBehavior:(NSWindowCollectionBehavior)behavior;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-typedef NSUInteger NSWindowNumberListOptions;
-
-@interface NSWindow (AvailableOn1060AndLater)
-- (void)setStyleMask:(NSUInteger)styleMask;
-+ (NSArray *)windowNumbersWithOptions:(NSWindowNumberListOptions)options;
-@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
@@ -1037,48 +855,51 @@ typedef NSUInteger NSWindowStyleMask;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-@interface NSCursor (AvailableOn1060AndLater)
-+ (NSCursor *)dragLinkCursor;
-+ (NSCursor *)dragCopyCursor;
-+ (NSCursor *)contextualMenuCursor;
-/* The documentation says it is available on Mac OS X 10.5, but
-   actually it was not declared in the header.  */
-+ (NSCursor *)operationNotAllowedCursor;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSSavePanel (AvailableOn1090AndLater)
 - (void)setShowsTagField:(BOOL)flag;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-@interface NSMenu (AvailableOn1060AndLater)
-- (BOOL)popUpMenuPositioningItem:(NSMenuItem *)item
-		      atLocation:(NSPoint)location inView:(NSView *)view;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-@interface NSEvent (AvailableOn1050AndLater)
-- (CGEventRef)CGEvent;
-- (const void * /* EventRef */)eventRef;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 enum {
-    NSEventTypeGesture          = 29,
-    NSEventTypeMagnify          = 30,
-    NSEventTypeSwipe            = 31,
-    NSEventTypeRotate           = 18
+    NSEventPhaseNone        = 0,
+    NSEventPhaseBegan       = 0x1 << 0,
+    NSEventPhaseStationary  = 0x1 << 1,
+    NSEventPhaseChanged     = 0x1 << 2,
+    NSEventPhaseEnded       = 0x1 << 3,
+    NSEventPhaseCancelled   = 0x1 << 4,
+};
+typedef NSUInteger NSEventPhase;
+
+@interface NSEvent (AvailableOn1070AndLater)
+- (BOOL)hasPreciseScrollingDeltas;
+- (CGFloat)scrollingDeltaX;
+- (CGFloat)scrollingDeltaY;
+- (NSEventPhase)momentumPhase;
+- (BOOL)isDirectionInvertedFromDevice;
+- (NSEventPhase)phase;
++ (BOOL)isSwipeTrackingFromScrollEventsEnabled;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
+enum {
+    NSEventTypeSmartMagnify = 32
 };
 
-@interface NSEvent (AvailableOn1060AndLater)
-- (CGFloat)magnification;
-+ (NSUInteger)modifierFlags;
+enum {
+    NSEventPhaseMayBegin    = 0x1 << 5
+};
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
+typedef NSUInteger NSEventModifierFlags;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
+@interface NSEvent (AvailableOn101003AndLater)
+- (NSInteger)stage;
 @end
 #endif
 
@@ -1126,49 +947,6 @@ enum {
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-    NSEventPhaseNone        = 0,
-    NSEventPhaseBegan       = 0x1 << 0,
-    NSEventPhaseStationary  = 0x1 << 1,
-    NSEventPhaseChanged     = 0x1 << 2,
-    NSEventPhaseEnded       = 0x1 << 3,
-    NSEventPhaseCancelled   = 0x1 << 4,
-};
-typedef NSUInteger NSEventPhase;
-
-@interface NSEvent (AvailableOn1070AndLater)
-- (BOOL)hasPreciseScrollingDeltas;
-- (CGFloat)scrollingDeltaX;
-- (CGFloat)scrollingDeltaY;
-- (NSEventPhase)momentumPhase;
-- (BOOL)isDirectionInvertedFromDevice;
-- (NSEventPhase)phase;
-+ (BOOL)isSwipeTrackingFromScrollEventsEnabled;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-enum {
-    NSEventTypeSmartMagnify = 32
-};
-
-enum {
-    NSEventPhaseMayBegin    = 0x1 << 5
-};
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-typedef NSUInteger NSEventModifierFlags;
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
-@interface NSEvent (AvailableOn101003AndLater)
-- (NSInteger)stage;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 @interface NSAnimationContext (AvailableOn1070AndLater)
 + (void)runAnimationGroup:(void (^)(NSAnimationContext *context))changes
         completionHandler:(void (^)(void))completionHandler;
@@ -1179,12 +957,13 @@ typedef NSUInteger NSEventModifierFlags;
 @property CGFloat contentsScale;
 @end
 #endif
-#endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-@interface NSFileHandle (AvailableOn1060AndLater)
-+ (id)fileHandleForReadingFromURL:(NSURL *)url error:(NSError **)error;
-@end
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+enum {
+  NSPaperOrientationPortrait	= NSPortraitOrientation,
+  NSPaperOrientationLandscape	= NSLandscapeOrientation
+};
+typedef NSInteger NSPaperOrientation;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
@@ -1218,6 +997,12 @@ enum {
 };
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+@interface PDFPage (AvailableOn101200AndLater)
+- (void) drawWithBox: (PDFDisplayBox) box toContext:(CGContextRef)context;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
 typedef NSInteger NSGlyphProperty;
 
@@ -1226,12 +1011,5 @@ typedef NSInteger NSGlyphProperty;
 		    properties:(NSGlyphProperty *)props
 	      characterIndexes:(NSUInteger *)charIndexBuffer
 		    bidiLevels:(unsigned char *)bidiLevelBuffer;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
-@interface NSSound (AvailableOn1050AndLater)
-- (void)setVolume:(float)volume;
-- (void)setPlaybackDeviceIdentifier:(NSString *)deviceUID;
 @end
 #endif

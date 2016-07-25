@@ -1,6 +1,6 @@
 ;;; viper-keym.el --- Viper keymaps
 
-;; Copyright (C) 1994-1997, 2000-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1997, 2000-2016 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: viper
@@ -60,13 +60,13 @@ Full Vi compatibility is not recommended for power use of Viper."
   :group 'viper)
 
 (defcustom viper-no-multiple-ESC  t
-  "If true, multiple ESC in Vi mode will cause bell to ring.
-This is set to t on a windowing terminal and to 'twice on a dumb
+  "If non-nil, multiple ESC in Vi mode will cause bell to ring.
+This is set to t on a windowing terminal and to `twice' on a dumb
 terminal (unless the user level is 1, 2, or 5).  On a dumb terminal, this
 enables cursor keys and is generally more convenient, as terminals usually
 don't have a convenient Meta key.
-Setting viper-no-multiple-ESC to nil will allow as many multiple ESC,
-as is allowed by the major mode in effect."
+Setting it to nil will allow as many multiple ESC, as is allowed by the
+major mode in effect."
   :type 'boolean
   :group 'viper)
 
@@ -154,10 +154,8 @@ viper-insert-basic-map.  Not recommended, except for novice users.")
 ;; Some important keys used in viper
 (defcustom viper-toggle-key [(control ?z)]  ; "\C-z"
   "The key used to change states from Emacs to Vi and back.
-In insert mode, this key also functions as Meta.
-
-Enter as a sexp.  Examples: \"\\C-z\", [(control ?z)]."
-  :type 'sexp
+In insert mode, this key also functions as Meta."
+  :type 'key-sequence
   :group 'viper
   :set (lambda (symbol value)
 	 (let ((old-value (if (boundp 'viper-toggle-key)
@@ -497,12 +495,12 @@ Useful in some modes, such as Gnus, MH, etc.")
   "Override some vi-state or insert-state bindings in the current buffer.
 The effect is seen in the current buffer only.
 Useful for customizing  mailer buffers, gnus, etc.
-STATE is 'vi-state, 'insert-state, or 'emacs-state
+STATE is `vi-state', `insert-state', or `emacs-state'.
 ALIST is of the form ((key . func) (key . func) ...)
 Normally, this would be called from a hook to a major mode or
 on a per buffer basis.
 Usage:
-      (viper-add-local-keys state '((key-str . func) (key-str . func)...))   "
+      (viper-add-local-keys state \\='((key-str . func) (key-str . func)...))   "
 
   (let (map)
     (cond ((eq state 'vi-state)

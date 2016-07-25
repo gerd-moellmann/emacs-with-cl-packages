@@ -1,6 +1,6 @@
 ;;; tramp-gw.el --- Tramp utility functions for HTTP tunnels and SOCKS gateways
 
-;; Copyright (C) 2007-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2016 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -126,8 +126,11 @@
 
 (defun tramp-gw-process-filter (proc string)
   (let ((tramp-verbose 0))
-    (process-send-string
-     (tramp-get-connection-property proc "process" nil) string)))
+    ;; The other process might have been stopped already.  We don't
+    ;; want to be interrupted then.
+    (ignore-errors
+      (process-send-string
+       (tramp-get-connection-property proc "process" nil) string))))
 
 ;;;###tramp-autoload
 (defun tramp-gw-open-connection (vec gw-vec target-vec)

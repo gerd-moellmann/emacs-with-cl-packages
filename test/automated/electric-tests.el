@@ -1,6 +1,6 @@
 ;;; electric-tests.el --- tests for electric.el
 
-;; Copyright (C) 2013-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2016 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords:
@@ -583,6 +583,14 @@ baz\"\""
                   (goto-char (point-max))
                   (skip-chars-backward "\"")
                   (mark-sexp -1)))
+
+
+;;; Electric quotes
+(define-electric-pair-test electric-quote-string
+  "" "'" :expected-string "'" :expected-point 2
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-string . t))
+  :test-in-comments nil :test-in-strings nil)
 
 (provide 'electric-tests)
 ;;; electric-tests.el ends here

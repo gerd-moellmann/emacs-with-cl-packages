@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1994-1999, 2001-2015 Free Software Foundation, Inc.
+# Copyright (C) 1994-1999, 2001-2016 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -24,7 +24,7 @@ srcdir = @srcdir@
 buildinfodir = $(srcdir)/../../info
 # Directory with the (customized) texinfo.tex file.
 texinfodir = $(srcdir)/../misc
-# Directory with emacsver.texi.
+# Directory with docstyle.texi and emacsver.texi.
 emacsdir =  $(srcdir)/../emacs
 
 prefix = @prefix@
@@ -43,9 +43,8 @@ GZIP_PROG = @GZIP_PROG@
 
 HTML_OPTS = --no-split --html
 
-INFO_EXT=@INFO_EXT@
 # Options used only when making info output.
-INFO_OPTS=@INFO_OPTS@
+INFO_OPTS= --no-split
 
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -56,50 +55,58 @@ TEXI2DVI = texi2dvi
 TEXI2PDF = texi2pdf
 DVIPS = dvips
 
-ENVADD = TEXINPUTS="$(srcdir):$(texinfodir):$(emacsdir):$(TEXINPUTS)" \
-         MAKEINFO="$(MAKEINFO) $(MAKEINFO_OPTS)"
+# 'make' verbosity.
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+
+AM_V_GEN = $(am__v_GEN_@AM_V@)
+am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
+am__v_GEN_0 = @echo "  GEN     " $@;
+am__v_GEN_1 =
+
+ENVADD = \
+  $(AM_V_GEN)TEXINPUTS="$(srcdir):$(texinfodir):$(emacsdir):$(TEXINPUTS)" \
+  MAKEINFO="$(MAKEINFO) $(MAKEINFO_OPTS)"
 
 DVI_TARGETS = emacs-lisp-intro.dvi
 HTML_TARGETS = emacs-lisp-intro.html
 PDF_TARGETS = emacs-lisp-intro.pdf
 PS_TARGETS = emacs-lisp-intro.ps
 
-mkinfodir = @${MKDIR_P} ${buildinfodir}
-
 srcs = ${srcdir}/emacs-lisp-intro.texi ${srcdir}/doclicense.texi \
-  ${emacsdir}/emacsver.texi
+  ${emacsdir}/docstyle.texi ${emacsdir}/emacsver.texi
+
+## Disable implicit rules.
+%.texi: ;
 
 .PHONY: info dvi html pdf ps
 
-.SUFFIXES: .ps .dvi
-
-.dvi.ps:
-	$(DVIPS) -o $@ $<
-
-info: ${buildinfodir}/eintr$(INFO_EXT)
-
+info: ${buildinfodir}/eintr.info
 dvi: $(DVI_TARGETS)
 html: $(HTML_TARGETS)
 pdf: $(PDF_TARGETS)
 ps: $(PS_TARGETS)
 
+${buildinfodir}:
+	${MKDIR_P} $@
+
 # The file name eintr must fit within 5 characters, to allow for
 # -NN extensions to fit into DOS 8+3 limits without clashing.
-# Note: "<" is not portable in ordinary make rules.
-${buildinfodir}/eintr$(INFO_EXT): ${srcs}
-	$(mkinfodir)
-	$(MAKEINFO) $(MAKEINFO_OPTS) $(INFO_OPTS) -o $@ ${srcdir}/emacs-lisp-intro.texi
+${buildinfodir}/eintr.info: ${srcs} | ${buildinfodir}
+	$(AM_V_GEN)$(MAKEINFO) $(MAKEINFO_OPTS) $(INFO_OPTS) -o $@ $<
 
 emacs-lisp-intro.dvi: ${srcs}
-	$(ENVADD) $(TEXI2DVI) ${srcdir}/emacs-lisp-intro.texi
+	$(ENVADD) $(TEXI2DVI) $<
 
 emacs-lisp-intro.pdf: ${srcs}
-	$(ENVADD) $(TEXI2PDF) ${srcdir}/emacs-lisp-intro.texi
+	$(ENVADD) $(TEXI2PDF) $<
 
 emacs-lisp-intro.html: ${srcs}
-	$(MAKEINFO) $(MAKEINFO_OPTS) $(HTML_OPTS) -o $@ ${srcdir}/emacs-lisp-intro.texi
+	$(AM_V_GEN)$(MAKEINFO) $(MAKEINFO_OPTS) $(HTML_OPTS) -o $@ $<
 
-.PHONY: mostlyclean clean distclean maintainer-clean infoclean
+emacs-lisp-intro.ps: emacs-lisp-intro.dvi
+	$(DVIPS) -o $@ $<
+
+.PHONY: mostlyclean clean distclean bootstrap-clean maintainer-clean infoclean
 
 mostlyclean:
 	rm -f *.aux *.log *.toc *.cp *.cps *.fn *.fns *.ky *.kys \
@@ -112,9 +119,11 @@ distclean: clean
 	rm -f Makefile
 
 infoclean:
-	-cd $(buildinfodir) && rm -f eintr$(INFO_EXT) eintr$(INFO_EXT)-[1-9]
+	rm -f \
+	  $(buildinfodir)/eintr.info \
+	  $(buildinfodir)/eintr.info-[1-9]
 
-maintainer-clean: distclean infoclean
+bootstrap-clean maintainer-clean: distclean infoclean
 
 .PHONY: install-dvi install-html install-pdf install-ps install-doc
 

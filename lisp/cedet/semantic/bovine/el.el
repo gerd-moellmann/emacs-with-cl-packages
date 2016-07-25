@@ -1,6 +1,6 @@
 ;;; semantic/bovine/el.el --- Semantic details for Emacs Lisp
 
-;; Copyright (C) 1999-2005, 2007-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2005, 2007-2016 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -700,7 +700,7 @@ of `let' or `let*', grab those variable names."
 	  ;; Snart args...
 	  (up-list -1)
 	  (forward-char 1)
-	  (forward-word 1)
+	  (forward-word-strictly 1)
 	  (skip-chars-forward "* \t\n")
 	  (let ((arglst (read (buffer-substring-no-properties
 			       (point)

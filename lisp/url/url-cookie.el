@@ -1,6 +1,6 @@
 ;;; url-cookie.el --- URL cookie support
 
-;; Copyright (C) 1996-1999, 2004-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1999, 2004-2016 Free Software Foundation, Inc.
 
 ;; Keywords: comm, data, processes, hypermedia
 
@@ -104,9 +104,10 @@ telling Microsoft that."
       (insert ";; Emacs-W3 HTTP cookies file\n"
 	      ";; Automatically generated file!!! DO NOT EDIT!!!\n\n"
 	      "(setq url-cookie-storage\n '")
-      (pp url-cookie-storage (current-buffer))
-      (insert ")\n(setq url-cookie-secure-storage\n '")
-      (pp url-cookie-secure-storage (current-buffer))
+      (let ((print-length nil) (print-level nil))
+	(pp url-cookie-storage (current-buffer))
+	(insert ")\n(setq url-cookie-secure-storage\n '")
+	(pp url-cookie-secure-storage (current-buffer)))
       (insert ")\n")
       (insert "\n;; Local Variables:\n"
               ";; version-control: never\n"
@@ -118,47 +119,50 @@ telling Microsoft that."
 
 (defun url-cookie-store (name value &optional expires domain localpart secure)
   "Store a cookie."
-  (let ((storage (if secure url-cookie-secure-storage url-cookie-storage))
-	tmp found-domain)
-    ;; First, look for a matching domain.
-    (if (setq found-domain (assoc domain storage))
-	;; Need to either stick the new cookie in existing domain storage
-	;; or possibly replace an existing cookie if the names match.
-	(unless (dolist (cur (setq storage (cdr found-domain)) tmp)
-		  (and (equal localpart (url-cookie-localpart cur))
-		       (equal name (url-cookie-name cur))
-		       (progn
-			 (setf (url-cookie-expires cur) expires)
-			 (setf (url-cookie-value cur) value)
-			 (setq tmp t))))
-	  ;; New cookie.
-	  (setcdr found-domain (cons
-				(url-cookie-create :name name
-						   :value value
-						   :expires expires
-						   :domain domain
-						   :localpart localpart
-						   :secure secure)
-				(cdr found-domain))))
-      ;; Need to add a new top-level domain.
-      (setq tmp (url-cookie-create :name name
-				   :value value
-				   :expires expires
-				   :domain domain
-				   :localpart localpart
-				   :secure secure))
-      (cond (storage
-	     (setcdr storage (cons (list domain tmp) (cdr storage))))
-	    (secure
-	     (setq url-cookie-secure-storage (list (list domain tmp))))
-	    (t
-	     (setq url-cookie-storage (list (list domain tmp))))))))
+  (when (> (length name) 0)
+    (let ((storage (if secure url-cookie-secure-storage url-cookie-storage))
+          tmp found-domain)
+      ;; First, look for a matching domain.
+      (if (setq found-domain (assoc domain storage))
+          ;; Need to either stick the new cookie in existing domain storage
+          ;; or possibly replace an existing cookie if the names match.
+          (unless (dolist (cur (setq storage (cdr found-domain)) tmp)
+                    (and (equal localpart (url-cookie-localpart cur))
+                         (equal name (url-cookie-name cur))
+                         (progn
+                           (setf (url-cookie-expires cur) expires)
+                           (setf (url-cookie-value cur) value)
+                           (setq tmp t))))
+            ;; New cookie.
+            (setcdr found-domain (cons
+                                  (url-cookie-create :name name
+                                                     :value value
+                                                     :expires expires
+                                                     :domain domain
+                                                     :localpart localpart
+                                                     :secure secure)
+                                  (cdr found-domain))))
+        ;; Need to add a new top-level domain.
+        (setq tmp (url-cookie-create :name name
+                                     :value value
+                                     :expires expires
+                                     :domain domain
+                                     :localpart localpart
+                                     :secure secure))
+        (cond (storage
+               (setcdr storage (cons (list domain tmp) (cdr storage))))
+              (secure
+               (setq url-cookie-secure-storage (list (list domain tmp))))
+              (t
+               (setq url-cookie-storage (list (list domain tmp)))))))))
 
 (defun url-cookie-expired-p (cookie)
   "Return non-nil if COOKIE is expired."
   (let ((exp (url-cookie-expires cookie)))
     (and (> (length exp) 0)
-	 (> (float-time) (float-time (date-to-time exp))))))
+	 (condition-case ()
+	     (> (float-time) (float-time (date-to-time exp)))
+	   (error nil)))))
 
 (defun url-cookie-retrieve (host &optional localpart secure)
   "Retrieve all cookies for a specified HOST and LOCALPART."
@@ -261,7 +265,7 @@ telling Microsoft that."
     (and expires
 	 (string-match
 	  (concat "^[^,]+, +\\(..\\)-\\(...\\)-\\(..\\) +"
-		  "\\(..:..:..\\) +\\[*\\([^\]]+\\)\\]*$")
+		  "\\(..:..:..\\) +\\[*\\([^]]+\\)\\]*$")
 	  expires)
 	 (setq expires (concat (match-string 1 expires) " "
 			       (match-string 2 expires) " "
@@ -353,7 +357,7 @@ to run the `url-cookie-setup-save-timer' function manually."
 
 (defun url-cookie-list ()
   "Display a buffer listing the current URL cookies, if there are any.
-Use \\<url-cookie-mode-map>\\\[url-cookie-delete] to remove cookies."
+Use \\<url-cookie-mode-map>\\[url-cookie-delete] to remove cookies."
   (interactive)
   (when (and (null url-cookie-secure-storage)
 	     (null url-cookie-storage))

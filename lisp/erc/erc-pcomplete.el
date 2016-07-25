@@ -1,6 +1,6 @@
 ;;; erc-pcomplete.el --- Provides programmable completion for ERC
 
-;; Copyright (C) 2002-2004, 2006-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2016 Free Software Foundation, Inc.
 
 ;; Author: Sacha Chua <sacha@free.net.ph>
 ;; Maintainer: emacs-devel@gnu.org
@@ -33,7 +33,7 @@
 ;;
 ;; If you want nickname completions ordered such that the most recent
 ;; speakers are listed first, set
-;; `erc-pcomplete-order-nickname-completions' to `t'.
+;; `erc-pcomplete-order-nickname-completions' to t.
 ;;
 ;; See CREDITS for other contributors.
 ;;
@@ -80,11 +80,11 @@ for use on `completion-at-point-function'."
 
 (defun erc-pcomplete ()
   "Complete the nick before point."
+  (declare (obsolete completion-at-point "25.1"))
   (interactive)
   (when (> (point) (erc-beg-of-input-line))
-    (setq this-command 'pcomplete)
-    (call-interactively 'pcomplete)
-    t))
+    (let ((completion-at-point-functions '(erc-pcompletions-at-point)))
+      (completion-at-point))))
 
 ;;; Setup function
 
@@ -225,9 +225,10 @@ If optional argument IGNORE-SELF is non-nil, don't return the current nick."
                  (erc-get-channel-user-list)))
         (nicks nil))
     (dolist (user users)
-      (unless (and ignore-self
-                   (string= (erc-server-user-nickname (car user))
-                            (erc-current-nick)))
+      (unless (or (not user) 
+                  (and ignore-self
+                       (string= (erc-server-user-nickname (car user))
+                                (erc-current-nick))))
         (setq nicks (cons (concat (erc-server-user-nickname (car user))
                                   postfix)
                           nicks))))
@@ -237,10 +238,12 @@ If optional argument IGNORE-SELF is non-nil, don't return the current nick."
   "Returns a list of all nicks on the current server."
   (let (nicks)
     (erc-with-server-buffer
-      (maphash (lambda (nick user)
-                 (setq nicks (cons (concat nick postfix) nicks)))
+      (maphash (lambda (_nick user)
+                 (setq nicks (cons
+                              (concat (erc-server-user-nickname user) postfix)
+                              nicks)))
                erc-server-users))
-      nicks))
+    nicks))
 
 (defun pcomplete-erc-channels ()
   "Returns a list of channels associated with the current server."

@@ -1,6 +1,6 @@
 ;;; image.el --- image API
 
-;; Copyright (C) 1998-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2016 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: multimedia
@@ -34,7 +34,7 @@
 
 (defconst image-type-header-regexps
   `(("\\`/[\t\n\r ]*\\*.*XPM.\\*/" . xpm)
-    ("\\`P[1-6]\\\(?:\
+    ("\\`P[1-6]\\(?:\
 \\(?:\\(?:#[^\r\n]*[\r\n]\\)?[[:space:]]\\)+\
 \\(?:\\(?:#[^\r\n]*[\r\n]\\)?[0-9]\\)+\
 \\)\\{2\\}" . pbm)
@@ -154,7 +154,7 @@ compatibility with versions of Emacs that lack the variable
 
     (let* ((load-path (image-load-path-for-library \"mh-e\" \"mh-logo.xpm\"))
            (image-load-path (cons (car load-path)
-                                  (when (boundp 'image-load-path)
+                                  (when (boundp \\='image-load-path)
                                     image-load-path))))
       (mh-tool-bar-folder-buttons-init))"
   (unless library (error "No library specified"))
@@ -357,7 +357,7 @@ Optional DATA-P non-nil means SOURCE is a string containing image data."
 
 (if (fboundp 'image-metadata)           ; eg not --without-x
     (define-obsolete-function-alias 'image-extension-data
-      'image-metadata' "24.1"))
+      'image-metadata "24.1"))
 
 (define-obsolete-variable-alias
     'image-library-alist
@@ -735,7 +735,7 @@ for the animation speed.  A negative value means to animate in reverse."
 	   ;; Subtract off the time we took to load the image from the
 	   ;; stated delay time.
 	   (delay (max (+ (* (or (cdr animation) image-default-frame-delay)
-			     (/ 1 (abs speed)))
+			     (/ 1.0 (abs speed)))
 			  time (- (float-time)))
 		       image-minimum-frame-delay))
 	   done)

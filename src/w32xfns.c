@@ -1,13 +1,13 @@
 /* Functions taken directly from X sources for use with the Microsoft Windows API.
-   Copyright (C) 1989, 1992-1995, 1999, 2001-2015 Free Software
+   Copyright (C) 1989, 1992-1995, 1999, 2001-2016 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
 
 GNU Emacs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -20,16 +20,12 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <config.h>
 #include <signal.h>
 #include <stdio.h>
+#include <windows.h>
+#include <windowsx.h>
 
 #include "lisp.h"
-#include "keyboard.h"
 #include "frame.h"
-#include "window.h"
-#include "charset.h"
-#include "fontset.h"
-#include "blockinput.h"
 #include "w32term.h"
-#include "windowsx.h"
 
 #define myalloc(cb) GlobalAllocPtr (GPTR, cb)
 #define myfree(lp) GlobalFreePtr (lp)

@@ -1,6 +1,6 @@
 ;;; picture.el --- "Picture mode" -- editing using quarter-plane screen model
 
-;; Copyright (C) 1985, 1994, 2001-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1994, 2001-2016 Free Software Foundation, Inc.
 
 ;; Author: K. Shane Hartman
 ;; Maintainer: emacs-devel@gnu.org
@@ -272,7 +272,11 @@ Use \"\\[command-apropos] picture-movement\" to see commands which control motio
 	(or (eolp)
 	    (let ((pos (point)))
 	      (move-to-column col t)
-	      (delete-region pos (point)))))
+	      (let ((old-width (string-width (buffer-substring pos (point)))))
+		(delete-region pos (point))
+		(when (> old-width width)
+		  (insert-char ?  (- old-width width))
+		  (goto-char pos))))))
       (insert ch)
       (forward-char -1)
       (picture-move))))

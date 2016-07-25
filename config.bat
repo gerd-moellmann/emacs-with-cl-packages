@@ -1,7 +1,7 @@
 @echo off
 rem   ----------------------------------------------------------------------
 rem   Configuration script for MSDOS
-rem   Copyright (C) 1994-1999, 2001-2015 Free Software Foundation, Inc.
+rem   Copyright (C) 1994-1999, 2001-2016 Free Software Foundation, Inc.
 
 rem   This file is part of GNU Emacs.
 
@@ -22,10 +22,10 @@ rem   ----------------------------------------------------------------------
 rem   YOU'LL NEED THE FOLLOWING UTILITIES TO MAKE EMACS:
 rem
 rem   + msdos version 3 or better.
-rem   + DJGPP version 2.0 or later (version 2.03 or later recommended).
+rem   + DJGPP version 2.02 or later (version 2.03 or later recommended).
 rem   + make utility that allows breaking of the 128 chars limit on
 rem     command lines.  ndmake (as of version 4.5) won't work due to a
-rem     line length limit.  The make that comes with DJGPP does work (and is
+rem     line length limit.  The DJGPP port of make works (and is
 rem     recommended).
 rem   + rm, mv, and cp (from GNU file utilities).
 rem   + sed (you can use the port that comes with DJGPP).
@@ -109,7 +109,7 @@ Goto End
 :djgppOk
 echo int main()           >junk.c
 echo #ifdef __DJGPP__    >>junk.c
-echo {return (__DJGPP__)*10;} >>junk.c
+echo {return (__DJGPP__)*10 + (__DJGPP_MINOR__);} >>junk.c
 echo #else               >>junk.c
 echo #ifdef __GO32__     >>junk.c
 echo {return 10;}         >>junk.c
@@ -126,8 +126,8 @@ Echo To compile 'Emacs' under MS-DOS you MUST have DJGPP installed!
 Goto End
 :go32Ok
 set djgpp_ver=2
-If Not ErrorLevel 20 Echo To build 'Emacs' you need DJGPP v2.0 or later!
-If Not ErrorLevel 20 Goto End
+If Not ErrorLevel 22 Echo To build 'Emacs' you need DJGPP v2.02 or later!
+If Not ErrorLevel 22 Goto End
 rm -f junk.c junk junk.exe
 rem DJECHO is used by the top-level Makefile in the v2.x build
 Echo Checking whether 'djecho' is available...
@@ -135,7 +135,6 @@ redir -o Nul -eo djecho -o junk.$$$ foo
 If Exist junk.$$$ Goto djechoOk
 Echo To build 'Emacs' you need the 'djecho.exe' program!
 Echo 'djecho.exe' is part of 'djdevNNN.zip' basic DJGPP development kit.
-Echo Versions of DJGPP before 2.02 called this program 'echo.exe'.
 Echo Either unpack 'djecho.exe' from the 'djdevNNN.zip' archive,
 Echo or, if you have 'echo.exe', copy it to 'djecho.exe'.
 Echo Then run CONFIG.BAT again with the same arguments you did now.
@@ -175,7 +174,7 @@ junk
 If ErrorLevel 1 Goto xmlDone
 Echo Configuring with libxml2 ...
 sed -e "/#undef HAVE_LIBXML2/s/^.*$/#define HAVE_LIBXML2 1/" <config.h2 >config.h3
-mv config.h3 config.h2
+sed -e "/#define EMACS_CONFIG_FEATURES/s/^.*$/#define EMACS_CONFIG_FEATURES \"LIBXML2\"/" <config.h3 >config.h2
 set libxml=1
 :xmlDone
 rm -f junk.c junk junk.exe
@@ -195,7 +194,7 @@ if exist dir.h ren dir.h vmsdir.h
 
 rem   Create "makefile" from "makefile.in".
 rm -f Makefile makefile.tmp
-copy Makefile.in+lisp.mk+deps.mk makefile.tmp
+copy Makefile.in+deps.mk makefile.tmp
 sed -f ../msdos/sed1v2.inp <makefile.tmp >Makefile
 rm -f makefile.tmp
 
@@ -228,6 +227,10 @@ rem   ----------------------------------------------------------------------
 Echo Configuring the library source directory...
 cd lib-src
 sed -f ../msdos/sed3v2.inp <Makefile.in >Makefile
+mv Makefile makefile.tmp
+sed -n -e "/^AC_INIT/s/[^,]*, \([^,]*\).*/@set emver=\1/p" ../configure.ac > emver.bat
+call emver.bat
+sed -e "s/@version@/%emver%/g" <makefile.tmp >Makefile
 if "%X11%" == "" goto libsrc2a
 mv Makefile makefile.tmp
 sed -f ../msdos/sed3x.inp <makefile.tmp >Makefile
@@ -253,16 +256,23 @@ cd ..
 rem   ----------------------------------------------------------------------
 Echo Configuring the doc directory, expect one "File not found" message...
 cd doc
+Rem Rename files like djtar on plain DOS filesystem would.
+If Exist emacs\emacsver.texi.in update emacs/emacsver.texi.in emacs/emacsver.in
+If Exist man\emacs.1.in update man/emacs.1.in man/emacs.in
+If Exist ..\etc\refcards\emacsver.tex.in update ../etc/refcards/emacsver.tex.in ../etc/refcards/emacsver.in
 Rem The two variants for lispintro below is for when the shell
 Rem supports long file names but DJGPP does not
-for %%d in (emacs lispref lispintro lispintr misc) do sed -f ../msdos/sed6.inp < %%d\Makefile.in > %%d\Makefile
+for %%d in (emacs lispref lispintro lispintr misc) do sed -e "s/@version@/%emver%/g" -f ../msdos/sed6.inp < %%d\Makefile.in > %%d\Makefile
+Rem produce emacs.1 from emacs.in
+If Exist man\emacs.1 goto manOk
+sed -e "s/@version@/%emver%/g" -e "s/@PACKAGE_BUGREPORT@/bug-gnu-emacs@gnu.org/g" < man\emacs.in > man\emacs.1
+:manOk
 cd ..
 rem   ----------------------------------------------------------------------
 Echo Configuring the lib directory...
 If Exist build-aux\snippet\c++defs.h update build-aux/snippet/c++defs.h build-aux/snippet/cxxdefs.h
 cd lib
 Rem Rename files like djtar on plain DOS filesystem would.
-If Exist build-aux\snippet\c++defs.h update build-aux/snippet/c++defs.h build-aux/snippet/cxxdefs.h
 If Exist alloca.in.h update alloca.in.h alloca.in-h
 If Exist byteswap.in.h update byteswap.in.h byteswap.in-h
 If Exist dirent.in.h update dirent.in.h dirent.in-h
@@ -287,6 +297,7 @@ If Exist sys_types.in.h update sys_types.in.h sys_types.in-h
 If Exist sys_time.in.h update sys_time.in.h sys_time.in-h
 If Exist time.in.h update time.in.h time.in-h
 If Exist unistd.in.h update unistd.in.h unistd.in-h
+Rem Only repository has the msdos/autogen directory
 If Exist Makefile.in sed -f ../msdos/sedlibcf.inp < Makefile.in > makefile.tmp
 If Exist ..\msdos\autogen\Makefile.in sed -f ../msdos/sedlibcf.inp < ..\msdos\autogen\Makefile.in > makefile.tmp
 sed -f ../msdos/sedlibmk.inp < makefile.tmp > Makefile
@@ -311,6 +322,12 @@ rem   ----------------------------------------------------------------------
 If Not Exist admin\unidata goto noadmin
 Echo Configuring the admin/unidata directory...
 cd admin\unidata
+sed -f ../../msdos/sedadmin.inp < Makefile.in > Makefile
+Echo Configuring the admin/charsets directory...
+cd ..\charsets
+sed -f ../../msdos/sedadmin.inp < Makefile.in > Makefile
+Echo Configuring the admin/grammars directory...
+cd ..\grammars
 sed -f ../../msdos/sedadmin.inp < Makefile.in > Makefile
 cd ..\..
 :noadmin
@@ -346,3 +363,4 @@ set nodebug=
 set djgpp_ver=
 set sys_malloc=
 set libxml=
+set emver=

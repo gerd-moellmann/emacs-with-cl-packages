@@ -1,6 +1,6 @@
 ;;; gnus-agent.el --- unplugged support for Gnus
 
-;; Copyright (C) 1997-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2016 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -680,7 +680,7 @@ minor mode in all Gnus buffers."
 
 (defun gnus-agent-queue-setup (&optional group-name)
   "Make sure the queue group exists.
-Optional arg GROUP-NAME allows to specify another group."
+Optional arg GROUP-NAME allows another group to be specified."
   (unless (gnus-gethash (format "nndraft:%s" (or group-name "queue"))
 			gnus-newsrc-hashtb)
     (gnus-request-create-group (or group-name "queue") '(nndraft ""))
@@ -868,8 +868,9 @@ be a select method."
 		      (not (eq gnus-agent-synchronize-flags 'ask)))
 		 (and (eq gnus-agent-synchronize-flags 'ask)
 		      (gnus-y-or-n-p
-		       (format "Synchronize flags on server `%s'? "
-			       (cadr method))))))
+		       (gnus-format-message
+			"Synchronize flags on server `%s'? "
+			(cadr method))))))
     (gnus-agent-synchronize-flags-server method)))
 
 ;;;###autoload
@@ -1721,7 +1722,7 @@ and that there are no duplicates."
               (or backed-up
                   (setq backed-up (gnus-agent-backup-overview-buffer)))
 	      (gnus-message 1
-			    "Overview buffer contains garbage '%s'."
+			    "Overview buffer contains garbage `%s'."
 			    (buffer-substring
 			     p (point-at-eol))))
 	     ((= cur prev-num)
@@ -1901,7 +1902,7 @@ article numbers will be returned."
 
       (when articles
 	(gnus-message
-	 10 "gnus-agent-fetch-headers: undownloaded articles are '%s'"
+	 10 "gnus-agent-fetch-headers: undownloaded articles are `%s'"
 	 (gnus-compress-sequence articles t)))
 
       (with-current-buffer nntp-server-buffer

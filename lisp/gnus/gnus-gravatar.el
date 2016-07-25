@@ -1,6 +1,6 @@
 ;;; gnus-gravatar.el --- Gnus Gravatar support
 
-;; Copyright (C) 2010-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2016 Free Software Foundation, Inc.
 
 ;; Author: Julien Danjou <julien@danjou.info>
 ;; Keywords: news
@@ -41,7 +41,7 @@ If nil, default to `gravatar-size'."
 
 (defcustom gnus-gravatar-properties '(:ascent center :relief 1)
   "List of image properties applied to Gravatar images."
-  :type 'sexp
+  :type 'plist
   :version "24.1"
   :group 'gnus-gravatar)
 

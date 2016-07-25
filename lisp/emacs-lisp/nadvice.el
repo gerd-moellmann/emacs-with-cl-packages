@@ -1,6 +1,6 @@
 ;;; nadvice.el --- Light-weight advice primitives for Elisp functions  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2012-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2016 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: extensions, lisp, tools
@@ -95,7 +95,7 @@ Each element has the form (WHERE BYTECODE STACK) where:
                (propertize (format "%s advice: " where)
                            'face 'warning)
                (let ((fun (advice--car flist)))
-                 (if (symbolp fun) (format "`%S'" fun)
+                 (if (symbolp fun) (format-message "`%S'" fun)
                    (let* ((name (cdr (assq 'name (advice--props flist))))
                           (doc (documentation fun t))
                           (usage (help-split-fundoc doc function)))
@@ -114,7 +114,10 @@ Each element has the form (WHERE BYTECODE STACK) where:
            (usage (help-split-fundoc origdoc function)))
       (setq usage (if (null usage)
                       (let ((arglist (help-function-arglist flist)))
-                        (format "%S" (help-make-usage function arglist)))
+                        ;; "[Arg list not available until function
+                        ;; definition is loaded]", bug#21299
+                        (if (stringp arglist) t
+                          (help--make-usage-docstring function arglist)))
                     (setq origdoc (cdr usage)) (car usage)))
       (help-add-fundoc-usage (concat docstring origdoc) usage))))
 
@@ -236,11 +239,12 @@ different, but `function-equal' will hopefully ignore those differences.")
           ;; This function acts like the t special value in buffer-local hooks.
           (lambda (&rest args) (apply (default-value var) args)))))
 
-(defun advice--normalize-place (place)
-  (cond ((eq 'local (car-safe place)) `(advice--buffer-local ,@(cdr place)))
-        ((eq 'var (car-safe place))   (nth 1 place))
-        ((symbolp place)              `(default-value ',place))
-        (t place)))
+(eval-and-compile
+  (defun advice--normalize-place (place)
+    (cond ((eq 'local (car-safe place)) `(advice--buffer-local ,@(cdr place)))
+          ((eq 'var (car-safe place))   (nth 1 place))
+          ((symbolp place)              `(default-value ',place))
+          (t place))))
 
 ;;;###autoload
 (defmacro add-function (where place function &optional props)
@@ -278,7 +282,7 @@ a special meaning:
   whereas a depth of -100 means that the advice should be outermost.
 
 If PLACE is a symbol, its `default-value' will be affected.
-Use (local 'SYMBOL) if you want to apply FUNCTION to SYMBOL buffer-locally.
+Use (local \\='SYMBOL) if you want to apply FUNCTION to SYMBOL buffer-locally.
 Use (var VAR) if you want to apply FUNCTION to the (lexical) VAR.
 
 If one of FUNCTION or OLDFUN is interactive, then the resulting function
@@ -288,7 +292,10 @@ is also interactive.  There are 3 cases:
   argument (the interactive spec of OLDFUN, which it can pass to
   `advice-eval-interactive-spec') and return the list of arguments to use.
 - Else, use the interactive spec of FUNCTION and ignore the one of OLDFUN."
-  (declare (debug t)) ;;(indent 2)
+  (declare
+   ;;(indent 2)
+   (debug (form [&or symbolp ("local" form) ("var" sexp) gv-place]
+           form &optional form)))
   `(advice--add-function ,where (gv-ref ,(advice--normalize-place place))
                          ,function ,props))
 
@@ -310,7 +317,8 @@ is also interactive.  There are 3 cases:
 If FUNCTION was not added to PLACE, do nothing.
 Instead of FUNCTION being the actual function, it can also be the `name'
 of the piece of advice."
-  (declare (debug t))
+  (declare (debug ([&or symbolp ("local" form) ("var" sexp) gv-place]
+                   form)))
   (gv-letplace (getter setter) (advice--normalize-place place)
     (macroexp-let2 nil new `(advice--remove-function ,getter ,function)
       `(unless (eq ,new ,getter) ,(funcall setter new)))))
@@ -440,6 +448,30 @@ of the piece of advice."
              (fset symbol (car (get symbol 'advice--saved-rewrite)))))))
   nil)
 
+;;;###autoload
+(defmacro define-advice (symbol args &rest body)
+  "Define an advice and add it to function named SYMBOL.
+See `advice-add' and `add-function' for explanation on the
+arguments.  Note if NAME is nil the advice is anonymous;
+otherwise it is named `SYMBOL@NAME'.
+
+\(fn SYMBOL (WHERE LAMBDA-LIST &optional NAME DEPTH) &rest BODY)"
+  (declare (indent 2) (doc-string 3) (debug (sexp sexp body)))
+  (or (listp args) (signal 'wrong-type-argument (list 'listp args)))
+  (or (<= 2 (length args) 4)
+      (signal 'wrong-number-of-arguments (list 2 4 (length args))))
+  (let* ((where         (nth 0 args))
+         (lambda-list   (nth 1 args))
+         (name          (nth 2 args))
+         (depth         (nth 3 args))
+         (props         (and depth `((depth . ,depth))))
+         (advice (cond ((null name) `(lambda ,lambda-list ,@body))
+                       ((or (stringp name) (symbolp name))
+                        (intern (format "%s@%s" symbol name)))
+                       (t (error "Unrecognized name spec `%S'" name)))))
+    `(prog1 ,@(and (symbolp advice) `((defun ,advice ,lambda-list ,@body)))
+       (advice-add ',symbol ,where #',advice ,@(and props `(',props))))))
+
 (defun advice-mapc (fun symbol)
   "Apply FUN to every advice function in SYMBOL.
 FUN is called with a two arguments: the function that was added, and the
@@ -497,8 +529,9 @@ of the piece of advice."
             (while
                 (progn
                   (funcall get-next-frame)
-                  (not (and (eq (nth 1 frame2) 'apply)
-                            (eq (nth 3 frame2) inneradvice)))))
+                  (and frame2
+                       (not (and (eq (nth 1 frame2) 'apply)
+                                 (eq (nth 3 frame2) inneradvice))))))
             (funcall get-next-frame)
             (funcall get-next-frame))))
       (- i origi 1))))

@@ -1,6 +1,6 @@
 ;;; gnus-picon.el --- displaying pretty icons in Gnus
 
-;; Copyright (C) 1996-2015 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2016 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news xpm annotation glyph faces
@@ -36,10 +36,6 @@
 ;; Original implementation by Wes Hardaker <hardaker@ece.ucdavis.edu>.
 ;;
 ;;; Code:
-
-;; For Emacs <22.2 and XEmacs.
-(eval-and-compile
-  (unless (fboundp 'declare-function) (defmacro declare-function (&rest r))))
 
 (eval-when-compile (require 'cl))
 
@@ -77,7 +73,7 @@ Some people may want to add \"unknown\" to this list."
 
 (defcustom gnus-picon-properties '(:color-symbols (("None" . "white")))
   "List of image properties applied to picons."
-  :type 'sexp
+  :type 'plist
   :version "24.3"
   :group 'gnus-picon)
 

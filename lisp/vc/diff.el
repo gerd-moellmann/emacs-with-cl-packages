@@ -1,6 +1,6 @@
 ;;; diff.el --- run `diff'  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992, 1994, 1996, 2001-2015 Free Software Foundation,
+;; Copyright (C) 1992, 1994, 1996, 2001-2016 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Frank Bresz
@@ -38,7 +38,7 @@
   :group 'tools)
 
 ;;;###autoload
-(defcustom diff-switches (purecopy "-c")
+(defcustom diff-switches (purecopy "-u")
   "A string or list of strings specifying switches to be passed to diff."
   :type '(choice string (repeat string))
   :group 'diff)
@@ -167,7 +167,7 @@ Possible values are:
       (setq default-directory thisdir)
       (let ((inhibit-read-only t))
 	(insert command "\n"))
-      (if (and (not no-async) (fboundp 'start-process))
+      (if (and (not no-async) (fboundp 'make-process))
 	  (let ((proc (start-process "Diff" buf shell-file-name
                                      shell-command-switch command)))
 	    (set-process-filter proc 'diff-process-filter)

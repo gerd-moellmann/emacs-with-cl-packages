@@ -1,6 +1,6 @@
 ;;; frameset.el --- save and restore frame and window setup -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2016 Free Software Foundation, Inc.
 
 ;; Author: Juanma Barranquero <lekktu@gmail.com>
 ;; Keywords: convenience
@@ -354,12 +354,12 @@ Properties can be set with
 ;; Now, what about the filter alist variables? There are three of them,
 ;; though only two sets of parameters:
 ;;
-;; - `frameset-session-filter-alist' contains these filters that allow to
-;;   save and restore framesets in-session, without the need to serialize
-;;   the frameset or save it to disk (for example, to save a frameset in a
-;;   register and restore it later).  Filters in this list do not remove
-;;   live objects, except in `minibuffer', which is dealt especially by
-;;   `frameset-save' / `frameset-restore'.
+;; - `frameset-session-filter-alist' contains these filters that allow
+;;   saving and restoring framesets in-session, without the need to
+;;   serialize the frameset or save it to disk (for example, to save a
+;;   frameset in a register and restore it later).  Filters in this
+;;   list do not remove live objects, except in `minibuffer', which is
+;;   dealt especially by `frameset-save' / `frameset-restore'.
 ;;
 ;; - `frameset-persistent-filter-alist' is the whole deal.  It does all
 ;;   the filtering described above, and the result is ready to be saved on
@@ -664,10 +664,7 @@ nil while the filtering is done to restore it."
     ;; Set the display parameter after filtering, so that filter functions
     ;; have access to its original value.
     (when frameset--target-display
-      (let ((display (assq 'display filtered)))
-	(if display
-	    (setcdr display (cdr frameset--target-display))
-	  (push frameset--target-display filtered))))
+      (setf (alist-get 'display filtered) (cdr frameset--target-display)))
     filtered))
 
 
@@ -1025,8 +1022,8 @@ Internal use only."
 (defun frameset-keep-original-display-p (force-display)
   "True if saved frames' displays should be honored.
 For the meaning of FORCE-DISPLAY, see `frameset-restore'."
-  (cond ((daemonp) t)
-	((eq system-type 'windows-nt) nil) ;; Does ns support more than one display?
+  (cond ((eq system-type 'windows-nt) nil) ;; Does ns support more than one display?
+	((daemonp) t)
 	(t (not force-display))))
 
 (defun frameset-minibufferless-first-p (frame1 _frame2)
@@ -1075,7 +1072,7 @@ FORCE-ONSCREEN can be:
 	   - a list (LEFT TOP WIDTH HEIGHT), describing the workarea.
 	   It must return non-nil to force the frame onscreen, nil otherwise.
 
-CLEANUP-FRAMES allows to \"clean up\" the frame list after restoring a frameset:
+CLEANUP-FRAMES allows \"cleaning up\" the frame list after restoring a frameset:
   t        Delete all frames that were not created or restored upon.
   nil      Keep all frames.
   FUNC     A function called with two arguments:
@@ -1266,6 +1263,17 @@ Called from `jump-to-register'.  Internal use only."
 	(with-current-buffer buffer (goto-char (aref data 2)))))))
 
 ;;;###autoload
+(defun frameset--print-register (data)
+  "Print basic info about frameset stored in DATA.
+Called from `list-registers' and `view-register'.  Internal use only."
+  (let* ((fs (aref data 0))
+	 (ns (length (frameset-states fs))))
+    (princ (format "a frameset (%d frame%s, saved on %s)."
+		   ns
+		   (if (= 1 ns) "" "s")
+		   (format-time-string "%c" (frameset-timestamp fs))))))
+
+;;;###autoload
 (defun frameset-to-register (register)
   "Store the current frameset in register REGISTER.
 Use \\[jump-to-register] to restore the frameset.
@@ -1282,7 +1290,7 @@ Interactively, reads the register using `register-read-with-preview'."
 			 ;; in the current buffer, so record that separately.
 			 (frameset-frame-id nil)
 			 (point-marker))
-		 :print-func (lambda (_data) (princ "a frameset."))
+		 :print-func #'frameset--print-register
 		 :jump-func #'frameset--jump-to-register)))
 
 (provide 'frameset)

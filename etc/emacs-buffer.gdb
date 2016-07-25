@@ -1,6 +1,6 @@
 # emacs-buffer.gdb --- gdb macros for recovering buffers from emacs coredumps
 
-# Copyright (C) 2005-2015 Free Software Foundation, Inc.
+# Copyright (C) 2005-2016 Free Software Foundation, Inc.
 
 # Maintainer: Noah Friedman <friedman@splode.com>
 # Created: 2005-04-28
@@ -29,11 +29,11 @@
 # The Emacs executable must have debugging symbols for this to work.
 # But you never strip Emacs, right?
 #
-# The main commands of interest are `ybuffer-list', `yfile-buffers',
-# `ysave-buffer', and `ybuffer-contents'.  The `y' prefix avoids any
+# The main commands of interest are 'ybuffer-list', 'yfile-buffers',
+# 'ysave-buffer', and 'ybuffer-contents'.  The 'y' prefix avoids any
 # namespace collisions with emacs/src/.gdbinit.
 
-# Since the internal data structures in Emacs occasionally from time to
+# Since the internal data structures in Emacs change from time to
 # time, you should use the version of this file that came with your
 # particular Emacs version; older versions might not work anymore.
 
@@ -79,7 +79,7 @@ set $yfile_buffers_only = 0
 
 define ygetptr
   set $ptr = $arg0
-  set $ptr = ((CHECK_LISP_OBJECT_TYPE ? $ptr.i : $ptr) & VALMASK) | DATA_SEG_BITS
+  set $ptr = (CHECK_LISP_OBJECT_TYPE ? $ptr.i : $ptr) & VALMASK
 end
 
 define ybuffer-list
@@ -129,7 +129,7 @@ end
 document ybuffer-list
   Display a list of buffer names, sizes, and other attributes.
   The buffer number in the first column is used as an argument
-  to some other emacs-buffer recovery commands, e.g. `ysave-buffer'.
+  to some other emacs-buffer recovery commands, e.g. 'ysave-buffer'.
 end
 
 define yfile-buffers
@@ -138,7 +138,7 @@ define yfile-buffers
 end
 document yfile-buffers
   Display a list of buffers which are associated with files.
-  This is like `ybuffer-list', but only buffers that were visiting files
+  This is like 'ybuffer-list', but only buffers that were visiting files
   are displayed.
 end
 
@@ -165,7 +165,7 @@ define yset-buffer
 end
 document yset-buffer
   Set current buffer (for other emacs-buffer recovery commands) to the ARG'th
-  buffer as displayed by `ybuffer-list'.
+  buffer as displayed by 'ybuffer-list'.
 end
 
 define yget-buffer-pointers
@@ -184,9 +184,9 @@ define yget-buffer-pointers
 end
 document yget-buffer-pointers
   Update convenience variables with address pointers for the ARG'th buffer
-  as displayed by `ybuffer-list'.
+  as displayed by 'ybuffer-list'.
 
-  This also sets the current buffer using `yset-buffer' (which see).
+  This also sets the current buffer using 'yset-buffer' (which see).
 end
 
 define yget-current-buffer-name
@@ -213,18 +213,22 @@ define ydump-buffer
       set $endptr = $beg + $buf->gpt_byte - 1
       dump binary memory $arg1 $beg $endptr
     else
-      dump   binary memory $arg1 $beg $gap-1
-      append binary memory $arg1 $gap_end $end
+      if $gap - $beg > 1
+        dump   binary memory $arg1 $beg $gap-1
+        append binary memory $arg1 $gap_end $end
+      else
+        dump   binary memory $arg1 $gap_end $end
+      end
       set $endptr = $end
     end
   end
 end
 document ydump-buffer
-  Write contents of buffer N (as numbered according to `ybuffer-list') to
+  Write contents of buffer N (as numbered according to 'ybuffer-list') to
   file FILE.
 
-  This is mainly used as an internal subroutine for `ysave-buffer' and
-  `ybuffer-contents', which see.
+  This is mainly used as an internal subroutine for 'ysave-buffer' and
+  'ybuffer-contents', which see.
 end
 
 define ysave-buffer
@@ -242,7 +246,7 @@ define ysave-buffer
   end
 end
 document ysave-buffer
-  Save contents of buffer N (as numbered according to `ybuffer-list') to
+  Save contents of buffer N (as numbered according to 'ybuffer-list') to
   file FILE.
 end
 
@@ -258,7 +262,7 @@ define ybuffer-contents
   end
 end
 document ybuffer-contents
-  Write contents of buffer N (numbered according to `ybuffer-list') to stdout.
+  Write contents of buffer N (numbered according to 'ybuffer-list') to stdout.
 end
 
 # local variables:

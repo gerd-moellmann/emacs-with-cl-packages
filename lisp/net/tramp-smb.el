@@ -1,6 +1,6 @@
 ;;; tramp-smb.el --- Tramp access functions for SMB servers
 
-;; Copyright (C) 2002-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2016 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -70,17 +70,20 @@
     tramp-smb-method
     '((tramp-parse-netrc "~/.netrc"))))
 
+;;;###tramp-autoload
 (defcustom tramp-smb-program "smbclient"
   "Name of SMB client to run."
   :group 'tramp
   :type 'string)
 
+;;;###tramp-autoload
 (defcustom tramp-smb-acl-program "smbcacls"
   "Name of SMB acls to run."
   :group 'tramp
   :type 'string
   :version "24.4")
 
+;;;###tramp-autoload
 (defcustom tramp-smb-conf "/dev/null"
   "Path of the smb.conf file.
 If it is nil, no smb.conf will be added to the `tramp-smb-program'
@@ -229,10 +232,10 @@ See `tramp-actions-before-shell' for more info.")
     (file-acl . tramp-smb-handle-file-acl)
     (file-attributes . tramp-smb-handle-file-attributes)
     (file-directory-p .  tramp-smb-handle-file-directory-p)
-    ;; `file-equal-p' performed by default handler.
+    (file-file-equal-p . tramp-handle-file-equal-p)
     (file-executable-p . tramp-handle-file-exists-p)
     (file-exists-p . tramp-handle-file-exists-p)
-    ;; `file-in-directory-p' performed by default handler.
+    (file-in-directory-p . tramp-handle-file-in-directory-p)
     (file-local-copy . tramp-smb-handle-file-local-copy)
     (file-modes . tramp-handle-file-modes)
     (file-name-all-completions . tramp-smb-handle-file-name-all-completions)
@@ -244,6 +247,7 @@ See `tramp-actions-before-shell' for more info.")
     (file-newer-than-file-p . tramp-handle-file-newer-than-file-p)
     (file-notify-add-watch . tramp-handle-file-notify-add-watch)
     (file-notify-rm-watch . tramp-handle-file-notify-rm-watch)
+    (file-notify-valid-p . tramp-handle-file-notify-valid-p)
     (file-ownership-preserved-p . ignore)
     (file-readable-p . tramp-handle-file-exists-p)
     (file-regular-p . tramp-handle-file-regular-p)
@@ -280,6 +284,7 @@ See `tramp-actions-before-shell' for more info.")
 Operations not mentioned here will be handled by the default Emacs primitives.")
 
 ;; Options for remote processes via winexe.
+;;;###tramp-autoload
 (defcustom tramp-smb-winexe-program "winexe"
   "Name of winexe client to run.
 If it isn't found in the local $PATH, the absolute path of winexe
@@ -288,6 +293,7 @@ shall be given.  This is needed for remote processes."
   :type 'string
   :version "24.3")
 
+;;;###tramp-autoload
 (defcustom tramp-smb-winexe-shell-command "powershell.exe"
   "Shell to be used for processes on remote machines.
 This must be Powershell V2 compatible."
@@ -295,6 +301,7 @@ This must be Powershell V2 compatible."
   :type 'string
   :version "24.3")
 
+;;;###tramp-autoload
 (defcustom tramp-smb-winexe-shell-command-switch "-file -"
   "Command switch used together with `tramp-smb-winexe-shell-command'.
 This can be used to disable echo etc."
@@ -642,8 +649,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
   (directory &optional full match nosort)
   "Like `directory-files' for Tramp files."
   (let ((result (mapcar 'directory-file-name
-			(file-name-all-completions "" directory)))
-	res)
+			(file-name-all-completions "" directory))))
     ;; Discriminate with regexp.
     (when match
       (setq result
@@ -659,8 +665,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
     ;; Sort them if necessary.
     (unless nosort (setq result (sort result 'string-lessp)))
     ;; Remove double entries.
-    (dolist (elt result res)
-      (add-to-list 'res elt 'append))))
+    (tramp-compat-delete-dups result)))
 
 (defun tramp-smb-handle-expand-file-name (name &optional dir)
   "Like `expand-file-name' for Tramp files."
@@ -1236,9 +1241,9 @@ target of the symlink differ."
 	(kill-buffer (tramp-get-connection-property v "process-buffer" nil)))
 
       ;; `process-file-side-effects' has been introduced with GNU
-      ;; Emacs 23.2.  If set to `nil', no remote file will be changed
+      ;; Emacs 23.2.  If set to nil, no remote file will be changed
       ;; by `program'.  If it doesn't exist, we assume its default
-      ;; value `t'.
+      ;; value t.
       (unless (and (boundp 'process-file-side-effects)
 		   (not (symbol-value 'process-file-side-effects)))
 	(tramp-flush-directory-property v ""))
@@ -1909,7 +1914,10 @@ If ARGUMENT is non-nil, use it as argument for
 		    ;; character by character; if we send the string
 		    ;; at once, it is read painfully slow.
 		    (tramp-set-connection-property p "smb-share" share)
-		    (tramp-set-connection-property p "chunksize" 1))
+		    (tramp-set-connection-property p "chunksize" 1)
+
+		    ;; Mark it as connected.
+		    (tramp-set-connection-property p "connected" t))
 
 		;; Check for the error reason.  If it was due to wrong
 		;; password, reestablish the connection.  We cannot
