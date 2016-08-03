@@ -495,11 +495,11 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 			   "\\|" boy "\\(?:" zwj boy "\\)?\\)")))
     (set-char-table-range
      composition-function-table (string-to-char zwj)
-     `([,(concat man ".\\(?:" man-or-woman zwj children "\\|"
+     `([,(concat man ".\\(?:\\(?:" man-or-woman zwj "\\)?" children "\\|"
 		 heavy-black-heart-emoji-vs zwj
 		 "\\(?:" kiss-mark zwj "\\)?" man "\\)")
 	1 font-shape-gstring -1]
-       [,(concat woman ".\\(?:" woman zwj children "\\|"
+       [,(concat woman ".\\(?:\\(?:" woman zwj "\\)?" children "\\|"
 		 heavy-black-heart-emoji-vs zwj
 		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman "\\)")
 	1 font-shape-gstring -1]
