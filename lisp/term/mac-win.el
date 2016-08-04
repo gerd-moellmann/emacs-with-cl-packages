@@ -489,6 +489,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	 (girl "\U0001F467") (boy "\U0001F466")
 	 (heavy-black-heart-emoji-vs "\u2764\uFE0F") (kiss-mark "\U0001F48B")
 	 (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
+         (waving-white-flag "\U0001F3F3") (rainbow "\U0001F308")
 	 (man-or-woman (concat "[" man woman "]"))
 	 (girl-or-boy (concat "[" girl boy "]"))
 	 (children (concat "\\(?:" girl "\\(?:" zwj girl-or-boy "\\)?"
@@ -504,7 +505,15 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman "\\)")
 	1 font-shape-gstring -1]
        [,(concat eye zwj left-speech-bubble)
-	1 font-shape-gstring -1]))))
+	1 font-shape-gstring -1]
+       [,(concat waving-white-flag zwj rainbow)
+	1 font-shape-gstring -1]))
+    (set-char-table-range
+     composition-function-table ?\uFE0F
+     ;; macOS 10.12 public beta 3 requires VS16 also after RAINBOW.
+     `([,(concat waving-white-flag "\uFE0F" zwj rainbow "\uFE0F?")
+        1 font-shape-gstring 0]
+       ,@(aref composition-function-table ?\uFE0F)))))
 
 (defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"
   "Sequence of characters used in automatic operator composition."
