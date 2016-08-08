@@ -332,23 +332,18 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 (defconst mac-emoji-variation-characters-alist
   '((keycap . "#*0123456789")
     (non-keycap . "\u00A9\u00AE\u203C\u2049\u2122\u2139\u2194\u2195\
-\u2196\u2197\u2198\u2199\u21A9\u21AA\u231A\u231B\
-\u2328\u23CF\u23ED\u23EE\u23EF\u23F1\u23F2\u23F8\
-\u23F9\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB\
-\u25FC\u25FD\u25FE\u2600\u2601\u2602\u2603\u2604\
-\u260E\u2611\u2614\u2615\u2618\u261D\u2620\u2622\
-\u2623\u2626\u262A\u262E\u262F\u2638\u2639\u263A\
-\u2648\u2649\u264A\u264B\u264C\u264D\u264E\u264F\
-\u2650\u2651\u2652\u2653\u2660\u2663\u2665\u2666\
-\u2668\u267B\u267F\u2692\u2693\u2694\u2696\u2697\
-\u2699\u269B\u269C\u26A0\u26A1\u26AA\u26AB\u26B0\
-\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CF\u26D1\
-\u26D3\u26D4\u26E9\u26EA\u26F0\u26F1\u26F2\u26F3\
-\u26F4\u26F5\u26F7\u26F8\u26F9\u26FA\u26FD\u2702\
-\u2708\u2709\u270C\u270D\u270F\u2712\u2714\u2716\
-\u271D\u2721\u2733\u2734\u2744\u2747\u2757\u2763\
-\u2764\u27A1\u2934\u2935\u2B05\u2B06\u2B07\u2B1B\
-\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299\
+\u2196\u2197\u2198\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23ED\u23EE\
+\u23EF\u23F1\u23F2\u23F8\u23F9\u23FA\u24C2\u25AA\u25AB\u25B6\u25C0\u25FB\
+\u25FC\u25FD\u25FE\u2600\u2601\u2602\u2603\u2604\u260E\u2611\u2614\u2615\
+\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\u2638\u2639\u2640\
+\u2642\u263A\u2648\u2649\u264A\u264B\u264C\u264D\u264E\u264F\u2650\u2651\
+\u2652\u2653\u2660\u2663\u2665\u2666\u2668\u267B\u267F\u2692\u2693\u2694\
+\u2695\u2696\u2697\u2699\u269B\u269C\u26A0\u26A1\u26AA\u26AB\u26B0\u26B1\
+\u26BD\u26BE\u26C4\u26C5\u26C8\u26CF\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0\
+\u26F1\u26F2\u26F3\u26F4\u26F5\u26F7\u26F8\u26F9\u26FA\u26FD\u2702\u2708\
+\u2709\u270C\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2733\u2734\u2744\
+\u2747\u2757\u2763\u2764\u27A1\u2934\u2935\u2B05\u2B06\u2B07\u2B1B\u2B1C\
+\u2B50\u2B55\u3030\u303D\u3297\u3299\
 \U0001F004\U0001F170\U0001F171\U0001F17E\U0001F17F\U0001F202\U0001F21A\
 \U0001F22F\U0001F237\U0001F321\U0001F324\U0001F325\U0001F326\U0001F327\
 \U0001F328\U0001F329\U0001F32A\U0001F32B\U0001F32C\U0001F336\U0001F37D\
@@ -366,7 +361,8 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 \U0001F6F0\U0001F6F3"))
   "Groups of characters that are sensitive to variation selectors 15 and 16.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on StandardizedVariants-9.0.0.txt.")
+The entries are currently based on StandardizedVariants-9.0.0.txt
+and the gender emoji zwj sequences draft.")
 
 (defconst mac-emoji-modifier-base-characters-alist
   '((t . "\u261D\u26F9\u270A\u270B\u270C\u270D\
@@ -384,6 +380,33 @@ The entries are currently based on StandardizedVariants-9.0.0.txt.")
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
 The entries are currently based on emoji-sequences.txt 3.0.")
+
+(defconst mac-emoji-gender-zwj-characters-alist
+  '((profession . "\U0001F33E\U0001F373\U0001F3ED\u2695\U0001F527\U0001F4BC\
+\U0001F52C\U0001F3A4\U0001F393\U0001F3EB\U0001F4BB")
+    (alternative-skin-tone . "\U0001F46E\U0001F477\U0001F575\U0001F482\
+\U0001F473\U0001F471\U0001F481\U0001F486\U0001F487\U0001F645\U0001F646\
+\U0001F647\U0001F64B\U0001F64D\U0001F64E\U0001F926\U0001F937\u26F9\
+\U0001F3C3\U0001F3C4\U0001F3CA\U0001F3CB\U0001F6A3\U0001F6B4\U0001F6B5\
+\U0001F6B6\U0001F938\U0001F93D\U0001F93E\U0001F939\U0001F93C")
+    (alternative-no-skin-tone . "\U0001F3CC\U0001F46F"))
+  "Groups of characters that are parts of the gender zwj sequences.
+It is an alist of label symbols vs sequences of characters.
+The entries are currently based on the gender emoji zwj sequences
+draft.")
+
+(defun mac-emoji-multistyles-unistyles (sequence)
+  "Split emoji SEQUENCE into a cons of multistyles and unistyles."
+  (let ((modifications-regexp
+         (concat "["
+                 (mapconcat 'cdr mac-emoji-variation-characters-alist "")
+                 "]"))
+        multistyles unistyles)
+    (mapc (lambda (c) (if (string-match modifications-regexp (string c))
+                          (push c multistyles)
+                        (push c unistyles)))
+          sequence)
+    (cons multistyles unistyles)))
 
 (defun mac-compose-gstring-for-variation-with-trailer (gstring)
   "Compose glyph-string GSTRING for graphic display.
@@ -455,21 +478,19 @@ second is a glyph for the variation selector 16 (U+FE0F)."
   ;; Regional Indicator Symbols
   (set-char-table-range composition-function-table '(#x1F1E6 . #x1F1FF)
 			'([".[\x1F1E6-\x1F1FF]" 0 font-shape-gstring]))
-  (let ((variations
-	 (mapconcat 'cdr mac-emoji-variation-characters-alist ""))
-	(modifications
-	 (mapconcat 'cdr mac-emoji-modifier-base-characters-alist ""))
-	intersection)
-    (let ((modifications-regexp (concat "[" modifications "]")))
-      (mapc (lambda (c) (if (string-match modifications-regexp (string c))
-			    (push c intersection)))
-	    variations))
+  (let* ((variations
+          (mapconcat 'cdr mac-emoji-variation-characters-alist ""))
+         (modifications
+          (mapconcat 'cdr mac-emoji-modifier-base-characters-alist ""))
+         (modification-multistyles
+          (car (mac-emoji-multistyles-unistyles modifications))))
     ;; Variation Selectors 15 and 16
     (let ((regexp-keycap
 	   (concat "[" (cdr (assq 'keycap mac-emoji-variation-characters-alist))
 		   "].\u20E3"))
 	  (regexp-all (concat "[" variations "]."))
-	  (regexp-modified (concat "[" intersection "].[\x1F3FB-\x1F3FF]")))
+	  (regexp-modified
+           (concat "[" modification-multistyles "].[\x1F3FB-\x1F3FF]")))
       (set-char-table-range
        composition-function-table ?\uFE0E
        `([,regexp-keycap 1 mac-compose-gstring-for-variation-with-trailer 1]
@@ -484,36 +505,74 @@ second is a glyph for the variation selector 16 (U+FE0F)."
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
      `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
-  ;; From emoji-zwj-sequences.txt 3.0.
+  ;; From emoji-zwj-sequences.txt 3.0 and the gender zwj sequences
+  ;; draft.
   (let* ((zwj "\u200D") (man "\U0001F468") (woman "\U0001F469")
 	 (girl "\U0001F467") (boy "\U0001F466")
 	 (heavy-black-heart-emoji-vs "\u2764\uFE0F") (kiss-mark "\U0001F48B")
 	 (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
          (waving-white-flag "\U0001F3F3") (rainbow "\U0001F308")
+         (female "\u2640") (male "\u2642")
 	 (man-or-woman (concat "[" man woman "]"))
 	 (girl-or-boy (concat "[" girl boy "]"))
+	 (female-or-male (concat "[" female male "]"))
 	 (children (concat "\\(?:" girl "\\(?:" zwj girl-or-boy "\\)?"
-			   "\\|" boy "\\(?:" zwj boy "\\)?\\)")))
+			   "\\|" boy "\\(?:" zwj boy "\\)?\\)"))
+         (profession-multis-unis
+          (mac-emoji-multistyles-unistyles
+           (cdr (assq 'profession mac-emoji-gender-zwj-characters-alist))))
+         (profession-multistyles (car profession-multis-unis))
+         (profession-unistyles (cdr profession-multis-unis))
+         (alternatives-skin-tone
+          (cdr (assq 'alternative-skin-tone
+                     mac-emoji-gender-zwj-characters-alist)))
+         (alternatives-no-skin-tone
+          (cdr (assq 'alternative-no-skin-tone
+                     mac-emoji-gender-zwj-characters-alist)))
+         (alternative-multis-unis
+          (mac-emoji-multistyles-unistyles
+           (concat alternatives-skin-tone alternatives-no-skin-tone)))
+         (alternative-multistyles (car alternative-multis-unis))
+         (alternative-unistyles (cdr alternative-multis-unis)))
     (set-char-table-range
      composition-function-table (string-to-char zwj)
      `([,(concat man ".\\(?:\\(?:" man-or-woman zwj "\\)?" children "\\|"
 		 heavy-black-heart-emoji-vs zwj
-		 "\\(?:" kiss-mark zwj "\\)?" man "\\)")
+		 "\\(?:" kiss-mark zwj "\\)?" man
+                 "\\|[" profession-multistyles "]\uFE0F?\\|["
+                 profession-unistyles "]\\)")
 	1 font-shape-gstring -1]
        [,(concat woman ".\\(?:\\(?:" woman zwj "\\)?" children "\\|"
 		 heavy-black-heart-emoji-vs zwj
-		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman "\\)")
+		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman
+                 "\\|[" profession-multistyles "]\uFE0F?\\|["
+                 profession-unistyles "]\\)")
 	1 font-shape-gstring -1]
        [,(concat eye zwj left-speech-bubble)
 	1 font-shape-gstring -1]
        [,(concat waving-white-flag zwj rainbow)
+	1 font-shape-gstring -1]
+       [,(concat "[" alternative-multistyles "]." female-or-male)
+	1 font-shape-gstring -1]
+       [,(concat "[" alternative-unistyles "]." female-or-male "\uFE0F?")
 	1 font-shape-gstring -1]))
     (set-char-table-range
      composition-function-table ?\uFE0F
      ;; macOS 10.12 public beta 3 requires VS16 also after RAINBOW.
      `([,(concat waving-white-flag "\uFE0F" zwj rainbow "\uFE0F?")
         1 font-shape-gstring 0]
-       ,@(aref composition-function-table ?\uFE0F)))))
+       [,(concat "[" alternative-multistyles "]." zwj female-or-male "\uFE0F")
+	1 font-shape-gstring 0]
+       ,@(aref composition-function-table ?\uFE0F)))
+    (set-char-table-range
+     composition-function-table '(#x1F3FB . #x1F3FF)
+     `([,(concat man-or-woman "." zwj
+                 "\\(?:[" profession-multistyles "]\uFE0F?\\|["
+                 profession-unistyles "]\\)")
+	1 font-shape-gstring 0]
+       [,(concat "[" alternatives-skin-tone "]." zwj female-or-male "\uFE0F?")
+	1 font-shape-gstring 0]
+       ,@(aref composition-function-table #x1F3FB)))))
 
 (defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"
   "Sequence of characters used in automatic operator composition."
