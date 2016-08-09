@@ -558,7 +558,8 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	1 font-shape-gstring -1]))
     (set-char-table-range
      composition-function-table ?\uFE0F
-     ;; macOS 10.12 public beta 3 requires VS16 also after RAINBOW.
+     ;; macOS 10.12 public beta 4 character palette adds VS16 also
+     ;; after RAINBOW.
      `([,(concat waving-white-flag "\uFE0F" zwj rainbow "\uFE0F?")
         1 font-shape-gstring 0]
        [,(concat "[" alternative-multistyles "]." zwj female-or-male "\uFE0F")
