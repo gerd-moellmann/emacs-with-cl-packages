@@ -1852,7 +1852,7 @@ modifiers, it changes the global tool-bar visibility setting."
     (let ((frame (cdr (mac-ae-parameter ae 'frame))))
       (set-frame-parameter frame 'fullscreen nil))))
 
-(defun mac-handle-new-window-for-tab (event)
+(defun mac-handle-new-window-for-tab (_event)
   "Create a new frame for tab in response to EVENT."
   (interactive "e")
   (make-frame-command))
