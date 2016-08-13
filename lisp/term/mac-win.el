@@ -507,12 +507,13 @@ second is a glyph for the variation selector 16 (U+FE0F)."
      `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
   ;; From emoji-zwj-sequences.txt 3.0 and the gender zwj sequences
   ;; draft.
-  (let* ((zwj "\u200D") (man "\U0001F468") (woman "\U0001F469")
+  (let* ((zwj "\u200D") (vs16 "\uFE0F") (man "\U0001F468") (woman "\U0001F469")
 	 (girl "\U0001F467") (boy "\U0001F466")
-	 (heavy-black-heart-emoji-vs "\u2764\uFE0F") (kiss-mark "\U0001F48B")
+	 (heavy-black-heart "\u2764") (kiss-mark "\U0001F48B")
 	 (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
          (waving-white-flag "\U0001F3F3") (rainbow "\U0001F308")
          (female "\u2640") (male "\u2642")
+         (vs16? (concat vs16 "?"))
 	 (man-or-woman (concat "[" man woman "]"))
 	 (girl-or-boy (concat "[" girl boy "]"))
 	 (female-or-male (concat "[" female male "]"))
@@ -536,17 +537,17 @@ second is a glyph for the variation selector 16 (U+FE0F)."
          (alternative-unistyles (cdr alternative-multis-unis)))
     (set-char-table-range
      composition-function-table (string-to-char zwj)
-     `([,(concat man ".\\(?:\\(?:" man-or-woman zwj "\\)?" children "\\|"
-		 heavy-black-heart-emoji-vs zwj
-		 "\\(?:" kiss-mark zwj "\\)?" man
-                 "\\|[" profession-multistyles "]\uFE0F?\\|["
-                 profession-unistyles "]\\)")
+     `([,(concat man ".\\(?:\\(?:" man-or-woman zwj "\\)?" children
+                 "\\|" heavy-black-heart vs16? zwj
+                 "\\(?:" kiss-mark zwj "\\)?" man
+                 "\\|[" profession-multistyles "]" vs16?
+                 "\\|[" profession-unistyles "]\\)")
 	1 font-shape-gstring -1]
-       [,(concat woman ".\\(?:\\(?:" woman zwj "\\)?" children "\\|"
-		 heavy-black-heart-emoji-vs zwj
+       [,(concat woman ".\\(?:\\(?:" woman zwj "\\)?" children
+                 "\\|" heavy-black-heart vs16? zwj
 		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman
-                 "\\|[" profession-multistyles "]\uFE0F?\\|["
-                 profession-unistyles "]\\)")
+                 "\\|[" profession-multistyles "]" vs16?
+                 "\\|[" profession-unistyles "]\\)")
 	1 font-shape-gstring -1]
        [,(concat eye zwj left-speech-bubble)
 	1 font-shape-gstring -1]
@@ -554,24 +555,26 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	1 font-shape-gstring -1]
        [,(concat "[" alternative-multistyles "]." female-or-male)
 	1 font-shape-gstring -1]
-       [,(concat "[" alternative-unistyles "]." female-or-male "\uFE0F?")
+       [,(concat "[" alternative-unistyles "]." female-or-male vs16?)
 	1 font-shape-gstring -1]))
     (set-char-table-range
      composition-function-table ?\uFE0F
-     ;; macOS 10.12 public beta 4 character palette adds VS16 also
-     ;; after RAINBOW.
-     `([,(concat waving-white-flag "\uFE0F" zwj rainbow "\uFE0F?")
+     `([,(concat eye vs16 zwj left-speech-bubble vs16)
+	1 font-shape-gstring 0]
+       ;; macOS 10.12 public beta 4 character palette adds VS16 also
+       ;; after RAINBOW.
+       [,(concat waving-white-flag vs16 zwj rainbow vs16?)
         1 font-shape-gstring 0]
-       [,(concat "[" alternative-multistyles "]." zwj female-or-male "\uFE0F")
+       [,(concat "[" alternative-multistyles "]." zwj female-or-male vs16)
 	1 font-shape-gstring 0]
        ,@(aref composition-function-table ?\uFE0F)))
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
      `([,(concat man-or-woman "." zwj
-                 "\\(?:[" profession-multistyles "]\uFE0F?\\|["
-                 profession-unistyles "]\\)")
+                 "\\(?:[" profession-multistyles "]" vs16?
+                 "\\|[" profession-unistyles "]\\)")
 	1 font-shape-gstring 0]
-       [,(concat "[" alternatives-skin-tone "]." zwj female-or-male "\uFE0F?")
+       [,(concat "[" alternatives-skin-tone "]." zwj female-or-male vs16?)
 	1 font-shape-gstring 0]
        ,@(aref composition-function-table #x1F3FB)))))
 
