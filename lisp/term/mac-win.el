@@ -560,9 +560,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
      composition-function-table ?\uFE0F
      `([,(concat eye vs16 zwj left-speech-bubble vs16)
 	1 font-shape-gstring 0]
-       ;; macOS 10.12 public beta 4 character palette adds VS16 also
-       ;; after RAINBOW.
-       [,(concat waving-white-flag vs16 zwj rainbow vs16?)
+       [,(concat waving-white-flag vs16 zwj rainbow)
         1 font-shape-gstring 0]
        [,(concat "[" sign-multistyles "]." zwj female-or-male vs16)
 	1 font-shape-gstring 0]
