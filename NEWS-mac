@@ -1,7 +1,15 @@
+* emacs-25.1-rc2-mac-5.91 (2016-08-22)
+
+** Improvements
+
+*** Update emoji sequence data to version 4.0 draft.
+
+
 * emacs-25.1-rc1-mac-5.90 (2016-07-25)
 Based on Emacs 25.1 release candidate.
 Drop support for Mac OS X 10.4 and 10.5.
 Official git repository is https://bitbucket.org/mituharu/emacs-mac.git
+http://lists.gnu.org/archive/html/emacs-devel/2016-07/msg01087.html
 
 ** Fixed bugs
 
