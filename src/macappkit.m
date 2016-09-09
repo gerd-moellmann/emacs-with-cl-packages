@@ -3374,11 +3374,16 @@ static CGRect unset_global_focus_view_frame (void);
      from full screen on OS X 10.9.  To work around this problem, we
      detach/attach the overlay window in the
      `window{Will,Did}{Enter,Exit}FullScreen:' delegate methods.  */
-  [self detachOverlayWindow];
-  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
-						   BOOL success) {
-      [weakSelf attachOverlayWindow];
-    }];
+  /* This erases tabs after exiting from full screen on macOS 10.12.
+     Maybe this is no longer necessary on all versions?  */
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11)
+    {
+      [self detachOverlayWindow];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  [weakSelf attachOverlayWindow];
+	}];
+    }
 
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
@@ -3433,11 +3438,14 @@ static CGRect unset_global_focus_view_frame (void);
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
-  [self detachOverlayWindow];
-  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
-						   BOOL success) {
-      [weakSelf attachOverlayWindow];
-    }];
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11)
+    {
+      [self detachOverlayWindow];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  [weakSelf attachOverlayWindow];
+	}];
+    }
 
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
