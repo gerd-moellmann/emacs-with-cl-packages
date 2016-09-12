@@ -2245,7 +2245,8 @@ static CGRect unset_global_focus_view_frame (void);
       [window setAcceptsMouseMovedEvents:YES];
       if (!(windowManagerState & WM_STATE_FULLSCREEN))
 	[self setupToolBarWithVisibility:(FRAME_EXTERNAL_TOOL_BAR (f))];
-      [window setShowsResizeIndicator:NO];
+      if (has_resize_indicator_at_bottom_right_p ())
+	[window setShowsResizeIndicator:NO];
       [self setupOverlayWindowAndView];
       [self attachOverlayWindow];
       if (has_full_screen_with_dedicated_desktop ()
