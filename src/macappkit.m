@@ -1204,6 +1204,11 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 #define MOUSE_TRACKING_RESUME()		trackingResumeBlock ()
 #define MOUSE_TRACKING_RESET()		[self setTrackingResumeBlock:nil]
 
+- (BOOL)isMouseTrackingSuspended
+{
+  return MOUSE_TRACKING_SUSPENDED_P ();
+}
+
 /* Minimum time interval between successive mac_read_socket calls.  */
 
 #define READ_SOCKET_MIN_INTERVAL (1/60.0)
@@ -2918,16 +2923,21 @@ static CGRect unset_global_focus_view_frame (void);
     }
   else
     {
-      NSRect screenVisibleFrame = [[window screen] visibleFrame];
-      BOOL allowsLarger = (leftMouseDragged
-			   && has_resize_indicator_at_bottom_right_p ());
+      if (leftMouseDragged || [emacsController isMouseTrackingSuspended])
+	result = [self hintedWindowFrameSize:proposedFrameSize
+				allowsLarger:YES];
+      else
+	result = proposedFrameSize;
+      if (windowManagerState
+	  & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT))
+	{
+	  NSRect screenVisibleFrame = [[window screen] visibleFrame];
 
-      result = [self hintedWindowFrameSize:proposedFrameSize
-			      allowsLarger:allowsLarger];
-      if (windowManagerState & WM_STATE_MAXIMIZED_HORZ)
-	result.width = NSWidth (screenVisibleFrame);
-      if (windowManagerState & WM_STATE_MAXIMIZED_VERT)
-	result.height = NSHeight (screenVisibleFrame);
+	  if (windowManagerState & WM_STATE_MAXIMIZED_HORZ)
+	    result.width = NSWidth (screenVisibleFrame);
+	  if (windowManagerState & WM_STATE_MAXIMIZED_VERT)
+	    result.height = NSHeight (screenVisibleFrame);
+	}
     }
 
   if (leftMouseDragged
