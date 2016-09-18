@@ -270,6 +270,7 @@ typedef id instancetype;
 - (void)resumeResizeTracking;
 - (BOOL)needsOrderFrontOnUnhide;
 - (void)setNeedsOrderFrontOnUnhide:(BOOL)flag;
+- (BOOL)isConstrainingToScreenSuspended;
 - (void)setConstrainingToScreenSuspended:(BOOL)flag;
 @end
 

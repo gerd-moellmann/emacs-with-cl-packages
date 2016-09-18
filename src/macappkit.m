@@ -1950,6 +1950,11 @@ static CGRect unset_global_focus_view_frame (void);
     }
 }
 
+- (BOOL)isConstrainingToScreenSuspended
+{
+  return constrainingToScreenSuspended;
+}
+
 - (void)setConstrainingToScreenSuspended:(BOOL)flag
 {
   constrainingToScreenSuspended = flag;
@@ -7184,6 +7189,7 @@ update_frame_tool_bar (struct frame *f)
   NSUInteger count;
   int i, pos, win_gravity = f->output_data.mac->toolbar_win_gravity;
   bool use_multiimage_icons_p = true;
+  BOOL savedConstrainingToScreenSuspended;
 
   block_input ();
 
@@ -7191,6 +7197,7 @@ update_frame_tool_bar (struct frame *f)
   mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
   /* Shrinking the toolbar height with preserving the whole window
      height (e.g., fullheight) seems to be problematic.  */
+  savedConstrainingToScreenSuspended = [window isConstrainingToScreenSuspended];
   [window setConstrainingToScreenSuspended:YES];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
@@ -7355,7 +7362,7 @@ update_frame_tool_bar (struct frame *f)
   if (![toolbar isVisible])
     [toolbar setVisible:YES];
 
-  [window setConstrainingToScreenSuspended:NO];
+  [window setConstrainingToScreenSuspended:savedConstrainingToScreenSuspended];
   win_gravity = f->output_data.mac->toolbar_win_gravity;
   if (!(EQ (frame_inhibit_implied_resize, Qt)
 	|| (CONSP (frame_inhibit_implied_resize)
