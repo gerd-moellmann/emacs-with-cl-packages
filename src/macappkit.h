@@ -841,6 +841,25 @@ enum {
   NSWindowStyleMaskFullScreen		= NSFullScreenWindowMask
 };
 typedef NSUInteger NSWindowStyleMask;
+
+enum {
+  NSWindowUserTabbingPreferenceManual,
+  NSWindowUserTabbingPreferenceAlways,
+  NSWindowUserTabbingPreferenceInFullScreen
+};
+typedef NSInteger NSWindowUserTabbingPreference;
+
+enum {
+  NSWindowTabbingModeAutomatic,
+  NSWindowTabbingModePreferred,
+  NSWindowTabbingModeDisallowed
+};
+typedef NSInteger NSWindowTabbingMode;
+
+@interface NSWindow (AvailableOn101200AndLater)
++ (NSWindowUserTabbingPreference)userTabbingPreference;
+- (void)setTabbingMode:(NSWindowTabbingMode)tabbingMode;
+@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070

@@ -88,6 +88,7 @@
 (defvar mac-system-script-code)
 (defvar mac-apple-event-map)
 (defvar mac-ts-active-input-overlay)
+(defvar mac-frame-tabbing)
 
 
 ;;
@@ -1855,7 +1856,8 @@ modifiers, it changes the global tool-bar visibility setting."
 (defun mac-handle-new-window-for-tab (_event)
   "Create a new frame for tab in response to EVENT."
   (interactive "e")
-  (make-frame-command))
+  (let ((mac-frame-tabbing t))
+    (make-frame)))
 
 (define-key mac-apple-event-map [action about] 'mac-handle-about)
 (define-key mac-apple-event-map [action copy] 'mac-handle-copy)
@@ -2752,6 +2754,29 @@ The actual magnification is performed by `text-scale-mode'."
 (global-set-key [S-rotate-right] 'ignore)
 
 
+;;; Frame tabbing (macOS 10.12 and later)
+(defun mac-ctl-x-5-revolve-frame-tabbing (arg)
+  "Behave as C-x 5 typed, but revolve frame tabbing setting temporarily.
+It is changed as automatic -> inverted -> preferred -> disallowed
+-> automatic -> ... as you repeat the last key (usually `5').
+See also `mac-frame-tabbing'."
+  (interactive "P")
+  (let* ((command-keys (this-command-keys))
+         (mac-frame-tabbing
+          (cadr (memq mac-frame-tabbing '(nil automatic inverted t))))
+         (seq (let ((overriding-local-map ctl-x-5-map))
+                (read-key-sequence
+                 (format "with frame tabbing %s:"
+                         (cond ((null mac-frame-tabbing) "disallowed")
+                               ((eq mac-frame-tabbing t) "preferred")
+                               (t (symbol-name mac-frame-tabbing)))) t)))
+         (command (if (memq (nth 3 (current-input-mode)) (append seq '()))
+                      (signal 'quit nil)
+                    (or (lookup-key ctl-x-5-map seq) 'undefined))))
+    (setq prefix-arg arg)
+    (command-execute command nil (vconcat command-keys (this-command-keys)))))
+
+
 ;;; Window system initialization.
 
 (defun mac-win-suspend-error ()
@@ -2946,6 +2971,10 @@ standard ones in `x-handle-args'."
   (if (eq (lookup-key global-map [C-down-mouse-1]) 'mouse-buffer-menu)
       (global-set-key [C-down-mouse-1] 'mac-mouse-buffer-menu))
   (push 'mac-mouse-buffer-menu selection-inhibit-update-commands)
+
+  ;; Running on macOS 10.12 or later.
+  (when (or (>= (cadr (x-server-version)) 12) (> (car (x-server-version)) 10))
+    (define-key ctl-x-5-map "5" 'mac-ctl-x-5-revolve-frame-tabbing))
 
   (x-apply-session-resources)
   (add-to-list 'display-format-alist '("\\`Mac\\'" . mac))

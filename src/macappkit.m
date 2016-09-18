@@ -3742,6 +3742,39 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 
   if (![NSApp isHidden])
     {
+      if (!FRAME_TOOLTIP_P (f)
+	  && [window respondsToSelector:@selector(setTabbingMode:)]
+	  && ![window isVisible])
+	{
+	  NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
+	  NSWindow *mainWindow = [NSApp mainWindow];
+
+	  if (NILP (Vmac_frame_tabbing))
+	    tabbingMode = NSWindowTabbingModeDisallowed;
+	  else if (EQ (Vmac_frame_tabbing, Qt))
+	    tabbingMode = NSWindowTabbingModePreferred;
+	  else if (EQ (Vmac_frame_tabbing, Qinverted))
+	    switch ([NSWindow userTabbingPreference])
+	      {
+	      case NSWindowUserTabbingPreferenceManual:
+		tabbingMode = NSWindowTabbingModePreferred;
+		break;
+	      case NSWindowUserTabbingPreferenceAlways:
+		tabbingMode = NSWindowTabbingModeDisallowed;
+		break;
+	      case NSWindowUserTabbingPreferenceInFullScreen:
+		if ([mainWindow styleMask] & NSWindowStyleMaskFullScreen)
+		  tabbingMode = NSWindowTabbingModeDisallowed;
+		else
+		  tabbingMode = NSWindowTabbingModePreferred;
+		break;
+	      }
+
+	  [window setTabbingMode:tabbingMode];
+	  if ([mainWindow isKindOfClass:[EmacsWindow class]])
+	    [mainWindow setTabbingMode:tabbingMode];
+	}
+
       if (activate_p)
 	[window makeKeyAndOrderFront:nil];
       else

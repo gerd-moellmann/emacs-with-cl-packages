@@ -556,6 +556,8 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     (mac-pass-command-to-system mac boolean "22.1")
 	     (mac-pass-control-to-system mac boolean "22.1")
 	     (mac-drawing-use-gcd mac boolean "24.4")
+	     (mac-frame-tabbing mac (choice (const automatic) (const inverted)
+                                            (const nil) (const t)) "24.5")
              (debug-on-event debug
                              (choice (const :tag "None" nil)
                                      (const :tag "When sent SIGUSR1" sigusr1)
