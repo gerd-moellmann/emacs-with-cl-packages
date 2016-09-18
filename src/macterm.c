@@ -5850,6 +5850,9 @@ syms_of_macterm (void)
 
   DEFSYM (Qkeyboard_modifiers, "keyboard-modifiers");
 
+  DEFSYM (Qautomatic, "automatic");
+  DEFSYM (Qinverted, "inverted");
+
   DEFSYM (QCdirection_inverted_from_device_p,
 	  ":direction-inverted-from-device-p");
   DEFSYM (QCdelta_x, ":delta-x");
@@ -6156,4 +6159,13 @@ OPTION-TYPE is a symbol specifying the type of startup options:
 It allows us to perform graphical drawing operations in a non-main
 thread in some situations.  */);
   mac_drawing_use_gcd = true;
+
+  DEFVAR_LISP ("mac-frame-tabbing", Vmac_frame_tabbing,
+    doc: /* Specify tabbing behavior of a frame that is becoming visible.
+The symbol `automatic' (default) means it follows the system setting,
+and `inverted' means the system setting is inverted.  Nil and t means
+tabbing is disallowed and preferred, respectively.
+
+This variable has no effect on OS X 10.11 and earlier.  */);
+  Vmac_frame_tabbing = Qautomatic;
 }

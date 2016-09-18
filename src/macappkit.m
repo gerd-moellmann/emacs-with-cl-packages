@@ -1204,6 +1204,11 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 #define MOUSE_TRACKING_RESUME()		trackingResumeBlock ()
 #define MOUSE_TRACKING_RESET()		[self setTrackingResumeBlock:nil]
 
+- (BOOL)isMouseTrackingSuspended
+{
+  return MOUSE_TRACKING_SUSPENDED_P ();
+}
+
 /* Minimum time interval between successive mac_read_socket calls.  */
 
 #define READ_SOCKET_MIN_INTERVAL (1/60.0)
@@ -1945,6 +1950,11 @@ static CGRect unset_global_focus_view_frame (void);
     }
 }
 
+- (BOOL)isConstrainingToScreenSuspended
+{
+  return constrainingToScreenSuspended;
+}
+
 - (void)setConstrainingToScreenSuspended:(BOOL)flag
 {
   constrainingToScreenSuspended = flag;
@@ -2245,7 +2255,8 @@ static CGRect unset_global_focus_view_frame (void);
       [window setAcceptsMouseMovedEvents:YES];
       if (!(windowManagerState & WM_STATE_FULLSCREEN))
 	[self setupToolBarWithVisibility:(FRAME_EXTERNAL_TOOL_BAR (f))];
-      [window setShowsResizeIndicator:NO];
+      if (has_resize_indicator_at_bottom_right_p ())
+	[window setShowsResizeIndicator:NO];
       [self setupOverlayWindowAndView];
       [self attachOverlayWindow];
       if (has_full_screen_with_dedicated_desktop ()
@@ -2917,16 +2928,21 @@ static CGRect unset_global_focus_view_frame (void);
     }
   else
     {
-      NSRect screenVisibleFrame = [[window screen] visibleFrame];
-      BOOL allowsLarger = (leftMouseDragged
-			   && has_resize_indicator_at_bottom_right_p ());
+      if (leftMouseDragged || [emacsController isMouseTrackingSuspended])
+	result = [self hintedWindowFrameSize:proposedFrameSize
+				allowsLarger:YES];
+      else
+	result = proposedFrameSize;
+      if (windowManagerState
+	  & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT))
+	{
+	  NSRect screenVisibleFrame = [[window screen] visibleFrame];
 
-      result = [self hintedWindowFrameSize:proposedFrameSize
-			      allowsLarger:allowsLarger];
-      if (windowManagerState & WM_STATE_MAXIMIZED_HORZ)
-	result.width = NSWidth (screenVisibleFrame);
-      if (windowManagerState & WM_STATE_MAXIMIZED_VERT)
-	result.height = NSHeight (screenVisibleFrame);
+	  if (windowManagerState & WM_STATE_MAXIMIZED_HORZ)
+	    result.width = NSWidth (screenVisibleFrame);
+	  if (windowManagerState & WM_STATE_MAXIMIZED_VERT)
+	    result.height = NSHeight (screenVisibleFrame);
+	}
     }
 
   if (leftMouseDragged
@@ -3374,11 +3390,16 @@ static CGRect unset_global_focus_view_frame (void);
      from full screen on OS X 10.9.  To work around this problem, we
      detach/attach the overlay window in the
      `window{Will,Did}{Enter,Exit}FullScreen:' delegate methods.  */
-  [self detachOverlayWindow];
-  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
-						   BOOL success) {
-      [weakSelf attachOverlayWindow];
-    }];
+  /* This erases tabs after exiting from full screen on macOS 10.12.
+     Maybe this is no longer necessary on all versions?  */
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11)
+    {
+      [self detachOverlayWindow];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  [weakSelf attachOverlayWindow];
+	}];
+    }
 
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
@@ -3433,11 +3454,14 @@ static CGRect unset_global_focus_view_frame (void);
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
-  [self detachOverlayWindow];
-  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
-						   BOOL success) {
-      [weakSelf attachOverlayWindow];
-    }];
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11)
+    {
+      [self detachOverlayWindow];
+      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						       BOOL success) {
+	  [weakSelf attachOverlayWindow];
+	}];
+    }
 
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
@@ -3723,6 +3747,39 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 
   if (![NSApp isHidden])
     {
+      if (!FRAME_TOOLTIP_P (f)
+	  && [window respondsToSelector:@selector(setTabbingMode:)]
+	  && ![window isVisible])
+	{
+	  NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
+	  NSWindow *mainWindow = [NSApp mainWindow];
+
+	  if (NILP (Vmac_frame_tabbing))
+	    tabbingMode = NSWindowTabbingModeDisallowed;
+	  else if (EQ (Vmac_frame_tabbing, Qt))
+	    tabbingMode = NSWindowTabbingModePreferred;
+	  else if (EQ (Vmac_frame_tabbing, Qinverted))
+	    switch ([NSWindow userTabbingPreference])
+	      {
+	      case NSWindowUserTabbingPreferenceManual:
+		tabbingMode = NSWindowTabbingModePreferred;
+		break;
+	      case NSWindowUserTabbingPreferenceAlways:
+		tabbingMode = NSWindowTabbingModeDisallowed;
+		break;
+	      case NSWindowUserTabbingPreferenceInFullScreen:
+		if ([mainWindow styleMask] & NSWindowStyleMaskFullScreen)
+		  tabbingMode = NSWindowTabbingModeDisallowed;
+		else
+		  tabbingMode = NSWindowTabbingModePreferred;
+		break;
+	      }
+
+	  [window setTabbingMode:tabbingMode];
+	  if ([mainWindow isKindOfClass:[EmacsWindow class]])
+	    [mainWindow setTabbingMode:tabbingMode];
+	}
+
       if (activate_p)
 	[window makeKeyAndOrderFront:nil];
       else
@@ -7132,6 +7189,7 @@ update_frame_tool_bar (struct frame *f)
   NSUInteger count;
   int i, pos, win_gravity = f->output_data.mac->toolbar_win_gravity;
   bool use_multiimage_icons_p = true;
+  BOOL savedConstrainingToScreenSuspended;
 
   block_input ();
 
@@ -7139,6 +7197,7 @@ update_frame_tool_bar (struct frame *f)
   mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
   /* Shrinking the toolbar height with preserving the whole window
      height (e.g., fullheight) seems to be problematic.  */
+  savedConstrainingToScreenSuspended = [window isConstrainingToScreenSuspended];
   [window setConstrainingToScreenSuspended:YES];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
@@ -7303,7 +7362,7 @@ update_frame_tool_bar (struct frame *f)
   if (![toolbar isVisible])
     [toolbar setVisible:YES];
 
-  [window setConstrainingToScreenSuspended:NO];
+  [window setConstrainingToScreenSuspended:savedConstrainingToScreenSuspended];
   win_gravity = f->output_data.mac->toolbar_win_gravity;
   if (!(EQ (frame_inhibit_implied_resize, Qt)
 	|| (CONSP (frame_inhibit_implied_resize)
