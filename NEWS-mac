@@ -1,3 +1,24 @@
+* emacs-25.1-mac-6.0 (2016-09-18)
+
+** Fixed bugs
+
+*** Several glitches in frame tabbing on macOS 10.12.
+To address this issue in a simple and consistent way, we now round the
+frame size according to the character size only on resize by mouse
+dragging or changes of the `fullscreen' frame parameter.  This may
+cause some incompatibility.
+
+*** Fullscreen frames contain space at the top on OS X 10.10.
+
+** Improvements
+
+*** New variable `mac-frame-tabbing' specifying tabbing behavior of a
+frame that is becoming visible on macOS 10.12.
+
+*** C-x 5 5 ... behaves like the C-x 5 prefix, but temporarily changes
+tabbing behavior if "5" is typed repeatedly on macOS 10.12.
+
+
 * emacs-25.1-rc2-mac-5.91 (2016-08-22)
 
 ** Improvements
