@@ -4527,11 +4527,17 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
   set_global_focus_view_frame (f);
   mac_clear_area (f, x, y, width, height);
-  mac_begin_scale_mismatch_detection (f);
-  expose_frame (f, x, y, width, height);
-  if (mac_end_scale_mismatch_detection (f)
-      && [NSWindow instancesRespondToSelector:@selector(backingScaleFactor)])
-    SET_FRAME_GARBAGED (f);
+  /* This might be called when a tabbed window is closed on macOS
+     10.12.  */
+  if (WINDOWP (FRAME_ROOT_WINDOW (f)))
+    {
+      mac_begin_scale_mismatch_detection (f);
+      expose_frame (f, x, y, width, height);
+      if (mac_end_scale_mismatch_detection (f)
+	  && [NSWindow
+	       instancesRespondToSelector:@selector(backingScaleFactor)])
+	SET_FRAME_GARBAGED (f);
+    }
   unset_global_focus_view_frame ();
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   roundedBottomCornersCopied = NO;
