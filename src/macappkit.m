@@ -4437,7 +4437,11 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
 - (void)drawRect:(NSRect)aRect
 {
+  /* This might be called when the window is make key and front on
+     macOS 10.12.  */
+#if 0
   eassert (false);
+#endif
 }
 
 - (BOOL)isFlipped
