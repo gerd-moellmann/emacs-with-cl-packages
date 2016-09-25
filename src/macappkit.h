@@ -344,6 +344,7 @@ typedef id instancetype;
 - (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
 - (void)setupEmacsView;
 - (void)setupWindow;
+- (void)closeWindow;
 - (struct frame *)emacsFrame;
 - (EmacsWindow *)emacsWindow;
 - (WMState)windowManagerState;

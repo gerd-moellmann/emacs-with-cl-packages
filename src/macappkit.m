@@ -2276,6 +2276,16 @@ static CGRect unset_global_focus_view_frame (void);
     }
 }
 
+- (void)closeWindow
+{
+  /* We temporarily run application when closing a window.  That
+     causes emacsView to receive drawRect: before closing a tabbed
+     window on macOS 10.12.  It is too late to remove the view in the
+     windowWillClose: delegate method, so we remove it here.  */
+  [emacsView removeFromSuperview];
+  [emacsWindow close];
+}
+
 - (struct frame *)emacsFrame
 {
   return emacsFrame;
@@ -2901,7 +2911,6 @@ static CGRect unset_global_focus_view_frame (void);
       MRC_RELEASE (overlayWindow);
       overlayWindow = nil;
     }
-  [emacsView removeFromSuperview];
   [emacsWindow setDelegate:nil];
 }
 
@@ -4250,9 +4259,9 @@ mac_create_frame_window (struct frame *f)
 void
 mac_dispose_frame_window (struct frame *f)
 {
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
-  [window close];
+  [frameController closeWindow];
   CFRelease (FRAME_MAC_WINDOW (f));
 }
 
@@ -4527,17 +4536,11 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
   set_global_focus_view_frame (f);
   mac_clear_area (f, x, y, width, height);
-  /* This might be called when a tabbed window is closed on macOS
-     10.12.  */
-  if (WINDOWP (FRAME_ROOT_WINDOW (f)))
-    {
-      mac_begin_scale_mismatch_detection (f);
-      expose_frame (f, x, y, width, height);
-      if (mac_end_scale_mismatch_detection (f)
-	  && [NSWindow
-	       instancesRespondToSelector:@selector(backingScaleFactor)])
-	SET_FRAME_GARBAGED (f);
-    }
+  mac_begin_scale_mismatch_detection (f);
+  expose_frame (f, x, y, width, height);
+  if (mac_end_scale_mismatch_detection (f)
+      && [NSWindow instancesRespondToSelector:@selector(backingScaleFactor)])
+    SET_FRAME_GARBAGED (f);
   unset_global_focus_view_frame ();
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   roundedBottomCornersCopied = NO;
