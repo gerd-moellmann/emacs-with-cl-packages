@@ -261,17 +261,16 @@ typedef id instancetype;
      gets unhidden next time.  */
   BOOL needsOrderFrontOnUnhide;
 
-  /* Whether to suppress the usual -constrainFrameRect:toScreen:
-     behavior.  */
-  BOOL constrainingToScreenSuspended;
+  /* Positive values mean the usual -constrainFrameRect:toScreen:
+     behavior is suspended.  */
+  char constrainingToScreenSuspensionCount;
 }
 - (void)suspendResizeTracking:(NSEvent *)event
 	   positionAdjustment:(NSPoint)adjustment;
 - (void)resumeResizeTracking;
 - (BOOL)needsOrderFrontOnUnhide;
 - (void)setNeedsOrderFrontOnUnhide:(BOOL)flag;
-- (BOOL)isConstrainingToScreenSuspended;
-- (void)setConstrainingToScreenSuspended:(BOOL)flag;
+- (void)suspendConstrainingToScreen:(BOOL)flag;
 @end
 
 @interface EmacsFullscreenWindow : EmacsWindow

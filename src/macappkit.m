@@ -1950,19 +1950,22 @@ static CGRect unset_global_focus_view_frame (void);
     }
 }
 
-- (BOOL)isConstrainingToScreenSuspended
+- (void)suspendConstrainingToScreen:(BOOL)flag
 {
-  return constrainingToScreenSuspended;
-}
-
-- (void)setConstrainingToScreenSuspended:(BOOL)flag
-{
-  constrainingToScreenSuspended = flag;
+  if (flag)
+    constrainingToScreenSuspensionCount++;
+  else
+    {
+      if (constrainingToScreenSuspensionCount > 0)
+	constrainingToScreenSuspensionCount--;
+      else
+	eassert (false);
+    }
 }
 
 - (NSRect)constrainFrameRect:(NSRect)frameRect toScreen:(NSScreen *)screen
 {
-  if (!constrainingToScreenSuspended)
+  if (constrainingToScreenSuspensionCount == 0)
     {
       id delegate = [self delegate];
 
@@ -3435,7 +3438,7 @@ static CGRect unset_global_focus_view_frame (void);
      earlier and run on OS X 10.11.  Without this, Emacs placed on the
      left side of a split-view space tries to occupy maximum area.  */
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
-    [emacsWindow setConstrainingToScreenSuspended:YES];
+    [emacsWindow suspendConstrainingToScreen:YES];
 }
 
 - (void)windowDidFailToEnterFullScreen:(NSWindow *)window
@@ -3496,11 +3499,11 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     {
-      [emacsWindow setConstrainingToScreenSuspended:NO];
+      [emacsWindow suspendConstrainingToScreen:NO];
       [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
 						       BOOL success) {
 	  if (!success)
-	    [window setConstrainingToScreenSuspended:YES];
+	    [window suspendConstrainingToScreen:YES];
 	}];
     }
 }
@@ -3578,7 +3581,7 @@ static CGRect unset_global_focus_view_frame (void);
   [contentView setFrameSize:destRect.size];
 
   [emacsView setAutoresizingMask:(NSViewMaxXMargin | NSViewMinYMargin)];
-  [(EmacsWindow *)window setConstrainingToScreenSuspended:YES];
+  [(EmacsWindow *)window suspendConstrainingToScreen:YES];
   /* We no longer set NSWindowStyleMaskFullScreen until the transition
      animation completes because OS X 10.10 places such a window at
      the center of screen and also makes calls to
@@ -3617,7 +3620,7 @@ static CGRect unset_global_focus_view_frame (void);
     } completionHandler:^{
       [transitionView removeFromSuperview];
       [window setAlphaValue:previousAlphaValue];
-      [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];
+      [(EmacsWindow *)window suspendConstrainingToScreen:NO];
       [window setStyleMask:([window styleMask] | NSWindowStyleMaskFullScreen)];
       [window setFrame:destRect display:NO];
       [emacsView setAutoresizingMask:previousAutoresizingMask];
@@ -3658,7 +3661,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   [emacsView setAutoresizingMask:(NSViewMaxXMargin | NSViewMinYMargin)];
   srcRect.size.height += titleBarHeight;
-  [(EmacsWindow *)window setConstrainingToScreenSuspended:YES];
+  [(EmacsWindow *)window suspendConstrainingToScreen:YES];
   [window setFrame:srcRect display:NO];
 
   [contentView addSubview:transitionView positioned:NSWindowAbove
@@ -3687,7 +3690,7 @@ static CGRect unset_global_focus_view_frame (void);
       [transitionView removeFromSuperview];
       [window setAlphaValue:previousAlphaValue];
       [window setLevel:previousWindowLevel];
-      [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];
+      [(EmacsWindow *)window suspendConstrainingToScreen:NO];
       [emacsView setAutoresizingMask:previousAutoresizingMask];
       /* Mac OS X 10.7 needs this.  */
       [emacsView setFrame:[[emacsView superview] bounds]];
@@ -7206,7 +7209,6 @@ update_frame_tool_bar (struct frame *f)
   NSUInteger count;
   int i, pos, win_gravity = f->output_data.mac->toolbar_win_gravity;
   bool use_multiimage_icons_p = true;
-  BOOL savedConstrainingToScreenSuspended;
 
   block_input ();
 
@@ -7214,8 +7216,7 @@ update_frame_tool_bar (struct frame *f)
   mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
   /* Shrinking the toolbar height with preserving the whole window
      height (e.g., fullheight) seems to be problematic.  */
-  savedConstrainingToScreenSuspended = [window isConstrainingToScreenSuspended];
-  [window setConstrainingToScreenSuspended:YES];
+  [window suspendConstrainingToScreen:YES];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   use_multiimage_icons_p =
@@ -7379,7 +7380,7 @@ update_frame_tool_bar (struct frame *f)
   if (![toolbar isVisible])
     [toolbar setVisible:YES];
 
-  [window setConstrainingToScreenSuspended:savedConstrainingToScreenSuspended];
+  [window suspendConstrainingToScreen:NO];
   win_gravity = f->output_data.mac->toolbar_win_gravity;
   if (!(EQ (frame_inhibit_implied_resize, Qt)
 	|| (CONSP (frame_inhibit_implied_resize)
@@ -7417,11 +7418,11 @@ free_frame_tool_bar (struct frame *f)
       mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
       /* Shrinking the toolbar height with preserving the whole window
 	 height (e.g., fullheight) seems to be problematic.  */
-      [window setConstrainingToScreenSuspended:YES];
+      [window suspendConstrainingToScreen:YES];
 
       [toolbar setVisible:NO];
 
-      [window setConstrainingToScreenSuspended:NO];
+      [window suspendConstrainingToScreen:NO];
       if (!(EQ (frame_inhibit_implied_resize, Qt)
 	    || (CONSP (frame_inhibit_implied_resize)
 		&& !NILP (Fmemq (Qtool_bar_lines,
