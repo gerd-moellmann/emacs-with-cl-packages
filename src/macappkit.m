@@ -3740,6 +3740,14 @@ mac_set_frame_window_modified (struct frame *f, bool modified)
   [window setDocumentEdited:modified];
 }
 
+void
+mac_set_frame_window_proxy (struct frame *f, CFURLRef url)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+  [window setRepresentedURL:((__bridge NSURL *) url)];
+}
+
 bool
 mac_is_frame_window_visible (struct frame *f)
 {
@@ -4119,32 +4127,6 @@ mac_rect_make (struct frame *f, CGFloat x, CGFloat y, CGFloat w, CGFloat h)
   return NSRectToCGRect ([frameController centerScanEmacsViewRect:rect]);
 }
 #endif
-
-void
-mac_update_proxy_icon (struct frame *f)
-{
-  Lisp_Object file_name =
-    BVAR (XBUFFER (XWINDOW (FRAME_SELECTED_WINDOW (f))->contents), filename);
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  NSString *old = [window representedFilename], *new;
-
-  if ([old length] == 0 && !STRINGP (file_name))
-    return;
-
-  if (!STRINGP (file_name))
-    new = @"";
-  else
-    {
-      new = [NSString stringWithLispString:file_name];
-      if (![[NSFileManager defaultManager] fileExistsAtPath:new])
-	new = @"";
-      if ([new isEqualToString:old])
-	new = nil;
-    }
-
-  if (new)
-    [window setRepresentedFilename:new];
-}
 
 void
 mac_set_frame_window_background (struct frame *f, unsigned long color)
