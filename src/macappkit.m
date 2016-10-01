@@ -243,8 +243,7 @@ enum {
 {
   return [NSEvent
 	   mouseEventWithType:type location:location
-		modifierFlags:[self modifierFlags]
-		    timestamp:(mac_system_uptime ())
+		modifierFlags:[self modifierFlags] timestamp:[self timestamp]
 		 windowNumber:[self windowNumber]
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
 		      context:nil
@@ -2958,12 +2957,9 @@ static CGRect unset_global_focus_view_frame (void);
   if (leftMouseDragged
       /* Updating screen during resize by mouse dragging is
 	 implemented by generating fake release and press events.
-	 This seems to be too intrusive for "window snapping"
-	 introduced in macOS 10.12, so we suppress it when pixelwise
-	 frame resizing is in effect.  */
-      && (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11
-	  || (FRAME_SIZE_HINTS (emacsFrame)->width_inc != 1
-	      && FRAME_SIZE_HINTS (emacsFrame)->height_inc != 1))
+	 This seems to be incompatible with "window snapping"
+	 introduced in macOS 10.12, so we suppress it.  */
+      && floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11
       && (has_resize_indicator_at_bottom_right_p ()
 	  || !([currentEvent modifierFlags]
 	       & (NSEventModifierFlagShift | NSEventModifierFlagOption))))
