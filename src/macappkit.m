@@ -1014,6 +1014,9 @@ static void handle_services_invocation (NSInvocation *);
 
 static void mac_update_accessibility_display_options (void);
 
+/* True if we are executing mac_run_loop_run_once.  */
+static bool mac_run_loop_running_once_p;
+
 @implementation EmacsApplication
 
 /* Don't use the "applicationShouldTerminate: - NSTerminateLater -
@@ -1414,7 +1417,7 @@ emacs_windows_need_display_p (void)
 
 - (void)processDeferredReadSocket:(NSTimer *)theTimer
 {
-  if (![NSApp isRunning])
+  if (mac_run_loop_running_once_p)
     {
       if (mac_peek_next_event () || emacs_windows_need_display_p ())
 	[NSApp postDummyEvent];
@@ -1562,7 +1565,7 @@ emacs_windows_need_display_p (void)
 
 - (void)processDeferredFlushWindow:(NSTimer *)theTimer
 {
-  if (![NSApp isRunning])
+  if (mac_run_loop_running_once_p)
     [self flushWindow:nil force:YES];
 }
 
@@ -7807,8 +7810,21 @@ mac_run_loop_run_once (EventTimeout timeout)
   else
     expiration = [NSDate dateWithTimeIntervalSinceNow:timeout];
 
-  [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
-			      beforeDate:expiration];
+  mac_run_loop_running_once_p = true;
+  /* On macOS 10.12, the application sometimes becomes unresponsive to
+     Dock icon clicks (though it reacts to Command-Tab) if we directly
+     run a run loop and the application windows are covered by other
+     applications for a while.  */
+  if (timeout && ![NSApp isRunning])
+    [NSApp runTemporarilyWithBlock:^{
+	[[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+				 beforeDate:expiration];
+      }];
+  else
+    [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+			     beforeDate:expiration];
+  mac_run_loop_running_once_p = false;
+
   if (timeout > 0)
     {
       timeout = [expiration timeIntervalSinceNow];
