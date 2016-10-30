@@ -149,7 +149,6 @@ typedef id instancetype;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
-@class NSTouchBar;
 typedef NSString * NSTouchBarItemIdentifier;
 @protocol NSTouchBarDelegate @end
 
