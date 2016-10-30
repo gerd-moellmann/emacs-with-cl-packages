@@ -1,4 +1,43 @@
+* emacs-25.1-mac-6.1 (2016-10-30)
+
+** Fixed bugs
+
+*** Incremental search with a Japanese text in an empty buffer fails.
+Reported by Takaaki Ishikawa.
+
+*** Crash when showing a tooltip on macOS 10.12 if compiled with
+enable-checking.
+
+*** Crash with C-x 5 5 2 -> C-x 5 2 -> close the first frame with the
+red "x" button on macOS 10.12.
+
+*** Fullscreen transition animation looks awkward on OS X 10.7.
+This is a regression introduced in 6.0 as the fix for "fullscreen
+frames contain space at the top on OS X 10.10".
+
+*** Proxy icon is sometimes not updated.
+
+*** M-x battery RET does not show battery info on macOS 10.12.
+Apply a fix for Bug#24537.
+
+*** Emacs sometimes becomes unresponsive to Dock icon clicks (though
+it reacts to Command-Tab) if its frames are completely covered by
+other applications for a while on macOS 10.12.
+
+** Improvements
+
+*** Ligature glyph width is adjusted to a multiple of space width for
+monospace fonts.
+
+*** Screen update during resize now works on macOS 10.12 if
+frame-resize-pixelwise is nil.
+
+*** Character Picker is shown in Touch Bar.
+
+
 * emacs-25.1-mac-6.0 (2016-09-18)
+Based on Emacs 25.1.
+http://lists.gnu.org/archive/html/emacs-devel/2016-09/msg00480.html
 
 ** Fixed bugs
 
@@ -20,6 +59,7 @@ tabbing behavior if "5" is typed repeatedly on macOS 10.12.
 
 
 * emacs-25.1-rc2-mac-5.91 (2016-08-22)
+Based on Emacs 25.1 release candidate 2.
 
 ** Improvements
 
