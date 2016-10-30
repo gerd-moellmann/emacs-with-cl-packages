@@ -1069,6 +1069,17 @@ static bool mac_run_loop_running_once_p;
 }
 #endif
 
+- (NSTouchBar *)makeTouchBar
+{
+  NSTouchBar *mainBar = [[(NSClassFromString (@"NSTouchBar")) alloc] init];
+
+  mainBar.delegate = self;
+  mainBar.defaultItemIdentifiers =
+    [NSArray arrayWithObject:@"NSTouchBarItemIdentifierCharacterPicker"];
+
+  return MRC_AUTORELEASE (mainBar);
+}
+
 @end				// EmacsApplication
 
 @implementation EmacsController

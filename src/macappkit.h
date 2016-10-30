@@ -148,7 +148,19 @@ typedef id instancetype;
 @end
 #endif
 
-@interface EmacsApplication : NSApplication
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
+@class NSTouchBar;
+typedef NSString * NSTouchBarItemIdentifier;
+@protocol NSTouchBarDelegate @end
+
+@interface NSTouchBar : NSObject <NSCoding>
+- (id <NSTouchBarDelegate>)delegate;
+- (void)setDelegate:(id <NSTouchBarDelegate>)delegate;
+@property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
+@end
+#endif
+
+@interface EmacsApplication : NSApplication <NSTouchBarDelegate>
 @end
 
 @interface EmacsPosingWindow : NSWindow
