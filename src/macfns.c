@@ -35,6 +35,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "coding.h"
 #include "termhooks.h"
 #include "font.h"
+#include "process.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1722,24 +1723,46 @@ void
 mac_update_title_bar (struct frame *f, bool save_match_data)
 {
   struct window *w;
+  struct buffer *b;
+  Lisp_Object file_name;
   bool modified_p;
 
   if (!FRAME_MAC_P (f))
     return;
 
   w = XWINDOW (FRAME_SELECTED_WINDOW (f));
-  modified_p = (BUF_SAVE_MODIFF (XBUFFER (w->contents))
-		< BUF_MODIFF (XBUFFER (w->contents)));
-  if (windows_or_buffers_changed
+  b = XBUFFER (w->contents);
+  file_name = BVAR (b, filename);
+  if (!STRINGP (file_name))
+    file_name = Qnil;
+  modified_p = (BUF_SAVE_MODIFF (b) < BUF_MODIFF (b));
+  if (!EQ (file_name, f->mac_file_name)
       /* Minibuffer modification status shown in the close button is
 	 confusing.  */
       || (!MINI_WINDOW_P (w)
 	  && (modified_p != w->last_had_star)))
     {
+      CFURLRef url = NULL;
+
       block_input ();
       mac_set_frame_window_modified (f, !MINI_WINDOW_P (w) && modified_p);
-      mac_update_proxy_icon (f);
+      if (STRINGP (file_name))
+	{
+	  UInt8 *name = SDATA (ENCODE_FILE (remove_slash_colon (file_name)));
+
+	  url = CFURLCreateFromFileSystemRepresentation (NULL, name,
+							 strlen (name), false);
+	  if (url && !CFURLResourceIsReachable (url, NULL))
+	    {
+	      CFRelease (url);
+	      url = NULL;
+	    }
+	}
+      mac_set_frame_window_proxy (f, url);
+      if (url)
+	CFRelease (url);
       unblock_input ();
+      fset_mac_file_name (f, file_name);
     }
 }
 

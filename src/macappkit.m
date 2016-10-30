@@ -243,7 +243,8 @@ enum {
 {
   return [NSEvent
 	   mouseEventWithType:type location:location
-		modifierFlags:[self modifierFlags] timestamp:[self timestamp]
+		modifierFlags:[self modifierFlags]
+		    timestamp:(mac_system_uptime ())
 		 windowNumber:[self windowNumber]
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
 		      context:nil
@@ -1013,6 +1014,9 @@ static void handle_services_invocation (NSInvocation *);
 
 static void mac_update_accessibility_display_options (void);
 
+/* True if we are executing mac_run_loop_run_once.  */
+static bool mac_run_loop_running_once_p;
+
 @implementation EmacsApplication
 
 /* Don't use the "applicationShouldTerminate: - NSTerminateLater -
@@ -1064,6 +1068,17 @@ static void mac_update_accessibility_display_options (void);
     doNotInstallDispatchSources = YES;
 }
 #endif
+
+- (NSTouchBar *)makeTouchBar
+{
+  NSTouchBar *mainBar = [[(NSClassFromString (@"NSTouchBar")) alloc] init];
+
+  mainBar.delegate = self;
+  mainBar.defaultItemIdentifiers =
+    [NSArray arrayWithObject:@"NSTouchBarItemIdentifierCharacterPicker"];
+
+  return MRC_AUTORELEASE (mainBar);
+}
 
 @end				// EmacsApplication
 
@@ -1413,7 +1428,7 @@ emacs_windows_need_display_p (void)
 
 - (void)processDeferredReadSocket:(NSTimer *)theTimer
 {
-  if (![NSApp isRunning])
+  if (mac_run_loop_running_once_p)
     {
       if (mac_peek_next_event () || emacs_windows_need_display_p ())
 	[NSApp postDummyEvent];
@@ -1561,7 +1576,7 @@ emacs_windows_need_display_p (void)
 
 - (void)processDeferredFlushWindow:(NSTimer *)theTimer
 {
-  if (![NSApp isRunning])
+  if (mac_run_loop_running_once_p)
     [self flushWindow:nil force:YES];
 }
 
@@ -1950,19 +1965,22 @@ static CGRect unset_global_focus_view_frame (void);
     }
 }
 
-- (BOOL)isConstrainingToScreenSuspended
+- (void)suspendConstrainingToScreen:(BOOL)flag
 {
-  return constrainingToScreenSuspended;
-}
-
-- (void)setConstrainingToScreenSuspended:(BOOL)flag
-{
-  constrainingToScreenSuspended = flag;
+  if (flag)
+    constrainingToScreenSuspensionCount++;
+  else
+    {
+      if (constrainingToScreenSuspensionCount > 0)
+	constrainingToScreenSuspensionCount--;
+      else
+	eassert (false);
+    }
 }
 
 - (NSRect)constrainFrameRect:(NSRect)frameRect toScreen:(NSScreen *)screen
 {
-  if (!constrainingToScreenSuspended)
+  if (constrainingToScreenSuspensionCount == 0)
     {
       id delegate = [self delegate];
 
@@ -2274,6 +2292,16 @@ static CGRect unset_global_focus_view_frame (void);
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:NSWindowAnimationBehaviorNone];
     }
+}
+
+- (void)closeWindow
+{
+  /* We temporarily run application when closing a window.  That
+     causes emacsView to receive drawRect: before closing a tabbed
+     window on macOS 10.12.  It is too late to remove the view in the
+     windowWillClose: delegate method, so we remove it here.  */
+  [emacsView removeFromSuperview];
+  [emacsWindow close];
 }
 
 - (struct frame *)emacsFrame
@@ -2901,7 +2929,6 @@ static CGRect unset_global_focus_view_frame (void);
       MRC_RELEASE (overlayWindow);
       overlayWindow = nil;
     }
-  [emacsView removeFromSuperview];
   [emacsWindow setDelegate:nil];
 }
 
@@ -2946,7 +2973,14 @@ static CGRect unset_global_focus_view_frame (void);
     }
 
   if (leftMouseDragged
-      && floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11
+      /* Updating screen during resize by mouse dragging is
+	 implemented by generating fake release and press events.
+	 This seems to be too intrusive for "window snapping"
+	 introduced in macOS 10.12, so we suppress it when pixelwise
+	 frame resizing is in effect.  */
+      && (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11
+	  || (FRAME_SIZE_HINTS (emacsFrame)->width_inc != 1
+	      && FRAME_SIZE_HINTS (emacsFrame)->height_inc != 1))
       && (has_resize_indicator_at_bottom_right_p ()
 	  || !([currentEvent modifierFlags]
 	       & (NSEventModifierFlagShift | NSEventModifierFlagOption))))
@@ -3422,7 +3456,7 @@ static CGRect unset_global_focus_view_frame (void);
      earlier and run on OS X 10.11.  Without this, Emacs placed on the
      left side of a split-view space tries to occupy maximum area.  */
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
-    [emacsWindow setConstrainingToScreenSuspended:YES];
+    [emacsWindow suspendConstrainingToScreen:YES];
 }
 
 - (void)windowDidFailToEnterFullScreen:(NSWindow *)window
@@ -3483,11 +3517,11 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     {
-      [emacsWindow setConstrainingToScreenSuspended:NO];
+      [emacsWindow suspendConstrainingToScreen:NO];
       [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
 						       BOOL success) {
 	  if (!success)
-	    [window setConstrainingToScreenSuspended:YES];
+	    [window suspendConstrainingToScreen:YES];
 	}];
     }
 }
@@ -3565,7 +3599,7 @@ static CGRect unset_global_focus_view_frame (void);
   [contentView setFrameSize:destRect.size];
 
   [emacsView setAutoresizingMask:(NSViewMaxXMargin | NSViewMinYMargin)];
-  [(EmacsWindow *)window setConstrainingToScreenSuspended:YES];
+  [(EmacsWindow *)window suspendConstrainingToScreen:YES];
   /* We no longer set NSWindowStyleMaskFullScreen until the transition
      animation completes because OS X 10.10 places such a window at
      the center of screen and also makes calls to
@@ -3604,7 +3638,7 @@ static CGRect unset_global_focus_view_frame (void);
     } completionHandler:^{
       [transitionView removeFromSuperview];
       [window setAlphaValue:previousAlphaValue];
-      [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];
+      [(EmacsWindow *)window suspendConstrainingToScreen:NO];
       [window setStyleMask:([window styleMask] | NSWindowStyleMaskFullScreen)];
       [window setFrame:destRect display:NO];
       [emacsView setAutoresizingMask:previousAutoresizingMask];
@@ -3645,7 +3679,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   [emacsView setAutoresizingMask:(NSViewMaxXMargin | NSViewMinYMargin)];
   srcRect.size.height += titleBarHeight;
-  [(EmacsWindow *)window setConstrainingToScreenSuspended:YES];
+  [(EmacsWindow *)window suspendConstrainingToScreen:YES];
   [window setFrame:srcRect display:NO];
 
   [contentView addSubview:transitionView positioned:NSWindowAbove
@@ -3674,7 +3708,7 @@ static CGRect unset_global_focus_view_frame (void);
       [transitionView removeFromSuperview];
       [window setAlphaValue:previousAlphaValue];
       [window setLevel:previousWindowLevel];
-      [(EmacsWindow *)window setConstrainingToScreenSuspended:NO];
+      [(EmacsWindow *)window suspendConstrainingToScreen:NO];
       [emacsView setAutoresizingMask:previousAutoresizingMask];
       /* Mac OS X 10.7 needs this.  */
       [emacsView setFrame:[[emacsView superview] bounds]];
@@ -3722,6 +3756,14 @@ mac_set_frame_window_modified (struct frame *f, bool modified)
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   [window setDocumentEdited:modified];
+}
+
+void
+mac_set_frame_window_proxy (struct frame *f, CFURLRef url)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+  [window setRepresentedURL:((__bridge NSURL *) url)];
 }
 
 bool
@@ -4105,32 +4147,6 @@ mac_rect_make (struct frame *f, CGFloat x, CGFloat y, CGFloat w, CGFloat h)
 #endif
 
 void
-mac_update_proxy_icon (struct frame *f)
-{
-  Lisp_Object file_name =
-    BVAR (XBUFFER (XWINDOW (FRAME_SELECTED_WINDOW (f))->contents), filename);
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  NSString *old = [window representedFilename], *new;
-
-  if ([old length] == 0 && !STRINGP (file_name))
-    return;
-
-  if (!STRINGP (file_name))
-    new = @"";
-  else
-    {
-      new = [NSString stringWithLispString:file_name];
-      if (![[NSFileManager defaultManager] fileExistsAtPath:new])
-	new = @"";
-      if ([new isEqualToString:old])
-	new = nil;
-    }
-
-  if (new)
-    [window setRepresentedFilename:new];
-}
-
-void
 mac_set_frame_window_background (struct frame *f, unsigned long color)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
@@ -4250,9 +4266,9 @@ mac_create_frame_window (struct frame *f)
 void
 mac_dispose_frame_window (struct frame *f)
 {
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
-  [window close];
+  [frameController closeWindow];
   CFRelease (FRAME_MAC_WINDOW (f));
 }
 
@@ -4437,7 +4453,11 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
 - (void)drawRect:(NSRect)aRect
 {
+  /* This might be called when the window is made key and ordered
+     front on macOS 10.12.  */
+#if 0
   eassert (false);
+#endif
 }
 
 - (BOOL)isFlipped
@@ -7189,7 +7209,6 @@ update_frame_tool_bar (struct frame *f)
   NSUInteger count;
   int i, pos, win_gravity = f->output_data.mac->toolbar_win_gravity;
   bool use_multiimage_icons_p = true;
-  BOOL savedConstrainingToScreenSuspended;
 
   block_input ();
 
@@ -7197,8 +7216,7 @@ update_frame_tool_bar (struct frame *f)
   mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
   /* Shrinking the toolbar height with preserving the whole window
      height (e.g., fullheight) seems to be problematic.  */
-  savedConstrainingToScreenSuspended = [window isConstrainingToScreenSuspended];
-  [window setConstrainingToScreenSuspended:YES];
+  [window suspendConstrainingToScreen:YES];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   use_multiimage_icons_p =
@@ -7362,7 +7380,7 @@ update_frame_tool_bar (struct frame *f)
   if (![toolbar isVisible])
     [toolbar setVisible:YES];
 
-  [window setConstrainingToScreenSuspended:savedConstrainingToScreenSuspended];
+  [window suspendConstrainingToScreen:NO];
   win_gravity = f->output_data.mac->toolbar_win_gravity;
   if (!(EQ (frame_inhibit_implied_resize, Qt)
 	|| (CONSP (frame_inhibit_implied_resize)
@@ -7400,11 +7418,11 @@ free_frame_tool_bar (struct frame *f)
       mac_get_frame_window_gravity_reference_bounds (f, win_gravity, &r);
       /* Shrinking the toolbar height with preserving the whole window
 	 height (e.g., fullheight) seems to be problematic.  */
-      [window setConstrainingToScreenSuspended:YES];
+      [window suspendConstrainingToScreen:YES];
 
       [toolbar setVisible:NO];
 
-      [window setConstrainingToScreenSuspended:NO];
+      [window suspendConstrainingToScreen:NO];
       if (!(EQ (frame_inhibit_implied_resize, Qt)
 	    || (CONSP (frame_inhibit_implied_resize)
 		&& !NILP (Fmemq (Qtool_bar_lines,
@@ -7803,8 +7821,21 @@ mac_run_loop_run_once (EventTimeout timeout)
   else
     expiration = [NSDate dateWithTimeIntervalSinceNow:timeout];
 
-  [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
-			      beforeDate:expiration];
+  mac_run_loop_running_once_p = true;
+  /* On macOS 10.12, the application sometimes becomes unresponsive to
+     Dock icon clicks (though it reacts to Command-Tab) if we directly
+     run a run loop and the application windows are covered by other
+     applications for a while.  */
+  if (timeout && ![NSApp isRunning])
+    [NSApp runTemporarilyWithBlock:^{
+	[[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+				 beforeDate:expiration];
+      }];
+  else
+    [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+			     beforeDate:expiration];
+  mac_run_loop_running_once_p = false;
+
   if (timeout > 0)
     {
       timeout = [expiration timeIntervalSinceNow];

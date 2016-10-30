@@ -1670,10 +1670,9 @@ sensitive to the variation selector.")
 	    (when (and (stringp disp-prop)
 		       (> (length disp-prop) 1)
 		       (get-text-property (1- (length disp-prop))
-					  'mac-ts-active-input-string))
-	      (remove-text-properties 0 (length disp-prop)
-				      '(mac-ts-active-input-string nil)
-				      msg)
+					  'mac-ts-active-input-string
+                                          disp-prop))
+	      (remove-text-properties 0 (length msg) '(display nil) msg)
 	      (message "%s" msg))))))
     (setq mac-ts-active-input-string "")
     (if replacement-range

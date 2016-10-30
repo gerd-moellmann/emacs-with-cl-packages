@@ -148,7 +148,18 @@ typedef id instancetype;
 @end
 #endif
 
-@interface EmacsApplication : NSApplication
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
+typedef NSString * NSTouchBarItemIdentifier;
+@protocol NSTouchBarDelegate @end
+
+@interface NSTouchBar : NSObject <NSCoding>
+- (id <NSTouchBarDelegate>)delegate;
+- (void)setDelegate:(id <NSTouchBarDelegate>)delegate;
+@property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
+@end
+#endif
+
+@interface EmacsApplication : NSApplication <NSTouchBarDelegate>
 @end
 
 @interface EmacsPosingWindow : NSWindow
@@ -261,17 +272,16 @@ typedef id instancetype;
      gets unhidden next time.  */
   BOOL needsOrderFrontOnUnhide;
 
-  /* Whether to suppress the usual -constrainFrameRect:toScreen:
-     behavior.  */
-  BOOL constrainingToScreenSuspended;
+  /* Positive values mean the usual -constrainFrameRect:toScreen:
+     behavior is suspended.  */
+  char constrainingToScreenSuspensionCount;
 }
 - (void)suspendResizeTracking:(NSEvent *)event
 	   positionAdjustment:(NSPoint)adjustment;
 - (void)resumeResizeTracking;
 - (BOOL)needsOrderFrontOnUnhide;
 - (void)setNeedsOrderFrontOnUnhide:(BOOL)flag;
-- (BOOL)isConstrainingToScreenSuspended;
-- (void)setConstrainingToScreenSuspended:(BOOL)flag;
+- (void)suspendConstrainingToScreen:(BOOL)flag;
 @end
 
 @interface EmacsFullscreenWindow : EmacsWindow
@@ -344,6 +354,7 @@ typedef id instancetype;
 - (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
 - (void)setupEmacsView;
 - (void)setupWindow;
+- (void)closeWindow;
 - (struct frame *)emacsFrame;
 - (EmacsWindow *)emacsWindow;
 - (WMState)windowManagerState;

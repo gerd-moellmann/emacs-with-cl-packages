@@ -170,6 +170,11 @@ struct frame
   Lisp_Object font_data;
 #endif
 
+#ifdef HAVE_MACGUI
+  /* File name used for proxy icon on the title bar.  */
+  Lisp_Object mac_file_name;
+#endif
+
   /* Beyond here, there should be no more Lisp_Object components.  */
 
   /* Cache of realized faces.  */
@@ -623,6 +628,13 @@ fset_desired_tool_bar_string (struct frame *f, Lisp_Object val)
   f->desired_tool_bar_string = val;
 }
 #endif /* HAVE_WINDOW_SYSTEM && !USE_GTK && !HAVE_NS */
+#ifdef HAVE_MACGUI
+INLINE void
+fset_mac_file_name (struct frame *f, Lisp_Object val)
+{
+  f->mac_file_name = val;
+}
+#endif /* HAVE_MACGUI */
 
 #define NUMVAL(X) (NUMBERP (X) ? XFLOATINT (X) : -1)
 
