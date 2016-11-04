@@ -241,6 +241,10 @@ enum {
 - (NSEvent *)mouseEventByChangingType:(NSEventType)type
 			  andLocation:(NSPoint)location
 {
+  NSInteger clickCount = [self clickCount];
+
+  /* Dragging via Screen Sharing.app sets clickCount to 0, and it
+     disables updating screen during resize on macOS 10.12.  */
   return [NSEvent
 	   mouseEventWithType:type location:location
 		modifierFlags:[self modifierFlags]
@@ -251,7 +255,8 @@ enum {
 #else
 		      context:[self context]
 #endif
-		  eventNumber:[self eventNumber] clickCount:[self clickCount]
+		  eventNumber:[self eventNumber]
+		   clickCount:(clickCount ? clickCount : 1)
 		     pressure:[self pressure]];
 }
 
