@@ -1080,7 +1080,8 @@ static bool mac_run_loop_running_once_p;
 
   mainBar.delegate = self;
   mainBar.defaultItemIdentifiers =
-    [NSArray arrayWithObject:@"NSTouchBarItemIdentifierCharacterPicker"];
+    [NSArray arrayWithObjects:@"NSTouchBarItemIdentifierCharacterPicker",
+	     @"NSTouchBarItemIdentifierCandidateList", nil];
 
   return MRC_AUTORELEASE (mainBar);
 }
