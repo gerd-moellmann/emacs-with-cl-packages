@@ -149,14 +149,7 @@ typedef id instancetype;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
-typedef NSString * NSTouchBarItemIdentifier;
 @protocol NSTouchBarDelegate @end
-
-@interface NSTouchBar : NSObject <NSCoding>
-- (id <NSTouchBarDelegate>)delegate;
-- (void)setDelegate:(id <NSTouchBarDelegate>)delegate;
-@property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
-@end
 #endif
 
 @interface EmacsApplication : NSApplication <NSTouchBarDelegate>
@@ -1026,6 +1019,15 @@ enum {
   NSControlSizeRegular	= NSRegularControlSize,
   NSControlSizeSmall	= NSSmallControlSize
 };
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
+typedef NSString * NSTouchBarItemIdentifier;
+
+@interface NSTouchBar : NSObject <NSCoding>
+@property (assign) id <NSTouchBarDelegate> delegate;
+@property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
+@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200

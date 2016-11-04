@@ -108,6 +108,20 @@ enum {
    | CFOBJECT_TO_LISP_DONT_DECODE_STRING			\
    | CFOBJECT_TO_LISP_DONT_DECODE_DICTIONARY_KEY)
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#define NS_TOUCH_BAR	NSTouchBar
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER \
+  NSTouchBarItemIdentifierCharacterPicker
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST \
+  NSTouchBarItemIdentifierCandidateList
+#else
+#define NS_TOUCH_BAR	(NSClassFromString (@"NSTouchBar"))
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER \
+  (@"NSTouchBarItemIdentifierCharacterPicker")
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST \
+  (@"NSTouchBarItemIdentifierCandidateList")
+#endif
+
 @implementation NSData (Emacs)
 
 /* Return a unibyte Lisp string.  */
@@ -1076,12 +1090,12 @@ static bool mac_run_loop_running_once_p;
 
 - (NSTouchBar *)makeTouchBar
 {
-  NSTouchBar *mainBar = [[(NSClassFromString (@"NSTouchBar")) alloc] init];
+  NSTouchBar *mainBar = [[NS_TOUCH_BAR alloc] init];
 
   mainBar.delegate = self;
   mainBar.defaultItemIdentifiers =
-    [NSArray arrayWithObjects:@"NSTouchBarItemIdentifierCharacterPicker",
-	     @"NSTouchBarItemIdentifierCandidateList", nil];
+    [NSArray arrayWithObjects:NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER,
+	     NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST, nil];
 
   return MRC_AUTORELEASE (mainBar);
 }
