@@ -3598,7 +3598,6 @@ MAC_CFLAGS=
 if test "${HAVE_MACGUI}" = "yes"; then
   AC_DEFINE(HAVE_MACGUI, 1, [Define to 1 if you are using GUI on Mac OS X.])
   AC_DEFINE(HAVE_SOUND, 1, [Define to 1 if you have sound support.])
-  AC_CHECK_HEADERS(AvailabilityMacros.h)
   MAC_CFLAGS="-fconstant-cfstrings"
   ## Specify the install directory
   mac_appdir=
@@ -5176,27 +5175,7 @@ case "$opsys" in
    ## only costs about 1.5K of wasted binary space.
    headerpad_extra=1000
    if test "$HAVE_MACGUI" = "yes"; then
-     # Check if the Quartz Core framework is necessary and always
-     # available at runtime.
-     AC_MSG_CHECKING(Mac OS X version max allowed >= 10.5)
-     AC_CACHE_VAL(emacs_cv_mac_os_x_max_allowed_10_5,
-     [AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-#ifdef HAVE_AVAILABILITYMACROS_H
-#include <AvailabilityMacros.h>
-#endif]],
-[[#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 && MAC_OS_X_VERSION_MIN_REQUIRED > 1020
-fail;
-#endif
-]])], emacs_cv_mac_os_x_max_allowed_10_5=no, emacs_cv_mac_os_x_max_allowed_10_5=yes)])
-     if test $emacs_cv_mac_os_x_max_allowed_10_5 = yes; then
-       AC_MSG_RESULT(10.5 or later)
-       libs_quartz_core="-framework QuartzCore"
-     else
-       AC_MSG_RESULT(before 10.5)
-       libs_quartz_core=
-     fi
-     # Whether to use the Cocoa framework.
-     libs_macgui="-framework Carbon -framework WebKit -framework Quartz $libs_quartz_core -framework IOKit -framework OSAKit -framework Cocoa"
+     libs_macgui="-framework Carbon -framework WebKit -framework Quartz -framework QuartzCore -framework IOKit -framework OSAKit -framework Cocoa"
      headerpad_extra=BD0
    elif test "$HAVE_NS" = "yes"; then
      libs_macgui="-framework AppKit"
