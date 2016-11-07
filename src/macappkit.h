@@ -81,6 +81,7 @@ typedef id instancetype;
 #define NSMutableSetOf(ObjectType)	NSMutableSet
 #define NSDictionaryOf(KeyT, ObjectT)	NSDictionary
 #define NSMutableDictionaryOf(KeyT, ObjectT) NSMutableDictionary
+#define __kindof
 #endif
 
 #ifndef NS_NOESCAPE
@@ -637,8 +638,11 @@ typedef id instancetype;
 - (void)popUpMenu:(NSMenu *)menu atLocationInEmacsView:(NSPoint)location;
 @end
 
-@interface EmacsDialogView : NSView
+@interface EmacsDialogView : NSView <NSTouchBarDelegate>
 - (instancetype)initWithWidgetValue:(widget_value *)wv;
+@end
+
+@interface EmacsTouchBarItemClipView : NSClipView
 @end
 
 @interface EmacsPrintProxyView : NSView
@@ -1024,9 +1028,96 @@ enum {
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
 typedef NSString * NSTouchBarItemIdentifier;
 
+@interface NSTouchBarItem : NSObject <NSCoding>
+@end
+
+@interface NSCustomTouchBarItem : NSTouchBarItem
+@property (retain) __kindof NSView *view;
+@end
+
 @interface NSTouchBar : NSObject <NSCoding>
 @property (assign) id <NSTouchBarDelegate> delegate;
 @property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
+@property (copy) NSTouchBarItemIdentifier principalItemIdentifier;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+@interface NSView (AvailableOn1070AndLater)
+@property BOOL translatesAutoresizingMaskIntoConstraints;
+@end
+
+@interface NSLayoutConstraint : NSObject <NSAnimatablePropertyContainer>
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
+@interface NSLayoutConstraint (AvailableOn101000AndLater)
+@property (getter=isActive) BOOL active;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
+@interface NSLayoutAnchor : NSObject <NSCopying, NSCoding>
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutAnchor *)anchor;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutAnchor *)anchor;
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)c;
+@end
+
+@interface NSLayoutXAxisAnchor : NSLayoutAnchor
+@end
+@interface NSLayoutYAxisAnchor : NSLayoutAnchor
+@end
+
+@interface NSLayoutDimension : NSLayoutAnchor
+- (NSLayoutConstraint *)constraintEqualToConstant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToConstant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToConstant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m;
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m constant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m constant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m constant:(CGFloat)c;
+@end
+
+@interface NSView (AvailableOn101100AndLater)
+@property (readonly, retain) NSLayoutXAxisAnchor *leadingAnchor;
+@property (readonly, retain) NSLayoutXAxisAnchor *trailingAnchor;
+@property (readonly, retain) NSLayoutXAxisAnchor *leftAnchor;
+@property (readonly, retain) NSLayoutXAxisAnchor *rightAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *topAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *bottomAnchor;
+@property (readonly, retain) NSLayoutDimension *widthAnchor;
+@property (readonly, retain) NSLayoutDimension *heightAnchor;
+@property (readonly, retain) NSLayoutXAxisAnchor *centerXAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *centerYAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *firstBaselineAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *lastBaselineAnchor;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+@interface NSClipView (AvailableOn1090AndLater)
+- (NSRect)constrainBoundsRect:(NSRect)proposedBounds;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+@interface NSButton (AvailableOn101200AndLater)
++ (instancetype)buttonWithTitle:(NSString *)title image:(NSImage *)image
+			 target:(id)target action:(SEL)action;
++ (instancetype)buttonWithTitle:(NSString *)title
+			 target:(id)target action:(SEL)action;
++ (instancetype)buttonWithImage:(NSImage *)image
+			 target:(id)target action:(SEL)action;
++ (instancetype)checkboxWithTitle:(NSString *)title
+			   target:(id)target action:(SEL)action;
++ (instancetype)radioButtonWithTitle:(NSString *)title
+			      target:(id)target action:(SEL)action;
 @end
 #endif
 

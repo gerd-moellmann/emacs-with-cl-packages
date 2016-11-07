@@ -110,12 +110,14 @@ enum {
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
 #define NS_TOUCH_BAR	NSTouchBar
-#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER \
+#define NS_CUSTOM_TOUCH_BAR_ITEM NSCustomTouchBarItem
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER	\
   NSTouchBarItemIdentifierCharacterPicker
 #define NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST \
   NSTouchBarItemIdentifierCandidateList
 #else
 #define NS_TOUCH_BAR	(NSClassFromString (@"NSTouchBar"))
+#define NS_CUSTOM_TOUCH_BAR_ITEM (NSClassFromString (@"NSCustomTouchBarItem"))
 #define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER \
   (@"NSTouchBarItemIdentifierCharacterPicker")
 #define NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST \
@@ -9124,6 +9126,14 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 #define DIALOG_BUTTON_BORDER (6)
 #define DIALOG_TEXT_BORDER (1)
 
+#define EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG \
+  (@"EmacsTouchBarItemIdentifierDialog")
+
+- (BOOL)acceptsFirstResponder
+{
+  return YES;
+}
+
 - (BOOL)isFlipped
 {
   return YES;
@@ -9342,7 +9352,102 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
   return [super performKeyEquivalent:theEvent];
 }
 
+- (NSTouchBar *)makeTouchBar
+{
+  NSTouchBar *touchBar = [[NS_TOUCH_BAR alloc] init];
+
+  touchBar.delegate = self;
+  touchBar.defaultItemIdentifiers =
+    [NSArray arrayWithObject:EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG];
+  touchBar.principalItemIdentifier = EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG;
+
+  return MRC_AUTORELEASE (touchBar);
+}
+
+- (NSTouchBarItem *)touchBar:(NSTouchBar *)touchBar
+       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier;
+{
+  NSTouchBarItem *result = nil;
+
+  if ([identifier isEqualToString:EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG])
+    {
+      NSView *documentView = [[NSView alloc] init], *contentView;
+      NSButton *prev = nil;
+      NSScrollView *scrollView;
+      NSCustomTouchBarItem *item;
+
+      for (NSView *view in self.subviews)
+	if ([view isKindOfClass:NSButton.class]
+	    && ((NSButton *) view).isEnabled)
+	  {
+	    NSButton *button = (NSButton *) view;
+	    NSButton *touchButton = [NSButton buttonWithTitle:button.title
+						       target:button.target
+						       action:button.action];
+
+	    [documentView addSubview:touchButton];
+	    touchButton.tag = button.tag;
+	    touchButton.keyEquivalent = button.keyEquivalent;
+	    touchButton.translatesAutoresizingMaskIntoConstraints = NO;
+	    [touchButton.widthAnchor
+		constraintLessThanOrEqualToConstant:120].active = YES;
+	    [touchButton.topAnchor
+		constraintEqualToAnchor:documentView.topAnchor].active = YES;
+	    if (prev == nil)
+	      [documentView.trailingAnchor
+		  constraintEqualToAnchor:touchButton.trailingAnchor].active =
+		YES;
+	    else
+	      [prev.leadingAnchor
+		  constraintEqualToAnchor:touchButton.trailingAnchor
+		  constant:8].active = YES;
+	    prev = touchButton;
+	  }
+      if (prev)
+	[documentView.leadingAnchor
+	    constraintEqualToAnchor:prev.leadingAnchor].active = YES;
+
+      scrollView = [[NSScrollView alloc] init];
+      scrollView.contentView = MRC_AUTORELEASE ([[EmacsTouchBarItemClipView alloc] init]);
+      scrollView.documentView = documentView;
+      documentView.translatesAutoresizingMaskIntoConstraints = NO;
+      contentView = scrollView.contentView;
+      [documentView.trailingAnchor
+	  constraintEqualToAnchor:contentView.trailingAnchor].active = YES;
+      [documentView.topAnchor
+	  constraintEqualToAnchor:contentView.topAnchor].active = YES;
+      [documentView.bottomAnchor
+	  constraintEqualToAnchor:contentView.bottomAnchor].active = YES;
+      MRC_RELEASE (documentView);
+
+      item = [[NS_CUSTOM_TOUCH_BAR_ITEM alloc] initWithIdentifier:identifier];
+      item.view = scrollView;
+      MRC_RELEASE (scrollView);
+      result = MRC_AUTORELEASE (item);
+    }
+
+  return result;
+}
+
 @end				// EmacsDialogView
+
+@implementation EmacsTouchBarItemClipView
+
+- (NSRect)constrainBoundsRect:(NSRect)proposedBounds;
+{
+  CGFloat documentViewWidth, boundsWidth;
+
+  proposedBounds = [super constrainBoundsRect:proposedBounds];
+  documentViewWidth = NSWidth (((NSView *) self.documentView).frame);
+  boundsWidth = NSWidth (proposedBounds);
+
+  if (documentViewWidth < boundsWidth)
+    proposedBounds.origin.x = (boundsWidth - documentViewWidth) / 2;
+
+  return proposedBounds;
+}
+
+@end				// EmacsTouchBarItemClipView
 
 static void
 pop_down_dialog (Lisp_Object arg)
