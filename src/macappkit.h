@@ -642,9 +642,6 @@ typedef id instancetype;
 - (instancetype)initWithWidgetValue:(widget_value *)wv;
 @end
 
-@interface EmacsTouchBarItemClipView : NSClipView
-@end
-
 @interface EmacsPrintProxyView : NSView
 {
   NSArrayOf (NSView *) *views;
@@ -1101,8 +1098,8 @@ typedef NSString * NSTouchBarItemIdentifier;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSClipView (AvailableOn1090AndLater)
-- (NSRect)constrainBoundsRect:(NSRect)proposedBounds;
+@interface NSStackView : NSView
++ (instancetype)stackViewWithViews:(NSArrayOf (NSView *) *)views;
 @end
 #endif
 

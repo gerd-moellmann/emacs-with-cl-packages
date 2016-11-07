@@ -108,6 +108,12 @@ enum {
    | CFOBJECT_TO_LISP_DONT_DECODE_STRING			\
    | CFOBJECT_TO_LISP_DONT_DECODE_DICTIONARY_KEY)
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+#define NS_STACK_VIEW	NSStackView
+#else
+#define NS_STACK_VIEW	(NSClassFromString (@"NSStackView"))
+#endif
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
 #define NS_TOUCH_BAR	NSTouchBar
 #define NS_CUSTOM_TOUCH_BAR_ITEM NSCustomTouchBarItem
@@ -9371,56 +9377,41 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 
   if ([identifier isEqualToString:EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG])
     {
-      NSView *documentView = [[NSView alloc] init];
-      NSButton *prev = nil;
+      NSMutableArrayOf (NSView *) *touchButtons;
       NSScrollView *scrollView;
-      EmacsTouchBarItemClipView *contentView;
+      NSStackView *stackView;
+      NSView *contentView;
       NSCustomTouchBarItem *item;
 
-      for (NSView *view in self.subviews)
-	if ([view isKindOfClass:NSButton.class]
-	    && ((NSButton *) view).isEnabled)
+      touchButtons = [NSMutableArray arrayWithCapacity:self.subviews.count];
+      for (NSButton *button in self.subviews)
+	if ([button isKindOfClass:NSButton.class] && button.isEnabled)
 	  {
-	    NSButton *button = (NSButton *) view;
 	    NSButton *touchButton = [NSButton buttonWithTitle:button.title
 						       target:button.target
 						       action:button.action];
 
-	    [documentView addSubview:touchButton];
 	    touchButton.tag = button.tag;
 	    touchButton.keyEquivalent = button.keyEquivalent;
 	    touchButton.translatesAutoresizingMaskIntoConstraints = NO;
 	    [touchButton.widthAnchor
 		constraintLessThanOrEqualToConstant:120].active = YES;
-	    [touchButton.topAnchor
-		constraintEqualToAnchor:documentView.topAnchor].active = YES;
-	    if (prev == nil)
-	      [documentView.trailingAnchor
-		  constraintEqualToAnchor:touchButton.trailingAnchor].active =
-		YES;
-	    else
-	      [prev.leadingAnchor
-		  constraintEqualToAnchor:touchButton.trailingAnchor
-		  constant:8].active = YES;
-	    prev = touchButton;
+	    [touchButtons insertObject:touchButton atIndex:0];
 	  }
-      if (prev)
-	[documentView.leadingAnchor
-	    constraintEqualToAnchor:prev.leadingAnchor].active = YES;
 
       scrollView = [[NSScrollView alloc] init];
-      contentView = [[EmacsTouchBarItemClipView alloc] init];
-      scrollView.contentView = contentView;
-      scrollView.documentView = documentView;
-      documentView.translatesAutoresizingMaskIntoConstraints = NO;
-      [documentView.trailingAnchor
+      stackView = [NS_STACK_VIEW stackViewWithViews:touchButtons];
+      scrollView.documentView = stackView;
+      contentView = scrollView.contentView;
+      [stackView.trailingAnchor
 	  constraintEqualToAnchor:contentView.trailingAnchor].active = YES;
-      [documentView.topAnchor
+      [stackView.widthAnchor
+	  constraintGreaterThanOrEqualToAnchor:contentView.widthAnchor].active =
+	YES;
+      [stackView.topAnchor
 	  constraintEqualToAnchor:contentView.topAnchor].active = YES;
-      [documentView.bottomAnchor
+      [stackView.bottomAnchor
 	  constraintEqualToAnchor:contentView.bottomAnchor].active = YES;
-      MRC_RELEASE (contentView);
-      MRC_RELEASE (documentView);
 
       item = [[NS_CUSTOM_TOUCH_BAR_ITEM alloc] initWithIdentifier:identifier];
       item.view = scrollView;
@@ -9432,24 +9423,6 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 }
 
 @end				// EmacsDialogView
-
-@implementation EmacsTouchBarItemClipView
-
-- (NSRect)constrainBoundsRect:(NSRect)proposedBounds;
-{
-  CGFloat documentViewWidth, boundsWidth;
-
-  proposedBounds = [super constrainBoundsRect:proposedBounds];
-  documentViewWidth = NSWidth (((NSView *) self.documentView).frame);
-  boundsWidth = NSWidth (proposedBounds);
-
-  if (documentViewWidth < boundsWidth)
-    proposedBounds.origin.x = (boundsWidth - documentViewWidth) / 2;
-
-  return proposedBounds;
-}
-
-@end				// EmacsTouchBarItemClipView
 
 static void
 pop_down_dialog (Lisp_Object arg)
