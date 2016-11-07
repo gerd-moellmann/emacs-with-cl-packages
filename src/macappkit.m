@@ -9371,9 +9371,10 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 
   if ([identifier isEqualToString:EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG])
     {
-      NSView *documentView = [[NSView alloc] init], *contentView;
+      NSView *documentView = [[NSView alloc] init];
       NSButton *prev = nil;
       NSScrollView *scrollView;
+      EmacsTouchBarItemClipView *contentView;
       NSCustomTouchBarItem *item;
 
       for (NSView *view in self.subviews)
@@ -9408,16 +9409,17 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 	    constraintEqualToAnchor:prev.leadingAnchor].active = YES;
 
       scrollView = [[NSScrollView alloc] init];
-      scrollView.contentView = MRC_AUTORELEASE ([[EmacsTouchBarItemClipView alloc] init]);
+      contentView = [[EmacsTouchBarItemClipView alloc] init];
+      scrollView.contentView = contentView;
       scrollView.documentView = documentView;
       documentView.translatesAutoresizingMaskIntoConstraints = NO;
-      contentView = scrollView.contentView;
       [documentView.trailingAnchor
 	  constraintEqualToAnchor:contentView.trailingAnchor].active = YES;
       [documentView.topAnchor
 	  constraintEqualToAnchor:contentView.topAnchor].active = YES;
       [documentView.bottomAnchor
 	  constraintEqualToAnchor:contentView.bottomAnchor].active = YES;
+      MRC_RELEASE (contentView);
       MRC_RELEASE (documentView);
 
       item = [[NS_CUSTOM_TOUCH_BAR_ITEM alloc] initWithIdentifier:identifier];
