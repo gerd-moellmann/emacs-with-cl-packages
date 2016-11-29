@@ -4731,7 +4731,7 @@ xpm_load (struct frame *f, struct image *img)
     }
 
 #ifdef USE_CAIRO
-  // Load very specific Xpm:s.
+  /* Load very specific Xpm:s.  */
   if (rc == XpmSuccess
       && img->ximg->format == ZPixmap
       && img->ximg->bits_per_pixel == 32
@@ -4755,7 +4755,7 @@ xpm_load (struct frame *f, struct image *img)
               int maskidx = mid ? i * img->mask_img->bytes_per_line + k/8 : 0;
               int mask = mid ? mid[maskidx] & (1 << (k % 8)) : 1;
 
-              if (mask) od[idx] = id[idx] + 0xff000000; // ff => full alpha
+              if (mask) od[idx] = id[idx] + 0xff000000; /* ff => full alpha */
               else od[idx] = bgcolor;
             }
         }
@@ -10367,9 +10367,26 @@ svg_image_p (Lisp_Object object)
 }
 
 #ifdef HAVE_RSVG
+/* Some versions of glib's gatomic.h define MemoryBarrier, but MinGW
+   w32api 3.18 and later has its own definition.  The following gross
+   hack avoids the clash.  */
+# ifdef WINDOWSNT
+#  if (__W32API_MAJOR_VERSION + (__W32API_MINOR_VERSION >= 18)) >= 4
+#   define W32_SAVE_MINGW_VERSION __MINGW_MAJOR_VERSION
+#   undef __MINGW_MAJOR_VERSION
+#   define __MINGW_MAJOR_VERSION 4
+#  endif
+# endif
+
 # include <librsvg/rsvg.h>
 
 # ifdef WINDOWSNT
+
+# ifdef W32_SAVE_MINGW_VERSION
+#  undef __MINGW_MAJOR_VERSION
+#  define __MINGW_MAJOR_VERSION W32_SAVE_MINGW_VERSION
+#  undef W32_SAVE_MINGW_VERSION
+# endif
 
 /* SVG library functions.  */
 DEF_DLL_FN (RsvgHandle *, rsvg_handle_new, (void));
