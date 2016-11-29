@@ -113,7 +113,7 @@ am__v_at_1 =
 
 # ==================== Where To Install Things ====================
 
-# Location to install Emacs.app on Mac OS X
+# Location to install Emacs.app on macOS
 mac_appdir=@mac_appdir@
 
 # Location to install Emacs.app under GNUstep / macOS.

@@ -2448,7 +2448,7 @@ apply to.  Here are the possible values of @var{characteristic}:
 The kind of window system the terminal uses---either @code{graphic}
 (any graphics-capable display), @code{x}, @code{pc} (for the MS-DOS
 console), @code{w32} (for MS Windows 9X/NT/2K/XP), @code{mac} (for the
-Mac OS X display), or @code{tty} (a non-graphics-capable display).
+macOS display), or @code{tty} (a non-graphics-capable display).
 @xref{Window Systems, window-system}.
 
 @item class
@@ -6958,7 +6958,7 @@ Emacs is displaying the frame using X.
 @item w32
 Emacs is displaying the frame using native MS-Windows GUI.
 @item mac
-Emacs is displaying the frame using native Mac OS X GUI.
+Emacs is displaying the frame using native macOS GUI.
 @item ns
 Emacs is displaying the frame using the Nextstep interface (used on
 GNUstep and macOS).

@@ -541,7 +541,7 @@ x_free_gc (struct frame *f, GC gc)
 #endif  /* HAVE_NTGUI */
 
 #ifdef HAVE_MACGUI
-/* Mac OS emulation of GCs */
+/* macOS emulation of GCs */
 
 static GC
 x_create_gc (struct frame *f, unsigned long mask, XGCValues *xgcv)

@@ -49,7 +49,7 @@ tparam (const char *string, char *outstring, int len,
   return tparam1 (string, outstring, len, NULL, NULL, arg);
 }
 
-/* These are already defined in the System framework in Mac OS X and
+/* These are already defined in the System framework in macOS and
    cause prebinding to fail.  */
 #ifndef DARWIN_OS
 char *BC;

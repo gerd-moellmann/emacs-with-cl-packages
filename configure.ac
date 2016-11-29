@@ -342,8 +342,8 @@ OPTION_DEFAULT_ON([toolkit-scroll-bars],[don't use Motif or Xaw3d scroll bars])
 OPTION_DEFAULT_ON([xaw3d],[don't use Xaw3d])
 OPTION_DEFAULT_ON([xim],[don't use X11 XIM])
 AC_ARG_WITH([mac],[AS_HELP_STRING([--with-mac],
-[use GUI on Mac OS X.
-On by default on Mac OS X.])],[],[with_mac=maybe])
+[use GUI on macOS.
+On by default on macOS.])],[],[with_mac=maybe])
 OPTION_DEFAULT_OFF([ns],[use Nextstep (macOS Cocoa or GNUstep) windowing system.])
 OPTION_DEFAULT_OFF([w32], [use native MS Windows GUI in a Cygwin build])
 
@@ -413,7 +413,7 @@ esac
 
 AC_ARG_ENABLE(mac-app,
 [AS_HELP_STRING([--enable-mac-app@<:@=DIR@:>@],
-                [specify install directory for Emacs.app on Mac OS X
+                [specify install directory for Emacs.app on macOS
 		 [DIR=/Application]])],
 [ mac_appdir_x=${enableval}])
 
@@ -3589,9 +3589,9 @@ dnl Check for malloc/malloc.h on darwin
 AC_CHECK_HEADERS_ONCE(malloc/malloc.h)
 
 MAC_CFLAGS=
-### Use Mac OS X GUI.
+### Use macOS GUI.
 if test "${HAVE_MACGUI}" = "yes"; then
-  AC_DEFINE(HAVE_MACGUI, 1, [Define to 1 if you are using GUI on Mac OS X.])
+  AC_DEFINE(HAVE_MACGUI, 1, [Define to 1 if you are using GUI on macOS.])
   AC_DEFINE(HAVE_SOUND, 1, [Define to 1 if you have sound support.])
   MAC_CFLAGS="-fconstant-cfstrings"
   ## Specify the install directory
@@ -3604,7 +3604,7 @@ if test "${HAVE_MACGUI}" = "yes"; then
   fi
   # We also have mouse menus.
   HAVE_MENUS=yes
-  # Tell src/Makefile.in to create files in the Mac OS X application
+  # Tell src/Makefile.in to create files in the macOS application
   # bundle mac/Emacs.app.
   OTHER_FILES=macosx-app
 fi

@@ -1,4 +1,4 @@
-/* Definitions and headers for AppKit framework on the Mac OS.
+/* Definitions and headers for AppKit framework on macOS.
    Copyright (C) 2008-2016  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.

@@ -1,4 +1,4 @@
-/* Implementation of GUI terminal on the Mac OS.
+/* Implementation of GUI terminal on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
    Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
 

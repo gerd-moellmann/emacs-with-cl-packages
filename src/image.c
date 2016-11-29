@@ -139,7 +139,7 @@ static unsigned long *colors_in_color_table (int *n);
    the bitmaps yourself.  That is, creating a bitmap from the same
    data more than once will not be caught.  */
 
-/* For Mac OS X high resolution versions of images, the actual bitmap
+/* For macOS high resolution versions of images, the actual bitmap
    width/height (in pixels) is not necessarily the same as the logical
    image width/height (in points).  We should use the former for
    bitmap or pixel-level operations especially on postprocessing.
@@ -4900,7 +4900,7 @@ xpm_load (struct frame *f, struct image *img)
 
 #if defined (HAVE_MACGUI) || ( defined (HAVE_NS) && !defined (HAVE_XPM) )
 
-/* XPM support functions for Mac OS where libxpm is not available.
+/* XPM support functions for macOS where libxpm is not available.
    Only XPM version 3 (without any extensions) is supported.  */
 
 static void xpm_put_color_table_v (Lisp_Object, const unsigned char *,

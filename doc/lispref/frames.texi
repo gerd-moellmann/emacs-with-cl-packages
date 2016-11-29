@@ -56,7 +56,7 @@ The frame is displayed on an X graphical terminal.
 @item w32
 The frame is displayed on a MS-Windows graphical terminal.
 @item mac
-The frame is displayed on a Mac OS X graphical terminal.
+The frame is displayed on a macOS graphical terminal.
 @item ns
 The frame is displayed on a GNUstep or Macintosh Cocoa graphical
 terminal.
@@ -2708,8 +2708,8 @@ For backward compatibility, there are obsolete aliases
 names of @code{gui-get-selection} and @code{gui-set-selection} before
 Emacs 25.1.
 
-@cindex pasteboard support (for Mac OS X)
-On Mac OS X, selection-like data transfer between applications is
+@cindex pasteboard support (for macOS)
+On macOS, selection-like data transfer between applications is
 performed through a mechanism called @dfn{pasteboards}.  The clipboard
 is a particular pasteboard named @code{Apple CFPasteboard general}.
 Types of pasteboard data are called @dfn{pasteboard data types}, which
@@ -2726,9 +2726,9 @@ properties, respectively.
      @result{} "NSStringPboardType"
 @end example
 
-Conventionally, selection types for pasteboard data types on Mac OS X
-are named according to the identifiers defined in the NSPasteboard
-class, (e.g., @code{NSStringPboardType}, @code{NSTIFFPboardType}, and
+Conventionally, selection types for pasteboard data types on macOS are
+named according to the identifiers defined in the NSPasteboard class,
+(e.g., @code{NSStringPboardType}, @code{NSTIFFPboardType}, and
 @code{NSFilenamesPboardType}).
 
 @node Drag and Drop

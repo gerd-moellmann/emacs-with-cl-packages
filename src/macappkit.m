@@ -1,4 +1,4 @@
-/* Functions for GUI implemented with Cocoa AppKit on the Mac OS.
+/* Functions for GUI implemented with Cocoa AppKit on macOS.
    Copyright (C) 2008-2016  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.

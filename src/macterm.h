@@ -1,4 +1,4 @@
-/* Display module for Mac OS.
+/* Display module for macOS.
    Copyright (C) 2000-2008 Free Software Foundation, Inc.
    Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
 
@@ -380,7 +380,7 @@ struct scroll_bar {
 #define HOURGLASS_RIGHT_MARGIN (32)
 
 /* Some constants that are used locally.  */
-/* Creator code for Emacs on Mac OS.  */
+/* Creator code for Emacs on macOS.  */
 enum {
   MAC_EMACS_CREATOR_CODE	= 'EMAx'
 };

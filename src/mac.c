@@ -1,4 +1,4 @@
-/* Unix emulation routines for GNU Emacs on the Mac OS.
+/* Unix emulation routines for GNU Emacs on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
    Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
 
@@ -3435,7 +3435,7 @@ init_mac_osx_environment (void)
 	CFRelease (session_dict);
     }
 
-  /* OS X doesn't set any environment variables for the locale when
+  /* macOS doesn't set any environment variables for the locale when
      run from the GUI. Get the locale from the OS and set LANG. */
   locale = CFLocaleCopyCurrent ();
   if (locale)

@@ -1,4 +1,4 @@
-/* Graphical user interface functions for Mac OS.
+/* Graphical user interface functions for macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
    Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
 
