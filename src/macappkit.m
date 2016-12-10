@@ -7853,8 +7853,11 @@ mac_run_loop_run_once (EventTimeout timeout)
   /* On macOS 10.12, the application sometimes becomes unresponsive to
      Dock icon clicks (though it reacts to Command-Tab) if we directly
      run a run loop and the application windows are covered by other
-     applications for a while.  */
-  if (timeout && ![NSApp isRunning])
+     applications for a while.  On the other hand, running application
+     seems to cause early exit from the run loop and thus waste of CPU
+     time on Mac OS X 10.7 - OS X 10.9 if tool bars are shown.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
+      && timeout && ![NSApp isRunning])
     [NSApp runTemporarilyWithBlock:^{
 	[[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
 				 beforeDate:expiration];
