@@ -587,17 +587,27 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 
 (defvar mac-auto-operator-composition-cache (make-hash-table :test 'equal))
 
-(defun mac-copy-gstring (gstring &optional prefix-len)
-  (or prefix-len (setq prefix-len (lgstring-char-len gstring)))
-  (let ((header (lgstring-header gstring))
-	(new-header (make-vector (1+ prefix-len) nil))
-	(new-gstring (make-vector (length gstring) nil)))
-    (dotimes (i (length new-header))
-      (aset new-header i (aref header i)))
-    (lgstring-set-header new-gstring new-header)
-    (dotimes (i prefix-len)
-      (lgstring-set-glyph new-gstring i
-			  (lglyph-copy (lgstring-glyph gstring i))))
+(defun mac-subgstring (gstring &optional from to)
+  (let ((size (lgstring-char-len gstring))
+        (header (lgstring-header gstring))
+        (new-gstring (make-vector (length gstring) nil))
+        (j 0))
+    (cond ((null from) (setq from 0))
+          ((< from 0) (setq from (+ from size))))
+    (cond ((null to) (setq to size))
+          ((< to 0) (setq to (+ to size))))
+    (lgstring-set-header new-gstring
+                         (vconcat (list (aref header 0))
+                                  (substring header (1+ from) (1+ to))))
+    (dotimes (i (lgstring-glyph-len gstring))
+      (let ((lglyph (lgstring-glyph gstring i)))
+        (when (and lglyph (<= from (lglyph-to lglyph))
+                   (< (lglyph-from lglyph) to))
+          (setq lglyph (lglyph-copy lglyph))
+          (lglyph-set-from-to lglyph (- (lglyph-from lglyph) from)
+                              (- (lglyph-to lglyph) from))
+          (lgstring-set-glyph new-gstring j lglyph)
+          (setq j (1+ j)))))
     new-gstring))
 
 (defun mac-gstring-prefix-p (gstring1 gstring2)
@@ -615,18 +625,23 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 
 (defun mac-auto-operator-composition-shape-gstring (gstring)
   "Like `font-shape-gstring', but return nil unless GSTRING is minimal.
-GSTRING is minimal if and only if none of its proper prefixes is
-shaped as a prefix of the shaped GSTRING."
+GSTRING is minimal if and only if the shaped GSTRING does not
+coincide with the concatenation of the shaped ones of any proper
+prefix of GSTRING and the corresponding suffix."
   (if (gethash (lgstring-header gstring) mac-auto-operator-composition-cache)
       nil
-    (let ((full (mac-font-gstring-shape-nocache (mac-copy-gstring gstring)))
+    (let ((full (mac-font-gstring-shape-nocache (mac-subgstring gstring)))
 	  (char-len (lgstring-char-len gstring))
 	  (i 1))
       (while (and full (< i char-len))
 	(let ((partial (mac-font-gstring-shape-nocache
-			(mac-copy-gstring gstring i))))
-	  (if (and partial (mac-gstring-prefix-p partial full))
-	      (setq full nil)))
+			(mac-subgstring gstring 0 i))))
+	  (when (and partial (mac-gstring-prefix-p partial full))
+            (setq partial (mac-font-gstring-shape-nocache
+                           (mac-subgstring gstring i)))
+            (if (and partial (mac-gstring-prefix-p partial
+                                                   (mac-subgstring full i)))
+                (setq full nil))))
 	(setq i (1+ i)))
       (if full
 	  (font-shape-gstring gstring)
