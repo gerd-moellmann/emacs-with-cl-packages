@@ -151,9 +151,10 @@ typedef id instancetype;
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
 @protocol NSTouchBarDelegate @end
+@class NSCandidateListTouchBarItem;
 #endif
 
-@interface EmacsApplication : NSApplication <NSTouchBarDelegate>
+@interface EmacsApplication : NSApplication
 @end
 
 @interface EmacsPosingWindow : NSWindow
@@ -384,7 +385,7 @@ typedef id instancetype;
 /* Class for Emacs view that also handles input events.  Used by
    ordinary frames.  */
 
-@interface EmacsMainView : EmacsView <NSTextInputClient>
+@interface EmacsMainView : EmacsView <NSTextInputClient, NSTouchBarDelegate>
 {
   /* Target object to which the EmacsMainView object sends
      actions.  */
@@ -425,6 +426,10 @@ typedef id instancetype;
 
   /* Stage of the last gesture event of type NSEventTypePressure.  */
   NSInteger pressureEventStage;
+
+  /* Touch bar item used for the candidate list.  Currently, only
+     candidates from input methods are displayed.  */
+  NSCandidateListTouchBarItem *candidateListTouchBarItem;
 }
 - (struct frame *)emacsFrame;
 - (id)target;
@@ -1026,10 +1031,14 @@ enum {
 typedef NSString * NSTouchBarItemIdentifier;
 
 @interface NSTouchBarItem : NSObject <NSCoding>
+- (instancetype)initWithIdentifier:(NSTouchBarItemIdentifier)identifier;
 @end
 
 @interface NSCustomTouchBarItem : NSTouchBarItem
 @property (retain) __kindof NSView *view;
+@end
+
+@interface NSCandidateListTouchBarItem : NSTouchBarItem
 @end
 
 @interface NSTouchBar : NSObject <NSCoding>

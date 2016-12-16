@@ -117,6 +117,7 @@ enum {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
 #define NS_TOUCH_BAR	NSTouchBar
 #define NS_CUSTOM_TOUCH_BAR_ITEM NSCustomTouchBarItem
+#define NS_CANDIDATE_LIST_TOUCH_BAR_ITEM	NSCandidateListTouchBarItem
 #define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER	\
   NSTouchBarItemIdentifierCharacterPicker
 #define NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST \
@@ -124,6 +125,8 @@ enum {
 #else
 #define NS_TOUCH_BAR	(NSClassFromString (@"NSTouchBar"))
 #define NS_CUSTOM_TOUCH_BAR_ITEM (NSClassFromString (@"NSCustomTouchBarItem"))
+#define NS_CANDIDATE_LIST_TOUCH_BAR_ITEM \
+  (NSClassFromString (@"NSCandidateListTouchBarItem"))
 #define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER \
   (@"NSTouchBarItemIdentifierCharacterPicker")
 #define NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST \
@@ -1095,18 +1098,6 @@ static bool mac_run_loop_running_once_p;
     doNotInstallDispatchSources = YES;
 }
 #endif
-
-- (NSTouchBar *)makeTouchBar
-{
-  NSTouchBar *mainBar = [[NS_TOUCH_BAR alloc] init];
-
-  mainBar.delegate = self;
-  mainBar.defaultItemIdentifiers =
-    [NSArray arrayWithObjects:NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER,
-	     NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST, nil];
-
-  return MRC_AUTORELEASE (mainBar);
-}
 
 @end				// EmacsApplication
 
@@ -4549,6 +4540,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
 #if !USE_ARC
+  [candidateListTouchBarItem release];
   [rawKeyEvent release];
   [markedText release];
   [super dealloc];
@@ -5246,6 +5238,10 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   inputEvent.timestamp = [[NSApp currentEvent] timestamp] * 1000;
   XSETFRAME (inputEvent.frame_or_window, f);
   [self sendAction:action to:target];
+  /* This is necessary for candidate selection from touch bar to be
+     responsive.  */
+  if (rawKeyEvent == nil)
+    [NSApp postDummyEvent];
 }
 
 - (void)setMarkedText:(id)aString selectedRange:(NSRange)selRange
@@ -5607,6 +5603,40 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 	 size change.  */
       [NSApp postDummyEvent];
     }
+}
+
+- (NSTouchBar *)makeTouchBar
+{
+  NSTouchBar *mainBar = [[NS_TOUCH_BAR alloc] init];
+
+  mainBar.delegate = self;
+  mainBar.defaultItemIdentifiers =
+    [NSArray arrayWithObjects:NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER,
+	     NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST, nil];
+
+  return MRC_AUTORELEASE (mainBar);
+}
+
+- (NSTouchBarItem *)touchBar:(NSTouchBar *)touchBar
+       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier;
+{
+  NSTouchBarItem *result = nil;
+
+  if ([identifier isEqualToString:NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST])
+    {
+      if (candidateListTouchBarItem == nil)
+	candidateListTouchBarItem =
+	  [[NS_CANDIDATE_LIST_TOUCH_BAR_ITEM alloc]
+	    initWithIdentifier:NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST];
+      result = candidateListTouchBarItem;
+    }
+
+  return result;
+}
+
+- (NSCandidateListTouchBarItem *)candidateListTouchBarItem
+{
+  return candidateListTouchBarItem;
 }
 
 @end				// EmacsMainView
