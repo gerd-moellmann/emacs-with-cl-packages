@@ -1297,8 +1297,8 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 	  goto OTHER;
 
 	mac_cgevent_to_input_event (cgevent, &inev);
-
-	[self storeEvent:&inev];
+	if (inev.kind != NO_EVENT)
+	  [self storeEvent:&inev];
       }
       break;
 
@@ -5084,8 +5084,8 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   inputEvent.arg = Qnil;
   XSETFRAME (inputEvent.frame_or_window, f);
   mac_cgevent_to_input_event (cgevent, &inputEvent);
-
-  [self sendAction:action to:target];
+  if (inputEvent.kind != NO_EVENT)
+    [self sendAction:action to:target];
 }
 
 - (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
@@ -8652,11 +8652,8 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	     is set when it is not a key equivalent.  But we keep this
 	     for binary compatibility.
 	     Update: this is necessary for passing Control-Tab to
-	     Emacs on Mac OS X 10.5 and later.
-	     Update: don't pass power button events (keyCode == 127)
-	     on OS X 10.9 and later.  */
-	  if ([theEvent keyCode] != 127)
-	    [firstResponder keyDown:theEvent];
+	     Emacs on Mac OS X 10.5 and later.  */
+	  [firstResponder keyDown:theEvent];
 
 	  return YES;
 	}
