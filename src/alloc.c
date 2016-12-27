@@ -5510,8 +5510,6 @@ total_bytes_of_live_objects (void)
 
 #ifdef HAVE_WINDOW_SYSTEM
 
-#ifndef HAVE_MACGUI
-
 /* Remove unmarked font-spec and font-entity objects from ENTRY, which is
    (DRIVER-TYPE NUM-FRAMES FONT-CACHE-DATA ...), and return changed entry.  */
 
@@ -5578,8 +5576,6 @@ compact_font_cache_entry (Lisp_Object entry)
   return entry;
 }
 
-#endif /* not HAVE_MACGUI */
-
 /* Compact font caches on all terminals and mark
    everything which is still here after compaction.  */
 
@@ -5591,7 +5587,6 @@ compact_font_caches (void)
   for (t = terminal_list; t; t = t->next_terminal)
     {
       Lisp_Object cache = TERMINAL_FONT_CACHE (t);
-#ifndef HAVE_MACGUI
       /* Inhibit compacting the caches if the user so wishes.  Some of
 	 the users don't mind a larger memory footprint, but do mind
 	 slower redisplay.  */
@@ -5603,7 +5598,6 @@ compact_font_caches (void)
 	  for (entry = XCDR (cache); CONSP (entry); entry = XCDR (entry))
 	    XSETCAR (entry, compact_font_cache_entry (XCAR (entry)));
 	}
-#endif /* not HAVE_MACGUI */
       mark_object (cache);
     }
 }

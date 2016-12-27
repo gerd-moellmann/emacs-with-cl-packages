@@ -5450,7 +5450,11 @@ and cannot switch to a smaller font for those characters, set
 this variable non-nil.
 Disabling compaction of font caches might enlarge the Emacs memory
 footprint in sessions that use lots of different fonts.  */);
+#ifndef HAVE_MACGUI
   inhibit_compacting_font_caches = 0;
+#else
+  inhibit_compacting_font_caches = 1;
+#endif
 
 #ifdef HAVE_WINDOW_SYSTEM
 #ifdef HAVE_FREETYPE
