@@ -2120,6 +2120,8 @@ modifiers, it changes the global tool-bar visibility setting."
 (defcustom mac-dnd-types-alist
   '(("NSFilenamesPboardType" . mac-dnd-handle-pasteboard-filenames)
 					; NSFilenamesPboardType
+    ("Apple URL pasteboard type" . dnd-handle-one-url)
+                                        ; NSURLPboardType
     ("NSStringPboardType" . mac-dnd-insert-pasteboard-string)
 					; NSStringPboardType
     ("NeXT TIFF v4.0 pasteboard type" . mac-dnd-insert-TIFF) ; NSTIFFPboardType

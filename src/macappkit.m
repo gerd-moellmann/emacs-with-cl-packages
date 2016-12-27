@@ -10373,7 +10373,8 @@ update_dragged_types (void)
 Lisp_Object
 mac_dnd_default_known_types (void)
 {
-  return list3 ([NSFilenamesPboardType UTF8LispString],
+  return list4 ([NSFilenamesPboardType UTF8LispString],
+		[NSURLPboardType UTF8LispString],
 		[NSStringPboardType UTF8LispString],
 		[NSTIFFPboardType UTF8LispString]);
 }
