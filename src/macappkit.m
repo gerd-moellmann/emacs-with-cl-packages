@@ -9827,101 +9827,6 @@ mac_print_frames_dialog (Lisp_Object frames)
 			  Selection support
 ***********************************************************************/
 
-@implementation NSPasteboard (Emacs)
-
-/* Writes LISPOBJECT of the specified DATATYPE to the pasteboard
-   server.  */
-
-- (BOOL)setLispObject:(Lisp_Object)lispObject forType:(NSString *)dataType
-{
-  BOOL result = NO;
-
-  if (dataType == nil)
-    return NO;
-
-  if ([dataType isEqualToString:NSFilenamesPboardType])
-    {
-      CFPropertyListRef propertyList =
-	cfproperty_list_create_with_lisp (lispObject);
-
-      result = [self setPropertyList:((__bridge id) propertyList)
-			     forType:dataType];
-      CFRelease (propertyList);
-    }
-  else if ([dataType isEqualToString:NSStringPboardType]
-	   || [dataType isEqualToString:NSTabularTextPboardType])
-    {
-      NSString *string = [NSString stringWithUTF8LispString:lispObject];
-
-      result = [self setString:string forType:dataType];
-    }
-  else if ([dataType isEqualToString:NSURLPboardType])
-    {
-      NSString *string = [NSString stringWithUTF8LispString:lispObject];
-      NSURL *url = [NSURL URLWithString:string];
-
-      if (url)
-	{
-	  [url writeToPasteboard:self];
-	  result = YES;
-	}
-    }
-  else
-    {
-      NSData *data = [NSData dataWithBytes:(SDATA (lispObject))
-			     length:(SBYTES (lispObject))];
-
-      result = [self setData:data forType:dataType];
-    }
-
-  return result;
-}
-
-/* Return the Lisp object for the specified DATATYPE.  */
-
-- (Lisp_Object)lispObjectForType:(NSString *)dataType
-{
-  Lisp_Object result = Qnil;
-
-  if (dataType == nil)
-    return Qnil;
-
-  if ([dataType isEqualToString:NSFilenamesPboardType])
-    {
-      id propertyList = [self propertyListForType:dataType];
-
-      if (propertyList)
-	result = cfobject_to_lisp ((__bridge CFTypeRef) propertyList,
-				   CFOBJECT_TO_LISP_FLAGS_FOR_EVENT, -1);
-    }
-  else if ([dataType isEqualToString:NSStringPboardType]
-	   || [dataType isEqualToString:NSTabularTextPboardType])
-    {
-      NSString *string = [self stringForType:dataType];
-
-      if (string)
-	result = [string UTF8LispString];
-    }
-  else if ([dataType isEqualToString:NSURLPboardType])
-    {
-      NSURL *url = [NSURL URLFromPasteboard:self];
-
-      if (url)
-	result = [[url absoluteString] UTF8LispString];
-    }
-  else
-    {
-      NSData *data = [self dataForType:dataType];
-
-      if (data)
-	result = [data lispString];
-    }
-
-  return result;
-}
-
-@end				// NSPasteboard (Emacs)
-
 /* Get a reference to the selection corresponding to the symbol SYM.
    The reference is set to *SEL, and it becomes NULL if there's no
    corresponding selection.  Clear the selection if CLEAR_P is
@@ -10004,36 +9909,7 @@ mac_get_selection_ownership_info (Selection sel)
 bool
 mac_valid_selection_value_p (Lisp_Object value, Lisp_Object target)
 {
-  NSString *dataType;
-
-  dataType = get_pasteboard_data_type_from_symbol (target, nil);
-  if (dataType == nil)
-    return false;
-
-  if ([dataType isEqualToString:NSFilenamesPboardType])
-    {
-      if (CONSP (value) && EQ (XCAR (value), Qarray)
-	  && VECTORP (XCDR (value)))
-	{
-	  Lisp_Object vector = XCDR (value);
-	  EMACS_INT i, size = ASIZE (vector);
-
-	  for (i = 0; i < size; i++)
-	    {
-	      Lisp_Object elem = AREF (vector, i);
-
-	      if (!(CONSP (elem) && EQ (XCAR (elem), Qstring)
-		    && STRINGP (XCDR (elem))))
-		break;
-	    }
-
-	  return i == size;
-	}
-    }
-  else
-    return STRINGP (value);
-
-  return false;
+  return STRINGP (value);
 }
 
 /* Put Lisp object VALUE to the selection SEL.  The target type is
@@ -10050,7 +9926,15 @@ mac_put_selection_value (Selection sel, Lisp_Object target, Lisp_Object value)
 
   [pboard addTypes:[NSArray arrayWithObject:dataType] owner:nil];
 
-  return [pboard setLispObject:value forType:dataType] ? noErr : noTypeErr;
+  if (dataType == nil)
+    return noTypeErr;
+  else
+    {
+      NSData *data = [NSData dataWithBytes:(SDATA (value))
+				    length:(SBYTES (value))];
+
+      return [pboard setData:data forType:dataType] ? noErr : noTypeErr;
+    }
 }
 
 /* Check if data for the target type TARGET is available in SEL.  */
@@ -10067,12 +9951,18 @@ mac_selection_has_target_p (Selection sel, Lisp_Object target)
 Lisp_Object
 mac_get_selection_value (Selection sel, Lisp_Object target)
 {
+  Lisp_Object result = Qnil;
   NSString *dataType = get_pasteboard_data_type_from_symbol (target, sel);
 
-  if (dataType == nil)
-    return Qnil;
+  if (dataType)
+    {
+      NSData *data = [(__bridge NSPasteboard *)sel dataForType:dataType];
 
-  return [(__bridge NSPasteboard *)sel lispObjectForType:dataType];
+      if (data)
+	result = [data lispString];
+    }
+
+  return result;
 }
 
 /* Get the list of target types in SEL.  The return value is a list of
@@ -10282,6 +10172,7 @@ drag_operation_to_actions (NSDragOperation operation)
   /* -[NSView registeredDraggedTypes] is available only on 10.4 and later.  */
   NSString *type = [pboard availableTypeFromArray:registered_dragged_types];
   NSDragOperation operation = [sender draggingSourceOperationMask];
+  NSData *data;
   Lisp_Object arg;
 
   [self setDragHighlighted:NO];
@@ -10289,7 +10180,11 @@ drag_operation_to_actions (NSDragOperation operation)
   if (type == nil)
     return NO;
 
-  arg = list2 (QCdata, [pboard lispObjectForType:type]);
+  data = [pboard dataForType:type];
+  if (data == nil)
+    return NO;
+
+  arg = list2 (QCdata, [data lispString]);
   arg = Fcons (QCactions, Fcons (drag_operation_to_actions (operation), arg));
   arg = Fcons (QCtype, Fcons ([type UTF8LispString], arg));
 
@@ -10374,7 +10269,7 @@ Lisp_Object
 mac_dnd_default_known_types (void)
 {
   return list4 ([NSFilenamesPboardType UTF8LispString],
-		[NSURLPboardType UTF8LispString],
+		[(__bridge NSString *)kUTTypeURL UTF8LispString],
 		[NSStringPboardType UTF8LispString],
 		[NSTIFFPboardType UTF8LispString]);
 }

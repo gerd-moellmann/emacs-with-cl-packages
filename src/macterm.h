@@ -530,7 +530,6 @@ extern Lisp_Object cfboolean_to_lisp (CFBooleanRef);
 extern Lisp_Object cfobject_desc_to_lisp (CFTypeRef);
 extern Lisp_Object cfobject_to_lisp (CFTypeRef, int, int);
 extern Lisp_Object cfproperty_list_to_lisp (CFPropertyListRef, int, int);
-extern CFPropertyListRef cfproperty_list_create_with_lisp (Lisp_Object);
 extern Lisp_Object cfproperty_list_to_string (CFPropertyListRef,
 					      CFPropertyListFormat);
 extern CFPropertyListRef cfproperty_list_create_with_string (Lisp_Object);

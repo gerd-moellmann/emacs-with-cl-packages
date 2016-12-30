@@ -716,6 +716,8 @@ language."
 
 (declare-function mac-code-convert-string "mac.c"
 		  (string source target &optional normalization-form))
+(declare-function mac-convert-property-list "mac.c"
+                  (property-list &optional format hash-bound))
 
 (defun mac-utxt-to-string (data &optional coding-system source-encoding)
   (or coding-system (setq coding-system mac-system-coding-system))
@@ -789,21 +791,14 @@ language."
     (or data (encode-coding-string string 'utf-8))))
 
 (defun mac-pasteboard-filenames-to-file-urls (data)
-  ;; DATA is a property list (in Foundation terminology) of the form
-  ;; (array . [(string . FILENAME1) ... (string . FILENAMEn)]), where
-  ;; each FILENAME is a unibyte string in UTF-8.
-  (when (eq (car-safe data) 'array)
-    (let ((coding (or file-name-coding-system default-file-name-coding-system)))
-      (mapcar
-       (lambda (tag-data)
-	 (when (eq (car tag-data) 'string)
-	   (let ((filename (encode-coding-string
-			    (mac-pasteboard-string-to-string (cdr tag-data))
-			    coding)))
-	     (concat "file://localhost"
-		     (mapconcat 'url-hexify-string
-				(split-string filename "/") "/")))))
-       (cdr data)))))
+  (setq data (mac-convert-property-list data))
+  (when (vectorp data)
+    (mapcar (lambda (filename)
+              (when (stringp filename)
+                (concat "file://localhost"
+                        (mapconcat 'url-hexify-string
+                                   (split-string filename "/") "/"))))
+     data)))
 
 
 ;;;; Selections
@@ -869,8 +864,8 @@ language."
 (defun mac-select-convert-to-pasteboard-filenames (selection type value)
   (let ((filename (xselect-convert-to-filename selection type value)))
     (and filename
-	 (setq filename (mac-string-to-pasteboard-string filename))
-	 (cons type `(array . [(string . ,filename)])))))
+	 (cons type (mac-convert-property-list `(array . [(string . ,filename)])
+                                               'xml1)))))
 
 (setq selection-converter-alist
       (nconc
@@ -2120,8 +2115,7 @@ modifiers, it changes the global tool-bar visibility setting."
 (defcustom mac-dnd-types-alist
   '(("NSFilenamesPboardType" . mac-dnd-handle-pasteboard-filenames)
 					; NSFilenamesPboardType
-    ("Apple URL pasteboard type" . dnd-handle-one-url)
-                                        ; NSURLPboardType
+    ("public.url" . dnd-handle-one-url) ; kUTTypeURL
     ("NSStringPboardType" . mac-dnd-insert-pasteboard-string)
 					; NSStringPboardType
     ("NeXT TIFF v4.0 pasteboard type" . mac-dnd-insert-TIFF) ; NSTIFFPboardType

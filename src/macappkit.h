@@ -654,11 +654,6 @@ typedef id instancetype;
 - (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
 @end
 
-@interface NSPasteboard (Emacs)
-- (BOOL)setLispObject:(Lisp_Object)lispObject forType:(NSString *)dataType;
-- (Lisp_Object)lispObjectForType:(NSString *)dataType;
-@end
-
 @interface NSAppleEventDescriptor (Emacs)
 - (OSErr)copyDescTo:(AEDesc *)desc;
 @end

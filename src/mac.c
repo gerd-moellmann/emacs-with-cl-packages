@@ -1367,7 +1367,7 @@ cfproperty_list_create_with_lisp_1 (Lisp_Object obj,
 /* Create CFPropertyList from a Lisp object OBJ, which must be a form
    of a return value of cfproperty_list_to_lisp with with_tag set.  */
 
-CFPropertyListRef
+static CFPropertyListRef
 cfproperty_list_create_with_lisp (Lisp_Object obj)
 {
   struct bstree_node *root = NULL;
