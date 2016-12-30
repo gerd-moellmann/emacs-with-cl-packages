@@ -1653,7 +1653,6 @@ If the value is non-nil and not a number, we wait 2 seconds."
   (let ((candidates '())
         (max (length typed))
         (len 1)
-        (use-polling (and (null (car (current-input-mode))) throw-on-input))
         binding)
     (while (and (not binding)
                 (progn
@@ -1664,11 +1663,7 @@ If the value is non-nil and not a number, we wait 2 seconds."
                   ;; Don't show the help message if the binding isn't
                   ;; significantly shorter than the M-x command the user typed.
                   (< len (- max 5))))
-      ;; On non-interrupt-driven systems, while-no-input polls for
-      ;; input every `polling-period' (default 2) seconds, and that is
-      ;; not frequent enough.  So we call input-pending-p manually.
-      (if use-polling
-          (input-pending-p))
+      (input-pending-p)    ;Dummy call to trigger input-processing, bug#23002.
       (let ((candidate (pop candidates)))
         (when (equal name
                        (car-safe (completion-try-completion

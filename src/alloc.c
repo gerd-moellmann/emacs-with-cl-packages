@@ -1418,8 +1418,8 @@ lmalloc (size_t size)
       if (laligned (p, size))
 	break;
       free (p);
-      size_t bigger;
-      if (! INT_ADD_WRAPV (size, GCALIGNMENT, &bigger))
+      size_t bigger = size + GCALIGNMENT;
+      if (size < bigger)
 	size = bigger;
     }
 
@@ -1435,8 +1435,8 @@ lrealloc (void *p, size_t size)
       p = realloc (p, size);
       if (laligned (p, size))
 	break;
-      size_t bigger;
-      if (! INT_ADD_WRAPV (size, GCALIGNMENT, &bigger))
+      size_t bigger = size + GCALIGNMENT;
+      if (size < bigger)
 	size = bigger;
     }
 
