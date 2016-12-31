@@ -893,7 +893,7 @@ Lisp_Object
 cfnumber_to_lisp (CFNumberRef number)
 {
   Lisp_Object result = Qnil;
-#if BITS_PER_EMACS_INT > 32
+#if EMACS_INT_MAX >> 31 != 0
   SInt64 int_val;
   CFNumberType emacs_int_type = kCFNumberSInt64Type;
 #else
