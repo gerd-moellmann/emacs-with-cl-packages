@@ -529,8 +529,6 @@ mac_coerce_file_name_ptr (DescType type_code, const void *data_ptr,
     /* Coercion to undecoded file name.  */
     {
       CFURLRef url = NULL;
-      CFStringRef str = NULL;
-      CFDataRef data = NULL;
 
       if (type_code == typeFileURL)
 	{
@@ -560,21 +558,14 @@ mac_coerce_file_name_ptr (DescType type_code, const void *data_ptr,
 	}
       if (url)
 	{
-	  str = CFURLCopyFileSystemPath (url, kCFURLPOSIXPathStyle);
+	  char buf[MAXPATHLEN];
+
+	  if (CFURLGetFileSystemRepresentation (url, true, (UInt8 *) buf,
+						sizeof (buf)))
+	    err = AECreateDesc (TYPE_FILE_NAME, buf, strlen (buf), result);
+	  else
+	    err = errAECoercionFail;
 	  CFRelease (url);
-	}
-      if (str)
-	{
-	  data = CFStringCreateExternalRepresentation (NULL, str,
-						       kCFStringEncodingUTF8,
-						       '\0');
-	  CFRelease (str);
-	}
-      if (data)
-	{
-	  err = AECreateDesc (TYPE_FILE_NAME, CFDataGetBytePtr (data),
-			      CFDataGetLength (data), result);
-	  CFRelease (data);
 	}
     }
   else
