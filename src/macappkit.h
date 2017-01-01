@@ -1,5 +1,5 @@
 /* Definitions and headers for AppKit framework on macOS.
-   Copyright (C) 2008-2016  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2017  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
