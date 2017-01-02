@@ -2113,13 +2113,14 @@ modifiers, it changes the global tool-bar visibility setting."
 ;;;; Drag and drop
 
 (defcustom mac-dnd-types-alist
-  '(("NSFilenamesPboardType" . mac-dnd-handle-pasteboard-filenames)
-					; NSFilenamesPboardType
-    ("public.url" . dnd-handle-one-url) ; kUTTypeURL
-    ("NSStringPboardType" . mac-dnd-insert-pasteboard-string)
-					; NSStringPboardType
-    ("NeXT TIFF v4.0 pasteboard type" . mac-dnd-insert-TIFF) ; NSTIFFPboardType
-    )
+  '(("public.file-url" ; kUTTypeFileURL (which confirms to kUTTypeURL)
+     . mac-dnd-handle-file-url)
+    ("public.url"                       ; kUTTypeURL
+     . dnd-handle-one-url)
+    ("public.utf8-plain-text"           ; NSPasteboardTypeString
+     . mac-dnd-insert-pasteboard-string)
+    ("public.tiff"                      ; NSPasteboardTypeTIFF
+     . mac-dnd-insert-TIFF))
   "Which function to call to handle a drop of that type.
 The function takes three arguments, WINDOW, ACTION and DATA.
 WINDOW is where the drop occurred, ACTION is always `private' on
@@ -2127,13 +2128,20 @@ Mac.  DATA is the drop data.  Unlike the x-dnd counterpart, the
 return value of the function is not significant.
 
 See also `mac-dnd-known-types'."
-  :version "22.1"
+  :version "25.2"
   :type 'alist
   :group 'mac)
 
-(defun mac-dnd-handle-pasteboard-filenames (window action data)
-  (dolist (file-url (mac-pasteboard-filenames-to-file-urls data))
-    (dnd-handle-one-url window action (dnd-get-local-file-uri file-url))))
+(defun mac-dnd-handle-file-url (window action data)
+  "Like dnd-handle-one-url, but accepts a file reference URL as DATA.
+On OS X 10.10, drag-and-dropping file icons produces file
+reference URLs of the form \"file:///.file/id=...\"."
+  (let ((file-name (mac-coerce-ae-data "furl" data 'undecoded-file-name)))
+    (if file-name
+        (let ((file-url (concat "file://"
+                                (mapconcat 'url-hexify-string
+                                           (split-string file-name "/") "/"))))
+          (dnd-handle-one-url window action file-url)))))
 
 (defun mac-dnd-insert-TIFF (window action data)
   (dnd-insert-text window action (mac-TIFF-to-string data)))
@@ -2165,18 +2173,19 @@ See also `mac-dnd-known-types'."
 (defun mac-dnd-handle-drag-n-drop-event (event)
   "Receive drag and drop events."
   (interactive "e")
-  (let ((window (posn-window (event-start event)))
-	(ae (mac-event-ae event))
-	action)
+  (let* ((window (posn-window (event-start event)))
+         (plist (nth 2 event))
+         ;; The second element of a drag-n-drop event is of the form
+         ;; (:actions ACTION-LIST :items (ITEM0 ITEM1 ...)) where
+         ;; ITEMi is either (TYPE-STRING . DATA-STRING) or nil.
+         (actions (plist-get plist :actions))
+         (action (and (not (memq 'generic actions)) (memq 'copy actions)
+                      'copy)))
     (when (windowp window) (select-window window))
-    ;; NSPasteboard-style drag-n-drop event of the form:
-    ;; (:type TYPE-STRING :actions ACTION-LIST :data OBJECT)
-    (let ((type (plist-get ae :type))
-	  (actions (plist-get ae :actions))
-	  (data (plist-get ae :data)))
-      (if (and (not (memq 'generic actions)) (memq 'copy actions))
-	  (setq action 'copy))
-      (mac-dnd-drop-data event (selected-frame) window data type action))))
+    (dolist (type-data (plist-get plist :items))
+      (if type-data
+          (mac-dnd-drop-data event (selected-frame) window
+                             (cdr type-data) (car type-data) action)))))
 
 
 (defvar mac-popup-menu-add-contextual-menu)

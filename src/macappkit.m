@@ -10168,25 +10168,37 @@ drag_operation_to_actions (NSDragOperation operation)
 {
   struct frame *f = [self emacsFrame];
   NSPoint point = [self convertPoint:[sender draggingLocation] fromView:nil];
-  NSPasteboard *pboard = [sender draggingPasteboard];
-  /* -[NSView registeredDraggedTypes] is available only on 10.4 and later.  */
-  NSString *type = [pboard availableTypeFromArray:registered_dragged_types];
   NSDragOperation operation = [sender draggingSourceOperationMask];
-  NSData *data;
-  Lisp_Object arg;
+  Lisp_Object items = Qnil, arg;
+  BOOL hasItems = NO;
 
   [self setDragHighlighted:NO];
 
-  if (type == nil)
+  for (NSPasteboardItem *pi in [[sender draggingPasteboard] pasteboardItems])
+    {
+      Lisp_Object item = Qnil;
+      /* The elements in -[NSView registeredDraggedTypes] are in no
+	 particular order.  */
+      NSString *type = [pi availableTypeFromArray:registered_dragged_types];
+
+      if (type)
+	{
+	  NSData *data = [pi dataForType:type];
+
+	  if (data)
+	    {
+	      item = Fcons ([type UTF8LispString], [data lispString]);
+	      hasItems = YES;
+	    }
+	}
+      items = Fcons (item, items);
+    }
+
+  if (!hasItems)
     return NO;
 
-  data = [pboard dataForType:type];
-  if (data == nil)
-    return NO;
-
-  arg = list2 (QCdata, [data lispString]);
+  arg = list2 (QCitems, Fnreverse (items));
   arg = Fcons (QCactions, Fcons (drag_operation_to_actions (operation), arg));
-  arg = Fcons (QCtype, Fcons ([type UTF8LispString], arg));
 
   EVENT_INIT (inputEvent);
   inputEvent.kind = DRAG_N_DROP_EVENT;
@@ -10268,10 +10280,9 @@ update_dragged_types (void)
 Lisp_Object
 mac_dnd_default_known_types (void)
 {
-  return list4 ([NSFilenamesPboardType UTF8LispString],
-		[(__bridge NSString *)kUTTypeURL UTF8LispString],
-		[NSStringPboardType UTF8LispString],
-		[NSTIFFPboardType UTF8LispString]);
+  return list3 ([(__bridge NSString *)kUTTypeURL UTF8LispString],
+		[NSPasteboardTypeString UTF8LispString],
+		[NSPasteboardTypeTIFF UTF8LispString]);
 }
 
 

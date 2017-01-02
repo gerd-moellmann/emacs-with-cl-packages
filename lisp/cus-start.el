@@ -341,7 +341,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     ;; mac.c
 	     (mac-system-move-file-to-trash-use-finder mac boolean "23.4")
 	     ;; macselect.c
-	     (mac-dnd-known-types mac (repeat string) "22.1")
+	     (mac-dnd-known-types mac (repeat string) "25.2")
 	     ;; macterm.c
 	     (mac-control-modifier
 	      mac (choice (const :tag "No modifier" nil)

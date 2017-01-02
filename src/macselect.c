@@ -1142,6 +1142,7 @@ The types are chosen in the order they appear in the list.  */);
   DEFSYM (Qmac_apple_event_id, "mac-apple-event-id");
   DEFSYM (Qemacs_suspension_id, "emacs-suspension-id");
   DEFSYM (QCactions, ":actions");
+  DEFSYM (QCitems, ":items");
   DEFSYM (Qcopy, "copy");
   DEFSYM (Qlink, "link");
   DEFSYM (Qgeneric, "generic");
