@@ -790,15 +790,17 @@ language."
 			 (or encoding coding-system) 'utf-8)))))
     (or data (encode-coding-string string 'utf-8))))
 
+(defun mac-local-file-name-to-file-url (filename)
+  (concat "file://"
+          (mapconcat 'url-hexify-string (split-string filename "/") "/")))
+
 (defun mac-pasteboard-filenames-to-file-urls (data)
   (setq data (mac-convert-property-list data))
   (when (vectorp data)
     (mapcar (lambda (filename)
               (when (stringp filename)
-                (concat "file://localhost"
-                        (mapconcat 'url-hexify-string
-                                   (split-string filename "/") "/"))))
-     data)))
+                (mac-local-file-name-to-file-url filename)))
+            data)))
 
 
 ;;;; Selections
@@ -1066,12 +1068,9 @@ if possible.  If there's no such frame, a new frame is created."
   "Open the documents specified by the Apple event EVENT."
   (interactive "e")
   (let ((ae (mac-event-ae event)))
-    (dolist (file-name (mac-ae-list ae nil 'undecoded-file-name))
-      (if file-name
-	  (dnd-open-local-file
-	   (concat "file://"
-		   (mapconcat 'url-hexify-string
-			      (split-string file-name "/") "/")) nil)))
+    (dolist (filename (mac-ae-list ae nil 'undecoded-file-name))
+      (when filename
+        (dnd-open-local-file (mac-local-file-name-to-file-url filename) nil)))
     (let ((selection-range (mac-ae-selection-range ae))
 	  (search-text (mac-ae-text-for-search ae)))
       (cond (selection-range
@@ -2013,20 +2012,14 @@ modifiers, it changes the global tool-bar visibility setting."
 	(if (string-match "[^[:space:]\n][[:space:]\n]*\\'" data)
 	    (setq data (substring data 0 (1+ (match-beginning 0)))))
 	(when (file-name-absolute-p data)
-	  (let ((filename (expand-file-name data "/"))
-		(coding (or file-name-coding-system
-			    default-file-name-coding-system)))
+	  (let ((filename (expand-file-name data "/")))
 	    (unless (and (eq (aref data 0) ?~)
 			 (string-match "\\`/~" filename))
-	      (setq filename (encode-coding-string filename coding))
 	      (setq file-urls
-		    (list
-		     (concat "file://localhost"
-			     (mapconcat 'url-hexify-string
-					(split-string filename "/") "/")))))))))
+		    (list (mac-local-file-name-to-file-url filename))))))))
     (when file-urls
       (dolist (file-url file-urls)
-	(dnd-open-file file-url nil))
+	(dnd-open-local-file file-url nil))
       (select-frame-set-input-focus (selected-frame)))))
 
 (defun mac-service-open-selection ()
@@ -2136,11 +2129,9 @@ See also `mac-dnd-known-types'."
   "Like dnd-handle-one-url, but accepts a file reference URL as DATA.
 On OS X 10.10, drag-and-dropping file icons produces file
 reference URLs of the form \"file:///.file/id=...\"."
-  (let ((file-name (mac-coerce-ae-data "furl" data 'undecoded-file-name)))
-    (if file-name
-        (let ((file-url (concat "file://"
-                                (mapconcat 'url-hexify-string
-                                           (split-string file-name "/") "/"))))
+  (let ((filename (mac-coerce-ae-data "furl" data 'undecoded-file-name)))
+    (if filename
+        (let ((file-url (mac-local-file-name-to-file-url filename)))
           (dnd-handle-one-url window action file-url)))))
 
 (defun mac-dnd-insert-TIFF (window action data)
