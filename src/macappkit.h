@@ -609,14 +609,7 @@ typedef id instancetype;
 @interface EmacsSavePanel : NSSavePanel
 @end
 
-@interface EmacsOpenPanel : NSOpenPanel
-@end
-
 @interface EmacsFontDialogController : NSObject <NSWindowDelegate>
-@end
-
-@interface NSFontPanel (Emacs)
-- (NSInteger)runModal;
 @end
 
 @interface NSMenu (Emacs)

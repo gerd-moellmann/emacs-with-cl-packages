@@ -542,6 +542,15 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 
 @end				// NSApplication (Emacs)
 
+static void
+mac_within_app (void (^block) (void))
+{
+  if ([NSApp isRunning])
+    block ();
+  else
+    [NSApp runTemporarilyWithBlock:block];
+}
+
 @implementation NSScreen (Emacs)
 
 + (NSScreen *)screenContainingPoint:(NSPoint)aPoint
@@ -690,10 +699,7 @@ static void (*impOrderOut) (id, SEL, id);
 
 - (void)close
 {
-  if ([NSApp isRunning])
-    (*impClose) (self, _cmd);
-  else
-    [NSApp runTemporarilyWithBlock:^{(*impClose) (self, _cmd);}];
+  mac_within_app (^{(*impClose) (self, _cmd);});
 }
 
 /* Hide the receiver with running the main event loop if not.  Just
@@ -702,10 +708,7 @@ static void (*impOrderOut) (id, SEL, id);
 
 - (void)orderOut:(id)sender
 {
-  if ([NSApp isRunning])
-    (*impOrderOut) (self, _cmd, sender);
-  else
-    [NSApp runTemporarilyWithBlock:^{(*impOrderOut) (self, _cmd, sender);}];
+  mac_within_app (^{(*impOrderOut) (self, _cmd, sender);});
 }
 
 @end				// EmacsPosingWindow
@@ -1347,8 +1350,9 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
 - (int)handleQueuedNSEventsWithHoldingQuitIn:(struct input_event *)bufp
 {
-  if ([NSApp isRunning])
-    {
+  int __block result;
+
+  mac_within_app (^{
       /* Mac OS X 10.2 doesn't regard untilDate:nil as polling.  */
       NSDate *expiration = [NSDate distantPast];
       struct mac_display_info *dpyinfo = &one_mac_display_info;
@@ -1410,18 +1414,10 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
       hold_quit = NULL;
 
-      return count;
-    }
-  else
-    {
-      int __block result;
+      result = count;
+    });
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self handleQueuedNSEventsWithHoldingQuitIn:bufp];
-	}];
-
-      return result;
-    }
+  return result;
 }
 
 static BOOL
@@ -7887,11 +7883,11 @@ mac_run_loop_run_once (EventTimeout timeout)
      seems to cause early exit from the run loop and thus waste of CPU
      time on Mac OS X 10.7 - OS X 10.9 if tool bars are shown.  */
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
-      && timeout && ![NSApp isRunning])
-    [NSApp runTemporarilyWithBlock:^{
+      && timeout)
+    mac_within_app (^{
 	[[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
 				 beforeDate:expiration];
-      }];
+      });
   else
     [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
 			     beforeDate:expiration];
@@ -8158,25 +8154,6 @@ mac_hide_hourglass (struct frame *f)
 
 @implementation EmacsSavePanel
 
-/* Like the original runModal, but run the application event loop if
-   not.  */
-
-- (NSInteger)runModal
-{
-  if ([NSApp isRunning])
-    return [super runModal];
-  else
-    {
-      NSInteger __block response;
-
-      [NSApp runTemporarilyWithBlock:^{
-	  response = [self runModal];
-	}];
-
-      return response;
-    }
-}
-
 /* Simulate kNavDontConfirmReplacement.  */
 
 - (BOOL)_overwriteExistingFileCheck:(id)fp8
@@ -8185,29 +8162,6 @@ mac_hide_hourglass (struct frame *f)
 }
 
 @end				// EmacsSavePanel
-
-@implementation EmacsOpenPanel
-
-/* Like the original runModal, but run the application event loop if
-   not.  */
-
-- (NSInteger)runModal
-{
-  if ([NSApp isRunning])
-    return [super runModal];
-  else
-    {
-      NSInteger __block response;
-
-      [NSApp runTemporarilyWithBlock:^{
-	  response = [self runModal];
-	}];
-
-      return response;
-    }
-}
-
-@end				// EmacsOpenPanel
 
 /* The actual implementation of Fx_file_dialog.  */
 
@@ -8242,7 +8196,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
     {
       /* This is a save dialog */
       NSSavePanel *savePanel = [EmacsSavePanel savePanel];
-      NSInteger response;
+      NSInteger __block response;
 
       [savePanel setTitle:[NSString stringWithLispString:prompt]];
       [savePanel setPrompt:@"OK"];
@@ -8254,7 +8208,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 					    isDirectory:YES]];
       if (nondirectory)
 	[savePanel setNameFieldStringValue:nondirectory];
-      response = [savePanel runModal];
+      mac_within_app (^{response = [savePanel runModal];});
       if (response == NSFileHandlingPanelOKButton)
 	{
 	  NSURL *url = [savePanel URL];
@@ -8266,8 +8220,8 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
   else
     {
       /* This is an open dialog */
-      NSOpenPanel *openPanel = [EmacsOpenPanel openPanel];
-      NSInteger response;
+      NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+      NSInteger __block response;
 
       [openPanel setTitle:[NSString stringWithLispString:prompt]];
       [openPanel setPrompt:@"OK"];
@@ -8280,7 +8234,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
       if (nondirectory)
 	[openPanel setNameFieldStringValue:nondirectory];
       [openPanel setAllowedFileTypes:nil];
-      response = [openPanel runModal];
+      mac_within_app (^{response = [openPanel runModal];});
       if (response == NSModalResponseOK)
 	{
 	  NSURL *url = [[openPanel URLs] objectAtIndex:0];
@@ -8335,21 +8289,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 }
 
 @end				// EmacsFontDialogController
-
-@implementation NSFontPanel (Emacs)
-
-- (NSInteger)runModal
-{
-  NSInteger __block response;
-
-  [NSApp runTemporarilyWithBlock:^{
-      response = [NSApp runModalForWindow:self];
-    }];
-
-  return response;
-}
-
-@end				// NSFontPanel (Emacs)
 
 static NSView *
 create_ok_cancel_buttons_view (void)
@@ -8443,7 +8382,7 @@ mac_font_dialog (struct frame *f)
   BOOL savedIsMultiple;
   NSView *savedAccessoryView, *accessoryView;
   id savedDelegate, delegate;
-  NSInteger response;
+  NSInteger __block response;
 
   savedSelectedFont = [fontManager selectedFont];
   savedIsMultiple = [fontManager isMultiple];
@@ -8464,7 +8403,7 @@ mac_font_dialog (struct frame *f)
      resignFirstResponder] inside the modal loop.  */
   [fontPanel makeFirstResponder:accessoryView];
 
-  response = [fontPanel runModal];
+  mac_within_app (^{response = [NSApp runModalForWindow:fontPanel];});
   if (response != NSModalResponseAbort)
     {
       selectedFont = [fontManager convertFont:[fontManager selectedFont]];
@@ -8683,20 +8622,15 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
       if ([[theEvent charactersIgnoringModifiers] length] == 1
 	  && mac_keydown_cgevent_quit_p ([theEvent coreGraphicsEvent]))
 	{
-	  if ([NSApp isRunning])
-	    return [NSApp sendAction:@selector(cancel:) to:nil from:nil];
-	  else
-	    {
-	      /* This is necessary for avoiding hang when canceling
-		 pop-up dictionary with C-g on OS X 10.11.  */
-	      BOOL __block sent;
+	  /* This is necessary for avoiding hang when canceling
+	     pop-up dictionary with C-g on OS X 10.11.  */
+	  BOOL __block sent;
 
-	      [NSApp runTemporarilyWithBlock:^{
-		  sent = [NSApp sendAction:@selector(cancel:) to:nil from:nil];
-		}];
+	  mac_within_app (^{
+	      sent = [NSApp sendAction:@selector(cancel:) to:nil from:nil];
+	    });
 
-	      return sent;
-	    }
+	  return sent;
 	}
     }
 
@@ -8742,8 +8676,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 
 - (void)trackMenuBar
 {
-  if ([NSApp isRunning])
-    {
+  mac_within_app (^{
       /* Mac OS X 10.2 doesn't regard untilDate:nil as polling.  */
       NSDate *expiration = [NSDate distantPast];
 
@@ -8781,9 +8714,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 	}
 
       [emacsController updatePresentationOptions];
-    }
-  else
-    [NSApp runTemporarilyWithBlock:^{[self trackMenuBar];}];
+    });
 }
 
 - (NSMenu *)applicationDockMenu:(NSApplication *)sender
@@ -9600,9 +9531,9 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
 - (void)print:(id)sender
 {
-  [NSApp runTemporarilyWithBlock:^{
+  mac_within_app (^{
       [[NSPrintOperation printOperationWithView:self] runOperation];
-    }];
+    });
 }
 
 - (BOOL)knowsPageRange:(NSRangePointer)range
@@ -9758,9 +9689,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 void
 mac_page_setup_dialog (void)
 {
-  [NSApp runTemporarilyWithBlock:^{
-      [[NSPageLayout pageLayout] runModal];
-    }];
+  mac_within_app (^{[[NSPageLayout pageLayout] runModal];});
 }
 
 Lisp_Object
@@ -10676,21 +10605,21 @@ handle_action_invocation (NSInvocation *invocation)
 
 - (NSAppleEventDescriptor *)executeAndReturnError:(NSDictionaryOf (NSString *, id) **)errorInfo
 {
-  if (inhibit_window_system || [NSApp isRunning])
+  if (inhibit_window_system)
     return [super executeAndReturnError:errorInfo];
   else
     {
       NSAppleEventDescriptor * __block result;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self executeAndReturnError:&errorInfo1];
+      mac_within_app (^{
+	  result = [super executeAndReturnError:&errorInfo1];
 #if !USE_ARC
 	  if (result == nil)
 	    [errorInfo1 retain];
 	  [result retain];
 #endif
-	}];
+	});
 
       if (result == nil)
 	*errorInfo = MRC_AUTORELEASE (errorInfo1);
@@ -10701,7 +10630,7 @@ handle_action_invocation (NSInvocation *invocation)
 
 - (NSAppleEventDescriptor *)executeAndReturnDisplayValue:(NSAttributedString **)displayValue error:(NSDictionaryOf (NSString *, id) **)errorInfo
 {
-  if (inhibit_window_system || [NSApp isRunning])
+  if (inhibit_window_system)
     return [super executeAndReturnDisplayValue:displayValue error:errorInfo];
   else
     {
@@ -10709,9 +10638,9 @@ handle_action_invocation (NSInvocation *invocation)
       NSAttributedString * __block displayValue1;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self executeAndReturnDisplayValue:&displayValue1
-						error:&errorInfo1];
+      mac_within_app (^{
+	  result = [super executeAndReturnDisplayValue:&displayValue1
+						 error:&errorInfo1];
 #if !USE_ARC
 	  if (result)
 	    [displayValue1 retain];
@@ -10719,7 +10648,7 @@ handle_action_invocation (NSInvocation *invocation)
 	    [errorInfo1 retain];
 	  [result retain];
 #endif
-	}];
+	});
 
       if (result)
 	*displayValue = MRC_AUTORELEASE (displayValue1);
@@ -10732,21 +10661,21 @@ handle_action_invocation (NSInvocation *invocation)
 
 - (NSAppleEventDescriptor *)executeAppleEvent:(NSAppleEventDescriptor *)event error:(NSDictionaryOf (NSString *, id) **)errorInfo;
 {
-  if (inhibit_window_system || [NSApp isRunning])
+  if (inhibit_window_system)
     return [super executeAppleEvent:event error:errorInfo];
   else
     {
       NSAppleEventDescriptor * __block result;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self executeAppleEvent:event error:&errorInfo1];
+      mac_within_app (^{
+	  result = [super executeAppleEvent:event error:&errorInfo1];
 #if !USE_ARC
 	  if (result == nil)
 	    [errorInfo1 retain];
 	  [result retain];
 #endif
-	}];
+	});
 
       if (result == nil)
 	*errorInfo = MRC_AUTORELEASE (errorInfo1);
@@ -11221,8 +11150,9 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 
 - (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
 {
-  if ([NSApp isRunning])
-    {
+  bool __block result;
+
+  mac_within_app (^{
       NSRect frameRect;
       WebView *webView;
       WebFrame *mainFrame;
@@ -11296,7 +11226,8 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 	  MRC_RELEASE (webView);
 	  (*imageErrorFunc) ("Error reading SVG image `%s'", emacsImage->spec);
 
-	  return 0;
+	  result = 0;
+	  return;
 	}
 
       [webView setFrame:frameRect];
@@ -11322,7 +11253,8 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 	  MRC_RELEASE (webView);
 	  (*imageErrorFunc) ("Invalid image size (see `max-image-size')");
 
-	  return 0;
+	  result = 0;
+	  return;
 	}
 
       emacsImage->width = width;
@@ -11332,18 +11264,10 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 					     scaleFactor:scaleFactor];
       MRC_RELEASE (webView);
 
-      return 1;
-    }
-  else
-    {
-      bool __block result;
+      result = 1;
+    });
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self loadData:data backgroundColor:backgroundColor];
-	}];
-
-      return result;
-    }
+  return result;
 }
 
 - (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame
