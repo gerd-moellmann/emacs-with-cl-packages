@@ -1934,7 +1934,10 @@ modifiers, it changes the global tool-bar visibility setting."
   (let ((ae (mac-event-ae event)))
     (let ((frame (cdr (mac-ae-parameter ae 'frame)))
 	  (alist (cdr (mac-ae-parameter ae 'alist))))
-      (modify-frame-parameters frame alist))))
+      ;; macOS 10.12 sends this event for a dead frame when a tab in a
+      ;; full screen space is closed.
+      (if (frame-live-p frame)
+          (modify-frame-parameters frame alist)))))
 
 (define-key mac-apple-event-map [frame modify-frame-parameters]
  'mac-handle-modify-frame-parameters-event)
