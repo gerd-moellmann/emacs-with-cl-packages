@@ -1,6 +1,6 @@
 ;;; js.el --- Major mode for editing JavaScript  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2017 Free Software Foundation, Inc.
 
 ;; Author: Karl Landstrom <karl.landstrom@brgeight.se>
 ;;         Daniel Colascione <dan.colascione@gmail.com>
@@ -1757,6 +1757,10 @@ This performs fontification according to `js--class-styles'."
                (and (js--re-search-backward "[?:{]\\|\\_<case\\_>" nil t)
                     (eq (char-after) ??))))
          (not (and
+               (eq (char-after) ?/)
+               (save-excursion
+                 (eq (nth 3 (syntax-ppss)) ?/))))
+         (not (and
                (eq (char-after) ?*)
                ;; Generator method (possibly using computed property).
                (looking-at (concat "\\* *\\(?:\\[\\|" js--name-re " *(\\)"))
@@ -1847,7 +1851,8 @@ nil."
   "Helper function for `js--proper-indentation'.
 Return the proper indentation of the current line if it belongs to a declaration
 statement spanning multiple lines; otherwise, return nil."
-  (let (at-opening-bracket)
+  (let (forward-sexp-function ; Use Lisp version.
+        at-opening-bracket)
     (save-excursion
       (back-to-indentation)
       (when (not (looking-at js--declaration-keyword-re))
@@ -1924,6 +1929,7 @@ indentation is aligned to that column."
     (let ((bracket (nth 1 parse-status))
           declaration-keyword-end
           at-closing-bracket-p
+          forward-sexp-function ; Use Lisp version.
           comma-p)
       (when (looking-at js--declaration-keyword-re)
         (setq declaration-keyword-end (match-end 0))

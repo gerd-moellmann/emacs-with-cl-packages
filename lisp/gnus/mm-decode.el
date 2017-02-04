@@ -1,6 +1,6 @@
 ;;; mm-decode.el --- Functions for decoding MIME things
 
-;; Copyright (C) 1998-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2017 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	MORIOKA Tomohiko <morioka@jaist.ac.jp>
@@ -1910,8 +1910,6 @@ If RECURSIVE, search recursively."
 	 :help-echo (get-text-property start 'help-echo)
 	 :keymap (setq keymap (copy-keymap shr-map))
 	 (get-text-property start 'shr-url))
-	;; Remove keymap that `shr-urlify' adds.
-	(put-text-property start end 'keymap nil)
 	;; Mask keys that launch `widget-button-click'.
 	;; Those bindings are provided by `widget-keymap'
 	;; that is a parent of `gnus-article-mode-map'.

@@ -1,6 +1,6 @@
 ;;; tramp.el --- Transparent Remote Access, Multiple Protocol
 
-;; Copyright (C) 1998-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2017 Free Software Foundation, Inc.
 
 ;; Author: Kai Großjohann <kai.grossjohann@gmx.net>
 ;;         Michael Albinus <michael.albinus@gmx.de>
@@ -1018,7 +1018,7 @@ this variable to be set as well."
   :type '(choice (const nil) integer))
 
 ;; Logging in to a remote host normally requires obtaining a pty.  But
-;; Emacs on MacOS X has process-connection-type set to nil by default,
+;; Emacs on macOS has process-connection-type set to nil by default,
 ;; so on those systems Tramp doesn't obtain a pty.  Here, we allow
 ;; for an override of the system default.
 (defcustom tramp-process-connection-type t
@@ -4102,7 +4102,11 @@ this file, if that variable is non-nil."
 	      (file-exists-p tramp-auto-save-directory))
     (make-directory tramp-auto-save-directory t))
 
-  (let ((system-type 'not-windows)
+  (let ((system-type
+	 (if (and (stringp tramp-auto-save-directory)
+		  (file-remote-p tramp-auto-save-directory))
+	     'not-windows
+	   system-type))
 	(auto-save-file-name-transforms
 	 (if (and (null tramp-auto-save-directory)
 		  (boundp 'auto-save-file-name-transforms))

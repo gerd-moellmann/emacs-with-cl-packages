@@ -1,6 +1,6 @@
 ;;; f90.el --- Fortran-90 mode (free format)  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995-1997, 2000-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1997, 2000-2017 Free Software Foundation, Inc.
 
 ;; Author: Torbjörn Einarsson <Torbjorn.Einarsson@era.ericsson.se>
 ;; Maintainer: Glenn Morris <rgm@gnu.org>
@@ -895,8 +895,10 @@ Can be overridden by the value of `font-lock-maximum-decoration'.")
 
 ;; This is for a TYPE block, not a variable of derived TYPE.
 ;; Hence no need to add CLASS for F2003.
+;; Note that this also matches "type is", so you might need to use
+;; f90-typeis-re as well.
 (defconst f90-type-def-re
-  ;; type word
+  ;; type word    (includes "type is")
   ;; type :: word
   ;; type, attr-list :: word
   ;;   where attr-list = attr [, attr ...]
@@ -953,7 +955,7 @@ Used in the F90 entry in `hs-special-modes-alist'.")
    ;; Avoid F2003 "type is" in "select type",
    ;; and also variables of derived type "type (foo)".
    ;; "type, foo" must be a block (?).
-   "type[ \t,]\\("
+   "\\(?:type\\|class\\)[ \t,]\\("
    "[^i(!\n\"& \t]\\|"                 ; not-i(
    "i[^s!\n\"& \t]\\|"                 ; i not-s
    "is\\(?:\\sw\\|\\s_\\)\\)\\|"
@@ -1452,6 +1454,7 @@ if all else fails."
     (not (or (looking-at "end")
              (looking-at "\\(do\\|if\\|else\\(if\\|where\\)?\
 \\|select[ \t]*\\(case\\|type\\)\\|case\\|where\\|forall\\|\
+\\(?:class\\|type\\)[ \t]*is\\|\
 block\\|critical\\|enum\\|associate\\)\\_>")
              (looking-at "\\(program\\|\\(?:sub\\)?module\\|\
 \\(?:abstract[ \t]*\\)?interface\\|block[ \t]*data\\)\\_>")

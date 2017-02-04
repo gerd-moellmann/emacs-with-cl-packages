@@ -1,6 +1,6 @@
 ;;; tex-mode.el --- TeX, LaTeX, and SliTeX mode commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2016 Free
+;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2017 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -801,8 +801,7 @@ Not smaller than the value set by `tex-suscript-height-minimum'."
 (defvar tex-math-face 'tex-math)
 
 (defface tex-verbatim
-  ;; '((t :inherit font-lock-string-face))
-  '((t :family "courier"))
+  '((t :inherit fixed-pitch-serif))
   "Face used to highlight TeX verbatim environments."
   :group 'tex)
 (define-obsolete-face-alias 'tex-verbatim-face 'tex-verbatim "22.1")
@@ -870,7 +869,7 @@ START is the position of the \\ and DELIM is the delimiter char."
     (set-keymap-parent map text-mode-map)
     (tex-define-common-keys map)
     (define-key map "\"" 'tex-insert-quote)
-    (define-key map "\n" 'tex-terminate-paragraph)
+    (define-key map "\n" 'tex-handle-newline)
     (define-key map "\M-\r" 'latex-insert-item)
     (define-key map "\C-c}" 'up-list)
     (define-key map "\C-c{" 'tex-insert-braces)
@@ -1459,6 +1458,17 @@ area if a mismatch is found."
 	 (setq failure-point (point)))))
     (if failure-point (goto-char failure-point))
     (not failure-point)))
+
+(defun tex-handle-newline (inhibit-validation)
+  "Break a TeX paragraph with two newlines, or continue a comment.
+If not in a comment, insert two newlines, breaking a paragraph for TeX,
+and check for mismatched braces or $s in the paragraph being terminated
+unless prefix arg INHIBIT-VALIDATION is non-nil to inhibit the checking.
+Otherwise (in a comment), just insert a single continued comment line."
+  (interactive "*P")
+  (if (nth 4 (syntax-ppss)) ; non-nil if point is in a TeX comment
+      (comment-indent-new-line)
+    (tex-terminate-paragraph inhibit-validation)))
 
 (defun tex-terminate-paragraph (inhibit-validation)
   "Insert two newlines, breaking a paragraph for TeX.

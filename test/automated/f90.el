@@ -1,6 +1,6 @@
 ;;; f90.el --- tests for progmodes/f90.el
 
-;; Copyright (C) 2011-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2017 Free Software Foundation, Inc.
 
 ;; Author: Glenn Morris <rgm@gnu.org>
 
@@ -254,5 +254,23 @@ end program prog")
     (f90-indent-subprogram)
     (forward-line -2)
     (should (= 5 (current-indentation)))))
+
+(ert-deftest f90-test-bug25039 ()
+  "Test for http://debbugs.gnu.org/25039 ."
+  (with-temp-buffer
+    (f90-mode)
+    (insert "program prog
+select type (a)
+class is (c1)
+x = 1
+type is (t1)
+x = 2
+end select
+end program prog")
+    (f90-indent-subprogram)
+    (forward-line -3)
+    (should (= 2 (current-indentation))) ; type is
+    (forward-line -2)
+    (should (= 2 (current-indentation))))) ; class is
 
 ;;; f90.el ends here

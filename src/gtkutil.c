@@ -1,6 +1,6 @@
 /* Functions for creating and updating GTK widgets.
 
-Copyright (C) 2003-2016 Free Software Foundation, Inc.
+Copyright (C) 2003-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -185,7 +185,7 @@ xg_display_open (char *display_name, Display **dpy)
 {
   GdkDisplay *gdpy;
 
-  unrequest_sigio ();  // See comment in x_display_ok, xterm.c.
+  unrequest_sigio ();  /* See comment in x_display_ok, xterm.c.  */
   gdpy = gdk_display_open (display_name);
   request_sigio ();
   if (!gdpy_def && gdpy)
@@ -2370,7 +2370,7 @@ make_widget_for_menu_item (const char *utf8_label, const char *utf8_key)
    in the group.  On exit, *GROUP contains the radio item group.
 
    Unfortunately, keys don't line up as nicely as in Motif,
-   but the MacOS X version doesn't either, so I guess that is OK.  */
+   but the macOS version doesn't either, so I guess that is OK.  */
 
 static GtkWidget *
 make_menu_item (const char *utf8_label,

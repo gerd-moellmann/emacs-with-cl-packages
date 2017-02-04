@@ -1,6 +1,6 @@
 /* Evaluator for GNU Emacs Lisp interpreter.
 
-Copyright (C) 1985-1987, 1993-1995, 1999-2016 Free Software Foundation,
+Copyright (C) 1985-1987, 1993-1995, 1999-2017 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -298,6 +298,11 @@ call_debugger (Lisp_Object arg)
 	    debug_while_redisplaying ? Qnil : Qt);
   specbind (Qinhibit_redisplay, Qnil);
   specbind (Qinhibit_debugger, Qt);
+
+  /* If we are debugging an error while `inhibit-changing-match-data'
+     is bound to non-nil (e.g., within a call to `string-match-p'),
+     then make sure debugger code can still use match data.  */
+  specbind (Qinhibit_changing_match_data, Qnil);
 
 #if 0 /* Binding this prevents execution of Lisp code during
 	 redisplay, which necessarily leads to display problems.  */
@@ -699,10 +704,11 @@ can be referred to by the Emacs help facilities and other programming
 tools.  The `defvar' form also declares the variable as \"special\",
 so that it is always dynamically bound even if `lexical-binding' is t.
 
-The optional argument INITVALUE is evaluated, and used to set SYMBOL,
-only if SYMBOL's value is void.  If SYMBOL is buffer-local, its
-default value is what is set; buffer-local values are not affected.
-If INITVALUE is missing, SYMBOL's value is not set.
+If SYMBOL's value is void and the optional argument INITVALUE is
+provided, INITVALUE is evaluated and the result used to set SYMBOL's
+value.  If SYMBOL is buffer-local, its default value is what is set;
+buffer-local values are not affected.  If INITVALUE is missing,
+SYMBOL's value is not set.
 
 If SYMBOL has a local binding, then this form affects the local
 binding.  This is usually not what you want.  Thus, if you need to
@@ -2820,9 +2826,11 @@ funcall_lambda (Lisp_Object fun, ptrdiff_t nargs,
     {
       if (EQ (XCAR (fun), Qclosure))
 	{
-	  fun = XCDR (fun);	/* Drop `closure'.  */
+	  Lisp_Object cdr = XCDR (fun);	/* Drop `closure'.  */
+	  if (! CONSP (cdr))
+	    xsignal1 (Qinvalid_function, fun);
+	  fun = cdr;
 	  lexenv = XCAR (fun);
-	  CHECK_LIST_CONS (fun, fun);
 	}
       else
 	lexenv = Qnil;

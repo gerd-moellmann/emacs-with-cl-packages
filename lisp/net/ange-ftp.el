@@ -1,6 +1,6 @@
 ;;; ange-ftp.el --- transparent FTP support for GNU Emacs
 
-;; Copyright (C) 1989-1996, 1998, 2000-2016 Free Software Foundation,
+;; Copyright (C) 1989-1996, 1998, 2000-2017 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Andy Norman (ange@hplb.hpl.hp.com)
@@ -740,7 +740,7 @@ These mean that the FTP process should be (or already has been) killed."
   :type 'regexp)
 
 (defcustom ange-ftp-potential-error-msgs
-  ;; On Mac OS X we sometimes get things like:
+  ;; On macOS we sometimes get things like:
   ;;
   ;;     ftp> open ftp.nluug.nl
   ;;     Trying 2001:610:1:80aa:192:87:102:36...

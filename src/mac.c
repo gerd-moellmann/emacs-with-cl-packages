@@ -1,6 +1,6 @@
-/* Unix emulation routines for GNU Emacs on the Mac OS.
+/* Unix emulation routines for GNU Emacs on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2017  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -529,8 +529,6 @@ mac_coerce_file_name_ptr (DescType type_code, const void *data_ptr,
     /* Coercion to undecoded file name.  */
     {
       CFURLRef url = NULL;
-      CFStringRef str = NULL;
-      CFDataRef data = NULL;
 
       if (type_code == typeFileURL)
 	{
@@ -560,21 +558,14 @@ mac_coerce_file_name_ptr (DescType type_code, const void *data_ptr,
 	}
       if (url)
 	{
-	  str = CFURLCopyFileSystemPath (url, kCFURLPOSIXPathStyle);
+	  char buf[MAXPATHLEN];
+
+	  if (CFURLGetFileSystemRepresentation (url, true, (UInt8 *) buf,
+						sizeof (buf)))
+	    err = AECreateDesc (TYPE_FILE_NAME, buf, strlen (buf), result);
+	  else
+	    err = errAECoercionFail;
 	  CFRelease (url);
-	}
-      if (str)
-	{
-	  data = CFStringCreateExternalRepresentation (NULL, str,
-						       kCFStringEncodingUTF8,
-						       '\0');
-	  CFRelease (str);
-	}
-      if (data)
-	{
-	  err = AECreateDesc (TYPE_FILE_NAME, CFDataGetBytePtr (data),
-			      CFDataGetLength (data), result);
-	  CFRelease (data);
 	}
     }
   else
@@ -893,7 +884,7 @@ Lisp_Object
 cfnumber_to_lisp (CFNumberRef number)
 {
   Lisp_Object result = Qnil;
-#if BITS_PER_EMACS_INT > 32
+#if EMACS_INT_MAX >> 31 != 0
   SInt64 int_val;
   CFNumberType emacs_int_type = kCFNumberSInt64Type;
 #else
@@ -1367,7 +1358,7 @@ cfproperty_list_create_with_lisp_1 (Lisp_Object obj,
 /* Create CFPropertyList from a Lisp object OBJ, which must be a form
    of a return value of cfproperty_list_to_lisp with with_tag set.  */
 
-CFPropertyListRef
+static CFPropertyListRef
 cfproperty_list_create_with_lisp (Lisp_Object obj)
 {
   struct bstree_node *root = NULL;
@@ -3435,7 +3426,7 @@ init_mac_osx_environment (void)
 	CFRelease (session_dict);
     }
 
-  /* OS X doesn't set any environment variables for the locale when
+  /* macOS doesn't set any environment variables for the locale when
      run from the GUI. Get the locale from the OS and set LANG. */
   locale = CFLocaleCopyCurrent ();
   if (locale)

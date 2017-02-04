@@ -1,7 +1,7 @@
 /* sys/stat.h supplied with MSVCRT uses too narrow data types for
    inode and user/group id, so we replace them with our own.
 
-Copyright (C) 2008-2016 Free Software Foundation, Inc.
+Copyright (C) 2008-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -28,6 +28,14 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 /* Only MinGW 3.13 and later has __MINGW_NOTHROW.  */
 #ifndef __MINGW_NOTHROW
 # define __MINGW_NOTHROW
+#endif
+
+/* Prevent the MinGW stat.h header from being included, ever.  */
+#ifndef _SYS_STAT_H
+# define _SYS_STAT_H
+#endif
+#ifndef _INC_STAT_H
+# define _INC_STAT_H
 #endif
 
 #include <sys/types.h>

@@ -1,5 +1,5 @@
-/* Functions for GUI implemented with Cocoa AppKit on the Mac OS.
-   Copyright (C) 2008-2016  YAMAMOTO Mitsuharu
+/* Functions for GUI implemented with Cocoa AppKit on macOS.
+   Copyright (C) 2008-2017  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -107,6 +107,31 @@ enum {
   (CFOBJECT_TO_LISP_WITH_TAG					\
    | CFOBJECT_TO_LISP_DONT_DECODE_STRING			\
    | CFOBJECT_TO_LISP_DONT_DECODE_DICTIONARY_KEY)
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+#define NS_STACK_VIEW	NSStackView
+#else
+#define NS_STACK_VIEW	(NSClassFromString (@"NSStackView"))
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#define NS_TOUCH_BAR	NSTouchBar
+#define NS_CUSTOM_TOUCH_BAR_ITEM NSCustomTouchBarItem
+#define NS_CANDIDATE_LIST_TOUCH_BAR_ITEM	NSCandidateListTouchBarItem
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER	\
+  NSTouchBarItemIdentifierCharacterPicker
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST \
+  NSTouchBarItemIdentifierCandidateList
+#else
+#define NS_TOUCH_BAR	(NSClassFromString (@"NSTouchBar"))
+#define NS_CUSTOM_TOUCH_BAR_ITEM (NSClassFromString (@"NSCustomTouchBarItem"))
+#define NS_CANDIDATE_LIST_TOUCH_BAR_ITEM \
+  (NSClassFromString (@"NSCandidateListTouchBarItem"))
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER \
+  (@"NSTouchBarItemIdentifierCharacterPicker")
+#define NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST \
+  (@"NSTouchBarItemIdentifierCandidateList")
+#endif
 
 @implementation NSData (Emacs)
 
@@ -241,6 +266,10 @@ enum {
 - (NSEvent *)mouseEventByChangingType:(NSEventType)type
 			  andLocation:(NSPoint)location
 {
+  NSInteger clickCount = [self clickCount];
+
+  /* Dragging via Screen Sharing.app sets clickCount to 0, and it
+     disables updating screen during resize on macOS 10.12.  */
   return [NSEvent
 	   mouseEventWithType:type location:location
 		modifierFlags:[self modifierFlags]
@@ -251,7 +280,8 @@ enum {
 #else
 		      context:[self context]
 #endif
-		  eventNumber:[self eventNumber] clickCount:[self clickCount]
+		  eventNumber:[self eventNumber]
+		   clickCount:(clickCount ? clickCount : 1)
 		     pressure:[self pressure]];
 }
 
@@ -512,6 +542,15 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 
 @end				// NSApplication (Emacs)
 
+static void
+mac_within_app (void (^block) (void))
+{
+  if ([NSApp isRunning])
+    block ();
+  else
+    [NSApp runTemporarilyWithBlock:block];
+}
+
 @implementation NSScreen (Emacs)
 
 + (NSScreen *)screenContainingPoint:(NSPoint)aPoint
@@ -660,10 +699,7 @@ static void (*impOrderOut) (id, SEL, id);
 
 - (void)close
 {
-  if ([NSApp isRunning])
-    (*impClose) (self, _cmd);
-  else
-    [NSApp runTemporarilyWithBlock:^{(*impClose) (self, _cmd);}];
+  mac_within_app (^{(*impClose) (self, _cmd);});
 }
 
 /* Hide the receiver with running the main event loop if not.  Just
@@ -672,10 +708,7 @@ static void (*impOrderOut) (id, SEL, id);
 
 - (void)orderOut:(id)sender
 {
-  if ([NSApp isRunning])
-    (*impOrderOut) (self, _cmd, sender);
-  else
-    [NSApp runTemporarilyWithBlock:^{(*impOrderOut) (self, _cmd, sender);}];
+  mac_within_app (^{(*impOrderOut) (self, _cmd, sender);});
 }
 
 @end				// EmacsPosingWindow
@@ -1069,17 +1102,6 @@ static bool mac_run_loop_running_once_p;
 }
 #endif
 
-- (NSTouchBar *)makeTouchBar
-{
-  NSTouchBar *mainBar = [[(NSClassFromString (@"NSTouchBar")) alloc] init];
-
-  mainBar.delegate = self;
-  mainBar.defaultItemIdentifiers =
-    [NSArray arrayWithObject:@"NSTouchBarItemIdentifierCharacterPicker"];
-
-  return MRC_AUTORELEASE (mainBar);
-}
-
 @end				// EmacsApplication
 
 @implementation EmacsController
@@ -1278,8 +1300,8 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 	  goto OTHER;
 
 	mac_cgevent_to_input_event (cgevent, &inev);
-
-	[self storeEvent:&inev];
+	if (inev.kind != NO_EVENT)
+	  [self storeEvent:&inev];
       }
       break;
 
@@ -1328,8 +1350,9 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
 - (int)handleQueuedNSEventsWithHoldingQuitIn:(struct input_event *)bufp
 {
-  if ([NSApp isRunning])
-    {
+  int __block result;
+
+  mac_within_app (^{
       /* Mac OS X 10.2 doesn't regard untilDate:nil as polling.  */
       NSDate *expiration = [NSDate distantPast];
       struct mac_display_info *dpyinfo = &one_mac_display_info;
@@ -1391,18 +1414,10 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
       hold_quit = NULL;
 
-      return count;
-    }
-  else
-    {
-      int __block result;
+      result = count;
+    });
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self handleQueuedNSEventsWithHoldingQuitIn:bufp];
-	}];
-
-      return result;
-    }
+  return result;
 }
 
 static BOOL
@@ -4521,6 +4536,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
 #if !USE_ARC
+  [candidateListTouchBarItem release];
   [rawKeyEvent release];
   [markedText release];
   [super dealloc];
@@ -5064,8 +5080,8 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   inputEvent.arg = Qnil;
   XSETFRAME (inputEvent.frame_or_window, f);
   mac_cgevent_to_input_event (cgevent, &inputEvent);
-
-  [self sendAction:action to:target];
+  if (inputEvent.kind != NO_EVENT)
+    [self sendAction:action to:target];
 }
 
 - (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
@@ -5218,6 +5234,10 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   inputEvent.timestamp = [[NSApp currentEvent] timestamp] * 1000;
   XSETFRAME (inputEvent.frame_or_window, f);
   [self sendAction:action to:target];
+  /* This is necessary for candidate selection from touch bar to be
+     responsive.  */
+  if (rawKeyEvent == nil)
+    [NSApp postDummyEvent];
 }
 
 - (void)setMarkedText:(id)aString selectedRange:(NSRange)selRange
@@ -5579,6 +5599,40 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 	 size change.  */
       [NSApp postDummyEvent];
     }
+}
+
+- (NSTouchBar *)makeTouchBar
+{
+  NSTouchBar *mainBar = [[NS_TOUCH_BAR alloc] init];
+
+  mainBar.delegate = self;
+  mainBar.defaultItemIdentifiers =
+    [NSArray arrayWithObjects:NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER,
+	     NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST, nil];
+
+  return MRC_AUTORELEASE (mainBar);
+}
+
+- (NSTouchBarItem *)touchBar:(NSTouchBar *)touchBar
+       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier;
+{
+  NSTouchBarItem *result = nil;
+
+  if ([identifier isEqualToString:NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST])
+    {
+      if (candidateListTouchBarItem == nil)
+	candidateListTouchBarItem =
+	  [[NS_CANDIDATE_LIST_TOUCH_BAR_ITEM alloc]
+	    initWithIdentifier:NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST];
+      result = candidateListTouchBarItem;
+    }
+
+  return result;
+}
+
+- (NSCandidateListTouchBarItem *)candidateListTouchBarItem
+{
+  return candidateListTouchBarItem;
 }
 
 @end				// EmacsMainView
@@ -7825,12 +7879,15 @@ mac_run_loop_run_once (EventTimeout timeout)
   /* On macOS 10.12, the application sometimes becomes unresponsive to
      Dock icon clicks (though it reacts to Command-Tab) if we directly
      run a run loop and the application windows are covered by other
-     applications for a while.  */
-  if (timeout && ![NSApp isRunning])
-    [NSApp runTemporarilyWithBlock:^{
+     applications for a while.  On the other hand, running application
+     seems to cause early exit from the run loop and thus waste of CPU
+     time on Mac OS X 10.7 - OS X 10.9 if tool bars are shown.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
+      && timeout)
+    mac_within_app (^{
 	[[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
 				 beforeDate:expiration];
-      }];
+      });
   else
     [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
 			     beforeDate:expiration];
@@ -8097,25 +8154,6 @@ mac_hide_hourglass (struct frame *f)
 
 @implementation EmacsSavePanel
 
-/* Like the original runModal, but run the application event loop if
-   not.  */
-
-- (NSInteger)runModal
-{
-  if ([NSApp isRunning])
-    return [super runModal];
-  else
-    {
-      NSInteger __block response;
-
-      [NSApp runTemporarilyWithBlock:^{
-	  response = [self runModal];
-	}];
-
-      return response;
-    }
-}
-
 /* Simulate kNavDontConfirmReplacement.  */
 
 - (BOOL)_overwriteExistingFileCheck:(id)fp8
@@ -8124,29 +8162,6 @@ mac_hide_hourglass (struct frame *f)
 }
 
 @end				// EmacsSavePanel
-
-@implementation EmacsOpenPanel
-
-/* Like the original runModal, but run the application event loop if
-   not.  */
-
-- (NSInteger)runModal
-{
-  if ([NSApp isRunning])
-    return [super runModal];
-  else
-    {
-      NSInteger __block response;
-
-      [NSApp runTemporarilyWithBlock:^{
-	  response = [self runModal];
-	}];
-
-      return response;
-    }
-}
-
-@end				// EmacsOpenPanel
 
 /* The actual implementation of Fx_file_dialog.  */
 
@@ -8181,7 +8196,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
     {
       /* This is a save dialog */
       NSSavePanel *savePanel = [EmacsSavePanel savePanel];
-      NSInteger response;
+      NSInteger __block response;
 
       [savePanel setTitle:[NSString stringWithLispString:prompt]];
       [savePanel setPrompt:@"OK"];
@@ -8193,7 +8208,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 					    isDirectory:YES]];
       if (nondirectory)
 	[savePanel setNameFieldStringValue:nondirectory];
-      response = [savePanel runModal];
+      mac_within_app (^{response = [savePanel runModal];});
       if (response == NSFileHandlingPanelOKButton)
 	{
 	  NSURL *url = [savePanel URL];
@@ -8205,8 +8220,8 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
   else
     {
       /* This is an open dialog */
-      NSOpenPanel *openPanel = [EmacsOpenPanel openPanel];
-      NSInteger response;
+      NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+      NSInteger __block response;
 
       [openPanel setTitle:[NSString stringWithLispString:prompt]];
       [openPanel setPrompt:@"OK"];
@@ -8219,7 +8234,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
       if (nondirectory)
 	[openPanel setNameFieldStringValue:nondirectory];
       [openPanel setAllowedFileTypes:nil];
-      response = [openPanel runModal];
+      mac_within_app (^{response = [openPanel runModal];});
       if (response == NSModalResponseOK)
 	{
 	  NSURL *url = [[openPanel URLs] objectAtIndex:0];
@@ -8274,21 +8289,6 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 }
 
 @end				// EmacsFontDialogController
-
-@implementation NSFontPanel (Emacs)
-
-- (NSInteger)runModal
-{
-  NSInteger __block response;
-
-  [NSApp runTemporarilyWithBlock:^{
-      response = [NSApp runModalForWindow:self];
-    }];
-
-  return response;
-}
-
-@end				// NSFontPanel (Emacs)
 
 static NSView *
 create_ok_cancel_buttons_view (void)
@@ -8382,7 +8382,7 @@ mac_font_dialog (struct frame *f)
   BOOL savedIsMultiple;
   NSView *savedAccessoryView, *accessoryView;
   id savedDelegate, delegate;
-  NSInteger response;
+  NSInteger __block response;
 
   savedSelectedFont = [fontManager selectedFont];
   savedIsMultiple = [fontManager isMultiple];
@@ -8403,7 +8403,7 @@ mac_font_dialog (struct frame *f)
      resignFirstResponder] inside the modal loop.  */
   [fontPanel makeFirstResponder:accessoryView];
 
-  response = [fontPanel runModal];
+  mac_within_app (^{response = [NSApp runModalForWindow:fontPanel];});
   if (response != NSModalResponseAbort)
     {
       selectedFont = [fontManager convertFont:[fontManager selectedFont]];
@@ -8591,11 +8591,8 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	     is set when it is not a key equivalent.  But we keep this
 	     for binary compatibility.
 	     Update: this is necessary for passing Control-Tab to
-	     Emacs on Mac OS X 10.5 and later.
-	     Update: don't pass power button events (keyCode == 127)
-	     on OS X 10.9 and later.  */
-	  if ([theEvent keyCode] != 127)
-	    [firstResponder keyDown:theEvent];
+	     Emacs on Mac OS X 10.5 and later.  */
+	  [firstResponder keyDown:theEvent];
 
 	  return YES;
 	}
@@ -8625,20 +8622,15 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
       if ([[theEvent charactersIgnoringModifiers] length] == 1
 	  && mac_keydown_cgevent_quit_p ([theEvent coreGraphicsEvent]))
 	{
-	  if ([NSApp isRunning])
-	    return [NSApp sendAction:@selector(cancel:) to:nil from:nil];
-	  else
-	    {
-	      /* This is necessary for avoiding hang when canceling
-		 pop-up dictionary with C-g on OS X 10.11.  */
-	      BOOL __block sent;
+	  /* This is necessary for avoiding hang when canceling
+	     pop-up dictionary with C-g on OS X 10.11.  */
+	  BOOL __block sent;
 
-	      [NSApp runTemporarilyWithBlock:^{
-		  sent = [NSApp sendAction:@selector(cancel:) to:nil from:nil];
-		}];
+	  mac_within_app (^{
+	      sent = [NSApp sendAction:@selector(cancel:) to:nil from:nil];
+	    });
 
-	      return sent;
-	    }
+	  return sent;
 	}
     }
 
@@ -8684,8 +8676,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 
 - (void)trackMenuBar
 {
-  if ([NSApp isRunning])
-    {
+  mac_within_app (^{
       /* Mac OS X 10.2 doesn't regard untilDate:nil as polling.  */
       NSDate *expiration = [NSDate distantPast];
 
@@ -8723,9 +8714,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 	}
 
       [emacsController updatePresentationOptions];
-    }
-  else
-    [NSApp runTemporarilyWithBlock:^{[self trackMenuBar];}];
+    });
 }
 
 - (NSMenu *)applicationDockMenu:(NSApplication *)sender
@@ -9104,6 +9093,14 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 #define DIALOG_BUTTON_BORDER (6)
 #define DIALOG_TEXT_BORDER (1)
 
+#define EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG \
+  (@"EmacsTouchBarItemIdentifierDialog")
+
+- (BOOL)acceptsFirstResponder
+{
+  return YES;
+}
+
 - (BOOL)isFlipped
 {
   return YES;
@@ -9322,6 +9319,70 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
   return [super performKeyEquivalent:theEvent];
 }
 
+- (NSTouchBar *)makeTouchBar
+{
+  NSTouchBar *touchBar = [[NS_TOUCH_BAR alloc] init];
+
+  touchBar.delegate = self;
+  touchBar.defaultItemIdentifiers =
+    [NSArray arrayWithObject:EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG];
+  touchBar.principalItemIdentifier = EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG;
+
+  return MRC_AUTORELEASE (touchBar);
+}
+
+- (NSTouchBarItem *)touchBar:(NSTouchBar *)touchBar
+       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier;
+{
+  NSTouchBarItem *result = nil;
+
+  if ([identifier isEqualToString:EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG])
+    {
+      NSMutableArrayOf (NSView *) *touchButtons;
+      NSScrollView *scrollView;
+      NSStackView *stackView;
+      NSView *contentView;
+      NSCustomTouchBarItem *item;
+
+      touchButtons = [NSMutableArray arrayWithCapacity:self.subviews.count];
+      for (NSButton *button in self.subviews)
+	if ([button isKindOfClass:NSButton.class] && button.isEnabled)
+	  {
+	    NSButton *touchButton = [NSButton buttonWithTitle:button.title
+						       target:button.target
+						       action:button.action];
+
+	    touchButton.tag = button.tag;
+	    touchButton.keyEquivalent = button.keyEquivalent;
+	    touchButton.translatesAutoresizingMaskIntoConstraints = NO;
+	    [touchButton.widthAnchor
+		constraintLessThanOrEqualToConstant:120].active = YES;
+	    [touchButtons insertObject:touchButton atIndex:0];
+	  }
+
+      scrollView = [[NSScrollView alloc] init];
+      stackView = [NS_STACK_VIEW stackViewWithViews:touchButtons];
+      scrollView.documentView = stackView;
+      contentView = scrollView.contentView;
+      [stackView.trailingAnchor
+	  constraintEqualToAnchor:contentView.trailingAnchor].active = YES;
+      [stackView.widthAnchor
+	  constraintGreaterThanOrEqualToAnchor:contentView.widthAnchor].active =
+	YES;
+      [stackView.topAnchor
+	  constraintEqualToAnchor:contentView.topAnchor].active = YES;
+      [stackView.bottomAnchor
+	  constraintEqualToAnchor:contentView.bottomAnchor].active = YES;
+
+      item = [[NS_CUSTOM_TOUCH_BAR_ITEM alloc] initWithIdentifier:identifier];
+      item.view = scrollView;
+      MRC_RELEASE (scrollView);
+      result = MRC_AUTORELEASE (item);
+    }
+
+  return result;
+}
+
 @end				// EmacsDialogView
 
 static void
@@ -9470,9 +9531,9 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
 - (void)print:(id)sender
 {
-  [NSApp runTemporarilyWithBlock:^{
+  mac_within_app (^{
       [[NSPrintOperation printOperationWithView:self] runOperation];
-    }];
+    });
 }
 
 - (BOOL)knowsPageRange:(NSRangePointer)range
@@ -9628,9 +9689,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 void
 mac_page_setup_dialog (void)
 {
-  [NSApp runTemporarilyWithBlock:^{
-      [[NSPageLayout pageLayout] runModal];
-    }];
+  mac_within_app (^{[[NSPageLayout pageLayout] runModal];});
 }
 
 Lisp_Object
@@ -9696,101 +9755,6 @@ mac_print_frames_dialog (Lisp_Object frames)
 /***********************************************************************
 			  Selection support
 ***********************************************************************/
-
-@implementation NSPasteboard (Emacs)
-
-/* Writes LISPOBJECT of the specified DATATYPE to the pasteboard
-   server.  */
-
-- (BOOL)setLispObject:(Lisp_Object)lispObject forType:(NSString *)dataType
-{
-  BOOL result = NO;
-
-  if (dataType == nil)
-    return NO;
-
-  if ([dataType isEqualToString:NSFilenamesPboardType])
-    {
-      CFPropertyListRef propertyList =
-	cfproperty_list_create_with_lisp (lispObject);
-
-      result = [self setPropertyList:((__bridge id) propertyList)
-			     forType:dataType];
-      CFRelease (propertyList);
-    }
-  else if ([dataType isEqualToString:NSStringPboardType]
-	   || [dataType isEqualToString:NSTabularTextPboardType])
-    {
-      NSString *string = [NSString stringWithUTF8LispString:lispObject];
-
-      result = [self setString:string forType:dataType];
-    }
-  else if ([dataType isEqualToString:NSURLPboardType])
-    {
-      NSString *string = [NSString stringWithUTF8LispString:lispObject];
-      NSURL *url = [NSURL URLWithString:string];
-
-      if (url)
-	{
-	  [url writeToPasteboard:self];
-	  result = YES;
-	}
-    }
-  else
-    {
-      NSData *data = [NSData dataWithBytes:(SDATA (lispObject))
-			     length:(SBYTES (lispObject))];
-
-      result = [self setData:data forType:dataType];
-    }
-
-  return result;
-}
-
-/* Return the Lisp object for the specified DATATYPE.  */
-
-- (Lisp_Object)lispObjectForType:(NSString *)dataType
-{
-  Lisp_Object result = Qnil;
-
-  if (dataType == nil)
-    return Qnil;
-
-  if ([dataType isEqualToString:NSFilenamesPboardType])
-    {
-      id propertyList = [self propertyListForType:dataType];
-
-      if (propertyList)
-	result = cfobject_to_lisp ((__bridge CFTypeRef) propertyList,
-				   CFOBJECT_TO_LISP_FLAGS_FOR_EVENT, -1);
-    }
-  else if ([dataType isEqualToString:NSStringPboardType]
-	   || [dataType isEqualToString:NSTabularTextPboardType])
-    {
-      NSString *string = [self stringForType:dataType];
-
-      if (string)
-	result = [string UTF8LispString];
-    }
-  else if ([dataType isEqualToString:NSURLPboardType])
-    {
-      NSURL *url = [NSURL URLFromPasteboard:self];
-
-      if (url)
-	result = [[url absoluteString] UTF8LispString];
-    }
-  else
-    {
-      NSData *data = [self dataForType:dataType];
-
-      if (data)
-	result = [data lispString];
-    }
-
-  return result;
-}
-
-@end				// NSPasteboard (Emacs)
 
 /* Get a reference to the selection corresponding to the symbol SYM.
    The reference is set to *SEL, and it becomes NULL if there's no
@@ -9874,36 +9838,7 @@ mac_get_selection_ownership_info (Selection sel)
 bool
 mac_valid_selection_value_p (Lisp_Object value, Lisp_Object target)
 {
-  NSString *dataType;
-
-  dataType = get_pasteboard_data_type_from_symbol (target, nil);
-  if (dataType == nil)
-    return false;
-
-  if ([dataType isEqualToString:NSFilenamesPboardType])
-    {
-      if (CONSP (value) && EQ (XCAR (value), Qarray)
-	  && VECTORP (XCDR (value)))
-	{
-	  Lisp_Object vector = XCDR (value);
-	  EMACS_INT i, size = ASIZE (vector);
-
-	  for (i = 0; i < size; i++)
-	    {
-	      Lisp_Object elem = AREF (vector, i);
-
-	      if (!(CONSP (elem) && EQ (XCAR (elem), Qstring)
-		    && STRINGP (XCDR (elem))))
-		break;
-	    }
-
-	  return i == size;
-	}
-    }
-  else
-    return STRINGP (value);
-
-  return false;
+  return STRINGP (value);
 }
 
 /* Put Lisp object VALUE to the selection SEL.  The target type is
@@ -9920,7 +9855,15 @@ mac_put_selection_value (Selection sel, Lisp_Object target, Lisp_Object value)
 
   [pboard addTypes:[NSArray arrayWithObject:dataType] owner:nil];
 
-  return [pboard setLispObject:value forType:dataType] ? noErr : noTypeErr;
+  if (dataType == nil)
+    return noTypeErr;
+  else
+    {
+      NSData *data = [NSData dataWithBytes:(SDATA (value))
+				    length:(SBYTES (value))];
+
+      return [pboard setData:data forType:dataType] ? noErr : noTypeErr;
+    }
 }
 
 /* Check if data for the target type TARGET is available in SEL.  */
@@ -9937,12 +9880,18 @@ mac_selection_has_target_p (Selection sel, Lisp_Object target)
 Lisp_Object
 mac_get_selection_value (Selection sel, Lisp_Object target)
 {
+  Lisp_Object result = Qnil;
   NSString *dataType = get_pasteboard_data_type_from_symbol (target, sel);
 
-  if (dataType == nil)
-    return Qnil;
+  if (dataType)
+    {
+      NSData *data = [(__bridge NSPasteboard *)sel dataForType:dataType];
 
-  return [(__bridge NSPasteboard *)sel lispObjectForType:dataType];
+      if (data)
+	result = [data lispString];
+    }
+
+  return result;
 }
 
 /* Get the list of target types in SEL.  The return value is a list of
@@ -10148,20 +10097,37 @@ drag_operation_to_actions (NSDragOperation operation)
 {
   struct frame *f = [self emacsFrame];
   NSPoint point = [self convertPoint:[sender draggingLocation] fromView:nil];
-  NSPasteboard *pboard = [sender draggingPasteboard];
-  /* -[NSView registeredDraggedTypes] is available only on 10.4 and later.  */
-  NSString *type = [pboard availableTypeFromArray:registered_dragged_types];
   NSDragOperation operation = [sender draggingSourceOperationMask];
-  Lisp_Object arg;
+  Lisp_Object items = Qnil, arg;
+  BOOL hasItems = NO;
 
   [self setDragHighlighted:NO];
 
-  if (type == nil)
+  for (NSPasteboardItem *pi in [[sender draggingPasteboard] pasteboardItems])
+    {
+      Lisp_Object item = Qnil;
+      /* The elements in -[NSView registeredDraggedTypes] are in no
+	 particular order.  */
+      NSString *type = [pi availableTypeFromArray:registered_dragged_types];
+
+      if (type)
+	{
+	  NSData *data = [pi dataForType:type];
+
+	  if (data)
+	    {
+	      item = Fcons ([type UTF8LispString], [data lispString]);
+	      hasItems = YES;
+	    }
+	}
+      items = Fcons (item, items);
+    }
+
+  if (!hasItems)
     return NO;
 
-  arg = list2 (QCdata, [pboard lispObjectForType:type]);
+  arg = list2 (QCitems, Fnreverse (items));
   arg = Fcons (QCactions, Fcons (drag_operation_to_actions (operation), arg));
-  arg = Fcons (QCtype, Fcons ([type UTF8LispString], arg));
 
   EVENT_INIT (inputEvent);
   inputEvent.kind = DRAG_N_DROP_EVENT;
@@ -10243,9 +10209,9 @@ update_dragged_types (void)
 Lisp_Object
 mac_dnd_default_known_types (void)
 {
-  return list3 ([NSFilenamesPboardType UTF8LispString],
-		[NSStringPboardType UTF8LispString],
-		[NSTIFFPboardType UTF8LispString]);
+  return list3 ([(__bridge NSString *)kUTTypeURL UTF8LispString],
+		[NSPasteboardTypeString UTF8LispString],
+		[NSPasteboardTypeTIFF UTF8LispString]);
 }
 
 
@@ -10639,21 +10605,21 @@ handle_action_invocation (NSInvocation *invocation)
 
 - (NSAppleEventDescriptor *)executeAndReturnError:(NSDictionaryOf (NSString *, id) **)errorInfo
 {
-  if (inhibit_window_system || [NSApp isRunning])
+  if (inhibit_window_system)
     return [super executeAndReturnError:errorInfo];
   else
     {
       NSAppleEventDescriptor * __block result;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self executeAndReturnError:&errorInfo1];
+      mac_within_app (^{
+	  result = [super executeAndReturnError:&errorInfo1];
 #if !USE_ARC
 	  if (result == nil)
 	    [errorInfo1 retain];
 	  [result retain];
 #endif
-	}];
+	});
 
       if (result == nil)
 	*errorInfo = MRC_AUTORELEASE (errorInfo1);
@@ -10664,7 +10630,7 @@ handle_action_invocation (NSInvocation *invocation)
 
 - (NSAppleEventDescriptor *)executeAndReturnDisplayValue:(NSAttributedString **)displayValue error:(NSDictionaryOf (NSString *, id) **)errorInfo
 {
-  if (inhibit_window_system || [NSApp isRunning])
+  if (inhibit_window_system)
     return [super executeAndReturnDisplayValue:displayValue error:errorInfo];
   else
     {
@@ -10672,9 +10638,9 @@ handle_action_invocation (NSInvocation *invocation)
       NSAttributedString * __block displayValue1;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self executeAndReturnDisplayValue:&displayValue1
-						error:&errorInfo1];
+      mac_within_app (^{
+	  result = [super executeAndReturnDisplayValue:&displayValue1
+						 error:&errorInfo1];
 #if !USE_ARC
 	  if (result)
 	    [displayValue1 retain];
@@ -10682,7 +10648,7 @@ handle_action_invocation (NSInvocation *invocation)
 	    [errorInfo1 retain];
 	  [result retain];
 #endif
-	}];
+	});
 
       if (result)
 	*displayValue = MRC_AUTORELEASE (displayValue1);
@@ -10695,21 +10661,21 @@ handle_action_invocation (NSInvocation *invocation)
 
 - (NSAppleEventDescriptor *)executeAppleEvent:(NSAppleEventDescriptor *)event error:(NSDictionaryOf (NSString *, id) **)errorInfo;
 {
-  if (inhibit_window_system || [NSApp isRunning])
+  if (inhibit_window_system)
     return [super executeAppleEvent:event error:errorInfo];
   else
     {
       NSAppleEventDescriptor * __block result;
       NSDictionaryOf (NSString *, id) * __block errorInfo1;
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self executeAppleEvent:event error:&errorInfo1];
+      mac_within_app (^{
+	  result = [super executeAppleEvent:event error:&errorInfo1];
 #if !USE_ARC
 	  if (result == nil)
 	    [errorInfo1 retain];
 	  [result retain];
 #endif
-	}];
+	});
 
       if (result == nil)
 	*errorInfo = MRC_AUTORELEASE (errorInfo1);
@@ -11184,8 +11150,9 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 
 - (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
 {
-  if ([NSApp isRunning])
-    {
+  bool __block result;
+
+  mac_within_app (^{
       NSRect frameRect;
       WebView *webView;
       WebFrame *mainFrame;
@@ -11259,7 +11226,8 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 	  MRC_RELEASE (webView);
 	  (*imageErrorFunc) ("Error reading SVG image `%s'", emacsImage->spec);
 
-	  return 0;
+	  result = 0;
+	  return;
 	}
 
       [webView setFrame:frameRect];
@@ -11285,7 +11253,8 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 	  MRC_RELEASE (webView);
 	  (*imageErrorFunc) ("Invalid image size (see `max-image-size')");
 
-	  return 0;
+	  result = 0;
+	  return;
 	}
 
       emacsImage->width = width;
@@ -11295,18 +11264,10 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 					     scaleFactor:scaleFactor];
       MRC_RELEASE (webView);
 
-      return 1;
-    }
-  else
-    {
-      bool __block result;
+      result = 1;
+    });
 
-      [NSApp runTemporarilyWithBlock:^{
-	  result = [self loadData:data backgroundColor:backgroundColor];
-	}];
-
-      return result;
-    }
+  return result;
 }
 
 - (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame

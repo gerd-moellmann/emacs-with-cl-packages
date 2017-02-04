@@ -1,6 +1,6 @@
 ;;; rect.el --- rectangle functions for GNU Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1999-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1999-2017 Free Software Foundation, Inc.
 
 ;; Maintainer: Didier Verna <didier@xemacs.org>
 ;; Keywords: internal
@@ -108,7 +108,7 @@ Point is at the end of the segment of this line within the rectangle."
 
 (defun rectangle--col-pos (col kind)
   (let ((c (move-to-column col)))
-    (if (= c col)
+    (if (and (= c col) (not (eolp)))
         (if (eq kind 'point)
             (if (window-parameter nil 'rectangle--point-crutches)
                 (setf (window-parameter nil 'rectangle--point-crutches) nil))

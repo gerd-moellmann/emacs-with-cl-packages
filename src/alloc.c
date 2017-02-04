@@ -1,6 +1,6 @@
 /* Storage allocation and gc for GNU Emacs Lisp interpreter.
 
-Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2016 Free Software
+Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2017 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1418,8 +1418,8 @@ lmalloc (size_t size)
       if (laligned (p, size))
 	break;
       free (p);
-      size_t bigger;
-      if (! INT_ADD_WRAPV (size, GCALIGNMENT, &bigger))
+      size_t bigger = size + GCALIGNMENT;
+      if (size < bigger)
 	size = bigger;
     }
 
@@ -1435,8 +1435,8 @@ lrealloc (void *p, size_t size)
       p = realloc (p, size);
       if (laligned (p, size))
 	break;
-      size_t bigger;
-      if (! INT_ADD_WRAPV (size, GCALIGNMENT, &bigger))
+      size_t bigger = size + GCALIGNMENT;
+      if (size < bigger)
 	size = bigger;
     }
 
@@ -5510,8 +5510,6 @@ total_bytes_of_live_objects (void)
 
 #ifdef HAVE_WINDOW_SYSTEM
 
-#ifndef HAVE_MACGUI
-
 /* Remove unmarked font-spec and font-entity objects from ENTRY, which is
    (DRIVER-TYPE NUM-FRAMES FONT-CACHE-DATA ...), and return changed entry.  */
 
@@ -5578,8 +5576,6 @@ compact_font_cache_entry (Lisp_Object entry)
   return entry;
 }
 
-#endif /* not HAVE_MACGUI */
-
 /* Compact font caches on all terminals and mark
    everything which is still here after compaction.  */
 
@@ -5591,15 +5587,17 @@ compact_font_caches (void)
   for (t = terminal_list; t; t = t->next_terminal)
     {
       Lisp_Object cache = TERMINAL_FONT_CACHE (t);
-#ifndef HAVE_MACGUI
-      if (CONSP (cache))
+      /* Inhibit compacting the caches if the user so wishes.  Some of
+	 the users don't mind a larger memory footprint, but do mind
+	 slower redisplay.  */
+      if (!inhibit_compacting_font_caches
+	  && CONSP (cache))
 	{
 	  Lisp_Object entry;
 
 	  for (entry = XCDR (cache); CONSP (entry); entry = XCDR (entry))
 	    XSETCAR (entry, compact_font_cache_entry (XCAR (entry)));
 	}
-#endif /* not HAVE_MACGUI */
       mark_object (cache);
     }
 }
@@ -6019,7 +6017,7 @@ mark_glyph_matrix (struct glyph_matrix *matrix)
    all the references contained in it.  */
 
 #define LAST_MARKED_SIZE 500
-static Lisp_Object last_marked[LAST_MARKED_SIZE];
+Lisp_Object last_marked[LAST_MARKED_SIZE] EXTERNALLY_VISIBLE;
 static int last_marked_index;
 
 /* For debugging--call abort when we cdr down this many
@@ -6908,7 +6906,8 @@ sweep_misc (void)
 	      else if (mblk->markers[i].m.u_any.type == Lisp_Misc_User_Ptr)
 		{
 		  struct Lisp_User_Ptr *uptr = &mblk->markers[i].m.u_user_ptr;
-		  uptr->finalizer (uptr->p);
+		  if (uptr->finalizer)
+		    uptr->finalizer (uptr->p);
 		}
 #endif
               /* Set the type of the freed object to Lisp_Misc_Free.

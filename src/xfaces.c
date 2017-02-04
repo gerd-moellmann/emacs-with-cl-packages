@@ -1,6 +1,6 @@
 /* xfaces.c -- "Face" primitives.
 
-Copyright (C) 1993-1994, 1998-2016 Free Software Foundation, Inc.
+Copyright (C) 1993-1994, 1998-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -541,7 +541,7 @@ x_free_gc (struct frame *f, GC gc)
 #endif  /* HAVE_NTGUI */
 
 #ifdef HAVE_MACGUI
-/* Mac OS emulation of GCs */
+/* macOS emulation of GCs */
 
 static GC
 x_create_gc (struct frame *f, unsigned long mask, XGCValues *xgcv)

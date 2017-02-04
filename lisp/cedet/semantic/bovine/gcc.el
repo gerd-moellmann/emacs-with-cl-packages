@@ -1,6 +1,6 @@
 ;;; semantic/bovine/gcc.el --- gcc querying special code for the C parser
 
-;; Copyright (C) 2008-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2017 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <eric@siege-engine.com>
 
@@ -225,7 +225,7 @@ It should also include other symbols GCC was compiled with.")
         (setq semantic-lex-c-preprocessor-symbol-map nil))
     (dolist (D defines)
       (add-to-list 'semantic-lex-c-preprocessor-symbol-map D))
-    ;; Needed for parsing OS X libc
+    ;; Needed for parsing macOS libc
     (when (eq system-type 'darwin)
       (add-to-list 'semantic-lex-c-preprocessor-symbol-map '("__i386__" . "")))
     (when (featurep 'semantic/bovine/c)

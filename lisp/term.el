@@ -1,6 +1,6 @@
 ;;; term.el --- general command interpreter in a window stuff
 
-;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2016 Free Software
+;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Per Bothner <per@bothner.com>
@@ -845,6 +845,7 @@ is buffer-local."
     (define-key map [S-insert] 'term-paste)
     (define-key map [prior] 'term-send-prior)
     (define-key map [next] 'term-send-next)
+    (define-key map [xterm-paste] #'term--xterm-paste)
     map)
   "Keyboard map for sending characters directly to the inferior process.")
 
@@ -1116,12 +1117,16 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (term-update-mode-line))
 
 (defun term-reset-size (height width)
-  (setq term-height height)
-  (setq term-width width)
-  (setq term-start-line-column nil)
-  (setq term-current-row nil)
-  (setq term-current-column nil)
-  (term-set-scroll-region 0 height))
+  (when (or (/= height term-height)
+            (/= width term-width))
+    (let ((point (point)))
+      (setq term-height height)
+      (setq term-width width)
+      (setq term-start-line-column nil)
+      (setq term-current-row nil)
+      (setq term-current-column nil)
+      (term-set-scroll-region 0 height)
+      (goto-char point))))
 
 ;; Recursive routine used to check if any string in term-kill-echo-list
 ;; matches part of the buffer before point.
@@ -1206,6 +1211,13 @@ without any interpretation."
   "Insert the last stretch of killed text at point."
   (interactive)
    (term-send-raw-string (current-kill 0)))
+
+(defun term--xterm-paste ()
+  "Insert the text pasted in an XTerm bracketed paste operation."
+  (interactive)
+  (term-send-raw-string (xterm--pasted-text)))
+
+(declare-function xterm--pasted-text "term/xterm" ())
 
 ;; Which would be better:  "\e[A" or "\eOA"? readline accepts either.
 ;; For my configuration it's definitely better \eOA but YMMV. -mm

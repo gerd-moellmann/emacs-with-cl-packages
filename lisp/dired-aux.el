@@ -1,6 +1,6 @@
 ;;; dired-aux.el --- less commonly used parts of dired
 
-;; Copyright (C) 1985-1986, 1992, 1994, 1998, 2000-2016 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994, 1998, 2000-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>.
@@ -937,12 +937,12 @@ output file. %i path(s) are relative, while %o is absolute.")
 ;;;###autoload
 (defun dired-do-compress-to ()
   "Compress selected files and directories to an archive.
-You are prompted for the archive name.
-The archiving command is chosen based on the archive name extension and
-`dired-compress-files-alist'."
+Prompt for the archive file name.
+Choose the archiving command based on the archive file-name extension
+and `dired-compress-files-alist'."
   (interactive)
   (let* ((in-files (dired-get-marked-files))
-         (out-file (read-file-name "Compress to: "))
+         (out-file (expand-file-name (read-file-name "Compress to: ")))
          (rule (cl-find-if
                 (lambda (x)
                   (string-match (car x) out-file))

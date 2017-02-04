@@ -1,6 +1,6 @@
 ;;; sh-script.el --- shell-script editing commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1997, 1999, 2001-2016 Free Software Foundation,
+;; Copyright (C) 1993-1997, 1999, 2001-2017 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Daniel Pfeiffer <occitan@esperanto.org>
@@ -1741,7 +1741,10 @@ This adds rules for comments and assignments."
 (defun sh--cmd-completion-table (string pred action)
   (let ((cmds
          (append (when (fboundp 'imenu--make-index-alist)
-                   (mapcar #'car (imenu--make-index-alist)))
+                   (mapcar #'car
+                           (condition-case nil
+                               (imenu--make-index-alist)
+                             (imenu-unavailable nil))))
                  (mapcar (lambda (v) (concat v "="))
                          (sh--vars-before-point))
                  (locate-file-completion-table

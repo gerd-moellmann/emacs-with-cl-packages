@@ -1,7 +1,7 @@
 /* Session management module for systems which understand the X Session
    management protocol.
 
-Copyright (C) 2002-2016 Free Software Foundation, Inc.
+Copyright (C) 2002-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -170,7 +170,7 @@ smc_save_yourself_CB (SmcConn smcConn,
   char *smid_opt, *chdir_opt = NULL;
   Lisp_Object user_login_name = Fuser_login_name (Qnil);
 
-  // Must have these.
+  /* Must have these.  */
   if (! STRINGP (Vinvocation_name) || ! STRINGP (user_login_name))
     return;
 

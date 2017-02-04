@@ -1,6 +1,6 @@
 ;;; admin.el --- utilities for Emacs administration
 
-;; Copyright (C) 2001-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2017 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -109,6 +109,9 @@ Root must be the root of an Emacs source tree."
 		       (rx (and "AC_INIT" (1+ (not (in ?,)))
                                 ?, (0+ space)
                                 (submatch (1+ (in "0-9."))))))
+  (set-version-in-file root "nt/README.W32" version
+		       (rx (and "version" (1+ space)
+				(submatch (1+ (in "0-9."))))))
   ;; TODO: msdos could easily extract the version number from
   ;; configure.ac with sed, rather than duplicating the information.
   (set-version-in-file root "msdos/sed2v2.inp" version
@@ -140,6 +143,13 @@ Root must be the root of an Emacs source tree."
                          (not (equal (cadr oldversion) (cadr newversion)))))
          (newsfile (expand-file-name "etc/NEWS" root))
          (oldnewsfile (expand-file-name (format "etc/NEWS.%s" oldmajor) root)))
+    (unless (> (length newversion) 2)   ; pretest or release candidate?
+      (with-temp-buffer
+        (insert-file-contents newsfile)
+        (if (re-search-forward "^\\(+++ *\\|--- *\\)$" nil t)
+            (display-warning 'admin
+                             "NEWS file still contains temporary markup.
+Documentation changes might not have been completed!"))))
     (when (and majorbump
                (not (file-exists-p oldnewsfile)))
       (rename-file newsfile oldnewsfile)

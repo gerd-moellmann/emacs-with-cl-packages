@@ -1,6 +1,6 @@
 /* Functions for image support on window system.
 
-Copyright (C) 1989, 1992-2016 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -139,7 +139,7 @@ static unsigned long *colors_in_color_table (int *n);
    the bitmaps yourself.  That is, creating a bitmap from the same
    data more than once will not be caught.  */
 
-/* For Mac OS X high resolution versions of images, the actual bitmap
+/* For macOS high resolution versions of images, the actual bitmap
    width/height (in pixels) is not necessarily the same as the logical
    image width/height (in points).  We should use the former for
    bitmap or pixel-level operations especially on postprocessing.
@@ -4731,7 +4731,7 @@ xpm_load (struct frame *f, struct image *img)
     }
 
 #ifdef USE_CAIRO
-  // Load very specific Xpm:s.
+  /* Load very specific Xpm:s.  */
   if (rc == XpmSuccess
       && img->ximg->format == ZPixmap
       && img->ximg->bits_per_pixel == 32
@@ -4755,7 +4755,7 @@ xpm_load (struct frame *f, struct image *img)
               int maskidx = mid ? i * img->mask_img->bytes_per_line + k/8 : 0;
               int mask = mid ? mid[maskidx] & (1 << (k % 8)) : 1;
 
-              if (mask) od[idx] = id[idx] + 0xff000000; // ff => full alpha
+              if (mask) od[idx] = id[idx] + 0xff000000; /* ff => full alpha */
               else od[idx] = bgcolor;
             }
         }
@@ -4900,7 +4900,7 @@ xpm_load (struct frame *f, struct image *img)
 
 #if defined (HAVE_MACGUI) || ( defined (HAVE_NS) && !defined (HAVE_XPM) )
 
-/* XPM support functions for Mac OS where libxpm is not available.
+/* XPM support functions for macOS where libxpm is not available.
    Only XPM version 3 (without any extensions) is supported.  */
 
 static void xpm_put_color_table_v (Lisp_Object, const unsigned char *,
@@ -10367,9 +10367,26 @@ svg_image_p (Lisp_Object object)
 }
 
 #ifdef HAVE_RSVG
+/* Some versions of glib's gatomic.h define MemoryBarrier, but MinGW
+   w32api 3.18 and later has its own definition.  The following gross
+   hack avoids the clash.  */
+# ifdef WINDOWSNT
+#  if (__W32API_MAJOR_VERSION + (__W32API_MINOR_VERSION >= 18)) >= 4
+#   define W32_SAVE_MINGW_VERSION __MINGW_MAJOR_VERSION
+#   undef __MINGW_MAJOR_VERSION
+#   define __MINGW_MAJOR_VERSION 4
+#  endif
+# endif
+
 # include <librsvg/rsvg.h>
 
 # ifdef WINDOWSNT
+
+# ifdef W32_SAVE_MINGW_VERSION
+#  undef __MINGW_MAJOR_VERSION
+#  define __MINGW_MAJOR_VERSION W32_SAVE_MINGW_VERSION
+#  undef W32_SAVE_MINGW_VERSION
+# endif
 
 /* SVG library functions.  */
 DEF_DLL_FN (RsvgHandle *, rsvg_handle_new, (void));

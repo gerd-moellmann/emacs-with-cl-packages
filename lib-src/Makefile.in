@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1985, 1987-1988, 1993-1994, 2001-2016 Free Software
+# Copyright (C) 1985, 1987-1988, 1993-1994, 2001-2017 Free Software
 # Foundation, Inc.
 
 # This file is part of GNU Emacs.
@@ -75,7 +75,7 @@ am__v_at_1 =
 
 # ==================== Where To Install Things ====================
 
-# Location to install Emacs.app under GNUstep / Mac OS X.
+# Location to install Emacs.app under GNUstep / macOS.
 # Later values may use this.
 ns_appbindir=@ns_appbindir@
 

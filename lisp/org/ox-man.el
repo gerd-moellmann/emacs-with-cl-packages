@@ -1,6 +1,6 @@
 ;; ox-man.el --- Man Back-End for Org Export Engine
 
-;; Copyright (C) 2011-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2017 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;;      Luis R Anaya <papoanaya aroba hot mail punto com>
@@ -207,7 +207,7 @@ It is used during export of src blocks by the listings and
 man packages.  For example,
 
   (setq org-man-custom-lang-environments
-     '((python \"pythoncode\")))
+     \\='((python \"pythoncode\")))
 
 would have the effect that if org encounters begin_src python
 during man export."

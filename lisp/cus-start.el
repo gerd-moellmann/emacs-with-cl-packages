@@ -1,6 +1,6 @@
 ;;; cus-start.el --- define customization properties of builtins  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999-2017 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: internal
@@ -173,7 +173,9 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					(directory :format "%v")))
                         nil
                         :standard
-                        (mapcar 'directory-file-name
+                        (mapcar (lambda (f)
+                                  (if f (directory-file-name f)
+                                    "."))
                                 (append (parse-colon-path (getenv "PATH"))
                                         (list exec-directory))))
 	     (exec-suffixes execute (repeat string))
@@ -339,7 +341,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     ;; mac.c
 	     (mac-system-move-file-to-trash-use-finder mac boolean "23.4")
 	     ;; macselect.c
-	     (mac-dnd-known-types mac (repeat string) "22.1")
+	     (mac-dnd-known-types mac (repeat string) "25.2")
 	     ;; macterm.c
 	     (mac-control-modifier
 	      mac (choice (const :tag "No modifier" nil)

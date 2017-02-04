@@ -1,6 +1,6 @@
 ;;; fontset.el --- commands for handling fontset
 
-;; Copyright (C) 1997-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2017 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -813,11 +813,11 @@
              (#x1F700 . #x1F77F)	;; Alchemical Symbols
              (#x1F780 . #x1F7FF)	;; Geometric Shapes Extended
              (#x1F800 . #x1F8FF)))	;; Supplemental Arrows-C
-    (set-fontset-font "fontset-default" symbol-subgroup "Symbola" nil 'prepend))
-  )
+    (set-fontset-font "fontset-default" symbol-subgroup
+                      '("Symbola" . "iso10646-1") nil 'prepend)))
   ;; Box Drawing and Block Elements
   (set-fontset-font "fontset-default" '(#x2500 . #x259F)
-                    "FreeMono" nil 'prepend)
+                    '("FreeMono" . "iso10646-1") nil 'prepend)
 
   ;; Since standard-fontset-spec on X uses fixed-medium font, which
   ;; gets mapped to a iso8859-1 variant, we would like to prefer its

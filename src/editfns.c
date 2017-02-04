@@ -1,6 +1,6 @@
 /* Lisp functions pertaining to editing.                 -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1987, 1989, 1993-2016 Free Software Foundation, Inc.
+Copyright (C) 1985-1987, 1989, 1993-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1581,21 +1581,28 @@ time_arith (Lisp_Object a, Lisp_Object b,
 }
 
 DEFUN ("time-add", Ftime_add, Stime_add, 2, 2, 0,
-       doc: /* Return the sum of two time values A and B, as a time value.  */)
+       doc: /* Return the sum of two time values A and B, as a time value.
+A nil value for either argument stands for the current time.
+See `current-time-string' for the various forms of a time value.  */)
   (Lisp_Object a, Lisp_Object b)
 {
   return time_arith (a, b, time_add);
 }
 
 DEFUN ("time-subtract", Ftime_subtract, Stime_subtract, 2, 2, 0,
-       doc: /* Return the difference between two time values A and B, as a time value.  */)
+       doc: /* Return the difference between two time values A and B, as a time value.
+Use `float-time' to convert the difference into elapsed seconds.
+A nil value for either argument stands for the current time.
+See `current-time-string' for the various forms of a time value.  */)
   (Lisp_Object a, Lisp_Object b)
 {
   return time_arith (a, b, time_subtract);
 }
 
 DEFUN ("time-less-p", Ftime_less_p, Stime_less_p, 2, 2, 0,
-       doc: /* Return non-nil if time value T1 is earlier than time value T2.  */)
+       doc: /* Return non-nil if time value T1 is earlier than time value T2.
+A nil value for either argument stands for the current time.
+See `current-time-string' for the various forms of a time value.  */)
   (Lisp_Object t1, Lisp_Object t2)
 {
   int t1len, t2len;
@@ -1973,11 +1980,13 @@ emacs_nmemftime (char *s, size_t maxsize, const char *format,
 }
 
 DEFUN ("format-time-string", Fformat_time_string, Sformat_time_string, 1, 3, 0,
-       doc: /* Use FORMAT-STRING to format the time TIME, or now if omitted.
+       doc: /* Use FORMAT-STRING to format the time TIME, or now if omitted or nil.
 TIME is specified as (HIGH LOW USEC PSEC), as returned by
-`current-time' or `file-attributes'.  The obsolete form (HIGH . LOW)
-is also still accepted.  The optional ZONE is omitted or nil for Emacs
-local time, t for Universal Time, `wall' for system wall clock time,
+`current-time' or `file-attributes'.
+It can also be a single integer number of seconds since the epoch.
+The obsolete form (HIGH . LOW) is also still accepted.
+The optional ZONE is omitted or nil for Emacs local time,
+t for Universal Time, `wall' for system wall clock time,
 or a string as in the TZ environment variable.
 
 The value is a copy of FORMAT-STRING, but with certain constructs replaced
@@ -2054,7 +2063,11 @@ format_time_string (char const *format, ptrdiff_t formatlen,
   USE_SAFE_ALLOCA;
 
   timezone_t tz = tzlookup (zone, false);
-  tmp = emacs_localtime_rz (tz, &t.tv_sec, tmp);
+  /* On some systems, like 32-bit MinGW, tv_sec of struct timespec is
+     a 64-bit type, but time_t is a 32-bit type.  emacs_localtime_rz
+     expects a pointer to time_t value.  */
+  time_t tsec = t.tv_sec;
+  tmp = emacs_localtime_rz (tz, &tsec, tmp);
   if (! tmp)
     {
       xtzfree (tz);
@@ -2090,7 +2103,9 @@ DEFUN ("decode-time", Fdecode_time, Sdecode_time, 0, 2, 0,
        doc: /* Decode a time value as (SEC MINUTE HOUR DAY MONTH YEAR DOW DST UTCOFF).
 The optional SPECIFIED-TIME should be a list of (HIGH LOW . IGNORED),
 as from `current-time' and `file-attributes', or nil to use the
-current time.  The obsolete form (HIGH . LOW) is also still accepted.
+current time.
+It can also be a single integer number of seconds since the epoch.
+The obsolete form (HIGH . LOW) is also still accepted.
 The optional ZONE is omitted or nil for Emacs local time, t for
 Universal Time, `wall' for system wall clock time, or a string as in
 the TZ environment variable.
@@ -2215,8 +2230,10 @@ which provide a much more powerful and general facility.
 If SPECIFIED-TIME is given, it is a time to format instead of the
 current time.  The argument should have the form (HIGH LOW . IGNORED).
 Thus, you can use times obtained from `current-time' and from
-`file-attributes'.  SPECIFIED-TIME can also have the form (HIGH . LOW),
-but this is considered obsolete.
+`file-attributes'.  SPECIFIED-TIME can also be a single integer
+number of seconds since the epoch.
+SPECIFIED-TIME can also have the form (HIGH . LOW), but this is
+considered obsolete.
 
 The optional ZONE is omitted or nil for Emacs local time, t for
 Universal Time, `wall' for system wall clock time, or a string as in
@@ -2294,8 +2311,9 @@ NAME is a string giving the name of the time zone.
 If SPECIFIED-TIME is given, the time zone offset is determined from it
 instead of using the current time.  The argument should have the form
 \(HIGH LOW . IGNORED).  Thus, you can use times obtained from
-`current-time' and from `file-attributes'.  SPECIFIED-TIME can also
-have the form (HIGH . LOW), but this is considered obsolete.
+`current-time' and from `file-attributes'.  SPECIFIED-TIME can also be
+a single integer number of seconds since the epoch.  SPECIFIED-TIME can
+also have the form (HIGH . LOW), but this is considered obsolete.
 Optional second arg ZONE is omitted or nil for the local time zone, or
 a string as in the TZ environment variable.
 
@@ -2313,7 +2331,10 @@ the data it can't find.  */)
   zone_name = format_time_string ("%Z", sizeof "%Z" - 1, value,
 				  zone, &local_tm);
 
-  if (HAVE_TM_GMTOFF || gmtime_r (&value.tv_sec, &gmt_tm))
+  /* gmtime_r expects a pointer to time_t, but tv_sec of struct
+     timespec on some systems (MinGW) is a 64-bit field.  */
+  time_t tsec = value.tv_sec;
+  if (HAVE_TM_GMTOFF || gmtime_r (&tsec, &gmt_tm))
     {
       long int offset = (HAVE_TM_GMTOFF
 			 ? tm_gmtoff (&local_tm)
@@ -2892,6 +2913,10 @@ Return -N if first string is less after N-1 chars, +N if first string is
 greater after N-1 chars, or 0 if strings match.
 The first substring is in BUFFER1 from START1 to END1 and the second
 is in BUFFER2 from START2 to END2.
+All arguments may be nil.  If BUFFER1 or BUFFER2 is nil, the current
+buffer is used.  If START1 or START2 is nil, the value of `point-min'
+in the respective buffers is used.  If END1 or END2 is nil, the value
+of `point-max' in the respective buffers is used.
 The value of `case-fold-search' in the current buffer
 determines whether case is significant or ignored.  */)
   (Lisp_Object buffer1, Lisp_Object start1, Lisp_Object end1, Lisp_Object buffer2, Lisp_Object start2, Lisp_Object end2)
@@ -3798,12 +3823,14 @@ The format control string may contain %-sequences meaning to substitute
 the next available argument:
 
 %s means print a string argument.  Actually, prints any object, with `princ'.
-%d means print as number in decimal (%o octal, %x hex).
+%d means print as signed number in decimal.
+%o means print as unsigned number in octal, %x as unsigned number in hex.
 %X is like %x, but uses upper case.
 %e means print a number in exponential notation.
 %f means print a number in decimal-point notation.
-%g means print a number in exponential notation
-  or decimal-point notation, whichever uses fewer characters.
+%g means print a number in exponential notation if the exponent would be
+   less than -4 or greater than or equal to the precision (default: 6);
+   otherwise it prints in decimal-point notation.
 %c means print a number as a single character.
 %S means print any object as an s-expression (using `prin1').
 
@@ -3815,7 +3842,8 @@ specifiers, as follows:
 
   %<flags><width><precision>character
 
-where flags is [+ #-0]+, width is [0-9]+, and precision is .[0-9]+
+where flags is [+ #-0]+, width is [0-9]+, and precision is a literal
+period "." followed by [0-9]+
 
 The + flag character inserts a + before any positive number, while a
 space inserts a space before any positive number; these flags only
@@ -3825,8 +3853,10 @@ The - and 0 flags affect the width specifier, as described below.
 The # flag means to use an alternate display form for %o, %x, %X, %e,
 %f, and %g sequences: for %o, it ensures that the result begins with
 \"0\"; for %x and %X, it prefixes the result with \"0x\" or \"0X\";
-for %e, %f, and %g, it causes a decimal point to be included even if
-the precision is zero.
+for %e and %f, it causes a decimal point to be included even if the
+the precision is zero; for %g, it causes a decimal point to be
+included even if the the precision is zero, and also forces trailing
+zeros after the decimal point to be left in place.
 
 The width specifier supplies a lower limit for the length of the
 printed representation.  The padding, if any, normally goes on the
@@ -3835,10 +3865,12 @@ character is normally a space, but it is 0 if the 0 flag is present.
 The 0 flag is ignored if the - flag is present, or the format sequence
 is something other than %d, %e, %f, and %g.
 
-For %e, %f, and %g sequences, the number after the "." in the
-precision specifier says how many decimal places to show; if zero, the
-decimal point itself is omitted.  For %s and %S, the precision
-specifier truncates the string to the given width.
+For %e and %f sequences, the number after the "." in the precision
+specifier says how many decimal places to show; if zero, the decimal
+point itself is omitted.  For %g, the precision specifies how many
+significant digits to print; zero or omitted are treated as 1.
+For %s and %S, the precision specifier truncates the string to the
+given width.
 
 usage: (format STRING &rest OBJECTS)  */)
   (ptrdiff_t nargs, Lisp_Object *args)

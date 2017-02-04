@@ -1,6 +1,6 @@
 ;;; files.el --- file input and output commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1992-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1992-2017 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Package: emacs
@@ -51,20 +51,21 @@ when it has unsaved changes."
   nil
   "Alist of abbreviations for file directories.
 A list of elements of the form (FROM . TO), each meaning to replace
-FROM with TO when it appears in a directory name.  This replacement is
-done when setting up the default directory of a newly visited file.
+a match for FROM with TO when a directory name matches FROM.  This
+replacement is done when setting up the default directory of a
+newly visited file buffer.
 
-FROM is matched against directory names anchored at the first
-character, so it should start with a \"\\\\\\=`\", or, if directory
-names cannot have embedded newlines, with a \"^\".
+FROM is a regexp that is matched against directory names anchored at
+the first character, so it should start with a \"\\\\\\=`\", or, if
+directory names cannot have embedded newlines, with a \"^\".
 
 FROM and TO should be equivalent names, which refer to the
-same directory.  Do not use `~' in the TO strings;
-they should be ordinary absolute directory names.
+same directory.  TO should be an absolute directory name.
+Do not use `~' in the TO strings.
 
 Use this feature when you have directories which you normally refer to
 via absolute symbolic links.  Make TO the name of the link, and FROM
-the name it is linked to."
+a regexp matching the name it is linked to."
   :type '(repeat (cons :format "%v"
 		       :value ("\\`" . "")
 		       (regexp :tag "From")
@@ -439,7 +440,8 @@ functions are called."
 
 (define-obsolete-variable-alias 'write-file-hooks 'write-file-functions "22.1")
 (defvar write-file-functions nil
-  "List of functions to be called before writing out a buffer to a file.
+  "List of functions to be called before saving a buffer to a file.
+Only used by `save-buffer'.
 If one of them returns non-nil, the file is considered already written
 and the rest are not called.
 These hooks are considered to pertain to the visited file.
@@ -464,6 +466,7 @@ updates before the buffer is saved, use `before-save-hook'.")
     'write-contents-functions "22.1")
 (defvar write-contents-functions nil
   "List of functions to be called before writing out a buffer to a file.
+Only used by `save-buffer'.
 If one of them returns non-nil, the file is considered already written
 and the rest are not called and neither are the functions in
 `write-file-functions'.
@@ -718,13 +721,13 @@ The path separator is colon in GNU and GNU-like systems."
     ;; (which will lead to the use of B/a).
     (minibuffer-with-setup-hook
         (lambda ()
-          (setq minibuffer-completion-table
-                (apply-partially #'locate-file-completion-table
-                                 cd-path nil))
-          (setq minibuffer-completion-predicate
-                (lambda (dir)
-                  (locate-file dir cd-path nil
-                               (lambda (f) (and (file-directory-p f) 'dir-ok))))))
+          (setq-local minibuffer-completion-table
+		      (apply-partially #'locate-file-completion-table
+				       cd-path nil))
+          (setq-local minibuffer-completion-predicate
+		      (lambda (dir)
+			(locate-file dir cd-path nil
+				     (lambda (f) (and (file-directory-p f) 'dir-ok))))))
       (unless cd-path
         (setq cd-path (or (parse-colon-path (getenv "CDPATH"))
                           (list "./"))))
@@ -1736,7 +1739,8 @@ Choose the buffer's name using `generate-new-buffer-name'."
 (make-obsolete-variable 'automount-dir-prefix 'directory-abbrev-alist "24.3")
 
 (defvar abbreviated-home-dir nil
-  "The user's homedir abbreviated according to `directory-abbrev-alist'.")
+  "Regexp matching the user's homedir at the beginning of file name.
+The value includes abbreviation according to `directory-abbrev-alist'.")
 
 (defun abbreviate-file-name (filename)
   "Return a version of FILENAME shortened using `directory-abbrev-alist'.
@@ -1770,8 +1774,23 @@ home directory is a root directory) and removes automounter prefixes
       (or abbreviated-home-dir
 	  (setq abbreviated-home-dir
 		(let ((abbreviated-home-dir "$foo"))
-		  (concat "\\`" (abbreviate-file-name (expand-file-name "~"))
-			  "\\(/\\|\\'\\)"))))
+                  (setq abbreviated-home-dir
+                        (concat "\\`"
+                                (abbreviate-file-name (expand-file-name "~"))
+                                "\\(/\\|\\'\\)"))
+                  ;; Depending on whether default-directory does or
+                  ;; doesn't include non-ASCII characters, the value
+                  ;; of abbreviated-home-dir could be multibyte or
+                  ;; unibyte.  In the latter case, we need to decode
+                  ;; it.  Note that this function is called for the
+                  ;; first time (from startup.el) when
+                  ;; locale-coding-system is already set up.
+                  (if (multibyte-string-p abbreviated-home-dir)
+                      abbreviated-home-dir
+                    (decode-coding-string abbreviated-home-dir
+                                          (if (eq system-type 'windows-nt)
+                                              'utf-8
+                                            locale-coding-system))))))
 
       ;; If FILENAME starts with the abbreviated homedir,
       ;; make it start with `~' instead.
@@ -4704,13 +4723,15 @@ the last real save, but optional arg FORCE non-nil means delete anyway."
   "Normal hook run just before auto-saving.")
 
 (defcustom before-save-hook nil
-  "Normal hook that is run before a buffer is saved to its file."
+  "Normal hook that is run before a buffer is saved to its file.
+Only used by `save-buffer'."
   :options '(copyright-update time-stamp)
   :type 'hook
   :group 'files)
 
 (defcustom after-save-hook nil
-  "Normal hook that is run after a buffer is saved to its file."
+  "Normal hook that is run after a buffer is saved to its file.
+Only used by `save-buffer'."
   :options '(executable-make-buffer-file-executable-if-script-p)
   :type 'hook
   :group 'files)

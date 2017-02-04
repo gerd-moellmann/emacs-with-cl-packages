@@ -1,6 +1,6 @@
 ;;; ede/locate.el --- Locate support
 
-;; Copyright (C) 2008-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2017 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <eric@siege-engine.com>
 
@@ -124,12 +124,12 @@ based on `ede-locate-setup-options'."
   t)
 
 (cl-defmethod ede-locate-flush-hash ((loc ede-locate-base))
-  "For LOC, flush hashtable and start from scratch."
+  "For LOC, flush hash table and start from scratch."
   (oset loc hash (make-hash-table :test 'equal)))
 
 (cl-defmethod ede-locate-file-in-hash ((loc ede-locate-base)
 				    filestring)
-  "For LOC, is the file FILESTRING in our hashtable?"
+  "For LOC, is the file FILESTRING in our hash table?"
   (gethash filestring (oref loc hash)))
 
 (cl-defmethod ede-locate-add-file-to-hash ((loc ede-locate-base)

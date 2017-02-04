@@ -1,6 +1,6 @@
-/* Selection processing for Emacs on Mac OS.
+/* Selection processing for Emacs on macOS.
    Copyright (C) 2005-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2017  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -662,8 +662,8 @@ defer_apple_events (const AppleEvent *apple_event, const AppleEvent *reply)
 
   err = AESuspendTheCurrentEvent (apple_event);
 
-  /* Mac OS 10.3 Xcode manual says AESuspendTheCurrentEvent makes
-     copies of the Apple event and the reply, but Mac OS 10.4 Xcode
+  /* Mac OS X 10.3 Xcode manual says AESuspendTheCurrentEvent makes
+     copies of the Apple event and the reply, but Mac OS X 10.4 Xcode
      manual says it doesn't.  Anyway we create copies of them and save
      them in `deferred_apple_events'.  */
   if (err == noErr)
@@ -1142,6 +1142,7 @@ The types are chosen in the order they appear in the list.  */);
   DEFSYM (Qmac_apple_event_id, "mac-apple-event-id");
   DEFSYM (Qemacs_suspension_id, "emacs-suspension-id");
   DEFSYM (QCactions, ":actions");
+  DEFSYM (QCitems, ":items");
   DEFSYM (Qcopy, "copy");
   DEFSYM (Qlink, "link");
   DEFSYM (Qgeneric, "generic");

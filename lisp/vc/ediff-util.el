@@ -1,6 +1,6 @@
 ;;; ediff-util.el --- the core commands and utilities of ediff
 
-;; Copyright (C) 1994-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2017 Free Software Foundation, Inc.
 
 ;; Author: Michael Kifer <kifer@cs.stonybrook.edu>
 ;; Package: ediff
@@ -2624,7 +2624,9 @@ temporarily reverses the meaning of this variable."
 (defun ediff-janitor (ask keep-variants)
   "Kill buffers A, B, and, possibly, C, if these buffers aren't modified.
 In merge jobs, buffer C is not deleted here, but rather according to
-ediff-quit-merge-hook.
+`ediff-quit-merge-hook'.
+ASK non-nil means ask the user whether to keep each unmodified buffer, unless
+KEEP-VARIANTS is non-nil, in which case buffers are never killed.
 A side effect of cleaning up may be that you should be careful when comparing
 the same buffer in two separate Ediff sessions: quitting one of them might
 delete this buffer in another session as well."

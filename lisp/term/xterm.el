@@ -1,6 +1,6 @@
 ;;; xterm.el --- define function key sequences and standard colors for xterm  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995, 2001-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 2001-2017 Free Software Foundation, Inc.
 
 ;; Author: FSF
 ;; Keywords: terminals
@@ -771,7 +771,7 @@ We run the first FUNCTION whose STRING matches the input events."
       ;; Try to find out the type of terminal by sending a "Secondary
       ;; Device Attributes (DA)" query.
       (xterm--query "\e[>0c"
-                    ;; Some terminals (like OS X's Terminal.app) respond to
+                    ;; Some terminals (like macOS's Terminal.app) respond to
                     ;; this query as if it were a "Primary Device Attributes"
                     ;; query instead, so we should handle that too.
                     '(("\e[?" . xterm--version-handler)

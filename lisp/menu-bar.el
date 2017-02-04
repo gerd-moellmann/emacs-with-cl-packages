@@ -1,6 +1,6 @@
 ;;; menu-bar.el --- define a default menu bar
 
-;; Copyright (C) 1993-1995, 2000-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1995, 2000-2017 Free Software Foundation, Inc.
 
 ;; Author: Richard M. Stallman
 ;; Maintainer: emacs-devel@gnu.org
@@ -530,12 +530,10 @@
                             (gui-backend-selection-exists-p 'CLIPBOARD))
                         (not buffer-read-only)))))
 
-(defvar gui-select-enable-clipboard)
-
 (defun clipboard-yank ()
   "Insert the clipboard contents, or the last stretch of killed text."
   (interactive "*")
-  (let ((gui-select-enable-clipboard t))
+  (let ((select-enable-clipboard t))
     (yank)))
 
 (defun clipboard-kill-ring-save (beg end &optional region)
@@ -543,7 +541,7 @@
 If the optional argument REGION is non-nil, the function ignores
 BEG and END, and saves the current region instead."
   (interactive "r\np")
-  (let ((gui-select-enable-clipboard t))
+  (let ((select-enable-clipboard t))
     (kill-ring-save beg end region)))
 
 (defun clipboard-kill-region (beg end &optional region)
@@ -551,7 +549,7 @@ BEG and END, and saves the current region instead."
 If the optional argument REGION is non-nil, the function ignores
 BEG and END, and kills the current region instead."
   (interactive "r\np")
-  (let ((gui-select-enable-clipboard t))
+  (let ((select-enable-clipboard t))
     (kill-region beg end region)))
 
 (defun menu-bar-enable-clipboard ()
@@ -1865,7 +1863,7 @@ key, a click, or a menu-item"))
       '(menu-item "Emacs Tutorial" help-with-tutorial
                   :help "Learn how to use Emacs"))
 
-    ;; In OS X it's in the app menu already.
+    ;; In macOS it's in the app menu already.
     ;; FIXME? There already is an "About Emacs" (sans ...) entry in the Help menu.
     (and (featurep 'ns)
          (not (eq system-type 'darwin))

@@ -1,6 +1,6 @@
 ;;; semantic/format.el --- Routines for formatting tags
 
-;; Copyright (C) 1999-2005, 2007-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2005, 2007-2017 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -603,7 +603,7 @@ UML attribute strings are things like {abstract} or {leaf}."
     (private . "-")
     )
   "Association list of the form (SYMBOL . \"STRING\") for protection symbols.
-This associates a symbol, such as 'public with the st ring \"+\".")
+For example, it might associate the symbol `public' with the string \"+\".")
 
 (define-overloadable-function semantic-format-tag-uml-protection-to-string (protection-symbol color)
   "Convert PROTECTION-SYMBOL to a string for UML.

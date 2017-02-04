@@ -1,6 +1,6 @@
 ;;; htmlfontify.el --- htmlize a buffer/source tree with optional hyperlinks
 
-;; Copyright (C) 2002-2003, 2009-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2003, 2009-2017 Free Software Foundation, Inc.
 
 ;; Emacs Lisp Archive Entry
 ;; Package: htmlfontify
@@ -522,8 +522,8 @@ Some examples:\n
 
 (defvar hfy-sheet-assoc 'please-ignore-this-line
   "An assoc with elements of the form (face-name style-name . style-string):\n
-'((default               \"default\" . \"{background: black; color: white}\")
-  (font-lock-string-face \"string\"  . \"{color: rgb(64,224,208)}\"))" )
+\((default               \"default\" . \"{background: black; color: white}\")
+ (font-lock-string-face \"string\"  . \"{color: rgb(64,224,208)}\"))" )
 
 (defvar hfy-facemap-assoc 'please-ignore-this-line
   "An assoc of (point . FACE-SYMBOL) or (point . DEFFACE-LIST)
@@ -2418,7 +2418,7 @@ You may also want to set `hfy-page-header' and `hfy-page-footer'."
     (load file 'NOERROR nil nil) ))
 
 
-;;;### (autoloads nil "hfy-cmap" "hfy-cmap.el" "e644ddae915ddb98c9b2f16ffa5a74b2")
+;;;### (autoloads nil "hfy-cmap" "hfy-cmap.el" "0a78ea95dcdd0c5e9632dfca6f86abdb")
 ;;; Generated autoloads from hfy-cmap.el
 
 (autoload 'htmlfontify-load-rgb-file "hfy-cmap" "\

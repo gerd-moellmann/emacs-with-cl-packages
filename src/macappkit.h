@@ -1,5 +1,5 @@
-/* Definitions and headers for AppKit framework on the Mac OS.
-   Copyright (C) 2008-2016  YAMAMOTO Mitsuharu
+/* Definitions and headers for AppKit framework on macOS.
+   Copyright (C) 2008-2017  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -81,6 +81,7 @@ typedef id instancetype;
 #define NSMutableSetOf(ObjectType)	NSMutableSet
 #define NSDictionaryOf(KeyT, ObjectT)	NSDictionary
 #define NSMutableDictionaryOf(KeyT, ObjectT) NSMutableDictionary
+#define __kindof
 #endif
 
 #ifndef NS_NOESCAPE
@@ -149,17 +150,11 @@ typedef id instancetype;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
-typedef NSString * NSTouchBarItemIdentifier;
 @protocol NSTouchBarDelegate @end
-
-@interface NSTouchBar : NSObject <NSCoding>
-- (id <NSTouchBarDelegate>)delegate;
-- (void)setDelegate:(id <NSTouchBarDelegate>)delegate;
-@property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
-@end
+@class NSCandidateListTouchBarItem;
 #endif
 
-@interface EmacsApplication : NSApplication <NSTouchBarDelegate>
+@interface EmacsApplication : NSApplication
 @end
 
 @interface EmacsPosingWindow : NSWindow
@@ -390,7 +385,7 @@ typedef NSString * NSTouchBarItemIdentifier;
 /* Class for Emacs view that also handles input events.  Used by
    ordinary frames.  */
 
-@interface EmacsMainView : EmacsView <NSTextInputClient>
+@interface EmacsMainView : EmacsView <NSTextInputClient, NSTouchBarDelegate>
 {
   /* Target object to which the EmacsMainView object sends
      actions.  */
@@ -431,6 +426,10 @@ typedef NSString * NSTouchBarItemIdentifier;
 
   /* Stage of the last gesture event of type NSEventTypePressure.  */
   NSInteger pressureEventStage;
+
+  /* Touch bar item used for the candidate list.  Currently, only
+     candidates from input methods are displayed.  */
+  NSCandidateListTouchBarItem *candidateListTouchBarItem;
 }
 - (struct frame *)emacsFrame;
 - (id)target;
@@ -610,14 +609,7 @@ typedef NSString * NSTouchBarItemIdentifier;
 @interface EmacsSavePanel : NSSavePanel
 @end
 
-@interface EmacsOpenPanel : NSOpenPanel
-@end
-
 @interface EmacsFontDialogController : NSObject <NSWindowDelegate>
-@end
-
-@interface NSFontPanel (Emacs)
-- (NSInteger)runModal;
 @end
 
 @interface NSMenu (Emacs)
@@ -644,7 +636,7 @@ typedef NSString * NSTouchBarItemIdentifier;
 - (void)popUpMenu:(NSMenu *)menu atLocationInEmacsView:(NSPoint)location;
 @end
 
-@interface EmacsDialogView : NSView
+@interface EmacsDialogView : NSView <NSTouchBarDelegate>
 - (instancetype)initWithWidgetValue:(widget_value *)wv;
 @end
 
@@ -653,11 +645,6 @@ typedef NSString * NSTouchBarItemIdentifier;
   NSArrayOf (NSView *) *views;
 }
 - (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
-@end
-
-@interface NSPasteboard (Emacs)
-- (BOOL)setLispObject:(Lisp_Object)lispObject forType:(NSString *)dataType;
-- (Lisp_Object)lispObjectForType:(NSString *)dataType;
 @end
 
 @interface NSAppleEventDescriptor (Emacs)
@@ -1026,6 +1013,106 @@ enum {
   NSControlSizeRegular	= NSRegularControlSize,
   NSControlSizeSmall	= NSSmallControlSize
 };
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
+typedef NSString * NSTouchBarItemIdentifier;
+
+@interface NSTouchBarItem : NSObject <NSCoding>
+- (instancetype)initWithIdentifier:(NSTouchBarItemIdentifier)identifier;
+@end
+
+@interface NSCustomTouchBarItem : NSTouchBarItem
+@property (retain) __kindof NSView *view;
+@end
+
+@interface NSCandidateListTouchBarItem : NSTouchBarItem
+@end
+
+@interface NSTouchBar : NSObject <NSCoding>
+@property (assign) id <NSTouchBarDelegate> delegate;
+@property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
+@property (copy) NSTouchBarItemIdentifier principalItemIdentifier;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+@interface NSView (AvailableOn1070AndLater)
+@property BOOL translatesAutoresizingMaskIntoConstraints;
+@end
+
+@interface NSLayoutConstraint : NSObject <NSAnimatablePropertyContainer>
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
+@interface NSLayoutConstraint (AvailableOn101000AndLater)
+@property (getter=isActive) BOOL active;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
+@interface NSLayoutAnchor : NSObject <NSCopying, NSCoding>
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutAnchor *)anchor;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutAnchor *)anchor;
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutAnchor *)anchor constant:(CGFloat)c;
+@end
+
+@interface NSLayoutXAxisAnchor : NSLayoutAnchor
+@end
+@interface NSLayoutYAxisAnchor : NSLayoutAnchor
+@end
+
+@interface NSLayoutDimension : NSLayoutAnchor
+- (NSLayoutConstraint *)constraintEqualToConstant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToConstant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToConstant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m;
+- (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m constant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m constant:(CGFloat)c;
+- (NSLayoutConstraint *)constraintLessThanOrEqualToAnchor:(NSLayoutDimension *)anchor multiplier:(CGFloat)m constant:(CGFloat)c;
+@end
+
+@interface NSView (AvailableOn101100AndLater)
+@property (readonly, retain) NSLayoutXAxisAnchor *leadingAnchor;
+@property (readonly, retain) NSLayoutXAxisAnchor *trailingAnchor;
+@property (readonly, retain) NSLayoutXAxisAnchor *leftAnchor;
+@property (readonly, retain) NSLayoutXAxisAnchor *rightAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *topAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *bottomAnchor;
+@property (readonly, retain) NSLayoutDimension *widthAnchor;
+@property (readonly, retain) NSLayoutDimension *heightAnchor;
+@property (readonly, retain) NSLayoutXAxisAnchor *centerXAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *centerYAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *firstBaselineAnchor;
+@property (readonly, retain) NSLayoutYAxisAnchor *lastBaselineAnchor;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+@interface NSStackView : NSView
++ (instancetype)stackViewWithViews:(NSArrayOf (NSView *) *)views;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+@interface NSButton (AvailableOn101200AndLater)
++ (instancetype)buttonWithTitle:(NSString *)title image:(NSImage *)image
+			 target:(id)target action:(SEL)action;
++ (instancetype)buttonWithTitle:(NSString *)title
+			 target:(id)target action:(SEL)action;
++ (instancetype)buttonWithImage:(NSImage *)image
+			 target:(id)target action:(SEL)action;
++ (instancetype)checkboxWithTitle:(NSString *)title
+			   target:(id)target action:(SEL)action;
++ (instancetype)radioButtonWithTitle:(NSString *)title
+			      target:(id)target action:(SEL)action;
+@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200

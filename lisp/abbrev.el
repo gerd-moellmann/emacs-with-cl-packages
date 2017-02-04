@@ -1,6 +1,6 @@
 ;;; abbrev.el --- abbrev mode commands for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 2001-2016 Free Software Foundation,
+;; Copyright (C) 1985-1987, 1992, 2001-2017 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -837,16 +837,17 @@ Takes no argument and should return the abbrev symbol if expansion took place.")
   "Expand the abbrev before point, if there is an abbrev there.
 Effective when explicitly called even when `abbrev-mode' is nil.
 Before doing anything else, runs `pre-abbrev-expand-hook'.
-Calls `abbrev-expand-function' with no argument to do the work,
-and returns whatever it does.  (This should be the abbrev symbol
-if expansion occurred, else nil.)"
+Calls the value of `abbrev-expand-function' with no argument to do
+the work, and returns whatever it does.  (That return value should
+be the abbrev symbol if expansion occurred, else nil.)"
   (interactive)
   (run-hooks 'pre-abbrev-expand-hook)
   (funcall abbrev-expand-function))
 
 (defun abbrev--default-expand ()
   "Default function to use for `abbrev-expand-function'.
-This respects the wrapper hook `abbrev-expand-functions'.
+This also respects the obsolete wrapper hook `abbrev-expand-functions'.
+\(See `with-wrapper-hook' for details about wrapper hooks.)
 Calls `abbrev-insert' to insert any expansion, and returns what it does."
   (with-wrapper-hook abbrev-expand-functions ()
     (pcase-let ((`(,sym ,name ,wordstart ,wordend) (abbrev--before-point)))
@@ -978,10 +979,10 @@ Properties with special meaning:
   ;; We used to manually add the docstring, but we also want to record this
   ;; location as the definition of the variable (in load-history), so we may
   ;; as well just use `defvar'.
-  (if (and docstring props (symbolp docstring))
-      ;; There is really no docstring, instead the docstring arg
-      ;; is a property name.
-      (push docstring props) (setq docstring nil))
+  (when (and docstring props (symbolp docstring))
+    ;; There is really no docstring, instead the docstring arg
+    ;; is a property name.
+    (push docstring props) (setq docstring nil))
   (eval `(defvar ,tablename nil ,@(if docstring (list docstring))))
   (let ((table (if (boundp tablename) (symbol-value tablename))))
     (unless table

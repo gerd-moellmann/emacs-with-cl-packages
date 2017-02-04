@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on the Microsoft Windows API.
 
-Copyright (C) 1989, 1993-2016 Free Software Foundation, Inc.
+Copyright (C) 1989, 1993-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -7157,7 +7157,10 @@ specified by `file-name-coding-system'.
 This variable is set to non-nil by default when Emacs runs on Windows
 systems of the NT family, including W2K, XP, Vista, Windows 7 and
 Windows 8.  It is set to nil on Windows 9X.  */);
-  w32_unicode_filenames = 0;
+  if (os_subtype == OS_9X)
+    w32_unicode_filenames = 0;
+  else
+    w32_unicode_filenames = 1;
 
 
   /* FIXME: The following variable will be (hopefully) removed

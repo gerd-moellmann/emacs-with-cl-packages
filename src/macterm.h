@@ -1,6 +1,6 @@
-/* Display module for Mac OS.
+/* Display module for macOS.
    Copyright (C) 2000-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2017  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -380,7 +380,7 @@ struct scroll_bar {
 #define HOURGLASS_RIGHT_MARGIN (32)
 
 /* Some constants that are used locally.  */
-/* Creator code for Emacs on Mac OS.  */
+/* Creator code for Emacs on macOS.  */
 enum {
   MAC_EMACS_CREATOR_CODE	= 'EMAx'
 };
@@ -530,7 +530,6 @@ extern Lisp_Object cfboolean_to_lisp (CFBooleanRef);
 extern Lisp_Object cfobject_desc_to_lisp (CFTypeRef);
 extern Lisp_Object cfobject_to_lisp (CFTypeRef, int, int);
 extern Lisp_Object cfproperty_list_to_lisp (CFPropertyListRef, int, int);
-extern CFPropertyListRef cfproperty_list_create_with_lisp (Lisp_Object);
 extern Lisp_Object cfproperty_list_to_string (CFPropertyListRef,
 					      CFPropertyListFormat);
 extern CFPropertyListRef cfproperty_list_create_with_string (Lisp_Object);

@@ -28,7 +28,7 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-Copyright (C) 1984, 1987-1989, 1993-1995, 1998-2016 Free Software
+Copyright (C) 1984, 1987-1989, 1993-1995, 1998-2017 Free Software
 Foundation, Inc.
 
 This file is not considered part of GNU Emacs.
@@ -3436,13 +3436,27 @@ C_entries (int c_ext, FILE *inf)
 			      int off = tokoff;
 			      int len = toklen;
 
-			      /* Rewrite the tag so that emacs lisp DEFUNs
-				 can be found by their elisp name */
 			      if (defun)
 				{
 				  off += 1;
 				  len -= 1;
+
+				  /* First, tag it as its C name */
+				  linebuffer_setlen (&token_name, toklen);
+				  memcpy (token_name.buffer,
+					  newlb.buffer + tokoff, toklen);
+				  token_name.buffer[toklen] = '\0';
+				  token.named = true;
+				  token.lineno = lineno;
+				  token.offset = tokoff;
+				  token.length = toklen;
+				  token.line = newlb.buffer;
+				  token.linepos = newlinepos;
+				  token.valid = true;
+				  make_C_tag (funorvar);
 				}
+			      /* Rewrite the tag so that emacs lisp DEFUNs
+				 can be found also by their elisp name */
 			      linebuffer_setlen (&token_name, len);
 			      memcpy (token_name.buffer,
 				      newlb.buffer + off, len);

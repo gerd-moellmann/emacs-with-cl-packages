@@ -1,6 +1,6 @@
 ;;; isearch-tests.el --- Tests for isearch.el        -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2013-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2017 Free Software Foundation, Inc.
 
 ;; Author: Artur Malabarba <bruce.connor.am@gmail.com>
 
@@ -27,6 +27,14 @@
   (with-temp-buffer
     (isearch-update)
     (should (equal isearch--current-buffer (current-buffer)))))
+
+(ert-deftest isearch--test-done ()
+  ;; Normal operation.
+  (isearch-update)
+  (isearch-done)
+  (should-not isearch--current-buffer)
+  ;; Bug #21091: let `isearch-done' work without `isearch-update'.
+  (isearch-done))
 
 (provide 'isearch-tests)
 ;;; isearch-tests.el ends here

@@ -1,6 +1,6 @@
 ;;; edt.el --- enhanced EDT keypad mode emulation for GNU Emacs
 
-;; Copyright (C) 1986, 1992-1995, 2000-2016 Free Software Foundation,
+;; Copyright (C) 1986, 1992-1995, 2000-2017 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Kevin Gallagher <kevin.gal@verizon.net>
@@ -497,7 +497,7 @@ Argument NUM is the number of EOL marks to move."
 ;;; of line, etc.) it takes a bit of special handling.
 ;;;
 ;;; The variable edt-word-entities contains a list of characters which
-;;; are to be viewed as distinct words where ever they appear in the
+;;; are to be viewed as distinct words wherever they appear in the
 ;;; buffer.  This emulates the EDT line mode command SET ENTITY WORD.
 
 

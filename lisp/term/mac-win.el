@@ -1,7 +1,7 @@
 ;;; mac-win.el --- parse switches controlling interface with Mac window system -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1999-2008  Free Software Foundation, Inc.
-;; Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
+;; Copyright (C) 2009-2017  YAMAMOTO Mitsuharu
 
 ;; Author: Andrew Choi <akochoi@mac.com>
 ;;	YAMAMOTO Mitsuharu <mituharu@math.s.chiba-u.ac.jp>
@@ -363,26 +363,25 @@ The optional arg SCALE is the scale factor, and defaults to 2."
   "Groups of characters that are sensitive to variation selectors 15 and 16.
 It is an alist of label symbols vs sequences of characters.
 The entries are currently based on StandardizedVariants-9.0.0.txt
-and emoji-zwj-sequences.txt 4.0 draft.")
+and emoji-zwj-sequences.txt 4.0.")
 
 (defconst mac-emoji-modifier-base-characters-alist
   '((t . "\u261D\u26F9\u270A\u270B\u270C\u270D\
 \U0001F385\U0001F3C2\U0001F3C3\U0001F3C4\U0001F3C7\U0001F3CA\U0001F3CB\
 \U0001F3CC\U0001F442\U0001F443\U0001F446\U0001F447\U0001F448\U0001F449\
 \U0001F44A\U0001F44B\U0001F44C\U0001F44D\U0001F44E\U0001F44F\U0001F450\
-\U0001F466\U0001F467\U0001F468\U0001F469\U0001F46A\U0001F46B\U0001F46C\
-\U0001F46D\U0001F46E\U0001F46F\U0001F470\U0001F471\U0001F472\U0001F473\
-\U0001F474\U0001F475\U0001F476\U0001F477\U0001F478\U0001F47C\U0001F481\
-\U0001F482\U0001F483\U0001F485\U0001F486\U0001F487\U0001F4AA\U0001F574\
-\U0001F575\U0001F57A\U0001F590\U0001F595\U0001F596\U0001F645\U0001F646\
-\U0001F647\U0001F64B\U0001F64C\U0001F64D\U0001F64E\U0001F64F\U0001F6A3\
-\U0001F6B4\U0001F6B5\U0001F6B6\U0001F6C0\U0001F6CC\U0001F918\U0001F919\
-\U0001F91A\U0001F91B\U0001F91C\U0001F91D\U0001F91E\U0001F926\U0001F930\
-\U0001F933\U0001F934\U0001F935\U0001F936\U0001F937\U0001F938\U0001F939\
-\U0001F93C\U0001F93D\U0001F93E"))
+\U0001F466\U0001F467\U0001F468\U0001F469\U0001F46E\U0001F470\U0001F471\
+\U0001F472\U0001F473\U0001F474\U0001F475\U0001F476\U0001F477\U0001F478\
+\U0001F47C\U0001F481\U0001F482\U0001F483\U0001F485\U0001F486\U0001F487\
+\U0001F4AA\U0001F574\U0001F575\U0001F57A\U0001F590\U0001F595\U0001F596\
+\U0001F645\U0001F646\U0001F647\U0001F64B\U0001F64C\U0001F64D\U0001F64E\
+\U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\U0001F6C0\U0001F6CC\
+\U0001F918\U0001F919\U0001F91A\U0001F91B\U0001F91C\U0001F91E\U0001F926\
+\U0001F930\U0001F933\U0001F934\U0001F935\U0001F936\U0001F937\U0001F938\
+\U0001F939\U0001F93D\U0001F93E"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-sequences.txt 4.0 draft.")
+The entries are currently based on emoji-sequences.txt 4.0.")
 
 (defconst mac-emoji-gendered-zwj-characters-alist
   '((role-with-object . "\u2695\u2696\u2708\
@@ -396,7 +395,7 @@ The entries are currently based on emoji-sequences.txt 4.0 draft.")
 \U0001F64E\U0001F926\U0001F937"))
   "Groups of characters that are parts of the gendered zwj sequences.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-zwj-sequences.txt 4.0 draft.")
+The entries are currently based on emoji-zwj-sequences.txt 4.0.")
 
 (defun mac-emoji-multistyles-unistyles (sequence)
   "Split emoji SEQUENCE into a cons of multistyles and unistyles."
@@ -508,7 +507,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
      `([,(concat "[" modifications "].") 1 font-shape-gstring 0])))
-  ;; From emoji-zwj-sequences.txt 4.0 draft.
+  ;; From emoji-zwj-sequences.txt 4.0.
   (let* ((zwj "\u200D") (vs16 "\uFE0F") (man "\U0001F468") (woman "\U0001F469")
 	 (girl "\U0001F467") (boy "\U0001F466")
 	 (heavy-black-heart "\u2764") (kiss-mark "\U0001F48B")
@@ -532,9 +531,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
                        (cdr (assq symbol
                                   mac-emoji-gendered-zwj-characters-alist)))
                      '(role activity gesture) ""))
-         (sign-multis-unis (mac-emoji-multistyles-unistyles signs))
-         (sign-multistyles (car sign-multis-unis))
-         (sign-unistyles (cdr sign-multis-unis)))
+         (sign-multistyles (car (mac-emoji-multistyles-unistyles signs))))
     (set-char-table-range
      composition-function-table (string-to-char zwj)
      `([,(concat man ".\\(?:\\(?:" man-or-woman zwj "\\)?" children
@@ -549,21 +546,19 @@ second is a glyph for the variation selector 16 (U+FE0F)."
                  "\\|[" object-multistyles "]" vs16?
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring -1]
-       [,(concat eye zwj left-speech-bubble)
+       [,(concat eye zwj left-speech-bubble vs16?)
 	1 font-shape-gstring -1]
        [,(concat waving-white-flag zwj rainbow)
 	1 font-shape-gstring -1]
-       [,(concat "[" sign-multistyles "]." female-or-male)
-	1 font-shape-gstring -1]
-       [,(concat "[" sign-unistyles "]." female-or-male vs16?)
+       [,(concat "[" signs "]." female-or-male vs16?)
 	1 font-shape-gstring -1]))
     (set-char-table-range
      composition-function-table ?\uFE0F
-     `([,(concat eye vs16 zwj left-speech-bubble vs16)
+     `([,(concat eye vs16 zwj left-speech-bubble vs16?)
 	1 font-shape-gstring 0]
        [,(concat waving-white-flag vs16 zwj rainbow)
         1 font-shape-gstring 0]
-       [,(concat "[" sign-multistyles "]." zwj female-or-male vs16)
+       [,(concat "[" sign-multistyles "]." zwj female-or-male vs16?)
 	1 font-shape-gstring 0]
        ,@(aref composition-function-table ?\uFE0F)))
     (set-char-table-range
@@ -592,17 +587,27 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 
 (defvar mac-auto-operator-composition-cache (make-hash-table :test 'equal))
 
-(defun mac-copy-gstring (gstring &optional prefix-len)
-  (or prefix-len (setq prefix-len (lgstring-char-len gstring)))
-  (let ((header (lgstring-header gstring))
-	(new-header (make-vector (1+ prefix-len) nil))
-	(new-gstring (make-vector (length gstring) nil)))
-    (dotimes (i (length new-header))
-      (aset new-header i (aref header i)))
-    (lgstring-set-header new-gstring new-header)
-    (dotimes (i prefix-len)
-      (lgstring-set-glyph new-gstring i
-			  (lglyph-copy (lgstring-glyph gstring i))))
+(defun mac-subgstring (gstring &optional from to)
+  (let ((size (lgstring-char-len gstring))
+        (header (lgstring-header gstring))
+        (new-gstring (make-vector (length gstring) nil))
+        (j 0))
+    (cond ((null from) (setq from 0))
+          ((< from 0) (setq from (+ from size))))
+    (cond ((null to) (setq to size))
+          ((< to 0) (setq to (+ to size))))
+    (lgstring-set-header new-gstring
+                         (vconcat (list (aref header 0))
+                                  (substring header (1+ from) (1+ to))))
+    (dotimes (i (lgstring-glyph-len gstring))
+      (let ((lglyph (lgstring-glyph gstring i)))
+        (when (and lglyph (<= from (lglyph-to lglyph))
+                   (< (lglyph-from lglyph) to))
+          (setq lglyph (lglyph-copy lglyph))
+          (lglyph-set-from-to lglyph (- (lglyph-from lglyph) from)
+                              (- (lglyph-to lglyph) from))
+          (lgstring-set-glyph new-gstring j lglyph)
+          (setq j (1+ j)))))
     new-gstring))
 
 (defun mac-gstring-prefix-p (gstring1 gstring2)
@@ -620,18 +625,23 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 
 (defun mac-auto-operator-composition-shape-gstring (gstring)
   "Like `font-shape-gstring', but return nil unless GSTRING is minimal.
-GSTRING is minimal if and only if none of its proper prefixes is
-shaped as a prefix of the shaped GSTRING."
+GSTRING is minimal if and only if the shaped GSTRING does not
+coincide with the concatenation of the shaped ones of any proper
+prefix of GSTRING and the corresponding suffix."
   (if (gethash (lgstring-header gstring) mac-auto-operator-composition-cache)
       nil
-    (let ((full (mac-font-gstring-shape-nocache (mac-copy-gstring gstring)))
+    (let ((full (mac-font-gstring-shape-nocache (mac-subgstring gstring)))
 	  (char-len (lgstring-char-len gstring))
 	  (i 1))
       (while (and full (< i char-len))
 	(let ((partial (mac-font-gstring-shape-nocache
-			(mac-copy-gstring gstring i))))
-	  (if (and partial (mac-gstring-prefix-p partial full))
-	      (setq full nil)))
+			(mac-subgstring gstring 0 i))))
+	  (when (and partial (mac-gstring-prefix-p partial full))
+            (setq partial (mac-font-gstring-shape-nocache
+                           (mac-subgstring gstring i)))
+            (if (and partial (mac-gstring-prefix-p partial
+                                                   (mac-subgstring full i)))
+                (setq full nil))))
 	(setq i (1+ i)))
       (if full
 	  (font-shape-gstring gstring)
@@ -706,6 +716,8 @@ language."
 
 (declare-function mac-code-convert-string "mac.c"
 		  (string source target &optional normalization-form))
+(declare-function mac-convert-property-list "mac.c"
+                  (property-list &optional format hash-bound))
 
 (defun mac-utxt-to-string (data &optional coding-system source-encoding)
   (or coding-system (setq coding-system mac-system-coding-system))
@@ -778,22 +790,17 @@ language."
 			 (or encoding coding-system) 'utf-8)))))
     (or data (encode-coding-string string 'utf-8))))
 
+(defun mac-local-file-name-to-file-url (filename)
+  (concat "file://"
+          (mapconcat 'url-hexify-string (split-string filename "/") "/")))
+
 (defun mac-pasteboard-filenames-to-file-urls (data)
-  ;; DATA is a property list (in Foundation terminology) of the form
-  ;; (array . [(string . FILENAME1) ... (string . FILENAMEn)]), where
-  ;; each FILENAME is a unibyte string in UTF-8.
-  (when (eq (car-safe data) 'array)
-    (let ((coding (or file-name-coding-system default-file-name-coding-system)))
-      (mapcar
-       (lambda (tag-data)
-	 (when (eq (car tag-data) 'string)
-	   (let ((filename (encode-coding-string
-			    (mac-pasteboard-string-to-string (cdr tag-data))
-			    coding)))
-	     (concat "file://localhost"
-		     (mapconcat 'url-hexify-string
-				(split-string filename "/") "/")))))
-       (cdr data)))))
+  (setq data (mac-convert-property-list data))
+  (when (vectorp data)
+    (mapcar (lambda (filename)
+              (when (stringp filename)
+                (mac-local-file-name-to-file-url filename)))
+            data)))
 
 
 ;;;; Selections
@@ -859,8 +866,8 @@ language."
 (defun mac-select-convert-to-pasteboard-filenames (selection type value)
   (let ((filename (xselect-convert-to-filename selection type value)))
     (and filename
-	 (setq filename (mac-string-to-pasteboard-string filename))
-	 (cons type `(array . [(string . ,filename)])))))
+	 (cons type (mac-convert-property-list `(array . [(string . ,filename)])
+                                               'xml1)))))
 
 (setq selection-converter-alist
       (nconc
@@ -1061,12 +1068,9 @@ if possible.  If there's no such frame, a new frame is created."
   "Open the documents specified by the Apple event EVENT."
   (interactive "e")
   (let ((ae (mac-event-ae event)))
-    (dolist (file-name (mac-ae-list ae nil 'undecoded-file-name))
-      (if file-name
-	  (dnd-open-local-file
-	   (concat "file://"
-		   (mapconcat 'url-hexify-string
-			      (split-string file-name "/") "/")) nil)))
+    (dolist (filename (mac-ae-list ae nil 'undecoded-file-name))
+      (when filename
+        (dnd-open-local-file (mac-local-file-name-to-file-url filename) nil)))
     (let ((selection-range (mac-ae-selection-range ae))
 	  (search-text (mac-ae-text-for-search ae)))
       (cond (selection-range
@@ -1930,7 +1934,10 @@ modifiers, it changes the global tool-bar visibility setting."
   (let ((ae (mac-event-ae event)))
     (let ((frame (cdr (mac-ae-parameter ae 'frame)))
 	  (alist (cdr (mac-ae-parameter ae 'alist))))
-      (modify-frame-parameters frame alist))))
+      ;; macOS 10.12 sends this event for a dead frame when a tab in a
+      ;; full screen space is closed.
+      (if (frame-live-p frame)
+          (modify-frame-parameters frame alist)))))
 
 (define-key mac-apple-event-map [frame modify-frame-parameters]
  'mac-handle-modify-frame-parameters-event)
@@ -2008,20 +2015,14 @@ modifiers, it changes the global tool-bar visibility setting."
 	(if (string-match "[^[:space:]\n][[:space:]\n]*\\'" data)
 	    (setq data (substring data 0 (1+ (match-beginning 0)))))
 	(when (file-name-absolute-p data)
-	  (let ((filename (expand-file-name data "/"))
-		(coding (or file-name-coding-system
-			    default-file-name-coding-system)))
+	  (let ((filename (expand-file-name data "/")))
 	    (unless (and (eq (aref data 0) ?~)
 			 (string-match "\\`/~" filename))
-	      (setq filename (encode-coding-string filename coding))
 	      (setq file-urls
-		    (list
-		     (concat "file://localhost"
-			     (mapconcat 'url-hexify-string
-					(split-string filename "/") "/")))))))))
+		    (list (mac-local-file-name-to-file-url filename))))))))
     (when file-urls
       (dolist (file-url file-urls)
-	(dnd-open-file file-url nil))
+	(dnd-open-local-file file-url nil))
       (select-frame-set-input-focus (selected-frame)))))
 
 (defun mac-service-open-selection ()
@@ -2108,12 +2109,14 @@ modifiers, it changes the global tool-bar visibility setting."
 ;;;; Drag and drop
 
 (defcustom mac-dnd-types-alist
-  '(("NSFilenamesPboardType" . mac-dnd-handle-pasteboard-filenames)
-					; NSFilenamesPboardType
-    ("NSStringPboardType" . mac-dnd-insert-pasteboard-string)
-					; NSStringPboardType
-    ("NeXT TIFF v4.0 pasteboard type" . mac-dnd-insert-TIFF) ; NSTIFFPboardType
-    )
+  '(("public.file-url" ; kUTTypeFileURL (which confirms to kUTTypeURL)
+     . mac-dnd-handle-file-url)
+    ("public.url"                       ; kUTTypeURL
+     . dnd-handle-one-url)
+    ("public.utf8-plain-text"           ; NSPasteboardTypeString
+     . mac-dnd-insert-pasteboard-string)
+    ("public.tiff"                      ; NSPasteboardTypeTIFF
+     . mac-dnd-insert-TIFF))
   "Which function to call to handle a drop of that type.
 The function takes three arguments, WINDOW, ACTION and DATA.
 WINDOW is where the drop occurred, ACTION is always `private' on
@@ -2121,13 +2124,18 @@ Mac.  DATA is the drop data.  Unlike the x-dnd counterpart, the
 return value of the function is not significant.
 
 See also `mac-dnd-known-types'."
-  :version "22.1"
+  :version "25.2"
   :type 'alist
   :group 'mac)
 
-(defun mac-dnd-handle-pasteboard-filenames (window action data)
-  (dolist (file-url (mac-pasteboard-filenames-to-file-urls data))
-    (dnd-handle-one-url window action (dnd-get-local-file-uri file-url))))
+(defun mac-dnd-handle-file-url (window action data)
+  "Like dnd-handle-one-url, but accepts a file reference URL as DATA.
+On OS X 10.10, drag-and-dropping file icons produces file
+reference URLs of the form \"file:///.file/id=...\"."
+  (let ((filename (mac-coerce-ae-data "furl" data 'undecoded-file-name)))
+    (if filename
+        (let ((file-url (mac-local-file-name-to-file-url filename)))
+          (dnd-handle-one-url window action file-url)))))
 
 (defun mac-dnd-insert-TIFF (window action data)
   (dnd-insert-text window action (mac-TIFF-to-string data)))
@@ -2159,18 +2167,19 @@ See also `mac-dnd-known-types'."
 (defun mac-dnd-handle-drag-n-drop-event (event)
   "Receive drag and drop events."
   (interactive "e")
-  (let ((window (posn-window (event-start event)))
-	(ae (mac-event-ae event))
-	action)
+  (let* ((window (posn-window (event-start event)))
+         (plist (nth 2 event))
+         ;; The second element of a drag-n-drop event is of the form
+         ;; (:actions ACTION-LIST :items (ITEM0 ITEM1 ...)) where
+         ;; ITEMi is either (TYPE-STRING . DATA-STRING) or nil.
+         (actions (plist-get plist :actions))
+         (action (and (not (memq 'generic actions)) (memq 'copy actions)
+                      'copy)))
     (when (windowp window) (select-window window))
-    ;; NSPasteboard-style drag-n-drop event of the form:
-    ;; (:type TYPE-STRING :actions ACTION-LIST :data OBJECT)
-    (let ((type (plist-get ae :type))
-	  (actions (plist-get ae :actions))
-	  (data (plist-get ae :data)))
-      (if (and (not (memq 'generic actions)) (memq 'copy actions))
-	  (setq action 'copy))
-      (mac-dnd-drop-data event (selected-frame) window data type action))))
+    (dolist (type-data (plist-get plist :items))
+      (if type-data
+          (mac-dnd-drop-data event (selected-frame) window
+                             (cdr type-data) (car type-data) action)))))
 
 
 (defvar mac-popup-menu-add-contextual-menu)

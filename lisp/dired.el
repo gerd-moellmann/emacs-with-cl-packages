@@ -1,6 +1,6 @@
 ;;; dired.el --- directory-browsing commands -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992-1997, 2000-2016 Free Software
+;; Copyright (C) 1985-1986, 1992-1997, 2000-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>
@@ -1829,11 +1829,11 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
       '("--"))
 
     (define-key map [menu-bar operate query-replace]
-      '(menu-item "Query Replace in Files..." dired-do-query-replace-regexp
-		  :help "Replace regexp in marked files"))
+      '(menu-item "Query Replace in Files..." dired-do-find-regexp-and-replace
+		  :help "Replace regexp matches in marked files"))
     (define-key map [menu-bar operate search]
-      '(menu-item "Search Files..." dired-do-search
-		  :help "Search marked files for regexp"))
+      '(menu-item "Search Files..." dired-do-find-regexp
+		  :help "Search marked files for matches of regexp"))
     (define-key map [menu-bar operate isearch-regexp]
       '(menu-item "Isearch Regexp Files..." dired-do-isearch-regexp
 		  :help "Incrementally search marked files for regexp"))
@@ -3919,7 +3919,7 @@ Ask means pop up a menu for the user to select one of copy, move or link."
 
 ;;; Start of automatically extracted autoloads.
 
-;;;### (autoloads nil "dired-aux" "dired-aux.el" "8346506b9ef7167fd55b5eac7e6617a1")
+;;;### (autoloads nil "dired-aux" "dired-aux.el" "e9e4ada4d5bc5d9e319610983ace2260")
 ;;; Generated autoloads from dired-aux.el
 
 (autoload 'dired-diff "dired-aux" "\
@@ -4113,9 +4113,9 @@ command with a prefix argument (the value does not matter).
 
 (autoload 'dired-do-compress-to "dired-aux" "\
 Compress selected files and directories to an archive.
-You are prompted for the archive name.
-The archiving command is chosen based on the archive name extension and
-`dired-compress-files-alist'.
+Prompt for the archive file name.
+Choose the archiving command based on the archive file-name extension
+and `dired-compress-files-alist'.
 
 \(fn)" t nil)
 
@@ -4454,7 +4454,7 @@ instead.
 
 ;;;***
 
-;;;### (autoloads nil "dired-x" "dired-x.el" "f00ad5ec7383d017263855ad8add60a3")
+;;;### (autoloads nil "dired-x" "dired-x.el" "167f862d52f8581579680caf3ef662ea")
 ;;; Generated autoloads from dired-x.el
 
 (autoload 'dired-jump "dired-x" "\

@@ -2,7 +2,7 @@
    0.12.  (Implements POSIX draft P1003.2/D11.2, except for some of the
    internationalization features.)
 
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -152,6 +152,8 @@
 
 /* Converts the pointer to the char to BEG-based offset from the start.  */
 # define PTR_TO_OFFSET(d) POS_AS_IN_BUFFER (POINTER_TO_OFFSET (d))
+/* Strings are 0-indexed, buffers are 1-indexed; we pun on the boolean
+   result to get the right base index.  */
 # define POS_AS_IN_BUFFER(p) ((p) + (NILP (re_match_object) || BUFFERP (re_match_object)))
 
 # define RE_MULTIBYTE_P(bufp) ((bufp)->multibyte)
@@ -4887,8 +4889,8 @@ WEAK_ALIAS (__re_match, re_match)
 #endif /* not emacs */
 
 #ifdef emacs
-/* In Emacs, this is the string or buffer in which we
-   are matching.  It is used for looking up syntax properties.  */
+/* In Emacs, this is the string or buffer in which we are matching.
+   See the declaration in regex.h for details.  */
 Lisp_Object re_match_object;
 #endif
 

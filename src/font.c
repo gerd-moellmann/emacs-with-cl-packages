@@ -1,6 +1,6 @@
 /* font.c -- "Font" primitives.
 
-Copyright (C) 2006-2016 Free Software Foundation, Inc.
+Copyright (C) 2006-2017 Free Software Foundation, Inc.
 Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
   National Institute of Advanced Industrial Science and Technology (AIST)
   Registration Number H13PRO009
@@ -5438,6 +5438,23 @@ The default value is t, which means to suppress logging.
 Set it to nil to enable logging.  If the environment variable
 EMACS_FONT_LOG is set at startup, it defaults to nil.  */);
   Vfont_log = Qnil;
+
+  DEFVAR_BOOL ("inhibit-compacting-font-caches", inhibit_compacting_font_caches,
+	       doc: /*
+If non-nil, don't compact font caches during GC.
+Some large fonts cause lots of consing and trigger GC.  If they
+are removed from the font caches, they will need to be opened
+again during redisplay, which slows down redisplay.  If you
+see font-related delays in displaying some special characters,
+and cannot switch to a smaller font for those characters, set
+this variable non-nil.
+Disabling compaction of font caches might enlarge the Emacs memory
+footprint in sessions that use lots of different fonts.  */);
+#ifndef HAVE_MACGUI
+  inhibit_compacting_font_caches = 0;
+#else
+  inhibit_compacting_font_caches = 1;
+#endif
 
 #ifdef HAVE_WINDOW_SYSTEM
 #ifdef HAVE_FREETYPE

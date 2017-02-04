@@ -1,6 +1,6 @@
-/* Menu support for GNU Emacs on Mac OS.
+/* Menu support for GNU Emacs on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2016  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2017  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -618,7 +618,7 @@ mac_menu_show (struct frame *f, int x, int y, int menuflags,
 }
 
 
-/* Construct native Mac OS dialog based on widget_value tree.  */
+/* Construct native macOS dialog based on widget_value tree.  */
 
 static const char * button_names [] = {
   "button1", "button2", "button3", "button4", "button5",

@@ -1,6 +1,6 @@
 ;;; printing.el --- printing utilities
 
-;; Copyright (C) 2000-2001, 2003-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2001, 2003-2017 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl@ig.com.br>
 ;; Maintainer: Vinicius Jose Latorre <viniciusjl@ig.com.br>
@@ -2272,7 +2272,7 @@ Useful links:
 * gv 3.5, June 1997
   `http://www.cs.wisc.edu/~ghost/gv/gv_doc/gv.html'
 
-* MacGSView (MacOS)
+* MacGSView (Mac OS)
   `http://www.cs.wisc.edu/~ghost/macos/index.htm'
 "
   :type '(string :tag "Ghostview Utility")

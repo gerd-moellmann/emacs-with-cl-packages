@@ -4,7 +4,7 @@ dnl	autoconf
 dnl in the directory containing this script.
 dnl If you changed any AC_DEFINES, also run autoheader.
 dnl
-dnl Copyright (C) 1994-1996, 1999-2016 Free Software Foundation, Inc.
+dnl Copyright (C) 1994-1996, 1999-2017 Free Software Foundation, Inc.
 dnl
 dnl  This file is part of GNU Emacs.
 dnl
@@ -23,7 +23,7 @@ dnl  along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 AC_PREREQ(2.65)
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
-AC_INIT(GNU Emacs, 25.1, bug-gnu-emacs@gnu.org)
+AC_INIT(GNU Emacs, 25.2, bug-gnu-emacs@gnu.org)
 
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
 dnl and then quoted again for a C string.  Separate options with spaces.
@@ -342,9 +342,9 @@ OPTION_DEFAULT_ON([toolkit-scroll-bars],[don't use Motif or Xaw3d scroll bars])
 OPTION_DEFAULT_ON([xaw3d],[don't use Xaw3d])
 OPTION_DEFAULT_ON([xim],[don't use X11 XIM])
 AC_ARG_WITH([mac],[AS_HELP_STRING([--with-mac],
-[use GUI on Mac OS X.
-On by default on Mac OS X.])],[],[with_mac=maybe])
-OPTION_DEFAULT_OFF([ns],[use Nextstep (OS X Cocoa or GNUstep) windowing system.])
+[use GUI on macOS.
+On by default on macOS.])],[],[with_mac=maybe])
+OPTION_DEFAULT_OFF([ns],[use Nextstep (macOS Cocoa or GNUstep) windowing system.])
 OPTION_DEFAULT_OFF([w32], [use native MS Windows GUI in a Cygwin build])
 
 OPTION_DEFAULT_ON([gpm],[don't use -lgpm for mouse support on a GNU/Linux console])
@@ -413,7 +413,7 @@ esac
 
 AC_ARG_ENABLE(mac-app,
 [AS_HELP_STRING([--enable-mac-app@<:@=DIR@:>@],
-                [specify install directory for Emacs.app on Mac OS X
+                [specify install directory for Emacs.app on macOS
 		 [DIR=/Application]])],
 [ mac_appdir_x=${enableval}])
 
@@ -606,7 +606,7 @@ case "${canonical}" in
     opsys=openbsd
   ;;
 
-  ## Apple Darwin / Mac OS X
+  ## Apple Darwin / macOS
   *-apple-darwin* )
     case "${canonical}" in
       *-apple-darwin[0-9].*) unported=yes ;;
@@ -1196,14 +1196,13 @@ esac
 AC_SUBST([PAXCTL_dumped])
 AC_SUBST([PAXCTL_notdumped])
 
-## Need makeinfo >= 4.7 (?) to build the manuals.
+## Require makeinfo >= 4.13 (last of the 4.x series) to build the manuals.
 if test "$MAKEINFO" != "no"; then
   if test "$MAKEINFO" = "${am_missing_run}makeinfo"; then
     MAKEINFO=makeinfo
   fi
   case `($MAKEINFO --version) 2>/dev/null` in
-    *' (GNU texinfo) '4.[[7-9]]* | \
-    *' (GNU texinfo) '4.[[1-9][0-9]]* | \
+    *' (GNU texinfo) '4.1[[3-9]]* | \
     *' (GNU texinfo) '[[5-9]]* | \
     *' (GNU texinfo) '[[1-9][0-9]]* ) ;;
     *) MAKEINFO=no;;
@@ -1226,7 +1225,7 @@ if test "$MAKEINFO" = "no"; then
   if test "x${with_makeinfo}" = "xno"; then
     HAVE_MAKEINFO=no
   elif test ! -e "$srcdir/info/emacs" && test ! -e "$srcdir/info/emacs.info"; then
-    AC_MSG_ERROR( [You do not seem to have makeinfo >= 4.7, and your
+    AC_MSG_ERROR( [You do not seem to have makeinfo >= 4.13, and your
 source tree does not seem to have pre-built manuals in the 'info' directory.
 Either install a suitable version of makeinfo, or re-run configure
 with the '--without-makeinfo' option to build without the manuals.] )
@@ -1877,14 +1876,14 @@ Either fix this, or re-configure with the option '--without-ns'.])])
 
   macfont_file=""
   if test "${NS_IMPL_COCOA}" = "yes"; then
-    AC_MSG_CHECKING([for OSX 10.6 or newer])
+    AC_MSG_CHECKING([for Mac OS X 10.6 or newer])
     AC_COMPILE_IFELSE([AC_LANG_PROGRAM([#include <AppKit/AppKit.h>],
                                      [
 #ifdef MAC_OS_X_VERSION_MAX_ALLOWED
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
  ; /* OK */
 #else
- error "OSX 10.6 or newer required";
+ error "Mac OS X 10.6 or newer required";
 #endif
 #endif
 		    ])],
@@ -1893,7 +1892,7 @@ Either fix this, or re-configure with the option '--without-ns'.])])
     AC_MSG_RESULT([$ns_osx_have_106])
 
     if test $ns_osx_have_106 = no; then
-       AC_MSG_ERROR([OSX 10.6 or newer is required]);
+       AC_MSG_ERROR([Mac OS X 10.6 or newer is required]);
     fi
   fi
 fi
@@ -2184,7 +2183,10 @@ elif test "$hybrid_malloc" = yes; then
   GMALLOC_OBJ=gmalloc.o
   VMLIMIT_OBJ=
 else
-  test "$doug_lea_malloc" != "yes" && GMALLOC_OBJ=gmalloc.o
+  if test "$doug_lea_malloc" != "yes"; then
+    GMALLOC_OBJ=gmalloc.o
+    AC_CHECK_DECLS([valloc])
+  fi
   VMLIMIT_OBJ=vm-limit.o
 
   AC_CHECK_HEADERS([sys/vlimit.h])
@@ -2212,18 +2214,10 @@ if test "$doug_lea_malloc" = "yes" ; then
   AC_DEFINE(DOUG_LEA_MALLOC, 1,
     [Define to 1 if the system memory allocator is Doug Lea style,
      with malloc hooks and malloc_set_state.])
-
-  ## Use mmap directly for allocating larger buffers.
-  ## FIXME this comes from src/s/{gnu,gnu-linux}.h:
-  ## #ifdef DOUG_LEA_MALLOC; #undef REL_ALLOC; #endif
-  ## Does the AC_FUNC_MMAP test below make this check unnecessary?
-  case "$opsys" in
-    mingw32|gnu*) REL_ALLOC=no ;;
-  esac
 fi
 
 if test x"${REL_ALLOC}" = x; then
-  REL_ALLOC=${GNU_MALLOC}
+  REL_ALLOC=no
 fi
 
 use_mmap_for_buffers=no
@@ -3594,11 +3588,10 @@ dnl Check for malloc/malloc.h on darwin
 AC_CHECK_HEADERS_ONCE(malloc/malloc.h)
 
 MAC_CFLAGS=
-### Use Mac OS X GUI.
+### Use macOS GUI.
 if test "${HAVE_MACGUI}" = "yes"; then
-  AC_DEFINE(HAVE_MACGUI, 1, [Define to 1 if you are using GUI on Mac OS X.])
+  AC_DEFINE(HAVE_MACGUI, 1, [Define to 1 if you are using GUI on macOS.])
   AC_DEFINE(HAVE_SOUND, 1, [Define to 1 if you have sound support.])
-  AC_CHECK_HEADERS(AvailabilityMacros.h)
   MAC_CFLAGS="-fconstant-cfstrings"
   ## Specify the install directory
   mac_appdir=
@@ -3610,7 +3603,7 @@ if test "${HAVE_MACGUI}" = "yes"; then
   fi
   # We also have mouse menus.
   HAVE_MENUS=yes
-  # Tell src/Makefile.in to create files in the Mac OS X application
+  # Tell src/Makefile.in to create files in the macOS application
   # bundle mac/Emacs.app.
   OTHER_FILES=macosx-app
 fi
@@ -3618,9 +3611,9 @@ fi
 GNUSTEP_CFLAGS=
 ### Use NeXTstep API to implement GUI.
 if test "${HAVE_NS}" = "yes"; then
-  AC_DEFINE(HAVE_NS, 1, [Define to 1 if you are using the NeXTstep API, either GNUstep or Cocoa on Mac OS X.])
+  AC_DEFINE(HAVE_NS, 1, [Define to 1 if you are using the NeXTstep API, either GNUstep or Cocoa on macOS.])
   if test "${NS_IMPL_COCOA}" = "yes"; then
-    AC_DEFINE(NS_IMPL_COCOA, 1, [Define to 1 if you are using NS windowing under MacOS X.])
+    AC_DEFINE(NS_IMPL_COCOA, 1, [Define to 1 if you are using NS windowing under macOS.])
   fi
   if test "${NS_IMPL_GNUSTEP}" = "yes"; then
     AC_DEFINE(NS_IMPL_GNUSTEP, 1, [Define to 1 if you are using NS windowing under GNUstep.])
@@ -4781,9 +4774,9 @@ case $opsys in
     ;;
 
   darwin)
-    dnl Not __APPLE__, as this may not be defined on non-OSX Darwin.
+    dnl Not __APPLE__, as this may not be defined on non-macOS Darwin.
     dnl Not DARWIN, because Panther and lower CoreFoundation.h use DARWIN to
-    dnl distinguish OS X from pure Darwin.
+    dnl distinguish macOS from pure Darwin.
     AC_DEFINE(DARWIN_OS, [], [Define if the system is Darwin.])
     ;;
 
@@ -4904,7 +4897,7 @@ fi
 
 version=$PACKAGE_VERSION
 
-copyright="Copyright (C) 2016 Free Software Foundation, Inc."
+copyright="Copyright (C) 2017 Free Software Foundation, Inc."
 AC_DEFINE_UNQUOTED(COPYRIGHT, ["$copyright"],
   [Short copyright string for this version of Emacs.])
 AC_SUBST(copyright)
@@ -5176,27 +5169,7 @@ case "$opsys" in
    ## only costs about 1.5K of wasted binary space.
    headerpad_extra=1000
    if test "$HAVE_MACGUI" = "yes"; then
-     # Check if the Quartz Core framework is necessary and always
-     # available at runtime.
-     AC_MSG_CHECKING(Mac OS X version max allowed >= 10.5)
-     AC_CACHE_VAL(emacs_cv_mac_os_x_max_allowed_10_5,
-     [AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-#ifdef HAVE_AVAILABILITYMACROS_H
-#include <AvailabilityMacros.h>
-#endif]],
-[[#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 && MAC_OS_X_VERSION_MIN_REQUIRED > 1020
-fail;
-#endif
-]])], emacs_cv_mac_os_x_max_allowed_10_5=no, emacs_cv_mac_os_x_max_allowed_10_5=yes)])
-     if test $emacs_cv_mac_os_x_max_allowed_10_5 = yes; then
-       AC_MSG_RESULT(10.5 or later)
-       libs_quartz_core="-framework QuartzCore"
-     else
-       AC_MSG_RESULT(before 10.5)
-       libs_quartz_core=
-     fi
-     # Whether to use the Cocoa framework.
-     libs_macgui="-framework Carbon -framework WebKit -framework Quartz $libs_quartz_core -framework IOKit -framework OSAKit -framework Cocoa"
+     libs_macgui="-framework Carbon -framework WebKit -framework Quartz -framework QuartzCore -framework IOKit -framework OSAKit -framework Cocoa"
      headerpad_extra=BD0
    elif test "$HAVE_NS" = "yes"; then
      libs_macgui="-framework AppKit"
@@ -5235,25 +5208,29 @@ fail;
   *) LD_SWITCH_SYSTEM_TEMACS= ;;
 esac
 
-# -nopie fixes a temacs segfault on Gentoo, OpenBSD, and other systems
-# with "hardened" GCC configurations for some reason (Bug#18784).
-# We don't know why -nopie works, but not segfaulting is better than
-# segfaulting.  Use ac_c_werror_flag=yes when trying -nopie, otherwise
-# clang keeps warning that it does not understand -nopie, and pre-4.6
-# GCC has a similar problem (Bug#20338).
-AC_CACHE_CHECK([whether $CC accepts -nopie],
-  [emacs_cv_prog_cc_nopie],
+# -no-pie or -nopie fixes a temacs segfault on Gentoo, OpenBSD,
+# Ubuntu, and other systems with "hardened" GCC configurations for
+# some reason (Bug#18784).  We don't know why this works, but not
+# segfaulting is better than segfaulting.  Use ac_c_werror_flag=yes
+# when trying the option, otherwise clang keeps warning that it does
+# not understand it, and pre-4.6 GCC has a similar problem
+# (Bug#20338).  Prefer -no-pie to -nopie, as -no-pie is the
+# spelling used by GCC 6.1.0 and later (Bug#24682).
+AC_CACHE_CHECK(
+  [for $CC option to disable position independent executables],
+  [emacs_cv_prog_cc_no_pie],
   [emacs_save_c_werror_flag=$ac_c_werror_flag
    emacs_save_LDFLAGS=$LDFLAGS
    ac_c_werror_flag=yes
-   LDFLAGS="$LDFLAGS -nopie"
-   AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
-     [emacs_cv_prog_cc_nopie=yes],
-     [emacs_cv_prog_cc_nopie=no])
+   for emacs_cv_prog_cc_no_pie in -no-pie -nopie no; do
+     test $emacs_cv_prog_cc_no_pie = no && break
+     LDFLAGS="$emacs_save_LDFLAGS $emacs_cv_prog_cc_no_pie"
+     AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], [break])
+   done
    ac_c_werror_flag=$emacs_save_c_werror_flag
    LDFLAGS=$emacs_save_LDFLAGS])
-if test "$emacs_cv_prog_cc_nopie" = yes; then
-  LD_SWITCH_SYSTEM_TEMACS="$LD_SWITCH_SYSTEM_TEMACS -nopie"
+if test "$emacs_cv_prog_cc_no_pie" != no; then
+  LD_SWITCH_SYSTEM_TEMACS="$LD_SWITCH_SYSTEM_TEMACS $emacs_cv_prog_cc_no_pie"
 fi
 
 if test x$ac_enable_profiling != x ; then
@@ -5278,7 +5255,7 @@ AC_SUBST(WINDOW_SYSTEM_OBJ)
 
 AH_TOP([/* GNU Emacs site configuration template file.
 
-Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2016
+Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2017
   Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.

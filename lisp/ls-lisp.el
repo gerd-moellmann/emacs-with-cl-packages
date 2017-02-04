@@ -1,6 +1,6 @@
 ;;; ls-lisp.el --- emulate insert-directory completely in Emacs Lisp
 
-;; Copyright (C) 1992, 1994, 2000-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1992, 1994, 2000-2017 Free Software Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>
 ;; Modified by: Francis J. Wright <F.J.Wright@maths.qmw.ac.uk>
@@ -75,7 +75,7 @@
 	((memq system-type '(hpux usg-unix-v irix berkeley-unix))
 	 'UNIX))	; very similar to GNU
   ;; Anything else defaults to nil, meaning GNU.
-  "Platform to emulate: GNU (default), MacOS, MS-Windows, UNIX.
+  "Platform to emulate: GNU (default), macOS, MS-Windows, UNIX.
 Corresponding value is one of: nil, `MacOS', `MS-Windows', `UNIX'.
 Set this to your preferred value; it need not match the actual platform
 you are using.

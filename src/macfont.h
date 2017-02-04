@@ -1,5 +1,5 @@
-/* Interface definition for Mac OSX Core text font backend.
-   Copyright (C) 2009-2016 Free Software Foundation, Inc.
+/* Interface definition for macOS Core text font backend.
+   Copyright (C) 2009-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 

@@ -1,17 +1,17 @@
 @c This is part of the Emacs Mac port manual.
 @c Copyright (C) 2000-2008 Free Software Foundation, Inc.
-@c Copyright (C) 2012-2016  YAMAMOTO Mitsuharu
+@c Copyright (C) 2012-2017  YAMAMOTO Mitsuharu
 @c See file emacs.texi for copying conditions.
 @node Mac Port
-@appendix Emacs and Mac OS X with the Mac port
+@appendix Emacs and macOS with the Mac port
 @cindex Mac port
 
   This section briefly describes the peculiarities of using Emacs
-under Mac OS X with the Mac port.  This port provides a native GUI
-support for Mac OS X 10.6 -- 10.12.  Note that Emacs 23 and later
-already contain the official GUI support via the NS (Cocoa) port for
-Mac OS X (@pxref{Mac OS / GNUstep}).  So if it is good enough for you,
-then you don't need to try this.
+under macOS with the Mac port.  This port provides a native GUI
+support for Mac OS X 10.6 -- macOS 10.12.  Note that Emacs 23 and
+later already contain the official GUI support via the NS (Cocoa) port
+for macOS (@pxref{Mac OS / GNUstep}).  So if it is good enough for
+you, then you don't need to try this.
 
   The Mac port is a descendant of the following ports for Mac OS X:
 
@@ -108,7 +108,7 @@ defaults write org.gnu.Emacs Emacs.cursorType bar
 @end example
 
 @noindent
-on Mac OS X.  One can use boolean or numeric values as well as string
+on macOS.  One can use boolean or numeric values as well as string
 values as follows:
 
 @example
@@ -119,12 +119,12 @@ defaults write org.gnu.Emacs Emacs.lineSpacing -int 3
 @noindent
 Try @kbd{M-x man RET defaults RET} for the usage of the
 @command{defaults} command.  Alternatively, if you have Developer
-Tools installed on Mac OS X, you can use Property List Editor to edit
-the file @file{~/Library/Preferences/org.gnu.Emacs.plist}.
+Tools installed on macOS, you can use Property List Editor to edit the
+file @file{~/Library/Preferences/org.gnu.Emacs.plist}.
 
 @cindex language environments (Mac port)
   The default language environment (@pxref{Language Environments}) is
-set according to the locale setting at the startup time.  On Mac OS X,
+set according to the locale setting at the startup time.  On macOS,
 the locale setting is consulted in the following order:
 
 @enumerate
@@ -217,7 +217,7 @@ prefix key (bound in the global keymap) press such as @kbd{C-x} and
 
 @vindex mac-pass-command-to-system
 @vindex mac-pass-control-to-system
-  Mac OS X intercepts and handles certain key combinations. These will
+  macOS intercepts and handles certain key combinations. These will
 not be passed to Emacs.  One can disable this interception by setting
 @code{mac-pass-command-to-system} or @code{mac-pass-control-to-system}
 to @code{nil}.
@@ -528,7 +528,7 @@ the shift key.
 
   Unlike the original Emacs, enabling or disabling Menu Bar mode
 (@pxref{Menu Bars}) does not affect the appearance of the menu bar on
-the Mac port because it does not make sense on OS X having the global
+the Mac port because it does not make sense on macOS having the global
 menu bar.  Instead, the value of the @code{menu-bar-lines} frame
 parameter affects the system-wide full screen behavior of the frame.
 In most cases, disabling the menu bar of a particular frame by default

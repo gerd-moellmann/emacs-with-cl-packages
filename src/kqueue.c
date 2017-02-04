@@ -1,6 +1,6 @@
 /* Filesystem notifications support with kqueue API.
 
-Copyright (C) 2015-2016 Free Software Foundation, Inc.
+Copyright (C) 2015-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -264,8 +264,6 @@ kqueue_compare_dir_list (Lisp_Object watch_object)
     report_file_error ("New list not empty", new_dl);
   if (! NILP (pending_dl))
     report_file_error ("Pending events list not empty", pending_dl);
-  //  if (! NILP (deleted_dl))
-  //    report_file_error ("Deleted events list not empty", deleted_dl);
 
   /* Replace old directory listing with the new one.  */
   XSETCDR (Fnthcdr (make_number (3), watch_object),

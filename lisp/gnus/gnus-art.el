@@ -1,6 +1,6 @@
 ;;; gnus-art.el --- article mode commands for Gnus
 
-;; Copyright (C) 1996-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2017 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -7738,7 +7738,7 @@ Calls `describe-variable' or `describe-function'."
   (let* ((lib (locate-library url))
 	 (file (gnus-replace-in-string (or lib "") "\\.elc" ".el")))
     (if (not lib)
-	(gnus-message 1 "Cannot locale library `%s'." url)
+	(gnus-message 1 "Cannot locate library `%s'." url)
       (find-file-read-only file))))
 
 (defcustom gnus-button-man-level 5

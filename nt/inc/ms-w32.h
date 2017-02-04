@@ -1,6 +1,6 @@
 /* System description file for Windows NT.
 
-Copyright (C) 1993-1995, 2001-2016 Free Software Foundation, Inc.
+Copyright (C) 1993-1995, 2001-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -146,6 +146,7 @@ extern char *getenv ();
    in its system headers, and is not really compatible with values
    lower than 0x0500, so leave it alone.  */
 #ifndef MINGW_W64
+# undef _WIN32_WINNT
 # define _WIN32_WINNT 0x0400
 #endif
 

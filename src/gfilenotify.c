@@ -1,5 +1,5 @@
 /* Filesystem notifications support with glib API.
-   Copyright (C) 2013-2016 Free Software Foundation, Inc.
+   Copyright (C) 2013-2017 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -105,7 +105,7 @@ dir_monitor_callback (GFileMonitor *monitor,
 
 	  /* Store it into the input event queue.  */
 	  kbd_buffer_store_event (&event);
-	  // XD_DEBUG_MESSAGE ("%s", XD_OBJECT_TO_STRING (event.arg));
+	  /* XD_DEBUG_MESSAGE ("%s", XD_OBJECT_TO_STRING (event.arg));  */
 	}
 
       /* Cancel monitor if file or directory is deleted.  */

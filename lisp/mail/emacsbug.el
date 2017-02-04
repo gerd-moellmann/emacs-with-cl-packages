@@ -1,6 +1,6 @@
 ;;; emacsbug.el --- command to report Emacs bugs to appropriate mailing list
 
-;; Copyright (C) 1985, 1994, 1997-1998, 2000-2016 Free Software
+;; Copyright (C) 1985, 1994, 1997-1998, 2000-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Author: K. Shane Hartman
@@ -77,7 +77,7 @@
 (defvar message-strip-special-text-properties)
 
 (defun report-emacs-bug-can-use-osx-open ()
-  "Return non-nil if the OS X \"open\" command is available for mailing."
+  "Return non-nil if the macOS \"open\" command is available for mailing."
   (and (featurep 'ns)
        (equal (executable-find "open") "/usr/bin/open")
        (memq system-type '(darwin))))
@@ -112,7 +112,7 @@ This requires you to be running either Gnome, KDE, or Xfce4."
 
 (defun report-emacs-bug-insert-to-mailer ()
   "Send the message to your preferred mail client.
-This requires either the OS X \"open\" command, or the freedesktop
+This requires either the macOS \"open\" command, or the freedesktop
 \"xdg-email\" command to be available."
   (interactive)
   (save-excursion

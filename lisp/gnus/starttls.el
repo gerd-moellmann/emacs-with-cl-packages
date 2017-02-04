@@ -1,6 +1,6 @@
 ;;; starttls.el --- STARTTLS functions
 
-;; Copyright (C) 1999-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2017 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Author: Simon Josefsson <simon@josefsson.org>
@@ -153,7 +153,7 @@ These apply when the `starttls' command is used, i.e. when
 These apply when GnuTLS is used, i.e. when `starttls-use-gnutls' is non-nil.
 
 For example, non-TLS compliant servers may require
-'(\"--protocols\" \"ssl3\").  Invoke \"gnutls-cli --help\" to
+\(\"--protocols\" \"ssl3\").  Invoke \"gnutls-cli --help\" to
 find out which parameters are available."
   :version "22.1"
   :type '(repeat string)

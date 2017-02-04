@@ -1,6 +1,6 @@
 ;;; ox-latex.el --- LaTeX Back-End for Org Export Engine
 
-;; Copyright (C) 2011-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2017 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -690,7 +690,7 @@ a list containing two strings: the name of the option, and the
 value.  For example,
 
   (setq org-latex-listings-options
-    '((\"basicstyle\" \"\\\\small\")
+    \\='((\"basicstyle\" \"\\\\small\")
       (\"keywordstyle\" \"\\\\color{black}\\\\bfseries\\\\underbar\")))
 
 will typeset the code in a small size font with underlined, bold
@@ -737,7 +737,7 @@ be a list containing two strings: the name of the option, and the
 value.  For example,
 
   (setq org-latex-minted-options
-    '((\"bgcolor\" \"bg\") (\"frame\" \"lines\")))
+    \\='((\"bgcolor\" \"bg\") (\"frame\" \"lines\")))
 
 will result in src blocks being exported with
 
@@ -758,7 +758,7 @@ It is used during export of src blocks by the listings and minted
 latex packages.  For example,
 
   (setq org-latex-custom-lang-environments
-     '((python \"pythoncode\")))
+     \\='((python \"pythoncode\")))
 
 would have the effect that if org encounters begin_src python
 during latex export it will output

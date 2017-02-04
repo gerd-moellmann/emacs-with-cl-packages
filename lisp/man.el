@@ -1,6 +1,6 @@
 ;;; man.el --- browse UNIX manual pages
 
-;; Copyright (C) 1993-1994, 1996-1997, 2001-2016 Free Software
+;; Copyright (C) 1993-1994, 1996-1997, 2001-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Barry A. Warsaw <bwarsaw@cen.com>
@@ -887,7 +887,7 @@ test/automated/man-tests.el in the emacs repository."
           (setq default-directory "/") ;; in case inherited doesn't exist
           ;; Actually for my `man' the arg is a regexp.
           ;; POSIX says it must be ERE and "man-db" seems to agree,
-          ;; whereas under MacOSX it seems to be BRE-style and doesn't
+          ;; whereas under macOS it seems to be BRE-style and doesn't
           ;; accept backslashes at all.  Let's not bother to
           ;; quote anything.
           (let ((process-environment (copy-sequence process-environment)))

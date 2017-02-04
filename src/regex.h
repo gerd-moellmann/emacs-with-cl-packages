@@ -1,7 +1,7 @@
 /* Definitions for data structures and routines for the regular
    expression library, version 0.12.
 
-   Copyright (C) 1985, 1989-1993, 1995, 2000-2016 Free Software
+   Copyright (C) 1985, 1989-1993, 1995, 2000-2017 Free Software
    Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
@@ -168,8 +168,12 @@ extern reg_syntax_t re_syntax_options;
 
 #ifdef emacs
 # include "lisp.h"
-/* In Emacs, this is the string or buffer in which we
-   are matching.  It is used for looking up syntax properties.  */
+/* In Emacs, this is the string or buffer in which we are matching.
+   It is used for looking up syntax properties.
+
+   If the value is a Lisp string object, we are matching text in that
+   string; if it's nil, we are matching text in the current buffer; if
+   it's t, we are matching text in a C string.  */
 extern Lisp_Object re_match_object;
 #endif
 

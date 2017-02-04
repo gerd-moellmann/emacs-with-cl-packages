@@ -1,6 +1,6 @@
 ;;; simple.el --- basic editing commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1993-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1993-2017 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -681,7 +681,7 @@ for numeric input."
   (let ((message-log-max nil)
 	(help-events (delq nil (mapcar (lambda (c) (unless (characterp c) c))
 				       help-event-list)))
-	done (first t) (code 0) translated)
+	done (first t) (code 0) char translated)
     (while (not done)
       (let ((inhibit-quit first)
 	    ;; Don't let C-h or other help chars get the help
@@ -693,15 +693,21 @@ for numeric input."
 or the octal character code.
 RET terminates the character code and is discarded;
 any other non-digit terminates the character code and is then used as input."))
-	(setq translated (read-key (and prompt (format "%s-" prompt))))
+	(setq char (read-event (and prompt (format "%s-" prompt)) t))
 	(if inhibit-quit (setq quit-flag nil)))
+      ;; Translate TAB key into control-I ASCII character, and so on.
+      ;; Note: `read-char' does it using the `ascii-character' property.
+      ;; We tried using read-key instead, but that disables the keystroke
+      ;; echo produced by 'C-q', see bug#24635.
+      (let ((translation (lookup-key local-function-key-map (vector char))))
+	(setq translated (if (arrayp translation)
+			     (aref translation 0)
+			   char)))
       (if (integerp translated)
 	  (setq translated (char-resolve-modifiers translated)))
       (cond ((null translated))
 	    ((not (integerp translated))
-	     (setq unread-command-events
-                   (nconc (listify-key-sequence (this-single-command-raw-keys))
-                          unread-command-events)
+	     (setq unread-command-events (list char)
 		   done t))
 	    ((/= (logand translated ?\M-\^@) 0)
 	     ;; Turn a meta-character into a character with the 0200 bit set.
@@ -720,9 +726,7 @@ any other non-digit terminates the character code and is then used as input."))
 	    ((and (not first) (eq translated ?\C-m))
 	     (setq done t))
 	    ((not first)
-	     (setq unread-command-events
-                   (nconc (listify-key-sequence (this-single-command-raw-keys))
-                          unread-command-events)
+	     (setq unread-command-events (list char)
 		   done t))
 	    (t (setq code translated
 		     done t)))
@@ -1649,7 +1653,6 @@ If the value is non-nil and not a number, we wait 2 seconds."
   (let ((candidates '())
         (max (length typed))
         (len 1)
-        (use-polling (and (null (car (current-input-mode))) throw-on-input))
         binding)
     (while (and (not binding)
                 (progn
@@ -1660,11 +1663,7 @@ If the value is non-nil and not a number, we wait 2 seconds."
                   ;; Don't show the help message if the binding isn't
                   ;; significantly shorter than the M-x command the user typed.
                   (< len (- max 5))))
-      ;; On non-interrupt-driven systems, while-no-input polls for
-      ;; input every `polling-period' (default 2) seconds, and that is
-      ;; not frequent enough.  So we call input-pending-p manually.
-      (if use-polling
-          (input-pending-p))
+      (input-pending-p)    ;Dummy call to trigger input-processing, bug#23002.
       (let ((candidate (pop candidates)))
         (when (equal name
                        (car-safe (completion-try-completion
@@ -4015,7 +4014,8 @@ These commands include \\[set-mark-command] and \\[start-kbd-macro]."
 
 
 (defvar filter-buffer-substring-functions nil
-  "This variable is a wrapper hook around `buffer-substring--filter'.")
+  "This variable is a wrapper hook around `buffer-substring--filter'.
+\(See `with-wrapper-hook' for details about wrapper hooks.)")
 (make-obsolete-variable 'filter-buffer-substring-functions
                         'filter-buffer-substring-function "24.4")
 
@@ -4056,7 +4056,8 @@ that are special to a buffer, and should not be copied into other buffers."
 (defun buffer-substring--filter (beg end &optional delete)
   "Default function to use for `filter-buffer-substring-function'.
 Its arguments and return value are as specified for `filter-buffer-substring'.
-This respects the wrapper hook `filter-buffer-substring-functions',
+Also respects the obsolete wrapper hook `filter-buffer-substring-functions'
+\(see `with-wrapper-hook' for details about wrapper hooks),
 and the abnormal hook `buffer-substring-filters'.
 No filtering is done unless a hook says to."
   (with-wrapper-hook filter-buffer-substring-functions (beg end delete)
@@ -4666,9 +4667,9 @@ If N is negative, this is a more recent kill.
 The sequence of kills wraps around, so that after the oldest one
 comes the newest one.
 
-When this command inserts killed text into the buffer, it honors
-`yank-excluded-properties' and `yank-handler' as described in the
-doc string for `insert-for-yank-1', which see."
+This command honors the `yank-handled-properties' and
+`yank-excluded-properties' variables, and the `yank-handler' text
+property, in the way that `yank' does."
   (interactive "*p")
   (if (not (eq last-command 'yank))
       (user-error "Previous command was not a yank"))
@@ -4701,10 +4702,34 @@ at the end, and set mark at the beginning without activating it.
 With just \\[universal-argument] as argument, put point at beginning, and mark at end.
 With argument N, reinsert the Nth most recent kill.
 
-When this command inserts text into the buffer, it honors the
-`yank-handled-properties' and `yank-excluded-properties'
-variables, and the `yank-handler' text property.  See
-`insert-for-yank-1' for details.
+This command honors the `yank-handled-properties' and
+`yank-excluded-properties' variables, and the `yank-handler' text
+property, as described below.
+
+Properties listed in `yank-handled-properties' are processed,
+then those listed in `yank-excluded-properties' are discarded.
+
+If STRING has a non-nil `yank-handler' property anywhere, the
+normal insert behavior is altered, and instead, for each contiguous
+segment of STRING that has a given value of the `yank-handler'
+property, that value is used as follows:
+
+The value of a `yank-handler' property must be a list of one to four
+elements, of the form (FUNCTION PARAM NOEXCLUDE UNDO).
+FUNCTION, if non-nil, should be a function of one argument (the
+ object to insert); FUNCTION is called instead of `insert'.
+PARAM, if present and non-nil, is passed to FUNCTION (to be handled
+ in whatever way is appropriate; e.g. if FUNCTION is `yank-rectangle',
+ PARAM may be a list of strings to insert as a rectangle).  If PARAM
+ is nil, then the current segment of STRING is used.
+If NOEXCLUDE is present and non-nil, the normal removal of
+ `yank-excluded-properties' is not performed; instead FUNCTION is
+ responsible for the removal.  This may be necessary if FUNCTION
+ adjusts point before or after inserting the object.
+UNDO, if present and non-nil, should be a function to be called
+ by `yank-pop' to undo the insertion of the current PARAM.  It is
+ given two arguments, the start and end of the region.  FUNCTION
+ may set `yank-undo-function' to override UNDO.
 
 See also the command `yank-pop' (\\[yank-pop])."
   (interactive "*P")
@@ -4824,8 +4849,8 @@ To kill a whole line, when point is not at the beginning, type \
 \\[move-beginning-of-line] \\[kill-line] \\[kill-line].
 
 If `show-trailing-whitespace' is non-nil, this command will just
-kill the rest of the current line, even if there are only
-nonblanks there.
+kill the rest of the current line, even if there are no nonblanks
+there.
 
 If option `kill-whole-line' is non-nil, then this command kills the whole line
 including its terminating newline, when used at the beginning of a line
@@ -5383,13 +5408,13 @@ after C-u \\[set-mark-command]."
   :group 'editing-basics)
 
 (defun set-mark-command (arg)
-  "Set the mark where point is, or jump to the mark.
+  "Set the mark where point is, and activate it; or jump to the mark.
 Setting the mark also alters the region, which is the text
 between point and mark; this is the closest equivalent in
 Emacs to what some editors call the \"selection\".
 
 With no prefix argument, set the mark at point, and push the
-old mark position on local mark ring.  Also push the old mark on
+old mark position on local mark ring.  Also push the new mark on
 global mark ring, if the previous mark was set in another buffer.
 
 When Transient Mark Mode is off, immediately repeating this
@@ -5647,6 +5672,7 @@ cursor to the end of the buffer.
 If the variable `line-move-visual' is non-nil, this command moves
 by display lines.  Otherwise, it moves by buffer lines, without
 taking variable-width characters or continued lines into account.
+See \\[next-logical-line] for a command that always moves by buffer lines.
 
 The command \\[set-goal-column] can be used to create
 a semipermanent goal column for this command.
@@ -5690,6 +5716,7 @@ column, or at the end of the line if it is not long enough.
 If the variable `line-move-visual' is non-nil, this command moves
 by display lines.  Otherwise, it moves by buffer lines, without
 taking variable-width characters or continued lines into account.
+See \\[previous-logical-line] for a command that always moves by buffer lines.
 
 The command \\[set-goal-column] can be used to create
 a semipermanent goal column for this command.
@@ -6641,9 +6668,13 @@ are interchanged."
   (transpose-subr 'forward-word arg))
 
 (defun transpose-sexps (arg)
-  "Like \\[transpose-words] but applies to sexps.
-Does not work on a sexp that point is in the middle of
-if it is a list or string."
+  "Like \\[transpose-chars] (`transpose-chars'), but applies to sexps.
+Unlike `transpose-words', point must be between the two sexps and not
+in the middle of a sexp to be transposed.
+With non-zero prefix arg ARG, effect is to take the sexp before point
+and drag it forward past ARG other sexps (backward if ARG is negative).
+If ARG is zero, the sexps ending at or after point and at or after mark
+are interchanged."
   (interactive "*p")
   (transpose-subr
    (lambda (arg)
@@ -6806,13 +6837,18 @@ With argument ARG, do this that many times."
   (kill-word (- arg)))
 
 (defun current-word (&optional strict really-word)
-  "Return the symbol or word that point is on (or a nearby one) as a string.
+  "Return the word at or near point, as a string.
 The return value includes no text properties.
-If optional arg STRICT is non-nil, return nil unless point is within
-or adjacent to a symbol or word.  In all cases the value can be nil
-if there is no word nearby.
-The function, belying its name, normally finds a symbol.
-If optional arg REALLY-WORD is non-nil, it finds just a word."
+
+If optional arg STRICT is non-nil, return nil unless point is
+within or adjacent to a word, otherwise look for a word within
+point's line.  If there is no word anywhere on point's line, the
+value is nil regardless of STRICT.
+
+By default, this function treats as a single word any sequence of
+characters that have either word or symbol syntax.  If optional
+arg REALLY-WORD is non-nil, only characters of word syntax can
+constitute a word."
   (save-excursion
     (let* ((oldpoint (point)) (start (point)) (end (point))
 	   (syntaxes (if really-word "w" "w_"))

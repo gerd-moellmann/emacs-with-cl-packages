@@ -1,6 +1,6 @@
 ;;; faces.el --- Lisp faces
 
-;; Copyright (C) 1992-1996, 1998-2016 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1996, 1998-2017 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -98,7 +98,31 @@ a font height that isn't optimal."
 (defcustom face-font-family-alternatives
   (mapcar (lambda (arg) (mapcar 'purecopy arg))
   '(("Monospace" "courier" "fixed")
+
+    ;; Monospace Serif is an Emacs invention, intended to work around
+    ;; portability problems when using Courier.  It should work well
+    ;; when combined with Monospaced and with other standard fonts.
+    ("Monospace Serif"
+
+     ;; This looks good on GNU/Linux.
+     "Courier 10 Pitch"
+     ;; This looks good on MS-Windows and OS X.
+     "Consolas"
+     ;; This looks good on macOS.  "Courier" looks good too, but is
+     ;; jagged on GNU/Linux and so is listed later as "courier".
+     "Courier Std"
+     ;; Although these are anti-aliased, they are a bit faint compared
+     ;; to the above.
+     "FreeMono" "Nimbus Mono L"
+     ;; These are aliased and look jagged.
+     "courier" "fixed"
+     ;; Omit Courier New, as it is the default MS-Windows font and so
+     ;; would look no different, and is pretty faint on other platforms.
+     )
+
+    ;; This is present for backward compatibility.
     ("courier" "CMU Typewriter Text" "fixed")
+
     ("Sans Serif" "helv" "helvetica" "arial" "fixed")
     ("helv" "helvetica" "arial" "fixed")))
   "Alist of alternative font family names.
@@ -2280,12 +2304,20 @@ If you set `term-file-prefix' to nil, this function does nothing."
   "The basic fixed-pitch face."
   :group 'basic-faces)
 
+(defface fixed-pitch-serif
+  '((t :family "Monospace Serif"))
+  "The basic fixed-pitch face with serifs."
+  :group 'basic-faces)
+
 (defface variable-pitch
   '((((type w32))
-     ;; This is a kludgy workaround for an issue discussed in
+     ;; This is a workaround for an issue discussed in
      ;; http://lists.gnu.org/archive/html/emacs-devel/2016-04/msg00746.html.
-     :font "-outline-Arial-normal-normal-normal-sans-*-*-*-*-p-*-iso8859-1")
-    (t :family "Sans Serif"))
+     ;; We need (a) the splash screen not to pick up bold-italics variant of
+     ;; the font, and (b) still be able to request bold/italic/larger size
+     ;; variants in the likes of EWW.
+     :family "Arial" :foundry "outline")
+  (t :family "Sans Serif"))
   "The basic variable-pitch face."
   :group 'basic-faces)
 

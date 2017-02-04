@@ -1,6 +1,6 @@
 ;;; gitmerge.el --- help merge one Emacs branch into another
 
-;; Copyright (C) 2010-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2017 Free Software Foundation, Inc.
 
 ;; Authors: David Engster <deng@randomsample.de>
 ;;          Stefan Monnier <monnier@iro.umontreal.ca>
@@ -48,8 +48,10 @@
 (require 'smerge-mode)
 
 (defvar gitmerge-skip-regexp
-  "back[- ]?port\\|merge\\|sync\\|re-?generate\\|bump version\\|from trunk\\|\
-Auto-commit"
+  ;; We used to include "sync" in there, but in my experience it only
+  ;; caused false positives.  --Stef
+  "back[- ]?port\\|cherry picked from commit\\|\\(do not\\|no need to\\) merge\\|\
+re-?generate\\|bump version\\|from trunk\\|Auto-commit"
   "Regexp matching logs of revisions that might be skipped.
 `gitmerge-missing' will ask you if it should skip any matches.")
 

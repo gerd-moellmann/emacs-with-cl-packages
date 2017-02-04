@@ -1,4 +1,4 @@
-# Copyright (C) 1992-1998, 2000-2016 Free Software Foundation, Inc.
+# Copyright (C) 1992-1998, 2000-2017 Free Software Foundation, Inc.
 #
 # This file is part of GNU Emacs.
 #
@@ -1267,8 +1267,7 @@ break terminate_due_to_signal
 tbreak init_sys_modes
 commands
   silent
-  xgetptr globals.f_Vinitial_window_system
-  xsymname $ptr
+  xsymname globals.f_Vinitial_window_system
   xgetptr $symname
   set $tem = (struct Lisp_String *) $ptr
   set $tem = (char *) $tem->data

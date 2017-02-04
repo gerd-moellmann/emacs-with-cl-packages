@@ -1,6 +1,6 @@
 ;;; sendmail.el --- mail sending commands for Emacs
 
-;; Copyright (C) 1985-1986, 1992-1996, 1998, 2000-2016 Free Software
+;; Copyright (C) 1985-1986, 1992-1996, 1998, 2000-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -1110,10 +1110,11 @@ to combine them into one, and does so if the user says y."
               (save-restriction
                 ;; This is just so the screen doesn't change.
                 (narrow-to-region (point-min) old-max)
-                (goto-char old-point)
-                (setq query-asked t)
-                (if (y-or-n-p (format "Message contains multiple %s fields.  Combine? " field))
-                    (setq query-answer t))))
+                (save-excursion
+                  (goto-char old-point)
+                  (setq query-asked t)
+                  (if (y-or-n-p (format "Message contains multiple %s fields.  Combine? " field))
+                      (setq query-answer t)))))
             (when query-answer
               (let ((this-to-start (line-beginning-position))
                     this-to-end

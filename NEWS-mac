@@ -1,4 +1,39 @@
+* emacs-25.2-rc1-mac-6.2 (2017-02-04)
+
+** Fixed bugs
+
+*** Can't resize a frame by dragging its edge on macOS 10.12 via
+Screen Sharing.app.
+
+*** mac-auto-operator-composition-mode does not compose "{." for Fira
+Code.
+
+*** On Mac OS X 10.7 - OS X 10.9, Emacs consumes CPU time even when it
+is idle if tool bars are shown.  This is a regression introduced in
+the previous version.
+
+*** Crash when pressing Command + power button on OS X 10.9 and later
+if mac-pass-command-to-system is nil.
+Reported by Leo.
+
+*** Drag-and-dropping URL does not respect dnd-protocol-alist.
+
+*** Lisp representation of CFNumber may overflow on 64-bit binary.
+
+*** Crash when evaluating (mac-coerce-ae-data "furl" "file:///.file/"
+'undecoded-file-name)
+
+*** Closing a tab in a full screen space causes error on macOS 10.12.
+
+** Improvements
+
+*** Show text input candidates and dialog buttons in Touch Bar.
+
+*** Update emoji data to UTR #51 version 4.0.
+
+
 * emacs-25.1-mac-6.1 (2016-10-30)
+http://lists.gnu.org/archive/html/emacs-devel/2016-10/msg01034.html
 
 ** Fixed bugs
 
@@ -11,7 +46,7 @@ enable-checking.
 *** Crash with C-x 5 5 2 -> C-x 5 2 -> close the first frame with the
 red "x" button on macOS 10.12.
 
-*** Fullscreen transition animation looks awkward on OS X 10.7.
+*** Fullscreen transition animation looks awkward on Mac OS X 10.7.
 This is a regression introduced in 6.0 as the fix for "fullscreen
 frames contain space at the top on OS X 10.10".
 
@@ -206,7 +241,7 @@ Control Panel on OS X 10.11 (does not happen on OS X 10.11.1).
 window on OS X 10.11.
 
 *** Making a fullboth frame fullscreen does not keep the tool bar
-visibility on OS X 10.7 and later.
+visibility on Mac OS X 10.7 and later.
 
 *** If the executable is built on an older OS/SDK and run on OS X
 10.11, the frame placed in the left part of Split View gets maximized.
@@ -261,7 +296,7 @@ http://lists.gnu.org/archive/html/emacs-devel/2015-08/msg00882.html
 
 *** Accept localized font family names on Mac OS X 10.6 and later.
 
-*** Some resize operations on OS X 10.7 and later now involve
+*** Some resize operations on Mac OS X 10.7 and later now involve
 transition animations by decomposing and distributing the current
 contents.  Examples include dragging with shift/option key pressed,
 zooming, and dragging full screen tiling border on OS X 10.11 Beta.
@@ -537,7 +572,7 @@ scrolling.
 
 *** M-x toggle-frame-fullscreen RET -> M-x tool-bar-mode RET -> M-x
 toggle-frame-fullscreen RET does not preserve tool bar visibility on
-OS X 10.7 - 10.9.
+Mac OS X 10.7 - 10.9.
 
 ** Improvements
 
@@ -659,7 +694,8 @@ http://lists.gnu.org/archive/html/emacs-devel/2014-03/msg01271.html
 *** Fringe does not get correctly updated under very specific
 circumstances (Bug#16932).
 
-*** In full screen mode, clicking the menu bar hides it on OS X 10.7.
+*** In full screen mode, clicking the menu bar hides it on Mac OS X
+10.7.
 
 *** Image background is not correctly drawn when it has a box
 (Bug#17115).
@@ -788,7 +824,7 @@ http://lists.gnu.org/archive/html/emacs-devel/2013-09/msg00416.html
 ** Fixed bugs
 
 *** Invocation via "Login Items" or "Resume" does not respect PATH
-setting in ~/.MacOSX/environment.plist on OS X 10.7 and earlier.
+setting in ~/.MacOSX/environment.plist on Mac OS X 10.7 and earlier.
 Note: OS X 10.8 does not use ~/.MacOSX/environment.plist anyway.
 
 *** Spotlight in Help menu is not installed on Mac OS X 10.5 if
@@ -811,8 +847,8 @@ http://lists.gnu.org/archive/html/emacs-devel/2013-05/msg00264.html
 
 ** Fixed bugs
 
-*** Cursor in the echo area is sometimes partially unerased on OS X
-10.7 and later, notably on isearch in a large buffer.
+*** Cursor in the echo area is sometimes partially unerased on Mac OS
+X 10.7 and later, notably on isearch in a large buffer.
 
 ** Improvements
 
@@ -839,7 +875,7 @@ correctly.
 *** Add sound support.  Like on other platforms, it is synchronous and
 you cannot quit it with C-g.
 
-*** Round frame bottom corners on OS X 10.7 and later, even when
+*** Round frame bottom corners on Mac OS X 10.7 and later, even when
 internal-border-width is 0.
 
 

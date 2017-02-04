@@ -1,6 +1,6 @@
 ;;; help-fns.el --- Complex help functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2016 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -50,23 +50,24 @@ to get buffer-local values.")
 
 ;;;###autoload
 (defun describe-function (function)
-  "Display the full documentation of FUNCTION (a symbol)."
+  "Display the full documentation of FUNCTION (a symbol).
+When called from lisp, FUNCTION may also be a function object."
   (interactive
-   (let ((fn (function-called-at-point))
-	 (enable-recursive-minibuffers t)
-	 val)
-     (setq val (completing-read (if fn
-				    (format "Describe function (default %s): " fn)
-				  "Describe function: ")
-				obarray 'fboundp t nil nil
-				(and fn (symbol-name fn))))
-     (list (if (equal val "")
-	       fn (intern val)))))
-  (or (and function (symbolp function))
-      (user-error "You didn't specify a function symbol"))
-  (or (fboundp function)
-      (user-error "Symbol's function definition is void: %s" function))
-
+   (let* ((fn (function-called-at-point))
+          (enable-recursive-minibuffers t)
+          (val (completing-read
+                (if fn
+                    (format "Describe function (default %s): " fn)
+                  "Describe function: ")
+                obarray 'fboundp t nil nil
+                (and fn (symbol-name fn)))))
+     (unless (equal val "")
+       (setq fn (intern val)))
+     (unless (and fn (symbolp fn))
+       (user-error "You didn't specify a function symbol"))
+     (unless (fboundp fn)
+       (user-error "Symbol's function definition is void: %s" fn))
+     (list fn)))
   ;; We save describe-function-orig-buffer on the help xref stack, so
   ;; it is restored by the back/forward buttons.  'help-buffer'
   ;; expects (current-buffer) to be a help buffer when processing

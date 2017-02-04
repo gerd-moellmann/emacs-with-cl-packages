@@ -1,5 +1,5 @@
 /* Work-alike for termcap, plus extra features.
-   Copyright (C) 1985-1986, 1993-1995, 2000-2008, 2011, 2013-2016 Free
+   Copyright (C) 1985-1986, 1993-1995, 2000-2008, 2011, 2013-2017 Free
    Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify
@@ -72,7 +72,7 @@ find_capability (register char *bp, register const char *cap)
   return NULL;
 }
 
-/* These are already defined in the System framework in Mac OS X and
+/* These are already defined in the System framework in macOS and
    cause prebinding to fail.  */
 #ifndef DARWIN_OS
 int
@@ -261,7 +261,7 @@ tgetst1 (char *ptr, char **area)
 
 /* Outputting a string with padding.  */
 
-/* Already defined in the System framework in Mac OS X and causes
+/* Already defined in the System framework in macOS and causes
    prebinding to fail.  */
 #ifndef DARWIN_OS
 char PC;
@@ -358,7 +358,7 @@ valid_filename_p (char *fn)
    0 if the data base is accessible but the type NAME is not defined
    in it, and some other value otherwise.  */
 
-/* Already defined in the System framework in Mac OS X and causes
+/* Already defined in the System framework in macOS and causes
    prebinding to fail.  */
 #ifndef DARWIN_OS
 int

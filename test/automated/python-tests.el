@@ -1,6 +1,6 @@
 ;;; python-tests.el --- Test suite for python.el
 
-;; Copyright (C) 2013-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2017 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -2451,6 +2451,13 @@ if x:
       (string= (buffer-substring-no-properties
                 (line-beginning-position) (line-end-position))
                "abcdef")))))
+
+(ert-deftest python-bob-infloop-avoid ()
+  "Test that strings at BOB don't confuse syntax analysis.  Bug#24905"
+  (python-tests-with-temp-buffer
+      " \"\n"
+    (goto-char (point-min))
+    (font-lock-fontify-buffer)))
 
 
 ;;; Shell integration

@@ -1,6 +1,6 @@
 ;;; solar.el --- calendar functions for solar events
 
-;; Copyright (C) 1992-1993, 1995, 1997, 2001-2016 Free Software
+;; Copyright (C) 1992-1993, 1995, 1997, 2001-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -65,7 +65,7 @@ and `am-pm' and `time-zone', both alphabetic strings.
 
 For example, the form
 
-  '(24-hours \":\" minutes
+  \\='(24-hours \":\" minutes
     (if time-zone \" (\") time-zone (if time-zone \")\"))
 
 would give military-style times like `21:07 (UTC)'."

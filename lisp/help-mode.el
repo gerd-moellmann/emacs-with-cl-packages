@@ -1,6 +1,6 @@
 ;;; help-mode.el --- `help-mode' used by *Help* buffers
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2016 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -202,6 +202,7 @@ The format is (FUNCTION ARGS...).")
 		   (let ((location
 			  (find-function-search-for-symbol fun type file)))
 		     (pop-to-buffer (car location))
+			 (run-hooks 'find-function-after-hook)
 		     (if (cdr location)
 			 (goto-char (cdr location))
 		       (message "Unable to find location in file"))))
@@ -231,6 +232,7 @@ The format is (FUNCTION ARGS...).")
 		     (setq file (help-C-file-name var 'var)))
 		   (let ((location (find-variable-noselect var file)))
 		     (pop-to-buffer (car location))
+		     (run-hooks 'find-function-after-hook)
 		     (if (cdr location)
 		       (goto-char (cdr location))
 		       (message "Unable to find location in file"))))

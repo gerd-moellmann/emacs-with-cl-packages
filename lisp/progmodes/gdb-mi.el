@@ -1,6 +1,6 @@
 ;;; gdb-mi.el --- User Interface for running GDB  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2017 Free Software Foundation, Inc.
 
 ;; Author: Nick Roberts <nickrob@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -69,12 +69,12 @@
 ;;   2) Use MinGW GDB instead.
 ;;   3) Use cygwin-mount.el
 
-;;; Mac OSX:
+;;; macOS:
 
-;; GDB in Emacs on Mac OSX works best with FSF GDB as Apple have made
-;; some changes to the version that they include as part of Mac OSX.
-;; This requires GDB version 7.0 or later (estimated release date Aug 2009)
-;; as earlier versions do not compile on Mac OSX.
+;; GDB in Emacs on macOS works best with FSF GDB as Apple have made
+;; some changes to the version that they include as part of macOS.
+;; This requires GDB version 7.0 or later as earlier versions do not
+;; compile on macOS.
 
 ;;; Known Bugs:
 

@@ -1,6 +1,6 @@
 ;;; time.el --- display time, load and mail indicator in mode line of Emacs
 
-;; Copyright (C) 1985-1987, 1993-1994, 1996, 2000-2016 Free Software
+;; Copyright (C) 1985-1987, 1993-1994, 1996, 2000-2017 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -306,9 +306,9 @@ This expression is a list of expressions that can involve the keywords
 `seconds', all numbers in string form, and `monthname', `dayname', `am-pm',
 and `time-zone' all alphabetic strings, and `mail' a true/nil value.
 
-For example, the form
+For example:
 
-  '((substring year -2) \"/\" month \"/\" day
+   ((substring year -2) \"/\" month \"/\" day
     \" \" 24-hours \":\" minutes \":\" seconds
     (if time-zone \" (\") time-zone (if time-zone \")\")
     (if mail \" Mail\" \"\"))
