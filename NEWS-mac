@@ -1,4 +1,12 @@
+* emacs-25.2-rc2-mac-6.2 (2017-02-27)
+Based on Emacs 25.2 release candidate 2.
+
+No updates other than release notes (thus the same version number).
+
+
 * emacs-25.2-rc1-mac-6.2 (2017-02-04)
+Based on Emacs 25.2 release candidate 1.
+http://lists.gnu.org/archive/html/emacs-devel/2017-02/msg00125.html
 
 ** Fixed bugs
 
