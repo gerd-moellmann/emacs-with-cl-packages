@@ -1,3 +1,12 @@
+* emacs-25.2-mac-6.3 (2017-04-22)
+Based on Emacs 25.2.
+
+** Fixed bugs
+
+*** call-process is slow especially when there are many/large frames.
+Adapt a fix for Bug#26397.
+
+
 * emacs-25.2-rc2-mac-6.2 (2017-02-27)
 Based on Emacs 25.2 release candidate 2.
 
