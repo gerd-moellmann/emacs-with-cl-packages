@@ -99,7 +99,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.
 			<array/>
 			<key>NSSendTypes</key>
 			<array>
-				<string>NSStringPboardType</string>
+				<string>public.plain-text</string>
 			</array>
 		</dict>
 		<dict>
@@ -123,7 +123,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.
 			<array/>
 			<key>NSSendTypes</key>
 			<array>
-				<string>NSStringPboardType</string>
+				<string>public.plain-text</string>
 			</array>
 		</dict>
 		<dict>
