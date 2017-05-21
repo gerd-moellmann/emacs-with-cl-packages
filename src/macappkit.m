@@ -12970,9 +12970,6 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 				Fonts
 ***********************************************************************/
 
-static CFIndex mac_font_shape_1 (NSFont *, NSString *,
-				 struct mac_glyph_layout *, CFIndex, BOOL);
-
 @implementation NSLayoutManager (Emacs)
 
 /* Return union of enclosing rects for glyphRange in textContainer.  */
@@ -13137,20 +13134,12 @@ mac_screen_font_get_metrics (ScreenFontRef font, CGFloat *ascent,
 }
 
 CFIndex
-mac_screen_font_shape (ScreenFontRef font, CFStringRef string,
+mac_screen_font_shape (ScreenFontRef screen_font, CFStringRef cf_string,
 		       struct mac_glyph_layout *glyph_layouts,
 		       CFIndex glyph_len)
 {
-  return mac_font_shape_1 ((__bridge NSFont *) font,
-			   (__bridge NSString *) string,
-			   glyph_layouts, glyph_len, YES);
-}
-
-static CFIndex
-mac_font_shape_1 (NSFont *font, NSString *string,
-		  struct mac_glyph_layout *glyph_layouts, CFIndex glyph_len,
-		  BOOL screen_font_p)
-{
+  NSFont *font = (__bridge NSFont *) screen_font;
+  NSString *string = (__bridge NSString *) cf_string;
   NSUInteger i;
   CFIndex result = 0;
   NSTextStorage *textStorage;
