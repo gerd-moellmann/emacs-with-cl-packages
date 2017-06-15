@@ -1266,7 +1266,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       /* Started from GUI? */
       /* FIXME: Do the right thing if getenv returns NULL, or if chdir
 	 fails.  */
-      if (! inhibit_window_system && ! isatty (0))
+      if (! inhibit_window_system && ! isatty (0) && ! ch_to_dir)
 	chdir (getenv ("HOME"));
     }
 #endif
