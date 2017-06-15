@@ -7077,7 +7077,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
 @implementation EmacsFrameController (Toolbar)
 
 - (NSToolbarItem *)toolbar:(NSToolbar *)toolbar
-     itemForItemIdentifier:(NSString *)itemIdentifier
+     itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
  willBeInsertedIntoToolbar:(BOOL)flag
 {
   NSToolbarItem *item = nil;
@@ -7094,13 +7094,13 @@ mac_get_default_scroll_bar_height (struct frame *f)
   return item;
 }
 
-- (NSArrayOf (NSString *) *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar
+- (NSArrayOf (NSToolbarItemIdentifier) *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar
 {
   return [NSArray arrayWithObjects:TOOLBAR_ICON_ITEM_IDENTIFIER,
 		  NSToolbarSeparatorItemIdentifier, nil];
 }
 
-- (NSArrayOf (NSString *) *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar
+- (NSArrayOf (NSToolbarItemIdentifier) *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar
 {
   return [NSArray arrayWithObject:TOOLBAR_ICON_ITEM_IDENTIFIER];
 }
@@ -7114,7 +7114,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
 
 - (void)setupToolBarWithVisibility:(BOOL)visible
 {
-  NSString *identifier =
+  NSToolbarIdentifier identifier =
     [NSString stringWithFormat:TOOLBAR_IDENTIFIER_FORMAT, self];
   NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:identifier];
   NSButton *button;
@@ -7291,7 +7291,8 @@ update_frame_tool_bar (struct frame *f)
       ptrdiff_t img_id;
       struct image *img;
       Lisp_Object image;
-      NSString *label, *identifier = TOOLBAR_ICON_ITEM_IDENTIFIER;
+      NSString *label;
+      NSToolbarItemIdentifier identifier = TOOLBAR_ICON_ITEM_IDENTIFIER;
 
       if (EQ (PROP (TOOL_BAR_ITEM_TYPE), Qt))
 	identifier = NSToolbarSeparatorItemIdentifier;

@@ -881,6 +881,11 @@ typedef NSInteger NSWindowLevel;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSToolbarIdentifier;
+typedef NSString * NSToolbarItemIdentifier;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 enum {
   NSFontPanelModeMaskFace = NSFontPanelFaceModeMask,
   NSFontPanelModeMaskSize = NSFontPanelSizeModeMask,
