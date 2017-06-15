@@ -11022,7 +11022,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 		bool file_p, Lisp_Object value_form, Lisp_Object handler_call,
 		ptrdiff_t nargs, Lisp_Object *args, Lisp_Object *error_data)
 {
-  Lisp_Object result;
+  Lisp_Object result = Qnil;
   EmacsOSAScript *script;
   NSAppleEventDescriptor *desc = nil;
   NSAttributedString *displayValue;
