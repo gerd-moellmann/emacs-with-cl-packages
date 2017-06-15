@@ -3671,7 +3671,7 @@ static CGRect unset_global_focus_view_frame (void);
   startCustomAnimationToExitFullScreenWithDuration:(NSTimeInterval)duration
 {
   CGFloat previousAlphaValue = [window alphaValue];
-  NSInteger previousWindowLevel = [window level];
+  NSWindowLevel previousWindowLevel = [window level];
   NSAutoresizingMaskOptions previousAutoresizingMask = [emacsView
 							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;

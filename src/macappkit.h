@@ -874,6 +874,10 @@ typedef NSInteger NSWindowTabbingMode;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSInteger NSWindowLevel;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 enum {
   NSFontPanelModeMaskFace = NSFontPanelFaceModeMask,
   NSFontPanelModeMaskSize = NSFontPanelSizeModeMask,
