@@ -873,6 +873,15 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+enum {
+  NSFontPanelModeMaskFace = NSFontPanelFaceModeMask,
+  NSFontPanelModeMaskSize = NSFontPanelSizeModeMask,
+  NSFontPanelModeMaskCollection = NSFontPanelCollectionModeMask
+};
+typedef NSUInteger NSFontPanelModeMask;
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSSavePanel (AvailableOn1090AndLater)
 - (void)setShowsTagField:(BOOL)flag;

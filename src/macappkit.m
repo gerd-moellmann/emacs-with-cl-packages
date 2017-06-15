@@ -7645,13 +7645,13 @@ free_frame_tool_bar (struct frame *f)
 
 /* Hide unused features in font panels.  */
 
-- (NSUInteger)validModesForFontPanel:(NSFontPanel *)fontPanel
+- (NSFontPanelModeMask)validModesForFontPanel:(NSFontPanel *)fontPanel
 {
   /* Underline, Strikethrough, TextColor, DocumentColor, and Shadow
      are not used in font panels.  */
-  return (NSFontPanelFaceModeMask
-	  | NSFontPanelSizeModeMask
-	  | NSFontPanelCollectionModeMask);
+  return (NSFontPanelModeMaskFace
+	  | NSFontPanelModeMaskSize
+	  | NSFontPanelModeMaskCollection);
 }
 
 @end				// EmacsFrameController (FontPanel)
@@ -8279,13 +8279,13 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 {
 }
 
-- (NSUInteger)validModesForFontPanel:(NSFontPanel *)fontPanel
+- (NSFontPanelModeMask)validModesForFontPanel:(NSFontPanel *)fontPanel
 {
   /* Underline, Strikethrough, TextColor, DocumentColor, and Shadow
      are not used in font panels.  */
-  return (NSFontPanelFaceModeMask
-	  | NSFontPanelSizeModeMask
-	  | NSFontPanelCollectionModeMask);
+  return (NSFontPanelModeMaskFace
+	  | NSFontPanelModeMaskSize
+	  | NSFontPanelModeMaskCollection);
 }
 
 @end				// EmacsFontDialogController
