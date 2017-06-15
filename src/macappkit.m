@@ -11509,7 +11509,8 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
       /* page layout */
       NSSize pageSize =
 	[[docAttributes objectForKey:NSPaperSizeDocumentAttribute] sizeValue];
-      NSString * __unsafe_unretained marginAttributes[4] = {
+      NSAttributedStringDocumentAttributeKey __unsafe_unretained
+	marginAttributes[4] = {
 	NSLeftMarginDocumentAttribute, NSRightMarginDocumentAttribute,
 	NSTopMarginDocumentAttribute, NSBottomMarginDocumentAttribute
       };
@@ -11574,7 +11575,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 		    options:(NSDictionaryOf (NSString *, id) *)options
 {
   NSAttributedString *attrString;
-  NSDictionaryOf (NSString *, id) *docAttributes;
+  NSDictionaryOf (NSAttributedStringDocumentAttributeKey, id) *docAttributes;
 
   attrString = [[NSAttributedString alloc]
 		 initWithURL:url options:options
@@ -11600,7 +11601,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 		     options:(NSDictionaryOf (NSString *, id) *)options
 {
   NSAttributedString *attrString;
-  NSDictionaryOf (NSString *, id) *docAttributes;
+  NSDictionaryOf (NSAttributedStringDocumentAttributeKey, id) *docAttributes;
 
   attrString = [[NSAttributedString alloc]
 		 initWithData:data options:options

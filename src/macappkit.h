@@ -722,6 +722,10 @@ typedef id instancetype;
 @interface EmacsPDFDocument : PDFDocument <EmacsDocumentRasterizer>
 @end
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSAttributedStringDocumentAttributeKey;
+#endif
+
 /* Class for document rasterization other than PDF.  It also works as
    the layout manager delegate when rasterizing a multi-page
    document.  */
@@ -731,7 +735,8 @@ typedef id instancetype;
   /* The text storage and document attributes for the document to be
      rasterized.  */
   NSTextStorage *textStorage;
-  NSDictionaryOf (NSString *, id) *documentAttributes;
+  NSDictionaryOf (NSAttributedStringDocumentAttributeKey, id)
+    *documentAttributes;
 }
 - (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
 		      documentAttributes:(NSDictionaryOf (NSString *, id) *)docAttributes;
