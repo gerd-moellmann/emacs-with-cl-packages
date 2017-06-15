@@ -442,8 +442,6 @@ typedef id instancetype;
 - (BOOL)sendAction:(SEL)theAction to:(id)theTarget;
 - (struct input_event *)inputEvent;
 - (NSString *)string;
-- (NSRect)firstRectForCharacterRange:(NSRange)aRange
-			 actualRange:(NSRangePointer)actualRange;
 @end
 
 /* Class for view in the overlay window of an Emacs frame window.  */

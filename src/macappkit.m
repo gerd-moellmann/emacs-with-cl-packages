@@ -5189,13 +5189,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     [NSApp postDummyEvent];
 }
 
-- (void)insertText:(id)aString
-{
-  NSRange replacementRange = NSMakeRange (NSNotFound, 0);
-
-  [self insertText:aString replacementRange:replacementRange];
-}
-
 - (void)doCommandBySelector:(SEL)aSelector
 {
   keyEventsInterpreted = NO;
@@ -5240,18 +5233,10 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     [NSApp postDummyEvent];
 }
 
-- (void)setMarkedText:(id)aString selectedRange:(NSRange)selRange
-{
-  NSRange replacementRange = NSMakeRange (NSNotFound, 0);
-
-  [self setMarkedText:aString selectedRange:selRange
-     replacementRange:replacementRange];
-}
-
 - (void)unmarkText
 {
   if ([self hasMarkedText])
-    [self insertText:markedText];
+    [self insertText:markedText replacementRange:(NSMakeRange (NSNotFound, 0))];
 }
 
 - (BOOL)hasMarkedText
@@ -5263,11 +5248,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
      because message to nil is defined to return 0 as NSUInteger, but
      we keep this as markedText is likely to be nil in most cases.  */
   return markedText != nil && [(NSString *)markedText length] != 0;
-}
-
-- (NSInteger)conversationIdentifier
-{
-  return (long) NSApp;
 }
 
 - (NSAttributedString *)attributedSubstringForProposedRange:(NSRange)aRange
@@ -5392,11 +5372,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   return result;
 }
 
-- (NSAttributedString *)attributedSubstringFromRange:(NSRange)theRange
-{
-  return [self attributedSubstringForProposedRange:theRange actualRange:NULL];
-}
-
 - (NSRange)markedRange
 {
   NSUInteger location = NSNotFound;
@@ -5503,11 +5478,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     }
 
   return rect;
-}
-
-- (NSRect)firstRectForCharacterRange:(NSRange)theRange
-{
-  return [self firstRectForCharacterRange:theRange actualRange:NULL];
 }
 
 - (NSUInteger)characterIndexForPoint:(NSPoint)thePoint
@@ -12403,7 +12373,7 @@ ax_get_bounds_for_range (EmacsMainView *emacsView, id parameter)
   NSRect rect;
 
   if (range.location >= NSNotFound)
-    rect = [emacsView firstRectForCharacterRange:range];
+    rect = [emacsView firstRectForCharacterRange:range actualRange:NULL];
   else
     rect = ax_get_bounds_for_range_1 (emacsView, range);
 
@@ -12435,7 +12405,7 @@ ax_get_rtf_for_range (EmacsMainView *emacsView, id parameter)
 {
   NSRange range = [(NSValue *)parameter rangeValue];
   NSAttributedString *attributedString =
-    [emacsView attributedSubstringFromRange:range];
+    [emacsView attributedSubstringForProposedRange:range actualRange:NULL];
 
   return [attributedString
 	   RTFFromRange:(NSMakeRange (0, [attributedString length]))
