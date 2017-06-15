@@ -694,7 +694,8 @@ typedef id instancetype;
 - (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
 		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
 		    imageErrorFunc:(void (*)(const char *, ...))imageError;
-- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor;
+- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
+	 baseURL:(NSURL *)url;
 @end
 
 /* Protocol for document rasterization.  */

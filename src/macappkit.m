@@ -11149,6 +11149,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 }
 
 - (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
+	 baseURL:(NSURL *)url
 {
   bool __block result;
 
@@ -11167,7 +11168,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       [webView setValue:backgroundColor forKey:@"backgroundColor"];
       [webView setFrameLoadDelegate:self];
       [mainFrame loadData:data MIMEType:@"image/svg+xml" textEncodingName:nil
-		  baseURL:nil];
+		  baseURL:url];
 
       /* [webView isLoading] is not sufficient if we have <image
 	 xlink:href=... /> */
@@ -11291,7 +11292,7 @@ mac_webkit_supports_svg_p (void)
 
 bool
 mac_svg_load_image (struct frame *f, struct image *img, unsigned char *contents,
-		    ptrdiff_t size, XColor *color,
+		    ptrdiff_t size, XColor *color, Lisp_Object encoded_file,
 		    bool (*check_image_size_func) (struct frame *, int, int),
 		    void (*image_error_func) (const char *, ...))
 {
@@ -11302,12 +11303,17 @@ mac_svg_load_image (struct frame *f, struct image *img, unsigned char *contents,
   NSData *data =
     [NSData dataWithBytesNoCopy:contents length:size freeWhenDone:NO];
   NSColor *backgroundColor = [NSColor colorWithXColorPixel:color->pixel];
+  NSURL *url =
+    (STRINGP (encoded_file)
+     ? [NSURL fileURLWithPath:[NSString stringWithLispString:encoded_file]]
+     : nil);
   /* WebKit may repeatedly call waitpid for a child process
      (WebKitPluginHost) while it returns -1 in its plug-in
      initialization.  So we need to avoid calling wait3 for an
      arbitrary child process in our own SIGCHLD handler.  */
   int mask = sigblock (sigmask (SIGCHLD));
-  bool result = [loader loadData:data backgroundColor:backgroundColor];
+  bool result = [loader loadData:data backgroundColor:backgroundColor
+			 baseURL:url];
 
   sigsetmask (mask);
   MRC_RELEASE (loader);
