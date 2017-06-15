@@ -1143,6 +1143,11 @@ typedef NSString * NSTouchBarItemIdentifier;
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSPasteboardType;
+typedef NSString * NSPasteboardName;
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 @interface PDFPage (AvailableOn101200AndLater)
 - (void) drawWithBox: (PDFDisplayBox) box toContext:(CGContextRef)context;

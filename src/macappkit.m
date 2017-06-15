@@ -9771,7 +9771,7 @@ mac_get_selection_from_symbol (Lisp_Object sym, bool clear_p, Selection *sel)
     *sel = NULL;
   else
     {
-      NSString *name = [NSString stringWithLispString:str];
+      NSPasteboardName name = [NSString stringWithLispString:str];
 
       *sel = (__bridge Selection) [NSPasteboard pasteboardWithName:name];
       if (clear_p)
@@ -9785,11 +9785,11 @@ mac_get_selection_from_symbol (Lisp_Object sym, bool clear_p, Selection *sel)
    corresponding data type.  If SEL is non-zero, the return value is
    non-zero only when the SEL has the data type.  */
 
-static NSString *
+static NSPasteboardType
 get_pasteboard_data_type_from_symbol (Lisp_Object sym, Selection sel)
 {
   Lisp_Object str = Fget (sym, Qmac_pasteboard_data_type);
-  NSString *dataType;
+  NSPasteboardType dataType;
 
   if (STRINGP (str))
     dataType = [NSString stringWithLispString:str];
@@ -9798,7 +9798,7 @@ get_pasteboard_data_type_from_symbol (Lisp_Object sym, Selection sel)
 
   if (dataType && sel)
     {
-      NSArrayOf (NSString *) *array = [NSArray arrayWithObject:dataType];
+      NSArrayOf (NSPasteboardType) *array = [NSArray arrayWithObject:dataType];
 
       dataType = [(__bridge NSPasteboard *)sel availableTypeFromArray:array];
     }
@@ -9848,7 +9848,8 @@ mac_valid_selection_value_p (Lisp_Object value, Lisp_Object target)
 OSStatus
 mac_put_selection_value (Selection sel, Lisp_Object target, Lisp_Object value)
 {
-  NSString *dataType = get_pasteboard_data_type_from_symbol (target, nil);
+  NSPasteboardType dataType =
+    get_pasteboard_data_type_from_symbol (target, nil);
   NSPasteboard *pboard = (__bridge NSPasteboard *)sel;
 
   if (dataType == nil)
@@ -9882,7 +9883,8 @@ Lisp_Object
 mac_get_selection_value (Selection sel, Lisp_Object target)
 {
   Lisp_Object result = Qnil;
-  NSString *dataType = get_pasteboard_data_type_from_symbol (target, sel);
+  NSPasteboardType dataType =
+    get_pasteboard_data_type_from_symbol (target, sel);
 
   if (dataType)
     {
@@ -9903,9 +9905,9 @@ Lisp_Object
 mac_get_selection_target_list (Selection sel)
 {
   Lisp_Object result = Qnil, rest, target, strings = Qnil;
-  NSArrayOf (NSString *) *types = [(__bridge NSPasteboard *)sel types];
-  NSMutableSetOf (NSString *) *typeSet;
-  NSString *dataType;
+  NSArrayOf (NSPasteboardType) *types = [(__bridge NSPasteboard *)sel types];
+  NSMutableSetOf (NSPasteboardType) *typeSet;
+  NSPasteboardType dataType;
 
   typeSet = [NSMutableSet setWithCapacity:[types count]];
   [typeSet addObjectsFromArray:types];
@@ -9920,7 +9922,7 @@ mac_get_selection_target_list (Selection sel)
 	[typeSet removeObject:dataType];
       }
 
-  for (NSString *dataType in typeSet)
+  for (NSPasteboardType dataType in typeSet)
     strings = Fcons ([dataType UTF8LispString], strings);
   result = nconc2 (result, strings);
 
@@ -10046,7 +10048,7 @@ init_apple_event_handler (void)
                       Drag and drop support
 ***********************************************************************/
 
-static NSMutableArrayOf (NSString *) *registered_dragged_types;
+static NSMutableArrayOf (NSPasteboardType) *registered_dragged_types;
 
 @implementation EmacsMainView (DragAndDrop)
 
@@ -10109,7 +10111,8 @@ drag_operation_to_actions (NSDragOperation operation)
       Lisp_Object item = Qnil;
       /* The elements in -[NSView registeredDraggedTypes] are in no
 	 particular order.  */
-      NSString *type = [pi availableTypeFromArray:registered_dragged_types];
+      NSPasteboardType type =
+	[pi availableTypeFromArray:registered_dragged_types];
 
       if (type)
 	{
@@ -10147,7 +10150,7 @@ drag_operation_to_actions (NSDragOperation operation)
 
 @implementation EmacsFrameController (DragAndDrop)
 
-- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSString *) *)pboardTypes
+- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSPasteboardType) *)pboardTypes
 {
   [emacsView registerForDraggedTypes:pboardTypes];
 }
@@ -10167,7 +10170,7 @@ drag_operation_to_actions (NSDragOperation operation)
 static void
 update_dragged_types (void)
 {
-  NSMutableArrayOf (NSString *) *array =
+  NSMutableArrayOf (NSPasteboardType) *array =
     [[NSMutableArray alloc] initWithCapacity:0];
   Lisp_Object rest, tail, frame;
 
@@ -10180,7 +10183,7 @@ update_dragged_types (void)
 	   check that the multibyte string only contain single-byte
 	   chars).  */
 	Lisp_Object type = Fstring_as_unibyte (XCAR (rest));
-	NSString *typeString = [NSString stringWithLispString:type];
+	NSPasteboardType typeString = [NSString stringWithLispString:type];
 
 	if (typeString)
 	  [array addObject:typeString];
@@ -10210,7 +10213,7 @@ update_dragged_types (void)
 Lisp_Object
 mac_dnd_default_known_types (void)
 {
-  return list3 ([(__bridge NSString *)kUTTypeURL UTF8LispString],
+  return list3 ([(__bridge NSPasteboardType)kUTTypeURL UTF8LispString],
 		[NSPasteboardTypeString UTF8LispString],
 		[NSPasteboardTypeTIFF UTF8LispString]);
 }
@@ -10222,11 +10225,11 @@ mac_dnd_default_known_types (void)
 
 @implementation EmacsMainView (Services)
 
-- (id)validRequestorForSendType:(NSString *)sendType
-		     returnType:(NSString *)returnType
+- (id)validRequestorForSendType:(NSPasteboardType)sendType
+		     returnType:(NSPasteboardType)returnType
 {
   Selection sel;
-  NSArrayOf (NSString *) *array;
+  NSArrayOf (NSPasteboardType) *array;
 
   if ([sendType length] == 0
       || (!NILP (Fmac_selection_owner_p (Vmac_service_selection, Qnil))
@@ -10237,7 +10240,7 @@ mac_dnd_default_known_types (void)
 	      [(__bridge NSPasteboard *)sel availableTypeFromArray:array])))
     {
       Lisp_Object rest;
-      NSString *dataType;
+      NSPasteboardType dataType;
 
       if ([returnType length] == 0)
 	return self;
@@ -10255,7 +10258,7 @@ mac_dnd_default_known_types (void)
 }
 
 - (BOOL)writeSelectionToPasteboard:(NSPasteboard *)pboard
-			     types:(NSArrayOf (NSString *) *)types
+			     types:(NSArrayOf (NSPasteboardType) *)types
 {
   OSStatus err;
   Selection sel;
@@ -10269,7 +10272,7 @@ mac_dnd_default_known_types (void)
   [pboard declareTypes:[NSArray array] owner:nil];
 
   servicePboard = (__bridge NSPasteboard *) sel;
-  for (NSString *type in [servicePboard types])
+  for (NSPasteboardType type in [servicePboard types])
     if ([types containsObject:type])
       {
 	NSData *data = [servicePboard dataForType:type];
@@ -10301,7 +10304,7 @@ copy_pasteboard_to_service_selection (NSPasteboard *pboard)
 
   servicePboard = (__bridge NSPasteboard *) sel;
   [servicePboard declareTypes:[NSArray array] owner:nil];
-  for (NSString *type in [pboard types])
+  for (NSPasteboardType type in [pboard types])
     {
       NSData *data = [pboard dataForType:type];
 
@@ -10455,14 +10458,15 @@ handle_services_invocation (NSInvocation *invocation)
 static void
 update_services_menu_types (void)
 {
-  NSMutableArrayOf (NSString *) *array = [NSMutableArray arrayWithCapacity:0];
+  NSMutableArrayOf (NSPasteboardType) *array =
+    [NSMutableArray arrayWithCapacity:0];
   Lisp_Object rest;
 
   for (rest = Vselection_converter_alist; CONSP (rest);
        rest = XCDR (rest))
     if (CONSP (XCAR (rest)) && SYMBOLP (XCAR (XCAR (rest))))
       {
-	NSString *dataType =
+	NSPasteboardType dataType =
 	  get_pasteboard_data_type_from_symbol (XCAR (XCAR (rest)), nil);
 
 	if (dataType)
