@@ -1005,6 +1005,13 @@ enum {
 typedef NSInteger NSPaperOrientation;
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSAccessibilityAttributeName;
+typedef NSString * NSAccessibilityParameterizedAttributeName;
+typedef NSString * NSAccessibilityActionName;
+typedef NSString * NSAccessibilityNotificationName;
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
 @interface NSWorkspace (AvailableOn101000AndLater)
 - (BOOL)accessibilityDisplayShouldIncreaseContrast;

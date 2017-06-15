@@ -11974,7 +11974,7 @@ static id ax_get_style_range_for_index (EmacsMainView *, id);
 static id ax_get_attributed_string_for_range (EmacsMainView *, id);
 
 static const struct {
-  NSString *const *ns_name_ptr;
+  NSAccessibilityAttributeName const *ns_name_ptr;
   CFStringRef fallback_name;
   id (*handler) (EmacsMainView *);
 } ax_attribute_table[] = {
@@ -11999,11 +11999,11 @@ static const struct {
     CFSTR ("AXSelectedTextRanges"), ax_get_selected_text_ranges},
 };
 static const size_t ax_attribute_count = ARRAYELTS (ax_attribute_table);
-static NSArrayOf (NSString *) *ax_attribute_names;
+static NSArrayOf (NSAccessibilityAttributeName) *ax_attribute_names;
 static Lisp_Object ax_attribute_event_ids;
 
 static const struct {
-  NSString *const *ns_name_ptr;
+  NSAccessibilityParameterizedAttributeName const *ns_name_ptr;
   CFStringRef fallback_name;
   id (*handler) (EmacsMainView *, id);
 } ax_parameterized_attribute_table[] = {
@@ -12030,19 +12030,20 @@ static const struct {
 };
 static const size_t ax_parameterized_attribute_count =
   ARRAYELTS (ax_parameterized_attribute_table);
-static NSArrayOf (NSString *) *ax_parameterized_attribute_names;
+static NSArrayOf (NSAccessibilityParameterizedAttributeName)
+  *ax_parameterized_attribute_names;
 
 static const struct {
-  NSString *const *ns_name_ptr;
+  NSAccessibilityActionName const *ns_name_ptr;
   CFStringRef fallback_name;
 } ax_action_table[] = {
   {&NSAccessibilityShowMenuAction, NULL},
 };
 static const size_t ax_action_count = ARRAYELTS (ax_action_table);
-static NSArrayOf (NSString *) *ax_action_names;
+static NSArrayOf (NSAccessibilityActionName) *ax_action_names;
 static Lisp_Object ax_action_event_ids;
 
-static NSString *ax_selected_text_changed_notification;
+static NSAccessibilityNotificationName ax_selected_text_changed_notification;
 
 static Lisp_Object
 ax_name_to_symbol (NSString *name, NSString *prefix)
@@ -12145,9 +12146,9 @@ mac_update_accessibility_display_options (void)
   return NO;
 }
 
-- (NSArrayOf (NSString *) *)accessibilityAttributeNames
+- (NSArrayOf (NSAccessibilityAttributeName) *)accessibilityAttributeNames
 {
-  static NSArrayOf (NSString *) *names = nil;
+  static NSArrayOf (NSAccessibilityAttributeName) *names = nil;
 
   if (names == nil)
     names = MRC_RETAIN ([[super accessibilityAttributeNames]
@@ -12228,7 +12229,7 @@ ax_get_selected_text_ranges (EmacsMainView *emacsView)
   return [NSArray arrayWithObject:rangeValue];
 }
 
-- (id)accessibilityAttributeValue:(NSString *)attribute
+- (id)accessibilityAttributeValue:(NSAccessibilityAttributeName)attribute
 {
   NSUInteger index = [ax_attribute_names indexOfObject:attribute];
 
@@ -12240,7 +12241,7 @@ ax_get_selected_text_ranges (EmacsMainView *emacsView)
     return [super accessibilityAttributeValue:attribute];
 }
 
-- (BOOL)accessibilityIsAttributeSettable:(NSString *)attribute
+- (BOOL)accessibilityIsAttributeSettable:(NSAccessibilityAttributeName)attribute
 {
   NSUInteger index = [ax_attribute_names indexOfObject:attribute];
 
@@ -12260,7 +12261,8 @@ ax_get_selected_text_ranges (EmacsMainView *emacsView)
     return [super accessibilityIsAttributeSettable:attribute];
 }
 
-- (void)accessibilitySetValue:(id)value forAttribute:(NSString *)attribute
+- (void)accessibilitySetValue:(id)value
+		 forAttribute:(NSAccessibilityAttributeName)attribute
 {
   NSUInteger index = [ax_attribute_names indexOfObject:attribute];
 
@@ -12292,9 +12294,9 @@ ax_get_selected_text_ranges (EmacsMainView *emacsView)
     [super accessibilitySetValue:value forAttribute:attribute];
 }
 
-- (NSArrayOf (NSString *) *)accessibilityParameterizedAttributeNames
+- (NSArrayOf (NSAccessibilityParameterizedAttributeName) *)accessibilityParameterizedAttributeNames
 {
-  static NSArrayOf (NSString *) *names = nil;
+  static NSArrayOf (NSAccessibilityParameterizedAttributeName) *names = nil;
 
   if (names == nil)
     names = MRC_RETAIN ([[super accessibilityAttributeNames]
@@ -12446,7 +12448,7 @@ ax_get_attributed_string_for_range (EmacsMainView *emacsView, id parameter)
     return nil;
 }
 
-- (id)accessibilityAttributeValue:(NSString *)attribute
+- (id)accessibilityAttributeValue:(NSAccessibilityParameterizedAttributeName)attribute
 		     forParameter:(id)parameter
 {
   NSUInteger index = [ax_parameterized_attribute_names indexOfObject:attribute];
@@ -12457,9 +12459,9 @@ ax_get_attributed_string_for_range (EmacsMainView *emacsView, id parameter)
     return [super accessibilityAttributeValue:attribute forParameter:parameter];
 }
 
-- (NSArrayOf (NSString *) *)accessibilityActionNames
+- (NSArrayOf (NSAccessibilityActionName) *)accessibilityActionNames
 {
-  static NSArrayOf (NSString *) *names = nil;
+  static NSArrayOf (NSAccessibilityActionName) *names = nil;
 
   if (names == nil)
     names = MRC_RETAIN ([[super accessibilityActionNames]
@@ -12468,7 +12470,7 @@ ax_get_attributed_string_for_range (EmacsMainView *emacsView, id parameter)
   return names;
 }
 
-- (void)accessibilityPerformAction:(NSString *)theAction
+- (void)accessibilityPerformAction:(NSAccessibilityActionName)theAction
 {
   NSUInteger index = [ax_action_names indexOfObject:theAction];
 
