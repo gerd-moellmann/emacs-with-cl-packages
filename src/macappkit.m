@@ -8196,7 +8196,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
     {
       /* This is a save dialog */
       NSSavePanel *savePanel = [EmacsSavePanel savePanel];
-      NSInteger __block response;
+      NSModalResponse __block response;
 
       [savePanel setTitle:[NSString stringWithLispString:prompt]];
       [savePanel setPrompt:@"OK"];
@@ -8209,7 +8209,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
       if (nondirectory)
 	[savePanel setNameFieldStringValue:nondirectory];
       mac_within_app (^{response = [savePanel runModal];});
-      if (response == NSFileHandlingPanelOKButton)
+      if (response == NSModalResponseOK)
 	{
 	  NSURL *url = [savePanel URL];
 
@@ -8221,7 +8221,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
     {
       /* This is an open dialog */
       NSOpenPanel *openPanel = [NSOpenPanel openPanel];
-      NSInteger __block response;
+      NSModalResponse __block response;
 
       [openPanel setTitle:[NSString stringWithLispString:prompt]];
       [openPanel setPrompt:@"OK"];
@@ -8382,7 +8382,7 @@ mac_font_dialog (struct frame *f)
   BOOL savedIsMultiple;
   NSView *savedAccessoryView, *accessoryView;
   id savedDelegate, delegate;
-  NSInteger __block response;
+  NSModalResponse __block response;
 
   savedSelectedFont = [fontManager selectedFont];
   savedIsMultiple = [fontManager isMultiple];
@@ -9463,7 +9463,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
     Lisp_Object session_obj =
       make_unibyte_string ((char *) &session, sizeof (NSModalSession));
     ptrdiff_t specpdl_count = SPECPDL_INDEX ();
-    NSInteger response;
+    NSModalResponse response;
 
     record_unwind_protect (pop_down_dialog,
 			   make_save_funcptr_ptr_obj (NULL, (void *) cfpanel,

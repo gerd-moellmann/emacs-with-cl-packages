@@ -784,15 +784,14 @@ enum {
 };
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-enum {
-  NSModalResponseAbort		= NSRunAbortedResponse,
-  NSModalResponseContinue	= NSRunContinuesResponse
-};
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSInteger NSModalResponse;
+#endif
 
-enum {
-  NSModalResponseOK	= NSOKButton
-};
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+static const NSModalResponse NSModalResponseAbort = NSRunAbortedResponse;
+static const NSModalResponse NSModalResponseContinue = NSRunContinuesResponse;
+static const NSModalResponse NSModalResponseOK = NSOKButton;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
