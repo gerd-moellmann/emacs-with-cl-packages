@@ -29,23 +29,26 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #define NSFoundationVersionNumber10_8_3 945.16
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef double NSAppKitVersion;
 #ifndef NSAppKitVersionNumber10_6
-#define NSAppKitVersionNumber10_6 1038
+static const NSAppKitVersion NSAppKitVersionNumber10_6 = 1038;
 #endif
 #ifndef NSAppKitVersionNumber10_7
-#define NSAppKitVersionNumber10_7 1138
+static const NSAppKitVersion NSAppKitVersionNumber10_7 = 1138;
 #endif
 #ifndef NSAppKitVersionNumber10_8
-#define NSAppKitVersionNumber10_8 1187
+static const NSAppKitVersion NSAppKitVersionNumber10_8 = 1187;
 #endif
 #ifndef NSAppKitVersionNumber10_9
-#define NSAppKitVersionNumber10_9 1265
+static const NSAppKitVersion NSAppKitVersionNumber10_9 = 1265;
 #endif
 #ifndef NSAppKitVersionNumber10_10_Max
-#define NSAppKitVersionNumber10_10_Max 1349
+static const NSAppKitVersion NSAppKitVersionNumber10_10_Max = 1349;
 #endif
 #ifndef NSAppKitVersionNumber10_11
-#define NSAppKitVersionNumber10_11 1404
+static const NSAppKitVersion NSAppKitVersionNumber10_11 = 1404;
+#endif
 #endif
 
 #ifndef USE_ARC
