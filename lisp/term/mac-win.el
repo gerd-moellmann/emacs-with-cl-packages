@@ -823,7 +823,16 @@ language."
 					  'utf-16be 'utf-16le))))))
 
 (defun mac-TIFF-to-string (data &optional text)
-  (propertize (or text " ") 'display (create-image data 'tiff t)))
+  (let* ((image (create-image data 'image-io t))
+         (metadata (image-metadata image)))
+    (unless (plist-get metadata 'count)
+      (let* ((props (plist-get metadata 'image-io-properties-at-index))
+             (unit (cdr (assoc "ResolutionUnit" (cdr (assoc "{TIFF}" props))))))
+        (when (integerp unit)
+          (setq image `(,@image
+                        :width ,(/ (cdr (assoc "PixelWidth" props)) unit)
+                        :height ,(/ (cdr (assoc "PixelHeight" props)) unit))))))
+    (propertize (or text " ") 'display image)))
 
 (defun mac-pasteboard-string-to-string (data &optional coding-system)
   (mac-utxt-to-string data coding-system 'utf-8))

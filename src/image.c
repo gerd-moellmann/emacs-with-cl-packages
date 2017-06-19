@@ -2970,9 +2970,21 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	    }
 	}
       if (src_props)
-	CFRelease (src_props);
+	{
+	  if (type == NULL)
+	    metadata = Fcons (Qimage_io_properties,
+			      Fcons (cfobject_to_lisp (src_props, 0, -1),
+				     metadata));
+	  CFRelease (src_props);
+	}
       if (props)
-	CFRelease (props);
+	{
+	  if (type == NULL)
+	    metadata = Fcons (Qimage_io_properties_at_index,
+			      Fcons (cfobject_to_lisp (props, 0, -1),
+				     metadata));
+	  CFRelease (props);
+	}
 
       if (type == NULL || gif_p)
 	{
@@ -11307,6 +11319,8 @@ non-numeric, there is no explicit limit on the size of images.  */);
   DEFSYM (Qextension_data, "extension-data");
   DEFSYM (Qdelay, "delay");
 #ifdef HAVE_MACGUI
+  DEFSYM (Qimage_io_properties, "image-io-properties");
+  DEFSYM (Qimage_io_properties_at_index, "image-io-properties-at-index");
   DEFSYM (Qdocument_attributes, "document-attributes");
   DEFSYM (QCdata_2x, ":data-2x");
 #endif
