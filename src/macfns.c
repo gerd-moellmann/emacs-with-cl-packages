@@ -4464,12 +4464,11 @@ The result is a property list containing the following names and values:
 If Emacs is not running as a GUI application, then the result is nil.  */)
   (void)
 {
-  extern Lisp_Object mac_application_state (void);
   Lisp_Object result;
 
   block_input ();
   result = mac_application_state ();
-  unblock_input();
+  unblock_input ();
 
   return result;
 }
