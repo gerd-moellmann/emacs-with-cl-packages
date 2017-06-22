@@ -656,8 +656,13 @@ typedef id instancetype;
 - (OSErr)copyDescTo:(AEDesc *)desc;
 @end
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSPasteboardType;
+typedef NSString * NSPasteboardName;
+#endif
+
 @interface EmacsFrameController (DragAndDrop)
-- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSString *) *)pboardTypes;
+- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSPasteboardType) *)pboardTypes;
 - (void)setOverlayViewHighlighted:(BOOL)flag;
 @end
 
@@ -1148,11 +1153,6 @@ typedef NSString * NSTouchBarItemIdentifier;
 + (instancetype)radioButtonWithTitle:(NSString *)title
 			      target:(id)target action:(SEL)action;
 @end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
-typedef NSString * NSPasteboardType;
-typedef NSString * NSPasteboardName;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
