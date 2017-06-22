@@ -140,6 +140,10 @@ typedef id instancetype;
 - (BOOL)canShowMenuBar;
 @end
 
+@interface NSWindow (Emacs)
+- (Lisp_Object)lispFrame;
+@end
+
 @interface NSCursor (Emacs)
 + (NSCursor *)cursorWithThemeCursor:(ThemeCursor)shape;
 @end

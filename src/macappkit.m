@@ -615,6 +615,17 @@ mac_within_app (void (^block) (void))
 
 @end				// NSScreen (Emacs)
 
+/* Default implementation.  Will be overridden in EmacsWindow.  */
+
+@implementation NSWindow (Emacs)
+
+- (Lisp_Object)lispFrame
+{
+  return Qnil;
+}
+
+@end				// NSWindow (Emacs)
+
 @implementation NSCursor (Emacs)
 
 + (NSCursor *)cursorWithThemeCursor:(ThemeCursor)themeCursor
@@ -1850,6 +1861,15 @@ static CGRect unset_global_focus_view_frame (void);
   [mouseUpEvent release];
   [super dealloc];
 #endif
+}
+
+- (Lisp_Object)lispFrame
+{
+  Lisp_Object result;
+
+  XSETFRAME (result, [((EmacsFrameController *) [self delegate]) emacsFrame]);
+
+  return result;
 }
 
 - (void)setupResizeTracking:(NSEvent *)event
@@ -10547,17 +10567,12 @@ handle_action_invocation (NSInvocation *invocation)
 
       if ([sender isKindOfClass:[NSView class]])
 	{
-	  id delegate = [[sender window] delegate];
+	  Lisp_Object frame = [[sender window] lispFrame];
 
-	  if ([delegate isKindOfClass:[EmacsFrameController class]])
-	    {
-	      Lisp_Object frame;
-
-	      XSETFRAME (frame, [delegate emacsFrame]);
-	      arg = Fcons (Fcons (Qframe,
-				  Fcons (build_string ("Lisp"), frame)),
+	  if (!NILP (frame))
+	    arg = Fcons (Fcons (Qframe,
+				Fcons (build_string ("Lisp"), frame)),
 			 arg);
-	    }
 	}
     }
 
