@@ -13078,7 +13078,11 @@ mac_screen_font_create_with_name (CFStringRef name, CGFloat size)
 CGFloat
 mac_screen_font_get_advance_width_for_glyph (ScreenFontRef font, CGGlyph glyph)
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+  NSSize advancement = [(__bridge NSFont *)font advancementForCGGlyph:glyph];
+#else
   NSSize advancement = [(__bridge NSFont *)font advancementForGlyph:glyph];
+#endif
 
   return advancement.width;
 }
