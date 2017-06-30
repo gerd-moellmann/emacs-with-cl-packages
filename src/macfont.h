@@ -67,9 +67,11 @@ enum {
 };
 #endif
 
-#if USE_CT_GLYPH_INFO
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 #define mac_font_get_glyph_for_cid mac_ctfont_get_glyph_for_cid
 #elif !defined (HAVE_NS)
+extern CGGlyph mac_ctfont_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
+					     CGFontIndex);
 extern CGGlyph mac_font_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
 					   CGFontIndex);
 #endif

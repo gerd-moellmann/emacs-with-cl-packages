@@ -13001,11 +13001,14 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 
 @end				// NSLayoutManager (Emacs)
 
-#if !USE_CT_GLYPH_INFO
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 CGGlyph
 mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
 			    CGFontIndex cid)
 {
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9))
+    return mac_ctfont_get_glyph_for_cid (font, collection, cid);
+
   CGGlyph result = kCGFontIndexInvalid;
   NSFont *nsFont = (__bridge NSFont *) font;
   unichar characters[] = {0xfffd};
