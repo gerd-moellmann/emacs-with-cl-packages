@@ -11321,7 +11321,11 @@ clear_garbaged_frames (void)
 	{
 	  struct frame *f = XFRAME (frame);
 
-	  if (FRAME_VISIBLE_P (f) && FRAME_GARBAGED_P (f))
+	  if (FRAME_VISIBLE_P (f) && FRAME_GARBAGED_P (f)
+#ifdef HAVE_MACGUI
+	      && !FRAME_OBSCURED_P (f)
+#endif
+	      )
 	    {
 	      if (f->resized_p
 		  /* It makes no sense to redraw a non-selected TTY
@@ -11361,7 +11365,11 @@ echo_area_display (bool update_frame_p)
   f = XFRAME (WINDOW_FRAME (w));
 
   /* Don't display if frame is invisible or not yet initialized.  */
-  if (!FRAME_VISIBLE_P (f) || !f->glyphs_initialized_p)
+  if (!FRAME_VISIBLE_P (f) || !f->glyphs_initialized_p
+#ifdef HAVE_MACGUI
+      || FRAME_OBSCURED_P (f)
+#endif
+      )
     return;
 
 #ifdef HAVE_WINDOW_SYSTEM
@@ -28542,6 +28550,9 @@ display_and_set_cursor (struct window *w, bool on,
      be in the midst of changing its size, and x and y may be off the
      window.  */
   if (! FRAME_VISIBLE_P (f)
+#ifdef HAVE_MACGUI
+      || FRAME_OBSCURED_P (f)
+#endif
       || FRAME_GARBAGED_P (f)
       || vpos >= w->current_matrix->nrows
       || hpos >= w->current_matrix->matrix_w)
@@ -28683,7 +28694,11 @@ x_update_cursor (struct frame *f, bool on_p)
 void
 x_clear_cursor (struct window *w)
 {
-  if (FRAME_VISIBLE_P (XFRAME (w->frame)) && w->phys_cursor_on_p)
+  if (FRAME_VISIBLE_P (XFRAME (w->frame)) && w->phys_cursor_on_p
+#ifdef HAVE_MACGUI
+      && !FRAME_OBSCURED_P (XFRAME (w->frame))
+#endif
+      )
     update_window_cursor (w, false);
 }
 

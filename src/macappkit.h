@@ -845,6 +845,16 @@ enum {
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101300
+@interface NSWindowTabGroup : NSObject
+@property (getter=isOverviewVisible) BOOL overviewVisible;
+@end
+
+@interface NSWindow (AvailableOn101300AndLater)
+@property (readonly, assign) NSWindowTabGroup *tabGroup;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
   NSWindowStyleMaskBorderless		= NSBorderlessWindowMask,

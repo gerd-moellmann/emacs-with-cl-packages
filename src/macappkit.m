@@ -2738,6 +2738,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)lockFocusOnEmacsView
 {
+  eassert (!FRAME_OBSCURED_P (emacsFrame));
   [emacsView lockFocus];
 }
 
@@ -4017,6 +4018,18 @@ mac_get_frame_window_alpha (struct frame *f, CGFloat *out_alpha)
   *out_alpha = [window alphaValue];
 
   return noErr;
+}
+
+Lisp_Object
+mac_get_tab_group_overview_visible_p (struct frame *f)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+  if ([window respondsToSelector:@selector(tabGroup)]
+      && window.tabGroup.isOverviewVisible)
+    return Qt;
+
+  return Qnil;
 }
 
 void
@@ -7784,6 +7797,9 @@ static void update_dragged_types (void);
   NSRect emacsViewBounds = [emacsView bounds];
   int x, y;
   NativeRectangle *r;
+
+  if (FRAME_OBSCURED_P (f))
+    return true;
 
   dpyinfo->last_mouse_movement_time = mac_system_uptime () * 1000;
 

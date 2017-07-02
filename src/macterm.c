@@ -4156,15 +4156,18 @@ mac_frame_raise_lower (struct frame *f, bool raise_flag)
 void
 mac_handle_visibility_change (struct frame *f)
 {
-  bool visible = false, iconified = false;
+  int visible = 0;
+  bool iconified = false;
   struct input_event buf;
 
   if (mac_is_frame_window_visible (f))
     {
       if (mac_is_frame_window_collapsed (f))
 	iconified = true;
+      else if (NILP (mac_get_tab_group_overview_visible_p (f)))
+	visible = 1;
       else
-	visible = true;
+	visible = 2;
     }
 
   if (!FRAME_VISIBLE_P (f) && visible)
