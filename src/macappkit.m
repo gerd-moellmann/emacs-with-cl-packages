@@ -7798,7 +7798,10 @@ static void update_dragged_types (void);
   int x, y;
   NativeRectangle *r;
 
-  if (FRAME_OBSCURED_P (f))
+  /* When the Tab Overview UI is in action, emacsView is not drawable.
+     We avoid lazy creation of emacsWindow.tabGroup because it causes
+     side effect of not creating a tabbed window.  */
+  if (![emacsView canDraw])
     return true;
 
   dpyinfo->last_mouse_movement_time = mac_system_uptime () * 1000;
