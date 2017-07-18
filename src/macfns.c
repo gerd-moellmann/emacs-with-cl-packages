@@ -4475,6 +4475,67 @@ If Emacs is not running as a GUI application, then the result is nil.  */)
 
 
 /***********************************************************************
+			      Tab Group
+ ***********************************************************************/
+
+DEFUN ("mac-frame-tab-group-property", Fmac_frame_tab_group_property, Smac_frame_tab_group_property, 0, 2, 0,
+       doc: /* Return the value of property PROP of the tab group for FRAME.
+FRAME nil or omitted means use the selected frame.
+PROP should be nil or one of the following symbols:
+
+`:frames'
+    The entire group (stack) of frames that are all visually shown
+    together in one virtual tabbed frame and associated with the tab
+    group that FRAME belongs to.  The value is a list of frames,
+    ordered in the same order as the tabs visually shown (leading to
+    trailing).  It is nil if FRAME or the operating system does not
+    support tabbing.
+`:selected-frame'
+    The current frame that is selected.  The value is nil if FRAME or
+    the operating system does not support tabbing.
+`:tab-bar-visible-p'
+    Whether the tab bar is visible or not.
+`:overview-visible-p'
+    Whether the Tab Picker / Tab Overview UI is visible or not.
+
+If PROP is nil, then return the property list containing all of the
+above properties instead of just a property value.  */)
+  (Lisp_Object frame, Lisp_Object prop)
+{
+  struct frame *f = decode_window_system_frame (frame);
+  Lisp_Object result = Qnil;
+  struct {
+    Lisp_Object prop;
+    Lisp_Object (*func) (struct frame *);
+  } getters[] = {
+    {QCframes, mac_get_tab_group_frames},
+    {QCselected_frame, mac_get_tab_group_selected_frame},
+    {QCtab_bar_visible_p, mac_get_tab_group_tab_bar_visible_p},
+    {QCoverview_visible_p, mac_get_tab_group_overview_visible_p},
+  };
+  int i;
+
+  CHECK_SYMBOL (prop);
+
+  block_input ();
+  for (i = 0; i < ARRAYELTS (getters); i++)
+    if (NILP (prop))
+      result = Fcons (getters[i].prop, Fcons (getters[i].func (f), result));
+    else if (EQ (getters[i].prop, prop))
+      {
+	result = getters[i].func (f);
+	break;
+      }
+  unblock_input ();
+
+  if (!(NILP (prop) || i < ARRAYELTS (getters)))
+    error ("Invalid tab group property: %s", SDATA (SYMBOL_NAME (prop)));
+
+  return result;
+}
+
+
+/***********************************************************************
 			      Animation
  ***********************************************************************/
 
@@ -4678,6 +4739,10 @@ syms_of_macfns (void)
   DEFSYM (QCicon_image_file, ":icon-image-file");
   DEFSYM (QCactive_p, ":active-p");
   DEFSYM (QChidden_p, ":hidden-p");
+  DEFSYM (QCoverview_visible_p, ":overview-visible-p");
+  DEFSYM (QCtab_bar_visible_p, ":tab-bar-visible-p");
+  DEFSYM (QCselected_frame, ":selected-frame");
+  DEFSYM (QCframes, ":frames");
   DEFSYM (QCdirection, ":direction");
   DEFSYM (QCduration, ":duration");
   DEFSYM (Qfade_in, "fade-in");
@@ -4844,5 +4909,6 @@ Chinese, Japanese, and Korean.  */);
   defsubr (&Smac_select_input_source);
   defsubr (&Smac_deselect_input_source);
   defsubr (&Smac_application_state);
+  defsubr (&Smac_frame_tab_group_property);
   defsubr (&Smac_start_animation);
 }

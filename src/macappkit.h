@@ -847,13 +847,27 @@ enum {
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101300
 @interface NSWindowTabGroup : NSObject
+@property (readonly, copy) NSArrayOf (NSWindow *) *windows;
 @property (getter=isOverviewVisible) BOOL overviewVisible;
+@property (readonly, getter=isTabBarVisible) BOOL tabBarVisible;
+@property (assign) NSWindow *selectedWindow;
 @end
 
 @interface NSWindow (AvailableOn101300AndLater)
 @property (readonly, assign) NSWindowTabGroup *tabGroup;
 @end
 #endif
+
+/* Undocumented NSWindowStackController class and NSWindow property to
+   access it.  Only used as a fallback for NSWindowTabGroup on macOS
+   10.12.  */
+@interface NSWindowStackController : NSObject
+@property (assign) NSWindow *selectedWindow;
+@end
+
+@interface NSWindow (UndocumentedOn101200)
+@property (readonly, assign) NSWindowStackController *_windowStackController;
+@end
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
@@ -883,6 +897,7 @@ typedef NSInteger NSWindowTabbingMode;
 @interface NSWindow (AvailableOn101200AndLater)
 + (NSWindowUserTabbingPreference)userTabbingPreference;
 - (void)setTabbingMode:(NSWindowTabbingMode)tabbingMode;
+@property (readonly, copy) NSArrayOf (NSWindow *) *tabbedWindows;
 @end
 #endif
 
