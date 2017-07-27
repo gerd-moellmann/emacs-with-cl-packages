@@ -1,4 +1,35 @@
+* emacs-25.2-mac-6.5 (2017-07-27)
+
+** Fixed bugs
+
+*** The option --chdir is ignored when the stdin is not a tty.
+Reported by Mark Abney.
+
+*** SVG does not import external images specified by relative URLs.
+
+*** "Services" -> "Capture Selection From Screen" inserts a large
+image on a Retina display.
+
+*** Crash when some display vector is an empty string.
+Apply a fix for Bug#27504.
+
+*** "Show All Tabs" in the tab context menu leads to crash on macOS
+10.13 Beta.
+
+** Improvements
+
+*** New function mac-frame-tab-group-property to inspect tab group
+properties.  Corresponding setter function is still in development.
+
+*** Pixel-based mouse wheel smooth scrolling is now snappier
+especially on large frames or when flipping directions.
+
+*** On OS X 10.10 and later, animation by mac-start-animation is no
+longer suppressed when the frame is not completely opaque.
+
+
 * emacs-25.2-mac-6.4 (2017-05-22)
+http://lists.gnu.org/archive/html/emacs-devel/2017-05/msg00611.html
 
 ** Fixed bugs
 
