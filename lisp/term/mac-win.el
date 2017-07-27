@@ -2354,7 +2354,7 @@ non-nil, and the input device supports it."
 			   (- first-y (max (nth 2 first-height) 0)))
 			(nth 3 first-height)))))
 	     (delta-y
-              (let ((dy (round (plist-get (nth 3 event) :scrolling-delta-y)))
+              (let ((dy (plist-get (nth 3 event) :scrolling-delta-y))
                     pending-events)
                 ;; Coalesce vertical mouse wheel events.
                 (while (setq event (read-event nil nil 1e-5))
@@ -2363,13 +2363,13 @@ non-nil, and the input device supports it."
                            (eq window-to-scroll
                                (if mouse-wheel-follow-mouse
                                    (posn-window (event-start event)))))
-                      (setq dy (+ dy (round (plist-get (nth 3 event)
-                                                       :scrolling-delta-y))))
+                      (setq dy
+                            (+ dy (plist-get (nth 3 event) :scrolling-delta-y)))
                     (push event pending-events)))
                 (if pending-events
                     (setq unread-command-events (nconc (nreverse pending-events)
                                                        unread-command-events)))
-                (- dy)))
+                (round (- dy))))
 	     ;; Now select the window to scroll.
 	     (curwin (if window-to-scroll
 			 (prog1
