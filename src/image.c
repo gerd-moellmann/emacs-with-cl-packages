@@ -85,6 +85,7 @@ typedef struct w32_bitmap_record Bitmap_Record;
 #endif /* HAVE_NTGUI */
 
 #ifdef HAVE_MACGUI
+#include "process.h"		/* for remove_slash_colon */
 typedef struct mac_bitmap_record Bitmap_Record;
 
 #define GET_PIXEL(ximg, x, y) XGetPixel(ximg, x, y)
@@ -2969,9 +2970,21 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	    }
 	}
       if (src_props)
-	CFRelease (src_props);
+	{
+	  if (type == NULL)
+	    metadata = Fcons (Qimage_io_properties,
+			      Fcons (cfobject_to_lisp (src_props, 0, -1),
+				     metadata));
+	  CFRelease (src_props);
+	}
       if (props)
-	CFRelease (props);
+	{
+	  if (type == NULL)
+	    metadata = Fcons (Qimage_io_properties_at_index,
+			      Fcons (cfobject_to_lisp (props, 0, -1),
+				     metadata));
+	  CFRelease (props);
+	}
 
       if (type == NULL || gif_p)
 	{
@@ -10773,6 +10786,7 @@ svg_load (struct frame *f, struct image *img)
 {
   extern bool mac_svg_load_image (struct frame *, struct image *,
 				  unsigned char *, ptrdiff_t, XColor *,
+				  Lisp_Object,
 				  bool (*) (struct frame *, int, int),
 				  void (*) (const char *, ...));
   Lisp_Object specified_bg;
@@ -10816,7 +10830,7 @@ svg_load (struct frame *f, struct image *img)
 	  return 0;
 	}
       /* If the file was slurped into memory properly, parse it.  */
-      success_p = mac_svg_load_image (f, img, contents, size, &background,
+      success_p = mac_svg_load_image (f, img, contents, size, &background, file,
 				      check_image_size, image_error);
       xfree (contents);
     }
@@ -10824,7 +10838,7 @@ svg_load (struct frame *f, struct image *img)
      lisp object rather than a file.  */
   else
     {
-      Lisp_Object data;
+      Lisp_Object data, original_filename;
 
       data = image_spec_value (img->spec, QCdata, NULL);
       if (!STRINGP (data))
@@ -10833,8 +10847,13 @@ svg_load (struct frame *f, struct image *img)
 	  return 0;
 	}
       data = mac_preprocess_image_for_2x_data (f, img, data, false);
+      original_filename = BVAR (current_buffer, filename);
       success_p = mac_svg_load_image (f, img, SDATA (data), SBYTES (data),
 				      &background,
+				      (STRINGP (original_filename)
+				       ? ENCODE_FILE (remove_slash_colon
+						      (original_filename))
+				       : Qnil),
 				      check_image_size, image_error);
     }
 
@@ -11300,6 +11319,8 @@ non-numeric, there is no explicit limit on the size of images.  */);
   DEFSYM (Qextension_data, "extension-data");
   DEFSYM (Qdelay, "delay");
 #ifdef HAVE_MACGUI
+  DEFSYM (Qimage_io_properties, "image-io-properties");
+  DEFSYM (Qimage_io_properties_at_index, "image-io-properties-at-index");
   DEFSYM (Qdocument_attributes, "document-attributes");
   DEFSYM (QCdata_2x, ":data-2x");
 #endif

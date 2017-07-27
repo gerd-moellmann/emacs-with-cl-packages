@@ -561,6 +561,7 @@ extern bool mac_is_current_process_frontmost (void);
 extern void mac_bring_current_process_to_front (bool);
 extern bool mac_trash_file (const char *, CFErrorRef *);
 extern OSStatus install_application_handler (void);
+extern Lisp_Object mac_application_state (void);
 extern void mac_set_frame_window_title (struct frame *, CFStringRef);
 extern void mac_set_frame_window_modified (struct frame *, bool);
 extern void mac_set_frame_window_proxy (struct frame *, CFURLRef);
@@ -578,6 +579,10 @@ extern void mac_move_frame_window (struct frame *, int, int, bool);
 extern void mac_size_frame_window (struct frame *, int, int, bool);
 extern OSStatus mac_set_frame_window_alpha (struct frame *, CGFloat);
 extern OSStatus mac_get_frame_window_alpha (struct frame *, CGFloat *);
+extern Lisp_Object mac_get_tab_group_overview_visible_p (struct frame *);
+extern Lisp_Object mac_get_tab_group_tab_bar_visible_p (struct frame *);
+extern Lisp_Object mac_get_tab_group_selected_frame (struct frame *);
+extern Lisp_Object mac_get_tab_group_frames (struct frame *);
 extern CGPoint mac_get_global_mouse ();
 extern bool mac_is_frame_window_toolbar_visible (struct frame *);
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070

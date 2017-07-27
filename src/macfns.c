@@ -4464,12 +4464,72 @@ The result is a property list containing the following names and values:
 If Emacs is not running as a GUI application, then the result is nil.  */)
   (void)
 {
-  extern Lisp_Object mac_application_state (void);
   Lisp_Object result;
 
   block_input ();
   result = mac_application_state ();
-  unblock_input();
+  unblock_input ();
+
+  return result;
+}
+
+
+/***********************************************************************
+			      Tab Group
+ ***********************************************************************/
+
+DEFUN ("mac-frame-tab-group-property", Fmac_frame_tab_group_property, Smac_frame_tab_group_property, 0, 2, 0,
+       doc: /* Return the value of property PROP of the tab group for FRAME.
+FRAME nil or omitted means use the selected frame.
+PROP should be nil or one of the following symbols:
+
+`:frames'
+    The entire group (stack) of frames that are all visually shown
+    together in one virtual tabbed frame and associated with the tab
+    group that FRAME belongs to.  The value is a list of frames,
+    ordered in the same order as the tabs visually shown (leading to
+    trailing).  It is nil if FRAME or the operating system does not
+    support tabbing.
+`:selected-frame'
+    The current frame that is selected.  The value is nil if FRAME or
+    the operating system does not support tabbing.
+`:tab-bar-visible-p'
+    Whether the tab bar is visible or not.
+`:overview-visible-p'
+    Whether the Tab Picker / Tab Overview UI is visible or not.
+
+If PROP is nil, then return the property list containing all of the
+above properties instead of just a property value.  */)
+  (Lisp_Object frame, Lisp_Object prop)
+{
+  struct frame *f = decode_window_system_frame (frame);
+  Lisp_Object result = Qnil;
+  struct {
+    Lisp_Object prop;
+    Lisp_Object (*func) (struct frame *);
+  } getters[] = {
+    {QCframes, mac_get_tab_group_frames},
+    {QCselected_frame, mac_get_tab_group_selected_frame},
+    {QCtab_bar_visible_p, mac_get_tab_group_tab_bar_visible_p},
+    {QCoverview_visible_p, mac_get_tab_group_overview_visible_p},
+  };
+  int i;
+
+  CHECK_SYMBOL (prop);
+
+  block_input ();
+  for (i = 0; i < ARRAYELTS (getters); i++)
+    if (NILP (prop))
+      result = Fcons (getters[i].prop, Fcons (getters[i].func (f), result));
+    else if (EQ (getters[i].prop, prop))
+      {
+	result = getters[i].func (f);
+	break;
+      }
+  unblock_input ();
+
+  if (!(NILP (prop) || i < ARRAYELTS (getters)))
+    error ("Invalid tab group property: %s", SDATA (SYMBOL_NAME (prop)));
 
   return result;
 }
@@ -4560,8 +4620,8 @@ FRAME-OR-WINDOW as the source image, and the completely transparent
 image as the target, so the result of display changes that follow
 becomes visible gradually through the transparent part.
 
-This function has no effect and returns nil when FRAME-OR-WINDOW is of
-the frame that is not completely opaque.
+On OS X 10.9 or earlier, this function has no effect and returns nil
+when FRAME-OR-WINDOW is of the frame that is not completely opaque.
 usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
   (ptrdiff_t nargs, Lisp_Object *args)
 {
@@ -4581,8 +4641,10 @@ usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
   f = (FRAMEP (frame_or_window) ? XFRAME (frame_or_window)
        : WINDOW_XFRAME (XWINDOW (frame_or_window)));
   check_window_system (f);
-  if (mac_get_frame_window_alpha (f, &alpha) != noErr
-      || alpha != 1.0)
+  if (mac_operating_system_version.major == 10
+      && mac_operating_system_version.minor < 10
+      && (mac_get_frame_window_alpha (f, &alpha) != noErr
+	  || alpha != 1.0))
     return Qnil;
 
   properties = Flist (nargs - 1, args + 1);
@@ -4679,6 +4741,10 @@ syms_of_macfns (void)
   DEFSYM (QCicon_image_file, ":icon-image-file");
   DEFSYM (QCactive_p, ":active-p");
   DEFSYM (QChidden_p, ":hidden-p");
+  DEFSYM (QCoverview_visible_p, ":overview-visible-p");
+  DEFSYM (QCtab_bar_visible_p, ":tab-bar-visible-p");
+  DEFSYM (QCselected_frame, ":selected-frame");
+  DEFSYM (QCframes, ":frames");
   DEFSYM (QCdirection, ":direction");
   DEFSYM (QCduration, ":duration");
   DEFSYM (Qfade_in, "fade-in");
@@ -4845,5 +4911,6 @@ Chinese, Japanese, and Korean.  */);
   defsubr (&Smac_select_input_source);
   defsubr (&Smac_deselect_input_source);
   defsubr (&Smac_application_state);
+  defsubr (&Smac_frame_tab_group_property);
   defsubr (&Smac_start_animation);
 }

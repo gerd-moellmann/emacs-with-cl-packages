@@ -29,23 +29,26 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #define NSFoundationVersionNumber10_8_3 945.16
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef double NSAppKitVersion;
 #ifndef NSAppKitVersionNumber10_6
-#define NSAppKitVersionNumber10_6 1038
+static const NSAppKitVersion NSAppKitVersionNumber10_6 = 1038;
 #endif
 #ifndef NSAppKitVersionNumber10_7
-#define NSAppKitVersionNumber10_7 1138
+static const NSAppKitVersion NSAppKitVersionNumber10_7 = 1138;
 #endif
 #ifndef NSAppKitVersionNumber10_8
-#define NSAppKitVersionNumber10_8 1187
+static const NSAppKitVersion NSAppKitVersionNumber10_8 = 1187;
 #endif
 #ifndef NSAppKitVersionNumber10_9
-#define NSAppKitVersionNumber10_9 1265
+static const NSAppKitVersion NSAppKitVersionNumber10_9 = 1265;
 #endif
 #ifndef NSAppKitVersionNumber10_10_Max
-#define NSAppKitVersionNumber10_10_Max 1349
+static const NSAppKitVersion NSAppKitVersionNumber10_10_Max = 1349;
 #endif
 #ifndef NSAppKitVersionNumber10_11
-#define NSAppKitVersionNumber10_11 1404
+static const NSAppKitVersion NSAppKitVersionNumber10_11 = 1404;
+#endif
 #endif
 
 #ifndef USE_ARC
@@ -135,6 +138,10 @@ typedef id instancetype;
 + (NSScreen *)closestScreenForRect:(NSRect)aRect;
 - (BOOL)containsDock;
 - (BOOL)canShowMenuBar;
+@end
+
+@interface NSWindow (Emacs)
+- (Lisp_Object)lispFrame;
 @end
 
 @interface NSCursor (Emacs)
@@ -305,13 +312,12 @@ typedef id instancetype;
   EmacsWindow *emacsWindow;
   EmacsView *emacsView;
 
-  /* Window and view overlaid on the Emacs frame window.  */
-  NSWindow *overlayWindow;
+  /* View overlaid on the Emacs frame window.  */
   EmacsOverlayView *overlayView;
 
-  /* The spinning progress indicator (corresponding to hourglass)
-     shown at the upper-right corner of the window.  */
-  NSProgressIndicator *hourglass;
+  /* Window for the spinning progress indicator (corresponding to
+     hourglass) shown at the upper-right corner of the window.  */
+  NSWindow *hourglassWindow;
 
   /* The current window manager state.  */
   WMState windowManagerState;
@@ -320,7 +326,7 @@ typedef id instancetype;
      is relative to the top left corner of the screen.  */
   NSRect savedFrame;
 
-  /* The view hosting Core Animation layers in the overlay window.  */
+  /* The view hosting Core Animation layers in the overlay view.  */
   NSView *layerHostingView;
 
   /* The block called when the window ends live resize.  */
@@ -367,7 +373,7 @@ typedef id instancetype;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag;
 #endif
-- (NSBitmapImageRep *)bitmapImageRepInContentViewRect:(NSRect)rect;
+- (NSBitmapImageRep *)bitmapImageRep;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
 - (BOOL)isWindowFrontmost;
 - (void)setupLiveResizeTransition;
@@ -439,11 +445,9 @@ typedef id instancetype;
 - (BOOL)sendAction:(SEL)theAction to:(id)theTarget;
 - (struct input_event *)inputEvent;
 - (NSString *)string;
-- (NSRect)firstRectForCharacterRange:(NSRange)aRange
-			 actualRange:(NSRangePointer)actualRange;
 @end
 
-/* Class for view in the overlay window of an Emacs frame window.  */
+/* Class for overlay view of an Emacs frame window.  */
 
 @interface EmacsOverlayView : NSView
 {
@@ -456,7 +460,6 @@ typedef id instancetype;
 }
 - (void)setHighlighted:(BOOL)flag;
 - (void)setShowsResizeIndicator:(BOOL)flag;
-- (void)adjustWindowFrame;
 @end
 
 /* Class for view used in live resize transition animations.  */
@@ -604,6 +607,7 @@ typedef id instancetype;
 @interface EmacsFrameController (Hourglass)
 - (void)showHourglass:(id)sender;
 - (void)hideHourglass:(id)sender;
+- (void)updateHourglassWindowOrigin;
 @end
 
 @interface EmacsSavePanel : NSSavePanel
@@ -651,8 +655,13 @@ typedef id instancetype;
 - (OSErr)copyDescTo:(AEDesc *)desc;
 @end
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSPasteboardType;
+typedef NSString * NSPasteboardName;
+#endif
+
 @interface EmacsFrameController (DragAndDrop)
-- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSString *) *)pboardTypes;
+- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSPasteboardType) *)pboardTypes;
 - (void)setOverlayViewHighlighted:(BOOL)flag;
 @end
 
@@ -694,7 +703,8 @@ typedef id instancetype;
 - (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
 		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
 		    imageErrorFunc:(void (*)(const char *, ...))imageError;
-- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor;
+- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
+	 baseURL:(NSURL *)url;
 @end
 
 /* Protocol for document rasterization.  */
@@ -718,6 +728,10 @@ typedef id instancetype;
 @interface EmacsPDFDocument : PDFDocument <EmacsDocumentRasterizer>
 @end
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSAttributedStringDocumentAttributeKey;
+#endif
+
 /* Class for document rasterization other than PDF.  It also works as
    the layout manager delegate when rasterizing a multi-page
    document.  */
@@ -727,7 +741,8 @@ typedef id instancetype;
   /* The text storage and document attributes for the document to be
      rasterized.  */
   NSTextStorage *textStorage;
-  NSDictionaryOf (NSString *, id) *documentAttributes;
+  NSDictionaryOf (NSAttributedStringDocumentAttributeKey, id)
+    *documentAttributes;
 }
 - (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
 		      documentAttributes:(NSDictionaryOf (NSString *, id) *)docAttributes;
@@ -783,15 +798,14 @@ enum {
 };
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-enum {
-  NSModalResponseAbort		= NSRunAbortedResponse,
-  NSModalResponseContinue	= NSRunContinuesResponse
-};
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSInteger NSModalResponse;
+#endif
 
-enum {
-  NSModalResponseOK	= NSOKButton
-};
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+static const NSModalResponse NSModalResponseAbort = NSRunAbortedResponse;
+static const NSModalResponse NSModalResponseContinue = NSRunContinuesResponse;
+static const NSModalResponse NSModalResponseOK = NSOKButton;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
@@ -830,6 +844,30 @@ enum {
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101300
+@interface NSWindowTabGroup : NSObject
+@property (readonly, copy) NSArrayOf (NSWindow *) *windows;
+@property (getter=isOverviewVisible) BOOL overviewVisible;
+@property (readonly, getter=isTabBarVisible) BOOL tabBarVisible;
+@property (assign) NSWindow *selectedWindow;
+@end
+
+@interface NSWindow (AvailableOn101300AndLater)
+@property (readonly, assign) NSWindowTabGroup *tabGroup;
+@end
+#endif
+
+/* Undocumented NSWindowStackController class and NSWindow property to
+   access it.  Only used as a fallback for NSWindowTabGroup on macOS
+   10.12.  */
+@interface NSWindowStackController : NSObject
+@property (assign) NSWindow *selectedWindow;
+@end
+
+@interface NSWindow (UndocumentedOn101200)
+@property (readonly, assign) NSWindowStackController *_windowStackController;
+@end
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
   NSWindowStyleMaskBorderless		= NSBorderlessWindowMask,
@@ -858,6 +896,7 @@ typedef NSInteger NSWindowTabbingMode;
 @interface NSWindow (AvailableOn101200AndLater)
 + (NSWindowUserTabbingPreference)userTabbingPreference;
 - (void)setTabbingMode:(NSWindowTabbingMode)tabbingMode;
+@property (readonly, copy) NSArrayOf (NSWindow *) *tabbedWindows;
 @end
 #endif
 
@@ -871,6 +910,24 @@ typedef NSInteger NSWindowTabbingMode;
 @interface NSScreen (AvailableOn1090AndLater)
 + (BOOL)screensHaveSeparateSpaces;
 @end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSInteger NSWindowLevel;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSToolbarIdentifier;
+typedef NSString * NSToolbarItemIdentifier;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+enum {
+  NSFontPanelModeMaskFace = NSFontPanelFaceModeMask,
+  NSFontPanelModeMaskSize = NSFontPanelSizeModeMask,
+  NSFontPanelModeMaskCollection = NSFontPanelCollectionModeMask
+};
+typedef NSUInteger NSFontPanelModeMask;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
@@ -982,6 +1039,13 @@ enum {
   NSPaperOrientationLandscape	= NSLandscapeOrientation
 };
 typedef NSInteger NSPaperOrientation;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSAccessibilityAttributeName;
+typedef NSString * NSAccessibilityParameterizedAttributeName;
+typedef NSString * NSAccessibilityActionName;
+typedef NSString * NSAccessibilityNotificationName;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000

@@ -58,7 +58,7 @@ static CFIndex mac_font_shape (CTFontRef, CFStringRef,
 			       struct mac_glyph_layout *, CFIndex);
 static CFArrayRef mac_font_copy_default_descriptors_for_language (CFStringRef);
 static CFStringRef mac_font_copy_default_name_for_charset_and_languages (CFCharacterSetRef, CFArrayRef);
-#if USE_CT_GLYPH_INFO
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 static CGGlyph mac_ctfont_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
                                              CGFontIndex);
 #endif
@@ -213,7 +213,7 @@ mac_screen_font_get_advance_width_for_glyph (ScreenFontRef font, CGGlyph glyph)
   return advancement.width;
 }
 
-#if !USE_CT_GLYPH_INFO
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 static CGGlyph
 mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
                             CGFontIndex cid)
@@ -4067,9 +4067,14 @@ mac_font_shape (CTFontRef font, CFStringRef string,
 
 /* The function below seems to cause a memory leak for the CFString
    created by CFStringCreateWithCharacters as of Mac OS X 10.5.8 and
-   10.6.3.  For now, we use the NSGlyphInfo version instead.  */
-#if USE_CT_GLYPH_INFO
-static CGGlyph
+   10.6.3.  Also, CTGlyphInfo and NSGlyphInfo versions are slightly
+   different in behavior on OS X 10.9 and earlier.  For these
+   versions, we use the NSGlyphInfo version instead.  */
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+static
+#endif
+CGGlyph
 mac_ctfont_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
                               CGFontIndex cid)
 {
@@ -4141,7 +4146,6 @@ mac_ctfont_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
 
   return result;
 }
-#endif
 
 static CFArrayRef
 mac_font_copy_default_descriptors_for_language (CFStringRef language)

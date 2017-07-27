@@ -823,7 +823,16 @@ language."
 					  'utf-16be 'utf-16le))))))
 
 (defun mac-TIFF-to-string (data &optional text)
-  (propertize (or text " ") 'display (create-image data 'tiff t)))
+  (let* ((image (create-image data 'image-io t))
+         (metadata (image-metadata image)))
+    (unless (plist-get metadata 'count)
+      (let* ((props (plist-get metadata 'image-io-properties-at-index))
+             (unit (cdr (assoc "ResolutionUnit" (cdr (assoc "{TIFF}" props))))))
+        (when (integerp unit)
+          (setq image `(,@image
+                        :width ,(/ (cdr (assoc "PixelWidth" props)) unit)
+                        :height ,(/ (cdr (assoc "PixelHeight" props)) unit))))))
+    (propertize (or text " ") 'display image)))
 
 (defun mac-pasteboard-string-to-string (data &optional coding-system)
   (mac-utxt-to-string data coding-system 'utf-8))
@@ -2334,15 +2343,6 @@ non-nil, and the input device supports it."
 	      (window-line-height 'header-line window-to-scroll))
 	     (first-height (window-line-height 0 window-to-scroll))
 	     (last-height (window-line-height -1 window-to-scroll))
-	     ;; Now select the window to scroll.
-	     (curwin (if window-to-scroll
-			 (prog1
-			     (selected-window)
-			   (select-window window-to-scroll))))
-	     (buffer (window-buffer curwin))
-	     (opoint (with-current-buffer buffer
-		       (when (eq (car-safe transient-mark-mode) 'only)
-			 (point))))
 	     (first-y (or (car header-line-height) 0))
 	     (first-height-sans-hidden-top
 	      (cond ((= (car first-height) 0) ; completely invisible.
@@ -2353,7 +2353,32 @@ non-nil, and the input device supports it."
 		     (+ (- (car first-height)
 			   (- first-y (max (nth 2 first-height) 0)))
 			(nth 3 first-height)))))
-	     (delta-y (- (round (plist-get (nth 3 event) :scrolling-delta-y))))
+	     (delta-y
+              (let ((dy (round (plist-get (nth 3 event) :scrolling-delta-y)))
+                    pending-events)
+                ;; Coalesce vertical mouse wheel events.
+                (while (setq event (read-event nil nil 1e-5))
+                  (if (and (memq (event-basic-type event)
+                                 '(wheel-up wheel-down))
+                           (eq window-to-scroll
+                               (if mouse-wheel-follow-mouse
+                                   (posn-window (event-start event)))))
+                      (setq dy (+ dy (round (plist-get (nth 3 event)
+                                                       :scrolling-delta-y))))
+                    (push event pending-events)))
+                (if pending-events
+                    (setq unread-command-events (nconc (nreverse pending-events)
+                                                       unread-command-events)))
+                (- dy)))
+	     ;; Now select the window to scroll.
+	     (curwin (if window-to-scroll
+			 (prog1
+			     (selected-window)
+			   (select-window window-to-scroll))))
+	     (buffer (window-buffer curwin))
+	     (opoint (with-current-buffer buffer
+		       (when (eq (car-safe transient-mark-mode) 'only)
+			 (point))))
 	     (scroll-conservatively 0)
 	     scroll-preserve-screen-position
 	     auto-window-vscroll
