@@ -2144,50 +2144,20 @@ static CGRect unset_global_focus_view_frame (void);
 				  | NSViewWidthSizable | NSViewHeightSizable)];
 }
 
-- (void)setupOverlayWindowAndView
+- (void)setupOverlayView
 {
   NSRect contentRect = NSMakeRect (0, 0, 64, 64);
-  NSWindow *window;
 
-  if (overlayWindow)
+  if (overlayView)
     return;
 
-  window = [[NSWindow alloc] initWithContentRect:contentRect
-				       styleMask:NSWindowStyleMaskBorderless
-					 backing:NSBackingStoreBuffered
-					   defer:YES];
-  [window setBackgroundColor:[NSColor clearColor]];
-  [window setOpaque:NO];
-  [window setIgnoresMouseEvents:YES];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
-    [window useOptimizedDrawing:YES];
-#endif
-
   overlayView = [[EmacsOverlayView alloc] initWithFrame:contentRect];
-  [window setContentView:overlayView];
-
+  [overlayView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+  [overlayView setWantsLayer:YES];
   if (has_resize_indicator_at_bottom_right_p ())
     [overlayView setShowsResizeIndicator:YES];
 
-  overlayWindow = window;
-
   [self setupLayerHostingView];
-}
-
-- (void)attachOverlayWindow;
-{
-  [emacsWindow addChildWindow:overlayWindow ordered:NSWindowAbove];
-  [emacsWindow addObserver:self forKeyPath:@"alphaValue"
-		   options:0 context:NULL];
-  [overlayView adjustWindowFrame];
-  [overlayWindow orderFront:nil];
-}
-
-- (void)detachOverlayWindow
-{
-  [emacsWindow removeObserver:self forKeyPath:@"alphaValue"];
-  [emacsWindow removeChildWindow:overlayWindow];
 }
 
 - (void)setupWindow
@@ -2267,9 +2237,8 @@ static CGRect unset_global_focus_view_frame (void);
       [window setCollectionBehavior:[oldWindow collectionBehavior]];
 
       [oldWindow setDelegate:nil];
-      [self detachOverlayWindow];
-      MRC_RELEASE (hourglass);
-      hourglass = nil;
+      [self hideHourglass:nil];
+      hourglassWindow = nil;
     }
 
   emacsWindow = window;
@@ -2310,8 +2279,14 @@ static CGRect unset_global_focus_view_frame (void);
 	[self setupToolBarWithVisibility:(FRAME_EXTERNAL_TOOL_BAR (f))];
       if (has_resize_indicator_at_bottom_right_p ())
 	[window setShowsResizeIndicator:NO];
-      [self setupOverlayWindowAndView];
-      [self attachOverlayWindow];
+      [self setupOverlayView];
+      /* We place overlayView below emacsView so events are not
+	 intercepted by the former.  Still the former (layer-backed)
+	 is displayed in front of the latter (not layer-backed or
+	 layer-hosting).  */
+      [[window contentView] addSubview:overlayView positioned:NSWindowBelow
+			    relativeTo:emacsView];
+      [overlayView setFrame:[[window contentView] bounds]];
       if (has_full_screen_with_dedicated_desktop ()
 	  && !(windowManagerState & WM_STATE_FULLSCREEN))
 	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
@@ -2353,11 +2328,10 @@ static CGRect unset_global_focus_view_frame (void);
 - (void)dealloc
 {
   [emacsView release];
-  /* emacsWindow is released via released-when-closed.  */
-  [hourglass release];
+  /* emacsWindow and hourglassWindow are released via
+     released-when-closed.  */
   [layerHostingView release];
   [overlayView release];
-  [overlayWindow release];
   [super dealloc];
 }
 #endif
@@ -2903,8 +2877,8 @@ static CGRect unset_global_focus_view_frame (void);
   /* `windowDidMove:' above is not called when both size and location
      are changed.  */
   mac_handle_origin_change (f);
-  if (overlayView)
-    [overlayView adjustWindowFrame];
+  if (hourglassWindow)
+    [self updateHourglassWindowOrigin];
 }
 
 - (void)windowDidMiniaturize:(NSNotification *)notification
@@ -2959,12 +2933,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)windowWillClose:(NSNotification *)notification
 {
-  if (overlayWindow)
-    {
-      [self detachOverlayWindow];
-      MRC_RELEASE (overlayWindow);
-      overlayWindow = nil;
-    }
+  [self hideHourglass:nil];
   [emacsWindow setDelegate:nil];
 }
 
@@ -3076,17 +3045,20 @@ static CGRect unset_global_focus_view_frame (void);
   return windowFrame;
 }
 
-- (NSBitmapImageRep *)bitmapImageRepInContentViewRect:(NSRect)rect
+- (NSBitmapImageRep *)bitmapImageRep
 {
   struct frame *f = emacsFrame;
-  NSView *contentView = [emacsWindow contentView];
-  NSBitmapImageRep *bitmap = [contentView
+  NSRect rect = [emacsView bounds];
+  /* For flipped views, bitmapImageRepForCachingDisplayInRect and
+     cacheDisplayInRect:toBitmapImageRep: seem to be buggy when given
+     a rectangle other than view's bounds.  */
+  NSBitmapImageRep *bitmap = [emacsView
 			       bitmapImageRepForCachingDisplayInRect:rect];
   bool saved_background_alpha_enabled_p = FRAME_BACKGROUND_ALPHA_ENABLED_P (f);
 
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = false;
-  [contentView cacheDisplayInRect:rect toBitmapImageRep:bitmap];
+  [emacsView cacheDisplayInRect:rect toBitmapImageRep:bitmap];
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = saved_background_alpha_enabled_p;
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = false;
 
@@ -3120,8 +3092,7 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsLiveResizeTransitionView *view;
   NSView *contentView = [emacsWindow contentView];
   NSRect contentViewRect = [contentView visibleRect];
-  NSBitmapImageRep *bitmap =
-    [self bitmapImageRepInContentViewRect:contentViewRect];
+  NSBitmapImageRep *bitmap = [self bitmapImageRep];
   id image = (id) [bitmap CGImage];
 
   rootLayer = [CALayer layer];
@@ -3337,12 +3308,11 @@ static CGRect unset_global_focus_view_frame (void);
 {
   if (liveResizeCompletionHandler == nil && [emacsWindow isMainWindow])
     {
-      NSView *contentView = [emacsWindow contentView];
       EmacsLiveResizeTransitionView *transitionView =
 	[self liveResizeTransitionViewWithDefaultBackground:YES];
 
-      [contentView addSubview:transitionView positioned:NSWindowAbove
-		   relativeTo:emacsView];
+      [overlayView addSubview:transitionView positioned:NSWindowAbove
+		   relativeTo:layerHostingView];
       [self setLiveResizeCompletionHandler:^{
 	  [NSAnimationContext
 	    runAnimationGroup:^(NSAnimationContext *context) {
@@ -3452,25 +3422,6 @@ static CGRect unset_global_focus_view_frame (void);
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
-  /* We used to detach/attach the overlay window in the
-     `window:startCustomAnimationToExitFullScreenWithDuration:'
-     delegate method, but this places the overlay window below the
-     parent window (although `-[NSWindow addChildWindow:ordered:]' is
-     used with NSWindowAbove in `attachOverlayWindow') when exiting
-     from full screen on OS X 10.9.  To work around this problem, we
-     detach/attach the overlay window in the
-     `window{Will,Did}{Enter,Exit}FullScreen:' delegate methods.  */
-  /* This erases tabs after exiting from full screen on macOS 10.12.
-     Maybe this is no longer necessary on all versions?  */
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11)
-    {
-      [self detachOverlayWindow];
-      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
-						       BOOL success) {
-	  [weakSelf attachOverlayWindow];
-	}];
-    }
-
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
   savedToolbarVisibility = [[emacsWindow toolbar] isVisible];
@@ -3505,10 +3456,6 @@ static CGRect unset_global_focus_view_frame (void);
   EmacsFrameController * __unsafe_unretained weakSelf = self;
   BOOL savedToolbarVisibility;
 
-  /* Called also when a full screen window is being closed.  */
-  if (overlayWindow == nil)
-    return;
-
   if (fullScreenTargetState & WM_STATE_DEDICATED_DESKTOP)
     {
       /* Exiting full screen is triggered by external events rather
@@ -3523,15 +3470,6 @@ static CGRect unset_global_focus_view_frame (void);
     }];
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     [self preprocessWindowManagerStateChange:fullScreenTargetState];
-
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11)
-    {
-      [self detachOverlayWindow];
-      [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
-						       BOOL success) {
-	  [weakSelf attachOverlayWindow];
-	}];
-    }
 
   /* This is a workaround for the problem of not preserving toolbar
      visibility value.  */
@@ -3587,8 +3525,8 @@ static CGRect unset_global_focus_view_frame (void);
       EmacsLiveResizeTransitionView *transitionView =
 	[self liveResizeTransitionViewWithDefaultBackground:YES];
 
-      [[emacsWindow contentView] addSubview:transitionView
-				 positioned:NSWindowAbove relativeTo:emacsView];
+      [overlayView addSubview:transitionView positioned:NSWindowAbove
+		   relativeTo:layerHostingView];
       [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
 						       BOOL success) {
 	  if (!success)
@@ -3647,8 +3585,8 @@ static CGRect unset_global_focus_view_frame (void);
   [window setStyleMask:([window styleMask] & ~NSWindowStyleMaskFullScreen)];
   [window setFrame:srcRect display:NO];
 
-  [contentView addSubview:transitionView positioned:NSWindowAbove
-	       relativeTo:emacsView];
+  [overlayView addSubview:transitionView positioned:NSWindowAbove
+	       relativeTo:layerHostingView];
   [window display];
 
   [window setAlphaValue:1];
@@ -3718,8 +3656,8 @@ static CGRect unset_global_focus_view_frame (void);
   [(EmacsWindow *)window suspendConstrainingToScreen:YES];
   [window setFrame:srcRect display:NO];
 
-  [contentView addSubview:transitionView positioned:NSWindowAbove
-	       relativeTo:emacsView];
+  [overlayView addSubview:transitionView positioned:NSWindowAbove
+	       relativeTo:layerHostingView];
   [window display];
 
   [window setAlphaValue:1];
@@ -3751,14 +3689,6 @@ static CGRect unset_global_focus_view_frame (void);
     }];
 }
 
-- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
-			change:(NSDictionaryOf (NSString *, id) *)change
-		       context:(void *)context
-{
-  if ([keyPath isEqualToString:@"alphaValue"])
-    [overlayWindow setAlphaValue:[emacsWindow alphaValue]];
-}
-
 - (BOOL)isWindowFrontmost
 {
   NSArrayOf (NSWindow *) *orderedWindows = [NSApp orderedWindows];
@@ -3767,7 +3697,7 @@ static CGRect unset_global_focus_view_frame (void);
     {
       NSWindow *frontWindow = [orderedWindows objectAtIndex:0];
 
-      return ([frontWindow isEqual:overlayWindow]
+      return ([frontWindow isEqual:hourglassWindow]
 	      || [frontWindow isEqual:emacsWindow]);
     }
 
@@ -6019,13 +5949,9 @@ create_resize_indicator_image (void)
 {
   if (highlighted)
     {
-      NSView *parentContentView = [[[self window] parentWindow] contentView];
-      NSRect contentRect = [parentContentView
-			     convertRect:[parentContentView bounds] toView:nil];
-
       /* Mac OS X 10.2 doesn't have -[NSColor setFill].  */
       [[[NSColor selectedControlColor] colorWithAlphaComponent:0.75] set];
-      NSFrameRectWithWidth ([self convertRect:contentRect fromView:nil], 3.0);
+      NSFrameRectWithWidth ([self bounds], 3.0);
     }
 
   if (showsResizeIndicator)
@@ -6059,15 +5985,6 @@ create_resize_indicator_image (void)
       showsResizeIndicator = flag;
       [self setNeedsDisplay:YES];
     }
-}
-
-- (void)adjustWindowFrame
-{
-  NSWindow *window = [self window];
-  NSWindow *parentWindow = [window parentWindow];
-
-  if (parentWindow)
-    [window setFrame:[parentWindow frame] display:YES];
 }
 
 @end				// EmacsOverlayView
@@ -8206,31 +8123,64 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 
 - (void)showHourglass:(id)sender
 {
-  if (hourglass == nil)
+  if (hourglassWindow == nil)
     {
-      NSRect viewFrame = [overlayView frame];
-      NSRect indicatorFrame =
-	NSMakeRect (NSWidth (viewFrame)
-		    - (HOURGLASS_WIDTH
-		       + (!(windowManagerState & WM_STATE_FULLSCREEN)
-			  ? HOURGLASS_RIGHT_MARGIN : HOURGLASS_TOP_MARGIN)),
-		    NSHeight (viewFrame)
-		    - (HOURGLASS_HEIGHT + HOURGLASS_TOP_MARGIN),
-		    HOURGLASS_WIDTH, HOURGLASS_HEIGHT);
+      NSRect rect = NSMakeRect (0, 0, HOURGLASS_WIDTH, HOURGLASS_HEIGHT);
+      NSProgressIndicator *indicator =
+	[[NSProgressIndicator alloc] initWithFrame:rect];
 
-      hourglass = [[NSProgressIndicator alloc] initWithFrame:indicatorFrame];
-      [hourglass setStyle:NSProgressIndicatorSpinningStyle];
-      [hourglass setDisplayedWhenStopped:NO];
-      [overlayView addSubview:hourglass];
-      [hourglass setAutoresizingMask:(NSViewMinXMargin | NSViewMinYMargin)];
+      [indicator setStyle:NSProgressIndicatorSpinningStyle];
+      hourglassWindow =
+	[[NSWindow alloc] initWithContentRect:rect
+				    styleMask:NSWindowStyleMaskBorderless
+				      backing:NSBackingStoreBuffered
+					defer:YES];
+#if USE_ARC
+      /* Increase retain count to accommodate itself to
+	 released-when-closed on ARC.  Just setting
+	 released-when-closed to NO leads to crash in some
+	 situations.  */
+      CF_BRIDGING_RETAIN (hourglassWindow);
+#endif
+      [hourglassWindow setBackgroundColor:[NSColor clearColor]];
+      [hourglassWindow setOpaque:NO];
+      [hourglassWindow setIgnoresMouseEvents:YES];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
+	[hourglassWindow useOptimizedDrawing:YES];
+#endif
+      [hourglassWindow setContentView:indicator];
+      [indicator startAnimation:sender];
+      MRC_RELEASE (indicator);
+      [self updateHourglassWindowOrigin];
+      [emacsWindow addChildWindow:hourglassWindow ordered:NSWindowAbove];
+      [hourglassWindow orderWindow:NSWindowAbove
+			relativeTo:[emacsWindow windowNumber]];
     }
-
-  [hourglass startAnimation:sender];
 }
 
 - (void)hideHourglass:(id)sender
 {
-  [hourglass stopAnimation:sender];
+  if (hourglassWindow)
+    {
+      [emacsWindow removeChildWindow:hourglassWindow];
+      [hourglassWindow close];
+      hourglassWindow = nil;
+    }
+}
+
+- (void)updateHourglassWindowOrigin
+{
+  NSRect emacsWindowFrame = [emacsWindow frame];
+  NSPoint origin;
+
+  origin.x = (NSMaxX (emacsWindowFrame)
+	      - (HOURGLASS_WIDTH
+		 + (!(windowManagerState & WM_STATE_FULLSCREEN)
+		    ? HOURGLASS_RIGHT_MARGIN : HOURGLASS_TOP_MARGIN)));
+  origin.y = (NSMaxY (emacsWindowFrame)
+	      - (HOURGLASS_HEIGHT + HOURGLASS_TOP_MARGIN));
+  [hourglassWindow setFrameOrigin:origin];
 }
 
 @end				// EmacsFrameController (Hourglass)
@@ -9732,9 +9682,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
   if (EQ (type, Qpng))
     {
       EmacsFrameController *frameController = FRAME_CONTROLLER (f);
-      NSBitmapImageRep *bitmap =
-	[frameController
-	  bitmapImageRepInContentViewRect:[contentView visibleRect]];
+      NSBitmapImageRep *bitmap = [frameController bitmapImageRep];
       NSData *data = [bitmap representationUsingType:NSPNGFileType
 					  properties:[NSDictionary dictionary]];
 
@@ -12650,7 +12598,7 @@ mac_update_accessibility_status (struct frame *f)
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
     {
-      CGFloat scaleFactor = [overlayWindow userSpaceScaleFactor];
+      CGFloat scaleFactor = [emacsWindow userSpaceScaleFactor];
 
       rootLayer.sublayerTransform =
 	CATransform3DMakeScale (scaleFactor, scaleFactor, 1.0);
@@ -12668,19 +12616,23 @@ mac_update_accessibility_status (struct frame *f)
 
 - (CALayer *)layerForRect:(NSRect)rect
 {
-  NSView *contentView = [emacsWindow contentView];
-  NSRect rectInContentView = [emacsView convertRect:rect toView:contentView];
-  NSBitmapImageRep *bitmap =
-    [self bitmapImageRepInContentViewRect:rectInContentView];
+  NSRect rectInLayer = [emacsView convertRect:rect toView:layerHostingView];
+  NSBitmapImageRep *bitmap = [self bitmapImageRep];
+  NSSize imageSize = [emacsView bounds].size;
   CALayer *layer, *contentLayer;
 
   layer = [CALayer layer];
   contentLayer = [CALayer layer];
-  layer.frame = NSRectToCGRect (rectInContentView);
+  layer.frame = NSRectToCGRect (rectInLayer);
   layer.masksToBounds = YES;
-  contentLayer.frame = CGRectMake (0, 0, NSWidth (rectInContentView),
-				   NSHeight (rectInContentView));
+  contentLayer.frame = CGRectMake (0, 0, NSWidth (rectInLayer),
+				   NSHeight (rectInLayer));
   contentLayer.contents = (id) [bitmap CGImage];
+  contentLayer.contentsRect =
+    CGRectMake (NSMinX (rectInLayer) / imageSize.width,
+		NSMinY (rectInLayer) / imageSize.height,
+		NSWidth (rectInLayer) / imageSize.width,
+		NSHeight (rectInLayer) / imageSize.height);
   [layer addSublayer:contentLayer];
 
   return layer;
@@ -12879,7 +12831,7 @@ get_symbol_from_filter_input_key (NSString *key)
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
-    scaleFactor = [overlayWindow userSpaceScaleFactor];
+    scaleFactor = [emacsWindow userSpaceScaleFactor];
   else
 #endif
     scaleFactor = 1.0;
@@ -12910,9 +12862,9 @@ get_symbol_from_filter_input_key (NSString *key)
       CALayer *contentLayer = [[layer sublayers] objectAtIndex:0];
       CIImage *image;
 
-      if ([overlayWindow respondsToSelector:@selector(backingScaleFactor)])
+      if ([emacsWindow respondsToSelector:@selector(backingScaleFactor)])
 	{
-	  CGFloat scale = 1 / [overlayWindow backingScaleFactor];
+	  CGFloat scale = 1 / [emacsWindow backingScaleFactor];
 
 	  atfm = CGAffineTransformScale (atfm, scale, scale);
 	}

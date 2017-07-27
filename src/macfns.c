@@ -4620,8 +4620,8 @@ FRAME-OR-WINDOW as the source image, and the completely transparent
 image as the target, so the result of display changes that follow
 becomes visible gradually through the transparent part.
 
-This function has no effect and returns nil when FRAME-OR-WINDOW is of
-the frame that is not completely opaque.
+On OS X 10.9 or earlier, this function has no effect and returns nil
+when FRAME-OR-WINDOW is of the frame that is not completely opaque.
 usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
   (ptrdiff_t nargs, Lisp_Object *args)
 {
@@ -4641,8 +4641,10 @@ usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
   f = (FRAMEP (frame_or_window) ? XFRAME (frame_or_window)
        : WINDOW_XFRAME (XWINDOW (frame_or_window)));
   check_window_system (f);
-  if (mac_get_frame_window_alpha (f, &alpha) != noErr
-      || alpha != 1.0)
+  if (mac_operating_system_version.major == 10
+      && mac_operating_system_version.minor < 10
+      && (mac_get_frame_window_alpha (f, &alpha) != noErr
+	  || alpha != 1.0))
     return Qnil;
 
   properties = Flist (nargs - 1, args + 1);

@@ -312,13 +312,12 @@ typedef id instancetype;
   EmacsWindow *emacsWindow;
   EmacsView *emacsView;
 
-  /* Window and view overlaid on the Emacs frame window.  */
-  NSWindow *overlayWindow;
+  /* View overlaid on the Emacs frame window.  */
   EmacsOverlayView *overlayView;
 
-  /* The spinning progress indicator (corresponding to hourglass)
-     shown at the upper-right corner of the window.  */
-  NSProgressIndicator *hourglass;
+  /* Window for the spinning progress indicator (corresponding to
+     hourglass) shown at the upper-right corner of the window.  */
+  NSWindow *hourglassWindow;
 
   /* The current window manager state.  */
   WMState windowManagerState;
@@ -327,7 +326,7 @@ typedef id instancetype;
      is relative to the top left corner of the screen.  */
   NSRect savedFrame;
 
-  /* The view hosting Core Animation layers in the overlay window.  */
+  /* The view hosting Core Animation layers in the overlay view.  */
   NSView *layerHostingView;
 
   /* The block called when the window ends live resize.  */
@@ -374,7 +373,7 @@ typedef id instancetype;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag;
 #endif
-- (NSBitmapImageRep *)bitmapImageRepInContentViewRect:(NSRect)rect;
+- (NSBitmapImageRep *)bitmapImageRep;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
 - (BOOL)isWindowFrontmost;
 - (void)setupLiveResizeTransition;
@@ -448,7 +447,7 @@ typedef id instancetype;
 - (NSString *)string;
 @end
 
-/* Class for view in the overlay window of an Emacs frame window.  */
+/* Class for overlay view of an Emacs frame window.  */
 
 @interface EmacsOverlayView : NSView
 {
@@ -461,7 +460,6 @@ typedef id instancetype;
 }
 - (void)setHighlighted:(BOOL)flag;
 - (void)setShowsResizeIndicator:(BOOL)flag;
-- (void)adjustWindowFrame;
 @end
 
 /* Class for view used in live resize transition animations.  */
@@ -609,6 +607,7 @@ typedef id instancetype;
 @interface EmacsFrameController (Hourglass)
 - (void)showHourglass:(id)sender;
 - (void)hideHourglass:(id)sender;
+- (void)updateHourglassWindowOrigin;
 @end
 
 @interface EmacsSavePanel : NSSavePanel
