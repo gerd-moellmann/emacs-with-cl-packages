@@ -3045,15 +3045,15 @@ static CGRect unset_global_focus_view_frame (void);
   return windowFrame;
 }
 
-- (NSBitmapImageRep *)bitmapImageRep
+/* On macOS 10.12 and earlier, cacheDisplayInRect:toBitmapImageRep: is
+   buggy for flipped views when given a rectangle other than view's
+   bounds.  Use only for [emacsView bounds] on such versions.  */
+
+- (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect
 {
   struct frame *f = emacsFrame;
-  NSRect rect = [emacsView bounds];
-  /* For flipped views, bitmapImageRepForCachingDisplayInRect and
-     cacheDisplayInRect:toBitmapImageRep: seem to be buggy when given
-     a rectangle other than view's bounds.  */
-  NSBitmapImageRep *bitmap = [emacsView
-			       bitmapImageRepForCachingDisplayInRect:rect];
+  NSBitmapImageRep *bitmap =
+    [emacsView bitmapImageRepForCachingDisplayInRect:rect];
   bool saved_background_alpha_enabled_p = FRAME_BACKGROUND_ALPHA_ENABLED_P (f);
 
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
@@ -3063,6 +3063,11 @@ static CGRect unset_global_focus_view_frame (void);
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = false;
 
   return bitmap;
+}
+
+- (NSBitmapImageRep *)bitmapImageRep
+{
+  return [self bitmapImageRepInEmacsViewRect:[emacsView bounds]];
 }
 
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist
@@ -12617,9 +12622,8 @@ mac_update_accessibility_status (struct frame *f)
 - (CALayer *)layerForRect:(NSRect)rect
 {
   NSRect rectInLayer = [emacsView convertRect:rect toView:layerHostingView];
-  NSBitmapImageRep *bitmap = [self bitmapImageRep];
-  NSSize imageSize = [emacsView bounds].size;
   CALayer *layer, *contentLayer;
+  NSBitmapImageRep *bitmap;
 
   layer = [CALayer layer];
   contentLayer = [CALayer layer];
@@ -12627,12 +12631,20 @@ mac_update_accessibility_status (struct frame *f)
   layer.masksToBounds = YES;
   contentLayer.frame = CGRectMake (0, 0, NSWidth (rectInLayer),
 				   NSHeight (rectInLayer));
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12))
+    bitmap = [self bitmapImageRepInEmacsViewRect:rect];
+  else
+    {
+      NSSize imageSize = [emacsView bounds].size;
+
+      bitmap = [self bitmapImageRep];
+      contentLayer.contentsRect =
+	CGRectMake (NSMinX (rectInLayer) / imageSize.width,
+		    NSMinY (rectInLayer) / imageSize.height,
+		    NSWidth (rectInLayer) / imageSize.width,
+		    NSHeight (rectInLayer) / imageSize.height);
+    }
   contentLayer.contents = (id) [bitmap CGImage];
-  contentLayer.contentsRect =
-    CGRectMake (NSMinX (rectInLayer) / imageSize.width,
-		NSMinY (rectInLayer) / imageSize.height,
-		NSWidth (rectInLayer) / imageSize.width,
-		NSHeight (rectInLayer) / imageSize.height);
   [layer addSublayer:contentLayer];
 
   return layer;

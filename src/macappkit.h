@@ -49,6 +49,9 @@ static const NSAppKitVersion NSAppKitVersionNumber10_10_Max = 1349;
 #ifndef NSAppKitVersionNumber10_11
 static const NSAppKitVersion NSAppKitVersionNumber10_11 = 1404;
 #endif
+#ifndef NSAppKitVersionNumber10_12
+static const NSAppKitVersion NSAppKitVersionNumber10_12 = 1504;
+#endif
 #endif
 
 #ifndef USE_ARC
@@ -373,6 +376,7 @@ typedef id instancetype;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag;
 #endif
+- (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect;
 - (NSBitmapImageRep *)bitmapImageRep;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
 - (BOOL)isWindowFrontmost;
