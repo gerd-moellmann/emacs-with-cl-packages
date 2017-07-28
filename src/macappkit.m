@@ -8129,7 +8129,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       NSProgressIndicator *indicator =
 	[[NSProgressIndicator alloc] initWithFrame:rect];
 
-      [indicator setStyle:NSProgressIndicatorSpinningStyle];
+      [indicator setStyle:NSProgressIndicatorStyleSpinning];
       hourglassWindow =
 	[[NSWindow alloc] initWithContentRect:rect
 				    styleMask:NSWindowStyleMaskBorderless
