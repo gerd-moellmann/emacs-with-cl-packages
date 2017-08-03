@@ -12639,14 +12639,14 @@ mac_update_accessibility_status (struct frame *f)
     bitmap = [self bitmapImageRepInEmacsViewRect:rect];
   else
     {
-      NSRect bounds = [emacsView bounds];
+      NSRect fullHeightRect = [emacsView bounds];
 
-      rect.origin.y = NSMinY (bounds);
-      rect.size.height = NSHeight (bounds);
-      bitmap = [self bitmapImageRepInEmacsViewRect:rect];
+      fullHeightRect.origin.x = NSMinX (rect);
+      fullHeightRect.size.width = NSWidth (rect);
+      bitmap = [self bitmapImageRepInEmacsViewRect:fullHeightRect];
       contentLayer.contentsRect =
-	CGRectMake (0, NSMinY (rectInLayer) / NSHeight (rect),
-		    1, NSHeight (rectInLayer) / NSHeight (rect));
+	CGRectMake (0, NSMinY (rectInLayer) / NSHeight (fullHeightRect),
+		    1, NSHeight (rectInLayer) / NSHeight (fullHeightRect));
     }
   contentLayer.contents = (id) [bitmap CGImage];
   [layer addSublayer:contentLayer];
