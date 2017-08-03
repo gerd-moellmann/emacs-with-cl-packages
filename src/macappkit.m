@@ -3046,8 +3046,8 @@ static CGRect unset_global_focus_view_frame (void);
 }
 
 /* On macOS 10.12 and earlier, cacheDisplayInRect:toBitmapImageRep: is
-   buggy for flipped views when given a rectangle other than view's
-   bounds.  Use only for [emacsView bounds] on such versions.  */
+   buggy for flipped views unless the given rect is of full height.
+   Use only for full height rectangles on such versions.  */
 
 - (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect
 {
@@ -3055,6 +3055,10 @@ static CGRect unset_global_focus_view_frame (void);
   NSBitmapImageRep *bitmap =
     [emacsView bitmapImageRepForCachingDisplayInRect:rect];
   bool saved_background_alpha_enabled_p = FRAME_BACKGROUND_ALPHA_ENABLED_P (f);
+
+  eassert (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12)
+	   || (NSMinY (rect) == NSMinY ([emacsView bounds])
+	       && NSHeight (rect) == NSHeight ([emacsView bounds])));
 
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = false;
@@ -12635,14 +12639,14 @@ mac_update_accessibility_status (struct frame *f)
     bitmap = [self bitmapImageRepInEmacsViewRect:rect];
   else
     {
-      NSSize imageSize = [emacsView bounds].size;
+      NSRect bounds = [emacsView bounds];
 
-      bitmap = [self bitmapImageRep];
+      rect.origin.y = NSMinY (bounds);
+      rect.size.height = NSHeight (bounds);
+      bitmap = [self bitmapImageRepInEmacsViewRect:rect];
       contentLayer.contentsRect =
-	CGRectMake (NSMinX (rectInLayer) / imageSize.width,
-		    NSMinY (rectInLayer) / imageSize.height,
-		    NSWidth (rectInLayer) / imageSize.width,
-		    NSHeight (rectInLayer) / imageSize.height);
+	CGRectMake (0, NSMinY (rectInLayer) / NSHeight (rect),
+		    1, NSHeight (rectInLayer) / NSHeight (rect));
     }
   contentLayer.contents = (id) [bitmap CGImage];
   [layer addSublayer:contentLayer];
