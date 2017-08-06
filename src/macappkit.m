@@ -811,13 +811,21 @@ mac_nsobject_to_lisp (CFTypeRef obj)
 static bool
 has_resize_indicator_at_bottom_right_p (void)
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+  return true;
+#else
   return floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6;
+#endif
 }
 
 static bool
-has_full_screen_with_dedicated_desktop (void)
+has_full_screen_with_dedicated_desktop_p (void)
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+  return true;
+#else
   return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6);
+#endif
 }
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
@@ -836,7 +844,7 @@ rounded_bottom_corners_need_masking_p (void)
 #endif
 
 static bool
-can_auto_hide_menu_bar_without_hiding_dock (void)
+can_auto_hide_menu_bar_without_hiding_dock_p (void)
 {
   /* Needs to be linked on OS X 10.11 or later.  */
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
@@ -1668,7 +1676,7 @@ emacs_windows_need_display_p (void)
       WMState windowManagerState = [frameController windowManagerState];
       NSApplicationPresentationOptions options;
 
-      if (has_full_screen_with_dedicated_desktop ()
+      if (has_full_screen_with_dedicated_desktop_p ()
 	  && ((options = [NSApp presentationOptions],
 	       (options & NSApplicationPresentationFullScreen))
 	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
@@ -1679,7 +1687,7 @@ emacs_windows_need_display_p (void)
 	      /* Application can be in full screen mode without hiding
 		 the dock on OS X 10.9.  OS X prior to 10.11 cannot
 		 auto-hide the menu bar without hiding the dock.  */
-	      && (can_auto_hide_menu_bar_without_hiding_dock ()
+	      && (can_auto_hide_menu_bar_without_hiding_dock_p ()
 		  || (options & (NSApplicationPresentationHideDock
 				 | NSApplicationPresentationAutoHideDock))))
 	    {
@@ -1694,7 +1702,7 @@ emacs_windows_need_display_p (void)
 	  if ([screen canShowMenuBar])
 	    {
 	      options = NSApplicationPresentationAutoHideMenuBar;
-	      if (!can_auto_hide_menu_bar_without_hiding_dock ()
+	      if (!can_auto_hide_menu_bar_without_hiding_dock_p ()
 		  || [screen containsDock])
 		options |= NSApplicationPresentationAutoHideDock;
 	    }
@@ -1725,7 +1733,7 @@ emacs_windows_need_display_p (void)
 
 		frameController = (EmacsFrameController *) [window delegate];
 		windowManagerState = [frameController windowManagerState];
-		if (has_full_screen_with_dedicated_desktop ()
+		if (has_full_screen_with_dedicated_desktop_p ()
 		    && (windowManagerState & WM_STATE_DEDICATED_DESKTOP))
 		  ;
 		else if (windowManagerState & WM_STATE_FULLSCREEN)
@@ -1735,7 +1743,7 @@ emacs_windows_need_display_p (void)
 		    if ([screen canShowMenuBar])
 		      {
 			options |= NSApplicationPresentationAutoHideMenuBar;
-			if (!can_auto_hide_menu_bar_without_hiding_dock ()
+			if (!can_auto_hide_menu_bar_without_hiding_dock_p ()
 			    || [screen containsDock])
 			  options |= NSApplicationPresentationAutoHideDock;
 		      }
@@ -1761,7 +1769,7 @@ emacs_windows_need_display_p (void)
       WMState windowManagerState = [frameController windowManagerState];
       NSApplicationPresentationOptions options;
 
-      if (has_full_screen_with_dedicated_desktop ()
+      if (has_full_screen_with_dedicated_desktop_p ()
 	  && ((options = [NSApp presentationOptions],
 	       (options & NSApplicationPresentationFullScreen))
 	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
@@ -1782,7 +1790,7 @@ emacs_windows_need_display_p (void)
 	  if ([screen canShowMenuBar])
 	    {
 	      options = NSApplicationPresentationDisableMenuBarTransparency;
-	      if (!can_auto_hide_menu_bar_without_hiding_dock ()
+	      if (!can_auto_hide_menu_bar_without_hiding_dock_p ()
 		  || [screen containsDock])
 		options |= NSApplicationPresentationAutoHideDock;
 	      [NSApp setPresentationOptions:options];
@@ -2287,7 +2295,7 @@ static CGRect unset_global_focus_view_frame (void);
       [[window contentView] addSubview:overlayView positioned:NSWindowBelow
 			    relativeTo:emacsView];
       [overlayView setFrame:[[window contentView] bounds]];
-      if (has_full_screen_with_dedicated_desktop ()
+      if (has_full_screen_with_dedicated_desktop_p ()
 	  && !(windowManagerState & WM_STATE_FULLSCREEN))
 	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
@@ -2449,7 +2457,7 @@ static CGRect unset_global_focus_view_frame (void);
       behavior = ((windowManagerState & WM_STATE_STICKY)
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
 		  : NSWindowCollectionBehaviorMoveToActiveSpace);
-      if (has_full_screen_with_dedicated_desktop ())
+      if (has_full_screen_with_dedicated_desktop_p ())
 	behavior |= NSWindowCollectionBehaviorFullScreenAuxiliary;
     }
   else
@@ -2457,7 +2465,7 @@ static CGRect unset_global_focus_view_frame (void);
       behavior = ((windowManagerState & WM_STATE_STICKY)
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
 		  : NSWindowCollectionBehaviorDefault);
-      if (has_full_screen_with_dedicated_desktop ()
+      if (has_full_screen_with_dedicated_desktop_p ()
 	  && (!(windowManagerState & WM_STATE_FULLSCREEN)
 	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
 	behavior |= NSWindowCollectionBehaviorFullScreenPrimary;
@@ -2550,7 +2558,7 @@ static CGRect unset_global_focus_view_frame (void);
       [self updateCollectionBehavior];
     }
 
-  if (has_full_screen_with_dedicated_desktop ()
+  if (has_full_screen_with_dedicated_desktop_p ()
       && (diff & WM_STATE_DEDICATED_DESKTOP))
     {
       emacsWindow.collectionBehavior |=
