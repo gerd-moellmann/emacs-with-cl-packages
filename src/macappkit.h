@@ -539,6 +539,7 @@ typedef id instancetype;
 }
 - (void)setEmacsScrollBar:(struct scroll_bar *)bar;
 - (struct scroll_bar *)emacsScrollBar;
+- (void)updateAppearance;
 - (CGFloat)knobSlotSpan;
 - (CGFloat)minKnobSpan;
 - (CGFloat)knobMinEdgeInSlot;
@@ -554,6 +555,7 @@ typedef id instancetype;
 
 @interface EmacsFrameController (ScrollBar)
 - (void)addScrollerWithScrollBar:(struct scroll_bar *)bar;
+- (void)updateScrollerAppearance;
 @end
 
 @interface EmacsToolbarItem : NSToolbarItem
@@ -913,6 +915,21 @@ typedef NSInteger NSWindowTabbingMode;
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSScreen (AvailableOn1090AndLater)
 + (BOOL)screensHaveSeparateSpaces;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSAppearanceName;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+@interface NSAppearance : NSObject
+@property (readonly, copy) NSAppearanceName name;
++ (NSAppearance *)appearanceNamed:(NSAppearanceName)name;
+@end
+
+@protocol NSAppearanceCustomization <NSObject>
+@property (retain) NSAppearance *appearance;
 @end
 #endif
 

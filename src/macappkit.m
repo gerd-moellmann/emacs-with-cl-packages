@@ -114,6 +114,22 @@ enum {
 #define NS_STACK_VIEW	(NSClassFromString (@"NSStackView"))
 #endif
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+#define NS_APPEARANCE	NSAppearance
+#define NS_APPEARANCE_NAME_AQUA	NSAppearanceNameAqua
+#else
+#define NS_APPEARANCE	(NSClassFromString (@"NSAppearance"))
+#define NS_APPEARANCE_NAME_AQUA	(@"NSAppearanceNameAqua")
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+#define NS_APPEARANCE_NAME_VIBRANT_LIGHT	NSAppearanceNameVibrantLight
+#define NS_APPEARANCE_NAME_VIBRANT_DARK		NSAppearanceNameVibrantDark
+#else
+#define NS_APPEARANCE_NAME_VIBRANT_LIGHT (@"NSAppearanceNameVibrantLight")
+#define NS_APPEARANCE_NAME_VIBRANT_DARK	(@"NSAppearanceNameVibrantDark")
+#endif
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
 #define NS_TOUCH_BAR	NSTouchBar
 #define NS_CUSTOM_TOUCH_BAR_ITEM NSCustomTouchBarItem
@@ -828,6 +844,16 @@ has_full_screen_with_dedicated_desktop_p (void)
 #endif
 }
 
+static bool
+has_visual_effect_view_p (void)
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+  return true;
+#else
+  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9);
+#endif
+}
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 /* Whether window's bottom corners need masking so they look rounded.
    If we use NSVisualEffectView (available on OS X 10.10 and later)
@@ -838,7 +864,7 @@ has_full_screen_with_dedicated_desktop_p (void)
 static bool
 rounded_bottom_corners_need_masking_p (void)
 {
-  return (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9
+  return (!has_visual_effect_view_p ()
 	  && !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6));
 }
 #endif
@@ -2176,7 +2202,6 @@ static CGRect unset_global_focus_view_frame (void);
   NSRect contentRect;
   NSWindowStyleMask windowStyle;
   EmacsWindow *window;
-  id visualEffectView;
 
   if (!FRAME_TOOLTIP_P (f))
     {
@@ -2243,6 +2268,10 @@ static CGRect unset_global_focus_view_frame (void);
       [window setBackgroundColor:[oldWindow backgroundColor]];
       [window setRepresentedFilename:[oldWindow representedFilename]];
       [window setCollectionBehavior:[oldWindow collectionBehavior]];
+      if (has_visual_effect_view_p ())
+	[(id <NSAppearanceCustomization>)window
+	    setAppearance:[(id <NSAppearanceCustomization>)oldWindow
+							   appearance]];
 
       [oldWindow setDelegate:nil];
       [self hideHourglass:nil];
@@ -2255,10 +2284,11 @@ static CGRect unset_global_focus_view_frame (void);
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
     [window useOptimizedDrawing:YES];
 #endif
-  visualEffectView = [[(NSClassFromString (@"NSVisualEffectView")) alloc]
-		       initWithFrame:[[window contentView] frame]];
-  if (visualEffectView)
+  if (has_visual_effect_view_p ())
     {
+      id visualEffectView = [[(NSClassFromString (@"NSVisualEffectView")) alloc]
+			      initWithFrame:[[window contentView] frame]];
+
       [window setContentView:visualEffectView];
       MRC_RELEASE (visualEffectView);
       [window setOpaque:NO];
@@ -4253,6 +4283,20 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   [window setBackgroundColor:[NSColor colorWithXColorPixel:color]];
+  if (has_visual_effect_view_p ())
+    {
+      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+      /* This formula comes from frame-set-background-mode in
+	 frame.el.  */
+      NSAppearanceName name =
+	((RED_FROM_ULONG (color) + GREEN_FROM_ULONG (color)
+	  + BLUE_FROM_ULONG (color)) >= (int) (0xff * 3 * .6)
+	 ? NS_APPEARANCE_NAME_VIBRANT_LIGHT : NS_APPEARANCE_NAME_VIBRANT_DARK);
+
+      [(id <NSAppearanceCustomization>)window
+	  setAppearance:[NS_APPEARANCE appearanceNamed:name]];
+      [frameController updateScrollerAppearance];
+    }
 }
 
 /* Flush display of frame F.  */
@@ -6643,7 +6687,30 @@ static BOOL NonmodalScrollerPagingBehavior;
 
 - (BOOL)isOpaque
 {
-  return YES;
+  return (!has_visual_effect_view_p ()
+	  || [[[(id <NSAppearanceCustomization>)self appearance] name]
+	       isEqualToString:NS_APPEARANCE_NAME_AQUA]);
+}
+
+- (void)updateAppearance
+{
+  if (has_visual_effect_view_p ())
+    {
+      /* If NSWindow's appearance is NSAppearanceNameVibrantLight and
+	 its views inherit it, then the backgrounds of a scroll bar
+	 and containing Emacs window become the same color.  This
+	 makes it difficult to distinguish horizontally adjacent
+	 fringe-less Emacs windows with scroll bars.  So we explicitly
+	 specify NSAppearanceNameAqua for EmacsScroller's appearance
+	 if NSWindow's appearance is NSAppearanceNameVibrantLight.  */
+      if ([[[(id <NSAppearanceCustomization>)[self window] appearance] name]
+	    isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
+	[(id <NSAppearanceCustomization>)self
+	    setAppearance:[NS_APPEARANCE
+			    appearanceNamed:NS_APPEARANCE_NAME_AQUA]];
+      else
+	[(id <NSAppearanceCustomization>)self setAppearance:nil];
+    }
 }
 
 - (CGFloat)knobSlotSpan
@@ -6930,8 +6997,16 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
   else if (bar->horizontal && WINDOW_BOTTOMMOST_P (w))
     [scroller setAutoresizingMask:NSViewMinYMargin];
   [emacsView addSubview:scroller];
+  [scroller updateAppearance];
   MRC_RELEASE (scroller);
   SET_SCROLL_BAR_SCROLLER (bar, scroller);
+}
+
+- (void)updateScrollerAppearance
+{
+  for (NSView *view in [emacsView subviews])
+    if ([view isKindOfClass:[EmacsScroller class]])
+      [(EmacsScroller *)view updateAppearance];
 }
 
 @end				// EmacsFrameController (ScrollBar)
