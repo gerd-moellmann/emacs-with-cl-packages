@@ -6673,12 +6673,9 @@ static BOOL NonmodalScrollerPagingBehavior;
 - (void)drawRect:(NSRect)aRect
 {
   if (has_visual_effect_view_p ()
-      && ![[[(id <NSAppearanceCustomization>)self appearance] name]
-	    isEqualToString:NS_APPEARANCE_NAME_AQUA])
+      && [[NS_APPEARANCE currentAppearance] allowsVibrancy])
     {
-      NSColor *color = [[self window] backgroundColor];
-
-      [color set];
+      [[[self window] backgroundColor] set];
       NSRectFill (aRect);
     }
   [super drawRect:aRect];
