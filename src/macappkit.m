@@ -6670,6 +6670,20 @@ static BOOL NonmodalScrollerPagingBehavior;
 #endif
 }
 
+- (void)drawRect:(NSRect)aRect
+{
+  if (has_visual_effect_view_p ()
+      && ![[[(id <NSAppearanceCustomization>)self appearance] name]
+	    isEqualToString:NS_APPEARANCE_NAME_AQUA])
+    {
+      NSColor *color = [[self window] backgroundColor];
+
+      [color set];
+      NSRectFill (aRect);
+    }
+  [super drawRect:aRect];
+}
+
 - (void)setEmacsScrollBar:(struct scroll_bar *)bar
 {
   emacsScrollBar = bar;
@@ -6687,9 +6701,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 
 - (BOOL)isOpaque
 {
-  return (!has_visual_effect_view_p ()
-	  || [[[(id <NSAppearanceCustomization>)self appearance] name]
-	       isEqualToString:NS_APPEARANCE_NAME_AQUA]);
+  return YES;
 }
 
 - (void)updateAppearance
