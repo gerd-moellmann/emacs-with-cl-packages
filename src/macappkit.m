@@ -828,7 +828,7 @@ static bool
 has_resize_indicator_at_bottom_right_p (void)
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-  return true;
+  return false;
 #else
   return floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6;
 #endif
