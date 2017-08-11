@@ -2291,7 +2291,6 @@ static CGRect unset_global_focus_view_frame (void);
 
       [window setContentView:visualEffectView];
       MRC_RELEASE (visualEffectView);
-      [window setOpaque:NO];
       FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
     }
   [[window contentView] addSubview:emacsView];
