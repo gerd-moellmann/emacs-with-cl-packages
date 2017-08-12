@@ -4029,7 +4029,7 @@ mac_get_tab_group_selected_frame (struct frame *f)
 
   if ([window respondsToSelector:@selector(tabGroup)])
     result = window.tabGroup.selectedWindow.lispFrame;
-  else if (!(window.styleMask & NSWindowStyleMaskTitled))
+  else if (!window.hasTitleBar)
     ;
 #if 1
   else if ([window respondsToSelector:@selector(_windowStackController)])
@@ -4087,7 +4087,7 @@ mac_get_tab_group_frames (struct frame *f)
 	}
       result = Fnreverse (result);
     }
-  else if (!(window.styleMask & NSWindowStyleMaskTitled))
+  else if (!window.hasTitleBar)
     ;
   else if ([window respondsToSelector:@selector(tabbedWindows)])
     {
