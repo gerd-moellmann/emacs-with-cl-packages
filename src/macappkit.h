@@ -924,7 +924,6 @@ typedef NSString * NSAppearanceName;
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSAppearance : NSObject
-@property (readonly, copy) NSAppearanceName name;
 + (NSAppearance *)appearanceNamed:(NSAppearanceName)name;
 + (NSAppearance *)currentAppearance;
 @end
@@ -936,6 +935,7 @@ typedef NSString * NSAppearanceName;
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
 @interface NSAppearance (AvailableOn101000AndLater)
+@property (readonly, copy) NSAppearanceName name;
 @property (readonly) BOOL allowsVibrancy;
 @end
 #endif
