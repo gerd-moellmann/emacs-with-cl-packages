@@ -2379,7 +2379,7 @@ static CGRect unset_global_focus_view_frame (void);
   XSizeHints *size_hints = FRAME_SIZE_HINTS (f);
   NSRect windowFrame, emacsViewBounds;
   NSSize emacsViewSizeInPixels, emacsViewSize;
-  CGFloat dw, dh;
+  CGFloat dw, dh, min_width, min_height;
 
   windowFrame = [emacsWindow frame];
   if (size_hints == NULL)
@@ -2394,16 +2394,20 @@ static CGRect unset_global_focus_view_frame (void);
 						      frameSize.height - dh))
 				fromView:nil];
 
-  if (emacsViewSize.width < size_hints->min_width)
-    emacsViewSize.width = size_hints->min_width;
+  min_width = (size_hints->min_width ? size_hints->min_width
+	       : size_hints->width_inc);
+  if (emacsViewSize.width < min_width)
+    emacsViewSize.width = min_width;
   else
     emacsViewSize.width = size_hints->base_width
       + (int) ((emacsViewSize.width - size_hints->base_width)
 	       / size_hints->width_inc + (flag ? .5f : 0))
       * size_hints->width_inc;
 
-  if (emacsViewSize.height < size_hints->min_height)
-    emacsViewSize.height = size_hints->min_height;
+  min_height = (size_hints->min_height ? size_hints->min_height
+	       : size_hints->height_inc);
+  if (emacsViewSize.height < min_height)
+    emacsViewSize.height = min_height;
   else
     emacsViewSize.height = size_hints->base_height
       + (int) ((emacsViewSize.height - size_hints->base_height)
