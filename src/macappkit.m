@@ -3041,7 +3041,8 @@ static CGRect unset_global_focus_view_frame (void);
 
       [window suspendResizeTracking:currentEvent positionAdjustment:adjustment];
     }
-  else if ([window inLiveResize])
+  else if ([window inLiveResize]
+	   && [currentEvent type] != NSEventTypeLeftMouseUp)
     [self setupLiveResizeTransition];
 
   return result;
