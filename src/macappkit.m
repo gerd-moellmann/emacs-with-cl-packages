@@ -1910,7 +1910,6 @@ static CGRect unset_global_focus_view_frame (void);
 {
   resizeTrackingStartWindowSize = [self frame].size;
   resizeTrackingStartLocation = [event locationInWindow];
-  resizeTrackingEventNumber = [event eventNumber];
 }
 
 - (void)suspendResizeTracking:(NSEvent *)event
@@ -2004,13 +2003,18 @@ static CGRect unset_global_focus_view_frame (void);
   MRC_RELEASE (mouseUpEvent);
   mouseUpEvent = nil;
   [NSApp postEvent:mouseDownEvent atStart:YES];
+  setupResizeTrackingSuspended = YES;
 }
 
 - (void)sendEvent:(NSEvent *)event
 {
-  if ([event type] == NSEventTypeLeftMouseDown
-      && [event eventNumber] != resizeTrackingEventNumber)
-    [self setupResizeTracking:event];
+  if ([event type] == NSEventTypeLeftMouseDown)
+    {
+      if (setupResizeTrackingSuspended)
+	setupResizeTrackingSuspended = NO;
+      else
+	[self setupResizeTracking:event];
+    }
 
   [super sendEvent:event];
 }

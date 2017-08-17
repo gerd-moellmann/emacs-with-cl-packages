@@ -268,10 +268,9 @@ typedef id instancetype;
      started.  */
   NSSize resizeTrackingStartWindowSize;
 
-  /* Event number of the current resize control tracking session.
-     Don't compare this with the value of a drag event: the latter is
-     is always 0 if the event comes via Screen Sharing.  */
-  NSInteger resizeTrackingEventNumber;
+  /* Whether the call to setupResizeTracking: is suspended for the
+     next left mouse down event.  */
+  BOOL setupResizeTrackingSuspended;
 
   /* Whether the window should be made visible when the application
      gets unhidden next time.  */
