@@ -3363,11 +3363,13 @@ static CGRect unset_global_focus_view_frame (void);
 {
   if (liveResizeCompletionHandler == nil && [emacsWindow isMainWindow])
     {
+      EmacsFrameController * __unsafe_unretained weakSelf = self;
       EmacsLiveResizeTransitionView *transitionView =
 	[self liveResizeTransitionViewWithDefaultBackground:YES];
 
       [overlayView addSubview:transitionView positioned:NSWindowAbove
 		   relativeTo:layerHostingView];
+      [self setVibrantScrollersHidden:YES];
       [self setLiveResizeCompletionHandler:^{
 	  [NSAnimationContext
 	    runAnimationGroup:^(NSAnimationContext *context) {
@@ -3380,6 +3382,7 @@ static CGRect unset_global_focus_view_frame (void);
 	      layer.opacity = 0;
 	    } completionHandler:^{
 	      [transitionView removeFromSuperview];
+	      [weakSelf setVibrantScrollersHidden:NO];
 	    }];
 	}];
     }
@@ -3577,11 +3580,13 @@ static CGRect unset_global_focus_view_frame (void);
     return [NSArray arrayWithObject:window];
   else
     {
+      EmacsFrameController * __unsafe_unretained weakSelf = self;
       EmacsLiveResizeTransitionView *transitionView =
 	[self liveResizeTransitionViewWithDefaultBackground:YES];
 
       [overlayView addSubview:transitionView positioned:NSWindowAbove
 		   relativeTo:layerHostingView];
+      [self setVibrantScrollersHidden:YES];
       [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
 						       BOOL success) {
 	  if (!success)
@@ -3593,6 +3598,7 @@ static CGRect unset_global_focus_view_frame (void);
 		[transitionView layer].opacity = 0;
 	      } completionHandler:^{
 		[transitionView removeFromSuperview];
+		[weakSelf setVibrantScrollersHidden:NO];
 	      }];
 	}];
 
@@ -3642,6 +3648,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   [overlayView addSubview:transitionView positioned:NSWindowAbove
 	       relativeTo:layerHostingView];
+  [self setVibrantScrollersHidden:YES];
   [window display];
 
   [window setAlphaValue:1];
@@ -3666,6 +3673,7 @@ static CGRect unset_global_focus_view_frame (void);
       layer.opacity = 0;
     } completionHandler:^{
       [transitionView removeFromSuperview];
+      [self setVibrantScrollersHidden:NO];
       [window setAlphaValue:previousAlphaValue];
       [(EmacsWindow *)window suspendConstrainingToScreen:NO];
       [window setStyleMask:([window styleMask] | NSWindowStyleMaskFullScreen)];
@@ -3713,6 +3721,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   [overlayView addSubview:transitionView positioned:NSWindowAbove
 	       relativeTo:layerHostingView];
+  [self setVibrantScrollersHidden:YES];
   [window display];
 
   [window setAlphaValue:1];
@@ -3735,6 +3744,7 @@ static CGRect unset_global_focus_view_frame (void);
       layer.opacity = 0;
     } completionHandler:^{
       [transitionView removeFromSuperview];
+      [self setVibrantScrollersHidden:NO];
       [window setAlphaValue:previousAlphaValue];
       [window setLevel:previousWindowLevel];
       [(EmacsWindow *)window suspendConstrainingToScreen:NO];
@@ -7034,6 +7044,16 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
   for (NSView *view in [emacsView subviews])
     if ([view isKindOfClass:[EmacsScroller class]])
       [(EmacsScroller *)view updateAppearance];
+}
+
+- (void)setVibrantScrollersHidden:(BOOL)flag
+{
+  if (has_visual_effect_view_p ())
+    for (NSView *view in [emacsView subviews])
+      if ([view isKindOfClass:[EmacsScroller class]]
+	  && [[(id <NSAppearanceCustomization>)view effectiveAppearance]
+	       allowsVibrancy])
+	[view setHidden:flag];
 }
 
 @end				// EmacsFrameController (ScrollBar)

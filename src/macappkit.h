@@ -555,6 +555,7 @@ typedef id instancetype;
 @interface EmacsFrameController (ScrollBar)
 - (void)addScrollerWithScrollBar:(struct scroll_bar *)bar;
 - (void)updateScrollerAppearance;
+- (void)setVibrantScrollersHidden:(BOOL)flag;
 @end
 
 @interface EmacsToolbarItem : NSToolbarItem
@@ -929,6 +930,7 @@ typedef NSString * NSAppearanceName;
 
 @protocol NSAppearanceCustomization <NSObject>
 @property (retain) NSAppearance *appearance;
+@property (readonly, retain) NSAppearance *effectiveAppearance;
 @end
 #endif
 
