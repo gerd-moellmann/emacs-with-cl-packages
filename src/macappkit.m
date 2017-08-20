@@ -2326,8 +2326,8 @@ static CGRect unset_global_focus_view_frame (void);
 	[window setShowsResizeIndicator:NO];
       [self setupOverlayView];
       /* We place overlayView below emacsView so events are not
-	 intercepted by the former.  Still the former (layer-backed)
-	 is displayed in front of the latter (not layer-backed or
+	 intercepted by the former.  Still the former (layer-hosting)
+	 is displayed in front of the latter (neither layer-backed nor
 	 layer-hosting).  */
       [[window contentView] addSubview:overlayView positioned:NSWindowBelow
 			    relativeTo:emacsView];
