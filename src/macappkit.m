@@ -870,6 +870,16 @@ rounded_bottom_corners_need_masking_p (void)
 #endif
 
 static bool
+has_gesture_recognizer_p (void)
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+  return true;
+#else
+  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9);
+#endif
+}
+
+static bool
 can_auto_hide_menu_bar_without_hiding_dock_p (void)
 {
   /* Needs to be linked on OS X 10.11 or later.  */
@@ -4867,6 +4877,22 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   [self mouseDown:theEvent];
 }
 
+static Lisp_Object
+event_phase_to_symbol (NSEventPhase phase)
+{
+  switch (phase)
+    {
+    case NSEventPhaseNone:		return Qnone;
+    case NSEventPhaseBegan:		return Qbegan;
+    case NSEventPhaseStationary:	return Qstationary;
+    case NSEventPhaseChanged:		return Qchanged;
+    case NSEventPhaseEnded:		return Qended;
+    case NSEventPhaseCancelled:		return Qcancelled;
+    case NSEventPhaseMayBegin:		return Qmay_begin;
+    default:				return make_number (phase);
+    }
+}
+
 - (void)scrollWheel:(NSEvent *)theEvent
 {
   struct frame *f = [self emacsFrame];
@@ -4896,30 +4922,8 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 	}
       if ([theEvent respondsToSelector:@selector(phase)])
 	{
-	  int i;
-
-	  for (i = 0; i < 2; i++)
-	    {
-	      NSEventPhase val = (i == 0 ? [theEvent phase]
-				  : [theEvent momentumPhase]);
-	      Lisp_Object obj;
-
-	      switch (val)
-		{
-		case NSEventPhaseNone:		obj = Qnone;		break;
-		case NSEventPhaseBegan:		obj = Qbegan;		break;
-		case NSEventPhaseStationary:	obj = Qstationary;	break;
-		case NSEventPhaseChanged:	obj = Qchanged;		break;
-		case NSEventPhaseEnded:		obj = Qended;		break;
-		case NSEventPhaseCancelled:	obj = Qcancelled;	break;
-		case NSEventPhaseMayBegin:	obj = Qmay_begin;	break;
-		default:			obj = make_number (val);
-		}
-	      if (i == 0)
-		phase = obj;
-	      else
-		momentumPhase = obj;
-	    }
+	  phase = event_phase_to_symbol ([theEvent phase]);
+	  momentumPhase = event_phase_to_symbol ([theEvent momentumPhase]);
 	}
       else if ([theEvent respondsToSelector:@selector(_scrollPhase)])
 	{
@@ -4958,12 +4962,24 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
       break;
 
     case NSEventTypeMagnify:
+      if (has_gesture_recognizer_p ())
+	phase = event_phase_to_symbol ([theEvent phase]);
+      else
+	/* -[NSEvent phase] is not available on Mac OS X 10.6.  For a
+	   non-scroll event, it crashes on Mac OS X 10.7, and always
+	   returns NSEventPhaseNone on OS X 10.8 - 10.9. */
+	phase = Qnone;
+      /* fall through */
     case NSEventTypeGesture:
       deltaY = [theEvent magnification];
       break;
 
     case NSEventTypeRotate:
       deltaX = [theEvent rotation];
+      if (has_gesture_recognizer_p ())
+	phase = event_phase_to_symbol ([theEvent phase]);
+      else
+	phase = Qnone;
       break;
 
 #if __LP64__
@@ -5029,14 +5045,18 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 			     Qt));
 	}
     }
-  else if (type == NSEventTypeMagnify || type == NSEventTypeGesture)
+  else if (type == NSEventTypeMagnify)
+    inputEvent.arg = list4 (QCmagnification, make_float (deltaY),
+			    QCphase, phase);
+  else if (type == NSEventTypeGesture)
     inputEvent.arg = list2 (QCmagnification, make_float (deltaY));
   else if (type == NSEventTypeRotate)
-    inputEvent.arg = list2 (QCrotation, make_float (deltaX));
+    inputEvent.arg = list4 (QCrotation, make_float (deltaX),
+			    QCphase, phase);
   else
     inputEvent.arg = Qnil;
   inputEvent.kind = (deltaY != 0 || scrollingDeltaY != 0
-		     || type == NSEventTypeGesture
+		     || type == NSEventTypeMagnify || type == NSEventTypeGesture
 		     ? WHEEL_EVENT : HORIZ_WHEEL_EVENT);
   inputEvent.code = 0;
   inputEvent.modifiers =

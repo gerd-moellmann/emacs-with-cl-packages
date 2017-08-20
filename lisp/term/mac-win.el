@@ -2775,7 +2775,7 @@ The actual magnification is performed by `text-scale-mode'."
 	(if (/= level text-scale-mode-amount)
 	    (setq mac-text-scale-magnification
 		  (expt text-scale-mode-step text-scale-mode-amount)))
-	(if (= magnification 0.0)
+	(if (null (plist-get (nth 3 event) :phase))
 	    ;; This is double-tapping a mouse with one finger or
 	    ;; double-tapping a trackpad with two fingers on Mac OS X
 	    ;; 10.7
