@@ -2191,11 +2191,15 @@ static CGRect unset_global_focus_view_frame (void);
 
   overlayView = [[EmacsOverlayView alloc] initWithFrame:contentRect];
   [overlayView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+  [overlayView setLayer:[CALayer layer]];
   [overlayView setWantsLayer:YES];
+  /* OS X 10.9 needs this.  */
+  if ([overlayView respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
+    [overlayView setLayerUsesCoreImageFilters:YES];
   if (has_resize_indicator_at_bottom_right_p ())
     [overlayView setShowsResizeIndicator:YES];
 
-  [self setupLayerHostingView];
+  [self setupAnimationLayer];
 }
 
 - (void)setupWindow
@@ -2371,7 +2375,6 @@ static CGRect unset_global_focus_view_frame (void);
   [emacsView release];
   /* emacsWindow and hourglassWindow are released via
      released-when-closed.  */
-  [layerHostingView release];
   [overlayView release];
   [super dealloc];
 }
@@ -3138,13 +3141,12 @@ static CGRect unset_global_focus_view_frame (void);
   [emacsController storeEvent:&inev];
 }
 
-- (EmacsLiveResizeTransitionView *)liveResizeTransitionViewWithDefaultBackground:(BOOL)flag
+- (CALayer *)liveResizeTransitionLayerWithDefaultBackground:(BOOL)flag
 {
   struct frame *f = emacsFrame;
   struct window *root_window;
   CGFloat rootWindowMaxY;
   CALayer *rootLayer;
-  EmacsLiveResizeTransitionView *view;
   NSView *contentView = [emacsWindow contentView];
   NSRect contentViewRect = [contentView visibleRect];
   NSBitmapImageRep *bitmap = [self bitmapImageRep];
@@ -3153,12 +3155,10 @@ static CGRect unset_global_focus_view_frame (void);
   rootLayer = [CALayer layer];
   contentViewRect.origin = NSZeroPoint;
   rootLayer.bounds = NSRectToCGRect (contentViewRect);
+  rootLayer.anchorPoint = CGPointZero;
   rootLayer.contentsScale = [emacsWindow backingScaleFactor];
   rootLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_7)
-#endif
-    rootLayer.geometryFlipped = YES;
+  rootLayer.geometryFlipped = YES;
   rootLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
   if (flag)
     rootLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
@@ -3335,17 +3335,7 @@ static CGRect unset_global_focus_view_frame (void);
       return 1;
     });
 
-  view = [[EmacsLiveResizeTransitionView alloc] initWithFrame:contentViewRect];
-  [view setLayer:rootLayer];
-  [view setWantsLayer:YES];
-  [view setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
-  /* Now we do use Core Image filters in live resize transitions.
-     Even if we didn't use them, this would work as a workaround for
-     the strange problem of image color alteration on OS X 10.9.  */
-  if ([view respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
-    [view setLayerUsesCoreImageFilters:YES];
-
-  return MRC_AUTORELEASE (view);
+  return rootLayer;
 }
 
 - (void)setShouldLiveResizeTriggerTransition:(BOOL)flag
@@ -3364,24 +3354,23 @@ static CGRect unset_global_focus_view_frame (void);
   if (liveResizeCompletionHandler == nil && [emacsWindow isMainWindow])
     {
       EmacsFrameController * __unsafe_unretained weakSelf = self;
-      EmacsLiveResizeTransitionView *transitionView =
-	[self liveResizeTransitionViewWithDefaultBackground:YES];
+      CALayer *layer =
+	[self liveResizeTransitionLayerWithDefaultBackground:YES];
 
-      [overlayView addSubview:transitionView positioned:NSWindowAbove
-		   relativeTo:layerHostingView];
+      [CATransaction setDisableActions:YES];
+      [[overlayView layer] addSublayer:layer];
+      [CATransaction commit];
       [self setVibrantScrollersHidden:YES];
       [self setLiveResizeCompletionHandler:^{
 	  [NSAnimationContext
 	    runAnimationGroup:^(NSAnimationContext *context) {
-	      CALayer *layer = [transitionView layer];
-
 	      [context setDuration:(10 / 60.0)];
 	      layer.beginTime = [layer convertTime:(CACurrentMediaTime ())
 					 fromLayer:nil] + 10 / 60.0;
 	      layer.fillMode = kCAFillModeBackwards;
 	      layer.opacity = 0;
 	    } completionHandler:^{
-	      [transitionView removeFromSuperview];
+	      [layer removeFromSuperlayer];
 	      [weakSelf setVibrantScrollersHidden:NO];
 	    }];
 	}];
@@ -3581,23 +3570,24 @@ static CGRect unset_global_focus_view_frame (void);
   else
     {
       EmacsFrameController * __unsafe_unretained weakSelf = self;
-      EmacsLiveResizeTransitionView *transitionView =
-	[self liveResizeTransitionViewWithDefaultBackground:YES];
+      CALayer *layer =
+	[self liveResizeTransitionLayerWithDefaultBackground:YES];
 
-      [overlayView addSubview:transitionView positioned:NSWindowAbove
-		   relativeTo:layerHostingView];
+      [CATransaction setDisableActions:YES];
+      [[overlayView layer] addSublayer:layer];
+      [CATransaction commit];
       [self setVibrantScrollersHidden:YES];
       [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
 						       BOOL success) {
 	  if (!success)
-	    [transitionView removeFromSuperview];
+	    [layer removeFromSuperlayer];
 	  else
 	    [NSAnimationContext
 	      runAnimationGroup:^(NSAnimationContext *context) {
 		[context setDuration:(10 / 60.0)];
-		[transitionView layer].opacity = 0;
+		layer.opacity = 0;
 	      } completionHandler:^{
-		[transitionView removeFromSuperview];
+		[layer removeFromSuperlayer];
 		[weakSelf setVibrantScrollersHidden:NO];
 	      }];
 	}];
@@ -3614,10 +3604,10 @@ static CGRect unset_global_focus_view_frame (void);
 							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
-  EmacsLiveResizeTransitionView *transitionView;
+  CALayer *layer;
   CGFloat titleBarHeight;
 
-  transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
+  layer = [self liveResizeTransitionLayerWithDefaultBackground:NO];
 
   titleBarHeight = NSHeight (srcRect) - NSMaxY ([contentView frame]);
 
@@ -3646,8 +3636,9 @@ static CGRect unset_global_focus_view_frame (void);
   [window setStyleMask:([window styleMask] & ~NSWindowStyleMaskFullScreen)];
   [window setFrame:srcRect display:NO];
 
-  [overlayView addSubview:transitionView positioned:NSWindowAbove
-	       relativeTo:layerHostingView];
+  [CATransaction setDisableActions:YES];
+  [[overlayView layer] addSublayer:layer];
+  [CATransaction commit];
   [self setVibrantScrollersHidden:YES];
   [window display];
 
@@ -3656,7 +3647,6 @@ static CGRect unset_global_focus_view_frame (void);
   NSEnableScreenUpdates ();
 
   [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-      CALayer *layer = [transitionView layer];
       NSRect destRectWithTitleBar =
 	NSMakeRect (NSMinX (destRect), NSMinY (destRect),
 		    NSWidth (destRect), NSHeight (destRect) + titleBarHeight);
@@ -3672,7 +3662,7 @@ static CGRect unset_global_focus_view_frame (void);
       layer.fillMode = kCAFillModeBackwards;
       layer.opacity = 0;
     } completionHandler:^{
-      [transitionView removeFromSuperview];
+      [layer removeFromSuperlayer];
       [self setVibrantScrollersHidden:NO];
       [window setAlphaValue:previousAlphaValue];
       [(EmacsWindow *)window suspendConstrainingToScreen:NO];
@@ -3698,10 +3688,10 @@ static CGRect unset_global_focus_view_frame (void);
 							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
-  EmacsLiveResizeTransitionView *transitionView;
+  CALayer *layer;
   CGFloat titleBarHeight;
 
-  transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
+  layer = [self liveResizeTransitionLayerWithDefaultBackground:NO];
 
   destRect = [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
@@ -3719,8 +3709,9 @@ static CGRect unset_global_focus_view_frame (void);
   [(EmacsWindow *)window suspendConstrainingToScreen:YES];
   [window setFrame:srcRect display:NO];
 
-  [overlayView addSubview:transitionView positioned:NSWindowAbove
-	       relativeTo:layerHostingView];
+  [CATransaction setDisableActions:YES];
+  [[overlayView layer] addSublayer:layer];
+  [CATransaction commit];
   [self setVibrantScrollersHidden:YES];
   [window display];
 
@@ -3730,8 +3721,6 @@ static CGRect unset_global_focus_view_frame (void);
   NSEnableScreenUpdates ();
 
   [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-      CALayer *layer = [transitionView layer];
-
       [context setDuration:duration];
       [context
 	setTimingFunction:[CAMediaTimingFunction
@@ -3743,7 +3732,7 @@ static CGRect unset_global_focus_view_frame (void);
       layer.fillMode = kCAFillModeBackwards;
       layer.opacity = 0;
     } completionHandler:^{
-      [transitionView removeFromSuperview];
+      [layer removeFromSuperlayer];
       [self setVibrantScrollersHidden:NO];
       [window setAlphaValue:previousAlphaValue];
       [window setLevel:previousWindowLevel];
@@ -5989,7 +5978,7 @@ mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 
 @implementation EmacsOverlayView
 
-static NSImage *
+static CGImageRef
 create_resize_indicator_image (void)
 {
   NSRect contentRect = NSMakeRect (0, 0, 64, 64);
@@ -6004,7 +5993,7 @@ create_resize_indicator_image (void)
 				    defer:NO];
   NSView *frameView = [[window contentView] superview];
   NSBitmapImageRep *bitmap;
-  NSImage *image;
+  CGImageRef image;
 
   [window setOpaque:NO];
   [window setBackgroundColor:[NSColor clearColor]];
@@ -6015,8 +6004,7 @@ create_resize_indicator_image (void)
     [[NSBitmapImageRep alloc] initWithFocusedViewRect:resizeIndicatorRect];
   [frameView unlockFocus];
 
-  image = [[NSImage alloc] initWithSize:resizeIndicatorRect.size];
-  [image addRepresentation:bitmap];
+  image = CGImageRetain ([bitmap CGImage]);
   MRC_RELEASE (bitmap);
 
   MRC_RELEASE (window);
@@ -6024,58 +6012,47 @@ create_resize_indicator_image (void)
   return image;
 }
 
-- (void)drawRect:(NSRect)aRect
-{
-  if (highlighted)
-    {
-      /* Mac OS X 10.2 doesn't have -[NSColor setFill].  */
-      [[[NSColor selectedControlColor] colorWithAlphaComponent:0.75] set];
-      NSFrameRectWithWidth ([self bounds], 3.0);
-    }
-
-  if (showsResizeIndicator)
-    {
-      static NSImage *resizeIndicatorImage;
-
-      if (resizeIndicatorImage == nil)
-	resizeIndicatorImage = create_resize_indicator_image ();
-
-      [resizeIndicatorImage
-	drawAtPoint:(NSMakePoint (NSWidth ([self bounds])
-				  - [resizeIndicatorImage size].width, 0))
-	   fromRect:NSZeroRect operation:NSCompositingOperationSourceOver
-	   fraction:1.0];
-    }
-}
-
 - (void)setHighlighted:(BOOL)flag;
 {
-  if (flag != highlighted)
+  CALayer *layer = [self layer];
+
+  if (flag)
     {
-      highlighted = flag;
-      [self setNeedsDisplay:YES];
+      static CGColorRef borderColor;
+
+      if (borderColor == NULL)
+	borderColor = [[[NSColor selectedControlColor]
+			 colorWithAlphaComponent:.75] copyCGColor];
+
+      [CATransaction setDisableActions:YES];
+      layer.borderColor = borderColor;
+      [CATransaction commit];
+
+      layer.borderWidth = 3.0;
     }
+  else
+    layer.borderWidth = 0;
 }
 
 - (void)setShowsResizeIndicator:(BOOL)flag;
 {
-  if (flag != showsResizeIndicator)
+  CALayer *layer = [self layer];
+
+  if (flag)
     {
-      showsResizeIndicator = flag;
-      [self setNeedsDisplay:YES];
+      static CGImageRef resizeIndicatorImage;
+
+      if (resizeIndicatorImage == NULL)
+	resizeIndicatorImage = create_resize_indicator_image ();
+
+      layer.contents = (__bridge id) resizeIndicatorImage;
+      layer.contentsGravity = kCAGravityBottomRight;
     }
+  else
+    layer.contents = nil;
 }
 
 @end				// EmacsOverlayView
-
-@implementation EmacsLiveResizeTransitionView
-
-- (BOOL)isFlipped
-{
-  return YES;
-}
-
-@end				// EmacsLiveResizeTransitionView
 
 
 /************************************************************************
@@ -12726,36 +12703,28 @@ mac_update_accessibility_status (struct frame *f)
 
 @implementation EmacsFrameController (Animation)
 
-- (void)setupLayerHostingView
+- (void)setupAnimationLayer
 {
-  CALayer *rootLayer = [CALayer layer];
-
-  layerHostingView = [[NSView alloc] initWithFrame:[overlayView frame]];
-  [layerHostingView setAutoresizingMask:(NSViewWidthSizable
-					 | NSViewHeightSizable)];
-  rootLayer.anchorPoint = CGPointZero;
+  animationLayer = [CALayer layer];
+  animationLayer.anchorPoint = CGPointZero;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
     {
       CGFloat scaleFactor = [emacsWindow userSpaceScaleFactor];
 
-      rootLayer.sublayerTransform =
+      animationLayer.sublayerTransform =
 	CATransform3DMakeScale (scaleFactor, scaleFactor, 1.0);
     }
 #endif
-  [layerHostingView setLayer:rootLayer];
-  [layerHostingView setWantsLayer:YES];
-  /* OS X 10.9 needs this.  */
-  if ([layerHostingView
-	respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
-    [layerHostingView setLayerUsesCoreImageFilters:YES];
 
-  [overlayView addSubview:layerHostingView];
+  [CATransaction setDisableActions:YES];
+  [[overlayView layer] addSublayer:animationLayer];
+  [CATransaction commit];
 }
 
 - (CALayer *)layerForRect:(NSRect)rect
 {
-  NSRect rectInLayer = [emacsView convertRect:rect toView:layerHostingView];
+  NSRect rectInLayer = [emacsView convertRect:rect toView:overlayView];
   CALayer *layer, *contentLayer;
   NSBitmapImageRep *bitmap;
 
@@ -12786,11 +12755,9 @@ mac_update_accessibility_status (struct frame *f)
 
 - (void)addLayer:(CALayer *)layer
 {
-  [CATransaction setValue:((id) kCFBooleanTrue)
-		   forKey:kCATransactionDisableActions];
-  [[layerHostingView layer] addSublayer:layer];
-  [CATransaction flush];
-  [layerHostingView display];
+  [CATransaction setDisableActions:YES];
+  [animationLayer addSublayer:layer];
+  [CATransaction commit];
 }
 
 static Lisp_Object

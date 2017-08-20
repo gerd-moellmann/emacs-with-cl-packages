@@ -328,8 +328,8 @@ typedef id instancetype;
      is relative to the top left corner of the screen.  */
   NSRect savedFrame;
 
-  /* The view hosting Core Animation layers in the overlay view.  */
-  NSView *layerHostingView;
+  /* The root Core Animation layer for mac-start-animation.  */
+  CALayer *animationLayer;
 
   /* The block called when the window ends live resize.  */
   void (^liveResizeCompletionHandler) (void);
@@ -463,11 +463,6 @@ typedef id instancetype;
 }
 - (void)setHighlighted:(BOOL)flag;
 - (void)setShowsResizeIndicator:(BOOL)flag;
-@end
-
-/* Class for view used in live resize transition animations.  */
-
-@interface EmacsLiveResizeTransitionView : NSView
 @end
 
 /* Class for scroller that doesn't do modal mouse tracking.  */
@@ -759,7 +754,7 @@ typedef NSString * NSAttributedStringDocumentAttributeKey;
 @end
 
 @interface EmacsFrameController (Animation)
-- (void)setupLayerHostingView;
+- (void)setupAnimationLayer;
 - (CALayer *)layerForRect:(NSRect)rect;
 - (void)addLayer:(CALayer *)layer;
 - (CIFilter *)transitionFilterFromProperties:(Lisp_Object)properties;
