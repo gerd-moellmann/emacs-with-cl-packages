@@ -2722,7 +2722,7 @@ as base.")
 (make-variable-buffer-local 'mac-text-scale-magnification)
 
 (defcustom mac-text-scale-magnification-range '(0.1 . 20.0)
-  "Pair of mininum and maximum values for `mac-text-scale-magnification'."
+  "Pair of minimum and maximum values for `mac-text-scale-magnification'."
   :type '(cons number number)
   :group 'mac)
 
