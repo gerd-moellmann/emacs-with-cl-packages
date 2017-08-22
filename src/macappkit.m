@@ -2763,9 +2763,9 @@ static CGRect unset_global_focus_view_frame (void);
   FRAME_BACKING_SCALE_FACTOR (f) = backingScaleFactor;
 }
 
-- (BOOL)emacsViewCanDraw
+- (BOOL)emacsViewIsHiddenOrHasHiddenAncestor
 {
-  return [emacsView canDraw];
+  return [emacsView isHiddenOrHasHiddenAncestor];
 }
 
 - (void)lockFocusOnEmacsView
@@ -3810,6 +3810,14 @@ mac_is_frame_window_collapsed (struct frame *f)
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   return [window isMiniaturized];
+}
+
+bool
+mac_is_frame_window_drawable (struct frame *f)
+{
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+  return ![frameController emacsViewIsHiddenOrHasHiddenAncestor];
 }
 
 static void
@@ -5726,6 +5734,20 @@ event_phase_to_symbol (NSEventPhase phase)
 	 size change.  */
       [NSApp postDummyEvent];
     }
+}
+
+- (void)viewDidHide;
+{
+  struct frame *f = [self emacsFrame];
+
+  mac_handle_visibility_change (f);
+}
+
+- (void)viewDidUnhide;
+{
+  struct frame *f = [self emacsFrame];
+
+  mac_handle_visibility_change (f);
 }
 
 - (NSTouchBar *)makeTouchBar
@@ -7957,10 +7979,11 @@ static void update_dragged_types (void);
   int x, y;
   NativeRectangle *r;
 
-  /* When the Tab Overview UI is in action, emacsView is not drawable.
-     We avoid lazy creation of emacsWindow.tabGroup because it causes
-     side effect of not creating a tabbed window.  */
-  if (![emacsView canDraw])
+  /* While the Tab Overview UI is in action, the views previously
+     shown before the invocation of the Overview UI are hidden and not
+     drawable.  We avoid lazy creation of emacsWindow.tabGroup because
+     it causes side effect of not creating a tabbed window.  */
+  if ([emacsView isHiddenOrHasHiddenAncestor])
     return true;
 
   dpyinfo->last_mouse_movement_time = mac_system_uptime () * 1000;

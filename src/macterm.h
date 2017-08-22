@@ -567,6 +567,7 @@ extern void mac_set_frame_window_modified (struct frame *, bool);
 extern void mac_set_frame_window_proxy (struct frame *, CFURLRef);
 extern bool mac_is_frame_window_visible (struct frame *);
 extern bool mac_is_frame_window_collapsed (struct frame *);
+extern bool mac_is_frame_window_drawable (struct frame *);
 extern void mac_bring_frame_window_to_front (struct frame *);
 extern void mac_send_frame_window_behind (struct frame *);
 extern void mac_hide_frame_window (struct frame *);

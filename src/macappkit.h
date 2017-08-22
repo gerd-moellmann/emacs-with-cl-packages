@@ -363,7 +363,7 @@ typedef id instancetype;
 - (WMState)windowManagerState;
 - (void)setWindowManagerState:(WMState)newState;
 - (void)updateBackingScaleFactor;
-- (BOOL)emacsViewCanDraw;
+- (BOOL)emacsViewIsHiddenOrHasHiddenAncestor;
 - (void)lockFocusOnEmacsView;
 - (void)unlockFocusOnEmacsView;
 - (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;

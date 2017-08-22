@@ -4164,7 +4164,7 @@ mac_handle_visibility_change (struct frame *f)
     {
       if (mac_is_frame_window_collapsed (f))
 	iconified = true;
-      else if (NILP (mac_get_tab_group_overview_visible_p (f)))
+      else if (mac_is_frame_window_drawable (f))
 	visible = 1;
       else
 	visible = 2;
@@ -4187,6 +4187,12 @@ mac_handle_visibility_change (struct frame *f)
 	/* Force a redisplay sooner or later to update the
 	   frame titles in case this is the second frame.  */
 	record_asynch_buffer_change ();
+    }
+  else if (FRAME_OBSCURED_P (f) && visible == 1)
+    {
+      SET_FRAME_GARBAGED (f);
+      /* Force a redisplay sooner or later.  */
+      record_asynch_buffer_change ();
     }
   else if (FRAME_VISIBLE_P (f) && !visible)
     if (iconified)
