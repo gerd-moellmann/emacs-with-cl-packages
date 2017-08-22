@@ -3857,7 +3857,24 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 
 	  [window setTabbingMode:tabbingMode];
 	  if ([mainWindow isKindOfClass:[EmacsWindow class]])
-	    [mainWindow setTabbingMode:tabbingMode];
+	    {
+	      [mainWindow setTabbingMode:tabbingMode];
+	      /* If the Tab Overview UI is visible and the window is
+		 to join its tab group, then make the Overview UI
+		 invisible and wait until it finishes.  */
+	      if (tabbingMode == NSWindowTabbingModePreferred
+		  && [mainWindow respondsToSelector:@selector(tabGroup)])
+		{
+		  NSWindowTabGroup *tabGroup = mainWindow.tabGroup;
+
+		  if (tabGroup.isOverviewVisible)
+		    {
+		      tabGroup.overviewVisible = NO;
+		      while (tabGroup.isOverviewVisible)
+			mac_run_loop_run_once (0);
+		    }
+		}
+	    }
 	}
 
       if (activate_p)
