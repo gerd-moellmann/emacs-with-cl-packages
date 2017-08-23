@@ -4473,6 +4473,30 @@ If Emacs is not running as a GUI application, then the result is nil.  */)
   return result;
 }
 
+DEFUN ("mac-send-action", Fmac_send_action, Smac_send_action, 1, 2, 0,
+       doc: /* Send ACTION using the responder chain for action messages.
+ACTION is a symbol whose name is a Cocoa action message without the
+trailing colon.  Some useful examples are `zoom', `hide', `unhide',
+`activate', `hideOtherApplications', `unhideAllApplications', and
+`orderFrontCharacterPalette'.
+
+Return t if the action is successfully sent, and nil otherwise.  If
+optional DRY-RUN-P is non-nil, then check if ACTION will actually be
+sent.  It will be useful in the `:enable' property of a menu item.  */)
+  (Lisp_Object action, Lisp_Object dry_run_p)
+{
+  bool sent_p;
+
+  check_window_system (NULL);
+  CHECK_SYMBOL (action);
+
+  block_input ();
+  sent_p = mac_send_action (action, !NILP (dry_run_p));
+  unblock_input ();
+
+  return sent_p ? Qt : Qnil;
+}
+
 
 /***********************************************************************
 			      Tab Group
@@ -4976,5 +5000,6 @@ Chinese, Japanese, and Korean.  */);
   defsubr (&Smac_application_state);
   defsubr (&Smac_set_frame_tab_group_property);
   defsubr (&Smac_frame_tab_group_property);
+  defsubr (&Smac_send_action);
   defsubr (&Smac_start_animation);
 }

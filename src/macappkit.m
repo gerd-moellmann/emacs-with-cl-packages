@@ -1262,6 +1262,12 @@ static bool mac_run_loop_running_once_p;
   menuItemSelection = [sender tag];
 }
 
+/* Equivalent of (ns-hide-emacs 'active).  */
+- (void)activate:(id)sender
+{
+  [NSApp activateIgnoringOtherApps:YES];
+}
+
 /* Event handling  */
 
 static EventRef peek_if_next_event_activates_menu_bar (void);
@@ -1691,7 +1697,9 @@ emacs_windows_need_display_p (void)
 
 - (BOOL)validateUserInterfaceItem:(id <NSValidatedUserInterfaceItem>)anItem
 {
-  return is_action_selector ([anItem action]);
+  SEL action = [anItem action];
+
+  return action == @selector(activate:) || is_action_selector (action);
 }
 
 - (void)updatePresentationOptions
@@ -11087,6 +11095,41 @@ handle_action_invocation (NSInvocation *invocation)
 	     mac_focus_frame (&one_mac_display_info));
   inev.arg = Fcons (build_string ("aevt"), arg);
   [emacsController storeEvent:&inev];
+}
+
+bool
+mac_send_action (Lisp_Object symbol, bool dry_run_p)
+{
+  bool __block result = false;
+  AUTO_STRING (colon, ":");
+  Lisp_Object string = concat2 (SYMBOL_NAME (symbol), colon);
+  SEL action = NSSelectorFromString ([NSString stringWithLispString:string]);
+
+  if (action)
+    {
+      id target = [NSApp targetForAction:action];
+      NSMethodSignature *signature = [target methodSignatureForSelector:action];
+
+      if ([signature isEqual:(action_signature ())]
+	  && [target respondsToSelector:@selector(validateUserInterfaceItem:)])
+	{
+	  NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:@"" action:action
+						 keyEquivalent:@""];
+
+	  if ([target validateUserInterfaceItem:item])
+	    {
+	      if (dry_run_p)
+		result = true;
+	      else
+		mac_within_app (^{
+		    result = [NSApp sendAction:action to:target from:nil];
+		  });
+	    }
+	  MRC_RELEASE (item);
+	}
+    }
+
+  return result;
 }
 
 
