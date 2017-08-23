@@ -2121,6 +2121,21 @@ static CGRect unset_global_focus_view_frame (void);
 		 to:nil from:sender];
 }
 
+- (void)exitTabGroupOverview
+{
+  if ([self respondsToSelector:@selector(tabGroup)])
+    {
+      NSWindowTabGroup *tabGroup = self.tabGroup;
+
+      if (tabGroup.isOverviewVisible)
+	{
+	  tabGroup.overviewVisible = NO;
+	  while (tabGroup.isOverviewVisible)
+	    mac_run_loop_run_once (0);
+	}
+    }
+}
+
 @end				// EmacsWindow
 
 @implementation EmacsFullscreenWindow
@@ -3862,18 +3877,8 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 	      /* If the Tab Overview UI is visible and the window is
 		 to join its tab group, then make the Overview UI
 		 invisible and wait until it finishes.  */
-	      if (tabbingMode == NSWindowTabbingModePreferred
-		  && [mainWindow respondsToSelector:@selector(tabGroup)])
-		{
-		  NSWindowTabGroup *tabGroup = mainWindow.tabGroup;
-
-		  if (tabGroup.isOverviewVisible)
-		    {
-		      tabGroup.overviewVisible = NO;
-		      while (tabGroup.isOverviewVisible)
-			mac_run_loop_run_once (0);
-		    }
-		}
+	      if (tabbingMode == NSWindowTabbingModePreferred)
+		[(EmacsWindow *)mainWindow exitTabGroupOverview];
 	    }
 	}
 
@@ -4037,6 +4042,255 @@ mac_get_frame_window_alpha (struct frame *f, CGFloat *out_alpha)
   *out_alpha = [window alphaValue];
 
   return noErr;
+}
+
+Lisp_Object
+mac_set_tab_group_overview_visible_p (struct frame *f, Lisp_Object value)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+  if (![window respondsToSelector:@selector(tabGroup)])
+    {
+      if (NILP (value))
+	return Qnil;
+      else
+	return build_string ("Tab group overview is not supported on this macOS version");
+    }
+
+  if (window.tabGroup.isOverviewVisible == !NILP (value))
+    return Qnil;
+
+  mac_within_app (^{
+      /* Just setting the property window.tabGroup.overviewVisible
+	 does not show the search field on macOS 10.13 Beta.  */
+      [NSApp sendAction:@selector(toggleTabOverview:) to:window from:nil];
+    });
+
+  return Qt;
+}
+
+Lisp_Object
+mac_set_tab_group_tab_bar_visible_p (struct frame *f, Lisp_Object value)
+{
+  EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  NSInteger count;
+
+  count = window.tabbedWindows.count;
+  if ((count != 0) == !NILP (value))
+    return Qnil;
+
+  if (count > 1)
+    return build_string ("Tab bar cannot be made invisible because of multiple tabs");
+
+  mac_within_app (^{
+      [window exitTabGroupOverview];
+      [NSApp sendAction:@selector(toggleTabBar:) to:window from:nil];
+    });
+#if 0
+  [[NSUserDefaults standardUserDefaults]
+      removeObjectForKey:[@"NSWindowTabbingShoudShowTabBarKey-"
+			     stringByAppendingString:window.tabbingIdentifier]];
+#endif
+
+  return Qt;
+}
+
+Lisp_Object
+mac_set_tab_group_selected_frame (struct frame *f, Lisp_Object value)
+{
+  Lisp_Object selected = mac_get_tab_group_selected_frame (f);
+  Lisp_Object frames;
+  EmacsWindow *newSelectedWindow;
+
+  if (EQ (selected, value))
+    return Qnil;
+
+  frames = mac_get_tab_group_frames (f);
+  if (NILP (Fmemq (value, frames)))
+    {
+      Lisp_Object frame;
+      AUTO_STRING (fmt, "Frame %S is not in the tab group for frame %S");
+
+      XSETFRAME (frame, f);
+
+      return CALLN (Fformat, fmt, value, frame);
+    }
+
+  newSelectedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (value));
+  if ([newSelectedWindow respondsToSelector:@selector(tabGroup)])
+    mac_within_app (^{
+	[newSelectedWindow exitTabGroupOverview];
+	newSelectedWindow.tabGroup.selectedWindow = newSelectedWindow;
+      });
+  else
+    mac_within_app (^{
+	NSWindow *selectedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (selected));
+	NSInteger __block aboveWindowNumber = 0;
+
+	[newSelectedWindow exitTabGroupOverview];
+	[NSApp enumerateWindowsWithOptions:NSWindowListOrderedFrontToBack
+				usingBlock:^(NSWindow *window, BOOL *stop) {
+	    if ([window isEqual:selectedWindow])
+	      *stop = YES;
+	    else if ([window isKindOfClass:EmacsWindow.class])
+	      aboveWindowNumber = window.windowNumber;
+	  }];
+	if (aboveWindowNumber)
+	  {
+	    [newSelectedWindow orderFront:nil];
+	    [newSelectedWindow orderWindow:NSWindowBelow
+				relativeTo:aboveWindowNumber];
+	  }
+	else
+	  [newSelectedWindow makeKeyAndOrderFront:nil];
+      });
+
+  return Qt;
+}
+
+Lisp_Object
+mac_set_tab_group_frames (struct frame *f, Lisp_Object value)
+{
+  Lisp_Object frames = mac_get_tab_group_frames (f), rest, selected;
+  NSWindowTabbingIdentifier identifier;
+
+  if (!NILP (Fequal (frames, value)))
+    return Qnil;
+
+  if (NILP (frames))
+    return build_string ("Frames must be non-nil");
+
+  for (rest = value; CONSP (rest); rest = XCDR (rest))
+    {
+      Lisp_Object frame = XCAR (rest);
+
+      if (!FRAME_MAC_P (XFRAME (frame)) || !FRAME_LIVE_P (XFRAME (frame)))
+	{
+	  AUTO_STRING (fmt, "Not a live Mac frame: %S");
+
+	  return CALLN (Fformat, fmt, frame);
+	}
+    }
+  if (!NILP (rest))
+    {
+      AUTO_STRING (fmt, "Frames do not end with nil: %S");
+
+      return CALLN (Fformat, fmt, rest);
+    }
+
+  identifier = FRAME_MAC_WINDOW_OBJECT (f).tabbingIdentifier;
+  for (rest = value; !NILP (rest); rest = XCDR (rest))
+    if (!NILP (Fmemq (XCAR (rest), XCDR (rest))))
+      {
+	AUTO_STRING (fmt, "Duplicate frames: %S");
+
+	return CALLN (Fformat, fmt, XCAR (rest));
+      }
+    else
+      {
+	NSWindow *window = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (rest)));
+
+	if (!window.hasTitleBar)
+	  {
+	    AUTO_STRING (fmt, "Not a frame with the title bar: %S");
+
+	    return CALLN (Fformat, fmt, XCAR (rest));
+	  }
+	if (!window.isVisible)
+	  {
+	    AUTO_STRING (fmt, "Can't rearrange tabs for invisible/iconified frame: %S");
+
+	    return CALLN (Fformat, fmt, XCAR (rest));
+	  }
+	if (![identifier isEqualToString:window.tabbingIdentifier])
+	  {
+	    AUTO_STRING (fmt, "Not a frame with the same identifier: %S");
+
+	    return CALLN (Fformat, fmt, XCAR (rest));
+	  }
+      }
+
+  selected = mac_get_tab_group_selected_frame (f);
+  mac_within_app (^{
+      Lisp_Object cur_rest, toinclude, last = Qnil, toexclude = Qnil;
+      EmacsWindow *window, *addedWindow;
+
+      window = FRAME_MAC_WINDOW_OBJECT (f);
+      [window exitTabGroupOverview];
+      for (Lisp_Object rest = value; !NILP (rest); rest = XCDR (rest))
+	{
+	  window = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (rest)));
+	  [window exitTabGroupOverview];
+	}
+
+      toinclude = value;
+      for (cur_rest = frames; !NILP (cur_rest); cur_rest = XCDR (cur_rest))
+	{
+	  Lisp_Object frame = XCAR (cur_rest), rest;
+
+	  for (rest = value; !NILP (rest); rest = XCDR (rest))
+	    {
+	      if (EQ (rest, toinclude))
+		last = frame;
+	      if (EQ (XCAR (rest), frame))
+		break;
+	    }
+
+	  if (NILP (rest))
+	    {
+	      /* `frame' was not found in `value'; to be excluded.  */
+	      toexclude = Fcons (frame, toexclude);
+	      continue;
+	    }
+	  else if (!EQ (last, frame))
+	    /* `frame' was found between `value' (inclusive) to
+	       `toinclude' (not inclusive); already included.  */
+	    continue;
+
+	  window = FRAME_MAC_WINDOW_OBJECT (XFRAME (frame));
+	  while (!EQ (XCAR (toinclude), frame))
+	    {
+	      addedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (toinclude)));
+	      [window addTabbedWindow:addedWindow ordered:NSWindowBelow];
+	      toinclude = XCDR (toinclude);
+	    }
+	  toinclude = XCDR (toinclude);
+	}
+      if (!NILP (toinclude))
+	{
+	  window = FRAME_MAC_WINDOW_OBJECT (XFRAME (last));
+	  do
+	    {
+	      addedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (toinclude)));
+	      [window addTabbedWindow:addedWindow ordered:NSWindowAbove];
+	      window = addedWindow;
+	      last = XCAR (toinclude);
+
+	      toinclude = XCDR (toinclude);
+	    }
+	  while (!NILP (toinclude));
+	}
+
+      if (!NILP (toexclude))
+	{
+	  Lisp_Object last_cell = toexclude;
+
+	  /* `toexclude' is in reverse order.  First we create a new
+	     frame for the last element.  */
+	  while (!NILP (XCDR (last_cell)))
+	    last_cell = XCDR (last_cell);
+	  window = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (last_cell)));
+	  [NSApp sendAction:@selector(moveTabToNewWindow:) to:window from:nil];
+	  for (; !EQ (toexclude, last_cell); toexclude = XCDR (toexclude))
+	    {
+	      addedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (toexclude)));
+	      [window addTabbedWindow:addedWindow ordered:NSWindowAbove];
+	    }
+	}
+      mac_set_tab_group_selected_frame (XFRAME (selected), selected);
+    });
+
+  return Qt;
 }
 
 Lisp_Object

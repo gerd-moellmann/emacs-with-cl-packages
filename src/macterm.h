@@ -580,6 +580,13 @@ extern void mac_move_frame_window (struct frame *, int, int, bool);
 extern void mac_size_frame_window (struct frame *, int, int, bool);
 extern OSStatus mac_set_frame_window_alpha (struct frame *, CGFloat);
 extern OSStatus mac_get_frame_window_alpha (struct frame *, CGFloat *);
+extern Lisp_Object mac_set_tab_group_overview_visible_p (struct frame *,
+							 Lisp_Object);
+extern Lisp_Object mac_set_tab_group_tab_bar_visible_p (struct frame *,
+							Lisp_Object);
+extern Lisp_Object mac_set_tab_group_selected_frame (struct frame *,
+						     Lisp_Object);
+extern Lisp_Object mac_set_tab_group_frames (struct frame *, Lisp_Object);
 extern Lisp_Object mac_get_tab_group_overview_visible_p (struct frame *);
 extern Lisp_Object mac_get_tab_group_tab_bar_visible_p (struct frame *);
 extern Lisp_Object mac_get_tab_group_selected_frame (struct frame *);

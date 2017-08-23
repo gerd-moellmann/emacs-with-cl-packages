@@ -286,6 +286,7 @@ typedef id instancetype;
 - (BOOL)needsOrderFrontOnUnhide;
 - (void)setNeedsOrderFrontOnUnhide:(BOOL)flag;
 - (void)suspendConstrainingToScreen:(BOOL)flag;
+- (void)exitTabGroupOverview;
 @end
 
 @interface EmacsFullscreenWindow : EmacsWindow
@@ -799,6 +800,19 @@ enum {
 };
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+enum {
+    NSWindowListOrderedFrontToBack = (1 << 0)
+};
+typedef NSInteger NSWindowListOptions;
+
+@interface NSApplication (AvailableOn101200AndLater)
+- (void)enumerateWindowsWithOptions:(NSWindowListOptions)options
+			 usingBlock:(void (NS_NOESCAPE ^) (NSWindow *window,
+							   BOOL *stop))block;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef NSInteger NSModalResponse;
 #endif
@@ -846,6 +860,8 @@ enum {
 #endif
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101300
+typedef NSString * NSWindowTabbingIdentifier;
+
 @interface NSWindowTabGroup : NSObject
 @property (readonly, copy) NSArrayOf (NSWindow *) *windows;
 @property (getter=isOverviewVisible) BOOL overviewVisible;
@@ -897,6 +913,9 @@ typedef NSInteger NSWindowTabbingMode;
 @interface NSWindow (AvailableOn101200AndLater)
 + (NSWindowUserTabbingPreference)userTabbingPreference;
 - (void)setTabbingMode:(NSWindowTabbingMode)tabbingMode;
+- (void)addTabbedWindow:(NSWindow *)window
+		ordered:(NSWindowOrderingMode)ordered;
+@property (copy) NSWindowTabbingIdentifier tabbingIdentifier;
 @property (readonly, copy) NSArrayOf (NSWindow *) *tabbedWindows;
 @end
 #endif

@@ -590,3 +590,10 @@ Source Services: @code{mac-input-source},
 @code{mac-deselect-input-source},
 @code{mac-selected-keyboard-input-source-change-hook}, and
 @code{mac-enabled-keyboard-input-sources-change-hook}.
+
+@findex mac-frame-tab-group-property
+@findex mac-set-frame-tab-group-property
+  On macOS 10.12 and later, you can use tabbing feature for grouping
+frames as tabs.  The functions @code{mac-frame-tab-group-property} and
+@code{mac-set-frame-tab-group-property} are provided for getting and
+setting the tab group properties, respectively.
