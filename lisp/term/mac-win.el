@@ -2880,6 +2880,8 @@ then remap this command to `mac-magnify-text-scale'."
 
 
 ;;; Frame tabbing (macOS 10.12 and later)
+(declare-function mac-send-action "macfns.c" (action &optional dry-run-p))
+
 (defun mac-ctl-x-5-revolve-frame-tabbing (arg)
   "Behave as C-x 5 typed, but revolve frame tabbing setting temporarily.
 It is changed as automatic -> inverted -> preferred -> disallowed
@@ -2967,6 +2969,11 @@ visibility, then remap this command to `mac-previous-tab'."
   (mac-set-frame-tab-group-property
    frame :overview-visible-p
    (not (mac-frame-tab-group-property frame :overview-visible-p))))
+
+(defun mac-merge-all-frame-tabs ()
+  "Merge all frame tabs into the current tab group."
+  (interactive)
+  (mac-send-action 'mergeAllWindows))
 
 
 ;;; Window system initialization.
@@ -3199,7 +3206,10 @@ standard ones in `x-handle-args'."
     (global-set-key [(control shift tab)] 'mac-previous-tab-or-toggle-tab-bar)
     (define-key-after global-buffers-menu-map [mac-move-tab-to-new-frame]
       '(menu-item "Move Tab to New Frame" mac-move-tab-to-new-frame
-                  :enable (mac-frame-multiple-tabs-p))))
+                  :enable (mac-frame-multiple-tabs-p)))
+    (define-key-after global-buffers-menu-map [mac-merge-all-frame-tabs]
+      '(menu-item "Merge All Frames" mac-merge-all-frame-tabs
+                  :enable (mac-send-action 'mergeAllWindows t))))
 
   (x-apply-session-resources)
   (add-to-list 'display-format-alist '("\\`Mac\\'" . mac))
