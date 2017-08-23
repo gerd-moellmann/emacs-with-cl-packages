@@ -176,7 +176,7 @@ typedef id instancetype;
    dialogs, and actions/services bound in the mac-apple-event
    keymap.  */
 
-@interface EmacsController : NSObject <NSApplicationDelegate>
+@interface EmacsController : NSObject <NSApplicationDelegate, NSUserInterfaceValidations>
 {
   /* Points to HOLD_QUIT arg passed to read_socket_hook.  */
   struct input_event *hold_quit;
