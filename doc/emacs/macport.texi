@@ -584,7 +584,7 @@ using Core Animation.
 @findex mac-input-source-list
 @findex mac-select-input-source
 @findex mac-deselect-input-source
-There are some functions and hooks for interaction with Text Input
+  There are some functions and hooks for interaction with Text Input
 Source Services: @code{mac-input-source},
 @code{mac-input-source-list}, @code{mac-select-input-source},
 @code{mac-deselect-input-source},
