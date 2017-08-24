@@ -1,4 +1,68 @@
+* emacs-25.2-mac-6.6 (2017-08-24)
+
+** Fixed bugs
+
+*** Infinite recursion under prettify-symbols-mode and linum-mode.
+Apply a fix for Bug#27761.
+
+*** Crash when resizing a frame too small by mouse dragging.
+
+*** Can't resize a frame by dragging on macOS 10.13 Beta via Screen
+Sharing.app.
+
+** Improvements
+
+*** The fancy splash screen look vibrant on OS X 10.10 and later.
+For non-Retina display users, it is recommended to replace
+etc/images/splash.png with the alpha-channeled version:
+https://bytebucket.org/mituharu/emacs-mac/raw/82af04a197db41d8b9cc3bc04127be2bf01d255f/etc/images/splash.png
+This effect can be turned off with "Reduce translucency" in the
+Accessibility pane of the System Preferences.
+
+*** On OS X 10.10 and later, if the frame background color is light,
+then scroll bars look slightly translucent.
+This effect can be turned off with "Reduce translucency" in the
+Accessibility pane of the System Preferences.
+
+*** On OS X 10.10 and later, if the frame background color is dark,
+then the title bar, the tool bar, (the tab bar on macOS 10.12), scroll
+bars, and popup menus look also dark.
+The title/tool/tab bars have already looked translucent on macOS 10.12
+regardless of the frame background color types.  Text smoothing in
+these bars for the focused frame seems to be problematic if the
+contents contain Core Animation layers that use Core Image filters
+especially with dark window background colors and non-Retina displays.
+A change in the last version with respect to window/view hierarchy
+manifested this problem, and the use of dark bars works around it.
+
+*** Magnify and rotate events now contain the :phase property.
+Now absence of the :phase property in a magnify event means it is a
+"smart magnify" event rather than what is caused by a pinch gesture.
+On OS X 10.10 and later, its value is either `began', `changed', or
+`ended'.  On earlier versions, it is always `none'.
+
+*** New function mac-send-action that sends the specified Cocoa action
+using the responder chain for action messages.
+Some useful examples Cocoa actions are `zoom', `hide', `unhide',
+`activate', `hideOtherApplications', `unhideAllApplications', and
+`orderFrontCharacterPalette'.
+
+*** New function mac-frame-tab-group-property to set tab group
+properties.
+
+*** New menu items (mostly in the "Buffers" menu), key bindings
+(Control-Tab, Control-Shift-Tab) for tabbing on macOS 10.12 and later.
+
+*** On macOS 10.13 Beta, the pinch close gesture triggers tab group
+overview.  If you want to make the text size smaller, first pinch open
+and then pinch close without releasing the fingers from the trackpad.
+Alternatively, remap the corresponding command as:
+  (global-set-key [remap mac-magnify-text-scale-or-overview-tab-group]
+                  'mac-magnify-text-scale)
+
+
 * emacs-25.2-mac-6.5 (2017-07-27)
+http://lists.gnu.org/archive/html/emacs-devel/2017-07/msg00997.html
 
 ** Fixed bugs
 

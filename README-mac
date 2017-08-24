@@ -228,7 +228,9 @@ Dock without separating a GUI process (not thread) from the main Emacs
 
 2. Build instructions
 
-  a. If you got this from the git repository, then skip to Step h.
+  a. If you got this from the git repository, then generate the
+     `configure' script with "$ ./autogen.sh" and skip to Step h.
+     (You will need the tools mentioned in the file INSTALL.REPO.)
 
   b. Get the official GNU Emacs 25.X distribution tarball from some
      GNU mirror site if this file is part of
@@ -252,13 +254,19 @@ Dock without separating a GUI process (not thread) from the main Emacs
   g. Copy `lisp/term/mac-win.el' to
      `EMACS_SOURCE_TOP/lisp/term/mac-win.el'.
 
-  h. [Optional]
+  h. [Optional, recommended for non-Retina Display]
+     If you want to use alpha-channeled version of splash image, which
+     makes the fancy splash screen look better, then replace
+     etc/images/splash.png with the following one:
+     https://bytebucket.org/mituharu/emacs-mac/raw/82af04a197db41d8b9cc3bc04127be2bf01d255f/etc/images/splash.png
+
+  i. [Optional]
      If you want to use the icon bundled with Emacs 25, then copy
      `EMACS_SOURCE_TOP/nextstep/Cocoa/Emacs.base/Contents/Resources/Emacs.icns'
      to `EMACS_SOURCE_TOP/mac/Emacs.app/Contents/Resources/Emacs.icns'
      by overriding the latter.
 
-  i. Run the configure command (unlike the previous version, the
+  j. Run the configure command (unlike the previous version, the
      "--with-mac" option is now default).  You may also want to
      additionally specify "--enable-mac-app" to install the
      application bundle `Emacs.app' to /Applications.  If you want it
@@ -272,9 +280,9 @@ Dock without separating a GUI process (not thread) from the main Emacs
      on Mac OS X 10.7 with Xcode 4.2 or later, then specify
      CC="clang -fobjc-arc".
 
-  j. make && make install.
+  k. make && make install.
 
-  k. open /Applications/Emacs.app (or MACAPPDIR/Emacs.app) if
+  l. open /Applications/Emacs.app (or MACAPPDIR/Emacs.app) if
      `--enable-mac-app' was specified.  Otherwise, open
      EMACS_SOURCE_TOP/mac/Emacs.app.
 
