@@ -49,6 +49,9 @@ static const NSAppKitVersion NSAppKitVersionNumber10_10_Max = 1349;
 #ifndef NSAppKitVersionNumber10_11
 static const NSAppKitVersion NSAppKitVersionNumber10_11 = 1404;
 #endif
+#ifndef NSAppKitVersionNumber10_12
+static const NSAppKitVersion NSAppKitVersionNumber10_12 = 1504;
+#endif
 #endif
 
 #ifndef USE_ARC
@@ -173,7 +176,7 @@ typedef id instancetype;
    dialogs, and actions/services bound in the mac-apple-event
    keymap.  */
 
-@interface EmacsController : NSObject <NSApplicationDelegate>
+@interface EmacsController : NSObject <NSApplicationDelegate, NSUserInterfaceValidations>
 {
   /* Points to HOLD_QUIT arg passed to read_socket_hook.  */
   struct input_event *hold_quit;
@@ -265,10 +268,9 @@ typedef id instancetype;
      started.  */
   NSSize resizeTrackingStartWindowSize;
 
-  /* Event number of the current resize control tracking session.
-     Don't compare this with the value of a drag event: the latter is
-     is always 0 if the event comes via Screen Sharing.  */
-  NSInteger resizeTrackingEventNumber;
+  /* Whether the call to setupResizeTracking: is suspended for the
+     next left mouse down event.  */
+  BOOL setupResizeTrackingSuspended;
 
   /* Whether the window should be made visible when the application
      gets unhidden next time.  */
@@ -284,6 +286,7 @@ typedef id instancetype;
 - (BOOL)needsOrderFrontOnUnhide;
 - (void)setNeedsOrderFrontOnUnhide:(BOOL)flag;
 - (void)suspendConstrainingToScreen:(BOOL)flag;
+- (void)exitTabGroupOverview;
 @end
 
 @interface EmacsFullscreenWindow : EmacsWindow
@@ -326,8 +329,8 @@ typedef id instancetype;
      is relative to the top left corner of the screen.  */
   NSRect savedFrame;
 
-  /* The view hosting Core Animation layers in the overlay view.  */
-  NSView *layerHostingView;
+  /* The root Core Animation layer for mac-start-animation.  */
+  CALayer *animationLayer;
 
   /* The block called when the window ends live resize.  */
   void (^liveResizeCompletionHandler) (void);
@@ -361,7 +364,7 @@ typedef id instancetype;
 - (WMState)windowManagerState;
 - (void)setWindowManagerState:(WMState)newState;
 - (void)updateBackingScaleFactor;
-- (BOOL)emacsViewCanDraw;
+- (BOOL)emacsViewIsHiddenOrHasHiddenAncestor;
 - (void)lockFocusOnEmacsView;
 - (void)unlockFocusOnEmacsView;
 - (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
@@ -373,6 +376,7 @@ typedef id instancetype;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag;
 #endif
+- (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect;
 - (NSBitmapImageRep *)bitmapImageRep;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
 - (BOOL)isWindowFrontmost;
@@ -462,11 +466,6 @@ typedef id instancetype;
 - (void)setShowsResizeIndicator:(BOOL)flag;
 @end
 
-/* Class for view used in live resize transition animations.  */
-
-@interface EmacsLiveResizeTransitionView : NSView
-@end
-
 /* Class for scroller that doesn't do modal mouse tracking.  */
 
 @interface NonmodalScroller : NSScroller
@@ -535,6 +534,7 @@ typedef id instancetype;
 }
 - (void)setEmacsScrollBar:(struct scroll_bar *)bar;
 - (struct scroll_bar *)emacsScrollBar;
+- (void)updateAppearance;
 - (CGFloat)knobSlotSpan;
 - (CGFloat)minKnobSpan;
 - (CGFloat)knobMinEdgeInSlot;
@@ -550,6 +550,8 @@ typedef id instancetype;
 
 @interface EmacsFrameController (ScrollBar)
 - (void)addScrollerWithScrollBar:(struct scroll_bar *)bar;
+- (void)updateScrollerAppearance;
+- (void)setVibrantScrollersHidden:(BOOL)flag;
 @end
 
 @interface EmacsToolbarItem : NSToolbarItem
@@ -753,7 +755,7 @@ typedef NSString * NSAttributedStringDocumentAttributeKey;
 @end
 
 @interface EmacsFrameController (Animation)
-- (void)setupLayerHostingView;
+- (void)setupAnimationLayer;
 - (CALayer *)layerForRect:(NSRect)rect;
 - (void)addLayer:(CALayer *)layer;
 - (CIFilter *)transitionFilterFromProperties:(Lisp_Object)properties;
@@ -796,6 +798,19 @@ enum {
   NSApplicationPresentationFullScreen			= 1 << 10,
   NSApplicationPresentationAutoHideToolbar		= 1 << 11
 };
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+enum {
+    NSWindowListOrderedFrontToBack = (1 << 0)
+};
+typedef NSInteger NSWindowListOptions;
+
+@interface NSApplication (AvailableOn101200AndLater)
+- (void)enumerateWindowsWithOptions:(NSWindowListOptions)options
+			 usingBlock:(void (NS_NOESCAPE ^) (NSWindow *window,
+							   BOOL *stop))block;
+@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
@@ -845,6 +860,8 @@ enum {
 #endif
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101300
+typedef NSString * NSWindowTabbingIdentifier;
+
 @interface NSWindowTabGroup : NSObject
 @property (readonly, copy) NSArrayOf (NSWindow *) *windows;
 @property (getter=isOverviewVisible) BOOL overviewVisible;
@@ -896,6 +913,9 @@ typedef NSInteger NSWindowTabbingMode;
 @interface NSWindow (AvailableOn101200AndLater)
 + (NSWindowUserTabbingPreference)userTabbingPreference;
 - (void)setTabbingMode:(NSWindowTabbingMode)tabbingMode;
+- (void)addTabbedWindow:(NSWindow *)window
+		ordered:(NSWindowOrderingMode)ordered;
+@property (copy) NSWindowTabbingIdentifier tabbingIdentifier;
 @property (readonly, copy) NSArrayOf (NSWindow *) *tabbedWindows;
 @end
 #endif
@@ -909,6 +929,29 @@ typedef NSInteger NSWindowTabbingMode;
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSScreen (AvailableOn1090AndLater)
 + (BOOL)screensHaveSeparateSpaces;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSAppearanceName;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+@interface NSAppearance : NSObject
++ (NSAppearance *)appearanceNamed:(NSAppearanceName)name;
++ (NSAppearance *)currentAppearance;
+@end
+
+@protocol NSAppearanceCustomization <NSObject>
+@property (retain) NSAppearance *appearance;
+@property (readonly, retain) NSAppearance *effectiveAppearance;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
+@interface NSAppearance (AvailableOn101000AndLater)
+@property (readonly, copy) NSAppearanceName name;
+@property (readonly) BOOL allowsVibrancy;
 @end
 #endif
 
@@ -928,6 +971,13 @@ enum {
   NSFontPanelModeMaskCollection = NSFontPanelCollectionModeMask
 };
 typedef NSUInteger NSFontPanelModeMask;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+enum {
+  NSProgressIndicatorStyleBar = NSProgressIndicatorBarStyle,
+  NSProgressIndicatorStyleSpinning = NSProgressIndicatorSpinningStyle
+};
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090

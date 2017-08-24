@@ -567,6 +567,7 @@ extern void mac_set_frame_window_modified (struct frame *, bool);
 extern void mac_set_frame_window_proxy (struct frame *, CFURLRef);
 extern bool mac_is_frame_window_visible (struct frame *);
 extern bool mac_is_frame_window_collapsed (struct frame *);
+extern bool mac_is_frame_window_drawable (struct frame *);
 extern void mac_bring_frame_window_to_front (struct frame *);
 extern void mac_send_frame_window_behind (struct frame *);
 extern void mac_hide_frame_window (struct frame *);
@@ -579,6 +580,13 @@ extern void mac_move_frame_window (struct frame *, int, int, bool);
 extern void mac_size_frame_window (struct frame *, int, int, bool);
 extern OSStatus mac_set_frame_window_alpha (struct frame *, CGFloat);
 extern OSStatus mac_get_frame_window_alpha (struct frame *, CGFloat *);
+extern Lisp_Object mac_set_tab_group_overview_visible_p (struct frame *,
+							 Lisp_Object);
+extern Lisp_Object mac_set_tab_group_tab_bar_visible_p (struct frame *,
+							Lisp_Object);
+extern Lisp_Object mac_set_tab_group_selected_frame (struct frame *,
+						     Lisp_Object);
+extern Lisp_Object mac_set_tab_group_frames (struct frame *, Lisp_Object);
 extern Lisp_Object mac_get_tab_group_overview_visible_p (struct frame *);
 extern Lisp_Object mac_get_tab_group_tab_bar_visible_p (struct frame *);
 extern Lisp_Object mac_get_tab_group_selected_frame (struct frame *);
@@ -669,6 +677,7 @@ extern void mac_cursor_release (Cursor);
 extern void mac_invalidate_frame_cursor_rects (struct frame *f);
 extern void mac_mask_rounded_bottom_corners (struct frame *, CGRect, bool);
 extern void mac_invalidate_rectangles (struct frame *, NativeRectangle *, int);
+extern bool mac_send_action (Lisp_Object, bool);
 extern Lisp_Object mac_osa_language_list (bool);
 extern Lisp_Object mac_osa_compile (Lisp_Object, Lisp_Object, bool,
 				    Lisp_Object *);

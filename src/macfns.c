@@ -4473,10 +4473,97 @@ If Emacs is not running as a GUI application, then the result is nil.  */)
   return result;
 }
 
+DEFUN ("mac-send-action", Fmac_send_action, Smac_send_action, 1, 2, 0,
+       doc: /* Send ACTION using the responder chain for action messages.
+ACTION is a symbol whose name is a Cocoa action message without the
+trailing colon.  Some useful examples are `zoom', `hide', `unhide',
+`activate', `hideOtherApplications', `unhideAllApplications', and
+`orderFrontCharacterPalette'.
+
+Return t if the action is successfully sent, and nil otherwise.  If
+optional DRY-RUN-P is non-nil, then check if ACTION will actually be
+sent.  It will be useful in the `:enable' property of a menu item.  */)
+  (Lisp_Object action, Lisp_Object dry_run_p)
+{
+  bool sent_p;
+
+  check_window_system (NULL);
+  CHECK_SYMBOL (action);
+
+  block_input ();
+  sent_p = mac_send_action (action, !NILP (dry_run_p));
+  unblock_input ();
+
+  return sent_p ? Qt : Qnil;
+}
+
 
 /***********************************************************************
 			      Tab Group
  ***********************************************************************/
+
+DEFUN ("mac-set-frame-tab-group-property", Fmac_set_frame_tab_group_property, Smac_set_frame_tab_group_property, 3, 3, 0,
+       doc: /* Set the value of property PROP of the tab group for FRAME to VALUE.
+FRAME nil means use the selected frame.  FRAME should be visible.
+PROP should be a non-nil symbol listed in the documentation of the
+function `mac-frame-tab-group-property'.  Below are additional notes:
+
+`:frames'
+    VALUE must be a list of visible frames.  If there are frames
+    belonging to the tab group for FRAME but are not elements in
+    VALUE, then a new GUI window will be poped up for them to
+    constitute a new tab group.  The frame selected in the tab group
+    for FRAME before the call will also be selected after the call.
+`:selected-frame'
+    VALUE must be a frame belonging to the tab group for FRAME.
+
+Return nil if the value of the property is already the same as VALUE.
+Return t if the value was changed without error.  */)
+  (Lisp_Object frame, Lisp_Object prop, Lisp_Object value)
+{
+  struct frame *f = decode_window_system_frame (frame);
+  Lisp_Object result, selected;
+  struct {
+    Lisp_Object prop;
+    Lisp_Object (*func) (struct frame *, Lisp_Object);
+  } setters[] = {
+    {QCframes, mac_set_tab_group_frames},
+    {QCselected_frame, mac_set_tab_group_selected_frame},
+    {QCtab_bar_visible_p, mac_set_tab_group_tab_bar_visible_p},
+    {QCoverview_visible_p, mac_set_tab_group_overview_visible_p}
+  };
+  int i;
+
+  CHECK_SYMBOL (prop);
+
+  block_input ();
+  selected = mac_get_tab_group_selected_frame (f);
+  unblock_input ();
+
+  if (NILP (selected))
+    error ("Tabbing is not supported on this macOS version or frame");
+
+  for (i = 0; i < ARRAYELTS (setters); i++)
+    if (EQ (setters[i].prop, prop))
+      {
+	if (!FRAME_VISIBLE_P (f))
+	  error ("Frame should be visible to set tab group property `%s'",
+		 SDATA (SYMBOL_NAME (prop)));
+
+	block_input ();
+	result = setters[i].func (f, value);
+	unblock_input ();
+
+	break;
+      }
+
+  if (!(i < ARRAYELTS (setters)))
+    error ("Invalid tab group property: %s", SDATA (SYMBOL_NAME (prop)));
+  if (STRINGP (result))
+    xsignal1 (Qerror, result);
+
+  return result;
+}
 
 DEFUN ("mac-frame-tab-group-property", Fmac_frame_tab_group_property, Smac_frame_tab_group_property, 0, 2, 0,
        doc: /* Return the value of property PROP of the tab group for FRAME.
@@ -4511,7 +4598,7 @@ above properties instead of just a property value.  */)
     {QCframes, mac_get_tab_group_frames},
     {QCselected_frame, mac_get_tab_group_selected_frame},
     {QCtab_bar_visible_p, mac_get_tab_group_tab_bar_visible_p},
-    {QCoverview_visible_p, mac_get_tab_group_overview_visible_p},
+    {QCoverview_visible_p, mac_get_tab_group_overview_visible_p}
   };
   int i;
 
@@ -4911,6 +4998,8 @@ Chinese, Japanese, and Korean.  */);
   defsubr (&Smac_select_input_source);
   defsubr (&Smac_deselect_input_source);
   defsubr (&Smac_application_state);
+  defsubr (&Smac_set_frame_tab_group_property);
   defsubr (&Smac_frame_tab_group_property);
+  defsubr (&Smac_send_action);
   defsubr (&Smac_start_animation);
 }

@@ -114,6 +114,22 @@ enum {
 #define NS_STACK_VIEW	(NSClassFromString (@"NSStackView"))
 #endif
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+#define NS_APPEARANCE	NSAppearance
+#define NS_APPEARANCE_NAME_AQUA	NSAppearanceNameAqua
+#else
+#define NS_APPEARANCE	(NSClassFromString (@"NSAppearance"))
+#define NS_APPEARANCE_NAME_AQUA	(@"NSAppearanceNameAqua")
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+#define NS_APPEARANCE_NAME_VIBRANT_LIGHT	NSAppearanceNameVibrantLight
+#define NS_APPEARANCE_NAME_VIBRANT_DARK		NSAppearanceNameVibrantDark
+#else
+#define NS_APPEARANCE_NAME_VIBRANT_LIGHT (@"NSAppearanceNameVibrantLight")
+#define NS_APPEARANCE_NAME_VIBRANT_DARK	(@"NSAppearanceNameVibrantDark")
+#endif
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
 #define NS_TOUCH_BAR	NSTouchBar
 #define NS_CUSTOM_TOUCH_BAR_ITEM NSCustomTouchBarItem
@@ -811,13 +827,31 @@ mac_nsobject_to_lisp (CFTypeRef obj)
 static bool
 has_resize_indicator_at_bottom_right_p (void)
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+  return false;
+#else
   return floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6;
+#endif
 }
 
 static bool
-has_full_screen_with_dedicated_desktop (void)
+has_full_screen_with_dedicated_desktop_p (void)
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+  return true;
+#else
   return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6);
+#endif
+}
+
+static bool
+has_visual_effect_view_p (void)
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+  return true;
+#else
+  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9);
+#endif
 }
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
@@ -830,13 +864,23 @@ has_full_screen_with_dedicated_desktop (void)
 static bool
 rounded_bottom_corners_need_masking_p (void)
 {
-  return (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9
+  return (!has_visual_effect_view_p ()
 	  && !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6));
 }
 #endif
 
 static bool
-can_auto_hide_menu_bar_without_hiding_dock (void)
+has_gesture_recognizer_p (void)
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+  return true;
+#else
+  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9);
+#endif
+}
+
+static bool
+can_auto_hide_menu_bar_without_hiding_dock_p (void)
 {
   /* Needs to be linked on OS X 10.11 or later.  */
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
@@ -1216,6 +1260,12 @@ static bool mac_run_loop_running_once_p;
 - (void)setMenuItemSelectionToTag:(id)sender
 {
   menuItemSelection = [sender tag];
+}
+
+/* Equivalent of (ns-hide-emacs 'active).  */
+- (void)activate:(id)sender
+{
+  [NSApp activateIgnoringOtherApps:YES];
 }
 
 /* Event handling  */
@@ -1647,7 +1697,9 @@ emacs_windows_need_display_p (void)
 
 - (BOOL)validateUserInterfaceItem:(id <NSValidatedUserInterfaceItem>)anItem
 {
-  return is_action_selector ([anItem action]);
+  SEL action = [anItem action];
+
+  return action == @selector(activate:) || is_action_selector (action);
 }
 
 - (void)updatePresentationOptions
@@ -1668,7 +1720,7 @@ emacs_windows_need_display_p (void)
       WMState windowManagerState = [frameController windowManagerState];
       NSApplicationPresentationOptions options;
 
-      if (has_full_screen_with_dedicated_desktop ()
+      if (has_full_screen_with_dedicated_desktop_p ()
 	  && ((options = [NSApp presentationOptions],
 	       (options & NSApplicationPresentationFullScreen))
 	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
@@ -1679,7 +1731,7 @@ emacs_windows_need_display_p (void)
 	      /* Application can be in full screen mode without hiding
 		 the dock on OS X 10.9.  OS X prior to 10.11 cannot
 		 auto-hide the menu bar without hiding the dock.  */
-	      && (can_auto_hide_menu_bar_without_hiding_dock ()
+	      && (can_auto_hide_menu_bar_without_hiding_dock_p ()
 		  || (options & (NSApplicationPresentationHideDock
 				 | NSApplicationPresentationAutoHideDock))))
 	    {
@@ -1694,7 +1746,7 @@ emacs_windows_need_display_p (void)
 	  if ([screen canShowMenuBar])
 	    {
 	      options = NSApplicationPresentationAutoHideMenuBar;
-	      if (!can_auto_hide_menu_bar_without_hiding_dock ()
+	      if (!can_auto_hide_menu_bar_without_hiding_dock_p ()
 		  || [screen containsDock])
 		options |= NSApplicationPresentationAutoHideDock;
 	    }
@@ -1725,7 +1777,7 @@ emacs_windows_need_display_p (void)
 
 		frameController = (EmacsFrameController *) [window delegate];
 		windowManagerState = [frameController windowManagerState];
-		if (has_full_screen_with_dedicated_desktop ()
+		if (has_full_screen_with_dedicated_desktop_p ()
 		    && (windowManagerState & WM_STATE_DEDICATED_DESKTOP))
 		  ;
 		else if (windowManagerState & WM_STATE_FULLSCREEN)
@@ -1735,7 +1787,7 @@ emacs_windows_need_display_p (void)
 		    if ([screen canShowMenuBar])
 		      {
 			options |= NSApplicationPresentationAutoHideMenuBar;
-			if (!can_auto_hide_menu_bar_without_hiding_dock ()
+			if (!can_auto_hide_menu_bar_without_hiding_dock_p ()
 			    || [screen containsDock])
 			  options |= NSApplicationPresentationAutoHideDock;
 		      }
@@ -1761,7 +1813,7 @@ emacs_windows_need_display_p (void)
       WMState windowManagerState = [frameController windowManagerState];
       NSApplicationPresentationOptions options;
 
-      if (has_full_screen_with_dedicated_desktop ()
+      if (has_full_screen_with_dedicated_desktop_p ()
 	  && ((options = [NSApp presentationOptions],
 	       (options & NSApplicationPresentationFullScreen))
 	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
@@ -1782,7 +1834,7 @@ emacs_windows_need_display_p (void)
 	  if ([screen canShowMenuBar])
 	    {
 	      options = NSApplicationPresentationDisableMenuBarTransparency;
-	      if (!can_auto_hide_menu_bar_without_hiding_dock ()
+	      if (!can_auto_hide_menu_bar_without_hiding_dock_p ()
 		  || [screen containsDock])
 		options |= NSApplicationPresentationAutoHideDock;
 	      [NSApp setPresentationOptions:options];
@@ -1876,7 +1928,6 @@ static CGRect unset_global_focus_view_frame (void);
 {
   resizeTrackingStartWindowSize = [self frame].size;
   resizeTrackingStartLocation = [event locationInWindow];
-  resizeTrackingEventNumber = [event eventNumber];
 }
 
 - (void)suspendResizeTracking:(NSEvent *)event
@@ -1970,13 +2021,18 @@ static CGRect unset_global_focus_view_frame (void);
   MRC_RELEASE (mouseUpEvent);
   mouseUpEvent = nil;
   [NSApp postEvent:mouseDownEvent atStart:YES];
+  setupResizeTrackingSuspended = YES;
 }
 
 - (void)sendEvent:(NSEvent *)event
 {
-  if ([event type] == NSEventTypeLeftMouseDown
-      && [event eventNumber] != resizeTrackingEventNumber)
-    [self setupResizeTracking:event];
+  if ([event type] == NSEventTypeLeftMouseDown)
+    {
+      if (setupResizeTrackingSuspended)
+	setupResizeTrackingSuspended = NO;
+      else
+	[self setupResizeTracking:event];
+    }
 
   [super sendEvent:event];
 }
@@ -2073,6 +2129,21 @@ static CGRect unset_global_focus_view_frame (void);
 		 to:nil from:sender];
 }
 
+- (void)exitTabGroupOverview
+{
+  if ([self respondsToSelector:@selector(tabGroup)])
+    {
+      NSWindowTabGroup *tabGroup = self.tabGroup;
+
+      if (tabGroup.isOverviewVisible)
+	{
+	  tabGroup.overviewVisible = NO;
+	  while (tabGroup.isOverviewVisible)
+	    mac_run_loop_run_once (0);
+	}
+    }
+}
+
 @end				// EmacsWindow
 
 @implementation EmacsFullscreenWindow
@@ -2153,11 +2224,15 @@ static CGRect unset_global_focus_view_frame (void);
 
   overlayView = [[EmacsOverlayView alloc] initWithFrame:contentRect];
   [overlayView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+  [overlayView setLayer:[CALayer layer]];
   [overlayView setWantsLayer:YES];
+  /* OS X 10.9 needs this.  */
+  if ([overlayView respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
+    [overlayView setLayerUsesCoreImageFilters:YES];
   if (has_resize_indicator_at_bottom_right_p ())
     [overlayView setShowsResizeIndicator:YES];
 
-  [self setupLayerHostingView];
+  [self setupAnimationLayer];
 }
 
 - (void)setupWindow
@@ -2168,7 +2243,6 @@ static CGRect unset_global_focus_view_frame (void);
   NSRect contentRect;
   NSWindowStyleMask windowStyle;
   EmacsWindow *window;
-  id visualEffectView;
 
   if (!FRAME_TOOLTIP_P (f))
     {
@@ -2235,6 +2309,10 @@ static CGRect unset_global_focus_view_frame (void);
       [window setBackgroundColor:[oldWindow backgroundColor]];
       [window setRepresentedFilename:[oldWindow representedFilename]];
       [window setCollectionBehavior:[oldWindow collectionBehavior]];
+      if (has_visual_effect_view_p ())
+	[(id <NSAppearanceCustomization>)window
+	    setAppearance:[(id <NSAppearanceCustomization>)oldWindow
+							   appearance]];
 
       [oldWindow setDelegate:nil];
       [self hideHourglass:nil];
@@ -2247,13 +2325,13 @@ static CGRect unset_global_focus_view_frame (void);
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
     [window useOptimizedDrawing:YES];
 #endif
-  visualEffectView = [[(NSClassFromString (@"NSVisualEffectView")) alloc]
-		       initWithFrame:[[window contentView] frame]];
-  if (visualEffectView)
+  if (has_visual_effect_view_p ())
     {
+      id visualEffectView = [[(NSClassFromString (@"NSVisualEffectView")) alloc]
+			      initWithFrame:[[window contentView] frame]];
+
       [window setContentView:visualEffectView];
       MRC_RELEASE (visualEffectView);
-      [window setOpaque:NO];
       FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
     }
   [[window contentView] addSubview:emacsView];
@@ -2281,13 +2359,13 @@ static CGRect unset_global_focus_view_frame (void);
 	[window setShowsResizeIndicator:NO];
       [self setupOverlayView];
       /* We place overlayView below emacsView so events are not
-	 intercepted by the former.  Still the former (layer-backed)
-	 is displayed in front of the latter (not layer-backed or
+	 intercepted by the former.  Still the former (layer-hosting)
+	 is displayed in front of the latter (neither layer-backed nor
 	 layer-hosting).  */
       [[window contentView] addSubview:overlayView positioned:NSWindowBelow
 			    relativeTo:emacsView];
       [overlayView setFrame:[[window contentView] bounds]];
-      if (has_full_screen_with_dedicated_desktop ()
+      if (has_full_screen_with_dedicated_desktop_p ()
 	  && !(windowManagerState & WM_STATE_FULLSCREEN))
 	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
@@ -2330,7 +2408,6 @@ static CGRect unset_global_focus_view_frame (void);
   [emacsView release];
   /* emacsWindow and hourglassWindow are released via
      released-when-closed.  */
-  [layerHostingView release];
   [overlayView release];
   [super dealloc];
 }
@@ -2342,7 +2419,7 @@ static CGRect unset_global_focus_view_frame (void);
   XSizeHints *size_hints = FRAME_SIZE_HINTS (f);
   NSRect windowFrame, emacsViewBounds;
   NSSize emacsViewSizeInPixels, emacsViewSize;
-  CGFloat dw, dh;
+  CGFloat dw, dh, min_width, min_height;
 
   windowFrame = [emacsWindow frame];
   if (size_hints == NULL)
@@ -2357,16 +2434,20 @@ static CGRect unset_global_focus_view_frame (void);
 						      frameSize.height - dh))
 				fromView:nil];
 
-  if (emacsViewSize.width < size_hints->min_width)
-    emacsViewSize.width = size_hints->min_width;
+  min_width = (size_hints->min_width ? size_hints->min_width
+	       : size_hints->width_inc);
+  if (emacsViewSize.width < min_width)
+    emacsViewSize.width = min_width;
   else
     emacsViewSize.width = size_hints->base_width
       + (int) ((emacsViewSize.width - size_hints->base_width)
 	       / size_hints->width_inc + (flag ? .5f : 0))
       * size_hints->width_inc;
 
-  if (emacsViewSize.height < size_hints->min_height)
-    emacsViewSize.height = size_hints->min_height;
+  min_height = (size_hints->min_height ? size_hints->min_height
+	       : size_hints->height_inc);
+  if (emacsViewSize.height < min_height)
+    emacsViewSize.height = min_height;
   else
     emacsViewSize.height = size_hints->base_height
       + (int) ((emacsViewSize.height - size_hints->base_height)
@@ -2449,7 +2530,7 @@ static CGRect unset_global_focus_view_frame (void);
       behavior = ((windowManagerState & WM_STATE_STICKY)
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
 		  : NSWindowCollectionBehaviorMoveToActiveSpace);
-      if (has_full_screen_with_dedicated_desktop ())
+      if (has_full_screen_with_dedicated_desktop_p ())
 	behavior |= NSWindowCollectionBehaviorFullScreenAuxiliary;
     }
   else
@@ -2457,7 +2538,7 @@ static CGRect unset_global_focus_view_frame (void);
       behavior = ((windowManagerState & WM_STATE_STICKY)
 		  ? NSWindowCollectionBehaviorCanJoinAllSpaces
 		  : NSWindowCollectionBehaviorDefault);
-      if (has_full_screen_with_dedicated_desktop ()
+      if (has_full_screen_with_dedicated_desktop_p ()
 	  && (!(windowManagerState & WM_STATE_FULLSCREEN)
 	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
 	behavior |= NSWindowCollectionBehaviorFullScreenPrimary;
@@ -2550,7 +2631,7 @@ static CGRect unset_global_focus_view_frame (void);
       [self updateCollectionBehavior];
     }
 
-  if (has_full_screen_with_dedicated_desktop ()
+  if (has_full_screen_with_dedicated_desktop_p ()
       && (diff & WM_STATE_DEDICATED_DESKTOP))
     {
       emacsWindow.collectionBehavior |=
@@ -2705,9 +2786,9 @@ static CGRect unset_global_focus_view_frame (void);
   FRAME_BACKING_SCALE_FACTOR (f) = backingScaleFactor;
 }
 
-- (BOOL)emacsViewCanDraw
+- (BOOL)emacsViewIsHiddenOrHasHiddenAncestor
 {
-  return [emacsView canDraw];
+  return [emacsView isHiddenOrHasHiddenAncestor];
 }
 
 - (void)lockFocusOnEmacsView
@@ -2996,7 +3077,8 @@ static CGRect unset_global_focus_view_frame (void);
 
       [window suspendResizeTracking:currentEvent positionAdjustment:adjustment];
     }
-  else if ([window inLiveResize])
+  else if ([window inLiveResize]
+	   && [currentEvent type] != NSEventTypeLeftMouseUp)
     [self setupLiveResizeTransition];
 
   return result;
@@ -3045,16 +3127,20 @@ static CGRect unset_global_focus_view_frame (void);
   return windowFrame;
 }
 
-- (NSBitmapImageRep *)bitmapImageRep
+/* On macOS 10.12 and earlier, cacheDisplayInRect:toBitmapImageRep: is
+   buggy for flipped views unless the given rect is of full height.
+   Use only for full height rectangles on such versions.  */
+
+- (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect
 {
   struct frame *f = emacsFrame;
-  NSRect rect = [emacsView bounds];
-  /* For flipped views, bitmapImageRepForCachingDisplayInRect and
-     cacheDisplayInRect:toBitmapImageRep: seem to be buggy when given
-     a rectangle other than view's bounds.  */
-  NSBitmapImageRep *bitmap = [emacsView
-			       bitmapImageRepForCachingDisplayInRect:rect];
+  NSBitmapImageRep *bitmap =
+    [emacsView bitmapImageRepForCachingDisplayInRect:rect];
   bool saved_background_alpha_enabled_p = FRAME_BACKGROUND_ALPHA_ENABLED_P (f);
+
+  eassert (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12)
+	   || (NSMinY (rect) == NSMinY ([emacsView bounds])
+	       && NSHeight (rect) == NSHeight ([emacsView bounds])));
 
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = false;
@@ -3063,6 +3149,11 @@ static CGRect unset_global_focus_view_frame (void);
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = false;
 
   return bitmap;
+}
+
+- (NSBitmapImageRep *)bitmapImageRep
+{
+  return [self bitmapImageRepInEmacsViewRect:[emacsView bounds]];
 }
 
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist
@@ -3083,13 +3174,12 @@ static CGRect unset_global_focus_view_frame (void);
   [emacsController storeEvent:&inev];
 }
 
-- (EmacsLiveResizeTransitionView *)liveResizeTransitionViewWithDefaultBackground:(BOOL)flag
+- (CALayer *)liveResizeTransitionLayerWithDefaultBackground:(BOOL)flag
 {
   struct frame *f = emacsFrame;
   struct window *root_window;
   CGFloat rootWindowMaxY;
   CALayer *rootLayer;
-  EmacsLiveResizeTransitionView *view;
   NSView *contentView = [emacsWindow contentView];
   NSRect contentViewRect = [contentView visibleRect];
   NSBitmapImageRep *bitmap = [self bitmapImageRep];
@@ -3098,12 +3188,10 @@ static CGRect unset_global_focus_view_frame (void);
   rootLayer = [CALayer layer];
   contentViewRect.origin = NSZeroPoint;
   rootLayer.bounds = NSRectToCGRect (contentViewRect);
+  rootLayer.anchorPoint = CGPointZero;
   rootLayer.contentsScale = [emacsWindow backingScaleFactor];
   rootLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_7)
-#endif
-    rootLayer.geometryFlipped = YES;
+  rootLayer.geometryFlipped = YES;
   rootLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
   if (flag)
     rootLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
@@ -3280,17 +3368,7 @@ static CGRect unset_global_focus_view_frame (void);
       return 1;
     });
 
-  view = [[EmacsLiveResizeTransitionView alloc] initWithFrame:contentViewRect];
-  [view setLayer:rootLayer];
-  [view setWantsLayer:YES];
-  [view setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
-  /* Now we do use Core Image filters in live resize transitions.
-     Even if we didn't use them, this would work as a workaround for
-     the strange problem of image color alteration on OS X 10.9.  */
-  if ([view respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
-    [view setLayerUsesCoreImageFilters:YES];
-
-  return MRC_AUTORELEASE (view);
+  return rootLayer;
 }
 
 - (void)setShouldLiveResizeTriggerTransition:(BOOL)flag
@@ -3308,23 +3386,25 @@ static CGRect unset_global_focus_view_frame (void);
 {
   if (liveResizeCompletionHandler == nil && [emacsWindow isMainWindow])
     {
-      EmacsLiveResizeTransitionView *transitionView =
-	[self liveResizeTransitionViewWithDefaultBackground:YES];
+      EmacsFrameController * __unsafe_unretained weakSelf = self;
+      CALayer *layer =
+	[self liveResizeTransitionLayerWithDefaultBackground:YES];
 
-      [overlayView addSubview:transitionView positioned:NSWindowAbove
-		   relativeTo:layerHostingView];
+      [CATransaction setDisableActions:YES];
+      [[overlayView layer] addSublayer:layer];
+      [CATransaction commit];
+      [self setVibrantScrollersHidden:YES];
       [self setLiveResizeCompletionHandler:^{
 	  [NSAnimationContext
 	    runAnimationGroup:^(NSAnimationContext *context) {
-	      CALayer *layer = [transitionView layer];
-
 	      [context setDuration:(10 / 60.0)];
 	      layer.beginTime = [layer convertTime:(CACurrentMediaTime ())
 					 fromLayer:nil] + 10 / 60.0;
 	      layer.fillMode = kCAFillModeBackwards;
 	      layer.opacity = 0;
 	    } completionHandler:^{
-	      [transitionView removeFromSuperview];
+	      [layer removeFromSuperlayer];
+	      [weakSelf setVibrantScrollersHidden:NO];
 	    }];
 	}];
     }
@@ -3522,22 +3602,26 @@ static CGRect unset_global_focus_view_frame (void);
     return [NSArray arrayWithObject:window];
   else
     {
-      EmacsLiveResizeTransitionView *transitionView =
-	[self liveResizeTransitionViewWithDefaultBackground:YES];
+      EmacsFrameController * __unsafe_unretained weakSelf = self;
+      CALayer *layer =
+	[self liveResizeTransitionLayerWithDefaultBackground:YES];
 
-      [overlayView addSubview:transitionView positioned:NSWindowAbove
-		   relativeTo:layerHostingView];
+      [CATransaction setDisableActions:YES];
+      [[overlayView layer] addSublayer:layer];
+      [CATransaction commit];
+      [self setVibrantScrollersHidden:YES];
       [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
 						       BOOL success) {
 	  if (!success)
-	    [transitionView removeFromSuperview];
+	    [layer removeFromSuperlayer];
 	  else
 	    [NSAnimationContext
 	      runAnimationGroup:^(NSAnimationContext *context) {
 		[context setDuration:(10 / 60.0)];
-		[transitionView layer].opacity = 0;
+		layer.opacity = 0;
 	      } completionHandler:^{
-		[transitionView removeFromSuperview];
+		[layer removeFromSuperlayer];
+		[weakSelf setVibrantScrollersHidden:NO];
 	      }];
 	}];
 
@@ -3553,10 +3637,10 @@ static CGRect unset_global_focus_view_frame (void);
 							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
-  EmacsLiveResizeTransitionView *transitionView;
+  CALayer *layer;
   CGFloat titleBarHeight;
 
-  transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
+  layer = [self liveResizeTransitionLayerWithDefaultBackground:NO];
 
   titleBarHeight = NSHeight (srcRect) - NSMaxY ([contentView frame]);
 
@@ -3585,8 +3669,10 @@ static CGRect unset_global_focus_view_frame (void);
   [window setStyleMask:([window styleMask] & ~NSWindowStyleMaskFullScreen)];
   [window setFrame:srcRect display:NO];
 
-  [overlayView addSubview:transitionView positioned:NSWindowAbove
-	       relativeTo:layerHostingView];
+  [CATransaction setDisableActions:YES];
+  [[overlayView layer] addSublayer:layer];
+  [CATransaction commit];
+  [self setVibrantScrollersHidden:YES];
   [window display];
 
   [window setAlphaValue:1];
@@ -3594,7 +3680,6 @@ static CGRect unset_global_focus_view_frame (void);
   NSEnableScreenUpdates ();
 
   [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-      CALayer *layer = [transitionView layer];
       NSRect destRectWithTitleBar =
 	NSMakeRect (NSMinX (destRect), NSMinY (destRect),
 		    NSWidth (destRect), NSHeight (destRect) + titleBarHeight);
@@ -3610,7 +3695,8 @@ static CGRect unset_global_focus_view_frame (void);
       layer.fillMode = kCAFillModeBackwards;
       layer.opacity = 0;
     } completionHandler:^{
-      [transitionView removeFromSuperview];
+      [layer removeFromSuperlayer];
+      [self setVibrantScrollersHidden:NO];
       [window setAlphaValue:previousAlphaValue];
       [(EmacsWindow *)window suspendConstrainingToScreen:NO];
       [window setStyleMask:([window styleMask] | NSWindowStyleMaskFullScreen)];
@@ -3635,10 +3721,10 @@ static CGRect unset_global_focus_view_frame (void);
 							 autoresizingMask];
   NSRect srcRect = [window frame], destRect;
   NSView *contentView = [window contentView];
-  EmacsLiveResizeTransitionView *transitionView;
+  CALayer *layer;
   CGFloat titleBarHeight;
 
-  transitionView = [self liveResizeTransitionViewWithDefaultBackground:NO];
+  layer = [self liveResizeTransitionLayerWithDefaultBackground:NO];
 
   destRect = [self preprocessWindowManagerStateChange:fullScreenTargetState];
 
@@ -3656,8 +3742,10 @@ static CGRect unset_global_focus_view_frame (void);
   [(EmacsWindow *)window suspendConstrainingToScreen:YES];
   [window setFrame:srcRect display:NO];
 
-  [overlayView addSubview:transitionView positioned:NSWindowAbove
-	       relativeTo:layerHostingView];
+  [CATransaction setDisableActions:YES];
+  [[overlayView layer] addSublayer:layer];
+  [CATransaction commit];
+  [self setVibrantScrollersHidden:YES];
   [window display];
 
   [window setAlphaValue:1];
@@ -3666,8 +3754,6 @@ static CGRect unset_global_focus_view_frame (void);
   NSEnableScreenUpdates ();
 
   [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-      CALayer *layer = [transitionView layer];
-
       [context setDuration:duration];
       [context
 	setTimingFunction:[CAMediaTimingFunction
@@ -3679,7 +3765,8 @@ static CGRect unset_global_focus_view_frame (void);
       layer.fillMode = kCAFillModeBackwards;
       layer.opacity = 0;
     } completionHandler:^{
-      [transitionView removeFromSuperview];
+      [layer removeFromSuperlayer];
+      [self setVibrantScrollersHidden:NO];
       [window setAlphaValue:previousAlphaValue];
       [window setLevel:previousWindowLevel];
       [(EmacsWindow *)window suspendConstrainingToScreen:NO];
@@ -3748,6 +3835,14 @@ mac_is_frame_window_collapsed (struct frame *f)
   return [window isMiniaturized];
 }
 
+bool
+mac_is_frame_window_drawable (struct frame *f)
+{
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+  return ![frameController emacsViewIsHiddenOrHasHiddenAncestor];
+}
+
 static void
 mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 {
@@ -3785,7 +3880,14 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 
 	  [window setTabbingMode:tabbingMode];
 	  if ([mainWindow isKindOfClass:[EmacsWindow class]])
-	    [mainWindow setTabbingMode:tabbingMode];
+	    {
+	      [mainWindow setTabbingMode:tabbingMode];
+	      /* If the Tab Overview UI is visible and the window is
+		 to join its tab group, then make the Overview UI
+		 invisible and wait until it finishes.  */
+	      if (tabbingMode == NSWindowTabbingModePreferred)
+		[(EmacsWindow *)mainWindow exitTabGroupOverview];
+	    }
 	}
 
       if (activate_p)
@@ -3951,6 +4053,255 @@ mac_get_frame_window_alpha (struct frame *f, CGFloat *out_alpha)
 }
 
 Lisp_Object
+mac_set_tab_group_overview_visible_p (struct frame *f, Lisp_Object value)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+  if (![window respondsToSelector:@selector(tabGroup)])
+    {
+      if (NILP (value))
+	return Qnil;
+      else
+	return build_string ("Tab group overview is not supported on this macOS version");
+    }
+
+  if (window.tabGroup.isOverviewVisible == !NILP (value))
+    return Qnil;
+
+  mac_within_app (^{
+      /* Just setting the property window.tabGroup.overviewVisible
+	 does not show the search field on macOS 10.13 Beta.  */
+      [NSApp sendAction:@selector(toggleTabOverview:) to:window from:nil];
+    });
+
+  return Qt;
+}
+
+Lisp_Object
+mac_set_tab_group_tab_bar_visible_p (struct frame *f, Lisp_Object value)
+{
+  EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  NSInteger count;
+
+  count = window.tabbedWindows.count;
+  if ((count != 0) == !NILP (value))
+    return Qnil;
+
+  if (count > 1)
+    return build_string ("Tab bar cannot be made invisible because of multiple tabs");
+
+  mac_within_app (^{
+      [window exitTabGroupOverview];
+      [NSApp sendAction:@selector(toggleTabBar:) to:window from:nil];
+    });
+#if 0
+  [[NSUserDefaults standardUserDefaults]
+      removeObjectForKey:[@"NSWindowTabbingShoudShowTabBarKey-"
+			     stringByAppendingString:window.tabbingIdentifier]];
+#endif
+
+  return Qt;
+}
+
+Lisp_Object
+mac_set_tab_group_selected_frame (struct frame *f, Lisp_Object value)
+{
+  Lisp_Object selected = mac_get_tab_group_selected_frame (f);
+  Lisp_Object frames;
+  EmacsWindow *newSelectedWindow;
+
+  if (EQ (selected, value))
+    return Qnil;
+
+  frames = mac_get_tab_group_frames (f);
+  if (NILP (Fmemq (value, frames)))
+    {
+      Lisp_Object frame;
+      AUTO_STRING (fmt, "Frame %S is not in the tab group for frame %S");
+
+      XSETFRAME (frame, f);
+
+      return CALLN (Fformat, fmt, value, frame);
+    }
+
+  newSelectedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (value));
+  if ([newSelectedWindow respondsToSelector:@selector(tabGroup)])
+    mac_within_app (^{
+	[newSelectedWindow exitTabGroupOverview];
+	newSelectedWindow.tabGroup.selectedWindow = newSelectedWindow;
+      });
+  else
+    mac_within_app (^{
+	NSWindow *selectedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (selected));
+	NSInteger __block aboveWindowNumber = 0;
+
+	[newSelectedWindow exitTabGroupOverview];
+	[NSApp enumerateWindowsWithOptions:NSWindowListOrderedFrontToBack
+				usingBlock:^(NSWindow *window, BOOL *stop) {
+	    if ([window isEqual:selectedWindow])
+	      *stop = YES;
+	    else if ([window isKindOfClass:EmacsWindow.class])
+	      aboveWindowNumber = window.windowNumber;
+	  }];
+	if (aboveWindowNumber)
+	  {
+	    [newSelectedWindow orderFront:nil];
+	    [newSelectedWindow orderWindow:NSWindowBelow
+				relativeTo:aboveWindowNumber];
+	  }
+	else
+	  [newSelectedWindow makeKeyAndOrderFront:nil];
+      });
+
+  return Qt;
+}
+
+Lisp_Object
+mac_set_tab_group_frames (struct frame *f, Lisp_Object value)
+{
+  Lisp_Object frames = mac_get_tab_group_frames (f), rest, selected;
+  NSWindowTabbingIdentifier identifier;
+
+  if (!NILP (Fequal (frames, value)))
+    return Qnil;
+
+  if (NILP (frames))
+    return build_string ("Frames must be non-nil");
+
+  for (rest = value; CONSP (rest); rest = XCDR (rest))
+    {
+      Lisp_Object frame = XCAR (rest);
+
+      if (!FRAME_MAC_P (XFRAME (frame)) || !FRAME_LIVE_P (XFRAME (frame)))
+	{
+	  AUTO_STRING (fmt, "Not a live Mac frame: %S");
+
+	  return CALLN (Fformat, fmt, frame);
+	}
+    }
+  if (!NILP (rest))
+    {
+      AUTO_STRING (fmt, "Frames do not end with nil: %S");
+
+      return CALLN (Fformat, fmt, rest);
+    }
+
+  identifier = FRAME_MAC_WINDOW_OBJECT (f).tabbingIdentifier;
+  for (rest = value; !NILP (rest); rest = XCDR (rest))
+    if (!NILP (Fmemq (XCAR (rest), XCDR (rest))))
+      {
+	AUTO_STRING (fmt, "Duplicate frames: %S");
+
+	return CALLN (Fformat, fmt, XCAR (rest));
+      }
+    else
+      {
+	NSWindow *window = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (rest)));
+
+	if (!window.hasTitleBar)
+	  {
+	    AUTO_STRING (fmt, "Not a frame with the title bar: %S");
+
+	    return CALLN (Fformat, fmt, XCAR (rest));
+	  }
+	if (!window.isVisible)
+	  {
+	    AUTO_STRING (fmt, "Can't rearrange tabs for invisible/iconified frame: %S");
+
+	    return CALLN (Fformat, fmt, XCAR (rest));
+	  }
+	if (![identifier isEqualToString:window.tabbingIdentifier])
+	  {
+	    AUTO_STRING (fmt, "Not a frame with the same identifier: %S");
+
+	    return CALLN (Fformat, fmt, XCAR (rest));
+	  }
+      }
+
+  selected = mac_get_tab_group_selected_frame (f);
+  mac_within_app (^{
+      Lisp_Object cur_rest, toinclude, last = Qnil, toexclude = Qnil;
+      EmacsWindow *window, *addedWindow;
+
+      window = FRAME_MAC_WINDOW_OBJECT (f);
+      [window exitTabGroupOverview];
+      for (Lisp_Object rest = value; !NILP (rest); rest = XCDR (rest))
+	{
+	  window = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (rest)));
+	  [window exitTabGroupOverview];
+	}
+
+      toinclude = value;
+      for (cur_rest = frames; !NILP (cur_rest); cur_rest = XCDR (cur_rest))
+	{
+	  Lisp_Object frame = XCAR (cur_rest), rest;
+
+	  for (rest = value; !NILP (rest); rest = XCDR (rest))
+	    {
+	      if (EQ (rest, toinclude))
+		last = frame;
+	      if (EQ (XCAR (rest), frame))
+		break;
+	    }
+
+	  if (NILP (rest))
+	    {
+	      /* `frame' was not found in `value'; to be excluded.  */
+	      toexclude = Fcons (frame, toexclude);
+	      continue;
+	    }
+	  else if (!EQ (last, frame))
+	    /* `frame' was found between `value' (inclusive) to
+	       `toinclude' (not inclusive); already included.  */
+	    continue;
+
+	  window = FRAME_MAC_WINDOW_OBJECT (XFRAME (frame));
+	  while (!EQ (XCAR (toinclude), frame))
+	    {
+	      addedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (toinclude)));
+	      [window addTabbedWindow:addedWindow ordered:NSWindowBelow];
+	      toinclude = XCDR (toinclude);
+	    }
+	  toinclude = XCDR (toinclude);
+	}
+      if (!NILP (toinclude))
+	{
+	  window = FRAME_MAC_WINDOW_OBJECT (XFRAME (last));
+	  do
+	    {
+	      addedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (toinclude)));
+	      [window addTabbedWindow:addedWindow ordered:NSWindowAbove];
+	      window = addedWindow;
+	      last = XCAR (toinclude);
+
+	      toinclude = XCDR (toinclude);
+	    }
+	  while (!NILP (toinclude));
+	}
+
+      if (!NILP (toexclude))
+	{
+	  Lisp_Object last_cell = toexclude;
+
+	  /* `toexclude' is in reverse order.  First we create a new
+	     frame for the last element.  */
+	  while (!NILP (XCDR (last_cell)))
+	    last_cell = XCDR (last_cell);
+	  window = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (last_cell)));
+	  [NSApp sendAction:@selector(moveTabToNewWindow:) to:window from:nil];
+	  for (; !EQ (toexclude, last_cell); toexclude = XCDR (toexclude))
+	    {
+	      addedWindow = FRAME_MAC_WINDOW_OBJECT (XFRAME (XCAR (toexclude)));
+	      [window addTabbedWindow:addedWindow ordered:NSWindowAbove];
+	    }
+	}
+      mac_set_tab_group_selected_frame (XFRAME (selected), selected);
+    });
+
+  return Qt;
+}
+
+Lisp_Object
 mac_get_tab_group_overview_visible_p (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
@@ -3983,7 +4334,7 @@ mac_get_tab_group_selected_frame (struct frame *f)
 
   if ([window respondsToSelector:@selector(tabGroup)])
     result = window.tabGroup.selectedWindow.lispFrame;
-  else if (!(window.styleMask & NSWindowStyleMaskTitled))
+  else if (!window.hasTitleBar)
     ;
 #if 1
   else if ([window respondsToSelector:@selector(_windowStackController)])
@@ -4041,7 +4392,7 @@ mac_get_tab_group_frames (struct frame *f)
 	}
       result = Fnreverse (result);
     }
-  else if (!(window.styleMask & NSWindowStyleMaskTitled))
+  else if (!window.hasTitleBar)
     ;
   else if ([window respondsToSelector:@selector(tabbedWindows)])
     {
@@ -4236,6 +4587,20 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   [window setBackgroundColor:[NSColor colorWithXColorPixel:color]];
+  if (has_visual_effect_view_p ())
+    {
+      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+      /* This formula comes from frame-set-background-mode in
+	 frame.el.  */
+      NSAppearanceName name =
+	((RED_FROM_ULONG (color) + GREEN_FROM_ULONG (color)
+	  + BLUE_FROM_ULONG (color)) >= (int) (0xff * 3 * .6)
+	 ? NS_APPEARANCE_NAME_VIBRANT_LIGHT : NS_APPEARANCE_NAME_VIBRANT_DARK);
+
+      [(id <NSAppearanceCustomization>)window
+	  setAppearance:[NS_APPEARANCE appearanceNamed:name]];
+      [frameController updateScrollerAppearance];
+    }
 }
 
 /* Flush display of frame F.  */
@@ -4799,6 +5164,22 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   [self mouseDown:theEvent];
 }
 
+static Lisp_Object
+event_phase_to_symbol (NSEventPhase phase)
+{
+  switch (phase)
+    {
+    case NSEventPhaseNone:		return Qnone;
+    case NSEventPhaseBegan:		return Qbegan;
+    case NSEventPhaseStationary:	return Qstationary;
+    case NSEventPhaseChanged:		return Qchanged;
+    case NSEventPhaseEnded:		return Qended;
+    case NSEventPhaseCancelled:		return Qcancelled;
+    case NSEventPhaseMayBegin:		return Qmay_begin;
+    default:				return make_number (phase);
+    }
+}
+
 - (void)scrollWheel:(NSEvent *)theEvent
 {
   struct frame *f = [self emacsFrame];
@@ -4828,30 +5209,8 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 	}
       if ([theEvent respondsToSelector:@selector(phase)])
 	{
-	  int i;
-
-	  for (i = 0; i < 2; i++)
-	    {
-	      NSEventPhase val = (i == 0 ? [theEvent phase]
-				  : [theEvent momentumPhase]);
-	      Lisp_Object obj;
-
-	      switch (val)
-		{
-		case NSEventPhaseNone:		obj = Qnone;		break;
-		case NSEventPhaseBegan:		obj = Qbegan;		break;
-		case NSEventPhaseStationary:	obj = Qstationary;	break;
-		case NSEventPhaseChanged:	obj = Qchanged;		break;
-		case NSEventPhaseEnded:		obj = Qended;		break;
-		case NSEventPhaseCancelled:	obj = Qcancelled;	break;
-		case NSEventPhaseMayBegin:	obj = Qmay_begin;	break;
-		default:			obj = make_number (val);
-		}
-	      if (i == 0)
-		phase = obj;
-	      else
-		momentumPhase = obj;
-	    }
+	  phase = event_phase_to_symbol ([theEvent phase]);
+	  momentumPhase = event_phase_to_symbol ([theEvent momentumPhase]);
 	}
       else if ([theEvent respondsToSelector:@selector(_scrollPhase)])
 	{
@@ -4890,12 +5249,24 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
       break;
 
     case NSEventTypeMagnify:
+      if (has_gesture_recognizer_p ())
+	phase = event_phase_to_symbol ([theEvent phase]);
+      else
+	/* -[NSEvent phase] is not available on Mac OS X 10.6.  For a
+	   non-scroll event, it crashes on Mac OS X 10.7, and always
+	   returns NSEventPhaseNone on OS X 10.8 - 10.9. */
+	phase = Qnone;
+      /* fall through */
     case NSEventTypeGesture:
       deltaY = [theEvent magnification];
       break;
 
     case NSEventTypeRotate:
       deltaX = [theEvent rotation];
+      if (has_gesture_recognizer_p ())
+	phase = event_phase_to_symbol ([theEvent phase]);
+      else
+	phase = Qnone;
       break;
 
 #if __LP64__
@@ -4961,14 +5332,18 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 			     Qt));
 	}
     }
-  else if (type == NSEventTypeMagnify || type == NSEventTypeGesture)
+  else if (type == NSEventTypeMagnify)
+    inputEvent.arg = list4 (QCmagnification, make_float (deltaY),
+			    QCphase, phase);
+  else if (type == NSEventTypeGesture)
     inputEvent.arg = list2 (QCmagnification, make_float (deltaY));
   else if (type == NSEventTypeRotate)
-    inputEvent.arg = list2 (QCrotation, make_float (deltaX));
+    inputEvent.arg = list4 (QCrotation, make_float (deltaX),
+			    QCphase, phase);
   else
     inputEvent.arg = Qnil;
   inputEvent.kind = (deltaY != 0 || scrollingDeltaY != 0
-		     || type == NSEventTypeGesture
+		     || type == NSEventTypeMagnify || type == NSEventTypeGesture
 		     ? WHEEL_EVENT : HORIZ_WHEEL_EVENT);
   inputEvent.code = 0;
   inputEvent.modifiers =
@@ -5640,6 +6015,20 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     }
 }
 
+- (void)viewDidHide;
+{
+  struct frame *f = [self emacsFrame];
+
+  mac_handle_visibility_change (f);
+}
+
+- (void)viewDidUnhide;
+{
+  struct frame *f = [self emacsFrame];
+
+  mac_handle_visibility_change (f);
+}
+
 - (NSTouchBar *)makeTouchBar
 {
   NSTouchBar *mainBar = [[NS_TOUCH_BAR alloc] init];
@@ -5910,7 +6299,7 @@ mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 
 @implementation EmacsOverlayView
 
-static NSImage *
+static CGImageRef
 create_resize_indicator_image (void)
 {
   NSRect contentRect = NSMakeRect (0, 0, 64, 64);
@@ -5925,7 +6314,7 @@ create_resize_indicator_image (void)
 				    defer:NO];
   NSView *frameView = [[window contentView] superview];
   NSBitmapImageRep *bitmap;
-  NSImage *image;
+  CGImageRef image;
 
   [window setOpaque:NO];
   [window setBackgroundColor:[NSColor clearColor]];
@@ -5936,8 +6325,7 @@ create_resize_indicator_image (void)
     [[NSBitmapImageRep alloc] initWithFocusedViewRect:resizeIndicatorRect];
   [frameView unlockFocus];
 
-  image = [[NSImage alloc] initWithSize:resizeIndicatorRect.size];
-  [image addRepresentation:bitmap];
+  image = CGImageRetain ([bitmap CGImage]);
   MRC_RELEASE (bitmap);
 
   MRC_RELEASE (window);
@@ -5945,58 +6333,47 @@ create_resize_indicator_image (void)
   return image;
 }
 
-- (void)drawRect:(NSRect)aRect
-{
-  if (highlighted)
-    {
-      /* Mac OS X 10.2 doesn't have -[NSColor setFill].  */
-      [[[NSColor selectedControlColor] colorWithAlphaComponent:0.75] set];
-      NSFrameRectWithWidth ([self bounds], 3.0);
-    }
-
-  if (showsResizeIndicator)
-    {
-      static NSImage *resizeIndicatorImage;
-
-      if (resizeIndicatorImage == nil)
-	resizeIndicatorImage = create_resize_indicator_image ();
-
-      [resizeIndicatorImage
-	drawAtPoint:(NSMakePoint (NSWidth ([self bounds])
-				  - [resizeIndicatorImage size].width, 0))
-	   fromRect:NSZeroRect operation:NSCompositingOperationSourceOver
-	   fraction:1.0];
-    }
-}
-
 - (void)setHighlighted:(BOOL)flag;
 {
-  if (flag != highlighted)
+  CALayer *layer = [self layer];
+
+  if (flag)
     {
-      highlighted = flag;
-      [self setNeedsDisplay:YES];
+      static CGColorRef borderColor;
+
+      if (borderColor == NULL)
+	borderColor = [[[NSColor selectedControlColor]
+			 colorWithAlphaComponent:.75] copyCGColor];
+
+      [CATransaction setDisableActions:YES];
+      layer.borderColor = borderColor;
+      [CATransaction commit];
+
+      layer.borderWidth = 3.0;
     }
+  else
+    layer.borderWidth = 0;
 }
 
 - (void)setShowsResizeIndicator:(BOOL)flag;
 {
-  if (flag != showsResizeIndicator)
+  CALayer *layer = [self layer];
+
+  if (flag)
     {
-      showsResizeIndicator = flag;
-      [self setNeedsDisplay:YES];
+      static CGImageRef resizeIndicatorImage;
+
+      if (resizeIndicatorImage == NULL)
+	resizeIndicatorImage = create_resize_indicator_image ();
+
+      layer.contents = (__bridge id) resizeIndicatorImage;
+      layer.contentsGravity = kCAGravityBottomRight;
     }
+  else
+    layer.contents = nil;
 }
 
 @end				// EmacsOverlayView
-
-@implementation EmacsLiveResizeTransitionView
-
-- (BOOL)isFlipped
-{
-  return YES;
-}
-
-@end				// EmacsLiveResizeTransitionView
 
 
 /************************************************************************
@@ -6609,6 +6986,27 @@ static BOOL NonmodalScrollerPagingBehavior;
 #endif
 }
 
+- (void)drawRect:(NSRect)aRect
+{
+  if (!has_visual_effect_view_p ())
+    [super drawRect:aRect];
+  else if ([[NS_APPEARANCE currentAppearance] allowsVibrancy])
+    {
+      [[[self window] backgroundColor] set];
+      NSRectFill (aRect);
+      [super drawRect:aRect];
+    }
+  else
+    {
+      [super drawRect:aRect];
+      if (!mac_accessibility_display_options.reduce_transparency_p)
+	{
+	  [[[[self window] backgroundColor] colorWithAlphaComponent:0.25] set];
+	  NSRectFillUsingOperation (aRect, NSCompositingOperationSourceOver);
+	}
+    }
+}
+
 - (void)setEmacsScrollBar:(struct scroll_bar *)bar
 {
   emacsScrollBar = bar;
@@ -6627,6 +7025,27 @@ static BOOL NonmodalScrollerPagingBehavior;
 - (BOOL)isOpaque
 {
   return YES;
+}
+
+- (void)updateAppearance
+{
+  if (has_visual_effect_view_p ())
+    {
+      /* If NSWindow's appearance is NSAppearanceNameVibrantLight and
+	 its views inherit it, then the backgrounds of a scroll bar
+	 and containing Emacs window become the same color.  This
+	 makes it difficult to distinguish horizontally adjacent
+	 fringe-less Emacs windows with scroll bars.  So we explicitly
+	 specify NSAppearanceNameAqua for EmacsScroller's appearance
+	 if NSWindow's appearance is NSAppearanceNameVibrantLight.  */
+      if ([[[(id <NSAppearanceCustomization>)[self window] appearance] name]
+	    isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
+	[(id <NSAppearanceCustomization>)self
+	    setAppearance:[NS_APPEARANCE
+			    appearanceNamed:NS_APPEARANCE_NAME_AQUA]];
+      else
+	[(id <NSAppearanceCustomization>)self setAppearance:nil];
+    }
 }
 
 - (CGFloat)knobSlotSpan
@@ -6913,8 +7332,26 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
   else if (bar->horizontal && WINDOW_BOTTOMMOST_P (w))
     [scroller setAutoresizingMask:NSViewMinYMargin];
   [emacsView addSubview:scroller];
+  [scroller updateAppearance];
   MRC_RELEASE (scroller);
   SET_SCROLL_BAR_SCROLLER (bar, scroller);
+}
+
+- (void)updateScrollerAppearance
+{
+  for (NSView *view in [emacsView subviews])
+    if ([view isKindOfClass:[EmacsScroller class]])
+      [(EmacsScroller *)view updateAppearance];
+}
+
+- (void)setVibrantScrollersHidden:(BOOL)flag
+{
+  if (has_visual_effect_view_p ())
+    for (NSView *view in [emacsView subviews])
+      if ([view isKindOfClass:[EmacsScroller class]]
+	  && [[(id <NSAppearanceCustomization>)view effectiveAppearance]
+	       allowsVibrancy])
+	[view setHidden:flag];
 }
 
 @end				// EmacsFrameController (ScrollBar)
@@ -7821,10 +8258,11 @@ static void update_dragged_types (void);
   int x, y;
   NativeRectangle *r;
 
-  /* When the Tab Overview UI is in action, emacsView is not drawable.
-     We avoid lazy creation of emacsWindow.tabGroup because it causes
-     side effect of not creating a tabbed window.  */
-  if (![emacsView canDraw])
+  /* While the Tab Overview UI is in action, the views previously
+     shown before the invocation of the Overview UI are hidden and not
+     drawable.  We avoid lazy creation of emacsWindow.tabGroup because
+     it causes side effect of not creating a tabbed window.  */
+  if ([emacsView isHiddenOrHasHiddenAncestor])
     return true;
 
   dpyinfo->last_mouse_movement_time = mac_system_uptime () * 1000;
@@ -8129,7 +8567,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       NSProgressIndicator *indicator =
 	[[NSProgressIndicator alloc] initWithFrame:rect];
 
-      [indicator setStyle:NSProgressIndicatorSpinningStyle];
+      [indicator setStyle:NSProgressIndicatorStyleSpinning];
       hourglassWindow =
 	[[NSWindow alloc] initWithContentRect:rect
 				    styleMask:NSWindowStyleMaskBorderless
@@ -10659,6 +11097,41 @@ handle_action_invocation (NSInvocation *invocation)
   [emacsController storeEvent:&inev];
 }
 
+bool
+mac_send_action (Lisp_Object symbol, bool dry_run_p)
+{
+  bool __block result = false;
+  AUTO_STRING (colon, ":");
+  Lisp_Object string = concat2 (SYMBOL_NAME (symbol), colon);
+  SEL action = NSSelectorFromString ([NSString stringWithLispString:string]);
+
+  if (action)
+    {
+      id target = [NSApp targetForAction:action];
+      NSMethodSignature *signature = [target methodSignatureForSelector:action];
+
+      if ([signature isEqual:(action_signature ())]
+	  && [target respondsToSelector:@selector(validateUserInterfaceItem:)])
+	{
+	  NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:@"" action:action
+						 keyEquivalent:@""];
+
+	  if ([target validateUserInterfaceItem:item])
+	    {
+	      if (dry_run_p)
+		result = true;
+	      else
+		mac_within_app (^{
+		    result = [NSApp sendAction:action to:target from:nil];
+		  });
+	    }
+	  MRC_RELEASE (item);
+	}
+    }
+
+  return result;
+}
+
 
 /***********************************************************************
 		 Open Scripting Architecture support
@@ -12587,39 +13060,30 @@ mac_update_accessibility_status (struct frame *f)
 
 @implementation EmacsFrameController (Animation)
 
-- (void)setupLayerHostingView
+- (void)setupAnimationLayer
 {
-  CALayer *rootLayer = [CALayer layer];
-
-  layerHostingView = [[NSView alloc] initWithFrame:[overlayView frame]];
-  [layerHostingView setAutoresizingMask:(NSViewWidthSizable
-					 | NSViewHeightSizable)];
-  rootLayer.anchorPoint = CGPointZero;
+  animationLayer = [CALayer layer];
+  animationLayer.anchorPoint = CGPointZero;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
     {
       CGFloat scaleFactor = [emacsWindow userSpaceScaleFactor];
 
-      rootLayer.sublayerTransform =
+      animationLayer.sublayerTransform =
 	CATransform3DMakeScale (scaleFactor, scaleFactor, 1.0);
     }
 #endif
-  [layerHostingView setLayer:rootLayer];
-  [layerHostingView setWantsLayer:YES];
-  /* OS X 10.9 needs this.  */
-  if ([layerHostingView
-	respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
-    [layerHostingView setLayerUsesCoreImageFilters:YES];
 
-  [overlayView addSubview:layerHostingView];
+  [CATransaction setDisableActions:YES];
+  [[overlayView layer] addSublayer:animationLayer];
+  [CATransaction commit];
 }
 
 - (CALayer *)layerForRect:(NSRect)rect
 {
-  NSRect rectInLayer = [emacsView convertRect:rect toView:layerHostingView];
-  NSBitmapImageRep *bitmap = [self bitmapImageRep];
-  NSSize imageSize = [emacsView bounds].size;
+  NSRect rectInLayer = [emacsView convertRect:rect toView:overlayView];
   CALayer *layer, *contentLayer;
+  NSBitmapImageRep *bitmap;
 
   layer = [CALayer layer];
   contentLayer = [CALayer layer];
@@ -12627,12 +13091,20 @@ mac_update_accessibility_status (struct frame *f)
   layer.masksToBounds = YES;
   contentLayer.frame = CGRectMake (0, 0, NSWidth (rectInLayer),
 				   NSHeight (rectInLayer));
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12))
+    bitmap = [self bitmapImageRepInEmacsViewRect:rect];
+  else
+    {
+      NSRect fullHeightRect = [emacsView bounds];
+
+      fullHeightRect.origin.x = NSMinX (rect);
+      fullHeightRect.size.width = NSWidth (rect);
+      bitmap = [self bitmapImageRepInEmacsViewRect:fullHeightRect];
+      contentLayer.contentsRect =
+	CGRectMake (0, NSMinY (rectInLayer) / NSHeight (fullHeightRect),
+		    1, NSHeight (rectInLayer) / NSHeight (fullHeightRect));
+    }
   contentLayer.contents = (id) [bitmap CGImage];
-  contentLayer.contentsRect =
-    CGRectMake (NSMinX (rectInLayer) / imageSize.width,
-		NSMinY (rectInLayer) / imageSize.height,
-		NSWidth (rectInLayer) / imageSize.width,
-		NSHeight (rectInLayer) / imageSize.height);
   [layer addSublayer:contentLayer];
 
   return layer;
@@ -12640,11 +13112,9 @@ mac_update_accessibility_status (struct frame *f)
 
 - (void)addLayer:(CALayer *)layer
 {
-  [CATransaction setValue:((id) kCFBooleanTrue)
-		   forKey:kCATransactionDisableActions];
-  [[layerHostingView layer] addSublayer:layer];
-  [CATransaction flush];
-  [layerHostingView display];
+  [CATransaction setDisableActions:YES];
+  [animationLayer addSublayer:layer];
+  [CATransaction commit];
 }
 
 static Lisp_Object

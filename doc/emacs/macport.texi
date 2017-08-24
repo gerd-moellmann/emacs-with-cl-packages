@@ -584,9 +584,23 @@ using Core Animation.
 @findex mac-input-source-list
 @findex mac-select-input-source
 @findex mac-deselect-input-source
-There are some functions and hooks for interaction with Text Input
+  There are some functions and hooks for interaction with Text Input
 Source Services: @code{mac-input-source},
 @code{mac-input-source-list}, @code{mac-select-input-source},
 @code{mac-deselect-input-source},
 @code{mac-selected-keyboard-input-source-change-hook}, and
 @code{mac-enabled-keyboard-input-sources-change-hook}.
+
+@findex mac-send-action
+  The function @code{mac-send-action} sends the specified Cocoa action
+using the responder chain for action messages.  Some useful examples
+of Cocoa actions are @code{zoom}, @code{hide}, @code{unhide},
+@code{activate}, @code{hideOtherApplications},
+@code{unhideAllApplications}, and @code{orderFrontCharacterPalette}.
+
+@findex mac-frame-tab-group-property
+@findex mac-set-frame-tab-group-property
+  On macOS 10.12 and later, you can use tabbing feature for grouping
+frames as tabs.  The functions @code{mac-frame-tab-group-property} and
+@code{mac-set-frame-tab-group-property} are provided for getting and
+setting the tab group properties, respectively.

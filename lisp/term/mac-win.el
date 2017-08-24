@@ -2354,7 +2354,7 @@ non-nil, and the input device supports it."
 			   (- first-y (max (nth 2 first-height) 0)))
 			(nth 3 first-height)))))
 	     (delta-y
-              (let ((dy (round (plist-get (nth 3 event) :scrolling-delta-y)))
+              (let ((dy (plist-get (nth 3 event) :scrolling-delta-y))
                     pending-events)
                 ;; Coalesce vertical mouse wheel events.
                 (while (setq event (read-event nil nil 1e-5))
@@ -2363,13 +2363,13 @@ non-nil, and the input device supports it."
                            (eq window-to-scroll
                                (if mouse-wheel-follow-mouse
                                    (posn-window (event-start event)))))
-                      (setq dy (+ dy (round (plist-get (nth 3 event)
-                                                       :scrolling-delta-y))))
+                      (setq dy
+                            (+ dy (plist-get (nth 3 event) :scrolling-delta-y)))
                     (push event pending-events)))
                 (if pending-events
                     (setq unread-command-events (nconc (nreverse pending-events)
                                                        unread-command-events)))
-                (- dy)))
+                (round (- dy))))
 	     ;; Now select the window to scroll.
 	     (curwin (if window-to-scroll
 			 (prog1
@@ -2713,6 +2713,10 @@ the mode if ARG is omitted or nil."
 ;;; Trackpad events
 (defvar text-scale-mode-step) ;; in face-remap.el
 (defvar text-scale-mode-amount) ;; in face-remap.el
+(declare-function mac-set-frame-tab-group-property "macfns.c"
+                  (frame prop value))
+(declare-function mac-frame-tab-group-property "macfns.c"
+                  (&optional frame prop))
 
 (defvar mac-text-scale-magnification 1.0
   "Magnification value for text scaling.
@@ -2721,8 +2725,11 @@ logarithm of this value using the value of `text-scale-mode-step'
 as base.")
 (make-variable-buffer-local 'mac-text-scale-magnification)
 
+(defvar mac-ignore-magnify-events nil
+  "Non-nil means magnify events are ignored.")
+
 (defcustom mac-text-scale-magnification-range '(0.1 . 20.0)
-  "Pair of mininum and maximum values for `mac-text-scale-magnification'."
+  "Pair of minimum and maximum values for `mac-text-scale-magnification'."
   :type '(cons number number)
   :group 'mac)
 
@@ -2775,7 +2782,7 @@ The actual magnification is performed by `text-scale-mode'."
 	(if (/= level text-scale-mode-amount)
 	    (setq mac-text-scale-magnification
 		  (expt text-scale-mode-step text-scale-mode-amount)))
-	(if (= magnification 0.0)
+	(if (null (plist-get (nth 3 event) :phase))
 	    ;; This is double-tapping a mouse with one finger or
 	    ;; double-tapping a trackpad with two fingers on Mac OS X
 	    ;; 10.7
@@ -2821,6 +2828,33 @@ The actual magnification is performed by `text-scale-mode'."
 		  (text-scale-set level)
 		  (mac-scroll-point-to-y target-point target-y)))))))))
 
+(defun mac-magnify-text-scale-or-overview-tab-group (event)
+  "Trigger tab group overview or forward EVENT to `mac-magnify-text-scale'.
+Tab group overview, which is available on macOS 10.13 and later,
+is triggered by the pinch close gesture on a trackpad, and the
+subsequent pinch gestures are ignored until you release the
+fingers so they do not cause unwanted text scaling.  If you don't
+want to trigger tab group overview by the pinch close gesture,
+then remap this command to `mac-magnify-text-scale'."
+  (interactive "e")
+  (if (not (or (>= (cadr (x-server-version)) 13)
+               (> (car (x-server-version)) 10)))
+      (mac-magnify-text-scale event)
+    (let ((phase (plist-get (nth 3 event) :phase)))
+      (if (or (null phase) (eq phase 'began))
+          (setq mac-ignore-magnify-events nil))
+      (when (not mac-ignore-magnify-events)
+        (let ((frame (window-frame (posn-window (event-start event)))))
+          (if (and (eq phase 'began)
+                   (eq (event-basic-type event) 'magnify-down)
+                   (mac-frame-tab-group-property frame :selected-frame)
+                   (not (mac-frame-tab-group-property frame
+                                                      :overview-visible-p)))
+              (progn
+                (setq mac-ignore-magnify-events t)
+                (mac-set-frame-tab-group-property frame :overview-visible-p t)))
+          (mac-magnify-text-scale event))))))
+
 (defun mac-mouse-turn-on-fullscreen (event)
   "Turn on fullscreen in response to the mouse event EVENT."
   (interactive "e")
@@ -2835,8 +2869,8 @@ The actual magnification is performed by `text-scale-mode'."
     (if (frame-parameter frame 'fullscreen)
 	(set-frame-parameter frame 'fullscreen nil))))
 
-(global-set-key [magnify-up] 'mac-magnify-text-scale)
-(global-set-key [magnify-down] 'mac-magnify-text-scale)
+(global-set-key [magnify-up] 'mac-magnify-text-scale-or-overview-tab-group)
+(global-set-key [magnify-down] 'mac-magnify-text-scale-or-overview-tab-group)
 (global-set-key [S-magnify-up] 'mac-mouse-turn-on-fullscreen)
 (global-set-key [S-magnify-down] 'mac-mouse-turn-off-fullscreen)
 (global-set-key [rotate-left] 'ignore)
@@ -2846,6 +2880,8 @@ The actual magnification is performed by `text-scale-mode'."
 
 
 ;;; Frame tabbing (macOS 10.12 and later)
+(declare-function mac-send-action "macfns.c" (action &optional dry-run-p))
+
 (defun mac-ctl-x-5-revolve-frame-tabbing (arg)
   "Behave as C-x 5 typed, but revolve frame tabbing setting temporarily.
 It is changed as automatic -> inverted -> preferred -> disallowed
@@ -2866,6 +2902,78 @@ See also `mac-frame-tabbing'."
                     (or (lookup-key ctl-x-5-map seq) 'undefined))))
     (setq prefix-arg arg)
     (command-execute command nil (vconcat command-keys (this-command-keys)))))
+
+(defun mac-frame-single-tab-p (&optional frame)
+  "Return t if FRAME belongs to a tab group having a single frame."
+  (= (length (mac-frame-tab-group-property frame :frames)) 1))
+
+(defun mac-frame-multiple-tabs-p (&optional frame)
+  "Return t if FRAME belongs to a tab group having multiple frames."
+  (> (length (mac-frame-tab-group-property frame :frames)) 1))
+
+(defun mac-toggle-tab-bar (&optional frame)
+  "Toggle tab bar visibility of the tab group for FRAME."
+  (interactive)
+  (mac-set-frame-tab-group-property
+   frame :tab-bar-visible-p
+   (not (mac-frame-tab-group-property frame :tab-bar-visible-p))))
+
+(defun mac-next-tab (arg)
+  "Select the ARGth next tab on the current tab group."
+  (interactive "p")
+  (let ((frames (mac-frame-tab-group-property nil :frames))
+        tail)
+    (when (< arg 0)
+      (setq frames (nreverse frames))
+      (setq arg (- arg)))
+    (setq tail (memq (selected-frame) frames))
+    (dotimes (_ arg)
+      (setq tail (or (cdr tail) frames)))
+    (mac-set-frame-tab-group-property nil :selected-frame (car tail))))
+
+(defun mac-previous-tab (arg)
+  "Select the ARGth previous tab on the current tab group."
+  (interactive "p")
+  (mac-next-tab (- arg)))
+
+(defun mac-next-tab-or-toggle-tab-bar (arg)
+  "Select the ARGth next tab or toggle tab bar visibility.
+Do the former if the current tab group has multiple tabs, and
+otherwise do the latter.  If you don't want to togggle tab bar
+visibility, then remap this command to `mac-next-tab'."
+  (interactive "p")
+  (if (mac-frame-single-tab-p)
+      (mac-toggle-tab-bar)
+    (mac-next-tab arg)))
+
+(defun mac-previous-tab-or-toggle-tab-bar (arg)
+  "Select the ARGth previous tab or toggle tab bar visibility.
+Do the former if the current tab group has multiple tabs, and
+otherwise do the latter.  If you don't want to togggle tab bar
+visibility, then remap this command to `mac-previous-tab'."
+  (interactive "p")
+  (if (mac-frame-single-tab-p)
+      (mac-toggle-tab-bar)
+    (mac-previous-tab arg)))
+
+(defun mac-move-tab-to-new-frame (&optional frame)
+  "Move the tab for FRAME to a new tab group."
+  (interactive)
+  (mac-set-frame-tab-group-property
+   frame :frames (delq (or frame (selected-frame))
+                       (mac-frame-tab-group-property frame :frames))))
+
+(defun mac-toggle-tab-group-overview (&optional frame)
+  "Toggle tab overview visibility of the tab group for FRAME."
+  (interactive)
+  (mac-set-frame-tab-group-property
+   frame :overview-visible-p
+   (not (mac-frame-tab-group-property frame :overview-visible-p))))
+
+(defun mac-merge-all-frame-tabs ()
+  "Merge all frame tabs into the current tab group."
+  (interactive)
+  (mac-send-action 'mergeAllWindows))
 
 
 ;;; Window system initialization.
@@ -3059,13 +3167,49 @@ standard ones in `x-handle-args'."
   (substitute-key-definition 'exit-splash-screen 'mac-exit-splash-screen
 			     splash-screen-keymap)
 
+  ;; Running on macOS 10.10 or later.
+  (when (or (>= (cadr (x-server-version)) 10) (> (car (x-server-version)) 10))
+    (advice-add 'fancy-startup-screen :after
+                (lambda (&optional _concise)
+                  (set (make-local-variable 'face-remapping-alist)
+                       '((default :stipple "alpha:50%"))))))
+
   (if (eq (lookup-key global-map [C-down-mouse-1]) 'mouse-buffer-menu)
       (global-set-key [C-down-mouse-1] 'mac-mouse-buffer-menu))
   (push 'mac-mouse-buffer-menu selection-inhibit-update-commands)
 
   ;; Running on macOS 10.12 or later.
   (when (or (>= (cadr (x-server-version)) 12) (> (car (x-server-version)) 10))
-    (define-key ctl-x-5-map "5" 'mac-ctl-x-5-revolve-frame-tabbing))
+    (define-key ctl-x-5-map "5" 'mac-ctl-x-5-revolve-frame-tabbing)
+    (define-key-after menu-bar-showhide-menu [mac-toggle-tab-bar]
+      '(menu-item "Tab-bar" mac-toggle-tab-bar
+                  :enable (mac-frame-single-tab-p)
+                  :button (:toggle . (mac-frame-tab-group-property
+                                      nil :tab-bar-visible-p)))
+      'menu-bar-mode)
+    (when (or (>= (cadr (x-server-version)) 13) (> (car (x-server-version)) 10))
+      (define-key-after menu-bar-showhide-menu [mac-toggle-tab-group-overview]
+        '(menu-item "Tab Group Overview" mac-toggle-tab-group-overview
+                    :enable (mac-frame-tab-group-property nil :selected-frame)
+                    :button (:toggle . (mac-frame-tab-group-property
+                                        nil :overview-visible-p)))
+        'mac-toggle-tab-bar))
+    (define-key-after global-buffers-menu-map [mac-separator-tab]
+      menu-bar-separator)
+    (define-key-after global-buffers-menu-map [mac-next-tab]
+      '(menu-item "Show Next Tab" mac-next-tab-or-toggle-tab-bar
+                  :enable (mac-frame-multiple-tabs-p)))
+    (global-set-key [(control tab)] 'mac-next-tab-or-toggle-tab-bar)
+    (define-key-after global-buffers-menu-map [mac-previous-tab]
+      '(menu-item "Show Previous Tab" mac-previous-tab-or-toggle-tab-bar
+                  :enable (mac-frame-multiple-tabs-p)))
+    (global-set-key [(control shift tab)] 'mac-previous-tab-or-toggle-tab-bar)
+    (define-key-after global-buffers-menu-map [mac-move-tab-to-new-frame]
+      '(menu-item "Move Tab to New Frame" mac-move-tab-to-new-frame
+                  :enable (mac-frame-multiple-tabs-p)))
+    (define-key-after global-buffers-menu-map [mac-merge-all-frame-tabs]
+      '(menu-item "Merge All Frames" mac-merge-all-frame-tabs
+                  :enable (mac-send-action 'mergeAllWindows t))))
 
   (x-apply-session-resources)
   (add-to-list 'display-format-alist '("\\`Mac\\'" . mac))
