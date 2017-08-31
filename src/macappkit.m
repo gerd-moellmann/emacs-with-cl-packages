@@ -2812,20 +2812,20 @@ static CGRect unset_global_focus_view_frame (void);
   point = [emacsView convertPoint:point toView:nil];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-  return [[emacsView window]
+  return [emacsWindow
 	   convertRectToScreen:(NSMakeRect (point.x, point.y, 0, 0))].origin;
 #else
-  return [[emacsView window] convertBaseToScreen:point];
+  return [emacsWindow convertBaseToScreen:point];
 #endif
 }
 
 - (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-  point = [[emacsView window]
+  point = [emacsWindow
 	    convertRectFromScreen:(NSMakeRect (point.x, point.y, 0, 0))].origin;
 #else
-  point = [[emacsView window] convertScreenToBase:point];
+  point = [emacsWindow convertScreenToBase:point];
 #endif
 
   return [emacsView convertPoint:point fromView:nil];
@@ -2835,9 +2835,9 @@ static CGRect unset_global_focus_view_frame (void);
 {
   rect = [emacsView convertRect:rect toView:nil];
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-  rect.origin = [[emacsView window] convertRectToScreen:rect].origin;
+  rect.origin = [emacsWindow convertRectToScreen:rect].origin;
 #else
-  rect.origin = [[emacsView window] convertBaseToScreen:rect.origin];
+  rect.origin = [emacsWindow convertBaseToScreen:rect.origin];
 #endif
 
   return rect;
@@ -2850,27 +2850,26 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)invalidateCursorRectsForEmacsView
 {
-  [[emacsView window] invalidateCursorRectsForView:emacsView];
+  [emacsWindow invalidateCursorRectsForView:emacsView];
 }
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag
 {
-  NSWindow *window = [emacsView window];
   NSRect rect = [emacsView convertRect:clipRect toView:nil];
 
-  rect = [window _intersectBottomCornersWithRect:rect];
+  rect = [emacsWindow _intersectBottomCornersWithRect:rect];
   if (!NSIsEmptyRect (rect))
     {
       if (flag)
-	[window _maskRoundedBottomCorners:rect];
+	[emacsWindow _maskRoundedBottomCorners:rect];
       else
 	{
 	  struct frame *f = emacsFrame;
 
 	  if (!FRAME_GARBAGED_P (f))
 	    {
-	      NSView *frameView = [[window contentView] superview];
+	      NSView *frameView = [[emacsWindow contentView] superview];
 
 	      rect = [frameView convertRect:rect fromView:nil];
 	      [frameView displayRectIgnoringOpacity:rect];
@@ -9317,7 +9316,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 	[NSEvent mouseEventWithType:NSEventTypeLeftMouseDown
 			   location:[emacsView convertPoint:location toView:nil]
 		      modifierFlags:0 timestamp:0
-		       windowNumber:[[emacsView window] windowNumber]
+		       windowNumber:[emacsWindow windowNumber]
 			    context:[NSGraphicsContext currentContext]
 			eventNumber:0 clickCount:1 pressure:0];
 
