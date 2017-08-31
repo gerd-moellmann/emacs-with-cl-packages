@@ -2139,7 +2139,7 @@ static CGRect unset_global_focus_view_frame (void);
 	{
 	  tabGroup.overviewVisible = NO;
 	  while (tabGroup.isOverviewVisible)
-	    mac_run_loop_run_once (0);
+	    mac_run_loop_run_once (kEventDurationForever);
 	}
     }
 }
