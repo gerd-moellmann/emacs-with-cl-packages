@@ -8199,12 +8199,9 @@ static void update_dragged_types (void);
 
 - (void)noteEnterEmacsView
 {
-  struct frame *f = emacsFrame;
-  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
   NSPoint mouseLocation = [NSEvent mouseLocation];
 
-  mouseLocation =
-    [frameController convertEmacsViewPointFromScreen:mouseLocation];
+  mouseLocation = [self convertEmacsViewPointFromScreen:mouseLocation];
   /* EnterNotify counts as mouse movement,
      so update things that depend on mouse position.  */
   [self noteMouseMovement:mouseLocation];
