@@ -1210,7 +1210,8 @@ x_set_background_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
       block_input ();
       XSetBackground (dpy, mac->normal_gc, bg);
-      mac_set_frame_window_background (f, bg);
+      if (NILP (CDR_SAFE (Fassq (Qscroll_bar_background, f->param_alist))))
+	mac_set_frame_window_background (f, bg);
       XSetForeground (dpy, mac->cursor_gc, bg);
 
       unblock_input ();
@@ -1559,6 +1560,41 @@ x_set_internal_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldva
 }
 
 
+/* Set the foreground color for scroll bars on frame F to VALUE.
+   VALUE should be a string, a color name.  If it isn't a string or
+   isn't a valid color name, do nothing.  OLDVAL is the old value of
+   the frame parameter.  */
+
+static void
+x_set_scroll_bar_foreground (struct frame *f, Lisp_Object value, Lisp_Object oldval)
+{
+  if (FRAME_MAC_WINDOW (f))
+    update_face_from_frame_parameter (f, Qscroll_bar_foreground, value);
+}
+
+
+/* Set the background color for scroll bars on frame F to VALUE VALUE
+   should be a string, a color name.  If it isn't a string or isn't a
+   valid color name, do nothing.  OLDVAL is the old value of the frame
+   parameter.  */
+
+static void
+x_set_scroll_bar_background (struct frame *f, Lisp_Object value, Lisp_Object oldval)
+{
+  unsigned long pixel;
+
+  if (STRINGP (value))
+    pixel = x_decode_color (f, value, FRAME_BACKGROUND_PIXEL (f));
+  else
+    pixel = FRAME_BACKGROUND_PIXEL (f);
+
+  if (FRAME_MAC_WINDOW (f))
+    {
+      update_face_from_frame_parameter (f, Qscroll_bar_background, value);
+      mac_set_frame_window_background (f, pixel);
+    }
+}
+
 
 /* Set the Mac window title to NAME for frame F.  */
 
@@ -1701,6 +1737,28 @@ x_set_scroll_bar_default_height (struct frame *f)
 
   FRAME_CONFIG_SCROLL_BAR_LINES (f) = (minh + unit - 1) / unit;
   FRAME_CONFIG_SCROLL_BAR_HEIGHT (f) = minh;
+}
+
+/* Record in frame F the specified or default value according to ALIST
+   of the parameter named PROP (a Lisp symbol).  If no value is
+   specified for PROP, look for an X default for XPROP on the frame
+   named NAME.  If that is not found either, use the value DEFLT.  */
+
+static Lisp_Object
+x_default_scroll_bar_color_parameter (struct frame *f,
+				      Lisp_Object alist, Lisp_Object prop,
+				      const char *xprop, const char *xclass,
+				      bool foreground_p)
+{
+  struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
+  Lisp_Object tem;
+
+  tem = x_get_arg (dpyinfo, alist, prop, xprop, xclass, RES_TYPE_STRING);
+  if (EQ (tem, Qunbound))
+    tem = Qnil;
+  AUTO_FRAME_ARG (arg, prop, tem);
+  x_set_frame_parameters (f, arg);
+  return tem;
 }
 
 static void
@@ -2200,6 +2258,13 @@ This function is an internal primitive--use `make-frame' instead.  */)
   /* Process alpha here (Bug#16619).  */
   x_default_parameter (f, parms, Qalpha, Qnil,
 		       "alpha", "Alpha", RES_TYPE_NUMBER);
+
+  x_default_scroll_bar_color_parameter (f, parms, Qscroll_bar_foreground,
+					"scrollBarForeground",
+					"ScrollBarForeground", true);
+  x_default_scroll_bar_color_parameter (f, parms, Qscroll_bar_background,
+					"scrollBarBackground",
+					"ScrollBarBackground", false);
 
   /* Init faces before x_default_parameter is called for the
      scroll-bar-width parameter because otherwise we end up in
@@ -4783,8 +4848,8 @@ frame_parm_handler mac_frame_parm_handlers[] =
   x_set_horizontal_scroll_bars,
   x_set_visibility,
   x_set_tool_bar_lines,
-  0, /* MAC_TODO: x_set_scroll_bar_foreground, */
-  0, /* MAC_TODO: x_set_scroll_bar_background, */
+  x_set_scroll_bar_foreground,
+  x_set_scroll_bar_background,
   x_set_screen_gamma,
   x_set_line_spacing,
   x_set_left_fringe,
