@@ -1100,6 +1100,8 @@ static NSMethodSignature *services_handler_signature (void);
 static void handle_action_invocation (NSInvocation *);
 static void handle_services_invocation (NSInvocation *);
 
+static void mac_flush_1 (struct frame *);
+
 static void mac_update_accessibility_display_options (void);
 
 /* True if we are executing mac_run_loop_run_once.  */
@@ -1509,7 +1511,7 @@ emacs_windows_need_display_p (void)
       if (mac_peek_next_event () || emacs_windows_need_display_p ())
 	[NSApp postDummyEvent];
       else
-	mac_flush (NULL);
+	mac_flush_1 (NULL);
     }
 }
 
@@ -4617,17 +4619,15 @@ x_flush (struct frame *f)
   unblock_input ();
 }
 
-void
-mac_flush (struct frame *f)
+static void
+mac_flush_1 (struct frame *f)
 {
-  block_input ();
-
   if (f == NULL)
     {
       Lisp_Object rest, frame;
       FOR_EACH_FRAME (rest, frame)
 	if (FRAME_MAC_P (XFRAME (frame)))
-	  mac_flush (XFRAME (frame));
+	  mac_flush_1 (XFRAME (frame));
     }
   else
     {
@@ -4636,7 +4636,13 @@ mac_flush (struct frame *f)
       if ([window isVisible] && ![window isFlushWindowDisabled])
 	[emacsController flushWindow:window force:NO];
     }
+}
 
+void
+mac_flush (struct frame *f)
+{
+  block_input ();
+  mac_flush_1 (f);
   unblock_input ();
 }
 
@@ -8224,7 +8230,7 @@ static void update_dragged_types (void);
 	 frame.  */
       clear_mouse_face (hlinfo);
       hlinfo->mouse_face_mouse_frame = 0;
-      mac_flush (f);
+      mac_flush_1 (f);
     }
 
   [emacsController cancelHelpEchoForEmacsFrame:f];
