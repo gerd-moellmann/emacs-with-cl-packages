@@ -514,7 +514,7 @@ and later), scroll bars, and popup menus become light (or dark) if the
 color is considered light (or dark, respectively).  On macOS 10.12 and
 later, the title/tool/tab bars look slightly colored with the value of
 the @code{scroll-bar-background} frame parameter (or the frame
-background color) if the frame is not in fullscreen and focused.
+background color) if the frame is focused and not in fullscreen.
 
 @node Mac Fullscreen
 @section Fullscreen support on the Mac Port
