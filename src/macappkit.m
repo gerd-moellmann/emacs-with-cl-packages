@@ -6998,7 +6998,8 @@ static BOOL NonmodalScrollerPagingBehavior;
   else if ([[NS_APPEARANCE currentAppearance] allowsVibrancy])
     {
       [[[self window] backgroundColor] set];
-      NSRectFill (aRect);
+      NSRectFill (NSIntersectionRect ([self rectForPart:NSScrollerKnobSlot],
+				      aRect));
       [super drawRect:aRect];
     }
   else
@@ -7007,6 +7008,8 @@ static BOOL NonmodalScrollerPagingBehavior;
       if (!mac_accessibility_display_options.reduce_transparency_p)
 	{
 	  [[[[self window] backgroundColor] colorWithAlphaComponent:0.25] set];
+	  aRect = NSIntersectionRect ([self rectForPart:NSScrollerKnobSlot],
+				      aRect);
 	  NSRectFillUsingOperation (aRect, NSCompositingOperationSourceOver);
 	}
     }
