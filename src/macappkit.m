@@ -5410,7 +5410,7 @@ event_phase_to_symbol (NSEventPhase phase)
   if (hlinfo->mouse_face_hidden)
     {
       hlinfo->mouse_face_hidden = false;
-      clear_mouse_face (hlinfo);
+      [frameController clearMouseFace:hlinfo];
     }
 
   /* Generate SELECT_WINDOW_EVENTs when needed.  */
@@ -5510,7 +5510,9 @@ event_phase_to_symbol (NSEventPhase phase)
   if (!hlinfo->mouse_face_hidden && INTEGERP (Vmouse_highlight)
       && !EQ (f->tool_bar_window, hlinfo->mouse_face_window))
     {
-      clear_mouse_face (hlinfo);
+      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+      [frameController clearMouseFace:hlinfo];
       hlinfo->mouse_face_hidden = true;
     }
 
@@ -8237,7 +8239,7 @@ static void update_dragged_types (void);
       /* If we move outside the frame, then we're
 	 certainly no longer on any text in the
 	 frame.  */
-      clear_mouse_face (hlinfo);
+      [self clearMouseFace:hlinfo];
       hlinfo->mouse_face_mouse_frame = 0;
       mac_flush_1 (f);
     }
@@ -8285,7 +8287,7 @@ static void update_dragged_types (void);
       /* This case corresponds to LeaveNotify in X11.  If we move
 	 outside the frame, then we're certainly no longer on any text
 	 in the frame.  */
-      clear_mouse_face (hlinfo);
+      [self clearMouseFace:hlinfo];
       hlinfo->mouse_face_mouse_frame = 0;
     }
 
@@ -8309,6 +8311,23 @@ static void update_dragged_types (void);
     }
 
   return false;
+}
+
+- (BOOL)clearMouseFace:(Mouse_HLInfo *)hlinfo
+{
+  struct frame *f = emacsFrame;
+  BOOL result;
+
+  if (emacsViewIsHiddenOrHasHiddenAncestor)
+    return NO;
+
+  [emacsView lockFocus];
+  set_global_focus_view_frame (f);
+  result = clear_mouse_face (hlinfo);
+  unset_global_focus_view_frame ();
+  [emacsView unlockFocus];
+
+  return result;
 }
 
 @end				// EmacsFrameController (EventHandling)
