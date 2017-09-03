@@ -10275,7 +10275,7 @@ mac_get_selection_from_symbol (Lisp_Object sym, bool clear_p, Selection *sel)
     *sel = NULL;
   else
     {
-      NSPasteboardName name = [NSString stringWithLispString:str];
+      NSPasteboardName name = [NSString stringWithUTF8LispString:str];
 
       *sel = (__bridge Selection) [NSPasteboard pasteboardWithName:name];
       if (clear_p)
@@ -10296,7 +10296,7 @@ get_pasteboard_data_type_from_symbol (Lisp_Object sym, Selection sel)
   NSPasteboardType dataType;
 
   if (STRINGP (str))
-    dataType = [NSString stringWithLispString:str];
+    dataType = [NSString stringWithUTF8LispString:str];
   else
     dataType = nil;
 
@@ -10681,13 +10681,8 @@ update_dragged_types (void)
   for (rest = Vmac_dnd_known_types; CONSP (rest); rest = XCDR (rest))
     if (STRINGP (XCAR (rest)))
       {
-	/* We really want string_to_unibyte, but since it doesn't
-	   exist yet, we use string_as_unibyte which works as well,
-	   except for the fact that it's too permissive (it doesn't
-	   check that the multibyte string only contain single-byte
-	   chars).  */
-	Lisp_Object type = Fstring_as_unibyte (XCAR (rest));
-	NSPasteboardType typeString = [NSString stringWithLispString:type];
+	NSPasteboardType typeString =
+	  [NSString stringWithUTF8LispString:(XCAR (rest))];
 
 	if (typeString)
 	  [array addObject:typeString];
