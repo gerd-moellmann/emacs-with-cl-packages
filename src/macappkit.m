@@ -8273,7 +8273,7 @@ static void update_dragged_types (void);
      shown before the invocation of the Overview UI are hidden and not
      drawable.  We avoid lazy creation of emacsWindow.tabGroup because
      it causes side effect of not creating a tabbed window.  */
-  if ([emacsView isHiddenOrHasHiddenAncestor])
+  if (emacsViewIsHiddenOrHasHiddenAncestor)
     return true;
 
   dpyinfo->last_mouse_movement_time = mac_system_uptime () * 1000;
