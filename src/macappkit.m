@@ -2338,6 +2338,7 @@ static CGRect unset_global_focus_view_frame (void);
     }
   [[window contentView] addSubview:emacsView];
   [self updateBackingScaleFactor];
+  [self updateEmacsViewIsHiddenOrHasHiddenAncestor];
 
   if (oldWindow)
     {
@@ -2790,7 +2791,13 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (BOOL)emacsViewIsHiddenOrHasHiddenAncestor
 {
-  return [emacsView isHiddenOrHasHiddenAncestor];
+  return emacsViewIsHiddenOrHasHiddenAncestor;
+}
+
+- (void)updateEmacsViewIsHiddenOrHasHiddenAncestor
+{
+  emacsViewIsHiddenOrHasHiddenAncestor =
+    [emacsView isHiddenOrHasHiddenAncestor];
 }
 
 - (void)lockFocusOnEmacsView
@@ -6023,15 +6030,16 @@ event_phase_to_symbol (NSEventPhase phase)
 - (void)viewDidHide;
 {
   struct frame *f = [self emacsFrame];
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+  [frameController updateEmacsViewIsHiddenOrHasHiddenAncestor];
 
   mac_handle_visibility_change (f);
 }
 
 - (void)viewDidUnhide;
 {
-  struct frame *f = [self emacsFrame];
-
-  mac_handle_visibility_change (f);
+  [self viewDidHide];
 }
 
 - (NSTouchBar *)makeTouchBar
