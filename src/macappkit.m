@@ -7505,7 +7505,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
 #if !USE_ARC
 - (void)dealloc
 {
-  [coreGraphicsImages dealloc];
+  [coreGraphicsImages release];
   [super dealloc];
 }
 #endif
