@@ -6029,7 +6029,7 @@ event_phase_to_symbol (NSEventPhase phase)
     }
 }
 
-- (void)viewDidHide;
+- (void)viewDidHide
 {
   struct frame *f = [self emacsFrame];
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
@@ -6039,7 +6039,7 @@ event_phase_to_symbol (NSEventPhase phase)
   mac_handle_visibility_change (f);
 }
 
-- (void)viewDidUnhide;
+- (void)viewDidUnhide
 {
   [self viewDidHide];
 }
@@ -6057,7 +6057,7 @@ event_phase_to_symbol (NSEventPhase phase)
 }
 
 - (NSTouchBarItem *)touchBar:(NSTouchBar *)touchBar
-       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier;
+       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier
 {
   NSTouchBarItem *result = nil;
 
@@ -6348,7 +6348,7 @@ create_resize_indicator_image (void)
   return image;
 }
 
-- (void)setHighlighted:(BOOL)flag;
+- (void)setHighlighted:(BOOL)flag
 {
   CALayer *layer = [self layer];
 
@@ -6370,7 +6370,7 @@ create_resize_indicator_image (void)
     layer.borderWidth = 0;
 }
 
-- (void)setShowsResizeIndicator:(BOOL)flag;
+- (void)setShowsResizeIndicator:(BOOL)flag
 {
   CALayer *layer = [self layer];
 
@@ -7183,7 +7183,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   return whole;
 }
 
-- (void)setWhole:(int)theWhole;
+- (void)setWhole:(int)theWhole
 {
   whole = theWhole;
 }
@@ -7193,7 +7193,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   return portion;
 }
 
-- (void)setPortion:(int)thePortion;
+- (void)setPortion:(int)thePortion
 {
   portion = thePortion;
 }
@@ -9866,7 +9866,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 }
 
 - (NSTouchBarItem *)touchBar:(NSTouchBar *)touchBar
-       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier;
+       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier
 {
   NSTouchBarItem *result = nil;
 
@@ -10033,7 +10033,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
 @implementation EmacsPrintProxyView
 
-- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
+- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews
 {
   CGFloat width = 0, height = 0;
 
@@ -11220,7 +11220,7 @@ mac_send_action (Lisp_Object symbol, bool dry_run_p)
     }
 }
 
-- (NSAppleEventDescriptor *)executeAppleEvent:(NSAppleEventDescriptor *)event error:(NSDictionaryOf (NSString *, id) **)errorInfo;
+- (NSAppleEventDescriptor *)executeAppleEvent:(NSAppleEventDescriptor *)event error:(NSDictionaryOf (NSString *, id) **)errorInfo
 {
   if (inhibit_window_system)
     return [super executeAppleEvent:event error:errorInfo];
@@ -11967,7 +11967,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
     return NSMakeSize (ceil (NSHeight (bounds)), ceil (NSWidth (bounds)));
 }
 
-- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
+- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
 {
   return NULL;
 }
@@ -11978,7 +11978,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 }
 
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
-	      inContext:(CGContextRef)ctx;
+	      inContext:(CGContextRef)ctx
 {
   PDFPage *page = [self pageAtIndex:index];
   NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
@@ -12205,7 +12205,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return [NSAttributedString textTypes];
 }
 
-- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
+- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
 {
   NSLayoutManager *layoutManager = [self layoutManager];
   NSTextContainer *textContainer =
@@ -12218,7 +12218,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 #endif
 }
 
-- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
+- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
 {
   NSColor *backgroundColor = [documentAttributes
 			       objectForKey:NSBackgroundColorDocumentAttribute];
@@ -12233,7 +12233,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 }
 
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
-	      inContext:(CGContextRef)ctx;
+	      inContext:(CGContextRef)ctx
 {
   NSLayoutManager *layoutManager = [self layoutManager];
   NSTextContainer *textContainer =
