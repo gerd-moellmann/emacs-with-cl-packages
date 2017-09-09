@@ -5125,7 +5125,7 @@ xpm_put_color_table_h (Lisp_Object color_table,
 {
   struct Lisp_Hash_Table *table = XHASH_TABLE (color_table);
   EMACS_UINT hash_code;
-  Lisp_Object chars = make_unibyte_string ((char *) chars_start, chars_len);
+  Lisp_Object chars = make_unibyte_string (chars_start, chars_len);
 
   hash_lookup (table, chars, &hash_code);
   hash_put (table, chars, color, hash_code);
@@ -5137,8 +5137,8 @@ xpm_get_color_table_h (Lisp_Object color_table,
                        int chars_len)
 {
   struct Lisp_Hash_Table *table = XHASH_TABLE (color_table);
-  ptrdiff_t i = hash_lookup (table, make_unibyte_string ((char *) chars_start,
-							 chars_len), NULL);
+  ptrdiff_t i =
+    hash_lookup (table, make_unibyte_string (chars_start, chars_len), NULL);
 
   return i >= 0 ? HASH_VALUE (table, i) : Qnil;
 }
@@ -5170,8 +5170,8 @@ xpm_load_image (struct frame *f,
                 const unsigned char *contents,
                 const unsigned char *end)
 {
-  const unsigned char *s = contents, *beg;
-  char buffer[BUFSIZ];
+  const unsigned char *s = contents, *beg, *str;
+  unsigned char buffer[BUFSIZ];
   int width, height, x, y;
   int num_colors, chars_per_pixel;
   ptrdiff_t len;
@@ -5265,7 +5265,7 @@ xpm_load_image (struct frame *f,
 
   while (num_colors-- > 0)
     {
-      char *str, *color, *max_color;
+      char *color, *max_color;
       int key, next_key, max_key = 0;
       Lisp_Object symbol_color = Qnil, color_val;
       XColor cdef;
@@ -5357,16 +5357,14 @@ xpm_load_image (struct frame *f,
 
   for (y = 0; y < height; y++)
     {
-      const unsigned char *data;
-
       expect (XPM_TK_STRING);
-      data = beg;
+      str = beg;
       if (len < width * chars_per_pixel)
 	goto failure;
-      for (x = 0; x < width; x++, data += chars_per_pixel)
+      for (x = 0; x < width; x++, str += chars_per_pixel)
 	{
 	  Lisp_Object color_val =
-	    (*get_color_table) (color_table, data, chars_per_pixel);
+	    (*get_color_table) (color_table, str, chars_per_pixel);
 
 	  XPutPixel (ximg, x, y,
 		     INTEGERP (color_val) ? XINT (color_val) : mask_color);
