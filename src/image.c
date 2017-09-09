@@ -2791,11 +2791,14 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
      top of the frame background, in case the former isn't opaque.  */
   CGColorRef default_bg;
   size_t width, height;
+  struct {
+    bool_bf right_p, bottom_p, xy_flipped_p : 1;
+  } top_left_corner = {false, false, false};
   double rotation = 0;
   XImagePtr ximg = NULL, mask_img;
   CGContextRef context;
   CGRect rectangle, clip_rectangle;
-  CGAffineTransform transform;
+  CGAffineTransform preclip_transform, postclip_transform;
   Boolean has_alpha_p, gif_p, tiff_p;
   dispatch_group_t group;
 
@@ -2968,6 +2971,22 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 		    CFNumberGetValue (num, kCFNumberDoubleType, &delay_time);
 		}
 	    }
+	  if (type == NULL)
+	    {
+	      CFNumberRef num;
+	      int orientation;
+
+	      num = CFDictionaryGetValue (props, kCGImagePropertyOrientation);
+	      if (num && CFNumberGetValue (num, kCFNumberIntType, &orientation)
+		  && 1 < orientation && orientation <= 8)
+		{
+		  orientation--;
+		  top_left_corner.right_p =
+		    (orientation ^ (orientation >> 1)) & 0x1;
+		  top_left_corner.bottom_p = (orientation >> 1) & 0x1;
+		  top_left_corner.xy_flipped_p = (orientation >> 2) & 0x1;
+		}
+	    }
 	}
       if (src_props)
 	{
@@ -3121,6 +3140,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       return 0;
     }
 
+  preclip_transform = CGAffineTransformIdentity;
+
   if (type == NULL)
     {
       int desired_width, desired_height;
@@ -3128,6 +3149,28 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
       if (FLOATP (value))
 	rotation = XFLOAT_DATA (value);
+      else if (NILP (value))
+	{
+	  /* If no :rotation is explicitly specified, apply the
+	     automatic rotation from EXIF. */
+	  if (top_left_corner.xy_flipped_p)
+	    {
+	      size_t tmp = width;
+
+	      width = height, height = tmp;
+	    }
+	  if (top_left_corner.right_p ^ top_left_corner.xy_flipped_p)
+	    preclip_transform.a = -1, preclip_transform.tx = width;
+	  if (top_left_corner.bottom_p ^ top_left_corner.xy_flipped_p)
+	    preclip_transform.d = -1, preclip_transform.ty = height;
+	  if (top_left_corner.xy_flipped_p)
+	    {
+	      CGAffineTransform flip = {0, 1, 1, 0, 0, 0};
+
+	      preclip_transform = CGAffineTransformConcat (flip,
+							   preclip_transform);
+	    }
+	}
 
       compute_image_size (width, height, img->spec,
 			  &desired_width, &desired_height);
@@ -3169,6 +3212,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 		  crop = XCDR (crop);
 		  if (CONSP (crop) && INTEGERP (XCAR (crop)))
 		    {
+		      CGAffineTransform translation;
+
 		      crop_rect.origin.y = XINT (XCAR (crop));
 
 		      /* Simulate MagickCropImage's behavior for zero
@@ -3191,10 +3236,14 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 		      crop_rect.origin.y = (CGRectGetMaxY (rectangle)
 					    - CGRectGetMaxY (crop_rect));
 		      crop_rect = CGRectIntersection (crop_rect, rectangle);
-		      rectangle.origin.x = - CGRectGetMinX (crop_rect);
-		      rectangle.origin.y = - CGRectGetMinY (crop_rect);
-		      width = CGRectGetWidth (crop_rect);
-		      height = CGRectGetHeight (crop_rect);
+		      translation =
+			CGAffineTransformMakeTranslation (- crop_rect.origin.x,
+							  - crop_rect.origin.y);
+		      preclip_transform =
+			CGAffineTransformConcat (preclip_transform,
+						 translation);
+		      width = crop_rect.size.width;
+		      height = crop_rect.size.height;
 		    }
 		}
 	    }
@@ -3204,20 +3253,22 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   clip_rectangle = CGRectMake (0, 0, width, height);
 
   if (rotation == 0)
-    transform = CGAffineTransformIdentity;
+    postclip_transform = CGAffineTransformIdentity;
   else
     {
       CGRect rotated_clip;
       CGFloat ceil_width, ceil_height;
 
-      transform = CGAffineTransformMakeRotation (- rotation * M_PI / 180);
-      rotated_clip = CGRectApplyAffineTransform (clip_rectangle, transform);
-      ceil_width = ceil (CGRectGetWidth (rotated_clip));
-      ceil_height = ceil (CGRectGetHeight (rotated_clip));
-      transform.tx = - (CGRectGetMinX (rotated_clip)
-			- (ceil_width - CGRectGetWidth (rotated_clip))/2);
-      transform.ty = - (CGRectGetMinY (rotated_clip)
-			- (ceil_height - CGRectGetHeight (rotated_clip))/2);
+      postclip_transform =
+	CGAffineTransformMakeRotation (- rotation * M_PI / 180);
+      rotated_clip = CGRectApplyAffineTransform (clip_rectangle,
+						 postclip_transform);
+      ceil_width = ceil (rotated_clip.size.width);
+      ceil_height = ceil (rotated_clip.size.height);
+      postclip_transform.tx =
+	- (rotated_clip.origin.x - (ceil_width - rotated_clip.size.width)/2);
+      postclip_transform.ty =
+	- (rotated_clip.origin.y - (ceil_height - rotated_clip.size.height)/2);
       width = ceil_width;
       height = ceil_height;
     }
@@ -3249,6 +3300,13 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 				   kCGImageAlphaNoneSkipFirst
 				   | kCGBitmapByteOrder32Host);
   mask_img = NULL;
+  if (top_left_corner.xy_flipped_p)
+    {
+      CGFloat tmp = rectangle.size.width;
+
+      rectangle.size.width = rectangle.size.height;
+      rectangle.size.height = tmp;
+    }
   if (has_alpha_p || fmod (rotation, 90) != 0)
     {
       Lisp_Object specified_bg;
@@ -3286,8 +3344,9 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 				      CGRectMake (0, 0, width, height));
 		  if (img->target_backing_scale == 2)
 		    CGContextScaleCTM (mask_context, 2, 2);
-		  CGContextConcatCTM (mask_context, transform);
+		  CGContextConcatCTM (mask_context, postclip_transform);
 		  CGContextClipToRect (mask_context, clip_rectangle);
+		  CGContextConcatCTM (mask_context, preclip_transform);
 		  if (CFGetTypeID (obj) == CGImageGetTypeID ())
 		    CGContextDrawImage (mask_context, rectangle,
 					(CGImageRef) obj);
@@ -3339,8 +3398,9 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
     }
   if (img->target_backing_scale == 2)
     CGContextScaleCTM (context, 2, 2);
-  CGContextConcatCTM (context, transform);
+  CGContextConcatCTM (context, postclip_transform);
   CGContextClipToRect (context, clip_rectangle);
+  CGContextConcatCTM (context, preclip_transform);
   if (CFGetTypeID (obj) == CGImageGetTypeID ())
     CGContextDrawImage (context, rectangle, (CGImageRef) obj);
   else
