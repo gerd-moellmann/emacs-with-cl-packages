@@ -195,7 +195,12 @@ If DELETE is non-nil, delete all those overlays."
 	 (let ((x (org-get-x-clipboard-compat value)))
 	   (if x (org-no-properties x))))
 	((and (eq window-system 'w32) (fboundp 'w32-get-clipboard-data))
-	 (w32-get-clipboard-data))))
+	 (w32-get-clipboard-data))
+        ((and (eq window-system 'mac)
+              (fboundp 'gui-get-selection)) ;Silence byte-compiler.
+	 (org-no-properties
+	  (ignore-errors
+            (gui-get-selection 'CLIPBOARD 'NSStringPboardType))))))
 
 (defsubst org-decompose-region (beg end)
   "Decompose from BEG to END."

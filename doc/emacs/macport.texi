@@ -505,6 +505,17 @@ or X resources emulation by the Preferences system:
 defaults write org.gnu.Emacs Emacs.fringe.attributeStipple alpha:.5
 @end smallexample
 
+  On OS X 10.10 and later, the color of scroll bars can be controlled
+by the value of the @code{scroll-bar-background} frame parameter.  If
+it is @code{nil}, which is the default, then the frame background
+color is used instead.  Its color also affects the appearance of other
+GUI parts: the title bar, the tool bar, (the tab bar on macOS 10.12
+and later), scroll bars, and popup menus become light (or dark) if the
+color is considered light (or dark, respectively).  On macOS 10.12 and
+later, the title/tool/tab bars look slightly colored with the value of
+the @code{scroll-bar-background} frame parameter (or the frame
+background color) if the frame is focused and not in fullscreen.
+
 @node Mac Fullscreen
 @section Fullscreen support on the Mac Port
 @cindex fullscreen support (Mac port)

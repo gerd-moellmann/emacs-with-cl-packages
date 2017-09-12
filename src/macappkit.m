@@ -1100,6 +1100,8 @@ static NSMethodSignature *services_handler_signature (void);
 static void handle_action_invocation (NSInvocation *);
 static void handle_services_invocation (NSInvocation *);
 
+static void mac_flush_1 (struct frame *);
+
 static void mac_update_accessibility_display_options (void);
 
 /* True if we are executing mac_run_loop_run_once.  */
@@ -1509,7 +1511,7 @@ emacs_windows_need_display_p (void)
       if (mac_peek_next_event () || emacs_windows_need_display_p ())
 	[NSApp postDummyEvent];
       else
-	mac_flush (NULL);
+	mac_flush_1 (NULL);
     }
 }
 
@@ -2139,7 +2141,7 @@ static CGRect unset_global_focus_view_frame (void);
 	{
 	  tabGroup.overviewVisible = NO;
 	  while (tabGroup.isOverviewVisible)
-	    mac_run_loop_run_once (0);
+	    mac_run_loop_run_once (kEventDurationForever);
 	}
     }
 }
@@ -2336,6 +2338,7 @@ static CGRect unset_global_focus_view_frame (void);
     }
   [[window contentView] addSubview:emacsView];
   [self updateBackingScaleFactor];
+  [self updateEmacsViewIsHiddenOrHasHiddenAncestor];
 
   if (oldWindow)
     {
@@ -2788,7 +2791,13 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (BOOL)emacsViewIsHiddenOrHasHiddenAncestor
 {
-  return [emacsView isHiddenOrHasHiddenAncestor];
+  return emacsViewIsHiddenOrHasHiddenAncestor;
+}
+
+- (void)updateEmacsViewIsHiddenOrHasHiddenAncestor
+{
+  emacsViewIsHiddenOrHasHiddenAncestor =
+    [emacsView isHiddenOrHasHiddenAncestor];
 }
 
 - (void)lockFocusOnEmacsView
@@ -2812,20 +2821,20 @@ static CGRect unset_global_focus_view_frame (void);
   point = [emacsView convertPoint:point toView:nil];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-  return [[emacsView window]
+  return [emacsWindow
 	   convertRectToScreen:(NSMakeRect (point.x, point.y, 0, 0))].origin;
 #else
-  return [[emacsView window] convertBaseToScreen:point];
+  return [emacsWindow convertBaseToScreen:point];
 #endif
 }
 
 - (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-  point = [[emacsView window]
+  point = [emacsWindow
 	    convertRectFromScreen:(NSMakeRect (point.x, point.y, 0, 0))].origin;
 #else
-  point = [[emacsView window] convertScreenToBase:point];
+  point = [emacsWindow convertScreenToBase:point];
 #endif
 
   return [emacsView convertPoint:point fromView:nil];
@@ -2835,9 +2844,9 @@ static CGRect unset_global_focus_view_frame (void);
 {
   rect = [emacsView convertRect:rect toView:nil];
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-  rect.origin = [[emacsView window] convertRectToScreen:rect].origin;
+  rect.origin = [emacsWindow convertRectToScreen:rect].origin;
 #else
-  rect.origin = [[emacsView window] convertBaseToScreen:rect.origin];
+  rect.origin = [emacsWindow convertBaseToScreen:rect.origin];
 #endif
 
   return rect;
@@ -2850,27 +2859,26 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (void)invalidateCursorRectsForEmacsView
 {
-  [[emacsView window] invalidateCursorRectsForView:emacsView];
+  [emacsWindow invalidateCursorRectsForView:emacsView];
 }
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag
 {
-  NSWindow *window = [emacsView window];
   NSRect rect = [emacsView convertRect:clipRect toView:nil];
 
-  rect = [window _intersectBottomCornersWithRect:rect];
+  rect = [emacsWindow _intersectBottomCornersWithRect:rect];
   if (!NSIsEmptyRect (rect))
     {
       if (flag)
-	[window _maskRoundedBottomCorners:rect];
+	[emacsWindow _maskRoundedBottomCorners:rect];
       else
 	{
 	  struct frame *f = emacsFrame;
 
 	  if (!FRAME_GARBAGED_P (f))
 	    {
-	      NSView *frameView = [[window contentView] superview];
+	      NSView *frameView = [[emacsWindow contentView] superview];
 
 	      rect = [frameView convertRect:rect fromView:nil];
 	      [frameView displayRectIgnoringOpacity:rect];
@@ -4618,17 +4626,15 @@ x_flush (struct frame *f)
   unblock_input ();
 }
 
-void
-mac_flush (struct frame *f)
+static void
+mac_flush_1 (struct frame *f)
 {
-  block_input ();
-
   if (f == NULL)
     {
       Lisp_Object rest, frame;
       FOR_EACH_FRAME (rest, frame)
 	if (FRAME_MAC_P (XFRAME (frame)))
-	  mac_flush (XFRAME (frame));
+	  mac_flush_1 (XFRAME (frame));
     }
   else
     {
@@ -4637,7 +4643,13 @@ mac_flush (struct frame *f)
       if ([window isVisible] && ![window isFlushWindowDisabled])
 	[emacsController flushWindow:window force:NO];
     }
+}
 
+void
+mac_flush (struct frame *f)
+{
+  block_input ();
+  mac_flush_1 (f);
   unblock_input ();
 }
 
@@ -5398,7 +5410,7 @@ event_phase_to_symbol (NSEventPhase phase)
   if (hlinfo->mouse_face_hidden)
     {
       hlinfo->mouse_face_hidden = false;
-      clear_mouse_face (hlinfo);
+      [frameController clearMouseFace:hlinfo];
     }
 
   /* Generate SELECT_WINDOW_EVENTs when needed.  */
@@ -5498,7 +5510,9 @@ event_phase_to_symbol (NSEventPhase phase)
   if (!hlinfo->mouse_face_hidden && INTEGERP (Vmouse_highlight)
       && !EQ (f->tool_bar_window, hlinfo->mouse_face_window))
     {
-      clear_mouse_face (hlinfo);
+      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+      [frameController clearMouseFace:hlinfo];
       hlinfo->mouse_face_hidden = true;
     }
 
@@ -6015,18 +6029,19 @@ event_phase_to_symbol (NSEventPhase phase)
     }
 }
 
-- (void)viewDidHide;
+- (void)viewDidHide
 {
   struct frame *f = [self emacsFrame];
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+  [frameController updateEmacsViewIsHiddenOrHasHiddenAncestor];
 
   mac_handle_visibility_change (f);
 }
 
-- (void)viewDidUnhide;
+- (void)viewDidUnhide
 {
-  struct frame *f = [self emacsFrame];
-
-  mac_handle_visibility_change (f);
+  [self viewDidHide];
 }
 
 - (NSTouchBar *)makeTouchBar
@@ -6042,7 +6057,7 @@ event_phase_to_symbol (NSEventPhase phase)
 }
 
 - (NSTouchBarItem *)touchBar:(NSTouchBar *)touchBar
-       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier;
+       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier
 {
   NSTouchBarItem *result = nil;
 
@@ -6333,7 +6348,7 @@ create_resize_indicator_image (void)
   return image;
 }
 
-- (void)setHighlighted:(BOOL)flag;
+- (void)setHighlighted:(BOOL)flag
 {
   CALayer *layer = [self layer];
 
@@ -6355,7 +6370,7 @@ create_resize_indicator_image (void)
     layer.borderWidth = 0;
 }
 
-- (void)setShowsResizeIndicator:(BOOL)flag;
+- (void)setShowsResizeIndicator:(BOOL)flag
 {
   CALayer *layer = [self layer];
 
@@ -6993,7 +7008,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   else if ([[NS_APPEARANCE currentAppearance] allowsVibrancy])
     {
       [[[self window] backgroundColor] set];
-      NSRectFill (aRect);
+      NSRectFill ([self rectForPart:NSScrollerKnobSlot]);
       [super drawRect:aRect];
     }
   else
@@ -7002,7 +7017,8 @@ static BOOL NonmodalScrollerPagingBehavior;
       if (!mac_accessibility_display_options.reduce_transparency_p)
 	{
 	  [[[[self window] backgroundColor] colorWithAlphaComponent:0.25] set];
-	  NSRectFillUsingOperation (aRect, NSCompositingOperationSourceOver);
+	  NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
+				    NSCompositingOperationSourceOver);
 	}
     }
 }
@@ -7167,7 +7183,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   return whole;
 }
 
-- (void)setWhole:(int)theWhole;
+- (void)setWhole:(int)theWhole
 {
   whole = theWhole;
 }
@@ -7177,7 +7193,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   return portion;
 }
 
-- (void)setPortion:(int)thePortion;
+- (void)setPortion:(int)thePortion
 {
   portion = thePortion;
 }
@@ -7468,9 +7484,9 @@ mac_get_default_scroll_bar_height (struct frame *f)
   return mac_get_default_scroll_bar_width (f);
 }
 
-/***********************************************************************
+/************************************************************************
 			       Tool-bars
- ***********************************************************************/
+ ************************************************************************/
 
 #define TOOLBAR_IDENTIFIER_FORMAT (@"org.gnu.Emacs.%p.toolbar")
 
@@ -7489,7 +7505,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
 #if !USE_ARC
 - (void)dealloc
 {
-  [coreGraphicsImages dealloc];
+  [coreGraphicsImages release];
   [super dealloc];
 }
 #endif
@@ -7958,9 +7974,9 @@ free_frame_tool_bar (struct frame *f)
 }
 
 
-/***********************************************************************
+/************************************************************************
 			      Font Panel
- ***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsFontPanel
 
@@ -8199,12 +8215,9 @@ static void update_dragged_types (void);
 
 - (void)noteEnterEmacsView
 {
-  struct frame *f = emacsFrame;
-  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
   NSPoint mouseLocation = [NSEvent mouseLocation];
 
-  mouseLocation =
-    [frameController convertEmacsViewPointFromScreen:mouseLocation];
+  mouseLocation = [self convertEmacsViewPointFromScreen:mouseLocation];
   /* EnterNotify counts as mouse movement,
      so update things that depend on mouse position.  */
   [self noteMouseMovement:mouseLocation];
@@ -8226,9 +8239,9 @@ static void update_dragged_types (void);
       /* If we move outside the frame, then we're
 	 certainly no longer on any text in the
 	 frame.  */
-      clear_mouse_face (hlinfo);
+      [self clearMouseFace:hlinfo];
       hlinfo->mouse_face_mouse_frame = 0;
-      mac_flush (f);
+      mac_flush_1 (f);
     }
 
   [emacsController cancelHelpEchoForEmacsFrame:f];
@@ -8262,7 +8275,7 @@ static void update_dragged_types (void);
      shown before the invocation of the Overview UI are hidden and not
      drawable.  We avoid lazy creation of emacsWindow.tabGroup because
      it causes side effect of not creating a tabbed window.  */
-  if ([emacsView isHiddenOrHasHiddenAncestor])
+  if (emacsViewIsHiddenOrHasHiddenAncestor)
     return true;
 
   dpyinfo->last_mouse_movement_time = mac_system_uptime () * 1000;
@@ -8274,7 +8287,7 @@ static void update_dragged_types (void);
       /* This case corresponds to LeaveNotify in X11.  If we move
 	 outside the frame, then we're certainly no longer on any text
 	 in the frame.  */
-      clear_mouse_face (hlinfo);
+      [self clearMouseFace:hlinfo];
       hlinfo->mouse_face_mouse_frame = 0;
     }
 
@@ -8298,6 +8311,23 @@ static void update_dragged_types (void);
     }
 
   return false;
+}
+
+- (BOOL)clearMouseFace:(Mouse_HLInfo *)hlinfo
+{
+  struct frame *f = emacsFrame;
+  BOOL result;
+
+  if (emacsViewIsHiddenOrHasHiddenAncestor)
+    return NO;
+
+  [emacsView lockFocus];
+  set_global_focus_view_frame (f);
+  result = clear_mouse_face (hlinfo);
+  unset_global_focus_view_frame ();
+  [emacsView unlockFocus];
+
+  return result;
 }
 
 @end				// EmacsFrameController (EventHandling)
@@ -8553,9 +8583,9 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 }
 
 
-/***********************************************************************
+/************************************************************************
 				Busy cursor
- ***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsFrameController (Hourglass)
 
@@ -8652,9 +8682,9 @@ mac_hide_hourglass (struct frame *f)
 }
 
 
-/***********************************************************************
+/************************************************************************
 			File selection dialog
- ***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsSavePanel
 
@@ -8758,9 +8788,9 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 }
 
 
-/***********************************************************************
+/************************************************************************
 			Font selection dialog
- ***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsFontDialogController
 
@@ -9320,7 +9350,7 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 	[NSEvent mouseEventWithType:NSEventTypeLeftMouseDown
 			   location:[emacsView convertPoint:location toView:nil]
 		      modifierFlags:0 timestamp:0
-		       windowNumber:[[emacsView window] windowNumber]
+		       windowNumber:[emacsWindow windowNumber]
 			    context:[NSGraphicsContext currentContext]
 			eventNumber:0 clickCount:1 pressure:0];
 
@@ -9588,9 +9618,9 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 }
 
 
-/***********************************************************************
+/************************************************************************
 			     Popup Dialog
- ***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsDialogView
 
@@ -9836,7 +9866,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 }
 
 - (NSTouchBarItem *)touchBar:(NSTouchBar *)touchBar
-       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier;
+       makeItemForIdentifier:(NSTouchBarItemIdentifier)identifier
 {
   NSTouchBarItem *result = nil;
 
@@ -9997,13 +10027,13 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 }
 
 
-/***********************************************************************
+/************************************************************************
 			       Printing
- ***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsPrintProxyView
 
-- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
+- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews
 {
   CGFloat width = 0, height = 0;
 
@@ -10254,9 +10284,9 @@ mac_print_frames_dialog (Lisp_Object frames)
 }
 
 
-/***********************************************************************
+/************************************************************************
 			  Selection support
-***********************************************************************/
+ ************************************************************************/
 
 /* Get a reference to the selection corresponding to the symbol SYM.
    The reference is set to *SEL, and it becomes NULL if there's no
@@ -10272,7 +10302,7 @@ mac_get_selection_from_symbol (Lisp_Object sym, bool clear_p, Selection *sel)
     *sel = NULL;
   else
     {
-      NSPasteboardName name = [NSString stringWithLispString:str];
+      NSPasteboardName name = [NSString stringWithUTF8LispString:str];
 
       *sel = (__bridge Selection) [NSPasteboard pasteboardWithName:name];
       if (clear_p)
@@ -10293,7 +10323,7 @@ get_pasteboard_data_type_from_symbol (Lisp_Object sym, Selection sel)
   NSPasteboardType dataType;
 
   if (STRINGP (str))
-    dataType = [NSString stringWithLispString:str];
+    dataType = [NSString stringWithUTF8LispString:str];
   else
     dataType = nil;
 
@@ -10431,9 +10461,9 @@ mac_get_selection_target_list (Selection sel)
 }
 
 
-/***********************************************************************
+/************************************************************************
 			 Apple event support
-***********************************************************************/
+ ************************************************************************/
 
 static NSMutableSetOf (NSNumber *) *registered_apple_event_specs;
 
@@ -10545,9 +10575,9 @@ init_apple_event_handler (void)
 }
 
 
-/***********************************************************************
+/************************************************************************
                       Drag and drop support
-***********************************************************************/
+ ************************************************************************/
 
 static NSMutableArrayOf (NSPasteboardType) *registered_dragged_types;
 
@@ -10678,13 +10708,8 @@ update_dragged_types (void)
   for (rest = Vmac_dnd_known_types; CONSP (rest); rest = XCDR (rest))
     if (STRINGP (XCAR (rest)))
       {
-	/* We really want string_to_unibyte, but since it doesn't
-	   exist yet, we use string_as_unibyte which works as well,
-	   except for the fact that it's too permissive (it doesn't
-	   check that the multibyte string only contain single-byte
-	   chars).  */
-	Lisp_Object type = Fstring_as_unibyte (XCAR (rest));
-	NSPasteboardType typeString = [NSString stringWithLispString:type];
+	NSPasteboardType typeString =
+	  [NSString stringWithUTF8LispString:(XCAR (rest))];
 
 	if (typeString)
 	  [array addObject:typeString];
@@ -10720,9 +10745,9 @@ mac_dnd_default_known_types (void)
 }
 
 
-/***********************************************************************
+/************************************************************************
 			Services menu support
-***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsMainView (Services)
 
@@ -10978,9 +11003,9 @@ update_services_menu_types (void)
 }
 
 
-/***********************************************************************
+/************************************************************************
 			    Action support
-***********************************************************************/
+ ************************************************************************/
 
 static BOOL
 is_action_selector (SEL selector)
@@ -11133,9 +11158,9 @@ mac_send_action (Lisp_Object symbol, bool dry_run_p)
 }
 
 
-/***********************************************************************
+/************************************************************************
 		 Open Scripting Architecture support
-***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsOSAScript
 
@@ -11195,7 +11220,7 @@ mac_send_action (Lisp_Object symbol, bool dry_run_p)
     }
 }
 
-- (NSAppleEventDescriptor *)executeAppleEvent:(NSAppleEventDescriptor *)event error:(NSDictionaryOf (NSString *, id) **)errorInfo;
+- (NSAppleEventDescriptor *)executeAppleEvent:(NSAppleEventDescriptor *)event error:(NSDictionaryOf (NSString *, id) **)errorInfo
 {
   if (inhibit_window_system)
     return [super executeAppleEvent:event error:errorInfo];
@@ -11614,9 +11639,9 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 }
 
 
-/***********************************************************************
+/************************************************************************
 			    Image support
-***********************************************************************/
+ ************************************************************************/
 
 @implementation NSView (Emacs)
 
@@ -11858,9 +11883,9 @@ mac_svg_load_image (struct frame *f, struct image *img, unsigned char *contents,
 }
 
 
-/***********************************************************************
+/************************************************************************
 			Document rasterization
-***********************************************************************/
+ ************************************************************************/
 
 static NSMutableDictionaryOf (id, NSDictionaryOf (NSString *, id) *)
   *documentRasterizerCache;
@@ -11942,7 +11967,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
     return NSMakeSize (ceil (NSHeight (bounds)), ceil (NSWidth (bounds)));
 }
 
-- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
+- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
 {
   return NULL;
 }
@@ -11953,7 +11978,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 }
 
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
-	      inContext:(CGContextRef)ctx;
+	      inContext:(CGContextRef)ctx
 {
   PDFPage *page = [self pageAtIndex:index];
   NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
@@ -12180,7 +12205,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return [NSAttributedString textTypes];
 }
 
-- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
+- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
 {
   NSLayoutManager *layoutManager = [self layoutManager];
   NSTextContainer *textContainer =
@@ -12193,7 +12218,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 #endif
 }
 
-- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
+- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
 {
   NSColor *backgroundColor = [documentAttributes
 			       objectForKey:NSBackgroundColorDocumentAttribute];
@@ -12208,7 +12233,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 }
 
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
-	      inContext:(CGContextRef)ctx;
+	      inContext:(CGContextRef)ctx
 {
   NSLayoutManager *layoutManager = [self layoutManager];
   NSTextContainer *textContainer =
@@ -12481,9 +12506,9 @@ mac_document_draw_page (CGContextRef c, CGRect rect, EmacsDocumentRef document,
 }
 
 
-/***********************************************************************
+/************************************************************************
 			Accessibility Support
-***********************************************************************/
+ ************************************************************************/
 
 static id ax_get_value (EmacsMainView *);
 static id ax_get_selected_text (EmacsMainView *);
@@ -13054,9 +13079,9 @@ mac_update_accessibility_status (struct frame *f)
 }
 
 
-/***********************************************************************
+/************************************************************************
 			      Animation
-***********************************************************************/
+ ************************************************************************/
 
 @implementation EmacsFrameController (Animation)
 
@@ -13512,9 +13537,9 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 }
 
 
-/***********************************************************************
+/************************************************************************
 				Fonts
-***********************************************************************/
+ ************************************************************************/
 
 @implementation NSLayoutManager (Emacs)
 
@@ -13968,9 +13993,10 @@ mac_screen_font_shape (ScreenFontRef screen_font, CFStringRef cf_string,
 }
 
 
-/***********************************************************************
+/************************************************************************
 				Sound
-***********************************************************************/
+ ************************************************************************/
+
 @implementation EmacsController (Sound)
 
 - (void)sound:(NSSound *)sound didFinishPlaying:(BOOL)finishedPlaying

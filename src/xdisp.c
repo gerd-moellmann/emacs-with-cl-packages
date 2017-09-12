@@ -28697,11 +28697,7 @@ x_update_cursor (struct frame *f, bool on_p)
 void
 x_clear_cursor (struct window *w)
 {
-  if (FRAME_VISIBLE_P (XFRAME (w->frame)) && w->phys_cursor_on_p
-#ifdef HAVE_MACGUI
-      && !FRAME_OBSCURED_P (XFRAME (w->frame))
-#endif
-      )
+  if (FRAME_VISIBLE_P (XFRAME (w->frame)) && w->phys_cursor_on_p)
     update_window_cursor (w, false);
 }
 

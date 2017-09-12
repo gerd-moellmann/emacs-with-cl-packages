@@ -2787,6 +2787,9 @@ x_scroll_run (struct window *w, struct run *run)
   struct frame *f = XFRAME (w->frame);
   int x, y, width, height, from_y, to_y, bottom_y;
 
+  if (FRAME_OBSCURED_P (f))
+    return;
+
   /* Get frame-relative bounding box of the text display area of W,
      without mode lines.  Include in this box the left and right
      fringe of W.  */
@@ -3177,9 +3180,6 @@ mac_set_vertical_scroll_bar (struct window *w, int portion, int whole, int posit
     {
       Lisp_Object barobj;
 
-      block_input ();
-      mac_clear_area (f, left, top, width, height);
-      unblock_input ();
       bar = x_scroll_bar_create (w, top, left, width, height, false);
       XSETVECTOR (barobj, bar);
       wset_vertical_scroll_bar (w, barobj);
@@ -3200,10 +3200,6 @@ mac_set_vertical_scroll_bar (struct window *w, int portion, int whole, int posit
 	}
       else
 	{
-	  /* Since toolkit scroll bars are smaller than the space reserved
-	     for them on the frame, we have to clear "under" them.  */
-	  mac_clear_area (f, left, top, width, height);
-
           /* Remember new settings.  */
           bar->left = left;
           bar->top = top;
@@ -3242,14 +3238,18 @@ mac_set_horizontal_scroll_bar (struct window *w, int portion, int whole, int pos
   if (NILP (w->horizontal_scroll_bar))
     {
       Lisp_Object barobj;
+      int sp_width = pixel_width - WINDOW_RIGHT_DIVIDER_WIDTH (w) - width;
 
-      block_input ();
+      if (sp_width > 0)
+	{
+	  int left_edge = WINDOW_LEFT_EDGE_X (w);
 
-      /* Clear also part between window_width and
-	 WINDOW_PIXEL_WIDTH.  */
-      mac_clear_area (f, WINDOW_LEFT_EDGE_X (w), top,
-		      pixel_width - WINDOW_RIGHT_DIVIDER_WIDTH (w), height);
-      unblock_input ();
+	  /* Clear part between window_width and WINDOW_PIXEL_WIDTH.  */
+	  block_input ();
+	  mac_clear_area (f, left_edge == left ? left + width : left_edge,
+			  top, sp_width, height);
+	  unblock_input ();
+	}
       bar = x_scroll_bar_create (w, top, left, width, height, true);
       XSETVECTOR (barobj, bar);
       wset_horizontal_scroll_bar (w, barobj);
@@ -3270,10 +3270,16 @@ mac_set_horizontal_scroll_bar (struct window *w, int portion, int whole, int pos
 	}
       else
 	{
-	  /* Since toolkit scroll bars are smaller than the space reserved
-	     for them on the frame, we have to clear "under" them.  */
-	  mac_clear_area (f, WINDOW_LEFT_EDGE_X (w), top,
-			  pixel_width - WINDOW_RIGHT_DIVIDER_WIDTH (w), height);
+	  int sp_width = pixel_width - WINDOW_RIGHT_DIVIDER_WIDTH (w) - width;
+
+	  if (sp_width > 0)
+	    {
+	      int left_edge = WINDOW_LEFT_EDGE_X (w);
+
+	      /* Clear part between window_width and WINDOW_PIXEL_WIDTH.  */
+	      mac_clear_area (f, left_edge == left ? left + width : left_edge,
+			      top, sp_width, height);
+	    }
 
           /* Remember new settings.  */
           bar->left = left;

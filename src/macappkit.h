@@ -339,6 +339,9 @@ typedef id instancetype;
      start live resize.  */
   BOOL shouldLiveResizeTriggerTransition;
 
+  /* Boolean to cache [emacsView isHiddenOrHasHiddenAncestor].  */
+  BOOL emacsViewIsHiddenOrHasHiddenAncestor;
+
   /* Window manager state after the full screen transition.  */
   WMState fullScreenTargetState;
 
@@ -365,6 +368,7 @@ typedef id instancetype;
 - (void)setWindowManagerState:(WMState)newState;
 - (void)updateBackingScaleFactor;
 - (BOOL)emacsViewIsHiddenOrHasHiddenAncestor;
+- (void)updateEmacsViewIsHiddenOrHasHiddenAncestor;
 - (void)lockFocusOnEmacsView;
 - (void)unlockFocusOnEmacsView;
 - (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
@@ -604,6 +608,7 @@ typedef id instancetype;
 - (void)noteEnterEmacsView;
 - (void)noteLeaveEmacsView;
 - (BOOL)noteMouseMovement:(NSPoint)point;
+- (BOOL)clearMouseFace:(Mouse_HLInfo *)hlinfo;
 @end
 
 @interface EmacsFrameController (Hourglass)
