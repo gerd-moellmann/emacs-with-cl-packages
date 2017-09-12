@@ -1,3 +1,25 @@
+2017-09-11  Nicolas Petton  <nicolas@petton.fr>
+
+	* Version 25.3 released.
+
+2017-09-11  Eli Zaretskii  <eliz@gnu.org>
+
+	* etc/NEWS: Document the vulnerability and its resolution.
+	Include a workaround.  Suggested by Charles A. Roelli
+	<charles@aurox.ch>.
+
+	* lisp/gnus/mm-view.el (mm-inline-text): Disable decoding of
+	"enriched" and "richtext" MIME objects.  Suggested by Lars
+	Ingebrigtsen <larsi@gnus.org>.
+
+	* lisp/textmodes/enriched.el (enriched-decode-display-prop):
+	Don't produce 'display' properties.  (Bug#28350)
+
+
+2017-04-20  Nicolas Petton  <nicolas@petton.fr>
+
+	* Version 25.2 released.
+
 2017-04-18  Eli Zaretskii  <eliz@gnu.org>
 
 	Fix a typo in indexing the user manual
@@ -35840,7 +35862,7 @@
 
 This file records repository revisions from
 commit 9d56a21e6a696ad19ac65c4b405aeca44785884a (exclusive) to
-commit 56a4461a48d5803fbc979924475da4b3621ea0f5 (inclusive).
+commit 3a34412caae002accd0fc7a7fc0b718c2f34159b (inclusive).
 See ChangeLog.1 for earlier changes.
 
 ;; Local Variables:
