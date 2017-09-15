@@ -2086,7 +2086,6 @@ This function is an internal primitive--use `make-frame' instead.  */)
   Lisp_Object name;
   bool minibuffer_only = false;
   long window_prompting = 0;
-  int width, height;
   ptrdiff_t count = SPECPDL_INDEX ();
   Lisp_Object display;
   struct mac_display_info *dpyinfo = NULL;
@@ -2181,7 +2180,7 @@ This function is an internal primitive--use `make-frame' instead.  */)
   if (EQ (name, Qunbound) || NILP (name))
     {
       fset_name (f, build_string (dpyinfo->mac_id_name));
-      f->explicit_name = 0;
+      f->explicit_name = false;
     }
   else
     {
@@ -3472,7 +3471,7 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx, Lisp_Object 
     /* It fits to the left of the pointer.  */
     *root_x -= width + XINT (dx);
   else
-    /* Put it left-justified on the screen--it ought to fit that way.  */
+    /* Put it left justified on the screen -- it ought to fit that way.  */
     *root_x = CGRectGetMinX (bounds);
 }
 
