@@ -9261,7 +9261,6 @@ restore_show_help_function (Lisp_Object old_show_help_function)
     if ([window isKindOfClass:[EmacsFullscreenWindow class]]
 	&& ([window isVisible] || [window isMiniaturized]))
       {
-	extern NSImage *_NSGetThemeImage (NSUInteger) WEAK_IMPORT_ATTRIBUTE;
 	NSMenuItem *item =
 	  [[NSMenuItem alloc] initWithTitle:[window title]
 				     action:@selector(makeKeyAndOrderFront:)
