@@ -2692,13 +2692,15 @@ static CGRect unset_global_focus_view_frame (void);
 	  Lisp_Object tool_bar_lines = get_frame_param (f, Qtool_bar_lines);
 
 	  if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
-	    x_set_tool_bar_lines (f, make_number (0), tool_bar_lines);
+	    x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
+						     make_number (0))));
 	  FRAME_NATIVE_TOOL_BAR_P (f) =
 	    (setFrameType != SET_FRAME_TOGGLE_FULL_SCREEN_LATER
 	     ? ((newState & WM_STATE_FULLSCREEN) != 0)
 	     : !(newState & WM_STATE_DEDICATED_DESKTOP));
 	  if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
-	    x_set_tool_bar_lines (f, tool_bar_lines, make_number (0));
+	    x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
+						     tool_bar_lines)));
 	}
 
       frameRect = [self preprocessWindowManagerStateChange:newState];
