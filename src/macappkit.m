@@ -5118,10 +5118,14 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     window = window_from_coordinates (f, x, y, 0, true);
     if (EQ (window, f->tool_bar_window))
       {
+	[self lockFocus];
+	set_global_focus_view_frame (f);
 	if (down_p)
 	  handle_tool_bar_click (f, x, y, 1, 0);
 	else
 	  handle_tool_bar_click (f, x, y, 0, inputEvent.modifiers);
+	unset_global_focus_view_frame ();
+	[self unlockFocus];
 	tool_bar_p = true;
       }
     else
