@@ -1072,7 +1072,9 @@ enum {
   NSEventModifierFlagCommand	= NSCommandKeyMask,
   NSEventModifierFlagNumericPad	= NSNumericPadKeyMask,
   NSEventModifierFlagHelp	= NSHelpKeyMask,
-  NSEventModifierFlagFunction	= NSFunctionKeyMask
+  NSEventModifierFlagFunction	= NSFunctionKeyMask,
+  NSEventModifierFlagDeviceIndependentFlagsMask
+				= NSDeviceIndependentModifierFlagsMask
 };
 #endif
 

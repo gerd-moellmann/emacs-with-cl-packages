@@ -9115,7 +9115,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	{
 	  if ([theEvent type] == NSEventTypeKeyDown
 	      && (([theEvent modifierFlags]
-		   & 0xffff0000UL) /* NSDeviceIndependentModifierFlagsMask */
+		   & NSEventModifierFlagDeviceIndependentFlagsMask)
 		  == ((1UL << 31) | NSEventModifierFlagCommand))
 	      && [[theEvent charactersIgnoringModifiers] isEqualToString:@"c"])
 	    {
