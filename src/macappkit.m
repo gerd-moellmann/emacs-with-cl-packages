@@ -8627,6 +8627,10 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       [indicator startAnimation:sender];
       MRC_RELEASE (indicator);
       [self updateHourglassWindowOrigin];
+      if (has_visual_effect_view_p ())
+	[(id <NSAppearanceCustomization>)hourglassWindow
+	    setAppearance:[(id <NSAppearanceCustomization>)emacsWindow
+							   appearance]];
       [emacsWindow addChildWindow:hourglassWindow ordered:NSWindowAbove];
       [hourglassWindow orderWindow:NSWindowAbove
 			relativeTo:[emacsWindow windowNumber]];
