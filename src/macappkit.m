@@ -3189,11 +3189,13 @@ static CGRect unset_global_focus_view_frame (void);
   struct frame *f = emacsFrame;
   struct window *root_window;
   CGFloat rootWindowMaxY;
-  CALayer *rootLayer;
+  CALayer *rootLayer, *contentLayer;
+  CGSize contentLayerSize;
   NSView *contentView = [emacsWindow contentView];
   NSRect contentViewRect = [contentView visibleRect];
   NSBitmapImageRep *bitmap = [self bitmapImageRep];
   id image = (id) [bitmap CGImage];
+  CGFloat internalBorderWidth = FRAME_INTERNAL_BORDER_WIDTH (f);
 
   rootLayer = [CALayer layer];
   contentViewRect.origin = NSZeroPoint;
@@ -3202,9 +3204,24 @@ static CGRect unset_global_focus_view_frame (void);
   rootLayer.contentsScale = [emacsWindow backingScaleFactor];
   rootLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
   rootLayer.geometryFlipped = YES;
-  rootLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
   if (flag)
     rootLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
+
+  if (FRAME_INTERNAL_BORDER_WIDTH (f) == 0)
+    contentLayer = rootLayer;
+  else
+    {
+      contentLayer = [CALayer layer];
+      contentLayer.frame = NSRectToCGRect (NSInsetRect (contentViewRect,
+							internalBorderWidth,
+							internalBorderWidth));
+      contentLayer.autoresizingMask = (kCALayerWidthSizable
+				       | kCALayerHeightSizable);
+      contentLayer.masksToBounds = YES;
+      [rootLayer addSublayer:contentLayer];
+    }
+  contentLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
+  contentLayerSize = contentLayer.bounds.size;
 
   root_window = XWINDOW (FRAME_ROOT_WINDOW (f));
   rootWindowMaxY = (WINDOW_TOP_EDGE_Y (root_window)
@@ -3280,11 +3297,6 @@ static CGRect unset_global_focus_view_frame (void);
 	  NSMutableDictionaryOf (NSString *, id <CAAction>) *actions;
 	  CAConstraintAttribute attribute;
 	  CGFloat scale;
-	  NSRect rect =
-	    NSMakeRect (NSMinX (rects[i]) / NSWidth (contentViewRect),
-			NSMinY (rects[i]) / NSHeight (contentViewRect),
-			NSWidth (rects[i]) / NSWidth (contentViewRect),
-			NSHeight (rects[i]) / NSHeight (contentViewRect));
 
 	  if (nextLayerName)
 	    {
@@ -3293,7 +3305,11 @@ static CGRect unset_global_focus_view_frame (void);
 	    }
 	  layer.frame = NSRectToCGRect (rects[i]);
 	  layer.contents = image;
-	  layer.contentsRect = NSRectToCGRect (rect);
+	  layer.contentsRect =
+	    CGRectMake (NSMinX (rects[i]) / NSWidth (contentViewRect),
+			NSMinY (rects[i]) / NSHeight (contentViewRect),
+			NSWidth (rects[i]) / NSWidth (contentViewRect),
+			NSHeight (rects[i]) / NSHeight (contentViewRect));
 
 	  /* Suppress animations triggered by a size change in the
 	     superlayer.  Actually not needed on OS X 10.9.  */
@@ -3308,12 +3324,14 @@ static CGRect unset_global_focus_view_frame (void);
 	      if (constraints[i] & MIN_X_SCALE)
 		{
 		  attribute = kCAConstraintMinX;
-		  scale = NSMinX (rect);
+		  scale = ((NSMinX (rects[i]) - internalBorderWidth)
+			   / contentLayerSize.width);
 		}
 	      else
 		{
 		  attribute = kCAConstraintMaxX;
-		  scale = NSMaxX (rect);
+		  scale = ((NSMaxX (rects[i]) - internalBorderWidth)
+			   / contentLayerSize.width);
 		}
 	      [layer addConstraint:[CAConstraint
 				     constraintWithAttribute:attribute
@@ -3346,7 +3364,8 @@ static CGRect unset_global_focus_view_frame (void);
 	      if (constraints[i] & MAX_Y_OFFSET)
 		{
 		  srcAttr = kCAConstraintMaxY;
-		  offset = NSMaxY (rects[i]) - NSHeight (contentViewRect);
+		  offset = (NSMaxY (rects[i]) - internalBorderWidth
+			    - contentLayerSize.height);
 		  attribute = kCAConstraintMaxY;
 		  scale = 1;
 		}
@@ -3357,12 +3376,14 @@ static CGRect unset_global_focus_view_frame (void);
 		  if (constraints[i] & MIN_Y_SCALE)
 		    {
 		      attribute = kCAConstraintMinY;
-		      scale = NSMinY (rect);
+		      scale = ((NSMinY (rects[i]) - internalBorderWidth)
+			       / contentLayerSize.height);
 		    }
 		  else
 		    {
 		      attribute = kCAConstraintMaxY;
-		      scale = NSMaxY (rect);
+		      scale = ((NSMaxY (rects[i]) - internalBorderWidth)
+			       / contentLayerSize.height);
 		    }
 		}
 	      [layer addConstraint:[CAConstraint
@@ -3372,7 +3393,7 @@ static CGRect unset_global_focus_view_frame (void);
 						       scale:scale
 						      offset:offset]];
 	    }
-	  [rootLayer addSublayer:layer];
+	  [contentLayer addSublayer:layer];
 	}
 
       return 1;
