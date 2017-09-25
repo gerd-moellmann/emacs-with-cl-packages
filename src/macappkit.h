@@ -864,7 +864,7 @@ enum {
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101300
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef NSString * NSWindowTabbingIdentifier;
 
 @interface NSWindowTabGroup : NSObject
