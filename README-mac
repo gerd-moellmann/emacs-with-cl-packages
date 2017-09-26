@@ -1,7 +1,7 @@
 1. What's this?
 
 This is "Mac port" addition to GNU Emacs 25.  This provides a native
-GUI support for Mac OS X 10.6 - macOS 10.12.  Note that Emacs 23 and
+GUI support for Mac OS X 10.6 - macOS 10.13.  Note that Emacs 23 and
 later already contain the official GUI support via the NS (Cocoa)
 port.  So if it is good enough for you, then you don't need to try
 this.
@@ -228,45 +228,48 @@ Dock without separating a GUI process (not thread) from the main Emacs
 
 2. Build instructions
 
-  a. If you got this from the git repository, then generate the
-     `configure' script with "$ ./autogen.sh" and skip to Step h.
+  a. Make sure that you have the Command Line Tools for Xcode
+     installed with "$ xcode-select --install".
+
+  b. If you got this from the git repository, then generate the
+     `configure' script with "$ ./autogen.sh" and skip to Step i.
      (You will need the tools mentioned in the file INSTALL.REPO.)
 
-  b. Get the official GNU Emacs 25.X distribution tarball from some
+  c. Get the official GNU Emacs 25.X distribution tarball from some
      GNU mirror site if this file is part of
      emacs-25.X-mac-V.W.tar.gz.  Untar the tarball.  Let
      EMACS_SOURCE_TOP be the top directory of the source tree.
 
-  c. Apply the patch `patch-mac' to the source tree.
+  d. Apply the patch `patch-mac' to the source tree.
 
-  d. Copy the subdirectory `mac' to `EMACS_SOURCE_TOP'.
+  e. Copy the subdirectory `mac' to `EMACS_SOURCE_TOP'.
 
-  e. [Optional, recommended for Retina Display]
+  f. [Optional, recommended for Retina Display]
      If you want to use high resolution versions of some tool bar
      icons and the splash screen image, then download the latest
      `emacs-hires-icons-VERSION_NUMBER.tar.gz' file from
      ftp://ftp.math.s.chiba-u.ac.jp/emacs/ and copy all the files in
      the subdirectory `etc/images' to `EMACS_SOURCE_TOP/etc/images'.
 
-  f. Copy all the files in the `src' subdirectory to
+  g. Copy all the files in the `src' subdirectory to
      `EMACS_SOURCE_TOP/src'.
 
-  g. Copy `lisp/term/mac-win.el' to
+  h. Copy `lisp/term/mac-win.el' to
      `EMACS_SOURCE_TOP/lisp/term/mac-win.el'.
 
-  h. [Optional, recommended for non-Retina Display]
+  i. [Optional, recommended for non-Retina Display]
      If you want to use alpha-channeled version of splash image, which
      makes the fancy splash screen look better, then replace
      etc/images/splash.png with the following one:
      https://bytebucket.org/mituharu/emacs-mac/raw/82af04a197db41d8b9cc3bc04127be2bf01d255f/etc/images/splash.png
 
-  i. [Optional]
+  j. [Optional]
      If you want to use the icon bundled with Emacs 25, then copy
      `EMACS_SOURCE_TOP/nextstep/Cocoa/Emacs.base/Contents/Resources/Emacs.icns'
      to `EMACS_SOURCE_TOP/mac/Emacs.app/Contents/Resources/Emacs.icns'
      by overriding the latter.
 
-  j. Run the configure command (unlike the previous version, the
+  k. Run the configure command (unlike the previous version, the
      "--with-mac" option is now default).  You may also want to
      additionally specify "--enable-mac-app" to install the
      application bundle `Emacs.app' to /Applications.  If you want it
@@ -280,9 +283,9 @@ Dock without separating a GUI process (not thread) from the main Emacs
      on Mac OS X 10.7 with Xcode 4.2 or later, then specify
      CC="clang -fobjc-arc".
 
-  k. make && make install.
+  l. make && make install.
 
-  l. open /Applications/Emacs.app (or MACAPPDIR/Emacs.app) if
+  m. open /Applications/Emacs.app (or MACAPPDIR/Emacs.app) if
      `--enable-mac-app' was specified.  Otherwise, open
      EMACS_SOURCE_TOP/mac/Emacs.app.
 

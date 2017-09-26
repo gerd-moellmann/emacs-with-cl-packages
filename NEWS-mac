@@ -1,5 +1,24 @@
+* emacs-25.3-mac-6.8 (2017-09-26)
+
+** Fixed bugs
+
+*** Frame parameter `alpha' does not work in tooltip-frame-parameters.
+
+*** Switching to/from `fullboth' frame does not preserve tool bar.
+
+*** Hourglass (progress indicator) on a dark title bar is invisible.
+
+*** Live resize transition animation does not respect internal border.
+
+*** Some input methods (e.g., Japanese one) on macOS 10.13 do not
+recognize Control+Space even if it is unchecked in the system-wide
+short cut settings.  This issue is registered in the Apple Bug
+Reporter as rdar://33842041, but still open.  A workaround is added.
+
+
 * emacs-25.3-mac-6.7 (2017-09-12)
 Based on Emacs 25.3.
+http://lists.gnu.org/archive/html/emacs-devel/2017-09/msg00218.html
 
 ** Fixed bugs
 
@@ -7,7 +26,8 @@ Based on Emacs 25.3.
 
 ** Improvements
 
-*** Support the frame parameter `scroll-bar-background'.
+*** Support the frame parameter `scroll-bar-background' on OS X 10.10
+and later.
 If it is nil, which is the default, then the frame background color is
 used instead.  Its color also affects the appearance of other GUI
 parts: the title bar, the tool bar, (the tab bar on macOS 10.12 and
