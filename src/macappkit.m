@@ -5546,7 +5546,15 @@ event_phase_to_symbol (NSEventPhase phase)
   mapped_flags = mac_cgevent_to_input_event (cgevent, NULL);
 
   if (!(mapped_flags
-	& ~(mac_pass_control_to_system ? kCGEventFlagMaskControl : 0)))
+	& ~(mac_pass_control_to_system ? kCGEventFlagMaskControl : 0))
+      /* This is a workaround: some input methods on macOS 10.13 do
+	 not recognize Control+Space even if it is unchecked in the
+	 system-wide short cut settings (rdar://33842041).  */
+      && !(!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12)
+	   && (([theEvent modifierFlags]
+		& NSEventModifierFlagDeviceIndependentFlagsMask)
+	       == NSEventModifierFlagControl)
+	   && [[theEvent charactersIgnoringModifiers] isEqualToString:@" "]))
     {
       keyEventsInterpreted = YES;
       rawKeyEvent = theEvent;
