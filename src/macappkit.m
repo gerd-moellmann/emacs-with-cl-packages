@@ -2692,13 +2692,15 @@ static CGRect unset_global_focus_view_frame (void);
 	  Lisp_Object tool_bar_lines = get_frame_param (f, Qtool_bar_lines);
 
 	  if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
-	    x_set_tool_bar_lines (f, make_number (0), tool_bar_lines);
+	    x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
+						     make_number (0))));
 	  FRAME_NATIVE_TOOL_BAR_P (f) =
 	    (setFrameType != SET_FRAME_TOGGLE_FULL_SCREEN_LATER
 	     ? ((newState & WM_STATE_FULLSCREEN) != 0)
 	     : !(newState & WM_STATE_DEDICATED_DESKTOP));
 	  if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
-	    x_set_tool_bar_lines (f, tool_bar_lines, make_number (0));
+	    x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
+						     tool_bar_lines)));
 	}
 
       frameRect = [self preprocessWindowManagerStateChange:newState];
@@ -3187,11 +3189,13 @@ static CGRect unset_global_focus_view_frame (void);
   struct frame *f = emacsFrame;
   struct window *root_window;
   CGFloat rootWindowMaxY;
-  CALayer *rootLayer;
+  CALayer *rootLayer, *contentLayer;
+  CGSize contentLayerSize;
   NSView *contentView = [emacsWindow contentView];
   NSRect contentViewRect = [contentView visibleRect];
   NSBitmapImageRep *bitmap = [self bitmapImageRep];
   id image = (id) [bitmap CGImage];
+  CGFloat internalBorderWidth = FRAME_INTERNAL_BORDER_WIDTH (f);
 
   rootLayer = [CALayer layer];
   contentViewRect.origin = NSZeroPoint;
@@ -3200,9 +3204,24 @@ static CGRect unset_global_focus_view_frame (void);
   rootLayer.contentsScale = [emacsWindow backingScaleFactor];
   rootLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
   rootLayer.geometryFlipped = YES;
-  rootLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
   if (flag)
     rootLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
+
+  if (FRAME_INTERNAL_BORDER_WIDTH (f) == 0)
+    contentLayer = rootLayer;
+  else
+    {
+      contentLayer = [CALayer layer];
+      contentLayer.frame = NSRectToCGRect (NSInsetRect (contentViewRect,
+							internalBorderWidth,
+							internalBorderWidth));
+      contentLayer.autoresizingMask = (kCALayerWidthSizable
+				       | kCALayerHeightSizable);
+      contentLayer.masksToBounds = YES;
+      [rootLayer addSublayer:contentLayer];
+    }
+  contentLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
+  contentLayerSize = contentLayer.bounds.size;
 
   root_window = XWINDOW (FRAME_ROOT_WINDOW (f));
   rootWindowMaxY = (WINDOW_TOP_EDGE_Y (root_window)
@@ -3278,11 +3297,6 @@ static CGRect unset_global_focus_view_frame (void);
 	  NSMutableDictionaryOf (NSString *, id <CAAction>) *actions;
 	  CAConstraintAttribute attribute;
 	  CGFloat scale;
-	  NSRect rect =
-	    NSMakeRect (NSMinX (rects[i]) / NSWidth (contentViewRect),
-			NSMinY (rects[i]) / NSHeight (contentViewRect),
-			NSWidth (rects[i]) / NSWidth (contentViewRect),
-			NSHeight (rects[i]) / NSHeight (contentViewRect));
 
 	  if (nextLayerName)
 	    {
@@ -3291,7 +3305,11 @@ static CGRect unset_global_focus_view_frame (void);
 	    }
 	  layer.frame = NSRectToCGRect (rects[i]);
 	  layer.contents = image;
-	  layer.contentsRect = NSRectToCGRect (rect);
+	  layer.contentsRect =
+	    CGRectMake (NSMinX (rects[i]) / NSWidth (contentViewRect),
+			NSMinY (rects[i]) / NSHeight (contentViewRect),
+			NSWidth (rects[i]) / NSWidth (contentViewRect),
+			NSHeight (rects[i]) / NSHeight (contentViewRect));
 
 	  /* Suppress animations triggered by a size change in the
 	     superlayer.  Actually not needed on OS X 10.9.  */
@@ -3306,12 +3324,14 @@ static CGRect unset_global_focus_view_frame (void);
 	      if (constraints[i] & MIN_X_SCALE)
 		{
 		  attribute = kCAConstraintMinX;
-		  scale = NSMinX (rect);
+		  scale = ((NSMinX (rects[i]) - internalBorderWidth)
+			   / contentLayerSize.width);
 		}
 	      else
 		{
 		  attribute = kCAConstraintMaxX;
-		  scale = NSMaxX (rect);
+		  scale = ((NSMaxX (rects[i]) - internalBorderWidth)
+			   / contentLayerSize.width);
 		}
 	      [layer addConstraint:[CAConstraint
 				     constraintWithAttribute:attribute
@@ -3344,7 +3364,8 @@ static CGRect unset_global_focus_view_frame (void);
 	      if (constraints[i] & MAX_Y_OFFSET)
 		{
 		  srcAttr = kCAConstraintMaxY;
-		  offset = NSMaxY (rects[i]) - NSHeight (contentViewRect);
+		  offset = (NSMaxY (rects[i]) - internalBorderWidth
+			    - contentLayerSize.height);
 		  attribute = kCAConstraintMaxY;
 		  scale = 1;
 		}
@@ -3355,12 +3376,14 @@ static CGRect unset_global_focus_view_frame (void);
 		  if (constraints[i] & MIN_Y_SCALE)
 		    {
 		      attribute = kCAConstraintMinY;
-		      scale = NSMinY (rect);
+		      scale = ((NSMinY (rects[i]) - internalBorderWidth)
+			       / contentLayerSize.height);
 		    }
 		  else
 		    {
 		      attribute = kCAConstraintMaxY;
-		      scale = NSMaxY (rect);
+		      scale = ((NSMaxY (rects[i]) - internalBorderWidth)
+			       / contentLayerSize.height);
 		    }
 		}
 	      [layer addConstraint:[CAConstraint
@@ -3370,7 +3393,7 @@ static CGRect unset_global_focus_view_frame (void);
 						       scale:scale
 						      offset:offset]];
 	    }
-	  [rootLayer addSublayer:layer];
+	  [contentLayer addSublayer:layer];
 	}
 
       return 1;
@@ -5116,10 +5139,14 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
     window = window_from_coordinates (f, x, y, 0, true);
     if (EQ (window, f->tool_bar_window))
       {
+	[self lockFocus];
+	set_global_focus_view_frame (f);
 	if (down_p)
 	  handle_tool_bar_click (f, x, y, 1, 0);
 	else
 	  handle_tool_bar_click (f, x, y, 0, inputEvent.modifiers);
+	unset_global_focus_view_frame ();
+	[self unlockFocus];
 	tool_bar_p = true;
       }
     else
@@ -5519,7 +5546,15 @@ event_phase_to_symbol (NSEventPhase phase)
   mapped_flags = mac_cgevent_to_input_event (cgevent, NULL);
 
   if (!(mapped_flags
-	& ~(mac_pass_control_to_system ? kCGEventFlagMaskControl : 0)))
+	& ~(mac_pass_control_to_system ? kCGEventFlagMaskControl : 0))
+      /* This is a workaround: some input methods on macOS 10.13 do
+	 not recognize Control+Space even if it is unchecked in the
+	 system-wide short cut settings (rdar://33842041).  */
+      && !(!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12)
+	   && (([theEvent modifierFlags]
+		& NSEventModifierFlagDeviceIndependentFlagsMask)
+	       == NSEventModifierFlagControl)
+	   && [[theEvent charactersIgnoringModifiers] isEqualToString:@" "]))
     {
       keyEventsInterpreted = YES;
       rawKeyEvent = theEvent;
@@ -8621,6 +8656,10 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       [indicator startAnimation:sender];
       MRC_RELEASE (indicator);
       [self updateHourglassWindowOrigin];
+      if (has_visual_effect_view_p ())
+	[(id <NSAppearanceCustomization>)hourglassWindow
+	    setAppearance:[(id <NSAppearanceCustomization>)emacsWindow
+							   appearance]];
       [emacsWindow addChildWindow:hourglassWindow ordered:NSWindowAbove];
       [hourglassWindow orderWindow:NSWindowAbove
 			relativeTo:[emacsWindow windowNumber]];
@@ -9109,7 +9148,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	{
 	  if ([theEvent type] == NSEventTypeKeyDown
 	      && (([theEvent modifierFlags]
-		   & 0xffff0000UL) /* NSDeviceIndependentModifierFlagsMask */
+		   & NSEventModifierFlagDeviceIndependentFlagsMask)
 		  == ((1UL << 31) | NSEventModifierFlagCommand))
 	      && [[theEvent charactersIgnoringModifiers] isEqualToString:@"c"])
 	    {
@@ -9259,7 +9298,6 @@ restore_show_help_function (Lisp_Object old_show_help_function)
     if ([window isKindOfClass:[EmacsFullscreenWindow class]]
 	&& ([window isVisible] || [window isMiniaturized]))
       {
-	extern NSImage *_NSGetThemeImage (NSUInteger) WEAK_IMPORT_ATTRIBUTE;
 	NSMenuItem *item =
 	  [[NSMenuItem alloc] initWithTitle:[window title]
 				     action:@selector(makeKeyAndOrderFront:)
