@@ -1043,6 +1043,7 @@ POS can be a buffer position or a button"
                       mouse-face highlight
                       help-echo "mouse-2: visit this diagnostic"
                       face nil
+                      keymap flymake-diagnostics-buffer-mode-map
                       mouse-action flymake-goto-diagnostic)]))))
 
 (define-derived-mode flymake-diagnostics-buffer-mode tabulated-list-mode
