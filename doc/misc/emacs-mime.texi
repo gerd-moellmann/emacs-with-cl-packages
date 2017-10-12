@@ -405,7 +405,7 @@ variable will cause @samp{text/html} parts to be treated as attachments.
 @item mm-text-html-renderer
 @vindex mm-text-html-renderer
 This selects the function used to render @acronym{HTML}.  The predefined
-renderers are selected by the symbols @code{gnus-article-html},
+renderers are selected by the symbols @code{shr}, @code{gnus-w3m},
 @code{w3m}@footnote{See @uref{http://emacs-w3m.namazu.org/} for more
 information about emacs-w3m}, @code{links}, @code{lynx},
 @code{w3m-standalone} or @code{html2text}.  If @code{nil} use an
@@ -653,6 +653,10 @@ Each tag can contain zero or more parameters on the form
 @samp{parameter=value}.  The values may be enclosed in quotation marks,
 but that's not necessary unless the value contains white space.  So
 @samp{filename=/home/user/#hello$^yes} is perfectly valid.
+
+If you want to talk about MML in a message, you need a way to
+``quote'' these tags.  The way to do that is to include an exclamation
+point after the opening two characters; i. e. @samp{<#!part ...>}.
 
 The following parameters have meaning in @acronym{MML}; parameters that have no
 meaning are ignored.  The @acronym{MML} parameter names are the same as the
@@ -1536,6 +1540,9 @@ Here's a bunch of time/date/second/day examples:
 (date-to-time "Sat Sep 12 12:21:54 1998 +0200")
 @result{} (13818 19266)
 
+(parse-iso8601-time-string "1998-09-12T12:21:54+0200")
+@result{} (13818 19266)
+
 (float-time '(13818 19266))
 @result{} 905595714.0
 
@@ -1825,6 +1832,11 @@ matching types.
 @item mailcap-mime-data
 @vindex mailcap-mime-data
 This variable is an alist of alists containing backup viewing rules.
+
+@item mailcap-user-mime-data
+@vindex mailcap-user-mime-data
+A customizable list of viewers that take preference over
+@code{mailcap-mime-data}.
 
 @end table
 

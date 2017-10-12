@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -490,6 +490,9 @@ two markers or an overlay.  Otherwise, it is nil."
 
 	   (t
 	    (error "Unknown selection type: %S" type)))))
+
+      ;; Most programs are unable to handle NUL bytes in strings.
+      (setq str (replace-regexp-in-string "\0" "\\0" str t t))
 
       (setq next-selection-coding-system nil)
       (cons type str))))

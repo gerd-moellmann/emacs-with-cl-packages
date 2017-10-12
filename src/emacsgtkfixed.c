@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
@@ -27,7 +27,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "emacsgtkfixed.h"
 
 /* Silence a bogus diagnostic; see GNOME bug 683906.  */
-#if 4 < __GNUC__ + (7 <= __GNUC_MINOR__) && ! GLIB_CHECK_VERSION (2, 35, 7)
+#if GNUC_PREREQ (4, 7, 0) && ! GLIB_CHECK_VERSION (2, 35, 7)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wunused-local-typedefs"
 #endif
@@ -81,7 +81,7 @@ emacs_fixed_gtk_widget_size_allocate (GtkWidget *widget,
      additional case for an xwidget view.
 
      It would be nicer if the bse class method could be called first,
-     and the the xview modification only would remain here. It wasn't
+     and the xview modification only would remain here. It wasn't
      possible to solve it that way yet.  */
   EmacsFixedClass *klass;
   GtkWidgetClass *parent_class;
@@ -148,7 +148,7 @@ emacs_fixed_class_init (EmacsFixedClass *klass)
 {
   GtkWidgetClass *widget_class;
 
-  widget_class = (GtkWidgetClass*) klass;
+  widget_class = (GtkWidgetClass *) klass;
 
   widget_class->get_preferred_width = emacs_fixed_get_preferred_width;
   widget_class->get_preferred_height = emacs_fixed_get_preferred_height;
@@ -205,9 +205,9 @@ emacs_fixed_get_preferred_height (GtkWidget *widget,
    (Bug#8919), and so users can resize our frames as they wish.  */
 
 void
-XSetWMSizeHints (Display* d,
+XSetWMSizeHints (Display *d,
                  Window w,
-                 XSizeHints* hints,
+                 XSizeHints *hints,
                  Atom prop)
 {
   struct x_display_info *dpyinfo = x_display_info_for_display (d);

@@ -120,6 +120,19 @@
 (defconst mac-pointer-resize-down 20)
 (defconst mac-pointer-resize-up-down 21)
 (defconst mac-pointer-poof 22)
+;; Mac OS X 10.7 and later
+(defconst mac-pointer-resize-northwest-southeast 23)
+(defconst mac-pointer-resize-northeast-southwest 24)
+(defconst mac-pointer-resize-north-south 25)
+(defconst mac-pointer-resize-north 26)
+(defconst mac-pointer-resize-south 27)
+(defconst mac-pointer-resize-east-west 28)
+(defconst mac-pointer-resize-east 29)
+(defconst mac-pointer-resize-west 30)
+(defconst mac-pointer-resize-northwest 31)
+(defconst mac-pointer-resize-northeast 32)
+(defconst mac-pointer-resize-southwest 33)
+(defconst mac-pointer-resize-southeast 34)
 
 ;;
 ;; Standard X cursor shapes that have Mac counterparts
@@ -2983,7 +2996,7 @@ visibility, then remap this command to `mac-previous-tab'."
 This returns an error if any Emacs frames are Mac frames."
   ;; Don't allow suspending if any of the frames are Mac frames.
   (if (memq 'mac (mapcar #'window-system (frame-list)))
-      (error "Cannot suspend Emacs while running under Mac")))
+      (error "Cannot suspend Emacs while a Mac GUI frame exists")))
 
 (defvar mac-initialized nil
   "Non-nil if the Mac window system has been initialized.")
@@ -3254,5 +3267,6 @@ standard ones in `x-handle-args'."
 (define-key special-event-map [drag-n-drop] 'mac-dnd-handle-drag-n-drop-event)
 
 (provide 'mac-win)
+(provide 'term/mac-win)
 
 ;;; mac-win.el ends here

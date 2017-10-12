@@ -3,7 +3,7 @@
 ;; Copyright (C) 1995, 1998-2017 Free Software Foundation, Inc.
 
 ;; Author:      FSF (see vc.el for full credits)
-;; Maintainer:  Andre Spiegel <spiegel@gnu.org>
+;; Maintainer:  emacs-devel@gnu.org
 ;; Package: vc
 
 ;; This file is part of GNU Emacs.
@@ -19,13 +19,19 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
 ;;; Code:
 
 (eval-when-compile (require 'vc))
+
+(declare-function vc-branch-p "vc" (rev))
+(declare-function vc-checkout "vc" (file &optional rev))
+(declare-function vc-expand-dirs "vc" (file-or-dir-list backend))
+(declare-function vc-read-revision "vc"
+                  (prompt &optional files backend default initial-input))
 
 ;; Clear up the cache to force vc-call to check again and discover
 ;; new functions when we reload this file.

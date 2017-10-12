@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
@@ -44,13 +44,17 @@
 (defcustom epg-gpg-program (if (executable-find "gpg2")
                                "gpg2"
                              "gpg")
-  "The `gpg' executable."
+  "The `gpg' executable.
+Setting this variable directly does not take effect;
+instead use \\[customize] (see the info node `Easy Customization')."
   :version "25.1"
   :group 'epg
   :type 'string)
 
 (defcustom epg-gpgsm-program "gpgsm"
-  "The `gpgsm' executable."
+  "The `gpgsm' executable.
+Setting this variable directly does not take effect;
+instead use \\[customize] (see the info node `Easy Customization')."
   :group 'epg
   :type 'string)
 
@@ -79,59 +83,72 @@ Note that the buffer name starts with a space."
 (defconst epg-gpg-minimum-version "1.4.3")
 
 (defconst epg-config--program-alist
-  '((OpenPGP
+  `((OpenPGP
      epg-gpg-program
-     epg-config--make-gpg-configuration
-     ("gpg2" . "2.1.6") ("gpg" . "1.4.3"))
+     ("gpg2" . "2.1.6") ("gpg" . ,epg-gpg-minimum-version))
     (CMS
      epg-gpgsm-program
-     epg-config--make-gpgsm-configuration
      ("gpgsm" . "2.0.4")))
   "Alist used to obtain the usable configuration of executables.
 The first element of each entry is protocol symbol, which is
 either `OpenPGP' or `CMS'.  The second element is a symbol where
-the executable name is remembered.  The third element is a
-function which constructs a configuration object (actually a
-plist).  The rest of the entry is an alist mapping executable
-names to the minimum required version suitable for the use with
-Emacs.")
+the executable name is remembered.  The rest of the entry is an
+alist mapping executable names to the minimum required version
+suitable for the use with Emacs.")
+
+(defconst epg-config--configuration-constructor-alist
+  '((OpenPGP . epg-config--make-gpg-configuration)
+    (CMS . epg-config--make-gpgsm-configuration))
+  "Alist used to obtain the usable configuration of executables.
+The first element of each entry is protocol symbol, which is
+either `OpenPGP' or `CMS'.  The second element is a function
+which constructs a configuration object (actually a plist).")
 
 (defvar epg--configurations nil)
 
 ;;;###autoload
-(defun epg-find-configuration (protocol &optional force)
+(defun epg-find-configuration (protocol &optional no-cache program-alist)
   "Find or create a usable configuration to handle PROTOCOL.
 This function first looks at the existing configuration found by
-the previous invocation of this function, unless FORCE is non-nil.
+the previous invocation of this function, unless NO-CACHE is non-nil.
 
-Then it walks through `epg-config--program-alist'.  If
-`epg-gpg-program' or `epg-gpgsm-program' is already set with
-custom, use it.  Otherwise, it tries the programs listed in the
-entry until the version requirement is met."
-  (let ((entry (assq protocol epg-config--program-alist)))
+Then it walks through PROGRAM-ALIST or
+`epg-config--program-alist'.  If `epg-gpg-program' or
+`epg-gpgsm-program' is already set with custom, use it.
+Otherwise, it tries the programs listed in the entry until the
+version requirement is met."
+  (unless program-alist
+    (setq program-alist epg-config--program-alist))
+  (let ((entry (assq protocol program-alist)))
     (unless entry
       (error "Unknown protocol %S" protocol))
-    (cl-destructuring-bind (symbol constructor . alist)
+    (cl-destructuring-bind (symbol . alist)
         (cdr entry)
-      (or (and (not force) (alist-get protocol epg--configurations))
-          ;; If the executable value is already set with M-x
-          ;; customize, use it without checking.
-          (if (get symbol 'saved-value)
-              (let ((configuration (funcall constructor (symbol-value symbol))))
-                (push (cons protocol configuration) epg--configurations)
-                configuration)
-            (catch 'found
-              (dolist (program-version alist)
-                (let ((executable (executable-find (car program-version))))
-                  (when executable
-                    (let ((configuration
-                           (funcall constructor executable)))
-                      (when (ignore-errors
-                              (epg-check-configuration configuration
-                                                       (cdr program-version))
-                              t)
-                        (push (cons protocol configuration) epg--configurations)
-                        (throw 'found configuration))))))))))))
+      (let ((constructor
+             (alist-get protocol epg-config--configuration-constructor-alist)))
+        (or (and (not no-cache) (alist-get protocol epg--configurations))
+            ;; If the executable value is already set with M-x
+            ;; customize, use it without checking.
+            (if (and symbol (or (get symbol 'saved-value)
+                                (get symbol 'customized-value)))
+                (let ((configuration
+                       (funcall constructor (symbol-value symbol))))
+                  (push (cons protocol configuration) epg--configurations)
+                  configuration)
+              (catch 'found
+                (dolist (program-version alist)
+                  (let ((executable (executable-find (car program-version))))
+                    (when executable
+                      (let ((configuration
+                             (funcall constructor executable)))
+                        (when (ignore-errors
+                                (epg-check-configuration configuration
+                                                         (cdr program-version))
+                                t)
+                          (unless no-cache
+                            (push (cons protocol configuration)
+                                  epg--configurations))
+                          (throw 'found configuration)))))))))))))
 
 ;; Create an `epg-configuration' object for `gpg', using PROGRAM.
 (defun epg-config--make-gpg-configuration (program)
@@ -193,34 +210,16 @@ entry until the version requirement is met."
   (declare (obsolete epg-find-configuration "25.1"))
   (epg-config--make-gpg-configuration epg-gpg-program))
 
-(defun epg-config--parse-version (string)
-  (let ((index 0)
-	version)
-    (while (eq index (string-match "\\([0-9]+\\)\\.?" string index))
-      (setq version (cons (string-to-number (match-string 1 string))
-			  version)
-	    index (match-end 0)))
-    (nreverse version)))
-
-(defun epg-config--compare-version (v1 v2)
-  (while (and v1 v2 (= (car v1) (car v2)))
-    (setq v1 (cdr v1) v2 (cdr v2)))
-  (- (or (car v1) 0) (or (car v2) 0)))
-
 ;;;###autoload
 (defun epg-check-configuration (config &optional minimum-version)
   "Verify that a sufficient version of GnuPG is installed."
-  (let ((entry (assq 'version config))
-	version)
-    (unless (and entry
-		 (stringp (cdr entry)))
-      (error "Undetermined version: %S" entry))
-    (setq version (epg-config--parse-version (cdr entry))
-	  minimum-version (epg-config--parse-version
-			   (or minimum-version
-			       epg-gpg-minimum-version)))
-    (unless (>= (epg-config--compare-version version minimum-version) 0)
-      (error "Unsupported version: %s" (cdr entry)))))
+  (let ((version (alist-get 'version config)))
+    (unless (stringp version)
+      (error "Undetermined version: %S" version))
+    (unless (version<= (or minimum-version
+                           epg-gpg-minimum-version)
+                       version)
+      (error "Unsupported version: %s" version))))
 
 ;;;###autoload
 (defun epg-expand-group (config group)

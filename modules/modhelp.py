@@ -17,7 +17,7 @@
 # GNU General Public License for more details.
 
 # You should have received a copy of the GNU General Public License
-# along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+# along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import string
@@ -154,7 +154,7 @@ all: ${module}.so ${module}.doc
 int plugin_is_GPL_compatible;
 
 static emacs_value
-${c_func} (emacs_env *env, int nargs, emacs_value args[], void *data)
+${c_func} (emacs_env *env, ptrdiff_t nargs, emacs_value args[], void *data)
 {
   return env->intern (env, "t");
 }

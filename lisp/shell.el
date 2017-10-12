@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -264,7 +264,9 @@ see the function `dirtrack-mode'."
   :group 'shell-directories)
 
 (defcustom explicit-shell-file-name nil
-  "If non-nil, is file name to use for explicitly requested inferior shell."
+  "If non-nil, is file name to use for explicitly requested inferior shell.
+When nil, such interactive shell sessions fallback to using either
+the shell specified in $ESHELL or in `shell-file-name'."
   :type '(choice (const :tag "None" nil) file)
   :group 'shell)
 
@@ -384,11 +386,15 @@ Thus, this does not include the shell's current directory.")
        ((eq (aref qstr match) ?\") (setq dquotes (not dquotes)))
        ((eq (aref qstr match) ?\')
         (cond
+         ;; Treat single quote as text if inside double quotes.
          (dquotes (funcall push "'" (match-end 0)))
-         ((< match (1+ (length qstr)))
+         ((< (1+ match) (length qstr))
           (let ((end (string-match "'" qstr (1+ match))))
-            (funcall push (substring qstr (1+ match) end)
-                     (or end (length qstr)))))
+            (unless end
+              (setq end (length qstr))
+              (set-match-data (list match (length qstr))))
+            (funcall push (substring qstr (1+ match) end) end)))
+         ;; Ignore if at the end of string.
          (t nil)))
        (t (error "Unexpected case in shell--unquote&requote-argument!")))
       (setq qpos (match-end 0)))
@@ -540,11 +546,14 @@ control whether input and output cause the window to scroll to the end of the
 buffer."
   (setq comint-prompt-regexp shell-prompt-pattern)
   (shell-completion-vars)
-  (set (make-local-variable 'paragraph-separate) "\\'")
-  (set (make-local-variable 'paragraph-start) comint-prompt-regexp)
-  (set (make-local-variable 'font-lock-defaults) '(shell-font-lock-keywords t))
-  (set (make-local-variable 'shell-dirstack) nil)
-  (set (make-local-variable 'shell-last-dir) nil)
+  (setq-local paragraph-separate "\\'")
+  (setq-local paragraph-start comint-prompt-regexp)
+  (setq-local font-lock-defaults '(shell-font-lock-keywords t))
+  (setq-local shell-dirstack nil)
+  (setq-local shell-last-dir nil)
+  ;; People expect Shell mode to keep the last line of output at
+  ;; window bottom.
+  (setq-local scroll-conservatively 101)
   (shell-dirtrack-mode 1)
 
   ;; By default, ansi-color applies faces using overlays.  This is
@@ -586,6 +595,7 @@ buffer."
 		  ((string-equal shell "ksh") "echo $PWD ~-")
 		  ;; Bypass any aliases.  TODO all shells could use this.
 		  ((string-equal shell "bash") "command dirs")
+		  ((string-equal shell "zsh") "dirs -l")
 		  (t "dirs")))
       ;; Bypass a bug in certain versions of bash.
       (when (string-equal shell "bash")
@@ -703,36 +713,43 @@ Otherwise, one argument `-i' is passed to the shell.
                  ;; If the current buffer is a dead shell buffer, use it.
                  (current-buffer)))
 
-  ;; On remote hosts, the local `shell-file-name' might be useless.
-  (if (and (called-interactively-p 'any)
-	   (file-remote-p default-directory)
-	   (null explicit-shell-file-name)
-	   (null (getenv "ESHELL")))
-      (with-current-buffer buffer
-	(set (make-local-variable 'explicit-shell-file-name)
-	     (file-remote-p
-	      (expand-file-name
-	       (read-file-name
-		"Remote shell path: " default-directory shell-file-name
-		t shell-file-name))
-	      'localname))))
+  (with-current-buffer buffer
+    (when (file-remote-p default-directory)
+      ;; Apply connection-local variables.
+      (hack-connection-local-variables-apply
+       `(:application tramp
+         :protocol ,(file-remote-p default-directory 'method)
+         :user ,(file-remote-p default-directory 'user)
+         :machine ,(file-remote-p default-directory 'host)))
 
-  ;; The buffer's window must be correctly set when we call comint (so
-  ;; that comint sets the COLUMNS env var properly).
+      ;; On remote hosts, the local `shell-file-name' might be useless.
+      (if (and (called-interactively-p 'any)
+               (null explicit-shell-file-name)
+               (null (getenv "ESHELL")))
+          (set (make-local-variable 'explicit-shell-file-name)
+               (expand-file-name
+                (file-local-name
+                 (read-file-name
+                  "Remote shell path: " default-directory shell-file-name
+                  t shell-file-name)))))))
+
+  ;; The buffer's window must be correctly set when we call comint
+  ;; (so that comint sets the COLUMNS env var properly).
   (pop-to-buffer buffer)
+  ;; Rain or shine, BUFFER must be current by now.
   (unless (comint-check-proc buffer)
     (let* ((prog (or explicit-shell-file-name
-		     (getenv "ESHELL") shell-file-name))
-	   (name (file-name-nondirectory prog))
-	   (startfile (concat "~/.emacs_" name))
-	   (xargs-name (intern-soft (concat "explicit-" name "-args"))))
+                     (getenv "ESHELL") shell-file-name))
+           (name (file-name-nondirectory prog))
+           (startfile (concat "~/.emacs_" name))
+           (xargs-name (intern-soft (concat "explicit-" name "-args"))))
       (unless (file-exists-p startfile)
-	(setq startfile (concat user-emacs-directory "init_" name ".sh")))
+        (setq startfile (concat user-emacs-directory "init_" name ".sh")))
       (apply 'make-comint-in-buffer "shell" buffer prog
-	     (if (file-exists-p startfile) startfile)
-	     (if (and xargs-name (boundp xargs-name))
-		 (symbol-value xargs-name)
-	       '("-i")))
+             (if (file-exists-p startfile) startfile)
+             (if (and xargs-name (boundp xargs-name))
+                 (symbol-value xargs-name)
+               '("-i")))
       (shell-mode)))
   buffer)
 

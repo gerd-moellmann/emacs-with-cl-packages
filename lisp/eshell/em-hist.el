@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -55,6 +55,7 @@
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
+(eval-when-compile (require 'subr-x)) ; `string-blank-p'
 
 (require 'ring)
 (require 'esh-opt)
@@ -119,15 +120,14 @@ If set to t, history will always be saved, silently."
 		 (const :tag "Always save" t))
   :group 'eshell-hist)
 
-(defcustom eshell-input-filter
-  (function
-   (lambda (str)
-     (not (string-match "\\`\\s-*\\'" str))))
+(defcustom eshell-input-filter 'eshell-input-filter-default
   "Predicate for filtering additions to input history.
 Takes one argument, the input.  If non-nil, the input may be saved on
 the input history list.  Default is to save anything that isn't all
 whitespace."
-  :type 'function
+  :type '(radio (function-item eshell-input-filter-default)
+                (function-item eshell-input-filter-initial-space)
+                (function :tag "Other function"))
   :group 'eshell-hist)
 
 (put 'eshell-input-filter 'risky-local-variable t)
@@ -205,6 +205,16 @@ element, regardless of any text on the command line.  In that case,
 (defvar eshell-rebind-keys-alist)
 
 ;;; Functions:
+
+(defun eshell-input-filter-default (input)
+  "Do not add blank input to input history.
+Returns non-nil if INPUT is blank."
+  (not (string-blank-p input)))
+
+(defun eshell-input-filter-initial-space (input)
+  "Do not add input beginning with empty space to history.
+Returns nil if INPUT is prepended by blank space, otherwise non-nil."
+  (not (string-match-p "\\`\\s-+" input)))
 
 (defun eshell-hist-initialize ()
   "Initialize the history management code for one Eshell buffer."

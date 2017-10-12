@@ -6,7 +6,6 @@
 ;; Maintainer: emacs-devel@gnu.org
 ;; Created: 29 Mar 1993
 ;; Keywords: files, hypermedia, matching, mouse, convenience
-;; X-URL: ftp://ftp.mathcs.emory.edu/pub/mic/emacs/
 
 ;; This file is part of GNU Emacs.
 
@@ -21,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 
 ;;; Commentary:
@@ -76,6 +75,7 @@
 ;; (setq ffap-machine-p-known 'accept)  ; no pinging
 ;; (setq ffap-url-regexp nil)           ; disable URL features in ffap
 ;; (setq ffap-shell-prompt-regexp nil)  ; disable shell prompt stripping
+;; (setq ffap-gopher-regexp nil)        ; disable gopher bookmark matching
 ;;
 ;; ffap uses `browse-url' (if found, else `w3-fetch') to fetch URL's.
 ;; For a hairier `ffap-url-fetcher', try ffap-url.el (same ftp site).
@@ -206,6 +206,11 @@ Sensible values are nil, \"news\", or \"mailto\"."
 		 ;; string -- possible, but not really useful
 		 )
   :group 'ffap)
+
+(defvar ffap-max-region-length 1024
+  "Maximum active region length.
+When the region is active and larger than this value,
+`ffap-string-at-point' returns an empty string.")
 
 
 ;;; Peanut Gallery (More User Variables):
@@ -574,7 +579,7 @@ Looks at `ffap-ftp-default-user', returns \"\" for \"localhost\"."
 (defvaralias 'ffap-newsgroup-heads  'thing-at-point-newsgroup-heads)
 (defalias 'ffap-newsgroup-p 'thing-at-point-newsgroup-p)
 
-(defsubst ffap-url-p (string)
+(defun ffap-url-p (string)
   "If STRING looks like an URL, return it (maybe improved), else nil."
   (when (and (stringp string) ffap-url-regexp)
     (let* ((case-fold-search t)
@@ -781,7 +786,7 @@ This uses `ffap-file-exists-string', which may try adding suffixes from
     ("\\`~/" . ffap-lcd)		; |~/misc/ffap.el.Z|
     ;; This used to have a blank, but ffap-string-at-point doesn't
     ;; handle blanks.
-    ;; http://lists.gnu.org/archive/html/emacs-devel/2008-01/msg01058.html
+    ;; https://lists.gnu.org/archive/html/emacs-devel/2008-01/msg01058.html
     ("\\`[Rr][Ff][Cc][-#]?\\([0-9]+\\)"	; no $
      . ffap-rfc)			; "100% RFC2100 compliant"
     (dired-mode . ffap-dired)		; maybe in a subdirectory
@@ -1104,33 +1109,74 @@ The arguments CHARS, BEG and END are handled as described in
 
 (defun ffap-string-at-point (&optional mode)
   "Return a string of characters from around point.
+
 MODE (defaults to value of `major-mode') is a symbol used to look up
 string syntax parameters in `ffap-string-at-point-mode-alist'.
+
 If MODE is not found, we use `file' instead of MODE.
+
 If the region is active, return a string from the region.
-Sets the variable `ffap-string-at-point' and the variable
-`ffap-string-at-point-region'."
+
+If the point is in a comment, ensure that the returned string does not
+contain the comment start characters (especially for major modes that
+have '//' as comment start characters).
+
+Set the variables `ffap-string-at-point' and
+`ffap-string-at-point-region'.
+
+When the region is active and larger than `ffap-max-region-length',
+return an empty string, and set `ffap-string-at-point-region' to '(1 1)."
   (let* ((args
 	  (cdr
 	   (or (assq (or mode major-mode) ffap-string-at-point-mode-alist)
 	       (assq 'file ffap-string-at-point-mode-alist))))
+         (region-selected (use-region-p))
 	 (pt (point))
-	 (beg (if (use-region-p)
+         (beg (if region-selected
 		  (region-beginning)
 		(save-excursion
 		  (skip-chars-backward (car args))
 		  (skip-chars-forward (nth 1 args) pt)
 		  (point))))
-	 (end (if (use-region-p)
+         (end (if region-selected
 		  (region-end)
 		(save-excursion
 		  (skip-chars-forward (car args))
 		  (skip-chars-backward (nth 2 args) pt)
-		  (point)))))
-    (setq ffap-string-at-point
-	  (buffer-substring-no-properties
-	   (setcar ffap-string-at-point-region beg)
-	   (setcar (cdr ffap-string-at-point-region) end)))))
+		  (point))))
+         (region-len (- (max beg end) (min beg end))))
+
+    ;; If the initial characters of the to-be-returned string are the
+    ;; current major mode's comment starter characters, *and* are
+    ;; not part of a comment, remove those from the returned string
+    ;; (Bug#24057).
+    ;; Example comments in `c-mode' (which considers lines beginning
+    ;; with "//" as comments):
+    ;;  //tmp - This is a comment. It does not contain any path reference.
+    ;;  ///tmp - This is a comment. The "/tmp" portion in that is a path.
+    ;;  ////tmp - This is a comment. The "//tmp" portion in that is a path.
+    (when (and
+           ;; Proceed if no region is selected by the user.
+           (null region-selected)
+           ;; Check if END character is part of a comment.
+           (save-excursion
+             (nth 4 (syntax-ppss end))))
+      ;; Move BEG to beginning of comment (after the comment start
+      ;; characters), or END, whichever comes first.
+      (save-excursion
+        (let ((state (syntax-ppss beg)))
+          ;; (nth 4 (syntax-ppss)) will be nil for comment start chars.
+          (unless (nth 4 state)
+            (parse-partial-sexp beg end nil nil state :commentstop)
+            (setq beg (point))))))
+
+    (if (and (natnump ffap-max-region-length)
+             (< region-len ffap-max-region-length)) ; Bug#25243.
+        (setf ffap-string-at-point-region (list beg end)
+              ffap-string-at-point
+              (buffer-substring-no-properties beg end))
+      (setf ffap-string-at-point-region (list 1 1)
+            ffap-string-at-point ""))))
 
 (defun ffap-string-around ()
   ;; Sometimes useful to decide how to treat a string.
@@ -1183,43 +1229,46 @@ Sets the variable `ffap-string-at-point-region' to the bounds of URL, if any."
           val))))
 
 (defvar ffap-gopher-regexp
-  "^.*\\<\\(Type\\|Name\\|Path\\|Host\\|Port\\) *= *\\(.*\\) *$"
-  "Regexp matching a line in a gopher bookmark (maybe indented).
-The two subexpressions are the KEY and VALUE.")
+  "\\<\\(Type\\|Name\\|Path\\|Host\\|Port\\) *= *"
+  "Regexp matching a key in a gopher bookmark.
+Set to nil to disable matching gopher bookmarks.")
+
+(defun ffap--gopher-var-on-line ()
+  "Return (KEY . VALUE) of gopher bookmark on current line."
+  (save-excursion
+    (let ((eol (progn (end-of-line) (skip-chars-backward " ") (point)))
+          (bol (progn (beginning-of-line) (point))))
+     (when (re-search-forward ffap-gopher-regexp eol t)
+       (let ((key (match-string 1))
+             (val (buffer-substring-no-properties (match-end 0) eol)))
+         (cons (intern (downcase key)) val))))))
 
 (defun ffap-gopher-at-point ()
   "If point is inside a gopher bookmark block, return its URL.
 
 Sets the variable `ffap-string-at-point-region' to the bounds of URL, if any."
   ;; `gopher-parse-bookmark' from gopher.el is not so robust
-  (save-excursion
-    (beginning-of-line)
-    (if (looking-at ffap-gopher-regexp)
-	(progn
-	  (while (and (looking-at ffap-gopher-regexp) (not (bobp)))
-	    (forward-line -1))
-	  (or (looking-at ffap-gopher-regexp) (forward-line 1))
-          (setq ffap-string-at-point-region (list (point) (point)))
-	  (let ((type "1") path host (port "70"))
-	    (while (looking-at ffap-gopher-regexp)
-	      (let ((var (intern
-			  (downcase
-			   (buffer-substring (match-beginning 1)
-					     (match-end 1)))))
-		    (val (buffer-substring (match-beginning 2)
-					   (match-end 2))))
-		(set var val)
-		(forward-line 1)))
-            (setcdr ffap-string-at-point-region (list (point)))
-	    (if (and path (string-match "^ftp:.*@" path))
-		(concat "ftp://"
-			(substring path 4 (1- (match-end 0)))
-			(substring path (match-end 0)))
-	      (and (= (length type) 1)
-		   host;; (ffap-machine-p host)
-		   (concat "gopher://" host
-			   (if (equal port "70") "" (concat ":" port))
-			   "/" type path))))))))
+  (when (stringp ffap-gopher-regexp)
+    (save-excursion
+      (let* ((beg (progn (beginning-of-line)
+                         (while (and (not (bobp)) (ffap--gopher-var-on-line))
+                           (forward-line -1))
+                         (point)))
+             (bookmark (cl-loop for keyval = (ffap--gopher-var-on-line)
+                                while keyval collect keyval
+                                do (forward-line 1))))
+        (when bookmark
+          (setq ffap-string-at-point-region (list beg (point)))
+          (let-alist (nconc bookmark '((type . "1") (port . "70")))
+            (if (and .path (string-match "\\`ftp:.*@" .path))
+                (concat "ftp://"
+                        (substring .path 4 (1- (match-end 0)))
+                        (substring .path (match-end 0)))
+              (and (= (length .type) 1)
+                   .host ;; (ffap-machine-p host)
+                   (concat "gopher://" .host
+                           (if (equal .port "70") "" (concat ":" .port))
+                           "/" .type .path)))))))))
 
 (defvar ffap-ftp-sans-slash-regexp
   (and
@@ -1486,7 +1535,8 @@ If `ffap-url-regexp' is not nil, the FILENAME may also be an URL.
 With a prefix, this command behaves exactly like `ffap-file-finder'.
 If `ffap-require-prefix' is set, the prefix meaning is reversed.
 See also the variables `ffap-dired-wildcards', `ffap-newfile-prompt',
-and the functions `ffap-file-at-point' and `ffap-url-at-point'."
+`ffap-url-unwrap-local', `ffap-url-unwrap-remote', and the functions
+`ffap-file-at-point' and `ffap-url-at-point'."
   (interactive)
   (if (and (called-interactively-p 'interactive)
 	   (if ffap-require-prefix (not current-prefix-arg)
@@ -1517,9 +1567,9 @@ and the functions `ffap-file-at-point' and `ffap-url-at-point'."
 		 ;; expand-file-name fixes "~/~/.emacs" bug sent by CHUCKR.
 		 (expand-file-name filename)))
        ;; User does not want to find a non-existent file:
-       ((signal 'file-error (list "Opening file buffer"
-				  "No such file or directory"
-				  filename)))))))
+       ((signal 'file-missing (list "Opening file buffer"
+				    "No such file or directory"
+				    filename)))))))
 
 ;; Shortcut: allow {M-x ffap} rather than {M-x find-file-at-point}.
 ;;;###autoload
@@ -1718,14 +1768,9 @@ Return value:
   "Like `ffap', but put buffer in another window.
 Only intended for interactive use."
   (interactive)
-  (let (value)
-    (switch-to-buffer-other-window
-     (save-window-excursion
-       (setq value (call-interactively 'ffap))
-       (unless (or (bufferp value) (bufferp (car-safe value)))
-	 (setq value (current-buffer)))
-       (current-buffer)))
-    value))
+  (pcase (save-window-excursion (call-interactively 'ffap))
+    ((or (and (pred bufferp) b) `(,(and (pred bufferp) b) . ,_))
+     (switch-to-buffer-other-window b))))
 
 (defun ffap-other-frame ()
   "Like `ffap', but put buffer in another frame.
@@ -1895,7 +1940,10 @@ If `dired-at-point-require-prefix' is set, the prefix meaning is reversed."
 	     (y-or-n-p "Directory does not exist, create it? "))
 	(make-directory filename)
 	(funcall ffap-directory-finder filename))
-       ((error "No such file or directory `%s'" filename))))))
+       (t
+	(signal 'file-missing (list "Opening directory"
+				    "No such file or directory"
+				    filename)))))))
 
 (defun dired-at-point-prompter (&optional guess)
   ;; Does guess and prompt step for find-file-at-point.

@@ -6,7 +6,7 @@
 ;; Author: Don Morrison
 ;;	Lars Lindberg
 ;; (according to ack.texi)
-;; Maintainer: Lars Lindberg <Lars.Lindberg@sypro.cap.se>
+;; Maintainer: emacs-devel@gnu.org
 ;; Created: 16 Mars 1992
 ;; Lindberg's last update version: 5.7
 ;; Keywords: abbrev expand completion convenience
@@ -24,7 +24,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 

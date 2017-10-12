@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include "lisp.h"
@@ -684,6 +684,10 @@ mac_within_app (void (^block) (void))
 
 + (NSCursor *)cursorWithThemeCursor:(ThemeCursor)themeCursor
 {
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6
+      && themeCursor > kThemePoofCursor)
+    return nil;
+
   /* We don't use a mapping from ThemeCursor to SEL together with
      performSelector: because ARC cannot know whether the return
      value should be retained or not at compile time.  */
@@ -723,6 +727,30 @@ mac_within_app (void (^block) (void))
       return [NSCursor resizeUpDownCursor];
     case kThemePoofCursor:
       return [NSCursor disappearingItemCursor];
+    case THEME_RESIZE_NORTHWEST_SOUTHEAST_CURSOR:
+      return [NSCursor _windowResizeNorthWestSouthEastCursor];
+    case THEME_RESIZE_NORTHEAST_SOUTHWEST_CURSOR:
+      return [NSCursor _windowResizeNorthEastSouthWestCursor];
+    case THEME_RESIZE_NORTH_SOUTH_CURSOR:
+      return [NSCursor _windowResizeNorthSouthCursor];
+    case THEME_RESIZE_NORTH_CURSOR:
+      return [NSCursor _windowResizeNorthCursor];
+    case THEME_RESIZE_SOUTH_CURSOR:
+      return [NSCursor _windowResizeSouthCursor];
+    case THEME_RESIZE_EAST_WEST_CURSOR:
+      return [NSCursor _windowResizeEastWestCursor];
+    case THEME_RESIZE_EAST_CURSOR:
+      return [NSCursor _windowResizeEastCursor];
+    case THEME_RESIZE_WEST_CURSOR:
+      return [NSCursor _windowResizeWestCursor];
+    case THEME_RESIZE_NORTHWEST_CURSOR:
+      return [NSCursor _windowResizeNorthWestCursor];
+    case THEME_RESIZE_NORTHEAST_CURSOR:
+      return [NSCursor _windowResizeNorthEastCursor];
+    case THEME_RESIZE_SOUTHWEST_CURSOR:
+      return [NSCursor _windowResizeSouthWestCursor];
+    case THEME_RESIZE_SOUTHEAST_CURSOR:
+      return [NSCursor _windowResizeSouthEastCursor];
     default:
       return nil;
     }
@@ -1959,6 +1987,40 @@ static CGRect unset_global_focus_view_frame (void);
 #endif
 }
 
+- (BOOL)canBecomeKeyWindow
+{
+  return ((EmacsFrameController *) self.delegate).acceptsFocus;
+}
+
+- (BOOL)canBecomeMainWindow
+{
+  return self.isVisible;
+}
+
+- (void)setFrame:(NSRect)windowFrame display:(BOOL)displayViews
+{
+  if (self.hasTitleBar)
+    [super setFrame:windowFrame display:displayViews];
+  else
+    [super setFrame:[self constrainFrameRect:windowFrame toScreen:nil]
+	    display:displayViews];
+}
+
+- (void)setFrameOrigin:(NSPoint)point
+{
+  if (self.hasTitleBar)
+    [super setFrameOrigin:point];
+  else
+    {
+      NSRect frameRect = [self frame];
+
+      frameRect.origin = point;
+      frameRect = [self constrainFrameRect:frameRect toScreen:nil];
+
+      [super setFrameOrigin:frameRect.origin];
+    }
+}
+
 - (Lisp_Object)lispFrame
 {
   Lisp_Object result;
@@ -2190,36 +2252,6 @@ static CGRect unset_global_focus_view_frame (void);
 
 @end				// EmacsWindow
 
-@implementation EmacsFullscreenWindow
-
-- (BOOL)canBecomeKeyWindow
-{
-  return YES;
-}
-
-- (BOOL)canBecomeMainWindow
-{
-  return [self isVisible];
-}
-
-- (void)setFrame:(NSRect)windowFrame display:(BOOL)displayViews
-{
-  [super setFrame:[self constrainFrameRect:windowFrame toScreen:nil]
-	  display:displayViews];
-}
-
-- (void)setFrameOrigin:(NSPoint)point
-{
-  NSRect frameRect = [self frame];
-
-  frameRect.origin = point;
-  frameRect = [self constrainFrameRect:frameRect toScreen:nil];
-
-  [super setFrameOrigin:frameRect.origin];
-}
-
-@end				// EmacsFullscreenWindow
-
 @implementation EmacsFrameController
 
 - (instancetype)initWithEmacsFrame:(struct frame *)f
@@ -2283,7 +2315,6 @@ static CGRect unset_global_focus_view_frame (void);
 {
   struct frame *f = emacsFrame;
   EmacsWindow *oldWindow = emacsWindow;
-  Class windowClass;
   NSRect contentRect;
   NSWindowStyleMask windowStyle;
   BOOL deferCreation;
@@ -2292,22 +2323,15 @@ static CGRect unset_global_focus_view_frame (void);
   if (!FRAME_TOOLTIP_P (f))
     {
       if (windowManagerState & WM_STATE_FULLSCREEN)
-	{
-	  windowClass = [EmacsFullscreenWindow class];
-	  windowStyle = NSWindowStyleMaskBorderless;
-	}
+	windowStyle = NSWindowStyleMaskBorderless;
       else
-	{
-	  windowClass = [EmacsWindow class];
-	  windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
-			 | NSWindowStyleMaskMiniaturizable
-			 | NSWindowStyleMaskResizable);
-	}
+	windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+		       | NSWindowStyleMaskMiniaturizable
+		       | NSWindowStyleMaskResizable);
       deferCreation = YES;
     }
   else
     {
-      windowClass = [EmacsWindow class];
       windowStyle = NSWindowStyleMaskBorderless;
       deferCreation = NO;
     }
@@ -2338,7 +2362,7 @@ static CGRect unset_global_focus_view_frame (void);
 #endif
     }
 
-  window = [[windowClass alloc] initWithContentRect:contentRect
+  window = [[EmacsWindow alloc] initWithContentRect:contentRect
 					  styleMask:windowStyle
 					    backing:NSBackingStoreBuffered
 					      defer:deferCreation];
@@ -2356,6 +2380,8 @@ static CGRect unset_global_focus_view_frame (void);
       [window setBackgroundColor:[oldWindow backgroundColor]];
       [window setRepresentedFilename:[oldWindow representedFilename]];
       [window setCollectionBehavior:[oldWindow collectionBehavior]];
+      window.level = oldWindow.level;
+      [window setExcludedFromWindowsMenu:oldWindow.isExcludedFromWindowsMenu];
       if (has_visual_effect_view_p ())
 	[(id <NSAppearanceCustomization>)window
 	    setAppearance:[(id <NSAppearanceCustomization>)oldWindow
@@ -2401,7 +2427,7 @@ static CGRect unset_global_focus_view_frame (void);
   if (!FRAME_TOOLTIP_P (f))
     {
       [window setAcceptsMouseMovedEvents:YES];
-      if (!(windowManagerState & WM_STATE_FULLSCREEN))
+      if (window.hasTitleBar)
 	[self setupToolBarWithVisibility:(FRAME_EXTERNAL_TOOL_BAR (f))];
       if (has_resize_indicator_at_bottom_right_p ())
 	[window setShowsResizeIndicator:NO];
@@ -2425,6 +2451,7 @@ static CGRect unset_global_focus_view_frame (void);
       [window setHasShadow:YES];
       [window setLevel:NSScreenSaverWindowLevel];
       [window setIgnoresMouseEvents:YES];
+      [window setExcludedFromWindowsMenu:YES];
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:NSWindowAnimationBehaviorNone];
     }
@@ -2460,6 +2487,13 @@ static CGRect unset_global_focus_view_frame (void);
   [super dealloc];
 }
 #endif
+
+- (BOOL)acceptsFocus
+{
+  struct frame *f = emacsFrame;
+
+  return !FRAME_TOOLTIP_P (f) && !FRAME_NO_ACCEPT_FOCUS (f);
+}
 
 - (NSSize)hintedWindowFrameSize:(NSSize)frameSize allowsLarger:(BOOL)flag
 {
@@ -2591,7 +2625,27 @@ static CGRect unset_global_focus_view_frame (void);
 	      || (windowManagerState & WM_STATE_DEDICATED_DESKTOP)))
 	behavior |= NSWindowCollectionBehaviorFullScreenPrimary;
     }
+  behavior |= ((windowManagerState & WM_STATE_SKIP_TASKBAR)
+	       ? NSWindowCollectionBehaviorIgnoresCycle
+	       : NSWindowCollectionBehaviorParticipatesInCycle);
+  behavior |= ((windowManagerState & WM_STATE_OVERRIDE_REDIRECT)
+	       ? NSWindowCollectionBehaviorTransient
+	       : NSWindowCollectionBehaviorManaged);
   [emacsWindow setCollectionBehavior:behavior];
+
+  [emacsWindow setExcludedFromWindowsMenu:((windowManagerState
+					    & WM_STATE_SKIP_TASKBAR) != 0)];
+}
+
+- (void)updateWindowLevel;
+{
+  NSWindowLevel level = NSNormalWindowLevel;
+
+  if (windowManagerState & WM_STATE_ABOVE)
+    level++;
+  else if (windowManagerState & WM_STATE_BELOW)
+    level--;
+  emacsWindow.level = level;
 }
 
 - (NSRect)preprocessWindowManagerStateChange:(WMState)newState
@@ -2660,6 +2714,10 @@ static CGRect unset_global_focus_view_frame (void);
 {
   struct frame *f = emacsFrame;
   WMState oldState, diff;
+  const WMState collectionBehaviorStates =
+    (WM_STATE_STICKY | WM_STATE_NO_MENUBAR
+     | WM_STATE_SKIP_TASKBAR | WM_STATE_OVERRIDE_REDIRECT);
+  const WMState windowLevelStates = WM_STATE_ABOVE | WM_STATE_BELOW;
   enum {
     SET_FRAME_UNNECESSARY,
     SET_FRAME_NECESSARY,
@@ -2672,11 +2730,16 @@ static CGRect unset_global_focus_view_frame (void);
   if (diff == 0)
     return;
 
-  if (diff & (WM_STATE_STICKY | WM_STATE_NO_MENUBAR))
+  if (diff & collectionBehaviorStates)
     {
-      windowManagerState ^= (diff & (WM_STATE_STICKY | WM_STATE_NO_MENUBAR));
-
+      windowManagerState ^= (diff & collectionBehaviorStates);
       [self updateCollectionBehavior];
+    }
+
+  if (diff & windowLevelStates)
+    {
+      windowManagerState ^= (diff & windowLevelStates);
+      [self updateWindowLevel];
     }
 
   if (has_full_screen_with_dedicated_desktop_p ()
@@ -3259,13 +3322,20 @@ static CGRect unset_global_focus_view_frame (void);
   rootLayer.contentsScale = [emacsWindow backingScaleFactor];
   rootLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
   rootLayer.geometryFlipped = YES;
-  if (flag)
-    rootLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
 
   if (FRAME_INTERNAL_BORDER_WIDTH (f) == 0)
     contentLayer = rootLayer;
   else
     {
+      GC gc = mac_gc_for_face_id (f, INTERNAL_BORDER_FACE_ID,
+				  f->output_data.mac->normal_gc);
+      CGColorRef borderColor = CGColorCreateCopyWithAlpha (gc->cg_back_color,
+							   1.0f);
+
+      rootLayer.borderColor = borderColor;
+      CGColorRelease (borderColor);
+      rootLayer.borderWidth = internalBorderWidth;
+
       contentLayer = [CALayer layer];
       contentLayer.frame = NSRectToCGRect (NSInsetRect (contentViewRect,
 							internalBorderWidth,
@@ -3276,6 +3346,8 @@ static CGRect unset_global_focus_view_frame (void);
       [rootLayer addSublayer:contentLayer];
     }
   contentLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
+  if (flag)
+    contentLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
   contentLayerSize = contentLayer.bounds.size;
 
   root_window = XWINDOW (FRAME_ROOT_WINDOW (f));
@@ -3944,7 +4016,7 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 	      NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
 	      NSWindow *mainWindow = [NSApp mainWindow];
 
-	      if (NILP (Vmac_frame_tabbing))
+	      if (!mainWindow.hasTitleBar || NILP (Vmac_frame_tabbing))
 		tabbingMode = NSWindowTabbingModeDisallowed;
 	      else if (EQ (Vmac_frame_tabbing, Qt))
 		tabbingMode = NSWindowTabbingModePreferred;
@@ -4021,7 +4093,8 @@ mac_show_frame_window (struct frame *f)
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   if (![window isVisible])
-    mac_bring_frame_window_to_front_and_activate (f, true);
+    mac_bring_frame_window_to_front_and_activate (f,
+						  !FRAME_NO_FOCUS_ON_MAP (f));
 }
 
 OSStatus
@@ -4077,28 +4150,6 @@ mac_move_frame_window_structure (struct frame *f, int x, int y)
   mac_within_gui (^{[window setFrameTopLeftPoint:topLeft];});
 
   return noErr;
-}
-
-void
-mac_move_frame_window (struct frame *f, int x, int y, bool front)
-{
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-
-  mac_within_gui (^{
-      NSView *contentView = [window contentView];
-      NSRect contentViewFrame, baseScreenFrame;
-      NSPoint windowFrameOrigin;
-
-      contentViewFrame = [contentView convertRect:[contentView bounds]
-					   toView:nil];
-      baseScreenFrame = mac_get_base_screen_frame ();
-      windowFrameOrigin.x = (x - NSMinX (contentViewFrame)
-			     + NSMinX (baseScreenFrame));
-      windowFrameOrigin.y = (-(y + NSMaxY (contentViewFrame))
-			     + NSMaxY (baseScreenFrame));
-
-      [window setFrameOrigin:windowFrameOrigin];
-    });
 }
 
 void
@@ -4910,6 +4961,30 @@ mac_cursor_create (ThemeCursor shape, const XColor *fore_color,
   enum {RED, GREEN, BLUE, ALPHA, NCOMPONENTS = ALPHA} c;
   int fg[NCOMPONENTS], delta[NCOMPONENTS];
 
+  /* Fallbacks for Mac OS X 10.6.  */
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
+    switch (shape)
+      {
+      case THEME_RESIZE_NORTH_SOUTH_CURSOR:
+	shape = kThemeResizeUpDownCursor;
+	break;
+      case THEME_RESIZE_NORTH_CURSOR:
+	shape = kThemeResizeUpCursor;
+	break;
+      case THEME_RESIZE_SOUTH_CURSOR:
+	shape = kThemeResizeDownCursor;
+	break;
+      case THEME_RESIZE_EAST_WEST_CURSOR:
+	shape = kThemeResizeLeftRightCursor;
+	break;
+      case THEME_RESIZE_EAST_CURSOR:
+	shape = kThemeResizeRightCursor;
+	break;
+      case THEME_RESIZE_WEST_CURSOR:
+	shape = kThemeResizeLeftCursor;
+	break;
+      }
+
   if ((fore_color && fore_color->pixel != 0)
       || (back_color && back_color->pixel != 0xffffff))
     cursor = [NSCursor cursorWithThemeCursor:shape];
@@ -5053,6 +5128,60 @@ mac_invalidate_rectangles (struct frame *f, NativeRectangle *rectangles, int n)
     });
 }
 
+Lisp_Object
+mac_frame_list_z_order (struct frame *f)
+{
+  Lisp_Object result = Qnil;
+  NSWindow *root = nil;
+
+  block_input ();
+  if (f)
+    root = FRAME_MAC_WINDOW_OBJECT (f);
+  for (NSWindow *window in [NSApp orderedWindows])
+    if ([window isKindOfClass:EmacsWindow.class])
+      {
+	Lisp_Object frame = ((EmacsWindow *) window).lispFrame;
+
+	if (EQ (frame, tip_frame))
+	  continue;
+
+	if (root)
+	  {
+	    NSWindow *ancestor = window;
+
+	    do
+	      {
+		if ([ancestor isEqual:root])
+		  break;
+		ancestor = ancestor.parentWindow;
+	      }
+	    while (ancestor);
+	    if (ancestor == nil)
+	      continue;
+	  }
+
+	result = Fcons (frame, result);
+      }
+  unblock_input ();
+
+  return Fnreverse (result);
+}
+
+void
+mac_frame_restack (struct frame *f1, struct frame *f2, bool above_flag)
+{
+  NSWindow *window1, *window2;
+
+  block_input ();
+  window1 = FRAME_MAC_WINDOW_OBJECT (f1);
+  window2 = FRAME_MAC_WINDOW_OBJECT (f2);
+  mac_within_gui (^{
+      [window1 orderWindow:(above_flag ? NSWindowAbove : NSWindowBelow)
+		relativeTo:window2.windowNumber];
+    });
+  unblock_input ();
+}
+
 
 /************************************************************************
 			   View and Drawing
@@ -5163,6 +5292,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   mac_clear_area (f, x, y, width, height);
   mac_begin_scale_mismatch_detection (f);
   expose_frame (f, x, y, width, height);
+  x_clear_under_internal_border (f);
   if (mac_end_scale_mismatch_detection (f)
       && [NSWindow instancesRespondToSelector:@selector(backingScaleFactor)])
     SET_FRAME_GARBAGED (f);
@@ -5410,7 +5540,7 @@ event_phase_to_symbol (NSEventPhase phase)
       if ([NSEvent respondsToSelector:@selector(isSwipeTrackingFromScrollEventsEnabled)])
 	isSwipeTrackingFromScrollEventsEnabled =
 	  [NSEvent isSwipeTrackingFromScrollEventsEnabled];
-      /* fall through */
+      FALLTHROUGH;
 
     case NSEventTypeSwipe:
       deltaX = [theEvent deltaX];
@@ -5428,7 +5558,7 @@ event_phase_to_symbol (NSEventPhase phase)
 	   non-scroll event, it crashes on Mac OS X 10.7, and always
 	   returns NSEventPhaseNone on OS X 10.8 - 10.9. */
 	phase = Qnone;
-      /* fall through */
+      FALLTHROUGH;
     case NSEventTypeGesture:
       deltaY = [theEvent magnification];
       break;
@@ -5574,23 +5704,31 @@ event_phase_to_symbol (NSEventPhase phase)
     }
 
   /* Generate SELECT_WINDOW_EVENTs when needed.  */
-  if (!NILP (Vmouse_autoselect_window))
+  if (!NILP (Vmouse_autoselect_window)
+      /* Don't switch if we're currently in the minibuffer.  This
+	 tries to work around problems where the minibuffer gets
+	 unselected unexpectedly, and where you then have to move your
+	 mouse all the way down to the minibuffer to select it.  */
+      && !MINI_WINDOW_P (XWINDOW (selected_window))
+      /* With `focus-follows-mouse' non-nil create an event also when
+	 the target window is on another frame.  */
+      && (f == XFRAME (selected_frame)
+	  || !NILP (focus_follows_mouse)))
     {
       static Lisp_Object last_mouse_window;
       Lisp_Object window = window_from_coordinates (f, point.x, point.y, 0,
 						    false);
 
-      /* Window will be selected only when it is not selected now and
-	 last mouse movement event was not in it.  Minibuffer window
-	 will be selected iff it is active.  */
+      /* A window will be autoselected only when it is not selected
+	 now and the last mouse movement event was not in it.  The
+	 remainder of the code is a bit vague wrt what a "window" is.
+	 For immediate autoselection, the window is usually the entire
+	 window but for GTK where the scroll bars don't count.  For
+	 delayed autoselection the window is usually the window's text
+	 area including the margins.  */
       if (WINDOWP (window)
 	  && !EQ (window, last_mouse_window)
-	  && !EQ (window, selected_window)
-	  /* For click-to-focus window managers create event iff we
-	     don't leave the selected frame.  */
-	  && (focus_follows_mouse
-	      || (EQ (XWINDOW (window)->frame,
-		      XWINDOW (selected_window)->frame))))
+	  && !EQ (window, selected_window))
 	{
 	  EVENT_INIT (inputEvent);
 	  inputEvent.arg = Qnil;
@@ -8851,7 +8989,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 
   origin.x = (NSMaxX (emacsWindowFrame)
 	      - (HOURGLASS_WIDTH
-		 + (!(windowManagerState & WM_STATE_FULLSCREEN)
+		 + (emacsWindow.hasTitleBar
 		    ? HOURGLASS_RIGHT_MARGIN : HOURGLASS_TOP_MARGIN)));
   origin.y = (NSMaxY (emacsWindowFrame)
 	      - (HOURGLASS_HEIGHT + HOURGLASS_TOP_MARGIN));
@@ -8989,7 +9127,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 
   /* Make "Cancel" equivalent to C-g.  */
   if (NILP (file))
-    Fsignal (Qquit, Qnil);
+    quit ();
 
   return unbind_to (count, file);
 }
@@ -9455,7 +9593,8 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
   NSMenu *menu = [[NSMenu alloc] init];
 
   for (NSWindow *window in [NSApp windows])
-    if ([window isKindOfClass:[EmacsFullscreenWindow class]]
+    if (!window.hasTitleBar
+	&& !window.isExcludedFromWindowsMenu
 	&& ([window isVisible] || [window isMiniaturized]))
       {
 	NSMenuItem *item =
@@ -10449,7 +10588,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 	      contentView = [window contentView];
 
 	      unblock_input ();
-	      QUIT;
+	      maybe_quit ();
 	      block_input ();
 	    }
 
@@ -14601,9 +14740,12 @@ mac_within_lisp_deferred_unless_popup (void (^block) (void))
 			   Select emulation
 ***********************************************************************/
 
-/* File descriptors to notify termination of the run loop in the GUI
-   thread for the select emulation to break pselect in the Lisp
-   thread.  */
+/* File descriptors of the socket pair used for breaking pselect calls
+   in Lisp threads.  One direction, writing to mac_select_fds[0] and
+   reading from mac_select_fds[1], is for notifying termination of the
+   run loop in the GUI thread.  The other direction, writing to
+   mac_select_fds[1] and reading from mac_select_fds[0] is for
+   notifying delivery of SIGALRM.  */
 static int mac_select_fds[2];
 
 static int
@@ -14667,16 +14809,51 @@ mac_get_select_fd (void)
   return mac_select_fds[1];
 }
 
+void
+mac_handle_alarm_signal (void)
+{
+  if (initialized)
+    write_one_byte_to_fd (mac_select_fds[1]);
+}
+
 int
 mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
-	    struct timespec const *timeout, sigset_t const *sigmask)
+	    struct timespec *timeout, sigset_t *sigmask)
 {
   bool __block has_event_p;
   int __block r;
 
+  if (!initialized)
+    return thread_select (pselect, nfds, rfds, wfds, efds, timeout, sigmask);
+
+  read_all_from_nonblocking_fd (mac_select_fds[0]);
+
   if (inhibit_window_system || noninteractive || nfds <= mac_select_fds[1]
       || rfds == NULL || !FD_ISSET (mac_select_fds[1], rfds))
-    return pselect (nfds, rfds, wfds, efds, timeout, sigmask);
+    {
+      fd_set rfds_fallback;
+
+      if (rfds == NULL)
+	{
+	  FD_ZERO (&rfds_fallback);
+	  rfds = &rfds_fallback;
+	}
+      FD_SET (mac_select_fds[0], rfds);
+      if (nfds <= mac_select_fds[0])
+	nfds = mac_select_fds[0] + 1;
+
+      r = thread_select (pselect, nfds, rfds, wfds, efds, timeout, sigmask);
+
+      if (r > 0 && FD_ISSET (mac_select_fds[0], rfds))
+	{
+	  /* SIGALRM is delivered.  */
+	  FD_CLR (mac_select_fds[0], rfds);
+	  errno = EINTR;
+	  r = -1;
+	}
+
+      return r;
+    }
 
   /* Check if some input is already available.  We need to block input
      because run loop may call back drawRect:.  */
@@ -14771,7 +14948,7 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 	}
     },
     ^{
-      r = pselect (nfds, rfds, wfds, efds, timeout, sigmask);
+      r = thread_select (pselect, nfds, rfds, wfds, efds, timeout, sigmask);
       dispatch_source_merge_data (mac_select_dispatch_source,
 				  MAC_SELECT_COMMAND_TERMINATE);
       if (r > 0 && FD_ISSET (mac_select_fds[1], rfds))
@@ -14798,10 +14975,11 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 ***********************************************************************/
 
 /* Thread ID of the Lisp main thread.  This should be the same as
-   `main_thread' in sysdep.c.  Note that this is not the thread ID of
-   the main/initial thread, which is dedicated to GUI processing.  */
+   `main_thread_id' in sysdep.c.  Note that this is not the thread ID
+   of the main/initial thread, which is dedicated to GUI
+   processing.  */
 
-static pthread_t mac_lisp_main_thread;
+static pthread_t mac_lisp_main_thread_id;
 
 /* The entry point of the Lisp main thread.  */
 
@@ -14885,33 +15063,53 @@ main (int argc, char **argv)
   if (!err)
     err = pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
   /* Calculation of the stack size from emacs.c.  */
-  if (!err && !getrlimit (RLIMIT_STACK, &rlim))
+  if (!err && !getrlimit (RLIMIT_STACK, &rlim)
+      && 0 <= rlim.rlim_cur && rlim.rlim_cur <= LONG_MAX)
     {
-      long newlim;
-      /* Approximate the amount regex.c needs per unit of re_max_failures.  */
-      int ratio = 20 * sizeof (char *);
-      /* Then add 33% to cover the size of the smaller stacks that regex.c
-	 successively allocates and discards, on its way to the maximum.  */
-      ratio += ratio / 3;
-      /* Add in some extra to cover
-	 what we're likely to use for other reasons.  */
-      newlim = re_max_failures * ratio + 200000;
-      /* The stack size needs to be a multiple of the system page
-	 size.  */
-      newlim = (newlim + getpagesize () - 1) / getpagesize () * getpagesize ();
-      if (newlim > rlim.rlim_max)
+      rlim_t lim = rlim.rlim_cur;
+
+      /* Approximate the amount regex.c needs per unit of
+	 emacs_re_max_failures, then add 33% to cover the size of the
+	 smaller stacks that regex.c successively allocates and
+	 discards on its way to the maximum.  */
+      int min_ratio = 20 * sizeof (char *);
+      int ratio = min_ratio + min_ratio / 3;
+
+      /* Extra space to cover what we're likely to use for other
+         reasons.  For example, a typical GC might take 30K stack
+         frames.  */
+      int extra = (30 * 1000) * 50;
+
+      bool try_to_grow_stack = true;
+#ifndef CANNOT_DUMP
+      try_to_grow_stack = !noninteractive || initialized;
+#endif
+
+      if (try_to_grow_stack)
 	{
-	  newlim = rlim.rlim_max;
-	  /* Don't let regex.c overflow the stack we have.  */
-	  re_max_failures = (newlim - 200000) / ratio;
+	  rlim_t newlim = emacs_re_max_failures * ratio + extra;
+
+	  /* Round the new limit to a page boundary; this is needed
+	     for Darwin kernel 15.4.0 (see Bug#23622) and perhaps
+	     other systems.  Do not shrink the stack and do not exceed
+	     rlim_max.  Don't worry about exact values of
+	     RLIM_INFINITY etc. since in practice when they are
+	     nonnegative they are so large that the code does the
+	     right thing anyway.  */
+	  long pagesize = getpagesize ();
+	  newlim += pagesize - 1;
+	  if (0 <= rlim.rlim_max && rlim.rlim_max < newlim)
+	    newlim = rlim.rlim_max;
+	  newlim -= newlim % pagesize;
+
+	  if (pagesize <= newlim - lim)
+	    rlim.rlim_cur = newlim;
 	}
-      if (rlim.rlim_cur < newlim)
-	rlim.rlim_cur = newlim;
 
       err = pthread_attr_setstacksize (&attr, rlim.rlim_cur);
     }
   if (!err)
-    err = pthread_create (&mac_lisp_main_thread, &attr, mac_start_lisp_main,
+    err = pthread_create (&mac_lisp_main_thread_id, &attr, mac_start_lisp_main,
 			  argv);
   if (err)
     {

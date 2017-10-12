@@ -3,8 +3,7 @@
 dnl From Jim Meyering.
 dnl A wrapper around AC_FUNC_GETGROUPS.
 
-# Copyright (C) 1996-1997, 1999-2004, 2008-2017 Free Software
-# Foundation, Inc.
+# Copyright (C) 1996-1997, 1999-2004, 2008-2017 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -13,7 +12,7 @@ dnl A wrapper around AC_FUNC_GETGROUPS.
 m4_version_prereq([2.70], [] ,[
 
 # This is taken from the following Autoconf patch:
-# http://git.savannah.gnu.org/gitweb/?p=autoconf.git;a=commitdiff;h=7fbb553727ed7e0e689a17594b58559ecf3ea6e9
+# https://git.savannah.gnu.org/gitweb/?p=autoconf.git;a=commitdiff;h=7fbb553727ed7e0e689a17594b58559ecf3ea6e9
 AC_DEFUN([AC_FUNC_GETGROUPS],
 [
   AC_REQUIRE([AC_TYPE_GETGROUPS])dnl

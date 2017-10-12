@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef EMACS_KEYBOARD_H
 #define EMACS_KEYBOARD_H
@@ -65,7 +65,7 @@ INLINE_HEADER_BEGIN
    as soon as a complete key arrives from some KBOARD or other,
    Emacs starts executing that key's binding.  It switches to the
    single-kboard state for the execution of that command,
-   so that that command can get input only from its own KBOARD.
+   so that the command can get input only from its own KBOARD.
 
    While in the single-kboard state, read_char can consider input only
    from the current KBOARD.  If events come from other KBOARDs, they
@@ -415,9 +415,6 @@ extern void unuse_menu_items (void);
 #define EVENT_HEAD_KIND(event_head) \
   (Fget ((event_head), Qevent_kind))
 
-/* True while doing kbd input.  */
-extern bool waiting_for_input;
-
 /* Address (if not 0) of struct timespec to zero out if a SIGIO interrupt
    happens.  */
 extern struct timespec *input_available_clear_time;
@@ -489,12 +486,16 @@ extern bool kbd_buffer_events_waiting (void);
 extern void add_user_signal (int, const char *);
 
 extern int tty_read_avail_input (struct terminal *, struct input_event *);
+extern bool volatile pending_signals;
+extern void process_pending_signals (void);
 extern struct timespec timer_check (void);
 extern void mark_kboards (void);
 
 #ifdef HAVE_NTGUI
 extern const char *const lispy_function_keys[];
 #endif
+
+extern char const DEV_TTY[];
 
 INLINE_HEADER_END
 

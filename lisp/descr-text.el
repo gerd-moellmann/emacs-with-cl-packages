@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -277,12 +277,12 @@ This function is semi-obsolete.  Use `get-char-code-property'."
 			    'general-category (intern val))
 			   val)))
 	       (list "Combining class"
-		     (let ((val (nth 1 fields)))
+		     (let ((val (nth 2 fields)))
 		       (or (char-code-property-description
 			    'canonical-combining-class (intern val))
 			   val)))
 	       (list "Bidi category"
-		     (let ((val (nth 1 fields)))
+		     (let ((val (nth 3 fields)))
 		       (or (char-code-property-description
 			    'bidi-class (intern val))
 			   val)))
@@ -413,12 +413,11 @@ relevant to POS."
            (multibyte-p enable-multibyte-characters)
            (overlays (mapcar (lambda (o) (overlay-properties o))
                              (overlays-at pos)))
-           (char-description (if (not multibyte-p)
+           (char-description (if (< char 128)
                                  (single-key-description char)
-                               (if (< char 128)
-                                   (single-key-description char)
-                                 (string-to-multibyte
-                                  (char-to-string char)))))
+                               (string (if (not multibyte-p)
+                                           (decode-char 'eight-bit char)
+                                         char))))
            (text-props-desc
             (let ((tmp-buf (generate-new-buffer " *text-props*")))
               (unwind-protect
@@ -616,10 +615,18 @@ relevant to POS."
                                    'help-args '(,current-input-method))
 				 "input method")
 			 (list
-                          (let ((name
-                                 (or (get-char-code-property char 'name)
-                                     (get-char-code-property char 'old-name))))
-                            (if (and name (assoc-string name (ucs-names)))
+                          (let* ((names (ucs-names))
+                                 (name
+                                  (or (when (= char ?\a)
+				       ;; Special case for "BELL" which is
+				       ;; apparently the only char which
+				       ;; doesn't have a new name and whose
+				       ;; old-name is shadowed by a newer char
+				       ;; with that name (bug#25641).
+				       "BELL (BEL)")
+                                      (get-char-code-property char 'name)
+                                      (get-char-code-property char 'old-name))))
+                            (if (and name (gethash name names))
                                 (format
                                  "type \"C-x 8 RET %x\" or \"C-x 8 RET %s\""
                                  char name)
@@ -627,7 +634,9 @@ relevant to POS."
               ("buffer code"
                ,(if multibyte-p
                     (encoded-string-description
-                     (string-as-unibyte (char-to-string char)) nil)
+                     (encode-coding-string (char-to-string char)
+                                           'emacs-internal)
+                     nil)
                   (format "#x%02X" char)))
               ("file code"
                ,@(if multibyte-p
@@ -696,7 +705,6 @@ relevant to POS."
                        (called-interactively-p 'interactive))
       (with-help-window (help-buffer)
         (with-current-buffer standard-output
-          (set-buffer-multibyte multibyte-p)
           (let ((formatter (format "%%%ds:" max-width)))
             (dolist (elt item-list)
               (when (cadr elt)

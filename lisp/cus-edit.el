@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -175,9 +175,15 @@
   :group 'emacs)
 
 (defgroup wp nil
-  "Support for editing text files."
-  :tag "Text"
+  "Support for editing text files.
+Use group `text' for this instead.  This group is deprecated."
   :group 'emacs)
+
+(defgroup text nil
+  "Support for editing text files."
+  :group 'emacs
+  ;; Inherit from deprecated `wp' for compatibility, for now.
+  :group 'wp)
 
 (defgroup data nil
   "Support for editing binary data files."
@@ -196,14 +202,6 @@
   "Emulations of other editors."
   :link '(custom-manual "(emacs)Emulation")
   :group 'editing)
-
-(defgroup mouse nil
-  "Mouse support."
-  :group 'editing)
-
-(defgroup outlines nil
-  "Support for hierarchical outlining."
-  :group 'wp)
 
 (defgroup external nil
   "Interfacing to external utilities."
@@ -317,7 +315,7 @@
 (defgroup tex nil
   "Code related to the TeX formatter."
   :link '(custom-group-link :tag "Font Lock Faces group" font-lock-faces)
-  :group 'wp)
+  :group 'text)
 
 (defgroup faces nil
   "Support for multiple fonts."
@@ -404,10 +402,6 @@
 
 (defgroup keyboard nil
   "Input from the keyboard."
-  :group 'environment)
-
-(defgroup mouse nil
-  "Input from the mouse."
   :group 'environment)
 
 (defgroup menu nil
@@ -1172,7 +1166,7 @@ Show the buffer in another window, but don't select it."
     (unless (eq symbol basevar)
       (message "`%s' is an alias for `%s'" symbol basevar))))
 
-(defvar customize-changed-options-previous-release "24.1"
+(defvar customize-changed-options-previous-release "25.3"
   "Version for `customize-changed-options' to refer back to by default.")
 
 ;; Packages will update this variable, so make it available.
@@ -1347,7 +1341,7 @@ suggest to customize that face, if it's customizable."
       (if (get face 'face-alias)
 	  (setq face (get face 'face-alias)))
       (unless (facep face)
-	(error "Invalid face %S" face))
+	(user-error "Invalid face %S" face))
       (funcall display-fun
 	       (list (list face 'custom-face))
 	       (format "*Customize Face: %s*"
@@ -1552,27 +1546,29 @@ not for everybody."
 	buf))))
 
 ;;;###autoload
-(defun custom-buffer-create (options &optional name description)
+(defun custom-buffer-create (options &optional name _description)
   "Create a buffer containing OPTIONS.
 Optional NAME is the name of the buffer.
 OPTIONS should be an alist of the form ((SYMBOL WIDGET)...), where
 SYMBOL is a customization option, and WIDGET is a widget for editing
 that option.
 DESCRIPTION is unused."
-  (pop-to-buffer-same-window (custom-get-fresh-buffer (or name "*Customization*")))
-  (custom-buffer-create-internal options description))
+  (pop-to-buffer-same-window
+   (custom-get-fresh-buffer (or name "*Customization*")))
+  (custom-buffer-create-internal options))
 
 ;;;###autoload
-(defun custom-buffer-create-other-window (options &optional name description)
+(defun custom-buffer-create-other-window (options &optional name _description)
   "Create a buffer containing OPTIONS, and display it in another window.
 The result includes selecting that window.
 Optional NAME is the name of the buffer.
 OPTIONS should be an alist of the form ((SYMBOL WIDGET)...), where
 SYMBOL is a customization option, and WIDGET is a widget for editing
-that option."
+that option.
+DESCRIPTION is unused."
   (unless name (setq name "*Customization*"))
   (switch-to-buffer-other-window (custom-get-fresh-buffer name))
-  (custom-buffer-create-internal options description))
+  (custom-buffer-create-internal options))
 
 (defcustom custom-reset-button-menu t
   "If non-nil, only show a single reset button in customize buffers.
@@ -1630,7 +1626,9 @@ Otherwise use brackets."
     ;; Insert verbose help at the top of the custom buffer.
     (when custom-buffer-verbose-help
       (unless init-file
-	(widget-insert "Custom settings cannot be saved; maybe you started Emacs with `-q'.\n"))
+	(widget-insert
+         (format-message
+          "Custom settings cannot be saved; maybe you started Emacs with `-q'.\n")))
       (widget-insert "For help using this buffer, see ")
       (widget-create 'custom-manual
 		     :tag "Easy Customization"
@@ -2527,7 +2525,10 @@ try matching its doc string against `custom-guess-doc-alist'."
 		  (copy-sequence type)
 		(list type))))
     (when options
-      (widget-put tmp :options options))
+      ;; This used to use widget-put, but with strict plists that
+      ;; fails when type is an even-length list, eg (repeat character).
+      ;; Passing our result through widget-convert makes it a valid widget.
+      (setcdr tmp (append (list :options options) (cdr tmp))))
     tmp))
 
 (defun custom-variable-value-create (widget)
@@ -2805,7 +2806,7 @@ If STATE is nil, the value is computed by `custom-variable-state'."
     ;; init-file-user rather than user-init-file.  This is in case
     ;; cus-edit is loaded by something in site-start.el, because
     ;; user-init-file is not set at that stage.
-    ;; http://lists.gnu.org/archive/html/emacs-devel/2007-10/msg00310.html
+    ;; https://lists.gnu.org/archive/html/emacs-devel/2007-10/msg00310.html
     ,@(when (or custom-file init-file-user)
 	'(("Save for Future Sessions" custom-variable-save
 	   (lambda (widget)
@@ -3255,10 +3256,6 @@ Only match the specified window systems.")
 					   :sibling-args (:help-echo "\
 The X11 Window System.")
 					   x)
-				    (const :format "PM "
-					   :sibling-args (:help-echo "\
-OS/2 Presentation Manager.")
-					   pm)
 				    (const :format "W32 "
 					   :sibling-args (:help-echo "\
 MS Windows.")
@@ -4594,7 +4591,7 @@ This function does not save the buffer."
       (if (bolp)
 	  (princ " "))
       (princ ")")
-      (unless (looking-at-p "\n")
+      (when (/= (following-char) ?\n)
 	(princ "\n")))))
 
 (defun custom-save-faces ()
@@ -4649,7 +4646,7 @@ This function does not save the buffer."
       (if (bolp)
 	  (princ " "))
       (princ ")")
-      (unless (looking-at-p "\n")
+      (when (/= (following-char) ?\n)
 	(princ "\n")))))
 
 ;;; The Customize Menu.
@@ -4862,8 +4859,6 @@ if that value is non-nil."
 (put 'Custom-mode 'mode-class 'special)
 
 (define-obsolete-function-alias 'custom-mode 'Custom-mode "23.1")
-
-(add-to-list 'debug-ignored-errors "^Invalid face:? ")
 
 ;;; The End.
 

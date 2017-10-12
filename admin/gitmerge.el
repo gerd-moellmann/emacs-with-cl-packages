@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -50,7 +50,7 @@
 (defvar gitmerge-skip-regexp
   ;; We used to include "sync" in there, but in my experience it only
   ;; caused false positives.  --Stef
-  "back[- ]?port\\|cherry picked from commit\\|\\(do not\\|no need to\\) merge\\|\
+  "back[- ]?port\\|cherry picked from commit\\|\\(do\\( no\\|n['’]\\)t\\|no need to\\) merge\\|\
 re-?generate\\|bump version\\|from trunk\\|Auto-commit"
   "Regexp matching logs of revisions that might be skipped.
 `gitmerge-missing' will ask you if it should skip any matches.")
@@ -67,7 +67,7 @@ re-?generate\\|bump version\\|from trunk\\|Auto-commit"
   '((t (:strike-through t)))
   "Face for skipped commits.")
 
-(defconst gitmerge-default-branch "origin/emacs-24"
+(defconst gitmerge-default-branch "origin/emacs-25"
   "Default for branch that should be merged.")
 
 (defconst gitmerge-buffer "*gitmerge*"
@@ -171,9 +171,10 @@ re-?generate\\|bump version\\|from trunk\\|Auto-commit"
 (defun gitmerge-highlight-skip-regexp ()
   "Highlight strings that match `gitmerge-skip-regexp'."
   (save-excursion
-    (while (re-search-forward gitmerge-skip-regexp nil t)
-      (put-text-property (match-beginning 0) (match-end 0)
-			 'face 'font-lock-warning-face))))
+    (let ((case-fold-search t))
+      (while (re-search-forward gitmerge-skip-regexp nil t)
+        (put-text-property (match-beginning 0) (match-end 0)
+                           'face 'font-lock-warning-face)))))
 
 (defun gitmerge-missing (from)
   "Return the list of revisions that need to be merged from FROM.
@@ -185,8 +186,8 @@ if and why this commit should be skipped."
     ;; Go through the log and remember all commits that match
     ;; `gitmerge-skip-regexp' or are marked by --cherry-mark.
     (with-temp-buffer
-      (call-process "git" nil t nil "log" "--cherry-mark" from
-		    (concat "^" (car (vc-git-branches))))
+      (call-process "git" nil t nil "log" "--cherry-mark" "--left-only"
+		    (concat from "..." (car (vc-git-branches))))
       (goto-char (point-max))
       (while (re-search-backward "^commit \\(.+\\) \\([0-9a-f]+\\).*" nil t)
 	(let ((cherrymark (match-string 1))
@@ -208,9 +209,9 @@ if and why this commit should be skipped."
   "Create the buffer for choosing commits."
   (with-current-buffer (get-buffer-create gitmerge-buffer)
     (erase-buffer)
-    (call-process "git" nil t nil "log"
+    (call-process "git" nil t nil "log" "--left-only"
 		  "--pretty=format:%h %<(20,trunc) %an: %<(100,trunc) %s"
-		  from (concat "^" (car (vc-git-branches))))
+		  (concat from "..." (car (vc-git-branches))))
     (goto-char (point-min))
     (while (looking-at "^\\([a-f0-9]+\\)")
       (let ((skipreason (gitmerge-skip-commit-p (match-string 1) commits)))
@@ -330,6 +331,10 @@ is nil, only the single commit BEG is merged."
 	   (if end (list (concat beg "~.." end))
 	     `("-1" ,beg)))
     (insert "\n")
+    ;; Truncate to 72 chars so that the resulting ChangeLog line fits in 80.
+    (goto-char (point-min))
+    (while (re-search-forward "^\\(.\\{69\\}\\).\\{4,\\}" nil t)
+      (replace-match "\\1..."))
     (buffer-string)))
 
 (defun gitmerge-apply (missing from)

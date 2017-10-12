@@ -1,4 +1,4 @@
-;;; xsd-regexp.el --- translate W3C XML Schema regexps to Emacs regexps
+;;; xsd-regexp.el --- translate W3C XML Schema regexps to Emacs regexps  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2003, 2007-2017 Free Software Foundation, Inc.
 
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -147,7 +147,7 @@ ranges are merged wherever possible."
 (defun xsdre-range-list-difference (orig subtract)
   "Return a range-list for the difference of two range-lists."
   (when orig
-    (let (new head next first last)
+    (let (new head first last)
       (while orig
 	(setq head (car orig))
 	(setq first (xsdre-range-first head))
@@ -621,7 +621,7 @@ whose value is a range-list."
 (defun xsdre-parse-escape ()
   (let ((ch (car xsdre-current-regexp)))
     (xsdre-advance)
-    (cond ((memq ch '(?\\ ?| ?. ?- ?^ ?* ?+ ?( ?) ?{ ?} ?[ ?])) ch)
+    (cond ((memq ch '(?\\ ?| ?. ?- ?^ ?* ?+ ?\( ?\) ?{ ?} ?\[ ?\])) ch)
 	  ((eq ch ?r) ?\r)
 	  ((eq ch ?n) ?\n)
 	  ((eq ch ?t) ?\t)
@@ -745,7 +745,7 @@ Code is inserted into the current buffer."
             (save-excursion
               (goto-char start)
               (down-list 2)
-              (while (condition-case err
+              (while (condition-case nil
                          (progn
                            (forward-sexp)
                            t)

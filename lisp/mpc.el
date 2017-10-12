@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -265,10 +265,7 @@ defaults to 6600 and HOST defaults to localhost."
       (let ((v (match-string 3 host)))
         (setq host (match-string 2 host))
         (when (and (stringp v) (not (string= "" v)))
-          (setq port
-                (if (string-match "[^[:digit:]]" v)
-                    (string-to-number v)
-                  v)))))
+          (setq port v))))
     (when (file-name-absolute-p host)
       ;; Expand file name because `file-name-absolute-p'
       ;; considers paths beginning with "~" as absolute
@@ -1032,12 +1029,12 @@ If PLAYLIST is t or nil or missing, use the main playlist."
                      (let ((dir (file-name-directory (cdr (assq 'file info)))))
                        ;; (debug)
                        (push `(equal ',dir (file-name-directory (cdr (assq 'file info)))) pred)
-                       (if-let ((covers '(".folder.png" "cover.jpg" "folder.jpg"))
-                                (cover (cl-loop for file in (directory-files (mpc-file-local-copy dir))
-                                                if (member (downcase file) covers)
-                                                return (concat dir file)))
-                                (file (with-demoted-errors "MPC: %s"
-                                        (mpc-file-local-copy cover))))
+                       (if-let* ((covers '(".folder.png" "cover.jpg" "folder.jpg"))
+                                 (cover (cl-loop for file in (directory-files (mpc-file-local-copy dir))
+                                                 if (member (downcase file) covers)
+                                                 return (concat dir file)))
+                                 (file (with-demoted-errors "MPC: %s"
+                                         (mpc-file-local-copy cover))))
                            (let (image)
                              (if (null size) (setq image (create-image file))
                                (let ((tempfile (make-temp-file "mpc" nil ".jpg")))
@@ -1134,8 +1131,8 @@ If PLAYLIST is t or nil or missing, use the main playlist."
     map))
 
 (easy-menu-define mpc-mode-menu mpc-mode-map
-  "Menu for MPC.el."
-  '("MPC.el"
+  "Menu for MPC mode."
+  '("MPC"
     ["Play/Pause" mpc-toggle-play]      ;FIXME: Add one of ⏯/▶/⏸ in there?
     ["Next Track" mpc-next]             ;FIXME: Add ⇥ there?
     ["Previous Track" mpc-prev]         ;FIXME: Add ⇤ there?

@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -28,11 +28,14 @@
 ;; in subr.el.
 
 ;; Do not document these functions in the lispref.
-;; http://lists.gnu.org/archive/html/emacs-devel/2014-01/msg01006.html
+;; https://lists.gnu.org/archive/html/emacs-devel/2014-01/msg01006.html
+
+;; NB If you want to use this library, it's almost always correct to use:
+;; (eval-when-compile (require 'subr-x))
 
 ;;; Code:
 
-(require 'pcase)
+(eval-when-compile (require 'cl-lib))
 
 
 (defmacro internal--thread-argument (first? &rest forms)
@@ -80,10 +83,13 @@ threading."
   `(internal--thread-argument nil ,@forms))
 
 (defsubst internal--listify (elt)
-  "Wrap ELT in a list if it is not one."
-  (if (not (listp elt))
-      (list elt)
-    elt))
+  "Wrap ELT in a list if it is not one.
+If ELT is of the form ((EXPR)), listify (EXPR) with a dummy symbol."
+  (cond
+   ((symbolp elt) (list elt elt))
+   ((null (cdr elt))
+    (list (make-symbol "s") (car elt)))
+   (t elt)))
 
 (defsubst internal--check-binding (binding)
   "Check BINDING is properly formed."
@@ -95,7 +101,8 @@ threading."
 
 (defsubst internal--build-binding-value-form (binding prev-var)
   "Build the conditional value form for BINDING using PREV-VAR."
-  `(,(car binding) (and ,prev-var ,(cadr binding))))
+  (let ((var (car binding)))
+    `(,var (and ,prev-var ,(cadr binding)))))
 
 (defun internal--build-binding (binding prev-var)
   "Check and build a single BINDING with PREV-VAR."
@@ -114,31 +121,69 @@ threading."
                 binding))
             bindings)))
 
-(defmacro if-let (bindings then &rest else)
-  "Process BINDINGS and if all values are non-nil eval THEN, else ELSE.
-Argument BINDINGS is a list of tuples whose car is a symbol to be
-bound and (optionally) used in THEN, and its cadr is a sexp to be
-evalled to set symbol's value.  In the special case you only want
-to bind a single value, BINDINGS can just be a plain tuple."
-  (declare (indent 2)
-           (debug ([&or (&rest (symbolp form)) (symbolp form)] form body)))
-  (when (and (<= (length bindings) 2)
-             (not (listp (car bindings))))
-    ;; Adjust the single binding case
-    (setq bindings (list bindings)))
-  `(let* ,(internal--build-bindings bindings)
-     (if ,(car (internal--listify (car (last bindings))))
-         ,then
-       ,@else)))
+(defmacro if-let* (varlist then &rest else)
+  "Bind variables according to VARLIST and eval THEN or ELSE.
+Each binding is evaluated in turn, and evaluation stops if a
+binding value is nil.  If all are non-nil, the value of THEN is
+returned, or the last form in ELSE is returned.
 
-(defmacro when-let (bindings &rest body)
-  "Process BINDINGS and if all values are non-nil eval BODY.
-Argument BINDINGS is a list of tuples whose car is a symbol to be
-bound and (optionally) used in BODY, and its cadr is a sexp to be
-evalled to set symbol's value.  In the special case you only want
-to bind a single value, BINDINGS can just be a plain tuple."
-  (declare (indent 1) (debug if-let))
-  (list 'if-let bindings (macroexp-progn body)))
+Each element of VARLIST is a list (SYMBOL VALUEFORM) which binds
+SYMBOL to the value of VALUEFORM.  An element can additionally
+be of the form (VALUEFORM), which is evaluated and checked for
+nil; i.e. SYMBOL can be omitted if only the test result is of
+interest."
+  (declare (indent 2)
+           (debug ((&rest [&or symbolp (symbolp form) (sexp)])
+                   form body)))
+  (if varlist
+      `(let* ,(setq varlist (internal--build-bindings varlist))
+         (if ,(caar (last varlist))
+             ,then
+           ,@else))
+    `(let* () ,then)))
+
+(defmacro when-let* (varlist &rest body)
+  "Bind variables according to VARLIST and conditionally eval BODY.
+Each binding is evaluated in turn, and evaluation stops if a
+binding value is nil.  If all are non-nil, the value of the last
+form in BODY is returned.
+
+VARLIST is the same as in `if-let*'."
+  (declare (indent 1) (debug if-let*))
+  (list 'if-let* varlist (macroexp-progn body)))
+
+(defmacro and-let* (varlist &rest body)
+  "Bind variables according to VARLIST and conditionally eval BODY.
+Like `when-let*', except if BODY is empty and all the bindings
+are non-nil, then the result is non-nil."
+  (declare (indent 1) (debug when-let*))
+  (let (res)
+    (if varlist
+        `(let* ,(setq varlist (internal--build-bindings varlist))
+           (if ,(setq res (caar (last varlist)))
+               ,@(or body `(,res))))
+      `(let* () ,@(or body '(t))))))
+
+(defmacro if-let (spec then &rest else)
+  "Bind variables according to SPEC and eval THEN or ELSE.
+Like `if-let*' except SPEC can have the form (SYMBOL VALUEFORM)."
+  (declare (indent 2)
+           (debug ([&or (&rest [&or symbolp (symbolp form) (sexp)])
+                        (symbolp form)]
+                   form body))
+           (obsolete "use `if-let*' instead." "26.1"))
+  (when (and (<= (length spec) 2)
+             (not (listp (car spec))))
+    ;; Adjust the single binding case
+    (setq spec (list spec)))
+  (list 'if-let* spec then (macroexp-progn else)))
+
+(defmacro when-let (spec &rest body)
+  "Bind variables according to SPEC and conditionally eval BODY.
+Like `when-let*' except SPEC can have the form (SYMBOL VALUEFORM)."
+  (declare (indent 1) (debug if-let)
+           (obsolete "use `when-let*' instead." "26.1"))
+  (list 'if-let spec (macroexp-progn body)))
 
 (defsubst hash-table-empty-p (hash-table)
   "Check whether HASH-TABLE is empty (has 0 elements)."
@@ -146,15 +191,11 @@ to bind a single value, BINDINGS can just be a plain tuple."
 
 (defsubst hash-table-keys (hash-table)
   "Return a list of keys in HASH-TABLE."
-  (let ((keys '()))
-    (maphash (lambda (k _v) (push k keys)) hash-table)
-    keys))
+  (cl-loop for k being the hash-keys of hash-table collect k))
 
 (defsubst hash-table-values (hash-table)
   "Return a list of values in HASH-TABLE."
-  (let ((values '()))
-    (maphash (lambda (_k v) (push v values)) hash-table)
-    values))
+  (cl-loop for v being the hash-values of hash-table collect v))
 
 (defsubst string-empty-p (string)
   "Check whether STRING is empty."
@@ -166,21 +207,27 @@ to bind a single value, BINDINGS can just be a plain tuple."
 
 (define-obsolete-function-alias 'string-reverse 'reverse "25.1")
 
-(defsubst string-trim-left (string)
-  "Remove leading whitespace from STRING."
-  (if (string-match "\\`[ \t\n\r]+" string)
+(defsubst string-trim-left (string &optional regexp)
+  "Trim STRING of leading string matching REGEXP.
+
+REGEXP defaults to \"[ \\t\\n\\r]+\"."
+  (if (string-match (concat "\\`\\(?:" (or  regexp "[ \t\n\r]+")"\\)") string)
       (replace-match "" t t string)
     string))
 
-(defsubst string-trim-right (string)
-  "Remove trailing whitespace from STRING."
-  (if (string-match "[ \t\n\r]+\\'" string)
+(defsubst string-trim-right (string &optional regexp)
+  "Trim STRING of trailing string matching REGEXP.
+
+REGEXP defaults to  \"[ \\t\\n\\r]+\"."
+  (if (string-match (concat "\\(?:" (or regexp "[ \t\n\r]+") "\\)\\'") string)
       (replace-match "" t t string)
     string))
 
-(defsubst string-trim (string)
-  "Remove leading and trailing whitespace from STRING."
-  (string-trim-left (string-trim-right string)))
+(defsubst string-trim (string &optional trim-left trim-right)
+  "Trim STRING of leading and trailing strings matching TRIM-LEFT and TRIM-RIGHT.
+
+TRIM-LEFT and TRIM-RIGHT default to \"[ \\t\\n\\r]+\"."
+  (string-trim-left (string-trim-right string trim-right) trim-left))
 
 (defsubst string-blank-p (string)
   "Check whether STRING is either empty or only whitespace."

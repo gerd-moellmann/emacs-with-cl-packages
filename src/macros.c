@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 #include <config.h>
@@ -325,7 +325,7 @@ each iteration of the macro.  Iteration stops if LOOPFUNC returns nil.  */)
 
       executing_kbd_macro_iterations = ++success_count;
 
-      QUIT;
+      maybe_quit ();
     }
   while (--repeat
 	 && (STRINGP (Vexecuting_kbd_macro) || VECTORP (Vexecuting_kbd_macro)));

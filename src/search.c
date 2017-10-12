@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 #include <config.h>
@@ -30,7 +30,6 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "blockinput.h"
 #include "intervals.h"
 
-#include <sys/types.h>
 #include "regex.h"
 
 #define REGEXP_CACHE_SIZE 20
@@ -40,7 +39,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 struct regexp_cache
 {
   struct regexp_cache *next;
-  Lisp_Object regexp, whitespace_regexp;
+  Lisp_Object regexp, f_whitespace_regexp;
   /* Syntax table for which the regexp applies.  We need this because
      of character classes.  If this is t, then the compiled pattern is valid
      for any syntax-table.  */
@@ -75,12 +74,12 @@ static struct regexp_cache *searchbuf_head;
    to call re_set_registers after compiling a new pattern or after
    setting the match registers, so that the regex functions will be
    able to free or re-allocate it properly.  */
-static struct re_registers search_regs;
+/* static struct re_registers search_regs; */
 
 /* The buffer in which the last search was performed, or
    Qt if the last search was done in a string;
    Qnil if no searching has been done yet.  */
-static Lisp_Object last_thing_searched;
+/* static Lisp_Object last_thing_searched; */
 
 static void set_search_regs (ptrdiff_t, ptrdiff_t);
 static void save_search_regs (void);
@@ -100,6 +99,25 @@ matcher_overflow (void)
   error ("Stack overflow in regexp matcher");
 }
 
+static void
+freeze_buffer_relocation (void)
+{
+#ifdef REL_ALLOC
+  /* Prevent ralloc.c from relocating the current buffer while
+     searching it.  */
+  r_alloc_inhibit_buffer_relocation (1);
+  record_unwind_protect_int (r_alloc_inhibit_buffer_relocation, 0);
+#endif
+}
+
+static void
+thaw_buffer_relocation (void)
+{
+#ifdef REL_ALLOC
+  unbind_to (SPECPDL_INDEX () - 1, Qnil);
+#endif
+}
+
 /* Compile a regexp and signal a Lisp error if anything goes wrong.
    PATTERN is the pattern to compile.
    CP is the place to put the result.
@@ -113,8 +131,8 @@ static void
 compile_pattern_1 (struct regexp_cache *cp, Lisp_Object pattern,
 		   Lisp_Object translate, bool posix)
 {
+  const char *whitespace_regexp;
   char *val;
-  reg_syntax_t old;
 
   cp->regexp = Qnil;
   cp->buf.translate = (! NILP (translate) ? translate : make_number (0));
@@ -122,33 +140,26 @@ compile_pattern_1 (struct regexp_cache *cp, Lisp_Object pattern,
   cp->buf.multibyte = STRING_MULTIBYTE (pattern);
   cp->buf.charset_unibyte = charset_unibyte;
   if (STRINGP (Vsearch_spaces_regexp))
-    cp->whitespace_regexp = Vsearch_spaces_regexp;
+    cp->f_whitespace_regexp = Vsearch_spaces_regexp;
   else
-    cp->whitespace_regexp = Qnil;
+    cp->f_whitespace_regexp = Qnil;
 
   /* rms: I think BLOCK_INPUT is not needed here any more,
      because regex.c defines malloc to call xmalloc.
      Using BLOCK_INPUT here means the debugger won't run if an error occurs.
      So let's turn it off.  */
   /*  BLOCK_INPUT;  */
-  old = re_set_syntax (RE_SYNTAX_EMACS
-		       | (posix ? 0 : RE_NO_POSIX_BACKTRACKING));
 
-  if (STRINGP (Vsearch_spaces_regexp))
-    re_set_whitespace_regexp (SSDATA (Vsearch_spaces_regexp));
-  else
-    re_set_whitespace_regexp (NULL);
+  whitespace_regexp = STRINGP (Vsearch_spaces_regexp) ?
+    SSDATA (Vsearch_spaces_regexp) : NULL;
 
-  val = (char *) re_compile_pattern (SSDATA (pattern),
-				     SBYTES (pattern), &cp->buf);
+  val = (char *) re_compile_pattern (SSDATA (pattern), SBYTES (pattern),
+				     posix, whitespace_regexp, &cp->buf);
 
   /* If the compiled pattern hard codes some of the contents of the
      syntax-table, it can only be reused with *this* syntax table.  */
   cp->syntax_table = cp->buf.used_syntax ? BVAR (current_buffer, syntax_table) : Qt;
 
-  re_set_whitespace_regexp (NULL);
-
-  re_set_syntax (old);
   /* unblock_input ();  */
   if (val)
     xsignal1 (Qinvalid_regexp, build_string (val));
@@ -224,7 +235,7 @@ compile_pattern (Lisp_Object pattern, struct re_registers *regp,
 	  && cp->posix == posix
 	  && (EQ (cp->syntax_table, Qt)
 	      || EQ (cp->syntax_table, BVAR (current_buffer, syntax_table)))
-	  && !NILP (Fequal (cp->whitespace_regexp, Vsearch_spaces_regexp))
+	  && !NILP (Fequal (cp->f_whitespace_regexp, Vsearch_spaces_regexp))
 	  && cp->buf.charset_unibyte == charset_unibyte)
 	break;
 
@@ -284,8 +295,8 @@ looking_at_1 (Lisp_Object string, bool posix)
 			  posix,
 			  !NILP (BVAR (current_buffer, enable_multibyte_characters)));
 
-  immediate_quit = 1;
-  QUIT;			/* Do a pending quit right away, to avoid paradoxical behavior */
+  /* Do a pending quit right away, to avoid paradoxical behavior */
+  maybe_quit ();
 
   /* Get pointers and sizes of the two strings
      that make up the visible portion of the buffer. */
@@ -308,20 +319,13 @@ looking_at_1 (Lisp_Object string, bool posix)
 
   re_match_object = Qnil;
 
-#ifdef REL_ALLOC
-  /* Prevent ralloc.c from relocating the current buffer while
-     searching it.  */
-  r_alloc_inhibit_buffer_relocation (1);
-#endif
+  freeze_buffer_relocation ();
   i = re_match_2 (bufp, (char *) p1, s1, (char *) p2, s2,
 		  PT_BYTE - BEGV_BYTE,
 		  (NILP (Vinhibit_changing_match_data)
 		   ? &search_regs : NULL),
 		  ZV_BYTE - BEGV_BYTE);
-  immediate_quit = 0;
-#ifdef REL_ALLOC
-  r_alloc_inhibit_buffer_relocation (0);
-#endif
+  thaw_buffer_relocation ();
 
   if (i == -2)
     matcher_overflow ();
@@ -406,7 +410,6 @@ string_match_1 (Lisp_Object regexp, Lisp_Object string, Lisp_Object start,
 			   ? BVAR (current_buffer, case_canon_table) : Qnil),
 			  posix,
 			  STRING_MULTIBYTE (string));
-  immediate_quit = 1;
   re_match_object = string;
 
   val = re_search (bufp, SSDATA (string),
@@ -414,7 +417,6 @@ string_match_1 (Lisp_Object regexp, Lisp_Object string, Lisp_Object start,
 		   SBYTES (string) - pos_byte,
 		   (NILP (Vinhibit_changing_match_data)
 		    ? &search_regs : NULL));
-  immediate_quit = 0;
 
   /* Set last_thing_searched only when match data is changed.  */
   if (NILP (Vinhibit_changing_match_data))
@@ -478,13 +480,11 @@ fast_string_match_internal (Lisp_Object regexp, Lisp_Object string,
 
   bufp = compile_pattern (regexp, 0, table,
 			  0, STRING_MULTIBYTE (string));
-  immediate_quit = 1;
   re_match_object = string;
 
   val = re_search (bufp, SSDATA (string),
 		   SBYTES (string), 0,
 		   SBYTES (string), 0);
-  immediate_quit = 0;
   return val;
 }
 
@@ -505,9 +505,7 @@ fast_c_string_match_ignore_case (Lisp_Object regexp,
   bufp = compile_pattern (regexp, 0,
 			  Vascii_canon_table, 0,
 			  0);
-  immediate_quit = 1;
   val = re_search (bufp, string, len, 0, len, 0);
-  immediate_quit = 0;
   return val;
 }
 
@@ -568,18 +566,10 @@ fast_looking_at (Lisp_Object regexp, ptrdiff_t pos, ptrdiff_t pos_byte,
     }
 
   buf = compile_pattern (regexp, 0, Qnil, 0, multibyte);
-  immediate_quit = 1;
-#ifdef REL_ALLOC
-  /* Prevent ralloc.c from relocating the current buffer while
-     searching it.  */
-  r_alloc_inhibit_buffer_relocation (1);
-#endif
+  freeze_buffer_relocation ();
   len = re_match_2 (buf, (char *) p1, s1, (char *) p2, s2,
 		    pos_byte, NULL, limit_byte);
-#ifdef REL_ALLOC
-  r_alloc_inhibit_buffer_relocation (0);
-#endif
-  immediate_quit = 0;
+  thaw_buffer_relocation ();
 
   return len;
 }
@@ -656,7 +646,7 @@ newline_cache_on_off (struct buffer *buf)
    If BYTEPOS is not NULL, set *BYTEPOS to the byte position corresponding
    to the returned character position.
 
-   If ALLOW_QUIT, set immediate_quit.  That's good to do
+   If ALLOW_QUIT, check for quitting.  That's good to do
    except when inside redisplay.  */
 
 ptrdiff_t
@@ -692,8 +682,6 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
   if (shortage != 0)
     *shortage = 0;
 
-  immediate_quit = allow_quit;
-
   if (count > 0)
     while (start != end)
       {
@@ -711,7 +699,6 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
             ptrdiff_t next_change;
 	    int result = 1;
 
-            immediate_quit = 0;
             while (start < end && result)
 	      {
 		ptrdiff_t lim1;
@@ -764,7 +751,6 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
 		start_byte = end_byte;
 		break;
 	      }
-            immediate_quit = allow_quit;
 
             /* START should never be after END.  */
             if (start_byte > ceiling_byte)
@@ -817,11 +803,12 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
 
 	      if (--count == 0)
 		{
-		  immediate_quit = 0;
 		  if (bytepos)
 		    *bytepos = lim_byte + next;
 		  return BYTE_TO_CHAR (lim_byte + next);
 		}
+	      if (allow_quit)
+		maybe_quit ();
             }
 
 	  start_byte = lim_byte;
@@ -840,7 +827,6 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
             ptrdiff_t next_change;
 	    int result = 1;
 
-            immediate_quit = 0;
             while (start > end && result)
 	      {
 		ptrdiff_t lim1;
@@ -877,7 +863,6 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
 		start_byte = end_byte;
 		break;
 	      }
-            immediate_quit = allow_quit;
 
             /* Start should never be at or before end.  */
             if (start_byte <= ceiling_byte)
@@ -925,11 +910,12 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
 
 	      if (++count >= 0)
 		{
-		  immediate_quit = 0;
 		  if (bytepos)
 		    *bytepos = ceiling_byte + prev + 1;
 		  return BYTE_TO_CHAR (ceiling_byte + prev + 1);
 		}
+	      if (allow_quit)
+		maybe_quit ();
             }
 
 	  start_byte = ceiling_byte;
@@ -937,7 +923,6 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
         }
       }
 
-  immediate_quit = 0;
   if (shortage)
     *shortage = count * direction;
   if (bytepos)
@@ -961,7 +946,7 @@ find_newline (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
    the number of line boundaries left unfound, and position at
    the limit we bumped up against.
 
-   If ALLOW_QUIT, set immediate_quit.  That's good to do
+   If ALLOW_QUIT, check for quitting.  That's good to do
    except in special cases.  */
 
 ptrdiff_t
@@ -1204,10 +1189,7 @@ search_buffer (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
 			      trt, posix,
 			      !NILP (BVAR (current_buffer, enable_multibyte_characters)));
 
-      immediate_quit = 1;	/* Quit immediately if user types ^G,
-				   because letting this function finish
-				   can take too long. */
-      QUIT;			/* Do a pending quit right away,
+      maybe_quit ();		/* Do a pending quit right away,
 				   to avoid paradoxical behavior */
       /* Get pointers and sizes of the two strings
 	 that make up the visible portion of the buffer. */
@@ -1229,11 +1211,7 @@ search_buffer (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
 	}
       re_match_object = Qnil;
 
-#ifdef REL_ALLOC
-  /* Prevent ralloc.c from relocating the current buffer while
-     searching it.  */
-  r_alloc_inhibit_buffer_relocation (1);
-#endif
+      freeze_buffer_relocation ();
 
       while (n < 0)
 	{
@@ -1275,13 +1253,11 @@ search_buffer (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
 	    }
 	  else
 	    {
-	      immediate_quit = 0;
-#ifdef REL_ALLOC
-              r_alloc_inhibit_buffer_relocation (0);
-#endif
+	      thaw_buffer_relocation ();
 	      return (n);
 	    }
 	  n++;
+	  maybe_quit ();
 	}
       while (n > 0)
 	{
@@ -1320,18 +1296,13 @@ search_buffer (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
 	    }
 	  else
 	    {
-	      immediate_quit = 0;
-#ifdef REL_ALLOC
-              r_alloc_inhibit_buffer_relocation (0);
-#endif
+	      thaw_buffer_relocation ();
 	      return (0 - n);
 	    }
 	  n--;
+	  maybe_quit ();
 	}
-      immediate_quit = 0;
-#ifdef REL_ALLOC
-      r_alloc_inhibit_buffer_relocation (0);
-#endif
+      thaw_buffer_relocation ();
       return (pos);
     }
   else				/* non-RE case */
@@ -1833,6 +1804,7 @@ boyer_moore (EMACS_INT n, unsigned char *base_pat,
     {
       /* Setup translate_prev_byte1/2/3/4 from CHAR_BASE.  Only a
 	 byte following them are the target of translation.  */
+      eassume (0x80 <= char_base && char_base <= MAX_CHAR);
       unsigned char str[MAX_MULTIBYTE_LENGTH];
       int cblen = CHAR_STRING (char_base, str);
 
@@ -1935,7 +1907,7 @@ boyer_moore (EMACS_INT n, unsigned char *base_pat,
 	  < 0)
 	return (n * (0 - direction));
       /* First we do the part we can by pointers (maybe nothing) */
-      QUIT;
+      maybe_quit ();
       pat = base_pat;
       limit = pos_byte - dirlen + direction;
       if (direction > 0)
@@ -2659,7 +2631,7 @@ since only regular expressions have distinguished subexpressions.  */)
 	  const unsigned char *add_stuff = NULL;
 	  ptrdiff_t add_len = 0;
 	  ptrdiff_t idx = -1;
-	  ptrdiff_t begbyte;
+	  ptrdiff_t begbyte UNINIT;
 
 	  if (str_multibyte)
 	    {
@@ -2779,7 +2751,8 @@ since only regular expressions have distinguished subexpressions.  */)
 
   if (case_action == all_caps)
     Fupcase_region (make_number (search_regs.start[sub]),
-		    make_number (newpoint));
+		    make_number (newpoint),
+		    Qnil);
   else if (case_action == cap_initial)
     Fupcase_initials_region (make_number (search_regs.start[sub]),
 			     make_number (newpoint));
@@ -3085,9 +3058,9 @@ If optional arg RESEAT is non-nil, make markers on LIST point nowhere.  */)
 
 /* If true the match data have been saved in saved_search_regs
    during the execution of a sentinel or filter. */
-static bool search_regs_saved;
-static struct re_registers saved_search_regs;
-static Lisp_Object saved_last_thing_searched;
+/* static bool search_regs_saved; */
+/* static struct re_registers saved_search_regs; */
+/* static Lisp_Object saved_last_thing_searched; */
 
 /* Called from Flooking_at, Fstring_match, search_buffer, Fstore_match_data
    if asynchronous code (filter or sentinel) is running. */
@@ -3227,8 +3200,6 @@ find_newline1 (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
   if (shortage != 0)
     *shortage = 0;
 
-  immediate_quit = allow_quit;
-
   if (count > 0)
     while (start != end)
       {
@@ -3271,11 +3242,12 @@ find_newline1 (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
 
 	      if (--count == 0)
 		{
-		  immediate_quit = 0;
 		  if (bytepos)
 		    *bytepos = lim_byte + next;
 		  return BYTE_TO_CHAR (lim_byte + next);
 		}
+	      if (allow_quit)
+		maybe_quit ();
             }
 
 	  start_byte = lim_byte;
@@ -3283,7 +3255,6 @@ find_newline1 (ptrdiff_t start, ptrdiff_t start_byte, ptrdiff_t end,
         }
       }
 
-  immediate_quit = 0;
   if (shortage)
     *shortage = count;
   if (bytepos)
@@ -3397,10 +3368,10 @@ syms_of_search (void)
       searchbufs[i].buf.buffer = xmalloc (100);
       searchbufs[i].buf.fastmap = searchbufs[i].fastmap;
       searchbufs[i].regexp = Qnil;
-      searchbufs[i].whitespace_regexp = Qnil;
+      searchbufs[i].f_whitespace_regexp = Qnil;
       searchbufs[i].syntax_table = Qnil;
       staticpro (&searchbufs[i].regexp);
-      staticpro (&searchbufs[i].whitespace_regexp);
+      staticpro (&searchbufs[i].f_whitespace_regexp);
       staticpro (&searchbufs[i].syntax_table);
       searchbufs[i].next = (i == REGEXP_CACHE_SIZE-1 ? 0 : &searchbufs[i+1]);
     }
@@ -3409,6 +3380,10 @@ syms_of_search (void)
   /* Error condition used for failing searches.  */
   DEFSYM (Qsearch_failed, "search-failed");
 
+  /* Error condition used for failing searches started by user, i.e.,
+     where failure should not invoke the debugger.  */
+  DEFSYM (Quser_search_failed, "user-search-failed");
+
   /* Error condition signaled when regexp compile_pattern fails.  */
   DEFSYM (Qinvalid_regexp, "invalid-regexp");
 
@@ -3416,6 +3391,12 @@ syms_of_search (void)
 	listn (CONSTYPE_PURE, 2, Qsearch_failed, Qerror));
   Fput (Qsearch_failed, Qerror_message,
 	build_pure_c_string ("Search failed"));
+
+  Fput (Quser_search_failed, Qerror_conditions,
+        listn (CONSTYPE_PURE, 4,
+               Quser_search_failed, Quser_error, Qsearch_failed, Qerror));
+  Fput (Quser_search_failed, Qerror_message,
+        build_pure_c_string ("Search failed"));
 
   Fput (Qinvalid_regexp, Qerror_conditions,
 	listn (CONSTYPE_PURE, 2, Qinvalid_regexp, Qerror));

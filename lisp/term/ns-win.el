@@ -22,7 +22,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -109,7 +109,7 @@ The properties returned may include `top', `left', `height', and `width'."
 (define-key global-map [?\s-:] 'ispell)
 (define-key global-map [?\s-?] 'info)
 (define-key global-map [?\s-^] 'kill-some-buffers)
-(define-key global-map [?\s-&] 'kill-this-buffer)
+(define-key global-map [?\s-&] 'kill-current-buffer)
 (define-key global-map [?\s-C] 'ns-popup-color-panel)
 (define-key global-map [?\s-D] 'dired)
 (define-key global-map [?\s-E] 'edit-abbrevs)
@@ -124,8 +124,10 @@ The properties returned may include `top', `left', `height', and `width'."
 (define-key global-map [?\s-g] 'isearch-repeat-forward)
 (define-key global-map [?\s-h] 'ns-do-hide-emacs)
 (define-key global-map [?\s-H] 'ns-do-hide-others)
+(define-key global-map [?\M-\s-h] 'ns-do-hide-others)
+(define-key key-translation-map [?\M-\s-\u02D9] [?\M-\s-h])
 (define-key global-map [?\s-j] 'exchange-point-and-mark)
-(define-key global-map [?\s-k] 'kill-this-buffer)
+(define-key global-map [?\s-k] 'kill-current-buffer)
 (define-key global-map [?\s-l] 'goto-line)
 (define-key global-map [?\s-m] 'iconify-frame)
 (define-key global-map [?\s-n] 'make-frame)
@@ -229,6 +231,15 @@ The properties returned may include `top', `left', `height', and `width'."
 
 (declare-function dnd-open-file "dnd" (uri action))
 
+;; Handles multiline strings that are passed to the "open-file" service.
+(defun ns-open-file-service (filenames)
+  "Open multiple files when selecting a multiline string FILENAMES."
+  (let ((filelist (split-string filenames "[\n\r]+" t "[ \u00A0\t]+")))
+    ;; The path strings are trimmed for spaces, nbsp and tabs.
+    (dolist (filestring filelist)
+      (dnd-open-file filestring nil))))
+
+
 (defun ns-spi-service-call ()
   "Respond to a service request."
   (interactive)
@@ -236,7 +247,7 @@ The properties returned may include `top', `left', `height', and `width'."
 	 (switch-to-buffer (generate-new-buffer "*untitled*"))
 	 (insert ns-input-spi-arg))
 	((string-equal ns-input-spi-name "open-file")
-	 (dnd-open-file ns-input-spi-arg nil))
+	 (ns-open-file-service ns-input-spi-arg))
 	((string-equal ns-input-spi-name "mail-selection")
 	 (compose-mail)
 	 (rfc822-goto-eoh)
@@ -583,7 +594,7 @@ the last file dropped is selected."
 (declare-function tool-bar-mode "tool-bar" (&optional arg))
 
 ;; Based on a function by David Reitter <dreitter@inf.ed.ac.uk> ;
-;; see http://lists.gnu.org/archive/html/emacs-devel/2005-09/msg00681.html .
+;; see https://lists.gnu.org/archive/html/emacs-devel/2005-09/msg00681.html .
 (defun ns-toggle-toolbar (&optional frame)
   "Switches the tool bar on and off in frame FRAME.
  If FRAME is nil, the change applies to the selected frame."
@@ -717,60 +728,33 @@ See the documentation of `create-fontset-from-fontset-spec' for the format.")
 
 ;;;; Scrollbar handling.
 
-(global-set-key [vertical-scroll-bar down-mouse-1] 'ns-handle-scroll-bar-event)
+(global-set-key [vertical-scroll-bar down-mouse-1] 'scroll-bar-toolkit-scroll)
+(global-set-key [horizontal-scroll-bar down-mouse-1] 'scroll-bar-toolkit-horizontal-scroll)
 (global-unset-key [vertical-scroll-bar mouse-1])
 (global-unset-key [vertical-scroll-bar drag-mouse-1])
+(global-unset-key [horizontal-scroll-bar mouse-1])
+(global-unset-key [horizontal-scroll-bar drag-mouse-1])
 
-(declare-function scroll-bar-scale "scroll-bar" (num-denom whole))
 
-(defun ns-scroll-bar-move (event)
-  "Scroll the frame according to a Nextstep scroller event."
-  (interactive "e")
-  (let* ((pos (event-end event))
-         (window (nth 0 pos))
-         (scale (nth 2 pos)))
-    (with-current-buffer (window-buffer window)
-      (cond
-       ((eq (car scale) (cdr scale))
-	(goto-char (point-max)))
-       ((= (car scale) 0)
-	(goto-char (point-min)))
-       (t
-	(goto-char (+ (point-min) 1
-		      (scroll-bar-scale scale (- (point-max) (point-min)))))))
-      (beginning-of-line)
-      (set-window-start window (point))
-      (vertical-motion (/ (window-height window) 2) window))))
+;;;; macOS-like defaults for trackpad and mouse wheel scrolling on
+;;;; macOS 10.7+.
 
-(defun ns-handle-scroll-bar-event (event)
-  "Handle scroll bar EVENT to emulate Nextstep style scrolling."
-  (interactive "e")
-  (let* ((position (event-start event))
-	 (bar-part (nth 4 position))
-	 (window (nth 0 position))
-	 (old-window (selected-window)))
-    (cond
-     ((eq bar-part 'ratio)
-      (ns-scroll-bar-move event))
-     ((eq bar-part 'handle)
-      (if (eq window (selected-window))
-	  (track-mouse (ns-scroll-bar-move event))
-        ;; track-mouse faster for selected window, slower for unselected.
-	(ns-scroll-bar-move event)))
-     (t
-      (select-window window)
-      (cond
-       ((eq bar-part 'up)
-	(goto-char (window-start window))
-	(scroll-down 1))
-       ((eq bar-part 'above-handle)
-	(scroll-down))
-       ((eq bar-part 'below-handle)
-	(scroll-up))
-       ((eq bar-part 'down)
-	(goto-char (window-start window))
-	(scroll-up 1)))
-      (select-window old-window)))))
+;; FIXME: This doesn't look right.  Is there a better way to do this
+;; that keeps customize happy?
+(when (featurep 'cocoa)
+  (let ((appkit-version
+         (progn (string-match "^appkit-\\([^\s-]*\\)" ns-version-string)
+                (string-to-number (match-string 1 ns-version-string)))))
+    ;; Appkit 1138 ~= macOS 10.7.
+    (when (>= appkit-version 1138)
+      (setq mouse-wheel-scroll-amount '(1 ((shift) . 5) ((control))))
+      (put 'mouse-wheel-scroll-amount 'customized-value
+           (list (custom-quote (symbol-value 'mouse-wheel-scroll-amount))))
+
+      (setq mouse-wheel-progressive-speed nil)
+      (put 'mouse-wheel-progressive-speed 'customized-value
+           (list (custom-quote
+                  (symbol-value 'mouse-wheel-progressive-speed)))))))
 
 
 ;;;; Color support.
@@ -813,7 +797,7 @@ See the documentation of `create-fontset-from-fontset-spec' for the format.")
 (defun ns-suspend-error ()
   ;; Don't allow suspending if any of the frames are NS frames.
   (if (memq 'ns (mapcar 'window-system (frame-list)))
-      (error "Cannot suspend Emacs while running under NS")))
+      (error "Cannot suspend Emacs while an NS GUI frame exists")))
 
 
 ;; Set some options to be as Nextstep-like as possible.
@@ -894,7 +878,7 @@ See the documentation of `create-fontset-from-fontset-spec' for the format.")
 
   ;; Mac OS X Lion introduces PressAndHold, which is unsupported by this port.
   ;; See this thread for more details:
-  ;; http://lists.gnu.org/archive/html/emacs-devel/2011-06/msg00505.html
+  ;; https://lists.gnu.org/archive/html/emacs-devel/2011-06/msg00505.html
   (ns-set-resource nil "ApplePressAndHoldEnabled" "NO")
 
   (x-apply-session-resources)
@@ -936,5 +920,6 @@ See the documentation of `create-fontset-from-fontset-spec' for the format.")
   (ns-get-selection selection-symbol target-type))
 
 (provide 'ns-win)
+(provide 'term/ns-win)
 
 ;;; ns-win.el ends here

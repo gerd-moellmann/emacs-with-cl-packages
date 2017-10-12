@@ -112,8 +112,8 @@ compiled into the Emacs executable when it was built.
 It runs the normal hook @code{before-init-hook}.
 
 @item
-If appropriate, it creates a graphical frame.  This is not done if the
-options @samp{--batch} or @samp{--daemon} were specified.
+If appropriate, it creates a graphical frame.  This is not done in
+batch (noninteractive) or daemon mode.
 
 @item
 It initializes the initial frame's faces, and sets up the menu bar
@@ -222,7 +222,7 @@ If it is @code{t}, it selects the @file{*scratch*} buffer.
 @c called from two places.  If displaying a startup screen, they are
 @c called in command-line-1 before the startup screen is shown.
 @c inhibit-startup-hooks is then set and window-setup-hook set to nil.
-@c If not displaying a startup screen, they are are called in
+@c If not displaying a startup screen, they are called in
 @c normal-top-level.
 @c FIXME?  So it seems they can be called before or after the
 @c daemon/session restore step?
@@ -256,10 +256,10 @@ options were specified.
 @c last few bits of command-line-1 are not done in batch mode.
 
 @item
-If the option @code{--daemon} was specified, it calls
-@code{server-start}, and on Posix systems also detaches from the
-controlling terminal.  @xref{Emacs Server,,, emacs, The GNU Emacs
-Manual}.
+If a daemon was requested, it calls @code{server-start}.
+(On Posix systems, if a background daemon was requested, it then
+detaches from the controlling terminal.)  @xref{Emacs
+Server,,, emacs, The GNU Emacs Manual}.
 
 @item
 If started by the X session manager, it calls
@@ -337,7 +337,10 @@ Do not display a splash screen.
 Run without an interactive terminal.  @xref{Batch Mode}.
 
 @item --daemon
-Do not initialize any display; just start a server in the background.
+@itemx --bg-daemon
+@itemx --fg-daemon
+Do not initialize any display; just start a server.
+(A ``background'' daemon automatically runs in the background.)
 
 @item --no-init-file
 @itemx -q
@@ -904,9 +907,6 @@ A GNU (glibc-based) system with a FreeBSD kernel.
 @item hpux
 Hewlett-Packard HPUX operating system.
 
-@item irix
-Silicon Graphics Irix system.
-
 @item nacl
 Google Native Client (@acronym{NaCl}) sandboxing system.
 
@@ -940,11 +940,7 @@ string.
 If this variable is non-@code{nil}, it is used instead of
 @code{system-name} for purposes of generating email addresses.  For
 example, it is used when constructing the default value of
-@code{user-mail-address}.  @xref{User Identification}.  (Since this is
-done when Emacs starts up, the value actually used is the one saved when
-Emacs was dumped.  @xref{Building Emacs}.)
-@c FIXME sounds like should probably give this a :set-after and some
-@c custom-initialize-delay voodoo.
+@code{user-mail-address}.  @xref{User Identification}.
 @end defopt
 
 @deffn Command getenv var &optional frame
@@ -1041,7 +1037,7 @@ value is @code{":"} for Unix and GNU systems, and @code{";"} for MS systems.
 @defun parse-colon-path path
 This function takes a search path string such as the value of
 the @env{PATH} environment variable, and splits it at the separators,
-returning a list of directory names.  @code{nil} in this list means
+returning a list of directories.  @code{nil} in this list means
 the current directory.  Although the function's name says
 ``colon'', it actually uses the value of @code{path-separator}.
 
@@ -1135,11 +1131,7 @@ not load any customization files or user profile.
 @end defvar
 
 @defopt user-mail-address
-This holds the nominal email address of the user who is using Emacs.
-Emacs normally sets this variable to a default value after reading your
-init files, but not if you have already set it.  So you can set the
-variable to some other value in your init file if you do not
-want to use the default value.
+This holds the email address of the user who is using Emacs.
 @end defopt
 
 @defun user-login-name &optional uid
@@ -1333,7 +1325,13 @@ omitted or @code{nil}, the conversion uses Emacs's default time zone.
 If it is @code{t}, the conversion uses Universal Time.  If it is
 @code{wall}, the conversion uses the system wall clock time.  If it is
 a string, the conversion uses the time zone rule equivalent to setting
-@env{TZ} to that string.
+@env{TZ} to that string.  If it is an integer @var{offset}, the
+conversion uses a fixed time zone with the given offset and a numeric
+abbreviation on POSIX-compatible platforms and an unspecified abbreviation
+on MS-Windows.  If it is a list (@var{offset} @var{abbr}), where
+@var{offset} is an integer number of seconds east of Universal Time
+and @var{abbr} is a string, the conversion uses a fixed time zone with
+the given offset and abbreviation.
 
 @defun current-time-zone &optional time zone
 @cindex time zone, current
@@ -1431,10 +1429,6 @@ yourself before you call @code{encode-time}.
 
 The optional argument @var{zone} defaults to the current time zone rule.
 @xref{Time Zone Rules}.
-In addition to the usual time zone rule values, it can also be a list
-(as you would get from @code{current-time-zone}) or an integer (as
-from @code{decode-time}), applied without any further alteration for
-daylight saving time.
 
 If you pass more than seven arguments to @code{encode-time}, the first
 six are used as @var{seconds} through @var{year}, the last argument is
@@ -1530,6 +1524,8 @@ fewer digits, use @samp{%3N} for milliseconds, @samp{%6N} for
 microseconds, etc.  Any excess digits are discarded, without rounding.
 @item %p
 This stands for @samp{AM} or @samp{PM}, as appropriate.
+@item %q
+This stands for the calendar quarter (1--4).
 @item %r
 This is a synonym for @samp{%I:%M:%S %p}.
 @item %R
@@ -1888,6 +1884,12 @@ timer---usually, one previously returned by @code{run-at-time} or
 one of these functions; the arrival of the specified time will not
 cause anything special to happen.
 @end defun
+
+@findex list-timers
+The @code{list-timers} command lists all the currently active timers.
+There's only one command available in the buffer displayed: @kbd{c}
+(@code{timer-list-cancel}) that will cancel the timer on the line
+under point.
 
 @node Idle Timers
 @section Idle Timers
@@ -2265,14 +2267,16 @@ The variable is always local to the current terminal, and cannot be
 buffer-local.  @xref{Multiple Terminals}.
 @end defvar
 
-You can specify which keysyms Emacs should use for the Meta, Alt, Hyper, and Super modifiers by setting these variables:
+You can specify which keysyms Emacs should use for the Control, Meta,
+Alt, Hyper, and Super modifiers by setting these variables:
 
-@defvar x-alt-keysym
+@defvar x-ctrl-keysym
+@defvarx x-alt-keysym
 @defvarx x-meta-keysym
 @defvarx x-hyper-keysym
 @defvarx x-super-keysym
-The name of the keysym that should stand for the Alt modifier
-(respectively, for Meta, Hyper, and Super).  For example, here is
+The name of the keysym that should stand for the Control modifier
+(respectively, for Alt, Meta, Hyper, and Super).  For example, here is
 how to swap the Meta and Alt modifiers within Emacs:
 @lisp
 (setq x-alt-keysym 'meta)
@@ -2703,7 +2707,10 @@ This does not depend on one of the libraries linked to Emacs.
 
 Since all these libraries emit different events on notified file
 changes, there is the Emacs library @code{filenotify} which provides a
-unique interface.
+unified interface.  Lisp programs that want to receive file
+notifications should always use this library in preference to the
+native ones.
+
 
 @defun file-notify-add-watch file flags callback
 Add a watch for filesystem events pertaining to @var{file}.  This

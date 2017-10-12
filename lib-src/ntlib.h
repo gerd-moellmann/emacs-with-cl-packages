@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <pwd.h>
 #include <malloc.h>
@@ -34,15 +34,12 @@ char *getwd (char *dir);
 int getppid (void);
 char * getlogin (void);
 char * cuserid (char * s);
-unsigned getuid (void);
-unsigned geteuid (void);
 unsigned getegid (void);
 unsigned getgid (void);
 int setuid (unsigned uid);
 int setregid (unsigned rgid, unsigned gid);
 char * getpass (const char * prompt);
 int fchown (int fd, unsigned uid, unsigned gid);
-int mkostemp (char * template, int flags);
 
 /* redirect or undo interceptions created by config.h */
 #undef access
@@ -61,10 +58,6 @@ int mkostemp (char * template, int flags);
 #undef dup2
 #define dup2    _dup2
 #undef fopen
-#undef mkdir
-#define mkdir   _mkdir
-#undef open
-#define open    _open
 #undef pipe
 #define pipe    _pipe
 #undef read

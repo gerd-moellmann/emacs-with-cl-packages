@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
@@ -42,7 +42,7 @@ static bool zlib_initialized;
 static bool
 init_zlib_functions (void)
 {
-  HMODULE library = w32_delayed_load (Qzlib_dll);
+  HMODULE library = w32_delayed_load (Qzlib);
 
   if (!library)
     return false;
@@ -91,7 +91,7 @@ DEFUN ("zlib-available-p", Fzlib_available_p, Szlib_available_p, 0, 0, 0,
      (void)
 {
 #ifdef WINDOWSNT
-  Lisp_Object found = Fassq (Qzlib_dll, Vlibrary_cache);
+  Lisp_Object found = Fassq (Qzlib, Vlibrary_cache);
   if (CONSP (found))
     return XCDR (found);
   else
@@ -99,7 +99,7 @@ DEFUN ("zlib-available-p", Fzlib_available_p, Szlib_available_p, 0, 0, 0,
       Lisp_Object status;
       zlib_initialized = init_zlib_functions ();
       status = zlib_initialized ? Qt : Qnil;
-      Vlibrary_cache = Fcons (Fcons (Qzlib_dll, status), Vlibrary_cache);
+      Vlibrary_cache = Fcons (Fcons (Qzlib, status), Vlibrary_cache);
       return status;
     }
 #else
@@ -186,7 +186,7 @@ This function can be called only in unibyte buffers.  */)
       decompressed = avail_out - stream.avail_out;
       insert_from_gap (decompressed, decompressed, 0);
       unwind_data.nbytes += decompressed;
-      QUIT;
+      maybe_quit ();
     }
   while (inflate_status == Z_OK);
 

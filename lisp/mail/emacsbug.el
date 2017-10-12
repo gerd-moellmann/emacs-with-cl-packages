@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -82,33 +82,12 @@
        (equal (executable-find "open") "/usr/bin/open")
        (memq system-type '(darwin))))
 
-;; FIXME this duplicates much of the logic from browse-url-can-use-xdg-open.
 (defun report-emacs-bug-can-use-xdg-email ()
   "Return non-nil if the \"xdg-email\" command can be used.
-xdg-email is a desktop utility that calls your preferred mail client.
-This requires you to be running either Gnome, KDE, or Xfce4."
-  (and (getenv "DISPLAY")
-       (executable-find "xdg-email")
-       (or (getenv "GNOME_DESKTOP_SESSION_ID")
-	   ;; GNOME_DESKTOP_SESSION_ID is deprecated, check on Dbus also.
-	   (condition-case nil
-	       (eq 0 (call-process
-		      "dbus-send" nil nil nil
-				  "--dest=org.gnome.SessionManager"
-				  "--print-reply"
-				  "/org/gnome/SessionManager"
-				  "org.gnome.SessionManager.CanShutdown"))
-	     (error nil))
-	   (equal (getenv "KDE_FULL_SESSION") "true")
-	   ;; FIXME? browse-url-can-use-xdg-open also accepts LXDE.
-	   ;; Is that no good here, or just overlooked?
-	   (condition-case nil
-	       (eq 0 (call-process
-		      "/bin/sh" nil nil nil
-		      "-c"
-		      ;; FIXME use string-match rather than grep.
-		      "xprop -root _DT_SAVE_MODE|grep xfce4"))
-	     (error nil)))))
+xdg-email is a desktop utility that calls your preferred mail client."
+  (and ;; See browse-url-can-use-xdg-open.
+       (or (getenv "DISPLAY") (getenv "WAYLAND_DISPLAY"))
+       (executable-find "xdg-email")))
 
 (defun report-emacs-bug-insert-to-mailer ()
   "Send the message to your preferred mail client.
@@ -156,18 +135,15 @@ Prompts for bug subject.  Leaves you in a mail buffer."
   (interactive "sBug Subject: ")
   ;; The syntax `version;' is preferred to `[version]' because the
   ;; latter could be mistakenly stripped by mailing software.
-  (if (eq system-type 'ms-dos)
-      (setq topic (concat emacs-version "; " topic))
-    (when (string-match "^\\(\\([.0-9]+\\)*\\)\\.[0-9]+$" emacs-version)
-      (setq topic (concat (match-string 1 emacs-version) "; " topic))))
+  (setq topic (concat emacs-version "; " topic))
   (let* ((mac-port-p (featurep 'mac))
 	 (reporting-address (if mac-port-p
 				report-emacs-bug-mac-address
 			      report-emacs-bug-address))
-	 (from-buffer (current-buffer))
-	 (can-insert-mail (or (report-emacs-bug-can-use-xdg-email)
-			      (report-emacs-bug-can-use-osx-open)))
-	 user-point message-end-point)
+         (from-buffer (current-buffer))
+         (can-insert-mail (or (report-emacs-bug-can-use-xdg-email)
+                              (report-emacs-bug-can-use-osx-open)))
+         user-point message-end-point)
     (setq message-end-point
 	  (with-current-buffer (messages-buffer)
 	    (point-max-marker)))
@@ -220,7 +196,7 @@ Prompts for bug subject.  Leaves you in a mail buffer."
 	 'face 'link
 	 'help-echo (concat "mouse-2, RET: Follow this link")
 	 'action (lambda (button)
-		   (browse-url "http://lists.gnu.org/archive/html/bug-gnu-emacs/"))
+		   (browse-url "https://lists.gnu.org/archive/html/bug-gnu-emacs/"))
 	 'follow-link t)
 	(insert " mailing list\nand the GNU bug tracker at ")
 	(insert-text-button
@@ -228,7 +204,7 @@ Prompts for bug subject.  Leaves you in a mail buffer."
 	 'face 'link
 	 'help-echo (concat "mouse-2, RET: Follow this link")
 	 'action (lambda (button)
-		   (browse-url "http://debbugs.gnu.org/"))
+		   (browse-url "https://debbugs.gnu.org/"))
 	 'follow-link t)
 
 	(insert ".  Please check that
@@ -259,7 +235,7 @@ usually do not have translators for other languages.\n\n")))
     (let ((txt (delete-and-extract-region (1+ user-point) (point))))
       (insert (propertize "\n" 'display txt)))
 
-    (insert "\n\nIn " (emacs-version))
+    (insert "\nIn " (emacs-version))
     (if emacs-build-system
         (insert " built on " emacs-build-system))
     (insert "\n")
@@ -280,6 +256,18 @@ usually do not have translators for other languages.\n\n")))
 		     (buffer-string)))))
       (if (stringp lsb)
 	  (insert "System " lsb "\n")))
+    (let ((message-buf (get-buffer "*Messages*")))
+      (if message-buf
+	  (let (beg-pos
+		(end-pos message-end-point))
+	    (with-current-buffer message-buf
+	      (goto-char end-pos)
+	      (forward-line -10)
+	      (setq beg-pos (point)))
+            (terpri (current-buffer) t)
+	    (insert "Recent messages:\n")
+	    (insert-buffer-substring message-buf beg-pos end-pos))))
+    (insert "\n")
     (when (and system-configuration-options
 	       (not (equal system-configuration-options "")))
       (insert "Configured using:\n 'configure "
@@ -312,20 +300,6 @@ usually do not have translators for other languages.\n\n")))
       (and (boundp mode) (buffer-local-value mode from-buffer)
 	   (insert (format "  %s: %s\n" mode
 			   (buffer-local-value mode from-buffer)))))
-    (let ((message-buf (get-buffer "*Messages*")))
-      (if message-buf
-	  (let (beg-pos
-		(end-pos message-end-point))
-	    (with-current-buffer message-buf
-	      (goto-char end-pos)
-	      (forward-line -10)
-	      (setq beg-pos (point)))
-	    (insert "\nRecent messages:\n")
-	    (insert-buffer-substring message-buf beg-pos end-pos))))
-    ;; After Recent messages, to avoid the messages produced by
-    ;; list-load-path-shadows.
-    (unless (looking-back "\n" (1- (point)))
-      (insert "\n"))
     (insert "\n")
     (insert "Load-path shadows:\n")
     (let* ((msg "Checking for load-path shadows...")

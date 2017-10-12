@@ -18,12 +18,13 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
 (require 'url-vars)
 (require 'url-parse)
+(declare-function mm-disable-multibyte "mm-util" ())
 (autoload 'Info-goto-node "info" "" t)
 (autoload 'man "man" nil t)
 

@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -53,5 +53,7 @@
     (define-key input-decode-map "\eN" [ALT])
     (define-key local-function-key-map [ALT] [27])
     ))
+
+(provide 'term/AT386)
 
 ;;; AT386.el ends here

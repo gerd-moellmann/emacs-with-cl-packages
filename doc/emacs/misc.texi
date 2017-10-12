@@ -661,7 +661,7 @@ available.
 (either in the @var{cmd} argument to one of the above commands, or in
 other contexts), Emacs searches for the program in the directories
 specified by the variable @code{exec-path}.  The value of this
-variable must be a list of directory names; the default value is
+variable must be a list of directories; the default value is
 initialized from the environment variable @env{PATH} when Emacs is
 started (@pxref{General Variables}).
 
@@ -742,6 +742,11 @@ this; e.g., whether to rename the pre-existing output buffer, or to
 use a different buffer for the new command.  Consult the variable's
 documentation for more possibilities.
 
+@vindex async-shell-command-display-buffer
+  If you want the output buffer for asynchronous shell commands to be
+displayed only when the command generates output, set
+@code{async-shell-command-display-buffer} to @code{nil}.
+
 @kindex M-|
 @findex shell-command-on-region
   @kbd{M-|} (@code{shell-command-on-region}) is like @kbd{M-!}, but
@@ -770,6 +775,14 @@ name is relative, Emacs searches the directories listed in
 the output buffer.  But if you change the value of the variable
 @code{shell-command-default-error-buffer} to a string, error output is
 inserted into a buffer of that name.
+
+@vindex shell-command-dont-erase-buffer
+  By default, the output buffer is erased between shell commands.
+If you change the value of the variable
+@code{shell-command-dont-erase-buffer} to a non-@code{nil} value,
+the output buffer is not erased.  This variable also controls where to
+set the point in the output buffer after the command completes; see the
+documentation of the variable for details.
 
 @node Interactive Shell
 @subsection Interactive Subshell
@@ -1562,7 +1575,7 @@ process.
 
   You can solve this problem by setting up Emacs as an @dfn{edit
 server}, so that it ``listens'' for external edit requests and acts
-accordingly.  There are two ways to start an Emacs server:
+accordingly.  There are various ways to start an Emacs server:
 
 @itemize
 @findex server-start
@@ -1575,15 +1588,51 @@ dies with the Emacs process.
 
 @cindex daemon, Emacs
 @item
-Run Emacs as a @dfn{daemon}, using the @samp{--daemon} command-line
-option.  @xref{Initial Options}.  When Emacs is started this way, it
-calls @code{server-start} after initialization, and returns control to
-the calling terminal instead of opening an initial frame; it then
-waits in the background, listening for edit requests.
+Run Emacs as a @dfn{daemon}, using one of the @samp{--daemon} command-line
+options.  @xref{Initial Options}.  When Emacs is started this way, it
+calls @code{server-start} after initialization and does not open an
+initial frame.  It then waits for edit requests from clients.
+
+@cindex systemd unit file
+@item
+If your operating system uses @command{systemd} to manage startup,
+you can automatically start Emacs in daemon mode when you login
+using the supplied @dfn{systemd unit file}.  To activate this:
+@example
+systemctl --user enable emacs
+@end example
+(If your Emacs was installed into a non-standard location, you may
+need to copy the @file{emacs.service} file to a standard directory
+such as @file{~/.config/systemd/user/}.)
+
+@cindex socket activation, systemd, Emacs
+@item
+An external process can invoke the Emacs server when a connection
+event occurs upon a specified socket and pass the socket to the new
+Emacs server process.  An instance of this is the socket functionality
+of @command{systemd}: the @command{systemd} service creates a socket and
+listens for connections on it; when @command{emacsclient} connects to
+it for the first time, @command{systemd} can launch the Emacs server
+and hand over the socket to it for servicing @command{emacsclient}
+connections.  A setup to use this functionality could be:
+
+@file{~/.config/systemd/user/emacs.socket}:
+@example
+[Socket]
+ListenStream=/path/to/.emacs.socket
+
+[Install]
+WantedBy=sockets.target
+@end example
+
+(The @file{emacs.service} file described above must also be installed.)
+
+The @code{ListenStream} path will be the path that Emacs listens for
+connections from @command{emacsclient}; this is a file of your choice.
 @end itemize
 
 @cindex @env{TEXEDIT} environment variable
-  Either way, once an Emacs server is started, you can use a shell
+  Once an Emacs server is started, you can use a shell
 command called @command{emacsclient} to connect to the Emacs process
 and tell it to visit a file.  You can then set the @env{EDITOR}
 environment variable to @samp{emacsclient}, so that external programs
@@ -1617,9 +1666,67 @@ expression @code{(+ 1 2)} on the @samp{foo} server, and returns
 signaled.)  Currently, this feature is mainly useful for developers.
 
 @menu
+* TCP Emacs server::     Listening to a TCP socket.
 * Invoking emacsclient:: Connecting to the Emacs server.
 * emacsclient Options::  Emacs client startup options.
 @end menu
+
+@node TCP Emacs server
+@subsection TCP Emacs server
+@cindex TCP Emacs server
+
+@vindex server-use-tcp
+  An Emacs server usually listens to connections on a local Unix
+domain socket.  Some operating systems, such as MS-Windows, do not
+support local sockets; in that case, the server uses TCP sockets
+instead.  In some cases it is useful to have the server listen on a
+TCP socket even if local sockets are supported, e.g., if you need to
+contact the Emacs server from a remote machine.  You can set
+@code{server-use-tcp} to non-@code{nil} to have Emacs listen on a TCP
+socket instead of a local socket.  This is the default if your OS does
+not support local sockets.
+
+@vindex server-host
+@vindex server-port
+  If the Emacs server is set to use TCP, it will by default listen to
+a random port on the localhost interface.  This can be changed to
+another interface and/or a fixed port using the variables
+@code{server-host} and @code{server-port}.
+
+@vindex server-auth-key
+  A TCP socket is not subject to file system permissions.  To retain
+some control over which users can talk to an Emacs server over TCP
+sockets, the @command{emacsclient} program must send an authorization
+key to the server.  This key is normally randomly generated by the
+Emacs server.  This is the recommended mode of operation.
+
+@findex server-generate-key
+  If needed, you can set the authorization key to a static value by
+setting the @code{server-auth-key} variable.  The key must consist of
+64 ASCII printable characters except for space (this means characters
+from @samp{!} to @samp{~}, or from decimal code 33 to 126).  You can
+use @kbd{M-x server-generate-key} to get a random key.
+
+@vindex server-auth-dir
+@cindex server file
+  When you start a TCP Emacs server, Emacs creates a @dfn{server file}
+containing the TCP information to be used by @command{emacsclient} to
+connect to the server.  The variable @code{server-auth-dir} specifies
+the directory containing the server file; by default, this is
+@file{~/.emacs.d/server/}.  In the absence of a local socket with file
+permissions, the permissions of this directory determine which users
+can have their @command{emacsclient} processes talk to the Emacs
+server.
+
+@vindex EMACS_SERVER_FILE@r{, environment variable}
+  To tell @command{emacsclient} to connect to the server over TCP with
+a specific server file, use the @samp{-f} or @samp{--server-file}
+option, or set the @env{EMACS_SERVER_FILE} environment variable
+(@pxref{emacsclient Options}).  If @code{server-auth-dir} is set to a
+non-standard value, @command{emacsclient} needs an absolute file name
+to the server file, as the default @code{server-auth-dir} is
+hard-coded in @command{emacsclient} to be used as the directory for
+resolving relative filenames.
 
 @node Invoking emacsclient
 @subsection Invoking @code{emacsclient}
@@ -1714,8 +1821,10 @@ listed below:
 @table @samp
 @item -a @var{command}
 @itemx --alternate-editor=@var{command}
-Specify a command to run if @code{emacsclient} fails to contact Emacs.
+Specify a shell command to run if @code{emacsclient} fails to contact Emacs.
 This is useful when running @code{emacsclient} in a script.
+The command may include arguments, which may be quoted "like this".
+Currently, escaping of quotes is not supported.
 
 As a special exception, if @var{command} is the empty string, then
 @code{emacsclient} starts Emacs in daemon mode (as @command{emacs
@@ -1766,25 +1875,18 @@ evaluate, @emph{not} as a list of files to visit.
 
 @item -f @var{server-file}
 @itemx --server-file=@var{server-file}
-@cindex @env{EMACS_SERVER_FILE} environment variable
-Specify a @dfn{server file} for connecting to an Emacs server via TCP.
+Specify a server file (@pxref{TCP Emacs server}) for connecting to an
+Emacs server via TCP.  Alternatively, you can set the
+@env{EMACS_SERVER_FILE} environment variable to point to the server
+file.
 
-An Emacs server usually uses a
-local socket to listen for connections.  Some operating systems,
-such as Microsoft Windows, do not support local sockets; in that case,
-the server communicates with @command{emacsclient} via TCP.
-
-@vindex server-auth-dir
-@cindex server file
-@vindex server-port
-When you start a TCP Emacs server, Emacs creates a @dfn{server file}
-containing the TCP information to be used by @command{emacsclient} to
-connect to the server.  The variable @code{server-auth-dir} specifies
-the directory containing the server file; by default, this is
-@file{~/.emacs.d/server/}.  To tell @command{emacsclient} to connect
-to the server over TCP with a specific server file, use the @samp{-f}
-or @samp{--server-file} option, or set the @env{EMACS_SERVER_FILE}
-environment variable.
+An Emacs server usually uses a local socket to listen for connections,
+but also supports connections over TCP.  To connect to a TCP Emacs
+server, @command{emacsclient} needs to read a @dfn{server file}
+containing the connection details of the Emacs server.  The name of
+this file is specified with this option, either as a file name
+relative to @file{~/.emacs.d/server} or as an absolute file name.
+@xref{TCP Emacs server}.
 
 @item -n
 @itemx --no-wait
@@ -1802,6 +1904,12 @@ option is mainly useful for developers.
 @itemx --quiet
 Do not let @command{emacsclient} display messages about waiting for
 Emacs or connecting to remote server sockets.
+
+@item -u
+@itemx --suppress-output
+Do not let @command{emacsclient} display results returned from the
+server.  Mostly useful in combination with @samp{-e} when the
+evaluation performed is for side-effect rather than result.
 
 @item -s @var{server-name}
 @itemx --socket-name=@var{server-name}
@@ -1822,6 +1930,37 @@ On MS-Windows, @samp{-t} behaves just like @samp{-c} if the Emacs
 server is using the graphical display, but if the Emacs server is
 running on a text terminal, it creates a new frame in the current text
 terminal.
+
+@item -T @var{tramp-prefix}
+@itemx --tramp-prefix=@var{tramp-prefix}
+Set the prefix to add to filenames for Emacs to locate files on remote
+machines using TRAMP (@pxref{Top, The Tramp Manual,, tramp, The Tramp
+Manual}).  This is mostly useful in combination with using the Emacs
+server over TCP (@pxref{TCP Emacs server}).  By ssh-forwarding the
+listening port and making the @var{server-file} available on a remote
+machine, programs on the remote machine can use @command{emacsclient}
+as the value for the @env{EDITOR} and similar environment variables,
+but instead of talking to an Emacs server on the remote machine, the
+files will be visited in the local Emacs session using TRAMP.
+
+@vindex EMACSCLIENT_TRAMP@r{, environment variable}
+Setting the environment variable @env{EMACSCLIENT_TRAMP} has the same
+effect as using the @samp{-T} option.  If both are specified, the
+command-line option takes precedence.
+
+For example, assume two hosts, @samp{local} and @samp{remote}, and
+that the local Emacs listens on tcp port 12345.  Assume further that
+@file{/home} is on a shared file system, so that the server file
+@file{~/.emacs.d/server/server} is readable on both hosts.
+
+@example
+local$ ssh -R12345:localhost:12345 remote
+remote$ export EDITOR="emacsclient \
+        --server-file=server \
+        --tramp=/ssh:remote:"
+remote$ $EDITOR /tmp/foo.txt #Should open in local emacs.
+@end example
+
 @end table
 
   The new graphical or text terminal frames created by the @samp{-c}
@@ -2676,7 +2815,7 @@ Find @var{filename}, guessing a default from text around point
 @code{ffap-alternate-file}, analogous to @code{find-alternate-file}.
 @item C-x d @var{directory} @key{RET}
 @kindex C-x d @r{(FFAP)}
-Start Dired on @var{directory}, defaulting to the directory name at
+Start Dired on @var{directory}, defaulting to the directory at
 point (@code{dired-at-point}).
 @item C-x C-d
 @code{ffap-list-directory}, analogous to @code{list-directory}.

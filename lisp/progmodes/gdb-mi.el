@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Credits:
 
@@ -1767,13 +1767,17 @@ static char *magick[] = {
   :group 'gdb)
 
 
+(defvar gdb-python-guile-commands-regexp
+  "python\\|python-interactive\\|pi\\|guile\\|guile-repl\\|gr"
+  "Regexp that matches Python and Guile commands supported by GDB.")
+
 (defvar gdb-control-commands-regexp
   (concat
    "^\\("
    "commands\\|if\\|while\\|define\\|document\\|"
-   "python\\|python-interactive\\|pi\\|guile\\|guile-repl\\|gr\\|"
-   "while-stepping\\|stepping\\|ws\\|actions"
-   "\\)\\([[:blank:]]+.*\\)?$")
+   gdb-python-guile-commands-regexp
+   "\\|while-stepping\\|stepping\\|ws\\|actions"
+   "\\)\\([[:blank:]]+\\([^[:blank:]]*\\)\\)?$")
   "Regexp matching GDB commands that enter a recursive reading loop.
 As long as GDB is in the recursive reading loop, it does not expect
 commands to be prefixed by \"-interpreter-exec console\".")
@@ -1831,8 +1835,17 @@ commands to be prefixed by \"-interpreter-exec console\".")
 	       (> gdb-control-level 0))
 	  (setq gdb-control-level (1- gdb-control-level)))
       (setq gdb-continuation nil)))
-  (if (string-match gdb-control-commands-regexp string)
-      (setq gdb-control-level (1+ gdb-control-level))))
+  ;; Python and Guile commands that have an argument don't enter the
+  ;; recursive reading loop.
+  (let* ((control-command-p (string-match gdb-control-commands-regexp string))
+         (command-arg (match-string 3 string))
+         (python-or-guile-p (string-match gdb-python-guile-commands-regexp
+                                          string)))
+    (if (and control-command-p
+             (or (not python-or-guile-p)
+                 (null command-arg)
+                 (zerop (length command-arg))))
+        (setq gdb-control-level (1+ gdb-control-level)))))
 
 (defun gdb-mi-quote (string)
   "Return STRING quoted properly as an MI argument.
@@ -1976,6 +1989,7 @@ is running."
             (not gdb-non-stop))
            gud-running)
       (and gdb-gud-control-all-threads
+           (not (null gdb-running-threads-count))
            (> gdb-running-threads-count 0))))
 
 ;; GUD displays the selected GDB frame.  This might might not be the current
@@ -2492,7 +2506,9 @@ current thread and update GDB buffers."
   ;; Reason is available with target-async only
   (let* ((result (gdb-json-string output-field))
          (reason (bindat-get-field result 'reason))
-         (thread-id (bindat-get-field result 'thread-id)))
+         (thread-id (bindat-get-field result 'thread-id))
+         (retval (bindat-get-field result 'return-value))
+         (varnum (bindat-get-field result 'gdb-result-var)))
 
     ;; -data-list-register-names needs to be issued for any stopped
     ;; thread
@@ -2517,6 +2533,15 @@ current thread and update GDB buffers."
      (propertize gdb-inferior-status 'face font-lock-warning-face))
     (if (string-equal reason "exited-normally")
 	(setq gdb-active-process nil))
+
+    (when (and retval varnum
+               ;; When the user typed CLI commands, GDB/MI helpfully
+               ;; includes the "Value returned" response in the "~"
+               ;; record; here we avoid displaying it twice.
+               (not (string-match "^Value returned is " gdb-filter-output)))
+      (setq gdb-filter-output
+            (concat gdb-filter-output
+                    (format "Value returned is %s = %s\n" varnum retval))))
 
     ;; Select new current thread.
 
@@ -2650,8 +2675,15 @@ responses.
 If FIX-LIST is non-nil, \"FIX-LIST={..}\" is replaced with
 \"FIX-LIST=[..]\" prior to parsing. This is used to fix broken
 -break-info output when it contains breakpoint script field
-incompatible with GDB/MI output syntax."
+incompatible with GDB/MI output syntax.
+
+If `default-directory' is remote, full file names are adapted accordingly."
   (save-excursion
+    (let ((remote (file-remote-p default-directory)))
+      (when remote
+        (goto-char (point-min))
+        (while (re-search-forward "[\\[,]fullname=\"\\(.+\\)\"" nil t)
+          (replace-match (concat remote "\\1") nil nil nil 1))))
     (goto-char (point-min))
     (when fix-key
       (save-excursion
@@ -3465,7 +3497,7 @@ in `gdb-memory-format'."
 (defvar gdb-memory-mode-map
   (let ((map (make-sparse-keymap)))
     (suppress-keymap map t)
-    (define-key map "q" 'kill-this-buffer)
+    (define-key map "q" 'kill-current-buffer)
     (define-key map "n" 'gdb-memory-show-next-page)
     (define-key map "p" 'gdb-memory-show-previous-page)
     (define-key map "a" 'gdb-memory-set-address)
@@ -3819,7 +3851,7 @@ DOC is an optional documentation string."
   ;; TODO
   (let ((map (make-sparse-keymap)))
     (suppress-keymap map)
-    (define-key map "q" 'kill-this-buffer)
+    (define-key map "q" 'kill-current-buffer)
     map))
 
 (define-derived-mode gdb-disassembly-mode gdb-parent-mode "Disassembly"
@@ -4023,7 +4055,7 @@ member."
 (defvar gdb-frames-mode-map
   (let ((map (make-sparse-keymap)))
     (suppress-keymap map)
-    (define-key map "q" 'kill-this-buffer)
+    (define-key map "q" 'kill-current-buffer)
     (define-key map "\r" 'gdb-select-frame)
     (define-key map [mouse-2] 'gdb-select-frame)
     (define-key map [follow-link] 'mouse-face)
@@ -4149,7 +4181,7 @@ member."
 (defvar gdb-locals-mode-map
   (let ((map (make-sparse-keymap)))
     (suppress-keymap map)
-    (define-key map "q" 'kill-this-buffer)
+    (define-key map "q" 'kill-current-buffer)
     (define-key map "\t" (lambda ()
                            (interactive)
                            (gdb-set-window-buffer
@@ -4240,7 +4272,7 @@ member."
     (suppress-keymap map)
     (define-key map "\r" 'gdb-edit-register-value)
     (define-key map [mouse-2] 'gdb-edit-register-value)
-    (define-key map "q" 'kill-this-buffer)
+    (define-key map "q" 'kill-current-buffer)
     (define-key map "\t" (lambda ()
                            (interactive)
                            (gdb-set-window-buffer

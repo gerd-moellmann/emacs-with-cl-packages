@@ -18,13 +18,13 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
 ;;; Code:
 (defvar reftex-tables-dirty)
-(eval-when-compile (require 'cl))
+(eval-when-compile (require 'cl-lib))
 (eval-and-compile
   (defun reftex-set-dirty (symbol value)
     (setq reftex-tables-dirty t)
@@ -151,6 +151,24 @@ distribution.  Mixed-case symbols are convenience aliases.")
       (?A    . "\\citeauthor*{%l}")
       (?y    . "\\citeyear{%l}")
       (?n    . "\\nocite{%l}")))
+    (biblatex "The Biblatex package"
+     ((?\C-m . "\\cite[][]{%l}")
+      (?C    . "\\cite*[][]{%l}")
+      (?t    . "\\textcite[][]{%l}")
+      (?T    . "\\textcite*[][]{%l}")
+      (?p    . "\\parencite[][]{%l}")
+      (?P    . "\\parencite*[][]{%l}")
+      (?f    . "\\footcite[][]{%l}")
+      (?s    . "\\smartcite[][]{%l}")
+      (?u    . "\\autocite[][]{%l}")
+      (?U    . "\\autocite*[][]{%l}")
+      (?a    . "\\citeauthor{%l}")
+      (?A    . "\\citeauthor*{%l}")
+      (?i    . "\\citetitle{%l}")
+      (?I    . "\\citetitle*{%l}")
+      (?y    . "\\citeyear{%l}")
+      (?Y    . "\\citeyear*{%l}")
+      (?n    . "\\nocite{%l}")))
     (amsrefs "The AMSRefs package"
      ((?\C-m . "\\cite{%l}")
       (?p    . "\\cite{%l}")
@@ -246,7 +264,7 @@ distribution.  Mixed-case symbols are convenience aliases.")
   "LaTeX label and citation support."
   :tag "RefTeX"
   :link '(url-link :tag "Home Page"
-                   "http://www.gnu.org/software/auctex/reftex.html")
+                   "https://www.gnu.org/software/auctex/reftex.html")
   :link '(emacs-commentary-link :tag "Commentary in reftex.el" "reftex.el")
   :link '(custom-manual "(reftex)Top")
   :prefix "reftex-"
@@ -1076,9 +1094,9 @@ used in the variable `reftex-ref-style-alist'."
 
 ;; Compatibility with obsolete variables.
 (when reftex-vref-is-default
-  (add-to-list 'reftex-ref-style-default-list "Varioref"))
+  (cl-pushnew "Varioref" reftex-ref-style-default-list :test #'equal))
 (when reftex-fref-is-default
-  (add-to-list 'reftex-ref-style-default-list "Fancyref"))
+  (cl-pushnew "Fancyref" reftex-ref-style-default-list :test #'equal))
 
 (defcustom reftex-level-indent 2
   "Number of spaces to be used for indentation per section level."

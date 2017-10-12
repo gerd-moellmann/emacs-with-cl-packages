@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -191,7 +191,8 @@ PARSED is an `erc-parsed' response struct."
                  (re-search-forward (regexp-quote nickname) nil t))
         (goto-char (match-beginning 0))
         (insert (erc-propertize erc-capab-identify-prefix
-                                'face 'erc-capab-identify-unidentified))))))
+                                'font-lock-face
+                                'erc-capab-identify-unidentified))))))
 
 (defun erc-capab-identify-get-unidentified-nickname (parsed)
   "Return the nickname of the user if unidentified.

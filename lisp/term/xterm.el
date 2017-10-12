@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -591,13 +591,26 @@ Return the pasted text as a string."
     (define-key map [f59] [M-f11])
     (define-key map [f60] [M-f12])
 
+    (define-key map [f61] [M-S-f1])
+    (define-key map [f62] [M-S-f2])
+    (define-key map [f63] [M-S-f3])
+    (define-key map [f64] [M-S-f4])
+    (define-key map [f65] [M-S-f5])
+    (define-key map [f66] [M-S-f6])
+    (define-key map [f67] [M-S-f7])
+    (define-key map [f68] [M-S-f8])
+    (define-key map [f69] [M-S-f9])
+    (define-key map [f70] [M-S-f10])
+    (define-key map [f71] [M-S-f11])
+    (define-key map [f72] [M-S-f12])
+
     map)
   "Keymap of possible alternative meanings for some keys.")
 
 ;; Set up colors, for those versions of xterm that support it.
 (defvar xterm-standard-colors
   ;; The names in the comments taken from XTerm-col.ad in the xterm
-  ;; distribution, see ftp://dickey.his.com/xterm/.  RGB values are
+  ;; distribution, see https://invisible-island.net/xterm/.  RGB values are
   ;; from rgb.txt.
   '(("black"          0 (  0   0   0))	; black
     ("red"            1 (205   0   0))	; red3
@@ -917,6 +930,14 @@ versions of xterm."
     ;; are more colors to support, compute them now.
     (when (> ncolors 0)
       (cond
+       ((= ncolors 16777200) ; 24-bit xterm
+	;; all named tty colors
+	(let ((idx (length xterm-standard-colors)))
+	  (mapc (lambda (color)
+		  (unless (assoc (car color) xterm-standard-colors)
+		    (tty-color-define (car color) idx (cdr color))
+		    (setq idx (1+ idx))))
+		color-name-rgb-alist)))
        ((= ncolors 240)	; 256-color xterm
 	;; 216 non-gray colors first
 	(let ((r 0) (g 0) (b 0))

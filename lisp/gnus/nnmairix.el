@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -146,11 +146,6 @@
 (nnoo-declare nnmairix)
 
 ;;; === Keymaps
-
-(eval-when-compile
-  (when (featurep 'xemacs)
-    ;; The `kbd' macro requires that the `read-kbd-macro' macro is available.
-    (require 'edmacro)))
 
 ;; Group mode
 (defun nnmairix-group-mode-hook ()
@@ -1635,7 +1630,7 @@ search in raw mode."
 
 (defun nnmairix-determine-original-group-from-registry (mid)
   "Try to determine original group for message-id MID from the registry."
-  (when (gnus-bound-and-true-p 'gnus-registry-enabled)
+  (when (bound-and-true-p gnus-registry-enabled)
     (unless (string-match "^<" mid)
       (set mid (concat "<" mid)))
     (unless (string-match ">$" mid)

@@ -17,7 +17,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 /* Important notice: defining MAIL_USE_FLOCK or MAIL_USE_LOCKF *will
@@ -59,8 +59,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/file.h>
-#include <stdbool.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <time.h>
 
@@ -69,6 +68,9 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <fcntl.h>
 #include <signal.h>
 #include <string.h>
+
+#include <unlocked-io.h>
+
 #include "syswait.h"
 #ifdef MAIL_USE_POP
 #include "pop.h"
@@ -338,7 +340,7 @@ main (int argc, char **argv)
       int lockcount = 0;
       int status = 0;
 #if defined (MAIL_USE_MAILLOCK) && defined (HAVE_TOUCHLOCK)
-      time_t touched_lock IF_LINT (= 0);
+      time_t touched_lock;
 #endif
 
       if (setuid (getuid ()) < 0 || setregid (-1, real_gid) < 0)

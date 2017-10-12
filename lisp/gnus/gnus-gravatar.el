@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -94,8 +94,9 @@ Set image category to CATEGORY."
 		  (mail-address (cadr address)))
 	      (when (if real-name
 			(re-search-forward
-			 (concat (gnus-replace-in-string
-				  (regexp-quote real-name) "[\t ]+" "[\t\n ]+")
+			 (concat (replace-regexp-in-string
+				  "[\t ]+" "[\t\n ]+"
+				  (regexp-quote real-name))
 				 "\\|"
 				 (regexp-quote mail-address))
 			 nil t)
@@ -110,8 +111,7 @@ Set image category to CATEGORY."
 		;; another mail with the same someaddress.
 		(unless (memq 'gnus-gravatar (text-properties-at (point)))
 		  (let ((point (point)))
-		    (unless (featurep 'xemacs)
-		      (setq gravatar (append gravatar gnus-gravatar-properties)))
+		    (setq gravatar (append gravatar gnus-gravatar-properties))
 		    (gnus-put-image gravatar (buffer-substring (point) (1+ point)) category)
 		    (put-text-property point (point) 'gnus-gravatar address)
 		    (gnus-add-wash-type category)

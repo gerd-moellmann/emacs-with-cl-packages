@@ -1,4 +1,4 @@
-;;; find-dired.el --- run a `find' command and dired the output
+;;; find-dired.el --- run a `find' command and dired the output  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1992, 1994-1995, 2000-2017 Free Software Foundation,
 ;; Inc.
@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -97,7 +97,7 @@ them for `find-ls-option'."
 
 (defcustom find-grep-options
   (if (or (eq system-type 'berkeley-unix)
-	  (string-match "solaris2\\|irix" system-configuration))
+	  (string-match "solaris2" system-configuration))
       "-s" "-q")
   "Option to grep to be as silent as possible.
 On Berkeley systems, this is `-s'; on Posix, and with GNU grep, `-q' does it.

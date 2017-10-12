@@ -22,7 +22,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -3597,7 +3597,7 @@ Existing overlays are recycled, in order to minimize consumption."
       (if ov-alist
 	  (while (setq ov-list (pop ov-alist))
 	    (while (setq ov (pop (cdr ov-list)))
-	      (add-to-list 'old-buffers (overlay-buffer ov))
+	      (pushnew (overlay-buffer ov) old-buffers)
 	      (delete-overlay ov))))
 
       (setq ov-alist idlwave-shell-bp-overlays
@@ -4172,8 +4172,8 @@ Otherwise, just expand the file name."
 	  ([(control ?t)]   ?t   idlwave-shell-toggle-toolbar)
 	  ([(control up)]   up   idlwave-shell-stack-up)
 	  ([(control down)] down idlwave-shell-stack-down)
-	  ([(        ?[)]   ?[   idlwave-shell-goto-previous-bp t t)
-	  ([(        ?])]   ?]   idlwave-shell-goto-next-bp t t)
+	  ([(        ?\[)]  ?\[  idlwave-shell-goto-previous-bp t t)
+	  ([(        ?\])]  ?\]  idlwave-shell-goto-next-bp t t)
 	  ([(control ?f)]   ?f   idlwave-shell-window)))
        (mod (and (listp idlwave-shell-debug-modifiers)
 		 idlwave-shell-debug-modifiers))

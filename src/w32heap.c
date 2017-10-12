@@ -14,7 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>. */
+   along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /*
   Geoff Voelker (voelker@cs.washington.edu)                          7-29-94
@@ -50,9 +50,11 @@
 #include <errno.h>
 
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include "w32common.h"
 #include "w32heap.h"
 #include "lisp.h"
+#include "w32.h"	/* for FD_SETSIZE */
 
 /* We chose to leave those declarations here.  They are used only in
    this file.  The RtlCreateHeap is available since XP.  It is located
@@ -114,9 +116,9 @@ typedef struct _RTL_HEAP_PARAMETERS {
    to build only the first bootstrap-emacs.exe with the large size,
    and reset that to a lower value afterwards.  */
 #if defined _WIN64 || defined WIDE_EMACS_INT
-# define DUMPED_HEAP_SIZE (20*1024*1024)
+# define DUMPED_HEAP_SIZE (21*1024*1024)
 #else
-# define DUMPED_HEAP_SIZE (12*1024*1024)
+# define DUMPED_HEAP_SIZE (13*1024*1024)
 #endif
 
 static unsigned char dumped_data[DUMPED_HEAP_SIZE];
@@ -189,7 +191,7 @@ free_fn the_free_fn;
    claims for new memory.  Before dumping, we allocate space
    from the fixed size dumped_data[] array.
 */
-NTSTATUS NTAPI
+static NTSTATUS NTAPI
 dumped_data_commit (PVOID Base, PVOID *CommitAddress, PSIZE_T CommitSize)
 {
   /* This is used before dumping.
@@ -226,7 +228,9 @@ init_heap (void)
 {
   if (using_dynamic_heap)
     {
+#ifndef MINGW_W64
       unsigned long enable_lfh = 2;
+#endif
 
       /* After dumping, use a new private heap.  We explicitly enable
          the low fragmentation heap (LFH) here, for the sake of pre
@@ -317,15 +321,18 @@ init_heap (void)
   cache_system_info ();
 }
 
+
+/* malloc, realloc, free.  */
+
 #undef malloc
 #undef realloc
 #undef free
 
 /* FREEABLE_P checks if the block can be safely freed.  */
 #define FREEABLE_P(addr)						\
-    ((unsigned char *)(addr) > 0					\
-     && ((unsigned char *)(addr) < dumped_data				\
-	 || (unsigned char *)(addr) >= dumped_data + DUMPED_HEAP_SIZE))
+  ((DWORD_PTR)(unsigned char *)(addr) > 0				\
+   && ((unsigned char *)(addr) < dumped_data				\
+       || (unsigned char *)(addr) >= dumped_data + DUMPED_HEAP_SIZE))
 
 void *
 malloc_after_dump (size_t size)
@@ -623,9 +630,12 @@ sbrk (ptrdiff_t increment)
   return data_region_end;
 }
 
-#define MAX_BUFFER_SIZE (512 * 1024 * 1024)
+
 
 /* MMAP allocation for buffers.  */
+
+#define MAX_BUFFER_SIZE (512 * 1024 * 1024)
+
 void *
 mmap_alloc (void **var, size_t nbytes)
 {
@@ -708,7 +718,7 @@ mmap_realloc (void **var, size_t nbytes)
   if (memInfo.RegionSize < nbytes)
     {
       memset (&m2, 0, sizeof (m2));
-      if (VirtualQuery (*var + memInfo.RegionSize, &m2, sizeof(m2)) == 0)
+      if (VirtualQuery ((char *)*var + memInfo.RegionSize, &m2, sizeof(m2)) == 0)
         DebPrint (("mmap_realloc: VirtualQuery error = %ld\n",
 		   GetLastError ()));
       /* If there is enough room in the current reserved area, then
@@ -778,7 +788,7 @@ mmap_realloc (void **var, size_t nbytes)
         }
 
       /* We still can decommit pages.  */
-      if (VirtualFree (*var + nbytes + get_page_size(),
+      if (VirtualFree ((char *)*var + nbytes + get_page_size(),
 		       memInfo.RegionSize - nbytes - get_page_size(),
 		       MEM_DECOMMIT) == 0)
         DebPrint (("mmap_realloc: VirtualFree error %ld\n", GetLastError ()));
@@ -787,4 +797,79 @@ mmap_realloc (void **var, size_t nbytes)
 
   /* Not enlarging, not shrinking by more than one page.  */
   return *var;
+}
+
+
+/* Emulation of getrlimit and setrlimit.  */
+
+int
+getrlimit (rlimit_resource_t rltype, struct rlimit *rlp)
+{
+  int retval = -1;
+
+  switch (rltype)
+    {
+    case RLIMIT_STACK:
+      {
+	MEMORY_BASIC_INFORMATION m;
+	/* Implementation note: Posix says that RLIMIT_STACK returns
+	   information about the stack size for the main thread.  The
+	   implementation below returns the stack size for the calling
+	   thread, so it's more like pthread_attr_getstacksize.  But
+	   Emacs clearly wants the latter, given how it uses the
+	   results, so the implementation below is more future-proof,
+	   if what's now the main thread will become some other thread
+	   at some future point.  */
+	if (!VirtualQuery ((LPCVOID) &m, &m, sizeof m))
+	  errno = EPERM;
+	else
+	  {
+	    rlp->rlim_cur = (DWORD_PTR) &m - (DWORD_PTR) m.AllocationBase;
+	    rlp->rlim_max =
+	      (DWORD_PTR) m.BaseAddress + m.RegionSize
+	      - (DWORD_PTR) m.AllocationBase;
+
+	    /* The last page is the guard page, so subtract that.  */
+	    rlp->rlim_cur -= getpagesize ();
+	    rlp->rlim_max -= getpagesize ();
+	    retval = 0;
+	  }
+	}
+      break;
+    case RLIMIT_NOFILE:
+      /* Implementation note: The real value is returned by
+	 _getmaxstdio.  But our FD_SETSIZE is smaller, to cater to
+	 Windows 9X, and process.c includes some logic that's based on
+	 the assumption that the handle resource is inherited to child
+	 processes.  We want to avoid that logic, so we tell process.c
+	 our current limit is already equal to FD_SETSIZE.  */
+      rlp->rlim_cur = FD_SETSIZE;
+      rlp->rlim_max = 2048;	/* see _setmaxstdio documentation */
+      retval = 0;
+      break;
+    default:
+      /* Note: we could return meaningful results for other RLIMIT_*
+	 requests, but Emacs doesn't currently need that, so we just
+	 punt for them.  */
+      errno = ENOSYS;
+      break;
+    }
+  return retval;
+}
+
+int
+setrlimit (rlimit_resource_t rltype, const struct rlimit *rlp)
+{
+  switch (rltype)
+    {
+    case RLIMIT_STACK:
+    case RLIMIT_NOFILE:
+      /* We cannot modfy these limits, so we always fail.  */
+      errno = EPERM;
+      break;
+    default:
+      errno = ENOSYS;
+      break;
+    }
+  return -1;
 }

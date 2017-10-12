@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -44,9 +44,6 @@
 ;;; Code:
 
 (eval-when-compile (require 'cl))
-(eval-when-compile
-  (when (featurep 'xemacs)
-    (require 'easy-mmode))) ; for `define-minor-mode'
 
 (require 'gnus-util)
 (require 'gnus)
@@ -111,7 +108,6 @@
     ;; Set up the menu.
     (when (gnus-visual-p 'undo-menu 'menu)
       (gnus-undo-make-menu-bar))
-    (gnus-make-local-hook 'post-command-hook)
     (add-hook 'post-command-hook 'gnus-undo-boundary nil t)))
 
 ;;; Interface functions.

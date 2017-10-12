@@ -1,4 +1,4 @@
-;;; xml.el --- XML parser
+;;; xml.el --- XML parser -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2000-2017 Free Software Foundation, Inc.
 
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -401,9 +401,9 @@ Both features can be combined by providing a cons cell
 		     parse-dtd)
 		(setq dtd (car result))
 		(if (cdr result)	; possible leading comment
-		    (add-to-list 'xml (cdr result))))
+		    (push (cdr result) xml)))
 	       (t
-		(add-to-list 'xml result))))
+		(push result xml))))
 	  (goto-char (point-max))))
       (if parse-dtd
 	  (cons dtd (nreverse xml))
@@ -437,6 +437,7 @@ in the XML-NS argument."
                                  (if symbol-qnames (cdr xml-ns) xml-ns)))
                      "")))
 	(if (and symbol-qnames
+                 (not special)
 		 (not (string= prefix "xmlns")))
 	    (intern (concat ns lname))
 	  (cons ns (if special "" lname))))
@@ -647,7 +648,7 @@ surpassed `xml-entity-expansion-limit'"))))
   "Return the attribute-list after point.
 Leave point at the first non-blank character after the tag."
   (let ((attlist ())
-	end-pos name)
+        end-pos name)
     (skip-syntax-forward " ")
     (while (looking-at (eval-when-compile
 			 (concat "\\(" xml-name-re "\\)\\s-*=\\s-*")))

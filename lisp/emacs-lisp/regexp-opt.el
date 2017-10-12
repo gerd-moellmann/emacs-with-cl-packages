@@ -1,4 +1,4 @@
-;;; regexp-opt.el --- generate efficient regexps to match strings
+;;; regexp-opt.el --- generate efficient regexps to match strings -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1994-2017 Free Software Foundation, Inc.
 
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -262,7 +262,7 @@ CHARS should be a list of characters."
   ;; The basic idea is to find character ranges.  Also we take care in the
   ;; position of character set meta characters in the character set regexp.
   ;;
-  (let* ((charmap (make-char-table 'case-table))
+  (let* ((charmap (make-char-table 'regexp-opt-charset))
 	 (start -1) (end -2)
 	 (charset "")
 	 (bracket "") (dash "") (caret ""))

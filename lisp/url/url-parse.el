@@ -1,4 +1,4 @@
-;;; url-parse.el --- Uniform Resource Locator parser
+;;; url-parse.el --- Uniform Resource Locator parser -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1996-1999, 2004-2017 Free Software Foundation, Inc.
 
@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -36,7 +36,8 @@
                                      target attributes fullness))
             (:copier nil))
   type user password host portspec filename target attributes fullness
-  silent (use-cookies t))
+  silent (use-cookies t)
+  (asynchronous t))
 
 (defsubst url-port (urlobj)
   "Return the port number for the URL specified by URLOBJ.
@@ -224,7 +225,7 @@ parses to
 				 fragment nil full))))))
 
 (defmacro url-bit-for-url (method lookfor url)
-  `(let* ((urlobj (url-generic-parse-url url))
+  `(let* ((urlobj (url-generic-parse-url ,url))
           (bit (funcall ,method urlobj))
           (methods (list 'url-recreate-url
                          'url-host))

@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -583,6 +583,7 @@ directory for only the accessible portion of the buffer."
     (with-output-to-temp-buffer pages-directory-buffer
       (with-current-buffer standard-output
         (pages-directory-mode)
+        (setq buffer-read-only nil)
         (insert
          "==== Pages Directory: use `C-c C-c' to go to page under cursor. ====" ?\n)
         (setq pages-buffer pages-target-buffer)
@@ -631,6 +632,7 @@ directory for only the accessible portion of the buffer."
                 )))))
 
       (set-buffer standard-output)
+      (setq buffer-read-only t)
       ;; Put positions in increasing order to go with buffer.
       (setq pages-pos-list (nreverse pages-pos-list))
       (if (called-interactively-p 'interactive)
@@ -694,20 +696,14 @@ Used by `pages-directory' function."
       (terpri))
     (end-of-line 1)))
 
-(defun pages-directory-mode ()
+(define-derived-mode pages-directory-mode special-mode "Pages-Directory"
   "Mode for handling the pages-directory buffer.
 
 Move point to one of the lines in this buffer, then use \\[pages-directory-goto] to go
 to the same line in the pages buffer."
-
-  (kill-all-local-variables)
-  (use-local-map pages-directory-mode-map)
-  (setq major-mode 'pages-directory-mode)
-  (setq mode-name "Pages-Directory")
   (make-local-variable 'pages-buffer)
   (make-local-variable 'pages-pos-list)
-  (make-local-variable 'pages-directory-buffer-narrowing-p)
-  (run-mode-hooks 'pages-directory-mode-hook))
+  (make-local-variable 'pages-directory-buffer-narrowing-p))
 
 (defun pages-directory-goto ()
   "Go to the corresponding line in the pages buffer."

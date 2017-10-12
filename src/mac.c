@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Originally contributed by Andrew Choi (akochoi@mac.com) for Emacs 21.  */
 
@@ -1086,11 +1086,8 @@ cfobject_to_lisp (CFTypeRef obj, int flags, int hash_bound)
 	}
       else
 	{
-	  result = make_hash_table (hashtest_equal,
-				    make_number (count),
-				    make_float (DEFAULT_REHASH_SIZE),
-				    make_float (DEFAULT_REHASH_THRESHOLD),
-				    Qnil);
+	  result = make_hash_table (hashtest_equal, count, DEFAULT_REHASH_SIZE,
+				    DEFAULT_REHASH_THRESHOLD, Qnil, false);
 	  CFDictionaryApplyFunction (obj, cfdictionary_puthash,
 				     &context);
 	}
@@ -1717,9 +1714,9 @@ xrm_create_database (void)
 {
   XrmDatabase database;
 
-  database = make_hash_table (hashtest_equal, make_number (DEFAULT_HASH_SIZE),
-			      make_float (DEFAULT_REHASH_SIZE),
-			      make_float (DEFAULT_REHASH_THRESHOLD), Qnil);
+  database = make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
+			      DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
+			      Qnil, false);
   Fputhash (HASHKEY_MAX_NID, make_number (0), database);
   Fputhash (HASHKEY_QUERY_CACHE, Qnil, database);
 
@@ -1852,11 +1849,9 @@ xrm_get_resource (XrmDatabase database, const char *name, const char *class)
   query_cache = Fgethash (HASHKEY_QUERY_CACHE, database, Qnil);
   if (NILP (query_cache))
     {
-      query_cache = make_hash_table (hashtest_equal,
-				     make_number (DEFAULT_HASH_SIZE),
-				     make_float (DEFAULT_REHASH_SIZE),
-				     make_float (DEFAULT_REHASH_THRESHOLD),
-				     Qnil);
+      query_cache = make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
+				     DEFAULT_REHASH_SIZE,
+				     DEFAULT_REHASH_THRESHOLD, Qnil, false);
       Fputhash (HASHKEY_QUERY_CACHE, query_cache, database);
     }
   h = XHASH_TABLE (query_cache);
@@ -2518,7 +2513,7 @@ return value (see `mac-convert-property-list').  FORMAT also accepts
       for (tmp = key; CONSP (tmp); tmp = XCDR (tmp))
 	{
 	  CHECK_STRING_CAR (tmp);
-	  QUIT;
+	  maybe_quit ();
 	}
       CHECK_TYPE (NILP (tmp), Qlistp, key);
     }

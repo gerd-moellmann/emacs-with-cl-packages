@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -34,35 +34,10 @@
 ;;; Code:
 (require 'comint)
 
-;;; For emacs < 24.3.
-(require 'newcomment)
-(eval-and-compile
-  (unless (fboundp 'user-error)
-    (defalias 'user-error 'error))
-  (unless (fboundp 'delete-consecutive-dups)
-    (defalias 'delete-consecutive-dups 'delete-dups))
-  (unless (fboundp 'completion-table-with-cache)
-    (defun completion-table-with-cache (fun &optional ignore-case)
-      ;; See eg bug#11906.
-      (let* (last-arg last-result
-             (new-fun
-              (lambda (arg)
-                (if (and last-arg (string-prefix-p last-arg arg ignore-case))
-                    last-result
-                  (prog1
-                      (setq last-result (funcall fun arg))
-                    (setq last-arg arg))))))
-        (completion-table-dynamic new-fun)))))
-(eval-when-compile
-  (unless (fboundp 'setq-local)
-    (defmacro setq-local (var val)
-      "Set variable VAR to value VAL in current buffer."
-      (list 'set (list 'make-local-variable (list 'quote var)) val))))
-
 (defgroup octave nil
   "Editing Octave code."
   :link '(custom-manual "(octave-mode)Top")
-  :link '(url-link "http://www.gnu.org/s/octave")
+  :link '(url-link "https://www.gnu.org/s/octave")
   :link '(custom-group-link :tag "Font Lock Faces group" font-lock-faces)
   :group 'languages)
 
@@ -605,13 +580,8 @@ Key bindings:
 
   (setq-local fill-nobreak-predicate
               (lambda () (eq (octave-in-string-p) ?')))
-  (with-no-warnings
-    (if (fboundp 'add-function)         ; new in 24.4
-        (add-function :around (local 'comment-line-break-function)
-                      #'octave--indent-new-comment-line)
-      (setq-local comment-line-break-function
-                  (apply-partially #'octave--indent-new-comment-line
-                                   #'comment-indent-new-line))))
+  (add-function :around (local 'comment-line-break-function)
+                #'octave--indent-new-comment-line)
 
   (setq font-lock-defaults '(octave-font-lock-keywords))
 
@@ -642,7 +612,7 @@ Key bindings:
 
 (defcustom inferior-octave-prompt
   ;; For Octave >= 3.8, default is always 'octave', see
-  ;; http://hg.savannah.gnu.org/hgweb/octave/rev/708173343c50
+  ;; https://hg.savannah.gnu.org/hgweb/octave/rev/708173343c50
   "\\(?:^octave\\(?:.bin\\|.exe\\)?\\(?:-[.0-9]+\\)?\\(?::[0-9]+\\)?\\|^debug\\|^\\)>+ "
   "Regexp to match prompts for the inferior Octave process."
   :type 'regexp)
@@ -869,7 +839,7 @@ startup file, `~/.emacs-octave'."
     (inferior-octave-send-list-and-digest
      (list "more off;\n"
            (unless (equal inferior-octave-output-string ">> ")
-             ;; See http://hg.savannah.gnu.org/hgweb/octave/rev/708173343c50
+             ;; See https://hg.savannah.gnu.org/hgweb/octave/rev/708173343c50
              "PS1 ('octave> ');\n")
            (when (and inferior-octave-startup-file
                       (file-exists-p inferior-octave-startup-file))
@@ -897,7 +867,7 @@ startup file, `~/.emacs-octave'."
 
 (defun inferior-octave-completion-at-point ()
   "Return the data to complete the Octave symbol at point."
-  ;; http://debbugs.gnu.org/14300
+  ;; https://debbugs.gnu.org/14300
   (unless (string-match-p "/" (or (comint--match-partial-filename) ""))
     (let ((beg (save-excursion
                  (skip-syntax-backward "w_" (comint-line-beginning-position))
@@ -907,9 +877,6 @@ startup file, `~/.emacs-octave'."
         (list beg end (completion-table-in-turn
                        (inferior-octave-completion-table)
                        'comint-completion-file-name-table))))))
-
-(define-obsolete-function-alias 'inferior-octave-complete
-  'completion-at-point "24.1")
 
 (defun inferior-octave-dynamic-list-input-ring ()
   "List the buffer's input history in a help buffer."
@@ -1060,8 +1027,7 @@ directory and makes this the current buffer's default directory."
                    (skip-syntax-backward "-(")
                    (thing-at-point 'symbol)))))
     (completing-read
-     (format (if def "Function (default %s): "
-               "Function: ") def)
+     (format (if def "Function (default %s): " "Function: ") def)
      (inferior-octave-completion-table)
      nil nil nil nil def)))
 
@@ -1448,9 +1414,6 @@ The block marked is the one that contains point or follows point."
                              (inferior-octave-completion-table))
                         octave-reserved-words)))))
 
-(define-obsolete-function-alias 'octave-complete-symbol
-  'completion-at-point "24.1")
-
 (defun octave-add-log-current-defun ()
   "A function for `add-log-current-defun-function' (which see)."
   (save-excursion
@@ -1534,7 +1497,7 @@ current buffer file unless called with a prefix arg \\[universal-argument]."
         (string (buffer-substring-no-properties beg end))
         line)
     (with-current-buffer inferior-octave-buffer
-      ;; http://lists.gnu.org/archive/html/emacs-devel/2013-10/msg00095.html
+      ;; https://lists.gnu.org/archive/html/emacs-devel/2013-10/msg00095.html
       (compilation-forget-errors)
       (setq inferior-octave-output-list nil)
       (while (not (string-equal string ""))

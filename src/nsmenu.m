@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /*
 By Adrian Robert, based on code from original nsmenu.m (Carl Edman,
@@ -53,8 +53,7 @@ Carbon version by Yamamoto Mitsuharu. */
 #endif
 
 extern long context_menu_value;
-EmacsMenu *mainMenu, *svcsMenu, *dockMenu;
-
+EmacsMenu *svcsMenu;
 /* Nonzero means a menu is currently active.  */
 static int popup_activated_flag;
 
@@ -135,12 +134,6 @@ ns_update_menubar (struct frame *f, bool deep_p, EmacsMenu *submenu)
     {
       menu = [[EmacsMenu alloc] initWithTitle: ns_app_name];
       needsSet = YES;
-    }
-  else
-    {  /* close up anything on there */
-      id attMenu = [menu attachedMenu];
-      if (attMenu != nil)
-        [attMenu close];
     }
 
 #if NSMENUPROFILE
@@ -500,7 +493,7 @@ x_activate_menubar (struct frame *f)
 @implementation EmacsMenu
 
 /* override designated initializer */
-- initWithTitle: (NSString *)title
+- (instancetype)initWithTitle: (NSString *)title
 {
   frame = 0;
   if ((self = [super initWithTitle: title]))
@@ -510,7 +503,7 @@ x_activate_menubar (struct frame *f)
 
 
 /* used for top-level */
-- initWithTitle: (NSString *)title frame: (struct frame *)f
+- (instancetype)initWithTitle: (NSString *)title frame: (struct frame *)f
 {
   [self initWithTitle: title];
   frame = f;
@@ -539,9 +532,14 @@ x_activate_menubar (struct frame *f)
 {
   ++trackingMenu;
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   // On 10.6 we get repeated calls, only the one for NSSystemDefined is "real".
-  if ([[NSApp currentEvent] type] != NSSystemDefined) return;
+  if (
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+      NSAppKitVersionNumber < NSAppKitVersionNumber10_7 &&
+#endif
+      [[NSApp currentEvent] type] != NSEventTypeSystemDefined)
+    return;
 #endif
 
   /* When dragging from one menu to another, we get willOpen followed by didClose,
@@ -610,7 +608,7 @@ x_activate_menubar (struct frame *f)
 -(NSString *)parseKeyEquiv: (const char *)key
 {
   const char *tpos = key;
-  keyEquivModMask = NSCommandKeyMask;
+  keyEquivModMask = NSEventModifierFlagCommand;
 
   if (!key || !strlen (key))
     return @"";
@@ -698,7 +696,6 @@ x_activate_menubar (struct frame *f)
   widget_value *wv = (widget_value *)wvptr;
 
   /* clear existing contents */
-  [self setMenuChangedMessagesEnabled: NO];
   [self clear];
 
   /* add new contents */
@@ -722,7 +719,6 @@ x_activate_menubar (struct frame *f)
         }
     }
 
-  [self setMenuChangedMessagesEnabled: YES];
 #ifdef NS_IMPL_GNUSTEP
   if ([[self window] isVisible])
     [self sizeToFit];
@@ -754,12 +750,12 @@ x_activate_menubar (struct frame *f)
 /*   p = [view convertPoint:p fromView: nil]; */
   p.y = NSHeight ([view frame]) - p.y;
   e = [[view window] currentEvent];
-   event = [NSEvent mouseEventWithType: NSRightMouseDown
+   event = [NSEvent mouseEventWithType: NSEventTypeRightMouseDown
                               location: p
                          modifierFlags: 0
                              timestamp: [e timestamp]
                           windowNumber: [[view window] windowNumber]
-                               context: [e context]
+                               context: nil
                            eventNumber: 0/*[e eventNumber] */
                             clickCount: 1
                               pressure: 0];
@@ -1004,8 +1000,6 @@ free_frame_tool_bar (struct frame *f)
   block_input ();
   view->wait_for_tool_bar = NO;
 
-  FRAME_TOOLBAR_HEIGHT (f) = 0;
-
   /* Note: This trigger an animation, which calls windowDidResize
      repeatedly. */
   f->output_data.ns->in_animation = 1;
@@ -1023,7 +1017,6 @@ update_frame_tool_bar (struct frame *f)
 {
   int i, k = 0;
   EmacsView *view = FRAME_NS_VIEW (f);
-  NSWindow *window = [view window];
   EmacsToolbar *toolbar = [view toolbar];
   int oldh;
 
@@ -1138,12 +1131,6 @@ update_frame_tool_bar (struct frame *f)
     }
 #endif
 
-  FRAME_TOOLBAR_HEIGHT (f) =
-    NSHeight ([window frameRectForContentRect: NSMakeRect (0, 0, 0, 0)])
-    - FRAME_NS_TITLEBAR_HEIGHT (f);
-  if (FRAME_TOOLBAR_HEIGHT (f) < 0) // happens if frame is fullscreen.
-    FRAME_TOOLBAR_HEIGHT (f) = 0;
-
   if (oldh != FRAME_TOOLBAR_HEIGHT (f))
     [view updateFrameSize:YES];
   if (view->wait_for_tool_bar && FRAME_TOOLBAR_HEIGHT (f) > 0)
@@ -1164,7 +1151,7 @@ update_frame_tool_bar (struct frame *f)
 
 @implementation EmacsToolbar
 
-- initForView: (EmacsView *)view withIdentifier: (NSString *)identifier
+- (instancetype)initForView: (EmacsView *)view withIdentifier: (NSString *)identifier
 {
   NSTRACE ("[EmacsToolbar initForView: withIdentifier:]");
 
@@ -1320,7 +1307,7 @@ update_frame_tool_bar (struct frame *f)
    display. */
 @implementation EmacsTooltip
 
-- init
+- (instancetype)init
 {
   NSColor *col = [NSColor colorWithCalibratedRed: 1.0 green: 1.0
                                             blue: 0.792 alpha: 0.95];
@@ -1426,29 +1413,19 @@ update_frame_tool_bar (struct frame *f)
 
    ========================================================================== */
 
-struct Popdown_data
-{
-  NSAutoreleasePool *pool;
-  EmacsDialogPanel *dialog;
-};
-
 static void
 pop_down_menu (void *arg)
 {
-  struct Popdown_data *unwind_data = arg;
+  EmacsDialogPanel *panel = arg;
 
-  block_input ();
   if (popup_activated_flag)
     {
-      EmacsDialogPanel *panel = unwind_data->dialog;
+      block_input ();
       popup_activated_flag = 0;
       [panel close];
-      [unwind_data->pool release];
       [[FRAME_NS_VIEW (SELECTED_FRAME ()) window] makeKeyWindow];
+      unblock_input ();
     }
-
-  xfree (unwind_data);
-  unblock_input ();
 }
 
 
@@ -1459,7 +1436,6 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
   Lisp_Object tem, title;
   NSPoint p;
   BOOL isQ;
-  NSAutoreleasePool *pool;
 
   NSTRACE ("ns_popup_dialog");
 
@@ -1479,18 +1455,13 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
     contents = list2 (title, Fcons (build_string ("Ok"), Qt));
 
   block_input ();
-  pool = [[NSAutoreleasePool alloc] init];
   dialog = [[EmacsDialogPanel alloc] initFromContents: contents
                                            isQuestion: isQ];
 
   {
     ptrdiff_t specpdl_count = SPECPDL_INDEX ();
-    struct Popdown_data *unwind_data = xmalloc (sizeof (*unwind_data));
 
-    unwind_data->pool = pool;
-    unwind_data->dialog = dialog;
-
-    record_unwind_protect_ptr (pop_down_menu, unwind_data);
+    record_unwind_protect_ptr (pop_down_menu, dialog);
     popup_activated_flag = 1;
     tem = [dialog runDialogAt: p];
     unbind_to (specpdl_count, Qnil);  /* calls pop_down_menu */
@@ -1527,7 +1498,7 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
 #define TEXTHEIGHT	20.0
 #define MINCELLWIDTH	90.0
 
-- initWithContentRect: (NSRect)contentRect styleMask: (NSUInteger)aStyle
+- (instancetype)initWithContentRect: (NSRect)contentRect styleMask: (NSWindowStyleMask)aStyle
               backing: (NSBackingStoreType)backingType defer: (BOOL)flag
 {
   NSSize spacing = {SPACER, SPACER};
@@ -1544,11 +1515,6 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
   area.size.width = ICONSIZE;
   area.size.height= ICONSIZE;
   img = [[NSImage imageNamed: @"NSApplicationIcon"] copy];
-#ifdef NS_IMPL_COCOA
-#if MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_6
-  [img setScalesWhenResized: YES];
-#endif
-#endif
   [img setSize: NSMakeSize (ICONSIZE, ICONSIZE)];
   imgView = [[NSImageView alloc] initWithFrame: area];
   [imgView setImage: img];
@@ -1556,7 +1522,7 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
   [img autorelease];
   [imgView autorelease];
 
-  aStyle = NSTitledWindowMask|NSClosableWindowMask|NSUtilityWindowMask;
+  aStyle = NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskUtilityWindow;
   flag = YES;
   rows = 0;
   cols = 1;
@@ -1736,7 +1702,7 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
 }
 
 
-- initFromContents: (Lisp_Object)contents isQuestion: (BOOL)isQ
+- (instancetype)initFromContents: (Lisp_Object)contents isQuestion: (BOOL)isQ
 {
   Lisp_Object head;
   [super init];
@@ -1814,7 +1780,7 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
 
 - (void)timeout_handler: (NSTimer *)timedEntry
 {
-  NSEvent *nxev = [NSEvent otherEventWithType: NSApplicationDefined
+  NSEvent *nxev = [NSEvent otherEventWithType: NSEventTypeApplicationDefined
                             location: NSMakePoint (0, 0)
                        modifierFlags: 0
                            timestamp: 0
@@ -1865,7 +1831,7 @@ ns_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
 
   if (EQ (ret, Qundefined) && window_closed)
     /* Make close button pressed equivalent to C-g.  */
-    Fsignal (Qquit, Qnil);
+    quit ();
 
   return ret;
 }

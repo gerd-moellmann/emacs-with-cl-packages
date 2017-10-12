@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef XGSELECT_H
 #define XGSELECT_H
@@ -27,7 +27,6 @@ struct timespec;
 
 extern int xg_select (int max_fds,
 		      fd_set *rfds, fd_set *wfds, fd_set *efds,
-		      struct timespec const *timeout,
-		      sigset_t const *sigmask);
+		      struct timespec *timeout, sigset_t *sigmask);
 
 #endif /* XGSELECT_H */

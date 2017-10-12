@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
@@ -29,6 +29,10 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "keyboard.h"
 #include "process.h"
 
+#ifdef HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
+#endif /* HAVE_SYS_RESOURCE_H  */
+
 
 /* File handle for kqueue.  */
 static int kqueuefd = -1;
@@ -38,7 +42,7 @@ static Lisp_Object watch_list;
 
 /* Generate a list from the directory_files_internal output.
    Items are (INODE FILE-NAME LAST-MOD LAST-STATUS-MOD SIZE).  */
-Lisp_Object
+static Lisp_Object
 kqueue_directory_listing (Lisp_Object directory_files)
 {
   Lisp_Object dl, result = Qnil;
@@ -126,7 +130,7 @@ kqueue_compare_dir_list (Lisp_Object watch_object)
     return;
   }
   new_directory_files =
-    directory_files_internal (dir, Qnil, Qnil, Qnil, 1, Qnil);
+    directory_files_internal (dir, Qnil, Qnil, Qnil, true, Qnil);
   new_dl = kqueue_directory_listing (new_directory_files);
 
   /* Parse through the old list.  */
@@ -364,9 +368,12 @@ only when the upper directory of the renamed file is watched.  */)
   (Lisp_Object file, Lisp_Object flags, Lisp_Object callback)
 {
   Lisp_Object watch_object, dir_list;
-  int fd, oflags;
+  int maxfd, fd, oflags;
   u_short fflags = 0;
   struct kevent kev;
+#ifdef HAVE_GETRLIMIT
+  struct rlimit rlim;
+#endif /* HAVE_GETRLIMIT  */
 
   /* Check parameters.  */
   CHECK_STRING (file);
@@ -378,6 +385,21 @@ only when the upper directory of the renamed file is watched.  */)
 
   if (! FUNCTIONP (callback))
     wrong_type_argument (Qinvalid_function, callback);
+
+  /* Check available file descriptors.  */
+#ifdef HAVE_GETRLIMIT
+  if (! getrlimit (RLIMIT_NOFILE, &rlim))
+    maxfd = rlim.rlim_cur;
+  else
+#endif /* HAVE_GETRLIMIT  */
+    maxfd = 256;
+
+  /* We assume 50 file descriptors are sufficient for the rest of Emacs.  */
+  if ((maxfd - 50) < XINT (Flength (watch_list)))
+    xsignal2
+      (Qfile_notify_error,
+       build_string ("File watching not possible, no file descriptor left"),
+       Flength (watch_list));
 
   if (kqueuefd < 0)
     {
@@ -431,7 +453,7 @@ only when the upper directory of the renamed file is watched.  */)
   if (NILP (Ffile_directory_p (file)))
     watch_object = list4 (watch_descriptor, file, flags, callback);
   else {
-    dir_list = directory_files_internal (file, Qnil, Qnil, Qnil, 1, Qnil);
+    dir_list = directory_files_internal (file, Qnil, Qnil, Qnil, true, Qnil);
     watch_object = list5 (watch_descriptor, file, flags, callback, dir_list);
   }
   watch_list = Fcons (watch_object, watch_list);
@@ -469,7 +491,7 @@ WATCH-DESCRIPTOR should be an object returned by `kqueue-add-watch'.  */)
 }
 
 DEFUN ("kqueue-valid-p", Fkqueue_valid_p, Skqueue_valid_p, 1, 1, 0,
-       doc: /* "Check a watch specified by its WATCH-DESCRIPTOR.
+       doc: /* Check a watch specified by its WATCH-DESCRIPTOR.
 
 WATCH-DESCRIPTOR should be an object returned by `kqueue-add-watch'.
 

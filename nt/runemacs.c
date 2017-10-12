@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 /*
@@ -203,7 +203,7 @@ void
 set_user_model_id (void)
 {
   HMODULE shell;
-  HRESULT (WINAPI * set_user_model) (wchar_t * id);
+  HRESULT (WINAPI * set_user_model) (const wchar_t * id);
 
   /* On Windows 7 and later, we need to set the user model ID
      to associate emacsclient launched files with Emacs frames

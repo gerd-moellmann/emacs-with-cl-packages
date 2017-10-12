@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Define symbols to identify the version of Unix this is.
    Define all the symbols that apply correctly.  */
@@ -151,7 +151,7 @@ extern char *getenv ();
 #endif
 
 /* Make a leaner executable.  */
-#define WIN32_LEAN_AND_MEAN 1
+#define WIN32_LEAN_AND_MEAN
 
 #include <sys/types.h>
 
@@ -186,6 +186,13 @@ extern struct tm * sys_localtime (const time_t *);
    supply the 2nd arg correctly, so don't use _setjmp directly in that
    case.  */
 #undef HAVE__SETJMP
+
+/* Unlike MS and mingw.org, MinGW64 doesn't define gai_strerror as an
+   inline function in a system header file, and instead seems to
+   require to link against ws2_32.a.  But we don't want to link with
+   -lws2_32, as that would make Emacs dependent on the respective DLL.
+   So MinGW64 is amply punished here by the following:  */
+#undef HAVE_GAI_STRERROR
 #endif
 
 /* The following is needed for recovery from C stack overflows.  */
@@ -230,9 +237,6 @@ extern void w32_reset_stack_overflow_guard (void);
 #define fopen   sys_fopen
 #define link    sys_link
 #define localtime sys_localtime
-#define mkdir   sys_mkdir
-#undef open
-#define open    sys_open
 #undef read
 #define read    sys_read
 #define rename  sys_rename
@@ -282,9 +286,26 @@ extern int sys_umask (int);
 
 #endif /* emacs */
 
+/* Used both in Emacs, in lib-src, and in Gnulib.  */
+#undef open
+#define open    sys_open
+
 /* Map to MSVC names.  */
 #define execlp    _execlp
 #define execvp    _execvp
+#include <stdint.h>		/* for intptr_t */
+extern intptr_t _execvp (const char *, char **);
+#ifdef MINGW_W64
+/* GCC 6 has a builtin execve with the prototype shown below.  MinGW64
+   changed the prototype in its process.h to match that, although the
+   library function still calls _execve, which still returns intptr_t.
+   However, using the prototype with intptr_t causes GCC to emit
+   warnings.  Fortunately, execve is not used in the MinGW build, but
+   the code that references it is still compiled.  */
+extern int execve (const char *, char * const *, char * const *);
+#else
+extern intptr_t execve (const char *, char * const *, char * const *);
+#endif
 #define fdatasync _commit
 #define fdopen	  _fdopen
 #define fsync	  _commit
@@ -445,6 +466,12 @@ extern char *get_emacs_configuration_options (void);
 #include <malloc.h>
 #endif
 
+/* Needed in Emacs and in Gnulib.  */
+/* This must be after including sys/stat.h, because we need mode_t.  */
+#undef mkdir
+#define mkdir(d,f)   sys_mkdir(d,f)
+int sys_mkdir (const char *, mode_t);
+
 #ifdef emacs
 
 typedef void * (* malloc_fn)(size_t);
@@ -498,8 +525,8 @@ extern int getpagesize (void);
 
 extern void * memrchr (void const *, int, size_t);
 
+/* Declared here, since we don't use Gnulib's stdlib.h.  */
 extern int mkostemp (char *, int);
-
 
 #if defined (__MINGW32__)
 
@@ -575,13 +602,6 @@ typedef unsigned int EMACS_UINT;
 
 /* #define FULL_DEBUG */
 /* #define EMACSDEBUG */
-
-#ifdef EMACSDEBUG
-extern void _DebPrint (const char *fmt, ...);
-#define DebPrint(stuff) _DebPrint stuff
-#else
-#define DebPrint(stuff)
-#endif
 
 #ifdef _MSC_VER
 #if _MSC_VER >= 800 && !defined(__cplusplus)

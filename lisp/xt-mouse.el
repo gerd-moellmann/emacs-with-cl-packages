@@ -1,4 +1,4 @@
-;;; xt-mouse.el --- support the mouse when emacs run in an xterm
+;;; xt-mouse.el --- support the mouse when emacs run in an xterm -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1994, 2000-2017 Free Software Foundation, Inc.
 
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -70,7 +70,11 @@ http://invisible-island.net/xterm/ctlseqs/ctlseqs.html)."
       (cond
        ((null event) nil)		;Unknown/bogus byte sequence!
        (is-down
-	(setf (terminal-parameter nil 'xterm-mouse-last-down) event)
+	(setf (terminal-parameter nil 'xterm-mouse-last-down)
+              ;; EVENT might be handed back to the input queue, which
+              ;; might modify it.  Copy it into the terminal parameter
+              ;; to guard against that.
+              (copy-sequence event))
 	vec)
        (is-move vec)
        (t
@@ -274,6 +278,8 @@ which is the \"1006\" extension implemented in Xterm >= 277."
                (last-name (symbol-name last-type))
                (last-time (nth 1 last-click))
                (click-count (nth 2 last-click))
+               (last-x (nth 3 last-click))
+               (last-y (nth 4 last-click))
                (this-time (float-time))
                (name (symbol-name type)))
           (cond
@@ -284,14 +290,20 @@ which is the \"1006\" extension implemented in Xterm >= 277."
                        (string-match "down-" last-name)
                        (equal name (replace-match "" t t last-name)))
               (xterm-mouse--set-click-count event click-count)))
-           ((not last-time) nil)
-           ((and (> double-click-time (* 1000 (- this-time last-time)))
+           ((and last-time
+                 double-click-time
+                 (or (eq double-click-time t)
+                     (> double-click-time (* 1000 (- this-time last-time))))
+                 (<= (abs (- x last-x))
+                     (/ double-click-fuzz 8))
+                 (<= (abs (- y last-y))
+                     (/ double-click-fuzz 8))
                  (equal last-name (replace-match "" t t name)))
             (setq click-count (1+ click-count))
             (xterm-mouse--set-click-count event click-count))
            (t (setq click-count 1)))
           (set-terminal-parameter nil 'xterm-mouse-last-click
-                                  (list type this-time click-count)))
+                                  (list type this-time click-count x y)))
 
         (set-terminal-parameter nil 'xterm-mouse-x x)
         (set-terminal-parameter nil 'xterm-mouse-y y)

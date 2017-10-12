@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -104,10 +104,10 @@ The value 0 means there's no limitation.")
 	 ;; JISX0201 Katakana
 	 "(I"(B"
 	 ;; Japanese JISX0208
-	 "$B!F!H!J!L!N!P!R!T!V!X!Z!k!l!m!n!w!x(B\
-$A!.!0#"#(!2!4!6!8!:!<!>!c!d!e#@!f!l(B"
+	 "$B!F!H!J!L!N!P!R!T!V!X!Z!k!l!m!n!w!x(B"
 	 ;; Chinese GB2312
-	 "$A(E(F(G(H(I(J(K(L(M(N(O(P(Q(R(S(T(U(V(W(X(Y(h(B\
+         "$A!.!0#"#(!2!4!6!8!:!<!>!c!d!e#@!f!l(B\
+$A(E(F(G(H(I(J(K(L(M(N(O(P(Q(R(S(T(U(V(W(X(Y(h(B\
 \$(0!>!@!B!D!F!H!J!L!N!P!R!T!V!X!Z!\!^!`!b(B"
 	 ;; Chinese BIG5
 	 "$(0!d!f!h!j!k!q!p"i"j"k"n"x$u$v$w$x$y$z${(B\

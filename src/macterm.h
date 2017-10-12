@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Originally contributed by Andrew Choi (akochoi@mac.com) for Emacs 21.  */
 
@@ -225,6 +225,14 @@ struct mac_output
   Cursor horizontal_drag_cursor;
   Cursor vertical_drag_cursor;
   Cursor current_cursor;	/* unretained */
+  Cursor left_edge_cursor;
+  Cursor top_left_corner_cursor;
+  Cursor top_edge_cursor;
+  Cursor top_right_corner_cursor;
+  Cursor right_edge_cursor;
+  Cursor bottom_right_corner_cursor;
+  Cursor bottom_edge_cursor;
+  Cursor bottom_left_corner_cursor;
 
   /* Menubar "widget" handle.  */
   bool_bf menubar_widget : 1;
@@ -395,6 +403,21 @@ enum {
   KEY_EMACS_SUSPENSION_ID_ATTR	= 'esId' /* typeUInt32 */
 };
 
+enum {
+  THEME_RESIZE_NORTHWEST_SOUTHEAST_CURSOR	= 23,
+  THEME_RESIZE_NORTHEAST_SOUTHWEST_CURSOR	= 24,
+  THEME_RESIZE_NORTH_SOUTH_CURSOR		= 25,
+  THEME_RESIZE_NORTH_CURSOR			= 26,
+  THEME_RESIZE_SOUTH_CURSOR			= 27,
+  THEME_RESIZE_EAST_WEST_CURSOR			= 28,
+  THEME_RESIZE_EAST_CURSOR			= 29,
+  THEME_RESIZE_WEST_CURSOR			= 30,
+  THEME_RESIZE_NORTHWEST_CURSOR			= 31,
+  THEME_RESIZE_NORTHEAST_CURSOR			= 32,
+  THEME_RESIZE_SOUTHWEST_CURSOR			= 33,
+  THEME_RESIZE_SOUTHEAST_CURSOR			= 34
+};
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED == 1060
 BLOCK_EXPORT void _Block_object_assign (void *, const void *, const int) AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
 BLOCK_EXPORT void _Block_object_dispose (const void *, const int) AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
@@ -432,6 +455,8 @@ extern void x_query_color (struct frame *f, XColor *);
 #define XDrawLine(display, p, gc, x1, y1, x2, y2)	\
   mac_draw_line_to_pixmap (p, gc, x1, y1, x2, y2)
 extern void x_set_sticky (struct frame *, Lisp_Object, Lisp_Object);
+extern void x_set_skip_taskbar (struct frame *, Lisp_Object, Lisp_Object);
+extern void x_set_z_group (struct frame *, Lisp_Object, Lisp_Object);
 extern void x_clear_under_internal_border (struct frame *);
 extern void mac_begin_scale_mismatch_detection (struct frame *);
 extern bool mac_end_scale_mismatch_detection (struct frame *);
@@ -450,6 +475,7 @@ extern GC mac_duplicate_gc (GC);
 extern void mac_free_gc (GC);
 extern void mac_set_foreground (GC, unsigned long);
 extern void mac_set_background (GC, unsigned long);
+extern GC mac_gc_for_face_id (struct frame *f, int, GC);
 extern void mac_focus_changed (int, struct mac_display_info *,
 			       struct frame *, struct input_event *);
 extern struct frame *mac_focus_frame (struct mac_display_info *);
@@ -570,7 +596,6 @@ extern OSStatus mac_collapse_frame_window (struct frame *, bool);
 extern bool mac_is_frame_window_frontmost (struct frame *);
 extern void mac_activate_frame_window (struct frame *);
 extern OSStatus mac_move_frame_window_structure (struct frame *, int, int);
-extern void mac_move_frame_window (struct frame *, int, int, bool);
 extern void mac_size_frame_window (struct frame *, int, int, bool);
 extern OSStatus mac_set_frame_window_alpha (struct frame *, CGFloat);
 extern OSStatus mac_get_frame_window_alpha (struct frame *, CGFloat *);
@@ -635,7 +660,7 @@ extern void mac_get_screen_info (struct mac_display_info *);
 extern EventTimeout mac_run_loop_run_once (EventTimeout);
 extern int mac_get_select_fd (void);
 extern int mac_select (int, fd_set *, fd_set *, fd_set *,
-		       struct timespec const *, sigset_t const *);
+		       struct timespec *, sigset_t *);
 extern int mac_read_socket (struct terminal *, struct input_event *);
 extern void update_frame_tool_bar (struct frame *f);
 extern void free_frame_tool_bar (struct frame *f);
@@ -660,20 +685,14 @@ extern Lisp_Object mac_get_selection_value (Selection, Lisp_Object);
 extern Lisp_Object mac_get_selection_target_list (Selection);
 extern Lisp_Object mac_dnd_default_known_types (void);
 
-#ifdef __clang__
-#define MAC_USE_AUTORELEASE_LOOP 1
-extern void mac_autorelease_loop (Lisp_Object (CF_NOESCAPE ^) (void));
-#else
-extern void *mac_alloc_autorelease_pool (void);
-extern void mac_release_autorelease_pool (void *);
-#endif
-
 extern Cursor mac_cursor_create (ThemeCursor, const XColor *, const XColor *);
 extern void mac_cursor_set (Cursor);
 extern void mac_cursor_release (Cursor);
 extern void mac_invalidate_frame_cursor_rects (struct frame *f);
 extern void mac_mask_rounded_bottom_corners (struct frame *, CGRect, bool);
 extern void mac_invalidate_rectangles (struct frame *, NativeRectangle *, int);
+extern Lisp_Object mac_frame_list_z_order (struct frame *);
+extern void mac_frame_restack (struct frame *, struct frame *, bool);
 extern bool mac_send_action (Lisp_Object, bool);
 extern Lisp_Object mac_osa_language_list (bool);
 extern Lisp_Object mac_osa_compile (Lisp_Object, Lisp_Object, bool,
@@ -697,6 +716,7 @@ extern void mac_start_animation (Lisp_Object, Lisp_Object);
 extern CFTypeRef mac_sound_create (Lisp_Object, Lisp_Object);
 extern void mac_sound_play (CFTypeRef, Lisp_Object, Lisp_Object);
 extern void mac_within_gui (void (^ CF_NOESCAPE block) (void));
+extern bool mac_gui_thread_p (void);
 
 #if DRAWING_USE_GCD
 #define MAC_BEGIN_DRAW_TO_FRAME(f, gc, context)			\

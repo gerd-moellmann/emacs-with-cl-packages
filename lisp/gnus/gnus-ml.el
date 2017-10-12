@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -29,9 +29,6 @@
 (require 'gnus)
 (require 'gnus-msg)
 (eval-when-compile (require 'cl))
-(eval-when-compile
-  (when (featurep 'xemacs)
-    (require 'easy-mmode))) ; for `define-minor-mode'
 
 ;;; Mailing list minor mode
 
@@ -83,12 +80,6 @@ If FORCE is non-nil, replace the old ones."
 				    (cons 'to-list list-post))
 	  (gnus-mailing-list-mode 1))
       (gnus-message 1 "no list-post in this message."))))
-
-(eval-when-compile
-  (when (featurep 'xemacs)
-    (defvar gnus-mailing-list-mode-hook)
-    (defvar gnus-mailing-list-mode-on-hook)
-    (defvar gnus-mailing-list-mode-off-hook)))
 
 ;;;###autoload
 (define-minor-mode gnus-mailing-list-mode

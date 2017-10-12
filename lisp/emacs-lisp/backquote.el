@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -246,5 +246,15 @@ LEVEL is only used internally and indicates the nesting level:
 		  (append heads (list tail))))
 	tail))
      (t (cons 'list heads)))))
+
+
+;; Give `,' and `,@' documentation strings which can be examined by C-h f.
+(put '\, 'function-documentation
+     "See `\\=`' (also `pcase') for the usage of `,'.")
+(put '\, 'reader-construct t)
+
+(put '\,@ 'function-documentation
+     "See `\\=`' for the usage of `,@'.")
+(put '\,@ 'reader-construct t)
 
 ;;; backquote.el ends here

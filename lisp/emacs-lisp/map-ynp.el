@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -144,8 +144,7 @@ Returns the number of actions taken."
 						     (cons prompt map))
 				     'quit))
 		     ;; Prompt in the echo area.
-		     (let ((cursor-in-echo-area (not no-cursor-in-echo-area))
-			   (message-log-max nil))
+		     (let ((cursor-in-echo-area (not no-cursor-in-echo-area)))
 		       (message (apply 'propertize "%s(y, n, !, ., q, %sor %s) "
 				       minibuffer-prompt-properties)
 				prompt user-keys

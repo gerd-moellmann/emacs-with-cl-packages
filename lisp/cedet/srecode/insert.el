@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -194,9 +194,10 @@ Buffer based features related to change hooks is handled one level up."
     ;; area.  Return value is not important.
     ))
 
-(declare-function data-debug-new-buffer "data-debug")
-(declare-function data-debug-insert-stuff-list "data-debug")
-(declare-function data-debug-insert-thing dictionary "data-debug")
+(declare-function data-debug-new-buffer "data-debug" (name))
+(declare-function data-debug-insert-stuff-list "data-debug" (stufflist prefix))
+(declare-function data-debug-insert-thing "data-debug"
+                  (thing prefix prebuttontext &optional parent))
 
 (defun srecode-insert-show-error-report (dictionary format &rest args)
   "Display an error report based on DICTIONARY, FORMAT and ARGS.

@@ -123,11 +123,13 @@ Use specified
 as the terminal instead of using stdin/stdout.
 This must be the first argument specified in the command line.
 .TP
-.B \-\-daemon
+.BI \-\-daemon "\fR[=\fPname\fR]"
 Start Emacs as a daemon, enabling the Emacs server and disconnecting
-from the terminal.  You can then use the emacsclient command to
-connect to the server (see
-.BR emacsclient (1)).
+from the terminal.  You can then use the emacsclient (see
+.BR emacsclient (1))
+command to
+connect to the server (with optional
+.IR name ")."
 .TP
 .B \-\-version
 Display
@@ -544,7 +546,7 @@ is the number of color planes.
 .SH MANUALS
 You can order printed copies of the GNU Emacs Manual from the Free
 Software Foundation, which develops GNU software.
-See the online store at <http://shop.fsf.org/>.
+See the online store at <https://shop.fsf.org/>.
 .br
 Your local administrator might also have copies available.
 As with all software and publications from FSF, everyone is permitted
@@ -595,10 +597,10 @@ Do not expect a personal answer to a bug report.
 The purpose of reporting bugs is to get them fixed for everyone
 in the next release, if possible.
 For personal assistance, consult the service directory at
-<http://www.fsf.org/resources/service/> for a list of people who offer it.
+<https://www.fsf.org/resources/service/> for a list of people who offer it.
 
 Please do not send anything but bug reports to this mailing list.
-For other Emacs lists, see <http://savannah.gnu.org/mail/?group=emacs>.
+For other Emacs lists, see <https://savannah.gnu.org/mail/?group=emacs>.
 .
 .
 .SH UNRESTRICTIONS

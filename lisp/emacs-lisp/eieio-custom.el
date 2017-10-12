@@ -22,7 +22,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -473,7 +473,7 @@ Return the symbol for the group, or nil"
 (provide 'eieio-custom)
 
 ;; Local variables:
-;; generated-autoload-file: "eieio.el"
+;; generated-autoload-file: "eieio-loaddefs.el"
 ;; End:
 
 ;;; eieio-custom.el ends here

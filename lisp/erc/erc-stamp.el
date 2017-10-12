@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -347,7 +347,8 @@ changed, it will then print it off to the right."
 Return the empty string if FORMAT is nil."
   (if format
       (let ((ts (format-time-string format time)))
-	(erc-put-text-property 0 (length ts) 'face 'erc-timestamp-face ts)
+	(erc-put-text-property 0 (length ts)
+			       'font-lock-face 'erc-timestamp-face ts)
 	(erc-put-text-property 0 (length ts) 'invisible 'timestamp ts)
 	(erc-put-text-property 0 (length ts)
 			       'isearch-open-invisible 'timestamp ts)
@@ -419,4 +420,3 @@ enabled when the message was inserted."
 ;; indent-tabs-mode: t
 ;; tab-width: 8
 ;; End:
-

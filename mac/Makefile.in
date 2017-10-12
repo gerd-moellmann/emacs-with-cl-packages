@@ -25,7 +25,6 @@ SHELL = /bin/sh
 srcdir = @srcdir@
 EXEEXT = @EXEEXT@
 
-@SET_MAKE@
 MKDIR_P = @MKDIR_P@
 
 lprojdirs = Emacs.app/Contents/Resources/English.lproj \

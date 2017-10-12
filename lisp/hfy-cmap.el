@@ -26,7 +26,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -845,7 +845,7 @@ Loads the variable `hfy-rgb-txt-colour-map', which is used by
 (provide 'hfy-cmap)
 
 ;; Local Variables:
-;; generated-autoload-file: "htmlfontify.el"
+;; generated-autoload-file: "htmlfontify-loaddefs.el"
 ;; End:
 
 ;;; hfy-cmap.el ends here

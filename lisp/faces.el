@@ -1,4 +1,4 @@
-;;; faces.el --- Lisp faces
+;;; faces.el --- Lisp faces -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1992-1996, 1998-2017 Free Software Foundation, Inc.
 
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -102,11 +102,18 @@ a font height that isn't optimal."
     ;; Monospace Serif is an Emacs invention, intended to work around
     ;; portability problems when using Courier.  It should work well
     ;; when combined with Monospaced and with other standard fonts.
+    ;; One of its uses is for 'tex-verbatim' and 'Info-quoted' faces,
+    ;; so the result must be different from the default face's font,
+    ;; and must be monospaced.  For 'tex-verbatim', it is desirable
+    ;; that the font really is a Serif font, so as to look like
+    ;; TeX's 'verbatim'.
     ("Monospace Serif"
 
      ;; This looks good on GNU/Linux.
      "Courier 10 Pitch"
-     ;; This looks good on MS-Windows and OS X.
+     ;; This looks good on MS-Windows and OS X.  Note that this is
+     ;; actually a sans-serif font, but it's here for lack of a better
+     ;; alternative.
      "Consolas"
      ;; This looks good on macOS.  "Courier" looks good too, but is
      ;; jagged on GNU/Linux and so is listed later as "courier".
@@ -1003,31 +1010,41 @@ of the default face.  Value is FACE."
   "Read one or more face names, prompting with PROMPT.
 PROMPT should not end in a space or a colon.
 
-Return DEFAULT if the user enters the empty string.
-If DEFAULT is non-nil, it should be a single face or a list of face names
-\(symbols or strings).  In the latter case, return the `car' of DEFAULT
-\(if MULTIPLE is nil, see below), or DEFAULT (if MULTIPLE is non-nil).
+If DEFAULT is non-nil, it should be a face (a symbol) or a face
+name (a string).  It can also be a list of faces or face names.
 
-If MULTIPLE is non-nil, this function uses `completing-read-multiple'
-to read multiple faces with \"[ \\t]*,[ \\t]*\" as the separator regexp
-and it returns a list of face names.  Otherwise, it reads and returns
-a single face name."
-  (if (and default (not (stringp default)))
-      (setq default
-            (cond ((symbolp default)
-                   (symbol-name default))
-                  (multiple
-                   (mapconcat (lambda (f) (if (symbolp f) (symbol-name f) f))
-                              default ", "))
-                  ;; If we only want one, and the default is more than one,
-                  ;; discard the unwanted ones.
-                  (t (symbol-name (car default))))))
+If MULTIPLE is non-nil, the return value from this function is a
+list of faces.  Otherwise a single face is returned.
+
+If the user enter the empty string at the prompt, DEFAULT is
+returned after a possible transformation according to MULTIPLE.
+That is, if DEFAULT is a list and MULTIPLE is nil, the first
+element of DEFAULT is returned.  If DEFAULT isn't a list, but
+MULTIPLE is non-nil, a one-element list containing DEFAULT is
+returned.  Otherwise, DEFAULT is returned verbatim."
+  (unless (listp default)
+    (setq default (list default)))
+  (when default
+    (setq default
+          (if multiple
+              (mapconcat (lambda (f) (if (symbolp f) (symbol-name f) f))
+                         default ", ")
+            ;; If we only want one, and the default is more than one,
+            ;; discard the unwanted ones.
+            (setq default (car default))
+            (if (symbolp default)
+                (symbol-name default)
+              default))))
   (when (and default (not multiple))
     (require 'crm)
     ;; For compatibility with `completing-read-multiple' use `crm-separator'
     ;; to define DEFAULT if MULTIPLE is nil.
     (setq default (car (split-string default crm-separator t))))
 
+  ;; Older versions of `read-face-name' did not append ": " to the
+  ;; prompt, so there are third party libraries that have that in the
+  ;; prompt.  If so, remove it.
+  (setq prompt (replace-regexp-in-string ": ?\\'" "" prompt))
   (let ((prompt (if default
                     (format-message "%s (default `%s'): " prompt default)
                   (format "%s: " prompt)))
@@ -1437,7 +1454,7 @@ If FRAME is omitted or nil, use the selected frame."
 	(setq face (list face)))
     (with-help-window (help-buffer)
       (with-current-buffer standard-output
-	(dolist (f face)
+	(dolist (f face (buffer-string))
 	  (if (stringp f) (setq f (intern f)))
 	  ;; We may get called for anonymous faces (i.e., faces
 	  ;; expressed using prop-value plists).  Those can't be
@@ -1584,6 +1601,7 @@ If FRAME is nil, the current FRAME is used."
 (defun face-spec-choose (spec &optional frame no-match-retval)
   "Return the proper attributes for FRAME, out of SPEC.
 
+Value is a plist of face attributes in the form of attribute-value pairs.
 If no match is found or SPEC is nil, return nil, unless NO-MATCH-RETVAL
 is given, in which case return its value instead."
   (unless frame
@@ -1656,7 +1674,7 @@ is given, in which case return its value instead."
            face--attributes-unspecified)))
 
 (defun face-spec-set (face spec &optional spec-type)
-  "Set the face spec SPEC for FACE.
+  "Set the FACE's spec SPEC, define FACE, and recalculate its attributes.
 See `defface' for the format of SPEC.
 
 The appearance of each face is controlled by its specs (set via
@@ -1667,10 +1685,11 @@ This function also defines FACE as a valid face name if it is not
 already one, and (re)calculates its attributes on existing
 frames.
 
-The argument SPEC-TYPE determines which spec to set:
-  nil or `face-override-spec' means the override spec (which is
-    usually what you want if calling this function outside of
-    Custom code);
+The optional argument SPEC-TYPE determines which spec to set:
+  nil, omitted or `face-override-spec' means the override spec,
+    which overrides all the other types of spec mentioned below
+    (this is usually what you want if calling this function
+    outside of Custom code);
   `customized-face' or `saved-face' means the customized spec or
     the saved custom spec;
   `face-defface-spec' means the default spec
@@ -1678,7 +1697,7 @@ The argument SPEC-TYPE determines which spec to set:
   `reset' means to ignore SPEC, but clear the `customized-face'
     and `face-override-spec' specs;
 Any other value means not to set any spec, but to run the
-function for its other effects."
+function for defining FACE and recalculating its attributes."
   (if (get face 'face-alias)
       (setq face (get face 'face-alias)))
   ;; Save SPEC to the relevant symbol property.
@@ -1724,32 +1743,34 @@ The following sources are applied in this order:
   ;; `theme-face' records.
   (let ((theme-faces (get face 'theme-face))
 	(no-match-found 0)
-	spec theme-face-applied)
+	face-attrs theme-face-applied)
     (if theme-faces
 	(dolist (elt (reverse theme-faces))
-	  (setq spec (face-spec-choose (cadr elt) frame no-match-found))
-	  (unless (eq spec no-match-found)
-	    (face-spec-set-2 face frame spec)
+	  (setq face-attrs (face-spec-choose (cadr elt) frame no-match-found))
+	  (unless (eq face-attrs no-match-found)
+	    (face-spec-set-2 face frame face-attrs)
 	    (setq theme-face-applied t))))
     ;; If there was a spec applicable to FRAME, that overrides the
     ;; defface spec entirely (rather than inheriting from it).  If
     ;; there was no spec applicable to FRAME, apply the defface spec
     ;; as well as any applicable X resources.
     (unless theme-face-applied
-      (setq spec (face-spec-choose (face-default-spec face) frame))
-      (face-spec-set-2 face frame spec)
+      (setq face-attrs (face-spec-choose (face-default-spec face) frame))
+      (face-spec-set-2 face frame face-attrs)
       (make-face-x-resource-internal face frame))
-    (setq spec (face-spec-choose (get face 'face-override-spec) frame))
-    (face-spec-set-2 face frame spec)))
+    (setq face-attrs (face-spec-choose (get face 'face-override-spec) frame))
+    (face-spec-set-2 face frame face-attrs)))
 
-(defun face-spec-set-2 (face frame spec)
-  "Set the face attributes of FACE on FRAME according to SPEC."
+(defun face-spec-set-2 (face frame face-attrs)
+  "Set the face attributes of FACE on FRAME according to FACE-ATTRS.
+FACE-ATTRS is a plist of face attributes in the form of attribute-value
+pairs."
   (let (attrs)
-    (while spec
-      (when (assq (car spec) face-x-resources)
-	(push (car spec) attrs)
-	(push (cadr spec) attrs))
-      (setq spec (cddr spec)))
+    (while face-attrs
+      (when (assq (car face-attrs) face-x-resources)
+	(push (car face-attrs) attrs)
+	(push (cadr face-attrs) attrs))
+      (setq face-attrs (cddr face-attrs)))
     (apply 'set-face-attribute face frame (nreverse attrs))))
 
 (defun face-attr-match-p (face attrs &optional frame)
@@ -1815,6 +1836,32 @@ If FRAME is nil, that stands for the selected frame."
       (xw-defined-colors frame)
     (mapcar 'car (tty-color-alist frame))))
 (defalias 'x-defined-colors 'defined-colors)
+
+(defun defined-colors-with-face-attributes (&optional frame)
+  "Return a list of colors supported for a particular frame.
+See `defined-colors' for arguments and return value. In contrast
+to `define-colors' the elements of the returned list are color
+strings with text properties, that make the color names render
+with the color they represent as background color."
+  (mapcar
+   (lambda (color-name)
+     (let ((foreground (readable-foreground-color color-name))
+	   (color      (copy-sequence color-name)))
+       (propertize color 'face (list :foreground foreground
+				     :background color))))
+   (defined-colors frame)))
+
+(defun readable-foreground-color (color)
+  "Return a readable foreground color for background COLOR."
+  (let* ((rgb   (color-values color))
+	 (max   (apply #'max rgb))
+	 (black (car (color-values "black")))
+	 (white (car (color-values "white"))))
+    ;; Select black or white depending on which one is less similar to
+    ;; the brightest component.
+    (if (> (abs (- max black)) (abs (- max white)))
+	"black"
+      "white")))
 
 (declare-function xw-color-defined-p "xfns.c" (color &optional frame))
 
@@ -1920,22 +1967,24 @@ resulting color name in the echo area."
 	 (colors (or facemenu-color-alist
 		     (append '("foreground at point" "background at point")
 			     (if allow-empty-name '(""))
-			     (defined-colors))))
+                             (if (display-color-p)
+                                 (defined-colors-with-face-attributes)
+                               (defined-colors)))))
 	 (color (completing-read
 		 (or prompt "Color (name or #RGB triplet): ")
 		 ;; Completing function for reading colors, accepting
 		 ;; both color names and RGB triplets.
 		 (lambda (string pred flag)
 		   (cond
-		    ((null flag) ; Try completion.
+		    ((null flag)        ; Try completion.
 		     (or (try-completion string colors pred)
 			 (if (color-defined-p string)
 			     string)))
-		    ((eq flag t) ; List all completions.
+		    ((eq flag t)        ; List all completions.
 		     (or (all-completions string colors pred)
 			 (if (color-defined-p string)
 			     (list string))))
-		    ((eq flag 'lambda) ; Test completion.
+		    ((eq flag 'lambda)  ; Test completion.
 		     (or (member string colors)
 			 (color-defined-p string)))))
 		 nil t)))
@@ -2312,7 +2361,7 @@ If you set `term-file-prefix' to nil, this function does nothing."
 (defface variable-pitch
   '((((type w32))
      ;; This is a workaround for an issue discussed in
-     ;; http://lists.gnu.org/archive/html/emacs-devel/2016-04/msg00746.html.
+     ;; https://lists.gnu.org/archive/html/emacs-devel/2016-04/msg00746.html.
      ;; We need (a) the splash screen not to pick up bold-italics variant of
      ;; the font, and (b) still be able to request bold/italic/larger size
      ;; variants in the likes of EWW.
@@ -2423,6 +2472,35 @@ If you set `term-file-prefix' to nil, this function does nothing."
   :version "21.1"
   :group 'basic-faces)
 
+;; Definition stolen from linum.el.
+(defface line-number
+  '((t :inherit (shadow default)))
+  "Face for displaying line numbers.
+This face is used when `display-line-numbers' is non-nil.
+
+If you customize the font of this face, make sure it is a
+monospaced font, otherwise line numbers will not line up,
+and text lines might move horizontally as you move through
+the buffer."
+  :version "26.1"
+  :group 'basic-faces
+  :group 'display-line-numbers)
+
+(defface line-number-current-line
+  '((t :inherit line-number))
+  "Face for displaying the current line number.
+This face is used when `display-line-numbers' is non-nil.
+
+If you customize the font of this face, make sure it is a
+monospaced font, otherwise line numbers will not line up,
+and text lines might move horizontally as you move through
+the buffer.  Similarly, making this face's font different
+from that of the `line-number' face could produce such
+unwanted effects."
+  :version "26.1"
+  :group 'basic-faces
+  :group 'display-line-numbers)
+
 (defface escape-glyph
   '((((background dark)) :foreground "cyan")
     ;; See the comment in minibuffer-prompt for
@@ -2435,6 +2513,14 @@ If you set `term-file-prefix' to nil, this function does nothing."
   :group 'basic-faces
   :version "22.1")
 
+(defface homoglyph
+  '((((background dark)) :foreground "cyan")
+    (((type pc)) :foreground "magenta")
+    (t :foreground "brown"))
+  "Face for lookalike characters."
+  :group 'basic-faces
+  :version "26.1")
+
 (defface nobreak-space
   '((((class color) (min-colors 88)) :inherit escape-glyph :underline t)
     (((class color) (min-colors 8)) :background "magenta")
@@ -2442,6 +2528,14 @@ If you set `term-file-prefix' to nil, this function does nothing."
   "Face for displaying nobreak space."
   :group 'basic-faces
   :version "22.1")
+
+(defface nobreak-hyphen
+  '((((background dark)) :foreground "cyan")
+    (((type pc)) :foreground "magenta")
+    (t :foreground "brown"))
+  "Face for displaying nobreak hyphens."
+  :group 'basic-faces
+  :version "26.1")
 
 (defgroup mode-line-faces nil
   "Faces used in the mode line."
@@ -2475,7 +2569,6 @@ If you set `term-file-prefix' to nil, this function does nothing."
   :version "22.1"
   :group 'mode-line-faces
   :group 'basic-faces)
-(define-obsolete-face-alias 'modeline-inactive 'mode-line-inactive "22.1")
 
 (defface mode-line-highlight
   '((((class color) (min-colors 88))
@@ -2486,7 +2579,6 @@ If you set `term-file-prefix' to nil, this function does nothing."
   :version "22.1"
   :group 'mode-line-faces
   :group 'basic-faces)
-(define-obsolete-face-alias 'modeline-highlight 'mode-line-highlight "22.1")
 
 (defface mode-line-emphasis
   '((t (:weight bold)))
@@ -2502,7 +2594,6 @@ Use the face `mode-line-highlight' for features that can be selected."
   :version "22.1"
   :group 'mode-line-faces
   :group 'basic-faces)
-(define-obsolete-face-alias 'modeline-buffer-id 'mode-line-buffer-id "22.1")
 
 (defface header-line
   '((default
@@ -2537,6 +2628,11 @@ Use the face `mode-line-highlight' for features that can be selected."
      :underline t))
   "Basic header-line face."
   :version "21.1"
+  :group 'basic-faces)
+
+(defface header-line-highlight '((t :inherit highlight))
+  "Basic header line face for highlighting."
+  :version "26.1"
   :group 'basic-faces)
 
 (defface vertical-border
@@ -2576,6 +2672,13 @@ not want to accentuate the last pixel line/column, set this to
 the same as `window-divider' face."
   :version "24.4"
   :group 'window-divider
+  :group 'basic-faces)
+
+(defface internal-border
+    '((t nil))
+  "Basic face for the internal border."
+  :version "26.1"
+  :group 'frames
   :group 'basic-faces)
 
 (defface minibuffer-prompt
@@ -2706,6 +2809,13 @@ It is used for characters of no fonts too."
   :version "24.1"
   :group 'basic-faces)
 
+(defface read-multiple-choice-face
+  '((t (:inherit underline
+        :weight bold)))
+  "Face for the symbol name in `read-multiple-choice' output."
+  :group 'basic-faces
+  :version "26.1")
+
 ;; Faces for TTY menus.
 (defface tty-menu-enabled-face
   '((t
@@ -2745,6 +2855,13 @@ It is used for characters of no fonts too."
      :inherit underline))
   "Face used for a matching paren."
   :group 'paren-showing-faces)
+
+(defface show-paren-match-expression
+  '((t :inherit show-paren-match))
+  "Face used for a matching paren when highlighting the whole expression.
+This face is used by `show-paren-mode'."
+  :group 'paren-showing-faces
+  :version "26.1")
 
 (defface show-paren-mismatch
   '((((class color)) (:foreground "white" :background "purple"))
@@ -2834,7 +2951,7 @@ also the same size as FACE on FRAME, or fail."
 			   pattern face)))
 	      (error "No fonts match `%s'" pattern)))
 	(car fonts))
-    (cdr (assq 'font (frame-parameters (selected-frame))))))
+    (frame-parameter nil 'font)))
 
 (defcustom font-list-limit 100
   "This variable is obsolete and has no effect."

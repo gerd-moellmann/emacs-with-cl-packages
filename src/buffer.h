@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef EMACS_BUFFER_H
 #define EMACS_BUFFER_H
@@ -412,6 +412,15 @@ extern void enlarge_buffer_text (struct buffer *, ptrdiff_t);
    ? BUF_FETCH_MULTIBYTE_CHAR ((buf), (pos))    \
    : BUF_FETCH_BYTE ((buf), (pos)))
 
+/* Return character at byte position POS in buffer BUF.  If BUF is
+   unibyte and the character is not ASCII, make the returning
+   character multibyte.  */
+
+#define BUF_FETCH_CHAR_AS_MULTIBYTE(buf, pos)           \
+  (! NILP (BVAR ((buf), enable_multibyte_characters))   \
+   ? BUF_FETCH_MULTIBYTE_CHAR ((buf), (pos))            \
+   : UNIBYTE_TO_CHAR (BUF_FETCH_BYTE ((buf), (pos))))
+
 /* Return the byte at byte position N in buffer BUF.   */
 
 #define BUF_FETCH_BYTE(buf, n) \
@@ -601,6 +610,12 @@ struct buffer
      paragraphs of the buffer.  Nil means determine paragraph
      direction dynamically for each paragraph.  */
   Lisp_Object bidi_paragraph_direction_;
+
+  /* If non-nil, a regular expression for bidi paragraph separator.  */
+  Lisp_Object bidi_paragraph_separate_re_;
+
+  /* If non-nil, a regular expression for bidi paragraph start.  */
+  Lisp_Object bidi_paragraph_start_re_;
 
   /* Non-nil means do selective display;
      see doc string in syms_of_buffer (buffer.c) for details.  */
@@ -881,6 +896,25 @@ struct buffer
   Lisp_Object undo_list_;
 };
 
+INLINE bool
+BUFFERP (Lisp_Object a)
+{
+  return PSEUDOVECTORP (a, PVEC_BUFFER);
+}
+
+INLINE void
+CHECK_BUFFER (Lisp_Object x)
+{
+  CHECK_TYPE (BUFFERP (x), Qbufferp, x);
+}
+
+INLINE struct buffer *
+XBUFFER (Lisp_Object a)
+{
+  eassert (BUFFERP (a));
+  return XUNTAG (a, Lisp_Vectorlike);
+}
+
 /* Most code should use these functions to set Lisp fields in struct
    buffer.  (Some setters that are private to a single .c file are
    defined as static in those files.)  */
@@ -1040,10 +1074,6 @@ extern struct buffer *all_buffers;
 #define FOR_EACH_BUFFER(b) \
   for ((b) = all_buffers; (b); (b) = (b)->next)
 
-/* This points to the current buffer.  */
-
-extern struct buffer *current_buffer;
-
 /* This structure holds the default values of the buffer-local variables
    that have special slots in each buffer.
    The default value occupies the same slot in this structure
@@ -1086,6 +1116,7 @@ extern void recenter_overlay_lists (struct buffer *, ptrdiff_t);
 extern ptrdiff_t overlay_strings (ptrdiff_t, struct window *, unsigned char **);
 extern void validate_region (Lisp_Object *, Lisp_Object *);
 extern void set_buffer_internal_1 (struct buffer *);
+extern void set_buffer_internal_2 (struct buffer *);
 extern void set_buffer_temp (struct buffer *);
 extern Lisp_Object buffer_local_value (Lisp_Object, Lisp_Object);
 extern void record_buffer (Lisp_Object);
@@ -1187,8 +1218,7 @@ buffer_has_overlays (void)
 INLINE int
 FETCH_MULTIBYTE_CHAR (ptrdiff_t pos)
 {
-  unsigned char *p = ((pos >= GPT_BYTE ? GAP_SIZE : 0)
-		      + pos + BEG_ADDR - BEG_BYTE);
+  unsigned char *p = BYTE_POS_ADDR (pos);
   return STRING_CHAR (p);
 }
 
@@ -1350,27 +1380,28 @@ downcase (int c)
   return NATNUMP (down) ? XFASTINT (down) : c;
 }
 
-/* True if C is upper case.  */
-INLINE bool uppercasep (int c) { return downcase (c) != c; }
-
-/* Upcase a character C known to be not upper case.  */
+/* Upcase a character C, or make no change if that cannot be done. */
 INLINE int
-upcase1 (int c)
+upcase (int c)
 {
   Lisp_Object upcase_table = BVAR (current_buffer, upcase_table);
   Lisp_Object up = CHAR_TABLE_REF (upcase_table, c);
   return NATNUMP (up) ? XFASTINT (up) : c;
 }
 
+/* True if C is upper case.  */
+INLINE bool
+uppercasep (int c)
+{
+  return downcase (c) != c;
+}
+
 /* True if C is lower case.  */
 INLINE bool
 lowercasep (int c)
 {
-  return !uppercasep (c) && upcase1 (c) != c;
+  return !uppercasep (c) && upcase (c) != c;
 }
-
-/* Upcase a character C, or make no change if that cannot be done.  */
-INLINE int upcase (int c) { return uppercasep (c) ? c : upcase1 (c); }
 
 INLINE_HEADER_END
 

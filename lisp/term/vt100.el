@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -47,5 +47,7 @@ switch to 132-column mode if ARG is omitted or nil."
   :group 'terminals
   (send-string-to-terminal (if vt100-wide-mode "\e[?3h" "\e[?3l"))
   (set-frame-width terminal-frame (if vt100-wide-mode 132 80)))
+
+(provide 'term/vt100)
 
 ;;; vt100.el ends here

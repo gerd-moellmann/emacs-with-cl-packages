@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Written by Kevin Gallo */
 
@@ -56,9 +56,9 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 */
 
 static char *
-w32_get_rdb_resource (char *rdb, const char *resource)
+w32_get_rdb_resource (const char *rdb, const char *resource)
 {
-  char *value = rdb;
+  char *value = (char *)rdb;
   int len = strlen (resource);
 
   while (*value)

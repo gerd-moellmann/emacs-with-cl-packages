@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -61,6 +61,7 @@ in any way you like."
       (while (null answer)
 	(message "%s locked by %s: (s, q, p, ?)? "
 		 short-file short-opponent)
+	(if noninteractive (error "Cannot resolve lock conflict in batch mode"))
 	(let ((tem (let ((inhibit-quit t)
 			 (cursor-in-echo-area t))
 		     (prog1 (downcase (read-char))
@@ -97,6 +98,41 @@ You can <q>uit; don't modify this file.")
 
 (define-error 'file-supersession nil 'file-error)
 
+(defun userlock--check-content-unchanged (fn)
+  (with-demoted-errors "Unchanged content check: %S"
+    ;; Even tho we receive `fn', we know that `fn' refers to the current
+    ;; buffer's file.
+    (cl-assert (equal fn (expand-file-name buffer-file-truename)))
+    ;; Note: rather than read the file and compare to the buffer, we could save
+    ;; the buffer and compare to the file, but for encrypted data this
+    ;; wouldn't work well (and would risk exposing the data).
+    (save-restriction
+      (widen)
+      (let ((buf (current-buffer))
+            (cs buffer-file-coding-system)
+            (start (point-min))
+            (end (point-max)))
+        ;; FIXME: To avoid a slow `insert-file-contents' on large or
+        ;; remote files, it'd be good to include file size in the
+        ;; "visited-modtime" check.
+        (when (with-temp-buffer
+                (let ((coding-system-for-read cs)
+                      (non-essential t))
+                  (insert-file-contents fn))
+                (when (= (buffer-size) (- end start)) ;Minor optimization.
+                  (= 0 (let ((case-fold-search nil))
+                         (compare-buffer-substrings
+                          buf start end
+                          (current-buffer) (point-min) (point-max))))))
+          (set-visited-file-modtime)
+          'unchanged)))))
+
+;;;###autoload
+(defun userlock--ask-user-about-supersession-threat (fn)
+  ;; Called from filelock.c.
+  (unless (userlock--check-content-unchanged fn)
+    (ask-user-about-supersession-threat fn)))
+
 ;;;###autoload
 (defun ask-user-about-supersession-threat (fn)
   "Ask a user who is about to modify an obsolete buffer what to do.
@@ -114,6 +150,9 @@ really edit the buffer? (y, n, r or C-h) "
 		   (file-name-nondirectory fn)))
 	  (choices '(?y ?n ?r ?? ?\C-h))
 	  answer)
+      (when noninteractive
+	(message "%s" prompt)
+	(error "Cannot resolve conflict in batch mode"))
       (while (null answer)
 	(setq answer (read-char-choice prompt choices))
 	(cond ((memq answer '(?? ?\C-h))

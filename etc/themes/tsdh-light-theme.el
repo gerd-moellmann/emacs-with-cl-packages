@@ -15,16 +15,17 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
 (deftheme tsdh-light
-  "Minor tweaks to the Emacs white-background defaults.
+  "A light Emacs theme.
 Used and created by Tassilo Horn.")
 
 (custom-theme-set-faces
  'tsdh-light
+ '(default ((t (:background "#fafafa" :foreground "#383a42"))))
  '(Info-quoted ((t (:underline "gray40" :weight bold))))
  '(aw-leading-char-face ((t (:background "red" :foreground "white" :weight bold))))
  '(default ((t (:background "white" :foreground "black"))))
@@ -35,8 +36,18 @@ Used and created by Tassilo Horn.")
  '(diff-indicator-removed ((t (:inherit diff-indicator-changed))))
  '(diff-removed ((t (:inherit diff-changed :background "sandy brown"))))
  '(dired-directory ((t (:inherit font-lock-function-name-face :weight bold))))
+ '(font-lock-builtin-face ((t (:foreground "#e44649"))))
+ '(font-lock-comment-delimiter-face ((t (:inherit font-lock-comment-face :weight bold))))
+ '(font-lock-comment-face ((t (:foreground "#a0a1a7"))))
+ '(font-lock-doc-face ((t (:inherit font-lock-string-face :slant italic))))
+ '(font-lock-function-name-face ((t (:foreground "#0184bc"))))
+ '(font-lock-keyword-face ((t (:foreground "#a626a4"))))
+ '(font-lock-negation-char-face ((t (:weight bold))))
  '(font-lock-regexp-grouping-backslash ((t (:inherit bold :foreground "black"))))
  '(font-lock-regexp-grouping-construct ((t (:inherit bold :foreground "black"))))
+ '(font-lock-string-face ((t (:foreground "#50a14f"))))
+ '(font-lock-type-face ((t (:foreground "#c18401"))))
+ '(font-lock-variable-name-face ((t (:foreground "saddle brown"))))
  '(gnus-button ((t (:inherit button))))
  '(gnus-header-name ((t (:box (:line-width 1 :style released-button) :weight bold))))
  '(gnus-group-mail-1 ((t (:inherit gnus-group-mail-1-empty :weight bold))))
@@ -51,11 +62,11 @@ Used and created by Tassilo Horn.")
  '(gnus-group-news-2-empty ((t (:foreground "tomato3"))))
  '(gnus-group-news-3 ((t (:inherit gnus-group-news-3-empty :weight bold))))
  '(gnus-group-news-3-empty ((t (:foreground "tomato2")))) '(header-line ((t (:inherit mode-line :inverse-video t))))
- '(hl-line ((t (:background "grey95"))))
+ '(hl-line ((t (:background "#f0f0f1"))))
  '(hl-paren-face ((t (:weight bold))) t)
- '(minibuffer-prompt ((t (:background "yellow" :foreground "medium blue" :box (:line-width -1 :color "red" :style released-button) :weight bold))))
- '(mode-line ((t (:background "wheat" :foreground "black" :box (:line-width 1 :color "tan") :family "DejaVu Sans"))))
- '(mode-line-inactive ((t (:inherit mode-line :foreground "dark gray"))))
+ '(minibuffer-prompt ((t (:foreground "#0184bc" :box (:line-width -1 :style released-button) :weight bold))))
+ '(mode-line ((t (:background "#f0f0f1" :box (:line-width 1 :color "#383a42")))))
+ '(mode-line-inactive ((t (:inherit mode-line :foreground "#a0a1a7"))))
  '(org-agenda-date ((t (:inherit org-agenda-structure))))
  '(org-agenda-date-today ((t (:inherit org-agenda-date :underline t))))
  '(org-agenda-date-weekend ((t (:inherit org-agenda-date :foreground "dark green"))))
@@ -79,6 +90,15 @@ Used and created by Tassilo Horn.")
  '(outline-7 ((t (:inherit font-lock-builtin-face :weight bold))))
  '(outline-8 ((t (:inherit font-lock-string-face :weight bold))))
  '(rcirc-my-nick ((t (:foreground "LightSkyBlue" :weight bold))))
+ '(realgud-overlay-arrow1  ((t (:foreground "dark green"))))
+ '(realgud-overlay-arrow2  ((t (:foreground "#c18401"))))
+ '(realgud-overlay-arrow3  ((t (:foreground "gray60"))))
+ '(realgud-bp-disabled-face      ((t (:foreground "gray60"))))
+ '(realgud-bp-line-enabled-face  ((t (:underline "red"))))
+ '(realgud-bp-line-disabled-face ((t (:underline "gray60"))))
+ '(realgud-file-name             ((t :foreground "dark green")))
+ '(realgud-line-number           ((t :foreground "#0184bc")))
+ '(realgud-backtrace-number      ((t :foreground "#0184bc" :weight bold)))
  '(region ((t (:background "lightgoldenrod1"))))
  '(show-paren-match ((t (:background "Cyan1" :weight bold))))
  '(show-paren-mismatch ((t (:background "deep pink" :weight bold))))

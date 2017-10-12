@@ -126,7 +126,8 @@ entities, so you should even be able to do html-within-html fontified
 display.
 
 You should, however, note that random control or non-ASCII characters
-such as ^L (\x0c) or ¤ (\xa4) won't get mapped yet.
+such as ^L (U+000C FORM FEED (FF)) or ¤ (U+00A4 CURRENCY SIGN) won't
+get mapped yet.
 
 If the @var{srcdir} and @var{file} arguments are set, lookup etags
 derived entries in the @ref{hfy-tags-cache} and add html anchors
@@ -824,7 +825,7 @@ with a class of @code{t} is considered to match any class you specify.
 This matches Emacs's behavior when deciding on which face attributes to
 use, to the best of my understanding ).
 
-If @var{class} is @code{nil}, then you just get get whatever
+If @var{class} is @code{nil}, then you just get whatever
 @code{face-attr-construct} returns; i.e., the current specification in
 effect for @var{face}.
 
@@ -962,8 +963,9 @@ Is @ref{hfy-optimizations} member @var{symbol} set or not?
 @end lisp
 
 Return everything preceding the last @samp{/} from a relative filename,
-on the assumption that this will produce a relative directory name.  Hardly
-bombproof, but good enough in the context in which it is being used.
+on the assumption that this will produce the name of a relative
+directory.  Hardly bombproof, but good enough in the context in which
+it is being used.
 
 @item hfy-html-dekludge-buffer
 @findex hfy-html-dekludge-buffer

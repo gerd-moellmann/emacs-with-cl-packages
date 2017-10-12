@@ -1,7 +1,7 @@
 /* Declaration of functions and data types used for MD5 sum computing
    library functions.
-   Copyright (C) 1995-1997, 1999-2001, 2004-2006, 2008-2017 Free
-   Software Foundation, Inc.
+   Copyright (C) 1995-1997, 1999-2001, 2004-2006, 2008-2017 Free Software
+   Foundation, Inc.
    This file is part of the GNU C Library.
 
    This program is free software; you can redistribute it and/or modify it
@@ -15,7 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, see <http://www.gnu.org/licenses/>.  */
+   along with this program; if not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef _MD5_H
 #define _MD5_H 1
@@ -74,8 +74,8 @@ struct md5_ctx
   uint32_t D;
 
   uint32_t total[2];
-  uint32_t buflen;
-  uint32_t buffer[32];
+  uint32_t buflen;     /* ≥ 0, ≤ 128 */
+  uint32_t buffer[32]; /* 128 bytes; the first buflen bytes are in use */
 };
 
 /*

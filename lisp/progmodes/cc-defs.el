@@ -26,7 +26,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -44,19 +44,12 @@
     (load "cc-bytecomp" nil t)))
 
 (eval-and-compile
-  (defvar c--mapcan-status
-    (cond ((and (fboundp 'mapcan)
-		(subrp (symbol-function 'mapcan)))
-	   ;; XEmacs
-	   'mapcan)
-	  ((locate-file "cl-lib.elc" load-path)
-	   ;; Emacs >= 24.3
-	   'cl-mapcan)
-	  (t
-	   ;; Emacs <= 24.2
-	   nil))))
+  (defvar c--cl-library
+    (if (locate-library "cl-lib")
+	'cl-lib
+      'cl)))
 
-(cc-external-require (if (eq c--mapcan-status 'cl-mapcan) 'cl-lib 'cl))
+(cc-external-require c--cl-library)
 ; was (cc-external-require 'cl).  ACM 2005/11/29.
 ; Changed from (eval-when-compile (require 'cl)) back to
 ; cc-external-require, 2015-08-12.
@@ -94,7 +87,7 @@
 
 ;;; Variables also used at compile time.
 
-(defconst c-version "5.32.99"
+(defconst c-version "5.33"
   "CC Mode version number.")
 
 (defconst c-version-sym (intern c-version))
@@ -182,9 +175,12 @@ This variant works around bugs in `eval-when-compile' in various
   ;; The motivation for this macro is to avoid the irritating message
   ;; "function `mapcan' from cl package called at runtime" produced by Emacs.
   (cond
-   ((eq c--mapcan-status 'mapcan)
+   ((and (fboundp 'mapcan)
+	 (subrp (symbol-function 'mapcan)))
+    ;; XEmacs and Emacs >= 26.
     `(mapcan ,fun ,liszt))
-   ((eq c--mapcan-status 'cl-mapcan)
+   ((eq c--cl-library 'cl-lib)
+    ;; Emacs >= 24.3, < 26.
     `(cl-mapcan ,fun ,liszt))
    (t
     ;; Emacs <= 24.2.  It would be nice to be able to distinguish between
@@ -193,26 +189,26 @@ This variant works around bugs in `eval-when-compile' in various
 
 (defmacro c--set-difference (liszt1 liszt2 &rest other-args)
   ;; Macro to smooth out the renaming of `set-difference' in Emacs 24.3.
-  (if (eq c--mapcan-status 'cl-mapcan)
+  (if (eq c--cl-library 'cl-lib)
       `(cl-set-difference ,liszt1 ,liszt2 ,@other-args)
     `(set-difference ,liszt1 ,liszt2 ,@other-args)))
 
 (defmacro c--intersection (liszt1 liszt2 &rest other-args)
   ;; Macro to smooth out the renaming of `intersection' in Emacs 24.3.
-  (if (eq c--mapcan-status 'cl-mapcan)
+  (if (eq c--cl-library 'cl-lib)
       `(cl-intersection ,liszt1 ,liszt2 ,@other-args)
     `(intersection ,liszt1 ,liszt2 ,@other-args)))
 
 (eval-and-compile
   (defmacro c--macroexpand-all (form &optional environment)
     ;; Macro to smooth out the renaming of `cl-macroexpand-all' in Emacs 24.3.
-    (if (eq c--mapcan-status 'cl-mapcan)
+    (if (fboundp 'macroexpand-all)
 	`(macroexpand-all ,form ,environment)
       `(cl-macroexpand-all ,form ,environment)))
 
   (defmacro c--delete-duplicates (cl-seq &rest cl-keys)
     ;; Macro to smooth out the renaming of `delete-duplicates' in Emacs 24.3.
-    (if (eq c--mapcan-status 'cl-mapcan)
+    (if (eq c--cl-library 'cl-lib)
 	`(cl-delete-duplicates ,cl-seq ,@cl-keys)
       `(delete-duplicates ,cl-seq ,@cl-keys))))
 
@@ -371,6 +367,8 @@ to it is returned.  This function does not modify the point or the mark."
 	  (t (error "Unknown buffer position requested: %s" position))))
        (point))))
 
+(defvar lookup-syntax-properties)       ;XEmacs.
+
 (eval-and-compile
   ;; Constant to decide at compilation time whether to use category
   ;; properties.  Currently (2010-03) they're available only on GNU Emacs.
@@ -418,6 +416,17 @@ to it is returned.  This function does not modify the point or the mark."
 	 (zmacs-deactivate-region))
     ;; Emacs.
     `(setq mark-active ,activate)))
+
+(defmacro c-set-keymap-parent (map parent)
+  (cond
+   ;; XEmacs
+   ((cc-bytecomp-fboundp 'set-keymap-parents)
+    `(set-keymap-parents ,map ,parent))
+   ;; Emacs
+   ((cc-bytecomp-fboundp 'set-keymap-parent)
+    `(set-keymap-parent ,map ,parent))
+   ;; incompatible
+   (t (error "CC Mode is incompatible with this version of Emacs"))))
 
 (defmacro c-delete-and-extract-region (start end)
   "Delete the text between START and END and return it."
@@ -493,19 +502,21 @@ must not be within a `c-save-buffer-state', since the user then
 wouldn't be able to undo them.
 
 The return value is the value of the last form in BODY."
-  `(let* ((modified (buffer-modified-p)) (buffer-undo-list t)
-	  (inhibit-read-only t) (inhibit-point-motion-hooks t)
-	  before-change-functions after-change-functions
-	  deactivate-mark
-	  buffer-file-name buffer-file-truename ; Prevent primitives checking
-						; for file modification
-	  ,@varlist)
-     (unwind-protect
-	 (progn ,@body)
-       (and (not modified)
-	    (buffer-modified-p)
-	    (set-buffer-modified-p nil)))))
-(put 'c-save-buffer-state 'lisp-indent-function 1)
+  (declare (debug t) (indent 1))
+  (if (fboundp 'with-silent-modifications)
+      `(with-silent-modifications (let* ,varlist ,@body))
+    `(let* ((modified (buffer-modified-p)) (buffer-undo-list t)
+	    (inhibit-read-only t) (inhibit-point-motion-hooks t)
+	    before-change-functions after-change-functions
+	    deactivate-mark
+	    buffer-file-name buffer-file-truename ; Prevent primitives checking
+						  ; for file modification
+	    ,@varlist)
+       (unwind-protect
+	   (progn ,@body)
+	 (and (not modified)
+	      (buffer-modified-p)
+	      (set-buffer-modified-p nil))))))
 
 (defmacro c-tentative-buffer-changes (&rest body)
   "Eval BODY and optionally restore the buffer contents to the state it
@@ -640,13 +651,14 @@ right side of it."
 	       `(c-safe (scan-lists ,from ,count ,depth)))))
     (if limit
 	`(save-restriction
-	   ,(if (numberp count)
-		(if (< count 0)
-		    `(narrow-to-region ,limit (point-max))
-		  `(narrow-to-region (point-min) ,limit))
-	      `(if (< ,count 0)
-		   (narrow-to-region ,limit (point-max))
-		 (narrow-to-region (point-min) ,limit)))
+	   (when ,limit
+	     ,(if (numberp count)
+		  (if (< count 0)
+		      `(narrow-to-region ,limit (point-max))
+		    `(narrow-to-region (point-min) ,limit))
+		`(if (< ,count 0)
+		     (narrow-to-region ,limit (point-max))
+		   (narrow-to-region (point-min) ,limit))))
 	   ,res)
       res)))
 
@@ -661,13 +673,8 @@ leave point unmoved.
 
 A LIMIT for the search may be given.  The start position is assumed to be
 before it."
-  (let ((res `(c-safe (goto-char (scan-lists ,(or pos `(point)) 1 0)) (point))))
-    (if limit
-	`(save-restriction
-	   (if ,limit
-	       (narrow-to-region (point-min) ,limit))
-	   ,res)
-      res)))
+  `(let ((dest (c-safe-scan-lists ,(or pos `(point)) 1 0 ,limit)))
+     (when dest (goto-char dest) dest)))
 
 (defmacro c-go-list-backward (&optional pos limit)
   "Move backward across one balanced group of parentheses starting at POS or
@@ -676,13 +683,8 @@ leave point unmoved.
 
 A LIMIT for the search may be given.  The start position is assumed to be
 after it."
-  (let ((res `(c-safe (goto-char (scan-lists ,(or pos `(point)) -1 0)) (point))))
-    (if limit
-	`(save-restriction
-	   (if ,limit
-	       (narrow-to-region ,limit (point-max)))
-	   ,res)
-      res)))
+  `(let ((dest (c-safe-scan-lists ,(or pos `(point)) -1 0 ,limit)))
+     (when dest (goto-char dest) dest)))
 
 (defmacro c-up-list-forward (&optional pos limit)
   "Return the first position after the list sexp containing POS,
@@ -723,12 +725,8 @@ position exists, otherwise nil is returned and the point isn't moved.
 
 A limit for the search may be given.  The start position is assumed to
 be before it."
-  (let ((res `(c-safe (goto-char (scan-lists ,(or pos `(point)) 1 1)) t)))
-    (if limit
-	`(save-restriction
-	   (narrow-to-region (point-min) ,limit)
-	   ,res)
-      res)))
+  `(let ((dest (c-up-list-forward ,pos ,limit)))
+     (when dest (goto-char dest) t)))
 
 (defmacro c-go-up-list-backward (&optional pos limit)
   "Move the point to the position of the start of the list sexp containing POS,
@@ -737,12 +735,8 @@ position exists, otherwise nil is returned and the point isn't moved.
 
 A limit for the search may be given.  The start position is assumed to
 be after it."
-  (let ((res `(c-safe (goto-char (scan-lists ,(or pos `(point)) -1 1)) t)))
-    (if limit
-	`(save-restriction
-	   (narrow-to-region ,limit (point-max))
-	   ,res)
-      res)))
+  `(let ((dest (c-up-list-backward ,pos ,limit)))
+     (when dest (goto-char dest) t)))
 
 (defmacro c-go-down-list-forward (&optional pos limit)
   "Move the point to the first position inside the first list sexp after POS,
@@ -751,12 +745,8 @@ exists, otherwise nil is returned and the point isn't moved.
 
 A limit for the search may be given.  The start position is assumed to
 be before it."
-  (let ((res `(c-safe (goto-char (scan-lists ,(or pos `(point)) 1 -1)) t)))
-    (if limit
-	`(save-restriction
-	   (narrow-to-region (point-min) ,limit)
-	   ,res)
-      res)))
+  `(let ((dest (c-down-list-forward ,pos ,limit)))
+     (when dest (goto-char dest) t)))
 
 (defmacro c-go-down-list-backward (&optional pos limit)
   "Move the point to the last position inside the last list sexp before POS,
@@ -765,13 +755,8 @@ exists, otherwise nil is returned and the point isn't moved.
 
 A limit for the search may be given.  The start position is assumed to
 be after it."
-  (let ((res `(c-safe (goto-char (scan-lists ,(or pos `(point)) -1 -1)) t)))
-    (if limit
-	`(save-restriction
-	   (narrow-to-region ,limit (point-max))
-	   ,res)
-      res)))
-
+  `(let ((dest (c-down-list-backward ,pos ,limit)))
+     (when dest (goto-char dest) t)))
 
 (defmacro c-beginning-of-defun-1 ()
   ;; Wrapper around beginning-of-defun.
@@ -1199,6 +1184,86 @@ been put there by c-put-char-property.  POINT remains unchanged."
 		      nil ,from ,to ,value nil -property-))
     ;; GNU Emacs
     `(c-clear-char-property-with-value-function ,from ,to ,property ,value)))
+
+(defmacro c-search-forward-char-property-with-value-on-char
+    (property value char &optional limit)
+  "Search forward for a text-property PROPERTY having value VALUE on a
+character with value CHAR.
+LIMIT bounds the search.  The value comparison is done with `equal'.
+PROPERTY must be a constant.
+
+Leave point just after the character, and set the match data on
+this character, and return point.  If the search fails, return
+nil; point is then left undefined."
+  `(let ((char-skip (concat "^" (char-to-string ,char)))
+	 (-limit- ,limit)
+	 (-value- ,value))
+     (while
+	 (and
+	  (progn (skip-chars-forward char-skip -limit-)
+		 (< (point) -limit-))
+	  (not (equal (c-get-char-property (point) ,property) -value-)))
+       (forward-char))
+     (when (< (point) -limit-)
+       (search-forward-regexp ".")	; to set the match-data.
+       (point))))
+
+(defun c-clear-char-property-with-value-on-char-function (from to property
+							       value char)
+  "Remove all text-properties PROPERTY with value VALUE on
+characters with value CHAR from the region [FROM, TO), as tested
+by `equal'.  These properties are assumed to be over individual
+characters, having been put there by c-put-char-property.  POINT
+remains unchanged."
+  (let ((place from)
+	)
+    (while			  ; loop round occurrences of (PROPERTY VALUE)
+	(progn
+	  (while	   ; loop round changes in PROPERTY till we find VALUE
+	      (and
+	       (< place to)
+	       (not (equal (get-text-property place property) value)))
+	    (setq place (c-next-single-property-change place property nil to)))
+	  (< place to))
+      (if (eq (char-after place) char)
+	  (remove-text-properties place (1+ place) (cons property nil)))
+      ;; Do we have to do anything with stickiness here?
+      (setq place (1+ place)))))
+
+(defmacro c-clear-char-property-with-value-on-char (from to property value char)
+  "Remove all text-properties PROPERTY with value VALUE on
+characters with value CHAR from the region [FROM, TO), as tested
+by `equal'.  These properties are assumed to be over individual
+characters, having been put there by c-put-char-property.  POINT
+remains unchanged."
+  (if c-use-extents
+      ;; XEmacs
+      `(let ((-property- ,property)
+	     (-char- ,char))
+	 (map-extents (lambda (ext val)
+			(if (and (equal (extent-property ext -property-) val)
+				 (eq (char-after
+				      (extent-start-position ext))
+				     -char-))
+			    (delete-extent ext)))
+		      nil ,from ,to ,value nil -property-))
+    ;; Gnu Emacs
+    `(c-clear-char-property-with-value-on-char-function ,from ,to ,property
+							,value ,char)))
+
+(defmacro c-put-char-properties-on-char (from to property value char)
+  ;; This needs to be a macro because `property' passed to
+  ;; `c-put-char-property' must be a constant.
+  "Put the text property PROPERTY with value VALUE on characters
+with value CHAR in the region [FROM to)."
+  `(let ((skip-string (concat "^" (list ,char)))
+	 (-to- ,to))
+     (save-excursion
+       (goto-char ,from)
+       (while (progn (skip-chars-forward skip-string -to-)
+		     (< (point) -to-))
+	   (c-put-char-property (point) ,property ,value)
+	   (forward-char)))))
 
 ;; Macros to put overlays (Emacs) or extents (XEmacs) on buffer text.
 ;; For our purposes, these are characterized by being possible to
@@ -1235,6 +1300,7 @@ been put there by c-put-char-property.  POINT remains unchanged."
 (def-edebug-spec cc-eval-when-compile (&rest def-form))
 (def-edebug-spec c-point t)
 (def-edebug-spec c-set-region-active t)
+(def-edebug-spec c-set-keymap-parent t)
 (def-edebug-spec c-safe t)
 (def-edebug-spec c-save-buffer-state let*)
 (def-edebug-spec c-tentative-buffer-changes t)
@@ -1256,6 +1322,8 @@ been put there by c-put-char-property.  POINT remains unchanged."
 (def-edebug-spec c-put-char-property t)
 (def-edebug-spec c-get-char-property t)
 (def-edebug-spec c-clear-char-property t)
+(def-edebug-spec c-clear-char-property-with-value-on-char t)
+(def-edebug-spec c-put-char-properties-on-char t)
 (def-edebug-spec c-clear-char-properties t)
 (def-edebug-spec c-put-overlay t)
 (def-edebug-spec c-delete-overlay t)
@@ -1801,8 +1869,6 @@ non-nil, a caret is prepended to invert the set."
 
 (cc-bytecomp-defvar open-paren-in-column-0-is-defun-start)
 
-(defvar lookup-syntax-properties)       ;XEmacs.
-
 (defconst c-emacs-features
   (let (list)
 
@@ -1938,14 +2004,18 @@ non-nil, a caret is prepended to invert the set."
 	(set-buffer-modified-p nil))
       (kill-buffer buf))
 
-    ;; See if `parse-partial-sexp' returns the eighth element.
-    (if (c-safe (>= (length (save-excursion
-			      (parse-partial-sexp (point) (point))))
-		    10))
-	(setq list (cons 'pps-extended-state list))
-      (error (concat
-	      "CC Mode is incompatible with this version of Emacs - "
-	      "`parse-partial-sexp' has to return at least 10 elements.")))
+    ;; Check how many elements `parse-partial-sexp' returns.
+    (let ((ppss-size (or (c-safe (length
+				  (save-excursion
+				    (parse-partial-sexp (point) (point)))))
+			 0)))
+      (cond
+       ((>= ppss-size 11) (setq list (cons 'pps-extended-state list)))
+       ((>= ppss-size 10))
+       (t (error
+	   (concat
+	    "CC Mode is incompatible with this version of Emacs - "
+	    "`parse-partial-sexp' has to return at least 10 elements.")))))
 
     ;;(message "c-emacs-features: %S" list)
     list)
@@ -1968,10 +2038,9 @@ might be present:
 		    (i.e. the syntax class `!').
 `gen-string-delim'  Generic string delimiters work
 		    (i.e. the syntax class `|').
-`pps-extended-state' `parse-partial-sexp' returns a list with at least 10
-		    elements, i.e. it contains the position of the start of
-		    the last comment or string.  It's always set - CC Mode
-                    no longer works in emacsen without this feature.
+`pps-extended-state' `parse-partial-sexp' returns a list with at least 11
+		    elements, i.e. it indicates having stopped after the
+		    first character of a potential two-char construct.
 `posix-char-classes' The regexp engine understands POSIX character classes.
 `col-0-paren'       It's possible to turn off the ad-hoc rule that a paren
 		    in column zero is the start of a defun.

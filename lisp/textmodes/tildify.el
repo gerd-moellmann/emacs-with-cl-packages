@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -54,7 +54,7 @@
 (defgroup tildify nil
   "Add hard spaces or other text fragments to text buffers."
   :version "21.1"
-  :group 'wp)
+  :group 'text)
 
 (defcustom tildify-pattern
   "\\(?:[,:;(][ \t]*[a]\\|\\<[AIKOSUVZikosuvz]\\)\\([ \t]+\\|[ \t]*\n[ \t]*\\)\\(?:\\w\\|[([{\\]\\|<[a-zA-Z]\\)"

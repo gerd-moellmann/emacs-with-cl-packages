@@ -828,6 +828,7 @@ Various
 * Thwarting Email Spam::        Simple ways to avoid unsolicited commercial email.
 * Spam Package::                A package for filtering and processing spam.
 * The Gnus Registry::           A package for tracking messages by Message-ID.
+* The Gnus Cloud::              A package for synchronizing Gnus marks.
 * Other modes::                 Interaction with other modes.
 * Various Various::             Things that are really various.
 
@@ -2600,7 +2601,7 @@ Enter a buffer where you can edit the group info
 @findex gnus-group-make-directory-group
 @cindex nndir
 Make a directory group (@pxref{Directory Groups}).  You will be prompted
-for a directory name (@code{gnus-group-make-directory-group}).
+for the directory's name (@code{gnus-group-make-directory-group}).
 
 @item G h
 @kindex G h (Group)
@@ -4339,10 +4340,10 @@ does not necessarily need to be the same value that is determined by
 @code{gnus-group-name-charset-group-alist}.
 
 If @code{default-file-name-coding-system} or this variable is
-initialized by default to @code{iso-latin-1} for example, although you
+initialized by default to @code{iso-latin-1-unix} for example, although you
 want to subscribe to the groups spelled in Chinese, that is the most
 typical case where you have to customize
-@code{nnmail-pathname-coding-system}.  The @code{utf-8} coding system is
+@code{nnmail-pathname-coding-system}.  The @code{utf-8-unix} coding system is
 a good candidate for it.  Otherwise, you may change the locale in your
 system so that @code{default-file-name-coding-system} or this variable
 may be initialized to an appropriate value.
@@ -5042,11 +5043,12 @@ access the @code{X-Newsreader} header:
 
 @item
 @vindex gnus-ignored-from-addresses
-The @code{gnus-ignored-from-addresses} variable says when the @samp{%f}
-summary line spec returns the @code{To}, @code{Newsreader} or
-@code{From} header.  If this regexp matches the contents of the
-@code{From} header, the value of the @code{To} or @code{Newsreader}
-headers are used instead.
+The @code{gnus-ignored-from-addresses} variable says when the
+@samp{%f} summary line spec returns the @code{To}, @code{Newsreader}
+or @code{From} header.  The variable may be a regexp or a predicate
+function.  If this matches the contents of the @code{From}
+header, the value of the @code{To} or @code{Newsreader} headers are
+used instead.
 
 To distinguish regular articles from those where the @code{From} field
 has been swapped, a string is prefixed to the @code{To} or
@@ -7757,7 +7759,9 @@ processing of the article is done before it is saved).  For a different
 approach (uudecoding, unsharing) you should use @code{gnus-uu}
 (@pxref{Decoding Articles}).
 
-For the commands listed here, the target is a file.  If you want to
+For the commands listed here, the target is a file.
+A directory name (ending in @samp{/}) causes the target
+to be a file under that directory.  If you want to
 save to a group, see the @kbd{B c} (@code{gnus-summary-copy-article})
 command (@pxref{Mail Group Commands}).
 
@@ -8966,7 +8970,7 @@ Decode IDNA encoded domain names in the current articles.  IDNA
 encoded domain names looks like @samp{xn--bar}.  If a string remain
 unencoded after running invoking this, it is likely an invalid IDNA
 string (@samp{xn--bar} is invalid).  You must have GNU Libidn
-(@url{http://www.gnu.org/software/libidn/}) installed for this command
+(@url{https://www.gnu.org/software/libidn/}) installed for this command
 to work.
 
 @item W t
@@ -9182,7 +9186,7 @@ Verify a signed control message
 hierarchy maintainer.  You need to add the @acronym{PGP} public key of
 the maintainer to your keyring to verify the
 message.@footnote{@acronym{PGP} keys for many hierarchies are
-available at @uref{ftp://ftp.isc.org/pub/pgpcontrol/README.html}}
+available at @uref{https://ftp.isc.org/pub/pgpcontrol/README.html}}
 
 @item W s
 @kindex W s (Summary)
@@ -10194,6 +10198,11 @@ Sort by lines (@code{gnus-summary-sort-by-lines}).
 @kindex C-c C-s C-c (Summary)
 @findex gnus-summary-sort-by-chars
 Sort by article length (@code{gnus-summary-sort-by-chars}).
+
+@item C-c C-s C-m C-m
+@kindex C-c C-s C-m C-m (Summary)
+@findex gnus-summary-sort-by-marks
+Sort by article ``readedness'' marks (@code{gnus-summary-sort-by-marks}).
 
 @item C-c C-s C-i
 @kindex C-c C-s C-i (Summary)
@@ -12311,7 +12320,7 @@ This variable controls whether Gnus performs IDNA decoding of
 internationalized domain names inside @samp{From}, @samp{To} and
 @samp{Cc} headers.  @xref{IDNA, ,IDNA,message, The Message Manual},
 for how to compose such messages.  This requires
-@uref{http://www.gnu.org/software/libidn/, GNU Libidn}, and this
+@uref{https://www.gnu.org/software/libidn/, GNU Libidn}, and this
 variable is only enabled if you have installed it.
 
 @vindex gnus-inhibit-images
@@ -13513,7 +13522,8 @@ Close the connection (if any) to the server
 @kindex D (Server)
 @findex gnus-server-deny-server
 Mark the current server as unreachable
-(@code{gnus-server-deny-server}).
+(@code{gnus-server-deny-server}).  This will effectively disable the
+server.
 
 @item M-o
 @kindex M-o (Server)
@@ -13850,7 +13860,7 @@ The same as the above, but don't do automatic @acronym{STARTTLS} upgrades.
 @findex nntp-open-tls-stream
 @item nntp-open-tls-stream
 Opens a connection to a server over a @dfn{secure} channel.  To use
-this you must have @uref{http://www.gnu.org/software/gnutls/, GnuTLS}
+this you must have @uref{https://www.gnu.org/software/gnutls/, GnuTLS}
 installed.  You then define a server as follows:
 
 @lisp
@@ -13863,6 +13873,7 @@ installed.  You then define a server as follows:
       (nntp-address "snews.bar.com"))
 @end lisp
 
+@c FIXME openssl s_client should be deprecated in favor of gnutls.
 @findex nntp-open-ssl-stream
 @item nntp-open-ssl-stream
 Opens a connection to a server over a @dfn{secure} channel.  To use
@@ -14654,7 +14665,7 @@ an additional mail source for a particular group by including the
 @code{group} mail specifier in @code{mail-sources}, and setting a
 @code{mail-source} group parameter (@pxref{Group Parameters}) specifying
 a single mail source.  When this is used, @code{mail-sources} is
-typically just @code{(group)}; the @code{mail-source} parameter for a
+typically just @code{((group))}; the @code{mail-source} parameter for a
 group might look like this:
 
 @lisp
@@ -21855,37 +21866,37 @@ In summary mode:
 
 @table @kbd
 
-@item $ m
-@kindex $ m (Summary)
+@item G G m
+@kindex G G m (Summary)
 @findex nnmairix-widget-search-from-this-article
 Allows you to create a mairix query or group based on the current
 message using graphical widgets (same as @code{nnmairix-widget-search})
 (@code{nnmairix-widget-search-from-this-article}).
 
-@item $ g
-@kindex $ g (Summary)
+@item G G g
+@kindex G G g (Summary)
 @findex nnmairix-create-search-group-from-message
 Interactively creates a new search group with query based on the current
 message, but uses the minibuffer instead of graphical widgets
 (@code{nnmairix-create-search-group-from-message}).
 
-@item $ t
-@kindex $ t (Summary)
+@item G G t
+@kindex G G t (Summary)
 @findex nnmairix-search-thread-this-article
 Searches thread for the current article
 (@code{nnmairix-search-thread-this-article}).  This is effectively a
 shortcut for calling @code{nnmairix-search} with @samp{m:msgid} of the
 current article and enabled threads.
 
-@item $ f
-@kindex $ f (Summary)
+@item G G f
+@kindex G G f (Summary)
 @findex nnmairix-search-from-this-article
 Searches all messages from sender of the current article
 (@code{nnmairix-search-from-this-article}).  This is a shortcut for
 calling @code{nnmairix-search} with @samp{f:From}.
 
-@item $ o
-@kindex $ o (Summary)
+@item G G o
+@kindex G G o (Summary)
 @findex nnmairix-goto-original-article
 (Only in @code{nnmairix} groups!) Tries determine the group this article
 originally came from and displays the article in this group, so that,
@@ -21894,8 +21905,8 @@ parameters are applied (@code{nnmairix-goto-original-article}).  This
 function will use the registry if available, but can also parse the
 article file name as a fallback method.
 
-@item $ u
-@kindex $ u (Summary)
+@item G G u
+@kindex G G u (Summary)
 @findex nnmairix-remove-tick-mark-original-article
 Remove possibly existing tick mark from original article
 (@code{nnmairix-remove-tick-mark-original-article}).  (@pxref{nnmairix
@@ -22049,7 +22060,7 @@ activate the always-unread feature by using @kbd{G b r} twice.
 
 So far so good---but how do you remove the tick marks in the @code{nnmairix}
 group?  There are two options: You may simply use
-@code{nnmairix-remove-tick-mark-original-article} (bound to @kbd{$ u}) to remove
+@code{nnmairix-remove-tick-mark-original-article} (bound to @kbd{G G u}) to remove
 tick marks from the original article.  The other possibility is to set
 @code{nnmairix-propagate-marks-to-nnmairix-groups} to @code{t}, but see the above
 comments about this option.  If it works for you, the tick marks should
@@ -22207,6 +22218,7 @@ to you, using @kbd{G b u} and updating the group will usually fix this.
 * Thwarting Email Spam::        Simple ways to avoid unsolicited commercial email.
 * Spam Package::                A package for filtering and processing spam.
 * The Gnus Registry::           A package for tracking messages by Message-ID.
+* The Gnus Cloud::              A package for synchronizing Gnus marks.
 * Other modes::                 Interaction with other modes.
 * Various Various::             Things that are really various.
 @end menu
@@ -26165,6 +26177,100 @@ default this is just @code{(marks)} so the custom registry marks are
 precious.
 @end defvar
 
+@node The Gnus Cloud
+@section The Gnus Cloud
+@cindex cloud
+@cindex gnus-cloud
+@cindex synchronization
+@cindex sync
+@cindex synch
+
+The Gnus Cloud is a way to synchronize marks and general files and
+data across multiple machines.
+
+Very often, you want all your marks (what articles you've read, which
+ones were important, and so on) to be synchronized between several
+machines. With IMAP, that's built into the protocol, so you can read
+nnimap groups from many machines and they are automatically
+synchronized. But NNTP, nnrss, and many other backends do not store
+marks, so you have to do it locally.
+
+The Gnus Cloud package stores the marks, plus any files you choose, on
+an IMAP server in a special folder. It's like a
+DropTorrentSyncBoxOakTree(TM).
+
+@menu
+* Gnus Cloud Setup::
+* Gnus Cloud Usage::
+@end menu
+
+@node Gnus Cloud Setup
+@subsection Gnus Cloud Setup
+
+Setting up the Gnus Cloud takes less than a minute. From the Group
+buffer:
+
+Press @kbd{^} to go to the Server buffer. Here you'll see all the
+servers that Gnus knows. @xref{Server Buffer}.
+
+Then press @kbd{i} to mark any servers as cloud-synchronized (their marks are synchronized).
+
+Then press @kbd{I} to mark a single server as the cloud host (it must
+be an IMAP server, and will host a special IMAP folder with all the
+synchronization data). This will set the variable
+@code{gnus-cloud-method} (using the Customize facilities), then ask
+you to optionally upload your first CloudSynchronizationDataPack(TM).
+
+@node Gnus Cloud Usage
+@subsection Gnus Cloud Usage
+
+After setting up, you can use these shortcuts from the Group buffer:
+
+@table @kbd
+@item ~ RET
+@item ~ d
+@findex gnus-cloud-download-all-data
+@cindex cloud, download
+Download the latest Gnus Cloud data.
+
+@item ~ u
+@item ~ ~
+@findex gnus-cloud-upload-all-data
+@cindex cloud, download
+Upload the local Gnus Cloud data. Creates a new
+CloudSynchronizationDataPack(TM).
+
+@end table
+
+But wait, there's more. Of course there's more. So much more. You can
+customize all of the following.
+
+@defvar gnus-cloud-synced-files
+These are the files that will be part of every
+CloudSynchronizationDataPack(TM). They are included in every upload,
+so don't synchronize a lot of large files. Files under 100Kb are best.
+@end defvar
+
+@defvar gnus-cloud-storage-method
+This is a choice from several storage methods. It's highly recommended
+to use the EPG facilities. It will be automatic if have GnuPG
+installed and EPG loaded. Otherwise, you could use Base64+gzip,
+Base64, or no encoding.
+@end defvar
+
+@defvar gnus-cloud-interactive
+When this is set, and by default it is, the Gnus Cloud package will
+ask you for confirmation here and there. Leave it on until you're
+comfortable with the package.
+@end defvar
+
+
+@defvar gnus-cloud-method
+The name of the IMAP server to store the
+CloudSynchronizationDataPack(TM)s. It's easiest to set this from the
+Server buffer (@pxref{Gnus Cloud Setup}).
+@end defvar
+
 @node Other modes
 @section Interaction with other modes
 
@@ -26275,7 +26381,7 @@ read when doing the operation described above.
 @cindex characters in file names
 This is an alist that says how to translate characters in file names.
 For instance, if @samp{:} is invalid as a file character in file names
-on your system (you OS/2 user you), you could say something like:
+on your system (you MS Windows user you), you could say something like:
 
 @lisp
 @group
@@ -26284,7 +26390,7 @@ on your system (you OS/2 user you), you could say something like:
 @end group
 @end lisp
 
-In fact, this is the default value for this variable on OS/2 and MS
+In fact, this is (part of) the default value for this variable on MS
 Windows (phooey) systems.
 
 @item gnus-hidden-properties

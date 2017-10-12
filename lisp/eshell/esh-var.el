@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -530,7 +530,7 @@ Integers imply a direct index, and names, an associate lookup using
 For example, to retrieve the second element of a user's record in
 '/etc/passwd', the variable reference would look like:
 
-  ${egrep johnw /etc/passwd}[: 2]"
+  ${grep johnw /etc/passwd}[: 2]"
   (while indices
     (let ((refs (car indices)))
       (when (stringp value)
@@ -563,6 +563,8 @@ For example, to retrieve the second element of a user's record in
 
 (defun eshell-index-value (value index)
   "Reference VALUE using the given INDEX."
+  (when (and (stringp index) (get-text-property 0 'number index))
+    (setq index (string-to-number index)))
   (if (stringp index)
       (cdr (assoc index value))
     (cond

@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -86,12 +86,6 @@
 (require 'nnmail)
 (require 'easymenu)
 (require 'registry)
-
-;; Silence XEmacs byte compiler, which will otherwise complain about
-;; call to `eieio-persistent-read'.
-(when (featurep 'xemacs)
-   (byte-compiler-options
-     (warnings (- callargs))))
 
 (defvar gnus-adaptive-word-syntax-table)
 
@@ -832,8 +826,7 @@ Addresses without a name will say \"noname\"."
 
 (defun gnus-registry-sort-addresses (&rest addresses)
   "Return a normalized and sorted list of ADDRESSES."
-  (sort (apply 'nconc (mapcar 'gnus-registry-extract-addresses addresses))
-        'string-lessp))
+  (sort (mapcan 'gnus-registry-extract-addresses addresses) 'string-lessp))
 
 (defun gnus-registry-simplify-subject (subject)
   (if (stringp subject)
@@ -975,12 +968,13 @@ Uses `gnus-registry-marks' to find what shortcuts to install."
   "Show the marks for an article by the :char property."
   (let* ((id (mail-header-message-id headers))
          (marks (when id (gnus-registry-get-id-key id 'mark))))
-    (mapconcat (lambda (mark)
-                 (plist-get
-                  (cdr-safe
-                   (assoc mark gnus-registry-marks))
-                  :char))
-               marks "")))
+    (concat (delq nil
+		  (mapcar
+		   (lambda (m)
+		     (plist-get
+		      (cdr-safe (assoc m gnus-registry-marks))
+		      :char))
+		   marks)))))
 
 ;; use like this:
 ;; (defalias 'gnus-user-format-function-M 'gnus-registry-article-marks-to-names)
@@ -1036,7 +1030,7 @@ only the last one's marks are returned."
   (let* ((article (last articles))
          (id (gnus-registry-fetch-message-id-fast article))
          (marks (when id (gnus-registry-get-id-key id 'mark))))
-    (when (gmm-called-interactively-p 'any)
+    (when (called-interactively-p 'any)
       (gnus-message 1 "Marks are %S" marks))
     marks))
 

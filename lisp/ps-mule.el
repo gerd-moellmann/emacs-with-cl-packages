@@ -22,7 +22,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -1232,7 +1232,7 @@ V%s 0 /%s-latin1 /%s Latin1Encoding put\n"
 (provide 'ps-mule)
 
 ;; Local Variables:
-;; generated-autoload-file: "ps-print.el"
+;; generated-autoload-file: "ps-print-loaddefs.el"
 ;; End:
 
 ;;; ps-mule.el ends here

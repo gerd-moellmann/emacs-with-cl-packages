@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -35,7 +35,7 @@
   "Normal hook run when entering Text mode and many related modes."
   :type 'hook
   :options '(turn-on-auto-fill turn-on-flyspell)
-  :group 'wp)
+  :group 'text)
 
 (defvar text-mode-variant nil
   "Non-nil if this buffer's major mode is a variant of Text mode.
@@ -231,5 +231,7 @@ The argument NLINES says how many lines to center."
 	  ((< nlines 0)
 	   (setq nlines (1+ nlines))
 	   (forward-line -1)))))
+
+(provide 'text-mode)
 
 ;;; text-mode.el ends here

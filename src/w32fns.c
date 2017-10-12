@@ -15,11 +15,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Added by Kevin Gallo */
 
 #include <config.h>
+/* Override API version to get the latest functionality.  */
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
 
 #include <signal.h>
 #include <stdio.h>
@@ -41,6 +44,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "coding.h"
 
 #include "w32common.h"
+#include "w32inevt.h"
 
 #ifdef WINDOWSNT
 #include <mbstring.h>
@@ -52,6 +56,8 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "w32.h"
 #endif
 
+#include <basetyps.h>
+#include <unknwn.h>
 #include <commctrl.h>
 #include <commdlg.h>
 #include <shellapi.h>
@@ -68,15 +74,10 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #define FOF_NO_CONNECTED_ELEMENTS 0x2000
 #endif
 
-void syms_of_w32fns (void);
-void globals_of_w32fns (void);
-
-extern void free_frame_menubar (struct frame *);
 extern int w32_console_toggle_lock_key (int, Lisp_Object);
 extern void w32_menu_display_help (HWND, HMENU, UINT, UINT);
 extern void w32_free_menu_strings (HWND);
 extern const char *map_w32_filename (const char *, const char **);
-extern char * w32_strerror (int error_no);
 
 #ifndef IDC_HAND
 #define IDC_HAND MAKEINTRESOURCE(32649)
@@ -185,11 +186,7 @@ MonitorFromWindow_Proc monitor_from_window_fn = NULL;
 EnumDisplayMonitors_Proc enum_display_monitors_fn = NULL;
 GetTitleBarInfo_Proc get_title_bar_info_fn = NULL;
 
-#ifdef NTGUI_UNICODE
-#define unicode_append_menu AppendMenuW
-#else /* !NTGUI_UNICODE */
 extern AppendMenuW_Proc unicode_append_menu;
-#endif /* NTGUI_UNICODE */
 
 /* Flag to selectively ignore WM_IME_CHAR messages.  */
 static int ignore_ime_char = 0;
@@ -216,7 +213,6 @@ static HWND w32_visible_system_caret_hwnd;
 static int w32_unicode_gui;
 
 /* From w32menu.c  */
-extern HMENU current_popup_menu;
 int menubar_in_use = 0;
 
 /* From w32uniscribe.c  */
@@ -250,6 +246,44 @@ HINSTANCE hinst = NULL;
 
 static unsigned int sound_type = 0xFFFFFFFF;
 #define MB_EMACS_SILENT (0xFFFFFFFF - 1)
+
+/* Special virtual key code for indicating "any" key.  */
+#define VK_ANY 0xFF
+
+#ifndef WM_WTSSESSION_CHANGE
+/* 32-bit MinGW does not define these constants.  */
+# define WM_WTSSESSION_CHANGE  0x02B1
+# define WTS_SESSION_LOCK      0x7
+#endif
+
+#ifndef WS_EX_NOACTIVATE
+#define WS_EX_NOACTIVATE 0x08000000L
+#endif
+
+/* Keyboard hook state data.  */
+static struct
+{
+  int hook_count; /* counter, if several windows are created */
+  HHOOK hook;     /* hook handle */
+  HWND console;   /* console window handle */
+
+  int lwindown;      /* Left Windows key currently pressed (and hooked) */
+  int rwindown;      /* Right Windows key currently pressed (and hooked) */
+  int winsdown;      /* Number of handled keys currently pressed */
+  int send_win_up;   /* Pass through the keyup for this Windows key press? */
+  int suppress_lone; /* Suppress simulated Windows keydown-keyup for this press? */
+  int winseen;       /* Windows keys seen during this press? */
+
+  char alt_hooked[256];  /* hook Alt+[this key]? */
+  char lwin_hooked[256]; /* hook left Win+[this key]? */
+  char rwin_hooked[256]; /* hook right Win+[this key]? */
+} kbdhook;
+typedef HWND (WINAPI *GetConsoleWindow_Proc) (void);
+
+typedef BOOL (WINAPI *IsDebuggerPresent_Proc) (void);
+
+/* stdin, from w32console.c */
+extern HANDLE keyboard_handle;
 
 /* Let the user specify a display with a frame.
    nil stands for the selected frame--or, if that is not a w32 frame,
@@ -327,10 +361,7 @@ void x_set_cursor_type (struct frame *, Lisp_Object, Lisp_Object);
 void x_set_icon_type (struct frame *, Lisp_Object, Lisp_Object);
 void x_set_icon_name (struct frame *, Lisp_Object, Lisp_Object);
 void x_explicitly_set_name (struct frame *, Lisp_Object, Lisp_Object);
-void x_set_menu_bar_lines (struct frame *, Lisp_Object, Lisp_Object);
 void x_set_title (struct frame *, Lisp_Object, Lisp_Object);
-void x_set_tool_bar_lines (struct frame *, Lisp_Object, Lisp_Object);
-void x_set_internal_border_width (struct frame *f, Lisp_Object, Lisp_Object);
 
 
 /* Store the screen positions of frame F into XPTR and YPTR.
@@ -340,17 +371,20 @@ void x_set_internal_border_width (struct frame *f, Lisp_Object, Lisp_Object);
 void
 x_real_positions (struct frame *f, int *xptr, int *yptr)
 {
-  POINT pt;
   RECT rect;
 
   /* Get the bounds of the WM window.  */
   GetWindowRect (FRAME_W32_WINDOW (f), &rect);
 
-  pt.x = 0;
-  pt.y = 0;
+  if (FRAME_PARENT_FRAME (f))
+    {
+      /* For a child window we have to get its coordinates wrt its
+	 parent.  */
+      HWND parent_hwnd = FRAME_W32_WINDOW (FRAME_PARENT_FRAME (f));
 
-  /* Convert (0, 0) in the client area to screen co-ordinates.  */
-  ClientToScreen (FRAME_W32_WINDOW (f), &pt);
+      if (parent_hwnd)
+	MapWindowPoints (HWND_DESKTOP, parent_hwnd, (LPPOINT) &rect, 2);
+    }
 
   *xptr = rect.left;
   *yptr = rect.top;
@@ -433,7 +467,7 @@ if the entry is new.  */)
   block_input ();
 
   /* replace existing entry in w32-color-map or add new entry. */
-  entry = Fassoc (name, Vw32_color_map);
+  entry = Fassoc (name, Vw32_color_map, Qnil);
   if (NILP (entry))
     {
       entry = Fcons (name, rgb);
@@ -453,7 +487,7 @@ if the entry is new.  */)
 /* The default colors for the w32 color map */
 typedef struct colormap_t
 {
-  char *name;
+  const char *name;
   COLORREF colorref;
 } colormap_t;
 
@@ -751,7 +785,7 @@ w32_color_map_lookup (const char *colorname)
 	  break;
 	}
 
-      QUIT;
+      maybe_quit ();
     }
 
   unblock_input ();
@@ -791,7 +825,7 @@ add_system_logical_colors_to_map (Lisp_Object *system_colors)
 			    NULL, NULL, (LPBYTE)color_buffer, &color_size)
 	     == ERROR_SUCCESS)
 	{
-	  int r, g, b;
+	  unsigned r, g, b;
 	  if (sscanf (color_buffer, " %u %u %u", &r, &g, &b) == 3)
 	    *system_colors = Fcons (Fcons (build_string (full_name_buffer),
 					   make_number (RGB (r, g, b))),
@@ -1206,7 +1240,7 @@ w32_defined_color (struct frame *f, const char *color, XColor *color_def,
    If F is not a color screen, return DEF (default) regardless of what
    ARG says.  */
 
-int
+static int
 x_decode_color (struct frame *f, Lisp_Object arg, int def)
 {
   XColor cdef;
@@ -1489,7 +1523,7 @@ x_set_cursor_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
    Note that this does not fully take effect if done before
    F has a window.  */
 
-void
+static void
 x_set_border_pixel (struct frame *f, int pix)
 {
 
@@ -1600,6 +1634,12 @@ x_set_icon_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 #endif
 }
 
+/**
+ * x_clear_under_internal_border:
+ *
+ * Clear area of frame F's internal border.  If the internal border face
+ * of F has been specified (is not null), fill the area with that face.
+ */
 void
 x_clear_under_internal_border (struct frame *f)
 {
@@ -1611,18 +1651,38 @@ x_clear_under_internal_border (struct frame *f)
       HDC hdc = get_frame_dc (f);
       int width = FRAME_PIXEL_WIDTH (f);
       int height = FRAME_PIXEL_HEIGHT (f);
+      struct face *face = FACE_FROM_ID_OR_NULL (f, INTERNAL_BORDER_FACE_ID);
 
       block_input ();
-      w32_clear_area (f, hdc, 0, FRAME_TOP_MARGIN_HEIGHT (f), width, border);
-      w32_clear_area (f, hdc, 0, 0, border, height);
-      w32_clear_area (f, hdc, width - border, 0, border, height);
-      w32_clear_area (f, hdc, 0, height - border, width, border);
+      if (face)
+	{
+	  /* Fill border with internal border face.  */
+	  unsigned long color = face->background;
+
+	  w32_fill_area (f, hdc, color, 0, FRAME_TOP_MARGIN_HEIGHT (f), width, border);
+	  w32_fill_area (f, hdc, color, 0, 0, border, height);
+	  w32_fill_area (f, hdc, color, width - border, 0, border, height);
+	  w32_fill_area (f, hdc, color, 0, height - border, width, border);
+	}
+      else
+	{
+	  w32_clear_area (f, hdc, 0, FRAME_TOP_MARGIN_HEIGHT (f), width, border);
+	  w32_clear_area (f, hdc, 0, 0, border, height);
+	  w32_clear_area (f, hdc, width - border, 0, border, height);
+	  w32_clear_area (f, hdc, 0, height - border, width, border);
+	}
       release_frame_dc (f, hdc);
       unblock_input ();
     }
 }
 
 
+/**
+ * x_set_internal_border_width:
+ *
+ * Set width of frame F's internal border to ARG pixels.  ARG < 0 is
+ * treated like ARG = 0.
+ */
 void
 x_set_internal_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
@@ -1633,7 +1693,7 @@ x_set_internal_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldva
 
   if (border != FRAME_INTERNAL_BORDER_WIDTH (f))
     {
-      FRAME_INTERNAL_BORDER_WIDTH (f) = border;
+      f->internal_border_width = border;
 
       if (FRAME_X_WINDOW (f) != 0)
 	{
@@ -1646,44 +1706,59 @@ x_set_internal_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldva
 }
 
 
+/**
+ * x_set_menu_bar_lines:
+ *
+ * Set number of lines of frame F's menu bar to VALUE.  An integer
+ * greater zero specifies 1 line and turns the menu bar on if it was off
+ * before.  Any other value specifies 0 lines and turns the menu bar off
+ * if it was on before.
+ */
 void
 x_set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 {
-  int nlines;
-
   /* Right now, menu bars don't work properly in minibuf-only frames;
      most of the commands try to apply themselves to the minibuffer
-     frame itself, and get an error because you can't switch buffers
-     in or split the minibuffer window.  */
-  if (FRAME_MINIBUF_ONLY_P (f))
-    return;
-
-  if (INTEGERP (value))
-    nlines = XINT (value);
-  else
-    nlines = 0;
-
-  FRAME_MENU_BAR_LINES (f) = 0;
-  FRAME_MENU_BAR_HEIGHT (f) = 0;
-  if (nlines)
-    FRAME_EXTERNAL_MENU_BAR (f) = 1;
-  else
+     frame itself, and get an error because you can't switch buffers in
+     or split the minibuffer window.  Child frames don't like menu bars
+     either.  */
+  if (!FRAME_MINIBUF_ONLY_P (f) && !FRAME_PARENT_FRAME (f))
     {
-      if (FRAME_EXTERNAL_MENU_BAR (f) == 1)
-	free_frame_menubar (f);
-      FRAME_EXTERNAL_MENU_BAR (f) = 0;
+      boolean old = FRAME_EXTERNAL_MENU_BAR (f);
+      boolean new = (INTEGERP (value) && XINT (value) > 0) ? true : false;
 
-      /* Adjust the frame size so that the client (text) dimensions
-	 remain the same.  This depends on FRAME_EXTERNAL_MENU_BAR being
-	 set correctly.  Note that we resize twice: The first time upon
-	 a request from the window manager who wants to keep the height
-	 of the outer rectangle (including decorations) unchanged, and a
-	 second time because we want to keep the height of the inner
-	 rectangle (without the decorations unchanged).  */
-      adjust_frame_size (f, -1, -1, 2, true, Qmenu_bar_lines);
+      FRAME_MENU_BAR_LINES (f) = 0;
+      FRAME_MENU_BAR_HEIGHT (f) = 0;
 
-      /* Not sure whether this is needed.  */
-      x_clear_under_internal_border (f);
+      if (old != new)
+	{
+	  FRAME_EXTERNAL_MENU_BAR (f) = new;
+
+	  if (!old)
+	    /* Make menu bar when there was none.  Emacs 25 waited until
+	       the next redisplay for this to take effect.  */
+	    set_frame_menubar (f, false, true);
+	  else
+	    {
+	      /* Remove menu bar.  */
+	      free_frame_menubar (f);
+
+	      /* Adjust the frame size so that the client (text) dimensions
+		 remain the same.  Note that we resize twice: The first time
+		 upon a request from the window manager who wants to keep
+		 the height of the outer rectangle (including decorations)
+		 unchanged, and a second time because we want to keep the
+		 height of the inner rectangle (without the decorations
+		 unchanged).  */
+	      adjust_frame_size (f, -1, -1, 2, false, Qmenu_bar_lines);
+	    }
+
+	  if (FRAME_W32_WINDOW (f))
+	    x_clear_under_internal_border (f);
+
+	  /* Don't store anything but 1 or 0 in the parameter.  */
+	  store_frame_param (f, Qmenu_bar_lines, make_number (new ? 1 : 0));
+	}
     }
 }
 
@@ -1766,7 +1841,7 @@ x_change_tool_bar_height (struct frame *f, int height)
      here.  */
   adjust_frame_glyphs (f);
   SET_FRAME_GARBAGED (f);
-  if (FRAME_X_WINDOW (f))
+  if (FRAME_W32_WINDOW (f))
     x_clear_under_internal_border (f);
 }
 
@@ -1826,7 +1901,7 @@ w32_set_title_bar_text (struct frame *f, Lisp_Object name)
        suggesting a new name, which lisp code should override; if
        F->explicit_name is set, ignore the new name; otherwise, set it.  */
 
-void
+static void
 x_set_name (struct frame *f, Lisp_Object name, bool explicit)
 {
   /* Make sure that requests from lisp code override requests from
@@ -1928,8 +2003,237 @@ x_set_scroll_bar_default_height (struct frame *f)
   FRAME_CONFIG_SCROLL_BAR_LINES (f)
     = (FRAME_CONFIG_SCROLL_BAR_HEIGHT (f) + unit - 1) / unit;
 }
+
+/**
+ * x_set_undecorated:
+ *
+ * Set frame F's `undecorated' parameter.  If non-nil, F's window-system
+ * window is drawn without decorations, title, minimize/maximize boxes
+ * and external borders.  This usually means that the window cannot be
+ * dragged, resized, iconified, maximized or deleted with the mouse.  If
+ * nil, draw the frame with all the elements listed above unless these
+ * have been suspended via window manager settings.
+ *
+ * Some window managers may not honor this parameter.
+ */
+static void
+x_set_undecorated (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  HWND hwnd = FRAME_W32_WINDOW (f);
+  DWORD dwStyle = GetWindowLong (hwnd, GWL_STYLE);
+  Lisp_Object border_width = Fcdr (Fassq (Qborder_width, f->param_alist));
+
+  block_input ();
+  if (!NILP (new_value) && !FRAME_UNDECORATED (f))
+    {
+      dwStyle = ((dwStyle & ~WS_THICKFRAME & ~WS_CAPTION)
+		 | ((NUMBERP (border_width) && (XINT (border_width) > 0))
+		    ? WS_BORDER : false));
+      SetWindowLong (hwnd, GWL_STYLE, dwStyle);
+      SetWindowPos (hwnd, HWND_TOP, 0, 0, 0, 0,
+		    SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+		    | SWP_FRAMECHANGED);
+      FRAME_UNDECORATED (f) = true;
+    }
+  else if (NILP (new_value) && FRAME_UNDECORATED (f))
+    {
+      SetWindowLong (hwnd, GWL_STYLE, dwStyle | WS_THICKFRAME | WS_CAPTION
+		     | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU);
+      SetWindowPos (hwnd, HWND_TOP, 0, 0, 0, 0,
+		    SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+		    | SWP_FRAMECHANGED);
+      FRAME_UNDECORATED (f) = false;
+    }
+  unblock_input ();
+}
+
+/**
+ * x_set_parent_frame:
+ *
+ * Set frame F's `parent-frame' parameter.  If non-nil, make F a child
+ * frame of the frame specified by that parameter.  Technically, this
+ * makes F's window-system window a child window of the parent frame's
+ * window-system window.  If nil, make F's window-system window a
+ * top-level window--a child of its display's root window.
+ *
+ * A child frame is clipped at the native edges of its parent frame.
+ * Its `left' and `top' parameters specify positions relative to the
+ * top-left corner of its parent frame's native rectangle.  Usually,
+ * moving a parent frame moves all its child frames too, keeping their
+ * position relative to the parent unaltered.  When a parent frame is
+ * iconified or made invisible, its child frames are made invisible.
+ * When a parent frame is deleted, its child frames are deleted too.
+ *
+ * A visible child frame always appears on top of its parent frame thus
+ * obscuring parts of it.  When a frame has more than one child frame,
+ * their stacking order is specified just as that of non-child frames
+ * relative to their display.
+ *
+ * Whether a child frame has a menu or tool bar may be window-system or
+ * window manager dependent.  It's advisable to disable both via the
+ * frame parameter settings.
+ *
+ * Some window managers may not honor this parameter.
+ */
+static void
+x_set_parent_frame (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  struct frame *p = NULL;
+
+  if (!NILP (new_value)
+      && (!FRAMEP (new_value)
+	  || !FRAME_LIVE_P (p = XFRAME (new_value))
+	  || !FRAME_W32_P (p)))
+    {
+      store_frame_param (f, Qparent_frame, old_value);
+      error ("Invalid specification of `parent-frame'");
+    }
+
+  if (p != FRAME_PARENT_FRAME (f))
+    {
+      HWND hwnd = FRAME_W32_WINDOW (f);
+      HWND hwnd_parent = p ? FRAME_W32_WINDOW (p) : NULL;
+      HWND hwnd_value;
+
+      block_input ();
+      hwnd_value = SetParent (hwnd, hwnd_parent);
+      unblock_input ();
+
+      if (hwnd_value)
+	fset_parent_frame (f, new_value);
+      else
+	{
+	  store_frame_param (f, Qparent_frame, old_value);
+	  error ("Reparenting frame failed");
+	}
+    }
+}
+
+/**
+ * x_set_skip_taskbar:
+ *
+ * Set frame F's `skip-taskbar' parameter.  If non-nil, this should
+ * remove F's icon from the taskbar associated with the display of F's
+ * window-system window and inhibit switching to F's window via
+ * <Alt>-<TAB>.  On Windows iconifying F will "roll in" its window at
+ * the bottom of the desktop.  If nil, lift these restrictions.
+ *
+ * Some window managers may not honor this parameter.
+ */
+static void
+x_set_skip_taskbar (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  if (!EQ (new_value, old_value))
+    {
+      HWND hwnd = FRAME_W32_WINDOW (f);
+      DWORD exStyle = GetWindowLong (hwnd, GWL_EXSTYLE);
+
+      block_input ();
+      /* Temporarily hide the window while changing its WS_EX_NOACTIVATE
+	 setting.  */
+      ShowWindow (hwnd, SW_HIDE);
+      if (!NILP (new_value))
+	SetWindowLong (hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE);
+      else
+	SetWindowLong (hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_NOACTIVATE);
+      ShowWindow (hwnd, SW_SHOWNOACTIVATE);
+      unblock_input ();
+
+      FRAME_SKIP_TASKBAR (f) = !NILP (new_value);
+    }
+}
+
+/**
+ * x_set_no_focus_on_map:
+ *
+ * Set frame F's `no-focus-on-map' parameter which, if non-nil, means
+ * that F's window-system window does not want to receive input focus
+ * when it is mapped.  (A frame's window is mapped when the frame is
+ * displayed for the first time and when the frame changes its state
+ * from `iconified' or `invisible' to `visible'.)
+ *
+ * Some window managers may not honor this parameter.
+ */
+static void
+x_set_no_focus_on_map (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  if (!EQ (new_value, old_value))
+    FRAME_NO_FOCUS_ON_MAP (f) = !NILP (new_value);
+}
+
+/**
+ * x_set_no_accept_focus:
+ *
+ * Set frame F's `no-accept-focus' parameter which, if non-nil, hints
+ * that F's window-system window does not want to receive input focus
+ * via mouse clicks or by moving the mouse into it.
+ *
+ * If non-nil, this may have the unwanted side-effect that a user cannot
+ * scroll a non-selected frame with the mouse.
+ *
+ * Some window managers may not honor this parameter.
+ */
+static void
+x_set_no_accept_focus (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  if (!EQ (new_value, old_value))
+    FRAME_NO_ACCEPT_FOCUS (f) = !NILP (new_value);
+}
+
+/**
+ * x_set_z_group:
+ *
+ * Set frame F's `z-group' parameter.  If `above', F's window-system
+ * window is displayed above all windows that do not have the `above'
+ * property set.  If nil, F's window is shown below all windows that
+ * have the `above' property set and above all windows that have the
+ * `below' property set.  If `below', F's window is displayed below all
+ * windows that do not have the `below' property set.
+ *
+ * Some window managers may not honor this parameter.  The value `below'
+ * is not supported on Windows.
+ */
+static void
+x_set_z_group (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  HWND hwnd = FRAME_W32_WINDOW (f);
+
+  if (NILP (new_value))
+    {
+      block_input ();
+      SetWindowPos (hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+		    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+		    | SWP_NOOWNERZORDER);
+      unblock_input ();
+      FRAME_Z_GROUP (f) = z_group_none;
+    }
+  else if (EQ (new_value, Qabove))
+    {
+      block_input ();
+      SetWindowPos (hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+		    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+		    | SWP_NOOWNERZORDER);
+      unblock_input ();
+      FRAME_Z_GROUP (f) = z_group_above;
+    }
+  else if (EQ (new_value, Qabove_suspended))
+    {
+      block_input ();
+      SetWindowPos (hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+		    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+		    | SWP_NOOWNERZORDER);
+      unblock_input ();
+      FRAME_Z_GROUP (f) = z_group_above_suspended;
+    }
+  else if (EQ (new_value, Qbelow))
+    error ("Value `below' for z-group is not supported on Windows");
+  else
+    error ("Invalid z-group specification");
+}
 
 /* Subroutines for creating a frame.  */
+
+Cursor w32_load_cursor (LPCTSTR);
 
 Cursor
 w32_load_cursor (LPCTSTR name)
@@ -1984,7 +2288,12 @@ w32_init_class (HINSTANCE hinst)
 static HWND
 w32_createvscrollbar (struct frame *f, struct scroll_bar * bar)
 {
-  return CreateWindow ("SCROLLBAR", "", SBS_VERT | WS_CHILD | WS_VISIBLE,
+  return CreateWindow ("SCROLLBAR", "",
+		       /* Clip siblings so we don't draw over child
+			  frames.  Apparently this is not always
+			  sufficient so we also try to make bar windows
+			  bottommost.  */
+		       SBS_VERT | WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
 		       /* Position and size of scroll bar.  */
 		       bar->left, bar->top, bar->width, bar->height,
 		       FRAME_W32_WINDOW (f), NULL, hinst, NULL);
@@ -1993,7 +2302,12 @@ w32_createvscrollbar (struct frame *f, struct scroll_bar * bar)
 static HWND
 w32_createhscrollbar (struct frame *f, struct scroll_bar * bar)
 {
-  return CreateWindow ("SCROLLBAR", "", SBS_HORZ | WS_CHILD | WS_VISIBLE,
+  return CreateWindow ("SCROLLBAR", "",
+		       /* Clip siblings so we don't draw over child
+			  frames.  Apparently this is not always
+			  sufficient so we also try to make bar windows
+			  bottommost.  */
+		       SBS_HORZ | WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
 		       /* Position and size of scroll bar.  */
 		       bar->left, bar->top, bar->width, bar->height,
 		       FRAME_W32_WINDOW (f), NULL, hinst, NULL);
@@ -2002,20 +2316,52 @@ w32_createhscrollbar (struct frame *f, struct scroll_bar * bar)
 static void
 w32_createwindow (struct frame *f, int *coords)
 {
-  HWND hwnd;
+  HWND hwnd = NULL, parent_hwnd = NULL;
   RECT rect;
-  int top;
-  int left;
+  int top, left;
+  Lisp_Object border_width = Fcdr (Fassq (Qborder_width, f->param_alist));
+
+  if (FRAME_PARENT_FRAME (f) && FRAME_W32_P (FRAME_PARENT_FRAME (f)))
+    {
+      parent_hwnd = FRAME_W32_WINDOW (FRAME_PARENT_FRAME (f));
+      f->output_data.w32->dwStyle = WS_CHILD | WS_CLIPSIBLINGS;
+
+      if (FRAME_UNDECORATED (f))
+	{
+	  /* If we want a thin border, specify it here.  */
+	  if (NUMBERP (border_width) && (XINT (border_width) > 0))
+	    f->output_data.w32->dwStyle |= WS_BORDER;
+	}
+      else
+	/* To decorate a child frame, list all needed elements.  */
+	f->output_data.w32->dwStyle |= (WS_THICKFRAME | WS_CAPTION
+					| WS_MAXIMIZEBOX | WS_MINIMIZEBOX
+					| WS_SYSMENU);
+    }
+  else if (FRAME_UNDECORATED (f))
+    {
+      /* All attempts to start with ~WS_OVERLAPPEDWINDOW or overlapped
+	 with all other style elements negated failed here.  */
+      f->output_data.w32->dwStyle = WS_POPUP;
+
+      /* If we want a thin border, specify it here.  */
+      if (NUMBERP (border_width) && (XINT (border_width) > 0))
+	f->output_data.w32->dwStyle |= WS_BORDER;
+    }
+  else
+    f->output_data.w32->dwStyle = WS_OVERLAPPEDWINDOW;
+
+  /* Always clip children.  */
+  f->output_data.w32->dwStyle |= WS_CLIPCHILDREN;
 
   rect.left = rect.top = 0;
   rect.right = FRAME_PIXEL_WIDTH (f);
   rect.bottom = FRAME_PIXEL_HEIGHT (f);
 
   AdjustWindowRect (&rect, f->output_data.w32->dwStyle,
-		    FRAME_EXTERNAL_MENU_BAR (f));
+		    FRAME_EXTERNAL_MENU_BAR (f) && !parent_hwnd);
 
   /* Do first time app init */
-
   w32_init_class (hinst);
 
   if (f->size_hint_flags & USPosition || f->size_hint_flags & PPosition)
@@ -2030,18 +2376,16 @@ w32_createwindow (struct frame *f, int *coords)
     }
 
   FRAME_W32_WINDOW (f) = hwnd
-    = CreateWindow (EMACS_CLASS,
-		    f->namebuf,
-		    f->output_data.w32->dwStyle | WS_CLIPCHILDREN,
-		    left, top,
-		    rect.right - rect.left, rect.bottom - rect.top,
-		    NULL,
-		    NULL,
-		    hinst,
-		    NULL);
+    = CreateWindow (EMACS_CLASS, f->namebuf, f->output_data.w32->dwStyle,
+		    left, top, rect.right - rect.left, rect.bottom - rect.top,
+		    parent_hwnd, NULL, hinst, NULL);
 
   if (hwnd)
     {
+      if (FRAME_SKIP_TASKBAR (f))
+	SetWindowLong (hwnd, GWL_EXSTYLE,
+		       GetWindowLong (hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE);
+
       SetWindowLong (hwnd, WND_FONTWIDTH_INDEX, FRAME_COLUMN_WIDTH (f));
       SetWindowLong (hwnd, WND_LINEHEIGHT_INDEX, FRAME_LINE_HEIGHT (f));
       SetWindowLong (hwnd, WND_BORDER_INDEX, FRAME_INTERNAL_BORDER_WIDTH (f));
@@ -2057,6 +2401,12 @@ w32_createwindow (struct frame *f, int *coords)
 
       /* Update frame positions. */
       GetWindowRect (hwnd, &rect);
+
+      if (parent_hwnd)
+	/* For a child window we have to get its coordinates wrt its
+	   parent.  */
+	MapWindowPoints (HWND_DESKTOP, parent_hwnd, (LPPOINT) &rect, 2);
+
       f->left_pos = rect.left;
       f->top_pos = rect.top;
     }
@@ -2072,6 +2422,365 @@ my_post_msg (W32Msg * wmsg, HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
   wmsg->msg.time = GetMessageTime ();
 
   post_msg (wmsg);
+}
+
+#ifdef WINDOWSNT
+/* The Windows keyboard hook callback.  */
+static LRESULT CALLBACK
+funhook (int code, WPARAM w, LPARAM l)
+{
+  INPUT inputs[2];
+  HWND focus = GetFocus ();
+  int console = 0;
+  KBDLLHOOKSTRUCT const *hs = (KBDLLHOOKSTRUCT*)l;
+
+  if (code < 0 || (hs->flags & LLKHF_INJECTED))
+    return CallNextHookEx (0, code, w, l);
+
+  /* The keyboard hook sees keyboard input on all processes (except
+     elevated ones, when Emacs itself is not elevated).  As such,
+     care must be taken to only filter out keyboard input when Emacs
+     itself is on the foreground.
+
+     GetFocus returns a non-NULL window if another application is active,
+     and always for a console Emacs process.  For a console Emacs, determine
+     focus by checking if the current foreground window is the process's
+     console window.  */
+  if (focus == NULL && kbdhook.console != NULL)
+    {
+      if (GetForegroundWindow () == kbdhook.console)
+	{
+	  focus = kbdhook.console;
+	  console = 1;
+	}
+    }
+
+  /* First, check hooks for the left and right Windows keys.  */
+  if (hs->vkCode == VK_LWIN || hs->vkCode == VK_RWIN)
+    {
+      if (focus != NULL && (w == WM_KEYDOWN || w == WM_SYSKEYDOWN))
+	{
+	  /* The key is being pressed in an Emacs window.  */
+	  if (hs->vkCode == VK_LWIN && !kbdhook.lwindown)
+	    {
+	      kbdhook.lwindown = 1;
+	      kbdhook.winseen = 1;
+	      kbdhook.winsdown++;
+	    }
+	  else if (hs->vkCode == VK_RWIN && !kbdhook.rwindown)
+	    {
+	      kbdhook.rwindown = 1;
+	      kbdhook.winseen = 1;
+	      kbdhook.winsdown++;
+	    }
+	  /* Returning 1 here drops the keypress without further processing.
+	     If the keypress was allowed to go through, the normal Windows
+	     hotkeys would take over.  */
+	  return 1;
+	}
+      else if (kbdhook.winsdown > 0 && (w == WM_KEYUP || w == WM_SYSKEYUP))
+	{
+	  /* A key that has been captured earlier is being released now.  */
+	  if (hs->vkCode == VK_LWIN && kbdhook.lwindown)
+	    {
+	      kbdhook.lwindown = 0;
+	      kbdhook.winsdown--;
+	    }
+	  else if (hs->vkCode == VK_RWIN && kbdhook.rwindown)
+	    {
+	      kbdhook.rwindown = 0;
+	      kbdhook.winsdown--;
+	    }
+	  if (kbdhook.winsdown == 0 && kbdhook.winseen)
+	    {
+	      if (!kbdhook.suppress_lone)
+	        {
+		  /* The Windows key was pressed, then released,
+		     without any other key pressed simultaneously.
+		     Normally, this opens the Start menu, but the user
+		     can prevent this by setting the
+		     w32-pass-[lr]window-to-system variable to
+		     NIL.  */
+		  if ((hs->vkCode == VK_LWIN && !NILP (Vw32_pass_lwindow_to_system)) ||
+		      (hs->vkCode == VK_RWIN && !NILP (Vw32_pass_rwindow_to_system)))
+		    {
+		      /* Not prevented - Simulate the keypress to the system.  */
+		      memset (inputs, 0, sizeof (inputs));
+		      inputs[0].type = INPUT_KEYBOARD;
+		      inputs[0].ki.wVk = hs->vkCode;
+		      inputs[0].ki.wScan = hs->vkCode;
+		      inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+		      inputs[0].ki.time = 0;
+		      inputs[1].type = INPUT_KEYBOARD;
+		      inputs[1].ki.wVk = hs->vkCode;
+		      inputs[1].ki.wScan = hs->vkCode;
+		      inputs[1].ki.dwFlags
+			= KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP;
+		      inputs[1].ki.time = 0;
+		      SendInput (2, inputs, sizeof (INPUT));
+		    }
+		  else if (focus != NULL)
+		    {
+		      /* When not passed to system, must simulate privately to Emacs.	 */
+		      PostMessage (focus, WM_SYSKEYDOWN, hs->vkCode, 0);
+		      PostMessage (focus, WM_SYSKEYUP, hs->vkCode, 0);
+		    }
+		}
+	    }
+	  if (kbdhook.winsdown == 0)
+	    {
+	      /* No Windows keys pressed anymore - clear the state flags.  */
+	      kbdhook.suppress_lone = 0;
+	      kbdhook.winseen = 0;
+	    }
+	  if (!kbdhook.send_win_up)
+	    {
+	      /* Swallow this release message, as not to confuse
+		 applications who did not get to see the original
+		 WM_KEYDOWN message either.  */
+	      return 1;
+	    }
+	  kbdhook.send_win_up = 0;
+	}
+    }
+  else if (kbdhook.winsdown > 0)
+    {
+      /* Some other key was pressed while a captured Win key is down.
+	 This is either an Emacs registered hotkey combination, or a
+	 system hotkey.	 */
+      if ((kbdhook.lwindown && kbdhook.lwin_hooked[hs->vkCode]) ||
+	  (kbdhook.rwindown && kbdhook.rwin_hooked[hs->vkCode]))
+	{
+	  /* Hooked Win-x combination, do not pass the keypress to Windows.  */
+	  kbdhook.suppress_lone = 1;
+	}
+      else if (!kbdhook.suppress_lone)
+	{
+	  /* Unhooked S-x combination; simulate the combination now
+	     (will be seen by the system).  */
+	  memset (inputs, 0, sizeof (inputs));
+	  inputs[0].type = INPUT_KEYBOARD;
+	  inputs[0].ki.wVk = kbdhook.lwindown ? VK_LWIN : VK_RWIN;
+	  inputs[0].ki.wScan = kbdhook.lwindown ? VK_LWIN : VK_RWIN;
+	  inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+	  inputs[0].ki.time = 0;
+	  inputs[1].type = INPUT_KEYBOARD;
+	  inputs[1].ki.wVk = hs->vkCode;
+	  inputs[1].ki.wScan = hs->scanCode;
+	  inputs[1].ki.dwFlags =
+	    (hs->flags & LLKHF_EXTENDED) ? KEYEVENTF_EXTENDEDKEY : 0;
+	  inputs[1].ki.time = 0;
+	  SendInput (2, inputs, sizeof (INPUT));
+	  /* Stop processing of this Win sequence here; the
+	     corresponding keyup messages will come through the normal
+	     channel when the keys are released.  */
+	  kbdhook.suppress_lone = 1;
+	  kbdhook.send_win_up = 1;
+	  /* Swallow the original keypress (as we want the Win key
+	     down message simulated above to precede this real message).  */
+	  return 1;
+	}
+    }
+
+  /* Next, handle the registered Alt-* combinations.  */
+  if ((w == WM_SYSKEYDOWN || w == WM_KEYDOWN)
+      && kbdhook.alt_hooked[hs->vkCode]
+      && focus != NULL
+      && (GetAsyncKeyState (VK_MENU) & 0x8000))
+    {
+      /* Prevent the system from getting this Alt-* key - suppress the
+	 message and post as a normal keypress to Emacs.  */
+      if (console)
+	{
+	  INPUT_RECORD rec;
+	  DWORD n;
+	  rec.EventType = KEY_EVENT;
+	  rec.Event.KeyEvent.bKeyDown = TRUE;
+	  rec.Event.KeyEvent.wVirtualKeyCode = hs->vkCode;
+	  rec.Event.KeyEvent.wVirtualScanCode = hs->scanCode;
+	  rec.Event.KeyEvent.uChar.UnicodeChar = 0;
+	  rec.Event.KeyEvent.dwControlKeyState =
+	    ((GetAsyncKeyState (VK_LMENU) & 0x8000) ? LEFT_ALT_PRESSED : 0)
+	    | ((GetAsyncKeyState (VK_RMENU) & 0x8000) ? RIGHT_ALT_PRESSED : 0)
+	    | ((GetAsyncKeyState (VK_LCONTROL) & 0x8000) ? LEFT_CTRL_PRESSED : 0)
+	    | ((GetAsyncKeyState (VK_RCONTROL) & 0x8000) ? RIGHT_CTRL_PRESSED : 0)
+	    | ((GetAsyncKeyState (VK_SHIFT) & 0x8000) ? SHIFT_PRESSED : 0)
+	    | ((hs->flags & LLKHF_EXTENDED) ? ENHANCED_KEY : 0);
+	  if (w32_console_unicode_input)
+	    WriteConsoleInputW (keyboard_handle, &rec, 1, &n);
+	  else
+	    WriteConsoleInputA (keyboard_handle, &rec, 1, &n);
+	}
+      else
+	PostMessage (focus, w, hs->vkCode, 1 | (1<<29));
+      return 1;
+    }
+
+  /* The normal case - pass the message through.  */
+  return CallNextHookEx (0, code, w, l);
+}
+
+/* Set up the hook; can be called several times, with matching
+   remove_w32_kbdhook calls.  */
+void
+setup_w32_kbdhook (void)
+{
+  kbdhook.hook_count++;
+
+  /* This hook gets in the way of debugging, since when Emacs stops,
+     its input thread stops, and there's nothing to process keyboard
+     events, whereas this hook is global, and is invoked in the
+     context of the thread that installed it.  So we don't install the
+     hook if the process is being debugged. */
+  if (w32_kbdhook_active)
+    {
+      IsDebuggerPresent_Proc is_debugger_present = (IsDebuggerPresent_Proc)
+	GetProcAddress (GetModuleHandle ("kernel32.dll"), "IsDebuggerPresent");
+      if (is_debugger_present && is_debugger_present ())
+	return;
+    }
+
+  /* Hooking is only available on NT architecture systems, as
+     indicated by the w32_kbdhook_active variable.  */
+  if (kbdhook.hook_count == 1 && w32_kbdhook_active)
+    {
+      /* Get the handle of the Emacs console window.  As the
+	 GetConsoleWindow function is only available on Win2000+, a
+	 hackish workaround described in Microsoft KB article 124103
+	 (https://support.microsoft.com/en-us/kb/124103) is used for
+	 NT 4 systems.  */
+      GetConsoleWindow_Proc get_console = (GetConsoleWindow_Proc)
+	GetProcAddress (GetModuleHandle ("kernel32.dll"), "GetConsoleWindow");
+
+      if (get_console != NULL)
+	kbdhook.console = get_console ();
+      else
+        {
+	  GUID guid;
+	  wchar_t *oldTitle = malloc (1024 * sizeof(wchar_t));
+	  wchar_t newTitle[64];
+	  int i;
+
+	  CoCreateGuid (&guid);
+	  StringFromGUID2 (&guid, newTitle, 64);
+	  if (newTitle != NULL)
+	    {
+	      GetConsoleTitleW (oldTitle, 1024);
+	      SetConsoleTitleW (newTitle);
+	      for (i = 0; i < 25; i++)
+	        {
+		  Sleep (40);
+		  kbdhook.console = FindWindowW (NULL, newTitle);
+		  if (kbdhook.console != NULL)
+		    break;
+		}
+	      SetConsoleTitleW (oldTitle);
+	    }
+	  free (oldTitle);
+	}
+
+      /* Set the hook.  */
+      kbdhook.hook = SetWindowsHookEx (WH_KEYBOARD_LL, funhook,
+				       GetModuleHandle (NULL), 0);
+    }
+}
+
+/* Remove the hook.  */
+void
+remove_w32_kbdhook (void)
+{
+  kbdhook.hook_count--;
+  if (kbdhook.hook_count == 0 && w32_kbdhook_active)
+    {
+      UnhookWindowsHookEx (kbdhook.hook);
+      kbdhook.hook = NULL;
+    }
+}
+#endif	/* WINDOWSNT */
+
+/* Mark a specific key combination as hooked, preventing it to be
+   handled by the system.  */
+static void
+hook_w32_key (int hook, int modifier, int vkey)
+{
+  char *tbl = NULL;
+
+  switch (modifier)
+    {
+    case VK_MENU:
+      tbl = kbdhook.alt_hooked;
+      break;
+    case VK_LWIN:
+      tbl = kbdhook.lwin_hooked;
+      break;
+    case VK_RWIN:
+      tbl = kbdhook.rwin_hooked;
+      break;
+    }
+
+  if (tbl != NULL && vkey >= 0 && vkey <= 255)
+    {
+       /* VK_ANY hooks all keys for this modifier */
+       if (vkey == VK_ANY)
+	 memset (tbl, (char)hook, 256);
+       else
+	 tbl[vkey] = (char)hook;
+       /* Alt-<modifier>s should go through */
+       kbdhook.alt_hooked[VK_MENU] = 0;
+       kbdhook.alt_hooked[VK_LMENU] = 0;
+       kbdhook.alt_hooked[VK_RMENU] = 0;
+       kbdhook.alt_hooked[VK_CONTROL] = 0;
+       kbdhook.alt_hooked[VK_LCONTROL] = 0;
+       kbdhook.alt_hooked[VK_RCONTROL] = 0;
+       kbdhook.alt_hooked[VK_SHIFT] = 0;
+       kbdhook.alt_hooked[VK_LSHIFT] = 0;
+       kbdhook.alt_hooked[VK_RSHIFT] = 0;
+    }
+}
+
+#ifdef WINDOWSNT
+/* Check the current Win key pressed state.  */
+int
+check_w32_winkey_state (int vkey)
+{
+  /* The hook code handles grabbing of the Windows keys and Alt-* key
+     combinations reserved by the system.  Handling Alt is a bit
+     easier, as Windows intends Alt-* shortcuts for application use in
+     Windows; hotkeys such as Alt-tab and Alt-escape are special
+     cases.  Win-* hotkeys, on the other hand, are primarily meant for
+     system use.
+
+     As a result, when we want Emacs to be able to grab the Win-*
+     keys, we must swallow all Win key presses in a low-level keyboard
+     hook.  Unfortunately, this means that the Emacs window procedure
+     (and console input handler) never see the keypresses either.
+     Thus, to check the modifier states properly, Emacs code must use
+     the check_w32_winkey_state function that uses the flags directly
+     updated by the hook callback.  */
+  switch (vkey)
+    {
+    case VK_LWIN:
+      return kbdhook.lwindown;
+    case VK_RWIN:
+      return kbdhook.rwindown;
+    }
+  return 0;
+}
+#endif	/* WINDOWSNT */
+
+/* Reset the keyboard hook state.  Locking the workstation with Win-L
+   leaves the Win key(s) "down" from the hook's point of view - the
+   keyup event is never seen.  Thus, this function must be called when
+   the system is locked.  */
+static void
+reset_w32_kbdhook_state (void)
+{
+  kbdhook.lwindown = 0;
+  kbdhook.rwindown = 0;
+  kbdhook.winsdown = 0;
+  kbdhook.send_win_up = 0;
+  kbdhook.suppress_lone = 0;
+  kbdhook.winseen = 0;
 }
 
 /* GetKeyState and MapVirtualKey on Windows 95 do not actually distinguish
@@ -2248,6 +2957,10 @@ modifier_set (int vkey)
       else
 	return (GetKeyState (vkey) & 0x1);
     }
+#ifdef WINDOWSNT
+  if (w32_kbdhook_active && (vkey == VK_LWIN || vkey == VK_RWIN))
+    return check_w32_winkey_state (vkey);
+#endif
 
   if (!modifiers_recorded)
     return (GetKeyState (vkey) & 0x8000);
@@ -2268,6 +2981,7 @@ modifier_set (int vkey)
 
 /* Convert between the modifier bits W32 uses and the modifier bits
    Emacs uses.  */
+unsigned int w32_key_to_modifier (int);
 
 unsigned int
 w32_key_to_modifier (int key)
@@ -2366,6 +3080,8 @@ w32_get_key_modifiers (unsigned int wparam, unsigned int lparam)
   return mods;
 }
 
+unsigned int map_keypad_keys (unsigned int, unsigned int);
+
 unsigned int
 map_keypad_keys (unsigned int virt_key, unsigned int extended)
 {
@@ -2390,7 +3106,9 @@ map_keypad_keys (unsigned int virt_key, unsigned int extended)
 /* List of special key combinations which w32 would normally capture,
    but Emacs should grab instead.  Not directly visible to lisp, to
    simplify synchronization.  Each item is an integer encoding a virtual
-   key code and modifier combination to capture.  */
+   key code and modifier combination to capture.
+   Note: This code is not used if keyboard hooks are active
+   (Windows 2000 and later).  */
 static Lisp_Object w32_grabbed_keys;
 
 #define HOTKEY(vk, mods)      make_number (((vk) & 255) | ((mods) << 8))
@@ -2736,6 +3454,8 @@ cancel_all_deferred_msgs (void)
   PostThreadMessage (dwWindowsThreadId, WM_NULL, 0, 0);
 }
 
+DWORD WINAPI w32_msg_worker (void *);
+
 DWORD WINAPI
 w32_msg_worker (void *arg)
 {
@@ -2767,18 +3487,9 @@ signal_user_input (void)
   if (!NILP (Vthrow_on_input))
     {
       Vquit_flag = Vthrow_on_input;
-      /* Doing a QUIT from this thread is a bad idea, since this
+      /* Calling maybe_quit from this thread is a bad idea, since this
 	 unwinds the stack of the Lisp thread, and the Windows runtime
-	 rightfully barfs.  Disabled.  */
-#if 0
-      /* If we're inside a function that wants immediate quits,
-	 do it now.  */
-      if (immediate_quit && NILP (Vinhibit_quit))
-	{
-	  immediate_quit = 0;
-	  QUIT;
-	}
-#endif
+	 rightfully barfs.  */
     }
 }
 
@@ -2954,7 +3665,7 @@ get_wm_chars (HWND aWnd, int *buf, int buflen, int ignore_ctrl, int ctrl,
    Be ready to treat the case when this delivers WM_(SYS)DEADCHAR. */
 static int after_deadkey = -1;
 
-int
+static int
 deliver_wm_chars (int do_translate, HWND hwnd, UINT msg, UINT wParam,
 		  UINT lParam, int legacy_alt_meta)
 {
@@ -2998,7 +3709,7 @@ deliver_wm_chars (int do_translate, HWND hwnd, UINT msg, UINT wParam,
       W32Msg wmsg;
       DWORD console_modifiers = construct_console_modifiers ();
       int *b = buf, strip_ExtraMods = 1, hairy = 0;
-      char *type_CtrlAlt = NULL;
+      const char *type_CtrlAlt = NULL;
 
       /*  XXXX In fact, there may be another case when we need to do the same:
 	       What happens if the string defined in the LIGATURES has length
@@ -3476,7 +4187,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       switch (wParam)
 	{
 	case VK_LWIN:
-	  if (NILP (Vw32_pass_lwindow_to_system))
+	  if (!w32_kbdhook_active && NILP (Vw32_pass_lwindow_to_system))
 	    {
 	      /* Prevent system from acting on keyup (which opens the
 		 Start menu if no other key was pressed) by simulating a
@@ -3495,7 +4206,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	    return 0;
 	  break;
 	case VK_RWIN:
-	  if (NILP (Vw32_pass_rwindow_to_system))
+	  if (!w32_kbdhook_active && NILP (Vw32_pass_rwindow_to_system))
 	    {
 	      if (GetAsyncKeyState (wParam) & 1)
 		{
@@ -3702,8 +4413,8 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	  TranslateMessage (&windows_msg);
 	  goto dflt;
 	}
-
       /* Fall through */
+      FALLTHROUGH;
 
     case WM_SYSCHAR:
     case WM_CHAR:
@@ -3966,6 +4677,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       if (w32_pass_extra_mouse_buttons_to_system)
 	goto dflt;
       /* else fall through and process them.  */
+      FALLTHROUGH;
     case WM_MBUTTONDOWN:
     case WM_MBUTTONUP:
     handle_plain_button:
@@ -3990,6 +4702,22 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	      button_state |= button;
 	  }
       }
+
+      if (f && (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN
+		|| msg == WM_MBUTTONDOWN ||msg == WM_XBUTTONDOWN)
+	  && !FRAME_NO_ACCEPT_FOCUS (f))
+	/* When clicking into a child frame or when clicking into a
+	   parent frame with the child frame selected and
+	   `no-accept-focus' is not set, select the clicked frame.  */
+	{
+	  struct frame *p = FRAME_PARENT_FRAME (XFRAME (selected_frame));
+
+	  if (FRAME_PARENT_FRAME (f) || f == p)
+	    {
+	      SetFocus (hwnd);
+	      SetWindowPos (hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+	    }
+	}
 
       wmsg.dwModifiers = w32_get_modifiers ();
       my_post_msg (&wmsg, hwnd, msg, wParam, lParam);
@@ -4055,6 +4783,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	  track_mouse_event_fn (&tme);
 	  track_mouse_window = hwnd;
 	}
+      FALLTHROUGH;
     case WM_HSCROLL:
     case WM_VSCROLL:
       if (w32_mouse_move_interval <= 0
@@ -4096,6 +4825,11 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       if (w32_pass_multimedia_buttons_to_system)
 	goto dflt;
       /* Otherwise, pass to lisp, the same way we do with mousehwheel.  */
+      FALLTHROUGH;
+
+      /* FIXME!!!  This is never reached so what's the purpose?  If the
+	 non-zero return remark below is right we're doing it wrong all
+	 the time.  */
     case WM_MOUSEHWHEEL:
       wmsg.dwModifiers = w32_get_modifiers ();
       my_post_msg (&wmsg, hwnd, msg, wParam, lParam);
@@ -4322,23 +5056,39 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	}
       return 0;
 
-#if 0
+    case WM_MOUSEACTIVATE:
+      /* WM_MOUSEACTIVATE is the only way on Windows to implement the
+	 `no-accept-focus' frame parameter.  This means that one can't
+	 use the mouse to scroll a window on a non-selected frame.  */
+
       /* Still not right - can't distinguish between clicks in the
 	 client area of the frame from clicks forwarded from the scroll
 	 bars - may have to hook WM_NCHITTEST to remember the mouse
-	 position and then check if it is in the client area ourselves.  */
-    case WM_MOUSEACTIVATE:
+	 position and then check if it is in the client area
+	 ourselves.  */
+
       /* Discard the mouse click that activates a frame, allowing the
 	 user to click anywhere without changing point (or worse!).
 	 Don't eat mouse clicks on scrollbars though!!  */
-      if (LOWORD (lParam) == HTCLIENT )
-	return MA_ACTIVATEANDEAT;
+
+      if ((f = x_window_to_frame (dpyinfo, hwnd))
+	  && FRAME_NO_ACCEPT_FOCUS (f)
+	  /* Ignore child frames, they don't accept focus anyway.  */
+	  && !FRAME_PARENT_FRAME (f))
+	{
+	  Lisp_Object frame;
+
+	  XSETFRAME (frame, f);
+	  if (!EQ (selected_frame, frame))
+	    /* Don't discard the message, GTK doesn't either.  */
+	    return MA_NOACTIVATE; /* ANDEAT; */
+	}
       goto dflt;
-#endif
 
     case WM_MOUSELEAVE:
       /* No longer tracking mouse.  */
       track_mouse_window = NULL;
+      FALLTHROUGH;
 
     case WM_ACTIVATEAPP:
     case WM_ACTIVATE:
@@ -4352,10 +5102,12 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_SETFOCUS:
       dpyinfo->faked_key = 0;
       reset_modifiers ();
-      register_hot_keys (hwnd);
+      if (!w32_kbdhook_active)
+	register_hot_keys (hwnd);
       goto command;
     case WM_KILLFOCUS:
-      unregister_hot_keys (hwnd);
+      if (!w32_kbdhook_active)
+	unregister_hot_keys (hwnd);
       button_state = 0;
       ReleaseCapture ();
       /* Relinquish the system caret.  */
@@ -4377,6 +5129,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	      menu_free_timer = 0;
 	    }
 	}
+      FALLTHROUGH;
     case WM_MOVE:
     case WM_SIZE:
     command:
@@ -4384,14 +5137,38 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       my_post_msg (&wmsg, hwnd, msg, wParam, lParam);
       goto dflt;
 
+#ifdef WINDOWSNT
+    case WM_CREATE:
+      setup_w32_kbdhook ();
+      goto dflt;
+#endif
+
     case WM_DESTROY:
+#ifdef WINDOWSNT
+      remove_w32_kbdhook ();
+#endif
       CoUninitialize ();
       return 0;
+
+    case WM_WTSSESSION_CHANGE:
+      if (wParam == WTS_SESSION_LOCK)
+        reset_w32_kbdhook_state ();
+      goto dflt;
 
     case WM_CLOSE:
       wmsg.dwModifiers = w32_get_modifiers ();
       my_post_msg (&wmsg, hwnd, msg, wParam, lParam);
       return 0;
+
+    case WM_ENDSESSION:
+      my_post_msg (&wmsg, hwnd, msg, wParam, lParam);
+      /* Allow time for Emacs to attempt an orderly shutdown.  If we
+         return, the process will be terminated immediately.  FIXME:
+         1000 seconds is too long to sleep if the shutdown attempt
+         fails (see bug#25875).  But if it fails, we want to find out
+         about it, so let's leave 1000 for now.  */
+      sleep (1000);
+      FALLTHROUGH;
 
     case WM_WINDOWPOSCHANGING:
       /* Don't restrict the sizing of any kind of frames.  If the window
@@ -4487,6 +5264,10 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	if (foreground_thread)
 	  AttachThreadInput (GetCurrentThreadId (),
 			     foreground_thread, FALSE);
+
+	/* SetFocus to give/remove focus to/from a child window.  */
+	if (msg == WM_EMACS_SETFOREGROUND)
+	  SetFocus ((HWND) wParam);
 
 	return retval;
       }
@@ -4719,7 +5500,8 @@ w32_window (struct frame *f, long window_prompting, bool minibuffer_only)
 
   unblock_input ();
 
-  if (!minibuffer_only && FRAME_EXTERNAL_MENU_BAR (f))
+  if (!minibuffer_only && FRAME_EXTERNAL_MENU_BAR (f)
+      && !FRAME_PARENT_FRAME (f))
     initialize_frame_menubar (f);
 
   if (FRAME_W32_WINDOW (f) == 0)
@@ -4860,7 +5642,7 @@ x_default_font_parameter (struct frame *f, Lisp_Object parms)
   if (!STRINGP (font))
     {
       int i;
-      static char *names[]
+      static const char *names[]
 	= { "Courier New-10",
 	    "-*-Courier-normal-r-*-*-13-*-*-*-c-*-iso8859-1",
 	    "-*-Fixedsys-normal-r-*-*-12-*-*-*-c-*-iso8859-1",
@@ -4880,7 +5662,8 @@ x_default_font_parameter (struct frame *f, Lisp_Object parms)
     {
       /* Remember the explicit font parameter, so we can re-apply it after
 	 we've applied the `default' face settings.  */
-      x_set_frame_parameters (f, Fcons (Fcons (Qfont_param, font_param), Qnil));
+      x_set_frame_parameters (f, Fcons (Fcons (Qfont_parameter, font_param),
+					Qnil));
     }
   x_default_parameter (f, parms, Qfont, font, "font", "Font", RES_TYPE_STRING);
 }
@@ -4906,7 +5689,7 @@ This function is an internal primitive--use `make-frame' instead.  */)
   ptrdiff_t count = SPECPDL_INDEX ();
   Lisp_Object display;
   struct w32_display_info *dpyinfo = NULL;
-  Lisp_Object parent;
+  Lisp_Object parent, parent_frame;
   struct kboard *kb;
   int x_width = 0, x_height = 0;
 
@@ -4943,10 +5726,11 @@ This function is an internal primitive--use `make-frame' instead.  */)
     Vx_resource_name = name;
 
   /* See if parent window is specified.  */
-  parent = x_get_arg (dpyinfo, parameters, Qparent_id, NULL, NULL, RES_TYPE_NUMBER);
+  parent = x_get_arg (dpyinfo, parameters, Qparent_id, NULL, NULL,
+		      RES_TYPE_NUMBER);
   if (EQ (parent, Qunbound))
     parent = Qnil;
-  if (! NILP (parent))
+  else if (!NILP (parent))
     CHECK_NUMBER (parent);
 
   /* make_frame_without_minibuffer can run Lisp code and garbage collect.  */
@@ -4968,6 +5752,31 @@ This function is an internal primitive--use `make-frame' instead.  */)
     f = make_frame (true);
 
   XSETFRAME (frame, f);
+
+  parent_frame = x_get_arg (dpyinfo, parameters, Qparent_frame, NULL, NULL,
+			    RES_TYPE_SYMBOL);
+  /* Apply `parent-frame' parameter only when no `parent-id' was
+     specified.  */
+  if (!NILP (parent_frame)
+      && (!NILP (parent)
+	  || !FRAMEP (parent_frame)
+	  || !FRAME_LIVE_P (XFRAME (parent_frame))
+	  || !FRAME_W32_P (XFRAME (parent_frame))))
+    parent_frame = Qnil;
+
+  fset_parent_frame (f, parent_frame);
+  store_frame_param (f, Qparent_frame, parent_frame);
+
+  tem = x_get_arg (dpyinfo, parameters, Qundecorated, NULL, NULL,
+		   RES_TYPE_BOOLEAN);
+  FRAME_UNDECORATED (f) = !NILP (tem) && !EQ (tem, Qunbound);
+  store_frame_param (f, Qundecorated, FRAME_UNDECORATED (f) ? Qt : Qnil);
+
+  tem = x_get_arg (dpyinfo, parameters, Qskip_taskbar, NULL, NULL,
+		   RES_TYPE_BOOLEAN);
+  FRAME_SKIP_TASKBAR (f) = !NILP (tem) && !EQ (tem, Qunbound);
+  store_frame_param (f, Qskip_taskbar,
+		     (NILP (tem) || EQ (tem, Qunbound)) ? Qnil : Qt);
 
   /* By default, make scrollbars the system standard width and height. */
   FRAME_CONFIG_SCROLL_BAR_WIDTH (f) = GetSystemMetrics (SM_CXVSCROLL);
@@ -4996,7 +5805,9 @@ This function is an internal primitive--use `make-frame' instead.  */)
   dpyinfo_refcount = dpyinfo->reference_count;
 #endif /* GLYPH_DEBUG */
 
-  /* Specify the parent under which to make this window.  */
+  /* Specify the parent under which to make this window - this seems to
+     have no effect on Windows because parent_desc is explicitly reset
+     below.  */
   if (!NILP (parent))
     {
       /* Cast to UINT_PTR shuts up compiler warnings about cast to
@@ -5080,23 +5891,44 @@ This function is an internal primitive--use `make-frame' instead.  */)
 		       "leftFringe", "LeftFringe", RES_TYPE_NUMBER);
   x_default_parameter (f, parameters, Qright_fringe, Qnil,
 		       "rightFringe", "RightFringe", RES_TYPE_NUMBER);
-  /* Process alpha here (Bug#16619).  */
-  x_default_parameter (f, parameters, Qalpha, Qnil,
-		       "alpha", "Alpha", RES_TYPE_NUMBER);
+  x_default_parameter (f, parameters, Qno_focus_on_map, Qnil,
+		       NULL, NULL, RES_TYPE_BOOLEAN);
+  x_default_parameter (f, parameters, Qno_accept_focus, Qnil,
+		       NULL, NULL, RES_TYPE_BOOLEAN);
+  x_default_parameter (f, parameters, Qno_special_glyphs, Qnil,
+		       NULL, NULL, RES_TYPE_BOOLEAN);
+
+  /* Process alpha here (Bug#16619).  On XP this fails with child
+     frames.  For `no-focus-on-map' frames delay processing of alpha
+     until the frame becomes visible.  */
+  if (!FRAME_NO_FOCUS_ON_MAP (f))
+    x_default_parameter (f, parameters, Qalpha, Qnil,
+			 "alpha", "Alpha", RES_TYPE_NUMBER);
 
   /* Init faces first since we need the frame's column width/line
      height in various occasions.  */
   init_frame_faces (f);
 
-  /* The following call of change_frame_size is needed since otherwise
+  /* We have to call adjust_frame_size here since otherwise
      x_set_tool_bar_lines will already work with the character sizes
-     installed by init_frame_faces while the frame's pixel size is
-     still calculated from a character size of 1 and we subsequently
-     hit the (height >= 0) assertion in window_box_height.
+     installed by init_frame_faces while the frame's pixel size is still
+     calculated from a character size of 1 and we subsequently hit the
+     (height >= 0) assertion in window_box_height.
 
      The non-pixelwise code apparently worked around this because it
      had one frame line vs one toolbar line which left us with a zero
-     root window height which was obviously wrong as well ...  */
+     root window height which was obviously wrong as well ...
+
+     Also process `min-width' and `min-height' parameters right here
+     because `frame-windows-min-size' needs them.  */
+  tem = x_get_arg (dpyinfo, parameters, Qmin_width, NULL, NULL,
+		   RES_TYPE_NUMBER);
+  if (NUMBERP (tem))
+    store_frame_param (f, Qmin_width, tem);
+  tem = x_get_arg (dpyinfo, parameters, Qmin_height, NULL, NULL,
+		   RES_TYPE_NUMBER);
+  if (NUMBERP (tem))
+    store_frame_param (f, Qmin_height, tem);
   adjust_frame_size (f, FRAME_COLS (f) * FRAME_COLUMN_WIDTH (f),
 		     FRAME_LINES (f) * FRAME_LINE_HEIGHT (f), 5, true,
 		     Qx_create_frame_1);
@@ -5104,10 +5936,17 @@ This function is an internal primitive--use `make-frame' instead.  */)
   /* The X resources controlling the menu-bar and tool-bar are
      processed specially at startup, and reflected in the mode
      variables; ignore them here.  */
-  x_default_parameter (f, parameters, Qmenu_bar_lines,
-		       NILP (Vmenu_bar_mode)
-		       ? make_number (0) : make_number (1),
-		       NULL, NULL, RES_TYPE_NUMBER);
+  if (NILP (parent_frame))
+    {
+      x_default_parameter (f, parameters, Qmenu_bar_lines,
+			   NILP (Vmenu_bar_mode)
+			   ? make_number (0) : make_number (1),
+			   NULL, NULL, RES_TYPE_NUMBER);
+    }
+  else
+    /* No menu bar for child frames.  */
+    store_frame_param (f, Qmenu_bar_lines, make_number (0));
+
   x_default_parameter (f, parameters, Qtool_bar_lines,
 		       NILP (Vtool_bar_mode)
 		       ? make_number (0) : make_number (1),
@@ -5118,9 +5957,7 @@ This function is an internal primitive--use `make-frame' instead.  */)
   x_default_parameter (f, parameters, Qtitle, Qnil,
 		       "title", "Title", RES_TYPE_STRING);
 
-  f->output_data.w32->dwStyle = WS_OVERLAPPEDWINDOW;
   f->output_data.w32->parent_desc = FRAME_DISPLAY_INFO (f)->root_window;
-
   f->output_data.w32->text_cursor = w32_load_cursor (IDC_IBEAM);
   f->output_data.w32->nontext_cursor = w32_load_cursor (IDC_ARROW);
   f->output_data.w32->modeline_cursor = w32_load_cursor (IDC_ARROW);
@@ -5128,6 +5965,14 @@ This function is an internal primitive--use `make-frame' instead.  */)
   f->output_data.w32->hourglass_cursor = w32_load_cursor (IDC_WAIT);
   f->output_data.w32->horizontal_drag_cursor = w32_load_cursor (IDC_SIZEWE);
   f->output_data.w32->vertical_drag_cursor = w32_load_cursor (IDC_SIZENS);
+  f->output_data.w32->left_edge_cursor = w32_load_cursor (IDC_SIZEWE);
+  f->output_data.w32->top_left_corner_cursor = w32_load_cursor (IDC_SIZENWSE);
+  f->output_data.w32->top_edge_cursor = w32_load_cursor (IDC_SIZENS);
+  f->output_data.w32->top_right_corner_cursor = w32_load_cursor (IDC_SIZENESW);
+  f->output_data.w32->right_edge_cursor = w32_load_cursor (IDC_SIZEWE);
+  f->output_data.w32->bottom_right_corner_cursor = w32_load_cursor (IDC_SIZENWSE);
+  f->output_data.w32->bottom_edge_cursor = w32_load_cursor (IDC_SIZENS);
+  f->output_data.w32->bottom_left_corner_cursor = w32_load_cursor (IDC_SIZENESW);
 
   f->output_data.w32->current_cursor = f->output_data.w32->nontext_cursor;
 
@@ -5185,26 +6030,35 @@ This function is an internal primitive--use `make-frame' instead.  */)
      adjust_frame_size call.  */
   x_default_parameter (f, parameters, Qfullscreen, Qnil,
 		       "fullscreen", "Fullscreen", RES_TYPE_SYMBOL);
+  x_default_parameter (f, parameters, Qz_group, Qnil,
+		       NULL, NULL, RES_TYPE_SYMBOL);
 
   /* Make the window appear on the frame and enable display, unless
      the caller says not to.  However, with explicit parent, Emacs
      cannot control visibility, so don't try.  */
-  if (! f->output_data.w32->explicit_parent)
+  if (!f->output_data.w32->explicit_parent)
     {
-      Lisp_Object visibility;
-
-      visibility = x_get_arg (dpyinfo, parameters, Qvisibility, 0, 0, RES_TYPE_SYMBOL);
-      if (EQ (visibility, Qunbound))
-	visibility = Qt;
+      Lisp_Object visibility
+	= x_get_arg (dpyinfo, parameters, Qvisibility, 0, 0, RES_TYPE_SYMBOL);
 
       if (EQ (visibility, Qicon))
 	x_iconify_frame (f);
-      else if (! NILP (visibility))
-	x_make_frame_visible (f);
       else
-	/* Must have been Qnil.  */
-	;
+	{
+	  if (EQ (visibility, Qunbound))
+	    visibility = Qt;
+
+	  if (!NILP (visibility))
+	    x_make_frame_visible (f);
+	}
+
+      store_frame_param (f, Qvisibility, visibility);
     }
+
+  /* For `no-focus-on-map' frames set alpha here.  */
+  if (FRAME_NO_FOCUS_ON_MAP (f))
+    x_default_parameter (f, parameters, Qalpha, Qnil,
+			 "alpha", "Alpha", RES_TYPE_NUMBER);
 
   /* Initialize `default-minibuffer-frame' in case this is the first
      frame on this terminal.  */
@@ -5746,11 +6600,13 @@ SOUND is nil to use the normal beep.  */)
   return sound;
 }
 
+#if 0	/* unused */
 int
 x_screen_planes (register struct frame *f)
 {
   return FRAME_DISPLAY_INFO (f)->n_planes;
 }
+#endif
 
 /* Return the display structure for the display named NAME.
    Open a new connection if necessary.  */
@@ -6056,8 +6912,6 @@ no value of TYPE (always string in the MS Windows case).  */)
 				Tool tips
  ***********************************************************************/
 
-static Lisp_Object x_create_tip_frame (struct w32_display_info *,
-				       Lisp_Object, Lisp_Object);
 static void compute_tip_xy (struct frame *, Lisp_Object, Lisp_Object,
 			    Lisp_Object, int, int, int *, int *);
 
@@ -6092,8 +6946,7 @@ unwind_create_tip_frame (Lisp_Object frame)
 
 
 /* Create a frame for a tooltip on the display described by DPYINFO.
-   PARMS is a list of frame parameters.  TEXT is the string to
-   display in the tip frame.  Value is the frame.
+   PARMS is a list of frame parameters.  Value is the frame.
 
    Note that functions called here, esp. x_default_parameter can
    signal errors, for instance when a specified color name is
@@ -6101,8 +6954,7 @@ unwind_create_tip_frame (Lisp_Object frame)
    when this happens.  */
 
 static Lisp_Object
-x_create_tip_frame (struct w32_display_info *dpyinfo,
-		    Lisp_Object parms, Lisp_Object text)
+x_create_tip_frame (struct w32_display_info *dpyinfo, Lisp_Object parms)
 {
   struct frame *f;
   Lisp_Object frame;
@@ -6111,8 +6963,6 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
   ptrdiff_t count = SPECPDL_INDEX ();
   struct kboard *kb;
   bool face_change_before = face_change;
-  Lisp_Object buffer;
-  struct buffer *old_buffer;
   int x_width = 0, x_height = 0;
 
   /* Use this general default value to start with until we know if
@@ -6136,22 +6986,8 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
   frame = Qnil;
   /* Make a frame without minibuffer nor mode-line.  */
   f = make_frame (false);
-  f->wants_modeline = 0;
+  f->wants_modeline = false;
   XSETFRAME (frame, f);
-
-  AUTO_STRING (tip, " *tip*");
-  buffer = Fget_buffer_create (tip);
-  /* Use set_window_buffer instead of Fset_window_buffer (see
-     discussion of bug#11984, bug#12025, bug#12026).  */
-  set_window_buffer (FRAME_ROOT_WINDOW (f), buffer, false, false);
-  old_buffer = current_buffer;
-  set_buffer_internal_1 (XBUFFER (buffer));
-  bset_truncate_lines (current_buffer, Qnil);
-  specbind (Qinhibit_read_only, Qt);
-  specbind (Qinhibit_modification_hooks, Qt);
-  Ferase_buffer ();
-  Finsert (1, &text);
-  set_buffer_internal_1 (old_buffer);
 
   record_unwind_protect (unwind_create_tip_frame, frame);
 
@@ -6172,8 +7008,6 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
   dpyinfo_refcount = dpyinfo->reference_count;
 #endif /* GLYPH_DEBUG */
   FRAME_KBOARD (f) = kb;
-  f->output_data.w32->parent_desc = FRAME_DISPLAY_INFO (f)->root_window;
-  f->output_data.w32->explicit_parent = false;
 
   /* Set the name; the functions to which we pass f expect the name to
      be set.  */
@@ -6186,7 +7020,7 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
     {
       fset_name (f, name);
       f->explicit_name = true;
-      /* use the frame's title when getting resources for this frame.  */
+      /* Use the frame's title when getting resources for this frame.  */
       specbind (Qx_resource_name, name);
     }
 
@@ -6216,14 +7050,10 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
 	parms = Fcons (Fcons (Qinternal_border_width, value),
 		       parms);
     }
+
   x_default_parameter (f, parms, Qinternal_border_width, make_number (1),
 		       "internalBorderWidth", "internalBorderWidth",
 		       RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qright_divider_width, make_number (0),
-		       NULL, NULL, RES_TYPE_NUMBER);
-  x_default_parameter (f, parms, Qbottom_divider_width, make_number (0),
-		       NULL, NULL, RES_TYPE_NUMBER);
-
   /* Also do the stuff which must be set before the window exists.  */
   x_default_parameter (f, parms, Qforeground_color, build_string ("black"),
 		       "foreground", "Foreground", RES_TYPE_STRING);
@@ -6235,6 +7065,8 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
 		       "cursorColor", "Foreground", RES_TYPE_STRING);
   x_default_parameter (f, parms, Qborder_color, build_string ("black"),
 		       "borderColor", "BorderColor", RES_TYPE_STRING);
+  x_default_parameter (f, parms, Qno_special_glyphs, Qt,
+		       NULL, NULL, RES_TYPE_BOOLEAN);
 
   /* Init faces before x_default_parameter is called for the
      scroll-bar-width parameter because otherwise we end up in
@@ -6243,6 +7075,7 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
 
   f->output_data.w32->dwStyle = WS_BORDER | WS_POPUP | WS_DISABLED;
   f->output_data.w32->parent_desc = FRAME_DISPLAY_INFO (f)->root_window;
+  f->output_data.w32->explicit_parent = false;
 
   x_figure_window_size (f, parms, true, &x_width, &x_height);
 
@@ -6250,6 +7083,9 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
   f->fringe_cols = 0;
   f->left_fringe_width = 0;
   f->right_fringe_width = 0;
+  /* No dividers on tip frame.  */
+  f->right_divider_width = 0;
+  f->bottom_divider_width = 0;
 
   block_input ();
   my_create_tip_window (f);
@@ -6276,7 +7112,6 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
   SET_FRAME_LINES (f, 0);
   adjust_frame_size (f, width * FRAME_COLUMN_WIDTH (f),
 		     height * FRAME_LINE_HEIGHT (f), 0, true, Qtip_frame);
-
   /* Add `tooltip' frame parameter's default value. */
   if (NILP (Fframe_parameter (frame, Qtooltip)))
     Fmodify_frame_parameters (frame, Fcons (Fcons (Qtooltip, Qt), Qnil));
@@ -6294,8 +7129,6 @@ x_create_tip_frame (struct w32_display_info *dpyinfo,
     Lisp_Object fg = Fframe_parameter (frame, Qforeground_color);
     Lisp_Object colors = Qnil;
 
-    /* Set tip_frame here, so that */
-    tip_frame = frame;
     call2 (Qface_set_after_frame_default, frame, Qnil);
 
     if (!EQ (bg, Fframe_parameter (frame, Qbackground_color)))
@@ -6344,7 +7177,7 @@ compute_tip_xy (struct frame *f,
 		int width, int height, int *root_x, int *root_y)
 {
   Lisp_Object left, top, right, bottom;
-  int min_x, min_y, max_x, max_y;
+  int min_x = 0, min_y = 0, max_x = 0, max_y = 0;
 
   /* User-specified position?  */
   left = Fcdr (Fassq (Qleft, parms));
@@ -6427,6 +7260,48 @@ compute_tip_xy (struct frame *f,
     *root_x = min_x;
 }
 
+/* Hide tooltip.  Delete its frame if DELETE is true.  */
+static Lisp_Object
+x_hide_tip (bool delete)
+{
+  if (!NILP (tip_timer))
+    {
+      call1 (Qcancel_timer, tip_timer);
+      tip_timer = Qnil;
+    }
+
+  if (NILP (tip_frame)
+      || (!delete && FRAMEP (tip_frame)
+	  && !FRAME_VISIBLE_P (XFRAME (tip_frame))))
+    return Qnil;
+  else
+    {
+      ptrdiff_t count;
+      Lisp_Object was_open = Qnil;
+
+      count = SPECPDL_INDEX ();
+      specbind (Qinhibit_redisplay, Qt);
+      specbind (Qinhibit_quit, Qt);
+
+      if (FRAMEP (tip_frame))
+	{
+	  if (delete)
+	    {
+	      delete_frame (tip_frame, Qnil);
+	      tip_frame = Qnil;
+	    }
+	  else
+	    x_make_frame_invisible (XFRAME (tip_frame));
+
+	  was_open = Qt;
+	}
+      else
+	tip_frame = Qnil;
+
+      return unbind_to (count, was_open);
+    }
+}
+
 
 DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
        doc: /* Show STRING in a \"tooltip\" window on frame FRAME.
@@ -6460,20 +7335,22 @@ A tooltip's maximum size is specified by `x-max-tooltip-size'.
 Text larger than the specified size is clipped.  */)
   (Lisp_Object string, Lisp_Object frame, Lisp_Object parms, Lisp_Object timeout, Lisp_Object dx, Lisp_Object dy)
 {
-  struct frame *f;
+  struct frame *tip_f;
   struct window *w;
   int root_x, root_y;
   struct buffer *old_buffer;
   struct text_pos pos;
-  int i, width, height;
-  bool seen_reversed_p;
+  int width, height;
   int old_windows_or_buffers_changed = windows_or_buffers_changed;
   ptrdiff_t count = SPECPDL_INDEX ();
+  ptrdiff_t count_1;
+  Lisp_Object window, size;
+  AUTO_STRING (tip, " *tip*");
 
   specbind (Qinhibit_redisplay, Qt);
 
   CHECK_STRING (string);
-  f = decode_window_system_frame (frame);
+  decode_window_system_frame (frame);
   if (NILP (timeout))
     timeout = make_number (5);
   else
@@ -6492,91 +7369,155 @@ Text larger than the specified size is clipped.  */)
   if (NILP (last_show_tip_args))
     last_show_tip_args = Fmake_vector (make_number (3), Qnil);
 
-  if (!NILP (tip_frame))
+  if (FRAMEP (tip_frame) && FRAME_LIVE_P (XFRAME (tip_frame)))
     {
       Lisp_Object last_string = AREF (last_show_tip_args, 0);
       Lisp_Object last_frame = AREF (last_show_tip_args, 1);
       Lisp_Object last_parms = AREF (last_show_tip_args, 2);
 
-      if (EQ (frame, last_frame)
-	  && !NILP (Fequal (last_string, string))
+      if (FRAME_VISIBLE_P (XFRAME (tip_frame))
+	  && EQ (frame, last_frame)
+	  && !NILP (Fequal_including_properties (last_string, string))
 	  && !NILP (Fequal (last_parms, parms)))
 	{
-	  struct frame *f = XFRAME (tip_frame);
-
 	  /* Only DX and DY have changed.  */
+	  tip_f = XFRAME (tip_frame);
 	  if (!NILP (tip_timer))
 	    {
 	      Lisp_Object timer = tip_timer;
+
 	      tip_timer = Qnil;
 	      call1 (Qcancel_timer, timer);
 	    }
 
 	  block_input ();
-	  compute_tip_xy (f, parms, dx, dy, FRAME_PIXEL_WIDTH (f),
-			  FRAME_PIXEL_HEIGHT (f), &root_x, &root_y);
+	  compute_tip_xy (tip_f, parms, dx, dy, FRAME_PIXEL_WIDTH (tip_f),
+			  FRAME_PIXEL_HEIGHT (tip_f), &root_x, &root_y);
 
 	  /* Put tooltip in topmost group and in position.  */
-	  SetWindowPos (FRAME_W32_WINDOW (f), HWND_TOPMOST,
+	  SetWindowPos (FRAME_W32_WINDOW (tip_f), HWND_TOPMOST,
 			root_x, root_y, 0, 0,
 			SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 
 	  /* Ensure tooltip is on top of other topmost windows (eg menus).  */
-	  SetWindowPos (FRAME_W32_WINDOW (f), HWND_TOP,
+	  SetWindowPos (FRAME_W32_WINDOW (tip_f), HWND_TOP,
 			0, 0, 0, 0,
 			SWP_NOMOVE | SWP_NOSIZE
 			| SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 
+	  /* Let redisplay know that we have made the frame visible already.  */
+	  SET_FRAME_VISIBLE (tip_f, 1);
+	  ShowWindow (FRAME_W32_WINDOW (tip_f), SW_SHOWNOACTIVATE);
 	  unblock_input ();
+
 	  goto start_timer;
 	}
-    }
+      else if (tooltip_reuse_hidden_frame && EQ (frame, last_frame))
+	{
+	  bool delete = false;
+	  Lisp_Object tail, elt, parm, last;
 
-  /* Hide a previous tip, if any.  */
-  Fx_hide_tip ();
+	  /* Check if every parameter in PARMS has the same value in
+	     last_parms.  This may destruct last_parms which, however,
+	     will be recreated below.  */
+	  for (tail = parms; CONSP (tail); tail = XCDR (tail))
+	    {
+	      elt = XCAR (tail);
+	      parm = Fcar (elt);
+	      /* The left, top, right and bottom parameters are handled
+		 by compute_tip_xy so they can be ignored here.  */
+	      if (!EQ (parm, Qleft) && !EQ (parm, Qtop)
+		  && !EQ (parm, Qright) && !EQ (parm, Qbottom))
+		{
+		  last = Fassq (parm, last_parms);
+		  if (NILP (Fequal (Fcdr (elt), Fcdr (last))))
+		    {
+		      /* We lost, delete the old tooltip.  */
+		      delete = true;
+		      break;
+		    }
+		  else
+		    last_parms = call2 (Qassq_delete_all, parm, last_parms);
+		}
+	      else
+		last_parms = call2 (Qassq_delete_all, parm, last_parms);
+	    }
+
+	  /* Now check if there's a parameter left in last_parms with a
+	     non-nil value.  */
+	  for (tail = last_parms; CONSP (tail); tail = XCDR (tail))
+	    {
+	      elt = XCAR (tail);
+	      parm = Fcar (elt);
+	      if (!EQ (parm, Qleft) && !EQ (parm, Qtop) && !EQ (parm, Qright)
+		  && !EQ (parm, Qbottom) && !NILP (Fcdr (elt)))
+		{
+		  /* We lost, delete the old tooltip.  */
+		  delete = true;
+		  break;
+		}
+	    }
+
+	  x_hide_tip (delete);
+	}
+      else
+	x_hide_tip (true);
+    }
+  else
+    x_hide_tip (true);
 
   ASET (last_show_tip_args, 0, string);
   ASET (last_show_tip_args, 1, frame);
   ASET (last_show_tip_args, 2, parms);
 
-  /* Add default values to frame parameters.  */
-  if (NILP (Fassq (Qname, parms)))
-    parms = Fcons (Fcons (Qname, build_string ("tooltip")), parms);
-  if (NILP (Fassq (Qinternal_border_width, parms)))
-    parms = Fcons (Fcons (Qinternal_border_width, make_number (3)), parms);
-  if (NILP (Fassq (Qright_divider_width, parms)))
-    parms = Fcons (Fcons (Qright_divider_width, make_number (0)), parms);
-  if (NILP (Fassq (Qbottom_divider_width, parms)))
-    parms = Fcons (Fcons (Qbottom_divider_width, make_number (0)), parms);
-  if (NILP (Fassq (Qborder_width, parms)))
-    parms = Fcons (Fcons (Qborder_width, make_number (1)), parms);
-  if (NILP (Fassq (Qborder_color, parms)))
-    parms = Fcons (Fcons (Qborder_color, build_string ("lightyellow")), parms);
-  if (NILP (Fassq (Qbackground_color, parms)))
-    parms = Fcons (Fcons (Qbackground_color, build_string ("lightyellow")),
-		   parms);
-
   /* Block input until the tip has been fully drawn, to avoid crashes
      when drawing tips in menus.  */
   block_input ();
 
-  /* Create a frame for the tooltip, and record it in the global
-     variable tip_frame.  */
-  frame = x_create_tip_frame (FRAME_DISPLAY_INFO (f), parms, string);
-  f = XFRAME (frame);
+  if (!FRAMEP (tip_frame) || !FRAME_LIVE_P (XFRAME (tip_frame)))
+    {
+      /* Add default values to frame parameters.  */
+      if (NILP (Fassq (Qname, parms)))
+	parms = Fcons (Fcons (Qname, build_string ("tooltip")), parms);
+      if (NILP (Fassq (Qinternal_border_width, parms)))
+	parms = Fcons (Fcons (Qinternal_border_width, make_number (3)), parms);
+      if (NILP (Fassq (Qborder_width, parms)))
+	parms = Fcons (Fcons (Qborder_width, make_number (1)), parms);
+      if (NILP (Fassq (Qborder_color, parms)))
+	parms = Fcons (Fcons (Qborder_color, build_string ("lightyellow")), parms);
+      if (NILP (Fassq (Qbackground_color, parms)))
+	parms = Fcons (Fcons (Qbackground_color, build_string ("lightyellow")),
+		       parms);
 
-  /* Set up the frame's root window.  */
-  w = XWINDOW (FRAME_ROOT_WINDOW (f));
+      /* Create a frame for the tooltip, and record it in the global
+	 variable tip_frame.  */
+      struct frame *f;		/* The value is unused.  */
+      if (NILP (tip_frame = x_create_tip_frame (FRAME_DISPLAY_INFO (f), parms)))
+	{
+	  /* Creating the tip frame failed.  */
+	  unblock_input ();
+	  return unbind_to (count, Qnil);
+	}
+    }
+
+  tip_f = XFRAME (tip_frame);
+  window = FRAME_ROOT_WINDOW (tip_f);
+  set_window_buffer (window, Fget_buffer_create (tip), false, false);
+  w = XWINDOW (window);
+  w->pseudo_window_p = true;
+
+  /* Set up the frame's root window.  Note: The following code does not
+     try to size the window or its frame correctly.  Its only purpose is
+     to make the subsequent text size calculations work.  The right
+     sizes should get installed when the toolkit gets back to us.  */
   w->left_col = 0;
   w->top_line = 0;
   w->pixel_left = 0;
   w->pixel_top = 0;
 
   if (CONSP (Vx_max_tooltip_size)
-      && INTEGERP (XCAR (Vx_max_tooltip_size))
-      && XINT (XCAR (Vx_max_tooltip_size)) > 0
-      && INTEGERP (XCDR (Vx_max_tooltip_size))
-      && XINT (XCDR (Vx_max_tooltip_size)) > 0)
+      && RANGED_INTEGERP (1, XCAR (Vx_max_tooltip_size), INT_MAX)
+      && RANGED_INTEGERP (1, XCDR (Vx_max_tooltip_size), INT_MAX))
     {
       w->total_cols = XFASTINT (XCAR (Vx_max_tooltip_size));
       w->total_lines = XFASTINT (XCDR (Vx_max_tooltip_size));
@@ -6587,164 +7528,71 @@ Text larger than the specified size is clipped.  */)
       w->total_lines = 40;
     }
 
-  w->pixel_width = w->total_cols * FRAME_COLUMN_WIDTH (f);
-  w->pixel_height = w->total_lines * FRAME_LINE_HEIGHT (f);
+  w->pixel_width = w->total_cols * FRAME_COLUMN_WIDTH (tip_f);
+  w->pixel_height = w->total_lines * FRAME_LINE_HEIGHT (tip_f);
+  FRAME_TOTAL_COLS (tip_f) = WINDOW_TOTAL_COLS (w);
+  adjust_frame_glyphs (tip_f);
 
-  FRAME_TOTAL_COLS (f) = WINDOW_TOTAL_COLS (w);
-  adjust_frame_glyphs (f);
-  w->pseudo_window_p = true;
-
-  /* Display the tooltip text in a temporary buffer.  */
+  /* Insert STRING into the root window's buffer and fit the frame to
+     the buffer.  */
+  count_1 = SPECPDL_INDEX ();
   old_buffer = current_buffer;
-  set_buffer_internal_1 (XBUFFER (XWINDOW (FRAME_ROOT_WINDOW (f))->contents));
+  set_buffer_internal_1 (XBUFFER (w->contents));
   bset_truncate_lines (current_buffer, Qnil);
+  specbind (Qinhibit_read_only, Qt);
+  specbind (Qinhibit_modification_hooks, Qt);
+  specbind (Qinhibit_point_motion_hooks, Qt);
+  Ferase_buffer ();
+  Finsert (1, &string);
   clear_glyph_matrix (w->desired_matrix);
   clear_glyph_matrix (w->current_matrix);
   SET_TEXT_POS (pos, BEGV, BEGV_BYTE);
-  try_window (FRAME_ROOT_WINDOW (f), pos, TRY_WINDOW_IGNORE_FONTS_CHANGE);
+  try_window (window, pos, TRY_WINDOW_IGNORE_FONTS_CHANGE);
+  /* Calculate size of tooltip window.  */
+  size = Fwindow_text_pixel_size (window, Qnil, Qnil, Qnil,
+				  make_number (w->pixel_height), Qnil);
+  /* Add the frame's internal border to calculated size.  */
+  width = XINT (Fcar (size)) + 2 * FRAME_INTERNAL_BORDER_WIDTH (tip_f);
+  height = XINT (Fcdr (size)) + 2 * FRAME_INTERNAL_BORDER_WIDTH (tip_f);
+  /* Calculate position of tooltip frame.  */
+  compute_tip_xy (tip_f, parms, dx, dy, width, height, &root_x, &root_y);
 
-  /* Compute width and height of the tooltip.  */
-  width = height = 0;
-  seen_reversed_p = false;
-  for (i = 0; i < w->desired_matrix->nrows; ++i)
-    {
-      struct glyph_row *row = &w->desired_matrix->rows[i];
-      struct glyph *last;
-      int row_width;
-
-      /* Stop at the first empty row at the end.  */
-      if (!row->enabled_p || !MATRIX_ROW_DISPLAYS_TEXT_P (row))
-	break;
-
-      /* Let the row go over the full width of the frame.  */
-      row->full_width_p = true;
-
-      row_width = row->pixel_width;
-      if (row->used[TEXT_AREA])
-	{
-	  if (!row->reversed_p)
-	    {
-	      /* There's a glyph at the end of rows that is used to
-		 place the cursor there.  Don't include the width of
-		 this glyph.  */
-	      last = &row->glyphs[TEXT_AREA][row->used[TEXT_AREA] - 1];
-	      if (NILP (last->object))
-		row_width -= last->pixel_width;
-	    }
-	  else
-	    {
-	      /* There could be a stretch glyph at the beginning of R2L
-		 rows that is produced by extend_face_to_end_of_line.
-		 Don't count that glyph.  */
-	      struct glyph *g = row->glyphs[TEXT_AREA];
-
-	      if (g->type == STRETCH_GLYPH && NILP (g->object))
-		{
-		  row_width -= g->pixel_width;
-		  seen_reversed_p = true;
-		}
-	    }
-	}
-
-      height += row->height;
-      width = max (width, row_width);
-    }
-
-  /* If we've seen partial-length R2L rows, we need to re-adjust the
-     tool-tip frame width and redisplay it again, to avoid over-wide
-     tips due to the stretch glyph that extends R2L lines to full
-     width of the frame.  */
-  if (seen_reversed_p)
-    {
-      /* PXW: Why do we do the pixel-to-cols conversion only if
-	 seen_reversed_p holds?  Don't we have to set other fields of
-	 the window/frame structure?
-
-	 w->total_cols and FRAME_TOTAL_COLS want the width in columns,
-	 not in pixels.  */
-      w->pixel_width = width;
-      width /= WINDOW_FRAME_COLUMN_WIDTH (w);
-      w->total_cols = width;
-      FRAME_TOTAL_COLS (f) = width;
-      SET_FRAME_WIDTH (f, width);
-      adjust_frame_glyphs (f);
-      w->pseudo_window_p = 1;
-      clear_glyph_matrix (w->desired_matrix);
-      clear_glyph_matrix (w->current_matrix);
-      try_window (FRAME_ROOT_WINDOW (f), pos, TRY_WINDOW_IGNORE_FONTS_CHANGE);
-      width = height = 0;
-      /* Recompute width and height of the tooltip.  */
-      for (i = 0; i < w->desired_matrix->nrows; ++i)
-	{
-	  struct glyph_row *row = &w->desired_matrix->rows[i];
-	  struct glyph *last;
-	  int row_width;
-
-	  if (!row->enabled_p || !MATRIX_ROW_DISPLAYS_TEXT_P (row))
-	    break;
-	  row->full_width_p = true;
-	  row_width = row->pixel_width;
-	  if (row->used[TEXT_AREA] && !row->reversed_p)
-	    {
-	      last = &row->glyphs[TEXT_AREA][row->used[TEXT_AREA] - 1];
-	      if (NILP (last->object))
-		row_width -= last->pixel_width;
-	    }
-
-	  height += row->height;
-	  width = max (width, row_width);
-	}
-    }
-
-  /* Add the frame's internal border to the width and height the w32
-     window should have.  */
-  height += 2 * FRAME_INTERNAL_BORDER_WIDTH (f);
-  width += 2 * FRAME_INTERNAL_BORDER_WIDTH (f);
-
-  /* Move the tooltip window where the mouse pointer is.  Resize and
-     show it.
-
-     PXW: This should use the frame's pixel coordinates.  */
-  compute_tip_xy (f, parms, dx, dy, width, height, &root_x, &root_y);
-
+  /* Show tooltip frame.  */
   {
-    /* Adjust Window size to take border into account.  */
     RECT rect;
+    int pad = (NUMBERP (Vw32_tooltip_extra_pixels)
+	       ? max (0, XINT (Vw32_tooltip_extra_pixels))
+	       : FRAME_COLUMN_WIDTH (tip_f));
+
     rect.left = rect.top = 0;
     rect.right = width;
     rect.bottom = height;
-    AdjustWindowRect (&rect, f->output_data.w32->dwStyle, false);
+    AdjustWindowRect (&rect, tip_f->output_data.w32->dwStyle,
+		      FRAME_EXTERNAL_MENU_BAR (tip_f));
 
-    /* Position and size tooltip, and put it in the topmost group.
-       The add-on of FRAME_COLUMN_WIDTH to the 5th argument is a
-       peculiarity of w32 display: without it, some fonts cause the
-       last character of the tip to be truncated or wrapped around to
-       the next line.  */
-    SetWindowPos (FRAME_W32_WINDOW (f), HWND_TOPMOST,
+    /* Position and size tooltip and put it in the topmost group.  */
+    SetWindowPos (FRAME_W32_WINDOW (tip_f), HWND_TOPMOST,
 		  root_x, root_y,
-		  rect.right - rect.left + FRAME_COLUMN_WIDTH (f),
+		  rect.right - rect.left + pad,
 		  rect.bottom - rect.top, SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 
     /* Ensure tooltip is on top of other topmost windows (eg menus).  */
-    SetWindowPos (FRAME_W32_WINDOW (f), HWND_TOP,
+    SetWindowPos (FRAME_W32_WINDOW (tip_f), HWND_TOP,
 		  0, 0, 0, 0,
 		  SWP_NOMOVE | SWP_NOSIZE
 		  | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 
     /* Let redisplay know that we have made the frame visible already.  */
-    SET_FRAME_VISIBLE (f, 1);
+    SET_FRAME_VISIBLE (tip_f, 1);
 
-    ShowWindow (FRAME_W32_WINDOW (f), SW_SHOWNOACTIVATE);
+    ShowWindow (FRAME_W32_WINDOW (tip_f), SW_SHOWNOACTIVATE);
   }
 
-  /* Draw into the window.  */
   w->must_be_updated_p = true;
   update_single_window (w);
-
-  unblock_input ();
-
-  /* Restore original current buffer.  */
   set_buffer_internal_1 (old_buffer);
+  unbind_to (count_1, Qnil);
+  unblock_input ();
   windows_or_buffers_changed = old_windows_or_buffers_changed;
 
  start_timer:
@@ -6761,31 +7609,7 @@ DEFUN ("x-hide-tip", Fx_hide_tip, Sx_hide_tip, 0, 0, 0,
 Value is t if tooltip was open, nil otherwise.  */)
   (void)
 {
-  ptrdiff_t count;
-  Lisp_Object deleted, frame, timer;
-
-  /* Return quickly if nothing to do.  */
-  if (NILP (tip_timer) && NILP (tip_frame))
-    return Qnil;
-
-  frame = tip_frame;
-  timer = tip_timer;
-  tip_frame = tip_timer = deleted = Qnil;
-
-  count = SPECPDL_INDEX ();
-  specbind (Qinhibit_redisplay, Qt);
-  specbind (Qinhibit_quit, Qt);
-
-  if (!NILP (timer))
-    call1 (Qcancel_timer, timer);
-
-  if (FRAMEP (frame))
-    {
-      delete_frame (frame, Qnil);
-      deleted = Qt;
-    }
-
-  return unbind_to (count, deleted);
+  return x_hide_tip (!tooltip_reuse_hidden_frame);
 }
 
 /***********************************************************************
@@ -6895,6 +7719,23 @@ file_dialog_callback (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
   return 0;
 }
 
+void
+w32_dialog_in_progress (Lisp_Object in_progress)
+{
+  Lisp_Object frames, frame;
+
+  /* Don't let frames in `above' z-group obscure popups.  */
+  FOR_EACH_FRAME (frames, frame)
+    {
+      struct frame *f = XFRAME (frame);
+
+      if (!NILP (in_progress) && FRAME_Z_GROUP_ABOVE (f))
+	x_set_z_group (f, Qabove_suspended, Qabove);
+      else if (NILP (in_progress) && FRAME_Z_GROUP_ABOVE_SUSPENDED (f))
+	x_set_z_group (f, Qabove, Qabove_suspended);
+    }
+}
+
 DEFUN ("x-file-dialog", Fx_file_dialog, Sx_file_dialog, 2, 5, 0,
        doc: /* Read file name, prompting with PROMPT in directory DIR.
 Use a file selection dialog.  Select DEFAULT-FILENAME in the dialog's file
@@ -6912,7 +7753,9 @@ value of DIR as in previous invocations; this is standard Windows behavior.  */)
 {
   /* Filter index: 1: All Files, 2: Directories only  */
   static const wchar_t filter_w[] = L"All Files (*.*)\0*.*\0Directories\0*|*\0";
+#ifndef NTGUI_UNICODE
   static const char filter_a[] = "All Files (*.*)\0*.*\0Directories\0*|*\0";
+#endif
 
   Lisp_Object filename = default_filename;
   struct frame *f = SELECTED_FRAME ();
@@ -6952,7 +7795,7 @@ value of DIR as in previous invocations; this is standard Windows behavior.  */)
   OPENFILENAMEA * file_details_a = &new_file_details_a.details;
   int use_unicode = w32_unicode_filenames;
   wchar_t *prompt_w;
-  char *prompt_a;
+  char *prompt_a UNINIT;
   int len;
   char fname_ret[MAX_UTF8_PATH];
 #endif /* NTGUI_UNICODE */
@@ -7124,8 +7967,12 @@ value of DIR as in previous invocations; this is standard Windows behavior.  */)
 
     {
       int count = SPECPDL_INDEX ();
+
+      w32_dialog_in_progress (Qt);
+
       /* Prevent redisplay.  */
       specbind (Qinhibit_redisplay, Qt);
+      record_unwind_protect (w32_dialog_in_progress, Qnil);
       block_input ();
       if (use_unicode)
 	{
@@ -7190,7 +8037,7 @@ value of DIR as in previous invocations; this is standard Windows behavior.  */)
 
   /* Make "Cancel" equivalent to C-g.  */
   if (NILP (filename))
-    Fsignal (Qquit, Qnil);
+    quit ();
 
   return filename;
 }
@@ -7653,19 +8500,34 @@ lookup_vk_code (char *key)
 	&& strcmp (lispy_function_keys[i], key) == 0)
       return i;
 
+  if (w32_kbdhook_active)
+    {
+      /* Alphanumerics map to themselves.  */
+      if (key[1] == 0)
+      {
+	if ((key[0] >= 'A' && key[0] <= 'Z')
+	    || (key[0] >= '0' && key[0] <= '9'))
+	  return key[0];
+	if (key[0] >= 'a' && key[0] <= 'z')
+	  return toupper(key[0]);
+      }
+    }
+
   return -1;
 }
 
 /* Convert a one-element vector style key sequence to a hot key
    definition.  */
 static Lisp_Object
-w32_parse_hot_key (Lisp_Object key)
+w32_parse_and_hook_hot_key (Lisp_Object key, int hook)
 {
   /* Copied from Fdefine_key and store_in_keymap.  */
   register Lisp_Object c;
-  int vk_code;
-  int lisp_modifiers;
+  int vk_code = 0;
+  int lisp_modifiers = 0;
   int w32_modifiers;
+  Lisp_Object res = Qnil;
+  char* vkname;
 
   CHECK_VECTOR (key);
 
@@ -7688,7 +8550,12 @@ w32_parse_hot_key (Lisp_Object key)
       c = Fcar (c);
       if (!SYMBOLP (c))
 	emacs_abort ();
-      vk_code = lookup_vk_code (SSDATA (SYMBOL_NAME (c)));
+      vkname = SSDATA (SYMBOL_NAME (c));
+      /* [s-], [M-], [h-]: Register all keys for this modifier */
+      if (w32_kbdhook_active && vkname[0] == 0)
+        vk_code = VK_ANY;
+      else
+        vk_code = lookup_vk_code (vkname);
     }
   else if (INTEGERP (c))
     {
@@ -7712,34 +8579,75 @@ w32_parse_hot_key (Lisp_Object key)
 #define MOD_WIN         0x0008
 #endif
 
-  /* Convert lisp modifiers to Windows hot-key form.  */
-  w32_modifiers  = (lisp_modifiers & hyper_modifier)    ? MOD_WIN : 0;
-  w32_modifiers |= (lisp_modifiers & alt_modifier)      ? MOD_ALT : 0;
-  w32_modifiers |= (lisp_modifiers & ctrl_modifier)     ? MOD_CONTROL : 0;
-  w32_modifiers |= (lisp_modifiers & shift_modifier)    ? MOD_SHIFT : 0;
+  if (w32_kbdhook_active)
+    {
+      /* Register Alt-x combinations.  */
+      if (lisp_modifiers & alt_modifier)
+        {
+          hook_w32_key (hook, VK_MENU, vk_code);
+          res = Qt;
+        }
+      /* Register Win-x combinations based on modifier mappings.  */
+      if (((lisp_modifiers & hyper_modifier)
+	   && EQ (Vw32_lwindow_modifier, Qhyper))
+	  || ((lisp_modifiers & super_modifier)
+	      && EQ (Vw32_lwindow_modifier, Qsuper)))
+        {
+          hook_w32_key (hook, VK_LWIN, vk_code);
+          res = Qt;
+        }
+      if (((lisp_modifiers & hyper_modifier)
+	   && EQ (Vw32_rwindow_modifier, Qhyper))
+	  || ((lisp_modifiers & super_modifier)
+	      && EQ (Vw32_rwindow_modifier, Qsuper)))
+        {
+          hook_w32_key (hook, VK_RWIN, vk_code);
+          res = Qt;
+        }
+      return res;
+    }
+  else
+    {
+      /* Convert lisp modifiers to Windows hot-key form.  */
+      w32_modifiers  = (lisp_modifiers & hyper_modifier)    ? MOD_WIN : 0;
+      w32_modifiers |= (lisp_modifiers & alt_modifier)      ? MOD_ALT : 0;
+      w32_modifiers |= (lisp_modifiers & ctrl_modifier)     ? MOD_CONTROL : 0;
+      w32_modifiers |= (lisp_modifiers & shift_modifier)    ? MOD_SHIFT : 0;
 
-  return HOTKEY (vk_code, w32_modifiers);
+      return HOTKEY (vk_code, w32_modifiers);
+    }
 }
 
 DEFUN ("w32-register-hot-key", Fw32_register_hot_key,
        Sw32_register_hot_key, 1, 1, 0,
        doc: /* Register KEY as a hot-key combination.
-Certain key combinations like Alt-Tab are reserved for system use on
-Windows, and therefore are normally intercepted by the system.  However,
-most of these key combinations can be received by registering them as
-hot-keys, overriding their special meaning.
+Certain key combinations like Alt-Tab and Win-R are reserved for
+system use on Windows, and therefore are normally intercepted by the
+system.  These key combinations can be received by registering them
+as hot-keys, except for Win-L which always locks the computer.
 
-KEY must be a one element key definition in vector form that would be
-acceptable to `define-key' (e.g. [A-tab] for Alt-Tab).  The meta
-modifier is interpreted as Alt if `w32-alt-is-meta' is t, and hyper
-is always interpreted as the Windows modifier keys.
+On Windows 98 and ME, KEY must be a one element key definition in
+vector form that would be acceptable to `define-key' (e.g. [A-tab] for
+Alt-Tab).  The meta modifier is interpreted as Alt if
+`w32-alt-is-meta' is t, and hyper is always interpreted as the Windows
+modifier keys.  The return value is the hotkey-id if registered, otherwise nil.
 
-The return value is the hotkey-id if registered, otherwise nil.  */)
+On Windows versions since NT, KEY can also be specified as [M-], [s-] or
+[h-] to indicate that all combinations of that key should be processed
+by Emacs instead of the operating system.  The super and hyper
+modifiers are interpreted according to the current values of
+`w32-lwindow-modifier' and `w32-rwindow-modifier'.  For instance,
+setting `w32-lwindow-modifier' to `super' and then calling
+`(register-hot-key [s-])' grabs all combinations of the left Windows
+key to Emacs, but leaves the right Windows key free for the operating
+system keyboard shortcuts.  The return value is t if the call affected
+any key combinations, otherwise nil.  */)
   (Lisp_Object key)
 {
-  key = w32_parse_hot_key (key);
+  key = w32_parse_and_hook_hot_key (key, 1);
 
-  if (!NILP (key) && NILP (Fmemq (key, w32_grabbed_keys)))
+  if (!w32_kbdhook_active
+      && !NILP (key) && NILP (Fmemq (key, w32_grabbed_keys)))
     {
       /* Reuse an empty slot if possible.  */
       Lisp_Object item = Fmemq (Qnil, w32_grabbed_keys);
@@ -7767,7 +8675,10 @@ DEFUN ("w32-unregister-hot-key", Fw32_unregister_hot_key,
   Lisp_Object item;
 
   if (!INTEGERP (key))
-    key = w32_parse_hot_key (key);
+    key = w32_parse_and_hook_hot_key (key, 0);
+
+  if (w32_kbdhook_active)
+    return key;
 
   item = Fmemq (key, w32_grabbed_keys);
 
@@ -8007,24 +8918,25 @@ and width values are in pixels.
 		Fcons (Qouter_size,
 		       Fcons (make_number (right - left),
 			      make_number (bottom - top))),
-	   Fcons (Qexternal_border_size,
+		Fcons (Qexternal_border_size,
 		       Fcons (make_number (external_border_width),
 			      make_number (external_border_height))),
 		Fcons (Qtitle_bar_size,
 		       Fcons (make_number (title_bar_width),
 			      make_number (title_bar_height))),
-	   Fcons (Qmenu_bar_external, Qt),
-	   Fcons (Qmenu_bar_size,
-		  Fcons (make_number
-			 (menu_bar.rcBar.right - menu_bar.rcBar.left),
-			 make_number (menu_bar_height))),
-	   Fcons (Qtool_bar_external, Qnil),
+		Fcons (Qmenu_bar_external, Qt),
+		Fcons (Qmenu_bar_size,
+		       Fcons (make_number
+			      (menu_bar.rcBar.right - menu_bar.rcBar.left),
+			      make_number (menu_bar_height))),
+		Fcons (Qtool_bar_external, Qnil),
 		Fcons (Qtool_bar_position, tool_bar_height ? Qtop : Qnil),
-	   Fcons (Qtool_bar_size,
+		Fcons (Qtool_bar_size,
 		       Fcons (make_number
 			      (tool_bar_height
-			       ? right - left - 2 * internal_border_width
-				      : 0),
+			       ? (right - left - 2 * external_border_width
+				  - 2 * internal_border_width)
+			       : 0),
 			      make_number (tool_bar_height))),
 		Fcons (Qinternal_border_width,
 		       make_number (internal_border_width)));
@@ -8056,32 +8968,46 @@ menu bar or tool bar of FRAME.  */)
   if (EQ (type, Qouter_edges))
     {
       RECT rectangle;
+      BOOL success = false;
 
       block_input ();
       /* Outer frame rectangle, including outer borders and title bar. */
-      GetWindowRect (FRAME_W32_WINDOW (f), &rectangle);
+      success = GetWindowRect (FRAME_W32_WINDOW (f), &rectangle);
       unblock_input ();
 
-      return list4 (make_number (rectangle.left),
-		    make_number (rectangle.top),
-		    make_number (rectangle.right),
-		    make_number (rectangle.bottom));
+      if (success)
+	return list4 (make_number (rectangle.left),
+		      make_number (rectangle.top),
+		      make_number (rectangle.right),
+		      make_number (rectangle.bottom));
+      else
+	return Qnil;
     }
   else
     {
       RECT rectangle;
       POINT pt;
       int left, top, right, bottom;
+      BOOL success;
 
       block_input ();
       /* Inner frame rectangle, excluding borders and title bar.  */
-      GetClientRect (FRAME_W32_WINDOW (f), &rectangle);
+      success = GetClientRect (FRAME_W32_WINDOW (f), &rectangle);
       /* Get top-left corner of native rectangle in screen
 	 coordinates.  */
+      if (!success)
+	{
+	  unblock_input ();
+	  return Qnil;
+	}
+
       pt.x = 0;
       pt.y = 0;
-      ClientToScreen (FRAME_W32_WINDOW (f), &pt);
+      success = ClientToScreen (FRAME_W32_WINDOW (f), &pt);
       unblock_input ();
+
+      if (!success)
+	return Qnil;
 
       left = pt.x;
       top = pt.y;
@@ -8102,6 +9028,136 @@ menu bar or tool bar of FRAME.  */)
       else
 	return list4 (make_number (left), make_number (top),
 		      make_number (right), make_number (bottom));
+    }
+}
+
+/**
+ * w32_frame_list_z_order:
+ *
+ * Recursively add list of all frames on the display specified via
+ * DPYINFO and whose window-system window's parent is specified by
+ * WINDOW to FRAMES and return FRAMES.
+ */
+static Lisp_Object
+w32_frame_list_z_order (struct w32_display_info *dpyinfo, HWND window)
+{
+  Lisp_Object frame, frames = Qnil;
+
+  while (window)
+    {
+      struct frame *f = x_window_to_frame (dpyinfo, window);
+
+      if (f)
+	{
+	  XSETFRAME (frame, f);
+	  frames = Fcons (frame, frames);
+	}
+
+      block_input ();
+      window = GetNextWindow (window, GW_HWNDNEXT);
+      unblock_input ();
+    }
+
+  return Fnreverse (frames);
+}
+
+DEFUN ("w32-frame-list-z-order", Fw32_frame_list_z_order,
+       Sw32_frame_list_z_order, 0, 1, 0,
+       doc: /* Return list of Emacs' frames, in Z (stacking) order.
+The optional argument DISPLAY specifies which display to ask about.
+DISPLAY should be either a frame or a display name (a string).  If
+omitted or nil, that stands for the selected frame's display.
+
+As a special case, if DISPLAY is non-nil and specifies a live frame,
+return the child frames of that frame in Z (stacking) order.
+
+Frames are listed from topmost (first) to bottommost (last).  */)
+  (Lisp_Object display)
+{
+  struct w32_display_info *dpyinfo = check_x_display_info (display);
+  HWND window;
+
+  block_input ();
+  if (FRAMEP (display) && FRAME_LIVE_P (XFRAME (display)))
+    window = GetWindow (FRAME_W32_WINDOW (XFRAME (display)), GW_CHILD);
+  else
+    window = GetTopWindow (NULL);
+  unblock_input ();
+
+  return w32_frame_list_z_order (dpyinfo, window);
+}
+
+/**
+ * w32_frame_restack:
+ *
+ * Restack frame F1 below frame F2, above if ABOVE_FLAG is non-nil.  In
+ * practice this is a two-step action: The first step removes F1's
+ * window-system window from the display.  The second step reinserts
+ * F1's window below (above if ABOVE_FLAG is true) that of F2.
+ */
+static void
+w32_frame_restack (struct frame *f1, struct frame *f2, bool above_flag)
+{
+  HWND hwnd1 = FRAME_W32_WINDOW (f1);
+  HWND hwnd2 = FRAME_W32_WINDOW (f2);
+
+  block_input ();
+  if (above_flag)
+    /* Put F1 above F2 in the z-order.  */
+    {
+      if (GetNextWindow (hwnd1, GW_HWNDNEXT) != hwnd2)
+	{
+	  /* Make sure F1 is below F2 first because we must not
+	     change the relative position of F2 wrt any other
+	     window but F1.  */
+	  if (GetNextWindow (hwnd2, GW_HWNDNEXT) != hwnd1)
+	    SetWindowPos (hwnd1, hwnd2, 0, 0, 0, 0,
+			  SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+			  | SWP_FRAMECHANGED);
+	  /* Now put F1 above F2.  */
+	  SetWindowPos (hwnd2, hwnd1, 0, 0, 0, 0,
+			SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+			| SWP_FRAMECHANGED);
+	}
+    }
+  else if (GetNextWindow (hwnd2, GW_HWNDNEXT) != hwnd1)
+    /* Put F1 below F2 in the z-order.  */
+    SetWindowPos (hwnd1, hwnd2, 0, 0, 0, 0,
+		  SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+		  | SWP_FRAMECHANGED);
+  unblock_input ();
+}
+
+DEFUN ("w32-frame-restack", Fw32_frame_restack, Sw32_frame_restack, 2, 3, 0,
+       doc: /* Restack FRAME1 below FRAME2.
+This means that if both frames are visible and the display areas of
+these frames overlap, FRAME2 (partially) obscures FRAME1.  If optional
+third argument ABOVE is non-nil, restack FRAME1 above FRAME2.  This
+means that if both frames are visible and the display areas of these
+frames overlap, FRAME1 (partially) obscures FRAME2.
+
+This may be thought of as an atomic action performed in two steps: The
+first step removes FRAME1's window-system window from the display.  The
+second step reinserts FRAME1's window below (above if ABOVE is true)
+that of FRAME2.  Hence the position of FRAME2 in its display's Z
+\(stacking) order relative to all other frames excluding FRAME1 remains
+unaltered.
+
+Some window managers may refuse to restack windows.  */)
+     (Lisp_Object frame1, Lisp_Object frame2, Lisp_Object above)
+{
+  struct frame *f1 = decode_live_frame (frame1);
+  struct frame *f2 = decode_live_frame (frame2);
+
+  if (FRAME_W32_P (f1) && FRAME_W32_P (f2))
+    {
+      w32_frame_restack (f1, f2, !NILP (above));
+      return Qt;
+    }
+  else
+    {
+      error ("Cannot restack frames");
+      return Qnil;
     }
 }
 
@@ -8229,7 +9285,7 @@ The following %-sequences are provided:
       else
 	{
 	  long m;
-	  float h;
+	  double h;
 	  char buffer[16];
 	  snprintf (buffer, 16, "%ld", seconds_left);
 	  seconds = build_string (buffer);
@@ -8522,7 +9578,7 @@ w32_strerror (int error_no)
       --ret;
   buf[ret] = '\0';
   if (!ret)
-    sprintf (buf, "w32 error %u", error_no);
+    sprintf (buf, "w32 error %d", error_no);
 
   return buf;
 }
@@ -8530,6 +9586,8 @@ w32_strerror (int error_no)
 /* For convenience when debugging.  (You cannot call GetLastError
    directly from GDB: it will crash, because it uses the __stdcall
    calling convention, not the _cdecl convention assumed by GDB.)  */
+DWORD w32_last_error (void);
+
 DWORD
 w32_last_error (void)
 {
@@ -9180,7 +10238,7 @@ usage: (w32-notification-notify &rest PARAMS)  */)
   EMACS_INT retval;
   char *icon, *tip, *title, *msg;
   enum NI_Severity severity;
-  unsigned timeout;
+  unsigned timeout = 0;
 
   if (nargs == 0)
     return Qnil;
@@ -9192,14 +10250,14 @@ usage: (w32-notification-notify &rest PARAMS)  */)
   if (STRINGP (lres))
     icon = SSDATA (ENCODE_FILE (Fexpand_file_name (lres, Qnil)));
   else
-    icon = "";
+    icon = (char *)"";
 
   /* Tip.  */
   lres = Fplist_get (arg_plist, QCtip);
   if (STRINGP (lres))
     tip = SSDATA (code_convert_string_norecord (lres, Qutf_8, 1));
   else
-    tip = "Emacs notification";
+    tip = (char *)"Emacs notification";
 
   /* Severity.  */
   lres = Fplist_get (arg_plist, QClevel);
@@ -9219,14 +10277,14 @@ usage: (w32-notification-notify &rest PARAMS)  */)
   if (STRINGP (lres))
     title = SSDATA (code_convert_string_norecord (lres, Qutf_8, 1));
   else
-    title = "";
+    title = (char *)"";
 
   /* Notification body text.  */
   lres = Fplist_get (arg_plist, QCbody);
   if (STRINGP (lres))
     msg = SSDATA (code_convert_string_norecord (lres, Qutf_8, 1));
   else
-    msg = "";
+    msg = (char *)"";
 
   /* Do it!  */
   retval = add_tray_notification (f, icon, tip, severity, timeout, title, msg);
@@ -9296,6 +10354,15 @@ frame_parm_handler w32_frame_parm_handlers[] =
   x_set_alpha,
   0, /* x_set_sticky */
   0, /* x_set_tool_bar_position */
+  0, /* x_set_inhibit_double_buffering */
+  x_set_undecorated,
+  x_set_parent_frame,
+  x_set_skip_taskbar,
+  x_set_no_focus_on_map,
+  x_set_no_accept_focus,
+  x_set_z_group,
+  0, /* x_set_override_redirect */
+  x_set_no_special_glyphs,
 };
 
 void
@@ -9315,12 +10382,13 @@ syms_of_w32fns (void)
   DEFSYM (Qctrl, "ctrl");
   DEFSYM (Qcontrol, "control");
   DEFSYM (Qshift, "shift");
-  DEFSYM (Qfont_param, "font-parameter");
+  DEFSYM (Qfont_parameter, "font-parameter");
   DEFSYM (Qgeometry, "geometry");
   DEFSYM (Qworkarea, "workarea");
   DEFSYM (Qmm_size, "mm-size");
   DEFSYM (Qframes, "frames");
   DEFSYM (Qtip_frame, "tip-frame");
+  DEFSYM (Qassq_delete_all, "assq-delete-all");
   DEFSYM (Qunicode_sip, "unicode-sip");
 #if defined WINDOWSNT && !defined HAVE_DBUS
   DEFSYM (QCicon, ":icon");
@@ -9333,10 +10401,11 @@ syms_of_w32fns (void)
 #endif
 
   /* Symbols used elsewhere, but only in MS-Windows-specific code.  */
-  DEFSYM (Qgnutls_dll, "gnutls");
-  DEFSYM (Qlibxml2_dll, "libxml2");
+  DEFSYM (Qgnutls, "gnutls");
+  DEFSYM (Qlibxml2, "libxml2");
   DEFSYM (Qserif, "serif");
-  DEFSYM (Qzlib_dll, "zlib");
+  DEFSYM (Qzlib, "zlib");
+  DEFSYM (Qlcms2, "lcms2");
 
   Fput (Qundefined_color, Qerror_conditions,
 	listn (CONSTYPE_PURE, 2, Qundefined_color, Qerror));
@@ -9374,11 +10443,15 @@ When non-nil, the Start menu is opened by tapping the key.
 If you set this to nil, the left \"Windows\" key is processed by Emacs
 according to the value of `w32-lwindow-modifier', which see.
 
-Note that some combinations of the left \"Windows\" key with other keys are
-caught by Windows at low level, and so binding them in Emacs will have no
-effect.  For example, <lwindow>-r always pops up the Windows Run dialog,
-<lwindow>-<Pause> pops up the "System Properties" dialog, etc.  However, see
-the doc string of `w32-phantom-key-code'.  */);
+Note that some combinations of the left \"Windows\" key with other
+keys are caught by Windows at low level.  For example, <lwindow>-r
+pops up the Windows Run dialog, <lwindow>-<Pause> pops up the "System
+Properties" dialog, etc.  On Windows 10, no \"Windows\" key
+combinations are normally handed to applications.  To enable Emacs to
+process \"Windows\" key combinations, use the function
+`w32-register-hot-key`.
+
+For Windows 98/ME, see the doc string of `w32-phantom-key-code'.  */);
   Vw32_pass_lwindow_to_system = Qt;
 
   DEFVAR_LISP ("w32-pass-rwindow-to-system",
@@ -9389,11 +10462,15 @@ When non-nil, the Start menu is opened by tapping the key.
 If you set this to nil, the right \"Windows\" key is processed by Emacs
 according to the value of `w32-rwindow-modifier', which see.
 
-Note that some combinations of the right \"Windows\" key with other keys are
-caught by Windows at low level, and so binding them in Emacs will have no
-effect.  For example, <rwindow>-r always pops up the Windows Run dialog,
-<rwindow>-<Pause> pops up the "System Properties" dialog, etc.  However, see
-the doc string of `w32-phantom-key-code'.  */);
+Note that some combinations of the right \"Windows\" key with other
+keys are caught by Windows at low level.  For example, <rwindow>-r
+pops up the Windows Run dialog, <rwindow>-<Pause> pops up the "System
+Properties" dialog, etc.  On Windows 10, no \"Windows\" key
+combinations are normally handed to applications.  To enable Emacs to
+process \"Windows\" key combinations, use the function
+`w32-register-hot-key`.
+
+For Windows 98/ME, see the doc string of `w32-phantom-key-code'.  */);
   Vw32_pass_rwindow_to_system = Qt;
 
   DEFVAR_LISP ("w32-phantom-key-code",
@@ -9403,7 +10480,11 @@ Value is a number between 0 and 255.
 
 Phantom key presses are generated in order to stop the system from
 acting on \"Windows\" key events when `w32-pass-lwindow-to-system' or
-`w32-pass-rwindow-to-system' is nil.  */);
+`w32-pass-rwindow-to-system' is nil.
+
+This variable is only used on Windows 98 and ME.  For other Windows
+versions, see the documentation of the `w32-register-hot-key`
+function.  */);
   /* Although 255 is technically not a valid key code, it works and
      means that this hack won't interfere with any real key code.  */
   XSETINT (Vw32_phantom_key_code, 255);
@@ -9434,7 +10515,9 @@ and it will have the same effect as in other applications.  */);
 	       doc: /* Modifier to use for the left \"Windows\" key.
 The value can be hyper, super, meta, alt, control or shift for the
 respective modifier, or nil to appear as the `lwindow' key.
-Any other value will cause the key to be ignored.  */);
+Any other value will cause the key to be ignored.
+
+Also see the documentation of the `w32-register-hot-key` function.  */);
   Vw32_lwindow_modifier = Qnil;
 
   DEFVAR_LISP ("w32-rwindow-modifier",
@@ -9442,7 +10525,9 @@ Any other value will cause the key to be ignored.  */);
 	       doc: /* Modifier to use for the right \"Windows\" key.
 The value can be hyper, super, meta, alt, control or shift for the
 respective modifier, or nil to appear as the `rwindow' key.
-Any other value will cause the key to be ignored.  */);
+Any other value will cause the key to be ignored.
+
+Also see the documentation of the `w32-register-hot-key` function.  */);
   Vw32_rwindow_modifier = Qnil;
 
   DEFVAR_LISP ("w32-apps-modifier",
@@ -9618,6 +10703,23 @@ Default is nil.
 This variable has effect only on Windows Vista and later.  */);
   w32_disable_new_uniscribe_apis = 0;
 
+  DEFVAR_LISP ("w32-tooltip-extra-pixels",
+	       Vw32_tooltip_extra_pixels,
+	       doc: /* Number of pixels added after tooltip text.
+On Windows some fonts may cause the last character of a tooltip be
+truncated or wrapped around to the next line.  Adding some extra space
+at the end of the toooltip works around this problem.
+
+This variable specifies the number of pixels that shall be added.  The
+default value t means to add the width of one canonical character of the
+tip frame.  */);
+  Vw32_tooltip_extra_pixels = Qt;
+
+  DEFVAR_BOOL ("w32-disable-abort-dialog",
+	       w32_disable_abort_dialog,
+	       doc: /* Non-nil means don't display the abort dialog when aborting.  */);
+  w32_disable_abort_dialog = 0;
+
 #if 0 /* TODO: Port to W32 */
   defsubr (&Sx_change_window_property);
   defsubr (&Sx_delete_window_property);
@@ -9646,6 +10748,8 @@ This variable has effect only on Windows Vista and later.  */);
   defsubr (&Sx_display_list);
   defsubr (&Sw32_frame_geometry);
   defsubr (&Sw32_frame_edges);
+  defsubr (&Sw32_frame_list_z_order);
+  defsubr (&Sw32_frame_restack);
   defsubr (&Sw32_mouse_absolute_pixel_position);
   defsubr (&Sw32_set_mouse_absolute_pixel_position);
   defsubr (&Sx_synchronize);
@@ -9788,7 +10892,7 @@ typedef USHORT (WINAPI * CaptureStackBackTrace_proc) (ULONG, ULONG, PVOID *,
 
 #define BACKTRACE_LIMIT_MAX 62
 
-int
+static int
 w32_backtrace (void **buffer, int limit)
 {
   static CaptureStackBackTrace_proc s_pfn_CaptureStackBackTrace = NULL;
@@ -9810,6 +10914,9 @@ w32_backtrace (void **buffer, int limit)
 void
 emacs_abort (void)
 {
+  if (w32_disable_abort_dialog)
+    abort ();
+
   int button;
   button = MessageBox (NULL,
 		       "A fatal error has occurred!\n\n"
@@ -9861,8 +10968,8 @@ emacs_abort (void)
 	       but not on Windows 7.  addr2line doesn't mind a missing
 	       "0x", but will be confused by an extra one.  */
 	    if (except_addr)
-	      sprintf (buf, "\r\nException 0x%lx at this address:\r\n%p\r\n",
-		       except_code, except_addr);
+	      sprintf (buf, "\r\nException 0x%x at this address:\r\n%p\r\n",
+		       (unsigned int) except_code, except_addr);
 	    if (stderr_fd >= 0)
 	      {
 		if (except_addr)

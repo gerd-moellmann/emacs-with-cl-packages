@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Old BUGS:
    - [M-C-a] != [?\M-\C-a]
@@ -41,6 +41,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "lisp.h"
 #include "commands.h"
@@ -92,7 +93,7 @@ static void describe_command (Lisp_Object, Lisp_Object);
 static void describe_translation (Lisp_Object, Lisp_Object);
 static void describe_map (Lisp_Object, Lisp_Object,
                           void (*) (Lisp_Object, Lisp_Object),
-			  bool, Lisp_Object, Lisp_Object*, bool, bool);
+			  bool, Lisp_Object, Lisp_Object *, bool, bool);
 static void describe_vector (Lisp_Object, Lisp_Object, Lisp_Object,
                              void (*) (Lisp_Object, Lisp_Object), bool,
                              Lisp_Object, Lisp_Object, bool, bool);
@@ -522,7 +523,7 @@ access_keymap_1 (Lisp_Object map, Lisp_Object idx,
 		retval = Fcons (Qkeymap, Fcons (retval, retval_tail));
 	      }
 	  }
-	QUIT;
+	maybe_quit ();
       }
 
     return EQ (Qunbound, retval) ? get_keyelt (t_binding, autoload) : retval;
@@ -876,7 +877,7 @@ store_in_keymap (Lisp_Object keymap, register Lisp_Object idx, Lisp_Object def)
 	     should be inserted before it.  */
 	  goto keymap_end;
 
-	QUIT;
+	maybe_quit ();
       }
 
   keymap_end:
@@ -971,8 +972,18 @@ copy_keymap_1 (Lisp_Object chartable, Lisp_Object idx, Lisp_Object elt)
 
 DEFUN ("copy-keymap", Fcopy_keymap, Scopy_keymap, 1, 1, 0,
        doc: /* Return a copy of the keymap KEYMAP.
-The copy starts out with the same definitions of KEYMAP,
-but changing either the copy or KEYMAP does not affect the other.
+
+Note that this is almost never needed.  If you want a keymap that's like
+another yet with a few changes, you should use map inheritance rather
+than copying.  I.e. something like:
+
+    (let ((map (make-sparse-keymap)))
+      (set-keymap-parent map <theirmap>)
+      (define-key map ...)
+      ...)
+
+After performing `copy-keymap', the copy starts out with the same definitions
+of KEYMAP, but changing either the copy or KEYMAP does not affect the other.
 Any key definitions that are subkeymaps are recursively copied.
 However, a key definition which is a symbol whose definition is a keymap
 is not copied.  */)
@@ -1239,7 +1250,7 @@ recognize the default bindings, just as `read-key-sequence' does.  */)
       if (!CONSP (keymap))
 	return make_number (idx);
 
-      QUIT;
+      maybe_quit ();
     }
 }
 
@@ -1281,7 +1292,7 @@ silly_event_symbol_error (Lisp_Object c)
   base = XCAR (parsed);
   name = Fsymbol_name (base);
   /* This alist includes elements such as ("RET" . "\\r").  */
-  assoc = Fassoc (name, exclude_keys);
+  assoc = Fassoc (name, exclude_keys, Qnil);
 
   if (! NILP (assoc))
     {
@@ -1303,7 +1314,7 @@ silly_event_symbol_error (Lisp_Object c)
       *p = 0;
 
       c = reorder_modifiers (c);
-      AUTO_STRING (new_mods_string, new_mods);
+      AUTO_STRING_WITH_LEN (new_mods_string, new_mods, p - new_mods);
       keystring = concat2 (new_mods_string, XCDR (assoc));
 
       error ("To bind the key %s, use [?%s], not [%s]",
@@ -2455,7 +2466,7 @@ where_is_internal (Lisp_Object definition, Lisp_Object keymaps,
 	   non-ascii prefixes like `C-down-mouse-2'.  */
 	continue;
 
-      QUIT;
+      maybe_quit ();
 
       data.definition = definition;
       data.noindirect = noindirect;
@@ -3162,7 +3173,7 @@ describe_map (Lisp_Object map, Lisp_Object prefix,
 
   for (tail = map; CONSP (tail); tail = XCDR (tail))
     {
-      QUIT;
+      maybe_quit ();
 
       if (VECTORP (XCAR (tail))
 	  || CHAR_TABLE_P (XCAR (tail)))
@@ -3415,7 +3426,7 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
       int range_beg, range_end;
       Lisp_Object val;
 
-      QUIT;
+      maybe_quit ();
 
       if (i == stop)
 	{

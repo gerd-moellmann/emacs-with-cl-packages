@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -242,8 +242,8 @@ as unread by Gnus.")
 	      (file-truename (file-name-as-directory
 			      (expand-file-name nnmh-toplev))))
 	     dir)
-	    (mm-string-to-multibyte ;Why?  Isn't it multibyte already?
-	     (mm-encode-coding-string
+	    (string-to-multibyte ;Why?  Isn't it multibyte already?
+	     (encode-coding-string
 	      (nnheader-replace-chars-in-string
 	       (substring dir (match-end 0))
 	       ?/ ?.)

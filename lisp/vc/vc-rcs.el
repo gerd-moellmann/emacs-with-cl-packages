@@ -3,7 +3,7 @@
 ;; Copyright (C) 1992-2017 Free Software Foundation, Inc.
 
 ;; Author:     FSF (see vc.el for full credits)
-;; Maintainer: Andre Spiegel <spiegel@gnu.org>
+;; Maintainer: emacs-devel@gnu.org
 ;; Package: vc
 
 ;; This file is part of GNU Emacs.
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -40,6 +40,13 @@
 (eval-when-compile
   (require 'cl-lib)
   (require 'vc))
+
+(declare-function vc-branch-p "vc" (rev))
+(declare-function vc-read-revision "vc"
+                  (prompt &optional files backend default initial-input))
+(declare-function vc-buffer-context "vc-dispatcher" ())
+(declare-function vc-restore-buffer-context "vc-dispatcher" (context))
+(declare-function vc-setup-buffer "vc-dispatcher" (buf))
 
 (defgroup vc-rcs nil
   "VC RCS backend."
@@ -120,7 +127,9 @@ For a description of possible values, see `vc-check-master-templates'."
       (setq result (vc-file-getprop file 'vc-checkout-model)))
     (or result
         (progn (vc-rcs-fetch-master-state file)
-               (vc-file-getprop file 'vc-checkout-model)))))
+               (vc-file-getprop file 'vc-checkout-model))
+        ;; For non-existing files we assume strict locking.
+        'locking)))
 
 ;;;
 ;;; State-querying functions
@@ -840,7 +849,7 @@ and CVS."
 
 ;; You might think that this should be distributed with RCS, but
 ;; apparently not.  CVS sometimes provides a version of it.
-;; http://lists.gnu.org/archive/html/emacs-devel/2014-05/msg00288.html
+;; https://lists.gnu.org/archive/html/emacs-devel/2014-05/msg00288.html
 (defvar vc-rcs-rcs2log-program
   (let (exe)
     (cond ((file-executable-p

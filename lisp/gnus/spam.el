@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -628,7 +628,7 @@ order for SpamAssassin to recognize the new registered spam."
   :group 'spam-spamassassin)
 
 (defcustom spam-sa-learn-unregister-switch "--forget"
-  "The switch that sa-learn uses to unregister messages messages."
+  "The switch that sa-learn uses to unregister messages."
   :type 'string
   :group 'spam-spamassassin)
 
@@ -1199,19 +1199,19 @@ Note this has to be fast."
     (if header-content
         (cond
          ((eq header 'X-Spam-Status)
-          (string-to-number (gnus-replace-in-string
-                             header-content
+          (string-to-number (replace-regexp-in-string
                              spam-spamassassin-score-regexp
-                             "\\1")))
+                             "\\1"
+                             header-content)))
          ;; for CRM checking, it's probably faster to just do the string match
          ((string-match "( pR: \\([0-9.-]+\\)" header-content)
           (- (string-to-number (match-string 1 header-content))))
          ((eq header 'X-Bogosity)
-          (string-to-number (gnus-replace-in-string
-                             (gnus-replace-in-string
-                              header-content
-                              ".*spamicity=" "")
-                             ",.*" "")))
+          (string-to-number (replace-regexp-in-string
+                             ",.*" ""
+                             (replace-regexp-in-string
+                              ".*spamicity=" ""
+                              header-content))))
          (t nil))
       nil)))
 

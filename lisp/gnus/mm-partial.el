@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -136,13 +136,6 @@ If NO-DISPLAY is nil, display it. Otherwise, do nothing after replacing."
 	   handle
 	   `(lambda ()
 	      (let (buffer-read-only)
-		(condition-case nil
-		    ;; This is only valid on XEmacs.
-		    (mapcar (lambda (prop)
-			    (remove-specifier
-			     (face-property 'default prop) (current-buffer)))
-			    '(background background-pixmap foreground))
-		  (error nil))
 		(delete-region ,(point-min-marker) ,(point-max-marker))))))))))
 
 (provide 'mm-partial)

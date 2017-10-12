@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -31,7 +31,7 @@
 ;; This library permits the setting of override functions for tasks of
 ;; that nature, and also provides reasonable defaults.
 ;;
-;; There are buffer local variables, and frame local variables.
+;; There are buffer local variables (and there were frame local variables).
 ;; This library gives the illusion of mode specific variables.
 ;;
 ;; You should use a mode-local variable or override to allow extension
@@ -579,6 +579,8 @@ ARGS are the function arguments, which should match those of the same
 named function created with `define-overload'.
 DOCSTRING is the documentation string.
 BODY is the implementation of this function."
+  ;; FIXME: Make this obsolete and use cl-defmethod with &context instead.
+  (declare (doc-string 4))
   (let ((newname (intern (format "%s-%s" name mode))))
     `(progn
        (eval-and-compile

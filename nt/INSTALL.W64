@@ -63,13 +63,14 @@ packages (you can copy and paste it into the shell with Shift + Insert):
   mingw-w64-x86_64-libpng \
   mingw-w64-x86_64-libjpeg-turbo \
   mingw-w64-x86_64-librsvg \
+  mingw-w64-x86_64-liblcms2 \
   mingw-w64-x86_64-libxml2 \
   mingw-w64-x86_64-gnutls \
   mingw-w64-x86_64-zlib
 
-The packages include the base developer tools (autoconf, automake, grep, make,
-etc.), the compiler toolchain (gcc, gdb, etc.), several image libraries, an
-XML library, the GnuTLS (transport layer security) library, and zlib for
+The packages include the base developer tools (autoconf, grep, make, etc.),
+the compiler toolchain (gcc, gdb, etc.), several image libraries, an XML
+library, the GnuTLS (transport layer security) library, and zlib for
 decompressing text.  Only the first three packages are required (base-devel,
 toolchain, xpm-nox); the rest are optional.  You can select only part of the
 libraries if you don't need them all.
@@ -100,7 +101,7 @@ Savannah Emacs site, https://savannah.gnu.org/projects/emacs.
 
 ** From the FTP site
 
-The Emacs ftp site is located at http://ftp.gnu.org/gnu/emacs/ - download the
+The Emacs ftp site is located at https://ftp.gnu.org/gnu/emacs/ - download the
 version you want to build and put the file into a location like C:\emacs\,
 then uncompress it with tar.  This will put the Emacs source into a folder like
 C:\emacs\emacs-24.5:
@@ -223,4 +224,4 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs. If not, see <http://www.gnu.org/licenses/>.
+along with GNU Emacs. If not, see <https://www.gnu.org/licenses/>.

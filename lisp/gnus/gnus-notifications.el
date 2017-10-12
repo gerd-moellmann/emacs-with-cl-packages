@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -81,7 +81,7 @@ not get notifications."
             (article (nth 2 group-article)))
         (cond ((string= key "read")
                (gnus-fetch-group group (list article))
-               (gnus-select-frame-set-input-focus (selected-frame)))
+               (select-frame-set-input-focus (selected-frame)))
               ((string= key "mark-read")
                (gnus-update-read-articles
                 group
@@ -180,8 +180,11 @@ This is typically a function to add in
                   ;; Ignore mails from ourselves
                   (unless (and gnus-ignored-from-addresses
                                address
-                               (gnus-string-match-p gnus-ignored-from-addresses
-                                                    address))
+                               (cond ((functionp gnus-ignored-from-addresses)
+                                      (funcall gnus-ignored-from-addresses address))
+                                     (t (string-match-p
+					 (gnus-ignored-from-addresses)
+					 address))))
                     (let* ((photo-file (gnus-notifications-get-photo-file address))
                            (notification-id (gnus-notifications-notify
                                              (or (car address-components) address)

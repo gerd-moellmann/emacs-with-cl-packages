@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;; LCD Archive Entry:
 ;; advice|Hans Chalupsky|hans@cs.buffalo.edu|
@@ -502,7 +502,7 @@
 ;; important advantage is that it allows the implementation of forward advice.
 ;; Advice information for a certain function accumulates as the value of the
 ;; `advice-info' property of the function symbol.  This accumulation is
-;; completely independent of the fact that that function might not yet be
+;; completely independent of the fact that the function might not yet be
 ;; defined.  The macros `defun' and `defmacro' check whether the
 ;; function/macro they defined had advice information
 ;; associated with it.  If so and forward advice is enabled, the original
@@ -1832,7 +1832,7 @@ Redefining advices affect the construction of an advised definition."
 ;; @@ Interactive input functions:
 ;; ===============================
 
-(declare-function 'function-called-at-point "help")
+(declare-function function-called-at-point "help")
 
 (defun ad-read-advised-function (&optional prompt predicate default)
   "Read name of advised function with completion from the minibuffer.
@@ -2830,7 +2830,7 @@ advised definition from scratch."
 		    (ad-get-cache-id function))))
       (ad-set-advice-info function old-advice-info)
       (advice-remove function advicefunname)
-      (fset advicefunname old-advice)
+      (if advicefunname (fset advicefunname old-advice))
       (if old-advice (advice-add function :around advicefunname)))))
 
 

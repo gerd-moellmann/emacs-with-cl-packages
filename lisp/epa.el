@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
@@ -33,6 +33,17 @@
   :version "23.1"
   :link '(custom-manual "(epa) Top")
   :group 'epg)
+
+(defcustom epa-replace-original-text 'ask
+  "Whether the original text shall be replaced by the decrypted.
+
+If t, replace the original text without any confirmation.
+If nil, don't replace the original text and show the result in a new buffer.
+If neither t nor nil, ask user for confirmation."
+  :type '(choice (const :tag "Never" nil)
+		 (const :tag "Ask the user" ask)
+		 (const :tag "Always" t))
+  :group 'epa)
 
 (defcustom epa-popup-info-window t
   "If non-nil, display status information from epa commands in another window."
@@ -617,7 +628,7 @@ If SECRET is non-nil, list secret keys instead of public keys."
 		       (`import-keys "Error while importing keys with \"%s\":")
 		       (`export-keys "Error while exporting keys with \"%s\":")
 		       (_ "Error while executing \"%s\":\n\n"))
-		     epg-gpg-program)
+		     (epg-context-program context))
 		    "\n\n"
 		    (epg-context-error-output context)))
 	  (epa-info-mode)
@@ -872,7 +883,9 @@ For example:
 	  (with-current-buffer (funcall make-buffer-function)
 	    (let ((inhibit-read-only t))
 	      (insert plain)))
-	(if (y-or-n-p "Replace the original text? ")
+	(if (or (eq epa-replace-original-text t)
+                (and epa-replace-original-text
+                     (y-or-n-p "Replace the original text? ")))
 	    (let ((inhibit-read-only t))
 	      (delete-region start end)
 	      (goto-char start)
@@ -968,7 +981,9 @@ For example:
 		 (or coding-system-for-read
 		     (get-text-property start 'epa-coding-system-used)
 		     'undecided)))
-    (if (y-or-n-p "Replace the original text? ")
+    (if (or (eq epa-replace-original-text t)
+            (and epa-replace-original-text
+                 (y-or-n-p "Replace the original text? ")))
 	(let ((inhibit-read-only t)
 	      buffer-read-only)
 	  (delete-region start end)

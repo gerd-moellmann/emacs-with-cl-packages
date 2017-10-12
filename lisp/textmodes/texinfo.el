@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Todo:
 
@@ -351,8 +351,6 @@ Subexpression 1 is what goes into the corresponding `@end' statement.")
   '((t (:inherit font-lock-function-name-face)))
   "Face used for section headings in `texinfo-mode'."
   :group 'texinfo)
-(define-obsolete-face-alias 'texinfo-heading-face 'texinfo-heading "22.1")
-(defvar texinfo-heading-face 'texinfo-heading)
 
 (defvar texinfo-font-lock-keywords
   `(;; All but the first had an OVERRIDE of t.
@@ -368,8 +366,10 @@ Subexpression 1 is what goes into the corresponding `@end' statement.")
     ;; their arguments frequently include a @@, and we don't want that
     ;; to overwrite the normal fontification of the argument.
     ("@\\(file\\|email\\){\\([^}]+\\)" 2 font-lock-string-face keep)
-    ("@\\(samp\\|code\\|var\\|math\\|env\\|command\\|option\\){\\([^}]+\\)"
+    ("@\\(samp\\|code\\|var\\|env\\|command\\|option\\){\\([^}]+\\)"
      2 font-lock-variable-name-face keep)
+    ;; @math allows nested braces like @math{2^{12}}
+    ("@math{\\([^{}]*{?[^{}]*}?[^{}]*\\)}" 1 font-lock-variable-name-face)
     ("@\\(cite\\|x?ref\\|pxref\\|dfn\\|inforef\\){\\([^}]+\\)"
      2 font-lock-constant-face)
     ("@\\(anchor\\){\\([^}]+\\)" 2 font-lock-type-face)
@@ -378,7 +378,8 @@ Subexpression 1 is what goes into the corresponding `@end' statement.")
     ;; (,texinfo-environment-regexp
     ;;  1 (texinfo-clone-environment (match-beginning 1) (match-end 1)) keep)
     (,(concat "^@" (regexp-opt (mapcar 'car texinfo-section-list) t)
-	       ".*\n") 0 texinfo-heading-face t))
+	       ".*\n")
+     0 'texinfo-heading t))
   "Additional expressions to highlight in Texinfo mode.")
 
 (defun texinfo-clone-environment (start end)

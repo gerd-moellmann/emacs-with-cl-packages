@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -149,8 +149,10 @@ compound strings."
 	 (nth 1 form))
 	(t nil)))
 
-(defvar semantic-elisp-store-documentation-in-tag nil
-  "*When non-nil, store documentation strings in the created tags.")
+(defcustom semantic-elisp-store-documentation-in-tag nil
+  "When non-nil, store documentation strings in the created tags."
+  :type 'boolean
+  :group 'semantic)
 
 (defun semantic-elisp-do-doc (str)
   "Return STR as a documentation string IF they are enabled."

@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -753,14 +753,7 @@ the message being processed."
 			    (concat "^\\("
 				    (regexp-quote (user-login-name))
 				    "\\($\\|@\\)\\|"
-				    (regexp-quote
-				     ;; Don't lose if run from init file
-				     ;; where user-mail-address is not
-				     ;; set yet.
-				     (or user-mail-address
-					 (concat (user-login-name) "@"
-						 (or mail-host-address
-						     (system-name)))))
+				    (regexp-quote user-mail-address)
 				    "\\>\\)"))
 			from))
 		   ;; No From field, or it's this user.
@@ -1871,7 +1864,7 @@ the summary is only showing a subset of messages."
 (provide 'rmailsum)
 
 ;; Local Variables:
-;; generated-autoload-file: "rmail.el"
+;; generated-autoload-file: "rmail-loaddefs.el"
 ;; End:
 
 ;;; rmailsum.el ends here

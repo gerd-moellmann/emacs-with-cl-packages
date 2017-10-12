@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -35,7 +35,7 @@
   "Major mode for editing bib files."
   :prefix "bib-"
   :group 'external
-  :group 'wp)
+  :group 'text)
 
 (defcustom bib-file "~/my-bibliography.bib"
   "Default name of file used by `addbib'."
@@ -181,7 +181,7 @@ with the cdr.")
    (re-search-backward "^ *$" nil 2)
    (re-search-forward "^%")
    (beginning-of-line nil)
-   (push-mark (point))
+   (push-mark)
    (re-search-forward "^ *$" nil 2)
    (forward-line 1)
    (beginning-of-line nil))

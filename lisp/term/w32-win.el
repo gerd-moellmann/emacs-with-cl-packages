@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -275,7 +275,8 @@ See the documentation of `create-fontset-from-fontset-spec' for the format.")
 	   '(gnutls "libgnutls-30.dll")
 	 '(gnutls "libgnutls-28.dll" "libgnutls-26.dll"))
        '(libxml2 "libxml2-2.dll" "libxml2.dll")
-       '(zlib "zlib1.dll" "libz-1.dll")))
+       '(zlib "zlib1.dll" "libz-1.dll")
+       '(lcms2 "liblcms2-2.dll")))
 
 ;;; multi-tty support
 (defvar w32-initialized nil
@@ -396,15 +397,19 @@ See the documentation of `create-fontset-from-fontset-spec' for the format.")
 ;;; Fix interface to (X-specific) mouse.el
 (defun w32--set-selection (type value)
   (if (eq type 'CLIPBOARD)
-      (w32-set-clipboard-data value)
+      (w32-set-clipboard-data (replace-regexp-in-string "\0" "\\0" value t t))
     (put 'x-selections (or type 'PRIMARY) value)))
 
 (defun w32--get-selection  (&optional type data-type)
-  (if (and (eq type 'CLIPBOARD)
-           (eq data-type 'STRING))
-      (with-demoted-errors "w32-get-clipboard-data:%S"
-        (w32-get-clipboard-data))
-    (get 'x-selections (or type 'PRIMARY))))
+  (cond ((and (eq type 'CLIPBOARD)
+              (eq data-type 'STRING))
+         (with-demoted-errors "w32-get-clipboard-data:%S"
+           (w32-get-clipboard-data)))
+        ((eq data-type 'TARGETS)
+         (if (eq type 'CLIPBOARD)
+             (w32-selection-targets type)
+           (if (get 'x-selections (or type 'PRIMARY)) '[STRING])))
+        (t (get 'x-selections (or type 'PRIMARY)))))
 
 (defun w32--selection-owner-p (selection)
   (and (memq selection '(nil PRIMARY SECONDARY))
@@ -466,5 +471,6 @@ That includes all Windows systems except for 9X/Me."
   (getenv "SystemRoot"))
 
 (provide 'w32-win)
+(provide 'term/w32-win)
 
 ;;; w32-win.el ends here

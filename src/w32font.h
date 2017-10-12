@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef EMACS_W32FONT_H
 #define EMACS_W32FONT_H
@@ -84,7 +84,6 @@ int uniscribe_check_otf (LOGFONT *font, Lisp_Object otf_spec);
 
 Lisp_Object intern_font_name (char *);
 
-extern void syms_of_w32font (void);
 extern void globals_of_w32font (void);
 
 #endif

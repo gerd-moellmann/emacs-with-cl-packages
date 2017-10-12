@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public
-License along with this library.  If not, see <http://www.gnu.org/licenses/>.
+License along with this library.  If not, see <https://www.gnu.org/licenses/>.
 
    The author may be reached (Email) at the address mike@ai.mit.edu,
    or (US mail) as Mike Haertel c/o Free Software Foundation.  */
@@ -25,14 +25,11 @@ License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 #define USE_PTHREAD
 #endif
 
+#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <stdint.h>
-
-#ifdef HYBRID_GET_CURRENT_DIR_NAME
-#undef get_current_dir_name
-#endif
-
 #include <unistd.h>
 
 #ifdef USE_PTHREAD
@@ -40,7 +37,22 @@ License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 #ifdef emacs
-extern _Noreturn void emacs_abort (void) NO_INLINE;
+# include "lisp.h"
+#endif
+
+#ifdef HAVE_MALLOC_H
+# if GNUC_PREREQ (4, 2, 0)
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+# endif
+# include <malloc.h>
+#endif
+#ifndef __MALLOC_HOOK_VOLATILE
+# define __MALLOC_HOOK_VOLATILE volatile
+#endif
+#ifndef HAVE_MALLOC_H
+extern void (*__MALLOC_HOOK_VOLATILE __after_morecore_hook) (void);
+extern void (*__MALLOC_HOOK_VOLATILE __malloc_initialize_hook) (void);
+extern void *(*__morecore) (ptrdiff_t);
 #endif
 
 /* If HYBRID_MALLOC is defined, then temacs will use malloc,
@@ -49,13 +61,7 @@ extern _Noreturn void emacs_abort (void) NO_INLINE;
    however, will use the system malloc, realloc....  In other source
    files, malloc, realloc... are renamed hybrid_malloc,
    hybrid_realloc... via macros in conf_post.h.  hybrid_malloc and
-   friends are wrapper functions defined later in this file.
-   aligned_alloc is defined as a macro only in alloc.c.
-
-   As of this writing (August 2014), Cygwin is the only platform on
-   which HYBRID_MACRO is defined.  Any other platform that wants to
-   define it will have to define the macros DUMPED and
-   ALLOCATED_BEFORE_DUMPING, defined below for Cygwin.  */
+   friends are wrapper functions defined later in this file.  */
 #undef malloc
 #undef realloc
 #undef calloc
@@ -66,15 +72,11 @@ extern _Noreturn void emacs_abort (void) NO_INLINE;
 #define calloc gcalloc
 #define aligned_alloc galigned_alloc
 #define free gfree
+#define malloc_info gmalloc_info
 
-#ifdef CYGWIN
-extern void *bss_sbrk (ptrdiff_t size);
-extern int bss_sbrk_did_unexec;
-extern char bss_sbrk_buffer[];
-extern void *bss_sbrk_buffer_end;
-#define DUMPED bss_sbrk_did_unexec
-#define ALLOCATED_BEFORE_DUMPING(P) \
-  ((P) < bss_sbrk_buffer_end && (P) >= (void *) bss_sbrk_buffer)
+#ifdef HYBRID_MALLOC
+# include "sheap.h"
+# define DUMPED bss_sbrk_did_unexec
 #endif
 
 #ifdef	__cplusplus
@@ -82,8 +84,9 @@ extern "C"
 {
 #endif
 
-#include <stddef.h>
-
+#ifdef HYBRID_MALLOC
+#define extern static
+#endif
 
 /* Allocate SIZE bytes of memory.  */
 extern void *malloc (size_t size) ATTRIBUTE_MALLOC_SIZE ((1));
@@ -92,19 +95,14 @@ extern void *malloc (size_t size) ATTRIBUTE_MALLOC_SIZE ((1));
 extern void *realloc (void *ptr, size_t size) ATTRIBUTE_ALLOC_SIZE ((2));
 /* Allocate NMEMB elements of SIZE bytes each, all initialized to 0.  */
 extern void *calloc (size_t nmemb, size_t size) ATTRIBUTE_MALLOC_SIZE ((1,2));
-/* Free a block allocated by `malloc', `realloc' or `calloc'.  */
+/* Free a block.  */
 extern void free (void *ptr);
 
 /* Allocate SIZE bytes allocated to ALIGNMENT bytes.  */
 extern void *aligned_alloc (size_t, size_t);
-extern void *memalign (size_t, size_t);
 #ifdef MSDOS
+extern void *memalign (size_t, size_t);
 extern int posix_memalign (void **, size_t, size_t);
-#endif
-
-#ifdef USE_PTHREAD
-/* Set up mutexes and make malloc etc. thread-safe.  */
-extern void malloc_enable_thread (void);
 #endif
 
 /* The allocator divides the heap into blocks of fixed size; large
@@ -112,14 +110,13 @@ extern void malloc_enable_thread (void);
    receive a fragment of a block.  Fragment sizes are powers of two,
    and all fragments of a block are the same size.  When all the
    fragments in a block have been freed, the block itself is freed.  */
-#define INT_BIT		(CHAR_BIT * sizeof (int))
-#define BLOCKLOG	(INT_BIT > 16 ? 12 : 9)
+#define BLOCKLOG	(INT_WIDTH > 16 ? 12 : 9)
 #define BLOCKSIZE	(1 << BLOCKLOG)
 #define BLOCKIFY(SIZE)	(((SIZE) + BLOCKSIZE - 1) / BLOCKSIZE)
 
 /* Determine the amount of memory spanned by the initial heap table
    (not an absolute limit).  */
-#define HEAP		(INT_BIT > 16 ? 4194304 : 65536)
+#define HEAP		(INT_WIDTH > 16 ? 4194304 : 65536)
 
 /* Number of contiguous free blocks allowed to build up at the end of
    memory before they will be returned to the system.  */
@@ -131,8 +128,13 @@ typedef union
     /* Heap information for a busy block.  */
     struct
       {
-	/* Zero for a large (multiblock) object, or positive giving the
-	   logarithm to the base two of the fragment size.  */
+	/* Zero for a block that is not one of ours (typically,
+	   allocated by system malloc), positive for the log base 2 of
+	   the fragment size of a fragmented block, -1 for the first
+	   block of a multiblock object, and unspecified for later
+	   blocks of that object.  Type-0 blocks can be present
+	   because the system malloc can be invoked by library
+	   functions in an undumped Emacs.  */
 	int type;
 	union
 	  {
@@ -142,8 +144,7 @@ typedef union
 		size_t first; /* First free fragment of the block.  */
 	      } frag;
 	    /* For a large object, in its first block, this has the number
-	       of blocks in the object.  In the other blocks, this has a
-	       negative number which says how far back the first block is.  */
+	       of blocks in the object.  */
 	    ptrdiff_t size;
 	  } info;
       } busy;
@@ -164,7 +165,7 @@ extern char *_heapbase;
 extern malloc_info *_heapinfo;
 
 /* Address to block number and vice versa.  */
-#define BLOCK(A)	(((char *) (A) - _heapbase) / BLOCKSIZE + 1)
+#define BLOCK(A)	((size_t) ((char *) (A) - _heapbase) / BLOCKSIZE + 1)
 #define ADDRESS(B)	((void *) (((B) - 1) * BLOCKSIZE + _heapbase))
 
 /* Current search index for the heap table.  */
@@ -238,36 +239,12 @@ extern int _malloc_thread_enabled_p;
 #define UNLOCK_ALIGNED_BLOCKS()
 #endif
 
-/* Given an address in the middle of a malloc'd object,
-   return the address of the beginning of the object.  */
-extern void *malloc_find_object_address (void *ptr);
-
-/* Underlying allocation function; successive calls should
-   return contiguous pieces of memory.  */
-extern void *(*__morecore) (ptrdiff_t size);
-
-/* Default value of `__morecore'.  */
-extern void *__default_morecore (ptrdiff_t size);
-
-/* If not NULL, this function is called after each time
-   `__morecore' is called to increase the data size.  */
-extern void (*__after_morecore_hook) (void);
-
-/* Number of extra blocks to get each time we ask for more core.
-   This reduces the frequency of calling `(*__morecore)'.  */
-extern size_t __malloc_extra_blocks;
-
 /* Nonzero if `malloc' has been called and done its initialization.  */
 extern int __malloc_initialized;
 /* Function called to initialize malloc data structures.  */
 extern int __malloc_initialize (void);
 
-/* Hooks for debugging versions.  */
-extern void (*__malloc_initialize_hook) (void);
-extern void (*__free_hook) (void *ptr);
-extern void *(*__malloc_hook) (size_t size);
-extern void *(*__realloc_hook) (void *ptr, size_t size);
-extern void *(*__memalign_hook) (size_t size, size_t alignment);
+#ifdef GC_MCHECK
 
 /* Return values for `mprobe': these are the kinds of inconsistencies that
    `mcheck' enables detection of.  */
@@ -308,8 +285,9 @@ struct mstats
 /* Pick up the current statistics. */
 extern struct mstats mstats (void);
 
-/* Call WARNFUN with a warning message when memory usage is high.  */
-extern void memory_warnings (void *start, void (*warnfun) (const char *));
+#endif
+
+#undef extern
 
 #ifdef	__cplusplus
 }
@@ -330,26 +308,30 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public
-License along with this library.  If not, see <http://www.gnu.org/licenses/>.
+License along with this library.  If not, see <https://www.gnu.org/licenses/>.
 
    The author may be reached (Email) at the address mike@ai.mit.edu,
    or (US mail) as Mike Haertel c/o Free Software Foundation.  */
 
 #include <errno.h>
 
-void *(*__morecore) (ptrdiff_t size) = __default_morecore;
+/* Debugging hook for 'malloc'.  */
+static void *(*__MALLOC_HOOK_VOLATILE gmalloc_hook) (size_t);
 
-/* Debugging hook for `malloc'.  */
-void *(*__malloc_hook) (size_t size);
+/* Replacements for traditional glibc malloc hooks, for platforms that
+   do not already have these hooks.  Platforms with these hooks all
+   used relaxed ref/def, so it is OK to define them here too.  */
+void (*__MALLOC_HOOK_VOLATILE __malloc_initialize_hook) (void);
+void (*__MALLOC_HOOK_VOLATILE __after_morecore_hook) (void);
+void *(*__morecore) (ptrdiff_t);
+
+#ifndef HYBRID_MALLOC
 
 /* Pointer to the base of the first block.  */
 char *_heapbase;
 
 /* Block information table.  Allocated with align/__free (not malloc/free).  */
 malloc_info *_heapinfo;
-
-/* Number of info entries.  */
-static size_t heapsize;
 
 /* Search index in the info table.  */
 size_t _heapindex;
@@ -369,10 +351,21 @@ size_t _bytes_free;
 /* Are you experienced?  */
 int __malloc_initialized;
 
+#else
+
+static struct list _fraghead[BLOCKLOG];
+
+#endif /* HYBRID_MALLOC */
+
+/* Number of extra blocks to get each time we ask for more core.
+   This reduces the frequency of calling `(*__morecore)'.  */
+#if defined DOUG_LEA_MALLOC || defined HYBRID_MALLOC || defined SYSTEM_MALLOC
+static
+#endif
 size_t __malloc_extra_blocks;
 
-void (*__malloc_initialize_hook) (void);
-void (*__after_morecore_hook) (void);
+/* Number of info entries.  */
+static size_t heapsize;
 
 #if defined GC_MALLOC_CHECK && defined GC_PROTECT_MALLOC_STATE
 
@@ -497,11 +490,8 @@ register_heapinfo (void)
   ++_chunks_used;
 
   /* Describe the heapinfo block itself in the heapinfo.  */
-  _heapinfo[block].busy.type = 0;
+  _heapinfo[block].busy.type = -1;
   _heapinfo[block].busy.info.size = blocks;
-  /* Leave back-pointers for malloc_find_address.  */
-  while (--blocks > 0)
-    _heapinfo[block + blocks].busy.info.size = -blocks;
 }
 
 #ifdef USE_PTHREAD
@@ -614,7 +604,7 @@ morecore_nolock (size_t size)
   PROTECT_MALLOC_STATE (0);
 
   /* Check if we need to grow the info table.  */
-  if ((size_t) BLOCK ((char *) result + size) > heapsize)
+  if (heapsize < BLOCK ((char *) result + size))
     {
       /* Calculate the new _heapinfo table size.  We do not account for the
 	 added blocks in the table itself, as we hope to place them in
@@ -623,7 +613,7 @@ morecore_nolock (size_t size)
       newsize = heapsize;
       do
 	newsize *= 2;
-      while ((size_t) BLOCK ((char *) result + size) > newsize);
+      while (newsize < BLOCK ((char *) result + size));
 
       /* We must not reuse existing core for the new info table when called
 	 from realloc in the case of growing a large block, because the
@@ -671,8 +661,7 @@ morecore_nolock (size_t size)
 
  	  /* Is it big enough to record status for its own space?
  	     If so, we win.  */
- 	  if ((size_t) BLOCK ((char *) newinfo
-			      + newsize * sizeof (malloc_info))
+	  if (BLOCK ((char *) newinfo + newsize * sizeof (malloc_info))
  	      < newsize)
  	    break;
 
@@ -889,17 +878,11 @@ _malloc_internal_nolock (size_t size)
 	  --_chunks_free;
 	}
 
-      _heapinfo[block].busy.type = 0;
+      _heapinfo[block].busy.type = -1;
       _heapinfo[block].busy.info.size = blocks;
       ++_chunks_used;
       _bytes_used += blocks * BLOCKSIZE;
       _bytes_free -= blocks * BLOCKSIZE;
-
-      /* Mark all the blocks of the object just allocated except for the
-	 first with a negative number so you can find the first block by
-	 adding that adjustment.  */
-      while (--blocks > 0)
-	_heapinfo[block + blocks].busy.info.size = -blocks;
     }
 
   PROTECT_MALLOC_STATE (1);
@@ -927,19 +910,19 @@ malloc (size_t size)
   if (!__malloc_initialized && !__malloc_initialize ())
     return NULL;
 
-  /* Copy the value of __malloc_hook to an automatic variable in case
-     __malloc_hook is modified in another thread between its
+  /* Copy the value of gmalloc_hook to an automatic variable in case
+     gmalloc_hook is modified in another thread between its
      NULL-check and the use.
 
      Note: Strictly speaking, this is not a right solution.  We should
      use mutexes to access non-read-only variables that are shared
      among multiple threads.  We just leave it for compatibility with
-     glibc malloc (i.e., assignments to __malloc_hook) for now.  */
-  hook = __malloc_hook;
+     glibc malloc (i.e., assignments to gmalloc_hook) for now.  */
+  hook = gmalloc_hook;
   return (hook != NULL ? *hook : _malloc_internal) (size);
 }
 
-#ifndef _LIBC
+#if !(defined (_LIBC) || defined (HYBRID_MALLOC))
 
 /* On some ANSI C systems, some libc functions call _malloc, _free
    and _realloc.  Make them use the GNU functions.  */
@@ -982,17 +965,19 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public
-License along with this library.  If not, see <http://www.gnu.org/licenses/>.
+License along with this library.  If not, see <https://www.gnu.org/licenses/>.
 
    The author may be reached (Email) at the address mike@ai.mit.edu,
    or (US mail) as Mike Haertel c/o Free Software Foundation.  */
 
-
 /* Debugging hook for free.  */
-void (*__free_hook) (void *__ptr);
+static void (*__MALLOC_HOOK_VOLATILE gfree_hook) (void *);
+
+#ifndef HYBRID_MALLOC
 
 /* List of blocks allocated by aligned_alloc.  */
 struct alignlist *_aligned_blocks = NULL;
+#endif
 
 /* Return memory to the heap.
    Like `_free_internal' but don't lock mutex.  */
@@ -1030,7 +1015,7 @@ _free_internal_nolock (void *ptr)
   type = _heapinfo[block].busy.type;
   switch (type)
     {
-    case 0:
+    case -1:
       /* Get as many statistics as early as we can.  */
       --_chunks_used;
       _bytes_used -= _heapinfo[block].busy.info.size * BLOCKSIZE;
@@ -1191,7 +1176,7 @@ _free_internal_nolock (void *ptr)
 	  prev->prev->next = next;
 	  if (next != NULL)
 	    next->prev = prev->prev;
-	  _heapinfo[block].busy.type = 0;
+	  _heapinfo[block].busy.type = -1;
 	  _heapinfo[block].busy.info.size = 1;
 
 	  /* Keep the statistics accurate.  */
@@ -1241,7 +1226,7 @@ _free_internal_nolock (void *ptr)
 }
 
 /* Return memory to the heap.
-   Like `free' but don't call a __free_hook if there is one.  */
+   Like 'free' but don't call a hook if there is one.  */
 void
 _free_internal (void *ptr)
 {
@@ -1255,7 +1240,7 @@ _free_internal (void *ptr)
 void
 free (void *ptr)
 {
-  void (*hook) (void *) = __free_hook;
+  void (*hook) (void *) = gfree_hook;
 
   if (hook != NULL)
     (*hook) (ptr);
@@ -1263,6 +1248,7 @@ free (void *ptr)
     _free_internal (ptr);
 }
 
+#ifndef HYBRID_MALLOC
 /* Define the `cfree' alias for `free'.  */
 #ifdef weak_alias
 weak_alias (free, cfree)
@@ -1272,6 +1258,7 @@ cfree (void *ptr)
 {
   free (ptr);
 }
+#endif
 #endif
 /* Change the size of a block allocated by `malloc'.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995 Free Software Foundation, Inc.
@@ -1288,7 +1275,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public
-License along with this library.  If not, see <http://www.gnu.org/licenses/>.
+License along with this library.  If not, see <https://www.gnu.org/licenses/>.
 
    The author may be reached (Email) at the address mike@ai.mit.edu,
    or (US mail) as Mike Haertel c/o Free Software Foundation.  */
@@ -1298,7 +1285,7 @@ License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 /* Debugging hook for realloc.  */
-void *(*__realloc_hook) (void *ptr, size_t size);
+static void *(*grealloc_hook) (void *, size_t);
 
 /* Resize the given region to the new size, returning a pointer
    to the (possibly moved) region.  This is optimized for speed;
@@ -1328,7 +1315,7 @@ _realloc_internal_nolock (void *ptr, size_t size)
   type = _heapinfo[block].busy.type;
   switch (type)
     {
-    case 0:
+    case -1:
       /* Maybe reallocate a large block to a small fragment.  */
       if (size <= BLOCKSIZE / 2)
 	{
@@ -1348,7 +1335,7 @@ _realloc_internal_nolock (void *ptr, size_t size)
 	{
 	  /* The new size is smaller; return
 	     excess memory to the free list. */
-	  _heapinfo[block + blocks].busy.type = 0;
+	  _heapinfo[block + blocks].busy.type = -1;
 	  _heapinfo[block + blocks].busy.info.size
 	    = _heapinfo[block].busy.info.size - blocks;
 	  _heapinfo[block].busy.info.size = blocks;
@@ -1442,7 +1429,7 @@ realloc (void *ptr, size_t size)
   if (!__malloc_initialized && !__malloc_initialize ())
     return NULL;
 
-  hook = __realloc_hook;
+  hook = grealloc_hook;
   return (hook != NULL ? *hook : _realloc_internal) (ptr, size);
 }
 /* Copyright (C) 1991, 1992, 1994 Free Software Foundation, Inc.
@@ -1458,7 +1445,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public
-License along with this library.  If not, see <http://www.gnu.org/licenses/>.
+License along with this library.  If not, see <https://www.gnu.org/licenses/>.
 
    The author may be reached (Email) at the address mike@ai.mit.edu,
    or (US mail) as Mike Haertel c/o Free Software Foundation.  */
@@ -1496,7 +1483,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with the GNU C Library.  If not, see <http://www.gnu.org/licenses/>.  */
+along with the GNU C Library.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* uClibc defines __GNU_LIBRARY__, but it is not completely
    compatible.  */
@@ -1512,11 +1499,11 @@ extern void *__sbrk (ptrdiff_t increment);
 /* Allocate INCREMENT more bytes of data space,
    and return the start of data space, or NULL on errors.
    If INCREMENT is negative, shrink data space.  */
-void *
-__default_morecore (ptrdiff_t increment)
+static void *
+gdefault_morecore (ptrdiff_t increment)
 {
   void *result;
-#if defined (CYGWIN)
+#ifdef HYBRID_MALLOC
   if (!DUMPED)
     {
       return bss_sbrk (increment);
@@ -1527,6 +1514,9 @@ __default_morecore (ptrdiff_t increment)
     return NULL;
   return result;
 }
+
+void *(*__morecore) (ptrdiff_t) = gdefault_morecore;
+
 /* Copyright (C) 1991, 92, 93, 94, 95, 96 Free Software Foundation, Inc.
 
 This library is free software; you can redistribute it and/or
@@ -1540,19 +1530,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public
-License along with this library.  If not, see <http://www.gnu.org/licenses/>.  */
-
-void *(*__memalign_hook) (size_t size, size_t alignment);
+License along with this library.  If not, see <https://www.gnu.org/licenses/>.  */
 
 void *
 aligned_alloc (size_t alignment, size_t size)
 {
   void *result;
   size_t adj, lastadj;
-  void *(*hook) (size_t, size_t) = __memalign_hook;
-
-  if (hook)
-    return (*hook) (alignment, size);
 
   /* Allocate a block with enough extra space to pad the block with up to
      (ALIGNMENT - 1) bytes if necessary.  */
@@ -1631,6 +1615,8 @@ aligned_alloc (size_t alignment, size_t size)
   return result;
 }
 
+/* Note that memalign and posix_memalign are not used in Emacs.  */
+#ifndef HYBRID_MALLOC
 /* An obsolete alias for aligned_alloc, for any old libraries that use
    this alias.  */
 
@@ -1642,7 +1628,6 @@ memalign (size_t alignment, size_t size)
 
 /* If HYBRID_MALLOC is defined, we may want to use the system
    posix_memalign below.  */
-#ifndef HYBRID_MALLOC
 int
 posix_memalign (void **memptr, size_t alignment, size_t size)
 {
@@ -1677,21 +1662,23 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public
-License along with this library.  If not, see <http://www.gnu.org/licenses/>.
+License along with this library.  If not, see <https://www.gnu.org/licenses/>.
 
    The author may be reached (Email) at the address mike@ai.mit.edu,
    or (US mail) as Mike Haertel c/o Free Software Foundation.  */
 
-/* Allocate SIZE bytes on a page boundary.  */
-#ifndef HAVE_DECL_VALLOC
-extern void *valloc (size_t);
-#endif
+#ifndef HYBRID_MALLOC
 
-#if defined _SC_PAGESIZE || !defined HAVE_GETPAGESIZE
-# include "getpagesize.h"
-#elif !defined getpagesize
+# ifndef HAVE_MALLOC_H
+/* Allocate SIZE bytes on a page boundary.  */
+extern void *valloc (size_t);
+# endif
+
+# if defined _SC_PAGESIZE || !defined HAVE_GETPAGESIZE
+#  include "getpagesize.h"
+# elif !defined getpagesize
 extern int getpagesize (void);
-#endif
+# endif
 
 static size_t pagesize;
 
@@ -1703,6 +1690,7 @@ valloc (size_t size)
 
   return aligned_alloc (pagesize, size);
 }
+#endif /* HYBRID_MALLOC */
 
 #undef malloc
 #undef realloc
@@ -1721,6 +1709,20 @@ extern void *aligned_alloc (size_t alignment, size_t size);
 #elif defined HAVE_POSIX_MEMALIGN
 extern int posix_memalign (void **memptr, size_t alignment, size_t size);
 #endif
+
+/* Assuming PTR was allocated via the hybrid malloc, return true if
+   PTR was allocated via gmalloc, not the system malloc.  Also, return
+   true if _heaplimit is zero; this can happen temporarily when
+   gmalloc calls itself for internal use, and in that case PTR is
+   already known to be allocated via gmalloc.  */
+
+static bool
+allocated_via_gmalloc (void *ptr)
+{
+  size_t block = BLOCK (ptr);
+  size_t blockmax = _heaplimit - 1;
+  return block <= blockmax && _heapinfo[block].busy.type != 0;
+}
 
 /* See the comments near the beginning of this file for explanations
    of the following functions. */
@@ -1744,13 +1746,10 @@ hybrid_calloc (size_t nmemb, size_t size)
 void
 hybrid_free (void *ptr)
 {
-  if (!DUMPED)
+  if (allocated_via_gmalloc (ptr))
     gfree (ptr);
-  else if (!ALLOCATED_BEFORE_DUMPING (ptr))
+  else
     free (ptr);
-  /* Otherwise the dumped emacs is trying to free something allocated
-     before dumping; do nothing.  */
-  return;
 }
 
 #if defined HAVE_ALIGNED_ALLOC || defined HAVE_POSIX_MEMALIGN
@@ -1776,38 +1775,26 @@ hybrid_realloc (void *ptr, size_t size)
   int type;
   size_t block, oldsize;
 
+  if (!ptr)
+    return hybrid_malloc (size);
+  if (!allocated_via_gmalloc (ptr))
+    return realloc (ptr, size);
   if (!DUMPED)
     return grealloc (ptr, size);
-  if (!ALLOCATED_BEFORE_DUMPING (ptr))
-    return realloc (ptr, size);
 
   /* The dumped emacs is trying to realloc storage allocated before
-   dumping.  We just malloc new space and copy the data.  */
-  if (size == 0 || ptr == NULL)
-    return malloc (size);
-  block = ((char *) ptr - _heapbase) / BLOCKSIZE + 1;
+     dumping via gmalloc.  Allocate new space and copy the data.  Do
+     not bother with gfree (ptr), as that would just waste time.  */
+  block = BLOCK (ptr);
   type = _heapinfo[block].busy.type;
   oldsize =
-    type == 0 ? _heapinfo[block].busy.info.size * BLOCKSIZE
+    type < 0 ? _heapinfo[block].busy.info.size * BLOCKSIZE
     : (size_t) 1 << type;
   result = malloc (size);
   if (result)
     return memcpy (result, ptr, min (oldsize, size));
   return result;
 }
-
-#ifdef HYBRID_GET_CURRENT_DIR_NAME
-/* Defined in sysdep.c.  */
-char *gget_current_dir_name (void);
-
-char *
-hybrid_get_current_dir_name (void)
-{
-  if (DUMPED)
-    return get_current_dir_name ();
-  return gget_current_dir_name ();
-}
-#endif
 
 #else	/* ! HYBRID_MALLOC */
 
@@ -1860,7 +1847,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public
-License along with this library.  If not, see <http://www.gnu.org/licenses/>.
+License along with this library.  If not, see <https://www.gnu.org/licenses/>.
 
    The author may be reached (Email) at the address mike@ai.mit.edu,
    or (US mail) as Mike Haertel c/o Free Software Foundation.  */
@@ -1943,9 +1930,9 @@ freehook (void *ptr)
   else
     hdr = NULL;
 
-  __free_hook = old_free_hook;
+  gfree_hook = old_free_hook;
   free (hdr);
-  __free_hook = freehook;
+  gfree_hook = freehook;
 }
 
 static void *
@@ -1953,9 +1940,9 @@ mallochook (size_t size)
 {
   struct hdr *hdr;
 
-  __malloc_hook = old_malloc_hook;
+  gmalloc_hook = old_malloc_hook;
   hdr = malloc (sizeof *hdr + size + 1);
-  __malloc_hook = mallochook;
+  gmalloc_hook = mallochook;
   if (hdr == NULL)
     return NULL;
 
@@ -1981,13 +1968,13 @@ reallochook (void *ptr, size_t size)
 	memset ((char *) ptr + size, FREEFLOOD, osize - size);
     }
 
-  __free_hook = old_free_hook;
-  __malloc_hook = old_malloc_hook;
-  __realloc_hook = old_realloc_hook;
+  gfree_hook = old_free_hook;
+  gmalloc_hook = old_malloc_hook;
+  grealloc_hook = old_realloc_hook;
   hdr = realloc (hdr, sizeof *hdr + size + 1);
-  __free_hook = freehook;
-  __malloc_hook = mallochook;
-  __realloc_hook = reallochook;
+  gfree_hook = freehook;
+  gmalloc_hook = mallochook;
+  grealloc_hook = reallochook;
   if (hdr == NULL)
     return NULL;
 
@@ -2044,12 +2031,12 @@ mcheck (void (*func) (enum mcheck_status))
   /* These hooks may not be safely inserted if malloc is already in use.  */
   if (!__malloc_initialized && !mcheck_used)
     {
-      old_free_hook = __free_hook;
-      __free_hook = freehook;
-      old_malloc_hook = __malloc_hook;
-      __malloc_hook = mallochook;
-      old_realloc_hook = __realloc_hook;
-      __realloc_hook = reallochook;
+      old_free_hook = gfree_hook;
+      gfree_hook = freehook;
+      old_malloc_hook = gmalloc_hook;
+      gmalloc_hook = mallochook;
+      old_realloc_hook = grealloc_hook;
+      grealloc_hook = reallochook;
       mcheck_used = 1;
     }
 

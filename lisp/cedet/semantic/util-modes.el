@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -712,7 +712,7 @@ minor mode is enabled."
 	  ;; Disable minor mode if semantic stuff not available
 	  (setq semantic-stickyfunc-mode nil)
 	  (error "Buffer %s was not set up for parsing" (buffer-name)))
-	(unless (boundp 'default-header-line-format)
+	(unless (boundp 'header-line-format)
 	  ;; Disable if there are no header lines to use.
 	  (setq semantic-stickyfunc-mode nil)
 	  (error "Sticky Function mode requires Emacs"))

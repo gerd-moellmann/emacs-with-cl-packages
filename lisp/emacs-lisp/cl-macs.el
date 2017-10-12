@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -172,14 +172,15 @@ The name is made by appending a number to PREFIX, default \"G\"."
 		 (setq cl--gensym-counter (1+ cl--gensym-counter))))))
     (make-symbol (format "%s%d" pfix num))))
 
+(defvar cl--gentemp-counter 0)
 ;;;###autoload
 (defun cl-gentemp (&optional prefix)
   "Generate a new interned symbol with a unique name.
-The name is made by appending a number to PREFIX, default \"G\"."
-  (let ((pfix (if (stringp prefix) prefix "G"))
+The name is made by appending a number to PREFIX, default \"T\"."
+  (let ((pfix (if (stringp prefix) prefix "T"))
 	name)
-    (while (intern-soft (setq name (format "%s%d" pfix cl--gensym-counter)))
-      (setq cl--gensym-counter (1+ cl--gensym-counter)))
+    (while (intern-soft (setq name (format "%s%d" pfix cl--gentemp-counter)))
+      (setq cl--gentemp-counter (1+ cl--gentemp-counter)))
     (intern name)))
 
 
@@ -189,7 +190,7 @@ The name is made by appending a number to PREFIX, default \"G\"."
   (&rest ("cl-declare" &rest sexp)))
 
 (def-edebug-spec cl-declarations-or-string
-  (&or stringp cl-declarations))
+  (&or lambda-doc cl-declarations))
 
 (def-edebug-spec cl-lambda-list
   (([&rest arg]
@@ -446,8 +447,8 @@ more details.
 
 (def-edebug-spec cl-lambda-expr
   (&define ("lambda" cl-lambda-list
-	    ;;cl-declarations-or-string
-	    ;;[&optional ("interactive" interactive)]
+	    cl-declarations-or-string
+	    [&optional ("interactive" interactive)]
 	    def-body)))
 
 ;; Redefine function-form to also match cl-function
@@ -923,6 +924,7 @@ For more details, see Info node `(cl)Loop Facility'.
                                "count" "maximize" "minimize" "if" "unless"
                                "return"]
                           form]
+                         ["using" (symbolp symbolp)]
                          ;; Simple default, which covers 99% of the cases.
                          symbolp form)))
   (if (not (memq t (mapcar #'symbolp
@@ -1837,6 +1839,27 @@ Labels have lexical scope and dynamic extent."
                     `(throw ',catch-tag ',label))))
          ,@macroexpand-all-environment)))))
 
+(defun cl--prog (binder bindings body)
+  (let (decls)
+    (while (eq 'declare (car-safe (car body)))
+      (push (pop body) decls))
+    `(cl-block nil
+       (,binder ,bindings
+         ,@(nreverse decls)
+         (cl-tagbody . ,body)))))
+
+;;;###autoload
+(defmacro cl-prog (bindings &rest body)
+  "Run BODY like a `cl-tagbody' after setting up the BINDINGS.
+Shorthand for (cl-block nil (let BINDINGS (cl-tagbody BODY)))"
+  (cl--prog 'let bindings body))
+
+;;;###autoload
+(defmacro cl-prog* (bindings &rest body)
+  "Run BODY like a `cl-tagbody' after setting up the BINDINGS.
+Shorthand for (cl-block nil (let* BINDINGS (cl-tagbody BODY)))"
+  (cl--prog 'let* bindings body))
+
 ;;;###autoload
 (defmacro cl-do-symbols (spec &rest body)
   "Loop over all symbols.
@@ -2030,15 +2053,17 @@ This is like `cl-flet', but for macros instead of functions.
 This function replaces `macroexpand' during macro expansion
 of `cl-symbol-macrolet', and does the same thing as `macroexpand'
 except that it additionally expands symbol macros."
-  (let ((macroexpand-all-environment env))
+  (let ((macroexpand-all-environment env)
+        (venv (alist-get :cl-symbol-macros env)))
     (while
         (progn
           (setq exp (funcall cl--old-macroexpand exp env))
           (pcase exp
             ((pred symbolp)
              ;; Perform symbol-macro expansion.
-             (when (cdr (assq (symbol-name exp) env))
-               (setq exp (cadr (assq (symbol-name exp) env)))))
+             (let ((symval (assq exp venv)))
+               (when symval
+                 (setq exp (cadr symval)))))
             (`(setq . ,_)
              ;; Convert setq to setf if required by symbol-macro expansion.
              (let* ((args (mapcar (lambda (f) (cl--sm-macroexpand f env))
@@ -2056,7 +2081,7 @@ except that it additionally expands symbol macros."
              (let ((letf nil) (found nil) (nbs ()))
                (dolist (binding bindings)
                  (let* ((var (if (symbolp binding) binding (car binding)))
-                        (sm (assq (symbol-name var) env)))
+                        (sm (assq var venv)))
                    (push (if (not (cdr sm))
                              binding
                            (let ((nexp (cadr sm)))
@@ -2113,30 +2138,29 @@ Within the body FORMs, references to the variable NAME will be replaced
 by EXPANSION, and (setq NAME ...) will act like (setf EXPANSION ...).
 
 \(fn ((NAME EXPANSION) ...) FORM...)"
-  (declare (indent 1) (debug ((&rest (symbol sexp)) cl-declarations body)))
-  (cond
-   ((cdr bindings)
-    `(cl-symbol-macrolet (,(car bindings))
-       (cl-symbol-macrolet ,(cdr bindings) ,@body)))
-   ((null bindings) (macroexp-progn body))
-   (t
-    (let ((previous-macroexpand (symbol-function 'macroexpand)))
-      (unwind-protect
-          (progn
-            (fset 'macroexpand #'cl--sm-macroexpand)
-            (let ((expansion
-                   ;; FIXME: For N bindings, this will traverse `body' N times!
-                   (macroexpand-all (macroexp-progn body)
-                                    (cons (list (symbol-name (caar bindings))
-                                                (cl-cadar bindings))
-                                          macroexpand-all-environment))))
-              (if (or (null (cdar bindings)) (cl-cddar bindings))
-                  (macroexp--warn-and-return
-                   (format-message "Malformed `cl-symbol-macrolet' binding: %S"
-                                   (car bindings))
-                   expansion)
-                expansion)))
-        (fset 'macroexpand previous-macroexpand))))))
+  (declare (indent 1) (debug ((&rest (symbolp sexp)) cl-declarations body)))
+  (let ((previous-macroexpand (symbol-function 'macroexpand))
+        (malformed-bindings nil))
+    (dolist (binding bindings)
+      (unless (and (consp binding) (symbolp (car binding))
+                   (consp (cdr binding)) (null (cddr binding)))
+        (push binding malformed-bindings)))
+    (unwind-protect
+        (progn
+          (fset 'macroexpand #'cl--sm-macroexpand)
+          (let* ((venv (cdr (assq :cl-symbol-macros macroexpand-all-environment)))
+                 (expansion
+                  (macroexpand-all (macroexp-progn body)
+                                   (cons (cons :cl-symbol-macros
+                                               (append bindings venv))
+                                         macroexpand-all-environment))))
+            (if malformed-bindings
+                (macroexp--warn-and-return
+                 (format-message "Malformed `cl-symbol-macrolet' binding(s): %S"
+                                 (nreverse malformed-bindings))
+                 expansion)
+              expansion)))
+      (fset 'macroexpand previous-macroexpand))))
 
 ;;; Multiple values.
 
@@ -2414,7 +2438,9 @@ As a special case, if `(PLACE)' is used instead of `(PLACE VALUE)',
 the PLACE is not modified before executing BODY.
 
 \(fn ((PLACE VALUE) ...) BODY...)"
-  (declare (indent 1) (debug ((&rest (gate gv-place &optional form)) body)))
+  (declare (indent 1) (debug ((&rest [&or (symbolp form)
+                                          (gate gv-place &optional form)])
+                              body)))
   (if (and (not (cdr bindings)) (cdar bindings) (symbolp (caar bindings)))
       `(let ,bindings ,@body)
     (cl--letf bindings () () body)))
@@ -2480,8 +2506,9 @@ The function's arguments should be treated as immutable.
              ,(if (memq '&key args)
                   `(&whole cl-whole &cl-quote ,@args)
                 (cons '&cl-quote args))
+             ,(format "compiler-macro for inlining `%s'." name)
              (cl--defsubst-expand
-              ',argns '(cl-block ,name ,@body)
+              ',argns '(cl-block ,name ,@(cdr (macroexp-parse-body body)))
               ;; We used to pass `simple' as
               ;; (not (or unsafe (cl-expr-access-order pbody argns)))
               ;; But this is much too simplistic since it
@@ -2557,20 +2584,19 @@ non-nil value, that slot cannot be set via `setf'.
              [&or symbolp
                   (gate
                    symbolp &rest
-                   (&or [":conc-name" symbolp]
-                        [":constructor" symbolp &optional cl-lambda-list]
-                        [":copier" symbolp]
-                        [":predicate" symbolp]
-                        [":include" symbolp &rest sexp] ;; Not finished.
-                        ;; The following are not supported.
-                        ;; [":print-function" ...]
-                        ;; [":type" ...]
-                        ;; [":initial-offset" ...]
-                        ))]
+                   [&or symbolp
+                        (&or [":conc-name" symbolp]
+                             [":constructor" symbolp &optional cl-lambda-list]
+                             [":copier" symbolp]
+                             [":predicate" symbolp]
+                             [":include" symbolp &rest sexp] ;; Not finished.
+                             [":print-function" sexp]
+                             [":type" symbolp]
+                             [":named"]
+                             [":initial-offset" natnump])])]
              [&optional stringp]
              ;; All the above is for the following def-form.
-             &rest &or symbolp (symbolp def-form
-                                        &optional ":read-only" sexp))))
+             &rest &or symbolp (symbolp &optional def-form &rest sexp))))
   (let* ((name (if (consp struct) (car struct) struct))
 	 (opts (cdr-safe struct))
 	 (slots nil)
@@ -2583,11 +2609,24 @@ non-nil value, that slot cannot be set via `setf'.
 	 (print-func nil) (print-auto nil)
 	 (safety (if (cl--compiling-file) cl--optimize-safety 3))
 	 (include nil)
-	 (tag (intern (format "cl-struct-%s" name)))
+         ;; There are 4 types of structs:
+         ;; - `vector' type: means we should use a vector, which can come
+         ;;   with or without a tag `name', which is usually in slot 0
+         ;;   but obeys :initial-offset.
+         ;; - `list' type: same as `vector' but using lists.
+         ;; - `record' type: means we should use a record, which necessarily
+         ;;   comes tagged in slot 0.  Currently we'll use the `name' as
+         ;;   the tag, but we may want to change it so that the class object
+         ;;   is used as the tag.
+         ;; - nil type: this is the "pre-record default", which uses a vector
+         ;;   with a tag in slot 0 which is a symbol of the form
+         ;;   `cl-struct-NAME'.  We need to still support this for backward
+         ;;   compatibility with old .elc files.
+	 (tag name)
 	 (tag-symbol (intern (format "cl-struct-%s-tags" name)))
 	 (include-descs nil)
 	 (include-name nil)
-	 (type nil)
+	 (type nil)         ;nil here means not specified explicitly.
 	 (named nil)
 	 (forms nil)
          (docstring (if (stringp (car descs)) (pop descs)))
@@ -2627,14 +2666,16 @@ non-nil value, that slot cannot be set via `setf'.
 	      ((eq opt :print-function)
 	       (setq print-func (car args)))
 	      ((eq opt :type)
-	       (setq type (car args)))
+	       (setq type (car args))
+               (unless (memq type '(vector list))
+                 (error "Invalid :type specifier: %s" type)))
 	      ((eq opt :named)
 	       (setq named t))
 	      ((eq opt :initial-offset)
 	       (setq descs (nconc (make-list (car args) '(cl-skip-slot))
 				  descs)))
 	      (t
-	       (error "Slot option %s unrecognized" opt)))))
+	       (error "Structure option %s unrecognized" opt)))))
     (unless (or include-name type)
       (setq include-name cl--struct-default-parent))
     (when include-name (setq include (cl--struct-get-class include-name)))
@@ -2659,13 +2700,11 @@ non-nil value, that slot cannot be set via `setf'.
 		    (pop include-descs)))
 	  (setq descs (append old-descs (delq (assq 'cl-tag-slot descs) descs))
 		type inc-type
-		named (if type (assq 'cl-tag-slot descs) 'true))
-	  (if (cl--struct-class-named include) (setq tag name named t)))
-      (if type
-	  (progn
-	    (or (memq type '(vector list))
-		(error "Invalid :type specifier: %s" type))
-	    (if named (setq tag name)))
+		named (if (memq type '(vector list))
+                          (assq 'cl-tag-slot descs)
+                        'true))
+	  (if (cl--struct-class-named include) (setq named t)))
+      (unless type
 	(setq named 'true)))
     (or named (setq descs (delq (assq 'cl-tag-slot descs) descs)))
     (when (and (null predicate) named)
@@ -2675,7 +2714,9 @@ non-nil value, that slot cannot be set via `setf'.
 				       (length (memq (assq 'cl-tag-slot descs)
 						     descs)))))
 			   (cond
-                            ((memq type '(nil vector))
+                            ((null type) ;Record type.
+                             `(memq (type-of cl-x) ,tag-symbol))
+                            ((eq type 'vector)
                              `(and (vectorp cl-x)
                                    (>= (length cl-x) ,(length descs))
                                    (memq (aref cl-x ,pos) ,tag-symbol)))
@@ -2698,7 +2739,7 @@ non-nil value, that slot cannot be set via `setf'.
     (let ((pos 0) (descp descs))
       (while descp
 	(let* ((desc (pop descp))
-	       (slot (car desc)))
+	       (slot (pop desc)))
 	  (if (memq slot '(cl-tag-slot cl-skip-slot))
 	      (progn
 		(push nil slots)
@@ -2708,8 +2749,12 @@ non-nil value, that slot cannot be set via `setf'.
 		(error "Duplicate slots named %s in %s" slot name))
 	    (let ((accessor (intern (format "%s%s" conc-name slot))))
 	      (push slot slots)
-	      (push (nth 1 desc) defaults)
+	      (push (pop desc) defaults)
+	      ;; The arg "cl-x" is referenced by name in eg pred-form
+	      ;; and pred-check, so changing it is not straightforward.
 	      (push `(cl-defsubst ,accessor (cl-x)
+                       ,(format "Access slot \"%s\" of `%s' struct CL-X."
+                                slot struct)
                        (declare (side-effect-free t))
                        ,@(and pred-check
 			      (list `(or ,pred-check
@@ -2719,7 +2764,25 @@ non-nil value, that slot cannot be set via `setf'.
                           (if (= pos 0) '(car cl-x)
                             `(nth ,pos cl-x))))
                     forms)
-              (if (cadr (memq :read-only (cddr desc)))
+              (when (cl-oddp (length desc))
+                (push
+                 (macroexp--warn-and-return
+                  (format "Missing value for option `%S' of slot `%s' in struct %s!"
+                          (car (last desc)) slot name)
+                  'nil)
+                 forms)
+                (when (and (keywordp (car defaults))
+                           (not (keywordp (car desc))))
+                  (let ((kw (car defaults)))
+                    (push
+                     (macroexp--warn-and-return
+                      (format "  I'll take `%s' to be an option rather than a default value."
+                              kw)
+                      'nil)
+                     forms)
+                    (push kw desc)
+                    (setcar defaults nil))))
+              (if (plist-get desc ':read-only)
                   (push `(gv-define-expander ,accessor
                            (lambda (_cl-do _cl-x)
                              (error "%s is a read-only slot" ',accessor)))
@@ -2750,7 +2813,8 @@ non-nil value, that slot cannot be set via `setf'.
     (setq slots (nreverse slots)
 	  defaults (nreverse defaults))
     (and copier
-         (push `(defalias ',copier #'copy-sequence) forms))
+         (push `(defalias ',copier #'copy-sequence)
+               forms))
     (if constructor
 	(push (list constructor
                     (cons '&key (delq nil (copy-sequence slots))))
@@ -2765,7 +2829,7 @@ non-nil value, that slot cannot be set via `setf'.
                     (format "Constructor for objects of type `%s'." name))
                  ,@(if (cl--safe-expr-p `(progn ,@(mapcar #'cl-second descs)))
                        '((declare (side-effect-free t))))
-                 (,(or type #'vector) ,@make))
+                 (,(or type #'record) ,@make))
               forms)))
     (if print-auto (nconc print-func (list '(princ ")" cl-s) t)))
     ;; Don't bother adding to cl-custom-print-functions since it's not used
@@ -2787,8 +2851,8 @@ non-nil value, that slot cannot be set via `setf'.
        ;; struct as a parent.
        (eval-and-compile
          (cl-struct-define ',name ,docstring ',include-name
-                           ',type ,(eq named t) ',descs ',tag-symbol ',tag
-                           ',print-auto))
+                           ',(or type 'record) ,(eq named t) ',descs
+                           ',tag-symbol ',tag ',print-auto))
        ',name)))
 
 ;;; Add cl-struct support to pcase
@@ -2823,6 +2887,15 @@ is a shorthand for (NAME NAME)."
                      ,pat)))
            fields)))
 
+(defun cl--defstruct-predicate (type)
+  (let ((cons (assq (cl-struct-sequence-type type)
+                    `((list . consp)
+                      (vector . vectorp)
+                      (nil . recordp)))))
+    (if cons
+        (cdr cons)
+      'recordp)))
+
 (defun cl--pcase-mutually-exclusive-p (orig pred1 pred2)
   "Extra special cases for `cl-typep' predicates."
   (let* ((x1 pred1) (x2 pred2)
@@ -2845,14 +2918,12 @@ is a shorthand for (NAME NAME)."
                           (memq c2 (cl--struct-all-parents c1)))))))
      (let ((c1 (and (symbolp t1) (cl--find-class t1))))
        (and c1 (cl--struct-class-p c1)
-            (funcall orig (if (eq 'list (cl-struct-sequence-type t1))
-                              'consp 'vectorp)
+            (funcall orig (cl--defstruct-predicate t1)
                      pred2)))
      (let ((c2 (and (symbolp t2) (cl--find-class t2))))
        (and c2 (cl--struct-class-p c2)
             (funcall orig pred1
-                     (if (eq 'list (cl-struct-sequence-type t2))
-                         'consp 'vectorp))))
+                     (cl--defstruct-predicate t2))))
      (funcall orig pred1 pred2))))
 (advice-add 'pcase--mutually-exclusive-p
             :around #'cl--pcase-mutually-exclusive-p)
@@ -2860,8 +2931,8 @@ is a shorthand for (NAME NAME)."
 
 (defun cl-struct-sequence-type (struct-type)
   "Return the sequence used to build STRUCT-TYPE.
-STRUCT-TYPE is a symbol naming a struct type.  Return `vector' or
-`list', or nil if STRUCT-TYPE is not a struct type. "
+STRUCT-TYPE is a symbol naming a struct type.  Return `record',
+`vector`, or `list' if STRUCT-TYPE is a struct type, nil otherwise."
   (declare (side-effect-free t) (pure t))
   (cl--struct-class-type (cl--struct-get-class struct-type)))
 
@@ -3003,7 +3074,7 @@ omitted, a default message listing FORM itself is used."
                          (delq nil (mapcar (lambda (x)
                                              (unless (macroexp-const-p x)
                                                x))
-                                           (cdr form))))))
+                                           (cdr-safe form))))))
 	 `(progn
             (or ,form
                 (cl--assertion-failed

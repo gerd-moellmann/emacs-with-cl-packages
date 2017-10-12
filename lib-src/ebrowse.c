@@ -15,24 +15,25 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 #include <config.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
 #include <getopt.h>
 
+#include <flexmember.h>
+#include <min-max.h>
+#include <unlocked-io.h>
+
 /* The SunOS compiler doesn't have SEEK_END.  */
 #ifndef SEEK_END
 #define SEEK_END 2
 #endif
-
-#include <min-max.h>
 
 /* Files are read in chunks of this number of bytes.  */
 
@@ -582,7 +583,7 @@ add_sym (const char *name, struct sym *nested_in_class)
 	  puts (name);
 	}
 
-      sym = xmalloc (offsetof (struct sym, name) + strlen (name) + 1);
+      sym = xmalloc (FLEXSIZEOF (struct sym, name, strlen (name) + 1));
       memset (sym, 0, offsetof (struct sym, name));
       strcpy (sym->name, name);
       sym->namesp = scope;
@@ -867,8 +868,8 @@ add_global_decl (char *name, char *regexp, int pos, unsigned int hash, int var, 
 static struct member *
 add_member (struct sym *cls, char *name, int var, int sc, unsigned int hash)
 {
-  struct member *m = xmalloc (offsetof (struct member, name)
-			      + strlen (name) + 1);
+  struct member *m = xmalloc (FLEXSIZEOF (struct member, name,
+					  strlen (name) + 1));
   struct member **list;
   struct member *p;
   struct member *prev;
@@ -978,7 +979,7 @@ mark_inherited_virtual (void)
 static struct sym *
 make_namespace (char *name, struct sym *context)
 {
-  struct sym *s = xmalloc (offsetof (struct sym, name) + strlen (name) + 1);
+  struct sym *s = xmalloc (FLEXSIZEOF (struct sym, name, strlen (name) + 1));
   memset (s, 0, offsetof (struct sym, name));
   strcpy (s->name, name);
   s->next = all_namespaces;
@@ -1062,7 +1063,7 @@ register_namespace_alias (char *new_name, struct link *old_name)
     if (streq (new_name, al->name) && (al->namesp == current_namespace))
       return;
 
-  al = xmalloc (offsetof (struct alias, name) + strlen (new_name) + 1);
+  al = xmalloc (FLEXSIZEOF (struct alias, name, strlen (new_name) + 1));
   strcpy (al->name, new_name);
   al->next = namespace_alias_table[h];
   al->namesp = current_namespace;
@@ -3058,8 +3059,7 @@ class_definition (struct sym *containing, int tag, int flags, int nested)
                  MATCH until we see something like `;' or `{'.  */
               while (!LOOKING_AT3 (';', YYEOF, '{'))
                 MATCH ();
-	      done = 1;
-
+	      FALLTHROUGH;
             case '{':
               done = 1;
 	      break;
@@ -3183,7 +3183,7 @@ declaration (int flags)
 	      free (id);
 	      return;
 	    }
-
+	  FALLTHROUGH;
         case '=':
           /* Assumed to be the start of an initialization in this
 	     context.  */

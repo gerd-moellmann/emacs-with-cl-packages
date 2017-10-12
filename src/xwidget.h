@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef XWIDGET_H_INCLUDED
 #define XWIDGET_H_INCLUDED
@@ -55,9 +55,6 @@ struct xwidget
   /* For offscreen widgets, unused if not osr.  */
   GtkWidget *widget_osr;
   GtkWidget *widgetwindow_osr;
-
-  /* Used if the widget (webkit) is to be wrapped in a scrolled window.  */
-  GtkWidget *widgetscrolledwindow_osr;
 
   /* Kill silently if Emacs is exited.  */
   bool_bf kill_without_query : 1;

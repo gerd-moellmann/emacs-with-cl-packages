@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -48,16 +48,18 @@
     (define-key map " " 'self-insert-command)
     map))
 
-(defvar mh-alias-system-aliases
+(defcustom mh-alias-system-aliases
   '("/etc/nmh/MailAliases" "/etc/mh/MailAliases"
     "/usr/lib/mh/MailAliases" "/usr/share/mailutils/mh/MailAliases"
     "/etc/passwd")
-  "*A list of system files which are a source of aliases.
+  "A list of system files which are a source of aliases.
 If these files are modified, they are automatically reread. This list
 need include only system aliases and the passwd file, since personal
 alias files listed in your \"Aliasfile:\" MH profile component are
 automatically included. You can update the alias list manually using
-\\[mh-alias-reload].")
+\\[mh-alias-reload]."
+  :type '(repeat file)
+  :group 'mh-alias)
 
 
 
@@ -250,8 +252,9 @@ Blind aliases or users from /etc/passwd are not expanded."
    (t
     (mh-alias-ali alias))))
 
-(mh-require 'crm nil t)                 ; completing-read-multiple
-(mh-require 'multi-prompt nil t)
+(eval-and-compile
+  (mh-require 'crm nil t)                 ; completing-read-multiple
+  (mh-require 'multi-prompt nil t))
 
 ;;;###mh-autoload
 (defun mh-read-address (prompt)
@@ -587,7 +590,7 @@ filing messages."
       (set-buffer (get-buffer-create mh-temp-buffer))
       (insert-file-contents (mh-msg-filename (mh-get-msg-num t))))
      ((eq major-mode 'mh-folder-mode)
-      (error "Cursor not pointing to a message")))
+      (user-error "Cursor not pointing to a message")))
     (let* ((address (or (mh-extract-from-header-value)
                         (error "Message has no From: header")))
            (alias (mh-alias-suggest-alias address)))

@@ -32,7 +32,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Commentary:
@@ -125,6 +125,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Code:
+
+(eval-when-compile (require 'cl))
+(eval-and-compile
+  ;; Before Emacs-24.4, `pushnew' expands to runtime calls to `cl-adjoin'
+  ;; even for relatively simple cases such as used here.  We only test <25
+  ;; because it's easier and sufficient.
+  (when (or (featurep 'xemacs) (< emacs-major-version 25))
+    (require 'cl)))
 
 ;; Emacs 21+ handling
 (defconst vhdl-emacs-21 (and (<= 21 emacs-major-version) (not (featurep 'xemacs)))
@@ -1002,7 +1010,7 @@ if the header needs to be version controlled.
 The following keywords for template generation are supported:
   <filename>    : replaced by the name of the buffer
   <author>      : replaced by the user name and email address
-                  (`user-full-name',`mail-host-address', `user-mail-address')
+                  (`user-full-name', `user-mail-address')
   <authorfull>  : replaced by the user full name (`user-full-name')
   <login>       : replaced by user login name (`user-login-name')
   <company>     : replaced by contents of option `vhdl-company-name'
@@ -1959,7 +1967,6 @@ are treated as single words otherwise."
 (unless (featurep 'xemacs)
   (custom-add-to-group 'vhdl-related 'transient-mark-mode 'custom-variable))
 (custom-add-to-group 'vhdl-related 'user-full-name 'custom-variable)
-(custom-add-to-group 'vhdl-related 'mail-host-address 'custom-variable)
 (custom-add-to-group 'vhdl-related 'user-mail-address 'custom-variable)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -14314,7 +14321,7 @@ of PROJECT."
       (vhdl-scan-directory-contents dir-name project nil
 				    (format "(%s/%s) " act-dir num-dir)
 				    (cdr dir-list))
-      (add-to-list 'dir-list-tmp (file-name-directory dir-name))
+      (pushnew (file-name-directory dir-name) dir-list-tmp :test #'equal)
       (setq dir-list (cdr dir-list)
 	    act-dir (1+ act-dir)))
     (vhdl-aput 'vhdl-directory-alist project (list (nreverse dir-list-tmp)))
@@ -16406,8 +16413,8 @@ component instantiation."
 	     (if (or (member constant-name single-list)
 		     (member constant-name multi-list))
 		 (progn (setq single-list (delete constant-name single-list))
-			(add-to-list 'multi-list constant-name))
-	       (add-to-list 'single-list constant-name))
+			(pushnew constant-name multi-list :test #'equal))
+	       (pushnew constant-name single-list :test #'equal))
 	     (unless (match-string 1)
 	       (setq generic-alist (cdr generic-alist)))
 	     (vhdl-forward-syntactic-ws))
@@ -16433,12 +16440,12 @@ component instantiation."
 		     (member signal-name multi-out-list))
 		 (setq single-out-list (delete signal-name single-out-list))
 		 (setq multi-out-list (delete signal-name multi-out-list))
-		 (add-to-list 'local-list signal-name))
+		 (pushnew signal-name local-list :test #'equal))
 		((member signal-name single-in-list)
 		 (setq single-in-list (delete signal-name single-in-list))
-		 (add-to-list 'multi-in-list signal-name))
+		 (pushnew signal-name multi-in-list :test #'equal))
 		((not (member signal-name multi-in-list))
-		 (add-to-list 'single-in-list signal-name)))
+		 (pushnew signal-name single-in-list :test #'equal)))
 	     ;; output signal
 	     (cond
 	      ((member signal-name local-list)
@@ -16447,17 +16454,18 @@ component instantiation."
 		   (member signal-name multi-in-list))
 	       (setq single-in-list (delete signal-name single-in-list))
 	       (setq multi-in-list (delete signal-name multi-in-list))
-	       (add-to-list 'local-list signal-name))
+	       (pushnew signal-name local-list :test #'equal))
 	      ((member signal-name single-out-list)
 	       (setq single-out-list (delete signal-name single-out-list))
-	       (add-to-list 'multi-out-list signal-name))
+	       (pushnew signal-name multi-out-list :test #'equal))
 	      ((not (member signal-name multi-out-list))
-	       (add-to-list 'single-out-list signal-name))))
+	       (pushnew signal-name single-out-list :test #'equal))))
 	   (unless (match-string 1)
 	     (setq port-alist (cdr port-alist)))
 	   (vhdl-forward-syntactic-ws))
 	 (push (list inst-name (nreverse constant-alist)
-		     (nreverse signal-alist)) inst-alist))
+		     (nreverse signal-alist))
+               inst-alist))
        ;; prepare signal insertion
        (vhdl-goto-marker arch-decl-pos)
        (forward-line 1)
@@ -16534,14 +16542,14 @@ component instantiation."
 			 generic-end-pos
 			 (vhdl-compose-insert-generic constant-entry)))
 		  (setq generic-pos (point-marker))
-		  (add-to-list 'written-list constant-name))
+		  (pushnew constant-name written-list :test #'equal))
 		 (t
 		  (vhdl-goto-marker
 		   (vhdl-max-marker generic-inst-pos generic-pos))
 		  (setq generic-end-pos
 			(vhdl-compose-insert-generic constant-entry))
 		  (setq generic-inst-pos (point-marker))
-		    (add-to-list 'written-list constant-name))))
+		    (pushnew constant-name written-list :test #'equal))))
 	   (setq constant-alist (cdr constant-alist)))
 	 (when (/= constant-temp-pos generic-inst-pos)
 	   (vhdl-goto-marker (vhdl-max-marker constant-temp-pos generic-pos))
@@ -16560,14 +16568,14 @@ component instantiation."
 			(vhdl-max-marker
 			 port-end-pos (vhdl-compose-insert-port signal-entry)))
 		  (setq port-in-pos (point-marker))
-		  (add-to-list 'written-list signal-name))
+		  (pushnew signal-name written-list :test #'equal))
 		 ((member signal-name multi-out-list)
 		  (vhdl-goto-marker (vhdl-max-marker port-out-pos port-in-pos))
 		  (setq port-end-pos
 			(vhdl-max-marker
 			 port-end-pos (vhdl-compose-insert-port signal-entry)))
 		  (setq port-out-pos (point-marker))
-		  (add-to-list 'written-list signal-name))
+		  (pushnew signal-name written-list :test #'equal))
 		 ((or (member signal-name single-in-list)
 		      (member signal-name single-out-list))
 		  (vhdl-goto-marker
@@ -16576,12 +16584,12 @@ component instantiation."
 		    (vhdl-max-marker port-out-pos port-in-pos)))
 		  (setq port-end-pos (vhdl-compose-insert-port signal-entry))
 		  (setq port-inst-pos (point-marker))
-		  (add-to-list 'written-list signal-name))
+		  (pushnew signal-name written-list :test #'equal))
 		 ((equal (upcase (nth 2 signal-entry)) "OUT")
 		  (vhdl-goto-marker signal-pos)
 		  (vhdl-compose-insert-signal signal-entry)
 		  (setq signal-pos (point-marker))
-		  (add-to-list 'written-list signal-name)))
+		  (pushnew signal-name written-list :test #'equal)))
 	   (setq signal-alist (cdr signal-alist)))
 	 (when (/= port-temp-pos port-inst-pos)
 	   (vhdl-goto-marker
@@ -16932,7 +16940,7 @@ no project is defined."
   "Remove duplicate elements from IN-LIST."
   (let (out-list)
     (while in-list
-      (add-to-list 'out-list (car in-list))
+      (pushnew (car in-list) out-list :test #'equal)
       (setq in-list (cdr in-list)))
     out-list))
 
@@ -17889,7 +17897,7 @@ references:
 
 [3] European Space Agency.
     \"VHDL Modelling Guidelines\".
-    ftp://ftp.estec.esa.nl/pub/vhdl/doc/ModelGuide.{pdf,ps}
+    https://amstel.estec.esa.int/tecedm/website/docs_generic/ModelGuide.pdf
 
 Use user options `vhdl-highlight-special-words' and `vhdl-special-syntax-alist'
 to visually support naming conventions.")

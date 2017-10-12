@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -605,5 +605,7 @@ list.  You can (and should) also run it if and when the value of
     ;; squeeze every bit of support out of their terminal/font.
     (run-hooks 'dos-codepage-setup-hook)
     ))
+
+(provide 'term/internal)
 
 ;;; internal.el ends here

@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -119,7 +119,8 @@ the value of `tooltip-y-offset' is ignored."
 (defcustom tooltip-frame-parameters
   '((name . "tooltip")
     (internal-border-width . 2)
-    (border-width . 1))
+    (border-width . 1)
+    (no-special-glyphs . t))
   "Frame parameters used for tooltips.
 
 If `left' or `top' parameters are included, they specify the absolute
@@ -130,7 +131,8 @@ of the `tooltip' face are used instead."
   :type '(repeat (cons :format "%v"
 		       (symbol :tag "Parameter")
 		       (sexp :tag "Value")))
-  :group 'tooltip)
+  :group 'tooltip
+  :version "26.1")
 
 (defface tooltip
   '((((class color))

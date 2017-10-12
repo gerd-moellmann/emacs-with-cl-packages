@@ -16,7 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Written by David MacKenzie and Torbjorn Granlund.
    Adapted for GNU C library by Roland McGrath.  */
@@ -197,8 +197,6 @@ weak_alias (__euidaccess, euidaccess)
 # include <stdio.h>
 # include <stdlib.h>
 
-char *program_name;
-
 int
 main (int argc, char **argv)
 {
@@ -206,7 +204,6 @@ main (int argc, char **argv)
   int mode;
   int err;
 
-  program_name = argv[0];
   if (argc < 3)
     abort ();
   file = argv[1];

@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #undef Z
 #import <Cocoa/Cocoa.h>
@@ -156,6 +156,21 @@ typedef id instancetype;
 + (NSCursor *)cursorWithThemeCursor:(ThemeCursor)shape;
 @end
 
+@interface NSCursor (UndocumentedOn1070AndLater)
++ (NSCursor *)_windowResizeNorthWestSouthEastCursor;
++ (NSCursor *)_windowResizeNorthEastSouthWestCursor;
++ (NSCursor *)_windowResizeNorthSouthCursor;
++ (NSCursor *)_windowResizeNorthCursor;
++ (NSCursor *)_windowResizeSouthCursor;
++ (NSCursor *)_windowResizeEastWestCursor;
++ (NSCursor *)_windowResizeEastCursor;
++ (NSCursor *)_windowResizeWestCursor;
++ (NSCursor *)_windowResizeNorthWestCursor;
++ (NSCursor *)_windowResizeNorthEastCursor;
++ (NSCursor *)_windowResizeSouthWestCursor;
++ (NSCursor *)_windowResizeSouthEastCursor;
+@end
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 /* Workarounds for memory leaks on OS X 10.9.  */
 @interface NSApplication (Undocumented)
@@ -294,9 +309,6 @@ typedef id instancetype;
 - (void)exitTabGroupOverview;
 @end
 
-@interface EmacsFullscreenWindow : EmacsWindow
-@end
-
 @interface NSObject (EmacsWindowDelegate)
 - (BOOL)window:(NSWindow *)sender shouldForwardAction:(SEL)action to:(id)target;
 - (NSRect)window:(NSWindow *)sender willConstrainFrame:(NSRect)frameRect
@@ -369,6 +381,7 @@ typedef id instancetype;
 - (void)closeWindow;
 - (struct frame *)emacsFrame;
 - (EmacsWindow *)emacsWindow;
+- (BOOL)acceptsFocus;
 - (WMState)windowManagerState;
 - (void)setWindowManagerState:(WMState)newState;
 - (void)updateBackingScaleFactor;

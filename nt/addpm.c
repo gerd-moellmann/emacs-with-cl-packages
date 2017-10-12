@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /****************************************************************************
  *
@@ -52,6 +52,9 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifndef OLD_PATHS
 #include "../src/epaths.h"
 #endif
+
+HDDEDATA CALLBACK DdeCallback (UINT, UINT, HCONV, HSZ, HSZ, HDDEDATA, DWORD,
+			       DWORD);
 
 HDDEDATA CALLBACK
 DdeCallback (UINT uType, UINT uFmt, HCONV hconv,
@@ -101,7 +104,7 @@ env_vars[] =
 #endif
 };
 
-void
+static void
 add_registry (const char *path)
 {
   HKEY hrootkey = NULL;

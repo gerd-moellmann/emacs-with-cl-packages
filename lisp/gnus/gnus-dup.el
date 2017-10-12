@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -39,19 +39,19 @@
   :group 'gnus)
 
 (defcustom gnus-save-duplicate-list nil
-  "*If non-nil, save the duplicate list when shutting down Gnus.
+  "If non-nil, save the duplicate list when shutting down Gnus.
 If nil, duplicate suppression will only work on duplicates
 seen in the same session."
   :group 'gnus-duplicate
   :type 'boolean)
 
 (defcustom gnus-duplicate-list-length 10000
-  "*The number of Message-IDs to keep in the duplicate suppression list."
+  "The number of Message-IDs to keep in the duplicate suppression list."
   :group 'gnus-duplicate
   :type 'integer)
 
 (defcustom gnus-duplicate-file (nnheader-concat gnus-directory "suppression")
-  "*The name of the file to store the duplicate suppression list."
+  "The name of the file to store the duplicate suppression list."
   :group 'gnus-duplicate
   :type 'file)
 

@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -194,5 +194,7 @@
 	     ;; color in rxvt-standard-colors.
 	     (* (apply '+ (car (cddr (nth 15 rxvt-standard-colors)))) 0.6))
 	  (set-terminal-parameter nil 'background-mode 'dark)))))
+
+(provide 'term/rxvt)
 
 ;;; rxvt.el ends here

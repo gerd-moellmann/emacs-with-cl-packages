@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -330,6 +330,8 @@ The marking symbol is specified by the variable `calendar-holiday-marker'."
 This is the place to add key bindings to `calendar-mode-map'."
   :type 'hook
   :group 'calendar-hooks)
+(make-obsolete-variable 'calendar-load-hook
+                        "use `with-eval-after-load' instead." "26.1")
 
 (defcustom calendar-initial-window-hook nil
   "List of functions to be called when the calendar window is created.
@@ -833,7 +835,7 @@ For examples of three common styles, see `diary-american-date-forms',
                                    diary-american-date-forms)
   :initialize 'custom-initialize-default
   :set (lambda (symbol value)
-         (unless (equal value (eval symbol))
+         (unless (equal value (default-value symbol))
            (custom-set-default symbol value)
            (setq diary-font-lock-keywords (diary-font-lock-keywords))
            ;; Need to redraw not just to get new font-locking, but also
@@ -1257,7 +1259,6 @@ diary entries can also be marked on the calendar (see
 
 Runs the following hooks:
 
-`calendar-load-hook' - after loading calendar.el
 `calendar-today-visible-hook', `calendar-today-invisible-hook' - after
    generating a calendar, if today's date is visible or not, respectively
 `calendar-initial-window-hook' - after first creating a calendar

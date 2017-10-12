@@ -244,7 +244,7 @@ least for a certain distance.
 @item S
 Stop: don't execute any more of the program, but wait for more
 Edebug commands (@code{edebug-stop}).
-@c FIXME Does not work. http://debbugs.gnu.org/9764
+@c FIXME Does not work. https://debbugs.gnu.org/9764
 
 @item @key{SPC}
 Step: stop at the next stop point encountered (@code{edebug-step-mode}).
@@ -383,6 +383,11 @@ just before the last sexp in the definition.  If that is where you are
 now, it returns from the function and then stops.  In other words, this
 command does not exit the currently executing function unless you are
 positioned after the last sexp.
+
+Normally, the @kbd{h}, @kbd{f}, and @kbd{o} commands display ``Break''
+and pause for @code{edebug-sit-for-seconds} before showing the result
+of the form just evaluated.  You can avoid this pause by setting
+@code{edebug-sit-on-break} to @code{nil}.  @xref{Edebug Options}.
 
 The @kbd{i} command steps into the function or macro called by the list
 form after point, and stops at its first stop point.  Note that the form
@@ -974,9 +979,13 @@ program.
 
 @itemize @bullet
 @item
-@code{max-lisp-eval-depth} and @code{max-specpdl-size} are both
-increased to reduce Edebug's impact on the stack.  You could, however,
-still run out of stack space when using Edebug.
+@vindex edebug-max-depth
+@code{max-lisp-eval-depth} (@pxref{Eval}) and @code{max-specpdl-size}
+(@pxref{Local Variables}) are both increased to reduce Edebug's impact
+on the stack.  You could, however, still run out of stack space when
+using Edebug.  You can also enlarge the value of
+@code{edebug-max-depth} if Edebug reaches the limit of recursion depth
+instrumenting code that contains very large quoted lists.
 
 @item
 The state of keyboard macro execution is saved and restored.  While
@@ -1130,7 +1139,7 @@ definition, but specifications are much more general than macro
 arguments.  @xref{Defining Macros}, for more explanation of
 the @code{declare} form.
 
-@c See, e.g., http://debbugs.gnu.org/10577
+@c See, e.g., https://debbugs.gnu.org/10577
 @c FIXME  Maybe there should be an Edebug option to get it to
 @c automatically load the entire source file containing the function
 @c being instrumented.  That would avoid this.
@@ -1543,6 +1552,14 @@ Use the command @kbd{M-x edebug-all-forms} to toggle the value of this
 option.  @xref{Instrumenting}.
 @end defopt
 
+@defopt edebug-eval-macro-args
+When this is non-@code{nil}, all macro arguments will be instrumented
+in the generated code.  For any macro, an @code{edebug-form-spec}
+overrides this option.  So to specify exceptions for macros that have
+some arguments evaluated and some not, use @code{def-edebug-spec} to
+specify an @code{edebug-form-spec}.
+@end defopt
+
 @defopt edebug-save-windows
 If this is non-@code{nil}, Edebug saves and restores the window
 configuration.  That takes some time, so if your program does not care
@@ -1601,6 +1618,21 @@ debugged.
 @xref{Edebug Execution Modes}.
 @end defopt
 
+@defopt edebug-print-length
+If non-@code{nil}, the default value of @code{print-length} for
+printing results in Edebug.  @xref{Output Variables}.
+@end defopt
+
+@defopt edebug-print-level
+If non-@code{nil}, the default value of @code{print-level} for
+printing results in Edebug.  @xref{Output Variables}.
+@end defopt
+
+@defopt edebug-print-circle
+If non-@code{nil}, the default value of @code{print-circle} for
+printing results in Edebug.  @xref{Output Variables}.
+@end defopt
+
 @defopt edebug-unwrap-results
 If non-@code{nil}, Edebug tries to remove any of its own
 instrumentation when showing the results of expressions.  This is
@@ -1646,4 +1678,15 @@ until the @emph{next} time Edebug is invoked via a new command.
 If non-@code{nil}, an expression to test for at every stop point.  If
 the result is non-@code{nil}, then break.  Errors are ignored.
 @xref{Global Break Condition}.
+@end defopt
+
+@defopt edebug-sit-for-seconds
+Number of seconds to pause when a breakpoint is reached and the execution
+mode is trace or continue.  @xref{Edebug Execution Modes}.
+@end defopt
+
+@defopt edebug-sit-on-break
+Whether or not to pause for @code{edebug-sit-for-seconds} on reaching
+a breakpoint.  Set to @code{nil} to prevent the pause, non-@code{nil}
+to allow it.
 @end defopt

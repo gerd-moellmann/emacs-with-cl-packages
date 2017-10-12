@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
@@ -185,7 +185,7 @@ Lisp_Object
 copy_char_table (Lisp_Object table)
 {
   Lisp_Object copy;
-  int size = XCHAR_TABLE (table)->header.size & PSEUDOVECTOR_SIZE_MASK;
+  int size = PVSIZE (table);
   int i;
 
   copy = Fmake_vector (make_number (size), Qnil);
@@ -492,7 +492,7 @@ char_table_set_range (Lisp_Object table, int from, int to, Lisp_Object val)
       int lim = CHARTAB_IDX (to, 0, 0);
       int i, c;
 
-      for (i = CHARTAB_IDX (from, 0, 0), c = 0; i <= lim;
+      for (i = CHARTAB_IDX (from, 0, 0), c = i * chartab_chars[0]; i <= lim;
 	   i++, c += chartab_chars[0])
 	{
 	  if (c > to)

@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;; Avishai Yacobi suggested some menu rearrangements.
 
@@ -970,60 +970,40 @@ The selected font will be the default on both the existing and future frames."
   (interactive)
   (customize-set-variable 'scroll-bar-mode nil))
 
-(defun menu-bar-horizontal-scroll-bar ()
-  "Display horizontal scroll bars on each window."
-  (interactive)
-  (customize-set-variable 'horizontal-scroll-bar-mode t))
-
-(defun menu-bar-no-horizontal-scroll-bar ()
-  "Turn off horizontal scroll bars."
-  (interactive)
-  (customize-set-variable 'horizontal-scroll-bar-mode nil))
-
 (defvar menu-bar-showhide-scroll-bar-menu
-  (let ((menu (make-sparse-keymap "Scroll-bar")))
-    (bindings--define-key menu [horizontal]
-      '(menu-item "Horizontal"
-                  menu-bar-horizontal-scroll-bar
-                  :help "Horizontal scroll bar"
-                  :visible (horizontal-scroll-bars-available-p)
-                  :button (:radio . (cdr (assq 'horizontal-scroll-bars
-					       (frame-parameters))))))
+  (let ((menu (make-sparse-keymap "Scroll Bar")))
 
-    (bindings--define-key menu [none-horizontal]
-      '(menu-item "None-horizontal"
-                  menu-bar-no-horizontal-scroll-bar
-                  :help "Turn off horizontal scroll bars"
-                  :visible (horizontal-scroll-bars-available-p)
-                  :button (:radio . (not (cdr (assq 'horizontal-scroll-bars
-                                                   (frame-parameters)))))))
+    (bindings--define-key menu [horizontal]
+      (menu-bar-make-mm-toggle horizontal-scroll-bar-mode
+                               "Horizontal"
+                               "Horizontal scroll bar"))
+
+    (bindings--define-key menu [scrollbar-separator]
+      menu-bar-separator)
 
     (bindings--define-key menu [right]
-      '(menu-item "On the Right"
-                  menu-bar-right-scroll-bar
-                  :help "Scroll-bar on the right side"
+      '(menu-item "On the Right" menu-bar-right-scroll-bar
+                  :help "Scroll bar on the right side"
                   :visible (display-graphic-p)
-                  :button (:radio . (eq (cdr (assq 'vertical-scroll-bars
-                                                   (frame-parameters)))
-					'right))))
+                  :button (:radio . (and scroll-bar-mode
+                                         (eq (frame-parameter
+                                              nil 'vertical-scroll-bars)
+                                             'right)))))
 
     (bindings--define-key menu [left]
-      '(menu-item "On the Left"
-                  menu-bar-left-scroll-bar
-                  :help "Scroll-bar on the left side"
+      '(menu-item "On the Left" menu-bar-left-scroll-bar
+                  :help "Scroll bar on the left side"
                   :visible (display-graphic-p)
-                  :button (:radio . (eq (cdr (assq 'vertical-scroll-bars
-                                                   (frame-parameters)))
-					'left))))
+                  :button (:radio . (and scroll-bar-mode
+                                         (eq (frame-parameter
+                                              nil 'vertical-scroll-bars)
+                                             'left)))))
 
     (bindings--define-key menu [none]
-      '(menu-item "None"
-                  menu-bar-no-scroll-bar
-                  :help "Turn off scroll-bar"
+      '(menu-item "No Vertical Scroll Bar" menu-bar-no-scroll-bar
+                  :help "Turn off vertical scroll bar"
                   :visible (display-graphic-p)
-                  :button (:radio . (eq (cdr (assq 'vertical-scroll-bars
-                                                   (frame-parameters)))
-					nil))))
+                  :button (:radio . (eq scroll-bar-mode nil))))
     menu))
 
 (defun menu-bar-frame-for-menubar ()
@@ -1063,24 +1043,24 @@ The selected font will be the default on both the existing and future frames."
 
 (when (featurep 'move-toolbar)
   (defvar menu-bar-showhide-tool-bar-menu
-    (let ((menu (make-sparse-keymap "Tool-bar")))
+    (let ((menu (make-sparse-keymap "Tool Bar")))
 
       (bindings--define-key menu [showhide-tool-bar-left]
         '(menu-item "On the Left"
                     menu-bar-showhide-tool-bar-menu-customize-enable-left
-                    :help "Tool-bar at the left side"
+                    :help "Tool bar at the left side"
                     :visible (display-graphic-p)
                     :button
                     (:radio . (and tool-bar-mode
-                                   (eq (frame-parameter
+                                   (frame-parameter
                                         (menu-bar-frame-for-menubar)
                                         'tool-bar-position)
-                                       'left)))))
+                                       'left))))
 
       (bindings--define-key menu [showhide-tool-bar-right]
         '(menu-item "On the Right"
                     menu-bar-showhide-tool-bar-menu-customize-enable-right
-                    :help "Tool-bar at the right side"
+                    :help "Tool bar at the right side"
                     :visible (display-graphic-p)
                     :button
                     (:radio . (and tool-bar-mode
@@ -1092,7 +1072,7 @@ The selected font will be the default on both the existing and future frames."
       (bindings--define-key menu [showhide-tool-bar-bottom]
         '(menu-item "On the Bottom"
                     menu-bar-showhide-tool-bar-menu-customize-enable-bottom
-                    :help "Tool-bar at the bottom"
+                    :help "Tool bar at the bottom"
                     :visible (display-graphic-p)
                     :button
                     (:radio . (and tool-bar-mode
@@ -1104,7 +1084,7 @@ The selected font will be the default on both the existing and future frames."
       (bindings--define-key menu [showhide-tool-bar-top]
         '(menu-item "On the Top"
                     menu-bar-showhide-tool-bar-menu-customize-enable-top
-                    :help "Tool-bar at the top"
+                    :help "Tool bar at the top"
                     :visible (display-graphic-p)
                     :button
                     (:radio . (and tool-bar-mode
@@ -1116,22 +1096,83 @@ The selected font will be the default on both the existing and future frames."
       (bindings--define-key menu [showhide-tool-bar-none]
         '(menu-item "None"
                     menu-bar-showhide-tool-bar-menu-customize-disable
-                    :help "Turn tool-bar off"
+                    :help "Turn tool bar off"
                     :visible (display-graphic-p)
                     :button (:radio . (eq tool-bar-mode nil))))
       menu)))
 
+(defvar display-line-numbers-type)
+(defun menu-bar-display-line-numbers-mode (type)
+  (setq display-line-numbers-type type)
+  (if global-display-line-numbers-mode
+      (global-display-line-numbers-mode)
+    (display-line-numbers-mode)))
+
+(defvar menu-bar-showhide-line-numbers-menu
+  (let ((menu (make-sparse-keymap "Line Numbers")))
+
+    (bindings--define-key menu [visual]
+      `(menu-item "Visual Line Numbers"
+                  ,(lambda ()
+                     (interactive)
+                     (menu-bar-display-line-numbers-mode 'visual)
+                     (message "Visual line numbers enabled"))
+                  :help "Enable visual line numbers"
+                  :button (:radio . (eq display-line-numbers 'visual))
+                  :visible (menu-bar-menu-frame-live-and-visible-p)))
+
+    (bindings--define-key menu [relative]
+      `(menu-item "Relative Line Numbers"
+                  ,(lambda ()
+                     (interactive)
+                     (menu-bar-display-line-numbers-mode 'relative)
+                     (message "Relative line numbers enabled"))
+                  :help "Enable relative line numbers"
+                  :button (:radio . (eq display-line-numbers 'relative))
+                  :visible (menu-bar-menu-frame-live-and-visible-p)))
+
+    (bindings--define-key menu [absolute]
+      `(menu-item "Absolute Line Numbers"
+                  ,(lambda ()
+                     (interactive)
+                     (menu-bar-display-line-numbers-mode t)
+                     (setq display-line-numbers t)
+                     (message "Absolute line numbers enabled"))
+                  :help "Enable absolute line numbers"
+                  :button (:radio . (eq display-line-numbers t))
+                  :visible (menu-bar-menu-frame-live-and-visible-p)))
+
+    (bindings--define-key menu [none]
+      `(menu-item "No Line Numbers"
+                  ,(lambda ()
+                     (interactive)
+                     (menu-bar-display-line-numbers-mode nil)
+                     (message "Line numbers disabled"))
+                  :help "Disable line numbers"
+                  :button (:radio . (null display-line-numbers))
+                  :visible (menu-bar-menu-frame-live-and-visible-p)))
+
+    (bindings--define-key menu [global]
+      (menu-bar-make-mm-toggle global-display-line-numbers-mode
+                               "Global Line Numbers Mode"
+                               "Set line numbers globally"))
+    menu))
+
 (defvar menu-bar-showhide-menu
   (let ((menu (make-sparse-keymap "Show/Hide")))
 
+    (bindings--define-key menu [display-line-numbers]
+      `(menu-item "Line Numbers for All Lines"
+		  ,menu-bar-showhide-line-numbers-menu))
+
     (bindings--define-key menu [column-number-mode]
       (menu-bar-make-mm-toggle column-number-mode
-                               "Column Numbers"
+                               "Column Numbers in Mode Line"
                                "Show the current column number in the mode line"))
 
     (bindings--define-key menu [line-number-mode]
       (menu-bar-make-mm-toggle line-number-mode
-                               "Line Numbers"
+                               "Line Numbers in Mode Line"
                                "Show the current line number in the mode line"))
 
     (bindings--define-key menu [size-indication-mode]
@@ -1174,7 +1215,7 @@ mail status in mode line"))
                   :visible (display-graphic-p)))
 
     (bindings--define-key menu [showhide-scroll-bar]
-      `(menu-item "Scroll-bar" ,menu-bar-showhide-scroll-bar-menu
+      `(menu-item "Scroll Bar" ,menu-bar-showhide-scroll-bar-menu
                   :visible (display-graphic-p)))
 
     (bindings--define-key menu [showhide-tooltip-mode]
@@ -1184,8 +1225,8 @@ mail status in mode line"))
                   :button (:toggle . tooltip-mode)))
 
     (bindings--define-key menu [menu-bar-mode]
-      '(menu-item "Menu-bar" toggle-menu-bar-mode-from-frame
-                  :help "Turn menu-bar on/off"
+      '(menu-item "Menu Bar" toggle-menu-bar-mode-from-frame
+                  :help "Turn menu bar on/off"
                   :button
                   (:toggle . (menu-bar-positive-p
                               (frame-parameter (menu-bar-frame-for-menubar)
@@ -1194,12 +1235,12 @@ mail status in mode line"))
     (if (and (boundp 'menu-bar-showhide-tool-bar-menu)
              (keymapp menu-bar-showhide-tool-bar-menu))
         (bindings--define-key menu [showhide-tool-bar]
-          `(menu-item "Tool-bar" ,menu-bar-showhide-tool-bar-menu
+          `(menu-item "Tool Bar" ,menu-bar-showhide-tool-bar-menu
                       :visible (display-graphic-p)))
       ;; else not tool bar that can move.
       (bindings--define-key menu [showhide-tool-bar]
-        '(menu-item "Tool-bar" toggle-tool-bar-mode-from-frame
-                    :help "Turn tool-bar on/off"
+        '(menu-item "Tool Bar" toggle-tool-bar-mode-from-frame
+                    :help "Turn tool bar on/off"
                     :visible (display-graphic-p)
                     :button
                     (:toggle . (menu-bar-positive-p
@@ -1579,7 +1620,7 @@ mail status in mode line"))
     (bindings--define-key menu [browse-web]
       '(menu-item "Browse the Web..." browse-web))
     (bindings--define-key menu [directory-search]
-      '(menu-item "Directory Search" eudc-tools-menu))
+      '(menu-item "Directory Servers" eudc-tools-menu))
     (bindings--define-key menu [compose-mail]
       '(menu-item "Compose New Mail" compose-mail
                   :visible (and mail-user-agent (not (eq mail-user-agent 'ignore)))
@@ -1980,7 +2021,7 @@ otherwise it could decide to silently do nothing."
   "Insert the stretch of previously-killed text selected from menu.
 The menu shows all the killed text sequences stored in `kill-ring'."
   (interactive "*")
-  (push-mark (point))
+  (push-mark)
   (insert last-command-event))
 
 
@@ -2274,11 +2315,11 @@ created in the future."
 		    (assq-delete-all 'menu-bar-lines
 				     default-frame-alist)))))
   ;; Make the message appear when Emacs is idle.  We can not call message
-  ;; directly.  The minor-mode message "Menu-bar mode disabled" comes
+  ;; directly.  The minor-mode message "Menu Bar mode disabled" comes
   ;; after this function returns, overwriting any message we do here.
   (when (and (called-interactively-p 'interactive) (not menu-bar-mode))
     (run-with-idle-timer 0 nil 'message
-			 "Menu-bar mode disabled.  Use M-x menu-bar-mode to make the menu bar appear.")))
+			 "Menu Bar mode disabled.  Use M-x menu-bar-mode to make the menu bar appear.")))
 
 ;;;###autoload
 ;; (This does not work right unless it comes after the above definition.)

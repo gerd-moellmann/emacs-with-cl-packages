@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 (defconst ebnf-version "4.4"
   "ebnf2ps.el, v 4.4 <2007/02/12 vinicius>
@@ -1191,7 +1191,7 @@ Elements of ALIST that are not conses are ignored."
   "Translate an EBNF to a syntactic chart on PostScript."
   :prefix "ebnf-"
   :version "20"
-  :group 'wp
+  :group 'text
   :group 'postscript)
 
 

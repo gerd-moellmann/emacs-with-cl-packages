@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include <unistd.h> /* for 'environ', on AIX */
@@ -51,9 +51,16 @@ char data_start[1] = { 1 };
 # endif
 #endif
 
-/* From gmalloc.c.  */
-extern void (* __after_morecore_hook) (void);
+#ifdef HAVE_MALLOC_H
+# include <malloc.h>
+#endif
+#ifndef DOUG_LEA_MALLOC
+# ifndef __MALLOC_HOOK_VOLATILE
+#  define __MALLOC_HOOK_VOLATILE volatile
+# endif
 extern void *(*__morecore) (ptrdiff_t);
+extern void (*__MALLOC_HOOK_VOLATILE __after_morecore_hook) (void);
+#endif
 
 /* From ralloc.c.  */
 #ifdef REL_ALLOC

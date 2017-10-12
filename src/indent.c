@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include <stdio.h>
@@ -296,7 +296,7 @@ skip_invisible (ptrdiff_t pos, ptrdiff_t *next_boundary_p, ptrdiff_t to, Lisp_Ob
 	if (dp != 0 && VECTORP (DISP_CHAR_VECTOR (dp, ch)))		\
 	  width = sanitize_char_width (ASIZE (DISP_CHAR_VECTOR (dp, ch))); \
 	else								\
-	  width = CHAR_WIDTH (ch);					\
+	  width = CHARACTER_WIDTH (ch);					\
       }									\
   } while (0)
 
@@ -925,6 +925,7 @@ position_indentation (ptrdiff_t pos_byte)
 	case 0240:
 	  if (! NILP (BVAR (current_buffer, enable_multibyte_characters)))
 	    return column;
+	  FALLTHROUGH;
 	case ' ':
 	  column++;
 	  break;
@@ -1162,7 +1163,7 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
   int prev_tab_offset;		/* Previous tab offset.  */
   int continuation_glyph_width;
   struct buffer *cache_buffer = current_buffer;
-  struct region_cache *width_cache;
+  struct region_cache *width_cache = NULL;
 
   struct composition_it cmp_it;
 
@@ -1170,11 +1171,14 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
 
   if (cache_buffer->base_buffer)
     cache_buffer = cache_buffer->base_buffer;
-  width_cache = width_run_cache_on_off ();
   if (dp == buffer_display_table ())
-    width_table = (VECTORP (BVAR (current_buffer, width_table))
-                   ? XVECTOR (BVAR (current_buffer, width_table))->contents
-                   : 0);
+    {
+      width_table = (VECTORP (BVAR (current_buffer, width_table))
+		     ? XVECTOR (BVAR (current_buffer, width_table))->contents
+		     : 0);
+      if (width_table)
+	width_cache = width_run_cache_on_off ();
+    }
   else
     /* If the window has its own display table, we can't use the width
        run cache, because that's based on the buffer's display table.  */
@@ -1197,9 +1201,6 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
     continuation_glyph_width = 0;  /* In the fringe.  */
 #endif
 
-  immediate_quit = 1;
-  QUIT;
-
   /* It's just impossible to be too paranoid here.  */
   eassert (from == BYTE_TO_CHAR (frombyte) && frombyte == CHAR_TO_BYTE (from));
 
@@ -1211,8 +1212,12 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
   cmp_it.id = -1;
   composition_compute_stop_pos (&cmp_it, pos, pos_byte, to, Qnil);
 
-  while (1)
+  unsigned short int quit_count = 0;
+
+  while (true)
     {
+      rarely_quit (++quit_count);
+
       while (pos == next_boundary)
 	{
 	  ptrdiff_t pos_here = pos;
@@ -1277,6 +1282,8 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
 	      pos = newpos;
 	      pos_byte = CHAR_TO_BYTE (pos);
 	    }
+
+	  rarely_quit (++quit_count);
 	}
 
       /* Handle right margin.  */
@@ -1599,6 +1606,7 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
 			      pos = find_before_next_newline (pos, to, 1, &pos_byte);
 			      if (pos < to)
 				INC_BOTH (pos, pos_byte);
+			      rarely_quit (++quit_count);
 			    }
 			  while (pos < to
 				 && indented_beyond_p (pos, pos_byte,
@@ -1691,7 +1699,6 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
   /* Nonzero if have just continued a line */
   val_compute_motion.contin = (contin_hpos && prev_hpos == 0);
 
-  immediate_quit = 0;
   return &val_compute_motion;
 }
 
@@ -1873,9 +1880,9 @@ vmotion (register ptrdiff_t from, register ptrdiff_t from_byte,
 	    }
 	  pos = *compute_motion (prevline, bytepos, 0, lmargin, 0, from,
 				 /* Don't care for VPOS...  */
-				 1 << (BITS_PER_SHORT - 1),
+				 1 << (SHRT_WIDTH - 1),
 				 /* ... nor HPOS.  */
-				 1 << (BITS_PER_SHORT - 1),
+				 1 << (SHRT_WIDTH - 1),
 				 -1, hscroll, 0, w);
 	  vpos -= pos.vpos;
 	  first = 0;
@@ -1923,9 +1930,9 @@ vmotion (register ptrdiff_t from, register ptrdiff_t from_byte,
 	}
       pos = *compute_motion (prevline, bytepos, 0, lmargin, 0, from,
 			     /* Don't care for VPOS...  */
-			     1 << (BITS_PER_SHORT - 1),
+			     1 << (SHRT_WIDTH - 1),
 			     /* ... nor HPOS.  */
-			     1 << (BITS_PER_SHORT - 1),
+			     1 << (SHRT_WIDTH - 1),
 			     -1, hscroll, 0, w);
       did_motion = 1;
     }
@@ -1936,8 +1943,59 @@ vmotion (register ptrdiff_t from, register ptrdiff_t from_byte,
       did_motion = 0;
     }
   return compute_motion (from, from_byte, vpos, pos.hpos, did_motion,
-			 ZV, vtarget, - (1 << (BITS_PER_SHORT - 1)),
+			 ZV, vtarget, - (1 << (SHRT_WIDTH - 1)),
 			 -1, hscroll, 0, w);
+}
+
+/* Return the width taken by line-number display in window W.  */
+static void
+line_number_display_width (struct window *w, int *width, int *pixel_width)
+{
+  if (NILP (Vdisplay_line_numbers))
+    {
+      *width = 0;
+      *pixel_width = 0;
+    }
+  else
+    {
+      struct it it;
+      struct text_pos wstart;
+      bool saved_restriction = false;
+      ptrdiff_t count = SPECPDL_INDEX ();
+      SET_TEXT_POS_FROM_MARKER (wstart, w->start);
+      void *itdata = bidi_shelve_cache ();
+      /* We must start from window's start point, but it could be
+	 outside the accessible region.  */
+      if (wstart.charpos < BEGV || wstart.charpos > ZV)
+	{
+	  record_unwind_protect (save_restriction_restore,
+				 save_restriction_save ());
+	  Fwiden ();
+	  saved_restriction = true;
+	}
+      start_display (&it, w, wstart);
+      move_it_by_lines (&it, 1);
+      *width = it.lnum_width;
+      *pixel_width = it.lnum_pixel_width;
+      if (saved_restriction)
+	unbind_to (count, Qnil);
+      bidi_unshelve_cache (itdata, 0);
+    }
+}
+
+DEFUN ("line-number-display-width", Fline_number_display_width,
+       Sline_number_display_width, 0, 1, 0,
+       doc: /* Return the width used for displaying line numbers in the selected window.
+If optional argument PIXELWISE is non-nil, return the width in pixels,
+otherwise return the width in columns of the face used to display
+line numbers, `line-number'.  */)
+  (Lisp_Object pixelwise)
+{
+  int width, pixel_width;
+  line_number_display_width (XWINDOW (selected_window), &width, &pixel_width);
+  if (!NILP (pixelwise))
+    return make_number (pixel_width);
+  return make_number (width);
 }
 
 /* In window W (derived from WINDOW), return x coordinate for column
@@ -1953,6 +2011,20 @@ window_column_x (struct window *w, Lisp_Object window,
     args_out_of_range (window, column);
 
   return x;
+}
+
+/* Restore window's buffer and point.  */
+
+static void
+restore_window_buffer (Lisp_Object list)
+{
+  struct window *w = decode_live_window (XCAR (list));
+  list = XCDR (list);
+  wset_buffer (w, XCAR (list));
+  list = XCDR (list);
+  set_marker_both (w->pointm, w->contents,
+		   XFASTINT (XCAR (list)),
+		   XFASTINT (XCAR (XCDR (list))));
 }
 
 DEFUN ("vertical-motion", Fvertical_motion, Svertical_motion, 1, 3, 0,
@@ -1994,10 +2066,9 @@ whether or not it is currently displayed in some window.  */)
   struct it it;
   struct text_pos pt;
   struct window *w;
-  Lisp_Object old_buffer;
-  EMACS_INT old_charpos IF_LINT (= 0), old_bytepos IF_LINT (= 0);
   Lisp_Object lcols;
   void *itdata = NULL;
+  ptrdiff_t count = SPECPDL_INDEX ();
 
   /* Allow LINES to be of the form (HPOS . VPOS) aka (COLUMNS . LINES).  */
   bool lcols_given = CONSP (lines);
@@ -2010,13 +2081,13 @@ whether or not it is currently displayed in some window.  */)
   CHECK_NUMBER (lines);
   w = decode_live_window (window);
 
-  old_buffer = Qnil;
   if (XBUFFER (w->contents) != current_buffer)
     {
       /* Set the window's buffer temporarily to the current buffer.  */
-      old_buffer = w->contents;
-      old_charpos = marker_position (w->pointm);
-      old_bytepos = marker_byte_position (w->pointm);
+      Lisp_Object old = list4 (window, w->contents,
+			       make_number (marker_position (w->pointm)),
+			       make_number (marker_byte_position (w->pointm)));
+      record_unwind_protect (restore_window_buffer, old);
       wset_buffer (w, Fcurrent_buffer ());
       set_marker_both (w->pointm, w->contents,
 		       BUF_PT (current_buffer), BUF_PT_BYTE (current_buffer));
@@ -2037,8 +2108,8 @@ whether or not it is currently displayed in some window.  */)
       bool disp_string_at_start_p = 0;
       ptrdiff_t nlines = XINT (lines);
       int vpos_init = 0;
-      double start_col IF_LINT (= 0);
-      int start_x IF_LINT (= 0);
+      double start_col UNINIT;
+      int start_x UNINIT;
       int to_x = -1;
 
       bool start_x_given = !NILP (cur_col);
@@ -2048,9 +2119,19 @@ whether or not it is currently displayed in some window.  */)
 	  start_x = window_column_x (w, window, start_col, cur_col);
 	}
 
-      itdata = bidi_shelve_cache ();
+      /* When displaying line numbers, we need to prime IT's
+	 lnum_width with the value calculated at window's start, since
+	 that's what normal window redisplay does.  Otherwise C-n/C-p
+	 will sometimes err by one column.  */
+      int lnum_width = 0;
+      int lnum_pixel_width = 0;
+      if (!NILP (Vdisplay_line_numbers)
+	  && !EQ (Vdisplay_line_numbers, Qvisual))
+	line_number_display_width (w, &lnum_width, &lnum_pixel_width);
       SET_TEXT_POS (pt, PT, PT_BYTE);
+      itdata = bidi_shelve_cache ();
       start_display (&it, w, pt);
+      it.lnum_width = lnum_width;
       first_x = it.first_visible_x;
       it_start = IT_CHARPOS (it);
 
@@ -2148,10 +2229,10 @@ whether or not it is currently displayed in some window.  */)
 		 screen lines we need to backtrack.  */
 	      it_overshoot_count = it.vpos;
 	    }
-	  /* We will overshoot if lines are truncated and point lies
+	  /* We might overshoot if lines are truncated and point lies
 	     beyond the right margin of the window.  */
 	  if (it.line_wrap == TRUNCATE && it.current_x >= it.last_visible_x
-	      && it_overshoot_count == 0)
+	      && it_overshoot_count == 0 && it.vpos > 0)
 	    it_overshoot_count = 1;
 	  if (it_overshoot_count > 0)
 	    move_it_by_lines (&it, -it_overshoot_count);
@@ -2179,6 +2260,7 @@ whether or not it is currently displayed in some window.  */)
       if (nlines <= 0)
 	{
 	  it.vpos = vpos_init;
+	  it.current_y = 0;
 	  /* Do this even if LINES is 0, so that we move back to the
 	     beginning of the current line as we ought.  */
 	  if ((nlines < 0 && IT_CHARPOS (it) > 0)
@@ -2188,6 +2270,7 @@ whether or not it is currently displayed in some window.  */)
       else if (overshoot_handled)
 	{
 	  it.vpos = vpos_init;
+	  it.current_y = 0;
 	  move_it_by_lines (&it, min (PTRDIFF_MAX, nlines));
 	}
       else
@@ -2201,6 +2284,7 @@ whether or not it is currently displayed in some window.  */)
 	      while (IT_CHARPOS (it) <= it_start)
 		{
 		  it.vpos = 0;
+		  it.current_y = 0;
 		  move_it_by_lines (&it, 1);
 		}
 	      if (nlines > 1)
@@ -2209,6 +2293,7 @@ whether or not it is currently displayed in some window.  */)
 	  else	/* it_start = ZV */
 	    {
 	      it.vpos = 0;
+	      it.current_y = 0;
 	      move_it_by_lines (&it, min (PTRDIFF_MAX, nlines));
 	      /* We could have some display or overlay string at ZV,
 		 in which case it.vpos will be nonzero now, while
@@ -2223,6 +2308,12 @@ whether or not it is currently displayed in some window.  */)
 	 an addition to the hscroll amount.  */
       if (lcols_given)
 	{
+	  /* If we are displaying line numbers, we could cross the
+	     line where the width of the line-number display changes,
+	     in which case we need to fix up the pixel coordinate
+	     accordingly.  */
+	  if (lnum_pixel_width > 0)
+	    to_x += it.lnum_pixel_width - lnum_pixel_width;
 	  move_it_in_display_line (&it, ZV, first_x + to_x, MOVE_TO_X);
 	  /* If we find ourselves in the middle of an overlay string
 	     which includes a newline after current string position,
@@ -2248,12 +2339,7 @@ whether or not it is currently displayed in some window.  */)
       bidi_unshelve_cache (itdata, 0);
     }
 
-  if (BUFFERP (old_buffer))
-    {
-      wset_buffer (w, old_buffer);
-      set_marker_both (w->pointm, w->contents,
-		       old_charpos, old_bytepos);
-    }
+  unbind_to (count, Qnil);
 
   return make_number (it.vpos);
 }
@@ -2273,6 +2359,7 @@ syms_of_indent (void)
   defsubr (&Sindent_to);
   defsubr (&Scurrent_column);
   defsubr (&Smove_to_column);
+  defsubr (&Sline_number_display_width);
   defsubr (&Svertical_motion);
   defsubr (&Scompute_motion);
 }

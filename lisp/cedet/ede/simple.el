@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -55,12 +55,12 @@
 	     t)
 
 (defcustom ede-simple-save-directory "~/.ede"
-  "*Directory where simple EDE project overlays are saved."
+  "Directory where simple EDE project overlays are saved."
  :group 'ede
  :type 'directory)
 
 (defcustom ede-simple-save-file-name "ProjSimple.ede"
-  "*File name used for simple project wrappers."
+  "File name used for simple project wrappers."
   :group 'ede
   :type 'string)
 

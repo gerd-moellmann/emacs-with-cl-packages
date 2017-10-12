@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -902,7 +902,7 @@ instead."
 This makes it appear more like the results of a `semantic-find-' call.
 This is like `semanticdb-strip-find-results', except the input list RESULTS
 will be changed."
-  (apply #'nconc (mapcar #'cdr results)))
+  (mapcan #'cdr results))
 
 (defun semanticdb-find-results-p (resultp)
   "Non-nil if RESULTP is in the form of a semanticdb search result.
@@ -930,7 +930,7 @@ but should be good enough for debugging assertions."
 	    (length result))))
 
 (defun semanticdb-find-result-with-nil-p (resultp)
-  "Non-nil of RESULTP is in the form of a semanticdb search result.
+  "Non-nil if RESULTP is in the form of a semanticdb search result.
 The value nil is valid where a TABLE usually is, but only if the TAG
 results include overlays.
 This query only really tests the first entry in the list that is RESULTP,

@@ -212,7 +212,7 @@ emacs, GNU Emacs Manual}.  Unlike @code{find-file-literally}, finding
 a file as @samp{raw-text} doesn't disable format conversion,
 uncompression, or auto mode selection.
 
-@c See http://debbugs.gnu.org/11226 for lack of unibyte tooltip.
+@c See https://debbugs.gnu.org/11226 for lack of unibyte tooltip.
 @vindex enable-multibyte-characters
 The buffer-local variable @code{enable-multibyte-characters} is
 non-@code{nil} in multibyte buffers, and @code{nil} in unibyte ones.
@@ -420,6 +420,18 @@ codepoint can have.
 @end example
 @end defun
 
+@defun char-from-name string &optional ignore-case
+This function returns the character whose Unicode name is @var{string}.
+If @var{ignore-case} is non-@code{nil}, case is ignored in @var{string}.
+This function returns @code{nil} if @var{string} does not name a character.
+
+@example
+;; U+03A3
+(= (char-from-name "GREEK CAPITAL LETTER SIGMA") #x03A3)
+     @result{} t
+@end example
+@end defun
+
 @defun get-byte &optional pos string
 This function returns the byte at character position @var{pos} in the
 current buffer.  If the current buffer is unibyte, this is literally
@@ -607,6 +619,29 @@ Corresponds to the Unicode @code{Simple_Titlecase_Mapping} property.
 character of a word needs to be capitalized.  The value of this
 property is a single character.  For unassigned codepoints, the value
 is @code{nil}, which means the character itself.
+
+@item special-uppercase
+Corresponds to Unicode language- and context-independent special upper-casing
+rules.  The value of this property is a string (which may be empty).  For
+example mapping for @code{U+00DF} (@sc{latin small letter sharp s}) is
+@code{"SS"}.  For characters with no special mapping, the value is @code{nil}
+which means @code{uppercase} property needs to be consulted instead.
+
+@item special-lowercase
+Corresponds to Unicode language- and context-independent special lower-casing
+rules.  The value of this property is a string (which may be empty).  For
+example mapping for @code{U+0130} (@sc{latin capital letter i with dot above})
+the value is @code{"i\u0307"} (i.e. 2-character string consisting of @sc{latin
+small letter i} followed by @sc{combining dot above}).  For characters with no
+special mapping, the value is @code{nil} which means @code{lowercase} property
+needs to be consulted instead.
+
+@item special-titlecase
+Corresponds to Unicode unconditional special title-casing rules.  The value of
+this property is a string (which may be empty).  For example mapping for
+@code{U+FB01} (@sc{latin small ligature fi}) the value is @code{"Fi"}.  For
+characters with no special mapping, the value is @code{nil} which means
+@code{titlecase} property needs to be consulted instead.
 @end table
 
 @defun get-char-code-property char propname
@@ -622,18 +657,21 @@ This function returns the value of @var{char}'s @var{propname} property.
      @result{} Nd
 @end group
 @group
-;; U+2084 SUBSCRIPT FOUR
-(get-char-code-property ?\u2084 'digit-value)
+;; U+2084
+(get-char-code-property ?\N@{SUBSCRIPT FOUR@}
+                        'digit-value)
      @result{} 4
 @end group
 @group
-;; U+2155 VULGAR FRACTION ONE FIFTH
-(get-char-code-property ?\u2155 'numeric-value)
+;; U+2155
+(get-char-code-property ?\N@{VULGAR FRACTION ONE FIFTH@}
+                        'numeric-value)
      @result{} 0.2
 @end group
 @group
-;; U+2163 ROMAN NUMERAL FOUR
-(get-char-code-property ?\u2163 'numeric-value)
+;; U+2163
+(get-char-code-property ?\N@{ROMAN NUMERAL FOUR@}
+                        'numeric-value)
      @result{} 4
 @end group
 @group

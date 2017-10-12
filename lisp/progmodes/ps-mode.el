@@ -28,7 +28,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -113,7 +113,7 @@ When the figure is finished these values should be replaced."
 (defcustom ps-mode-print-function
   (lambda ()
      (let ((lpr-switches nil)
-	   (lpr-command (if (memq system-type '(usg-unix-v hpux irix))
+	   (lpr-command (if (memq system-type '(usg-unix-v hpux))
 			    "lp" "lpr")))
        (lpr-buffer)))
   "Lisp function to print current buffer as PostScript."

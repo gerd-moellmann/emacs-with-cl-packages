@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Contributed by Andrew Choi (akochoi@mac.com).  */
 
@@ -85,16 +85,15 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
    be changed accordingly.
 */
 
-/* config.h #define:s malloc/realloc/free and then includes stdlib.h.
-   We want the undefined versions, but if config.h includes stdlib.h
-   with the #define:s in place, the prototypes will be wrong and we get
-   warnings.  To prevent that, include stdlib.h before config.h.  */
-
-#include <stdlib.h>
 #include <config.h>
+
+/* Although <config.h> redefines malloc to unexec_malloc, etc., this
+   file wants stdlib.h to declare the originals.  */
 #undef malloc
 #undef realloc
 #undef free
+
+#include <stdlib.h>
 
 #include "unexec.h"
 #include "lisp.h"
@@ -345,31 +344,6 @@ print_region_list (void)
 
   for (r = region_list_head; r; r = r->next)
     print_region (r->address, r->size, r->protection, r->max_protection);
-}
-
-static void
-print_regions (void)
-{
-  task_t target_task = mach_task_self ();
-  vm_address_t address = (vm_address_t) 0;
-  vm_size_t size;
-  struct vm_region_basic_info info;
-  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT;
-  mach_port_t object_name;
-
-  printf ("   address     size prot maxp\n");
-
-  while (vm_region (target_task, &address, &size, VM_REGION_BASIC_INFO,
-		    (vm_region_info_t) &info, &info_count, &object_name)
-	 == KERN_SUCCESS && info_count == VM_REGION_BASIC_INFO_COUNT)
-    {
-      print_region (address, size, info.protection, info.max_protection);
-
-      if (object_name != MACH_PORT_NULL)
-	mach_port_deallocate (target_task, object_name);
-
-      address += size;
-    }
 }
 
 /* Build the list of regions that need to be dumped.  Regions with

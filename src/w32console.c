@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /*
    Tim Fleehart (apollo@online.com)		1-17-92
@@ -34,6 +34,10 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "w32term.h"
 #include "w32common.h"	/* for os_subtype */
 #include "w32inevt.h"
+
+#ifdef WINDOWSNT
+#include "w32.h"	/* for syms_of_ntterm */
+#endif
 
 static void w32con_move_cursor (struct frame *f, int row, int col);
 static void w32con_clear_to_end (struct frame *f);
@@ -66,6 +70,8 @@ int w32_console_unicode_input;
 /* Setting this as the ctrl handler prevents emacs from being killed when
    someone hits ^C in a 'suspended' session (child shell).
    Also ignore Ctrl-Break signals.  */
+
+BOOL ctrl_c_handler (unsigned long);
 
 BOOL
 ctrl_c_handler (unsigned long type)
@@ -327,7 +333,7 @@ w32con_write_glyphs (struct frame *f, register struct glyph *string,
 					   coding->produced, cursor_coords,
 					   &r))
 	    {
-	      printf ("Failed writing console attributes: %d\n",
+	      printf ("Failed writing console attributes: %lu\n",
 		      GetLastError ());
 	      fflush (stdout);
 	    }
@@ -337,7 +343,7 @@ w32con_write_glyphs (struct frame *f, register struct glyph *string,
 					    coding->produced, cursor_coords,
 					    &r))
 	    {
-	      printf ("Failed writing console characters: %d\n",
+	      printf ("Failed writing console characters: %lu\n",
 		      GetLastError ());
 	      fflush (stdout);
 	    }
@@ -509,10 +515,14 @@ w32con_update_end (struct frame * f)
 			stubs from termcap.c
  ***********************************************************************/
 
+void sys_tputs (char *, int, int (*) (int));
+
 void
 sys_tputs (char *str, int nlines, int (*outfun) (int))
 {
 }
+
+char *sys_tgetstr (char *, char **);
 
 char *
 sys_tgetstr (char *cap, char **area)
@@ -528,11 +538,15 @@ sys_tgetstr (char *cap, char **area)
 struct tty_display_info *current_tty = NULL;
 int cost = 0;
 
+int evalcost (int);
+
 int
 evalcost (int c)
 {
   return c;
 }
+
+int cmputc (int);
 
 int
 cmputc (int c)
@@ -540,20 +554,28 @@ cmputc (int c)
   return c;
 }
 
+void cmcheckmagic (struct tty_display_info *);
+
 void
 cmcheckmagic (struct tty_display_info *tty)
 {
 }
+
+void cmcostinit (struct tty_display_info *);
 
 void
 cmcostinit (struct tty_display_info *tty)
 {
 }
 
+void cmgoto (struct tty_display_info *, int, int);
+
 void
 cmgoto (struct tty_display_info *tty, int row, int col)
 {
 }
+
+void Wcm_clear (struct tty_display_info *);
 
 void
 Wcm_clear (struct tty_display_info *tty)
@@ -588,8 +610,6 @@ w32_face_attributes (struct frame *f, int face_id)
 {
   WORD char_attr;
   struct face *face = FACE_FROM_ID (f, face_id);
-
-  eassert (face != NULL);
 
   char_attr = char_attr_normal;
 
@@ -759,6 +779,9 @@ initialize_w32_display (struct terminal *term, int *width, int *height)
 
   /* Setup w32_display_info structure for this frame. */
   w32_initialize_display_info (build_string ("Console"));
+
+  /* Set up the keyboard hook.  */
+  setup_w32_kbdhook ();
 }
 
 

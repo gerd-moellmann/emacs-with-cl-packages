@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Originally contributed by Andrew Choi (akochoi@mac.com) for Emacs 21.  */
 
@@ -792,10 +792,10 @@ x_update_window_begin (struct window *w)
 /* Return GC for the face with FACE_ID on frame F.  If the face is not
    available, return DEFAULT_GC.  */
 
-static GC
+GC
 mac_gc_for_face_id (struct frame *f, int face_id, GC default_gc)
 {
-  struct face *face = FACE_FROM_ID (f, face_id);
+  struct face *face = FACE_FROM_ID_OR_NULL (f, face_id);
 
   if (face)
     {
@@ -946,12 +946,14 @@ x_clear_under_internal_border (struct frame *f)
       int width = FRAME_PIXEL_WIDTH (f);
       int height = FRAME_PIXEL_HEIGHT (f);
       int margin = FRAME_TOP_MARGIN_HEIGHT (f);
+      GC gc = mac_gc_for_face_id (f, INTERNAL_BORDER_FACE_ID,
+				  f->output_data.mac->normal_gc);
 
       block_input ();
-      mac_clear_area (f, 0, 0, border, height);
-      mac_clear_area (f, 0, margin, width, border);
-      mac_clear_area (f, width - border, 0, border, height);
-      mac_clear_area (f, 0, height - border, width, border);
+      mac_erase_rectangle (f, gc, 0, 0, border, height);
+      mac_erase_rectangle (f, gc, 0, margin, width, border);
+      mac_erase_rectangle (f, gc, width - border, 0, border, height);
+      mac_erase_rectangle (f, gc, 0, height - border, width, border);
       unblock_input ();
     }
 }
@@ -989,10 +991,13 @@ x_after_update_window_line (struct window *w, struct glyph_row *desired_row)
 	    height > 0))
       {
 	int y = WINDOW_TO_FRAME_PIXEL_Y (w, max (0, desired_row->y));
+	GC gc = mac_gc_for_face_id (f, INTERNAL_BORDER_FACE_ID,
+				    f->output_data.mac->normal_gc);
 
 	block_input ();
-	mac_clear_area (f, 0, y, width, height);
-	mac_clear_area (f, FRAME_PIXEL_WIDTH (f) - width, y, width, height);
+	mac_erase_rectangle (f, gc, 0, y, width, height);
+	mac_erase_rectangle (f, gc, FRAME_PIXEL_WIDTH (f) - width, y,
+			     width, height);
 	unblock_input ();
       }
   }
@@ -1202,7 +1207,7 @@ x_set_mouse_face_gc (struct glyph_string *s)
 
   /* What face has to be used last for the mouse face?  */
   face_id = MOUSE_HL_INFO (s->f)->mouse_face_face_id;
-  face = FACE_FROM_ID (s->f, face_id);
+  face = FACE_FROM_ID_OR_NULL (s->f, face_id);
   if (face == NULL)
     face = FACE_FROM_ID (s->f, MOUSE_FACE_ID);
 
@@ -1601,10 +1606,9 @@ x_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
 	}
       else if (glyph->u.glyphless.method == GLYPHLESS_DISPLAY_HEX_CODE)
 	{
-	  sprintf (buf, "%0*X",
-		   glyph->u.glyphless.ch < 0x10000 ? 4 : 6,
-		   glyph->u.glyphless.ch + 0u);
-	  str = buf;
+	  unsigned int ch = glyph->u.glyphless.ch;
+	  eassume (ch <= MAX_CHAR);
+	  sprintf (buf, "%0*X", ch < 0x10000 ? 4 : 6, ch);
 	}
 
       if (str)
@@ -2470,9 +2474,11 @@ x_draw_glyph_string (struct glyph_string *s)
 		}
 	      else
 		{
+		  struct font *font = font_for_underline_metrics (s);
+
 		  /* Get the underline thickness.  Default is 1 pixel.  */
-		  if (s->font && s->font->underline_thickness > 0)
-		    thickness = s->font->underline_thickness;
+                  if (font && font->underline_thickness > 0)
+                    thickness = font->underline_thickness;
 		  else
 		    thickness = 1;
 		  if (x_underline_at_descent_line)
@@ -2488,10 +2494,10 @@ x_draw_glyph_string (struct glyph_string *s)
 			 ROUND(x) = floor (x + 0.5)  */
 
 		      if (x_use_underline_position_properties
-			  && s->font && s->font->underline_position >= 0)
-			position = s->font->underline_position;
-		      else if (s->font)
-			position = (s->font->descent + 1) / 2;
+                          && font && font->underline_position >= 0)
+                        position = font->underline_position;
+                      else if (font)
+                        position = (font->descent + 1) / 2;
 		      else
 			position = underline_minimum_offset;
 		    }
@@ -2539,17 +2545,26 @@ x_draw_glyph_string (struct glyph_string *s)
       /* Draw strike-through.  */
       if (s->face->strike_through_p)
 	{
-	  unsigned long h = 1;
-	  unsigned long dy = (s->height - h) / 2;
+	  /* Y-coordinate and height of the glyph string's first
+	     glyph.  We cannot use s->y and s->height because those
+	     could be larger if there are taller display elements
+	     (e.g., characters displayed with a larger font) in the
+	     same glyph row.  */
+	  int glyph_y = s->ybase - s->first_glyph->ascent;
+	  int glyph_height = s->first_glyph->ascent + s->first_glyph->descent;
+	  /* Strike-through width and offset from the glyph string's
+	     top edge.  */
+          unsigned long h = 1;
+          unsigned long dy = (glyph_height - h) / 2;
 
 	  if (s->face->strike_through_color_defaulted_p)
-	    mac_fill_rectangle (s->f, s->gc, s->x, s->y + dy, s->width, h);
+	    mac_fill_rectangle (s->f, s->gc, s->x, glyph_y + dy, s->width, h);
 	  else
 	    {
 	      XGCValues xgcv;
 	      XGetGCValues (s->display, s->gc, GCForeground, &xgcv);
 	      XSetForeground (s->display, s->gc, s->face->strike_through_color);
-	      mac_fill_rectangle (s->f, s->gc, s->x, s->y + dy, s->width, h);
+	      mac_fill_rectangle (s->f, s->gc, s->x, glyph_y + dy, s->width, h);
 	      XSetForeground (s->display, s->gc, xgcv.foreground);
 	    }
 	}
@@ -3899,7 +3914,21 @@ x_new_font (struct frame *f, Lisp_Object font_object, int fontset)
 void
 mac_handle_origin_change (struct frame *f)
 {
+  int old_left = f->left_pos;
+  int old_top = f->top_pos;
+
   x_real_positions (f, &f->left_pos, &f->top_pos);
+
+  if (old_left != f->left_pos || old_top != f->top_pos)
+    {
+      struct input_event buf;
+
+      EVENT_INIT (buf);
+      buf.kind = MOVE_FRAME_EVENT;
+      XSETFRAME (buf.frame_or_window, f);
+      buf.arg = Qnil;
+      kbd_buffer_store_event (&buf);
+    }
 }
 
 void
@@ -3945,8 +3974,6 @@ x_calc_absolute_position (struct frame *f)
   if (! ((flags & XNegative) || (flags & YNegative)))
     return;
 
-  /* Find the offsets of the outside upper-left corner of
-     the inner window, with respect to the outer window.  */
   block_input ();
   mac_get_frame_window_structure_bounds (f, &bounds);
   unblock_input ();
@@ -4013,6 +4040,59 @@ x_set_sticky (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
   block_input ();
   mac_change_frame_window_wm_state (f, !NILP (new_value) ? WM_STATE_STICKY : 0,
 				    NILP (new_value) ? WM_STATE_STICKY : 0);
+  unblock_input ();
+}
+
+void
+x_set_skip_taskbar (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  if (!EQ (new_value, old_value))
+    {
+      block_input ();
+      mac_change_frame_window_wm_state (f, (!NILP (new_value)
+					    ? WM_STATE_SKIP_TASKBAR : 0),
+					(NILP (new_value)
+					 ? WM_STATE_SKIP_TASKBAR : 0));
+      unblock_input ();
+
+      FRAME_SKIP_TASKBAR (f) = !NILP (new_value);
+    }
+}
+
+void
+x_set_z_group (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  WMState flags_to_set, flags_to_clear;
+
+  if (NILP (new_value))
+    {
+      flags_to_set = 0;
+      flags_to_clear = WM_STATE_ABOVE | WM_STATE_BELOW;
+      FRAME_Z_GROUP (f) = z_group_none;
+    }
+  else if (EQ (new_value, Qabove))
+    {
+      flags_to_set = WM_STATE_ABOVE;
+      flags_to_clear = WM_STATE_BELOW;
+      FRAME_Z_GROUP (f) = z_group_above;
+    }
+  else if (EQ (new_value, Qbelow))
+    {
+      flags_to_set = WM_STATE_BELOW;
+      flags_to_clear = WM_STATE_ABOVE;
+      FRAME_Z_GROUP (f) = z_group_below;
+    }
+  else if (EQ (new_value, Qabove_suspended))
+    {
+      flags_to_set = 0;
+      flags_to_clear = WM_STATE_ABOVE;
+      FRAME_Z_GROUP (f) = z_group_above_suspended;
+    }
+  else
+    error ("Invalid z-group specification");
+
+  block_input ();
+  mac_change_frame_window_wm_state (f, flags_to_set, flags_to_clear);
   unblock_input ();
 }
 
@@ -4251,40 +4331,9 @@ x_make_frame_visible (struct frame *f)
 
   XFlush (FRAME_MAC_DISPLAY (f));
 
-  /* Synchronize to ensure Emacs knows the frame is visible
-     before we do anything else.  We do this loop with input not blocked
-     so that incoming events are handled.  */
-  {
-    Lisp_Object frame;
+  unblock_input ();
 
-    unblock_input ();
-
-    XSETFRAME (frame, f);
-
-    /* Process X events until a MapNotify event has been seen.  */
-    while (!FRAME_VISIBLE_P (f))
-      {
-	/* This hack is still in use at least for Cygwin.  See
-	   http://lists.gnu.org/archive/html/emacs-devel/2013-12/msg00351.html.
-
-	   Machines that do polling rather than SIGIO have been
-	   observed to go into a busy-wait here.  So we'll fake an
-	   alarm signal to let the handler know that there's something
-	   to be read.  We used to raise a real alarm, but it seems
-	   that the handler isn't always enabled here.  This is
-	   probably a bug.  */
-	if (input_polling_used ())
-	  {
-	    /* It could be confusing if a real alarm arrives while
-	       processing the fake one.  Turn it off and let the
-	       handler reset it.  */
-	    int old_poll_suppress_count = poll_suppress_count;
-	    poll_suppress_count = 1;
-	    poll_for_input_1 ();
-	    poll_suppress_count = old_poll_suppress_count;
-	  }
-      }
-  }
+  mac_handle_visibility_change (f);
 }
 
 /* Change from mapped state to withdrawn state.  */
@@ -4399,6 +4448,14 @@ x_free_frame_resources (struct frame *f)
   mac_cursor_release (f->output_data.mac->hourglass_cursor);
   mac_cursor_release (f->output_data.mac->horizontal_drag_cursor);
   mac_cursor_release (f->output_data.mac->vertical_drag_cursor);
+  mac_cursor_release (f->output_data.mac->left_edge_cursor);
+  mac_cursor_release (f->output_data.mac->top_left_corner_cursor);
+  mac_cursor_release (f->output_data.mac->top_edge_cursor);
+  mac_cursor_release (f->output_data.mac->top_right_corner_cursor);
+  mac_cursor_release (f->output_data.mac->right_edge_cursor);
+  mac_cursor_release (f->output_data.mac->bottom_right_corner_cursor);
+  mac_cursor_release (f->output_data.mac->bottom_edge_cursor);
+  mac_cursor_release (f->output_data.mac->bottom_left_corner_cursor);
 
   xfree (f->output_data.mac);
   f->output_data.mac = NULL;
@@ -5610,7 +5667,7 @@ mac_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
 
   dpyinfo->name_list_element = Fcons (display_name, Qnil);
 
-  /* http://lists.gnu.org/archive/html/emacs-devel/2015-11/msg00194.html  */
+  /* https://lists.gnu.org/archive/html/emacs-devel/2015-11/msg00194.html  */
   dpyinfo->smallest_font_height = 1;
   dpyinfo->smallest_char_width = 1;
 

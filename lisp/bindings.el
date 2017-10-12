@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -338,6 +338,10 @@ mouse-3: Toggle minor modes"
 (defvar mode-line-column-line-number-mode-map
   (let ((map (make-sparse-keymap))
 	(menu-map (make-sparse-keymap "Toggle Line and Column Number Display")))
+    (bindings--define-key menu-map [size-indication-mode]
+      '(menu-item "Display Size Indication" size-indication-mode
+		  :help "Toggle displaying a size indication in the mode-line"
+		  :button (:toggle . size-indication-mode)))
     (bindings--define-key menu-map [line-number-mode]
       '(menu-item "Display Line Numbers" line-number-mode
 		  :help "Toggle displaying line numbers in the mode-line"
@@ -350,14 +354,44 @@ mouse-3: Toggle minor modes"
     map) "\
 Keymap to display on column and line numbers.")
 
+(defcustom column-number-indicator-zero-based t
+  "When non-nil, mode line displays column numbers zero-based.
+
+This variable has effect only when Column Number mode is turned on,
+which displays column numbers in the mode line.
+If the value is non-nil, the displayed column numbers start from
+zero, otherwise they start from one."
+  :type 'boolean
+  :group 'mode-line
+  :version "26.1")
+
+(defcustom mode-line-percent-position '(-3 "%p")
+  "Specification of \"percentage offset\" of window through buffer.
+This option specifies both the field width and the type of offset
+displayed in `mode-line-position', a component of the default
+`mode-line-format'."
+  :type `(radio
+          (const :tag "nil:  No offset is displayed" nil)
+          (const :tag "\"%o\": Proportion of \"travel\" of the window through the buffer"
+                 (-3 "%o"))
+          (const :tag "\"%p\": Percentage offset of top of window"
+                 (-3 "%p"))
+          (const :tag "\"%P\": Percentage offset of bottom of window"
+                 (-3 "%P"))
+          (const :tag "\"%q\": Offsets of both top and bottom of window"
+                 (6 "%q")))
+  :version "26.1"
+  :group 'mode-line)
+(put 'mode-line-percent-position 'risky-local-variable t)
+
 (defvar mode-line-position
-  `((-3 ,(propertize
-	  "%p"
-	  'local-map mode-line-column-line-number-mode-map
-	  'mouse-face 'mode-line-highlight
-	  ;; XXX needs better description
-	  'help-echo "Size indication mode\n\
-mouse-1: Display Line and Column Mode Menu"))
+  `((:propertize
+     mode-line-percent-position
+     local-map ,mode-line-column-line-number-mode-map
+     mouse-face mode-line-highlight
+     ;; XXX needs better description
+     help-echo "Size indication mode\n\
+mouse-1: Display Line and Column Mode Menu")
     (size-indication-mode
      (8 ,(propertize
 	  " of %I"
@@ -368,12 +402,19 @@ mouse-1: Display Line and Column Mode Menu"))
 mouse-1: Display Line and Column Mode Menu")))
     (line-number-mode
      ((column-number-mode
-       (10 ,(propertize
-	     " (%l,%c)"
-	     'local-map mode-line-column-line-number-mode-map
-	     'mouse-face 'mode-line-highlight
-	     'help-echo "Line number and Column number\n\
+       (column-number-indicator-zero-based
+        (10 ,(propertize
+              " (%l,%c)"
+              'local-map mode-line-column-line-number-mode-map
+              'mouse-face 'mode-line-highlight
+              'help-echo "Line number and Column number\n\
 mouse-1: Display Line and Column Mode Menu"))
+        (10 ,(propertize
+              " (%l,%C)"
+              'local-map mode-line-column-line-number-mode-map
+              'mouse-face 'mode-line-highlight
+              'help-echo "Line number and Column number\n\
+mouse-1: Display Line and Column Mode Menu")))
        (6 ,(propertize
 	    " L%l"
 	    'local-map mode-line-column-line-number-mode-map
@@ -381,12 +422,19 @@ mouse-1: Display Line and Column Mode Menu"))
 	    'help-echo "Line Number\n\
 mouse-1: Display Line and Column Mode Menu"))))
      ((column-number-mode
-       (5 ,(propertize
-	    " C%c"
-	    'local-map mode-line-column-line-number-mode-map
-	    'mouse-face 'mode-line-highlight
-	    'help-echo "Column number\n\
-mouse-1: Display Line and Column Mode Menu"))))))
+       (column-number-indicator-zero-based
+        (5 ,(propertize
+             " C%c"
+             'local-map mode-line-column-line-number-mode-map
+             'mouse-face 'mode-line-highlight
+             'help-echo "Column number\n\
+mouse-1: Display Line and Column Mode Menu"))
+        (5 ,(propertize
+             " C%C"
+             'local-map mode-line-column-line-number-mode-map
+             'mouse-face 'mode-line-highlight
+             'help-echo "Column number\n\
+mouse-1: Display Line and Column Mode Menu")))))))
   "Mode line construct for displaying the position in the buffer.
 Normally displays the buffer percentage and, optionally, the
 buffer size, the line number and the column number.")
@@ -430,11 +478,9 @@ Major modes that edit things other than ordinary files may change this
 (make-variable-buffer-local 'mode-line-buffer-identification)
 
 (defvar mode-line-misc-info
-  '((which-func-mode ("" which-func-format " "))
-    (global-mode-string ("" global-mode-string " ")))
+  '((global-mode-string ("" global-mode-string " ")))
   "Mode line construct for miscellaneous information.
-By default, this shows the information specified by
-`which-func-mode' and `global-mode-string'.")
+By default, this shows the information specified by `global-mode-string'.")
 (put 'mode-line-misc-info 'risky-local-variable t)
 
 (defvar mode-line-end-spaces '(:eval (unless (display-graphic-p) "-%-"))

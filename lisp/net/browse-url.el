@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -45,7 +45,7 @@
 ;; browse-url-generic                 arbitrary
 ;; browse-url-default-windows-browser MS-Windows browser
 ;; browse-url-default-macosx-browser  macOS browser
-;; browse-url-xdg-open                Free Desktop xdg-open on Gnome, KDE, Xfce4, LXDE
+;; browse-url-xdg-open                freedesktop.org xdg-open
 ;; browse-url-kde                     KDE konqueror (kfm)
 ;; browse-url-elinks                  Elinks      Don't know (tried with 0.12.GIT)
 
@@ -182,6 +182,15 @@ be used instead."
 	  (function-item :tag "Emacs Mail" :value browse-url-mail)
 	  (function-item :tag "None" nil))
   :version "24.1"
+  :group 'browse-url)
+
+(defcustom browse-url-man-function 'browse-url-man
+  "Function to display man: links."
+  :type '(radio
+          (function-item :tag "Emacs Man" :value browse-url-man)
+          (const :tag "None" nil)
+          (function :tag "Other function"))
+  :version "26.1"
   :group 'browse-url)
 
 (defcustom browse-url-netscape-program "netscape"
@@ -798,6 +807,8 @@ as ARGS."
   (let ((process-environment (copy-sequence process-environment))
 	(function (or (and (string-match "\\`mailto:" url)
 			   browse-url-mailto-function)
+                      (and (string-match "\\`man:" url)
+                           browse-url-man-function)
 		      browse-url-browser-function))
 	;; Ensure that `default-directory' exists and is readable (b#6077).
 	(default-directory (or (unhandled-file-name-directory default-directory)
@@ -867,7 +878,7 @@ The optional NEW-WINDOW argument is not used."
 	   (error "Browsing URLs is not supported on this system")))
 	((eq system-type 'cygwin)
 	 (call-process "cygstart" nil nil nil url))
-	(t (w32-shell-execute "open" url))))
+	(t (w32-shell-execute "open" (url-unhex-string url)))))
 
 (defun browse-url-default-macosx-browser (url &optional _new-window)
   "Invoke the macOS system's default Web browser.
@@ -933,36 +944,14 @@ instead of `browse-url-new-window-flag'."
 
 (defun browse-url-can-use-xdg-open ()
   "Return non-nil if the \"xdg-open\" program can be used.
-xdg-open is a desktop utility that calls your preferred web browser.
-This requires you to be running either Gnome, KDE, Xfce4 or LXDE."
-  (and (getenv "DISPLAY")
-       (executable-find "xdg-open")
-       ;; xdg-open may call gnome-open and that does not wait for its child
-       ;; to finish.  This child may then be killed when the parent dies.
-       ;; Use nohup to work around.  See bug#7166, bug#8917, bug#9779 and
-       ;; http://lists.gnu.org/archive/html/emacs-devel/2009-07/msg00279.html
-       (executable-find "nohup")
-       (or (getenv "GNOME_DESKTOP_SESSION_ID")
-	   ;; GNOME_DESKTOP_SESSION_ID is deprecated, check on Dbus also.
-	   (condition-case nil
-	       (eq 0 (call-process
-		      "dbus-send" nil nil nil
-				  "--dest=org.gnome.SessionManager"
-				  "--print-reply"
-				  "/org/gnome/SessionManager"
-				  "org.gnome.SessionManager.CanShutdown"))
-	     (error nil))
-	   (equal (getenv "KDE_FULL_SESSION") "true")
-	   (condition-case nil
-	       (eq 0 (call-process
-		      "/bin/sh" nil nil nil
-		      "-c"
-		      ;; FIXME use string-match rather than grep.
-		      "xprop -root _DT_SAVE_MODE|grep xfce4"))
-	     (error nil))
-	   (member (getenv "DESKTOP_SESSION") '("LXDE" "Lubuntu"))
-	   (equal (getenv "XDG_CURRENT_DESKTOP") "LXDE"))))
-
+xdg-open is a desktop utility that calls your preferred web browser."
+  ;; The exact set of situations where xdg-open works is complicated,
+  ;; and it would be a pain to duplicate xdg-open's situation-specific
+  ;; code here, as the code is a moving target.  So assume that
+  ;; xdg-open will work if there is a graphical display; this should
+  ;; be good enough for platforms Emacs is likely to be running on.
+  (and (or (getenv "DISPLAY") (getenv "WAYLAND_DISPLAY"))
+       (executable-find "xdg-open")))
 
 ;;;###autoload
 (defun browse-url-xdg-open (url &optional ignored)
@@ -1328,7 +1317,7 @@ used instead of `browse-url-new-window-flag'."
               (if (file-exists-p
                    (setq pidfile (format "/tmp/Mosaic.%d" pid)))
                   (delete-file pidfile))
-              ;; http://debbugs.gnu.org/17428.  Use O_EXCL.
+              ;; https://debbugs.gnu.org/17428.  Use O_EXCL.
               (write-region nil nil pidfile nil 'silent nil 'excl)))
 	  ;; Send signal SIGUSR to Mosaic
 	  (message "Signaling Mosaic...")
@@ -1584,6 +1573,19 @@ used instead of `browse-url-new-window-flag'."
 		     (insert (replace-regexp-in-string "\r\n" "\n" body))
 		     (unless (bolp)
 		       (insert "\n"))))))))
+
+;; --- man ---
+
+(defvar manual-program)
+
+(defun browse-url-man (url &optional _new-window)
+  "Open a man page."
+  (interactive (browse-url-interactive-arg "Man page URL: "))
+  (require 'man)
+  (setq url (replace-regexp-in-string "\\`man:" "" url))
+  (cond
+   ((executable-find manual-program) (man url))
+    (t (woman (replace-regexp-in-string "([[:alnum:]]+)" "" url)))))
 
 ;; --- Random browser ---
 

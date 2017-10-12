@@ -3,7 +3,7 @@
 ;; Copyright (C) 2008-2017 Free Software Foundation, Inc.
 
 ;; Author:     FSF (see below for full credits)
-;; Maintainer: Eric S. Raymond <esr@thyrsus.com>
+;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: vc tools
 ;; Package: vc
 
@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Credits:
 
@@ -669,7 +669,7 @@ BACKEND, if non-nil, specifies a VC backend for the Log Edit buffer."
     (make-local-variable 'vc-log-after-operation-hook)
     (when after-hook
       (setq vc-log-after-operation-hook after-hook))
-    (setq vc-log-operation action)
+    (set (make-local-variable 'vc-log-operation) action)
     (when comment
       (erase-buffer)
       (when (stringp comment) (insert comment)))
@@ -711,6 +711,7 @@ the buffer contents as a comment."
       (funcall log-operation
 	       log-fileset
 	       log-entry))
+    (setq vc-log-operation nil)
 
     ;; Quit windows on logbuf.
     (cond

@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -56,9 +56,8 @@ Used to detect invalid recursive references.")
 ;;; Inline functions
 
 (defsubst rng-update-match-state (new-state)
-  (if (and (eq new-state rng-not-allowed-ipattern)
-	   (not (eq rng-match-state rng-not-allowed-ipattern)))
-      nil
+  (if (eq new-state rng-not-allowed-ipattern)
+      (eq rng-match-state rng-not-allowed-ipattern)
     (setq rng-match-state new-state)
     t))
 

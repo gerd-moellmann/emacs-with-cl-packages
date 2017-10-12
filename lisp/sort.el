@@ -1,4 +1,4 @@
-;;; sort.el --- commands to sort text in an Emacs buffer
+;;; sort.el --- commands to sort text in an Emacs buffer -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1986-1987, 1994-1995, 2001-2017 Free Software
 ;; Foundation, Inc.
@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -596,7 +596,7 @@ is non-nil, it also prints a message describing the number of deletions."
 	   (equal current-prefix-arg '(64))
 	   t)))
   (let ((lines (unless adjacent (make-hash-table :test 'equal)))
-	line prev-line
+	line prev-line first-line
 	(count 0)
 	(beg (copy-marker beg))
 	(end (copy-marker end)))
@@ -604,8 +604,9 @@ is non-nil, it also prints a message describing the number of deletions."
       (goto-char (if reverse end beg))
       (if (and reverse (bolp)) (forward-char -1))
       (while (if reverse
-		 (and (> (point) beg) (not (bobp)))
+		 (not first-line)
 	       (and (< (point) end) (not (eobp))))
+	(setq first-line (and reverse (or (<= (point) beg) (bobp))))
 	(setq line (buffer-substring-no-properties
 		    (line-beginning-position) (line-end-position)))
         (if (and keep-blanks (string= "" line))

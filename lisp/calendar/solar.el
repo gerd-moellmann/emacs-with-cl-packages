@@ -23,7 +23,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -65,10 +65,10 @@ and `am-pm' and `time-zone', both alphabetic strings.
 
 For example, the form
 
-  \\='(24-hours \":\" minutes
+   (24-hours \":\" minutes
     (if time-zone \" (\") time-zone (if time-zone \")\"))
 
-would give military-style times like `21:07 (UTC)'."
+would give military-style times like \"21:07 (UTC)\"."
   :type 'sexp
   :risky t
   :group 'calendar)

@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -64,12 +64,12 @@
 
 
 (defcustom project-linux-compile-target-command (concat ede-make-command " -k -C %s SUBDIRS=%s")
-  "*Default command used to compile a target."
+  "Default command used to compile a target."
   :group 'project-linux
   :type 'string)
 
 (defcustom project-linux-compile-project-command (concat ede-make-command " -k -C %s")
-  "*Default command used to compile a project."
+  "Default command used to compile a project."
   :group 'project-linux
   :type 'string)
 

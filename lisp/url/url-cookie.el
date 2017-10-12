@@ -1,4 +1,4 @@
-;;; url-cookie.el --- URL cookie support
+;;; url-cookie.el --- URL cookie support  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1996-1999, 2004-2017 Free Software Foundation, Inc.
 
@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -227,18 +227,17 @@ telling Microsoft that."
   :group 'url-cookie)
 
 (defun url-cookie-host-can-set-p (host domain)
-  (let ((last nil)
-	(case-fold-search t))
-    (if (string= host domain)	; Apparently netscape lets you do this
-	t
-      ;; Remove the dot from wildcard domains before matching.
-      (when (eq ?. (aref domain 0))
-	(setq domain (substring domain 1)))
-      (and (url-domsuf-cookie-allowed-p domain)
-	   ;; Need to check and make sure the host is actually _in_ the
-	   ;; domain it wants to set a cookie for though.
-	   (string-match (concat (regexp-quote domain)
-				 "$") host)))))
+  (cond
+   ((string= host domain)	; Apparently netscape lets you do this
+    t)
+   ((zerop (length domain))
+    nil)
+   (t
+    ;; Remove the dot from wildcard domains before matching.
+    (when (eq ?. (aref domain 0))
+      (setq domain (substring domain 1)))
+    (and (url-domsuf-cookie-allowed-p domain)
+         (string-suffix-p domain host 'ignore-case)))))
 
 (defun url-cookie-handle-set-cookie (str)
   (setq url-cookies-changed-since-last-save t)
@@ -353,14 +352,32 @@ to run the `url-cookie-setup-save-timer' function manually."
 					  url-cookie-save-interval
 					  #'url-cookie-write-file))))
 
+(defun url-cookie-delete-cookies (&optional regexp keep)
+  "Delete all cookies from the cookie store where the domain matches REGEXP.
+If REGEXP is nil, all cookies are deleted.  If KEEP is non-nil,
+instead delete all cookies that do not match REGEXP."
+  (dolist (variable '(url-cookie-secure-storage url-cookie-storage))
+    (let ((cookies (symbol-value variable)))
+      (dolist (elem cookies)
+        (when (or (and (null keep)
+                       (or (null regexp)
+                           (string-match regexp (car elem))))
+                  (and keep
+                       regexp
+                       (not (string-match regexp (car elem)))))
+          (setq cookies (delq elem cookies))))
+      (set variable cookies)))
+  (setq url-cookies-changed-since-last-save t)
+  (url-cookie-write-file))
+
 ;;; Mode for listing and editing cookies.
 
 (defun url-cookie-list ()
   "Display a buffer listing the current URL cookies, if there are any.
 Use \\<url-cookie-mode-map>\\[url-cookie-delete] to remove cookies."
   (interactive)
-  (when (and (null url-cookie-secure-storage)
-	     (null url-cookie-storage))
+  (unless (or url-cookie-secure-storage
+              url-cookie-storage)
     (error "No cookies are defined"))
 
   (pop-to-buffer "*url cookies*")
@@ -421,20 +438,13 @@ Use \\<url-cookie-mode-map>\\[url-cookie-delete] to remove cookies."
 		     (forward-line 1)
 		     (point)))))
 
-(defun url-cookie-quit ()
-  "Kill the current buffer."
-  (interactive)
-  (kill-buffer (current-buffer)))
-
 (defvar url-cookie-mode-map
   (let ((map (make-sparse-keymap)))
-    (suppress-keymap map)
-    (define-key map "q" 'url-cookie-quit)
     (define-key map [delete] 'url-cookie-delete)
     (define-key map [(control k)] 'url-cookie-delete)
     map))
 
-(define-derived-mode url-cookie-mode nil "URL Cookie"
+(define-derived-mode url-cookie-mode special-mode "URL Cookie"
   "Mode for listing cookies.
 
 \\{url-cookie-mode-map}"

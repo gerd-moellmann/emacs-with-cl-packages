@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -55,7 +55,7 @@ Once an insertion set is done, these fields will be activated.")
      (:underline "green"))
     (((class color) (background light))
      (:underline "green4")))
-  "*Face used to specify editable fields from a template."
+  "Face used to specify editable fields from a template."
   :group 'semantic-faces)
 
 (defcustom srecode-fields-exit-confirmation nil

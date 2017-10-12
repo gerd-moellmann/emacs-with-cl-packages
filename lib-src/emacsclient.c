@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 #include <config.h>
@@ -39,7 +39,7 @@ along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
 # define CLOSE_SOCKET closesocket
 # define INITIALIZE() (initialize_sockets ())
 
-char *w32_getenv (char *);
+char *w32_getenv (const char *);
 #define egetenv(VAR) w32_getenv(VAR)
 
 #else /* !WINDOWSNT */
@@ -73,7 +73,8 @@ char *w32_getenv (char *);
 
 #include <stdarg.h>
 #include <ctype.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <getopt.h>
 #include <unistd.h>
 
@@ -81,6 +82,8 @@ char *w32_getenv (char *);
 #include <sys/stat.h>
 #include <signal.h>
 #include <errno.h>
+
+#include <unlocked-io.h>
 
 #ifndef VERSION
 #define VERSION "unspecified"
@@ -107,6 +110,9 @@ char *w32_getenv (char *);
 /* Name used to invoke this program.  */
 const char *progname;
 
+/* The first argument to main.  */
+int main_argc;
+
 /* The second argument to main.  */
 char **main_argv;
 
@@ -115,6 +121,9 @@ int nowait = 0;
 
 /* Nonzero means don't print messages for successful operations.  --quiet.  */
 int quiet = 0;
+
+/* Nonzero means don't print values returned from emacs. --suppress-output.  */
+int suppress_output = 0;
 
 /* Nonzero means args are expressions to be evaluated.  --eval.  */
 int eval = 0;
@@ -144,6 +153,9 @@ const char *socket_name = NULL;
 /* If non-NULL, the filename of the authentication file.  */
 const char *server_file = NULL;
 
+/* If non-NULL, the tramp prefix emacs must use to find the files.  */
+const char *tramp_prefix = NULL;
+
 /* PID of the Emacs server process.  */
 int emacs_pid = 0;
 
@@ -158,6 +170,7 @@ struct option longopts[] =
 {
   { "no-wait",	no_argument,	   NULL, 'n' },
   { "quiet",	no_argument,	   NULL, 'q' },
+  { "suppress-output", no_argument, NULL, 'u' },
   { "eval",	no_argument,	   NULL, 'e' },
   { "help",	no_argument,	   NULL, 'H' },
   { "version",	no_argument,	   NULL, 'V' },
@@ -172,6 +185,7 @@ struct option longopts[] =
   { "server-file",	required_argument, NULL, 'f' },
   { "display",	required_argument, NULL, 'd' },
   { "parent-id", required_argument, NULL, 'p' },
+  { "tramp",	required_argument, NULL, 'T' },
   { 0, 0, 0, 0 }
 };
 
@@ -190,6 +204,35 @@ xmalloc (size_t size)
   return result;
 }
 
+/* Like realloc but get fatal error if memory is exhausted.  */
+
+static void *
+xrealloc (void *ptr, size_t size)
+{
+  void *result = realloc (ptr, size);
+  if (result == NULL)
+    {
+      perror ("realloc");
+      exit (EXIT_FAILURE);
+    }
+  return result;
+}
+
+/* Like strdup but get a fatal error if memory is exhausted. */
+char *xstrdup (const char *);
+
+char *
+xstrdup (const char *s)
+{
+  char *result = strdup (s);
+  if (result == NULL)
+    {
+      perror ("strdup");
+      exit (EXIT_FAILURE);
+    }
+  return result;
+}
+
 /* From sysdep.c */
 #if !defined (HAVE_GET_CURRENT_DIR_NAME) || defined (BROKEN_GET_CURRENT_DIR_NAME)
 
@@ -198,7 +241,7 @@ char *get_current_dir_name (void);
 /* Return the current working directory.  Returns NULL on errors.
    Any other returned value must be freed with free.  This is used
    only when get_current_dir_name is not defined on the system.  */
-char*
+char *
 get_current_dir_name (void)
 {
   char *buf;
@@ -253,27 +296,15 @@ get_current_dir_name (void)
 
 #ifdef WINDOWSNT
 
-/* Like strdup but get a fatal error if memory is exhausted. */
-
-char *
-xstrdup (const char *s)
-{
-  char *result = strdup (s);
-  if (result == NULL)
-    {
-      perror ("strdup");
-      exit (EXIT_FAILURE);
-    }
-  return result;
-}
-
 #define REG_ROOT "SOFTWARE\\GNU\\Emacs"
+
+char *w32_get_resource (HKEY, const char *, LPDWORD);
 
 /* Retrieve an environment variable from the Emacs subkeys of the registry.
    Return NULL if the variable was not found, or it was empty.
    This code is based on w32_get_resource (w32.c).  */
 char *
-w32_get_resource (HKEY predefined, char *key, LPDWORD type)
+w32_get_resource (HKEY predefined, const char *key, LPDWORD type)
 {
   HKEY hrootkey = NULL;
   char *result = NULL;
@@ -285,7 +316,7 @@ w32_get_resource (HKEY predefined, char *key, LPDWORD type)
 	{
 	  result = (char *) xmalloc (cbData);
 
-	  if ((RegQueryValueEx (hrootkey, key, NULL, type, result, &cbData) != ERROR_SUCCESS)
+	  if ((RegQueryValueEx (hrootkey, key, NULL, type, (LPBYTE)result, &cbData) != ERROR_SUCCESS)
 	      || (*result == 0))
 	    {
 	      free (result);
@@ -308,7 +339,7 @@ w32_get_resource (HKEY predefined, char *key, LPDWORD type)
   environment variables in the registry if they don't appear in the
   environment.  */
 char *
-w32_getenv (char *envvar)
+w32_getenv (const char *envvar)
 {
   char *value;
   DWORD dwType;
@@ -356,6 +387,7 @@ w32_getenv (char *envvar)
   return NULL;
 }
 
+int w32_window_app (void);
 
 int
 w32_window_app (void)
@@ -383,11 +415,12 @@ w32_window_app (void)
   predictably bad results.  By contrast, POSIX execvp passes the arguments
   directly into the argv array of the child process.  */
 
+int w32_execvp (const char *, char **);
+
 int
 w32_execvp (const char *path, char **argv)
 {
   int i;
-  extern int execvp (const char*, char **);
 
   /* Required to allow a .BAT script as alternate editor.  */
   argv[0] = (char *) alternate_editor;
@@ -407,7 +440,8 @@ w32_execvp (const char *path, char **argv)
 #define execvp w32_execvp
 
 /* Emulation of ttyname for Windows.  */
-char *
+const char *ttyname (int);
+const char *
 ttyname (int fd)
 {
   return "CONOUT$";
@@ -456,14 +490,15 @@ static void
 decode_options (int argc, char **argv)
 {
   alternate_editor = egetenv ("ALTERNATE_EDITOR");
+  tramp_prefix = egetenv ("EMACSCLIENT_TRAMP");
 
   while (1)
     {
       int opt = getopt_long_only (argc, argv,
 #ifndef NO_SOCKETS_IN_FILE_SYSTEM
-			     "VHneqa:s:f:d:F:tc",
+			     "VHnequa:s:f:d:F:tcT:",
 #else
-			     "VHneqa:f:d:F:tc",
+			     "VHnequa:f:d:F:tcT:",
 #endif
 			     longopts, 0);
 
@@ -511,6 +546,10 @@ decode_options (int argc, char **argv)
 	  quiet = 1;
 	  break;
 
+	case 'u':
+	  suppress_output = 1;
+	  break;
+
 	case 'V':
 	  message (false, "emacsclient %s\n", VERSION);
 	  exit (EXIT_SUCCESS);
@@ -536,6 +575,10 @@ decode_options (int argc, char **argv)
 
         case 'F':
           frame_parameters = optarg;
+          break;
+
+        case 'T':
+          tramp_prefix = optarg;
           break;
 
 	default:
@@ -625,6 +668,7 @@ The following OPTIONS are accepted:\n\
 -e, --eval    		Evaluate the FILE arguments as ELisp expressions\n\
 -n, --no-wait		Don't wait for the server to return\n\
 -q, --quiet		Don't display messages on success\n\
+-u, --suppress-output   Don't display return values from the server\n\
 -d DISPLAY, --display=DISPLAY\n\
 			Visit the file in the given display\n\
 ", "\
@@ -639,13 +683,16 @@ The following OPTIONS are accepted:\n\
 			Editor to fallback to if the server is not running\n"
 "			If EDITOR is the empty string, start Emacs in daemon\n\
 			mode and try connecting again\n"
+"-T PREFIX, --tramp=PREFIX\n\
+                        PREFIX to prepend to filenames sent by emacsclient\n\
+                        for locating files remotely via Tramp\n"
 "\n\
 Report bugs with M-x report-emacs-bug.\n");
   exit (EXIT_SUCCESS);
 }
 
 /* Try to run a different command, or --if no alternate editor is
-   defined-- exit with an errorcode.
+   defined-- exit with an error code.
    Uses argv, but gets it from the global variable main_argv.  */
 
 static _Noreturn void
@@ -653,9 +700,38 @@ fail (void)
 {
   if (alternate_editor)
     {
-      int i = optind - 1;
+      size_t extra_args_size = (main_argc - optind + 1) * sizeof (char *);
+      size_t new_argv_size = extra_args_size;
+      char **new_argv = NULL;
+      char *s = xstrdup (alternate_editor);
+      unsigned toks = 0;
 
-      execvp (alternate_editor, main_argv + i);
+      /* Unpack alternate_editor's space-separated tokens into new_argv.  */
+      for (char *tok = s; tok != NULL && *tok != '\0';)
+        {
+          /* Allocate new token.  */
+          ++toks;
+          new_argv = xrealloc (new_argv, new_argv_size + toks * sizeof (char *));
+
+          /* Skip leading delimiters, and set separator, skipping any
+             opening quote.  */
+          size_t skip = strspn (tok, " \"");
+          tok += skip;
+          char sep = (skip > 0 && tok[-1] == '"') ? '"' : ' ';
+
+          /* Record start of token.  */
+          new_argv[toks - 1] = tok;
+
+          /* Find end of token and overwrite it with NUL.  */
+          tok = strchr (tok, sep);
+          if (tok != NULL)
+            *tok++ = '\0';
+        }
+
+      /* Append main_argv arguments to new_argv.  */
+      memcpy (&new_argv[toks], main_argv + optind, extra_args_size);
+
+      execvp (*new_argv, new_argv);
       message (true, "%s: error executing alternate editor \"%s\"\n",
 	       progname, alternate_editor);
     }
@@ -668,6 +744,7 @@ fail (void)
 int
 main (int argc, char **argv)
 {
+  main_argc = argc;
   main_argv = argv;
   progname = argv[0];
   message (true, "%s: Sorry, the Emacs server is supported only\n"
@@ -854,6 +931,7 @@ file_name_absolute_p (const char *filename)
 
 #ifdef WINDOWSNT
 /* Wrapper to make WSACleanup a cdecl, as required by atexit.  */
+void __cdecl close_winsock (void);
 void __cdecl
 close_winsock (void)
 {
@@ -861,6 +939,7 @@ close_winsock (void)
 }
 
 /* Initialize the WinSock2 library.  */
+void initialize_sockets (void);
 void
 initialize_sockets (void)
 {
@@ -1185,10 +1264,9 @@ set_local_socket (const char *local_socket_name)
 
   {
     int sock_status;
-    int use_tmpdir = 0;
     int saved_errno;
     const char *server_name = local_socket_name;
-    const char *tmpdir IF_LINT ( = NULL);
+    const char *tmpdir = NULL;
     char *tmpdir_storage = NULL;
     char *socket_name_storage = NULL;
 
@@ -1196,7 +1274,6 @@ set_local_socket (const char *local_socket_name)
       {
 	/* socket_name is a file name component.  */
 	long uid = geteuid ();
-	use_tmpdir = 1;
 	tmpdir = egetenv ("TMPDIR");
 	if (!tmpdir)
           {
@@ -1234,7 +1311,7 @@ set_local_socket (const char *local_socket_name)
     /* See if the socket exists, and if it's owned by us. */
     sock_status = socket_status (server.sun_path);
     saved_errno = errno;
-    if (sock_status && use_tmpdir)
+    if (sock_status && tmpdir)
       {
 	/* Failing that, see if LOGNAME or USER exist and differ from
 	   our euid.  If so, look for a socket based on the UID
@@ -1382,11 +1459,13 @@ set_socket (int no_exit_if_error)
 FARPROC set_fg;  /* Pointer to AllowSetForegroundWindow.  */
 FARPROC get_wc;  /* Pointer to RealGetWindowClassA.  */
 
+void w32_set_user_model_id (void);
+
 void
 w32_set_user_model_id (void)
 {
   HMODULE shell;
-  HRESULT (WINAPI * set_user_model) (wchar_t * id);
+  HRESULT (WINAPI * set_user_model) (const wchar_t * id);
 
   /* On Windows 7 and later, we need to set the user model ID
      to associate emacsclient launched files with Emacs frames
@@ -1408,6 +1487,8 @@ w32_set_user_model_id (void)
       FreeLibrary (shell);
     }
 }
+
+BOOL CALLBACK w32_find_emacs_process (HWND, LPARAM);
 
 BOOL CALLBACK
 w32_find_emacs_process (HWND hWnd, LPARAM lParam)
@@ -1435,6 +1516,7 @@ w32_find_emacs_process (HWND hWnd, LPARAM lParam)
 
 /* Search for a window of class "Emacs" and owned by a process with
    process id = emacs_pid.  If found, allow it to grab the focus.  */
+void w32_give_focus (void);
 
 void
 w32_give_focus (void)
@@ -1528,7 +1610,7 @@ start_daemon_and_retry_set_socket (void)
      it is ready to accept client connections, by asserting an event
      whose name is known to the daemon (defined by nt/inc/ms-w32.h).  */
 
-  if (!CreateProcess (NULL, "emacs --daemon", NULL, NULL, FALSE,
+  if (!CreateProcess (NULL, (LPSTR)"emacs --daemon", NULL, NULL, FALSE,
                       CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
     {
       char* msg = NULL;
@@ -1550,7 +1632,7 @@ start_daemon_and_retry_set_socket (void)
   if ((wait_result = WaitForSingleObject (w32_daemon_event, INFINITE))
       != WAIT_OBJECT_0)
     {
-      char *msg = NULL;
+      const char *msg = NULL;
 
       switch (wait_result)
 	{
@@ -1596,6 +1678,7 @@ main (int argc, char **argv)
   int start_daemon_if_needed;
   int exit_status = EXIT_SUCCESS;
 
+  main_argc = argc;
   main_argv = argv;
   progname = argv[0];
 
@@ -1667,7 +1750,10 @@ main (int argc, char **argv)
         }
     }
   send_to_emacs (emacs_socket, "-dir ");
+  if (tramp_prefix)
+    quote_argument (emacs_socket, tramp_prefix);
   quote_argument (emacs_socket, cwd);
+  free (cwd);
   send_to_emacs (emacs_socket, "/");
   send_to_emacs (emacs_socket, " ");
 
@@ -1771,6 +1857,8 @@ main (int argc, char **argv)
 #endif
 
           send_to_emacs (emacs_socket, "-file ");
+	  if (tramp_prefix && file_name_absolute_p (argv[i]))
+	    quote_argument (emacs_socket, tramp_prefix);
           quote_argument (emacs_socket, argv[i]);
           send_to_emacs (emacs_socket, " ");
         }
@@ -1849,19 +1937,25 @@ main (int argc, char **argv)
           else if (strprefix ("-print ", p))
             {
               /* -print STRING: Print STRING on the terminal. */
-              str = unquote_argument (p + strlen ("-print "));
-              if (needlf)
-                printf ("\n");
-              printf ("%s", str);
-              needlf = str[0] == '\0' ? needlf : str[strlen (str) - 1] != '\n';
-            }
+	      if (!suppress_output)
+		{
+		  str = unquote_argument (p + strlen ("-print "));
+		  if (needlf)
+		    printf ("\n");
+		  printf ("%s", str);
+		  needlf = str[0] == '\0' ? needlf : str[strlen (str) - 1] != '\n';
+		}
+	    }
           else if (strprefix ("-print-nonl ", p))
             {
               /* -print-nonl STRING: Print STRING on the terminal.
                  Used to continue a preceding -print command.  */
-              str = unquote_argument (p + strlen ("-print-nonl "));
-              printf ("%s", str);
-              needlf = str[0] == '\0' ? needlf : str[strlen (str) - 1] != '\n';
+	      if (!suppress_output)
+		{
+		  str = unquote_argument (p + strlen ("-print-nonl "));
+		  printf ("%s", str);
+		  needlf = str[0] == '\0' ? needlf : str[strlen (str) - 1] != '\n';
+		}
             }
           else if (strprefix ("-error ", p))
             {

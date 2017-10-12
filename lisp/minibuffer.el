@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -746,7 +746,7 @@ If the current buffer is not a minibuffer, erase its entire contents."
 
 (defcustom completion-auto-help t
   "Non-nil means automatically provide help for invalid completion input.
-If the value is t the *Completion* buffer is displayed whenever completion
+If the value is t the *Completions* buffer is displayed whenever completion
 is requested but cannot be done.
 If the value is `lazy', the *Completions* buffer is only displayed after
 the second failed attempt to complete."
@@ -834,7 +834,8 @@ styles for specific categories, such as files, buffers, etc."
 (defvar completion-category-defaults
   '((buffer (styles . (basic substring)))
     (unicode-name (styles . (basic substring)))
-    (project-file (styles . (basic substring))))
+    (project-file (styles . (basic substring)))
+    (info-menu (styles . (basic substring))))
   "Default settings for specific completion categories.
 Each entry has the shape (CATEGORY . ALIST) where ALIST is
 an association list that can specify properties such as:
@@ -1972,7 +1973,7 @@ if there was no valid completion, else t."
 Its arguments and return value are as specified for `completion-in-region'.
 Also respects the obsolete wrapper hook `completion-in-region-functions'.
 \(See `with-wrapper-hook' for details about wrapper hooks.)"
-  (with-wrapper-hook
+  (subr--with-wrapper-hook-no-warnings
       ;; FIXME: Maybe we should use this hook to provide a "display
       ;; completions" operation as well.
       completion-in-region-functions (start end collection predicate)
@@ -2251,6 +2252,17 @@ This is only used when the minibuffer area has no active minibuffer.")
   (replace-regexp-in-string "\\$" (lambda (dollar) (concat dollar dollar))
                             str))
 
+(defun minibuffer-maybe-quote-filename (filename)
+  "Protect FILENAME from `substitute-in-file-name', as needed.
+Useful to give the user default values that won't be substituted."
+  (if (and (not (file-name-quoted-p filename))
+           (file-name-absolute-p filename)
+           (string-match-p (if (memq system-type '(windows-nt ms-dos))
+                               "[/\\\\]~" "/~")
+                           (file-local-name filename)))
+      (file-name-quote filename)
+    (minibuffer--double-dollars filename)))
+
 (defun completion--make-envvar-table ()
   (mapcar (lambda (enventry)
             (substring enventry 0 (string-match-p "=" enventry)))
@@ -2420,7 +2432,7 @@ same as `substitute-in-file-name'."
                                    (substitute-in-file-name
                                     (substring qstr 0 (1- qpos)))))
         (setq qpos (1- qpos)))
-      (cons qpos #'minibuffer--double-dollars))))
+      (cons qpos #'minibuffer-maybe-quote-filename))))
 
 (defalias 'completion--file-name-table
   (completion-table-with-quoting #'completion-file-name-table
@@ -2596,10 +2608,10 @@ See `read-file-name' for the meaning of the arguments."
   (let ((insdef (cond
                  ((and insert-default-directory (stringp dir))
                   (if initial
-                      (cons (minibuffer--double-dollars (concat dir initial))
-                            (length (minibuffer--double-dollars dir)))
-                    (minibuffer--double-dollars dir)))
-                 (initial (cons (minibuffer--double-dollars initial) 0)))))
+                      (cons (minibuffer-maybe-quote-filename (concat dir initial))
+                            (length (minibuffer-maybe-quote-filename dir)))
+                    (minibuffer-maybe-quote-filename dir)))
+                 (initial (cons (minibuffer-maybe-quote-filename initial) 0)))))
 
     (let ((completion-ignore-case read-file-name-completion-ignore-case)
           (minibuffer-completing-file-name t)
@@ -2693,7 +2705,7 @@ See `read-file-name' for the meaning of the arguments."
             ;; with what we will actually return.  As an exception,
             ;; if that's the same as the second item in
             ;; file-name-history, it's really a repeat (Bug#4657).
-            (let ((val1 (minibuffer--double-dollars val)))
+            (let ((val1 (minibuffer-maybe-quote-filename val)))
               (if history-delete-duplicates
                   (setcdr file-name-history
                           (delete val1 (cdr file-name-history))))
@@ -2703,7 +2715,7 @@ See `read-file-name' for the meaning of the arguments."
           (if add-to-history
               ;; Add the value to the history--but not if it matches
               ;; the last value already there.
-              (let ((val1 (minibuffer--double-dollars val)))
+              (let ((val1 (minibuffer-maybe-quote-filename val)))
                 (unless (and (consp file-name-history)
                              (equal (car file-name-history) val1))
                   (setq file-name-history
@@ -2994,7 +3006,7 @@ PATTERN is as returned by `completion-pcm--string->pattern'."
 	(let ((poss ()))
 	  (dolist (c compl)
 	    (when (string-match-p regex c) (push c poss)))
-	  poss)))))
+	  (nreverse poss))))))
 
 (defun completion-pcm--hilit-commonality (pattern completions)
   (when completions
@@ -3246,7 +3258,7 @@ the same set of elements."
                       "\\)\\'")))
       (dolist (f all)
         (unless (string-match-p re f) (push f try)))
-      (or try all))))
+      (or (nreverse try) all))))
 
 
 (defun completion-pcm--merge-try (pattern all prefix suffix)

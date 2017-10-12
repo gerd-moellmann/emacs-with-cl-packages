@@ -17,10 +17,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <X11/Xlib.h>
 
 #include "lisp.h"
@@ -112,44 +113,7 @@ xfont_get_pcm (XFontStruct *xfont, XChar2b *char2b)
 	  ? NULL : pcm);
 }
 
-static Lisp_Object xfont_get_cache (struct frame *);
-static Lisp_Object xfont_list (struct frame *, Lisp_Object);
-static Lisp_Object xfont_match (struct frame *, Lisp_Object);
-static Lisp_Object xfont_list_family (struct frame *);
-static Lisp_Object xfont_open (struct frame *, Lisp_Object, int);
-static void xfont_close (struct font *);
-static void xfont_prepare_face (struct frame *, struct face *);
-static int xfont_has_char (Lisp_Object, int);
-static unsigned xfont_encode_char (struct font *, int);
-static void xfont_text_extents (struct font *, unsigned *, int,
-				struct font_metrics *);
-static int xfont_draw (struct glyph_string *, int, int, int, int, bool);
-static int xfont_check (struct frame *, struct font *);
-
-struct font_driver xfont_driver =
-  {
-    LISP_INITIALLY_ZERO,	/* Qx */
-    false,			/* case insensitive */
-    xfont_get_cache,
-    xfont_list,
-    xfont_match,
-    xfont_list_family,
-    NULL,
-    xfont_open,
-    xfont_close,
-    xfont_prepare_face,
-    NULL,
-    xfont_has_char,
-    xfont_encode_char,
-    xfont_text_extents,
-    xfont_draw,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    xfont_check,
-    NULL, /* get_variation_glyphs */
-    NULL, /* filter_properties */
-  };
-
-static Lisp_Object
+Lisp_Object
 xfont_get_cache (struct frame *f)
 {
   Display_Info *dpyinfo = FRAME_DISPLAY_INFO (f);
@@ -541,7 +505,8 @@ xfont_list (struct frame *f, Lisp_Object spec)
       Lisp_Object alter;
 
       if ((alter = Fassoc (SYMBOL_NAME (registry),
-			   Vface_alternative_font_registry_alist),
+			   Vface_alternative_font_registry_alist,
+			   Qnil),
 	   CONSP (alter)))
 	{
 	  /* Pointer to REGISTRY-ENCODING field.  */
@@ -635,7 +600,7 @@ xfont_list_family (struct frame *f)
   char **names;
   int num_fonts, i;
   Lisp_Object list;
-  char *last_family IF_LINT (= 0);
+  char *last_family UNINIT;
   int last_len;
 
   block_input ();
@@ -912,7 +877,7 @@ xfont_close (struct font *font)
      the logically different X connection after the previous display
      connection was closed.  That's why we also check whether font's
      ID matches the one recorded in x_display_info for this display.
-     See http://debbugs.gnu.org/cgi/bugreport.cgi?bug=16069.  */
+     See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=16069.  */
   if (xfi->xfont
       && ((xdi = x_display_info_for_display (xfi->display))
 	  && xfi->x_display_id == xdi->x_id))
@@ -1056,20 +1021,20 @@ xfont_draw (struct glyph_string *s, int from, int to, int x, int y,
 	{
 	  if (s->padding_p)
 	    for (i = 0; i < len; i++)
-	      XDrawImageString (FRAME_X_DISPLAY (s->f), FRAME_X_WINDOW (s->f),
+              XDrawImageString (FRAME_X_DISPLAY (s->f), FRAME_X_DRAWABLE (s->f),
 				gc, x + i, y, str + i, 1);
 	  else
-	    XDrawImageString (FRAME_X_DISPLAY (s->f), FRAME_X_WINDOW (s->f),
+            XDrawImageString (FRAME_X_DISPLAY (s->f), FRAME_X_DRAWABLE (s->f),
 			      gc, x, y, str, len);
 	}
       else
 	{
 	  if (s->padding_p)
 	    for (i = 0; i < len; i++)
-	      XDrawString (FRAME_X_DISPLAY (s->f), FRAME_X_WINDOW (s->f),
+              XDrawString (FRAME_X_DISPLAY (s->f), FRAME_X_DRAWABLE (s->f),
 			   gc, x + i, y, str + i, 1);
 	  else
-	    XDrawString (FRAME_X_DISPLAY (s->f), FRAME_X_WINDOW (s->f),
+            XDrawString (FRAME_X_DISPLAY (s->f), FRAME_X_DRAWABLE (s->f),
 			 gc, x, y, str, len);
 	}
       unblock_input ();
@@ -1082,20 +1047,20 @@ xfont_draw (struct glyph_string *s, int from, int to, int x, int y,
     {
       if (s->padding_p)
 	for (i = 0; i < len; i++)
-	  XDrawImageString16 (FRAME_X_DISPLAY (s->f), FRAME_X_WINDOW (s->f),
+          XDrawImageString16 (FRAME_X_DISPLAY (s->f), FRAME_X_DRAWABLE (s->f),
 			      gc, x + i, y, s->char2b + from + i, 1);
       else
-	XDrawImageString16 (FRAME_X_DISPLAY (s->f), FRAME_X_WINDOW (s->f),
+        XDrawImageString16 (FRAME_X_DISPLAY (s->f), FRAME_X_DRAWABLE (s->f),
 			    gc, x, y, s->char2b + from, len);
     }
   else
     {
       if (s->padding_p)
 	for (i = 0; i < len; i++)
-	  XDrawString16 (FRAME_X_DISPLAY (s->f), FRAME_X_WINDOW (s->f),
+          XDrawString16 (FRAME_X_DISPLAY (s->f), FRAME_X_DRAWABLE (s->f),
 			 gc, x + i, y, s->char2b + from + i, 1);
       else
-	XDrawString16 (FRAME_X_DISPLAY (s->f), FRAME_X_WINDOW (s->f),
+        XDrawString16 (FRAME_X_DISPLAY (s->f), FRAME_X_DRAWABLE (s->f),
 		       gc, x, y, s->char2b + from, len);
     }
   unblock_input ();
@@ -1112,6 +1077,24 @@ xfont_check (struct frame *f, struct font *font)
 }
 
 
+
+struct font_driver const xfont_driver =
+  {
+  .type = LISPSYM_INITIALLY (Qx),
+  .get_cache = xfont_get_cache,
+  .list = xfont_list,
+  .match = xfont_match,
+  .list_family = xfont_list_family,
+  .open = xfont_open,
+  .close = xfont_close,
+  .prepare_face = xfont_prepare_face,
+  .has_char = xfont_has_char,
+  .encode_char = xfont_encode_char,
+  .text_extents = xfont_text_extents,
+  .draw = xfont_draw,
+  .check = xfont_check,
+  };
+
 void
 syms_of_xfont (void)
 {
@@ -1119,6 +1102,5 @@ syms_of_xfont (void)
   xfont_scripts_cache = CALLN (Fmake_hash_table, QCtest, Qequal);
   staticpro (&xfont_scratch_props);
   xfont_scratch_props = Fmake_vector (make_number (8), Qnil);
-  xfont_driver.type = Qx;
   register_font_driver (&xfont_driver, NULL);
 }

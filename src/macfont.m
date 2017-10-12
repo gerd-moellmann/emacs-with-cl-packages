@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 Original author: YAMAMOTO Mitsuharu
 */
@@ -42,8 +42,6 @@ Original author: YAMAMOTO Mitsuharu
 #include "macuvs.h"
 
 #include <libkern/OSByteOrder.h>
-
-static struct font_driver macfont_driver;
 
 static double mac_font_get_advance_width_for_glyph (CTFontRef, CGGlyph);
 static CGRect mac_font_get_bounding_rect_for_glyph (CTFontRef, CGGlyph);
@@ -901,7 +899,7 @@ macfont_descriptor_entity (CTFontDescriptorRef desc, Lisp_Object extra,
 
   entity = font_make_entity ();
 
-  ASET (entity, FONT_TYPE_INDEX, macfont_driver.type);
+  ASET (entity, FONT_TYPE_INDEX, Qmac_ct);
   ASET (entity, FONT_REGISTRY_INDEX, Qiso10646_1);
 
   macfont_store_descriptor_attributes (desc, entity);
@@ -1735,34 +1733,23 @@ static int macfont_variation_glyphs (struct font *, int c,
                                      unsigned variations[256]);
 static void macfont_filter_properties (Lisp_Object, Lisp_Object);
 
-static struct font_driver macfont_driver =
+static struct font_driver const macfont_driver =
   {
-    LISP_INITIALLY_ZERO,	/* Qmac_ct */
-    0,				/* case insensitive */
-    macfont_get_cache,
-    macfont_list,
-    macfont_match,
-    macfont_list_family,
-    macfont_free_entity,
-    macfont_open,
-    macfont_close,
-    NULL,			/* prepare_face */
-    NULL,			/* done_face */
-    macfont_has_char,
-    macfont_encode_char,
-    macfont_text_extents,
-    macfont_draw,
-    NULL,			/* get_bitmap */
-    NULL,			/* free_bitmap */
-    NULL,			/* anchor_point */
-    NULL,			/* otf_capability */
-    NULL,			/* otf_drive */
-    NULL,			/* start_for_frame */
-    NULL,			/* end_for_frame */
-    macfont_shape,
-    NULL,			/* check */
-    macfont_variation_glyphs,
-    macfont_filter_properties,
+  .type = LISPSYM_INITIALLY (Qmac_ct),
+  .get_cache = macfont_get_cache,
+  .list = macfont_list,
+  .match = macfont_match,
+  .list_family = macfont_list_family,
+  .free_entity = macfont_free_entity,
+  .open = macfont_open,
+  .close = macfont_close,
+  .has_char = macfont_has_char,
+  .encode_char = macfont_encode_char,
+  .text_extents = macfont_text_extents,
+  .draw = macfont_draw,
+  .shape = macfont_shape,
+  .get_variation_glyphs = macfont_variation_glyphs,
+  .filter_properties = macfont_filter_properties,
   };
 
 static Lisp_Object
@@ -2629,8 +2616,7 @@ macfont_open (struct frame * f, Lisp_Object entity, int pixel_size)
   int size;
   CTFontRef macfont;
   CTFontSymbolicTraits sym_traits;
-  char name[256];
-  int len, i, total_width;
+  int i, total_width;
   CGGlyph glyph;
   CGFloat ascent, descent, leading;
 
@@ -3065,7 +3051,8 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
     {
       if (s->hl == DRAW_MOUSE_FACE)
         {
-          face = FACE_FROM_ID (s->f, MOUSE_HL_INFO (s->f)->mouse_face_face_id);
+          face = FACE_FROM_ID_OR_NULL (s->f,
+				       MOUSE_HL_INFO (s->f)->mouse_face_face_id);
           if (!face)
             face = FACE_FROM_ID (s->f, MOUSE_FACE_ID);
         }
@@ -3086,11 +3073,43 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
       if (macfont_info->synthetic_bold_p && ! no_antialias_p)
         {
           CGContextSetTextDrawingMode (context, kCGTextFillStroke);
-          CGContextSetLineWidth (context, synthetic_bold_factor * font_size);
+
+#if HAVE_MACGUI
+	  CGContextSetLineWidth (context, synthetic_bold_factor * font_size);
+#else
+          /* Stroke line width for text drawing is not correctly
+             scaled on Retina display/HiDPI mode when drawn to screen
+             (whereas it is correctly scaled when drawn to bitmaps),
+             and synthetic bold looks thinner on such environments.
+             Apple says there are no plans to address this issue
+             (rdar://11644870) currently.  So we add a workaround.  */
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+          if ([[FRAME_NS_VIEW(f) window] respondsToSelector:
+                                           @selector(backingScaleFactor)])
+#endif
+            CGContextSetLineWidth (context, synthetic_bold_factor * font_size
+                                   * [[FRAME_NS_VIEW(f) window] backingScaleFactor]);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+          else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+            CGContextSetLineWidth (context, synthetic_bold_factor * font_size);
+#endif
+#endif
           CG_SET_STROKE_COLOR_WITH_FACE_FOREGROUND (context, face, f);
         }
       if (no_antialias_p)
         CGContextSetShouldAntialias (context, false);
+
+#ifdef HAVE_NS
+      if (!NILP (ns_use_thin_smoothing))
+        {
+          CGContextSetShouldSmoothFonts(context, YES);
+          CGContextSetFontSmoothingStyle(context, 16);
+        }
+#endif
 
       CGContextSetTextMatrix (context, atfm);
       CGContextSetTextPosition (context, text_position.x, text_position.y);
@@ -4321,7 +4340,6 @@ syms_of_macfont (void)
 {
   /* Core Text, for macOS.  */
   DEFSYM (Qmac_ct, "mac-ct");
-  macfont_driver.type = Qmac_ct;
   register_font_driver (&macfont_driver, NULL);
 
   /* The font property key specifying the font design destination.  The

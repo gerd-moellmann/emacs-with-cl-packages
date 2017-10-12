@@ -23,7 +23,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -245,16 +245,13 @@ in this way."
   :type 'boolean
   :version "21.1")
 
-;; FIXME? This is not a minor mode; what's the point of this?  (See bug#20201)
-(or (assq 'server-buffer-clients minor-mode-alist)
-    (push '(server-buffer-clients " Server") minor-mode-alist))
-
 (defvar server-existing-buffer nil
   "Non-nil means the buffer existed before the server was asked to visit it.
 This means that the server should not kill the buffer when you say you
 are done with it in the server.")
 (make-variable-buffer-local 'server-existing-buffer)
 
+;;;###autoload
 (defcustom server-name "server"
   "The name of the Emacs server, if this Emacs process creates one.
 The command `server-start' makes use of this.  It should not be
@@ -528,30 +525,35 @@ Creates the directory if necessary and makes sure:
     ;; Check that it's safe for use.
     (let* ((uid (nth 2 attrs))
 	   (w32 (eq system-type 'windows-nt))
-	   (safe (cond
-		  ((not (eq t (car attrs))) nil)  ; is a dir?
-		  ((and w32 (zerop uid))	  ; on FAT32?
-		   (display-warning
-		    'server
-		    (format-message "\
+           (unsafe (cond
+                    ((not (eq t (car attrs)))
+                     (format "it is a %s" (if (stringp (car attrs))
+                                              "symlink" "file")))
+                    ((and w32 (zerop uid)) ; on FAT32?
+                     (display-warning
+                      'server
+                      (format-message "\
 Using `%s' to store Emacs-server authentication files.
 Directories on FAT32 filesystems are NOT secure against tampering.
 See variable `server-auth-dir' for details."
-			    (file-name-as-directory dir))
-		    :warning)
-		   t)
-		  ((and (/= uid (user-uid))	  ; is the dir ours?
-			(or (not w32)
-			    ;; Files created on Windows by Administrator
-			    ;; (RID=500) have the Administrators (RID=544)
-			    ;; group recorded as the owner.
-			    (/= uid 544) (/= (user-uid) 500)))
-		   nil)
-		  (w32 t)			  ; on NTFS?
-		  (t				  ; else, check permissions
-		   (zerop (logand ?\077 (file-modes dir)))))))
-      (unless safe
-	(error "The directory `%s' is unsafe" dir)))))
+                                      (file-name-as-directory dir))
+                      :warning)
+                     nil)
+                    ((and (/= uid (user-uid)) ; is the dir ours?
+                          (or (not w32)
+                              ;; Files created on Windows by Administrator
+                              ;; (RID=500) have the Administrators (RID=544)
+                              ;; group recorded as the owner.
+                              (/= uid 544) (/= (user-uid) 500)))
+                     (format "it is not owned by you (owner = %s (%d))"
+                             (user-full-name (user-uid)) (user-uid)))
+                    (w32 nil)           ; on NTFS?
+                    ((/= 0 (logand ?\077 (file-modes dir)))
+                     (format "it is accessible by others (%03o)"
+                             (file-modes dir)))
+                    (t nil))))
+      (when unsafe
+        (error "`%s' is not a safe directory because %s" dir unsafe)))))
 
 (defun server-generate-key ()
   "Generate and return a random authentication key.
@@ -647,7 +649,12 @@ server or call `\\[server-force-delete]' to forcibly disconnect it."))
 	  (add-hook 'delete-frame-functions 'server-handle-delete-frame)
 	  (add-hook 'kill-emacs-query-functions
                     'server-kill-emacs-query-function)
-	  (add-hook 'kill-emacs-hook 'server-force-stop) ;Cleanup upon exit.
+          ;; We put server's kill-emacs-hook after the others, so that
+          ;; frames are not deleted too early, because doing that
+          ;; would severely degrade our abilities to communicate with
+          ;; the user, while some hooks may wish to ask the user
+          ;; questions (e.g., desktop-kill).
+	  (add-hook 'kill-emacs-hook 'server-force-stop t) ;Cleanup upon exit.
 	  (setq server-process
 		(apply #'make-network-process
 		       :name server-name
@@ -655,6 +662,7 @@ server or call `\\[server-force-delete]' to forcibly disconnect it."))
 		       :noquery t
 		       :sentinel #'server-sentinel
 		       :filter #'server-process-filter
+		       :use-external-socket t
 		       ;; We must receive file names without being decoded.
 		       ;; Those are decoded by server-process-filter according
 		       ;; to file-name-coding-system.  Also don't get
@@ -782,7 +790,7 @@ This handles splitting the command if it would be bigger than
       ;; We have to split the string
       (setq part (substring qtext 0 (- server-msg-size (length prefix) 1)))
       ;; Don't split in the middle of a quote sequence
-      (if (string-match "\\(^\\|[^&]\\)\\(&&\\)+$" part)
+      (if (string-match "\\(^\\|[^&]\\)&\\(&&\\)*$" part)
 	  ;; There is an uneven number of & at the end
 	  (setq part (substring part 0 -1)))
       (setq qtext (substring qtext (length part)))

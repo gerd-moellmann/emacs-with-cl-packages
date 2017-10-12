@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -351,6 +351,10 @@ Use the command `hs-minor-mode' to toggle or set this variable.")
     (define-key map "\C-c@\C-\M-s"    'hs-show-all)
     (define-key map "\C-c@\C-l"	      'hs-hide-level)
     (define-key map "\C-c@\C-c"	      'hs-toggle-hiding)
+    (define-key map "\C-c@\C-a"       'hs-show-all)
+    (define-key map "\C-c@\C-t"       'hs-hide-all)
+    (define-key map "\C-c@\C-d"       'hs-hide-block)
+    (define-key map "\C-c@\C-e"       'hs-toggle-hiding)
     (define-key map [(shift mouse-2)] 'hs-mouse-toggle-hiding)
     map)
   "Keymap for hideshow minor mode.")
@@ -578,7 +582,7 @@ and then further adjusted to be at the end of the line."
 	  (setq p (line-end-position)))
 	;; `q' is the point at the end of the block
 	(hs-forward-sexp mdata 1)
-	(setq q (if (looking-back hs-block-end-regexp)
+	(setq q (if (looking-back hs-block-end-regexp nil)
 		    (match-beginning 0)
 		  (point)))
         (when (and (< p q) (> (count-lines p q) 1))

@@ -1,4 +1,4 @@
-;;; rng-dt.el --- datatype library interface for RELAX NG
+;;; rng-dt.el --- datatype library interface for RELAX NG  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2003, 2007-2017 Free Software Foundation, Inc.
 
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -57,7 +57,7 @@ a datatype library.")
 	(t
 	 (rng-dt-error "There is no built-in datatype %s" name))))
 
-(put (rng-make-datatypes-uri "") 'rng-dt-compile 'rng-dt-builtin-compile)
+(put (rng-make-datatypes-uri "") 'rng-dt-compile #'rng-dt-builtin-compile)
 
 (provide 'rng-dt)
 

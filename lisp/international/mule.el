@@ -24,7 +24,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -1311,8 +1311,8 @@ Internal use only.")
                                     preferred))))))
          (completion-ignore-case t)
          (completion-pcm--delim-wild-regex ; Let "u8" complete to "utf-8".
-          (concat completion-pcm--delim-wild-regex
-                  "\\|\\([[:alpha:]]\\)[[:digit:]]"))
+          (concat "\\(?:" completion-pcm--delim-wild-regex
+                  "\\|\\([[:alpha:]]\\)[[:digit:]]\\)"))
          (cs (completing-read
               (format "Coding system for saving file (default %s): " default)
               combined-table
@@ -1873,7 +1873,7 @@ files.")
 (defun auto-coding-alist-lookup (filename)
   "Return the coding system specified by `auto-coding-alist' for FILENAME."
   (let ((alist auto-coding-alist)
-	(case-fold-search (memq system-type '(windows-nt ms-dos cygwin)))
+	(case-fold-search (file-name-case-insensitive-p filename))
 	coding-system)
     (while (and alist (not coding-system))
       (if (string-match (car (car alist)) filename)
@@ -1970,7 +1970,7 @@ use \"coding: 'raw-text\" instead."
 	  (goto-char tail-start)
 	  (re-search-forward "[\r\n]\^L" tail-end t)
 	  (if (re-search-forward
-	       "[\r\n]\\([^[\r\n]*\\)[ \t]*Local Variables:[ \t]*\\([^\r\n]*\\)[\r\n]"
+	       "[\r\n]\\([^\r\n]*\\)[ \t]*Local Variables:[ \t]*\\([^\r\n]*\\)[\r\n]"
 	       tail-end t)
 	      ;; The prefix is what comes before "local variables:" in its
 	      ;; line.  The suffix is what comes after "local variables:"
