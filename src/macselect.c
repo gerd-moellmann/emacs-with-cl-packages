@@ -818,9 +818,11 @@ cleanup_suspended_apple_events (struct suspended_ae_info **head, bool all_p)
     {
       if (!all_p && p->expiration_uptime > current_uptime)
 	break;
-      AESetTheCurrentEvent (&p->apple_event);
-      AEResumeTheCurrentEvent (&p->apple_event, &p->reply,
-			       (AEEventHandlerUPP) kAENoDispatch, 0);
+      mac_within_gui (^{
+	  AESetTheCurrentEvent (&p->apple_event);
+	  AEResumeTheCurrentEvent (&p->apple_event, &p->reply,
+				   (AEEventHandlerUPP) kAENoDispatch, 0);
+	});
       AEDisposeDesc (&p->reply);
       AEDisposeDesc (&p->apple_event);
       nresumed++;
@@ -891,9 +893,11 @@ DEFUN ("mac-process-deferred-apple-events", Fmac_process_deferred_apple_events, 
       for (tail = prev; tail; tail = next)
 	{
 	  next = tail->next;
-	  AEResumeTheCurrentEvent (&tail->apple_event, &tail->reply,
-				   (AEEventHandlerUPP) kAEUseStandardDispatch,
-				   0);
+	  mac_within_gui (^{
+	      AEResumeTheCurrentEvent (&tail->apple_event, &tail->reply,
+				       ((AEEventHandlerUPP)
+					kAEUseStandardDispatch), 0);
+	    });
 	  AEDisposeDesc (&tail->reply);
 	  AEDisposeDesc (&tail->apple_event);
 	  xfree (tail);
@@ -1008,11 +1012,13 @@ nil, which means the event is already resumed or expired.  */)
 	  AEPutParamPtr (&ae->reply, keyErrorNumber, typeSInt32,
 			 &errn, sizeof (SInt32));
 	}
-      AESetTheCurrentEvent (&ae->apple_event);
-      AEResumeTheCurrentEvent (&ae->apple_event, &ae->reply,
-			       (EQ (error_code, Qt)
-				? (AEEventHandlerUPP) kAEUseStandardDispatch
-				: (AEEventHandlerUPP) kAENoDispatch), 0);
+      mac_within_gui (^{
+	  AESetTheCurrentEvent (&ae->apple_event);
+	  AEResumeTheCurrentEvent (&ae->apple_event, &ae->reply,
+				   (EQ (error_code, Qt)
+				    ? (AEEventHandlerUPP) kAEUseStandardDispatch
+				    : (AEEventHandlerUPP) kAENoDispatch), 0);
+	});
       AEDisposeDesc (&ae->reply);
       AEDisposeDesc (&ae->apple_event);
       xfree (ae);
@@ -1037,7 +1043,7 @@ so the reply handler can use the value of the `return-id' attribute.
 Otherwise, return the error code as an integer.  */)
   (Lisp_Object apple_event, Lisp_Object send_mode)
 {
-  OSStatus err;
+  OSStatus __block err;
   Lisp_Object result;
   AESendMode mode;
   AppleEvent event;
@@ -1065,7 +1071,9 @@ Otherwise, return the error code as an integer.  */)
   err = create_apple_event_from_lisp (apple_event, &event);
   if (err == noErr)
     {
-      err = AESendMessage (&event, NULL, mode, kAEDefaultTimeout);
+      mac_within_gui (^{
+	  err = AESendMessage (&event, NULL, mode, kAEDefaultTimeout);
+	});
       if (err == noErr)
 	result = mac_aedesc_to_lisp (&event);
       else

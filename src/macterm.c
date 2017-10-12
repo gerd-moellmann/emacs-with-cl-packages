@@ -3996,7 +3996,14 @@ x_set_offset (struct frame *f, register int xoff, register int yoff, int change_
   /* When the frame is maximized/fullscreen, the actual window will
      not be moved and mac_handle_origin_change will not be called via
      window system events.  */
-  mac_handle_origin_change (f);
+  {
+    NativeRectangle bounds;
+
+    mac_get_frame_window_structure_bounds (f, &bounds);
+    f->left_pos = bounds.x;
+    f->top_pos = bounds.y;
+  }
+
   unblock_input ();
 }
 
@@ -5636,7 +5643,7 @@ mac_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
   dpyinfo->resx = 72.0;
   dpyinfo->resy = 72.0;
 
-  add_keyboard_wait_descriptor (0);
+  add_keyboard_wait_descriptor (mac_get_select_fd ());
 
   /* In Mac GUI, asynchronous I/O (using SIGIO) can't be used for
      window events because they don't come from sockets, even though
@@ -5689,12 +5696,6 @@ x_delete_display (struct mac_display_info *dpyinfo)
 }
 
 
-static void
-mac_handle_user_signal (int sig)
-{
-  mac_wakeup_from_run_loop_run_once ();
-}
-
 static void
 record_startup_key_modifiers (void)
 {
@@ -5751,7 +5752,7 @@ x_delete_terminal (struct terminal *terminal)
   x_destroy_all_bitmaps (dpyinfo);
 
   /* No more input on this descriptor.  */
-  delete_keyboard_wait_descriptor (0);
+  delete_keyboard_wait_descriptor (mac_get_select_fd ());
 
   x_delete_display (dpyinfo);
   unblock_input ();
@@ -5802,11 +5803,6 @@ mac_initialize (void)
   baud_rate = 19200;
 
   block_input ();
-
-  if (init_wakeup_fds () < 0)
-    emacs_abort ();
-
-  handle_user_signal_hook = mac_handle_user_signal;
 
   init_coercion_handler ();
 

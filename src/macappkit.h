@@ -108,6 +108,11 @@ typedef id instancetype;
 - (NSArrayOf (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator;
 @end
 
+@interface NSMutableArray (Emacs)
+- (void)enqueue:(id)obj;
+- (id)dequeue;
+@end
+
 @interface NSFont (Emacs)
 + (NSFont *)fontWithFace:(struct face *)face;
 @end
@@ -721,6 +726,7 @@ typedef NSString * NSPasteboardName;
 		    options:(NSDictionaryOf (NSString *, id) *)options;
 - (instancetype)initWithData:(NSData *)data
 		     options:(NSDictionaryOf (NSString *, id) *)options;
++ (BOOL)shouldInitializeInMainThread;
 + (NSArrayOf (NSString *) *)supportedTypes;
 - (NSUInteger)pageCount;
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;

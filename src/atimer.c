@@ -401,6 +401,14 @@ handle_alarm_signal (int sig)
   pending_signals = 1;
 }
 
+#ifdef HAVE_MACGUI
+static void
+deliver_alarm_signal (int sig)
+{
+  deliver_process_signal (sig, handle_alarm_signal);
+}
+#endif
+
 #ifdef HAVE_TIMERFD
 
 /* Called from wait_reading_process_output when FD, which
@@ -586,7 +594,13 @@ init_atimer (void)
 
   /* pending_signals is initialized in init_keyboard.  */
   struct sigaction action;
-  emacs_sigaction_init (&action, handle_alarm_signal);
+  emacs_sigaction_init (&action,
+#ifndef HAVE_MACGUI
+			handle_alarm_signal
+#else
+			deliver_alarm_signal
+#endif
+			);
   sigaction (SIGALRM, &action, 0);
 
 #ifdef ENABLE_CHECKING

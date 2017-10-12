@@ -89,23 +89,6 @@ check_x_display_info (Lisp_Object object)
 }
 
 
-
-/* Store the screen positions of frame F into XPTR and YPTR.
-   These are the positions of the containing window manager window,
-   not Emacs's own window.  */
-
-void
-x_real_positions (struct frame *f, int *xptr, int *yptr)
-{
-  NativeRectangle bounds;
-
-  mac_get_frame_window_structure_bounds (f, &bounds);
-
-  *xptr = bounds.x;
-  *yptr = bounds.y;
-}
-
-
 /* The default colors for the Mac color map */
 typedef struct colormap_t
 {

@@ -4378,6 +4378,12 @@ extern const char *mac_exec_path;
 extern const char *mac_load_path;
 extern void syms_of_mac (void);
 extern void init_mac_osx_environment (void);
+
+/* Defined in macappkit.m */
+extern bool mac_gui_thread_p (void);
+
+/* Defined in emacs.c */
+extern int emacs_main (int, char **);
 #endif /* HAVE_MACGUI */
 
 #ifdef HAVE_LIBXML2

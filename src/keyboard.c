@@ -7184,6 +7184,12 @@ handle_async_input (void)
 void
 process_pending_signals (void)
 {
+#ifdef HAVE_MACGUI
+  /* Don't process pending signals in the GUI thread, especially when
+     called from QUIT.  */
+  if (mac_gui_thread_p ())
+    return;
+#endif
   pending_signals = false;
   handle_async_input ();
   do_pending_atimers ();
@@ -7269,9 +7275,6 @@ struct user_signal_info
 /* List of user signals.  */
 static struct user_signal_info *user_signals = NULL;
 
-/* Function called when handling user signals.  */
-void (*handle_user_signal_hook) (int);
-
 void
 add_user_signal (int sig, const char *name)
 {
@@ -7320,8 +7323,6 @@ handle_user_signal (int sig)
           }
 
 	p->npending++;
-	if (handle_user_signal_hook)
-	  (*handle_user_signal_hook) (sig);
 #ifdef USABLE_SIGIO
 	if (interrupt_input)
 	  handle_input_available_signal (sig);

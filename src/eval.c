@@ -1443,6 +1443,12 @@ static bool maybe_call_debugger (Lisp_Object conditions, Lisp_Object sig,
 void
 process_quit_flag (void)
 {
+#ifdef HAVE_MACGUI
+  /* Don't process quit flag in the GUI thread, especially when called
+     from QUIT.  */
+  if (mac_gui_thread_p ())
+    return;
+#endif
   Lisp_Object flag = Vquit_flag;
   Vquit_flag = Qnil;
   if (EQ (flag, Qkill_emacs))

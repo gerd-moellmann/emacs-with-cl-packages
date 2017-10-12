@@ -490,7 +490,7 @@ extern pascal OSErr mac_handle_apple_event (const AppleEvent *, AppleEvent *,
 extern void cleanup_all_suspended_apple_events (void);
 
 /* Defined in macmenu.c */
-extern int popup_activated_flag;
+extern void mac_menu_set_in_use (bool);
 extern Lisp_Object mac_popup_dialog (struct frame *, Lisp_Object, Lisp_Object);
 extern bool name_is_separator (const char *);
 
@@ -533,15 +533,9 @@ extern Lisp_Object cfproperty_list_to_lisp (CFPropertyListRef, int, int);
 extern Lisp_Object cfproperty_list_to_string (CFPropertyListRef,
 					      CFPropertyListFormat);
 extern CFPropertyListRef cfproperty_list_create_with_string (Lisp_Object);
-extern int init_wakeup_fds (void);
-extern void mac_wakeup_from_run_loop_run_once (void);
-extern EventRef mac_peek_next_event (void);
 extern void xrm_merge_string_database (XrmDatabase, const char *);
 extern Lisp_Object xrm_get_resource (XrmDatabase, const char *, const char *);
 extern XrmDatabase xrm_get_preference_database (const char *);
-extern int mac_select (int, fd_set *, fd_set *, fd_set *,
-		       struct timespec const *, sigset_t const *);
-extern void mac_reinvoke_from_shell (int, char *[]);
 extern bool mac_service_provider_registered_p (void);
 extern Lisp_Object mac_carbon_version_string (void);
 
@@ -639,6 +633,9 @@ extern OSStatus mac_set_font_info_for_selection (struct frame *, int, int, int,
 						 Lisp_Object);
 extern void mac_get_screen_info (struct mac_display_info *);
 extern EventTimeout mac_run_loop_run_once (EventTimeout);
+extern int mac_get_select_fd (void);
+extern int mac_select (int, fd_set *, fd_set *, fd_set *,
+		       struct timespec const *, sigset_t const *);
 extern int mac_read_socket (struct terminal *, struct input_event *);
 extern void update_frame_tool_bar (struct frame *f);
 extern void free_frame_tool_bar (struct frame *f);
@@ -699,6 +696,7 @@ extern void mac_update_accessibility_status (struct frame *);
 extern void mac_start_animation (Lisp_Object, Lisp_Object);
 extern CFTypeRef mac_sound_create (Lisp_Object, Lisp_Object);
 extern void mac_sound_play (CFTypeRef, Lisp_Object, Lisp_Object);
+extern void mac_within_gui (void (^ CF_NOESCAPE block) (void));
 
 #if DRAWING_USE_GCD
 #define MAC_BEGIN_DRAW_TO_FRAME(f, gc, context)			\

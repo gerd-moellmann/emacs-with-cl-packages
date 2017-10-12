@@ -36,14 +36,11 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <sys/stat.h>
 #include <sys/param.h>
 #include <sys/statvfs.h>
-#include <fcntl.h>
 
 #include <libkern/OSByteOrder.h>
 
 #include <mach/mach.h>
 #include <servers/bootstrap.h>
-
-#include <sys/socket.h>
 
 
 /***********************************************************************
@@ -770,6 +767,8 @@ cfstring_create_with_string_noencode (Lisp_Object s)
 CFStringRef
 cfstring_create_with_string (Lisp_Object s)
 {
+  eassert (!mac_gui_thread_p ());
+
   if (STRING_MULTIBYTE (s))
     {
       char *p, *end = SSDATA (s) + SBYTES (s);
@@ -843,6 +842,8 @@ cfstring_to_lisp_nodecode (CFStringRef string)
 Lisp_Object
 cfstring_to_lisp (CFStringRef string)
 {
+  eassert (!mac_gui_thread_p ());
+
   Lisp_Object result = cfstring_to_lisp_nodecode (string);
 
   if (!NILP (result))
@@ -2179,10 +2180,10 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
     }
   if (use_finder_p)
     {
-      OSStatus err;
+      OSStatus __block err;
       const OSType finderSignature = 'MACS';
       AEDesc desc;
-      AppleEvent event, reply;
+      AppleEvent event, __block reply;
 
       err = AECoercePtr (TYPE_FILE_NAME, SDATA (encoded_file),
 			 SBYTES (encoded_file), typeFileURL, &desc);
@@ -2196,8 +2197,11 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 	}
       if (err == noErr)
 	{
-	  err = AESendMessage (&event, &reply, kAEWaitReply | kAENeverInteract,
-			       kAEDefaultTimeout);
+	  mac_within_gui (^{
+	      err = AESendMessage (&event, &reply,
+				   kAEWaitReply | kAENeverInteract,
+				   kAEDefaultTimeout);
+	    });
 	  AEDisposeDesc (&event);
 	}
       if (err == noErr)
@@ -2873,353 +2877,6 @@ mac_get_system_script_code (void)
     result = 0;
 
   return result;
-}
-
-
-/* Unlike in X11, window events in Carbon or Cocoa, whose event system
-   is implemented on top of Carbon, do not come from sockets.  So we
-   cannot simply use `select' to monitor two kinds of inputs: window
-   events and process outputs.  We emulate such functionality by
-   regarding fd 0 as the window event channel and simultaneously
-   monitoring both kinds of input channels.  It is implemented by
-   dividing into some cases:
-   1. The window event channel is not involved.
-      -> Use `select'.
-   2. Sockets are not involved.
-      -> Run the run loop in the main thread to wait for window events
-         (and user signals, see below).
-   3. Otherwise
-      -> Run the run loop in the main thread while calling `select' in
-         a secondary thread using Grand Central Dispatch (GCD).  When
-         the control returns from the `select' call, the secondary
-         thread sends a wakeup notification to the main thread through
-         a dispatch source (for GCD).
-   For Case 2 and 3, user signals such as SIGUSR1 are also handled
-   through either a CFSocket or a dispatch source.  */
-
-static int wakeup_fds[2];
-/* Whether we have read some input from wakeup_fds[0] after resetting
-   this variable.  Don't access it outside the main thread.  */
-static bool wokeup_from_run_loop_run_once_p;
-
-static int
-read_all_from_nonblocking_fd (int fd)
-{
-  int rtnval;
-  char buf[64];
-
-  do
-    {
-      rtnval = read (fd, buf, sizeof (buf));
-    }
-  while (rtnval > 0 || (rtnval < 0 && errno == EINTR));
-
-  return rtnval;
-}
-
-static int
-write_one_byte_to_fd (int fd)
-{
-  int rtnval;
-
-  do
-    {
-      rtnval = write (fd, "", 1);
-    }
-  while (rtnval == 0 || (rtnval < 0 && errno == EINTR));
-
-  return rtnval;
-}
-
-static dispatch_queue_t select_dispatch_queue;
-
-int
-init_wakeup_fds (void)
-{
-  int result, i;
-  dispatch_source_t source;
-
-  result = socketpair (AF_UNIX, SOCK_STREAM, 0, wakeup_fds);
-  if (result < 0)
-    return result;
-  for (i = 0; i < 2; i++)
-    {
-      int flags;
-
-      if ((flags = fcntl (wakeup_fds[i], F_GETFL, 0)) < 0
-	  || fcntl (wakeup_fds[i], F_SETFL, flags | O_NONBLOCK) == -1
-	  || (flags = fcntl (wakeup_fds[i], F_GETFD, 0)) < 0
-	  || fcntl (wakeup_fds[i], F_SETFD, flags | FD_CLOEXEC) == -1)
-	return -1;
-    }
-
-  source = dispatch_source_create (DISPATCH_SOURCE_TYPE_READ, wakeup_fds[0],
-				   0, dispatch_get_main_queue ());
-  if (source == NULL)
-    return -1;
-  dispatch_source_set_event_handler (source, ^{
-      read_all_from_nonblocking_fd (dispatch_source_get_handle (source));
-      wokeup_from_run_loop_run_once_p = true;
-    });
-  dispatch_resume (source);
-
-  select_dispatch_queue = dispatch_queue_create ("org.gnu.Emacs.select", NULL);
-  if (select_dispatch_queue == NULL)
-    return -1;
-
-  return 0;
-}
-
-void
-mac_wakeup_from_run_loop_run_once (void)
-{
-  /* This function may be called from a signal hander, so only
-     async-signal safe functions can be used here.  */
-  write_one_byte_to_fd (wakeup_fds[1]);
-}
-
-/* Return next event in the main queue if it exists.  Otherwise return
-   NULL.  */
-
-EventRef
-mac_peek_next_event (void)
-{
-  EventRef event;
-
-  event = AcquireFirstMatchingEventInQueue (GetCurrentEventQueue (), 0,
-					    NULL, kEventQueueOptionsNone);
-  if (event)
-    ReleaseEvent (event);
-
-  return event;
-}
-
-static int
-select_and_poll_event (int nfds, fd_set *rfds, fd_set *wfds,
-		       fd_set *efds, struct timespec const *timeout)
-{
-  bool timedout_p = false;
-  int r = 0;
-  struct timespec select_timeout;
-  EventTimeout timeoutval = (timeout ? timespectod (*timeout)
-			     : kEventDurationForever);
-  fd_set orfds, owfds, oefds;
-
-  if (timeout == NULL)
-    {
-      if (rfds) orfds = *rfds;
-      if (wfds) owfds = *wfds;
-      if (efds) oefds = *efds;
-    }
-
-  /* Try detect_input_pending before mac_run_loop_run_once in the same
-     BLOCK_INPUT block, in case that some input has already been read
-     asynchronously.  */
-  block_input ();
-  while (1)
-    {
-      if (detect_input_pending ())
-	break;
-
-      select_timeout = make_timespec (0, 0);
-      r = pselect (nfds, rfds, wfds, efds, &select_timeout, NULL);
-      if (r != 0)
-	break;
-
-      if (timeoutval == 0.0)
-	timedout_p = true;
-      else
-	{
-	  /* On Mac OS X 10.7, delayed visible toolbar item validation
-	     (see the documentation of -[NSToolbar
-	     validateVisibleItems]) is treated as if it were an input
-	     source firing rather than a timer function (as in Mac OS
-	     X 10.6).  So it makes -[NSRunLoop runMode:beforeDate:],
-	     which is used in the implementation of
-	     mac_run_loop_run_once, return despite no available input
-	     to process.  In such cases, we want to call
-	     mac_run_loop_run_once again so as to avoid wasting CPU
-	     time caused by vacuous reactivation of delayed visible
-	     toolbar item validation via window update events issued
-	     in the application event loop.  */
-	  do
-	    {
-	      timeoutval = mac_run_loop_run_once (timeoutval);
-	    }
-	  while (timeoutval && !mac_peek_next_event ()
-		 && !detect_input_pending ());
-	  if (timeoutval == 0)
-	    timedout_p = true;
-	}
-
-      if (timeout == NULL && timedout_p)
-	{
-	  if (rfds) *rfds = orfds;
-	  if (wfds) *wfds = owfds;
-	  if (efds) *efds = oefds;
-	}
-      else
-	break;
-    }
-  unblock_input ();
-
-  if (r != 0)
-    return r;
-  else if (!timedout_p)
-    {
-      /* Pretend that `select' is interrupted by a signal.  */
-      detect_input_pending ();
-      errno = EINTR;
-      return -1;
-    }
-  else
-    return 0;
-}
-
-int
-mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
-	    struct timespec const *timeout, sigset_t const *sigmask)
-{
-  bool timedout_p = false;
-  int r;
-  struct timespec select_timeout;
-  fd_set orfds, owfds, oefds;
-  EventTimeout timeoutval;
-
-  if (inhibit_window_system || noninteractive
-      || nfds < 1 || rfds == NULL || !FD_ISSET (0, rfds))
-    return pselect (nfds, rfds, wfds, efds, timeout, sigmask);
-
-  eassert (sigmask == NULL);
-
-  FD_CLR (0, rfds);
-  orfds = *rfds;
-
-  if (wfds)
-    owfds = *wfds;
-  else
-    FD_ZERO (&owfds);
-
-  if (efds)
-    oefds = *efds;
-  else
-    FD_ZERO (&oefds);
-
-  timeoutval = (timeout ? timespectod (*timeout) : kEventDurationForever);
-
-  FD_SET (0, rfds);		/* sentinel */
-  do
-    {
-      nfds--;
-    }
-  while (!(FD_ISSET (nfds, rfds) || (wfds && FD_ISSET (nfds, wfds))
-	   || (efds && FD_ISSET (nfds, efds))));
-  nfds++;
-  FD_CLR (0, rfds);
-
-  if (nfds == 1)
-    return select_and_poll_event (nfds, rfds, wfds, efds, timeout);
-
-  /* Avoid initial overhead of RunLoop setup for the case that some
-     input is already available.  */
-  select_timeout = make_timespec (0, 0);
-  r = select_and_poll_event (nfds, rfds, wfds, efds, &select_timeout);
-  if (r != 0 || timeoutval == 0.0)
-    return r;
-
-  *rfds = orfds;
-  if (wfds)
-    *wfds = owfds;
-  if (efds)
-    *efds = oefds;
-
-  /* Try detect_input_pending before mac_run_loop_run_once in the same
-     BLOCK_INPUT block, in case that some input has already been read
-     asynchronously.  */
-  block_input ();
-  if (!detect_input_pending ())
-    {
-      dispatch_sync (select_dispatch_queue, ^{});
-      wokeup_from_run_loop_run_once_p = false;
-      dispatch_async (select_dispatch_queue, ^{
-	  fd_set qrfds = orfds, qwfds = owfds, qefds = oefds;
-	  int qnfds = nfds;
-	  int r;
-
-	  if (wakeup_fds[1] >= qnfds)
-	    qnfds = wakeup_fds[1] + 1;
-	  FD_SET (wakeup_fds[1], &qrfds);
-
-	  r = pselect (qnfds, &qrfds, wfds ? &qwfds : NULL,
-		       efds ? &qefds : NULL, NULL, NULL);
-	  if (r < 0 || (r > 0 && !FD_ISSET (wakeup_fds[1], &qrfds)))
-	    mac_wakeup_from_run_loop_run_once ();
-	});
-
-      do
-	{
-	  timeoutval = mac_run_loop_run_once (timeoutval);
-	}
-      while (timeoutval && !wokeup_from_run_loop_run_once_p
-	     && !mac_peek_next_event () && !detect_input_pending ());
-      if (timeoutval == 0)
-	timedout_p = true;
-
-      write_one_byte_to_fd (wakeup_fds[0]);
-      dispatch_async (select_dispatch_queue, ^{
-	  read_all_from_nonblocking_fd (wakeup_fds[1]);
-	});
-    }
-  unblock_input ();
-
-  if (!timedout_p)
-    {
-      select_timeout = make_timespec (0, 0);
-      r = select_and_poll_event (nfds, rfds, wfds, efds, &select_timeout);
-      if (r != 0)
-	return r;
-      errno = EINTR;
-      return -1;
-    }
-  else
-    {
-      FD_ZERO (rfds);
-      if (wfds)
-	FD_ZERO (wfds);
-      if (efds)
-	FD_ZERO (efds);
-      return 0;
-    }
-}
-
-/* Reinvoke the current executable using the helper script in
-   .../Emacs.app/Contents/MacOS/Emacs.sh so the application can get
-   environment variables from the login shell if necessary.
-   Previously we invoked the helper script directly by specifying it
-   as the value for CFBundleExecutable in Info.plist.  But this makes
-   LookupViewSource invoked by Command-Control-D or three-finger tap
-   crash on OS X 10.10.3.  This is because the ViewBridge framework
-   tries to create a bundle object from the URL obtained by
-   SecCodeCopyPath, which does not store the URL for the application
-   bundle but the one for the executable if CFBundleExecutable does
-   not correspond to the running application process.  */
-
-void
-mac_reinvoke_from_shell (int argc, char *argv[])
-{
-  CFBundleRef bundle = CFBundleGetMainBundle ();
-
-  if (bundle && CFBundleGetIdentifier (bundle))
-    {
-      char **new = alloca ((argc + 1) * sizeof *new);
-      size_t len = strlen (argv[0]);
-
-      new[0] = alloca (len + sizeof (".sh"));
-      strcpy (new[0], argv[0]);
-      strcpy (new[0] + len, ".sh");
-      memcpy (new + 1, argv + 1, argc * sizeof *new);
-      execvp (new[0], new);
-    }
 }
 
 /* Return whether the service provider for the current application is

@@ -659,7 +659,11 @@ close_output_streams (void)
 
 /* ARGSUSED */
 int
+#ifndef HAVE_MACGUI
 main (int argc, char **argv)
+#else
+emacs_main (int argc, char **argv)
+#endif
 {
   Lisp_Object dummy;
   char stack_bottom_variable;
@@ -736,18 +740,6 @@ main (int argc, char **argv)
 #ifdef RUN_TIME_REMAP
   if (initialized)
     run_time_remap (argv[0]);
-#endif
-
-#ifdef HAVE_MACGUI
-  if (getenv ("EMACS_REINVOKED_FROM_SHELL"))
-    unsetenv ("EMACS_REINVOKED_FROM_SHELL");
-  else
-    {
-      char *shlvl = getenv ("SHLVL");
-
-      if (shlvl == NULL || atoi (shlvl) == 0)
-	mac_reinvoke_from_shell (argc, argv);
-    }
 #endif
 
 /* If using unexmacosx.c (set by s/darwin.h), we must do this. */

@@ -53,7 +53,17 @@ extern int create_and_show_dialog (struct frame *, widget_value *);
 
 
 /* Nonzero means a menu is currently active.  */
-int popup_activated_flag;
+static int popup_activated_flag;
+
+
+/* Set menu_items_inuse so no other popup menu or dialog is created.  */
+
+void
+mac_menu_set_in_use (bool in_use)
+{
+  menu_items_inuse = in_use ? Qt : Qnil;
+  popup_activated_flag = in_use;
+}
 
 
 DEFUN ("mac-menu-bar-open-internal", Fmac_menu_bar_open_internal,
