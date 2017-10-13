@@ -4009,13 +4009,13 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
   if (![NSApp isHidden])
     {
       mac_within_app (^{
+	  NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
+	  NSWindow *mainWindow = [NSApp mainWindow];
+
 	  if (!FRAME_TOOLTIP_P (f)
 	      && [window respondsToSelector:@selector(setTabbingMode:)]
 	      && ![window isVisible])
 	    {
-	      NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
-	      NSWindow *mainWindow = [NSApp mainWindow];
-
 	      if (!mainWindow.hasTitleBar || NILP (Vmac_frame_tabbing))
 		tabbingMode = NSWindowTabbingModeDisallowed;
 	      else if (EQ (Vmac_frame_tabbing, Qt))
@@ -4053,6 +4053,13 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 	    [window makeKeyAndOrderFront:nil];
 	  else
 	    [window orderFront:nil];
+
+	  if (tabbingMode != NSWindowTabbingModeAutomatic)
+	    {
+	      [window setTabbingMode:NSWindowTabbingModeAutomatic];
+	      if ([mainWindow isKindOfClass:[EmacsWindow class]])
+		[mainWindow setTabbingMode:NSWindowTabbingModeAutomatic];
+	    }
 	});
     }
   else
