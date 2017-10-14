@@ -4037,10 +4037,10 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 		    break;
 		  }
 
-	      [window setTabbingMode:tabbingMode];
+	      window.tabbingMode = tabbingMode;
 	      if ([mainWindow isKindOfClass:[EmacsWindow class]])
 		{
-		  [mainWindow setTabbingMode:tabbingMode];
+		  mainWindow.tabbingMode = tabbingMode;
 		  /* If the Tab Overview UI is visible and the window
 		     is to join its tab group, then make the Overview
 		     UI invisible and wait until it finishes.  */
@@ -4056,9 +4056,9 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 
 	  if (tabbingMode != NSWindowTabbingModeAutomatic)
 	    {
-	      [window setTabbingMode:NSWindowTabbingModeAutomatic];
+	      window.tabbingMode = NSWindowTabbingModeAutomatic;
 	      if ([mainWindow isKindOfClass:[EmacsWindow class]])
-		[mainWindow setTabbingMode:NSWindowTabbingModeAutomatic];
+		mainWindow.tabbingMode = NSWindowTabbingModeAutomatic;
 	    }
 	});
     }

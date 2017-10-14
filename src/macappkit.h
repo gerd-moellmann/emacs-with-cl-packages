@@ -936,9 +936,9 @@ typedef NSInteger NSWindowTabbingMode;
 
 @interface NSWindow (AvailableOn101200AndLater)
 + (NSWindowUserTabbingPreference)userTabbingPreference;
-- (void)setTabbingMode:(NSWindowTabbingMode)tabbingMode;
 - (void)addTabbedWindow:(NSWindow *)window
 		ordered:(NSWindowOrderingMode)ordered;
+@property NSWindowTabbingMode tabbingMode;
 @property (copy) NSWindowTabbingIdentifier tabbingIdentifier;
 @property (readonly, copy) NSArrayOf (NSWindow *) *tabbedWindows;
 @end
