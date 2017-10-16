@@ -6163,9 +6163,16 @@ event_phase_to_symbol (NSEventPhase phase)
 
 - (NSRange)selectedRange
 {
+  struct frame *f = [self emacsFrame];
   NSRange result;
 
-  mac_ax_selected_text_range ([self emacsFrame], (CFRange *) &result);
+  /* Might be called when deactivating TSM document inside [emacsView
+     removeFromSuperview] in -[EmacsFrameController closeWindow] on
+     macOS 10.13.  */
+  if (!WINDOWP (f->root_window))
+    return NSMakeRange (NSNotFound, 0);
+
+  mac_ax_selected_text_range (f, (CFRange *) &result);
 
   return result;
 }
