@@ -8575,6 +8575,9 @@ static void update_dragged_types (void);
   struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
   Mouse_HLInfo *hlinfo = &dpyinfo->mouse_highlight;
 
+  if (emacsViewIsHiddenOrHasHiddenAncestor)
+    return;
+
   /* This corresponds to LeaveNotify for an X11 window for an Emacs
      frame.  */
   if (f == hlinfo->mouse_face_mouse_frame)
@@ -8660,9 +8663,6 @@ static void update_dragged_types (void);
 {
   struct frame *f = emacsFrame;
   BOOL result;
-
-  if (emacsViewIsHiddenOrHasHiddenAncestor)
-    return NO;
 
   [emacsView lockFocus];
   set_global_focus_view_frame (f);
