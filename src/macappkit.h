@@ -627,6 +627,7 @@ typedef id instancetype;
 - (void)noteLeaveEmacsView;
 - (BOOL)noteMouseMovement:(NSPoint)point;
 - (BOOL)clearMouseFace:(Mouse_HLInfo *)hlinfo;
+- (void)noteMouseHighlightAtX:(int)x y:(int)y;
 @end
 
 @interface EmacsFrameController (Hourglass)

@@ -8594,8 +8594,7 @@ static void update_dragged_types (void);
 
   /* This corresponds to EnterNotify for an X11 window for some
      popup (from note_mouse_movement in xterm.c).  */
-  f->mouse_moved = true;
-  note_mouse_highlight (f, -1, -1);
+  [self noteMouseHighlightAtX:-1 y:-1];
   dpyinfo->last_mouse_glyph_frame = NULL;
 }
 
@@ -8644,12 +8643,7 @@ static void update_dragged_types (void);
   if (f != dpyinfo->last_mouse_glyph_frame
       || x < r->x || x - r->x >= r->width || y < r->y || y - r->y >= r->height)
     {
-      f->mouse_moved = true;
-      [emacsView lockFocus];
-      set_global_focus_view_frame (f);
-      note_mouse_highlight (f, x, y);
-      unset_global_focus_view_frame ();
-      [emacsView unlockFocus];
+      [self noteMouseHighlightAtX:x y:y];
       /* Remember which glyph we're now on.  */
       remember_mouse_glyph (f, x, y, r);
       dpyinfo->last_mouse_glyph_frame = f;
@@ -8671,6 +8665,18 @@ static void update_dragged_types (void);
   [emacsView unlockFocus];
 
   return result;
+}
+
+- (void)noteMouseHighlightAtX:(int)x y:(int)y
+{
+  struct frame *f = emacsFrame;
+
+  f->mouse_moved = true;
+  [emacsView lockFocus];
+  set_global_focus_view_frame (f);
+  note_mouse_highlight (f, x, y);
+  unset_global_focus_view_frame ();
+  [emacsView unlockFocus];
 }
 
 @end				// EmacsFrameController (EventHandling)
