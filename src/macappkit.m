@@ -4008,7 +4008,7 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 
   if (![NSApp isHidden])
     {
-      mac_within_app (^{
+      mac_within_gui (^{
 	  NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
 	  NSWindow *mainWindow = [NSApp mainWindow];
 
