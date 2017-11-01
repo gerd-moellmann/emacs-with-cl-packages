@@ -650,11 +650,18 @@ mac_within_app (void (^block) (void))
 
 - (BOOL)containsDock
 {
-  NSRect frame = [self frame], visibleFrame = [self visibleFrame];
+  /* On macOS 10.13, screen's visibleFrame occupies full frame when
+     the Dock is hidden.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12))
+    return YES;
+  else
+    {
+      NSRect frame = [self frame], visibleFrame = [self visibleFrame];
 
-  return (NSMinY (frame) != NSMinY (visibleFrame)
-	  || NSMinX (frame) != NSMinX (visibleFrame)
-	  || NSMaxX (frame) != NSMaxX (visibleFrame));
+      return (NSMinY (frame) != NSMinY (visibleFrame)
+	      || NSMinX (frame) != NSMinX (visibleFrame)
+	      || NSMaxX (frame) != NSMaxX (visibleFrame));
+    }
 }
 
 - (BOOL)canShowMenuBar
