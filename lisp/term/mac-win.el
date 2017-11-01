@@ -2871,16 +2871,18 @@ then remap this command to `mac-magnify-text-scale'."
 (defun mac-mouse-turn-on-fullscreen (event)
   "Turn on fullscreen in response to the mouse event EVENT."
   (interactive "e")
-  (let ((frame (window-frame (posn-window (event-start event)))))
-    (if (not (eq (frame-parameter frame 'fullscreen) 'fullboth))
-	(set-frame-parameter frame 'fullscreen 'fullboth))))
+  (if (not (eq (plist-get (nth 3 event) :phase) 'ended))
+      (let ((frame (window-frame (posn-window (event-start event)))))
+        (if (not (eq (frame-parameter frame 'fullscreen) 'fullboth))
+            (set-frame-parameter frame 'fullscreen 'fullboth)))))
 
 (defun mac-mouse-turn-off-fullscreen (event)
   "Turn off fullscreen in response to the mouse event EVENT."
   (interactive "e")
-  (let ((frame (window-frame (posn-window (event-start event)))))
-    (if (frame-parameter frame 'fullscreen)
-	(set-frame-parameter frame 'fullscreen nil))))
+  (if (not (eq (plist-get (nth 3 event) :phase) 'ended))
+      (let ((frame (window-frame (posn-window (event-start event)))))
+        (if (frame-parameter frame 'fullscreen)
+            (set-frame-parameter frame 'fullscreen nil)))))
 
 (global-set-key [magnify-up] 'mac-magnify-text-scale-or-overview-tab-group)
 (global-set-key [magnify-down] 'mac-magnify-text-scale-or-overview-tab-group)
