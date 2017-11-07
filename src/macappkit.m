@@ -1234,6 +1234,24 @@ static bool handling_queued_nsevents_p;
 }
 #endif
 
+- (void)setMainMenu:(NSMenu *)mainMenu
+{
+  NSMenu *currentMainMenu = [self mainMenu];
+
+  if (![mainMenu isEqual:currentMainMenu])
+    {
+      if ([currentMainMenu isKindOfClass:[EmacsMenu class]])
+	[[NSNotificationCenter defaultCenter] removeObserver:currentMainMenu];
+      if ([mainMenu isKindOfClass:[EmacsMenu class]])
+	[[NSNotificationCenter defaultCenter]
+	  addObserver:mainMenu
+	     selector:@selector(menuDidBeginTracking:)
+		 name:NSMenuDidBeginTrackingNotification
+	       object:mainMenu];
+      [super setMainMenu:mainMenu];
+    }
+}
+
 @end				// EmacsApplication
 
 @implementation EmacsController
@@ -9550,12 +9568,24 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
   return NO;
 }
 
+- (void)menuDidBeginTracking:(NSNotification *)notification
+{
+  if (!popup_activated ())
+    {
+      NSLog (@"Canceling unexpected menu tracking: %@", [NSApp currentEvent]);
+      [self cancelTracking];
+    }
+}
+
 @end				// EmacsMenu
 
 @implementation EmacsController (Menu)
 
 - (void)menu:(NSMenu *)menu willHighlightItem:(NSMenuItem *)item
 {
+  if (!popup_activated ())
+    return;
+
   NSData *object = [item representedObject];
   Lisp_Object help;
 
