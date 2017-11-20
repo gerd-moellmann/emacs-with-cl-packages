@@ -827,8 +827,7 @@ mac_draw_window_divider (struct window *w, int x0, int x1, int y0, int y1)
   GC gc = mac_gc_for_face_id (f, WINDOW_DIVIDER_FACE_ID,
 			      f->output_data.mac->normal_gc);
 
-  if ((y1 - y0 > x1 - x0 && x1 - x0 > 2)
-      || (x1 - x0 > y1 - y0 && y1 - y0 > 3))
+  if (min (x1 - x0, y1 - y0) >= 3)
     {
       GC gc_first = mac_gc_for_face_id (f, WINDOW_DIVIDER_FIRST_PIXEL_FACE_ID,
 					f->output_data.mac->normal_gc);
@@ -836,14 +835,16 @@ mac_draw_window_divider (struct window *w, int x0, int x1, int y0, int y1)
 				       f->output_data.mac->normal_gc);
 
       if (y1 - y0 > x1 - x0)
-	/* Vertical.  */
+	/* A vertical divider, at least three pixels wide: Draw first
+	   and last pixels differently.  */
 	{
 	  mac_fill_rectangle (f, gc_first, x0, y0, 1, y1 - y0);
 	  mac_fill_rectangle (f, gc, x0 + 1, y0, x1 - x0 - 2, y1 - y0);
 	  mac_fill_rectangle (f, gc_last, x1 - 1, y0, 1, y1 - y0);
 	}
       else
-	/* Horizontal.  */
+	/* A horizontal divider, at least three pixels high: Draw
+	   first and last pixels differently.  */
 	{
 	  mac_fill_rectangle (f, gc_first, x0, y0, x1 - x0, 1);
 	  mac_fill_rectangle (f, gc, x0, y0 + 1, x1 - x0, y1 - y0 - 2);
@@ -851,6 +852,8 @@ mac_draw_window_divider (struct window *w, int x0, int x1, int y0, int y1)
 	}
     }
   else
+    /* In any other case do not draw the first and last pixels
+       differently.  */
     mac_fill_rectangle (f, gc, x0, y0, x1 - x0, y1 - y0);
 }
 
