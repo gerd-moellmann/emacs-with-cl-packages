@@ -1615,11 +1615,12 @@ the echo area or in a buffer where the cursor is not displayed."
     ch))
 
 (defun mac-unread-string (string)
-  ;; Unread characters and insert them in a keyboard macro being
-  ;; defined.
-  (apply 'isearch-unread
-	 (mapcar 'mac-keyboard-translate-char
-		 (mac-replace-untranslated-utf-8-chars string))))
+  ;; The commit 30a6b1f8141 obviates store-kbd-macro-event calls that
+  ;; had been made via isearch-unread.
+  (setq unread-command-events
+        (nconc (mapcar 'mac-keyboard-translate-char
+                       (mac-replace-untranslated-utf-8-chars string))
+               unread-command-events)))
 
 (defconst mac-marked-text-underline-style-faces
   '((0 . mac-ts-raw-text)		  ; NSUnderlineStyleNone
