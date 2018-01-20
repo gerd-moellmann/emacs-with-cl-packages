@@ -1,5 +1,5 @@
 /* Thread definitions
-Copyright (C) 2012-2017 Free Software Foundation, Inc.
+Copyright (C) 2012-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -25,13 +25,17 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/socket.h>
 #endif
 
+#ifdef MSDOS
+#include <signal.h>		/* sigset_t */
+#endif
+
 #include "sysselect.h"		/* FIXME */
 #include "systime.h"		/* FIXME */
 #include "systhread.h"
 
 struct thread_state
 {
-  struct vectorlike_header header;
+  union vectorlike_header header;
 
   /* The buffer in which the last search was performed, or
      Qt if the last search was done in a string;
@@ -226,7 +230,7 @@ typedef struct
 /* A mutex as a lisp object.  */
 struct Lisp_Mutex
 {
-  struct vectorlike_header header;
+  union vectorlike_header header;
 
   /* The name of the mutex, or nil.  */
   Lisp_Object name;
@@ -257,7 +261,7 @@ XMUTEX (Lisp_Object a)
 /* A condition variable as a lisp object.  */
 struct Lisp_CondVar
 {
-  struct vectorlike_header header;
+  union vectorlike_header header;
 
   /* The associated mutex.  */
   Lisp_Object mutex;

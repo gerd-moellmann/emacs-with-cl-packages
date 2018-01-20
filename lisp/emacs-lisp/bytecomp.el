@@ -1,6 +1,6 @@
 ;;; bytecomp.el --- compilation of Lisp code into byte code -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994, 1998, 2000-2017 Free Software
+;; Copyright (C) 1985-1987, 1992, 1994, 1998, 2000-2018 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Jamie Zawinski <jwz@lucid.com>
@@ -144,14 +144,20 @@
 
 (defcustom emacs-lisp-file-regexp "\\.el\\'"
   "Regexp which matches Emacs Lisp source files.
-If you change this, you might want to set `byte-compile-dest-file-function'."
+If you change this, you might want to set `byte-compile-dest-file-function'.
+\(Note that the assumption of a \".elc\" suffix for compiled files
+is hard-coded in various places in Emacs.)"
+  ;; Eg is_elc in Fload.
   :group 'bytecomp
   :type 'regexp)
 
 (defcustom byte-compile-dest-file-function nil
   "Function for the function `byte-compile-dest-file' to call.
 It should take one argument, the name of an Emacs Lisp source
-file name, and return the name of the compiled file."
+file name, and return the name of the compiled file.
+\(Note that the assumption that the source and compiled files
+are found in the same directory is hard-coded in various places in Emacs.)"
+  ;; Eg load-prefer-newer, documentation lookup IIRC.
   :group 'bytecomp
   :type '(choice (const nil) function)
   :version "23.2")
@@ -166,12 +172,19 @@ file name, and return the name of the compiled file."
 	(funcall handler 'byte-compiler-base-file-name filename)
       filename)))
 
+;; Sadly automake relies on this misfeature up to at least version 1.15.1.
+(if (fboundp 'byte-compile-dest-file)
+    (or (featurep 'bytecomp)
+        (display-warning 'bytecomp (format-message "\
+Changing `byte-compile-dest-file' is obsolete (as of 23.2);
+set `byte-compile-dest-file-function' instead.")))
 (defun byte-compile-dest-file (filename)
   "Convert an Emacs Lisp source file name to a compiled file name.
 If `byte-compile-dest-file-function' is non-nil, uses that
 function to do the work.  Otherwise, if FILENAME matches
-`emacs-lisp-file-regexp' (by default, files with the extension `.el'),
-adds `c' to it; otherwise adds `.elc'."
+`emacs-lisp-file-regexp' (by default, files with the extension \".el\"),
+replaces the matching part (and anything after it) with \".elc\";
+otherwise adds \".elc\"."
   (if byte-compile-dest-file-function
       (funcall byte-compile-dest-file-function filename)
     (setq filename (file-name-sans-versions
@@ -179,6 +192,7 @@ adds `c' to it; otherwise adds `.elc'."
     (cond ((string-match emacs-lisp-file-regexp filename)
 	   (concat (substring filename 0 (match-beginning 0)) ".elc"))
 	  (t (concat filename ".elc")))))
+)
 
 ;; This can be the 'byte-compile property of any symbol.
 (autoload 'byte-compile-inline-expand "byte-opt")
@@ -222,6 +236,7 @@ This includes variable references and calls to functions such as `car'."
 
 (defcustom byte-compile-cond-use-jump-table t
   "Compile `cond' clauses to a jump table implementation (using a hash-table)."
+  :version "26.1"
   :group 'bytecomp
   :type 'boolean)
 
@@ -1238,7 +1253,7 @@ function directly; use `byte-compile-warn' or
 (defun byte-compile-report-error (error-info &optional fill)
   "Report Lisp error in compilation.
 ERROR-INFO is the error data, in the form of either (ERROR-SYMBOL . DATA)
-or STRING.  If FILL is non-nil, set ‘warning-fill-prefix’ to four spaces
+or STRING.  If FILL is non-nil, set `warning-fill-prefix' to four spaces
 when printing the error message."
   (setq byte-compiler-error-flag t)
   (byte-compile-log-warning
@@ -1917,7 +1932,8 @@ The value is non-nil if there were no errors, nil if errors."
 		       ;; process is trying to load target-file (eg in a
 		       ;; parallel bootstrap), it does not risk getting a
 		       ;; half-finished file.  (Bug#4196)
-		       (tempfile (make-temp-file target-file))
+		       (tempfile
+                        (make-temp-file (file-name-nondirectory target-file)))
 		       (default-modes (default-file-modes))
 		       (temp-modes (logand default-modes #o600))
 		       (desired-modes (logand default-modes #o666))

@@ -1,6 +1,6 @@
 ;;; lisp.el --- Lisp editing commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1994, 2000-2017 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1994, 2000-2018 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -402,15 +402,16 @@ is called as a function to find the defun's beginning."
   "Return non-nil if the point is in an \"emptyish\" line.
 This means a line that consists entirely of comments and/or
 whitespace."
-;; See https://lists.gnu.org/archive/html/help-gnu-emacs/2016-08/msg00141.html
+;; See https://lists.gnu.org/r/help-gnu-emacs/2016-08/msg00141.html
   (save-excursion
     (forward-line 0)
-    (< (line-end-position)
-       (let ((ppss (syntax-ppss)))
-         (when (nth 4 ppss)
-           (goto-char (nth 8 ppss)))
-         (forward-comment (point-max))
-         (point)))))
+    (let ((ppss (syntax-ppss)))
+      (and (null (nth 3 ppss))
+           (< (line-end-position)
+              (progn (when (nth 4 ppss)
+                       (goto-char (nth 8 ppss)))
+                     (forward-comment (point-max))
+                     (point)))))))
 
 (defun beginning-of-defun-comments (&optional arg)
   "Move to the beginning of ARGth defun, including comments."
@@ -428,10 +429,7 @@ whitespace."
                   (progn (skip-syntax-backward
                           "-" (line-beginning-position))
                          (not (bolp))) ; Check for blank line.
-                  (progn (parse-partial-sexp
-                          (line-beginning-position) (line-end-position)
-                          nil t (syntax-ppss (line-beginning-position)))
-                         (eolp))))) ; Check for non-comment text.
+                  (beginning-of-defun--in-emptyish-line-p)))) ; Check for non-comment text.
     (forward-line (if first-line-p 0 1))))
 
 (defvar end-of-defun-function
@@ -525,7 +523,7 @@ the one(s) already marked."
   (interactive "p")
   (setq arg (or arg 1))
   ;; There is no `mark-defun-back' function - see
-  ;; https://lists.gnu.org/archive/html/bug-gnu-emacs/2016-11/msg00079.html
+  ;; https://lists.gnu.org/r/bug-gnu-emacs/2016-11/msg00079.html
   ;; for explanation
   (when (eq last-command 'mark-defun-back)
     (setq arg (- arg)))
@@ -574,7 +572,7 @@ the one(s) already marked."
                   (goto-char beg)
                   (unless (= arg -1)    ; beginning-of-defun behaves
                                         ; strange with zero arg - see
-                                        ; https://lists.gnu.org/archive/html/bug-gnu-emacs/2017-02/msg00196.html
+                                        ; https://lists.gnu.org/r/bug-gnu-emacs/2017-02/msg00196.html
                     (beginning-of-defun (1- (- arg))))
                   (push-mark end nil t))))))
   (skip-chars-backward "[:space:]\n")

@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990-1995, 1998-1999, 2001-2017 Free Software
+@c Copyright (C) 1990-1995, 1998-1999, 2001-2018 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Functions
@@ -712,7 +712,7 @@ the backquote (@pxref{Backquote}), but quotes code and accepts only
 @end defmac
 
 @defmac inline-letevals (bindings@dots{}) body@dots{}
-This is is similar to @code{let} (@pxref{Local Variables}): it sets up
+This is similar to @code{let} (@pxref{Local Variables}): it sets up
 local variables as specified by @var{bindings}, and then evaluates
 @var{body} with those bindings in effect.  Each element of
 @var{bindings} should be either a symbol or a list of the form
@@ -1246,10 +1246,10 @@ This specializer requires the argument be @code{eql} to the given
 @item (head @var{object})
 The argument must be a cons cell whose @code{car} is @code{eql} to
 @var{object}.
-@item @var{struct-tag}
-The argument must be an instance of a class named @var{struct-tag}
+@item @var{struct-type}
+The argument must be an instance of a class named @var{struct-type}
 defined with @code{cl-defstruct} (@pxref{Structures,,, cl, Common Lisp
-Extensions for GNU Emacs Lisp}), or of one of its parent classes.
+Extensions for GNU Emacs Lisp}), or of one of its child classes.
 @end table
 
 Alternatively, the argument specializer can be of the form
@@ -1748,8 +1748,8 @@ code) obey the advice and other calls (from C code) do not.
 @defmac define-advice symbol (where lambda-list &optional name depth) &rest body
 This macro defines a piece of advice and adds it to the function named
 @var{symbol}.  The advice is an anonymous function if @var{name} is
-nil or a function named @code{symbol@@name}.  See @code{advice-add}
-for explanation of other arguments.
+@code{nil} or a function named @code{symbol@@name}.  See
+@code{advice-add} for explanation of other arguments.
 @end defmac
 
 @defun advice-add symbol where function &optional props
@@ -2029,8 +2029,8 @@ It is equivalent to the following:
 @end example
 @end defmac
 
-In addition, you can mark a certain a particular calling convention
-for a function as obsolete:
+In addition, you can mark a particular calling convention for a
+function as obsolete:
 
 @defun set-advertised-calling-convention function signature when
 This function specifies the argument list @var{signature} as the

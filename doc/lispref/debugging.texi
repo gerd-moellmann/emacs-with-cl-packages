@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990-1994, 1998-1999, 2001-2017 Free Software
+@c Copyright (C) 1990-1994, 1998-1999, 2001-2018 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Debugging
@@ -18,6 +18,16 @@ alter its internal state.
 
 @item
 You can use Edebug, a source-level debugger for Emacs Lisp.
+
+@item
+@cindex tracing Lisp programs
+You can trace the execution of functions involved in the problem using
+the tracing facilities provided by the @file{trace.el} package.  This
+package provides the functions @code{trace-function-foreground} and
+@code{trace-function-background} for tracing function calls, and
+@code{trace-values} for adding values of select variables to the
+trace.  For the details, see the documentation of these facilities in
+@file{trace.el}.
 
 @item
 If a syntactic problem is preventing Lisp from even reading the

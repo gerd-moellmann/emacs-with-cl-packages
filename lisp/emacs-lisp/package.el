@@ -1,6 +1,6 @@
 ;;; package.el --- Simple package system for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2018 Free Software Foundation, Inc.
 
 ;; Author: Tom Tromey <tromey@redhat.com>
 ;;         Daniel Hackney <dan@haxney.org>
@@ -2260,6 +2260,7 @@ Otherwise no newline is inserted."
          (archive (if desc (package-desc-archive desc)))
          (extras (and desc (package-desc-extras desc)))
          (homepage (cdr (assoc :url extras)))
+         (commit (cdr (assoc :commit extras)))
          (keywords (if desc (package-desc--keywords desc)))
          (built-in (eq pkg-dir 'builtin))
          (installable (and archive (not built-in)))
@@ -2332,6 +2333,8 @@ Otherwise no newline is inserted."
     (and version
          (package--print-help-section "Version"
            (package-version-join version)))
+    (when commit
+      (package--print-help-section "Commit" commit))
     (when desc
       (package--print-help-section "Summary"
         (package-desc-summary desc)))
@@ -3394,7 +3397,9 @@ This function is called after `package-refresh-contents'."
   "Display a list of packages.
 This first fetches the updated list of packages before
 displaying, unless a prefix argument NO-FETCH is specified.
-The list is displayed in a buffer named `*Packages*'."
+The list is displayed in a buffer named `*Packages*', and
+includes the package's version, availability status, and a
+short description."
   (interactive "P")
   (require 'finder-inf nil t)
   ;; Initialize the package system if necessary.

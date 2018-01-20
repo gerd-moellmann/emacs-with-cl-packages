@@ -1,5 +1,5 @@
 /* Coding system handler (conversion, detection, etc).
-   Copyright (C) 2001-2017 Free Software Foundation, Inc.
+   Copyright (C) 2001-2018 Free Software Foundation, Inc.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
      2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
@@ -7423,10 +7423,23 @@ decode_coding (struct coding_system *coding)
 
 	  while (nbytes-- > 0)
 	    {
-	      int c = *src++;
+	      int c;
 
-	      if (c & 0x80)
-		c = BYTE8_TO_CHAR (c);
+	      /* Copy raw bytes in their 2-byte forms from multibyte
+		 text as single characters.  */
+	      if (coding->src_multibyte
+		  && CHAR_BYTE8_HEAD_P (*src) && nbytes > 0)
+		{
+		  c = STRING_CHAR_ADVANCE (src);
+		  nbytes--;
+		}
+	      else
+		{
+		  c = *src++;
+
+		  if (c & 0x80)
+		    c = BYTE8_TO_CHAR (c);
+		}
 	      coding->charbuf[coding->charbuf_used++] = c;
 	    }
 	  produce_chars (coding, Qnil, 1);

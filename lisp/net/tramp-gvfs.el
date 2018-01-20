@@ -1,6 +1,6 @@
 ;;; tramp-gvfs.el --- Tramp access functions for GVFS daemon  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2009-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2018 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -517,7 +517,7 @@ Every entry is a list (NAME ADDRESS).")
     (file-readable-p . tramp-gvfs-handle-file-readable-p)
     (file-regular-p . tramp-handle-file-regular-p)
     (file-remote-p . tramp-handle-file-remote-p)
-    (file-selinux-context . ignore)
+    (file-selinux-context . tramp-handle-file-selinux-context)
     (file-symlink-p . tramp-handle-file-symlink-p)
     (file-system-info . tramp-gvfs-handle-file-system-info)
     (file-truename . tramp-handle-file-truename)
@@ -675,10 +675,14 @@ file names."
   (unless (memq op '(copy rename))
     (error "Unknown operation `%s', must be `copy' or `rename'" op))
 
+  (if (file-directory-p filename)
+      (progn
+	(copy-directory filename newname keep-date t)
+	(when (eq op 'rename) (delete-directory filename 'recursive)))
+
     (let ((t1 (tramp-tramp-file-p filename))
 	  (t2 (tramp-tramp-file-p newname))
 	  (equal-remote (tramp-equal-remote filename newname))
-	  (file-operation (intern (format "%s-file" op)))
 	  (gvfs-operation (if (eq op 'copy) "gvfs-copy" "gvfs-move"))
 	  (msg-operation (if (eq op 'copy) "Copying" "Renaming")))
 
@@ -693,9 +697,11 @@ file names."
 
 	    ;; We cannot copy or rename directly.
 	    (let ((tmpfile (tramp-compat-make-temp-file filename)))
-	      (funcall
-	       file-operation filename tmpfile t keep-date preserve-uid-gid
-	       preserve-extended-attributes)
+	      (if (eq op 'copy)
+		  (copy-file
+		   filename tmpfile t keep-date preserve-uid-gid
+		   preserve-extended-attributes)
+		(rename-file filename tmpfile t))
 	      (rename-file tmpfile newname ok-if-already-exists))
 
 	  ;; Direct action.
@@ -738,7 +744,7 @@ file names."
 	  (when t2
 	    (with-parsed-tramp-file-name newname nil
 	      (tramp-flush-file-property v (file-name-directory localname))
-	      (tramp-flush-file-property v localname)))))))
+	      (tramp-flush-file-property v localname))))))))
 
 (defun tramp-gvfs-handle-copy-file
   (filename newname &optional ok-if-already-exists keep-date
@@ -987,7 +993,7 @@ If FILE-SYSTEM is non-nil, return file system attributes."
 		    (tramp-file-mode-from-int (string-to-number n))
 		  (format
 		   "%s%s%s%s------"
-		   (if dirp "d" "-")
+		   (if dirp "d" (if res-symlink-target "l" "-"))
 		   (if (equal (cdr (assoc "access::can-read" attributes))
 			      "FALSE")
 		       "-" "r")
@@ -1051,11 +1057,11 @@ If FILE-SYSTEM is non-nil, return file system attributes."
 (defun tramp-gvfs-handle-file-local-copy (filename)
   "Like `file-local-copy' for Tramp files."
   (with-parsed-tramp-file-name filename nil
+    (unless (file-exists-p filename)
+      (tramp-error
+       v tramp-file-missing
+       "Cannot make local copy of non-existing file `%s'" filename))
     (let ((tmpfile (tramp-compat-make-temp-file filename)))
-      (unless (file-exists-p filename)
-	(tramp-error
-	 v tramp-file-missing
-	 "Cannot make local copy of non-existing file `%s'" filename))
       (copy-file filename tmpfile 'ok-if-already-exists 'keep-time)
       tmpfile)))
 
@@ -1287,7 +1293,8 @@ file-notify events."
 	    (when (and user domain)
 	      (setq user (concat domain ";" user)))
 	    (url-parse-make-urlobj
-	     method (and user (url-hexify-string user)) nil host
+	     method (and user (url-hexify-string user))
+	     nil (and host (url-hexify-string host))
 	     (if (stringp port) (string-to-number port) port)
 	     (and localname (url-hexify-string localname)) nil nil t))
 	(url-parse-make-urlobj

@@ -1,6 +1,6 @@
 ;;; cl-macs.el --- Common Lisp macros  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993, 2001-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2001-2018 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Old-Version: 2.02
@@ -193,20 +193,34 @@ The name is made by appending a number to PREFIX, default \"T\"."
   (&or lambda-doc cl-declarations))
 
 (def-edebug-spec cl-lambda-list
-  (([&rest arg]
+  (([&rest cl-lambda-arg]
     [&optional ["&optional" cl-&optional-arg &rest cl-&optional-arg]]
-    [&optional ["&rest" arg]]
+    [&optional ["&rest" cl-lambda-arg]]
     [&optional ["&key" [cl-&key-arg &rest cl-&key-arg]
 		&optional "&allow-other-keys"]]
     [&optional ["&aux" &rest
 		&or (symbolp &optional def-form) symbolp]]
-    )))
+    . [&or arg nil])))
 
 (def-edebug-spec cl-&optional-arg
-  (&or (arg &optional def-form arg) arg))
+  (&or (cl-lambda-arg &optional def-form arg) arg))
 
 (def-edebug-spec cl-&key-arg
-  (&or ([&or (symbolp arg) arg] &optional def-form arg) arg))
+  (&or ([&or (symbolp cl-lambda-arg) arg] &optional def-form arg) arg))
+
+(def-edebug-spec cl-lambda-arg
+  (&or arg cl-lambda-list1))
+
+(def-edebug-spec cl-lambda-list1
+  (([&optional ["&whole" arg]]  ;; only allowed at lower levels
+    [&rest cl-lambda-arg]
+    [&optional ["&optional" cl-&optional-arg &rest cl-&optional-arg]]
+    [&optional ["&rest" cl-lambda-arg]]
+    [&optional ["&key" cl-&key-arg &rest cl-&key-arg
+                &optional "&allow-other-keys"]]
+    [&optional ["&aux" &rest
+                &or (symbolp &optional def-form) symbolp]]
+    . [&or arg nil])))
 
 (def-edebug-spec cl-type-spec sexp)
 
@@ -336,8 +350,8 @@ The full form of a Common Lisp function argument list is
     [&key (([KEYWORD] VAR) [INITFORM [SVAR]])... [&allow-other-keys]]
     [&aux (VAR [INITFORM])...])
 
-VAR maybe be replaced recursively with an argument list for
-destructing, `&whole' is supported within these sublists.  If
+VAR may be replaced recursively with an argument list for
+destructuring, `&whole' is supported within these sublists.  If
 SVAR, INITFORM, and KEYWORD are all omitted, then `(VAR)' may be
 written simply `VAR'.  See the Info node `(cl)Argument Lists' for
 more details.
@@ -430,8 +444,8 @@ The full form of a Common Lisp macro argument list is
     [&aux (VAR [INITFORM])...]
     [&environment VAR])
 
-VAR maybe be replaced recursively with an argument list for
-destructing, `&whole' is supported within these sublists.  If
+VAR may be replaced recursively with an argument list for
+destructuring, `&whole' is supported within these sublists.  If
 SVAR, INITFORM, and KEYWORD are all omitted, then `(VAR)' may be
 written simply `VAR'.  See the Info node `(cl)Argument Lists' for
 more details.
@@ -670,7 +684,7 @@ its argument list allows full Common Lisp conventions."
 (defmacro cl-destructuring-bind (args expr &rest body)
   "Bind the variables in ARGS to the result of EXPR and execute BODY."
   (declare (indent 2)
-           (debug (&define cl-macro-list def-form cl-declarations def-body)))
+           (debug (&define cl-macro-list1 def-form cl-declarations def-body)))
   (let* ((cl--bind-lets nil) (cl--bind-forms nil)
 	 (cl--bind-defs nil) (cl--bind-block 'cl-none) (cl--bind-enquote nil))
     (cl--do-arglist (or args '(&aux)) expr)

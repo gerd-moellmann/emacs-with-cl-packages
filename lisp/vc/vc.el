@@ -1,6 +1,6 @@
 ;;; vc.el --- drive a version-control system from within Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-1998, 2000-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1998, 2000-2018 Free Software Foundation, Inc.
 
 ;; Author:     FSF (see below for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -2377,6 +2377,7 @@ When called interactively with a prefix argument, prompt for LIMIT."
 
 ;;;###autoload
 (defun vc-print-branch-log (branch)
+  "Show the change log for BRANCH in a window."
   (interactive
    (list
     (vc-read-revision "Branch to log: ")))
@@ -2427,7 +2428,7 @@ When called interactively with a prefix argument, prompt for REMOTE-LOCATION."
     (with-current-buffer buf
       (vc-call-backend backend 'region-history-mode)
       (set (make-local-variable 'log-view-vc-backend) backend)
-      (set (make-local-variable 'log-view-vc-fileset) file)
+      (set (make-local-variable 'log-view-vc-fileset) (list file))
       (set (make-local-variable 'revert-buffer-function)
 	   (lambda (_ignore-auto _noconfirm)
              (with-current-buffer buf

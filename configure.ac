@@ -4,7 +4,7 @@ dnl	autoconf
 dnl in the directory containing this script.
 dnl If you changed any AC_DEFINES, also run autoheader.
 dnl
-dnl Copyright (C) 1994-1996, 1999-2017 Free Software Foundation, Inc.
+dnl Copyright (C) 1994-1996, 1999-2018 Free Software Foundation, Inc.
 dnl
 dnl  This file is part of GNU Emacs.
 dnl
@@ -23,7 +23,7 @@ dnl  along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 AC_PREREQ(2.65)
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
-AC_INIT(GNU Emacs, 26.0.90, bug-gnu-emacs@gnu.org)
+AC_INIT(GNU Emacs, 26.0.91, bug-gnu-emacs@gnu.org)
 
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
 dnl and then quoted again for a C string.  Separate options with spaces.
@@ -404,7 +404,7 @@ OPTION_DEFAULT_OFF([xwidgets],
 
 ## For the times when you want to build Emacs but don't have
 ## a suitable makeinfo, and can live without the manuals.
-dnl https://lists.gnu.org/archive/html/emacs-devel/2008-04/msg01844.html
+dnl https://lists.gnu.org/r/emacs-devel/2008-04/msg01844.html
 OPTION_DEFAULT_ON([makeinfo],[don't require makeinfo for building manuals])
 
 ## Makefile.in needs the cache file name.
@@ -536,7 +536,7 @@ fi
 dnl The name of this option is unfortunate.  It predates, and has no
 dnl relation to, the "sampling-based elisp profiler" added in 24.3.
 dnl Actually, it stops it working.
-dnl https://lists.gnu.org/archive/html/emacs-devel/2012-11/msg00393.html
+dnl https://lists.gnu.org/r/emacs-devel/2012-11/msg00393.html
 AC_ARG_ENABLE(profiling,
 [AS_HELP_STRING([--enable-profiling],
 		[build emacs with low-level, gprof profiling support.
@@ -704,6 +704,14 @@ case "${canonical}" in
 		;;
       *) ;;
     esac
+  ;;
+
+  ## QNX Neutrino
+  *-nto-qnx* )
+    opsys=qnxnto
+    test -z "$CC" && CC=qcc
+    CFLAGS="$CFLAGS -D__NO_EXT_QNX"
+    LDFLAGS="-N2MB $LDFLAGS"
   ;;
 
   ## Intel 386 machines where we don't care about the manufacturer.
@@ -962,7 +970,7 @@ AS_IF([test $gl_gcc_warnings = no],
   nw="$nw -Wbad-function-cast"      # These casts are no worse than others.
 
   # Emacs doesn't care about shadowing; see
-  # <https://lists.gnu.org/archive/html/emacs-diffs/2011-11/msg00265.html>.
+  # <https://lists.gnu.org/r/emacs-diffs/2011-11/msg00265.html>.
   nw="$nw -Wshadow"
 
   # Emacs's use of alloca inhibits protecting the stack.
@@ -1184,7 +1192,7 @@ dnl AC_PROG_LN_S sets LN_S to 'cp -pR' for MinGW, on the premise that 'ln'
 dnl doesn't support links to directories, as in "ln file dir".  But that
 dnl use is non-portable, and OTOH MinGW wants to use hard links for Emacs
 dnl executables at "make install" time.
-dnl See https://lists.gnu.org/archive/html/emacs-devel/2013-04/msg00475.html
+dnl See https://lists.gnu.org/r/emacs-devel/2013-04/msg00475.html
 dnl for more details.
 if test "$opsys" = "mingw32"; then
   LN_S="/bin/ln"
@@ -1330,7 +1338,7 @@ dnl   Eg "make LDFLAGS=... all" could run into problems,
 dnl   https://bugs.debian.org/684788
 dnl * unnecessary, since temacs is the only thing that actually needs it.
 dnl   Indeed this is where it was originally, prior to:
-dnl   https://lists.gnu.org/archive/html/emacs-pretest-bug/2004-03/msg00170.html
+dnl   https://lists.gnu.org/r/emacs-pretest-bug/2004-03/msg00170.html
 if test x$GCC = xyes; then
   LDFLAGS_NOCOMBRELOC="-Wl,-znocombreloc"
 else
@@ -1513,6 +1521,8 @@ case "$opsys" in
   freebsd|dragonfly) LIBS_SYSTEM="-lutil" ;;
 
   hpux*) LIBS_SYSTEM="-l:libdld.sl" ;;
+
+  qnxnto) LIBS_SYSTEM="-lsocket" ;;
 
   sol2*) LIBS_SYSTEM="-lsocket -lnsl" ;;
 
@@ -2236,7 +2246,8 @@ test "$CANNOT_DUMP" = yes ||
 case "$opsys" in
   ## darwin ld insists on the use of malloc routines in the System framework.
   darwin | mingw32 | nacl | sol2-10) ;;
-  cygwin) hybrid_malloc=yes
+  cygwin | qnxnto | freebsd)
+	  hybrid_malloc=yes
           system_malloc= ;;
   *) test "$ac_cv_func_sbrk" = yes && system_malloc=$emacs_cv_sanitize_address;;
 esac
@@ -4083,9 +4094,8 @@ AC_CACHE_CHECK([for library containing tputs], [emacs_cv_tputs_lib],
 [if test "${opsys}" = "mingw32"; then
   emacs_cv_tputs_lib='none required'
 else
-  # Maybe curses should be tried earlier?
-  # See https://debbugs.gnu.org/9736#35
-  for tputs_library in '' tinfo ncurses terminfo termcap curses; do
+  # curses precedes termcap because of AIX (Bug#9736#35) and OpenIndiana.
+  for tputs_library in '' tinfo ncurses terminfo curses termcap; do
     OLIBS=$LIBS
     if test -z "$tputs_library"; then
       emacs_cv_tputs_lib='none required'
@@ -4104,7 +4114,7 @@ fi])
 AS_CASE(["$emacs_cv_tputs_lib"],
   [no], [AC_MSG_ERROR([The required function 'tputs' was not found in any library.
 The following libraries were tried (in order):
-  libtinfo, libncurses, libterminfo, libtermcap, libcurses
+  libtinfo, libncurses, libterminfo, libcurses, libtermcap
 Please try installing whichever of these libraries is most appropriate
 for your system, together with its header files.
 For example, a libncurses-dev(el) or similar package.])],
@@ -4654,7 +4664,7 @@ case $opsys in
     AC_DEFINE(PTY_TTY_NAME_SPRINTF, [])
     ;;
 
-  gnu | openbsd )
+  gnu | openbsd | qnxnto )
     AC_DEFINE(FIRST_PTY_LETTER, ['p'])
     ;;
 
@@ -5001,7 +5011,7 @@ fi
 
 version=$PACKAGE_VERSION
 
-copyright="Copyright (C) 2017 Free Software Foundation, Inc."
+copyright="Copyright (C) 2018 Free Software Foundation, Inc."
 AC_DEFINE_UNQUOTED(COPYRIGHT, ["$copyright"],
   [Short copyright string for this version of Emacs.])
 AC_SUBST(copyright)
@@ -5156,22 +5166,6 @@ else
   AUTODEPEND_PARENTS="$AUTODEPEND_PARENTS lwlib"
 fi
 AC_SUBST(LIBXMENU)
-
-AC_CACHE_CHECK([for struct alignment],
-  [emacs_cv_struct_alignment],
-  [AC_COMPILE_IFELSE(
-     [AC_LANG_PROGRAM([[#include <stddef.h>
-			struct __attribute__ ((aligned (8))) s { char c; };
-			struct t { char c; struct s s; };
-			char verify[offsetof (struct t, s) == 8 ? 1 : -1];
-		      ]])],
-     [emacs_cv_struct_alignment=yes],
-     [emacs_cv_struct_alignment=no])])
-if test "$emacs_cv_struct_alignment" = yes; then
-  AC_DEFINE([HAVE_STRUCT_ATTRIBUTE_ALIGNED], 1,
-    [Define to 1 if 'struct __attribute__ ((aligned (N)))' aligns the
-     structure to an N-byte boundary.])
-fi
 
 if test "${GNU_MALLOC}" = "yes" ; then
   AC_DEFINE(GNU_MALLOC, 1,
@@ -5355,7 +5349,7 @@ AC_SUBST(WINDOW_SYSTEM_OBJ)
 
 AH_TOP([/* GNU Emacs site configuration template file.
 
-Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2017
+Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2018
   Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.

@@ -1,6 +1,6 @@
 /* Functions for the X window system.
 
-Copyright (C) 1989, 1992-2017 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -4915,7 +4915,11 @@ Internal use only, use `display-monitor-attributes-list' instead.  */)
       struct frame *f = XFRAME (frame);
 
       if (FRAME_X_P (f) && FRAME_DISPLAY_INFO (f) == dpyinfo
-	  && !EQ (frame, tip_frame))
+	  && !(EQ (frame, tip_frame)
+#ifdef USE_GTK
+	       && !NILP (Fframe_parameter (tip_frame, Qtooltip))
+#endif
+	       ))
 	{
 	  GdkWindow *gwin = gtk_widget_get_window (FRAME_GTK_WIDGET (f));
 
@@ -6328,7 +6332,7 @@ x_create_tip_frame (struct x_display_info *dpyinfo, Lisp_Object parms)
     }
 
   /* FIXME - can this be done in a similar way to normal frames?
-     https://lists.gnu.org/archive/html/emacs-devel/2007-10/msg00641.html */
+     https://lists.gnu.org/r/emacs-devel/2007-10/msg00641.html */
 
   /* Set the `display-type' frame parameter before setting up faces. */
   {
@@ -6619,6 +6623,7 @@ Text larger than the specified size is clipped.  */)
   ptrdiff_t count = SPECPDL_INDEX ();
   ptrdiff_t count_1;
   Lisp_Object window, size;
+  Lisp_Object tip_buf;
   AUTO_STRING (tip, " *tip*");
 
   specbind (Qinhibit_redisplay, Qt);
@@ -6783,7 +6788,12 @@ Text larger than the specified size is clipped.  */)
 
   tip_f = XFRAME (tip_frame);
   window = FRAME_ROOT_WINDOW (tip_f);
-  set_window_buffer (window, Fget_buffer_create (tip), false, false);
+  tip_buf = Fget_buffer_create (tip);
+  /* We will mark the tip window a "pseudo-window" below, and such
+     windows cannot have display margins.  */
+  bset_left_margin_cols (XBUFFER (tip_buf), make_number (0));
+  bset_right_margin_cols (XBUFFER (tip_buf), make_number (0));
+  set_window_buffer (window, tip_buf, false, false);
   w = XWINDOW (window);
   w->pseudo_window_p = true;
 

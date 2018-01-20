@@ -1,6 +1,6 @@
 /* NeXT/Open/GNUstep / macOS communication module.      -*- coding: utf-8 -*-
 
-Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2017 Free Software
+Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2018 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -423,20 +423,12 @@ static CGPoint menu_mouse_point;
     }
 
 
-/* GNUstep always shows decorations if the window is resizable,
-   miniaturizable or closable, but Cocoa does strange things in native
-   fullscreen mode if you don't have at least resizable enabled.
-
-   These flags will be OR'd or XOR'd with the NSWindow's styleMask
+/* These flags will be OR'd or XOR'd with the NSWindow's styleMask
    property depending on what we're doing. */
-#ifdef NS_IMPL_COCOA
-#define FRAME_DECORATED_FLAGS NSWindowStyleMaskTitled
-#else
 #define FRAME_DECORATED_FLAGS (NSWindowStyleMaskTitled              \
                                | NSWindowStyleMaskResizable         \
                                | NSWindowStyleMaskMiniaturizable    \
                                | NSWindowStyleMaskClosable)
-#endif
 #define FRAME_UNDECORATED_FLAGS NSWindowStyleMaskBorderless
 
 /* TODO: get rid of need for these forward declarations */
@@ -1744,7 +1736,6 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_grav)
 {
   NSView *view = FRAME_NS_VIEW (f);
   NSArray *screens = [NSScreen screens];
-  NSScreen *fscreen = [screens objectAtIndex: 0];
   NSScreen *screen = [[view window] screen];
 
   NSTRACE ("x_set_offset");
@@ -1754,26 +1745,41 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_grav)
   f->left_pos = xoff;
   f->top_pos = yoff;
 
-  if (view != nil && screen && fscreen)
+  if (view != nil)
     {
-      f->left_pos = f->size_hint_flags & XNegative
-        ? [screen visibleFrame].size.width + f->left_pos - FRAME_PIXEL_WIDTH (f)
-        : f->left_pos;
-      /* We use visibleFrame here to take menu bar into account.
-	 Ideally we should also adjust left/top with visibleFrame.origin.  */
+      if (FRAME_PARENT_FRAME (f) == NULL && screen)
+        {
+          f->left_pos = f->size_hint_flags & XNegative
+            ? [screen visibleFrame].size.width + f->left_pos - FRAME_PIXEL_WIDTH (f)
+            : f->left_pos;
+          /* We use visibleFrame here to take menu bar into account.
+             Ideally we should also adjust left/top with visibleFrame.origin.  */
 
-      f->top_pos = f->size_hint_flags & YNegative
-        ? ([screen visibleFrame].size.height + f->top_pos
-           - FRAME_PIXEL_HEIGHT (f) - FRAME_NS_TITLEBAR_HEIGHT (f)
-           - FRAME_TOOLBAR_HEIGHT (f))
-        : f->top_pos;
+          f->top_pos = f->size_hint_flags & YNegative
+            ? ([screen visibleFrame].size.height + f->top_pos
+               - FRAME_PIXEL_HEIGHT (f) - FRAME_NS_TITLEBAR_HEIGHT (f)
+               - FRAME_TOOLBAR_HEIGHT (f))
+            : f->top_pos;
 #ifdef NS_IMPL_GNUSTEP
-      if (FRAME_PARENT_FRAME (f) == NULL)
-	{
 	  if (f->left_pos < 100)
 	    f->left_pos = 100;  /* don't overlap menu */
-	}
 #endif
+        }
+      else if (FRAME_PARENT_FRAME (f) != NULL)
+        {
+          struct frame *parent = FRAME_PARENT_FRAME (f);
+
+          /* On X negative values for child frames always result in
+             positioning relative to the bottom right corner of the
+             parent frame.  */
+          if (f->left_pos < 0)
+            f->left_pos = FRAME_PIXEL_WIDTH (parent) - FRAME_PIXEL_WIDTH (f) + f->left_pos;
+
+          if (f->top_pos < 0)
+            f->top_pos = FRAME_PIXEL_HEIGHT (parent) + FRAME_TOOLBAR_HEIGHT (parent)
+              - FRAME_PIXEL_HEIGHT (f) + f->top_pos;
+        }
+
       /* Constrain the setFrameTopLeftPoint so we don't move behind the
          menu bar.  */
       NSPoint pt = NSMakePoint (SCREENMAXBOUND (f->left_pos
@@ -1940,7 +1946,7 @@ x_set_parent_frame (struct frame *f, Lisp_Object new_value, Lisp_Object old_valu
   if (!NILP (new_value)
       && (!FRAMEP (new_value)
 	  || !FRAME_LIVE_P (p = XFRAME (new_value))
-	  || !FRAME_X_P (p)))
+	  || !FRAME_NS_P (p)))
     {
       store_frame_param (f, Qparent_frame, old_value);
       error ("Invalid specification of `parent-frame'");
@@ -3182,18 +3188,54 @@ ns_draw_window_divider (struct window *w, int x0, int x1, int y0, int y1)
    -------------------------------------------------------------------------- */
 {
   struct frame *f = XFRAME (WINDOW_FRAME (w));
-  struct face *face;
-  NSRect r = NSMakeRect (x0, y0, x1-x0, y1-y0);
+  struct face *face = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_FACE_ID);
+  struct face *face_first
+    = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_FIRST_PIXEL_FACE_ID);
+  struct face *face_last
+    = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_LAST_PIXEL_FACE_ID);
+  unsigned long color = face ? face->foreground : FRAME_FOREGROUND_PIXEL (f);
+  unsigned long color_first = (face_first
+			       ? face_first->foreground
+			       : FRAME_FOREGROUND_PIXEL (f));
+  unsigned long color_last = (face_last
+			      ? face_last->foreground
+			      : FRAME_FOREGROUND_PIXEL (f));
+  NSRect divider = NSMakeRect (x0, y0, x1-x0, y1-y0);
 
   NSTRACE ("ns_draw_window_divider");
 
-  face = FACE_FROM_ID_OR_NULL (f, WINDOW_DIVIDER_FACE_ID);
+  ns_focus (f, &divider, 1);
 
-  ns_focus (f, &r, 1);
-  if (face)
-    [ns_lookup_indexed_color(face->foreground, f) set];
+  if ((y1 - y0 > x1 - x0) && (x1 - x0 >= 3))
+    /* A vertical divider, at least three pixels wide: Draw first and
+       last pixels differently.  */
+    {
+      [ns_lookup_indexed_color(color_first, f) set];
+      NSRectFill(NSMakeRect (x0, y0, 1, y1 - y0));
+      [ns_lookup_indexed_color(color, f) set];
+      NSRectFill(NSMakeRect (x0 + 1, y0, x1 - x0 - 2, y1 - y0));
+      [ns_lookup_indexed_color(color_last, f) set];
+      NSRectFill(NSMakeRect (x1 - 1, y0, 1, y1 - y0));
+    }
+  else if ((x1 - x0 > y1 - y0) && (y1 - y0 >= 3))
+    /* A horizontal divider, at least three pixels high: Draw first and
+       last pixels differently.  */
+    {
+      [ns_lookup_indexed_color(color_first, f) set];
+      NSRectFill(NSMakeRect (x0, y0, x1 - x0, 1));
+      [ns_lookup_indexed_color(color, f) set];
+      NSRectFill(NSMakeRect (x0, y0 + 1, x1 - x0, y1 - y0 - 2));
+      [ns_lookup_indexed_color(color_last, f) set];
+      NSRectFill(NSMakeRect (x0, y1 - 1, x1 - x0, 1));
+    }
+  else
+    {
+      /* In any other case do not draw the first and last pixels
+         differently.  */
+      [ns_lookup_indexed_color(color, f) set];
+      NSRectFill(divider);
+    }
 
-  NSRectFill(r);
   ns_unfocus (f);
 }
 
@@ -6812,14 +6854,19 @@ not_in_argv (NSString *arg)
 
   if (! [self isFullscreen])
     {
+      int toolbar_height;
 #ifdef NS_IMPL_GNUSTEP
       // GNUstep does not always update the tool bar height.  Force it.
       if (toolbar && [toolbar isVisible])
           update_frame_tool_bar (emacsframe);
 #endif
 
+      toolbar_height = FRAME_TOOLBAR_HEIGHT (emacsframe);
+      if (toolbar_height < 0)
+        toolbar_height = 35;
+
       extra = FRAME_NS_TITLEBAR_HEIGHT (emacsframe)
-        + FRAME_TOOLBAR_HEIGHT (emacsframe);
+        + toolbar_height;
     }
 
   if (wait_for_tool_bar)
@@ -6866,11 +6913,12 @@ not_in_argv (NSString *arg)
       SET_FRAME_GARBAGED (emacsframe);
       cancel_mouse_face (emacsframe);
 
-      /* The next two lines appear to be setting the frame to the same
-         size as it already is.  Why are they there? */
-      // wr = NSMakeRect (0, 0, neww, newh);
-
-      // [view setFrame: wr];
+      /* The next two lines set the frame to the same size as we've
+         already set above.  We need to do this when we switch back
+         from non-native fullscreen, in other circumstances it appears
+         to be a noop.  (bug#28872) */
+      wr = NSMakeRect (0, 0, neww, newh);
+      [view setFrame: wr];
 
       // to do: consider using [NSNotificationCenter postNotificationName:].
       [self windowDidMove: // Update top/left.
@@ -7211,15 +7259,9 @@ not_in_argv (NSString *arg)
 
   win = [[EmacsWindow alloc]
             initWithContentRect: r
-                      styleMask: ((FRAME_UNDECORATED (f)
-                                   ? FRAME_UNDECORATED_FLAGS
-                                   : FRAME_DECORATED_FLAGS)
-#ifdef NS_IMPL_COCOA
-                                  | NSWindowStyleMaskResizable
-                                  | NSWindowStyleMaskMiniaturizable
-                                  | NSWindowStyleMaskClosable
-#endif
-                                  )
+                      styleMask: (FRAME_UNDECORATED (f)
+                                  ? FRAME_UNDECORATED_FLAGS
+                                  : FRAME_DECORATED_FLAGS)
                         backing: NSBackingStoreBuffered
                           defer: YES];
 
@@ -8101,8 +8143,6 @@ not_in_argv (NSString *arg)
           emacs_event->kind = DRAG_N_DROP_EVENT;
           XSETINT (emacs_event->x, x);
           XSETINT (emacs_event->y, y);
-          ns_input_file = append2 (ns_input_file,
-                                   build_string ([file UTF8String]));
           emacs_event->modifiers = modifiers;
           emacs_event->arg =  list2 (Qfile, build_string ([file UTF8String]));
           EV_TRAILER (theEvent);
@@ -8920,9 +8960,19 @@ not_in_argv (NSString *arg)
         }
       last_mouse_offset = kloc;
 
-      if (part != NSScrollerKnob)
-        /* this is a slot click on GNUstep: go straight there */
+      /* if knob, tell emacs a location offset by knob pos
+         (to indicate top of handle) */
+      if (part == NSScrollerKnob)
+        pos = (loc - last_mouse_offset);
+      else
+        /* else this is a slot click on GNUstep: go straight there */
         pos = loc;
+
+      /* If there are buttons in the scroller area, we need to
+         recalculate pos as emacs expects the scroller slot to take up
+         the entire available length.  */
+      if (length != pixel_length)
+        pos = pos * pixel_length / length;
 
       /* send a fake mouse-up to super to preempt modal -trackKnob: mode */
       fake_event = [NSEvent mouseEventWithType: NSEventTypeLeftMouseUp
@@ -8988,6 +9038,13 @@ not_in_argv (NSString *arg)
         }
 
       pos = (loc - last_mouse_offset);
+
+      /* If there are buttons in the scroller area, we need to
+         recalculate pos as emacs expects the scroller slot to take up
+         the entire available length.  */
+      if (length != pixel_length)
+        pos = pos * pixel_length / length;
+
       [self sendScrollEventAtLoc: pos fromEvent: e];
 }
 
@@ -9109,9 +9166,9 @@ ns_xlfd_to_fontname (const char *xlfd)
   const char *ret;
 
   if (!strncmp (xlfd, "--", 2))
-    sscanf (xlfd, "--%*[^-]-%[^-]179-", name);
+    sscanf (xlfd, "--%*[^-]-%179[^-]-", name);
   else
-    sscanf (xlfd, "-%*[^-]-%[^-]179-", name);
+    sscanf (xlfd, "-%*[^-]-%179[^-]-", name);
 
   /* stopgap for malformed XLFD input */
   if (strlen (name) == 0)

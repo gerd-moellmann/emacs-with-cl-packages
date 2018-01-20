@@ -1,6 +1,6 @@
 /* File IO for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-2017 Free Software Foundation, Inc.
+Copyright (C) 1985-1988, 1993-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1826,7 +1826,8 @@ DEFUN ("copy-file", Fcopy_file, Scopy_file, 2, 6,
        "fCopy file: \nGCopy %s to file: \np\nP",
        doc: /* Copy FILE to NEWNAME.  Both args must be strings.
 If NEWNAME is a directory name, copy FILE to a like-named file under
-NEWNAME.
+NEWNAME.  For NEWNAME to be recognized as a directory name, it should
+end in a slash.
 
 This function always sets the file modes of the output file to match
 the input file.
@@ -2251,7 +2252,8 @@ DEFUN ("rename-file", Frename_file, Srename_file, 2, 3,
        doc: /* Rename FILE as NEWNAME.  Both args must be strings.
 If file has names other than FILE, it continues to have those names.
 If NEWNAME is a directory name, rename FILE to a like-named file under
-NEWNAME.
+NEWNAME.  For NEWNAME to be recognized as a directory name, it should
+end in a slash.
 
 Signal a `file-already-exists' error if a file NEWNAME already exists
 unless optional third argument OK-IF-ALREADY-EXISTS is non-nil.
@@ -2260,7 +2262,7 @@ This is what happens in interactive use with M-x.  */)
   (Lisp_Object file, Lisp_Object newname, Lisp_Object ok_if_already_exists)
 {
   Lisp_Object handler;
-  Lisp_Object encoded_file, encoded_newname, symlink_target;
+  Lisp_Object encoded_file, encoded_newname;
 
   file = Fexpand_file_name (file, Qnil);
 
@@ -2296,7 +2298,7 @@ This is what happens in interactive use with M-x.  */)
   bool plain_rename = (case_only_rename
 		       || (!NILP (ok_if_already_exists)
 			   && !INTEGERP (ok_if_already_exists)));
-  int rename_errno;
+  int rename_errno UNINIT;
   if (!plain_rename)
     {
       if (renameat_noreplace (AT_FDCWD, SSDATA (encoded_file),
@@ -2334,12 +2336,22 @@ This is what happens in interactive use with M-x.  */)
   if (rename_errno != EXDEV)
     report_file_errno ("Renaming", list2 (file, newname), rename_errno);
 
+  struct stat file_st;
   bool dirp = !NILP (Fdirectory_name_p (file));
+  if (!dirp)
+    {
+      if (lstat (SSDATA (encoded_file), &file_st) != 0)
+	report_file_error ("Renaming", list2 (file, newname));
+      dirp = S_ISDIR (file_st.st_mode) != 0;
+    }
   if (dirp)
     call4 (Qcopy_directory, file, newname, Qt, Qnil);
   else
     {
-      symlink_target = Ffile_symlink_p (file);
+      Lisp_Object symlink_target
+	= (S_ISLNK (file_st.st_mode)
+	   ? emacs_readlinkat (AT_FDCWD, SSDATA (encoded_file))
+	   : Qnil);
       if (!NILP (symlink_target))
 	Fmake_symbolic_link (symlink_target, newname, ok_if_already_exists);
       else
@@ -3039,7 +3051,8 @@ support.  */)
       acl = acl_from_text (SSDATA (acl_string));
       if (acl == NULL)
 	{
-	  report_file_error ("Converting ACL", absname);
+	  if (acl_errno_valid (errno))
+	    report_file_error ("Converting ACL", absname);
 	  return Qnil;
 	}
 
@@ -3115,7 +3128,15 @@ symbolic notation, like the `chmod' command from GNU Coreutils.  */)
 DEFUN ("set-default-file-modes", Fset_default_file_modes, Sset_default_file_modes, 1, 1, 0,
        doc: /* Set the file permission bits for newly created files.
 The argument MODE should be an integer; only the low 9 bits are used.
-This setting is inherited by subprocesses.  */)
+On Posix hosts, this setting is inherited by subprocesses.
+
+This function works by setting the Emacs's file mode creation mask.
+Each bit that is set in the mask means that the corresponding bit
+in the permissions of newly created files will be disabled.
+
+Note that when `write-region' creates a file, it resets the
+execute bit, even if the mask set by this function allows that bit
+by having the corresponding bit in the mask reset.  */)
   (Lisp_Object mode)
 {
   mode_t oldrealmask, oldumask, newumask;

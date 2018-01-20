@@ -1,7 +1,7 @@
 
 ;;; authors.el --- utility for maintaining Emacs's AUTHORS file
 
-;; Copyright (C) 2000-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2018 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -130,6 +130,7 @@ files.")
     ("Agustín Martín" "Agustin Martin" "Agustín Martín Domingo")
     ("Martin Lorentzon" "Martin Lorentzson")
     ("Matt Swift" "Matthew Swift")
+    (nil "mu@magi.net.ru")
     ("Maxime Edouard Robert Froumentin" "Max Froumentin")
     ("Michael R. Mauger" "Michael Mauger")
     ("Michael D. Ernst" "Michael Ernst")
@@ -840,7 +841,8 @@ Changes to files in this list are not listed.")
     "lisp/obsolete/sym-comp.el"
     "library-of-babel.org"
     "flymake-elisp.el"
-    "flymake-ui.el")
+    "flymake-ui.el"
+    "pinentry.el")
   "File names which are valid, but no longer exist (or cannot be found)
 in the repository.")
 
@@ -1353,9 +1355,10 @@ it is found in `authors-fixed-case'."
     (setq author (replace-regexp-in-string "[ \t]+" " " author))
     ;; NB this ignores the first name only case.
     (unless (string-match "[-, \t]" author)
-      (push (format-message "%s:%d: ignored `%s'"
-			    file (1+ (count-lines (point-min) pos)) author)
-	    authors-ignored-names)
+      (or (authors-lax-changelog-p file)
+          (push (format-message "%s:%d: ignored `%s'"
+                                file (1+ (count-lines (point-min) pos)) author)
+                authors-ignored-names))
       (setq author ""))
     (or (car (member author authors-fixed-case))
 	(capitalize author))))

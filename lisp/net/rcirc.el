@@ -1,6 +1,6 @@
 ;;; rcirc.el --- default, simple IRC client          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2018 Free Software Foundation, Inc.
 
 ;; Author: Ryan Yeske <rcyeske@gmail.com>
 ;; Maintainers: Ryan Yeske <rcyeske@gmail.com>,
@@ -2333,7 +2333,7 @@ With a prefix arg, prompt for new topic."
 
 (defun rcirc-ctcp-sender-PING (process target _request)
   "Send a CTCP PING message to TARGET."
-  (let ((timestamp (format "%.0f" (float-time))))
+  (let ((timestamp (format-time-string "%s")))
     (rcirc-send-ctcp process target "PING" timestamp)))
 
 (defun rcirc-cmd-me (args &optional process target)

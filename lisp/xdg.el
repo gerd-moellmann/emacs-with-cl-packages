@@ -1,6 +1,6 @@
 ;;; xdg.el --- XDG specification and standard support -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2018 Free Software Foundation, Inc.
 
 ;; Author: Mark Oteiza <mvoteiza@udel.edu>
 ;; Created: 27 January 2017
@@ -93,8 +93,8 @@ file:///foo/bar.jpg"
   (concat (md5 (xdg-thumb-uri filename)) ".png"))
 
 (defun xdg-thumb-mtime (filename)
-  "Return modification time of FILENAME as integral seconds from the epoch."
-  (floor (float-time (nth 5 (file-attributes filename)))))
+  "Return modification time of FILENAME as an Emacs timestamp."
+  (file-attribute-modification-time (file-attributes filename)))
 
 
 ;; XDG User Directories

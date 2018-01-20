@@ -1,6 +1,6 @@
 ;;; eieio-tests.el -- eieio tests routines
 
-;; Copyright (C) 1999-2003, 2005-2010, 2012-2017 Free Software
+;; Copyright (C) 1999-2003, 2005-2010, 2012-2018 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
@@ -893,8 +893,8 @@ Subclasses to override slot attributes.")
   (list newname 2))
 
 (ert-deftest eieio-test-37-obsolete-name-in-constructor ()
-  ;; FIXME repeated intermittent failures on hydra (bug#24503)
-  (skip-unless (not (getenv "EMACS_HYDRA_CI")))
+  ;; FIXME repeated intermittent failures on hydra and elsewhere (bug#24503).
+  :tags '(:unstable)
   (should (equal (eieio--testing "toto") '("toto" 2))))
 
 (ert-deftest eieio-autoload ()

@@ -1,6 +1,6 @@
 /* MS-DOS specific C utilities.          -*- coding: cp850 -*-
 
-Copyright (C) 1993-1997, 1999-2017 Free Software Foundation, Inc.
+Copyright (C) 1993-1997, 1999-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -3943,6 +3943,8 @@ careadlinkat (int fd, char const *filename,
 int
 faccessat (int dirfd, const char * path, int mode, int flags)
 {
+  char fullname[MAXPATHLEN];
+
   /* We silently ignore FLAGS.  */
   flags = flags;
 

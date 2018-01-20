@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990-1995, 1998-2017 Free Software Foundation, Inc.
+@c Copyright (C) 1990-1995, 1998-2018 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Text
 @chapter Text
@@ -525,9 +525,17 @@ responsible for calling @code{blink-paren-function} when the inserted
 character has close parenthesis syntax (@pxref{Blinking}).
 
 @vindex post-self-insert-hook
+@vindex self-insert-uses-region-functions
 The final thing this command does is to run the hook
 @code{post-self-insert-hook}.  You could use this to automatically
-reindent text as it is typed, for example.
+reindent text as it is typed, for example.  If any function on this
+hook needs to act on the region (@pxref{The Region}), it should make
+sure Delete Selection mode (@pxref{Using Region, Delete Selection, ,
+emacs, The GNU Emacs Manual}) doesn't delete the region before
+@code{post-self-insert-hook} functions are invoked.  The way to do so
+is to add a function that returns @code{nil} to
+@code{self-insert-uses-region-functions}, a special hook that tells
+Delete Selection mode it should not delete the region.
 
 Do not try substituting your own definition of
 @code{self-insert-command} for the standard one.  The editor command
@@ -1886,10 +1894,10 @@ prefix or @code{nil}, meaning it has failed to determine a prefix.
 @cindex filling, automatic
 @cindex Auto Fill mode
 
-@c FIXME: I don't think any of the variables below is a/an normal/abnormal hook.
-  Auto Fill mode is a minor mode that fills lines automatically as text
-is inserted.  This section describes the hook used by Auto Fill mode.
-For a description of functions that you can call explicitly to fill and
+Auto Fill mode is a minor mode that fills lines automatically as text is
+inserted.  @xref{Auto Fill,,, emacs, The GNU Emacs Manual}.  This
+section describes some variables used by Auto Fill mode.  For a
+description of functions that you can call explicitly to fill and
 justify existing text, see @ref{Filling}.
 
   Auto Fill mode also enables the functions that change the margins and
@@ -1898,11 +1906,11 @@ justification style to refill portions of the text.  @xref{Margins}.
 @defvar auto-fill-function
 The value of this buffer-local variable should be a function (of no
 arguments) to be called after self-inserting a character from the table
-@code{auto-fill-chars}.  It may be @code{nil}, in which case nothing
-special is done in that case.
+@code{auto-fill-chars}, see below.  It may be @code{nil}, in which case
+nothing special is done in that case.
 
-The value of @code{auto-fill-function} is @code{do-auto-fill} when
-Auto-Fill mode is enabled.  That is a function whose sole purpose is to
+The value of @code{auto-fill-function} is @code{do-auto-fill} when Auto
+Fill mode is enabled.  That is a function whose sole purpose is to
 implement the usual strategy for breaking a line.
 @end defvar
 
@@ -1918,6 +1926,14 @@ A char table of characters which invoke @code{auto-fill-function} when
 self-inserted---space and newline in most language environments.  They
 have an entry @code{t} in the table.
 @end defvar
+
+@defopt comment-auto-fill-only-comments
+This variable, if non-@code{nil}, means to fill lines automatically
+within comments only.  More precisely, this means that if a comment
+syntax was defined for the current buffer, then self-inserting a
+character outside of a comment will not call @code{auto-fill-function}.
+@end defopt
+
 
 @node Sorting
 @section Sorting Text
@@ -2380,57 +2396,31 @@ text at point (@pxref{Completion in Buffers}).
 syntax belongs to a different major mode.  Examples include
 @dfn{literate programming} source files that combine documentation and
 snippets of source code, Yacc/Bison programs that include snippets of
-plain C code, etc.  To correctly indent the embedded chunks, the major
+Python or JS code, etc.  To correctly indent the embedded chunks, the primary
 mode needs to delegate the indentation to another mode's indentation
-engine (e.g., call @code{c-indent-defun} for C code or
+engine (e.g., call @code{js-indent-line} for JS code or
 @code{python-indent-line} for Python), while providing it with some
-context to guide the indentation.  The following facilities support
-such multi-mode indentation.
+context to guide the indentation.  Major modes, for their part, should
+avoid calling @code{widen} in their indentation code and obey
+@code{prog-first-column}.
 
 @defvar prog-indentation-context
 This variable, when non-@code{nil}, holds the indentation context for
 the sub-mode's indentation engine provided by the superior major mode.
-The value should be a list of the form @code{(@var{first-column}
-@w{(@var{start} . @var{end})} @code{prev-chunk})}.  The members of the
-list have the following meaning:
+The value should be a list of the form @code{(@var{first-column} . @var{rest}}.
+The members of the list have the following meaning:
 
 @table @var
 @item first-column
 The column to be used for top-level constructs.  This replaces the
 default value of the top-level column used by the sub-mode, usually
 zero.
-@item start
-@itemx end
-The region of the code chunk to be indented by the sub-mode.  The
-value of @var{end} can be @code{nil}, which stands for the value of
-@code{point-max}.
-@item prev-chunk
-If this is non-@code{nil}, it should provide the sub-mode's
-indentation engine with a virtual context of the code chunk.  Valid
-values include:
-
-@itemize @minus
-@item
-A string whose contents is the text the sub-mode's indentation engine
-should consider to precede the code chunk.  The sub-mode's indentation
-engine can add text properties to that string, to be reused in
-repeated calls with the same string, thus using it as a cache.  An
-example where this is useful is code chunks that need to be indented
-as function bodies, but lack the function's preamble---the string
-could then include that missing preamble.
-@item
-A function.  It is expected to be called with the start position of
-the current chunk, and should return a cons cell
-@w{@code{(@var{prev-start} . @var{prev-end})}} that specifies the
-region of the previous code chunk, or @code{nil} if there is no previous
-chunk.  This is useful in literate-programming sources, where code is
-split into chunks, and correct indentation needs to access previous
-chunks.
-@end itemize
+@item rest
+This value is currently unused.
 @end table
 @end defvar
 
-The following convenience functions should be used by major mode's
+The following convenience function should be used by major mode's
 indentation engine in support of invocations as sub-modes of another
 major mode.
 
@@ -2439,16 +2429,6 @@ Call this function instead of using a literal value (usually, zero) of
 the column number for indenting top-level program constructs.  The
 function's value is the column number to use for top-level constructs.
 When no superior mode is in effect, this function returns zero.
-@end defun
-
-@defun prog-widen
-Call this function instead of @code{widen} to remove any restrictions
-imposed by the mode's indentation engine and restore the restrictions
-recorded in @code{prog-indentation-context}.  This prevents the
-indentation engine of a sub-mode from inadvertently operating on text
-outside of the chunk it was supposed to indent, and preserves the
-restriction imposed by the superior mode.  When no superior mode is in
-effect, this function just calls @code{widen}.
 @end defun
 
 
@@ -5043,14 +5023,21 @@ these functions, and neither do certain internal buffer changes, such
 as changes in buffers created by Emacs internally for certain jobs,
 that should not be visible to Lisp programs.
 
-  Do @emph{not} expect the before-change hooks and the after-change
-hooks be called in balanced pairs around each buffer change.  Also
-don't expect the before-change hooks to be called for every chunk of
-text Emacs is about to delete.  These hooks are provided on the
-assumption that Lisp programs will use either before- or the
-after-change hooks, but not both, and the boundaries of the region
-where the changes happen might include more than just the actual
-changed text, or even lump together several changes done piecemeal.
+The vast majority of buffer changing primitives will call
+@code{before-change-functions} and @code{after-change-functions} in
+balanced pairs, once for each change, where the arguments to these
+hooks exactly delimit the change being made.  Yet, hook functions
+should not rely on this always being the case, because some complex
+primitives call @code{before-change-functions} once before making
+changes, and then call @code{after-change-functions} zero or more
+times, depending on how many individual changes the primitive is
+making.  When that happens, the arguments to
+@code{before-change-functions} will enclose a region in which the
+individual changes are made, but won't necessarily be the minimal such
+region, and the arguments to each successive call of
+@code{after-change-functions} will then delimit the part of text being
+changed exactly.  In general, we advise to use either before- or the
+after-change hooks, but not both.
 
 @defmac combine-after-change-calls body@dots{}
 The macro executes @var{body} normally, but arranges to call the

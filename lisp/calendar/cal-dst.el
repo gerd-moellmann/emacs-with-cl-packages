@@ -1,6 +1,6 @@
 ;;; cal-dst.el --- calendar functions for daylight saving rules
 
-;; Copyright (C) 1993-1996, 2001-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1996, 2001-2018 Free Software Foundation, Inc.
 
 ;; Author: Paul Eggert <eggert@twinsun.com>
 ;;         Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -248,7 +248,7 @@ The result has the proper form for `calendar-daylight-savings-starts'."
 ;; TODO it might be better to extract this information directly from
 ;; the system timezone database. But cross-platform...?
 ;; See thread
-;; https://lists.gnu.org/archive/html/emacs-pretest-bug/2006-11/msg00060.html
+;; https://lists.gnu.org/r/emacs-pretest-bug/2006-11/msg00060.html
 (defun calendar-dst-find-data (&optional time)
   "Find data on the first daylight saving time transitions after TIME.
 TIME defaults to `current-time'.  Return value is as described

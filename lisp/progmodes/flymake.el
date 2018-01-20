@@ -1,6 +1,6 @@
 ;;; flymake.el --- A universal on-the-fly syntax checker  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2018 Free Software Foundation, Inc.
 
 ;; Author:  Pavel Kobyakov <pk_at_work@yahoo.com>
 ;; Maintainer: Leo Liu <sdl.web@gmail.com>
@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -48,7 +48,8 @@
 (require 'thingatpt) ; end-of-thing
 (require 'warnings) ; warning-numeric-level, display-warning
 (require 'compile) ; for some faces
-(require 'subr-x) ; when-let*, if-let*, hash-table-keys, hash-table-values
+;; when-let*, if-let*, hash-table-keys, hash-table-values:
+(eval-when-compile (require 'subr-x))
 
 (defgroup flymake nil
   "Universal on-the-fly syntax checker."
@@ -123,13 +124,14 @@ If nil, never start checking buffer automatically like this."
 (make-obsolete-variable 'flymake-gui-warnings-enabled
 			"it no longer has any effect." "26.1")
 
-(defcustom flymake-start-on-flymake-mode t
-  "Start syntax check when `flymake-mode'is enabled.
-Specifically, start it when the buffer is actually displayed."
-  :type 'boolean)
-
 (define-obsolete-variable-alias 'flymake-start-syntax-check-on-find-file
   'flymake-start-on-flymake-mode "26.1")
+
+(defcustom flymake-start-on-flymake-mode t
+  "Start syntax check when `flymake-mode' is enabled.
+Specifically, start it when the buffer is actually displayed."
+  :version "26.1"
+  :type 'boolean)
 
 (defcustom flymake-log-level -1
   "Obsolete and ignored variable."
@@ -140,6 +142,7 @@ Specifically, start it when the buffer is actually displayed."
 
 (defcustom flymake-wrap-around t
   "If non-nil, moving to errors wraps around buffer boundaries."
+  :version "26.1"
   :type 'boolean)
 
 (when (fboundp 'define-fringe-bitmap)
@@ -228,6 +231,29 @@ TYPE is a key to `flymake-diagnostic-types-alist' and TEXT is a
 description of the problem detected in this region."
   (flymake--diag-make :buffer buffer :beg beg :end end :type type :text text))
 
+;;;###autoload
+(defun flymake-diagnostics (&optional beg end)
+  "Get Flymake diagnostics in region determined by BEG and END.
+
+If neither BEG or END is supplied, use the whole buffer,
+otherwise if BEG is non-nil and END is nil, consider only
+diagnostics at BEG."
+  (mapcar (lambda (ov) (overlay-get ov 'flymake-diagnostic))
+          (flymake--overlays :beg beg :end end)))
+
+(defmacro flymake--diag-accessor (public internal thing)
+  "Make PUBLIC an alias for INTERNAL, add doc using THING."
+  `(defsubst ,public (diag)
+     ,(format "Get Flymake diagnostic DIAG's %s." (symbol-name thing))
+     (,internal diag)))
+
+(flymake--diag-accessor flymake-diagnostic-buffer flymake--diag-buffer buffer)
+(flymake--diag-accessor flymake-diagnostic-text flymake--diag-text text)
+(flymake--diag-accessor flymake-diagnostic-type flymake--diag-type type)
+(flymake--diag-accessor flymake-diagnostic-beg flymake--diag-beg beg)
+(flymake--diag-accessor flymake-diagnostic-end flymake--diag-end end)
+(flymake--diag-accessor flymake-diagnostic-backend flymake--diag-backend backend)
+
 (cl-defun flymake--overlays (&key beg end filter compare key)
   "Get flymake-related overlays.
 If BEG is non-nil and END is nil, consider only `overlays-at'
@@ -238,7 +264,7 @@ verify FILTER, a function, and sort them by COMPARE (using KEY)."
     (widen)
     (let ((ovs (cl-remove-if-not
                 (lambda (ov)
-                  (and (overlay-get ov 'flymake)
+                  (and (overlay-get ov 'flymake-diagnostic)
                        (or (not filter)
                            (funcall filter ov))))
                 (if (and beg (null end))
@@ -294,7 +320,11 @@ region is invalid."
             (goto-char (point-min))
             (forward-line (1- line))
             (cl-flet ((fallback-bol
-                       () (progn (back-to-indentation) (point)))
+                       ()
+                       (back-to-indentation)
+                       (if (eobp)
+                           (line-beginning-position 0)
+                         (point)))
                       (fallback-eol
                        (beg)
                        (progn
@@ -310,15 +340,17 @@ region is invalid."
                          (end (or (and sexp-end
                                        (not (= sexp-end beg))
                                        sexp-end)
-                                  (ignore-errors (goto-char (1+ beg)))))
-                         (safe-end (or end
-                                       (fallback-eol beg))))
-                    (cons (if end beg (fallback-bol))
-                          safe-end))
+                                  (and (< (goto-char (1+ beg)) (point-max))
+                                       (point)))))
+                    (if end
+                        (cons beg end)
+                      (cons (setq beg (fallback-bol))
+                            (fallback-eol beg))))
                 (let* ((beg (fallback-bol))
                        (end (fallback-eol beg)))
                   (cons beg end)))))))
-    (error (flymake-error "Invalid region line=%s col=%s" line col))))
+    (error (flymake-log :warning "Invalid region line=%s col=%s" line col)
+           nil)))
 
 (defvar flymake-diagnostic-functions nil
   "Special hook of Flymake backends that check a buffer.
@@ -496,20 +528,18 @@ associated `flymake-category' return DEFAULT."
         (flymake--fringe-overlay-spec
          (overlay-get ov 'bitmap)))
       (default-maybe 'help-echo
-        (lambda (_window _ov pos)
-          (mapconcat
-           (lambda (ov)
-             (overlay-get ov 'flymake-text))
-           (flymake--overlays :beg pos)
-           "\n")))
+        (lambda (window _ov pos)
+          (with-selected-window window
+            (mapconcat
+             #'flymake--diag-text
+             (flymake-diagnostics pos)
+             "\n"))))
       (default-maybe 'severity (warning-numeric-level :error))
       (default-maybe 'priority (+ 100 (overlay-get ov 'severity))))
     ;; Some properties can't be overridden.
     ;;
     (overlay-put ov 'evaporate t)
-    (overlay-put ov 'flymake t)
-    (overlay-put ov 'flymake-text (flymake--diag-text diagnostic))
-    (overlay-put ov 'flymake--diagnostic diagnostic)))
+    (overlay-put ov 'flymake-diagnostic diagnostic)))
 
 ;; Nothing in Flymake uses this at all any more, so this is just for
 ;; third-party compatibility.
@@ -580,8 +610,8 @@ not expected."
           (null expected-token))
         ;; should never happen
         (flymake-error "Unexpected report from stopped backend %s" backend))
-       ((and (not (eq expected-token token))
-             (not force))
+       ((not (or (eq expected-token token)
+                 force))
         (flymake-error "Obsolete report from backend %s with explanation %s"
                        backend explanation))
        ((eq :panic report-action)
@@ -600,7 +630,7 @@ not expected."
              (lambda (ov)
                (eq backend
                    (flymake--diag-backend
-                    (overlay-get ov 'flymake--diagnostic))))))
+                    (overlay-get ov 'flymake-diagnostic))))))
           (mapc (lambda (diag)
                   (flymake--highlight-line diag)
                   (setf (flymake--diag-backend diag) backend))
@@ -721,8 +751,11 @@ Interactively, with a prefix arg, FORCE is t."
           ()
           (remove-hook 'post-command-hook #'start-post-command
                        nil)
-          (with-current-buffer buffer
-            (flymake-start (remove 'post-command deferred) force)))
+          ;; The buffer may have disappeared already, e.g. because of
+          ;; code like `(with-temp-buffer (python-mode) ...)'.
+          (when (buffer-live-p buffer)
+            (with-current-buffer buffer
+              (flymake-start (remove 'post-command deferred) force))))
          (start-on-display
           ()
           (remove-hook 'window-configuration-change-hook #'start-on-display
@@ -878,11 +911,11 @@ Do it only if `flymake-no-changes-timeout' is non-nil."
     (flymake-log :warning "Turned on in `flymake-find-file-hook'")))
 
 (defun flymake-goto-next-error (&optional n filter interactive)
-  "Go to Nth next Flymake error in buffer matching FILTER.
-Interactively, always move to the next error.  With a prefix arg,
-skip any diagnostics with a severity less than `:warning'.
+  "Go to Nth next Flymake diagnostic that matches FILTER.
+Interactively, always move to the next diagnostic.  With a prefix
+arg, skip any diagnostics with a severity less than `:warning'.
 
-If `flymake-wrap-around' is non-nil and no more next errors,
+If `flymake-wrap-around' is non-nil and no more next diagnostics,
 resumes search from top.
 
 FILTER is a list of diagnostic types found in
@@ -899,7 +932,7 @@ applied."
                                  (lambda (ov)
                                    (let ((diag (overlay-get
                                                 ov
-                                                'flymake--diagnostic)))
+                                                'flymake-diagnostic)))
                                      (and diag
                                           (or (not filter)
                                               (memq (flymake--diag-type diag)
@@ -925,7 +958,7 @@ applied."
              (message
               "%s"
               (funcall (overlay-get target 'help-echo)
-                       nil nil (point)))))
+                       (selected-window) target (point)))))
           (interactive
            (user-error "No more Flymake errors%s"
                        (if filter
@@ -933,12 +966,13 @@ applied."
                          ""))))))
 
 (defun flymake-goto-prev-error (&optional n filter interactive)
-  "Go to Nth previous Flymake error in buffer matching FILTER.
-Interactively, always move to the previous error.  With a prefix
-arg, skip any diagnostics with a severity less than `:warning'.
+  "Go to Nth previous Flymake diagnostic that matches FILTER.
+Interactively, always move to the previous diagnostic.  With a
+prefix arg, skip any diagnostics with a severity less than
+`:warning'.
 
-If `flymake-wrap-around' is non-nil and no more previous errors,
-resumes search from bottom.
+If `flymake-wrap-around' is non-nil and no more previous
+diagnostics, resumes search from bottom.
 
 FILTER is a list of diagnostic types found in
 `flymake-diagnostic-types-alist', or nil, if no filter is to be
@@ -953,13 +987,13 @@ applied."
 ;;;
 (easy-menu-define flymake-menu flymake-mode-map "Flymake"
   `("Flymake"
-    [ "Go to next error"      flymake-goto-next-error t ]
-    [ "Go to previous error"  flymake-goto-prev-error t ]
-    [ "Check now"             flymake-start t ]
-    [ "Go to log buffer"      flymake-switch-to-log-buffer t ]
-    [ "Show error buffer"     flymake-show-diagnostics-buffer t ]
+    [ "Go to next problem"      flymake-goto-next-error t ]
+    [ "Go to previous problem"  flymake-goto-prev-error t ]
+    [ "Check now"               flymake-start t ]
+    [ "List all problems"       flymake-show-diagnostics-buffer t ]
     "--"
-    [ "Turn off Flymake"      flymake-mode t ]))
+    [ "Go to log buffer"        flymake-switch-to-log-buffer t ]
+    [ "Turn off Flymake"        flymake-mode t ]))
 
 (defvar flymake--mode-line-format `(:eval (flymake--mode-line-format)))
 
@@ -1046,12 +1080,14 @@ applied."
                      keymap
                      ,(let ((map (make-sparse-keymap))
                             (type type))
-                        (define-key map [mode-line mouse-4]
+                        (define-key map (vector 'mode-line
+                                                mouse-wheel-down-event)
                           (lambda (event)
                             (interactive "e")
                             (with-selected-window (posn-window (event-start event))
                               (flymake-goto-prev-error 1 (list type) t))))
-                        (define-key map [mode-line mouse-5]
+                        (define-key map (vector 'mode-line
+                                                mouse-wheel-up-event)
                           (lambda (event)
                             (interactive "e")
                             (with-selected-window (posn-window (event-start event))
@@ -1064,7 +1100,9 @@ applied."
                                                   'face face)
                                       (propertize (format "%s" type)
                                                   'face face))
-                              "mouse-4/mouse-5: previous/next of this type\n"))
+                              (format "%s/%s: previous/next of this type"
+                                      mouse-wheel-down-event
+                                      mouse-wheel-up-event)))
            into forms
            finally return
            `((:propertize "[")
@@ -1088,13 +1126,13 @@ applied."
   (interactive (list (point) t))
   (let* ((id (or (tabulated-list-get-id pos)
                  (user-error "Nothing at point")))
-         (overlay (plist-get id :overlay)))
-    (with-current-buffer (overlay-buffer overlay)
+         (diag (plist-get id :diagnostic)))
+    (with-current-buffer (flymake--diag-buffer diag)
       (with-selected-window
           (display-buffer (current-buffer) other-window)
-        (goto-char (overlay-start overlay))
-        (pulse-momentary-highlight-region (overlay-start overlay)
-                                          (overlay-end overlay)
+        (goto-char (flymake--diag-beg diag))
+        (pulse-momentary-highlight-region (flymake--diag-beg diag)
+                                          (flymake--diag-end diag)
                                           'highlight))
       (current-buffer))))
 
@@ -1107,18 +1145,17 @@ POS can be a buffer position or a button"
 
 (defun flymake--diagnostics-buffer-entries ()
   (with-current-buffer flymake--diagnostics-buffer-source
-    (cl-loop for ov in (flymake--overlays)
-             for diag = (overlay-get ov
-                                     'flymake--diagnostic)
+    (cl-loop for diag in
+             (cl-sort (flymake-diagnostics) #'< :key #'flymake-diagnostic-beg)
              for (line . col) =
              (save-excursion
-               (goto-char (overlay-start ov))
+               (goto-char (flymake--diag-beg diag))
                (cons (line-number-at-pos)
                      (- (point)
                         (line-beginning-position))))
              for type = (flymake--diag-type diag)
              collect
-             (list (list :overlay ov
+             (list (list :diagnostic diag
                          :line line
                          :severity (flymake--lookup-type-property
                                     type

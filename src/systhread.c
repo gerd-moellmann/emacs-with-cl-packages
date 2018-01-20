@@ -1,5 +1,5 @@
 /* System thread definitions
-Copyright (C) 2012-2017 Free Software Foundation, Inc.
+Copyright (C) 2012-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -187,7 +187,7 @@ sys_thread_yield (void)
 
 #elif defined (WINDOWSNT)
 
-#include <windows.h>
+#include <w32term.h>
 
 /* Cannot include <process.h> because of the local header by the same
    name, sigh.  */
@@ -326,8 +326,9 @@ sys_thread_self (void)
 static thread_creation_function *thread_start_address;
 
 /* _beginthread wants a void function, while we are passed a function
-   that returns a pointer.  So we use a wrapper.  */
-static void
+   that returns a pointer.  So we use a wrapper.  See the command in
+   w32term.h about the need for ALIGN_STACK attribute.  */
+static void ALIGN_STACK
 w32_beginthread_wrapper (void *arg)
 {
   (void)thread_start_address (arg);

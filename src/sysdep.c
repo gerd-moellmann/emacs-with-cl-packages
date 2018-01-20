@@ -1,5 +1,5 @@
 /* Interfaces to system-dependent kernel and library entries.
-   Copyright (C) 1985-1988, 1993-1995, 1999-2017 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1999-2018 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -508,7 +508,7 @@ child_setup_tty (int out)
   s.main.c_oflag |= OPOST;	/* Enable output postprocessing */
   s.main.c_oflag &= ~ONLCR;	/* Disable map of NL to CR-NL on output */
 #ifdef NLDLY
-  /* https://lists.gnu.org/archive/html/emacs-devel/2008-05/msg00406.html
+  /* https://lists.gnu.org/r/emacs-devel/2008-05/msg00406.html
      Some versions of GNU Hurd do not have FFDLY?  */
 #ifdef FFDLY
   s.main.c_oflag &= ~(NLDLY|CRDLY|TABDLY|BSDLY|VTDLY|FFDLY);
@@ -831,6 +831,8 @@ unblock_child_signal (sigset_t const *oldset)
   pthread_sigmask (SIG_SETMASK, oldset, 0);
 }
 
+#endif	/* !MSDOS */
+
 /* Block SIGINT.  */
 void
 block_interrupt_signal (sigset_t *oldset)
@@ -848,7 +850,6 @@ restore_signal_mask (sigset_t const *oldset)
   pthread_sigmask (SIG_SETMASK, oldset, 0);
 }
 
-#endif	/* !MSDOS */
 
 /* Saving and restoring the process group of Emacs's terminal.  */
 
@@ -2101,7 +2102,7 @@ init_signals (bool dumping)
   thread_fatal_action.sa_flags = process_fatal_action.sa_flags;
 
   /* SIGINT may need special treatment on MS-Windows.  See
-     https://lists.gnu.org/archive/html/emacs-devel/2010-09/msg01062.html
+     https://lists.gnu.org/r/emacs-devel/2010-09/msg01062.html
      Please update the doc of kill-emacs, kill-emacs-hook, and
      NEWS if you change this.  */
 

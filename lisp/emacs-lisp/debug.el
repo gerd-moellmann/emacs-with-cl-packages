@@ -1,6 +1,6 @@
 ;;; debug.el --- debuggers and related commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1994, 2001-2017 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1994, 2001-2018 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -51,8 +51,9 @@ the middle is discarded, and just the beginning and end are displayed."
 
 (defcustom debugger-print-function #'cl-prin1
   "Function used to print values in the debugger backtraces."
-  :type 'function
-  :options '(cl-prin1 prin1)
+  :type '(choice (const cl-prin1)
+                 (const prin1)
+                 function)
   :version "26.1")
 
 (defcustom debugger-bury-or-kill 'bury
@@ -253,7 +254,9 @@ first will be printed into the backtrace buffer."
 		;; Unshow debugger-buffer.
 		(quit-restore-window debugger-window debugger-bury-or-kill)
 		;; Restore current buffer (Bug#12502).
-		(set-buffer debugger-old-buffer))))
+		(set-buffer debugger-old-buffer)))
+            ;; Forget debugger window, it won't be back (Bug#17882).
+            (setq debugger-previous-window nil))
           ;; Restore previous state of debugger-buffer in case we were
           ;; in a recursive invocation of the debugger, otherwise just
           ;; erase the buffer and put it into fundamental mode.

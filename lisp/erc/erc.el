@@ -1,6 +1,6 @@
 ;; erc.el --- An Emacs Internet Relay Chat client  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2018 Free Software Foundation, Inc.
 
 ;; Author: Alexander L. Belikoff (alexander@belikoff.net)
 ;; Contributors: Sergey Berezin (sergey.berezin@cs.cmu.edu),
@@ -36,7 +36,7 @@
 
 ;; For more information, see the following URLs:
 ;; * https://sv.gnu.org/projects/erc/
-;; * http://www.emacswiki.org/cgi-bin/wiki/ERC
+;; * https://www.emacswiki.org/emacs/ERC
 
 
 
@@ -75,12 +75,12 @@
 (require 'erc-compat)
 
 (defvar erc-official-location
-  "https://emacswiki.org/cgi-bin/wiki/ERC (mailing list: erc-discuss@gnu.org)"
+  "https://www.emacswiki.org/emacs/ERC (mailing list: erc-discuss@gnu.org)"
   "Location of the ERC client on the Internet.")
 
 (defgroup erc nil
   "Emacs Internet Relay Chat client."
-  :link '(url-link "http://www.emacswiki.org/cgi-bin/wiki/ERC")
+  :link '(url-link "https://www.emacswiki.org/emacs/ERC")
   :link '(custom-manual "(erc) Top")
   :prefix "erc-"
   :group 'applications)
@@ -122,8 +122,6 @@
   "Running scripts at startup and with /LOAD"
   :group 'erc)
 
-(require 'erc-backend)
-
 ;; compatibility with older ERC releases
 
 (define-obsolete-variable-alias 'erc-announced-server-name
@@ -134,6 +132,8 @@
 
 (define-obsolete-function-alias 'erc-send-command
   'erc-server-send "ERC 5.1")
+
+(require 'erc-backend)
 
 ;; tunable connection and authentication parameters
 
@@ -1832,6 +1832,7 @@ removed from the list will be disabled."
   :get (lambda (sym)
          ;; replace outdated names with their newer equivalents
          (erc-migrate-modules (symbol-value sym)))
+  :initialize 'custom-initialize-default
   :set (lambda (sym val)
          ;; disable modules which have just been removed
          (when (and (boundp 'erc-modules) erc-modules val)
@@ -2650,9 +2651,9 @@ otherwise `erc-server-announced-name'.  SERVER is matched against
   "Predicate indicating whether the parsed ERC response PARSED should be hidden.
 
 Messages are always hidden if the message type of PARSED appears in
-`erc-hide-list'. Message types that appear in `erc-network-hide-list'
-or `erc-channel-hide-list' are are only hidden if the target matches
-the network or channel in the list. In addition, messages whose type
+`erc-hide-list'.  Message types that appear in `erc-network-hide-list'
+or `erc-channel-hide-list' are only hidden if the target matches
+the network or channel in the list.  In addition, messages whose type
 is a member of `erc-lurker-hide-list' are hidden if `erc-lurker-p'
 returns non-nil."
   (let* ((command (erc-response.command parsed))
@@ -6244,11 +6245,11 @@ This should be a string with substitution variables recognized by
   :group 'erc-mode-line-and-header
   :type 'string)
 
-(defun erc-shorten-server-name (server-name)
-  "Shorten SERVER-NAME according to `erc-common-server-suffixes'."
-  (if (stringp server-name)
+(defun erc-shorten-server-name (server)
+  "Shorten SERVER name according to `erc-common-server-suffixes'."
+  (if (stringp server)
       (with-temp-buffer
-        (insert server-name)
+        (insert server)
         (let ((alist erc-common-server-suffixes))
           (while alist
             (goto-char (point-min))

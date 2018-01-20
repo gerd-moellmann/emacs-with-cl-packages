@@ -1,6 +1,6 @@
 ;;; vc-git.el --- VC backend for the git version control system -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2018 Free Software Foundation, Inc.
 
 ;; Author: Alexandre Julliard <julliard@winehq.org>
 ;; Keywords: vc tools
@@ -978,7 +978,7 @@ This prompts for a branch to merge from."
              ;; FIXME
              ;; 1) the net result is to call git twice per file.
              ;; 2) v-g-c-f is documented to take a directory.
-             ;; https://lists.gnu.org/archive/html/emacs-devel/2014-01/msg01126.html
+             ;; https://lists.gnu.org/r/emacs-devel/2014-01/msg01126.html
              (vc-git-conflicted-files buffer-file-name)
              (save-excursion
                (goto-char (point-min))
@@ -1407,7 +1407,9 @@ This requires git 1.8.4 or later, for the \"-L\" option of \"git log\"."
   "Run git grep, searching for REGEXP in FILES in directory DIR.
 The search is limited to file names matching shell pattern FILES.
 FILES may use abbreviations defined in `grep-files-aliases', e.g.
-entering `ch' is equivalent to `*.[ch]'.
+entering `ch' is equivalent to `*.[ch]'.  As whitespace triggers
+completion when entering a pattern, including it requires
+quoting, e.g. `\\[quoted-insert]<space>'.
 
 With \\[universal-argument] prefix, you can edit the constructed shell command line
 before it is executed.
@@ -1428,7 +1430,9 @@ This command shares argument histories with \\[rgrep] and \\[grep]."
 				   nil nil 'grep-history)
 	     nil))
       (t (let* ((regexp (grep-read-regexp))
-		(files (grep-read-files regexp))
+		(files
+                 (mapconcat #'shell-quote-argument
+                            (split-string (grep-read-files regexp)) " "))
 		(dir (read-directory-name "In directory: "
 					  nil default-directory t)))
 	   (list regexp files dir))))))

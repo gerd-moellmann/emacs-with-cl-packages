@@ -1,6 +1,6 @@
 /* Functions for the NeXT/Open/GNUstep and macOS window system.
 
-Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2017 Free Software
+Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2018 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1234,6 +1234,10 @@ This function is an internal primitive--use `make-frame' instead.  */)
   x_default_parameter (f, parms, Qinternal_border_width, make_number (2),
                       "internalBorderWidth", "InternalBorderWidth",
                       RES_TYPE_NUMBER);
+  x_default_parameter (f, parms, Qright_divider_width, make_number (0),
+		       NULL, NULL, RES_TYPE_NUMBER);
+  x_default_parameter (f, parms, Qbottom_divider_width, make_number (0),
+		       NULL, NULL, RES_TYPE_NUMBER);
 
   /* default vertical scrollbars on right on Mac */
   {
@@ -1476,13 +1480,8 @@ ns_window_is_ancestor (NSWindow *win, NSWindow *candidate)
 DEFUN ("ns-frame-list-z-order", Fns_frame_list_z_order,
        Sns_frame_list_z_order, 0, 1, 0,
        doc: /* Return list of Emacs' frames, in Z (stacking) order.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be either a frame or a display name (a string).  If
-omitted or nil, that stands for the selected frame's display.  Return
-nil if TERMINAL contains no Emacs frame.
-
-As a special case, if TERMINAL is non-nil and specifies a live frame,
-return the child frames of that frame in Z (stacking) order.
+If TERMINAL is non-nil and specifies a live frame, return the child
+frames of that frame in Z (stacking) order.
 
 Frames are listed from topmost (first) to bottommost (last).  */)
   (Lisp_Object terminal)
@@ -1492,8 +1491,6 @@ Frames are listed from topmost (first) to bottommost (last).  */)
 
   if (FRAMEP (terminal) && FRAME_LIVE_P (XFRAME (terminal)))
     parent = [FRAME_NS_VIEW (XFRAME (terminal)) window];
-  else if (!NILP (terminal))
-    return Qnil;
 
   for (NSWindow *win in [[NSApp orderedWindows] reverseObjectEnumerator])
     {

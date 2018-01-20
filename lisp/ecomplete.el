@@ -1,6 +1,6 @@
 ;;; ecomplete.el --- electric completion of addresses and the like
 
-;; Copyright (C) 2006-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail
@@ -55,7 +55,7 @@
 
 (defun ecomplete-add-item (type key text)
   (let ((elems (assq type ecomplete-database))
-	(now (string-to-number (format "%.0f" (float-time))))
+	(now (string-to-number (format-time-string "%s")))
 	entry)
     (unless elems
       (push (setq elems (list type)) ecomplete-database))

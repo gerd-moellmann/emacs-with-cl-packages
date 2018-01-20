@@ -1,6 +1,6 @@
 /* Graphical user interface functions for the Microsoft Windows API.
 
-Copyright (C) 1989, 1992-2017 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -5847,7 +5847,8 @@ This function is an internal primitive--use `make-frame' instead.  */)
      that are needed to determine window geometry.  */
   x_default_font_parameter (f, parameters);
 
-  x_default_parameter (f, parameters, Qborder_width, make_number (2),
+  /* Default BorderWidth to 0 to match other platforms.  */
+  x_default_parameter (f, parameters, Qborder_width, make_number (0),
 		       "borderWidth", "BorderWidth", RES_TYPE_NUMBER);
 
   /* We recognize either internalBorderWidth or internalBorder
@@ -5862,7 +5863,7 @@ This function is an internal primitive--use `make-frame' instead.  */)
 	parameters = Fcons (Fcons (Qinternal_border_width, value),
 			    parameters);
     }
-  /* Default internalBorderWidth to 0 on Windows to match other programs.  */
+
   x_default_parameter (f, parameters, Qinternal_border_width, make_number (0),
 		       "internalBorderWidth", "InternalBorder", RES_TYPE_NUMBER);
   x_default_parameter (f, parameters, Qright_divider_width, make_number (0),
@@ -7345,6 +7346,7 @@ Text larger than the specified size is clipped.  */)
   ptrdiff_t count = SPECPDL_INDEX ();
   ptrdiff_t count_1;
   Lisp_Object window, size;
+  Lisp_Object tip_buf;
   AUTO_STRING (tip, " *tip*");
 
   specbind (Qinhibit_redisplay, Qt);
@@ -7502,7 +7504,12 @@ Text larger than the specified size is clipped.  */)
 
   tip_f = XFRAME (tip_frame);
   window = FRAME_ROOT_WINDOW (tip_f);
-  set_window_buffer (window, Fget_buffer_create (tip), false, false);
+  tip_buf = Fget_buffer_create (tip);
+  /* We will mark the tip window a "pseudo-window" below, and such
+     windows cannot have display margins.  */
+  bset_left_margin_cols (XBUFFER (tip_buf), make_number (0));
+  bset_right_margin_cols (XBUFFER (tip_buf), make_number (0));
+  set_window_buffer (window, tip_buf, false, false);
   w = XWINDOW (window);
   w->pseudo_window_p = true;
 

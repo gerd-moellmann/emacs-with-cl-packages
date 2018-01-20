@@ -1,6 +1,6 @@
 ;;; cperl-mode.el --- Perl code editing commands for Emacs
 
-;; Copyright (C) 1985-1987, 1991-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1991-2018 Free Software Foundation, Inc.
 
 ;; Author: Ilya Zakharevich
 ;;	Bob Olson
@@ -1896,7 +1896,9 @@ or as help on variables `cperl-tips', `cperl-problems',
   (if cperl-pod-here-scan
       (or cperl-syntaxify-by-font-lock
        (progn (or cperl-faces-init (cperl-init-faces-weak))
-	      (cperl-find-pods-heres)))))
+	      (cperl-find-pods-heres))))
+  ;; Setup Flymake
+  (add-hook 'flymake-diagnostic-functions 'perl-flymake nil t))
 
 ;; Fix for perldb - make default reasonable
 (defun cperl-db ()

@@ -1,6 +1,6 @@
 ;;; footnote.el --- footnote support for message mode
 
-;; Copyright (C) 1997, 2000-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2000-2018 Free Software Foundation, Inc.
 
 ;; Author: Steven L Baur <steve@xemacs.org>
 ;; Keywords: mail, news
@@ -321,9 +321,7 @@ Use Unicode characters for footnoting."
     (unicode Footnote-unicode ,footnote-unicode-regexp))
   "Styles of footnote tags available.
 By default only boring Arabic numbers, English letters and Roman Numerals
-are available.
-See footnote-han.el, footnote-greek.el and footnote-hebrew.el for more
-exciting styles.")
+are available.")
 
 (defcustom footnote-style 'numeric
   "Default style used for footnoting.

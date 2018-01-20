@@ -1,6 +1,6 @@
 ;;; kmacro.el --- enhanced keyboard macros -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2018 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Keywords: keyboard convenience
@@ -111,6 +111,7 @@
 ;;; Code:
 
 ;; Customization:
+(require 'replace)
 
 (defgroup kmacro nil
   "Simplified keyboard macro user interface."
@@ -745,7 +746,13 @@ macros, use \\[kmacro-name-last-macro]."
 If kbd macro currently being defined end it before activating it."
   (interactive "e")
   (when defining-kbd-macro
-    (end-kbd-macro))
+    (end-kbd-macro)
+    (when (and last-kbd-macro (= (length last-kbd-macro) 0))
+      (setq last-kbd-macro nil)
+      (message "Ignore empty macro")
+      ;; Don't call `kmacro-ring-empty-p' to avoid its messages.
+      (while (and (null last-kbd-macro) kmacro-ring)
+        (kmacro-pop-ring1))))
   (mouse-set-point event)
   (kmacro-call-macro nil t))
 
@@ -937,7 +944,7 @@ without repeating the prefix."
 
 ;;; Single-step editing of keyboard macros
 
-(defvar kmacro-step-edit-active)  	 ;; step-editing active
+(defvar kmacro-step-edit-active nil)  	 ;; step-editing active
 (defvar kmacro-step-edit-new-macro)  	 ;; storage for new macro
 (defvar kmacro-step-edit-inserting)  	 ;; inserting into macro
 (defvar kmacro-step-edit-appending)  	 ;; append to end of macro

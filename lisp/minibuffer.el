@@ -1,6 +1,6 @@
 ;;; minibuffer.el --- Minibuffer completion functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2018 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Package: emacs
@@ -392,7 +392,7 @@ obeys predicates."
                                   (and (funcall pred1 x) (funcall pred2 x)))))
         ;; If completion failed and we're not applying pred1 strictly, try
         ;; again without pred1.
-        (and (not strict) pred1 pred2
+        (and (not strict) pred1
              (complete-with-action action table string pred2))))))
 
 (defun completion-table-in-turn (&rest tables)
@@ -896,8 +896,15 @@ This overrides the defaults specified in `completion-category-defaults'."
   ;; than from completion-extra-properties) because it may apply only to some
   ;; part of the string (e.g. substitute-in-file-name).
   (let ((requote
-         (when (completion-metadata-get metadata 'completion--unquote-requote)
-           (cl-assert (functionp table))
+         (when (and
+                (completion-metadata-get metadata 'completion--unquote-requote)
+                ;; Sometimes a table's metadata is used on another
+                ;; table (typically that other table is just a list taken
+                ;; from the output of `all-completions' or something equivalent,
+                ;; for progressive refinement).  See bug#28898 and bug#16274.
+                ;; FIXME: Rather than do nothing, we should somehow call
+                ;; the original table, in that case!
+                (functionp table))
            (let ((new (funcall table string point 'completion--unquote)))
              (setq string (pop new))
              (setq table (pop new))

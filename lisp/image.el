@@ -1,6 +1,6 @@
 ;;; image.el --- image API  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2018 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: multimedia
@@ -34,8 +34,8 @@
 (defconst image-type-header-regexps
   `(("\\`/[\t\n\r ]*\\*.*XPM.\\*/" . xpm)
     ("\\`P[1-6]\\(?:\
-\\(?:\\(?:#[^\r\n]*[\r\n]\\)?[[:space:]]\\)+\
-\\(?:\\(?:#[^\r\n]*[\r\n]\\)?[0-9]\\)+\
+\\(?:\\(?:#[^\r\n]*[\r\n]\\)*[[:space:]]\\)+\
+\\(?:\\(?:#[^\r\n]*[\r\n]\\)*[0-9]\\)+\
 \\)\\{2\\}" . pbm)
     ("\\`GIF8[79]a" . gif)
     ("\\`\x89PNG\r\n\x1a\n" . png)

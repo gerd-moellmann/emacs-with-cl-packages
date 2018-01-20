@@ -1,6 +1,6 @@
 ;;; fill.el --- fill commands for Emacs
 
-;; Copyright (C) 1985-1986, 1992, 1994-1997, 1999, 2001-2017 Free
+;; Copyright (C) 1985-1986, 1992, 1994-1997, 1999, 2001-2018 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -50,10 +50,11 @@ A value of nil means that any change in indentation starts a new paragraph."
 (put 'colon-double-space 'safe-local-variable 'booleanp)
 
 (defcustom fill-separate-heterogeneous-words-with-space nil
-  "Non-nil means that use a space to separate words of different kind.
-This will be done with a word in the end of a line and a word in the
-beginning of the next line when concatenating them for filling those
-lines.  Whether to use a space is up to how the words are categorized."
+  "Non-nil means to use a space to separate words of a different kind.
+This will be done with a word in the end of a line and a word in
+the beginning of the next line when concatenating them for
+filling those lines.  Whether to use a space depends on how the
+words are categorized."
   :type 'boolean
   :group 'fill
   :version "26.1")

@@ -1,6 +1,6 @@
 /* Generic frame functions.
 
-Copyright (C) 1993-1995, 1997, 1999-2017 Free Software Foundation, Inc.
+Copyright (C) 1993-1995, 1997, 1999-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1480,7 +1480,11 @@ DEFUN ("frame-list", Fframe_list, Sframe_list,
   Lisp_Object frames;
   frames = Fcopy_sequence (Vframe_list);
 #ifdef HAVE_WINDOW_SYSTEM
-  if (FRAMEP (tip_frame))
+  if (FRAMEP (tip_frame)
+#ifdef USE_GTK
+      && !NILP (Fframe_parameter (tip_frame, Qtooltip))
+#endif
+      )
     frames = Fdelq (tip_frame, frames);
 #endif
   return frames;
@@ -1611,6 +1615,8 @@ next_frame (Lisp_Object frame, Lisp_Object minibuf)
   Lisp_Object f, tail;
   int passed = 0;
 
+  eassume (CONSP (Vframe_list));
+
   while (passed < 2)
     FOR_EACH_FRAME (tail, f)
       {
@@ -1632,6 +1638,8 @@ static Lisp_Object
 prev_frame (Lisp_Object frame, Lisp_Object minibuf)
 {
   Lisp_Object f, tail, prev = Qnil;
+
+  eassume (CONSP (Vframe_list));
 
   FOR_EACH_FRAME (tail, f)
     {
@@ -1918,12 +1926,14 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
   if (f == sf)
     {
       Lisp_Object tail;
+      eassume (CONSP (Vframe_list));
 
       /* Look for another visible frame on the same terminal.
 	 Do not call next_frame here because it may loop forever.
 	 See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=15025.  */
       FOR_EACH_FRAME (tail, frame1)
 	if (!EQ (frame, frame1)
+	    && NILP (Fframe_parameter (frame1, Qtooltip))
 	    && (FRAME_TERMINAL (XFRAME (frame))
 		== FRAME_TERMINAL (XFRAME (frame1)))
 	    && FRAME_VISIBLE_P (XFRAME (frame1)))
@@ -1934,7 +1944,9 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
 	{
 	  FOR_EACH_FRAME (tail, frame1)
 	    {
-	      if (! EQ (frame, frame1) && FRAME_LIVE_P (XFRAME (frame1)))
+	      if (!EQ (frame, frame1)
+		  && FRAME_LIVE_P (XFRAME (frame1))
+		  && NILP (Fframe_parameter (frame1, Qtooltip)))
 		{
 		  /* Do not change a text terminal's top-frame.  */
 		  struct frame *f1 = XFRAME (frame1);
@@ -2041,7 +2053,7 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
 #if defined (USE_X_TOOLKIT) || defined (USE_GTK)
     /* FIXME: Deleting the terminal crashes emacs because of a GTK
        bug.
-       https://lists.gnu.org/archive/html/emacs-devel/2011-10/msg00363.html */
+       https://lists.gnu.org/r/emacs-devel/2011-10/msg00363.html */
 
     /* Since a similar behavior was observed on the Lucid and Motif
        builds (see Bug#5802, Bug#21509, Bug#23499, Bug#27816), we now
@@ -5916,16 +5928,11 @@ or call the function `tool-bar-mode'.  */);
 #endif
 
   DEFVAR_KBOARD ("default-minibuffer-frame", Vdefault_minibuffer_frame,
-		 doc: /* Minibufferless frames use this frame's minibuffer.
-Emacs cannot create minibufferless frames unless this is set to an
-appropriate surrogate.
-
-Emacs consults this variable only when creating minibufferless
-frames; once the frame is created, it sticks with its assigned
-minibuffer, no matter what this variable is set to.  This means that
-this variable doesn't necessarily say anything meaningful about the
-current set of frames, or where the minibuffer is currently being
-displayed.
+		 doc: /* Minibuffer-less frames by default use this frame's minibuffer.
+Emacs consults this variable only when creating a minibuffer-less frame
+and no explicit minibuffer window has been specified for that frame via
+the `minibuffer' frame parameter.  Once such a frame has been created,
+setting this variable does not change that frame's previous association.
 
 This variable is local to the current terminal and cannot be buffer-local.  */);
 

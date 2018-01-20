@@ -1,6 +1,6 @@
 /* Display generation from window structure and buffer text.
 
-Copyright (C) 1985-1988, 1993-1995, 1997-2017 Free Software Foundation,
+Copyright (C) 1985-1988, 1993-1995, 1997-2018 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -11520,6 +11520,9 @@ echo_area_display (bool update_frame_p)
   struct frame *sf = SELECTED_FRAME ();
 
   mini_window = FRAME_MINIBUF_WINDOW (sf);
+  if (NILP (mini_window))
+    return;
+
   w = XWINDOW (mini_window);
   f = XFRAME (WINDOW_FRAME (w));
 
@@ -13214,8 +13217,20 @@ hscroll_window_tree (Lisp_Object window)
 
 	  /* If the position of this window's point has explicitly
 	     changed, no more suspend auto hscrolling.  */
-	  if (NILP (Fequal (Fwindow_point (window), Fwindow_old_point (window))))
-	    w->suspend_auto_hscroll = false;
+	  if (w->suspend_auto_hscroll
+	      && NILP (Fequal (Fwindow_point (window),
+			       Fwindow_old_point (window))))
+	    {
+	      w->suspend_auto_hscroll = false;
+	      /* When hscrolling just the current line, and the rest
+		 of lines were temporarily hscrolled, but no longer
+		 are, force thorough redisplay of this window, to show
+		 the effect of disabling hscroll suspension immediately.  */
+	      if (w->min_hscroll == 0 && w->hscroll > 0
+		  && EQ (Fbuffer_local_value (Qauto_hscroll_mode, w->contents),
+			 Qcurrent_line))
+		SET_FRAME_GARBAGED (XFRAME (w->frame));
+	    }
 
 	  /* Remember window point.  */
 	  Fset_marker (w->old_pointm,
@@ -16094,8 +16109,10 @@ try_cursor_movement (Lisp_Object window, struct text_pos startp,
 	 since the handling of this_line_start_pos, etc., in redisplay
 	 handles the same cases.  */
       && !EQ (window, minibuf_window)
-      && (FRAME_WINDOW_P (f)
-	  || !overlay_arrow_in_current_buffer_p ()))
+      /* When overlay arrow is shown in current buffer, point movement
+	 is no longer "simple", as it typically causes the overlay
+	 arrow to move as well.  */
+      && !overlay_arrow_in_current_buffer_p ())
     {
       int this_scroll_margin, top_scroll_margin;
       struct glyph_row *row = NULL;
@@ -17739,7 +17756,11 @@ try_window_reusing_current_matrix (struct window *w)
       /* Don't try to reuse the display if windows have been split
 	 or such.  */
       || windows_or_buffers_changed
-      || f->cursor_type_changed)
+      || f->cursor_type_changed
+      /* This function cannot handle buffers where the overlay arrow
+	 is shown on the fringes, because if the arrow position
+	 changes, we cannot just reuse the current matrix.  */
+      || overlay_arrow_in_current_buffer_p ())
     return false;
 
   /* Can't do this if showing trailing whitespace.  */
@@ -19511,19 +19532,34 @@ Only text-mode frames have frame glyph matrices.  */)
 }
 
 
-DEFUN ("dump-glyph-row", Fdump_glyph_row, Sdump_glyph_row, 1, 2, "",
+DEFUN ("dump-glyph-row", Fdump_glyph_row, Sdump_glyph_row, 1, 2, "P",
        doc: /* Dump glyph row ROW to stderr.
-GLYPH 0 means don't dump glyphs.
-GLYPH 1 means dump glyphs in short form.
-GLYPH > 1 or omitted means dump glyphs in long form.  */)
+Interactively, ROW is the prefix numeric argument and defaults to
+the row which displays point.
+Optional argument GLYPHS 0 means don't dump glyphs.
+GLYPHS 1 means dump glyphs in short form.
+GLYPHS > 1 or omitted means dump glyphs in long form.  */)
   (Lisp_Object row, Lisp_Object glyphs)
 {
   struct glyph_matrix *matrix;
   EMACS_INT vpos;
 
-  CHECK_NUMBER (row);
+  if (NILP (row))
+    {
+      int d1, d2, d3, d4, d5, ypos;
+      bool visible_p = pos_visible_p (XWINDOW (selected_window), PT,
+				      &d1, &d2, &d3, &d4, &d5, &ypos);
+      if (visible_p)
+	vpos = ypos;
+      else
+	vpos = 0;
+    }
+  else
+    {
+      CHECK_NUMBER (row);
+      vpos = XINT (row);
+    }
   matrix = XWINDOW (selected_window)->current_matrix;
-  vpos = XINT (row);
   if (vpos >= 0 && vpos < matrix->nrows)
     dump_glyph_row (MATRIX_ROW (matrix, vpos),
 		    vpos,
@@ -19532,11 +19568,12 @@ GLYPH > 1 or omitted means dump glyphs in long form.  */)
 }
 
 
-DEFUN ("dump-tool-bar-row", Fdump_tool_bar_row, Sdump_tool_bar_row, 1, 2, "",
+DEFUN ("dump-tool-bar-row", Fdump_tool_bar_row, Sdump_tool_bar_row, 1, 2, "P",
        doc: /* Dump glyph row ROW of the tool-bar of the current frame to stderr.
-GLYPH 0 means don't dump glyphs.
-GLYPH 1 means dump glyphs in short form.
-GLYPH > 1 or omitted means dump glyphs in long form.
+Interactively, ROW is the prefix numeric argument and defaults to zero.
+GLYPHS 0 means don't dump glyphs.
+GLYPHS 1 means dump glyphs in short form.
+GLYPHS > 1 or omitted means dump glyphs in long form.
 
 If there's no tool-bar, or if the tool-bar is not drawn by Emacs,
 do nothing.  */)
@@ -19547,8 +19584,13 @@ do nothing.  */)
   struct glyph_matrix *m = XWINDOW (sf->tool_bar_window)->current_matrix;
   EMACS_INT vpos;
 
-  CHECK_NUMBER (row);
-  vpos = XINT (row);
+  if (NILP (row))
+    vpos = 0;
+  else
+    {
+      CHECK_NUMBER (row);
+      vpos = XINT (row);
+    }
   if (vpos >= 0 && vpos < m->nrows)
     dump_glyph_row (MATRIX_ROW (m, vpos), vpos,
 		    TYPE_RANGED_INTEGERP (int, glyphs) ? XINT (glyphs) : 2);
@@ -20285,12 +20327,14 @@ extend_face_to_end_of_line (struct it *it)
 	  it->area = LEFT_MARGIN_AREA;
 	  it->face_id = default_face->id;
 	  while (it->glyph_row->used[LEFT_MARGIN_AREA]
-		 < WINDOW_LEFT_MARGIN_WIDTH (it->w))
+		 < WINDOW_LEFT_MARGIN_WIDTH (it->w)
+		 && g < it->glyph_row->glyphs[TEXT_AREA])
 	    {
 	      PRODUCE_GLYPHS (it);
 	      /* term.c:produce_glyphs advances it->current_x only for
 		 TEXT_AREA.  */
 	      it->current_x += it->pixel_width;
+	      g++;
 	    }
 
 	  it->current_x = saved_x;
@@ -20324,10 +20368,12 @@ extend_face_to_end_of_line (struct it *it)
 	  it->area = RIGHT_MARGIN_AREA;
 	  it->face_id = default_face->id;
 	  while (it->glyph_row->used[RIGHT_MARGIN_AREA]
-		 < WINDOW_RIGHT_MARGIN_WIDTH (it->w))
+		 < WINDOW_RIGHT_MARGIN_WIDTH (it->w)
+		 && g < it->glyph_row->glyphs[LAST_AREA])
 	    {
 	      PRODUCE_GLYPHS (it);
 	      it->current_x += it->pixel_width;
+	      g++;
 	    }
 
 	  it->area = TEXT_AREA;
@@ -20942,9 +20988,11 @@ maybe_produce_line_number (struct it *it)
 	      && it->w->base_line_pos <= IT_CHARPOS (*it)
 	      /* line-number-mode always displays narrowed line
 		 numbers, so we cannot use its data if the user wants
-		 line numbers that disregard narrowing.  */
+		 line numbers that disregard narrowing, or if the
+		 buffer's narrowing has just changed.  */
 	      && !(display_line_numbers_widen
-		   && (BEG_BYTE != BEGV_BYTE || Z_BYTE != ZV_BYTE)))
+		   && (BEG_BYTE != BEGV_BYTE || Z_BYTE != ZV_BYTE))
+	      && !current_buffer->clip_changed)
 	    {
 	      start_from = CHAR_TO_BYTE (it->w->base_line_pos);
 	      last_line = it->w->base_line_number - 1;
@@ -21165,7 +21213,13 @@ should_produce_line_number (struct it *it)
 
 #ifdef HAVE_WINDOW_SYSTEM
   /* Don't display line number in tooltip frames.  */
-  if (FRAMEP (tip_frame) && EQ (WINDOW_FRAME (it->w), tip_frame))
+  if (FRAMEP (tip_frame) && EQ (WINDOW_FRAME (it->w), tip_frame)
+#ifdef USE_GTK
+      /* GTK builds store in tip_frame the frame that shows the tip,
+	 so we need an additional test.  */
+      && !NILP (Fframe_parameter (tip_frame, Qtooltip))
+#endif
+      )
     return false;
 #endif
 
@@ -21692,7 +21746,6 @@ display_line (struct it *it, int cursor_vpos)
 		      row->continued_p = true;
 		      row->ends_at_zv_p = false;
 		      row->exact_window_width_line_p = false;
-		      it->continuation_lines_width += x;
 
 		      /* Make sure that a non-default face is extended
 			 up to the right margin of the window.  */
@@ -23689,6 +23742,14 @@ display_mode_element (struct it *it, int depth, int field_width, int precision,
 	      {
 		Lisp_Object spec;
 		spec = safe__eval (true, XCAR (XCDR (elt)));
+		/* The :eval form could delete the frame stored in the
+		   iterator, which will cause a crash if we try to
+		   access faces and other fields (e.g., FRAME_KBOARD)
+		   on that frame.  This is a nonsensical thing to do,
+		   and signaling an error from redisplay might be
+		   dangerous, but we cannot continue with an invalid frame.  */
+		if (!FRAME_LIVE_P (it->f))
+		  signal_error (":eval deleted the frame being displayed", elt);
 		n += display_mode_element (it, depth, field_width - n,
 					   precision - n, spec, props,
 					   risky);
@@ -25094,19 +25155,25 @@ invisible_prop (Lisp_Object propval, Lisp_Object list)
 }
 
 DEFUN ("invisible-p", Finvisible_p, Sinvisible_p, 1, 1, 0,
-       doc: /* Non-nil if the property makes the text invisible.
-POS-OR-PROP can be a marker or number, in which case it is taken to be
-a position in the current buffer and the value of the `invisible' property
-is checked; or it can be some other value, which is then presumed to be the
-value of the `invisible' property of the text of interest.
-The non-nil value returned can be t for truly invisible text or something
-else if the text is replaced by an ellipsis.  */)
-  (Lisp_Object pos_or_prop)
+       doc: /* Non-nil if text properties at POS cause text there to be currently invisible.
+POS should be a marker or a buffer position; the value of the `invisible'
+property at that position in the current buffer is examined.
+POS can also be the actual value of the `invisible' text or overlay
+property of the text of interest, in which case the value itself is
+examined.
+
+The non-nil value returned can be t for currently invisible text that is
+entirely hidden on display, or some other non-nil, non-t value if the
+text is replaced by an ellipsis.
+
+Note that whether text with `invisible' property is actually hidden on
+display may depend on `buffer-invisibility-spec', which see.  */)
+  (Lisp_Object pos)
 {
   Lisp_Object prop
-    = (NATNUMP (pos_or_prop) || MARKERP (pos_or_prop)
-       ? Fget_char_property (pos_or_prop, Qinvisible, Qnil)
-       : pos_or_prop);
+    = (NATNUMP (pos) || MARKERP (pos)
+       ? Fget_char_property (pos, Qinvisible, Qnil)
+       : pos);
   int invis = TEXT_PROP_MEANS_INVISIBLE (prop);
   return (invis == 0 ? Qnil
 	  : invis == 1 ? Qt
@@ -25178,7 +25245,20 @@ else if the text is replaced by an ellipsis.  */)
      '(space :width (+ left-fringe left-margin (- (1))))
      '(space :width (+ left-fringe left-margin (-1)))
 
-*/
+   If ALIGN_TO is NULL, returns the result in *RES.  If ALIGN_TO is
+   non-NULL, the value of *ALIGN_TO is a window-relative pixel
+   coordinate, and *RES is the additional pixel width from that point
+   till the end of the stretch glyph.
+
+   WIDTH_P non-zero means take the width dimension or X coordinate of
+   the object specified by PROP, WIDTH_P zero means take the height
+   dimension or the Y coordinate.  (Therefore, if ALIGN_TO is
+   non-NULL, WIDTH_P should be non-zero.)
+
+   FONT is the font of the face of the surrounding text.
+
+   The return value is non-zero if width or height were successfully
+   calculated, i.e. if PROP is a valid spec.  */
 
 static bool
 calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
@@ -25200,6 +25280,7 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
 	{
 	  char *unit = SSDATA (SYMBOL_NAME (prop));
 
+	  /* The UNIT expression, e.g. as part of (NUM . UNIT).  */
 	  if (unit[0] == 'i' && unit[1] == 'n')
 	    pixels = 1.0;
 	  else if (unit[0] == 'm' && unit[1] == 'm')
@@ -25220,10 +25301,12 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
 	}
 
 #ifdef HAVE_WINDOW_SYSTEM
+      /* 'height': the height of FONT.  */
       if (EQ (prop, Qheight))
 	return OK_PIXELS (font
 			  ? normal_char_height (font, -1)
 			  : FRAME_LINE_HEIGHT (it->f));
+      /* 'width': the width of FONT.  */
       if (EQ (prop, Qwidth))
 	return OK_PIXELS (font
 			  ? FONT_WIDTH (font)
@@ -25233,33 +25316,48 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
 	return OK_PIXELS (1);
 #endif
 
+      /* 'text': the width or height of the text area.  */
       if (EQ (prop, Qtext))
 	  return OK_PIXELS (width_p
-			    ? window_box_width (it->w, TEXT_AREA)
+			    ? (window_box_width (it->w, TEXT_AREA)
+			       - it->lnum_pixel_width)
 			    : WINDOW_BOX_HEIGHT_NO_MODE_LINE (it->w));
 
+      /* ':align_to'.  First time we compute the value, window
+	 elements are interpreted as the position of the element's
+	 left edge.  */
       if (align_to && *align_to < 0)
 	{
 	  *res = 0;
+	  /* 'left': left edge of the text area.  */
 	  if (EQ (prop, Qleft))
-	    return OK_ALIGN_TO (window_box_left_offset (it->w, TEXT_AREA));
+	    return OK_ALIGN_TO (window_box_left_offset (it->w, TEXT_AREA)
+				+ it->lnum_pixel_width);
+	  /* 'right': right edge of the text area.  */
 	  if (EQ (prop, Qright))
 	    return OK_ALIGN_TO (window_box_right_offset (it->w, TEXT_AREA));
+	  /* 'center': the center of the text area.  */
 	  if (EQ (prop, Qcenter))
 	    return OK_ALIGN_TO (window_box_left_offset (it->w, TEXT_AREA)
+				+ it->lnum_pixel_width
 				+ window_box_width (it->w, TEXT_AREA) / 2);
+	  /* 'left-fringe': left edge of the left fringe.  */
 	  if (EQ (prop, Qleft_fringe))
 	    return OK_ALIGN_TO (WINDOW_HAS_FRINGES_OUTSIDE_MARGINS (it->w)
 				? WINDOW_LEFT_SCROLL_BAR_AREA_WIDTH (it->w)
 				: window_box_right_offset (it->w, LEFT_MARGIN_AREA));
+	  /* 'right-fringe': left edge of the right fringe.  */
 	  if (EQ (prop, Qright_fringe))
 	    return OK_ALIGN_TO (WINDOW_HAS_FRINGES_OUTSIDE_MARGINS (it->w)
 				? window_box_right_offset (it->w, RIGHT_MARGIN_AREA)
 				: window_box_right_offset (it->w, TEXT_AREA));
+	  /* 'left-margin': left edge of the left display margin.  */
 	  if (EQ (prop, Qleft_margin))
 	    return OK_ALIGN_TO (window_box_left_offset (it->w, LEFT_MARGIN_AREA));
+	  /* 'right-margin': left edge of the right display margin.  */
 	  if (EQ (prop, Qright_margin))
 	    return OK_ALIGN_TO (window_box_left_offset (it->w, RIGHT_MARGIN_AREA));
+	  /* 'scroll-bar': left edge of the vertical scroll bar.  */
 	  if (EQ (prop, Qscroll_bar))
 	    return OK_ALIGN_TO (WINDOW_HAS_VERTICAL_SCROLL_BAR_ON_LEFT (it->w)
 				? 0
@@ -25270,6 +25368,7 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
 	}
       else
 	{
+	  /* Otherwise, the elements stand for their width.  */
 	  if (EQ (prop, Qleft_fringe))
 	    return OK_PIXELS (WINDOW_LEFT_FRINGE_WIDTH (it->w));
 	  if (EQ (prop, Qright_fringe))
@@ -25292,6 +25391,8 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
       int base_unit = (width_p
 		       ? FRAME_COLUMN_WIDTH (it->f)
 		       : FRAME_LINE_HEIGHT (it->f));
+      if (width_p && align_to && *align_to < 0)
+	return OK_PIXELS (XFLOATINT (prop) * base_unit + it->lnum_pixel_width);
       return OK_PIXELS (XFLOATINT (prop) * base_unit);
     }
 
@@ -25303,6 +25404,7 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
       if (SYMBOLP (car))
 	{
 #ifdef HAVE_WINDOW_SYSTEM
+	  /* '(image PROPS...)': width or height of the specified image.  */
 	  if (FRAME_WINDOW_P (it->f)
 	      && valid_image_p (prop))
 	    {
@@ -25311,12 +25413,15 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
 
 	      return OK_PIXELS (width_p ? img->width : img->height);
 	    }
+	  /* '(xwidget PROPS...)': dimensions of the specified xwidget.  */
 	  if (FRAME_WINDOW_P (it->f) && valid_xwidget_spec_p (prop))
 	    {
               /* TODO: Don't return dummy size.  */
               return OK_PIXELS (100);
             }
 #endif
+	  /* '(+ EXPR...)' or '(- EXPR...)' add or subtract
+	     recursively calculated values.  */
 	  if (EQ (car, Qplus) || EQ (car, Qminus))
 	    {
 	      bool first = true;
@@ -25344,15 +25449,18 @@ calc_pixel_width_or_height (double *res, struct it *it, Lisp_Object prop,
 	    car = Qnil;
 	}
 
+      /* '(NUM)': absolute number of pixels.  */
       if (NUMBERP (car))
 	{
 	  double fact;
+	  int offset =
+	    width_p && align_to && *align_to < 0 ? it->lnum_pixel_width : 0;
 	  pixels = XFLOATINT (car);
 	  if (NILP (cdr))
-	    return OK_PIXELS (pixels);
+	    return OK_PIXELS (pixels + offset);
 	  if (calc_pixel_width_or_height (&fact, it, cdr,
 					  font, width_p, align_to))
-	    return OK_PIXELS (pixels * fact);
+	    return OK_PIXELS (pixels * fact + offset);
 	  return false;
 	}
 
@@ -32588,6 +32696,9 @@ display-start position.
 These functions are called whenever the `window-start' marker is modified,
 either to point into another buffer (e.g. via `set-window-buffer') or another
 place in the same buffer.
+When each function is called, the `window-start' marker of its window
+argument has been already set to the new value, and the buffer which that
+window will display is set to be the current buffer.
 Note that the value of `window-end' is not valid when these functions are
 called.
 

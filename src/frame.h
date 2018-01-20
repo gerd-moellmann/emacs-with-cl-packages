@@ -1,5 +1,5 @@
 /* Define frame-object for GNU Emacs.
-   Copyright (C) 1993-1994, 1999-2017 Free Software Foundation, Inc.
+   Copyright (C) 1993-1994, 1999-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -82,7 +82,7 @@ enum ns_appearance_type
 
 struct frame
 {
-  struct vectorlike_header header;
+  union vectorlike_header header;
 
   /* All Lisp_Object components must come first.
      That ensures they are all aligned normally.  */
@@ -1173,8 +1173,7 @@ default_pixels_per_inch_y (void)
 /* FOR_EACH_FRAME (LIST_VAR, FRAME_VAR) followed by a statement is a
    `for' loop which iterates over the elements of Vframe_list.  The
    loop will set FRAME_VAR, a Lisp_Object, to each frame in
-   Vframe_list in succession and execute the statement.  Vframe_list
-   should be nonempty, so the body is executed at least once.  LIST_VAR
+   Vframe_list in succession and execute the statement.  LIST_VAR
    should be a Lisp_Object too; it is used to iterate through the
    Vframe_list.  Note that this macro walks over child frames and
    the tooltip frame as well.
@@ -1184,7 +1183,7 @@ default_pixels_per_inch_y (void)
    something which executes the statement once.  */
 
 #define FOR_EACH_FRAME(list_var, frame_var)	\
-  for ((list_var) = (eassume (CONSP (Vframe_list)), Vframe_list); \
+  for ((list_var) = Vframe_list;		\
        (CONSP (list_var)			\
 	&& (frame_var = XCAR (list_var), true)); \
        list_var = XCDR (list_var))

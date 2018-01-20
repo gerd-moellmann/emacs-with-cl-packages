@@ -1,6 +1,6 @@
 /* Lisp functions pertaining to editing.                 -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1987, 1989, 1993-2017 Free Software Foundation, Inc.
+Copyright (C) 1985-1987, 1989, 1993-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1036,7 +1036,7 @@ If you only want to save the current buffer but not point,
 then just use `save-current-buffer', or even `with-current-buffer'.
 
 Before Emacs 25.1, `save-excursion' used to save the mark state.
-To save the marker state as well as the point and buffer, use
+To save the mark state as well as point and the current buffer, use
 `save-mark-and-excursion'.
 
 usage: (save-excursion &rest BODY)  */)
@@ -2038,11 +2038,11 @@ by text that describes the specified date and time in TIME:
  only blank-padded, %l is like %I blank-padded.
 %p is the locale's equivalent of either AM or PM.
 %q is the calendar quarter (1–4).
-%M is the minute.
-%S is the second.
-%N is the nanosecond, %6N the microsecond, %3N the millisecond, etc.
-%Z is the time zone name, %z is the numeric form.
+%M is the minute (00-59).
+%S is the second (00-59; 00-60 on platforms with leap seconds)
 %s is the number of seconds since 1970-01-01 00:00:00 +0000.
+%N is the nanosecond, %6N the microsecond, %3N the millisecond, etc.
+%Z is the time zone abbreviation, %z is the numeric form.
 
 %c is the locale's date and time format.
 %x is the locale's "preferred" date format.
@@ -2052,7 +2052,8 @@ by text that describes the specified date and time in TIME:
 %R is like "%H:%M", %T is like "%H:%M:%S", %r is like "%I:%M:%S %p".
 %X is the locale's "preferred" time format.
 
-Finally, %n is a newline, %t is a tab, %% is a literal %.
+Finally, %n is a newline, %t is a tab, %% is a literal %, and
+unrecognized %-sequences stand for themselves.
 
 Certain flags and modifiers are available with some format controls.
 The flags are `_', `-', `^' and `#'.  For certain characters X,
@@ -4117,8 +4118,8 @@ The # flag means to use an alternate display form for %o, %x, %X, %e,
 %f, and %g sequences: for %o, it ensures that the result begins with
 \"0\"; for %x and %X, it prefixes the result with \"0x\" or \"0X\";
 for %e and %f, it causes a decimal point to be included even if the
-the precision is zero; for %g, it causes a decimal point to be
-included even if the the precision is zero, and also forces trailing
+precision is zero; for %g, it causes a decimal point to be
+included even if the precision is zero, and also forces trailing
 zeros after the decimal point to be left in place.
 
 The width specifier supplies a lower limit for the length of the
@@ -4918,7 +4919,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		  else if (discarded[bytepos] == 1)
 		    {
 		      position++;
-		      if (translated == info[fieldn].start)
+		      if (fieldn < nspec && translated == info[fieldn].start)
 			{
 			  translated += info[fieldn].end - info[fieldn].start;
 			  fieldn++;
@@ -4938,7 +4939,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		  else if (discarded[bytepos] == 1)
 		    {
 		      position++;
-		      if (translated == info[fieldn].start)
+		      if (fieldn < nspec && translated == info[fieldn].start)
 			{
 			  translated += info[fieldn].end - info[fieldn].start;
 			  fieldn++;

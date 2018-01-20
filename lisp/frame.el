@@ -1,6 +1,6 @@
 ;;; frame.el --- multi-frame management independent of window systems  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 1996-1997, 2000-2017 Free Software
+;; Copyright (C) 1993-1994, 1996-1997, 2000-2018 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -800,7 +800,7 @@ the user during startup."
 	(nreverse frame-initial-geometry-arguments))
   (cdr param-list))
 
-(declare-function x-focus-frame "frame.c" (frame))
+(declare-function x-focus-frame "frame.c" (frame &optional noactivate))
 
 (defun select-frame-set-input-focus (frame &optional norecord)
   "Select FRAME, raise it, and set input focus, if possible.
@@ -892,7 +892,8 @@ Calls `suspend-emacs' if invoked from the controlling tty device,
 
 (defvar frame-name-history nil)
 (defun select-frame-by-name (name)
-  "Select the frame on the current terminal whose name is NAME and raise it.
+  "Select the frame whose name is NAME and raise it.
+Frames on the current terminal are checked first.
 If there is no frame by that name, signal an error."
   (interactive
    (let* ((frame-names-alist (make-frame-names-alist))
@@ -903,11 +904,14 @@ If there is no frame by that name, signal an error."
      (if (= (length input) 0)
 	 (list default)
        (list input))))
-  (let* ((frame-names-alist (make-frame-names-alist))
-	 (frame (cdr (assoc name frame-names-alist))))
-    (if frame
-	(select-frame-set-input-focus frame)
-      (error "There is no frame named `%s'" name))))
+  (select-frame-set-input-focus
+   ;; Prefer frames on the current display.
+   (or (cdr (assoc name (make-frame-names-alist)))
+       (catch 'done
+         (dolist (frame (frame-list))
+           (when (equal (frame-parameter frame 'name) name)
+             (throw 'done frame))))
+       (error "There is no frame named `%s'" name))))
 
 
 ;;;; Background mode.
@@ -1071,7 +1075,7 @@ is given and non-nil, the unwanted frames are iconified instead."
 		 (when mini (setq parms (delq mini parms)))
 		 ;; Leave name in iff it was set explicitly.
 		 ;; This should fix the behavior reported in
-		 ;; https://lists.gnu.org/archive/html/emacs-devel/2007-08/msg01632.html
+		 ;; https://lists.gnu.org/r/emacs-devel/2007-08/msg01632.html
 		 (when (and name (not explicit-name))
 		   (setq parms (delq name parms)))
                  parms))
@@ -1487,7 +1491,7 @@ FRAME."
 (declare-function mac-mouse-absolute-pixel-position "macfns.c")
 (declare-function w32-mouse-absolute-pixel-position "w32fns.c")
 (declare-function x-mouse-absolute-pixel-position "xfns.c")
-(declare-function ns-mouse-absolute-pixel-position "nsfns.c")
+(declare-function ns-mouse-absolute-pixel-position "nsfns.m")
 
 (defun mouse-absolute-pixel-position ()
   "Return absolute position of mouse cursor in pixels.

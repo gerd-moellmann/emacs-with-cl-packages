@@ -1,6 +1,6 @@
 ;;; tramp-smb.el --- Tramp access functions for SMB servers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2018 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -253,7 +253,7 @@ See `tramp-actions-before-shell' for more info.")
     (file-readable-p . tramp-handle-file-exists-p)
     (file-regular-p . tramp-handle-file-regular-p)
     (file-remote-p . tramp-handle-file-remote-p)
-    ;; `file-selinux-context' performed by default handler.
+    (file-selinux-context . tramp-handle-file-selinux-context)
     (file-symlink-p . tramp-handle-file-symlink-p)
     (file-system-info . tramp-smb-handle-file-system-info)
     (file-truename . tramp-handle-file-truename)
@@ -437,7 +437,7 @@ pass to the OPERATION."
 		(delete-directory tmpdir 'recursive))))
 
 	   ;; We can copy recursively.
-	   ;; Does not work reliably.
+	   ;; TODO: Does not work reliably.
 	   (nil ;(and (or t1 t2) (tramp-smb-get-cifs-capabilities v))
 	    (when (and (file-directory-p newname)
 		       (not (string-equal (file-name-nondirectory dirname)
@@ -1015,7 +1015,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
       (save-match-data
 	(let ((base (file-name-nondirectory filename))
 	      ;; We should not destroy the cache entry.
-	      (entries (copy-sequence
+	      (entries (copy-tree
 			(tramp-smb-get-file-entries
 			 (file-name-directory filename))))
 	      (avail (get-free-disk-space filename))
@@ -1073,10 +1073,11 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	     entries))
 
 	  ;; Insert size information.
-	  (insert
-	   (if avail
-	       (format "total used in directory %s available %s\n" used avail)
-	     (format "total %s\n" used)))
+	  (when full-directory-p
+	    (insert
+	     (if avail
+		 (format "total used in directory %s available %s\n" used avail)
+	       (format "total %s\n" used))))
 
 	  ;; Print entries.
 	  (mapc
@@ -1440,7 +1441,7 @@ component is used as the target of the symlink."
 		(tramp-set-connection-property
 		 v "process-buffer" (current-buffer))
 
-		;; Use an asynchronous processes.  By this, password can
+		;; Use an asynchronous process.  By this, password can
 		;; be handled.
 		(let ((p (apply
 			  'start-process
@@ -1455,6 +1456,9 @@ component is used as the target of the symlink."
 		  (set-process-query-on-exit-flag p nil)
 		  (tramp-process-actions p v nil tramp-smb-actions-set-acl)
 		  (goto-char (point-max))
+		  ;; This is meant for traces, and returning from the
+		  ;; function.  No error is propagated outside, due to
+		  ;; the `ignore-errors' closure.
 		  (unless (re-search-backward "tramp_exit_status [0-9]+" nil t)
 		    (tramp-error
 		     v 'file-error

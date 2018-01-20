@@ -1,6 +1,6 @@
 ;;; subr.el --- basic lisp subroutines for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2017 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2018 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -577,7 +577,7 @@ one is kept."
           (setq tail (cdr tail))))))
   list)
 
-;; See https://lists.gnu.org/archive/html/emacs-devel/2013-05/msg00204.html
+;; See https://lists.gnu.org/r/emacs-devel/2013-05/msg00204.html
 (defun delete-consecutive-dups (list &optional circular)
   "Destructively remove `equal' consecutive duplicates from LIST.
 First and last elements are considered consecutive if CIRCULAR is
@@ -1844,10 +1844,10 @@ if it is empty or a duplicate."
 (make-variable-buffer-local 'delayed-mode-hooks)
 (put 'delay-mode-hooks 'permanent-local t)
 
-(defvar delayed-after-hook-forms nil
+(defvar delayed-after-hook-functions nil
   "List of delayed :after-hook forms waiting to be run.
 These forms come from `define-derived-mode'.")
-(make-variable-buffer-local 'delayed-after-hook-forms)
+(make-variable-buffer-local 'delayed-after-hook-functions)
 
 (defvar change-major-mode-after-body-hook nil
   "Normal hook run in major mode functions, before the mode hooks.")
@@ -1865,7 +1865,7 @@ just adds the HOOKS to the list `delayed-mode-hooks'.
 Otherwise, runs hooks in the sequence: `change-major-mode-after-body-hook',
 `delayed-mode-hooks' (in reverse order), HOOKS, then runs
 `hack-local-variables', runs the hook `after-change-major-mode-hook', and
-finally evaluates the forms in `delayed-after-hook-forms' (see
+finally evaluates the functions in `delayed-after-hook-functions' (see
 `define-derived-mode').
 
 Major mode functions should use this instead of `run-hooks' when
@@ -1882,9 +1882,9 @@ running their FOO-mode-hook."
         (with-demoted-errors "File local-variables error: %s"
           (hack-local-variables 'no-mode)))
     (run-hooks 'after-change-major-mode-hook)
-    (dolist (form (nreverse delayed-after-hook-forms))
-      (eval form))
-    (setq delayed-after-hook-forms nil)))
+    (dolist (fun (nreverse delayed-after-hook-functions))
+      (funcall fun))
+    (setq delayed-after-hook-functions nil)))
 
 (defmacro delay-mode-hooks (&rest body)
   "Execute BODY, but delay any `run-mode-hooks'.
@@ -2430,7 +2430,7 @@ in milliseconds; this was useful when Emacs was built without
 floating point support."
   (declare (advertised-calling-convention (seconds &optional nodisp) "22.1"))
   ;; This used to be implemented in C until the following discussion:
-  ;; https://lists.gnu.org/archive/html/emacs-devel/2006-07/msg00401.html
+  ;; https://lists.gnu.org/r/emacs-devel/2006-07/msg00401.html
   ;; Then it was moved here using an implementation based on an idle timer,
   ;; which was then replaced by the use of read-event.
   (if (numberp nodisp)
@@ -2445,7 +2445,7 @@ floating point support."
     nil)
    ((or (<= seconds 0)
         ;; We are going to call read-event below, which will record
-        ;; the the next key as part of the macro, even if that key
+        ;; the next key as part of the macro, even if that key
         ;; invokes kmacro-end-macro, so if we are recording a macro,
         ;; the macro will recursively call itself.  In addition, when
         ;; that key is removed from unread-command-events, it will be
@@ -2469,7 +2469,7 @@ floating point support."
                   (read-event nil t seconds))))
       (or (null read)
 	  (progn
-            ;; https://lists.gnu.org/archive/html/emacs-devel/2006-10/msg00394.html
+            ;; https://lists.gnu.org/r/emacs-devel/2006-10/msg00394.html
             ;; We want `read' appear in the next command's this-command-event
             ;; but not in the current one.
             ;; By pushing (cons t read), we indicate that `read' has not
@@ -3102,7 +3102,7 @@ Do nothing if FACE is nil."
        (put-text-property start end 'face face)))
 
 ;; This removes `mouse-face' properties in *Help* buffer buttons:
-;; https://lists.gnu.org/archive/html/emacs-devel/2002-04/msg00648.html
+;; https://lists.gnu.org/r/emacs-devel/2002-04/msg00648.html
 (defun yank-handle-category-property (category start end)
   "Apply property category CATEGORY's properties between START and END."
   (when category
@@ -3471,8 +3471,8 @@ See also `with-temp-file' and `with-output-to-string'."
 
 (defmacro with-silent-modifications (&rest body)
   "Execute BODY, pretending it does not modify the buffer.
-This macro is Typically used around modifications of
-text-properties which do not really affect the buffer's content.
+This macro is typically used around modifications of
+text properties which do not really affect the buffer's content.
 If BODY performs real modifications to the buffer's text, other
 than cosmetic ones, undo data may become corrupted.
 
@@ -4217,7 +4217,7 @@ Used from `delayed-warnings-hook' (which see)."
     (setq delayed-warnings-list (nreverse collapsed))))
 
 ;; At present this is only used for Emacs internals.
-;; Ref https://lists.gnu.org/archive/html/emacs-devel/2012-02/msg00085.html
+;; Ref https://lists.gnu.org/r/emacs-devel/2012-02/msg00085.html
 (defvar delayed-warnings-hook '(collapse-delayed-warnings
                                 display-delayed-warnings)
   "Normal hook run to process and display delayed warnings.
@@ -4820,10 +4820,9 @@ CURRENT-VALUE and MIN-CHANGE do not have any effect if MIN-VALUE
 and/or MAX-VALUE are nil.
 
 Optional MIN-TIME specifies the minimum interval time between
-echo area updates (default is 0.2 seconds.)  If the function
-`float-time' is not present, time is not tracked at all.  If the
-OS is not capable of measuring fractions of seconds, this
-parameter is effectively rounded up."
+echo area updates (default is 0.2 seconds.)  If the OS is not
+capable of measuring fractions of seconds, this parameter is
+effectively rounded up."
   (when (string-match "[[:alnum:]]\\'" message)
     (setq message (concat message "...")))
   (unless min-time
@@ -4831,8 +4830,7 @@ parameter is effectively rounded up."
   (let ((reporter
 	 ;; Force a call to `message' now
 	 (cons (or min-value 0)
-	       (vector (if (and (fboundp 'float-time)
-				(>= min-time 0.02))
+	       (vector (if (>= min-time 0.02)
 			   (float-time) nil)
 		       min-value
 		       max-value
@@ -5229,7 +5227,7 @@ or \"gnus-article-toto-\".")
 
 ;; The following statement ought to be in print.c, but `provide' can't
 ;; be used there.
-;; https://lists.gnu.org/archive/html/emacs-devel/2009-08/msg00236.html
+;; https://lists.gnu.org/r/emacs-devel/2009-08/msg00236.html
 (when (hash-table-p (car (read-from-string
 			  (prin1-to-string (make-hash-table)))))
   (provide 'hashtable-print-readable))

@@ -1,6 +1,6 @@
 ;;; emacsbug.el --- command to report Emacs bugs to appropriate mailing list
 
-;; Copyright (C) 1985, 1994, 1997-1998, 2000-2017 Free Software
+;; Copyright (C) 1985, 1994, 1997-1998, 2000-2018 Free Software
 ;; Foundation, Inc.
 
 ;; Author: K. Shane Hartman
@@ -196,7 +196,7 @@ Prompts for bug subject.  Leaves you in a mail buffer."
 	 'face 'link
 	 'help-echo (concat "mouse-2, RET: Follow this link")
 	 'action (lambda (button)
-		   (browse-url "https://lists.gnu.org/archive/html/bug-gnu-emacs/"))
+		   (browse-url "https://lists.gnu.org/r/bug-gnu-emacs/"))
 	 'follow-link t)
 	(insert " mailing list\nand the GNU bug tracker at ")
 	(insert-text-button

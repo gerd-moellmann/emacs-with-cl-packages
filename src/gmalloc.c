@@ -1,5 +1,5 @@
 /* Declarations for `malloc' and friends.
-   Copyright (C) 1990-1993, 1995-1996, 1999, 2002-2007, 2013-2017 Free
+   Copyright (C) 1990-1993, 1995-1996, 1999, 2002-2007, 2013-2018 Free
    Software Foundation, Inc.
 		  Written May 1989 by Mike Haertel.
 
@@ -1502,17 +1502,18 @@ extern void *__sbrk (ptrdiff_t increment);
 static void *
 gdefault_morecore (ptrdiff_t increment)
 {
-  void *result;
 #ifdef HYBRID_MALLOC
   if (!DUMPED)
     {
       return bss_sbrk (increment);
     }
 #endif
-  result = (void *) __sbrk (increment);
-  if (result == (void *) -1)
-    return NULL;
-  return result;
+#ifdef HAVE_SBRK
+  void *result = (void *) __sbrk (increment);
+  if (result != (void *) -1)
+    return result;
+#endif
+  return NULL;
 }
 
 void *(*__morecore) (ptrdiff_t) = gdefault_morecore;

@@ -1,6 +1,6 @@
 ;;; gnus-sum.el --- summary mode commands for Gnus
 
-;; Copyright (C) 1996-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -10294,7 +10294,6 @@ latter case, they will be copied into the relevant groups."
   "Import an arbitrary file into a mail newsgroup."
   (interactive "fImport file: \nP")
   (let ((group gnus-newsgroup-name)
-	(now (current-time))
 	atts lines group-art)
     (unless (gnus-check-backend-function 'request-accept-article group)
       (error "%s does not support article importing" group))
@@ -10313,6 +10312,7 @@ latter case, they will be copied into the relevant groups."
 	    (goto-char (point-min))
 	    (unless (re-search-forward "^date:" nil t)
 	      (goto-char (point-max))
+	      (setq atts (file-attributes file))
 	      (insert "Date: " (message-make-date (nth 5 atts)) "\n")))
        ;; This doesn't look like an article, so we fudge some headers.
 	(setq atts (file-attributes file)

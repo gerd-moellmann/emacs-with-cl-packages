@@ -1,6 +1,6 @@
 /* Declarations of functions and data types used for SHA512 and SHA384 sum
    library functions.
-   Copyright (C) 2005-2006, 2008-2017 Free Software Foundation, Inc.
+   Copyright (C) 2005-2006, 2008-2018 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -104,3 +104,10 @@ extern int sha384_stream (FILE *stream, void *resblock);
 # endif
 
 #endif
+
+/*
+ * Hey Emacs!
+ * Local Variables:
+ * coding: utf-8
+ * End:
+ */

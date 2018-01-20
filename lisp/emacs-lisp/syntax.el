@@ -1,6 +1,6 @@
 ;;; syntax.el --- helper functions to find syntactic context  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2018 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -291,6 +291,14 @@ END) suitable for `syntax-propertize-function'."
       ;; (message "Needs to syntax-propertize from %s to %s"
       ;;          syntax-propertize--done pos)
       (set (make-local-variable 'parse-sexp-lookup-properties) t)
+      (when (< syntax-propertize--done (point-min))
+        ;; *Usually* syntax-propertize is called via syntax-ppss which
+        ;; takes care of adding syntax-ppss-flush-cache to b-c-f, but this
+        ;; is not *always* the case, so since we share a single "flush" function
+        ;; between syntax-ppss and syntax-propertize, we also have to make
+        ;; sure the flush function is installed here (bug#29767).
+        (add-hook 'before-change-functions
+	          #'syntax-ppss-flush-cache t t))
       (save-excursion
         (with-silent-modifications
           (make-local-variable 'syntax-propertize--done) ;Just in case!

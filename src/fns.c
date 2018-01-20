@@ -1,6 +1,6 @@
 /* Random utility Lisp functions.
 
-Copyright (C) 1985-1987, 1993-1995, 1997-2017 Free Software Foundation,
+Copyright (C) 1985-1987, 1993-1995, 1997-2018 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -1993,7 +1993,7 @@ This is the last value stored with `(put SYMBOL PROPNAME VALUE)'.  */)
                                     propname);
   if (!NILP (propval))
     return propval;
-  return Fplist_get (XSYMBOL (symbol)->plist, propname);
+  return Fplist_get (XSYMBOL (symbol)->u.s.plist, propname);
 }
 
 DEFUN ("plist-put", Fplist_put, Splist_put, 3, 3, 0,
@@ -2039,7 +2039,7 @@ It can be retrieved with `(get SYMBOL PROPNAME)'.  */)
 {
   CHECK_SYMBOL (symbol);
   set_symbol_plist
-    (symbol, Fplist_put (XSYMBOL (symbol)->plist, propname, value));
+    (symbol, Fplist_put (XSYMBOL (symbol)->u.s.plist, propname, value));
   return value;
 }
 
@@ -5181,7 +5181,7 @@ syms_of_fns (void)
   DEFSYM (Qwidget_type, "widget-type");
 
   DEFVAR_LISP ("overriding-plist-environment", Voverriding_plist_environment,
-               doc: /* An alist overrides the plists of the symbols which it lists.
+               doc: /* An alist that overrides the plists of the symbols which it lists.
 Used by the byte-compiler to apply `define-symbol-prop' during
 compilation.  */);
   Voverriding_plist_environment = Qnil;

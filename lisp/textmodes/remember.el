@@ -1,6 +1,6 @@
 ;;; remember --- a mode for quickly jotting down things to remember
 
-;; Copyright (C) 1999-2001, 2003-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2001, 2003-2018 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -349,7 +349,7 @@ In which case `remember-mailbox' should be the name of the mailbox.
 Each piece of pseudo-mail created will have an `X-Todo-Priority'
 field, for the purpose of appropriate splitting."
   (let ((who (read-string "Who is this item related to? "))
-        (moment (format "%.0f" (float-time)))
+        (moment (format-time-string "%s"))
         (desc (remember-buffer-desc))
         (text (buffer-string)))
     (with-temp-buffer

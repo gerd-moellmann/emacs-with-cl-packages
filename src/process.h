@@ -1,5 +1,5 @@
 /* Definitions for asynchronous process control in GNU Emacs.
-   Copyright (C) 1985, 1994, 2001-2017 Free Software Foundation, Inc.
+   Copyright (C) 1985, 1994, 2001-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -41,7 +41,7 @@ enum { PROCESS_OPEN_FDS = 6 };
 
 struct Lisp_Process
   {
-    struct vectorlike_header header;
+    union vectorlike_header header;
 
     /* Name of subprocess terminal.  */
     Lisp_Object tty_name;

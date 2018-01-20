@@ -1,6 +1,6 @@
 /* Asynchronous subprocess control for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2017 Free Software
+Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2018 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -40,6 +40,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#endif	/* subprocesses */
+
 #ifdef HAVE_SETRLIMIT
 # include <sys/resource.h>
 
@@ -48,6 +50,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    which should be restored in child processes.  */
 static struct rlimit nofile_limit;
 #endif
+
+#ifdef subprocesses
 
 /* Are local (unix) sockets supported?  */
 #if defined (HAVE_SYS_UN_H)
@@ -1682,6 +1686,8 @@ usage: (make-process &rest ARGS)  */)
   if (!NILP (program))
     CHECK_STRING (program);
 
+  bool query_on_exit = NILP (Fplist_get (contact, QCnoquery));
+
   stderrproc = Qnil;
   xstderr = Fplist_get (contact, QCstderr);
   if (PROCESSP (xstderr))
@@ -1697,7 +1703,9 @@ usage: (make-process &rest ARGS)  */)
 			  QCname,
 			  concat2 (name, build_string (" stderr")),
 			  QCbuffer,
-			  Fget_buffer_create (xstderr));
+			  Fget_buffer_create (xstderr),
+			  QCnoquery,
+			  query_on_exit ? Qnil : Qt);
     }
 
   proc = make_process (name);
@@ -1711,7 +1719,7 @@ usage: (make-process &rest ARGS)  */)
   pset_filter (XPROCESS (proc), Fplist_get (contact, QCfilter));
   pset_command (XPROCESS (proc), Fcopy_sequence (command));
 
-  if (tem = Fplist_get (contact, QCnoquery), !NILP (tem))
+  if (!query_on_exit)
     XPROCESS (proc)->kill_without_query = 1;
   if (tem = Fplist_get (contact, QCstop), !NILP (tem))
     pset_command (XPROCESS (proc), Qt);
@@ -3830,7 +3838,7 @@ usage: (make-network-process &rest ARGS)  */)
   Lisp_Object proc;
   Lisp_Object contact;
   struct Lisp_Process *p;
-  const char *portstring;
+  const char *portstring UNINIT;
   ptrdiff_t portstringlen ATTRIBUTE_UNUSED;
   char portbuf[INT_BUFSIZE_BOUND (EMACS_INT)];
 #ifdef HAVE_LOCAL_SOCKETS
@@ -7478,6 +7486,13 @@ keyboard_bit_set (fd_set *mask)
 # endif
 
 #else  /* not subprocesses */
+
+/* This is referenced in thread.c:run_thread (which is never actually
+   called, since threads are not enabled for this configuration.  */
+void
+update_processes_for_thread_death (Lisp_Object dying_thread)
+{
+}
 
 /* Defined in msdos.c.  */
 extern int sys_select (int, fd_set *, fd_set *, fd_set *,

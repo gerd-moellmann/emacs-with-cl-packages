@@ -1,6 +1,6 @@
 ;;; bytecomp-tests.el
 
-;; Copyright (C) 2008-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2018 Free Software Foundation, Inc.
 
 ;; Author: Shigeru Fukaya <shigeru.fukaya@gmail.com>
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
@@ -563,6 +563,17 @@ and will be removed soon.  See (elisp)Backquote in the manual.")))))))
     (write-region (point-min) (point-max) source nil 'silent)
     (byte-compile-file source t)
     (should (equal bytecomp-tests--foobar (cons 1 2)))))
+
+(ert-deftest bytecomp-tests--test-no-warnings-with-advice ()
+  (defun f ())
+  (define-advice f (:around (oldfun &rest args) test)
+    (apply oldfun args))
+  (with-current-buffer (get-buffer-create "*Compile-Log*")
+    (let ((inhibit-read-only t)) (erase-buffer)))
+  (test-byte-comp-compile-and-load t '(defun f ()))
+  (with-current-buffer (get-buffer-create "*Compile-Log*")
+    (goto-char (point-min))
+    (should-not (search-forward "Warning" nil t))))
 
 ;; Local Variables:
 ;; no-byte-compile: t

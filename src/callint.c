@@ -1,5 +1,5 @@
 /* Call a Lisp function interactively.
-   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2017 Free Software
+   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2018 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -774,10 +774,23 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	     if anyone tries to define one here.  */
 	case '+':
 	default:
-	  error ("Invalid control letter `%c' (#o%03o, #x%04x) in interactive calling string",
-		 STRING_CHAR ((unsigned char *) tem),
-		 (unsigned) STRING_CHAR ((unsigned char *) tem),
-		 (unsigned) STRING_CHAR ((unsigned char *) tem));
+	  {
+	    /* How many bytes are left unprocessed in the specs string?
+	       (Note that this excludes the trailing null byte.)  */
+	    ptrdiff_t bytes_left = SBYTES (specs) - (tem - string);
+	    unsigned letter;
+
+	    /* If we have enough bytes left to treat the sequence as a
+	       character, show that character's codepoint; otherwise
+	       show only its first byte.  */
+	    if (bytes_left >= BYTES_BY_CHAR_HEAD (*((unsigned char *) tem)))
+	      letter = STRING_CHAR ((unsigned char *) tem);
+	    else
+	      letter = *((unsigned char *) tem);
+
+	    error ("Invalid control letter `%c' (#o%03o, #x%04x) in interactive calling string",
+		   (int) letter, letter, letter);
+	  }
 	}
 
       if (varies[i] == 0)
