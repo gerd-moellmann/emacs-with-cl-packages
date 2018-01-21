@@ -31137,8 +31137,10 @@ note_mouse_highlight (struct frame *f, int x, int y)
 	  && part != ON_HEADER_LINE))
     clear_mouse_face (hlinfo);
 
+#ifndef HAVE_MACGUI
   /* Reset help_echo_string. It will get recomputed below.  */
   help_echo_string = Qnil;
+#endif
 
 #ifdef HAVE_WINDOW_SYSTEM
   /* If the cursor is on the internal border of FRAME and FRAME's
@@ -31197,6 +31199,12 @@ note_mouse_highlight (struct frame *f, int x, int y)
   /* Not on a window -> return.  */
   if (!WINDOWP (window))
     return;
+
+#ifdef HAVE_MACGUI
+  /* Reset help_echo_string here so as to avoid "sticky tooltip" due
+     to the early return above.  */
+  help_echo_string = Qnil;
+#endif
 
   /* Convert to window-relative pixel coordinates.  */
   w = XWINDOW (window);
