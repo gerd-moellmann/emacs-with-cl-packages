@@ -5679,14 +5679,18 @@ mac_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
   terminal->name = xlispstrdup (display_name);
 
   Lisp_Object system_name = Fsystem_name ();
-  ptrdiff_t nbytes;
-  if (INT_ADD_WRAPV (SBYTES (Vinvocation_name), SBYTES (system_name) + 2,
-		     &nbytes))
+
+  ptrdiff_t nbytes = SBYTES (Vinvocation_name) + 1;
+  if (STRINGP (system_name)
+      && INT_ADD_WRAPV (nbytes, SBYTES (system_name) + 1, &nbytes))
     memory_full (SIZE_MAX);
   dpyinfo->mac_id_name = xmalloc (nbytes);
   char *nametail = lispstpcpy (dpyinfo->mac_id_name, Vinvocation_name);
-  *nametail++ = '@';
-  lispstpcpy (nametail, system_name);
+  if (STRINGP (system_name))
+    {
+      *nametail++ = '@';
+      lispstpcpy (nametail, system_name);
+    }
 
   /* Get the scroll bar cursor.  */
   dpyinfo->vertical_scroll_bar_cursor =
