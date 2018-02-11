@@ -9759,12 +9759,21 @@ static void
 mac_track_menu_with_block (void (^block) (void))
 {
   eassert (!pthread_main_np ());
-  Lisp_Object old_show_help_function = Vshow_help_function;
+  Lisp_Object mini_window, old_show_help_function = Vshow_help_function;
 
   /* Temporarily bind Vshow_help_function to
-     tooltip-show-help-non-mode because we don't want tooltips during
-     menu tracking.  */
-  Vshow_help_function = intern ("tooltip-show-help-non-mode");
+     tooltip-show-help-non-mode (or nil if the minibuffer frame is not
+     visible) because we don't want tooltips during menu tracking.  */
+  Vshow_help_function = Qnil;
+  mini_window = FRAME_MINIBUF_WINDOW (SELECTED_FRAME ());
+  if (WINDOWP (mini_window))
+    {
+      struct frame *mini_frame = XFRAME (WINDOW_FRAME (XWINDOW (mini_window)));
+
+      if (FRAME_MAC_P (mini_frame)
+	  && FRAME_VISIBLE_P (mini_frame) && !FRAME_OBSCURED_P (mini_frame))
+	Vshow_help_function = intern ("tooltip-show-help-non-mode");
+    }
   mac_within_gui_allowing_inner_lisp (block);
   Vshow_help_function = old_show_help_function;
 }
