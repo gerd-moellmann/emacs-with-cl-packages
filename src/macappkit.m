@@ -1597,6 +1597,24 @@ emacs_windows_need_display_p (void)
   return NO;
 }
 
+static void
+emacs_windows_set_autodisplay_p (bool flag)
+{
+  Lisp_Object tail, frame;
+
+  FOR_EACH_FRAME (tail, frame)
+    {
+      struct frame *f = XFRAME (frame);
+
+      if (FRAME_MAC_P (f) && !EQ (frame, tip_frame))
+	{
+	  EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+	  [window setAutodisplay:flag];
+	}
+    }
+}
+
 - (void)processDeferredReadSocket:(NSTimer *)theTimer
 {
   if (!handling_queued_nsevents_p)
@@ -14965,6 +14983,9 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
   block_input ();
   turn_on_atimers (false);
   mac_within_gui_and_here (^{
+      /* Temporarily disable autodisplay since the Lisp thread might
+	 switch to another one and some drawing may happen there.  */
+      emacs_windows_set_autodisplay_p (false);
       while (true)
 	{
 	  mac_select_next_command = 0;
@@ -14995,7 +15016,8 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 		  [currentRunLoop runMode:NSDefaultRunLoopMode
 			       beforeDate:limit];
 		  if (!written_p && (mac_peek_next_event () != NULL
-				     || detect_input_pending ()))
+				     || detect_input_pending ()
+				     || emacs_windows_need_display_p ()))
 		    {
 		      write_one_byte_to_fd (mac_select_fds[0]);
 		      written_p = true;
@@ -15013,6 +15035,7 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 	  else
 	    mac_gui_loop_once ();
 	}
+      emacs_windows_set_autodisplay_p (true);
     },
     ^{
       r = thread_select (pselect, nfds, rfds, wfds, efds, timeout, sigmask);
