@@ -6090,7 +6090,9 @@ event_phase_to_symbol (NSEventPhase phase)
       if (actualRange)
 	*actualRange = aRange;
     }
-  else if (poll_suppress_count != 0 || NILP (Vinhibit_quit))
+  else if ((poll_suppress_count != 0 || NILP (Vinhibit_quit))
+	   /* Might be called during the select emulation.  */
+	   && (main_thread_p (current_thread) || self.window.isAutodisplay))
     {
       struct frame *f = [self emacsFrame];
       struct window *w = XWINDOW (f->selected_window);
@@ -6213,7 +6215,9 @@ event_phase_to_symbol (NSEventPhase phase)
   /* Might be called when deactivating TSM document inside [emacsView
      removeFromSuperview] in -[EmacsFrameController closeWindow] on
      macOS 10.13.  */
-  if (!WINDOWP (f->root_window))
+  if (!WINDOWP (f->root_window)
+      /* Also might be called during the select emulation.  */
+      || !(main_thread_p (current_thread) || self.window.isAutodisplay))
     return NSMakeRange (NSNotFound, 0);
 
   mac_ax_selected_text_range (f, (CFRange *) &result);
@@ -6355,9 +6359,11 @@ event_phase_to_symbol (NSEventPhase phase)
   CFRange range;
   CFStringRef string;
 
-  if (poll_suppress_count == 0 && !NILP (Vinhibit_quit))
-    /* Don't try to get buffer contents as the gap might be being
-       altered. */
+  /* Don't try to get buffer contents as the gap might be being
+     altered. */
+  if ((poll_suppress_count == 0 && !NILP (Vinhibit_quit))
+      /* Might be called during the select emulation.  */
+      || !(main_thread_p (current_thread) || self.window.isAutodisplay))
     return nil;
 
   range = CFRangeMake (0, mac_ax_number_of_characters (f));
