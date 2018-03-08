@@ -3,20 +3,26 @@
 shopt -s extglob
 
 generate_source(){
-    git_treeish = $1
-    package_name = $2
+    git_treeish=$1
+    package_name=$2
 
+    echo git_treeish $git_treeish
+    echo package_name $package_name
     mkdir working/$package_name
 
     cd repo
-    git archive $i | tar xv --directory ../working/$package_name
+    git archive $git_treeish | tar xv --directory ../working/$package_name
+    cd ..
 }
 
 deploy_source(){
-    package_name = $1
+    package_name=$1
 
     cd working/$package_name
-    cp *!(test)*.el ../../lisp/elpa
-    cp *.texi ../../doc/elpa
-    cp *test*.el ../../test/lisp/elpa
+    rsync -i --ignore-missing-args *!(test)*.el ../../../lisp/elpa
+    rsync -i --ignore-missing-args *.texi ../../../doc/elpa
+    rsync -i --ignore-missing-args *test*.el ../../../test/lisp/elpa
 }
+
+generate_source $1 $2
+deploy_source $2

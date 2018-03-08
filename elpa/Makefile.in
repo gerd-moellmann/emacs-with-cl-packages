@@ -1,7 +1,9 @@
+all: ensure-dir repo working/pabbrev
+
 ensure-dir:
-	-mkdir working
-	-mkdir ../lisp/elpa
-	-mkdir ../test/lisp/elpa
+	- mkdir working
+	- mkdir ../lisp/elpa
+	- mkdir ../test/lisp/elpa
 
 repo:
 	git clone --mirror https://git.savannah.gnu.org/git/emacs/elpa.git repo
@@ -9,7 +11,13 @@ repo:
 repo-update: repo
 	cd repo;git fetch --all
 
-pabbrev:
-	- mkdir pabbrev
-	cd repo;git archive d28cf8632d2691dc93afbb28500126242d37961c | tar xv --directory ../pabbrev
-	cp pabbrev/pabbrev.el ../lisp/elpa/
+working/pabbrev:
+	./bin/deploy-elpa d28cf8632d2691dc93afbb28500126242d37961c pabbrev
+
+clean:
+	rm -rf working
+	rm -rf ../lisp/elpa
+	rm -rf ../test/lisp/elpa
+
+distclean: clean
+	rm -rf repo
