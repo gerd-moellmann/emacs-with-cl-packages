@@ -1,0 +1,22 @@
+#!/bin/bash
+
+shopt -s extglob
+
+generate_source(){
+    git_treeish = $1
+    package_name = $2
+
+    mkdir working/$package_name
+
+    cd repo
+    git archive $i | tar xv --directory ../working/$package_name
+}
+
+deploy_source(){
+    package_name = $1
+
+    cd working/$package_name
+    cp *!(test)*.el ../../lisp/elpa
+    cp *.texi ../../doc/elpa
+    cp *test*.el ../../test/lisp/elpa
+}

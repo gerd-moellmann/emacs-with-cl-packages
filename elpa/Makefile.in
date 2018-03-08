@@ -1,0 +1,12 @@
+repo:
+	git clone --mirror https://git.savannah.gnu.org/git/emacs/elpa.git repo
+
+repo-update:
+	cd repo;git fetch --all
+
+pabbrev:
+	- mkdir pabbrev
+	cd repo;git archive d28cf8632d2691dc93afbb28500126242d37961c | tar xv --directory ../pabbrev
+	cp pabbrev/pabbrev.el ../lisp/elpa/
+
+.PHONY: pabbrev
