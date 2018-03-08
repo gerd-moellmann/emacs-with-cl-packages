@@ -278,10 +278,3 @@ nt/emacs.rc
 nt/emacsclient.rc
 src/gdb.ini
 /var/
-
-/elpa/repo/
-/elpa/working/
-/lisp/elpa
-/test/lisp/elpa
-!/lisp/elpa/.keep
-!/test/lisp/elpa/.keep
