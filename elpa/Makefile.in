@@ -1,9 +1,4 @@
-all: ensure-dir repo working/pabbrev
-
-ensure-dir:
-	- mkdir working
-	- mkdir ../lisp/elpa
-	- mkdir ../test/lisp/elpa
+all: repo working/pabbrev working/stream working/sml-mode working/seq
 
 repo:
 	git clone --mirror https://git.savannah.gnu.org/git/emacs/elpa.git repo
@@ -11,13 +6,34 @@ repo:
 repo-update: repo
 	cd repo;git fetch --all
 
-working/pabbrev:
-	./bin/deploy-elpa d28cf8632d2691dc93afbb28500126242d37961c pabbrev
+.PHONY: repo-update
+
+## pabbrev is an external -- so it's on a branch
+## d28cf86 is the last release of pabbrev
+working/pabbrev: Makefile.in
+	./bin/deploy-to-core -e d28cf86 pabbrev
+
+## stream is interesting because it has tests. Also, while it does not
+## have an info there is a stream.info in core which documents
+## something else.
+## 110b174643707 was master/HEAD when I happened to checkout elpa
+working/stream: Makefile.in
+	./bin/deploy-to-core 110b174643707 stream
+
+working/sml-mode: Makefile.in
+	./bin/deploy-to-core -d progmodes 110b174643707 sml-mode
+
+working/seq: Makefile.in
+	./bin/deploy-to-core -d emacs-lisp 110b174643707 seq
+
 
 clean:
-	rm -rf working
-	rm -rf ../lisp/elpa
-	rm -rf ../test/lisp/elpa
+	- rm -rf working
+	- rm -rf ../lisp/elpa
+	- rm -rf ../test/lisp/elpa
 
 distclean: clean
-	rm -rf repo
+	- rm -rf repo
+
+
+.PHONY: clean distclean

@@ -1,0 +1,69 @@
+#!/bin/bash
+
+shopt -s extglob
+
+ensure_dir(){
+    mkdir -p working
+    mkdir -p ../lisp/elpa
+    mkdir -p ../lisp/elpa/$SUBDIR
+    mkdir -p ../test/lisp/elpa
+    mkdir -p ../test/lisp/elpa/$SUBDIR
+}
+
+
+generate_source(){
+    git_treeish=$1
+    package_name=$2
+
+    mkdir -p working/$package_name
+
+    cd repo
+    if [ "$EXTERNAL" = true ] ; then
+        git archive $git_treeish | tar xv --directory ../working/$package_name
+    else
+        git archive $git_treeish packages/$package_name | \
+            tar xv --strip=2 --directory ../working/$package_name
+    fi
+
+    cd ..
+}
+
+deploy_source(){
+    package_name=$1
+
+    cd working/$package_name
+    if [ -e core-deploy.sh ]
+    then
+        ## General extensibility point for complicated packages
+        ./core-deploy.sh
+    else
+        rsync -i --ignore-missing-args *!(tests)*.el ../../../lisp/elpa/$SUBDIR
+        rsync -i --ignore-missing-args *.texi ../../../doc/elpa/$SUBDIR
+        rsync -i --ignore-missing-args *tests*.el ../../../test/lisp/elpa/$SUBDIR
+        if [ -e tests ]
+        then
+            rsync -i --ignore-missing-args tests/*.el ../../../test/lisp/elpa/$SUBDIR
+        fi
+    fi
+}
+
+
+SUBDIR=
+EXTERNAL=false
+
+while getopts "ed:" opt; do
+  case $opt in
+    e)
+        EXTERNAL=true
+        ;;
+    d)
+        SUBDIR=$OPTARG
+        ;;
+  esac
+done
+
+shift $((OPTIND -1))
+
+ensure_dir
+generate_source $1 $2
+deploy_source $2
