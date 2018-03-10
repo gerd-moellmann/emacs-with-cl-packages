@@ -37,12 +37,24 @@ deploy_source(){
         ## General extensibility point for complicated packages
         ./core-deploy.sh
     else
-        rsync -i --ignore-missing-args *!(tests)*.el ../../../lisp/elpa/$SUBDIR
-        rsync -i --ignore-missing-args *.texi ../../../doc/elpa/$SUBDIR
-        rsync -i --ignore-missing-args *tests*.el ../../../test/lisp/elpa/$SUBDIR
-        if [ -e tests ]
+        if ls *!(tests)*.el >/dev/null 2>&1;
         then
-            rsync -i --ignore-missing-args tests/*.el ../../../test/lisp/elpa/$SUBDIR
+            cp -v *!(tests)*.el ../../../lisp/elpa/$SUBDIR
+        fi
+
+        if ls *.texi > /dev/null 2>&1;
+        then
+            cp -v *.texi ../../../lisp/elpa/$SUBDIR
+        fi
+
+        if ls *tests*.el > /dev/null 2>&1;
+        then
+            cp -v *tests*.el ../../../test/lisp/elpa/$SUBDIR
+        fi
+
+        if ls tests/*.el > /dev/null 2>&1;
+        then
+            cp -v tests/*.el ../../../test/lisp/elpa/$SUBDIR
         fi
     fi
 }
