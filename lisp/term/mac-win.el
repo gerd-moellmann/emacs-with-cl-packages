@@ -2849,11 +2849,12 @@ The actual magnification is performed by `text-scale-mode'."
 (defun mac-magnify-text-scale-or-overview-tab-group (event)
   "Trigger tab group overview or forward EVENT to `mac-magnify-text-scale'.
 Tab group overview, which is available on macOS 10.13 and later,
-is triggered by the pinch close gesture on a trackpad, and the
-subsequent pinch gestures are ignored until you release the
-fingers so they do not cause unwanted text scaling.  If you don't
-want to trigger tab group overview by the pinch close gesture,
-then remap this command to `mac-magnify-text-scale'."
+is triggered by the pinch close gesture on a trackpad unless the
+text is magnified, and the subsequent pinch gestures are ignored
+until you release the fingers so they do not cause unwanted text
+scaling.  If you don't want to trigger tab group overview by the
+pinch close gesture, then remap this command to
+`mac-magnify-text-scale'."
   (interactive "e")
   (if (not (or (>= (cadr (x-server-version)) 13)
                (> (car (x-server-version)) 10)))
@@ -2867,7 +2868,10 @@ then remap this command to `mac-magnify-text-scale'."
                    (eq (event-basic-type event) 'magnify-down)
                    (mac-frame-tab-group-property frame :selected-frame)
                    (not (mac-frame-tab-group-property frame
-                                                      :overview-visible-p)))
+                                                      :overview-visible-p))
+                   (with-selected-window (posn-window (event-start event))
+                     (not (and (boundp 'text-scale-mode-amount)
+                               (> text-scale-mode-amount 0)))))
               (progn
                 (setq mac-ignore-magnify-events t)
                 (mac-set-frame-tab-group-property frame :overview-visible-p t)))
