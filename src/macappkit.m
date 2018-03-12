@@ -1406,11 +1406,13 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
 #define READ_SOCKET_MIN_INTERVAL (1/60.0)
 
+static BOOL extendReadSocketIntervalOnce;
+
 - (NSTimeInterval)minimumIntervalForReadSocket
 {
   NSTimeInterval interval = READ_SOCKET_MIN_INTERVAL;
 
-  if (MOUSE_TRACKING_SUSPENDED_P ())
+  if (MOUSE_TRACKING_SUSPENDED_P () || extendReadSocketIntervalOnce)
     interval *= 6;
   else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     /* A large interval value affects responsiveness on OS X
@@ -4232,6 +4234,9 @@ mac_size_frame_window (struct frame *f, int w, int h, bool update)
 
       [window setFrame:windowFrame display:update];
     });
+
+  if (window.isVisible)
+    extendReadSocketIntervalOnce = YES;
 }
 
 OSStatus
@@ -8928,6 +8933,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       [timer invalidate];
       MRC_RELEASE (timer);
       timer = nil;
+      extendReadSocketIntervalOnce = NO;
 
       /* Maybe these should be done at some redisplay timing.  */
       update_apple_event_handler ();

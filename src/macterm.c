@@ -4193,7 +4193,7 @@ x_set_window_size (struct frame *f, bool change_gravity,
   f->win_gravity = NorthWestGravity;
   x_wm_set_size_hint (f, 0, false);
 
-  mac_size_frame_window (f, pixelwidth, pixelheight, false);
+  mac_size_frame_window (f, pixelwidth, pixelheight, true);
 
   SET_FRAME_GARBAGED (f);
 
