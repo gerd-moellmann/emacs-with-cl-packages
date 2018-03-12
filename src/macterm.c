@@ -6244,4 +6244,10 @@ tabbing is disallowed and preferred, respectively.
 
 This variable has no effect on OS X 10.11 and earlier.  */);
   Vmac_frame_tabbing = Qautomatic;
+
+  DEFVAR_BOOL ("mac-ignore-accessibility", mac_ignore_accessibility,
+    doc: /* Non-nil means to ignore the system accessibility feature.
+Emacspeak users may want to set this variable so it may not interfere
+with the system accessibility services such as VoiceOver.  */);
+  mac_ignore_accessibility = false;
 }

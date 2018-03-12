@@ -13267,7 +13267,7 @@ mac_update_accessibility_display_options (void)
 
 - (BOOL)accessibilityIsIgnored
 {
-  return NO;
+  return mac_ignore_accessibility;
 }
 
 - (NSArrayOf (NSAccessibilityAttributeName) *)accessibilityAttributeNames
