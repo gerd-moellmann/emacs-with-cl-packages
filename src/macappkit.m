@@ -2839,8 +2839,8 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (setFrameType != SET_FRAME_UNNECESSARY)
     {
-      NSRect frameRect;
       BOOL showsResizeIndicator;
+      NSRect frameRect = [self preprocessWindowManagerStateChange:newState];
 
       if ((diff & WM_STATE_FULLSCREEN)
 	  || setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
@@ -2861,13 +2861,6 @@ static CGRect unset_global_focus_view_frame (void);
 		x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
 							 tool_bar_lines)));
 	      });
-	}
-
-      frameRect = [self preprocessWindowManagerStateChange:newState];
-
-      if ((diff & WM_STATE_FULLSCREEN)
-	  || setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
-	{
 #if 0
 	  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
 	    {
