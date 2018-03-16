@@ -2823,6 +2823,9 @@ static CGRect unset_global_focus_view_frame (void);
 	     after exiting from the full screen mode.  We make such a
 	     transition via maximized state, i.e, fullscreen ->
 	     maximized -> fullboth.  */
+	  mac_within_lisp (^{
+	      store_frame_param (f, Qfullscreen, Qmaximized);
+	    });
 	  fullScreenTargetState = ((newState & ~WM_STATE_FULLSCREEN)
 				   | WM_STATE_MAXIMIZED_HORZ
 				   | WM_STATE_MAXIMIZED_VERT);
