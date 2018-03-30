@@ -4199,78 +4199,80 @@ mac_check_input_source (Lisp_Object source, bool no_keyboard_symbols_p)
 static TISInputSourceRef
 mac_create_input_source_from_lisp (Lisp_Object source)
 {
-  TISInputSourceRef result = NULL;
+  TISInputSourceRef __block result = NULL;
 
-  if (SYMBOLP (source))
-    {
-      if (NILP (source) || EQ (source, Qkeyboard))
-	result = TISCopyCurrentKeyboardInputSource ();
-      else if (EQ (source, Qkeyboard_layout))
-	result = TISCopyCurrentKeyboardLayoutInputSource ();
-      else if (EQ (source, Qascii_capable_keyboard))
-	result = TISCopyCurrentASCIICapableKeyboardInputSource ();
-      else if (EQ (source, Qascii_capable_keyboard_layout))
-	result = TISCopyCurrentASCIICapableKeyboardLayoutInputSource ();
-      else if (EQ (source, Qkeyboard_layout_override))
-	result = TISCopyInputMethodKeyboardLayoutOverride ();
-      else if (EQ (source, Qt))
+  mac_within_gui (^{
+      if (SYMBOLP (source))
 	{
-	  CFLocaleRef locale = CFLocaleCopyCurrent ();
-
-	  if (locale)
+	  if (NILP (source) || EQ (source, Qkeyboard))
+	    result = TISCopyCurrentKeyboardInputSource ();
+	  else if (EQ (source, Qkeyboard_layout))
+	    result = TISCopyCurrentKeyboardLayoutInputSource ();
+	  else if (EQ (source, Qascii_capable_keyboard))
+	    result = TISCopyCurrentASCIICapableKeyboardInputSource ();
+	  else if (EQ (source, Qascii_capable_keyboard_layout))
+	    result = TISCopyCurrentASCIICapableKeyboardLayoutInputSource ();
+	  else if (EQ (source, Qkeyboard_layout_override))
+	    result = TISCopyInputMethodKeyboardLayoutOverride ();
+	  else if (EQ (source, Qt))
 	    {
-	      CFStringRef language = CFLocaleGetValue (locale,
-						       kCFLocaleLanguageCode);
+	      CFLocaleRef locale = CFLocaleCopyCurrent ();
 
-	      if (language)
-		result = TISCopyInputSourceForLanguage (language);
-	      CFRelease (locale);
-	    }
-	}
-    }
-  else if (STRINGP (source))
-    {
-      CFStringRef string = cfstring_create_with_string (source);
-
-      if (string)
-	{
-	  CFArrayRef sources = NULL;
-	  CFDictionaryRef properties =
-	    CFDictionaryCreate (NULL,
-				(const void **) &kTISPropertyInputSourceID,
-				(const void **) &string, 1,
-				&kCFTypeDictionaryKeyCallBacks,
-				&kCFTypeDictionaryValueCallBacks);
-
-	  if (properties)
-	    {
-	      sources = TISCreateInputSourceList (properties, false);
-	      if (sources == NULL)
-		sources = TISCreateInputSourceList (properties, true);
-	      CFRelease (properties);
-	    }
-	  if (sources)
-	    {
-	      if (CFArrayGetCount (sources) > 0)
-		result = ((TISInputSourceRef)
-			  CFRetain (CFArrayGetValueAtIndex (sources, 0)));
-	      CFRelease (sources);
-	    }
-	  else
-	    {
-	      CFStringRef language =
-		CFLocaleCreateCanonicalLanguageIdentifierFromString (NULL,
-								     string);
-
-	      if (language)
+	      if (locale)
 		{
-		  result = TISCopyInputSourceForLanguage (language);
-		  CFRelease (language);
+		  CFStringRef language =
+		    CFLocaleGetValue (locale, kCFLocaleLanguageCode);
+
+		  if (language)
+		    result = TISCopyInputSourceForLanguage (language);
+		  CFRelease (locale);
 		}
 	    }
-	  CFRelease (string);
 	}
-    }
+      else if (STRINGP (source))
+	{
+	  CFStringRef string = cfstring_create_with_string (source);
+
+	  if (string)
+	    {
+	      CFArrayRef sources = NULL;
+	      CFDictionaryRef properties =
+		CFDictionaryCreate (NULL,
+				    (const void **) &kTISPropertyInputSourceID,
+				    (const void **) &string, 1,
+				    &kCFTypeDictionaryKeyCallBacks,
+				    &kCFTypeDictionaryValueCallBacks);
+
+	      if (properties)
+		{
+		  sources = TISCreateInputSourceList (properties, false);
+		  if (sources == NULL)
+		    sources = TISCreateInputSourceList (properties, true);
+		  CFRelease (properties);
+		}
+	      if (sources)
+		{
+		  if (CFArrayGetCount (sources) > 0)
+		    result = ((TISInputSourceRef)
+			      CFRetain (CFArrayGetValueAtIndex (sources, 0)));
+		  CFRelease (sources);
+		}
+	      else
+		{
+		  CFStringRef language =
+		    CFLocaleCreateCanonicalLanguageIdentifierFromString (NULL,
+									 string);
+
+		  if (language)
+		    {
+		      result = TISCopyInputSourceForLanguage (language);
+		      CFRelease (language);
+		    }
+		}
+	      CFRelease (string);
+	    }
+	}
+    });
 
   return result;
 }
@@ -4336,8 +4338,11 @@ mac_input_source_properties (TISInputSourceRef source, Lisp_Object format)
     /* kTISPropertyIconImageURL (handled separately) */
   };
   Lisp_Object result = Qnil;
-  CFStringRef source_id = TISGetInputSourceProperty (source,
-						     kTISPropertyInputSourceID);
+  CFStringRef __block source_id;
+
+  mac_within_gui (^{
+      source_id = TISGetInputSourceProperty (source, kTISPropertyInputSourceID);
+    });
   if (source_id)
     {
       result = cfstring_to_lisp (source_id);
@@ -4351,9 +4356,12 @@ mac_input_source_properties (TISInputSourceRef source, Lisp_Object format)
 	      || (SYMBOLP (format) ? EQ (format, QCicon_image_file)
 		  : !NILP (Fmemq (QCicon_image_file, format))))
 	    {
-	      CFURLRef url =
-		TISGetInputSourceProperty (source, kTISPropertyIconImageURL);
+	      CFURLRef __block url;
 
+	      mac_within_gui (^{
+		  url = TISGetInputSourceProperty (source,
+						   kTISPropertyIconImageURL);
+		});
 	      if (url)
 		{
 		  CFStringRef str = NULL;
@@ -4392,9 +4400,12 @@ mac_input_source_properties (TISInputSourceRef source, Lisp_Object format)
 		|| (SYMBOLP (format) ? EQ (format, keys[i-1].sym)
 		    : !NILP (Fmemq (keys[i-1].sym, format))))
 	      {
-		CFTypeRef value = TISGetInputSourceProperty (source,
-							     keys[i-1].cf);
+		CFStringRef key = keys[i-1].cf;
+		CFTypeRef __block value;
 
+		mac_within_gui (^{
+		    value = TISGetInputSourceProperty (source, key);
+		  });
 		if (value)
 		  plist = Fcons (keys[i-1].sym,
 				 Fcons (cfobject_to_lisp (value, 0, -1),
@@ -4527,7 +4538,7 @@ meanings.  */)
   (Lisp_Object type, Lisp_Object format)
 {
   Lisp_Object result = Qnil;
-  CFArrayRef list = NULL;
+  CFArrayRef __block list = NULL;
 
   check_window_system (NULL);
   if (!(NILP (type) || EQ (type, Qt) || EQ (type, Qascii_capable_keyboard)))
@@ -4536,10 +4547,12 @@ meanings.  */)
     error ("FORMAT must be a symbol or a list of symbols");
 
   block_input ();
-  if (EQ (type, Qascii_capable_keyboard))
-    list = TISCreateASCIICapableInputSourceList ();
-  else
-    list = TISCreateInputSourceList (NULL, !NILP (type));
+  mac_within_gui (^{
+      if (EQ (type, Qascii_capable_keyboard))
+	list = TISCreateASCIICapableInputSourceList ();
+      else
+	list = TISCreateInputSourceList (NULL, !NILP (type));
+    });
   if (list)
     {
       CFIndex index, count = CFArrayGetCount (list);
@@ -4575,7 +4588,7 @@ Return t if SOURCE could be successfully selected.  Otherwise, return
 nil.  */)
   (Lisp_Object source, Lisp_Object set_keyboard_layout_override_p)
 {
-  Lisp_Object result = Qnil;
+  Lisp_Object __block result = Qnil;
   TISInputSourceRef input_source;
 
   check_window_system (NULL);
@@ -4584,19 +4597,19 @@ nil.  */)
   block_input ();
   input_source = mac_create_input_source_from_lisp (source);
   if (input_source)
-    {
-      if (NILP (set_keyboard_layout_override_p))
-	{
-	  if (TISSelectInputSource (input_source) == noErr)
-	    result = Qt;
-	}
-      else
-	{
-	  if (TISSetInputMethodKeyboardLayoutOverride (input_source) == noErr)
-	    result = Qt;
-	}
-      CFRelease (input_source);
-    }
+    mac_within_gui (^{
+	if (NILP (set_keyboard_layout_override_p))
+	  {
+	    if (TISSelectInputSource (input_source) == noErr)
+	      result = Qt;
+	  }
+	else
+	  {
+	    if (TISSetInputMethodKeyboardLayoutOverride (input_source) == noErr)
+	      result = Qt;
+	  }
+	CFRelease (input_source);
+      });
   unblock_input ();
 
   return result;
@@ -4613,7 +4626,7 @@ Return t if SOURCE could be successfully deselected.  Otherwise,
 return nil.  */)
   (Lisp_Object source)
 {
-  Lisp_Object result = Qnil;
+  Lisp_Object __block result = Qnil;
   TISInputSourceRef input_source;
 
   check_window_system (NULL);
@@ -4622,11 +4635,11 @@ return nil.  */)
   block_input ();
   input_source = mac_create_input_source_from_lisp (source);
   if (input_source)
-    {
-      if (TISDeselectInputSource (input_source) == noErr)
-	result = Qt;
-      CFRelease (input_source);
-    }
+    mac_within_gui (^{
+	if (TISDeselectInputSource (input_source) == noErr)
+	  result = Qt;
+	CFRelease (input_source);
+      });
   unblock_input ();
 
   return result;
