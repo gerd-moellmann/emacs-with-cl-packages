@@ -691,6 +691,8 @@ extern void mac_cursor_release (Cursor);
 extern void mac_invalidate_frame_cursor_rects (struct frame *f);
 extern void mac_mask_rounded_bottom_corners (struct frame *, CGRect, bool);
 extern void mac_invalidate_rectangles (struct frame *, NativeRectangle *, int);
+extern void mac_update_frame_window_style (struct frame *);
+extern void mac_update_frame_window_parent (struct frame *);
 extern Lisp_Object mac_frame_list_z_order (struct frame *);
 extern void mac_frame_restack (struct frame *, struct frame *, bool);
 extern bool mac_send_action (Lisp_Object, bool);

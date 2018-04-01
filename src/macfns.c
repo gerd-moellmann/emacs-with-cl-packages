@@ -1139,6 +1139,43 @@ x_set_tool_bar_position (struct frame *f,
 #endif
 
 static void
+x_set_undecorated (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  if (!EQ (new_value, old_value))
+    {
+      FRAME_UNDECORATED (f) = NILP (new_value) ? false : true;
+
+      block_input ();
+      mac_update_frame_window_style (f);
+      unblock_input ();
+    }
+}
+
+static void
+x_set_parent_frame (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+{
+  struct frame *p = NULL;
+
+  if (!NILP (new_value)
+      && (!FRAMEP (new_value)
+	  || !FRAME_LIVE_P (p = XFRAME (new_value))
+	  || !FRAME_MAC_P (p)))
+    {
+      store_frame_param (f, Qparent_frame, old_value);
+      error ("Invalid specification of `parent-frame'");
+    }
+
+  if (p != FRAME_PARENT_FRAME (f))
+    {
+      fset_parent_frame (f, new_value);
+
+      block_input ();
+      mac_update_frame_window_parent (f);
+      unblock_input ();
+    }
+}
+
+static void
 x_set_no_focus_on_map (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
 {
   if (!EQ (new_value, old_value))
@@ -2130,12 +2167,12 @@ This function is an internal primitive--use `make-frame' instead.  */)
   Lisp_Object frame, tem;
   Lisp_Object name;
   bool minibuffer_only = false;
-  bool override_redirect = false;
+  bool undecorated = false, override_redirect = false;
   long window_prompting = 0;
   ptrdiff_t count = SPECPDL_INDEX ();
   Lisp_Object display;
   struct mac_display_info *dpyinfo = NULL;
-  Lisp_Object parent;
+  Lisp_Object parent, parent_frame;
   struct kboard *kb;
   int x_width = 0, x_height = 0;
 
@@ -2187,6 +2224,28 @@ This function is an internal primitive--use `make-frame' instead.  */)
   else
     f = make_frame (true);
 
+  parent_frame = x_get_arg (dpyinfo, parms, Qparent_frame, NULL, NULL,
+			    RES_TYPE_SYMBOL);
+  /* Accept parent-frame iff parent-id was not specified.  */
+  if (!NILP (parent)
+      || EQ (parent_frame, Qunbound)
+      || NILP (parent_frame)
+      || !FRAMEP (parent_frame)
+      || !FRAME_LIVE_P (XFRAME (parent_frame))
+      || !FRAME_MAC_P (XFRAME (parent_frame)))
+    parent_frame = Qnil;
+
+  fset_parent_frame (f, parent_frame);
+  store_frame_param (f, Qparent_frame, parent_frame);
+
+  if (!NILP (tem = (x_get_arg (dpyinfo, parms, Qundecorated, NULL, NULL,
+			       RES_TYPE_BOOLEAN)))
+      && !(EQ (tem, Qunbound)))
+    undecorated = true;
+
+  FRAME_UNDECORATED (f) = undecorated;
+  store_frame_param (f, Qundecorated, undecorated ? Qt : Qnil);
+
   if (!NILP (tem = (x_get_arg (dpyinfo, parms, Qoverride_redirect, NULL, NULL,
 			       RES_TYPE_BOOLEAN)))
       && !(EQ (tem, Qunbound)))
@@ -2204,6 +2263,7 @@ This function is an internal primitive--use `make-frame' instead.  */)
   FRAME_FONTSET (f) = -1;
   f->output_data.mac->white_relief.pixel = -1;
   f->output_data.mac->black_relief.pixel = -1;
+  FRAME_NATIVE_TOOL_BAR_P (f) = undecorated || !NILP (parent_frame);
 
   fset_icon_name (f,
 		  x_get_arg (dpyinfo, parms, Qicon_name, "iconName", "Title",
@@ -2409,6 +2469,13 @@ This function is an internal primitive--use `make-frame' instead.  */)
   x_default_parameter (f, parms, Qscroll_bar_height, Qnil,
 		       "scrollBarHeight", "ScrollBarHeight",
 		       RES_TYPE_NUMBER);
+
+  if (!NILP (parent_frame))
+    {
+      block_input ();
+      mac_update_frame_window_parent (f);
+      unblock_input ();
+    }
 
   x_default_parameter (f, parms, Qno_focus_on_map, Qnil,
 		       NULL, NULL, RES_TYPE_BOOLEAN);
@@ -4994,8 +5061,8 @@ frame_parm_handler mac_frame_parm_handlers[] =
   x_set_sticky,
   0, /* x_set_tool_bar_position, */
   0, /* x_set_inhibit_double_buffering */
-  0, /* TODO: x_set_undecorated */
-  0, /* TODO: x_set_parent_frame */
+  x_set_undecorated,
+  x_set_parent_frame,
   x_set_skip_taskbar,
   x_set_no_focus_on_map,
   x_set_no_accept_focus,

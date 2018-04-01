@@ -685,6 +685,33 @@ mac_within_app (void (^block) (void))
   return Qnil;
 }
 
+- (NSWindow *)topLevelWindow
+{
+  NSWindow *current = self, *parent;
+
+  while ((parent = current.parentWindow) != nil)
+    current = parent;
+
+  return current;
+}
+
+/* Execute the specified block for each of the receiver's child and
+   descendant windows.  Set *stop to YES in the block to abort further
+   processing of the child windows subtree.  */
+
+- (void)enumerateChildWindowsUsingBlock:(NS_NOESCAPE void
+					 (^)(NSWindow *child, BOOL *stop))block
+{
+  for (NSWindow *childWindow in self.childWindows)
+    {
+      BOOL stop = NO;
+
+      block (childWindow, &stop);
+      if (!stop)
+	[childWindow enumerateChildWindowsUsingBlock:block];
+    }
+}
+
 @end				// NSWindow (Emacs)
 
 @implementation NSCursor (Emacs)
@@ -1819,7 +1846,7 @@ emacs_windows_set_autodisplay_p (bool flag)
 
 - (void)updatePresentationOptions
 {
-  NSWindow *window = [NSApp keyWindow];
+  NSWindow *window = [NSApp keyWindow].topLevelWindow;
 
   if (![NSApp isActive])
     {
@@ -1879,7 +1906,7 @@ emacs_windows_set_autodisplay_p (bool flag)
 	  options = NSApplicationPresentationDefault;
 	  for (NSWindow *window in [NSApp windows])
 	    if ([window isKindOfClass:[EmacsWindow class]]
-		&& [window isVisible])
+		&& window.isVisible && window.parentWindow == nil)
 	      {
 		if (windowNumbers)
 		  {
@@ -1919,7 +1946,7 @@ emacs_windows_set_autodisplay_p (bool flag)
 
 - (void)showMenuBar
 {
-  NSWindow *window = [NSApp keyWindow];
+  NSWindow *window = [NSApp keyWindow].topLevelWindow;;
 
   if ([window isKindOfClass:[EmacsWindow class]])
     {
@@ -1997,6 +2024,7 @@ mac_application_state (void)
 
 static void set_global_focus_view_frame (struct frame *);
 static CGRect unset_global_focus_view_frame (void);
+static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 #define DEFAULT_NUM_COLS (80)
 #define RESIZE_CONTROL_WIDTH (15)
@@ -2026,7 +2054,9 @@ static CGRect unset_global_focus_view_frame (void);
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [observedTabGroup removeObserver:self forKeyPath:@"overviewVisible"];
 #if !USE_ARC
+  [observedTabGroup release];
   [mouseUpEvent release];
   [super dealloc];
 #endif
@@ -2039,7 +2069,7 @@ static CGRect unset_global_focus_view_frame (void);
 
 - (BOOL)canBecomeMainWindow
 {
-  return self.isVisible;
+  return self.isVisible && self.parentWindow == nil;
 }
 
 - (void)setFrame:(NSRect)windowFrame display:(BOOL)displayViews
@@ -2205,6 +2235,14 @@ static CGRect unset_global_focus_view_frame (void);
       [self orderFront:nil];
       needsOrderFrontOnUnhide = NO;
     }
+
+  /* This is a workaround: when the application is unhidden, a
+     top-level window may become a (bogus) key window when one of its
+     descendants is a (real) key window.  This is problematic because
+     a single mouse movement event may be sent to both of the
+     top-level and descendant windows.  */
+  if (self.isKeyWindow && ![self isEqual:[NSApp keyWindow]])
+    [self resignKeyWindow];
 }
 
 - (void)suspendConstrainingToScreen:(BOOL)flag
@@ -2295,6 +2333,48 @@ static CGRect unset_global_focus_view_frame (void);
     }
 }
 
+- (void)toggleTabOverview:(id)sender
+{
+  NSWindowTabGroup *tabGroup = self.tabGroup;
+
+  if (!tabGroup.isOverviewVisible)
+    {
+      id delegate = self.delegate;
+
+      [tabGroup addObserver:self forKeyPath:@"overviewVisible"
+		    options:NSKeyValueObservingOptionNew context:nil];
+      observedTabGroup = MRC_RETAIN (tabGroup);
+
+      if ([delegate respondsToSelector:@selector(windowWillEnterTabOverview)])
+	[delegate windowWillEnterTabOverview];
+    }
+
+  [super toggleTabOverview:sender];
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+                        change:(NSDictionaryOf (NSKeyValueChangeKey, id) *)change
+                       context:(void *)context
+{
+  if ([keyPath isEqualToString:@"overviewVisible"])
+    {
+      if (!((NSNumber *)
+	    [change objectForKey:NSKeyValueChangeNewKey]).charValue)
+	{
+	  id delegate = self.delegate;
+
+	  if ([delegate respondsToSelector:@selector(windowDidExitTabOverview)])
+	    [delegate windowDidExitTabOverview];
+	  [object removeObserver:self forKeyPath:keyPath];
+	  MRC_RELEASE (observedTabGroup);
+	  observedTabGroup = nil;
+	}
+    }
+  else
+    [super observeValueForKeyPath:keyPath ofObject:object change:change
+			  context:context];
+}
+
 @end				// EmacsWindow
 
 @implementation EmacsFrameController
@@ -2350,8 +2430,6 @@ static CGRect unset_global_focus_view_frame (void);
   /* OS X 10.9 needs this.  */
   if ([overlayView respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
     [overlayView setLayerUsesCoreImageFilters:YES];
-  if (has_resize_indicator_at_bottom_right_p ())
-    [overlayView setShowsResizeIndicator:YES];
 
   [self setupAnimationLayer];
 }
@@ -2367,7 +2445,7 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (!FRAME_TOOLTIP_P (f))
     {
-      if (windowManagerState & WM_STATE_FULLSCREEN)
+      if (!self.shouldBeTitled)
 	windowStyle = NSWindowStyleMaskBorderless;
       else
 	windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
@@ -2427,6 +2505,14 @@ static CGRect unset_global_focus_view_frame (void);
       [window setCollectionBehavior:[oldWindow collectionBehavior]];
       window.level = oldWindow.level;
       [window setExcludedFromWindowsMenu:oldWindow.isExcludedFromWindowsMenu];
+      for (NSWindow *childWindow in oldWindow.childWindows)
+	if ([childWindow isKindOfClass:[EmacsWindow class]])
+	  {
+	    [(EmacsWindow *)childWindow suspendConstrainingToScreen:YES];
+	    [oldWindow removeChildWindow:childWindow];
+	    [(EmacsWindow *)childWindow suspendConstrainingToScreen:NO];
+	    [window addChildWindow:childWindow ordered:NSWindowAbove];
+	  }
       if (has_visual_effect_view_p ())
 	[(id <NSAppearanceCustomization>)window
 	    setAppearance:[(id <NSAppearanceCustomization>)oldWindow
@@ -2459,8 +2545,16 @@ static CGRect unset_global_focus_view_frame (void);
   if (oldWindow)
     {
       BOOL isKeyWindow = [oldWindow isKeyWindow];
+      NSWindow *parentWindow = oldWindow.parentWindow;
 
-      [window orderWindow:NSWindowBelow relativeTo:[oldWindow windowNumber]];
+      if (parentWindow == nil)
+	[window orderWindow:NSWindowBelow relativeTo:[oldWindow windowNumber]];
+      else
+	{
+	  [parentWindow addChildWindow:window ordered:NSWindowAbove];
+	  /* Mac OS X 10.6 needs this.  */
+	  [parentWindow removeChildWindow:oldWindow];
+	}
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:[oldWindow animationBehavior]];
       [oldWindow close];
@@ -2471,12 +2565,15 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (!FRAME_TOOLTIP_P (f))
     {
+      window.hasShadow = self.shouldHaveShadow;
       [window setAcceptsMouseMovedEvents:YES];
       if (window.hasTitleBar)
 	[self setupToolBarWithVisibility:(FRAME_EXTERNAL_TOOL_BAR (f))];
       if (has_resize_indicator_at_bottom_right_p ())
 	[window setShowsResizeIndicator:NO];
       [self setupOverlayView];
+      if (has_resize_indicator_at_bottom_right_p ())
+	[overlayView setShowsResizeIndicator:self.shouldBeTitled];
       /* We place overlayView below emacsView so events are not
 	 intercepted by the former.  Still the former (layer-hosting)
 	 is displayed in front of the latter (neither layer-backed nor
@@ -2525,6 +2622,7 @@ static CGRect unset_global_focus_view_frame (void);
 #if !USE_ARC
 - (void)dealloc
 {
+  [savedChildWindowAlphaMap release];
   [emacsView release];
   /* emacsWindow and hourglassWindow are released via
      released-when-closed.  */
@@ -2593,48 +2691,84 @@ static CGRect unset_global_focus_view_frame (void);
   if (windowManagerState & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT
 			    | WM_STATE_FULLSCREEN))
     {
-      if (screen == nil)
+      NSWindow *parentWindow = sender.parentWindow;
+
+      if (parentWindow == nil)
 	{
-	  NSEvent *currentEvent = [NSApp currentEvent];
-
-	  if ([currentEvent type] == NSEventTypeLeftMouseUp)
+	  if (screen == nil)
 	    {
-	      /* Probably end of title bar dragging.  */
-	      NSWindow *eventWindow = [currentEvent window];
-	      NSPoint location = [currentEvent locationInWindow];
+	      NSEvent *currentEvent = [NSApp currentEvent];
 
-	      if (eventWindow)
+	      if (currentEvent.type == NSEventTypeLeftMouseUp)
+		{
+		  /* Probably end of title bar dragging.  */
+		  NSWindow *eventWindow = [currentEvent window];
+		  NSPoint location = [currentEvent locationInWindow];
+
+		  if (eventWindow)
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-		location =
-		  [eventWindow
-		    convertRectToScreen:(NSMakeRect (location.x, location.y,
-						     0, 0))].origin;
+		    location =
+		      [eventWindow
+			convertRectToScreen:(NSMakeRect (location.x, location.y,
+							 0, 0))].origin;
 #else
-		location = [eventWindow convertBaseToScreen:location];
+		  location = [eventWindow convertBaseToScreen:location];
 #endif
 
-	      screen = [NSScreen screenContainingPoint:location];
+		  screen = [NSScreen screenContainingPoint:location];
+		}
+
+	      if (screen == nil)
+		screen = [NSScreen closestScreenForRect:frameRect];
 	    }
 
-	  if (screen == nil)
-	    screen = [NSScreen closestScreenForRect:frameRect];
+	  if (windowManagerState & WM_STATE_FULLSCREEN)
+	    frameRect = screen.frame;
+	  else
+	    {
+	      NSRect screenVisibleFrame = screen.visibleFrame;
+
+	      if (windowManagerState & WM_STATE_MAXIMIZED_HORZ)
+		{
+		  frameRect.origin.x = screenVisibleFrame.origin.x;
+		  frameRect.size.width = screenVisibleFrame.size.width;
+		}
+	      if (windowManagerState & WM_STATE_MAXIMIZED_VERT)
+		{
+		  frameRect.origin.y = screenVisibleFrame.origin.y;
+		  frameRect.size.height = screenVisibleFrame.size.height;
+		}
+	    }
 	}
-
-      if (windowManagerState & WM_STATE_FULLSCREEN)
-	frameRect = [screen frame];
-      else
+      else			/* parentWindow != nil */
 	{
-	  NSRect screenVisibleFrame = [screen visibleFrame];
+	  NSView *parentContentView = parentWindow.contentView;
+	  NSRect parentContentRect = parentContentView.bounds;
 
-	  if (windowManagerState & WM_STATE_MAXIMIZED_HORZ)
+	  parentContentRect = [parentContentView convertRect:parentContentRect
+						      toView:nil];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+	  parentContentRect.origin =
+	    [parentWindow convertRectToScreen:parentContentRect].origin;
+#else
+	  parentContentRect.origin =
+	    [parentWindow convertBaseToScreen:parentContentRect.origin];
+#endif
+
+	  if (windowManagerState & WM_STATE_FULLSCREEN)
+	    frameRect = parentContentRect;
+	  else
 	    {
-	      frameRect.origin.x = screenVisibleFrame.origin.x;
-	      frameRect.size.width = screenVisibleFrame.size.width;
-	    }
-	  if (windowManagerState & WM_STATE_MAXIMIZED_VERT)
-	    {
-	      frameRect.origin.y = screenVisibleFrame.origin.y;
-	      frameRect.size.height = screenVisibleFrame.size.height;
+	      if (windowManagerState & WM_STATE_MAXIMIZED_HORZ)
+		{
+		  frameRect.origin.x = parentContentRect.origin.x;
+		  frameRect.size.width = parentContentRect.size.width;
+		}
+	      if (windowManagerState & WM_STATE_MAXIMIZED_VERT)
+		{
+		  frameRect.origin.y = parentContentRect.origin.y;
+		  frameRect.size.height = parentContentRect.size.height;
+		}
 	    }
 	}
     }
@@ -2755,10 +2889,20 @@ static CGRect unset_global_focus_view_frame (void);
   return frameRect;
 }
 
+- (void)changeFullScreenState:(WMState)fullScreenState
+{
+  eassert (emacsWindow.parentWindow == nil
+	   && (!(emacsWindow.styleMask & NSWindowStyleMaskFullScreen)
+	       != !(fullScreenState & WM_STATE_DEDICATED_DESKTOP)));
+
+  fullScreenTargetState = fullScreenState;
+  [emacsWindow toggleFullScreen:nil];
+}
+
 - (void)setWindowManagerState:(WMState)newState
 {
   struct frame *f = emacsFrame;
-  WMState oldState, diff;
+  WMState oldState, diff, fullScreenState;
   const WMState collectionBehaviorStates =
     (WM_STATE_STICKY | WM_STATE_NO_MENUBAR
      | WM_STATE_SKIP_TASKBAR | WM_STATE_OVERRIDE_REDIRECT);
@@ -2788,16 +2932,14 @@ static CGRect unset_global_focus_view_frame (void);
     }
 
   if (has_full_screen_with_dedicated_desktop_p ()
-      && (diff & WM_STATE_DEDICATED_DESKTOP))
+      && (diff & WM_STATE_DEDICATED_DESKTOP)
+      && emacsWindow.parentWindow == nil)
     {
       emacsWindow.collectionBehavior |=
 	NSWindowCollectionBehaviorFullScreenPrimary;
 
       if (diff & WM_STATE_FULLSCREEN)
-	{
-	  fullScreenTargetState = newState;
-	  [emacsWindow toggleFullScreen:nil];
-	}
+	[self changeFullScreenState:newState];
       else if (newState & WM_STATE_DEDICATED_DESKTOP)
 	{
 #if 1
@@ -2807,7 +2949,7 @@ static CGRect unset_global_focus_view_frame (void);
 	     lead to several glitches.  So we have to replace the
 	     window class, and then enter full screen mode, i.e.,
 	     fullboth -> maximized -> fullscreen.  */
-	  fullScreenTargetState = newState;
+	  fullScreenState = newState;
 	  newState = ((newState & ~WM_STATE_FULLSCREEN)
 		      | WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT);
 	  diff = (oldState ^ newState);
@@ -2826,10 +2968,9 @@ static CGRect unset_global_focus_view_frame (void);
 	  mac_within_lisp (^{
 	      store_frame_param (f, Qfullscreen, Qmaximized);
 	    });
-	  fullScreenTargetState = ((newState & ~WM_STATE_FULLSCREEN)
-				   | WM_STATE_MAXIMIZED_HORZ
-				   | WM_STATE_MAXIMIZED_VERT);
-	  [emacsWindow toggleFullScreen:nil];
+	  [self changeFullScreenState:((newState & ~WM_STATE_FULLSCREEN)
+				       | WM_STATE_MAXIMIZED_HORZ
+				       | WM_STATE_MAXIMIZED_VERT)];
 	  fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_FULLBOTH;
 	}
     }
@@ -2844,53 +2985,7 @@ static CGRect unset_global_focus_view_frame (void);
 
       if ((diff & WM_STATE_FULLSCREEN)
 	  || setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
-	{
-	  Lisp_Object tool_bar_lines = get_frame_param (f, Qtool_bar_lines);
-
-	  if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
-	    mac_within_lisp (^{
-		x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
-							 make_number (0))));
-	      });
-	  FRAME_NATIVE_TOOL_BAR_P (f) =
-	    (setFrameType != SET_FRAME_TOGGLE_FULL_SCREEN_LATER
-	     ? ((newState & WM_STATE_FULLSCREEN) != 0)
-	     : !(newState & WM_STATE_DEDICATED_DESKTOP));
-	  if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
-	    mac_within_lisp (^{
-		x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
-							 tool_bar_lines)));
-	      });
-#if 0
-	  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
-	    {
-#endif
-	      [self setupWindow];
-#if 0
-	    }
-	  else
-	    {
-	      /* Changing NSWindowStyleMaskFullScreen does not
-		 preserve the toolbar visibility value on Mac OS X
-		 10.7.  */
-	      BOOL isToolbarVisible = [[emacsWindow toolbar] isVisible];
-
-	      [emacsWindow setStyleMask:([emacsWindow styleMask]
-					 ^ NSWindowStyleMaskFullScreen)];
-	      [emacsWindow setHasShadow:(!(newState & WM_STATE_FULLSCREEN))];
-	      [[emacsWindow toolbar] setVisible:isToolbarVisible];
-	      if ([emacsWindow isKeyWindow])
-		{
-		  [emacsController updatePresentationOptions];
-		  /* This is a workaround.  On Mac OS X 10.7, the
-		     first call above doesn't change the presentation
-		     options when S-magnify-up -> C-x 5 2 -> C-x 5 o
-		     -> S-magnify-down for unknown reason.  */
-		  [emacsController updatePresentationOptions];
-		}
-	    }
-#endif
-	}
+	[self updateWindowStyle];
 
       if ((newState & WM_STATE_FULLSCREEN)
 	  || ((newState & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT))
@@ -2919,7 +3014,7 @@ static CGRect unset_global_focus_view_frame (void);
       [emacsWindow setFrame:frameRect display:YES];
 
       if (setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
-	[emacsWindow toggleFullScreen:nil];
+	[self changeFullScreenState:fullScreenState];
     }
 
   [emacsController updatePresentationOptions];
@@ -3007,6 +3102,18 @@ static CGRect unset_global_focus_view_frame (void);
   return rect;
 }
 
+- (NSRect)convertEmacsViewRectFromScreen:(NSRect)rect
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+  rect.origin = [emacsWindow convertRectFromScreen:rect].origin;
+#else
+  rect.origin = [emacsWindow convertScreenToBase:rect.origin];
+#endif
+  rect = [emacsView convertRect:rect fromView:nil];
+
+  return rect;
+}
+
 - (NSRect)centerScanEmacsViewRect:(NSRect)rect
 {
   return [emacsView centerScanRect:rect];
@@ -3078,6 +3185,8 @@ static CGRect unset_global_focus_view_frame (void);
   [emacsController setConflictingKeyBindingsDisabled:YES];
 
   [emacsController updatePresentationOptions];
+
+  [emacsWindow.topLevelWindow makeMainWindow];
 }
 
 - (void)windowDidResignKey:(NSNotification *)notification
@@ -3658,6 +3767,19 @@ static CGRect unset_global_focus_view_frame (void);
   fullscreenFrameParameterAfterTransition = FULLSCREEN_PARAM_NONE;
 }
 
+- (void)storeParentFrameFrameParameter
+{
+  struct frame *f = emacsFrame;
+
+  if (!NILP (f->parent_frame))
+    {
+      [self storeModifyFrameParametersEvent:(list1 (Fcons (Qparent_frame,
+							   f->parent_frame)))];
+      store_frame_param (f, Qparent_frame, Qnil);
+      fset_parent_frame (f, Qnil);
+    }
+}
+
 - (void)addFullScreenTransitionCompletionHandler:(void (^)(EmacsWindow *,
 							   BOOL))block
 {
@@ -3710,6 +3832,18 @@ static CGRect unset_global_focus_view_frame (void);
 	[[NSOperationQueue mainQueue] addOperationWithBlock:^{
 	    [[window toolbar] setVisible:savedToolbarVisibility];
 	  }];
+    }];
+
+  /* Child windows seem to be temporarily removed during full screen
+     transition.  */
+  for (NSWindow *childWindow in self.emacsWindow.childWindows)
+    if ([childWindow isKindOfClass:[EmacsWindow class]])
+      [(EmacsWindow *)childWindow suspendConstrainingToScreen:YES];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      for (NSWindow *childWindow in window.childWindows)
+	if ([childWindow isKindOfClass:[EmacsWindow class]])
+	  [(EmacsWindow *)childWindow suspendConstrainingToScreen:NO];
     }];
 }
 
@@ -3777,6 +3911,22 @@ static CGRect unset_global_focus_view_frame (void);
 	    [window suspendConstrainingToScreen:YES];
 	}];
     }
+
+  for (NSWindow *childWindow in self.emacsWindow.childWindows)
+    if ([childWindow isKindOfClass:[EmacsWindow class]])
+      [(EmacsWindow *)childWindow suspendConstrainingToScreen:YES];
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      for (NSWindow *childWindow in window.childWindows)
+	if ([childWindow isKindOfClass:[EmacsWindow class]])
+	  [(EmacsWindow *)childWindow suspendConstrainingToScreen:NO];
+    }];
+
+  [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
+						   BOOL success) {
+      if (success)
+	[weakSelf storeParentFrameFrameParameter];
+    }];
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
@@ -3903,6 +4053,8 @@ static CGRect unset_global_focus_view_frame (void);
       [emacsView setAutoresizingMask:previousAutoresizingMask];
       /* Mac OS X 10.7 needs this.  */
       [emacsView setFrame:[[emacsView superview] bounds]];
+      /* OS X 10.9 - 10.10 need this.  */
+      [(EmacsMainView *)emacsView synchronizeChildFrameOrigins];
     }];
 }
 
@@ -3972,6 +4124,8 @@ static CGRect unset_global_focus_view_frame (void);
       [emacsView setAutoresizingMask:previousAutoresizingMask];
       /* Mac OS X 10.7 needs this.  */
       [emacsView setFrame:[[emacsView superview] bounds]];
+      /* OS X 10.9 - 10.10 need this.  */
+      [(EmacsMainView *)emacsView synchronizeChildFrameOrigins];
     }];
 }
 
@@ -3988,6 +4142,83 @@ static CGRect unset_global_focus_view_frame (void);
     }
 
   return NO;
+}
+
+- (BOOL)shouldBeTitled
+{
+  struct frame *f = emacsFrame;
+
+  if (FRAME_PARENT_FRAME (f))
+    return NO;
+  else if (windowManagerState & WM_STATE_FULLSCREEN)
+    return (has_full_screen_with_dedicated_desktop_p ()
+	    && (windowManagerState & WM_STATE_DEDICATED_DESKTOP));
+  else
+    return !FRAME_UNDECORATED (f);
+}
+
+- (BOOL)shouldHaveShadow
+{
+  struct frame *f = emacsFrame;
+
+  if (FRAME_PARENT_FRAME (f))
+    return NO;
+  else if (windowManagerState & WM_STATE_FULLSCREEN)
+    return (has_full_screen_with_dedicated_desktop_p ()
+	    && (windowManagerState & WM_STATE_DEDICATED_DESKTOP));
+  else
+    return YES;
+}
+
+- (void)updateWindowStyle
+{
+  BOOL shouldBeTitled = self.shouldBeTitled;
+
+  if (emacsWindow.hasTitleBar != shouldBeTitled)
+    {
+      struct frame *f = emacsFrame;
+      Lisp_Object tool_bar_lines = get_frame_param (f, Qtool_bar_lines);
+
+      if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
+	mac_within_lisp (^{
+	    x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
+						     make_number (0))));
+	  });
+      FRAME_NATIVE_TOOL_BAR_P (f) = !shouldBeTitled;
+      if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
+	mac_within_lisp (^{
+	    x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
+						     tool_bar_lines)));
+	  });
+      [self setupWindow];
+    }
+
+  emacsWindow.hasShadow = self.shouldHaveShadow;
+}
+
+- (void)windowWillEnterTabOverview
+{
+  [emacsWindow enumerateChildWindowsUsingBlock:^(NSWindow *child, BOOL *stop) {
+      if (savedChildWindowAlphaMap == nil)
+	savedChildWindowAlphaMap =
+	  [[NSMapTable alloc]
+	    initWithKeyOptions:NSMapTableObjectPointerPersonality
+		  valueOptions:NSMapTableStrongMemory capacity:0];
+      [savedChildWindowAlphaMap
+	setObject:[NSNumber numberWithDouble:child.alphaValue] forKey:child];
+      child.alphaValue = 0;
+    }];
+}
+
+- (void)windowDidExitTabOverview
+{
+  [emacsWindow enumerateChildWindowsUsingBlock:^(NSWindow *child, BOOL *stop) {
+      NSNumber *number = [savedChildWindowAlphaMap objectForKey:child];
+
+      child.alphaValue = (number ? number.doubleValue : 1.0);
+    }];
+  MRC_RELEASE (savedChildWindowAlphaMap);
+  savedChildWindowAlphaMap = nil;
 }
 
 @end				// EmacsFrameController
@@ -4047,64 +4278,79 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 {
   EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
-  if (![NSApp isHidden])
-    {
-      mac_within_gui (^{
-	  NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
-	  NSWindow *mainWindow = [NSApp mainWindow];
-
-	  if (!FRAME_TOOLTIP_P (f)
-	      && [window respondsToSelector:@selector(setTabbingMode:)]
-	      && ![window isVisible])
-	    {
-	      if (!mainWindow.hasTitleBar || NILP (Vmac_frame_tabbing))
-		tabbingMode = NSWindowTabbingModeDisallowed;
-	      else if (EQ (Vmac_frame_tabbing, Qt))
-		tabbingMode = NSWindowTabbingModePreferred;
-	      else if (EQ (Vmac_frame_tabbing, Qinverted))
-		switch ([NSWindow userTabbingPreference])
-		  {
-		  case NSWindowUserTabbingPreferenceManual:
-		    tabbingMode = NSWindowTabbingModePreferred;
-		    break;
-		  case NSWindowUserTabbingPreferenceAlways:
-		    tabbingMode = NSWindowTabbingModeDisallowed;
-		    break;
-		  case NSWindowUserTabbingPreferenceInFullScreen:
-		    if ([mainWindow styleMask] & NSWindowStyleMaskFullScreen)
-		      tabbingMode = NSWindowTabbingModeDisallowed;
-		    else
-		      tabbingMode = NSWindowTabbingModePreferred;
-		    break;
-		  }
-
-	      window.tabbingMode = tabbingMode;
-	      if ([mainWindow isKindOfClass:[EmacsWindow class]])
-		{
-		  mainWindow.tabbingMode = tabbingMode;
-		  /* If the Tab Overview UI is visible and the window
-		     is to join its tab group, then make the Overview
-		     UI invisible and wait until it finishes.  */
-		  if (tabbingMode == NSWindowTabbingModePreferred)
-		    [(EmacsWindow *)mainWindow exitTabGroupOverview];
-		}
-	    }
-
-	  if (activate_p)
-	    [window makeKeyAndOrderFront:nil];
-	  else
-	    [window orderFront:nil];
-
-	  if (tabbingMode != NSWindowTabbingModeAutomatic)
-	    {
-	      window.tabbingMode = NSWindowTabbingModeAutomatic;
-	      if ([mainWindow isKindOfClass:[EmacsWindow class]])
-		mainWindow.tabbingMode = NSWindowTabbingModeAutomatic;
-	    }
-	});
-    }
+  if ([NSApp isHidden])
+    window.needsOrderFrontOnUnhide = YES;
   else
-    [window setNeedsOrderFrontOnUnhide:YES];
+    mac_within_gui (^{
+	struct frame *p = FRAME_PARENT_FRAME (f);
+
+	if (p)
+	  {
+	    if (!window.isVisible)
+	      {
+		NSWindow *parentWindow = FRAME_MAC_WINDOW_OBJECT (p);
+
+		[parentWindow addChildWindow:window ordered:NSWindowAbove];
+		mac_move_frame_window_structure_1 (f, f->left_pos, f->top_pos);
+	      }
+	    if (activate_p)
+	      [window makeKeyWindow];
+	  }
+	else
+	  {
+	    NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
+	    NSWindow *mainWindow = [NSApp mainWindow];
+
+	    if (!FRAME_TOOLTIP_P (f)
+		&& [window respondsToSelector:@selector(setTabbingMode:)]
+		&& !window.isVisible)
+	      {
+		if (!mainWindow.hasTitleBar || NILP (Vmac_frame_tabbing))
+		  tabbingMode = NSWindowTabbingModeDisallowed;
+		else if (EQ (Vmac_frame_tabbing, Qt))
+		  tabbingMode = NSWindowTabbingModePreferred;
+		else if (EQ (Vmac_frame_tabbing, Qinverted))
+		  switch ([NSWindow userTabbingPreference])
+		    {
+		    case NSWindowUserTabbingPreferenceManual:
+		      tabbingMode = NSWindowTabbingModePreferred;
+		      break;
+		    case NSWindowUserTabbingPreferenceAlways:
+		      tabbingMode = NSWindowTabbingModeDisallowed;
+		      break;
+		    case NSWindowUserTabbingPreferenceInFullScreen:
+		      if (mainWindow.styleMask & NSWindowStyleMaskFullScreen)
+			tabbingMode = NSWindowTabbingModeDisallowed;
+		      else
+			tabbingMode = NSWindowTabbingModePreferred;
+		      break;
+		    }
+
+		window.tabbingMode = tabbingMode;
+		if ([mainWindow isKindOfClass:[EmacsWindow class]])
+		  {
+		    mainWindow.tabbingMode = tabbingMode;
+		    /* If the Tab Overview UI is visible and the window
+		       is to join its tab group, then make the Overview
+		       UI invisible and wait until it finishes.  */
+		    if (tabbingMode == NSWindowTabbingModePreferred)
+		      [(EmacsWindow *)mainWindow exitTabGroupOverview];
+		  }
+	      }
+
+	    if (activate_p)
+	      [window makeKeyAndOrderFront:nil];
+	    else
+	      [window orderFront:nil];
+
+	    if (tabbingMode != NSWindowTabbingModeAutomatic)
+	      {
+		window.tabbingMode = NSWindowTabbingModeAutomatic;
+		if ([mainWindow isKindOfClass:[EmacsWindow class]])
+		  mainWindow.tabbingMode = NSWindowTabbingModeAutomatic;
+	      }
+	  }
+      });
 }
 
 void
@@ -4130,6 +4376,8 @@ mac_hide_frame_window (struct frame *f)
       if ([window isMiniaturized])
 	[window deminiaturize:nil];
 
+      /* Mac OS X 10.6 needs this.  */
+      [window.parentWindow removeChildWindow:window];
       [window orderOut:nil];
       [window setNeedsOrderFrontOnUnhide:NO];
     });
@@ -4187,15 +4435,35 @@ mac_get_base_screen_frame (void)
     return [[NSScreen mainScreen] frame];
 }
 
+static void
+mac_move_frame_window_structure_1 (struct frame *f, int x, int y)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  struct frame *p = FRAME_PARENT_FRAME (f);
+  NSPoint topLeft;
+
+  if (p == NULL)
+    {
+      NSRect baseScreenFrame = mac_get_base_screen_frame ();
+
+      topLeft = NSMakePoint (x + NSMinX (baseScreenFrame),
+			     -y + NSMaxY (baseScreenFrame));
+    }
+  else
+    {
+      EmacsFrameController *frameController = FRAME_CONTROLLER (p);
+
+      topLeft = [frameController
+		  convertEmacsViewPointToScreen:(NSMakePoint (x, y))];
+    }
+
+  [window setFrameTopLeftPoint:topLeft];
+}
+
 OSStatus
 mac_move_frame_window_structure (struct frame *f, int x, int y)
 {
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  NSRect baseScreenFrame = mac_get_base_screen_frame ();
-  NSPoint topLeft = NSMakePoint (x + NSMinX (baseScreenFrame),
-				 -y + NSMaxY (baseScreenFrame));
-
-  mac_within_gui (^{[window setFrameTopLeftPoint:topLeft];});
+  mac_within_gui (^{mac_move_frame_window_structure_1 (f, x, y);});
 
   return noErr;
 }
@@ -4626,14 +4894,28 @@ void
 mac_set_frame_window_structure_bounds (struct frame *f, NativeRectangle bounds)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  NSRect baseScreenFrame = mac_get_base_screen_frame ();
 
   mac_within_gui (^{
-      [window setFrame:(NSMakeRect (bounds.x + NSMinX (baseScreenFrame),
-				    (- (bounds.y + bounds.height)
-				     + NSMaxY (baseScreenFrame)),
-				    bounds.width, bounds.height))
-	       display:NO];
+      struct frame *p = FRAME_PARENT_FRAME (f);
+      NSRect rect = NSMakeRect (bounds.x, bounds.y,
+				bounds.width, bounds.height);
+
+      if (p == NULL)
+	{
+	  NSRect baseScreenFrame = mac_get_base_screen_frame ();
+
+	  rect.origin =
+	    NSMakePoint (NSMinX (rect) + NSMinX (baseScreenFrame),
+			 - NSMaxY (rect) + NSMaxY (baseScreenFrame));
+	}
+      else
+	{
+	  EmacsFrameController *frameController = FRAME_CONTROLLER (p);
+
+	  rect = [frameController convertEmacsViewRectToScreen:rect];
+	}
+
+      [window setFrame:rect display:NO];
     });
 }
 
@@ -4642,13 +4924,26 @@ mac_get_frame_window_structure_bounds_1 (struct frame *f,
 					 NativeRectangle *bounds)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  NSRect baseScreenFrame = mac_get_base_screen_frame ();
-  NSRect windowFrame = [window frame];
+  NSRect rect = [window frame];
+  struct frame *p = FRAME_PARENT_FRAME (f);
 
-  STORE_NATIVE_RECT (*bounds,
-		     NSMinX (windowFrame) - NSMinX (baseScreenFrame),
-		     - NSMaxY (windowFrame) + NSMaxY (baseScreenFrame),
-		     NSWidth (windowFrame), NSHeight (windowFrame));
+  if (p == NULL)
+    {
+      NSRect baseScreenFrame = mac_get_base_screen_frame ();
+
+      rect.origin = NSMakePoint (NSMinX (rect) - NSMinX (baseScreenFrame),
+				 - NSMaxY (rect) + NSMaxY (baseScreenFrame));
+    }
+  else
+    {
+      EmacsFrameController *frameController = FRAME_CONTROLLER (p);
+
+      rect = NSIntegralRect ([frameController
+			       convertEmacsViewRectFromScreen:rect]);
+    }
+
+  STORE_NATIVE_RECT (*bounds, NSMinX (rect), NSMinY (rect),
+		     NSWidth (rect), NSHeight (rect));
 }
 
 void
@@ -4894,7 +5189,7 @@ void
 mac_flush (struct frame *f)
 {
   block_input ();
-  mac_within_gui (^{mac_flush_1 (f);});
+  mac_within_gui (^{mac_flush_1 (NULL);});
   unblock_input ();
 }
 
@@ -4937,7 +5232,8 @@ mac_create_frame_window (struct frame *f)
   /* Save possibly negative position values because they might be
      changed by `setToolbar' -> `windowDidResize:' if the toolbar is
      visible.  */
-  if (f->size_hint_flags & (USPosition | PPosition))
+  if (f->size_hint_flags & (USPosition | PPosition)
+      || FRAME_PARENT_FRAME (f))
     {
       left_pos = f->left_pos;
       top_pos = f->top_pos;
@@ -4949,7 +5245,8 @@ mac_create_frame_window (struct frame *f)
   FRAME_MAC_WINDOW (f) =
     (void *) CF_BRIDGING_RETAIN (MRC_AUTORELEASE (frameController));
 
-  if (f->size_hint_flags & (USPosition | PPosition))
+  if (f->size_hint_flags & (USPosition | PPosition)
+      || FRAME_PARENT_FRAME (f))
     {
       f->left_pos = left_pos;
       f->top_pos = top_pos;
@@ -4983,7 +5280,13 @@ mac_dispose_frame_window (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
-  mac_within_gui (^{[frameController closeWindow];});
+  mac_within_gui (^{
+      EmacsWindow *window = frameController.emacsWindow;
+
+      /* Mac OS X 10.6 needs this.  */
+      [window.parentWindow removeChildWindow:window];
+      [frameController closeWindow];
+    });
   CFRelease (FRAME_MAC_WINDOW (f));
 }
 
@@ -5177,6 +5480,67 @@ mac_invalidate_rectangles (struct frame *f, NativeRectangle *rectangles, int n)
   mac_within_gui (^{
       [frameController setEmacsViewNeedsDisplayInRects:rects count:n];
     });
+}
+
+void
+mac_update_frame_window_style (struct frame *f)
+{
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+  mac_within_gui_allowing_inner_lisp (^{[frameController updateWindowStyle];});
+}
+
+void
+mac_update_frame_window_parent (struct frame *f)
+{
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+  WMState windowManagerState = frameController.windowManagerState;
+  struct frame *p = FRAME_PARENT_FRAME (f);
+  int x = f->left_pos, y = f->top_pos;
+
+  if ((windowManagerState & WM_STATE_DEDICATED_DESKTOP)
+      && p)
+    {
+      /* Exit from full screen and try setting the `parent-frame'
+	 frame parameter again via storeParentFrameFrameParameter. */
+      mac_within_app (^{
+	  [frameController changeFullScreenState:WM_STATE_FULLSCREEN];
+	});
+
+      return;
+    }
+
+  mac_update_frame_window_style (f);
+  mac_within_gui (^{
+      NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+      if ([window respondsToSelector:@selector(setAnimationBehavior:)])
+	window.animationBehavior = (p == NULL
+				    ? NSWindowAnimationBehaviorDocumentWindow
+				    : NSWindowAnimationBehaviorNone);
+      if (window.isVisible)
+	{
+	  [window.parentWindow removeChildWindow:window];
+	  if (p)
+	    {
+	      NSWindow *newParentWindow = FRAME_MAC_WINDOW_OBJECT (p);
+
+	      [newParentWindow addChildWindow:window ordered:NSWindowAbove];
+	    }
+	  [emacsController updatePresentationOptions];
+	}
+      mac_move_frame_window_structure_1 (f, x, y);
+    });
+  if (has_full_screen_with_dedicated_desktop_p ()
+      && ((windowManagerState & (WM_STATE_FULLSCREEN
+				 | WM_STATE_DEDICATED_DESKTOP))
+	  == WM_STATE_FULLSCREEN)
+      && EQ (get_frame_param (f, Qfullscreen), Qfullscreen)
+      && p == NULL)
+    mac_within_gui_allowing_inner_lisp (^{
+	[frameController setWindowManagerState:(WM_STATE_DEDICATED_DESKTOP
+						| windowManagerState)];
+      });
 }
 
 Lisp_Object
@@ -6373,12 +6737,27 @@ event_phase_to_symbol (NSEventPhase phase)
   return CF_BRIDGING_RELEASE (string);
 }
 
+- (void)synchronizeChildFrameOrigins
+{
+  struct frame *f = self.emacsFrame;
+  Lisp_Object frame, tail;
+
+  FOR_EACH_FRAME (tail, frame)
+    if (FRAME_PARENT_FRAME (XFRAME (frame)) == f)
+      {
+	struct frame *c = XFRAME (frame);
+
+	mac_move_frame_window_structure_1 (c, c->left_pos, c->top_pos);
+      }
+}
+
 - (void)viewDidEndLiveResize
 {
   struct frame *f = [self emacsFrame];
   NSRect frameRect = [self frame];
 
   [super viewDidEndLiveResize];
+  [self synchronizeChildFrameOrigins];
   mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
   /* Exit from mac_select so as to react to the frame size change,
      especially in a full screen tile on OS X 10.11.  */
@@ -6393,6 +6772,7 @@ event_phase_to_symbol (NSEventPhase phase)
       struct frame *f = [self emacsFrame];
       NSRect frameRect = [self frame];
 
+      [self synchronizeChildFrameOrigins];
       mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
       /* Exit from mac_select so as to react to the frame size
 	 change.  */
@@ -9076,7 +9456,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 void
 mac_show_hourglass (struct frame *f)
 {
-  if (!FRAME_TOOLTIP_P (f))
+  if (!FRAME_TOOLTIP_P (f) && FRAME_PARENT_FRAME (f) == NULL)
     {
       EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
@@ -9090,7 +9470,7 @@ mac_show_hourglass (struct frame *f)
 void
 mac_hide_hourglass (struct frame *f)
 {
-  if (!FRAME_TOOLTIP_P (f))
+  if (!FRAME_TOOLTIP_P (f) && FRAME_PARENT_FRAME (f) == NULL)
     {
       EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
@@ -9677,7 +10057,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
   NSMenu *menu = [[NSMenu alloc] init];
 
   for (NSWindow *window in [NSApp windows])
-    if (!window.hasTitleBar
+    if (!window.hasTitleBar && window.parentWindow == nil
 	&& !window.isExcludedFromWindowsMenu
 	&& ([window isVisible] || [window isMiniaturized]))
       {

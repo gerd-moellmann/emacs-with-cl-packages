@@ -3971,6 +3971,7 @@ static void
 x_calc_absolute_position (struct frame *f)
 {
   int flags = f->size_hint_flags;
+  struct frame *p = FRAME_PARENT_FRAME (f);
   NativeRectangle bounds;
 
   /* We have nothing to do if the current position
@@ -3985,11 +3986,13 @@ x_calc_absolute_position (struct frame *f)
   /* Treat negative positions as relative to the leftmost bottommost
      position that fits on the screen.  */
   if (flags & XNegative)
-    f->left_pos += (x_display_pixel_width (FRAME_DISPLAY_INFO (f))
+    f->left_pos += ((p == NULL ? x_display_pixel_width (FRAME_DISPLAY_INFO (f))
+		     : FRAME_PIXEL_WIDTH (p))
 		    - bounds.width);
 
   if (flags & YNegative)
-    f->top_pos += (x_display_pixel_height (FRAME_DISPLAY_INFO (f))
+    f->top_pos += ((p == NULL ? x_display_pixel_height (FRAME_DISPLAY_INFO (f))
+		    : FRAME_PIXEL_HEIGHT (p))
 		   - bounds.height);
 
   /* The left_pos and top_pos
@@ -4315,6 +4318,20 @@ mac_handle_visibility_change (struct frame *f)
 void
 x_make_frame_visible (struct frame *f)
 {
+  if (FRAME_PARENT_FRAME (f))
+    {
+      if (!FRAME_VISIBLE_P (f))
+	{
+	  block_input ();
+	  mac_show_frame_window (f);
+	  unblock_input ();
+
+	  SET_FRAME_VISIBLE (f, true);
+	  SET_FRAME_ICONIFIED (f, false);
+	}
+      return;
+    }
+
   block_input ();
 
   if (! FRAME_VISIBLE_P (f))
