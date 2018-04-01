@@ -14991,9 +14991,12 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
   block_input ();
   turn_on_atimers (false);
   mac_within_gui_and_here (^{
-      /* Temporarily disable autodisplay since the Lisp thread might
-	 switch to another one and some drawing may happen there.  */
-      emacs_windows_set_autodisplay_p (false);
+      bool thread_may_switch_p = !NILP (XCDR (Fall_threads ()));
+
+      /* Temporarily disable autodisplay if the Lisp thread may switch
+	 to another one and some drawing may happen there.  */
+      if (thread_may_switch_p)
+	emacs_windows_set_autodisplay_p (false);
       while (true)
 	{
 	  mac_select_next_command = 0;
@@ -15043,7 +15046,8 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 	  else
 	    mac_gui_loop_once ();
 	}
-      emacs_windows_set_autodisplay_p (true);
+      if (thread_may_switch_p)
+	emacs_windows_set_autodisplay_p (true);
     },
     ^{
       r = thread_select (pselect, nfds, rfds, wfds, efds, timeout, sigmask);
