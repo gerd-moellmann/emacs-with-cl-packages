@@ -280,6 +280,10 @@ typedef id instancetype;
 - (void)showMenuBar;
 @end
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+typedef NSString * NSKeyValueChangeKey;
+#endif
+
 /* Like NSWindow, but allows suspend/resume resize control tracking.
    It also provides the delegate methods windowWillEnterTabOverview
    and windowDidExitTabOverview.  */
