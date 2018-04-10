@@ -794,15 +794,16 @@ can be produced by `dired-get-marked-files', for example."
           (and in-background (not sequentially) (not (eq system-type 'ms-dos))))
          (w32-shell (and (fboundp 'w32-shell-dos-semantics)
                          (w32-shell-dos-semantics)))
+         (file-remote (file-remote-p default-directory))
          ;; The way to run a command in background in Windows shells
          ;; is to use the START command.  The /B switch means not to
          ;; create a new window for the command.
-         (cmd-prefix (if w32-shell "start /b " ""))
+         (cmd-prefix (if (and w32-shell (not file-remote)) "start /b " ""))
          ;; Windows shells don't support chaining with ";", they use
          ;; "&" instead.
-         (cmd-sep (if (and (not w32-shell) (not parallel-in-background))
-                      ";"
-                    "&"))
+         (cmd-sep (if (and (or (not w32-shell) file-remote)
+			   (not parallel-in-background))
+		      ";" "&"))
 	 (stuff-it
 	  (if (dired--star-or-qmark-p command nil 'keep)
 	      (lambda (x)
@@ -1821,7 +1822,8 @@ Optional arg HOW-TO determines how to treat the target.
       rfn-list  - list of the relative names for the marked files.
       fn-list   - list of the absolute names for the marked files.
       target    - the name of the target itself.
-      The rest of into-dir are optional arguments.
+    The rest of elements of the list returned by HOW-TO are optional
+    arguments for the function that is the first element of the list.
    For any other return value, TARGET is treated as a directory."
   (or op1 (setq op1 operation))
   (let* ((fn-list (dired-get-marked-files nil arg))

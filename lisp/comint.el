@@ -454,8 +454,8 @@ This is run before the process is cranked up."
   "Hook run each time a process is exec'd by `comint-exec'.
 This is called after the process is cranked up.  It is useful for things that
 must be done each time a process is executed in a Comint mode buffer (e.g.,
-`(process-kill-without-query)').  In contrast, the `comint-mode-hook' is only
-executed once when the buffer is created."
+`set-process-query-on-exit-flag').  In contrast, `comint-mode-hook' is only
+executed once, when the buffer is created."
   :type 'hook
   :group 'comint)
 
@@ -2477,9 +2477,7 @@ Sets mark to the value of point when this command is run."
     (comint-truncate-buffer)))
 
 (defun comint-interrupt-subjob ()
-  "Interrupt the current subjob.
-This command also kills the pending input
-between the process mark and point."
+  "Interrupt the current subjob."
   (interactive)
   (comint-skip-input)
   (interrupt-process nil comint-ptyp)
@@ -2487,25 +2485,19 @@ between the process mark and point."
   )
 
 (defun comint-kill-subjob ()
-  "Send kill signal to the current subjob.
-This command also kills the pending input
-between the process mark and point."
+  "Send kill signal to the current subjob."
   (interactive)
   (comint-skip-input)
   (kill-process nil comint-ptyp))
 
 (defun comint-quit-subjob ()
-  "Send quit signal to the current subjob.
-This command also kills the pending input
-between the process mark and point."
+  "Send quit signal to the current subjob."
   (interactive)
   (comint-skip-input)
   (quit-process nil comint-ptyp))
 
 (defun comint-stop-subjob ()
   "Stop the current subjob.
-This command also kills the pending input
-between the process mark and point.
 
 WARNING: if there is no current subjob, you can end up suspending
 the top-level process running in the buffer.  If you accidentally do

@@ -231,7 +231,7 @@ It may be `downcase-word', `upcase-word', `ada-loose-case-word' or
   "Non-nil means remove trailing spaces and untabify the buffer before saving."
   :type 'boolean :group 'ada)
 (make-obsolete-variable 'ada-clean-buffer-before-saving
-			"use the `write-file-functions' hook."
+			"it has no effect - use `write-file-functions' hook."
 			"23.2")
 
 
@@ -2479,7 +2479,7 @@ and the offset."
 	    (forward-word-strictly -1))
 
 	  ;; If there is a parameter list, and we have a function declaration
-	  ;; or a access to subprogram declaration
+	  ;; or access to subprogram declaration
 	  (let ((num-back 1))
 	    (if (and (= (following-char) ?\()
 		     (save-excursion

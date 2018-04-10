@@ -4,7 +4,7 @@
 
 ;; Author: Kyle Meyer
 ;; Keywords: literate programming, reproducible research
-;; Homepage: http://orgmode.org
+;; Homepage: https://orgmode.org
 
 ;; This file is part of GNU Emacs.
 
@@ -39,7 +39,7 @@
 ;;    that does not end in ".stan".
 ;;
 ;; For more information and usage examples, visit
-;; http://orgmode.org/worg/org-contrib/babel/languages/ob-doc-stan.html
+;; https://orgmode.org/worg/org-contrib/babel/languages/ob-doc-stan.html
 ;;
 ;; [1] http://mc-stan.org/
 
@@ -49,11 +49,12 @@
 
 (defcustom org-babel-stan-cmdstan-directory nil
   "CmdStan source directory.
-'make' will be called from this directory to compile the Stan
-block.  When nil, executing Stan blocks dumps the content to a
-plain text file."
+Call \"make\" from this directory to compile the Stan block.
+When nil, executing Stan blocks dumps the content to a file."
   :group 'org-babel
-  :type 'string)
+  :type '(choice
+	  (directory :tag "Compilation directory")
+	  (const :tag "Dump to a file" nil)))
 
 (defvar org-babel-default-header-args:stan
   '((:results . "file")))

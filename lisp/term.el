@@ -498,7 +498,7 @@ inconsistent with the state of the terminal understood by the
 inferior process.  Only the process filter is allowed to make
 changes to the buffer.
 
-Customize this option to nil if you want the previous behaviour."
+Customize this option to nil if you want the previous behavior."
   :version "26.1"
   :type 'boolean
   :group 'term)
@@ -519,7 +519,7 @@ commands can be invoked on the mouse-selected point or region,
 until the process filter (or user) moves point to the process
 mark once again.
 
-Customize this option to nil if you want the previous behaviour."
+Customize this option to nil if you want the previous behavior."
   :version "26.1"
   :type 'boolean
   :group 'term)
@@ -593,6 +593,9 @@ massage the input string, this is your hook.  This is called from
 the user command `term-send-input'.  `term-simple-send' just sends
 the string plus a newline.")
 
+(defvar term-partial-ansi-terminal-message nil
+  "Keep partial ansi terminal messages for future processing.")
+
 (defcustom term-eol-on-send t
   "Non-nil means go to the end of the line before sending input.
 See `term-send-input'."
@@ -609,8 +612,8 @@ This is run before the process is cranked up."
   "Called each time a process is exec'd by `term-exec'.
 This is called after the process is cranked up.  It is useful for things that
 must be done each time a process is executed in a term mode buffer (e.g.,
-`process-kill-without-query').  In contrast, `term-mode-hook' is only
-executed once when the buffer is created."
+`set-process-query-on-exit-flag').  In contrast, `term-mode-hook' is only
+executed once, when the buffer is created."
   :type 'hook
   :group 'term)
 
@@ -1077,6 +1080,8 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (make-local-variable 'ange-ftp-default-password)
   (make-local-variable 'ange-ftp-generate-anonymous-password)
 
+  (make-local-variable 'term-partial-ansi-terminal-message)
+
   ;; You may want to have different scroll-back sizes -mm
   (make-local-variable 'term-buffer-maximum-size)
 
@@ -1140,7 +1145,8 @@ Entry to this mode runs the hooks on `term-mode-hook'."
                 (lambda (size)
                   (when size
                     (term-reset-size (cdr size) (car size)))
-                  size))
+                  size)
+                '((name . term-maybe-reset-size)))
 
   (add-hook 'read-only-mode-hook #'term-line-mode-buffer-read-only-update nil t)
 
@@ -1160,6 +1166,11 @@ Entry to this mode runs the hooks on `term-mode-hook'."
       (setq term-current-row nil)
       (setq term-current-column nil)
       (term-set-scroll-region 0 height)
+      ;; `term-set-scroll-region' causes these to be set, we have to
+      ;; clear them again since we're changing point (Bug#30544).
+      (setq term-start-line-column nil)
+      (setq term-current-row nil)
+      (setq term-current-column nil)
       (goto-char point))))
 
 ;; Recursive routine used to check if any string in term-kill-echo-list
@@ -2043,16 +2054,13 @@ After the process output mark, sends all text from the process mark to
 point as input to the process.  Before the process output mark, calls value
 of variable `term-get-old-input' to retrieve old input, copies it to the
 process mark, and sends it.  A terminal newline is also inserted into the
-buffer and sent to the process.  The list of function names contained in the
-value of `term-input-filter-functions' is called on the input before sending
-it.  The input is entered into the input history ring, if the value of variable
-`term-input-filter' returns non-nil when called on the input.
+buffer and sent to the process.  The functions in `term-input-filter-functions'
+are called on the input before sending it.
 
-Any history reference may be expanded depending on the value of the variable
-`term-input-autoexpand'.  The list of function names contained in the value
-of `term-input-filter-functions' is called on the input before sending it.
 The input is entered into the input history ring, if the value of variable
-`term-input-filter' returns non-nil when called on the input.
+`term-input-filter' returns non-nil when called on the input.  Any history
+reference may be expanded depending on the value of the variable
+`term-input-autoexpand'.
 
 If variable `term-eol-on-send' is non-nil, then point is moved to the
 end of line before sending the input.
@@ -2702,6 +2710,11 @@ See `term-prompt-regexp'."
 ;;difference ;-) -mm
 
 (defun term-handle-ansi-terminal-messages (message)
+  ;; Handle stored partial message
+  (when term-partial-ansi-terminal-message
+    (setq message (concat term-partial-ansi-terminal-message message))
+    (setq term-partial-ansi-terminal-message nil))
+
   ;; Is there a command here?
   (while (string-match "\eAnSiT.+\n" message)
     ;; Extract the command code and the argument.
@@ -2754,6 +2767,11 @@ See `term-prompt-regexp'."
 	  (setq ange-ftp-default-user nil)
 	  (setq ange-ftp-default-password nil)
 	  (setq ange-ftp-generate-anonymous-password nil)))))
+  ;; If there is a partial message at the end of the string, store it
+  ;; for future use.
+  (when (string-match "\eAnSiT.+$" message)
+    (setq term-partial-ansi-terminal-message (match-string 0 message))
+    (setq message (replace-match "" t t message)))
   message)
 
 
@@ -4242,7 +4260,9 @@ the process.  Any more args are arguments to PROGRAM."
 
 ;;;###autoload
 (defun ansi-term (program &optional new-buffer-name)
-  "Start a terminal-emulator in a new buffer."
+  "Start a terminal-emulator in a new buffer.
+This is almost the same as `term' apart from always creating a new buffer,
+and `C-x' being marked as a `term-escape-char'. "
   (interactive (list (read-from-minibuffer "Run program: "
 					   (or explicit-shell-file-name
 					       (getenv "ESHELL")

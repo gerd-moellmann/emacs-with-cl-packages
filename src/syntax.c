@@ -1087,7 +1087,12 @@ DEFUN ("char-syntax", Fchar_syntax, Schar_syntax, 1, 1, 0,
 For example, if CHARACTER is a word constituent, the
 character `w' (119) is returned.
 The characters that correspond to various syntax codes
-are listed in the documentation of `modify-syntax-entry'.  */)
+are listed in the documentation of `modify-syntax-entry'.
+
+If you're trying to determine the syntax of characters in the buffer,
+this is probably the wrong function to use, because it can't take
+`syntax-table' text properties into account.  Consider using
+`syntax-after' instead.  */)
   (Lisp_Object character)
 {
   int char_int;
@@ -1547,10 +1552,11 @@ left there and the function returns nil.  Field boundaries are not
 noticed if `inhibit-field-text-motion' is non-nil.
 
 The word boundaries are normally determined by the buffer's syntax
-table, but `find-word-boundary-function-table', such as set up
-by `subword-mode', can change that.  If a Lisp program needs to
-move by words determined strictly by the syntax table, it should
-use `forward-word-strictly' instead.  */)
+table and character script (according to `char-script-table'), but
+`find-word-boundary-function-table', such as set up by `subword-mode',
+can change that.  If a Lisp program needs to move by words determined
+strictly by the syntax table, it should use `forward-word-strictly'
+instead.  See Info node `(elisp) Word Motion' for details.  */)
   (Lisp_Object arg)
 {
   Lisp_Object tmp;
@@ -3023,7 +3029,7 @@ Comments are ignored if `parse-sexp-ignore-comments' is non-nil.
 
 If we reach the beginning or end of the accessible part of the buffer
 before we have scanned over COUNT lists, return nil if the depth at
-that point is zero, and signal a error if the depth is nonzero.  */)
+that point is zero, and signal an error if the depth is nonzero.  */)
   (Lisp_Object from, Lisp_Object count, Lisp_Object depth)
 {
   CHECK_NUMBER (from);

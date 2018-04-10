@@ -1879,8 +1879,9 @@ completion tables (@pxref{Major Mode Conventions}).
 
 When the command @code{completion-at-point} runs, it calls the
 functions in the list one by one, without any argument.  Each function
-should return @code{nil} if it is unable to produce a completion table
-for the text at point.  Otherwise it should return a list of the form
+should return @code{nil} unless it can and wants to take
+responsibility for the completion data for the text at point.
+Otherwise it should return a list of the following form:
 
 @example
 (@var{start} @var{end} @var{collection} . @var{props})
@@ -1910,13 +1911,15 @@ next function in @code{completion-at-point-functions} instead of
 reporting a completion failure.
 @end table
 
+The functions on this hook should generally return quickly, since they
+may be called very often (e.g., from @code{post-command-hook}).
 Supplying a function for @var{collection} is strongly recommended if
 generating the list of completions is an expensive operation.  Emacs
 may internally call functions in @code{completion-at-point-functions}
 many times, but care about the value of @var{collection} for only some
 of these calls.  By supplying a function for @var{collection}, Emacs
 can defer generating completions until necessary.  You can use
-@var{completion-table-dynamic} to create a wrapper function:
+@code{completion-table-dynamic} to create a wrapper function:
 
 @smallexample
 ;; Avoid this pattern.
@@ -1932,11 +1935,17 @@ can defer generating completions until necessary.  You can use
             (my-make-completions)))))
 @end smallexample
 
+Additionally, the @var{collection} should generally not be
+pre-filtered based on the current text between @var{start} and
+@var{end}, because that is the responsibility of the caller of
+@code{completion-at-point-functions} to do that according to the
+completion styles it decides to use.
+
 A function in @code{completion-at-point-functions} may also return a
 function instead of a list as described above.  In that case, that
 returned function is called, with no argument, and it is entirely
 responsible for performing the completion.  We discourage this usage;
-it is intended to help convert old code to using
+it is only intended to help convert old code to using
 @code{completion-at-point}.
 
 The first function in @code{completion-at-point-functions} to return a
@@ -2323,6 +2332,12 @@ frame's height; an integer specifies the maximum number of lines.  The
 default value is 0.25.
 @end defopt
 
+Note that the values of the above two variables take effect at display
+time, so let-binding them around code which produces echo-area messages
+will not work.  If you want to prevent resizing of minibuffer windows
+when displaying long messages, bind the @code{message-truncate-lines}
+variable instead (@pxref{Echo Area Customization}).
+
 
 @node Minibuffer Contents
 @section Minibuffer Contents
@@ -2449,12 +2464,6 @@ This function returns the window that was selected just before the
 minibuffer window was selected.  If the selected window is not a
 minibuffer window, it returns @code{nil}.
 @end defun
-
-@defopt max-mini-window-height
-This variable specifies the maximum height for resizing minibuffer
-windows.  If a float, it specifies a fraction of the height of the
-frame.  If an integer, it specifies a number of lines.
-@end defopt
 
 @vindex minibuffer-message-timeout
 @defun minibuffer-message string &rest args

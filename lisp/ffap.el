@@ -248,7 +248,7 @@ it passes it on to `dired'."
 
 (defcustom ffap-newfile-prompt nil
   ;; Suggestion from RHOGEE, 11 Jul 1994.  Disabled, I think this is
-  ;; better handled by `find-file-not-found-hooks'.
+  ;; better handled by `find-file-not-found-functions'.
   "Whether `find-file-at-point' prompts about a nonexistent file."
   :type 'boolean
   :group 'ffap)
@@ -1081,7 +1081,7 @@ If a given RFC isn't in these then `ffap-rfc-path' is offered."
     ;; * strip trailing "@" and ":"
     ;; * no commas (good for latex)
     (file "--:\\\\${}+<>@-Z_[:alpha:]~*?" "<@" "@>;.,!:")
-    ;; An url, or maybe a email/news message-id:
+    ;; An url, or maybe an email/news message-id:
     (url "--:=&?$+@-Z_[:alpha:]~#,%;*()!'" "^[0-9a-zA-Z]" ":;.,!?")
     ;; Find a string that does *not* contain a colon:
     (nocolon "--9$+<>@-Z_[:alpha:]~" "<@" "@>;.,!?")

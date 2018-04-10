@@ -1692,6 +1692,10 @@ x_free_frame_resources (struct frame *f)
     dpyinfo->x_highlight_frame = 0;
   if (f == hlinfo->mouse_face_mouse_frame)
     reset_mouse_highlight (hlinfo);
+  /* Ensure that sendEvent does not attempt to dereference a freed
+     frame. (bug#30800) */
+  if (represented_frame == f)
+    represented_frame = NULL;
 
   if (f->output_data.ns->miniimage != nil)
     [f->output_data.ns->miniimage release];
@@ -9381,6 +9385,8 @@ to 4.1, set this to nil. */);
   DEFVAR_BOOL ("x-underline-at-descent-line",
 	       x_underline_at_descent_line,
      doc: /* Non-nil means to draw the underline at the same place as the descent line.
+(If `line-spacing' is in effect, that moves the underline lower by
+that many pixels.)
 A value of nil means to draw the underline according to the value of the
 variable `x-use-underline-position-properties', which is usually at the
 baseline level.  The default value is nil.  */);

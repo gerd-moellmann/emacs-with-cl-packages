@@ -5,7 +5,7 @@
 ;; Authors: Thorsten Jolitz
 ;;	 Eric Schulte
 ;; Keywords: literate programming, reproducible research
-;; Homepage: http://orgmode.org
+;; Homepage: https://orgmode.org
 
 ;; This file is part of GNU Emacs.
 
@@ -35,13 +35,13 @@
 ;; (http://picolisp.com/5000/-2.html). PicoLisp is included in some
 ;; GNU/Linux Distributions, and can be downloaded here:
 ;; http://software-lab.de/down.html.  It ships with a picolisp-mode and
-;; a inferior-picolisp-mode for Emacs (to be found in the /lib/el/
+;; an inferior-picolisp-mode for Emacs (to be found in the /lib/el/
 ;; directory).
 
 ;; Although it might seem more natural to use Emacs Lisp for most
-;; Lisp-based programming tasks inside Org-Mode, an Emacs library
-;; written in Emacs Lisp, PicoLisp has at least two outstanding
-;; features that make it a valuable addition to Org-Babel:
+;; Lisp-based programming tasks inside Org, an Emacs library written
+;; in Emacs Lisp, PicoLisp has at least two outstanding features that
+;; make it a valuable addition to Org Babel:
 
 ;; PicoLisp _is_ an object-oriented database with a Prolog-based query
 ;; language implemented in PicoLisp (Pilog). Database objects are

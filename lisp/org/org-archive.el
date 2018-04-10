@@ -4,7 +4,7 @@
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
-;; Homepage: http://orgmode.org
+;; Homepage: https://orgmode.org
 ;;
 ;; This file is part of GNU Emacs.
 ;;
@@ -429,7 +429,7 @@ Archiving time is retained in the ARCHIVE_TIME node property."
 	(looking-at org-outline-regexp)
 	(setq leader (match-string 0)
 	      level (funcall outline-level))
-	(setq pos (point))
+	(setq pos (point-marker))
 	(condition-case nil
 	    (outline-up-heading 1 t)
 	  (error (setq e (point-max)) (goto-char (point-min))))

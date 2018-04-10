@@ -582,8 +582,9 @@ with @code{insert-file-contents}, as long as @var{replace} and
 
 @defun insert-file-contents-literally filename &optional visit beg end replace
 This function works like @code{insert-file-contents} except that it
-does not run @code{find-file-hook}, and does not do format decoding,
-character code conversion, automatic uncompression, and so on.
+does not run @code{after-insert-file-functions}, and does not do
+format decoding, character code conversion, automatic uncompression,
+and so on.
 @end defun
 
 If you want to pass a file name to another process so that another
@@ -1170,14 +1171,14 @@ Sometimes file names or their parts need to be compared as strings, in
 which case it's important to know whether the underlying filesystem is
 case-insensitive.  This function returns @code{t} if file
 @var{filename} is on a case-insensitive filesystem.  It always returns
-@code{t} on MS-DOS and MS-Windows.  On Cygwin and Mac OS X,
+@code{t} on MS-DOS and MS-Windows.  On Cygwin and macOS,
 filesystems may or may not be case-insensitive, and the function tries
 to determine case-sensitivity by a runtime test.  If the test is
 inconclusive, the function returns @code{t} on Cygwin and @code{nil}
-on Mac OS X.
+on macOS.
 
 Currently this function always returns @code{nil} on platforms other
-than MS-DOS, MS-Windows, Cygwin, and Mac OS X.  It does not detect
+than MS-DOS, MS-Windows, Cygwin, and macOS.  It does not detect
 case-insensitivity of mounted filesystems, such as Samba shares or
 NFS-mounted Windows volumes.  On remote hosts, it assumes @code{t} for
 the @samp{smb} method.  For all other connection methods, runtime
@@ -1297,9 +1298,10 @@ The file's @acronym{GID}, likewise (@code{file-attribute-group-id}).
 The time of last access, as a list of four integers
 @code{(@var{sec-high} @var{sec-low} @var{microsec} @var{picosec})}
 (@code{file-attribute-access-time}).  (This is similar to the value of
-@code{current-time}; see @ref{Time of Day}.)  Note that on some
+@code{current-time}; see @ref{Time of Day}.)  The value is truncated
+to that of the filesystem's timestamp resolution; for example, on some
 FAT-based filesystems, only the date of last access is recorded, so
-this time will always hold the midnight of the day of last access.
+this time will always hold the midnight of the day of the last access.
 
 @cindex modification time of file
 @item
@@ -1539,6 +1541,16 @@ argument.  If @var{predicate} is @code{nil} or omitted,
 @code{locate-file} uses @code{file-readable-p} as the predicate.
 @xref{Kinds of Files}, for other useful predicates, e.g.,
 @code{file-executable-p} and @code{file-directory-p}.
+
+This function will normally skip directories, so if you want it to
+find directories, make sure the @var{predicate} function returns
+@code{dir-ok} for them.  For example:
+
+@example
+(locate-file "html" '("/var/www" "/srv") nil
+             (lambda (f) (if (file-directory-p f) 'dir-ok)))
+@end example
+
 
 For compatibility, @var{predicate} can also be one of the symbols
 @code{executable}, @code{readable}, @code{writable}, @code{exists}, or
@@ -1883,8 +1895,7 @@ all.
 This function sets the access and modification times of @var{filename}
 to @var{time}.  The return value is @code{t} if the times are successfully
 set, otherwise it is @code{nil}.  @var{time} defaults to the current
-time and must be in the format returned by @code{current-time}
-(@pxref{Time of Day}).
+time and must be a time value (@pxref{Time of Day}).
 @end defun
 
 @defun set-file-extended-attributes filename attribute-alist
@@ -3257,7 +3268,7 @@ shown above; the details are crucial for proper behavior in the case of
 multiple handlers, and for operations that have two file names that may
 each have handlers.
 
-@kindex safe-magic (@r{property})
+@kindex safe-magic @r{(property)}
   Handlers that don't really do anything special for actual access to the
 file---such as the ones that implement completion of host names for
 remote file names---should have a non-@code{nil} @code{safe-magic}
@@ -3267,7 +3278,7 @@ file names, by prefixing them with @samp{/:}.  But if the handler that
 would be used for them has a non-@code{nil} @code{safe-magic}
 property, the @samp{/:} is not added.
 
-@kindex operations (@r{property})
+@kindex operations @r{(property)}
   A file name handler can have an @code{operations} property to
 declare which operations it handles in a nontrivial way.  If this
 property has a non-@code{nil} value, it should be a list of

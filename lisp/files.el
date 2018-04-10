@@ -318,7 +318,7 @@ If nil, ask confirmation.  Any other value prevents any trimming."
 
 (defcustom kept-new-versions 2
   "Number of newest versions to keep when a new numbered backup is made.
-Includes the new backup.  Must be > 0"
+Includes the new backup.  Must be greater than 0."
   :type 'integer
   :group 'backup)
 (put 'kept-new-versions 'safe-local-variable 'integerp)
@@ -436,8 +436,9 @@ and toggle it if ARG is `toggle'."
            auto-save-visited-interval :repeat
            #'save-some-buffers :no-prompt
            (lambda ()
-             (not (and buffer-auto-save-file-name
-                       auto-save-visited-file-name)))))))
+             (and buffer-file-name
+                  (not (and buffer-auto-save-file-name
+                            auto-save-visited-file-name))))))))
 
 ;; The 'set' part is so we don't get a warning for using this variable
 ;; above, while still catching code that _sets_ the variable to get
@@ -2341,10 +2342,15 @@ and local variable specifications in the file are ignored.
 Automatic uncompression and adding a newline at the end of the
 file due to `require-final-newline' is also disabled.
 
-You cannot absolutely rely on this function to result in
-visiting the file literally.  If Emacs already has a buffer
-which is visiting the file, you get the existing buffer,
-regardless of whether it was created literally or not.
+If Emacs already has a buffer which is visiting the file,
+this command asks you whether to visit it literally instead.
+
+In non-interactive use, the value is the buffer where the file is
+visited literally.  If the file was visited in a buffer before
+this command was invoked, it will reuse the existing buffer,
+regardless of whether it was created literally or not; however,
+the contents of that buffer will be the literal text of the file
+without any conversions.
 
 In a Lisp program, if you want to be sure of accessing a file's
 contents literally, you should create a temporary buffer and then read
@@ -2538,7 +2544,7 @@ since only a single case-insensitive search through the alist is made."
 	     ("\\.make\\'" . makefile-bsdmake-mode)
 	     ("GNUmakefile\\'" . makefile-gmake-mode)
 	     ("[Mm]akefile\\'" . makefile-bsdmake-mode))
-	 '(("\\.mk\\'" . makefile-gmake-mode)	; Might be any make, give Gnu the host advantage
+	 '(("\\.mk\\'" . makefile-gmake-mode)	; Might be any make, give GNU the host advantage
 	   ("\\.make\\'" . makefile-gmake-mode)
 	   ("[Mm]akefile\\'" . makefile-gmake-mode)))
      ("\\.am\\'" . makefile-automake-mode)
@@ -5209,7 +5215,8 @@ view the differences using `diff-buffer-with-file'.
 This command first saves any buffers where `buffer-save-without-query' is
 non-nil, without asking.
 
-Optional argument (the prefix) non-nil means save all with no questions.
+Optional argument ARG (interactively, prefix argument) non-nil means save
+all with no questions.
 Optional second argument PRED determines which buffers are considered:
 If PRED is nil, all the file-visiting buffers are considered.
 If PRED is t, then certain non-file buffers will also be considered.
@@ -6977,67 +6984,60 @@ only these files will be asked to be saved."
 ;; We depend on being the last handler on the list,
 ;; so that anything else which does need handling
 ;; has been handled already.
-;; So it is safe for us to inhibit *all* magic file name handlers for
-;; operations, which return a file name.  See Bug#29579.
+;; So it is safe for us to inhibit *all* magic file name handlers.
 
 (defun file-name-non-special (operation &rest arguments)
-  (let* ((op-returns-file-name-list
-          '(expand-file-name file-name-directory file-name-as-directory
-                             directory-file-name file-name-sans-versions
-                             find-backup-file-name file-remote-p))
-         (file-name-handler-alist
-          (and
-           (not (memq operation op-returns-file-name-list))
-           file-name-handler-alist))
-	 (default-directory
-           ;; Some operations respect file name handlers in
-           ;; `default-directory'.  Because core function like
-           ;; `call-process' don't care about file name handlers in
-           ;; `default-directory', we here have to resolve the
-           ;; directory into a local one.  For `process-file',
-           ;; `start-file-process', and `shell-command', this fixes
-           ;; Bug#25949.
-	   (if (memq operation
-                     '(insert-directory process-file start-file-process
-                                        shell-command))
-	       (directory-file-name
-	        (expand-file-name
-		 (unhandled-file-name-directory default-directory)))
-	     default-directory))
-	 ;; Get a list of the indices of the args which are file names.
-	 (file-arg-indices
-	  (cdr (or (assq operation
-			 ;; The first seven are special because they
-			 ;; return a file name.  We want to include the /:
-			 ;; in the return value.
-			 ;; So just avoid stripping it in the first place.
-                         (append
-                          (mapcar 'list op-returns-file-name-list)
-			  '(;; `identity' means just return the first arg
-			    ;; not stripped of its quoting.
-			    (substitute-in-file-name identity)
-			    ;; `add' means add "/:" to the result.
-			    (file-truename add 0)
-			    (insert-file-contents insert-file-contents 0)
-			    ;; `unquote-then-quote' means set buffer-file-name
-			    ;; temporarily to unquoted filename.
-			    (verify-visited-file-modtime unquote-then-quote)
-			    ;; List the arguments which are filenames.
-			    (file-name-completion 1)
-			    (file-name-all-completions 1)
-			    (write-region 2 5)
-			    (rename-file 0 1)
-			    (copy-file 0 1)
-			    (copy-directory 0 1)
-			    (file-in-directory-p 0 1)
-			    (make-symbolic-link 0 1)
-			    (add-name-to-file 0 1))))
-		   ;; For all other operations, treat the first argument only
-		   ;; as the file name.
-		   '(nil 0))))
-	 method
-	 ;; Copy ARGUMENTS so we can replace elements in it.
-	 (arguments (copy-sequence arguments)))
+  (let ((file-name-handler-alist nil)
+	(default-directory
+          ;; Some operations respect file name handlers in
+          ;; `default-directory'.  Because core function like
+          ;; `call-process' don't care about file name handlers in
+          ;; `default-directory', we here have to resolve the
+          ;; directory into a local one.  For `process-file',
+          ;; `start-file-process', and `shell-command', this fixes
+          ;; Bug#25949.
+	  (if (memq operation '(insert-directory process-file start-file-process
+                                                 shell-command))
+	      (directory-file-name
+	       (expand-file-name
+		(unhandled-file-name-directory default-directory)))
+	    default-directory))
+	;; Get a list of the indices of the args which are file names.
+	(file-arg-indices
+	 (cdr (or (assq operation
+			;; The first six are special because they
+			;; return a file name.  We want to include the /:
+			;; in the return value.
+			;; So just avoid stripping it in the first place.
+			'((expand-file-name . nil)
+			  (file-name-directory . nil)
+			  (file-name-as-directory . nil)
+			  (directory-file-name . nil)
+			  (file-name-sans-versions . nil)
+			  (find-backup-file-name . nil)
+			  ;; `identity' means just return the first arg
+			  ;; not stripped of its quoting.
+			  (substitute-in-file-name identity)
+			  ;; `add' means add "/:" to the result.
+			  (file-truename add 0)
+			  (insert-file-contents insert-file-contents 0)
+			  ;; `unquote-then-quote' means set buffer-file-name
+			  ;; temporarily to unquoted filename.
+			  (verify-visited-file-modtime unquote-then-quote)
+			  ;; List the arguments which are filenames.
+			  (file-name-completion 1)
+			  (file-name-all-completions 1)
+			  (write-region 2 5)
+			  (rename-file 0 1)
+			  (copy-file 0 1)
+			  (make-symbolic-link 0 1)
+			  (add-name-to-file 0 1)))
+		  ;; For all other operations, treat the first argument only
+		  ;; as the file name.
+		  '(nil 0))))
+	method
+	;; Copy ARGUMENTS so we can replace elements in it.
+	(arguments (copy-sequence arguments)))
     (if (symbolp (car file-arg-indices))
 	(setq method (pop file-arg-indices)))
     ;; Strip off the /: from the file names that have it.

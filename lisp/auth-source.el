@@ -241,7 +241,7 @@ for details.
 It's best to customize this with `\\[customize-variable]' because the choices
 can get pretty complex."
   :group 'auth-source
-  :version "24.1" ;; No Gnus
+  :version "26.1" ;; No Gnus
   :type `(repeat :tag "Authentication Sources"
                  (choice
                   (string :tag "Just a file")
@@ -304,7 +304,8 @@ can get pretty complex."
                                                :tag "Personality/Username"
                                                (const :tag "Any" t)
                                                (string
-                                                :tag "Name")))))))))
+                                                :tag "Name"))))))
+                  (sexp :tag "A data structure (external provider)"))))
 
 (defcustom auth-source-gpg-encrypt-to t
   "List of recipient keys that `authinfo.gpg' encrypted to.

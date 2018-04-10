@@ -6922,10 +6922,15 @@ w32_initialize_display_info (Lisp_Object display_name)
   memset (dpyinfo, 0, sizeof (*dpyinfo));
 
   dpyinfo->name_list_element = Fcons (display_name, Qnil);
-  dpyinfo->w32_id_name = xmalloc (SCHARS (Vinvocation_name)
-				  + SCHARS (Vsystem_name) + 2);
-  sprintf (dpyinfo->w32_id_name, "%s@%s",
-	   SDATA (Vinvocation_name), SDATA (Vsystem_name));
+  if (STRINGP (Vsystem_name))
+    {
+      dpyinfo->w32_id_name = xmalloc (SCHARS (Vinvocation_name)
+                                      + SCHARS (Vsystem_name) + 2);
+      sprintf (dpyinfo->w32_id_name, "%s@%s",
+               SDATA (Vinvocation_name), SDATA (Vsystem_name));
+    }
+  else
+    dpyinfo->w32_id_name = xlispstrdup (Vinvocation_name);
 
   /* Default Console mode values - overridden when running in GUI mode
      with values obtained from system metrics.  */
@@ -7396,6 +7401,8 @@ sizes.  */);
   DEFVAR_BOOL ("x-underline-at-descent-line",
 	       x_underline_at_descent_line,
      doc: /* Non-nil means to draw the underline at the same place as the descent line.
+(If `line-spacing' is in effect, that moves the underline lower by
+that many pixels.)
 A value of nil means to draw the underline according to the value of the
 variable `x-use-underline-position-properties', which is usually at the
 baseline level.  The default value is nil.  */);

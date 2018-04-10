@@ -295,6 +295,11 @@ The information is logged to `byte-compile-log-buffer'."
   "If true, the byte-compiler reports warnings with `error'."
   :group 'bytecomp
   :type 'boolean)
+;; This needs to be autoloaded because it needs to be available to
+;; Emacs before the byte compiler is loaded, otherwise Emacs will not
+;; know that this variable is marked as safe until it is too late.
+;; (See https://lists.gnu.org/archive/html/emacs-devel/2018-01/msg00261.html )
+;;;###autoload(put 'byte-compile-error-on-warn 'safe-local-variable 'booleanp)
 
 (defconst byte-compile-warning-types
   '(redefine callargs free-vars unresolved
@@ -1933,7 +1938,17 @@ The value is non-nil if there were no errors, nil if errors."
 		       ;; parallel bootstrap), it does not risk getting a
 		       ;; half-finished file.  (Bug#4196)
 		       (tempfile
-                        (make-temp-file (file-name-nondirectory target-file)))
+                        (if (file-name-absolute-p target-file)
+                            (make-temp-file target-file)
+                          ;; If target-file is relative and includes
+                          ;; leading directories, make-temp-file will
+                          ;; assume those leading directories exist
+                          ;; under temporary-file-directory, which might
+                          ;; not be true.  So strip leading directories
+                          ;; from relative file names before calling
+                          ;; make-temp-file.
+                          (make-temp-file
+                           (file-name-nondirectory target-file))))
 		       (default-modes (default-file-modes))
 		       (temp-modes (logand default-modes #o600))
 		       (desired-modes (logand default-modes #o666))
@@ -4158,7 +4173,7 @@ Return a list of the form ((TEST . VAR)  ((VALUE BODY) ...))"
       ;; to be non-nil for generating tags for all cases. Since
       ;; `byte-compile-depth' will increase by at most 1 after compiling
       ;; all of the clause (which is further enforced by cl-assert below)
-      ;; it should be safe to preserve it's value.
+      ;; it should be safe to preserve its value.
       (let ((byte-compile-depth byte-compile-depth))
         (byte-compile-goto 'byte-goto default-tag))
 
@@ -4176,7 +4191,7 @@ Return a list of the form ((TEST . VAR)  ((VALUE BODY) ...))"
         (let ((byte-compile-depth byte-compile-depth)
               (init-depth byte-compile-depth))
           ;; Since `byte-compile-body' might increase `byte-compile-depth'
-          ;; by 1, not preserving it's value will cause it to potentially
+          ;; by 1, not preserving its value will cause it to potentially
           ;; increase by one for every clause body compiled, causing
           ;; depth/tag conflicts or violating asserts down the road.
           ;; To make sure `byte-compile-body' itself doesn't violate this,
