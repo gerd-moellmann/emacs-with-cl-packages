@@ -2314,25 +2314,41 @@ non-nil, and the input device supports it."
   ;;	possible value: `none', `began', `stationary', `changed',
   ;;			`ended', `cancelled', or `may-begin'
   ;; :swipe-tracking-from-scroll-events-enabled-p (boolean)
-  ;; TODO: horizontal scrolling
   (if (not (memq (event-basic-type event) '(wheel-up wheel-down)))
-      (when (and (memq (event-basic-type event) '(wheel-left wheel-right))
-                 ;; "Swipe between pages" enabled.
-		 (plist-get (nth 3 event)
-                            :swipe-tracking-from-scroll-events-enabled-p)
-		 (eq (plist-get (nth 3 event) :momentum-phase) 'began))
-	;; Post a swipe event when the momentum phase begins for
-	;; horizontal wheel events.
-	(setq mac-ignore-momentum-wheel-events t)
-	(push (cons
-	       (event-convert-list
-		(nconc (delq 'click
-			     (delq 'double
-				   (delq 'triple (event-modifiers event))))
-		       (if (eq (event-basic-type event) 'wheel-left)
-			   '(swipe-left) '(swipe-right))))
-	       (cdr event))
-	      unread-command-events))
+      (when (memq (event-basic-type event) '(wheel-left wheel-right))
+        (if mwheel-tilt-scroll-p
+            (if (null (plist-get (nth 3 event) :delta-x))
+                (mwheel-scroll event)
+              (let ((direction-inverted-from-device-p
+                     (plist-get (nth 3 event)
+                                :direction-inverted-from-device-p)))
+                (setf (nth 3 event)
+                      (round (abs (plist-get (nth 3 event) :delta-x))))
+                (when (> (nth 3 event) 0)
+                  (let ((mouse-wheel-scroll-amount
+                         '(1 ((shift) . 5) ((control))))
+                        (mouse-wheel-progressive-speed nil)
+                        (mwheel-flip-direction
+                         direction-inverted-from-device-p))
+                    (mwheel-scroll event)))))
+          (cond ((and
+                  ;; "Swipe between pages" enabled.
+                  (plist-get (nth 3 event)
+                             :swipe-tracking-from-scroll-events-enabled-p)
+                  (eq (plist-get (nth 3 event) :momentum-phase) 'began))
+                 ;; Post a swipe event when the momentum phase begins
+                 ;; for horizontal wheel events.
+                 (setq mac-ignore-momentum-wheel-events t)
+                 (push (cons
+                        (event-convert-list
+                         (nconc (delq 'click
+                                      (delq 'double
+                                            (delq 'triple
+                                                  (event-modifiers event))))
+                                (if (eq (event-basic-type event) 'wheel-left)
+                                    '(swipe-left) '(swipe-right))))
+                        (cdr event))
+                       unread-command-events)))))
     (if (or (not mac-mouse-wheel-smooth-scroll)
 	    (delq 'click (delq 'double (delq 'triple (event-modifiers event))))
 	    (null (plist-get (nth 3 event) :scrolling-delta-y)))
