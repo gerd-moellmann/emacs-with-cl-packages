@@ -2316,7 +2316,7 @@ non-nil, and the input device supports it."
   ;; :swipe-tracking-from-scroll-events-enabled-p (boolean)
   (if (not (memq (event-basic-type event) '(wheel-up wheel-down)))
       (when (memq (event-basic-type event) '(wheel-left wheel-right))
-        (if mwheel-tilt-scroll-p
+        (if mouse-wheel-tilt-scroll
             (if (null (plist-get (nth 3 event) :delta-x))
                 (mwheel-scroll event)
               (let ((direction-inverted-from-device-p
@@ -2328,7 +2328,7 @@ non-nil, and the input device supports it."
                   (let ((mouse-wheel-scroll-amount
                          '(1 ((shift) . 5) ((control))))
                         (mouse-wheel-progressive-speed nil)
-                        (mwheel-flip-direction
+                        (mouse-wheel-flip-direction
                          direction-inverted-from-device-p))
                     (mwheel-scroll event)))))
           (cond ((and
