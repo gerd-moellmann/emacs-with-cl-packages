@@ -1,6 +1,6 @@
 ;;; help-mode.el --- `help-mode' used by *Help* buffers
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2017 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2018 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -192,20 +192,24 @@ The format is (FUNCTION ARGS...).")
 
 (define-button-type 'help-function-def
   :supertype 'help-xref
-  'help-function (lambda (fun file &optional type)
-		   (require 'find-func)
-		   (when (eq file 'C-source)
-		     (setq file
-			   (help-C-file-name (indirect-function fun) 'fun)))
-		   ;; Don't use find-function-noselect because it follows
-		   ;; aliases (which fails for built-in functions).
-		   (let ((location
-			  (find-function-search-for-symbol fun type file)))
-		     (pop-to-buffer (car location))
-			 (run-hooks 'find-function-after-hook)
-		     (if (cdr location)
-			 (goto-char (cdr location))
-		       (message "Unable to find location in file"))))
+  'help-function (lambda (fun &optional file type)
+                   (or file
+                       (setq file (find-lisp-object-file-name fun type)))
+                   (if (not file)
+                       (message "Unable to find defining file")
+                     (require 'find-func)
+                     (when (eq file 'C-source)
+                       (setq file
+                             (help-C-file-name (indirect-function fun) 'fun)))
+                     ;; Don't use find-function-noselect because it follows
+                     ;; aliases (which fails for built-in functions).
+                     (let ((location
+                            (find-function-search-for-symbol fun type file)))
+                       (pop-to-buffer (car location))
+                       (run-hooks 'find-function-after-hook)
+                       (if (cdr location)
+                           (goto-char (cdr location))
+                         (message "Unable to find location in file")))))
   'help-echo (purecopy "mouse-2, RET: find function's definition"))
 
 (define-button-type 'help-function-cmacro ; FIXME: Obsolete since 24.4.
@@ -328,7 +332,7 @@ Commands:
 		    "\\(source \\(?:code \\)?\\(?:of\\|for\\)\\)\\)"
 		    "[ \t\n]+\\)?"
 		    ;; Note starting with word-syntax character:
-		    "['`‘]\\(\\sw\\(\\sw\\|\\s_\\)+\\)['’]"))
+		    "['`‘]\\(\\sw\\(\\sw\\|\\s_\\)+\\|`\\)['’]"))
   "Regexp matching doc string references to symbols.
 
 The words preceding the quoted symbol can be used in doc strings to
@@ -393,12 +397,12 @@ it does not already exist."
 
 (defvar describe-symbol-backends
   `((nil ,#'fboundp ,(lambda (s _b _f) (describe-function s)))
-    ("face" ,#'facep ,(lambda (s _b _f) (describe-face s)))
     (nil
      ,(lambda (symbol)
         (or (and (boundp symbol) (not (keywordp symbol)))
             (get symbol 'variable-documentation)))
-     ,#'describe-variable)))
+     ,#'describe-variable)
+    ("face" ,#'facep ,(lambda (s _b _f) (describe-face s)))))
 
 ;;;###autoload
 (defun help-make-xrefs (&optional buffer)
@@ -495,12 +499,6 @@ that."
                                  (help-xref-button 8 'help-face sym)))
                            ((match-string 6)) ; nothing for `symbol'
                            ((match-string 7)
-                            ;; this used:
-                            ;; #'(lambda (arg)
-                            ;;     (let ((location
-                            ;;            (find-function-noselect arg)))
-                            ;;       (pop-to-buffer (car location))
-                            ;; 	(goto-char (cdr location))))
                             (help-xref-button 8 'help-function-def sym))
                            ((cl-some (lambda (x) (funcall (nth 1 x) sym))
                                      describe-symbol-backends)

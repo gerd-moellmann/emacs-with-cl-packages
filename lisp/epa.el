@@ -1,6 +1,6 @@
 ;;; epa.el --- the EasyPG Assistant -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2018 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Keywords: PGP, GnuPG
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
@@ -34,6 +34,18 @@
   :link '(custom-manual "(epa) Top")
   :group 'epg)
 
+(defcustom epa-replace-original-text 'ask
+  "Whether the original text shall be replaced by the decrypted.
+
+If t, replace the original text without any confirmation.
+If nil, don't replace the original text and show the result in a new buffer.
+If neither t nor nil, ask user for confirmation."
+  :version "26.1"
+  :type '(choice (const :tag "Never" nil)
+		 (const :tag "Ask the user" ask)
+		 (const :tag "Always" t))
+  :group 'epa)
+
 (defcustom epa-popup-info-window t
   "If non-nil, display status information from epa commands in another window."
   :type 'boolean
@@ -44,12 +56,15 @@
   :type 'integer
   :group 'epa)
 
+;; In the doc string below, we say "symbol `error'" to avoid producing
+;; a hyperlink for `error' the function.
 (defcustom epa-pinentry-mode nil
   "The pinentry mode.
 
 GnuPG 2.1 or later has an option to control the behavior of
-Pinentry invocation.  Possible modes are: `ask', `cancel',
-`error', and `loopback'.  See the GnuPG manual for the meanings.
+Pinentry invocation.  The value should be the symbol `error',
+`ask', `cancel', or `loopback'.  See the GnuPG manual for the
+meanings.
 
 In epa commands, a particularly useful mode is `loopback', which
 redirects all Pinentry queries to the caller, so Emacs can query
@@ -252,7 +267,7 @@ You should bind this variable with `let', but do not set it globally.")
 (defvar epa-exit-buffer-function #'quit-window)
 
 (define-widget 'epa-key 'push-button
-  "Button for representing a epg-key object."
+  "Button for representing an epg-key object."
   :format "%[%v%]"
   :button-face-get 'epa--key-widget-button-face-get
   :value-create 'epa--key-widget-value-create
@@ -617,7 +632,7 @@ If SECRET is non-nil, list secret keys instead of public keys."
 		       (`import-keys "Error while importing keys with \"%s\":")
 		       (`export-keys "Error while exporting keys with \"%s\":")
 		       (_ "Error while executing \"%s\":\n\n"))
-		     epg-gpg-program)
+		     (epg-context-program context))
 		    "\n\n"
 		    (epg-context-error-output context)))
 	  (epa-info-mode)
@@ -872,7 +887,9 @@ For example:
 	  (with-current-buffer (funcall make-buffer-function)
 	    (let ((inhibit-read-only t))
 	      (insert plain)))
-	(if (y-or-n-p "Replace the original text? ")
+	(if (or (eq epa-replace-original-text t)
+                (and epa-replace-original-text
+                     (y-or-n-p "Replace the original text? ")))
 	    (let ((inhibit-read-only t))
 	      (delete-region start end)
 	      (goto-char start)
@@ -968,7 +985,9 @@ For example:
 		 (or coding-system-for-read
 		     (get-text-property start 'epa-coding-system-used)
 		     'undecided)))
-    (if (y-or-n-p "Replace the original text? ")
+    (if (or (eq epa-replace-original-text t)
+            (and epa-replace-original-text
+                 (y-or-n-p "Replace the original text? ")))
 	(let ((inhibit-read-only t)
 	      buffer-read-only)
 	  (delete-region start end)

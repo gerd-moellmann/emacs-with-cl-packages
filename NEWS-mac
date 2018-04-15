@@ -1,3 +1,7 @@
+* emacs-26.1-rc1-mac-6.90 (2018-04-15)
+Based on Emacs 26.1 release candidate.
+
+
 * emacs-25.3-mac-6.9 (2018-04-15)
 
 ** Fixed bugs
@@ -41,7 +45,7 @@ with the system accessibility services such as VoiceOver.
 
 
 * emacs-25.3-mac-6.8 (2017-09-26)
-http://lists.gnu.org/archive/html/emacs-devel/2017-09/msg00897.html
+https://lists.gnu.org/r/emacs-devel/2017-09/msg00897.html
 
 ** Fixed bugs
 
@@ -61,7 +65,7 @@ Reporter as rdar://33842041, but still open.  A workaround is added.
 
 * emacs-25.3-mac-6.7 (2017-09-12)
 Based on Emacs 25.3.
-http://lists.gnu.org/archive/html/emacs-devel/2017-09/msg00218.html
+https://lists.gnu.org/r/emacs-devel/2017-09/msg00218.html
 
 ** Fixed bugs
 
@@ -82,7 +86,7 @@ color) if the frame is focused and not in fullscreen.
 
 
 * emacs-25.2-mac-6.6 (2017-08-24)
-http://lists.gnu.org/archive/html/emacs-devel/2017-08/msg00558.html
+https://lists.gnu.org/r/emacs-devel/2017-08/msg00558.html
 
 ** Fixed bugs
 
@@ -146,7 +150,7 @@ Alternatively, remap the corresponding command as:
 
 
 * emacs-25.2-mac-6.5 (2017-07-27)
-http://lists.gnu.org/archive/html/emacs-devel/2017-07/msg00997.html
+https://lists.gnu.org/r/emacs-devel/2017-07/msg00997.html
 
 ** Fixed bugs
 
@@ -177,7 +181,7 @@ longer suppressed when the frame is not completely opaque.
 
 
 * emacs-25.2-mac-6.4 (2017-05-22)
-http://lists.gnu.org/archive/html/emacs-devel/2017-05/msg00611.html
+https://lists.gnu.org/r/emacs-devel/2017-05/msg00611.html
 
 ** Fixed bugs
 
@@ -195,7 +199,7 @@ Apply a fix for Bug#26742.
 
 * emacs-25.2-mac-6.3 (2017-04-22)
 Based on Emacs 25.2.
-http://lists.gnu.org/archive/html/emacs-devel/2017-04/msg00626.html
+https://lists.gnu.org/r/emacs-devel/2017-04/msg00626.html
 
 ** Fixed bugs
 
@@ -211,7 +215,7 @@ No updates other than release notes (thus the same version number).
 
 * emacs-25.2-rc1-mac-6.2 (2017-02-04)
 Based on Emacs 25.2 release candidate 1.
-http://lists.gnu.org/archive/html/emacs-devel/2017-02/msg00125.html
+https://lists.gnu.org/r/emacs-devel/2017-02/msg00125.html
 
 ** Fixed bugs
 
@@ -246,7 +250,7 @@ Reported by Leo.
 
 
 * emacs-25.1-mac-6.1 (2016-10-30)
-http://lists.gnu.org/archive/html/emacs-devel/2016-10/msg01034.html
+https://lists.gnu.org/r/emacs-devel/2016-10/msg01034.html
 
 ** Fixed bugs
 
@@ -285,7 +289,7 @@ frame-resize-pixelwise is nil.
 
 * emacs-25.1-mac-6.0 (2016-09-18)
 Based on Emacs 25.1.
-http://lists.gnu.org/archive/html/emacs-devel/2016-09/msg00480.html
+https://lists.gnu.org/r/emacs-devel/2016-09/msg00480.html
 
 ** Fixed bugs
 
@@ -318,7 +322,7 @@ Based on Emacs 25.1 release candidate 2.
 Based on Emacs 25.1 release candidate.
 Drop support for Mac OS X 10.4 and 10.5.
 Official git repository is https://bitbucket.org/mituharu/emacs-mac.git
-http://lists.gnu.org/archive/html/emacs-devel/2016-07/msg01087.html
+https://lists.gnu.org/r/emacs-devel/2016-07/msg01087.html
 
 ** Fixed bugs
 
@@ -336,7 +340,7 @@ to x-* functions provided in the cairo build together with GTK+.
 
 
 * emacs-24.5-mac-5.18 (2016-06-26)
-http://lists.gnu.org/archive/html/emacs-devel/2016-06/msg00601.html
+https://lists.gnu.org/r/emacs-devel/2016-06/msg00601.html
 
 ** Fixed bugs
 
@@ -352,7 +356,7 @@ on OS X 10.11, and actually gives a reverse effect as above.
 
 
 * emacs-24.5-mac-5.17 (2016-04-30)
-http://lists.gnu.org/archive/html/emacs-devel/2016-04/msg00890.html
+https://lists.gnu.org/r/emacs-devel/2016-04/msg00890.html
 
 ** Fixed bugs
 
@@ -370,7 +374,7 @@ standard resolution data (if it is given as a string).
 
 
 * emacs-24.5-mac-5.16 (2016-04-23)
-http://lists.gnu.org/archive/html/emacs-devel/2016-04/msg00648.html
+https://lists.gnu.org/r/emacs-devel/2016-04/msg00648.html
 
 ** Fixed bugs
 
@@ -394,7 +398,7 @@ image file/data is for 1x.  For example, (insert-image (create-image
 
 
 * emacs-24.5-mac-5.15 (2015-12-13)
-http://lists.gnu.org/archive/html/emacs-devel/2015-12/msg00543.html
+https://lists.gnu.org/r/emacs-devel/2015-12/msg00543.html
 
 ** Fixed bugs
 
@@ -408,7 +412,7 @@ Reported by Leo.
 
 
 * emacs-24.5-mac-5.14 (2015-12-09)
-http://lists.gnu.org/archive/html/emacs-devel/2015-12/msg00334.html
+https://lists.gnu.org/r/emacs-devel/2015-12/msg00334.html
 
 ** Fixed bugs
 
@@ -429,7 +433,7 @@ region of the text you look up because down-mouse-1 event resets it.
 
 
 * emacs-24.5-mac-5.13 (2015-10-31)
-http://lists.gnu.org/archive/html/emacs-devel/2015-10/msg02522.html
+https://lists.gnu.org/r/emacs-devel/2015-10/msg02522.html
 
 ** Fixed bugs
 
@@ -443,7 +447,7 @@ Mission Control on OS X 10.11 (this change is actually made in 5.12).
 
 
 * emacs-24.5-mac-5.12 (2015-10-30)
-http://lists.gnu.org/archive/html/emacs-devel/2015-10/msg02465.html
+https://lists.gnu.org/r/emacs-devel/2015-10/msg02465.html
 
 ** Fixed bugs
 
@@ -477,7 +481,7 @@ if compiled and run on OS X 10.11.
 
 
 * emacs-24.5-mac-5.11 (2015-09-27)
-http://lists.gnu.org/archive/html/emacs-devel/2015-09/msg01020.html
+https://lists.gnu.org/r/emacs-devel/2015-09/msg01020.html
 
 ** Fixed bugs
 
@@ -499,7 +503,7 @@ A workaround is added so Oriya Sangam MN is preferred by default.
 
 
 * emacs-24.5-mac-5.10 (2015-08-25)
-http://lists.gnu.org/archive/html/emacs-devel/2015-08/msg00882.html
+https://lists.gnu.org/r/emacs-devel/2015-08/msg00882.html
 
 ** Fixed bugs
 
@@ -522,7 +526,7 @@ and Fira Code.
 
 
 * emacs-24.5-mac-5.9 (2015-07-13)
-http://lists.gnu.org/archive/html/emacs-devel/2015-07/msg00151.html
+https://lists.gnu.org/r/emacs-devel/2015-07/msg00151.html
 
 ** Fixed bugs
 
@@ -547,7 +551,7 @@ as a GUI application.
 
 
 * emacs-24.5-mac-5.8 (2015-05-17)
-http://lists.gnu.org/archive/html/emacs-devel/2015-05/msg00476.html
+https://lists.gnu.org/r/emacs-devel/2015-05/msg00476.html
 
 ** Fixed bugs
 
@@ -571,7 +575,7 @@ The default setting maps the primary button with `fn' to mouse-2.
 
 * emacs-24.5-mac-5.7 (2015-04-11)
 Based on Emacs 24.5.
-http://lists.gnu.org/archive/html/emacs-devel/2015-04/msg00586.html
+https://lists.gnu.org/r/emacs-devel/2015-04/msg00586.html
 
 ** Improvements
 
@@ -581,21 +585,21 @@ http://lists.gnu.org/archive/html/emacs-devel/2015-04/msg00586.html
 
 * emacs-24.5-rc3-mac-5.6 (2015-04-06)
 Based on Emacs 24.5 release candidate 3.
-http://lists.gnu.org/archive/html/emacs-devel/2015-04/msg00300.html
+https://lists.gnu.org/r/emacs-devel/2015-04/msg00300.html
 
 No updates other than release notes (thus the same version number).
 
 
 * emacs-24.5-rc2-mac-5.6 (2015-04-02)
 Based on Emacs 24.5 release candidate 2.
-http://lists.gnu.org/archive/html/emacs-devel/2015-04/msg00079.html
+https://lists.gnu.org/r/emacs-devel/2015-04/msg00079.html
 
 No updates other than release notes (thus the same version number).
 
 
 * emacs-24.5-rc1-mac-5.6 (2015-03-27)
 Based on Emacs 24.5 release candidate 1.
-http://lists.gnu.org/archive/html/emacs-devel/2015-03/msg00827.html
+https://lists.gnu.org/r/emacs-devel/2015-03/msg00827.html
 
 ** Fixed bugs
 
@@ -609,7 +613,7 @@ which require MacBook Pro (Retina, 13-inch, Early 2015) as of writing.
 
 * emacs-24.4.91-mac-5.5 (2015-03-09)
 Based on 24.4.91.
-http://lists.gnu.org/archive/html/emacs-devel/2015-03/msg00194.html
+https://lists.gnu.org/r/emacs-devel/2015-03/msg00194.html
 
 ** Fixed bugs
 
@@ -629,7 +633,7 @@ support them).
 
 * emacs-24.4.90-mac-5.4 (2015-02-18)
 Based on 24.4.90.
-http://lists.gnu.org/archive/html/emacs-devel/2015-02/msg01082.html
+https://lists.gnu.org/r/emacs-devel/2015-02/msg01082.html
 
 Blend-and-blur of background color on OS X 10.10 is enabled again
 because the mode-line erasure issue (Bug#19721) is fixed upstream.
@@ -638,7 +642,7 @@ which is implemented on top of `mac-osa-script'.
 
 
 * emacs-24.4-mac-5.3 (2015-01-29)
-http://lists.gnu.org/archive/html/emacs-devel/2015-01/msg01040.html
+https://lists.gnu.org/r/emacs-devel/2015-01/msg01040.html
 
 Blend-and-blur of background color on OS X 10.10 is temporarily
 disabled to avoid mode-line erasure on frame focus switch.  For some
@@ -684,7 +688,7 @@ as well as `mailto'.
 
 
 * emacs-24.4-mac-5.2 (2014-11-21)
-http://lists.gnu.org/archive/html/emacs-devel/2014-11/msg01719.html
+https://lists.gnu.org/r/emacs-devel/2014-11/msg01719.html
 
 ** Fixed bugs
 
@@ -733,7 +737,7 @@ processed by the Lisp interpreter.
 
 
 * emacs-24.4-mac-5.1 (2014-11-03)
-http://lists.gnu.org/archive/html/emacs-devel/2014-11/msg00062.html
+https://lists.gnu.org/r/emacs-devel/2014-11/msg00062.html
 
 ** Fixed bugs
 
@@ -765,7 +769,7 @@ execute JavaScript as well as AppleScript on OS X 10.10.
 
 * emacs-24.4-mac-5.0 (2014-10-21)
 Based on Emacs 24.4.
-http://lists.gnu.org/archive/html/emacs-devel/2014-10/msg00725.html
+https://lists.gnu.org/r/emacs-devel/2014-10/msg00725.html
 
 ** Fixed bugs
 
@@ -775,7 +779,7 @@ Reported by Kazu Yamamoto.
 
 * emacs-24.3.94-mac-4.94 [experimental/hackers-only] (2014-10-02)
 Based on Emacs 24.3.94.
-http://lists.gnu.org/archive/html/emacs-devel/2014-10/msg00028.html
+https://lists.gnu.org/r/emacs-devel/2014-10/msg00028.html
 
 ** Fixed bugs
 
@@ -800,7 +804,7 @@ OS X 10.10.
 Based on Emacs 24.3.93.
 Remove mac-ts-script-language-on-focus, which hasn't had any effect
 on 64-bit executables.
-http://lists.gnu.org/archive/html/emacs-devel/2014-08/msg00343.html
+https://lists.gnu.org/r/emacs-devel/2014-08/msg00343.html
 
 ** Fixed bugs
 
@@ -825,7 +829,7 @@ This is currently experimental, hard-coded, and subject to change.
 Based on Emacs 24.3.92.
 Carbon version in mac-carbon-version-string now uses the bundle
 version rather than what's obtained by Gestalt.
-http://lists.gnu.org/archive/html/emacs-devel/2014-06/msg00529.html
+https://lists.gnu.org/r/emacs-devel/2014-06/msg00529.html
 
 ** Fixed bugs
 
@@ -838,7 +842,7 @@ http://lists.gnu.org/archive/html/emacs-devel/2014-06/msg00529.html
 
 * emacs-24.3.91-mac-4.91 [experimental/hackers-only] (2014-05-12)
 Based on Emacs 24.3.91.
-http://lists.gnu.org/archive/html/emacs-devel/2014-05/msg00149.html
+https://lists.gnu.org/r/emacs-devel/2014-05/msg00149.html
 
 ** Fixed bugs
 
@@ -886,7 +890,7 @@ and `F'), you can browse multi-page documents in several formats that
 Note: if you have ImageMagick installed, you need to build the Mac
 port executable without the genuine ImageMagick support so `image-io'
 can be used as a fallback of `imagemagick'.
-http://lists.gnu.org/archive/html/emacs-devel/2014-04/msg00176.html
+https://lists.gnu.org/r/emacs-devel/2014-04/msg00176.html
 
 ** Improvements
 
@@ -900,7 +904,7 @@ display or HiDPI mode.
 
 
 * emacs-24.3-mac-4.8 (2014-04-01)
-http://lists.gnu.org/archive/html/emacs-devel/2014-03/msg01271.html
+https://lists.gnu.org/r/emacs-devel/2014-03/msg01271.html
 
 ** Fixed bugs
 
@@ -918,7 +922,7 @@ only on pauses in motion.
 
 
 * emacs-24.3-mac-4.7 (2014-02-27)
-http://lists.gnu.org/archive/html/emacs-devel/2014-02/msg00592.html
+https://lists.gnu.org/r/emacs-devel/2014-02/msg00592.html
 
 ** Fixed bugs
 
@@ -940,7 +944,7 @@ applications.
 
 
 * emacs-24.3-mac-4.6 (2013-12-27)
-http://lists.gnu.org/archive/html/emacs-devel/2013-12/msg00952.html
+https://lists.gnu.org/r/emacs-devel/2013-12/msg00952.html
 
 ** Fixed bugs
 
@@ -955,7 +959,7 @@ Reported by Robert Dallas Gray.
 
 
 * emacs-24.3-mac-4.5 (2013-11-06)
-http://lists.gnu.org/archive/html/emacs-devel/2013-11/msg00225.html
+https://lists.gnu.org/r/emacs-devel/2013-11/msg00225.html
 
 ** Fixed bugs
 
@@ -995,7 +999,7 @@ selected consistently regardless of the system language setting.
 
 
 * emacs-24.3-mac-4.4 (2013-10-24)
-http://lists.gnu.org/archive/html/emacs-devel/2013-10/msg00743.html
+https://lists.gnu.org/r/emacs-devel/2013-10/msg00743.html
 
 ** Fixed bugs
 
@@ -1032,7 +1036,7 @@ obtained by `(image-io-types)'.
 
 
 * emacs-24.3-mac-4.3 (2013-09-21)
-http://lists.gnu.org/archive/html/emacs-devel/2013-09/msg00416.html
+https://lists.gnu.org/r/emacs-devel/2013-09/msg00416.html
 
 ** Fixed bugs
 
@@ -1056,7 +1060,7 @@ compiler bug).
 
 
 * emacs-24.3-mac-4.2 (2013-05-11)
-http://lists.gnu.org/archive/html/emacs-devel/2013-05/msg00264.html
+https://lists.gnu.org/r/emacs-devel/2013-05/msg00264.html
 
 ** Fixed bugs
 
@@ -1070,7 +1074,7 @@ X 10.7 and later, notably on isearch in a large buffer.
 
 
 * emacs-24.3-mac-4.1 (2013-04-11)
-http://lists.gnu.org/archive/html/emacs-devel/2013-04/msg00328.html
+https://lists.gnu.org/r/emacs-devel/2013-04/msg00328.html
 
 ** Fixed bugs
 
@@ -1094,7 +1098,7 @@ internal-border-width is 0.
 
 * emacs-24.3-mac-4.0 (2013-03-11)
 Based on Emacs 24.3.
-http://lists.gnu.org/archive/html/emacs-devel/2013-03/msg00251.html
+https://lists.gnu.org/r/emacs-devel/2013-03/msg00251.html
 
 ** Fixed bugs
 
@@ -1106,7 +1110,7 @@ Based on Emacs 24.3 release candidate 1.  Remove mac-system-locale.
 When the locale setting is derived from the Preferences AppleLocale or
 AppleLanguages (i.e., none of "LC_ALL", "LC_CTYPE" or "LANG" is set),
 encoding is assumed to be UTF-8.
-http://lists.gnu.org/archive/html/emacs-devel/2013-03/msg00059.html
+https://lists.gnu.org/r/emacs-devel/2013-03/msg00059.html
 
 ** Fixed bugs
 
@@ -1121,7 +1125,7 @@ Reported by Pavlo Martynenko.
 
 * emacs-24.2.93-mac-3.93 [experimental/hackers-only] (2013-02-09)
 Based on Emacs 24.2.93.
-http://lists.gnu.org/archive/html/emacs-devel/2013-02/msg00162.html
+https://lists.gnu.org/r/emacs-devel/2013-02/msg00162.html
 
 ** Fixed bugs
 
@@ -1143,7 +1147,7 @@ LCD text smoothing is enabled.
 
 * emacs-24.2.92-mac-3.92 [experimental/hackers-only] (2013-01-11)
 Based on Emacs 24.2.92.
-http://lists.gnu.org/archive/html/emacs-devel/2013-01/msg00152.html
+https://lists.gnu.org/r/emacs-devel/2013-01/msg00152.html
 
 ** Fixed bugs
 
@@ -1161,7 +1165,7 @@ OS X 10.8.
 
 * emacs-24.2.91-mac-3.91 [experimental/hackers-only] (2012-12-16)
 Based on Emacs 24.2.91.
-http://lists.gnu.org/archive/html/emacs-devel/2012-12/msg00431.html
+https://lists.gnu.org/r/emacs-devel/2012-12/msg00431.html
 
 ** Fixed bugs
 
@@ -1191,11 +1195,11 @@ text smoothing requires opaque background.
 Based on Emacs 24.2.90.  Remove mac-{get,set}-file-{creator,type} and
 mac-process-hi-command.  Move the "//#define PURE_SECTION" line from
 src/s/darwin.h to src/conf_post.h.
-http://lists.gnu.org/archive/html/emacs-devel/2012-11/msg00472.html
+https://lists.gnu.org/r/emacs-devel/2012-11/msg00472.html
 
 
 * emacs-24.2-mac-3.3 (2012-10-27)
-http://lists.gnu.org/archive/html/emacs-devel/2012-10/msg00733.html
+https://lists.gnu.org/r/emacs-devel/2012-10/msg00733.html
 
 ** Fixed bugs
 
@@ -1228,7 +1232,7 @@ OS X 10.7 and later.
 
 * emacs-24.2-mac-3.2 (2012-08-27)
 Based on Emacs 24.2.
-http://lists.gnu.org/archive/html/emacs-devel/2012-08/msg00803.html
+https://lists.gnu.org/r/emacs-devel/2012-08/msg00803.html
 
 ** Fixed bugs
 
@@ -1246,7 +1250,7 @@ the appearance on OS X 10.8 which regards device RGB as sRGB.
 
 
 * emacs-24.1-mac-3.1 (2012-07-26)
-http://lists.gnu.org/archive/html/emacs-devel/2012-07/msg00561.html
+https://lists.gnu.org/r/emacs-devel/2012-07/msg00561.html
 
 ** Fixed bugs
 
@@ -1288,7 +1292,7 @@ This requires Mac OS X 10.7 and Early 2011 MacBook Pro.
 
 * emacs-24.1-mac-3.0 (2012-06-10)
 Based on Emacs 24.1.
-http://lists.gnu.org/archive/html/emacs-devel/2012-06/msg00165.html
+https://lists.gnu.org/r/emacs-devel/2012-06/msg00165.html
 
 ** Fixed bugs
 
@@ -1307,7 +1311,7 @@ Apply Chong Yidong's fix for Bug#2066.
 
 * emacs-24.1-rc-mac-2.94 [experimental/hackers-only] (2012-06-01)
 Based on Emacs 24.1 release candidate
-http://lists.gnu.org/archive/html/emacs-devel/2012-06/msg00009.html
+https://lists.gnu.org/r/emacs-devel/2012-06/msg00009.html
 
 ** Improvements
 
@@ -1326,7 +1330,7 @@ blurry on Mac OS X 10.7.4 with HiDPI mode.
 
 * emacs-24.0.97-mac-2.93 [experimental/hackers-only] (2012-05-17)
 Based on Emacs 24.0.97
-http://lists.gnu.org/archive/html/emacs-devel/2012-05/msg00367.html
+https://lists.gnu.org/r/emacs-devel/2012-05/msg00367.html
 
 ** Fixed bugs
 
@@ -1336,7 +1340,7 @@ paragraphs.
 
 * emacs-24.0.96-mac-2.92 [experimental/hackers-only] (2012-04-28)
 Based on Emacs 24.0.96
-http://lists.gnu.org/archive/html/emacs-devel/2012-04/msg00841.html
+https://lists.gnu.org/r/emacs-devel/2012-04/msg00841.html
 
 ** Fixed bugs
 
@@ -1349,7 +1353,7 @@ launch fails to change the font on Mac OS X 10.5 and later.
 
 * emacs-24.0.95-mac-2.91 [experimental/hackers-only] (2012-04-02)
 Based on Emacs 24.0.95
-http://lists.gnu.org/archive/html/emacs-devel/2012-04/msg00018.html
+https://lists.gnu.org/r/emacs-devel/2012-04/msg00018.html
 
 ** Fixed bugs
 
@@ -1393,7 +1397,7 @@ Be aware of the (platform-independent) change in selection:
 mouse-dragging no longer automatically copies the selected text to the
 clipboard without M-w or `Copy' in the menu bar or the tool bar,
 unless you set `mouse-drag-copy-region' to t.
-http://lists.gnu.org/archive/html/emacs-devel/2012-03/msg00030.html
+https://lists.gnu.org/r/emacs-devel/2012-03/msg00030.html
 
 ** Fixed bugs
 
@@ -1421,7 +1425,7 @@ event, which is now bound to a simple buffer switching by default.
 
 * emacs-23.4-mac-2.0 (2012-01-31)
 Based on Emacs 23.4
-http://lists.gnu.org/archive/html/emacs-devel/2012-01/msg00944.html
+https://lists.gnu.org/r/emacs-devel/2012-01/msg00944.html
 
 ** Fixed bugs
 
@@ -1434,7 +1438,7 @@ http://lists.gnu.org/archive/html/emacs-devel/2012-01/msg00944.html
 
 * emacs-23.3.90-mac-1.9998 [experimental/hackers-only] (2012-01-15)
 Based on Emacs 23.3.90
-http://lists.gnu.org/archive/html/emacs-devel/2012-01/msg00554.html
+https://lists.gnu.org/r/emacs-devel/2012-01/msg00554.html
 
 ** Fixed bugs
 
@@ -1452,7 +1456,7 @@ is invoked, and this behavior is unchanged.
 
 
 * emacs-23.3b-mac-1.9997 [experimental/hackers-only] (2011-11-28)
-http://lists.gnu.org/archive/html/emacs-devel/2011-11/msg00473.html
+https://lists.gnu.org/r/emacs-devel/2011-11/msg00473.html
 
 ** Fixed bugs
 
@@ -1471,7 +1475,7 @@ Adapt revno 106352(Bug#9999), 106293(Bug#9943), 106278(Bug#9943) and
 
 
 * emacs-23.3a-mac-1.9996 [experimental/hackers-only] (2011-10-27)
-http://lists.gnu.org/archive/html/emacs-devel/2011-10/msg01106.html
+https://lists.gnu.org/r/emacs-devel/2011-10/msg01106.html
 
 ** Fixed bugs
 
@@ -1505,7 +1509,7 @@ not a multiple of the nominal character width/height, respectively.
 
 
 * emacs-23.3a-mac-1.9995 [experimental/hackers-only] (2011-08-27)
-http://lists.gnu.org/archive/html/emacs-devel/2011-08/msg00977.html
+https://lists.gnu.org/r/emacs-devel/2011-08/msg00977.html
 
 ** Fixed bugs
 
@@ -1534,7 +1538,7 @@ timer for cursor blinking) and M-x tool-bar-mode RET on Mac OS X 10.7.
 
 
 * emacs-23.3a-mac-1.9994 [experimental/hackers-only] (2011-08-06)
-http://lists.gnu.org/archive/html/emacs-devel/2011-08/msg00301.html
+https://lists.gnu.org/r/emacs-devel/2011-08/msg00301.html
 
 ** Fixed bugs
 
@@ -1571,7 +1575,7 @@ then the buffer text is scaled so the default font occupies at least
 
 
 * emacs-23.3-mac-1.9993 [experimental/hackers-only] (2011-07-23)
-http://lists.gnu.org/archive/html/emacs-devel/2011-07/msg00906.html
+https://lists.gnu.org/r/emacs-devel/2011-07/msg00906.html
 
 ** Fixed bugs
 
@@ -1615,7 +1619,7 @@ do need SVG display, then build as a 32-bit executable or use librsvg.
 
 * emacs-23.3-mac-1.9992 [experimental/hackers-only] (2011-03-10)
 Based on Emacs 23.3
-http://lists.gnu.org/archive/html/emacs-devel/2011-03/msg00378.html
+https://lists.gnu.org/r/emacs-devel/2011-03/msg00378.html
 
 ** Fixed bugs
 
@@ -1627,7 +1631,7 @@ Apply Kenichi Handa's fix for Bug#8162.
 
 * emacs-23.2.93-mac-1.9991 [experimental/hackers-only] (2011-02-01)
 Based on Emacs 23.2.93
-http://lists.gnu.org/archive/html/emacs-devel/2011-02/msg00010.html
+https://lists.gnu.org/r/emacs-devel/2011-02/msg00010.html
 
 ** Fixed bugs
 
@@ -1646,7 +1650,7 @@ src/s/darwin.h.
 
 * emacs-23.2.92-mac-1.9990 [experimental/hackers-only] (2011-01-15)
 Based on Emacs 23.2.92
-http://lists.gnu.org/archive/html/emacs-devel/2011-01/msg00472.html
+https://lists.gnu.org/r/emacs-devel/2011-01/msg00472.html
 
 ** Fixed bugs
 
@@ -1662,7 +1666,7 @@ representation.  Might be useful for processing webarchive data.
 
 * emacs-23.2.91-mac-1.999 [experimental/hackers-only] (2010-12-12)
 Based on Emacs 23.2.91
-http://lists.gnu.org/archive/html/emacs-devel/2010-12/msg00359.html
+https://lists.gnu.org/r/emacs-devel/2010-12/msg00359.html
 
 ** Fixed bugs
 
@@ -1672,7 +1676,7 @@ unintentionally affected by some scroll-related variables.
 
 * emacs-23.2.90-mac-1.998 [experimental/hackers-only] (2010-11-10)
 Based on Emacs 23.2.90
-http://lists.gnu.org/archive/html/emacs-devel/2010-11/msg00269.html
+https://lists.gnu.org/r/emacs-devel/2010-11/msg00269.html
 
 ** Fixed bugs
 
@@ -1684,7 +1688,7 @@ screen containing the Dock.
 
 
 * emacs-23.2-mac-1.997 [experimental/hackers-only] (2010-09-27)
-http://lists.gnu.org/archive/html/emacs-devel/2010-09/msg01439.html
+https://lists.gnu.org/r/emacs-devel/2010-09/msg01439.html
 
 ** Fixed bugs
 
@@ -1699,7 +1703,7 @@ QCEditInChoices in QuickCursor.app/Contents/Info.plist.)
 
 
 * emacs-23.2-mac-1.996 [experimental/hackers-only] (2010-07-31)
-http://lists.gnu.org/archive/html/emacs-devel/2010-07/msg01457.html
+https://lists.gnu.org/r/emacs-devel/2010-07/msg01457.html
 
 ** Fixed bugs
 
@@ -1712,7 +1716,7 @@ several glitches and you can turn it off by setting
 
 
 * emacs-23.2-mac-1.995 [experimental/hackers-only] (2010-06-26)
-http://lists.gnu.org/archive/html/emacs-devel/2010-06/msg01000.html
+https://lists.gnu.org/r/emacs-devel/2010-06/msg01000.html
 
 ** Fixed bugs
 
@@ -1740,7 +1744,7 @@ You can see the difference with (make-frame '((font
 
 
 * emacs-23.2-mac-1.994 [experimental/hackers-only] (2010-05-29)
-http://lists.gnu.org/archive/html/emacs-devel/2010-05/msg00951.html
+https://lists.gnu.org/r/emacs-devel/2010-05/msg00951.html
 
 ** Fixed bugs
 
@@ -1751,7 +1755,7 @@ need to be typed multiple times.  Reported by Peter Dyballa and Drew Hess.
 the clipboard only inserts the first image.  Reported by Leo.
 
 *** Successive SVG image loading in `vrend-clock' by Anders Waldenborg
-(http://lists.gnu.org/archive/html/bug-gnu-emacs/2010-05/msg00521.html)
+(https://lists.gnu.org/r/bug-gnu-emacs/2010-05/msg00521.html)
 fails in a few seconds.
 
 *** The variable `face-ignored-fonts' does not work.
@@ -1778,7 +1782,7 @@ view for Emacs frames.  Still there are several glitches.
 
 * emacs-23.2-mac-1.993 [experimental/hackers-only] (2010-05-09)
 Based on Emacs 23.2
-http://lists.gnu.org/archive/html/emacs-devel/2010-05/msg00266.html
+https://lists.gnu.org/r/emacs-devel/2010-05/msg00266.html
 
 ** Improvements
 
@@ -1791,7 +1795,7 @@ withdrawn later.
 
 * emacs-23.1.97-mac-1.992 [experimental/hackers-only] (2010-05-04)
 Based on Emacs 23.1.97
-http://lists.gnu.org/archive/html/emacs-devel/2010-05/msg00106.html
+https://lists.gnu.org/r/emacs-devel/2010-05/msg00106.html
 
 ** Fixed bugs
 
@@ -1808,7 +1812,7 @@ fontset are not used in new frames.  Reported by Ichiro Enoki.
 
 * emacs-23.1.96-mac-1.991 [experimental/hackers-only] (2010-04-20)
 Based on Emacs 23.1.96
-http://lists.gnu.org/archive/html/emacs-devel/2010-04/msg00901.html
+https://lists.gnu.org/r/emacs-devel/2010-04/msg00901.html
 
 ** Fixed bugs
 
@@ -1825,7 +1829,7 @@ It behaves as in Emacs 22 if the script is given as a unibyte string.
 
 * emacs-23.1.95-mac-1.990 [experimental/hackers-only] (2010-04-03)
 Based on Emacs 23.1.95
-http://lists.gnu.org/archive/html/emacs-devel/2010-04/msg00094.html
+https://lists.gnu.org/r/emacs-devel/2010-04/msg00094.html
 
 ** Fixed bugs
 
@@ -1855,7 +1859,7 @@ setting in the System Preferences is supported.
 
 * emacs-23.1.94-mac-1.99 [experimental/hackers-only] (2010-03-11)
 Based on Emacs 23.1.94
-http://lists.gnu.org/archive/html/emacs-devel/2010-03/msg00390.html
+https://lists.gnu.org/r/emacs-devel/2010-03/msg00390.html
 
 ** Fixed bugs
 
@@ -1882,7 +1886,7 @@ keyboard) twice also works.
 
 * emacs-23.1.93-mac-1.98 [experimental/hackers-only] (2010-02-27)
 Based on Emacs 23.1.93
-http://lists.gnu.org/archive/html/emacs-devel/2010-02/msg00665.html
+https://lists.gnu.org/r/emacs-devel/2010-02/msg00665.html
 
 ** Fixed bugs
 
@@ -1908,7 +1912,7 @@ listed in System Preferences now work.
 
 * emacs-23.1.92-mac-1.97 [experimental/hackers-only] (2010-01-30)
 Based on Emacs 23.1.92
-http://lists.gnu.org/archive/html/emacs-devel/2010-01/msg01487.html
+https://lists.gnu.org/r/emacs-devel/2010-01/msg01487.html
 
 ** Fixed bugs
 
@@ -1929,7 +1933,7 @@ displayed with the rounded width 3, for example.
 
 * emacs-23.1.91-mac-1.96 [experimental/hackers-only] (2009-12-31)
 Based on Emacs 23.1.91
-http://lists.gnu.org/archive/html/emacs-devel/2009-12/msg01112.html
+https://lists.gnu.org/r/emacs-devel/2009-12/msg01112.html
 
 ** Fixed bugs
 
@@ -1954,7 +1958,7 @@ of the System Preferences is now reflected immediately.
 
 * emacs-23.1.90-mac-1.95 [experimental/hackers-only] (2009-12-10)
 Based on Emacs 23.1.90
-http://lists.gnu.org/archive/html/emacs-devel/2009-12/msg00466.html
+https://lists.gnu.org/r/emacs-devel/2009-12/msg00466.html
 
 ** Fixed bugs
 
@@ -1969,7 +1973,7 @@ not shown in the window list in the Dock menu.
 
 
 * emacs-23.1-mac-1.94 [experimental/hackers-only] (2009-11-01)
-http://lists.gnu.org/archive/html/emacs-devel/2009-11/msg00001.html
+https://lists.gnu.org/r/emacs-devel/2009-11/msg00001.html
 
 ** Fixed bugs
 
@@ -2000,7 +2004,7 @@ subtable in their cmap table.
 
 
 * emacs-23.1-mac-1.93 [experimental/hackers-only] (2009-09-27)
-http://lists.gnu.org/archive/html/emacs-devel/2009-09/msg00745.html
+https://lists.gnu.org/r/emacs-devel/2009-09/msg00745.html
 
 ** Fixed bugs
 
@@ -2029,7 +2033,7 @@ Central Dispatch.
 
 
 * emacs-23.1-mac-1.92 [experimental/hackers-only] (2009-09-05)
-http://lists.gnu.org/archive/html/emacs-devel/2009-09/msg00105.html
+https://lists.gnu.org/r/emacs-devel/2009-09/msg00105.html
 
 ** Fixed bugs
 
@@ -2052,7 +2056,7 @@ it off by compiling with "-DSELECT_USE_GCD=0".
 
 
 * emacs-23.1-mac-1.91 [experimental/hackers-only] (2009-08-29)
-http://lists.gnu.org/archive/html/emacs-devel/2009-08/msg01309.html
+https://lists.gnu.org/r/emacs-devel/2009-08/msg01309.html
 
 ** Fixed bugs
 
@@ -2078,11 +2082,11 @@ Based on Emacs 23.1.  Rename from "Carbon+AppKit port" to "Mac port".
 Drop support for Mac OS X 10.1 and earlier.
 Drop GUI implementation with Carbon HIToolbox.
 Revamp font handing completely.
-http://lists.gnu.org/archive/html/emacs-devel/2009-08/msg00091.html
+https://lists.gnu.org/r/emacs-devel/2009-08/msg00091.html
 
 
 * emacs-22.3-appkit-1.5 (2009-08-03)
-http://lists.gnu.org/archive/html/emacs-devel/2009-08/msg00091.html
+https://lists.gnu.org/r/emacs-devel/2009-08/msg00091.html
 
 ** Fixed bugs
 
@@ -2102,7 +2106,7 @@ multiple invocations via command-line or "open -n" is suppressed
 
 
 * emacs-22.3-appkit-1.4 (2009-06-27)
-http://lists.gnu.org/archive/html/emacs-devel/2009-06/msg00532.html
+https://lists.gnu.org/r/emacs-devel/2009-06/msg00532.html
 
 ** Fixed bugs
 
@@ -2129,12 +2133,12 @@ for integers that don't fit in the Lisp float range.
 
 
 * emacs-22.3-appkit-1.3 (2009-03-27)
-http://lists.gnu.org/archive/html/emacs-devel/2009-03/msg00485.html
+https://lists.gnu.org/r/emacs-devel/2009-03/msg00485.html
 
 ** Fixed bugs
 
 *** Popup dialog button labels may get corrupted.
-http://lists.gnu.org/archive/html/emacs-devel/2009-03/msg00261.html
+https://lists.gnu.org/r/emacs-devel/2009-03/msg00261.html
 
 *** Popup dialog does not select the default item with the return key.
 
@@ -2149,7 +2153,7 @@ previous change for flyspell-small-region slowness.
 
 
 * emacs-22.3-appkit-1.2 (2009-01-24)
-http://lists.gnu.org/archive/html/emacs-devel/2009-01/msg00753.html
+https://lists.gnu.org/r/emacs-devel/2009-01/msg00753.html
 
 ** Fixed bugs
 
@@ -2164,11 +2168,11 @@ previous change for flyspell-small-region slowness.
 ** Improvements
 
 *** Untag Lisp_Object by subtraction instead of masking.
-http://lists.gnu.org/archive/html/emacs-devel/2008-01/msg01876.html
+https://lists.gnu.org/r/emacs-devel/2008-01/msg01876.html
 
 *** `select' emulation waits for user signal delivery as well as
 window system events and process outputs via sockets.
-http://lists.gnu.org/archive/html/emacs-devel/2008-10/msg00198.html
+https://lists.gnu.org/r/emacs-devel/2008-10/msg00198.html
 
 *** Hourglass display is enabled.
 
@@ -2177,7 +2181,7 @@ are accepted or not.
 
 
 * emacs-22.3-appkit-1.1 (2008-11-27)
-http://lists.gnu.org/archive/html/emacs-devel/2008-11/msg00993.html
+https://lists.gnu.org/r/emacs-devel/2008-11/msg00993.html
 
 ** Fixed bugs
 
@@ -2217,4 +2221,4 @@ panel) is being dragged.
 
 * emacs-22.3-appkit-1.0 (2008-09-07)
 Initial release
-http://lists.gnu.org/archive/html/emacs-devel/2008-09/msg00268.html
+https://lists.gnu.org/r/emacs-devel/2008-09/msg00268.html

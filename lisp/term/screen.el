@@ -1,5 +1,5 @@
 ;;; screen.el --- terminal initialization for screen and tmux  -*- lexical-binding: t -*-
-;; Copyright (C) 1995, 2001-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 2001-2018 Free Software Foundation, Inc.
 
 (require 'term/xterm)
 
@@ -19,5 +19,7 @@ it runs, which can change when the screen session is moved to another tty."
   ;; emulator, which can change during the session, bug#20356).
   (let ((xterm-extra-capabilities xterm-screen-extra-capabilities))
     (tty-run-terminal-initialization (selected-frame) "xterm")))
+
+(provide 'term/screen)
 
 ;; screen.el ends here

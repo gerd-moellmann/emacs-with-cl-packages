@@ -1,6 +1,6 @@
 ;;; ede/linux.el --- Special project for Linux
 
-;; Copyright (C) 2008-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2018 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <eric@siege-engine.com>
 
@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -64,12 +64,12 @@
 
 
 (defcustom project-linux-compile-target-command (concat ede-make-command " -k -C %s SUBDIRS=%s")
-  "*Default command used to compile a target."
+  "Default command used to compile a target."
   :group 'project-linux
   :type 'string)
 
 (defcustom project-linux-compile-project-command (concat ede-make-command " -k -C %s")
-  "*Default command used to compile a project."
+  "Default command used to compile a project."
   :group 'project-linux
   :type 'string)
 

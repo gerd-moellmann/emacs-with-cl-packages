@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* Originally contributed by Andrew Choi (akochoi@mac.com) for Emacs 21.  */
 
@@ -191,7 +191,7 @@ typedef struct {
 #define PWinGravity	(1L << 9) /* program specified window gravity */
 
 /* Constants corresponding to window state hint atoms in X11 Extended
-   Window Manager Hints (without "_NET_" prefix).  Mostly unimplemented.  */
+   Window Manager Hints (without "_NET_" prefix).  Partly implemented.  */
 
 enum
 {
@@ -214,7 +214,8 @@ enum
 enum
 {
   WM_STATE_NO_MENUBAR		= 1 << 12,
-  WM_STATE_DEDICATED_DESKTOP	= 1 << 13
+  WM_STATE_DEDICATED_DESKTOP	= 1 << 13,
+  WM_STATE_OVERRIDE_REDIRECT	= 1 << 14
 };
 
 typedef uint32_t WMState;

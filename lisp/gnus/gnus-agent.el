@@ -1,6 +1,6 @@
 ;;; gnus-agent.el --- unplugged support for Gnus
 
-;; Copyright (C) 1997-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -16,7 +16,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -30,10 +30,8 @@
 (require 'gnus-score)
 (require 'gnus-srvr)
 (require 'gnus-util)
+(require 'timer)
 (eval-when-compile
-  (if (featurep 'xemacs)
-      (require 'itimer)
-    (require 'timer))
   (require 'cl))
 
 (autoload 'gnus-server-update-server "gnus-srvr")
@@ -82,27 +80,15 @@ If nil, only read articles will be expired."
   :group 'gnus-agent
   :type 'hook)
 
-;; Extracted from gnus-xmas-redefine in order to preserve user settings
-(when (featurep 'xemacs)
-  (add-hook 'gnus-agent-group-mode-hook 'gnus-xmas-agent-group-menu-add))
-
 (defcustom gnus-agent-summary-mode-hook nil
   "Hook run in Agent summary minor modes."
   :group 'gnus-agent
   :type 'hook)
 
-;; Extracted from gnus-xmas-redefine in order to preserve user settings
-(when (featurep 'xemacs)
-  (add-hook 'gnus-agent-summary-mode-hook 'gnus-xmas-agent-summary-menu-add))
-
 (defcustom gnus-agent-server-mode-hook nil
   "Hook run in Agent summary minor modes."
   :group 'gnus-agent
   :type 'hook)
-
-;; Extracted from gnus-xmas-redefine in order to preserve user settings
-(when (featurep 'xemacs)
-  (add-hook 'gnus-agent-server-mode-hook 'gnus-xmas-agent-server-menu-add))
 
 (defcustom gnus-agent-confirmation-function 'y-or-n-p
   "Function to confirm when error happens."
@@ -175,7 +161,7 @@ enable expiration per categories, topics, and groups."
                 (const :format "Disable " DISABLE)))
 
 (defcustom gnus-agent-expire-unagentized-dirs t
-  "*Whether expiration should expire in unagentized directories.
+  "Whether expiration should expire in unagentized directories.
 Have gnus-agent-expire scan the directories under
 \(gnus-agent-directory) for groups that are no longer agentized.
 When found, offer to remove them."
@@ -186,7 +172,7 @@ When found, offer to remove them."
 (defcustom gnus-agent-auto-agentize-methods nil
   "Initially, all servers from these methods are agentized.
 The user may remove or add servers using the Server buffer.
-See Info nodes `(gnus)Server Buffer', `(gnus)Agent Variables'."
+See Info node `(gnus)Server Buffer' and Info node `(gnus)Agent Variables'."
   :version "22.1"
   :type '(repeat symbol)
   :group 'gnus-agent)
@@ -251,16 +237,6 @@ NOTES:
 ;; Dynamic variables
 (defvar gnus-headers)
 (defvar gnus-score)
-
-;; Added to support XEmacs
-(eval-and-compile
-  (unless (fboundp 'directory-files-and-attributes)
-    (defun directory-files-and-attributes (directory
-					   &optional full match nosort)
-      (let (result)
-	(dolist (file (directory-files directory full match nosort))
-	  (push (cons file (file-attributes file)) result))
-	(nreverse result)))))
 
 ;;;
 ;;; Setup
@@ -475,7 +451,7 @@ manipulated as follows:
 (defvar gnus-agent-mode-status '(gnus-agent-mode " Plugged"))
 
 (defun gnus-agent-mode ()
-  "Minor mode for providing a agent support in Gnus buffers."
+  "Minor mode for providing agent support in Gnus buffers."
   (let* ((buffer (progn (string-match "^gnus-\\(.*\\)-mode$"
 				      (symbol-name major-mode))
 			(match-string 1 (symbol-name major-mode))))
@@ -571,19 +547,9 @@ manipulated as follows:
        ["Remove" gnus-agent-remove-server t]))))
 
 (defun gnus-agent-make-mode-line-string (string mouse-button mouse-func)
-  (if (and (fboundp 'propertize)
-	   (fboundp 'make-mode-line-mouse-map))
-      (propertize string 'local-map
-		  (make-mode-line-mouse-map mouse-button mouse-func)
-		  'mouse-face
-		  (if (and (featurep 'xemacs)
-			   ;; XEmacs's `facep' only checks for a face
-			   ;; object, not for a face name, so it's useless
-			   ;; to check with `facep'.
-			   (find-face 'modeline))
-		      'modeline
-		    'mode-line-highlight))
-    string))
+  (propertize string 'local-map
+	      (make-mode-line-mouse-map mouse-button mouse-func)
+	      'mouse-face 'mode-line-highlight))
 
 (defun gnus-agent-toggle-plugged (set-to)
   "Toggle whether Gnus is unplugged or not."
@@ -868,7 +834,7 @@ be a select method."
 		      (not (eq gnus-agent-synchronize-flags 'ask)))
 		 (and (eq gnus-agent-synchronize-flags 'ask)
 		      (gnus-y-or-n-p
-		       (gnus-format-message
+		       (format-message
 			"Synchronize flags on server `%s'? "
 			(cadr method))))))
     (gnus-agent-synchronize-flags-server method)))
@@ -2667,8 +2633,10 @@ General format specifiers can also be used.  See Info node
     "\C-c\C-i" gnus-info-find-node
     "\C-c\C-b" gnus-bug))
 
-(defvar gnus-category-menu-hook nil
-  "*Hook run after the creation of the menu.")
+(defcustom gnus-category-menu-hook nil
+  "Hook run after the creation of the menu."
+  :group 'gnus-agent
+  :type 'hook)
 
 (defun gnus-category-make-menu-bar ()
   (gnus-turn-off-edit-menu 'category)
@@ -2713,7 +2681,7 @@ The following commands are available:
   (let* ((gnus-tmp-name (format "%s" (car category)))
 	 (gnus-tmp-groups (length (gnus-agent-cat-groups category))))
     (beginning-of-line)
-    (gnus-add-text-properties
+    (add-text-properties
      (point)
      (prog1 (1+ (point))
        ;; Insert the text.

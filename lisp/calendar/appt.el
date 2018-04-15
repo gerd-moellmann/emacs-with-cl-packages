@@ -1,6 +1,6 @@
 ;;; appt.el --- appointment notification functions
 
-;; Copyright (C) 1989-1990, 1994, 1998, 2001-2017 Free Software
+;; Copyright (C) 1989-1990, 1994, 1998, 2001-2018 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Neil Mager <neilm@juliet.ll.mit.edu>
@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -482,7 +482,9 @@ Usually just deletes the appointment buffer."
     (and window
          (or (eq window (frame-root-window (window-frame window)))
              (delete-window window))))
-  (kill-buffer appt-buffer-name)
+  (let ((buffer (get-buffer appt-buffer-name)))
+    (when buffer
+      (kill-buffer buffer)))
   (if appt-audible
       (beep 1)))
 

@@ -1,5 +1,5 @@
 /* Asynchronous timers.
-   Copyright (C) 2000-2017 Free Software Foundation, Inc.
+   Copyright (C) 2000-2018 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -14,12 +14,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include <stdio.h>
 
 #include "lisp.h"
+#include "keyboard.h"
 #include "syssignal.h"
 #include "systime.h"
 #include "atimer.h"
@@ -399,6 +400,9 @@ static void
 handle_alarm_signal (int sig)
 {
   pending_signals = 1;
+#ifdef HAVE_MACGUI
+  mac_handle_alarm_signal ();
+#endif
 }
 
 #ifdef HAVE_TIMERFD
@@ -424,7 +428,7 @@ timerfd_callback (int fd, void *arg)
   else if (nbytes < 0)
     /* For some not yet known reason, we may get weird event and no
        data on timer descriptor.  This can break Gnus at least, see:
-       http://lists.gnu.org/archive/html/emacs-devel/2014-07/msg00503.html.  */
+       https://lists.gnu.org/r/emacs-devel/2014-07/msg00503.html.  */
     eassert (errno == EAGAIN);
   else
     /* I don't know what else can happen with this descriptor.  */

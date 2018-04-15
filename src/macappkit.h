@@ -14,7 +14,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #undef Z
 #import <Cocoa/Cocoa.h>
@@ -80,6 +80,7 @@ typedef id instancetype;
 #define NSMutableSetOf(ObjectType)	NSMutableSet <ObjectType>
 #define NSDictionaryOf(KeyT, ObjectT)	NSDictionary <KeyT, ObjectT>
 #define NSMutableDictionaryOf(KeyT, ObjectT) NSMutableDictionary <KeyT, ObjectT>
+#define NSMapTableOf(KeyT, ObjectT)	NSMapTable <KeyT, ObjectT>
 #else
 #define NSArrayOf(ObjectType)		NSArray
 #define NSMutableArrayOf(ObjectType)	NSMutableArray
@@ -87,6 +88,7 @@ typedef id instancetype;
 #define NSMutableSetOf(ObjectType)	NSMutableSet
 #define NSDictionaryOf(KeyT, ObjectT)	NSDictionary
 #define NSMutableDictionaryOf(KeyT, ObjectT) NSMutableDictionary
+#define NSMapTableOf(KeyT, ObjectT)	NSMapTable
 #define __kindof
 #endif
 
@@ -106,6 +108,11 @@ typedef id instancetype;
 - (Lisp_Object)UTF8LispString;
 - (Lisp_Object)UTF16LispString;
 - (NSArrayOf (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator;
+@end
+
+@interface NSMutableArray (Emacs)
+- (void)enqueue:(id)obj;
+- (id)dequeue;
 @end
 
 @interface NSFont (Emacs)
@@ -145,10 +152,28 @@ typedef id instancetype;
 
 @interface NSWindow (Emacs)
 - (Lisp_Object)lispFrame;
+- (NSWindow *)topLevelWindow;
+- (void)enumerateChildWindowsUsingBlock:(NS_NOESCAPE void
+					 (^)(NSWindow *child, BOOL *stop))block;
 @end
 
 @interface NSCursor (Emacs)
 + (NSCursor *)cursorWithThemeCursor:(ThemeCursor)shape;
+@end
+
+@interface NSCursor (UndocumentedOn1070AndLater)
++ (NSCursor *)_windowResizeNorthWestSouthEastCursor;
++ (NSCursor *)_windowResizeNorthEastSouthWestCursor;
++ (NSCursor *)_windowResizeNorthSouthCursor;
++ (NSCursor *)_windowResizeNorthCursor;
++ (NSCursor *)_windowResizeSouthCursor;
++ (NSCursor *)_windowResizeEastWestCursor;
++ (NSCursor *)_windowResizeEastCursor;
++ (NSCursor *)_windowResizeWestCursor;
++ (NSCursor *)_windowResizeNorthWestCursor;
++ (NSCursor *)_windowResizeNorthEastCursor;
++ (NSCursor *)_windowResizeSouthWestCursor;
++ (NSCursor *)_windowResizeSouthEastCursor;
 @end
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
@@ -162,6 +187,10 @@ typedef id instancetype;
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
 @protocol NSTouchBarDelegate @end
 @class NSCandidateListTouchBarItem;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+@class NSWindowTabGroup;
 #endif
 
 @interface EmacsApplication : NSApplication
@@ -251,7 +280,13 @@ typedef id instancetype;
 - (void)showMenuBar;
 @end
 
-/* Like NSWindow, but allows suspend/resume resize control tracking.  */
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+typedef NSString * NSKeyValueChangeKey;
+#endif
+
+/* Like NSWindow, but allows suspend/resume resize control tracking.
+   It also provides the delegate methods windowWillEnterTabOverview
+   and windowDidExitTabOverview.  */
 
 @interface EmacsWindow : NSWindow
 {
@@ -279,6 +314,10 @@ typedef id instancetype;
   /* Positive values mean the usual -constrainFrameRect:toScreen:
      behavior is suspended.  */
   char constrainingToScreenSuspensionCount;
+
+  /* Tab group object that is showing its overview invoked from the
+     EmacsWindow object.  */
+  NSWindowTabGroup *observedTabGroup;
 }
 - (void)suspendResizeTracking:(NSEvent *)event
 	   positionAdjustment:(NSPoint)adjustment;
@@ -289,13 +328,12 @@ typedef id instancetype;
 - (void)exitTabGroupOverview;
 @end
 
-@interface EmacsFullscreenWindow : EmacsWindow
-@end
-
 @interface NSObject (EmacsWindowDelegate)
 - (BOOL)window:(NSWindow *)sender shouldForwardAction:(SEL)action to:(id)target;
 - (NSRect)window:(NSWindow *)sender willConstrainFrame:(NSRect)frameRect
 	toScreen:(NSScreen *)screen;
+- (void)windowWillEnterTabOverview;
+- (void)windowDidExitTabOverview;
 @end
 
 @class EmacsView;
@@ -357,6 +395,10 @@ typedef id instancetype;
      boolean value meaning whether the transition has succeeded.  */
   NSMutableArrayOf (void (^)(EmacsWindow *, BOOL))
     *fullScreenTransitionCompletionHandlers;
+
+  /* Map from child windows to alpha values that are saved while they
+     are made completely transparent temporarily.  */
+  NSMapTableOf (NSWindow *, NSNumber *) *savedChildWindowAlphaMap;
 }
 - (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
 - (void)setupEmacsView;
@@ -364,6 +406,7 @@ typedef id instancetype;
 - (void)closeWindow;
 - (struct frame *)emacsFrame;
 - (EmacsWindow *)emacsWindow;
+- (BOOL)acceptsFocus;
 - (WMState)windowManagerState;
 - (void)setWindowManagerState:(WMState)newState;
 - (void)updateBackingScaleFactor;
@@ -375,6 +418,7 @@ typedef id instancetype;
 - (NSPoint)convertEmacsViewPointToScreen:(NSPoint)point;
 - (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point;
 - (NSRect)convertEmacsViewRectToScreen:(NSRect)rect;
+- (NSRect)convertEmacsViewRectFromScreen:(NSRect)rect;
 - (NSRect)centerScanEmacsViewRect:(NSRect)rect;
 - (void)invalidateCursorRectsForEmacsView;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
@@ -387,6 +431,9 @@ typedef id instancetype;
 - (void)setupLiveResizeTransition;
 - (void)setShouldLiveResizeTriggerTransition:(BOOL)flag;
 - (void)setLiveResizeCompletionHandler:(void (^)(void))block;
+- (BOOL)shouldBeTitled;
+- (BOOL)shouldHaveShadow;
+- (void)updateWindowStyle;
 @end
 
 /* Class for Emacs view that handles drawing events only.  It is used
@@ -453,6 +500,7 @@ typedef id instancetype;
 - (BOOL)sendAction:(SEL)theAction to:(id)theTarget;
 - (struct input_event *)inputEvent;
 - (NSString *)string;
+- (void)synchronizeChildFrameOrigins;
 @end
 
 /* Class for overlay view of an Emacs frame window.  */
@@ -722,6 +770,7 @@ typedef NSString * NSPasteboardName;
 		    options:(NSDictionaryOf (NSString *, id) *)options;
 - (instancetype)initWithData:(NSData *)data
 		     options:(NSDictionaryOf (NSString *, id) *)options;
++ (BOOL)shouldInitializeInMainThread;
 + (NSArrayOf (NSString *) *)supportedTypes;
 - (NSUInteger)pageCount;
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
@@ -877,6 +926,7 @@ typedef NSString * NSWindowTabbingIdentifier;
 
 @interface NSWindow (AvailableOn101300AndLater)
 @property (readonly, assign) NSWindowTabGroup *tabGroup;
+- (void)toggleTabOverview:(id)sender;
 @end
 #endif
 

@@ -1,6 +1,6 @@
-;;; kmacro.el --- enhanced keyboard macros
+;;; kmacro.el --- enhanced keyboard macros -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2018 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Keywords: keyboard convenience
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -111,6 +111,7 @@
 ;;; Code:
 
 ;; Customization:
+(require 'replace)
 
 (defgroup kmacro nil
   "Simplified keyboard macro user interface."
@@ -478,7 +479,7 @@ without repeating the prefix."
   "Display the current head of the keyboard macro ring."
   (interactive)
   (unless (kmacro-ring-empty-p)
-    (kmacro-display (car (car kmacro-ring)) "2nd macro")))
+    (kmacro-display (car (car kmacro-ring)) nil "2nd macro")))
 
 
 (defun kmacro-cycle-ring-next (&optional _arg)
@@ -565,7 +566,8 @@ Use \\[kmacro-insert-counter] to insert (and increment) the macro counter.
 The counter value can be set or modified via \\[kmacro-set-counter] and \\[kmacro-add-counter].
 The format of the counter can be modified via \\[kmacro-set-format].
 
-Use \\[kmacro-name-last-macro] to give it a permanent name.
+Use \\[kmacro-name-last-macro] to give it a name that will remain valid even
+after another macro is defined.
 Use \\[kmacro-bind-to-key] to bind it to a key sequence."
   (interactive "P")
   (if (or defining-kbd-macro executing-kbd-macro)
@@ -628,8 +630,8 @@ just the last key in the key sequence that you used to call this
 command.  See `kmacro-call-repeat-key' and `kmacro-call-repeat-with-arg'
 for details on how to adjust or disable this behavior.
 
-To make a macro permanent so you can call it even after defining
-others, use \\[kmacro-name-last-macro]."
+To give a macro a name so you can call it even after defining others,
+use \\[kmacro-name-last-macro]."
   (interactive "p")
   (let ((repeat-key (and (or (and (null no-repeat)
                                   (> (length (this-single-command-keys)) 1))
@@ -730,8 +732,8 @@ With \\[universal-argument], call second macro in macro ring."
 With numeric prefix ARG, repeat macro that many times.
 Zero argument means repeat until there is an error.
 
-To give a macro a permanent name, so you can call it
-even after defining other macros, use \\[kmacro-name-last-macro]."
+To give a macro a name, so you can call it even after defining other
+macros, use \\[kmacro-name-last-macro]."
   (interactive "P")
   (if defining-kbd-macro
       (kmacro-end-macro nil))
@@ -744,7 +746,13 @@ even after defining other macros, use \\[kmacro-name-last-macro]."
 If kbd macro currently being defined end it before activating it."
   (interactive "e")
   (when defining-kbd-macro
-    (end-kbd-macro))
+    (end-kbd-macro)
+    (when (and last-kbd-macro (= (length last-kbd-macro) 0))
+      (setq last-kbd-macro nil)
+      (message "Ignore empty macro")
+      ;; Don't call `kmacro-ring-empty-p' to avoid its messages.
+      (while (and (null last-kbd-macro) kmacro-ring)
+        (kmacro-pop-ring1))))
   (mouse-set-point event)
   (kmacro-call-macro nil t))
 
@@ -936,7 +944,7 @@ without repeating the prefix."
 
 ;;; Single-step editing of keyboard macros
 
-(defvar kmacro-step-edit-active)  	 ;; step-editing active
+(defvar kmacro-step-edit-active nil)  	 ;; step-editing active
 (defvar kmacro-step-edit-new-macro)  	 ;; storage for new macro
 (defvar kmacro-step-edit-inserting)  	 ;; inserting into macro
 (defvar kmacro-step-edit-appending)  	 ;; append to end of macro

@@ -1,6 +1,6 @@
-;;; icalendar.el --- iCalendar implementation
+;;; icalendar.el --- iCalendar implementation -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2018 Free Software Foundation, Inc.
 
 ;; Author:         Ulf Jasper <ulf.jasper@web.de>
 ;; Created:        August 2002
@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -1310,7 +1310,7 @@ Returns an alist."
 Argument ADVANCE-TIME is a number giving the time when the alarm
 fires (minutes before the respective event).  Argument ALARM-SPEC
 is a list which must be one of (audio), (display) or
-(email (ADDRESS1 ...)), see `icalendar-export-alarms'.  Argument
+\(email (ADDRESS1 ...)), see `icalendar-export-alarms'.  Argument
 SUMMARY is a string which contains a short description for the
 alarm."
   (let* ((action (car alarm-spec))
@@ -2389,22 +2389,43 @@ END-T is the event's end time in diary format."
           ;; monthly
           ((string-equal frequency "MONTHLY")
            (icalendar--dmsg "monthly")
-           (setq result
-                 (format
-                  "%%%%(and (diary-date %s) (diary-block %s %s)) %s%s%s"
-                  (let ((day (nth 3 dtstart-dec)))
-                    (cond ((eq calendar-date-style 'iso)
-                           (format "t t %d" day))
-                          ((eq calendar-date-style 'european)
-                           (format "%d t t" day))
-                          ((eq calendar-date-style 'american)
-                           (format "t %d t" day))))
-                  dtstart-conv
-                  (if until
-                      until-conv
-                    (if (eq calendar-date-style 'iso) "9999 1 1" "1 1 9999")) ;; FIXME: should be unlimited
-                  (or start-t "")
-                  (if end-t "-" "") (or end-t ""))))
+	   (let* ((byday (cadr (assoc 'BYDAY rrule-props)))
+                  (count-weekday
+                   (and byday
+                        (save-match-data
+                          (when (string-match "\\(-?[0-9]+\\)\\([A-Z][A-Z]\\)"
+                                              byday)
+                            (cons (substring byday
+                                             (match-beginning 1)
+                                             (match-end 1))
+                                  (substring byday
+                                             (match-beginning 2)
+                                             (match-end 2)))))))
+                  (rule-part
+                   (if count-weekday
+                       (let ((count (car count-weekday))
+                             (weekdaynum (icalendar--get-weekday-number
+                                          (cdr count-weekday))))
+                         ;; FIXME: this is valid only for interval==1
+                         (format "(diary-float t %s %s)" weekdaynum count))
+                     (format "(diary-date %s)"
+                             (let ((day (nth 3 dtstart-dec)))
+                               (cond ((eq calendar-date-style 'iso)
+                                      (format "t t %d" day))
+                                     ((eq calendar-date-style 'european)
+                                      (format "%d t t" day))
+                                     ((eq calendar-date-style 'american)
+                                      (format "t %d t" day))))))))
+             (setq result
+                   (format
+                    "%%%%(and %s (diary-block %s %s)) %s%s%s"
+                    rule-part
+                    dtstart-conv
+                    (if until
+                        until-conv
+                      (if (eq calendar-date-style 'iso) "9999 1 1" "1 1 9999")) ;; FIXME: should be unlimited
+                    (or start-t "")
+                    (if end-t "-" "") (or end-t "")))))
           ;; daily
           ((and (string-equal frequency "DAILY"))
            (if until

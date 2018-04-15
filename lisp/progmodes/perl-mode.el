@@ -1,6 +1,6 @@
 ;;; perl-mode.el --- Perl code editing commands for GNU Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990, 1994, 2001-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1990, 1994, 2001-2018 Free Software Foundation, Inc.
 
 ;; Author: William F. Mann
 ;; Maintainer: emacs-devel@gnu.org
@@ -23,7 +23,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -213,25 +213,6 @@
             (regexp-opt perl--syntax-exp-intro-keywords)
             "\\|[-?:.,;|&+*=!~({[]\\|\\(^\\)\\)[ \t\n]*")))
 
-;; FIXME: handle here-docs and regexps.
-;; <<EOF <<"EOF" <<'EOF' (no space)
-;; see `man perlop'
-;; ?...?
-;; /.../
-;; m [...]
-;; m /.../
-;; q /.../ = '...'
-;; qq /.../ = "..."
-;; qx /.../ = `...`
-;; qr /.../ = precompiled regexp =~=~ m/.../
-;; qw /.../
-;; s /.../.../
-;; s <...> /.../
-;; s '...'...'
-;; tr /.../.../
-;; y /.../.../
-;;
-;; <file*glob>
 (defun perl-syntax-propertize-function (start end)
   (let ((case-fold-search nil))
     (goto-char start)
@@ -255,9 +236,11 @@
       ;; format statements
       ("^[ \t]*format.*=[ \t]*\\(\n\\)"
        (1 (prog1 "\"" (perl-syntax-propertize-special-constructs end))))
-      ;; Funny things in `sub' arg-specs like `sub myfun ($)' or `sub ($)'.
-      ;; Be careful not to match "sub { (...) ... }".
-      ("\\<sub\\(?:[\s\t\n]+\\(?:\\sw\\|\\s_\\)+\\)?[\s\t\n]*(\\([^)]+\\))"
+      ;; Propertize perl prototype chars `$%&*;+@\[]' as punctuation
+      ;; in `sub' arg-specs like `sub myfun ($)' and `sub ($)'.  But
+      ;; don't match subroutine signatures like `sub add ($a, $b)', or
+      ;; anonymous subs like "sub { (...) ... }".
+      ("\\<sub\\(?:[\s\t\n]+\\(?:\\sw\\|\\s_\\)+\\)?[\s\t\n]*(\\([][$%&*;+@\\]+\\))"
        (1 "."))
       ;; Turn __DATA__ trailer into a comment.
       ("^\\(_\\)_\\(?:DATA\\|END\\)__[ \t]*\\(?:\\(\n\\)#.-\\*-.*perl.*-\\*-\\|\n.*\\)"
@@ -322,23 +305,25 @@
       ((concat
         "\\(?:"
         ;; << "EOF", << 'EOF', or << \EOF
-        "<<[ \t]*\\('[^'\n]*'\\|\"[^\"\n]*\"\\|\\\\[[:alpha:]][[:alnum:]]*\\)"
+        "<<\\(~\\)?[ \t]*\\('[^'\n]*'\\|\"[^\"\n]*\"\\|\\\\[[:alpha:]][[:alnum:]]*\\)"
         ;; The <<EOF case which needs perl--syntax-exp-intro-regexp, to
         ;; disambiguate with the left-bitshift operator.
-        "\\|" perl--syntax-exp-intro-regexp "<<\\(?1:\\sw+\\)\\)"
+        "\\|" perl--syntax-exp-intro-regexp "<<\\(?2:\\sw+\\)\\)"
         ".*\\(\n\\)")
-       (3 (let* ((st (get-text-property (match-beginning 3) 'syntax-table))
-                 (name (match-string 1)))
-            (goto-char (match-end 1))
+       (4 (let* ((st (get-text-property (match-beginning 4) 'syntax-table))
+                 (name (match-string 2))
+                 (indented (match-beginning 1)))
+            (goto-char (match-end 2))
             (if (save-excursion (nth 8 (syntax-ppss (match-beginning 0))))
                 ;; Leave the property of the newline unchanged.
                 st
               (cons (car (string-to-syntax "< c"))
                     ;; Remember the names of heredocs found on this line.
-                    (cons (pcase (aref name 0)
-                            (`?\\ (substring name 1))
-                            ((or `?\" `?\' `?\`) (substring name 1 -1))
-                            (_ name))
+                    (cons (cons (pcase (aref name 0)
+                                  (`?\\ (substring name 1))
+                                  ((or `?\" `?\' `?\`) (substring name 1 -1))
+                                  (_ name))
+                                indented)
                           (cdr st)))))))
       ;; We don't call perl-syntax-propertize-special-constructs directly
       ;; from the << rule, because there might be other elements (between
@@ -381,7 +366,9 @@
           (goto-char (nth 8 state)))
         (while (and names
                     (re-search-forward
-                     (concat "^" (regexp-quote (pop names)) "\n")
+                     (pcase-let ((`(,name . ,indented) (pop names)))
+                       (concat "^" (if indented "[ \t]*")
+                               (regexp-quote name) "\n"))
                      limit 'move))
           (unless names
             (put-text-property (1- (point)) (point) 'syntax-table
@@ -593,6 +580,74 @@ create a new comment."
 	(match-string-no-properties 1))))
 
 
+;;; Flymake support
+(defcustom perl-flymake-command '("perl" "-w" "-c")
+  "External tool used to check Perl source code.
+This is a non empty list of strings, the checker tool possibly
+followed by required arguments.  Once launched it will receive
+the Perl source to be checked as its standard input."
+  :version "26.1"
+  :group 'perl
+  :type '(repeat string))
+
+(defvar-local perl--flymake-proc nil)
+
+;;;###autoload
+(defun perl-flymake (report-fn &rest _args)
+  "Perl backend for Flymake.  Launches
+`perl-flymake-command' (which see) and passes to its standard
+input the contents of the current buffer.  The output of this
+command is analyzed for error and warning messages."
+  (unless (executable-find (car perl-flymake-command))
+    (error "Cannot find a suitable checker"))
+
+  (when (process-live-p perl--flymake-proc)
+    (kill-process perl--flymake-proc))
+
+  (let ((source (current-buffer)))
+    (save-restriction
+      (widen)
+      (setq
+       perl--flymake-proc
+       (make-process
+        :name "perl-flymake" :noquery t :connection-type 'pipe
+        :buffer (generate-new-buffer " *perl-flymake*")
+        :command perl-flymake-command
+        :sentinel
+        (lambda (proc _event)
+          (when (eq 'exit (process-status proc))
+            (unwind-protect
+                (if (with-current-buffer source (eq proc perl--flymake-proc))
+                    (with-current-buffer (process-buffer proc)
+                      (goto-char (point-min))
+                      (cl-loop
+                       while (search-forward-regexp
+                              "^\\(.+\\) at - line \\([0-9]+\\)"
+                              nil t)
+                       for msg = (match-string 1)
+                       for (beg . end) = (flymake-diag-region
+                                          source
+                                          (string-to-number (match-string 2)))
+                       for type =
+                       (if (string-match
+                            "\\(Scalar value\\|Useless use\\|Unquoted string\\)"
+                            msg)
+                           :warning
+                         :error)
+                       collect (flymake-make-diagnostic source
+                                                        beg
+                                                        end
+                                                        type
+                                                        msg)
+                       into diags
+                       finally (funcall report-fn diags)))
+                  (flymake-log :debug "Canceling obsolete check %s"
+                               proc))
+              (kill-buffer (process-buffer proc)))))))
+      (process-send-region perl--flymake-proc (point-min) (point-max))
+      (process-send-eof perl--flymake-proc))))
+
+
 (defvar perl-mode-hook nil
   "Normal hook to run when entering Perl mode.")
 
@@ -677,7 +732,9 @@ Turning on Perl mode runs the normal hook `perl-mode-hook'."
   ;; Setup outline-minor-mode.
   (setq-local outline-regexp perl-outline-regexp)
   (setq-local outline-level 'perl-outline-level)
-  (setq-local add-log-current-defun-function #'perl-current-defun-name))
+  (setq-local add-log-current-defun-function #'perl-current-defun-name)
+  ;; Setup Flymake
+  (add-hook 'flymake-diagnostic-functions #'perl-flymake nil t))
 
 ;; This is used by indent-for-comment
 ;; to decide how much to indent a comment in Perl code
@@ -690,7 +747,9 @@ Turning on Perl mode runs the normal hook `perl-mode-hook'."
 (define-obsolete-function-alias 'electric-perl-terminator
   'perl-electric-terminator "22.1")
 (defun perl-electric-noindent-p (_char)
-  (unless (eolp) 'no-indent))
+  ;; To reproduce the old behavior, ;, {, }, and : are made electric, but
+  ;; we only want them to be electric at EOL.
+  (unless (or (bolp) (eolp)) 'no-indent))
 
 (defun perl-electric-terminator (arg)
   "Insert character and maybe adjust indentation.
@@ -1102,9 +1161,9 @@ With argument, repeat that many times; negative args move backward."
 (defun perl-mark-function ()
   "Put mark at end of Perl function, point at beginning."
   (interactive)
-  (push-mark (point))
+  (push-mark)
   (perl-end-of-function)
-  (push-mark (point))
+  (push-mark)
   (perl-beginning-of-function)
   (backward-paragraph))
 

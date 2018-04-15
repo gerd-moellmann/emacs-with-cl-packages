@@ -1,6 +1,6 @@
 ;;; shr-color.el --- Simple HTML Renderer color management
 
-;; Copyright (C) 2010-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2018 Free Software Foundation, Inc.
 
 ;; Author: Julien Danjou <julien@danjou.info>
 ;; Keywords: html
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -137,7 +137,7 @@ absolute value without any unit."
     ("MediumAquaMarine" . "#66CDAA")
     ("MediumBlue" . "#0000CD")
     ("MediumOrchid" . "#BA55D3")
-    ("MediumPurple" . "#9370D8")
+    ("MediumPurple" . "#9370DB")
     ("MediumSeaGreen" . "#3CB371")
     ("MediumSlateBlue" . "#7B68EE")
     ("MediumSpringGreen" . "#00FA9A")
@@ -158,7 +158,7 @@ absolute value without any unit."
     ("PaleGoldenRod" . "#EEE8AA")
     ("PaleGreen" . "#98FB98")
     ("PaleTurquoise" . "#AFEEEE")
-    ("PaleVioletRed" . "#D87093")
+    ("PaleVioletRed" . "#DB7093")
     ("PapayaWhip" . "#FFEFD5")
     ("PeachPuff" . "#FFDAB9")
     ("Peru" . "#CD853F")
@@ -166,6 +166,7 @@ absolute value without any unit."
     ("Plum" . "#DDA0DD")
     ("PowderBlue" . "#B0E0E6")
     ("Purple" . "#800080")
+    ("RebeccaPurple" . "#663399")
     ("Red" . "#FF0000")
     ("RosyBrown" . "#BC8F8F")
     ("RoyalBlue" . "#4169E1")
@@ -260,7 +261,7 @@ Like rgb() or hsl()."
             (l (/ (string-to-number (match-string-no-properties 3 color)) 100.0)))
         (destructuring-bind (r g b)
             (shr-color-hsl-to-rgb-fractions h s l)
-          (color-rgb-to-hex r g b))))
+          (color-rgb-to-hex r g b 2))))
      ;; Color names
      ((cdr (assoc-string color shr-color-html-colors-alist t)))
      ;; Unrecognized color :(

@@ -1,6 +1,6 @@
 ;;; macros.el --- non-primitive commands for keyboard macros
 
-;; Copyright (C) 1985-1987, 1992, 1994-1995, 2001-2017 Free Software
+;; Copyright (C) 1985-1987, 1992, 1994-1995, 2001-2018 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -140,8 +140,9 @@ use this command, and then save the file."
 	(prin1 definition (current-buffer))))
     (insert ")\n")
     (if keys
-	(let ((keys (where-is-internal (symbol-function macroname)
-				       '(keymap))))
+        (let ((keys (or (where-is-internal (symbol-function macroname)
+                                           '(keymap))
+                        (where-is-internal macroname '(keymap)))))
 	  (while keys
 	    (insert "(global-set-key ")
 	    (prin1 (car keys) (current-buffer))

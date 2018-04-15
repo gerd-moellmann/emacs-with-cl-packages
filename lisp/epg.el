@@ -1,5 +1,5 @@
 ;;; epg.el --- the EasyPG Library -*- lexical-binding: t -*-
-;; Copyright (C) 1999-2000, 2002-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2000, 2002-2018 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Keywords: PGP, GnuPG
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
@@ -551,8 +551,6 @@ callback data (if any)."
 (defun epg-errors-to-string (errors)
   (mapconcat #'epg-error-to-string errors "; "))
 
-(declare-function pinentry-start "pinentry" (&optional quiet))
-
 (defun epg--start (context args)
   "Start `epg-gpg-program' in a subprocess with given ARGS."
   (if (and (epg-context-process context)
@@ -604,26 +602,13 @@ callback data (if any)."
       (setq process-environment
 	    (cons (concat "GPG_TTY=" terminal-name)
 		  (cons "TERM=xterm" process-environment))))
-    ;; Start the Emacs Pinentry server if allow-emacs-pinentry is set
-    ;; in ~/.gnupg/gpg-agent.conf.
-    (when (and (fboundp 'pinentry-start)
-	       (executable-find epg-gpgconf-program)
-	       (with-temp-buffer
-		 (when (= (call-process epg-gpgconf-program nil t nil
-					"--list-options" "gpg-agent")
-			  0)
-		   (goto-char (point-min))
-		   (re-search-forward
-                    "^allow-emacs-pinentry:\\(?:.*:\\)\\{8\\}1"
-                    nil t))))
-      (pinentry-start 'quiet))
     (setq process-environment
 	  (cons (format "INSIDE_EMACS=%s,epg" emacs-version)
 		process-environment))
     ;; Record modified time of gpg-agent socket to restore the Emacs
     ;; frame on text terminal in `epg-wait-for-completion'.
     ;; See
-    ;; <http://lists.gnu.org/archive/html/emacs-devel/2007-02/msg00755.html>
+    ;; <https://lists.gnu.org/r/emacs-devel/2007-02/msg00755.html>
     ;; for more details.
     (when (and agent-info (string-match "\\(.*\\):[0-9]+:[0-9]+" agent-info))
       (setq agent-file (match-string 1 agent-info)
@@ -753,9 +738,8 @@ callback data (if any)."
   ;; Restore Emacs frame on text terminal, when pinentry-curses has terminated.
   (if (with-current-buffer (process-buffer (epg-context-process context))
 	(and epg-agent-file
-	     (> (float-time (or (nth 5 (file-attributes epg-agent-file))
-				'(0 0 0 0)))
-		(float-time epg-agent-mtime))))
+	     (time-less-p epg-agent-mtime
+			  (or (nth 5 (file-attributes epg-agent-file)) 0))))
       (redraw-frame))
   (epg-context-set-result-for
    context 'error
@@ -1043,7 +1027,7 @@ callback data (if any)."
 (defun epg--status-TRUST_MARGINAL (context _string)
   (let ((signature (car (epg-context-result-for context 'verify))))
     (if (and signature
-	     (eq (epg-signature-status signature) 'marginal))
+	     (eq (epg-signature-status signature) 'good))
 	(setf (epg-signature-validity signature) 'marginal))))
 
 (defun epg--status-TRUST_FULLY (context _string)
@@ -1692,8 +1676,8 @@ If you are unsure, use synchronous version of this function
   (setf (epg-context-operation context) 'sign)
   (setf (epg-context-result context) nil)
   (unless (memq mode '(t detached nil normal)) ;i.e. cleartext
-    (epg-context-set-armor context nil)
-    (epg-context-set-textmode context nil))
+    (setf (epg-context-armor context) nil)
+    (setf (epg-context-textmode context) nil))
   (epg--start context
 	     (append (list (if (memq mode '(t detached))
 			       "--detach-sign"
@@ -1749,12 +1733,7 @@ If optional 3rd argument MODE is t or `detached', it makes a detached signature.
 If it is nil or `normal', it makes a normal signature.
 Otherwise, it makes a cleartext signature."
   (let ((input-file
-	 (unless (or (eq (epg-context-protocol context) 'CMS)
-		     (condition-case nil
-			 (progn
-			   (epg-check-configuration (epg-configuration))
-			   t)
-		       (error)))
+	 (unless (eq (epg-context-protocol context) 'CMS)
 	   (epg--make-temp-file "epg-input")))
 	(coding-system-for-write 'binary))
     (unwind-protect
@@ -1861,12 +1840,7 @@ If RECIPIENTS is nil, it performs symmetric encryption."
 If RECIPIENTS is nil, it performs symmetric encryption."
   (let ((input-file
 	 (unless (or (not sign)
-		     (eq (epg-context-protocol context) 'CMS)
-		     (condition-case nil
-			 (progn
-			   (epg-check-configuration (epg-configuration))
-			   t)
-		       (error)))
+		     (eq (epg-context-protocol context) 'CMS))
 	   (epg--make-temp-file "epg-input")))
 	(coding-system-for-write 'binary))
     (unwind-protect

@@ -1,6 +1,6 @@
 ;; erc-menu.el -- Menu-bar definitions for ERC
 
-;; Copyright (C) 2001-2002, 2004-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2002, 2004-2018 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -151,4 +151,3 @@ ERC menu yet.")
 ;; indent-tabs-mode: t
 ;; tab-width: 8
 ;; End:
-

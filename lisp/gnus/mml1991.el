@@ -1,6 +1,6 @@
 ;;; mml1991.el --- Old PGP message format (RFC 1991) support for MML
 
-;; Copyright (C) 1998-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2018 Free Software Foundation, Inc.
 
 ;; Author: Sascha Lüdecke <sascha@meta-x.de>,
 ;;	Simon Josefsson <simon@josefsson.org> (Mailcrypt interface, Gnus glue)
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -195,17 +195,20 @@ Whether the passphrase is cached at all is controlled by
       (pop-to-buffer pgg-errors-buffer)
       (error "Encrypt error"))
     (delete-region (point-min) (point-max))
-    (mm-with-unibyte-current-buffer
-      (insert-buffer-substring pgg-output-buffer)
-      (goto-char (point-min))
-      (while (re-search-forward "\r+$" nil t)
-	(replace-match "" t t))
-      (when cte
-	(mm-encode-content-transfer-encoding cte))
-      (goto-char (point-min))
-      (when headers
-	(insert headers))
-      (insert "\n"))
+    (insert
+     (with-temp-buffer
+       (set-buffer-multibyte nil)
+       (insert-buffer-substring pgg-output-buffer)
+       (goto-char (point-min))
+       (while (re-search-forward "\r+$" nil t)
+	 (replace-match "" t t))
+       (when cte
+	 (mm-encode-content-transfer-encoding cte))
+       (goto-char (point-min))
+       (when headers
+	 (insert headers))
+       (insert "\n")
+       (buffer-string)))
     t))
 
 (defun mml1991-pgg-encrypt (cont &optional sign)
@@ -275,17 +278,20 @@ Whether the passphrase is cached at all is controlled by
     (let* ((pair (mml-secure-epg-sign 'OpenPGP 'clear))
 	   (signature (car pair)))
       (delete-region (point-min) (point-max))
-      (mm-with-unibyte-current-buffer
-	(insert signature)
-	(goto-char (point-min))
-	(while (re-search-forward "\r+$" nil t)
-	  (replace-match "" t t))
-	(when cte
-	  (mm-encode-content-transfer-encoding cte))
-	(goto-char (point-min))
-	(when headers
-	  (insert headers))
-	(insert "\n"))
+      (insert
+       (with-temp-buffer
+	 (set-buffer-multibyte nil)
+	 (insert signature)
+	 (goto-char (point-min))
+	 (while (re-search-forward "\r+$" nil t)
+	   (replace-match "" t t))
+	 (when cte
+	   (mm-encode-content-transfer-encoding cte))
+	 (goto-char (point-min))
+	 (when headers
+	   (insert headers))
+	 (insert "\n")
+	 (buffer-string)))
       t)))
 
 (defun mml1991-epg-encrypt (cont &optional sign)

@@ -1,6 +1,6 @@
 ;;; semantic/util.el --- Utilities for use with semantic tag tables
 
-;;; Copyright (C) 1999-2005, 2007-2017 Free Software Foundation, Inc.
+;;; Copyright (C) 1999-2005, 2007-2018 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -110,12 +110,14 @@ buffer, or a filename.  If SOMETHING is nil return nil."
     (semantic-file-tag-table something))
    ;; A Semanticdb table
    ((and (featurep 'semantic/db)
+	 (require 'semantic/db-mode)
 	 (semanticdb-minor-mode-p)
 	 (semanticdb-abstract-table-child-p something))
     (semanticdb-refresh-table something)
     (semanticdb-get-tags something))
    ;; Semanticdb find-results
    ((and (featurep 'semantic/db)
+	 (require 'semantic/db-mode)
 	 (semanticdb-minor-mode-p)
 	 (require 'semantic/db-find)
 	 (semanticdb-find-results-p something))

@@ -1,6 +1,6 @@
 ;;; score-mode.el --- mode for editing Gnus score files
 
-;; Copyright (C) 1996, 2001-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1996, 2001-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news, mail
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -28,14 +28,20 @@
 (require 'mm-util)			; for mm-universal-coding-system
 (require 'gnus-util)			; for gnus-pp, gnus-run-mode-hooks
 
-(defvar gnus-score-edit-done-hook nil
-  "*Hook run at the end of closing the score buffer.")
+(defcustom gnus-score-edit-done-hook nil
+  "Hook run at the end of closing the score buffer."
+  :group 'gnus-score
+  :type 'hook)
 
-(defvar gnus-score-mode-hook nil
-  "*Hook run in score mode buffers.")
+(defcustom gnus-score-mode-hook nil
+  "Hook run in score mode buffers."
+  :group 'gnus-score
+  :type 'hook)
 
-(defvar gnus-score-menu-hook nil
-  "*Hook run after creating the score mode menu.")
+(defcustom gnus-score-menu-hook nil
+  "Hook run after creating the score mode menu."
+  :group 'gnus-score
+  :type 'hook)
 
 (defvar gnus-score-edit-exit-function nil
   "Function run on exit from the score buffer.")

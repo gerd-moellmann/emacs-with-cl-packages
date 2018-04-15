@@ -1,6 +1,6 @@
 ;;; spam.el --- Identifying spam
 
-;; Copyright (C) 2002-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Maintainer: Ted Zlatanov <tzz@lifelogs.com>
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -411,16 +411,12 @@ Only meaningful if you enable `spam-use-regex-body'."
   "Spam ifile configuration."
   :group 'spam)
 
-(make-obsolete-variable 'spam-ifile-path 'spam-ifile-program
-                        "Gnus 5.10.9 (Emacs 22.1)")
 (defcustom spam-ifile-program (executable-find "ifile")
   "Name of the ifile program."
   :type '(choice (file :tag "Location of ifile")
                  (const :tag "ifile is not installed"))
   :group 'spam-ifile)
 
-(make-obsolete-variable 'spam-ifile-database-path 'spam-ifile-database
-                        "Gnus 5.10.9 (Emacs 22.1)")
 (defcustom spam-ifile-database nil
   "File name of the ifile database."
   :type '(choice (file :tag "Location of the ifile database")
@@ -450,8 +446,6 @@ your main source of newsgroup names."
   "Spam bogofilter configuration."
   :group 'spam)
 
-(make-obsolete-variable 'spam-bogofilter-path 'spam-bogofilter-program
-                        "Gnus 5.10.9 (Emacs 22.1)")
 (defcustom spam-bogofilter-program (executable-find "bogofilter")
   "Name of the Bogofilter program."
   :type '(choice (file :tag "Location of bogofilter")
@@ -502,8 +496,6 @@ When nil, use the default location."
   "Spam bsfilter configuration."
   :group 'spam)
 
-(make-obsolete-variable 'spam-bsfilter-path 'spam-bsfilter-program
-                        "Gnus 5.10.9 (Emacs 22.1)")
 (defcustom spam-bsfilter-program (executable-find "bsfilter")
   "Name of the Bsfilter program."
   :type '(choice (file :tag "Location of bsfilter")
@@ -568,8 +560,6 @@ When nil, use the default spamoracle database."
   "Spam SpamAssassin configuration."
   :group 'spam)
 
-(make-obsolete-variable 'spam-spamassassin-path
-  'spam-spamassassin-program "Gnus 5.10.9 (Emacs 22.1)")
 (defcustom spam-assassin-program (executable-find "spamassassin")
   "Name of the spamassassin program.
 Hint: set this to \"spamc\" if you have spamd running.  See the spamc and
@@ -600,8 +590,6 @@ identification"
   :type 'string
   :group 'spam-spamassassin)
 
-(make-obsolete-variable 'spam-sa-learn-path 'spam-sa-learn-program
-                        "Gnus 5.10.9 (Emacs 22.1)")
 (defcustom spam-sa-learn-program (executable-find "sa-learn")
   "Name of the sa-learn program."
   :type '(choice (file :tag "Location of spamassassin")
@@ -628,7 +616,7 @@ order for SpamAssassin to recognize the new registered spam."
   :group 'spam-spamassassin)
 
 (defcustom spam-sa-learn-unregister-switch "--forget"
-  "The switch that sa-learn uses to unregister messages messages."
+  "The switch that sa-learn uses to unregister messages."
   :type 'string
   :group 'spam-spamassassin)
 
@@ -1199,19 +1187,19 @@ Note this has to be fast."
     (if header-content
         (cond
          ((eq header 'X-Spam-Status)
-          (string-to-number (gnus-replace-in-string
-                             header-content
+          (string-to-number (replace-regexp-in-string
                              spam-spamassassin-score-regexp
-                             "\\1")))
+                             "\\1"
+                             header-content)))
          ;; for CRM checking, it's probably faster to just do the string match
          ((string-match "( pR: \\([0-9.-]+\\)" header-content)
           (- (string-to-number (match-string 1 header-content))))
          ((eq header 'X-Bogosity)
-          (string-to-number (gnus-replace-in-string
-                             (gnus-replace-in-string
-                              header-content
-                              ".*spamicity=" "")
-                             ",.*" "")))
+          (string-to-number (replace-regexp-in-string
+                             ",.*" ""
+                             (replace-regexp-in-string
+                              ".*spamicity=" ""
+                              header-content))))
          (t nil))
       nil)))
 

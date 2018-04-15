@@ -1,6 +1,6 @@
-;;; semantic/lex.el --- Lexical Analyzer builder
+;;; semantic/lex.el --- Lexical Analyzer builder  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2018 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -190,7 +190,7 @@
   "Call function FUN on every symbol in TABLE.
 If optional PROPERTY is non-nil, call FUN only on every symbol which
 as a PROPERTY value.  FUN receives a symbol as argument."
-  (if (arrayp table)
+  (if (obarrayp table)
       (mapatoms
        #'(lambda (symbol)
            (if (or (null property) (get symbol property))
@@ -213,7 +213,7 @@ These keywords are matched explicitly, and converted into special symbols.")
 
 (defsubst semantic-lex-keyword-symbol (name)
   "Return keyword symbol with NAME or nil if not found."
-  (and (arrayp semantic-flex-keywords-obarray)
+  (and (obarrayp semantic-flex-keywords-obarray)
        (stringp name)
        (intern-soft name semantic-flex-keywords-obarray)))
 
@@ -337,13 +337,13 @@ so that analysis can continue, if possible."
   "Buffer local types obarray for the lexical analyzer.")
 (make-variable-buffer-local 'semantic-lex-types-obarray)
 
-(defmacro semantic-lex-type-invalid (type)
+(defun semantic-lex-type-invalid (type)
   "Signal that TYPE is an invalid lexical type name."
-  `(signal 'wrong-type-argument '(semantic-lex-type-p ,type)))
+  (signal 'wrong-type-argument `(semantic-lex-type-p ,type)))
 
 (defsubst semantic-lex-type-symbol (type)
   "Return symbol with TYPE or nil if not found."
-  (and (arrayp semantic-lex-types-obarray)
+  (and (obarrayp semantic-lex-types-obarray)
        (stringp type)
        (intern-soft type semantic-lex-types-obarray)))
 
@@ -408,7 +408,7 @@ TYPE name does not exist.  Otherwise signal an error."
 SPECS must be a list of (TYPE . TOKENS) elements, where:
 
   TYPE is the name of the type symbol to define.
-  TOKENS is an list of (TOKSYM . MATCHER) elements, where:
+  TOKENS is a list of (TOKSYM . MATCHER) elements, where:
 
     TOKSYM is any lexical token symbol.
     MATCHER is a string or regexp a text must match to be a such
@@ -471,6 +471,7 @@ PROPERTY set."
 ;;; Lexical Analyzer framework settings
 ;;
 
+;; FIXME change to non-obsolete default.
 (defvar semantic-lex-analyzer 'semantic-flex
   "The lexical analyzer used for a given buffer.
 See `semantic-lex' for documentation.
@@ -635,7 +636,7 @@ This specifies how many lists to create tokens in.")
 (make-variable-buffer-local 'semantic-lex-depth)
 
 (defvar semantic-lex-unterminated-syntax-end-function
-  (lambda (syntax syntax-start lex-end) lex-end)
+  (lambda (_syntax _syntax-start lex-end) lex-end)
   "Function called when unterminated syntax is encountered.
 This should be set to one function.  That function should take three
 parameters.  The SYNTAX, or type of syntax which is unterminated.
@@ -739,8 +740,10 @@ a LOCAL option.")
 
 ;; Stack of nested blocks.
 (defvar semantic-lex-block-stack nil)
-;;(defvar semantic-lex-timeout 5
-;;  "*Number of sections of lexing before giving up.")
+;;(defcustom semantic-lex-timeout 5
+;;  "Number of sections of lexing before giving up."
+;;  :type 'integer
+;;  :group 'semantic)
 
 (defsubst semantic-lex-debug-break (token)
   "Break during lexical analysis at TOKEN."
@@ -1777,7 +1780,7 @@ If there is no error, then the last value of FORMS is returned."
 See variable `semantic-lex-tokens'.")
 
 (defvar semantic-flex-unterminated-syntax-end-function
-  (lambda (syntax syntax-start flex-end) flex-end)
+  (lambda (_syntax _syntax-start flex-end) flex-end)
   "Function called when unterminated syntax is encountered.
 This should be set to one function.  That function should take three
 parameters.  The SYNTAX, or type of syntax which is unterminated.
@@ -1855,7 +1858,7 @@ end of the return token will be larger than END.  To truly restrict
 scanning, use `narrow-to-region'.
 The last argument, LENGTH specifies that `semantic-flex' should only
 return LENGTH tokens."
-  (message "`semantic-flex' is an obsolete function.  Use `define-lex' to create lexers.")
+  (declare (obsolete define-lex "23.2"))
   (if (not semantic-flex-keywords-obarray)
       (setq semantic-flex-keywords-obarray [ nil ]))
   (let ((ts nil)

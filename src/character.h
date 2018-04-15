@@ -18,7 +18,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef EMACS_CHARACTER_H
 #define EMACS_CHARACTER_H
@@ -588,9 +588,10 @@ sanitize_char_width (EMACS_INT width)
 
 /* Return the width of character C.  The width is measured by how many
    columns C will occupy on the screen when displayed in the current
-   buffer.  */
+   buffer.  The name CHARACTER_WIDTH avoids a collision with <limits.h>
+   CHAR_WIDTH when enabled; see ISO/IEC TS 18661-1:2014.  */
 
-#define CHAR_WIDTH(c)		\
+#define CHARACTER_WIDTH(c)	\
   (ASCII_CHAR_P (c)		\
    ? ASCII_CHAR_WIDTH (c)	\
    : sanitize_char_width (XINT (CHAR_TABLE_REF (Vchar_width_table, c))))
@@ -605,14 +606,13 @@ sanitize_char_width (EMACS_INT width)
    : (c) <= 0xE01EF ? (c) - 0xE0100 + 17	\
    : 0)
 
-/* If C is a high surrogate, return 1.  If C is a low surrogate,
-   return 2.  Otherwise, return 0.  */
+/* Return true if C is a surrogate.  */
 
-#define CHAR_SURROGATE_PAIR_P(c)	\
-  ((c) < 0xD800 ? 0			\
-   : (c) <= 0xDBFF ? 1			\
-   : (c) <= 0xDFFF ? 2			\
-   : 0)
+INLINE bool
+char_surrogate_p (int c)
+{
+  return 0xD800 <= c && c <= 0xDFFF;
+}
 
 /* Data type for Unicode general category.
 
@@ -677,9 +677,10 @@ extern Lisp_Object Vchar_unify_table;
 extern Lisp_Object string_escape_byte8 (Lisp_Object);
 
 extern bool alphabeticp (int);
-extern bool decimalnump (int);
+extern bool alphanumericp (int);
 extern bool graphicp (int);
 extern bool printablep (int);
+extern bool blankp (int);
 
 /* Return a translation table of id number ID.  */
 #define GET_TRANSLATION_TABLE(id) \
@@ -692,11 +693,29 @@ INLINE int
 char_table_translate (Lisp_Object obj, int ch)
 {
   /* This internal function is expected to be called with valid arguments,
-     so there is a eassert instead of CHECK_xxx for the sake of speed.  */
+     so there is an eassert instead of CHECK_xxx for the sake of speed.  */
   eassert (CHAR_VALID_P (ch));
   eassert (CHAR_TABLE_P (obj));
   obj = CHAR_TABLE_REF (obj, ch);
   return CHARACTERP (obj) ? XINT (obj) : ch;
+}
+
+#if defined __GNUC__ && !defined __STRICT_ANSI__
+# define HEXDIGIT_CONST const
+# define HEXDIGIT_IS_CONST true
+#else
+# define HEXDIGIT_CONST
+# define HEXDIGIT_IS_CONST false
+#endif
+extern signed char HEXDIGIT_CONST hexdigit[];
+
+/* If C is a hexadecimal digit ('0'-'9', 'a'-'f', 'A'-'F'), return its
+   value (0-15).  Otherwise return -1.  */
+
+INLINE int
+char_hexdigit (int c)
+{
+  return 0 <= c && c <= UCHAR_MAX ? hexdigit[c] : -1;
 }
 
 INLINE_HEADER_END

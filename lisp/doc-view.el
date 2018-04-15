@@ -1,6 +1,6 @@
 ;;; doc-view.el --- View PDF/PostScript/DVI files in Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2018 Free Software Foundation, Inc.
 ;;
 ;; Author: Tassilo Horn <tsdh@gnu.org>
 ;; Maintainer: Tassilo Horn <tsdh@gnu.org>
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Requirements:
 
@@ -140,7 +140,7 @@
 (require 'dired)
 (require 'image-mode)
 (require 'jka-compr)
-(require 'subr-x)
+(eval-when-compile (require 'subr-x))
 
 ;;;; Customization Options
 
@@ -442,13 +442,16 @@ Typically \"page-%s.png\".")
 (defun doc-view-revert-buffer (&optional ignore-auto noconfirm)
   "Like `revert-buffer', but preserves the buffer's current modes."
   (interactive (list (not current-prefix-arg)))
+  (if (< undo-outer-limit (* 2 (buffer-size)))
+      ;; It's normal for this operation to result in a very large undo entry.
+      (setq-local undo-outer-limit (* 2 (buffer-size))))
   (cl-labels ((revert ()
                       (let (revert-buffer-function)
                         (revert-buffer ignore-auto noconfirm 'preserve-modes))))
     (if (and (eq 'pdf doc-view-doc-type)
              (executable-find "pdfinfo"))
         ;; We don't want to revert if the PDF file is corrupted which
-        ;; might happen when it it currently recompiled from a tex
+        ;; might happen when it is currently recompiled from a tex
         ;; file.  (TODO: We'd like to have something like that also
         ;; for other types, at least PS, but I don't know a good way
         ;; to test if a PS file is complete.)
@@ -1827,6 +1830,8 @@ toggle between displaying the document or editing it as text.
     (unless doc-view-doc-type
       (doc-view-set-doc-type))
     (doc-view-set-up-single-converter)
+    (unless (memq doc-view-doc-type '(ps))
+      (setq-local require-final-newline nil))
 
     (doc-view-make-safe-dir doc-view-cache-directory)
     ;; Handle compressed files, remote files, files inside archives

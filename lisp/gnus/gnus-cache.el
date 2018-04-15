@@ -1,6 +1,6 @@
 ;;; gnus-cache.el --- cache interface for Gnus
 
-;; Copyright (C) 1995-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2018 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -35,7 +35,7 @@
 
 (defcustom gnus-cache-active-file
   (expand-file-name "active" gnus-cache-directory)
-  "*The cache active file."
+  "The cache active file."
   :group 'gnus-cache
   :type 'file)
 
@@ -50,7 +50,7 @@
   :type '(set (const ticked) (const dormant) (const unread) (const read)))
 
 (defcustom gnus-cacheable-groups nil
-  "*Groups that match this regexp will be cached.
+  "Groups that match this regexp will be cached.
 
 If you only want to cache your nntp groups, you could set this
 variable to \"^nntp\".
@@ -62,7 +62,7 @@ it's not cached."
 		 regexp))
 
 (defcustom gnus-uncacheable-groups nil
-  "*Groups that match this regexp will not be cached.
+  "Groups that match this regexp will not be cached.
 
 If you want to avoid caching your nnml groups, you could set this
 variable to \"^nnml\".
@@ -443,7 +443,7 @@ A group name is decoded according to
 decoded again according to `nnmail-pathname-coding-system',
 `file-name-coding-system', or `default-file-name-coding-system'.
 
-It is used when asking for a original group name from a cache
+It is used when asking for an original group name from a cache
 directory name, in which non-ASCII characters might have been unified
 into the ones of a certain charset particularly if the `utf-8' coding
 system for example was used.")
@@ -453,13 +453,11 @@ system for example was used.")
   (or (cdr (assoc group gnus-cache-decoded-group-names))
       (let ((decoded (gnus-group-decoded-name group))
 	    (coding (or nnmail-pathname-coding-system
-			(and (boundp 'file-name-coding-system)
-			     file-name-coding-system)
-			(and (boundp 'default-file-name-coding-system)
-			     default-file-name-coding-system))))
+			file-name-coding-system
+			default-file-name-coding-system)))
 	(push (cons group decoded) gnus-cache-decoded-group-names)
-	(push (cons (mm-decode-coding-string
-		     (mm-encode-coding-string decoded coding)
+	(push (cons (decode-coding-string
+		     (encode-coding-string decoded coding)
 		     coding)
 		    group)
 	      gnus-cache-unified-group-names)

@@ -12,7 +12,7 @@
 @copying
 This file documents the Emacs MIME interface functionality.
 
-Copyright @copyright{} 1998--2017 Free Software Foundation, Inc.
+Copyright @copyright{} 1998--2018 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -179,18 +179,18 @@ Emacs source code.  This item works only in the groups matching
 @code{mm-uu-emacs-sources-regexp}.
 
 @item diff
-@vindex diff
+@findex diff
 @vindex mm-uu-diff-groups-regexp
 Patches.  This is intended for groups where diffs of committed files
 are automatically sent to.  It only works in groups matching
 @code{mm-uu-diff-groups-regexp}.
 
 @item verbatim-marks
-@cindex verbatim-marks
+@findex verbatim-marks
 Slrn-style verbatim marks.
 
 @item LaTeX
-@cindex LaTeX
+@findex LaTeX
 LaTeX documents.  It only works in groups matching
 @code{mm-uu-tex-groups-regexp}.
 
@@ -405,7 +405,7 @@ variable will cause @samp{text/html} parts to be treated as attachments.
 @item mm-text-html-renderer
 @vindex mm-text-html-renderer
 This selects the function used to render @acronym{HTML}.  The predefined
-renderers are selected by the symbols @code{gnus-article-html},
+renderers are selected by the symbols @code{shr}, @code{gnus-w3m},
 @code{w3m}@footnote{See @uref{http://emacs-w3m.namazu.org/} for more
 information about emacs-w3m}, @code{links}, @code{lynx},
 @code{w3m-standalone} or @code{html2text}.  If @code{nil} use an
@@ -653,6 +653,10 @@ Each tag can contain zero or more parameters on the form
 @samp{parameter=value}.  The values may be enclosed in quotation marks,
 but that's not necessary unless the value contains white space.  So
 @samp{filename=/home/user/#hello$^yes} is perfectly valid.
+
+If you want to talk about MML in a message, you need a way to
+``quote'' these tags.  The way to do that is to include an exclamation
+point after the opening two characters; i. e. @samp{<#!part ...>}.
 
 The following parameters have meaning in @acronym{MML}; parameters that have no
 meaning are ignored.  The @acronym{MML} parameter names are the same as the
@@ -1089,7 +1093,7 @@ If non-@code{nil} a format=flowed article will be displayed flowed.
 @node Interface Functions
 @chapter Interface Functions
 @cindex interface functions
-@cindex mail-parse
+@cindex @code{mail-parse}
 
 The @code{mail-parse} library is an abstraction over the actual
 low-level libraries that are described in the next chapter.
@@ -1536,6 +1540,9 @@ Here's a bunch of time/date/second/day examples:
 (date-to-time "Sat Sep 12 12:21:54 1998 +0200")
 @result{} (13818 19266)
 
+(parse-iso8601-time-string "1998-09-12T12:21:54+0200")
+@result{} (13818 19266)
+
 (float-time '(13818 19266))
 @result{} 905595714.0
 
@@ -1825,6 +1832,11 @@ matching types.
 @item mailcap-mime-data
 @vindex mailcap-mime-data
 This variable is an alist of alists containing backup viewing rules.
+
+@item mailcap-user-mime-data
+@vindex mailcap-user-mime-data
+A customizable list of viewers that take preference over
+@code{mailcap-mime-data}.
 
 @end table
 

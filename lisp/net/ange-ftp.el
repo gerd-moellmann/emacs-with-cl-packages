@@ -1,6 +1,6 @@
 ;;; ange-ftp.el --- transparent FTP support for GNU Emacs
 
-;; Copyright (C) 1989-1996, 1998, 2000-2017 Free Software Foundation,
+;; Copyright (C) 1989-1996, 1998, 2000-2018 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Andy Norman (ange@hplb.hpl.hp.com)
@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -530,33 +530,8 @@
 ;;     to fix its files hashtable.  A cookie to anyone who can think of a
 ;;     fast, sure-fire way to recognize ULTRIX over ftp.
 
-;; If you find any bugs or problems with this package, PLEASE either e-mail
-;; the above author, or send a message to the ange-ftp-lovers mailing list
-;; below.  Ideas and constructive comments are especially welcome.
-
-;; ange-ftp-lovers:
-;;
-;; ange-ftp has its own mailing list modestly called ange-ftp-lovers.  All
-;; users of ange-ftp are welcome to subscribe (see below) and to discuss
-;; aspects of ange-ftp.  New versions of ange-ftp are posted periodically to
-;; the mailing list.
-
-;; To [un]subscribe to ange-ftp-lovers, or to report mailer problems with the
-;; list, please mail one of the following addresses:
-;;
-;;     ange-ftp-lovers-request@hplb.hpl.hp.com
-;;
-;; Please don't forget the -request part.
-;;
-;; For mail to be posted directly to ange-ftp-lovers, send to one of the
-;; following addresses:
-;;
-;;     ange-ftp-lovers@hplb.hpl.hp.com
-;;
-;; Alternatively, there is a mailing list that only gets announcements of new
-;; ange-ftp releases.  This is called ange-ftp-lovers-announce, and can be
-;; subscribed to by e-mailing to the -request address as above.  Please make
-;; it clear in the request which mailing list you wish to join.
+;; If you find any bugs or problems with this package, PLEASE report a
+;; bug to the Emacs maintainers via M-x report-emacs-bug.
 
 ;; -----------------------------------------------------------
 ;; Technical information on this package:
@@ -714,10 +689,17 @@ parenthesized expressions in REGEXP for the components (in that order)."
 ;; authentication methods (typically) at connection establishment. Non
 ;; security-aware FTP servers should respond to this with a 500 code,
 ;; which we ignore.
+
+;; Further messages are needed to support ftp-ssl.
 (defcustom ange-ftp-skip-msgs
   (concat "^200 \\(PORT\\|Port\\) \\|^331 \\|^150 \\|^350 \\|^[0-9]+ bytes \\|"
 	  "^Connected \\|^$\\|^Remote system\\|^Using\\|^ \\|Password:\\|"
 	  "^Data connection \\|"
+          "^200 PBSZ\\|" "^200 Protection set to Private\\|"
+          "^234 AUTH TLS successful\\|"
+          "^SSL not available\\|"
+	  "^\\[SSL Cipher .+\\]\\|"
+	  "^\\[Encrypted data transfer\\.\\]\\|"
 	  "^local:\\|^Trying\\|^125 \\|^550-\\|^221 .*oodbye\\|"
           "^500 .*AUTH\\|^KERBEROS\\|"
           "^500 This security scheme is not implemented\\|"
@@ -727,7 +709,7 @@ parenthesized expressions in REGEXP for the components (in that order)."
 	  "^22[789] .*[Pp]assive\\|^200 EPRT\\|^500 .*EPRT\\|^500 .*EPSV")
   "Regular expression matching FTP messages that can be ignored."
   :group 'ange-ftp
-  :version "24.4"			; add EPSV
+  :version "26.1"
   :type 'regexp)
 
 (defcustom ange-ftp-fatal-msgs
@@ -1533,12 +1515,11 @@ then kill the related FTP process."
 
 (defun ange-ftp-barf-if-not-directory (directory)
   (or (file-directory-p directory)
-      (signal 'file-error
-	      (list "Opening directory"
-		    (if (file-exists-p directory)
-			"Not a directory"
-		      "No such file or directory")
-		    directory))))
+      (let ((exists (file-exists-p directory)))
+	(signal (if exists 'file-error 'file-missing)
+		(list "Opening directory"
+		      (if exists "Not a directory" "No such file or directory")
+		      directory)))))
 
 ;;;; ------------------------------------------------------------
 ;;;; FTP process filter support.
@@ -3224,8 +3205,12 @@ system TYPE.")
 (defun ange-ftp-binary-file (file)
   (string-match-p ange-ftp-binary-file-name-regexp file))
 
-(defun ange-ftp-write-region (start end filename &optional append visit)
+(defun ange-ftp-write-region
+    (start end filename &optional append visit _lockname mustbenew)
   (setq filename (expand-file-name filename))
+  (when mustbenew
+    (ange-ftp-barf-or-query-if-file-exists
+     filename "overwrite" (not (eq mustbenew 'excl))))
   (let ((parsed (ange-ftp-ftp-name filename)))
     (if parsed
 	(let* ((host (nth 0 parsed))
@@ -3352,9 +3337,10 @@ system TYPE.")
 		      (setq buffer-file-name filename)))
 		(setq last-coding-system-used coding-system-used)
 		(list filename size))
-	    (signal 'file-error
+	    (signal 'file-missing
 		    (list
 		     "Opening input file"
+		     "No such file or directory"
 		     filename))))
       (ange-ftp-real-insert-file-contents filename visit beg end replace))))
 
@@ -3493,7 +3479,7 @@ system TYPE.")
               (f2-mt (nth 5 (file-attributes f2))))
           (cond ((null f1-mt) nil)
                 ((null f2-mt) t)
-                (t (> (float-time f1-mt) (float-time f2-mt)))))
+		(t (time-less-p f2-mt f1-mt))))
       (ange-ftp-real-file-newer-than-file-p f1 f2))))
 
 (defun ange-ftp-file-writable-p (file)
@@ -3575,7 +3561,7 @@ Value is (0 0) if the modification time cannot be determined."
         (let ((file-mdtm (ange-ftp-file-modtime name))
               (buf-mdtm (with-current-buffer buf (visited-file-modtime))))
           (or (zerop (car file-mdtm))
-              (<= (float-time file-mdtm) (float-time buf-mdtm))))
+	      (not (time-less-p buf-mdtm file-mdtm))))
       (ange-ftp-real-verify-visited-file-modtime buf))))
 
 (defun ange-ftp-file-size (file &optional ascii-mode)
@@ -3636,7 +3622,7 @@ so return the size on the remote host exactly. See RFC 3659."
 ;; 			     newname))
 ;; 	res)
 ;;     (set-process-sentinel proc 'ange-ftp-copy-file-locally-sentinel)
-;;     (process-kill-without-query proc)
+;;     (set-process-query-on-exit-flag proc nil)
 ;;     (with-current-buffer (process-buffer proc)
 ;;       (set (make-local-variable 'copy-cont) cont))))
 ;;
@@ -3663,7 +3649,7 @@ so return the size on the remote host exactly. See RFC 3659."
 	newname (expand-file-name newname))
 
   (or (file-exists-p filename)
-      (signal 'file-error
+      (signal 'file-missing
 	      (list "Copy file" "No such file or directory" filename)))
 
   ;; canonicalize newname if a directory.
@@ -3867,12 +3853,12 @@ E.g.,
   (unless okay-p (error "%s: %s" 'ange-ftp-copy-files-async line))
   (if files
       (let* ((ff (car files))
-             (from-file    (nth 0 ff))
-             (to-file      (nth 1 ff))
-             (ok-if-exists (nth 2 ff))
-             (keep-date    (nth 3 ff)))
+             (from-file            (nth 0 ff))
+             (to-file              (nth 1 ff))
+             (ok-if-already-exists (nth 2 ff))
+             (keep-date            (nth 3 ff)))
         (ange-ftp-copy-file-internal
-         from-file to-file ok-if-exists keep-date
+         from-file to-file ok-if-already-exists keep-date
          (and verbose-p (format "%s --> %s" from-file to-file))
          (list 'ange-ftp-copy-files-async verbose-p (cdr files))
          t))
@@ -4125,15 +4111,15 @@ directory, so that Emacs will know its current contents."
 	    (ange-ftp-add-file-entry dir t))
 	(ange-ftp-real-make-directory dir)))))
 
-(defun ange-ftp-delete-directory (dir &optional recursive)
+(defun ange-ftp-delete-directory (dir &optional recursive trash)
   (if (file-directory-p dir)
       (let ((parsed (ange-ftp-ftp-name dir)))
 	(if recursive
 	    (mapc
 	     (lambda (file)
 	       (if (file-directory-p file)
-		   (ange-ftp-delete-directory file recursive)
-		 (delete-file file)))
+		   (ange-ftp-delete-directory file recursive trash)
+		 (delete-file file trash)))
 	     ;; We do not want to delete "." and "..".
 	     (directory-files
 	      dir 'full "^\\([^.]\\|\\.\\([^.]\\|\\..\\)\\).*")))
@@ -4167,7 +4153,7 @@ directory, so that Emacs will know its current contents."
 					  dir
 					  (cdr result))))
 	      (ange-ftp-delete-file-entry dir t))
-	  (ange-ftp-real-delete-directory dir recursive)))
+	  (ange-ftp-real-delete-directory dir recursive trash)))
     (error "Not a directory: %s" dir)))
 
 ;; Make a local copy of FILE and return its name.

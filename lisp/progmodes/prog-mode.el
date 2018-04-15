@@ -1,6 +1,6 @@
 ;;; prog-mode.el --- Generic major mode for programming  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2018 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -49,6 +49,29 @@
     map)
   "Keymap used for programming modes.")
 
+(defvar prog-indentation-context nil
+  "When non-nil, provides context for indenting embedded code chunks.
+
+There are languages where part of the code is actually written in
+a sub language, e.g., a Yacc/Bison or ANTLR grammar can also include
+JS or Python code.  This variable enables the primary mode of the
+main language to use the indentation engine of the sub-mode for
+lines in code chunks written in the sub-mode's language.
+
+When a major mode of such a main language decides to delegate the
+indentation of a line/region to the indentation engine of the sub
+mode, it should bind this variable to non-nil around the call.
+
+The non-nil value should be a list of the form:
+
+   (FIRST-COLUMN . REST)
+
+FIRST-COLUMN is the column the indentation engine of the sub-mode
+should use for top-level language constructs inside the code
+chunk (instead of 0).
+
+REST is currently unused.")
+
 (defun prog-indent-sexp (&optional defun)
   "Indent the expression after point.
 When interactively called with prefix, indent the enclosing defun
@@ -61,6 +84,10 @@ instead."
     (let ((start (point))
 	  (end (progn (forward-sexp 1) (point))))
       (indent-region start end nil))))
+
+(defun prog-first-column ()
+  "Return the indentation column normally used for top-level constructs."
+  (or (car prog-indentation-context) 0))
 
 (defvar-local prettify-symbols-alist nil
   "Alist of symbol prettifications.
@@ -157,11 +184,11 @@ on the symbol."
       (apply #'font-lock-flush prettify-symbols--current-symbol-bounds)
       (setq prettify-symbols--current-symbol-bounds nil))
     ;; Unprettify the current symbol.
-    (when-let ((c (get-prop-as-list 'composition))
-	       (s (get-prop-as-list 'prettify-symbols-start))
-	       (e (get-prop-as-list 'prettify-symbols-end))
-	       (s (apply #'min s))
-	       (e (apply #'max e)))
+    (when-let* ((c (get-prop-as-list 'composition))
+	        (s (get-prop-as-list 'prettify-symbols-start))
+	        (e (get-prop-as-list 'prettify-symbols-end))
+	        (s (apply #'min s))
+	        (e (apply #'max e)))
       (with-silent-modifications
 	(setq prettify-symbols--current-symbol-bounds (list s e))
 	(remove-text-properties s e '(composition))))))

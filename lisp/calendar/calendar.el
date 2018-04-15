@@ -1,6 +1,6 @@
 ;;; calendar.el --- calendar functions
 
-;; Copyright (C) 1988-1995, 1997, 2000-2017 Free Software Foundation,
+;; Copyright (C) 1988-1995, 1997, 2000-2018 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -76,20 +76,19 @@
 ;;    solar.el                   Sunrise/sunset, equinoxes/solstices
 
 ;; Technical details of all the calendrical calculations can be found in
-;; ``Calendrical Calculations: The Millennium Edition'' by Edward M. Reingold
-;; and Nachum Dershowitz, Cambridge University Press (2001).
+;; "Calendrical Calculations: The Ultimate Edition" by Edward M. Reingold
+;; and Nachum Dershowitz, Cambridge University Press (2018).
 
-;; An earlier version of the technical details appeared in
-;; ``Calendrical Calculations'' by Nachum Dershowitz and Edward M. Reingold,
+;; An earlier version of the technical details appeared in "Calendrical
+;; Calculations" by Nachum Dershowitz and Edward M. Reingold,
 ;; Software--Practice and Experience, Volume 20, Number 9 (September, 1990),
-;; pages 899-928, and in ``Calendrical Calculations, Part II: Three Historical
-;; Calendars'' by E. M. Reingold,  N. Dershowitz, and S. M. Clamen,
-;; Software--Practice and Experience, Volume 23, Number 4 (April, 1993),
-;; pages 383-404.
-
-;; Hard copies of these two papers can be obtained by sending email to
-;; reingold@cs.uiuc.edu with the SUBJECT "send-paper-cal" (no quotes) and
-;; the message BODY containing your mailing address (snail).
+;; pages 899-928 <https://doi.org/10.1002/spe.4380200905>
+;; <https://pdfs.semanticscholar.org/83b1/14f570002a7a8e1d4e3730cd0e4cdbcad212.pdf>,
+;; and in "Calendrical Calculations, Part II: Three Historical Calendars" by
+;; E. M. Reingold, N. Dershowitz, and S. M. Clamen, Software--Practice and
+;; Experience, Volume 23, Number 4 (April, 1993), pages 383-404
+;; <https://doi.org/10.1002/spe.4380230404>
+;; <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.6421&rep=rep1&type=pdf>
 
 
 ;; A note on free variables:
@@ -330,6 +329,8 @@ The marking symbol is specified by the variable `calendar-holiday-marker'."
 This is the place to add key bindings to `calendar-mode-map'."
   :type 'hook
   :group 'calendar-hooks)
+(make-obsolete-variable 'calendar-load-hook
+                        "use `with-eval-after-load' instead." "26.1")
 
 (defcustom calendar-initial-window-hook nil
   "List of functions to be called when the calendar window is created.
@@ -833,7 +834,7 @@ For examples of three common styles, see `diary-american-date-forms',
                                    diary-american-date-forms)
   :initialize 'custom-initialize-default
   :set (lambda (symbol value)
-         (unless (equal value (eval symbol))
+         (unless (equal value (default-value symbol))
            (custom-set-default symbol value)
            (setq diary-font-lock-keywords (diary-font-lock-keywords))
            ;; Need to redraw not just to get new font-locking, but also
@@ -1257,7 +1258,6 @@ diary entries can also be marked on the calendar (see
 
 Runs the following hooks:
 
-`calendar-load-hook' - after loading calendar.el
 `calendar-today-visible-hook', `calendar-today-invisible-hook' - after
    generating a calendar, if today's date is visible or not, respectively
 `calendar-initial-window-hook' - after first creating a calendar
@@ -1915,10 +1915,12 @@ use instead of point."
 The absolute date is the number of days elapsed since the (imaginary)
 Gregorian date Sunday, December 31, 1 BC.  This function does not
 handle dates in years BC."
-  ;; See the footnote on page 384 of ``Calendrical Calculations, Part II:
-  ;; Three Historical Calendars'' by E. M. Reingold,  N. Dershowitz, and S. M.
-  ;; Clamen, Software--Practice and Experience, Volume 23, Number 4
-  ;; (April, 1993), pages 383-404 for an explanation.
+  ;; For an explanation, see the footnote on page 384 of "Calendrical
+  ;; Calculations, Part II: Three Historical Calendars" by
+  ;; E. M. Reingold, N. Dershowitz, and S. M.  Clamen,
+  ;; Software--Practice and Experience, Volume 23, Number 4 (April,
+  ;; 1993), pages 383-404 <https://doi.org/10.1002/spe.4380230404>
+  ;; <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.6421&rep=rep1&type=pdf>.
   (let* ((d0 (1- date))
          (n400 (/ d0 146097))
          (d1 (% d0 146097))

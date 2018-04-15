@@ -1,5 +1,5 @@
 /* Call a Lisp function interactively.
-   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2017 Free Software
+   Copyright (C) 1985-1986, 1993-1995, 1997, 2000-2018 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.  */
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 #include <config.h>
@@ -272,7 +272,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
 {
   /* `args' will contain the array of arguments to pass to the function.
      `visargs' will contain the same list but in a nicer form, so that if we
-     pass it to `Fformat_message' it will be understandable to a human.  */
+     pass it to Fformat_message it will be understandable to a human.  */
   Lisp_Object *args, *visargs;
   Lisp_Object specs;
   Lisp_Object filter_specs;
@@ -502,10 +502,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
   for (i = 2; *tem; i++)
     {
       visargs[1] = make_string (tem + 1, strcspn (tem + 1, "\n"));
-      if (strchr (SSDATA (visargs[1]), '%'))
-	callint_message = Fformat_message (i - 1, visargs + 1);
-      else
-	callint_message = visargs[1];
+      callint_message = Fformat_message (i - 1, visargs + 1);
 
       switch (*tem)
 	{
@@ -690,6 +687,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	case 'N':     /* Prefix arg as number, else number from minibuffer.  */
 	  if (!NILP (prefix_arg))
 	    goto have_prefix_arg;
+	  FALLTHROUGH;
 	case 'n':		/* Read number from minibuffer.  */
 	  args[i] = call1 (Qread_number, callint_message);
 	  /* Passing args[i] directly stimulates compiler bug.  */
@@ -776,10 +774,23 @@ invoke it.  If KEYS is omitted or nil, the return value of
 	     if anyone tries to define one here.  */
 	case '+':
 	default:
-	  error ("Invalid control letter `%c' (#o%03o, #x%04x) in interactive calling string",
-		 STRING_CHAR ((unsigned char *) tem),
-		 (unsigned) STRING_CHAR ((unsigned char *) tem),
-		 (unsigned) STRING_CHAR ((unsigned char *) tem));
+	  {
+	    /* How many bytes are left unprocessed in the specs string?
+	       (Note that this excludes the trailing null byte.)  */
+	    ptrdiff_t bytes_left = SBYTES (specs) - (tem - string);
+	    unsigned letter;
+
+	    /* If we have enough bytes left to treat the sequence as a
+	       character, show that character's codepoint; otherwise
+	       show only its first byte.  */
+	    if (bytes_left >= BYTES_BY_CHAR_HEAD (*((unsigned char *) tem)))
+	      letter = STRING_CHAR ((unsigned char *) tem);
+	    else
+	      letter = *((unsigned char *) tem);
+
+	    error ("Invalid control letter `%c' (#o%03o, #x%04x) in interactive calling string",
+		   (int) letter, letter, letter);
+	  }
 	}
 
       if (varies[i] == 0)
@@ -794,7 +805,7 @@ invoke it.  If KEYS is omitted or nil, the return value of
     }
   unbind_to (speccount, Qnil);
 
-  QUIT;
+  maybe_quit ();
 
   args[0] = Qfuncall_interactively;
   args[1] = function;

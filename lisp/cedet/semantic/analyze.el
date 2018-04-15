@@ -1,6 +1,6 @@
 ;;; semantic/analyze.el --- Analyze semantic tags against local context
 
-;; Copyright (C) 2000-2005, 2007-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2005, 2007-2018 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -17,7 +17,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -121,7 +121,7 @@ See `semantic-analyze-scoped-tags' for details.")
 	   :type buffer
 	   :documentation "The buffer this context is derived from.")
    (errors :initarg :errors
-	   :documentation "Any errors thrown an caught during analysis.")
+	   :documentation "Any errors thrown and caught during analysis.")
    )
   "Base analysis data for any context.")
 

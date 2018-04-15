@@ -1,6 +1,6 @@
 ;;; hexl.el --- edit a file in a hex dump format using the hexl filter -*- lexical-binding: t -*-
 
-;; Copyright (C) 1989, 1994, 1998, 2001-2017 Free Software Foundation,
+;; Copyright (C) 1989, 1994, 1998, 2001-2018 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Keith Gabryelski <ag@wheaties.ai.mit.edu>
@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -730,13 +730,13 @@ If there is no byte at the target address move to the last byte in that line."
 Leaves `hexl-mark' at previous position.
 With prefix arg N, puts point N bytes of the way from the true beginning."
   (interactive "p")
-  (push-mark (point))
+  (push-mark)
   (hexl-goto-address (+ 0 (1- arg))))
 
 (defun hexl-end-of-buffer (arg)
   "Go to `hexl-max-address' minus ARG."
   (interactive "p")
-  (push-mark (point))
+  (push-mark)
   (hexl-goto-address (- hexl-max-address (1- arg))))
 
 (defun hexl-beginning-of-line ()
@@ -890,7 +890,7 @@ This discards the buffer's undo information."
 	(error "Invalid hex digit `%c'" ch)))))
 
 (defun hexl-oct-char-to-integer (character)
-  "Take a char and return its value as if it was a octal digit."
+  "Take a char and return its value as if it was an octal digit."
   (if (and (>= character ?0) (<= character ?7))
       (- character ?0)
     (error "Invalid octal digit `%c'" character)))

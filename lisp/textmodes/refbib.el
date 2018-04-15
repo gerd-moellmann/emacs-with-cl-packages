@@ -1,6 +1,6 @@
 ;;; refbib.el --- convert refer-style references to ones usable by Latex bib
 
-;; Copyright (C) 1989, 2001-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1989, 2001-2018 Free Software Foundation, Inc.
 
 ;; Author: Henry Kautz <kautz@research.att.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -61,7 +61,7 @@
 (defgroup refbib nil
   "Convert refer-style references to ones usable by Latex bib."
   :prefix "r2b-"
-  :group 'wp)
+  :group 'text)
 
 (defcustom r2b-trace-on nil
   "Non-nil means trace conversion."

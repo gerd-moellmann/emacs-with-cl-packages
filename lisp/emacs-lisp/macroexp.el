@@ -1,6 +1,6 @@
 ;;; macroexp.el --- Additional macro-expansion support -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2004-2017 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2018 Free Software Foundation, Inc.
 ;;
 ;; Author: Miles Bader <miles@gnu.org>
 ;; Keywords: lisp, compiler, macros
@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -103,7 +103,7 @@ each clause."
 (defun macroexp--funcall-if-compiled (_form)
   "Pseudo function used internally by macroexp to delay warnings.
 The purpose is to delay warnings to bytecomp.el, so they can use things
-like `byte-compile-log-warning' to get better file-and-line-number data
+like `byte-compile-warn' to get better file-and-line-number data
 and also to avoid outputting the warning during normal execution."
   nil)
 (put 'macroexp--funcall-if-compiled 'byte-compile
@@ -122,7 +122,7 @@ and also to avoid outputting the warning during normal execution."
 (defvar macroexp--warned (make-hash-table :test #'equal :weakness 'key))
 
 (defun macroexp--warn-and-return (msg form &optional compile-only)
-  (let ((when-compiled (lambda () (byte-compile-log-warning msg t))))
+  (let ((when-compiled (lambda () (byte-compile-warn "%s" msg))))
     (cond
      ((null msg) form)
      ((macroexp--compiling-p)
@@ -318,7 +318,7 @@ definitions to shadow the loaded ones for use in file byte-compilation."
     (cons (nreverse decls) body)))
 
 (defun macroexp-progn (exps)
-  "Return an expression equivalent to `(progn ,@EXPS)."
+  "Return an expression equivalent to \\=`(progn ,@EXPS)."
   (if (cdr exps) `(progn ,@exps) (car exps)))
 
 (defun macroexp-unprogn (exp)
@@ -327,14 +327,14 @@ Never returns an empty list."
   (if (eq (car-safe exp) 'progn) (or (cdr exp) '(nil)) (list exp)))
 
 (defun macroexp-let* (bindings exp)
-  "Return an expression equivalent to `(let* ,bindings ,exp)."
+  "Return an expression equivalent to \\=`(let* ,bindings ,exp)."
   (cond
    ((null bindings) exp)
    ((eq 'let* (car-safe exp)) `(let* (,@bindings ,@(cadr exp)) ,@(cddr exp)))
    (t `(let* ,bindings ,exp))))
 
 (defun macroexp-if (test then else)
-  "Return an expression equivalent to `(if ,TEST ,THEN ,ELSE)."
+  "Return an expression equivalent to \\=`(if ,TEST ,THEN ,ELSE)."
   (cond
    ((eq (car-safe else) 'if)
     (cond

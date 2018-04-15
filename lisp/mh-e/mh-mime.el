@@ -1,6 +1,6 @@
 ;;; mh-mime.el --- MH-E MIME support
 
-;; Copyright (C) 1993, 1995, 2001-2017 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 1995, 2001-2018 Free Software Foundation, Inc.
 
 ;; Author: Bill Wohler <wohler@newt.com>
 ;; Maintainer: Bill Wohler <wohler@newt.com>
@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -56,7 +56,7 @@
 (autoload 'mail-content-type-get "mail-parse")
 (autoload 'mail-decode-encoded-word-string "mail-parse")
 (autoload 'mail-header-parse-content-type "mail-parse")
-(autoload 'mail-header-strip "mail-parse")
+(autoload 'mail-header-strip-cte "mail-parse")
 (autoload 'mail-strip-quoted-names "mail-utils")
 (autoload 'message-options-get "message")
 (autoload 'message-options-set "message")
@@ -580,14 +580,13 @@ If message has been encoded for transfer take that into account."
                                (message-fetch-field "Content-Type" t)))
             charset (mail-content-type-get ct 'charset)
             cte (message-fetch-field "Content-Transfer-Encoding")))
-    (when (stringp cte) (setq cte (mail-header-strip cte)))
+    (when (stringp cte) (setq cte (mail-header-strip-cte cte)))
     (when (or (not ct) (equal (car ct) "text/plain"))
       (save-restriction
         (narrow-to-region (min (1+ (mh-mail-header-end)) (point-max))
                           (point-max))
         (mm-decode-body charset
-                        (and cte (intern (downcase
-                                          (gnus-strip-whitespace cte))))
+                        (and cte (intern (downcase cte)))
                         (car ct))))))
 
 (defun mh-mime-display-part (handle)
@@ -660,6 +659,7 @@ buttons for alternative parts that are usually suppressed."
          (attachmentp (equal (car (mm-handle-disposition handle))
                              "attachment"))
          (inlinep (and (equal (car (mm-handle-disposition handle)) "inline")
+                       (mm-automatic-display-p handle)
                        (mm-inlinable-p handle)
                        (mm-inlined-p handle)))
          (displayp (or inlinep                   ; show if inline OR
@@ -670,6 +670,7 @@ buttons for alternative parts that are usually suppressed."
                                 (and (not (equal
                                            (mm-handle-media-supertype handle)
                                            "image"))
+                                     (mm-automatic-display-p handle)
                                      (mm-inlinable-p handle)
                                      (mm-inlined-p handle)))))))
     (save-restriction
@@ -1241,7 +1242,7 @@ MESSAGE number."
                             "message/rfc822"
                             (if (string= "" description) nil description)
                             "inline"))
-          (t (error "The message number, %s, is not a integer" msg)))))
+          (t (error "The message number, %s, is not an integer" msg)))))
 
 (defun mh-mh-forward-message (&optional description folder messages)
   "Add tag to forward a message.

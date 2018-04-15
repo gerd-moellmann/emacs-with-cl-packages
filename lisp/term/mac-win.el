@@ -120,6 +120,19 @@
 (defconst mac-pointer-resize-down 20)
 (defconst mac-pointer-resize-up-down 21)
 (defconst mac-pointer-poof 22)
+;; Mac OS X 10.7 and later
+(defconst mac-pointer-resize-northwest-southeast 23)
+(defconst mac-pointer-resize-northeast-southwest 24)
+(defconst mac-pointer-resize-north-south 25)
+(defconst mac-pointer-resize-north 26)
+(defconst mac-pointer-resize-south 27)
+(defconst mac-pointer-resize-east-west 28)
+(defconst mac-pointer-resize-east 29)
+(defconst mac-pointer-resize-west 30)
+(defconst mac-pointer-resize-northwest 31)
+(defconst mac-pointer-resize-northeast 32)
+(defconst mac-pointer-resize-southwest 33)
+(defconst mac-pointer-resize-southeast 34)
 
 ;;
 ;; Standard X cursor shapes that have Mac counterparts
@@ -2301,33 +2314,54 @@ non-nil, and the input device supports it."
   ;;	possible value: `none', `began', `stationary', `changed',
   ;;			`ended', `cancelled', or `may-begin'
   ;; :swipe-tracking-from-scroll-events-enabled-p (boolean)
-  ;; TODO: horizontal scrolling
   (if (not (memq (event-basic-type event) '(wheel-up wheel-down)))
-      (when (and (memq (event-basic-type event) '(wheel-left wheel-right))
-                 ;; "Swipe between pages" enabled.
-		 (plist-get (nth 3 event)
-                            :swipe-tracking-from-scroll-events-enabled-p)
-		 (eq (plist-get (nth 3 event) :momentum-phase) 'began))
-	;; Post a swipe event when the momentum phase begins for
-	;; horizontal wheel events.
-	(setq mac-ignore-momentum-wheel-events t)
-	(push (cons
-	       (event-convert-list
-		(nconc (delq 'click
-			     (delq 'double
-				   (delq 'triple (event-modifiers event))))
-		       (if (eq (event-basic-type event) 'wheel-left)
-			   '(swipe-left) '(swipe-right))))
-	       (cdr event))
-	      unread-command-events))
+      (when (memq (event-basic-type event) '(wheel-left wheel-right))
+        (if mouse-wheel-tilt-scroll
+            (if (null (plist-get (nth 3 event) :delta-x))
+                (mwheel-scroll event)
+              (let ((direction-inverted-from-device-p
+                     (plist-get (nth 3 event)
+                                :direction-inverted-from-device-p)))
+                (setf (nth 3 event)
+                      (round (abs (plist-get (nth 3 event) :delta-x))))
+                (when (> (nth 3 event) 0)
+                  (let ((mouse-wheel-scroll-amount
+                         '(1 ((shift) . 5) ((control))))
+                        (mouse-wheel-progressive-speed nil)
+                        (mouse-wheel-flip-direction
+                         direction-inverted-from-device-p))
+                    (mwheel-scroll event)))))
+          (cond ((and
+                  ;; "Swipe between pages" enabled.
+                  (plist-get (nth 3 event)
+                             :swipe-tracking-from-scroll-events-enabled-p)
+                  (eq (plist-get (nth 3 event) :momentum-phase) 'began))
+                 ;; Post a swipe event when the momentum phase begins
+                 ;; for horizontal wheel events.
+                 (setq mac-ignore-momentum-wheel-events t)
+                 (push (cons
+                        (event-convert-list
+                         (nconc (delq 'click
+                                      (delq 'double
+                                            (delq 'triple
+                                                  (event-modifiers event))))
+                                (if (eq (event-basic-type event) 'wheel-left)
+                                    '(swipe-left) '(swipe-right))))
+                        (cdr event))
+                       unread-command-events)))))
     (if (or (not mac-mouse-wheel-smooth-scroll)
 	    (delq 'click (delq 'double (delq 'triple (event-modifiers event))))
 	    (null (plist-get (nth 3 event) :scrolling-delta-y)))
 	(if (or (null (nth 3 event))
-		(and (/= (plist-get (nth 3 event) :delta-y) 0.0)
-		     (eq (or (plist-get (nth 3 event) :momentum-phase) 'none)
-                         'none)))
-	    (mwheel-scroll event))
+                (/= (plist-get (nth 3 event) :delta-y) 0.0))
+            (if (null (plist-get (nth 3 event) :delta-y))
+                (mwheel-scroll event)
+              (setf (nth 3 event)
+                    (round (abs (plist-get (nth 3 event) :delta-y))))
+              (when (> (nth 3 event) 0)
+                (let ((mouse-wheel-scroll-amount '(1 ((shift) . 5) ((control))))
+                      (mouse-wheel-progressive-speed nil))
+                  (mwheel-scroll event)))))
       ;; TODO: ignore momentum scroll events after buffer switch.
       (let* ((window-to-scroll (if mouse-wheel-follow-mouse
 				   (posn-window (event-start event))))
@@ -2994,7 +3028,7 @@ visibility, then remap this command to `mac-previous-tab'."
 This returns an error if any Emacs frames are Mac frames."
   ;; Don't allow suspending if any of the frames are Mac frames.
   (if (memq 'mac (mapcar #'window-system (frame-list)))
-      (error "Cannot suspend Emacs while running under Mac")))
+      (error "Cannot suspend Emacs while a Mac GUI frame exists")))
 
 (defvar mac-initialized nil
   "Non-nil if the Mac window system has been initialized.")
@@ -3265,5 +3299,6 @@ standard ones in `x-handle-args'."
 (define-key special-event-map [drag-n-drop] 'mac-dnd-handle-drag-n-drop-event)
 
 (provide 'mac-win)
+(provide 'term/mac-win)
 
 ;;; mac-win.el ends here
