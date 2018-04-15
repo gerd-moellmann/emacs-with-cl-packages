@@ -117,7 +117,7 @@ defaults write org.gnu.Emacs Emacs.lineSpacing -int 3
 @end example
 
 @noindent
-Try @kbd{M-x man RET defaults RET} for the usage of the
+Try @kbd{M-x man @key{RET} defaults @key{RET}} for the usage of the
 @command{defaults} command.  Alternatively, if you have Developer
 Tools installed on macOS, you can use Property List Editor to edit the
 file @file{~/Library/Preferences/org.gnu.Emacs.plist}.
