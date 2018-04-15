@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2017  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2018  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -4102,7 +4102,7 @@ x_set_window_size (struct frame *f, bool change_gravity,
   f->win_gravity = NorthWestGravity;
   x_wm_set_size_hint (f, 0, false);
 
-  mac_size_frame_window (f, pixelwidth, pixelheight, false);
+  mac_size_frame_window (f, pixelwidth, pixelheight, true);
 
   SET_FRAME_GARBAGED (f);
 
@@ -6183,4 +6183,10 @@ tabbing is disallowed and preferred, respectively.
 
 This variable has no effect on OS X 10.11 and earlier.  */);
   Vmac_frame_tabbing = Qautomatic;
+
+  DEFVAR_BOOL ("mac-ignore-accessibility", mac_ignore_accessibility,
+    doc: /* Non-nil means to ignore the system accessibility feature.
+Emacspeak users may want to set this variable so it may not interfere
+with the system accessibility services such as VoiceOver.  */);
+  mac_ignore_accessibility = false;
 }

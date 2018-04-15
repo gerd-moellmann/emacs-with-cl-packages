@@ -1,7 +1,7 @@
 ;;; mac-win.el --- parse switches controlling interface with Mac window system -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1999-2008  Free Software Foundation, Inc.
-;; Copyright (C) 2009-2017  YAMAMOTO Mitsuharu
+;; Copyright (C) 2009-2018  YAMAMOTO Mitsuharu
 
 ;; Author: Andrew Choi <akochoi@mac.com>
 ;;	YAMAMOTO Mitsuharu <mituharu@math.s.chiba-u.ac.jp>
@@ -338,13 +338,13 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 \u25B6\u25C0\u25FB\u25FC\u25FD\u25FE\u2600\u2601\u2602\u2603\u2604\u260E\
 \u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\
 \u2638\u2639\u263A\u2640\u2642\u2648\u2649\u264A\u264B\u264C\u264D\u264E\
-\u264F\u2650\u2651\u2652\u2653\u2660\u2663\u2665\u2666\u2668\u267B\u267F\
-\u2692\u2693\u2694\u2695\u2696\u2697\u2699\u269B\u269C\u26A0\u26A1\u26AA\
-\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CF\u26D1\u26D3\u26D4\
-\u26E9\u26EA\u26F0\u26F1\u26F2\u26F3\u26F4\u26F5\u26F7\u26F8\u26F9\u26FA\
-\u26FD\u2702\u2708\u2709\u270C\u270D\u270F\u2712\u2714\u2716\u271D\u2721\
-\u2733\u2734\u2744\u2747\u2753\u2757\u2763\u2764\u27A1\u2934\u2935\u2B05\
-\u2B06\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299\
+\u264F\u2650\u2651\u2652\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\
+\u267E\u267F\u2692\u2693\u2694\u2695\u2696\u2697\u2699\u269B\u269C\u26A0\
+\u26A1\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CF\u26D1\
+\u26D3\u26D4\u26E9\u26EA\u26F0\u26F1\u26F2\u26F3\u26F4\u26F5\u26F7\u26F8\
+\u26F9\u26FA\u26FD\u2702\u2708\u2709\u270C\u270D\u270F\u2712\u2714\u2716\
+\u271D\u2721\u2733\u2734\u2744\u2747\u2753\u2757\u2763\u2764\u27A1\u2934\
+\u2935\u2B05\u2B06\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299\
 \U0001F004\U0001F170\U0001F171\U0001F17E\U0001F17F\U0001F202\U0001F21A\
 \U0001F22F\U0001F237\U0001F30D\U0001F30E\U0001F30F\U0001F315\U0001F31C\
 \U0001F321\U0001F324\U0001F325\U0001F326\U0001F327\U0001F328\U0001F329\
@@ -374,7 +374,7 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 \U0001F6E2\U0001F6E3\U0001F6E4\U0001F6E5\U0001F6E9\U0001F6F0\U0001F6F3"))
   "Groups of characters that are sensitive to variation selectors 15 and 16.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-variation-sequences.txt 5.0.")
+The entries are currently based on emoji-variation-sequences.txt 11.0.")
 
 (defconst mac-emoji-modifier-base-characters-alist
   '((t . "\u261D\u26F9\u270A\u270B\u270C\u270D\
@@ -389,17 +389,18 @@ The entries are currently based on emoji-variation-sequences.txt 5.0.")
 \U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\U0001F6C0\U0001F6CC\
 \U0001F918\U0001F919\U0001F91A\U0001F91B\U0001F91C\U0001F91E\U0001F91F\
 \U0001F926\U0001F930\U0001F931\U0001F932\U0001F933\U0001F934\U0001F935\
-\U0001F936\U0001F937\U0001F938\U0001F939\U0001F93D\U0001F93E\U0001F9D1\
-\U0001F9D2\U0001F9D3\U0001F9D4\U0001F9D5\U0001F9D6\U0001F9D7\U0001F9D8\
-\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD"))
+\U0001F936\U0001F937\U0001F938\U0001F939\U0001F93D\U0001F93E\U0001F9B8\
+\U0001F9B9\U0001F9D1\U0001F9D2\U0001F9D3\U0001F9D4\U0001F9D5\U0001F9D6\
+\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-sequences.txt 5.0.")
+The entries are currently based on emoji-sequences.txt 11.0.")
 
 (defconst mac-emoji-gendered-zwj-characters-alist
   '((role-with-object . "\u2695\u2696\u2708\
 \U0001F33E\U0001F373\U0001F393\U0001F3A4\U0001F3A8\U0001F3EB\U0001F3ED\
-\U0001F4BB\U0001F4BC\U0001F527\U0001F52C\U0001F680\U0001F692")
+\U0001F4BB\U0001F4BC\U0001F527\U0001F52C\U0001F680\U0001F692\U0001F9B0\
+\U0001F9B1\U0001F9B2\U0001F9B3")
     (role . "\U0001F46E\U0001F471\U0001F473\U0001F477\U0001F482\U0001F575\
 \U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD\U0001F9DE\U0001F9DF")
     (activity . "\u26F9\U0001F3C3\U0001F3C4\U0001F3CA\U0001F3CB\U0001F3CC\
@@ -407,10 +408,10 @@ The entries are currently based on emoji-sequences.txt 5.0.")
 \U0001F938\U0001F939\U0001F93C\U0001F93D\U0001F93E\U0001F9D6\U0001F9D7\
 \U0001F9D8")
     (gesture . "\U0001F481\U0001F645\U0001F646\U0001F647\U0001F64B\U0001F64D\
-\U0001F64E\U0001F926\U0001F937"))
+\U0001F64E\U0001F926\U0001F937\U0001F9B8\U0001F9B9"))
   "Groups of characters that are parts of the gendered zwj sequences.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-zwj-sequences.txt 5.0.")
+The entries are currently based on emoji-zwj-sequences.txt 11.0.")
 
 (defconst mac-emoji-tag-base-characters-alist
   '((flag "\U0001F3F4" "[\U000E0030-\U000E0039\U000E0061-\U000E007A]+"))
@@ -418,7 +419,7 @@ The entries are currently based on emoji-zwj-sequences.txt 5.0.")
 It is an alist of label symbols vs lists whose elements are of
 the form (CHARS SPEC) where CHARS is a string of tag base
 characters and SPEC is a regexp for the corresponding tag spec.
-The entries are currently based on emoji-sequences.txt 5.0.")
+The entries are currently based on emoji-sequences.txt 11.0.")
 
 (defun mac-emoji-multistyles-unistyles (sequence)
   "Split emoji SEQUENCE into a cons of multistyles and unistyles."
@@ -571,6 +572,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	 (heavy-black-heart "\u2764") (kiss-mark "\U0001F48B")
 	 (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
          (waving-white-flag "\U0001F3F3") (rainbow "\U0001F308")
+         (waving-black-flag "\U0001F3F4") (skull-and-crossbones "\u2620")
          (female "\u2640") (male "\u2642")
          (vs16? (concat vs16 "?"))
 	 (man-or-woman (concat "[" man woman "]"))
@@ -607,6 +609,8 @@ second is a glyph for the variation selector 16 (U+FE0F)."
        [,(concat eye zwj left-speech-bubble vs16?)
 	1 font-shape-gstring -1]
        [,(concat waving-white-flag zwj rainbow)
+	1 font-shape-gstring -1]
+       [,(concat waving-black-flag zwj skull-and-crossbones vs16?)
 	1 font-shape-gstring -1]
        [,(concat "[" signs "]." female-or-male vs16?)
 	1 font-shape-gstring -1]))
@@ -1602,11 +1606,12 @@ the echo area or in a buffer where the cursor is not displayed."
     ch))
 
 (defun mac-unread-string (string)
-  ;; Unread characters and insert them in a keyboard macro being
-  ;; defined.
-  (apply 'isearch-unread
-	 (mapcar 'mac-keyboard-translate-char
-		 (mac-replace-untranslated-utf-8-chars string))))
+  ;; The commit 30a6b1f8141 obviates store-kbd-macro-event calls that
+  ;; had been made via isearch-unread.
+  (setq unread-command-events
+        (nconc (mapcar 'mac-keyboard-translate-char
+                       (mac-replace-untranslated-utf-8-chars string))
+               unread-command-events)))
 
 (defconst mac-marked-text-underline-style-faces
   '((0 . mac-ts-raw-text)		  ; NSUnderlineStyleNone
@@ -2831,11 +2836,12 @@ The actual magnification is performed by `text-scale-mode'."
 (defun mac-magnify-text-scale-or-overview-tab-group (event)
   "Trigger tab group overview or forward EVENT to `mac-magnify-text-scale'.
 Tab group overview, which is available on macOS 10.13 and later,
-is triggered by the pinch close gesture on a trackpad, and the
-subsequent pinch gestures are ignored until you release the
-fingers so they do not cause unwanted text scaling.  If you don't
-want to trigger tab group overview by the pinch close gesture,
-then remap this command to `mac-magnify-text-scale'."
+is triggered by the pinch close gesture on a trackpad unless the
+text is magnified, and the subsequent pinch gestures are ignored
+until you release the fingers so they do not cause unwanted text
+scaling.  If you don't want to trigger tab group overview by the
+pinch close gesture, then remap this command to
+`mac-magnify-text-scale'."
   (interactive "e")
   (if (not (or (>= (cadr (x-server-version)) 13)
                (> (car (x-server-version)) 10)))
@@ -2849,7 +2855,10 @@ then remap this command to `mac-magnify-text-scale'."
                    (eq (event-basic-type event) 'magnify-down)
                    (mac-frame-tab-group-property frame :selected-frame)
                    (not (mac-frame-tab-group-property frame
-                                                      :overview-visible-p)))
+                                                      :overview-visible-p))
+                   (with-selected-window (posn-window (event-start event))
+                     (not (and (boundp 'text-scale-mode-amount)
+                               (> text-scale-mode-amount 0)))))
               (progn
                 (setq mac-ignore-magnify-events t)
                 (mac-set-frame-tab-group-property frame :overview-visible-p t)))
@@ -2858,16 +2867,18 @@ then remap this command to `mac-magnify-text-scale'."
 (defun mac-mouse-turn-on-fullscreen (event)
   "Turn on fullscreen in response to the mouse event EVENT."
   (interactive "e")
-  (let ((frame (window-frame (posn-window (event-start event)))))
-    (if (not (eq (frame-parameter frame 'fullscreen) 'fullboth))
-	(set-frame-parameter frame 'fullscreen 'fullboth))))
+  (if (not (eq (plist-get (nth 3 event) :phase) 'ended))
+      (let ((frame (window-frame (posn-window (event-start event)))))
+        (if (not (eq (frame-parameter frame 'fullscreen) 'fullboth))
+            (set-frame-parameter frame 'fullscreen 'fullboth)))))
 
 (defun mac-mouse-turn-off-fullscreen (event)
   "Turn off fullscreen in response to the mouse event EVENT."
   (interactive "e")
-  (let ((frame (window-frame (posn-window (event-start event)))))
-    (if (frame-parameter frame 'fullscreen)
-	(set-frame-parameter frame 'fullscreen nil))))
+  (if (not (eq (plist-get (nth 3 event) :phase) 'ended))
+      (let ((frame (window-frame (posn-window (event-start event)))))
+        (if (frame-parameter frame 'fullscreen)
+            (set-frame-parameter frame 'fullscreen nil)))))
 
 (global-set-key [magnify-up] 'mac-magnify-text-scale-or-overview-tab-group)
 (global-set-key [magnify-down] 'mac-magnify-text-scale-or-overview-tab-group)

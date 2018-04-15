@@ -560,6 +560,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     (mac-drawing-use-gcd mac boolean "24.4")
 	     (mac-frame-tabbing mac (choice (const automatic) (const inverted)
                                             (const nil) (const t)) "24.5")
+	     (mac-ignore-accessibility mac boolean "25.3")
              (debug-on-event debug
                              (choice (const :tag "None" nil)
                                      (const :tag "When sent SIGUSR1" sigusr1)

@@ -1,4 +1,47 @@
+* emacs-25.3-mac-6.9 (2018-04-15)
+
+** Fixed bugs
+
+*** The function `get-free-disk-space' gives free inode count rather
+than free data block space on OS X 10.8 and later (Bug#28639).
+
+*** Crash on macOS 10.13 with pinch close to invoke tab overview over
+some highlighted text and then clicking the input source menu in the
+menu bar.
+
+*** On macOS 10.13.1, pinch close gesture with shift key causes exit
+and then enter fullboth.
+
+*** Making frame fullboth is slow on macOS 10.13.1.
+
+*** Crash when showing menu help strings while minibuffer is invisible.
+Reported by Konrad Podczeck.
+
+*** Entering fullboth from a fullscreen frame makes it maximized.
+This is a regression introduced in 5.90.
+
+*** Entering and then exiting from fullboth makes the frame shorter.
+
+*** Space width for monospace fonts may be wrong.  This is a
+regression introduced in 6.1 as "ligature glyph width adjustment".
+
+** Improvements
+
+*** Adopt CFBundleDocumentTypes part from the NS port.
+Contributed by Xin Xu.
+
+*** Update emoji data to UTS #51 version 11.0.
+
+*** On macOS 10.13, the pinch close gesture makes the text shrunken
+(rather than triggering tab group overview) if the text is magnified.
+
+*** New variable `mac-ignore-accessibility'.
+Emacspeak users may want to set this variable so it may not interfere
+with the system accessibility services such as VoiceOver.
+
+
 * emacs-25.3-mac-6.8 (2017-09-26)
+http://lists.gnu.org/archive/html/emacs-devel/2017-09/msg00897.html
 
 ** Fixed bugs
 

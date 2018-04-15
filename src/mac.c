@@ -1,6 +1,6 @@
 /* Unix emulation routines for GNU Emacs on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2017  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2018  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -35,6 +35,7 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <sys/stat.h>
 #include <sys/param.h>
+#include <sys/statvfs.h>
 #include <fcntl.h>
 
 #include <libkern/OSByteOrder.h>
@@ -2272,6 +2273,32 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   return Qnil;
 }
 
+DEFUN ("file-system-info", Ffile_system_info, Sfile_system_info, 1, 1, 0,
+       doc: /* Return storage information about the file system FILENAME is on.
+Value is a list of floats (TOTAL FREE AVAIL), where TOTAL is the total
+storage of the file system, FREE is the free storage, and AVAIL is the
+storage available to a non-superuser.  All 3 numbers are in bytes.
+If the underlying system call fails, value is nil.  */)
+  (Lisp_Object filename)
+{
+  Lisp_Object encoded, value;
+  struct statvfs buf;
+
+  CHECK_STRING (filename);
+  filename = Fexpand_file_name (filename, Qnil);
+  encoded = ENCODE_FILE (filename);
+
+  value = Qnil;
+
+  block_input ();
+  if (statvfs (SDATA (encoded), &buf) == 0)
+    value = list3 (make_float (buf.f_blocks * (double) buf.f_frsize),
+		   make_float (buf.f_bfree * (double) buf.f_frsize),
+		   make_float (buf.f_bavail * (double) buf.f_frsize));
+  unblock_input ();
+
+  return value;
+}
 
 DEFUN ("mac-osa-language-list", Fmac_osa_language_list, Smac_osa_language_list, 0, 1, 0,
        doc: /* Return a list of available OSA languages.
@@ -3493,6 +3520,7 @@ syms_of_mac (void)
 
   defsubr (&Smac_file_alias_p);
   defsubr (&Ssystem_move_file_to_trash);
+  defsubr (&Sfile_system_info);
 
   DEFVAR_INT ("mac-system-script-code", mac_system_script_code,
     doc: /* The system script code.  */);

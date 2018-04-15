@@ -1,5 +1,5 @@
 /* Functions for GUI implemented with Cocoa AppKit on macOS.
-   Copyright (C) 2008-2017  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2018  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -612,11 +612,18 @@ mac_within_app (void (^block) (void))
 
 - (BOOL)containsDock
 {
-  NSRect frame = [self frame], visibleFrame = [self visibleFrame];
+  /* On macOS 10.13, screen's visibleFrame occupies full frame when
+     the Dock is hidden.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12))
+    return YES;
+  else
+    {
+      NSRect frame = [self frame], visibleFrame = [self visibleFrame];
 
-  return (NSMinY (frame) != NSMinY (visibleFrame)
-	  || NSMinX (frame) != NSMinX (visibleFrame)
-	  || NSMaxX (frame) != NSMaxX (visibleFrame));
+      return (NSMinY (frame) != NSMinY (visibleFrame)
+	      || NSMinX (frame) != NSMinX (visibleFrame)
+	      || NSMaxX (frame) != NSMaxX (visibleFrame));
+    }
 }
 
 - (BOOL)canShowMenuBar
@@ -1313,11 +1320,13 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
 
 #define READ_SOCKET_MIN_INTERVAL (1/60.0)
 
+static BOOL extendReadSocketIntervalOnce;
+
 - (NSTimeInterval)minimumIntervalForReadSocket
 {
   NSTimeInterval interval = READ_SOCKET_MIN_INTERVAL;
 
-  if (MOUSE_TRACKING_SUSPENDED_P ())
+  if (MOUSE_TRACKING_SUSPENDED_P () || extendReadSocketIntervalOnce)
     interval *= 6;
   else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
     /* A large interval value affects responsiveness on OS X
@@ -2670,6 +2679,7 @@ static CGRect unset_global_focus_view_frame (void);
 	     after exiting from the full screen mode.  We make such a
 	     transition via maximized state, i.e, fullscreen ->
 	     maximized -> fullboth.  */
+	  store_frame_param (f, Qfullscreen, Qmaximized);
 	  fullScreenTargetState = ((newState & ~WM_STATE_FULLSCREEN)
 				   | WM_STATE_MAXIMIZED_HORZ
 				   | WM_STATE_MAXIMIZED_VERT);
@@ -2683,8 +2693,8 @@ static CGRect unset_global_focus_view_frame (void);
 
   if (setFrameType != SET_FRAME_UNNECESSARY)
     {
-      NSRect frameRect;
       BOOL showsResizeIndicator;
+      NSRect frameRect = [self preprocessWindowManagerStateChange:newState];
 
       if ((diff & WM_STATE_FULLSCREEN)
 	  || setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
@@ -2701,13 +2711,6 @@ static CGRect unset_global_focus_view_frame (void);
 	  if (INTEGERP (tool_bar_lines) && XINT (tool_bar_lines) > 0)
 	    x_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
 						     tool_bar_lines)));
-	}
-
-      frameRect = [self preprocessWindowManagerStateChange:newState];
-
-      if ((diff & WM_STATE_FULLSCREEN)
-	  || setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
-	{
 #if 0
 	  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
 	    {
@@ -3881,13 +3884,13 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 
   if (![NSApp isHidden])
     {
+      NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
+      NSWindow *mainWindow = [NSApp mainWindow];
+
       if (!FRAME_TOOLTIP_P (f)
 	  && [window respondsToSelector:@selector(setTabbingMode:)]
 	  && ![window isVisible])
 	{
-	  NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
-	  NSWindow *mainWindow = [NSApp mainWindow];
-
 	  if (NILP (Vmac_frame_tabbing))
 	    tabbingMode = NSWindowTabbingModeDisallowed;
 	  else if (EQ (Vmac_frame_tabbing, Qt))
@@ -3909,10 +3912,10 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 		break;
 	      }
 
-	  [window setTabbingMode:tabbingMode];
+	  window.tabbingMode = tabbingMode;
 	  if ([mainWindow isKindOfClass:[EmacsWindow class]])
 	    {
-	      [mainWindow setTabbingMode:tabbingMode];
+	      mainWindow.tabbingMode = tabbingMode;
 	      /* If the Tab Overview UI is visible and the window is
 		 to join its tab group, then make the Overview UI
 		 invisible and wait until it finishes.  */
@@ -3925,6 +3928,13 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 	[window makeKeyAndOrderFront:nil];
       else
 	[window orderFront:nil];
+
+      if (tabbingMode != NSWindowTabbingModeAutomatic)
+	{
+	  window.tabbingMode = NSWindowTabbingModeAutomatic;
+	  if ([mainWindow isKindOfClass:[EmacsWindow class]])
+	    mainWindow.tabbingMode = NSWindowTabbingModeAutomatic;
+	}
     }
   else
     [window setNeedsOrderFrontOnUnhide:YES];
@@ -4061,6 +4071,9 @@ mac_size_frame_window (struct frame *f, int w, int h, bool update)
   windowFrame.size.height += dh;
 
   [window setFrame:windowFrame display:update];
+
+  if (window.isVisible)
+    extendReadSocketIntervalOnce = YES;
 }
 
 OSStatus
@@ -5547,10 +5560,11 @@ event_phase_to_symbol (NSEventPhase phase)
 
   if (!(mapped_flags
 	& ~(mac_pass_control_to_system ? kCGEventFlagMaskControl : 0))
-      /* This is a workaround: some input methods on macOS 10.13 do
-	 not recognize Control+Space even if it is unchecked in the
-	 system-wide short cut settings (rdar://33842041).  */
-      && !(!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12)
+      /* This is a workaround: some input methods on macOS 10.13 -
+	 10.13.1 do not recognize Control+Space even if it is
+	 unchecked in the system-wide short cut settings
+	 (rdar://33842041).  */
+      && !(1561 <= NSAppKitVersionNumber && NSAppKitVersionNumber < 1561.2
 	   && (([theEvent modifierFlags]
 		& NSEventModifierFlagDeviceIndependentFlagsMask)
 	       == NSEventModifierFlagControl)
@@ -5885,9 +5899,16 @@ event_phase_to_symbol (NSEventPhase phase)
 
 - (NSRange)selectedRange
 {
+  struct frame *f = [self emacsFrame];
   NSRange result;
 
-  mac_ax_selected_text_range ([self emacsFrame], (CFRange *) &result);
+  /* Might be called when deactivating TSM document inside [emacsView
+     removeFromSuperview] in -[EmacsFrameController closeWindow] on
+     macOS 10.13.  */
+  if (!WINDOWP (f->root_window))
+    return NSMakeRange (NSNotFound, 0);
+
+  mac_ax_selected_text_range (f, (CFRange *) &result);
 
   return result;
 }
@@ -8267,6 +8288,9 @@ static void update_dragged_types (void);
   struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
   Mouse_HLInfo *hlinfo = &dpyinfo->mouse_highlight;
 
+  if (emacsViewIsHiddenOrHasHiddenAncestor)
+    return;
+
   /* This corresponds to LeaveNotify for an X11 window for an Emacs
      frame.  */
   if (f == hlinfo->mouse_face_mouse_frame)
@@ -8283,8 +8307,7 @@ static void update_dragged_types (void);
 
   /* This corresponds to EnterNotify for an X11 window for some
      popup (from note_mouse_movement in xterm.c).  */
-  f->mouse_moved = true;
-  note_mouse_highlight (f, -1, -1);
+  [self noteMouseHighlightAtX:-1 y:-1];
   dpyinfo->last_mouse_glyph_frame = NULL;
 }
 
@@ -8333,12 +8356,7 @@ static void update_dragged_types (void);
   if (f != dpyinfo->last_mouse_glyph_frame
       || x < r->x || x - r->x >= r->width || y < r->y || y - r->y >= r->height)
     {
-      f->mouse_moved = true;
-      [emacsView lockFocus];
-      set_global_focus_view_frame (f);
-      note_mouse_highlight (f, x, y);
-      unset_global_focus_view_frame ();
-      [emacsView unlockFocus];
+      [self noteMouseHighlightAtX:x y:y];
       /* Remember which glyph we're now on.  */
       remember_mouse_glyph (f, x, y, r);
       dpyinfo->last_mouse_glyph_frame = f;
@@ -8353,9 +8371,6 @@ static void update_dragged_types (void);
   struct frame *f = emacsFrame;
   BOOL result;
 
-  if (emacsViewIsHiddenOrHasHiddenAncestor)
-    return NO;
-
   [emacsView lockFocus];
   set_global_focus_view_frame (f);
   result = clear_mouse_face (hlinfo);
@@ -8363,6 +8378,18 @@ static void update_dragged_types (void);
   [emacsView unlockFocus];
 
   return result;
+}
+
+- (void)noteMouseHighlightAtX:(int)x y:(int)y
+{
+  struct frame *f = emacsFrame;
+
+  f->mouse_moved = true;
+  [emacsView lockFocus];
+  set_global_focus_view_frame (f);
+  note_mouse_highlight (f, x, y);
+  unset_global_focus_view_frame ();
+  [emacsView unlockFocus];
 }
 
 @end				// EmacsFrameController (EventHandling)
@@ -8554,6 +8581,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       [timer invalidate];
       MRC_RELEASE (timer);
       timer = nil;
+      extendReadSocketIntervalOnce = NO;
 
       /* Maybe these should be done at some redisplay timing.  */
       update_apple_event_handler ();
@@ -9222,23 +9250,32 @@ restore_show_help_function (Lisp_Object old_show_help_function)
 
 - (void)menu:(NSMenu *)menu willHighlightItem:(NSMenuItem *)item
 {
-  NSData *object = [item representedObject];
-  Lisp_Object help;
-  ptrdiff_t specpdl_count = SPECPDL_INDEX ();
+  Lisp_Object mini_window = FRAME_MINIBUF_WINDOW (SELECTED_FRAME ());
+  struct frame *mini_frame;
 
-  if (object)
-    [object getBytes:&help length:(sizeof (Lisp_Object))];
-  else
-    help = Qnil;
+  if (WINDOWP (mini_window)
+      && (mini_frame = XFRAME (WINDOW_FRAME (XWINDOW (mini_window))),
+	  (FRAME_MAC_P (mini_frame)
+	   && FRAME_VISIBLE_P (mini_frame) && !FRAME_OBSCURED_P (mini_frame))))
+    {
+      NSData *object = [item representedObject];
+      Lisp_Object help;
+      ptrdiff_t specpdl_count = SPECPDL_INDEX ();
 
-  /* Temporarily bind Vshow_help_function to
-     tooltip-show-help-non-mode because we don't want tooltips during
-     menu tracking.  */
-  record_unwind_protect (restore_show_help_function, Vshow_help_function);
-  Vshow_help_function = intern ("tooltip-show-help-non-mode");
+      if (object)
+	[object getBytes:&help length:(sizeof (Lisp_Object))];
+      else
+	help = Qnil;
 
-  show_help_echo (help, Qnil, Qnil, Qnil);
-  unbind_to (specpdl_count, Qnil);
+      /* Temporarily bind Vshow_help_function to
+	 tooltip-show-help-non-mode because we don't want tooltips
+	 during menu tracking.  */
+      record_unwind_protect (restore_show_help_function, Vshow_help_function);
+      Vshow_help_function = intern ("tooltip-show-help-non-mode");
+
+      show_help_echo (help, Qnil, Qnil, Qnil);
+      unbind_to (specpdl_count, Qnil);
+    }
 }
 
 /* Start menu bar tracking and return when it is completed.
@@ -12742,7 +12779,7 @@ mac_update_accessibility_display_options (void)
 
 - (BOOL)accessibilityIsIgnored
 {
-  return NO;
+  return mac_ignore_accessibility;
 }
 
 - (NSArrayOf (NSAccessibilityAttributeName) *)accessibilityAttributeNames

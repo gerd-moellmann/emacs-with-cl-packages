@@ -1,5 +1,5 @@
 /* Definitions and headers for AppKit framework on macOS.
-   Copyright (C) 2008-2017  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2018  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -609,6 +609,7 @@ typedef id instancetype;
 - (void)noteLeaveEmacsView;
 - (BOOL)noteMouseMovement:(NSPoint)point;
 - (BOOL)clearMouseFace:(Mouse_HLInfo *)hlinfo;
+- (void)noteMouseHighlightAtX:(int)x y:(int)y;
 @end
 
 @interface EmacsFrameController (Hourglass)
@@ -917,9 +918,9 @@ typedef NSInteger NSWindowTabbingMode;
 
 @interface NSWindow (AvailableOn101200AndLater)
 + (NSWindowUserTabbingPreference)userTabbingPreference;
-- (void)setTabbingMode:(NSWindowTabbingMode)tabbingMode;
 - (void)addTabbedWindow:(NSWindow *)window
 		ordered:(NSWindowOrderingMode)ordered;
+@property NSWindowTabbingMode tabbingMode;
 @property (copy) NSWindowTabbingIdentifier tabbingIdentifier;
 @property (readonly, copy) NSArrayOf (NSWindow *) *tabbedWindows;
 @end

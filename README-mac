@@ -232,7 +232,7 @@ Dock without separating a GUI process (not thread) from the main Emacs
      installed with "$ xcode-select --install".
 
   b. If you got this from the git repository, then generate the
-     `configure' script with "$ ./autogen.sh" and skip to Step i.
+     `configure' script with "$ ./autogen.sh" and skip to Step k.
      (You will need the tools mentioned in the file INSTALL.REPO.)
 
   c. Get the official GNU Emacs 25.X distribution tarball from some
@@ -260,14 +260,14 @@ Dock without separating a GUI process (not thread) from the main Emacs
   i. [Optional, recommended for non-Retina Display]
      If you want to use alpha-channeled version of splash image, which
      makes the fancy splash screen look better, then replace
-     etc/images/splash.png with the following one:
-     https://bytebucket.org/mituharu/emacs-mac/raw/82af04a197db41d8b9cc3bc04127be2bf01d255f/etc/images/splash.png
+     `etc/images/splash.png' with the one in the latest
+     `emacs-hires-icons-VERSION_NUMBER.tar.gz' above.
 
-  j. [Optional]
-     If you want to use the icon bundled with Emacs 25, then copy
-     `EMACS_SOURCE_TOP/nextstep/Cocoa/Emacs.base/Contents/Resources/Emacs.icns'
-     to `EMACS_SOURCE_TOP/mac/Emacs.app/Contents/Resources/Emacs.icns'
-     by overriding the latter.
+  j. [Optional, recommended for Retina Display]
+     If you want to use the icons containing 2x image data, then
+     replace `mac/Emacs.app/Contents/Resources/Emacs.icns' and
+     `mac/Emacs.app/Contents/Resources/document.icns' with the ones in
+     the latest `emacs-hires-icons-VERSION_NUMBER.tar.gz' above.
 
   k. Run the configure command (unlike the previous version, the
      "--with-mac" option is now default).  You may also want to

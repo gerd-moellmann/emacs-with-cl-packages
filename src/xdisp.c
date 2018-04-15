@@ -14220,7 +14220,8 @@ redisplay_internal (void)
       mini_window = FRAME_MINIBUF_WINDOW (sf);
       mini_frame = XFRAME (WINDOW_FRAME (XWINDOW (mini_window)));
 
-      if (mini_frame != sf && FRAME_WINDOW_P (mini_frame))
+      if (mini_frame != sf && FRAME_WINDOW_P (mini_frame)
+	  && FRAME_VISIBLE_P (mini_frame) && !FRAME_OBSCURED_P (mini_frame))
 	{
 	  XWINDOW (mini_window)->must_be_updated_p = true;
 	  pending |= update_frame (mini_frame, false, false);

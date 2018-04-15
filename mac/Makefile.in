@@ -1,6 +1,6 @@
 ### mac/Makefile for GNU Emacs Mac port
 
-## Copyright (C) 2012-2017  YAMAMOTO Mitsuharu
+## Copyright (C) 2012-2018  YAMAMOTO Mitsuharu
 
 ## This file is part of GNU Emacs Mac port.
 
@@ -77,10 +77,14 @@ Emacs.app/Contents/PkgInfo: ${srcdir}/Emacs.app/Contents/PkgInfo
 Emacs.app/Contents/Resources/Emacs.icns: ${srcdir}/Emacs.app/Contents/Resources/Emacs.icns
 	${MKDIR_P} Emacs.app/Contents/Resources
 	cp $< $@
+Emacs.app/Contents/Resources/document.icns: ${srcdir}/Emacs.app/Contents/Resources/document.icns
+	${MKDIR_P} Emacs.app/Contents/Resources
+	cp $< $@
 endif
 
 macosx-bundle: ${lprojdirs} Emacs.app/Contents/MacOS/Emacs.sh \
-	Emacs.app/Contents/PkgInfo Emacs.app/Contents/Resources/Emacs.icns
+	Emacs.app/Contents/PkgInfo Emacs.app/Contents/Resources/Emacs.icns \
+	Emacs.app/Contents/Resources/document.icns
 macosx-app: macosx-bundle Emacs.app/Contents/MacOS/Emacs
 Emacs.app/Contents/MacOS/Emacs: ../src/emacs${EXEEXT}
 	cp $< $@
