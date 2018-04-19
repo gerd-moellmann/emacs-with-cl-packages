@@ -86,6 +86,7 @@ macosx-bundle: ${lprojdirs} Emacs.app/Contents/MacOS/Emacs.sh \
 	Emacs.app/Contents/Resources/document.icns
 macosx-app: macosx-bundle Emacs.app/Contents/MacOS/Emacs
 Emacs.app/Contents/MacOS/Emacs: ../src/emacs${EXEEXT}
+	${MKDIR_P} Emacs.app/Contents/MacOS
 	cp $< $@
 
 .PHONY: all
