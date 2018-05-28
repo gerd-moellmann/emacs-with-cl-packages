@@ -719,6 +719,13 @@ breakpoint (e.g. with "f" and "o") by customizing the new option
 This allows you to enlarge the maximum recursion depth when
 instrumenting code.
 
+*** 'edebug-prin1-to-string' now aliases 'cl-prin1-to-string'.
+This means edebug output is affected by variables 'cl-print-readably'
+and 'cl-print-compiled'.  To completely restore the previous printing
+behavior, use
+
+    (fset 'edebug-prin1-to-string #'prin1-to-string)
+
 ** Eshell
 
 *** 'eshell-input-filter's value is now a named function
@@ -1278,6 +1285,13 @@ passphrases, but it was also removed from other pinentry programs as
 the attack is unrealistic on modern computer systems which don't
 utilize swap memory usually.
 
+** The function 'display-buffer-in-major-side-window' no longer exists.
+It has been renamed as internal function 'window--make-major-side-window',
+however applications should instead call 'display-buffer-in-side-window'
+(passing the SIDE and SLOT parameters as elements of ALIST).  This approach
+is backwards-compatible with versions of Emacs in which the old function
+exists.  See the node "Displaying Buffers in Side Windows" in the ELisp
+manual for more details.
 
 * Lisp Changes in Emacs 26.1
 
@@ -1375,10 +1389,9 @@ gets evaluated after the new mode's hook has run.  This can be used to
 incorporate configuration changes made in the mode hook into the
 mode's setup.
 
-** Autoload files can be generated without timestamps,
-by setting 'autoload-timestamps' to nil.
-FIXME As an experiment, nil is the current default.
-If no insurmountable problems before next release, it can stay that way.
+** Autoload files are now generated without timestamps.
+Set 'autoload-timestamps' to a non-nil value to get timestamps in
+autoload files.
 
 ** 'gnutls-boot' now takes a parameter ':complete-negotiation' that
 says that negotiation should complete even on non-blocking sockets.

@@ -183,7 +183,7 @@ are not shown in the @kbd{l} or @kbd{L} listings.
 @kindex DEL @r{(Gnus Group mode)}
 @item @key{DEL}
 Move point to the previous group containing unread articles
-(@code{gnus-group-prev-unread-group}.)
+(@code{gnus-group-prev-unread-group}).
 
 @kindex n @r{(Gnus Group mode)}
 @findex gnus-group-next-unread-group
@@ -686,7 +686,7 @@ either in the echo area (if it is short), or in an Emacs buffer named
 @file{*Shell Command Output*}, displayed in another window (if the
 output is long).  The variables @code{resize-mini-windows} and
 @code{max-mini-window-height} (@pxref{Minibuffer Edit}) control when
-the output is considered too long for the echo area.
+Emacs should consider the output to be too long for the echo area.
 
   For instance, one way to decompress a file named @file{foo.gz} is to
 type @kbd{M-! gunzip foo.gz @key{RET}}.  That shell command normally
@@ -784,7 +784,8 @@ text in the buffer.  To give input to the subshell, go to the end of
 the buffer and type the input, terminated by @key{RET}.
 
   By default, when the subshell is invoked interactively, the
-@file{*shell*} buffer is displayed in a new window.  This behavior can
+@file{*shell*} buffer is displayed in a new window, unless the current
+window already shows the @file{*shell*} buffer.  This behavior can
 be customized via @code{display-buffer-alist} (@pxref{Window Choice}).
 
   While the subshell is waiting or running a command, you can switch
@@ -1071,7 +1072,7 @@ Emacs Lisp Reference Manual}).
 @vindex comint-use-prompt-regexp
 @vindex shell-prompt-pattern
   If you change the variable @code{comint-use-prompt-regexp} to a
-non-@code{nil} value, then Comint mode recognize prompts using a
+non-@code{nil} value, then Comint mode will recognize prompts using a
 regular expression (@pxref{Regexps}).  In Shell mode, the regular
 expression is specified by the variable @code{shell-prompt-pattern}.
 The default value of @code{comint-use-prompt-regexp} is @code{nil},
@@ -1145,10 +1146,11 @@ Display the buffer's history of shell commands in another window
 
   Shell buffers provide a history of previously entered shell
 commands.  To reuse shell commands from the history, use the editing
-commands @kbd{M-p}, @kbd{M-n}, @kbd{M-r} and @kbd{M-s}.  These work
-just like the minibuffer history commands (@pxref{Minibuffer
+commands @kbd{M-p}, @kbd{M-n}, and @kbd{M-r}.  These work
+similar to the minibuffer history commands (@pxref{Minibuffer
 History}), except that they operate within the Shell buffer rather
-than the minibuffer.
+than the minibuffer, and @code{M-r} in a Shell buffer invokes
+incremental search through shell command history.
 
   @kbd{M-p} fetches an earlier shell command to the end of the shell
 buffer.  Successive use of @kbd{M-p} fetches successively earlier
@@ -1510,8 +1512,8 @@ interface is similar to the @code{more} program.
 @cindex Rlogin
 
   You can login to a remote computer, using whatever commands you
-would from a regular terminal (e.g., using the @code{ssh} or
-@code{telnet} or @code{rlogin} commands), from a Term window.
+would from a regular terminal (e.g., using the @command{ssh} or
+@command{telnet} or @code{rlogin} commands), from a Term window.
 
   A program that asks you for a password will normally suppress
 echoing of the password, so the password will not show up in the
@@ -2852,7 +2854,7 @@ which has a similar feature of its own.
 @cindex finding file at point
 
   The FFAP package replaces certain key bindings for finding files,
-such as @kbd{C-x C-f}, with commands that provide more sensitive
+such as @kbd{C-x C-f}, with commands that provide more sensible
 defaults.  These commands behave like the ordinary ones when given a
 prefix argument.  Otherwise, they get the default file name or URL
 from the text around point.  If what is found in the buffer has the
