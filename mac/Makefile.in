@@ -67,7 +67,7 @@ lprojdirs = Emacs.app/Contents/Resources/English.lproj \
 ${lprojdirs}:
 	${MKDIR_P} $@
 
-ifneq ($(CURDIR),${srcdir})
+ifneq ($(CURDIR), $(realpath ${srcdir}))
 Emacs.app/Contents/MacOS/Emacs.sh: ${srcdir}/Emacs.app/Contents/MacOS/Emacs.sh
 	${MKDIR_P} Emacs.app/Contents/MacOS
 	cp $< $@

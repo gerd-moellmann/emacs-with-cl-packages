@@ -1241,7 +1241,7 @@ displays the buffer specified by @var{buffer-or-name} @emph{before}
 running @var{body}.
 @end defmac
 
-A window showing a temporary buffer can be fit to the size of that
+A window showing a temporary buffer can be fitted to the size of that
 buffer using the following mode:
 
 @defopt temp-buffer-resize-mode
@@ -1274,7 +1274,7 @@ positive integer.  At the time the function is called, the window to be
 resized is selected.
 @end defopt
 
-The following function uses the current buffer for temporal display:
+The following function uses the current buffer for temporary display:
 
 @defun momentary-string-display string position &optional char message
 This function momentarily displays @var{string} in the current buffer at
@@ -7236,8 +7236,8 @@ Characters of Unicode General Category [Cf], such as @samp{U+200E}
 images, such as @samp{U+00AD} (Soft Hyphen).
 
 @item no-font
-Characters for there is no suitable font, or which cannot be encoded
-by the terminal's coding system.
+Characters for which there is no suitable font, or which cannot be
+encoded by the terminal's coding system.
 @end table
 
 @c FIXME: this can also be 'acronym', but that's not currently
