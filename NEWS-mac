@@ -1,5 +1,24 @@
+* emacs-26.1-mac-7.0 (2018-05-29)
+Based on Emacs 26.1.
+Redesign `select' emulation code to support concurrency on Emacs 26
+properly.  Now the Lisp REPL runs in a non-main thread, so the main
+thread is dedicated to GUI tasks, which might be requested from
+multiple Lisp threads.  The GUI and Lisp threads run mostly
+cooperatively (i.e., do not run simultaneously) except in the `select'
+emulation.
+
+** Fixed bugs
+
+*** Circular dependency in mac/Emacs.app/Contents for in-tree build.
+Contributed by Jose Arroyo.
+
+*** Symlinks autocomplete as directories on OS X 10.9 and earlier
+(Bug#31305).  A workaround is added.
+
+
 * emacs-26.1-rc1-mac-6.90 (2018-04-15)
 Based on Emacs 26.1 release candidate.
+https://lists.gnu.org/r/emacs-devel/2018-04/msg00405.html
 
 
 * emacs-25.3-mac-6.9 (2018-04-15)
