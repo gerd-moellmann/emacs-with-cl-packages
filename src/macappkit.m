@@ -3979,6 +3979,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
     }
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
 - (void)window:(NSWindow *)window
   startCustomAnimationToEnterFullScreenWithDuration:(NSTimeInterval)duration
 {
@@ -4058,12 +4059,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       [(EmacsMainView *)emacsView synchronizeChildFrameOrigins];
     }];
 }
+#endif
 
 - (NSArrayOf (NSWindow *) *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
 {
   return [self customWindowsToEnterFullScreenForWindow:window];
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
 - (void)window:(NSWindow *)window
   startCustomAnimationToExitFullScreenWithDuration:(NSTimeInterval)duration
 {
@@ -4129,6 +4132,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       [(EmacsMainView *)emacsView synchronizeChildFrameOrigins];
     }];
 }
+#endif
 
 - (BOOL)isWindowFrontmost
 {
