@@ -11003,7 +11003,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
       mac_within_gui (^{
 	  NSBitmapImageRep *bitmap = [frameController bitmapImageRep];
 	  NSData *data =
-	    [bitmap representationUsingType:NSPNGFileType
+	    [bitmap representationUsingType:NSBitmapImageFileTypePNG
 				 properties:[NSDictionary dictionary]];
 
 	  if (data)

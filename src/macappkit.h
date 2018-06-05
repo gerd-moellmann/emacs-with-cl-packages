@@ -1295,6 +1295,10 @@ typedef NSString * NSTouchBarItemIdentifier;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+static const NSBitmapImageFileType NSBitmapImageFileTypePNG = NSPNGFileType;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 @interface PDFPage (AvailableOn101200AndLater)
 - (void) drawWithBox: (PDFDisplayBox) box toContext:(CGContextRef)context;
 @end
