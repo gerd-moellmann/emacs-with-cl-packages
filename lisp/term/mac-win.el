@@ -2319,18 +2319,13 @@ non-nil, and the input device supports it."
         (if mouse-wheel-tilt-scroll
             (if (null (plist-get (nth 3 event) :delta-x))
                 (mwheel-scroll event)
-              (let ((direction-inverted-from-device-p
-                     (plist-get (nth 3 event)
-                                :direction-inverted-from-device-p)))
-                (setf (nth 3 event)
-                      (round (abs (plist-get (nth 3 event) :delta-x))))
-                (when (> (nth 3 event) 0)
-                  (let ((mouse-wheel-scroll-amount
-                         '(1 ((shift) . 5) ((control))))
-                        (mouse-wheel-progressive-speed nil)
-                        (mouse-wheel-flip-direction
-                         direction-inverted-from-device-p))
-                    (mwheel-scroll event)))))
+              (setf (nth 3 event)
+                    (round (abs (plist-get (nth 3 event) :delta-x))))
+              (when (> (nth 3 event) 0)
+                (let ((mouse-wheel-scroll-amount
+                       '(1 ((shift) . 5) ((control))))
+                      (mouse-wheel-progressive-speed nil))
+                  (mwheel-scroll event))))
           (cond ((and
                   ;; "Swipe between pages" enabled.
                   (plist-get (nth 3 event)
