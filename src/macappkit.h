@@ -1138,6 +1138,10 @@ enum {
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+static const NSBezelStyle NSBezelStyleRounded = NSRoundedBezelStyle;
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 enum {
   NSPaperOrientationPortrait	= NSPortraitOrientation,
