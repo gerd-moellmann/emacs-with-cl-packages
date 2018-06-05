@@ -510,9 +510,6 @@ typedef NSString * NSKeyValueChangeKey;
   /* Whether to highlight the area corresponding to the content of the
      Emacs frame window.  */
   BOOL highlighted;
-
-  /* Whether to show the resize indicator.  */
-  BOOL showsResizeIndicator;
 }
 - (void)setHighlighted:(BOOL)flag;
 - (void)setShowsResizeIndicator:(BOOL)flag;
