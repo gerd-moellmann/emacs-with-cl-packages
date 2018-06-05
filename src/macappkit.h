@@ -512,7 +512,9 @@ typedef NSString * NSKeyValueChangeKey;
   BOOL highlighted;
 }
 - (void)setHighlighted:(BOOL)flag;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 - (void)setShowsResizeIndicator:(BOOL)flag;
+#endif
 @end
 
 /* Class for scroller that doesn't do modal mouse tracking.  */

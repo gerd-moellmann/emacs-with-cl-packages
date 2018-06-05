@@ -2573,8 +2573,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       if (has_resize_indicator_at_bottom_right_p ())
 	[window setShowsResizeIndicator:NO];
       [self setupOverlayView];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
       if (has_resize_indicator_at_bottom_right_p ())
 	[overlayView setShowsResizeIndicator:self.shouldBeTitled];
+#endif
       /* We place overlayView below emacsView so events are not
 	 intercepted by the former.  Still the former (layer-hosting)
 	 is displayed in front of the latter (neither layer-backed nor
@@ -2981,12 +2983,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   if (setFrameType != SET_FRAME_UNNECESSARY)
     {
-      BOOL showsResizeIndicator;
       NSRect frameRect = [self preprocessWindowManagerStateChange:newState];
 
       if ((diff & WM_STATE_FULLSCREEN)
 	  || setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
 	[self updateWindowStyle];
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+      BOOL showsResizeIndicator;
 
       if ((newState & WM_STATE_FULLSCREEN)
 	  || ((newState & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT))
@@ -2996,6 +3000,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	showsResizeIndicator = YES;
       if (has_resize_indicator_at_bottom_right_p ())
 	[overlayView setShowsResizeIndicator:showsResizeIndicator];
+#endif
       /* This makes it impossible to toggle toolbar visibility for
 	 maximized frames on Mac OS X 10.7.  */
 #if 0
@@ -7072,6 +7077,7 @@ mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 
 @implementation EmacsOverlayView
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 static CGImageRef
 create_resize_indicator_image (void)
 {
@@ -7105,6 +7111,7 @@ create_resize_indicator_image (void)
 
   return image;
 }
+#endif
 
 - (void)setHighlighted:(BOOL)flag
 {
@@ -7128,6 +7135,7 @@ create_resize_indicator_image (void)
     layer.borderWidth = 0;
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 - (void)setShowsResizeIndicator:(BOOL)flag
 {
   CALayer *layer = [self layer];
@@ -7145,6 +7153,7 @@ create_resize_indicator_image (void)
   else
     layer.contents = nil;
 }
+#endif
 
 @end				// EmacsOverlayView
 
