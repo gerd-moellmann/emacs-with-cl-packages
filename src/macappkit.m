@@ -7433,6 +7433,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   return hitPart;
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 - (void)highlight:(BOOL)flag
 {
   if (hitPart == NSScrollerIncrementLine
@@ -7457,6 +7458,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 
   [super drawArrow:position highlightPart:part];
 }
+#endif
 
 /* Post a dummy mouse dragged event to the main event queue to notify
    timer has expired.  */
@@ -7516,7 +7518,9 @@ static BOOL NonmodalScrollerPagingBehavior;
   if (hitPart != NSScrollerKnob && !jumpsToClickedSpot)
     {
       [self rescheduleTimer:[self buttonDelay]];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
       [self highlight:YES];
+#endif
       [self sendAction:[self action] to:[self target]];
     }
   else
@@ -7569,7 +7573,9 @@ static BOOL NonmodalScrollerPagingBehavior;
 {
   NSScrollerPart lastPart = hitPart;
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   [self highlight:NO];
+#endif
   [self rescheduleTimer:-1];
 
   hitPart = NSScrollerNoPart;
@@ -7657,22 +7663,30 @@ static BOOL NonmodalScrollerPagingBehavior;
 		unhilite = YES;
 	      break;
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 	    case NSScrollerIncrementLine:
 	    case NSScrollerDecrementLine:
 	      if (part != NSScrollerIncrementLine
 		  && part != NSScrollerDecrementLine)
 		unhilite = YES;
 	      break;
+#endif
 	    }
 	}
 
       if (unhilite)
-	[self highlight:NO];
+	{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+	  [self highlight:NO];
+#endif
+	}
       else if (part != hitPart || timer == nil)
 	{
 	  hitPart = part;
 	  [self rescheduleTimer:[self buttonPeriod]];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 	  [self highlight:YES];
+#endif
 	  [self sendAction:[self action] to:[self target]];
 	}
     }
@@ -7975,6 +7989,7 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part,
 {
   switch (part)
     {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
     case NSScrollerDecrementLine:	return ((flags
 						 & NSEventModifierFlagOption)
 						? scroll_bar_above_handle
@@ -7983,6 +7998,7 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part,
 						 & NSEventModifierFlagOption)
 						? scroll_bar_below_handle
 						: scroll_bar_down_arrow);
+#endif
     case NSScrollerDecrementPage:	return scroll_bar_above_handle;
     case NSScrollerIncrementPage:	return scroll_bar_below_handle;
     case NSScrollerKnob:		return scroll_bar_handle;
@@ -7998,6 +8014,7 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 {
   switch (part)
     {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
     case NSScrollerDecrementLine:	return ((flags
 						 & NSEventModifierFlagOption)
 						? scroll_bar_before_handle
@@ -8006,6 +8023,7 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 						 & NSEventModifierFlagOption)
 						? scroll_bar_after_handle
 						: scroll_bar_right_arrow);
+#endif
     case NSScrollerDecrementPage:	return scroll_bar_before_handle;
     case NSScrollerIncrementPage:	return scroll_bar_after_handle;
     case NSScrollerKnob:		return scroll_bar_horizontal_handle;
