@@ -2305,7 +2305,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 {
   Lisp_Object alist =
     list1 (Fcons (Qtool_bar_lines,
-		  make_number ([(NSMenuItem *)sender state] != NSOffState)));
+		  make_number ([(NSMenuItem *)sender state]
+			       != NSControlStateValueOff)));
   EmacsFrameController *frameController = ((EmacsFrameController *)
 					   [self delegate]);
 
@@ -9808,9 +9809,9 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
       /* Draw radio buttons and tickboxes. */
       if (wv->selected && (wv->button_type == BUTTON_TYPE_TOGGLE
 			   || wv->button_type == BUTTON_TYPE_RADIO))
-	[item setState:NSOnState];
+	[item setState:NSControlStateValueOn];
       else
-	[item setState:NSOffState];
+	[item setState:NSControlStateValueOff];
 
       [item setTag:((NSInteger) (intptr_t) wv->call_data)];
     }
@@ -10068,7 +10069,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 
 	[item setTarget:window];
 	if ([window isKeyWindow])
-	  [item setState:NSOnState];
+	  [item setState:NSControlStateValueOn];
 	else if ([window isMiniaturized])
 	  {
 	    NSImage *image = [NSImage imageNamed:@"NSMenuItemDiamond"];
@@ -10076,7 +10077,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	    if (image)
 	      {
 		[item setOnStateImage:image];
-		[item setState:NSOnState];
+		[item setState:NSControlStateValueOn];
 	      }
 	  }
 	[menu addItem:item];

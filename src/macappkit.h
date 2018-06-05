@@ -1184,6 +1184,12 @@ enum {
 };
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSInteger NSControlStateValue;
+static const NSControlStateValue NSControlStateValueOff = NSOffState;
+static const NSControlStateValue NSControlStateValueOn = NSOnState;
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
 typedef NSString * NSTouchBarItemIdentifier;
 
