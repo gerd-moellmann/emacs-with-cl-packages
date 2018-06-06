@@ -723,13 +723,6 @@ typedef NSString * NSPasteboardName;
 @interface EmacsOSAScript : OSAScript
 @end
 
-@interface DOMSVGRect : DOMObject
-- (float)x;
-- (float)y;
-- (float)width;
-- (float)height;
-@end
-
 @interface NSView (Emacs)
 - (XImagePtr)createXImageFromRect:(NSRect)rect backgroundColor:(NSColor *)color
 		      scaleFactor:(CGFloat)scaleFactor;
