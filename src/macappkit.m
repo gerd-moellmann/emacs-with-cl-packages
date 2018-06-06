@@ -5396,8 +5396,13 @@ mac_cursor_create (ThemeCursor shape, const XColor *fore_color,
 
 	  CGContextClearRect (context, CGRectMake (0, 0, width, height));
 	  [NSGraphicsContext saveGraphicsState];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+	  gcontext = [NSGraphicsContext graphicsContextWithCGContext:context
+							     flipped:NO];
+#else
 	  gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:context
 								flipped:NO];
+#endif
 	  [NSGraphicsContext setCurrentContext:gcontext];
 	  [rep draw];
 	  [NSGraphicsContext restoreGraphicsState];
@@ -6873,8 +6878,10 @@ set_global_focus_view_frame (struct frame *f)
 #endif
 	}
       global_focus_view_frame = f;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+      FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] CGContext];
+#else
       FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] graphicsPort];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
       global_focus_view_accumulated_clip_rect = CGRectNull;
 #endif
     }
@@ -6981,8 +6988,12 @@ mac_begin_cg_clip (struct frame *f, GC gc)
 
       mac_within_gui (^{
 	  [frameController lockFocusOnEmacsView];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+	  FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] CGContext];
+#else
 	  FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext]
 				   graphicsPort];
+#endif
 	});
     }
   else
@@ -11073,8 +11084,13 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 						forKey:((__bridge NSString *)
 							kCGPDFContextMediaBox)];
 		  NSGraphicsContext *gcontext =
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+		    [NSGraphicsContext graphicsContextWithCGContext:context
+							    flipped:NO];
+#else
 		    [NSGraphicsContext graphicsContextWithGraphicsPort:context
 							       flipped:NO];
+#endif
 
 		  CGPDFContextBeginPage (context,
 					 (__bridge CFDictionaryRef) pageInfo);
@@ -12621,8 +12637,13 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 
       return NULL;
     }
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+  gcontext = [NSGraphicsContext graphicsContextWithCGContext:context
+						     flipped:NO];
+#else
   gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:context
 							flipped:NO];
+#endif
   transform = [NSAffineTransform transform];
   [transform scaleBy:scaleFactor];
   [transform translateXBy:(- NSMinX (rect)) yBy:(- NSMinY (rect))];
@@ -13213,7 +13234,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   NSRange glyphRange = [layoutManager glyphRangeForTextContainer:textContainer];
   NSAffineTransform *transform = [NSAffineTransform transform];
   NSGraphicsContext *gcontext =
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+    [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:YES];
+#else
     [NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES];
+#endif
 
   [NSGraphicsContext saveGraphicsState];
   [NSGraphicsContext setCurrentContext:gcontext];
