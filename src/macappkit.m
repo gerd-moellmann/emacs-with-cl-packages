@@ -12650,7 +12650,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
   [NSGraphicsContext saveGraphicsState];
   [NSGraphicsContext setCurrentContext:gcontext];
   [transform concat];
-  if (!([self isOpaque] && NSContainsRect (rect, [self bounds])))
+  if (!(self.isOpaque && NSContainsRect (self.bounds, rect)))
     {
       [NSGraphicsContext saveGraphicsState];
       [(color ? color : [NSColor clearColor]) set];
