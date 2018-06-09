@@ -405,6 +405,12 @@ handle_alarm_signal (int sig)
 #endif
 }
 
+static void
+deliver_alarm_signal (int sig)
+{
+  deliver_process_signal (sig, handle_alarm_signal);
+}
+
 #ifdef HAVE_TIMERFD
 
 /* Called from wait_reading_process_output when FD, which
@@ -590,7 +596,7 @@ init_atimer (void)
 
   /* pending_signals is initialized in init_keyboard.  */
   struct sigaction action;
-  emacs_sigaction_init (&action, handle_alarm_signal);
+  emacs_sigaction_init (&action, deliver_alarm_signal);
   sigaction (SIGALRM, &action, 0);
 
 #ifdef ENABLE_CHECKING
