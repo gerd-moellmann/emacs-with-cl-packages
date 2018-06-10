@@ -1,3 +1,14 @@
+* emacs-26.1-mac-7.1 (2018-06-10)
+
+** Fixed bugs
+
+*** mouse-wheel-flip-direction does not have any effect.
+Reported by Yuen Ho Wang.
+
+*** C-g does not quit call-process.
+Reported by xristos.
+
+
 * emacs-26.1-mac-7.0 (2018-05-29)
 Based on Emacs 26.1.
 Redesign `select' emulation code to support concurrency on Emacs 26
@@ -6,6 +17,7 @@ thread is dedicated to GUI tasks, which might be requested from
 multiple Lisp threads.  The GUI and Lisp threads run mostly
 cooperatively (i.e., do not run simultaneously) except in the `select'
 emulation.
+https://lists.gnu.org/r/emacs-devel/2018-05/msg00784.html
 
 ** Fixed bugs
 

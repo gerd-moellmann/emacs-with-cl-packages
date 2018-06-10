@@ -510,12 +510,11 @@ typedef NSString * NSKeyValueChangeKey;
   /* Whether to highlight the area corresponding to the content of the
      Emacs frame window.  */
   BOOL highlighted;
-
-  /* Whether to show the resize indicator.  */
-  BOOL showsResizeIndicator;
 }
 - (void)setHighlighted:(BOOL)flag;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 - (void)setShowsResizeIndicator:(BOOL)flag;
+#endif
 @end
 
 /* Class for scroller that doesn't do modal mouse tracking.  */
@@ -722,13 +721,6 @@ typedef NSString * NSPasteboardName;
 @end
 
 @interface EmacsOSAScript : OSAScript
-@end
-
-@interface DOMSVGRect : DOMObject
-- (float)x;
-- (float)y;
-- (float)width;
-- (float)height;
 @end
 
 @interface NSView (Emacs)
@@ -1141,6 +1133,10 @@ enum {
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+static const NSBezelStyle NSBezelStyleRounded = NSRoundedBezelStyle;
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 enum {
   NSPaperOrientationPortrait	= NSPortraitOrientation,
@@ -1185,6 +1181,12 @@ enum {
   NSControlSizeRegular	= NSRegularControlSize,
   NSControlSizeSmall	= NSSmallControlSize
 };
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSInteger NSControlStateValue;
+static const NSControlStateValue NSControlStateValueOff = NSOffState;
+static const NSControlStateValue NSControlStateValueOn = NSOnState;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
@@ -1285,6 +1287,10 @@ typedef NSString * NSTouchBarItemIdentifier;
 + (instancetype)radioButtonWithTitle:(NSString *)title
 			      target:(id)target action:(SEL)action;
 @end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+static const NSBitmapImageFileType NSBitmapImageFileTypePNG = NSPNGFileType;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200

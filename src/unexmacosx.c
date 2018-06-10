@@ -626,6 +626,11 @@ print_load_command_name (int lc)
       printf ("LC_DYLIB_CODE_SIGN_DRS");
       break;
 #endif
+#ifdef LC_BUILD_VERSION
+    case LC_BUILD_VERSION:
+      printf ("LC_BUILD_VERSION ");
+      break;
+#endif
     default:
       printf ("unknown          ");
     }

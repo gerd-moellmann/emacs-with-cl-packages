@@ -2305,7 +2305,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 {
   Lisp_Object alist =
     list1 (Fcons (Qtool_bar_lines,
-		  make_number ([(NSMenuItem *)sender state] != NSOffState)));
+		  make_number ([(NSMenuItem *)sender state]
+			       != NSControlStateValueOff)));
   EmacsFrameController *frameController = ((EmacsFrameController *)
 					   [self delegate]);
 
@@ -2572,8 +2573,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       if (has_resize_indicator_at_bottom_right_p ())
 	[window setShowsResizeIndicator:NO];
       [self setupOverlayView];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
       if (has_resize_indicator_at_bottom_right_p ())
 	[overlayView setShowsResizeIndicator:self.shouldBeTitled];
+#endif
       /* We place overlayView below emacsView so events are not
 	 intercepted by the former.  Still the former (layer-hosting)
 	 is displayed in front of the latter (neither layer-backed nor
@@ -2980,12 +2983,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   if (setFrameType != SET_FRAME_UNNECESSARY)
     {
-      BOOL showsResizeIndicator;
       NSRect frameRect = [self preprocessWindowManagerStateChange:newState];
 
       if ((diff & WM_STATE_FULLSCREEN)
 	  || setFrameType == SET_FRAME_TOGGLE_FULL_SCREEN_LATER)
 	[self updateWindowStyle];
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+      BOOL showsResizeIndicator;
 
       if ((newState & WM_STATE_FULLSCREEN)
 	  || ((newState & (WM_STATE_MAXIMIZED_HORZ | WM_STATE_MAXIMIZED_VERT))
@@ -2995,6 +3000,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	showsResizeIndicator = YES;
       if (has_resize_indicator_at_bottom_right_p ())
 	[overlayView setShowsResizeIndicator:showsResizeIndicator];
+#endif
       /* This makes it impossible to toggle toolbar visibility for
 	 maximized frames on Mac OS X 10.7.  */
 #if 0
@@ -3978,6 +3984,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
     }
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
 - (void)window:(NSWindow *)window
   startCustomAnimationToEnterFullScreenWithDuration:(NSTimeInterval)duration
 {
@@ -4057,12 +4064,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       [(EmacsMainView *)emacsView synchronizeChildFrameOrigins];
     }];
 }
+#endif
 
 - (NSArrayOf (NSWindow *) *)customWindowsToExitFullScreenForWindow:(NSWindow *)window
 {
   return [self customWindowsToEnterFullScreenForWindow:window];
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
 - (void)window:(NSWindow *)window
   startCustomAnimationToExitFullScreenWithDuration:(NSTimeInterval)duration
 {
@@ -4128,6 +4137,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       [(EmacsMainView *)emacsView synchronizeChildFrameOrigins];
     }];
 }
+#endif
 
 - (BOOL)isWindowFrontmost
 {
@@ -5386,8 +5396,13 @@ mac_cursor_create (ThemeCursor shape, const XColor *fore_color,
 
 	  CGContextClearRect (context, CGRectMake (0, 0, width, height));
 	  [NSGraphicsContext saveGraphicsState];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+	  gcontext = [NSGraphicsContext graphicsContextWithCGContext:context
+							     flipped:NO];
+#else
 	  gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:context
 								flipped:NO];
+#endif
 	  [NSGraphicsContext setCurrentContext:gcontext];
 	  [rep draw];
 	  [NSGraphicsContext restoreGraphicsState];
@@ -6863,8 +6878,10 @@ set_global_focus_view_frame (struct frame *f)
 #endif
 	}
       global_focus_view_frame = f;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+      FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] CGContext];
+#else
       FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] graphicsPort];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
       global_focus_view_accumulated_clip_rect = CGRectNull;
 #endif
     }
@@ -6971,8 +6988,12 @@ mac_begin_cg_clip (struct frame *f, GC gc)
 
       mac_within_gui (^{
 	  [frameController lockFocusOnEmacsView];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+	  FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] CGContext];
+#else
 	  FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext]
 				   graphicsPort];
+#endif
 	});
     }
   else
@@ -7067,6 +7088,7 @@ mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 
 @implementation EmacsOverlayView
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 static CGImageRef
 create_resize_indicator_image (void)
 {
@@ -7100,6 +7122,7 @@ create_resize_indicator_image (void)
 
   return image;
 }
+#endif
 
 - (void)setHighlighted:(BOOL)flag
 {
@@ -7123,6 +7146,7 @@ create_resize_indicator_image (void)
     layer.borderWidth = 0;
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 - (void)setShowsResizeIndicator:(BOOL)flag
 {
   CALayer *layer = [self layer];
@@ -7140,6 +7164,7 @@ create_resize_indicator_image (void)
   else
     layer.contents = nil;
 }
+#endif
 
 @end				// EmacsOverlayView
 
@@ -7419,6 +7444,7 @@ static BOOL NonmodalScrollerPagingBehavior;
   return hitPart;
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 - (void)highlight:(BOOL)flag
 {
   if (hitPart == NSScrollerIncrementLine
@@ -7443,6 +7469,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 
   [super drawArrow:position highlightPart:part];
 }
+#endif
 
 /* Post a dummy mouse dragged event to the main event queue to notify
    timer has expired.  */
@@ -7502,7 +7529,9 @@ static BOOL NonmodalScrollerPagingBehavior;
   if (hitPart != NSScrollerKnob && !jumpsToClickedSpot)
     {
       [self rescheduleTimer:[self buttonDelay]];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
       [self highlight:YES];
+#endif
       [self sendAction:[self action] to:[self target]];
     }
   else
@@ -7555,7 +7584,9 @@ static BOOL NonmodalScrollerPagingBehavior;
 {
   NSScrollerPart lastPart = hitPart;
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
   [self highlight:NO];
+#endif
   [self rescheduleTimer:-1];
 
   hitPart = NSScrollerNoPart;
@@ -7643,22 +7674,30 @@ static BOOL NonmodalScrollerPagingBehavior;
 		unhilite = YES;
 	      break;
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 	    case NSScrollerIncrementLine:
 	    case NSScrollerDecrementLine:
 	      if (part != NSScrollerIncrementLine
 		  && part != NSScrollerDecrementLine)
 		unhilite = YES;
 	      break;
+#endif
 	    }
 	}
 
       if (unhilite)
-	[self highlight:NO];
+	{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+	  [self highlight:NO];
+#endif
+	}
       else if (part != hitPart || timer == nil)
 	{
 	  hitPart = part;
 	  [self rescheduleTimer:[self buttonPeriod]];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 	  [self highlight:YES];
+#endif
 	  [self sendAction:[self action] to:[self target]];
 	}
     }
@@ -7961,6 +8000,7 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part,
 {
   switch (part)
     {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
     case NSScrollerDecrementLine:	return ((flags
 						 & NSEventModifierFlagOption)
 						? scroll_bar_above_handle
@@ -7969,6 +8009,7 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part,
 						 & NSEventModifierFlagOption)
 						? scroll_bar_below_handle
 						: scroll_bar_down_arrow);
+#endif
     case NSScrollerDecrementPage:	return scroll_bar_above_handle;
     case NSScrollerIncrementPage:	return scroll_bar_below_handle;
     case NSScrollerKnob:		return scroll_bar_handle;
@@ -7984,6 +8025,7 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 {
   switch (part)
     {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
     case NSScrollerDecrementLine:	return ((flags
 						 & NSEventModifierFlagOption)
 						? scroll_bar_before_handle
@@ -7992,6 +8034,7 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 						 & NSEventModifierFlagOption)
 						? scroll_bar_after_handle
 						: scroll_bar_right_arrow);
+#endif
     case NSScrollerDecrementPage:	return scroll_bar_before_handle;
     case NSScrollerIncrementPage:	return scroll_bar_after_handle;
     case NSScrollerKnob:		return scroll_bar_horizontal_handle;
@@ -9631,14 +9674,14 @@ create_ok_cancel_buttons_view (void)
   NSArrayOf (NSString *) *formats;
 
   cancelButton = [[NSButton alloc] init];
-  [cancelButton setBezelStyle:NSRoundedBezelStyle];
+  [cancelButton setBezelStyle:NSBezelStyleRounded];
   [cancelButton setTitle:@"Cancel"];
   [cancelButton setAction:@selector(cancel:)];
   [cancelButton setKeyEquivalent:@"\e"];
   [cancelButton setTranslatesAutoresizingMaskIntoConstraints:NO];
 
   okButton = [[NSButton alloc] init];
-  [okButton setBezelStyle:NSRoundedBezelStyle];
+  [okButton setBezelStyle:NSBezelStyleRounded];
   [okButton setTitle:@"OK"];
   [okButton setAction:@selector(ok:)];
   [okButton setKeyEquivalent:@"\r"];
@@ -9681,7 +9724,7 @@ create_ok_cancel_buttons_view (void)
   NSRect frame;
   NSButtonCell *cancelButton, *okButton;
 
-  [prototype setBezelStyle:NSRoundedBezelStyle];
+  [prototype setBezelStyle:NSBezelStyleRounded];
   cellSize = [prototype cellSize];
   frame = NSMakeRect (0, 0, cellSize.width * 2, cellSize.height);
   view = [[NSMatrix alloc] initWithFrame:frame
@@ -9808,9 +9851,9 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
       /* Draw radio buttons and tickboxes. */
       if (wv->selected && (wv->button_type == BUTTON_TYPE_TOGGLE
 			   || wv->button_type == BUTTON_TYPE_RADIO))
-	[item setState:NSOnState];
+	[item setState:NSControlStateValueOn];
       else
-	[item setState:NSOffState];
+	[item setState:NSControlStateValueOff];
 
       [item setTag:((NSInteger) (intptr_t) wv->call_data)];
     }
@@ -10068,7 +10111,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 
 	[item setTarget:window];
 	if ([window isKeyWindow])
-	  [item setState:NSOnState];
+	  [item setState:NSControlStateValueOn];
 	else if ([window isMiniaturized])
 	  {
 	    NSImage *image = [NSImage imageNamed:@"NSMenuItemDiamond"];
@@ -10076,7 +10119,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	    if (image)
 	      {
 		[item setOnStateImage:image];
-		[item setState:NSOnState];
+		[item setState:NSControlStateValueOn];
 	      }
 	  }
 	[menu addItem:item];
@@ -10503,7 +10546,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
       [self addSubview:button];
       MRC_RELEASE (button);
 
-      [button setBezelStyle:NSRoundedBezelStyle];
+      [button setBezelStyle:NSBezelStyleRounded];
       [button setFont:[NSFont systemFontOfSize:0]];
       [button setTitle:label];
 
@@ -11002,7 +11045,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
       mac_within_gui (^{
 	  NSBitmapImageRep *bitmap = [frameController bitmapImageRep];
 	  NSData *data =
-	    [bitmap representationUsingType:NSPNGFileType
+	    [bitmap representationUsingType:NSBitmapImageFileTypePNG
 				 properties:[NSDictionary dictionary]];
 
 	  if (data)
@@ -11041,8 +11084,13 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 						forKey:((__bridge NSString *)
 							kCGPDFContextMediaBox)];
 		  NSGraphicsContext *gcontext =
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+		    [NSGraphicsContext graphicsContextWithCGContext:context
+							    flipped:NO];
+#else
 		    [NSGraphicsContext graphicsContextWithGraphicsPort:context
 							       flipped:NO];
+#endif
 
 		  CGPDFContextBeginPage (context,
 					 (__bridge CFDictionaryRef) pageInfo);
@@ -12589,15 +12637,20 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 
       return NULL;
     }
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+  gcontext = [NSGraphicsContext graphicsContextWithCGContext:context
+						     flipped:NO];
+#else
   gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:context
 							flipped:NO];
+#endif
   transform = [NSAffineTransform transform];
   [transform scaleBy:scaleFactor];
   [transform translateXBy:(- NSMinX (rect)) yBy:(- NSMinY (rect))];
   [NSGraphicsContext saveGraphicsState];
   [NSGraphicsContext setCurrentContext:gcontext];
   [transform concat];
-  if (!([self isOpaque] && NSContainsRect (rect, [self bounds])))
+  if (!(self.isOpaque && NSContainsRect (self.bounds, rect)))
     {
       [NSGraphicsContext saveGraphicsState];
       [(color ? color : [NSColor clearColor]) set];
@@ -13181,7 +13234,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   NSRange glyphRange = [layoutManager glyphRangeForTextContainer:textContainer];
   NSAffineTransform *transform = [NSAffineTransform transform];
   NSGraphicsContext *gcontext =
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+    [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:YES];
+#else
     [NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES];
+#endif
 
   [NSGraphicsContext saveGraphicsState];
   [NSGraphicsContext setCurrentContext:gcontext];
