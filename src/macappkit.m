@@ -12657,7 +12657,44 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       NSRectFill (rect);
       [NSGraphicsContext restoreGraphicsState];
     }
-  [self displayRectIgnoringOpacity:rect inContext:gcontext];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+  if ([self isKindOfClass:[WKWebView class]])
+    {
+      WKWebView *webView = (WKWebView *) self;
+      WKSnapshotConfiguration *snapshotConfiguration =
+	[[WKSnapshotConfiguration alloc] init];
+      NSImage * __block image;
+      BOOL __block finished = NO;
+
+      [webView _setOverrideDeviceScaleFactor:scaleFactor];
+      [webView takeSnapshotWithConfiguration:snapshotConfiguration
+			   completionHandler:^(NSImage *snapshotImage,
+					       NSError *error) {
+	  image = MRC_RETAIN (snapshotImage);
+	  finished = YES;
+	}];
+      MRC_RELEASE (snapshotConfiguration);
+
+      while (!finished)
+	mac_run_loop_run_once (0);
+
+      if (image == nil)
+	{
+	  [NSGraphicsContext restoreGraphicsState];
+	  CGContextRelease (context);
+	  XFreePixmap (NULL, ximg);
+
+	  return NULL;
+	}
+
+      rect = NSIntersectionRect (rect, self.bounds);
+      [image drawAtPoint:rect.origin fromRect:rect
+	       operation:NSCompositingOperationSourceOver fraction:1];
+      MRC_RELEASE (image);
+    }
+  else
+#endif
+    [self displayRectIgnoringOpacity:rect inContext:gcontext];
   [NSGraphicsContext restoreGraphicsState];
   CGContextRelease (context);
 
@@ -12685,27 +12722,85 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
   return self;
 }
 
+- (NSSize)frameSizeForBoundingBox:(id)boundingBox widthBaseVal:(id)widthBaseVal
+		    heightBaseVal:(id)heightBaseVal imageWidth:(int *)imageWidth
+		      imageHeight:(int *)imageHeight
+{
+  NSNumber *unitType, *num;
+  NSSize frameSize;
+  int width, height;
+  enum {
+	SVG_LENGTHTYPE_PERCENTAGE = 2
+  };
+
+  unitType = [widthBaseVal valueForKey:@"unitType"];
+  if (unitType.intValue == SVG_LENGTHTYPE_PERCENTAGE)
+    {
+      frameSize.width =
+	round ([[boundingBox valueForKey:@"x"] doubleValue]
+	       + [[boundingBox valueForKey:@"width"] doubleValue]);
+      num = [widthBaseVal valueForKey:@"valueInSpecifiedUnits"];
+      width = lround (frameSize.width * num.doubleValue / 100);
+    }
+  else
+    {
+      num = [widthBaseVal valueForKey:@"value"];
+      width = lround (num.doubleValue);
+      frameSize.width = width;
+    }
+
+  unitType = [heightBaseVal valueForKey:@"unitType"];
+  if (unitType.intValue == SVG_LENGTHTYPE_PERCENTAGE)
+    {
+      frameSize.height =
+	round ([[boundingBox valueForKey:@"y"] doubleValue]
+	       + [[boundingBox valueForKey:@"height"] doubleValue]);
+      num = [heightBaseVal valueForKey:@"valueInSpecifiedUnits"];
+      height = lround (frameSize.height * num.doubleValue / 100);
+    }
+  else
+    {
+      num = [heightBaseVal valueForKey:@"value"];
+      height = lround (num.doubleValue);
+      frameSize.height = height;
+    }
+
+  *imageWidth = width;
+  *imageHeight = height;
+
+  return frameSize;
+}
+
 - (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
 	 baseURL:(NSURL *)url
 {
   bool __block result;
 
   mac_within_app (^{
-      NSRect frameRect;
-      WebView *webView;
-      WebFrame *mainFrame;
-      int width, height;
+      NSRect frameRect = NSMakeRect (0, 0, 100, 100); /* Adjusted later.  */
+      int width = -1, height;
       CGFloat scaleFactor;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+      WKWebViewConfiguration *configuration =
+	[[WKWebViewConfiguration alloc] init];
+      WKWebView *webView = [[WKWebView alloc] initWithFrame:frameRect
+					      configuration:configuration];
 
-      frameRect = NSMakeRect (0, 0, 100, 100); /* Adjusted later.  */
-      webView = [[WebView alloc] initWithFrame:frameRect
-				     frameName:nil groupName:nil];
-      mainFrame = [webView mainFrame];
+      MRC_RELEASE (configuration);
+      webView.navigationDelegate = self;
+      [webView loadData:data MIMEType:@"image/svg+xml"
+	       characterEncodingName:@"UTF-8" baseURL:url];
+#else
+      WebView *webView = [[WebView alloc] initWithFrame:frameRect
+					      frameName:nil groupName:nil];
+      WebFrame *mainFrame = [webView mainFrame];
+
       [[mainFrame frameView] setAllowsScrolling:NO];
       [webView setValue:backgroundColor forKey:@"backgroundColor"];
       [webView setFrameLoadDelegate:self];
       [mainFrame loadData:data MIMEType:@"image/svg+xml" textEncodingName:nil
 		  baseURL:url];
+#endif
 
       /* [webView isLoading] is not sufficient if we have <image
 	 xlink:href=... /> */
@@ -12714,57 +12809,87 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 
       @try
 	{
-	  WebScriptObject *rootElement, *boundingBox;
-	  id val;
-	  NSNumber *unitType, *num;
-	  enum {
-	    SVG_LENGTHTYPE_PERCENTAGE = 2
-	  };
+	  id boundingBox, widthBaseVal, heightBaseVal;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+	  NSString * __block jsonString;
+	  BOOL __block finished = NO;
+	  CGFloat components[4];
+	  NSColor *colorInSRGB =
+	    [backgroundColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+	  NSString *script;
 
-	  rootElement = [[webView windowScriptObject]
-			  valueForKeyPath:@"document.rootElement"];
+	  [colorInSRGB getComponents:components];
+	  script = [NSString stringWithFormat:@"\
+const rootElement = document.rootElement;				\
+rootElement.style.backgroundColor = '#%02x%02x%02x';			\
+function filter (obj, names) {						\
+  return names.reduce ((acc, nm) => {acc[nm] = obj[nm]; return acc;}, {}); \
+}									\
+JSON.stringify (['width', 'height'].reduce				\
+  ((obj, dim) => {							\
+     obj[dim + 'BaseVal'] =						\
+       filter (rootElement[dim].baseVal,				\
+	       ['unitType', 'value', 'valueInSpecifiedUnits']);		\
+     return obj;							\
+   }, {boundingBox: filter (rootElement.getBBox (),			\
+			    ['x', 'y', 'width', 'height'])}))",
+				       (int) (components[0] * 255 + 0.5),
+				       (int) (components[1] * 255 + 0.5),
+				       (int) (components[2] * 255 + 0.5)];
+	  [webView evaluateJavaScript:script
+		    completionHandler:^(id scriptResult, NSError *error) {
+	      if ([scriptResult isKindOfClass:NSString.class])
+		jsonString = MRC_RETAIN (scriptResult);
+	      else
+		jsonString = nil;
+	      finished = YES;
+	    }];
+
+	  while (!finished)
+	    mac_run_loop_run_once (0);
+
+	  if (jsonString == nil)
+	    boundingBox = nil;
+	  else
+	    {
+	      NSData *data =
+		[jsonString dataUsingEncoding:NSUTF8StringEncoding];
+	      NSDictionary *jsonObject =
+		[NSJSONSerialization JSONObjectWithData:data options:0
+						  error:NULL];
+
+	      boundingBox = jsonObject[@"boundingBox"];
+	      widthBaseVal = jsonObject[@"widthBaseVal"];
+	      heightBaseVal = jsonObject[@"heightBaseVal"];
+	      MRC_AUTORELEASE (jsonString);
+	    }
+#else
+	  WebScriptObject *rootElement =
+	    [[webView windowScriptObject]
+	      valueForKeyPath:@"document.rootElement"];
+
 	  boundingBox = [rootElement callWebScriptMethod:@"getBBox"
 					   withArguments:[NSArray array]];
-	  val = [rootElement valueForKeyPath:@"width.baseVal"];
-	  unitType = [val valueForKey:@"unitType"];
-	  if ([unitType intValue] == SVG_LENGTHTYPE_PERCENTAGE)
-	    {
-	      frameRect.size.width =
-		round ([[boundingBox valueForKey:@"x"] doubleValue]
-		       + [[boundingBox valueForKey:@"width"] doubleValue]);
-	      num = [val valueForKey:@"valueInSpecifiedUnits"];
-	      width = lround (frameRect.size.width * [num doubleValue] / 100);
-	    }
-	  else
-	    {
-	      num = [val valueForKey:@"value"];
-	      width = lround ([num doubleValue]);
-	      frameRect.size.width = width;
-	    }
-
-	  val = [rootElement valueForKeyPath:@"height.baseVal"];
-	  unitType = [val valueForKey:@"unitType"];
-	  if ([unitType intValue] == SVG_LENGTHTYPE_PERCENTAGE)
-	    {
-	      frameRect.size.height =
-		round ([[boundingBox valueForKey:@"y"] doubleValue]
-		       + [[boundingBox valueForKey:@"height"] doubleValue]);
-	      num = [val valueForKey:@"valueInSpecifiedUnits"];
-	      height = lround (frameRect.size.height * [num doubleValue] / 100);
-	    }
-	  else
-	    {
-	      num = [val valueForKey:@"value"];
-	      height = lround ([num doubleValue]);
-	      frameRect.size.height = height;
-	    }
+	  widthBaseVal = [rootElement valueForKeyPath:@"width.baseVal"];
+	  heightBaseVal = [rootElement valueForKeyPath:@"height.baseVal"];
+#endif
+	  if (boundingBox)
+	    frameRect.size = [self frameSizeForBoundingBox:boundingBox
+					      widthBaseVal:widthBaseVal
+					     heightBaseVal:heightBaseVal
+						imageWidth:&width
+					       imageHeight:&height];
 	}
       @catch (NSException *exception)
 	{
+	}
+
+      if (width < 0)
+	{
 	  MRC_RELEASE (webView);
 	  (*imageErrorFunc) ("Error reading SVG image `%s'", emacsImage->spec);
-
 	  result = 0;
+
 	  return;
 	}
 
@@ -12808,16 +12933,26 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
   return result;
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation;
+{
+  isLoaded = YES;
+}
+#else
 - (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame
 {
   isLoaded = YES;
 }
+#endif
 
 @end				// EmacsSVGLoader
 
 bool
 mac_webkit_supports_svg_p (void)
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+  return true;
+#else
   bool __block result;
 
   block_input ();
@@ -12827,6 +12962,7 @@ mac_webkit_supports_svg_p (void)
   unblock_input ();
 
   return result;
+#endif
 }
 
 bool

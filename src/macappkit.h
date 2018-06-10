@@ -723,6 +723,12 @@ typedef NSString * NSPasteboardName;
 @interface EmacsOSAScript : OSAScript
 @end
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+@interface WKWebView (Undocumented)
+-(void)_setOverrideDeviceScaleFactor:(CGFloat)deviceScaleFactor;
+@end
+#endif
+
 @interface NSView (Emacs)
 - (XImagePtr)createXImageFromRect:(NSRect)rect backgroundColor:(NSColor *)color
 		      scaleFactor:(CGFloat)scaleFactor;
@@ -731,7 +737,11 @@ typedef NSString * NSPasteboardName;
 /* Class for SVG frame load delegate.  */
 @interface EmacsSVGLoader : NSObject
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+			    <WKNavigationDelegate>
+#else
 			    <WebFrameLoadDelegate>
+#endif
 #endif
 {
   /* Frame and image data structures to which the SVG image is
