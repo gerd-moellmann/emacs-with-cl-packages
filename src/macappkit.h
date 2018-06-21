@@ -723,7 +723,7 @@ typedef NSString * NSPasteboardName;
 @interface EmacsOSAScript : OSAScript
 @end
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
 @interface WKWebView (Undocumented)
 -(void)_setOverrideDeviceScaleFactor:(CGFloat)deviceScaleFactor;
 @end
@@ -737,7 +737,7 @@ typedef NSString * NSPasteboardName;
 /* Class for SVG frame load delegate.  */
 @interface EmacsSVGLoader : NSObject
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
 			    <WKNavigationDelegate>
 #else
 			    <WebFrameLoadDelegate>
