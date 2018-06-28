@@ -53,6 +53,9 @@ static const NSAppKitVersion NSAppKitVersionNumber10_11 = 1404;
 static const NSAppKitVersion NSAppKitVersionNumber10_12 = 1504;
 #endif
 #endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
+static const NSAppKitVersion NSAppKitVersionNumber10_13 = 1561;
+#endif
 
 #ifndef USE_ARC
 #if defined (__clang__) && __has_feature (objc_arc)
