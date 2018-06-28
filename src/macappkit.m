@@ -2581,8 +2581,12 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	 intercepted by the former.  Still the former (layer-hosting)
 	 is displayed in front of the latter (neither layer-backed nor
 	 layer-hosting).  */
-      [[window contentView] addSubview:overlayView positioned:NSWindowBelow
-			    relativeTo:emacsView];
+      /* Unfortunately, this trick does not work on macOS 10.14 public
+	 beta 1.  For now, we don't add overlayView, so animation
+	 effect is not available on that version.  */
+      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13)
+	[[window contentView] addSubview:overlayView positioned:NSWindowBelow
+			      relativeTo:emacsView];
       [overlayView setFrame:[[window contentView] bounds]];
       if (has_full_screen_with_dedicated_desktop_p ()
 	  && !(windowManagerState & WM_STATE_FULLSCREEN))
