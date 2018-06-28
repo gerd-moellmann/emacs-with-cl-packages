@@ -5171,7 +5171,7 @@ x_flush (struct frame *f)
   eassert (f && FRAME_MAC_P (f));
   block_input ();
   window = FRAME_MAC_WINDOW_OBJECT (f);
-  if ([window isVisible] && ![window isFlushWindowDisabled])
+  if (window.isVisible)
     mac_within_gui (^{[emacsController flushWindow:window force:YES];});
   unblock_input ();
 }
@@ -5190,7 +5190,7 @@ mac_flush_1 (struct frame *f)
     {
       EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
-      if ([window isVisible] && ![window isFlushWindowDisabled])
+      if (window.isVisible)
 	[emacsController flushWindow:window force:NO];
     }
 }
@@ -5210,7 +5210,6 @@ mac_update_begin (struct frame *f)
   EmacsWindow *window = [frameController emacsWindow];
 
   mac_within_gui (^{
-      [window disableFlushWindow];
       [frameController lockFocusOnEmacsView];
       set_global_focus_view_frame (f);
     });
@@ -5226,7 +5225,6 @@ mac_update_end (struct frame *f)
 
       [frameController unlockFocusOnEmacsView];
       mac_mask_rounded_bottom_corners (f, clip_rect, false);
-      [window enableFlushWindow];
     });
 }
 
