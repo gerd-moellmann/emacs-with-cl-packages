@@ -2596,7 +2596,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
     }
   else
     {
-      [window setAutodisplay:NO];
+      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13)
+	[window setAutodisplay:NO];
       [window setHasShadow:YES];
       [window setLevel:NSScreenSaverWindowLevel];
       [window setIgnoresMouseEvents:YES];
@@ -5629,13 +5630,29 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
 @implementation EmacsView
 
+- (struct frame *)emacsFrame
+{
+  EmacsFrameController *frameController =
+    (EmacsFrameController *) self.window.delegate;
+
+  return frameController.emacsFrame;
+}
+
 - (void)drawRect:(NSRect)aRect
 {
-  /* This might be called when the window is made key and ordered
-     front on macOS 10.12.  */
-#if 0
-  eassert (false);
-#endif
+  struct frame *f = self.emacsFrame;
+  int x = NSMinX (aRect), y = NSMinY (aRect);
+  int width = NSWidth (aRect), height = NSHeight (aRect);
+
+  set_global_focus_view_frame (f);
+  mac_clear_area (f, x, y, width, height);
+  mac_begin_scale_mismatch_detection (f);
+  expose_frame (f, x, y, width, height);
+  x_clear_under_internal_border (f);
+  if (mac_end_scale_mismatch_detection (f)
+      && [NSWindow instancesRespondToSelector:@selector(backingScaleFactor)])
+    SET_FRAME_GARBAGED (f);
+  unset_global_focus_view_frame ();
 }
 
 - (BOOL)isFlipped
@@ -5706,33 +5723,13 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 #endif
 }
 
-- (struct frame *)emacsFrame
-{
-  EmacsFrameController *frameController = ((EmacsFrameController *)
-					   [[self window] delegate]);
-
-  return [frameController emacsFrame];
-}
-
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)drawRect:(NSRect)aRect
 {
-  struct frame *f = [self emacsFrame];
-  int x = NSMinX (aRect), y = NSMinY (aRect);
-  int width = NSWidth (aRect), height = NSHeight (aRect);
-
-  set_global_focus_view_frame (f);
-  mac_clear_area (f, x, y, width, height);
-  mac_begin_scale_mismatch_detection (f);
-  expose_frame (f, x, y, width, height);
-  x_clear_under_internal_border (f);
-  if (mac_end_scale_mismatch_detection (f)
-      && [NSWindow instancesRespondToSelector:@selector(backingScaleFactor)])
-    SET_FRAME_GARBAGED (f);
-  unset_global_focus_view_frame ();
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  [super drawRect:aRect];
   roundedBottomCornersCopied = NO;
-#endif
 }
+#endif
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)scrollRect:(NSRect)aRect by:(NSSize)offset
@@ -9400,7 +9397,8 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 
 	  /* The tooltip has been drawn already.  Avoid the
 	     SET_FRAME_GARBAGED in mac_handle_visibility_change.  */
-	  if (EQ (frame, tip_frame))
+	  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13
+	      && EQ (frame, tip_frame))
 	    {
 	      x_flush (f);
 	      continue;

@@ -444,6 +444,7 @@ typedef NSString * NSKeyValueChangeKey;
    inheritance.  */
 
 @interface EmacsView : NSView
+- (struct frame *)emacsFrame;
 @end
 
 /* Class for Emacs view that also handles input events.  Used by
@@ -495,7 +496,6 @@ typedef NSString * NSKeyValueChangeKey;
      candidates from input methods are displayed.  */
   NSCandidateListTouchBarItem *candidateListTouchBarItem;
 }
-- (struct frame *)emacsFrame;
 - (id)target;
 - (SEL)action;
 - (void)setTarget:(id)anObject;
