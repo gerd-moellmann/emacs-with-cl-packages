@@ -2582,11 +2582,19 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	 is displayed in front of the latter (neither layer-backed nor
 	 layer-hosting).  */
       /* Unfortunately, this trick does not work on macOS 10.14 public
-	 beta 1.  For now, we don't add overlayView, so animation
-	 effect is not available on that version.  */
-      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13)
-	[[window contentView] addSubview:overlayView positioned:NSWindowBelow
-			      relativeTo:emacsView];
+	 beta 3.  Placing overlayView above emacsView (with returning
+	 nil in hitTest:) works if the executable is linked against
+	 the macOS 10.14 SDK, but not for the one linked on the older
+	 versions then run on macOS 10.14.  Making overlayView a
+	 subview of emacsView works for both cases.  Note that we need
+	 to temporarily hide overlayView when taking screenshot in
+	 -[EmacsFrameController bitmapImageRepInEmacsViewRect:].  */
+      if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
+	[emacsView addSubview:overlayView positioned:NSWindowAbove
+		   relativeTo:nil];
+      else
+	[window.contentView addSubview:overlayView positioned:NSWindowBelow
+			    relativeTo:emacsView];
       [overlayView setFrame:[[window contentView] bounds]];
       if (has_full_screen_with_dedicated_desktop_p ()
 	  && !(windowManagerState & WM_STATE_FULLSCREEN))
@@ -3433,7 +3441,11 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = false;
+  if ([overlayView.superview isEqual:emacsView])
+    overlayView.hidden = YES;
   [emacsView cacheDisplayInRect:rect toBitmapImageRep:bitmap];
+  if (overlayView.isHidden)
+    overlayView.hidden = NO;
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = saved_background_alpha_enabled_p;
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = false;
 
@@ -7164,6 +7176,11 @@ create_resize_indicator_image (void)
     layer.contents = nil;
 }
 #endif
+
+- (NSView *)hitTest:(NSPoint)point
+{
+  return nil;
+}
 
 @end				// EmacsOverlayView
 
