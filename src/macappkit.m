@@ -5664,6 +5664,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   if (mac_end_scale_mismatch_detection (f)
       && [NSWindow instancesRespondToSelector:@selector(backingScaleFactor)])
     SET_FRAME_GARBAGED (f);
+  mac_invert_flash_rectangles (f);
   unset_global_focus_view_frame ();
 }
 

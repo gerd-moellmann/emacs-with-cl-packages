@@ -504,6 +504,23 @@ mac_invert_rectangle (struct frame *f, int x, int y, int width, int height)
   MAC_END_DRAW_TO_FRAME (f);
 }
 
+void
+mac_invert_flash_rectangles (struct frame *f)
+{
+  if (FRAME_FLASH_RECTANGLES_DATA (f))
+    {
+      CFDataRef data = FRAME_FLASH_RECTANGLES_DATA (f);
+      CFIndex i, count = CFDataGetLength (data) / sizeof (NativeRectangle);
+      const NativeRectangle *rectangles =
+	(const NativeRectangle *) CFDataGetBytePtr (data);
+
+      for (i = 0; i < count; i++)
+	mac_invert_rectangle (f, rectangles[i].x, rectangles[i].y,
+			      rectangles[i].width, rectangles[i].height);
+    }
+}
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 /* Invert rectangles RECTANGLES[0], ..., RECTANGLES[N-1] in the frame F,
    excluding scroll bar area.  */
 
@@ -532,7 +549,43 @@ mac_invert_rectangles (struct frame *f, NativeRectangle *rectangles, int n)
 	}
     }
 }
+#endif
 
+static void
+mac_invert_rectangles_and_flush (struct frame *f, NativeRectangle *rectangles,
+				 int n, bool invert_p)
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  if (!(mac_operating_system_version.major == 10
+	&& mac_operating_system_version.minor < 10))
+#endif
+    {
+      if (invert_p)
+	FRAME_FLASH_RECTANGLES_DATA (f) =
+	  CFDataCreateWithBytesNoCopy (NULL, (const UInt8 *) rectangles,
+				       n * sizeof (NativeRectangle),
+				       kCFAllocatorNull);
+      mac_invalidate_rectangles (f, rectangles, n);
+      mac_run_loop_run_once (0);
+      if (FRAME_FLASH_RECTANGLES_DATA (f))
+	{
+	  CFRelease (FRAME_FLASH_RECTANGLES_DATA (f));
+	  FRAME_FLASH_RECTANGLES_DATA (f) = NULL;
+	}
+    }
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  else
+    {
+      CGRect rect = mac_rect_make (f, rectangles[n - 1].x, rectangles[n - 1].y,
+				   rectangles[n - 1].width,
+				   rectangles[n - 1].height);
+
+      mac_invert_rectangles (f, rectangles, n);
+      mac_mask_rounded_bottom_corners (f, rect, invert_p);
+      x_flush (f);
+    }
+#endif
+}
 
 /* Mac replacement for XChangeGC.  */
 
@@ -2692,7 +2745,6 @@ mac_flash (struct frame *f)
   int width = flash_right - flash_left;
   NativeRectangle rects[2];
   int nrects;
-  CGRect clip_rect;
 
   if (height > 3 * FRAME_LINE_HEIGHT (f))
     {
@@ -2704,8 +2756,6 @@ mac_flash (struct frame *f)
       rects[1] = rects[0];
       rects[1].y = height - flash_height - FRAME_INTERNAL_BORDER_WIDTH (f);
       nrects = 2;
-      clip_rect = mac_rect_make (f, flash_left, rects[0].y, width,
-				 rects[1].y + rects[1].height - rects[0].y);
     }
   else
     {
@@ -2714,20 +2764,10 @@ mac_flash (struct frame *f)
 			 flash_left, FRAME_INTERNAL_BORDER_WIDTH (f),
 			 width, height - 2 * FRAME_INTERNAL_BORDER_WIDTH (f));
       nrects = 1;
-      clip_rect = mac_rect_make (f, flash_left, rects[0].y, width,
-				 rects[0].height);
     }
 
   block_input ();
-
-  mac_invert_rectangles (f, rects, nrects);
-  mac_mask_rounded_bottom_corners (f, clip_rect, true);
-
-  x_flush (f);
-  if (!(mac_operating_system_version.major == 10
-	&& mac_operating_system_version.minor <= 10))
-    mac_run_loop_run_once (0);
-
+  mac_invert_rectangles_and_flush (f, rects, nrects, true);
   {
     struct timespec delay = make_timespec (0, 150 * 1000 * 1000);
     struct timespec wakeup = timespec_add (current_timespec (), delay);
@@ -2750,19 +2790,7 @@ mac_flash (struct frame *f)
 	pselect (0, NULL, NULL, NULL, &timeout, NULL);
       }
   }
-
-  mac_invert_rectangles (f, rects, nrects);
-  if (FRAME_BACKGROUND_ALPHA_ENABLED_P (f)
-      && !mac_accessibility_display_options.reduce_transparency_p)
-    mac_invalidate_rectangles (f, rects, nrects);
-  else
-    mac_mask_rounded_bottom_corners (f, clip_rect, false);
-
-  x_flush (f);
-  if (!(mac_operating_system_version.major == 10
-	&& mac_operating_system_version.minor <= 10))
-    mac_run_loop_run_once (0);
-
+  mac_invert_rectangles_and_flush (f, rects, nrects, false);
   unblock_input ();
 }
 
