@@ -3442,10 +3442,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = false;
   if ([overlayView.superview isEqual:emacsView])
-    overlayView.hidden = YES;
+    [overlayView setHidden:YES];
   [emacsView cacheDisplayInRect:rect toBitmapImageRep:bitmap];
   if (overlayView.isHidden)
-    overlayView.hidden = NO;
+    [overlayView setHidden:NO];
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = saved_background_alpha_enabled_p;
   FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = false;
 
