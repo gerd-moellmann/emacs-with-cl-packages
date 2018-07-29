@@ -5675,7 +5675,7 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 
 - (BOOL)isOpaque
 {
-  return YES;
+  return !(has_visual_effect_view_p () && self.layer);
 }
 
 @end				// EmacsView
