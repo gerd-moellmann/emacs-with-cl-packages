@@ -5656,9 +5656,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
   int x = NSMinX (aRect), y = NSMinY (aRect);
   int width = NSWidth (aRect), height = NSHeight (aRect);
 
-  /* Disable background alpha for layer-backed EmacsView for now.  */
-  if (self.layer)
-    FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = false;
   set_global_focus_view_frame (f);
   mac_clear_area (f, x, y, width, height);
   mac_begin_scale_mismatch_detection (f);
