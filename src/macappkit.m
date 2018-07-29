@@ -2590,8 +2590,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	 to temporarily hide overlayView when taking screenshot in
 	 -[EmacsFrameController bitmapImageRepInEmacsViewRect:].  */
       if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
-	[emacsView addSubview:overlayView positioned:NSWindowAbove
-		   relativeTo:nil];
+	{
+	  if (![overlayView.superview isEqual:emacsView])
+	    [emacsView addSubview:overlayView];
+	}
       else
 	[window.contentView addSubview:overlayView positioned:NSWindowBelow
 			    relativeTo:emacsView];
@@ -8166,7 +8168,7 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
     [scroller setAutoresizingMask:NSViewMinXMargin];
   else if (bar->horizontal && WINDOW_BOTTOMMOST_P (w))
     [scroller setAutoresizingMask:NSViewMinYMargin];
-  [emacsView addSubview:scroller];
+  [emacsView addSubview:scroller positioned:NSWindowBelow relativeTo:nil];
   [scroller updateAppearance];
   MRC_RELEASE (scroller);
   SET_SCROLL_BAR_SCROLLER (bar, scroller);
