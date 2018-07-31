@@ -7231,9 +7231,6 @@ mac_display_copy_info_dictionary_for_cgdisplay (CGDirectDisplayID displayID,
 						*infoDictionaries)
 {
   CFDictionaryRef __block result = NULL;
-  /* IODisplayMatchDictionaries cannot be linked using macOS 10.14 SDK
-     as of Xcode 10.0 beta 2.  We disable its use for now.  */
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
   NSMutableDictionaryOf (NSString *, NSNumber *) *info =
     [NSMutableDictionary dictionaryWithCapacity:3];
   uint32_t val;
@@ -7255,19 +7252,16 @@ mac_display_copy_info_dictionary_for_cgdisplay (CGDirectDisplayID displayID,
     [info setObject:[NSNumber numberWithUnsignedInt:val]
 	     forKey:@kDisplaySerialNumber];
 
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13)
-    [infoDictionaries enumerateObjectsUsingBlock:
-			^(NSDictionary *dictionary,
-			  NSUInteger idx, BOOL *stop) {
-	if (IODisplayMatchDictionaries ((__bridge CFDictionaryRef) dictionary,
-					(__bridge CFDictionaryRef) info,
-					kNilOptions))
-	  {
-	    result = CF_BRIDGING_RETAIN (dictionary);
-	    *stop = YES;
-	  }
-      }];
-#endif
+  [infoDictionaries enumerateObjectsUsingBlock:
+		      ^(NSDictionary *dictionary, NSUInteger idx, BOOL *stop) {
+      if (IODisplayMatchDictionaries ((__bridge CFDictionaryRef) dictionary,
+				      (__bridge CFDictionaryRef) info,
+				      kNilOptions))
+	{
+	  result = CF_BRIDGING_RETAIN (dictionary);
+	  *stop = YES;
+	}
+    }];
 
   return result;
 }
