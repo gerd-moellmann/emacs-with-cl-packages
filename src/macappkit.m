@@ -2515,9 +2515,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	    [window addChildWindow:childWindow ordered:NSWindowAbove];
 	  }
       if (has_visual_effect_view_p ())
-	[(id <NSAppearanceCustomization>)window
-	    setAppearance:[(id <NSAppearanceCustomization>)oldWindow
-							   appearance]];
+	window.appearance = oldWindow.appearance;
 
       [oldWindow setDelegate:nil];
       [self hideHourglass:nil];
@@ -5157,8 +5155,7 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
 	     ? NS_APPEARANCE_NAME_VIBRANT_LIGHT
 	     : NS_APPEARANCE_NAME_VIBRANT_DARK);
 
-	  [(id <NSAppearanceCustomization>)window
-	      setAppearance:[NS_APPEARANCE appearanceNamed:name]];
+	  window.appearance = [NS_APPEARANCE appearanceNamed:name];
 	  [frameController updateScrollerAppearance];
 	}
     });
@@ -7865,13 +7862,12 @@ static BOOL NonmodalScrollerPagingBehavior;
 	 fringe-less Emacs windows with scroll bars.  So we explicitly
 	 specify NSAppearanceNameAqua for EmacsScroller's appearance
 	 if NSWindow's appearance is NSAppearanceNameVibrantLight.  */
-      if ([[[(id <NSAppearanceCustomization>)[self window] appearance] name]
-	    isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
-	[(id <NSAppearanceCustomization>)self
-	    setAppearance:[NS_APPEARANCE
-			    appearanceNamed:NS_APPEARANCE_NAME_AQUA]];
+      if ([self.window.appearance.name
+	      isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
+	self.appearance =
+	  [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA];
       else
-	[(id <NSAppearanceCustomization>)self setAppearance:nil];
+	self.appearance = nil;
     }
 }
 
@@ -8178,10 +8174,9 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 - (void)setVibrantScrollersHidden:(BOOL)flag
 {
   if (has_visual_effect_view_p ())
-    for (NSView *view in [emacsView subviews])
+    for (NSView *view in emacsView.subviews)
       if ([view isKindOfClass:[EmacsScroller class]]
-	  && [[(id <NSAppearanceCustomization>)view effectiveAppearance]
-	       allowsVibrancy])
+	  && view.effectiveAppearance.allowsVibrancy)
 	[view setHidden:flag];
 }
 
@@ -9478,9 +9473,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       MRC_RELEASE (indicator);
       [self updateHourglassWindowOrigin];
       if (has_visual_effect_view_p ())
-	[(id <NSAppearanceCustomization>)hourglassWindow
-	    setAppearance:[(id <NSAppearanceCustomization>)emacsWindow
-							   appearance]];
+	hourglassWindow.appearance = emacsWindow.appearance;
       [emacsWindow addChildWindow:hourglassWindow ordered:NSWindowAbove];
       [hourglassWindow orderWindow:NSWindowAbove
 			relativeTo:[emacsWindow windowNumber]];

@@ -1007,6 +1007,12 @@ typedef NSString * NSAppearanceName;
 @property (retain) NSAppearance *appearance;
 @property (readonly, retain) NSAppearance *effectiveAppearance;
 @end
+
+@interface NSWindow (AppearanceCustomization) <NSAppearanceCustomization>
+@end
+
+@interface NSView (AppearanceCustomization) <NSAppearanceCustomization>
+@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
