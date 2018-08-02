@@ -7855,19 +7855,19 @@ static BOOL NonmodalScrollerPagingBehavior;
 {
   if (has_visual_effect_view_p ())
     {
-      /* If NSWindow's appearance is NSAppearanceNameVibrantLight and
-	 its views inherit it, then the backgrounds of a scroll bar
-	 and containing Emacs window become the same color.  This
-	 makes it difficult to distinguish horizontally adjacent
-	 fringe-less Emacs windows with scroll bars.  So we explicitly
-	 specify NSAppearanceNameAqua for EmacsScroller's appearance
-	 if NSWindow's appearance is NSAppearanceNameVibrantLight.  */
-      if ([self.window.appearance.name
+      self.appearance = nil;
+      /* If a scroll bar is drawn with the vibrant light appearance,
+	 then the backgrounds of the scroll bar and containing Emacs
+	 window become the same color.  This makes it difficult to
+	 distinguish horizontally adjacent fringe-less Emacs windows
+	 with scroll bars.  So we explicitly specify
+	 NSAppearanceNameAqua for EmacsScroller's appearance if
+	 otherwise its effective appearance becomes
+	 NSAppearanceNameVibrantLight.  */
+      if ([self.effectiveAppearance.name
 	      isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
 	self.appearance =
 	  [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA];
-      else
-	self.appearance = nil;
     }
 }
 
