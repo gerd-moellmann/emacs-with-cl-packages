@@ -954,6 +954,16 @@ has_visual_effect_view_p (void)
 #endif
 }
 
+static bool
+has_system_appearance_p (void)
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+  return true;
+#else
+  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13);
+#endif
+}
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 /* Whether window's bottom corners need masking so they look rounded.
    If we use NSVisualEffectView (available on OS X 10.10 and later)
@@ -2376,6 +2386,16 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 			  context:context];
 }
 
+- (id <NSAppearanceCustomization>)appearanceCustomization
+{
+  if (!has_visual_effect_view_p ())
+    return nil;
+  else if (has_system_appearance_p ())
+    return self.contentView;
+  else
+    return self;
+}
+
 @end				// EmacsWindow
 
 @implementation EmacsFrameController
@@ -2496,6 +2516,15 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
      to NO leads to crash in some situations.  */
   CF_BRIDGING_RETAIN (window);
 #endif
+  if (has_visual_effect_view_p ())
+    {
+      id visualEffectView = [[(NSClassFromString (@"NSVisualEffectView")) alloc]
+			      initWithFrame:[window.contentView frame]];
+
+      window.contentView = visualEffectView;
+      MRC_RELEASE (visualEffectView);
+      FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
+    }
   if (oldWindow)
     {
       [window setTitle:[oldWindow title]];
@@ -2514,8 +2543,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	    [(EmacsWindow *)childWindow suspendConstrainingToScreen:NO];
 	    [window addChildWindow:childWindow ordered:NSWindowAbove];
 	  }
-      if (has_visual_effect_view_p ())
-	window.appearance = oldWindow.appearance;
+      window.appearanceCustomization.appearance =
+	oldWindow.appearanceCustomization.appearance;
 
       [oldWindow setDelegate:nil];
       [self hideHourglass:nil];
@@ -2528,15 +2557,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
     [window useOptimizedDrawing:YES];
 #endif
-  if (has_visual_effect_view_p ())
-    {
-      id visualEffectView = [[(NSClassFromString (@"NSVisualEffectView")) alloc]
-			      initWithFrame:[[window contentView] frame]];
-
-      [window setContentView:visualEffectView];
-      MRC_RELEASE (visualEffectView);
-      FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
-    }
   [[window contentView] addSubview:emacsView];
   [self updateBackingScaleFactor];
   [self updateEmacsViewIsHiddenOrHasHiddenAncestor];
@@ -5140,7 +5160,7 @@ mac_rect_make (struct frame *f, CGFloat x, CGFloat y, CGFloat w, CGFloat h)
 void
 mac_set_frame_window_background (struct frame *f, unsigned long color)
 {
-  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   mac_within_gui (^{
       [window setBackgroundColor:[NSColor colorWithXColorPixel:color]];
@@ -5155,7 +5175,8 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
 	     ? NS_APPEARANCE_NAME_VIBRANT_LIGHT
 	     : NS_APPEARANCE_NAME_VIBRANT_DARK);
 
-	  window.appearance = [NS_APPEARANCE appearanceNamed:name];
+	  window.appearanceCustomization.appearance =
+	    [NS_APPEARANCE appearanceNamed:name];
 	  [frameController updateScrollerAppearance];
 	}
     });
@@ -9473,7 +9494,10 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       MRC_RELEASE (indicator);
       [self updateHourglassWindowOrigin];
       if (has_visual_effect_view_p ())
-	hourglassWindow.appearance = emacsWindow.appearance;
+	hourglassWindow.appearance =
+	  ((windowManagerState & WM_STATE_FULLSCREEN)
+	   ? emacsWindow.appearanceCustomization.appearance
+	   : emacsWindow.appearance);
       [emacsWindow addChildWindow:hourglassWindow ordered:NSWindowAbove];
       [hourglassWindow orderWindow:NSWindowAbove
 			relativeTo:[emacsWindow windowNumber]];
