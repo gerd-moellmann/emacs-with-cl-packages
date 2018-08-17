@@ -5177,7 +5177,6 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
 
 	  window.appearanceCustomization.appearance =
 	    [NS_APPEARANCE appearanceNamed:name];
-	  [frameController updateScrollerAppearance];
 	}
     });
 }
@@ -7872,24 +7871,21 @@ static BOOL NonmodalScrollerPagingBehavior;
   return YES;
 }
 
-- (void)updateAppearance
+- (NSAppearance *)effectiveAppearance
 {
-  if (has_visual_effect_view_p ())
-    {
-      self.appearance = nil;
-      /* If a scroll bar is drawn with the vibrant light appearance,
-	 then the backgrounds of the scroll bar and containing Emacs
-	 window become the same color.  This makes it difficult to
-	 distinguish horizontally adjacent fringe-less Emacs windows
-	 with scroll bars.  So we explicitly specify
-	 NSAppearanceNameAqua for EmacsScroller's appearance if
-	 otherwise its effective appearance becomes
-	 NSAppearanceNameVibrantLight.  */
-      if ([self.effectiveAppearance.name
-	      isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
-	self.appearance =
-	  [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA];
-    }
+  NSAppearance *effectiveAppearance = super.effectiveAppearance;
+
+  /* If a scroll bar is drawn with the vibrant light appearance, then
+     the backgrounds of the scroll bar and containing Emacs window
+     become the same color.  This makes it difficult to distinguish
+     horizontally adjacent fringe-less Emacs windows with scroll bars.
+     So we change EmacsScroller's appearance to NSAppearanceNameAqua
+     if otherwise it becomes NSAppearanceNameVibrantLight.  */
+  if ([effectiveAppearance.name
+	  isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
+    return [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA];
+  else
+    return effectiveAppearance;
 }
 
 - (CGFloat)knobSlotSpan
@@ -8180,16 +8176,8 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
   else if (bar->horizontal && WINDOW_BOTTOMMOST_P (w))
     [scroller setAutoresizingMask:NSViewMinYMargin];
   [emacsView addSubview:scroller positioned:NSWindowBelow relativeTo:nil];
-  [scroller updateAppearance];
   MRC_RELEASE (scroller);
   SET_SCROLL_BAR_SCROLLER (bar, scroller);
-}
-
-- (void)updateScrollerAppearance
-{
-  for (NSView *view in [emacsView subviews])
-    if ([view isKindOfClass:[EmacsScroller class]])
-      [(EmacsScroller *)view updateAppearance];
 }
 
 - (void)setVibrantScrollersHidden:(BOOL)flag

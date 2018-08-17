@@ -588,7 +588,6 @@ typedef NSString * NSKeyValueChangeKey;
 }
 - (void)setEmacsScrollBar:(struct scroll_bar *)bar;
 - (struct scroll_bar *)emacsScrollBar;
-- (void)updateAppearance;
 - (CGFloat)knobSlotSpan;
 - (CGFloat)minKnobSpan;
 - (CGFloat)knobMinEdgeInSlot;
@@ -604,7 +603,6 @@ typedef NSString * NSKeyValueChangeKey;
 
 @interface EmacsFrameController (ScrollBar)
 - (void)addScrollerWithScrollBar:(struct scroll_bar *)bar;
-- (void)updateScrollerAppearance;
 - (void)setVibrantScrollersHidden:(BOOL)flag;
 @end
 
