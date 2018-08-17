@@ -999,6 +999,7 @@ typedef NSString * NSAppearanceName;
 @interface NSAppearance : NSObject
 + (NSAppearance *)appearanceNamed:(NSAppearanceName)name;
 + (NSAppearance *)currentAppearance;
++ (void)setCurrentAppearance:(NSAppearance *)appearance;
 @end
 
 @protocol NSAppearanceCustomization <NSObject>

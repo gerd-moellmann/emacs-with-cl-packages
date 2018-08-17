@@ -7161,14 +7161,21 @@ create_resize_indicator_image (void)
 
   if (flag)
     {
-      static CGColorRef borderColor;
+      NSAppearance *oldAppearance;
+      CGColorRef borderColor;
 
-      if (borderColor == NULL)
-	borderColor = [[[NSColor selectedControlColor]
-			 colorWithAlphaComponent:.75] copyCGColor];
+      if (has_visual_effect_view_p ())
+	{
+	  oldAppearance = [NS_APPEARANCE currentAppearance];
+	  [NS_APPEARANCE setCurrentAppearance:self.effectiveAppearance];
+	}
+      borderColor = NSColor.selectedControlColor.copyCGColor;
+      if (has_visual_effect_view_p ())
+	[NS_APPEARANCE setCurrentAppearance:oldAppearance];
 
       [CATransaction setDisableActions:YES];
       layer.borderColor = borderColor;
+      CFRelease (borderColor);
       [CATransaction commit];
 
       layer.borderWidth = 3.0;
