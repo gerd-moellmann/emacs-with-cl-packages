@@ -798,7 +798,9 @@ typedef NSInteger NSGlyphProperty;
 - (void)cancelHelpEchoForEmacsFrame:(struct frame *)f;
 - (BOOL)conflictingKeyBindingsDisabled;
 - (void)setConflictingKeyBindingsDisabled:(BOOL)flag;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
 - (void)flushWindow:(NSWindow *)window force:(BOOL)flag;
+#endif
 - (void)updatePresentationOptions;
 - (void)showMenuBar;
 @end
@@ -931,9 +933,12 @@ typedef NSInteger NSGlyphProperty;
 - (void)updateBackingScaleFactor;
 - (BOOL)emacsViewIsHiddenOrHasHiddenAncestor;
 - (void)updateEmacsViewIsHiddenOrHasHiddenAncestor;
+- (void)displayEmacsViewIfNeeded;
 - (void)lockFocusOnEmacsView;
 - (void)unlockFocusOnEmacsView;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
 - (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
+#endif
 - (NSPoint)convertEmacsViewPointToScreen:(NSPoint)point;
 - (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point;
 - (NSRect)convertEmacsViewRectToScreen:(NSRect)rect;
@@ -960,7 +965,26 @@ typedef NSInteger NSGlyphProperty;
    inheritance.  */
 
 @interface EmacsView : NSView
+{
+  /* Backing bitmap used for application-side double buffering.  */
+  NSBitmapImageRep *backingBitmap;
+
+  /* Graphics context saved by lockFocus emulation on backing
+     bitmap.  */
+  NSGraphicsContext *savedGraphicsContext;
+
+  /* True if lockFocus-unlockFocus emulation on backing bitmap is in
+     action.  */
+  BOOL backingBitmapFocused;
+}
 - (struct frame *)emacsFrame;
++ (void)globallyDisableUpdateLayer:(BOOL)flag;
+- (void)synchronizeBackingBitmap;
+- (void)lockFocusOnBacking;
+- (void)unlockFocusOnBacking;
+- (void)scrollBackingSrcX:(int)srcX srcY:(int)srcY
+		    width:(int)width height:(int)height
+		    destX:(int)destX destY:(int)destY;
 @end
 
 /* Class for Emacs view that also handles input events.  Used by

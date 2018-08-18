@@ -277,6 +277,11 @@ struct mac_output
      adjustment.  */
   unsigned toolbar_win_gravity : 4;
 
+  /* True means application-side double buffering together with a
+     layer-backed view is used.  Otherwise framework-provided double
+     buffering with a non-layer-backed view is used.  */
+  bool_bf double_buffered_p : 1;
+
   /* Width of the internal border.  */
   int internal_border_width;
 
@@ -330,6 +335,8 @@ struct mac_output
   ((f)->output_data.mac->scale_mismatch_state)
 #define FRAME_FLASH_RECTANGLES_DATA(f) \
   ((f)->output_data.mac->flash_rectangles_data)
+#define FRAME_MAC_DOUBLE_BUFFERED_P(f) \
+  ((f)->output_data.mac->double_buffered_p)
 
 /* This gives the mac_display_info structure for the display F is on.  */
 #define FRAME_DISPLAY_INFO(f) (&one_mac_display_info)

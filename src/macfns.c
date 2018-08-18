@@ -1138,6 +1138,39 @@ x_set_tool_bar_position (struct frame *f,
 }
 #endif
 
+static Lisp_Object
+mac_inhibit_double_buffering_default_value (void)
+{
+  return ((mac_operating_system_version.major > 10
+	   || mac_operating_system_version.minor >= 14)
+	  ? Qnil : Qt);
+}
+
+static bool
+mac_inhibit_double_buffering_force_default_p (void)
+{
+  /* macOS 10.14 uses layer-backed views by default.  And OS X 10.7
+     and earlier does not have -[NSView updateLayer].  */
+  return (mac_operating_system_version.major > 10
+	  || mac_operating_system_version.minor >= 14
+	  || mac_operating_system_version.minor <= 7);
+}
+
+static void
+x_set_inhibit_double_buffering (struct frame *f,
+                                Lisp_Object new_value,
+                                Lisp_Object old_value)
+{
+  /* Only effective at the frame creation time.  */
+  if (FRAME_MAC_WINDOW (f))
+    return;
+
+  if (mac_inhibit_double_buffering_force_default_p ())
+    new_value = mac_inhibit_double_buffering_default_value ();
+
+  FRAME_MAC_DOUBLE_BUFFERED_P (f) = NILP (new_value);
+}
+
 static void
 x_set_undecorated (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
 {
@@ -2427,6 +2460,10 @@ This function is an internal primitive--use `make-frame' instead.  */)
   x_default_parameter (f, parms, Qtool_bar_position,
                        FRAME_TOOL_BAR_POSITION (f), 0, 0, RES_TYPE_SYMBOL);
 #endif
+  x_default_parameter (f, parms, Qinhibit_double_buffering,
+		       mac_inhibit_double_buffering_default_value (),
+                       "inhibitDoubleBuffering", "InhibitDoubleBuffering",
+                       RES_TYPE_BOOLEAN);
 
   /* Compute the size of the window.  */
   window_prompting = x_figure_window_size (f, parms, true, &x_width, &x_height);
@@ -3458,6 +3495,10 @@ x_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms)
 		       "borderColor", "BorderColor", RES_TYPE_STRING);
   x_default_parameter (f, parms, Qno_special_glyphs, Qnil,
 		       NULL, NULL, RES_TYPE_BOOLEAN);
+  x_default_parameter (f, parms, Qinhibit_double_buffering,
+		       mac_inhibit_double_buffering_default_value (),
+                       "inhibitDoubleBuffering", "InhibitDoubleBuffering",
+                       RES_TYPE_BOOLEAN);
 
   /* Init faces before x_default_parameter is called for the
      scroll-bar-width parameter because otherwise we end up in
@@ -5063,7 +5104,7 @@ frame_parm_handler mac_frame_parm_handlers[] =
   x_set_alpha,
   x_set_sticky,
   0, /* x_set_tool_bar_position, */
-  0, /* x_set_inhibit_double_buffering */
+  x_set_inhibit_double_buffering,
   x_set_undecorated,
   x_set_parent_frame,
   x_set_skip_taskbar,

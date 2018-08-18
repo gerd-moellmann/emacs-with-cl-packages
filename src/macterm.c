@@ -557,7 +557,8 @@ mac_invert_rectangles_and_flush (struct frame *f, NativeRectangle *rectangles,
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   if (!(mac_operating_system_version.major == 10
-	&& mac_operating_system_version.minor < 10))
+	&& mac_operating_system_version.minor < 10)
+      || FRAME_MAC_DOUBLE_BUFFERED_P (f))
 #endif
     {
       if (invert_p)
