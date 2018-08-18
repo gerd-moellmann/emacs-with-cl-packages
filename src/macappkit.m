@@ -8923,7 +8923,7 @@ free_frame_tool_bar (struct frame *f)
 
 /* Called when the user has chosen a font from the font panel.  */
 
-- (void)changeFont:(id)sender
+- (void)changeFont:(NSFontManager *)sender
 {
   EmacsFontPanel *fontPanel = (EmacsFontPanel *) [sender fontPanel:NO];
   NSEvent *currentEvent;
@@ -9681,7 +9681,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
   [NSApp stopModal];
 }
 
-- (void)changeFont:(id)sender
+- (void)changeFont:(NSFontManager *)sender
 {
 }
 

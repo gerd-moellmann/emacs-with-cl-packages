@@ -321,6 +321,22 @@ enum {
 typedef NSUInteger NSFontPanelModeMask;
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
+@protocol NSFontChanging <NSObject>
+@optional
+- (void)changeFont:(NSFontManager *)sender;
+- (NSFontPanelModeMask)validModesForFontPanel:(NSFontPanel *)fontPanel;
+@end
+
+@protocol NSMenuItemValidation <NSObject>
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem;
+@end
+
+@protocol NSToolbarItemValidation <NSObject>
+- (BOOL)validateToolbarItem:(NSToolbarItem *)item;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 enum {
   NSProgressIndicatorStyleBar = NSProgressIndicatorBarStyle,
@@ -784,7 +800,7 @@ typedef NSInteger NSGlyphProperty;
    It also provides the delegate methods windowWillEnterTabOverview
    and windowDidExitTabOverview.  */
 
-@interface EmacsWindow : NSWindow
+@interface EmacsWindow : NSWindow <NSMenuItemValidation>
 {
   /* Left mouse up event used for suspending resize control
      tracking.  */
@@ -1114,7 +1130,7 @@ typedef NSInteger NSGlyphProperty;
 - (NSToolbarItem *)item;
 @end
 
-@interface EmacsFrameController (Toolbar) <NSToolbarDelegate>
+@interface EmacsFrameController (Toolbar) <NSToolbarDelegate, NSToolbarItemValidation>
 - (void)setupToolBarWithVisibility:(BOOL)visible;
 - (void)updateToolbarDisplayMode;
 - (void)storeToolBarEvent:(id)sender;
@@ -1139,7 +1155,7 @@ typedef NSInteger NSGlyphProperty;
 - (void)fontPanelWillClose:(NSNotification *)notification;
 @end
 
-@interface EmacsFrameController (FontPanel)
+@interface EmacsFrameController (FontPanel) <NSFontChanging>
 - (NSFont *)fontForFace:(int)faceId character:(int)c
 	       position:(int)pos object:(Lisp_Object)object;
 - (void)changeFont:(id)sender;
@@ -1162,7 +1178,7 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsSavePanel : NSSavePanel
 @end
 
-@interface EmacsFontDialogController : NSObject <NSWindowDelegate>
+@interface EmacsFontDialogController : NSObject <NSWindowDelegate, NSFontChanging>
 @end
 
 @interface NSMenu (Emacs)
