@@ -6896,7 +6896,7 @@ static CGContextRef saved_focus_view_context;
 static CGRect saved_focus_view_accumulated_clip_rect;
 #endif
 #if DRAWING_USE_GCD
-dispatch_queue_t global_focus_drawing_queue;
+static dispatch_queue_t global_focus_drawing_queue;
 #endif
 
 static void
