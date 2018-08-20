@@ -11155,7 +11155,11 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 void
 mac_page_setup_dialog (void)
 {
-  mac_within_app (^{[[NSPageLayout pageLayout] runModal];});
+  mac_menu_set_in_use (true);
+  mac_within_gui_allowing_inner_lisp (^{
+      mac_within_app (^{[[NSPageLayout pageLayout] runModal];});
+    });
+  mac_menu_set_in_use (false);
 }
 
 Lisp_Object
@@ -11215,7 +11219,9 @@ mac_print_frames_dialog (Lisp_Object frames)
   mac_within_gui (^{
       printProxyView = [[EmacsPrintProxyView alloc] initWithViews:views];
     });
-  [printProxyView print:nil];
+  mac_menu_set_in_use (true);
+  mac_within_gui_allowing_inner_lisp (^{[printProxyView print:nil];});
+  mac_menu_set_in_use (false);
   MRC_RELEASE (printProxyView);
 }
 
