@@ -3980,9 +3980,6 @@ mac_handle_size_change (struct frame *f, int pixelwidth, int pixelheight)
      block_input.  */
   change_frame_size (f, width, height, false, true, false, true);
 
-  /* If cursor was outside the new size, mark it as off.  */
-  mark_window_cursors_off (XWINDOW (f->root_window));
-
   /* Clear out any recollection of where the mouse highlighting was,
      since it might be in a place that's outside the new frame size.
      Actually checking whether it is outside is a pain in the neck, so
@@ -4227,6 +4224,9 @@ x_set_window_size (struct frame *f, bool change_gravity,
   mac_size_frame_window (f, pixelwidth, pixelheight, true);
 
   SET_FRAME_GARBAGED (f);
+
+  /* If cursor was outside the new size, mark it as off.  */
+  mark_window_cursors_off (XWINDOW (f->root_window));
 
   unblock_input ();
 
