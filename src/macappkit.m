@@ -1645,7 +1645,7 @@ emacs_windows_set_autodisplay_p (bool flag)
     {
       struct frame *f = XFRAME (frame);
 
-      if (FRAME_MAC_P (f) && !EQ (frame, tip_frame))
+      if (FRAME_MAC_P (f))
 	{
 	  EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
@@ -2631,8 +2631,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
     }
   else
     {
-      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13)
-	[window setAutodisplay:NO];
       [window setHasShadow:YES];
       [window setLevel:NSScreenSaverWindowLevel];
       [window setIgnoresMouseEvents:YES];
@@ -9426,15 +9424,6 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       FOR_EACH_FRAME (tail, frame)
 	{
 	  struct frame *f = XFRAME (frame);
-
-	  /* The tooltip has been drawn already.  Avoid the
-	     SET_FRAME_GARBAGED in mac_handle_visibility_change.  */
-	  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13
-	      && EQ (frame, tip_frame))
-	    {
-	      x_flush (f);
-	      continue;
-	    }
 
 	  if (FRAME_MAC_P (f))
 	    {
