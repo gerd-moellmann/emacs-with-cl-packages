@@ -2599,15 +2599,22 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	 intercepted by the former.  Still the former (layer-hosting)
 	 is displayed in front of the latter (neither layer-backed nor
 	 layer-hosting).  */
-      /* Unfortunately, this trick does not work on macOS 10.14 public
-	 beta 3.  Placing overlayView above emacsView (with returning
-	 nil in hitTest:) works if the executable is linked against
-	 the macOS 10.14 SDK, but not for the one linked on the older
-	 versions then run on macOS 10.14.  Making overlayView a
-	 subview of emacsView works for both cases.  Note that we need
-	 to temporarily hide overlayView when taking screenshot in
+      /* Unfortunately, this trick does not work on macOS 10.14.
+	 Placing overlayView above emacsView (with returning nil in
+	 hitTest:) works if the executable is linked against the macOS
+	 10.14 SDK, but not for the one linked on the older versions
+	 then run on macOS 10.14.  Making overlayView a subview of
+	 emacsView works for both cases.  Note that we need to
+	 temporarily hide overlayView when taking screenshot in
 	 -[EmacsFrameController bitmapImageRepInEmacsViewRect:].  */
-      if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
+      /* If emacsView is layer-backed, which is the case when the
+	 executable is linked against the macOS 10.14 SDK, then the
+	 live resize transition layer used in full screen transition
+	 looks translucent if we make overlayView a subview of
+	 emacsView.  */
+      if (emacsView.layer)
+	[window.contentView addSubview:overlayView];
+      else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
 	{
 	  if (![overlayView.superview isEqual:emacsView])
 	    [emacsView addSubview:overlayView];
