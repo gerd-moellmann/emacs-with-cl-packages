@@ -772,6 +772,7 @@ typedef NSInteger NSGlyphProperty;
      Topics".  */
   NSString *searchStringForAllHelpTopics;
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
   /* Date of last flushWindow call.  */
   NSDate *lastFlushDate;
 
@@ -780,6 +781,7 @@ typedef NSInteger NSGlyphProperty;
 
   /* Set of windows whose flush is deferred.  */
   NSMutableSetOf (NSWindow *) *deferredFlushWindows;
+#endif
 }
 - (int)getAndClearMenuItemSelection;
 - (void)storeInputEvent:(id)sender;

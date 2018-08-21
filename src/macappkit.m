@@ -1297,9 +1297,11 @@ static bool handling_queued_nsevents_p;
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
 #if !USE_ARC
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   [lastFlushDate release];
   [flushTimer release];
   [deferredFlushWindows release];
+#endif
   [super dealloc];
 #endif
 }
@@ -1758,10 +1760,13 @@ emacs_windows_set_autodisplay_p (bool flag)
 
 - (void)flushWindow:(NSWindow *)window force:(BOOL)flag
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   /* Deferring flush seems to be unnecessary and give a reverse effect
      on OS X 10.11.  */
   if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
+#endif
     [window flushWindow];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   else
     {
       NSTimeInterval timeInterval;
@@ -1800,13 +1805,16 @@ emacs_windows_set_autodisplay_p (bool flag)
 	  [deferredFlushWindows removeAllObjects];
 	}
     }
+#endif
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 - (void)processDeferredFlushWindow:(NSTimer *)theTimer
 {
   if (!handling_queued_nsevents_p)
     [self flushWindow:nil force:YES];
 }
+#endif
 
 /* Some key bindings in mac_apple_event_map are regarded as methods in
    the application delegate.  */
