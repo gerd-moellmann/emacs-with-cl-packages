@@ -15528,7 +15528,7 @@ int
 mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 	    struct timespec *timeout, sigset_t *sigmask)
 {
-  bool __block has_event_p;
+  bool __block has_event_p, thread_may_switch_p;
   int __block r;
 
   if (!initialized)
@@ -15605,9 +15605,8 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 
   block_input ();
   turn_on_atimers (false);
+  thread_may_switch_p = !NILP (XCDR (Fall_threads ()));
   mac_within_gui_and_here (^{
-      bool thread_may_switch_p = !NILP (XCDR (Fall_threads ()));
-
       /* Temporarily disable autodisplay if the Lisp thread may switch
 	 to another one and some drawing may happen there.  */
       if (thread_may_switch_p)
