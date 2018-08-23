@@ -1638,24 +1638,6 @@ emacs_windows_need_display_p (void)
   return NO;
 }
 
-static void
-emacs_windows_set_autodisplay_p (bool flag)
-{
-  Lisp_Object tail, frame;
-
-  FOR_EACH_FRAME (tail, frame)
-    {
-      struct frame *f = XFRAME (frame);
-
-      if (FRAME_MAC_P (f))
-	{
-	  EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-
-	  [window setAutodisplay:flag];
-	}
-    }
-}
-
 - (void)processDeferredReadSocket:(NSTimer *)theTimer
 {
   if (!handling_queued_nsevents_p)
@@ -5669,6 +5651,8 @@ mac_frame_restack (struct frame *f1, struct frame *f2, bool above_flag)
 static CFMutableArrayRef deferred_key_events;
 
 static int mac_event_to_emacs_modifiers (NSEvent *);
+static bool mac_try_buffer_and_glyph_matrix_access (void);
+static void mac_end_buffer_and_glyph_matrix_access (void);
 
 /* View for Emacs frame.  */
 
@@ -6516,7 +6500,7 @@ event_phase_to_symbol (NSEventPhase phase)
     }
   else if ((poll_suppress_count != 0 || NILP (Vinhibit_quit))
 	   /* Might be called during the select emulation.  */
-	   && (main_thread_p (current_thread) || self.window.isAutodisplay))
+	   && mac_try_buffer_and_glyph_matrix_access ())
     {
       struct frame *f = [self emacsFrame];
       struct window *w = XWINDOW (f->selected_window);
@@ -6608,6 +6592,7 @@ event_phase_to_symbol (NSEventPhase phase)
 	      CFRelease (string);
 	    }
 	}
+      mac_end_buffer_and_glyph_matrix_access ();
     }
 
   return result;
@@ -6641,10 +6626,11 @@ event_phase_to_symbol (NSEventPhase phase)
      macOS 10.13.  */
   if (!WINDOWP (f->root_window)
       /* Also might be called during the select emulation.  */
-      || !(main_thread_p (current_thread) || self.window.isAutodisplay))
+      || !mac_try_buffer_and_glyph_matrix_access ())
     return NSMakeRange (NSNotFound, 0);
 
   mac_ax_selected_text_range (f, (CFRange *) &result);
+  mac_end_buffer_and_glyph_matrix_access ();
 
   return result;
 }
@@ -6787,11 +6773,12 @@ event_phase_to_symbol (NSEventPhase phase)
      altered. */
   if ((poll_suppress_count == 0 && !NILP (Vinhibit_quit))
       /* Might be called during the select emulation.  */
-      || !(main_thread_p (current_thread) || self.window.isAutodisplay))
+      || !mac_try_buffer_and_glyph_matrix_access ())
     return nil;
 
   range = CFRangeMake (0, mac_ax_number_of_characters (f));
   string = mac_ax_create_string_for_range (f, &range, NULL);
+  mac_end_buffer_and_glyph_matrix_access ();
 
   return CF_BRIDGING_RELEASE (string);
 }
@@ -15456,6 +15443,10 @@ mac_within_lisp_deferred_unless_popup (void (^block) (void))
    notifying delivery of SIGALRM.  */
 static int mac_select_fds[2];
 
+/* Whether buffer and glyph matrix access from the GUI thread is
+   restricted to the case that no Lisp thread is running.  */
+static bool mac_buffer_and_glyph_matrix_access_restricted_p;
+
 static int
 read_all_from_nonblocking_fd (int fd)
 {
@@ -15522,6 +15513,47 @@ mac_handle_alarm_signal (void)
 {
   if (initialized)
     write_one_byte_to_fd (mac_select_fds[1]);
+}
+
+/* Restrict/unrestrict buffer and glyph matrix access from the GUI
+   thread to the case that no Lisp thread is running.  */
+
+static void
+mac_set_buffer_and_glyph_matrix_access_restricted (bool flag)
+{
+  /* Temporarily disable autodisplay if the Lisp thread may switch to
+     another one and some drawing may happen there.  */
+  Lisp_Object tail, frame;
+
+  FOR_EACH_FRAME (tail, frame)
+    {
+      struct frame *f = XFRAME (frame);
+
+      if (FRAME_MAC_P (f))
+	{
+	  EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+	  [window setAutodisplay:!flag];
+	}
+    }
+
+  mac_buffer_and_glyph_matrix_access_restricted_p = flag;
+}
+
+static bool
+mac_try_buffer_and_glyph_matrix_access (void)
+{
+  if (mac_buffer_and_glyph_matrix_access_restricted_p)
+    return !thread_try_acquire_global_lock ();
+
+  return true;
+}
+
+static void
+mac_end_buffer_and_glyph_matrix_access (void)
+{
+  if (mac_buffer_and_glyph_matrix_access_restricted_p)
+    thread_release_global_lock ();
 }
 
 int
@@ -15607,10 +15639,8 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
   turn_on_atimers (false);
   thread_may_switch_p = !NILP (XCDR (Fall_threads ()));
   mac_within_gui_and_here (^{
-      /* Temporarily disable autodisplay if the Lisp thread may switch
-	 to another one and some drawing may happen there.  */
       if (thread_may_switch_p)
-	emacs_windows_set_autodisplay_p (false);
+	mac_set_buffer_and_glyph_matrix_access_restricted (true);
       while (true)
 	{
 	  mac_select_next_command = 0;
@@ -15661,7 +15691,7 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 	    mac_gui_loop_once ();
 	}
       if (thread_may_switch_p)
-	emacs_windows_set_autodisplay_p (true);
+	mac_set_buffer_and_glyph_matrix_access_restricted (false);
     },
     ^{
       r = thread_select (pselect, nfds, rfds, wfds, efds, timeout, sigmask);
