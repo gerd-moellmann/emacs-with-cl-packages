@@ -1050,6 +1050,9 @@ typedef NSInteger NSGlyphProperty;
   /* Whether the hitPart area should be highlighted.  */
   BOOL hilightsHitPart;
 
+  /* Whether the scroller is created as horizontal.  */
+  BOOL isHorizontal;
+
   /* If the scroller knob is currently being dragged by the user, this
      is the number of pixels from the top of the knob to the place
      where the user grabbed it.  If the knob is pressed but not

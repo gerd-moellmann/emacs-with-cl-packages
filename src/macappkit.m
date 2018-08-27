@@ -7444,6 +7444,17 @@ static BOOL NonmodalScrollerPagingBehavior;
   [self updateBehavioralParameters];
 }
 
+- (instancetype)initWithFrame:(NSRect)frameRect
+{
+  self = [super initWithFrame:frameRect];
+  if (self == nil)
+    return nil;
+
+  isHorizontal = !(NSHeight (frameRect) >= NSWidth (frameRect));
+
+  return self;
+}
+
 #if !USE_ARC
 - (void)dealloc
 {
@@ -7592,7 +7603,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 	{
 	  NSRect knobSlotRect = [self rectForPart:NSScrollerKnobSlot];
 
-	  if (NSHeight (bounds) >= NSWidth (bounds))
+	  if (!isHorizontal)
 	    {
 	      knobRect.origin.y = point.y - round (NSHeight (knobRect) / 2);
 	      if (NSMinY (knobRect) < NSMinY (knobSlotRect))
@@ -7615,7 +7626,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 	  hitPart = NSScrollerKnob;
 	}
 
-      if (NSHeight (bounds) >= NSWidth (bounds))
+      if (!isHorizontal)
 	knobGrabOffset = - (point.y - NSMinY (knobRect)) - 1;
       else
 	knobGrabOffset = - (point.x - NSMinX (knobRect)) - 1;
@@ -7675,7 +7686,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 
       bounds = [self bounds];
       knobSlotRect = [self rectForPart:NSScrollerKnobSlot];
-      if (NSHeight (bounds) >= NSWidth (bounds))
+      if (!isHorizontal)
 	knobMinEdgeInSlot = point.y - knobGrabOffset - NSMinY (knobSlotRect);
       else
 	knobMinEdgeInSlot = point.x - knobGrabOffset - NSMinX (knobSlotRect);
@@ -7685,7 +7696,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 	  CGFloat maximum, minEdge;
 	  NSRect KnobRect = [self rectForPart:NSScrollerKnob];
 
-	  if (NSHeight (bounds) >= NSWidth (bounds))
+	  if (!isHorizontal)
 	    maximum = NSHeight (knobSlotRect) - NSHeight (KnobRect);
 	  else
 	    maximum = NSWidth (knobSlotRect) - NSWidth (KnobRect);
@@ -7761,7 +7772,8 @@ static BOOL NonmodalScrollerPagingBehavior;
     {NSControlSizeRegular, NSControlSizeSmall}; /* Descending */
   int i, count = ARRAYELTS (controlSizes);
   NSRect knobRect, bounds = [self bounds];
-  CGFloat shorterDimension = min (NSWidth (bounds), NSHeight (bounds));
+  CGFloat shorterDimension =
+    !isHorizontal ? NSWidth (bounds) : NSHeight (bounds);
 
   for (i = 0; i < count; i++)
     {
@@ -7791,7 +7803,7 @@ static BOOL NonmodalScrollerPagingBehavior;
       || (NSWidth (knobRect) == NSWidth (bounds)
 	  && NSHeight (knobRect) == NSHeight (bounds)))
     tooSmall = YES;
-  if (NSHeight (bounds) >= NSWidth (bounds))
+  if (!isHorizontal)
     minKnobSpan = NSHeight (knobRect);
   else
     minKnobSpan = NSWidth (knobRect);
@@ -7904,7 +7916,7 @@ static BOOL NonmodalScrollerPagingBehavior;
       [self setKnobProportion:0];
       [self setEnabled:YES];
       knobSlotRect = [self rectForPart:NSScrollerKnobSlot];
-      if (NSHeight (bounds) >= NSWidth (bounds))
+      if (!isHorizontal)
 	knobSlotSpan = NSHeight (knobSlotRect);
       else
 	knobSlotSpan = NSWidth (knobSlotRect);
@@ -7953,7 +7965,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 
   hitPart = [self testPart:point];
   point = [self convertPoint:point fromView:nil];
-  if (NSHeight (bounds) >= NSWidth (bounds))
+  if (!isHorizontal)
     {
       frameSpan = NSHeight (bounds);
       clickPositionInFrame = point.y;
@@ -8168,7 +8180,34 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 {
   struct window *w = XWINDOW (bar->window);
   NSRect frame = NSMakeRect (bar->left, bar->top, bar->width, bar->height);
-  EmacsScroller *scroller = [[EmacsScroller alloc] initWithFrame:frame];
+  BOOL frameAdjusted = NO;
+  EmacsScroller *scroller;
+
+  /* Avoid confusion between vertical and horizontal types when
+     creating the scroller.  */
+  if (!bar->horizontal)
+    {
+      if (bar->height < bar->width)
+	frame.size.height = NSWidth (frame) + 1;
+      frameAdjusted = YES;
+    }
+  else
+    {
+      if (bar->width < bar->height)
+	frame.size.width = NSHeight (frame) + 1;
+      frameAdjusted = YES;
+    }
+
+  scroller = [[EmacsScroller alloc] initWithFrame:frame];
+
+  if (frameAdjusted)
+    {
+      if (!bar->horizontal)
+	frame.size.height = bar->height;
+      else
+	frame.size.width = bar->width;
+      scroller.frame = frame;
+    }
 
   [scroller setEmacsScrollBar:bar];
   [scroller setAction:@selector(convertScrollerAction:)];
