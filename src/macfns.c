@@ -4725,6 +4725,9 @@ The result is a property list containing the following names and values:
     Non-nil means the application is active.
 `:hidden-p'
     Non-nil means the application is hidden.
+`:appearance' (only on macOS 10.14 and later)
+    String representing the global appearance.
+    Examples: \"NSAppearanceNameAqua\" and \"NSAppearanceNameDarkAqua\".
 
 If Emacs is not running as a GUI application, then the result is nil.  */)
   (void)
@@ -5103,6 +5106,7 @@ syms_of_macfns (void)
   DEFSYM (QCicon_image_file, ":icon-image-file");
   DEFSYM (QCactive_p, ":active-p");
   DEFSYM (QChidden_p, ":hidden-p");
+  DEFSYM (QCappearance, ":appearance");
   DEFSYM (QCoverview_visible_p, ":overview-visible-p");
   DEFSYM (QCtab_bar_visible_p, ":tab-bar-visible-p");
   DEFSYM (QCselected_frame, ":selected-frame");

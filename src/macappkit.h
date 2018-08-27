@@ -301,6 +301,11 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
+@interface NSApplication (AppearanceCustomization) <NSAppearanceCustomization>
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
 @interface NSAppearance (AvailableOn101000AndLater)
 @property (readonly, copy) NSAppearanceName name;

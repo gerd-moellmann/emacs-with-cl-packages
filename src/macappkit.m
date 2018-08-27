@@ -2013,6 +2013,10 @@ mac_application_state (void)
 
   result = Fcons (QChidden_p, Fcons ([NSApp isHidden] ? Qt : Qnil, result));
   result = Fcons (QCactive_p, Fcons ([NSApp isActive] ? Qt : Qnil, result));
+  if ([NSApp respondsToSelector:@selector(effectiveAppearance)])
+    result = Fcons (QCappearance,
+		    Fcons ([NSApp effectiveAppearance].name.lispString,
+			   result));
 
   return result;
 }
