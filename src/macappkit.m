@@ -4607,11 +4607,9 @@ mac_set_tab_group_tab_bar_visible_p (struct frame *f, Lisp_Object value)
       [window exitTabGroupOverview];
       [NSApp sendAction:@selector(toggleTabBar:) to:window from:nil];
     });
-#if 0
   [[NSUserDefaults standardUserDefaults]
       removeObjectForKey:[@"NSWindowTabbingShoudShowTabBarKey-"
 			     stringByAppendingString:window.tabbingIdentifier]];
-#endif
 
   return Qt;
 }
