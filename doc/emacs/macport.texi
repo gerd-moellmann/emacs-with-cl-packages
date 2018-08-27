@@ -8,7 +8,7 @@
 
   This section briefly describes the peculiarities of using Emacs
 under macOS with the Mac port.  This port provides a native GUI
-support for Mac OS X 10.6 -- macOS 10.13.  Note that Emacs 23 and
+support for Mac OS X 10.6 -- macOS 10.14.  Note that Emacs 23 and
 later already contain the official GUI support via the NS (Cocoa) port
 for macOS (@pxref{Mac OS / GNUstep}).  So if it is good enough for
 you, then you don't need to try this.
@@ -509,12 +509,16 @@ defaults write org.gnu.Emacs Emacs.fringe.attributeStipple alpha:.5
 by the value of the @code{scroll-bar-background} frame parameter.  If
 it is @code{nil}, which is the default, then the frame background
 color is used instead.  Its color also affects the appearance of other
-GUI parts: the title bar, the tool bar, (the tab bar on macOS 10.12
-and later), scroll bars, and popup menus become light (or dark) if the
-color is considered light (or dark, respectively).  On macOS 10.12 and
-later, the title/tool/tab bars look slightly colored with the value of
-the @code{scroll-bar-background} frame parameter (or the frame
-background color) if the frame is focused and not in fullscreen.
+GUI parts: scroll bars on On OS X 10.10 and later, and the title bar,
+the tool bar, (the tab bar on macOS 10.12 and later), and popup menus
+on OS X 10.10 -- macOS 10.13 become light (or dark) if the color is
+considered light (or dark, respectively).  On macOS 10.14 and later,
+the appearance of GUI parts other than scroll bars respect the global
+setting, which is available via @code{(mac-application-state)}.  On
+macOS 10.12 and later, the title/tool/tab bars look slightly colored
+with the value of the @code{scroll-bar-background} frame parameter (or
+the frame background color) if the frame is focused and not in
+fullscreen.
 
 @node Mac Fullscreen
 @section Fullscreen support on the Mac Port
