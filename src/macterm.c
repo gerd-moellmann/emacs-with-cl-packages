@@ -3210,7 +3210,6 @@ x_scroll_bar_remove (struct scroll_bar *bar)
 static void
 mac_set_vertical_scroll_bar (struct window *w, int portion, int whole, int position)
 {
-  struct frame *f = XFRAME (w->frame);
   struct scroll_bar *bar;
   int top, height, left, width;
   int window_y, window_height;

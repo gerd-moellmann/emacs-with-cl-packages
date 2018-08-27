@@ -5163,7 +5163,6 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
       [window setBackgroundColor:[NSColor colorWithXColorPixel:color]];
       if (has_visual_effect_view_p ())
 	{
-	  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 	  /* This formula comes from frame-set-background-mode in
 	     frame.el.  */
 	  NSAppearanceName name =
@@ -5240,7 +5239,6 @@ void
 mac_update_begin (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
-  EmacsWindow *window = [frameController emacsWindow];
 
   mac_within_gui (^{
       [frameController lockFocusOnEmacsView];
@@ -5252,7 +5250,7 @@ void
 mac_update_end (struct frame *f)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
-  EmacsWindow *window = [frameController emacsWindow];
+
   mac_within_gui (^{
       CGRect clip_rect = unset_global_focus_view_frame ();
 
