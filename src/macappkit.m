@@ -7840,23 +7840,16 @@ static BOOL NonmodalScrollerPagingBehavior;
 
 - (void)drawRect:(NSRect)aRect
 {
-  if (!has_visual_effect_view_p ())
-    [super drawRect:aRect];
-  else if ([[NS_APPEARANCE currentAppearance] allowsVibrancy])
+  [self.window.backgroundColor set];
+  NSRectFill (aRect);
+  [super drawRect:aRect];
+  if (has_visual_effect_view_p ()
+      && ![NS_APPEARANCE currentAppearance].allowsVibrancy
+      && !mac_accessibility_display_options.reduce_transparency_p)
     {
-      [[[self window] backgroundColor] set];
-      NSRectFill ([self rectForPart:NSScrollerKnobSlot]);
-      [super drawRect:aRect];
-    }
-  else
-    {
-      [super drawRect:aRect];
-      if (!mac_accessibility_display_options.reduce_transparency_p)
-	{
-	  [[[[self window] backgroundColor] colorWithAlphaComponent:0.25] set];
-	  NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
-				    NSCompositingOperationSourceOver);
-	}
+      [[self.window.backgroundColor colorWithAlphaComponent:0.25] set];
+      NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
+				NSCompositingOperationSourceOver);
     }
 }
 
