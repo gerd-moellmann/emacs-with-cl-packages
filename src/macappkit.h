@@ -969,13 +969,9 @@ typedef NSInteger NSGlyphProperty;
   /* Backing bitmap used for application-side double buffering.  */
   NSBitmapImageRep *backingBitmap;
 
-  /* Graphics context saved by lockFocus emulation on backing
-     bitmap.  */
-  NSGraphicsContext *savedGraphicsContext;
-
-  /* True if lockFocus-unlockFocus emulation on backing bitmap is in
-     action.  */
-  BOOL backingBitmapFocused;
+  /* Stack of graphics contexts saved by lockFocus emulation on
+     backing bitmap.  */
+  NSMutableArray *graphicsContextStack;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;

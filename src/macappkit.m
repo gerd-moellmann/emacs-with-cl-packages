@@ -5735,7 +5735,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   [[NSNotificationCenter defaultCenter] removeObserver:self];
 #if !USE_ARC
   [backingBitmap release];
-  [savedGraphicsContext release];
+  [graphicsContextStack release];
   [super dealloc];
 #endif
 }
@@ -5792,7 +5792,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   struct frame *f = self.emacsFrame;
   NSBitmapImageRep *savedBackingBitmap = nil;
 
-  if (backingBitmapFocused)
+  if (graphicsContextStack.count)
     return;
 
   if (!backingBitmap && mac_try_buffer_and_glyph_matrix_access ())
@@ -5853,11 +5853,14 @@ static BOOL emacsViewUpdateLayerDisabled;
       return;
     }
 #endif
-  eassert (!backingBitmapFocused);
   if (!backingBitmap)
     backingBitmap =
       MRC_RETAIN ([self bitmapImageRepForCachingDisplayInRect:self.bounds]);
-  savedGraphicsContext = MRC_RETAIN ([NSGraphicsContext currentContext]);
+  if (!graphicsContextStack)
+    graphicsContextStack = [[NSMutableArray alloc] initWithCapacity:0];
+  id currentContext = NSGraphicsContext.currentContext;
+  [graphicsContextStack addObject:(currentContext ? currentContext
+				   : NSNull.null)];
   NSGraphicsContext.currentContext =
     [NSGraphicsContext graphicsContextWithBitmapImageRep:backingBitmap];
   [NSGraphicsContext saveGraphicsState];
@@ -5865,7 +5868,6 @@ static BOOL emacsViewUpdateLayerDisabled;
   [transform translateXBy:0 yBy:backingBitmap.size.height];
   [transform scaleXBy:1 yBy:-1];
   [transform concat];
-  backingBitmapFocused = YES;
 }
 
 - (void)unlockFocusOnBacking
@@ -5879,13 +5881,14 @@ static BOOL emacsViewUpdateLayerDisabled;
       return;
     }
 #endif
-  eassert (backingBitmapFocused && backingBitmap);
+  eassert (graphicsContextStack.count && backingBitmap);
   [NSGraphicsContext restoreGraphicsState];
-  NSGraphicsContext.currentContext = savedGraphicsContext;
-  MRC_RELEASE (savedGraphicsContext);
-  savedGraphicsContext = nil;
-  self.needsDisplay = YES;
-  backingBitmapFocused = NO;
+  id lastObject = graphicsContextStack.lastObject;
+  NSGraphicsContext.currentContext = (lastObject != NSNull.null ? lastObject
+				      : nil);
+  [graphicsContextStack removeLastObject];
+  if (graphicsContextStack.count == 0)
+    self.needsDisplay = YES;
 }
 
 - (void)scrollBackingSrcX:(int)srcX srcY:(int)srcY
