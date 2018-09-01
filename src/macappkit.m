@@ -2023,6 +2023,48 @@ mac_application_state (void)
   return result;
 }
 
+static Lisp_Object
+mac_color_in_global_appearance_to_string (NSColor *color)
+{
+  Lisp_Object result = make_uninit_string (7);
+  NSAppearance *oldAppearance;
+  NSColor *colorInSRGB;
+  CGFloat components[4];
+
+  if ([NSApp respondsToSelector:@selector(effectiveAppearance)])
+    {
+      oldAppearance = [NS_APPEARANCE currentAppearance];
+      [NS_APPEARANCE setCurrentAppearance:[NSApp effectiveAppearance]];
+    }
+  colorInSRGB = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+  [colorInSRGB getComponents:components];
+  sprintf (SDATA (result), "#%02x%02x%02x",
+	   (int) (components[0] * 255 + 0.5),
+	   (int) (components[1] * 255 + 0.5),
+	   (int) (components[2] * 255 + 0.5));
+  if ([NSApp respondsToSelector:@selector(effectiveAppearance)])
+    [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+
+  if (strcmp (SDATA (result), "#ffffff") == 0)
+    result = build_string ("white");
+  else if (strcmp (SDATA (result), "#000000") == 0)
+    result = build_string ("black");
+
+  return result;
+}
+
+Lisp_Object
+mac_default_foreground_color (void)
+{
+  return mac_color_in_global_appearance_to_string (NSColor.textColor);
+}
+
+Lisp_Object
+mac_default_background_color (void)
+{
+  return mac_color_in_global_appearance_to_string (NSColor.textBackgroundColor);
+}
+
 
 /************************************************************************
 			       Windows

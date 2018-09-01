@@ -2385,11 +2385,14 @@ This function is an internal primitive--use `make-frame' instead.  */)
 		       "horizontalScrollBars", "ScrollBars",
 		       RES_TYPE_SYMBOL);
   /* Also do the stuff which must be set before the window exists.  */
-  x_default_parameter (f, parms, Qforeground_color, build_string ("black"),
+  x_default_parameter (f, parms, Qforeground_color,
+		       mac_default_foreground_color (),
 		       "foreground", "Foreground", RES_TYPE_STRING);
-  x_default_parameter (f, parms, Qbackground_color, build_string ("white"),
+  x_default_parameter (f, parms, Qbackground_color,
+		       mac_default_background_color (),
 		       "background", "Background", RES_TYPE_STRING);
-  x_default_parameter (f, parms, Qmouse_color, build_string ("black"),
+  x_default_parameter (f, parms, Qmouse_color,
+		       mac_default_foreground_color (),
 		       "pointerColor", "Foreground", RES_TYPE_STRING);
   x_default_parameter (f, parms, Qborder_color, build_string ("black"),
 		       "borderColor", "BorderColor", RES_TYPE_STRING);

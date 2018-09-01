@@ -596,6 +596,8 @@ extern void mac_bring_current_process_to_front (bool);
 extern bool mac_trash_file (const char *, CFErrorRef *);
 extern OSStatus install_application_handler (void);
 extern Lisp_Object mac_application_state (void);
+extern Lisp_Object mac_default_foreground_color (void);
+extern Lisp_Object mac_default_background_color (void);
 extern void mac_set_frame_window_title (struct frame *, CFStringRef);
 extern void mac_set_frame_window_modified (struct frame *, bool);
 extern void mac_set_frame_window_proxy (struct frame *, CFURLRef);
