@@ -5993,6 +5993,9 @@ syms_of_macterm (void)
   DEFSYM (Qmay_begin, "may-begin");
   DEFSYM (QCmagnification, ":magnification");
 
+  DEFSYM (Qapplication_kvo, "application-kvo");
+  DEFSYM (Qchange, "change");
+
   staticpro (&x_display_rdb_list);
   x_display_rdb_list = Qnil;
 

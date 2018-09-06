@@ -787,7 +787,12 @@ typedef NSInteger NSGlyphProperty;
   /* Set of windows whose flush is deferred.  */
   NSMutableSetOf (NSWindow *) *deferredFlushWindows;
 #endif
+
+  /* Set of key paths for which NSApp is observed via the
+     `application-kvo' subkeymap in mac-apple-event-map.  */
+  NSSetOf (NSString *) *observedKeyPaths;
 }
+- (void)updateObservedKeyPaths;
 - (int)getAndClearMenuItemSelection;
 - (void)storeInputEvent:(id)sender;
 - (void)setMenuItemSelectionToTag:(id)sender;

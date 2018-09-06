@@ -1266,7 +1266,10 @@ static bool handling_queued_nsevents_p;
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+  for (NSString *keyPath in observedKeyPaths)
+    [NSApp removeObserver:self forKeyPath:keyPath];
 #if !USE_ARC
+  [observedKeyPaths release];
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   [lastFlushDate release];
   [flushTimer release];
@@ -1286,6 +1289,7 @@ static bool handling_queued_nsevents_p;
   init_menu_bar ();
   init_apple_event_handler ();
   init_accessibility ();
+  observedKeyPaths = [[NSSet alloc] init];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
@@ -1338,6 +1342,67 @@ static bool handling_queued_nsevents_p;
 - (void)antialiasThresholdDidChange:(NSNotification *)notification
 {
   macfont_update_antialias_threshold ();
+}
+
+- (void)updateObservedKeyPaths
+{
+  Lisp_Object keymap = get_keymap (Vmac_apple_event_map, 0, 0);
+
+  if (!NILP (keymap))
+    keymap = get_keymap (access_keymap (keymap, Qapplication_kvo, 0, 1, 0),
+			 0, 0);
+  if (!NILP (keymap))
+    {
+      NSMutableSetOf (NSString *) *work =
+	[[NSMutableSet alloc] initWithCapacity:0];
+
+      mac_map_keymap (keymap, false, ^(Lisp_Object key, Lisp_Object binding) {
+	  if (!NILP (binding) && !EQ (binding, Qundefined) && SYMBOLP (key))
+	    [work addObject:[NSString
+			      stringWithUTF8LispString:(SYMBOL_NAME (key))]];
+	});
+
+      NSSetOf (NSString *) *oldObservedKeyPaths = observedKeyPaths;
+      observedKeyPaths = [[NSSet alloc] initWithSet:work];
+
+      for (NSString *keyPath in oldObservedKeyPaths)
+	if ([work member:keyPath])
+	  [work removeObject:keyPath];
+	else
+	  [NSApp removeObserver:self forKeyPath:keyPath];
+      MRC_RELEASE (oldObservedKeyPaths);
+
+      for (NSString *keyPath in work)
+	[NSApp addObserver:self forKeyPath:keyPath
+		   options:(NSKeyValueObservingOptionOld
+			    | NSKeyValueObservingOptionNew)
+		   context:nil];
+      MRC_RELEASE (work);
+    }
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+                        change:(NSDictionaryOf (NSKeyValueChangeKey, id) *)change
+                       context:(void *)context
+{
+  if ([observedKeyPaths containsObject:keyPath])
+    {
+      struct input_event inev;
+      Lisp_Object tag_Lisp = build_string ("Lisp");
+      Lisp_Object change_value =
+	cfobject_to_lisp ((__bridge CFTypeRef) change,
+			  CFOBJECT_TO_LISP_FLAGS_FOR_EVENT, -1);
+      Lisp_Object arg = Qnil;
+
+      arg = Fcons (Fcons (Qchange, Fcons (tag_Lisp, change_value)), arg);
+      EVENT_INIT (inev);
+      inev.kind = MAC_APPLE_EVENT;
+      inev.x = Qapplication_kvo;
+      inev.y = Fintern (keyPath.UTF8LispString, Qnil);
+      XSETFRAME (inev.frame_or_window, mac_focus_frame (&one_mac_display_info));
+      inev.arg = Fcons (build_string ("aevt"), arg);
+      [self storeEvent:&inev];
+    }
 }
 
 - (int)getAndClearMenuItemSelection
@@ -9680,6 +9745,7 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       /* Maybe these should be done at some redisplay timing.  */
       update_apple_event_handler ();
       update_dragged_types ();
+      [emacsController updateObservedKeyPaths];
 
       if (dpyinfo->saved_menu_event
 	  && (GetEventTime (dpyinfo->saved_menu_event) + SAVE_MENU_EVENT_TIMEOUT
