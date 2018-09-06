@@ -855,19 +855,15 @@ static const colormap_t mac_color_map[] =
 static Lisp_Object
 mac_color_map_lookup (const char *colorname)
 {
-  Lisp_Object ret = Qnil;
-  int i;
+  Lisp_Object ret = mac_color_lookup (colorname);
 
-  block_input ();
-
-  for (i = 0; i < ARRAYELTS (mac_color_map); i++)
-    if (xstrcasecmp (colorname, mac_color_map[i].name) == 0)
-      {
-        ret = make_number (mac_color_map[i].color);
-        break;
-      }
-
-  unblock_input ();
+  if (NILP (ret))
+    for (int i = 0; i < ARRAYELTS (mac_color_map); i++)
+      if (xstrcasecmp (colorname, mac_color_map[i].name) == 0)
+	{
+	  ret = make_number (mac_color_map[i].color);
+	  break;
+	}
 
   return ret;
 }
@@ -2385,11 +2381,14 @@ This function is an internal primitive--use `make-frame' instead.  */)
 		       "horizontalScrollBars", "ScrollBars",
 		       RES_TYPE_SYMBOL);
   /* Also do the stuff which must be set before the window exists.  */
-  x_default_parameter (f, parms, Qforeground_color, build_string ("black"),
+  x_default_parameter (f, parms, Qforeground_color,
+		       build_string ("mac:textColor"),
 		       "foreground", "Foreground", RES_TYPE_STRING);
-  x_default_parameter (f, parms, Qbackground_color, build_string ("white"),
+  x_default_parameter (f, parms, Qbackground_color,
+		       build_string ("mac:textBackgroundColor"),
 		       "background", "Background", RES_TYPE_STRING);
-  x_default_parameter (f, parms, Qmouse_color, build_string ("black"),
+  x_default_parameter (f, parms, Qmouse_color,
+		       build_string ("mac:textColor"),
 		       "pointerColor", "Foreground", RES_TYPE_STRING);
   x_default_parameter (f, parms, Qborder_color, build_string ("black"),
 		       "borderColor", "BorderColor", RES_TYPE_STRING);

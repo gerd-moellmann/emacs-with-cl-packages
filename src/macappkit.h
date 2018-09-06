@@ -114,6 +114,8 @@ typedef NSString * NSAccessibilityNotificationName;
 typedef NSString * NSAccessibilityParameterizedAttributeName;
 typedef NSString * NSAppearanceName;
 typedef NSString * NSAttributedStringDocumentAttributeKey;
+typedef NSString * NSColorListName;
+typedef NSString * NSColorName;
 typedef NSString * NSPasteboardType;
 typedef NSString * NSPasteboardName;
 typedef NSString * NSToolbarIdentifier;

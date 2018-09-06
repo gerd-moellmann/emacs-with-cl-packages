@@ -2275,6 +2275,19 @@ reference URLs of the form \"file:///.file/id=...\"."
                              (cdr type-data) (car type-data) action)))))
 
 
+;;;; Key-value observing for application
+
+(defun mac-handle-application-effective-appearance-change (_event)
+  (interactive "e")
+  (clear-face-cache)
+  (dolist (frame (frame-list))
+    (set-frame-parameter frame 'background-color
+			 (frame-parameter frame 'background-color))))
+
+(define-key mac-apple-event-map [application-kvo effectiveAppearance]
+  'mac-handle-application-effective-appearance-change)
+
+
 (defvar mac-popup-menu-add-contextual-menu)
 
 (declare-function accelerate-menu "macmenu.c" (&optional frame) t)

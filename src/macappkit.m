@@ -7539,6 +7539,82 @@ create_resize_indicator_image (void)
 
 
 /************************************************************************
+				Color
+ ************************************************************************/
+
+Lisp_Object
+mac_color_lookup (const char *color_name)
+{
+  Lisp_Object result = Qnil;
+  char *colon;
+  NSColorListName listName = @"System";
+  NSColor *color = nil, *colorInSRGB;
+  NSAppearance *oldAppearance, *appearance;
+
+  /* color_name is of the form either "mac:COLOR_LIST_NAME:COLOR_NAME"
+     or "mac:COLOR_NAME".  The latter form is for system colors.  */
+  if (strncasecmp (color_name, "mac:", 4) != 0)
+    return Qnil;
+
+  color_name += sizeof ("mac:") - 1;
+  colon = strchr (color_name, ':');
+  if (colon)
+    {
+      listName = MRC_AUTORELEASE ([[NSString alloc]
+				    initWithBytes:color_name
+					   length:(colon - color_name)
+					 encoding:NSUTF8StringEncoding]);
+      color_name = colon + 1;
+    }
+  if (listName)
+    {
+      NSColorName colorName = [NSString stringWithUTF8String:color_name];
+      NSColorList *colorList = [NSColorList colorListNamed:listName];
+
+      if (!colorList)
+	for (NSColorList *list in NSColorList.availableColorLists)
+	  if ([list.name localizedCaseInsensitiveCompare:listName]
+	      == NSOrderedSame)
+	    {
+	      colorList = list;
+	      break;
+	    }
+
+      color = [colorList colorWithKey:colorName];
+      if (!color && colorList)
+	for (NSColorName key in colorList.allKeys)
+	  if ([key localizedCaseInsensitiveCompare:colorName] == NSOrderedSame)
+	    {
+	      color = [colorList colorWithKey:key];
+	      break;
+	    }
+    }
+
+  if (!color)
+    return Qnil;
+
+  oldAppearance = [NS_APPEARANCE currentAppearance];
+  appearance = ([NSApp respondsToSelector:@selector(effectiveAppearance)]
+		? [NSApp effectiveAppearance]
+		: [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
+  [NS_APPEARANCE setCurrentAppearance:appearance];
+  colorInSRGB = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+  if (colorInSRGB)
+    {
+      CGFloat components[4];
+
+      [colorInSRGB getComponents:components];
+      result = make_number (RGB_TO_ULONG ((int) (components[0] * 255 + .5),
+					  (int) (components[1] * 255 + .5),
+					  (int) (components[2] * 255 + .5)));
+    }
+  [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+
+  return result;
+}
+
+
+/************************************************************************
 			Multi-monitor support
  ************************************************************************/
 

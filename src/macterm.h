@@ -662,6 +662,7 @@ extern CGContextRef mac_begin_cg_clip (struct frame *, GC);
 extern void mac_end_cg_clip (struct frame *);
 #endif
 extern void mac_scroll_area (struct frame *, GC, int, int, int, int, int, int);
+extern Lisp_Object mac_color_lookup (const char *);
 extern Lisp_Object mac_display_monitor_attributes_list (struct mac_display_info *);
 extern void mac_create_scroll_bar (struct scroll_bar *);
 extern void mac_dispose_scroll_bar (struct scroll_bar *);
