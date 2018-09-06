@@ -28,6 +28,7 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "systime.h"
 #include "sysselect.h"
 #include "blockinput.h"
+#include "keymap.h"
 
 #include "macterm.h"
 
@@ -164,6 +165,23 @@ mac_foreach_window (struct frame *f,
   /* delete_frame may set FRAME_ROOT_WINDOW (f) to Qnil.  */
   if (WINDOWP (FRAME_ROOT_WINDOW (f)))
     mac_foreach_window_1 (XWINDOW (FRAME_ROOT_WINDOW (f)), block);
+}
+
+static void
+mac_map_keymap_function (Lisp_Object key, Lisp_Object val,
+			 Lisp_Object args, void *data)
+{
+  ((void (^)(Lisp_Object, Lisp_Object)) data) (key, val);
+}
+
+/* Like map_keymap, but takes BLOCK rather than FUN, ARGS, and
+   DATA.  */
+
+void
+mac_map_keymap (Lisp_Object map, bool autoload,
+		void (CF_NOESCAPE ^block) (Lisp_Object key, Lisp_Object val))
+{
+  map_keymap (map, mac_map_keymap_function, Qnil, block, autoload);
 }
 
 

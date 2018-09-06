@@ -11731,57 +11731,6 @@ static NSMutableSetOf (NSNumber *) *registered_apple_event_specs;
 
 @end				// EmacsController (AppleEvent)
 
-/* Function used as an argument to map_keymap for registering all
-   pairs of Apple event class and ID in mac_apple_event_map.  */
-
-static void
-register_apple_event_specs (Lisp_Object key, Lisp_Object binding,
-			    Lisp_Object args, void *data)
-{
-  Lisp_Object code_string;
-
-  if (!SYMBOLP (key))
-    return;
-  code_string = Fget (key, (NILP (args)
-			    ? Qmac_apple_event_class : Qmac_apple_event_id));
-  if (STRINGP (code_string) && SBYTES (code_string) == 4)
-    {
-      if (NILP (args))
-	{
-	  Lisp_Object keymap = get_keymap (binding, 0, 0);
-
-	  if (!NILP (keymap))
-	    map_keymap (keymap, register_apple_event_specs,
-			code_string, data, 0);
-	}
-      else if (!NILP (binding) && !EQ (binding, Qundefined))
-	{
-	  NSMutableSetOf (NSNumber *) *set =
-	    (__bridge NSMutableSetOf (NSNumber *) *) data;
-	  AEEventClass eventClass;
-	  AEEventID eventID;
-	  unsigned long long code;
-	  NSNumber *value;
-
-	  mac_string_to_four_char_code (code_string, &eventID);
-	  mac_string_to_four_char_code (args, &eventClass);
-	  code = ((unsigned long long) eventClass << 32) + eventID;
-	  value = [NSNumber numberWithUnsignedLongLong:code];
-
-	  if (![set containsObject:value])
-	    {
-	      NSAppleEventManager *manager =
-		[NSAppleEventManager sharedAppleEventManager];
-
-	      [manager setEventHandler:emacsController
-		       andSelector:@selector(handleAppleEvent:withReplyEvent:)
-		       forEventClass:eventClass andEventID:eventID];
-	      [set addObject:value];
-	    }
-	}
-    }
-}
-
 /* Register pairs of Apple event class and ID in mac_apple_event_map
    if they have not registered yet.  Each registered pair is stored in
    registered_apple_event_specs as a unsigned long long value whose
@@ -11792,9 +11741,42 @@ update_apple_event_handler (void)
 {
   Lisp_Object keymap = get_keymap (Vmac_apple_event_map, 0, 0);
 
-  if (!NILP (keymap))
-    map_keymap (keymap, register_apple_event_specs, Qnil,
-		(__bridge void *) registered_apple_event_specs, 0);
+  if (NILP (keymap))
+    return;
+
+  mac_map_keymap (keymap, false, ^(Lisp_Object key, Lisp_Object binding) {
+      if (!SYMBOLP (key))
+	return;
+      AEEventClass eventClass;
+      if (!mac_string_to_four_char_code (Fget (key, Qmac_apple_event_class),
+					 &eventClass))
+	return;
+      Lisp_Object keymap = get_keymap (binding, 0, 0);
+      if (NILP (keymap))
+	return;
+
+      mac_map_keymap (keymap, false, ^(Lisp_Object key, Lisp_Object binding) {
+	  if (NILP (binding) || EQ (binding, Qundefined) || !SYMBOLP (key))
+	    return;
+	  AEEventID eventID;
+	  if (!mac_string_to_four_char_code (Fget (key, Qmac_apple_event_id),
+					     &eventID))
+	    return;
+
+	  unsigned long long code =
+	    ((unsigned long long) eventClass << 32) + eventID;
+	  NSNumber *value = [NSNumber numberWithUnsignedLongLong:code];
+
+	  if (![registered_apple_event_specs containsObject:value])
+	    {
+	      [[NSAppleEventManager sharedAppleEventManager]
+		setEventHandler:emacsController
+		    andSelector:@selector(handleAppleEvent:withReplyEvent:)
+		  forEventClass:eventClass andEventID:eventID];
+	      [registered_apple_event_specs addObject:value];
+	    }
+	});
+    });
 }
 
 static void
