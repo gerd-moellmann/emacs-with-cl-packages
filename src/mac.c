@@ -135,6 +135,37 @@ mac_string_to_four_char_code (Lisp_Object string, FourCharCode *code)
   return true;
 }
 
+static bool
+mac_foreach_window_1 (struct window *w,
+		      bool (CF_NOESCAPE ^block) (struct window *))
+{
+  bool cont;
+
+  for (cont = true; w && cont;)
+    {
+      if (WINDOWP (w->contents))
+	cont = mac_foreach_window_1 (XWINDOW (w->contents), block);
+      else
+	cont = block (w);
+
+      w = NILP (w->next) ? 0 : XWINDOW (w->next);
+    }
+
+  return cont;
+}
+
+/* Like foreach_window in window.c, but takes BLOCK rather than FN and
+   USER_DATA.  Stops when BLOCK returns 0.  */
+
+void
+mac_foreach_window (struct frame *f,
+		    bool (CF_NOESCAPE ^block) (struct window *))
+{
+  /* delete_frame may set FRAME_ROOT_WINDOW (f) to Qnil.  */
+  if (WINDOWP (FRAME_ROOT_WINDOW (f)))
+    mac_foreach_window_1 (XWINDOW (FRAME_ROOT_WINDOW (f)), block);
+}
+
 
 /***********************************************************************
 		  Conversions on Apple event objects

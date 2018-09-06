@@ -1158,36 +1158,6 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
   return result;
 }
 
-static int
-mac_foreach_window_1 (struct window *w,
-		      int (CF_NOESCAPE ^block) (struct window *))
-{
-  int cont;
-
-  for (cont = 1; w && cont;)
-    {
-      if (WINDOWP (w->contents))
-	cont = mac_foreach_window_1 (XWINDOW (w->contents), block);
-      else
-	cont = block (w);
-
-      w = NILP (w->next) ? 0 : XWINDOW (w->next);
-    }
-
-  return cont;
-}
-
-/* Like foreach_window in window.c, but takes BLOCK rather than FN and
-   USER_DATA.  Stops when BLOCK returns 0.  */
-
-static void
-mac_foreach_window (struct frame *f, int (CF_NOESCAPE ^block) (struct window *))
-{
-  /* delete_frame may set FRAME_ROOT_WINDOW (f) to Qnil.  */
-  if (WINDOWP (FRAME_ROOT_WINDOW (f)))
-    mac_foreach_window_1 (XWINDOW (FRAME_ROOT_WINDOW (f)), block);
-}
-
 
 /************************************************************************
 			     Application
@@ -3746,7 +3716,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	  [contentLayer addSublayer:layer];
 	}
 
-      return 1;
+      return (bool) true;
     });
 
   return rootLayer;
