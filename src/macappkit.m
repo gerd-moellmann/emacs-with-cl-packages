@@ -7613,6 +7613,25 @@ mac_color_lookup (const char *color_name)
   return result;
 }
 
+Lisp_Object
+mac_color_list_alist (void)
+{
+  Lisp_Object result = Qnil;
+
+  for (NSColorList *colorList in NSColorList.availableColorLists)
+    {
+      Lisp_Object color_list = Qnil;
+
+      for (NSColorName key in colorList.allKeys)
+	color_list = Fcons (key.lispString, color_list);
+
+      result = Fcons (Fcons (colorList.name.lispString, Fnreverse (color_list)),
+		      result);
+    }
+
+  return Fnreverse (result);
+}
+
 
 /************************************************************************
 			Multi-monitor support

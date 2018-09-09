@@ -2620,6 +2620,30 @@ x_focus_frame (struct frame *f, bool noactivate)
 }
 
 
+DEFUN ("mac-color-list-alist", Fmac_color_list_alist, Smac_color_list_alist,
+       0, 0, 0,
+  doc: /* Return the available combinations of color list names and color names.
+The value is an alist of COLOR-LIST-NAMEs vs lists of COLOR-NAMEs.
+Using these names, a color can be specified as \"mac:COLOR-NAME\" or
+\"mac:COLOR-LIST-NAME:COLOR-NAME\".  The former form is a shorthand
+for \"mac:System:COLOR-NAME\".
+
+Some combinations may represent image patterns rather than colors.
+For such cases, `(color-values \"mac:COLOR-LIST-NAME:COLOR-NAME\")'
+will return nil.  */)
+  (void)
+{
+  Lisp_Object result;
+
+  check_window_system (NULL);
+
+  block_input ();
+  result = mac_color_list_alist ();
+  unblock_input ();
+
+  return result;
+}
+
 DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
        doc: /* Internal function called by `color-defined-p', which see.
 \(Note that the Nextstep version of this function ignores FRAME.)  */)
@@ -5324,6 +5348,7 @@ Chinese, Japanese, and Korean.  */);
 
   defsubr (&Sxw_display_color_p);
   defsubr (&Sx_display_grayscale_p);
+  defsubr (&Smac_color_list_alist);
   defsubr (&Sxw_color_defined_p);
   defsubr (&Sxw_color_values);
   defsubr (&Sx_server_max_request_size);
