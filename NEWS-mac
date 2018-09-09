@@ -1,3 +1,56 @@
+* emacs-26.1-mac-7.2 (2018-09-09)
+
+** Fixed bugs
+
+*** Buffer contents are not displayed on macOS 10.14.
+This is mainly because now NSViews are backed by Core Animation Layer
+(layer-backed) by default and non-deferred drawing into views no
+longer works.  Instead of switching to deferred drawing (i.e., draw
+only inside -[NSView drawRect:]), we draw into our own backing bitmap
+in a non-deferred way as before, and update the view contents with the
+resulting image via -[NSView updateLayer].  This "application-side
+double buffering" is also available on OS X 10.8 - macOS 10.13 if you
+set the frame parameter `inhibit-double-buffering' to nil when
+creating a frame.  Just like on macOS 10.14, such a frame does not do
+LCD smoothing.
+
+*** Screenshot grabbed via Services is displayed in wrong size when we
+have display mirroring between Retina and non-Retina displays.
+
+*** Cursor movement just after frame resize sometimes leaves garbage.
+
+*** Crash by the Fall_threads call from the GUI thread at the select
+emulation when there are multiple Lisp threads.
+
+*** Info title has ASCII underline unlike other window systems.
+
+*** Vertical scroll bar is created as horizontal if frame font height
+is short.
+
+** Improvements
+
+*** macOS 10.14 adds property :appearance to (mac-application-state).
+The value may be "NSAppearanceNameAqua" or "NSAppearanceNameDarkAqua".
+
+*** Add new color format "mac:COLOR-LIST-NAME:COLOR-NAME" and
+"mac:COLOR-NAME" (shorthand for "mac:System:COLOR-NAME").  The actual
+color may be different depending on the global appearance setting on
+macOS 10.14.  For example, "mac:textColor" is black on the Light Mode
+but is white on the Dark Mode.
+
+*** Default frame colors respect appearance setting on macOS 10.14.
+Now the default frame foreground/background color is
+"mac:textColor"/"mac:textBackgroundColor", respectively.  Changes of
+the system setting of the global appearance are dynamically reflected.
+
+*** New function `mac-color-list-alist' to get the available
+combinations of COLOR-LIST-NAMEs and COLOR-NAMEs.  Note that this
+value is dependent on user environment and OS version.  Also, some
+combinations may represent image patterns rather than colors.  For the
+former cases, `(color-values "mac:COLOR-LIST-NAME:COLOR-NAME")'
+returns nil.
+
+
 * emacs-26.1-mac-7.1 (2018-06-10)
 
 ** Fixed bugs
