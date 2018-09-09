@@ -8,7 +8,7 @@
 
   This section briefly describes the peculiarities of using Emacs
 under macOS with the Mac port.  This port provides a native GUI
-support for Mac OS X 10.6 -- macOS 10.13.  Note that Emacs 23 and
+support for Mac OS X 10.6 -- macOS 10.14.  Note that Emacs 23 and
 later already contain the official GUI support via the NS (Cocoa) port
 for macOS (@pxref{Mac OS / GNUstep}).  So if it is good enough for
 you, then you don't need to try this.
@@ -48,7 +48,8 @@ Dock without separating a GUI process (not thread) from the main Emacs
 * Mac Invocation::        Invocation of Emacs Mac port.
 * Mac Input::             Keyboard and mouse input on the Mac port.
 * Mac Fonts::             Specifying fonts on the Mac port.
-* Mac Images and Colors:: Images and colors on the Mac port.
+* Mac Images::            Image support on the Mac port.
+* Mac Colors::            Colors on the Mac port.
 * Mac Fullscreen::        Fullscreen support on the Mac port.
 * Mac Functions::         Lisp functions specific to the Mac port.
 @end menu
@@ -388,9 +389,9 @@ enabled, it composes consecutive @acronym{ASCII} symbolic characters
 into a special glyph when the font supports such a composition
 typically via ligatures for operators in programming languages.
 
-@node Mac Images and Colors
-@section Images and Colors on the Mac Port
-@cindex Images and Colors (Mac port)
+@node Mac Images
+@section Image support on the Mac Port
+@cindex Images (Mac port)
 
 @cindex image formats (Mac port)
   The Mac port supports almost all the image formats that GNU Emacs
@@ -478,7 +479,39 @@ the same frame, when it is moved from one monitor to another for
 example.  The Mac port detects such a resolution change and re-render
 images or reload files automatically.
 
+@node Mac Colors
+@section Colors on the Mac Port
+@cindex Colors (Mac port)
+
 @cindex color specifications (Mac port)
+  Besides the color specifications mentioned in @pxref{Colors}, the
+Mac port accepts strings of the following forms:
+
+@example
+mac:@var{color-list-name}:@var{color-name}
+mac:@var{color-name}
+@end example
+
+@noindent
+The second form is a shorthand for @samp{mac:System:@var{color-name}}
+and can be used for specifying system colors.  Available combinations
+of @var{color-list-name}s and @var{color-name}s are obtained by
+@code{(mac-color-list-alist)} as an alist of @var{color-list-name}s vs
+lists of @var{color-name}s.  They can be different depending on OS
+versions and user environments, so use them with care.  Consult the
+NSColor documentation for the system colors that are available on a
+particular version of OS@.  Also, some combinations actually represent
+image patterns rather than colors.  For such cases,
+@code{(color-values "mac:@var{color-list-name}:@var{color-name}")}
+will return @code{nil}.
+
+  The actual RGB component values for a single color specification of
+one of the above forms can be different according to the global
+appearance setting (e.g., ``Light Mode'' or ``Dark Mode'' on macOS
+10.14 and later).  For example, @samp{mac:textColor} is black on the
+Light Mode but is white on the Dark Mode.  Changes of the system
+setting of the global appearance are dynamically reflected.
+
   When specifying colors, RGB triplets (@pxref{Colors}) are
 interpreted as those in the sRGB color space.  This may give a
 different look from other ports of GNU Emacs.
@@ -509,12 +542,16 @@ defaults write org.gnu.Emacs Emacs.fringe.attributeStipple alpha:.5
 by the value of the @code{scroll-bar-background} frame parameter.  If
 it is @code{nil}, which is the default, then the frame background
 color is used instead.  Its color also affects the appearance of other
-GUI parts: the title bar, the tool bar, (the tab bar on macOS 10.12
-and later), scroll bars, and popup menus become light (or dark) if the
-color is considered light (or dark, respectively).  On macOS 10.12 and
-later, the title/tool/tab bars look slightly colored with the value of
-the @code{scroll-bar-background} frame parameter (or the frame
-background color) if the frame is focused and not in fullscreen.
+GUI parts: scroll bars on On OS X 10.10 and later, and the title bar,
+the tool bar, (the tab bar on macOS 10.12 and later), and popup menus
+on OS X 10.10 -- macOS 10.13 become light (or dark) if the color is
+considered light (or dark, respectively).  On macOS 10.14 and later,
+the appearance of GUI parts other than scroll bars respect the global
+setting, which is available via @code{(mac-application-state)}.  On
+macOS 10.12 and later, the title/tool/tab bars look slightly colored
+with the value of the @code{scroll-bar-background} frame parameter (or
+the frame background color) if the frame is focused and not in
+fullscreen.
 
 @node Mac Fullscreen
 @section Fullscreen support on the Mac Port

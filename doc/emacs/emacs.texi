@@ -1231,7 +1231,8 @@ Emacs and macOS with the Mac port
 * Mac Invocation::        Invocation of Emacs Mac port.
 * Mac Input::             Keyboard and mouse input on the Mac port.
 * Mac Fonts::             Specifying fonts on the Mac port.
-* Mac Images and Colors:: Images and colors on the Mac port.
+* Mac Images::            Image support on the Mac port.
+* Mac Colors::            Colors on the Mac port.
 * Mac Fullscreen::        Fullscreen support on the Mac port.
 * Mac Functions::         Lisp functions specific to the Mac port.
 

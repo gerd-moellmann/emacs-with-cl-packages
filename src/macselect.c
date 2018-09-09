@@ -572,12 +572,6 @@ frame's display, or the first available display.  */)
 ***********************************************************************/
 static bool mac_ready_for_apple_events = false;
 
-struct apple_event_binding
-{
-  UInt32 code;			/* Apple event class or ID.  */
-  Lisp_Object key, binding;
-};
-
 struct suspended_ae_info
 {
   double expiration_uptime;
@@ -592,26 +586,6 @@ static struct suspended_ae_info *deferred_apple_events = NULL;
 /* List of suspended apple events, in order of expiration_uptime.  */
 static struct suspended_ae_info *suspended_apple_events = NULL;
 
-static void
-find_event_binding_fun (Lisp_Object key, Lisp_Object binding, Lisp_Object args,
-			void *data)
-{
-  struct apple_event_binding *event_binding =
-    (struct apple_event_binding *)data;
-  Lisp_Object code_string;
-  UInt32 code;
-
-  if (!SYMBOLP (key))
-    return;
-  code_string = Fget (key, args);
-  if (mac_string_to_four_char_code (code_string, &code)
-      && code == event_binding->code)
-    {
-      event_binding->key = key;
-      event_binding->binding = binding;
-    }
-}
-
 static Lisp_Object
 find_event_binding (Lisp_Object keymap, Lisp_Object propname,
 		    UInt32 code, Lisp_Object *key)
@@ -620,14 +594,21 @@ find_event_binding (Lisp_Object keymap, Lisp_Object propname,
     return access_keymap (keymap, *key, 0, 1, 0);
   else
     {
-      struct apple_event_binding event_binding;
+      Lisp_Object __block result = Qnil;
 
-      event_binding.code = code;
-      event_binding.binding = Qnil;
-      map_keymap (keymap, find_event_binding_fun, propname, &event_binding, 0);
-      *key = event_binding.key;
+      mac_map_keymap (keymap, false, ^(Lisp_Object key1, Lisp_Object binding1) {
+	  UInt32 code1;
 
-      return event_binding.binding;
+	  if (SYMBOLP (key1)
+	      && mac_string_to_four_char_code (Fget (key1, propname), &code1)
+	      && code1 == code)
+	    {
+	      *key = key1;
+	      result = binding1;
+	    }
+	});
+
+      return result;
     }
 }
 

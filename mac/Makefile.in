@@ -39,9 +39,12 @@ lprojdirs = Emacs.app/Contents/Resources/English.lproj \
   Emacs.app/Contents/Resources/cs.lproj \
   Emacs.app/Contents/Resources/da.lproj \
   Emacs.app/Contents/Resources/el.lproj \
+  Emacs.app/Contents/Resources/en_AU.lproj \
+  Emacs.app/Contents/Resources/en_GB.lproj \
   Emacs.app/Contents/Resources/es_419.lproj \
   Emacs.app/Contents/Resources/es_MX.lproj \
   Emacs.app/Contents/Resources/fi.lproj \
+  Emacs.app/Contents/Resources/fr_CA.lproj \
   Emacs.app/Contents/Resources/he.lproj \
   Emacs.app/Contents/Resources/hi.lproj \
   Emacs.app/Contents/Resources/hr.lproj \
@@ -62,6 +65,7 @@ lprojdirs = Emacs.app/Contents/Resources/English.lproj \
   Emacs.app/Contents/Resources/uk.lproj \
   Emacs.app/Contents/Resources/vi.lproj \
   Emacs.app/Contents/Resources/zh_CN.lproj \
+  Emacs.app/Contents/Resources/zh_HK.lproj \
   Emacs.app/Contents/Resources/zh_TW.lproj
 
 ${lprojdirs}:

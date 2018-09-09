@@ -999,6 +999,20 @@ thread_check_current_buffer (struct buffer *buffer)
   return false;
 }
 
+#ifdef HAVE_MACGUI
+int
+thread_try_acquire_global_lock (void)
+{
+  return pthread_mutex_trylock (&global_lock);
+}
+
+int
+thread_release_global_lock (void)
+{
+  return pthread_mutex_unlock (&global_lock);
+}
+#endif
+
 
 
 static void

@@ -844,11 +844,19 @@ language."
          (metadata (image-metadata image)))
     (unless (plist-get metadata 'count)
       (let* ((props (plist-get metadata 'image-io-properties-at-index))
-             (unit (cdr (assoc "ResolutionUnit" (cdr (assoc "{TIFF}" props))))))
-        (when (integerp unit)
-          (setq image `(,@image
-                        :width ,(/ (cdr (assoc "PixelWidth" props)) unit)
-                        :height ,(/ (cdr (assoc "PixelHeight" props)) unit))))))
+             ;; We used to use kCGImagePropertyTIFFResolutionUnit, but
+             ;; this is not correct for screenshots taken with
+             ;; mirroring a Retina display to a non-Retina one.
+             (dpi-width (cdr (assoc "DPIWidth" props)))
+             (dpi-height (cdr (assoc "DPIHeight" props))))
+        (if (numberp dpi-width)
+            (setq image `(,@image
+                          :width ,(round (/ (cdr (assoc "PixelWidth" props))
+                                            (/ dpi-width 72.0))))))
+        (if (numberp dpi-height)
+            (setq image `(,@image
+                          :height ,(round (/ (cdr (assoc "PixelHeight" props))
+                                             (/ dpi-height 72.0))))))))
     (propertize (or text " ") 'display image)))
 
 (defun mac-pasteboard-string-to-string (data &optional coding-system)
@@ -2265,6 +2273,19 @@ reference URLs of the form \"file:///.file/id=...\"."
       (if type-data
           (mac-dnd-drop-data event (selected-frame) window
                              (cdr type-data) (car type-data) action)))))
+
+
+;;;; Key-value observing for application
+
+(defun mac-handle-application-effective-appearance-change (_event)
+  (interactive "e")
+  (clear-face-cache)
+  (dolist (frame (frame-list))
+    (set-frame-parameter frame 'background-color
+			 (frame-parameter frame 'background-color))))
+
+(define-key mac-apple-event-map [application-kvo effectiveAppearance]
+  'mac-handle-application-effective-appearance-change)
 
 
 (defvar mac-popup-menu-add-contextual-menu)

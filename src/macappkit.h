@@ -53,6 +53,9 @@ static const NSAppKitVersion NSAppKitVersionNumber10_11 = 1404;
 static const NSAppKitVersion NSAppKitVersionNumber10_12 = 1504;
 #endif
 #endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
+static const NSAppKitVersion NSAppKitVersionNumber10_13 = 1561;
+#endif
 
 #ifndef USE_ARC
 #if defined (__clang__) && __has_feature (objc_arc)
@@ -96,726 +99,29 @@ typedef id instancetype;
 #define NS_NOESCAPE CF_NOESCAPE
 #endif
 
-@interface NSData (Emacs)
-- (Lisp_Object)lispString;
-@end
-
-@interface NSString (Emacs)
-+ (instancetype)stringWithLispString:(Lisp_Object)lispString;
-+ (instancetype)stringWithUTF8LispString:(Lisp_Object)lispString;
-+ (instancetype)stringWithUTF8String:(const char *)bytes fallback:(BOOL)flag;
-- (Lisp_Object)lispString;
-- (Lisp_Object)UTF8LispString;
-- (Lisp_Object)UTF16LispString;
-- (NSArrayOf (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator;
-@end
-
-@interface NSMutableArray (Emacs)
-- (void)enqueue:(id)obj;
-- (id)dequeue;
-@end
-
-@interface NSFont (Emacs)
-+ (NSFont *)fontWithFace:(struct face *)face;
-@end
-
-@interface NSEvent (Emacs)
-- (NSEvent *)mouseEventByChangingType:(NSEventType)type
-		          andLocation:(NSPoint)location;
-- (CGEventRef)coreGraphicsEvent;
-@end
-
-@interface NSAttributedString (Emacs)
-- (Lisp_Object)UTF16LispString;
-@end
-
-@interface NSColor (Emacs)
-+ (NSColor *)colorWithXColorPixel:(unsigned long)pixel;
-- (CGColorRef)copyCGColor;
-@end
-
-@interface NSImage (Emacs)
-+ (NSImage *)imageWithCGImage:(CGImageRef)cgImage exclusive:(BOOL)flag;
-@end
-
-@interface NSApplication (Emacs)
-- (void)postDummyEvent;
-- (void)runTemporarilyWithBlock:(void (^)(void))block;
-@end
-
-@interface NSScreen (Emacs)
-+ (NSScreen *)screenContainingPoint:(NSPoint)aPoint;
-+ (NSScreen *)closestScreenForRect:(NSRect)aRect;
-- (BOOL)containsDock;
-- (BOOL)canShowMenuBar;
-@end
-
-@interface NSWindow (Emacs)
-- (Lisp_Object)lispFrame;
-- (NSWindow *)topLevelWindow;
-- (void)enumerateChildWindowsUsingBlock:(NS_NOESCAPE void
-					 (^)(NSWindow *child, BOOL *stop))block;
-@end
-
-@interface NSCursor (Emacs)
-+ (NSCursor *)cursorWithThemeCursor:(ThemeCursor)shape;
-@end
-
-@interface NSCursor (UndocumentedOn1070AndLater)
-+ (NSCursor *)_windowResizeNorthWestSouthEastCursor;
-+ (NSCursor *)_windowResizeNorthEastSouthWestCursor;
-+ (NSCursor *)_windowResizeNorthSouthCursor;
-+ (NSCursor *)_windowResizeNorthCursor;
-+ (NSCursor *)_windowResizeSouthCursor;
-+ (NSCursor *)_windowResizeEastWestCursor;
-+ (NSCursor *)_windowResizeEastCursor;
-+ (NSCursor *)_windowResizeWestCursor;
-+ (NSCursor *)_windowResizeNorthWestCursor;
-+ (NSCursor *)_windowResizeNorthEastCursor;
-+ (NSCursor *)_windowResizeSouthWestCursor;
-+ (NSCursor *)_windowResizeSouthEastCursor;
-@end
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-/* Workarounds for memory leaks on OS X 10.9.  */
-@interface NSApplication (Undocumented)
-- (void)_installMemoryPressureDispatchSources;
-- (void)_installMemoryStatusDispatchSources;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
-@protocol NSTouchBarDelegate @end
-@class NSCandidateListTouchBarItem;
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
-@class NSWindowTabGroup;
-#endif
-
-@interface EmacsApplication : NSApplication
-@end
-
-@interface EmacsPosingWindow : NSWindow
-+ (void)setup;
-@end
-
-/* Class for delegate for NSApplication.  It also becomes the target
-   of several actions such as those from EmacsMainView, menus,
-   dialogs, and actions/services bound in the mac-apple-event
-   keymap.  */
-
-@interface EmacsController : NSObject <NSApplicationDelegate, NSUserInterfaceValidations>
-{
-  /* Points to HOLD_QUIT arg passed to read_socket_hook.  */
-  struct input_event *hold_quit;
-
-  /* Number of events stored during a
-     handleQueuedEventsWithHoldingQuitIn: call.  */
-  int count;
-
-  /* Whether to generate a HELP_EVENT at the end of handleOneNSEvent:
-     call.  */
-  int do_help;
-
-  /* Non-zero means that a HELP_EVENT has been generated since Emacs
-   start.  */
-  bool any_help_event_p;
-
-  /* The frame on which a HELP_EVENT occurs.  */
-  struct frame *emacsHelpFrame;
-
-  /* The item selected in the popup menu.  */
-  int menuItemSelection;
-
-  /* Non-nil means left mouse tracking has been suspended and will be
-     resumed when this block is called.  */
-  void (^trackingResumeBlock)(void);
-
-  /* Whether a service provider for Emacs is registered as of
-     applicationWillFinishLaunching: or not.  */
-  BOOL serviceProviderRegistered;
-
-  /* Whether the application should update its presentation options
-     when it becomes active next time.  */
-  BOOL needsUpdatePresentationOptionsOnBecomingActive;
-
-  /* Whether conflicting Cocoa's text system key bindings (e.g., C-q)
-     are disabled or not.  */
-  BOOL conflictingKeyBindingsDisabled;
-
-  /* Saved key bindings with or without conflicts (currently, those
-     for writing direction commands on Mac OS X 10.6).  */
-  NSDictionaryOf (NSString *, NSString *)
-    *keyBindingsWithConflicts, *keyBindingsWithoutConflicts;
-
-  /* Help topic that the user selected using Help menu search.  */
-  id selectedHelpTopic;
-
-  /* Search string for which the user selected "Show All Help
-     Topics".  */
-  NSString *searchStringForAllHelpTopics;
-
-  /* Date of last flushWindow call.  */
-  NSDate *lastFlushDate;
-
-  /* Timer for deferring flushWindow call.  */
-  NSTimer *flushTimer;
-
-  /* Set of windows whose flush is deferred.  */
-  NSMutableSetOf (NSWindow *) *deferredFlushWindows;
-}
-- (int)getAndClearMenuItemSelection;
-- (void)storeInputEvent:(id)sender;
-- (void)setMenuItemSelectionToTag:(id)sender;
-- (void)storeEvent:(struct input_event *)bufp;
-- (void)setTrackingResumeBlock:(void (^)(void))block;
-- (NSTimeInterval)minimumIntervalForReadSocket;
-- (int)handleQueuedNSEventsWithHoldingQuitIn:(struct input_event *)bufp;
-- (void)cancelHelpEchoForEmacsFrame:(struct frame *)f;
-- (BOOL)conflictingKeyBindingsDisabled;
-- (void)setConflictingKeyBindingsDisabled:(BOOL)flag;
-- (void)flushWindow:(NSWindow *)window force:(BOOL)flag;
-- (void)updatePresentationOptions;
-- (void)showMenuBar;
-@end
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 typedef NSString * NSKeyValueChangeKey;
 #endif
 
-/* Like NSWindow, but allows suspend/resume resize control tracking.
-   It also provides the delegate methods windowWillEnterTabOverview
-   and windowDidExitTabOverview.  */
-
-@interface EmacsWindow : NSWindow
-{
-  /* Left mouse up event used for suspending resize control
-     tracking.  */
-  NSEvent *mouseUpEvent;
-
-  /* Pointer location of the left mouse down event that initiated the
-     current resize control tracking session.  The value is in the
-     base coordinate system of the window.  */
-  NSPoint resizeTrackingStartLocation;
-
-  /* Window size when the current resize control tracking session was
-     started.  */
-  NSSize resizeTrackingStartWindowSize;
-
-  /* Whether the call to setupResizeTracking: is suspended for the
-     next left mouse down event.  */
-  BOOL setupResizeTrackingSuspended;
-
-  /* Whether the window should be made visible when the application
-     gets unhidden next time.  */
-  BOOL needsOrderFrontOnUnhide;
-
-  /* Positive values mean the usual -constrainFrameRect:toScreen:
-     behavior is suspended.  */
-  char constrainingToScreenSuspensionCount;
-
-  /* Tab group object that is showing its overview invoked from the
-     EmacsWindow object.  */
-  NSWindowTabGroup *observedTabGroup;
-}
-- (void)suspendResizeTracking:(NSEvent *)event
-	   positionAdjustment:(NSPoint)adjustment;
-- (void)resumeResizeTracking;
-- (BOOL)needsOrderFrontOnUnhide;
-- (void)setNeedsOrderFrontOnUnhide:(BOOL)flag;
-- (void)suspendConstrainingToScreen:(BOOL)flag;
-- (void)exitTabGroupOverview;
-@end
-
-@interface NSObject (EmacsWindowDelegate)
-- (BOOL)window:(NSWindow *)sender shouldForwardAction:(SEL)action to:(id)target;
-- (NSRect)window:(NSWindow *)sender willConstrainFrame:(NSRect)frameRect
-	toScreen:(NSScreen *)screen;
-- (void)windowWillEnterTabOverview;
-- (void)windowDidExitTabOverview;
-@end
-
-@class EmacsView;
-@class EmacsOverlayView;
-
-/* Class for delegate of NSWindow and NSToolbar (see its Toolbar
-   category declared later).  It also becomes that target of
-   frame-dependent actions such as those from font panels.  */
-
-@interface EmacsFrameController : NSObject <NSWindowDelegate>
-{
-  /* The Emacs frame corresponding to the NSWindow that
-     EmacsFrameController object is associated with as delegate.  */
-  struct frame *emacsFrame;
-
-  /* Window and view for the Emacs frame.  */
-  EmacsWindow *emacsWindow;
-  EmacsView *emacsView;
-
-  /* View overlaid on the Emacs frame window.  */
-  EmacsOverlayView *overlayView;
-
-  /* Window for the spinning progress indicator (corresponding to
-     hourglass) shown at the upper-right corner of the window.  */
-  NSWindow *hourglassWindow;
-
-  /* The current window manager state.  */
-  WMState windowManagerState;
-
-  /* The last window frame before maximize/fullscreen.  The position
-     is relative to the top left corner of the screen.  */
-  NSRect savedFrame;
-
-  /* The root Core Animation layer for mac-start-animation.  */
-  CALayer *animationLayer;
-
-  /* The block called when the window ends live resize.  */
-  void (^liveResizeCompletionHandler) (void);
-
-  /* Whether transition effect should be set up when the window will
-     start live resize.  */
-  BOOL shouldLiveResizeTriggerTransition;
-
-  /* Boolean to cache [emacsView isHiddenOrHasHiddenAncestor].  */
-  BOOL emacsViewIsHiddenOrHasHiddenAncestor;
-
-  /* Window manager state after the full screen transition.  */
-  WMState fullScreenTargetState;
-
-  /* Enum value determining the symbol that is set as `fullscreen'
-     frame parameter after the full screen transition.  */
-  enum {
-    FULLSCREEN_PARAM_NONE, FULLSCREEN_PARAM_NIL,
-    FULLSCREEN_PARAM_FULLBOTH, FULLSCREEN_PARAM_FULLSCREEN
-  } fullscreenFrameParameterAfterTransition;
-
-  /* Array of blocks called when the window completes full screen
-     transition.  Each block is called with the window object and a
-     boolean value meaning whether the transition has succeeded.  */
-  NSMutableArrayOf (void (^)(EmacsWindow *, BOOL))
-    *fullScreenTransitionCompletionHandlers;
-
-  /* Map from child windows to alpha values that are saved while they
-     are made completely transparent temporarily.  */
-  NSMapTableOf (NSWindow *, NSNumber *) *savedChildWindowAlphaMap;
-}
-- (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
-- (void)setupEmacsView;
-- (void)setupWindow;
-- (void)closeWindow;
-- (struct frame *)emacsFrame;
-- (EmacsWindow *)emacsWindow;
-- (BOOL)acceptsFocus;
-- (WMState)windowManagerState;
-- (void)setWindowManagerState:(WMState)newState;
-- (void)updateBackingScaleFactor;
-- (BOOL)emacsViewIsHiddenOrHasHiddenAncestor;
-- (void)updateEmacsViewIsHiddenOrHasHiddenAncestor;
-- (void)lockFocusOnEmacsView;
-- (void)unlockFocusOnEmacsView;
-- (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
-- (NSPoint)convertEmacsViewPointToScreen:(NSPoint)point;
-- (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point;
-- (NSRect)convertEmacsViewRectToScreen:(NSRect)rect;
-- (NSRect)convertEmacsViewRectFromScreen:(NSRect)rect;
-- (NSRect)centerScanEmacsViewRect:(NSRect)rect;
-- (void)invalidateCursorRectsForEmacsView;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-- (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag;
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
+typedef NSString * NSTouchBarItemIdentifier;
 #endif
-- (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect;
-- (NSBitmapImageRep *)bitmapImageRep;
-- (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
-- (BOOL)isWindowFrontmost;
-- (void)setupLiveResizeTransition;
-- (void)setShouldLiveResizeTriggerTransition:(BOOL)flag;
-- (void)setLiveResizeCompletionHandler:(void (^)(void))block;
-- (BOOL)shouldBeTitled;
-- (BOOL)shouldHaveShadow;
-- (void)updateWindowStyle;
-@end
-
-/* Class for Emacs view that handles drawing events only.  It is used
-   directly by tooltip frames, and indirectly by ordinary frames via
-   inheritance.  */
-
-@interface EmacsView : NSView
-@end
-
-/* Class for Emacs view that also handles input events.  Used by
-   ordinary frames.  */
-
-@interface EmacsMainView : EmacsView <NSTextInputClient, NSTouchBarDelegate>
-{
-  /* Target object to which the EmacsMainView object sends
-     actions.  */
-  id __unsafe_unretained target;
-
-  /* Message selector of the action the EmacsMainView object
-     sends.  */
-  SEL action;
-
-  /* Stores the Emacs input event that the action method is expected
-     to process.  */
-  struct input_event inputEvent;
-
-  /* Whether key events were interpreted by intepretKeyEvents:.  */
-  BOOL keyEventsInterpreted;
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  /* Whether scrollRect:by: has copied rounded bottom corner area.  */
-  BOOL roundedBottomCornersCopied;
-#endif
-
-  /* Whether the raw key event below has mapped any of CGEvent flags.
-     It is precalculated in keyDown: so as to avoid regeneration of a
-     CGEvent object.  */
-  BOOL rawKeyEventHasMappedFlags;
-
-  /* Raw key event that is interpreted by intepretKeyEvents:.  */
-  NSEvent *rawKeyEvent;
-
-  /* Saved marked text passed by setMarkedText:selectedRange:.  */
-  id markedText;
-
-  /* Position in the last normal (non-momentum) wheel event.  */
-  NSPoint savedWheelPoint;
-
-  /* Modifiers in the last normal (non-momentum) wheel event.  */
-  int savedWheelModifiers;
-
-  /* Stage of the last gesture event of type NSEventTypePressure.  */
-  NSInteger pressureEventStage;
-
-  /* Touch bar item used for the candidate list.  Currently, only
-     candidates from input methods are displayed.  */
-  NSCandidateListTouchBarItem *candidateListTouchBarItem;
-}
-- (struct frame *)emacsFrame;
-- (id)target;
-- (SEL)action;
-- (void)setTarget:(id)anObject;
-- (void)setAction:(SEL)aSelector;
-- (BOOL)sendAction:(SEL)theAction to:(id)theTarget;
-- (struct input_event *)inputEvent;
-- (NSString *)string;
-- (void)synchronizeChildFrameOrigins;
-@end
-
-/* Class for overlay view of an Emacs frame window.  */
-
-@interface EmacsOverlayView : NSView
-{
-  /* Whether to highlight the area corresponding to the content of the
-     Emacs frame window.  */
-  BOOL highlighted;
-}
-- (void)setHighlighted:(BOOL)flag;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
-- (void)setShowsResizeIndicator:(BOOL)flag;
-#endif
-@end
-
-/* Class for scroller that doesn't do modal mouse tracking.  */
-
-@interface NonmodalScroller : NSScroller
-{
-  /* Timer used for posting events periodically during mouse
-     tracking.  */
-  NSTimer *timer;
-
-  /* Code for the scroller part that the user hit.  */
-  NSScrollerPart hitPart;
-
-  /* Whether the hitPart area should be highlighted.  */
-  BOOL hilightsHitPart;
-
-  /* If the scroller knob is currently being dragged by the user, this
-     is the number of pixels from the top of the knob to the place
-     where the user grabbed it.  If the knob is pressed but not
-     dragged yet, this is a negative number whose absolute value is
-     the number of pixels plus 1.  */
-  CGFloat knobGrabOffset;
-
-  /* The position of the top (for vertical scroller) or left (for
-     horizontal, respectively) of the scroller knob in pixels,
-     relative to the knob slot.  */
-  CGFloat knobMinEdgeInSlot;
-}
-+ (void)updateBehavioralParameters;
-- (BOOL)dragUpdatesFloatValue;
-- (NSTimeInterval)buttonDelay;
-- (NSTimeInterval)buttonPeriod;
-- (BOOL)pagingBehavior;
-@end
-
-/* Just for avoiding warnings about undocumented methods in NSScroller.  */
-
-@interface NSScroller (Undocumented)
-- (void)drawArrow:(NSUInteger)position highlightPart:(NSInteger)part;
-@end
-
-/* Class for Scroller used for an Emacs window.  */
-
-@interface EmacsScroller : NonmodalScroller
-{
-  /* Emacs scroll bar for the scroller.  */
-  struct scroll_bar *emacsScrollBar;
-
-  /* The size of the scroller knob track area in pixels.  */
-  CGFloat knobSlotSpan;
-
-  /* Minimum size of the scroller knob, in pixels.  */
-  CGFloat minKnobSpan;
-
-  /* The size of the whole scroller area in pixels.  */
-  CGFloat frameSpan;
-
-  /* The position the user clicked in pixels, relative to the whole
-     scroller area.  */
-  CGFloat clickPositionInFrame;
-
-  /* This is used for saving the `code' and `modifiers' members of an
-     input event for a scroller click with the control modifier.  */
-  struct input_event inputEvent;
-
-  /* Values in the last mac_set_scroll_bar_thumb call.  */
-  int whole, portion;
-}
-- (void)setEmacsScrollBar:(struct scroll_bar *)bar;
-- (struct scroll_bar *)emacsScrollBar;
-- (void)updateAppearance;
-- (CGFloat)knobSlotSpan;
-- (CGFloat)minKnobSpan;
-- (CGFloat)knobMinEdgeInSlot;
-- (CGFloat)frameSpan;
-- (CGFloat)clickPositionInFrame;
-- (ptrdiff_t)inputEventCode;
-- (int)inputEventModifiers;
-- (int)whole;
-- (void)setWhole:(int)theWhole;
-- (int)portion;
-- (void)setPortion:(int)thePortion;
-@end
-
-@interface EmacsFrameController (ScrollBar)
-- (void)addScrollerWithScrollBar:(struct scroll_bar *)bar;
-- (void)updateScrollerAppearance;
-- (void)setVibrantScrollersHidden:(BOOL)flag;
-@end
-
-@interface EmacsToolbarItem : NSToolbarItem
-{
-  /* Array of CoreGraphics images of the item.  */
-  NSArrayOf (id) *coreGraphicsImages;
-}
-- (void)setCoreGraphicsImage:(CGImageRef)cgImage;
-- (void)setCoreGraphicsImages:(NSArrayOf (id) *)cgImages;
-@end
-
-/* Dummy protocol for specifying the return type of the selector
-   `item' that has multiple possibilities if unspecified.  */
-@protocol EmacsToolbarItemViewer
-- (NSToolbarItem *)item;
-@end
-
-@interface EmacsFrameController (Toolbar) <NSToolbarDelegate>
-- (void)setupToolBarWithVisibility:(BOOL)visible;
-- (void)updateToolbarDisplayMode;
-- (void)storeToolBarEvent:(id)sender;
-- (void)noteToolBarMouseMovement:(NSEvent *)event;
-@end
-
-/* Like NSFontPanel, but allows suspend/resume slider tracking.  */
-
-@interface EmacsFontPanel : NSFontPanel
-{
-  /* Left mouse up event used for suspending slider tracking.  */
-  NSEvent *mouseUpEvent;
-
-  /* Slider being tracked.  */
-  NSSlider * __unsafe_unretained trackedSlider;
-}
-- (void)suspendSliderTracking:(NSEvent *)event;
-- (void)resumeSliderTracking;
-@end
-
-@interface EmacsController (FontPanel)
-- (void)fontPanelWillClose:(NSNotification *)notification;
-@end
-
-@interface EmacsFrameController (FontPanel)
-- (NSFont *)fontForFace:(int)faceId character:(int)c
-	       position:(int)pos object:(Lisp_Object)object;
-- (void)changeFont:(id)sender;
-@end
-
-@interface EmacsFrameController (EventHandling)
-- (void)noteEnterEmacsView;
-- (void)noteLeaveEmacsView;
-- (BOOL)noteMouseMovement:(NSPoint)point;
-- (BOOL)clearMouseFace:(Mouse_HLInfo *)hlinfo;
-- (void)noteMouseHighlightAtX:(int)x y:(int)y;
-@end
-
-@interface EmacsFrameController (Hourglass)
-- (void)showHourglass:(id)sender;
-- (void)hideHourglass:(id)sender;
-- (void)updateHourglassWindowOrigin;
-@end
-
-@interface EmacsSavePanel : NSSavePanel
-@end
-
-@interface EmacsFontDialogController : NSObject <NSWindowDelegate>
-@end
-
-@interface NSMenu (Emacs)
-- (NSMenuItem *)addItemWithWidgetValue:(widget_value *)wv;
-- (void)fillWithWidgetValue:(widget_value *)first_wv;
-@end
-
-@interface EmacsMenu : NSMenu
-@end
-
-@interface NSEvent (Undocumented)
-- (BOOL)_continuousScroll;
-- (NSInteger)_scrollPhase;
-- (CGFloat)deviceDeltaX;
-- (CGFloat)deviceDeltaY;
-- (CGFloat)deviceDeltaZ;
-@end
-
-@interface EmacsController (Menu) <NSMenuDelegate, NSUserInterfaceItemSearching>
-- (void)trackMenuBar;
-@end
-
-@interface EmacsFrameController (Menu)
-- (void)popUpMenu:(NSMenu *)menu atLocationInEmacsView:(NSPoint)location;
-@end
-
-@interface EmacsDialogView : NSView <NSTouchBarDelegate>
-- (instancetype)initWithWidgetValue:(widget_value *)wv;
-@end
-
-@interface EmacsPrintProxyView : NSView
-{
-  NSArrayOf (NSView *) *views;
-}
-- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
-@end
-
-@interface NSAppleEventDescriptor (Emacs)
-- (OSErr)copyDescTo:(AEDesc *)desc;
-@end
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+typedef NSString * NSAccessibilityAttributeName;
+typedef NSString * NSAccessibilityActionName;
+typedef NSString * NSAccessibilityNotificationName;
+typedef NSString * NSAccessibilityParameterizedAttributeName;
+typedef NSString * NSAppearanceName;
+typedef NSString * NSAttributedStringDocumentAttributeKey;
+typedef NSString * NSColorListName;
+typedef NSString * NSColorName;
 typedef NSString * NSPasteboardType;
 typedef NSString * NSPasteboardName;
+typedef NSString * NSToolbarIdentifier;
+typedef NSString * NSToolbarItemIdentifier;
+typedef NSString * NSWindowTabbingIdentifier;
 #endif
-
-@interface EmacsFrameController (DragAndDrop)
-- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSPasteboardType) *)pboardTypes;
-- (void)setOverlayViewHighlighted:(BOOL)flag;
-@end
-
-@interface EmacsOSAScript : OSAScript
-@end
-
-@interface NSView (Emacs)
-- (XImagePtr)createXImageFromRect:(NSRect)rect backgroundColor:(NSColor *)color
-		      scaleFactor:(CGFloat)scaleFactor;
-@end
-
-/* Class for SVG frame load delegate.  */
-@interface EmacsSVGLoader : NSObject
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
-			    <WebFrameLoadDelegate>
-#endif
-{
-  /* Frame and image data structures to which the SVG image is
-     loaded.  */
-  struct frame *emacsFrame;
-  struct image *emacsImage;
-
-  /* Function called when checking image size.  */
-  bool (*checkImageSizeFunc) (struct frame *, int, int);
-
-  /* Function called when reporting image load errors.  */
-  void (*imageErrorFunc) (const char *, ...);
-
-  /* Whether a page load has completed.  */
-  BOOL isLoaded;
-}
-- (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
-		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
-		    imageErrorFunc:(void (*)(const char *, ...))imageError;
-- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
-	 baseURL:(NSURL *)url;
-@end
-
-/* Protocol for document rasterization.  */
-
-@protocol EmacsDocumentRasterizer <NSObject>
-- (instancetype)initWithURL:(NSURL *)url
-		    options:(NSDictionaryOf (NSString *, id) *)options;
-- (instancetype)initWithData:(NSData *)data
-		     options:(NSDictionaryOf (NSString *, id) *)options;
-+ (BOOL)shouldInitializeInMainThread;
-+ (NSArrayOf (NSString *) *)supportedTypes;
-- (NSUInteger)pageCount;
-- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
-- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
-- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index;
-- (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
-	      inContext:(CGContextRef)ctx;
-@end
-
-/* Class for PDF rasterization.  */
-
-@interface EmacsPDFDocument : PDFDocument <EmacsDocumentRasterizer>
-@end
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
-typedef NSString * NSAttributedStringDocumentAttributeKey;
-#endif
-
-/* Class for document rasterization other than PDF.  It also works as
-   the layout manager delegate when rasterizing a multi-page
-   document.  */
-
-@interface EmacsDocumentRasterizer : NSObject <EmacsDocumentRasterizer, NSLayoutManagerDelegate>
-{
-  /* The text storage and document attributes for the document to be
-     rasterized.  */
-  NSTextStorage *textStorage;
-  NSDictionaryOf (NSAttributedStringDocumentAttributeKey, id)
-    *documentAttributes;
-}
-- (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
-		      documentAttributes:(NSDictionaryOf (NSString *, id) *)docAttributes;
-@end
-
-@interface EmacsFrameController (Accessibility)
-- (void)postAccessibilityNotificationsToEmacsView;
-@end
-
-@interface EmacsFrameController (Animation)
-- (void)setupAnimationLayer;
-- (CALayer *)layerForRect:(NSRect)rect;
-- (void)addLayer:(CALayer *)layer;
-- (CIFilter *)transitionFilterFromProperties:(Lisp_Object)properties;
-- (void)adjustTransitionFilter:(CIFilter *)filter forLayer:(CALayer *)layer;
-@end
-
-@interface NSLayoutManager (Emacs)
-- (NSRect)enclosingRectForGlyphRange:(NSRange)glyphRange
-		     inTextContainer:(NSTextContainer *)textContainer;
-@end
-
-@interface EmacsController (Sound) <NSSoundDelegate>
-@end
 
 /* Some methods that are not declared in older versions.  Should be
    used with some runtime check such as `respondsToSelector:'. */
@@ -907,8 +213,6 @@ enum {
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
-typedef NSString * NSWindowTabbingIdentifier;
-
 @interface NSWindowTabGroup : NSObject
 @property (readonly, copy) NSArrayOf (NSWindow *) *windows;
 @property (getter=isOverviewVisible) BOOL overviewVisible;
@@ -980,19 +284,27 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
-typedef NSString * NSAppearanceName;
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSAppearance : NSObject
 + (NSAppearance *)appearanceNamed:(NSAppearanceName)name;
 + (NSAppearance *)currentAppearance;
++ (void)setCurrentAppearance:(NSAppearance *)appearance;
 @end
 
 @protocol NSAppearanceCustomization <NSObject>
 @property (retain) NSAppearance *appearance;
 @property (readonly, retain) NSAppearance *effectiveAppearance;
+@end
+
+@interface NSWindow (AppearanceCustomization) <NSAppearanceCustomization>
+@end
+
+@interface NSView (AppearanceCustomization) <NSAppearanceCustomization>
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
+@interface NSApplication (AppearanceCustomization) <NSAppearanceCustomization>
 @end
 #endif
 
@@ -1008,17 +320,28 @@ typedef NSInteger NSWindowLevel;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
-typedef NSString * NSToolbarIdentifier;
-typedef NSString * NSToolbarItemIdentifier;
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 enum {
   NSFontPanelModeMaskFace = NSFontPanelFaceModeMask,
   NSFontPanelModeMaskSize = NSFontPanelSizeModeMask,
   NSFontPanelModeMaskCollection = NSFontPanelCollectionModeMask
 };
 typedef NSUInteger NSFontPanelModeMask;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
+@protocol NSFontChanging <NSObject>
+@optional
+- (void)changeFont:(NSFontManager *)sender;
+- (NSFontPanelModeMask)validModesForFontPanel:(NSFontPanel *)fontPanel;
+@end
+
+@protocol NSMenuItemValidation <NSObject>
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem;
+@end
+
+@protocol NSToolbarItemValidation <NSObject>
+- (BOOL)validateToolbarItem:(NSToolbarItem *)item;
+@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
@@ -1145,13 +468,6 @@ enum {
 typedef NSInteger NSPaperOrientation;
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
-typedef NSString * NSAccessibilityAttributeName;
-typedef NSString * NSAccessibilityParameterizedAttributeName;
-typedef NSString * NSAccessibilityActionName;
-typedef NSString * NSAccessibilityNotificationName;
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
 @interface NSWorkspace (AvailableOn101000AndLater)
 - (BOOL)accessibilityDisplayShouldIncreaseContrast;
@@ -1190,7 +506,7 @@ static const NSControlStateValue NSControlStateValueOn = NSOnState;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
-typedef NSString * NSTouchBarItemIdentifier;
+@protocol NSTouchBarDelegate @end
 
 @interface NSTouchBarItem : NSObject <NSCoding>
 - (instancetype)initWithIdentifier:(NSTouchBarItemIdentifier)identifier;
@@ -1309,3 +625,742 @@ typedef NSInteger NSGlyphProperty;
 		    bidiLevels:(unsigned char *)bidiLevelBuffer;
 @end
 #endif
+
+/* Categories for existing classes.  */
+
+@interface NSData (Emacs)
+- (Lisp_Object)lispString;
+@end
+
+@interface NSString (Emacs)
++ (instancetype)stringWithLispString:(Lisp_Object)lispString;
++ (instancetype)stringWithUTF8LispString:(Lisp_Object)lispString;
++ (instancetype)stringWithUTF8String:(const char *)bytes fallback:(BOOL)flag;
+- (Lisp_Object)lispString;
+- (Lisp_Object)UTF8LispString;
+- (Lisp_Object)UTF16LispString;
+- (NSArrayOf (NSString *) *)componentsSeparatedByCamelCasingWithCharactersInSet:(NSCharacterSet *)separator;
+@end
+
+@interface NSMutableArray (Emacs)
+- (void)enqueue:(id)obj;
+- (id)dequeue;
+@end
+
+@interface NSFont (Emacs)
++ (NSFont *)fontWithFace:(struct face *)face;
+@end
+
+@interface NSEvent (Emacs)
+- (NSEvent *)mouseEventByChangingType:(NSEventType)type
+		          andLocation:(NSPoint)location;
+- (CGEventRef)coreGraphicsEvent;
+@end
+
+@interface NSAttributedString (Emacs)
+- (Lisp_Object)UTF16LispString;
+@end
+
+@interface NSColor (Emacs)
++ (NSColor *)colorWithXColorPixel:(unsigned long)pixel;
+- (CGColorRef)copyCGColor;
+@end
+
+@interface NSImage (Emacs)
++ (NSImage *)imageWithCGImage:(CGImageRef)cgImage exclusive:(BOOL)flag;
+@end
+
+@interface NSApplication (Emacs)
+- (void)postDummyEvent;
+- (void)runTemporarilyWithBlock:(void (^)(void))block;
+@end
+
+@interface NSScreen (Emacs)
++ (NSScreen *)screenContainingPoint:(NSPoint)aPoint;
++ (NSScreen *)closestScreenForRect:(NSRect)aRect;
+- (BOOL)containsDock;
+- (BOOL)canShowMenuBar;
+@end
+
+@interface NSWindow (Emacs)
+- (Lisp_Object)lispFrame;
+- (NSWindow *)topLevelWindow;
+- (void)enumerateChildWindowsUsingBlock:(NS_NOESCAPE void
+					 (^)(NSWindow *child, BOOL *stop))block;
+@end
+
+@interface NSCursor (Emacs)
++ (NSCursor *)cursorWithThemeCursor:(ThemeCursor)shape;
+@end
+
+@interface NSCursor (UndocumentedOn1070AndLater)
++ (NSCursor *)_windowResizeNorthWestSouthEastCursor;
++ (NSCursor *)_windowResizeNorthEastSouthWestCursor;
++ (NSCursor *)_windowResizeNorthSouthCursor;
++ (NSCursor *)_windowResizeNorthCursor;
++ (NSCursor *)_windowResizeSouthCursor;
++ (NSCursor *)_windowResizeEastWestCursor;
++ (NSCursor *)_windowResizeEastCursor;
++ (NSCursor *)_windowResizeWestCursor;
++ (NSCursor *)_windowResizeNorthWestCursor;
++ (NSCursor *)_windowResizeNorthEastCursor;
++ (NSCursor *)_windowResizeSouthWestCursor;
++ (NSCursor *)_windowResizeSouthEastCursor;
+@end
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+/* Workarounds for memory leaks on OS X 10.9.  */
+@interface NSApplication (Undocumented)
+- (void)_installMemoryPressureDispatchSources;
+- (void)_installMemoryStatusDispatchSources;
+@end
+#endif
+
+@interface EmacsApplication : NSApplication
+@end
+
+@interface EmacsPosingWindow : NSWindow
++ (void)setup;
+@end
+
+/* Class for delegate for NSApplication.  It also becomes the target
+   of several actions such as those from EmacsMainView, menus,
+   dialogs, and actions/services bound in the mac-apple-event
+   keymap.  */
+
+@interface EmacsController : NSObject <NSApplicationDelegate, NSUserInterfaceValidations>
+{
+  /* Points to HOLD_QUIT arg passed to read_socket_hook.  */
+  struct input_event *hold_quit;
+
+  /* Number of events stored during a
+     handleQueuedEventsWithHoldingQuitIn: call.  */
+  int count;
+
+  /* Whether to generate a HELP_EVENT at the end of handleOneNSEvent:
+     call.  */
+  int do_help;
+
+  /* Non-zero means that a HELP_EVENT has been generated since Emacs
+   start.  */
+  bool any_help_event_p;
+
+  /* The frame on which a HELP_EVENT occurs.  */
+  struct frame *emacsHelpFrame;
+
+  /* The item selected in the popup menu.  */
+  int menuItemSelection;
+
+  /* Non-nil means left mouse tracking has been suspended and will be
+     resumed when this block is called.  */
+  void (^trackingResumeBlock)(void);
+
+  /* Whether a service provider for Emacs is registered as of
+     applicationWillFinishLaunching: or not.  */
+  BOOL serviceProviderRegistered;
+
+  /* Whether the application should update its presentation options
+     when it becomes active next time.  */
+  BOOL needsUpdatePresentationOptionsOnBecomingActive;
+
+  /* Whether conflicting Cocoa's text system key bindings (e.g., C-q)
+     are disabled or not.  */
+  BOOL conflictingKeyBindingsDisabled;
+
+  /* Saved key bindings with or without conflicts (currently, those
+     for writing direction commands on Mac OS X 10.6).  */
+  NSDictionaryOf (NSString *, NSString *)
+    *keyBindingsWithConflicts, *keyBindingsWithoutConflicts;
+
+  /* Help topic that the user selected using Help menu search.  */
+  id selectedHelpTopic;
+
+  /* Search string for which the user selected "Show All Help
+     Topics".  */
+  NSString *searchStringForAllHelpTopics;
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+  /* Date of last flushWindow call.  */
+  NSDate *lastFlushDate;
+
+  /* Timer for deferring flushWindow call.  */
+  NSTimer *flushTimer;
+
+  /* Set of windows whose flush is deferred.  */
+  NSMutableSetOf (NSWindow *) *deferredFlushWindows;
+#endif
+
+  /* Set of key paths for which NSApp is observed via the
+     `application-kvo' subkeymap in mac-apple-event-map.  */
+  NSSetOf (NSString *) *observedKeyPaths;
+}
+- (void)updateObservedKeyPaths;
+- (int)getAndClearMenuItemSelection;
+- (void)storeInputEvent:(id)sender;
+- (void)setMenuItemSelectionToTag:(id)sender;
+- (void)storeEvent:(struct input_event *)bufp;
+- (void)setTrackingResumeBlock:(void (^)(void))block;
+- (NSTimeInterval)minimumIntervalForReadSocket;
+- (int)handleQueuedNSEventsWithHoldingQuitIn:(struct input_event *)bufp;
+- (void)cancelHelpEchoForEmacsFrame:(struct frame *)f;
+- (BOOL)conflictingKeyBindingsDisabled;
+- (void)setConflictingKeyBindingsDisabled:(BOOL)flag;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+- (void)flushWindow:(NSWindow *)window force:(BOOL)flag;
+#endif
+- (void)updatePresentationOptions;
+- (void)showMenuBar;
+@end
+
+/* Like NSWindow, but allows suspend/resume resize control tracking.
+   It also provides the delegate methods windowWillEnterTabOverview
+   and windowDidExitTabOverview.  */
+
+@interface EmacsWindow : NSWindow <NSMenuItemValidation>
+{
+  /* Left mouse up event used for suspending resize control
+     tracking.  */
+  NSEvent *mouseUpEvent;
+
+  /* Pointer location of the left mouse down event that initiated the
+     current resize control tracking session.  The value is in the
+     base coordinate system of the window.  */
+  NSPoint resizeTrackingStartLocation;
+
+  /* Window size when the current resize control tracking session was
+     started.  */
+  NSSize resizeTrackingStartWindowSize;
+
+  /* Whether the call to setupResizeTracking: is suspended for the
+     next left mouse down event.  */
+  BOOL setupResizeTrackingSuspended;
+
+  /* Whether the window should be made visible when the application
+     gets unhidden next time.  */
+  BOOL needsOrderFrontOnUnhide;
+
+  /* Positive values mean the usual -constrainFrameRect:toScreen:
+     behavior is suspended.  */
+  char constrainingToScreenSuspensionCount;
+
+  /* Tab group object that is showing its overview invoked from the
+     EmacsWindow object.  */
+  NSWindowTabGroup *observedTabGroup;
+}
+- (void)suspendResizeTracking:(NSEvent *)event
+	   positionAdjustment:(NSPoint)adjustment;
+- (void)resumeResizeTracking;
+- (BOOL)needsOrderFrontOnUnhide;
+- (void)setNeedsOrderFrontOnUnhide:(BOOL)flag;
+- (void)suspendConstrainingToScreen:(BOOL)flag;
+- (void)exitTabGroupOverview;
+@end
+
+@interface NSObject (EmacsWindowDelegate)
+- (BOOL)window:(NSWindow *)sender shouldForwardAction:(SEL)action to:(id)target;
+- (NSRect)window:(NSWindow *)sender willConstrainFrame:(NSRect)frameRect
+	toScreen:(NSScreen *)screen;
+- (void)windowWillEnterTabOverview;
+- (void)windowDidExitTabOverview;
+@end
+
+@class EmacsView;
+@class EmacsOverlayView;
+
+/* Class for delegate of NSWindow and NSToolbar (see its Toolbar
+   category declared later).  It also becomes that target of
+   frame-dependent actions such as those from font panels.  */
+
+@interface EmacsFrameController : NSObject <NSWindowDelegate>
+{
+  /* The Emacs frame corresponding to the NSWindow that
+     EmacsFrameController object is associated with as delegate.  */
+  struct frame *emacsFrame;
+
+  /* Window and view for the Emacs frame.  */
+  EmacsWindow *emacsWindow;
+  EmacsView *emacsView;
+
+  /* View overlaid on the Emacs frame window.  */
+  EmacsOverlayView *overlayView;
+
+  /* Window for the spinning progress indicator (corresponding to
+     hourglass) shown at the upper-right corner of the window.  */
+  NSWindow *hourglassWindow;
+
+  /* The current window manager state.  */
+  WMState windowManagerState;
+
+  /* The last window frame before maximize/fullscreen.  The position
+     is relative to the top left corner of the screen.  */
+  NSRect savedFrame;
+
+  /* The root Core Animation layer for mac-start-animation.  */
+  CALayer *animationLayer;
+
+  /* The block called when the window ends live resize.  */
+  void (^liveResizeCompletionHandler) (void);
+
+  /* Whether transition effect should be set up when the window will
+     start live resize.  */
+  BOOL shouldLiveResizeTriggerTransition;
+
+  /* Boolean to cache [emacsView isHiddenOrHasHiddenAncestor].  */
+  BOOL emacsViewIsHiddenOrHasHiddenAncestor;
+
+  /* Window manager state after the full screen transition.  */
+  WMState fullScreenTargetState;
+
+  /* Enum value determining the symbol that is set as `fullscreen'
+     frame parameter after the full screen transition.  */
+  enum {
+    FULLSCREEN_PARAM_NONE, FULLSCREEN_PARAM_NIL,
+    FULLSCREEN_PARAM_FULLBOTH, FULLSCREEN_PARAM_FULLSCREEN
+  } fullscreenFrameParameterAfterTransition;
+
+  /* Array of blocks called when the window completes full screen
+     transition.  Each block is called with the window object and a
+     boolean value meaning whether the transition has succeeded.  */
+  NSMutableArrayOf (void (^)(EmacsWindow *, BOOL))
+    *fullScreenTransitionCompletionHandlers;
+
+  /* Map from child windows to alpha values that are saved while they
+     are made completely transparent temporarily.  */
+  NSMapTableOf (NSWindow *, NSNumber *) *savedChildWindowAlphaMap;
+}
+- (instancetype)initWithEmacsFrame:(struct frame *)emacsFrame;
+- (void)setupEmacsView;
+- (void)setupWindow;
+- (void)closeWindow;
+- (struct frame *)emacsFrame;
+- (EmacsWindow *)emacsWindow;
+- (BOOL)acceptsFocus;
+- (WMState)windowManagerState;
+- (void)setWindowManagerState:(WMState)newState;
+- (void)updateBackingScaleFactor;
+- (BOOL)emacsViewIsHiddenOrHasHiddenAncestor;
+- (void)updateEmacsViewIsHiddenOrHasHiddenAncestor;
+- (void)displayEmacsViewIfNeeded;
+- (void)lockFocusOnEmacsView;
+- (void)unlockFocusOnEmacsView;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+- (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
+#endif
+- (NSPoint)convertEmacsViewPointToScreen:(NSPoint)point;
+- (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point;
+- (NSRect)convertEmacsViewRectToScreen:(NSRect)rect;
+- (NSRect)convertEmacsViewRectFromScreen:(NSRect)rect;
+- (NSRect)centerScanEmacsViewRect:(NSRect)rect;
+- (void)invalidateCursorRectsForEmacsView;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+- (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag;
+#endif
+- (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect;
+- (NSBitmapImageRep *)bitmapImageRep;
+- (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
+- (BOOL)isWindowFrontmost;
+- (void)setupLiveResizeTransition;
+- (void)setShouldLiveResizeTriggerTransition:(BOOL)flag;
+- (void)setLiveResizeCompletionHandler:(void (^)(void))block;
+- (BOOL)shouldBeTitled;
+- (BOOL)shouldHaveShadow;
+- (void)updateWindowStyle;
+@end
+
+/* Class for Emacs view that handles drawing events only.  It is used
+   directly by tooltip frames, and indirectly by ordinary frames via
+   inheritance.  */
+
+@interface EmacsView : NSView
+{
+  /* Backing bitmap used for application-side double buffering.  */
+  NSBitmapImageRep *backingBitmap;
+
+  /* Stack of graphics contexts saved by lockFocus emulation on
+     backing bitmap.  */
+  NSMutableArray *graphicsContextStack;
+}
+- (struct frame *)emacsFrame;
++ (void)globallyDisableUpdateLayer:(BOOL)flag;
+- (void)synchronizeBackingBitmap;
+- (void)lockFocusOnBacking;
+- (void)unlockFocusOnBacking;
+- (void)scrollBackingSrcX:(int)srcX srcY:(int)srcY
+		    width:(int)width height:(int)height
+		    destX:(int)destX destY:(int)destY;
+@end
+
+/* Class for Emacs view that also handles input events.  Used by
+   ordinary frames.  */
+
+@interface EmacsMainView : EmacsView <NSTextInputClient, NSTouchBarDelegate>
+{
+  /* Target object to which the EmacsMainView object sends
+     actions.  */
+  id __unsafe_unretained target;
+
+  /* Message selector of the action the EmacsMainView object
+     sends.  */
+  SEL action;
+
+  /* Stores the Emacs input event that the action method is expected
+     to process.  */
+  struct input_event inputEvent;
+
+  /* Whether key events were interpreted by intepretKeyEvents:.  */
+  BOOL keyEventsInterpreted;
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  /* Whether scrollRect:by: has copied rounded bottom corner area.  */
+  BOOL roundedBottomCornersCopied;
+#endif
+
+  /* Whether the raw key event below has mapped any of CGEvent flags.
+     It is precalculated in keyDown: so as to avoid regeneration of a
+     CGEvent object.  */
+  BOOL rawKeyEventHasMappedFlags;
+
+  /* Raw key event that is interpreted by intepretKeyEvents:.  */
+  NSEvent *rawKeyEvent;
+
+  /* Saved marked text passed by setMarkedText:selectedRange:.  */
+  id markedText;
+
+  /* Position in the last normal (non-momentum) wheel event.  */
+  NSPoint savedWheelPoint;
+
+  /* Modifiers in the last normal (non-momentum) wheel event.  */
+  int savedWheelModifiers;
+
+  /* Stage of the last gesture event of type NSEventTypePressure.  */
+  NSInteger pressureEventStage;
+
+  /* Touch bar item used for the candidate list.  Currently, only
+     candidates from input methods are displayed.  */
+  NSCandidateListTouchBarItem *candidateListTouchBarItem;
+}
+- (id)target;
+- (SEL)action;
+- (void)setTarget:(id)anObject;
+- (void)setAction:(SEL)aSelector;
+- (BOOL)sendAction:(SEL)theAction to:(id)theTarget;
+- (struct input_event *)inputEvent;
+- (NSString *)string;
+- (void)synchronizeChildFrameOrigins;
+@end
+
+/* Class for overlay view of an Emacs frame window.  */
+
+@interface EmacsOverlayView : NSView
+{
+  /* Whether to highlight the area corresponding to the content of the
+     Emacs frame window.  */
+  BOOL highlighted;
+}
+- (void)setHighlighted:(BOOL)flag;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+- (void)setShowsResizeIndicator:(BOOL)flag;
+#endif
+@end
+
+/* Class for scroller that doesn't do modal mouse tracking.  */
+
+@interface NonmodalScroller : NSScroller
+{
+  /* Timer used for posting events periodically during mouse
+     tracking.  */
+  NSTimer *timer;
+
+  /* Code for the scroller part that the user hit.  */
+  NSScrollerPart hitPart;
+
+  /* Whether the hitPart area should be highlighted.  */
+  BOOL hilightsHitPart;
+
+  /* Whether the scroller is created as horizontal.  */
+  BOOL isHorizontal;
+
+  /* If the scroller knob is currently being dragged by the user, this
+     is the number of pixels from the top of the knob to the place
+     where the user grabbed it.  If the knob is pressed but not
+     dragged yet, this is a negative number whose absolute value is
+     the number of pixels plus 1.  */
+  CGFloat knobGrabOffset;
+
+  /* The position of the top (for vertical scroller) or left (for
+     horizontal, respectively) of the scroller knob in pixels,
+     relative to the knob slot.  */
+  CGFloat knobMinEdgeInSlot;
+}
++ (void)updateBehavioralParameters;
+- (BOOL)dragUpdatesFloatValue;
+- (NSTimeInterval)buttonDelay;
+- (NSTimeInterval)buttonPeriod;
+- (BOOL)pagingBehavior;
+@end
+
+/* Just for avoiding warnings about undocumented methods in NSScroller.  */
+
+@interface NSScroller (Undocumented)
+- (void)drawArrow:(NSUInteger)position highlightPart:(NSInteger)part;
+@end
+
+/* Class for Scroller used for an Emacs window.  */
+
+@interface EmacsScroller : NonmodalScroller
+{
+  /* Emacs scroll bar for the scroller.  */
+  struct scroll_bar *emacsScrollBar;
+
+  /* The size of the scroller knob track area in pixels.  */
+  CGFloat knobSlotSpan;
+
+  /* Minimum size of the scroller knob, in pixels.  */
+  CGFloat minKnobSpan;
+
+  /* The size of the whole scroller area in pixels.  */
+  CGFloat frameSpan;
+
+  /* The position the user clicked in pixels, relative to the whole
+     scroller area.  */
+  CGFloat clickPositionInFrame;
+
+  /* This is used for saving the `code' and `modifiers' members of an
+     input event for a scroller click with the control modifier.  */
+  struct input_event inputEvent;
+
+  /* Values in the last mac_set_scroll_bar_thumb call.  */
+  int whole, portion;
+}
+- (void)setEmacsScrollBar:(struct scroll_bar *)bar;
+- (struct scroll_bar *)emacsScrollBar;
+- (CGFloat)knobSlotSpan;
+- (CGFloat)minKnobSpan;
+- (CGFloat)knobMinEdgeInSlot;
+- (CGFloat)frameSpan;
+- (CGFloat)clickPositionInFrame;
+- (ptrdiff_t)inputEventCode;
+- (int)inputEventModifiers;
+- (int)whole;
+- (void)setWhole:(int)theWhole;
+- (int)portion;
+- (void)setPortion:(int)thePortion;
+@end
+
+@interface EmacsFrameController (ScrollBar)
+- (void)addScrollerWithScrollBar:(struct scroll_bar *)bar;
+- (void)setVibrantScrollersHidden:(BOOL)flag;
+@end
+
+@interface EmacsToolbarItem : NSToolbarItem
+{
+  /* Array of CoreGraphics images of the item.  */
+  NSArrayOf (id) *coreGraphicsImages;
+}
+- (void)setCoreGraphicsImage:(CGImageRef)cgImage;
+- (void)setCoreGraphicsImages:(NSArrayOf (id) *)cgImages;
+@end
+
+/* Dummy protocol for specifying the return type of the selector
+   `item' that has multiple possibilities if unspecified.  */
+@protocol EmacsToolbarItemViewer
+- (NSToolbarItem *)item;
+@end
+
+@interface EmacsFrameController (Toolbar) <NSToolbarDelegate, NSToolbarItemValidation>
+- (void)setupToolBarWithVisibility:(BOOL)visible;
+- (void)updateToolbarDisplayMode;
+- (void)storeToolBarEvent:(id)sender;
+- (void)noteToolBarMouseMovement:(NSEvent *)event;
+@end
+
+/* Like NSFontPanel, but allows suspend/resume slider tracking.  */
+
+@interface EmacsFontPanel : NSFontPanel
+{
+  /* Left mouse up event used for suspending slider tracking.  */
+  NSEvent *mouseUpEvent;
+
+  /* Slider being tracked.  */
+  NSSlider * __unsafe_unretained trackedSlider;
+}
+- (void)suspendSliderTracking:(NSEvent *)event;
+- (void)resumeSliderTracking;
+@end
+
+@interface EmacsController (FontPanel)
+- (void)fontPanelWillClose:(NSNotification *)notification;
+@end
+
+@interface EmacsFrameController (FontPanel) <NSFontChanging>
+- (NSFont *)fontForFace:(int)faceId character:(int)c
+	       position:(int)pos object:(Lisp_Object)object;
+- (void)changeFont:(id)sender;
+@end
+
+@interface EmacsFrameController (EventHandling)
+- (void)noteEnterEmacsView;
+- (void)noteLeaveEmacsView;
+- (BOOL)noteMouseMovement:(NSPoint)point;
+- (BOOL)clearMouseFace:(Mouse_HLInfo *)hlinfo;
+- (void)noteMouseHighlightAtX:(int)x y:(int)y;
+@end
+
+@interface EmacsFrameController (Hourglass)
+- (void)showHourglass:(id)sender;
+- (void)hideHourglass:(id)sender;
+- (void)updateHourglassWindowOrigin;
+@end
+
+@interface EmacsSavePanel : NSSavePanel
+@end
+
+@interface EmacsFontDialogController : NSObject <NSWindowDelegate, NSFontChanging>
+@end
+
+@interface NSMenu (Emacs)
+- (NSMenuItem *)addItemWithWidgetValue:(widget_value *)wv;
+- (void)fillWithWidgetValue:(widget_value *)first_wv;
+@end
+
+@interface EmacsMenu : NSMenu
+@end
+
+@interface NSEvent (Undocumented)
+- (BOOL)_continuousScroll;
+- (NSInteger)_scrollPhase;
+- (CGFloat)deviceDeltaX;
+- (CGFloat)deviceDeltaY;
+- (CGFloat)deviceDeltaZ;
+@end
+
+@interface EmacsController (Menu) <NSMenuDelegate, NSUserInterfaceItemSearching>
+- (void)trackMenuBar;
+@end
+
+@interface EmacsFrameController (Menu)
+- (void)popUpMenu:(NSMenu *)menu atLocationInEmacsView:(NSPoint)location;
+@end
+
+@interface EmacsDialogView : NSView <NSTouchBarDelegate>
+- (instancetype)initWithWidgetValue:(widget_value *)wv;
+@end
+
+@interface EmacsPrintProxyView : NSView
+{
+  NSArrayOf (NSView *) *views;
+}
+- (instancetype)initWithViews:(NSArrayOf (NSView *) *)theViews;
+@end
+
+@interface NSAppleEventDescriptor (Emacs)
+- (OSErr)copyDescTo:(AEDesc *)desc;
+@end
+
+@interface EmacsFrameController (DragAndDrop)
+- (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSPasteboardType) *)pboardTypes;
+- (void)setOverlayViewHighlighted:(BOOL)flag;
+@end
+
+@interface EmacsOSAScript : OSAScript
+@end
+
+#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+@interface WKWebView (Undocumented)
+-(void)_setOverrideDeviceScaleFactor:(CGFloat)deviceScaleFactor;
+@end
+#endif
+
+@interface NSView (Emacs)
+- (XImagePtr)createXImageFromRect:(NSRect)rect backgroundColor:(NSColor *)color
+		      scaleFactor:(CGFloat)scaleFactor;
+@end
+
+/* Class for SVG frame load delegate.  */
+@interface EmacsSVGLoader : NSObject
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+			    <WKNavigationDelegate>
+#else
+			    <WebFrameLoadDelegate>
+#endif
+#endif
+{
+  /* Frame and image data structures to which the SVG image is
+     loaded.  */
+  struct frame *emacsFrame;
+  struct image *emacsImage;
+
+  /* Function called when checking image size.  */
+  bool (*checkImageSizeFunc) (struct frame *, int, int);
+
+  /* Function called when reporting image load errors.  */
+  void (*imageErrorFunc) (const char *, ...);
+
+  /* Whether a page load has completed.  */
+  BOOL isLoaded;
+}
+- (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
+		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
+		    imageErrorFunc:(void (*)(const char *, ...))imageError;
+- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
+	 baseURL:(NSURL *)url;
+@end
+
+/* Protocol for document rasterization.  */
+
+@protocol EmacsDocumentRasterizer <NSObject>
+- (instancetype)initWithURL:(NSURL *)url
+		    options:(NSDictionaryOf (NSString *, id) *)options;
+- (instancetype)initWithData:(NSData *)data
+		     options:(NSDictionaryOf (NSString *, id) *)options;
++ (BOOL)shouldInitializeInMainThread;
++ (NSArrayOf (NSString *) *)supportedTypes;
+- (NSUInteger)pageCount;
+- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
+- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
+- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index;
+- (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
+	      inContext:(CGContextRef)ctx;
+@end
+
+/* Class for PDF rasterization.  */
+
+@interface EmacsPDFDocument : PDFDocument <EmacsDocumentRasterizer>
+@end
+
+/* Class for document rasterization other than PDF.  It also works as
+   the layout manager delegate when rasterizing a multi-page
+   document.  */
+
+@interface EmacsDocumentRasterizer : NSObject <EmacsDocumentRasterizer, NSLayoutManagerDelegate>
+{
+  /* The text storage and document attributes for the document to be
+     rasterized.  */
+  NSTextStorage *textStorage;
+  NSDictionaryOf (NSAttributedStringDocumentAttributeKey, id)
+    *documentAttributes;
+}
+- (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
+		      documentAttributes:(NSDictionaryOf (NSString *, id) *)docAttributes;
+@end
+
+@interface EmacsFrameController (Accessibility)
+- (void)postAccessibilityNotificationsToEmacsView;
+@end
+
+@interface EmacsFrameController (Animation)
+- (void)setupAnimationLayer;
+- (CALayer *)layerForRect:(NSRect)rect;
+- (void)addLayer:(CALayer *)layer;
+- (CIFilter *)transitionFilterFromProperties:(Lisp_Object)properties;
+- (void)adjustTransitionFilter:(CIFilter *)filter forLayer:(CALayer *)layer;
+@end
+
+@interface NSLayoutManager (Emacs)
+- (NSRect)enclosingRectForGlyphRange:(NSRange)glyphRange
+		     inTextContainer:(NSTextContainer *)textContainer;
+@end
+
+@interface EmacsController (Sound) <NSSoundDelegate>
+@end

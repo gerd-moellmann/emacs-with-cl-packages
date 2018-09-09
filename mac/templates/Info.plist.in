@@ -605,6 +605,8 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.
 	<string>YES</string>
 	<key>NSPrincipalClass</key>
 	<string>EmacsApplication</string>
+	<key>NSRequiresAquaSystemAppearance</key>
+	<string>NO</string>
 	<key>NSServices</key>
 	<array>
 		<dict>
