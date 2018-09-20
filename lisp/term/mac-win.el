@@ -1590,7 +1590,7 @@ the echo area or in a buffer where the cursor is not displayed."
   :group 'mac)
 
 (defface mac-ts-converted-text
-  '((((background dark)) :underline "gray20")
+  '((((background dark)) :underline "gray60")
     (t :underline "gray80"))
   "Face for converted text in Mac TSM active input area."
   :group 'mac)
