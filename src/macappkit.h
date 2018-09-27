@@ -979,6 +979,9 @@ typedef NSInteger NSGlyphProperty;
   /* Stack of graphics contexts saved by lockFocus emulation on
      backing bitmap.  */
   NSMutableArray *graphicsContextStack;
+
+  /* Whether backing bitmap synchronization is suspended.  */
+  BOOL synchronizeBackingBitmapSuspended;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;

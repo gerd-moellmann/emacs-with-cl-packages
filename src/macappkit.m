@@ -5864,13 +5864,19 @@ static BOOL emacsViewUpdateLayerDisabled;
     }
 }
 
+- (void)suspendSynchronizingBackingBitmap:(BOOL)flag
+{
+  synchronizeBackingBitmapSuspended = flag;
+}
+
 - (void)synchronizeBackingBitmap
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   if (!self.layer)
     return;
 #endif
-  if (backingBitmap && !NSEqualSizes (backingBitmap.size, self.bounds.size))
+  if (!synchronizeBackingBitmapSuspended
+      && backingBitmap && !NSEqualSizes (backingBitmap.size, self.bounds.size))
     {
       MRC_RELEASE (backingBitmap);
       backingBitmap = nil;
@@ -8919,7 +8925,15 @@ mac_get_default_scroll_bar_height (struct frame *f)
 	   || EQ (Vtool_bar_style, Qtext_image_horiz))
     displayMode = NSToolbarDisplayModeIconAndLabel;
 
+  /* -[NSToolbar setDisplayMode] posts
+      NSViewFrameDidChangeNotification for EmacsView, but with a bogus
+      (intermediate?) value for view's frame and bounds.  We suspend
+      -[EmacsView synchronizeBackingBitmap] while setting toolbar's
+      display mode.  */
+  [emacsView suspendSynchronizingBackingBitmap:YES];
   [toolbar setDisplayMode:displayMode];
+  [emacsView suspendSynchronizingBackingBitmap:NO];
+  [emacsView synchronizeBackingBitmap];
 }
 
 /* Store toolbar item click event from SENDER to kbd_buffer.  */
