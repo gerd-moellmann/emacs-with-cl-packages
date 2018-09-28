@@ -5768,8 +5768,8 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+  CGContextRelease (backingBitmap);
 #if !USE_ARC
-  [backingBitmap release];
   [graphicsContextStack release];
   [super dealloc];
 #endif
@@ -5825,7 +5825,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)updateLayer
 {
   struct frame *f = self.emacsFrame;
-  NSBitmapImageRep *savedBackingBitmap = nil;
+  CGContextRef savedBackingBitmap = NULL;
 
   if (graphicsContextStack.count)
     return;
@@ -5844,7 +5844,19 @@ static BOOL emacsViewUpdateLayerDisabled;
 
   if (FRAME_FLASH_RECTANGLES_DATA (f))
     {
-      savedBackingBitmap = [backingBitmap copy];
+      size_t width = CGBitmapContextGetWidth (backingBitmap);
+      size_t height = CGBitmapContextGetHeight (backingBitmap);
+      size_t bitsPerComponent =
+	CGBitmapContextGetBitsPerComponent (backingBitmap);
+      size_t bytesPerRow = CGBitmapContextGetBytesPerRow (backingBitmap);
+      CGColorSpaceRef space = CGBitmapContextGetColorSpace (backingBitmap);
+      CGBitmapInfo bitmapInfo = CGBitmapContextGetBitmapInfo (backingBitmap);
+
+      savedBackingBitmap = CGBitmapContextCreate (NULL, width, height,
+						  bitsPerComponent, bytesPerRow,
+						  space, bitmapInfo);
+      memcpy (CGBitmapContextGetData (savedBackingBitmap),
+	      CGBitmapContextGetData (backingBitmap), height * bytesPerRow);
       [self lockFocusOnBacking];
       set_global_focus_view_frame (f);
       mac_invert_flash_rectangles (f);
@@ -5853,13 +5865,18 @@ static BOOL emacsViewUpdateLayerDisabled;
       self.needsDisplay = NO;
     }
 
-  self.layer.contents = (id) backingBitmap.CGImage;
-  self.layer.contentsScale =
-    backingBitmap.pixelsWide / backingBitmap.size.width;
+  if (layerContentsNeedUpdate)
+    {
+      self.layer.contents =
+	CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backingBitmap));
+      self.layer.contentsScale =
+	CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
+      layerContentsNeedUpdate = NO;
+    }
 
   if (savedBackingBitmap)
     {
-      MRC_RELEASE (backingBitmap);
+      CGContextRelease (backingBitmap);
       backingBitmap = savedBackingBitmap;
     }
 }
@@ -5876,10 +5893,19 @@ static BOOL emacsViewUpdateLayerDisabled;
     return;
 #endif
   if (!synchronizeBackingBitmapSuspended
-      && backingBitmap && !NSEqualSizes (backingBitmap.size, self.bounds.size))
+      && backingBitmap)
     {
-      MRC_RELEASE (backingBitmap);
-      backingBitmap = nil;
+      NSSize size = self.bounds.size;
+      CGFloat backingScaleFactor = self.window.backingScaleFactor;
+
+      if ((CGBitmapContextGetWidth (backingBitmap)
+	   != size.width * backingScaleFactor)
+	  || (CGBitmapContextGetHeight (backingBitmap)
+	      != size.height * backingScaleFactor))
+	{
+	  CGContextRelease (backingBitmap);
+	  backingBitmap = NULL;
+	}
     }
 }
 
@@ -5894,20 +5920,34 @@ static BOOL emacsViewUpdateLayerDisabled;
       return;
     }
 #endif
+  CGFloat backingScaleFactor = self.window.backingScaleFactor;
+
   if (!backingBitmap)
-    backingBitmap =
-      MRC_RETAIN ([self bitmapImageRepForCachingDisplayInRect:self.bounds]);
+    {
+      CGSize size = self.bounds.size;
+
+      backingBitmap =
+	CGBitmapContextCreate (NULL, size.width * backingScaleFactor,
+			       size.height * backingScaleFactor, 8, 0,
+			       self.window.colorSpace.CGColorSpace,
+			       kCGImageAlphaPremultipliedLast);
+    }
   if (!graphicsContextStack)
     graphicsContextStack = [[NSMutableArray alloc] initWithCapacity:0];
   id currentContext = NSGraphicsContext.currentContext;
   [graphicsContextStack addObject:(currentContext ? currentContext
 				   : NSNull.null)];
   NSGraphicsContext.currentContext =
-    [NSGraphicsContext graphicsContextWithBitmapImageRep:backingBitmap];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+    [NSGraphicsContext graphicsContextWithCGContext:backingBitmap flipped:NO];
+#else
+    [NSGraphicsContext graphicsContextWithGraphicsPort:backingBitmap
+					       flipped:NO];
+#endif
   [NSGraphicsContext saveGraphicsState];
   NSAffineTransform *transform = NSAffineTransform.transform;
-  [transform translateXBy:0 yBy:backingBitmap.size.height];
-  [transform scaleXBy:1 yBy:-1];
+  [transform translateXBy:0 yBy:(CGBitmapContextGetHeight (backingBitmap))];
+  [transform scaleXBy:backingScaleFactor yBy:(- backingScaleFactor)];
   [transform concat];
 }
 
@@ -5929,77 +5969,77 @@ static BOOL emacsViewUpdateLayerDisabled;
 				      : nil);
   [graphicsContextStack removeLastObject];
   if (graphicsContextStack.count == 0)
-    self.needsDisplay = YES;
+    {
+      self.needsDisplay = YES;
+      layerContentsNeedUpdate = YES;
+    }
 }
 
 - (void)scrollBackingSrcX:(int)srcX srcY:(int)srcY
 		    width:(int)width height:(int)height
 		    destX:(int)destX destY:(int)destY
 {
-  NSInteger bytesPerRow = backingBitmap.bytesPerRow;
-  NSInteger bytesPerPixel = backingBitmap.bitsPerPixel / 8;
-  NSInteger scale = backingBitmap.pixelsWide / backingBitmap.size.width;
+  NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backingBitmap);
+  NSInteger bytesPerPixel = CGBitmapContextGetBitsPerPixel (backingBitmap) / 8;
+  NSInteger scale =
+    CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
   NSInteger bytesWidth = (width * bytesPerPixel) * scale;
   NSInteger srcOffset = (srcY * bytesPerRow + srcX * bytesPerPixel) * scale;
   NSInteger delta = ((destY - srcY) * bytesPerRow
 		     + (destX - srcX) * bytesPerPixel) * scale;
   dispatch_queue_t queue =
     dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-  unsigned char *dataPlanes[5];
+  unsigned char *data = CGBitmapContextGetData (backingBitmap);
 
-  [backingBitmap getBitmapDataPlanes:dataPlanes];
-  for (unsigned char **plane = dataPlanes; *plane; plane++)
-    {
-      dispatch_apply (scale, queue, ^(size_t s) {
-	  unsigned char *src_s = *plane + srcOffset + bytesPerRow * s;
-	  NSInteger iterations;
+  dispatch_apply (scale, queue, ^(size_t s) {
+      unsigned char *src_s = data + srcOffset + bytesPerRow * s;
+      NSInteger iterations;
 
-	  if (destY < srcY)
-	    {
-	      iterations = min (height, srcY - destY);
-	      dispatch_apply (iterations, queue, ^(size_t i) {
-		  unsigned char *src = src_s + bytesPerRow * scale * i;
+      if (destY < srcY)
+	{
+	  iterations = min (height, srcY - destY);
+	  dispatch_apply (iterations, queue, ^(size_t i) {
+	      unsigned char *src = src_s + bytesPerRow * scale * i;
 
-		  for (int r = i; r < height; r += iterations)
-		    {
-		      memcpy (src + delta, src, bytesWidth);
-		      src += bytesPerRow * scale * iterations;
-		    }
-		});
-	    }
-	  else if (destY > srcY)
-	    {
-	      iterations = min (height, destY - srcY);
-	      dispatch_apply (iterations, queue, ^(size_t i) {
-		  size_t last_i = i + ((height - 1 - i) / iterations
-				       * iterations);
-		  unsigned char *src = src_s + bytesPerRow * scale * last_i;
+	      for (int r = i; r < height; r += iterations)
+		{
+		  memcpy (src + delta, src, bytesWidth);
+		  src += bytesPerRow * scale * iterations;
+		}
+	    });
+	}
+      else if (destY > srcY)
+	{
+	  iterations = min (height, destY - srcY);
+	  dispatch_apply (iterations, queue, ^(size_t i) {
+	      size_t last_i = i + ((height - 1 - i) / iterations * iterations);
+	      unsigned char *src = src_s + bytesPerRow * scale * last_i;
 
-		  for (int r = i; r < height; r += iterations)
-		    {
-		      memcpy (src + delta, src, bytesWidth);
-		      src -= bytesPerRow * scale * iterations;
-		    }
-		});
-	    }
-	  else /* destY == srcY, this case does not happen on the
-		  current version of Emacs.  */
-	    {
-	      iterations = height;
-	      dispatch_apply (iterations, queue, ^(size_t i) {
-		  unsigned char *src = src_s + bytesPerRow * scale * i;
+	      for (int r = i; r < height; r += iterations)
+		{
+		  memcpy (src + delta, src, bytesWidth);
+		  src -= bytesPerRow * scale * iterations;
+		}
+	    });
+	}
+      else /* destY == srcY, this case does not happen on the current
+	      version of Emacs.  */
+	{
+	  iterations = height;
+	  dispatch_apply (iterations, queue, ^(size_t i) {
+	      unsigned char *src = src_s + bytesPerRow * scale * i;
 
-		  memmove (src + delta, src, bytesWidth);
-		});
-	    }
-	});
-    }
+	      memmove (src + delta, src, bytesWidth);
+	    });
+	}
+    });
+    layerContentsNeedUpdate = YES;
 }
 
 - (void)viewDidChangeBackingProperties
 {
-  MRC_RELEASE (backingBitmap);
-  backingBitmap = nil;
+  CGContextRelease (backingBitmap);
+  backingBitmap = NULL;
   self.needsDisplay = YES;
 }
 

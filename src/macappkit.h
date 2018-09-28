@@ -974,7 +974,7 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsView : NSView
 {
   /* Backing bitmap used for application-side double buffering.  */
-  NSBitmapImageRep *backingBitmap;
+  CGContextRef backingBitmap;
 
   /* Stack of graphics contexts saved by lockFocus emulation on
      backing bitmap.  */
@@ -982,6 +982,10 @@ typedef NSInteger NSGlyphProperty;
 
   /* Whether backing bitmap synchronization is suspended.  */
   BOOL synchronizeBackingBitmapSuspended;
+
+  /* Whether view's core animation layer contents are out of sync with
+     the backing bitmap and need to be updated.  */
+  BOOL layerContentsNeedUpdate;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;
