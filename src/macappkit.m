@@ -2488,6 +2488,81 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
     [overlayView setLayerUsesCoreImageFilters:YES];
 
   [self setupAnimationLayer];
+
+  /* We add overlayView to the view hierarchy only when it is
+     necessary.  Otherwise the CVDisplayLink thread would take much
+     CPU time especially with application-side double buffering.  */
+  [overlayView.layer addObserver:self forKeyPath:@"sublayers"
+			 options:NSKeyValueObservingOptionPrior context:nil];
+  [animationLayer addObserver:self forKeyPath:@"sublayers"
+		      options:NSKeyValueObservingOptionPrior context:nil];
+  [overlayView.layer setValue:((id) kCFBooleanFalse) forKey:@"showingBorder"];
+  [overlayView.layer addObserver:self forKeyPath:@"showingBorder"
+			 options:0 context:nil];
+}
+
+- (void)synchronizeOverlayViewFrame
+{
+  overlayView.frame = [emacsWindow.contentView bounds];
+}
+
+- (void)updateOverlayViewParticipation
+{
+  BOOL shouldShowOverlayView =
+    (has_resize_indicator_at_bottom_right_p ()
+     || overlayView.layer.sublayers.count > 1
+     || animationLayer.sublayers.count != 0
+     || ([overlayView.layer valueForKey:@"showingBorder"]
+	 == (id) kCFBooleanTrue));
+
+  if (overlayView.superview && !shouldShowOverlayView)
+    [overlayView removeFromSuperview];
+  else if (!overlayView.superview && shouldShowOverlayView)
+    {
+      /* We place overlayView below emacsView so events are not
+	 intercepted by the former.  Still the former (layer-hosting)
+	 is displayed in front of the latter (neither layer-backed nor
+	 layer-hosting).  */
+      /* Unfortunately, this trick does not work on macOS 10.14.
+	 Placing overlayView above emacsView (with returning nil in
+	 hitTest:) works if the executable is linked against the macOS
+	 10.14 SDK, but not for the one linked on the older versions
+	 then run on macOS 10.14.  Making overlayView a subview of
+	 emacsView works for both cases.  Note that we need to
+	 temporarily hide overlayView when taking screenshot in
+	 -[EmacsFrameController bitmapImageRepInEmacsViewRect:].  */
+      /* If emacsView is layer-backed, which is the case when the
+	 executable is linked against the macOS 10.14 SDK, then the
+	 live resize transition layer used in full screen transition
+	 looks translucent if we make overlayView a subview of
+	 emacsView.  */
+      if (emacsView.layer)
+	[emacsWindow.contentView addSubview:overlayView];
+      else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
+	{
+	  if (![overlayView.superview isEqual:emacsView])
+	    [emacsView addSubview:overlayView];
+	}
+      else
+	[emacsWindow.contentView addSubview:overlayView positioned:NSWindowBelow
+				 relativeTo:emacsView];
+      [self synchronizeOverlayViewFrame];
+    }
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+			change:(NSDictionaryOf (NSKeyValueChangeKey, id) *)change
+		       context:(void *)context
+{
+  if ([keyPath isEqualToString:@"sublayers"])
+    {
+      if ([change objectForKey:NSKeyValueChangeNotificationIsPriorKey])
+	[self synchronizeOverlayViewFrame];
+      else
+	[self updateOverlayViewParticipation];
+    }
+  else if ([keyPath isEqualToString:@"showingBorder"])
+    [self updateOverlayViewParticipation];
 }
 
 - (void)setupWindow
@@ -2633,34 +2708,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       if (has_resize_indicator_at_bottom_right_p ())
 	[overlayView setShowsResizeIndicator:self.shouldBeTitled];
 #endif
-      /* We place overlayView below emacsView so events are not
-	 intercepted by the former.  Still the former (layer-hosting)
-	 is displayed in front of the latter (neither layer-backed nor
-	 layer-hosting).  */
-      /* Unfortunately, this trick does not work on macOS 10.14.
-	 Placing overlayView above emacsView (with returning nil in
-	 hitTest:) works if the executable is linked against the macOS
-	 10.14 SDK, but not for the one linked on the older versions
-	 then run on macOS 10.14.  Making overlayView a subview of
-	 emacsView works for both cases.  Note that we need to
-	 temporarily hide overlayView when taking screenshot in
-	 -[EmacsFrameController bitmapImageRepInEmacsViewRect:].  */
-      /* If emacsView is layer-backed, which is the case when the
-	 executable is linked against the macOS 10.14 SDK, then the
-	 live resize transition layer used in full screen transition
-	 looks translucent if we make overlayView a subview of
-	 emacsView.  */
-      if (emacsView.layer)
-	[window.contentView addSubview:overlayView];
-      else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
-	{
-	  if (![overlayView.superview isEqual:emacsView])
-	    [emacsView addSubview:overlayView];
-	}
-      else
-	[window.contentView addSubview:overlayView positioned:NSWindowBelow
-			    relativeTo:emacsView];
-      [overlayView setFrame:[[window contentView] bounds]];
+      [self updateOverlayViewParticipation];
       if (has_full_screen_with_dedicated_desktop_p ()
 	  && !(windowManagerState & WM_STATE_FULLSCREEN))
 	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
@@ -2698,17 +2746,20 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   return emacsWindow;
 }
 
-#if !USE_ARC
 - (void)dealloc
 {
+  [overlayView.layer removeObserver:self forKeyPath:@"sublayers"];
+  [animationLayer removeObserver:self forKeyPath:@"sublayers"];
+  [overlayView.layer removeObserver:self forKeyPath:@"showingBorder"];
+#if !USE_ARC
   [savedChildWindowAlphaMap release];
   [emacsView release];
   /* emacsWindow and hourglassWindow are released via
      released-when-closed.  */
   [overlayView release];
   [super dealloc];
-}
 #endif
+}
 
 - (BOOL)acceptsFocus
 {
@@ -7545,6 +7596,8 @@ create_resize_indicator_image (void)
       if (has_visual_effect_view_p ())
 	[NS_APPEARANCE setCurrentAppearance:oldAppearance];
 
+      [layer setValue:((id) kCFBooleanTrue) forKey:@"showingBorder"];
+
       [CATransaction setDisableActions:YES];
       layer.borderColor = borderColor;
       CFRelease (borderColor);
@@ -7553,7 +7606,25 @@ create_resize_indicator_image (void)
       layer.borderWidth = 3.0;
     }
   else
-    layer.borderWidth = 0;
+    {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+      if ([NSAnimationContext
+	    respondsToSelector:@selector(runAnimationGroup:completionHandler:)])
+#endif
+	[NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+	    layer.borderWidth = 0;
+	  } completionHandler:^{
+	    [layer setValue:((id) kCFBooleanFalse) forKey:@"showingBorder"];
+	  }];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+      else
+	/* We could use -[CATransaction setCompletionBlock:], but
+	   overlayview is always shown on Mac OS X 10.6 for the resize
+	   indicator, so we don't have to care about resetting the
+	   value for "showingBorder".  */
+	layer.borderWidth = 0;
+#endif
+    }
 }
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
