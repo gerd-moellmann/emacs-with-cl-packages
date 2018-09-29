@@ -495,24 +495,29 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 
 - (CGColorRef)copyCGColor
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
   if ([self respondsToSelector:@selector(CGColor)])
-    return CGColorRetain ([self CGColor]);
+#endif
+    return CGColorRetain (self.CGColor);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
   else
     {
-      NSColorSpace *colorSpace = [self colorSpace];
       CGColorSpaceRef cgColorSpace;
       CGFloat *components;
 
-      cgColorSpace = [colorSpace CGColorSpace];
+      if ([self.colorSpaceName isEqualToString:NSNamedColorSpace])
+	cgColorSpace = NULL;
+      else
+	cgColorSpace = self.colorSpace.CGColorSpace;
       if (cgColorSpace)
 	{
-	  components = alloca (sizeof (CGFloat) * [self numberOfComponents]);
+	  components = alloca (sizeof (CGFloat) * self.numberOfComponents);
 	  [self getComponents:components];
 	}
       else
 	{
 	  NSColor *colorInSRGB =
-	    [self colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+	    [self colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
 
 	  if (colorInSRGB)
 	    {
@@ -526,6 +531,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
     }
 
   return NULL;
+#endif
 }
 
 @end				// NSColor (Emacs)
