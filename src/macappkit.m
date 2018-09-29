@@ -5981,7 +5981,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 
   if (!backingBitmap)
     {
-      CGSize size = self.bounds.size;
+      NSSize size = self.bounds.size;
 
       backingBitmap =
 	CGBitmapContextCreate (NULL, size.width * backingScaleFactor,
