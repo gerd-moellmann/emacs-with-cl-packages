@@ -16422,7 +16422,8 @@ main (int argc, char **argv)
 	    newlim = rlim.rlim_max;
 	  newlim -= newlim % pagesize;
 
-	  if (pagesize <= newlim - lim)
+	  if (newlim > lim	/* in case rlim_t is an unsigned type */
+	      && pagesize <= newlim - lim)
 	    rlim.rlim_cur = newlim;
 	}
 
