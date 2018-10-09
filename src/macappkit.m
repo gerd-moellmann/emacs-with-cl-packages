@@ -5987,7 +5987,10 @@ static BOOL emacsViewUpdateLayerDisabled;
 	CGBitmapContextCreate (NULL, size.width * backingScaleFactor,
 			       size.height * backingScaleFactor, 8, 0,
 			       self.window.colorSpace.CGColorSpace,
-			       kCGImageAlphaPremultipliedLast);
+			       /* This combination enables us to use
+				  LCD Font smoothing.  */
+			       (kCGImageAlphaPremultipliedFirst
+				| kCGBitmapByteOrder32Host));
     }
   if (!graphicsContextStack)
     graphicsContextStack = [[NSMutableArray alloc] initWithCapacity:0];
