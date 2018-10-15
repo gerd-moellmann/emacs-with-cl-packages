@@ -5871,7 +5871,9 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)updateLayer
 {
   struct frame *f = self.emacsFrame;
-  CGContextRef savedBackingBitmap = NULL;
+  NSData *rectanglesData = ((__bridge NSData *)
+			    (FRAME_FLASH_RECTANGLES_DATA (f)));
+  NSData *savedImageBuffersData;
 
   if (graphicsContextStack.count)
     return;
@@ -5888,21 +5890,10 @@ static BOOL emacsViewUpdateLayerDisabled;
   if (!backingBitmap)
     return;
 
-  if (FRAME_FLASH_RECTANGLES_DATA (f))
+  if (rectanglesData)
     {
-      size_t width = CGBitmapContextGetWidth (backingBitmap);
-      size_t height = CGBitmapContextGetHeight (backingBitmap);
-      size_t bitsPerComponent =
-	CGBitmapContextGetBitsPerComponent (backingBitmap);
-      size_t bytesPerRow = CGBitmapContextGetBytesPerRow (backingBitmap);
-      CGColorSpaceRef space = CGBitmapContextGetColorSpace (backingBitmap);
-      CGBitmapInfo bitmapInfo = CGBitmapContextGetBitmapInfo (backingBitmap);
-
-      savedBackingBitmap = CGBitmapContextCreate (NULL, width, height,
-						  bitsPerComponent, bytesPerRow,
-						  space, bitmapInfo);
-      memcpy (CGBitmapContextGetData (savedBackingBitmap),
-	      CGBitmapContextGetData (backingBitmap), height * bytesPerRow);
+      savedImageBuffersData =
+	[self imageBuffersDataForBackingRectanglesData:rectanglesData];
       [self lockFocusOnBacking];
       set_global_focus_view_frame (f);
       mac_invert_flash_rectangles (f);
@@ -5920,11 +5911,9 @@ static BOOL emacsViewUpdateLayerDisabled;
       layerContentsNeedUpdate = NO;
     }
 
-  if (savedBackingBitmap)
-    {
-      CGContextRelease (backingBitmap);
-      backingBitmap = savedBackingBitmap;
-    }
+  if (rectanglesData)
+    [self restoreImageBuffersData:savedImageBuffersData
+	 forBackingRectanglesData:rectanglesData];
 }
 
 - (void)suspendSynchronizingBackingBitmap:(BOOL)flag
@@ -6242,6 +6231,60 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 
   self.needsDisplay = YES;
   layerContentsNeedUpdate = YES;
+}
+
+- (NSData *)imageBuffersDataForBackingRectanglesData:(NSData *)rectanglesData
+{
+  struct frame *f = self.emacsFrame;
+  NSInteger i, count = rectanglesData.length / sizeof (NativeRectangle);
+  const NativeRectangle *rectangles = rectanglesData.bytes;
+  NSMutableData *imageBuffersData =
+    [NSMutableData dataWithCapacity:(count * sizeof (vImage_Buffer))];
+  vImage_Buffer *imageBuffers = imageBuffersData.mutableBytes;
+  unsigned char *srcData = CGBitmapContextGetData (backingBitmap);
+  NSInteger scale =
+    CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
+  vImage_Buffer src;
+
+  src.rowBytes = CGBitmapContextGetBytesPerRow (backingBitmap);
+  for (i = 0; i < count; i++)
+    {
+      vImage_Buffer *dest = imageBuffers + i;
+
+      mac_vimage_buffer_init_8888 (dest, rectangles[i].height * scale,
+				   rectangles[i].width * scale);
+      src.height = dest->height, src.width = dest->width;
+      src.data = srcData + (rectangles[i].y * src.rowBytes
+			    + rectangles[i].x * sizeof (Pixel_8888)) * scale;
+      mac_vimage_copy_8888 (&src, dest, kvImageNoFlags);
+    }
+
+  return imageBuffersData;
+}
+
+- (void)restoreImageBuffersData:(NSData *)imageBuffersData
+       forBackingRectanglesData:(NSData *)rectanglesData
+{
+  struct frame *f = self.emacsFrame;
+  NSInteger i, count = rectanglesData.length / sizeof (NativeRectangle);
+  const NativeRectangle *rectangles = rectanglesData.bytes;
+  const vImage_Buffer *imageBuffers = imageBuffersData.bytes;
+  unsigned char *destData = CGBitmapContextGetData (backingBitmap);
+  NSInteger scale =
+    CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
+  vImage_Buffer dest;
+
+  dest.rowBytes = CGBitmapContextGetBytesPerRow (backingBitmap);
+  for (i = 0; i < count; i++)
+    {
+      const vImage_Buffer *src = imageBuffers + i;
+
+      dest.height = src->height, dest.width = src->width;
+      dest.data = destData + (rectangles[i].y * dest.rowBytes
+			      + rectangles[i].x * sizeof (Pixel_8888)) * scale;
+      mac_vimage_copy_8888 (src, &dest, kvImageNoFlags);
+      free (src->data);
+    }
 }
 
 - (void)viewDidChangeBackingProperties
