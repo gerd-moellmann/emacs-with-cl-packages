@@ -7885,11 +7885,14 @@ mac_color_lookup (const char *color_name)
   if (!color)
     return Qnil;
 
-  oldAppearance = [NS_APPEARANCE currentAppearance];
-  appearance = ([NSApp respondsToSelector:@selector(effectiveAppearance)]
-		? [NSApp effectiveAppearance]
-		: [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
-  [NS_APPEARANCE setCurrentAppearance:appearance];
+  if (has_visual_effect_view_p ())
+    {
+      oldAppearance = [NS_APPEARANCE currentAppearance];
+      appearance = ([NSApp respondsToSelector:@selector(effectiveAppearance)]
+		    ? [NSApp effectiveAppearance]
+		    : [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
+      [NS_APPEARANCE setCurrentAppearance:appearance];
+    }
   colorInSRGB = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
   if (colorInSRGB)
     {
@@ -7900,7 +7903,8 @@ mac_color_lookup (const char *color_name)
 					  (int) (components[1] * 255 + .5),
 					  (int) (components[2] * 255 + .5)));
     }
-  [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+  if (has_visual_effect_view_p ())
+    [NS_APPEARANCE setCurrentAppearance:oldAppearance];
 
   return result;
 }
