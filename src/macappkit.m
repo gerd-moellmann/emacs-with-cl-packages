@@ -7371,6 +7371,8 @@ unset_global_focus_view_frame (void)
 {
   CGRect result = CGRectNull;
 
+  mac_draw_queue_sync ();
+
   if (global_focus_view_frame != saved_focus_view_frame)
     {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
@@ -7388,8 +7390,6 @@ unset_global_focus_view_frame (void)
 	}
     }
   saved_focus_view_frame = NULL;
-
-  mac_draw_queue_sync ();
 
   return result;
 }
