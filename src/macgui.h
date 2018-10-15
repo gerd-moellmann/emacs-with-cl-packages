@@ -57,6 +57,8 @@ typedef Lisp_Object XrmDatabase;
 #define Z (current_buffer->text->z)
 #undef ALIGN
 
+#include <Accelerate/Accelerate.h>
+
 #ifndef CF_NOESCAPE
 #if __has_attribute (noescape)
 #define CF_NOESCAPE __attribute__ ((noescape))

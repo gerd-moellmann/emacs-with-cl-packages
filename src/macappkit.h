@@ -992,9 +992,7 @@ typedef NSInteger NSGlyphProperty;
 - (void)synchronizeBackingBitmap;
 - (void)lockFocusOnBacking;
 - (void)unlockFocusOnBacking;
-- (void)scrollBackingSrcX:(int)srcX srcY:(int)srcY
-		    width:(int)width height:(int)height
-		    destX:(int)destX destY:(int)destY;
+- (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta;
 @end
 
 /* Class for Emacs view that also handles input events.  Used by

@@ -2071,7 +2071,6 @@ mac_application_state (void)
 
 static void set_global_focus_view_frame (struct frame *);
 static CGRect unset_global_focus_view_frame (void);
-static void mac_draw_queue_dispatch_async (void (^) (void));
 static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 #define DEFAULT_NUM_COLS (80)
@@ -3205,22 +3204,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [emacsView unlockFocusOnBacking];
 }
 
-- (void)scrollEmacsViewSrcX:(int)srcX srcY:(int)srcY
-		      width:(int)width height:(int)height
-		      destX:(int)destX destY:(int)destY
-{
-  mac_draw_queue_dispatch_async (^{
-      [emacsView scrollBackingSrcX:srcX srcY:srcY width:width height:height
-			     destX:destX destY:destY];
-    });
-}
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
 - (void)scrollEmacsViewRect:(NSRect)rect by:(NSSize)delta
 {
-  [emacsView scrollRect:rect by:delta];
+  [emacsView scrollBackingRect:rect by:delta];
 }
-#endif
 
 - (NSPoint)convertEmacsViewPointToScreen:(NSPoint)point
 {
@@ -5801,6 +5788,8 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 static bool mac_try_buffer_and_glyph_matrix_access (void);
 static void mac_end_buffer_and_glyph_matrix_access (void);
 
+#define FRAME_CG_CONTEXT(f)	((f)->output_data.mac->cg_context)
+
 /* View for Emacs frame.  */
 
 @implementation EmacsView
@@ -6035,65 +6024,224 @@ static BOOL emacsViewUpdateLayerDisabled;
     }
 }
 
-- (void)scrollBackingSrcX:(int)srcX srcY:(int)srcY
-		    width:(int)width height:(int)height
-		    destX:(int)destX destY:(int)destY
+static vImage_Error
+mac_vimage_buffer_init_8888 (vImage_Buffer *buf, vImagePixelCount height,
+			     vImagePixelCount width)
 {
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
+  if (vImageBuffer_Init != NULL)
+#endif
+    return vImageBuffer_Init (buf, height, width, 8 * sizeof (Pixel_8888),
+			      kvImageNoFlags);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
+  else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090 || MAC_OS_X_VERSION_MIN_REQUIRED < 1090
+    {
+      buf->data = malloc (height * width * sizeof (Pixel_8888));
+      buf->height = height;
+      buf->width = width;
+      buf->rowBytes = width * sizeof (Pixel_8888);
+
+      return kvImageNoError;
+    }
+#endif
+}
+
+static vImage_Error
+mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
+		      vImage_Flags flags)
+{
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  if (vImageCopyBuffer != NULL)
+#endif
+    return vImageCopyBuffer (src, dest, sizeof (Pixel_8888), flags);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000 || MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+    {
+      const uint8_t identityMap[] = {0, 1, 2, 3};
+
+      return vImagePermuteChannels_ARGB8888 (src, dest, identityMap, flags);
+    }
+#endif
+}
+
+- (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta
+{
+  eassert (pthread_main_np ());
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (!self.layer)
+    {
+      [self scrollRect:rect by:delta];
+
+      return;
+    }
+#endif
+  eassert (CGBitmapContextGetBitsPerPixel (backingBitmap)
+	   == 8 * sizeof (Pixel_8888));
+  NSInteger bitmapWidth = CGBitmapContextGetWidth (backingBitmap);
+  NSInteger bitmapHeight = CGBitmapContextGetHeight (backingBitmap);
   NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backingBitmap);
-  NSInteger bytesPerPixel = CGBitmapContextGetBitsPerPixel (backingBitmap) / 8;
+  const NSInteger bytesPerPixel = sizeof (Pixel_8888);
+  unsigned char *srcData = CGBitmapContextGetData (backingBitmap);
   NSInteger scale =
     CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
-  NSInteger bytesWidth = (width * bytesPerPixel) * scale;
-  NSInteger srcOffset = (srcY * bytesPerRow + srcX * bytesPerPixel) * scale;
-  NSInteger delta = ((destY - srcY) * bytesPerRow
-		     + (destX - srcX) * bytesPerPixel) * scale;
-  dispatch_queue_t queue =
-    dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-  unsigned char *data = CGBitmapContextGetData (backingBitmap);
+  NSRect destRect, sectRect;
+  NSInteger destX, destY;
+  vImage_Buffer src, dest;
 
-  dispatch_apply (scale, queue, ^(size_t s) {
-      unsigned char *src_s = data + srcOffset + bytesPerRow * s;
-      NSInteger iterations;
+  rect.origin.x *= scale, rect.origin.y *= scale;
+  rect.size.width *= scale, rect.size.height *= scale;
+  delta.width *= scale, delta.height *= scale;
+  destRect = NSOffsetRect (rect, delta.width, delta.height);
+  sectRect = NSIntersectionRect (rect, destRect);
+  destX = NSMinX (destRect), destY = NSMinY (destRect);
 
-      if (destY < srcY)
+  src.rowBytes = dest.rowBytes = bytesPerRow;
+  if ((NSWidth (destRect) * NSHeight (destRect)
+       + NSWidth (sectRect) * NSHeight (sectRect))
+       <= (CGFloat) bitmapWidth * bitmapHeight)
+    {
+      NSInteger sectX = NSMinX (sectRect), sectWidth = NSWidth (sectRect);
+      NSInteger sectY = NSMinY (sectRect), sectHeight = NSHeight (sectRect);
+      bool sectIsEmpty = (sectWidth == 0 || sectHeight == 0);
+      NSInteger deltaX = delta.width, deltaY = delta.height;
+      ptrdiff_t deltaBytes = deltaY * bytesPerRow + deltaX * bytesPerPixel;
+
+      if (sectIsEmpty || deltaY != 0)
 	{
-	  iterations = min (height, srcY - destY);
-	  dispatch_apply (iterations, queue, ^(size_t i) {
-	      unsigned char *src = src_s + bytesPerRow * scale * i;
-
-	      for (int r = i; r < height; r += iterations)
+	  dest.width = NSWidth (destRect);
+	  dest.data = srcData + destY * bytesPerRow + destX * bytesPerPixel;
+	  if (sectIsEmpty)
+	    dest.height = NSHeight (destRect);
+	  else if (deltaY < 0)
+	    dest.height = - deltaY;
+	  else
+	    {
+	      dest.height = deltaY;
+	      dest.data += sectHeight * bytesPerRow;
+	    }
+	  src.data = dest.data - deltaBytes;
+	  src.height = dest.height, src.width = dest.width;
+	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	}
+      if (!sectIsEmpty)
+	{
+	  src.height = dest.height = sectHeight;
+	  /* This case does not happen on the current version of
+	     Emacs. */
+	  if (deltaX != 0)
+	    {
+	      dest.data = srcData + sectY * bytesPerRow + destX * bytesPerPixel;
+	      if (deltaX < 0)
+		dest.width = - deltaX;
+	      else
 		{
-		  memcpy (src + delta, src, bytesWidth);
-		  src += bytesPerRow * scale * iterations;
+		  src.width = dest.width = deltaX;
+		  dest.data += sectWidth * bytesPerPixel;
 		}
-	    });
-	}
-      else if (destY > srcY)
-	{
-	  iterations = min (height, destY - srcY);
-	  dispatch_apply (iterations, queue, ^(size_t i) {
-	      size_t last_i = i + ((height - 1 - i) / iterations * iterations);
-	      unsigned char *src = src_s + bytesPerRow * scale * last_i;
+	      src.data = dest.data - deltaBytes;
+	      src.width = dest.width;
+	      mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	    }
 
-	      for (int r = i; r < height; r += iterations)
-		{
-		  memcpy (src + delta, src, bytesWidth);
-		  src -= bytesPerRow * scale * iterations;
-		}
-	    });
-	}
-      else /* destY == srcY, this case does not happen on the current
-	      version of Emacs.  */
-	{
-	  iterations = height;
-	  dispatch_apply (iterations, queue, ^(size_t i) {
-	      unsigned char *src = src_s + bytesPerRow * scale * i;
+	  dest.width = sectWidth;
+	  dest.data = srcData + sectY * bytesPerRow + sectX * bytesPerPixel;
+	  src.data = dest.data - deltaBytes;
+	  src.width = dest.width;
+	  rect = NSOffsetRect (sectRect, - delta.width, - delta.height);
+	  if (NSIsEmptyRect (NSIntersectionRect (rect, sectRect)))
+	    mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	  else
+	    {
+	      vImage_Buffer buf;
 
-	      memmove (src + delta, src, bytesWidth);
-	    });
+	      mac_vimage_buffer_init_8888 (&buf, src.height, src.width);
+	      mac_vimage_copy_8888 (&src, &buf, kvImageNoFlags);
+	      mac_vimage_copy_8888 (&buf, &dest, kvImageNoFlags);
+	      free (buf.data);
+	    }
 	}
-    });
-    layerContentsNeedUpdate = YES;
+    }
+  else
+    {
+      CGContextRef newBackingBitmap =
+	CGBitmapContextCreate (NULL, bitmapWidth, bitmapHeight, 8, bytesPerRow,
+			       CGBitmapContextGetColorSpace (backingBitmap),
+			       CGBitmapContextGetBitmapInfo (backingBitmap));
+      unsigned char *destData = CGBitmapContextGetData (newBackingBitmap);
+
+      src.width = dest.width = bitmapWidth;
+      if (destY > 0)
+	{
+	  src.height = dest.height = destY;
+	  src.data = srcData;
+	  dest.data = destData;
+	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	}
+      NSInteger height = NSHeight (rect), destMaxY = destY + height;
+      if (destMaxY < bitmapHeight)
+	{
+	  src.height = dest.height = bitmapHeight - destMaxY;
+	  src.data = srcData + destMaxY * bytesPerRow;
+	  dest.data = destData + destMaxY * bytesPerRow;
+	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	}
+
+      src.height = dest.height = height;
+      if (destX > 0)
+	{
+	  src.width = dest.width = destX;
+	  src.data = srcData + destY * bytesPerRow;
+	  dest.data = destData + destY * bytesPerRow;
+	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	}
+      NSInteger width = NSWidth (rect), destMaxX = destX + width;
+      if (destMaxX < bitmapWidth)
+	{
+	  src.width = dest.width = bitmapWidth - destMaxX;
+	  src.data = srcData + destY * bytesPerRow + destMaxX * bytesPerPixel;
+	  dest.data = destData + destY * bytesPerRow + destMaxX * bytesPerPixel;
+	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	}
+
+      NSInteger srcX = NSMinX (rect), srcY = NSMinY (rect);
+      src.width = dest.width = width;
+      src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
+      dest.data = destData + destY * bytesPerRow + destX * bytesPerPixel;
+      mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+
+      CGContextRelease (backingBitmap);
+      backingBitmap = newBackingBitmap;
+      struct frame *f = self.emacsFrame;
+      if (FRAME_CG_CONTEXT (f))
+	{
+	  [NSGraphicsContext restoreGraphicsState];
+	  NSGraphicsContext.currentContext =
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+	    [NSGraphicsContext graphicsContextWithCGContext:backingBitmap
+							    flipped:NO];
+#else
+	    [NSGraphicsContext graphicsContextWithGraphicsPort:backingBitmap
+						       flipped:NO];
+#endif
+	  [NSGraphicsContext saveGraphicsState];
+	  NSAffineTransform *transform = NSAffineTransform.transform;
+	  [transform translateXBy:0 yBy:bitmapHeight];
+	  [transform scaleXBy:scale yBy:(- scale)];
+	  [transform concat];
+	  FRAME_CG_CONTEXT (f) = backingBitmap;
+	}
+    }
+
+  self.needsDisplay = YES;
+  layerContentsNeedUpdate = YES;
 }
 
 - (void)viewDidChangeBackingProperties
@@ -7287,8 +7435,6 @@ event_phase_to_symbol (NSEventPhase phase)
 
 @end				// EmacsMainView
 
-#define FRAME_CG_CONTEXT(f)	((f)->output_data.mac->cg_context)
-
 /* Emacs frame containing the globally focused NSView.  */
 static struct frame *global_focus_view_frame;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
@@ -7353,17 +7499,6 @@ mac_draw_queue_sync (void)
   if (global_focus_drawing_queue)
     dispatch_sync (global_focus_drawing_queue, ^{});
 #endif
-}
-
-static void
-mac_draw_queue_dispatch_async (void (^block) (void))
-{
-#if DRAWING_USE_GCD
-  if (global_focus_drawing_queue)
-    dispatch_async (global_focus_drawing_queue, block);
-  else
-#endif
-    block ();
 }
 
 static CGRect
@@ -7530,23 +7665,11 @@ mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 		 int width, int height, int dest_x, int dest_y)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+  NSRect rect = NSMakeRect (src_x, src_y, width, height);
+  NSSize offset = NSMakeSize (dest_x - src_x, dest_y - src_y);
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!FRAME_MAC_DOUBLE_BUFFERED_P (f))
-    {
-      NSRect rect = NSMakeRect (src_x, src_y, width, height);
-      NSSize offset = NSMakeSize (dest_x - src_x, dest_y - src_y);
-
-      mac_draw_queue_sync ();
-      mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
-
-      return;
-    }
-#endif
-  [frameController scrollEmacsViewSrcX:src_x srcY:src_y
-				 width:width height:height
-				 destX:dest_x destY:dest_y];
-  mac_within_gui (^{[frameController setEmacsViewNeedsDisplay:YES];});
+  mac_draw_queue_sync ();
+  mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
 }
 
 @implementation EmacsOverlayView
