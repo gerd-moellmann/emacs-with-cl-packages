@@ -5263,7 +5263,7 @@ case "$opsys" in
    ## only costs about 1.5K of wasted binary space.
    headerpad_extra=1000
    if test "$HAVE_MACGUI" = "yes"; then
-     libs_macgui="-framework Carbon -framework WebKit -framework Quartz -framework QuartzCore -framework IOKit -framework OSAKit -framework Accelerate -framework Cocoa"
+     libs_macgui="-framework Carbon -framework WebKit -framework Quartz -framework QuartzCore -framework IOKit -framework OSAKit -framework Accelerate -framework IOSurface -framework Cocoa"
      headerpad_extra=BD0
    elif test "$HAVE_NS" = "yes"; then
      libs_macgui="-framework AppKit"

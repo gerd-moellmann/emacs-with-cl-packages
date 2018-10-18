@@ -5815,6 +5815,8 @@ static BOOL emacsViewUpdateLayerDisabled;
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   CGContextRelease (backingBitmap);
+  if (backingSurface)
+    CFRelease (backingSurface);
 #if !USE_ARC
   [graphicsContextStack release];
   [super dealloc];
@@ -5863,6 +5865,37 @@ static BOOL emacsViewUpdateLayerDisabled;
   return !(has_visual_effect_view_p () && self.layer);
 }
 
+static CGContextRef
+mac_backing_bitmap_create (size_t width, size_t height,
+			   CGColorSpaceRef color_space, IOSurfaceRef *surface)
+{
+  void *data = NULL;
+  size_t bytes_per_row = 0;
+
+  if (surface)
+    {
+      NSDictionary* properties =
+	[NSDictionary dictionaryWithObjectsAndKeys:
+		  [NSNumber numberWithUnsignedLong:width], kIOSurfaceWidth,
+		  [NSNumber numberWithUnsignedLong:height], kIOSurfaceHeight,
+		  [NSNumber numberWithInt:4], kIOSurfaceBytesPerElement, nil];
+
+      *surface = IOSurfaceCreate ((__bridge CFDictionaryRef) properties);
+      if (*surface)
+	{
+	  data = IOSurfaceGetBaseAddress (*surface);
+	  bytes_per_row = IOSurfaceGetBytesPerRow (*surface);
+	}
+    }
+
+  return CGBitmapContextCreate (data, width, height, 8, bytes_per_row,
+				color_space,
+				/* This combination enables us to use
+				   LCD Font smoothing.  */
+				(kCGImageAlphaPremultipliedFirst
+				 | kCGBitmapByteOrder32Host));
+}
+
 - (BOOL)wantsUpdateLayer
 {
   return self.layer != nil && !emacsViewUpdateLayerDisabled;
@@ -5904,8 +5937,12 @@ static BOOL emacsViewUpdateLayerDisabled;
 
   if (layerContentsNeedUpdate)
     {
+      if (backingSurface)
+	IOSurfaceLock (backingSurface, kIOSurfaceLockReadOnly, NULL);
       self.layer.contents =
 	CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backingBitmap));
+      if (backingSurface)
+	IOSurfaceUnlock (backingSurface, kIOSurfaceLockReadOnly, NULL);
       self.layer.contentsScale =
 	CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
       layerContentsNeedUpdate = NO;
@@ -5940,6 +5977,9 @@ static BOOL emacsViewUpdateLayerDisabled;
 	{
 	  CGContextRelease (backingBitmap);
 	  backingBitmap = NULL;
+	  if (backingSurface)
+	    CFRelease (backingSurface);
+	  backingSurface = NULL;
 	}
     }
 }
@@ -5962,13 +6002,10 @@ static BOOL emacsViewUpdateLayerDisabled;
       NSSize size = self.bounds.size;
 
       backingBitmap =
-	CGBitmapContextCreate (NULL, size.width * backingScaleFactor,
-			       size.height * backingScaleFactor, 8, 0,
-			       self.window.colorSpace.CGColorSpace,
-			       /* This combination enables us to use
-				  LCD Font smoothing.  */
-			       (kCGImageAlphaPremultipliedFirst
-				| kCGBitmapByteOrder32Host));
+	mac_backing_bitmap_create (size.width * backingScaleFactor,
+				   size.height * backingScaleFactor,
+				   self.window.colorSpace.CGColorSpace,
+				   &backingSurface);
     }
   if (!graphicsContextStack)
     graphicsContextStack = [[NSMutableArray alloc] initWithCapacity:0];
@@ -5987,6 +6024,8 @@ static BOOL emacsViewUpdateLayerDisabled;
   [transform translateXBy:0 yBy:(CGBitmapContextGetHeight (backingBitmap))];
   [transform scaleXBy:backingScaleFactor yBy:(- backingScaleFactor)];
   [transform concat];
+  if (backingSurface)
+    IOSurfaceLock (backingSurface, 0, NULL);
 }
 
 - (void)unlockFocusOnBacking
@@ -6001,6 +6040,8 @@ static BOOL emacsViewUpdateLayerDisabled;
     }
 #endif
   eassert (graphicsContextStack.count && backingBitmap);
+  if (backingSurface)
+    IOSurfaceUnlock (backingSurface, 0, NULL);
   [NSGraphicsContext restoreGraphicsState];
   id lastObject = graphicsContextStack.lastObject;
   NSGraphicsContext.currentContext = (lastObject != NSNull.null ? lastObject
@@ -6093,9 +6134,11 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
   destX = NSMinX (destRect), destY = NSMinY (destRect);
 
   src.rowBytes = dest.rowBytes = bytesPerRow;
-  if ((NSWidth (destRect) * NSHeight (destRect)
-       + NSWidth (sectRect) * NSHeight (sectRect))
-       <= (CGFloat) bitmapWidth * bitmapHeight)
+  /* Copying back seems to be faster if IOSurface is used.  */
+  if (backingSurface
+      || ((NSWidth (destRect) * NSHeight (destRect)
+	   + NSWidth (sectRect) * NSHeight (sectRect))
+	  <= (CGFloat) bitmapWidth * bitmapHeight))
     {
       NSInteger sectX = NSMinX (sectRect), sectWidth = NSWidth (sectRect);
       NSInteger sectY = NSMinY (sectRect), sectHeight = NSHeight (sectRect);
@@ -6161,9 +6204,9 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
   else
     {
       CGContextRef newBackingBitmap =
-	CGBitmapContextCreate (NULL, bitmapWidth, bitmapHeight, 8, bytesPerRow,
-			       CGBitmapContextGetColorSpace (backingBitmap),
-			       CGBitmapContextGetBitmapInfo (backingBitmap));
+	mac_backing_bitmap_create (bitmapWidth, bitmapHeight,
+				   CGBitmapContextGetColorSpace (backingBitmap),
+				   NULL);
       unsigned char *destData = CGBitmapContextGetData (newBackingBitmap);
 
       src.width = dest.width = bitmapWidth;
@@ -6291,6 +6334,9 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 {
   CGContextRelease (backingBitmap);
   backingBitmap = NULL;
+  if (backingSurface)
+    CFRelease (backingSurface);
+  backingSurface = NULL;
   self.needsDisplay = YES;
 }
 

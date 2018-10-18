@@ -976,6 +976,10 @@ typedef NSInteger NSGlyphProperty;
   /* Backing bitmap used for application-side double buffering.  */
   CGContextRef backingBitmap;
 
+  /* Hardware-accelerated buffer data for backing bitmap.  NULL means
+     the backing bitmap uses the ordinary main memory as its data.  */
+  IOSurfaceRef backingSurface;
+
   /* Stack of graphics contexts saved by lockFocus emulation on
      backing bitmap.  */
   NSMutableArray *graphicsContextStack;
