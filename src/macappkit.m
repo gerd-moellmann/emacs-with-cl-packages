@@ -6122,153 +6122,55 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
   unsigned char *srcData = CGBitmapContextGetData (backingBitmap);
   NSInteger scale =
     CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
-  NSRect destRect, sectRect;
-  NSInteger destX, destY;
+  NSInteger deltaX, deltaY, srcX, srcY;
   vImage_Buffer src, dest;
 
-  rect.origin.x *= scale, rect.origin.y *= scale;
-  rect.size.width *= scale, rect.size.height *= scale;
-  delta.width *= scale, delta.height *= scale;
-  destRect = NSOffsetRect (rect, delta.width, delta.height);
-  sectRect = NSIntersectionRect (rect, destRect);
-  destX = NSMinX (destRect), destY = NSMinY (destRect);
-
-  src.rowBytes = dest.rowBytes = bytesPerRow;
-  /* Copying back seems to be faster if IOSurface is used.  */
-  if (backingSurface
-      || ((NSWidth (destRect) * NSHeight (destRect)
-	   + NSWidth (sectRect) * NSHeight (sectRect))
-	  <= (CGFloat) bitmapWidth * bitmapHeight))
+  if (scale != 1)
     {
-      NSInteger sectX = NSMinX (sectRect), sectWidth = NSWidth (sectRect);
-      NSInteger sectY = NSMinY (sectRect), sectHeight = NSHeight (sectRect);
-      bool sectIsEmpty = (sectWidth == 0 || sectHeight == 0);
-      NSInteger deltaX = delta.width, deltaY = delta.height;
-      ptrdiff_t deltaBytes = deltaY * bytesPerRow + deltaX * bytesPerPixel;
-
-      if (sectIsEmpty || deltaY != 0)
-	{
-	  dest.width = NSWidth (destRect);
-	  dest.data = srcData + destY * bytesPerRow + destX * bytesPerPixel;
-	  if (sectIsEmpty)
-	    dest.height = NSHeight (destRect);
-	  else if (deltaY < 0)
-	    dest.height = - deltaY;
-	  else
-	    {
-	      dest.height = deltaY;
-	      dest.data += sectHeight * bytesPerRow;
-	    }
-	  src.data = dest.data - deltaBytes;
-	  src.height = dest.height, src.width = dest.width;
-	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	}
-      if (!sectIsEmpty)
-	{
-	  src.height = dest.height = sectHeight;
-	  /* This case does not happen on the current version of
-	     Emacs. */
-	  if (deltaX != 0)
-	    {
-	      dest.data = srcData + sectY * bytesPerRow + destX * bytesPerPixel;
-	      if (deltaX < 0)
-		dest.width = - deltaX;
-	      else
-		{
-		  src.width = dest.width = deltaX;
-		  dest.data += sectWidth * bytesPerPixel;
-		}
-	      src.data = dest.data - deltaBytes;
-	      src.width = dest.width;
-	      mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	    }
-
-	  dest.width = sectWidth;
-	  dest.data = srcData + sectY * bytesPerRow + sectX * bytesPerPixel;
-	  src.data = dest.data - deltaBytes;
-	  src.width = dest.width;
-	  rect = NSOffsetRect (sectRect, - delta.width, - delta.height);
-	  if (NSIsEmptyRect (NSIntersectionRect (rect, sectRect)))
-	    mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	  else
-	    {
-	      vImage_Buffer buf;
-
-	      mac_vimage_buffer_init_8888 (&buf, src.height, src.width);
-	      mac_vimage_copy_8888 (&src, &buf, kvImageNoFlags);
-	      mac_vimage_copy_8888 (&buf, &dest, kvImageNoFlags);
-	      free (buf.data);
-	    }
-	}
+      rect.origin.x *= scale, rect.origin.y *= scale;
+      rect.size.width *= scale, rect.size.height *= scale;
+      delta.width *= scale, delta.height *= scale;
     }
-  else
+
+  deltaX = delta.width, deltaY = delta.height;
+  srcX = NSMinX (rect), srcY = NSMinY (rect);
+
+  src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
+  src.height = NSHeight (rect);
+  src.width = NSWidth (rect);
+  src.rowBytes = bytesPerRow;
+  if (deltaY != 0)
     {
-      CGContextRef newBackingBitmap =
-	mac_backing_bitmap_create (bitmapWidth, bitmapHeight,
-				   CGBitmapContextGetColorSpace (backingBitmap),
-				   NULL);
-      unsigned char *destData = CGBitmapContextGetData (newBackingBitmap);
-
-      src.width = dest.width = bitmapWidth;
-      if (destY > 0)
+      if (deltaY > 0)
 	{
-	  src.height = dest.height = destY;
-	  src.data = srcData;
-	  dest.data = destData;
-	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	  src.data += (src.height - 1) * bytesPerRow;
+	  src.rowBytes = - bytesPerRow;
 	}
-      NSInteger height = NSHeight (rect), destMaxY = destY + height;
-      if (destMaxY < bitmapHeight)
+      dest = src;
+      dest.data += deltaY * bytesPerRow + deltaX * bytesPerPixel;
+      /* As of macOS 10.13, vImageCopyBuffer no longer does
+	 multi-threading even if we give it kvImageNoFlags.  We rather
+	 pass kvImageDoNotTile so it works with overlapping areas on
+	 older versions.  */
+      mac_vimage_copy_8888 (&src, &dest, kvImageDoNotTile);
+    }
+  else /* deltaY == 0, which does not happen on the current version of
+	  Emacs. */
+    {
+      dest = src;
+      dest.data += /* deltaY * bytesPerRow + */ deltaX * bytesPerPixel;
+      if (labs (deltaX) >= src.width)
+	mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+      else if (deltaX == 0)
+	return;
+      else
 	{
-	  src.height = dest.height = bitmapHeight - destMaxY;
-	  src.data = srcData + destMaxY * bytesPerRow;
-	  dest.data = destData + destMaxY * bytesPerRow;
-	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	}
+	  vImage_Buffer buf;
 
-      src.height = dest.height = height;
-      if (destX > 0)
-	{
-	  src.width = dest.width = destX;
-	  src.data = srcData + destY * bytesPerRow;
-	  dest.data = destData + destY * bytesPerRow;
-	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	}
-      NSInteger width = NSWidth (rect), destMaxX = destX + width;
-      if (destMaxX < bitmapWidth)
-	{
-	  src.width = dest.width = bitmapWidth - destMaxX;
-	  src.data = srcData + destY * bytesPerRow + destMaxX * bytesPerPixel;
-	  dest.data = destData + destY * bytesPerRow + destMaxX * bytesPerPixel;
-	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	}
-
-      NSInteger srcX = NSMinX (rect), srcY = NSMinY (rect);
-      src.width = dest.width = width;
-      src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
-      dest.data = destData + destY * bytesPerRow + destX * bytesPerPixel;
-      mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-
-      CGContextRelease (backingBitmap);
-      backingBitmap = newBackingBitmap;
-      struct frame *f = self.emacsFrame;
-      if (FRAME_CG_CONTEXT (f))
-	{
-	  [NSGraphicsContext restoreGraphicsState];
-	  NSGraphicsContext.currentContext =
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-	    [NSGraphicsContext graphicsContextWithCGContext:backingBitmap
-							    flipped:NO];
-#else
-	    [NSGraphicsContext graphicsContextWithGraphicsPort:backingBitmap
-						       flipped:NO];
-#endif
-	  [NSGraphicsContext saveGraphicsState];
-	  NSAffineTransform *transform = NSAffineTransform.transform;
-	  [transform translateXBy:0 yBy:bitmapHeight];
-	  [transform scaleXBy:scale yBy:(- scale)];
-	  [transform concat];
-	  FRAME_CG_CONTEXT (f) = backingBitmap;
+	  mac_vimage_buffer_init_8888 (&buf, src.height, src.width);
+	  mac_vimage_copy_8888 (&src, &buf, kvImageNoFlags);
+	  mac_vimage_copy_8888 (&buf, &dest, kvImageNoFlags);
+	  free (buf.data);
 	}
     }
 
