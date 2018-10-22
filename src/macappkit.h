@@ -23,6 +23,9 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #import <QuartzCore/QuartzCore.h>
 #import <IOKit/graphics/IOGraphicsLib.h>
 #import <OSAKit/OSAKit.h>
+#if HAVE_MAC_METAL
+#import <Metal/Metal.h>
+#endif
 #define Z (current_buffer->text->z)
 
 #ifndef NSFoundationVersionNumber10_8_3
@@ -716,6 +719,12 @@ typedef NSInteger NSGlyphProperty;
 @end
 #endif
 
+#if HAVE_MAC_METAL
+@interface CALayer (Undocumented)
+- (void)setContentsChanged;
+@end
+#endif
+
 @interface EmacsApplication : NSApplication
 @end
 
@@ -944,6 +953,9 @@ typedef NSInteger NSGlyphProperty;
 - (void)lockFocusOnEmacsView;
 - (void)unlockFocusOnEmacsView;
 - (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
+#if HAVE_MAC_METAL
+- (void)updateEmacsViewMTLObjects;
+#endif
 - (NSPoint)convertEmacsViewPointToScreen:(NSPoint)point;
 - (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point;
 - (NSRect)convertEmacsViewRectToScreen:(NSRect)rect;
@@ -978,6 +990,20 @@ typedef NSInteger NSGlyphProperty;
      the backing bitmap uses the ordinary main memory as its data.  */
   IOSurfaceRef backingSurface;
 
+#if HAVE_MAC_METAL
+  /* GPU-accessible image data for backing bitmap.  */
+  id <MTLTexture> backingTexture;
+
+  /* GPU-accessible image data for CALayer contents.  */
+  id <MTLTexture> contentsTexture;
+
+  /* Optimal GPU device for the display in which the view appears.  */
+  id <MTLDevice> mtlDevice;
+
+  /* Command queue of the `mtlDevice' above.  */
+  id <MTLCommandQueue> mtlCommandQueue;
+#endif
+
   /* Stack of graphics contexts saved by lockFocus emulation on
      backing bitmap.  */
   NSMutableArray *graphicsContextStack;
@@ -998,6 +1024,9 @@ typedef NSInteger NSGlyphProperty;
 - (NSData *)imageBuffersDataForBackingRectanglesData:(NSData *)rectanglesData;
 - (void)restoreImageBuffersData:(NSData *)imageBuffersData
        forBackingRectanglesData:(NSData *)rectanglesData;
+#if HAVE_MAC_METAL
+- (void)updateMTLObjects;
+#endif
 @end
 
 /* Class for Emacs view that also handles input events.  Used by

@@ -1345,6 +1345,25 @@ static bool handling_queued_nsevents_p;
     }
 }
 
+#if HAVE_MAC_METAL
+- (void)applicationDidChangeScreenParameters:(NSNotification *)notification
+{
+  Lisp_Object tail, frame;
+
+  FOR_EACH_FRAME (tail, frame)
+    {
+      struct frame *f = XFRAME (frame);
+
+      if (FRAME_MAC_P (f))
+	{
+	  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+	  [frameController updateEmacsViewMTLObjects];
+	}
+    }
+}
+#endif
+
 - (void)antialiasThresholdDidChange:(NSNotification *)notification
 {
   macfont_update_antialias_threshold ();
@@ -2678,6 +2697,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [[window contentView] addSubview:emacsView];
   [self updateBackingScaleFactor];
   [self updateEmacsViewIsHiddenOrHasHiddenAncestor];
+#if HAVE_MAC_METAL
+  [self updateEmacsViewMTLObjects];
+#endif
 
   if (oldWindow)
     {
@@ -3209,6 +3231,13 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [emacsView scrollBackingRect:rect by:delta];
 }
 
+#if HAVE_MAC_METAL
+- (void)updateEmacsViewMTLObjects
+{
+  [emacsView updateMTLObjects];
+}
+#endif
+
 - (NSPoint)convertEmacsViewPointToScreen:(NSPoint)point
 {
   point = [emacsView convertPoint:point toView:nil];
@@ -3406,6 +3435,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 {
   if ([emacsWindow isKeyWindow])
     [emacsController updatePresentationOptions];
+#if HAVE_MAC_METAL
+  [self updateEmacsViewMTLObjects];
+#endif
 }
 
 - (void)windowDidChangeBackingProperties:(NSNotification *)notification
@@ -5818,6 +5850,12 @@ static BOOL emacsViewUpdateLayerDisabled;
   if (backingSurface)
     CFRelease (backingSurface);
   backingSurface = NULL;
+#if HAVE_MAC_METAL
+  MRC_RELEASE (backingTexture);
+  backingTexture = nil;
+  MRC_RELEASE (contentsTexture);
+  contentsTexture = nil;
+#endif
 }
 
 - (void)dealloc
@@ -5825,6 +5863,10 @@ static BOOL emacsViewUpdateLayerDisabled;
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   [self releaseBackingResources];
 #if !USE_ARC
+#if HAVE_MAC_METAL
+  [mtlCommandQueue release];
+  [mtlDevice release];
+#endif
   [graphicsContextStack release];
   [super dealloc];
 #endif
@@ -5886,6 +5928,53 @@ mac_iosurface_create (size_t width, size_t height)
   return IOSurfaceCreate ((__bridge CFDictionaryRef) properties);
 }
 
+#if HAVE_MAC_METAL
+- (void)updateMTLObjects
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (!self.layer)
+    return;
+#endif
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+  if (CGDirectDisplayCopyCurrentMetalDevice == NULL)
+    return;
+#endif
+  CGDirectDisplayID displayID =
+    ((CGDirectDisplayID)
+     [[self.window.screen.deviceDescription objectForKey:@"NSScreenNumber"]
+       unsignedIntegerValue]);
+  id <MTLDevice> newDevice = CGDirectDisplayCopyCurrentMetalDevice (displayID);
+
+  if (newDevice == mtlDevice)
+    MRC_RELEASE (newDevice);
+  else
+    {
+      [self releaseBackingResources];
+      MRC_RELEASE (mtlDevice);
+      mtlDevice = newDevice;
+      MRC_RELEASE (mtlCommandQueue);
+      mtlCommandQueue = [mtlDevice newCommandQueue];
+    }
+}
+
+static id <MTLTexture>
+mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
+{
+  if (!device)
+    return nil;
+
+  MTLTextureDescriptor *textureDescriptor =
+    [MTLTextureDescriptor
+      texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				   width:(IOSurfaceGetWidth (surface))
+				  height:(IOSurfaceGetHeight (surface))
+			       mipmapped:NO];
+
+  return [device newTextureWithDescriptor:textureDescriptor
+				iosurface:surface plane:0];
+}
+#endif
+
 - (BOOL)wantsUpdateLayer
 {
   return self.layer != nil && !emacsViewUpdateLayerDisabled;
@@ -5927,12 +6016,52 @@ mac_iosurface_create (size_t width, size_t height)
 
   if (layerContentsNeedUpdate)
     {
-      if (backingSurface)
-	IOSurfaceLock (backingSurface, kIOSurfaceLockReadOnly, NULL);
-      self.layer.contents =
-	CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backingBitmap));
-      if (backingSurface)
-	IOSurfaceUnlock (backingSurface, kIOSurfaceLockReadOnly, NULL);
+#if HAVE_MAC_METAL
+      if (backingTexture)
+	{
+	  size_t width = IOSurfaceGetWidth (backingSurface);
+	  size_t height = IOSurfaceGetHeight (backingSurface);
+
+	  if (!contentsTexture
+	      || contentsTexture.width != width
+	      || contentsTexture.height != height)
+	    {
+	      IOSurfaceRef surface = mac_iosurface_create (width, height);
+
+	      MRC_RELEASE (contentsTexture);
+	      contentsTexture =
+		mac_texture_create_with_surface (mtlDevice, surface);
+	      CFRelease (surface);
+	    }
+
+	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
+	  id <MTLBlitCommandEncoder> blitCommandEncoder =
+	    [commandBuffer blitCommandEncoder];
+
+	  [blitCommandEncoder copyFromTexture:backingTexture
+				  sourceSlice:0 sourceLevel:0
+				 sourceOrigin:(MTLOriginMake (0, 0, 0))
+				   sourceSize:(MTLSizeMake (width, height, 1))
+				    toTexture:contentsTexture
+			     destinationSlice:0 destinationLevel:0
+			    destinationOrigin:(MTLOriginMake (0, 0, 0))];
+	  [blitCommandEncoder endEncoding];
+	  [commandBuffer commit];
+	  [commandBuffer waitUntilCompleted];
+	  self.layer.contents = (__bridge id) contentsTexture.iosurface;
+	  [self.layer setContentsChanged];
+	}
+      else
+#endif
+	{
+	  if (backingSurface)
+	    IOSurfaceLock (backingSurface, kIOSurfaceLockReadOnly, NULL);
+	  self.layer.contents =
+	    CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backingBitmap));
+	  if (backingSurface)
+	    IOSurfaceUnlock (backingSurface, kIOSurfaceLockReadOnly, NULL);
+	}
+
       self.layer.contentsScale =
 	CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
       layerContentsNeedUpdate = NO;
@@ -5994,6 +6123,10 @@ mac_iosurface_create (size_t width, size_t height)
 	{
 	  data = IOSurfaceGetBaseAddress (backingSurface);
 	  bytes_per_row = IOSurfaceGetBytesPerRow (backingSurface);
+#if HAVE_MAC_METAL
+	  backingTexture =
+	    mac_texture_create_with_surface (mtlDevice, backingSurface);
+#endif
 	}
       backingBitmap =
 	CGBitmapContextCreate (data, width, height, 8, bytes_per_row,
@@ -6118,8 +6251,7 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
   unsigned char *srcData = CGBitmapContextGetData (backingBitmap);
   NSInteger scale =
     CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
-  NSInteger deltaX, deltaY, srcX, srcY;
-  vImage_Buffer src, dest;
+  NSInteger deltaX, deltaY, srcX, srcY, width, height;
 
   if (scale != 1)
     {
@@ -6130,43 +6262,85 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 
   deltaX = delta.width, deltaY = delta.height;
   srcX = NSMinX (rect), srcY = NSMinY (rect);
+  width = NSWidth (rect), height = NSHeight (rect);
 
-  src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
-  src.height = NSHeight (rect);
-  src.width = NSWidth (rect);
-  src.rowBytes = bytesPerRow;
-  if (deltaY != 0)
+#if HAVE_MAC_METAL
+  if (backingTexture && width * height >= 0x10000)
     {
-      if (deltaY > 0)
-	{
-	  src.data += (src.height - 1) * bytesPerRow;
-	  src.rowBytes = - bytesPerRow;
-	}
-      dest = src;
-      dest.data += deltaY * bytesPerRow + deltaX * bytesPerPixel;
-      /* As of macOS 10.13, vImageCopyBuffer no longer does
-	 multi-threading even if we give it kvImageNoFlags.  We rather
-	 pass kvImageDoNotTile so it works with overlapping areas on
-	 older versions.  */
-      mac_vimage_copy_8888 (&src, &dest, kvImageDoNotTile);
+      MTLTextureDescriptor *textureDescriptor =
+	[MTLTextureDescriptor
+	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				       width:width height:height mipmapped:NO];
+      id <MTLTexture> texture =
+	[mtlDevice newTextureWithDescriptor:textureDescriptor];
+      id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
+      id <MTLBlitCommandEncoder> blitCommandEncoder =
+	[commandBuffer blitCommandEncoder];
+
+      IOSurfaceUnlock (backingSurface, 0, NULL);
+      [blitCommandEncoder copyFromTexture:backingTexture
+			      sourceSlice:0 sourceLevel:0
+			     sourceOrigin:(MTLOriginMake (srcX, srcY, 0))
+			       sourceSize:(MTLSizeMake (width, height, 1))
+				toTexture:texture
+			 destinationSlice:0 destinationLevel:0
+			destinationOrigin:(MTLOriginMake (0, 0, 0))];
+      [blitCommandEncoder copyFromTexture:texture
+			      sourceSlice:0 sourceLevel:0
+			     sourceOrigin:(MTLOriginMake (0, 0, 0))
+			       sourceSize:(MTLSizeMake (width, height, 1))
+				toTexture:backingTexture
+			 destinationSlice:0 destinationLevel:0
+			destinationOrigin:(MTLOriginMake (srcX + deltaX,
+							  srcY + deltaY, 0))];
+      [blitCommandEncoder endEncoding];
+      [commandBuffer commit];
+      [commandBuffer waitUntilCompleted];
+      MRC_RELEASE (texture);
+      IOSurfaceLock (backingSurface, 0, NULL);
     }
-  else /* deltaY == 0, which does not happen on the current version of
-	  Emacs. */
+  else
+#endif
     {
-      dest = src;
-      dest.data += /* deltaY * bytesPerRow + */ deltaX * bytesPerPixel;
-      if (labs (deltaX) >= src.width)
-	mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-      else if (deltaX == 0)
-	return;
-      else
-	{
-	  vImage_Buffer buf;
+      vImage_Buffer src, dest;
 
-	  mac_vimage_buffer_init_8888 (&buf, src.height, src.width);
-	  mac_vimage_copy_8888 (&src, &buf, kvImageNoFlags);
-	  mac_vimage_copy_8888 (&buf, &dest, kvImageNoFlags);
-	  free (buf.data);
+      src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
+      src.height = height;
+      src.width = width;
+      src.rowBytes = bytesPerRow;
+      if (deltaY != 0)
+	{
+	  if (deltaY > 0)
+	    {
+	      src.data += (src.height - 1) * bytesPerRow;
+	      src.rowBytes = - bytesPerRow;
+	    }
+	  dest = src;
+	  dest.data += deltaY * bytesPerRow + deltaX * bytesPerPixel;
+	  /* As of macOS 10.13, vImageCopyBuffer no longer does
+	     multi-threading even if we give it kvImageNoFlags.  We
+	     rather pass kvImageDoNotTile so it works with overlapping
+	     areas on older versions.  */
+	  mac_vimage_copy_8888 (&src, &dest, kvImageDoNotTile);
+	}
+      else /* deltaY == 0, which does not happen on the current
+	  version of Emacs. */
+	{
+	  dest = src;
+	  dest.data += /* deltaY * bytesPerRow + */ deltaX * bytesPerPixel;
+	  if (labs (deltaX) >= src.width)
+	    mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	  else if (deltaX == 0)
+	    return;
+	  else
+	    {
+	      vImage_Buffer buf;
+
+	      mac_vimage_buffer_init_8888 (&buf, src.height, src.width);
+	      mac_vimage_copy_8888 (&src, &buf, kvImageNoFlags);
+	      mac_vimage_copy_8888 (&buf, &dest, kvImageNoFlags);
+	      free (buf.data);
+	    }
 	}
     }
 
