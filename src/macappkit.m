@@ -5811,12 +5811,19 @@ static BOOL emacsViewUpdateLayerDisabled;
   return self;
 }
 
+- (void)releaseBackingResources
+{
+  CGContextRelease (backingBitmap);
+  backingBitmap = NULL;
+  if (backingSurface)
+    CFRelease (backingSurface);
+  backingSurface = NULL;
+}
+
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-  CGContextRelease (backingBitmap);
-  if (backingSurface)
-    CFRelease (backingSurface);
+  [self releaseBackingResources];
 #if !USE_ARC
   [graphicsContextStack release];
   [super dealloc];
@@ -5974,13 +5981,7 @@ mac_backing_bitmap_create (size_t width, size_t height,
 	   != size.width * backingScaleFactor)
 	  || (CGBitmapContextGetHeight (backingBitmap)
 	      != size.height * backingScaleFactor))
-	{
-	  CGContextRelease (backingBitmap);
-	  backingBitmap = NULL;
-	  if (backingSurface)
-	    CFRelease (backingSurface);
-	  backingSurface = NULL;
-	}
+	[self releaseBackingResources];
     }
 }
 
@@ -6234,11 +6235,7 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 
 - (void)viewDidChangeBackingProperties
 {
-  CGContextRelease (backingBitmap);
-  backingBitmap = NULL;
-  if (backingSurface)
-    CFRelease (backingSurface);
-  backingSurface = NULL;
+  [self releaseBackingResources];
   self.needsDisplay = YES;
 }
 
