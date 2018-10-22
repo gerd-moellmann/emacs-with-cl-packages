@@ -943,9 +943,7 @@ typedef NSInteger NSGlyphProperty;
 - (void)displayEmacsViewIfNeeded;
 - (void)lockFocusOnEmacsView;
 - (void)unlockFocusOnEmacsView;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
 - (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
-#endif
 - (NSPoint)convertEmacsViewPointToScreen:(NSPoint)point;
 - (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point;
 - (NSRect)convertEmacsViewRectToScreen:(NSRect)rect;
