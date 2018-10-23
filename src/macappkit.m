@@ -8183,6 +8183,20 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
       displayID = (CGDirectDisplayID) [[[screen deviceDescription]
 					 objectForKey:@"NSScreenNumber"]
 					unsignedIntValue];
+#if HAVE_MAC_METAL
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+  if (CGDirectDisplayCopyCurrentMetalDevice != NULL)
+#endif
+    {
+      id <MTLDevice> device = CGDirectDisplayCopyCurrentMetalDevice (displayID);
+
+      attributes = Fcons (Fcons (Qmetal_device_name,
+				 device ? device.name.lispString : Qnil),
+			  attributes);
+      MRC_RELEASE (device);
+    }
+#endif
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
       displayInfo =
 	mac_display_copy_info_dictionary_for_cgdisplay (displayID,
