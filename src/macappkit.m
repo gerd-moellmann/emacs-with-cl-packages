@@ -6017,26 +6017,29 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       self.needsDisplay = NO;
     }
 
-  if (layerContentsNeedUpdate)
-    {
+  if (!layerContentsNeedUpdate)
+    return;
+
 #if HAVE_MAC_METAL
-      if (backingTexture)
+  if (backingTexture)
+    {
+      size_t width = IOSurfaceGetWidth (backingSurface);
+      size_t height = IOSurfaceGetHeight (backingSurface);
+
+      if (!contentsTexture
+	  || contentsTexture.width != width
+	  || contentsTexture.height != height)
 	{
-	  size_t width = IOSurfaceGetWidth (backingSurface);
-	  size_t height = IOSurfaceGetHeight (backingSurface);
+	  IOSurfaceRef surface = mac_iosurface_create (width, height);
 
-	  if (!contentsTexture
-	      || contentsTexture.width != width
-	      || contentsTexture.height != height)
-	    {
-	      IOSurfaceRef surface = mac_iosurface_create (width, height);
-
-	      MRC_RELEASE (contentsTexture);
-	      contentsTexture =
-		mac_texture_create_with_surface (mtlDevice, surface);
-	      CFRelease (surface);
-	    }
-
+	  MRC_RELEASE (contentsTexture);
+	  contentsTexture =
+	    mac_texture_create_with_surface (mtlDevice, surface);
+	  if (surface)
+	    CFRelease (surface);
+	}
+      if (contentsTexture)
+	{
 	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
 	  id <MTLBlitCommandEncoder> blitCommandEncoder =
 	    [commandBuffer blitCommandEncoder];
@@ -6054,21 +6057,21 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 	  self.layer.contents = (__bridge id) contentsTexture.iosurface;
 	  [self.layer setContentsChanged];
 	}
-      else
-#endif
-	{
-	  if (backingSurface)
-	    IOSurfaceLock (backingSurface, kIOSurfaceLockReadOnly, NULL);
-	  self.layer.contents =
-	    CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backingBitmap));
-	  if (backingSurface)
-	    IOSurfaceUnlock (backingSurface, kIOSurfaceLockReadOnly, NULL);
-	}
-
-      self.layer.contentsScale =
-	CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
-      layerContentsNeedUpdate = NO;
     }
+  if (!backingTexture || !contentsTexture)
+#endif
+    {
+      if (backingSurface)
+	IOSurfaceLock (backingSurface, kIOSurfaceLockReadOnly, NULL);
+      self.layer.contents =
+	CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backingBitmap));
+      if (backingSurface)
+	IOSurfaceUnlock (backingSurface, kIOSurfaceLockReadOnly, NULL);
+    }
+
+  self.layer.contentsScale =
+    CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
+  layerContentsNeedUpdate = NO;
 
   if (rectanglesData)
     [self restoreImageBuffersData:savedImageBuffersData
