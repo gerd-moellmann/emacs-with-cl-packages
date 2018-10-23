@@ -5929,38 +5929,10 @@ mac_iosurface_create (size_t width, size_t height)
 }
 
 #if HAVE_MAC_METAL
-- (void)updateMTLObjects
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
-    return;
-#endif
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
-  if (CGDirectDisplayCopyCurrentMetalDevice == NULL)
-    return;
-#endif
-  CGDirectDisplayID displayID =
-    ((CGDirectDisplayID)
-     [[self.window.screen.deviceDescription objectForKey:@"NSScreenNumber"]
-       unsignedIntegerValue]);
-  id <MTLDevice> newDevice = CGDirectDisplayCopyCurrentMetalDevice (displayID);
-
-  if (newDevice == mtlDevice)
-    MRC_RELEASE (newDevice);
-  else
-    {
-      [self releaseBackingResources];
-      MRC_RELEASE (mtlDevice);
-      mtlDevice = newDevice;
-      MRC_RELEASE (mtlCommandQueue);
-      mtlCommandQueue = [mtlDevice newCommandQueue];
-    }
-}
-
 static id <MTLTexture>
 mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 {
-  if (!device)
+  if (!device || !surface)
     return nil;
 
   MTLTextureDescriptor *textureDescriptor =
@@ -5972,6 +5944,37 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
   return [device newTextureWithDescriptor:textureDescriptor
 				iosurface:surface plane:0];
+}
+
+- (void)updateMTLObjects
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (!self.layer)
+    return;
+#endif
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+  if (CGDirectDisplayCopyCurrentMetalDevice == NULL)
+    return;
+#endif
+  CGDirectDisplayID displayID =
+    (CGDirectDisplayID) [[self.window.screen.deviceDescription
+			     objectForKey:@"NSScreenNumber"] unsignedIntValue];
+  id <MTLDevice> newDevice = CGDirectDisplayCopyCurrentMetalDevice (displayID);
+
+  if (newDevice == mtlDevice)
+    MRC_RELEASE (newDevice);
+  else
+    {
+      MRC_RELEASE (backingTexture);
+      backingTexture =
+	mac_texture_create_with_surface (newDevice, backingSurface);
+      MRC_RELEASE (contentsTexture);
+      contentsTexture = nil;
+      MRC_RELEASE (mtlDevice);
+      mtlDevice = newDevice;
+      MRC_RELEASE (mtlCommandQueue);
+      mtlCommandQueue = [mtlDevice newCommandQueue];
+    }
 }
 #endif
 
