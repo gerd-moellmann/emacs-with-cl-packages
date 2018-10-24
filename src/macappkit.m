@@ -495,24 +495,29 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 
 - (CGColorRef)copyCGColor
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
   if ([self respondsToSelector:@selector(CGColor)])
-    return CGColorRetain ([self CGColor]);
+#endif
+    return CGColorRetain (self.CGColor);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
   else
     {
-      NSColorSpace *colorSpace = [self colorSpace];
       CGColorSpaceRef cgColorSpace;
       CGFloat *components;
 
-      cgColorSpace = [colorSpace CGColorSpace];
+      if ([self.colorSpaceName isEqualToString:NSNamedColorSpace])
+	cgColorSpace = NULL;
+      else
+	cgColorSpace = self.colorSpace.CGColorSpace;
       if (cgColorSpace)
 	{
-	  components = alloca (sizeof (CGFloat) * [self numberOfComponents]);
+	  components = alloca (sizeof (CGFloat) * self.numberOfComponents);
 	  [self getComponents:components];
 	}
       else
 	{
 	  NSColor *colorInSRGB =
-	    [self colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+	    [self colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
 
 	  if (colorInSRGB)
 	    {
@@ -526,6 +531,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
     }
 
   return NULL;
+#endif
 }
 
 @end				// NSColor (Emacs)
@@ -1339,6 +1345,25 @@ static bool handling_queued_nsevents_p;
     }
 }
 
+#if HAVE_MAC_METAL
+- (void)applicationDidChangeScreenParameters:(NSNotification *)notification
+{
+  Lisp_Object tail, frame;
+
+  FOR_EACH_FRAME (tail, frame)
+    {
+      struct frame *f = XFRAME (frame);
+
+      if (FRAME_MAC_P (f))
+	{
+	  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+	  [frameController updateEmacsViewMTLObjects];
+	}
+    }
+}
+#endif
+
 - (void)antialiasThresholdDidChange:(NSNotification *)notification
 {
   macfont_update_antialias_threshold ();
@@ -2065,7 +2090,6 @@ mac_application_state (void)
 
 static void set_global_focus_view_frame (struct frame *);
 static CGRect unset_global_focus_view_frame (void);
-static void mac_draw_queue_dispatch_async (void (^) (void));
 static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 #define DEFAULT_NUM_COLS (80)
@@ -2488,6 +2512,81 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
     [overlayView setLayerUsesCoreImageFilters:YES];
 
   [self setupAnimationLayer];
+
+  /* We add overlayView to the view hierarchy only when it is
+     necessary.  Otherwise the CVDisplayLink thread would take much
+     CPU time especially with application-side double buffering.  */
+  [overlayView.layer addObserver:self forKeyPath:@"sublayers"
+			 options:NSKeyValueObservingOptionPrior context:nil];
+  [animationLayer addObserver:self forKeyPath:@"sublayers"
+		      options:NSKeyValueObservingOptionPrior context:nil];
+  [overlayView.layer setValue:((id) kCFBooleanFalse) forKey:@"showingBorder"];
+  [overlayView.layer addObserver:self forKeyPath:@"showingBorder"
+			 options:0 context:nil];
+}
+
+- (void)synchronizeOverlayViewFrame
+{
+  overlayView.frame = [emacsWindow.contentView bounds];
+}
+
+- (void)updateOverlayViewParticipation
+{
+  BOOL shouldShowOverlayView =
+    (has_resize_indicator_at_bottom_right_p ()
+     || overlayView.layer.sublayers.count > 1
+     || animationLayer.sublayers.count != 0
+     || ([overlayView.layer valueForKey:@"showingBorder"]
+	 == (id) kCFBooleanTrue));
+
+  if (overlayView.superview && !shouldShowOverlayView)
+    [overlayView removeFromSuperview];
+  else if (!overlayView.superview && shouldShowOverlayView)
+    {
+      /* We place overlayView below emacsView so events are not
+	 intercepted by the former.  Still the former (layer-hosting)
+	 is displayed in front of the latter (neither layer-backed nor
+	 layer-hosting).  */
+      /* Unfortunately, this trick does not work on macOS 10.14.
+	 Placing overlayView above emacsView (with returning nil in
+	 hitTest:) works if the executable is linked against the macOS
+	 10.14 SDK, but not for the one linked on the older versions
+	 then run on macOS 10.14.  Making overlayView a subview of
+	 emacsView works for both cases.  Note that we need to
+	 temporarily hide overlayView when taking screenshot in
+	 -[EmacsFrameController bitmapImageRepInEmacsViewRect:].  */
+      /* If emacsView is layer-backed, which is the case when the
+	 executable is linked against the macOS 10.14 SDK, then the
+	 live resize transition layer used in full screen transition
+	 looks translucent if we make overlayView a subview of
+	 emacsView.  */
+      if (emacsView.layer)
+	[emacsWindow.contentView addSubview:overlayView];
+      else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
+	{
+	  if (![overlayView.superview isEqual:emacsView])
+	    [emacsView addSubview:overlayView];
+	}
+      else
+	[emacsWindow.contentView addSubview:overlayView positioned:NSWindowBelow
+				 relativeTo:emacsView];
+      [self synchronizeOverlayViewFrame];
+    }
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+			change:(NSDictionaryOf (NSKeyValueChangeKey, id) *)change
+		       context:(void *)context
+{
+  if ([keyPath isEqualToString:@"sublayers"])
+    {
+      if ([change objectForKey:NSKeyValueChangeNotificationIsPriorKey])
+	[self synchronizeOverlayViewFrame];
+      else
+	[self updateOverlayViewParticipation];
+    }
+  else if ([keyPath isEqualToString:@"showingBorder"])
+    [self updateOverlayViewParticipation];
 }
 
 - (void)setupWindow
@@ -2598,6 +2697,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [[window contentView] addSubview:emacsView];
   [self updateBackingScaleFactor];
   [self updateEmacsViewIsHiddenOrHasHiddenAncestor];
+#if HAVE_MAC_METAL
+  [self updateEmacsViewMTLObjects];
+#endif
 
   if (oldWindow)
     {
@@ -2633,34 +2735,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       if (has_resize_indicator_at_bottom_right_p ())
 	[overlayView setShowsResizeIndicator:self.shouldBeTitled];
 #endif
-      /* We place overlayView below emacsView so events are not
-	 intercepted by the former.  Still the former (layer-hosting)
-	 is displayed in front of the latter (neither layer-backed nor
-	 layer-hosting).  */
-      /* Unfortunately, this trick does not work on macOS 10.14.
-	 Placing overlayView above emacsView (with returning nil in
-	 hitTest:) works if the executable is linked against the macOS
-	 10.14 SDK, but not for the one linked on the older versions
-	 then run on macOS 10.14.  Making overlayView a subview of
-	 emacsView works for both cases.  Note that we need to
-	 temporarily hide overlayView when taking screenshot in
-	 -[EmacsFrameController bitmapImageRepInEmacsViewRect:].  */
-      /* If emacsView is layer-backed, which is the case when the
-	 executable is linked against the macOS 10.14 SDK, then the
-	 live resize transition layer used in full screen transition
-	 looks translucent if we make overlayView a subview of
-	 emacsView.  */
-      if (emacsView.layer)
-	[window.contentView addSubview:overlayView];
-      else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
-	{
-	  if (![overlayView.superview isEqual:emacsView])
-	    [emacsView addSubview:overlayView];
-	}
-      else
-	[window.contentView addSubview:overlayView positioned:NSWindowBelow
-			    relativeTo:emacsView];
-      [overlayView setFrame:[[window contentView] bounds]];
+      [self updateOverlayViewParticipation];
       if (has_full_screen_with_dedicated_desktop_p ()
 	  && !(windowManagerState & WM_STATE_FULLSCREEN))
 	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
@@ -2698,17 +2773,20 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   return emacsWindow;
 }
 
-#if !USE_ARC
 - (void)dealloc
 {
+  [overlayView.layer removeObserver:self forKeyPath:@"sublayers"];
+  [animationLayer removeObserver:self forKeyPath:@"sublayers"];
+  [overlayView.layer removeObserver:self forKeyPath:@"showingBorder"];
+#if !USE_ARC
   [savedChildWindowAlphaMap release];
   [emacsView release];
   /* emacsWindow and hourglassWindow are released via
      released-when-closed.  */
   [overlayView release];
   [super dealloc];
-}
 #endif
+}
 
 - (BOOL)acceptsFocus
 {
@@ -3148,20 +3226,15 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [emacsView unlockFocusOnBacking];
 }
 
-- (void)scrollEmacsViewSrcX:(int)srcX srcY:(int)srcY
-		      width:(int)width height:(int)height
-		      destX:(int)destX destY:(int)destY
-{
-  mac_draw_queue_dispatch_async (^{
-      [emacsView scrollBackingSrcX:srcX srcY:srcY width:width height:height
-			     destX:destX destY:destY];
-    });
-}
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
 - (void)scrollEmacsViewRect:(NSRect)rect by:(NSSize)delta
 {
-  [emacsView scrollRect:rect by:delta];
+  [emacsView scrollBackingRect:rect by:delta];
+}
+
+#if HAVE_MAC_METAL
+- (void)updateEmacsViewMTLObjects
+{
+  [emacsView updateMTLObjects];
 }
 #endif
 
@@ -3362,6 +3435,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 {
   if ([emacsWindow isKeyWindow])
     [emacsController updatePresentationOptions];
+#if HAVE_MAC_METAL
+  [self updateEmacsViewMTLObjects];
+#endif
 }
 
 - (void)windowDidChangeBackingProperties:(NSNotification *)notification
@@ -5744,6 +5820,8 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 static bool mac_try_buffer_and_glyph_matrix_access (void);
 static void mac_end_buffer_and_glyph_matrix_access (void);
 
+#define FRAME_CG_CONTEXT(f)	((f)->output_data.mac->cg_context)
+
 /* View for Emacs frame.  */
 
 @implementation EmacsView
@@ -5765,11 +5843,30 @@ static BOOL emacsViewUpdateLayerDisabled;
   return self;
 }
 
+- (void)releaseBackingResources
+{
+  CGContextRelease (backingBitmap);
+  backingBitmap = NULL;
+  if (backingSurface)
+    CFRelease (backingSurface);
+  backingSurface = NULL;
+#if HAVE_MAC_METAL
+  MRC_RELEASE (backingTexture);
+  backingTexture = nil;
+  MRC_RELEASE (contentsTexture);
+  contentsTexture = nil;
+#endif
+}
+
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [self releaseBackingResources];
 #if !USE_ARC
-  [backingBitmap release];
+#if HAVE_MAC_METAL
+  [mtlCommandQueue release];
+  [mtlDevice release];
+#endif
   [graphicsContextStack release];
   [super dealloc];
 #endif
@@ -5817,6 +5914,70 @@ static BOOL emacsViewUpdateLayerDisabled;
   return !(has_visual_effect_view_p () && self.layer);
 }
 
+static IOSurfaceRef
+mac_iosurface_create (size_t width, size_t height)
+{
+  NSDictionary* properties =
+    [NSDictionary dictionaryWithObjectsAndKeys:
+	      [NSNumber numberWithUnsignedLong:width], kIOSurfaceWidth,
+	      [NSNumber numberWithUnsignedLong:height], kIOSurfaceHeight,
+	      [NSNumber numberWithInt:4], kIOSurfaceBytesPerElement,
+	      [NSNumber numberWithUnsignedInt:'BGRA'], kIOSurfacePixelFormat,
+		  nil];
+
+  return IOSurfaceCreate ((__bridge CFDictionaryRef) properties);
+}
+
+#if HAVE_MAC_METAL
+static id <MTLTexture>
+mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
+{
+  if (!device || !surface)
+    return nil;
+
+  MTLTextureDescriptor *textureDescriptor =
+    [MTLTextureDescriptor
+      texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				   width:(IOSurfaceGetWidth (surface))
+				  height:(IOSurfaceGetHeight (surface))
+			       mipmapped:NO];
+
+  return [device newTextureWithDescriptor:textureDescriptor
+				iosurface:surface plane:0];
+}
+
+- (void)updateMTLObjects
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (!self.layer)
+    return;
+#endif
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+  if (CGDirectDisplayCopyCurrentMetalDevice == NULL)
+    return;
+#endif
+  CGDirectDisplayID displayID =
+    (CGDirectDisplayID) [[self.window.screen.deviceDescription
+			     objectForKey:@"NSScreenNumber"] unsignedIntValue];
+  id <MTLDevice> newDevice = CGDirectDisplayCopyCurrentMetalDevice (displayID);
+
+  if (newDevice == mtlDevice)
+    MRC_RELEASE (newDevice);
+  else
+    {
+      MRC_RELEASE (backingTexture);
+      backingTexture =
+	mac_texture_create_with_surface (newDevice, backingSurface);
+      MRC_RELEASE (contentsTexture);
+      contentsTexture = nil;
+      MRC_RELEASE (mtlDevice);
+      mtlDevice = newDevice;
+      MRC_RELEASE (mtlCommandQueue);
+      mtlCommandQueue = [mtlDevice newCommandQueue];
+    }
+}
+#endif
+
 - (BOOL)wantsUpdateLayer
 {
   return self.layer != nil && !emacsViewUpdateLayerDisabled;
@@ -5825,7 +5986,9 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)updateLayer
 {
   struct frame *f = self.emacsFrame;
-  NSBitmapImageRep *savedBackingBitmap = nil;
+  NSData *rectanglesData = ((__bridge NSData *)
+			    (FRAME_FLASH_RECTANGLES_DATA (f)));
+  NSData *savedImageBuffersData;
 
   if (graphicsContextStack.count)
     return;
@@ -5842,9 +6005,10 @@ static BOOL emacsViewUpdateLayerDisabled;
   if (!backingBitmap)
     return;
 
-  if (FRAME_FLASH_RECTANGLES_DATA (f))
+  if (rectanglesData)
     {
-      savedBackingBitmap = [backingBitmap copy];
+      savedImageBuffersData =
+	[self imageBuffersDataForBackingRectanglesData:rectanglesData];
       [self lockFocusOnBacking];
       set_global_focus_view_frame (f);
       mac_invert_flash_rectangles (f);
@@ -5853,15 +6017,70 @@ static BOOL emacsViewUpdateLayerDisabled;
       self.needsDisplay = NO;
     }
 
-  self.layer.contents = (id) backingBitmap.CGImage;
-  self.layer.contentsScale =
-    backingBitmap.pixelsWide / backingBitmap.size.width;
+  if (!layerContentsNeedUpdate)
+    return;
 
-  if (savedBackingBitmap)
+#if HAVE_MAC_METAL
+  if (backingTexture)
     {
-      MRC_RELEASE (backingBitmap);
-      backingBitmap = savedBackingBitmap;
+      size_t width = IOSurfaceGetWidth (backingSurface);
+      size_t height = IOSurfaceGetHeight (backingSurface);
+
+      if (!contentsTexture
+	  || contentsTexture.width != width
+	  || contentsTexture.height != height)
+	{
+	  IOSurfaceRef surface = mac_iosurface_create (width, height);
+
+	  MRC_RELEASE (contentsTexture);
+	  contentsTexture =
+	    mac_texture_create_with_surface (mtlDevice, surface);
+	  if (surface)
+	    CFRelease (surface);
+	}
+      if (contentsTexture)
+	{
+	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
+	  id <MTLBlitCommandEncoder> blitCommandEncoder =
+	    [commandBuffer blitCommandEncoder];
+
+	  [blitCommandEncoder copyFromTexture:backingTexture
+				  sourceSlice:0 sourceLevel:0
+				 sourceOrigin:(MTLOriginMake (0, 0, 0))
+				   sourceSize:(MTLSizeMake (width, height, 1))
+				    toTexture:contentsTexture
+			     destinationSlice:0 destinationLevel:0
+			    destinationOrigin:(MTLOriginMake (0, 0, 0))];
+	  [blitCommandEncoder endEncoding];
+	  [commandBuffer commit];
+	  [commandBuffer waitUntilCompleted];
+	  self.layer.contents = (__bridge id) contentsTexture.iosurface;
+	  [self.layer setContentsChanged];
+	}
     }
+  if (!backingTexture || !contentsTexture)
+#endif
+    {
+      if (backingSurface)
+	IOSurfaceLock (backingSurface, kIOSurfaceLockReadOnly, NULL);
+      self.layer.contents =
+	CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backingBitmap));
+      if (backingSurface)
+	IOSurfaceUnlock (backingSurface, kIOSurfaceLockReadOnly, NULL);
+    }
+
+  self.layer.contentsScale =
+    CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
+  layerContentsNeedUpdate = NO;
+
+  if (rectanglesData)
+    [self restoreImageBuffersData:savedImageBuffersData
+	 forBackingRectanglesData:rectanglesData];
+}
+
+- (void)suspendSynchronizingBackingBitmap:(BOOL)flag
+{
+  synchronizeBackingBitmapSuspended = flag;
 }
 
 - (void)synchronizeBackingBitmap
@@ -5870,10 +6089,17 @@ static BOOL emacsViewUpdateLayerDisabled;
   if (!self.layer)
     return;
 #endif
-  if (backingBitmap && !NSEqualSizes (backingBitmap.size, self.bounds.size))
+  if (!synchronizeBackingBitmapSuspended
+      && backingBitmap)
     {
-      MRC_RELEASE (backingBitmap);
-      backingBitmap = nil;
+      NSSize size = self.bounds.size;
+      CGFloat backingScaleFactor = self.window.backingScaleFactor;
+
+      if ((CGBitmapContextGetWidth (backingBitmap)
+	   != size.width * backingScaleFactor)
+	  || (CGBitmapContextGetHeight (backingBitmap)
+	      != size.height * backingScaleFactor))
+	[self releaseBackingResources];
     }
 }
 
@@ -5888,21 +6114,53 @@ static BOOL emacsViewUpdateLayerDisabled;
       return;
     }
 #endif
+  CGFloat backingScaleFactor = self.window.backingScaleFactor;
+
   if (!backingBitmap)
-    backingBitmap =
-      MRC_RETAIN ([self bitmapImageRepForCachingDisplayInRect:self.bounds]);
+    {
+      NSSize size = self.bounds.size;
+      size_t width = size.width * backingScaleFactor;
+      size_t height = size.height * backingScaleFactor;
+      void *data = NULL;
+      size_t bytes_per_row = 0;
+
+      backingSurface = mac_iosurface_create (width, height);
+      if (backingSurface)
+	{
+	  data = IOSurfaceGetBaseAddress (backingSurface);
+	  bytes_per_row = IOSurfaceGetBytesPerRow (backingSurface);
+#if HAVE_MAC_METAL
+	  backingTexture =
+	    mac_texture_create_with_surface (mtlDevice, backingSurface);
+#endif
+	}
+      backingBitmap =
+	CGBitmapContextCreate (data, width, height, 8, bytes_per_row,
+			       self.window.colorSpace.CGColorSpace,
+			       /* This combination enables us to use
+				  LCD Font smoothing.  */
+			       (kCGImageAlphaPremultipliedFirst
+				| kCGBitmapByteOrder32Host));
+    }
   if (!graphicsContextStack)
     graphicsContextStack = [[NSMutableArray alloc] initWithCapacity:0];
   id currentContext = NSGraphicsContext.currentContext;
   [graphicsContextStack addObject:(currentContext ? currentContext
 				   : NSNull.null)];
   NSGraphicsContext.currentContext =
-    [NSGraphicsContext graphicsContextWithBitmapImageRep:backingBitmap];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+    [NSGraphicsContext graphicsContextWithCGContext:backingBitmap flipped:NO];
+#else
+    [NSGraphicsContext graphicsContextWithGraphicsPort:backingBitmap
+					       flipped:NO];
+#endif
   [NSGraphicsContext saveGraphicsState];
   NSAffineTransform *transform = NSAffineTransform.transform;
-  [transform translateXBy:0 yBy:backingBitmap.size.height];
-  [transform scaleXBy:1 yBy:-1];
+  [transform translateXBy:0 yBy:(CGBitmapContextGetHeight (backingBitmap))];
+  [transform scaleXBy:backingScaleFactor yBy:(- backingScaleFactor)];
   [transform concat];
+  if (backingSurface)
+    IOSurfaceLock (backingSurface, 0, NULL);
 }
 
 - (void)unlockFocusOnBacking
@@ -5917,83 +6175,242 @@ static BOOL emacsViewUpdateLayerDisabled;
     }
 #endif
   eassert (graphicsContextStack.count && backingBitmap);
+  if (backingSurface)
+    IOSurfaceUnlock (backingSurface, 0, NULL);
   [NSGraphicsContext restoreGraphicsState];
   id lastObject = graphicsContextStack.lastObject;
   NSGraphicsContext.currentContext = (lastObject != NSNull.null ? lastObject
 				      : nil);
   [graphicsContextStack removeLastObject];
   if (graphicsContextStack.count == 0)
-    self.needsDisplay = YES;
+    {
+      self.needsDisplay = YES;
+      layerContentsNeedUpdate = YES;
+    }
 }
 
-- (void)scrollBackingSrcX:(int)srcX srcY:(int)srcY
-		    width:(int)width height:(int)height
-		    destX:(int)destX destY:(int)destY
+static vImage_Error
+mac_vimage_buffer_init_8888 (vImage_Buffer *buf, vImagePixelCount height,
+			     vImagePixelCount width)
 {
-  NSInteger bytesPerRow = backingBitmap.bytesPerRow;
-  NSInteger bytesPerPixel = backingBitmap.bitsPerPixel / 8;
-  NSInteger scale = backingBitmap.pixelsWide / backingBitmap.size.width;
-  NSInteger bytesWidth = (width * bytesPerPixel) * scale;
-  NSInteger srcOffset = (srcY * bytesPerRow + srcX * bytesPerPixel) * scale;
-  NSInteger delta = ((destY - srcY) * bytesPerRow
-		     + (destX - srcX) * bytesPerPixel) * scale;
-  dispatch_queue_t queue =
-    dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-  unsigned char *dataPlanes[5];
-
-  [backingBitmap getBitmapDataPlanes:dataPlanes];
-  for (unsigned char **plane = dataPlanes; *plane; plane++)
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
+  if (vImageBuffer_Init != NULL)
+#endif
+    return vImageBuffer_Init (buf, height, width, 8 * sizeof (Pixel_8888),
+			      kvImageNoFlags);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
+  else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090 || MAC_OS_X_VERSION_MIN_REQUIRED < 1090
     {
-      dispatch_apply (scale, queue, ^(size_t s) {
-	  unsigned char *src_s = *plane + srcOffset + bytesPerRow * s;
-	  NSInteger iterations;
+      buf->data = malloc (height * width * sizeof (Pixel_8888));
+      buf->height = height;
+      buf->width = width;
+      buf->rowBytes = width * sizeof (Pixel_8888);
 
-	  if (destY < srcY)
+      return kvImageNoError;
+    }
+#endif
+}
+
+static vImage_Error
+mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
+		      vImage_Flags flags)
+{
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  if (vImageCopyBuffer != NULL)
+#endif
+    return vImageCopyBuffer (src, dest, sizeof (Pixel_8888), flags);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000 || MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+    {
+      const uint8_t identityMap[] = {0, 1, 2, 3};
+
+      return vImagePermuteChannels_ARGB8888 (src, dest, identityMap, flags);
+    }
+#endif
+}
+
+- (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta
+{
+  eassert (pthread_main_np ());
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (!self.layer)
+    {
+      [self scrollRect:rect by:delta];
+
+      return;
+    }
+#endif
+  eassert (CGBitmapContextGetBitsPerPixel (backingBitmap)
+	   == 8 * sizeof (Pixel_8888));
+  NSInteger bitmapWidth = CGBitmapContextGetWidth (backingBitmap);
+  NSInteger bitmapHeight = CGBitmapContextGetHeight (backingBitmap);
+  NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backingBitmap);
+  const NSInteger bytesPerPixel = sizeof (Pixel_8888);
+  unsigned char *srcData = CGBitmapContextGetData (backingBitmap);
+  NSInteger scale =
+    CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
+  NSInteger deltaX, deltaY, srcX, srcY, width, height;
+
+  if (scale != 1)
+    {
+      rect.origin.x *= scale, rect.origin.y *= scale;
+      rect.size.width *= scale, rect.size.height *= scale;
+      delta.width *= scale, delta.height *= scale;
+    }
+
+  deltaX = delta.width, deltaY = delta.height;
+  srcX = NSMinX (rect), srcY = NSMinY (rect);
+  width = NSWidth (rect), height = NSHeight (rect);
+
+#if HAVE_MAC_METAL
+  if (backingTexture && width * height >= 0x10000)
+    {
+      MTLTextureDescriptor *textureDescriptor =
+	[MTLTextureDescriptor
+	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				       width:width height:height mipmapped:NO];
+      id <MTLTexture> texture =
+	[mtlDevice newTextureWithDescriptor:textureDescriptor];
+      id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
+      id <MTLBlitCommandEncoder> blitCommandEncoder =
+	[commandBuffer blitCommandEncoder];
+
+      IOSurfaceUnlock (backingSurface, 0, NULL);
+      [blitCommandEncoder copyFromTexture:backingTexture
+			      sourceSlice:0 sourceLevel:0
+			     sourceOrigin:(MTLOriginMake (srcX, srcY, 0))
+			       sourceSize:(MTLSizeMake (width, height, 1))
+				toTexture:texture
+			 destinationSlice:0 destinationLevel:0
+			destinationOrigin:(MTLOriginMake (0, 0, 0))];
+      [blitCommandEncoder copyFromTexture:texture
+			      sourceSlice:0 sourceLevel:0
+			     sourceOrigin:(MTLOriginMake (0, 0, 0))
+			       sourceSize:(MTLSizeMake (width, height, 1))
+				toTexture:backingTexture
+			 destinationSlice:0 destinationLevel:0
+			destinationOrigin:(MTLOriginMake (srcX + deltaX,
+							  srcY + deltaY, 0))];
+      [blitCommandEncoder endEncoding];
+      [commandBuffer commit];
+      [commandBuffer waitUntilCompleted];
+      MRC_RELEASE (texture);
+      IOSurfaceLock (backingSurface, 0, NULL);
+    }
+  else
+#endif
+    {
+      vImage_Buffer src, dest;
+
+      src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
+      src.height = height;
+      src.width = width;
+      src.rowBytes = bytesPerRow;
+      if (deltaY != 0)
+	{
+	  if (deltaY > 0)
 	    {
-	      iterations = min (height, srcY - destY);
-	      dispatch_apply (iterations, queue, ^(size_t i) {
-		  unsigned char *src = src_s + bytesPerRow * scale * i;
-
-		  for (int r = i; r < height; r += iterations)
-		    {
-		      memcpy (src + delta, src, bytesWidth);
-		      src += bytesPerRow * scale * iterations;
-		    }
-		});
+	      src.data += (src.height - 1) * bytesPerRow;
+	      src.rowBytes = - bytesPerRow;
 	    }
-	  else if (destY > srcY)
+	  dest = src;
+	  dest.data += deltaY * bytesPerRow + deltaX * bytesPerPixel;
+	  /* As of macOS 10.13, vImageCopyBuffer no longer does
+	     multi-threading even if we give it kvImageNoFlags.  We
+	     rather pass kvImageDoNotTile so it works with overlapping
+	     areas on older versions.  */
+	  mac_vimage_copy_8888 (&src, &dest, kvImageDoNotTile);
+	}
+      else /* deltaY == 0, which does not happen on the current
+	  version of Emacs. */
+	{
+	  dest = src;
+	  dest.data += /* deltaY * bytesPerRow + */ deltaX * bytesPerPixel;
+	  if (labs (deltaX) >= src.width)
+	    mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	  else if (deltaX == 0)
+	    return;
+	  else
 	    {
-	      iterations = min (height, destY - srcY);
-	      dispatch_apply (iterations, queue, ^(size_t i) {
-		  size_t last_i = i + ((height - 1 - i) / iterations
-				       * iterations);
-		  unsigned char *src = src_s + bytesPerRow * scale * last_i;
+	      vImage_Buffer buf;
 
-		  for (int r = i; r < height; r += iterations)
-		    {
-		      memcpy (src + delta, src, bytesWidth);
-		      src -= bytesPerRow * scale * iterations;
-		    }
-		});
+	      mac_vimage_buffer_init_8888 (&buf, src.height, src.width);
+	      mac_vimage_copy_8888 (&src, &buf, kvImageNoFlags);
+	      mac_vimage_copy_8888 (&buf, &dest, kvImageNoFlags);
+	      free (buf.data);
 	    }
-	  else /* destY == srcY, this case does not happen on the
-		  current version of Emacs.  */
-	    {
-	      iterations = height;
-	      dispatch_apply (iterations, queue, ^(size_t i) {
-		  unsigned char *src = src_s + bytesPerRow * scale * i;
+	}
+    }
 
-		  memmove (src + delta, src, bytesWidth);
-		});
-	    }
-	});
+  self.needsDisplay = YES;
+  layerContentsNeedUpdate = YES;
+}
+
+- (NSData *)imageBuffersDataForBackingRectanglesData:(NSData *)rectanglesData
+{
+  struct frame *f = self.emacsFrame;
+  NSInteger i, count = rectanglesData.length / sizeof (NativeRectangle);
+  const NativeRectangle *rectangles = rectanglesData.bytes;
+  NSMutableData *imageBuffersData =
+    [NSMutableData dataWithCapacity:(count * sizeof (vImage_Buffer))];
+  vImage_Buffer *imageBuffers = imageBuffersData.mutableBytes;
+  unsigned char *srcData = CGBitmapContextGetData (backingBitmap);
+  NSInteger scale =
+    CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
+  vImage_Buffer src;
+
+  src.rowBytes = CGBitmapContextGetBytesPerRow (backingBitmap);
+  for (i = 0; i < count; i++)
+    {
+      vImage_Buffer *dest = imageBuffers + i;
+
+      mac_vimage_buffer_init_8888 (dest, rectangles[i].height * scale,
+				   rectangles[i].width * scale);
+      src.height = dest->height, src.width = dest->width;
+      src.data = srcData + (rectangles[i].y * src.rowBytes
+			    + rectangles[i].x * sizeof (Pixel_8888)) * scale;
+      mac_vimage_copy_8888 (&src, dest, kvImageNoFlags);
+    }
+
+  return imageBuffersData;
+}
+
+- (void)restoreImageBuffersData:(NSData *)imageBuffersData
+       forBackingRectanglesData:(NSData *)rectanglesData
+{
+  struct frame *f = self.emacsFrame;
+  NSInteger i, count = rectanglesData.length / sizeof (NativeRectangle);
+  const NativeRectangle *rectangles = rectanglesData.bytes;
+  const vImage_Buffer *imageBuffers = imageBuffersData.bytes;
+  unsigned char *destData = CGBitmapContextGetData (backingBitmap);
+  NSInteger scale =
+    CGBitmapContextGetWidth (backingBitmap) / (NSInteger) NSWidth (self.bounds);
+  vImage_Buffer dest;
+
+  dest.rowBytes = CGBitmapContextGetBytesPerRow (backingBitmap);
+  for (i = 0; i < count; i++)
+    {
+      const vImage_Buffer *src = imageBuffers + i;
+
+      dest.height = src->height, dest.width = src->width;
+      dest.data = destData + (rectangles[i].y * dest.rowBytes
+			      + rectangles[i].x * sizeof (Pixel_8888)) * scale;
+      mac_vimage_copy_8888 (src, &dest, kvImageNoFlags);
+      free (src->data);
     }
 }
 
 - (void)viewDidChangeBackingProperties
 {
-  MRC_RELEASE (backingBitmap);
-  backingBitmap = nil;
+  [self releaseBackingResources];
   self.needsDisplay = YES;
 }
 
@@ -7181,8 +7598,6 @@ event_phase_to_symbol (NSEventPhase phase)
 
 @end				// EmacsMainView
 
-#define FRAME_CG_CONTEXT(f)	((f)->output_data.mac->cg_context)
-
 /* Emacs frame containing the globally focused NSView.  */
 static struct frame *global_focus_view_frame;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
@@ -7249,21 +7664,12 @@ mac_draw_queue_sync (void)
 #endif
 }
 
-static void
-mac_draw_queue_dispatch_async (void (^block) (void))
-{
-#if DRAWING_USE_GCD
-  if (global_focus_drawing_queue)
-    dispatch_async (global_focus_drawing_queue, block);
-  else
-#endif
-    block ();
-}
-
 static CGRect
 unset_global_focus_view_frame (void)
 {
   CGRect result = CGRectNull;
+
+  mac_draw_queue_sync ();
 
   if (global_focus_view_frame != saved_focus_view_frame)
     {
@@ -7282,8 +7688,6 @@ unset_global_focus_view_frame (void)
 	}
     }
   saved_focus_view_frame = NULL;
-
-  mac_draw_queue_sync ();
 
   return result;
 }
@@ -7424,23 +7828,11 @@ mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 		 int width, int height, int dest_x, int dest_y)
 {
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+  NSRect rect = NSMakeRect (src_x, src_y, width, height);
+  NSSize offset = NSMakeSize (dest_x - src_x, dest_y - src_y);
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!FRAME_MAC_DOUBLE_BUFFERED_P (f))
-    {
-      NSRect rect = NSMakeRect (src_x, src_y, width, height);
-      NSSize offset = NSMakeSize (dest_x - src_x, dest_y - src_y);
-
-      mac_draw_queue_sync ();
-      mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
-
-      return;
-    }
-#endif
-  [frameController scrollEmacsViewSrcX:src_x srcY:src_y
-				 width:width height:height
-				 destX:dest_x destY:dest_y];
-  mac_within_gui (^{[frameController setEmacsViewNeedsDisplay:YES];});
+  mac_draw_queue_sync ();
+  mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
 }
 
 @implementation EmacsOverlayView
@@ -7499,6 +7891,8 @@ create_resize_indicator_image (void)
       if (has_visual_effect_view_p ())
 	[NS_APPEARANCE setCurrentAppearance:oldAppearance];
 
+      [layer setValue:((id) kCFBooleanTrue) forKey:@"showingBorder"];
+
       [CATransaction setDisableActions:YES];
       layer.borderColor = borderColor;
       CFRelease (borderColor);
@@ -7507,7 +7901,25 @@ create_resize_indicator_image (void)
       layer.borderWidth = 3.0;
     }
   else
-    layer.borderWidth = 0;
+    {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+      if ([NSAnimationContext
+	    respondsToSelector:@selector(runAnimationGroup:completionHandler:)])
+#endif
+	[NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+	    layer.borderWidth = 0;
+	  } completionHandler:^{
+	    [layer setValue:((id) kCFBooleanFalse) forKey:@"showingBorder"];
+	  }];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+      else
+	/* We could use -[CATransaction setCompletionBlock:], but
+	   overlayview is always shown on Mac OS X 10.6 for the resize
+	   indicator, so we don't have to care about resetting the
+	   value for "showingBorder".  */
+	layer.borderWidth = 0;
+#endif
+    }
 }
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
@@ -7593,11 +8005,14 @@ mac_color_lookup (const char *color_name)
   if (!color)
     return Qnil;
 
-  oldAppearance = [NS_APPEARANCE currentAppearance];
-  appearance = ([NSApp respondsToSelector:@selector(effectiveAppearance)]
-		? [NSApp effectiveAppearance]
-		: [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
-  [NS_APPEARANCE setCurrentAppearance:appearance];
+  if (has_visual_effect_view_p ())
+    {
+      oldAppearance = [NS_APPEARANCE currentAppearance];
+      appearance = ([NSApp respondsToSelector:@selector(effectiveAppearance)]
+		    ? [NSApp effectiveAppearance]
+		    : [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
+      [NS_APPEARANCE setCurrentAppearance:appearance];
+    }
   colorInSRGB = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
   if (colorInSRGB)
     {
@@ -7608,7 +8023,8 @@ mac_color_lookup (const char *color_name)
 					  (int) (components[1] * 255 + .5),
 					  (int) (components[2] * 255 + .5)));
     }
-  [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+  if (has_visual_effect_view_p ())
+    [NS_APPEARANCE setCurrentAppearance:oldAppearance];
 
   return result;
 }
@@ -7767,6 +8183,20 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
       displayID = (CGDirectDisplayID) [[[screen deviceDescription]
 					 objectForKey:@"NSScreenNumber"]
 					unsignedIntValue];
+#if HAVE_MAC_METAL
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+  if (CGDirectDisplayCopyCurrentMetalDevice != NULL)
+#endif
+    {
+      id <MTLDevice> device = CGDirectDisplayCopyCurrentMetalDevice (displayID);
+
+      attributes = Fcons (Fcons (Qmetal_device_name,
+				 device ? device.name.lispString : Qnil),
+			  attributes);
+      MRC_RELEASE (device);
+    }
+#endif
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
       displayInfo =
 	mac_display_copy_info_dictionary_for_cgdisplay (displayID,
@@ -8919,7 +9349,15 @@ mac_get_default_scroll_bar_height (struct frame *f)
 	   || EQ (Vtool_bar_style, Qtext_image_horiz))
     displayMode = NSToolbarDisplayModeIconAndLabel;
 
+  /* -[NSToolbar setDisplayMode] posts
+      NSViewFrameDidChangeNotification for EmacsView, but with a bogus
+      (intermediate?) value for view's frame and bounds.  We suspend
+      -[EmacsView synchronizeBackingBitmap] while setting toolbar's
+      display mode.  */
+  [emacsView suspendSynchronizingBackingBitmap:YES];
   [toolbar setDisplayMode:displayMode];
+  [emacsView suspendSynchronizingBackingBitmap:NO];
+  [emacsView synchronizeBackingBitmap];
 }
 
 /* Store toolbar item click event from SENDER to kbd_buffer.  */
@@ -16291,7 +16729,8 @@ main (int argc, char **argv)
 	    newlim = rlim.rlim_max;
 	  newlim -= newlim % pagesize;
 
-	  if (pagesize <= newlim - lim)
+	  if (newlim > lim	/* in case rlim_t is an unsigned type */
+	      && pagesize <= newlim - lim)
 	    rlim.rlim_cur = newlim;
 	}
 

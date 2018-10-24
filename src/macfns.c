@@ -3006,6 +3006,10 @@ the attributes:
 
  backing-scale-factor -- Backing scale factor as a number, usually
 			 2 for Retina displays and 1 for the others.
+ metal-device-name -- String identifying the Metal device for the
+		      display, or nil if the device does not support
+		      Metal.  This key is not available if Emacs is
+		      not linked with the Metal framework.
 
 Internal use only, use `display-monitor-attributes-list' instead.  */)
   (Lisp_Object terminal)
@@ -5146,6 +5150,9 @@ syms_of_macfns (void)
   DEFSYM (Qmono, "mono");
   DEFSYM (Qassq_delete_all, "assq-delete-all");
   DEFSYM (Qbacking_scale_factor, "backing-scale-factor");
+#if HAVE_MAC_METAL
+  DEFSYM (Qmetal_device_name, "metal-device-name");
+#endif
   DEFSYM (Qfont_parameter, "font-parameter");
   DEFSYM (Qpdf, "pdf");
   DEFSYM (Qorientation, "orientation");

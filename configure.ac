@@ -366,6 +366,7 @@ OPTION_DEFAULT_ON([xim],[don't use X11 XIM])
 AC_ARG_WITH([mac],[AS_HELP_STRING([--with-mac],
 [use GUI on macOS.
 On by default on macOS.])],[],[with_mac=maybe])
+OPTION_DEFAULT_OFF([mac-metal],[use Metal framework in application-side double buffering (experimental)])
 OPTION_DEFAULT_OFF([ns],[use Nextstep (macOS Cocoa or GNUstep) windowing system.])
 OPTION_DEFAULT_OFF([w32], [use native MS Windows GUI in a Cygwin build])
 
@@ -3756,6 +3757,7 @@ MAC_CFLAGS=
 if test "${HAVE_MACGUI}" = "yes"; then
   AC_DEFINE(HAVE_MACGUI, 1, [Define to 1 if you are using GUI on macOS.])
   AC_DEFINE(HAVE_SOUND, 1, [Define to 1 if you have sound support.])
+  AC_CHECK_HEADERS(AvailabilityMacros.h)
   MAC_CFLAGS="-fconstant-cfstrings"
   ## Specify the install directory
   mac_appdir=
@@ -5263,7 +5265,27 @@ case "$opsys" in
    ## only costs about 1.5K of wasted binary space.
    headerpad_extra=1000
    if test "$HAVE_MACGUI" = "yes"; then
-     libs_macgui="-framework Carbon -framework WebKit -framework Quartz -framework QuartzCore -framework IOKit -framework OSAKit -framework Cocoa"
+     AC_MSG_CHECKING(Mac OS X version max allowed >= 10.11)
+     AC_CACHE_VAL(emacs_cv_mac_os_x_max_allowed_10_11,
+     [AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#ifdef HAVE_AVAILABILITYMACROS_H
+#include <AvailabilityMacros.h>
+#endif]],
+[[#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100 && MAC_OS_X_VERSION_MIN_REQUIRED > 1020
+fail;
+#endif
+]])], emacs_cv_mac_os_x_max_allowed_10_11=no, emacs_cv_mac_os_x_max_allowed_10_11=yes)])
+     libs_metal=
+     if test $emacs_cv_mac_os_x_max_allowed_10_11 = yes; then
+       AC_MSG_RESULT(10.11 or later)
+       if test "${with_mac_metal}" != "no"; then
+	 AC_DEFINE(HAVE_MAC_METAL, 1, [Define to 1 if using Metal framework.])
+	 libs_metal="-framework Metal"
+       fi
+     else
+       AC_MSG_RESULT(before 10.11)
+     fi
+     libs_macgui="-framework Carbon -framework WebKit -framework Quartz -framework QuartzCore -framework IOKit -framework OSAKit -framework Accelerate -framework IOSurface $libs_metal -framework Cocoa"
      headerpad_extra=BD0
    elif test "$HAVE_NS" = "yes"; then
      libs_macgui="-framework AppKit"

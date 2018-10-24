@@ -601,6 +601,8 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.
 			</array>
 		</dict>
 	</array>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Emacs Mac port requires permission to send AppleEvents to other applications.</string>
 	<key>NSAppleScriptEnabled</key>
 	<string>YES</string>
 	<key>NSPrincipalClass</key>
