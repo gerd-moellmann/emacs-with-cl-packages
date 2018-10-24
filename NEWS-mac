@@ -1,4 +1,67 @@
+* emacs-26.1-mac-7.3 (2018-10-24)
+
+** Fixed bugs
+
+*** Underline for converted text is invisible on dark background.
+
+*** Possible stack overflow (Bug#31995 and Bug#32338).
+
+*** Changing tool bar style (either via the variable tool-bar-style or
+tool bar context menu) may make the frame blank with application-side
+double buffering, which is forced on macOS 10.14.
+
+*** CPU load is high if application-side double buffering is used.
+This is mainly caused by the use of layer-backed views together with
+other CALayers involving Core Image filters, and that seems to lead to
+excessive CPU time consumption by the CVDisplayLink thread.  Now
+overlay views, which host CALayers that use Core Image filters for
+several animation effects and drag-and-drop highlighting, are added
+into the view hierarchy in an on-demand way to avoid this phenomenon.
+
+*** Drag-and-drop into Emacs frame does not work on Mac OS X 10.6.
+This is a regression introduced in 7.2.
+
+*** U+1F9B5 and U+1F9B6 are missing from list of emoji modifier bases.
+
+*** Frames that use application-side double buffering cannot do LCD
+font smoothing even on OS X 10.8 - macOS 10.13.
+On macOS 10.14, LCD font smoothing is globally disabled by default.
+You need to execute "$ defaults write org.gnu.Emacs
+CGFontRenderingFontSmoothingDisabled -bool NO" to enable it.
+
+*** Sending Apple Events to other applications causes an error on
+macOS 10.14.
+
+*** Fail to launch on OS X 10.8.
+This is a regression introduced in 7.2.
+
+** Improvement
+
+*** In addition to TIFF, PDF is accepted as pasteboard image data.
+Now "Scan Documents" in the context menu on macOS 10.14 can insert PDF
+data scanned by your nearby iOS devices (Continuity Camera).
+
+*** New experimental configure option `--with-mac-metal' to use GPU
+for pixel copy operations in the frames using application-side double
+buffering on OS X 10.11 or later with supported hardware (see
+https://support.apple.com/HT205073).  If you are using this feature in
+the selected frame, then the expression below will be evaluated to t:
+  (and (frame-monitor-attribute 'metal-device-name)
+       (not (frame-parameter nil 'inhibit-double-buffering)))
+On the Mac port, setting the value of the frame parameter
+`inhibit-double-buffering' is only effective at the frame creation
+time.  So on OS X 10.11 - macOS 10.13, you need to specify it either
+as (make-frame '((inhibit-double-buffering))), by default-frame-alist,
+or by X resources emulation via Preferences system (see Mac port
+section in Info).  On macOS 10.14, there is no choice other than
+application-side double buffering, so you don't need to care about it.
+Currently this feature is only tested in very limited environments.
+In particular, I can't test it with dynamic switching between
+integrated and discrete GPUs.
+
+
 * emacs-26.1-mac-7.2 (2018-09-09)
+https://lists.gnu.org/r/emacs-devel/2018-09/msg00375.html
 
 ** Fixed bugs
 
@@ -52,6 +115,7 @@ returns nil.
 
 
 * emacs-26.1-mac-7.1 (2018-06-10)
+https://lists.gnu.org/r/emacs-devel/2018-06/msg00282.html
 
 ** Fixed bugs
 
