@@ -4970,7 +4970,7 @@ mac_get_tab_group_overview_visible_p (struct frame *f)
   Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    mac_within_app (^{if (window.tabGroup.isOverviewVisible) result = Qt;});
+    mac_within_gui (^{if (window.tabGroup.isOverviewVisible) result = Qt;});
 
   return result;
 }
@@ -4982,9 +4982,9 @@ mac_get_tab_group_tab_bar_visible_p (struct frame *f)
   Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    mac_within_app (^{if (window.tabGroup.isTabBarVisible) result = Qt;});
+    mac_within_gui (^{if (window.tabGroup.isTabBarVisible) result = Qt;});
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    mac_within_app (^{if (window.tabbedWindows != nil) result = Qt;});
+    mac_within_gui (^{if (window.tabbedWindows != nil) result = Qt;});
 
   return result;
 }
@@ -4996,12 +4996,12 @@ mac_get_tab_group_selected_frame (struct frame *f)
   Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    mac_within_app (^{result = window.tabGroup.selectedWindow.lispFrame;});
+    mac_within_gui (^{result = window.tabGroup.selectedWindow.lispFrame;});
   else if (!window.hasTitleBar)
     ;
 #if 1
   else if ([window respondsToSelector:@selector(_windowStackController)])
-    mac_within_app (^{
+    mac_within_gui (^{
 	NSWindowStackController *stackController =
 	  window._windowStackController;
 
@@ -5012,7 +5012,7 @@ mac_get_tab_group_selected_frame (struct frame *f)
       });
 #else  /* This only works for visible frames.  */
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    mac_within_app (^{
+    mac_within_gui (^{
 	NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
 
 	if (tabbedWindows == nil)
@@ -5046,7 +5046,7 @@ mac_get_tab_group_frames (struct frame *f)
   Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    mac_within_app (^{
+    mac_within_gui (^{
 	for (NSWindow *tabbedWindow in window.tabGroup.windows)
 	  {
 	    Lisp_Object frame = tabbedWindow.lispFrame;
@@ -5059,7 +5059,7 @@ mac_get_tab_group_frames (struct frame *f)
   else if (!window.hasTitleBar)
     ;
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    mac_within_app (^{
+    mac_within_gui (^{
 	NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
 	Lisp_Object frame;
 
