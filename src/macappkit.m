@@ -4724,40 +4724,45 @@ mac_set_tab_group_overview_visible_p (struct frame *f, Lisp_Object value)
 	return build_string ("Tab group overview is not supported on this macOS version");
     }
 
-  if (window.tabGroup.isOverviewVisible == !NILP (value))
-    return Qnil;
-
+  Lisp_Object __block result = Qnil;
   mac_within_app (^{
-      /* Just setting the property window.tabGroup.overviewVisible
-	 does not show the search field on macOS 10.13 Beta.  */
-      [NSApp sendAction:@selector(toggleTabOverview:) to:window from:nil];
+      if (window.tabGroup.isOverviewVisible != !NILP (value))
+	{
+	  /* Just setting the property window.tabGroup.overviewVisible
+	     does not show the search field on macOS 10.13 Beta.  */
+	  [NSApp sendAction:@selector(toggleTabOverview:) to:window from:nil];
+	  result = Qt;
+	}
     });
 
-  return Qt;
+  return result;
 }
 
 Lisp_Object
 mac_set_tab_group_tab_bar_visible_p (struct frame *f, Lisp_Object value)
 {
   EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  NSInteger count;
-
-  count = window.tabbedWindows.count;
-  if ((count != 0) == !NILP (value))
-    return Qnil;
-
-  if (count > 1)
-    return build_string ("Tab bar cannot be made invisible because of multiple tabs");
+  Lisp_Object __block result = Qnil;
 
   mac_within_app (^{
-      [window exitTabGroupOverview];
-      [NSApp sendAction:@selector(toggleTabBar:) to:window from:nil];
-    });
-  [[NSUserDefaults standardUserDefaults]
-      removeObjectForKey:[@"NSWindowTabbingShoudShowTabBarKey-"
-			     stringByAppendingString:window.tabbingIdentifier]];
+      NSInteger count = window.tabbedWindows.count;
 
-  return Qt;
+      if ((count != 0) == !NILP (value))
+	result = Qnil;
+      else if (count > 1)
+	result = build_string ("Tab bar cannot be made invisible because of multiple tabs");
+      else
+	{
+	  [window exitTabGroupOverview];
+	  [NSApp sendAction:@selector(toggleTabBar:) to:window from:nil];
+	  [[NSUserDefaults standardUserDefaults]
+	    removeObjectForKey:[@"NSWindowTabbingShoudShowTabBarKey-"
+				   stringByAppendingString:window.tabbingIdentifier]];
+	  result = Qt;
+	}
+    });
+
+  return result;
 }
 
 Lisp_Object
@@ -4962,71 +4967,73 @@ Lisp_Object
 mac_get_tab_group_overview_visible_p (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  Lisp_Object __block result = Qnil;
 
-  if ([window respondsToSelector:@selector(tabGroup)]
-      && window.tabGroup.isOverviewVisible)
-    return Qt;
+  if ([window respondsToSelector:@selector(tabGroup)])
+    mac_within_app (^{if (window.tabGroup.isOverviewVisible) result = Qt;});
 
-  return Qnil;
+  return result;
 }
 
 Lisp_Object
 mac_get_tab_group_tab_bar_visible_p (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    return window.tabGroup.isTabBarVisible ? Qt : Qnil;
+    mac_within_app (^{if (window.tabGroup.isTabBarVisible) result = Qt;});
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    return window.tabbedWindows != nil ? Qt : Qnil;
+    mac_within_app (^{if (window.tabbedWindows != nil) result = Qt;});
 
-  return Qnil;
+  return result;
 }
 
 Lisp_Object
 mac_get_tab_group_selected_frame (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  Lisp_Object result = Qnil;
+  Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    result = window.tabGroup.selectedWindow.lispFrame;
+    mac_within_app (^{result = window.tabGroup.selectedWindow.lispFrame;});
   else if (!window.hasTitleBar)
     ;
 #if 1
   else if ([window respondsToSelector:@selector(_windowStackController)])
-    {
-      NSWindowStackController *stackController = window._windowStackController;
+    mac_within_app (^{
+	NSWindowStackController *stackController =
+	  window._windowStackController;
 
-      if (stackController == nil)
-	XSETFRAME (result, f);
-      else
-	result = stackController.selectedWindow.lispFrame;
-    }
+	if (stackController == nil)
+	  XSETFRAME (result, f);
+	else
+	  result = stackController.selectedWindow.lispFrame;
+      });
 #else  /* This only works for visible frames.  */
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    {
-      NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
+    mac_within_app (^{
+	NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
 
-      if (tabbedWindows == nil)
-	XSETFRAME (result, f);
-      else
-	{
-	  NSWindow * __block selectedWindow = nil;
+	if (tabbedWindows == nil)
+	  XSETFRAME (result, f);
+	else
+	  {
+	    NSWindow * __block selectedWindow = nil;
 
-	  [NSApp enumerateWindowsWithOptions:NSWindowListOrderedFrontToBack
-				  usingBlock:^(NSWindow *window, BOOL *stop) {
-	      if ([tabbedWindows containsObject:window])
-		{
-		  selectedWindow = window;
-		  *stop = YES;
-		}
-	    }];
+	    [NSApp enumerateWindowsWithOptions:NSWindowListOrderedFrontToBack
+				    usingBlock:^(NSWindow *window, BOOL *stop) {
+		if ([tabbedWindows containsObject:window])
+		  {
+		    selectedWindow = window;
+		    *stop = YES;
+		  }
+	      }];
 
-	  if (selectedWindow)
-	    result = selectedWindow.lispFrame;
-	}
-    }
+	    if (selectedWindow)
+	      result = selectedWindow.lispFrame;
+	  }
+      });
 #endif
 
   return result;
@@ -5036,42 +5043,42 @@ Lisp_Object
 mac_get_tab_group_frames (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  Lisp_Object result = Qnil;
+  Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    {
-      for (NSWindow *tabbedWindow in window.tabGroup.windows)
-	{
-	  Lisp_Object frame = tabbedWindow.lispFrame;
+    mac_within_app (^{
+	for (NSWindow *tabbedWindow in window.tabGroup.windows)
+	  {
+	    Lisp_Object frame = tabbedWindow.lispFrame;
 
-	  if (!NILP (frame))
-	    result = Fcons (frame, result);
-	}
-      result = Fnreverse (result);
-    }
+	    if (!NILP (frame))
+	      result = Fcons (frame, result);
+	  }
+	result = Fnreverse (result);
+      });
   else if (!window.hasTitleBar)
     ;
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    {
-      NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
-      Lisp_Object frame;
+    mac_within_app (^{
+	NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
+	Lisp_Object frame;
 
-      if (tabbedWindows == nil)
-	{
-	  XSETFRAME (frame, f);
-	  result = Fcons (frame, result);
-	}
-      else
-	{
-	  for (NSWindow *tabbedWindow in tabbedWindows)
-	    {
-	      frame = tabbedWindow.lispFrame;
-	      if (!NILP (frame))
-		result = Fcons (frame, result);
-	    }
-	  result = Fnreverse (result);
-	}
-    }
+	if (tabbedWindows == nil)
+	  {
+	    XSETFRAME (frame, f);
+	    result = Fcons (frame, result);
+	  }
+	else
+	  {
+	    for (NSWindow *tabbedWindow in tabbedWindows)
+	      {
+		frame = tabbedWindow.lispFrame;
+		if (!NILP (frame))
+		  result = Fcons (frame, result);
+	      }
+	    result = Fnreverse (result);
+	  }
+      });
 
   return result;
 }
