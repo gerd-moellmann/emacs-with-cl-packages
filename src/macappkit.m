@@ -5497,8 +5497,11 @@ mac_dispose_frame_window (struct frame *f)
       /* Mac OS X 10.6 needs this.  */
       [window.parentWindow removeChildWindow:window];
       [frameController closeWindow];
+      /* [overlayView.layer removeObserver:self forKeyPath:...] in
+	 -[EmacsFrameController dealloc] must be called from the GUI
+	 thread.  */
+      CFRelease (FRAME_MAC_WINDOW (f));
     });
-  CFRelease (FRAME_MAC_WINDOW (f));
 }
 
 void
