@@ -5875,7 +5875,6 @@ static BOOL emacsViewUpdateLayerDisabled;
 #if !USE_ARC
 #if HAVE_MAC_METAL
   [mtlCommandQueue release];
-  [mtlDevice release];
 #endif
   [graphicsContextStack release];
   [super dealloc];
@@ -5971,20 +5970,17 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 			     objectForKey:@"NSScreenNumber"] unsignedIntValue];
   id <MTLDevice> newDevice = CGDirectDisplayCopyCurrentMetalDevice (displayID);
 
-  if (newDevice == mtlDevice)
-    MRC_RELEASE (newDevice);
-  else
+  if (newDevice != mtlCommandQueue.device)
     {
       MRC_RELEASE (backingTexture);
       backingTexture =
 	mac_texture_create_with_surface (newDevice, backingSurface);
       MRC_RELEASE (contentsTexture);
       contentsTexture = nil;
-      MRC_RELEASE (mtlDevice);
-      mtlDevice = newDevice;
       MRC_RELEASE (mtlCommandQueue);
-      mtlCommandQueue = [mtlDevice newCommandQueue];
+      mtlCommandQueue = [newDevice newCommandQueue];
     }
+  MRC_RELEASE (newDevice);
 }
 #endif
 
@@ -6044,7 +6040,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
 	  MRC_RELEASE (contentsTexture);
 	  contentsTexture =
-	    mac_texture_create_with_surface (mtlDevice, surface);
+	    mac_texture_create_with_surface (mtlCommandQueue.device, surface);
 	  if (surface)
 	    CFRelease (surface);
 	}
@@ -6141,7 +6137,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 	  bytes_per_row = IOSurfaceGetBytesPerRow (backingSurface);
 #if HAVE_MAC_METAL
 	  backingTexture =
-	    mac_texture_create_with_surface (mtlDevice, backingSurface);
+	    mac_texture_create_with_surface (mtlCommandQueue.device,
+					     backingSurface);
 #endif
 	}
       backingBitmap =
@@ -6288,7 +6285,7 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
 				       width:width height:height mipmapped:NO];
       id <MTLTexture> texture =
-	[mtlDevice newTextureWithDescriptor:textureDescriptor];
+	[mtlCommandQueue.device newTextureWithDescriptor:textureDescriptor];
       id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
       id <MTLBlitCommandEncoder> blitCommandEncoder =
 	[commandBuffer blitCommandEncoder];
