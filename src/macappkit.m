@@ -6235,7 +6235,6 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta
 {
-  eassert (pthread_main_np ());
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   if (!self.layer)
     {
@@ -6279,7 +6278,6 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
       id <MTLBlitCommandEncoder> blitCommandEncoder =
 	[commandBuffer blitCommandEncoder];
 
-      IOSurfaceUnlock (backingSurface, 0, NULL);
       [blitCommandEncoder copyFromTexture:backingTexture
 			      sourceSlice:0 sourceLevel:0
 			     sourceOrigin:(MTLOriginMake (srcX, srcY, 0))
@@ -6296,10 +6294,11 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 			destinationOrigin:(MTLOriginMake (srcX + deltaX,
 							  srcY + deltaY, 0))];
       [blitCommandEncoder endEncoding];
+      IOSurfaceUnlock (backingSurface, 0, NULL);
       [commandBuffer commit];
       [commandBuffer waitUntilCompleted];
-      MRC_RELEASE (texture);
       IOSurfaceLock (backingSurface, 0, NULL);
+      MRC_RELEASE (texture);
     }
   else
 #endif
@@ -7665,6 +7664,17 @@ mac_draw_queue_sync (void)
 #endif
 }
 
+static void
+mac_draw_queue_dispatch_async (void (^block) (void))
+{
+#if DRAWING_USE_GCD
+  if (global_focus_drawing_queue)
+    dispatch_async (global_focus_drawing_queue, block);
+  else
+#endif
+    block ();
+}
+
 static CGRect
 unset_global_focus_view_frame (void)
 {
@@ -7842,12 +7852,23 @@ void
 mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 		 int width, int height, int dest_x, int dest_y)
 {
+  eassert (global_focus_view_frame);
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
   NSRect rect = NSMakeRect (src_x, src_y, width, height);
   NSSize offset = NSMakeSize (dest_x - src_x, dest_y - src_y);
 
-  mac_draw_queue_sync ();
-  mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (!FRAME_MAC_DOUBLE_BUFFERED_P (f))
+    {
+      mac_draw_queue_sync ();
+      mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
+
+      return;
+    }
+#endif
+  mac_draw_queue_dispatch_async (^{
+      [frameController scrollEmacsViewRect:rect by:offset];
+    });
   global_focus_view_modified_p = true;
 }
 
