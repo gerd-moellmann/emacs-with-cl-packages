@@ -5830,8 +5830,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 static bool mac_try_buffer_and_glyph_matrix_access (void);
 static void mac_end_buffer_and_glyph_matrix_access (void);
 
-#define FRAME_CG_CONTEXT(f)	((f)->output_data.mac->cg_context)
-
 /* View for Emacs frame.  */
 
 @implementation EmacsView
@@ -6023,9 +6021,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       self.needsDisplay = NO;
     }
 
-  if (!layerContentsNeedUpdate)
-    return;
-
 #if HAVE_MAC_METAL
   if (backingTexture)
     {
@@ -6077,7 +6072,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
   self.layer.contentsScale =
     CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
-  layerContentsNeedUpdate = NO;
 
   if (rectanglesData)
     [self restoreImageBuffersData:savedImageBuffersData
@@ -6189,11 +6183,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   NSGraphicsContext.currentContext = (lastObject != NSNull.null ? lastObject
 				      : nil);
   [graphicsContextStack removeLastObject];
-  if (graphicsContextStack.count == 0)
-    {
-      self.needsDisplay = YES;
-      layerContentsNeedUpdate = YES;
-    }
 }
 
 static vImage_Error
@@ -6356,9 +6345,6 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 	    }
 	}
     }
-
-  self.needsDisplay = YES;
-  layerContentsNeedUpdate = YES;
 }
 
 - (NSData *)imageBuffersDataForBackingRectanglesData:(NSData *)rectanglesData
@@ -7605,17 +7591,23 @@ event_phase_to_symbol (NSEventPhase phase)
 
 @end				// EmacsMainView
 
+#define FRAME_CG_CONTEXT(f)	((f)->output_data.mac->cg_context)
+
 /* Emacs frame containing the globally focused NSView.  */
 static struct frame *global_focus_view_frame;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 static CGRect global_focus_view_accumulated_clip_rect;
 #endif
+/* Whether view's core animation layer contents are out of sync with
+   the backing bitmap and need to be updated.  */
+static bool global_focus_view_modified_p;
 /* -[EmacsView drawRect:] might be called during update_frame.  */
 static struct frame *saved_focus_view_frame;
 static CGContextRef saved_focus_view_context;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 static CGRect saved_focus_view_accumulated_clip_rect;
 #endif
+static bool saved_focus_view_modified_p;
 #if DRAWING_USE_GCD
 static dispatch_queue_t global_focus_drawing_queue;
 #endif
@@ -7633,6 +7625,7 @@ set_global_focus_view_frame (struct frame *f)
 	  saved_focus_view_accumulated_clip_rect =
 	    global_focus_view_accumulated_clip_rect;
 #endif
+	  saved_focus_view_modified_p = global_focus_view_modified_p;
 	}
       global_focus_view_frame = f;
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
@@ -7641,6 +7634,7 @@ set_global_focus_view_frame (struct frame *f)
       FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] graphicsPort];
       global_focus_view_accumulated_clip_rect = CGRectNull;
 #endif
+      global_focus_view_modified_p = false;
     }
 #if DRAWING_USE_GCD
   if (mac_drawing_use_gcd)
@@ -7684,6 +7678,14 @@ unset_global_focus_view_frame (void)
       result = global_focus_view_accumulated_clip_rect;
 #endif
       FRAME_CG_CONTEXT (global_focus_view_frame) = NULL;
+      if (FRAME_MAC_DOUBLE_BUFFERED_P (global_focus_view_frame)
+	  && global_focus_view_modified_p)
+	{
+	  EmacsFrameController *frameController =
+	    FRAME_CONTROLLER (global_focus_view_frame);
+
+	  [frameController setEmacsViewNeedsDisplay:YES];
+	}
       global_focus_view_frame = saved_focus_view_frame;
       if (global_focus_view_frame)
 	{
@@ -7692,6 +7694,7 @@ unset_global_focus_view_frame (void)
 	  global_focus_view_accumulated_clip_rect =
 	    saved_focus_view_accumulated_clip_rect;
 #endif
+	  global_focus_view_modified_p = saved_focus_view_modified_p;
 	}
     }
   saved_focus_view_frame = NULL;
@@ -7778,8 +7781,12 @@ mac_end_cg_clip (struct frame *f)
       mac_within_gui (^{
 	  [frameController unlockFocusOnEmacsView];
 	  FRAME_CG_CONTEXT (f) = NULL;
+	  if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
+	    [frameController setEmacsViewNeedsDisplay:YES];
 	});
     }
+  else
+    global_focus_view_modified_p = true;
 }
 
 #if DRAWING_USE_GCD
@@ -7824,6 +7831,7 @@ mac_draw_to_frame (struct frame *f, GC gc, void (^block) (CGContextRef, GC))
 	});
 
       mac_accumulate_global_focus_view_clip_rect (clip_rects, n_clip_rects);
+      global_focus_view_modified_p = true;
     }
 }
 #endif
@@ -7840,6 +7848,7 @@ mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 
   mac_draw_queue_sync ();
   mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
+  global_focus_view_modified_p = true;
 }
 
 @implementation EmacsOverlayView

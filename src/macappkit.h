@@ -1008,10 +1008,6 @@ typedef NSInteger NSGlyphProperty;
 
   /* Whether backing bitmap synchronization is suspended.  */
   BOOL synchronizeBackingBitmapSuspended;
-
-  /* Whether view's core animation layer contents are out of sync with
-     the backing bitmap and need to be updated.  */
-  BOOL layerContentsNeedUpdate;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;
