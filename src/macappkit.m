@@ -3609,7 +3609,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = false;
   if ([overlayView.superview isEqual:emacsView])
     [overlayView setHidden:YES];
+  [EmacsView globallyDisableUpdateLayer:YES];
   [emacsView cacheDisplayInRect:rect toBitmapImageRep:bitmap];
+  [EmacsView globallyDisableUpdateLayer:NO];
   if (overlayView.isHidden)
     [overlayView setHidden:NO];
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = saved_background_alpha_enabled_p;
