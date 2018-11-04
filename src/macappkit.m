@@ -2659,9 +2659,12 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       MRC_RELEASE (visualEffectView);
       FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
     }
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13
-      && FRAME_MAC_DOUBLE_BUFFERED_P (f))
-    [window.contentView setWantsLayer:YES];
+  if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
+    {
+      FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
+      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13)
+	[window.contentView setWantsLayer:YES];
+    }
   if (oldWindow)
     {
       [window setTitle:[oldWindow title]];
@@ -3594,6 +3597,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   struct frame *f = emacsFrame;
   NSBitmapImageRep *bitmap =
     [emacsView bitmapImageRepForCachingDisplayInRect:rect];
+  bool saved_synthetic_bold_workaround_disabled_p =
+    FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f);
   bool saved_background_alpha_enabled_p = FRAME_BACKGROUND_ALPHA_ENABLED_P (f);
 
   eassert (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12)
@@ -3608,7 +3613,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   if (overlayView.isHidden)
     [overlayView setHidden:NO];
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = saved_background_alpha_enabled_p;
-  FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = false;
+  FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) =
+    saved_synthetic_bold_workaround_disabled_p;
 
   return bitmap;
 }
