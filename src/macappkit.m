@@ -13733,28 +13733,43 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       int width = -1, height;
       CGFloat scaleFactor;
 #if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
-      WKWebViewConfiguration *configuration =
-	[[WKWebViewConfiguration alloc] init];
-      WKWebView *webView = [[WKWebView alloc] initWithFrame:frameRect
-					      configuration:configuration];
+      static WKWebView *webView;
 
-      MRC_RELEASE (configuration);
-      webView.navigationDelegate = self;
+      if (!webView)
+	{
+	  WKWebViewConfiguration *configuration =
+	    [[WKWebViewConfiguration alloc] init];
+
+	  configuration.suppressesIncrementalRendering = YES;
+	  webView = [[WKWebView alloc] initWithFrame:frameRect
+				       configuration:configuration];
+	  MRC_RELEASE (configuration);
+	}
+      else
+	webView.frame = frameRect;
+#define DELEGATE navigationDelegate
+      eassert (!webView.DELEGATE);
+      webView.DELEGATE = self;
       [webView loadData:data MIMEType:@"image/svg+xml"
 	       characterEncodingName:@"UTF-8" baseURL:url];
 #else
-      WebView *webView = [[WebView alloc] initWithFrame:frameRect
-					      frameName:nil groupName:nil];
-      WebFrame *mainFrame = [webView mainFrame];
+      static WebView *webView;
 
-      [[mainFrame frameView] setAllowsScrolling:NO];
+      if (!webView)
+	webView = [[WebView alloc] initWithFrame:frameRect frameName:nil
+				       groupName:nil];
+      else
+	webView.frame = frameRect;
+#define DELEGATE frameLoadDelegate
+      eassert (!webView.DELEGATE);
+      webView.DELEGATE = self;
+      webView.mainFrame.frameView.allowsScrolling = NO;
       [webView setValue:backgroundColor forKey:@"backgroundColor"];
-      [webView setFrameLoadDelegate:self];
-      [mainFrame loadData:data MIMEType:@"image/svg+xml" textEncodingName:nil
-		  baseURL:url];
+      [webView.mainFrame loadData:data MIMEType:@"image/svg+xml"
+		 textEncodingName:nil baseURL:url];
 #endif
 
-      /* [webView isLoading] is not sufficient if we have <image
+      /* webView.isLoading is not sufficient if we have <image
 	 xlink:href=... /> */
       while (!isLoaded)
 	mac_run_loop_run_once (0);
@@ -13817,8 +13832,8 @@ JSON.stringify (['width', 'height'].reduce				\
 	    }
 #else
 	  WebScriptObject *rootElement =
-	    [[webView windowScriptObject]
-	      valueForKeyPath:@"document.rootElement"];
+	    [webView.windowScriptObject
+		valueForKeyPath:@"document.rootElement"];
 
 	  boundingBox = [rootElement callWebScriptMethod:@"getBBox"
 					   withArguments:[NSArray array]];
@@ -13838,14 +13853,14 @@ JSON.stringify (['width', 'height'].reduce				\
 
       if (width < 0)
 	{
-	  MRC_RELEASE (webView);
+	  webView.DELEGATE = nil;
 	  (*imageErrorFunc) ("Error reading SVG image `%s'", emacsImage->spec);
 	  result = 0;
 
 	  return;
 	}
 
-      [webView setFrame:frameRect];
+      webView.frame = frameRect;
       frameRect.size.width = width;
       frameRect.origin.y = NSHeight (frameRect) - height;
       frameRect.size.height = height;
@@ -13865,7 +13880,7 @@ JSON.stringify (['width', 'height'].reduce				\
 
       if (!(*checkImageSizeFunc) (emacsFrame, width, height))
 	{
-	  MRC_RELEASE (webView);
+	  webView.DELEGATE = nil;
 	  (*imageErrorFunc) ("Invalid image size (see `max-image-size')");
 
 	  result = 0;
@@ -13877,7 +13892,8 @@ JSON.stringify (['width', 'height'].reduce				\
       emacsImage->pixmap = [webView createXImageFromRect:frameRect
 					 backgroundColor:backgroundColor
 					     scaleFactor:scaleFactor];
-      MRC_RELEASE (webView);
+      webView.DELEGATE = nil;
+#undef DELEGATE
 
       result = 1;
     });
