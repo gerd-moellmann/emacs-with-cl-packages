@@ -5932,7 +5932,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 static IOSurfaceRef
 mac_iosurface_create (size_t width, size_t height)
 {
-  NSDictionary* properties =
+  NSDictionary *properties =
     [NSDictionary dictionaryWithObjectsAndKeys:
 	      [NSNumber numberWithUnsignedLong:width], kIOSurfaceWidth,
 	      [NSNumber numberWithUnsignedLong:height], kIOSurfaceHeight,
