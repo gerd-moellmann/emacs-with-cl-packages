@@ -1,4 +1,26 @@
+* emacs-26.1-mac-7.4 (2018-11-16)
+Turn on the configure option `--with-mac-metal' by default.
+
+** Fixed bugs
+
+*** Crash when clicking on the menu bar on some environments.
+Reported by John Nicola and Darren Hoo.
+
+*** Redraw needlessly on mouse movement if application-side double
+buffering is used.
+
+*** Synthetic bold is stronger on Retina display if application-side
+double buffering is used.
+
+*** Animation effect is displayed with wrong colors if
+application-side double buffering is used with Metal.
+
+*** SVG rendering via WebKit is slow if built on macOS 10.13 or later.
+Reported by Bibek Pokharel.
+
+
 * emacs-26.1-mac-7.3 (2018-10-24)
+https://lists.gnu.org/r/emacs-devel/2018-10/msg00439.html
 
 ** Fixed bugs
 

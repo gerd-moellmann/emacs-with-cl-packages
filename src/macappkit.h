@@ -997,10 +997,8 @@ typedef NSInteger NSGlyphProperty;
   /* GPU-accessible image data for CALayer contents.  */
   id <MTLTexture> contentsTexture;
 
-  /* Optimal GPU device for the display in which the view appears.  */
-  id <MTLDevice> mtlDevice;
-
-  /* Command queue of the `mtlDevice' above.  */
+  /* Command queue of the optimal GPU device for the display in which
+     the view appears, or nil if the GPU does not support Metal.  */
   id <MTLCommandQueue> mtlCommandQueue;
 #endif
 
@@ -1010,10 +1008,6 @@ typedef NSInteger NSGlyphProperty;
 
   /* Whether backing bitmap synchronization is suspended.  */
   BOOL synchronizeBackingBitmapSuspended;
-
-  /* Whether view's core animation layer contents are out of sync with
-     the backing bitmap and need to be updated.  */
-  BOOL layerContentsNeedUpdate;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;

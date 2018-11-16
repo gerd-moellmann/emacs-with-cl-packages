@@ -2659,9 +2659,12 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       MRC_RELEASE (visualEffectView);
       FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
     }
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13
-      && FRAME_MAC_DOUBLE_BUFFERED_P (f))
-    [window.contentView setWantsLayer:YES];
+  if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
+    {
+      FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
+      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13)
+	[window.contentView setWantsLayer:YES];
+    }
   if (oldWindow)
     {
       [window setTitle:[oldWindow title]];
@@ -3594,6 +3597,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   struct frame *f = emacsFrame;
   NSBitmapImageRep *bitmap =
     [emacsView bitmapImageRepForCachingDisplayInRect:rect];
+  bool saved_synthetic_bold_workaround_disabled_p =
+    FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f);
   bool saved_background_alpha_enabled_p = FRAME_BACKGROUND_ALPHA_ENABLED_P (f);
 
   eassert (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_12)
@@ -3604,11 +3609,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = false;
   if ([overlayView.superview isEqual:emacsView])
     [overlayView setHidden:YES];
+  [EmacsView globallyDisableUpdateLayer:YES];
   [emacsView cacheDisplayInRect:rect toBitmapImageRep:bitmap];
+  [EmacsView globallyDisableUpdateLayer:NO];
   if (overlayView.isHidden)
     [overlayView setHidden:NO];
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = saved_background_alpha_enabled_p;
-  FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = false;
+  FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) =
+    saved_synthetic_bold_workaround_disabled_p;
 
   return bitmap;
 }
@@ -4724,40 +4732,45 @@ mac_set_tab_group_overview_visible_p (struct frame *f, Lisp_Object value)
 	return build_string ("Tab group overview is not supported on this macOS version");
     }
 
-  if (window.tabGroup.isOverviewVisible == !NILP (value))
-    return Qnil;
-
+  Lisp_Object __block result = Qnil;
   mac_within_app (^{
-      /* Just setting the property window.tabGroup.overviewVisible
-	 does not show the search field on macOS 10.13 Beta.  */
-      [NSApp sendAction:@selector(toggleTabOverview:) to:window from:nil];
+      if (window.tabGroup.isOverviewVisible != !NILP (value))
+	{
+	  /* Just setting the property window.tabGroup.overviewVisible
+	     does not show the search field on macOS 10.13 Beta.  */
+	  [NSApp sendAction:@selector(toggleTabOverview:) to:window from:nil];
+	  result = Qt;
+	}
     });
 
-  return Qt;
+  return result;
 }
 
 Lisp_Object
 mac_set_tab_group_tab_bar_visible_p (struct frame *f, Lisp_Object value)
 {
   EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  NSInteger count;
-
-  count = window.tabbedWindows.count;
-  if ((count != 0) == !NILP (value))
-    return Qnil;
-
-  if (count > 1)
-    return build_string ("Tab bar cannot be made invisible because of multiple tabs");
+  Lisp_Object __block result = Qnil;
 
   mac_within_app (^{
-      [window exitTabGroupOverview];
-      [NSApp sendAction:@selector(toggleTabBar:) to:window from:nil];
-    });
-  [[NSUserDefaults standardUserDefaults]
-      removeObjectForKey:[@"NSWindowTabbingShoudShowTabBarKey-"
-			     stringByAppendingString:window.tabbingIdentifier]];
+      NSInteger count = window.tabbedWindows.count;
 
-  return Qt;
+      if ((count != 0) == !NILP (value))
+	result = Qnil;
+      else if (count > 1)
+	result = build_string ("Tab bar cannot be made invisible because of multiple tabs");
+      else
+	{
+	  [window exitTabGroupOverview];
+	  [NSApp sendAction:@selector(toggleTabBar:) to:window from:nil];
+	  [[NSUserDefaults standardUserDefaults]
+	    removeObjectForKey:[@"NSWindowTabbingShoudShowTabBarKey-"
+				   stringByAppendingString:window.tabbingIdentifier]];
+	  result = Qt;
+	}
+    });
+
+  return result;
 }
 
 Lisp_Object
@@ -4962,71 +4975,73 @@ Lisp_Object
 mac_get_tab_group_overview_visible_p (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  Lisp_Object __block result = Qnil;
 
-  if ([window respondsToSelector:@selector(tabGroup)]
-      && window.tabGroup.isOverviewVisible)
-    return Qt;
+  if ([window respondsToSelector:@selector(tabGroup)])
+    mac_within_gui (^{if (window.tabGroup.isOverviewVisible) result = Qt;});
 
-  return Qnil;
+  return result;
 }
 
 Lisp_Object
 mac_get_tab_group_tab_bar_visible_p (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+  Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    return window.tabGroup.isTabBarVisible ? Qt : Qnil;
+    mac_within_gui (^{if (window.tabGroup.isTabBarVisible) result = Qt;});
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    return window.tabbedWindows != nil ? Qt : Qnil;
+    mac_within_gui (^{if (window.tabbedWindows != nil) result = Qt;});
 
-  return Qnil;
+  return result;
 }
 
 Lisp_Object
 mac_get_tab_group_selected_frame (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  Lisp_Object result = Qnil;
+  Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    result = window.tabGroup.selectedWindow.lispFrame;
+    mac_within_gui (^{result = window.tabGroup.selectedWindow.lispFrame;});
   else if (!window.hasTitleBar)
     ;
 #if 1
   else if ([window respondsToSelector:@selector(_windowStackController)])
-    {
-      NSWindowStackController *stackController = window._windowStackController;
+    mac_within_gui (^{
+	NSWindowStackController *stackController =
+	  window._windowStackController;
 
-      if (stackController == nil)
-	XSETFRAME (result, f);
-      else
-	result = stackController.selectedWindow.lispFrame;
-    }
+	if (stackController == nil)
+	  XSETFRAME (result, f);
+	else
+	  result = stackController.selectedWindow.lispFrame;
+      });
 #else  /* This only works for visible frames.  */
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    {
-      NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
+    mac_within_gui (^{
+	NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
 
-      if (tabbedWindows == nil)
-	XSETFRAME (result, f);
-      else
-	{
-	  NSWindow * __block selectedWindow = nil;
+	if (tabbedWindows == nil)
+	  XSETFRAME (result, f);
+	else
+	  {
+	    NSWindow * __block selectedWindow = nil;
 
-	  [NSApp enumerateWindowsWithOptions:NSWindowListOrderedFrontToBack
-				  usingBlock:^(NSWindow *window, BOOL *stop) {
-	      if ([tabbedWindows containsObject:window])
-		{
-		  selectedWindow = window;
-		  *stop = YES;
-		}
-	    }];
+	    [NSApp enumerateWindowsWithOptions:NSWindowListOrderedFrontToBack
+				    usingBlock:^(NSWindow *window, BOOL *stop) {
+		if ([tabbedWindows containsObject:window])
+		  {
+		    selectedWindow = window;
+		    *stop = YES;
+		  }
+	      }];
 
-	  if (selectedWindow)
-	    result = selectedWindow.lispFrame;
-	}
-    }
+	    if (selectedWindow)
+	      result = selectedWindow.lispFrame;
+	  }
+      });
 #endif
 
   return result;
@@ -5036,42 +5051,42 @@ Lisp_Object
 mac_get_tab_group_frames (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-  Lisp_Object result = Qnil;
+  Lisp_Object __block result = Qnil;
 
   if ([window respondsToSelector:@selector(tabGroup)])
-    {
-      for (NSWindow *tabbedWindow in window.tabGroup.windows)
-	{
-	  Lisp_Object frame = tabbedWindow.lispFrame;
+    mac_within_gui (^{
+	for (NSWindow *tabbedWindow in window.tabGroup.windows)
+	  {
+	    Lisp_Object frame = tabbedWindow.lispFrame;
 
-	  if (!NILP (frame))
-	    result = Fcons (frame, result);
-	}
-      result = Fnreverse (result);
-    }
+	    if (!NILP (frame))
+	      result = Fcons (frame, result);
+	  }
+	result = Fnreverse (result);
+      });
   else if (!window.hasTitleBar)
     ;
   else if ([window respondsToSelector:@selector(tabbedWindows)])
-    {
-      NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
-      Lisp_Object frame;
+    mac_within_gui (^{
+	NSArrayOf (NSWindow *) *tabbedWindows = window.tabbedWindows;
+	Lisp_Object frame;
 
-      if (tabbedWindows == nil)
-	{
-	  XSETFRAME (frame, f);
-	  result = Fcons (frame, result);
-	}
-      else
-	{
-	  for (NSWindow *tabbedWindow in tabbedWindows)
-	    {
-	      frame = tabbedWindow.lispFrame;
-	      if (!NILP (frame))
-		result = Fcons (frame, result);
-	    }
-	  result = Fnreverse (result);
-	}
-    }
+	if (tabbedWindows == nil)
+	  {
+	    XSETFRAME (frame, f);
+	    result = Fcons (frame, result);
+	  }
+	else
+	  {
+	    for (NSWindow *tabbedWindow in tabbedWindows)
+	      {
+		frame = tabbedWindow.lispFrame;
+		if (!NILP (frame))
+		  result = Fcons (frame, result);
+	      }
+	    result = Fnreverse (result);
+	  }
+      });
 
   return result;
 }
@@ -5490,8 +5505,11 @@ mac_dispose_frame_window (struct frame *f)
       /* Mac OS X 10.6 needs this.  */
       [window.parentWindow removeChildWindow:window];
       [frameController closeWindow];
+      /* [overlayView.layer removeObserver:self forKeyPath:...] in
+	 -[EmacsFrameController dealloc] must be called from the GUI
+	 thread.  */
+      CFRelease (FRAME_MAC_WINDOW (f));
     });
-  CFRelease (FRAME_MAC_WINDOW (f));
 }
 
 void
@@ -5820,8 +5838,6 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 static bool mac_try_buffer_and_glyph_matrix_access (void);
 static void mac_end_buffer_and_glyph_matrix_access (void);
 
-#define FRAME_CG_CONTEXT(f)	((f)->output_data.mac->cg_context)
-
 /* View for Emacs frame.  */
 
 @implementation EmacsView
@@ -5865,7 +5881,6 @@ static BOOL emacsViewUpdateLayerDisabled;
 #if !USE_ARC
 #if HAVE_MAC_METAL
   [mtlCommandQueue release];
-  [mtlDevice release];
 #endif
   [graphicsContextStack release];
   [super dealloc];
@@ -5917,7 +5932,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 static IOSurfaceRef
 mac_iosurface_create (size_t width, size_t height)
 {
-  NSDictionary* properties =
+  NSDictionary *properties =
     [NSDictionary dictionaryWithObjectsAndKeys:
 	      [NSNumber numberWithUnsignedLong:width], kIOSurfaceWidth,
 	      [NSNumber numberWithUnsignedLong:height], kIOSurfaceHeight,
@@ -5961,20 +5976,17 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 			     objectForKey:@"NSScreenNumber"] unsignedIntValue];
   id <MTLDevice> newDevice = CGDirectDisplayCopyCurrentMetalDevice (displayID);
 
-  if (newDevice == mtlDevice)
-    MRC_RELEASE (newDevice);
-  else
+  if (newDevice != mtlCommandQueue.device)
     {
       MRC_RELEASE (backingTexture);
       backingTexture =
 	mac_texture_create_with_surface (newDevice, backingSurface);
       MRC_RELEASE (contentsTexture);
       contentsTexture = nil;
-      MRC_RELEASE (mtlDevice);
-      mtlDevice = newDevice;
       MRC_RELEASE (mtlCommandQueue);
-      mtlCommandQueue = [mtlDevice newCommandQueue];
+      mtlCommandQueue = [newDevice newCommandQueue];
     }
+  MRC_RELEASE (newDevice);
 }
 #endif
 
@@ -6017,9 +6029,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       self.needsDisplay = NO;
     }
 
-  if (!layerContentsNeedUpdate)
-    return;
-
 #if HAVE_MAC_METAL
   if (backingTexture)
     {
@@ -6034,7 +6043,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
 	  MRC_RELEASE (contentsTexture);
 	  contentsTexture =
-	    mac_texture_create_with_surface (mtlDevice, surface);
+	    mac_texture_create_with_surface (mtlCommandQueue.device, surface);
 	  if (surface)
 	    CFRelease (surface);
 	}
@@ -6071,7 +6080,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
   self.layer.contentsScale =
     CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
-  layerContentsNeedUpdate = NO;
 
   if (rectanglesData)
     [self restoreImageBuffersData:savedImageBuffersData
@@ -6131,7 +6139,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 	  bytes_per_row = IOSurfaceGetBytesPerRow (backingSurface);
 #if HAVE_MAC_METAL
 	  backingTexture =
-	    mac_texture_create_with_surface (mtlDevice, backingSurface);
+	    mac_texture_create_with_surface (mtlCommandQueue.device,
+					     backingSurface);
 #endif
 	}
       backingBitmap =
@@ -6182,11 +6191,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   NSGraphicsContext.currentContext = (lastObject != NSNull.null ? lastObject
 				      : nil);
   [graphicsContextStack removeLastObject];
-  if (graphicsContextStack.count == 0)
-    {
-      self.needsDisplay = YES;
-      layerContentsNeedUpdate = YES;
-    }
 }
 
 static vImage_Error
@@ -6239,7 +6243,6 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta
 {
-  eassert (pthread_main_np ());
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   if (!self.layer)
     {
@@ -6278,12 +6281,11 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
 				       width:width height:height mipmapped:NO];
       id <MTLTexture> texture =
-	[mtlDevice newTextureWithDescriptor:textureDescriptor];
+	[mtlCommandQueue.device newTextureWithDescriptor:textureDescriptor];
       id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
       id <MTLBlitCommandEncoder> blitCommandEncoder =
 	[commandBuffer blitCommandEncoder];
 
-      IOSurfaceUnlock (backingSurface, 0, NULL);
       [blitCommandEncoder copyFromTexture:backingTexture
 			      sourceSlice:0 sourceLevel:0
 			     sourceOrigin:(MTLOriginMake (srcX, srcY, 0))
@@ -6300,10 +6302,11 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 			destinationOrigin:(MTLOriginMake (srcX + deltaX,
 							  srcY + deltaY, 0))];
       [blitCommandEncoder endEncoding];
+      IOSurfaceUnlock (backingSurface, 0, NULL);
       [commandBuffer commit];
       [commandBuffer waitUntilCompleted];
-      MRC_RELEASE (texture);
       IOSurfaceLock (backingSurface, 0, NULL);
+      MRC_RELEASE (texture);
     }
   else
 #endif
@@ -6349,9 +6352,6 @@ mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 	    }
 	}
     }
-
-  self.needsDisplay = YES;
-  layerContentsNeedUpdate = YES;
 }
 
 - (NSData *)imageBuffersDataForBackingRectanglesData:(NSData *)rectanglesData
@@ -7598,17 +7598,23 @@ event_phase_to_symbol (NSEventPhase phase)
 
 @end				// EmacsMainView
 
+#define FRAME_CG_CONTEXT(f)	((f)->output_data.mac->cg_context)
+
 /* Emacs frame containing the globally focused NSView.  */
 static struct frame *global_focus_view_frame;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 static CGRect global_focus_view_accumulated_clip_rect;
 #endif
+/* Whether view's core animation layer contents are out of sync with
+   the backing bitmap and need to be updated.  */
+static bool global_focus_view_modified_p;
 /* -[EmacsView drawRect:] might be called during update_frame.  */
 static struct frame *saved_focus_view_frame;
 static CGContextRef saved_focus_view_context;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 static CGRect saved_focus_view_accumulated_clip_rect;
 #endif
+static bool saved_focus_view_modified_p;
 #if DRAWING_USE_GCD
 static dispatch_queue_t global_focus_drawing_queue;
 #endif
@@ -7626,6 +7632,7 @@ set_global_focus_view_frame (struct frame *f)
 	  saved_focus_view_accumulated_clip_rect =
 	    global_focus_view_accumulated_clip_rect;
 #endif
+	  saved_focus_view_modified_p = global_focus_view_modified_p;
 	}
       global_focus_view_frame = f;
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
@@ -7634,6 +7641,7 @@ set_global_focus_view_frame (struct frame *f)
       FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] graphicsPort];
       global_focus_view_accumulated_clip_rect = CGRectNull;
 #endif
+      global_focus_view_modified_p = false;
     }
 #if DRAWING_USE_GCD
   if (mac_drawing_use_gcd)
@@ -7664,6 +7672,17 @@ mac_draw_queue_sync (void)
 #endif
 }
 
+static void
+mac_draw_queue_dispatch_async (void (^block) (void))
+{
+#if DRAWING_USE_GCD
+  if (global_focus_drawing_queue)
+    dispatch_async (global_focus_drawing_queue, block);
+  else
+#endif
+    block ();
+}
+
 static CGRect
 unset_global_focus_view_frame (void)
 {
@@ -7677,6 +7696,14 @@ unset_global_focus_view_frame (void)
       result = global_focus_view_accumulated_clip_rect;
 #endif
       FRAME_CG_CONTEXT (global_focus_view_frame) = NULL;
+      if (FRAME_MAC_DOUBLE_BUFFERED_P (global_focus_view_frame)
+	  && global_focus_view_modified_p)
+	{
+	  EmacsFrameController *frameController =
+	    FRAME_CONTROLLER (global_focus_view_frame);
+
+	  [frameController setEmacsViewNeedsDisplay:YES];
+	}
       global_focus_view_frame = saved_focus_view_frame;
       if (global_focus_view_frame)
 	{
@@ -7685,6 +7712,7 @@ unset_global_focus_view_frame (void)
 	  global_focus_view_accumulated_clip_rect =
 	    saved_focus_view_accumulated_clip_rect;
 #endif
+	  global_focus_view_modified_p = saved_focus_view_modified_p;
 	}
     }
   saved_focus_view_frame = NULL;
@@ -7771,8 +7799,12 @@ mac_end_cg_clip (struct frame *f)
       mac_within_gui (^{
 	  [frameController unlockFocusOnEmacsView];
 	  FRAME_CG_CONTEXT (f) = NULL;
+	  if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
+	    [frameController setEmacsViewNeedsDisplay:YES];
 	});
     }
+  else
+    global_focus_view_modified_p = true;
 }
 
 #if DRAWING_USE_GCD
@@ -7817,6 +7849,7 @@ mac_draw_to_frame (struct frame *f, GC gc, void (^block) (CGContextRef, GC))
 	});
 
       mac_accumulate_global_focus_view_clip_rect (clip_rects, n_clip_rects);
+      global_focus_view_modified_p = true;
     }
 }
 #endif
@@ -7827,12 +7860,24 @@ void
 mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
 		 int width, int height, int dest_x, int dest_y)
 {
+  eassert (global_focus_view_frame);
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
   NSRect rect = NSMakeRect (src_x, src_y, width, height);
   NSSize offset = NSMakeSize (dest_x - src_x, dest_y - src_y);
 
-  mac_draw_queue_sync ();
-  mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (!FRAME_MAC_DOUBLE_BUFFERED_P (f))
+    {
+      mac_draw_queue_sync ();
+      mac_within_gui (^{[frameController scrollEmacsViewRect:rect by:offset];});
+
+      return;
+    }
+#endif
+  mac_draw_queue_dispatch_async (^{
+      [frameController scrollEmacsViewRect:rect by:offset];
+    });
+  global_focus_view_modified_p = true;
 }
 
 @implementation EmacsOverlayView
@@ -13688,28 +13733,43 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       int width = -1, height;
       CGFloat scaleFactor;
 #if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
-      WKWebViewConfiguration *configuration =
-	[[WKWebViewConfiguration alloc] init];
-      WKWebView *webView = [[WKWebView alloc] initWithFrame:frameRect
-					      configuration:configuration];
+      static WKWebView *webView;
 
-      MRC_RELEASE (configuration);
-      webView.navigationDelegate = self;
+      if (!webView)
+	{
+	  WKWebViewConfiguration *configuration =
+	    [[WKWebViewConfiguration alloc] init];
+
+	  configuration.suppressesIncrementalRendering = YES;
+	  webView = [[WKWebView alloc] initWithFrame:frameRect
+				       configuration:configuration];
+	  MRC_RELEASE (configuration);
+	}
+      else
+	webView.frame = frameRect;
+#define DELEGATE navigationDelegate
+      eassert (!webView.DELEGATE);
+      webView.DELEGATE = self;
       [webView loadData:data MIMEType:@"image/svg+xml"
 	       characterEncodingName:@"UTF-8" baseURL:url];
 #else
-      WebView *webView = [[WebView alloc] initWithFrame:frameRect
-					      frameName:nil groupName:nil];
-      WebFrame *mainFrame = [webView mainFrame];
+      static WebView *webView;
 
-      [[mainFrame frameView] setAllowsScrolling:NO];
+      if (!webView)
+	webView = [[WebView alloc] initWithFrame:frameRect frameName:nil
+				       groupName:nil];
+      else
+	webView.frame = frameRect;
+#define DELEGATE frameLoadDelegate
+      eassert (!webView.DELEGATE);
+      webView.DELEGATE = self;
+      webView.mainFrame.frameView.allowsScrolling = NO;
       [webView setValue:backgroundColor forKey:@"backgroundColor"];
-      [webView setFrameLoadDelegate:self];
-      [mainFrame loadData:data MIMEType:@"image/svg+xml" textEncodingName:nil
-		  baseURL:url];
+      [webView.mainFrame loadData:data MIMEType:@"image/svg+xml"
+		 textEncodingName:nil baseURL:url];
 #endif
 
-      /* [webView isLoading] is not sufficient if we have <image
+      /* webView.isLoading is not sufficient if we have <image
 	 xlink:href=... /> */
       while (!isLoaded)
 	mac_run_loop_run_once (0);
@@ -13772,8 +13832,8 @@ JSON.stringify (['width', 'height'].reduce				\
 	    }
 #else
 	  WebScriptObject *rootElement =
-	    [[webView windowScriptObject]
-	      valueForKeyPath:@"document.rootElement"];
+	    [webView.windowScriptObject
+		valueForKeyPath:@"document.rootElement"];
 
 	  boundingBox = [rootElement callWebScriptMethod:@"getBBox"
 					   withArguments:[NSArray array]];
@@ -13793,14 +13853,14 @@ JSON.stringify (['width', 'height'].reduce				\
 
       if (width < 0)
 	{
-	  MRC_RELEASE (webView);
+	  webView.DELEGATE = nil;
 	  (*imageErrorFunc) ("Error reading SVG image `%s'", emacsImage->spec);
 	  result = 0;
 
 	  return;
 	}
 
-      [webView setFrame:frameRect];
+      webView.frame = frameRect;
       frameRect.size.width = width;
       frameRect.origin.y = NSHeight (frameRect) - height;
       frameRect.size.height = height;
@@ -13820,7 +13880,7 @@ JSON.stringify (['width', 'height'].reduce				\
 
       if (!(*checkImageSizeFunc) (emacsFrame, width, height))
 	{
-	  MRC_RELEASE (webView);
+	  webView.DELEGATE = nil;
 	  (*imageErrorFunc) ("Invalid image size (see `max-image-size')");
 
 	  result = 0;
@@ -13832,7 +13892,8 @@ JSON.stringify (['width', 'height'].reduce				\
       emacsImage->pixmap = [webView createXImageFromRect:frameRect
 					 backgroundColor:backgroundColor
 					     scaleFactor:scaleFactor];
-      MRC_RELEASE (webView);
+      webView.DELEGATE = nil;
+#undef DELEGATE
 
       result = 1;
     });
