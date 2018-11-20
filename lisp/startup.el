@@ -552,9 +552,17 @@ It is the default value of the variable `top-level'."
 	    (if default-directory
 		(setq default-directory
                       (if (eq system-type 'windows-nt)
-                          ;; Convert backslashes to forward slashes.
-                          (expand-file-name
-                           (decode-coding-string default-directory coding t))
+                          ;; We pass the decoded default-directory as
+                          ;; the 2nd arg to expand-file-name to make
+                          ;; sure it sees a multibyte string as the
+                          ;; default directory; this avoids the side
+                          ;; effect of returning a unibyte string from
+                          ;; expand-file-name because it still sees
+                          ;; the undecoded value of default-directory.
+                          (let ((defdir (decode-coding-string default-directory
+                                                              coding t)))
+                            ;; Convert backslashes to forward slashes.
+                            (expand-file-name defdir defdir))
                         (decode-coding-string default-directory coding t))))))
 
 	;; Decode all the important variables and directory lists, now
@@ -2516,9 +2524,9 @@ nil default-directory" name)
                    ((eq initial-buffer-choice t)
                     (get-buffer-create "*scratch*"))
                    (t
-                    (error "initial-buffer-choice must be a string, a function, or t.")))))
+                    (error "`initial-buffer-choice' must be a string, a function, or t")))))
         (unless (buffer-live-p buf)
-          (error "initial-buffer-choice is not a live buffer."))
+          (error "Value returned by `initial-buffer-choice' is not a live buffer: %S" buf))
         (setq displayable-buffers (cons buf displayable-buffers))))
 
     ;; Display the first two buffers in `displayable-buffers'.  If

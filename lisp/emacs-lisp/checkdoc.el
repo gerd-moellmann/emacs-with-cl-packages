@@ -901,9 +901,8 @@ a separate buffer."
 ;;;###autoload
 (defun checkdoc-continue (&optional take-notes)
   "Find the next doc string in the current buffer which has a style error.
-Prefix argument TAKE-NOTES means to continue through the whole buffer and
-save warnings in a separate buffer.  Second optional argument START-POINT
-is the starting location.  If this is nil, `point-min' is used instead."
+Prefix argument TAKE-NOTES means to continue through the whole
+buffer and save warnings in a separate buffer."
   (interactive "P")
   (let ((wrong nil) (msg nil)
 	;; Assign a flag to spellcheck flag
@@ -1868,7 +1867,7 @@ Replace with \"%s\"? " original replace)
 		 (if (checkdoc-autofix-ask-replace
 		      (match-beginning 1) (+ (match-beginning 1)
 					     (length ms))
-		      msg (format-message "`%s'" ms) t)
+		      msg (format "`%s'" ms) t)
 		     (setq msg nil)
 		   (setq msg
 			 (format-message

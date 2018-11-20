@@ -1383,6 +1383,29 @@ pos_visible_p (struct window *w, ptrdiff_t charpos, int *x, int *y,
   move_it_to (&it, charpos, -1, it.last_visible_y - 1, -1,
 	      (charpos >= 0 ? MOVE_TO_POS : 0) | MOVE_TO_Y);
 
+  /* Adjust for line numbers, if CHARPOS is at or beyond first_visible_x,
+     but we didn't yet produce the line-number glyphs.  */
+  if (!NILP (Vdisplay_line_numbers)
+      && it.current_x >= it.first_visible_x
+      && IT_CHARPOS (it) == charpos
+      && !it.line_number_produced_p)
+    {
+      /* If the pixel width of line numbers was not yet known, compute
+	 it now.  This usually happens in the first display line of a
+	 window.  */
+      if (!it.lnum_pixel_width)
+	{
+	  struct it it2;
+	  void *it2data = NULL;
+
+	  SAVE_IT (it2, it, it2data);
+	  move_it_by_lines (&it, 1);
+	  it2.lnum_pixel_width = it.lnum_pixel_width;
+	  RESTORE_IT (&it, &it2, it2data);
+	}
+      it.current_x += it.lnum_pixel_width;
+    }
+
   if (charpos >= 0
       && (((!it.bidi_p || it.bidi_it.scan_dir != -1)
 	   && IT_CHARPOS (it) >= charpos)
@@ -2287,7 +2310,10 @@ get_phys_cursor_geometry (struct window *w, struct glyph_row *row,
      ascent value, lest the hollow cursor looks funny.  */
   y = w->phys_cursor.y;
   ascent = row->ascent;
-  if (row->ascent < glyph->ascent)
+  /* The test for row at ZV is for when line numbers are displayed and
+     point is at EOB: the cursor could then be smaller or larger than
+     the default face's font.  */
+  if (!row->ends_at_zv_p && row->ascent < glyph->ascent)
     {
       y -= glyph->ascent - row->ascent;
       ascent = glyph->ascent;
@@ -2297,6 +2323,9 @@ get_phys_cursor_geometry (struct window *w, struct glyph_row *row,
   h0 = min (FRAME_LINE_HEIGHT (f), row->visible_height);
 
   h = max (h0, ascent + glyph->descent);
+  /* Don't let the cursor exceed the dimensions of the row, so that
+     the upper/lower side of the box aren't clipped.  */
+  h = min (h, row->height);
   h0 = min (h0, ascent + glyph->descent);
 
   y0 = WINDOW_HEADER_LINE_HEIGHT (w);
@@ -8724,8 +8753,12 @@ move_it_in_display_line_to (struct it *it,
 
   if (it->hpos == 0)
     {
-      /* If line numbers are being displayed, produce a line number.  */
-      if (should_produce_line_number (it))
+      /* If line numbers are being displayed, produce a line number.
+	 But don't do that if we are to reach first_visible_x, because
+	 line numbers are not relevant to stuff that is not visible on
+	 display.  */
+      if (!((op && MOVE_TO_X) && to_x == it->first_visible_x)
+	  && should_produce_line_number (it))
 	{
 	  if (it->current_x == it->first_visible_x)
 	    maybe_produce_line_number (it);
@@ -8796,7 +8829,16 @@ move_it_in_display_line_to (struct it *it,
 
       if (it->line_wrap == TRUNCATE)
 	{
-	  if (BUFFER_POS_REACHED_P ())
+	  /* If it->pixel_width is zero, the last PRODUCE_GLYPHS call
+	     produced something that doesn't consume any screen estate
+	     in the text area, so we don't want to exit the loop at
+	     TO_CHARPOS, before we produce the glyph for that buffer
+	     position.  This happens, e.g., when there's an overlay at
+	     TO_CHARPOS that draws a fringe bitmap.  */
+	  if (BUFFER_POS_REACHED_P ()
+	      && (it->pixel_width > 0
+		  || IT_CHARPOS (*it) > to_charpos
+		  || it->area != TEXT_AREA))
 	    {
 	      result = MOVE_POS_MATCH_OR_ZV;
 	      break;
@@ -9181,9 +9223,25 @@ move_it_in_display_line_to (struct it *it,
       prev_method = it->method;
       if (it->method == GET_FROM_BUFFER)
 	prev_pos = IT_CHARPOS (*it);
+
+      /* Detect overly-wide wrap-prefixes made of (space ...) display
+	 properties.  When such a wrap prefix reaches past the right
+	 margin of the window, we need to avoid the call to
+	 set_iterator_to_next below, so that it->line_wrap is left at
+	 its TRUNCATE value wisely set by handle_line_prefix.
+	 Otherwise, set_iterator_to_next will pop the iterator stack,
+	 restore it->line_wrap, and we might miss the opportunity to
+	 exit the loop and return.  */
+      bool overwide_wrap_prefix =
+	CONSP (it->object) && EQ (XCAR (it->object), Qspace)
+	&& it->sp > 0 && it->method == GET_FROM_STRETCH
+	&& it->current_x >= it->last_visible_x
+	&& it->continuation_lines_width > 0
+	&& it->line_wrap == TRUNCATE && it->stack[0].line_wrap != TRUNCATE;
       /* The current display element has been consumed.  Advance
 	 to the next.  */
-      set_iterator_to_next (it, true);
+      if (!overwide_wrap_prefix)
+	set_iterator_to_next (it, true);
       if (IT_CHARPOS (*it) < CHARPOS (this_line_min_pos))
 	SET_TEXT_POS (this_line_min_pos, IT_CHARPOS (*it), IT_BYTEPOS (*it));
       if (IT_CHARPOS (*it) < to_charpos)
@@ -9593,6 +9651,7 @@ move_it_to (struct it *it, ptrdiff_t to_charpos, int to_x, int to_y, int to_vpos
       it->current_x = line_start_x;
       line_start_x = 0;
       it->hpos = 0;
+      it->line_number_produced_p = false;
       it->current_y += it->max_ascent + it->max_descent;
       ++it->vpos;
       last_height = it->max_ascent + it->max_descent;
@@ -10131,17 +10190,53 @@ include the height of both, if present, in the return value.  */)
   itdata = bidi_shelve_cache ();
   SET_TEXT_POS (startp, start, CHAR_TO_BYTE (start));
   start_display (&it, w, startp);
+  /* It makes no sense to measure dimensions of region of text that
+     crosses the point where bidi reordering changes scan direction.
+     By using unidirectional movement here we at least support the use
+     case of measuring regions of text that have a uniformly R2L
+     directionality, and regions that begin and end in text of the
+     same directionality.  */
+  it.bidi_p = false;
 
-  if (NILP (x_limit))
-    x = move_it_to (&it, end, -1, max_y, -1, MOVE_TO_POS | MOVE_TO_Y);
-  else
+  int move_op = MOVE_TO_POS | MOVE_TO_Y;
+  int to_x = -1;
+  if (!NILP (x_limit))
     {
       it.last_visible_x = max_x;
       /* Actually, we never want move_it_to stop at to_x.  But to make
 	 sure that move_it_in_display_line_to always moves far enough,
-	 we set it to INT_MAX and specify MOVE_TO_X.  */
-      x = move_it_to (&it, end, INT_MAX, max_y, -1,
-		      MOVE_TO_POS | MOVE_TO_X | MOVE_TO_Y);
+	 we set to_x to INT_MAX and specify MOVE_TO_X.  */
+      move_op |= MOVE_TO_X;
+      to_x = INT_MAX;
+    }
+
+  void *it2data = NULL;
+  struct it it2;
+  SAVE_IT (it2, it, it2data);
+
+  x = move_it_to (&it, end, to_x, max_y, -1, move_op);
+
+  /* We could have a display property at END, in which case asking
+     move_it_to to stop at END will overshoot and stop at position
+     after END.  So we try again, stopping before END, and account for
+     the width of the last buffer position manually.  */
+  if (IT_CHARPOS (it) > end)
+    {
+      end--;
+      RESTORE_IT (&it, &it2, it2data);
+      x = move_it_to (&it, end, to_x, max_y, -1, move_op);
+      /* Add the width of the thing at TO, but only if we didn't
+	 overshoot it; if we did, it is already accounted for.  Also,
+	 account for the height of the thing at TO.  */
+      if (IT_CHARPOS (it) == end)
+	{
+	  x += it.pixel_width;
+	  it.max_ascent = max (it.max_ascent, it.ascent);
+	  it.max_descent = max (it.max_descent, it.descent);
+	}
+    }
+  if (!NILP (x_limit))
+    {
       /* Don't return more than X-LIMIT.  */
       if (x > max_x)
         x = max_x;
@@ -16852,6 +16947,7 @@ redisplay_window (Lisp_Object window, bool just_this_one_p)
       /* We used to issue a CHECK_MARGINS argument to try_window here,
 	 but this causes scrolling to fail when point begins inside
 	 the scroll margin (bug#148) -- cyd  */
+      clear_glyph_matrix (w->desired_matrix);
       if (!try_window (window, startp, 0))
 	{
 	  w->force_start = true;
@@ -21130,19 +21226,20 @@ maybe_produce_line_number (struct it *it)
      an L2R paragraph.  */
   tem_it.bidi_it.resolved_level = 2;
 
+  /* We must leave space for 2 glyphs for continuation and truncation,
+     and at least one glyph for buffer text.  */
+  int width_limit =
+    tem_it.last_visible_x - tem_it.first_visible_x
+    - 3 * FRAME_COLUMN_WIDTH (it->f);
   /* Produce glyphs for the line number in a scratch glyph_row.  */
-  int n_glyphs_before;
   for (const char *p = lnum_buf; *p; p++)
     {
       /* For continuation lines and lines after ZV, instead of a line
-	 number, produce a blank prefix of the same width.  Use the
-	 default face for the blank field beyond ZV.  */
-      if (beyond_zv)
-	tem_it.face_id = it->base_face_id;
-      else if (lnum_face_id != current_lnum_face_id
-	       && (EQ (Vdisplay_line_numbers, Qvisual)
-		   ? this_line == 0
-		   : this_line == it->pt_lnum))
+	 number, produce a blank prefix of the same width.  */
+      if (lnum_face_id != current_lnum_face_id
+	  && (EQ (Vdisplay_line_numbers, Qvisual)
+	      ? this_line == 0
+	      : this_line == it->pt_lnum))
 	tem_it.face_id = current_lnum_face_id;
       else
 	tem_it.face_id = lnum_face_id;
@@ -21155,18 +21252,18 @@ maybe_produce_line_number (struct it *it)
       else
 	tem_it.c = tem_it.char_to_display = *p;
       tem_it.len = 1;
-      n_glyphs_before = scratch_glyph_row.used[TEXT_AREA];
       /* Make sure these glyphs will have a "position" of -1.  */
       SET_TEXT_POS (tem_it.position, -1, -1);
       PRODUCE_GLYPHS (&tem_it);
 
-      /* Stop producing glyphs if we don't have enough space on
-	 this line.  FIXME: should we refrain from producing the
-	 line number at all in that case?  */
-      if (tem_it.current_x > tem_it.last_visible_x)
+      /* Stop producing glyphs, and refrain from producing the line
+	 number, if we don't have enough space on this line.  */
+      if (tem_it.current_x >= width_limit)
 	{
-	  scratch_glyph_row.used[TEXT_AREA] = n_glyphs_before;
-	  break;
+	  it->lnum_width = 0;
+	  it->lnum_pixel_width = 0;
+	  bidi_unshelve_cache (itdata, false);
+	  return;
 	}
     }
 
@@ -21195,24 +21292,33 @@ maybe_produce_line_number (struct it *it)
 	}
     }
 
-  /* Update IT's metrics due to glyphs produced for line numbers.  */
-  if (it->glyph_row)
+  /* Update IT's metrics due to glyphs produced for line numbers.
+     Don't do that for rows beyond ZV, to avoid displaying a cursor of
+     different dimensions there.  */
+  if (!beyond_zv)
     {
-      struct glyph_row *row = it->glyph_row;
+      if (it->glyph_row)
+	{
+	  struct glyph_row *row = it->glyph_row;
 
-      it->max_ascent = max (row->ascent, tem_it.max_ascent);
-      it->max_descent = max (row->height - row->ascent, tem_it.max_descent);
-      it->max_phys_ascent = max (row->phys_ascent, tem_it.max_phys_ascent);
-      it->max_phys_descent = max (row->phys_height - row->phys_ascent,
-				  tem_it.max_phys_descent);
+	  it->max_ascent = max (row->ascent, tem_it.max_ascent);
+	  it->max_descent = max (row->height - row->ascent, tem_it.max_descent);
+	  it->max_phys_ascent = max (row->phys_ascent, tem_it.max_phys_ascent);
+	  it->max_phys_descent = max (row->phys_height - row->phys_ascent,
+				      tem_it.max_phys_descent);
+	}
+      else
+	{
+	  it->max_ascent = max (it->max_ascent, tem_it.max_ascent);
+	  it->max_descent = max (it->max_descent, tem_it.max_descent);
+	  it->max_phys_ascent = max (it->max_phys_ascent,
+				     tem_it.max_phys_ascent);
+	  it->max_phys_descent = max (it->max_phys_descent,
+				      tem_it.max_phys_descent);
+	}
     }
-  else
-    {
-      it->max_ascent = max (it->max_ascent, tem_it.max_ascent);
-      it->max_descent = max (it->max_descent, tem_it.max_descent);
-      it->max_phys_ascent = max (it->max_phys_ascent, tem_it.max_phys_ascent);
-      it->max_phys_descent = max (it->max_phys_descent, tem_it.max_phys_descent);
-    }
+
+  it->line_number_produced_p = true;
 
   bidi_unshelve_cache (itdata, false);
 }
@@ -21337,6 +21443,8 @@ display_line (struct it *it, int cursor_vpos)
   row->displays_text_p = true;
   row->starts_in_middle_of_char_p = it->starts_in_middle_of_char_p;
   it->starts_in_middle_of_char_p = false;
+  it->tab_offset = 0;
+  it->line_number_produced_p = false;
 
   /* Arrange the overlays nicely for our purposes.  Usually, we call
      display_line on only one line at a time, in which case this
@@ -21380,6 +21488,10 @@ display_line (struct it *it, int cursor_vpos)
 	  && (move_result == MOVE_NEWLINE_OR_CR
 	      || move_result == MOVE_POS_MATCH_OR_ZV))
 	it->current_x = it->first_visible_x;
+
+      /* In case move_it_in_display_line_to above "produced" the line
+	 number.  */
+      it->line_number_produced_p = false;
 
       /* Record the smallest positions seen while we moved over
 	 display elements that are not visible.  This is needed by
@@ -21600,6 +21712,10 @@ display_line (struct it *it, int cursor_vpos)
 	  row->extra_line_spacing = max (row->extra_line_spacing,
 					 it->max_extra_line_spacing);
 	  if (it->current_x - it->pixel_width < it->first_visible_x
+	      /* When line numbers are displayed, row->x should not be
+		 offset, as the first glyph after the line number can
+		 never be partially visible.  */
+	      && !line_number_needed
 	      /* In R2L rows, we arrange in extend_face_to_end_of_line
 		 to add a right offset to the line, by a suitable
 		 change to the stretch glyph that is the leftmost
@@ -21841,7 +21957,8 @@ display_line (struct it *it, int cursor_vpos)
 		  if (it->bidi_p)
 		    RECORD_MAX_MIN_POS (it);
 
-		  if (x < it->first_visible_x && !row->reversed_p)
+		  if (x < it->first_visible_x && !row->reversed_p
+		      && !line_number_needed)
 		    /* Glyph is partially visible, i.e. row starts at
 		       negative X position.  Don't do that in R2L
 		       rows, where we arrange to add a right offset to
@@ -21857,6 +21974,7 @@ display_line (struct it *it, int cursor_vpos)
 		     be taken care of in produce_special_glyphs.  */
 		  if (row->reversed_p
 		      && new_x > it->last_visible_x
+		      && !line_number_needed
 		      && !(it->line_wrap == TRUNCATE
 			   && WINDOW_LEFT_FRINGE_WIDTH (it->w) == 0))
 		    {
@@ -21924,9 +22042,24 @@ display_line (struct it *it, int cursor_vpos)
 	  break;
 	}
 
+      /* Detect overly-wide wrap-prefixes made of (space ...) display
+	 properties.  When such a wrap prefix reaches past the right
+	 margin of the window, we need to avoid the call to
+	 set_iterator_to_next below, so that it->line_wrap is left at
+	 its TRUNCATE value wisely set by handle_line_prefix.
+	 Otherwise, set_iterator_to_next will pop the iterator stack,
+	 restore it->line_wrap, and redisplay might infloop.  */
+      bool overwide_wrap_prefix =
+	CONSP (it->object) && EQ (XCAR (it->object), Qspace)
+	&& it->sp > 0 && it->method == GET_FROM_STRETCH
+	&& it->current_x >= it->last_visible_x
+	&& it->continuation_lines_width > 0
+	&& it->line_wrap == TRUNCATE && it->stack[0].line_wrap != TRUNCATE;
+
       /* Proceed with next display element.  Note that this skips
 	 over lines invisible because of selective display.  */
-      set_iterator_to_next (it, true);
+      if (!overwide_wrap_prefix)
+	set_iterator_to_next (it, true);
 
       /* If we truncate lines, we are done when the last displayed
 	 glyphs reach past the right margin of the window.  */
@@ -28313,8 +28446,14 @@ x_produce_glyphs (struct it *it)
 	      int x = it->current_x + it->continuation_lines_width;
 	      int x0 = x;
 	      /* Adjust for line numbers, if needed.   */
-	      if (!NILP (Vdisplay_line_numbers) && x0 >= it->lnum_pixel_width)
-		x -= it->lnum_pixel_width;
+	      if (!NILP (Vdisplay_line_numbers) && it->line_number_produced_p)
+		{
+		  x -= it->lnum_pixel_width;
+		  /* Restore the original TAB width, if required.  */
+		  if (x + it->tab_offset >= it->first_visible_x)
+		    x += it->tab_offset;
+		}
+
 	      int next_tab_x = ((1 + x + tab_width - 1) / tab_width) * tab_width;
 
 	      /* If the distance from the current position to the next tab
@@ -28322,10 +28461,19 @@ x_produce_glyphs (struct it *it)
 		 tab stop after that.  */
 	      if (next_tab_x - x < font->space_width)
 		next_tab_x += tab_width;
-	      if (!NILP (Vdisplay_line_numbers) && x0 >= it->lnum_pixel_width)
-		next_tab_x += (it->lnum_pixel_width
-			       - ((it->w->hscroll * font->space_width)
-				  % tab_width));
+	      if (!NILP (Vdisplay_line_numbers) && it->line_number_produced_p)
+		{
+		  next_tab_x += it->lnum_pixel_width;
+		  /* If the line is hscrolled, and the TAB starts before
+		     the first visible pixel, simulate negative row->x.  */
+		  if (x < it->first_visible_x)
+		    {
+		      next_tab_x -= it->first_visible_x - x;
+		      it->tab_offset = it->first_visible_x - x;
+		    }
+		  else
+		    next_tab_x -= it->tab_offset;
+		}
 
 	      it->pixel_width = next_tab_x - x0;
 	      it->nglyphs = 1;
@@ -32369,7 +32517,12 @@ syms_of_xdisp (void)
 
   DEFVAR_BOOL("inhibit-message", inhibit_message,
               doc:  /* Non-nil means calls to `message' are not displayed.
-They are still logged to the *Messages* buffer.  */);
+They are still logged to the *Messages* buffer.
+
+Do NOT set this globally to a non-nil value, as doing that will
+disable messages everywhere, including in I-search and other
+places where they are necessary.  This variable is intended to
+be let-bound around code that needs to disable messages temporarily. */);
   inhibit_message = 0;
 
   message_dolog_marker1 = Fmake_marker ();
@@ -32762,8 +32915,10 @@ mouse pointer enters it.
 Autoselection selects the minibuffer only if it is active, and never
 unselects the minibuffer if it is active.
 
-When customizing this variable make sure that the actual value of
-`focus-follows-mouse' matches the behavior of your window manager.  */);
+If you want to use the mouse to autoselect a window on another frame,
+make sure that (1) your window manager has focus follow the mouse and
+(2) the value of the option `focus-follows-mouse' matches the policy
+of your window manager.  */);
   Vmouse_autoselect_window = Qnil;
 
   DEFVAR_LISP ("auto-resize-tool-bars", Vauto_resize_tool_bars,

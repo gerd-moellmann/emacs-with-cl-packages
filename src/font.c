@@ -2915,6 +2915,9 @@ font_open_entity (struct frame *f, Lisp_Object entity, int pixel_size)
       font = XFONT_OBJECT (font_object);
       if (font->average_width > 0 && font->height > 0)
 	break;
+      /* Avoid an infinite loop.  */
+      if (psize > pixel_size + 15)
+	return Qnil;
     }
   ASET (font_object, FONT_SIZE_INDEX, make_number (pixel_size));
   FONT_ADD_LOG ("open", entity, font_object);
@@ -5485,6 +5488,13 @@ footprint in sessions that use lots of different fonts.  */);
 #else
   inhibit_compacting_font_caches = 1;
 #endif
+
+  DEFVAR_BOOL ("xft-ignore-color-fonts",
+	       Vxft_ignore_color_fonts,
+	       doc: /*
+Non-nil means don't query fontconfig for color fonts, since they often
+cause Xft crashes.  Only has an effect in Xft builds.  */);
+  Vxft_ignore_color_fonts = 1;
 
 #ifdef HAVE_WINDOW_SYSTEM
 #ifdef HAVE_FREETYPE

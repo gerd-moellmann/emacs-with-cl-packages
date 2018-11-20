@@ -40,8 +40,7 @@
   "Name of the Android Debug Bridge program."
   :group 'tramp
   :version "24.4"
-  :type 'string
-  :require 'tramp)
+  :type 'string)
 
 ;;;###tramp-autoload
 (defcustom tramp-adb-connect-if-not-connected nil
@@ -49,8 +48,7 @@
 It is used for TCP/IP devices."
   :group 'tramp
   :version "25.1"
-  :type 'boolean
-  :require 'tramp)
+  :type 'boolean)
 
 ;;;###tramp-autoload
 (defconst tramp-adb-method "adb"
@@ -62,8 +60,7 @@ It is used for TCP/IP devices."
   "Regexp used as prompt in almquist shell."
   :type 'string
   :version "24.4"
-  :group 'tramp
-  :require 'tramp)
+  :group 'tramp)
 
 (defconst tramp-adb-ls-date-regexp
   "[[:space:]][0-9]\\{4\\}-[0-9][0-9]-[0-9][0-9][[:space:]][0-9][0-9]:[0-9][0-9][[:space:]]"
@@ -284,13 +281,16 @@ pass to the OPERATION."
 ;; code could be shared?
 (defun tramp-adb-handle-file-truename (filename)
   "Like `file-truename' for Tramp files."
-  (format
-   "%s%s"
+   ;; Preserve trailing "/".
+  (funcall
+   (if (string-equal (file-name-nondirectory filename) "")
+       'file-name-as-directory 'identity)
    (with-parsed-tramp-file-name (expand-file-name filename) nil
      (tramp-make-tramp-file-name
       method user domain host port
       (with-tramp-file-property v localname "file-truename"
-	(let ((result nil))			; result steps in reverse order
+	(let ((result nil)			; result steps in reverse order
+	      (quoted (tramp-compat-file-name-quoted-p localname)))
 	  (tramp-message v 4 "Finding true name for `%s'" filename)
 	  (let* ((steps (split-string localname "/" 'omit))
 		 (localnamedir (tramp-run-real-handler
@@ -362,11 +362,19 @@ pass to the OPERATION."
 				  (not (string= (substring result -1) "/"))))
 	      (setq result (concat result "/"))))
 
+	  ;; Detect cycle.
+	  (when (and (file-symlink-p filename)
+		     (string-equal result localname))
+	    (tramp-error
+	     v 'file-error
+	     "Apparent cycle of symbolic links for %s" filename))
+	  ;; If the resulting localname looks remote, we must quote it
+	  ;; for security reasons.
+	  (when (or quoted (file-remote-p result))
+	    (let (file-name-handler-alist)
+	      (setq result (tramp-compat-file-name-quote result))))
 	  (tramp-message v 4 "True name of `%s' is `%s'" localname result)
-	  result))))
-
-   ;; Preserve trailing "/".
-   (if (string-equal (file-name-nondirectory filename) "") "/" "")))
+	  result))))))
 
 (defun tramp-adb-handle-file-attributes (filename &optional id-format)
   "Like `file-attributes' for Tramp files."
@@ -689,13 +697,22 @@ But handle the case, if the \"test\" command is not available."
 	      (tramp-error v 'file-error "Cannot write: `%s'" filename))
 	  (delete-file tmpfile)))
 
-      (when (or (eq visit t) (stringp visit))
-	(set-visited-file-modtime))
-
       (unless (equal curbuf (current-buffer))
 	(tramp-error
 	 v 'file-error
-	 "Buffer has changed from `%s' to `%s'" curbuf (current-buffer))))))
+	 "Buffer has changed from `%s' to `%s'" curbuf (current-buffer)))
+
+      ;; Set file modification time.
+      (when (or (eq visit t) (stringp visit))
+	(set-visited-file-modtime
+	 (tramp-compat-file-attribute-modification-time
+	  (file-attributes filename))))
+
+      ;; The end.
+      (when (and (null noninteractive)
+		 (or (eq visit t) (null visit) (stringp visit)))
+	(tramp-message v 0 "Wrote %s" filename))
+      (run-hooks 'tramp-handle-write-region-hook))))
 
 (defun tramp-adb-handle-set-file-modes (filename mode)
   "Like `set-file-modes' for Tramp files."
@@ -1046,7 +1063,9 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	    (or (null program) tramp-process-connection-type))
 	   (bmp (and (buffer-live-p buffer) (buffer-modified-p buffer)))
 	   (name1 name)
-	   (i 0))
+	   (i 0)
+	   ;; We do not want to run timers.
+	   timer-list timer-idle-list)
 
       (while (get-process name1)
 	;; NAME must be unique as process name.

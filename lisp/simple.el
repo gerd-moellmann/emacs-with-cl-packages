@@ -639,8 +639,9 @@ buffer if the variable `delete-trailing-lines' is non-nil."
           (while (re-search-forward "\\s-$" end-marker t)
             (skip-syntax-backward "-" (line-beginning-position))
             (let ((b (point)) (e (match-end 0)))
-              (when (region-modifiable-p b e)
-                (delete-region b e)))))
+              (if (region-modifiable-p b e)
+                  (delete-region b e)
+                (goto-char e)))))
         (if end
             (set-marker end-marker nil)
           ;; Delete trailing empty lines.
@@ -1010,13 +1011,16 @@ instead of deleted."
         (filter-buffer-substring (region-beginning) (region-end) method)))))
   "Function to get the region's content.
 Called with one argument METHOD which can be:
-- nil: return the content as a string.
+- nil: return the content as a string (list of strings for
+  non-contiguous regions).
 - `delete-only': delete the region; the return value is undefined.
-- `bounds': return the boundaries of the region as a list of cons
-  cells of the form (START . END).
+- `bounds': return the boundaries of the region as a list of one
+  or more cons cells of the form (START . END).
 - anything else: delete the region and return its content
-  as a string, after filtering it with `filter-buffer-substring', which
-  is called with METHOD as its 3rd argument.")
+  as a string (or list of strings for non-contiguous regions),
+  after filtering it with `filter-buffer-substring', which
+  is called, for each contiguous sub-region, with METHOD as its
+  3rd argument.")
 
 (defvar region-insert-function
   (lambda (lines)
@@ -1352,7 +1356,7 @@ in *Help* buffer.  See also the command `describe-char'."
 	(if (or (not coding)
 		(eq (coding-system-type coding) t))
 	    (setq coding (default-value 'buffer-file-coding-system)))
-	(if (eq (char-charset char) 'eight-bit)
+	(if (and (>= char #x3fff80) (<= char #x3fffff))
 	    (setq encoding-msg
 		  (format "(%d, #o%o, #x%x, raw-byte)" char char char))
 	  ;; Check if the character is displayed with some `display'
@@ -1470,9 +1474,9 @@ This affects printing by `eval-expression' (via
   :version "26.1")
 
 (defun eval-expression-print-format (value)
-  "If VALUE in an integer, return a specially formatted string.
+  "If VALUE is an integer, return a specially formatted string.
 This string will typically look like \" (#o1, #x1, ?\\C-a)\".
-If VALUE is not an integer, nil is returned.
+If VALUE is not an integer, return nil.
 This function is used by commands like `eval-expression' that
 display the result of expression evaluation."
   (when (integerp value)
@@ -1533,11 +1537,11 @@ non-nil (interactively, with a prefix argument of zero), however,
 there is no such truncation.
 
 If the resulting value is an integer, and CHAR-PRINT-LIMIT is
-non-nil (interactively, unless given a positive prefix argument)
+non-nil (interactively, unless given a non-zero prefix argument)
 it will be printed in several additional formats (octal,
 hexadecimal, and character).  The character format is only used
 if the value is below CHAR-PRINT-LIMIT (interactively, if the
-prefix argument is -1 or the value is below
+prefix argument is -1 or the value doesn't exceed
 `eval-expression-print-maximum-character').
 
 Runs the hook `eval-expression-minibuffer-setup-hook' on entering the
@@ -4228,7 +4232,7 @@ unless a hook has been set.
 Use `filter-buffer-substring' instead of `buffer-substring',
 `buffer-substring-no-properties', or `delete-and-extract-region' when
 you want to allow filtering to take place.  For example, major or minor
-modes can use `filter-buffer-substring-function' to extract characters
+modes can use `filter-buffer-substring-function' to exclude text properties
 that are special to a buffer, and should not be copied into other buffers."
   (funcall filter-buffer-substring-function beg end delete))
 
@@ -4323,7 +4327,7 @@ ring directly.")
 A non-nil value ensures that Emacs kill operations do not
 irrevocably overwrite existing clipboard text by saving it to the
 `kill-ring' prior to the kill.  Such text can subsequently be
-retrieved via \\[yank] \\[yank-pop]]."
+retrieved via \\[yank] \\[yank-pop]."
   :type 'boolean
   :group 'killing
   :version "23.2")
@@ -5488,8 +5492,10 @@ also checks the value of `use-empty-active-region'."
        (progn (cl-assert (mark)) t)))
 
 (defun region-bounds ()
-  "Return the boundaries of the region as a pair of positions.
-Value is a list of cons cells of the form (START . END)."
+  "Return the boundaries of the region.
+Value is a list of one or more cons cells of the form (START . END).
+It will have more than one cons cell when the region is non-contiguous,
+see `region-noncontiguous-p' and `extract-rectangle-bounds'."
   (funcall region-extract-function 'bounds))
 
 (defun region-noncontiguous-p ()
@@ -5792,10 +5798,10 @@ Transient Mark mode if ARG is omitted or nil.
 
 Transient Mark mode is a global minor mode.  When enabled, the
 region is highlighted with the `region' face whenever the mark
-is active.  The mark is \"deactivated\" by changing the buffer,
-and after certain other operations that set the mark but whose
-main purpose is something else--for example, incremental search,
-\\[beginning-of-buffer], and \\[end-of-buffer].
+is active.  The mark is \"deactivated\" after certain non-motion
+commands, including those that change the text in the buffer, and
+during shift or mouse selection by any unshifted cursor motion
+command (see Info node `Shift Selection' for more details).
 
 You can also deactivate the mark by typing \\[keyboard-quit] or
 \\[keyboard-escape-quit].
@@ -5971,10 +5977,6 @@ columns by which window is scrolled from left margin.
 When the `track-eol' feature is doing its job, the value is
 `most-positive-fixnum'.")
 
-(defvar last--line-number-width 0
-  "Last value of width used for displaying line numbers.
-Used internally by `line-move-visual'.")
-
 (defcustom line-move-ignore-invisible t
   "Non-nil means commands that move by lines ignore invisible newlines.
 When this option is non-nil, \\[next-line], \\[previous-line], \\[move-end-of-line], and \\[move-beginning-of-line] behave
@@ -5997,7 +5999,7 @@ into account variable-width characters and line continuation.
 If nil, `line-move' moves point by logical lines.
 A non-nil setting of `goal-column' overrides the value of this variable
 and forces movement by logical lines.
-A window that is  horizontally scrolled also forces movement by logical
+A window that is horizontally scrolled also forces movement by logical
 lines."
   :type 'boolean
   :group 'editing-basics
@@ -6253,19 +6255,9 @@ If NOERROR, don't signal an error if we can't move that many lines."
 	     (memq last-command `(next-line previous-line ,this-command)))
 	;; If so, there's no need to reset `temporary-goal-column',
 	;; but we may need to hscroll.
-        (progn
-          (if (or (/= (cdr temporary-goal-column) hscroll)
-                  (>  (cdr temporary-goal-column) 0))
-              (setq target-hscroll (cdr temporary-goal-column)))
-          ;; Update the COLUMN part of temporary-goal-column if the
-          ;; line-number display changed its width since the last
-          ;; time.
-          (setq temporary-goal-column
-                (cons (+ (car temporary-goal-column)
-                         (/ (float (- lnum-width last--line-number-width))
-                            (frame-char-width)))
-                      (cdr temporary-goal-column)))
-          (setq last--line-number-width lnum-width))
+        (if (or (/= (cdr temporary-goal-column) hscroll)
+                (>  (cdr temporary-goal-column) 0))
+            (setq target-hscroll (cdr temporary-goal-column)))
       ;; Otherwise, we should reset `temporary-goal-column'.
       (let ((posn (posn-at-point))
 	    x-pos)
@@ -6275,7 +6267,7 @@ If NOERROR, don't signal an error if we can't move that many lines."
 	 ((memq (nth 1 posn) '(right-fringe left-fringe))
 	  (setq temporary-goal-column (cons (window-width) hscroll)))
 	 ((car (posn-x-y posn))
-	  (setq x-pos (car (posn-x-y posn)))
+	  (setq x-pos (- (car (posn-x-y posn)) lnum-width))
 	  ;; In R2L lines, the X pixel coordinate is measured from the
 	  ;; left edge of the window, but columns are still counted
 	  ;; from the logical-order beginning of the line, i.e. from
@@ -7943,7 +7935,7 @@ With a prefix argument, set VARIABLE to VALUE buffer-locally."
 		   (read-variable (format "Set variable (default %s): " default-var)
 				  default-var)
 		 (read-variable "Set variable: ")))
-	  (minibuffer-help-form '(describe-variable var))
+	  (minibuffer-help-form `(describe-variable ',var))
 	  (prop (get var 'variable-interactive))
           (obsolete (car (get var 'byte-obsolete-variable)))
 	  (prompt (format "Set %s %s to value: " var

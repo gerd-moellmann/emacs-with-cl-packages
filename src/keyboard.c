@@ -3592,6 +3592,7 @@ kbd_buffer_store_buffered_event (union buffered_input_event *event,
     case ICONIFY_EVENT: ignore_event = Qiconify_frame; break;
     case DEICONIFY_EVENT: ignore_event = Qmake_frame_visible; break;
     case SELECTION_REQUEST_EVENT: ignore_event = Qselection_request; break;
+    case BUFFER_SWITCH_EVENT: ignore_event = Qbuffer_switch; break;
     default: ignore_event = Qnil; break;
     }
 
@@ -11198,6 +11199,8 @@ syms_of_keyboard (void)
   /* Menu and tool bar item parts.  */
   DEFSYM (Qmenu_enable, "menu-enable");
 
+  DEFSYM (Qbuffer_switch, "buffer-switch");
+
 #ifdef HAVE_NTGUI
   DEFSYM (Qlanguage_change, "language-change");
   DEFSYM (Qend_session, "end-session");
@@ -11952,10 +11955,10 @@ if the command is in this list, the selection is not updated.  */);
 
   DEFVAR_LISP ("debug-on-event",
                Vdebug_on_event,
-               doc: /* Enter debugger on this event.  When Emacs
-receives the special event specified by this variable, it will try to
-break into the debugger as soon as possible instead of processing the
-event normally through `special-event-map'.
+               doc: /* Enter debugger on this event.
+When Emacs receives the special event specified by this variable,
+it will try to break into the debugger as soon as possible instead
+of processing the event normally through `special-event-map'.
 
 Currently, the only supported values for this
 variable are `sigusr1' and `sigusr2'.  */);
@@ -11963,21 +11966,23 @@ variable are `sigusr1' and `sigusr2'.  */);
 
   DEFVAR_BOOL ("attempt-stack-overflow-recovery",
                attempt_stack_overflow_recovery,
-               doc: /* If non-nil, attempt to recover from C stack
-overflow.  This recovery is unsafe and may lead to deadlocks or data
+               doc: /* If non-nil, attempt to recover from C stack overflows.
+This recovery is potentially unsafe and may lead to deadlocks or data
 corruption, but it usually works and may preserve modified buffers
 that would otherwise be lost.  If nil, treat stack overflow like any
-other kind of crash.  */);
+other kind of crash or fatal error.  */);
   attempt_stack_overflow_recovery = true;
 
   DEFVAR_BOOL ("attempt-orderly-shutdown-on-fatal-signal",
                attempt_orderly_shutdown_on_fatal_signal,
-               doc: /* If non-nil, attempt to perform an orderly
-shutdown when Emacs receives a fatal signal (e.g., a crash).
-This cleanup is unsafe and may lead to deadlocks or data corruption,
-but it usually works and may preserve modified buffers that would
-otherwise be lost.  If nil, crash immediately in response to fatal
-signals.  */);
+               doc: /* If non-nil, attempt orderly shutdown on fatal signals.
+By default this variable is non-nil, and Emacs attempts to perform
+an orderly shutdown when it catches a fatal signal (e.g., a crash).
+The orderly shutdown includes an attempt to auto-save your unsaved edits
+and other useful cleanups.  These cleanups are potentially unsafe and may
+lead to deadlocks or data corruption, but it usually works and may
+preserve data in modified buffers that would otherwise be lost.
+If nil, Emacs crashes immediately in response to fatal signals.  */);
   attempt_orderly_shutdown_on_fatal_signal = true;
 
   /* Create the initial keyboard.  Qt means 'unset'.  */

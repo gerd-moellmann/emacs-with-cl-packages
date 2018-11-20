@@ -148,12 +148,16 @@ This variable is relevant only if `backup-by-copying' and
 Called with an absolute file name as argument, it returns t to enable backup.")
 
 (defcustom buffer-offer-save nil
-  "Non-nil in a buffer means always offer to save buffer on exit.
+  "Non-nil in a buffer means always offer to save buffer on exiting Emacs.
 Do so even if the buffer is not visiting a file.
 Automatically local in all buffers.
 
 Set to the symbol `always' to offer to save buffer whenever
-`save-some-buffers' is called."
+`save-some-buffers' is called.
+
+Note that this option has no effect on `kill-buffer';
+if you want to control what happens when a buffer is killed,
+use `kill-buffer-query-functions'."
   :type '(choice (const :tag "Never" nil)
                  (const :tag "On Emacs exit" t)
                  (const :tag "Whenever save-some-buffers is called" always))
@@ -489,7 +493,8 @@ The functions are called in the order given until one of them returns non-nil.")
 (defcustom find-file-hook nil
   "List of functions to be called after a buffer is loaded from a file.
 The buffer's local variables (if any) will have been processed before the
-functions are called."
+functions are called.  This includes directory-local variables, if any,
+for the file's directory."
   :group 'find-file
   :type 'hook
   :options '(auto-insert)
@@ -1925,7 +1930,7 @@ started Emacs, set `abbreviated-home-dir' to nil so it will be recalculated)."
 			 (save-match-data
 			   (string-match "^[a-zA-`]:/$" filename))))
                (equal (get 'abbreviated-home-dir 'home)
-                      (expand-file-name "~")))
+                      (save-match-data (expand-file-name "~"))))
 	  (setq filename
 		(concat "~"
 			(match-string 1 filename)
@@ -2365,7 +2370,7 @@ the file contents into it using `insert-file-contents-literally'."
 				  _after-find-file-from-revert-buffer
 				  nomodes)
   "Called after finding a file and by the default revert function.
-Sets buffer mode, parses local variables.
+Sets buffer mode, parses file-local and directory-local variables.
 Optional args ERROR, WARN, and NOAUTO: ERROR non-nil means there was an
 error in reading the file.  WARN non-nil means warn if there
 exists an auto-save file more recent than the visited file.
@@ -2450,7 +2455,7 @@ unless NOMODES is non-nil."
 
 (defun normal-mode (&optional find-file)
   "Choose the major mode for this buffer automatically.
-Also sets up any specified local variables of the file.
+Also sets up any specified local variables of the file or its directory.
 Uses the visited file name, the -*- line, and the local variables spec.
 
 This function is called automatically from `find-file'.  In that case,
@@ -3481,6 +3486,8 @@ DIR-NAME is the name of the associated directory.  Otherwise it is nil."
 
 (defun hack-local-variables (&optional handle-mode)
   "Parse and put into effect this buffer's local variables spec.
+For buffers visiting files, also puts into effect directory-local
+variables.
 Uses `hack-local-variables-apply' to apply the variables.
 
 If HANDLE-MODE is nil, we apply all the specified local
@@ -4239,12 +4246,15 @@ the old visited file has been renamed to the new name FILENAME."
   "Write current buffer into file FILENAME.
 This makes the buffer visit that file, and marks it as not modified.
 
-If you specify just a directory name as FILENAME, that means to use
-the default file name but in that directory.  You can also yank
-the default file name into the minibuffer to edit it, using \\<minibuffer-local-map>\\[next-history-element].
+Interactively, prompt for FILENAME.
+If you specify just a directory name as FILENAME, that means to write
+to a file in that directory.  In this case, the base name of the file
+is the same as that of the file visited in the buffer, or the buffer
+name sans leading directories, if any, if the buffer is not already
+visiting a file.
 
-If the buffer is not already visiting a file, the default file name
-for the output file is the buffer name.
+You can also yank the file name into the minibuffer to edit it,
+using \\<minibuffer-local-map>\\[next-history-element].
 
 If optional second arg CONFIRM is non-nil, this function
 asks for confirmation before overwriting an existing file.

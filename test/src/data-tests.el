@@ -1,4 +1,4 @@
-;;; data-tests.el --- tests for src/data.c
+;;; data-tests.el --- tests for src/data.c  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2013-2018 Free Software Foundation, Inc.
 
@@ -23,13 +23,21 @@
 
 (require 'cl-lib)
 
+(defconst data-tests--float-greater-than-fixnums (+ 1.0 most-positive-fixnum)
+  "A floating-point value that is greater than all fixnums.
+It is also as small as conveniently possible, to make the tests sharper.
+Adding 1.0 to most-positive-fixnum should suffice on all
+practical Emacs platforms, since the result is a power of 2 and
+this is exactly representable and is greater than
+most-positive-fixnum, which is just less than a power of 2.")
+
 (ert-deftest data-tests-= ()
   (should-error (=))
   (should (= 1))
   (should (= 2 2))
   (should (= 9 9 9 9 9 9 9 9 9))
   (should (= most-negative-fixnum (float most-negative-fixnum)))
-  (should-not (= most-positive-fixnum (+ 1.0 most-positive-fixnum)))
+  (should-not (= most-positive-fixnum data-tests--float-greater-than-fixnums))
   (should-not (apply #'= '(3 8 3)))
   (should-error (= 9 9 'foo))
   ;; Short circuits before getting to bad arg
@@ -40,7 +48,7 @@
   (should (< 1))
   (should (< 2 3))
   (should (< -6 -1 0 2 3 4 8 9 999))
-  (should (< 0.5 most-positive-fixnum (+ 1.0 most-positive-fixnum)))
+  (should (< 0.5 most-positive-fixnum data-tests--float-greater-than-fixnums))
   (should-not (apply #'< '(3 8 3)))
   (should-error (< 9 10 'foo))
   ;; Short circuits before getting to bad arg
@@ -51,7 +59,7 @@
   (should (> 1))
   (should (> 3 2))
   (should (> 6 1 0 -2 -3 -4 -8 -9 -999))
-  (should (> (+ 1.0 most-positive-fixnum) most-positive-fixnum 0.5))
+  (should (> data-tests--float-greater-than-fixnums most-positive-fixnum 0.5))
   (should-not (apply #'> '(3 8 3)))
   (should-error (> 9 8 'foo))
   ;; Short circuits before getting to bad arg
@@ -62,7 +70,7 @@
   (should (<= 1))
   (should (<= 2 3))
   (should (<= -6 -1 -1 0 0 0 2 3 4 8 999))
-  (should (<= 0.5 most-positive-fixnum (+ 1.0 most-positive-fixnum)))
+  (should (<= 0.5 most-positive-fixnum data-tests--float-greater-than-fixnums))
   (should-not (apply #'<= '(3 8 3 3)))
   (should-error (<= 9 10 'foo))
   ;; Short circuits before getting to bad arg
@@ -73,7 +81,7 @@
   (should (>= 1))
   (should (>= 3 2))
   (should (>= 666 1 0 0 -2 -3 -3 -3 -4 -8 -8 -9 -999))
-  (should (>= (+ 1.0 most-positive-fixnum) most-positive-fixnum))
+  (should (>= data-tests--float-greater-than-fixnums most-positive-fixnum))
   (should-not (apply #'>= '(3 8 3)))
   (should-error (>= 9 8 'foo))
   ;; Short circuits before getting to bad arg
@@ -97,7 +105,7 @@
   (should (= 2 (min 3 2)))
   (should (= -999 (min 666 1 0 0 -2 -3 -3 -3 -4 -8 -8 -9 -999)))
   (should (= most-positive-fixnum
-             (min (+ 1.0 most-positive-fixnum) most-positive-fixnum)))
+             (min data-tests--float-greater-than-fixnums most-positive-fixnum)))
   (should (= 3 (apply #'min '(3 8 3))))
   (should-error (min 9 8 'foo))
   (should-error (min (make-marker)))
@@ -484,3 +492,20 @@ comparing the subr with a much slower lisp implementation."
       (remove-variable-watcher 'data-tests-lvar collect-watch-data)
       (setq data-tests-lvar 6)
       (should (null watch-data)))))
+
+(ert-deftest data-tests-kill-all-local-variables () ;bug#30846
+  (with-temp-buffer
+    (setq-local data-tests-foo1 1)
+    (setq-local data-tests-foo2 2)
+    (setq-local data-tests-foo3 3)
+    (let ((oldfoo2 nil))
+      (add-variable-watcher 'data-tests-foo2
+                            (lambda (&rest _)
+                              (setq oldfoo2 (bound-and-true-p data-tests-foo2))))
+      (kill-all-local-variables)
+      (should (equal oldfoo2 '2)) ;Watcher is run before changing the var.
+      (should (not (or (bound-and-true-p data-tests-foo1)
+                       (bound-and-true-p data-tests-foo2)
+                       (bound-and-true-p data-tests-foo3)))))))
+
+;;; data-tests.el ends here

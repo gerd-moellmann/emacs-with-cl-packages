@@ -6610,10 +6610,10 @@ the return value is nil.  Otherwise the value is t.  */)
 			       make_number (old_point),
 			       XWINDOW (data->current_window)->contents);
 
-      /* In the following call to `select-window', prevent "swapping out
+      /* In the following call to select_window, prevent "swapping out
 	 point" in the old selected window using the buffer that has
-	 been restored into it.  We already swapped out that point from
-	 that window's old buffer.
+	 been restored into it.  We already swapped out that point
+	 from that window's old buffer.
 
 	 Do not record the buffer here.  We do that in a separate call
 	 to select_window below.  See also Bug#16207.  */
@@ -6656,10 +6656,10 @@ the return value is nil.  Otherwise the value is t.  */)
       if (WINDOW_LIVE_P (data->current_window))
 	select_window (data->current_window, Qnil, false);
 
-      /* Fselect_window will have made f the selected frame, so we
-	 reselect the proper frame here.  Fhandle_switch_frame will change the
-	 selected window too, but that doesn't make the call to
-	 Fselect_window above totally superfluous; it still sets f's
+      /* select_window will have made f the selected frame, so we
+	 reselect the proper frame here.  do_switch_frame will change
+	 the selected window too, but that doesn't make the call to
+	 select_window above totally superfluous; it still sets f's
 	 selected window.  */
       if (FRAME_LIVE_P (XFRAME (data->selected_frame)))
 	do_switch_frame (data->selected_frame, 0, 0, Qnil);
@@ -6696,8 +6696,21 @@ the return value is nil.  Otherwise the value is t.  */)
     {
       Fset_buffer (new_current_buffer);
       /* If the new current buffer doesn't appear in the selected
-	 window, go to its old point (see bug#12208).  */
-      if (!EQ (XWINDOW (data->current_window)->contents, new_current_buffer))
+	 window, go to its old point (Bug#12208).
+
+	 The original fix used data->current_window below which caused
+	 false positives (compare Bug#31695) when data->current_window
+	 is not on data->selected_frame.  This happens, for example,
+	 when read_minibuf restores the configuration of a stand-alone
+	 minibuffer frame: After switching to the previously selected
+	 "normal" frame, point of that frame's selected window jumped
+	 unexpectedly because new_current_buffer is usually *not*
+	 shown in data->current_window - the minibuffer frame's
+	 selected window.  Using selected_window instead fixes this
+	 because do_switch_frame has set up selected_window already to
+	 the "normal" frame's selected window and that window *does*
+	 show new_current_buffer.  */
+      if (!EQ (XWINDOW (selected_window)->contents, new_current_buffer))
 	Fgoto_char (make_number (old_point));
     }
 
@@ -7309,6 +7322,8 @@ value.  */)
 
 DEFUN ("window-vscroll", Fwindow_vscroll, Swindow_vscroll, 0, 2, 0,
        doc: /* Return the amount by which WINDOW is scrolled vertically.
+This takes effect when displaying tall lines or images.
+
 If WINDOW is omitted or nil, it defaults to the selected window.
 Normally, value is a multiple of the canonical character height of WINDOW;
 optional second arg PIXELS-P means value is measured in pixels.  */)
@@ -7331,6 +7346,8 @@ optional second arg PIXELS-P means value is measured in pixels.  */)
 DEFUN ("set-window-vscroll", Fset_window_vscroll, Sset_window_vscroll,
        2, 3, 0,
        doc: /* Set amount by which WINDOW should be scrolled vertically to VSCROLL.
+This takes effect when displaying tall lines or images.
+
 WINDOW nil means use the selected window.  Normally, VSCROLL is a
 non-negative multiple of the canonical character height of WINDOW;
 optional third arg PIXELS-P non-nil means that VSCROLL is in pixels.

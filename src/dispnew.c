@@ -4125,7 +4125,12 @@ scrolling_window (struct window *w, bool header_line_p)
     }
 
 #ifdef HAVE_XWIDGETS
-  /* Currently this seems needed to detect xwidget movement reliably. */
+  /* Currently this seems needed to detect xwidget movement reliably.
+     This is most probably because an xwidget glyph is represented in
+     struct glyph's 'union u' by a pointer to a struct, which takes 8
+     bytes in 64-bit builds, and thus the comparison of u.val values
+     done by GLYPH_EQUAL_P doesn't work reliably, since it assumes the
+     size of the union is 4 bytes.  FIXME.  */
     return 0;
 #endif
 
@@ -5208,6 +5213,11 @@ buffer_posn_from_coords (struct window *w, int *x, int *y, struct display_pos *p
 #ifdef HAVE_WINDOW_SYSTEM
   if (it.what == IT_IMAGE)
     {
+      /* Note that this ignores images that are fringe bitmaps,
+	 because their image ID is zero, and so IMAGE_OPT_FROM_ID will
+	 return NULL.  This is okay, since fringe bitmaps are not
+	 displayed in the text area, and so are never the object we
+	 are interested in.  */
       img = IMAGE_OPT_FROM_ID (it.f, it.image_id);
       if (img && !NILP (img->spec))
 	*object = img->spec;

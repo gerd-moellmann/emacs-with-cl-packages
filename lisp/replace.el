@@ -2147,6 +2147,10 @@ passed in.  If LITERAL is set, no checking is done, anyway."
 	    noedit nil)))
   (set-match-data match-data)
   (replace-match newtext fixedcase literal)
+  ;; `query-replace' undo feature needs the beginning of the match position,
+  ;; but `replace-match' may change it, for instance, with a regexp like "^".
+  ;; Ensure that this function preserves the match data (Bug#31492).
+  (set-match-data match-data)
   ;; `replace-match' leaves point at the end of the replacement text,
   ;; so move point to the beginning when replacing backward.
   (when backward (goto-char (nth 0 match-data)))
@@ -2576,6 +2580,7 @@ It must return a string."
 			   (let ((stack-idx         0)
                                  (stack-len         (length stack))
                                  (num-replacements  0)
+                                 (nocasify t) ; Undo must preserve case (Bug#31073).
                                  search-string
                                  next-replacement)
                              (while (and (< stack-idx stack-len)
@@ -2716,7 +2721,8 @@ It must return a string."
 				 (replace-match-maybe-edit
 				  next-replacement nocasify literal noedit
 				  real-match-data backward)
-				 replaced t))
+				 replaced t)
+			   (setq next-replacement-replaced next-replacement))
 			 (setq done t))
 
 			((eq def 'delete-and-edit)
