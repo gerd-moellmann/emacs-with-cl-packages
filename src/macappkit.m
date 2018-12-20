@@ -6135,6 +6135,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       backingSurface = mac_iosurface_create (width, height);
       if (backingSurface)
 	{
+	  IOSurfaceLock (backingSurface, 0, NULL);
 	  data = IOSurfaceGetBaseAddress (backingSurface);
 	  bytes_per_row = IOSurfaceGetBytesPerRow (backingSurface);
 #if HAVE_MAC_METAL
@@ -6150,6 +6151,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 				  LCD Font smoothing.  */
 			       (kCGImageAlphaPremultipliedFirst
 				| kCGBitmapByteOrder32Host));
+      if (backingSurface)
+	IOSurfaceUnlock (backingSurface, 0, NULL);
     }
   if (!graphicsContextStack)
     graphicsContextStack = [[NSMutableArray alloc] initWithCapacity:0];
