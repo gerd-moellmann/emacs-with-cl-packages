@@ -819,22 +819,27 @@ language."
 						      data1 source-encoding
 						      source-encoding 'HFS+D))
 			      (string= data1-normalized data-normalized)))
-		     (decode-coding-string bytes coding-system)))))
-    (if (and str (eq encoding mac-text-encoding-mac-japanese-basic-variant))
-	;; Does it contain Apple one-byte extensions other than
-	;; reverse solidus?
-	(if (string-match
-	     ;; Character alternatives in multibyte eight-bit is unreliable.
-	     ;; (Bug#3687)
-	     ;; (string-to-multibyte "[\xa0\xfd-\xff]")
-	     (string-to-multibyte "\xa0\\|\xfd\\|\xfe\\|\xff") str)
-	    (setq str nil)
-	  ;; ASCII-only?
-	  (unless (mac-code-convert-string data source-encoding
-					   mac-text-encoding-ascii)
-	    (subst-char-in-string ?\x5c ?\¥ str t)
-	    (subst-char-in-string (unibyte-char-to-multibyte ?\x80) ?\\
-				  str t))))
+                     (decode-coding-string bytes coding-system)))))
+    (when str
+      (cond ((eq coding-system 'mac-roman)
+             ;; mac-roman, being based on glibc charmaps data, maps
+             ;; APPLE LOGO to U+E01E.
+             (subst-char-in-string ?\xe01e ? str t))
+            ((eq encoding mac-text-encoding-mac-japanese-basic-variant)
+             ;; Does it contain Apple one-byte extensions other than
+             ;; reverse solidus?
+             (if (string-match
+                  ;; Character alternatives in multibyte eight-bit is
+                  ;; unreliable.  (Bug#3687)
+                  ;; (string-to-multibyte "[\xa0\xfd-\xff]")
+                  (string-to-multibyte "\xa0\\|\xfd\\|\xfe\\|\xff") str)
+                 (setq str nil)
+               ;; ASCII-only?
+               (unless (mac-code-convert-string data source-encoding
+                                                mac-text-encoding-ascii)
+                 (subst-char-in-string ?\x5c ?\¥ str t)
+                 (subst-char-in-string (unibyte-char-to-multibyte ?\x80) ?\\
+                                       str t))))))
     (or str (decode-coding-string data
 				  (or source-encoding
 				      (if (eq (byteorder) ?B)
@@ -872,14 +877,20 @@ language."
     (when (memq (coding-system-base coding-system)
 		(find-coding-systems-string string))
       (let ((str string))
-	(when (eq coding-system 'japanese-shift-jis)
-	  (setq encoding mac-text-encoding-mac-japanese-basic-variant)
-	  (setq str (subst-char-in-string ?\\ (unibyte-char-to-multibyte ?\x80)
-					  str))
-	  (subst-char-in-string ?\¥ ?\x5c str t)
-	  ;; ASCII-only?
-	  (if (string-match "\\`[\x00-\x7f]*\\'" str)
-	      (setq str nil)))
+	(cond ((eq coding-system 'mac-roman)
+               ;; mac-roman, being based on glibc charmaps data, maps
+               ;; APPLE LOGO to U+E01E.
+               (if (string-match "\xe01e" str)
+                   (setq str nil)))
+              ((eq coding-system 'japanese-shift-jis)
+               (setq encoding mac-text-encoding-mac-japanese-basic-variant)
+               (setq str
+                     (subst-char-in-string ?\\ (unibyte-char-to-multibyte ?\x80)
+                                           str))
+               (subst-char-in-string ?\¥ ?\x5c str t)
+               ;; ASCII-only?
+               (if (string-match "\\`[\x00-\x7f]*\\'" str)
+                   (setq str nil))))
 	(and str
 	     (setq data (mac-code-convert-string
 			 (encode-coding-string str coding-system)
