@@ -370,38 +370,43 @@ function of no arguments that returns one of those symbols.
 
 The symbols specify where in relation to CHAR the newline
 character(s) should be inserted. `after-stay' means insert a
-newline after CHAR but stay in the same place.")
+newline after CHAR but stay in the same place.
+
+If multiple rules match, they are all executed in order of
+appearance.")
 
 (defun electric-layout-post-self-insert-function ()
-  (let* ((rule (cdr (assq last-command-event electric-layout-rules)))
-         pos)
-    (when (and rule
-               (setq pos (electric--after-char-pos))
+  (let (pos)
+    (when (and (setq pos (electric--after-char-pos))
                ;; Not in a string or comment.
                (not (nth 8 (save-excursion (syntax-ppss pos)))))
-      (let ((end (point-marker))
-            (sym (if (functionp rule) (funcall rule) rule)))
-        (set-marker-insertion-type end (not (eq sym 'after-stay)))
-        (goto-char pos)
-        (pcase sym
-          ;; FIXME: we used `newline' down here which called
-          ;; self-insert-command and ran post-self-insert-hook recursively.
-          ;; It happened to make electric-indent-mode work automatically with
-          ;; electric-layout-mode (at the cost of re-indenting lines
-          ;; multiple times), but I'm not sure it's what we want.
-          ;;
-          ;; FIXME: check eolp before inserting \n?
-          ('before (goto-char (1- pos)) (skip-chars-backward " \t")
-                   (unless (bolp) (insert "\n")))
-          ('after  (insert "\n"))
-          ('after-stay (save-excursion
-                         (let ((electric-layout-rules nil))
-                           (newline 1 t))))
-          ('around (save-excursion
-                     (goto-char (1- pos)) (skip-chars-backward " \t")
-                     (unless (bolp) (insert "\n")))
-                   (insert "\n")))      ; FIXME: check eolp before inserting \n?
-        (goto-char end)))))
+      (goto-char pos)
+      (dolist (rule electric-layout-rules)
+        (when (eq last-command-event (car rule))
+          (let* ((end (point-marker))
+                 (rule (cdr rule))
+                 (sym (if (functionp rule) (funcall rule) rule)))
+            (set-marker-insertion-type end (not (eq sym 'after-stay)))
+            (pcase sym
+              ;; FIXME: we used `newline' down here which called
+              ;; self-insert-command and ran post-self-insert-hook recursively.
+              ;; It happened to make electric-indent-mode work automatically with
+              ;; electric-layout-mode (at the cost of re-indenting lines
+              ;; multiple times), but I'm not sure it's what we want.
+              ;;
+              ;; FIXME: check eolp before inserting \n?
+              ('before (goto-char (1- pos)) (skip-chars-backward " \t")
+                       (unless (bolp) (insert "\n")))
+              ('after  (insert "\n"))
+              ('after-stay (save-excursion
+                             (let ((electric-layout-rules nil)
+                                   (electric-pair-open-newline-between-pairs nil))
+                               (newline 1 t))))
+              ('around (save-excursion
+                         (goto-char (1- pos)) (skip-chars-backward " \t")
+                         (unless (bolp) (insert "\n")))
+                       (insert "\n")))      ; FIXME: check eolp before inserting \n?
+            (goto-char end)))))))
 
 (put 'electric-layout-post-self-insert-function 'priority  40)
 
