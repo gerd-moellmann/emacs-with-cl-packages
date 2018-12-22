@@ -365,15 +365,21 @@ use `electric-indent-local-mode'."
 
 Each rule has the form (CHAR . WHERE) where CHAR is the char that
 was just inserted and WHERE specifies where to insert newlines
-and can be: nil, `before', `after', `around', `after-stay', or a
-function of no arguments that returns one of those symbols.
+and can be:
 
-The symbols specify where in relation to CHAR the newline
-character(s) should be inserted. `after-stay' means insert a
+* one of the symbols `before', `after', `around' and `after-stay';
+
+* a list of the preceding symbols, processed in order of
+  appearance to insert multiple newlines;
+
+* a function of no arguments that returns one of the previous
+  values.
+
+Each symbol specifies where in relation to CHAR the newline
+character(s) should be inserted.  `after-stay' means insert a
 newline after CHAR but stay in the same place.
 
-If multiple rules match, they are all executed in order of
-appearance.")
+If multiple rules match, only first one is executed.")
 
 (defun electric-layout-post-self-insert-function ()
   (when electric-layout-mode
@@ -381,25 +387,24 @@ appearance.")
 
 ;; for edebug's sake, a separate function
 (defun electric-layout-post-self-insert-function-1 ()
-  (let (pos end)
-    (when (and (setq pos (electric--after-char-pos))
+  (let (pos
+        (rule (cdr (assq last-command-event electric-layout-rules))))
+    (when (and rule
+               (setq pos (electric--after-char-pos))
                ;; Not in a string or comment.
                (not (nth 8 (save-excursion (syntax-ppss pos)))))
       (goto-char pos)
-      (setq end (point-marker))
-      (dolist (rule electric-layout-rules)
-        (when (eq last-command-event (car rule))
-          (let* ((rule (cdr rule))
-                 (sym (if (functionp rule) (funcall rule) rule))
-                 (nl-after
+      (when (functionp rule) (setq rule (funcall rule)))
+      (dolist (sym (if (symbolp rule) (list rule) rule))
+        (let* ((nl-after
                   (lambda ()
-                    ;; FIXME: we use `newline'which calls
-                    ;; self-insert-command and ran
-                    ;; post-self-insert-hook recursively.  It
-                    ;; happened to make electric-indent-mode work
-                    ;; automatically with electric-layout-mode (at
-                    ;; the cost of re-indenting lines multiple
-                    ;; times), but I'm not sure it's what we want.
+                    ;; FIXME: we use `newline', which calls
+                    ;; `self-insert-command' and ran
+                    ;; `post-self-insert-hook' recursively.  It
+                    ;; happened to make `electric-indent-mode' work
+                    ;; automatically with `electric-layout-mode' (at
+                    ;; the cost of re-indenting lines multiple times),
+                    ;; but I'm not sure it's what we want.
                     ;;
                     ;; FIXME: when `newline'ing, we exceptionally
                     ;; prevent a specific behaviour of
@@ -422,7 +427,7 @@ appearance.")
               ('before (funcall nl-before))
               ('after  (funcall nl-after))
               ('after-stay (save-excursion (funcall nl-after)))
-              ('around (funcall nl-before) (funcall nl-after)))))))))
+              ('around (funcall nl-before) (funcall nl-after))))))))
 
 (put 'electric-layout-post-self-insert-function 'priority  40)
 

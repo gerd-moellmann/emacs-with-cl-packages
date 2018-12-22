@@ -823,8 +823,7 @@ baz\"\""
       (electric-pair-local-mode 1)
       (electric-indent-local-mode 1)
       (setq-local electric-layout-rules
-              '((?\{ . after)
-                (?\{ . after-stay)))
+              '((?\{ . (after after-stay))))
       (insert "int main () ")
       (let ((last-command-event ?\{))
         (call-interactively (key-binding `[,last-command-event])))
@@ -838,9 +837,7 @@ baz\"\""
       (electric-pair-local-mode 1)
       (electric-indent-local-mode 1)
       (setq-local electric-layout-rules
-              '((?\{ . before)
-                (?\{ . after)
-                (?\{ . after-stay)))
+              '((?\{ . (before after after-stay))))
       (insert "int main () ")
       (let ((last-command-event ?\{))
         (call-interactively (key-binding `[,last-command-event])))
