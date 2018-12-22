@@ -823,7 +823,7 @@ baz\"\""
       (electric-pair-local-mode 1)
       (electric-indent-local-mode 1)
       (setq-local electric-layout-rules
-              '((?\{ . (after after-stay))))
+              '((?\{ . (after-stay after))))
       (insert "int main () ")
       (let ((last-command-event ?\{))
         (call-interactively (key-binding `[,last-command-event])))
@@ -837,7 +837,26 @@ baz\"\""
       (electric-pair-local-mode 1)
       (electric-indent-local-mode 1)
       (setq-local electric-layout-rules
-              '((?\{ . (before after after-stay))))
+              '((?\{ . (before after-stay after))))
+      (insert "int main () ")
+      (let ((last-command-event ?\{))
+        (call-interactively (key-binding `[,last-command-event])))
+      (should (equal (buffer-string) "int main ()\n{\n  \n}")))))
+
+(define-derived-mode plainer-c-mode c-mode "pC"
+  "A plainer C-mode")
+
+(ert-deftest electric-modes-in-c-mode-with-self-insert-command ()
+  (save-electric-modes
+    (ert-with-test-buffer ()
+      (plainer-c-mode)
+      (electric-layout-local-mode 1)
+      (electric-pair-local-mode 1)
+      (electric-indent-local-mode 1)
+      (dolist (key '(?\" ?\' ?\{ ?\} ?\( ?\) ?\[ ?\]))
+        (local-set-key (vector key) 'self-insert-command))
+      (setq-local electric-layout-rules
+              '((?\{ . (before after-stay after))))
       (insert "int main () ")
       (let ((last-command-event ?\{))
         (call-interactively (key-binding `[,last-command-event])))
