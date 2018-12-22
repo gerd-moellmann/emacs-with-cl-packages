@@ -379,7 +379,7 @@ appearance.")
   (when electric-layout-mode
     (electric-layout-post-self-insert-function-1)))
 
-;; for edebug's sake a separate function
+;; for edebug's sake, a separate function
 (defun electric-layout-post-self-insert-function-1 ()
   (let (pos end)
     (when (and (setq pos (electric--after-char-pos))
@@ -391,28 +391,38 @@ appearance.")
         (when (eq last-command-event (car rule))
           (let* ((rule (cdr rule))
                  (sym (if (functionp rule) (funcall rule) rule))
-                 (nl (lambda ()
-                       (let ((electric-layout-mode nil)
-                             (electric-pair-open-newline-between-pairs nil))
-                               (newline 1 t)))))
+                 (nl-after
+                  (lambda ()
+                    ;; FIXME: we use `newline'which calls
+                    ;; self-insert-command and ran
+                    ;; post-self-insert-hook recursively.  It
+                    ;; happened to make electric-indent-mode work
+                    ;; automatically with electric-layout-mode (at
+                    ;; the cost of re-indenting lines multiple
+                    ;; times), but I'm not sure it's what we want.
+                    ;;
+                    ;; FIXME: when `newline'ing, we exceptionally
+                    ;; prevent a specific behaviour of
+                    ;; `eletric-pair-mode', that of opening an extra
+                    ;; newline between newly inserted matching paris.
+                    ;; In theory that behaviour should be provided by
+                    ;; `electric-layout-mode' instead, but its API is
+                    ;; not powerful enough to detect the exact
+                    ;; situation.
+                    ;;
+                    ;; FIXME: check eolp before inserting \n?
+                    (let ((electric-layout-mode nil)
+                          (electric-pair-open-newline-between-pairs nil))
+                      (newline 1 t))))
+                 (nl-before (lambda ()
+                              (save-excursion
+                                (goto-char (1- pos)) (skip-chars-backward " \t")
+                                (unless (bolp) (funcall nl-after))))))
             (pcase sym
-              ;; FIXME: we used `newline' down here which called
-              ;; self-insert-command and ran post-self-insert-hook recursively.
-              ;; It happened to make electric-indent-mode work automatically with
-              ;; electric-layout-mode (at the cost of re-indenting lines
-              ;; multiple times), but I'm not sure it's what we want.
-              ;;
-              ;; FIXME: check eolp before inserting \n?
-              ('before (save-excursion
-                         (goto-char (1- pos)) (skip-chars-backward " \t")
-                         (unless (bolp) (funcall nl))))
-              ('after  (funcall nl))
-              ('after-stay (save-excursion (funcall nl)))
-              ('around (save-excursion
-                         (goto-char (1- pos)) (skip-chars-backward " \t")
-                         (unless (bolp) (funcall nl)))
-                       (funcall nl)))      ; FIXME: check eolp before inserting \n?
-            ))))))
+              ('before (funcall nl-before))
+              ('after  (funcall nl-after))
+              ('after-stay (save-excursion (funcall nl-after)))
+              ('around (funcall nl-before) (funcall nl-after)))))))))
 
 (put 'electric-layout-post-self-insert-function 'priority  40)
 
