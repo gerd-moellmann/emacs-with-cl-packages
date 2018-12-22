@@ -812,5 +812,39 @@ baz\"\""
   :bindings '((comment-start . "<!--") (comment-use-syntax . t))
   :test-in-comments nil :test-in-strings nil)
 
+
+;;; tests for `electric-layout-mode'
+
+(ert-deftest electric-layout-int-main-kernel-style ()
+  (save-electric-modes
+    (ert-with-test-buffer ()
+      (c-mode)
+      (electric-layout-local-mode 1)
+      (electric-pair-local-mode 1)
+      (electric-indent-local-mode 1)
+      (setq-local electric-layout-rules
+              '((?\{ . after)
+                (?\{ . after-stay)))
+      (insert "int main () ")
+      (let ((last-command-event ?\{))
+        (call-interactively (key-binding `[,last-command-event])))
+      (should (equal (buffer-string) "int main () {\n  \n}")))))
+
+(ert-deftest electric-layout-int-main-allman-style ()
+  (save-electric-modes
+    (ert-with-test-buffer ()
+      (c-mode)
+      (electric-layout-local-mode 1)
+      (electric-pair-local-mode 1)
+      (electric-indent-local-mode 1)
+      (setq-local electric-layout-rules
+              '((?\{ . before)
+                (?\{ . after)
+                (?\{ . after-stay)))
+      (insert "int main () ")
+      (let ((last-command-event ?\{))
+        (call-interactively (key-binding `[,last-command-event])))
+      (should (equal (buffer-string) "int main ()\n{\n  \n}")))))
+
 (provide 'electric-tests)
 ;;; electric-tests.el ends here

@@ -376,17 +376,25 @@ If multiple rules match, they are all executed in order of
 appearance.")
 
 (defun electric-layout-post-self-insert-function ()
-  (let (pos)
+  (when electric-layout-mode
+    (electric-layout-post-self-insert-function-1)))
+
+;; for edebug's sake a separate function
+(defun electric-layout-post-self-insert-function-1 ()
+  (let (pos end)
     (when (and (setq pos (electric--after-char-pos))
                ;; Not in a string or comment.
                (not (nth 8 (save-excursion (syntax-ppss pos)))))
       (goto-char pos)
+      (setq end (point-marker))
       (dolist (rule electric-layout-rules)
         (when (eq last-command-event (car rule))
-          (let* ((end (point-marker))
-                 (rule (cdr rule))
-                 (sym (if (functionp rule) (funcall rule) rule)))
-            (set-marker-insertion-type end (not (eq sym 'after-stay)))
+          (let* ((rule (cdr rule))
+                 (sym (if (functionp rule) (funcall rule) rule))
+                 (nl (lambda ()
+                       (let ((electric-layout-mode nil)
+                             (electric-pair-open-newline-between-pairs nil))
+                               (newline 1 t)))))
             (pcase sym
               ;; FIXME: we used `newline' down here which called
               ;; self-insert-command and ran post-self-insert-hook recursively.
@@ -395,18 +403,16 @@ appearance.")
               ;; multiple times), but I'm not sure it's what we want.
               ;;
               ;; FIXME: check eolp before inserting \n?
-              ('before (goto-char (1- pos)) (skip-chars-backward " \t")
-                       (unless (bolp) (insert "\n")))
-              ('after  (insert "\n"))
-              ('after-stay (save-excursion
-                             (let ((electric-layout-rules nil)
-                                   (electric-pair-open-newline-between-pairs nil))
-                               (newline 1 t))))
+              ('before (save-excursion
+                         (goto-char (1- pos)) (skip-chars-backward " \t")
+                         (unless (bolp) (funcall nl))))
+              ('after  (funcall nl))
+              ('after-stay (save-excursion (funcall nl)))
               ('around (save-excursion
                          (goto-char (1- pos)) (skip-chars-backward " \t")
-                         (unless (bolp) (insert "\n")))
-                       (insert "\n")))      ; FIXME: check eolp before inserting \n?
-            (goto-char end)))))))
+                         (unless (bolp) (funcall nl)))
+                       (funcall nl)))      ; FIXME: check eolp before inserting \n?
+            ))))))
 
 (put 'electric-layout-post-self-insert-function 'priority  40)
 
@@ -423,6 +429,19 @@ The variable `electric-layout-rules' says when and how to insert newlines."
         (t
          (remove-hook 'post-self-insert-hook
                       #'electric-layout-post-self-insert-function))))
+
+;;;###autoload
+(define-minor-mode electric-layout-local-mode
+  "Toggle `electric-layout-mode' only in this buffer."
+  :variable (buffer-local-value 'electric-layout-mode (current-buffer))
+  (cond
+   ((eq electric-layout-mode (default-value 'electric-layout-mode))
+    (kill-local-variable 'electric-layout-mode))
+   ((not (default-value 'electric-layout-mode))
+    ;; Locally enabled, but globally disabled.
+    (electric-layout-mode 1)		  ; Setup the hooks.
+    (setq-default electric-layout-mode nil) ; But keep it globally disabled.
+    )))
 
 ;;; Electric quoting.
 
