@@ -363,9 +363,15 @@ use `electric-indent-local-mode'."
 (defvar electric-layout-rules nil
   "List of rules saying where to automatically insert newlines.
 
-Each rule has the form (CHAR . WHERE) where CHAR is the char that
-was just inserted and WHERE specifies where to insert newlines
-and can be:
+Each rule has the form (MATCHER . WHERE) where MATCHER examines
+the state of the buffer after a certain character was inserted
+and WHERE specifies where to insert newlines.
+
+MATCHER can be a character CHAR or a boolean function of no
+arguments.  The rule matches if the character just inserted was
+CHAR or if the function return non-nil.
+
+WHERE and can be:
 
 * one of the symbols `before', `after', `around' and `after-stay';
 
@@ -375,9 +381,10 @@ and can be:
 * a function of no arguments that returns one of the previous
   values.
 
-Each symbol specifies where in relation to CHAR the newline
-character(s) should be inserted.  `after-stay' means insert a
-newline after CHAR but stay in the same place.
+Each symbol specifies where, in relation to the position POS of
+the character inserted, the newline character(s) should be
+inserted.  `after-stay' means insert a newline after POS but stay
+in the same place.
 
 If multiple rules match, only first one is executed.")
 
@@ -387,8 +394,19 @@ If multiple rules match, only first one is executed.")
 
 ;; for edebug's sake, a separate function
 (defun electric-layout-post-self-insert-function-1 ()
-  (let (pos
-        (rule (cdr (assq last-command-event electric-layout-rules))))
+  (let* (pos
+         probe
+         (rules electric-layout-rules)
+         (rule
+          (catch 'done
+            (while (setq probe (pop rules))
+              (cond ((and (consp probe)
+                          (or (eq (car probe) last-command-event)
+                              (and (functionp (car probe))
+                                   (funcall (car probe)))))
+                     (throw 'done (cdr probe)))
+                    ((functionp probe)
+                     (throw 'done (funcall probe))))))))
     (when (and rule
                (setq pos (electric--after-char-pos))
                ;; Not in a string or comment.
