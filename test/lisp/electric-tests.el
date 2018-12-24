@@ -863,23 +863,18 @@ baz\"\""
       (call-interactively (key-binding `[,last-command-event])))
     (should (equal (buffer-string) "int main ()\n{\n  \n}"))))
 
-;; FIXME: The two following tests fail, because the newline simulation
-;; fails to indent the new line.  Interactively, they work fine.
-;; Don't know why...
 (ert-deftest electric-pair-mode-newline-between-parens ()
-  :expected-result :failed
   (ert-with-test-buffer (:name "electric-pair-mode-newline-between-parens")
     (plainer-c-mode)
     (electric-layout-local-mode -1) ;; ensure e-l-m mode is off
     (electric-pair-local-mode 1)
     (insert-before-markers "int main () {}")
     (backward-char 1)
-    (let ((last-command-event ?\n))
+    (let ((last-command-event ?))
       (call-interactively (key-binding `[,last-command-event])))
-    (should (equal (buffer-string) "int main ()\n{\n  \n}"))))
+    (should (equal (buffer-string) "int main () {\n  \n}"))))
 
 (ert-deftest electric-layout-mode-newline-between-parens-without-e-p-m ()
-  :expected-result :failed
   (ert-with-test-buffer (:name "electric-pair-mode-newline-between-parens")
     (plainer-c-mode)
     (electric-layout-local-mode 1)
@@ -896,9 +891,9 @@ baz\"\""
                        '(after-stay))))))
     (insert "int main () {}")
     (backward-char 1)
-    (let ((last-command-event ?\n))
+    (let ((last-command-event ?))
       (call-interactively (key-binding `[,last-command-event])))
-    (should (equal (buffer-string) "int main ()\n{\n  \n}"))))
+    (should (equal (buffer-string) "int main () {\n  \n}"))))
 
 (provide 'electric-tests)
 ;;; electric-tests.el ends here
