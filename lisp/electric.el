@@ -373,7 +373,8 @@ CHAR or if the function return non-nil.
 
 WHERE and can be:
 
-* one of the symbols `before', `after', `around' and `after-stay';
+* one of the symbols `before', `after', `around', `after-stay' or
+  nil;
 
 * a list of the preceding symbols, processed in order of
   appearance to insert multiple newlines;
@@ -385,6 +386,10 @@ Each symbol specifies where, in relation to the position POS of
 the character inserted, the newline character(s) should be
 inserted.  `after-stay' means insert a newline after POS but stay
 in the same place.
+
+Instead of the (MATCHER . WHERE) form, a rule can also be just a
+function of no arguments.  It should return a value compatible
+with WHERE if the rule matches, or nil if it doesn't match.
 
 If multiple rules match, only first one is executed.")
 
@@ -406,7 +411,8 @@ If multiple rules match, only first one is executed.")
                                    (funcall (car probe)))))
                      (throw 'done (cdr probe)))
                     ((functionp probe)
-                     (throw 'done (funcall probe))))))))
+                     (let ((res (funcall probe)))
+                       (when res (throw 'done res)))))))))
     (when (and rule
                (setq pos (electric--after-char-pos))
                ;; Not in a string or comment.
@@ -415,28 +421,27 @@ If multiple rules match, only first one is executed.")
       (when (functionp rule) (setq rule (funcall rule)))
       (dolist (sym (if (symbolp rule) (list rule) rule))
         (let* ((nl-after
-                  (lambda ()
-                    ;; FIXME: we use `newline', which calls
-                    ;; `self-insert-command' and ran
-                    ;; `post-self-insert-hook' recursively.  It
-                    ;; happened to make `electric-indent-mode' work
-                    ;; automatically with `electric-layout-mode' (at
-                    ;; the cost of re-indenting lines multiple times),
-                    ;; but I'm not sure it's what we want.
-                    ;;
-                    ;; FIXME: when `newline'ing, we exceptionally
-                    ;; prevent a specific behaviour of
-                    ;; `eletric-pair-mode', that of opening an extra
-                    ;; newline between newly inserted matching paris.
-                    ;; In theory that behaviour should be provided by
-                    ;; `electric-layout-mode' instead, but its API is
-                    ;; not powerful enough to detect the exact
-                    ;; situation.
-                    ;;
-                    ;; FIXME: check eolp before inserting \n?
-                    (let ((electric-layout-mode nil)
-                          (electric-pair-open-newline-between-pairs nil))
-                      (newline 1 t))))
+                (lambda ()
+                  ;; FIXME: we use `newline', which calls
+                  ;; `self-insert-command' and ran
+                  ;; `post-self-insert-hook' recursively.  It
+                  ;; happened to make `electric-indent-mode' work
+                  ;; automatically with `electric-layout-mode' (at
+                  ;; the cost of re-indenting lines multiple times),
+                  ;; but I'm not sure it's what we want.
+                  ;;
+                  ;; FIXME: when `newline'ing, we exceptionally
+                  ;; prevent a specific behaviour of
+                  ;; `eletric-pair-mode', that of opening an extra
+                  ;; newline between newly inserted matching paris.
+                  ;; In theory that behaviour should be provided by
+                  ;; `electric-layout-mode' instead, which should be
+                  ;; possible given the current API.
+                  ;;
+                  ;; FIXME: check eolp before inserting \n?
+                  (let ((electric-layout-mode nil)
+                        (electric-pair-open-newline-between-pairs nil))
+                    (newline 1 t))))
                  (nl-before (lambda ()
                               (save-excursion
                                 (goto-char (1- pos)) (skip-chars-backward " \t")
