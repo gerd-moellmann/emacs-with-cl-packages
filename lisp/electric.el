@@ -367,14 +367,12 @@ Each rule has the form (MATCHER . WHERE) where MATCHER examines
 the state of the buffer after a certain character was inserted
 and WHERE specifies where to insert newlines.
 
-MATCHER can be a character CHAR or a boolean function of no
-arguments.  The rule matches if the character just inserted was
-CHAR or if the function return non-nil.
+MATCHER is a character CHAR.  The rule matches if the character
+just inserted was CHAR.
 
-WHERE and can be:
+WHERE can be:
 
-* one of the symbols `before', `after', `around', `after-stay' or
-  nil;
+* one of the symbols `before', `after', `around', `after-stay'.
 
 * a list of the preceding symbols, processed in order of
   appearance to insert multiple newlines;
@@ -388,8 +386,9 @@ inserted.  `after-stay' means insert a newline after POS but stay
 in the same place.
 
 Instead of the (MATCHER . WHERE) form, a rule can also be just a
-function of no arguments.  It should return a value compatible
-with WHERE if the rule matches, or nil if it doesn't match.
+function of a single argument, the character just inserted.  It
+should return a value compatible with WHERE if the rule matches,
+or nil if it doesn't match.
 
 If multiple rules match, only first one is executed.")
 
@@ -406,12 +405,10 @@ If multiple rules match, only first one is executed.")
           (catch 'done
             (while (setq probe (pop rules))
               (cond ((and (consp probe)
-                          (or (eq (car probe) last-command-event)
-                              (and (functionp (car probe))
-                                   (funcall (car probe)))))
+                          (eq (car probe) last-command-event))
                      (throw 'done (cdr probe)))
                     ((functionp probe)
-                     (let ((res (funcall probe)))
+                     (let ((res (funcall probe last-command-event)))
                        (when res (throw 'done res)))))))))
     (when (and rule
                (setq pos (electric--after-char-pos))

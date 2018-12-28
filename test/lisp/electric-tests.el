@@ -864,7 +864,7 @@ baz\"\""
     (should (equal (buffer-string) "int main ()\n{\n  \n}"))))
 
 (ert-deftest electric-pair-mode-newline-between-parens ()
-  (ert-with-test-buffer (:name "electric-pair-mode-newline-between-parens")
+  (ert-with-test-buffer ()
     (plainer-c-mode)
     (electric-layout-local-mode -1) ;; ensure e-l-m mode is off
     (electric-pair-local-mode 1)
@@ -875,7 +875,7 @@ baz\"\""
     (should (equal (buffer-string) "int main () {\n  \n}"))))
 
 (ert-deftest electric-layout-mode-newline-between-parens-without-e-p-m ()
-  (ert-with-test-buffer (:name "electric-pair-mode-newline-between-parens")
+  (ert-with-test-buffer ()
     (plainer-c-mode)
     (electric-layout-local-mode 1)
     (electric-pair-local-mode -1) ;; ensure e-p-m mode is off
@@ -889,6 +889,27 @@ baz\"\""
                                  (char-before (1- (point))))
                                (matching-paren (char-after)))
                        '(after-stay))))))
+    (insert "int main () {}")
+    (backward-char 1)
+    (let ((last-command-event ?))
+      (call-interactively (key-binding `[,last-command-event])))
+    (should (equal (buffer-string) "int main () {\n  \n}"))))
+
+(ert-deftest electric-layout-mode-newline-between-parens-without-e-p-m-2 ()
+  (ert-with-test-buffer ()
+    (plainer-c-mode)
+    (electric-layout-local-mode 1)
+    (electric-pair-local-mode -1) ;; ensure e-p-m mode is off
+    (electric-indent-local-mode 1)
+    (setq-local electric-layout-rules
+                '((lambda (char)
+                    (when (and
+                           (eq char ?\n)
+                           (eq (save-excursion
+                                 (skip-chars-backward "\t\s")
+                                 (char-before (1- (point))))
+                               (matching-paren (char-after))))
+                       '(after-stay)))))
     (insert "int main () {}")
     (backward-char 1)
     (let ((last-command-event ?))
