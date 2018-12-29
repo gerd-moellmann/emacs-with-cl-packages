@@ -372,7 +372,8 @@ just inserted was CHAR.
 
 WHERE can be:
 
-* one of the symbols `before', `after', `around', `after-stay'.
+* one of the symbols `before', `after', `around', `after-stay',
+  or nil.
 
 * a list of the preceding symbols, processed in order of
   appearance to insert multiple newlines;
@@ -408,10 +409,14 @@ If multiple rules match, only first one is executed.")
                           (eq (car probe) last-command-event))
                      (throw 'done (cdr probe)))
                     ((functionp probe)
-                     (let ((res (funcall probe last-command-event)))
+                     (let ((res
+                            (save-excursion
+                              (goto-char
+                               (or pos (setq pos (electric--after-char-pos))))
+                              (funcall probe last-command-event))))
                        (when res (throw 'done res)))))))))
     (when (and rule
-               (setq pos (electric--after-char-pos))
+               (or pos (setq pos (electric--after-char-pos)))
                ;; Not in a string or comment.
                (not (nth 8 (save-excursion (syntax-ppss pos)))))
       (goto-char pos)
