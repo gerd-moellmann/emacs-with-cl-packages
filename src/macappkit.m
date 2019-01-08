@@ -2578,15 +2578,26 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 			change:(NSDictionaryOf (NSKeyValueChangeKey, id) *)change
 		       context:(void *)context
 {
+  BOOL updateOverlayViewParticipation = NO;
+
   if ([keyPath isEqualToString:@"sublayers"])
     {
       if ([change objectForKey:NSKeyValueChangeNotificationIsPriorKey])
 	[self synchronizeOverlayViewFrame];
       else
-	[self updateOverlayViewParticipation];
+	updateOverlayViewParticipation = YES;
     }
   else if ([keyPath isEqualToString:@"showingBorder"])
-    [self updateOverlayViewParticipation];
+    updateOverlayViewParticipation = YES;
+
+  if (updateOverlayViewParticipation)
+    {
+      if (!popup_activated ())
+	[self updateOverlayViewParticipation];
+      else
+	[self performSelector:@selector(updateOverlayViewParticipation)
+		   withObject:nil afterDelay:0];
+    }
 }
 
 - (void)setupWindow
