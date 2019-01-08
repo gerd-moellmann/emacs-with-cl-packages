@@ -1,6 +1,6 @@
 ;;; epg-tests.el --- Test suite for epg.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -87,6 +87,8 @@
 (ert-deftest epg-decrypt-1 ()
   (skip-unless (epg-tests-find-usable-gpg-configuration 'require-passphrase))
   (with-epg-tests (:require-passphrase t)
+    (with-temp-file (expand-file-name "gpg.conf" epg-tests-home-directory)
+      (insert "ignore-mdc-error"))
     (should (equal "test"
 		   (epg-decrypt-string epg-tests-context "\
 -----BEGIN PGP MESSAGE-----

@@ -1,6 +1,6 @@
 ;;; mh-e.el --- GNU Emacs interface to the MH mail system
 
-;; Copyright (C) 1985-1988, 1990, 1992-1995, 1997, 1999-2018 Free
+;; Copyright (C) 1985-1988, 1990, 1992-1995, 1997, 1999-2019 Free
 ;; Software Foundation, Inc.
 
 ;; Author: Bill Wohler <wohler@newt.com>
@@ -1022,12 +1022,13 @@ windows in the frame are removed."
   (when delete-other-windows-flag
     (delete-other-windows)))
 
-;; FIXME: Maybe out of date?  --xfq
 (if (boundp 'customize-package-emacs-version-alist)
     (add-to-list 'customize-package-emacs-version-alist
                  '(MH-E ("6.0" . "22.1") ("6.1" . "22.1") ("7.0" . "22.1")
                         ("7.1" . "22.1") ("7.2" . "22.1") ("7.3" . "22.1")
-                        ("7.4" . "22.1") ("8.0" . "22.1"))))
+                        ("7.4" . "22.1") ("8.0" . "22.1") ("8.1" . "23.1")
+                        ("8.2" . "23.1") ("8.3" . "24.1") ("8.4" . "24.4")
+                        ("8.5" . "24.4") ("8.6" . "24.4"))))
 
 
 

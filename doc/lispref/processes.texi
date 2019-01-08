@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990-1995, 1998-1999, 2001-2018 Free Software
+@c Copyright (C) 1990-1995, 1998-1999, 2001-2019 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Processes
@@ -451,7 +451,9 @@ present in @var{args}.  To avoid confusion, it may be best to avoid
 absolute file names in @var{args}, but rather to specify all file
 names as relative to @code{default-directory}.  The function
 @code{file-relative-name} is useful for constructing such relative
-file names.
+file names.  Alternatively, you can use @code{file-local-name}
+(@pxref{Magic File Names}) to obtain an absolute file name as seen
+from the remote host's perspective.
 @end defun
 
 @defvar process-file-side-effects
@@ -604,10 +606,9 @@ these features.  However, for subprocesses used by Lisp programs for
 internal purposes (i.e., no user interaction with the subprocess is
 required), where significant amounts of data need to be exchanged
 between the subprocess and the Lisp program, it is often better to use
-a pipe, because pipes are more efficient, and because they are immune
-to stray character injections that ptys introduce for large (around
-500 byte) messages.  Also, the total number of ptys is limited on many
-systems, and it is good not to waste them unnecessarily.
+a pipe, because pipes are more efficient.  Also, the total number of
+ptys is limited on many systems, and it is good not to waste them
+unnecessarily.
 
 @defun make-process &rest args
 This function is the basic low-level primitive for starting
@@ -818,7 +819,12 @@ In the latter case, the local part of @code{default-directory} becomes
 the working directory of the process.
 
 This function does not try to invoke file name handlers for
-@var{program} or for the rest of @var{args}.
+@var{program} or for the rest of @var{args}.  For that reason, if
+@var{program} or any of @var{args} use the remote-file syntax
+(@pxref{Magic File Names}), they must be converted either to file
+names relative to @code{default-directory}, or to names that identify
+the files locally on the remote host, by running them through
+@code{file-local-name}.
 
 Depending on the implementation of the file handler, it might not be
 possible to apply @code{process-filter} or @code{process-sentinel} to
@@ -1796,7 +1802,8 @@ until output arrives from a process.
 This function allows Emacs to read pending output from processes.  The
 output is given to their filter functions.  If @var{process} is
 non-@code{nil} then this function does not return until some output
-has been received from @var{process}.
+has been received from @var{process} or @var{process} has closed the
+connection.
 
 The arguments @var{seconds} and @var{millisec} let you specify timeout
 periods.  The former specifies a period measured in seconds and the
@@ -1821,7 +1828,9 @@ speech synthesis.
 
 The function @code{accept-process-output} returns non-@code{nil} if it
 got output from @var{process}, or from any process if @var{process} is
-@code{nil}.  It returns @code{nil} if the timeout expired before output
+@code{nil}; this can occur even after a process has exited if the
+corresponding connection contains buffered data.  The function returns
+@code{nil} if the timeout expired or the connection was closed before output
 arrived.
 @end defun
 

@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990-1995, 1998-1999, 2001-2018 Free Software
+@c Copyright (C) 1990-1995, 1998-1999, 2001-2019 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Frames
@@ -499,7 +499,7 @@ Height |  | | Height                           | |  | Height
 In practice not all of the areas shown in the drawing will or may be
 present.  The meaning of these areas is described below.
 
-@table @samp
+@table @asis
 @item Outer Frame
 @cindex outer frame
 @cindex outer edges

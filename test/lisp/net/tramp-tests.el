@@ -1,6 +1,6 @@
 ;;; tramp-tests.el --- Tests of remote file access  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -4773,8 +4773,9 @@ process sentinels.  They shall not disturb each other."
      (string-match
       (format
        "Loading %s"
-       (expand-file-name
-	"tramp-cmds" (file-name-directory (locate-library "tramp"))))
+       (regexp-quote
+        (expand-file-name
+         "tramp-cmds" (file-name-directory (locate-library "tramp")))))
       (shell-command-to-string
        (format
 	"%s -batch -Q -L %s -l tramp-sh --eval %s"

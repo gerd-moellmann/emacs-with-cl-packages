@@ -1,6 +1,6 @@
 ;;; window.el --- GNU Emacs window commands aside from those written in C  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1989, 1992-1994, 2000-2018 Free Software
+;; Copyright (C) 1985, 1989, 1992-1994, 2000-2019 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -7114,9 +7114,7 @@ that allows the selected frame)."
           (or (cdr (assq 'frame-predicate alist))
               (lambda (frame)
                 (and (not (eq frame (selected-frame)))
-                     (not (window-dedicated-p
-                           (or (get-lru-window frame)
-                               (frame-first-window frame))))))))
+                     (get-lru-window frame)))))
          (frame (car (filtered-frame-list predicate)))
          (window
           (and frame
@@ -7125,7 +7123,7 @@ that allows the selected frame)."
     (when window
       (prog1
           (window--display-buffer
-           buffer window 'frame alist display-buffer-mark-dedicated)
+           buffer window 'reuse alist display-buffer-mark-dedicated)
         (unless (cdr (assq 'inhibit-switch-frame alist))
           (window--maybe-raise-frame frame))))))
 

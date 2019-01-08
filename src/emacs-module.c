@@ -1,6 +1,6 @@
 /* emacs-module.c - Module loading and runtime implementation
 
-Copyright (C) 2015-2018 Free Software Foundation, Inc.
+Copyright (C) 2015-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -35,6 +35,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <intprops.h>
 #include <verify.h>
+
+/* This module is lackadaisical about function casts.  */
+#if GNUC_PREREQ (8, 0, 0)
+# pragma GCC diagnostic ignored "-Wcast-function-type"
+#endif
 
 /* We use different strategies for allocating the user-visible objects
    (struct emacs_runtime, emacs_env, emacs_value), depending on

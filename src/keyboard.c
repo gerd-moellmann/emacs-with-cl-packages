@@ -1,6 +1,6 @@
 /* Keyboard and mouse input; editor command loop.
 
-Copyright (C) 1985-1989, 1993-1997, 1999-2018 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1997, 1999-2019 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -2832,6 +2832,9 @@ read_char (int commandflag, Lisp_Object map,
 
       if (EQ (c, make_number (-2)))
 	return c;
+
+      if (CONSP (c) && EQ (XCAR (c), Qt))
+	c = XCDR (c);
   }
 
  non_reread:
@@ -12109,7 +12112,12 @@ mark_kboards (void)
     for (event = kbd_fetch_ptr; event != kbd_store_ptr; event++)
       {
 	if (event == kbd_buffer + KBD_BUFFER_SIZE)
-	  event = kbd_buffer;
+	  {
+	    event = kbd_buffer;
+	    if (event == kbd_store_ptr)
+	      break;
+	  }
+
 	/* These two special event types has no Lisp_Objects to mark.  */
 	if (event->kind != SELECTION_REQUEST_EVENT
 	    && event->kind != SELECTION_CLEAR_EVENT)

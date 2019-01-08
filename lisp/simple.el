@@ -1,6 +1,6 @@
 ;;; simple.el --- basic editing commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1993-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1993-2019 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -2120,7 +2120,11 @@ next element of the minibuffer history in the minibuffer."
 	 (prompt-end (minibuffer-prompt-end))
 	 (old-column (unless (and (eolp) (> (point) prompt-end))
 		       (if (= (line-number-at-pos) 1)
-			   (max (- (current-column) (1- prompt-end)) 0)
+			   (max (- (current-column)
+				   (save-excursion
+				     (goto-char (1- prompt-end))
+				     (current-column)))
+				0)
 			 (current-column)))))
     (condition-case nil
 	(with-no-warnings
@@ -2139,7 +2143,10 @@ next element of the minibuffer history in the minibuffer."
        (goto-char (point-max))
        (when old-column
 	 (if (= (line-number-at-pos) 1)
-	     (move-to-column (+ old-column (1- (minibuffer-prompt-end))))
+	     (move-to-column (+ old-column
+				(save-excursion
+				  (goto-char (1- (minibuffer-prompt-end)))
+				  (current-column))))
 	   (move-to-column old-column)))))))
 
 (defun previous-line-or-history-element (&optional arg)
@@ -2154,7 +2161,11 @@ previous element of the minibuffer history in the minibuffer."
 	 (prompt-end (minibuffer-prompt-end))
 	 (old-column (unless (and (eolp) (> (point) prompt-end))
 		       (if (= (line-number-at-pos) 1)
-			   (max (- (current-column) (1- prompt-end)) 0)
+			   (max (- (current-column)
+				   (save-excursion
+				     (goto-char (1- prompt-end))
+				     (current-column)))
+				0)
 			 (current-column)))))
     (condition-case nil
 	(with-no-warnings
@@ -2173,7 +2184,10 @@ previous element of the minibuffer history in the minibuffer."
        (goto-char (minibuffer-prompt-end))
        (if old-column
 	   (if (= (line-number-at-pos) 1)
-	       (move-to-column (+ old-column (1- (minibuffer-prompt-end))))
+	       (move-to-column (+ old-column
+				  (save-excursion
+				    (goto-char (1- (minibuffer-prompt-end)))
+				    (current-column))))
 	     (move-to-column old-column))
 	 ;; Put the cursor at the end of the visual line instead of the
 	 ;; logical line, so the next `previous-line-or-history-element'
@@ -3852,10 +3866,13 @@ interactively, this is t."
       (process-file shell-file-name nil t nil shell-command-switch command))))
 
 (defun process-file (program &optional infile buffer display &rest args)
-  "Process files synchronously in a separate process.
+  "Process files synchronously in a separate process that runs PROGRAM.
 Similar to `call-process', but may invoke a file handler based on
 `default-directory'.  The current working directory of the
 subprocess is `default-directory'.
+
+If PROGRAM is a remote file name, it should be processed
+by `file-local-name' before passing it to this function.
 
 File names in INFILE and BUFFER are handled normally, but file
 names in ARGS should be relative to `default-directory', as they
@@ -3901,12 +3918,15 @@ Similar to `start-process', but may invoke a file handler based on
 
 This handler ought to run PROGRAM, perhaps on the local host,
 perhaps on a remote host that corresponds to `default-directory'.
-In the latter case, the local part of `default-directory' becomes
-the working directory of the process.
+In the latter case, the local part of `default-directory', the one
+produced from it by `file-local-name', becomes the working directory
+of the process on the remote host.
 
 PROGRAM and PROGRAM-ARGS might be file names.  They are not
-objects of file handler invocation.  File handlers might not
-support pty association, if PROGRAM is nil."
+objects of file handler invocation, so they need to be obtained
+by calling `file-local-name', in case they are remote file names.
+
+File handlers might not support pty association, if PROGRAM is nil."
   (let ((fh (find-file-name-handler default-directory 'start-file-process)))
     (if fh (apply fh 'start-file-process name buffer program program-args)
       (apply 'start-process name buffer program program-args))))

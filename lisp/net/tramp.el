@@ -1,6 +1,6 @@
 ;;; tramp.el --- Transparent Remote Access, Multiple Protocol  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2019 Free Software Foundation, Inc.
 
 ;; Author: Kai Großjohann <kai.grossjohann@gmx.net>
 ;;         Michael Albinus <michael.albinus@gmx.de>
@@ -1374,7 +1374,9 @@ default values are used."
     (method user domain host port localname &optional hop)
   "Constructs a Tramp file name from METHOD, USER, HOST and LOCALNAME.
 When not nil, optional DOMAIN, PORT and HOP are used."
-  (when (zerop (length method))
+  ;; Unless `tramp-syntax' is `simplified', we need a method.
+  (when (and (not (zerop (length tramp-postfix-method-format)))
+             (zerop (length method)))
     (signal 'wrong-type-argument (list 'stringp method)))
   (concat tramp-prefix-format hop
 	  (unless (zerop (length tramp-postfix-method-format))
@@ -4578,10 +4580,11 @@ Only works for Bourne-like shells."
 	       (or
 		;; When `tramp-own-remote-path' is in `tramp-remote-path',
 		;; the remote path is only set in the session cache.
+                ;; Use `path-separator' as it does eshell.
 		(tramp-get-connection-property
 		 (tramp-get-connection-process v) "remote-path" nil)
 		(tramp-get-connection-property v "remote-path" nil))
-	       ":"))
+	       path-separator))
 	  (getenv "PATH"))))
 
 (eval-after-load "esh-util"

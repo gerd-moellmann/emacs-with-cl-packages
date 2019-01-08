@@ -23,7 +23,7 @@
 @end macro
 
 @copying
-Copyright @copyright{} 1999--2018 Free Software Foundation, Inc.
+Copyright @copyright{} 1999--2019 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -2593,6 +2593,8 @@ proxy @samp{bird@@bastion} to a remote file on @samp{you@@remotehost}:
 @c @kbd{C-x C-f @trampfn{ssh@value{postfixhop}bird@@bastion|ssh,you,remotehost,/path} @key{RET}}
 @kbd{C-x C-f @value{prefix}ssh@value{postfixhop}bird@@bastion|ssh@value{postfixhop}you@@remotehost@value{postfix}/path @key{RET}}
 @end example
+
+Each involved method must be an inline method (@pxref{Inline methods}).
 
 Proxies can take patterns @code{%h} or @code{%u}.
 

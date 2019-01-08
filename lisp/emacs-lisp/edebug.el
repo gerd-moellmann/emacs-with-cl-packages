@@ -1,6 +1,6 @@
 ;;; edebug.el --- a source-level debugger for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988-1995, 1997, 1999-2018 Free Software Foundation,
+;; Copyright (C) 1988-1995, 1997, 1999-2019 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Daniel LaLiberte <liberte@holonexus.org>
@@ -191,11 +191,11 @@ Use this with caution since it is not debugged."
 
 (defcustom edebug-print-length 50
   "If non-nil, default value of `print-length' for printing results in Edebug."
-  :type 'integer
+  :type '(choice integer (const nil))
   :group 'edebug)
 (defcustom edebug-print-level 50
   "If non-nil, default value of `print-level' for printing results in Edebug."
-  :type 'integer
+  :type '(choice integer (const nil))
   :group 'edebug)
 (defcustom edebug-print-circle t
   "If non-nil, default value of `print-circle' for printing results in Edebug."

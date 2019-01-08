@@ -1,6 +1,6 @@
 /* Functions for creating and updating GTK widgets.
 
-Copyright (C) 2003-2018 Free Software Foundation, Inc.
+Copyright (C) 2003-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -146,6 +146,8 @@ struct xg_frame_tb_info
   int hmargin, vmargin;
   GtkTextDirection dir;
 };
+
+bool xg_gtk_initialized;        /* Used to make sure xwidget calls are possible */
 
 static GtkWidget * xg_get_widget_from_map (ptrdiff_t idx);
 
@@ -5306,6 +5308,8 @@ xg_initialize (void)
 #ifdef HAVE_FREETYPE
   x_last_font_name = NULL;
 #endif
+
+  xg_gtk_initialized = true;
 }
 
 #endif /* USE_GTK */

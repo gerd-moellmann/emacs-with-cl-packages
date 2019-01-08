@@ -1,6 +1,6 @@
 /* Display generation from window structure and buffer text.
 
-Copyright (C) 1985-1988, 1993-1995, 1997-2018 Free Software Foundation,
+Copyright (C) 1985-1988, 1993-1995, 1997-2019 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -21239,7 +21239,10 @@ maybe_produce_line_number (struct it *it)
       if (lnum_face_id != current_lnum_face_id
 	  && (EQ (Vdisplay_line_numbers, Qvisual)
 	      ? this_line == 0
-	      : this_line == it->pt_lnum))
+	      : this_line == it->pt_lnum)
+	  /* Avoid displaying the line-number-current-line face on
+	     empty lines beyond EOB.  */
+	  && it->what != IT_EOB)
 	tem_it.face_id = current_lnum_face_id;
       else
 	tem_it.face_id = lnum_face_id;
@@ -32336,7 +32339,14 @@ expose_window_tree (struct window *w, XRectangle *r)
   struct frame *f = XFRAME (w->frame);
   bool mouse_face_overwritten_p = false;
 
-  while (w && !FRAME_GARBAGED_P (f))
+  /* NS toolkits may have aleady modified the frame in expectation of
+     a successful redraw, so don't bail out here if the frame is
+     garbaged.  */
+  while (w
+#if !defined (HAVE_NS)
+         && !FRAME_GARBAGED_P (f)
+#endif
+         )
     {
       mouse_face_overwritten_p
 	|= (WINDOWP (w->contents)
@@ -32364,12 +32374,16 @@ expose_frame (struct frame *f, int x, int y, int w, int h)
 
   TRACE ((stderr, "expose_frame "));
 
-  /* No need to redraw if frame will be redrawn soon.  */
+#if !defined (HAVE_NS)
+  /* No need to redraw if frame will be redrawn soon except under NS
+     where the toolkit may have already modified the frame in
+     expectation of us redrawing it.  */
   if (FRAME_GARBAGED_P (f))
     {
       TRACE ((stderr, " garbaged\n"));
       return;
     }
+#endif
 
   /* If basic faces haven't been realized yet, there is no point in
      trying to redraw anything.  This can happen when we get an expose

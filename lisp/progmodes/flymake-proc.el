@@ -1,6 +1,6 @@
 ;;; flymake-proc.el --- Flymake backend for external tools  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2019 Free Software Foundation, Inc.
 
 ;; Author:  Pavel Kobyakov <pk_at_work@yahoo.com>
 ;; Maintainer: Leo Liu <sdl.web@gmail.com>
@@ -854,7 +854,7 @@ can also be executed interactively independently of
   (unless (stringp file-name)
     (error "Invalid file-name"))
 
-  (let* ((dir       (file-name-directory file-name))
+  (let* ((dir       (file-name-directory (file-name-unquote file-name)))
          ;; Not sure what this slash-pos is all about, but I guess it's just
          ;; trying to remove the leading / of absolute file names.
 	 (slash-pos (string-match "/" dir))

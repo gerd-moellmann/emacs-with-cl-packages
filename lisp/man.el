@@ -1,6 +1,6 @@
 ;;; man.el --- browse UNIX manual pages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1994, 1996-1997, 2001-2018 Free Software
+;; Copyright (C) 1993-1994, 1996-1997, 2001-2019 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Barry A. Warsaw <bwarsaw@cen.com>
@@ -1378,7 +1378,8 @@ manpage command."
 
       (with-current-buffer Man-buffer
 	(save-excursion
-	  (let ((case-fold-search nil))
+	  (let ((case-fold-search nil)
+                (inhibit-read-only t))
 	    (goto-char (point-min))
 	    (cond ((or (looking-at "No \\(manual \\)*entry for")
 		       (looking-at "[^\n]*: nothing appropriate$"))

@@ -1,6 +1,6 @@
 ;;; filenotify.el --- watch files for changes on disk  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -307,7 +307,10 @@ FILE is the name of the file whose event is being reported."
   (unless (functionp callback)
     (signal 'wrong-type-argument `(,callback)))
 
-  (let* ((handler (find-file-name-handler file 'file-notify-add-watch))
+  (let* ((quoted (file-name-quoted-p file))
+         (file (file-name-unquote file))
+         (file-name-handler-alist (if quoted nil file-name-handler-alist))
+         (handler (find-file-name-handler file 'file-notify-add-watch))
 	 (dir (directory-file-name
 	       (if (file-directory-p file)
 		   file

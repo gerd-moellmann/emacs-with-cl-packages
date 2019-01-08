@@ -1,6 +1,6 @@
 /* Window creation, deletion and examination for GNU Emacs.
    Does not include redisplay.
-   Copyright (C) 1985-1987, 1993-1998, 2000-2018 Free Software
+   Copyright (C) 1985-1987, 1993-1998, 2000-2019 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -4934,25 +4934,21 @@ window_wants_header_line (struct window *w)
 	  : 0);
 }
 
-/* Return number of lines of text (not counting mode lines) in W.  */
+/* Return number of lines of text in window W, not counting the mode
+   line and header line, if any.  Do NOT use this for windows on GUI
+   frames; use window_body_height instead.  This function is only for
+   windows on TTY frames, where it is much more efficient.  */
 
 int
 window_internal_height (struct window *w)
 {
   int ht = w->total_lines;
 
-  if (!MINI_WINDOW_P (w))
-    {
-      if (!NILP (w->parent)
-	  || WINDOWP (w->contents)
-	  || !NILP (w->next)
-	  || !NILP (w->prev)
-	  || window_wants_mode_line (w))
-	--ht;
+  if (window_wants_mode_line (w))
+    --ht;
 
-      if (window_wants_header_line (w))
-	--ht;
-    }
+  if (window_wants_header_line (w))
+    --ht;
 
   return ht;
 }
@@ -4981,8 +4977,8 @@ window_scroll (Lisp_Object window, EMACS_INT n, bool whole, bool noerror)
   if (whole && Vfast_but_imprecise_scrolling)
     specbind (Qfontification_functions, Qnil);
 
-  /* If we must, use the pixel-based version which is much slower than
-     the line-based one but can handle varying line heights.  */
+  /* On GUI frames, use the pixel-based version which is much slower
+     than the line-based one but can handle varying line heights.  */
   if (FRAME_WINDOW_P (XFRAME (XWINDOW (window)->frame)))
     window_scroll_pixel_based (window, n, whole, noerror);
   else
@@ -7141,6 +7137,11 @@ set_window_fringes (struct window *w, Lisp_Object left_width,
       w->right_fringe_width = right;
       w->fringes_outside_margins = outside;
 
+      /* This is needed to trigger immediate redisplay of the window
+	 when its fringes are changed, because fringes are redrawn
+	 only if update_window is called, so we must trigger that even
+	 if the window's glyph matrices did not change at all.  */
+      windows_or_buffers_changed = 35;
       return w;
     }
   else
@@ -7258,6 +7259,12 @@ set_window_scroll_bars (struct window *w, Lisp_Object width,
   wset_horizontal_scroll_bar_type (w, Qnil);
 #endif
 
+  /* This is needed to trigger immediate redisplay of the window when
+     scroll bars are changed, because scroll bars are redisplayed only
+     if more than a single window needs to be considered, see
+     redisplay_internal.  */
+  if (changed)
+    windows_or_buffers_changed = 31;
   return changed ? w : NULL;
 }
 
@@ -7639,7 +7646,7 @@ on their symbols to be controlled by this variable.  */);
   DEFVAR_LISP ("window-point-insertion-type", Vwindow_point_insertion_type,
 	       doc: /* Type of marker to use for `window-point'.  */);
   Vwindow_point_insertion_type = Qnil;
-  DEFSYM (Qwindow_point_insertion_type, "window_point_insertion_type");
+  DEFSYM (Qwindow_point_insertion_type, "window-point-insertion-type");
 
   DEFVAR_LISP ("window-configuration-change-hook",
 	       Vwindow_configuration_change_hook,
