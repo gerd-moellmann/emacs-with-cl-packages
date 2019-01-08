@@ -2595,7 +2595,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   EmacsWindow *oldWindow = emacsWindow;
   NSRect contentRect;
   NSWindowStyleMask windowStyle;
-  BOOL deferCreation;
   EmacsWindow *window;
 
   if (!FRAME_TOOLTIP_P (f))
@@ -2606,13 +2605,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
 		       | NSWindowStyleMaskMiniaturizable
 		       | NSWindowStyleMaskResizable);
-      deferCreation = YES;
     }
   else
-    {
-      windowStyle = NSWindowStyleMaskBorderless;
-      deferCreation = NO;
-    }
+    windowStyle = NSWindowStyleMaskBorderless;
 
   if (oldWindow == nil)
     {
@@ -2643,7 +2638,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   window = [[EmacsWindow alloc] initWithContentRect:contentRect
 					  styleMask:windowStyle
 					    backing:NSBackingStoreBuffered
-					      defer:deferCreation];
+					      defer:YES];
 #if USE_ARC
   /* Increase retain count to accommodate itself to
      released-when-closed on ARC.  Just setting released-when-closed
