@@ -6128,10 +6128,9 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       return;
     }
 #endif
-  CGFloat backingScaleFactor = self.window.backingScaleFactor;
-
   if (!backingBitmap)
     {
+      CGFloat backingScaleFactor = self.window.backingScaleFactor;
       NSSize size = self.bounds.size;
       size_t width = size.width * backingScaleFactor;
       size_t height = size.height * backingScaleFactor;
@@ -6157,6 +6156,9 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 				  LCD Font smoothing.  */
 			       (kCGImageAlphaPremultipliedFirst
 				| kCGBitmapByteOrder32Host));
+      CGContextTranslateCTM (backingBitmap, 0, height);
+      CGContextScaleCTM (backingBitmap,
+			 backingScaleFactor, - backingScaleFactor);
       if (backingSurface)
 	IOSurfaceUnlock (backingSurface, 0, NULL);
     }
@@ -6172,11 +6174,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     [NSGraphicsContext graphicsContextWithGraphicsPort:backingBitmap
 					       flipped:NO];
 #endif
-  [NSGraphicsContext saveGraphicsState];
-  NSAffineTransform *transform = NSAffineTransform.transform;
-  [transform translateXBy:0 yBy:(CGBitmapContextGetHeight (backingBitmap))];
-  [transform scaleXBy:backingScaleFactor yBy:(- backingScaleFactor)];
-  [transform concat];
   if (backingSurface)
     IOSurfaceLock (backingSurface, 0, NULL);
 }
@@ -6195,7 +6192,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   eassert (graphicsContextStack.count && backingBitmap);
   if (backingSurface)
     IOSurfaceUnlock (backingSurface, 0, NULL);
-  [NSGraphicsContext restoreGraphicsState];
   id lastObject = graphicsContextStack.lastObject;
   NSGraphicsContext.currentContext = (lastObject != NSNull.null ? lastObject
 				      : nil);
