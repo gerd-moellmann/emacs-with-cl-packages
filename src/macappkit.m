@@ -5621,7 +5621,7 @@ mac_cursor_create (ThemeCursor shape, const XColor *fore_color,
 	  gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:context
 								flipped:NO];
 #endif
-	  [NSGraphicsContext setCurrentContext:gcontext];
+	  NSGraphicsContext.currentContext = gcontext;
 	  [rep draw];
 	  [NSGraphicsContext restoreGraphicsState];
 	  for (i = 0; i < width * height; i++)
@@ -11960,16 +11960,16 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
     {
       NSView *view = [views objectAtIndex:i++];
       NSRect rect = [view visibleRect];
+      NSGraphicsContext *gcontext = NSGraphicsContext.currentContext;
       NSAffineTransform *transform = [NSAffineTransform transform];
 
-      [NSGraphicsContext saveGraphicsState];
+      [gcontext saveGraphicsState];
       [transform translateXBy:(- NSMinX (rect)) yBy:(y - NSMinY (rect))];
       [transform concat];
       [EmacsView globallyDisableUpdateLayer:YES];
-      [view displayRectIgnoringOpacity:rect
-			     inContext:[NSGraphicsContext currentContext]];
+      [view displayRectIgnoringOpacity:rect inContext:gcontext];
       [EmacsView globallyDisableUpdateLayer:NO];
-      [NSGraphicsContext restoreGraphicsState];
+      [gcontext restoreGraphicsState];
       y += NSHeight ([view visibleRect]);
     }
 }
@@ -13605,14 +13605,14 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
   [transform scaleBy:scaleFactor];
   [transform translateXBy:(- NSMinX (rect)) yBy:(- NSMinY (rect))];
   [NSGraphicsContext saveGraphicsState];
-  [NSGraphicsContext setCurrentContext:gcontext];
+  NSGraphicsContext.currentContext = gcontext;
   [transform concat];
   if (!(self.isOpaque && NSContainsRect (self.bounds, rect)))
     {
-      [NSGraphicsContext saveGraphicsState];
+      [gcontext saveGraphicsState];
       [(color ? color : [NSColor clearColor]) set];
       NSRectFill (rect);
-      [NSGraphicsContext restoreGraphicsState];
+      [gcontext restoreGraphicsState];
     }
 #if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
   if ([self isKindOfClass:[WKWebView class]])
@@ -14099,7 +14099,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 	[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
 
       [NSGraphicsContext saveGraphicsState];
-      [NSGraphicsContext setCurrentContext:gcontext];
+      NSGraphicsContext.currentContext = gcontext;
       [transform translateXBy:(NSMinX (rect)) yBy:(NSMinY (rect))];
       [transform scaleXBy:(NSWidth (rect) / width)
 		      yBy:(NSHeight (rect) / height)];
@@ -14350,7 +14350,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 #endif
 
   [NSGraphicsContext saveGraphicsState];
-  [NSGraphicsContext setCurrentContext:gcontext];
+  NSGraphicsContext.currentContext = gcontext;
   [transform translateXBy:(NSMinX (rect)) yBy:(NSMaxY (rect))];
   [transform scaleXBy:(NSWidth (rect) / containerSize.width)
 		  yBy:(- NSHeight (rect) / containerSize.height)];
