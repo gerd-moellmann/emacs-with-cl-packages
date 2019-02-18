@@ -5888,7 +5888,6 @@ static BOOL emacsViewUpdateLayerDisabled;
 #if HAVE_MAC_METAL
   [mtlCommandQueue release];
 #endif
-  [graphicsContextStack release];
   [super dealloc];
 #endif
 }
@@ -6008,7 +6007,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 			    (FRAME_FLASH_RECTANGLES_DATA (f)));
   NSData *savedImageBuffersData;
 
-  if (graphicsContextStack.count)
+  if (backingLockCount)
     return;
 
   if (!backingBitmap && mac_try_buffer_and_glyph_matrix_access ())
@@ -6120,6 +6119,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 - (void)lockFocusOnBacking
 {
   eassert (pthread_main_np ());
+
+  backingLockCount++;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   if (!self.layer)
     {
@@ -6162,11 +6163,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       if (backingSurface)
 	IOSurfaceUnlock (backingSurface, 0, NULL);
     }
-  if (!graphicsContextStack)
-    graphicsContextStack = [[NSMutableArray alloc] initWithCapacity:0];
-  id currentContext = NSGraphicsContext.currentContext;
-  [graphicsContextStack addObject:(currentContext ? currentContext
-				   : NSNull.null)];
+  [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext =
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
     [NSGraphicsContext graphicsContextWithCGContext:backingBitmap flipped:NO];
@@ -6181,6 +6178,9 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 - (void)unlockFocusOnBacking
 {
   eassert (pthread_main_np ());
+  eassert (backingLockCount);
+
+  backingLockCount--;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   if (!self.layer)
     {
@@ -6189,13 +6189,10 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       return;
     }
 #endif
-  eassert (graphicsContextStack.count && backingBitmap);
+  eassert (backingBitmap);
   if (backingSurface)
     IOSurfaceUnlock (backingSurface, 0, NULL);
-  id lastObject = graphicsContextStack.lastObject;
-  NSGraphicsContext.currentContext = (lastObject != NSNull.null ? lastObject
-				      : nil);
-  [graphicsContextStack removeLastObject];
+  [NSGraphicsContext restoreGraphicsState];
 }
 
 static vImage_Error

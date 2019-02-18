@@ -1002,9 +1002,8 @@ typedef NSInteger NSGlyphProperty;
   id <MTLCommandQueue> mtlCommandQueue;
 #endif
 
-  /* Stack of graphics contexts saved by lockFocus emulation on
-     backing bitmap.  */
-  NSMutableArray *graphicsContextStack;
+  /* Lock count for backing bitmap.  */
+  char backingLockCount;
 
   /* Whether backing bitmap synchronization is suspended.  */
   BOOL synchronizeBackingBitmapSuspended;
