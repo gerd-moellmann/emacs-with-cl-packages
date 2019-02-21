@@ -1115,6 +1115,7 @@ Customization
                           By changing them, you can redefine keys.
 * Init File::           How to write common customizations in the
                           initialization file.
+* Authentication::      Keeping persistent authentication information.
 
 Easy Customization Interface
 

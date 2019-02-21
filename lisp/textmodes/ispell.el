@@ -723,6 +723,7 @@ Otherwise returns the library directory name, if that is defined."
 	;; Make sure these variables are (re-)initialized to the default value
 	(setq ispell-really-aspell nil
               ispell-really-hunspell nil
+              ispell-really-enchant nil
 	      ispell-encoding8-command nil)
 
 	(goto-char (point-min))
@@ -1113,12 +1114,19 @@ dictionary from that list was found."
 				 null-device
 				 t
 				 nil
+                                 "-D"
+                                 ;; Use -a to prevent Hunspell from
+                                 ;; trying to initialize its
+                                 ;; curses/termcap UI, which causes it
+                                 ;; to crash or fail to start in some
+                                 ;; MS-Windows ports.
+                                 "-a"
                                  ;; Hunspell 1.7.0 (and later?) won't
                                  ;; show LOADED DICTIONARY unless
                                  ;; there's at least one file argument
                                  ;; on the command line.  So we feed
                                  ;; it with the null device.
-				 "-D" null-device)
+				 null-device)
 	    (buffer-string))
 	  "[\n\r]+"
 	  t))

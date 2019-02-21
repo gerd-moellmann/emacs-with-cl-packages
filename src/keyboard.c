@@ -364,7 +364,7 @@ static Lisp_Object make_lispy_focus_out (Lisp_Object);
 #endif /* HAVE_WINDOW_SYSTEM */
 static bool help_char_p (Lisp_Object);
 static void save_getcjmp (sys_jmp_buf);
-static void restore_getcjmp (sys_jmp_buf);
+static void restore_getcjmp (void *);
 static Lisp_Object apply_modifiers (int, Lisp_Object);
 static void restore_kboard_configuration (int);
 static void handle_interrupt (bool);
@@ -2167,12 +2167,14 @@ read_event_from_main_queue (struct timespec *end_time,
     return c;
 
   /* Actually read a character, waiting if necessary.  */
+  ptrdiff_t count = SPECPDL_INDEX ();
   save_getcjmp (save_jump);
+  record_unwind_protect_ptr (restore_getcjmp, save_jump);
   restore_getcjmp (local_getcjmp);
   if (!end_time)
     timer_start_idle ();
   c = kbd_buffer_get_event (&kb, used_mouse_menu, end_time);
-  restore_getcjmp (save_jump);
+  unbind_to (count, Qnil);
 
   if (! NILP (c) && (kb != current_kboard))
     {
@@ -2661,10 +2663,12 @@ read_char (int commandflag, Lisp_Object map,
 	{
 	  Lisp_Object tem0;
 
+	  ptrdiff_t count = SPECPDL_INDEX ();
 	  save_getcjmp (save_jump);
+	  record_unwind_protect_ptr (restore_getcjmp, save_jump);
 	  restore_getcjmp (local_getcjmp);
 	  tem0 = sit_for (Vecho_keystrokes, 1, 1);
-	  restore_getcjmp (save_jump);
+	  unbind_to (count, Qnil);
 	  if (EQ (tem0, Qt)
 	      && ! CONSP (Vunread_command_events))
 	    echo_now ();
@@ -2735,10 +2739,12 @@ read_char (int commandflag, Lisp_Object map,
 
 	  timeout = min (timeout, MOST_POSITIVE_FIXNUM / delay_level * 4);
 	  timeout = delay_level * timeout / 4;
+	  ptrdiff_t count1 = SPECPDL_INDEX ();
 	  save_getcjmp (save_jump);
+	  record_unwind_protect_ptr (restore_getcjmp, save_jump);
 	  restore_getcjmp (local_getcjmp);
 	  tem0 = sit_for (make_number (timeout), 1, 1);
-	  restore_getcjmp (save_jump);
+	  unbind_to (count1, Qnil);
 
 	  if (EQ (tem0, Qt)
 	      && ! CONSP (Vunread_command_events))
@@ -3348,7 +3354,7 @@ save_getcjmp (sys_jmp_buf temp)
 }
 
 static void
-restore_getcjmp (sys_jmp_buf temp)
+restore_getcjmp (void *temp)
 {
   memcpy (getcjmp, temp, sizeof getcjmp);
 }
