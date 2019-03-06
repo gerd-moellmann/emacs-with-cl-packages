@@ -8145,20 +8145,20 @@ mac_display_copy_info_dictionary_for_cgdisplay (CGDirectDisplayID displayID,
 
   val = CGDisplayVendorNumber (displayID);
   if (val != kDisplayVendorIDUnknown && val != 0xFFFFFFFF)
-    /* We could simply write `info[@kDisplayVendorID] = @(val)' here
-       if we could restrict ourselves to 64-bit executables.  */
-    [info setObject:[NSNumber numberWithUnsignedInt:val]
-	     forKey:@kDisplayVendorID];
+    /* According to IODisplayLib.c in IOKitUser, a dictionary created
+       with IODisplayCreateInfoDictionary maps the kDisplayVendorID
+       (or kDisplayProductID, kDisplaySerialNumber) key to a SInt32
+       value, whereas the return type of CGDisplayVendorNumber (or
+       CGDisplayModelNumber, CGDisplaySerialNumber) is uint32_t.  */
+    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplayVendorID];
 
   val = CGDisplayModelNumber (displayID);
   if (val != kDisplayProductIDGeneric && val != 0xFFFFFFFF)
-    [info setObject:[NSNumber numberWithUnsignedInt:val]
-	     forKey:@kDisplayProductID];
+    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplayProductID];
 
   val = CGDisplaySerialNumber (displayID);
   if (val != 0x00000000 && val != 0xFFFFFFFF)
-    [info setObject:[NSNumber numberWithUnsignedInt:val]
-	     forKey:@kDisplaySerialNumber];
+    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplaySerialNumber];
 
   [infoDictionaries enumerateObjectsUsingBlock:
 		      ^(NSDictionary *dictionary, NSUInteger idx, BOOL *stop) {
