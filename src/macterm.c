@@ -230,42 +230,40 @@ mac_draw_cg_image (CGImageRef image, struct frame *f, GC gc,
 
 /* Mac replacement for XCreateBitmapFromBitmapData.  */
 
-static void
-mac_create_bitmap_from_bitmap_data (BitMap *bitmap, char *bits, int w, int h)
+static CGImageRef
+mac_create_image_mask_from_bitmap_data (const char *bits, int width, int height)
 {
-  static const unsigned char swap_nibble[16]
+  static const UInt8 swap_nibble[16]
     = { 0x0, 0x8, 0x4, 0xc,    /* 0000 1000 0100 1100 */
 	0x2, 0xa, 0x6, 0xe,    /* 0010 1010 0110 1110 */
 	0x1, 0x9, 0x5, 0xd,    /* 0001 1001 0101 1101 */
 	0x3, 0xb, 0x7, 0xf };  /* 0011 1011 0111 1111 */
-  int i, j, w1;
-  char *p;
+  CGImageRef result = NULL;
+  int bytes_per_row = (width + CHAR_BIT - 1) / CHAR_BIT;
+  CFIndex length = bytes_per_row * height;
+  CFMutableDataRef data = CFDataCreateMutable (NULL, length);
+  CGDataProviderRef provider = NULL;
 
-  w1 = (w + 7) / 8;         /* nb of 8bits elt in X bitmap */
-  bitmap->rowBytes = ((w + 15) / 16) * 2; /* nb of 16bits elt in Mac bitmap */
-  bitmap->baseAddr = xzalloc (bitmap->rowBytes * h);
-  for (i = 0; i < h; i++)
+  if (data)
     {
-      p = bitmap->baseAddr + i * bitmap->rowBytes;
-      for (j = 0; j < w1; j++)
+      for (CFIndex i = 0; i < length; i++)
 	{
-	  /* Bitswap XBM bytes to match how Mac does things.  */
-	  unsigned char c = *bits++;
-	  *p++ = (unsigned char)((swap_nibble[c & 0xf] << 4)
-				 | (swap_nibble[(c>>4) & 0xf]));
+	  UInt8 c = *bits++;
+
+	  c = ~((swap_nibble[c & 0xf] << 4) | (swap_nibble[(c>>4) & 0xf]));
+	  CFDataAppendBytes (data, &c, 1);
 	}
+      provider = CGDataProviderCreateWithCFData (data);
+      CFRelease (data);
+    }
+  if (provider)
+    {
+      result = CGImageMaskCreate (width, height, 1, 1, bytes_per_row,
+				  provider, NULL, 0);
+      CGDataProviderRelease (provider);
     }
 
-  bitmap->bounds.left = bitmap->bounds.top = 0;
-  bitmap->bounds.right = w;
-  bitmap->bounds.bottom = h;
-}
-
-
-static void
-mac_free_bitmap (BitMap *bitmap)
-{
-  xfree (bitmap->baseAddr);
+  return result;
 }
 
 
@@ -291,19 +289,9 @@ mac_create_pixmap_from_bitmap_data (char *data,
 				    unsigned int depth)
 {
   Pixmap pixmap = NULL;
-  BitMap bitmap;
-  CGDataProviderRef provider;
-  CGImageRef image_mask = NULL;
+  CGImageRef image_mask =
+    mac_create_image_mask_from_bitmap_data (data, width, height);
 
-  mac_create_bitmap_from_bitmap_data (&bitmap, data, width, height);
-  provider = CGDataProviderCreateWithData (NULL, bitmap.baseAddr,
-					   bitmap.rowBytes * height, NULL);
-  if (provider)
-    {
-      image_mask = CGImageMaskCreate (width, height, 1, 1, bitmap.rowBytes,
-				      provider, NULL, 0);
-      CGDataProviderRelease (provider);
-    }
   if (image_mask)
     {
       CGContextRef context;
@@ -323,9 +311,9 @@ mac_create_pixmap_from_bitmap_data (char *data,
 	  xgcv.foreground = fg;
 	  xgcv.background = bg;
 	  gc = mac_create_gc (GCForeground | GCBackground, &xgcv);
-	  CGContextSetFillColorWithColor (context, gc->cg_fore_color);
-	  CGContextFillRects (context, &rect, 1);
 	  CGContextSetFillColorWithColor (context, gc->cg_back_color);
+	  CGContextFillRects (context, &rect, 1);
+	  CGContextSetFillColorWithColor (context, gc->cg_fore_color);
 	  CGContextDrawImage (context, rect, image_mask);
 	  mac_free_gc (gc);
 	  CGContextRelease (context);
@@ -337,7 +325,6 @@ mac_create_pixmap_from_bitmap_data (char *data,
 	}
       CGImageRelease (image_mask);
     }
-  mac_free_bitmap (&bitmap);
 
   return pixmap;
 }
