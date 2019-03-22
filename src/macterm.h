@@ -44,9 +44,9 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 struct mac_bitmap_record
 {
-  char *bitmap_data;
+  CFArrayRef stipple;
+  char *file;
   int refcount;
-  int height, width;
 };
 
 
@@ -465,6 +465,9 @@ extern void x_query_color (struct frame *f, XColor *);
   mac_get_gc_values (gc, mask, xgcv)
 #define XSetForeground(display, gc, color)	mac_set_foreground (gc, color)
 #define XSetBackground(display, gc, color)	mac_set_background (gc, color)
+#define XSetFillStyle(display, gc, fill_style)	\
+  mac_set_fill_style (gc, fill_style)
+#define XSetStipple(display, gc, stipple)	mac_set_stipple (gc, stipple)
 #define XDrawLine(display, p, gc, x1, y1, x2, y2)	\
   mac_draw_line_to_pixmap (p, gc, x1, y1, x2, y2)
 extern void x_set_sticky (struct frame *, Lisp_Object, Lisp_Object);
@@ -475,6 +478,8 @@ extern void mac_begin_scale_mismatch_detection (struct frame *);
 extern bool mac_end_scale_mismatch_detection (struct frame *);
 extern void mac_draw_line_to_pixmap (Pixmap, GC, int, int, int, int);
 extern void mac_clear_area (struct frame *, int, int, int, int);
+extern CGImageRef mac_create_image_mask_from_bitmap_data (const char *,
+							  int, int);
 extern Pixmap mac_create_pixmap (unsigned int, unsigned int, unsigned int);
 extern Pixmap mac_create_pixmap_from_bitmap_data (char *,
 						  unsigned int, unsigned int,

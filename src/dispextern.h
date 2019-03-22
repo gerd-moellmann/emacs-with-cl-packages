@@ -3387,6 +3387,11 @@ extern ptrdiff_t x_bitmap_pixmap (struct frame *, ptrdiff_t);
 extern void x_reference_bitmap (struct frame *, ptrdiff_t);
 extern ptrdiff_t x_create_bitmap_from_data (struct frame *, char *,
 					    unsigned int, unsigned int);
+#ifdef HAVE_MACGUI
+extern CFArrayRef mac_bitmap_stipple (struct frame *, ptrdiff_t);
+extern ptrdiff_t mac_create_bitmap_from_data (struct frame *, char *, char *,
+					      unsigned int, unsigned int);
+#endif
 extern ptrdiff_t x_create_bitmap_from_file (struct frame *, Lisp_Object);
 #if defined HAVE_XPM && defined HAVE_X_WINDOWS && !defined USE_GTK
 extern ptrdiff_t x_create_bitmap_from_xpm_data (struct frame *, const char **);

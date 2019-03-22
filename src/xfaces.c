@@ -803,8 +803,20 @@ load_pixmap (struct frame *f, Lisp_Object name)
       h = XINT (Fcar (Fcdr (name)));
       bits = Fcar (Fcdr (Fcdr (name)));
 
+#ifndef HAVE_MACGUI
       bitmap_id = x_create_bitmap_from_data (f, SSDATA (bits),
 					     w, h);
+#else  /* HAVE_MACGUI */
+      Lisp_Object bits_2x =
+	Fget_text_property (make_number (0), QCdata_2x, bits);
+      if (NILP (Fbitmap_spec_p (list3 (make_number (w * 2), make_number (h * 2),
+				       bits_2x))))
+	bits_2x = Qnil;
+      bitmap_id = mac_create_bitmap_from_data (f, SSDATA (bits),
+					       (STRINGP (bits_2x)
+						? SSDATA (bits_2x) : NULL),
+					       w, h);
+#endif	/* HAVE_MACGUI */
     }
   else
     {
@@ -4106,8 +4118,14 @@ prepare_face_for_display (struct frame *f, struct face *face)
 	  xgcv.stipple = x_bitmap_pixmap (f, face->stipple);
 	  mask |= GCFillStyle | GCStipple;
 	}
-#elif HAVE_MACGUI
-      if (face->stipple < 0)
+#elif defined (HAVE_MACGUI)
+      if (face->stipple > 0)
+	{
+	  xgcv.fill_style = FillOpaqueStippled;
+	  xgcv.stipple = mac_bitmap_stipple (f, face->stipple);
+	  mask |= GCFillStyle | GCStipple;
+	}
+      else if (face->stipple < 0)
 	{
 	  xgcv.background_transparency = face->stipple;
 	  mask |= GCBackgroundTransparency;

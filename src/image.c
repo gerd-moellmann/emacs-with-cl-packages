@@ -102,6 +102,11 @@ typedef struct mac_bitmap_record Bitmap_Record;
 
 #define x_defined_color mac_defined_color
 #define DefaultDepthOfScreen(screen) (one_mac_display_info.n_planes)
+
+static char *slurp_file (int, ptrdiff_t *);
+static bool xbm_read_bitmap_data (struct frame *, char *, char *, int *, int *,
+				  char **, bool);
+static Lisp_Object mac_find_2x_image_file (Lisp_Object, int *);
 #endif /* HAVE_MACGUI */
 
 #ifdef HAVE_NS
@@ -286,6 +291,14 @@ x_bitmap_pixmap (struct frame *f, ptrdiff_t id)
 }
 #endif
 
+#ifdef HAVE_MACGUI
+CFArrayRef
+mac_bitmap_stipple (struct frame *f, ptrdiff_t id)
+{
+  return FRAME_DISPLAY_INFO (f)->bitmaps[id - 1].stipple;
+}
+#endif
+
 #ifdef HAVE_X_WINDOWS
 int
 x_bitmap_mask (struct frame *f, ptrdiff_t id)
@@ -325,6 +338,7 @@ x_reference_bitmap (struct frame *f, ptrdiff_t id)
 
 /* Create a bitmap for frame F from a HEIGHT x WIDTH array of bits at BITS.  */
 
+#ifndef HAVE_MACGUI
 ptrdiff_t
 x_create_bitmap_from_data (struct frame *f, char *bits, unsigned int width, unsigned int height)
 {
@@ -350,12 +364,6 @@ x_create_bitmap_from_data (struct frame *f, char *bits, unsigned int width, unsi
     return -1;
 #endif /* HAVE_NTGUI */
 
-#ifdef HAVE_MACGUI
-  /* MAC_TODO: for now fail if width is not mod 16 (toolbox requires it) */
-  if (width % 16 != 0)
-    return -1;
-#endif
-
 #ifdef HAVE_NS
   void *bitmap = ns_image_from_XBM (bits, width, height, 0, 0);
   if (!bitmap)
@@ -363,19 +371,13 @@ x_create_bitmap_from_data (struct frame *f, char *bits, unsigned int width, unsi
 #endif
 
   id = x_allocate_bitmap_record (f);
-#ifdef HAVE_MACGUI
-  dpyinfo->bitmaps[id - 1].bitmap_data = xmalloc (height * width);
-  memcpy (dpyinfo->bitmaps[id - 1].bitmap_data, bits, height * width);
-#endif  /* HAVE_MACGUI */
 
 #ifdef HAVE_NS
   dpyinfo->bitmaps[id - 1].img = bitmap;
   dpyinfo->bitmaps[id - 1].depth = 1;
 #endif
 
-#ifndef HAVE_MACGUI
   dpyinfo->bitmaps[id - 1].file = NULL;
-#endif
   dpyinfo->bitmaps[id - 1].height = height;
   dpyinfo->bitmaps[id - 1].width = width;
   dpyinfo->bitmaps[id - 1].refcount = 1;
@@ -394,6 +396,74 @@ x_create_bitmap_from_data (struct frame *f, char *bits, unsigned int width, unsi
 
   return id;
 }
+#else
+ptrdiff_t
+mac_create_bitmap_from_data (struct frame *f, char *bits, char *bits_2x,
+			     unsigned int width, unsigned int height)
+{
+  Display_Info *dpyinfo = FRAME_DISPLAY_INFO (f);
+  CGImageRef image_mask;
+  CFMutableArrayRef stipple =
+    CFArrayCreateMutable (NULL, 2, &kCFTypeArrayCallBacks);
+
+  if (! stipple)
+    return -1;
+
+  image_mask = mac_create_image_mask_from_bitmap_data (bits, width, height);
+  if (! image_mask)
+    {
+      CFRelease (stipple);
+      return -1;
+    }
+
+  CFArrayAppendValue (stipple, image_mask);
+  CFRelease (image_mask);
+
+  if (bits_2x)
+    {
+      image_mask = mac_create_image_mask_from_bitmap_data (bits_2x, width * 2,
+							   height * 2);
+      if (image_mask)
+	{
+	  CFArrayAppendValue (stipple, image_mask);
+	  CFRelease (image_mask);
+	}
+    }
+
+  ptrdiff_t id = x_allocate_bitmap_record (f);
+
+  dpyinfo->bitmaps[id - 1].file = NULL;
+  dpyinfo->bitmaps[id - 1].stipple = stipple;
+  dpyinfo->bitmaps[id - 1].refcount = 1;
+
+  return id;
+}
+
+static CGImageRef
+mac_create_image_mask_from_fd (struct frame *f, int fd)
+{
+  CGImageRef result = NULL;
+  ptrdiff_t size;
+  char *contents = slurp_file (fd, &size);
+
+  if (contents)
+    {
+      int width, height;
+      char *data;
+      bool rc = xbm_read_bitmap_data (f, contents, contents + size,
+				      &width, &height, &data, 1);
+
+      xfree (contents);
+      if (rc)
+	{
+	  result = mac_create_image_mask_from_bitmap_data (data, width, height);
+	  xfree (data);
+	}
+    }
+
+  return result;
+}
+#endif
 
 /* Create bitmap from file FILE for frame F.  */
 
@@ -405,10 +475,6 @@ x_create_bitmap_from_file (struct frame *f, Lisp_Object file)
 #else
   Display_Info *dpyinfo = FRAME_DISPLAY_INFO (f);
 #endif
-
-#ifdef HAVE_MACGUI
-  return -1;  /* MAC_TODO : bitmap support */
-#endif  /* HAVE_MACGUI */
 
 #ifdef HAVE_NS
   ptrdiff_t id;
@@ -428,13 +494,15 @@ x_create_bitmap_from_file (struct frame *f, Lisp_Object file)
   return id;
 #endif
 
+#if defined (HAVE_X_WINDOWS) || defined (HAVE_MACGUI)
 #ifdef HAVE_X_WINDOWS
   unsigned int width, height;
   Pixmap bitmap;
   int xhot, yhot, result;
+  char *filename;
+#endif
   ptrdiff_t id;
   Lisp_Object found;
-  char *filename;
 
   /* Look for an existing bitmap with the same name.  */
   for (id = 0; id < dpyinfo->bitmaps_last; ++id)
@@ -448,6 +516,7 @@ x_create_bitmap_from_file (struct frame *f, Lisp_Object file)
 	}
     }
 
+#ifdef HAVE_X_WINDOWS
   /* Search bitmap-file-path for the file, if appropriate.  */
   if (openp (Vx_bitmap_file_path, file, Qnil, &found,
 	     make_number (R_OK), false)
@@ -460,18 +529,59 @@ x_create_bitmap_from_file (struct frame *f, Lisp_Object file)
 			    filename, &width, &height, &bitmap, &xhot, &yhot);
   if (result != BitmapSuccess)
     return -1;
+#else  /* HAVE_MACGUI */
+  int fd = openp (Vx_bitmap_file_path, file, Qnil, &found, Qt, false);
+  if (fd < 0)
+    return -1;
+
+  CGImageRef image_mask = mac_create_image_mask_from_fd (f, fd);
+  if (! image_mask)
+    return -1;
+
+  CFMutableArrayRef stipple =
+    CFArrayCreateMutable (NULL, 2, &kCFTypeArrayCallBacks);
+  if (! stipple)
+    {
+      CFRelease (image_mask);
+      return -1;
+    }
+
+  CFArrayAppendValue (stipple, image_mask);
+  CFRelease (image_mask);
+
+  Lisp_Object file_2x = mac_find_2x_image_file (ENCODE_FILE (found), NULL);
+  if (STRINGP (file_2x))
+    {
+      fd = emacs_open (SSDATA (file_2x), O_RDONLY, 0);
+      if (fd >= 0)
+	{
+	  image_mask = mac_create_image_mask_from_fd (f, fd);
+	  if (image_mask)
+	    {
+	      CFArrayAppendValue (stipple, image_mask);
+	      CFRelease (image_mask);
+	    }
+	}
+    }
+#endif	/* HAVE_MACGUI */
 
   id = x_allocate_bitmap_record (f);
+#ifdef HAVE_X_WINDOWS
   dpyinfo->bitmaps[id - 1].pixmap = bitmap;
   dpyinfo->bitmaps[id - 1].have_mask = false;
+#else  /* HAVE_MACGUI */
+  dpyinfo->bitmaps[id - 1].stipple = stipple;
+#endif	/* HAVE_MACGUI */
   dpyinfo->bitmaps[id - 1].refcount = 1;
   dpyinfo->bitmaps[id - 1].file = xlispstrdup (file);
+#ifdef HAVE_X_WINDOWS
   dpyinfo->bitmaps[id - 1].depth = 1;
   dpyinfo->bitmaps[id - 1].height = height;
   dpyinfo->bitmaps[id - 1].width = width;
+#endif
 
   return id;
-#endif /* HAVE_X_WINDOWS */
+#endif /* HAVE_X_WINDOWS || HAVE_MACGUI */
 }
 
 /* Free bitmap B.  */
@@ -490,8 +600,9 @@ free_bitmap_record (Display_Info *dpyinfo, Bitmap_Record *bm)
 #endif /* HAVE_NTGUI */
 
 #ifdef HAVE_MACGUI
-  xfree (bm->bitmap_data);  /* Added ++kfs */
-  bm->bitmap_data = NULL;
+  if (bm->stipple)
+    CFRelease (bm->stipple);
+  bm->stipple = NULL;
 #endif  /* HAVE_MACGUI */
 
 #ifdef HAVE_NS
