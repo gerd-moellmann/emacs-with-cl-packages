@@ -1,5 +1,29 @@
+* emacs-26.2-rc1-mac-7.5 (2019-03-22)
+Based on Emacs 26.2 release candidate.
+
+** Fixed bugs
+
+*** Rare crash when popping up a dialog.
+
+*** Rare crash when drawing into a tooltip frame.
+
+*** Fail to insert Apple logo if mac-system-coding-system is mac-roman.
+
+*** The name attribute is missing in display-monitor-attributes-list
+if the display serial number value is negative in signed int.
+
+** Improvements
+
+*** Update emoji data to UTS #51 version 12.0.
+
+*** Add stipple support.  The "@2x" file name convention and the
+`:data-2x' text property at the first byte of the data are also
+available to support optional 2x bitmaps for Retina display.
+
+
 * emacs-26.1-mac-7.4 (2018-11-16)
 Turn on the configure option `--with-mac-metal' by default.
+https://lists.gnu.org/r/emacs-devel/2018-11/msg00246.html
 
 ** Fixed bugs
 
