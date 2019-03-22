@@ -1,6 +1,6 @@
 /* Calculate what line insertion or deletion to do, and do it
 
-Copyright (C) 1985-1986, 1990, 1993-1994, 2001-2018 Free Software
+Copyright (C) 1985-1986, 1990, 1993-1994, 2001-2019 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -47,13 +47,13 @@ struct matrix_elt
     int deletecost;
     /* Number of inserts so far in this run of inserts,
        for the cost in insertcost.  */
-    unsigned char insertcount;
+    int insertcount;
     /* Number of deletes so far in this run of deletes,
        for the cost in deletecost.  */
-    unsigned char deletecount;
+    int deletecount;
     /* Number of writes so far since the last insert
        or delete for the cost in writecost. */
-    unsigned char writecount;
+    int writecount;
   };
 
 static void do_direct_scrolling (struct frame *,

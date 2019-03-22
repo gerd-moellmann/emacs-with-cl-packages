@@ -1,6 +1,6 @@
 ;;; mm-util.el --- Utility functions for Mule and low level things
 
-;; Copyright (C) 1998-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2019 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	MORIOKA Tomohiko <morioka@jaist.ac.jp>
@@ -843,7 +843,8 @@ decompressed data.  The buffer's multibyteness must be turned off."
 					(prog2
 					    (insert-file-contents err-file)
 					    (buffer-string)
-					  (erase-buffer)) t)
+					  (erase-buffer))
+					nil t)
 				       " ")
 			    "\n")
 		    (setq err-msg

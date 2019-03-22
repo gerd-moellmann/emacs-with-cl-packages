@@ -1,6 +1,6 @@
 ;;; dired-aux.el --- less commonly used parts of dired -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994, 1998, 2000-2018 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994, 1998, 2000-2019 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>.
@@ -614,14 +614,16 @@ with a prefix argument."
 
 (declare-function mailcap-file-default-commands "mailcap" (files))
 
+(defvar dired-aux-files)
+
 (defun minibuffer-default-add-dired-shell-commands ()
   "Return a list of all commands associated with current dired files.
 This function is used to add all related commands retrieved by `mailcap'
 to the end of the list of defaults just after the default value."
   (interactive)
-  (let* ((files minibuffer-completion-table)
-         (commands (and (require 'mailcap nil t)
-                        (mailcap-file-default-commands files))))
+  (let ((commands (and (boundp 'dired-aux-files)
+		       (require 'mailcap nil t)
+		       (mailcap-file-default-commands dired-aux-files))))
     (if (listp minibuffer-default)
 	(append minibuffer-default commands)
       (cons minibuffer-default commands))))
@@ -639,9 +641,9 @@ This normally reads using `read-shell-command', but if the
 offer a smarter default choice of shell command."
   (minibuffer-with-setup-hook
       (lambda ()
-        (set (make-local-variable 'minibuffer-completion-table) files)
-	(set (make-local-variable 'minibuffer-default-add-function)
-	     'minibuffer-default-add-dired-shell-commands))
+	(setq-local dired-aux-files files)
+	(setq-local minibuffer-default-add-function
+		    #'minibuffer-default-add-dired-shell-commands))
     (setq prompt (format prompt (dired-mark-prompt arg files)))
     (if (functionp 'dired-guess-shell-command)
 	(dired-mark-pop-up nil 'shell files
@@ -755,16 +757,17 @@ can be produced by `dired-get-marked-files', for example."
 	            (y-or-n-p (format-message
 			       "Confirm--do you mean to use `?' as a wildcard? ")))
 	           (t))))
-    (when ok
-      (if on-each
-	  (dired-bunch-files (- 10000 (length command))
-	                     (lambda (&rest files)
-	                       (dired-run-shell-command
-                                (dired-shell-stuff-it command files t arg)))
-	                     nil file-list)
-	;; execute the shell command
-	(dired-run-shell-command
-	 (dired-shell-stuff-it command file-list nil arg)))))))
+    (cond ((not ok) (message "Command canceled"))
+          (t
+           (if on-each
+	       (dired-bunch-files (- 10000 (length command))
+	                          (lambda (&rest files)
+	                            (dired-run-shell-command
+                                     (dired-shell-stuff-it command files t arg)))
+	                          nil file-list)
+	     ;; execute the shell command
+	     (dired-run-shell-command
+	      (dired-shell-stuff-it command file-list nil arg))))))))
 
 ;; Might use {,} for bash or csh:
 (defvar dired-mark-prefix ""
@@ -1222,7 +1225,12 @@ return t; if SYM is q or ESC, return nil."
 
 ;;;###autoload
 (defun dired-do-compress (&optional arg)
-  "Compress or uncompress marked (or next ARG) files."
+  "Compress or uncompress marked (or next ARG) files.
+If invoked on a directory, compress all of the files in
+the directory and all of its subdirectories, recursively,
+into a .tar.gz archive.
+If invoked on a .tar.gz or a .tgz or a .zip or a .7z archive,
+uncompress and unpack all the files in the archive."
   (interactive "P")
   (dired-map-over-marks-check #'dired-compress arg 'compress t))
 
@@ -1709,7 +1717,7 @@ or with the current marker character if MARKER-CHAR is t."
           (let* ((overwrite (file-exists-p to))
                  (dired-overwrite-confirmed ; for dired-handle-overwrite
                   (and overwrite
-                       (let ((help-form '(format-message "\
+                       (let ((help-form (format-message "\
 Type SPC or `y' to overwrite file `%s',
 DEL or `n' to skip to next,
 ESC or `q' to not overwrite any of the remaining files,

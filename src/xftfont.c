@@ -1,5 +1,5 @@
 /* xftfont.c -- XFT font driver.
-   Copyright (C) 2006-2018 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H13PRO009
@@ -42,8 +42,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 struct xftfont_info
 {
   struct font font;
-  /* The following five members must be here in this order to be
-     compatible with struct ftfont_info (in ftfont.c).  */
+  /* The following members up to and including 'matrix' must be here
+     in this order to be compatible with struct ftfont_info (in
+     ftfont.c).  */
 #ifdef HAVE_LIBOTF
   bool maybe_otf;	  /* Flag to tell if this may be OTF or not.  */
   OTF *otf;
@@ -51,6 +52,7 @@ struct xftfont_info
   FT_Size ft_size;
   int index;
   FT_Matrix matrix;
+
   Display *display;
   XftFont *xftfont;
   unsigned x_display_id;

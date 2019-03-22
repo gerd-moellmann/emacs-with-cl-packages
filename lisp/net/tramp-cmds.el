@@ -1,6 +1,6 @@
 ;;; tramp-cmds.el --- Interactive commands for Tramp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2019 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -49,7 +49,7 @@ SYNTAX can be one of the symbols `default' (default),
      (unless (string-equal input "")
        (list (intern input)))))
   (when syntax
-    (custom-set-variables `(tramp-syntax ',syntax))))
+    (customize-set-variable 'tramp-syntax syntax)))
 
 (defun tramp-list-tramp-buffers ()
   "Return a list of all Tramp connection buffers."

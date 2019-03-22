@@ -1,6 +1,6 @@
 ;;; server.el --- Lisp code for GNU Emacs running as server process -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986-1987, 1992, 1994-2018 Free Software Foundation,
+;; Copyright (C) 1986-1987, 1992, 1994-2019 Free Software Foundation,
 ;; Inc.
 
 ;; Author: William Sommerfeld <wesommer@athena.mit.edu>
@@ -255,7 +255,14 @@ are done with it in the server.")
 (defcustom server-name "server"
   "The name of the Emacs server, if this Emacs process creates one.
 The command `server-start' makes use of this.  It should not be
-changed while a server is running."
+changed while a server is running.
+If this is a file name with no leading directories, Emacs will
+create a socket file by that name under `server-socket-dir'
+if `server-use-tcp' is nil, else under `server-auth-dir'.
+If this is an absolute file name, it specifies where the socket
+file will be created.  To have emacsclient connect to the same
+socket, use the \"-s\" switch for local non-TCP sockets, and
+the \"-f\" switch otherwise."
   :group 'server
   :type 'string
   :version "23.1")
@@ -599,7 +606,10 @@ running, ask the user for confirmation first, unless optional
 argument INHIBIT-PROMPT is non-nil.
 
 To force-start a server, do \\[server-force-delete] and then
-\\[server-start]."
+\\[server-start].
+
+To check from a Lisp program whether a server is running, use
+the `server-process' variable."
   (interactive "P")
   (when (or (not server-clients)
 	    ;; Ask the user before deleting existing clients---except
@@ -725,7 +735,11 @@ Return values:
   nil              the server is definitely not running.
   t                the server seems to be running.
   something else   we cannot determine whether it's running without using
-                   commands which may have to wait for a long time."
+                   commands which may have to wait for a long time.
+
+This function can return non-nil if the server was started by some other
+Emacs process.  To check from a Lisp program whether a server was started
+by the current Emacs process, use the `server-process' variable."
   (unless name (setq name server-name))
   (condition-case nil
       (if server-use-tcp

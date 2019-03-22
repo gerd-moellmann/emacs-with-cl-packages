@@ -1,6 +1,6 @@
 ;;; rcirc.el --- default, simple IRC client          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 ;; Author: Ryan Yeske <rcyeske@gmail.com>
 ;; Maintainers: Ryan Yeske <rcyeske@gmail.com>,
@@ -181,6 +181,8 @@ underneath each nick."
   "Responses which will be hidden when `rcirc-omit-mode' is enabled."
   :type '(repeat string)
   :group 'rcirc)
+
+(defvar rcirc-prompt-start-marker nil)
 
 (define-minor-mode rcirc-omit-mode
   "Toggle the hiding of \"uninteresting\" lines.
@@ -401,7 +403,6 @@ will be killed."
 
 (defvar rcirc-nick nil)
 
-(defvar rcirc-prompt-start-marker nil)
 (defvar rcirc-prompt-end-marker nil)
 
 (defvar rcirc-nick-table nil)
@@ -585,7 +586,7 @@ If ARG is non-nil, instead prompt for connection parameters."
 
       (setq-local rcirc-connection-info
 		  (list server port nick user-name full-name startup-channels
-			password encryption))
+			password encryption server-alias))
       (setq-local rcirc-process process)
       (setq-local rcirc-server server)
       (setq-local rcirc-server-name
@@ -753,12 +754,12 @@ Function is called with PROCESS, COMMAND, SENDER, ARGS and LINE.")
   (with-rcirc-process-buffer process
     (setq rcirc-last-server-message-time (current-time))
     (setq rcirc-process-output (concat rcirc-process-output output))
-    (when (= (aref rcirc-process-output
-                   (1- (length rcirc-process-output))) ?\n)
-      (mapc (lambda (line)
-              (rcirc-process-server-response process line))
-            (split-string rcirc-process-output "[\n\r]" t))
-      (setq rcirc-process-output nil))))
+    (when (= ?\n (aref rcirc-process-output
+                       (1- (length rcirc-process-output))))
+      (let ((lines (split-string rcirc-process-output "[\n\r]" t)))
+        (setq rcirc-process-output nil)
+        (dolist (line lines)
+          (rcirc-process-server-response process line))))))
 
 (defun rcirc-reschedule-timeout (process)
   (with-rcirc-process-buffer process

@@ -1,6 +1,6 @@
 ;;; imenu.el --- framework for mode-specific buffer indexes  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-1998, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1998, 2001-2019 Free Software Foundation, Inc.
 
 ;; Author: Ake Stenhoff <etxaksf@aom.ericsson.se>
 ;;         Lars Lindberg <lli@sypro.cap.se>
@@ -96,11 +96,11 @@ This might not yet be honored by all index-building functions."
   :type 'boolean
   :group 'imenu)
 
-(defcustom imenu-auto-rescan-maxout 60000
-  "Imenu auto-rescan is disabled in buffers larger than this size (in bytes).
-This variable is buffer-local."
+(defcustom imenu-auto-rescan-maxout 600000
+  "Imenu auto-rescan is disabled in buffers larger than this size (in bytes)."
   :type 'integer
-  :group 'imenu)
+  :group 'imenu
+  :version "26.2")
 
 (defvar imenu-always-use-completion-buffer-p nil)
 (make-obsolete-variable 'imenu-always-use-completion-buffer-p
@@ -187,7 +187,9 @@ with name concatenation."
 
 (defcustom imenu-generic-skip-comments-and-strings t
   "When non-nil, ignore text inside comments and strings.
-Only affects `imenu--generic-function'."
+Only affects `imenu-default-create-index-function' (and any
+alternative implementation of `imenu-create-index-function' that
+uses `imenu--generic-function')."
   :type 'boolean
   :group 'imenu
   :version "24.4")
@@ -205,9 +207,9 @@ string (which specifies the title of a submenu into which the
 matches are put).
 REGEXP is a regular expression matching a definition construct
 which is to be displayed in the menu.  REGEXP may also be a
-function, called without arguments.  It is expected to search
-backwards.  It must return true and set `match-data' if it finds
-another element.
+function of no arguments.  If REGEXP is a function, it is
+expected to search backwards, return non-nil if it finds a
+definition construct, and set `match-data' for that construct.
 INDEX is an integer specifying which subexpression of REGEXP
 matches the definition's name; this subexpression is displayed as
 the menu item.
@@ -738,7 +740,7 @@ for modes which use `imenu--generic-function'.  If it is not set, but
 ;; so it needs to be careful never to loop!
 (defun imenu--generic-function (patterns)
   "Return an index alist of the current buffer based on PATTERNS.
-PATTERNS should be an alist with the same form as `imenu-generic-expression'.
+PATTERNS should be an alist of the same form as `imenu-generic-expression'.
 
 If `imenu-generic-skip-comments-and-strings' is non-nil, this ignores
 text inside comments and strings.

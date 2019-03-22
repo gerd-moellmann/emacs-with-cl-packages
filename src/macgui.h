@@ -1,6 +1,6 @@
 /* Definitions and headers for communication on macOS.
    Copyright (C) 2000-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2018  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2019  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -109,6 +109,13 @@ typedef struct _XGCValues
 
   /* Background transparency: 0 = opaque, 255 = transparent.  */
   unsigned background_transparency : 8;
+
+  /* FillSolid or FillOpaqueStippled.  */
+  int fill_style;
+
+  /* Array of 1 or 2 Core Graphics image mask(s).  The element at
+     index 1 is used as a 2x high-resolution mask if it exists.  */
+  CFArrayRef stipple;
 } XGCValues;
 
 typedef struct _XGC
@@ -131,8 +138,15 @@ typedef struct _XGC
 
 #define GCForeground            (1L<<2)
 #define GCBackground            (1L<<3)
+#define GCFillStyle		(1L<<8)
+#define GCStipple		(1L<<11)
 #define GCGraphicsExposures	0
 #define GCBackgroundTransparency (1L<<16)
+
+#define FillSolid		0
+#define FillTiled		1
+#define FillStippled		2
+#define FillOpaqueStippled	3
 
 /* Bit Gravity */
 

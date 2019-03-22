@@ -1,6 +1,6 @@
 ;;; easy-mmode.el --- easy definition for major and minor modes
 
-;; Copyright (C) 1997, 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2000-2019 Free Software Foundation, Inc.
 
 ;; Author: Georges Brun-Cottan <Georges.Brun-Cottan@inria.fr>
 ;; Maintainer: Stefan Monnier <monnier@gnu.org>
@@ -457,22 +457,26 @@ See `%s' for more information on %s."
 
        ;; The function that calls TURN-ON in each buffer.
        (defun ,MODE-enable-in-buffers ()
-	 (dolist (buf ,MODE-buffers)
-	   (when (buffer-live-p buf)
-	     (with-current-buffer buf
-               (unless ,MODE-set-explicitly
-		 (unless (eq ,MODE-major-mode major-mode)
-		   (if ,mode
-		       (progn
-			 (,mode -1)
-			 (funcall #',turn-on))
-		     (funcall #',turn-on))))
-	       (setq ,MODE-major-mode major-mode)))))
+         (let ((buffers ,MODE-buffers))
+           ;; Clear MODE-buffers to avoid scanning the same list of
+           ;; buffers in recursive calls to MODE-enable-in-buffers.
+           ;; Otherwise it could lead to infinite recursion.
+           (setq ,MODE-buffers nil)
+           (dolist (buf buffers)
+             (when (buffer-live-p buf)
+               (with-current-buffer buf
+                 (unless ,MODE-set-explicitly
+                   (unless (eq ,MODE-major-mode major-mode)
+                     (if ,mode
+                         (progn
+                           (,mode -1)
+                           (funcall #',turn-on))
+                       (funcall #',turn-on))))
+                 (setq ,MODE-major-mode major-mode))))))
        (put ',MODE-enable-in-buffers 'definition-name ',global-mode)
 
        (defun ,MODE-check-buffers ()
 	 (,MODE-enable-in-buffers)
-	 (setq ,MODE-buffers nil)
 	 (remove-hook 'post-command-hook ',MODE-check-buffers))
        (put ',MODE-check-buffers 'definition-name ',global-mode)
 

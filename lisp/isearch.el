@@ -1,6 +1,6 @@
 ;;; isearch.el --- incremental search minor mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1997, 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1997, 1999-2019 Free Software Foundation, Inc.
 
 ;; Author: Daniel LaLiberte <liberte@cs.uiuc.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -188,11 +188,14 @@ or to the end of the buffer for a backward search.")
 to the search status stack.")
 
 (defvar isearch-filter-predicate #'isearch-filter-visible
-  "Predicate that filters the search hits that would normally be available.
-Search hits that dissatisfy the predicate are skipped.  The function
-has two arguments: the positions of start and end of text matched by
-the search.  If this function returns nil, continue searching without
-stopping at this match.
+  "Predicate to filter hits of Isearch and replace commands.
+Isearch hits that don't satisfy the predicate will be skipped.
+The value should be a function of two arguments; it will be
+called with the the positions of the start and the end of the
+text matched by Isearch and replace commands.  If this function
+returns nil, Isearch and replace commands will continue searching
+without stopping at resp. replacing this match.
+
 If you use `add-function' to modify this variable, you can use the
 `isearch-message-prefix' advice property to specify the prefix string
 displayed in the search message.")
@@ -590,7 +593,7 @@ variable by the command `isearch-toggle-lax-whitespace'.")
   "Stack of search status elements.
 Each element is an `isearch--state' struct where the slots are
  [STRING MESSAGE POINT SUCCESS FORWARD OTHER-END WORD
-  ERROR WRAPPED BARRIER CASE-FOLD-SEARCH]")
+  ERROR WRAPPED BARRIER CASE-FOLD-SEARCH POP-FUN]")
 
 (defvar isearch-string "")  ; The current search string.
 (defvar isearch-message "") ; text-char-description version of isearch-string
@@ -1956,11 +1959,14 @@ and reads its face argument using `hi-lock-read-face-name'."
 
 
 (defun isearch-delete-char ()
-  "Discard last input item and move point back.
-Last input means the last character or the last isearch command
-that added or deleted characters from the search string,
-moved point, toggled regexp mode or case-sensitivity, etc.
-If no previous match was done, just beep."
+  "Undo last input item during a search.
+
+An input item is the result of a command that pushes a new state
+of isearch (as recorded by the `isearch--state' structure) to
+`isearch-cmds'.  Info node `(emacs)Basic Isearch' explains when
+Emacs records a new input item.
+
+If no input items have been entered yet, just beep."
   (interactive)
   (if (null (cdr isearch-cmds))
       (ding)
@@ -3006,10 +3012,13 @@ Optional third argument, if t, means if fail just return nil (no error).
 	      (setq isearch-hidden t)))))))
 
 (defun isearch-filter-visible (beg end)
-  "Test whether the current search hit is visible at least partially.
-Return non-nil if the text from BEG to END is visible to Isearch as
-determined by `isearch-range-invisible' unless invisible text can be
-searched too when `search-invisible' is t."
+  "Return non-nil if text between BEG and END is deemed visible by Isearch.
+This function is intended to be used as `isearch-filter-predicate'.
+It returns non-nil if the text between BEG and END is visible to
+Isearch, at least partially, as determined by `isearch-range-invisible'.
+If `search-invisible' is t, which allows Isearch matches inside
+invisible text, this function will always return non-nil, regardless
+of what `isearch-range-invisible' says."
   (or (eq search-invisible t)
       (not (isearch-range-invisible beg end))))
 

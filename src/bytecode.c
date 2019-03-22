@@ -1,5 +1,5 @@
 /* Execution of byte code produced by bytecomp.el.
-   Copyright (C) 1985-1988, 1993, 2000-2018 Free Software Foundation,
+   Copyright (C) 1985-1988, 1993, 2000-2019 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -367,6 +367,7 @@ exec_byte_code (Lisp_Object bytestr, Lisp_Object vector, Lisp_Object maxdepth,
   SAFE_ALLOCA_LISP_EXTRA (stack_base, stack_items, bytestr_length);
   Lisp_Object *stack_lim = stack_base + stack_items;
   Lisp_Object *top = stack_base;
+  *top = vector; /* Ensure VECTOR survives GC (Bug#33014).  */
   memcpy (stack_lim, SDATA (bytestr), bytestr_length);
   void *void_stack_lim = stack_lim;
   unsigned char const *bytestr_data = void_stack_lim;

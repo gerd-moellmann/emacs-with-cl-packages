@@ -1,6 +1,6 @@
 ;;; ucs-normalize.el --- Unicode normalization NFC/NFD/NFKD/NFKC
 
-;; Copyright (C) 2009-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 ;; Author: Taichi Kawabata <kawabata.taichi@gmail.com>
 ;; Keywords: unicode, normalization
@@ -30,7 +30,7 @@
 ;;
 ;; HFS-Normalization:
 ;; Reference:
-;; http://developer.apple.com/technotes/tn/tn1150.html
+;; https://developer.apple.com/library/archive/technotes/tn/tn1150.html
 ;;
 ;; HFS Normalization excludes following area for decomposition.
 ;;

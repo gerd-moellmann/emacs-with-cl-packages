@@ -1,6 +1,6 @@
 /* Client process that communicates with GNU Emacs acting as server.
 
-Copyright (C) 1986-1987, 1994, 1999-2018 Free Software Foundation, Inc.
+Copyright (C) 1986-1987, 1994, 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1116,7 +1116,9 @@ find_tty (const char **tty_type, const char **tty_name, int noabort)
 	}
     }
 
-  if (strcmp (type, "eterm") == 0)
+  const char *inside_emacs = egetenv ("INSIDE_EMACS");
+  if (inside_emacs && strstr (inside_emacs, ",term:")
+      && strprefix ("eterm", type))
     {
       if (noabort)
 	return 0;

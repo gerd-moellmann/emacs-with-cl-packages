@@ -1,6 +1,6 @@
                                             -*-mode: text; coding: utf-8;-*-
 
-Copyright (C) 2002-2018 Free Software Foundation, Inc.
+Copyright (C) 2002-2019 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Importing a new Unicode Standard version into Emacs
@@ -46,7 +46,7 @@ Any new scripts added by UnicodeData.txt will also need updates to
 script-representative-chars defined in fontset.el, and also the list
 of OTF script tags in otf-script-alist, whose source is on this page:
 
-  https://www.microsoft.com/typography/otspec/scripttags.htm
+  https://docs.microsoft.com/en-us/typography/opentype/spec/scripttags
 
 Other databases in fontset.el might also need to be updated as needed.
 

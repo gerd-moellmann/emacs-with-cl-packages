@@ -1,6 +1,6 @@
 ;;; newst-backend.el --- Retrieval backend for newsticker.
 
-;; Copyright (C) 2003-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2019 Free Software Foundation, Inc.
 
 ;; Author:      Ulf Jasper <ulf.jasper@web.de>
 ;; Filename:    newst-backend.el
@@ -1699,8 +1699,8 @@ Examples:
     nil))
 
 (defun newsticker--decode-rfc822-date (rfc822-string)
-  "Return RFC822-STRING in format like `decode-time'.
-Converts from RFC822 to Emacs representation.
+  "Convert RFC822-STRING to a Lisp timestamp.
+RFC822-STRING should use RFC 822 (or later) format.
 Examples:
 Sat, 07 September 2002 00:00:01 +0100
 Sat, 07 September 2002 00:00:01 MET

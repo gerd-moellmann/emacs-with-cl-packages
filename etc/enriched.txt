@@ -175,7 +175,7 @@ as possible.
 
 
 The text/enriched standard is defined in </indent>Internet<indent> RFC 1896
-(<<http://www.ietf.org/rfc/rfc1896.txt>).</indent></indent>
+(<<http://www.ietf.org/rfc/rfc1896.txt>).</indent>
 
 
 <x-bg-color><param>blue</param><x-color><param>white</param><bold>CUSTOMIZATION</bold></x-color></x-bg-color><bold>
@@ -239,7 +239,7 @@ it.</indent>
 
 
 
-Copyright (C) 1995, 1997, 2001-2018 Free Software Foundation, Inc.
+Copyright (C) 1995, 1997, 2001-2019 Free Software Foundation, Inc.
 
 COPYING PERMISSIONS:
 

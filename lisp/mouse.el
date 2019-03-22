@@ -1,6 +1,6 @@
 ;;; mouse.el --- window system-independent mouse support  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1995, 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1995, 1999-2019 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: hardware, mouse
@@ -326,7 +326,7 @@ This command must be bound to a mouse click."
 (define-obsolete-function-alias 'mouse-tear-off-window 'tear-off-window "24.4")
 (defun tear-off-window (click)
   "Delete the selected window, and create a new frame displaying its buffer."
-  (interactive "e")
+  (interactive (list last-nonmenu-event))
   (mouse-minibuffer-check click)
   (let* ((window (posn-window (event-start click)))
 	 (buf (window-buffer window))
@@ -1225,7 +1225,11 @@ The region will be defined with mark and point."
 	 (bounds (window-edges start-window))
 	 (make-cursor-line-fully-visible nil)
 	 (top (nth 1 bounds))
-	 (bottom (if (window-minibuffer-p start-window)
+	 (bottom (if (or (window-minibuffer-p start-window)
+                         ;; Do not account for the mode line if there
+                         ;; is no mode line, which is common for child
+                         ;; frames.
+                         (not mode-line-format))
 		     (nth 3 bounds)
 		   ;; Don't count the mode line.
 		   (1- (nth 3 bounds))))
@@ -2511,9 +2515,9 @@ is copied instead of being cut."
             (setq drag-but-negligible
                   (and (eq (overlay-buffer mouse-drag-and-drop-overlay)
                            buffer-to-paste)
-                       (< (overlay-start mouse-drag-and-drop-overlay)
+                       (<= (overlay-start mouse-drag-and-drop-overlay)
                           point-to-paste)
-                       (< point-to-paste
+                       (<= point-to-paste
                           (overlay-end mouse-drag-and-drop-overlay)))))
 
           ;; Show a tooltip.

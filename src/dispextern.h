@@ -1,6 +1,6 @@
 /* Interface definitions for display code.
 
-Copyright (C) 1985, 1993-1994, 1997-2018 Free Software Foundation, Inc.
+Copyright (C) 1985, 1993-1994, 1997-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -2470,6 +2470,10 @@ struct it
      descent/ascent (line-height property).  Reset after this glyph.  */
   bool_bf constrain_row_ascent_descent_p : 1;
 
+  /* If true, glyphs for line number display were already produced for
+     the current row.  */
+  bool_bf line_number_produced_p : 1;
+
   enum line_wrap_method line_wrap;
 
   /* The ID of the default face to use.  One of DEFAULT_FACE_ID,
@@ -2648,6 +2652,12 @@ struct it
 
   /* The line number of point's line, or zero if not computed yet.  */
   ptrdiff_t pt_lnum;
+
+  /* Number of pixels to offset tab stops due to width fixup of the
+     first glyph that crosses first_visible_x.  This is only needed on
+     GUI frames, only when display-line-numbers is in effect, and only
+     in hscrolled windows.  */
+  int tab_offset;
 
   /* Left fringe bitmap number (enum fringe_bitmap_type).  */
   unsigned left_user_fringe_bitmap : FRINGE_ID_BITS;
@@ -3377,6 +3387,11 @@ extern ptrdiff_t x_bitmap_pixmap (struct frame *, ptrdiff_t);
 extern void x_reference_bitmap (struct frame *, ptrdiff_t);
 extern ptrdiff_t x_create_bitmap_from_data (struct frame *, char *,
 					    unsigned int, unsigned int);
+#ifdef HAVE_MACGUI
+extern CFArrayRef mac_bitmap_stipple (struct frame *, ptrdiff_t);
+extern ptrdiff_t mac_create_bitmap_from_data (struct frame *, char *, char *,
+					      unsigned int, unsigned int);
+#endif
 extern ptrdiff_t x_create_bitmap_from_file (struct frame *, Lisp_Object);
 #if defined HAVE_XPM && defined HAVE_X_WINDOWS && !defined USE_GTK
 extern ptrdiff_t x_create_bitmap_from_xpm_data (struct frame *, const char **);

@@ -1,6 +1,6 @@
 ;;; dired.el --- directory-browsing commands -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992-1997, 2000-2018 Free Software
+;; Copyright (C) 1985-1986, 1992-1997, 2000-2019 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>
@@ -88,9 +88,11 @@ If nil, `dired-listing-switches' is used."
 
 (defcustom dired-use-ls-dired 'unspecified
   "Non-nil means Dired should pass the \"--dired\" option to \"ls\".
-The special value of `unspecified' means to check explicitly, and
-save the result in this variable.  This is performed the first
-time `dired-insert-directory' is called.
+If nil, don't pass \"--dired\" to \"ls\".
+The special value of `unspecified' means to check whether \"ls\"
+supports the \"--dired\" option, and save the result in this
+variable.  This is performed the first time `dired-insert-directory'
+is invoked.
 
 Note that if you set this option to nil, either through choice or
 because your \"ls\" program does not support \"--dired\", Dired
@@ -104,9 +106,10 @@ This is used by default on MS Windows, which does not have an \"ls\" program.
 Note that `ls-lisp' does not support as many options as GNU ls, though.
 For more details, see Info node `(emacs)ls in Lisp'."
   :group 'dired
-  :type '(choice (const :tag "Check for --dired support" unspecified)
+  :type '(choice (const :tag
+                        "Use --dired only if 'ls' supports it" unspecified)
                  (const :tag "Do not use --dired" nil)
-                 (other :tag "Use --dired" t)))
+                 (other :tag "Always use --dired" t)))
 
 (defcustom dired-chmod-program "chmod"
   "Name of chmod command (usually `chmod')."
@@ -1691,7 +1694,7 @@ Do so according to the former subdir alist OLD-SUBDIR-ALIST."
 
     ;; Make menu bar items.
 
-    ;; No need to fo this, now that top-level items are fewer.
+    ;; No need to do this, now that top-level items are fewer.
     ;;;;
     ;; Get rid of the Edit menu bar item to save space.
     ;(define-key map [menu-bar edit] 'undefined)
@@ -2995,37 +2998,6 @@ Any other value means to ask for each directory."
 ;; Match anything but `.' and `..'.
 (defvar dired-re-no-dot "^\\([^.]\\|\\.\\([^.]\\|\\..\\)\\).*")
 
-(defconst dired-delete-help
-  "Type:
-`yes' to delete recursively the current directory,
-`no' to skip to next,
-`all' to delete all remaining directories with no more questions,
-`quit' to exit,
-`help' to show this help message.")
-
-(defun dired--yes-no-all-quit-help (prompt &optional help-msg)
-  "Ask a question with valid answers: yes, no, all, quit, help.
-PROMPT must end with '? ', for instance, 'Delete it? '.
-If optional arg HELP-MSG is non-nil, then is a message to show when
-the user answers 'help'.  Otherwise, default to `dired-delete-help'."
-  (let ((valid-answers (list "yes" "no" "all" "quit"))
-        (answer "")
-        (input-fn (lambda ()
-                    (read-string
-	             (format "%s [yes, no, all, quit, help] " prompt)))))
-    (setq answer (funcall input-fn))
-    (when (string= answer "help")
-      (with-help-window "*Help*"
-        (with-current-buffer "*Help*"
-          (insert (or help-msg dired-delete-help)))))
-    (while (not (member answer valid-answers))
-      (unless (string= answer "help")
-        (beep)
-        (message "Please answer `yes' or `no' or `all' or `quit'")
-        (sleep-for 2))
-      (setq answer (funcall input-fn)))
-    answer))
-
 ;; Delete file, possibly delete a directory and all its files.
 ;; This function is useful outside of dired.  One could change its name
 ;; to e.g. recursive-delete-file and put it somewhere else.
@@ -3055,11 +3027,17 @@ TRASH non-nil means to trash the file instead of deleting, provided
 				    "trash"
 				  "delete")
 				(dired-make-relative file))))
-                   (pcase (dired--yes-no-all-quit-help prompt) ; Prompt user.
+                   (pcase (read-answer
+                           prompt
+                           '(("yes"  ?y "delete recursively the current directory")
+                             ("no"   ?n "skip to next")
+                             ("all"  ?! "delete all remaining directories with no more questions")
+                             ("quit" ?q "exit")))
                      ('"all" (setq recursive 'always dired-recursive-deletes recursive))
                      ('"yes" (if (eq recursive 'top) (setq recursive 'always)))
                      ('"no" (setq recursive nil))
-                     ('"quit" (keyboard-quit)))))
+                     ('"quit" (keyboard-quit))
+                     (_ (keyboard-quit))))) ; catch all unknown answers
              (setq recursive nil)) ; Empty dir or recursive is nil.
            (delete-directory file recursive trash))))
 

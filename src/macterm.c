@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2018  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2019  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -75,6 +75,8 @@ static void mac_initialize (void);
 
 static void mac_set_background_and_transparency (GC, unsigned long,
 						 unsigned char);
+static void mac_set_fill_style (GC, int);
+static void mac_set_stipple (GC, CFArrayRef);
 
 /* Fringe bitmaps.  */
 
@@ -165,6 +167,21 @@ mac_erase_rectangle (struct frame *f, GC gc, int x, int y,
     CGRect rect = mac_rect_make (f, x, y, width, height);
 
     CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, rect, gc);
+    if (gc->xgcv.fill_style == FillOpaqueStippled && gc->xgcv.stipple)
+      {
+	CGContextClipToRects (context, &rect, 1);
+	CGContextSetFillColorWithColor (context, gc->cg_fore_color);
+	int scale = CFArrayGetCount (gc->xgcv.stipple);
+	if (FRAME_BACKING_SCALE_FACTOR (f) < scale)
+	  scale = FRAME_BACKING_SCALE_FACTOR (f);
+	CGImageRef image_mask =
+	  (CGImageRef) CFArrayGetValueAtIndex (gc->xgcv.stipple, scale - 1);
+	rect = CGRectMake (0, 0, CGImageGetWidth (image_mask) / (CGFloat) scale,
+			   CGImageGetHeight (image_mask) / (CGFloat) scale);
+	CGContextScaleCTM (context, 1, -1);
+	CGContextSetInterpolationQuality (context, kCGInterpolationNone);
+	CGContextDrawTiledImage (context, rect, image_mask);
+      }
   }
   MAC_END_DRAW_TO_FRAME (f);
 }
@@ -230,42 +247,40 @@ mac_draw_cg_image (CGImageRef image, struct frame *f, GC gc,
 
 /* Mac replacement for XCreateBitmapFromBitmapData.  */
 
-static void
-mac_create_bitmap_from_bitmap_data (BitMap *bitmap, char *bits, int w, int h)
+CGImageRef
+mac_create_image_mask_from_bitmap_data (const char *bits, int width, int height)
 {
-  static const unsigned char swap_nibble[16]
+  static const UInt8 swap_nibble[16]
     = { 0x0, 0x8, 0x4, 0xc,    /* 0000 1000 0100 1100 */
 	0x2, 0xa, 0x6, 0xe,    /* 0010 1010 0110 1110 */
 	0x1, 0x9, 0x5, 0xd,    /* 0001 1001 0101 1101 */
 	0x3, 0xb, 0x7, 0xf };  /* 0011 1011 0111 1111 */
-  int i, j, w1;
-  char *p;
+  CGImageRef result = NULL;
+  int bytes_per_row = (width + CHAR_BIT - 1) / CHAR_BIT;
+  CFIndex length = bytes_per_row * height;
+  CFMutableDataRef data = CFDataCreateMutable (NULL, length);
+  CGDataProviderRef provider = NULL;
 
-  w1 = (w + 7) / 8;         /* nb of 8bits elt in X bitmap */
-  bitmap->rowBytes = ((w + 15) / 16) * 2; /* nb of 16bits elt in Mac bitmap */
-  bitmap->baseAddr = xzalloc (bitmap->rowBytes * h);
-  for (i = 0; i < h; i++)
+  if (data)
     {
-      p = bitmap->baseAddr + i * bitmap->rowBytes;
-      for (j = 0; j < w1; j++)
+      while (length--)
 	{
-	  /* Bitswap XBM bytes to match how Mac does things.  */
-	  unsigned char c = *bits++;
-	  *p++ = (unsigned char)((swap_nibble[c & 0xf] << 4)
-				 | (swap_nibble[(c>>4) & 0xf]));
+	  UInt8 c = *bits++;
+
+	  c = ~((swap_nibble[c & 0xf] << 4) | (swap_nibble[(c>>4) & 0xf]));
+	  CFDataAppendBytes (data, &c, 1);
 	}
+      provider = CGDataProviderCreateWithCFData (data);
+      CFRelease (data);
+    }
+  if (provider)
+    {
+      result = CGImageMaskCreate (width, height, 1, 1, bytes_per_row,
+				  provider, NULL, 0);
+      CGDataProviderRelease (provider);
     }
 
-  bitmap->bounds.left = bitmap->bounds.top = 0;
-  bitmap->bounds.right = w;
-  bitmap->bounds.bottom = h;
-}
-
-
-static void
-mac_free_bitmap (BitMap *bitmap)
-{
-  xfree (bitmap->baseAddr);
+  return result;
 }
 
 
@@ -291,19 +306,9 @@ mac_create_pixmap_from_bitmap_data (char *data,
 				    unsigned int depth)
 {
   Pixmap pixmap = NULL;
-  BitMap bitmap;
-  CGDataProviderRef provider;
-  CGImageRef image_mask = NULL;
+  CGImageRef image_mask =
+    mac_create_image_mask_from_bitmap_data (data, width, height);
 
-  mac_create_bitmap_from_bitmap_data (&bitmap, data, width, height);
-  provider = CGDataProviderCreateWithData (NULL, bitmap.baseAddr,
-					   bitmap.rowBytes * height, NULL);
-  if (provider)
-    {
-      image_mask = CGImageMaskCreate (width, height, 1, 1, bitmap.rowBytes,
-				      provider, NULL, 0);
-      CGDataProviderRelease (provider);
-    }
   if (image_mask)
     {
       CGContextRef context;
@@ -323,9 +328,9 @@ mac_create_pixmap_from_bitmap_data (char *data,
 	  xgcv.foreground = fg;
 	  xgcv.background = bg;
 	  gc = mac_create_gc (GCForeground | GCBackground, &xgcv);
-	  CGContextSetFillColorWithColor (context, gc->cg_fore_color);
-	  CGContextFillRects (context, &rect, 1);
 	  CGContextSetFillColorWithColor (context, gc->cg_back_color);
+	  CGContextFillRects (context, &rect, 1);
+	  CGContextSetFillColorWithColor (context, gc->cg_fore_color);
 	  CGContextDrawImage (context, rect, image_mask);
 	  mac_free_gc (gc);
 	  CGContextRelease (context);
@@ -337,7 +342,6 @@ mac_create_pixmap_from_bitmap_data (char *data,
 	}
       CGImageRelease (image_mask);
     }
-  mac_free_bitmap (&bitmap);
 
   return pixmap;
 }
@@ -604,6 +608,10 @@ mac_change_gc (GC gc, unsigned long mask, XGCValues *xgcv)
     /* This case does not happen in the current code.  */
     mac_set_background_and_transparency (gc, gc->xgcv.background,
 					 xgcv->background_transparency);
+  if (mask & GCFillStyle)
+    mac_set_fill_style (gc, xgcv->fill_style);
+  if (mask & GCStipple)
+    mac_set_stipple (gc, xgcv->stipple);
 }
 
 
@@ -633,6 +641,8 @@ mac_duplicate_gc (GC gc)
   CGColorRetain (new->cg_back_color);
   if (new->clip_rects_data)
     CFRetain (new->clip_rects_data);
+  if (new->xgcv.stipple)
+    CFRetain (new->xgcv.stipple);
 
   return new;
 }
@@ -647,6 +657,8 @@ mac_free_gc (GC gc)
   CGColorRelease (gc->cg_back_color);
   if (gc->clip_rects_data)
     CFRelease (gc->clip_rects_data);
+  if (gc->xgcv.stipple)
+    CFRelease (gc->xgcv.stipple);
 #if defined (XMALLOC_BLOCK_INPUT_CHECK) && DRAWING_USE_GCD
   /* Don't use xfree here, because this might be called in a non-main
      thread.  */
@@ -668,6 +680,10 @@ mac_get_gc_values (GC gc, unsigned long mask, XGCValues *xgcv)
     xgcv->background = gc->xgcv.background;
   if (mask & GCBackgroundTransparency)
     xgcv->background_transparency = gc->xgcv.background_transparency;
+  if (mask & GCFillStyle)
+    xgcv->fill_style = gc->xgcv.fill_style;
+  if (mask & GCStipple)
+    xgcv->stipple = gc->xgcv.stipple;
 }
 
 static CGColorRef
@@ -759,6 +775,27 @@ mac_reset_clip_rectangles (struct frame *f, GC gc)
       gc->clip_rects_data = NULL;
     }
 }
+
+/* Mac replacement for XSetFillStyle.  */
+
+static void
+mac_set_fill_style (GC gc, int fill_style)
+{
+  gc->xgcv.fill_style = fill_style;
+}
+
+/* Mac replacement for XSetStipple.  */
+
+static void
+mac_set_stipple (GC gc, CFArrayRef stipple)
+{
+  if (gc->xgcv.stipple)
+    CFRelease (gc->xgcv.stipple);
+  gc->xgcv.stipple = stipple;
+  if (gc->xgcv.stipple)
+    CFRetain (gc->xgcv.stipple);
+}
+
 
 /* Remove calls to XFlush by defining XFlush to an empty replacement.
    Calls to XFlush should be unnecessary because the X output buffer
@@ -1073,25 +1110,16 @@ x_draw_fringe_bitmap (struct window *w, struct glyph_row *row, struct draw_fring
 
   if (p->bx >= 0 && !overlay_p)
     {
-#if 0  /* MAC_TODO: stipple */
       /* In case the same realized face is used for fringes and
 	 for something displayed in the text (e.g. face `region' on
 	 mono-displays, the fill style may have been changed to
 	 FillSolid in x_draw_glyph_string_background.  */
       if (face->stipple)
-	XSetFillStyle (FRAME_X_DISPLAY (f), face->gc, FillOpaqueStippled);
-      else
-	XSetForeground (FRAME_X_DISPLAY (f), face->gc, face->background);
-#endif
+	XSetFillStyle (display, face->gc, FillOpaqueStippled);
 
       mac_erase_rectangle (f, face->gc, p->bx, p->by, p->nx, p->ny);
       /* The fringe background has already been filled.  */
       overlay_p = 1;
-
-#if 0  /* MAC_TODO: stipple */
-      if (!face->stipple)
-	XSetForeground (FRAME_X_DISPLAY (f), face->gc, face->foreground);
-#endif
     }
 
   if (p->which && p->which < max_fringe_bmp)
@@ -1325,12 +1353,12 @@ x_set_glyph_string_gc (struct glyph_string *s)
   if (s->hl == DRAW_NORMAL_TEXT)
     {
       s->gc = s->face->gc;
-      s->stippled_p = s->face->stipple != 0;
+      s->stippled_p = s->face->stipple > 0;
     }
   else if (s->hl == DRAW_INVERSE_VIDEO)
     {
       x_set_mode_line_face_gc (s);
-      s->stippled_p = s->face->stipple != 0;
+      s->stippled_p = s->face->stipple > 0;
     }
   else if (s->hl == DRAW_CURSOR)
     {
@@ -1340,13 +1368,13 @@ x_set_glyph_string_gc (struct glyph_string *s)
   else if (s->hl == DRAW_MOUSE_FACE)
     {
       x_set_mouse_face_gc (s);
-      s->stippled_p = s->face->stipple != 0;
+      s->stippled_p = s->face->stipple > 0;
     }
   else if (s->hl == DRAW_IMAGE_RAISED
 	   || s->hl == DRAW_IMAGE_SUNKEN)
     {
       s->gc = s->face->gc;
-      s->stippled_p = s->face->stipple != 0;
+      s->stippled_p = s->face->stipple > 0;
     }
   else
     emacs_abort ();
@@ -1450,20 +1478,17 @@ x_draw_glyph_string_background (struct glyph_string *s, bool force_p)
     {
       int box_line_width = max (s->face->box_line_width, 0);
 
-#if 0 /* MAC_TODO: stipple */
       if (s->stippled_p)
 	{
 	  /* Fill background with a stipple pattern.  */
 	  XSetFillStyle (s->display, s->gc, FillOpaqueStippled);
-	  XFillRectangle (s->display, s->window, s->gc, s->x,
-			  s->y + box_line_width,
-			  s->background_width,
-			  s->height - 2 * box_line_width);
+	  mac_erase_rectangle (s->f, s->gc, s->x, s->y + box_line_width,
+			       s->background_width,
+			       s->height - 2 * box_line_width);
 	  XSetFillStyle (s->display, s->gc, FillSolid);
 	  s->background_filled_p = true;
 	}
       else
-#endif
         if (FONT_HEIGHT (s->font) < s->height - 2 * box_line_width
 	       /* When xdisp.c ignores FONT_HEIGHT, we cannot trust
 		  font dimensions, since the actual glyphs might be
@@ -2200,16 +2225,14 @@ x_draw_image_relief (struct glyph_string *s)
 static void
 x_draw_glyph_string_bg_rect (struct glyph_string *s, int x, int y, int w, int h)
 {
-#if 0 /* MAC_TODO: stipple */
   if (s->stippled_p)
     {
       /* Fill background with a stipple pattern.  */
       XSetFillStyle (s->display, s->gc, FillOpaqueStippled);
-      XFillRectangle (s->display, s->window, s->gc, x, y, w, h);
+      mac_erase_rectangle (s->f, s->gc, x, y, w, h);
       XSetFillStyle (s->display, s->gc, FillSolid);
     }
   else
-#endif /* MAC_TODO */
     x_clear_glyph_string_rect (s, x, y, w, h);
 }
 
@@ -2244,7 +2267,7 @@ x_draw_image_glyph_string (struct glyph_string *s)
   /* Fill background with face under the image.  Do it only if row is
      taller than image or if image has a clip mask to reduce
      flickering.  */
-  s->stippled_p = s->face->stipple != 0;
+  s->stippled_p = s->face->stipple > 0;
   if (height > s->slice.height
       || s->img->hmargin
       || s->img->vmargin
@@ -2348,16 +2371,14 @@ x_draw_stretch_glyph_string (struct glyph_string *s)
 	  get_glyph_string_clip_rect (s, &r);
 	  mac_set_clip_rectangles (s->f, gc, &r, 1);
 
-#if 0 /* MAC_TODO: stipple */
-	  if (s->face->stipple)
+	  if (s->face->stipple > 0)
 	    {
 	      /* Fill background with a stipple pattern.  */
 	      XSetFillStyle (s->display, gc, FillOpaqueStippled);
-	      XFillRectangle (s->display, s->window, gc, x, y, w, h);
+	      mac_erase_rectangle (s->f, gc, x, y, w, h);
 	      XSetFillStyle (s->display, gc, FillSolid);
 	    }
 	  else
-#endif /* MAC_TODO */
 	    mac_erase_rectangle (s->f, gc, x, y, w, h);
 
 	  mac_reset_clip_rectangles (s->f, gc);

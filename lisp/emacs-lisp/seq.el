@@ -1,6 +1,6 @@
 ;;; seq.el --- Sequence manipulation functions  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2019 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Keywords: sequences
@@ -127,9 +127,9 @@ the sequence, and its index within the sequence."
                (setq index (1+ index)))
              sequence)))
 
-(cl-defgeneric seqp (sequence)
-  "Return non-nil if SEQUENCE is a sequence, nil otherwise."
-  (sequencep sequence))
+(cl-defgeneric seqp (object)
+  "Return non-nil if OBJECT is a sequence, nil otherwise."
+  (sequencep object))
 
 (cl-defgeneric seq-copy (sequence)
   "Return a shallow copy of SEQUENCE."

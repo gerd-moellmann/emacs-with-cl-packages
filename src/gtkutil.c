@@ -1,6 +1,6 @@
 /* Functions for creating and updating GTK widgets.
 
-Copyright (C) 2003-2018 Free Software Foundation, Inc.
+Copyright (C) 2003-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -147,6 +147,8 @@ struct xg_frame_tb_info
   GtkTextDirection dir;
 };
 
+bool xg_gtk_initialized;        /* Used to make sure xwidget calls are possible */
+
 static GtkWidget * xg_get_widget_from_map (ptrdiff_t idx);
 
 
@@ -259,7 +261,7 @@ xg_display_close (Display *dpy)
 
 #if GTK_CHECK_VERSION (2, 0, 0) && ! GTK_CHECK_VERSION (2, 10, 0)
   /* GTK 2.2-2.8 has a bug that makes gdk_display_close crash (bug
-     http://bugzilla.gnome.org/show_bug.cgi?id=85715).  This way we
+     https://gitlab.gnome.org/GNOME/gtk/issues/221).  This way we
      can continue running, but there will be memory leaks.  */
   g_object_run_dispose (G_OBJECT (gdpy));
 #else
@@ -1498,6 +1500,7 @@ xg_set_background_color (struct frame *f, unsigned long bg)
       block_input ();
       xg_set_widget_bg (f, FRAME_GTK_WIDGET (f), FRAME_BACKGROUND_PIXEL (f));
 
+#ifdef USE_TOOLKIT_SCROLL_BARS
       Lisp_Object bar;
       for (bar = FRAME_SCROLL_BARS (f);
            !NILP (bar);
@@ -1508,7 +1511,7 @@ xg_set_background_color (struct frame *f, unsigned long bg)
           GtkWidget *webox = gtk_widget_get_parent (scrollbar);
           xg_set_widget_bg (f, webox, FRAME_BACKGROUND_PIXEL (f));
         }
-
+#endif
       unblock_input ();
     }
 }
@@ -5305,6 +5308,8 @@ xg_initialize (void)
 #ifdef HAVE_FREETYPE
   x_last_font_name = NULL;
 #endif
+
+  xg_gtk_initialized = true;
 }
 
 #endif /* USE_GTK */

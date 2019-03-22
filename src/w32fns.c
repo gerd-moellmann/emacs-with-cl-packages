@@ -1,6 +1,6 @@
 /* Graphical user interface functions for the Microsoft Windows API.
 
-Copyright (C) 1989, 1992-2018 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -2192,6 +2192,11 @@ x_set_no_accept_focus (struct frame *f, Lisp_Object new_value, Lisp_Object old_v
  *
  * Some window managers may not honor this parameter.  The value `below'
  * is not supported on Windows.
+ *
+ * Internally, this function also handles a value 'above-suspended'.
+ * That value is used to temporarily remove F from the 'above' group
+ * to make sure that it does not obscure the window of a dialog in
+ * progress.
  */
 static void
 x_set_z_group (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
@@ -4545,13 +4550,13 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	  set_ime_composition_window_fn (context, &form);
 	  release_ime_context_fn (hwnd, context);
 	}
-      /* We should "goto dflt" here to pass WM_IME_STARTCOMPOSITION to
-	 DefWindowProc, so that the composition window will actually
-	 be displayed.  But doing so causes trouble with displaying
-	 dialog boxes, such as the file selection dialog or font
-	 selection dialog.  So something else is needed to fix the
-	 former without breaking the latter.  See bug#11732.  */
-      break;
+      /* FIXME: somehow "goto dflt" here instead of "break" causes
+	 popup dialogs, such as the ones shown by File->Open File and
+	 w32-select-font, to become hidden behind their parent frame,
+	 when focus-follows-mouse is in effect.  See bug#11732.  But
+	 if we don't "goto dflt", users of IME cannot type text
+	 supported by the input method...  */
+      goto dflt;
 
     case WM_IME_ENDCOMPOSITION:
       ignore_ime_char = 0;
@@ -7726,12 +7731,27 @@ file_dialog_callback (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
   return 0;
 }
 
+/**
+ * w32_dialog_in_progress:
+ *
+ * This function is called by Fx_file_dialog and Fx_select_font and
+ * serves to temporarily remove any Emacs frame currently in the
+ * 'above' z-group from that group to assure that such a frame does
+ * not hide the dialog window.  Frames that are temporarily removed
+ * from the 'above' group have their z_group bit-field set to
+ * z_group_above_suspended.  Any such frame is moved back to the
+ * 'above' group as soon as the dialog finishes and has its z_group
+ * bit-field reset to z_group_above.
+ *
+ * This function does not affect the z-order or the z-group state of
+ * the dialog window itself.
+ */
 void
 w32_dialog_in_progress (Lisp_Object in_progress)
 {
   Lisp_Object frames, frame;
 
-  /* Don't let frames in `above' z-group obscure popups.  */
+  /* Don't let frames in `above' z-group obscure dialog windows.  */
   FOR_EACH_FRAME (frames, frame)
     {
       struct frame *f = XFRAME (frame);

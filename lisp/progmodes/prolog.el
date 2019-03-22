@@ -1,6 +1,6 @@
 ;;; prolog.el --- major mode for Prolog (and Mercury) -*- lexical-binding:t -*-
 
-;; Copyright (C) 1986-1987, 1997-1999, 2002-2003, 2011-2018 Free
+;; Copyright (C) 1986-1987, 1997-1999, 2002-2003, 2011-2019 Free
 ;; Software Foundation, Inc.
 
 ;; Authors: Emil Åström <emil_astrom(at)hotmail(dot)com>
@@ -479,12 +479,6 @@ Legal values:
 
 
 ;; Keyboard
-
-(defcustom prolog-hungry-delete-key-flag nil
-  "Non-nil means delete key consumes all preceding spaces."
-  :version "24.1"
-  :group 'prolog-keyboard
-  :type 'boolean)
 
 (defcustom prolog-electric-dot-flag nil
   "Non-nil means make dot key electric.

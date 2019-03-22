@@ -1,6 +1,6 @@
 ;;; compile.el --- run compiler as inferior of Emacs, parse error messages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1993-1999, 2001-2018 Free Software
+;; Copyright (C) 1985-1987, 1993-1999, 2001-2019 Free Software
 ;; Foundation, Inc.
 
 ;; Authors: Roland McGrath <roland@gnu.org>,
@@ -1429,17 +1429,17 @@ to `compilation-error-regexp-alist' if RULES is nil."
                              file line end-line col end-col (or type 2) fmt))
 
             (when (integerp file)
-              (setq type (if (consp type)
-                             (compilation-type type)
-                           (or type 2)))
-              (compilation--note-type type)
+              (let ((this-type (if (consp type)
+                                   (compilation-type type)
+                                 (or type 2))))
+                (compilation--note-type this-type)
 
-              (compilation--put-prop
-               file 'font-lock-face
-               (symbol-value (aref [compilation-info-face
-                                    compilation-warning-face
-                                    compilation-error-face]
-                                   type))))
+                (compilation--put-prop
+                 file 'font-lock-face
+                 (symbol-value (aref [compilation-info-face
+                                      compilation-warning-face
+                                      compilation-error-face]
+                                     this-type)))))
 
             (compilation--put-prop
              line 'font-lock-face compilation-line-face)

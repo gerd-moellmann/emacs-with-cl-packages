@@ -1,6 +1,6 @@
 ;;; rmailsum.el --- make summary buffers for the mail reader  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1993-1996, 2000-2018 Free Software Foundation,
+;; Copyright (C) 1985, 1993-1996, 2000-2019 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -1692,7 +1692,7 @@ Deleted messages are skipped and don't count.
 When called from Lisp code, N may be omitted and defaults to 1.
 
 This command always outputs the complete message header,
-even the header display is currently pruned."
+even if the header display is currently pruned."
   (interactive
    (progn (require 'rmailout)
 	  (list (rmail-output-read-file-name)

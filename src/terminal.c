@@ -1,5 +1,5 @@
 /* Functions related to terminal devices.
-   Copyright (C) 2005-2018 Free Software Foundation, Inc.
+   Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -314,7 +314,6 @@ create_terminal (enum output_method type, struct redisplay_interface *rif)
 void
 delete_terminal (struct terminal *terminal)
 {
-  struct terminal **tp;
   Lisp_Object tail, frame;
 
   /* Protect against recursive calls.  delete_frame calls the
@@ -334,6 +333,14 @@ delete_terminal (struct terminal *terminal)
           delete_frame (frame, Qnoelisp);
         }
     }
+
+  delete_terminal_internal (terminal);
+}
+
+void
+delete_terminal_internal (struct terminal *terminal)
+{
+  struct terminal **tp;
 
   for (tp = &terminal_list; *tp != terminal; tp = &(*tp)->next_terminal)
     if (! *tp)

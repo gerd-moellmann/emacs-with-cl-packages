@@ -1,6 +1,6 @@
 ;;; css-mode.el --- Major mode to edit CSS files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2019 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Maintainer: Simen Heggestøyl <simenheg@gmail.com>
@@ -32,7 +32,6 @@
 
 ;;; Code:
 
-(require 'eww)
 (require 'cl-lib)
 (require 'color)
 (require 'seq)
@@ -1401,6 +1400,9 @@ buffers.
 Use `\\[info-lookup-symbol]' to look up documentation of CSS properties, at-rules,
 pseudo-classes, and pseudo-elements on the Mozilla Developer
 Network (MDN).
+
+Use `\\[fill-paragraph]' to reformat CSS declaration blocks.  It can also
+be used to fill comments.
 
 \\{css-mode-map}"
   (setq-local font-lock-defaults css-font-lock-defaults)

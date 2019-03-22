@@ -1,5 +1,5 @@
 /* GnuTLS glue for GNU Emacs.
-   Copyright (C) 2010-2018 Free Software Foundation, Inc.
+   Copyright (C) 2010-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -38,6 +38,23 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    So, require 3.5.1.  */
 #if GNUTLS_VERSION_NUMBER >= 0x030501
 # define HAVE_GNUTLS_AEAD
+#elif GNUTLS_VERSION_NUMBER < 0x030202
+/* gnutls_cipher_get_tag_size was introduced in 3.2.2, but it's only
+   relevant for AEAD ciphers.  */
+# define gnutls_cipher_get_tag_size(cipher) 0
+#endif
+
+#if GNUTLS_VERSION_NUMBER < 0x030200
+/* gnutls_cipher_get_iv_size was introduced in 3.2.0.  For the ciphers
+   available in previous versions, block size is equivalent.  */
+#define gnutls_cipher_get_iv_size(cipher) gnutls_cipher_get_block_size (cipher)
+#endif
+
+#if GNUTLS_VERSION_NUMBER < 0x030202
+/* gnutls_digest_list and gnutls_digest_get_name were added in 3.2.2.
+   For previous versions, the mac algorithms are equivalent.  */
+# define gnutls_digest_list() ((const gnutls_digest_algorithm_t *) gnutls_mac_list ())
+# define gnutls_digest_get_name(id) gnutls_mac_get_name ((gnutls_mac_algorithm_t) id)
 #endif
 
 /* gnutls_mac_get_nonce_size was added in GnuTLS 3.2.0, but was
@@ -205,13 +222,21 @@ DEF_DLL_FN (const gnutls_mac_algorithm_t *, gnutls_mac_list, (void));
 DEF_DLL_FN (size_t, gnutls_mac_get_nonce_size, (gnutls_mac_algorithm_t));
 #   endif
 DEF_DLL_FN (size_t, gnutls_mac_get_key_size, (gnutls_mac_algorithm_t));
+#   ifndef gnutls_digest_list
 DEF_DLL_FN (const gnutls_digest_algorithm_t *, gnutls_digest_list, (void));
+#   endif
+#   ifndef gnutls_digest_get_name
 DEF_DLL_FN (const char *, gnutls_digest_get_name, (gnutls_digest_algorithm_t));
+#   endif
 DEF_DLL_FN (gnutls_cipher_algorithm_t *, gnutls_cipher_list, (void));
+#   ifndef gnutls_cipher_get_iv_size
 DEF_DLL_FN (int, gnutls_cipher_get_iv_size, (gnutls_cipher_algorithm_t));
+#   endif
 DEF_DLL_FN (size_t, gnutls_cipher_get_key_size, (gnutls_cipher_algorithm_t));
 DEF_DLL_FN (int, gnutls_cipher_get_block_size, (gnutls_cipher_algorithm_t));
+#   ifndef gnutls_cipher_get_tag_size
 DEF_DLL_FN (int, gnutls_cipher_get_tag_size, (gnutls_cipher_algorithm_t));
+#   endif
 DEF_DLL_FN (int, gnutls_cipher_init,
 	    (gnutls_cipher_hd_t *, gnutls_cipher_algorithm_t,
 	     const gnutls_datum_t *, const gnutls_datum_t *));
@@ -339,13 +364,21 @@ init_gnutls_functions (void)
   LOAD_DLL_FN (library, gnutls_mac_get_nonce_size);
 #   endif
   LOAD_DLL_FN (library, gnutls_mac_get_key_size);
+#   ifndef gnutls_digest_list
   LOAD_DLL_FN (library, gnutls_digest_list);
+#   endif
+#   ifndef gnutls_digest_get_name
   LOAD_DLL_FN (library, gnutls_digest_get_name);
+#   endif
   LOAD_DLL_FN (library, gnutls_cipher_list);
+#   ifndef gnutls_cipher_get_iv_size
   LOAD_DLL_FN (library, gnutls_cipher_get_iv_size);
+#   endif
   LOAD_DLL_FN (library, gnutls_cipher_get_key_size);
   LOAD_DLL_FN (library, gnutls_cipher_get_block_size);
+#   ifndef gnutls_cipher_get_tag_size
   LOAD_DLL_FN (library, gnutls_cipher_get_tag_size);
+#   endif
   LOAD_DLL_FN (library, gnutls_cipher_init);
   LOAD_DLL_FN (library, gnutls_cipher_set_iv);
   LOAD_DLL_FN (library, gnutls_cipher_encrypt2);
@@ -455,13 +488,21 @@ init_gnutls_functions (void)
 #    define gnutls_mac_get_nonce_size fn_gnutls_mac_get_nonce_size
 #   endif
 #  define gnutls_mac_get_key_size fn_gnutls_mac_get_key_size
-#  define gnutls_digest_list fn_gnutls_digest_list
-#  define gnutls_digest_get_name fn_gnutls_digest_get_name
+#  ifndef gnutls_digest_list
+#   define gnutls_digest_list fn_gnutls_digest_list
+#  endif
+#  ifndef gnutls_digest_get_name
+#   define gnutls_digest_get_name fn_gnutls_digest_get_name
+#  endif
 #  define gnutls_cipher_list fn_gnutls_cipher_list
-#  define gnutls_cipher_get_iv_size fn_gnutls_cipher_get_iv_size
+#  ifndef gnutls_cipher_get_iv_size
+#   define gnutls_cipher_get_iv_size fn_gnutls_cipher_get_iv_size
+#  endif
 #  define gnutls_cipher_get_key_size fn_gnutls_cipher_get_key_size
 #  define gnutls_cipher_get_block_size fn_gnutls_cipher_get_block_size
-#  define gnutls_cipher_get_tag_size fn_gnutls_cipher_get_tag_size
+#  ifndef gnutls_cipher_get_tag_size
+#   define gnutls_cipher_get_tag_size fn_gnutls_cipher_get_tag_size
+#  endif
 #  define gnutls_cipher_init fn_gnutls_cipher_init
 #  define gnutls_cipher_set_iv fn_gnutls_cipher_set_iv
 #  define gnutls_cipher_encrypt2 fn_gnutls_cipher_encrypt2
@@ -2024,7 +2065,14 @@ gnutls_symmetric (bool encrypting, Lisp_Object cipher,
     cipher = intern (SSDATA (cipher));
 
   if (SYMBOLP (cipher))
-    info = XCDR (Fassq (cipher, Fgnutls_ciphers ()));
+    {
+      info = Fassq (cipher, Fgnutls_ciphers ());
+      if (!CONSP (info))
+	xsignal2 (Qerror,
+		  build_string ("GnuTLS cipher is invalid or not found"),
+		  cipher);
+      info = XCDR (info);
+    }
   else if (TYPE_RANGED_INTEGERP (gnutls_cipher_algorithm_t, cipher))
     gca = XINT (cipher);
   else
@@ -2039,7 +2087,8 @@ gnutls_symmetric (bool encrypting, Lisp_Object cipher,
 
   ptrdiff_t key_size = gnutls_cipher_get_key_size (gca);
   if (key_size == 0)
-    error ("GnuTLS cipher is invalid or not found");
+    xsignal2 (Qerror,
+	      build_string ("GnuTLS cipher is invalid or not found"), cipher);
 
   ptrdiff_t kstart_byte, kend_byte;
   const char *kdata = extract_data_from_object (key, &kstart_byte, &kend_byte);
@@ -2295,7 +2344,14 @@ itself. */)
     hash_method = intern (SSDATA (hash_method));
 
   if (SYMBOLP (hash_method))
-    info = XCDR (Fassq (hash_method, Fgnutls_macs ()));
+    {
+      info = Fassq (hash_method, Fgnutls_macs ());
+      if (!CONSP (info))
+	xsignal2 (Qerror,
+		  build_string ("GnuTLS MAC-method is invalid or not found"),
+		  hash_method);
+      info = XCDR (info);
+    }
   else if (TYPE_RANGED_INTEGERP (gnutls_mac_algorithm_t, hash_method))
     gma = XINT (hash_method);
   else
@@ -2310,7 +2366,9 @@ itself. */)
 
   ptrdiff_t digest_length = gnutls_hmac_get_len (gma);
   if (digest_length == 0)
-    error ("GnuTLS MAC-method is invalid or not found");
+    xsignal2 (Qerror,
+	      build_string ("GnuTLS MAC-method is invalid or not found"),
+	      hash_method);
 
   ptrdiff_t kstart_byte, kend_byte;
   const char *kdata = extract_data_from_object (key, &kstart_byte, &kend_byte);
@@ -2376,7 +2434,14 @@ the number itself. */)
     digest_method = intern (SSDATA (digest_method));
 
   if (SYMBOLP (digest_method))
-    info = XCDR (Fassq (digest_method, Fgnutls_digests ()));
+    {
+      info = Fassq (digest_method, Fgnutls_digests ());
+      if (!CONSP (info))
+	xsignal2 (Qerror,
+		  build_string ("GnuTLS digest-method is invalid or not found"),
+		  digest_method);
+      info = XCDR (info);
+    }
   else if (TYPE_RANGED_INTEGERP (gnutls_digest_algorithm_t, digest_method))
     gda = XINT (digest_method);
   else
@@ -2391,7 +2456,9 @@ the number itself. */)
 
   ptrdiff_t digest_length = gnutls_hash_get_len (gda);
   if (digest_length == 0)
-    error ("GnuTLS digest-method is invalid or not found");
+    xsignal2 (Qerror,
+	      build_string ("GnuTLS digest-method is invalid or not found"),
+	      digest_method);
 
   gnutls_hash_hd_t hash;
   int ret = gnutls_hash_init (&hash, gda);

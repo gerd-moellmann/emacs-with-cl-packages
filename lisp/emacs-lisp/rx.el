@@ -1,6 +1,6 @@
 ;;; rx.el --- sexp notation for regular expressions
 
-;; Copyright (C) 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -976,12 +976,14 @@ CHAR
      matches whitespace and graphic characters.
 
 `alphanumeric', `alnum'
-     matches alphabetic characters and digits.  (For multibyte characters,
-     it matches according to Unicode character properties.)
+     matches alphabetic characters and digits.  For multibyte characters,
+     it matches characters whose Unicode `general-category' property
+     indicates they are alphabetic or decimal number characters.
 
 `letter', `alphabetic', `alpha'
-     matches alphabetic characters.  (For multibyte characters,
-     it matches according to Unicode character properties.)
+     matches alphabetic characters.  For multibyte characters,
+     it matches characters whose Unicode `general-category' property
+     indicates they are alphabetic characters.
 
 `ascii'
      matches ASCII (unibyte) characters.
@@ -990,10 +992,14 @@ CHAR
      matches non-ASCII (multibyte) characters.
 
 `lower', `lower-case'
-     matches anything lower-case.
+     matches anything lower-case, as determined by the current case
+     table.  If `case-fold-search' is non-nil, this also matches any
+     upper-case letter.
 
 `upper', `upper-case'
-     matches anything upper-case.
+     matches anything upper-case, as determined by the current case
+     table.  If `case-fold-search' is non-nil, this also matches any
+     lower-case letter.
 
 `punctuation', `punct'
      matches punctuation.  (But at present, for multibyte characters,
@@ -1052,7 +1058,7 @@ CHAR
      `chinese-two-byte'			(\\cC)
      `greek-two-byte'			(\\cG)
      `japanese-hiragana-two-byte'	(\\cH)
-     `indian-tow-byte'			(\\cI)
+     `indian-two-byte'			(\\cI)
      `japanese-katakana-two-byte'	(\\cK)
      `korean-hangul-two-byte'		(\\cN)
      `cyrillic-two-byte'		(\\cY)
@@ -1175,24 +1181,28 @@ enclosed in `(and ...)'.
 
 
 (pcase-defmacro rx (&rest regexps)
-  "Build a `pcase' pattern matching `rx' regexps.
-The REGEXPS are interpreted as by `rx'.  The pattern matches if
-the regular expression so constructed matches the object, as if
-by `string-match'.
+  "Build a `pcase' pattern matching `rx' REGEXPS in sexp form.
+The REGEXPS are interpreted as in `rx'.  The pattern matches any
+string that is a match for the regular expression so constructed,
+as if by `string-match'.
 
 In addition to the usual `rx' constructs, REGEXPS can contain the
 following constructs:
 
-  (let VAR FORM...)  creates a new explicitly numbered submatch
-                     that matches FORM and binds the match to
-                     VAR.
-  (backref VAR)      creates a backreference to the submatch
-                     introduced by a previous (let VAR ...)
-                     construct.
+  (let REF SEXP...)  creates a new explicitly named reference to
+                     a submatch that matches regular expressions
+                     SEXP, and binds the match to REF.
+  (backref REF)      creates a backreference to the submatch
+                     introduced by a previous (let REF ...)
+                     construct.  REF can be the same symbol
+                     in the first argument of the corresponding
+                     (let REF ...) construct, or it can be a
+                     submatch number.  It matches the referenced
+                     submatch.
 
-The VARs are associated with explicitly numbered submatches
-starting from 1.  Multiple occurrences of the same VAR refer to
-the same submatch.
+The REFs are associated with explicitly named submatches starting
+from 1.  Multiple occurrences of the same REF refer to the same
+submatch.
 
 If a case matches, the match data is modified as usual so you can
 use it in the case body, but you still have to pass the correct

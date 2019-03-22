@@ -1,6 +1,6 @@
 ;;; debug.el --- debuggers and related commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1994, 2001-2018 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1994, 2001-2019 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -322,6 +322,7 @@ That buffer should be current already."
                  (backtrace-frames 'debug)))
         (print-escape-newlines t)
         (print-escape-control-characters t)
+        ;; If you increase print-level, add more depth in call_debugger.
         (print-level 8)
         (print-length 50)
         (pos (point)))
@@ -839,7 +840,7 @@ This function is called when SYMBOL's value is modified."
 
 When called interactively, prompt for VARIABLE in the minibuffer.
 
-This works by calling `add-variable-watch' on VARIABLE.  If you
+This works by calling `add-variable-watcher' on VARIABLE.  If you
 quit from the debugger, this will abort the change (unless the
 change is caused by the termination of a let-binding).
 

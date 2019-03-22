@@ -1,6 +1,6 @@
 ;;; mule-conf.el --- configure multilingual environment
 
-;; Copyright (C) 1997-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2019 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
 ;;   Registration Number H14PRO021
@@ -1305,6 +1305,11 @@ is treated as a character."
   :bom '(utf-8-with-signature . utf-8))
 
 (define-coding-system-alias 'mule-utf-8 'utf-8)
+;; See this page:
+;; https://docs.microsoft.com/en-us/windows/desktop/intl/code-page-identifiers
+;; Starting with Windows 10, people are trying to set their systems to
+;; use UTF-8 , so we had better recognized this alias:
+(define-coding-system-alias 'cp65001 'utf-8)
 
 (define-coding-system 'utf-8-emacs
   "Support for all Emacs characters (including non-Unicode characters)."

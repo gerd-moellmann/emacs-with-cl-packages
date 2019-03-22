@@ -1,6 +1,6 @@
 ;;; tramp-gvfs.el --- Tramp access functions for GVFS daemon  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2009-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -69,7 +69,7 @@
 ;;   'car
 ;;   (dbus-call-method
 ;;    :session tramp-gvfs-service-daemon tramp-gvfs-path-mounttracker
-;;    tramp-gvfs-interface-mounttracker "listMountableInfo")))
+;;    tramp-gvfs-interface-mounttracker "ListMountableInfo")))
 
 ;; Note that all other connection methods are not tested, beside the
 ;; ones offered for customization in `tramp-gvfs-methods'.  If you
@@ -122,8 +122,7 @@
 			 (const "obex")
 			 (const "sftp")
 			 (const "smb")
-			 (const "synce")))
-  :require 'tramp)
+			 (const "synce"))))
 
 ;; Add defaults for `tramp-default-user-alist' and `tramp-default-host-alist'.
 ;;;###tramp-autoload
@@ -141,8 +140,7 @@
   "Zeroconf domain to be used for discovering services, like host names."
   :group 'tramp
   :version "23.2"
-  :type 'string
-  :require 'tramp)
+  :type 'string)
 
 ;; Add the methods to `tramp-methods', in order to allow minibuffer
 ;; completion.
@@ -393,8 +391,7 @@ completion, nil means to use always cached values for discovered
 devices."
   :group 'tramp
   :version "23.2"
-  :type '(choice (const nil) integer)
-  :require 'tramp)
+  :type '(choice (const nil) integer))
 
 (defvar tramp-bluez-discovery nil
   "Indicator for a running bluetooth device discovery.
@@ -1270,7 +1267,8 @@ file-notify events."
 	(file-attributes filename))))
 
     ;; The end.
-    (when (or (eq visit t) (null visit) (stringp visit))
+    (when (and (null noninteractive)
+	       (or (eq visit t) (null visit) (stringp visit)))
       (tramp-message v 0 "Wrote %s" filename))
     (run-hooks 'tramp-handle-write-region-hook)))
 

@@ -1,5 +1,5 @@
 /* Functions for GUI implemented with Cocoa AppKit on macOS.
-   Copyright (C) 2008-2018  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2019  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -2578,15 +2578,26 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 			change:(NSDictionaryOf (NSKeyValueChangeKey, id) *)change
 		       context:(void *)context
 {
+  BOOL updateOverlayViewParticipation = NO;
+
   if ([keyPath isEqualToString:@"sublayers"])
     {
       if ([change objectForKey:NSKeyValueChangeNotificationIsPriorKey])
 	[self synchronizeOverlayViewFrame];
       else
-	[self updateOverlayViewParticipation];
+	updateOverlayViewParticipation = YES;
     }
   else if ([keyPath isEqualToString:@"showingBorder"])
-    [self updateOverlayViewParticipation];
+    updateOverlayViewParticipation = YES;
+
+  if (updateOverlayViewParticipation)
+    {
+      if (!popup_activated ())
+	[self updateOverlayViewParticipation];
+      else
+	[self performSelector:@selector(updateOverlayViewParticipation)
+		   withObject:nil afterDelay:0];
+    }
 }
 
 - (void)setupWindow
@@ -2595,7 +2606,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   EmacsWindow *oldWindow = emacsWindow;
   NSRect contentRect;
   NSWindowStyleMask windowStyle;
-  BOOL deferCreation;
   EmacsWindow *window;
 
   if (!FRAME_TOOLTIP_P (f))
@@ -2606,13 +2616,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
 		       | NSWindowStyleMaskMiniaturizable
 		       | NSWindowStyleMaskResizable);
-      deferCreation = YES;
     }
   else
-    {
-      windowStyle = NSWindowStyleMaskBorderless;
-      deferCreation = NO;
-    }
+    windowStyle = NSWindowStyleMaskBorderless;
 
   if (oldWindow == nil)
     {
@@ -2643,7 +2649,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   window = [[EmacsWindow alloc] initWithContentRect:contentRect
 					  styleMask:windowStyle
 					    backing:NSBackingStoreBuffered
-					      defer:deferCreation];
+					      defer:YES];
 #if USE_ARC
   /* Increase retain count to accommodate itself to
      released-when-closed on ARC.  Just setting released-when-closed
@@ -5615,7 +5621,7 @@ mac_cursor_create (ThemeCursor shape, const XColor *fore_color,
 	  gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:context
 								flipped:NO];
 #endif
-	  [NSGraphicsContext setCurrentContext:gcontext];
+	  NSGraphicsContext.currentContext = gcontext;
 	  [rep draw];
 	  [NSGraphicsContext restoreGraphicsState];
 	  for (i = 0; i < width * height; i++)
@@ -5882,7 +5888,6 @@ static BOOL emacsViewUpdateLayerDisabled;
 #if HAVE_MAC_METAL
   [mtlCommandQueue release];
 #endif
-  [graphicsContextStack release];
   [super dealloc];
 #endif
 }
@@ -6002,7 +6007,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 			    (FRAME_FLASH_RECTANGLES_DATA (f)));
   NSData *savedImageBuffersData;
 
-  if (graphicsContextStack.count)
+  if (backingLockCount)
     return;
 
   if (!backingBitmap && mac_try_buffer_and_glyph_matrix_access ())
@@ -6114,6 +6119,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 - (void)lockFocusOnBacking
 {
   eassert (pthread_main_np ());
+
+  backingLockCount++;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   if (!self.layer)
     {
@@ -6122,10 +6129,9 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       return;
     }
 #endif
-  CGFloat backingScaleFactor = self.window.backingScaleFactor;
-
   if (!backingBitmap)
     {
+      CGFloat backingScaleFactor = self.window.backingScaleFactor;
       NSSize size = self.bounds.size;
       size_t width = size.width * backingScaleFactor;
       size_t height = size.height * backingScaleFactor;
@@ -6135,6 +6141,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       backingSurface = mac_iosurface_create (width, height);
       if (backingSurface)
 	{
+	  IOSurfaceLock (backingSurface, 0, NULL);
 	  data = IOSurfaceGetBaseAddress (backingSurface);
 	  bytes_per_row = IOSurfaceGetBytesPerRow (backingSurface);
 #if HAVE_MAC_METAL
@@ -6150,12 +6157,13 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 				  LCD Font smoothing.  */
 			       (kCGImageAlphaPremultipliedFirst
 				| kCGBitmapByteOrder32Host));
+      CGContextTranslateCTM (backingBitmap, 0, height);
+      CGContextScaleCTM (backingBitmap,
+			 backingScaleFactor, - backingScaleFactor);
+      if (backingSurface)
+	IOSurfaceUnlock (backingSurface, 0, NULL);
     }
-  if (!graphicsContextStack)
-    graphicsContextStack = [[NSMutableArray alloc] initWithCapacity:0];
-  id currentContext = NSGraphicsContext.currentContext;
-  [graphicsContextStack addObject:(currentContext ? currentContext
-				   : NSNull.null)];
+  [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext =
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
     [NSGraphicsContext graphicsContextWithCGContext:backingBitmap flipped:NO];
@@ -6163,11 +6171,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     [NSGraphicsContext graphicsContextWithGraphicsPort:backingBitmap
 					       flipped:NO];
 #endif
-  [NSGraphicsContext saveGraphicsState];
-  NSAffineTransform *transform = NSAffineTransform.transform;
-  [transform translateXBy:0 yBy:(CGBitmapContextGetHeight (backingBitmap))];
-  [transform scaleXBy:backingScaleFactor yBy:(- backingScaleFactor)];
-  [transform concat];
   if (backingSurface)
     IOSurfaceLock (backingSurface, 0, NULL);
 }
@@ -6175,6 +6178,9 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 - (void)unlockFocusOnBacking
 {
   eassert (pthread_main_np ());
+  eassert (backingLockCount);
+
+  backingLockCount--;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   if (!self.layer)
     {
@@ -6183,14 +6189,10 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       return;
     }
 #endif
-  eassert (graphicsContextStack.count && backingBitmap);
+  eassert (backingBitmap);
   if (backingSurface)
     IOSurfaceUnlock (backingSurface, 0, NULL);
   [NSGraphicsContext restoreGraphicsState];
-  id lastObject = graphicsContextStack.lastObject;
-  NSGraphicsContext.currentContext = (lastObject != NSNull.null ? lastObject
-				      : nil);
-  [graphicsContextStack removeLastObject];
 }
 
 static vImage_Error
@@ -8143,20 +8145,20 @@ mac_display_copy_info_dictionary_for_cgdisplay (CGDirectDisplayID displayID,
 
   val = CGDisplayVendorNumber (displayID);
   if (val != kDisplayVendorIDUnknown && val != 0xFFFFFFFF)
-    /* We could simply write `info[@kDisplayVendorID] = @(val)' here
-       if we could restrict ourselves to 64-bit executables.  */
-    [info setObject:[NSNumber numberWithUnsignedInt:val]
-	     forKey:@kDisplayVendorID];
+    /* According to IODisplayLib.c in IOKitUser, a dictionary created
+       with IODisplayCreateInfoDictionary maps the kDisplayVendorID
+       (or kDisplayProductID, kDisplaySerialNumber) key to a SInt32
+       value, whereas the return type of CGDisplayVendorNumber (or
+       CGDisplayModelNumber, CGDisplaySerialNumber) is uint32_t.  */
+    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplayVendorID];
 
   val = CGDisplayModelNumber (displayID);
   if (val != kDisplayProductIDGeneric && val != 0xFFFFFFFF)
-    [info setObject:[NSNumber numberWithUnsignedInt:val]
-	     forKey:@kDisplayProductID];
+    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplayProductID];
 
   val = CGDisplaySerialNumber (displayID);
   if (val != 0x00000000 && val != 0xFFFFFFFF)
-    [info setObject:[NSNumber numberWithUnsignedInt:val]
-	     forKey:@kDisplaySerialNumber];
+    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplaySerialNumber];
 
   [infoDictionaries enumerateObjectsUsingBlock:
 		      ^(NSDictionary *dictionary, NSUInteger idx, BOOL *stop) {
@@ -11955,16 +11957,16 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
     {
       NSView *view = [views objectAtIndex:i++];
       NSRect rect = [view visibleRect];
+      NSGraphicsContext *gcontext = NSGraphicsContext.currentContext;
       NSAffineTransform *transform = [NSAffineTransform transform];
 
-      [NSGraphicsContext saveGraphicsState];
+      [gcontext saveGraphicsState];
       [transform translateXBy:(- NSMinX (rect)) yBy:(y - NSMinY (rect))];
       [transform concat];
       [EmacsView globallyDisableUpdateLayer:YES];
-      [view displayRectIgnoringOpacity:rect
-			     inContext:[NSGraphicsContext currentContext]];
+      [view displayRectIgnoringOpacity:rect inContext:gcontext];
       [EmacsView globallyDisableUpdateLayer:NO];
-      [NSGraphicsContext restoreGraphicsState];
+      [gcontext restoreGraphicsState];
       y += NSHeight ([view visibleRect]);
     }
 }
@@ -13600,14 +13602,14 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
   [transform scaleBy:scaleFactor];
   [transform translateXBy:(- NSMinX (rect)) yBy:(- NSMinY (rect))];
   [NSGraphicsContext saveGraphicsState];
-  [NSGraphicsContext setCurrentContext:gcontext];
+  NSGraphicsContext.currentContext = gcontext;
   [transform concat];
   if (!(self.isOpaque && NSContainsRect (self.bounds, rect)))
     {
-      [NSGraphicsContext saveGraphicsState];
+      [gcontext saveGraphicsState];
       [(color ? color : [NSColor clearColor]) set];
       NSRectFill (rect);
-      [NSGraphicsContext restoreGraphicsState];
+      [gcontext restoreGraphicsState];
     }
 #if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
   if ([self isKindOfClass:[WKWebView class]])
@@ -14094,7 +14096,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 	[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
 
       [NSGraphicsContext saveGraphicsState];
-      [NSGraphicsContext setCurrentContext:gcontext];
+      NSGraphicsContext.currentContext = gcontext;
       [transform translateXBy:(NSMinX (rect)) yBy:(NSMinY (rect))];
       [transform scaleXBy:(NSWidth (rect) / width)
 		      yBy:(NSHeight (rect) / height)];
@@ -14345,7 +14347,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 #endif
 
   [NSGraphicsContext saveGraphicsState];
-  [NSGraphicsContext setCurrentContext:gcontext];
+  NSGraphicsContext.currentContext = gcontext;
   [transform translateXBy:(NSMinX (rect)) yBy:(NSMaxY (rect))];
   [transform scaleXBy:(NSWidth (rect) / containerSize.width)
 		  yBy:(- NSHeight (rect) / containerSize.height)];

@@ -1,5 +1,5 @@
 # DO NOT EDIT! GENERATED AUTOMATICALLY!
-# Copyright (C) 2002-2018 Free Software Foundation, Inc.
+# Copyright (C) 2002-2019 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -86,6 +86,8 @@ AC_DEFUN([gl_EARLY],
   # Code from module filevercmp:
   # Code from module flexmember:
   # Code from module fpending:
+  # Code from module fpieee:
+  AC_REQUIRE([gl_FP_IEEE])
   # Code from module fstatat:
   # Code from module fsync:
   # Code from module getdtablesize:
@@ -994,6 +996,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/filemode.m4
   m4/flexmember.m4
   m4/fpending.m4
+  m4/fpieee.m4
   m4/fstatat.m4
   m4/fsync.m4
   m4/getdtablesize.m4

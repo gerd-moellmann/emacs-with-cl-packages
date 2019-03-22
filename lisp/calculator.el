@@ -1,6 +1,6 @@
 ;;; calculator.el --- a calculator for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998, 2000-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000-2019 Free Software Foundation, Inc.
 
 ;; Author: Eli Barzilay <eli@barzilay.org>
 ;; Keywords: tools, convenience
@@ -627,7 +627,7 @@ Here are the editing keys:
 
 These operators are pre-defined:
 * `+' `-' `*' `/' the common binary operators
-* `\\' `%'         integer division and reminder
+* `\\' `%'         integer division and remainder
 * `_' `;'         postfix unary negation and reciprocal
 * `^' `L'         binary operators for x^y and log(x) in base y
 * `Q' `!'         unary square root and factorial

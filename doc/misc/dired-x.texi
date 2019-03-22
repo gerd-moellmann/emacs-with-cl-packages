@@ -20,7 +20,7 @@
 @comment %**end of header (This is for running Texinfo on a region.)
 
 @copying
-Copyright @copyright{} 1994--1995, 1999, 2001--2018
+Copyright @copyright{} 1994--1995, 1999, 2001--2019
 Free Software Foundation, Inc.
 
 @quotation
@@ -322,8 +322,8 @@ Default: @code{nil}
 
 @cindex How to make omitting the default in Dired
 If non-@code{nil}, ``uninteresting'' files are not listed.
-Uninteresting files are those whose files whose names match regexp
-@code{dired-omit-files}, plus those ending with extensions in
+Uninteresting files are files whose names match regexp
+@code{dired-omit-files}, plus files whose names end with extension in
 @code{dired-omit-extensions}.  @kbd{C-x M-o} (@code{dired-omit-mode})
 toggles its value, which is buffer-local.  Put
 
@@ -593,8 +593,9 @@ where each @var{command} can either be a string or a Lisp expression
 that evaluates to a string.  If several commands are given, all of
 them will temporarily be pushed onto the history.
 
-If @samp{*} in the shell command, that means to substitute the file
-name.
+A @samp{*} in the shell command stands for the file name that matched
+@var{regexp}.  When Emacs invokes the @var{command}, it replaces each
+instance of @samp{*} with the matched file name.
 
 You can set this variable in your @file{~/.emacs}.  For example,
 to add rules for @samp{.foo} and @samp{.bar} file extensions, write

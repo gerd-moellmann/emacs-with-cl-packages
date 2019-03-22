@@ -1,6 +1,6 @@
 ;;; gnus-art.el --- article mode commands for Gnus
 
-;; Copyright (C) 1996-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2019 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -2254,9 +2254,7 @@ This only works if the article in question is HTML."
 		     start end)))))))
 
 (defun gnus-article-treat-fold-newsgroups ()
-  "Unfold folded message headers.
-Only the headers that fit into the current window width will be
-unfolded."
+  "Fold the Newsgroups and Followup-To message headers."
   (interactive)
   (gnus-with-article-headers
     (while (gnus-article-goto-header "newsgroups\\|followup-to")
@@ -7506,7 +7504,7 @@ must return `mid', `mail', `invalid' or `ask'."
     (2.0   . "^[A-Z][a-z][A-Z][a-z][a-z][^a-z]")) ;; ^[A-Z][a-z]{4,4}
   "An alist of (RATE . REGEXP) pairs for `gnus-button-mid-or-mail-heuristic'.
 
-A negative RATE indicates a message IDs, whereas a positive indicates a mail
+A negative RATE indicates a message ID, whereas a positive indicates a mail
 address.  The REGEXP is processed with `case-fold-search' set to nil."
   :version "22.1"
   :group 'gnus-article-buttons
@@ -7515,7 +7513,7 @@ address.  The REGEXP is processed with `case-fold-search' set to nil."
 
 (defun gnus-button-mid-or-mail-heuristic (mid-or-mail)
   "Guess whether MID-OR-MAIL is a message ID or a mail address.
-Returns `mid' if MID-OR-MAIL is a message IDs, `mail' if it's a mail
+Returns `mid' if MID-OR-MAIL is a message ID, `mail' if it's a mail
 address, `ask' if unsure and `invalid' if the string is invalid."
   (let ((case-fold-search nil)
 	(list gnus-button-mid-or-mail-heuristic-alist)

@@ -1,6 +1,6 @@
 /* Basic character support.
 
-Copyright (C) 2001-2018 Free Software Foundation, Inc.
+Copyright (C) 2001-2019 Free Software Foundation, Inc.
 Copyright (C) 1995, 1997, 1998, 2001 Electrotechnical Laboratory, JAPAN.
   Licensed to the Free Software Foundation.
 Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
@@ -34,6 +34,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "character.h"
 #include "buffer.h"
+#include "dispextern.h"
 #include "composite.h"
 #include "disptab.h"
 
@@ -288,10 +289,15 @@ char_width (int c, struct Lisp_Char_Table *dp)
       if (VECTORP (disp))
 	for (i = 0, width = 0; i < ASIZE (disp); i++)
 	  {
+	    int c = -1;
 	    ch = AREF (disp, i);
-	    if (CHARACTERP (ch))
+	    if (GLYPH_CODE_P (ch))
+	      c = GLYPH_CODE_CHAR (ch);
+	    else if (CHARACTERP (ch))
+	      c = XFASTINT (ch);
+	    if (c >= 0)
 	      {
-		int w = CHARACTER_WIDTH (XFASTINT (ch));
+		int w = CHARACTER_WIDTH (c);
 		if (INT_ADD_WRAPV (width, w, &width))
 		  string_overflow ();
 	      }

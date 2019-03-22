@@ -1,5 +1,5 @@
 /* Coding system handler (conversion, detection, etc).
-   Copyright (C) 2001-2018 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
      2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
@@ -1225,7 +1225,10 @@ detect_coding_utf_8 (struct coding_system *coding,
       ONE_MORE_BYTE (c4);
       if (c4 < 0 || ! UTF_8_EXTRA_OCTET_P (c4))
 	break;
-      if (UTF_8_5_OCTET_LEADING_P (c))
+      if (UTF_8_5_OCTET_LEADING_P (c)
+	  /* If we ever need to increase MAX_CHAR, the below may need
+	     to be reviewed.  */
+	  && c < MAX_MULTIBYTE_LEADING_CODE)
 	{
 	  nchars++;
 	  continue;
@@ -1514,13 +1517,6 @@ encode_coding_utf_8 (struct coding_system *coding)
 
 /* See the above "GENERAL NOTES on `detect_coding_XXX ()' functions".
    Return true if a text is encoded in one of UTF-16 based coding systems.  */
-
-#define UTF_16_HIGH_SURROGATE_P(val) \
-  (((val) & 0xFC00) == 0xD800)
-
-#define UTF_16_LOW_SURROGATE_P(val) \
-  (((val) & 0xFC00) == 0xDC00)
-
 
 static bool
 detect_coding_utf_16 (struct coding_system *coding,
@@ -9211,22 +9207,22 @@ to the string and treated as in `substring'.  */)
 
 DEFUN ("check-coding-systems-region", Fcheck_coding_systems_region,
        Scheck_coding_systems_region, 3, 3, 0,
-       doc: /* Check if the region is encodable by coding systems.
+       doc: /* Check if text between START and END is encodable by CODING-SYSTEM-LIST.
 
 START and END are buffer positions specifying the region.
 CODING-SYSTEM-LIST is a list of coding systems to check.
 
-The value is an alist ((CODING-SYSTEM POS0 POS1 ...) ...), where
-CODING-SYSTEM is a member of CODING-SYSTEM-LIST and can't encode the
-whole region, POS0, POS1, ... are buffer positions where non-encodable
-characters are found.
-
 If all coding systems in CODING-SYSTEM-LIST can encode the region, the
-value is nil.
+function returns nil.
+
+If some of the coding systems cannot encode the whole region, value is
+an alist, each element of which has the form (CODING-SYSTEM POS1 POS2 ...),
+which means that CODING-SYSTEM cannot encode the text at buffer positions
+POS1, POS2, ...
 
 START may be a string.  In that case, check if the string is
-encodable, and the value contains indices to the string instead of
-buffer positions.  END is ignored.
+encodable, and the value contains character indices into the string
+instead of buffer positions.  END is ignored in this case.
 
 If the current buffer (or START if it is a string) is unibyte, the value
 is nil.  */)

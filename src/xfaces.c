@@ -1,6 +1,6 @@
 /* xfaces.c -- "Face" primitives.
 
-Copyright (C) 1993-1994, 1998-2018 Free Software Foundation, Inc.
+Copyright (C) 1993-1994, 1998-2019 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -803,8 +803,20 @@ load_pixmap (struct frame *f, Lisp_Object name)
       h = XINT (Fcar (Fcdr (name)));
       bits = Fcar (Fcdr (Fcdr (name)));
 
+#ifndef HAVE_MACGUI
       bitmap_id = x_create_bitmap_from_data (f, SSDATA (bits),
 					     w, h);
+#else  /* HAVE_MACGUI */
+      Lisp_Object bits_2x =
+	Fget_text_property (make_number (0), QCdata_2x, bits);
+      if (NILP (Fbitmap_spec_p (list3 (make_number (w * 2), make_number (h * 2),
+				       bits_2x))))
+	bits_2x = Qnil;
+      bitmap_id = mac_create_bitmap_from_data (f, SSDATA (bits),
+					       (STRINGP (bits_2x)
+						? SSDATA (bits_2x) : NULL),
+					       w, h);
+#endif	/* HAVE_MACGUI */
     }
   else
     {
@@ -4106,8 +4118,14 @@ prepare_face_for_display (struct frame *f, struct face *face)
 	  xgcv.stipple = x_bitmap_pixmap (f, face->stipple);
 	  mask |= GCFillStyle | GCStipple;
 	}
-#elif HAVE_MACGUI
-      if (face->stipple < 0)
+#elif defined (HAVE_MACGUI)
+      if (face->stipple > 0)
+	{
+	  xgcv.fill_style = FillOpaqueStippled;
+	  xgcv.stipple = mac_bitmap_stipple (f, face->stipple);
+	  mask |= GCFillStyle | GCStipple;
+	}
+      else if (face->stipple < 0)
 	{
 	  xgcv.background_transparency = face->stipple;
 	  mask |= GCBackgroundTransparency;
@@ -6004,7 +6022,14 @@ face_at_buffer_position (struct window *w, ptrdiff_t pos,
     int face_id;
 
     if (base_face_id >= 0)
-      face_id = base_face_id;
+      {
+	face_id = base_face_id;
+	/* Make sure the base face ID is usable: if someone freed the
+	   cached faces since we've looked up the base face, we need
+	   to look it up again.  */
+	if (!FACE_FROM_ID_OR_NULL (f, face_id))
+	  face_id = lookup_basic_face (f, DEFAULT_FACE_ID);
+      }
     else if (NILP (Vface_remapping_alist))
       face_id = DEFAULT_FACE_ID;
     else

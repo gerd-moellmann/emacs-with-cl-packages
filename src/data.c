@@ -1,5 +1,5 @@
 /* Primitive operations on Lisp data types for GNU Emacs Lisp interpreter.
-   Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2018 Free Software
+   Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2019 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -276,10 +276,12 @@ for example, (type-of 1) returns `integer'.  */)
           }
         case PVEC_MODULE_FUNCTION:
           return Qmodule_function;
-        /* "Impossible" cases.  */
         case PVEC_XWIDGET:
-        case PVEC_OTHER:
+          return Qxwidget;
         case PVEC_XWIDGET_VIEW:
+          return Qxwidget_view;
+        /* "Impossible" cases.  */
+        case PVEC_OTHER:
         case PVEC_SUB_CHAR_TABLE:
         case PVEC_FREE: ;
         }
@@ -344,8 +346,6 @@ DEFUN ("symbolp", Fsymbolp, Ssymbolp, 1, 1, 0,
   return Qnil;
 }
 
-/* Define this in C to avoid unnecessarily consing up the symbol
-   name.  */
 DEFUN ("keywordp", Fkeywordp, Skeywordp, 1, 1, 0,
        doc: /* Return t if OBJECT is a keyword.
 This means that it is a symbol with a print name beginning with `:'
@@ -1188,7 +1188,7 @@ swap_in_global_binding (struct Lisp_Symbol *symbol)
 
   /* Indicate that the global binding is set up now.  */
   set_blv_where (blv, Qnil);
-  set_blv_found (blv, 0);
+  set_blv_found (blv, false);
 }
 
 /* Set up the buffer-local symbol SYMBOL for validity in the current buffer.
@@ -1257,7 +1257,6 @@ find_symbol_value (Lisp_Object symbol)
 	swap_in_symval_forwarding (sym, blv);
 	return blv->fwd ? do_symval_forwarding (blv->fwd) : blv_value (blv);
       }
-      /* FALLTHROUGH */
     case SYMBOL_FORWARDED:
       return do_symval_forwarding (SYMBOL_FWD (sym));
     default: emacs_abort ();
@@ -1366,7 +1365,7 @@ set_internal (Lisp_Object symbol, Lisp_Object newval, Lisp_Object where,
 	    tem1 = assq_no_quit (symbol,
 				 BVAR (XBUFFER (where), local_var_alist));
 	    set_blv_where (blv, where);
-	    blv->found = 1;
+	    blv->found = true;
 
 	    if (NILP (tem1))
 	      {
@@ -1381,7 +1380,7 @@ set_internal (Lisp_Object symbol, Lisp_Object newval, Lisp_Object where,
 		if (bindflag || !blv->local_if_set
 		    || let_shadows_buffer_binding_p (sym))
 		  {
-		    blv->found = 0;
+		    blv->found = false;
 		    tem1 = blv->defcell;
 		  }
 		/* If it's a local_if_set, being set not bound,
@@ -1796,7 +1795,7 @@ make_blv (struct Lisp_Symbol *sym, bool forwarded,
   blv->local_if_set = 0;
   set_blv_defcell (blv, tem);
   set_blv_valcell (blv, tem);
-  set_blv_found (blv, 0);
+  set_blv_found (blv, false);
   return blv;
 }
 
@@ -1946,29 +1945,26 @@ Instead, use `add-hook' and specify t for the LOCAL argument.  */)
 	  CALLN (Fmessage, format, SYMBOL_NAME (variable));
 	}
 
-      /* Swap out any local binding for some other buffer, and make
-	 sure the current value is permanently recorded, if it's the
-	 default value.  */
-      find_symbol_value (variable);
+      if (BUFFERP (blv->where) && current_buffer == XBUFFER (blv->where))
+        /* Make sure the current value is permanently recorded, if it's the
+           default value.  */
+        swap_in_global_binding (sym);
 
       bset_local_var_alist
 	(current_buffer,
 	 Fcons (Fcons (variable, XCDR (blv->defcell)),
 		BVAR (current_buffer, local_var_alist)));
 
-      /* Make sure symbol does not think it is set up for this buffer;
-	 force it to look once again for this buffer's value.  */
-      if (current_buffer == XBUFFER (blv->where))
-	set_blv_where (blv, Qnil);
-      set_blv_found (blv, 0);
+      /* If the symbol forwards into a C variable, then load the binding
+         for this buffer now, to preserve the invariant that forwarded
+         variables must always hold the value corresponding to the
+         current buffer (they are swapped eagerly).
+         Otherwise, if C code modifies the variable before we load the
+         binding in, then that new value would clobber the default binding
+         the next time we unload it.  See bug#34318.  */
+      if (blv->fwd)
+        swap_in_symval_forwarding (sym, blv);
     }
-
-  /* If the symbol forwards into a C variable, then load the binding
-     for this buffer now.  If C code modifies the variable before we
-     load the binding in, then that new value will clobber the default
-     binding the next time we unload it.  */
-  if (blv->fwd)
-    swap_in_symval_forwarding (sym, blv);
 
   return variable;
 }
@@ -2031,11 +2027,7 @@ From now on the default value will apply in this buffer.  Return VARIABLE.  */)
   {
     Lisp_Object buf; XSETBUFFER (buf, current_buffer);
     if (EQ (buf, blv->where))
-      {
-	set_blv_where (blv, Qnil);
-	blv->found = 0;
-	find_symbol_value (variable);
-      }
+      swap_in_global_binding (sym);
   }
 
   return variable;
@@ -2429,17 +2421,20 @@ arithcompare (Lisp_Object num1, Lisp_Object num2,
 {
   double f1, f2;
   EMACS_INT i1, i2;
-  bool fneq;
+  bool lt, eq, gt;
   bool test;
 
   CHECK_NUMBER_OR_FLOAT_COERCE_MARKER (num1);
   CHECK_NUMBER_OR_FLOAT_COERCE_MARKER (num2);
 
   /* If either arg is floating point, set F1 and F2 to the 'double'
-     approximations of the two arguments, and set FNEQ if floating-point
-     comparison reports that F1 is not equal to F2, possibly because F1
-     or F2 is a NaN.  Regardless, set I1 and I2 to integers that break
-     ties if the floating-point comparison is either not done or reports
+     approximations of the two arguments, and set LT, EQ, and GT to
+     the <, ==, > floating-point comparisons of F1 and F2
+     respectively, taking care to avoid problems if either is a NaN,
+     and trying to avoid problems on platforms where variables (in
+     violation of the C standard) can contain excess precision.
+     Regardless, set I1 and I2 to integers that break ties if the
+     floating-point comparison is either not done or reports
      equality.  */
 
   if (FLOATP (num1))
@@ -2462,7 +2457,9 @@ arithcompare (Lisp_Object num1, Lisp_Object num2,
 	     to I2 will break the tie correctly.  */
 	  i1 = f2 = i2 = XINT (num2);
 	}
-      fneq = f1 != f2;
+      lt = f1 < f2;
+      eq = f1 == f2;
+      gt = f1 > f2;
     }
   else
     {
@@ -2473,39 +2470,49 @@ arithcompare (Lisp_Object num1, Lisp_Object num2,
 	     converse of comparing float to integer (see above).  */
 	  i2 = f1 = i1;
 	  f2 = XFLOAT_DATA (num2);
-	  fneq = f1 != f2;
+	  lt = f1 < f2;
+	  eq = f1 == f2;
+	  gt = f1 > f2;
 	}
       else
 	{
 	  i2 = XINT (num2);
-	  fneq = false;
+	  eq = true;
 	}
+    }
+
+  if (eq)
+    {
+      /* Break a floating-point tie by comparing the integers.  */
+      lt = i1 < i2;
+      eq = i1 == i2;
+      gt = i1 > i2;
     }
 
   switch (comparison)
     {
     case ARITH_EQUAL:
-      test = !fneq && i1 == i2;
+      test = eq;
       break;
 
     case ARITH_NOTEQUAL:
-      test = fneq || i1 != i2;
+      test = !eq;
       break;
 
     case ARITH_LESS:
-      test = fneq ? f1 < f2 : i1 < i2;
+      test = lt;
       break;
 
     case ARITH_LESS_OR_EQUAL:
-      test = fneq ? f1 <= f2 : i1 <= i2;
+      test = lt | eq;
       break;
 
     case ARITH_GRTR:
-      test = fneq ? f1 > f2 : i1 > i2;
+      test = gt;
       break;
 
     case ARITH_GRTR_OR_EQUAL:
-      test = fneq ? f1 >= f2 : i1 >= i2;
+      test = gt | eq;
       break;
 
     default:
@@ -3737,8 +3744,8 @@ syms_of_data (void)
   DEFSYM (Qmarker, "marker");
   DEFSYM (Qoverlay, "overlay");
   DEFSYM (Qfinalizer, "finalizer");
-#ifdef HAVE_MODULES
   DEFSYM (Qmodule_function, "module-function");
+#ifdef HAVE_MODULES
   DEFSYM (Quser_ptr, "user-ptr");
 #endif
   DEFSYM (Qfloat, "float");
@@ -3761,6 +3768,8 @@ syms_of_data (void)
   DEFSYM (Qfont_entity, "font-entity");
   DEFSYM (Qfont_object, "font-object");
   DEFSYM (Qterminal, "terminal");
+  DEFSYM (Qxwidget, "xwidget");
+  DEFSYM (Qxwidget_view, "xwidget-view");
 
   DEFSYM (Qdefun, "defun");
 

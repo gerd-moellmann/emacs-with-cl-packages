@@ -1,5 +1,5 @@
 /* ftfont.c -- FreeType font driver.
-   Copyright (C) 2006-2018 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H13PRO009
@@ -56,8 +56,9 @@ struct ftfont_info
 {
   struct font font;
 #ifdef HAVE_LIBOTF
-  /* The following four members must be here in this order to be
-     compatible with struct xftfont_info (in xftfont.c).  */
+  /* The following members up to and including 'matrix' must be here in
+     this order to be compatible with struct xftfont_info (in
+     xftfont.c).  */
   bool maybe_otf;	/* Flag to tell if this may be OTF or not.  */
   OTF *otf;
 #endif	/* HAVE_LIBOTF */
@@ -764,6 +765,13 @@ ftfont_spec_pattern (Lisp_Object spec, char *otlayout, struct OpenTypeSpec **ots
   if (scalable >= 0
       && ! FcPatternAddBool (pattern, FC_SCALABLE, scalable ? FcTrue : FcFalse))
     goto err;
+#if defined HAVE_XFT && defined FC_COLOR
+  /* We really don't like color fonts, they cause Xft crashes.  See
+     Bug#30874.  */
+  if (Vxft_ignore_color_fonts
+      && ! FcPatternAddBool (pattern, FC_COLOR, FcFalse))
+    goto err;
+#endif
 
   goto finish;
 
@@ -1235,9 +1243,8 @@ ftfont_open (struct frame *f, Lisp_Object entity, int pixel_size)
 void
 ftfont_close (struct font *font)
 {
-  /* FIXME: Although this function can be called while garbage-collecting,
-     the function assumes that Lisp data structures are properly-formed.
-     This invalid assumption can lead to core dumps (Bug#20890).  */
+  if (font_data_structures_may_be_ill_formed ())
+    return;
 
   struct ftfont_info *ftfont_info = (struct ftfont_info *) font;
   Lisp_Object val, cache;

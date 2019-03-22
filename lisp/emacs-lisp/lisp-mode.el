@@ -1,6 +1,6 @@
 ;;; lisp-mode.el --- Lisp mode, and its idiosyncratic commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1999-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1999-2019 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: lisp, languages
@@ -827,6 +827,10 @@ by more than one line to cross a string literal."
     (prog1
         (let (indent)
           (cond ((= (forward-line 1) 1) nil)
+                ;; Negative depth, probably some kind of syntax error.
+                ((null indent-stack)
+                 ;; Reset state.
+                 (setq ppss (parse-partial-sexp (point) (point))))
                 ((car indent-stack))
                 ((integerp (setq indent (calculate-lisp-indent ppss)))
                  (setf (car indent-stack) indent))
@@ -867,7 +871,9 @@ by more than one line to cross a string literal."
   (interactive)
   (let ((pos (- (point-max) (point)))
         (indent (progn (beginning-of-line)
-                       (or indent (calculate-lisp-indent (lisp-ppss))))))
+                       (or indent (calculate-lisp-indent (lisp-ppss)))))
+	(shift-amt nil)
+	(beg (progn (beginning-of-line) (point))))
     (skip-chars-forward " \t")
     (if (or (null indent) (looking-at "\\s<\\s<\\s<"))
 	;; Don't alter indentation of a ;;; comment line
@@ -879,7 +885,11 @@ by more than one line to cross a string literal."
 	  ;; as comment lines, not as code.
 	  (progn (indent-for-comment) (forward-char -1))
 	(if (listp indent) (setq indent (car indent)))
-        (indent-line-to indent))
+	(setq shift-amt (- indent (current-column)))
+	(if (zerop shift-amt)
+	    nil
+	  (delete-region beg (point))
+	  (indent-to indent)))
       ;; If initial point was within line's indentation,
       ;; position after the indentation.  Else stay at same point in text.
       (if (> (- (point-max) pos) (point))
@@ -1194,7 +1204,21 @@ ENDPOS is encountered."
                   (if endpos endpos
                     ;; Get error now if we don't have a complete sexp
                     ;; after point.
-                    (save-excursion (forward-sexp 1) (point)))))
+                    (save-excursion
+                      (let ((eol (line-end-position)))
+                        (forward-sexp 1)
+                        ;; We actually look for a sexp which ends
+                        ;; after the current line so that we properly
+                        ;; indent things like #s(...).  This might not
+                        ;; be needed if Bug#15998 is fixed.
+                        (condition-case ()
+                            (while (and (< (point) eol) (not (eobp)))
+                              (forward-sexp 1))
+                          ;; But don't signal an error for incomplete
+                          ;; sexps following the first complete sexp
+                          ;; after point.
+                          (scan-error nil)))
+                      (point)))))
     (save-excursion
       (while (let ((indent (lisp-indent-calc-next parse-state))
                    (ppss (lisp-indent-state-ppss parse-state)))

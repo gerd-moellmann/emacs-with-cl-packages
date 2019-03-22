@@ -8,7 +8,7 @@
 @copying
 This file documents the GNU Emacs Web Wowser (EWW) package.
 
-Copyright @copyright{} 2014--2018 Free Software Foundation, Inc.
+Copyright @copyright{} 2014--2019 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -118,7 +118,7 @@ variable-pitch fonts or not.  This sets the @code{shr-use-fonts} variable.
 @findex eww-toggle-colors
 @findex shr-use-colors
 @kindex F
-  The @kbd{C} command (@code{eww-toggle-colors}) toggles whether to use
+  The @kbd{M-C} command (@code{eww-toggle-colors}) toggles whether to use
 HTML-specified colors or not.  This sets the @code{shr-use-colors} variable.
 
 @findex eww-download

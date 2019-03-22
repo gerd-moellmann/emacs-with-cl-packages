@@ -1,6 +1,6 @@
 /* Fontset handler.
 
-Copyright (C) 2001-2018 Free Software Foundation, Inc.
+Copyright (C) 2001-2019 Free Software Foundation, Inc.
 Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
   2005, 2006, 2007, 2008, 2009, 2010, 2011
   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -1444,23 +1444,26 @@ DEFUN ("set-fontset-font", Fset_fontset_font, Sset_fontset_font, 3, 5, 0,
        doc: /*
 Modify fontset NAME to use FONT-SPEC for TARGET characters.
 
-NAME is a fontset name string, nil for the fontset of FRAME, or t for
-the default fontset.
+NAME is a fontset name (a string), nil for the fontset of FRAME,
+or t for the default fontset.
 
 TARGET may be a single character to use FONT-SPEC for.
 
 Target may be a cons (FROM . TO), where FROM and TO are characters.
-In that case, use FONT-SPEC for all characters in the range FROM
-and TO (inclusive).
+In that case, use FONT-SPEC for all the characters in the range
+between FROM and TO (inclusive).
 
-TARGET may be a script name symbol.  In that case, use FONT-SPEC for
-all characters that belong to the script.
+TARGET may be a script symbol.  In that case, use FONT-SPEC for
+all the characters that belong to the script.  See the variable
+`script-representative-chars' for the list of known scripts.
 
 TARGET may be a charset.  In that case, use FONT-SPEC for all
-characters in the charset.
+the characters in the charset.  See `list-character-sets' and
+`list-charset-chars' for the list of character sets and their
+characters.
 
-TARGET may be nil.  In that case, use FONT-SPEC for any characters for
-that no FONT-SPEC is specified.
+TARGET may be nil.  In that case, use FONT-SPEC for any character for
+which no font-spec is specified.
 
 FONT-SPEC may one of these:
  * A font-spec object made by the function `font-spec' (which see).
@@ -1470,11 +1473,11 @@ FONT-SPEC may one of these:
  * A font name string.
  * nil, which explicitly specifies that there's no font for TARGET.
 
-Optional 4th argument FRAME is a frame or nil for the selected frame
-that is concerned in the case that NAME is nil.
+Optional 4th argument FRAME is a frame, or nil for the selected frame,
+to be considered in the case that NAME is nil.
 
 Optional 5th argument ADD, if non-nil, specifies how to add FONT-SPEC
-to the font specifications for TARGET previously set.  If it is
+to the previously set font specifications for TARGET.  If it is
 `prepend', FONT-SPEC is prepended.  If it is `append', FONT-SPEC is
 appended.  By default, FONT-SPEC overrides the previous settings.  */)
   (Lisp_Object name, Lisp_Object target, Lisp_Object font_spec, Lisp_Object frame, Lisp_Object add)

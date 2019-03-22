@@ -1,5 +1,5 @@
 /* Definitions and headers for AppKit framework on macOS.
-   Copyright (C) 2008-2018  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2019  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -1002,9 +1002,8 @@ typedef NSInteger NSGlyphProperty;
   id <MTLCommandQueue> mtlCommandQueue;
 #endif
 
-  /* Stack of graphics contexts saved by lockFocus emulation on
-     backing bitmap.  */
-  NSMutableArray *graphicsContextStack;
+  /* Lock count for backing bitmap.  */
+  char backingLockCount;
 
   /* Whether backing bitmap synchronization is suspended.  */
   BOOL synchronizeBackingBitmapSuspended;

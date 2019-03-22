@@ -1,6 +1,6 @@
 ;;; bindings.el --- define standard key bindings and some variables
 
-;; Copyright (C) 1985-1987, 1992-1996, 1999-2018 Free Software
+;; Copyright (C) 1985-1987, 1992-1996, 1999-2019 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -265,7 +265,10 @@ Normally nil in most modes, since there is no process to display.")
 (make-variable-buffer-local 'mode-line-process)
 
 (defun bindings--define-key (map key item)
-  "Make as much as possible of the menus pure."
+  "Define KEY in keymap MAP according to ITEM from a menu.
+This is like `define-key', but it takes the definition from the
+specified menu item, and makes pure copies of as much as possible
+of the menu's data."
   (declare (indent 2))
   (define-key map key
     (cond

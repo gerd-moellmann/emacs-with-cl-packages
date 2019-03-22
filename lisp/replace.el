@@ -1,6 +1,6 @@
 ;;; replace.el --- replace commands for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994, 1996-1997, 2000-2018 Free
+;; Copyright (C) 1985-1987, 1992, 1994, 1996-1997, 2000-2019 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -1748,6 +1748,7 @@ See also `multi-occur'."
                           (when (and list-matching-lines-jump-to-current-line
                                      (not multi-occur-p)
                                      (not orig-line-shown-p)
+                                     orig-line
                                      (>= curr-line orig-line))
                             (insert
                              (concat
@@ -1774,7 +1775,8 @@ See also `multi-occur'."
                   ;; Insert original line if haven't done yet.
                   (when (and list-matching-lines-jump-to-current-line
                              (not multi-occur-p)
-                             (not orig-line-shown-p))
+                             (not orig-line-shown-p)
+                             orig-line)
                     (with-current-buffer out-buf
                       (insert
                        (concat
@@ -2147,6 +2149,10 @@ passed in.  If LITERAL is set, no checking is done, anyway."
 	    noedit nil)))
   (set-match-data match-data)
   (replace-match newtext fixedcase literal)
+  ;; `query-replace' undo feature needs the beginning of the match position,
+  ;; but `replace-match' may change it, for instance, with a regexp like "^".
+  ;; Ensure that this function preserves the match data (Bug#31492).
+  (set-match-data match-data)
   ;; `replace-match' leaves point at the end of the replacement text,
   ;; so move point to the beginning when replacing backward.
   (when backward (goto-char (nth 0 match-data)))
@@ -2576,6 +2582,7 @@ It must return a string."
 			   (let ((stack-idx         0)
                                  (stack-len         (length stack))
                                  (num-replacements  0)
+                                 (nocasify t) ; Undo must preserve case (Bug#31073).
                                  search-string
                                  next-replacement)
                              (while (and (< stack-idx stack-len)
@@ -2716,7 +2723,8 @@ It must return a string."
 				 (replace-match-maybe-edit
 				  next-replacement nocasify literal noedit
 				  real-match-data backward)
-				 replaced t))
+				 replaced t)
+			   (setq next-replacement-replaced next-replacement))
 			 (setq done t))
 
 			((eq def 'delete-and-edit)

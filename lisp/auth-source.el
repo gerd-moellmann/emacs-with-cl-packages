@@ -1,6 +1,6 @@
 ;;; auth-source.el --- authentication sources for Gnus and Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2019 Free Software Foundation, Inc.
 
 ;; Author: Ted Zlatanov <tzz@lifelogs.com>
 ;; Keywords: news
@@ -763,7 +763,7 @@ Calls `auth-source-search' with the :delete property in SPEC set to t.
 The backend may not actually delete the entries.
 
 Returns the deleted entries."
-  (auth-source-search (plist-put spec :delete t)))
+  (apply #'auth-source-search (plist-put spec :delete t)))
 
 (defun auth-source-search-collection (collection value)
   "Returns t is VALUE is t or COLLECTION is t or COLLECTION contains VALUE."
@@ -984,12 +984,13 @@ Note that the MAX parameter is used so we can exit the parse early."
 
 (defun auth-source-netrc-parse-next-interesting ()
   "Advance to the next interesting position in the current buffer."
+  (skip-chars-forward "\t ")
   ;; If we're looking at a comment or are at the end of the line, move forward
-  (while (or (looking-at "#")
+  (while (or (eq (char-after) ?#)
              (and (eolp)
                   (not (eobp))))
-    (forward-line 1))
-  (skip-chars-forward "\t "))
+    (forward-line 1)
+    (skip-chars-forward "\t ")))
 
 (defun auth-source-netrc-parse-one ()
   "Read one thing from the current buffer."
@@ -999,8 +1000,9 @@ Note that the MAX parameter is used so we can exit the parse early."
             (looking-at "\"\\([^\"]*\\)\"")
             (looking-at "\\([^ \t\n]+\\)"))
     (forward-char (length (match-string 0)))
-    (auth-source-netrc-parse-next-interesting)
-    (match-string-no-properties 1)))
+    (prog1
+        (match-string-no-properties 1)
+      (auth-source-netrc-parse-next-interesting))))
 
 ;; with thanks to org-mode
 (defsubst auth-source-current-line (&optional pos)

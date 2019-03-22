@@ -1,6 +1,6 @@
 ;;; emacs-lock.el --- protect buffers against killing or exiting -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2019 Free Software Foundation, Inc.
 
 ;; Author: Juanma Barranquero <lekktu@gmail.com>
 ;; Inspired by emacs-lock.el by Tom Wurgler <twurgler@goodyear.com>
@@ -94,7 +94,10 @@ It can be one of the following values:
  exit   -- Emacs cannot exit while the buffer is locked
  kill   -- the buffer cannot be killed, but Emacs can exit as usual
  all    -- the buffer is locked against both actions
- nil    -- the buffer is not locked")
+ nil    -- the buffer is not locked
+
+See also `emacs-lock-unlockable-modes', which exempts buffers under
+some major modes from being locked under some circumstances.")
 (put 'emacs-lock-mode 'permanent-local t)
 
 (defvar-local emacs-lock--old-mode nil
@@ -204,7 +207,10 @@ When called from Elisp code, ARG can be any locking mode:
  kill   -- the buffer cannot be killed, but Emacs can exit as usual
  all    -- the buffer is locked against both actions
 
-Other values are interpreted as usual."
+Other values are interpreted as usual.
+
+See also `emacs-lock-unlockable-modes', which exempts buffers under
+some major modes from being locked under some circumstances."
   :init-value nil
   :lighter (""
             (emacs-lock--try-unlocking " locked:" " Locked:")

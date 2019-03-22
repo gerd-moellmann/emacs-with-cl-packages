@@ -1,7 +1,7 @@
 ;;; mac-win.el --- parse switches controlling interface with Mac window system -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1999-2008  Free Software Foundation, Inc.
-;; Copyright (C) 2009-2018  YAMAMOTO Mitsuharu
+;; Copyright (C) 2009-2019  YAMAMOTO Mitsuharu
 
 ;; Author: Andrew Choi <akochoi@mac.com>
 ;;	YAMAMOTO Mitsuharu <mituharu@math.s.chiba-u.ac.jp>
@@ -387,45 +387,46 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 \U0001F6E2\U0001F6E3\U0001F6E4\U0001F6E5\U0001F6E9\U0001F6F0\U0001F6F3"))
   "Groups of characters that are sensitive to variation selectors 15 and 16.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-variation-sequences.txt 11.0.")
+The entries are currently based on emoji-variation-sequences.txt 12.0.")
 
 (defconst mac-emoji-modifier-base-characters-alist
   '((t . "\u261D\u26F9\u270A\u270B\u270C\u270D\
 \U0001F385\U0001F3C2\U0001F3C3\U0001F3C4\U0001F3C7\U0001F3CA\U0001F3CB\
 \U0001F3CC\U0001F442\U0001F443\U0001F446\U0001F447\U0001F448\U0001F449\
 \U0001F44A\U0001F44B\U0001F44C\U0001F44D\U0001F44E\U0001F44F\U0001F450\
-\U0001F466\U0001F467\U0001F468\U0001F469\U0001F46E\U0001F470\U0001F471\
-\U0001F472\U0001F473\U0001F474\U0001F475\U0001F476\U0001F477\U0001F478\
-\U0001F47C\U0001F481\U0001F482\U0001F483\U0001F485\U0001F486\U0001F487\
-\U0001F4AA\U0001F574\U0001F575\U0001F57A\U0001F590\U0001F595\U0001F596\
-\U0001F645\U0001F646\U0001F647\U0001F64B\U0001F64C\U0001F64D\U0001F64E\
-\U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\U0001F6C0\U0001F6CC\
-\U0001F918\U0001F919\U0001F91A\U0001F91B\U0001F91C\U0001F91E\U0001F91F\
-\U0001F926\U0001F930\U0001F931\U0001F932\U0001F933\U0001F934\U0001F935\
-\U0001F936\U0001F937\U0001F938\U0001F939\U0001F93D\U0001F93E\U0001F9B5\
-\U0001F9B6\U0001F9B8\U0001F9B9\U0001F9D1\U0001F9D2\U0001F9D3\U0001F9D4\
-\U0001F9D5\U0001F9D6\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\
-\U0001F9DC\U0001F9DD"))
+\U0001F466\U0001F467\U0001F468\U0001F469\U0001F46B\U0001F46C\U0001F46D\
+\U0001F46E\U0001F470\U0001F471\U0001F472\U0001F473\U0001F474\U0001F475\
+\U0001F476\U0001F477\U0001F478\U0001F47C\U0001F481\U0001F482\U0001F483\
+\U0001F485\U0001F486\U0001F487\U0001F4AA\U0001F574\U0001F575\U0001F57A\
+\U0001F590\U0001F595\U0001F596\U0001F645\U0001F646\U0001F647\U0001F64B\
+\U0001F64C\U0001F64D\U0001F64E\U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\
+\U0001F6B6\U0001F6C0\U0001F6CC\U0001F90F\U0001F918\U0001F919\U0001F91A\
+\U0001F91B\U0001F91C\U0001F91E\U0001F91F\U0001F926\U0001F930\U0001F931\
+\U0001F932\U0001F933\U0001F934\U0001F935\U0001F936\U0001F937\U0001F938\
+\U0001F939\U0001F93D\U0001F93E\U0001F9B5\U0001F9B6\U0001F9B8\U0001F9B9\
+\U0001F9BB\U0001F9CD\U0001F9CE\U0001F9CF\U0001F9D1\U0001F9D2\U0001F9D3\
+\U0001F9D4\U0001F9D5\U0001F9D6\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\
+\U0001F9DB\U0001F9DC\U0001F9DD"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-sequences.txt 11.0.")
+The entries are currently based on emoji-sequences.txt 12.0.")
 
 (defconst mac-emoji-gendered-zwj-characters-alist
-  '((role-with-object . "\u2695\u2696\u2708\
+  '((role . "\u2695\u2696\u2708\
 \U0001F33E\U0001F373\U0001F393\U0001F3A4\U0001F3A8\U0001F3EB\U0001F3ED\
-\U0001F4BB\U0001F4BC\U0001F527\U0001F52C\U0001F680\U0001F692\U0001F9B0\
-\U0001F9B1\U0001F9B2\U0001F9B3")
-    (role . "\U0001F46E\U0001F471\U0001F473\U0001F477\U0001F482\U0001F575\
-\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD\U0001F9DE\U0001F9DF")
-    (activity . "\u26F9\U0001F3C3\U0001F3C4\U0001F3CA\U0001F3CB\U0001F3CC\
-\U0001F46F\U0001F486\U0001F487\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\
-\U0001F938\U0001F939\U0001F93C\U0001F93D\U0001F93E\U0001F9D6\U0001F9D7\
-\U0001F9D8")
-    (gesture . "\U0001F481\U0001F645\U0001F646\U0001F647\U0001F64B\U0001F64D\
-\U0001F64E\U0001F926\U0001F937\U0001F9B8\U0001F9B9"))
+\U0001F4BB\U0001F4BC\U0001F527\U0001F52C\U0001F680\U0001F692\U0001F9AF\
+\U0001F9BC\U0001F9BD")
+    (hair . "\U0001F9B0\U0001F9B1\U0001F9B2\U0001F9B3")
+    (gendered . "\u26F9\U0001F3C3\U0001F3C4\U0001F3CA\U0001F3CB\U0001F3CC\
+\U0001F46E\U0001F46F\U0001F471\U0001F473\U0001F477\U0001F481\U0001F482\
+\U0001F486\U0001F487\U0001F575\U0001F645\U0001F646\U0001F647\U0001F64B\
+\U0001F64D\U0001F64E\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\U0001F926\
+\U0001F937\U0001F938\U0001F939\U0001F93C\U0001F93D\U0001F93E\U0001F9B8\
+\U0001F9B9\U0001F9CD\U0001F9CE\U0001F9CF\U0001F9D6\U0001F9D7\U0001F9D8\
+\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD\U0001F9DE\U0001F9DF"))
   "Groups of characters that are parts of the gendered zwj sequences.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-zwj-sequences.txt 11.0.")
+The entries are currently based on emoji-zwj-sequences.txt 12.0.")
 
 (defconst mac-emoji-tag-base-characters-alist
   '((flag "\U0001F3F4" "[\U000E0030-\U000E0039\U000E0061-\U000E007A]+"))
@@ -433,7 +434,7 @@ The entries are currently based on emoji-zwj-sequences.txt 11.0.")
 It is an alist of label symbols vs lists whose elements are of
 the form (CHARS SPEC) where CHARS is a string of tag base
 characters and SPEC is a regexp for the corresponding tag spec.
-The entries are currently based on emoji-sequences.txt 11.0.")
+The entries are currently based on emoji-sequences.txt 12.0.")
 
 (defun mac-emoji-multistyles-unistyles (sequence)
   "Split emoji SEQUENCE into a cons of multistyles and unistyles."
@@ -581,12 +582,14 @@ second is a glyph for the variation selector 16 (U+FE0F)."
       (set-char-table-range
        composition-function-table '(#xE0020 . #xE007E) (nreverse rules))))
   ;; Emoji ZWJ Sequences.
-  (let* ((zwj "\u200D") (vs16 "\uFE0F") (man "\U0001F468") (woman "\U0001F469")
+  (let* ((zwj "\u200D") (vs16 "\uFE0F") (modifiers "[\x1F3FB-\x1F3FF]")
+         (man "\U0001F468") (woman "\U0001F469") (person "\U0001F9D1")
 	 (girl "\U0001F467") (boy "\U0001F466")
-	 (heavy-black-heart "\u2764") (kiss-mark "\U0001F48B")
+	 (red-heart "\u2764") (kiss-mark "\U0001F48B") (handshake "\U0001F91D")
 	 (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
-         (waving-white-flag "\U0001F3F3") (rainbow "\U0001F308")
-         (waving-black-flag "\U0001F3F4") (skull-and-crossbones "\u2620")
+         (white-flag "\U0001F3F3") (rainbow "\U0001F308")
+         (black-flag "\U0001F3F4") (skull-and-crossbones "\u2620")
+         (dog "\U0001F415") (safety-vest "\U0001F9BA")
          (female "\u2640") (male "\u2642")
          (vs16? (concat vs16 "?"))
 	 (man-or-woman (concat "[" man woman "]"))
@@ -596,35 +599,37 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 			   "\\|" boy "\\(?:" zwj boy "\\)?\\)"))
          (object-multis-unis
           (mac-emoji-multistyles-unistyles
-           (cdr (assq 'role-with-object
-                      mac-emoji-gendered-zwj-characters-alist))))
+           (mapconcat (lambda (symbol)
+                        (cdr (assq symbol
+                                   mac-emoji-gendered-zwj-characters-alist)))
+                      '(role hair) "")))
          (object-multistyles (car object-multis-unis))
          (object-unistyles (cdr object-multis-unis))
-         (signs
-          (mapconcat (lambda (symbol)
-                       (cdr (assq symbol
-                                  mac-emoji-gendered-zwj-characters-alist)))
-                     '(role activity gesture) ""))
+         (signs (cdr (assq 'gendered mac-emoji-gendered-zwj-characters-alist)))
          (sign-multistyles (car (mac-emoji-multistyles-unistyles signs))))
     (set-char-table-range
      composition-function-table (string-to-char zwj)
      `([,(concat man ".\\(?:\\(?:" man-or-woman zwj "\\)?" children
-                 "\\|" heavy-black-heart vs16? zwj
+                 "\\|" red-heart vs16? zwj
                  "\\(?:" kiss-mark zwj "\\)?" man
                  "\\|[" object-multistyles "]" vs16?
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring -1]
        [,(concat woman ".\\(?:\\(?:" woman zwj "\\)?" children
-                 "\\|" heavy-black-heart vs16? zwj
+                 "\\|" red-heart vs16? zwj
 		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman
                  "\\|[" object-multistyles "]" vs16?
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring -1]
+       [,(concat person zwj handshake zwj person)
+	1 font-shape-gstring -1]
        [,(concat eye zwj left-speech-bubble vs16?)
 	1 font-shape-gstring -1]
-       [,(concat waving-white-flag zwj rainbow)
+       [,(concat white-flag zwj rainbow)
 	1 font-shape-gstring -1]
-       [,(concat waving-black-flag zwj skull-and-crossbones vs16?)
+       [,(concat black-flag zwj skull-and-crossbones vs16?)
+	1 font-shape-gstring -1]
+       [,(concat dog zwj safety-vest)
 	1 font-shape-gstring -1]
        [,(concat "[" signs "]." female-or-male vs16?)
 	1 font-shape-gstring -1]))
@@ -632,7 +637,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
      composition-function-table ?\uFE0F
      `([,(concat eye vs16 zwj left-speech-bubble vs16?)
 	1 font-shape-gstring 0]
-       [,(concat waving-white-flag vs16 zwj rainbow)
+       [,(concat white-flag vs16 zwj rainbow)
         1 font-shape-gstring 0]
        [,(concat "[" sign-multistyles "]." zwj female-or-male vs16?)
 	1 font-shape-gstring 0]
@@ -644,6 +649,11 @@ second is a glyph for the variation selector 16 (U+FE0F)."
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring 0]
        [,(concat "[" signs "]." zwj female-or-male vs16?)
+	1 font-shape-gstring 0]
+       [,(concat "\\(" man "\\|" person "\\)." zwj handshake zwj
+                 "\\1" modifiers)
+	1 font-shape-gstring 0]
+       [,(concat woman "." zwj handshake zwj man-or-woman modifiers)
 	1 font-shape-gstring 0]
        ,@(aref composition-function-table #x1F3FB)))))
 
@@ -819,22 +829,27 @@ language."
 						      data1 source-encoding
 						      source-encoding 'HFS+D))
 			      (string= data1-normalized data-normalized)))
-		     (decode-coding-string bytes coding-system)))))
-    (if (and str (eq encoding mac-text-encoding-mac-japanese-basic-variant))
-	;; Does it contain Apple one-byte extensions other than
-	;; reverse solidus?
-	(if (string-match
-	     ;; Character alternatives in multibyte eight-bit is unreliable.
-	     ;; (Bug#3687)
-	     ;; (string-to-multibyte "[\xa0\xfd-\xff]")
-	     (string-to-multibyte "\xa0\\|\xfd\\|\xfe\\|\xff") str)
-	    (setq str nil)
-	  ;; ASCII-only?
-	  (unless (mac-code-convert-string data source-encoding
-					   mac-text-encoding-ascii)
-	    (subst-char-in-string ?\x5c ?\¥ str t)
-	    (subst-char-in-string (unibyte-char-to-multibyte ?\x80) ?\\
-				  str t))))
+                     (decode-coding-string bytes coding-system)))))
+    (when str
+      (cond ((eq coding-system 'mac-roman)
+             ;; mac-roman, being based on glibc charmaps data, maps
+             ;; APPLE LOGO to U+E01E.
+             (subst-char-in-string ?\xe01e ? str t))
+            ((eq encoding mac-text-encoding-mac-japanese-basic-variant)
+             ;; Does it contain Apple one-byte extensions other than
+             ;; reverse solidus?
+             (if (string-match
+                  ;; Character alternatives in multibyte eight-bit is
+                  ;; unreliable.  (Bug#3687)
+                  ;; (string-to-multibyte "[\xa0\xfd-\xff]")
+                  (string-to-multibyte "\xa0\\|\xfd\\|\xfe\\|\xff") str)
+                 (setq str nil)
+               ;; ASCII-only?
+               (unless (mac-code-convert-string data source-encoding
+                                                mac-text-encoding-ascii)
+                 (subst-char-in-string ?\x5c ?\¥ str t)
+                 (subst-char-in-string (unibyte-char-to-multibyte ?\x80) ?\\
+                                       str t))))))
     (or str (decode-coding-string data
 				  (or source-encoding
 				      (if (eq (byteorder) ?B)
@@ -872,14 +887,20 @@ language."
     (when (memq (coding-system-base coding-system)
 		(find-coding-systems-string string))
       (let ((str string))
-	(when (eq coding-system 'japanese-shift-jis)
-	  (setq encoding mac-text-encoding-mac-japanese-basic-variant)
-	  (setq str (subst-char-in-string ?\\ (unibyte-char-to-multibyte ?\x80)
-					  str))
-	  (subst-char-in-string ?\¥ ?\x5c str t)
-	  ;; ASCII-only?
-	  (if (string-match "\\`[\x00-\x7f]*\\'" str)
-	      (setq str nil)))
+	(cond ((eq coding-system 'mac-roman)
+               ;; mac-roman, being based on glibc charmaps data, maps
+               ;; APPLE LOGO to U+E01E.
+               (if (string-match "\xe01e" str)
+                   (setq str nil)))
+              ((eq coding-system 'japanese-shift-jis)
+               (setq encoding mac-text-encoding-mac-japanese-basic-variant)
+               (setq str
+                     (subst-char-in-string ?\\ (unibyte-char-to-multibyte ?\x80)
+                                           str))
+               (subst-char-in-string ?\¥ ?\x5c str t)
+               ;; ASCII-only?
+               (if (string-match "\\`[\x00-\x7f]*\\'" str)
+                   (setq str nil))))
 	(and str
 	     (setq data (mac-code-convert-string
 			 (encode-coding-string str coding-system)

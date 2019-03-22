@@ -1,6 +1,6 @@
 ;;; bookmark.el --- set bookmarks, maybe annotate them, jump to them later
 
-;; Copyright (C) 1993-1997, 2001-2018 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1997, 2001-2019 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Maintainer: Karl Fogel <kfogel@red-bean.com>
@@ -802,7 +802,7 @@ is ever deleted."
          (let ((str
                 (or name
                     (read-from-minibuffer
-                     (format "%s (default: \"%s\"): " prompt default)
+                     (format "%s (default \"%s\"): " prompt default)
                      nil
                      bookmark-minibuffer-read-name-map
                      nil nil defaults))))
@@ -1102,7 +1102,7 @@ BOOKMARK is usually a bookmark name (a string).  It can also be a
 bookmark record, but this is usually only done by programmatic callers.
 
 If DISPLAY-FUNC is non-nil, it is a function to invoke to display the
-bookmark.  It defaults to `switch-to-buffer'.  A typical value for
+bookmark.  It defaults to `pop-to-buffer-same-window'.  A typical value for
 DISPLAY-FUNC would be `switch-to-buffer-other-window'."
   (interactive
    (list (bookmark-completing-read "Jump to bookmark"
@@ -1110,7 +1110,10 @@ DISPLAY-FUNC would be `switch-to-buffer-other-window'."
   (unless bookmark
     (error "No bookmark specified"))
   (bookmark-maybe-historicize-string bookmark)
-  (bookmark--jump-via bookmark (or display-func 'switch-to-buffer)))
+  ;; Don't use `switch-to-buffer' because it would let the
+  ;; window-point override the bookmark's point when
+  ;; `switch-to-buffer-preserve-window-point' is non-nil.
+  (bookmark--jump-via bookmark (or display-func 'pop-to-buffer-same-window)))
 
 
 ;;;###autoload

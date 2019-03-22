@@ -1,6 +1,6 @@
 ;;; auth-source-tests.el --- Tests for auth-source.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2018 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2019 Free Software Foundation, Inc.
 
 ;; Author: Damien Cassou <damien@cassou.me>,
 ;;         Nicolas Petton <nicolas@petton.fr>
@@ -210,6 +210,25 @@
                     ("login" . "user1")
                     ("machine" . "mymachine1"))))))
 
+(ert-deftest auth-source-test-netrc-parse-one ()
+  (should (equal (auth-source--test-netrc-parse-one--all
+                  "machine host1\n# comment\n")
+                 '("machine" "host1")))
+  (should (equal (auth-source--test-netrc-parse-one--all
+                  "machine host1\n  \n  \nmachine host2\n")
+                 '("machine" "host1" "machine" "host2"))))
+
+(defun auth-source--test-netrc-parse-one--all (text)
+  "Parse TEXT with `auth-source-netrc-parse-one' until end,return list."
+  (with-temp-buffer
+    (insert text)
+    (goto-char (point-min))
+    (let ((one (auth-source-netrc-parse-one)) all)
+      (while one
+        (push one all)
+        (setq one (auth-source-netrc-parse-one)))
+      (nreverse all))))
+
 (ert-deftest auth-source-test-format-prompt ()
   (should (equal (auth-source-format-prompt "test %u %h %p" '((?u "user") (?h "host")))
                  "test user host %p")))
@@ -288,6 +307,26 @@
         ;; (message "With parameters %S found: [%s] needed: [%s]" parameters found-as-string needed)
         (should (equal found-as-string (concat testname ": " needed)))))
     (delete-file netrc-file)))
+
+(ert-deftest auth-source-delete ()
+  (let* ((netrc-file (make-temp-file "auth-source-test" nil nil "\
+machine a1 port a2 user a3 password a4
+machine b1 port b2 user b3 password b4
+machine c1 port c2 user c3 password c4\n"))
+         (auth-sources (list netrc-file))
+         (auth-source-do-cache nil)
+         (expected '((:host "a1" :port "a2" :user "a3" :secret "a4")))
+         (parameters '(:max 1 :host t)))
+    (unwind-protect
+        (let ((found (apply #'auth-source-delete parameters)))
+          (dolist (f found)
+            (let ((s (plist-get f :secret)))
+              (setf f (plist-put f :secret
+                                 (if (functionp s) (funcall s) s)))))
+          ;; Note: The netrc backend doesn't delete anything, so
+          ;; this is actually the same as `auth-source-search'.
+          (should (equal found expected)))
+      (delete-file netrc-file))))
 
 (provide 'auth-source-tests)
 ;;; auth-source-tests.el ends here
