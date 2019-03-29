@@ -5420,7 +5420,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 			    &Available, (check_write ? &Writeok : 0),
 			    NULL, &timeout, NULL);
 #elif defined HAVE_MACGUI
-	  nfds = mac_select (max_desc + 1,	  
+	  nfds = mac_select (max_desc + 1,
 			     &Available, (check_write ? &Writeok : 0),
 			     NULL, &timeout, NULL);
 #else  /* !HAVE_GLIB */
