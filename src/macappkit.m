@@ -7356,72 +7356,100 @@ event_phase_to_symbol (NSEventPhase phase)
   return result;
 }
 
+static bool
+mac_ts_active_input_string_in_echo_area_p (struct frame *f)
+{
+  Lisp_Object val = buffer_local_value (intern ("isearch-mode"),
+					XWINDOW (f->selected_window)->contents);
+
+  if (!(NILP (val) || EQ (val, Qunbound)))
+    return true;
+
+  if (OVERLAYP (Vmac_ts_active_input_overlay)
+      && !NILP (Foverlay_get (Vmac_ts_active_input_overlay, Qbefore_string)))
+    return false;
+
+  for (Lisp_Object msg = current_message (); STRINGP (msg);
+       msg = Fget_text_property (make_number (0), Qdisplay, msg))
+    if (!NILP (Fget_text_property (make_number (0), Qmac_ts_active_input_string,
+				   msg))
+	|| !NILP (Fnext_single_property_change (make_number (0),
+						Qmac_ts_active_input_string,
+						msg, Qnil)))
+      return true;
+
+  return false;
+}
+
 - (NSRect)firstRectForCharacterRange:(NSRange)aRange
 			 actualRange:(NSRangePointer)actualRange
 {
   NSRect rect = NSZeroRect;
   struct frame *f = NULL;
-  struct window *w;
-  struct glyph *glyph;
-  struct glyph_row *row;
-  NSRange markedRange = [self markedRange];
 
-  if (aRange.location >= NSNotFound
-      || ([self hasMarkedText]
-	  && NSEqualRanges (NSUnionRange (markedRange, aRange), markedRange)))
+  if (mac_try_buffer_and_glyph_matrix_access ())
     {
-      /* Probably asking the location of the marked text.  Strictly
-	 speaking, it is impossible to get the correct one in general
-	 because events pending in the Lisp queue may change some
-	 states about display.  In particular, this method might be
-	 called before displaying the marked text.
+      struct window *w;
+      NSRange markedRange = self.markedRange;
 
-	 We return the current cursor position either in the selected
-	 window or in the echo area as an approximate value.  We first
-	 try the echo area when Vmac_ts_active_input_overlay doesn't
-	 have the before-string property, and if the cursor glyph is
-	 not found there, then return the cursor position of the
-	 selected window.  */
-      glyph = NULL;
-      if (!(OVERLAYP (Vmac_ts_active_input_overlay)
-	    && !NILP (Foverlay_get (Vmac_ts_active_input_overlay,
-				    Qbefore_string)))
-	  && WINDOWP (echo_area_window))
+      if (aRange.location >= NSNotFound
+	  || (self.hasMarkedText
+	      && NSEqualRanges (NSUnionRange (markedRange, aRange),
+				markedRange)))
 	{
-	  w = XWINDOW (echo_area_window);
-	  f = WINDOW_XFRAME (w);
-	  glyph = get_phys_cursor_glyph (w);
+	  /* Probably asking the location of the marked text.
+	     Strictly speaking, it is impossible to get the correct
+	     one in general because events pending in the Lisp queue
+	     may change some states about display.  In particular,
+	     this method might be called before displaying the marked
+	     text.
+
+	     We return the current cursor position either in the
+	     selected window or in the echo area (during isearch, for
+	     example) as an approximate value.  */
+	  struct glyph *glyph = NULL;
+
+	  if (WINDOWP (echo_area_window)
+	      && mac_ts_active_input_string_in_echo_area_p (self.emacsFrame))
+	    {
+	      w = XWINDOW (echo_area_window);
+	      f = WINDOW_XFRAME (w);
+	      glyph = get_phys_cursor_glyph (w);
+	    }
+	  if (glyph == NULL)
+	    {
+	      f = self.emacsFrame;
+	      w = XWINDOW (f->selected_window);
+	      glyph = get_phys_cursor_glyph (w);
+	    }
+	  if (glyph)
+	    {
+	      int x, y, h;
+	      struct glyph_row *row = MATRIX_ROW (w->current_matrix,
+						  w->phys_cursor.vpos);
+
+	      get_phys_cursor_geometry (w, row, glyph, &x, &y, &h);
+
+	      rect = NSMakeRect (x, y, w->phys_cursor_width, h);
+	      if (actualRange)
+		*actualRange = aRange;
+	    }
 	}
-      if (glyph == NULL)
+      else
 	{
-	  f = [self emacsFrame];
+	  f = self.emacsFrame;
 	  w = XWINDOW (f->selected_window);
-	  glyph = get_phys_cursor_glyph (w);
+
+	  /* Are we in a window whose display is up to date?
+	     And verify the buffer's text has not changed.  */
+	  if (w->window_end_valid && !window_outdated (w))
+	    rect =
+	      NSRectFromCGRect (mac_get_first_rect_for_range (w, ((CFRange *)
+								  &aRange),
+							      ((CFRange *)
+							       actualRange)));
 	}
-      if (glyph)
-	{
-	  int x, y, h;
-
-	  row = MATRIX_ROW (w->current_matrix, w->phys_cursor.vpos);
-	  get_phys_cursor_geometry (w, row, glyph, &x, &y, &h);
-
-	  rect = NSMakeRect (x, y, w->phys_cursor_width, h);
-	  if (actualRange)
-	    *actualRange = aRange;
-	}
-    }
-  else
-    {
-      f = [self emacsFrame];
-      w = XWINDOW (f->selected_window);
-
-      /* Are we in a window whose display is up to date?
-	 And verify the buffer's text has not changed.  */
-      if (w->window_end_valid && !window_outdated (w))
-	rect = NSRectFromCGRect (mac_get_first_rect_for_range (w, ((CFRange *)
-								   &aRange),
-							       ((CFRange *)
-								actualRange)));
+      mac_end_buffer_and_glyph_matrix_access ();
     }
 
   if (actualRange && NSEqualRects (rect, NSZeroRect))
