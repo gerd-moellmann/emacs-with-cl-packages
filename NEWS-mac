@@ -1,5 +1,22 @@
+* emacs-26.2-mac-7.6 (2019-04-14)
+Based on Emacs 26.2.
+
+** Fixed bugs
+
+*** Candidates window for input methods is often misplaced.
+Add heuristics so it works in many cases including candidates windows
+popped up during isearch.
+We cannot make this placement strictly correct because of a timing
+problem: the system asks for the cursor position while there are still
+some pending Lisp events and the redisplay is not completed yet.
+
+*** New Space is created when making a child frame visible while a
+fullscreen frame is focused.
+
+
 * emacs-26.2-rc1-mac-7.5 (2019-03-22)
 Based on Emacs 26.2 release candidate.
+https://lists.gnu.org/r/emacs-devel/2019-03/msg00795.html
 
 ** Fixed bugs
 

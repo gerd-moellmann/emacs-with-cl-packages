@@ -5982,6 +5982,7 @@ syms_of_macterm (void)
   DEFSYM (Qinsert_text, "insert-text");
   DEFSYM (Qset_marked_text, "set-marked-text");
   DEFSYM (Qnotification, "notification");
+  DEFSYM (Qmac_ts_active_input_string, "mac-ts-active-input-string");
 
   DEFSYM (Qaction, "action");
   DEFSYM (Qmac_action_key_paths, "mac-action-key-paths");
