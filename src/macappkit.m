@@ -2746,8 +2746,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 #endif
       [self updateOverlayViewParticipation];
       if (has_full_screen_with_dedicated_desktop_p ()
-	  && !(windowManagerState & WM_STATE_FULLSCREEN))
-	[window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
+	  && !(windowManagerState & WM_STATE_FULLSCREEN)
+	  && !FRAME_PARENT_FRAME (f))
+	window.collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary;
       if ([window respondsToSelector:@selector(setAnimationBehavior:)])
 	[window setAnimationBehavior:NSWindowAnimationBehaviorDocumentWindow];
     }
@@ -5744,7 +5745,6 @@ mac_update_frame_window_parent (struct frame *f)
       return;
     }
 
-  mac_update_frame_window_style (f);
   mac_within_gui (^{
       NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
@@ -5759,12 +5759,19 @@ mac_update_frame_window_parent (struct frame *f)
 	    {
 	      NSWindow *newParentWindow = FRAME_MAC_WINDOW_OBJECT (p);
 
+	      if (has_full_screen_with_dedicated_desktop_p ())
+		window.collectionBehavior &=
+		  ~NSWindowCollectionBehaviorFullScreenPrimary;
 	      [newParentWindow addChildWindow:window ordered:NSWindowAbove];
 	    }
+	  else
+	    [frameController updateCollectionBehavior];
+
 	  [emacsController updatePresentationOptions];
 	}
       mac_move_frame_window_structure_1 (f, x, y);
     });
+  mac_update_frame_window_style (f);
   if (has_full_screen_with_dedicated_desktop_p ()
       && ((windowManagerState & (WM_STATE_FULLSCREEN
 				 | WM_STATE_DEDICATED_DESKTOP))
