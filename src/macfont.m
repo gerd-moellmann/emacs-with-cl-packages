@@ -79,6 +79,7 @@ struct macfont_info
   unsigned spacing : 2;
   unsigned antialias : 2;
   bool_bf color_bitmap_p : 1;
+  bool_bf svg_p : 1;
 };
 
 /* Values for the `spacing' member in `struct macfont_info'.  */
@@ -2699,6 +2700,16 @@ macfont_open (struct frame * f, Lisp_Object entity, int pixel_size)
   macfont_info->color_bitmap_p = 0;
   if (sym_traits & kCTFontTraitColorGlyphs)
     macfont_info->color_bitmap_p = 1;
+  CFArrayRef tags = CTFontCopyAvailableTables (macfont,
+					       kCTFontTableOptionNoOptions);
+  macfont_info->svg_p = 0;
+  if (tags)
+    {
+      if (CFArrayContainsValue (tags, CFRangeMake (0, CFArrayGetCount (tags)),
+				(const void *) (uintptr_t) kCTFontTableSVG))
+	macfont_info->svg_p = 1;
+      CFRelease (tags);
+    }
 
   glyph = macfont_get_glyph_for_character (font, ' ');
   if (glyph != kCGFontIndexInvalid)
@@ -2965,7 +2976,7 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
       CGContextSetTextPosition (context, text_position.x, text_position.y);
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-      if (macfont_info->color_bitmap_p
+      if ((macfont_info->color_bitmap_p || macfont_info->svg_p)
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
 	  && CTFontDrawGlyphs != NULL
 #endif
