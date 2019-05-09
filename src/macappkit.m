@@ -4972,8 +4972,8 @@ mac_set_tab_group_frames (struct frame *f, Lisp_Object value)
 	      [window addTabbedWindow:addedWindow ordered:NSWindowAbove];
 	    }
 	}
-      mac_set_tab_group_selected_frame (XFRAME (selected), selected);
     });
+  mac_set_tab_group_selected_frame (XFRAME (selected), selected);
 
   return Qt;
 }
