@@ -6486,7 +6486,7 @@ returns nil."
     ;; Try to find the number of free blocks.  Non-Posix systems don't
     ;; always have df, but might have an equivalent system call.
     (if (fboundp 'file-system-info)
-	(let ((fsinfo (file-system-info dir)))
+	(let ((fsinfo (save-match-data (file-system-info dir))))
 	  (if fsinfo
 	      (format "%.0f" (/ (nth 2 fsinfo) 1024))))
       (setq dir (expand-file-name dir))
