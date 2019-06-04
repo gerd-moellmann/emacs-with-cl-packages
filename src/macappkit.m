@@ -13646,7 +13646,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       NSRectFill (rect);
       [gcontext restoreGraphicsState];
     }
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
   if ([self isKindOfClass:[WKWebView class]])
     {
       WKWebView *webView = (WKWebView *) self;
@@ -13769,7 +13769,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       NSRect frameRect = NSMakeRect (0, 0, 100, 100); /* Adjusted later.  */
       int width = -1, height;
       CGFloat scaleFactor;
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
       static WKWebView *webView;
 
       if (!webView)
@@ -13814,7 +13814,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       @try
 	{
 	  id boundingBox, widthBaseVal, heightBaseVal;
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
 	  NSString * __block jsonString;
 	  BOOL __block finished = NO;
 	  CGFloat components[4];
@@ -13938,7 +13938,7 @@ JSON.stringify (['width', 'height'].reduce				\
   return result;
 }
 
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation;
 {
   isLoaded = YES;
@@ -13955,7 +13955,7 @@ JSON.stringify (['width', 'height'].reduce				\
 bool
 mac_webkit_supports_svg_p (void)
 {
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
   return true;
 #else
   bool __block result;

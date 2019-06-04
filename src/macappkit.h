@@ -60,6 +60,10 @@ static const NSAppKitVersion NSAppKitVersionNumber10_12 = 1504;
 static const NSAppKitVersion NSAppKitVersionNumber10_13 = 1561;
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500 || (WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300)
+#define USE_WK_API 1
+#endif
+
 #ifndef USE_ARC
 #if defined (__clang__) && __has_feature (objc_arc)
 #define USE_ARC 1
@@ -1297,7 +1301,7 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsOSAScript : OSAScript
 @end
 
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
 @interface WKWebView (Undocumented)
 -(void)_setOverrideDeviceScaleFactor:(CGFloat)deviceScaleFactor;
 @end
@@ -1311,7 +1315,7 @@ typedef NSInteger NSGlyphProperty;
 /* Class for SVG frame load delegate.  */
 @interface EmacsSVGLoader : NSObject
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
 			    <WKNavigationDelegate>
 #else
 			    <WebFrameLoadDelegate>
