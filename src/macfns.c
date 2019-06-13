@@ -1375,6 +1375,27 @@ x_set_mouse_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
   /* Don't let pointers be invisible.  */
   if (mask_color == pixel)
     pixel = FRAME_FOREGROUND_PIXEL (f);
+  else
+    {
+      /* This workaround enables us to specify "black" as the mouse
+	 color in Dark Mode on macOS 10.14 and later so that the mouse
+	 pointer looks like in the other apps.  */
+      /* See color_distance in xfaces.c.  */
+#define NEAR_SAME_COLOR_THRESHOLD 30000
+      long r, g, b, r_mean;
+      int color_distance;
+
+      r = RED_FROM_ULONG (mask_color) - RED_FROM_ULONG (pixel);
+      g = GREEN_FROM_ULONG (mask_color) - GREEN_FROM_ULONG (pixel);
+      b = BLUE_FROM_ULONG (mask_color) - BLUE_FROM_ULONG (pixel);
+      r_mean = (RED_FROM_ULONG (mask_color) + RED_FROM_ULONG (pixel)) / 2;
+
+      color_distance = ((((512 + r_mean) * r * r) >> 8)
+			+ 4 * g * g
+			+ (((767 - r_mean) * b * b) >> 8));
+      if (color_distance < NEAR_SAME_COLOR_THRESHOLD)
+	mask_color = FRAME_FOREGROUND_PIXEL (f);
+    }
 
   mac->mouse_pixel = pixel;
 
