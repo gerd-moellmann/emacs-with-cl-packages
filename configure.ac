@@ -436,6 +436,11 @@ AC_ARG_ENABLE(mac-app,
 		 [DIR=/Application]])],
 [ mac_appdir_x=${enableval}])
 
+AC_ARG_ENABLE(mac-self-contained,
+[AS_HELP_STRING([--enable-mac-self-contained],
+                [enable self contained build under mac])],
+                EN_MAC_SELF_CONTAINED=$enableval)
+
 AC_ARG_WITH([gnustep-conf],dnl
 [AS_HELP_STRING([--with-gnustep-conf=FILENAME],
    [name of GNUstep configuration file to use on systems where the command
@@ -1867,6 +1872,18 @@ HAVE_MACGUI=no
 if test "${with_mac}" != no; then
   AC_CHECK_HEADER(Carbon/Carbon.h, HAVE_MACGUI=yes)
   test "${HAVE_MACGUI}" = yes && window_system=mac
+
+  ## Specify the install directory
+  mac_appdir=`pwd`/mac
+  if test "${mac_appdir_x}" != ""; then
+    case ${mac_appdir_x} in
+      y | ye | yes)  mac_appdir=/Applications ;;
+      * ) mac_appdir=${mac_appdir_x} ;;
+    esac
+  fi
+
+  mac_appbindir=${mac_appdir}/Emacs.app/Contents/MacOS
+  mac_appresdir=${mac_appdir}/Emacs.app/Contents/Resources
 fi
 
 HAVE_NS=no
@@ -1980,14 +1997,34 @@ fi
 
 AC_SUBST(LIBS_GNUSTEP)
 
+mac_self_contained=no
 MAC_OBJ=
 MAC_OBJC_OBJ=
 if test "${HAVE_MACGUI}" = yes; then
+  if test "${EN_MAC_SELF_CONTAINED}" = yes; then
+     mac_self_contained=yes
+     prefix=${mac_appresdir}
+     exec_prefix=${mac_appbindir}
+     dnl This one isn't really used, only archlibdir is.
+     libexecdir="\${mac_appbindir}/libexec"
+     archlibdir="\${mac_appbindir}/libexec"
+     etcdocdir="\${mac_appresdir}/etc"
+     etcdir="\${mac_appresdir}/etc"
+     dnl FIXME maybe set datarootdir instead.
+     dnl That would also get applications, icons, man.
+     infodir="\${mac_appresdir}/info"
+     mandir="\${mac_appresdir}/man"
+     lispdir="\${mac_appresdir}/lisp"
+     test "$locallisppathset" = no && locallisppath=""
+     INSTALL_ARCH_INDEP_EXTRA=
+  fi
+
   MAC_OBJ="mac.o macterm.o macfns.o macmenu.o macselect.o"
   MAC_OBJC_OBJ="macappkit.o macfont.o"
 fi
 AC_SUBST(MAC_OBJ)
 AC_SUBST(MAC_OBJC_OBJ)
+AC_SUBST(mac_self_contained)
 
 INSTALL_ARCH_INDEP_EXTRA=install-etc
 ns_self_contained=no
@@ -3763,14 +3800,6 @@ if test "${HAVE_MACGUI}" = "yes"; then
   AC_DEFINE(HAVE_SOUND, 1, [Define to 1 if you have sound support.])
   AC_CHECK_HEADERS(AvailabilityMacros.h)
   MAC_CFLAGS="-fconstant-cfstrings"
-  ## Specify the install directory
-  mac_appdir=
-  if test "${mac_appdir_x}" != ""; then
-    case ${mac_appdir_x} in
-      y | ye | yes)  mac_appdir=/Applications ;;
-      * ) mac_appdir=${mac_appdir_x} ;;
-    esac
-  fi
   # We also have mouse menus.
   HAVE_MENUS=yes
   # Tell src/Makefile.in to create files in the macOS application
@@ -5064,6 +5093,8 @@ AC_SUBST(CFLAGS)
 ## Used in lwlib/Makefile.in.
 AC_SUBST(X_TOOLKIT_TYPE)
 AC_SUBST(mac_appdir)
+AC_SUBST(mac_appbindir)
+AC_SUBST(mac_appresdir)
 AC_SUBST(ns_appdir)
 AC_SUBST(ns_appbindir)
 AC_SUBST(ns_appresdir)
@@ -5522,6 +5553,13 @@ if test "$HAVE_MACGUI" = "yes"; then
       echo "Warning: \`--with-wide-int' is not eagerly tested on the Mac port.
 Use it at your own risk."
       echo
+   fi
+   if test "$EN_MAC_SELF_CONTAINED" = "yes"; then
+      echo "The application will be fully self-contained."
+   else
+      AS_ECHO(["The lisp resources for the application will be installed under ${prefix}.
+You may need to run \"${MAKE-make} install\" with sudo.  The application will fail
+to run if these resources are not installed."])
    fi
 fi
 

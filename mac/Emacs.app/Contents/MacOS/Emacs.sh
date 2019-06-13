@@ -21,7 +21,7 @@
 ### Code:
 
 export EMACS_REINVOKED_FROM_SHELL=1
-set "${0%.sh}" "$@"
+[ -L $0 ] && set "$(readlink ${0%.sh})" "$@" || set "${0%.sh}" "$@"
 
 case $(sw_vers -productVersion) in
     10.[0-7]|10.[0-7].*)
