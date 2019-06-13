@@ -1121,6 +1121,7 @@ make_terminal_frame (struct terminal *terminal)
   f->terminal = terminal;
   f->terminal->reference_count++;
 #ifdef MSDOS
+  f->output_data.tty = &the_only_tty_output;
   f->output_data.tty->display_info = &the_only_display_info;
   if (!inhibit_window_system
       && (!FRAMEP (selected_frame) || !FRAME_LIVE_P (XFRAME (selected_frame))
@@ -5554,8 +5555,8 @@ selected frame.  This is useful when `make-pointer-invisible' is set.  */)
 
 #ifdef HAVE_WINDOW_SYSTEM
 
-# if (defined HAVE_NS \
-      || (!defined USE_GTK && (defined HAVE_XINERAMA || defined HAVE_XRANDR)))
+# if (defined USE_GTK || defined HAVE_NS || defined HAVE_XINERAMA \
+      || defined HAVE_XRANDR)
 void
 free_monitors (struct MonitorInfo *monitors, int n_monitors)
 {

@@ -1659,7 +1659,12 @@ text arrives, you could insert a line like the following just before the
 
   To force point to the end of the new output, no matter where it was
 previously, eliminate the variable @code{moving} from the example and
-call @code{goto-char} unconditionally.
+call @code{goto-char} unconditionally.  Note that this doesn't
+necessarily move the window point.  The default filter actually uses
+@code{insert-before-markers} which moves all markers, including the
+window point.  This may move unrelated markers, so it's generally
+better to move the window point explicitly, or set its insertion type
+to @code{t} (@pxref{Window Point}).
 
 @ignore
   In earlier Emacs versions, every filter function that did regular
@@ -1833,6 +1838,26 @@ corresponding connection contains buffered data.  The function returns
 @code{nil} if the timeout expired or the connection was closed before output
 arrived.
 @end defun
+
+If a connection from a process contains buffered data,
+@code{accept-process-output} can return non-@code{nil} even after the
+process has exited.  Therefore, although the following loop:
+
+@example
+;; This loop contains a bug.
+(while (process-live-p process)
+  (accept-process-output process))
+@end example
+
+@noindent
+will often read all output from @var{process}, it has a race condition
+and can miss some output if @code{process-live-p} returns @code{nil}
+while the connection still contains data.  Better is to write the loop
+like this:
+
+@example
+(while (accept-process-output process))
+@end example
 
 @node Processes and Threads
 @subsection Processes and Threads

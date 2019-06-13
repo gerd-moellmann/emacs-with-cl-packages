@@ -4083,10 +4083,10 @@ usage: (make-network-process &rest ARGS)  */)
 	  if (! NILP (Vlocale_coding_system))
 	    str = SSDATA (code_convert_string_norecord
 			  (build_string (str), Vlocale_coding_system, 0));
- 	  if (portstring)
+	  if (portstring)
 	    error ("%s/%s %s", SSDATA (host), portstring, str);
- 	  else
- 	    error ("%s %s", SSDATA (host), str);
+	  else
+	    error ("%s %s", SSDATA (host), str);
 	}
 #else
       if (portstring)

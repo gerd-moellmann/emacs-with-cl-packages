@@ -1042,10 +1042,8 @@ string the same way whether it is unibyte or multibyte.)  */)
 DEFUN ("string-make-unibyte", Fstring_make_unibyte, Sstring_make_unibyte,
        1, 1, 0,
        doc: /* Return the unibyte equivalent of STRING.
-Multibyte character codes are converted to unibyte according to
-`nonascii-translation-table' or, if that is nil, `nonascii-insert-offset'.
-If the lookup in the translation table fails, this function takes just
-the low 8 bits of each character.  */)
+Multibyte character codes above 255 are converted to unibyte
+by taking just the low 8 bits of each character's code.  */)
   (Lisp_Object string)
 {
   CHECK_STRING (string);
@@ -2507,8 +2505,12 @@ mapcar1 (EMACS_INT leni, Lisp_Object *vals, Lisp_Object fn, Lisp_Object seq)
 DEFUN ("mapconcat", Fmapconcat, Smapconcat, 3, 3, 0,
        doc: /* Apply FUNCTION to each element of SEQUENCE, and concat the results as strings.
 In between each pair of results, stick in SEPARATOR.  Thus, " " as
-SEPARATOR results in spaces between the values returned by FUNCTION.
-SEQUENCE may be a list, a vector, a bool-vector, or a string.  */)
+  SEPARATOR results in spaces between the values returned by FUNCTION.
+SEQUENCE may be a list, a vector, a bool-vector, or a string.
+SEPARATOR must be a string.
+FUNCTION must be a function of one argument, and must return a value
+  that is a sequence of characters: either a string, or a vector or
+  list of numbers that are valid character codepoints.  */)
   (Lisp_Object function, Lisp_Object sequence, Lisp_Object separator)
 {
   USE_SAFE_ALLOCA;
