@@ -12916,7 +12916,9 @@ update_services_menu_types (void)
 	  [array addObject:dataType];
       }
 
-  [NSApp registerServicesMenuSendTypes:array returnTypes:array];
+  mac_within_gui (^{
+      [NSApp registerServicesMenuSendTypes:array returnTypes:array];
+    });
 }
 
 
