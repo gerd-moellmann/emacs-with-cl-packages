@@ -291,6 +291,12 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101500
+@interface NSScreen (AvailableOn101500AndLater)
+@property (readonly, copy) NSString *localizedName;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSAppearance : NSObject
 + (NSAppearance *)appearanceNamed:(NSAppearanceName)name;

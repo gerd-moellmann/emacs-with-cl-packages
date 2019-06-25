@@ -8135,7 +8135,7 @@ mac_color_list_alist (void)
 			Multi-monitor support
  ************************************************************************/
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090 && MAC_OS_X_VERSION_MIN_REQUIRED < 101500
 static NSArrayOf (NSDictionary *) *
 mac_display_get_info_dictionaries (IOOptionBits options)
 {
@@ -8220,7 +8220,7 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
   NSArrayOf (NSScreen *) *screens = [NSScreen screens];
   NSUInteger i, count = [screens count];
   Lisp_Object monitor_frames = Fmake_vector (make_number (count), Qnil);
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090 && MAC_OS_X_VERSION_MIN_REQUIRED < 101500
   NSArrayOf (NSDictionary *) *infoDictionaries =
     mac_display_get_info_dictionaries (kIODisplayOnlyPreferredName);
 #endif
@@ -8250,7 +8250,6 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
       NSScreen *screen = [screens objectAtIndex:i];
       CGFloat backingScaleFactor;
       CGDirectDisplayID displayID;
-      CFDictionaryRef displayInfo;
       CGSize size;
       NSRect rect;
 
@@ -8280,31 +8279,47 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
 	}
 #endif
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-      displayInfo =
-	mac_display_copy_info_dictionary_for_cgdisplay (displayID,
-							infoDictionaries);
-#else
-      displayInfo =
-	IODisplayCreateInfoDictionary (CGDisplayIOServicePort (displayID),
-				       kIODisplayOnlyPreferredName);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+      if ([screen respondsToSelector:@selector(localizedName)])
 #endif
-      if (displayInfo)
+	attributes = Fcons (Fcons (Qname, screen.localizedName.lispString),
+			    attributes);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+      else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101500 || MAC_OS_X_VERSION_MIN_REQUIRED < 101500
 	{
-	  CFDictionaryRef localizedNames =
-	    CFDictionaryGetValue (displayInfo, CFSTR (kDisplayProductName));
-
-	  if (localizedNames)
+	  CFDictionaryRef displayInfo;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+	  displayInfo =
+	    mac_display_copy_info_dictionary_for_cgdisplay (displayID,
+							    infoDictionaries);
+#else
+	  displayInfo =
+	    IODisplayCreateInfoDictionary (CGDisplayIOServicePort (displayID),
+					   kIODisplayOnlyPreferredName);
+#endif
+	  if (displayInfo)
 	    {
-	      NSDictionary *names = (__bridge NSDictionary *) localizedNames;
-	      NSString *name = [[names objectEnumerator] nextObject];
+	      CFDictionaryRef localizedNames =
+		CFDictionaryGetValue (displayInfo, CFSTR (kDisplayProductName));
 
-	      if (name)
-		attributes = Fcons (Fcons (Qname, [name lispString]),
-				    attributes);
+	      if (localizedNames)
+		{
+		  NSDictionary *names =
+		    (__bridge NSDictionary *) localizedNames;
+		  NSString *name = names.objectEnumerator.nextObject;
+
+		  if (name)
+		    attributes = Fcons (Fcons (Qname, name.lispString),
+					attributes);
+		}
+	      CFRelease (displayInfo);
 	    }
-	  CFRelease (displayInfo);
 	}
+#endif
 
       attributes = Fcons (Fcons (Qframes, AREF (monitor_frames, i)),
 			  attributes);
