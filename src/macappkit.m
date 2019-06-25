@@ -13049,8 +13049,10 @@ mac_send_action (Lisp_Object symbol, bool dry_run_p)
   Lisp_Object string = concat2 (SYMBOL_NAME (symbol), colon);
   SEL action = NSSelectorFromString ([NSString stringWithLispString:string]);
 
-  if (action)
-    {
+  if (!action)
+    return false;
+
+  mac_within_app (^{
       id target = [NSApp targetForAction:action];
       NSMethodSignature *signature = [target methodSignatureForSelector:action];
 
@@ -13065,13 +13067,11 @@ mac_send_action (Lisp_Object symbol, bool dry_run_p)
 	      if (dry_run_p)
 		result = true;
 	      else
-		mac_within_app (^{
-		    result = [NSApp sendAction:action to:target from:nil];
-		  });
+		result = [NSApp sendAction:action to:target from:nil];
 	    }
 	  MRC_RELEASE (item);
 	}
-    }
+    });
 
   return result;
 }
