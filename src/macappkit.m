@@ -11402,9 +11402,11 @@ mac_fill_menubar (widget_value *wv, bool deep_p)
       [newMenu insertItem:appleMenuItem atIndex:0];
       MRC_RELEASE (appleMenuItem);
 
-      [NSApp setMainMenu:newMenu];
-      if (helpMenu)
-	[NSApp setHelpMenu:helpMenu];
+      mac_within_gui (^{
+	  [NSApp setMainMenu:newMenu];
+	  if (helpMenu)
+	    [NSApp setHelpMenu:helpMenu];
+	});
     }
 
   MRC_RELEASE (newMenu);
