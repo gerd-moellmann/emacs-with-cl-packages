@@ -362,7 +362,11 @@ is active."
                   (or (not (eq jit-lock-defer-time 0))
                       (input-pending-p))))
 	;; No deferral.
-	(jit-lock-fontify-now start (+ start jit-lock-chunk-size))
+        (if jit-lock--antiblink-grace-timer
+            ;; If we're in the `jit-lock--antiblink-grace', do it only
+            ;; until line end
+            (jit-lock-fontify-now start (line-end-position))
+            (jit-lock-fontify-now start (+ start jit-lock-chunk-size)))
       ;; Record the buffer for later fontification.
       (unless (memq (current-buffer) jit-lock-defer-buffers)
 	(push (current-buffer) jit-lock-defer-buffers))
