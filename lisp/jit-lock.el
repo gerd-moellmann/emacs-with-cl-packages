@@ -170,9 +170,9 @@ If nil, contextual fontification is disabled.")
   "List of buffers that are being fontified stealthily.")
 
 (defvar jit-lock--antiblink-grace-timer nil
-  "Idle timer for fontifying unterminated string or comment, or nil")
-(defvar jit-lock--antiblink-l-l-b (make-marker)
-  "Last line beginning (l-l-b) position after last command (a marker).")
+  "Idle timer for fontifying unterminated string or comment, or nil.")
+(defvar jit-lock--antiblink-l-b-p (make-marker)
+  "Last line beginning position (l-b-p) after last command (a marker).")
 (defvar jit-lock--antiblink-i-s-o-c nil
   "In string or comment (i-s-o-c) after last command (a boolean).")
 
@@ -693,22 +693,22 @@ will take place when text is fontified stealthily."
               (min jit-lock-context-unfontify-pos jit-lock-start))))))
 
 (defun jit-lock--antiblink-post-command ()
-  (let* ((new-l-l-b (set-marker (make-marker) (line-beginning-position)))
-         (new-i-s-o-c
-          (nth 8 (save-excursion (syntax-ppss (line-end-position)))))
+  (let* ((new-l-b-p (copy-marker (line-beginning-position)))
+         (l-b-p-2 (line-beginning-position 2))
          (same-line
           (and jit-lock-antiblink-grace
-               (eq (marker-buffer jit-lock--antiblink-l-l-b) (current-buffer))
-               (= new-l-l-b jit-lock--antiblink-l-l-b))))
+               (not (= new-l-b-p l-b-p-2))
+               (eq (marker-buffer jit-lock--antiblink-l-b-p) (current-buffer))
+               (= new-l-b-p jit-lock--antiblink-l-b-p)))
+         (new-i-s-o-c
+          (and same-line
+               (nth 8 (save-excursion (syntax-ppss l-b-p-2))))))
     (cond (;; opened a new multiline string...
            (and same-line
-
                 (null jit-lock--antiblink-i-s-o-c) new-i-s-o-c)
            ;; assert that the grace timer is null and schedule it
            (when jit-lock--antiblink-grace-timer
-             (display-warning
-              'font-lock :level
-              "`jit-lock--antiblink-grace-timer' not null" :warning))
+             (message "internal warning: `jit-lock--antiblink-grace-timer' not null"))
            (setq jit-lock--antiblink-grace-timer
                  (run-with-idle-timer jit-lock-antiblink-grace nil
                                       (lambda ()
@@ -723,9 +723,7 @@ will take place when text is fontified stealthily."
            ;; `jit-lock-context-timer' as usual.
            (when jit-lock--antiblink-grace-timer
              (cancel-timer jit-lock--antiblink-grace-timer)
-             (setq jit-lock--antiblink-grace-timer nil))
-
-           )
+             (setq jit-lock--antiblink-grace-timer nil)))
           (same-line
            ;; in same line, but no state change, leave everything as it was
            )
@@ -741,7 +739,7 @@ will take place when text is fontified stealthily."
              (cancel-timer jit-lock--antiblink-grace-timer)
              (setq jit-lock--antiblink-grace-timer nil))))
     ;; update variables
-    (setq jit-lock--antiblink-l-l-b   new-l-l-b
+    (setq jit-lock--antiblink-l-b-p   new-l-b-p
           jit-lock--antiblink-i-s-o-c new-i-s-o-c)))
 
 (provide 'jit-lock)
