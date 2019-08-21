@@ -4353,7 +4353,7 @@ retrieved via \\[yank] \\[yank-pop]."
   :version "23.2")
 
 (defcustom kill-do-not-save-duplicates nil
-  "Do not add a new string to `kill-ring' if it duplicates the last one.
+  "If non-nil, don't add a string to `kill-ring' if it duplicates the last one.
 The comparison is done using `equal-including-properties'."
   :type 'boolean
   :group 'killing
@@ -5268,8 +5268,10 @@ BUFFER may be a buffer or a buffer name."
   nil)
 
 (defun append-to-buffer (buffer start end)
-  "Append to specified buffer the text of the region.
-It is inserted into that buffer before its point.
+  "Append to specified BUFFER the text of the region.
+The text is inserted into that buffer before its point.
+BUFFER can be a buffer or the name of a buffer; this
+function will create BUFFER if it doesn't already exist.
 
 When calling from a program, give three arguments:
 BUFFER (or buffer name), START and END.
@@ -5291,8 +5293,10 @@ START and END specify the portion of the current buffer to be copied."
             (set-window-point window (point))))))))
 
 (defun prepend-to-buffer (buffer start end)
-  "Prepend to specified buffer the text of the region.
-It is inserted into that buffer after its point.
+  "Prepend to specified BUFFER the text of the region.
+The text is inserted into that buffer after its point.
+BUFFER can be a buffer or the name of a buffer; this
+function will create BUFFER if it doesn't already exist.
 
 When calling from a program, give three arguments:
 BUFFER (or buffer name), START and END.
@@ -5305,8 +5309,10 @@ START and END specify the portion of the current buffer to be copied."
 	(insert-buffer-substring oldbuf start end)))))
 
 (defun copy-to-buffer (buffer start end)
-  "Copy to specified buffer the text of the region.
-It is inserted into that buffer, replacing existing text there.
+  "Copy to specified BUFFER the text of the region.
+The text is inserted into that buffer, replacing existing text there.
+BUFFER can be a buffer or the name of a buffer; this
+function will create BUFFER if it doesn't already exist.
 
 When calling from a program, give three arguments:
 BUFFER (or buffer name), START and END.
