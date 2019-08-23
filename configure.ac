@@ -23,7 +23,7 @@ dnl  along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 AC_PREREQ(2.65)
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
-AC_INIT(GNU Emacs, 26.2, bug-gnu-emacs@gnu.org)
+AC_INIT(GNU Emacs, 26.3, bug-gnu-emacs@gnu.org)
 
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
 dnl and then quoted again for a C string.  Separate options with spaces.
@@ -435,6 +435,11 @@ AC_ARG_ENABLE(mac-app,
                 [specify install directory for Emacs.app on macOS
 		 [DIR=/Application]])],
 [ mac_appdir_x=${enableval}])
+
+AC_ARG_ENABLE(mac-self-contained,
+[AS_HELP_STRING([--enable-mac-self-contained],
+                [enable self contained build under mac])],
+                EN_MAC_SELF_CONTAINED=$enableval)
 
 AC_ARG_WITH([gnustep-conf],dnl
 [AS_HELP_STRING([--with-gnustep-conf=FILENAME],
@@ -1867,6 +1872,18 @@ HAVE_MACGUI=no
 if test "${with_mac}" != no; then
   AC_CHECK_HEADER(Carbon/Carbon.h, HAVE_MACGUI=yes)
   test "${HAVE_MACGUI}" = yes && window_system=mac
+
+  ## Specify the install directory
+  mac_appdir=`pwd`/mac
+  if test "${mac_appdir_x}" != ""; then
+    case ${mac_appdir_x} in
+      y | ye | yes)  mac_appdir=/Applications ;;
+      * ) mac_appdir=${mac_appdir_x} ;;
+    esac
+  fi
+
+  mac_appbindir=${mac_appdir}/Emacs.app/Contents/MacOS
+  mac_appresdir=${mac_appdir}/Emacs.app/Contents/Resources
 fi
 
 HAVE_NS=no
@@ -1980,14 +1997,34 @@ fi
 
 AC_SUBST(LIBS_GNUSTEP)
 
+mac_self_contained=no
 MAC_OBJ=
 MAC_OBJC_OBJ=
 if test "${HAVE_MACGUI}" = yes; then
+  if test "${EN_MAC_SELF_CONTAINED}" = yes; then
+     mac_self_contained=yes
+     prefix=${mac_appresdir}
+     exec_prefix=${mac_appbindir}
+     dnl This one isn't really used, only archlibdir is.
+     libexecdir="\${mac_appbindir}/libexec"
+     archlibdir="\${mac_appbindir}/libexec"
+     etcdocdir="\${mac_appresdir}/etc"
+     etcdir="\${mac_appresdir}/etc"
+     dnl FIXME maybe set datarootdir instead.
+     dnl That would also get applications, icons, man.
+     infodir="\${mac_appresdir}/info"
+     mandir="\${mac_appresdir}/man"
+     lispdir="\${mac_appresdir}/lisp"
+     test "$locallisppathset" = no && locallisppath=""
+     INSTALL_ARCH_INDEP_EXTRA=
+  fi
+
   MAC_OBJ="mac.o macterm.o macfns.o macmenu.o macselect.o"
   MAC_OBJC_OBJ="macappkit.o macfont.o"
 fi
 AC_SUBST(MAC_OBJ)
 AC_SUBST(MAC_OBJC_OBJ)
+AC_SUBST(mac_self_contained)
 
 INSTALL_ARCH_INDEP_EXTRA=install-etc
 ns_self_contained=no
@@ -2527,7 +2564,7 @@ fi
 HAVE_RSVG=no
 if test "${HAVE_X11}" = "yes" || test "${HAVE_MACGUI}" = "yes" || test "${HAVE_NS}" = "yes" || test "${opsys}" = "mingw32"; then
   if test "${with_rsvg}" != "no"; then
-    RSVG_REQUIRED=2.11.0
+    RSVG_REQUIRED=2.14.0
     RSVG_MODULE="librsvg-2.0 >= $RSVG_REQUIRED"
 
     EMACS_CHECK_MODULES([RSVG], [$RSVG_MODULE])
@@ -3501,23 +3538,20 @@ fi
 AC_SUBST(LIBJPEG)
 
 HAVE_LCMS2=no
-LIBLCMS2=
+LCMS2_CFLAGS=
+LCMS2_LIBS=
 if test "${with_lcms2}" != "no"; then
-  OLIBS=$LIBS
-  AC_SEARCH_LIBS([cmsCreateTransform], [lcms2], [HAVE_LCMS2=yes])
-  LIBS=$OLIBS
-  case $ac_cv_search_cmsCreateTransform in
-    -*) LIBLCMS2=$ac_cv_search_cmsCreateTransform ;;
-  esac
+  EMACS_CHECK_MODULES([LCMS2], [lcms2])
 fi
 if test "${HAVE_LCMS2}" = "yes"; then
   AC_DEFINE([HAVE_LCMS2], 1, [Define to 1 if you have the lcms2 library (-llcms2).])
   ### mingw32 doesn't use -llcms2, since it loads the library dynamically.
   if test "${opsys}" = "mingw32"; then
-     LIBLCMS2=
+     LCMS2_LIBS=
   fi
 fi
-AC_SUBST(LIBLCMS2)
+AC_SUBST(LCMS2_CFLAGS)
+AC_SUBST(LCMS2_LIBS)
 
 HAVE_ZLIB=no
 LIBZ=
@@ -3763,14 +3797,6 @@ if test "${HAVE_MACGUI}" = "yes"; then
   AC_DEFINE(HAVE_SOUND, 1, [Define to 1 if you have sound support.])
   AC_CHECK_HEADERS(AvailabilityMacros.h)
   MAC_CFLAGS="-fconstant-cfstrings"
-  ## Specify the install directory
-  mac_appdir=
-  if test "${mac_appdir_x}" != ""; then
-    case ${mac_appdir_x} in
-      y | ye | yes)  mac_appdir=/Applications ;;
-      * ) mac_appdir=${mac_appdir_x} ;;
-    esac
-  fi
   # We also have mouse menus.
   HAVE_MENUS=yes
   # Tell src/Makefile.in to create files in the macOS application
@@ -4101,7 +4127,8 @@ AC_CACHE_CHECK([for library containing tputs], [emacs_cv_tputs_lib],
   emacs_cv_tputs_lib='none required'
 else
   # curses precedes termcap because of AIX (Bug#9736#35) and OpenIndiana.
-  for tputs_library in '' tinfo ncurses terminfo curses termcap; do
+  tputs_libraries='tinfo ncurses terminfo curses termcap tinfow ncursesw'
+  for tputs_library in '' $tputs_libraries; do
     OLIBS=$LIBS
     if test -z "$tputs_library"; then
       emacs_cv_tputs_lib='none required'
@@ -5064,6 +5091,8 @@ AC_SUBST(CFLAGS)
 ## Used in lwlib/Makefile.in.
 AC_SUBST(X_TOOLKIT_TYPE)
 AC_SUBST(mac_appdir)
+AC_SUBST(mac_appbindir)
+AC_SUBST(mac_appresdir)
 AC_SUBST(ns_appdir)
 AC_SUBST(ns_appbindir)
 AC_SUBST(ns_appresdir)
@@ -5522,6 +5551,13 @@ if test "$HAVE_MACGUI" = "yes"; then
       echo "Warning: \`--with-wide-int' is not eagerly tested on the Mac port.
 Use it at your own risk."
       echo
+   fi
+   if test "$EN_MAC_SELF_CONTAINED" = "yes"; then
+      echo "The application will be fully self-contained."
+   else
+      AS_ECHO(["The lisp resources for the application will be installed under ${prefix}.
+You may need to run \"${MAKE-make} install\" with sudo.  The application will fail
+to run if these resources are not installed."])
    fi
 fi
 

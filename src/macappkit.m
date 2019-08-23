@@ -4972,8 +4972,8 @@ mac_set_tab_group_frames (struct frame *f, Lisp_Object value)
 	      [window addTabbedWindow:addedWindow ordered:NSWindowAbove];
 	    }
 	}
-      mac_set_tab_group_selected_frame (XFRAME (selected), selected);
     });
+  mac_set_tab_group_selected_frame (XFRAME (selected), selected);
 
   return Qt;
 }
@@ -8135,7 +8135,7 @@ mac_color_list_alist (void)
 			Multi-monitor support
  ************************************************************************/
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090 && MAC_OS_X_VERSION_MIN_REQUIRED < 101500
 static NSArrayOf (NSDictionary *) *
 mac_display_get_info_dictionaries (IOOptionBits options)
 {
@@ -8220,7 +8220,7 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
   NSArrayOf (NSScreen *) *screens = [NSScreen screens];
   NSUInteger i, count = [screens count];
   Lisp_Object monitor_frames = Fmake_vector (make_number (count), Qnil);
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090 && MAC_OS_X_VERSION_MIN_REQUIRED < 101500
   NSArrayOf (NSDictionary *) *infoDictionaries =
     mac_display_get_info_dictionaries (kIODisplayOnlyPreferredName);
 #endif
@@ -8250,7 +8250,6 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
       NSScreen *screen = [screens objectAtIndex:i];
       CGFloat backingScaleFactor;
       CGDirectDisplayID displayID;
-      CFDictionaryRef displayInfo;
       CGSize size;
       NSRect rect;
 
@@ -8267,43 +8266,60 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
 					unsignedIntValue];
 #if HAVE_MAC_METAL
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
-  if (CGDirectDisplayCopyCurrentMetalDevice != NULL)
+      if (CGDirectDisplayCopyCurrentMetalDevice != NULL)
 #endif
-    {
-      id <MTLDevice> device = CGDirectDisplayCopyCurrentMetalDevice (displayID);
-
-      attributes = Fcons (Fcons (Qmetal_device_name,
-				 device ? device.name.lispString : Qnil),
-			  attributes);
-      MRC_RELEASE (device);
-    }
-#endif
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-      displayInfo =
-	mac_display_copy_info_dictionary_for_cgdisplay (displayID,
-							infoDictionaries);
-#else
-      displayInfo =
-	IODisplayCreateInfoDictionary (CGDisplayIOServicePort (displayID),
-				       kIODisplayOnlyPreferredName);
-#endif
-      if (displayInfo)
 	{
-	  CFDictionaryRef localizedNames =
-	    CFDictionaryGetValue (displayInfo, CFSTR (kDisplayProductName));
+	  id <MTLDevice> device =
+	    CGDirectDisplayCopyCurrentMetalDevice (displayID);
 
-	  if (localizedNames)
-	    {
-	      NSDictionary *names = (__bridge NSDictionary *) localizedNames;
-	      NSString *name = [[names objectEnumerator] nextObject];
-
-	      if (name)
-		attributes = Fcons (Fcons (Qname, [name lispString]),
-				    attributes);
-	    }
-	  CFRelease (displayInfo);
+	  attributes = Fcons (Fcons (Qmetal_device_name,
+				     device ? device.name.lispString : Qnil),
+			      attributes);
+	  MRC_RELEASE (device);
 	}
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+      if ([screen respondsToSelector:@selector(localizedName)])
+#endif
+	attributes = Fcons (Fcons (Qname, screen.localizedName.lispString),
+			    attributes);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+      else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101500 || MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+	{
+	  CFDictionaryRef displayInfo;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
+	  displayInfo =
+	    mac_display_copy_info_dictionary_for_cgdisplay (displayID,
+							    infoDictionaries);
+#else
+	  displayInfo =
+	    IODisplayCreateInfoDictionary (CGDisplayIOServicePort (displayID),
+					   kIODisplayOnlyPreferredName);
+#endif
+	  if (displayInfo)
+	    {
+	      CFDictionaryRef localizedNames =
+		CFDictionaryGetValue (displayInfo, CFSTR (kDisplayProductName));
+
+	      if (localizedNames)
+		{
+		  NSDictionary *names =
+		    (__bridge NSDictionary *) localizedNames;
+		  NSString *name = names.objectEnumerator.nextObject;
+
+		  if (name)
+		    attributes = Fcons (Fcons (Qname, name.lispString),
+					attributes);
+		}
+	      CFRelease (displayInfo);
+	    }
+	}
+#endif
 
       attributes = Fcons (Fcons (Qframes, AREF (monitor_frames, i)),
 			  attributes);
@@ -11386,9 +11402,11 @@ mac_fill_menubar (widget_value *wv, bool deep_p)
       [newMenu insertItem:appleMenuItem atIndex:0];
       MRC_RELEASE (appleMenuItem);
 
-      [NSApp setMainMenu:newMenu];
-      if (helpMenu)
-	[NSApp setHelpMenu:helpMenu];
+      mac_within_gui (^{
+	  [NSApp setMainMenu:newMenu];
+	  if (helpMenu)
+	    [NSApp setHelpMenu:helpMenu];
+	});
     }
 
   MRC_RELEASE (newMenu);
@@ -12898,7 +12916,9 @@ update_services_menu_types (void)
 	  [array addObject:dataType];
       }
 
-  [NSApp registerServicesMenuSendTypes:array returnTypes:array];
+  mac_within_gui (^{
+      [NSApp registerServicesMenuSendTypes:array returnTypes:array];
+    });
 }
 
 
@@ -13029,8 +13049,10 @@ mac_send_action (Lisp_Object symbol, bool dry_run_p)
   Lisp_Object string = concat2 (SYMBOL_NAME (symbol), colon);
   SEL action = NSSelectorFromString ([NSString stringWithLispString:string]);
 
-  if (action)
-    {
+  if (!action)
+    return false;
+
+  mac_within_app (^{
       id target = [NSApp targetForAction:action];
       NSMethodSignature *signature = [target methodSignatureForSelector:action];
 
@@ -13045,13 +13067,11 @@ mac_send_action (Lisp_Object symbol, bool dry_run_p)
 	      if (dry_run_p)
 		result = true;
 	      else
-		mac_within_app (^{
-		    result = [NSApp sendAction:action to:target from:nil];
-		  });
+		result = [NSApp sendAction:action to:target from:nil];
 	    }
 	  MRC_RELEASE (item);
 	}
-    }
+    });
 
   return result;
 }
@@ -13646,7 +13666,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       NSRectFill (rect);
       [gcontext restoreGraphicsState];
     }
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
   if ([self isKindOfClass:[WKWebView class]])
     {
       WKWebView *webView = (WKWebView *) self;
@@ -13769,7 +13789,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       NSRect frameRect = NSMakeRect (0, 0, 100, 100); /* Adjusted later.  */
       int width = -1, height;
       CGFloat scaleFactor;
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
       static WKWebView *webView;
 
       if (!webView)
@@ -13814,7 +13834,7 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
       @try
 	{
 	  id boundingBox, widthBaseVal, heightBaseVal;
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
 	  NSString * __block jsonString;
 	  BOOL __block finished = NO;
 	  CGFloat components[4];
@@ -13938,7 +13958,7 @@ JSON.stringify (['width', 'height'].reduce				\
   return result;
 }
 
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation;
 {
   isLoaded = YES;
@@ -13955,7 +13975,7 @@ JSON.stringify (['width', 'height'].reduce				\
 bool
 mac_webkit_supports_svg_p (void)
 {
-#if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#ifdef USE_WK_API
   return true;
 #else
   bool __block result;

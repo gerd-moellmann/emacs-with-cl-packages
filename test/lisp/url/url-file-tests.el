@@ -33,11 +33,12 @@
   "Directory for url-file test files.")
 
 (ert-deftest url-file ()
-  "Test reading file via file:// URL."
-  (let ((file (expand-file-name "file.txt" url-file-tests-data-directory)))
+  "Test reading file via file:/// URL."
+  (let* ((file (expand-file-name "file.txt" url-file-tests-data-directory))
+         (uri-prefix (if (eq (aref file 0) ?/) "file://" "file:///")))
     (should (equal
              (with-current-buffer
-                 (url-file (url-generic-parse-url (concat "file://" file))
+                 (url-file (url-generic-parse-url (concat uri-prefix file))
                            #'ignore nil)
                (prog1 (buffer-substring (point) (point-max))
                  (kill-buffer)))

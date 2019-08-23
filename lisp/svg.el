@@ -4,6 +4,7 @@
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: image
+;; Version: 0.5
 
 ;; This file is part of GNU Emacs.
 
@@ -30,7 +31,7 @@
 (eval-when-compile (require 'subr-x))
 
 (defun svg-create (width height &rest args)
-  "Create a new, empty SVG image with dimensions WIDTHxHEIGHT.
+  "Create a new, empty SVG image with dimensions WIDTH x HEIGHT.
 ARGS can be used to provide `stroke' and `stroke-width' parameters to
 any further elements added."
   (dom-node 'svg
@@ -42,8 +43,8 @@ any further elements added."
 
 (defun svg-gradient (svg id type stops)
   "Add a gradient with ID to SVG.
-TYPE is `linear' or `radial'.  STOPS is a list of percentage/color
-pairs."
+TYPE is `linear' or `radial'.
+STOPS is a list of percentage/color pairs."
   (svg--def
    svg
    (apply
@@ -66,9 +67,9 @@ pairs."
   "Create a rectangle on SVG, starting at position X/Y, of WIDTH/HEIGHT.
 ARGS is a plist of modifiers.  Possible values are
 
-:stroke-width PIXELS.  The line width.
-:stroke-color COLOR.  The line color.
-:gradient ID.  The gradient ID to use."
+:stroke-width PIXELS   The line width.
+:stroke-color COLOR    The line color.
+:gradient ID           The gradient ID to use."
   (svg--append
    svg
    (dom-node 'rect

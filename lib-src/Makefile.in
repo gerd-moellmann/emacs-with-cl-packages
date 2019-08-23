@@ -77,6 +77,7 @@ am__v_at_1 =
 # Location to install Emacs.app under GNUstep / macOS.
 # Later values may use this.
 ns_appbindir=@ns_appbindir@
+mac_appbindir=@mac_appbindir@
 
 # The default location for installation.  Everything is placed in
 # subdirectories of this directory.  The default values for many of

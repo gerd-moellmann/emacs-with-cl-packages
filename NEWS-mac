@@ -1,5 +1,33 @@
+* emacs-26.3-rc1-mac-7.7 (2019-08-23)
+Based on Emacs 26.3 release candidate.
+
+** Fixed bugs
+
+*** The command move-tab-to-new-frame hangs.
+Reported by JD Smith.
+
+*** Dired on non-ASCII directories may cause an error if
+file-name-coding-system set to utf-8-hfs-unix.
+Reported by Sungbin Jo.
+This is a regression introduced in 6.9.
+
+*** (set-mouse-color "black") on Dark Mode makes the mouse pointer
+invisible.
+
+** Improvements
+
+*** OpenType-SVG color fonts are drawn on macOS 10.14 and later.
+
+*** New configure option --enable-mac-self-contained to have "make
+install" create a self-contained bundle under the "mac" subdirectory.
+(or the directory specified by --enable-mac-app[=DIR]).  The default
+is off.
+Contributed by Xin Xu.
+
+
 * emacs-26.2-mac-7.6 (2019-04-14)
 Based on Emacs 26.2.
+https://lists.gnu.org/r/emacs-devel/2019-04/msg00582.html
 
 ** Fixed bugs
 

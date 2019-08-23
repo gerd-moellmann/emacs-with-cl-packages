@@ -1610,9 +1610,7 @@ mark_interval (INTERVAL i, void *dummy)
 
 #define LARGE_STRING_BYTES 1024
 
-/* The SDATA typedef is a struct or union describing string memory
-   sub-allocated from an sblock.  This is where the contents of Lisp
-   strings are stored.  */
+/* The layout of a nonnull string.  */
 
 struct sdata
 {
@@ -1631,13 +1629,8 @@ struct sdata
   unsigned char data[FLEXIBLE_ARRAY_MEMBER];
 };
 
-#ifdef GC_CHECK_STRING_BYTES
-
-typedef struct sdata sdata;
-#define SDATA_NBYTES(S)	(S)->nbytes
-#define SDATA_DATA(S)	(S)->data
-
-#else
+/* A union describing string memory sub-allocated from an sblock.
+   This is where the contents of Lisp strings are stored.  */
 
 typedef union
 {
@@ -1664,8 +1657,6 @@ typedef union
 
 #define SDATA_NBYTES(S)	(S)->n.nbytes
 #define SDATA_DATA(S)	((struct sdata *) (S))->data
-
-#endif /* not GC_CHECK_STRING_BYTES */
 
 enum { SDATA_DATA_OFFSET = offsetof (struct sdata, data) };
 
@@ -1757,31 +1748,20 @@ static char const string_overrun_cookie[GC_STRING_OVERRUN_COOKIE_SIZE] =
 #define GC_STRING_OVERRUN_COOKIE_SIZE 0
 #endif
 
-/* Value is the size of an sdata structure large enough to hold NBYTES
-   bytes of string data.  The value returned includes a terminating
-   NUL byte, the size of the sdata structure, and padding.  */
+/* Return the size of an sdata structure large enough to hold N bytes
+   of string data.  This counts the sdata structure, the N bytes, a
+   terminating NUL byte, and alignment padding.  */
 
-#ifdef GC_CHECK_STRING_BYTES
-
-#define SDATA_SIZE(NBYTES) FLEXSIZEOF (struct sdata, data, (NBYTES) + 1)
-
-#else /* not GC_CHECK_STRING_BYTES */
-
-/* The 'max' reserves space for the nbytes union member even when NBYTES + 1 is
-   less than the size of that member.  The 'max' is not needed when
-   SDATA_DATA_OFFSET is a multiple of FLEXALIGNOF (struct sdata),
-   because then the alignment code reserves enough space.  */
-
-#define SDATA_SIZE(NBYTES)				      \
-     ((SDATA_DATA_OFFSET				      \
-       + (SDATA_DATA_OFFSET % FLEXALIGNOF (struct sdata) == 0 \
-	  ? NBYTES					      \
-	  : max (NBYTES, FLEXALIGNOF (struct sdata) - 1))     \
-       + 1						      \
-       + FLEXALIGNOF (struct sdata) - 1)		      \
-      & ~(FLEXALIGNOF (struct sdata) - 1))
-
-#endif /* not GC_CHECK_STRING_BYTES */
+static ptrdiff_t
+sdata_size (ptrdiff_t n)
+{
+  /* Reserve space for the nbytes union member even when N + 1 is less
+     than the size of that member.  */
+  ptrdiff_t unaligned_size = max (SDATA_DATA_OFFSET + n + 1,
+				  sizeof (sdata));
+  int sdata_align = max (FLEXALIGNOF (struct sdata), alignof (sdata));
+  return (unaligned_size + sdata_align - 1) & ~(sdata_align - 1);
+}
 
 /* Extra bytes to allocate for each string.  */
 
@@ -1834,21 +1814,14 @@ string_bytes (struct Lisp_String *s)
 static void
 check_sblock (struct sblock *b)
 {
-  sdata *from, *end, *from_end;
+  sdata *end = b->next_free;
 
-  end = b->next_free;
-
-  for (from = b->data; from < end; from = from_end)
+  for (sdata *from = b->data; from < end; )
     {
-      /* Compute the next FROM here because copying below may
-	 overwrite data we need to compute it.  */
-      ptrdiff_t nbytes;
-
-      /* Check that the string size recorded in the string is the
-	 same as the one recorded in the sdata structure.  */
-      nbytes = SDATA_SIZE (from->string ? string_bytes (from->string)
-			   : SDATA_NBYTES (from));
-      from_end = (sdata *) ((char *) from + nbytes + GC_STRING_EXTRA);
+      ptrdiff_t nbytes = sdata_size (from->string
+				     ? string_bytes (from->string)
+				     : SDATA_NBYTES (from));
+      from = (sdata *) ((char *) from + nbytes + GC_STRING_EXTRA);
     }
 }
 
@@ -1980,14 +1953,14 @@ allocate_string_data (struct Lisp_String *s,
 {
   sdata *data, *old_data;
   struct sblock *b;
-  ptrdiff_t needed, old_nbytes;
+  ptrdiff_t old_nbytes;
 
   if (STRING_BYTES_MAX < nbytes)
     string_overflow ();
 
   /* Determine the number of bytes needed to store NBYTES bytes
      of string data.  */
-  needed = SDATA_SIZE (nbytes);
+  ptrdiff_t needed = sdata_size (nbytes);
   if (s->u.s.data)
     {
       old_data = SDATA_OF_STRING (s);
@@ -2237,7 +2210,7 @@ compact_small_strings (void)
 	      nbytes = s ? STRING_BYTES (s) : SDATA_NBYTES (from);
 	      eassert (nbytes <= LARGE_STRING_BYTES);
 
-	      nbytes = SDATA_SIZE (nbytes);
+	      nbytes = sdata_size (nbytes);
 	      sdata *from_end = (sdata *) ((char *) from
 					   + nbytes + GC_STRING_EXTRA);
 
@@ -6032,6 +6005,8 @@ garbage_collect_1 (void *end)
   /* Clear the mark bits that we set in certain root slots.  */
   VECTOR_UNMARK (&buffer_defaults);
   VECTOR_UNMARK (&buffer_local_symbols);
+
+  unmark_main_thread ();
 
   check_cons_list ();
 

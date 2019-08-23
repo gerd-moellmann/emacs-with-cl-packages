@@ -6126,6 +6126,7 @@ init_display (void)
 
     t->reference_count++;
 #ifdef MSDOS
+    f->output_data.tty = &the_only_tty_output;
     f->output_data.tty->display_info = &the_only_display_info;
 #else
     if (f->output_method == output_termcap)

@@ -69,6 +69,7 @@ should return a grid vector array that is the new solution.
 
 ;;;### (autoloads nil "ada-mode" "progmodes/ada-mode.el" (0 0 0 0))
 ;;; Generated autoloads from progmodes/ada-mode.el
+(push (purecopy '(ada-mode 4 0)) package--builtin-versions)
 
 (autoload 'ada-add-extensions "ada-mode" "\
 Define SPEC and BODY as being valid extensions for Ada files.
@@ -1819,7 +1820,7 @@ If `global-auto-revert-non-file-buffers' is non-nil, this mode
 may also revert some non-file buffers, as described in the
 documentation of that variable.  It ignores buffers with modes
 matching `global-auto-revert-ignore-modes', and buffers with a
-non-nil vale of `global-auto-revert-ignore-buffer'.
+non-nil value of `global-auto-revert-ignore-buffer'.
 
 When a buffer is reverted, a message is generated.  This can be
 suppressed by setting `auto-revert-verbose' to nil.
@@ -15194,13 +15195,17 @@ Like `goto-address-mode', but only for comments and strings.
 ;;; Generated autoloads from image/gravatar.el
 
 (autoload 'gravatar-retrieve "gravatar" "\
-Retrieve MAIL-ADDRESS gravatar and call CB on retrieval.
-You can provide a list of argument to pass to CB in CBARGS.
+Asynchronously retrieve a gravatar for MAIL-ADDRESS.
+When finished, call CB as (apply CB GRAVATAR CBARGS),
+where GRAVATAR is either an image descriptor, or the symbol
+`error' if the retrieval failed.
 
 \(fn MAIL-ADDRESS CB &optional CBARGS)" nil nil)
 
 (autoload 'gravatar-retrieve-synchronously "gravatar" "\
-Retrieve MAIL-ADDRESS gravatar and returns it.
+Synchronously retrieve a gravatar for MAIL-ADDRESS.
+Value is either an image descriptor, or the symbol `error' if the
+retrieval failed.
 
 \(fn MAIL-ADDRESS)" nil nil)
 
@@ -16256,7 +16261,11 @@ See `hi-lock-mode' for more information on Hi-Lock mode.
 (defalias 'highlight-lines-matching-regexp 'hi-lock-line-face-buffer)
 
 (autoload 'hi-lock-line-face-buffer "hi-lock" "\
-Set face of all lines containing a match of REGEXP to FACE.
+Highlight all lines that match REGEXP using FACE.
+The lines that match REGEXP will be displayed by merging
+the attributes of FACE with any other face attributes
+of text in those lines.
+
 Interactively, prompt for REGEXP using `read-regexp', then FACE.
 Use the global history list for FACE.
 
@@ -18025,8 +18034,9 @@ Return a regular expression matching image-file filenames.
 
 (autoload 'insert-image-file "image-file" "\
 Insert the image file FILE into the current buffer.
-Optional arguments VISIT, BEG, END, and REPLACE are interpreted as for
-the command `insert-file-contents'.
+Optional arguments VISIT, BEG, END, and REPLACE are interpreted
+as for the command `insert-file-contents'.  Return list of
+absolute file name and number of characters inserted.
 
 \(fn FILE &optional VISIT BEG END REPLACE)" nil nil)
 
@@ -32307,6 +32317,7 @@ and `sc-post-hook' is run after the guts of this function.
 
 ;;;### (autoloads nil "svg" "svg.el" (0 0 0 0))
 ;;; Generated autoloads from svg.el
+(push (purecopy '(svg 0 5)) package--builtin-versions)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "svg" '("svg-")))
 
@@ -34671,7 +34682,7 @@ Reenable Ange-FTP, when Tramp is unloaded.
 
 ;;;### (autoloads nil "trampver" "net/trampver.el" (0 0 0 0))
 ;;; Generated autoloads from net/trampver.el
-(push (purecopy '(tramp 2 3 5 26 2)) package--builtin-versions)
+(push (purecopy '(tramp 2 3 5 26 3)) package--builtin-versions)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "trampver" '("tramp-")))
 
@@ -36011,7 +36022,12 @@ first backend that could register the file is used.
 \(fn &optional VC-FILESET COMMENT)" t nil)
 
 (autoload 'vc-version-diff "vc" "\
-Report diffs between revisions of the fileset in the repository history.
+Report diffs between revisions REV1 and REV2 in the repository history.
+This compares two revisions of the current fileset.
+If REV1 is nil, it defaults to the current revision, i.e. revision
+of the last commit.
+If REV2 is nil, it defaults to the work tree, i.e. the current
+state of each file in the fileset.
 
 \(fn FILES REV1 REV2)" t nil)
 
@@ -36027,8 +36043,14 @@ saving the buffer.
 \(fn &optional HISTORIC NOT-URGENT)" t nil)
 
 (autoload 'vc-version-ediff "vc" "\
-Show differences between revisions of the fileset in the
-repository history using ediff.
+Show differences between REV1 and REV2 of FILES using ediff.
+This compares two revisions of the files in FILES.  Currently,
+only a single file's revisions can be compared, i.e. FILES can
+specify only one file name.
+If REV1 is nil, it defaults to the current revision, i.e. revision
+of the last commit.
+If REV2 is nil, it defaults to the work tree, i.e. the current
+state of each file in FILES.
 
 \(fn FILES REV1 REV2)" t nil)
 
@@ -36583,6 +36605,7 @@ Key bindings:
 ;;;### (autoloads nil "verilog-mode" "progmodes/verilog-mode.el"
 ;;;;;;  (0 0 0 0))
 ;;; Generated autoloads from progmodes/verilog-mode.el
+(push (purecopy '(verilog-mode 2017 8 7 201875024)) package--builtin-versions)
 
 (autoload 'verilog-mode "verilog-mode" "\
 Major mode for editing Verilog code.
@@ -37466,8 +37489,8 @@ and disable it otherwise.  If called from Lisp, enable View mode
 if ARG is omitted or nil.
 
 When View mode is enabled, commands that do not change the buffer
-contents are available as usual.  Kill commands insert text in
-kill buffers but do not delete.  Most other commands beep and
+contents are available as usual.  Kill commands save text but
+do not delete it from the buffer.  Most other commands beep and
 tell the user that the buffer is read-only.
 
 \\<view-mode-map>

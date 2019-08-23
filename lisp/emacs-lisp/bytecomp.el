@@ -234,9 +234,9 @@ This includes variable references and calls to functions such as `car'."
   :group 'bytecomp
   :type 'boolean)
 
-(defcustom byte-compile-cond-use-jump-table t
+(defcustom byte-compile-cond-use-jump-table nil
   "Compile `cond' clauses to a jump table implementation (using a hash-table)."
-  :version "26.1"
+  :version "26.3" ;; Disabled due to Bug#35770.
   :group 'bytecomp
   :type 'boolean)
 
@@ -1379,7 +1379,9 @@ when printing the error message."
 (defun byte-compile-callargs-warn (form)
   (let* ((def (or (byte-compile-fdefinition (car form) nil)
 		  (byte-compile-fdefinition (car form) t)))
-	 (sig (byte-compile--function-signature def))
+         (sig (cond (def (byte-compile--function-signature def))
+                    ((subrp (symbol-function (car form)))
+                     (subr-arity (symbol-function (car form))))))
 	 (ncall (length (cdr form))))
     ;; Check many or unevalled from subr-arity.
     (if (and (cdr-safe sig)
