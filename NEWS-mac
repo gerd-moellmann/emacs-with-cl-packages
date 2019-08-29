@@ -1,5 +1,12 @@
+* emacs-26.3-mac-7.7 (2019-08-29)
+Based on Emacs 26.3.
+
+No updates other than release notes (thus the same version number).
+
+
 * emacs-26.3-rc1-mac-7.7 (2019-08-23)
 Based on Emacs 26.3 release candidate.
+https://lists.gnu.org/r/emacs-devel/2019-08/msg00420.html
 
 ** Fixed bugs
 
