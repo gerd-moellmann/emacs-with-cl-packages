@@ -657,7 +657,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	1 font-shape-gstring 0]
        ,@(aref composition-function-table #x1F3FB)))))
 
-(defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"
+(defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
   "Sequence of characters used in automatic operator composition."
   :package-version '(Mac\ port . "5.10")
   :type 'string
