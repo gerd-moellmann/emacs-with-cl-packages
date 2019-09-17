@@ -2563,10 +2563,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       if (emacsView.layer)
 	[emacsWindow.contentView addSubview:overlayView];
       else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
-	{
-	  if (![overlayView.superview isEqual:emacsView])
-	    [emacsView addSubview:overlayView];
-	}
+	[emacsView addSubview:overlayView];
       else
 	[emacsWindow.contentView addSubview:overlayView positioned:NSWindowBelow
 				 relativeTo:emacsView];
