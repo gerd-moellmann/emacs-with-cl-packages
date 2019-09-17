@@ -15676,7 +15676,7 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 
 	case ANIM_TYPE_TRANSITION_FILTER:
 	  {
-	    CATransition *transition = [[CATransition alloc] init];
+	    CATransition *transition = CATransition.animation;
 	    NSMutableDictionaryOf (NSString *, id <CAAction>) *actions;
 	    CALayer *newContentLayer;
 
@@ -15687,7 +15687,6 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 	    actions = [NSMutableDictionary
 			dictionaryWithDictionary:[layer actions]];
 	    [actions setObject:transition forKey:@"sublayers"];
-	    MRC_RELEASE (transition);
 	    layer.actions = actions;
 
 	    newContentLayer = [CALayer layer];
