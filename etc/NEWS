@@ -626,6 +626,16 @@ If the region is active, the command joins all the lines in the
 region.  When there's no active region, the command works on the
 current and the previous or the next line, as before.
 
+---
+** New customizable variable 'jit-lock-antiblink-grace'
+Setting this to a positive number of seconds helps avoid the
+fontification "blinking" behaviour observed when adding temporarily
+unterminated strings to source code.  If the user has recently created
+an unterminated string at EOL, jit fontification allows this idle
+"grace" period to elapse before deciding it is a multi-line string and
+fontifying the remainder of the buffer accordingly.
+
+
 
 * Changes in Specialized Modes and Packages in Emacs 27.1
 
