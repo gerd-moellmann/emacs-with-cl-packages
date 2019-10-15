@@ -1331,6 +1331,12 @@ static bool handling_queued_nsevents_p;
   [NSApp registerUserInterfaceItemSearchHandler:self];
   Vmac_help_topics = Qnil;
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500
+  /* Work around animation effect glitches for executables linked on
+     macOS 10.15.  */
+  setenv ("CAVIEW_USE_GL", "1", 0);
+#endif
+
   /* Exit from the main event loop.  */
   [NSApp stop:nil];
   [NSApp postDummyEvent];
