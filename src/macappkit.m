@@ -3895,7 +3895,11 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)setupLiveResizeTransition
 {
-  if (liveResizeCompletionHandler == nil && [emacsWindow isMainWindow])
+  if (liveResizeCompletionHandler == nil
+      /* Resizing in Split View on macOS 10.15 no longer
+	 scale-and-blurs non-main window.  */
+      && (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_14)
+	  || emacsWindow.isMainWindow))
     {
       EmacsFrameController * __unsafe_unretained weakSelf = self;
       CALayer *layer =

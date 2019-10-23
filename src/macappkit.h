@@ -59,6 +59,9 @@ static const NSAppKitVersion NSAppKitVersionNumber10_12 = 1504;
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
 static const NSAppKitVersion NSAppKitVersionNumber10_13 = 1561;
 #endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101500
+static const NSAppKitVersion NSAppKitVersionNumber10_14 = 1671;
+#endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500 || (WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300)
 #define USE_WK_API 1
