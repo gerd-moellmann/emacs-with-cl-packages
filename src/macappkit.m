@@ -3446,8 +3446,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)windowDidChangeScreen:(NSNotification *)notification
 {
-  if ([emacsWindow isKeyWindow])
-    [emacsController updatePresentationOptions];
+  /* We used to update the presentation options for the key window
+     here.  But it makes application switching impossible in Split
+     View on macOS 10.14 and later.  */
 #if HAVE_MAC_METAL
   [self updateEmacsViewMTLObjects];
 #endif
