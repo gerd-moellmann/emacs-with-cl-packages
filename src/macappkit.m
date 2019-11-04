@@ -6039,8 +6039,12 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
   if (rectanglesData)
     {
+      if (backingSurface)
+	IOSurfaceLock (backingSurface, kIOSurfaceLockReadOnly, NULL);
       savedImageBuffersData =
 	[self imageBuffersDataForBackingRectanglesData:rectanglesData];
+      if (backingSurface)
+	IOSurfaceUnlock (backingSurface, kIOSurfaceLockReadOnly, NULL);
       [self lockFocusOnBacking];
       set_global_focus_view_frame (f);
       mac_invert_flash_rectangles (f);
@@ -6102,8 +6106,14 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     CGBitmapContextGetWidth (backingBitmap) / NSWidth (self.bounds);
 
   if (rectanglesData)
-    [self restoreImageBuffersData:savedImageBuffersData
-	 forBackingRectanglesData:rectanglesData];
+    {
+      if (backingSurface)
+	IOSurfaceLock (backingSurface, 0, NULL);
+      [self restoreImageBuffersData:savedImageBuffersData
+	   forBackingRectanglesData:rectanglesData];
+      if (backingSurface)
+	IOSurfaceUnlock (backingSurface, 0, NULL);
+    }
 }
 
 - (void)suspendSynchronizingBackingBitmap:(BOOL)flag
