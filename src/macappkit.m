@@ -5859,6 +5859,87 @@ static int mac_event_to_emacs_modifiers (NSEvent *);
 static bool mac_try_buffer_and_glyph_matrix_access (void);
 static void mac_end_buffer_and_glyph_matrix_access (void);
 
+static vImage_Error
+mac_vimage_buffer_init_8888 (vImage_Buffer *buf, vImagePixelCount height,
+			     vImagePixelCount width)
+{
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
+  if (vImageBuffer_Init != NULL)
+#endif
+    return vImageBuffer_Init (buf, height, width, 8 * sizeof (Pixel_8888),
+			      kvImageNoFlags);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
+  else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090 || MAC_OS_X_VERSION_MIN_REQUIRED < 1090
+    {
+      buf->data = malloc (height * width * sizeof (Pixel_8888));
+      buf->height = height;
+      buf->width = width;
+      buf->rowBytes = width * sizeof (Pixel_8888);
+
+      return kvImageNoError;
+    }
+#endif
+}
+
+static vImage_Error
+mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
+		      vImage_Flags flags)
+{
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  if (vImageCopyBuffer != NULL)
+#endif
+    return vImageCopyBuffer (src, dest, sizeof (Pixel_8888), flags);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+  else
+#endif
+#endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000 || MAC_OS_X_VERSION_MIN_REQUIRED < 101000
+    {
+      const uint8_t identityMap[] = {0, 1, 2, 3};
+
+      return vImagePermuteChannels_ARGB8888 (src, dest, identityMap, flags);
+    }
+#endif
+}
+
+static IOSurfaceRef
+mac_iosurface_create (size_t width, size_t height)
+{
+  NSDictionary *properties =
+    [NSDictionary dictionaryWithObjectsAndKeys:
+	      [NSNumber numberWithUnsignedLong:width], kIOSurfaceWidth,
+	      [NSNumber numberWithUnsignedLong:height], kIOSurfaceHeight,
+	      [NSNumber numberWithInt:4], kIOSurfaceBytesPerElement,
+	      [NSNumber numberWithUnsignedInt:'BGRA'], kIOSurfacePixelFormat,
+		  nil];
+
+  return IOSurfaceCreate ((__bridge CFDictionaryRef) properties);
+}
+
+#if HAVE_MAC_METAL
+static id <MTLTexture>
+mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
+{
+  if (!device || !surface)
+    return nil;
+
+  MTLTextureDescriptor *textureDescriptor =
+    [MTLTextureDescriptor
+      texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				   width:(IOSurfaceGetWidth (surface))
+				  height:(IOSurfaceGetHeight (surface))
+			       mipmapped:NO];
+
+  return [device newTextureWithDescriptor:textureDescriptor
+				iosurface:surface plane:0];
+}
+#endif
+
 /* View for Emacs frame.  */
 
 @implementation EmacsView
@@ -5880,13 +5961,162 @@ static BOOL emacsViewUpdateLayerDisabled;
   return self;
 }
 
+- (void)setupBackingResources
+{
+  CGFloat backingScaleFactor = self.window.backingScaleFactor;
+  NSSize size = self.bounds.size;
+  size_t width = size.width * backingScaleFactor;
+  size_t height = size.height * backingScaleFactor;
+  CGContextRef bitmaps[2] = {NULL, NULL};
+  IOSurfaceRef surfaces[2] = {NULL, NULL};
+#if HAVE_MAC_METAL
+  id <MTLTexture> textures[2] = {nil, nil};
+#endif
+
+  eassert (!backingBitmap && !contentsBitmap);
+  eassert (!backingSurface && !contentsSurface);
+#if HAVE_MAC_METAL
+  eassert (!backingTexture && !contentsTexture);
+#endif
+
+  for (int i = 0; i < 2; i++)
+    {
+      void *data = NULL;
+      size_t bytes_per_row = 0;
+
+      surfaces[i] = mac_iosurface_create (width, height);
+      if (surfaces[i])
+	{
+	  IOSurfaceLock (surfaces[i], 0, NULL);
+	  data = IOSurfaceGetBaseAddress (surfaces[i]);
+	  bytes_per_row = IOSurfaceGetBytesPerRow (surfaces[i]);
+#if HAVE_MAC_METAL
+	  textures[i] = mac_texture_create_with_surface (mtlCommandQueue.device,
+							 surfaces[i]);
+#endif
+	}
+      bitmaps[i] = CGBitmapContextCreate (data, width, height, 8, bytes_per_row,
+					  self.window.colorSpace.CGColorSpace,
+					  /* This combination enables
+					     us to use LCD Font
+					     smoothing.  */
+					  (kCGImageAlphaPremultipliedFirst
+					   | kCGBitmapByteOrder32Host));
+      CGContextTranslateCTM (bitmaps[i], 0, height);
+      CGContextScaleCTM (bitmaps[i], backingScaleFactor, - backingScaleFactor);
+      if (surfaces[i])
+	IOSurfaceUnlock (surfaces[i], 0, NULL);
+      else
+	break;
+    }
+  backingBitmap = bitmaps[0];
+  backingSurface = surfaces[0];
+  contentsBitmap = bitmaps[1];
+  contentsSurface = surfaces[1];
+#if HAVE_MAC_METAL
+  if (textures[0] && textures[1])
+    {
+      backingTexture = textures[0];
+      contentsTexture = textures[1];
+    }
+  else
+    {
+      MRC_RELEASE (textures[0]);
+      MRC_RELEASE (textures[1]);
+    }
+#endif
+}
+
+- (void)swapBackingResourcesAndStartCopy
+{
+  CGContextRef bitmap = backingBitmap;
+  backingBitmap = contentsBitmap;
+  contentsBitmap = bitmap;
+
+  IOSurfaceRef surface = backingSurface;
+  backingSurface = contentsSurface;
+  contentsSurface = surface;
+
+#if HAVE_MAC_METAL
+  id <MTLTexture> texture = backingTexture;
+  backingTexture = contentsTexture;
+  contentsTexture = texture;
+#endif
+
+  dispatch_queue_t queue =
+    dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+  copyToBackingSemaphore = dispatch_semaphore_create (0);
+
+  dispatch_async (queue, ^{
+      size_t width = IOSurfaceGetWidth (backingSurface);
+      size_t height = IOSurfaceGetHeight (backingSurface);
+
+#if HAVE_MAC_METAL
+      if (backingTexture)
+	{
+	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
+	  id <MTLBlitCommandEncoder> blitCommandEncoder =
+	    [commandBuffer blitCommandEncoder];
+
+	  [blitCommandEncoder copyFromTexture:contentsTexture
+				  sourceSlice:0 sourceLevel:0
+				 sourceOrigin:(MTLOriginMake (0, 0, 0))
+				   sourceSize:(MTLSizeMake (width, height, 1))
+				    toTexture:backingTexture
+			     destinationSlice:0 destinationLevel:0
+			    destinationOrigin:(MTLOriginMake (0, 0, 0))];
+	  [blitCommandEncoder endEncoding];
+	  [commandBuffer commit];
+	  [commandBuffer waitUntilCompleted];
+	}
+      else
+#endif
+	{
+	  vImage_Buffer src, dest;
+
+	  src.data = IOSurfaceGetBaseAddress (contentsSurface);
+	  src.rowBytes = IOSurfaceGetBytesPerRow (contentsSurface);
+	  dest.data = IOSurfaceGetBaseAddress (backingSurface);
+	  dest.rowBytes = IOSurfaceGetBytesPerRow (backingSurface);
+	  src.width = dest.width = width;
+	  src.height = dest.height = height;
+
+	  IOSurfaceLock (contentsSurface, kIOSurfaceLockReadOnly, NULL);
+	  IOSurfaceLock (backingSurface, 0, NULL);
+	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	  IOSurfaceUnlock (backingSurface, 0, NULL);
+	  IOSurfaceUnlock (contentsSurface, kIOSurfaceLockReadOnly, NULL);
+	}
+
+      dispatch_semaphore_signal (copyToBackingSemaphore);
+    });
+}
+
+- (void)waitCopyToBacking
+{
+  if (copyToBackingSemaphore)
+    {
+      dispatch_semaphore_wait (copyToBackingSemaphore, DISPATCH_TIME_FOREVER);
+#if !OS_OBJECT_USE_OBJC_RETAIN_RELEASE
+      dispatch_release (copyToBackingSemaphore);
+#endif
+      copyToBackingSemaphore = NULL;
+    }
+}
+
 - (void)releaseBackingResources
 {
+  [self waitCopyToBacking];
   CGContextRelease (backingBitmap);
   backingBitmap = NULL;
   if (backingSurface)
     CFRelease (backingSurface);
   backingSurface = NULL;
+  CGContextRelease (contentsBitmap);
+  contentsBitmap = NULL;
+  if (contentsSurface)
+    CFRelease (contentsSurface);
+  contentsSurface = NULL;
 #if HAVE_MAC_METAL
   MRC_RELEASE (backingTexture);
   backingTexture = nil;
@@ -5949,38 +6179,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   return !(has_visual_effect_view_p () && self.layer);
 }
 
-static IOSurfaceRef
-mac_iosurface_create (size_t width, size_t height)
-{
-  NSDictionary *properties =
-    [NSDictionary dictionaryWithObjectsAndKeys:
-	      [NSNumber numberWithUnsignedLong:width], kIOSurfaceWidth,
-	      [NSNumber numberWithUnsignedLong:height], kIOSurfaceHeight,
-	      [NSNumber numberWithInt:4], kIOSurfaceBytesPerElement,
-	      [NSNumber numberWithUnsignedInt:'BGRA'], kIOSurfacePixelFormat,
-		  nil];
-
-  return IOSurfaceCreate ((__bridge CFDictionaryRef) properties);
-}
-
 #if HAVE_MAC_METAL
-static id <MTLTexture>
-mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
-{
-  if (!device || !surface)
-    return nil;
-
-  MTLTextureDescriptor *textureDescriptor =
-    [MTLTextureDescriptor
-      texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-				   width:(IOSurfaceGetWidth (surface))
-				  height:(IOSurfaceGetHeight (surface))
-			       mipmapped:NO];
-
-  return [device newTextureWithDescriptor:textureDescriptor
-				iosurface:surface plane:0];
-}
-
 - (void)updateMTLObjects
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
@@ -6002,7 +6201,18 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       backingTexture =
 	mac_texture_create_with_surface (newDevice, backingSurface);
       MRC_RELEASE (contentsTexture);
-      contentsTexture = nil;
+      if (backingTexture == nil)
+	contentsTexture = nil;
+      else
+	{
+	  contentsTexture =
+	    mac_texture_create_with_surface (newDevice, contentsSurface);
+	  if (contentsTexture == nil)
+	    {
+	      MRC_RELEASE (backingTexture);
+	      backingTexture = nil;
+	    }
+	}
       MRC_RELEASE (mtlCommandQueue);
       mtlCommandQueue = [newDevice newCommandQueue];
     }
@@ -6037,6 +6247,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   if (!backingBitmap)
     return;
 
+  [self waitCopyToBacking];
+
   if (rectanglesData)
     {
       if (backingSurface)
@@ -6053,46 +6265,12 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       self.needsDisplay = NO;
     }
 
-#if HAVE_MAC_METAL
-  if (backingTexture)
+  if (contentsSurface)
     {
-      size_t width = IOSurfaceGetWidth (backingSurface);
-      size_t height = IOSurfaceGetHeight (backingSurface);
-
-      if (!contentsTexture
-	  || contentsTexture.width != width
-	  || contentsTexture.height != height)
-	{
-	  IOSurfaceRef surface = mac_iosurface_create (width, height);
-
-	  MRC_RELEASE (contentsTexture);
-	  contentsTexture =
-	    mac_texture_create_with_surface (mtlCommandQueue.device, surface);
-	  if (surface)
-	    CFRelease (surface);
-	}
-      if (contentsTexture)
-	{
-	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
-	  id <MTLBlitCommandEncoder> blitCommandEncoder =
-	    [commandBuffer blitCommandEncoder];
-
-	  [blitCommandEncoder copyFromTexture:backingTexture
-				  sourceSlice:0 sourceLevel:0
-				 sourceOrigin:(MTLOriginMake (0, 0, 0))
-				   sourceSize:(MTLSizeMake (width, height, 1))
-				    toTexture:contentsTexture
-			     destinationSlice:0 destinationLevel:0
-			    destinationOrigin:(MTLOriginMake (0, 0, 0))];
-	  [blitCommandEncoder endEncoding];
-	  [commandBuffer commit];
-	  [commandBuffer waitUntilCompleted];
-	  self.layer.contents = (__bridge id) contentsTexture.iosurface;
-	  [self.layer setContentsChanged];
-	}
+      [self swapBackingResourcesAndStartCopy];
+      self.layer.contents = (__bridge id) contentsSurface;
     }
-  if (!backingTexture || !contentsTexture)
-#endif
+  else
     {
       if (backingSurface)
 	IOSurfaceLock (backingSurface, kIOSurfaceLockReadOnly, NULL);
@@ -6107,6 +6285,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
   if (rectanglesData)
     {
+      [self waitCopyToBacking];
       if (backingSurface)
 	IOSurfaceLock (backingSurface, 0, NULL);
       [self restoreImageBuffersData:savedImageBuffersData
@@ -6155,39 +6334,9 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     }
 #endif
   if (!backingBitmap)
-    {
-      CGFloat backingScaleFactor = self.window.backingScaleFactor;
-      NSSize size = self.bounds.size;
-      size_t width = size.width * backingScaleFactor;
-      size_t height = size.height * backingScaleFactor;
-      void *data = NULL;
-      size_t bytes_per_row = 0;
-
-      backingSurface = mac_iosurface_create (width, height);
-      if (backingSurface)
-	{
-	  IOSurfaceLock (backingSurface, 0, NULL);
-	  data = IOSurfaceGetBaseAddress (backingSurface);
-	  bytes_per_row = IOSurfaceGetBytesPerRow (backingSurface);
-#if HAVE_MAC_METAL
-	  backingTexture =
-	    mac_texture_create_with_surface (mtlCommandQueue.device,
-					     backingSurface);
-#endif
-	}
-      backingBitmap =
-	CGBitmapContextCreate (data, width, height, 8, bytes_per_row,
-			       self.window.colorSpace.CGColorSpace,
-			       /* This combination enables us to use
-				  LCD Font smoothing.  */
-			       (kCGImageAlphaPremultipliedFirst
-				| kCGBitmapByteOrder32Host));
-      CGContextTranslateCTM (backingBitmap, 0, height);
-      CGContextScaleCTM (backingBitmap,
-			 backingScaleFactor, - backingScaleFactor);
-      if (backingSurface)
-	IOSurfaceUnlock (backingSurface, 0, NULL);
-    }
+    [self setupBackingResources];
+  else
+    [self waitCopyToBacking];
   [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext =
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
@@ -6218,54 +6367,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   if (backingSurface)
     IOSurfaceUnlock (backingSurface, 0, NULL);
   [NSGraphicsContext restoreGraphicsState];
-}
-
-static vImage_Error
-mac_vimage_buffer_init_8888 (vImage_Buffer *buf, vImagePixelCount height,
-			     vImagePixelCount width)
-{
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
-  if (vImageBuffer_Init != NULL)
-#endif
-    return vImageBuffer_Init (buf, height, width, 8 * sizeof (Pixel_8888),
-			      kvImageNoFlags);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
-  else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090 || MAC_OS_X_VERSION_MIN_REQUIRED < 1090
-    {
-      buf->data = malloc (height * width * sizeof (Pixel_8888));
-      buf->height = height;
-      buf->width = width;
-      buf->rowBytes = width * sizeof (Pixel_8888);
-
-      return kvImageNoError;
-    }
-#endif
-}
-
-static vImage_Error
-mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
-		      vImage_Flags flags)
-{
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  if (vImageCopyBuffer != NULL)
-#endif
-    return vImageCopyBuffer (src, dest, sizeof (Pixel_8888), flags);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000 || MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-    {
-      const uint8_t identityMap[] = {0, 1, 2, 3};
-
-      return vImagePermuteChannels_ARGB8888 (src, dest, identityMap, flags);
-    }
-#endif
 }
 
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta

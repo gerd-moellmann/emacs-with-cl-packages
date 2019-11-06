@@ -732,12 +732,6 @@ typedef NSInteger NSGlyphProperty;
 @end
 #endif
 
-#if HAVE_MAC_METAL
-@interface CALayer (Undocumented)
-- (void)setContentsChanged;
-@end
-#endif
-
 @interface EmacsApplication : NSApplication
 @end
 
@@ -996,19 +990,28 @@ typedef NSInteger NSGlyphProperty;
 
 @interface EmacsView : NSView
 {
-  /* Backing bitmap used for application-side double buffering.  */
-  CGContextRef backingBitmap;
+  /* Backing bitmap used for application-side double buffering.  If
+     backingSurface below is NULL, then contentsBitmap should also be
+     NULL, and CALayer contents is a CGImage generated from
+     backingBitmap.  Otherwise, CALayer contents is of IOSurface and
+     updated by swapping.  */
+  CGContextRef backingBitmap, contentsBitmap;
 
-  /* Hardware-accelerated buffer data for backing bitmap.  NULL means
-     the backing bitmap uses the ordinary main memory as its data.  */
-  IOSurfaceRef backingSurface;
+  /* Hardware-accelerated buffer data for backing bitmap and CALayer
+     contents.  NULL for backingSurface means the backing bitmap uses
+     the ordinary main memory as its data, and contentsSurface should
+     also be NULL in this case.  */
+  IOSurfaceRef backingSurface, contentsSurface;
+
+  /* Semaphore used for synchronizing completion of asynchronous copy
+     from CALayer contents to backing bitmap after swapping.  */
+  dispatch_semaphore_t copyToBackingSemaphore;
 
 #if HAVE_MAC_METAL
-  /* GPU-accessible image data for backing bitmap.  */
-  id <MTLTexture> backingTexture;
-
-  /* GPU-accessible image data for CALayer contents.  */
-  id <MTLTexture> contentsTexture;
+  /* GPU-accessible image data for backing bitmap and CALayer
+     contents.  Both should be nil if backingSurface is NULL, and both
+     should be non-nil otherwise.  */
+  id <MTLTexture> backingTexture, contentsTexture;
 
   /* Command queue of the optimal GPU device for the display in which
      the view appears, or nil if the GPU does not support Metal.  */
