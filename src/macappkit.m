@@ -2391,16 +2391,40 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 		 to:nil from:sender];
 }
 
+- (NSWindow *)tabPickerWindow
+{
+  /* The tab group overview is displayed in NSTabPickerWindow on macOS
+     10.15, and -[NSWindowTabGroup isOverviewVisible] returns NO while
+     exiting from the overview.  */
+  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_14))
+    {
+      NSWindowTabGroup *tabGroup = self.tabGroup;
+
+      if (tabGroup)
+	{
+	  NSArrayOf (NSWindow *) *windowsInTabGroup = tabGroup.windows;
+
+	  for (NSWindow *window in [NSApp windows])
+	    if (window.isVisible
+		&& [window.tabGroup isEqual:tabGroup]
+		&& ![windowsInTabGroup containsObject:window])
+	      return window;
+	}
+    }
+
+  return nil;
+}
+
 - (void)exitTabGroupOverview
 {
   if ([self respondsToSelector:@selector(tabGroup)])
     {
       NSWindowTabGroup *tabGroup = self.tabGroup;
 
-      if (tabGroup.isOverviewVisible)
+      if (tabGroup.isOverviewVisible || self.tabPickerWindow)
 	{
 	  tabGroup.overviewVisible = NO;
-	  while (tabGroup.isOverviewVisible)
+	  while (tabGroup.isOverviewVisible || self.tabPickerWindow)
 	    mac_run_loop_run_once (kEventDurationForever);
 	}
     }
@@ -4511,6 +4535,10 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 	  {
 	    NSWindowTabbingMode tabbingMode = NSWindowTabbingModeAutomatic;
 	    NSWindow *mainWindow = [NSApp mainWindow];
+	    if ([mainWindow respondsToSelector:@selector(tabGroup)]
+		&& mainWindow.tabGroup
+		&& ![mainWindow.tabGroup.windows containsObject:mainWindow])
+	      mainWindow = mainWindow.tabGroup.selectedWindow;
 
 	    if (!FRAME_TOOLTIP_P (f)
 		&& [window respondsToSelector:@selector(setTabbingMode:)]
