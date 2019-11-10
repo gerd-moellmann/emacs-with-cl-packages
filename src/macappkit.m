@@ -6512,7 +6512,6 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (NSData *)imageBuffersDataForBackingRectanglesData:(NSData *)rectanglesData
 {
-  struct frame *f = self.emacsFrame;
   NSInteger i, count = rectanglesData.length / sizeof (NativeRectangle);
   const NativeRectangle *rectangles = rectanglesData.bytes;
   NSMutableData *imageBuffersData =
@@ -6542,7 +6541,6 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)restoreImageBuffersData:(NSData *)imageBuffersData
        forBackingRectanglesData:(NSData *)rectanglesData
 {
-  struct frame *f = self.emacsFrame;
   NSInteger i, count = rectanglesData.length / sizeof (NativeRectangle);
   const NativeRectangle *rectangles = rectanglesData.bytes;
   const vImage_Buffer *imageBuffers = imageBuffersData.bytes;
