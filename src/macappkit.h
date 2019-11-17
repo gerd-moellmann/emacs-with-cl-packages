@@ -984,55 +984,77 @@ typedef NSInteger NSGlyphProperty;
 - (void)updateWindowStyle;
 @end
 
-/* Class for Emacs view that handles drawing events only.  It is used
-   directly by tooltip frames, and indirectly by ordinary frames via
-   inheritance.  */
 
-@interface EmacsView : NSView
+/* Class for applicaion-side double buffering.  */
+
+@interface EmacsBacking : NSObject
 {
-  /* Backing bitmap used for application-side double buffering.  If
-     backingSurface below is NULL, then contentsBitmap should also be
-     NULL, and CALayer contents is a CGImage generated from
-     backingBitmap.  Otherwise, CALayer contents is of IOSurface and
-     updated by swapping.  */
-  CGContextRef backingBitmap, contentsBitmap;
+  /* Backing bitmaps used in application-side double buffering.  If
+     backSurface below is NULL, then frontBitmap should also be NULL,
+     and CALayer contents is a CGImage generated from backBitmap.
+     Otherwise, CALayer contents is of IOSurface and updated by
+     swapping.  */
+  CGContextRef backBitmap, frontBitmap;
 
   /* Hardware-accelerated buffer data for backing bitmap and CALayer
-     contents.  NULL for backingSurface means the backing bitmap uses
-     the ordinary main memory as its data, and contentsSurface should
-     also be NULL in this case.  */
-  IOSurfaceRef backingSurface, contentsSurface;
+     contents.  NULL for backSurface means the backing bitmap uses the
+     ordinary main memory as its data, and frontSurface should also be
+     NULL in this case.  */
+  IOSurfaceRef backSurface, frontSurface;
 
   /* Semaphore used for synchronizing completion of asynchronous copy
      from CALayer contents to backing bitmap after swapping.  */
-  dispatch_semaphore_t copyToBackingSemaphore;
+  dispatch_semaphore_t copyFromToBackSemaphore;
 
 #if HAVE_MAC_METAL
   /* GPU-accessible image data for backing bitmap and CALayer
-     contents.  Both should be nil if backingSurface is NULL, and both
+     contents.  Both should be nil if backSurface is NULL, and both
      should be non-nil otherwise.  */
-  id <MTLTexture> backingTexture, contentsTexture;
+  id <MTLTexture> backTexture, frontTexture;
 
   /* Command queue of the optimal GPU device for the display in which
      the view appears, or nil if the GPU does not support Metal.  */
   id <MTLCommandQueue> mtlCommandQueue;
 #endif
 
-  /* Lock count for backing bitmap.  */
-  char backingLockCount;
+  CGFloat scaleFactor;
 
-  /* Whether backing bitmap synchronization is suspended.  */
-  BOOL synchronizeBackingBitmapSuspended;
+  /* Lock count for backing bitmap.  */
+  char lockCount;
+}
+- (instancetype)initWithView:(NSView *)view;
+- (char)lockCount;
+- (NSSize)size;
+#if HAVE_MAC_METAL
+- (void)updateMTLObjectsForView:(NSView *)view;
+#endif
+- (void)setContentsForLayer:(CALayer *)layer;
+- (void)beginDrawing;
+- (void)endDrawing;
+- (void)scrollRect:(NSRect)rect by:(NSSize)delta;
+- (NSData *)imageBuffersDataForRectanglesData:(NSData *)rectanglesData;
+- (void)restoreImageBuffersData:(NSData *)imageBuffersData
+	      forRectanglesData:(NSData *)rectanglesData;
+@end
+
+/* Class for Emacs view that handles drawing events only.  It is used
+   directly by tooltip frames, and indirectly by ordinary frames via
+   inheritance.  */
+
+@interface EmacsView : NSView
+{
+  /* Backing resources for applicaion-side double buffering.  */
+  EmacsBacking *backing;
+
+  /* Whether backing synchronization is suspended.  */
+  BOOL synchronizeBackingSuspended;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;
-- (void)synchronizeBackingBitmap;
+- (void)synchronizeBacking;
 - (void)lockFocusOnBacking;
 - (void)unlockFocusOnBacking;
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta;
-- (NSData *)imageBuffersDataForBackingRectanglesData:(NSData *)rectanglesData;
-- (void)restoreImageBuffersData:(NSData *)imageBuffersData
-       forBackingRectanglesData:(NSData *)rectanglesData;
 #if HAVE_MAC_METAL
 - (void)updateMTLObjects;
 #endif
