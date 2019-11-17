@@ -6570,7 +6570,7 @@ static BOOL emacsViewUpdateLayerDisabled;
       return;
     }
 #endif
-  [backing scrollRect:(NSRect)rect by:(NSSize)delta];
+  [backing scrollRect:rect by:delta];
 }
 
 - (void)viewDidChangeBackingProperties
