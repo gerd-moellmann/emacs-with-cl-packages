@@ -12069,15 +12069,20 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 	    else
 	      expiration = [NSDate distantFuture];
 
-	    [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
-				     beforeDate:expiration];
+	    do
+	      {
+		[[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+					 beforeDate:expiration];
 
-	    /* This is necessary on 10.5 to make the dialog visible
-	       when the user tries logout/shutdown.  */
-	    [panel makeKeyAndOrderFront:nil];
-	    response = [NSApp runModalSession:session];
-	    if (response >= 0)
-	      result = response;
+		/* This is necessary on 10.5 to make the dialog
+		   visible when the user tries logout/shutdown.  */
+		[panel makeKeyAndOrderFront:nil];
+		response = [NSApp runModalSession:session];
+		if (response >= 0)
+		  result = response;
+	      }
+	    while (response == NSModalResponseContinue
+		   && expiration.timeIntervalSinceNow > 0);
 	  });
       }
     while (response == NSModalResponseContinue);
