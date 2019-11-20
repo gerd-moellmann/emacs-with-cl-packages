@@ -1029,8 +1029,8 @@ typedef NSInteger NSGlyphProperty;
 - (void)updateMTLObjectsForView:(NSView *)view;
 #endif
 - (void)setContentsForLayer:(CALayer *)layer;
-- (void)beginDrawing;
-- (void)endDrawing;
+- (void)lockFocus;
+- (void)unlockFocus;
 - (void)scrollRect:(NSRect)rect by:(NSSize)delta;
 - (NSData *)imageBuffersDataForRectanglesData:(NSData *)rectanglesData;
 - (void)restoreImageBuffersData:(NSData *)imageBuffersData

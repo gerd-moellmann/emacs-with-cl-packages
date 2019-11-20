@@ -6186,7 +6186,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   layer.contentsScale = scaleFactor;
 }
 
-- (void)beginDrawing
+- (void)lockFocus
 {
   lockCount++;
   [self waitCopyFromFrontToBack];
@@ -6202,7 +6202,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 #endif
 }
 
-- (void)endDrawing
+- (void)unlockFocus
 {
   eassert (lockCount);
   eassert (backBitmap);
@@ -6542,7 +6542,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 #endif
   if (!backing)
     backing = [[EmacsBacking alloc] initWithView:self];
-  [backing beginDrawing];
+  [backing lockFocus];
 }
 
 - (void)unlockFocusOnBacking
@@ -6557,7 +6557,7 @@ static BOOL emacsViewUpdateLayerDisabled;
       return;
     }
 #endif
-  [backing endDrawing];
+  [backing unlockFocus];
 }
 
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta
