@@ -124,13 +124,16 @@ The value of this variable is used when JIT Lock mode is turned on."
   :group 'jit-lock)
 
 (defcustom jit-lock-antiblink-grace 2
-  "Like `jit-lock-context-time' but for unterminated multiline strings.
-Setting this to a positive number of seconds helps avoid the
-fontification \"blinking\" behaviour observed when adding
-temporarily unterminated strings to source code.  If the user has
-recently created an unterminated string at EOL, allow for an idle
-\"grace\" period to elapse before deciding it is a multi-line
-string and fontifying the remainder of the buffer accordingly."
+  "Idle time after which to refontify due to unterminated strings.
+If the user creates a temporarily unterminated string up to the
+end of the current line, that part of the line is fontified after
+`jit-lock-context-time', but an extended idle \"grace\" period of
+this many seconds is granted before deciding it is a multi-line
+string and fontifying the remainder of the buffer accordingly.
+When adding strings to source code, this helps avoid
+\"blinking\", an unwanted oscillation of certain regions between
+string and non-string fontification.  If nil, there is no grace
+period."
   :type '(number :tag "seconds")
   :group 'jit-lock)
 
@@ -171,10 +174,10 @@ If nil, contextual fontification is disabled.")
 
 (defvar jit-lock--antiblink-grace-timer nil
   "Idle timer for fontifying unterminated string or comment, or nil.")
-(defvar jit-lock--antiblink-l-b-p (make-marker)
-  "Last line beginning position (l-b-p) after last command (a marker).")
-(defvar jit-lock--antiblink-i-s-o-c nil
-  "In string or comment (i-s-o-c) after last command (a boolean).")
+(defvar jit-lock--antiblink-line-beginning-position (make-marker)
+  "Last line beginning position after last command (a marker).")
+(defvar jit-lock--antiblink-string-or-comment nil
+  "Non-nil if in string or comment after last command (a boolean).")
 
 
 
@@ -698,25 +701,24 @@ will take place when text is fontified stealthily."
          (same-line
           (and jit-lock-antiblink-grace
                (not (= new-l-b-p l-b-p-2))
-               (eq (marker-buffer jit-lock--antiblink-l-b-p) (current-buffer))
-               (= new-l-b-p jit-lock--antiblink-l-b-p)))
-         (new-i-s-o-c
+               (eq (marker-buffer jit-lock--antiblink-line-beginning-position)
+                   (current-buffer))
+               (= new-l-b-p jit-lock--antiblink-line-beginning-position)))
+         (new-s-o-c
           (and same-line
                (nth 8 (save-excursion (syntax-ppss l-b-p-2))))))
     (cond (;; opened a new multiline string...
            (and same-line
-                (null jit-lock--antiblink-i-s-o-c) new-i-s-o-c)
-           ;; assert that the grace timer is null and schedule it
-           (when jit-lock--antiblink-grace-timer
-             (message "internal warning: `jit-lock--antiblink-grace-timer' not null"))
+                (null jit-lock--antiblink-string-or-comment) new-s-o-c)
            (setq jit-lock--antiblink-grace-timer
                  (run-with-idle-timer jit-lock-antiblink-grace nil
                                       (lambda ()
                                         (jit-lock-context-fontify)
-                                        (setq jit-lock--antiblink-grace-timer nil)))))
+                                        (setq jit-lock--antiblink-grace-timer
+                                              nil)))))
           (;; closed an unterminated multiline string.
            (and same-line
-                (null new-i-s-o-c) jit-lock--antiblink-i-s-o-c)
+                (null new-s-o-c) jit-lock--antiblink-string-or-comment)
            ;; Kill the grace timer, might already have run and died.
            ;; Don't refontify immediately: it adds an unreasonable
            ;; delay to a well-behaved operation.  Leave it for the
@@ -739,8 +741,8 @@ will take place when text is fontified stealthily."
              (cancel-timer jit-lock--antiblink-grace-timer)
              (setq jit-lock--antiblink-grace-timer nil))))
     ;; update variables
-    (setq jit-lock--antiblink-l-b-p   new-l-b-p
-          jit-lock--antiblink-i-s-o-c new-i-s-o-c)))
+    (setq jit-lock--antiblink-line-beginning-position   new-l-b-p
+          jit-lock--antiblink-string-or-comment new-s-o-c)))
 
 (provide 'jit-lock)
 
