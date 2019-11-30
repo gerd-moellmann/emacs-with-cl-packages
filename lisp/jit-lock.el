@@ -124,18 +124,18 @@ The value of this variable is used when JIT Lock mode is turned on."
   :group 'jit-lock)
 
 (defcustom jit-lock-antiblink-grace 2
-  "Idle time after which to refontify due to unterminated strings.
-If the user creates a temporarily unterminated string up to the
-end of the current line, that part of the line is fontified after
-`jit-lock-context-time', but an extended idle \"grace\" period of
-this many seconds is granted before deciding it is a multi-line
-string and fontifying the remainder of the buffer accordingly.
-When adding strings to source code, this helps avoid
-\"blinking\", an unwanted oscillation of certain regions between
-string and non-string fontification.  If nil, there is no grace
-period."
-  :type '(number :tag "seconds")
-  :group 'jit-lock)
+  "Grace period after which to refontify due to unterminated strings.
+If nil, no grace period is given.  Otherwise, a newly created
+unterminated string is fontified only to the end of the current
+line, after which the system waits this many seconds of idle time
+before deciding the string is multi-line and fontifying the
+remaining lines.  When typing strings, this helps avoid
+\"blinking\", an unwanted oscillation between string and
+non-string fontification."
+  :type '(choice (const :tag "never" nil)
+	         (number :tag "seconds"))
+  :group 'jit-lock
+  :version "27.1")
 
 (defcustom jit-lock-defer-time nil ;; 0.25
   "Idle time after which deferred fontification should take place.
@@ -178,8 +178,6 @@ If nil, contextual fontification is disabled.")
   "Last line beginning position after last command (a marker).")
 (defvar jit-lock--antiblink-string-or-comment nil
   "Non-nil if in string or comment after last command (a boolean).")
-
-
 
 ;;; JIT lock mode
 
@@ -734,14 +732,13 @@ will take place when text is fontified stealthily."
            ;; kill timer if running, resume normal operation.
            (when jit-lock--antiblink-grace-timer
              ;; Do refontify immediately, adding a small delay.  This
-             ;; is per Lars' request, and it makes sense because we
-             ;; should remark somehow that we are leaving the unstable
-             ;; state.
+             ;; makes sense because it remark somehow that we are
+             ;; leaving the unstable state.
              (jit-lock-context-fontify)
              (cancel-timer jit-lock--antiblink-grace-timer)
              (setq jit-lock--antiblink-grace-timer nil))))
     ;; update variables
-    (setq jit-lock--antiblink-line-beginning-position   new-l-b-p
+    (setq jit-lock--antiblink-line-beginning-position new-l-b-p
           jit-lock--antiblink-string-or-comment new-s-o-c)))
 
 (provide 'jit-lock)

@@ -628,10 +628,10 @@ current and the previous or the next line, as before.
 
 ---
 ** New customizable variable 'jit-lock-antiblink-grace'.
-When adding strings to source code, this helps avoid
-\"blinking\", an unwanted oscillation of certain regions between
-string and non-string fontification.
-
+When typing strings, this helps avoid "blinking", an oscillation
+between string and non-string fontification.  The variable holds a
+number of seconds (default is 2) before a potentially unwanted
+fontification starts.  Set to nil to deactivate.
 
 
 * Changes in Specialized Modes and Packages in Emacs 27.1
