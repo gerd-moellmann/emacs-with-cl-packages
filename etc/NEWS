@@ -631,7 +631,7 @@ current and the previous or the next line, as before.
 When typing strings, this helps avoid "blinking", an oscillation
 between string and non-string fontification.  The variable holds a
 number of seconds (default is 2) before a potentially unwanted
-fontification starts.  Set to nil to deactivate.
+fontification starts.  Set to nil to get back the old behavior.
 
 
 * Changes in Specialized Modes and Packages in Emacs 27.1
