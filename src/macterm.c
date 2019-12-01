@@ -4845,7 +4845,10 @@ mac_cgevent_to_input_event (CGEventRef cgevent, struct input_event *buf)
      | CGEventMaskBit (19)	/* NSEventTypeBeginGesture */
      | CGEventMaskBit (20)	/* NSEventTypeEndGesture */
      | CGEventMaskBit (32)	/* NSEventTypeSmartMagnify */
-     | CGEventMaskBit (33));	/* NSEventTypeQuickLook */
+     | CGEventMaskBit (33)	/* NSEventTypeQuickLook */
+     | CGEventMaskBit (34)	/* NSEventTypePressure */
+     | CGEventMaskBit (37)	/* NSEventTypeDirectTouch */
+     | CGEventMaskBit (38));	/* NSEventTypeChangeMode */
   CGEventFlags possibly_mapped_flags =
     (kCGEventFlagMaskControl | kCGEventFlagMaskAlternate
      | kCGEventFlagMaskCommand | kCGEventFlagMaskSecondaryFn);
