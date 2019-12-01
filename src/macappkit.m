@@ -10980,6 +10980,12 @@ static void mac_fake_menu_bar_click (EventPriority);
 
 static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 
+/* Maximum interval time in seconds between key down and modifier key
+   release events when they are recognized part of a synthetic
+   modified key (e.g., three-finger editing gestures in Sidecar)
+   rather than that of a physical key stroke.  */
+#define SYNTHETIC_MODIFIED_KEY_MAX_INTERVAL (1 / 600.0)
+
 @implementation NSMenu (Emacs)
 
 /* Create a new menu item using the information in *WV (except
@@ -11133,6 +11139,61 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	      [NSApp sendAction:@selector(copy:) to:nil from:nil];
 
 	      return YES;
+	    }
+
+	  if (theEvent.type == NSEventTypeKeyDown)
+	    {
+	      SEL action = NULL;
+	      NSEventModifierFlags modifierFlags =
+		(theEvent.modifierFlags
+		 & NSEventModifierFlagDeviceIndependentFlagsMask);
+
+	      switch (theEvent.keyCode)
+		{
+		case kVK_ANSI_Z:
+		  if (modifierFlags == NSEventModifierFlagCommand)
+		    action = NSSelectorFromString (@"synthetic-undo:");
+		  else if (modifierFlags == (NSEventModifierFlagCommand
+					     | NSEventModifierFlagShift))
+		    action = NSSelectorFromString (@"synthetic-redo:");
+		  break;
+
+		case kVK_ANSI_X:
+		  if (modifierFlags == NSEventModifierFlagCommand)
+		    action = NSSelectorFromString (@"synthetic-cut:");
+		  break;
+
+		case kVK_ANSI_C:
+		  if (modifierFlags == NSEventModifierFlagCommand)
+		    action = NSSelectorFromString (@"synthetic-copy:");
+		  break;
+
+		case kVK_ANSI_V:
+		  if (modifierFlags == NSEventModifierFlagCommand)
+		    action = NSSelectorFromString (@"synthetic-paste:");
+		  break;
+		}
+	      if (action)
+		{
+		  EventRef event = mac_peek_next_event ();
+
+		  if (event)
+		    {
+		      OSType event_class = GetEventClass (event);
+		      UInt32 event_kind = GetEventKind (event);
+		      EventTime event_time = GetEventTime (event);
+
+		      if (event_class == kEventClassKeyboard
+			  && event_kind == kEventRawKeyModifiersChanged
+			  && (event_time - theEvent.timestamp
+			      <= SYNTHETIC_MODIFIED_KEY_MAX_INTERVAL))
+			{
+			  [NSApp sendAction:action to:nil from:nil];
+
+			  return YES;
+			}
+		    }
+		}
 	    }
 
 	  /* Note: this is not necessary for binaries built on Mac OS
