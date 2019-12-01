@@ -2037,6 +2037,7 @@ modifiers, it changes the global tool-bar visibility setting."
   'mac-handle-synthetic-copy)
 (define-key mac-apple-event-map [action synthetic-paste]
   'mac-handle-synthetic-paste)
+(define-key mac-apple-event-map [action change-mode] 'ignore)
 
 ;;; Spotlight for Help
 

@@ -7026,6 +7026,11 @@ event_phase_to_symbol (NSEventPhase phase)
   [self scrollWheel:event];
 }
 
+- (void)changeModeWithEvent:(NSEvent *)event
+{
+  [NSApp sendAction:(NSSelectorFromString (@"change-mode:")) to:nil from:nil];
+}
+
 - (void)mouseMoved:(NSEvent *)theEvent
 {
   struct frame *f = [self emacsFrame];
