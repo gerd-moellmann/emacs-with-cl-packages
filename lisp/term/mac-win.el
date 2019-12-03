@@ -657,7 +657,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	1 font-shape-gstring 0]
        ,@(aref composition-function-table #x1F3FB)))))
 
-(defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"
+(defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
   "Sequence of characters used in automatic operator composition."
   :package-version '(Mac\ port . "5.10")
   :type 'string
@@ -1938,6 +1938,31 @@ This is used in response to \"Speak selected text.\""
 	   (error ""))))
     (gui-set-selection 'CLIPBOARD string)))
 
+(defun mac-handle-synthetic-undo (_event)
+  "Push undo event to the command input list."
+  (interactive "e")
+  (push 'undo unread-command-events))
+
+(defun mac-handle-synthetic-redo (_event)
+  "Push redo event to the command input list."
+  (interactive "e")
+  (push 'redo unread-command-events))
+
+(defun mac-handle-synthetic-cut (_event)
+  "Push cut event to the command input list."
+  (interactive "e")
+  (push 'cut unread-command-events))
+
+(defun mac-handle-synthetic-copy (_event)
+  "Push cut event to the command input list."
+  (interactive "e")
+  (push 'copy unread-command-events))
+
+(defun mac-handle-synthetic-paste (_event)
+  "Push cut event to the command input list."
+  (interactive "e")
+  (push 'paste unread-command-events))
+
 (defun mac-handle-preferences (_event)
   "Display the `Mac' customization group in response to EVENT."
   (interactive "e")
@@ -2002,6 +2027,17 @@ modifiers, it changes the global tool-bar visibility setting."
 (define-key mac-apple-event-map [action zoom] 'mac-handle-zoom)
 (define-key mac-apple-event-map [action newWindowForTab]
   'mac-handle-new-window-for-tab)
+(define-key mac-apple-event-map [action synthetic-undo]
+  'mac-handle-synthetic-undo)
+(define-key mac-apple-event-map [action synthetic-redo]
+  'mac-handle-synthetic-redo)
+(define-key mac-apple-event-map [action synthetic-cut]
+  'mac-handle-synthetic-cut)
+(define-key mac-apple-event-map [action synthetic-copy]
+  'mac-handle-synthetic-copy)
+(define-key mac-apple-event-map [action synthetic-paste]
+  'mac-handle-synthetic-paste)
+(define-key mac-apple-event-map [action change-mode] 'ignore)
 
 ;;; Spotlight for Help
 

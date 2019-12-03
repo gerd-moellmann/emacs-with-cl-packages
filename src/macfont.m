@@ -1733,6 +1733,7 @@ static Lisp_Object macfont_shape (Lisp_Object);
 static int macfont_variation_glyphs (struct font *, int c,
                                      unsigned variations[256]);
 static void macfont_filter_properties (Lisp_Object, Lisp_Object);
+static Lisp_Object macfont_combining_capability (struct font *);
 
 static struct font_driver const macfont_driver =
   {
@@ -1751,6 +1752,7 @@ static struct font_driver const macfont_driver =
   .shape = macfont_shape,
   .get_variation_glyphs = macfont_variation_glyphs,
   .filter_properties = macfont_filter_properties,
+  .combining_capability = macfont_combining_capability,
   };
 
 static Lisp_Object
@@ -3673,6 +3675,12 @@ macfont_variation_glyphs (struct font *font, int c, unsigned variations[256])
   unblock_input ();
 
   return n;
+}
+
+static Lisp_Object
+macfont_combining_capability (struct font *font)
+{
+  return Qt;
 }
 
 static const char *const macfont_booleans[] = {

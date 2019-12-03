@@ -2408,8 +2408,7 @@ This function is an internal primitive--use `make-frame' instead.  */)
   x_default_parameter (f, parms, Qbackground_color,
 		       build_string ("mac:textBackgroundColor"),
 		       "background", "Background", RES_TYPE_STRING);
-  x_default_parameter (f, parms, Qmouse_color,
-		       build_string ("mac:textColor"),
+  x_default_parameter (f, parms, Qmouse_color, build_string ("black"),
 		       "pointerColor", "Foreground", RES_TYPE_STRING);
   x_default_parameter (f, parms, Qborder_color, build_string ("black"),
 		       "borderColor", "BorderColor", RES_TYPE_STRING);

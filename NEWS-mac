@@ -1,5 +1,40 @@
+* emacs-26.3-mac-7.8 (2019-12-03)
+
+** Fixed bugs
+
+*** mac-auto-operator-composition-mode does not compose sequences
+containing "\".
+
+*** Several animation effect glitches for executables linked on 10.15.
+
+*** Can't switch application in Split View after resizing on macOS
+10.14 and later.
+
+*** Clicking "+" in tab group overview creates a new frame instead of
+tab on macOS 10.15.
+
+*** High CPU load on dialog display.
+Reported by Konrad Podczeck.
+
+*** Mouse pointer color is inverted on Dark Mode.
+Though the old behavior is consistent with emacs -rv on X11, it was
+actually introduced in version 7.2 as a workaround for the
+(set-mouse-color "black") bug, which was fixed in the previous
+version.  So the workaround is no longer necessary.
+
+** Improvements
+
+*** Resize transition is also in effect for unfocused frames in Split
+View on macOS 10.15.
+
+*** Improve typing response on application-side double buffering.
+
+*** Recognize three-finger editing gestures in Sidecar on macOS 10.15.
+
+
 * emacs-26.3-mac-7.7 (2019-08-29)
 Based on Emacs 26.3.
+https://lists.gnu.org/r/emacs-devel/2019-08/msg00580.html
 
 No updates other than release notes (thus the same version number).
 
