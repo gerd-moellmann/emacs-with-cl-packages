@@ -11016,9 +11016,10 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 			     [NSString stringWithUTF8String:wv->key
 				       fallback:YES]];
 
-      item = (NSMenuItem *) [self addItemWithTitle:itemName
-				  action:@selector(setMenuItemSelectionToTag:)
-				  keyEquivalent:@""];
+      item = [self addItemWithTitle:itemName
+			     action:(wv->contents ? nil
+				     : @selector(setMenuItemSelectionToTag:))
+		      keyEquivalent:@""];
 
       [item setEnabled:wv->enabled];
 
