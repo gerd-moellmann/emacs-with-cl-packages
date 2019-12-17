@@ -1909,6 +1909,37 @@ mac_set_font (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
   }
 }
 
+static bool
+mac_is_url_suitable_for_proxy (CFURLRef url)
+{
+  if (!CFURLResourceIsReachable (url, NULL))
+    return false;
+
+  /* Work around Mach port leaks in showing proxy icons for files on
+     iCloud Drive on macOS 10.15 (Bug#38618).  */
+  if ((mac_operating_system_version.major > 10
+       || mac_operating_system_version.minor >= 15))
+    {
+      CFBooleanRef isUbiquitousItem = NULL;
+      bool ubiquitous_item_p =
+	(CFURLCopyResourcePropertyForKey (url,
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+					  kCFURLIsUbiquitousItemKey,
+#else
+					  CFSTR ("NSURLIsUbiquitousItemKey"),
+#endif
+					  &isUbiquitousItem, NULL)
+	 && isUbiquitousItem
+	 && CFBooleanGetValue (isUbiquitousItem));
+      if (isUbiquitousItem)
+	CFRelease (isUbiquitousItem);
+
+      return !ubiquitous_item_p;
+    }
+
+  return true;
+}
+
 void
 mac_update_title_bar (struct frame *f, bool save_match_data)
 {
@@ -1942,7 +1973,7 @@ mac_update_title_bar (struct frame *f, bool save_match_data)
 
 	  url = CFURLCreateFromFileSystemRepresentation (NULL, name,
 							 strlen (name), false);
-	  if (url && !CFURLResourceIsReachable (url, NULL))
+	  if (url && !mac_is_url_suitable_for_proxy (url))
 	    {
 	      CFRelease (url);
 	      url = NULL;
