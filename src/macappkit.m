@@ -6164,8 +6164,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
 - (void)setContentsForLayer:(CALayer *)layer
 {
-  id contents;
-
   eassert (lockCount == 0);
 
   [self waitCopyFromFrontToBack];
@@ -6217,8 +6215,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 {
   eassert (CGBitmapContextGetBitsPerPixel (backBitmap)
 	   == 8 * sizeof (Pixel_8888));
-  NSInteger bitmapWidth = CGBitmapContextGetWidth (backBitmap);
-  NSInteger bitmapHeight = CGBitmapContextGetHeight (backBitmap);
   NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backBitmap);
   const NSInteger bytesPerPixel = sizeof (Pixel_8888);
   unsigned char *srcData = CGBitmapContextGetData (backBitmap);
