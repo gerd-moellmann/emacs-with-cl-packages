@@ -6213,11 +6213,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
 - (void)scrollRect:(NSRect)rect by:(NSSize)delta
 {
-  eassert (CGBitmapContextGetBitsPerPixel (backBitmap)
-	   == 8 * sizeof (Pixel_8888));
-  NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backBitmap);
-  const NSInteger bytesPerPixel = sizeof (Pixel_8888);
-  unsigned char *srcData = CGBitmapContextGetData (backBitmap);
   NSInteger deltaX, deltaY, srcX, srcY, width, height;
 
   if (scaleFactor != 1.0)
@@ -6269,6 +6264,11 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   else
 #endif
     {
+      eassert (CGBitmapContextGetBitsPerPixel (backBitmap)
+	       == 8 * sizeof (Pixel_8888));
+      NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backBitmap);
+      const NSInteger bytesPerPixel = sizeof (Pixel_8888);
+      unsigned char *srcData = CGBitmapContextGetData (backBitmap);
       vImage_Buffer src, dest;
 
       src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
