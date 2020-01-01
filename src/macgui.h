@@ -255,11 +255,6 @@ enum {
   CFOBJECT_TO_LISP_DONT_DECODE_DICTIONARY_KEY	= 1 << 2
 };
 
-/* Assumed by other routines to zero area returned.  */
-#define malloc_widget_value() (void *)memset (xmalloc (sizeof (widget_value)),\
-                                              0, (sizeof (widget_value)))
-#define free_widget_value(wv) xfree (wv)
-
 #define DIALOG_LEFT_MARGIN (112)
 #define DIALOG_TOP_MARGIN (24)
 #define DIALOG_RIGHT_MARGIN (24)
