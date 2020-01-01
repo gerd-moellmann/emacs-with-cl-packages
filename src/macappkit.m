@@ -9740,12 +9740,12 @@ update_frame_tool_bar (struct frame *f)
 #define PROP(IDX) AREF (f->tool_bar_items, i * TOOL_BAR_ITEM_NSLOTS + (IDX))
       bool enabled_p = !NILP (PROP (TOOL_BAR_ITEM_ENABLED_P));
       bool selected_p = !NILP (PROP (TOOL_BAR_ITEM_SELECTED_P));
-      int idx;
+      int idx = 0;
       ptrdiff_t img_id;
       struct image *img;
       Lisp_Object image;
-      NSString *label;
-      NSArrayOf (id) *cgImages;
+      NSString *label = nil;
+      NSArrayOf (id) *cgImages = nil;
       NSToolbarItemIdentifier identifier = TOOLBAR_ICON_ITEM_IDENTIFIER;
 
       if (EQ (PROP (TOOL_BAR_ITEM_TYPE), Qt))
