@@ -1916,9 +1916,10 @@ mac_is_url_suitable_for_proxy (CFURLRef url)
     return false;
 
   /* Work around Mach port leaks in showing proxy icons for files on
-     iCloud Drive on macOS 10.15 (Bug#38618).  */
-  if ((mac_operating_system_version.major > 10
-       || mac_operating_system_version.minor >= 15))
+     iCloud Drive on macOS 10.15 - 10.15.3 (Bug#38618).  */
+  if (mac_operating_system_version.major == 10
+      && mac_operating_system_version.minor == 15
+      && mac_operating_system_version.patch < 4)
     {
       CFBooleanRef isUbiquitousItem = NULL;
       bool ubiquitous_item_p =
