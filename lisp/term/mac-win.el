@@ -353,11 +353,12 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 \u2638\u2639\u263A\u2640\u2642\u2648\u2649\u264A\u264B\u264C\u264D\u264E\
 \u264F\u2650\u2651\u2652\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\
 \u267E\u267F\u2692\u2693\u2694\u2695\u2696\u2697\u2699\u269B\u269C\u26A0\
-\u26A1\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CF\u26D1\
-\u26D3\u26D4\u26E9\u26EA\u26F0\u26F1\u26F2\u26F3\u26F4\u26F5\u26F7\u26F8\
-\u26F9\u26FA\u26FD\u2702\u2708\u2709\u270C\u270D\u270F\u2712\u2714\u2716\
-\u271D\u2721\u2733\u2734\u2744\u2747\u2753\u2757\u2763\u2764\u27A1\u2934\
-\u2935\u2B05\u2B06\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299\
+\u26A1\u26A7\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CF\
+\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0\u26F1\u26F2\u26F3\u26F4\u26F5\u26F7\
+\u26F8\u26F9\u26FA\u26FD\u2702\u2708\u2709\u270C\u270D\u270F\u2712\u2714\
+\u2716\u271D\u2721\u2733\u2734\u2744\u2747\u2753\u2757\u2763\u2764\u27A1\
+\u2934\u2935\u2B05\u2B06\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\
+\u3299\
 \U0001F004\U0001F170\U0001F171\U0001F17E\U0001F17F\U0001F202\U0001F21A\
 \U0001F22F\U0001F237\U0001F30D\U0001F30E\U0001F30F\U0001F315\U0001F31C\
 \U0001F321\U0001F324\U0001F325\U0001F326\U0001F327\U0001F328\U0001F329\
@@ -387,7 +388,7 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 \U0001F6E2\U0001F6E3\U0001F6E4\U0001F6E5\U0001F6E9\U0001F6F0\U0001F6F3"))
   "Groups of characters that are sensitive to variation selectors 15 and 16.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-variation-sequences.txt 12.0.")
+The entries are currently based on emoji-variation-sequences.txt 13.0.")
 
 (defconst mac-emoji-modifier-base-characters-alist
   '((t . "\u261D\u26F9\u270A\u270B\u270C\u270D\
@@ -409,24 +410,25 @@ The entries are currently based on emoji-variation-sequences.txt 12.0.")
 \U0001F9DB\U0001F9DC\U0001F9DD"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-sequences.txt 12.0.")
+The entries are currently based on emoji-sequences.txt 13.0.")
 
 (defconst mac-emoji-gendered-zwj-characters-alist
   '((role . "\u2695\u2696\u2708\
-\U0001F33E\U0001F373\U0001F393\U0001F3A4\U0001F3A8\U0001F3EB\U0001F3ED\
-\U0001F4BB\U0001F4BC\U0001F527\U0001F52C\U0001F680\U0001F692\U0001F9AF\
-\U0001F9BC\U0001F9BD")
+\U0001F33E\U0001F373\U0001F37C\U0001F393\U0001F3A4\U0001F3A8\U0001F3EB\
+\U0001F3ED\U0001F4BB\U0001F4BC\U0001F527\U0001F52C\U0001F680\U0001F692\
+\U0001F9AF\U0001F9BC\U0001F9BD")
     (hair . "\U0001F9B0\U0001F9B1\U0001F9B2\U0001F9B3")
     (gendered . "\u26F9\U0001F3C3\U0001F3C4\U0001F3CA\U0001F3CB\U0001F3CC\
-\U0001F46E\U0001F46F\U0001F471\U0001F473\U0001F477\U0001F481\U0001F482\
-\U0001F486\U0001F487\U0001F575\U0001F645\U0001F646\U0001F647\U0001F64B\
-\U0001F64D\U0001F64E\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\U0001F926\
-\U0001F937\U0001F938\U0001F939\U0001F93C\U0001F93D\U0001F93E\U0001F9B8\
-\U0001F9B9\U0001F9CD\U0001F9CE\U0001F9CF\U0001F9D6\U0001F9D7\U0001F9D8\
-\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD\U0001F9DE\U0001F9DF"))
+\U0001F46E\U0001F46F\U0001F470\U0001F471\U0001F473\U0001F477\U0001F481\
+\U0001F482\U0001F486\U0001F487\U0001F575\U0001F645\U0001F646\U0001F647\
+\U0001F64B\U0001F64D\U0001F64E\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\
+\U0001F926\U0001F935\U0001F937\U0001F938\U0001F939\U0001F93C\U0001F93D\
+\U0001F93E\U0001F9B8\U0001F9B9\U0001F9CD\U0001F9CE\U0001F9CF\U0001F9D6\
+\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD\
+\U0001F9DE\U0001F9DF"))
   "Groups of characters that are parts of the gendered zwj sequences.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-zwj-sequences.txt 12.0.")
+The entries are currently based on emoji-zwj-sequences.txt 13.0.")
 
 (defconst mac-emoji-tag-base-characters-alist
   '((flag "\U0001F3F4" "[\U000E0030-\U000E0039\U000E0061-\U000E007A]+"))
@@ -434,7 +436,7 @@ The entries are currently based on emoji-zwj-sequences.txt 12.0.")
 It is an alist of label symbols vs lists whose elements are of
 the form (CHARS SPEC) where CHARS is a string of tag base
 characters and SPEC is a regexp for the corresponding tag spec.
-The entries are currently based on emoji-sequences.txt 12.0.")
+The entries are currently based on emoji-sequences.txt 13.0.")
 
 (defun mac-emoji-multistyles-unistyles (sequence)
   "Split emoji SEQUENCE into a cons of multistyles and unistyles."
@@ -586,13 +588,17 @@ second is a glyph for the variation selector 16 (U+FE0F)."
          (man "\U0001F468") (woman "\U0001F469") (person "\U0001F9D1")
 	 (girl "\U0001F467") (boy "\U0001F466")
 	 (red-heart "\u2764") (kiss-mark "\U0001F48B") (handshake "\U0001F91D")
-	 (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
-         (white-flag "\U0001F3F3") (rainbow "\U0001F308")
+         (white-flag "\U0001F3F3") (transgender "\u26A7") (rainbow "\U0001F308")
          (black-flag "\U0001F3F4") (skull-and-crossbones "\u2620")
+         (cat "\U0001F408") (black-large-square "\u2B1B")
          (dog "\U0001F415") (safety-vest "\U0001F9BA")
+         (bear "\U0001F43B") (snowflake "2744")
+         (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
+         (christmas-tree "\U0001F384")
          (female "\u2640") (male "\u2642")
          (vs16? (concat vs16 "?"))
 	 (man-or-woman (concat "[" man woman "]"))
+         (man-woman-or-person (concat "[" man woman person "]"))
 	 (girl-or-boy (concat "[" girl boy "]"))
 	 (female-or-male (concat "[" female male "]"))
 	 (children (concat "\\(?:" girl "\\(?:" zwj girl-or-boy "\\)?"
@@ -611,40 +617,45 @@ second is a glyph for the variation selector 16 (U+FE0F)."
      composition-function-table (string-to-char zwj)
      `([,(concat man ".\\(?:\\(?:" man-or-woman zwj "\\)?" children
                  "\\|" red-heart vs16? zwj
-                 "\\(?:" kiss-mark zwj "\\)?" man
-                 "\\|[" object-multistyles "]" vs16?
-                 "\\|[" object-unistyles "]\\)")
+                 "\\(?:" kiss-mark zwj "\\)?" man "\\)")
 	1 font-shape-gstring -1]
        [,(concat woman ".\\(?:\\(?:" woman zwj "\\)?" children
                  "\\|" red-heart vs16? zwj
-		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman
+		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman "\\)")
+	1 font-shape-gstring -1]
+       [,(concat man-woman-or-person ".\\(?:" handshake zwj person
                  "\\|[" object-multistyles "]" vs16?
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring -1]
-       [,(concat person zwj handshake zwj person)
-	1 font-shape-gstring -1]
-       [,(concat eye zwj left-speech-bubble vs16?)
-	1 font-shape-gstring -1]
-       [,(concat white-flag zwj rainbow)
+       [,(concat white-flag zwj "\\(?:" transgender vs16? "\\|" rainbow "\\)")
 	1 font-shape-gstring -1]
        [,(concat black-flag zwj skull-and-crossbones vs16?)
 	1 font-shape-gstring -1]
+       [,(concat cat zwj black-large-square)
+	1 font-shape-gstring -1]
        [,(concat dog zwj safety-vest)
+	1 font-shape-gstring -1]
+       [,(concat bear zwj snowflake vs16?)
+	1 font-shape-gstring -1]
+       [,(concat eye zwj left-speech-bubble vs16?)
+	1 font-shape-gstring -1]
+       [,(concat person zwj christmas-tree)
 	1 font-shape-gstring -1]
        [,(concat "[" signs "]." female-or-male vs16?)
 	1 font-shape-gstring -1]))
     (set-char-table-range
      composition-function-table ?\uFE0F
-     `([,(concat eye vs16 zwj left-speech-bubble vs16?)
-	1 font-shape-gstring 0]
-       [,(concat white-flag vs16 zwj rainbow)
+     `([,(concat white-flag vs16 zwj
+                 "\\(?:" transgender vs16? "\\|" rainbow "\\)")
         1 font-shape-gstring 0]
+       [,(concat eye vs16 zwj left-speech-bubble vs16?)
+	1 font-shape-gstring 0]
        [,(concat "[" sign-multistyles "]." zwj female-or-male vs16?)
 	1 font-shape-gstring 0]
        ,@(aref composition-function-table ?\uFE0F)))
     (set-char-table-range
      composition-function-table '(#x1F3FB . #x1F3FF)
-     `([,(concat man-or-woman "." zwj
+     `([,(concat man-woman-or-person "." zwj
                  "\\(?:[" object-multistyles "]" vs16?
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring 0]
@@ -654,6 +665,8 @@ second is a glyph for the variation selector 16 (U+FE0F)."
                  "\\1" modifiers)
 	1 font-shape-gstring 0]
        [,(concat woman "." zwj handshake zwj man-or-woman modifiers)
+	1 font-shape-gstring 0]
+       [,(concat person "." zwj christmas-tree)
 	1 font-shape-gstring 0]
        ,@(aref composition-function-table #x1F3FB)))))
 
