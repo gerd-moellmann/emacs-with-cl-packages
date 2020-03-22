@@ -669,7 +669,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
   :type 'integer
   :group 'mac)
 
-(declare-function mac-font-gstring-shape-nocache "macfont.m" (gstring))
+(declare-function mac-font-shape-gstring-nocache "macfont.m" (gstring))
 
 (defvar mac-auto-operator-composition-cache (make-hash-table :test 'equal))
 
@@ -716,14 +716,14 @@ coincide with the concatenation of the shaped ones of any proper
 prefix of GSTRING and the corresponding suffix."
   (if (gethash (lgstring-header gstring) mac-auto-operator-composition-cache)
       nil
-    (let ((full (mac-font-gstring-shape-nocache (mac-subgstring gstring)))
+    (let ((full (mac-font-shape-gstring-nocache (mac-subgstring gstring)))
 	  (char-len (lgstring-char-len gstring))
 	  (i 1))
       (while (and full (< i char-len))
-	(let ((partial (mac-font-gstring-shape-nocache
+	(let ((partial (mac-font-shape-gstring-nocache
 			(mac-subgstring gstring 0 i))))
 	  (when (and partial (mac-gstring-prefix-p partial full))
-            (setq partial (mac-font-gstring-shape-nocache
+            (setq partial (mac-font-shape-gstring-nocache
                            (mac-subgstring gstring i)))
             (if (and partial (mac-gstring-prefix-p partial
                                                    (mac-subgstring full i)))

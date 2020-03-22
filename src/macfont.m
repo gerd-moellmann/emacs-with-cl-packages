@@ -3315,8 +3315,8 @@ macfont_shape (Lisp_Object lgstring)
 }
 
 #ifdef HAVE_MACGUI
-DEFUN ("mac-font-gstring-shape-nocache", Fmac_font_gstring_shape_nocache, Smac_font_gstring_shape_nocache, 1, 1, 0,
-       doc: /* Like `font-gstring-shape', but don't put the result to the internal cache. */)
+DEFUN ("mac-font-shape-gstring-nocache", Fmac_font_shape_gstring_nocache, Smac_font_shape_gstring_nocache, 1, 1, 0,
+       doc: /* Like `font-shape-gstring', but don't put the result to the internal cache. */)
   (Lisp_Object gstring)
 {
   struct font *font;
@@ -4382,6 +4382,6 @@ syms_of_macfont (void)
   staticpro (&macfont_family_cache);
 
 #ifdef HAVE_MACGUI
-  defsubr (&Smac_font_gstring_shape_nocache);
+  defsubr (&Smac_font_shape_gstring_nocache);
 #endif
 }
