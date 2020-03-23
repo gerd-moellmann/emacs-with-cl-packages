@@ -1,6 +1,6 @@
 /* Definitions and headers for communication on macOS.
    Copyright (C) 2000-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2019  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2020  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -254,11 +254,6 @@ enum {
   CFOBJECT_TO_LISP_DONT_DECODE_STRING		= 1 << 1,
   CFOBJECT_TO_LISP_DONT_DECODE_DICTIONARY_KEY	= 1 << 2
 };
-
-/* Assumed by other routines to zero area returned.  */
-#define malloc_widget_value() (void *)memset (xmalloc (sizeof (widget_value)),\
-                                              0, (sizeof (widget_value)))
-#define free_widget_value(wv) xfree (wv)
 
 #define DIALOG_LEFT_MARGIN (112)
 #define DIALOG_TOP_MARGIN (24)

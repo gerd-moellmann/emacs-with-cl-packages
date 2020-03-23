@@ -1294,6 +1294,10 @@ prepare_image_for_display (struct frame *f, struct image *img)
 #elif defined (HAVE_MACGUI)
   if (!img->load_failed_p && img->cg_image == NULL)
     {
+      /* Fill in the background/background_transparent field while we
+	 have img->pixmap->data/img->mask->data.  */
+      IMAGE_BACKGROUND (img, f, img->pixmap);
+      IMAGE_BACKGROUND_TRANSPARENT (img, f, img->mask);
       img->cg_image = mac_create_cg_image_from_image (f, img);
       if (img->cg_image == NULL)
 	{

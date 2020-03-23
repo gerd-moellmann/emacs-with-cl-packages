@@ -1,5 +1,5 @@
 /* Functions for GUI implemented with Cocoa AppKit on macOS.
-   Copyright (C) 2008-2019  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2020  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -1336,6 +1336,21 @@ static bool handling_queued_nsevents_p;
      macOS 10.15.  */
   setenv ("CAVIEW_USE_GL", "1", 0);
 #endif
+
+  /* Some functions/methods in CoreFoundation/Foundation increase the
+     maximum number of open files for the process in their first call.
+     We make dummy calls to them and then reduce the resource limit
+     here, since pselect cannot handle file descriptors that are
+     greater than or equal to FD_SETSIZE.  */
+  CFSocketGetTypeID ();
+  CFFileDescriptorGetTypeID ();
+  MRC_RELEASE ([[NSFileHandle alloc] init]);
+  struct rlimit rlim;
+  if (getrlimit (RLIMIT_NOFILE, &rlim) == 0 && rlim.rlim_cur > FD_SETSIZE)
+    {
+      rlim.rlim_cur = FD_SETSIZE;
+      setrlimit (RLIMIT_NOFILE, &rlim);
+    }
 
   /* Exit from the main event loop.  */
   [NSApp stop:nil];
@@ -6164,8 +6179,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
 - (void)setContentsForLayer:(CALayer *)layer
 {
-  id contents;
-
   eassert (lockCount == 0);
 
   [self waitCopyFromFrontToBack];
@@ -6215,13 +6228,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
 - (void)scrollRect:(NSRect)rect by:(NSSize)delta
 {
-  eassert (CGBitmapContextGetBitsPerPixel (backBitmap)
-	   == 8 * sizeof (Pixel_8888));
-  NSInteger bitmapWidth = CGBitmapContextGetWidth (backBitmap);
-  NSInteger bitmapHeight = CGBitmapContextGetHeight (backBitmap);
-  NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backBitmap);
-  const NSInteger bytesPerPixel = sizeof (Pixel_8888);
-  unsigned char *srcData = CGBitmapContextGetData (backBitmap);
   NSInteger deltaX, deltaY, srcX, srcY, width, height;
 
   if (scaleFactor != 1.0)
@@ -6273,6 +6279,11 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   else
 #endif
     {
+      eassert (CGBitmapContextGetBitsPerPixel (backBitmap)
+	       == 8 * sizeof (Pixel_8888));
+      NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backBitmap);
+      const NSInteger bytesPerPixel = sizeof (Pixel_8888);
+      unsigned char *srcData = CGBitmapContextGetData (backBitmap);
       vImage_Buffer src, dest;
 
       src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
@@ -9744,12 +9755,12 @@ update_frame_tool_bar (struct frame *f)
 #define PROP(IDX) AREF (f->tool_bar_items, i * TOOL_BAR_ITEM_NSLOTS + (IDX))
       bool enabled_p = !NILP (PROP (TOOL_BAR_ITEM_ENABLED_P));
       bool selected_p = !NILP (PROP (TOOL_BAR_ITEM_SELECTED_P));
-      int idx;
+      int idx = 0;
       ptrdiff_t img_id;
       struct image *img;
       Lisp_Object image;
-      NSString *label;
-      NSArrayOf (id) *cgImages;
+      NSString *label = nil;
+      NSArrayOf (id) *cgImages = nil;
       NSToolbarItemIdentifier identifier = TOOLBAR_ICON_ITEM_IDENTIFIER;
 
       if (EQ (PROP (TOOL_BAR_ITEM_TYPE), Qt))
@@ -11016,9 +11027,10 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 			     [NSString stringWithUTF8String:wv->key
 				       fallback:YES]];
 
-      item = (NSMenuItem *) [self addItemWithTitle:itemName
-				  action:@selector(setMenuItemSelectionToTag:)
-				  keyEquivalent:@""];
+      item = [self addItemWithTitle:itemName
+			     action:(wv->contents ? nil
+				     : @selector(setMenuItemSelectionToTag:))
+		      keyEquivalent:@""];
 
       [item setEnabled:wv->enabled];
 
