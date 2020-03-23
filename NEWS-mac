@@ -1,4 +1,26 @@
+* emacs-26.3-mac-7.9 (2020-03-23)
+
+** Fixed bugs
+
+*** Crash by a file descriptor that is greater than or equal to
+FD_SETSIZE.
+
+*** Can't unexec on macOS 10.15.4.
+
+*** Crash when editing iCloud Drive files on macOS 10.15 - 10.15.3.
+This is due to Mach port leaks on these versions.  A workaround is
+added, and proxy icons are not shown for iCloud Drive files.
+
+*** Selecting a menu item having submenus generates a prefix event.
+Reported by Konrad Podczeck.
+
+** Improvements
+
+*** Update emoji data to version 13.0.
+
+
 * emacs-26.3-mac-7.8 (2019-12-03)
+https://lists.gnu.org/r/emacs-devel/2019-12/msg00104.html
 
 ** Fixed bugs
 
