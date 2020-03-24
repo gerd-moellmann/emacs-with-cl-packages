@@ -1,6 +1,6 @@
-;;; ecomplete.el --- electric completion of addresses and the like
+;;; ecomplete.el --- electric completion of addresses and the like  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2006-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2020 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail
@@ -53,22 +53,32 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'cl))
+(eval-when-compile (require 'cl-lib))
 
 (defgroup ecomplete nil
   "Electric completion of email addresses and the like."
   :group 'mail)
 
-(defcustom ecomplete-database-file "~/.ecompleterc"
+(defcustom ecomplete-database-file
+  (locate-user-emacs-file "ecompleterc" "~/.ecompleterc")
   "The name of the file to store the ecomplete data."
-  :group 'ecomplete
   :type 'file)
 
 (defcustom ecomplete-database-file-coding-system 'iso-2022-7bit
   "Coding system used for writing the ecomplete database file."
-  :type '(symbol :tag "Coding system")
-  :group 'ecomplete)
+  :type '(symbol :tag "Coding system"))
+
+(defcustom ecomplete-sort-predicate 'ecomplete-decay
+  "Predicate to use when sorting matched.
+The predicate is called with two parameters that represent the
+completion.  Each parameter is a list where the first element is
+the times the completion has been used, the second is the
+timestamp of the most recent usage, and the third item is the
+string that was matched."
+  :type '(radio (function-item :tag "Sort by usage and newness" ecomplete-decay)
+		(function-item :tag "Sort by times used" ecomplete-usage)
+		(function-item :tag "Sort by newness" ecomplete-newness)
+		(function :tag "Other")))
 
 ;;; Internal variables.
 
@@ -86,7 +96,7 @@
 (defun ecomplete-add-item (type key text)
   "Add item TEXT of TYPE to the database, using KEY as the identifier."
   (let ((elems (assq type ecomplete-database))
-	(now (string-to-number (format-time-string "%s")))
+	(now (time-convert nil 'integer))
 	entry)
     (unless elems
       (push (setq elems (list type)) ecomplete-database))
@@ -103,13 +113,13 @@
   (with-temp-buffer
     (let ((coding-system-for-write ecomplete-database-file-coding-system))
       (insert "(")
-      (loop for (type . elems) in ecomplete-database
-	    do
-	    (insert (format "(%s\n" type))
-	    (dolist (entry elems)
-	      (prin1 entry (current-buffer))
-	      (insert "\n"))
-	    (insert ")\n"))
+      (cl-loop for (type . elems) in ecomplete-database
+	       do
+	       (insert (format "(%s\n" type))
+	       (dolist (entry elems)
+	         (prin1 entry (current-buffer))
+	         (insert "\n"))
+	       (insert ")\n"))
       (insert ")")
       (write-region (point-min) (point-max)
 		    ecomplete-database-file nil 'silent))))
@@ -119,11 +129,10 @@
 	 (match (regexp-quote match))
 	 (candidates
 	  (sort
-	   (loop for (key count time text) in elems
-		 when (string-match match text)
-		 collect (list count time text))
-	   (lambda (l1 l2)
-	     (> (car l1) (car l2))))))
+	   (cl-loop for (_key count time text) in elems
+		    when (string-match match text)
+		    collect (list count time text))
+           ecomplete-sort-predicate)))
     (when (> (length candidates) 10)
       (setcdr (nthcdr 10 candidates) nil))
     (unless (zerop (length candidates))
@@ -156,22 +165,22 @@ matches."
 	    nil)
 	(setq highlight (ecomplete-highlight-match-line matches line))
 	(let ((local-map (make-sparse-keymap))
+              (prev-func (lambda () (setq line (max (1- line) 0))))
+              (next-func (lambda () (setq line (min (1+ line) max-lines))))
 	      selected)
 	  (define-key local-map (kbd "RET")
 	    (lambda () (setq selected (nth line (split-string matches "\n")))))
-	  (define-key local-map (kbd "M-n")
-	    (lambda () (setq line (min (1+ line) max-lines))))
-	  (define-key local-map (kbd "M-p")
-	    (lambda () (setq line (max (1- line) 0))))
+	  (define-key local-map (kbd "M-n") next-func)
+	  (define-key local-map (kbd "<down>") next-func)
+	  (define-key local-map (kbd "M-p") prev-func)
+	  (define-key local-map (kbd "<up>") prev-func)
 	  (let ((overriding-local-map local-map))
 	    (while (and (null selected)
 			(setq command (read-key-sequence highlight))
 			(lookup-key local-map command))
 	      (apply (key-binding command) nil)
 	      (setq highlight (ecomplete-highlight-match-line matches line))))
-	  (if selected
-	      (message selected)
-	    (message "Abort"))
+	  (message (or selected "Abort"))
 	  selected)))))
 
 (defun ecomplete-highlight-match-line (matches line)
@@ -188,6 +197,46 @@ matches."
 	  (put-text-property (point) (1+ (point)) 'face 'highlight))
 	(forward-char 1)))
     (buffer-string)))
+
+(defun ecomplete-usage (l1 l2)
+  (> (car l1) (car l2)))
+
+(defun ecomplete-newness (l1 l2)
+  (> (cadr l1) (cadr l2)))
+
+(defun ecomplete-decay (l1 l2)
+  (> (ecomplete-decay-1 l1) (ecomplete-decay-1 l2)))
+
+(defun ecomplete-decay-1 (elem)
+  ;; We subtract 5% from the item for each week it hasn't been used.
+  (/ (car elem)
+     (expt 1.05 (/ (float-time (time-since (cadr elem)))
+                   (* 7 24 60 60)))))
+
+;; `ecomplete-get-matches' uses substring matching, so also use the `substring'
+;; style by default.
+(add-to-list 'completion-category-defaults
+             '(ecomplete (styles basic substring)))
+
+(defun ecomplete-completion-table (type)
+  "Return a completion-table suitable for TYPE."
+  (lambda (string pred action)
+    (pcase action
+      (`(boundaries . ,_) nil)
+      ('metadata `(metadata (category . ecomplete)
+                            (display-sort-function . ,#'identity)
+                            (cycle-sort-function . ,#'identity)))
+      (_
+       (let* ((elems (cdr (assq type ecomplete-database)))
+	      (candidates
+	       (mapcar (lambda (x) (nth 2 x))
+                       (sort
+	                (cl-loop for x in elems
+		                 when (string-prefix-p string (nth 3 x)
+                                                       completion-ignore-case)
+		                 collect (cdr x))
+                        ecomplete-sort-predicate))))
+         (complete-with-action action candidates string pred))))))
 
 (provide 'ecomplete)
 

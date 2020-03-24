@@ -1,6 +1,6 @@
 ;;; map-ynp.el --- general-purpose boolean question-asker  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1991-1995, 2000-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1991-1995, 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Roland McGrath <roland@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -192,34 +192,30 @@ Returns the number of actions taken."
 				  (funcall actor elt)
 				  (setq actions (1+ actions))))))
 			 ((eq def 'help)
-			  (with-output-to-temp-buffer "*Help*"
+                          (with-help-window (help-buffer)
 			    (princ
-			     (let ((object (if help (nth 0 help) "object"))
-				   (objects (if help (nth 1 help) "objects"))
-				   (action (if help (nth 2 help) "act on")))
+                             (let ((object  (or (nth 0 help) "object"))
+                                   (objects (or (nth 1 help) "objects"))
+                                   (action  (or (nth 2 help) "act on")))
 			       (concat
-				(format-message "\
+                                (format-message
+                                 "\
 Type SPC or `y' to %s the current %s;
 DEL or `n' to skip the current %s;
-RET or `q' to give up on the %s (skip all remaining %s);
+RET or `q' to skip the current and all remaining %s;
 C-g to quit (cancel the whole command);
 ! to %s all remaining %s;\n"
-					action object object action objects action
-					objects)
-				(mapconcat (function
-					    (lambda (elt)
-					      (format "%s to %s"
-						      (single-key-description
-						       (nth 0 elt))
-						      (nth 2 elt))))
+                                 action object object objects action objects)
+                                (mapconcat (lambda (elt)
+                                             (format "%s to %s;\n"
+                                                     (single-key-description
+                                                      (nth 0 elt))
+                                                     (nth 2 elt)))
 					   action-alist
-					   ";\n")
-				(if action-alist ";\n")
-				(format "or . (period) to %s \
-the current %s and exit."
-					action object))))
-			    (with-current-buffer standard-output
-			      (help-mode)))
+                                           "")
+                                (format
+                                 "or . (period) to %s the current %s and exit."
+                                 action object)))))
 
 			  (funcall try-again))
 			 ((and (symbolp def) (commandp def))
@@ -291,6 +287,10 @@ where
   SHORT-ANSWER is an abbreviated one-character answer,
   HELP-MESSAGE is a string describing the meaning of the answer.
 
+SHORT-ANSWER is not necessarily a single character answer.  It can be
+also a function key like F1, a character event such as C-M-h, or
+a control character like C-h.
+
 Example:
   \\='((\"yes\"  ?y \"perform the action\")
     (\"no\"   ?n \"skip to the next\")
@@ -316,14 +316,18 @@ When `use-dialog-box' is t, pop up a dialog window to get user input."
           (format "%s(%s) " question
                   (mapconcat (lambda (a)
                                (if short
-                                   (format "%c" (nth 1 a))
+                                   (if (characterp (nth 1 a))
+                                       (format "%c" (nth 1 a))
+                                     (key-description (nth 1 a)))
                                  (nth 0 a)))
                              answers-with-help ", ")))
          (message
           (format "Please answer %s."
                   (mapconcat (lambda (a)
                                (format "`%s'" (if short
-                                                  (string (nth 1 a))
+                                                  (if (characterp (nth 1 a))
+                                                      (string (nth 1 a))
+                                                    (key-description (nth 1 a)))
                                                 (nth 0 a))))
                              answers-with-help " or ")))
          (short-answer-map
@@ -333,7 +337,9 @@ When `use-dialog-box' is t, pop up a dialog window to get user input."
                          (let ((map (make-sparse-keymap)))
                            (set-keymap-parent map minibuffer-local-map)
                            (dolist (a answers-with-help)
-                             (define-key map (vector (nth 1 a))
+                             (define-key map (if (characterp (nth 1 a))
+                                                 (vector (nth 1 a))
+                                               (nth 1 a))
                                (lambda ()
                                  (interactive)
                                  (delete-minibuffer-contents)
@@ -345,7 +351,7 @@ When `use-dialog-box' is t, pop up a dialog window to get user input."
                                (delete-minibuffer-contents)
                                (beep)
                                (message message)
-                               (sleep-for 2)))
+                               (sit-for 2)))
                            map)
                          read-answer-map--memoize))))
          answer)
@@ -365,7 +371,7 @@ When `use-dialog-box' is t, pop up a dialog window to get user input."
                                       (short
                                        (read-from-minibuffer
                                         prompt nil short-answer-map nil
-                                        'yes-or-no-p-history))
+                                        'read-char-history))
                                       (t
                                        (read-from-minibuffer
                                         prompt nil nil nil
@@ -378,14 +384,17 @@ When `use-dialog-box' is t, pop up a dialog window to get user input."
                       (mapconcat
                        (lambda (a)
                          (format "`%s'%s to %s"
-                                 (if short (string (nth 1 a)) (nth 0 a))
+                                 (if short (if (characterp (nth 1 a))
+                                               (string (nth 1 a))
+                                             (key-description (nth 1 a)))
+                                   (nth 0 a))
                                  (if short (format " (%s)" (nth 0 a)) "")
                                  (nth 2 a)))
                        answers-with-help ",\n")
                       ".\n")))
         (beep)
         (message message)
-        (sleep-for 2)))
+        (sit-for 2)))
     answer))
 
 ;;; map-ynp.el ends here

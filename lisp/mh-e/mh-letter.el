@@ -1,10 +1,9 @@
 ;;; mh-letter.el --- MH-Letter mode
 
-;; Copyright (C) 1993, 1995, 1997, 2000-2019 Free Software Foundation,
+;; Copyright (C) 1993, 1995, 1997, 2000-2020 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Bill Wohler <wohler@newt.com>
-;; Maintainer: Bill Wohler <wohler@newt.com>
 ;; Keywords: mail
 ;; See: mh-e.el
 
@@ -59,17 +58,6 @@
     (reply-to . mh-alias-letter-expand-alias)
     (to . mh-alias-letter-expand-alias))
   "Alist of header fields and completion functions to use.")
-
-(defvar mh-yank-hooks nil
-  "Obsolete hook for modifying a citation just inserted in the mail buffer.
-
-Each hook function can find the citation between point and mark.
-And each hook function should leave point and mark around the
-citation text as modified.
-
-This is a normal hook, misnamed for historical reasons.
-It is obsolete and is only used if `mail-citation-hook' is nil.")
-(mh-make-obsolete-variable 'mh-yank-hooks 'mail-citation-hook "19.34")
 
 
 
@@ -964,7 +952,7 @@ callable from a mouse button."
 (defun mh-insert-prefix-string (mh-ins-string)
   "Insert prefix string before each line in buffer.
 The inserted letter is cited using `sc-cite-original' if
-`mh-yank-behavior' is one of 'supercite or 'autosupercite.
+`mh-yank-behavior' is one of `supercite' or `autosupercite'.
 Otherwise, simply insert MH-INS-STRING before each line."
   (goto-char (point-min))
   (cond ((or (eq mh-yank-behavior 'supercite)
@@ -972,8 +960,6 @@ Otherwise, simply insert MH-INS-STRING before each line."
          (sc-cite-original))
         (mail-citation-hook
          (run-hooks 'mail-citation-hook))
-        (mh-yank-hooks                  ;old hook name
-         (run-hooks 'mh-yank-hooks))
         (t
          (or (bolp) (forward-line 1))
          (while (< (point) (point-max))

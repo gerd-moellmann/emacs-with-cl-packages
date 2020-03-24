@@ -1,6 +1,6 @@
 ;;; semantic-utest.el --- Miscellaneous Semantic tests.
 
-;;; Copyright (C) 2003-2004, 2007-2019 Free Software Foundation, Inc.
+;;; Copyright (C) 2003-2004, 2007-2020 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -178,9 +178,8 @@ Optional argument ARG specifies not to use color."
   "Test `semantic-idle-scheduler-work-parse-neighboring-files' and time it."
   (interactive)
   (let ((start (current-time))
-	(junk (semantic-idle-scheduler-work-parse-neighboring-files))
-	(end (current-time)))
-    (message "Work took %.2f seconds." (semantic-elapsed-time start end))))
+	(junk (semantic-idle-scheduler-work-parse-neighboring-files)))
+    (message "Work took %.2f seconds." (semantic-elapsed-time start nil))))
 
 ;;; From semantic-lex:
 
@@ -195,10 +194,9 @@ If universal argument ARG, then try the whole buffer."
 	 (result (semantic-lex
 		  (if arg (point-min) (point))
 		  (point-max)
-		  100))
-	 (end (current-time)))
+		  100)))
     (message "Elapsed Time: %.2f seconds."
-	     (semantic-elapsed-time start end))
+	     (semantic-elapsed-time start nil))
     (pop-to-buffer "*Lexer Output*")
     (require 'pp)
     (erase-buffer)
@@ -230,13 +228,16 @@ Analyze the area between BEG and END."
 (defun semantic-lex-spp-write-utest ()
   "Unit test using the test spp file to test the slot write fcn."
   (interactive)
-  (let* ((sem (locate-library "semantic-lex-spp.el"))
-	 (dir (file-name-directory sem)))
-    (save-excursion
-      (set-buffer (find-file-noselect
-		   (expand-file-name "tests/testsppreplace.c"
-				     dir)))
-      (semantic-lex-spp-write-test))))
+  (save-excursion
+    (let ((buff (find-file-noselect
+		 (expand-file-name "tests/testsppreplace.c"
+				   cedet-utest-directory))))
+      (set-buffer buff)
+      (semantic-lex-spp-write-test)
+      (kill-buffer buff)
+      (when (not (interactive-p))
+        (kill-buffer "*SPP Write Test*"))
+      )))
 
 ;;; From semantic-tag-write:
 
@@ -278,7 +279,7 @@ tag that contains point, and return that."
       (when (interactive-p)
 	(message "Found %d occurrences of %s in %.2f seconds"
 		 Lcount (semantic-tag-name target)
-		 (semantic-elapsed-time start (current-time))))
+		 (semantic-elapsed-time start nil)))
       Lcount)))
 
 ;;; From bovine-gcc:

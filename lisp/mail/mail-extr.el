@@ -1,6 +1,6 @@
 ;;; mail-extr.el --- extract full name and address from email header
 
-;; Copyright (C) 1991-1994, 1997, 2001-2019 Free Software Foundation,
+;; Copyright (C) 1991-1994, 1997, 2001-2020 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Joe Wells <jbw@cs.bu.edu>
@@ -293,7 +293,7 @@ by translating things like \"foo!bar!baz@host\" into \"baz@bar.UUCP\"."
 ;; multipart names.
 ;; #### should . be in here?
 (defconst mail-extr-all-letters
-  (purecopy (concat mail-extr-all-letters-but-separators "---")))
+  (purecopy (concat mail-extr-all-letters-but-separators "-")))
 
 ;; Any character that can start a name.
 ;; Keep this set as minimal as possible.
@@ -305,18 +305,10 @@ by translating things like \"foo!bar!baz@host\" into \"baz@bar.UUCP\"."
 
 (defconst mail-extr-leading-garbage "\\W+")
 
-;; (defconst mail-extr-non-name-chars
-;;   (purecopy (concat "^" mail-extr-all-letters ".")))
 ;; (defconst mail-extr-non-begin-name-chars
 ;;   (purecopy (concat "^" mail-extr-first-letters)))
 ;; (defconst mail-extr-non-end-name-chars
 ;;   (purecopy (concat "^" mail-extr-last-letters)))
-
-;; Matches an initial not followed by both a period and a space.
-;; (defconst mail-extr-bad-initials-pattern
-;;   (purecopy
-;;    (format "\\(\\([^%s]\\|\\`\\)[%s]\\)\\(\\.\\([^ ]\\)\\| \\|\\([^%s .]\\)\\|\\'\\)"
-;;            mail-extr-all-letters mail-extr-first-letters mail-extr-all-letters)))
 
 ;; Matches periods used instead of spaces.  Must not match the period
 ;; following an initial.
@@ -391,7 +383,7 @@ by translating things like \"foo!bar!baz@host\" into \"baz@bar.UUCP\"."
 ;; Matches telephone extensions.
 (defconst mail-extr-telephone-extension-pattern
   (purecopy
-   "\\(\\([Ee]xt\\|\\|[Tt]ph\\|[Tt]el\\|[Xx]\\).?\\)? *\\+?[0-9][- 0-9]+"))
+   "\\(\\([Ee]xt\\|[Tt]ph\\|[Tt]el\\|[Xx]\\)\\.?\\)? *\\+?[0-9][- 0-9]+"))
 
 ;; Matches ham radio call signs.
 ;; Help from: Mat Maessen N2NJZ <maessm@rpi.edu>, Mark Feit
@@ -654,7 +646,7 @@ Unless NO-REPLACE is true, at each of the positions in LIST-SYMBOL
 		   (< ch ,beg-symbol))
 	   ,@(if no-replace
 		   nil
-		 `((mail-extr-nuke-char-at ch)))
+	       '((mail-extr-nuke-char-at ch)))
 	   (setcar temp nil))
 	 (setq temp (cdr temp)))
        (setq ,list-symbol (delq nil ,list-symbol))))
@@ -715,7 +707,13 @@ one recipients, all but the first is ignored.
 ADDRESS may be a string or a buffer.  If it is a buffer, the visible
 \(narrowed) portion of the buffer will be interpreted as the address.
 \(This feature exists so that the clever caller might be able to avoid
-consing a string.)"
+consing a string.)
+
+This function is primarily meant for when you're displaying the
+result to the user: Many prettifications are applied to the
+result returned.  If you want to decode an address for further
+non-display use, you should probably use
+`mail-header-parse-address' instead."
   (let ((canonicalization-buffer (get-buffer-create " *canonical address*"))
 	(extraction-buffer (get-buffer-create " *extract address components*"))
 	value-list)

@@ -1,6 +1,6 @@
 ;;; reftex-ref.el --- code to create labels and references with RefTeX
 
-;; Copyright (C) 1997-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2020 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -308,13 +308,13 @@ also applies `reftex-translate-to-ascii-function' to the string."
   ;; Replace %escapes in a label prefix
   (save-match-data
     (let (letter (num 0) replace)
-      (while (string-match "\\%\\([a-zA-Z]\\)" prefix num)
+      (while (string-match "%\\([a-zA-Z]\\)" prefix num)
         (setq letter (match-string 1 prefix))
         (setq replace
               (save-match-data
                 (cond
                  ((equal letter "f")
-                  (file-name-base))
+                  (file-name-base (buffer-file-name)))
                  ((equal letter "F")
                   (let ((masterdir (file-name-directory (reftex-TeX-master-file)))
                         (file (file-name-sans-extension (buffer-file-name))))
@@ -841,7 +841,8 @@ Replace any occurrences of \"\\ref\" with REFSTYLE."
   ;; Replace instances of \ref in `fmt' with the special reference
   ;; style selected by the user.
   (cond
-   ((while (string-match "\\(\\\\ref\\)[ \t]*{" fmt)
+   ((while (let ((case-fold-search nil))
+             (string-match "\\(\\\\ref\\)[ \t]*{" fmt))
       (setq fmt (replace-match refstyle t t fmt 1))))
    ((string-match "\\(\\\\[[:alpha:]]+\\)[ \t]*{" fmt)
     (setq fmt (replace-match refstyle t t fmt 1))))

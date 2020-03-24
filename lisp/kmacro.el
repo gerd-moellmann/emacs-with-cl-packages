@@ -1,6 +1,6 @@
 ;;; kmacro.el --- enhanced keyboard macros -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2020 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Keywords: keyboard convenience
@@ -112,6 +112,7 @@
 
 ;; Customization:
 (require 'replace)
+(require 'cl-lib)
 
 (defgroup kmacro nil
   "Simplified keyboard macro user interface."
@@ -124,13 +125,11 @@
 (defcustom kmacro-call-mouse-event 'S-mouse-3
   "The mouse event used by kmacro to call a macro.
 Set to nil if no mouse binding is desired."
-  :type 'symbol
-  :group 'kmacro)
+  :type 'symbol)
 
 (defcustom kmacro-ring-max 8
   "Maximum number of keyboard macros to save in macro ring."
-  :type 'integer
-  :group 'kmacro)
+  :type 'integer)
 
 
 (defcustom kmacro-execute-before-append t
@@ -141,32 +140,27 @@ execute the macro.
 Otherwise, a single \\[universal-argument] prefix does not execute the
 macro, while more than one \\[universal-argument] prefix causes the
 macro to be executed before appending to it."
-  :type 'boolean
-  :group 'kmacro)
+  :type 'boolean)
 
 
 (defcustom kmacro-repeat-no-prefix t
   "Allow repeating certain macro commands without entering the C-x C-k prefix."
-  :type 'boolean
-  :group 'kmacro)
+  :type 'boolean)
 
 (defcustom kmacro-call-repeat-key t
   "Allow repeating macro call using last key or a specific key."
   :type '(choice (const :tag "Disabled" nil)
 		 (const :tag "Last key" t)
 		 (character :tag "Character" :value ?e)
-		 (symbol :tag "Key symbol" :value RET))
-  :group 'kmacro)
+		 (symbol :tag "Key symbol" :value RET)))
 
 (defcustom kmacro-call-repeat-with-arg nil
   "Repeat macro call with original arg when non-nil; repeat once if nil."
-  :type 'boolean
-  :group 'kmacro)
+  :type 'boolean)
 
 (defcustom kmacro-step-edit-mini-window-height 0.75
   "Override `max-mini-window-height' when step edit keyboard macro."
-  :type 'number
-  :group 'kmacro)
+  :type 'number)
 
 ;; Keymap
 
@@ -271,7 +265,7 @@ the last increment."
   (if kmacro-initial-counter-value
       (setq kmacro-counter kmacro-initial-counter-value
 	    kmacro-initial-counter-value nil))
-  (if (and arg (listp arg))
+  (if (consp arg)
       (insert (format kmacro-counter-format kmacro-last-counter))
     (insert (format kmacro-counter-format kmacro-counter))
     (kmacro-add-counter (prefix-numeric-value arg))))
@@ -290,8 +284,8 @@ the last increment."
 (defun kmacro-display-counter (&optional value)
   "Display current counter value."
   (unless value (setq value kmacro-counter))
-  (message "New macro counter value: %s (%d)" (format kmacro-counter-format value) value))
-
+  (message "New macro counter value: %s (%d)"
+           (format kmacro-counter-format value) value))
 
 (defun kmacro-set-counter (arg)
   "Set the value of `kmacro-counter' to ARG, or prompt for value if no argument.
@@ -783,6 +777,7 @@ If kbd macro currently being defined end it before activating it."
 ;; letters and digits, provided that we inhibit the keymap while
 ;; executing the macro later on (but that's controversial...)
 
+;;;###autoload
 (defun kmacro-lambda-form (mac &optional counter format)
   "Create lambda form for macro bound to symbol or key."
   (if counter
@@ -794,18 +789,17 @@ If kbd macro currently being defined end it before activating it."
 
 (defun kmacro-extract-lambda (mac)
   "Extract kmacro from a kmacro lambda form."
-  (and (consp mac)
-       (eq (car mac) 'lambda)
+  (and (eq (car-safe mac) 'lambda)
        (setq mac (assoc 'kmacro-exec-ring-item mac))
-       (consp (cdr mac))
-       (consp (car (cdr mac)))
-       (consp (cdr (car (cdr mac))))
-       (setq mac (car (cdr (car (cdr mac)))))
+       (setq mac (car-safe (cdr-safe (car-safe (cdr-safe mac)))))
        (listp mac)
        (= (length mac) 3)
        (arrayp (car mac))
        mac))
 
+
+(defalias 'kmacro-p #'kmacro-extract-lambda
+  "Return non-nil if MAC is a kmacro keyboard macro.")
 
 (defun kmacro-bind-to-key (_arg)
   "When not defining or executing a macro, offer to bind last macro to a key.
@@ -835,7 +829,7 @@ The ARG parameter is unused."
 		       (and (>= ch ?A) (<= ch ?Z))))
 	      (setq key-seq (concat "\C-x\C-k" key-seq)
 		    ok t))))
-      (when (and (not (equal key-seq ""))
+      (when (and (not (equal key-seq "\^G"))
 		 (or ok
 		     (not (setq cmd (key-binding key-seq)))
 		     (stringp cmd)
@@ -847,6 +841,13 @@ The ARG parameter is unused."
 	  (kmacro-lambda-form (kmacro-ring-head)))
 	(message "Keyboard macro bound to %s" (format-kbd-macro key-seq))))))
 
+(defun kmacro-keyboard-macro-p (symbol)
+  "Return non-nil if SYMBOL is the name of some sort of keyboard macro."
+  (let ((f (symbol-function symbol)))
+    (when f
+      (or (stringp f)
+	  (vectorp f)
+	  (kmacro-p f)))))
 
 (defun kmacro-name-last-macro (symbol)
   "Assign a name to the last keyboard macro defined.
@@ -857,19 +858,35 @@ Such a \"function\" cannot be called from Lisp, but it is a valid editor command
   (or last-kbd-macro
       (error "No keyboard macro defined"))
   (and (fboundp symbol)
-       (not (get symbol 'kmacro))
-       (not (stringp (symbol-function symbol)))
-       (not (vectorp (symbol-function symbol)))
+       (not (kmacro-keyboard-macro-p symbol))
        (error "Function %s is already defined and not a keyboard macro"
 	      symbol))
   (if (string-equal symbol "")
       (error "No command name given"))
+  ;; FIXME: Use plain old `last-kbd-macro' for kmacros where it doesn't
+  ;; make a difference?
   (fset symbol (kmacro-lambda-form (kmacro-ring-head)))
+  ;; This used to be used to detect when a symbol corresponds to a kmacro.
+  ;; Nowadays it's unused because we used `kmacro-p' instead to see if the
+  ;; symbol's function definition matches that of a kmacro, which is more
+  ;; reliable.
   (put symbol 'kmacro t))
 
 
-(defun kmacro-execute-from-register (k)
-  (kmacro-call-macro current-prefix-arg nil nil k))
+(cl-defstruct (kmacro-register
+               (:constructor nil)
+               (:constructor kmacro-make-register (macro)))
+  macro)
+
+(cl-defmethod register-val-jump-to ((data kmacro-register) _arg)
+  (kmacro-call-macro current-prefix-arg nil nil (kmacro-register-macro data)))
+
+(cl-defmethod register-val-describe ((data kmacro-register) _verbose)
+  (princ (format "a keyboard macro:\n   %s"
+		 (format-kbd-macro (kmacro-register-macro data)))))
+
+(cl-defmethod register-val-insert ((data kmacro-register))
+  (insert (format-kbd-macro (kmacro-register-macro data))))
 
 (defun kmacro-to-register (r)
   "Store the last keyboard macro in register R.
@@ -879,14 +896,7 @@ Interactively, reads the register using `register-read-with-preview'."
    (progn
      (or last-kbd-macro (error "No keyboard macro defined"))
      (list (register-read-with-preview "Save to register: "))))
-  (set-register r (registerv-make
-		   last-kbd-macro
-		   :jump-func 'kmacro-execute-from-register
-		   :print-func (lambda (k)
-				 (princ (format "a keyboard macro:\n   %s"
-						(format-kbd-macro k))))
-		   :insert-func (lambda (k)
-				  (insert (format-kbd-macro k))))))
+  (set-register r (kmacro-make-register last-kbd-macro)))
 
 
 (defun kmacro-view-macro (&optional _arg)
@@ -1223,7 +1233,7 @@ following additional answers: `insert', `insert-1', `replace', `replace-1',
     (setq kmacro-step-edit-key-index next-index)))
 
 (defun kmacro-step-edit-pre-command ()
-  (remove-hook 'post-command-hook 'kmacro-step-edit-post-command)
+  (remove-hook 'post-command-hook #'kmacro-step-edit-post-command)
   (when kmacro-step-edit-active
     (cond
      ((eq kmacro-step-edit-active 'ignore)
@@ -1243,17 +1253,17 @@ following additional answers: `insert', `insert-1', `replace', `replace-1',
 	  (setq kmacro-step-edit-appending nil
 		kmacro-step-edit-active 'ignore)))))
   (when (eq kmacro-step-edit-active t)
-    (add-hook 'post-command-hook 'kmacro-step-edit-post-command t)))
+    (add-hook 'post-command-hook #'kmacro-step-edit-post-command t)))
 
 (defun kmacro-step-edit-minibuf-setup ()
-  (remove-hook 'pre-command-hook 'kmacro-step-edit-pre-command t)
+  (remove-hook 'pre-command-hook #'kmacro-step-edit-pre-command t)
   (when kmacro-step-edit-active
-    (add-hook 'pre-command-hook 'kmacro-step-edit-pre-command nil t)))
+    (add-hook 'pre-command-hook #'kmacro-step-edit-pre-command nil t)))
 
 (defun kmacro-step-edit-post-command ()
-  (remove-hook 'pre-command-hook 'kmacro-step-edit-pre-command)
+  (remove-hook 'pre-command-hook #'kmacro-step-edit-pre-command)
   (when kmacro-step-edit-active
-    (add-hook 'pre-command-hook 'kmacro-step-edit-pre-command nil nil)
+    (add-hook 'pre-command-hook #'kmacro-step-edit-pre-command nil nil)
     (if kmacro-step-edit-key-index
 	(setq executing-kbd-macro-index kmacro-step-edit-key-index)
       (setq kmacro-step-edit-key-index executing-kbd-macro-index))))
@@ -1276,9 +1286,9 @@ To customize possible responses, change the \"bindings\" in `kmacro-step-edit-ma
 	(pre-command-hook pre-command-hook)
 	(post-command-hook post-command-hook)
 	(minibuffer-setup-hook minibuffer-setup-hook))
-    (add-hook 'pre-command-hook 'kmacro-step-edit-pre-command nil)
-    (add-hook 'post-command-hook 'kmacro-step-edit-post-command t)
-    (add-hook 'minibuffer-setup-hook 'kmacro-step-edit-minibuf-setup t)
+    (add-hook 'pre-command-hook #'kmacro-step-edit-pre-command nil)
+    (add-hook 'post-command-hook #'kmacro-step-edit-post-command t)
+    (add-hook 'minibuffer-setup-hook #'kmacro-step-edit-minibuf-setup t)
     (call-last-kbd-macro nil nil)
     (when (and kmacro-step-edit-replace
 	       kmacro-step-edit-new-macro

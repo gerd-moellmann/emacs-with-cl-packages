@@ -1,6 +1,6 @@
-;;; macros.el --- non-primitive commands for keyboard macros
+;;; macros.el --- non-primitive commands for keyboard macros -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994-1995, 2001-2019 Free Software
+;; Copyright (C) 1985-1987, 1992, 1994-1995, 2001-2020 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -31,23 +31,20 @@
 
 ;;; Code:
 
+(require 'kmacro)
+
 ;;;###autoload
-(defun name-last-kbd-macro (symbol)
-  "Assign a name to the last keyboard macro defined.
-Argument SYMBOL is the name to define.
-The symbol's function definition becomes the keyboard macro string.
-Such a \"function\" cannot be called from Lisp, but it is a valid editor command."
-  (interactive "SName for last kbd macro: ")
-  (or last-kbd-macro
-      (user-error "No keyboard macro defined"))
-  (and (fboundp symbol)
-       (not (stringp (symbol-function symbol)))
-       (not (vectorp (symbol-function symbol)))
-       (user-error "Function %s is already defined and not a keyboard macro"
-	      symbol))
-  (if (string-equal symbol "")
-      (user-error "No command name given"))
-  (fset symbol last-kbd-macro))
+(defalias 'name-last-kbd-macro #'kmacro-name-last-macro)
+
+(defun macros--insert-vector-macro (definition)
+  "Print DEFINITION, a vector, into the current buffer."
+  (insert ?\[
+          (mapconcat (lambda (event)
+                       (or (prin1-char event)
+                           (prin1-to-string event)))
+                     definition
+                     " ")
+          ?\]))
 
 ;;;###autoload
 (defun insert-kbd-macro (macroname &optional keys)
@@ -66,11 +63,7 @@ To save a kbd macro, visit a file of Lisp code such as your `~/.emacs',
 use this command, and then save the file."
   (interactive (list (intern (completing-read "Insert kbd macro (name): "
 					      obarray
-					      (lambda (elt)
-						(and (fboundp elt)
-						     (or (stringp (symbol-function elt))
-							 (vectorp (symbol-function elt))
-							 (get elt 'kmacro))))
+                                              #'kmacro-keyboard-macro-p
 					      t))
 		     current-prefix-arg))
   (let (definition)
@@ -128,16 +121,17 @@ use this command, and then save the file."
 		     (delete-region (point) (1+ (point)))
 		     (insert "\\M-\\C-?"))))))
       (if (vectorp definition)
-	  (let ((len (length definition)) (i 0) char)
-	    (while (< i len)
-	      (insert (if (zerop i) ?\[ ?\s))
-	      (setq char (aref definition i)
-		    i (1+ i))
-	      (if (not (numberp char))
-                  (prin1 char (current-buffer))
-                (princ (prin1-char char) (current-buffer))))
-	    (insert ?\]))
-	(prin1 definition (current-buffer))))
+          (macros--insert-vector-macro definition)
+        (pcase (kmacro-extract-lambda definition)
+          (`(,vecdef ,counter ,format)
+           (insert "(kmacro-lambda-form ")
+           (macros--insert-vector-macro vecdef)
+           (insert " ")
+           (prin1 counter (current-buffer))
+           (insert " ")
+           (prin1 format (current-buffer))
+           (insert ")"))
+          (_ (prin1 definition (current-buffer))))))
     (insert ")\n")
     (if keys
         (let ((keys (or (where-is-internal (symbol-function macroname)

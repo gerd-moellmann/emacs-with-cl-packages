@@ -678,7 +678,7 @@ typedef NSInteger NSGlyphProperty;
 @end
 
 @interface NSColor (Emacs)
-+ (NSColor *)colorWithXColorPixel:(unsigned long)pixel;
++ (NSColor *)colorWithEmacsColorPixel:(unsigned long)pixel;
 - (CGColorRef)copyCGColor;
 @end
 
@@ -1342,8 +1342,9 @@ typedef NSInteger NSGlyphProperty;
 #endif
 
 @interface NSView (Emacs)
-- (XImagePtr)createXImageFromRect:(NSRect)rect backgroundColor:(NSColor *)color
-		      scaleFactor:(CGFloat)scaleFactor;
+- (Emacs_Pix_Container)createXImageFromRect:(NSRect)rect
+			    backgroundColor:(NSColor *)color
+				scaleFactor:(CGFloat)scaleFactor;
 @end
 
 /* Class for SVG frame load delegate.  */

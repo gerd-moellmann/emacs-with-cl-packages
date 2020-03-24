@@ -1,6 +1,6 @@
 ;;; em-prompt.el --- command prompts  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -80,7 +80,6 @@ re-entered for it to take effect."
 For highlighting other kinds of strings -- similar to shell mode's
 behavior -- simply use an output filer which changes text properties."
   :group 'eshell-prompt)
-(define-obsolete-face-alias 'eshell-prompt-face 'eshell-prompt "22.1")
 
 (defcustom eshell-before-prompt-hook nil
   "A list of functions to call before outputting the prompt."
@@ -98,9 +97,21 @@ arriving, or after."
   :options '(eshell-show-maximum-output)
   :group 'eshell-prompt)
 
+(defvar eshell-prompt-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-n") #'eshell-next-prompt)
+    (define-key map (kbd "C-c C-p") #'eshell-previous-prompt)
+    map))
+
 ;;; Functions:
 
-(defun eshell-prompt-initialize ()
+(define-minor-mode eshell-prompt-mode
+  "Minor mode for eshell-prompt module.
+
+\\{eshell-prompt-mode-map}"
+  :keymap eshell-prompt-mode-map)
+
+(defun eshell-prompt-initialize ()  ;Called from `eshell-mode' via intern-soft!
   "Initialize the prompting code."
   (unless eshell-non-interactive-p
     (add-hook 'eshell-post-command-hook 'eshell-emit-prompt nil t)
@@ -111,9 +122,7 @@ arriving, or after."
 
     (set (make-local-variable 'eshell-skip-prompt-function)
 	 'eshell-skip-prompt)
-
-    (define-key eshell-command-map [(control ?n)] 'eshell-next-prompt)
-    (define-key eshell-command-map [(control ?p)] 'eshell-previous-prompt)))
+    (eshell-prompt-mode)))
 
 (defun eshell-emit-prompt ()
   "Emit a prompt if eshell is being used interactively."
@@ -178,7 +187,7 @@ See `eshell-prompt-regexp'."
   "Move to end of Nth previous prompt in the buffer.
 See `eshell-prompt-regexp'."
   (interactive "p")
-  (beginning-of-line)            ; Don't count prompt on current line.
+  (forward-line 0)            ; Don't count prompt on current line.
   (eshell-next-prompt (- n)))
 
 (defun eshell-skip-prompt ()

@@ -1,6 +1,6 @@
 ;;; perl-mode.el --- Perl code editing commands for GNU Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990, 1994, 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1990, 1994, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: William F. Mann
 ;; Maintainer: emacs-devel@gnu.org
@@ -87,6 +87,8 @@
 
 ;;; Code:
 
+(eval-when-compile (require 'cl-lib))
+
 (defgroup perl nil
   "Major mode for editing Perl code."
   :link '(custom-group-link :tag "Font Lock Faces group" font-lock-faces)
@@ -135,7 +137,7 @@
   '(;; Functions
     (nil "^[ \t]*sub\\s-+\\([-[:alnum:]+_:]+\\)" 1)
     ;;Variables
-    ("Variables" "^\\(?:my\\|our\\)\\s-+\\([$@%][-[:alnum:]+_:]+\\)\\s-*=" 1)
+    ("Variables" "^[ \t]*\\(?:anon\\|argument\\|has\\|local\\|my\\|our\\|state\\|supersede\\)\\s-+\\([$@%][-[:alnum:]+_:]+\\)\\s-*=" 1)
     ("Packages" "^[ \t]*package\\s-+\\([-[:alnum:]+_:]+\\);" 1)
     ("Doc sections" "^=head[0-9][ \t]+\\(.*\\)" 1))
   "Imenu generic expression for Perl mode.  See `imenu-generic-expression'.")
@@ -165,7 +167,7 @@
     ;; Fontify function and package names in declarations.
     ("\\<\\(package\\|sub\\)\\>[ \t]*\\(\\sw+\\)?"
      (1 font-lock-keyword-face) (2 font-lock-function-name-face nil t))
-    ("\\<\\(import\\|no\\|require\\|use\\)\\>[ \t]*\\(\\sw+\\)?"
+    ("\\(^\\|[^$@%&\\]\\)\\<\\(import\\|no\\|require\\|use\\)\\>[ \t]*\\(\\sw+\\)?"
      (1 font-lock-keyword-face) (2 font-lock-constant-face nil t)))
   "Subdued level highlighting for Perl mode.")
 
@@ -179,8 +181,9 @@
                             "BEGIN" "END" "return" "exec" "eval") t)
               "\\>")
      ;;
-     ;; Fontify local and my keywords as types.
-     ("\\<\\(local\\|my\\)\\>" . font-lock-type-face)
+     ;; Fontify declarators and prefixes as types.
+     ("\\<\\(anon\\|argument\\|has\\|local\\|my\\|our\\|state\\|supersede\\)\\>" . font-lock-type-face) ; declarators
+     ("\\<\\(let\\|temp\\)\\>" . font-lock-type-face) ; prefixes
      ;;
      ;; Fontify function, variable and file name references.
      ("&\\(\\sw+\\(::\\sw+\\)*\\)" 1 font-lock-function-name-face)
@@ -320,8 +323,8 @@
               (cons (car (string-to-syntax "< c"))
                     ;; Remember the names of heredocs found on this line.
                     (cons (cons (pcase (aref name 0)
-                                  (`?\\ (substring name 1))
-                                  ((or `?\" `?\' `?\`) (substring name 1 -1))
+                                  (?\\ (substring name 1))
+                                  ((or ?\" ?\' ?\`) (substring name 1 -1))
                                   (_ name))
                                 indented)
                           (cdr st)))))))
@@ -497,7 +500,7 @@
   "Indentation of Perl statements with respect to containing block."
   :type 'integer)
 
-;; Is is not unusual to put both things like perl-indent-level and
+;; It is not unusual to put both things like perl-indent-level and
 ;; cperl-indent-level in the local variable section of a file. If only
 ;; one of perl-mode and cperl-mode is in use, a warning will be issued
 ;; about the variable. Autoload these here, so that no warning is
@@ -744,8 +747,6 @@ Turning on Perl mode runs the normal hook `perl-mode-hook'."
       0					;Existing comment at bol stays there.
     comment-column))
 
-(define-obsolete-function-alias 'electric-perl-terminator
-  'perl-electric-terminator "22.1")
 (defun perl-electric-noindent-p (_char)
   ;; To reproduce the old behavior, ;, {, }, and : are made electric, but
   ;; we only want them to be electric at EOL.
@@ -934,15 +935,24 @@ changed by, or (parse-state) if line starts in a quoted string."
 In usual case returns an integer: the column to indent to.
 Returns (parse-state) if line starts inside a string."
   (save-excursion
-    (let ((indent-point (point))
-	  (case-fold-search nil)
-	  (colon-line-end 0)
-          prev-char
-	  state containing-sexp)
-      (setq containing-sexp (nth 1 (syntax-ppss indent-point)))
+    (let* ((indent-point (point))
+	   (case-fold-search nil)
+	   (colon-line-end 0)
+           prev-char
+	   (state (syntax-ppss))
+	   (containing-sexp (nth 1 state))
+	   ;; Don't auto-indent in a quoted string or a here-document.
+	   (unindentable (or (nth 3 state) (eq 2 (nth 7 state)))))
+      (when (and (eq t (nth 3 state))
+                 (save-excursion
+                   (goto-char (nth 8 state))
+                   (looking-back "qw[ \t]*" (- (point) 4))))
+        ;; qw(...) is a list of words so the spacing is not meaningful,
+        ;; and makes indentation possible (and desirable).
+        (setq unindentable nil)
+        (setq containing-sexp (nth 8 state)))
       (cond
-       ;; Don't auto-indent in a quoted string or a here-document.
-       ((or (nth 3 state) (eq 2 (nth 7 state))) 'noindent)
+       (unindentable 'noindent)
        ((null containing-sexp)          ; Line is at top level.
         (skip-chars-forward " \t\f")
         (if (memq (following-char)
@@ -964,7 +974,11 @@ Returns (parse-state) if line starts inside a string."
             ;;             arg2
             ;;         );
             (progn
-              (skip-syntax-backward "(")
+              ;; Go just before the open paren (don't rely on the
+              ;; skip-syntax-backward to jump over it, because it could
+              ;; have string-fence syntax instead!).
+              (goto-char containing-sexp)
+              (skip-syntax-backward "(") ;FIXME: Not sure if still want this.
               (condition-case nil
                   (while (save-excursion
                            (skip-syntax-backward " ") (not (bolp)))
@@ -1006,8 +1020,8 @@ Returns (parse-state) if line starts inside a string."
            ;; Skip over comments and labels following openbrace.
            (while (progn
                     (skip-chars-forward " \t\f\n")
-                    (cond ((looking-at ";?#")
-                           (forward-line 1) t)
+                    (cond ((looking-at ";?#\\|^=\\w+")
+                           (forward-comment 1) t)
                           ((looking-at "\\(\\w\\|\\s_\\)+:[^:]")
                            (setq colon-line-end (line-end-position))
                            (search-forward ":")))))

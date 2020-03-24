@@ -1,6 +1,6 @@
-;;; imap.el --- imap library
+;;; imap.el --- imap library  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 ;; Keywords: mail
@@ -135,20 +135,16 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl))
-(eval-and-compile
-  ;; For Emacs <22.2 and XEmacs.
-  (unless (fboundp 'declare-function) (defmacro declare-function (&rest _r)))
-  (autoload 'sasl-find-mechanism "sasl")
-  (autoload 'digest-md5-parse-digest-challenge "digest-md5")
-  (autoload 'digest-md5-digest-response "digest-md5")
-  (autoload 'digest-md5-digest-uri "digest-md5")
-  (autoload 'digest-md5-challenge "digest-md5")
-  (autoload 'rfc2104-hash "rfc2104")
-  (autoload 'utf7-encode "utf7")
-  (autoload 'utf7-decode "utf7")
-  (autoload 'format-spec "format-spec")
-  (autoload 'format-spec-make "format-spec"))
+(eval-when-compile (require 'cl-lib))
+(require 'format-spec)
+(require 'utf7)
+(require 'rfc2104)
+;; Hmm... digest-md5 is not part of Emacs.
+;; FIXME: Should/can we use sasl-digest.el instead?
+(declare-function digest-md5-parse-digest-challenge "ext:digest-md5")
+(declare-function digest-md5-digest-response "ext:digest-md5")
+(declare-function digest-md5-digest-uri "ext:digest-md5")
+(declare-function digest-md5-challenge "ext:digest-md5")
 
 ;; User variables.
 
@@ -458,8 +454,8 @@ sure of changing the value of `foo'."
 
 (defmacro imap-disable-multibyte ()
   "Enable multibyte in the current buffer."
-  (unless (featurep 'xemacs)
-    '(set-buffer-multibyte nil)))
+  (declare (obsolete nil "27.1"))
+  '(set-buffer-multibyte nil))
 
 (defsubst imap-utf7-encode (string)
   (if imap-use-utf7
@@ -499,7 +495,7 @@ sure of changing the value of `foo'."
 (defun imap-log (string-or-buffer)
   (when imap-log
     (with-current-buffer (get-buffer-create imap-log-buffer)
-      (imap-disable-multibyte)
+      (set-buffer-multibyte nil)
       (buffer-disable-undo)
       (goto-char (point-max))
       (if (bufferp string-or-buffer)
@@ -908,10 +904,8 @@ t if it successfully authenticates, nil otherwise."
 (declare-function sasl-step-set-data  "sasl" (step data))
 
 (defun imap-sasl-auth-p (buffer)
-  (and (condition-case ()
-	   (require 'sasl)
-	 (error nil))
-       (sasl-find-mechanism (imap-sasl-make-mechanisms buffer))))
+  (require 'sasl)
+  (sasl-find-mechanism (imap-sasl-make-mechanisms buffer)))
 
 (defun imap-sasl-auth (buffer)
   "Login to server using the SASL method."
@@ -1025,7 +1019,7 @@ necessary.  If nil, the buffer name is generated."
     (if (imap-opened buffer)
 	(imap-close buffer))
     (mapc 'make-local-variable imap-local-variables)
-    (imap-disable-multibyte)
+    (set-buffer-multibyte nil)
     (buffer-disable-undo)
     (setq imap-server (or server imap-server))
     (setq imap-port (or port imap-port))
@@ -1048,7 +1042,7 @@ necessary.  If nil, the buffer name is generated."
 		  (with-current-buffer (get-buffer-create
 					(generate-new-buffer-name " *temp*"))
 		    (mapc 'make-local-variable imap-local-variables)
-		    (imap-disable-multibyte)
+		    (set-buffer-multibyte nil)
 		    (buffer-disable-undo)
 		    (setq imap-server (or server imap-server))
 		    (setq imap-port (or port imap-port))
@@ -1676,8 +1670,9 @@ non-nil, return these properties."
   "Return t if FLAG can be permanently saved on articles.
 MAILBOX specifies a mailbox on the server in BUFFER."
   (with-current-buffer (or buffer (current-buffer))
-    (or (member "\\*" (imap-mailbox-get 'permanentflags mailbox))
-	(member flag (imap-mailbox-get 'permanentflags mailbox)))))
+    (and (or (member "\\*" (imap-mailbox-get 'permanentflags mailbox))
+	     (member flag (imap-mailbox-get 'permanentflags mailbox)))
+         t)))
 
 (defun imap-message-flags-set (articles flags &optional silent buffer)
   (when (and articles flags)
@@ -1699,18 +1694,6 @@ MAILBOX specifies a mailbox on the server in BUFFER."
       (imap-ok-p (imap-send-command-wait
 		  (concat "UID STORE " articles
 			  " +FLAGS" (if silent ".SILENT") " (" flags ")"))))))
-
-;; Cf. http://thread.gmane.org/gmane.emacs.gnus.general/65317/focus=65343
-;; Signal an error if we'd get an integer overflow.
-;;
-;; FIXME: Identify relevant calls to `string-to-number' and replace them with
-;; `imap-string-to-integer'.
-(defun imap-string-to-integer (string &optional base)
-  (let ((number (string-to-number string base)))
-    (if (> number most-positive-fixnum)
-	(error
-	 (format "String %s cannot be converted to a Lisp integer" number))
-      number)))
 
 (defun imap-fetch-safe (uids props &optional receive nouidfetch buffer)
   "Like `imap-fetch', but DTRT with Exchange 2007 bug.
@@ -1900,9 +1883,7 @@ on failure."
 		     (setq cmdstr nil)
 		     (if (not (eq (imap-wait-for-tag tag) 'INCOMPLETE))
 			 (setq command nil) ;; abort command if no cont-req
-		       (let ((process imap-process)
-			     (stream imap-stream)
-			     (eol imap-client-eol))
+		       (let ((process imap-process))
 			 (with-current-buffer cmd
 			   (imap-log cmd)
 			   (process-send-region process (point-min)
@@ -1936,18 +1917,14 @@ on failure."
 	  (unless (< len 10)
 	    (setq imap-have-messaged t)
 	    (message "imap read: %dk" len))
-	  (accept-process-output imap-process
-				 (truncate imap-read-timeout)
-				 (truncate (* (- imap-read-timeout
-						 (truncate imap-read-timeout))
-					      1000)))))
+	  (accept-process-output imap-process imap-read-timeout)))
       ;; A process can die _before_ we have processed everything it
       ;; has to say.  Moreover, this can happen in between the call to
       ;; accept-process-output and the call to process-status in an
       ;; iteration of the loop above.
       (when (and (null imap-continuation)
 		 (< imap-reached-tag tag))
-	(accept-process-output imap-process 0 0))
+	(accept-process-output imap-process 0))
       (when imap-have-messaged
 	(message ""))
       (and (memq (process-status imap-process) '(open run))
@@ -1956,7 +1933,7 @@ on failure."
 		   'INCOMPLETE
 		 'OK))))))
 
-(defun imap-sentinel (process string)
+(defun imap-sentinel (process _string)
   (delete-process process))
 
 (defun imap-find-next-line ()
@@ -2145,7 +2122,7 @@ Return nil if no complete line has arrived."
 	  (imap-forward)
 	  (nreverse addresses)))
     ;; With assert, the code might not be eval'd.
-    ;; (assert (imap-parse-nil) t "In imap-parse-address-list")
+    ;; (cl-assert (imap-parse-nil) t "In imap-parse-address-list")
     (imap-parse-nil)))
 
 ;;   mailbox         = "INBOX" / astring
@@ -2218,72 +2195,72 @@ Return nil if no complete line has arrived."
 (defun imap-parse-response ()
   "Parse an IMAP command response."
   (let (token)
-    (case (setq token (read (current-buffer)))
-      (+ (setq imap-continuation
-	       (or (buffer-substring (min (point-max) (1+ (point)))
-				     (point-max))
-		   t)))
-      (* (case (prog1 (setq token (read (current-buffer)))
-		 (imap-forward))
-	   (OK         (imap-parse-resp-text))
-	   (NO         (imap-parse-resp-text))
-	   (BAD        (imap-parse-resp-text))
-	   (BYE        (imap-parse-resp-text))
-	   (FLAGS      (imap-mailbox-put 'flags (imap-parse-flag-list)))
-	   (LIST       (imap-parse-data-list 'list))
-	   (LSUB       (imap-parse-data-list 'lsub))
-	   (SEARCH     (imap-mailbox-put
-			'search
-			(read (concat "(" (buffer-substring (point) (point-max)) ")"))))
-	   (STATUS     (imap-parse-status))
-	   (CAPABILITY (setq imap-capability
+    (pcase (setq token (read (current-buffer)))
+      ('+ (setq imap-continuation
+	        (or (buffer-substring (min (point-max) (1+ (point)))
+				      (point-max))
+		    t)))
+      ('* (pcase (prog1 (setq token (read (current-buffer)))
+		   (imap-forward))
+	    ('OK         (imap-parse-resp-text))
+	    ('NO         (imap-parse-resp-text))
+	    ('BAD        (imap-parse-resp-text))
+	    ('BYE        (imap-parse-resp-text))
+	    ('FLAGS      (imap-mailbox-put 'flags (imap-parse-flag-list)))
+	    ('LIST       (imap-parse-data-list 'list))
+	    ('LSUB       (imap-parse-data-list 'lsub))
+	    ('SEARCH     (imap-mailbox-put
+			  'search
+			  (read (concat "(" (buffer-substring (point) (point-max)) ")"))))
+	    ('STATUS     (imap-parse-status))
+	    ('CAPABILITY (setq imap-capability
 			       (read (concat "(" (upcase (buffer-substring
 							  (point) (point-max)))
 					     ")"))))
-	   (ID	       (setq imap-id (read (buffer-substring (point)
-							     (point-max)))))
-	   (ACL        (imap-parse-acl))
-	   (t       (case (prog1 (read (current-buffer))
-			    (imap-forward))
-		      (EXISTS  (imap-mailbox-put 'exists token))
-		      (RECENT  (imap-mailbox-put 'recent token))
-		      (EXPUNGE t)
-		      (FETCH   (imap-parse-fetch token))
-		      (t       (message "Garbage: %s" (buffer-string)))))))
-      (t (let (status)
+	    ('ID	       (setq imap-id (read (buffer-substring (point)
+							             (point-max)))))
+	    ('ACL        (imap-parse-acl))
+	    (_       (pcase (prog1 (read (current-buffer))
+			      (imap-forward))
+		       ('EXISTS  (imap-mailbox-put 'exists token))
+		       ('RECENT  (imap-mailbox-put 'recent token))
+		       ('EXPUNGE t)
+		       ('FETCH   (imap-parse-fetch))
+		       (_       (message "Garbage: %s" (buffer-string)))))))
+      (_ (let (status)
 	   (if (not (integerp token))
 	       (message "Garbage: %s" (buffer-string))
-	     (case (prog1 (setq status (read (current-buffer)))
-		     (imap-forward))
-	       (OK  (progn
-		      (setq imap-reached-tag (max imap-reached-tag token))
-		      (imap-parse-resp-text)))
-	       (NO  (progn
-		      (setq imap-reached-tag (max imap-reached-tag token))
-		      (save-excursion
-			(imap-parse-resp-text))
-		      (let (code text)
-			(when (eq (char-after) ?\[)
-			  (setq code (buffer-substring (point)
-						       (search-forward "]")))
-			  (imap-forward))
-			(setq text (buffer-substring (point) (point-max)))
-			(push (list token status code text)
-			      imap-failed-tags))))
-	       (BAD (progn
-		      (setq imap-reached-tag (max imap-reached-tag token))
-		      (save-excursion
-			(imap-parse-resp-text))
-		      (let (code text)
-			(when (eq (char-after) ?\[)
-			  (setq code (buffer-substring (point)
-						       (search-forward "]")))
-			  (imap-forward))
-			(setq text (buffer-substring (point) (point-max)))
-			(push (list token status code text) imap-failed-tags)
-			(error "Internal error, tag %s status %s code %s text %s"
-			       token status code text))))
-	       (t   (message "Garbage: %s" (buffer-string))))
+	     (pcase (prog1 (setq status (read (current-buffer)))
+		      (imap-forward))
+	       ('OK  (progn
+		       (setq imap-reached-tag (max imap-reached-tag token))
+		       (imap-parse-resp-text)))
+	       ('NO  (progn
+		       (setq imap-reached-tag (max imap-reached-tag token))
+		       (save-excursion
+			 (imap-parse-resp-text))
+		       (let (code text)
+			 (when (eq (char-after) ?\[)
+			   (setq code (buffer-substring (point)
+						        (search-forward "]")))
+			   (imap-forward))
+			 (setq text (buffer-substring (point) (point-max)))
+			 (push (list token status code text)
+			       imap-failed-tags))))
+	       ('BAD (progn
+		       (setq imap-reached-tag (max imap-reached-tag token))
+		       (save-excursion
+			 (imap-parse-resp-text))
+		       (let (code text)
+			 (when (eq (char-after) ?\[)
+			   (setq code (buffer-substring (point)
+						        (search-forward "]")))
+			   (imap-forward))
+			 (setq text (buffer-substring (point) (point-max)))
+			 (push (list token status code text) imap-failed-tags)
+			 (error "Internal error, tag %s status %s code %s text %s"
+			        token status code text))))
+	       (_   (message "Garbage: %s" (buffer-string))))
 	     (when (assq token imap-callbacks)
 	       (funcall (cdr (assq token imap-callbacks)) token status)
 	       (setq imap-callbacks
@@ -2459,7 +2436,7 @@ Return nil if no complete line has arrived."
 	  (search-forward "]" nil t))
       section)))
 
-(defun imap-parse-fetch (response)
+(defun imap-parse-fetch ()
   (when (eq (char-after) ?\()
     (let (uid flags envelope internaldate rfc822 rfc822header rfc822text
 	      rfc822size body bodydetail bodystructure flags-empty)
@@ -2593,7 +2570,7 @@ Return nil if no complete line has arrived."
 
 (defun imap-parse-flag-list ()
   (let (flag-list start)
-    (assert (eq (char-after) ?\() nil "In imap-parse-flag-list 1")
+    (cl-assert (eq (char-after) ?\() nil "In imap-parse-flag-list 1")
     (while (and (not (eq (char-after) ?\)))
 		(setq start (progn
 			      (imap-forward)
@@ -2602,7 +2579,7 @@ Return nil if no complete line has arrived."
 			      (point)))
 		(> (skip-chars-forward "^ )" (point-at-eol)) 0))
       (push (buffer-substring start (point)) flag-list))
-    (assert (eq (char-after) ?\)) nil "In imap-parse-flag-list 2")
+    (cl-assert (eq (char-after) ?\)) nil "In imap-parse-flag-list 2")
     (imap-forward)
     (nreverse flag-list)))
 
@@ -2687,7 +2664,7 @@ Return nil if no complete line has arrived."
 	(while (eq (char-after) ?\ )
 	  (imap-forward)
 	  (push (imap-parse-body-extension) b-e))
-	(assert (eq (char-after) ?\)) nil "In imap-parse-body-extension")
+	(cl-assert (eq (char-after) ?\)) nil "In imap-parse-body-extension")
 	(imap-forward)
 	(nreverse b-e))
     (or (imap-parse-number)
@@ -2716,7 +2693,7 @@ Return nil if no complete line has arrived."
 	      (push (imap-parse-string-list) dsp)
 	      (imap-forward))
 	  ;; With assert, the code might not be eval'd.
-	  ;; (assert (imap-parse-nil) t "In imap-parse-body-ext")
+	  ;; (cl-assert (imap-parse-nil) t "In imap-parse-body-ext")
 	  (imap-parse-nil))
 	(push (nreverse dsp) ext))
       (when (eq (char-after) ?\ ) ;; body-fld-lang
@@ -2813,7 +2790,7 @@ Return nil if no complete line has arrived."
 		(push (and (imap-parse-nil) nil) body))
 	      (setq body
 		    (append (imap-parse-body-ext) body))) ;; body-ext-...
-	    (assert (eq (char-after) ?\)) nil "In imap-parse-body")
+	    (cl-assert (eq (char-after) ?\)) nil "In imap-parse-body")
 	    (imap-forward)
 	    (nreverse body))
 
@@ -2879,7 +2856,7 @@ Return nil if no complete line has arrived."
 	  (push (imap-parse-nstring) body) ;; body-fld-md5
 	  (setq body (append (imap-parse-body-ext) body))) ;; body-ext-1part..
 
-	(assert (eq (char-after) ?\)) nil "In imap-parse-body 2")
+	(cl-assert (eq (char-after) ?\)) nil "In imap-parse-body 2")
 	(imap-forward)
 	(nreverse body)))))
 

@@ -1,8 +1,8 @@
 ;;; eieio-test-persist.el --- Tests for eieio-persistent class
 
-;; Copyright (C) 2011-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
-;; Author: Eric M. Ludlam <eric@siege-engine.com>
+;; Author: Eric M. Ludlam <zappo@gnu.org>
 
 ;; This file is part of GNU Emacs.
 
@@ -107,7 +107,7 @@ This is usually a symbol that starts with `:'."
 
 (ert-deftest eieio-test-persist-simple-1 ()
   (let ((persist-simple-1
-	 (persist-simple "simple 1" :slot1 'goose :slot2 "testing"
+	 (persist-simple :slot1 'goose :slot2 "testing"
 			 :file (concat default-directory "test-ps1.pt"))))
     (should persist-simple-1)
 
@@ -141,7 +141,7 @@ Assume SLOTVALUE is a symbol of some sort."
 
 (ert-deftest eieio-test-persist-printer ()
   (let ((persist-:printer-1
-	 (persist-:printer "persist" :slot1 'goose :slot2 "testing"
+	 (persist-:printer :slot1 'goose :slot2 "testing"
 			   :file (concat default-directory "test-ps2.pt"))))
     (should persist-:printer-1)
     (persist-test-save-and-compare persist-:printer-1)
@@ -178,8 +178,7 @@ persistent class.")
 (ert-deftest eieio-test-non-persistent-as-slot ()
   (let ((persist-wos
 	 (persistent-with-objs-slot
-	  "persist wos 1"
-	  :pnp (persist-not-persistent "pnp 1" :slot1 3)
+	  :pnp (persist-not-persistent :slot1 3)
 	  :file (concat default-directory "test-ps3.pt"))))
 
     (persist-test-save-and-compare persist-wos)
@@ -205,8 +204,7 @@ persistent class.")
 (ert-deftest eieio-test-non-persistent-as-slot-child ()
   (let ((persist-woss
 	 (persistent-with-objs-slot-subs
-	  "persist woss 1"
-	  :pnp (persist-not-persistent-subclass "pnps 1" :slot1 3)
+	  :pnp (persist-not-persistent-subclass :slot1 3)
 	  :file (concat default-directory "test-ps4.pt"))))
 
     (persist-test-save-and-compare persist-woss)
@@ -228,7 +226,7 @@ persistent class.")
 
 (ert-deftest eieio-test-multiple-class-slot ()
   (let ((persist
-         (persistent-multiclass-slot "random string"
+         (persistent-multiclass-slot
           :slot1 (persistent-random-class)
           :slot2 (persist-not-persistent)
           :slot3 (persistent-random-class)
@@ -249,10 +247,9 @@ persistent class.")
 (ert-deftest eieio-test-slot-with-list-of-objects ()
   (let ((persist-wols
 	 (persistent-with-objs-list-slot
-	  "persist wols 1"
-	  :pnp (list (persist-not-persistent "pnp 1" :slot1 3)
-		     (persist-not-persistent "pnp 2" :slot1 4)
-		     (persist-not-persistent "pnp 3" :slot1 5))
+	  :pnp (list (persist-not-persistent :slot1 3)
+		     (persist-not-persistent :slot1 4)
+		     (persist-not-persistent :slot1 5))
 	  :file (concat default-directory "test-ps5.pt"))))
 
     (persist-test-save-and-compare persist-wols)

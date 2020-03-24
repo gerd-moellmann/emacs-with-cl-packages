@@ -1,6 +1,6 @@
 ;;; bat-mode.el --- Major mode for editing DOS/Windows scripts
 
-;; Copyright (C) 2003, 2008-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2003, 2008-2020 Free Software Foundation, Inc.
 
 ;; Author: Arni Magnusson <arnima@hafro.is>
 ;; Keywords: languages
@@ -78,12 +78,14 @@
              "goto" "gtr" "if" "in" "leq" "lss" "neq" "not" "start"))
           (UNIX
            '("bash" "cat" "cp" "fgrep" "grep" "ls" "sed" "sh" "mv" "rm")))
-      `(("\\_<\\(call\\|goto\\)\\_>[ \t]+%?\\([A-Za-z0-9-_\\:.]+\\)%?"
+      `(("\\_<\\(call\\|goto\\)\\_>[ \t]+%?\\([A-Za-z0-9_\\:.-]+\\)%?"
          (2 font-lock-constant-face t))
         ("^:[^:].*"
          . 'bat-label-face)
         ("\\_<\\(defined\\|set\\)\\_>[ \t]*\\(\\(\\sw\\|\\s_\\)+\\)"
          (2 font-lock-variable-name-face))
+        ("%~\\([0-9]\\)"
+         (1 font-lock-variable-name-face))
         ("%\\([^%~ \n]+\\)%?"
          (1 font-lock-variable-name-face))
         ("!\\([^!%~ \n]+\\)!?"  ; delayed-expansion !variable!

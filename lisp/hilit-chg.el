@@ -1,6 +1,6 @@
 ;;; hilit-chg.el --- minor mode displaying buffer changes with special face
 
-;; Copyright (C) 1998, 2000-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Richard Sharman <rsharman@pobox.com>
 ;; Keywords: faces
@@ -204,9 +204,6 @@
   :group 'highlight-changes)
 
 ;; A (not very good) default list of colors to rotate through.
-(define-obsolete-variable-alias 'highlight-changes-colours
-                                'highlight-changes-colors "22.1")
-
 (defcustom highlight-changes-colors
   (if (eq (frame-parameter nil 'background-mode) 'light)
       ;; defaults for light background:
@@ -322,9 +319,6 @@ remove it from existing buffers."
 ;;;###autoload
 (define-minor-mode highlight-changes-mode
   "Toggle highlighting changes in this buffer (Highlight Changes mode).
-With a prefix argument ARG, enable Highlight Changes mode if ARG
-is positive, and disable it otherwise.  If called from Lisp,
-enable the mode if ARG is omitted or nil.
 
 When Highlight Changes is enabled, changes are marked with a text
 property.  Normally they are displayed in a distinctive face, but
@@ -363,9 +357,6 @@ buffer with the contents of a file
 ;;;###autoload
 (define-minor-mode highlight-changes-visible-mode
   "Toggle visibility of highlighting due to Highlight Changes mode.
-With a prefix argument ARG, enable Highlight Changes Visible mode
-if ARG is positive, and disable it otherwise.  If called from
-Lisp, enable the mode if ARG is omitted or nil.
 
 Highlight Changes Visible mode only has an effect when Highlight
 Changes mode is on.  When enabled, the changed text is displayed

@@ -1,6 +1,6 @@
 ;;; mailheader.el --- mail header parsing, merging, formatting
 
-;; Copyright (C) 1996, 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1996, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Erik Naggum <erik@naggum.no>
 ;; Keywords: tools, mail, news
@@ -99,7 +99,8 @@ value."
   headers)
 
 ;; Advertised part of the interface; see mail-header, mail-header-set.
-(defvar headers)
+(with-suppressed-warnings ((lexical headers))
+  (defvar headers))
 
 (defsubst mail-header (header &optional header-alist)
   "Return the value associated with header HEADER in HEADER-ALIST.

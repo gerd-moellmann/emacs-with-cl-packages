@@ -1,6 +1,6 @@
 ;;; emacs-lock.el --- protect buffers against killing or exiting -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
 ;; Author: Juanma Barranquero <lekktu@gmail.com>
 ;; Inspired by emacs-lock.el by Tom Wurgler <twurgler@goodyear.com>
@@ -88,6 +88,9 @@ The functions get one argument, the first locked buffer found."
   :group 'emacs-lock
   :version "24.3")
 
+(define-obsolete-variable-alias 'emacs-lock-from-exiting
+  'emacs-lock-mode "24.1")
+
 (defvar-local emacs-lock-mode nil
   "If non-nil, the current buffer is locked.
 It can be one of the following values:
@@ -112,7 +115,7 @@ Internal use only.")
 
 (defun emacs-lock-live-process-p (buffer-or-name)
   "Return t if BUFFER-OR-NAME is associated with a live process."
-  (process-live-p (get-buffer-process buffer-or-name)))
+  (and (process-live-p (get-buffer-process buffer-or-name)) t))
 
 (defun emacs-lock--can-auto-unlock (action)
   "Return t if the current buffer can auto-unlock for ACTION.
@@ -185,16 +188,11 @@ Return a value appropriate for `kill-buffer-query-functions' (which see)."
                ;; anything else (turn off)
                mode))))
 
-(define-obsolete-variable-alias 'emacs-lock-from-exiting
-  'emacs-lock-mode "24.1")
-
 ;;;###autoload
 (define-minor-mode emacs-lock-mode
   "Toggle Emacs Lock mode in the current buffer.
 If called with a plain prefix argument, ask for the locking mode
-to be used.  With any other prefix ARG, turn mode on if ARG is
-positive, off otherwise.  If called from Lisp, enable the mode if
-ARG is omitted or nil.
+to be used.
 
 Initially, if the user does not pass an explicit locking mode, it
 defaults to `emacs-lock-default-locking-mode' (which see);

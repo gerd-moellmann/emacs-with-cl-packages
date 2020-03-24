@@ -95,7 +95,8 @@ This file documents Calc, the GNU Emacs calculator, included with
 GNU Emacs @value{EMACSVER}.
 @end ifnotinfo
 
-Copyright @copyright{} 1990--1991, 2001--2019 Free Software Foundation, Inc.
+Copyright @copyright{} 1990--1991, 2001--2020 Free Software Foundation,
+Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -11055,9 +11056,9 @@ Another day counting system in common use is, confusingly, also called
 is the numbers of days since 12:00 noon (GMT) on November 24, 4714 BC
 in the Gregorian calendar (i.e., January 1, 4713 BC in the Julian
 calendar).  In Calc's scheme (in GMT) the Julian day origin is
-@mathit{-1721422.5}, because Calc starts at midnight instead of noon.
+@mathit{-1721424.5}, because Calc starts at midnight instead of noon.
 Thus to convert a Calc date code obtained by unpacking a
-date form into a Julian day number, simply add 1721422.5 after
+date form into a Julian day number, simply add 1721424.5 after
 compensating for the time zone difference.  The built-in @kbd{t J}
 command performs this conversion for you.
 
@@ -27154,7 +27155,7 @@ anywhere in the formula.
 It is possible for a rule set to get into an infinite loop.  The
 most obvious case, replacing a formula with itself, is not a problem
 because a rule is not considered to ``succeed'' unless the righthand
-side actually comes out to something different than the original
+side actually comes out to something different from the original
 formula or sub-formula that was matched.  But if you accidentally
 had both @samp{ln(a b) := ln(a) + ln(b)} and the reverse
 @samp{ln(a) + ln(b) := ln(a b)} in your rule set, Calc would
@@ -28074,7 +28075,7 @@ for angstroms.
 
 The unit @code{pt} stands for pints; the name @code{point} stands for
 a typographical point, defined by @samp{72 point = 1 in}.  This is
-slightly different than the point defined by the American Typefounder's
+slightly different from the point defined by the American Typefounder's
 Association in 1886, but the point used by Calc has become standard
 largely due to its use by the PostScript page description language.
 There is also @code{texpt}, which stands for a printer's point as
@@ -32717,7 +32718,7 @@ create an intermediate set.
     (while (> n 0)
       (if (oddp n)
           (setq count (1+ count)))
-      (setq n (lsh n -1)))
+      (setq n (ash n -1)))
     count))
 @end smallexample
 
@@ -32761,7 +32762,7 @@ routines are especially fast when dividing by an integer less than
   (let ((count 0))
     (while (> n 0)
       (setq count (+ count (logand n 1))
-            n (lsh n -1)))
+            n (ash n -1)))
     count))
 @end smallexample
 
@@ -32774,7 +32775,7 @@ uses.
 
 The @code{idivmod} function does an integer division, returning both
 the quotient and the remainder at once.  Again, note that while it
-might seem that @samp{(logand n 511)} and @samp{(lsh n -9)} are
+might seem that @samp{(logand n 511)} and @samp{(ash n -9)} are
 more efficient ways to split off the bottom nine bits of @code{n},
 actually they are less efficient because each operation is really
 a division by 512 in disguise; @code{idivmod} allows us to do the

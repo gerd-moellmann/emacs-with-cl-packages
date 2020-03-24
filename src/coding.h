@@ -1,5 +1,5 @@
 /* Header for coding system handler.
-   Copyright (C) 2001-2019 Free Software Foundation, Inc.
+   Copyright (C) 2001-2020 Free Software Foundation, Inc.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
      2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
@@ -82,7 +82,7 @@ enum define_coding_ccl_arg_index
 
 enum define_coding_undecided_arg_index
   {
-    coding_arg_undecided_inhibit_null_byte_detection = coding_arg_max,
+    coding_arg_undecided_inhibit_nul_byte_detection = coding_arg_max,
     coding_arg_undecided_inhibit_iso_escape_detection,
     coding_arg_undecided_prefer_utf_8,
     coding_arg_undecided_max
@@ -97,6 +97,8 @@ enum define_coding_undecided_arg_index
 
 extern Lisp_Object Vcoding_system_hash_table;
 
+/* Name (or base name) of work buffer for code conversion.  */
+extern Lisp_Object Vcode_conversion_workbuf_name;
 
 /* Enumeration of index to an attribute vector of a coding system.  */
 
@@ -137,7 +139,7 @@ enum coding_attr_index
 
     coding_attr_emacs_mule_full,
 
-    coding_attr_undecided_inhibit_null_byte_detection,
+    coding_attr_undecided_inhibit_nul_byte_detection,
     coding_attr_undecided_inhibit_iso_escape_detection,
     coding_attr_undecided_prefer_utf_8,
 
@@ -351,7 +353,7 @@ struct emacs_mule_spec
 
 struct undecided_spec
 {
-  /* Inhibit null byte detection.  1 means always inhibit,
+  /* Inhibit NUL byte detection.  1 means always inhibit,
      -1 means do not inhibit, 0 means rely on user variable.  */
   int inhibit_nbd;
 
@@ -676,21 +678,10 @@ struct coding_system
 #define UTF_16_LOW_SURROGATE_P(val) \
   (((val) & 0xFC00) == 0xDC00)
 
-/* Return the Unicode code point for the given UTF-16 surrogates.  */
-
-INLINE int
-surrogates_to_codepoint (int low, int high)
-{
-  eassert (0 <= low && low <= 0xFFFF);
-  eassert (0 <= high && high <= 0xFFFF);
-  eassert (UTF_16_LOW_SURROGATE_P (low));
-  eassert (UTF_16_HIGH_SURROGATE_P (high));
-  return 0x10000 + (low - 0xDC00) + ((high - 0xD800) * 0x400);
-}
-
 /* Extern declarations.  */
 extern Lisp_Object code_conversion_save (bool, bool);
 extern bool encode_coding_utf_8 (struct coding_system *);
+extern bool utf8_string_p (Lisp_Object);
 extern void setup_coding_system (Lisp_Object, struct coding_system *);
 extern Lisp_Object coding_charset_list (struct coding_system *);
 extern Lisp_Object coding_system_charset_list (Lisp_Object);
@@ -698,21 +689,28 @@ extern Lisp_Object code_convert_string (Lisp_Object, Lisp_Object,
                                         Lisp_Object, bool, bool, bool);
 extern Lisp_Object code_convert_string_norecord (Lisp_Object, Lisp_Object,
                                                  bool);
+extern Lisp_Object encode_string_utf_8 (Lisp_Object, Lisp_Object, bool,
+					Lisp_Object, Lisp_Object);
+extern Lisp_Object decode_string_utf_8 (Lisp_Object, const char *, ptrdiff_t,
+					Lisp_Object, bool,
+					Lisp_Object, Lisp_Object);
 extern Lisp_Object encode_file_name (Lisp_Object);
 extern Lisp_Object decode_file_name (Lisp_Object);
 extern Lisp_Object raw_text_coding_system (Lisp_Object);
 extern bool raw_text_coding_system_p (struct coding_system *);
 extern Lisp_Object coding_inherit_eol_type (Lisp_Object, Lisp_Object);
 extern Lisp_Object complement_process_encoding_system (Lisp_Object);
+extern Lisp_Object make_string_from_utf8 (const char *, ptrdiff_t);
 
-extern void decode_coding_gap (struct coding_system *,
-			       ptrdiff_t, ptrdiff_t);
+extern void decode_coding_gap (struct coding_system *, ptrdiff_t);
 extern void decode_coding_object (struct coding_system *,
                                   Lisp_Object, ptrdiff_t, ptrdiff_t,
                                   ptrdiff_t, ptrdiff_t, Lisp_Object);
 extern void encode_coding_object (struct coding_system *,
                                   Lisp_Object, ptrdiff_t, ptrdiff_t,
                                   ptrdiff_t, ptrdiff_t, Lisp_Object);
+/* Defined in this file.  */
+INLINE int surrogates_to_codepoint (int, int);
 
 #if defined (WINDOWSNT) || defined (CYGWIN)
 
@@ -757,16 +755,33 @@ extern Lisp_Object from_unicode_buffer (const wchar_t *wstr);
   } while (false)
 
 
+/* Return the Unicode code point for the given UTF-16 surrogates.  */
+
+INLINE int
+surrogates_to_codepoint (int low, int high)
+{
+  eassert (0 <= low && low <= 0xFFFF);
+  eassert (0 <= high && high <= 0xFFFF);
+  eassert (UTF_16_LOW_SURROGATE_P (low));
+  eassert (UTF_16_HIGH_SURROGATE_P (high));
+  return 0x10000 + (low - 0xDC00) + ((high - 0xD800) * 0x400);
+}
+
+/* Like build_string, but always returns a multibyte string, and is
+   optimized for speed when STR is a UTF-8 encoded text string.  */
+
+INLINE Lisp_Object
+build_string_from_utf8 (const char *str)
+{
+  return make_string_from_utf8 (str, strlen (str));
+}
+
+
 extern Lisp_Object preferred_coding_system (void);
-
-
-#ifdef emacs
 
 /* Coding system to be used to encode text for terminal display when
    terminal coding system is nil.  */
 extern struct coding_system safe_terminal_coding;
-
-#endif
 
 extern char emacs_mule_bytes[256];
 

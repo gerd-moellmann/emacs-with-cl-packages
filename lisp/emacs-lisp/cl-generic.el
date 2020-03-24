@@ -1,6 +1,6 @@
 ;;; cl-generic.el --- CLOS-style generic functions for Elisp  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Version: 1.0
@@ -22,7 +22,7 @@
 
 ;;; Commentary:
 
-;; This implements the most of CLOS's multiple-dispatch generic functions.
+;; This implements most of CLOS's multiple-dispatch generic functions.
 ;; To use it you need either (require 'cl-generic) or (require 'cl-lib).
 ;; The main entry points are: `cl-defgeneric' and `cl-defmethod'.
 
@@ -238,6 +238,7 @@ DEFAULT-BODY, if present, is used as the body of a default method.
       (push `(,args ,@options-and-methods) methods))
     (when (eq 'setf (car-safe name))
       (require 'gv)
+      (declare-function gv-setter "gv" (name))
       (setq name (gv-setter (cadr name))))
     `(prog1
          (progn
@@ -345,6 +346,9 @@ the specializer used will be the one returned by BODY."
                                    . ,(lambda () spec-args))
                                  macroexpand-all-environment)))
       (require 'cl-lib)        ;Needed to expand `cl-flet' and `cl-function'.
+      (when (interactive-form (cadr fun))
+        (message "Interactive forms unsupported in generic functions: %S"
+                 (interactive-form (cadr fun))))
       ;; First macroexpand away the cl-function stuff (e.g. &key and
       ;; destructuring args, `declare' and whatnot).
       (pcase (macroexpand fun macroenv)
@@ -440,12 +444,13 @@ The set of acceptable TYPEs (also called \"specializers\") is defined
       (setq args (pop body)))
     (when (eq 'setf (car-safe name))
       (require 'gv)
+      (declare-function gv-setter "gv" (name))
       (setq name (gv-setter (cadr name))))
     (pcase-let* ((`(,uses-cnm . ,fun) (cl--generic-lambda args body)))
       `(progn
          ,(and (get name 'byte-obsolete-info)
                (or (not (fboundp 'byte-compile-warning-enabled-p))
-                   (byte-compile-warning-enabled-p 'obsolete))
+                   (byte-compile-warning-enabled-p 'obsolete name))
                (let* ((obsolete (get name 'byte-obsolete-info)))
                  (macroexp--warn-and-return
                   (macroexp--obsolete-warning name obsolete "generic function")
@@ -808,22 +813,26 @@ methods.")
   ;; able to preload cl-generic without also preloading the byte-compiler,
   ;; So we use `eval-when-compile' so as not keep it available longer than
   ;; strictly needed.
-(defmacro cl--generic-prefill-dispatchers (arg-or-context specializer)
+(defmacro cl--generic-prefill-dispatchers (arg-or-context &rest specializers)
   (unless (integerp arg-or-context)
     (setq arg-or-context `(&context . ,arg-or-context)))
   (unless (fboundp 'cl--generic-get-dispatcher)
     (require 'cl-generic))
   (let ((fun (cl--generic-get-dispatcher
-              `(,arg-or-context ,@(cl-generic-generalizers specializer)
-                                ,cl--generic-t-generalizer))))
+              `(,arg-or-context
+                ,@(apply #'append
+                         (mapcar #'cl-generic-generalizers specializers))
+                ,cl--generic-t-generalizer))))
     ;; Recompute dispatch at run-time, since the generalizers may be slightly
     ;; different (e.g. byte-compiled rather than interpreted).
     ;; FIXME: There is a risk that the run-time generalizer is not equivalent
     ;; to the compile-time one, in which case `fun' may not be correct
     ;; any more!
-    `(let ((dispatch `(,',arg-or-context
-                       ,@(cl-generic-generalizers ',specializer)
-                       ,cl--generic-t-generalizer)))
+    `(let ((dispatch
+            `(,',arg-or-context
+              ,@(apply #'append
+                       (mapcar #'cl-generic-generalizers ',specializers))
+              ,cl--generic-t-generalizer)))
        ;; (message "Prefilling for %S with \n%S" dispatch ',fun)
        (puthash dispatch ',fun cl--generic-dispatchers)))))
 
@@ -902,7 +911,7 @@ Can only be used from within the lexical body of a primary or around method."
 ;;; Add support for describe-function
 
 (defun cl--generic-search-method (met-name)
-  "For `find-function-regexp-alist'. Searches for a cl-defmethod.
+  "For `find-function-regexp-alist'.  Searches for a cl-defmethod.
 MET-NAME is as returned by `cl--generic-load-hist-format'."
   (let ((base-re (concat "(\\(?:cl-\\)?defmethod[ \t]+"
                          (regexp-quote (format "%s" (car met-name)))
@@ -931,7 +940,7 @@ MET-NAME is as returned by `cl--generic-load-hist-format'."
   (add-to-list 'find-function-regexp-alist
                `(cl-defmethod . ,#'cl--generic-search-method))
   (add-to-list 'find-function-regexp-alist
-               `(cl-defgeneric . cl--generic-find-defgeneric-regexp)))
+               '(cl-defgeneric . cl--generic-find-defgeneric-regexp)))
 
 (defun cl--generic-method-info (method)
   (let* ((specializers (cl--generic-method-specializers method))
@@ -1156,45 +1165,19 @@ These match if the argument is `eql' to VAL."
 
 ;;; Dispatch on "system types".
 
-(defconst cl--generic-typeof-types
-  ;; Hand made from the source code of `type-of'.
-  '((integer number number-or-marker atom)
-    (symbol atom) (string array sequence atom)
-    (cons list sequence)
-    ;; Markers aren't `numberp', yet they are accepted wherever integers are
-    ;; accepted, pretty much.
-    (marker number-or-marker atom)
-    (overlay atom) (float number atom) (window-configuration atom)
-    (process atom) (window atom) (subr atom) (compiled-function function atom)
-    (buffer atom) (char-table array sequence atom)
-    (bool-vector array sequence atom)
-    (frame atom) (hash-table atom) (terminal atom)
-    (thread atom) (mutex atom) (condvar atom)
-    (font-spec atom) (font-entity atom) (font-object atom)
-    (vector array sequence atom)
-    ;; Plus, really hand made:
-    (null symbol list sequence atom))
-  "Alist of supertypes.
-Each element has the form (TYPE . SUPERTYPES) where TYPE is one of
-the symbols returned by `type-of', and SUPERTYPES is the list of its
-supertypes from the most specific to least specific.")
-
-(defconst cl--generic-all-builtin-types
-  (delete-dups (copy-sequence (apply #'append cl--generic-typeof-types))))
-
 (cl-generic-define-generalizer cl--generic-typeof-generalizer
   ;; FIXME: We could also change `type-of' to return `null' for nil.
   10 (lambda (name &rest _) `(if ,name (type-of ,name) 'null))
   (lambda (tag &rest _)
-    (and (symbolp tag) (assq tag cl--generic-typeof-types))))
+    (and (symbolp tag) (assq tag cl--typeof-types))))
 
 (cl-defmethod cl-generic-generalizers :extra "typeof" (type)
   "Support for dispatch on builtin types.
-See the full list and their hierarchy in `cl--generic-typeof-types'."
+See the full list and their hierarchy in `cl--typeof-types'."
   ;; FIXME: Add support for other types accepted by `cl-typep' such
   ;; as `character', `face', `function', ...
   (or
-   (and (memq type cl--generic-all-builtin-types)
+   (and (memq type cl--all-builtin-types)
         (progn
           ;; FIXME: While this wrinkle in the semantics can be occasionally
           ;; problematic, this warning is more often annoying than helpful.
@@ -1205,6 +1188,7 @@ See the full list and their hierarchy in `cl--generic-typeof-types'."
    (cl-call-next-method)))
 
 (cl--generic-prefill-dispatchers 0 integer)
+(cl--generic-prefill-dispatchers 0 cl--generic-generalizer integer)
 
 ;;; Dispatch on major mode.
 

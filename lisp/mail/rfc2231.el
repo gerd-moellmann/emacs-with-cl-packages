@@ -1,6 +1,6 @@
-;;; rfc2231.el --- Functions for decoding rfc2231 headers
+;;; rfc2231.el --- Functions for decoding rfc2231 headers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -22,7 +22,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl))
+(eval-when-compile (require 'cl-lib))
 (require 'ietf-drums)
 (require 'rfc2047)
 (autoload 'mm-encode-body "mm-bodies")
@@ -181,7 +181,7 @@ must never cause a Lisp error."
 	;; Now collect and concatenate continuation parameters.
 	(let ((cparams nil)
 	      elem)
-	  (loop for (attribute value part encoded)
+	  (cl-loop for (attribute value part encoded)
 		in (sort parameters (lambda (e1 e2)
 				      (< (or (caddr e1) 0)
 					 (or (caddr e2) 0))))
@@ -223,7 +223,7 @@ These look like:
     (mm-with-unibyte-buffer
       (insert value)
       (goto-char (point-min))
-      (while (re-search-forward "%\\([0-9A-Fa-f][0-9A-Fa-f]\\)" nil t)
+      (while (re-search-forward "%\\([[:xdigit:]][[:xdigit:]]\\)" nil t)
 	(insert
 	 (prog1
 	     (string-to-number (match-string 1) 16)
@@ -291,7 +291,7 @@ the result of this function."
 	    (insert param "*=")
 	  (while (not (eobp))
 	    (insert (if (>= num 0) " " "")
-		    param "*" (format "%d" (incf num)) "*=")
+		    param "*" (format "%d" (cl-incf num)) "*=")
 	    (forward-line 1))))
        (spacep
 	(goto-char (point-min))

@@ -1,10 +1,10 @@
 ;;; ewoc.el --- utility to maintain a view of a list of objects in a buffer  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1991-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1991-2020 Free Software Foundation, Inc.
 
 ;; Author: Per Cederqvist <ceder@lysator.liu.se>
 ;;	Inge Wallin <inge@lysator.liu.se>
-;; Maintainer: monnier@gnu.org
+;; Maintainer: Stefan Monnier <monnier@gnu.org>
 ;; Created: 3 Aug 1992
 ;; Keywords: extensions, lisp
 
@@ -500,7 +500,7 @@ Return the node (or nil if we just passed the last node)."
 
 (defun ewoc-goto-node (ewoc node)
   "Move point to NODE in EWOC."
-  (ewoc--set-buffer-bind-dll ewoc
+  (with-current-buffer (ewoc--buffer ewoc)
     (goto-char (ewoc--node-start-marker node))
     (if goal-column (move-to-column goal-column))
     (setf (ewoc--last-node ewoc) node)))

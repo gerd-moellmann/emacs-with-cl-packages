@@ -1,6 +1,6 @@
 ;;; css-mode.el --- Major mode to edit CSS files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2020 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Maintainer: Simen Heggestøyl <simenheg@gmail.com>
@@ -34,9 +34,12 @@
 
 (require 'cl-lib)
 (require 'color)
+(require 'eww)
+(require 'imenu)
 (require 'seq)
 (require 'sgml-mode)
 (require 'smie)
+(require 'thingatpt)
 (eval-when-compile (require 'subr-x))
 
 (defgroup css nil
@@ -109,7 +112,6 @@
     ("bottom" length percentage "auto")
     ("caption-side" "top" "bottom")
     ("clear" "none" "left" "right" "both")
-    ("clip" shape "auto")
     ("content" "normal" "none" string uri counter "attr()"
      "open-quote" "close-quote" "no-open-quote" "no-close-quote")
     ("counter-increment" identifier integer "none")
@@ -371,6 +373,31 @@
      "avoid-region")
     ("orphans" integer)
     ("widows" integer)
+
+    ;; CSS Masking Module Level 1
+    ;; (https://www.w3.org/TR/css-masking-1/#property-index)
+    ("clip-path" clip-source basic-shape geometry-box "none")
+    ("clip-rule" "nonzero" "evenodd")
+    ("mask-image" mask-reference)
+    ("mask-mode" masking-mode)
+    ("mask-repeat" repeat-style)
+    ("mask-position" position)
+    ("mask-clip" geometry-box "no-clip")
+    ("mask-origin" geometry-box)
+    ("mask-size" bg-size)
+    ("mask-composite" compositing-operator)
+    ("mask" mask-layer)
+    ("mask-border-source" "none" image)
+    ("mask-border-mode" "luminance" "alpha")
+    ("mask-border-slice" number percentage "fill")
+    ("mask-border-width" length percentage number "auto")
+    ("mask-border-outset" length number)
+    ("mask-border-repeat" "stretch" "repeat" "round" "space")
+    ("mask-border" mask-border-source mask-border-slice
+     mask-border-width mask-border-outset mask-border-repeat
+     mask-border-mode)
+    ("mask-type" "luminance" "alpha")
+    ("clip" "rect()" "auto")
 
     ;; CSS Multi-column Layout Module
     ;; (https://www.w3.org/TR/css3-multicol/#property-index)
@@ -649,14 +676,17 @@ further value candidates, since that list would be infinite.")
     (attachment "scroll" "fixed" "local")
     (auto-repeat "repeat()")
     (auto-track-list line-names fixed-size fixed-repeat auto-repeat)
+    (basic-shape "inset()" "circle()" "ellipse()" "polygon()")
     (bg-image image "none")
     (bg-layer bg-image position repeat-style attachment box)
     (bg-size length percentage "auto" "cover" "contain")
     (box "border-box" "padding-box" "content-box")
+    (clip-source uri)
     (color
      "rgb()" "rgba()" "hsl()" "hsla()" named-color "transparent"
      "currentColor")
     (common-lig-values "common-ligatures" "no-common-ligatures")
+    (compositing-operator "add" "subtract" "intersect" "exclude")
     (contextual-alt-values "contextual" "no-contextual")
     (counter "counter()" "counters()")
     (discretionary-lig-values
@@ -682,6 +712,7 @@ further value candidates, since that list would be infinite.")
     (generic-family
      "serif" "sans-serif" "cursive" "fantasy" "monospace")
     (generic-voice "male" "female" "child")
+    (geometry-box shape-box "fill-box" "stroke-box" "view-box")
     (gradient
      linear-gradient radial-gradient repeating-linear-gradient
      repeating-radial-gradient)
@@ -702,6 +733,12 @@ further value candidates, since that list would be infinite.")
     (line-width length "thin" "medium" "thick")
     (linear-gradient "linear-gradient()")
     (margin-width "auto" length percentage)
+    (mask-layer
+     mask-reference masking-mode position bg-size repeat-style
+     geometry-box "no-clip" compositing-operator)
+    (mask-reference "none" image mask-source)
+    (mask-source uri)
+    (masking-mode "alpha" "luminance" "auto")
     (named-color . ,(mapcar #'car css--color-map))
     (number "calc()")
     (numeric-figure-values "lining-nums" "oldstyle-nums")
@@ -717,7 +754,7 @@ further value candidates, since that list would be infinite.")
     (repeating-linear-gradient "repeating-linear-gradient()")
     (repeating-radial-gradient "repeating-radial-gradient()")
     (shadow "inset" length color)
-    (shape "rect()")
+    (shape-box box "margin-box")
     (single-animation-direction
      "normal" "reverse" "alternate" "alternate-reverse")
     (single-animation-fill-mode "none" "forwards" "backwards" "both")
@@ -807,6 +844,21 @@ cannot be completed sensibly: `custom-ident',
 (defvar css-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [remap info-lookup-symbol] 'css-lookup-symbol)
+    ;; `info-complete-symbol' is not used.
+    (define-key map [remap complete-symbol] 'completion-at-point)
+    (define-key map "\C-c\C-f" 'css-cycle-color-format)
+    (easy-menu-define css-menu map "CSS mode menu"
+      '("CSS"
+        :help "CSS-specific features"
+        ["Reformat block" fill-paragraph
+         :help "Reformat declaration block or fill comment at point"]
+        ["Cycle color format" css-cycle-color-format
+         :help "Cycle color at point between different formats"]
+        "-"
+        ["Describe symbol" css-lookup-symbol
+         :help "Display documentation for a CSS symbol"]
+        ["Complete symbol" completion-at-point
+         :help "Complete symbol before point"]))
     map)
   "Keymap used in `css-mode'.")
 
@@ -821,7 +873,7 @@ cannot be completed sensibly: `custom-ident',
    (css--uri-re (1 "|") (2 "|"))))
 
 (defconst css-escapes-re
-  "\\\\\\(?:[^\000-\037\177]\\|[0-9a-fA-F]+[ \n\t\r\f]?\\)")
+  "\\\\\\(?:[^\000-\037\177]\\|[[:xdigit:]]+[ \n\t\r\f]?\\)")
 (defconst css-nmchar-re (concat "\\(?:[-[:alnum:]]\\|" css-escapes-re "\\)"))
 (defconst css-nmstart-re (concat "\\(?:[[:alpha:]]\\|" css-escapes-re "\\)"))
 (defconst css-ident-re ;; (concat css-nmstart-re css-nmchar-re "*")
@@ -854,7 +906,7 @@ cannot be completed sensibly: `custom-ident',
     (,(concat "@" css-ident-re) (0 font-lock-builtin-face))
     ;; Selectors.
     ;; Allow plain ":root" as a selector.
-    ("^[ \t]*\\(:root\\)\\(?:[\n \t]*\\)*{" (1 'css-selector keep))
+    ("^[ \t]*\\(:root\\)[\n \t]*{" (1 'css-selector keep))
     ;; FIXME: attribute selectors don't work well because they may contain
     ;; strings which have already been highlighted as f-l-string-face and
     ;; thus prevent this highlighting from being applied (actually now that
@@ -877,7 +929,7 @@ cannot be completed sensibly: `custom-ident',
        "\\(?:\\(:" (regexp-opt (append css-pseudo-class-ids
                                        css-pseudo-element-ids)
                                t)
-       "\\|\\::" (regexp-opt css-pseudo-element-ids t) "\\)"
+       "\\|::" (regexp-opt css-pseudo-element-ids t) "\\)"
        "\\(?:([^)]+)\\)?"
        (if (not sassy)
            "[^:{}()\n]*"
@@ -897,7 +949,7 @@ cannot be completed sensibly: `custom-ident',
                      ;; No face.
                      nil)))
     ;; Variables.
-    (,(concat "--" css-ident-re) (0 font-lock-variable-name-face))
+    (,(concat (rx symbol-start) "--" css-ident-re) (0 font-lock-variable-name-face))
     ;; Properties.  Again, we don't limit ourselves to css-property-ids.
     (,(concat "\\(?:[{;]\\|^\\)[ \t]*\\("
               "\\(?:\\(" css-proprietary-nmstart-re "\\)\\|"
@@ -937,11 +989,13 @@ cannot be completed sensibly: `custom-ident',
   "Skip blanks and comments."
   (while (forward-comment 1)))
 
-(cl-defun css--rgb-color ()
+(cl-defun css--rgb-color (&optional include-alpha)
   "Parse a CSS rgb() or rgba() color.
 Point should be just after the open paren.
 Returns a hex RGB color, or nil if the color could not be recognized.
-This recognizes CSS-color-4 extensions."
+This recognizes CSS-color-4 extensions.
+When INCLUDE-ALPHA is non-nil, the alpha component is included in
+the returned hex string."
   (let ((result '())
 	(iter 0))
     (while (< iter 4)
@@ -951,11 +1005,11 @@ This recognizes CSS-color-4 extensions."
       (let* ((is-percent (match-beginning 1))
 	     (str (match-string (if is-percent 1 2)))
 	     (number (string-to-number str)))
-	(when is-percent
-	  (setq number (* 255 (/ number 100.0))))
-        ;; Don't push the alpha.
-        (when (< iter 3)
-          (push (min (max 0 (truncate number)) 255) result))
+	(if is-percent
+	    (setq number (* 255 (/ number 100.0)))
+          (when (and include-alpha (= iter 3))
+            (setq number (* number 255))))
+        (push (min (max 0 (round number)) 255) result)
 	(goto-char (match-end 0))
 	(css--color-skip-blanks)
 	(cl-incf iter)
@@ -967,7 +1021,11 @@ This recognizes CSS-color-4 extensions."
 	(css--color-skip-blanks)))
     (when (looking-at ")")
       (forward-char)
-      (apply #'format "#%02x%02x%02x" (nreverse result)))))
+      (apply #'format
+             (if (and include-alpha (= (length result) 4))
+                 "#%02x%02x%02x%02x"
+               "#%02x%02x%02x")
+             (nreverse result)))))
 
 (cl-defun css--hsl-color ()
   "Parse a CSS hsl() or hsla() color.
@@ -1021,10 +1079,10 @@ This recognizes CSS-color-4 extensions."
    (regexp-opt (mapcar #'car css--color-map) 'symbols)
    "\\|"
    ;; Short hex.  css-color-4 adds alpha.
-   "\\(#[0-9a-fA-F]\\{3,4\\}\\b\\)"
+   "\\(#[[:xdigit:]]\\{3,4\\}\\b\\)"
    "\\|"
    ;; Long hex.  css-color-4 adds alpha.
-   "\\(#\\(?:[0-9a-fA-F][0-9a-fA-F]\\)\\{3,4\\}\\b\\)"
+   "\\(#\\(?:[[:xdigit:]][[:xdigit:]]\\)\\{3,4\\}\\b\\)"
    "\\|"
    ;; RGB.
    "\\(\\_<rgba?(\\)"
@@ -1038,9 +1096,15 @@ This recognizes CSS-color-4 extensions."
 STR is the incoming CSS hex color.
 This function simply drops any transparency."
   ;; Either #RGB or #RRGGBB, drop the "A" or "AA".
-  (if (> (length str) 5)
-      (substring str 0 7)
-    (substring str 0 4)))
+  (substring str 0 (if (> (length str) 5) 7 4)))
+
+(defun css--hex-alpha (hex)
+  "Return the alpha component of CSS color HEX.
+HEX can either be in the #RGBA or #RRGGBBAA format.  Return nil
+if the color doesn't have an alpha component."
+  (cl-case (length hex)
+    (5 (string (elt hex 4)))
+    (9 (substring hex 7 9))))
 
 (defun css--named-color (start-point str)
   "Check whether STR, seen at point, is CSS named color.
@@ -1200,19 +1264,20 @@ for determining whether point is within a selector."
 
 (defun css-smie-rules (kind token)
   (pcase (cons kind token)
-    (`(:elem . basic) css-indent-offset)
-    (`(:elem . arg) 0)
-    (`(:list-intro . ,(or `";" `"")) t) ;"" stands for BOB (bug#15467).
-    (`(:before . "{")
+    ('(:elem . basic) css-indent-offset)
+    ('(:elem . arg) 0)
+    ;; "" stands for BOB (bug#15467).
+    (`(:list-intro . ,(or ";" "" ":-property")) t)
+    ('(:before . "{")
      (when (or (smie-rule-hanging-p) (smie-rule-bolp))
        (smie-backward-sexp ";")
        (unless (eq (char-after) ?\{)
          (smie-indent-virtual))))
-    (`(:before . "(")
+    ('(:before . "(")
      (cond
       ((smie-rule-hanging-p) (smie-rule-parent 0))
       ((not (smie-rule-bolp)) 0)))
-    (`(:after . ":-property")
+    ('(:after . ":-property")
      (when (smie-rule-hanging-p)
        css-indent-offset))))
 
@@ -1384,6 +1449,171 @@ tags, classes and IDs."
                       (progn (insert ": ;")
                              (forward-char -1))))))))))
 
+(defun css--color-to-4-dpc (hex)
+  "Convert the CSS color HEX to four digits per component.
+CSS colors use one or two digits per component for RGB hex
+values.  Convert the given color to four digits per component.
+
+Note that this function handles CSS colors specifically, and
+should not be mixed with those in color.el."
+  (let ((six-digits (= (length hex) 7)))
+    (apply
+     #'concat
+     `("#"
+       ,@(seq-mapcat
+          (apply-partially #'make-list (if six-digits 2 4))
+          (seq-partition (seq-drop hex 1) (if six-digits 2 1)))))))
+
+(defun css--format-hex (hex)
+  "Format a CSS hex color by shortening it if possible."
+  (let ((parts (seq-partition (seq-drop hex 1) 2)))
+    (if (and (>= (length hex) 6)
+             (seq-every-p (lambda (p) (eq (elt p 0) (elt p 1))) parts))
+        (apply #'string
+               (cons ?# (mapcar (lambda (p) (elt p 0)) parts)))
+      hex)))
+
+(defun css--named-color-to-hex ()
+  "Convert named CSS color at point to hex format.
+Return non-nil if a conversion was made.
+
+Note that this function handles CSS colors specifically, and
+should not be mixed with those in color.el."
+  (save-excursion
+    (unless (or (looking-at css--colors-regexp)
+                (eq (char-before) ?#))
+      (backward-word))
+    (when (member (word-at-point) (mapcar #'car css--color-map))
+      (looking-at css--colors-regexp)
+      (let ((color (css--compute-color (point) (match-string 0))))
+        (replace-match (css--format-hex color)))
+      t)))
+
+(defun css--format-rgba-alpha (alpha)
+  "Return ALPHA component formatted for use in rgba()."
+  (let ((a (string-to-number (format "%.2f" alpha))))
+    (if (or (= a 0)
+            (= a 1))
+        (format "%d" a)
+      (string-remove-suffix "0" (number-to-string a)))))
+
+(defun css--hex-to-rgb ()
+  "Convert CSS hex color at point to RGB format.
+Return non-nil if a conversion was made.
+
+Note that this function handles CSS colors specifically, and
+should not be mixed with those in color.el."
+  (save-excursion
+    (unless (or (eq (char-after) ?#)
+                (eq (char-before) ?\())
+      (backward-sexp))
+    (when-let* ((hex (when (looking-at css--colors-regexp)
+                       (and (eq (elt (match-string 0) 0) ?#)
+                            (match-string 0))))
+                (rgb (css--hex-color hex)))
+      (seq-let (r g b)
+          (mapcar (lambda (x) (round (* x 255)))
+                  (color-name-to-rgb (css--color-to-4-dpc rgb)))
+        (replace-match
+         (if-let* ((alpha (css--hex-alpha hex))
+                   (a (css--format-rgba-alpha
+                       (/ (string-to-number alpha 16)
+                          (float (- (expt 16 (length alpha)) 1))))))
+             (format "rgba(%d, %d, %d, %s)" r g b a)
+           (format "rgb(%d, %d, %d)" r g b))
+         t))
+      t)))
+
+(defun css--rgb-to-named-color-or-hex ()
+  "Convert CSS RGB color at point to a named color or hex format.
+Convert to a named color if the color at point has a name, else
+convert to hex format.  Return non-nil if a conversion was made.
+
+Note that this function handles CSS colors specifically, and
+should not be mixed with those in color.el."
+  (save-excursion
+    (when-let* ((open-paren-pos (nth 1 (syntax-ppss))))
+      (when (save-excursion
+              (goto-char open-paren-pos)
+              (looking-back "rgba?" (- (point) 4)))
+        (goto-char (nth 1 (syntax-ppss)))))
+    (when (eq (char-before) ?\))
+      (backward-sexp))
+    (skip-chars-backward "rgba")
+    (when (looking-at css--colors-regexp)
+      (let* ((start (match-end 0))
+             (color (save-excursion
+                      (goto-char start)
+                      (css--rgb-color t))))
+        (when color
+          (kill-sexp)
+          (kill-sexp)
+          (let ((named-color (seq-find (lambda (x) (equal (cdr x) color))
+                                       css--color-map)))
+            (insert (if named-color
+                        (car named-color)
+                      (css--format-hex color))))
+          t)))))
+
+(defun css-cycle-color-format ()
+  "Cycle the color at point between different CSS color formats.
+Supported formats are by name (if possible), hexadecimal, and
+rgb()/rgba()."
+  (interactive)
+  (or (css--named-color-to-hex)
+      (css--hex-to-rgb)
+      (css--rgb-to-named-color-or-hex)
+      (message "It doesn't look like a color at point")))
+
+(defun css--join-nested-selectors (selectors)
+  "Join a list of nested CSS selectors."
+  (let ((processed '())
+        (prev nil))
+    (dolist (sel selectors)
+      (cond
+       ((seq-contains-p sel ?&)
+        (setq sel (replace-regexp-in-string "&" prev sel))
+        (pop processed))
+       ;; Unless this is the first selector, separate this one and the
+       ;; previous one by a space.
+       (processed
+        (push " " processed)))
+      (push sel processed)
+      (setq prev sel))
+    (apply #'concat (nreverse processed))))
+
+(defun css--prev-index-position ()
+  (when (nth 7 (syntax-ppss))
+    (goto-char (comment-beginning)))
+  (forward-comment (- (point)))
+  (when (search-backward "{" (point-min) t)
+    (if (re-search-backward "}\\|;\\|{" (point-min) t)
+        (forward-char)
+      (goto-char (point-min)))
+    (forward-comment (point-max))
+    (save-excursion (re-search-forward "[^{;]*"))))
+
+(defun css--extract-index-name ()
+  (save-excursion
+    (let ((res (list (match-string-no-properties 0))))
+      (condition-case nil
+          (while t
+            (goto-char (nth 1 (syntax-ppss)))
+            (if (re-search-backward "}\\|;\\|{" (point-min) t)
+                (forward-char)
+              (goto-char (point-min)))
+            (forward-comment (point-max))
+            (when (save-excursion
+                    (re-search-forward "[^{;]*"))
+              (push (match-string-no-properties 0) res)))
+        (error
+         (css--join-nested-selectors
+          (mapcar
+           (lambda (s)
+             (string-trim
+              (replace-regexp-in-string "[\n ]+" " " s)))
+           res)))))))
+
 ;;;###autoload
 (define-derived-mode css-mode prog-mode "CSS"
   "Major mode to edit Cascading Style Sheets (CSS).
@@ -1391,7 +1621,7 @@ tags, classes and IDs."
 This mode provides syntax highlighting, indentation, completion,
 and documentation lookup for CSS.
 
-Use `\\[complete-symbol]' to complete CSS properties, property values,
+Use `\\[completion-at-point]' to complete CSS properties, property values,
 pseudo-elements, pseudo-classes, at-rules, bang-rules, and HTML
 tags, classes and IDs.  Completion candidates for HTML class
 names and IDs are found by looking through open HTML mode
@@ -1422,7 +1652,13 @@ be used to fill comments.
               (append css-electric-keys electric-indent-chars))
   (setq-local font-lock-fontify-region-function #'css--fontify-region)
   (add-hook 'completion-at-point-functions
-            #'css-completion-at-point nil 'local))
+            #'css-completion-at-point nil 'local)
+  ;; The default "." creates ambiguity with class selectors.
+  (setq-local imenu-space-replacement " ")
+  (setq-local imenu-prev-index-position-function
+              #'css--prev-index-position)
+  (setq-local imenu-extract-index-name-function
+              #'css--extract-index-name))
 
 (defvar comment-continue)
 
@@ -1519,12 +1755,8 @@ be used to fill comments.
 (defun css-current-defun-name ()
   "Return the name of the CSS section at point, or nil."
   (save-excursion
-    (let ((max (max (point-min) (- (point) 1600))))  ; approx 20 lines back
-      (when (search-backward "{" max t)
-	(skip-chars-backward " \t\r\n")
-	(beginning-of-line)
-	(if (looking-at "^[ \t]*\\([^{\r\n]*[^ {\t\r\n]\\)")
-	    (match-string-no-properties 1))))))
+    (when (css--prev-index-position)
+      (css--extract-index-name))))
 
 ;;; SCSS mode
 

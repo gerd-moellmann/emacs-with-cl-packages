@@ -10,7 +10,7 @@
 @copying
 This manual is for Eshell, the Emacs shell.
 
-Copyright @copyright{} 1999--2019 Free Software Foundation, Inc.
+Copyright @copyright{} 1999--2020 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -177,9 +177,6 @@ integration with Emacs 21.
 @item
 Alex Schroeder contributed code for interactively querying the user
 before overwriting files.
-
-@item
-Sudish Joseph helped with some XEmacs compatibility issues.
 @end itemize
 
 Apart from these, a lot of people have sent suggestions, ideas,
@@ -329,7 +326,7 @@ List subprocesses of the Emacs process, if any, using the function
 @item kill
 @cmindex kill
 Kill processes.  Takes a PID or a process object and an optional
-signal specifier.
+signal specifier which can either be a number or a signal name.
 
 @item listify
 @cmindex listify
@@ -462,10 +459,14 @@ The n-th entry of the history ring can be applied with the @samp{!n}
 command.  If @code{n} is negative, the entry is counted from the end
 of the history ring.
 
-@samp{!foo} expands to the last command beginning with @code{foo}, and
-@samp{!?foo} to the last command containing @code{foo}.  The n-th
-argument of the last command beginning with @code{foo} is accessible
-by @code{!foo:n}.
+@cindex event designators
+@findex eshell-expand-history-references
+When history event designators are enabled (by adding
+@code{eshell-expand-history-references} to
+@code{eshell-expand-input-functions}), @samp{!foo} expands to the last
+command beginning with @code{foo}, and @samp{!?foo} to the last
+command containing @code{foo}.  The n-th argument of the last command
+beginning with @code{foo} is accessible by @code{!foo:n}.
 
 The history ring is loaded from a file at the start of every session,
 and written back to the file at the end of every session.  The file path
@@ -499,15 +500,14 @@ be directories @emph{and} files.  Eshell provides predefined completions
 for the built-in functions and some common external commands, and you
 can define your own for any command.
 
-Eshell completion also works for lisp forms and glob patterns. If the
-point is on a lisp form, then @key{TAB} will behave similarly to completion
-in @code{elisp-mode} and @code{lisp-interaction-mode}.  For glob
-patterns, If there are few enough possible completions of the patterns,
-they will be cycled when @key{TAB} is pressed, otherwise it will be removed
-from the input line and the possible completions will be listed.
+Eshell completion also works for lisp forms and glob patterns. If the point is
+on a lisp form, then @key{TAB} will behave similarly to completion in
+@code{elisp-mode} and @code{lisp-interaction-mode}.  For glob patterns, the
+pattern will be removed from the input line, and replaced by the
+completion.
 
-If you want to see the entire list of possible completions when it's
-below the cycling threshold, press @kbd{M-?}.
+If you want to see the entire list of possible completions (e.g. when it's
+below the @code{completion-cycle-threshold}), press @kbd{M-?}.
 
 @subsection pcomplete
 Pcomplete, short for programmable completion, is the completion
@@ -800,16 +800,6 @@ general.  If I change the call to @code{eshell-copy-handles} in
 @code{eshell-rewrite-for-command} to use @code{eshell-protect}, it seems
 to work, but the output occurs after the prompt is displayed.  The whole
 structured command thing is too complicated at present.
-
-@item Error with @command{bc} in @code{eshell-test}
-
-On some XEmacs system, the subprocess interaction test fails
-inexplicably, although @command{bc} works fine at the command prompt.
-
-@item Eshell does not delete @file{*Help*} buffers in XEmacs 21.1.8+
-
-In XEmacs 21.1.8, the @file{*Help*} buffer has been renamed such that
-multiple instances of the @file{*Help*} buffer can exist.
 
 @item Pcomplete sometimes gets stuck
 

@@ -1,9 +1,8 @@
 ;;; find-func.el --- find the definition of the Emacs Lisp function near point  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999, 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Jens Petersen <petersen@kurims.kyoto-u.ac.jp>
-;; Maintainer: petersen@kurims.kyoto-u.ac.jp
 ;; Keywords: emacs-lisp, functions, variables
 ;; Created: 97/07/25
 
@@ -286,10 +285,19 @@ Interactively, prompt for LIBRARY using the one at or near point."
 A library name is the filename of an Emacs Lisp library located
 in a directory under `load-path' (or `find-function-source-path',
 if non-nil)."
-  (let* ((dirs (or find-function-source-path load-path))
-         (suffixes (find-library-suffixes))
-         (table (apply-partially 'locate-file-completion-table
-                                 dirs suffixes))
+  (let* ((suffix-regexp (mapconcat
+                         (lambda (suffix)
+                           (concat (regexp-quote suffix) "\\'"))
+                         (find-library-suffixes)
+                         "\\|"))
+         (table (cl-loop for dir in (or find-function-source-path load-path)
+                         when (file-readable-p dir)
+                         append (mapcar
+                                 (lambda (file)
+                                   (replace-regexp-in-string suffix-regexp
+                                                             "" file))
+                                 (directory-files dir nil
+                                                  suffix-regexp))))
          (def (if (eq (function-called-at-point) 'require)
                   ;; `function-called-at-point' may return 'require
                   ;; with `point' anywhere on this line.  So wrap the
@@ -368,28 +376,30 @@ The search is done in the source for library LIBRARY."
                                 (concat "\\\\?"
                                         (regexp-quote (symbol-name symbol))))))
 	      (case-fold-search))
-	  (with-syntax-table emacs-lisp-mode-syntax-table
-	    (goto-char (point-min))
-	    (if (if (functionp regexp)
-                    (funcall regexp symbol)
-                  (or (re-search-forward regexp nil t)
-                      ;; `regexp' matches definitions using known forms like
-                      ;; `defun', or `defvar'.  But some functions/variables
-                      ;; are defined using special macros (or functions), so
-                      ;; if `regexp' can't find the definition, we look for
-                      ;; something of the form "(SOMETHING <symbol> ...)".
-                      ;; This fails to distinguish function definitions from
-                      ;; variable declarations (or even uses thereof), but is
-                      ;; a good pragmatic fallback.
-                      (re-search-forward
-                       (concat "^([^ ]+" find-function-space-re "['(]?"
-                               (regexp-quote (symbol-name symbol))
-                               "\\_>")
-                       nil t)))
-		(progn
-		  (beginning-of-line)
-		  (cons (current-buffer) (point)))
-	      (cons (current-buffer) nil))))))))
+          (save-restriction
+            (widen)
+            (with-syntax-table emacs-lisp-mode-syntax-table
+              (goto-char (point-min))
+              (if (if (functionp regexp)
+                      (funcall regexp symbol)
+                    (or (re-search-forward regexp nil t)
+                        ;; `regexp' matches definitions using known forms like
+                        ;; `defun', or `defvar'.  But some functions/variables
+                        ;; are defined using special macros (or functions), so
+                        ;; if `regexp' can't find the definition, we look for
+                        ;; something of the form "(SOMETHING <symbol> ...)".
+                        ;; This fails to distinguish function definitions from
+                        ;; variable declarations (or even uses thereof), but is
+                        ;; a good pragmatic fallback.
+                        (re-search-forward
+                         (concat "^([^ ]+" find-function-space-re "['(]?"
+                                 (regexp-quote (symbol-name symbol))
+                                 "\\_>")
+                         nil t)))
+                  (progn
+                    (beginning-of-line)
+                    (cons (current-buffer) (point)))
+                (cons (current-buffer) nil)))))))))
 
 (defun find-function-library (function &optional lisp-only verbose)
   "Return the pair (ORIG-FUNCTION . LIBRARY) for FUNCTION.
@@ -464,6 +474,7 @@ If TYPE is nil, defaults using `function-called-at-point',
 otherwise uses `variable-at-point'."
   (let* ((symb1 (cond ((null type) (function-called-at-point))
                       ((eq type 'defvar) (variable-at-point))
+                      ((eq type 'defface) (face-at-point t))
                       (t (variable-at-point t))))
          (symb  (unless (eq symb1 0) symb1))
          (predicate (cdr (assq type '((nil . fboundp)

@@ -1,6 +1,6 @@
 ;;; flyspell.el --- On-the-fly spell checker  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998, 2000-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Manuel Serrano <Manuel.Serrano@sophia.inria.fr>
 ;; Maintainer: emacs-devel@gnu.org
@@ -67,6 +67,12 @@ Detection of repeated words is not implemented in
 \"large\" regions; see variable `flyspell-large-region'."
   :group 'flyspell
   :type 'boolean)
+
+(defcustom flyspell-case-fold-duplications t
+  "Non-nil means Flyspell matches duplicate words case-insensitively."
+  :group 'flyspell
+  :type 'boolean
+  :version "27.1")
 
 (defcustom flyspell-mark-duplications-exceptions
   '((nil . ("that" "had")) ; Common defaults for English.
@@ -324,14 +330,16 @@ If this variable is nil, all regions are treated as small."
 ;;*    	     (lambda () (setq flyspell-generic-check-word-predicate     */
 ;;*    			       'mail-mode-flyspell-verify)))            */
 ;;*---------------------------------------------------------------------*/
+
+(define-obsolete-variable-alias 'flyspell-generic-check-word-p
+  'flyspell-generic-check-word-predicate "25.1")
+
 (defvar flyspell-generic-check-word-predicate nil
   "Function providing per-mode customization over which words are flyspelled.
 Returns t to continue checking, nil otherwise.
 Flyspell mode sets this variable to whatever is the `flyspell-mode-predicate'
 property of the major mode name.")
 (make-variable-buffer-local 'flyspell-generic-check-word-predicate)
-(define-obsolete-variable-alias 'flyspell-generic-check-word-p
-  'flyspell-generic-check-word-predicate "25.1")
 
 ;;*--- mail mode -------------------------------------------------------*/
 (put 'mail-mode 'flyspell-mode-predicate 'mail-mode-flyspell-verify)
@@ -415,9 +423,10 @@ like <img alt=\"Some thing.\">."
 
 (defun flyspell-generic-progmode-verify ()
   "Used for `flyspell-generic-check-word-predicate' in programming modes."
-  ;; (point) is next char after the word. Must check one char before.
-  (let ((f (get-text-property (- (point) 1) 'face)))
-    (memq f flyspell-prog-text-faces)))
+  (unless (eql (point) (point-min))
+    ;; (point) is next char after the word. Must check one char before.
+    (let ((f (get-text-property (1- (point)) 'face)))
+      (memq f flyspell-prog-text-faces))))
 
 ;; Records the binding of M-TAB in effect before flyspell was activated.
 (defvar flyspell--prev-meta-tab-binding)
@@ -506,9 +515,6 @@ See also `flyspell-duplicate-distance'."
 ;;;###autoload
 (define-minor-mode flyspell-mode
   "Toggle on-the-fly spell checking (Flyspell mode).
-With a prefix argument ARG, enable Flyspell mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 Flyspell mode is a buffer-local minor mode.  When enabled, it
 spawns a single Ispell process and checks each word.  The default
@@ -924,7 +930,7 @@ Mostly we check word delimiters."
                           (or (string= "" ispell-otherchars)
                               (not (looking-at ispell-otherchars)))
                           (or flyspell-consider-dash-as-word-delimiter-flag
-                              (not (looking-at "\\-")))
+                              (not (looking-at "-")))
                           2)))))
        (format "  because    : %S\n"
                (cond
@@ -942,7 +948,7 @@ Mostly we check word delimiters."
                             (or (string= "" ispell-otherchars)
                                 (not (looking-at ispell-otherchars)))
                             (or flyspell-consider-dash-as-word-delimiter-flag
-                                (not (looking-at "\\-")))))))
+                                (not (looking-at "-")))))))
                  ;; Yes because we have reached or typed a word delimiter.
                  'separator)
                 ((not (integerp flyspell-delay))
@@ -985,6 +991,11 @@ Mostly we check word delimiters."
       (let ((command this-command)
             ;; Prevent anything we do from affecting the mark.
             deactivate-mark)
+        (if (and (eq command 'transpose-chars)
+                 flyspell-pre-point)
+            (save-excursion
+              (goto-char (- flyspell-pre-point 1))
+              (flyspell-word)))
         (if (flyspell-check-pre-word-p)
             (save-excursion
               '(flyspell-debug-signal-pre-word-checked)
@@ -1105,7 +1116,7 @@ Mostly we check word delimiters."
 If the optional argument FOLLOWING, or, when called interactively
 `ispell-following-word', is non-nil, checks the following (rather
 than preceding) word when the cursor is not over a word.  If
-optional argument KNOWN-MISSPELLING is non nil considers word a
+optional argument KNOWN-MISSPELLING is non-nil considers word a
 misspelling and skips redundant spell-checking step.
 
 See `flyspell-get-word' for details of how this finds the word to
@@ -1150,7 +1161,8 @@ spell-check."
 			      (- (save-excursion
                                    (skip-chars-backward " \t\n\f")))))
 			  (p (when (>= bound (point-min))
-			       (flyspell-word-search-backward word bound t))))
+			       (flyspell-word-search-backward
+                                word bound flyspell-case-fold-duplications))))
 		     (and p (/= p start)))))
 	    ;; yes, this is a doublon
 	    (flyspell-highlight-incorrect-region start end 'doublon)
@@ -2091,7 +2103,7 @@ spell-check."
 ;;*---------------------------------------------------------------------*/
 (defun flyspell-auto-correct-previous-hook ()
   "Hook to track successive calls to `flyspell-auto-correct-previous-word'.
-Sets `flyspell-auto-correct-previous-pos' to nil"
+Sets `flyspell-auto-correct-previous-pos' to nil."
   (interactive)
   (remove-hook 'pre-command-hook (function flyspell-auto-correct-previous-hook) t)
   (unless (eq this-command (function flyspell-auto-correct-previous-word))

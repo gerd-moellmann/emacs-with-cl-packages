@@ -1,5 +1,5 @@
 /* Terminal hooks for GNU Emacs on the Microsoft Windows API.
-   Copyright (C) 1992, 1999, 2001-2019 Free Software Foundation, Inc.
+   Copyright (C) 1992, 1999, 2001-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -30,6 +30,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "coding.h"
 #include "termchar.h"	/* for FRAME_TTY */
+#include "dispextern.h"	/* for tty_defined_color */
 #include "menu.h"	/* for tty_menu_show */
 #include "w32term.h"
 #include "w32common.h"	/* for os_subtype */
@@ -502,11 +503,18 @@ w32con_set_terminal_modes (struct terminal *t)
 
   SetConsoleActiveScreenBuffer (cur_screen);
 
-  SetConsoleMode (keyboard_handle, ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT);
+  /* If Quick Edit is enabled for the console, it will get in the way
+     of receiving mouse events, so we disable it.  But leave the
+     Insert Mode as it was set by the user.  */
+  DWORD new_console_mode
+    = ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS;
+  if ((prev_console_mode & ENABLE_INSERT_MODE) != 0)
+    new_console_mode |= ENABLE_INSERT_MODE;
+  SetConsoleMode (keyboard_handle, new_console_mode);
 
   /* Initialize input mode: interrupt_input off, no flow control, allow
      8 bit character input, standard quit char.  */
-  Fset_input_mode (Qnil, Qnil, make_number (2), Qnil);
+  Fset_input_mode (Qnil, Qnil, make_fixnum (2), Qnil);
 }
 
 /* hmmm... perhaps these let us bracket screen changes so that we can flush
@@ -673,6 +681,7 @@ initialize_w32_display (struct terminal *term, int *width, int *height)
   term->update_begin_hook	= w32con_update_begin;
   term->update_end_hook		= w32con_update_end;
 
+  term->defined_color_hook = &tty_defined_color; /* xfaces.c */
   term->read_socket_hook = w32_console_read_socket;
   term->mouse_position_hook = w32_console_mouse_position;
   term->menu_show_hook = tty_menu_show;
@@ -813,9 +822,9 @@ DEFUN ("set-screen-color", Fset_screen_color, Sset_screen_color, 2, 2, 0,
 Arguments should be indices between 0 and 15, see w32console.el.  */)
   (Lisp_Object foreground, Lisp_Object background)
 {
-  char_attr_normal = XFASTINT (foreground) + (XFASTINT (background) << 4);
+  char_attr_normal = XFIXNAT (foreground) + (XFIXNAT (background) << 4);
 
-  Frecenter (Qnil);
+  Frecenter (Qnil, Qt);
   return Qt;
 }
 
@@ -827,8 +836,8 @@ See w32console.el and `tty-defined-color-alist' for mapping of indices
 to colors.  */)
   (void)
 {
-  return Fcons (make_number (char_attr_normal & 0x000f),
-		Fcons (make_number ((char_attr_normal >> 4) & 0x000f), Qnil));
+  return Fcons (make_fixnum (char_attr_normal & 0x000f),
+		Fcons (make_fixnum ((char_attr_normal >> 4) & 0x000f), Qnil));
 }
 
 DEFUN ("set-cursor-size", Fset_cursor_size, Sset_cursor_size, 1, 1, 0,
@@ -836,7 +845,7 @@ DEFUN ("set-cursor-size", Fset_cursor_size, Sset_cursor_size, 1, 1, 0,
   (Lisp_Object size)
 {
   CONSOLE_CURSOR_INFO cci;
-  cci.dwSize = XFASTINT (size);
+  cci.dwSize = XFIXNAT (size);
   cci.bVisible = TRUE;
   (void) SetConsoleCursorInfo (cur_screen, &cci);
 

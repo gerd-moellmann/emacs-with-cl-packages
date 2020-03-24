@@ -1,6 +1,6 @@
 ;;; semantic/analyze.el --- Analyze semantic tags against local context
 
-;; Copyright (C) 2000-2005, 2007-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2005, 2007-2020 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -63,7 +63,6 @@
 ;;       constant.  These need to be returned as there would be no
 ;;       other possible completions.
 
-(eval-when-compile (require 'cl))
 (require 'semantic)
 (require 'semantic/format)
 (require 'semantic/ctxt)
@@ -81,8 +80,7 @@
   "Collection of any errors thrown during analysis.")
 
 (defun semantic-analyze-push-error (err)
-  "Push the error in ERR-DATA onto the error stack.
-Argument ERR."
+  "Push the error data in ERR onto the error stack."
   (push err semantic-analyze-error-stack))
 
 ;;; Analysis Classes
@@ -202,7 +200,7 @@ Optional argument DESIRED-TYPE may be a non-type tag to analyze."
 (cl-defmethod semantic-analyze-interesting-tag
   ((context semantic-analyze-context))
   "Return a tag from CONTEXT that would be most interesting to a user."
-  (let ((prefix (reverse (oref context :prefix))))
+  (let ((prefix (reverse (oref context prefix))))
     ;; Go back through the prefix until we find a tag we can return.
     (while (and prefix (not (semantic-tag-p (car prefix))))
       (setq prefix (cdr prefix)))
@@ -212,12 +210,12 @@ Optional argument DESIRED-TYPE may be a non-type tag to analyze."
 (cl-defmethod semantic-analyze-interesting-tag
   ((context semantic-analyze-context-functionarg))
   "Try the base, and if that fails, return what we are assigning into."
-  (or (cl-call-next-method) (car-safe (oref context :function))))
+  (or (cl-call-next-method) (car-safe (oref context function))))
 
 (cl-defmethod semantic-analyze-interesting-tag
   ((context semantic-analyze-context-assignment))
   "Try the base, and if that fails, return what we are assigning into."
-  (or (cl-call-next-method) (car-safe (oref context :assignee))))
+  (or (cl-call-next-method) (car-safe (oref context assignee))))
 
 ;;; ANALYSIS
 ;;
@@ -357,7 +355,7 @@ This function knows of flags:
 (defun semantic-analyze-find-tag (name &optional tagclass scope)
   "Return the first tag found with NAME or nil if not found.
 Optional argument TAGCLASS specifies the class of tag to return,
-such as 'function or 'variable.
+such as `function' or `variable'.
 Optional argument SCOPE specifies a scope object which has
 additional tags which are in SCOPE and do not need prefixing to
 find.
@@ -440,12 +438,11 @@ to provide a large number of non-cached analysis for filtering symbols."
 (defun semantic-analyze-current-symbol-default (analyzehookfcn position)
   "Call ANALYZEHOOKFCN on the analyzed symbol at POSITION."
   (let* ((semantic-analyze-error-stack nil)
-	 (LLstart (current-time))
+	 ;; (LLstart (current-time))
 	 (prefixandbounds (semantic-ctxt-current-symbol-and-bounds (or position (point))))
 	 (prefix (car prefixandbounds))
 	 (bounds (nth 2 prefixandbounds))
 	 (scope (semantic-calculate-scope position))
-	 (end nil)
 	 )
         ;; Only do work if we have bounds (meaning a prefix to complete)
     (when bounds
@@ -464,15 +461,13 @@ to provide a large number of non-cached analysis for filtering symbols."
 			  prefix scope 'prefixtypes))
 	  (error (semantic-analyze-push-error err))))
 
-      (setq end (current-time))
-      ;;(message "Analysis took %.2f sec" (semantic-elapsed-time LLstart end))
+      ;;(message "Analysis took %.2f sec" (semantic-elapsed-time LLstart nil))
 
       )
     (when prefix
       (prog1
 	  (funcall analyzehookfcn (car bounds) (cdr bounds) prefix)
-	;;(setq end (current-time))
-	;;(message "hookfcn took %.5f sec" (semantic-elapsed-time LLstart end))
+	;;(message "hookfcn took %.5f sec" (semantic-elapsed-time LLstart nil))
 	)
 
 	)))
@@ -645,7 +640,6 @@ Returns an object based on symbol `semantic-analyze-context'."
       ;; for the argument.
       (setq context-return
 	    (semantic-analyze-context-functionarg
-	     "functionargument"
 	     :buffer (current-buffer)
 	     :function fntag
 	     :index arg
@@ -668,7 +662,6 @@ Returns an object based on symbol `semantic-analyze-context'."
 
       (setq context-return
 	    (semantic-analyze-context-assignment
-	     "assignment"
 	     :buffer (current-buffer)
 	     :assignee asstag
 	     :scope scope
@@ -686,7 +679,6 @@ Returns an object based on symbol `semantic-analyze-context'."
       ;; Nothing in particular
       (setq context-return
 	    (semantic-analyze-context
-	     "context"
 	     :buffer (current-buffer)
 	     :scope scope
 	     :bounds bounds
@@ -723,12 +715,11 @@ Optional argument CTXT is the context to show."
   (interactive)
   (require 'data-debug)
   (let ((start (current-time))
-	(ctxt (or ctxt (semantic-analyze-current-context)))
-	(end (current-time)))
+	(ctxt (or ctxt (semantic-analyze-current-context))))
     (if (not ctxt)
 	(message "No Analyzer Results")
       (message "Analysis  took %.2f seconds."
-	       (semantic-elapsed-time start end))
+	       (semantic-elapsed-time start nil))
       (semantic-analyze-pulse ctxt)
       (if ctxt
 	  (progn
@@ -746,8 +737,8 @@ Optional argument CTXT is the context to show."
 (cl-defmethod semantic-analyze-pulse ((context semantic-analyze-context))
   "Pulse the region that CONTEXT affects."
   (require 'pulse)
-  (with-current-buffer (oref context :buffer)
-    (let ((bounds (oref context :bounds)))
+  (with-current-buffer (oref context buffer)
+    (let ((bounds (oref context bounds)))
       (when bounds
 	(pulse-momentary-highlight-region (car bounds) (cdr bounds))))))
 
@@ -826,6 +817,58 @@ CONTEXT's content is described in `semantic-analyze-current-context'."
   (shrink-window-if-larger-than-buffer
    (get-buffer-window "*Semantic Context Analysis*"))
   )
+
+
+;;; Completion At Point functions
+(defun semantic-analyze-completion-at-point-function ()
+  "Return possible analysis completions at point.
+The completions provided are via `semantic-analyze-possible-completions'.
+This function can be used by `completion-at-point-functions'."
+  (when (semantic-active-p)
+    (let* ((ctxt (semantic-analyze-current-context))
+           (possible (semantic-analyze-possible-completions ctxt)))
+
+      ;; The return from this is either:
+      ;; nil - not applicable here.
+      ;; A list: (START END COLLECTION . PROPS)
+      (when possible
+        (list (car (oref ctxt bounds))
+              (cdr (oref ctxt bounds))
+              possible))
+      )))
+
+(defun semantic-analyze-notc-completion-at-point-function ()
+  "Return possible analysis completions at point.
+The completions provided are via `semantic-analyze-possible-completions',
+but with the `no-tc' option passed in, which means constraints based
+on what is being assigned to are ignored.
+This function can be used by `completion-at-point-functions'."
+  (when (semantic-active-p)
+    (let* ((ctxt (semantic-analyze-current-context))
+           (possible (semantic-analyze-possible-completions ctxt 'no-tc)))
+
+      (when possible
+        (list (car (oref ctxt bounds))
+              (cdr (oref ctxt bounds))
+              possible))
+      )))
+
+(defun semantic-analyze-nolongprefix-completion-at-point-function ()
+  "Return possible analysis completions at point.
+The completions provided are via `semantic-analyze-possible-completions',
+but with the `no-tc' and `no-longprefix' option passed in, which means
+constraints resulting in a long multi-symbol dereference are ignored.
+This function can be used by `completion-at-point-functions'."
+  (when (semantic-active-p)
+    (let* ((ctxt (semantic-analyze-current-context))
+           (possible (semantic-analyze-possible-completions
+                      ctxt 'no-tc 'no-longprefix)))
+
+      (when possible
+        (list (car (oref ctxt bounds))
+              (cdr (oref ctxt bounds))
+              possible))
+      )))
 
 (provide 'semantic/analyze)
 

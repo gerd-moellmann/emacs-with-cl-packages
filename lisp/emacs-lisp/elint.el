@@ -1,6 +1,6 @@
 ;;; elint.el --- Lint Emacs Lisp -*- lexical-binding: t -*-
 
-;; Copyright (C) 1997, 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Peter Liljenberg <petli@lysator.liu.se>
 ;; Created: May 1997
@@ -106,7 +106,7 @@ are as follows, and suppress messages about the indicated features:
   :group 'elint)
 
 (defcustom elint-directory-skip-re "\\(ldefs-boot\\|loaddefs\\)\\.el\\'"
-  "If nil, a regexp matching files to skip when linting a directory."
+  "If non-nil, a regexp matching files to skip when linting a directory."
   :type '(choice (const :tag "Lint all files" nil)
 		 (regexp :tag "Regexp to skip"))
   :safe 'string-or-null-p
@@ -141,7 +141,7 @@ Set by `elint-initialize', if `elint-scan-preloaded' is non-nil.")
 (defconst elint-unknown-builtin-args
   ;; encode-time allows extra arguments for use with decode-time.
   ;; For some reason, some people seem to like to use them in other cases.
-  '((encode-time second minute hour day month year &rest zone))
+  '((encode-time time &rest obsolescent-arguments))
   "Those built-ins for which we can't find arguments, if any.")
 
 (defvar elint-extra-errors '(file-locked file-supersession ftp-error)
@@ -463,21 +463,9 @@ Return nil if there are no more forms, t otherwise."
    ;; Import variable definitions
    ((memq (car form) '(require cc-require cc-require-when-compile))
     (let ((name (eval (cadr form)))
-	  (file (eval (nth 2 form)))
-	  (elint-doing-cl (bound-and-true-p elint-doing-cl)))
+	  (file (eval (nth 2 form))))
       (unless (memq name elint-features)
 	(add-to-list 'elint-features name)
-	;; cl loads cl-macs in an opaque manner.
-	;; Since cl-macs requires cl, we can just process cl-macs.
-        ;; FIXME: AFAIK, `cl' now behaves properly and does not need any
-        ;; special treatment any more.  Can someone who understands this
-        ;; code confirm?  --Stef
-	(and (eq name 'cl) (not elint-doing-cl)
-	     ;; We need cl if elint-form is to be able to expand cl macros.
-	     (require 'cl)
-	     (setq name 'cl-macs
-		   file nil
-		   elint-doing-cl t)) ; blech
 	(setq elint-env (elint-add-required-env elint-env name file))))))
   elint-env)
 
@@ -566,6 +554,7 @@ Return nil if there are no more forms, t otherwise."
     (defcustom . elint-check-defcustom-form)
     (macro . elint-check-macro-form)
     (condition-case . elint-check-condition-case-form)
+    (condition-case-unless-debug . elint-check-condition-case-form)
     (if . elint-check-conditional-form)
     (when . elint-check-conditional-form)
     (unless . elint-check-conditional-form)
@@ -949,7 +938,7 @@ Does basic handling of `featurep' tests."
 	  ((and (memq func '(unless or))
 		(equal test '(featurep (quote emacs)))))
 	  ((and (eq func 'if)
-		(or (null test)	      ; eg custom-browse-insert-prefix
+		(or (null test)
 		    (member test '((featurep (quote xemacs))
 				   (not (featurep (quote emacs)))))
 		    (and (eq (car-safe test) 'and)
@@ -1107,7 +1096,7 @@ Marks the function with their arguments, and returns a list of variables."
 	(set-buffer (get-buffer-create docbuf))
 	(insert-file-contents-literally
 	 (expand-file-name internal-doc-file-name doc-directory)))
-      (while (re-search-forward "\\([VF]\\)" nil t)
+      (while (re-search-forward "\^_\\([VF]\\)" nil t)
 	(when (setq sym (intern-soft (buffer-substring (point)
 						       (line-end-position))))
 	  (if (string-equal (match-string 1) "V")
@@ -1116,7 +1105,7 @@ Marks the function with their arguments, and returns a list of variables."
 	      (if (boundp sym) (setq vars (cons sym vars)))
 	    ;; Function.
 	    (when (fboundp sym)
-	      (when (re-search-forward "\\(^(fn.*)\\)?" nil t)
+	      (when (re-search-forward "\\(^(fn.*)\\)?\^_" nil t)
 		(backward-char 1)
 		;; FIXME distinguish no args from not found.
 		(and (setq args (match-string 1))

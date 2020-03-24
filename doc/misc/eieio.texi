@@ -12,7 +12,7 @@
 @copying
 This manual documents EIEIO, an object framework for Emacs Lisp.
 
-Copyright @copyright{} 2007--2019 Free Software Foundation, Inc.
+Copyright @copyright{} 2007--2020 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -1006,7 +1006,7 @@ what CLOS does when a monotonic class structure is defined.
 
 This is derived from the Dylan language documents by
 Kim Barrett et al.: A Monotonic Superclass Linearization for Dylan
-Retrieved from: http://192.220.96.201/dylan/linearization-oopsla96.html
+Retrieved from: https://doi.org/10.1145/236338.236343
 @end table
 
 @node Predicates
@@ -1043,9 +1043,7 @@ make a slot unbound.
 @end defun
 
 @defun eieio-class-name class
-Return a string of the form @samp{#<class myclassname>} which should look
-similar to other Lisp objects like buffers and processes.  Printing a
-class results only in a symbol.
+Return the class name as a symbol.
 @end defun
 
 @defun class-option class option
@@ -1100,11 +1098,6 @@ Just like @code{eieio-class-children}, but with no checks.
 
 @defun same-class-p obj class
 Returns @code{t} if @var{obj}'s class is the same as @var{class}.
-@end defun
-
-@defun same-class-fast-p obj class
-Same as @code{same-class-p} except this is a macro and no type checking
-is performed.
 @end defun
 
 @defun object-of-class-p obj class
@@ -1292,9 +1285,9 @@ This class is defined in the package @file{eieio-base}.
 Sometimes it is useful to keep a master list of all instances of a given
 class.  The class @code{eieio-instance-tracker} performs this task.
 
-@deftp {Class} eieio-instance-tracker tracker-symbol
+@deftp {Class} eieio-instance-tracker tracking-symbol
 Enable instance tracking for this class.
-The slot @var{tracker-symbol} should be initialized in inheritors of
+The slot @var{tracking-symbol} should be initialized in inheritors of
 this class to a symbol created with @code{defvar}.  This symbol will
 serve as the variable used as a master list of all objects of the given
 class.

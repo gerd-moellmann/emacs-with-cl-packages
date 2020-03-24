@@ -1,6 +1,6 @@
 ;;; rmc.el --- read from a multiple choice question -*- lexical-binding: t -*-
 
-;; Copyright (C) 2016-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2020 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 
@@ -106,7 +106,7 @@ Usage example:
           (setq tchar
                 (if (and (display-popup-menus-p)
                          last-input-event ; not during startup
-                         (listp last-nonmenu-event)
+                         (consp last-nonmenu-event)
                          use-dialog-box)
                     (x-popup-dialog
                      t
@@ -116,15 +116,10 @@ Usage example:
                               (cons (capitalize (cadr elem))
                                     (car elem)))
                             choices)))
-                  (condition-case err
+                  (condition-case nil
                       (let ((cursor-in-echo-area t))
-                        (read-char))
-                    (error (when (equal (cadr err) "Non-character input-event")
-                             ;; Use up the non-character input-event.
-                             ;; Otherwise we'll just keep reading it
-                             ;; again and again (Bug#32257).
-                             (read-event))
-                           nil))))
+                        (read-event))
+                    (error nil))))
           (setq answer (lookup-key query-replace-map (vector tchar) t))
           (setq tchar
                 (cond

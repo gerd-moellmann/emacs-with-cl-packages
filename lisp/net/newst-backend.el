@@ -1,6 +1,6 @@
-;;; newst-backend.el --- Retrieval backend for newsticker.
+;;; newst-backend.el --- Retrieval backend for newsticker  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2020 Free Software Foundation, Inc.
 
 ;; Author:      Ulf Jasper <ulf.jasper@web.de>
 ;; Filename:    newst-backend.el
@@ -37,6 +37,7 @@
 (require 'derived)
 (require 'xml)
 (require 'url-parse)
+(require 'iso8601)
 
 ;; Silence warnings
 (defvar w3-mode-map)
@@ -166,11 +167,11 @@ value effective."
     nil
     3600))
   "A customizable list of news feeds to select from.
-These were mostly extracted from the Radio Community Server at
-http://subhonker6.userland.com/rcsPublic/rssHotlist.
+These were mostly extracted from the Radio Community Server
+<http://rcs.userland.com/>.
 
 You may add other entries in `newsticker-url-list'."
-  :type `(set ,@(mapcar `newsticker--splicer
+  :type `(set ,@(mapcar #'newsticker--splicer
                         newsticker--raw-url-list-defaults))
   :set 'newsticker--set-customvar-retrieval
   :group 'newsticker-retrieval)
@@ -435,40 +436,6 @@ buffers *newsticker-wget-<feed>* will not be closed."
   :group 'newsticker-miscellaneous)
 
 ;; ======================================================================
-;;; Compatibility section, XEmacs, Emacs
-;; ======================================================================
-
-;; FIXME It is bad practice to define compat functions with such generic names.
-
-(unless (fboundp 'match-string-no-properties)
-  (defalias 'match-string-no-properties 'match-string))
-
-(when (featurep 'xemacs)
-  (unless (fboundp 'replace-regexp-in-string)
-    (defun replace-regexp-in-string (re rp st)
-      (save-match-data ;; apparently XEmacs needs save-match-data
-	(replace-in-string st re rp)))))
-
-;; copied from subr.el
-(unless (fboundp 'add-to-invisibility-spec)
-  (defun add-to-invisibility-spec (arg)
-    "Add elements to `buffer-invisibility-spec'.
-See documentation for `buffer-invisibility-spec' for the kind of elements
-that can be added."
-    (if (eq buffer-invisibility-spec t)
-        (setq buffer-invisibility-spec (list t)))
-    (setq buffer-invisibility-spec
-          (cons arg buffer-invisibility-spec))))
-
-;; copied from subr.el
-(unless (fboundp 'remove-from-invisibility-spec)
-  (defun remove-from-invisibility-spec (arg)
-    "Remove elements from `buffer-invisibility-spec'."
-    (if (consp buffer-invisibility-spec)
-        (setq buffer-invisibility-spec
-              (delete arg buffer-invisibility-spec)))))
-
-;; ======================================================================
 ;;; Internal variables
 ;; ======================================================================
 (defvar newsticker--buffer-uptodate-p nil
@@ -591,11 +558,6 @@ name/timer pair to `newsticker--retrieval-timer-list'."
       ;; do not repeat retrieval if interval not positive
       (if (<= interval 0)
           (setq interval nil))
-      ;; Suddenly XEmacs doesn't like start-time 0
-      (if (or (not start-time)
-              (and (numberp start-time) (= start-time 0)))
-          (setq start-time 1))
-      ;; (message "start-time %s" start-time)
       (setq timer (run-at-time start-time interval
                                'newsticker-get-news feed-name))
       (if interval
@@ -603,7 +565,7 @@ name/timer pair to `newsticker--retrieval-timer-list'."
                        (cons feed-name timer))))))
 
 ;;;###autoload
-(defun newsticker-start (&optional do-not-complain-if-running)
+(defun newsticker-start (&optional _do-not-complain-if-running)
   "Start the newsticker.
 Start the timers for display and retrieval.  If the newsticker, i.e. the
 timers, are running already a warning message is printed unless
@@ -639,9 +601,8 @@ if newsticker has been running."
   (when (fboundp 'newsticker-stop-ticker) ; silence compiler warnings
     (newsticker-stop-ticker))
   (when (newsticker-running-p)
-    (mapc (lambda (name-and-timer)
-            (newsticker--stop-feed (car name-and-timer)))
-          newsticker--retrieval-timer-list)
+    (dolist (name-and-timer newsticker--retrieval-timer-list)
+      (newsticker--stop-feed (car name-and-timer)))
     (setq newsticker--retrieval-timer-list nil)
     (run-hooks 'newsticker-stop-hook)
     (message "Newsticker stopped!")))
@@ -651,9 +612,8 @@ if newsticker has been running."
 This does NOT start the retrieval timers."
   (interactive)
   ;; launch retrieval of news
-  (mapc (lambda (item)
-          (newsticker-get-news (car item)))
-        (append newsticker-url-list-defaults newsticker-url-list)))
+  (dolist (item (append newsticker-url-list-defaults newsticker-url-list))
+    (newsticker-get-news (car item))))
 
 (defun newsticker-save-item (feed item)
   "Save FEED ITEM."
@@ -709,7 +669,7 @@ See `newsticker-get-news'."
   (let ((buffername (concat " *newsticker-funcall-" feed-name "*")))
     (with-current-buffer (get-buffer-create buffername)
       (erase-buffer)
-      (insert (string-to-multibyte (funcall function feed-name)))
+      (newsticker--insert-bytes (funcall function feed-name))
       (newsticker--sentinel-work nil t feed-name function
                                  (current-buffer)))))
 
@@ -730,10 +690,10 @@ STATUS is the return status as delivered by `url-retrieve', and
 FEED-NAME is the name of the feed that the news were retrieved
 from."
   (let ((buf (get-buffer-create (concat " *newsticker-url-" feed-name "*")))
-        (result (string-to-multibyte (buffer-string))))
+        (result (buffer-string)))
     (set-buffer buf)
     (erase-buffer)
-    (insert result)
+    (newsticker--insert-bytes result)
     ;; remove MIME header
     (goto-char (point-min))
     (search-forward "\n\n" nil t)
@@ -876,11 +836,12 @@ Argument BUFFER is the buffer of the retrieval process."
                   (decode-coding-region (point-min) (point-max)
                                         coding-system))
                 (condition-case errordata
-                    ;; The xml parser might fail or the xml might be
-                    ;; bugged
+                    ;; The xml parser might fail or the xml might be bugged.
                     (if (fboundp 'libxml-parse-xml-region)
-                        (list (libxml-parse-xml-region (point-min) (point-max)
-                                                       nil t))
+                        (progn
+                          (xml-remove-comments (point-min) (point-max))
+                          (list (libxml-parse-xml-region (point-min) (point-max)
+                                                         nil)))
                       (xml-parse-region (point-min) (point-max)))
                   (error (message "Could not parse %s: %s"
                                   (buffer-name) (cadr errordata))
@@ -1255,9 +1216,6 @@ For the RSS 0.91 specification see URL `http://backend.userland.com/rss091'
 or URL `http://my.netscape.com/publish/formats/rss-spec-0.91.html'."
   (newsticker--debug-msg "Parsing RSS 0.91 feed %s" name)
   (let* ((channelnode (car (xml-get-children topnode 'channel)))
-         (pub-date (newsticker--decode-rfc822-date
-                    (car (xml-node-children
-                          (car (xml-get-children channelnode 'pubDate))))))
          is-new-feed has-new-items)
     (setq is-new-feed (newsticker--parse-generic-feed
                        name time
@@ -1293,7 +1251,7 @@ or URL `http://my.netscape.com/publish/formats/rss-spec-0.91.html'."
                             (car (xml-node-children
                                   (car (xml-get-children node 'pubDate))))))
                          ;; guid-fn
-                         (lambda (node)
+                         (lambda (_node)
                            nil)
                          ;; extra-fn
                          (lambda (node)
@@ -1308,9 +1266,6 @@ same as in `newsticker--parse-atom-1.0'.
 For the RSS 0.92 specification see URL `http://backend.userland.com/rss092'."
   (newsticker--debug-msg "Parsing RSS 0.92 feed %s" name)
   (let* ((channelnode (car (xml-get-children topnode 'channel)))
-         (pub-date (newsticker--decode-rfc822-date
-                    (car (xml-node-children
-                          (car (xml-get-children channelnode 'pubDate))))))
          is-new-feed has-new-items)
     (setq is-new-feed (newsticker--parse-generic-feed
                        name time
@@ -1346,7 +1301,7 @@ For the RSS 0.92 specification see URL `http://backend.userland.com/rss092'."
                             (car (xml-node-children
                                   (car (xml-get-children node 'pubDate))))))
                          ;; guid-fn
-                         (lambda (node)
+                         (lambda (_node)
                            nil)
                          ;; extra-fn
                          (lambda (node)
@@ -1405,7 +1360,7 @@ For the RSS 1.0 specification see URL `http://web.resource.org/rss/1.0/spec'."
                                 (car (xml-node-children
                                       (car (xml-get-children node 'date)))))))
                          ;; guid-fn
-                         (lambda (node)
+                         (lambda (_node)
                            nil)
                          ;; extra-fn
                          (lambda (node)
@@ -1486,7 +1441,6 @@ The arguments TITLE, DESC, LINK, and EXTRA-ELEMENTS give the feed's title,
 description, link, and extra elements resp."
   (let ((title (or title "[untitled]"))
         (link (or link ""))
-        (old-item nil)
         (position 0)
         (something-was-added nil))
     ;; decode numeric entities
@@ -1522,88 +1476,88 @@ The arguments TITLE-FN, DESC-FN, LINK-FN, TIME-FN, GUID-FN, and
 EXTRA-FN give functions for extracting title, description, link,
 time, guid, and extra-elements resp.  They are called with one
 argument, which is one of the items in ITEMLIST."
-  (let (title desc link
-        (old-item nil)
-        (position 0)
+  (let ((position 0)
         (something-was-added nil))
     ;; gather all items for this feed
-    (mapc (lambda (node)
-            (setq position (1+ position))
-            (setq title (or (funcall title-fn node) "[untitled]"))
-            (setq desc (funcall desc-fn node))
-            (setq link (or (funcall link-fn node) ""))
-            (setq time (or (funcall time-fn node) time))
-            ;; It happened that the title or description
-            ;; contained evil HTML code that confused the
-            ;; xml parser.  Therefore:
-            (unless (stringp title)
-              (setq title (prin1-to-string title)))
-            (unless (or (stringp desc) (not desc))
-              (setq desc (prin1-to-string desc)))
-            ;; ignore items with empty title AND empty desc
-            (when (or (> (length title) 0)
-                      (> (length desc) 0))
-              ;; decode numeric entities
-              (setq title (xml-substitute-numeric-entities title))
-              (when desc
-                (setq desc (xml-substitute-numeric-entities desc)))
-              (setq link (xml-substitute-numeric-entities link))
-              ;; remove whitespace from title, desc, and link
-              (setq title (newsticker--remove-whitespace title))
-              (setq desc (newsticker--remove-whitespace desc))
-              (setq link (newsticker--remove-whitespace link))
-              ;; add data to cache
-              ;; do we have this item already?
-              (let* ((guid (funcall guid-fn node)))
-                ;;(message "guid=%s" guid)
-                (setq old-item
-                      (newsticker--cache-contains newsticker--cache
-                                                  (intern name) title
-                                                  desc link nil guid)))
-              ;; add this item, or mark it as old, or do nothing
-              (let ((age1 'new)
-                    (age2 'old)
-                    (item-new-p nil))
-                (if old-item
-                    (let ((prev-age (newsticker--age old-item)))
-                      (unless newsticker-automatically-mark-items-as-old
-                        ;; Some feeds deliver items multiply, the
-                        ;; first time we find an 'obsolete-old one in
-                        ;; the cache, the following times we find an
-                        ;; 'old one
-                        (if (memq prev-age '(obsolete-old old))
-                            (setq age2 'old)
-                          (setq age2 'new)))
-                      (if (eq prev-age 'immortal)
-                          (setq age2 'immortal))
-                      (setq time (newsticker--time old-item)))
-                  ;; item was not there
-                  (setq item-new-p t)
-                  (setq something-was-added t))
-                (let ((extra-elements-with-guid (funcall extra-fn node)))
-                  (unless (assoc 'guid extra-elements-with-guid)
-                     (setq extra-elements-with-guid
-                           (cons `(guid nil ,(funcall guid-fn node))
-                                 extra-elements-with-guid)))
-                    (setq newsticker--cache
-                        (newsticker--cache-add
-                         newsticker--cache (intern name) title desc link
-                         time age1 position extra-elements-with-guid
-                         time age2)))
-                (when item-new-p
-                  (let ((item (newsticker--cache-contains
-                               newsticker--cache (intern name) title
-                               desc link nil)))
-                    (if newsticker-auto-mark-filter-list
-                        (newsticker--run-auto-mark-filter name item))
-                    (run-hook-with-args
-                     'newsticker-new-item-functions name item))))))
-          itemlist)
+    (dolist (node itemlist)
+      (setq position (1+ position))
+      (let ((title (or (funcall title-fn node) "[untitled]"))
+            (desc (funcall desc-fn node))
+            (link (or (funcall link-fn node) "")))
+        (setq time (or (funcall time-fn node) time))
+        ;; It happened that the title or description
+        ;; contained evil HTML code that confused the
+        ;; xml parser.  Therefore:
+        (unless (stringp title)
+          (setq title (prin1-to-string title)))
+        (unless (or (stringp desc) (not desc))
+          (setq desc (prin1-to-string desc)))
+        ;; ignore items with empty title AND empty desc
+        (when (or (> (length title) 0)
+                  (> (length desc) 0))
+          ;; decode numeric entities
+          (setq title (xml-substitute-numeric-entities title))
+          (when desc
+            (setq desc (xml-substitute-numeric-entities desc)))
+          (setq link (xml-substitute-numeric-entities link))
+          ;; remove whitespace from title, desc, and link
+          (setq title (newsticker--remove-whitespace title))
+          (setq desc (newsticker--remove-whitespace desc))
+          (setq link (newsticker--remove-whitespace link))
+          ;; add data to cache
+          ;; do we have this item already?
+          (let ((old-item
+                 (let* ((guid (funcall guid-fn node)))
+                   ;;(message "guid=%s" guid)
+                   (newsticker--cache-contains newsticker--cache
+                                               (intern name) title
+                                               desc link nil guid)))
+                (age1 'new)
+                (age2 'old)
+                (item-new-p nil))
+            ;; Add this item, or mark it as old, or do nothing
+            (if old-item
+                (let ((prev-age (newsticker--age old-item)))
+                  (unless newsticker-automatically-mark-items-as-old
+                    ;; Some feeds deliver items multiply, the
+                    ;; first time we find an 'obsolete-old one in
+                    ;; the cache, the following times we find an
+                    ;; 'old one
+                    (if (memq prev-age '(obsolete-old old))
+                        (setq age2 'old)
+                      (setq age2 'new)))
+                  (if (eq prev-age 'immortal)
+                      (setq age2 'immortal))
+                  (setq time (newsticker--time old-item)))
+              ;; item was not there
+              (setq item-new-p t)
+              (setq something-was-added t))
+            (let ((extra-elements-with-guid (funcall extra-fn node)))
+              (unless (assoc 'guid extra-elements-with-guid)
+                (setq extra-elements-with-guid
+                      (cons `(guid nil ,(funcall guid-fn node))
+                            extra-elements-with-guid)))
+              (setq newsticker--cache
+                    (newsticker--cache-add
+                     newsticker--cache (intern name) title desc link
+                     time age1 position extra-elements-with-guid
+                     time age2)))
+            (when item-new-p
+              (let ((item (newsticker--cache-contains
+                           newsticker--cache (intern name) title
+                           desc link nil)))
+                (if newsticker-auto-mark-filter-list
+                    (newsticker--run-auto-mark-filter name item))
+                (run-hook-with-args
+                 'newsticker-new-item-functions name item)))))))
     something-was-added))
 
 ;; ======================================================================
 ;;; Misc
 ;; ======================================================================
+
+(defun newsticker--insert-bytes (bytes)
+  (insert (decode-coding-string bytes 'binary)))
 
 (defun newsticker--remove-whitespace (string)
   "Remove leading and trailing whitespace from STRING."
@@ -1641,61 +1595,16 @@ This function calls `message' with arguments STRING and ARGS, if
        ;;(not (current-message))
        (apply 'message string args)))
 
-(defun newsticker--decode-iso8601-date (iso8601-string)
-  "Return ISO8601-STRING in format like `decode-time'.
-Converts from ISO-8601 to Emacs representation.
-Examples:
-2004-09-17T05:09:49.001+00:00
-2004-09-17T05:09:49+00:00
-2004-09-17T05:09+00:00
-2004-09-17T05:09:49
-2004-09-17T05:09
-2004-09-17
-2004-09
-2004"
-  (if iso8601-string
-      (when (string-match
-             (concat
-              "^ *\\([0-9]\\{4\\}\\)"   ;year
-              "\\(-\\([0-9]\\{2\\}\\)"  ;month
-              "\\(-\\([0-9]\\{2\\}\\)"  ;day
-              "\\(T"
-              "\\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)" ;hour:minute
-              "\\(:\\([0-9]\\{2\\}\\)\\(\\.[0-9]+\\)?\\)?" ;second
-              ;timezone
-              "\\(\\([-+Z]\\)\\(\\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)\\)?\\)?"
-              "\\)?\\)?\\)? *$")
-             iso8601-string)
-        (let ((year (read (match-string 1 iso8601-string)))
-              (month (read (or (match-string 3 iso8601-string)
-                               "1")))
-              (day (read (or (match-string 5 iso8601-string)
-                             "1")))
-              (hour (read (or (match-string 7 iso8601-string)
-                              "0")))
-              (minute (read (or (match-string 8 iso8601-string)
-                                "0")))
-              (second (read (or (match-string 10 iso8601-string)
-                                "0")))
-              (sign (match-string 13 iso8601-string))
-              (offset-hour (read (or (match-string 15 iso8601-string)
-                                     "0")))
-              (offset-minute (read (or (match-string 16 iso8601-string)
-                                       "0"))))
-          (cond ((string= sign "+")
-                 (setq hour (- hour offset-hour))
-                 (setq minute (- minute offset-minute)))
-                ((string= sign "-")
-                 (setq hour (+ hour offset-hour))
-                 (setq minute (+ minute offset-minute))))
-          ;; if UTC subtract current-time-zone offset
-          ;;(setq second (+ (car (current-time-zone)) second)))
-
-          (condition-case nil
-              (encode-time second minute hour day month year t)
-            (error
-             (message "Cannot decode \"%s\"" iso8601-string)
-             nil))))
+(defun newsticker--decode-iso8601-date (string)
+  "Return ISO8601-STRING in format like `encode-time'.
+Converts from ISO-8601 to Emacs representation.  If no time zone
+is present, this function defaults to universal time."
+  (if string
+      (condition-case nil
+          (encode-time (decoded-time-set-defaults (iso8601-parse string) 0))
+        (wrong-type-argument
+         (message "Cannot decode \"%s\"" string)
+         nil))
     nil))
 
 (defun newsticker--decode-rfc822-date (rfc822-string)
@@ -1759,12 +1668,11 @@ Sat, 07 Sep 2002 00:00:01 GMT
                    (setq minute (+ minute offset-minute)))))
           (condition-case error-data
               (let ((i 1))
-                (mapc (lambda (m)
-                        (if (string= month-name m)
-                            (setq month i))
-                        (setq i (1+ i)))
-                      '("Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug"
-                        "Sep" "Oct" "Nov" "Dec"))
+                (dolist (m '("Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug"
+                             "Sep" "Oct" "Nov" "Dec"))
+                  (if (string= month-name m)
+                      (setq month i))
+                  (setq i (1+ i)))
                 (encode-time second minute hour day month year t))
             (error
              (message "Cannot decode \"%s\": %s %s" rfc822-string
@@ -1775,22 +1683,19 @@ Sat, 07 Sep 2002 00:00:01 GMT
 (defun newsticker--lists-intersect-p (list1 list2)
   "Return t if LIST1 and LIST2 share elements."
   (let ((result nil))
-    (mapc (lambda (elt)
-            (if (memq elt list2)
-                (setq result t)))
-          list1)
+    (dolist (elt list1)
+      (if (memq elt list2)
+          (setq result t)))
     result))
 
 (defun newsticker--update-process-ids ()
   "Update list of ids of active newsticker processes.
 Checks list of active processes against list of newsticker processes."
-  (let ((active-procs (process-list))
-        (new-list nil))
-    (mapc (lambda (proc)
-            (let ((id (process-id proc)))
-              (if (memq id newsticker--process-ids)
-                  (setq new-list (cons id new-list)))))
-          active-procs)
+  (let ((new-list nil))
+    (dolist (proc (process-list))
+      (let ((id (process-id proc)))
+        (if (memq id newsticker--process-ids)
+            (setq new-list (cons id new-list)))))
     (setq newsticker--process-ids new-list))
   (force-mode-line-update))
 
@@ -1811,9 +1716,10 @@ If the file does no exist or if it is older than 24 hours
 download it from URL first."
   (let ((image-name (concat directory feed-name)))
     (if (and (file-exists-p image-name)
-             (time-less-p (current-time)
-                          (time-add (nth 5 (file-attributes image-name))
-                                    (seconds-to-time 86400))))
+             (time-less-p nil
+                          (time-add (file-attribute-modification-time
+				     (file-attributes image-name))
+				    86400)))
         (newsticker--debug-msg "%s: Getting image for %s skipped"
                                (format-time-string "%A, %H:%M")
                                feed-name)
@@ -1853,7 +1759,7 @@ Save image as FILENAME in DIRECTORY, download it from URL."
             (process-put proc 'nt-feed-name feed-name)
             (process-put proc 'nt-filename filename)))))
 
-(defun newsticker--image-sentinel (process event)
+(defun newsticker--image-sentinel (process _event)
   "Sentinel for image-retrieving PROCESS caused by EVENT."
   (let* ((p-status (process-status process))
          (exit-status (process-exit-status process))
@@ -1914,21 +1820,21 @@ from.
 The image is saved in DIRECTORY as FILENAME."
   (let ((do-save
          (or (not status)
-             (let ((status-type (car status))
-                   (status-details (cdr status)))
-               (cond ((eq status-type :redirect)
-                      ;; don't care about redirects
-                      t)
-                     ((eq status-type :error)
-                      ;; silently ignore errors
-                      nil))))))
+             ;; (let ((status-type (car status)))
+             ;;   (cond ((eq status-type :redirect)
+             ;;          ;; don't care about redirects
+             ;;          t)
+             ;;         ((eq status-type :error)
+             ;;          ;; silently ignore errors
+             ;;          nil)))
+             (eq (car status) :redirect))))
     (when do-save
       (let ((buf (get-buffer-create (concat " *newsticker-url-image-" feed-name "-"
                                             directory "*")))
-            (result (string-to-multibyte (buffer-string))))
+            (result (buffer-string)))
         (set-buffer buf)
         (erase-buffer)
-        (insert result)
+        (newsticker--insert-bytes result)
         ;; remove MIME header
         (goto-char (point-min))
         (search-forward "\n\n")
@@ -2006,9 +1912,8 @@ older than TIME."
          (mapc
           (lambda (item)
             (when (eq (newsticker--age item) old-age)
-              (let ((exp-time (time-add (newsticker--time item)
-                                        (seconds-to-time time))))
-                (when (time-less-p exp-time (current-time))
+	      (let ((exp-time (time-add (newsticker--time item) time)))
+                (when (time-less-p exp-time nil)
                   (newsticker--debug-msg
                    "Item `%s' from %s has expired on %s"
                    (newsticker--title item)
@@ -2020,7 +1925,7 @@ older than TIME."
    data)
   data)
 
-(defun newsticker--cache-contains (data feed title desc link age
+(defun newsticker--cache-contains (data feed title desc link _age
                                         &optional guid)
   "Check DATA whether FEED contains an item with the given properties.
 This function returns the contained item or nil if it is not
@@ -2182,22 +2087,8 @@ well."
                  (throw 'result nil))
                 ((eq age2 'obsolete)
                  (throw 'result t)))))
-    (let* ((time1 (newsticker--time item1))
-           (time2 (newsticker--time item2)))
-      (cond ((< (nth 0 time1) (nth 0 time2))
-             nil)
-            ((> (nth 0 time1) (nth 0 time2))
-             t)
-            ((< (nth 1 time1) (nth 1 time2))
-             nil)
-            ((> (nth 1 time1) (nth 1 time2))
-             t)
-            ((< (or (nth 2 time1) 0) (or (nth 2 time2) 0))
-             nil)
-            ((> (or (nth 2 time1) 0) (or (nth 2 time2) 0))
-             t)
-            (t
-             nil)))))
+    (time-less-p (newsticker--time item2)
+		 (newsticker--time item1))))
 
 (defun newsticker--cache-item-compare-by-title (item1 item2)
   "Compare ITEM1 and ITEM2 by comparing their titles."
@@ -2293,9 +2184,8 @@ FEED is a symbol!"
           (newsticker--cache-read-version1))
         (when (y-or-n-p (format "Delete old newsticker cache file? "))
           (delete-file newsticker-cache-filename)))
-    (mapc (lambda (f)
-            (newsticker--cache-read-feed (car f)))
-          (append newsticker-url-list-defaults newsticker-url-list))))
+    (dolist (f (append newsticker-url-list-defaults newsticker-url-list))
+      (newsticker--cache-read-feed (car f)))))
 
 (defun newsticker--cache-read-feed (feed-name)
   "Read cache data for feed named FEED-NAME."
@@ -2362,14 +2252,13 @@ Export subscriptions to a buffer in OPML Format."
              "    <ownerName>" (user-full-name) "</ownerName>\n"
              "  </head>\n"
              "  <body>\n"))
-    (mapc (lambda (sub)
-            (insert "    <outline text=\"")
-            (insert (newsticker--title sub))
-            (insert "\" xmlUrl=\"")
-            (insert (xml-escape-string (let ((url (cadr sub)))
-                                      (if (stringp url) url (prin1-to-string url)))))
-            (insert "\"/>\n"))
-          (append newsticker-url-list newsticker-url-list-defaults))
+    (dolist (sub (append newsticker-url-list newsticker-url-list-defaults))
+      (insert "    <outline text=\"")
+      (insert (newsticker--title sub))
+      (insert "\" xmlUrl=\"")
+      (insert (xml-escape-string (let ((url (cadr sub)))
+                                   (if (stringp url) url (prin1-to-string url)))))
+      (insert "\"/>\n"))
     (insert "  </body>\n</opml>\n"))
   (pop-to-buffer "*OPML Export*")
   (when (fboundp 'sgml-mode)
@@ -2409,28 +2298,26 @@ removed."
 This function checks the variable `newsticker-auto-mark-filter-list'
 for an entry that matches FEED and ITEM."
   (let ((case-fold-search t))
-    (mapc (lambda (filter)
-            (let ((filter-feed (car filter))
-                  (pattern-list (cadr filter)))
-            (when (string-match filter-feed feed)
-              (newsticker--do-run-auto-mark-filter item pattern-list))))
-          newsticker-auto-mark-filter-list)))
+    (dolist (filter newsticker-auto-mark-filter-list)
+      (let ((filter-feed (car filter))
+            (pattern-list (cadr filter)))
+        (when (string-match filter-feed feed)
+          (newsticker--do-run-auto-mark-filter item pattern-list))))))
 
 (defun newsticker--do-run-auto-mark-filter (item list)
   "Actually compare ITEM against the pattern-LIST.
 LIST must be an element of `newsticker-auto-mark-filter-list'."
-  (mapc (lambda (pattern)
-          (let ((place  (nth 1 pattern))
-                (regexp (nth 2 pattern))
-                (title (newsticker--title item))
-                (desc  (newsticker--desc item)))
-            (when (or (eq place 'title) (eq place 'all))
-              (when (and title (string-match regexp title))
-                (newsticker--process-auto-mark-filter-match item pattern)))
-            (when (or (eq place 'description) (eq place 'all))
-              (when (and desc (string-match regexp desc))
-                (newsticker--process-auto-mark-filter-match item pattern)))))
-        list))
+  (dolist (pattern list)
+    (let ((place  (nth 1 pattern))
+          (regexp (nth 2 pattern))
+          (title (newsticker--title item))
+          (desc  (newsticker--desc item)))
+      (when (or (eq place 'title) (eq place 'all))
+        (when (and title (string-match regexp title))
+          (newsticker--process-auto-mark-filter-match item pattern)))
+      (when (or (eq place 'description) (eq place 'all))
+        (when (and desc (string-match regexp desc))
+          (newsticker--process-auto-mark-filter-match item pattern))))))
 
 (defun newsticker--process-auto-mark-filter-match (item pattern)
   "Process ITEM that matches an auto-mark-filter PATTERN."
@@ -2503,7 +2390,7 @@ This function is suited for adding it to `newsticker-new-item-functions'."
 ;; ======================================================================
 ;;; Retrieve samples
 ;; ======================================================================
-(defun newsticker-retrieve-random-message (feed-name)
+(defun newsticker-retrieve-random-message (_feed-name)
   "Return an artificial RSS string under the name FEED-NAME."
   (concat "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?><rss version=\"0.91\">"
           "<channel>"

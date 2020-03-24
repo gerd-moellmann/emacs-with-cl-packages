@@ -1,6 +1,6 @@
 ;;; admin.el --- utilities for Emacs administration
 
-;; Copyright (C) 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -147,7 +147,11 @@ Root must be the root of an Emacs source tree."
     (unless (> (length newversion) 2)   ; pretest or release candidate?
       (with-temp-buffer
         (insert-file-contents newsfile)
-        (if (re-search-forward "^\\(+++ *\\|--- *\\)$" nil t)
+        (when (re-search-forward "^\\* [^\n]*\n+" nil t)
+          (display-warning 'admin
+                           "NEWS file contains empty sections - remove them?"))
+        (goto-char (point-min))
+        (if (re-search-forward "^\\(\\+\\+\\+ *\\|--- *\\)$" nil t)
             (display-warning 'admin
                              "NEWS file still contains temporary markup.
 Documentation changes might not have been completed!"))))
@@ -333,7 +337,7 @@ Optional argument TYPE is type of output (nil means all)."
 
 (defconst manual-doctype-string
   "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"
-\"http://www.w3.org/TR/html4/loose.dtd\">\n\n")
+\"https://www.w3.org/TR/html4/loose.dtd\">\n\n")
 
 (defconst manual-meta-string
   "<meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\">
@@ -660,7 +664,7 @@ style=\"text-align:left\">")
 
 
 (defconst make-manuals-dist-output-variables
-  `(("@\\(top_\\)?srcdir@" . ".")	; top_srcdir is wrong, but not used
+  '(("@\\(top_\\)?srcdir@" . ".")	; top_srcdir is wrong, but not used
     ("^\\(\\(?:texinfo\\|buildinfo\\|emacs\\)dir *=\\).*" . "\\1 .")
     ("^\\(clean:.*\\)" . "\\1 infoclean")
     ("@MAKEINFO@" . "makeinfo")
