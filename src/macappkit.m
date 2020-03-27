@@ -6343,18 +6343,23 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     IOSurfaceLock (backSurface, kIOSurfaceLockReadOnly, NULL);
   unsigned char *srcData = CGBitmapContextGetData (backBitmap);
   NSInteger scale = scaleFactor;
+  NativeRectangle backing_rectangle = {0, 0,
+    CGBitmapContextGetWidth (backBitmap) / scale,
+    CGBitmapContextGetHeight (backBitmap) / scale};
   vImage_Buffer src;
 
   src.rowBytes = CGBitmapContextGetBytesPerRow (backBitmap);
   for (i = 0; i < count; i++)
     {
       vImage_Buffer *dest = imageBuffers + i;
+      NativeRectangle rectangle;
 
-      mac_vimage_buffer_init_8888 (dest, rectangles[i].height * scale,
-				   rectangles[i].width * scale);
+      gui_intersect_rectangles (rectangles + i, &backing_rectangle, &rectangle);
+      mac_vimage_buffer_init_8888 (dest, rectangle.height * scale,
+				   rectangle.width * scale);
       src.height = dest->height, src.width = dest->width;
-      src.data = srcData + (rectangles[i].y * src.rowBytes
-			    + rectangles[i].x * sizeof (Pixel_8888)) * scale;
+      src.data = srcData + (rectangle.y * src.rowBytes
+			    + rectangle.x * sizeof (Pixel_8888)) * scale;
       mac_vimage_copy_8888 (&src, dest, kvImageNoFlags);
     }
   if (backSurface)
@@ -6374,16 +6379,21 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     IOSurfaceLock (backSurface, 0, NULL);
   unsigned char *destData = CGBitmapContextGetData (backBitmap);
   NSInteger scale = scaleFactor;
+  NativeRectangle backing_rectangle = {0, 0,
+    CGBitmapContextGetWidth (backBitmap) / scale,
+    CGBitmapContextGetHeight (backBitmap) / scale};
   vImage_Buffer dest;
 
   dest.rowBytes = CGBitmapContextGetBytesPerRow (backBitmap);
   for (i = 0; i < count; i++)
     {
       const vImage_Buffer *src = imageBuffers + i;
+      NativeRectangle rectangle;
 
+      gui_intersect_rectangles (rectangles + i, &backing_rectangle, &rectangle);
       dest.height = src->height, dest.width = src->width;
-      dest.data = destData + (rectangles[i].y * dest.rowBytes
-			      + rectangles[i].x * sizeof (Pixel_8888)) * scale;
+      dest.data = destData + (rectangle.y * dest.rowBytes
+			      + rectangle.x * sizeof (Pixel_8888)) * scale;
       mac_vimage_copy_8888 (src, &dest, kvImageNoFlags);
       free (src->data);
     }
