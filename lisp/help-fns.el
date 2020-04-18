@@ -623,7 +623,7 @@ FILE is the file where FUNCTION was probably defined."
   ;; of the *packages* in which the function is defined.
   (let* ((name (symbol-name symbol))
          (re (concat "\\_<" (regexp-quote name) "\\_>"))
-         (news (directory-files data-directory t "\\`NEWS.[1-9]"))
+         (news (directory-files data-directory t "\\`NEWS\\.[1-9]"))
          (place nil)
          (first nil))
     (with-temp-buffer
@@ -1000,6 +1000,8 @@ it is displayed along with the global value."
 		    (terpri)
                     (let ((buf (current-buffer)))
                       (with-temp-buffer
+                        (lisp-mode-variables nil)
+                        (set-syntax-table emacs-lisp-mode-syntax-table)
                         (insert print-rep)
                         (pp-buffer)
                         (let ((pp-buffer (current-buffer)))

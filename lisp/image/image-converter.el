@@ -57,6 +57,10 @@ is a string, it should be a MIME format string like
   ;; Find an installed image converter.
   (unless image-converter
     (image-converter--find-converter))
+  ;; When image-converter was customized
+  (if (and image-converter (not image-converter-regexp))
+      (when-let ((formats (image-converter--probe image-converter)))
+        (setq image-converter-regexp (concat "\\." (regexp-opt formats) "\\'"))))
   (and image-converter
        (or (and (not data-p)
                 (string-match image-converter-regexp source))
@@ -149,8 +153,9 @@ data is returned as a string."
       (when (re-search-forward "^-" nil t)
         (forward-line 1)
         ;; Lines look like
-        ;; "      WPG* r--   Word Perfect Graphics".
-        (while (re-search-forward "^ *\\([A-Z0-9]+\\)\\*? +r" nil t)
+        ;; "      WPG* r--   Word Perfect Graphics" or
+        ;; "      WPG* WPG       r--   Word Perfect Graphics".
+        (while (re-search-forward "^ *\\([A-Z0-9]+\\)\\*?\\(?: +[A-Z0-9]+\\)? +r" nil t)
           (push (downcase (match-string 1)) formats)))
       (nreverse formats))))
 

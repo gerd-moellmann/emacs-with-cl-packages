@@ -4583,7 +4583,11 @@ gui_set_font_backend (struct frame *f, Lisp_Object new_value, Lisp_Object old_va
     return;
 
   if (FRAME_FONT (f))
-    free_all_realized_faces (Qnil);
+    {
+      Lisp_Object frame;
+      XSETFRAME (frame, f);
+      free_all_realized_faces (frame);
+    }
 
   new_value = font_update_drivers (f, NILP (new_value) ? Qt : new_value);
   if (NILP (new_value))
@@ -4597,10 +4601,8 @@ gui_set_font_backend (struct frame *f, Lisp_Object new_value, Lisp_Object old_va
 
   if (FRAME_FONT (f))
     {
-      Lisp_Object frame;
-
-      XSETFRAME (frame, f);
-      gui_set_font (f, Fframe_parameter (frame, Qfont), Qnil);
+      /* Reconsider default font after backend(s) change (Bug#23386).  */
+      FRAME_RIF(f)->default_font_parameter (f, Qnil);
       face_change = true;
       windows_or_buffers_changed = 18;
     }
@@ -5962,6 +5964,7 @@ syms_of_frame (void)
   DEFSYM (Qxg_frame_set_char_size_1, "xg-frame-set-char-size-1");
   DEFSYM (Qxg_frame_set_char_size_2, "xg-frame-set-char-size-2");
   DEFSYM (Qxg_frame_set_char_size_3, "xg-frame-set-char-size-3");
+  DEFSYM (Qxg_frame_set_char_size_4, "xg-frame-set-char-size-4");
   DEFSYM (Qx_set_window_size_1, "x-set-window-size-1");
   DEFSYM (Qx_set_window_size_2, "x-set-window-size-2");
   DEFSYM (Qx_set_window_size_3, "x-set-window-size-3");

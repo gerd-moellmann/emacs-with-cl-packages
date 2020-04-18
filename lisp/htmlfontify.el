@@ -628,6 +628,7 @@ STYLE is the inline CSS stylesheet (or tag referring to an external sheet)."
 \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">
 <html xmlns=\"http://www.w3.org/1999/xhtml\">
   <head>
+    <meta charset=\"utf-8\"/>
     <title>%s</title>
 %s
     <script type=\"text/javascript\"><!--
@@ -1508,7 +1509,7 @@ Uses `hfy-link-style-fun' to do this."
           "\n<style type=\"text/css\"><!-- \n"
           ;; Fix-me: Add handling of page breaks here + scan for ^L
           ;; where appropriate.
-          (format "body %s\n" (cddr (assq 'default css)))
+          (format "body, pre %s\n" (cddr (assq 'default css)))
           (apply 'concat
                  (mapcar
                   (lambda (style)
@@ -1836,7 +1837,8 @@ fontified.  This is a simple convenience wrapper around
       (when font-lock-defaults
         ; Silence "interactive use only" warning on Emacs >= 25.1.
         (with-no-warnings (font-lock-fontify-buffer)))))
-   ((fboundp #'jit-lock-fontify-now)
+   ((and (fboundp #'jit-lock-fontify-now)
+         (bound-and-true-p jit-lock-mode))
     (message "hfy jit-lock mode (%S %S)" window-system major-mode)
     (jit-lock-fontify-now))
    (t

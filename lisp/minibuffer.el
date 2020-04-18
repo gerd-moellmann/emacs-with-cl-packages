@@ -1400,7 +1400,11 @@ scroll the window of possible completions."
    (minibuffer-prompt-end) (point-max) #'exit-minibuffer
    ;; If the previous completion completed to an element which fails
    ;; test-completion, then we shouldn't exit, but that should be rare.
-   (lambda () (minibuffer-message "Incomplete"))))
+   (lambda ()
+     (if minibuffer--require-match
+         (minibuffer-message "Incomplete")
+       ;; If a match is not required, exit after all.
+       (exit-minibuffer)))))
 
 (defun minibuffer-force-complete (&optional start end dont-cycle)
   "Complete the minibuffer to an exact match.
@@ -1463,6 +1467,9 @@ DONT-CYCLE tells the function not to setup cycling."
     minibuffer-complete-word PC-complete PC-complete-word)
   "List of commands which cause an immediately following
 `minibuffer-complete-and-exit' to ask for extra confirmation.")
+
+(defvar minibuffer--require-match nil
+  "Value of REQUIRE-MATCH passed to `completing-read'.")
 
 (defun minibuffer-complete-and-exit ()
   "Exit if the minibuffer contains a valid completion.
@@ -3600,7 +3607,7 @@ that is non-nil."
 ;;; "flex" completion, also known as flx/fuzzy/scatter completion
 ;; Completes "foo" to "frodo" and "farfromsober"
 
-(defcustom completion-flex-nospace t
+(defcustom completion-flex-nospace nil
   "Non-nil if `flex' completion rejects spaces in search pattern."
   :version "27.1"
   :type 'boolean)
@@ -3748,8 +3755,10 @@ See `completing-read' for the meaning of the arguments."
 
   (let* ((minibuffer-completion-table collection)
          (minibuffer-completion-predicate predicate)
+         ;; FIXME: Remove/rename this var, see the next one.
          (minibuffer-completion-confirm (unless (eq require-match t)
                                           require-match))
+         (minibuffer--require-match require-match)
          (base-keymap (if require-match
                          minibuffer-local-must-match-map
                         minibuffer-local-completion-map))

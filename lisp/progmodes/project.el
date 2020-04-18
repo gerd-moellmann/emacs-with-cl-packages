@@ -437,6 +437,7 @@ triggers completion when entering a pattern, including it
 requires quoting, e.g. `\\[quoted-insert]<space>'."
   (interactive (list (project--read-regexp)))
   (require 'xref)
+  (require 'grep)
   (let* ((pr (project-current t))
          (files
           (if (not current-prefix-arg)
@@ -479,6 +480,8 @@ pattern to search for."
      nil)))
 
 (defun project--find-regexp-in-files (regexp files)
+  (unless files
+    (user-error "Empty file list"))
   (let ((xrefs (xref-matches-in-files regexp files)))
     (unless xrefs
       (user-error "No matches for: %s" regexp))
@@ -606,7 +609,8 @@ PREDICATE, HIST, and DEFAULT have the same meaning as in
 (defun project-search (regexp)
   "Search for REGEXP in all the files of the project.
 Stops when a match is found.
-To continue searching for next match, use command \\[fileloop-continue]."
+To continue searching for the next match, use the
+command \\[fileloop-continue]."
   (interactive "sSearch (regexp): ")
   (fileloop-initialize-search
    regexp (project-files (project-current t)) 'default)
@@ -614,9 +618,10 @@ To continue searching for next match, use command \\[fileloop-continue]."
 
 ;;;###autoload
 (defun project-query-replace-regexp (from to)
-  "Search for REGEXP in all the files of the project.
-Stops when a match is found.
-To continue searching for next match, use command \\[fileloop-continue]."
+  "Query-replace REGEXP in all the files of the project.
+Stops when a match is found and prompts for whether to replace it.
+If you exit the query-replace, you can later continue the query-replace
+loop using the command \\[fileloop-continue]."
   (interactive
    (pcase-let ((`(,from ,to)
                 (query-replace-read-args "Query replace (regexp)" t t)))
