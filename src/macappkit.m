@@ -14330,7 +14330,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
     goto error;
 
   fileHandle = [NSFileHandle fileHandleForReadingFromURL:url error:NULL];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
+  data = [fileHandle readDataUpToLength:5 error:NULL];
+#else
   data = [fileHandle readDataOfLength:5];
+#endif
 
   if ([data length] < 5 || memcmp ([data bytes], "%PDF-", 5) != 0)
     goto error;
