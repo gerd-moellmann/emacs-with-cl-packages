@@ -44,24 +44,11 @@
   :group 'convenience
   :version "27.1")
 
-(defgroup tab-bar-faces nil
+(defgroup tab-bar-faces '((tab-bar custom-face)) ; tab-bar is defined in faces.el
   "Faces used in the tab bar."
   :group 'tab-bar
   :group 'faces
   :version "27.1")
-
-(defface tab-bar
-  '((((class color) (min-colors 88))
-     :inherit variable-pitch
-     :background "grey85"
-     :foreground "black")
-    (((class mono))
-     :background "grey")
-    (t
-     :inverse-video t))
-  "Tab bar face."
-  :version "27.1"
-  :group 'tab-bar-faces)
 
 (defface tab-bar-tab
   '((default
@@ -87,10 +74,11 @@
 
 
 (defcustom tab-bar-select-tab-modifiers '()
-  "List of key modifiers for selecting a tab by its index digit.
-Possible modifiers are `control', `meta', `shift', `hyper', `super' and
-`alt'."
-  :type '(set :tag "Tab selection key modifiers"
+  "List of modifier keys for selecting a tab by its index digit.
+Possible modifier keys are `control', `meta', `shift', `hyper', `super' and
+`alt'.  To help you to select a tab by its number, you can customize
+`tab-bar-tab-hints' that will show tab numbers alongside the tab name."
+  :type '(set :tag "Tab selection modifier keys"
               (const control)
               (const meta)
               (const shift)
@@ -310,7 +298,8 @@ If nil, don't show it at all."
 
 (defcustom tab-bar-tab-hints nil
   "Show absolute numbers on tabs in the tab bar before the tab name.
-This helps to select the tab by its number using `tab-bar-select-tab'."
+This helps to select the tab by its number using `tab-bar-select-tab'
+and `tab-bar-select-tab-modifiers'."
   :type 'boolean
   :initialize 'custom-initialize-default
   :set (lambda (sym val)
@@ -374,19 +363,22 @@ to `tab-bar-tab-name-truncated'."
   :group 'tab-bar
   :version "27.1")
 
-(defvar tab-bar-tab-name-ellipsis
-  (if (char-displayable-p ?…) "…" "..."))
+(defvar tab-bar-tab-name-ellipsis nil)
 
 (defun tab-bar-tab-name-truncated ()
   "Generate tab name from the buffer of the selected window.
 Truncate it to the length specified by `tab-bar-tab-name-truncated-max'.
 Append ellipsis `tab-bar-tab-name-ellipsis' in this case."
-  (let ((tab-name (buffer-name (window-buffer (minibuffer-selected-window)))))
+  (let ((tab-name (buffer-name (window-buffer (minibuffer-selected-window))))
+        (ellipsis (cond
+                   (tab-bar-tab-name-ellipsis)
+                   ((char-displayable-p ?…) "…")
+                   ("..."))))
     (if (< (length tab-name) tab-bar-tab-name-truncated-max)
         tab-name
       (propertize (truncate-string-to-width
                    tab-name tab-bar-tab-name-truncated-max nil nil
-                   tab-bar-tab-name-ellipsis)
+                   ellipsis)
                   'help-echo tab-name))))
 
 
@@ -563,9 +555,10 @@ Return its existing value or a new value."
 
 (defun tab-bar-select-tab (&optional arg)
   "Switch to the tab by its absolute position ARG in the tab bar.
-When this command is bound to a numeric key (with a prefix or modifier),
-calling it without an argument will translate its bound numeric key
-to the numeric argument.  ARG counts from 1."
+When this command is bound to a numeric key (with a prefix or modifier key
+using `tab-bar-select-tab-modifiers'), calling it without an argument
+will translate its bound numeric key to the numeric argument.
+ARG counts from 1."
   (interactive "P")
   (unless (integerp arg)
     (let ((key (event-basic-type last-command-event)))
@@ -664,7 +657,10 @@ to the numeric argument.  ARG counts from 1."
       (message "No more recent tabs"))))
 
 (defun tab-bar-switch-to-tab (name)
-  "Switch to the tab by NAME."
+  "Switch to the tab by NAME.
+Default values are tab names sorted by recency, so you can use \
+\\<minibuffer-local-map>\\[next-history-element]
+to get the name of the last visited tab, the second last, and so on."
   (interactive
    (let* ((recent-tabs (mapcar (lambda (tab)
                                  (alist-get 'name tab))
@@ -789,7 +785,7 @@ After the tab is created, the hooks in
                         (pcase tab-bar-new-tab-to
                           ('leftmost 0)
                           ('rightmost (length tabs))
-                          ('left (1- (or from-index 1)))
+                          ('left (or from-index 1))
                           ('right (1+ (or from-index 0)))
                           ((pred functionp)
                            (funcall tab-bar-new-tab-to))))))
@@ -920,7 +916,7 @@ for the last tab on a frame is determined by
           ;; Select another tab before deleting the current tab
           (let ((to-index (or (if to-index (1- to-index))
                               (pcase tab-bar-close-tab-select
-                                ('left (1- current-index))
+                                ('left (1- (if (< current-index 1) 2 current-index)))
                                 ('right (if (> (length tabs) (1+ current-index))
                                             (1+ current-index)
                                           (1- current-index)))
@@ -1004,7 +1000,7 @@ for the last tab on a frame is determined by
         (unless (eq frame (selected-frame))
           (select-frame-set-input-focus frame))
 
-        (let ((tabs (tab-bar-tabs)))
+        (let ((tabs (funcall tab-bar-tabs-function)))
           (setq index (max 0 (min index (length tabs))))
           (cl-pushnew tab (nthcdr index tabs))
           (when (eq index 0)
@@ -1102,6 +1098,8 @@ function `tab-bar-tab-name-function'."
     (setq tab-bar-history-omit nil)))
 
 (defun tab-bar-history-back ()
+  "Restore a previous window configuration used in the current tab.
+This navigates back in the history of window configurations."
   (interactive)
   (setq tab-bar-history-omit t)
   (let* ((history (pop (gethash (selected-frame) tab-bar-history-back)))
@@ -1119,6 +1117,8 @@ function `tab-bar-tab-name-function'."
       (message "No more tab back history"))))
 
 (defun tab-bar-history-forward ()
+  "Cancel restoration of the previous window configuration.
+This navigates forward in the history of window configurations."
   (interactive)
   (setq tab-bar-history-omit t)
   (let* ((history (pop (gethash (selected-frame) tab-bar-history-forward)))
@@ -1136,7 +1136,9 @@ function `tab-bar-tab-name-function'."
       (message "No more tab forward history"))))
 
 (define-minor-mode tab-bar-history-mode
-  "Toggle tab history mode for the tab bar."
+  "Toggle tab history mode for the tab bar.
+Tab history mode remembers window configurations used in every tab,
+and can restore them."
   :global t :group 'tab-bar
   (if tab-bar-history-mode
       (progn
@@ -1511,9 +1513,10 @@ indirectly called by the latter."
 Like \\[switch-to-buffer-other-frame] (which see), but creates a new tab."
   (interactive
    (list (read-buffer-to-switch "Switch to buffer in other tab: ")))
-  (display-buffer buffer-or-name '((display-buffer-in-tab
-                                    display-buffer-same-window)
-                                   (inhibit-same-window . nil))
+  (display-buffer (window-normalize-buffer-to-switch-to buffer-or-name)
+                  '((display-buffer-in-tab
+                     display-buffer-same-window)
+                    (inhibit-same-window . nil))
                   norecord))
 
 (defun find-file-other-tab (filename &optional wildcards)

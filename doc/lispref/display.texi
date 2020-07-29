@@ -2023,36 +2023,45 @@ it contains.
 
 @defun window-text-pixel-size &optional window from to x-limit y-limit mode-and-header-line
 This function returns the size of the text of @var{window}'s buffer in
-pixels.  @var{window} must be a live window and defaults to the selected
-one.  The return value is a cons of the maximum pixel-width of any text
-line and the maximum pixel-height of all text lines.
+pixels.  @var{window} must be a live window and defaults to the
+selected one.  The return value is a cons of the maximum pixel-width
+of any text line and the maximum pixel-height of all text lines.  This
+function exists to allow Lisp programs to adjust the dimensions of
+@var{window} to the buffer text it needs to display.
 
-The optional argument @var{from}, if non-@code{nil}, specifies the first
-text position to consider and defaults to the minimum accessible
-position of the buffer.  If @var{from} is @code{t}, it uses the minimum
-accessible position that is not a newline character.  The optional
-argument @var{to}, if non-@code{nil}, specifies the last text position
-to consider and defaults to the maximum accessible position of the
-buffer.  If @var{to} is @code{t}, it uses the maximum accessible
-position that is not a newline character.
+The optional argument @var{from}, if non-@code{nil}, specifies the
+first text position to consider, and defaults to the minimum
+accessible position of the buffer.  If @var{from} is @code{t}, it
+stands for the minimum accessible position that is not a newline
+character.  The optional argument @var{to}, if non-@code{nil},
+specifies the last text position to consider, and defaults to the
+maximum accessible position of the buffer.  If @var{to} is @code{t},
+it stands for the maximum accessible position that is not a newline
+character.
 
 The optional argument @var{x-limit}, if non-@code{nil}, specifies the
-maximum pixel-width that can be returned.  @var{x-limit} @code{nil} or
-omitted, means to use the pixel-width of @var{window}'s body
-(@pxref{Window Sizes}); this is useful when the caller does not intend
-to change the width of @var{window}.  Otherwise, the caller should
-specify here the maximum width @var{window}'s body may assume.  Text
-whose x-coordinate is beyond @var{x-limit} is ignored.  Since
+maximum X coordinate beyond which text should be ignored; it is
+therefore also the largest value of pixel-width that the function can
+return.  If @var{x-limit} @code{nil} or omitted, it means to use the
+pixel-width of @var{window}'s body (@pxref{Window Sizes}); this
+default means that text of truncated lines wider than the window will
+be ignored.  This default is useful when the caller does not intend to
+change the width of @var{window}.  Otherwise, the caller should
+specify here the maximum width @var{window}'s body may assume; in
+particular, if truncated lines are expected and their text needs to be
+accounted for, @var{x-limit} should be set to a large value.  Since
 calculating the width of long lines can take some time, it's always a
 good idea to make this argument as small as needed; in particular, if
 the buffer might contain long lines that will be truncated anyway.
 
 The optional argument @var{y-limit}, if non-@code{nil}, specifies the
-maximum pixel-height that can be returned.  Text lines whose
-y-coordinate is beyond @var{y-limit} are ignored.  Since calculating the
-pixel-height of a large buffer can take some time, it makes sense to
-specify this argument; in particular, if the caller does not know the
-size of the buffer.
+maximum Y coordinate beyond which text is to be ignored; it is
+therefore also the maximum pixel-height that the function can return.
+If @var{y-limit} is nil or omitted, it means to considers all the
+lines of text till the buffer position specified by @var{to}.  Since
+calculating the pixel-height of a large buffer can take some time, it
+makes sense to specify this argument; in particular, if the caller
+does not know the size of the buffer.
 
 The optional argument @var{mode-and-header-line} @code{nil} or omitted
 means to not include the height of the mode- or header-line of
@@ -3601,9 +3610,9 @@ characters in the range @var{from} and @var{to} (inclusive).
 @var{character} may be a charset (@pxref{Character Sets}).  In that
 case, use @var{font-spec} for all the characters in the charset.
 
-@var{character} may be a script name (@pxref{Character Properties}).
-In that case, use @var{font-spec} for all the characters belonging to
-the script.
+@var{character} may be a script name (@pxref{Character Properties,
+char-script-table}).  In that case, use @var{font-spec} for all the
+characters belonging to the script.
 
 @var{character} may be @code{nil}, which means to use @var{font-spec}
 for any character which no font-spec is specified.
@@ -4159,8 +4168,8 @@ topmost and bottommost buffer text line; and @code{top-bottom}
 indicates where there is just one line of text in the buffer.
 
 @item @code{empty-line}
-Used to indicate empty lines when @code{indicate-empty-lines} is
-non-@code{nil}.
+Used to indicate empty lines after the buffer end when
+@code{indicate-empty-lines} is non-@code{nil}.
 
 @item @code{overlay-arrow}
 Used for overlay arrows (@pxref{Overlay Arrow}).
@@ -4269,9 +4278,16 @@ a display specification has the form
 @noindent
 @var{fringe} is either the symbol @code{left-fringe} or
 @code{right-fringe}.  @var{bitmap} is a symbol identifying the bitmap
-to display.  The optional @var{face} names a face whose foreground
-color is used to display the bitmap; this face is automatically merged
-with the @code{fringe} face.
+to display.  The optional @var{face} names a face whose foreground and
+background colors are to be used to display the bitmap, using the
+attributes of the @code{fringe} face for colors that @var{face} didn't
+specify.  If @var{face} is omitted, that means to use the attributes
+of the @code{default} face for the colors which the @code{fringe} face
+didn't specify.  For predictable results that don't depend on the
+attributes of the @code{default} and @code{fringe} faces, we recommend
+you never omit @var{face}, but always provide a specific face.  In
+particular, if you want the bitmap to be always displayed in the
+@code{fringe} face, use @code{fringe} as @var{face}.
 
   For instance, to display an arrow in the left fringe, using the
 @code{warning} face, you could say something like:
@@ -4302,6 +4318,7 @@ The former is used by overlay arrows.  The latter is unused.
 @itemx @code{bottom-left-angle}, @code{bottom-right-angle}
 @itemx @code{top-left-angle}, @code{top-right-angle}
 @itemx @code{left-bracket}, @code{right-bracket}
+@itemx @code{empty-line}
 Used to indicate buffer boundaries.
 
 @item @code{filled-rectangle}, @code{hollow-rectangle}
@@ -4309,7 +4326,7 @@ Used to indicate buffer boundaries.
 @itemx @code{vertical-bar}, @code{horizontal-bar}
 Used for different types of fringe cursors.
 
-@item @code{empty-line}, @code{exclamation-mark}, @code{question-mark}
+@item @code{exclamation-mark}, @code{question-mark}
 Not used by core Emacs features.
 @end table
 
@@ -4342,7 +4359,8 @@ The argument @var{bits} specifies the image to use.  It should be
 either a string or a vector of integers, where each element (an
 integer) corresponds to one row of the bitmap.  Each bit of an integer
 corresponds to one pixel of the bitmap, where the low bit corresponds
-to the rightmost pixel of the bitmap.
+to the rightmost pixel of the bitmap.  (Note that this order of bits
+is opposite of the order in XBM images; @pxref{XBM Images}.)
 
 The height is normally the length of @var{bits}.  However, you
 can specify a different height with non-@code{nil} @var{height}.  The width
@@ -4362,7 +4380,7 @@ height.
 @end defun
 
 @defun destroy-fringe-bitmap bitmap
-This function destroy the fringe bitmap identified by @var{bitmap}.
+This function destroys the fringe bitmap identified by @var{bitmap}.
 If @var{bitmap} identifies a standard fringe bitmap, it actually
 restores the standard definition of that bitmap, instead of
 eliminating it entirely.
@@ -4973,8 +4991,9 @@ Margins}).
 This display specification on any character of a line of text causes
 the specified @var{bitmap} be displayed in the left or right fringes
 for that line, instead of the characters that have the display
-specification.  The optional @var{face} specifies the colors to be
-used for the bitmap.  @xref{Fringe Bitmaps}, for the details.
+specification.  The optional @var{face} specifies the face whose
+colors are to be used for the bitmap display.  @xref{Fringe Bitmaps},
+for the details.
 
 @item (space-width @var{factor})
 This display specification affects all the space characters within the
@@ -6930,7 +6949,7 @@ end of the buffer continues from the other end.  If
 is displayed.  Any button with a non-@code{nil} @code{skip} property
 is skipped over.  Returns the button found, and signals an error if no
 buttons can be found.  If @var{no-error} in non-@code{nil}, return nil
-instead of signalling the error.
+instead of signaling the error.
 @end deffn
 
 @deffn Command backward-button n &optional wrap display-message
@@ -6942,7 +6961,7 @@ end of the buffer continues from the other end.  If
 is displayed.  Any button with a non-@code{nil} @code{skip} property
 is skipped over.  Returns the button found, and signals an error if no
 buttons can be found.  If @var{no-error} in non-@code{nil}, return nil
-instead of signalling the error.
+instead of signaling the error.
 @end deffn
 
 @defun next-button pos &optional count-current

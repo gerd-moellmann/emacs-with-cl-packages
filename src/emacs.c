@@ -124,6 +124,11 @@ static const char emacs_version[] = PACKAGE_VERSION;
 static const char emacs_copyright[] = COPYRIGHT;
 static const char emacs_bugreport[] = PACKAGE_BUGREPORT;
 
+/* Put version info into the executable in the form that 'ident' uses.  */
+char const EXTERNALLY_VISIBLE RCS_Id[]
+  = "$Id" ": GNU Emacs " PACKAGE_VERSION
+    " (" EMACS_CONFIGURATION " " EMACS_CONFIG_FEATURES ") $";
+
 /* Empty lisp strings.  To avoid having to build any others.  */
 Lisp_Object empty_unibyte_string, empty_multibyte_string;
 
@@ -353,7 +358,10 @@ setlocale (int cat, char const *locale)
 static bool
 using_utf8 (void)
 {
-#ifdef HAVE_WCHAR_H
+  /* We don't want to compile in mbrtowc on WINDOWSNT because that
+     will prevent Emacs from starting on older Windows systems, while
+     the result is known in advance anyway...  */
+#if defined HAVE_WCHAR_H && !defined WINDOWSNT
   wchar_t wc;
   mbstate_t mbs = { 0 };
   return mbrtowc (&wc, "\xc4\x80", 2, &mbs) == 2 && wc == 0x100;
@@ -2392,6 +2400,8 @@ DEFUN ("kill-emacs", Fkill_emacs, Skill_emacs, 0, 1, "P",
        doc: /* Exit the Emacs job and kill it.
 If ARG is an integer, return ARG as the exit program code.
 If ARG is a string, stuff it as keyboard input.
+Any other value of ARG, or ARG omitted, means return an
+exit code that indicates successful program termination.
 
 This function is called upon receipt of the signals SIGTERM
 or SIGHUP, and upon SIGINT in batch mode.

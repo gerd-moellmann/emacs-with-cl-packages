@@ -198,7 +198,8 @@ as start and end positions), and with `string<' otherwise."
 
 ;;;###autoload
 (defun sort-lines (reverse beg end)
-  "Sort lines in region alphabetically; argument means descending order.
+  "Sort lines in region alphabetically; REVERSE non-nil means descending order.
+Interactively, REVERSE is the prefix argument, and BEG and END are the region.
 Called from a program, there are three arguments:
 REVERSE (non-nil means reverse order), BEG and END (region to sort).
 The variable `sort-fold-case' determines whether alphabetic case affects
@@ -553,9 +554,6 @@ is the one that ends before END."
   (if (> beg end)
       (let (mid) (setq mid end end beg beg mid)))
   (save-excursion
-    (when (or (< (line-beginning-position) beg)
-              (< end (line-end-position)))
-      (user-error "There are no full lines in the region"))
     ;; Put beg at the start of a line and end and the end of one --
     ;; the largest possible region which fits this criteria.
     (goto-char beg)
@@ -567,6 +565,8 @@ is the one that ends before END."
     ;; reversal; it isn't difficult to add it afterward.
     (or (and (eolp) (not (bolp))) (progn (forward-line -1) (end-of-line)))
     (setq end (point-marker))
+    (when (<= end beg)
+      (user-error "There are no full lines in the region"))
     ;; The real work.  This thing cranks through memory on large regions.
     (let (ll (do t))
       (while do

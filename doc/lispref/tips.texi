@@ -8,6 +8,7 @@
 @cindex tips for writing Lisp
 @cindex standards of coding style
 @cindex coding standards
+@cindex best practices
 
   This chapter describes no additional features of Emacs Lisp.  Instead
 it gives advice on making effective use of the features described in the
@@ -818,6 +819,14 @@ Avoid using ``iff'' (a mathematics term meaning ``if and only if''),
 since many people are unfamiliar with it and mistake it for a typo.  In
 most cases, the meaning is clear with just ``if''.  Otherwise, try to
 find an alternate phrasing that conveys the meaning.
+
+@item
+Try to avoid using abbreviations such as ``e.g.'' (for ``for
+example''), ``i.e.'' (for ``that is''), ``no.'' (for ``number''),
+``c.f.'' (for ``in contrast to'') and ``w.r.t.'' (for ``with respect
+to'') as much as possible.  It is almost always clearer and easier to
+read the expanded version.@footnote{We do use these occasionally, but
+try not to overdo it.}
 
 @item
 When a command is meaningful only in a certain mode or situation,

@@ -723,7 +723,13 @@ with renamed files so that they refer to the new names.
 @vindex dired-vc-rename-file
 If the value of the variable @code{dired-vc-rename-file} is non-@code{nil},
 files are renamed using the commands of the underlying VCS, via
+@ifnottex
 @code{vc-rename-file} (@pxref{VC Delete/Rename}).
+@end ifnottex
+@iftex
+@code{vc-rename-file} (@pxref{VC Delete/Rename,, Deleting and Renaming
+Version-Controlled Files, emacs-xtra, Specialized Emacs Features}).
+@end iftex
 
 @findex dired-do-hardlink
 @kindex H @r{(Dired)}
@@ -1416,7 +1422,8 @@ C-c}.
 
   Image-Dired is a facility for browsing image files.  It provides viewing
 the images either as thumbnails or in full size, either inside Emacs
-or through an external viewer.
+or through an external viewer.  This is different from Image mode
+(@pxref{Image Mode}) for visiting an image file in the Emacs buffer.
 
 @kindex C-t d @r{(Image-Dired)}
 @findex image-dired-display-thumbs

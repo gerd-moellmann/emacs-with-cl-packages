@@ -831,6 +831,7 @@ usage: (defconst SYMBOL INITVALUE [DOCSTRING])  */)
   Lisp_Object sym, tem;
 
   sym = XCAR (args);
+  CHECK_SYMBOL (sym);
   Lisp_Object docstring = Qnil;
   if (!NILP (XCDR (XCDR (args))))
     {
@@ -1229,7 +1230,7 @@ The car of a handler may be a list of condition names instead of a
 single condition name; then it handles all of them.  If the special
 condition name `debug' is present in this list, it allows another
 condition in the list to run the debugger if `debug-on-error' and the
-other usual mechanisms says it should (otherwise, `condition-case'
+other usual mechanisms say it should (otherwise, `condition-case'
 suppresses the debugger).
 
 When a handler handles an error, control returns to the `condition-case'

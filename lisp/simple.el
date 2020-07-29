@@ -199,7 +199,7 @@ rejected, and the function returns nil."
 	   (and extra-test-inclusive
 		(funcall extra-test-inclusive))))))
 
-(defcustom next-error-find-buffer-function #'ignore
+(defcustom next-error-find-buffer-function #'next-error-buffer-unnavigated-current
   "Function called to find a `next-error' capable buffer.
 This functions takes the same three arguments as the function
 `next-error-find-buffer', and should return the buffer to be
@@ -211,6 +211,8 @@ all other buffers."
   :type '(choice (const :tag "No default" ignore)
                  (const :tag "Single next-error capable buffer on selected frame"
                         next-error-buffer-on-selected-frame)
+                 (const :tag "Current buffer if next-error capable and outside navigation"
+                        next-error-buffer-unnavigated-current)
                  (function :tag "Other function"))
   :group 'next-error
   :version "27.1")
@@ -240,6 +242,21 @@ from which next-error navigated, and a target buffer TO-BUFFER."
     (if (eq (length window-buffers) 1)
         (car window-buffers))))
 
+(defun next-error-buffer-unnavigated-current (&optional avoid-current
+                                                        extra-test-inclusive
+                                                        extra-test-exclusive)
+  "Try the current buffer when outside navigation.
+But return nil if we navigated to the current buffer by the means
+of `next-error' command.  Othewise, return it if it's next-error
+capable."
+  ;; Check that next-error-buffer has no buffer-local value
+  ;; (i.e. we never navigated to the current buffer from another),
+  ;; and the current buffer is a `next-error' capable buffer.
+  (if (and (not (local-variable-p 'next-error-buffer))
+           (next-error-buffer-p (current-buffer) avoid-current
+                                extra-test-inclusive extra-test-exclusive))
+      (current-buffer)))
+
 (defun next-error-find-buffer (&optional avoid-current
 					 extra-test-inclusive
 					 extra-test-exclusive)
@@ -260,24 +277,16 @@ that buffer is rejected."
    (funcall next-error-find-buffer-function avoid-current
                                             extra-test-inclusive
                                             extra-test-exclusive)
-   ;; 2. If next-error-buffer has no buffer-local value
-   ;; (i.e. never navigated to the current buffer from another),
-   ;; and the current buffer is a `next-error' capable buffer,
-   ;; use it unconditionally, so next-error will always use it.
-   (if (and (not (local-variable-p 'next-error-buffer))
-            (next-error-buffer-p (current-buffer) avoid-current
-			         extra-test-inclusive extra-test-exclusive))
-       (current-buffer))
-   ;; 3. If next-error-last-buffer is an acceptable buffer, use that.
+   ;; 2. If next-error-last-buffer is an acceptable buffer, use that.
    (if (and next-error-last-buffer
             (next-error-buffer-p next-error-last-buffer avoid-current
                                  extra-test-inclusive extra-test-exclusive))
        next-error-last-buffer)
-   ;; 4. If the current buffer is acceptable, choose it.
+   ;; 3. If the current buffer is acceptable, choose it.
    (if (next-error-buffer-p (current-buffer) avoid-current
 			    extra-test-inclusive extra-test-exclusive)
        (current-buffer))
-   ;; 5. Look for any acceptable buffer.
+   ;; 4. Look for any acceptable buffer.
    (let ((buffers (buffer-list)))
      (while (and buffers
                  (not (next-error-buffer-p
@@ -285,7 +294,7 @@ that buffer is rejected."
 		       extra-test-inclusive extra-test-exclusive)))
        (setq buffers (cdr buffers)))
      (car buffers))
-   ;; 6. Use the current buffer as a last resort if it qualifies,
+   ;; 5. Use the current buffer as a last resort if it qualifies,
    ;; even despite AVOID-CURRENT.
    (and avoid-current
 	(next-error-buffer-p (current-buffer) nil
@@ -293,7 +302,7 @@ that buffer is rejected."
 	(progn
 	  (message "This is the only buffer with error message locations")
 	  (current-buffer)))
-   ;; 7. Give up.
+   ;; 6. Give up.
    (error "No buffers contain error message locations")))
 
 (defun next-error (&optional arg reset)
@@ -3437,20 +3446,22 @@ This affects `shell-command' and `async-shell-command'."
   :version "27.1")
 
 (defcustom shell-command-dont-erase-buffer nil
-  "Control if the output buffer is erased before the command.
+  "Whether to erase the output buffer before executing shell command.
 
 A nil value erases the output buffer before execution of the
 shell command, except when the output buffer is the current one.
 
 The value `erase' ensures the output buffer is erased before
-execution of the shell command.
+execution of the shell command even if it is the current buffer.
 
-Other non-nil values prevent the output buffer from being erased and
-set the point after execution of the shell command.
+Other non-nil values prevent the output buffer from being erased; they
+also reposition point in the shell output buffer after execution of the
+shell command, except when the output buffer is the current buffer.
 
-The value `beg-last-out' sets point at the beginning of the output,
-`end-last-out' sets point at the end of the buffer, `save-point'
-restores the buffer position before the command."
+The value `beg-last-out' sets point at the beginning of the last
+output, `end-last-out' sets point at the end of the last output,
+and `save-point' restores the buffer position as it was before the
+shell command."
   :type '(choice
           (const :tag "Erase output buffer if not the current one" nil)
           (const :tag "Always erase output buffer" erase)
@@ -3480,9 +3491,12 @@ See `shell-command-dont-erase-buffer'."
     ;; if some text has a non-nil read-only property,
     ;; which comint sometimes adds for prompts.
     (setq pos
-          (cond ((eq sym 'save-point) (point))
-                ((eq sym 'beg-last-out) (point-max))
-                ;;((not sym)
+          (cond ((eq sym 'save-point)
+                 (if (not output-to-current-buffer)
+                     (point)))
+                ((eq sym 'beg-last-out)
+                 (if (not output-to-current-buffer)
+                     (point-max)))
                 ((or (eq sym 'erase)
                      (and (null sym) (not output-to-current-buffer)))
                  (let ((inhibit-read-only t))
@@ -3597,9 +3611,14 @@ says to put the output in some other buffer.
 If OUTPUT-BUFFER is a buffer or buffer name, erase that buffer
 and insert the output there; a non-nil value of
 `shell-command-dont-erase-buffer' prevents the buffer from being
-erased.  If OUTPUT-BUFFER is not a buffer and not nil, insert the
+erased.  If OUTPUT-BUFFER is not a buffer and not nil (which happens
+interactively when the prefix argument is given), insert the
 output in current buffer after point leaving mark after it.  This
 cannot be done asynchronously.
+
+The user option `shell-command-dont-erase-buffer', which see, controls
+whether the output buffer is erased and where to put point after
+the shell command.
 
 If the command terminates without error, but generates output,
 and you did not specify \"insert it in the current buffer\",
@@ -3688,8 +3707,7 @@ impose the use of a shell (with its need to quote arguments)."
 	    ;; because we inserted text.
 	    (goto-char (prog1 (mark t)
 			 (set-marker (mark-marker) (point)
-				     (current-buffer))))
-            (shell-command-set-point-after-cmd))
+				     (current-buffer)))))
 	;; Output goes in a separate buffer.
 	;; Preserve the match data in case called from a program.
         ;; FIXME: It'd be ridiculous for an Elisp function to call
@@ -3895,7 +3913,12 @@ is used for ERROR-BUFFER.
 
 Optional seventh arg DISPLAY-ERROR-BUFFER, if non-nil, means to
 display the error buffer if there were any errors.  When called
-interactively, this is t."
+interactively, this is t.
+
+Non-nil REGION-NONCONTIGUOUS-P means that the region is composed of
+noncontiguous pieces.  The most common example of this is a
+rectangular region, where the pieces are separated by newline
+characters."
   (interactive (let (string)
 		 (unless (mark)
 		   (user-error "The mark is not set now, so there is no region"))
@@ -4800,7 +4823,7 @@ In Transient Mark mode, deactivate the mark.
 If `interprogram-cut-function' is non-nil, also save the text for a window
 system cut and paste.
 
-If you want to append the killed line to the last killed text,
+If you want to append the killed region to the last killed text,
 use \\[append-next-kill] before \\[kill-ring-save].
 
 The copied text is filtered by `filter-buffer-substring' before it is
@@ -4843,7 +4866,7 @@ of this sample text; it defaults to 40."
 	;; Swap point-and-mark quickly so as to show the region that
 	;; was selected.  Don't do it if the region is highlighted.
 	(unless (and (region-active-p)
-		     (face-background 'region))
+		     (face-background 'region nil t))
 	  ;; Swap point and mark.
 	  (set-marker (mark-marker) (point) (current-buffer))
 	  (goto-char mark)

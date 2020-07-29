@@ -35,25 +35,11 @@
   :group 'convenience
   :version "27.1")
 
-(defgroup tab-line-faces nil
+(defgroup tab-line-faces '((tab-line custom-face)) ; tab-line is defined in faces.el
   "Faces used in the tab line."
   :group 'tab-line
   :group 'faces
   :version "27.1")
-
-(defface tab-line
-  '((((class color) (min-colors 88))
-     :inherit variable-pitch
-     :height 0.9
-     :background "grey85"
-     :foreground "black")
-    (((class mono))
-     :background "grey")
-    (t
-     :inverse-video t))
-  "Tab line face."
-  :version "27.1"
-  :group 'tab-line-faces)
 
 (defface tab-line-tab
   '((default
@@ -474,8 +460,12 @@ variable `tab-line-tabs-function'."
   "Template for displaying tab line for selected window."
   (let* ((tabs (funcall tab-line-tabs-function))
          (cache-key (list tabs
+                          ;; handle buffer renames
                           (buffer-name (window-buffer))
-                          (window-parameter nil 'tab-line-hscroll)))
+                          ;; handle tab-line scrolling
+                          (window-parameter nil 'tab-line-hscroll)
+                          ;; for setting face 'tab-line-tab-current'
+                          (eq (selected-window) (old-selected-window))))
          (cache (window-parameter nil 'tab-line-cache)))
     ;; Enable auto-hscroll again after it was disabled on manual scrolling.
     ;; The moment to enable it is when the window-buffer was updated.
