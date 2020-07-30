@@ -2958,8 +2958,8 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
 	     (rdar://11644870) currently.  So we add a workaround.  */
 	  if (FRAME_BACKING_SCALE_FACTOR (f) != 1
 	      && !FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f)
-	      && (mac_operating_system_version.minor >= 7
-		  || mac_operating_system_version.major > 10))
+	      && (mac_operating_system_version.major > 10
+		  || mac_operating_system_version.minor >= 7))
 	    bold_factor = synthetic_bold_factor * 2;
 	  else
 	    bold_factor = synthetic_bold_factor;

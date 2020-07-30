@@ -2984,8 +2984,8 @@ scaling.  If you don't want to trigger tab group overview by the
 pinch close gesture, then remap this command to
 `mac-magnify-text-scale'."
   (interactive "e")
-  (if (not (or (>= (cadr (x-server-version)) 13)
-               (> (car (x-server-version)) 10)))
+  (if (not (or (> (car (x-server-version)) 10)
+               (>= (cadr (x-server-version)) 13)))
       (mac-magnify-text-scale event)
     (let ((phase (plist-get (nth 3 event) :phase)))
       (if (or (null phase) (eq phase 'began))
@@ -3320,7 +3320,7 @@ standard ones in `x-handle-args'."
 			     splash-screen-keymap)
 
   ;; Running on macOS 10.10 or later.
-  (when (or (>= (cadr (x-server-version)) 10) (> (car (x-server-version)) 10))
+  (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 10))
     (advice-add 'fancy-startup-screen :after
                 (lambda (&optional _concise)
                   (set (make-local-variable 'face-remapping-alist)
@@ -3331,7 +3331,7 @@ standard ones in `x-handle-args'."
   (push 'mac-mouse-buffer-menu selection-inhibit-update-commands)
 
   ;; Running on macOS 10.12 or later.
-  (when (or (>= (cadr (x-server-version)) 12) (> (car (x-server-version)) 10))
+  (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 12))
     (define-key ctl-x-5-map "5" 'mac-ctl-x-5-revolve-frame-tabbing)
     (define-key-after menu-bar-showhide-menu [mac-toggle-tab-bar]
       '(menu-item "Tab-bar" mac-toggle-tab-bar
@@ -3339,7 +3339,7 @@ standard ones in `x-handle-args'."
                   :button (:toggle . (mac-frame-tab-group-property
                                       nil :tab-bar-visible-p)))
       'menu-bar-mode)
-    (when (or (>= (cadr (x-server-version)) 13) (> (car (x-server-version)) 10))
+    (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 13))
       (define-key-after menu-bar-showhide-menu [mac-toggle-tab-group-overview]
         '(menu-item "Tab Group Overview" mac-toggle-tab-group-overview
                     :enable (mac-frame-tab-group-property nil :selected-frame)
