@@ -3768,7 +3768,14 @@ mac_font_create_preferred_family_for_attributes (CFDictionaryRef attributes)
 
       if (languages && CFArrayGetCount (languages) > 0)
         {
-          if (CTGetCoreTextVersion () >= kCTVersionNumber10_9)
+          if (
+#ifdef HAVE_MACGUI
+	      mac_operating_system_version.major > 10
+	      || mac_operating_system_version.minor >= 9
+#else
+	      CTGetCoreTextVersion () >= kCTVersionNumber10_9
+#endif
+	      )
             values[num_values++] = CFArrayGetValueAtIndex (languages, 0);
           else
             {
