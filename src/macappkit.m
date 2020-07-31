@@ -9591,10 +9591,21 @@ mac_get_default_scroll_bar_height (struct frame *f)
   return item;
 }
 
+static NSToolbarItemIdentifier
+toolbar_separator_item_identifier_if_available (void)
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_6)
+    return NSToolbarSeparatorItemIdentifier;
+  else
+#endif
+    return nil;
+}
+
 - (NSArrayOf (NSToolbarItemIdentifier) *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar
 {
   return [NSArray arrayWithObjects:TOOLBAR_ICON_ITEM_IDENTIFIER,
-		  NSToolbarSeparatorItemIdentifier, nil];
+		  toolbar_separator_item_identifier_if_available (), nil];
 }
 
 - (NSArrayOf (NSToolbarItemIdentifier) *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar
@@ -9765,7 +9776,7 @@ update_frame_tool_bar (struct frame *f)
   NativeRectangle r;
   NSToolbar *toolbar;
   int i, win_gravity = f->output_data.mac->toolbar_win_gravity;
-  int __block pos;
+  int pos;
   bool use_multiimage_icons_p = true;
 
   block_input ();
@@ -9798,7 +9809,7 @@ update_frame_tool_bar (struct frame *f)
       NSToolbarItemIdentifier identifier = TOOLBAR_ICON_ITEM_IDENTIFIER;
 
       if (EQ (PROP (TOOL_BAR_ITEM_TYPE), Qt))
-	identifier = NSToolbarSeparatorItemIdentifier;
+	identifier = toolbar_separator_item_identifier_if_available ();
       else
 	{
 	  /* If image is a vector, choose the image according to the
@@ -9847,7 +9858,7 @@ update_frame_tool_bar (struct frame *f)
 	     weird.  So we use separator items for too narrow disabled
 	     images.  */
 	  if (CGImageGetWidth (img->cg_image) <= 2 && !enabled_p)
-	    identifier = NSToolbarSeparatorItemIdentifier;
+	    identifier = toolbar_separator_item_identifier_if_available ();
 	  else if (!use_multiimage_icons_p || img->target_backing_scale == 0)
 	    cgImages = [NSArray arrayWithObject:((__bridge id) img->cg_image)];
 	  else
@@ -9866,6 +9877,9 @@ update_frame_tool_bar (struct frame *f)
 	    }
 	}
 
+      if (!identifier)
+	continue;
+
       mac_within_gui (^{
 	  NSArrayOf (__kindof NSToolbarItem *) *items = [toolbar items];
 	  NSUInteger count = [items count];
@@ -9879,16 +9893,9 @@ update_frame_tool_bar (struct frame *f)
 	      count = [items count];
 	    }
 
-	  if (identifier == NSToolbarSeparatorItemIdentifier)
-	    {
-	      /* On Mac OS X 10.7, items with the identifier
-		 NSToolbarSeparatorItemIdentifier are not added.  */
-	      if (pos < count
-		  && [identifier isEqualToString:[[items objectAtIndex:pos]
-						   itemIdentifier]])
-		pos++;
-	    }
-	  else
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+	  if (identifier != NSToolbarSeparatorItemIdentifier)
+#endif
 	    {
 	      EmacsToolbarItem *item = [items objectAtIndex:pos];
 
@@ -9896,9 +9903,9 @@ update_frame_tool_bar (struct frame *f)
 	      [item setLabel:label];
 	      [item setEnabled:(enabled_p || idx >= 0)];
 	      [item setTag:i];
-	      pos++;
 	    }
 	});
+      pos++;
 #undef PROP
     }
 
