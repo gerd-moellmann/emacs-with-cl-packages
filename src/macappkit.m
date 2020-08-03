@@ -4537,12 +4537,17 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 
 	if (p)
 	  {
+	    NSWindow *parentWindow = FRAME_MAC_WINDOW_OBJECT (p);
+
 	    if (!window.isVisible)
 	      {
-		NSWindow *parentWindow = FRAME_MAC_WINDOW_OBJECT (p);
-
 		[parentWindow addChildWindow:window ordered:NSWindowAbove];
 		mac_move_frame_window_structure_1 (f, f->left_pos, f->top_pos);
+	      }
+	    else if (![window isEqual:parentWindow.childWindows.lastObject])
+	      {
+		[parentWindow removeChildWindow:window];
+		[parentWindow addChildWindow:window ordered:NSWindowAbove];
 	      }
 	    if (activate_p)
 	      [window makeKeyWindow];
@@ -4619,7 +4624,27 @@ mac_send_frame_window_behind (struct frame *f)
 {
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
-  mac_within_gui (^{[window orderWindow:NSWindowBelow relativeTo:0];});
+  mac_within_gui (^{
+      struct frame *p = FRAME_PARENT_FRAME (f);
+
+      if (p == NULL)
+	[window orderWindow:NSWindowBelow relativeTo:0];
+      else
+	{
+	  NSWindow *parentWindow = FRAME_MAC_WINDOW_OBJECT (p);
+	  NSArrayOf (__kindof NSWindow *) *childWindows =
+	    parentWindow.childWindows;
+
+	  if (![window isEqual:[childWindows objectAtIndex:0]])
+	    for (NSWindow *childWindow in childWindows)
+	      if (![childWindow isEqual:window])
+		{
+		  [parentWindow removeChildWindow:childWindow];
+		  [parentWindow addChildWindow:childWindow
+				       ordered:NSWindowAbove];
+		}
+	}
+    });
 }
 
 void
