@@ -15581,9 +15581,7 @@ mac_update_accessibility_status (struct frame *f)
     }
 #endif
 
-  [CATransaction setDisableActions:YES];
   [[overlayView layer] addSublayer:animationLayer];
-  [CATransaction commit];
 }
 
 - (CALayer *)layerForRect:(NSRect)rect
