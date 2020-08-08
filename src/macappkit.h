@@ -56,13 +56,13 @@ static const NSAppKitVersion NSAppKitVersionNumber10_11 = 1404;
 static const NSAppKitVersion NSAppKitVersionNumber10_12 = 1504;
 #endif
 #endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
+#ifndef __MAC_10_14
 static const NSAppKitVersion NSAppKitVersionNumber10_13 = 1561;
 #endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101500
+#ifndef __MAC_10_15
 static const NSAppKitVersion NSAppKitVersionNumber10_14 = 1671;
 #endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+#ifndef __MAC_11_0
 static const NSAppKitVersion NSAppKitVersionNumber10_15 = 1894;
 #endif
 
