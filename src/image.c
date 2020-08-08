@@ -3734,43 +3734,47 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	  has_alpha_p = (boolean && CFBooleanGetValue (boolean));
 
 	  /* Get animation-related properties for animated GIF (all
-	     versions) or PNG (OS X 10.10 and later).  Note that
-	     kCGImagePropertyGIFLoopCount and
-	     kCGImagePropertyAPNGLoopCount have the same value (CFSTR
-	     "LoopCount").  Likewise for (Unclamped)DelayTime.  */
+	     versions), PNG (OS X 10.10 and later), HEICS (macOS 10.15
+	     and later), or WebP (macOS 11.0 and later).  Note that
+	     kCGImageProperty{GIF,APNG,HEICS,WebP}LoopCount have the
+	     same value (CFSTR ("LoopCount")).  Likewise for
+	     (Unclamped)DelayTime.  */
 	  if (type == NULL || gif_p)
 	    {
+	      CFStringRef dict_keys[] = {
+		kCGImagePropertyGIFDictionary, kCGImagePropertyPNGDictionary,
+		CFSTR ("{HEICS}"), /* kCGImagePropertyHEICSDictionary */
+		CFSTR ("{WebP}"),  /* kCGImagePropertyWebPDictionary */
+	      };
 	      CFDictionaryRef dict;
 	      CFNumberRef num;
 
-	      dict = CFDictionaryGetValue (src_props,
-					   kCGImagePropertyGIFDictionary);
-	      if (dict == NULL)
-		dict = CFDictionaryGetValue (src_props,
-					     kCGImagePropertyPNGDictionary);
-	      if (dict)
+	      for (int i = 0; i < ARRAYELTS (dict_keys); i++)
 		{
-		  num = CFDictionaryGetValue (dict,
-					      kCGImagePropertyGIFLoopCount);
-		  if (num)
-		    CFNumberGetValue (num, kCFNumberIntType, &loop_count);
+		  dict = CFDictionaryGetValue (src_props, dict_keys[i]);
+		  if (dict)
+		    {
+		      num = CFDictionaryGetValue (dict, CFSTR ("LoopCount"));
+		      if (num)
+			CFNumberGetValue (num, kCFNumberIntType, &loop_count);
+		      break;
+		    }
 		}
-
-	      dict = CFDictionaryGetValue (props,
-					   kCGImagePropertyGIFDictionary);
-	      if (dict == NULL)
-		dict = CFDictionaryGetValue (props,
-					     kCGImagePropertyPNGDictionary);
-	      if (dict)
+	      for (int i = 0; i < ARRAYELTS (dict_keys); i++)
 		{
-		  /* Use the unclamped delay time if available.  */
-		  num = CFDictionaryGetValue (dict,
-					      CFSTR ("UnclampedDelayTime"));
-		  if (num == NULL)
-		    num = CFDictionaryGetValue (dict,
-						kCGImagePropertyGIFDelayTime);
-		  if (num)
-		    CFNumberGetValue (num, kCFNumberDoubleType, &delay_time);
+		  dict = CFDictionaryGetValue (props, dict_keys[i]);
+		  if (dict)
+		    {
+		      /* Use the unclamped delay time if available.  */
+		      num = CFDictionaryGetValue (dict,
+						  CFSTR ("UnclampedDelayTime"));
+		      if (num == NULL)
+			num = CFDictionaryGetValue (dict, CFSTR ("DelayTime"));
+		      if (num)
+			CFNumberGetValue (num, kCFNumberDoubleType,
+					  &delay_time);
+		      break;
+		    }
 		}
 	    }
 	  if (type == NULL)
