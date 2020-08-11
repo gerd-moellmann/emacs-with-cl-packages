@@ -6524,6 +6524,11 @@ static BOOL emacsViewUpdateLayerDisabled;
 			    (FRAME_FLASH_RECTANGLES_DATA (f)));
   NSData *savedImageBuffersData;
 
+  /* Work around a crash when creating a GUI frame on macOS Big Sur
+     Beta.  */
+  if (f->output_data.mac->normal_gc == NULL)
+    return;
+
   if (backing.lockCount)
     return;
 
@@ -15584,6 +15589,8 @@ mac_update_accessibility_status (struct frame *f)
 
   [CATransaction setDisableActions:YES];
   [[overlayView layer] addSublayer:animationLayer];
+  /* This avoids flickering the mode-line in the splash screen with
+     mouse-wheel scrolling.  */
   [CATransaction commit];
 }
 
