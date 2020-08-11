@@ -752,9 +752,6 @@ prefix of GSTRING and the corresponding suffix."
 
 (define-minor-mode mac-auto-operator-composition-mode
   "Toggle Mac Auto Operator Composition mode.
-With a prefix argument ARG, enable Mac Auto Operator Composition
-mode if ARG is positive, and disable it otherwise.  If called
-from Lisp, enable the mode if ARG is omitted or nil.
 
 Mac Auto Operator Composition mode automatically composes
 consecutive occurrences of characters consisting of the elements
@@ -1583,10 +1580,7 @@ or the Mac port of Emacs 23-24.4 about encoding of SCRIPT."
 (declare-function mac-set-font-panel-visible-p "macfns.c" (flag))
 
 (define-minor-mode mac-font-panel-mode
-  "Toggle font panel display (Mac Font Panel mode).
-With a prefix argument ARG, enable Mac Font Panel mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil."
+  "Toggle font panel display (Mac Font Panel mode)."
   :init-value nil
   :global t
   :group 'mac
@@ -1888,9 +1882,6 @@ Expects to be bound to global keymap's prefix keys in
 
 (define-minor-mode mac-auto-ascii-mode
   "Toggle Mac Auto ASCII mode.
-With a prefix argument ARG, enable Mac Auto ASCII mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 Mac Auto ASCII mode automatically selects the most-recently-used
 ASCII-capable keyboard input source on some occasions: after
@@ -2813,10 +2804,7 @@ non-nil, and the input device supports it."
 (defvar mac-mwheel-installed-bindings nil)
 
 (define-minor-mode mac-mouse-wheel-mode
-  "Toggle mouse wheel support with smooth scroll (Mac Mouse Wheel mode).
-With a prefix argument ARG, enable Mac Mouse Wheel mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil."
+  "Toggle mouse wheel support with smooth scroll (Mac Mouse Wheel mode)."
   :init-value nil
   :global t
   :group 'mac
