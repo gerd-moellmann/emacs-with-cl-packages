@@ -1,8 +1,8 @@
 ;; erc-page.el - CTCP PAGE support for ERC
 
-;; Copyright (C) 2002, 2004, 2006-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2002, 2004, 2006-2020 Free Software Foundation, Inc.
 
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
 
 ;; This file is part of GNU Emacs.
 
@@ -30,7 +30,7 @@
 
 (require 'erc)
 
-;;;###autoload (autoload 'erc-page-mode "erc-page")
+;;;###autoload(autoload 'erc-page-mode "erc-page")
 (define-erc-module page ctcp-page
   "Process CTCP PAGE requests from IRC."
   nil nil)
@@ -107,6 +107,5 @@ receive pages if `erc-page-mode' is on."
 ;;; erc-page.el ends here
 ;;
 ;; Local Variables:
-;; indent-tabs-mode: t
-;; tab-width: 8
+;; generated-autoload-file: "erc-loaddefs.el"
 ;; End:

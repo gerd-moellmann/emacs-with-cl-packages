@@ -1,6 +1,6 @@
 ;;; generator-tests.el --- Testing generators -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
 
 ;; Author: Daniel Colascione <dancol@dancol.org>
 ;; Keywords:
@@ -22,6 +22,10 @@
 
 ;;; Commentary:
 
+;; Unit tests for generator.el.
+
+;;; Code:
+
 (require 'generator)
 (require 'ert)
 (require 'cl-lib)
@@ -38,8 +42,7 @@
 `cps-testcase' defines an ERT testcase called NAME that evaluates
 BODY twice: once using ordinary `eval' and once using
 lambda-generators.  The test ensures that the two forms produce
-identical output.
-"
+identical output."
   `(progn
      (ert-deftest ,name ()
        (should
@@ -292,3 +295,15 @@ identical output.
                                 (i 0)
                                 (j (setq i (1+ i))))
                            (iter-yield i))))))))
+
+(ert-deftest iter-lambda-variable-shadowing ()
+  "`iter-lambda' forms which have local variable shadowing (Bug#26073)."
+  (should (equal (iter-next
+                  (funcall (iter-lambda ()
+                             (let ((it 1))
+                               (iter-yield (funcall
+                                            (lambda (it) (- it))
+                                            (1+ it)))))))
+                 -2)))
+
+;;; generator-tests.el ends here

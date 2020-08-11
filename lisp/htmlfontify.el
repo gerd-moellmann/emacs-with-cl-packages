@@ -1,6 +1,6 @@
 ;;; htmlfontify.el --- htmlize a buffer/source tree with optional hyperlinks -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2003, 2009-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2003, 2009-2020 Free Software Foundation, Inc.
 
 ;; Emacs Lisp Archive Entry
 ;; Package: htmlfontify
@@ -8,7 +8,6 @@
 ;; Version: 0.21
 ;; Keywords: html, hypermedia, markup, etags
 ;; Author: Vivek Dasmohapatra <vivek@etla.org>
-;; Maintainer: Vivek Dasmohapatra <vivek@etla.org>
 ;; Created: 2002-01-05
 ;; Description: htmlize a buffer/source tree with optional hyperlinks
 ;; URL: http://rtfm.etla.org/emacs/htmlfontify/
@@ -448,6 +447,7 @@ and so on."
              (background (choice (const :tag "Dark"          dark     )
                                  (const :tag "Bright"        light    ))) ))
 
+(define-obsolete-variable-alias 'hfy-optimisations 'hfy-optimizations "25.1")
 (defcustom hfy-optimizations (list 'keep-overlays)
   "Optimizations to turn on: So far, the following have been implemented:\n
   merge-adjacent-tags: If two (or more) span tags are adjacent, identical and
@@ -460,7 +460,7 @@ and so on."
   keep-overlays      : More of a bell (or possibly whistle) than an
                        optimization - If on, preserve overlay highlighting
                        (cf ediff or goo-font-lock) as well as basic faces.\n
-  body-text-only     : Emit only body-text. In concrete terms,
+  body-text-only     : Emit only body-text.  In concrete terms,
                        1. Suppress calls to `hfy-page-header' and
                           `hfy-page-footer'
                        2. Pretend that `div-wrapper' option above is
@@ -483,7 +483,6 @@ which can never slow you down, but may result in incomplete fontification."
                (const :tag "body-text-only"       body-text-only      ))
   :group 'htmlfontify
   :tag   "optimizations")
-(define-obsolete-variable-alias 'hfy-optimisations 'hfy-optimizations "25.1")
 
 (defvar hfy-tags-cache nil
   "Alist of the form:\n
@@ -567,7 +566,7 @@ therefore no longer care about) will be invalid at any time.\n
 (defvar hfy-tmpfont-stack nil
   "An alist of derived fonts resulting from overlays.")
 
-(defconst hfy-hex-regex "[0-9A-Fa-f]")
+(defconst hfy-hex-regex "[[:xdigit:]]")
 
 (defconst hfy-triplet-regex
   (concat
@@ -584,22 +583,23 @@ therefore no longer care about) will be invalid at any time.\n
       (if (memq elt set-b) (setq interq (cons elt interq))))
     interq))
 
-(defun hfy-colour-vals (colour)
-  "Where COLOUR is a color name or #XXXXXX style triplet, return a
+(defun hfy-color-vals (color)
+  "Where COLOR is a color name or #XXXXXX style triplet, return a
 list of three (16 bit) rgb values for said color.\n
-If a window system is unavailable, calls `hfy-fallback-colour-values'."
-  (if (string-match hfy-triplet-regex colour)
+If a window system is unavailable, calls `hfy-fallback-color-values'."
+  (if (string-match hfy-triplet-regex color)
       (mapcar
-       (lambda (x) (* (string-to-number (match-string x colour) 16) 257))
+       (lambda (x) (* (string-to-number (match-string x color) 16) 257))
        '(1 2 3))
-    ;;(message ">> %s" colour)
+    ;;(message ">> %s" color)
     (if window-system
         (if (fboundp 'color-values)
-            (color-values colour)
+            (color-values color)
           ;;(message "[%S]" window-system)
-          (x-color-values colour))
+          (x-color-values color))
       ;; blarg - tty colors are no good - go fetch some X colors:
-      (hfy-fallback-colour-values colour))))
+      (hfy-fallback-color-values color))))
+(define-obsolete-function-alias 'hfy-colour-vals 'hfy-color-vals "27.1")
 
 (defvar hfy-cperl-mode-kludged-p nil)
 
@@ -628,6 +628,7 @@ STYLE is the inline CSS stylesheet (or tag referring to an external sheet)."
 \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">
 <html xmlns=\"http://www.w3.org/1999/xhtml\">
   <head>
+    <meta charset=\"utf-8\"/>
     <title>%s</title>
 %s
     <script type=\"text/javascript\"><!--
@@ -738,7 +739,7 @@ FILE is the name of the file being rendered, in case it is needed."
   "Replace the end of a CSS style declaration STYLE-STRING with the contents
 of the variable `hfy-src-doc-link-style', removing text matching the regex
 `hfy-src-doc-link-unstyle' first, if necessary."
-  ;;(message "hfy-colour-vals");;DBUG
+  ;;(message "hfy-color-vals");;DBUG
   (if (string-match hfy-src-doc-link-unstyle style-string)
       (setq style-string (replace-match "" 'fixed-case 'literal style-string)))
   (if (and (not (string-match hfy-src-doc-link-style style-string))
@@ -751,19 +752,19 @@ of the variable `hfy-src-doc-link-style', removing text matching the regex
 
 ;; utility functions - cast emacs style specification values into their
 ;; css2 equivalents:
-(defun hfy-triplet (colour)
-  "Takes a COLOUR name (string) and return a CSS rgb(R, G, B) triplet string.
+(defun hfy-triplet (color)
+  "Takes a COLOR name (string) and return a CSS rgb(R, G, B) triplet string.
 Uses the definition of \"white\" to map the numbers to the 0-255 range, so
 if you've redefined white, (esp. if you've redefined it to have a triplet
 member lower than that of the color you are processing) strange things
 may happen."
-  ;;(message "hfy-colour-vals");;DBUG
+  ;;(message "hfy-color-vals");;DBUG
   ;; TODO?  Can we do somehow do better than this?
   (cond
-   ((equal colour "unspecified-fg") (setq colour "black"))
-   ((equal colour "unspecified-bg") (setq colour "white")))
-  (let ((white (mapcar (lambda (I) (float (1+ I))) (hfy-colour-vals "white")))
-        (rgb16 (mapcar (lambda (I) (float (1+ I))) (hfy-colour-vals  colour))))
+   ((equal color "unspecified-fg") (setq color "black"))
+   ((equal color "unspecified-bg") (setq color "white")))
+  (let ((white (mapcar (lambda (I) (float (1+ I))) (hfy-color-vals "white")))
+        (rgb16 (mapcar (lambda (I) (float (1+ I))) (hfy-color-vals  color))))
     (if rgb16
         ;;(apply 'format "rgb(%d, %d, %d)"
         ;; Use #rrggbb instead, it is smaller
@@ -774,8 +775,9 @@ may happen."
                        '(0 1 2))))))
 
 (defun hfy-family (family) (list (cons "font-family"  family)))
-(defun hfy-bgcol  (colour) (list (cons "background"   (hfy-triplet colour))))
-(defun hfy-colour (colour) (list (cons "color"        (hfy-triplet colour))))
+(defun hfy-bgcol  (color) (list (cons "background"   (hfy-triplet color))))
+(defun hfy-color (color) (list (cons "color"        (hfy-triplet color))))
+(define-obsolete-function-alias 'hfy-colour 'hfy-color "27.1")
 (defun hfy-width  (width)  (list (cons "font-stretch" (symbol-name  width))))
 
 (defcustom hfy-font-zoom 1.05
@@ -825,17 +827,17 @@ regular specifiers."
       (let ((tag (car  spec))
             (val (cadr spec)))
         (cons (cl-case tag
-                (:color (cons "colour" val))
+                (:color (cons "color" val))
                 (:width (cons "width"  val))
                 (:style (cons "style"  val)))
               (hfy-box-to-border-assoc (cddr spec))))))
 
 (defun hfy-box-to-style (spec)
   (let* ((css (hfy-box-to-border-assoc  spec))
-         (col (cdr      (assoc "colour" css)))
+         (col (cdr      (assoc "color" css)))
          (s   (cdr      (assoc "style"  css))))
     (list
-     (if col (cons "border-color" (cdr (assoc "colour" css))))
+     (if col (cons "border-color" (cdr (assoc "color" css))))
      (cons "border-width" (format "%dpx" (or (cdr (assoc "width" css)) 1)))
      (cons "border-style" (cl-case s
                             (released-button "outset")
@@ -1014,7 +1016,7 @@ merged by the user - `hfy-flatten-style' should do this."
                        (:width          (hfy-width     val))
                        (:weight         (hfy-weight    val))
                        (:slant          (hfy-slant     val))
-                       (:foreground     (hfy-colour    val))
+                       (:foreground     (hfy-color     val))
                        (:background     (hfy-bgcol     val))
                        (:box            (hfy-box       val))
                        (:height         (hfy-size      val))
@@ -1065,7 +1067,7 @@ haven't encountered them yet.  Returns a `hfy-style-assoc'."
 
 (defun hfy-face-resolve-face (fn)
   "For FN return a face specification.
-FN may be either a face or a face specification. If the latter,
+FN may be either a face or a face specification.  If the latter,
 then the specification is returned unchanged."
   (cond
    ((facep fn)
@@ -1507,7 +1509,7 @@ Uses `hfy-link-style-fun' to do this."
           "\n<style type=\"text/css\"><!-- \n"
           ;; Fix-me: Add handling of page breaks here + scan for ^L
           ;; where appropriate.
-          (format "body %s\n" (cddr (assq 'default css)))
+          (format "body, pre %s\n" (cddr (assq 'default css)))
           (apply 'concat
                  (mapcar
                   (lambda (style)
@@ -1588,12 +1590,12 @@ Do not record undo information during evaluation of BODY."
   (when show-trailing-whitespace
     (hfy-save-buffer-state nil
       (remove-text-properties (point-min) (point-max)
-                              '(hfy-show-trailing-whitespace)))))
+                              '(hfy-show-trailing-whitespace nil)))))
 
 (defun hfy-begin-span (style text-block text-id text-begins-block-p)
   "Default handler to begin a span of text.
-Insert \"<span class=\"STYLE\" ...>\". See
-`hfy-begin-span-handler' for more information."
+Insert \"<span class=\"STYLE\" ...>\".
+See `hfy-begin-span-handler' for more information."
   (when text-begins-block-p
     (insert
      (format "<span onclick=\"toggle_invis('%s');\">…</span>" text-block)))
@@ -1650,7 +1652,8 @@ The default handler is `hfy-end-span'.")
 SRCDIR, if set, is the directory being htmlfontified.
 FILE, if set, is the file name."
   (if srcdir (setq srcdir (directory-file-name srcdir)))
-  (let* ( (html-buffer        (hfy-buffer))
+  (let* ( (inhibit-read-only             t)
+          (html-buffer        (hfy-buffer))
           (css-sheet                   nil)
           (css-map                     nil)
           (invis-ranges                nil)
@@ -1675,7 +1678,8 @@ FILE, if set, is the file name."
     (copy-to-buffer html-buffer (point-min) (point-max))
     (set-buffer     html-buffer)
     ;; rip out props that could interfere with our htmlization of the buffer:
-    (remove-text-properties (point-min) (point-max) hfy-ignored-properties)
+    (remove-list-of-text-properties (point-min) (point-max)
+                                    hfy-ignored-properties)
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;; at this point, html-buffer retains the fontification of the parent:
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1828,11 +1832,13 @@ fontified.  This is a simple convenience wrapper around
    (noninteractive
     (message "hfy batch mode (%s:%S)"
              (or (buffer-file-name) (buffer-name)) major-mode)
-    (if (fboundp 'font-lock-ensure)
+    (if (fboundp 'font-lock-ensure)     ; Emacs >= 25.1
         (font-lock-ensure)
       (when font-lock-defaults
-        (font-lock-fontify-buffer))))
-   ((fboundp #'jit-lock-fontify-now)
+        ; Silence "interactive use only" warning on Emacs >= 25.1.
+        (with-no-warnings (font-lock-fontify-buffer)))))
+   ((and (fboundp #'jit-lock-fontify-now)
+         (bound-and-true-p jit-lock-mode))
     (message "hfy jit-lock mode (%S %S)" window-system major-mode)
     (jit-lock-fontify-now))
    (t
@@ -1934,9 +1940,9 @@ adding an extension of `hfy-extn'.  Fontification is actually done by
                  (set-buffer  html)
                  (write-file (concat target hfy-extn))
                  (kill-buffer html))
-        ;; #o0200 == 128, but emacs20 doesn't know that
-        (if (and (file-exists-p target) (not (file-writable-p target)))
-            (set-file-modes target (logior (file-modes target) 128)))
+	(let ((modes (file-modes target)))
+	  (if (and modes (not (file-writable-p target)))
+	      (set-file-modes target (logior modes #o0200))))
         (copy-file (buffer-file-name source) target 'overwrite))
       (kill-buffer source)) ))
 

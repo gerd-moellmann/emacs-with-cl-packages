@@ -1,6 +1,6 @@
 ;;; mml-sec.el --- A package with security functions for MML documents
 
-;; Copyright (C) 2000-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 
@@ -23,7 +23,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl))
+(require 'cl-lib)
 
 (require 'gnus-util)
 (require 'epg)
@@ -167,9 +167,9 @@ You can also customize or set `mml-signencrypt-style-alist' instead."
 	(if (or (eq style 'separate)
 		(eq style 'combined))
 	    ;; valid style setting?
-	    (setf (second style-item) style)
+	    (setf (cadr style-item) style)
 	  ;; otherwise, just return the current value
-	  (second style-item))
+	  (cadr style-item))
       (message "Warning, attempt to set invalid signencrypt style"))))
 
 ;;; Security functions
@@ -364,7 +364,7 @@ either an error is raised or not."
 
 (defun mml-secure-message-sign (&optional method)
   "Add MML tags to sign the entire message.
-Use METHOD if given. Else use `mml-secure-method' or
+Use METHOD if given.  Else use `mml-secure-method' or
 `mml-default-sign-method'."
   (interactive)
   (mml-secure-message
@@ -373,7 +373,7 @@ Use METHOD if given. Else use `mml-secure-method' or
 
 (defun mml-secure-message-sign-encrypt (&optional method)
   "Add MML tag to sign and encrypt the entire message.
-Use METHOD if given. Else use `mml-secure-method' or
+Use METHOD if given.  Else use `mml-secure-method' or
 `mml-default-sign-method'."
   (interactive)
   (mml-secure-message
@@ -382,7 +382,7 @@ Use METHOD if given. Else use `mml-secure-method' or
 
 (defun mml-secure-message-encrypt (&optional method)
   "Add MML tag to encrypt the entire message.
-Use METHOD if given. Else use `mml-secure-method' or
+Use METHOD if given.  Else use `mml-secure-method' or
 `mml-default-sign-method'."
   (interactive)
   (mml-secure-message
@@ -497,7 +497,8 @@ https://debbugs.gnu.org/cgi/bugreport.cgi?bug=18718"
   'mml2015-sign-with-sender 'mml-secure-openpgp-sign-with-sender "25.1")
 ;mml1991-sign-with-sender did never exist.
 (defcustom mml-secure-openpgp-sign-with-sender nil
-  "If t, use message sender to find an OpenPGP key to sign with."
+  "If t, use message sender to find an OpenPGP key to sign with.
+Also use message's sender with GnuPG's --sender option."
   :group 'mime-security
   :type 'boolean)
 
@@ -554,7 +555,7 @@ customized in this variable."
   "For CONTEXT, USAGE, and NAME record fingerprint(s) of KEYS.
 If optional SAVE is not nil, save customized fingerprints.
 Return keys."
-  (assert keys)
+  (cl-assert keys)
   (let* ((usage-prefs (mml-secure-cust-usage-lookup context usage))
 	 (curr-fprs (cdr (assoc name (cdr usage-prefs))))
 	 (key-fprs (mapcar 'mml-secure-fingerprint keys))
@@ -647,6 +648,7 @@ The passphrase is read and cached."
       (when passphrase
 	(let ((password-cache-expiry (mml-secure-cache-expiry-interval
 				      (epg-context-protocol context))))
+	  ;; FIXME test passphrase works before caching it.
 	  (password-cache-add password-cache-key-id passphrase))
 	(mml-secure-add-secret-key-id password-cache-key-id)
 	(copy-sequence passphrase)))))
@@ -658,8 +660,9 @@ The passphrase is read and cached."
     (catch 'break
       (dolist (uid uids nil)
 	(if (and (stringp (epg-user-id-string uid))
-                 (car (mail-header-parse-address
-                       (epg-user-id-string uid)))
+                 (car (ignore-errors
+			(mail-header-parse-address
+			 (epg-user-id-string uid))))
 		 (equal (downcase (car (mail-header-parse-address
 					(epg-user-id-string uid))))
 			(downcase (car (mail-header-parse-address
@@ -724,7 +727,7 @@ Otherwise, NAME is treated as user ID, for which no keys are returned if it
 is expired or revoked.
 If optional JUSTONE is not nil, return the first key instead of a list."
   (let* ((keys (epg-list-keys context name))
-	 (iskeyid (string-match "\\(0x\\)?\\([0-9a-fA-F]\\{8,\\}\\)" name))
+	 (iskeyid (string-match "\\(0x\\)?\\([[:xdigit:]]\\{8,\\}\\)" name))
 	 (fingerprint (match-string 2 name))
 	 result)
     (when (and iskeyid (>= (length keys) 2))
@@ -905,14 +908,16 @@ If no one is selected, symmetric encryption will be performed.  "
 (defun mml-secure-epg-encrypt (protocol cont &optional sign)
   ;; Based on code appearing inside mml2015-epg-encrypt.
   (let* ((context (epg-make-context protocol))
-	 (config (epg-configuration))
+	 (config (epg-find-configuration 'OpenPGP))
 	 (sender (message-options-get 'message-sender))
 	 (recipients (mml-secure-recipients protocol context config sender))
 	 (signer-names (mml-secure-signer-names protocol sender))
 	 cipher signers)
     (when sign
       (setq signers (mml-secure-signers context signer-names))
-      (setf (epg-context-signers context) signers))
+      (setf (epg-context-signers context) signers)
+      (when (and (eq 'OpenPGP protocol) mml-secure-openpgp-sign-with-sender)
+        (setf (epg-context-sender context) sender)))
     (when (eq 'OpenPGP protocol)
       (setf (epg-context-armor context) t)
       (setf (epg-context-textmode context) t))
@@ -939,9 +944,21 @@ If no one is selected, symmetric encryption will be performed.  "
 	 (signer-names (mml-secure-signer-names protocol sender))
 	 (signers (mml-secure-signers context signer-names))
 	 signature micalg)
+    (unless signers
+      (let ((maybe-msg
+             (if mml-secure-smime-sign-with-sender
+                 "."
+               "; try setting `mml-secure-smime-sign-with-sender'.")))
+        ;; If `mml-secure-smime-sign-with-sender' is already non-nil
+        ;; then there's no point advising the user to examine it.  If
+        ;; there are any other variables worth examining, please
+        ;; improve this error message by having it mention them.
+        (error "Couldn't find any signer names%s" maybe-msg)))
     (when (eq 'OpenPGP protocol)
       (setf (epg-context-armor context) t)
-      (setf (epg-context-textmode context) t))
+      (setf (epg-context-textmode context) t)
+      (when mml-secure-openpgp-sign-with-sender
+        (setf (epg-context-sender context) sender)))
     (setf (epg-context-signers context) signers)
     (when (mml-secure-cache-passphrase-p protocol)
       (epg-context-set-passphrase-callback

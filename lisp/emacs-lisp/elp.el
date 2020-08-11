@@ -1,6 +1,6 @@
 ;;; elp.el --- Emacs Lisp Profiler  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-1995, 1997-1998, 2001-2019 Free Software
+;; Copyright (C) 1994-1995, 1997-1998, 2001-2020 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Barry A. Warsaw
@@ -238,7 +238,7 @@ FUNSYM must be a symbol of a defined function."
     ;; The info vector data structure is a 2 element vector.  The 0th
     ;; element is the call-count, i.e. the total number of times this
     ;; function has been entered.  This value is bumped up on entry to
-    ;; the function so that non-local exists are still recorded. TBD:
+    ;; the function so that non-local exits are still recorded. TBD:
     ;; I haven't tested non-local exits at all, so no guarantees.
     ;;
     ;; The 1st element is the total amount of time in seconds that has
@@ -383,14 +383,13 @@ original definition, use \\[elp-restore-function] or \\[elp-restore-all]."
           ;; and return the results.
           (setq result (apply func args))
         ;; we are recording times
-        (let (enter-time exit-time)
+        (let (enter-time)
           ;; increment the call-counter
           (cl-incf (aref info 0))
 	  (setq enter-time (current-time)
-		result (apply func args)
-                exit-time (current-time))
+		result (apply func args))
           ;; calculate total time in function
-          (cl-incf (aref info 1) (elp-elapsed-time enter-time exit-time))
+          (cl-incf (aref info 1) (elp-elapsed-time enter-time nil))
           ))
       ;; turn off recording if this is the master function
       (if (and elp-master

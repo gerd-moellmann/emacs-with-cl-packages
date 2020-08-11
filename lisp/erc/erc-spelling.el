@@ -1,11 +1,11 @@
 ;;; erc-spelling.el --- use flyspell in ERC
 
-;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2020 Free Software Foundation, Inc.
 
 ;; Author: Jorgen Schaefer <forcer@forcix.cx>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
 ;; Keywords: irc
-;; URL: http://www.emacswiki.org/cgi-bin/wiki.pl?ErcSpelling
+;; URL: https://www.emacswiki.org/emacs/ErcSpelling
 
 ;; This file is part of GNU Emacs.
 
@@ -33,7 +33,7 @@
 (require 'erc)
 (require 'flyspell)
 
-;;;###autoload (autoload 'erc-spelling-mode "erc-spelling" nil t)
+;;;###autoload(autoload 'erc-spelling-mode "erc-spelling" nil t)
 (define-erc-module spelling nil
   "Enable flyspell mode in ERC buffers."
   ;; Use erc-connect-pre-hook instead of erc-mode-hook as pre-hook is
@@ -109,3 +109,7 @@ The cadr is the beginning and the caddr is the end."
 (provide 'erc-spelling)
 
 ;;; erc-spelling.el ends here
+
+;; Local Variables:
+;; generated-autoload-file: "erc-loaddefs.el"
+;; End:

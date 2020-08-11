@@ -1,6 +1,8 @@
 /* sound.c -- sound support.
 
-Copyright (C) 1998-1999, 2001-2019 Free Software Foundation, Inc.
+Copyright (C) 1998-1999, 2001-2020 Free Software Foundation, Inc.
+
+Author: Gerd Moellmann <gerd@gnu.org>
 
 This file is part of GNU Emacs.
 
@@ -17,8 +19,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
-/* Written by Gerd Moellmann <gerd@gnu.org>.  Tested with Luigi's
-   driver on FreeBSD 2.2.7 with a SoundBlaster 16.  */
+/* Tested with Luigi's driver on FreeBSD 2.2.7 with a SoundBlaster 16.  */
 
 /*
   Modified by Ben Key <Bkey1@tampabay.rr.com> to add a partial
@@ -71,12 +72,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <soundcard.h>
 #endif
 #ifdef HAVE_ALSA
-#ifdef ALSA_SUBDIR_INCLUDE
 #include <alsa/asoundlib.h>
-#else
-#include <asoundlib.h>
-#endif /* ALSA_SUBDIR_INCLUDE */
-#endif /* HAVE_ALSA */
+#endif
 
 /* END: Non Windows Includes */
 
@@ -299,7 +296,7 @@ static int do_play_sound (const char *, unsigned long);
 #ifndef WINDOWSNT
 /* Like perror, but signals an error.  */
 
-static _Noreturn void
+static AVOID
 sound_perror (const char *msg)
 {
   int saved_errno = errno;
@@ -387,9 +384,9 @@ parse_sound (Lisp_Object sound, Lisp_Object *attrs)
   /* Volume must be in the range 0..100 or unspecified.  */
   if (!NILP (attrs[SOUND_VOLUME]))
     {
-      if (INTEGERP (attrs[SOUND_VOLUME]))
+      if (FIXNUMP (attrs[SOUND_VOLUME]))
 	{
-	  EMACS_INT volume = XINT (attrs[SOUND_VOLUME]);
+	  EMACS_INT volume = XFIXNUM (attrs[SOUND_VOLUME]);
 	  if (! (0 <= volume && volume <= 100))
 	    return 0;
 	}
@@ -876,7 +873,7 @@ vox_write (struct sound_device *sd, const char *buffer, ptrdiff_t nbytes)
 #define DEFAULT_ALSA_SOUND_DEVICE "default"
 #endif
 
-static _Noreturn void
+static AVOID
 alsa_sound_perror (const char *msg, int err)
 {
   error ("%s: %s", msg, snd_strerror (err));
@@ -1121,7 +1118,7 @@ alsa_write (struct sound_device *sd, const char *buffer, ptrdiff_t nbytes)
 {
   struct alsa_params *p = (struct alsa_params *) sd->data;
 
-  /* The the third parameter to snd_pcm_writei is frames, not bytes. */
+  /* The third parameter to snd_pcm_writei is frames, not bytes. */
   int fact = snd_pcm_format_size (sd->format, 1) * sd->channels;
   ptrdiff_t nwritten = 0;
   int err;
@@ -1405,8 +1402,8 @@ Internal use only, use `play-sound' instead.  */)
   /* Set up a device.  */
   current_sound_device->file = attrs[SOUND_DEVICE];
 
-  if (INTEGERP (attrs[SOUND_VOLUME]))
-    current_sound_device->volume = XFASTINT (attrs[SOUND_VOLUME]);
+  if (FIXNUMP (attrs[SOUND_VOLUME]))
+    current_sound_device->volume = XFIXNAT (attrs[SOUND_VOLUME]);
   else if (FLOATP (attrs[SOUND_VOLUME]))
     current_sound_device->volume = XFLOAT_DATA (attrs[SOUND_VOLUME]) * 100;
 
@@ -1428,9 +1425,9 @@ Internal use only, use `play-sound' instead.  */)
 
   file = Fexpand_file_name (attrs[SOUND_FILE], Vdata_directory);
   file = ENCODE_FILE (file);
-  if (INTEGERP (attrs[SOUND_VOLUME]))
+  if (FIXNUMP (attrs[SOUND_VOLUME]))
     {
-      ui_volume_tmp = XFASTINT (attrs[SOUND_VOLUME]);
+      ui_volume_tmp = XFIXNAT (attrs[SOUND_VOLUME]);
     }
   else if (FLOATP (attrs[SOUND_VOLUME]))
     {

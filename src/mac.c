@@ -935,18 +935,11 @@ Lisp_Object
 cfnumber_to_lisp (CFNumberRef number)
 {
   Lisp_Object result = Qnil;
-#if EMACS_INT_MAX >> 31 != 0
   SInt64 int_val;
-  CFNumberType emacs_int_type = kCFNumberSInt64Type;
-#else
-  SInt32 int_val;
-  CFNumberType emacs_int_type = kCFNumberSInt32Type;
-#endif
   double float_val;
 
-  if (CFNumberGetValue (number, emacs_int_type, &int_val)
-      && !FIXNUM_OVERFLOW_P (int_val))
-    result = make_number (int_val);
+  if (CFNumberGetValue (number, kCFNumberSInt64Type, &int_val))
+    result = make_int (int_val);
   else if (CFNumberGetValue (number, kCFNumberDoubleType, &float_val))
     result = make_float (float_val);
   else
@@ -980,8 +973,8 @@ cfdate_to_lisp (CFDateRef date)
   microsec = sec;
   picosec = frac * 1000000.0;
 
-  return list4 (make_number (high), make_number (low),
-		make_number (microsec), make_number (picosec));
+  return list4 (make_fixnum (high), make_fixnum (low),
+		make_fixnum (microsec), make_fixnum (picosec));
 }
 
 
@@ -1036,10 +1029,9 @@ cfdictionary_add_to_list (const void *key, const void *value, void *context)
 static void
 cfdictionary_puthash (const void *key, const void *value, void *context)
 {
-  Lisp_Object lisp_key;
+  Lisp_Object lisp_key, hash_code;
   struct cfdict_context *cxt = (struct cfdict_context *)context;
   struct Lisp_Hash_Table *h = XHASH_TABLE (*(cxt->result));
-  EMACS_UINT hash_code;
 
   if (CFGetTypeID (key) != CFStringGetTypeID ())
     lisp_key = cfobject_to_lisp (key, cxt->flags, cxt->hash_bound);
@@ -1112,7 +1104,7 @@ cfobject_to_lisp (CFTypeRef obj, int flags, int hash_bound)
       CFIndex index, count = CFArrayGetCount (obj);
 
       tag = Qarray;
-      result = Fmake_vector (make_number (count), Qnil);
+      result = make_nil_vector (count);
       for (index = 0; index < count; index++)
 	ASET (result, index,
 	      cfobject_to_lisp (CFArrayGetValueAtIndex (obj, index),
@@ -1211,9 +1203,13 @@ cfproperty_list_create_with_lisp_1 (Lisp_Object obj,
     {
       if (INTEGERP (data))
 	{
-	  long value = XINT (data);
-
-	  result = CFNumberCreate (NULL, kCFNumberLongType, &value);
+	  intmax_t v;
+	  if (integer_to_intmax (data, &v)
+	      && TYPE_MINIMUM (SInt64) <= v && v <= TYPE_MAXIMUM (SInt64))
+	    {
+	      SInt64 value = v;
+	      result = CFNumberCreate (NULL, kCFNumberSInt64Type, &value);
+	    }
 	}
       else if (FLOATP (data))
 	{
@@ -1237,19 +1233,19 @@ cfproperty_list_create_with_lisp_1 (Lisp_Object obj,
     }
   else if (EQ (type, Qdate))
     {
-      if (CONSP (data) && INTEGERP (XCAR (data))
-	  && CONSP (XCDR (data)) && INTEGERP (XCAR (XCDR (data)))
+      if (CONSP (data) && FIXNUMP (XCAR (data))
+	  && CONSP (XCDR (data)) && FIXNUMP (XCAR (XCDR (data)))
 	  && CONSP (XCDR (XCDR (data)))
-	  && INTEGERP (XCAR (XCDR (XCDR (data)))))
+	  && FIXNUMP (XCAR (XCDR (XCDR (data)))))
 	{
 	  CFAbsoluteTime at;
 
-	  at = (XINT (XCAR (data)) * 65536.0 + XINT (XCAR (XCDR (data)))
-		+ XINT (XCAR (XCDR (XCDR (data)))) * 0.000001
+	  at = (XFIXNUM (XCAR (data)) * 65536.0 + XFIXNUM (XCAR (XCDR (data)))
+		+ XFIXNUM (XCAR (XCDR (XCDR (data)))) * 0.000001
 		- kCFAbsoluteTimeIntervalSince1970);
 	  if (CONSP (XCDR (XCDR (XCDR (data))))
-	      && INTEGERP (XCAR (XCDR (XCDR (XCDR (data))))))
-	    at += XINT (XCAR (XCDR (XCDR (XCDR (data))))) * 1.0e-12;
+	      && FIXNUMP (XCAR (XCDR (XCDR (XCDR (data))))))
+	    at += XFIXNUM (XCAR (XCDR (XCDR (XCDR (data))))) * 1.0e-12;
 	  result = CFDateCreate (NULL, at);
 	}
     }
@@ -1755,8 +1751,8 @@ parse_resource_line (const char **p)
    HASHKEY_QUERY_CACHE.  It is another hash table that maps
    "NAME-STRING\0CLASS-STRING" to the result of the query.  */
 
-#define HASHKEY_MAX_NID (make_number (0))
-#define HASHKEY_QUERY_CACHE (make_number (-1))
+#define HASHKEY_MAX_NID (make_fixnum (0))
+#define HASHKEY_QUERY_CACHE (make_fixnum (-1))
 
 static XrmDatabase
 xrm_create_database (void)
@@ -1766,7 +1762,7 @@ xrm_create_database (void)
   database = make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
 			      DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
 			      Qnil, false);
-  Fputhash (HASHKEY_MAX_NID, make_number (0), database);
+  Fputhash (HASHKEY_MAX_NID, make_fixnum (0), database);
   Fputhash (HASHKEY_QUERY_CACHE, Qnil, database);
 
   return database;
@@ -1776,12 +1772,11 @@ static void
 xrm_q_put_resource (XrmDatabase database, Lisp_Object quarks, Lisp_Object value)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (database);
-  EMACS_UINT hash_code;
   ptrdiff_t i;
   EMACS_INT max_nid;
-  Lisp_Object node_id, key;
+  Lisp_Object node_id, key, hash_code;
 
-  max_nid = XINT (Fgethash (HASHKEY_MAX_NID, database, Qnil));
+  max_nid = XFIXNUM (Fgethash (HASHKEY_MAX_NID, database, Qnil));
 
   XSETINT (node_id, 0);
   for (; CONSP (quarks); quarks = XCDR (quarks))
@@ -1799,7 +1794,7 @@ xrm_q_put_resource (XrmDatabase database, Lisp_Object quarks, Lisp_Object value)
     }
   Fputhash (node_id, value, database);
 
-  Fputhash (HASHKEY_MAX_NID, make_number (max_nid), database);
+  Fputhash (HASHKEY_MAX_NID, make_fixnum (max_nid), database);
   Fputhash (HASHKEY_QUERY_CACHE, Qnil, database);
 }
 
@@ -1873,7 +1868,7 @@ static Lisp_Object
 xrm_q_get_resource (XrmDatabase database, Lisp_Object quark_name,
 		    Lisp_Object quark_class)
 {
-  return xrm_q_get_resource_1 (database, make_number (0),
+  return xrm_q_get_resource_1 (database, make_fixnum (0),
 			       quark_name, quark_class);
 }
 
@@ -1883,11 +1878,10 @@ xrm_q_get_resource (XrmDatabase database, Lisp_Object quark_name,
 Lisp_Object
 xrm_get_resource (XrmDatabase database, const char *name, const char *class)
 {
-  Lisp_Object key, query_cache, quark_name, quark_class, tmp;
+  Lisp_Object key, query_cache, hash_code, quark_name, quark_class, tmp;
   ptrdiff_t i;
   EMACS_INT nn, nc;
   struct Lisp_Hash_Table *h;
-  EMACS_UINT hash_code;
 
   nn = strlen (name);
   nc = strlen (class);
@@ -2310,7 +2304,7 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
 				    : (domain == COCOA_ERROR ? "Cocoa error "
 				       : "other error ")));
 	      errstring = concat2 (prefix,
-				   Fnumber_to_string (make_number (code)));
+				   Fnumber_to_string (make_int (code)));
 	    }
 
 	  xsignal (Qfile_error, list3 (build_string ("Removing old name"),
@@ -2319,33 +2313,6 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
     }
 
   return Qnil;
-}
-
-DEFUN ("file-system-info", Ffile_system_info, Sfile_system_info, 1, 1, 0,
-       doc: /* Return storage information about the file system FILENAME is on.
-Value is a list of floats (TOTAL FREE AVAIL), where TOTAL is the total
-storage of the file system, FREE is the free storage, and AVAIL is the
-storage available to a non-superuser.  All 3 numbers are in bytes.
-If the underlying system call fails, value is nil.  */)
-  (Lisp_Object filename)
-{
-  Lisp_Object encoded, value;
-  struct statvfs buf;
-
-  CHECK_STRING (filename);
-  filename = Fexpand_file_name (filename, Qnil);
-  encoded = ENCODE_FILE (filename);
-
-  value = Qnil;
-
-  block_input ();
-  if (statvfs (SDATA (encoded), &buf) == 0)
-    value = list3 (make_float (buf.f_blocks * (double) buf.f_frsize),
-		   make_float (buf.f_bfree * (double) buf.f_frsize),
-		   make_float (buf.f_bavail * (double) buf.f_frsize));
-  unblock_input ();
-
-  return value;
 }
 
 DEFUN ("mac-osa-language-list", Fmac_osa_language_list, Smac_osa_language_list, 0, 1, 0,
@@ -2617,7 +2584,7 @@ return value (see `mac-convert-property-list').  FORMAT also accepts
       else
 	result =
 	  cfproperty_list_to_lisp (plist, EQ (format, Qt),
-				   NILP (hash_bound) ? -1 : XINT (hash_bound));
+				   NILP (hash_bound) ? -1 : XFIXNUM (hash_bound));
     }
 
  out:
@@ -2695,7 +2662,7 @@ otherwise.  */)
       else
 	result =
 	  cfproperty_list_to_lisp (plist, EQ (format, Qt),
-				   NILP (hash_bound) ? -1 : XINT (hash_bound));
+				   NILP (hash_bound) ? -1 : XFIXNUM (hash_bound));
       CFRelease (plist);
     }
 
@@ -2714,7 +2681,13 @@ get_cfstring_encoding_from_lisp (Lisp_Object obj)
     return kCFStringEncodingUnicode;
 
   if (INTEGERP (obj))
-    return XINT (obj);
+    {
+      intmax_t v;
+      if (integer_to_intmax (obj, &v)
+	  && TYPE_MINIMUM (CFStringEncoding) <= v
+	  && v <= TYPE_MAXIMUM (CFStringEncoding))
+	return v;
+    }
 
   if (SYMBOLP (obj) && !NILP (Fcoding_system_p (obj)))
     {
@@ -3221,7 +3194,6 @@ syms_of_mac (void)
 
   defsubr (&Smac_file_alias_p);
   defsubr (&Ssystem_move_file_to_trash);
-  defsubr (&Sfile_system_info);
 
   DEFVAR_INT ("mac-system-script-code", mac_system_script_code,
     doc: /* The system script code.  */);

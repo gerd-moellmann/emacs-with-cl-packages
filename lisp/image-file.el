@@ -1,6 +1,6 @@
 ;;; image-file.el --- support for visiting image files
 ;;
-;; Copyright (C) 2000-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2020 Free Software Foundation, Inc.
 ;;
 ;; Author: Miles Bader <miles@gnu.org>
 ;; Keywords: multimedia
@@ -85,13 +85,12 @@ the variable is set using \\[customize]."
 					 image-file-name-extensions)
 				  t)
 		      "\\'"))))
-    (if image-file-name-regexps
-	(mapconcat 'identity
-		   (if exts-regexp
-		       (cons exts-regexp image-file-name-regexps)
-		     image-file-name-regexps)
-		   "\\|")
-      exts-regexp)))
+    (mapconcat
+     'identity
+     (delq nil (list exts-regexp
+		     image-file-name-regexps
+		     (car (rassq 'imagemagick image-type-file-name-regexps))))
+     "\\|")))
 
 
 ;;;###autoload
@@ -110,11 +109,8 @@ absolute file name and number of characters inserted."
       (let* ((ibeg (point))
 	     (iend (+ (point) (cadr rval)))
 	     (visitingp (and visit (= ibeg (point-min)) (= iend (point-max))))
-	     (data
-	      (string-make-unibyte
-	       (buffer-substring-no-properties ibeg iend)))
-	     (image
-	      (create-image data nil t))
+             (image (create-image (encode-coding-region ibeg iend 'binary t)
+                                  nil t))
 	     (props
 	      `(display ,image
 			yank-handler
@@ -143,7 +139,9 @@ absolute file name and number of characters inserted."
   "Yank handler for inserting an image into a buffer."
   (let ((len (length string))
 	(image (get-text-property 0 'display string)))
-    (remove-text-properties 0 len yank-excluded-properties string)
+    (if (eq yank-excluded-properties t)
+        (set-text-properties 0 len () string)
+      (remove-list-of-text-properties 0 len yank-excluded-properties string))
     (if (consp image)
 	(add-text-properties 0
 			     (or (next-single-property-change 0 'image-counter string)
@@ -180,9 +178,6 @@ Optional argument ARGS are the arguments to call FUNCTION with."
 ;;;###autoload
 (define-minor-mode auto-image-file-mode
   "Toggle visiting of image files as images (Auto Image File mode).
-With a prefix argument ARG, enable Auto Image File mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-the mode if ARG is omitted or nil.
 
 An image file is one whose name has an extension in
 `image-file-name-extensions', or matches a regexp in

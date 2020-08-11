@@ -1,5 +1,8 @@
 /* Filesystem notifications support for GNU Emacs on the Microsoft Windows API.
-   Copyright (C) 2012-2019 Free Software Foundation, Inc.
+
+Copyright (C) 2012-2020 Free Software Foundation, Inc.
+
+Author: Eli Zaretskii <eliz@gnu.org>
 
 This file is part of GNU Emacs.
 
@@ -16,9 +19,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
-/* Written by Eli Zaretskii <eliz@gnu.org>.
-
-   Design overview:
+/* Design overview:
 
    For each watch request, we launch a separate worker thread.  The
    worker thread runs the watch_worker function, which issues an
@@ -621,7 +622,7 @@ generate notifications correctly, though.  */)
 	report_file_notify_error ("Cannot watch file", Fcons (file, Qnil));
     }
   /* Store watch object in watch list. */
-  watch_descriptor = make_pointer_integer (dirwatch);
+  watch_descriptor = make_mint_ptr (dirwatch);
   watch_object = Fcons (watch_descriptor, callback);
   watch_list = Fcons (watch_object, watch_list);
 
@@ -646,7 +647,7 @@ WATCH-DESCRIPTOR should be an object returned by `w32notify-add-watch'.  */)
   if (!NILP (watch_object))
     {
       watch_list = Fdelete (watch_object, watch_list);
-      dirwatch = (struct notification *)XINTPTR (watch_descriptor);
+      dirwatch = (struct notification *)xmint_pointer (watch_descriptor);
       if (w32_valid_pointer_p (dirwatch, sizeof(struct notification)))
 	status = remove_watch (dirwatch);
     }
@@ -661,7 +662,7 @@ WATCH-DESCRIPTOR should be an object returned by `w32notify-add-watch'.  */)
 Lisp_Object
 w32_get_watch_object (void *desc)
 {
-  Lisp_Object descriptor = make_pointer_integer (desc);
+  Lisp_Object descriptor = make_mint_ptr (desc);
 
   /* This is called from the input queue handling code, inside a
      critical section, so we cannot possibly quit if watch_list is not
@@ -684,7 +685,7 @@ watch by calling `w32notify-rm-watch' also makes it invalid.  */)
   if (!NILP (watch_object))
     {
       struct notification *dirwatch =
-	(struct notification *)XINTPTR (watch_descriptor);
+	(struct notification *)xmint_pointer (watch_descriptor);
       if (w32_valid_pointer_p (dirwatch, sizeof(struct notification))
 	  && dirwatch->dir != NULL)
 	return Qt;

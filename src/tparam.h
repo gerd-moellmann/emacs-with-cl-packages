@@ -1,6 +1,6 @@
 /* Interface definitions for termcap entries.
 
-Copyright (C) 2011-2019 Free Software Foundation, Inc.
+Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -30,14 +30,15 @@ int tgetnum (const char *);
 char *tgetstr (const char *, char **);
 char *tgoto (const char *, int, int);
 
-char *tparam (const char *, char *, int, int, int, int, int);
+char *tparam (const char *, char *, int, int, int, int, int) ATTRIBUTE_MALLOC;
 
 extern char PC;
 extern char *BC;
 extern char *UP;
 
 #ifdef TERMINFO
-char *tigetstr(const char *);
+int tigetflag (const char *);
+char *tigetstr (const char *);
 #endif
 
 #endif /* EMACS_TPARAM_H */

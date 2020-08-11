@@ -1,6 +1,6 @@
 /* syssignal.h - System-dependent definitions for signals.
 
-Copyright (C) 1993, 1999, 2001-2019 Free Software Foundation, Inc.
+Copyright (C) 1993, 1999, 2001-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -22,7 +22,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <signal.h>
 
-extern void init_signals (bool);
+extern void init_signals (void);
 extern void block_child_signal (sigset_t *);
 extern void unblock_child_signal (sigset_t const *);
 extern void block_interrupt_signal (sigset_t *);
@@ -32,7 +32,6 @@ extern void unblock_tty_out_signal (sigset_t const *);
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
-extern pthread_t main_thread_id;
 /* If defined, asynchronous signals delivered to a non-main thread are
    forwarded to the main thread.  */
 #define FORWARD_SIGNAL_TO_MAIN_THREAD

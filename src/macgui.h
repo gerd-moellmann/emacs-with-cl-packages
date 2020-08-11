@@ -22,15 +22,15 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifndef EMACS_MACGUI_H
 #define EMACS_MACGUI_H
 
-typedef struct _XDisplay Display; /* opaque */
-
 typedef Lisp_Object XrmDatabase;
 
 #undef Z
 #undef DEBUG
+#ifdef HAVE_UNEXEC
 #undef free
 #undef malloc
 #undef realloc
+#endif	/* HAVE_UNEXEC */
 #ifdef INFINITY
 #define INFINITY_DEFINED 1
 #endif
@@ -40,12 +40,14 @@ typedef Lisp_Object XrmDatabase;
 #undef min
 #define __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES 0
 #include <Carbon/Carbon.h>
+#ifdef HAVE_UNEXEC
 #undef free
 #define free unexec_free
 #undef malloc
 #define malloc unexec_malloc
 #undef realloc
 #define realloc unexec_realloc
+#endif	/* HAVE_UNEXEC */
 #undef min
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #undef max
@@ -70,32 +72,9 @@ typedef Lisp_Object XrmDatabase;
 typedef void *Window;
 typedef void *Selection;
 
-typedef struct _XImage
-{
-  int width, height;		/* size of image */
-  char *data;			/* pointer to image data */
-  int bytes_per_line;		/* accelarator to next line */
-  int bits_per_pixel;		/* bits per pixel (ZPixmap) */
-} *Pixmap;
-
 typedef const struct _EmacsDocument *EmacsDocumentRef; /* opaque */
 
-#define Cursor CFTypeRef
-#define No_Cursor NULL
-
-
-typedef CGGlyph XChar2b;
-
-/* Dealing with bits of CGGlyph as if they were an XChar2b.  */
-#define STORE_XCHAR2B(chp, byte1, byte2) \
-  ((*(chp)) = ((XChar2b)((((byte1) & 0x00ff) << 8) | ((byte2) & 0x00ff))))
-
-#define XCHAR2B_BYTE1(chp) \
-  (((*(chp)) & 0xff00) >> 8)
-
-#define XCHAR2B_BYTE2(chp) \
-  ((*(chp)) & 0x00ff)
-
+#define Emacs_Cursor CFTypeRef
 
 #ifndef DRAWING_USE_GCD
 #define DRAWING_USE_GCD 1
@@ -237,11 +216,12 @@ enum
 typedef uint32_t WMState;
 
 typedef struct {
-    int x, y;
-    int width, height;
-} XRectangle;
+  int x, y;
+  int width, height;   /* signed so as to avoid unexpected promotion
+			  to unsigned (e.g., r.x + r.width).  */
+} SignedRectangle;
 
-#define NativeRectangle XRectangle
+#define NativeRectangle SignedRectangle
 
 #define STORE_NATIVE_RECT(nr,rx,ry,rwidth,rheight)	\
   ((nr).x = (rx),					\

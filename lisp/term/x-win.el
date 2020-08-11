@@ -1,6 +1,6 @@
 ;;; x-win.el --- parse relevant switches and set up for X  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: FSF
 ;; Keywords: terminals, i18n
@@ -69,7 +69,7 @@
 (eval-when-compile (require 'cl-lib))
 
 (if (not (fboundp 'x-create-frame))
-    (error "%s: Loading x-win.el but not compiled for X" (invocation-name)))
+    (error "%s: Loading x-win.el but not compiled for X" invocation-name))
 
 (require 'term/common-win)
 (require 'frame)
@@ -93,7 +93,7 @@
 ;; Handle the --parent-id option.
 (defun x-handle-parent-id (switch)
   (or (consp x-invocation-args)
-      (error "%s: missing argument to `%s' option" (invocation-name) switch))
+      (error "%s: missing argument to `%s' option" invocation-name switch))
   (setq initial-frame-alist (cons
                              (cons 'parent-id
                                    (string-to-number (car x-invocation-args)))
@@ -104,7 +104,7 @@
 ;; to give us back our session id we had on the previous run.
 (defun x-handle-smid (switch)
   (or (consp x-invocation-args)
-      (error "%s: missing argument to `%s' option" (invocation-name) switch))
+      (error "%s: missing argument to `%s' option" invocation-name switch))
   (setq x-session-previous-id (car x-invocation-args)
 	x-invocation-args (cdr x-invocation-args)))
 
@@ -302,7 +302,11 @@ as returned by `x-server-vendor'."
     (setq i (1+ i))))
 
 ;; Table from Kuhn's proposed additions to the `KEYSYM Encoding'
-;; appendix to the X protocol definition.
+;; appendix to the X protocol definition.  As indicated, some of these
+;; have been corrected using information found in keysymdef.h which on
+;; a typical system is installed at /usr/include/X11/keysymdef.h.  The
+;; version used here is from xorgproto version 2019.1 found here:
+;; https://gitlab.freedesktop.org/xorg/proto/xorgproto/blob/e0bba743ae7c549c58f92677b239ec7878548228/include/X11/keysymdef.h
 (dolist
      (pair
       '(
@@ -579,6 +583,7 @@ as returned by `x-server-vendor'."
 	(#x6aa . ?њ)
 	(#x6ab . ?ћ)
 	(#x6ac . ?ќ)
+	(#x6ad . ?ґ) ;; Source: keysymdef.h
 	(#x6ae . ?ў)
 	(#x6af . ?џ)
 	(#x6b0 . ?№)
@@ -594,6 +599,7 @@ as returned by `x-server-vendor'."
 	(#x6ba . ?Њ)
 	(#x6bb . ?Ћ)
 	(#x6bc . ?Ќ)
+	(#x6bd . ?Ґ) ;; Source: keysymdef.h
 	(#x6be . ?Ў)
 	(#x6bf . ?Џ)
 	(#x6c0 . ?ю)
@@ -810,6 +816,7 @@ as returned by `x-server-vendor'."
 	(#xaa8 . ? )
 	(#xaa9 . ?—)
 	(#xaaa . ?–)
+	(#xaac . ?␣) ;; Source: keysymdef.h
 	(#xaae . ?…)
 	(#xaaf . ?‥)
 	(#xab0 . ?⅓)
@@ -822,7 +829,17 @@ as returned by `x-server-vendor'."
 	(#xab7 . ?⅚)
 	(#xab8 . ?℅)
 	(#xabb . ?‒)
+	;; In keysymdef.h, the keysyms 0xabc and 0xabe are listed as
+	;; U+27E8 and U+27E9 respectively.  However, the parentheses
+	;; indicate that these mappings are deprecated legacy keysyms
+	;; that are either not one-to-one or semantically unclear.  In
+	;; order to not introduce any incompatibility with possible
+	;; existing workflows that expect these keysyms to map as they
+	;; currently do, to 0x2329 and 0x232a, respectively, they are
+	;; left as they are.  In particular, PuTTY is known to agree
+	;; with this mapping.
 	(#xabc . ?〈)
+	(#xabd . ?.) ;; Source: keysymdef.h
 	(#xabe . ?〉)
 	(#xac3 . ?⅛)
 	(#xac4 . ?⅜)
@@ -839,6 +856,7 @@ as returned by `x-server-vendor'."
 	(#xad2 . ?“)
 	(#xad3 . ?”)
 	(#xad4 . ?℞)
+	(#xad5 . ?‰) ;; Source: keysymdef.h
 	(#xad6 . ?′)
 	(#xad7 . ?″)
 	(#xad9 . ?✝)
@@ -883,20 +901,29 @@ as returned by `x-server-vendor'."
 	(#xba8 . ?∨)
 	(#xba9 . ?∧)
 	(#xbc0 . ?¯)
-	(#xbc2 . ?⊥)
+	;; Source for #xbc2: keysymdef.h.  Note that the
+	;; `KEYSYM Encoding' appendix to the X protocol definition is
+	;; incorrect.
+	(#xbc2 . ?⊤)
 	(#xbc3 . ?∩)
 	(#xbc4 . ?⌊)
 	(#xbc6 . ?_)
 	(#xbca . ?∘)
 	(#xbcc . ?⎕)
-	(#xbce . ?⊤)
+	;; Source for #xbce: keysymdef.h.  Note that the
+	;; `KEYSYM Encoding' appendix to the X protocol definition is
+	;; incorrect.
+	(#xbce . ?⊥)
 	(#xbcf . ?○)
 	(#xbd3 . ?⌈)
 	(#xbd6 . ?∪)
 	(#xbd8 . ?⊃)
 	(#xbda . ?⊂)
-	(#xbdc . ?⊢)
-	(#xbfc . ?⊣)
+	;; Source for #xbdc and #xbfc: keysymdef.h.  Note that the
+	;; `KEYSYM Encoding' appendix to the X protocol definition is
+	;; incorrect.
+	(#xbdc . ?⊣)
+	(#xbfc . ?⊢)
 	;; Hebrew
 	(#xcdf . ?‗)
 	(#xce0 . ?א)
@@ -1143,6 +1170,9 @@ as returned by `x-server-vendor'."
 ;; #x0aff	CURSOR	Publish
 ;; #x0dde	THAI MAIHANAKAT	Thai
 
+;; However, keysymdef.h does have mappings for #x0aac and #x0abd, which
+;; are used above.
+
 
 ;;;; Selections
 
@@ -1205,7 +1235,7 @@ This returns an error if any Emacs frames are X frames."
   ;; Make sure we have a valid resource name.
   (or (stringp x-resource-name)
       (let (i)
-	(setq x-resource-name (invocation-name))
+	(setq x-resource-name (copy-sequence invocation-name))
 
 	;; Change any . or * characters in x-resource-name to hyphens,
 	;; so as not to choke when we use it in X resource queries.

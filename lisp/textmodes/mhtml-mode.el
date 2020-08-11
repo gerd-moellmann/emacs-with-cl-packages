@@ -1,6 +1,6 @@
 ;;; mhtml-mode.el --- HTML editing mode that handles CSS and JS -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
 ;; Keywords: wp, hypermedia, comm, languages
 
@@ -21,7 +21,8 @@
 
 ;;; Code:
 
-(eval-and-compile (require 'sgml-mode))
+(eval-when-compile (require 'cl-lib))
+(require 'sgml-mode)
 (require 'js)
 (require 'css-mode)
 (require 'prog-mode)
@@ -285,6 +286,22 @@ This is used by `mhtml--pre-command'.")
   (funcall (mhtml--submode-propertize submode) (point) end)
   (goto-char end))
 
+(defvar mhtml--syntax-propertize
+  (syntax-propertize-rules
+   ("<style.*?>"
+    (0 (ignore
+        (goto-char (match-end 0))
+        ;; Don't apply in a comment.
+        (unless (syntax-ppss-context (syntax-ppss))
+          (mhtml--syntax-propertize-submode mhtml--css-submode end)))))
+   ("<script.*?>"
+    (0 (ignore
+        (goto-char (match-end 0))
+        ;; Don't apply in a comment.
+        (unless (syntax-ppss-context (syntax-ppss))
+          (mhtml--syntax-propertize-submode mhtml--js-submode end)))))
+   sgml-syntax-propertize-rules))
+
 (defun mhtml-syntax-propertize (start end)
   ;; First remove our special settings from the affected text.  They
   ;; will be re-applied as needed.
@@ -296,27 +313,8 @@ This is used by `mhtml--pre-command'.")
   (unless (bobp)
     (let ((submode (get-text-property (1- (point)) 'mhtml-submode)))
       (if submode
-          (mhtml--syntax-propertize-submode submode end)
-        ;; No submode, so do what sgml-mode does.
-        (sgml-syntax-propertize-inside end))))
-  (funcall
-   (syntax-propertize-rules
-    ("<style.*?>"
-     (0 (ignore
-         (goto-char (match-end 0))
-         ;; Don't apply in a comment.
-         (unless (syntax-ppss-context (syntax-ppss))
-           (mhtml--syntax-propertize-submode mhtml--css-submode end)))))
-    ("<script.*?>"
-     (0 (ignore
-         (goto-char (match-end 0))
-         ;; Don't apply in a comment.
-         (unless (syntax-ppss-context (syntax-ppss))
-           (mhtml--syntax-propertize-submode mhtml--js-submode end)))))
-    sgml-syntax-propertize-rules)
-   ;; Make sure to handle the situation where
-   ;; mhtml--syntax-propertize-submode moved point.
-   (point) end))
+          (mhtml--syntax-propertize-submode submode end))))
+  (sgml-syntax-propertize (point) end mhtml--syntax-propertize))
 
 (defun mhtml-indent-line ()
   "Indent the current line as HTML, JS, or CSS, according to its context."
@@ -363,7 +361,6 @@ Code inside a <script> element is indented using the rules from
 `js-mode'; and code inside a <style> element is indented using
 the rules from `css-mode'."
   (setq-local indent-line-function #'mhtml-indent-line)
-  (setq-local parse-sexp-lookup-properties t)
   (setq-local syntax-propertize-function #'mhtml-syntax-propertize)
   (setq-local font-lock-fontify-region-function
               #'mhtml--submode-fontify-region)

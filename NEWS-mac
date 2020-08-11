@@ -1,4 +1,20 @@
+* emacs-27.1-mac-8.0 (2020-08-11)
+Based on Emacs 27.1.
+
+** Fixed bugs
+
+*** Raising a child frame is no-op and lowering it lowers the parent.
+
+*** Crash when creating a GUI frame on macOS Big Sur Beta.
+
+** Improvements
+
+*** image-multi-frame-p also works for HEIC Sequences (macOS 10.15 and
+later) and WebP animations (macOS 11.0 and later).
+
+
 * emacs-26.3-mac-7.9 (2020-03-23)
+https://lists.gnu.org/r/emacs-devel/2020-03/msg00568.html
 
 ** Fixed bugs
 

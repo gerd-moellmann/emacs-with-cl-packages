@@ -1,6 +1,6 @@
 ;;; mpc.el --- A client for the Music Player Daemon   -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2020 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: multimedia
@@ -1017,7 +1017,7 @@ If PLAYLIST is t or nil or missing, use the main playlist."
                (text
                 (if (eq info 'self) (symbol-name tag)
                   (pcase tag
-                    ((or `Time `Duration)
+                    ((or 'Time 'Duration)
                      (let ((time (cdr (or (assq 'time info) (assq 'Time info)))))
                        (setq pred (list nil)) ;Just assume it's never eq.
                        (when time
@@ -1025,7 +1025,7 @@ If PLAYLIST is t or nil or missing, use the main playlist."
                                                     (string-match ":" time))
                                                (substring time (match-end 0))
                                              time)))))
-                    (`Cover
+                    ('Cover
                      (let ((dir (file-name-directory (cdr (assq 'file info)))))
                        ;; (debug)
                        (push `(equal ',dir (file-name-directory (cdr (assq 'file info)))) pred)
@@ -1606,7 +1606,7 @@ when constructing the set of constraints."
                 (make-overlay (point) (point)))
     (overlay-put mpc-separator-ol 'after-string
                  (propertize "\n"
-                             'face '(:height 0.05 :inverse-video t))))
+                             'face '(:height 0.05 :inverse-video t :extend t))))
   (goto-char (point-min))
   (forward-line 1)
   (while
@@ -2403,10 +2403,38 @@ This is used so that they can be compared with `eq', which is needed for
   (interactive)
   (mpc-cmd-pause "0"))
 
+(defun mpc-read-seek (prompt)
+  "Read a seek time.
+Returns a string suitable for MPD \"seekcur\" protocol command."
+  (let* ((str (read-from-minibuffer prompt nil nil nil nil nil t))
+         (seconds "\\(?1:[[:digit:]]+\\(?:\\.[[:digit:]]*\\)?\\)")
+         (minsec (concat "\\(?2:[[:digit:]]+\\):" seconds "?"))
+         (hrminsec (concat "\\(?3:[[:digit:]]+\\):\\(?:" minsec "?\\|:\\)"))
+         time sign)
+    (setq str (string-trim str))
+    (when (memq (string-to-char str) '(?+ ?-))
+      (setq sign (string (string-to-char str)))
+      (setq str (substring str 1)))
+    (setq time
+          ;; `string-to-number' returns 0 on failure
+          (cond
+           ((string-match (concat "^" hrminsec "$") str)
+            (+ (* 3600 (string-to-number (match-string 3 str)))
+               (* 60 (string-to-number (or (match-string 2 str) "")))
+               (string-to-number (or (match-string 1 str) ""))))
+           ((string-match (concat "^" minsec "$") str)
+            (+ (* 60 (string-to-number (match-string 2 str)))
+               (string-to-number (match-string 1 str))))
+           ((string-match (concat "^" seconds "$") str)
+            (string-to-number (match-string 1 str)))
+           (t (user-error "Invalid time"))))
+    (setq time (number-to-string time))
+    (if (null sign) time (concat sign time))))
+
 (defun mpc-seek-current (pos)
   "Seek within current track."
   (interactive
-   (list (read-string "Position to go ([+-]seconds): ")))
+   (list (mpc-read-seek "Position to go ([+-][[H:]M:]seconds): ")))
   (mpc-cmd-seekcur pos))
 
 (defun mpc-toggle-play ()
@@ -2527,7 +2555,6 @@ If stopped, start playback."
 (defvar mpc--faster-toggle-forward nil)
 (defvar mpc--faster-acceleration 0.5)
 (defun mpc--faster-toggle (speedup step)
-  (setq speedup (float speedup))
   (if mpc--faster-toggle-timer
       (mpc--faster-stop)
     (mpc-status-refresh) (mpc-proc-sync)
@@ -2554,7 +2581,7 @@ If stopped, start playback."
                    (setq songtime (string-to-number
                                    (cdr (assq 'time mpc-status))))
                    (setq songduration (mpc--songduration))
-                   (setq oldtime (float-time)))
+		   (setq oldtime (current-time)))
                   ((and (>= songtime songduration) mpc--faster-toggle-forward)
                    ;; Skip to the beginning of the next song.
                    (if (not (equal (cdr (assq 'state mpc-status)) "play"))
@@ -2573,14 +2600,16 @@ If stopped, start playback."
                        (lambda ()
                          (setq songid (cdr (assq 'songid mpc-status)))
                          (setq songtime (setq songduration (mpc--songduration)))
-                         (setq oldtime (float-time))
+			 (setq oldtime (current-time))
                          (mpc-proc-cmd (list "seekid" songid songtime)))))))
                   (t
                    (setq speedup (+ speedup mpc--faster-acceleration))
                    (let ((newstep
-                          (truncate (* speedup (- (float-time) oldtime)))))
+			  (truncate
+			   (* speedup
+			      (float-time (time-since oldtime))))))
                      (if (<= newstep 1) (setq newstep 1))
-                     (setq oldtime (+ oldtime (/ newstep speedup)))
+		     (setq oldtime (time-add oldtime (/ newstep speedup)))
                      (if (not mpc--faster-toggle-forward)
                          (setq newstep (- newstep)))
                      (setq songtime (min songduration (+ songtime newstep)))

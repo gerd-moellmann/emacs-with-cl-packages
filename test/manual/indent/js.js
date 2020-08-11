@@ -151,6 +151,20 @@ let b = {
   `
 }
 
+// bug#25904
+foo.bar.baz(very => // A comment
+  very
+).biz(([baz={a: [123]}, boz]) =>
+  baz
+).snarf((snorf) => /* Another comment */
+  snorf
+);
+
+// Continuation of bug#25904; support broken arrow as N+1th arg
+map(arr, (val) =>
+  val
+)
+
 // Local Variables:
 // indent-tabs-mode: nil
 // js-indent-level: 2

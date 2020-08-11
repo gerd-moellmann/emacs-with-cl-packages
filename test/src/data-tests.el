@@ -1,6 +1,6 @@
 ;;; data-tests.el --- tests for src/data.c  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -113,7 +113,24 @@ most-positive-fixnum, which is just less than a power of 2.")
   (should (isnan (min 0.0e+NaN)))
   (should (isnan (min 0.0e+NaN 1 2)))
   (should (isnan (min 1.0 0.0e+NaN)))
-  (should (isnan (min 1.0 0.0e+NaN 1.1))))
+  (should (isnan (min 1.0 0.0e+NaN 1.1)))
+  (should (isnan (min 1.0 0.0e+NaN 1.1 (1+ most-positive-fixnum))))
+  (should (isnan (max 1.0 0.0e+NaN 1.1 (1+ most-positive-fixnum)))))
+
+(defun data-tests-popcnt (byte)
+  "Calculate the Hamming weight of BYTE."
+  (if (< byte 0)
+      (setq byte (lognot byte)))
+  (if (zerop byte)
+      0
+    (+ (logand byte 1) (data-tests-popcnt (ash byte -1)))))
+
+(ert-deftest data-tests-logcount ()
+  (should (cl-loop for n in (number-sequence -255 255)
+                   always (= (logcount n) (data-tests-popcnt n))))
+  ;; https://oeis.org/A000120
+  (should (= 11 (logcount 9727)))
+  (should (= 8 (logcount 9999))))
 
 ;; Bool vector tests.  Compactly represent bool vectors as hex
 ;; strings.
@@ -157,7 +174,7 @@ most-positive-fixnum, which is just less than a power of 2.")
            sum 1))
 
 (defun test-bool-vector-bv-from-hex-string (desc)
-  (let (bv nchars nibbles)
+  (let (bv nibbles)
     (dolist (c (string-to-list desc))
       (push (string-to-number
              (char-to-string c)
@@ -169,17 +186,17 @@ most-positive-fixnum, which is just less than a power of 2.")
         (dotimes (_ 4)
           (aset bv i (> (logand 1 n) 0))
           (cl-incf i)
-          (setf n (lsh n -1)))))
+          (setf n (ash n -1)))))
     bv))
 
 (defun test-bool-vector-to-hex-string (bv)
   (let (nibbles (v (cl-coerce bv 'list)))
     (while v
       (push (logior
-             (lsh (if (nth 0 v) 1 0) 0)
-             (lsh (if (nth 1 v) 1 0) 1)
-             (lsh (if (nth 2 v) 1 0) 2)
-             (lsh (if (nth 3 v) 1 0) 3))
+             (ash (if (nth 0 v) 1 0) 0)
+             (ash (if (nth 1 v) 1 0) 1)
+             (ash (if (nth 2 v) 1 0) 2)
+             (ash (if (nth 3 v) 1 0) 3))
             nibbles)
       (setf v (nthcdr 4 v)))
     (mapconcat (lambda (n) (format "%X" n))
@@ -227,9 +244,9 @@ comparing the subr with a much slower lisp implementation."
 
 (defun test-bool-vector-apply-mock-op (mock a b c)
   "Compute (slowly) the correct result of a bool-vector set operation."
-  (let (changed nv)
+  (let (changed)
     (cl-assert (eql (length b) (length c)))
-    (if a (setf nv a)
+    (unless a
       (setf a (make-bool-vector (length b) nil))
       (setf changed t))
 
@@ -467,7 +484,7 @@ comparing the subr with a much slower lisp implementation."
         (should-have-watch-data `(data-tests-lvar 3 set ,buf1)))
       (should-have-watch-data `(data-tests-lvar 1 unlet ,buf1))
       (setq-default data-tests-lvar 4)
-      (should-have-watch-data `(data-tests-lvar 4 set nil))
+      (should-have-watch-data '(data-tests-lvar 4 set nil))
       (with-temp-buffer
         (setq buf2 (current-buffer))
         (setq data-tests-lvar 1)
@@ -484,7 +501,7 @@ comparing the subr with a much slower lisp implementation."
         (kill-all-local-variables)
         (should-have-watch-data `(data-tests-lvar nil makunbound ,buf2)))
       (setq-default data-tests-lvar 4)
-      (should-have-watch-data `(data-tests-lvar 4 set nil))
+      (should-have-watch-data '(data-tests-lvar 4 set nil))
       (makunbound 'data-tests-lvar)
       (should-have-watch-data '(data-tests-lvar nil makunbound nil))
       (setq data-tests-lvar 5)
@@ -507,6 +524,157 @@ comparing the subr with a much slower lisp implementation."
       (should (not (or (bound-and-true-p data-tests-foo1)
                        (bound-and-true-p data-tests-foo2)
                        (bound-and-true-p data-tests-foo3)))))))
+
+(ert-deftest data-tests-bignum ()
+  (should (bignump (+ most-positive-fixnum 1)))
+  (let ((f0 (+ (float most-positive-fixnum) 1))
+        (f-1 (- (float most-negative-fixnum) 1))
+        (b0 (+ most-positive-fixnum 1))
+        (b-1 (- most-negative-fixnum 1)))
+    (should (> b0 -1))
+    (should (> b0 f-1))
+    (should (> b0 b-1))
+    (should (>= b0 -1))
+    (should (>= b0 f-1))
+    (should (>= b0 b-1))
+    (should (>= b-1 b-1))
+
+    (should (< -1 b0))
+    (should (< f-1 b0))
+    (should (< b-1 b0))
+    (should (<= -1 b0))
+    (should (<= f-1 b0))
+    (should (<= b-1 b0))
+    (should (<= b-1 b-1))
+
+    (should (= (+ f0 b0) (+ b0 f0)))
+    (should (= (+ f0 b-1) (+ b-1 f0)))
+    (should (= (+ f-1 b0) (+ b0 f-1)))
+    (should (= (+ f-1 b-1) (+ b-1 f-1)))
+
+    (should (= (* f0 b0) (* b0 f0)))
+    (should (= (* f0 b-1) (* b-1 f0)))
+    (should (= (* f-1 b0) (* b0 f-1)))
+    (should (= (* f-1 b-1) (* b-1 f-1)))
+
+    (should (= b0 f0))
+    (should (= b0 b0))
+
+    (should (/= b0 f-1))
+    (should (/= b0 b-1))
+
+    (should (/= b0 0.0e+NaN))
+    (should (/= b-1 0.0e+NaN))))
+
+(ert-deftest data-tests-+ ()
+  (should-not (fixnump (+ most-positive-fixnum most-positive-fixnum)))
+  (should (> (+ most-positive-fixnum most-positive-fixnum) most-positive-fixnum))
+  (should (eq (- (+ most-positive-fixnum most-positive-fixnum)
+                 (+ most-positive-fixnum most-positive-fixnum))
+              0)))
+
+(ert-deftest data-tests-/ ()
+  (let* ((x (* most-positive-fixnum 8))
+         (y (* most-negative-fixnum 8))
+         (z (- y)))
+    (should (= most-positive-fixnum (/ x 8)))
+    (should (= most-negative-fixnum (/ y 8)))
+    (should (= -1 (/ y z)))
+    (should (= -1 (/ z y)))
+    (should (= 0 (/ x (* 2 x))))
+    (should (= 0 (/ y (* 2 y))))
+    (should (= 0 (/ z (* 2 z))))))
+
+(ert-deftest data-tests-number-predicates ()
+  (should (fixnump 0))
+  (should (fixnump most-negative-fixnum))
+  (should (fixnump most-positive-fixnum))
+  (should (integerp (+ most-positive-fixnum 1)))
+  (should (integer-or-marker-p (+ most-positive-fixnum 1)))
+  (should (numberp (+ most-positive-fixnum 1)))
+  (should (number-or-marker-p (+ most-positive-fixnum 1)))
+  (should (natnump (+ most-positive-fixnum 1)))
+  (should-not (fixnump (+ most-positive-fixnum 1)))
+  (should (bignump (+ most-positive-fixnum 1))))
+
+(ert-deftest data-tests-number-to-string ()
+  (let* ((s "99999999999999999999999999999")
+         (v (read s)))
+    (should (equal (number-to-string v) s))))
+
+(ert-deftest data-tests-1+ ()
+  (should (> (1+ most-positive-fixnum) most-positive-fixnum))
+  (should (fixnump (1+ (1- most-negative-fixnum)))))
+
+(ert-deftest data-tests-1- ()
+  (should (< (1- most-negative-fixnum) most-negative-fixnum))
+  (should (fixnump (1- (1+ most-positive-fixnum)))))
+
+(ert-deftest data-tests-logand ()
+  (should (= -1 (logand) (logand -1) (logand -1 -1)))
+  (let ((n (1+ most-positive-fixnum)))
+    (should (= (logand -1 n) n)))
+  (let ((n (* 2 most-negative-fixnum)))
+    (should (= (logand -1 n) n))))
+
+(ert-deftest data-tests-logcount ()
+  (should (= (logcount (read "#xffffffffffffffffffffffffffffffff")) 128)))
+
+(ert-deftest data-tests-logior ()
+  (should (= -1 (logior -1) (logior -1 -1)))
+  (should (= -1 (logior most-positive-fixnum most-negative-fixnum))))
+
+(ert-deftest data-tests-logxor ()
+  (should (= -1 (logxor -1) (logxor -1 -1 -1)))
+  (let ((n (1+ most-positive-fixnum)))
+    (should (= (logxor -1 n) (lognot n)))))
+
+(ert-deftest data-tests-minmax ()
+  (let ((a (- most-negative-fixnum 1))
+        (b (+ most-positive-fixnum 1))
+        (c 0))
+    (should (= (min a b c) a))
+    (should (= (max a b c) b))))
+
+(defun data-tests-check-sign (x y)
+  (should (eq (cl-signum x) (cl-signum y))))
+
+(ert-deftest data-tests-%-mod ()
+  (let* ((b1 (+ most-positive-fixnum 1))
+         (nb1 (- b1))
+         (b3 (+ most-positive-fixnum 3))
+         (nb3 (- b3)))
+    (data-tests-check-sign (% 1 3) (% b1 b3))
+    (data-tests-check-sign (mod 1 3) (mod b1 b3))
+    (data-tests-check-sign (% 1 -3) (% b1 nb3))
+    (data-tests-check-sign (mod 1 -3) (mod b1 nb3))
+    (data-tests-check-sign (% -1 3) (% nb1 b3))
+    (data-tests-check-sign (mod -1 3) (mod nb1 b3))
+    (data-tests-check-sign (% -1 -3) (% nb1 nb3))
+    (data-tests-check-sign (mod -1 -3) (mod nb1 nb3))))
+
+(ert-deftest data-tests-mod-0 ()
+  (dolist (num (list (1- most-negative-fixnum) -1 0 1
+                     (1+ most-positive-fixnum)))
+    (should-error (mod num 0)))
+  (when (ignore-errors (/ 0.0 0))
+    (should (equal (abs (mod 0.0 0)) (abs (- 0.0 (/ 0.0 0)))))))
+
+(ert-deftest data-tests-ash-lsh ()
+  (should (= (ash most-negative-fixnum 1)
+             (* most-negative-fixnum 2)))
+  (should (= (ash 0 (* 2 most-positive-fixnum)) 0))
+  (should (= (ash 1000 (* 2 most-negative-fixnum)) 0))
+  (should (= (ash -1000 (* 2 most-negative-fixnum)) -1))
+  (should (= (ash (* 2 most-negative-fixnum) (* 2 most-negative-fixnum)) -1))
+  (should (= (lsh most-negative-fixnum 1)
+             (* most-negative-fixnum 2)))
+  (should (= (ash (* 2 most-negative-fixnum) -1)
+	     most-negative-fixnum))
+  (should (= (lsh most-positive-fixnum -1) (/ most-positive-fixnum 2)))
+  (should (= (lsh most-negative-fixnum -1) (lsh (- most-negative-fixnum) -1)))
+  (should (= (lsh -1 -1) most-positive-fixnum))
+  (should-error (lsh (1- most-negative-fixnum) -1)))
 
 (ert-deftest data-tests-make-local-forwarded-var () ;bug#34318
   ;; Boy, this bug is tricky to trigger.  You need to:

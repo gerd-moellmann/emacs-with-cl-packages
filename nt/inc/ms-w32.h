@@ -1,6 +1,6 @@
 /* System description file for Windows NT.
 
-Copyright (C) 1993-1995, 2001-2019 Free Software Foundation, Inc.
+Copyright (C) 1993-1995, 2001-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -34,6 +34,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 # ifdef __MINGW64_VERSION_MAJOR
 #  define MINGW_W64
 # endif
+# if defined __MINGW32_VERSION && __MINGW32_VERSION >= 5001000L
+/* Avoid warnings about gettimeofday being deprecated.  */
+#  undef __POSIX_2008_DEPRECATED
+#  define __POSIX_2008_DEPRECATED
+# endif
 #endif
 
 /* #undef const */
@@ -58,8 +63,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    Look in <sys/time.h> for a timeval structure.  */
 #define HAVE_TIMEVAL 1
 
-/* And the select implementation does 1-byte read-ahead waiting
-   for received packets, so datagrams are broken too.  */
+/* Our select emulation does 1-byte read-ahead waiting for received
+   packets, so datagrams are broken.  */
 #define BROKEN_DATAGRAM_SOCKETS 1
 
 #define MAIL_USE_SYSTEM_LOCK 1
@@ -304,9 +309,14 @@ extern intptr_t _execvp (const char *, char **);
    the code that references it is still compiled.  */
 extern int execve (const char *, char * const *, char * const *);
 #else
+/* mingw.org's MinGW GCC 9.x has the same built-in prototype...  */
+# if __GNUC__ >= 9
+extern int execve (const char *, char * const *, char * const *);
+# else
 extern intptr_t execve (const char *, char * const *, char * const *);
+# endif
 #endif
-#define fdatasync _commit
+#define tcdrain _commit
 #define fdopen	  _fdopen
 #define fsync	  _commit
 #define ftruncate _chsize

@@ -37,7 +37,7 @@ Kenichi Handa
 	Mule
 
 Stefan Monnier
-	src/regex.c
+	src/regex-emacs.c
 	src/syntax.c
 	src/keymap.c
 	font-lock/jit-lock/syntax
@@ -125,6 +125,11 @@ Ulf Jasper
 	Icalendar
 	    lisp/calendar/icalendar.el
 	    test/lisp/calendar/icalendar-tests.el
+
+Amin Bandali
+	ERC
+	    lisp/erc/*
+	    doc/misc/erc.texi
 
 ==============================================================================
 2. Areas that someone is willing to maintain, although he would not
@@ -239,6 +244,19 @@ Dmitry Gutov
 Vibhav Pant
        lisp/net/browse-url.el
        lisp/erc/*
+
+Alan Third
+        The NS port:
+            nextstep/*
+            src/ns*
+            src/*.m
+            lisp/term/ns-win.el
+            doc/emacs/macos.texi
+
+Amin Bandali
+	Eshell
+	    lisp/eshell/*
+	    doc/misc/eshell.texi
 
 
 ;;; Local Variables:

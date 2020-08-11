@@ -1,6 +1,6 @@
 ;;; env.el --- functions to manipulate environment variables  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1991, 1994, 2000-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1991, 1994, 2000-2020 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: processes, unix
@@ -68,10 +68,10 @@ with a character not a letter, digit or underscore; otherwise, enclose
 the entire variable name in braces.  For instance, in `ab$cd-x',
 `$cd' is treated as an environment variable.
 
-If WHEN-DEFINED is nil, references to undefined environment variables
-are replaced by the empty string; if it is a function, the function is called
-with the variable name as argument and should return the text with which
-to replace it or nil to leave it unchanged.
+If WHEN-UNDEFINED is omitted or nil, references to undefined environment
+variables are replaced by the empty string; if it is a function, the
+function is called with the variable's name as argument, and should return
+the text with which to replace it, or nil to leave it unchanged.
 If it is non-nil and not a function, references to undefined variables are
 left unchanged.
 
@@ -113,11 +113,11 @@ Changes ENV by side-effect, and returns its new value."
 	     (not keep-empty)
 	     env
 	     (stringp (car env))
-	     (string-match pattern (car env)))
+             (string-match-p pattern (car env)))
 	(cdr env)
       ;; Try to find existing entry for VARIABLE in ENV.
       (while (and scan (stringp (car scan)))
-	(when (string-match pattern (car scan))
+        (when (string-match-p pattern (car scan))
 	  (if value
 	      (setcar scan (concat variable "=" value))
 	    (if keep-empty
@@ -184,7 +184,7 @@ a side-effect."
       (setq variable (encode-coding-string variable locale-coding-system)))
   (if (and value (multibyte-string-p value))
       (setq value (encode-coding-string value locale-coding-system)))
-  (if (string-match "=" variable)
+  (if (string-match-p "=" variable)
       (error "Environment variable name `%s' contains `='" variable))
   (if (string-equal "TZ" variable)
       (set-time-zone-rule value))

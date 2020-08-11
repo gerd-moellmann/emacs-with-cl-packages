@@ -1,6 +1,6 @@
 ;;; electric-tests.el --- tests for electric.el
 
-;; Copyright (C) 2013-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords:
@@ -114,14 +114,30 @@
                                      mode
                                      extra-desc))
            ()
-         ,(format "With |%s|, try input %c at point %d. \
-Should %s |%s| and point at %d"
-                  fixture
-                  char
+         ,(format "Electricity test in a `%s' buffer.\n
+Start with point at %d in a %d-char-long buffer
+like this one:
+
+  |%s|   (buffer start and end are denoted by `|')
+%s
+%s
+Now press the key for: %c
+
+The buffer's contents should %s:
+
+  |%s|
+
+, and point should be at %d."
+                  mode
                   (1+ pos)
-                  (if (string= fixture expected-string)
-                      "stay"
-                    "become")
+                  (length fixture)
+                  fixture
+                  (if fixture-fn (format "\nNow call this:\n\n%s"
+                                         (pp-to-string fixture-fn)) "")
+                  (if bindings (format "\nEnsure the following bindings:\n\n%s"
+                                       (pp-to-string bindings)) "")
+                  char
+                  (if (string= fixture expected-string) "stay" "become")
                   (replace-regexp-in-string "\n" "\\\\n" expected-string)
                   expected-point)
          (electric-pair-test-for ,fixture
@@ -141,7 +157,7 @@ Should %s |%s| and point at %d"
           expected-string
           expected-point
           bindings
-          (modes '(quote (ruby-mode c++-mode)))
+          (modes '(quote (ruby-mode js-mode)))
           (test-in-comments t)
           (test-in-strings t)
           (test-in-code t)
@@ -163,9 +179,9 @@ Should %s |%s| and point at %d"
                         ""
                         "-in-comments")))
                  (if test-in-strings
-                     `(("\"" "\"" "-in-strings")))
+                     '(("\"" "\"" "-in-strings")))
                  (if test-in-code
-                     `(("" "" ""))))
+                     '(("" "" ""))))
          append
          (cl-loop
           for char across input
@@ -375,6 +391,13 @@ baz\"\""
   :bindings '((electric-pair-skip-whitespace . chomp))
   :test-in-comments nil)
 
+(ert-deftest electric-pair-whitespace-chomping-2-at-point-4-in-c++-mode-in-strings nil
+  "Check if whitespace chomping works in `c++' unterminated strings."
+  (electric-pair-test-for
+   "\" ( \n		\n  )  \"" 4 41 "\" ()  \"" 5 'c++-mode
+   '((electric-pair-skip-whitespace . chomp))
+   (lambda () (electric-pair-mode 1))))
+
 (define-electric-pair-test whitespace-chomping-dont-cross-comments
   " ( \n\t\t\n  )  " "--)------" :expected-string " () \n\t\t\n  )  "
   :expected-point 4
@@ -481,6 +504,7 @@ baz\"\""
   :fixture-fn #'(lambda ()
                   (electric-pair-mode 1)))
 
+
 (define-electric-pair-test js-mode-braces-with-layout
   "" "{" :expected-string "{\n\n}" :expected-point 3
   :modes '(js-mode)
@@ -489,6 +513,16 @@ baz\"\""
   :fixture-fn #'(lambda ()
                   (electric-layout-mode 1)
                   (electric-pair-mode 1)))
+
+(define-electric-pair-test js-mode-braces-with-layout-and-indent
+  "" "{" :expected-string "{\n    \n}" :expected-point 7
+  :modes '(js-mode)
+  :test-in-comments nil
+  :test-in-strings nil
+  :fixture-fn #'(lambda ()
+                  (electric-pair-mode 1)
+                  (electric-indent-mode 1)
+                  (electric-layout-mode 1)))
 
 (define-electric-pair-test js-mode-braces-with-layout-and-indent
   "" "{" :expected-string "{\n    \n}" :expected-point 7
@@ -617,6 +651,12 @@ baz\"\""
   :fixture-fn #'electric-quote-local-mode
   :test-in-comments nil :test-in-strings nil)
 
+(define-electric-pair-test electric-quote-replace-double-disabled
+  "" "\"" :expected-string "\"" :expected-point 2
+  :modes '(text-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :test-in-comments nil :test-in-strings nil)
+
 (define-electric-pair-test electric-quote-context-sensitive-backtick
   "" "`" :expected-string "`" :expected-point 2
   :modes '(text-mode)
@@ -638,6 +678,13 @@ baz\"\""
   :bindings '((electric-quote-context-sensitive . t))
   :test-in-comments nil :test-in-strings nil)
 
+(define-electric-pair-test electric-quote-replace-double-bob
+  "" "\"" :expected-string "“" :expected-point 2
+  :modes '(text-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-replace-double . t))
+  :test-in-comments nil :test-in-strings nil)
+
 (define-electric-pair-test electric-quote-context-sensitive-bol-single
   "a\n" "--'" :expected-string "a\n‘" :expected-point 4
   :modes '(text-mode)
@@ -650,6 +697,13 @@ baz\"\""
   :modes '(text-mode)
   :fixture-fn #'electric-quote-local-mode
   :bindings '((electric-quote-context-sensitive . t))
+  :test-in-comments nil :test-in-strings nil)
+
+(define-electric-pair-test electric-quote-replace-double-bol
+  "a\n" "--\"" :expected-string "a\n“" :expected-point 4
+  :modes '(text-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-replace-double . t))
   :test-in-comments nil :test-in-strings nil)
 
 (define-electric-pair-test electric-quote-context-sensitive-after-space-single
@@ -666,6 +720,13 @@ baz\"\""
   :bindings '((electric-quote-context-sensitive . t))
   :test-in-comments nil :test-in-strings nil)
 
+(define-electric-pair-test electric-quote-replace-double-after-space
+  " " "-\"" :expected-string " “" :expected-point 3
+  :modes '(text-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-replace-double . t))
+  :test-in-comments nil :test-in-strings nil)
+
 (define-electric-pair-test electric-quote-context-sensitive-after-letter-single
   "a" "-'" :expected-string "a’" :expected-point 3
   :modes '(text-mode)
@@ -678,6 +739,13 @@ baz\"\""
   :modes '(text-mode)
   :fixture-fn #'electric-quote-local-mode
   :bindings '((electric-quote-context-sensitive . t))
+  :test-in-comments nil :test-in-strings nil)
+
+(define-electric-pair-test electric-quote-replace-double-after-letter
+  "a" "-\"" :expected-string "a”" :expected-point 3
+  :modes '(text-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-replace-double . t))
   :test-in-comments nil :test-in-strings nil)
 
 (define-electric-pair-test electric-quote-context-sensitive-after-paren-single
@@ -693,6 +761,38 @@ baz\"\""
   :fixture-fn #'electric-quote-local-mode
   :bindings '((electric-quote-context-sensitive . t))
   :test-in-comments nil :test-in-strings nil)
+
+(define-electric-pair-test electric-quote-replace-double-after-paren
+  "(" "-\"" :expected-string "(“" :expected-point 3
+  :modes '(text-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-replace-double . t))
+  :test-in-comments nil :test-in-strings nil)
+
+(define-electric-pair-test electric-quote-replace-double-no-context-single
+  " " "-'" :expected-string " ’" :expected-point 3
+  :modes '(text-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-replace-double . t))
+  :test-in-comments nil :test-in-strings nil)
+
+(define-electric-pair-test electric-quote-replace-double-escaped-open
+  "foo \\" "-----\"" :expected-string "foo \\“"
+  :expected-point 7 :modes '(emacs-lisp-mode c-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-replace-double . t)
+              (electric-quote-comment . t)
+              (electric-quote-string . t))
+  :test-in-comments t :test-in-strings t :test-in-code nil)
+
+(define-electric-pair-test electric-quote-replace-double-escaped-close
+  "foo \\“foo\\" "----------\"" :expected-string "foo \\“foo\\”"
+  :expected-point 12 :modes '(emacs-lisp-mode c-mode)
+  :fixture-fn #'electric-quote-local-mode
+  :bindings '((electric-quote-replace-double . t)
+              (electric-quote-comment . t)
+              (electric-quote-string . t))
+  :test-in-comments t :test-in-strings t :test-in-code nil)
 
 ;; Simulate ‘markdown-mode’: it sets both ‘comment-start’ and
 ;; ‘comment-use-syntax’, but derives from ‘text-mode’.
@@ -719,6 +819,138 @@ baz\"\""
                           nil :local))
   :bindings '((comment-start . "<!--") (comment-use-syntax . t))
   :test-in-comments nil :test-in-strings nil)
+
+
+;;; tests for `electric-layout-mode'
+
+(define-derived-mode plainer-c-mode c-mode "pC"
+  "A plainer/saner C-mode with no internal electric machinery."
+  (c-toggle-electric-state -1)
+  (setq-local electric-indent-local-mode-hook nil)
+  (setq-local electric-indent-mode-hook nil)
+  (electric-indent-local-mode 1)
+  (dolist (key '(?\" ?\' ?\{ ?\} ?\( ?\) ?\[ ?\]))
+    (local-set-key (vector key) 'self-insert-command)))
+
+(defun electric-layout-for-c-style-du-jour (inserted)
+  "A function to use in `electric-layout-rules'"
+  (when (memq inserted '(?{ ?}))
+    (save-excursion
+      (backward-char 2) (c-point-syntax) (forward-char) ; silly, but needed
+      (c-brace-newlines (c-point-syntax)))))
+
+(ert-deftest electric-layout-plainer-c-mode-use-c-style ()
+  (ert-with-test-buffer ()
+    (plainer-c-mode)
+    (electric-layout-local-mode 1)
+    (electric-pair-local-mode 1)
+    (electric-indent-local-mode 1)
+    (setq-local electric-layout-rules
+                '(electric-layout-for-c-style-du-jour))
+    (insert "int main () ")
+    (let ((last-command-event ?\{))
+      (call-interactively (key-binding `[,last-command-event])))
+    (should (equal (buffer-string) "int main ()\n{\n  \n}\n"))))
+
+(ert-deftest electric-layout-int-main-kernel-style ()
+  (ert-with-test-buffer ()
+    (plainer-c-mode)
+    (electric-layout-local-mode 1)
+    (electric-pair-local-mode 1)
+    (electric-indent-local-mode 1)
+    (setq-local electric-layout-rules
+                '((?\{ . (after))
+                  (?\} . (before))))
+    (insert "int main () ")
+    (let ((last-command-event ?\{))
+      (call-interactively (key-binding `[,last-command-event])))
+    (should (equal (buffer-string) "int main () {\n  \n}"))))
+
+(ert-deftest electric-layout-control-reindentation ()
+  "Same as `e-l-int-main-kernel-style', but checking Bug#35254."
+  (ert-with-test-buffer ()
+    (plainer-c-mode)
+    (electric-layout-local-mode 1)
+    (electric-pair-local-mode 1)
+    (electric-indent-local-mode 1)
+    (setq-local electric-layout-rules
+                '((?\{ . (after))
+                  (?\} . (before))))
+    (insert "int main () ")
+    (let ((last-command-event ?\{))
+      (call-interactively (key-binding `[,last-command-event])))
+    (should (equal (buffer-string) "int main () {\n  \n}"))
+    ;; insert an additional newline and check indentation and
+    ;; reindentation
+    (call-interactively 'newline)
+    (should (equal (buffer-string) "int main () {\n\n  \n}"))))
+
+(ert-deftest electric-modes-int-main-allman-style ()
+  (ert-with-test-buffer ()
+    (plainer-c-mode)
+    (electric-layout-local-mode 1)
+    (electric-pair-local-mode 1)
+    (electric-indent-local-mode 1)
+    (setq-local electric-layout-rules
+                '((?\{ . (before after))
+                  (?\} . (before))))
+    (insert "int main () ")
+    (let ((last-command-event ?\{))
+      (call-interactively (key-binding `[,last-command-event])))
+    (should (equal (buffer-string) "int main ()\n{\n  \n}"))))
+
+(ert-deftest electric-pair-mode-newline-between-parens ()
+  (ert-with-test-buffer ()
+    (plainer-c-mode)
+    (electric-layout-local-mode -1) ;; ensure e-l-m mode is off
+    (electric-pair-local-mode 1)
+    (insert-before-markers "int main () {}")
+    (backward-char 1)
+    (let ((last-command-event ?\r))
+      (call-interactively (key-binding `[,last-command-event])))
+    (should (equal (buffer-string) "int main () {\n  \n}"))))
+
+(ert-deftest electric-layout-mode-newline-between-parens-without-e-p-m ()
+  (ert-with-test-buffer ()
+    (plainer-c-mode)
+    (electric-layout-local-mode 1)
+    (electric-pair-local-mode -1) ;; ensure e-p-m mode is off
+    (electric-indent-local-mode 1)
+    (setq-local electric-layout-rules
+                '((?\n
+                   .
+                   (lambda ()
+                     (when (eq (save-excursion
+                                 (skip-chars-backward "\t\s")
+                                 (char-before (1- (point))))
+                               (matching-paren (char-after)))
+                       '(after-stay))))))
+    (insert "int main () {}")
+    (backward-char 1)
+    (let ((last-command-event ?\r))
+      (call-interactively (key-binding `[,last-command-event])))
+    (should (equal (buffer-string) "int main () {\n  \n}"))))
+
+(ert-deftest electric-layout-mode-newline-between-parens-without-e-p-m-2 ()
+  (ert-with-test-buffer ()
+    (plainer-c-mode)
+    (electric-layout-local-mode 1)
+    (electric-pair-local-mode -1) ;; ensure e-p-m mode is off
+    (electric-indent-local-mode 1)
+    (setq-local electric-layout-rules
+                '((lambda (char)
+                    (when (and
+                           (eq char ?\n)
+                           (eq (save-excursion
+                                 (skip-chars-backward "\t\s")
+                                 (char-before (1- (point))))
+                               (matching-paren (char-after))))
+                       '(after-stay)))))
+    (insert "int main () {}")
+    (backward-char 1)
+    (let ((last-command-event ?\r))
+      (call-interactively (key-binding `[,last-command-event])))
+    (should (equal (buffer-string) "int main () {\n  \n}"))))
 
 (provide 'electric-tests)
 ;;; electric-tests.el ends here

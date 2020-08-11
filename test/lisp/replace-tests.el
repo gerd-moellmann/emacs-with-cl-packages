@@ -1,6 +1,6 @@
 ;;; replace-tests.el --- tests for replace.el.
 
-;; Copyright (C) 2010-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2020 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Richard <youngfrog@members.fsf.org>
 ;; Author: Juri Linkov <juri@jurta.org>
@@ -359,6 +359,52 @@ Each element has the format:
 (dotimes (i (length replace-occur-tests))
   (replace-occur-test-create i))
 
+(ert-deftest replace-occur-revert-bug32543 ()
+  "Test `occur-revert' with non-nil `list-matching-lines-jump-to-current-line'."
+  (let ((temp-buffer (get-buffer-create " *test-occur*")))
+    (unwind-protect
+        (save-window-excursion
+          (with-current-buffer temp-buffer
+            (erase-buffer)
+            (setq list-matching-lines-jump-to-current-line t)
+            (insert
+";; This buffer is for text that is not saved, and for Lisp evaluation.
+;; To create a file, visit it with C-x C-f and enter text in its buffer.
+
+")
+            (occur "and")
+            (with-current-buffer "*Occur*"
+              (revert-buffer)
+              (goto-char (point-min))
+              (should (string-match "\\`2 matches for \"and\" in buffer: "
+                                    (buffer-substring-no-properties
+                                     (point) (line-end-position)))))))
+      (and (buffer-name temp-buffer)
+           (kill-buffer temp-buffer)))))
+
+(ert-deftest replace-occur-revert-bug32987 ()
+  "Test `occur-revert' with non-nil `list-matching-lines-jump-to-current-line'."
+  (let ((temp-buffer (get-buffer-create " *test-occur*")))
+    (unwind-protect
+        (save-window-excursion
+          (with-current-buffer temp-buffer
+            (erase-buffer)
+            (setq list-matching-lines-jump-to-current-line nil)
+            (insert
+";; This buffer is for text that is not saved, and for Lisp evaluation.
+;; To create a file, visit it with C-x C-f and enter text in its buffer.
+
+")
+            (occur "and")
+            (with-current-buffer "*Occur*"
+              (revert-buffer)
+              (goto-char (point-min))
+              (should (string-match "\\`2 matches for \"and\" in buffer: "
+                                    (buffer-substring-no-properties
+                                     (point) (line-end-position)))))))
+      (and (buffer-name temp-buffer)
+           (kill-buffer temp-buffer)))))
+
 
 ;;; Tests for `query-replace' undo feature.
 
@@ -398,7 +444,7 @@ Return the last evalled form in BODY."
          ;; If `replace-tests-bind-read-string' is non-nil, then
          ;; bind `read-string' as well.
          (cl-letf (((symbol-function 'read-event)
-                    (lambda (&rest args)
+                    (lambda (&rest _args)
                       (cl-incf ,count)
                       (pcase ,count ; Build the clauses from CHAR-NUMS
                         ,@(append
@@ -413,8 +459,13 @@ Return the last evalled form in BODY."
                            `((_ ,def-chr))))))
                    ((symbol-function 'read-string)
                     (if replace-tests-bind-read-string
-                        (lambda (&rest args) replace-tests-bind-read-string)
-                      (symbol-function 'read-string))))
+                        (lambda (&rest _args) replace-tests-bind-read-string)
+                      (symbol-function 'read-string)))
+                   ;; Emulate replace-highlight clobbering match-data via
+                   ;; isearch-lazy-highlight-new-loop and sit-for (bug#36328)
+                   ((symbol-function 'replace-highlight)
+                    (lambda (&rest _args)
+                      (string-match "[A-Z ]" "ForestGreen"))))
            (perform-replace ,from ,to t replace-tests-perform-replace-regexp-flag nil))
          ,@body))))
 
@@ -463,7 +514,9 @@ Return the last evalled form in BODY."
     (should
      (replace-tests-with-undo
          input "theorem \\([0-9]+\\)"
-         "theorem \\\\ref{theo_\\1}"
+         '(replace-eval-replacement
+           replace-quote
+           (format "theorem \\\\ref{theo_%d}" (1+ (string-to-number (match-string 1)))))
          ((?\s . (1 2)) (?U . (3)))
          ?q
        (string= input (buffer-string)))))
@@ -478,5 +531,19 @@ Return the last evalled form in BODY."
          ((?\s . (1 2 4)) (?U . (3)))
          ?q
        (string= expected (buffer-string))))))
+
+(ert-deftest query-replace-undo-bug37287 ()
+  "Test for https://debbugs.gnu.org/37287 ."
+  (let ((input "foo-1\nfoo-2\nfoo-3")
+        (expected "foo-2\nfoo-2\nfoo-3"))
+    (should
+     (replace-tests-with-undo
+      input "\\([0-9]\\)"
+      '(replace-eval-replacement
+        replace-quote
+        (format "%d" (1+ (string-to-number (match-string 1)))))
+      ((?\s . (1 2 4)) (?U . (3)))
+      ?q
+      (string= expected (buffer-string))))))
 
 ;;; replace-tests.el ends here

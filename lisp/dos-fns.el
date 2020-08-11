@@ -1,6 +1,6 @@
 ;;; dos-fns.el --- MS-Dos specific functions
 
-;; Copyright (C) 1991, 1993, 1995-1996, 2001-2019 Free Software
+;; Copyright (C) 1991, 1993, 1995-1996, 2001-2020 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -212,9 +212,7 @@ returned unaltered."
 ;; Override settings chosen at startup.
 (defun dos-set-default-process-coding-system ()
   (setq default-process-coding-system
-	(if (default-value 'enable-multibyte-characters)
-	    '(undecided-dos . undecided-dos)
-	  '(raw-text-dos . raw-text-dos))))
+	'(undecided-dos . undecided-dos)))
 
 (add-hook 'before-init-hook 'dos-set-default-process-coding-system)
 
@@ -271,7 +269,7 @@ returned unaltered."
 			(car where)
 			(if (zerop (cdr where))
 			    (logior (logand tem 65280) value)
-			  (logior (logand tem 255) (lsh value 8))))))
+			  (logior (logand tem 255) (ash value 8))))))
 	       ((numberp where)
 		(aset regs where (logand value 65535))))))
   regs)

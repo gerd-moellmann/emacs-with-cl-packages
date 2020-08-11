@@ -24,8 +24,15 @@ SHELL = /bin/sh
 
 srcdir = @srcdir@
 EXEEXT = @EXEEXT@
+DUMPING = @DUMPING@
 
 MKDIR_P = @MKDIR_P@
+
+ifeq ($(DUMPING),pdumper)
+bundle_pdmp := Emacs.app/Contents/MacOS/Emacs.pdmp
+else
+bundle_pdmp :=
+endif
 
 lprojdirs = Emacs.app/Contents/Resources/English.lproj \
   Emacs.app/Contents/Resources/Dutch.lproj \
@@ -88,8 +95,11 @@ endif
 macosx-bundle: ${lprojdirs} Emacs.app/Contents/MacOS/Emacs.sh \
 	Emacs.app/Contents/PkgInfo Emacs.app/Contents/Resources/Emacs.icns \
 	Emacs.app/Contents/Resources/document.icns
-macosx-app: macosx-bundle Emacs.app/Contents/MacOS/Emacs
+macosx-app: macosx-bundle Emacs.app/Contents/MacOS/Emacs $(bundle_pdmp)
 Emacs.app/Contents/MacOS/Emacs: ../src/emacs${EXEEXT}
+	${MKDIR_P} Emacs.app/Contents/MacOS
+	cp $< $@
+Emacs.app/Contents/MacOS/Emacs.pdmp: ../src/emacs${EXEEXT}.pdmp
 	${MKDIR_P} Emacs.app/Contents/MacOS
 	cp $< $@
 
@@ -102,7 +112,7 @@ all: macosx-app
 
 clean:
 	rm -rf ${lprojdirs}
-	rm -f Emacs.app/Contents/MacOS/Emacs
+	rm -f Emacs.app/Contents/MacOS/Emacs $(bundle_pdmp)
 
 distclean: clean
 	rm -f Makefile

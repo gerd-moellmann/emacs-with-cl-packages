@@ -140,7 +140,7 @@ mac_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
     else
       ownership_info = Qnil; 	/* dummy value for local-only selection */
     selection_data = list5 (selection_name, selection_value,
-			    INTEGER_TO_CONS (timestamp), frame, ownership_info);
+			    INT_TO_INTEGER (timestamp), frame, ownership_info);
     prev_value = LOCAL_SELECTION (selection_name, dpyinfo);
 
     tset_selection_alist
@@ -207,7 +207,7 @@ mac_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
 		       XCAR (XCDR (local_value)));
       else
 	value = Qnil;
-      unbind_to (count, Qnil);
+      value = unbind_to (count, value);
     }
 
   if (local_request)
@@ -302,7 +302,7 @@ mac_get_foreign_selection (Lisp_Object selection_symbol,
 	{
 	  result = mac_get_selection_value (sel, target_type);
 	  if (STRINGP (result))
-	    Fput_text_property (make_number (0), make_number (SBYTES (result)),
+	    Fput_text_property (make_fixnum (0), make_fixnum (SBYTES (result)),
 				Qforeign_selection, target_type, result);
 	}
     }
@@ -507,7 +507,7 @@ frame's display, or the first available display.  */)
   struct frame *f = frame_for_mac_selection (terminal);
 
   CHECK_SYMBOL (selection);
-  if (EQ (selection, Qnil)) selection = QPRIMARY;
+  if (NILP (selection)) selection = QPRIMARY;
   if (EQ (selection, Qt)) selection = QSECONDARY;
 
   if (f && mac_selection_owner_p (selection, FRAME_DISPLAY_INFO (f)))
@@ -536,7 +536,7 @@ frame's display, or the first available display.  */)
   struct mac_display_info *dpyinfo;
 
   CHECK_SYMBOL (selection);
-  if (EQ (selection, Qnil)) selection = QPRIMARY;
+  if (NILP (selection)) selection = QPRIMARY;
   if (EQ (selection, Qt)) selection = QSECONDARY;
 
   if (!f)
@@ -773,8 +773,8 @@ mac_handle_apple_event (const AppleEvent *apple_event, AppleEvent *reply,
 					       &class_key, &id_key);
 	  if (!NILP (binding) && !EQ (binding, Qundefined))
 	    {
-	      if (INTEGERP (binding))
-		return XINT (binding);
+	      if (FIXNUMP (binding))
+		return XFIXNUM (binding);
 	      err = mac_handle_apple_event_1 (class_key, id_key,
 					      apple_event, reply);
 	    }
@@ -903,7 +903,7 @@ Return the number of expired events.   */)
   nexpired = cleanup_suspended_apple_events (&suspended_apple_events, false);
   unblock_input ();
 
-  return make_number (nexpired);
+  return make_fixnum (nexpired);
 }
 
 DEFUN ("mac-ae-set-reply-parameter", Fmac_ae_set_reply_parameter,
@@ -985,10 +985,10 @@ nil, which means the event is already resumed or expired.  */)
     {
       ae = *p;
       *p = (*p)->next;
-      if (INTEGERP (error_code)
+      if (FIXNUMP (error_code)
 	  && ae->reply.descriptorType != typeNull)
 	{
-	  SInt32 errn = XINT (error_code);
+	  SInt32 errn = XFIXNUM (error_code);
 
 	  AEPutParamPtr (&ae->reply, keyErrorNumber, typeSInt32,
 			 &errn, sizeof (SInt32));
@@ -1041,8 +1041,8 @@ Otherwise, return the error code as an integer.  */)
     mode = kAEQueueReply;
   else
     {
-      CHECK_NUMBER (send_mode);
-      mode = XINT (send_mode);
+      CHECK_FIXNUM (send_mode);
+      mode = XFIXNUM (send_mode);
       mode &= ~kAEWaitReply;
       if ((mode & (kAENoReply | kAEQueueReply)) == 0)
 	mode |= kAENoReply;
@@ -1058,11 +1058,11 @@ Otherwise, return the error code as an integer.  */)
       if (err == noErr)
 	result = mac_aedesc_to_lisp (&event);
       else
-	result = make_number (err);
+	result = make_fixnum (err);
       AEDisposeDesc (&event);
     }
   else
-    result = make_number (err);
+    result = make_fixnum (err);
   unblock_input ();
 
   return result;

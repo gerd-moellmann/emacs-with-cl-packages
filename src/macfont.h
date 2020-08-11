@@ -1,5 +1,5 @@
 /* Interface definition for macOS Core text font backend.
-   Copyright (C) 2009-2019 Free Software Foundation, Inc.
+   Copyright (C) 2009-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -73,6 +73,12 @@ enum {
 };
 #endif
 
+/* Values for `dir' argument to shaper functions.  */
+enum lgstring_direction
+  {
+    DIR_R2L = -1, DIR_UNKNOWN = 0, DIR_L2R = 1,
+  };
+
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 #define mac_font_get_glyph_for_cid mac_ctfont_get_glyph_for_cid
 #elif !defined (HAVE_NS)
@@ -99,7 +105,8 @@ extern CGFloat mac_screen_font_get_advance_width_for_glyph (ScreenFontRef,
 Boolean mac_screen_font_get_metrics (ScreenFontRef, CGFloat *,
 				     CGFloat *, CGFloat *);
 CFIndex mac_screen_font_shape (ScreenFontRef, CFStringRef,
-			       struct mac_glyph_layout *, CFIndex);
+			       struct mac_glyph_layout *, CFIndex,
+			       enum lgstring_direction);
 #else  /* HAVE_NS */
 extern void mac_register_font_driver (struct frame *f);
 extern void *macfont_get_nsctfont (struct font *font);

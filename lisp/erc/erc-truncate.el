@@ -1,9 +1,10 @@
 ;;; erc-truncate.el --- Functions for truncating ERC buffers
 
-;; Copyright (C) 2003-2004, 2006-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2004, 2006-2020 Free Software Foundation, Inc.
 
 ;; Author: Andreas Fuchs <asf@void.at>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; URL: https://www.emacswiki.org/emacs/ErcTruncation
 ;; Keywords: IRC, chat, client, Internet, logging
 
 ;; This file is part of GNU Emacs.
@@ -43,7 +44,7 @@ Used only when auto-truncation is enabled.
   :group 'erc-truncate
   :type 'integer)
 
-;;;###autoload (autoload 'erc-truncate-mode "erc-truncate" nil t)
+;;;###autoload(autoload 'erc-truncate-mode "erc-truncate" nil t)
 (define-erc-module truncate nil
   "Truncate a query buffer if it gets too large.
 This prevents the query buffer from getting too large, which can
@@ -112,6 +113,5 @@ Meant to be used in hooks, like `erc-insert-post-hook'."
 ;;; erc-truncate.el ends here
 ;;
 ;; Local Variables:
-;; indent-tabs-mode: t
-;; tab-width: 8
+;; generated-autoload-file: "erc-loaddefs.el"
 ;; End:

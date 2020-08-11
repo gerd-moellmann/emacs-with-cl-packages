@@ -1,6 +1,6 @@
 ;;; lisp-mode.el --- Lisp mode, and its idiosyncratic commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1999-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1999-2020 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: lisp, languages
@@ -280,6 +280,19 @@ This will generate compile-time constants from BINDINGS."
          `(face ,font-lock-warning-face
                 help-echo "This \\ has no effect"))))
 
+(defun lisp--match-confusable-symbol-character  (limit)
+  ;; Match a confusable character within a Lisp symbol.
+  (catch 'matched
+    (while t
+      (if (re-search-forward help-uni-confusables-regexp limit t)
+          ;; Skip confusables which are backslash escaped, or inside
+          ;; strings or comments.
+          (save-match-data
+            (unless (or (eq (char-before (match-beginning 0)) ?\\)
+                        (nth 8 (syntax-ppss)))
+              (throw 'matched t)))
+        (throw 'matched nil)))))
+
 (let-when-compile
     ((lisp-fdefs '("defmacro" "defun"))
      (lisp-vdefs '("defvar"))
@@ -461,14 +474,12 @@ This will generate compile-time constants from BINDINGS."
                        (throw 'found t)))))))
            (1 'font-lock-regexp-grouping-backslash prepend)
            (3 'font-lock-regexp-grouping-construct prepend))
-         ;; This is too general -- rms.
-         ;; A user complained that he has functions whose names start with `do'
-         ;; and that they get the wrong color.
-         ;; ;; CL `with-' and `do-' constructs
-         ;;("(\\(\\(do-\\|with-\\)\\(\\s_\\|\\w\\)*\\)" 1 font-lock-keyword-face)
          (lisp--match-hidden-arg
           (0 '(face font-lock-warning-face
-               help-echo "Hidden behind deeper element; move to another line?")))
+                    help-echo "Hidden behind deeper element; move to another line?")))
+         (lisp--match-confusable-symbol-character
+          0 '(face font-lock-warning-face
+                    help-echo "Confusable character"))
          ))
       "Gaudy level highlighting for Emacs Lisp mode.")
 
@@ -491,6 +502,11 @@ This will generate compile-time constants from BINDINGS."
          (,(concat "[`‘]\\(\\(?:\\sw\\|\\s_\\|\\\\.\\)"
                    lisp-mode-symbol-regexp "\\)['’]")
           (1 font-lock-constant-face prepend))
+         ;; Uninterned symbols, e.g., (defpackage #:my-package ...)
+         ;; must come before keywords below to have effect
+         (,(concat "\\(#:\\)\\(" lisp-mode-symbol-regexp "\\)")
+           (1 font-lock-comment-delimiter-face)
+           (2 font-lock-doc-face))
          ;; Constant values.
          (,(concat "\\_<:" lisp-mode-symbol-regexp "\\_>")
           (0 font-lock-builtin-face))
@@ -500,8 +516,10 @@ This will generate compile-time constants from BINDINGS."
          ;; This is too general -- rms.
          ;; A user complained that he has functions whose names start with `do'
          ;; and that they get the wrong color.
-         ;; ;; CL `with-' and `do-' constructs
-         ;;("(\\(\\(do-\\|with-\\)\\(\\s_\\|\\w\\)*\\)" 1 font-lock-keyword-face)
+         ;; That user has violated the http://www.cliki.net/Naming+conventions:
+         ;; CL (but not EL!) `with-' (context) and `do-' (iteration)
+         (,(concat "(\\(\\(do-\\|with-\\)" lisp-mode-symbol-regexp "\\)")
+           (1 font-lock-keyword-face))
          (lisp--match-hidden-arg
           (0 '(face font-lock-warning-face
                help-echo "Hidden behind deeper element; move to another line?")))
@@ -514,6 +532,16 @@ This will generate compile-time constants from BINDINGS."
   "Default expressions to highlight in Emacs Lisp mode.")
 (defvar lisp-cl-font-lock-keywords lisp-cl-font-lock-keywords-1
   "Default expressions to highlight in Lisp modes.")
+
+;; Support backtrace mode.
+(defconst lisp-el-font-lock-keywords-for-backtraces lisp-el-font-lock-keywords
+  "Default highlighting from Emacs Lisp mode used in Backtrace mode.")
+(defconst lisp-el-font-lock-keywords-for-backtraces-1 lisp-el-font-lock-keywords-1
+  "Subdued highlighting from Emacs Lisp mode used in Backtrace mode.")
+(defconst lisp-el-font-lock-keywords-for-backtraces-2
+  (remove (assoc 'lisp--match-hidden-arg lisp-el-font-lock-keywords-2)
+          lisp-el-font-lock-keywords-2)
+  "Gaudy highlighting from Emacs Lisp mode used in Backtrace mode.")
 
 (defun lisp-string-in-doc-position-p (listbeg startpos)
    "Return true if a doc string may occur at STARTPOS inside a list.
@@ -876,9 +904,7 @@ by more than one line to cross a string literal."
   (interactive)
   (let ((pos (- (point-max) (point)))
         (indent (progn (beginning-of-line)
-                       (or indent (calculate-lisp-indent (lisp-ppss)))))
-	(shift-amt nil)
-	(beg (progn (beginning-of-line) (point))))
+                       (or indent (calculate-lisp-indent (lisp-ppss))))))
     (skip-chars-forward " \t")
     (if (or (null indent) (looking-at "\\s<\\s<\\s<"))
 	;; Don't alter indentation of a ;;; comment line
@@ -890,11 +916,7 @@ by more than one line to cross a string literal."
 	  ;; as comment lines, not as code.
 	  (progn (indent-for-comment) (forward-char -1))
 	(if (listp indent) (setq indent (car indent)))
-	(setq shift-amt (- indent (current-column)))
-	(if (zerop shift-amt)
-	    nil
-	  (delete-region beg (point))
-	  (indent-to indent)))
+        (indent-line-to indent))
       ;; If initial point was within line's indentation,
       ;; position after the indentation.  Else stay at same point in text.
       (if (> (- (point-max) pos) (point))
@@ -1182,7 +1204,6 @@ Lisp function does not specify a special indentation."
 (put 'autoload 'lisp-indent-function 'defun) ;Elisp
 (put 'progn 'lisp-indent-function 0)
 (put 'prog1 'lisp-indent-function 1)
-(put 'prog2 'lisp-indent-function 2)
 (put 'save-excursion 'lisp-indent-function 0)      ;Elisp
 (put 'save-restriction 'lisp-indent-function 0)    ;Elisp
 (put 'save-current-buffer 'lisp-indent-function 0) ;Elisp

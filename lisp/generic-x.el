@@ -1,8 +1,8 @@
 ;;; generic-x.el --- A collection of generic modes
 
-;; Copyright (C) 1997-1998, 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2001-2020 Free Software Foundation, Inc.
 
-;; Author:  Peter Breton <pbreton@cs.umb.edu>
+;; Author: Peter Breton <pbreton@cs.umb.edu>
 ;; Created: Tue Oct 08 1996
 ;; Keywords: generic, comment, font-lock
 ;; Package: emacs
@@ -241,30 +241,11 @@ This hook will be installed if the variable
     spice-generic-mode)
   "List of generic modes that are not defined by default.")
 
-(defcustom generic-define-mswindows-modes
-  (memq system-type '(windows-nt ms-dos))
-  "Non-nil means the modes in `generic-mswindows-modes' will be defined.
-This is a list of MS-Windows specific generic modes.  This variable
-only affects the default value of `generic-extras-enable-list'."
-  :group 'generic-x
-  :type 'boolean
-  :version "22.1")
-(make-obsolete-variable 'generic-define-mswindows-modes 'generic-extras-enable-list "22.1")
-
-(defcustom generic-define-unix-modes
-  (not (memq system-type '(windows-nt ms-dos)))
-  "Non-nil means the modes in `generic-unix-modes' will be defined.
-This is a list of Unix specific generic modes.  This variable only
-affects the default value of `generic-extras-enable-list'."
-  :group 'generic-x
-  :type 'boolean
-  :version "22.1")
-(make-obsolete-variable 'generic-define-unix-modes 'generic-extras-enable-list "22.1")
-
 (defcustom generic-extras-enable-list
   (append generic-default-modes
-	  (if generic-define-mswindows-modes generic-mswindows-modes)
-	  (if generic-define-unix-modes generic-unix-modes)
+          (if (memq system-type '(windows-nt ms-dos))
+              generic-mswindows-modes
+            generic-unix-modes)
 	  nil)
   "List of generic modes to define.
 Each entry in the list should be a symbol.  If you set this variable
@@ -313,7 +294,7 @@ your changes into effect."
   nil
   nil
   ;; Hostname ? user date request return-code number-of-bytes
-  '(("^\\([-a-zA-z0-9.]+\\) - [-A-Za-z]+ \\(\\[.*\\]\\)"
+  '(("^\\([-a-zA-Z0-9.]+\\) - [-A-Za-z]+ \\(\\[.*\\]\\)"
      (1 font-lock-constant-face)
      (2 font-lock-variable-name-face)))
   '("access_log\\'")
@@ -1449,7 +1430,7 @@ like an INI file.  You can add this hook to `find-file-hook'."
     "nowait"
     "internal")
   '(("^\\([-A-Za-z0-9_]+\\)" 1 font-lock-type-face))
-  '("/etc/inetd.conf\\'")
+  '("/etc/inetd\\.conf\\'")
   (list
    (function
     (lambda ()
@@ -1509,7 +1490,8 @@ like an INI file.  You can add this hook to `find-file-hook'."
      '("^\\([^:]+\\):\\([^:]*\\):\\([0-9]+\\):\\(.*\\)$"
        (1 font-lock-type-face)
        (4 font-lock-variable-name-face))))
-  '("/etc/passwd\\'" "/etc/group\\'")
+  ;; /etc/passwd- is a backup file for /etc/passwd, so is group- and shadow-
+  '("/etc/passwd-?\\'" "/etc/group-?\\'" "/etc/shadow-?\\'")
   (list
    (function
     (lambda ()
@@ -1610,7 +1592,6 @@ like an INI file.  You can add this hook to `find-file-hook'."
     (t (:weight bold)))
   "Font Lock mode face used to highlight TABs."
   :group 'generic-x)
-(define-obsolete-face-alias 'show-tabs-tab-face 'show-tabs-tab "22.1")
 
 (defface show-tabs-space
   '((((class grayscale) (background light)) (:background "DimGray"   :weight bold))
@@ -1620,7 +1601,6 @@ like an INI file.  You can add this hook to `find-file-hook'."
     (t (:weight bold)))
   "Font Lock mode face used to highlight spaces."
   :group 'generic-x)
-(define-obsolete-face-alias 'show-tabs-space-face 'show-tabs-space "22.1")
 
 (define-generic-mode show-tabs-generic-mode
   nil ;; no comment char
@@ -1650,7 +1630,7 @@ like an INI file.  You can add this hook to `find-file-hook'."
      (2 font-lock-variable-name-face)
      (3 font-lock-constant-face)))
   ;; List of additional automode-alist expressions
-  '("/etc/named.boot\\'")
+  '("/etc/named\\.boot\\'")
   ;; List of set up functions to call
   nil))
 
@@ -1687,7 +1667,7 @@ like an INI file.  You can add this hook to `find-file-hook'."
   ;; List of additional font-lock-expressions
   nil
   ;; List of additional auto-mode-alist expressions
-  '("/etc/resolv[e]?.conf\\'")
+  '("/etc/resolve?\\.conf\\'")
   ;; List of set up functions to call
   nil))
 
@@ -1823,7 +1803,7 @@ like an INI file.  You can add this hook to `find-file-hook'."
   ;; List of additional font-lock-expressions
   nil
   ;; List of additional automode-alist expressions
-  '("/etc/modules.conf" "/etc/conf.modules")
+  '("/etc/modules\\.conf" "/etc/conf\\.modules")
   ;; List of set up functions to call
   nil))
 

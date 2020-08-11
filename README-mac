@@ -1,6 +1,6 @@
 1. What's this?
 
-This is "Mac port" addition to GNU Emacs 26.  This provides a native
+This is "Mac port" addition to GNU Emacs 27.  This provides a native
 GUI support for Mac OS X 10.6 - macOS 10.15.  Note that Emacs 23 and
 later already contain the official GUI support via the NS (Cocoa)
 port.  So if it is good enough for you, then you don't need to try
@@ -101,7 +101,7 @@ The Mac port is a descendant of the following ports for Mac OS X:
       * Update display while the resize control (or the slider in the
 	font panel) is being dragged
 
-Being a port of Emacs 26, the Mac port also supports the following
+Being a port of Emacs 27, the Mac port also supports the following
 Emacs 23 features besides those inherited from the above ancestors:
 
   * The `fullscreen' frame parameter, with all values supported:
@@ -136,7 +136,7 @@ Emacs 23 features besides those inherited from the above ancestors:
     Sequences) even for the OS-bundled Hiragino fonts, which do not
     contain the UVS subtable in their cmap table as of Mac OS X 10.6.
 
-It also supports the following Emacs 24-26 features that are not
+It also supports the following Emacs 24-27 features that are not
 supported on all the standard platforms/ports:
 
   * Can be compiled with the ImageMagick support.  Even without the
@@ -146,7 +146,7 @@ supported on all the standard platforms/ports:
     `both-horiz', `text-image-horiz' are synonymous with `both'.
   * Horizontal scroll bar support.
 
-In addition to the standard Emacs 26 features, the Mac port includes
+In addition to the standard Emacs 27 features, the Mac port includes
 the following Mac-specific ones:
 
   * Pixel-based mouse wheel smooth scroll for newer mice/trackpads.
@@ -235,9 +235,9 @@ Dock without separating a GUI process (not thread) from the main Emacs
      `configure' script with "$ ./autogen.sh" and skip to Step k.
      (You will need the tools mentioned in the file INSTALL.REPO.)
 
-  c. Get the official GNU Emacs 26.X distribution tarball from some
+  c. Get the official GNU Emacs 27.X distribution tarball from some
      GNU mirror site if this file is part of
-     emacs-26.X-mac-V.W.tar.gz.  Untar the tarball.  Let
+     emacs-27.X-mac-V.W.tar.gz.  Untar the tarball.  Let
      EMACS_SOURCE_TOP be the top directory of the source tree.
 
   d. Apply the patch `patch-mac' to the source tree.

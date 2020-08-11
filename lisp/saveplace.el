@@ -1,6 +1,6 @@
 ;;; saveplace.el --- automatically save place in files
 
-;; Copyright (C) 1993-1994, 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1994, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -159,9 +159,6 @@ where it was when you previously visited the same file."
 If this mode is enabled, point is recorded when you kill the buffer
 or exit Emacs.  Visiting this file again will go to that position,
 even in a later Emacs session.
-
-If called with a prefix arg, the mode is enabled if and only if
-the argument is positive.
 
 To save places automatically in all files, put this in your init
 file:

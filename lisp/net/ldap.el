@@ -1,6 +1,6 @@
 ;;; ldap.el --- client interface to LDAP for Emacs
 
-;; Copyright (C) 1998-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
 ;; Author: Oscar Figueiredo <oscar@cpe.fr>
 ;; Maintainer: emacs-devel@gnu.org
@@ -646,13 +646,9 @@ an alist of attribute/value pairs."
 	       (not (equal "" sizelimit)))
 	  (setq arglist (nconc arglist (list (format "-z%s" sizelimit)))))
       (if passwd
-	  ;; Work around Bug#33154, see also Bug#33050.  Leaving
-	  ;; process-connection-type at its default (typically t)
-	  ;; would probably be fine too, however this is the minimal
-	  ;; change on the release branch that fixes ldap.el on Darwin
-	  ;; and leaves other operating systems unchanged.
-	  (let* ((process-connection-type (eq system-type 'darwin))
-		 (proc-args (append arglist ldap-ldapsearch-args
+	  ;; Leave process-connection-type at its default value.  See
+	  ;; discussion in Bug#33050.
+	  (let* ((proc-args (append arglist ldap-ldapsearch-args
 				    filter))
 		 (proc (apply #'start-process "ldapsearch" buf
 			      ldap-ldapsearch-prog

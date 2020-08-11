@@ -1,6 +1,6 @@
 ;;; srecode/srt-mode.el --- Major mode for writing screcode macros
 
-;; Copyright (C) 2005, 2007-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2005, 2007-2020 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -33,6 +33,7 @@
 
 (declare-function srecode-create-dictionary "srecode/dictionary")
 (declare-function srecode-resolve-argument-list "srecode/insert")
+(declare-function srecode-inserter-prin-example "srecode/insert")
 
 ;;; Code:
 (defvar srecode-template-mode-syntax-table
@@ -64,7 +65,7 @@
 (defvar srecode-font-lock-keywords
   '(
     ;; Template
-    ("^\\(template\\)\\s-+\\(\\w*\\)\\(\\( \\(:\\w+\\)\\|\\)+\\)$"
+    ("^\\(template\\)\\s-+\\(\\w*\\)\\(\\( \\(:\\w+\\)\\)*\\)$"
      (1 font-lock-keyword-face)
      (2 font-lock-function-name-face)
      (3 font-lock-builtin-face ))
@@ -228,10 +229,12 @@ we can tell font lock about them.")
 	(insert ee))))
   )
 
+(eieio-declare-slots key)
 
 (defun srecode-macro-help ()
   "Provide help for working with macros in a template."
   (interactive)
+  (require 'srecode/insert)
   (let* ((root 'srecode-template-inserter)
 	 (chl (eieio-class-children root))
 	 (ess (srecode-template-get-escape-start))
@@ -246,8 +249,7 @@ we can tell font lock about them.")
 	       (name (symbol-name C))
 	       (key (when (slot-exists-p C 'key)
 		      (oref C key)))
-	       (showexample t)
-	       )
+	       (showexample t))
 	  (setq chl (cdr chl))
 	  (setq chl (append (eieio-class-children C) chl))
 
@@ -494,7 +496,7 @@ section or ? for an ask variable."
 	  (let* ((macroend (match-beginning 0))
 		 (raw (buffer-substring-no-properties
 		       macrostart macroend))
-		 (STATE (srecode-compile-state "TMP"))
+		 (STATE (srecode-compile-state))
 		 (inserter (condition-case nil
 			       (srecode-compile-parse-inserter
 				raw STATE)
@@ -502,13 +504,14 @@ section or ? for an ask variable."
 		 )
 	    (when inserter
 	      (let ((base
-		     (cons (oref inserter :object-name)
+		     (cons (oref inserter object-name)
 			   (if (and (slot-boundp inserter :secondname)
-				    (oref inserter :secondname))
-			       (split-string (oref inserter :secondname)
+				    (oref inserter secondname))
+			       (split-string (oref inserter secondname)
 					     ":")
 			     nil)))
-		    (key (oref inserter key)))
+		    (key  (when (slot-exists-p inserter 'key)
+		            (oref inserter key))))
 		(cond ((null key)
 		       ;; A plain variable
 		       (cons nil base))
@@ -605,7 +608,6 @@ section or ? for an ask variable."
 
 	(setq context-return
 	      (semantic-analyze-context-functionarg
-	       "context-for-srecode"
 	       :buffer (current-buffer)
 	       :scope scope
 	       :bounds bounds
@@ -625,10 +627,10 @@ section or ? for an ask variable."
 	context-return)))
 
 (define-mode-local-override semantic-analyze-possible-completions
-  srecode-template-mode (context)
+  srecode-template-mode (context &rest flags)
   "Return a list of possible completions based on NONTEXT."
   (with-current-buffer (oref context buffer)
-    (let* ((prefix (car (last (oref context :prefix))))
+    (let* ((prefix (car (last (oref context prefix))))
 	   (prefixstr (cond ((stringp prefix)
 			     prefix)
 			    ((semantic-tag-p prefix)
@@ -639,7 +641,7 @@ section or ? for an ask variable."
 ;				prefix)
 ;			       ((stringp (car prefix))
 ;				(car prefix))))
-	   (argtype (car (oref context :argument)))
+	   (argtype (car (oref context argument)))
 	   (matches nil))
 
       ;; Depending on what the analyzer is, we have different ways

@@ -1,10 +1,11 @@
 ;;; erc-list.el --- /list support for ERC  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2008-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2020 Free Software Foundation, Inc.
 
 ;; Author: Tom Tromey <tromey@redhat.com>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
 ;; Old-Version: 0.1
+;; URL: https://www.emacswiki.org/emacs/ErcList
 ;; Keywords: comm
 
 ;; This file is part of GNU Emacs.
@@ -55,7 +56,7 @@
 (defvar erc-list-server-buffer nil)
 
 ;; Define module:
-;;;###autoload (autoload 'erc-list-mode "erc-list")
+;;;###autoload(autoload 'erc-list-mode "erc-list")
 (define-erc-module list nil
   "List channels nicely in a separate buffer."
   ((remove-hook 'erc-server-321-functions 'erc-server-321-message)
@@ -225,6 +226,5 @@ to RFC and send the LIST header (#321) at start of list transmission."
 ;;; erc-list.el ends here
 ;;
 ;; Local Variables:
-;; indent-tabs-mode: t
-;; tab-width: 8
+;; generated-autoload-file: "erc-loaddefs.el"
 ;; End:

@@ -1,6 +1,6 @@
 ;;; nxml-mode-tests.el --- Test NXML Mode -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -77,6 +77,60 @@
                      (get-text-property dquote-txt-pos 'face)))
       (should-not (equal (get-text-property squote-txt-pos 'face)
                          (get-text-property dquote-att-pos 'face))))))
+
+(ert-deftest nxml-mode-doctype-and-quote-syntax ()
+  (with-temp-buffer
+    (insert "<!DOCTYPE t [\n<!ENTITY f SYSTEM \"f.xml\">\n]>\n<t>'</t>")
+    (nxml-mode)
+    ;; Check that last tag is parsed as a tag.
+    (should (= 1 (car (syntax-ppss (1- (point-max))))))
+    (should (= 0 (car (syntax-ppss (point-max)))))))
+
+(ert-deftest nxml-mode-prolog-comment ()
+  (with-temp-buffer
+    (insert "<?xml version=\"1.0\" encoding=\"utf-8\"?><!-- comment1 -->
+<t><!-- comment2 --></t><!-- comment3 -->")
+    (nxml-mode)
+    ;; Check that all comments are parsed as comments
+    (goto-char (point-min))
+    (search-forward "comment1")
+    (should (nth 4 (syntax-ppss)))
+    (search-forward "comment2")
+    (should (nth 4 (syntax-ppss)))
+    (search-forward "comment3")))
+
+(ert-deftest nxml-mode->-after-quote ()
+  "Reduction from Bug#36092."
+  (with-temp-buffer
+    (insert "<root>\n"
+            (make-string 1794 ?a) "\n"
+            "'>"
+            (make-string 196 ?a) "\n"
+            "</root>")
+    (nxml-mode)
+    (syntax-propertize 2001)
+    (syntax-propertize (point-max))     ; Triggered an assert failure.
+    ;; Check that last tag is parsed as a tag.
+    (should (= 1 (- (car (syntax-ppss (1- (point-max))))
+                    (car (syntax-ppss (point-max))))))))
+
+(ert-deftest nxml-mode-edit-prolog ()
+  "Test for Bug#23668."
+  (with-temp-buffer
+    (insert "
+ <t>
+ <sub/>
+</t>")
+    (nxml-mode)
+    ;; The leading "\n " before "<t>" is the prolog, indenting will
+    ;; delete the space hence changing the prolog size.  If that is
+    ;; not taken into account, then the <sub/> tag won't be indented
+    ;; correctly.
+    (indent-region (point-min) (point-max))
+    (should (equal (buffer-string) "
+<t>
+  <sub/>
+</t>"))))
 
 (provide 'nxml-mode-tests)
 ;;; nxml-mode-tests.el ends here

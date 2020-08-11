@@ -1,6 +1,6 @@
 ;;; fill.el --- fill commands for Emacs
 
-;; Copyright (C) 1985-1986, 1992, 1994-1997, 1999, 2001-2019 Free
+;; Copyright (C) 1985-1986, 1992, 1994-1997, 1999, 2001-2020 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -129,10 +129,11 @@ if it would act as a paragraph-starter on the second line."
   :type 'regexp
   :group 'fill)
 
-(defcustom adaptive-fill-function nil
-  "Function to call to choose a fill prefix for a paragraph, or nil.
-A nil value means the function has not determined the fill prefix."
-  :type '(choice (const nil) function)
+(defcustom adaptive-fill-function #'ignore
+  "Function to call to choose a fill prefix for a paragraph.
+A nil return value means the function has not determined the fill prefix."
+  :version "27.1"
+  :type 'function
   :group 'fill)
 
 (defvar fill-indent-according-to-mode nil ;Screws up CC-mode's filling tricks.
@@ -339,6 +340,18 @@ places."
 	      (and (memq (preceding-char) '(?\t ?\s))
 		   (eq (char-syntax (following-char)) ?w)))))))
 
+(defun fill-polish-nobreak-p ()
+  "Return nil if Polish style allows breaking the line at point.
+This function may be used in the `fill-nobreak-predicate' hook.
+It is almost the same as `fill-single-char-nobreak-p', with the
+exception that it does not require the one-letter word to be
+preceded by a space.  This blocks line-breaking in cases like
+\"(a jednak)\"."
+  (save-excursion
+    (skip-chars-backward " \t")
+    (backward-char 2)
+    (looking-at "[^[:alpha:]]\\cl")))
+
 (defun fill-single-char-nobreak-p ()
   "Return non-nil if a one-letter word is before point.
 This function is suitable for adding to the hook `fill-nobreak-predicate',
@@ -352,7 +365,8 @@ which is an error according to some typographical conventions."
 (defcustom fill-nobreak-predicate nil
   "List of predicates for recognizing places not to break a line.
 The predicates are called with no arguments, with point at the place to
-be tested.  If it returns t, fill commands do not break the line there."
+be tested.  If it returns a non-nil value, fill commands do not break
+the line there."
   :group 'fill
   :type 'hook
   :options '(fill-french-nobreak-p fill-single-word-nobreak-p

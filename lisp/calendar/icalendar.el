@@ -1,6 +1,6 @@
 ;;; icalendar.el --- iCalendar implementation -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2020 Free Software Foundation, Inc.
 
 ;; Author:         Ulf Jasper <ulf.jasper@web.de>
 ;; Created:        August 2002
@@ -43,13 +43,13 @@
 
 ;;  0.06:  (2004-10-06)
 ;;  - Bugfixes regarding icalendar-import-format-*.
-;;  - Fix in icalendar-convert-diary-to-ical -- thanks to Philipp Grau.
+;;  - Fix in icalendar-export-file -- thanks to Philipp Grau.
 
 ;;  0.05: (2003-06-19)
 ;;  - New import format scheme: Replaced icalendar-import-prefix-*,
 ;;    icalendar-import-ignored-properties, and
 ;;    icalendar-import-separator with icalendar-import-format(-*).
-;;  - icalendar-import-file and icalendar-convert-diary-to-ical
+;;  - icalendar-import-file and icalendar-export-file
 ;;    have an extra parameter which should prevent them from
 ;;    erasing their target files (untested!).
 ;;  - Tested with Emacs 21.3.2
@@ -344,17 +344,8 @@ mix of different line endings."
     (while (re-search-forward "\r\n\\|\n\r" nil t)
       (replace-match "\n" nil nil))))
 
-(defsubst icalendar--rris (regexp rep string &optional fixedcase literal)
-  "Replace regular expression in string.
-Pass arguments REGEXP REP STRING FIXEDCASE LITERAL to
-`replace-regexp-in-string' (Emacs) or to `replace-in-string' (XEmacs)."
-  (cond ((fboundp 'replace-regexp-in-string)
-         ;; Emacs:
-         (replace-regexp-in-string regexp rep string fixedcase literal))
-        ((fboundp 'replace-in-string)
-         ;; XEmacs:
-         (save-match-data ;; apparently XEmacs needs save-match-data
-           (replace-in-string string regexp rep literal)))))
+(define-obsolete-function-alias 'icalendar--rris
+  'replace-regexp-in-string "27.1")
 
 (defun icalendar--read-element (invalue inparams)
   "Recursively read the next iCalendar element in the current buffer.
@@ -628,6 +619,7 @@ FIXME: multiple comma-separated values should be allowed!"
         (when (> (length isodatetimestring) 14)
           ;; seconds present
           (setq second (read (substring isodatetimestring 13 15))))
+	;; FIXME: Support subseconds.
         (when (and (> (length isodatetimestring) 15)
                    ;; UTC specifier present
                    (char-equal ?Z (aref isodatetimestring 15)))
@@ -643,12 +635,14 @@ FIXME: multiple comma-separated values should be allowed!"
               (setq year  (nth 2 mdy))))
         ;; create the decoded date-time
         ;; FIXME!?!
-        (condition-case nil
-            (decode-time (encode-time second minute hour day month year zone))
-          (error
-           (message "Cannot decode \"%s\"" isodatetimestring)
-           ;; hope for the best...
-           (list second minute hour day month year 0 nil 0))))
+	(let ((decoded-time (list second minute hour day month year
+				  nil -1 zone)))
+	  (condition-case nil
+	      (decode-time (encode-time decoded-time))
+	    (error
+	     (message "Cannot decode \"%s\"" isodatetimestring)
+	     ;; Hope for the best....
+	     decoded-time))))
     ;; isodatetimestring == nil
     nil))
 
@@ -701,6 +695,7 @@ FIXME: multiple comma-separated values should be allowed!"
                 (setq minutes (read (substring isodurationstring
                                                (match-beginning 10)
                                                (match-end 10)))))
+	    ;; FIXME: Support subseconds.
             (if (match-beginning 11)
                 (setq seconds (read (substring isodurationstring
                                                (match-beginning 12)
@@ -717,14 +712,17 @@ FIXME: multiple comma-separated values should be allowed!"
   "Add TIME1 to TIME2.
 Both times must be given in decoded form.  One of these times must be
 valid (year > 1900 or something)."
-  ;; FIXME: does this function exist already?
+  ;; FIXME: does this function exist already?  Can we use decoded-time-add?
   (decode-time (encode-time
-                (+ (nth 0 time1) (nth 0 time2))
-                (+ (nth 1 time1) (nth 1 time2))
-                (+ (nth 2 time1) (nth 2 time2))
-                (+ (nth 3 time1) (nth 3 time2))
-                (+ (nth 4 time1) (nth 4 time2))
-                (+ (nth 5 time1) (nth 5 time2))
+		;; FIXME: Support subseconds.
+		(time-convert (time-add (decoded-time-second time1)
+					(decoded-time-second time2))
+			      'integer)
+                (+ (decoded-time-minute time1) (decoded-time-minute time2))
+                (+ (decoded-time-hour time1) (decoded-time-hour time2))
+                (+ (decoded-time-day time1) (decoded-time-day time2))
+                (+ (decoded-time-month time1) (decoded-time-month time2))
+                (+ (decoded-time-year time1) (decoded-time-year time2))
                 nil
                 nil
                 ;;(or (nth 6 time1) (nth 6 time2)) ;; FIXME?
@@ -971,14 +969,14 @@ TIMESTRING and has the same result as \"9:00\"."
 
 (defun icalendar--convert-string-for-export (string)
   "Escape comma and other critical characters in STRING."
-  (icalendar--rris "," "\\\\," string))
+  (replace-regexp-in-string "," "\\\\," string))
 
 (defun icalendar--convert-string-for-import (string)
   "Remove escape chars for comma, semicolon etc. from STRING."
-  (icalendar--rris
-   "\\\\n" "\n " (icalendar--rris
-                  "\\\\\"" "\"" (icalendar--rris
-                                 "\\\\;" ";" (icalendar--rris
+  (replace-regexp-in-string
+   "\\\\n" "\n " (replace-regexp-in-string
+                  "\\\\\"" "\"" (replace-regexp-in-string
+                                 "\\\\;" ";" (replace-regexp-in-string
                                               "\\\\," "," string)))))
 
 ;; ======================================================================
@@ -995,9 +993,6 @@ Finto iCalendar file: ")
   (save-current-buffer
     (set-buffer (find-file diary-filename))
     (icalendar-export-region (point-min) (point-max) ical-filename)))
-
-(define-obsolete-function-alias 'icalendar-convert-diary-to-ical
-  'icalendar-export-file "22.1")
 
 (defvar icalendar--uid-count 0
   "Auxiliary counter for creating unique ids.")
@@ -1019,9 +1014,7 @@ current iCalendar object, as a string.  Increase
       (setq icalendar--uid-count (1+ icalendar--uid-count))
       (setq uid (replace-regexp-in-string
                  "%t"
-                 (format "%d%d%d" (car (current-time))
-                         (cadr (current-time))
-                         (car (cddr (current-time))))
+                 (format-time-string "%s%N")
                  uid t t))
       (setq uid (replace-regexp-in-string
                  "%h"
@@ -1048,12 +1041,10 @@ written into the buffer `*icalendar-errors*'."
   (interactive "r
 FExport diary data into iCalendar file: ")
   (let ((result "")
-        (start 0)
         (entry-main "")
         (entry-rest "")
 	(entry-full "")
         (header "")
-        (contents-n-summary)
         (contents)
         (alarm)
         (found-error nil)
@@ -1073,7 +1064,8 @@ FExport diary data into iCalendar file: ")
               ;; possibly ignore hidden entries beginning with "&"
               (if icalendar-export-hidden-diary-entries
                   "^\\([^ \t\n#].+\\)\\(\\(\n[ \t].*\\)*\\)"
-                "^\\([^ \t\n&#].+\\)\\(\\(\n[ \t].*\\)*\\)") max t)
+                "^\\([^ \t\n&#].+\\)\\(\\(\n[ \t].*\\)*\\)")
+              max t)
         (setq entry-main (match-string 1))
         (if (match-beginning 2)
             (setq entry-rest (match-string 2))
@@ -1095,7 +1087,7 @@ FExport diary data into iCalendar file: ")
                             (loc (cdr (assoc 'loc other-elements)))
                             (org (cdr (assoc 'org other-elements)))
                             (sta (cdr (assoc 'sta other-elements)))
-                            (sum (cdr (assoc 'sum other-elements)))
+                            ;; (sum (cdr (assoc 'sum other-elements)))
                             (url (cdr (assoc 'url other-elements)))
                             (uid (cdr (assoc 'uid other-elements))))
                         (if cla
@@ -1202,7 +1194,7 @@ Returns an alist."
              (p-uid (or (string-match "%U" icalendar-import-format) -1))
              (p-list (sort (list p-cla p-des p-loc p-org p-sta p-sum p-url p-uid) '<))
 	     (ct 0)
-             pos-cla pos-des pos-loc pos-org pos-sta pos-sum pos-url pos-uid)
+             pos-cla pos-des pos-loc pos-org pos-sta pos-url pos-uid) ;pos-sum
         (dotimes (i (length p-list))
 	  ;; Use 'ct' to keep track of current position in list
           (cond ((and (>= p-cla 0) (= (nth i p-list) p-cla))
@@ -1222,7 +1214,8 @@ Returns an alist."
                  (setq pos-sta (* 2 ct)))
                 ((and (>= p-sum 0) (= (nth i p-list) p-sum))
 		 (setq ct (+ ct 1))
-                 (setq pos-sum (* 2 ct)))
+                 ;; (setq pos-sum (* 2 ct))
+                 )
                 ((and (>= p-url 0) (= (nth i p-list) p-url))
 		 (setq ct (+ ct 1))
                  (setq pos-url (* 2 ct)))
@@ -1230,7 +1223,7 @@ Returns an alist."
 		 (setq ct (+ ct 1))
                  (setq pos-uid (* 2 ct)))) )
         (mapc (lambda (ij)
-                (setq s (icalendar--rris (car ij) (cadr ij) s t t)))
+                (setq s (replace-regexp-in-string (car ij) (cadr ij) s t t)))
               (list
                ;; summary must be first! because of %s
                (list "%s"
@@ -1251,14 +1244,14 @@ Returns an alist."
                      (concat "\\(" icalendar-import-format-uid "\\)??"))))
 	;; Need the \' regexp in order to detect multi-line items
         (setq s (concat "\\`"
-			   (icalendar--rris "%s" "\\(.*?\\)" s nil t)
+                        (replace-regexp-in-string "%s" "\\(.*?\\)" s nil t)
                         "\\'"))
         (if (string-match s summary-and-rest)
-            (let (cla des loc org sta sum url uid)
-              (if (and pos-sum (match-beginning pos-sum))
-                  (setq sum (substring summary-and-rest
-                                       (match-beginning pos-sum)
-                                       (match-end pos-sum))))
+            (let (cla des loc org sta url uid) ;; sum
+              ;; (if (and pos-sum (match-beginning pos-sum))
+              ;;     (setq sum (substring summary-and-rest
+              ;;                          (match-beginning pos-sum)
+              ;;                          (match-end pos-sum))))
               (if (and pos-cla (match-beginning pos-cla))
                   (setq cla (substring summary-and-rest
                                        (match-beginning pos-cla)
@@ -1393,7 +1386,7 @@ entries.  ENTRY-MAIN is the first line of the diary entry."
         (when starttimestring
           (unless endtimestring
             (let ((time
-                   (read (icalendar--rris "^T0?" ""
+                   (read (replace-regexp-in-string "^T0?" ""
                                           starttimestring))))
               (if (< time 230000)
                   ;; Case: ends on same day
@@ -1481,7 +1474,7 @@ entries.  ENTRY-MAIN is the first line of the diary entry."
         (when starttimestring
           (unless endtimestring
             (let ((time (read
-                         (icalendar--rris "^T0?" ""
+                         (replace-regexp-in-string "^T0?" ""
                                           starttimestring))))
               (setq endtimestring (format "T%06d"
                                           (+ 10000 time))))))
@@ -1568,7 +1561,7 @@ entries.  ENTRY-MAIN is the first line of the diary entry."
         (when starttimestring
           (unless endtimestring
             (let ((time (read
-                         (icalendar--rris "^T0?" ""
+                         (replace-regexp-in-string "^T0?" ""
                                           starttimestring))))
               (setq endtimestring (format "T%06d"
                                           (+ 10000 time))))))
@@ -1601,8 +1594,7 @@ regular expression matching the start of non-marking entries.
 ENTRY-MAIN is the first line of the diary entry.
 
 Optional argument START determines the first day of the
-enumeration, given as a time value, in same format as returned by
-`current-time' -- used for test purposes."
+enumeration, given as a Lisp time value -- used for test purposes."
   (cond ((string-match (concat nonmarker
                                "%%(and \\(([^)]+)\\))\\(\\s-*.*?\\) ?$")
                        entry-main)
@@ -1626,11 +1618,10 @@ enumeration, given as a time value, in same format as returned by
                    (mapcar
                     (lambda (offset)
                       (let* ((day (decode-time (time-add now
-                                                         (seconds-to-time
-                                                          (* offset 60 60 24)))))
-                             (d (nth 3 day))
-                             (m (nth 4 day))
-                             (y (nth 5 day))
+							 (* 60 60 24 offset))))
+                             (d (decoded-time-day day))
+                             (m (decoded-time-month day))
+                             (y (decoded-time-year day))
                              (se (diary-sexp-entry p1 p2 (list m d y)))
                              (see (cond ((stringp se) se)
                                         ((consp se) (cdr se))
@@ -1704,7 +1695,7 @@ entries.  ENTRY-MAIN is the first line of the diary entry."
         (when starttimestring
           (unless endtimestring
             (let ((time
-                   (read (icalendar--rris "^T0?" ""
+                   (read (replace-regexp-in-string "^T0?" ""
                                           starttimestring))))
               (setq endtimestring (format "T%06d"
                                           (+ 10000 time))))))
@@ -1747,7 +1738,7 @@ entries.  ENTRY-MAIN is the first line of the diary entry."
                (n (nth 3 sexp))
                (day (nth 4 sexp))
                (summary
-		(replace-regexp-in-string
+                (replace-regexp-in-string
 		 "\\(^\s+\\|\s+$\\)" ""
 		 (buffer-substring (point) (point-max)))))
 
@@ -1763,8 +1754,8 @@ entries.  ENTRY-MAIN is the first line of the diary entry."
                  ;;BUT remove today if `diary-float'
                  ;;expression does not hold true for today:
                  (when
-                     (null (let ((date (calendar-current-date))
-                                 (entry entry-main))
+                     (null (calendar-dlet* ((date (calendar-current-date))
+                                            (entry entry-main))
                              (diary-float month dayname n)))
                    (concat
                     "\nEXDATE;VALUE=DATE:"
@@ -1857,7 +1848,7 @@ entries.  ENTRY-MAIN is the first line of the diary entry."
         (when starttimestring
           (unless endtimestring
             (let ((time
-                   (read (icalendar--rris "^T0?" ""
+                   (read (replace-regexp-in-string "^T0?" ""
                                           starttimestring))))
               (setq endtimestring (format "T%06d"
                                           (+ 10000 time))))))
@@ -1926,7 +1917,7 @@ entries.  ENTRY-MAIN is the first line of the diary entry."
         (when starttimestring
           (unless endtimestring
             (let ((time
-                   (read (icalendar--rris "^T0?" ""
+                   (read (replace-regexp-in-string "^T0?" ""
                                           starttimestring))))
               (setq endtimestring (format "T%06d"
                                           (+ 10000 time))))))
@@ -1975,13 +1966,13 @@ P")
     (icalendar-import-buffer diary-filename t non-marking)))
 
 ;;;###autoload
-(defun icalendar-import-buffer (&optional diary-file do-not-ask
+(defun icalendar-import-buffer (&optional diary-filename do-not-ask
                                           non-marking)
   "Extract iCalendar events from current buffer.
 
 This function searches the current buffer for the first iCalendar
 object, reads it and adds all VEVENT elements to the diary
-DIARY-FILE.
+DIARY-FILENAME.
 
 It will ask for each appointment whether to add it to the diary
 unless DO-NOT-ASK is non-nil.  When called interactively,
@@ -2011,10 +2002,10 @@ buffer `*icalendar-errors*'."
           (message "Converting iCalendar...")
           (setq ical-errors (icalendar--convert-ical-to-diary
                              ical-contents
-                             diary-file do-not-ask non-marking))
-          (when diary-file
+                             diary-filename do-not-ask non-marking))
+          (when diary-filename
             ;; save the diary file if it is visited already
-            (let ((b (find-buffer-visiting diary-file)))
+            (let ((b (find-buffer-visiting diary-filename)))
               (when b
                 (save-current-buffer
                   (set-buffer b)
@@ -2026,9 +2017,6 @@ buffer `*icalendar-errors*'."
        "Current buffer does not contain iCalendar contents!")
       ;; return nil, i.e. import did not work
       nil)))
-
-(define-obsolete-function-alias 'icalendar-extract-ical-from-buffer
-  'icalendar-import-buffer "22.1")
 
 (defun icalendar--format-ical-event (event)
   "Create a string representation of an iCalendar EVENT."
@@ -2054,24 +2042,24 @@ buffer `*icalendar-errors*'."
 		   (formatted-contents ""))
 	      (when (and contents (> (length contents) 0))
 		(setq formatted-contents
-		      (icalendar--rris "%s"
+		      (replace-regexp-in-string "%s"
 				       (icalendar--convert-string-for-import
 					contents)
 				       (symbol-value format)
 				       t t)))
-	      (setq string (icalendar--rris spec
+	      (setq string (replace-regexp-in-string spec
 					    formatted-contents
 					    string
 					    t t))))
 	  conversion-list)
     string)))
 
-(defun icalendar--convert-ical-to-diary (ical-list diary-file
+(defun icalendar--convert-ical-to-diary (ical-list diary-filename
                                                    &optional do-not-ask
                                                    non-marking)
   "Convert iCalendar data to an Emacs diary file.
 Import VEVENTS from the iCalendar object ICAL-LIST and saves them to a
-DIARY-FILE.  If DO-NOT-ASK is nil the user is asked for each event
+DIARY-FILENAME.  If DO-NOT-ASK is nil the user is asked for each event
 whether to actually import it.  NON-MARKING determines whether diary
 events are created as non-marking.
 This function attempts to return t if something goes wrong.  In this
@@ -2098,7 +2086,9 @@ written into the buffer `*icalendar-errors*'."
                                                              dtstart-zone))
                  (start-d (icalendar--datetime-to-diary-date
                            dtstart-dec))
-                 (start-t (icalendar--datetime-to-colontime dtstart-dec))
+                 (start-t (and dtstart
+                               (> (length dtstart) 8)
+                               (icalendar--datetime-to-colontime dtstart-dec)))
                  (dtend (icalendar--get-event-property e 'DTEND))
                  (dtend-zone (icalendar--find-time-zone
  			      (icalendar--get-event-property-attributes
@@ -2151,8 +2141,7 @@ written into the buffer `*icalendar-errors*'."
                                     (icalendar--get-event-property-attributes
                                      e 'DTEND))
                                    "DATE")))
-                            (icalendar--datetime-to-colontime dtend-dec)
-                          start-t))
+                            (icalendar--datetime-to-colontime dtend-dec)))
             (icalendar--dmsg "start-d: %s, end-d: %s" start-d end-d)
             (cond
              ;; recurring event
@@ -2164,7 +2153,7 @@ written into the buffer `*icalendar-errors*'."
              (rdate
               (icalendar--dmsg "rdate event")
               (setq diary-string "")
-              (mapc (lambda (datestring)
+              (mapc (lambda (_datestring)
 		      (setq diary-string
 			    (concat diary-string
 				    (format "......"))))
@@ -2174,14 +2163,14 @@ written into the buffer `*icalendar-errors*'."
              ((not (string= start-d end-d))
               (setq diary-string
                     (icalendar--convert-non-recurring-all-day-to-diary
-                     e start-d end-1-d))
+                     start-d end-1-d))
               (setq event-ok t))
              ;; not all-day
              ((and start-t (or (not end-t)
                                (not (string= start-t end-t))))
               (setq diary-string
                     (icalendar--convert-non-recurring-not-all-day-to-diary
-                     e dtstart-dec dtend-dec start-t end-t))
+                     dtstart-dec start-t end-t))
               (setq event-ok t))
              ;; all-day event
              (t
@@ -2199,8 +2188,8 @@ written into the buffer `*icalendar-errors*'."
                   (if do-not-ask (setq summary nil))
                   ;; add entry to diary and store actual name of diary
                   ;; file (in case it was nil)
-                  (setq diary-file
-                        (icalendar--add-diary-entry diary-string diary-file
+                  (setq diary-filename
+                        (icalendar--add-diary-entry diary-string diary-filename
                                                     non-marking summary)))
               ;; event was not ok
               (setq found-error t)
@@ -2217,8 +2206,8 @@ written into the buffer `*icalendar-errors*'."
          (message "%s" error-string))))
 
     ;; insert final newline
-    (if diary-file
-        (let ((b (find-buffer-visiting diary-file)))
+    (if diary-filename
+        (let ((b (find-buffer-visiting diary-filename)))
           (when b
             (save-current-buffer
               (set-buffer b)
@@ -2452,7 +2441,7 @@ END-T is the event's end time in diary format."
                (ex-d (icalendar--datetime-to-diary-date
                       ex-start)))
           (setq result
-                (icalendar--rris "^%%(\\(and \\)?"
+                (replace-regexp-in-string "^%%(\\(and \\)?"
                                  (format
                                   "%%%%(and (not (diary-date %s)) "
                                   ex-d)
@@ -2467,7 +2456,7 @@ END-T is the event's end time in diary format."
                        e 'EXRULE))))
     result))
 
-(defun icalendar--convert-non-recurring-all-day-to-diary (event start-d end-d)
+(defun icalendar--convert-non-recurring-all-day-to-diary (start-d end-d)
   "Convert non-recurring iCalendar EVENT to diary format.
 
 DTSTART is the decoded DTSTART property of E.
@@ -2476,14 +2465,12 @@ Argument END-D gives the last day."
   (icalendar--dmsg "non-recurring all-day event")
   (format "%%%%(and (diary-block %s %s))" start-d end-d))
 
-(defun icalendar--convert-non-recurring-not-all-day-to-diary (event dtstart-dec
-                                                                    dtend-dec
-                                                                    start-t
-                                                                    end-t)
+(defun icalendar--convert-non-recurring-not-all-day-to-diary (dtstart-dec
+                                                              start-t
+                                                              end-t)
   "Convert recurring icalendar EVENT to diary format.
 
 DTSTART-DEC is the decoded DTSTART property of E.
-DTEND-DEC is the decoded DTEND property of E.
 START-T is the event's start time in diary format.
 END-T is the event's end time in diary format."
   (icalendar--dmsg "not all day event")
@@ -2498,9 +2485,9 @@ END-T is the event's end time in diary format."
                   dtstart-dec "/")
                  start-t))))
 
-(defun icalendar--add-diary-entry (string diary-file non-marking
+(defun icalendar--add-diary-entry (string diary-filename non-marking
                                           &optional summary)
-  "Add STRING to the diary file DIARY-FILE.
+  "Add STRING to the diary file DIARY-FILENAME.
 STRING must be a properly formatted valid diary entry.  NON-MARKING
 determines whether diary events are created as non-marking.  If
 SUMMARY is not nil it must be a string that gives the summary of the
@@ -2512,22 +2499,12 @@ the entry."
     (when summary
       (setq non-marking
             (y-or-n-p (format "Make appointment non-marking? "))))
-    (save-window-excursion
-      (unless diary-file
-        (setq diary-file
-              (read-file-name "Add appointment to this diary file: ")))
-      ;; Note: diary-make-entry will add a trailing blank char.... :(
-      (funcall (if (fboundp 'diary-make-entry)
-                   'diary-make-entry
-                 'make-diary-entry)
-               string non-marking diary-file)))
-  ;; Würgaround to remove the trailing blank char
-  (with-current-buffer (find-file diary-file)
-    (goto-char (point-max))
-    (if (= (char-before) ? )
-        (delete-char -1)))
-  ;; return diary-file in case it has been changed interactively
-  diary-file)
+    (unless diary-filename
+      (setq diary-filename
+            (read-file-name "Add appointment to this diary file: ")))
+    (diary-make-entry string non-marking diary-filename t t))
+  ;; return diary-filename in case it has been changed interactively
+  diary-filename)
 
 ;; ======================================================================
 ;; Examples

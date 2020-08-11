@@ -1,6 +1,8 @@
 /* 16-bit Windows Selection processing for emacs on MS-Windows
 
-Copyright (C) 1996-1997, 2001-2019 Free Software Foundation, Inc.
+Copyright (C) 1996-1997, 2001-2020 Free Software Foundation, Inc.
+
+Author: Dale P. Smith <dpsm@en.com>
 
 This file is part of GNU Emacs.
 
@@ -22,7 +24,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    "old" (character-mode) application access to Dynamic Data Exchange,
    menus, and the Windows clipboard.  */
 
-/* Written by Dale P. Smith <dpsm@en.com>  */
 /* Adapted to DJGPP by Eli Zaretskii <eliz@gnu.org>  */
 
 #ifdef MSDOS
@@ -219,7 +220,7 @@ set_clipboard_data (unsigned Format, void *Data, unsigned Size, int Raw)
   /* need to know final size after '\r' chars are inserted (the
      standard CF_OEMTEXT clipboard format uses CRLF line endings,
      while Emacs uses just LF internally).  */
-  truelen = Size + 1;		/* +1 for the terminating null */
+  truelen = Size + 1;		/* +1 for the terminating NUL */
 
   if (!Raw)
     {
@@ -242,7 +243,7 @@ set_clipboard_data (unsigned Format, void *Data, unsigned Size, int Raw)
     {
       dosmemput (Data, Size, xbuf_addr);
 
-      /* Terminate with a null, otherwise Windows does strange things
+      /* Terminate with a NUL, otherwise Windows does strange things
 	 when the text size is an integral multiple of 32 bytes. */
       _farpokeb (_dos_ds, xbuf_addr + Size, '\0');
     }
@@ -254,7 +255,7 @@ set_clipboard_data (unsigned Format, void *Data, unsigned Size, int Raw)
       while (Size--)
 	{
 	  /* Don't allow them to put binary data into the clipboard, since
-	     it will cause yanked data to be truncated at the first null.  */
+	     it will cause yanked data to be truncated at the first NUL.  */
 	  if (*dp == '\0')
 	    return 2;
 	  if (*dp == '\n')
@@ -262,7 +263,7 @@ set_clipboard_data (unsigned Format, void *Data, unsigned Size, int Raw)
 	  _farnspokeb (buf_offset++, *dp++);
 	}
 
-      /* Terminate with a null, otherwise Windows does strange things
+      /* Terminate with a NUL, otherwise Windows does strange things
 	 when the text size is an integral multiple of 32 bytes. */
       _farnspokeb (buf_offset, '\0');
     }
@@ -353,13 +354,13 @@ get_clipboard_data (unsigned Format, void *Data, unsigned Size, int Raw)
   __dpmi_int (0x2f, &regs);
   if (regs.x.ax != 0)
     {
-      unsigned char null_char = '\0';
+      unsigned char nul_char = '\0';
       unsigned long xbuf_beg = xbuf_addr;
 
       /* If last_clipboard_text is NULL, we don't want to slow down
 	 the next loop by an additional test.  */
       register unsigned char *lcdp =
-	last_clipboard_text == NULL ? &null_char : last_clipboard_text;
+	last_clipboard_text == NULL ? &nul_char : last_clipboard_text;
 
       /* Copy data from low memory, remove CR
 	 characters before LF if needed.  */
@@ -382,7 +383,7 @@ get_clipboard_data (unsigned Format, void *Data, unsigned Size, int Raw)
 	  /* Windows reportedly rounds up the size of clipboard data
 	     (passed in SIZE) to a multiple of 32, and removes trailing
 	     spaces from each line without updating SIZE.  We therefore
-	     bail out when we see the first null character.  */
+	     bail out when we see the first NUL character.  */
 	  else if (c == '\0')
 	    break;
 	}
@@ -391,7 +392,7 @@ get_clipboard_data (unsigned Format, void *Data, unsigned Size, int Raw)
 	 last time set_clipboard_data was called, pretend there's no
 	 data in the clipboard.  This is so we don't pass our own text
 	 from the clipboard (which might be troublesome if the killed
-	 text includes null characters).  */
+	 text includes NUL characters).  */
       if (last_clipboard_text &&
 	  xbuf_addr - xbuf_beg == (long)(lcdp - last_clipboard_text))
 	dp = (unsigned char *)Data + 1;
@@ -535,7 +536,7 @@ DEFUN ("w16-set-clipboard-data", Fw16_set_clipboard_data, Sw16_set_clipboard_dat
 	    message3 (make_unibyte_string (system_error_msg, sizeof (system_error_msg) - 1));
 	    break;
 	}
-      sit_for (make_number (2), 0, 2);
+      sit_for (make_fixnum (2), 0, 2);
     }
 
  done:
@@ -678,43 +679,11 @@ syms_of_win16select (void)
   defsubr (&Sw16_selection_exists_p);
 
   DEFVAR_LISP ("selection-coding-system", Vselection_coding_system,
-	       doc: /* Coding system for communicating with other programs.
-
-For MS-Windows and MS-DOS:
-When sending or receiving text via selection and clipboard, the text
-is encoded or decoded by this coding system.  The default value is
-the current system default encoding on 9x/Me, `utf-16le-dos'
-\(Unicode) on NT/W2K/XP, and `iso-latin-1-dos' on MS-DOS.
-
-For X Windows:
-When sending text via selection and clipboard, if the target
-data-type matches with the type of this coding system, it is used
-for encoding the text.  Otherwise (including the case that this
-variable is nil), a proper coding system is used as below:
-
-data-type	coding system
----------	-------------
-UTF8_STRING	utf-8
-COMPOUND_TEXT	compound-text-with-extensions
-STRING		iso-latin-1
-C_STRING	no-conversion
-
-When receiving text, if this coding system is non-nil, it is used
-for decoding regardless of the data-type.  If this is nil, a
-proper coding system is used according to the data-type as above.
-
-See also the documentation of the variable `x-select-request-type' how
-to control which data-type to request for receiving text.
-
-The default value is nil.  */);
+	       doc: /* SKIP: real doc in select.el.  */);
   Vselection_coding_system = intern ("iso-latin-1-dos");
 
   DEFVAR_LISP ("next-selection-coding-system", Vnext_selection_coding_system,
-	       doc: /* Coding system for the next communication with other programs.
-Usually, `selection-coding-system' is used for communicating with
-other programs (X Windows clients or MS Windows programs).  But, if this
-variable is set, it is used for the next communication only.
-After the communication, this variable is set to nil.  */);
+	       doc: /* SKIP: real doc in select.el.  */);
   Vnext_selection_coding_system = Qnil;
 
   DEFSYM (QCLIPBOARD, "CLIPBOARD");

@@ -1,6 +1,6 @@
-;;; ietf-drums.el --- Functions for parsing RFC 2822 headers
+;;; ietf-drums.el --- Functions for parsing RFC 2822 headers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -37,7 +37,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl))
+(eval-when-compile (require 'cl-lib))
 
 (defvar ietf-drums-no-ws-ctl-token "\001-\010\013\014\016-\037\177"
   "US-ASCII control characters excluding CR, LF and white space.")
@@ -78,10 +78,10 @@ backslash and doublequote.")
 (defun ietf-drums-token-to-list (token)
   "Translate TOKEN into a list of characters."
   (let ((i 0)
-	b e c out range)
+	b c out range)
     (while (< i (length token))
       (setq c (aref token i))
-      (incf i)
+      (cl-incf i)
       (cond
        ((eq c ?-)
 	(if b
@@ -90,7 +90,7 @@ backslash and doublequote.")
        (range
 	(while (<= b c)
 	  (push (make-char 'ascii b) out)
-	  (incf b))
+	  (cl-incf b))
 	(setq range nil))
        ((= i (length token))
 	(push (make-char 'ascii c) out))
@@ -115,7 +115,7 @@ backslash and doublequote.")
 	(setq c (char-after))
 	(cond
 	 ((eq c ?\")
-	  (condition-case err
+	  (condition-case nil
 	      (forward-sexp 1)
 	    (error (goto-char (point-max)))))
 	 ((eq c ?\()
@@ -185,8 +185,12 @@ STRING is assumed to be a string that is extracted from
 the Content-Transfer-Encoding header of a mail."
   (ietf-drums-remove-garbage (inline (ietf-drums-strip string))))
 
-(defun ietf-drums-parse-address (string)
-  "Parse STRING and return a MAILBOX / DISPLAY-NAME pair."
+(declare-function rfc2047-decode-string "rfc2047" (string &optional address-mime))
+
+(defun ietf-drums-parse-address (string &optional decode)
+  "Parse STRING and return a MAILBOX / DISPLAY-NAME pair.
+If DECODE, the DISPLAY-NAME will have RFC2047 decoding performed
+(that's the \"=?utf...q...=?\") stuff."
   (with-temp-buffer
     (let (display-name mailbox c display-string)
       (ietf-drums-init string)
@@ -236,7 +240,9 @@ the Content-Transfer-Encoding header of a mail."
 	    (cons
 	     (mapconcat 'identity (nreverse display-name) "")
 	     (ietf-drums-get-comment string)))
-	(cons mailbox display-string)))))
+	(cons mailbox (if decode
+                          (rfc2047-decode-string display-string)
+                        display-string))))))
 
 (defun ietf-drums-parse-addresses (string &optional rawp)
   "Parse STRING and return a list of MAILBOX / DISPLAY-NAME pairs.
@@ -288,7 +294,7 @@ a list of address strings."
 
 (defun ietf-drums-parse-date (string)
   "Return an Emacs time spec from STRING."
-  (apply 'encode-time (parse-time-string string)))
+  (encode-time (parse-time-string string)))
 
 (defun ietf-drums-narrow-to-header ()
   "Narrow to the header section in the current buffer."

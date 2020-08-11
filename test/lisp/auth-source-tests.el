@@ -1,6 +1,6 @@
 ;;; auth-source-tests.el --- Tests for auth-source.el  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
 
 ;; Author: Damien Cassou <damien@cassou.me>,
 ;;         Nicolas Petton <nicolas@petton.fr>
@@ -29,9 +29,7 @@
 (require 'ert)
 (require 'cl-lib)
 (require 'auth-source)
-
-(defvar secrets-enabled t
-  "Enable the secrets backend to test its features.")
+(require 'secrets)
 
 (defun auth-source-ensure-ignored-backend (source)
     (auth-source-validate-backend source '((:source . "")
@@ -307,6 +305,44 @@
         ;; (message "With parameters %S found: [%s] needed: [%s]" parameters found-as-string needed)
         (should (equal found-as-string (concat testname ": " needed)))))
     (delete-file netrc-file)))
+
+(ert-deftest auth-source-test-secrets-create-secret ()
+  (skip-unless secrets-enabled)
+  ;; The "session" collection is temporary for the lifetime of the
+  ;; Emacs process.  Therefore, we don't care to delete it.
+  (let ((auth-sources '((:source (:secrets "session"))))
+        (auth-source-save-behavior t)
+        (host (md5 (concat (prin1-to-string process-environment)
+			   (current-time-string))))
+        (passwd (md5 (concat (prin1-to-string process-environment)
+			     (current-time-string) (current-time-string))))
+        auth-info auth-passwd)
+    ;; Redefine `read-*' in order to avoid interactive input.
+    (cl-letf (((symbol-function 'read-passwd) (lambda (_) passwd))
+              ((symbol-function 'read-string)
+               (lambda (_prompt _initial _history default) default)))
+      (setq auth-info
+            (car (auth-source-search
+                  :max 1 :host host :require '(:user :secret) :create t))))
+    (should (functionp (plist-get auth-info :save-function)))
+    (funcall (plist-get auth-info :save-function))
+
+    ;; Check, that the item has been created indeed.
+    (auth-source-forget+ :host t)
+    (setq auth-info (car (auth-source-search :host host))
+	  auth-passwd (plist-get auth-info :secret)
+	  auth-passwd (if (functionp auth-passwd)
+			  (funcall auth-passwd)
+			auth-passwd))
+    (should (string-equal (plist-get auth-info :user) (user-login-name)))
+    (should (string-equal (plist-get auth-info :host) host))
+    (should (string-equal auth-passwd passwd))
+
+    ;; Cleanup.
+    ;; Should use `auth-source-delete' when implemented for :secrets backend.
+    (secrets-delete-item
+     "session"
+     (format "%s@%s" (plist-get auth-info :user) (plist-get auth-info :host)))))
 
 (ert-deftest auth-source-delete ()
   (let* ((netrc-file (make-temp-file "auth-source-test" nil nil "\

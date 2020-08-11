@@ -1,6 +1,6 @@
 ;;; url-about.el --- Show internal URLs
 
-;; Copyright (C) 2001, 2004-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2001, 2004-2020 Free Software Foundation, Inc.
 
 ;; Keywords: comm, data, processes, hypermedia
 
@@ -37,7 +37,7 @@
 			  (mapc (lambda (f)
 				  (if (string-match "url-\\(.*\\).el$" f)
 				      (push (match-string 1 f) schemes)))
-				(directory-files d nil "^url-.*\\.el$")))
+				(directory-files d nil "\\`url-.*\\.el\\'")))
 			load-path)
 		  (put 'url-extension-protocols 'schemes schemes)
 		  schemes)))))

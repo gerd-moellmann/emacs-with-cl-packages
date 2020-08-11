@@ -1,6 +1,6 @@
 ;;; semantic/db-ebrowse.el --- Semanticdb backend using ebrowse.
 
-;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2020 Free Software Foundation, Inc.
 
 ;; Authors: Eric M. Ludlam <zappo@gnu.org>
 ;;	Joakim Verona
@@ -181,7 +181,9 @@ is specified by `semanticdb-default-save-directory'."
   "Load all semanticdb controlled EBROWSE caches."
   (interactive)
   (let ((f (directory-files semanticdb-default-save-directory
-			    t (concat semanticdb-ebrowse-default-file-name "-load.el$") t)))
+			    t (concat semanticdb-ebrowse-default-file-name
+                                      "-load\\.el\\'")
+                            t)))
     (while f
       (load (car f) nil t)
       (setq f (cdr f)))

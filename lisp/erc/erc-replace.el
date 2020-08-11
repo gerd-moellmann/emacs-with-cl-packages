@@ -1,10 +1,11 @@
 ;; erc-replace.el -- wash and massage messages inserted into the buffer
 
-;; Copyright (C) 2001-2002, 2004, 2006-2019 Free Software Foundation,
+;; Copyright (C) 2001-2002, 2004, 2006-2020 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Andreas Fuchs <asf@void.at>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; URL: https://www.emacswiki.org/emacs/ErcReplace
 ;; Keywords: IRC, client, Internet
 
 ;; This file is part of GNU Emacs.
@@ -77,7 +78,7 @@ It replaces text according to `erc-replace-alist'."
 		       (eval to))))))
 	  erc-replace-alist))
 
-;;;###autoload (autoload 'erc-replace-mode "erc-replace")
+;;;###autoload(autoload 'erc-replace-mode "erc-replace")
 (define-erc-module replace nil
   "This mode replaces incoming text according to `erc-replace-alist'."
   ((add-hook 'erc-insert-modify-hook
@@ -90,6 +91,5 @@ It replaces text according to `erc-replace-alist'."
 ;;; erc-replace.el ends here
 ;;
 ;; Local Variables:
-;; indent-tabs-mode: t
-;; tab-width: 8
+;; generated-autoload-file: "erc-loaddefs.el"
 ;; End:

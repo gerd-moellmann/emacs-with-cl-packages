@@ -1,8 +1,9 @@
 ;;; erc-sound.el --- CTCP SOUND support for ERC
 
-;; Copyright (C) 2002-2003, 2006-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2003, 2006-2020 Free Software Foundation, Inc.
 
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; URL: https://www.emacswiki.org/emacs/ErcSound
 
 ;; This file is part of GNU Emacs.
 
@@ -46,7 +47,7 @@
 
 (require 'erc)
 
-;;;###autoload (autoload 'erc-sound-mode "erc-sound")
+;;;###autoload(autoload 'erc-sound-mode "erc-sound")
 (define-erc-module sound ctcp-sound
   "In ERC sound mode, the client will respond to CTCP SOUND requests
 and play sound files as requested."
@@ -145,6 +146,5 @@ See also `play-sound-file'."
 ;;; erc-sound.el ends here
 ;;
 ;; Local Variables:
-;; indent-tabs-mode: t
-;; tab-width: 8
+;; generated-autoload-file: "erc-loaddefs.el"
 ;; End:

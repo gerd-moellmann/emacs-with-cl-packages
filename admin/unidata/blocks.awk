@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 
-## Copyright (C) 2015-2019 Free Software Foundation, Inc.
+## Copyright (C) 2015-2020 Free Software Foundation, Inc.
 
 ## Author: Glenn Morris <rgm@gnu.org>
 
@@ -55,6 +55,7 @@ BEGIN {
     alias["box drawing"] = "symbol"
     alias["block elements"] = "symbol"
     alias["miscellaneous symbols"] = "symbol"
+    alias["symbols for legacy computing"] = "symbol"
     alias["cjk strokes"] = "cjk-misc"
     alias["cjk symbols and punctuation"] = "cjk-misc"
     alias["halfwidth and fullwidth forms"] = "cjk-misc"
@@ -115,14 +116,15 @@ function name2alias(name   , w, w2) {
     else if (name ~ /duployan|shorthand/) return "duployan-shorthand"
     else if (name ~ /sutton signwriting/) return "sutton-sign-writing"
 
-    sub(/ (extended|extensions|supplement).*/, "", name)
+    sub(/^small /, "", name)
+    sub(/ (extended|extensions*|supplement).*/, "", name)
     sub(/numbers/, "number", name)
     sub(/numerals/, "numeral", name)
     sub(/symbols/, "symbol", name)
     sub(/forms$/, "form", name)
     sub(/tiles$/, "tile", name)
     sub(/^new /, "", name)
-    sub(/ (characters|hieroglyphs|cursive)$/, "", name)
+    sub(/ (characters|hieroglyphs|cursive|hieroglyph format controls)$/, "", name)
     gsub(/ /, "-", name)
 
     return name

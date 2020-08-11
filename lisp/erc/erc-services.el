@@ -1,8 +1,9 @@
-;;; erc-services.el --- Identify to NickServ
+;;; erc-services.el --- Identify to NickServ  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2004, 2006-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2020 Free Software Foundation, Inc.
 
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; URL: https://www.emacswiki.org/emacs/ErcNickserv
 
 ;; This file is part of GNU Emacs.
 
@@ -89,7 +90,7 @@ Possible settings are:.
                 latter.
 nil           - Disables automatic Nickserv identification.
 
-You can also use M-x erc-nickserv-identify-mode to change modes."
+You can also use \\[erc-nickserv-identify-mode] to change modes."
   :group 'erc-services
   :type '(choice (const autodetect)
 		 (const nick-change)
@@ -101,7 +102,7 @@ You can also use M-x erc-nickserv-identify-mode to change modes."
 	 (when (featurep 'erc-services)
 	   (erc-nickserv-identify-mode val))))
 
-;;;###autoload (autoload 'erc-services-mode "erc-services" nil t)
+;;;###autoload(autoload 'erc-services-mode "erc-services" nil t)
 (define-erc-module services nickserv
   "This mode automates communication with services."
   ((erc-nickserv-identify-mode erc-nickserv-identify-mode))
@@ -214,7 +215,7 @@ Example of use:
      "identify" nil nil nil)
     (Azzurra
      "NickServ!service@azzurra.org"
-     "/ns\\s-IDENTIFY\\s-password"
+     "\^B/ns\\s-IDENTIFY\\s-password\^B"
      "NickServ"
      "IDENTIFY" nil nil nil)
     (BitlBee
@@ -223,7 +224,7 @@ Example of use:
      "identify" nil nil nil)
     (BRASnet
      "NickServ!services@brasnet.org"
-     "/NickServ\\s-IDENTIFY\\s-senha"
+     "\^B/NickServ\\s-IDENTIFY\\s-\^_senha\^_\^B"
      "NickServ"
      "IDENTIFY" nil "" nil)
     (DALnet
@@ -262,7 +263,7 @@ Example of use:
      nil
      "NickServ"
      "IDENTIFY" nil nil
-     "You\\s-are\\s-successfully\\s-identified\\s-as\\s-")
+     "You\\s-are\\s-successfully\\s-identified\\s-as\\s-\^B")
     (Rizon
      "NickServ!service@rizon.net"
      "This\\s-nickname\\s-is\\s-registered\\s-and\\s-protected."
@@ -275,7 +276,7 @@ Example of use:
      "auth" t nil nil)
     (SlashNET
      "NickServ!services@services.slashnet.org"
-     "/msg\\s-NickServ\\s-IDENTIFY\\s-password"
+     "/msg\\s-NickServ\\s-IDENTIFY\\s-\^_password"
      "NickServ@services.slashnet.org"
      "IDENTIFY" nil nil nil))
    "Alist of NickServer details, sorted by network.
@@ -289,7 +290,7 @@ NICK is nickserv's nickname.  Use nick@server where necessary/possible.
 KEYWORD is the keyword to use in the reply message to identify yourself.
 USE-CURRENT indicates whether the current nickname must be used when
   identifying.
-ANSWER is the command to use for the answer.  The default is 'privmsg.
+ANSWER is the command to use for the answer.  The default is `privmsg'.
 SUCCESS-REGEXP is a regular expression matching the message nickserv
   sends when you've successfully identified.
 The last two elements are optional."
@@ -312,26 +313,33 @@ The last two elements are optional."
 			 (const :tag "Do not try to detect success" nil)))))
 
 
-(defsubst erc-nickserv-alist-sender (network &optional entry)
-  (nth 1 (or entry (assoc network erc-nickserv-alist))))
+(define-inline erc-nickserv-alist-sender (network &optional entry)
+  (inline-letevals (network entry)
+    (inline-quote (nth 1 (or ,entry (assoc ,network erc-nickserv-alist))))))
 
-(defsubst erc-nickserv-alist-regexp (network &optional entry)
-  (nth 2 (or entry (assoc network erc-nickserv-alist))))
+(define-inline erc-nickserv-alist-regexp (network &optional entry)
+  (inline-letevals (network entry)
+    (inline-quote (nth 2 (or ,entry (assoc ,network erc-nickserv-alist))))))
 
-(defsubst erc-nickserv-alist-nickserv (network &optional entry)
-  (nth 3 (or entry (assoc network erc-nickserv-alist))))
+(define-inline erc-nickserv-alist-nickserv (network &optional entry)
+  (inline-letevals (network entry)
+    (inline-quote (nth 3 (or ,entry (assoc ,network erc-nickserv-alist))))))
 
-(defsubst erc-nickserv-alist-ident-keyword (network &optional entry)
-  (nth 4 (or entry (assoc network erc-nickserv-alist))))
+(define-inline erc-nickserv-alist-ident-keyword (network &optional entry)
+  (inline-letevals (network entry)
+    (inline-quote (nth 4 (or ,entry (assoc ,network erc-nickserv-alist))))))
 
-(defsubst erc-nickserv-alist-use-nick-p (network &optional entry)
-  (nth 5 (or entry (assoc network erc-nickserv-alist))))
+(define-inline erc-nickserv-alist-use-nick-p (network &optional entry)
+  (inline-letevals (network entry)
+    (inline-quote (nth 5 (or ,entry (assoc ,network erc-nickserv-alist))))))
 
-(defsubst erc-nickserv-alist-ident-command (network &optional entry)
-  (nth 6 (or entry (assoc network erc-nickserv-alist))))
+(define-inline erc-nickserv-alist-ident-command (network &optional entry)
+  (inline-letevals (network entry)
+    (inline-quote (nth 6 (or ,entry (assoc ,network erc-nickserv-alist))))))
 
-(defsubst erc-nickserv-alist-identified-regexp (network &optional entry)
-  (nth 7 (or entry (assoc network erc-nickserv-alist))))
+(define-inline erc-nickserv-alist-identified-regexp (network &optional entry)
+  (inline-letevals (network entry)
+    (inline-quote (nth 7 (or ,entry (assoc ,network erc-nickserv-alist))))))
 
 ;; Functions:
 
@@ -341,7 +349,7 @@ Hooks are called with arguments (NETWORK NICK)."
   :group 'erc-services
   :type 'hook)
 
-(defun erc-nickserv-identification-autodetect (proc parsed)
+(defun erc-nickserv-identification-autodetect (_proc parsed)
   "Check for NickServ's successful identification notice.
 Make sure it is the real NickServ for this network and that it has
 specifically confirmed a successful identification attempt.
@@ -361,7 +369,7 @@ If this is the case, run `erc-nickserv-identified-hook'."
       (run-hook-with-args 'erc-nickserv-identified-hook network nick)
       nil)))
 
-(defun erc-nickserv-identify-autodetect (proc parsed)
+(defun erc-nickserv-identify-autodetect (_proc parsed)
   "Identify to NickServ when an identify request is received.
 Make sure it is the real NickServ for this network.
 If `erc-prompt-for-nickserv-password' is non-nil, prompt the user for the
@@ -383,7 +391,7 @@ password for this nickname, otherwise try to send it automatically."
 	(erc-nickserv-call-identify-function nick)
 	nil))))
 
-(defun erc-nickserv-identify-on-connect (server nick)
+(defun erc-nickserv-identify-on-connect (_server nick)
   "Identify to Nickserv after the connection to the server is established."
   (unless (or (and (null erc-nickserv-passwords)
 		   (null erc-prompt-for-nickserv-password))
@@ -391,7 +399,7 @@ password for this nickname, otherwise try to send it automatically."
 		   (erc-nickserv-alist-regexp (erc-network))))
     (erc-nickserv-call-identify-function nick)))
 
-(defun erc-nickserv-identify-on-nick-change (nick old-nick)
+(defun erc-nickserv-identify-on-nick-change (nick _old-nick)
   "Identify to Nickserv whenever your nick changes."
   (unless (or (and (null erc-nickserv-passwords)
 		   (null erc-prompt-for-nickserv-password))
@@ -400,9 +408,9 @@ password for this nickname, otherwise try to send it automatically."
     (erc-nickserv-call-identify-function nick)))
 
 (defun erc-nickserv-call-identify-function (nickname)
-  "Call `erc-nickserv-identify' interactively or run it with NICKNAME's
-password.
-The action is determined by the value of `erc-prompt-for-nickserv-password'."
+  "Call `erc-nickserv-identify'.
+Either call it interactively or run it with NICKNAME's password,
+depending on the value of `erc-prompt-for-nickserv-password'."
   (if erc-prompt-for-nickserv-password
       (call-interactively 'erc-nickserv-identify)
     (when erc-nickserv-passwords
@@ -410,6 +418,8 @@ The action is determined by the value of `erc-prompt-for-nickserv-password'."
        (cdr (assoc nickname
 		   (nth 1 (assoc (erc-network)
 				 erc-nickserv-passwords))))))))
+
+(defvar erc-auto-discard-away)
 
 ;;;###autoload
 (defun erc-nickserv-identify (password)
@@ -444,6 +454,5 @@ When called interactively, read the password using `read-passwd'."
 ;;; erc-services.el ends here
 ;;
 ;; Local Variables:
-;; indent-tabs-mode: t
-;; tab-width: 8
+;; generated-autoload-file: "erc-loaddefs.el"
 ;; End:

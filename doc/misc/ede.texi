@@ -6,8 +6,8 @@
 @copying
 This file describes EDE, the Emacs Development Environment.
 
-Copyright @copyright{} 1998--2001, 2004--2005, 2008--2019
-Free Software Foundation, Inc.
+Copyright @copyright{} 1998--2001, 2004--2005, 2008--2020 Free Software
+Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -955,18 +955,16 @@ The example for Makefiles looks like this:
 ;;; MAKEFILE
 
 (defclass ede-generic-makefile-project (ede-generic-project)
-  ((buildfile :initform "Makefile")
-   )
+  ((buildfile :initform "Makefile"))
   "Generic Project for makefiles.")
 
 (defmethod ede-generic-setup-configuration ((proj ede-generic-makefile-project) config)
-  "Setup a configuration for Make."
+  "Set up a configuration for Make."
   (oset config build-command "make -k")
-  (oset config debug-command "gdb ")
-  )
+  (oset config debug-command "gdb "))
 
 (ede-generic-new-autoloader "generic-makefile" "Make"
-			    "Makefile" 'ede-generic-makefile-project)
+                            "Makefile" 'ede-generic-makefile-project)
 @end example
 
 This example project will detect any directory with the file
@@ -1824,7 +1822,7 @@ This class implements the @code{ede-cpp-root} project type.
 @table @code
 @item :include-path
 Type: @code{list} @*
-Default Value: @code{(quote ("/include" "../include/"))}
+Default Value: @code{("/include" "../include/")}
 
 The default locate function expands filenames within a project.
 If a header file (.h, .hh, etc.)@: name is expanded, and
@@ -2262,14 +2260,14 @@ The variable GNUSTEP_INSTALLATION_DOMAIN is set at this value.
 
 @item :preamble
 Type: @code{(or null list)} @*
-Default Value: @code{(quote ("GNUmakefile.preamble"))}
+Default Value: @code{("GNUmakefile.preamble")}
 
 The auxiliary makefile for additional variables.
 Included just before the specific target files.
 
 @item :postamble
 Type: @code{(or null list)} @*
-Default Value: @code{(quote ("GNUmakefile.postamble"))}
+Default Value: @code{("GNUmakefile.postamble")}
 
 The auxiliary makefile for additional rules.
 Included just after the specific target files.

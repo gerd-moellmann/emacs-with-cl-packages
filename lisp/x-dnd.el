@@ -1,6 +1,6 @@
 ;;; x-dnd.el --- drag and drop support for X
 
-;; Copyright (C) 2004-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
 ;; Author: Jan Djärv <jan.h.d@swipnet.se>
 ;; Maintainer: emacs-devel@gnu.org
@@ -264,9 +264,8 @@ STRING is the uri-list as a string.  The URIs are separated by \\r\\n."
 WINDOW is the window where the drop happened.
 STRING is the file names as a string, separated by nulls."
   (let ((uri-list (split-string string "[\0\r\n]" t))
-	(coding (and (default-value 'enable-multibyte-characters)
-		     (or file-name-coding-system
-			 default-file-name-coding-system)))
+	(coding (or file-name-coding-system
+		    default-file-name-coding-system))
 	retval)
     (dolist (bf uri-list)
       ;; If one URL is handled, treat as if the whole drop succeeded.
@@ -434,13 +433,13 @@ otherwise return the frame coordinates."
 		  (selection-symbol target-type &optional time-stamp terminal))
 
 (defun x-dnd-version-from-flags (flags)
-  "Return the version byte from the 32 bit FLAGS in an XDndEnter message"
+  "Return the version byte from the 32 bit FLAGS in an XDndEnter message."
   (if (consp flags)   ;; Long as cons
       (ash (car flags) -8)
     (ash flags -24))) ;; Ordinary number
 
 (defun x-dnd-more-than-3-from-flags (flags)
-  "Return the nmore-than3 bit from the 32 bit FLAGS in an XDndEnter message"
+  "Return the nmore-than3 bit from the 32 bit FLAGS in an XDndEnter message."
   (if (consp flags)
       (logand (cdr flags) 1)
     (logand flags 1)))
@@ -557,18 +556,18 @@ FORMAT is 32 (not used).  MESSAGE is the data part of an XClientMessageEvent."
 
 (defun x-dnd-motif-value-to-list (value size byteorder)
   (let ((bytes (cond ((eq size 2)
-		      (list (logand (lsh value -8) ?\xff)
+		      (list (logand (ash value -8) ?\xff)
 			    (logand value ?\xff)))
 
 		     ((eq size 4)
 		      (if (consp value)
-			  (list (logand (lsh (car value) -8) ?\xff)
+			  (list (logand (ash (car value) -8) ?\xff)
 				(logand (car value) ?\xff)
-				(logand (lsh (cdr value) -8) ?\xff)
+				(logand (ash (cdr value) -8) ?\xff)
 				(logand (cdr value) ?\xff))
-			(list (logand (lsh value -24) ?\xff)
-			      (logand (lsh value -16) ?\xff)
-			      (logand (lsh value -8) ?\xff)
+			(list (logand (ash value -24) ?\xff)
+			      (logand (ash value -16) ?\xff)
+			      (logand (ash value -8) ?\xff)
 			      (logand value ?\xff)))))))
     (if (eq byteorder ?l)
 	(reverse bytes)

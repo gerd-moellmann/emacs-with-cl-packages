@@ -1,6 +1,6 @@
 ;;; gnus-cloud.el --- storing and retrieving data via IMAP
 
-;; Copyright (C) 2014-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2020 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail
@@ -28,7 +28,6 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl))
 (require 'parse-time)
 (require 'nnimap)
 
@@ -80,7 +79,7 @@ against the basename of files in said directory."
 
 (defcustom gnus-cloud-method nil
   "The IMAP select method used to store the cloud data.
-See also `gnus-server-toggle-cloud-method-server' for an
+See also `gnus-server-set-cloud-method-server' for an
 easy interactive way to set this from the Server buffer."
   :group 'gnus-cloud
   :type '(radio (const :tag "Not set" nil)
@@ -229,7 +228,7 @@ easy interactive way to set this from the Server buffer."
 Use old data if FORCE-OLDER is not nil."
   (let* ((contents (plist-get elem :contents))
          (date (or (plist-get elem :timestamp) "0"))
-         (now (gnus-cloud-timestamp (current-time)))
+         (now (gnus-cloud-timestamp nil))
          (newer (string-lessp date now))
          (group-info (gnus-get-info group)))
     (if (and contents
@@ -340,7 +339,8 @@ Use old data if FORCE-OLDER is not nil."
   (format-time-string "%FT%T%z" time))
 
 (defun gnus-cloud-file-new-p (file full)
-  (let ((timestamp (gnus-cloud-timestamp (nth 5 (file-attributes file))))
+  (let ((timestamp (gnus-cloud-timestamp (file-attribute-modification-time
+					  (file-attributes file))))
         (old (cadr (assoc file gnus-cloud-file-timestamps))))
     (when (or full
               (null old)
@@ -367,6 +367,8 @@ Use old data if FORCE-OLDER is not nil."
   "Upload all data (newsrc and files) to the Gnus Cloud."
   (interactive)
   (gnus-cloud-upload-data t))
+
+(autoload 'gnus-group-refresh-group "gnus-group")
 
 (defun gnus-cloud-upload-data (&optional full)
   "Upload data (newsrc and files) to the Gnus Cloud.
@@ -498,7 +500,7 @@ Otherwise, returns the Gnus Cloud data chunks."
              (gnus-method-to-server
               (gnus-find-method-for-group (gnus-info-group info))))
 
-        (push `(:type :newsrc-data :name ,(gnus-info-group info) :contents ,info :timestamp ,(gnus-cloud-timestamp (current-time)))
+        (push `(:type :newsrc-data :name ,(gnus-info-group info) :contents ,info :timestamp ,(gnus-cloud-timestamp nil))
               infos)))
     infos))
 

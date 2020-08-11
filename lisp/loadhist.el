@@ -1,6 +1,6 @@
 ;;; loadhist.el --- lisp functions for working with feature groups
 
-;; Copyright (C) 1995, 1998, 2000-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 1998, 2000-2020 Free Software Foundation, Inc.
 
 ;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -28,6 +28,8 @@
 ;; `feature-file', documented in the Emacs Lisp manual.
 
 ;;; Code:
+
+(eval-when-compile (require 'cl-lib))
 
 (defun feature-symbols (feature)
   "Return the file and list of definitions associated with FEATURE.
@@ -94,7 +96,8 @@ A library name is equivalent to the file name that `load-library' would load."
   (let ((provides (file-provides file))
 	(dependents nil))
     (dolist (x load-history dependents)
-      (when (file-set-intersect provides (file-requires (car x)))
+      (when (and (stringp (car x))
+                 (file-set-intersect provides (file-requires (car x))))
 	(push (car x) dependents)))))
 
 (defun read-feature (prompt &optional loaded-p)
@@ -141,8 +144,6 @@ These are symbols with hooklike values whose names don't end in
 `-hook' or `-hooks', from which `unload-feature' should try to remove
 pertinent symbols.")
 
-(define-obsolete-variable-alias 'unload-hook-features-list
-    'unload-function-defs-list "22.2")
 (defvar unload-function-defs-list nil
   "List of definitions in the Lisp library being unloaded.
 
@@ -172,7 +173,7 @@ documentation of `unload-feature' for details.")
 ;; we undefine it.
 ;; So we use this auxiliary variable to keep track of the last (t . SYMBOL)
 ;; that occurred.
-(defvar loadhist--restore-autoload
+(defvar loadhist--restore-autoload nil
   "If non-nil, this is a symbol for which we should
 restore a previous autoload if possible.")
 

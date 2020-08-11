@@ -1,5 +1,5 @@
 /* Interface to zlib.
-   Copyright (C) 2013-2019 Free Software Foundation, Inc.
+   Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -24,11 +24,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "lisp.h"
 #include "buffer.h"
+#include "composite.h"
 
 #include <verify.h>
 
 #ifdef WINDOWSNT
 # include <windows.h>
+# include "w32common.h"
 # include "w32.h"
 
 DEF_DLL_FN (int, inflateInit2_,
@@ -66,7 +68,7 @@ init_zlib_functions (void)
 
 struct decompress_unwind_data
 {
-  ptrdiff_t old_point, start, nbytes;
+  ptrdiff_t old_point, orig, start, nbytes;
   z_stream *stream;
 };
 
@@ -76,10 +78,19 @@ unwind_decompress (void *ddata)
   struct decompress_unwind_data *data = ddata;
   inflateEnd (data->stream);
 
-  /* Delete any uncompressed data already inserted on error.  */
+  /* Delete any uncompressed data already inserted on error, but
+     without calling the change hooks.  */
   if (data->start)
-    del_range (data->start, data->start + data->nbytes);
-
+    {
+      del_range_2 (data->start, data->start, /* byte, char offsets the same */
+                   data->start + data->nbytes, data->start + data->nbytes,
+                   0);
+      update_compositions (data->start, data->start, CHECK_HEAD);
+      /* "Balance" the before-change-functions call, which would
+         otherwise be left "hanging".  */
+      signal_after_change (data->orig, data->start - data->orig,
+                           data->start - data->orig);
+    }
   /* Put point where it was, or if the buffer has shrunk because the
      compressed data is bigger than the uncompressed, at
      point-max.  */
@@ -109,12 +120,18 @@ DEFUN ("zlib-available-p", Fzlib_available_p, Szlib_available_p, 0, 0, 0,
 
 DEFUN ("zlib-decompress-region", Fzlib_decompress_region,
        Szlib_decompress_region,
-       2, 2, 0,
+       2, 3, 0,
        doc: /* Decompress a gzip- or zlib-compressed region.
 Replace the text in the region by the decompressed data.
-On failure, return nil and leave the data in place.
+
+If optional parameter ALLOW-PARTIAL is nil or omitted, then on
+failure, return nil and leave the data in place.  Otherwise, return
+the number of bytes that were not decompressed and replace the region
+text by whatever data was successfully decompressed (similar to gzip).
+If decompression is completely successful return t.
+
 This function can be called only in unibyte buffers.  */)
-  (Lisp_Object start, Lisp_Object end)
+  (Lisp_Object start, Lisp_Object end, Lisp_Object allow_partial)
 {
   ptrdiff_t istart, iend, pos_byte;
   z_stream stream;
@@ -139,8 +156,12 @@ This function can be called only in unibyte buffers.  */)
 
   /* This is a unibyte buffer, so character positions and bytes are
      the same.  */
-  istart = XINT (start);
-  iend = XINT (end);
+  istart = XFIXNUM (start);
+  iend = XFIXNUM (end);
+
+  /* Do the following before manipulating the gap.  */
+  modify_text (istart, iend);
+
   move_gap_both (iend, iend);
 
   stream.zalloc = Z_NULL;
@@ -154,6 +175,7 @@ This function can be called only in unibyte buffers.  */)
   if (inflateInit2 (&stream, MAX_WBITS + 32) != Z_OK)
     return Qnil;
 
+  unwind_data.orig = istart;
   unwind_data.start = iend;
   unwind_data.stream = &stream;
   unwind_data.old_point = PT;
@@ -190,15 +212,25 @@ This function can be called only in unibyte buffers.  */)
     }
   while (inflate_status == Z_OK);
 
+  Lisp_Object ret = Qt;
   if (inflate_status != Z_STREAM_END)
-    return unbind_to (count, Qnil);
+    {
+      if (!NILP (allow_partial))
+        ret = make_int (iend - pos_byte);
+      else
+        return unbind_to (count, Qnil);
+    }
 
   unwind_data.start = 0;
 
   /* Delete the compressed data.  */
-  del_range (istart, iend);
+  del_range_2 (istart, istart, /* byte and char offsets are the same */
+               iend, iend, 0);
 
-  return unbind_to (count, Qt);
+  signal_after_change (istart, iend - istart, unwind_data.nbytes);
+  update_compositions (istart, istart, CHECK_HEAD);
+
+  return unbind_to (count, ret);
 }
 
 

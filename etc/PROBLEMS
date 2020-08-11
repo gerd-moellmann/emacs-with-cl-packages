@@ -1,6 +1,6 @@
 Known Problems with GNU Emacs
 
-Copyright (C) 1987-1989, 1993-1999, 2001-2019 Free Software Foundation,
+Copyright (C) 1987-1989, 1993-1999, 2001-2020 Free Software Foundation,
 Inc.
 See the end of the file for license conditions.
 
@@ -44,6 +44,13 @@ X server resources database.  Depending on the circumstances, the
 following command may do the trick.  See xrdb(1) for more information.
 
   $ xrdb -merge ~/.Xresources
+
+** Emacs compiled with Cairo crashes when restoring session from desktop file.
+
+This can happen if the '.emacs.desktop' file contains setting for
+'font-backend' frame parameter.  A workaround is to delete the
+offending '.emacs.desktop' file, or edit it to remove the setting of
+'font-backend'.
 
 ** Emacs aborts while starting up, only when run without X.
 
@@ -207,7 +214,7 @@ configuring your compiler to use the native linker instead of GNU ld.
 ** When Emacs is compiled with Gtk+, closing a display kills Emacs.
 
 There is a long-standing bug in GTK that prevents it from recovering
-from disconnects: https://gitlab.gnome.org/GNOME/gtk/issues/221.
+from disconnects: https://gitlab.gnome.org/GNOME/gtk/issues/221
 
 Thus, for instance, when Emacs is run as a server on a text terminal,
 and an X frame is created, and the X server for that frame crashes or
@@ -291,7 +298,7 @@ you launched Emacs:
 
 This problem occurs because unfortunately there are two libraries
 called "libotf".  One is the library for handling OpenType fonts,
-http://www.m17n.org/libotf/, which is the one that Emacs expects.
+https://www.nongnu.org/m17n/, which is the one that Emacs expects.
 The other is a library for Open Trace Format, and is used by some
 versions of the MPI message passing interface for parallel
 programming.
@@ -575,17 +582,6 @@ And then rename the system's readline so that it won't be loaded:
 See <https://pypi.python.org/pypi/gnureadline> for more details on
 installation.
 
-*** Emacs startup on GNU/Linux systems (and possibly other systems) is slow.
-
-This can happen if the system is misconfigured and Emacs can't get the
-full qualified domain name, FQDN.  You should have your FQDN in the
-/etc/hosts file, something like this:
-
-127.0.0.1	localhost
-129.187.137.82	nuc04.t30.physik.tu-muenchen.de	nuc04
-
-The way to set this up may vary on non-GNU systems.
-
 *** Visiting files in some auto-mounted directories causes Emacs to print
 'Error reading dir-locals: (file-error "Read error" "is a directory" ...'
 
@@ -613,7 +609,7 @@ and then choose /usr/bin/netkit-ftp.
 
 *** Dired is very slow.
 
-This could happen if invocation of the 'df' program takes a long
+This could happen if getting a file system's status takes a long
 time.  Possible reasons for this include:
 
   - ClearCase mounted filesystems (VOBs) that sometimes make 'df'
@@ -621,12 +617,8 @@ time.  Possible reasons for this include:
 
   - slow automounters on some old versions of Unix;
 
-  - slow operation of some versions of 'df'.
-
-To work around the problem, you could either (a) set the variable
-'directory-free-space-program' to nil, and thus prevent Emacs from
-invoking 'df'; (b) use 'df' from the GNU Coreutils package; or
-(c) use CVS, which is Free Software, instead of ClearCase.
+To work around the problem, you could use Git or some other
+free-software program, instead of ClearCase.
 
 *** ps-print commands fail to find prologue files ps-prin*.ps.
 
@@ -736,6 +728,18 @@ and ps-mule to print Unicode characters.
 
 You may have bad fonts.
 
+** Under X, some characters are unexpectedly wide.
+
+e.g. recent versions of Inconsolata show this issue for almost all of
+its characters.  Due to what is probably an Xft bug, the determination
+of the width of some characters is incorrect.  One workaround is to
+build emacs with Cairo enabled ("configure --with-cairo" and have the
+appropriate Cairo development packages installed) as this
+configuration does not suffer from this problem.  See
+<https://github.com/googlefonts/Inconsolata/issues/42> and
+<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-01/msg00456.html>
+for more discussion.
+
 ** Under X, an unexpected monospace font is used as the default font.
 
 When compiled with XFT, Emacs tries to use a default font named
@@ -807,10 +811,8 @@ frame's parameter list, like this:
 ** Underlines appear at the wrong position.
 
 This is caused by fonts having a wrong UNDERLINE_POSITION property.
-Examples are the 7x13 font on XFree86 prior to version 4.1, or the jmk
-neep font from the Debian xfonts-jmk package prior to version 3.0.17.
-To circumvent this problem, set x-use-underline-position-properties
-to nil in your '.emacs'.
+To avoid this problem (seen in some very old X releases and font packages),
+set x-use-underline-position-properties to nil.
 
 To see what is the value of UNDERLINE_POSITION defined by the font,
 type 'xlsfonts -lll FONT' and look at the font's UNDERLINE_POSITION property.
@@ -1192,6 +1194,23 @@ The symptom is that 'kill-line' followed by 'yank' often (but not
 always) doesn't insert the whitespace of the killed and yanked line.
 
 The solution is to set the GPaste "trim items" option to OFF.
+
+*** Gnome: Navigation from Nautilus to remote files.
+
+If you navigate to a file, which belongs to a remote server, in
+Nautilus via "Open With Emacs" you might not be able to save this file
+once you have modified it in Emacs.  The reasons for the failure can
+vary, and for some connection methods saving the file might even succeed.
+
+If the remote connection in Nautilus uses ssh or sftp, you could
+mitigate the problem by the following lines in your .emacs file:
+
+(dir-locals-set-class-variables 'gvfs '((nil . ((create-lockfiles . nil)))))
+(dir-locals-set-directory-class (format "/run/user/%d/gvfs" (user-uid)) 'gvfs)
+
+A better approach might be to avoid navigation from Nautilus to Emacs
+for such files, and instead to open the file in Emacs using Tramp
+remote file name syntax.
 
 *** KDE: When running on KDE, colors or fonts are not as specified for Emacs,
 or messed up.
@@ -2627,6 +2646,15 @@ If you do, please send it to bug-gnu-emacs@gnu.org so we can list it here.
 ** macOS doesn't come with libxpm, so only XPM3 is supported.
 
 Libxpm is available for macOS as part of the XQuartz project.
+
+** The color list can become corrupt.
+
+This can be seen when Emacs is run from the command line and produces
+output containing the text:
+
+    non-keyed archive cannot be decoded by NSKeyedUnarchiver
+
+The solution is to delete '$HOME/Library/Colors/Emacs.clr'.
 
 
 * Build-time problems

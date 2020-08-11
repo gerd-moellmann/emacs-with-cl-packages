@@ -1,6 +1,6 @@
 ;;; abbrev.el --- abbrev mode commands for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 2001-2019 Free Software Foundation,
+;; Copyright (C) 1985-1987, 1992, 2001-2020 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -56,9 +56,6 @@ define global abbrevs instead."
 
 (define-minor-mode abbrev-mode
   "Toggle Abbrev mode in the current buffer.
-With a prefix argument ARG, enable Abbrev mode if ARG is
-positive, and disable it otherwise.  If called from Lisp, enable
-Abbrev mode if ARG is omitted or nil.
 
 In Abbrev mode, inserting an abbreviation causes it to expand and
 be replaced by its expansion."
@@ -68,6 +65,8 @@ be replaced by its expansion."
 (put 'abbrev-mode 'safe-local-variable 'booleanp)
 
 
+(define-obsolete-variable-alias 'edit-abbrevs-map
+  'edit-abbrevs-mode-map "24.4")
 (defvar edit-abbrevs-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-x\C-s" 'abbrev-edit-save-buffer)
@@ -75,8 +74,6 @@ be replaced by its expansion."
     (define-key map "\C-c\C-c" 'edit-abbrevs-redefine)
     map)
   "Keymap used in `edit-abbrevs'.")
-(define-obsolete-variable-alias 'edit-abbrevs-map
-  'edit-abbrevs-mode-map "24.4")
 
 (defun kill-all-abbrevs ()
   "Undefine all defined abbrevs."
@@ -255,7 +252,8 @@ have been saved."
 		     (lambda (s1 s2)
 		       (string< (symbol-name s1)
 				(symbol-name s2)))))
-	(insert-abbrev-table-description table nil))
+	(if (abbrev--table-symbols table)
+            (insert-abbrev-table-description table nil)))
       (when (unencodable-char-position (point-min) (point-max) 'utf-8)
 	(setq coding-system-for-write
 	      (if (> emacs-major-version 24)
@@ -354,6 +352,7 @@ Expands the abbreviation after defining it."
   (let (name exp start end)
     (save-excursion
       (forward-word (1+ (- arg)))
+      (skip-syntax-backward "^w")
       (setq end (point))
       (backward-word 1)
       (setq start (point)
@@ -371,13 +370,16 @@ Expands the abbreviation after defining it."
 
 (defun abbrev-prefix-mark (&optional arg)
   "Mark current point as the beginning of an abbrev.
-Abbrev to be expanded starts here rather than at beginning of word.
-This way, you can expand an abbrev with a prefix: insert the prefix,
-use this command, then insert the abbrev.  This command inserts a
-temporary hyphen after the prefix (until the intended abbrev
-expansion occurs).
-If the prefix is itself an abbrev, this command expands it, unless
-ARG is non-nil.  Interactively, ARG is the prefix argument."
+The abbrev to be expanded starts here rather than at beginning of
+word.  This way, you can expand an abbrev with a prefix: insert
+the prefix, use this command, then insert the abbrev.
+
+This command inserts a hyphen after the prefix, and if the abbrev
+is subsequently expanded, this hyphen will be removed.
+
+If the prefix is itself an abbrev, this command expands it,
+unless ARG is non-nil.  Interactively, ARG is the prefix
+argument."
   (interactive "P")
   (or arg (expand-abbrev))
   (setq abbrev-start-location (point-marker)
@@ -900,18 +902,22 @@ is not undone."
 
 (defun abbrev--write (sym)
   "Write the abbrev in a `read'able form.
-Only writes the non-system abbrevs.
 Presumes that `standard-output' points to `current-buffer'."
-  (unless (or (null (symbol-value sym)) (abbrev-get sym :system))
-    (insert "    (")
-    (prin1 (symbol-name sym))
-    (insert " ")
-    (prin1 (symbol-value sym))
-    (insert " ")
-    (prin1 (symbol-function sym))
-    (insert " ")
-    (prin1 (abbrev-get sym :count))
-    (insert ")\n")))
+  (insert "    (")
+  (prin1 (symbol-name sym))
+  (insert " ")
+  (prin1 (symbol-value sym))
+  (insert " ")
+  (prin1 (symbol-function sym))
+  (insert " :count ")
+  (prin1 (abbrev-get sym :count))
+  (when (abbrev-get sym :case-fixed)
+    (insert " :case-fixed ")
+    (prin1 (abbrev-get sym :case-fixed)))
+  (when (abbrev-get sym :enable-function)
+    (insert " :enable-function ")
+    (prin1 (abbrev-get sym :enable-function)))
+  (insert ")\n"))
 
 (defun abbrev--describe (sym)
   (when (symbol-value sym)
@@ -932,31 +938,42 @@ Presumes that `standard-output' points to `current-buffer'."
   "Insert before point a full description of abbrev table named NAME.
 NAME is a symbol whose value is an abbrev table.
 If optional 2nd arg READABLE is non-nil, a human-readable description
-is inserted.  Otherwise the description is an expression,
-a call to `define-abbrev-table', which would
-define the abbrev table NAME exactly as it is currently defined.
+is inserted.
 
-Abbrevs marked as \"system abbrevs\" are omitted."
-  (let ((table (symbol-value name))
-        (symbols ()))
-    (mapatoms (lambda (sym) (if (symbol-value sym) (push sym symbols))) table)
+If READABLE is nil, an expression is inserted.  The expression is
+a call to `define-abbrev-table' that when evaluated will define
+the abbrev table NAME exactly as it is currently defined.
+Abbrevs marked as \"system abbrevs\" are ignored."
+  (let ((symbols (abbrev--table-symbols name readable)))
     (setq symbols (sort symbols 'string-lessp))
     (let ((standard-output (current-buffer)))
       (if readable
-	  (progn
-	    (insert "(")
-	    (prin1 name)
-	    (insert ")\n\n")
-	    (mapc 'abbrev--describe symbols)
-	    (insert "\n\n"))
-	(insert "(define-abbrev-table '")
-	(prin1 name)
-	(if (null symbols)
-	    (insert " '())\n\n")
-	  (insert "\n  '(\n")
-	  (mapc 'abbrev--write symbols)
-	  (insert "   ))\n\n")))
+          (progn
+            (insert "(")
+            (prin1 name)
+            (insert ")\n\n")
+            (mapc 'abbrev--describe symbols)
+            (insert "\n\n"))
+        (insert "(define-abbrev-table '")
+        (prin1 name)
+        (if (null symbols)
+            (insert " '())\n\n")
+          (insert "\n  '(\n")
+          (mapc 'abbrev--write symbols)
+          (insert "   ))\n\n")))
       nil)))
+
+(defun abbrev--table-symbols (name &optional system)
+  "Return the user abbrev symbols in the abbrev table named NAME.
+NAME is a symbol whose value is an abbrev table.  System abbrevs
+are omitted unless SYSTEM is non-nil."
+  (let ((table (symbol-value name))
+        (symbols ()))
+    (mapatoms (lambda (sym)
+                (if (and (symbol-value sym) (or system (not (abbrev-get sym :system))))
+                    (push sym symbols)))
+              table)
+    symbols))
 
 (defun define-abbrev-table (tablename definitions
                                       &optional docstring &rest props)

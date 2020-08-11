@@ -1,6 +1,6 @@
 ;;; inf-lisp.el --- an inferior-lisp mode
 
-;; Copyright (C) 1988, 1993-1994, 2001-2019 Free Software Foundation,
+;; Copyright (C) 1988, 1993-1994, 2001-2020 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Olin Shivers <shivers@cs.cmu.edu>
@@ -287,7 +287,7 @@ to continue it."
       (buffer-substring (point) end))))
 
 (defun lisp-input-filter (str)
-  "t if STR does not match `inferior-lisp-filter-regexp'."
+  "Return t if STR does not match `inferior-lisp-filter-regexp'."
   (not (string-match inferior-lisp-filter-regexp str)))
 
 ;;;###autoload
@@ -345,8 +345,11 @@ The actually processing is done by `do-string' and `do-region'
  which determine whether the code is compiled before evaluation.
 DEFVAR forms reset the variables to the init values."
   (save-excursion
-    (end-of-defun)
-    (skip-chars-backward " \t\n\r\f") ;  Makes allegro happy
+    ;; Find the end of the defun this way to avoid having the region
+    ;; possibly end with a comment (it there'a a comment after the
+    ;; final parenthesis).
+    (beginning-of-defun)
+    (forward-sexp)
     (let ((end (point)) (case-fold-search t))
       (beginning-of-defun)
       (if (looking-at "(defvar")
@@ -561,7 +564,7 @@ Used by these commands to determine defaults."
 
 ;;; Adapted from function-called-at-point in help.el.
 (defun lisp-fn-called-at-pt ()
-  "Returns the name of the function called in the current call.
+  "Return the name of the function called in the current call.
 The value is nil if it can't find one."
   (condition-case nil
       (save-excursion

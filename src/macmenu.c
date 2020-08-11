@@ -63,7 +63,7 @@ mac_menu_set_in_use (bool in_use)
 {
   Lisp_Object frames, frame;
 
-  menu_items_inuse = in_use ? Qt : Qnil;
+  menu_items_inuse = in_use;
   popup_activated_flag = in_use;
 
   /* Don't let frames in `above' z-group obscure popups.  */
@@ -72,9 +72,9 @@ mac_menu_set_in_use (bool in_use)
       struct frame *f = XFRAME (frame);
 
       if (in_use && FRAME_Z_GROUP_ABOVE (f))
-	x_set_z_group (f, Qabove_suspended, Qabove);
+	mac_set_z_group (f, Qabove_suspended, Qabove);
       else if (!in_use && FRAME_Z_GROUP_ABOVE_SUSPENDED (f))
-	x_set_z_group (f, Qabove, Qabove_suspended);
+	mac_set_z_group (f, Qabove, Qabove_suspended);
     }
 }
 
@@ -89,48 +89,11 @@ escape key.  If FRAME has no menu bar this function does nothing.
 If FRAME is nil or not given, use the selected frame.  */)
   (Lisp_Object frame)
 {
-  int selection;
   struct frame *f = decode_window_system_frame (frame);
 
-  set_frame_menubar (f, false, true);
-  block_input ();
-  selection = mac_activate_menubar (f);
-  unblock_input ();
-
-  if (selection)
-    find_and_call_menu_selection (f, f->menu_bar_items_used, f->menu_bar_vector,
-				  (void *) (intptr_t) selection);
+  mac_activate_menubar (f);
 
   return Qnil;
-}
-
-/* Activate the menu bar of frame F.
-   This is called from keyboard.c when it gets the
-   MENU_BAR_ACTIVATE_EVENT out of the Emacs event queue.
-
-   To activate the menu bar, we call mac_activate_menubar.
-
-   But first we recompute the menu bar contents (the whole tree).
-
-   The reason for saving the button event until here, instead of
-   passing it to the toolkit right away, is that we can safely
-   execute Lisp code.  */
-
-void
-x_activate_menubar (struct frame *f)
-{
-  int selection;
-
-  eassert (FRAME_MAC_P (f));
-
-  set_frame_menubar (f, false, true);
-  block_input ();
-  selection = mac_activate_menubar (f);
-  unblock_input ();
-
-  if (selection)
-    find_and_call_menu_selection (f, f->menu_bar_items_used, f->menu_bar_vector,
-				  (void *) (intptr_t) selection);
 }
 
 
@@ -424,7 +387,7 @@ mac_menu_show (struct frame *f, int x, int y, int menuflags,
   i = 0;
   while (i < menu_items_used)
     {
-      if (EQ (AREF (menu_items, i), Qnil))
+      if (NILP (AREF (menu_items, i)))
 	{
 	  submenu_stack[submenu_depth++] = save_wv;
 	  save_wv = prev_wv;
@@ -584,7 +547,7 @@ mac_menu_show (struct frame *f, int x, int y, int menuflags,
       i = 0;
       while (i < menu_items_used)
 	{
-	  if (EQ (AREF (menu_items, i), Qnil))
+	  if (NILP (AREF (menu_items, i)))
 	    {
 	      subprefix_stack[submenu_depth++] = prefix;
 	      prefix = entry;
@@ -867,7 +830,8 @@ popup_activated (void)
 /* The following is used by delayed window autoselection.  */
 
 DEFUN ("menu-or-popup-active-p", Fmenu_or_popup_active_p, Smenu_or_popup_active_p, 0, 0, 0,
-       doc: /* Return t if a menu or popup dialog is active.  */)
+       doc: /* Return t if a menu or popup dialog is active.
+\(On MS Windows, this refers to the selected frame.)  */)
   (void)
 {
   return (popup_activated ()) ? Qt : Qnil;
@@ -881,7 +845,7 @@ syms_of_macmenu (void)
 
   defsubr (&Smac_menu_bar_open_internal);
   Ffset (intern_c_string ("accelerate-menu"),
-	 intern_c_string (Smac_menu_bar_open_internal.symbol_name));
+	 intern_c_string (Smac_menu_bar_open_internal.s.symbol_name));
 
   DEFVAR_LISP ("mac-help-topics", Vmac_help_topics,
     doc: /* List of strings shown as Help topics by Help menu search.

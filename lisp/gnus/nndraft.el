@@ -1,6 +1,6 @@
 ;;; nndraft.el --- draft article access for Gnus
 
-;; Copyright (C) 1995-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2020 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -31,7 +31,6 @@
 (require 'nnmh)
 (require 'nnoo)
 (require 'mm-util)
-(eval-when-compile (require 'cl))
 
 ;; The nnoo-import at the end, I think.
 (declare-function nndraft-request-list "nndraft" (&rest args) t)
@@ -148,10 +147,10 @@ are generated if and only if they are also in `message-draft-headers'."
 
 (deffoo nndraft-request-update-info (group info &optional server)
   (nndraft-possibly-change-group group)
-  (gnus-info-set-read
-   info
-   (gnus-update-read-articles (gnus-group-prefixed-name group '(nndraft ""))
-			      (nndraft-articles) t))
+  (setf (gnus-info-read info)
+	(gnus-update-read-articles
+	 (gnus-group-prefixed-name group '(nndraft ""))
+	 (nndraft-articles) t))
   (let ((marks (nth 3 info)))
     (when marks
       ;; Nix out all marks except the `unsend'-able article marks.
@@ -220,7 +219,7 @@ are generated if and only if they are also in `message-draft-headers'."
       (nnheader-re-read-dir pathname)
       (setq dir (mapcar (lambda (name) (string-to-number (substring name 1)))
 			(ignore-errors (directory-files
-					pathname nil "^#[0-9]+#$" t))))
+					pathname nil "\\`#[0-9]+#\\'" t))))
       (dolist (n dir)
 	(unless (file-exists-p
 		 (setq file (expand-file-name (int-to-string n) pathname)))

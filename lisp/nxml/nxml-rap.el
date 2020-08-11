@@ -1,6 +1,6 @@
 ;;; nxml-rap.el --- low-level support for random access parsing for nXML mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2004, 2007-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2004, 2007-2020 Free Software Foundation, Inc.
 
 ;; Author: James Clark
 ;; Keywords: wp, hypermedia, languages, XML
@@ -107,7 +107,6 @@ Return nil if the character at POS is not inside."
 	xmltok-errors)
     (setq nxml-prolog-regions (xmltok-forward-prolog))
     (setq nxml-prolog-end (point))))
-
 
 ;;; Random access parsing
 

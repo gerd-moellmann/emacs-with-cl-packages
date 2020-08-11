@@ -1,6 +1,6 @@
 ;;; em-prompt.el --- command prompts  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -80,7 +80,6 @@ re-entered for it to take effect."
 For highlighting other kinds of strings -- similar to shell mode's
 behavior -- simply use an output filer which changes text properties."
   :group 'eshell-prompt)
-(define-obsolete-face-alias 'eshell-prompt-face 'eshell-prompt "22.1")
 
 (defcustom eshell-before-prompt-hook nil
   "A list of functions to call before outputting the prompt."
@@ -100,7 +99,7 @@ arriving, or after."
 
 ;;; Functions:
 
-(defun eshell-prompt-initialize ()
+(defun eshell-prompt-initialize ()  ;Called from `eshell-mode' via intern-soft!
   "Initialize the prompting code."
   (unless eshell-non-interactive-p
     (add-hook 'eshell-post-command-hook 'eshell-emit-prompt nil t)
@@ -178,7 +177,7 @@ See `eshell-prompt-regexp'."
   "Move to end of Nth previous prompt in the buffer.
 See `eshell-prompt-regexp'."
   (interactive "p")
-  (beginning-of-line)            ; Don't count prompt on current line.
+  (forward-line 0)            ; Don't count prompt on current line.
   (eshell-next-prompt (- n)))
 
 (defun eshell-skip-prompt ()

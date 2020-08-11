@@ -1,10 +1,10 @@
 ;;; erc-compat.el --- ERC compatibility code for XEmacs
 
-;; Copyright (C) 2002-2003, 2005-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2003, 2005-2020 Free Software Foundation, Inc.
 
 ;; Author: Alex Schroeder <alex@gnu.org>
-;; Maintainer: emacs-devel@gnu.org
-;; URL: http://www.emacswiki.org/cgi-bin/wiki/ERC
+;; Maintainer: Amin Bandali <bandali@gnu.org>
+;; URL: https://www.emacswiki.org/emacs/ERC
 
 ;; This file is part of GNU Emacs.
 
@@ -29,7 +29,7 @@
 
 (require 'format-spec)
 
-;;;###autoload (autoload 'erc-define-minor-mode "erc-compat")
+;;;###autoload(autoload 'erc-define-minor-mode "erc-compat")
 (defalias 'erc-define-minor-mode 'define-minor-mode)
 (put 'erc-define-minor-mode 'edebug-form-spec 'define-minor-mode)
 
@@ -71,17 +71,13 @@ See `erc-encoding-coding-alist'."
 are placed.
 Note that this should end with a directory separator.")
 
-;; XEmacs's `replace-match' does not replace matching subexpressions in strings.
 (defun erc-replace-match-subexpression-in-string
   (newtext string match subexp start &optional fixedcase literal)
   "Replace the subexpression SUBEXP of the last match in STRING with NEWTEXT.
 MATCH is the text which matched the subexpression (see `match-string').
 START is the beginning position of the last match (see `match-beginning').
 See `replace-match' for explanations of FIXEDCASE and LITERAL."
-  (cond ((featurep 'xemacs)
-	 (string-match match string start)
-	 (replace-match newtext fixedcase literal string))
-	(t (replace-match newtext fixedcase literal string subexp))))
+  (replace-match newtext fixedcase literal string subexp))
 
 (defalias 'erc-with-selected-window 'with-selected-window)
 (defalias 'erc-cancel-timer 'cancel-timer)
@@ -161,6 +157,5 @@ If START or END is negative, it counts from the end."
 ;;; erc-compat.el ends here
 ;;
 ;; Local Variables:
-;; indent-tabs-mode: t
-;; tab-width: 8
+;; generated-autoload-file: "erc-loaddefs.el"
 ;; End:

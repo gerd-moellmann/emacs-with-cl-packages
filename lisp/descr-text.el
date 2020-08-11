@@ -1,6 +1,6 @@
 ;;; descr-text.el --- describe text mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994-1996, 2001-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1994-1996, 2001-2020 Free Software Foundation, Inc.
 
 ;; Author: Boris Goldowsky <boris@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -88,8 +88,6 @@ into help buttons that call `describe-text-category' or
 	     (insert-text-button
 	      (format "%S" value)
 	      'type 'help-face 'help-args (list value)))
-            ((widgetp value)
-	     (describe-text-widget value))
 	    (t
 	     (describe-text-sexp value))))
     (insert "\n")))
@@ -413,12 +411,6 @@ The character information includes:
            (charset (if eight-bit-p 'eight-bit
                       (or (get-text-property pos 'charset)
                           (char-charset char))))
-           ;; TIS620.2533 overlaps eight-bit-control, but we want to
-           ;; show eight-bit for raw bytes, not some obscure character
-           ;; set no one heard of.
-           (charset (if (eq charset 'tis620-2533)
-                        'eight-bit
-                      charset))
            (composition (find-composition pos nil nil t))
            (component-chars nil)
            (display-table (or (window-display-table)
@@ -849,8 +841,6 @@ The character information includes:
 
           (if text-props-desc (insert text-props-desc))
           (setq buffer-read-only t))))))
-
-(define-obsolete-function-alias 'describe-char-after 'describe-char "22.1")
 
 ;;; Describe-Char-ElDoc
 

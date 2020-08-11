@@ -1,6 +1,6 @@
 ;;; package-x.el --- Package extras
 
-;; Copyright (C) 2007-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2020 Free Software Foundation, Inc.
 
 ;; Author: Tom Tromey <tromey@redhat.com>
 ;; Created: 10 Mar 2007
@@ -124,7 +124,7 @@ Return the file contents, as a string, or nil if unsuccessful."
 	 (buffer-substring-no-properties (point-min) (point-max)))))))
 
 (defun package--archive-contents-from-file ()
-  "Parse the archive-contents at `package-archive-upload-base'"
+  "Parse the archive-contents at `package-archive-upload-base'."
   (let ((file (expand-file-name "archive-contents"
 				package-archive-upload-base)))
     (if (not (file-exists-p file))
@@ -204,8 +204,8 @@ if it exists."
 	       (split-version (package-desc-version pkg-desc))
 	       (commentary
                 (pcase file-type
-                  (`single (lm-commentary))
-                  (`tar nil))) ;; FIXME: Get it from the README file.
+                  ('single (lm-commentary))
+                  ('tar nil))) ;; FIXME: Get it from the README file.
                (extras (package-desc-extras pkg-desc))
 	       (pkg-version (package-version-join split-version))
 	       (pkg-buffer (current-buffer)))
@@ -285,6 +285,7 @@ package (a \".el\" file)."
       (let ((pkg-desc (package-buffer-info)))
 	(package-upload-buffer-internal pkg-desc "el")))))
 
+;;;###autoload
 (defun package-upload-file (file)
   "Upload the Emacs Lisp package FILE to the package archive.
 Interactively, prompt for FILE.  The package is considered a

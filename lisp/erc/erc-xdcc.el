@@ -1,9 +1,9 @@
 ;;; erc-xdcc.el --- XDCC file-server support for ERC
 
-;; Copyright (C) 2003-2004, 2006-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2004, 2006-2020 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
-;; Maintainer: emacs-devel@gnu.org
+;; Maintainer: Amin Bandali <bandali@gnu.org>
 ;; Keywords: comm, processes
 
 ;; This file is part of GNU Emacs.
@@ -61,7 +61,7 @@ being evaluated and should return strings."
   :group 'erc-dcc
   :type '(repeat (repeat :tag "Message" (choice string sexp))))
 
-;;;###autoload (autoload 'erc-xdcc-mode "erc-xdcc")
+;;;###autoload(autoload 'erc-xdcc-mode "erc-xdcc")
 (define-erc-module xdcc nil
   "Act as an XDCC file-server."
   nil nil)
@@ -133,6 +133,5 @@ being evaluated and should return strings."
 ;;; erc-xdcc.el ends here
 ;;
 ;; Local Variables:
-;; indent-tabs-mode: t
-;; tab-width: 8
+;; generated-autoload-file: "erc-loaddefs.el"
 ;; End:

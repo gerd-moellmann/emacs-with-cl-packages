@@ -1,6 +1,6 @@
 ;;; package-test.el --- Tests for the Emacs package system
 
-;; Copyright (C) 2013-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
 ;; Author: Daniel Hackney <dan@haxney.org>
 ;; Version: 1.0
@@ -28,7 +28,12 @@
 
 ;; Run this in a clean Emacs session using:
 ;;
-;;     $ emacs -Q --batch -L . -l package-test.el -l ert -f ert-run-tests-batch-and-exit
+;;     $ emacs -Q --batch -L . -l package-tests.el -l ert -f ert-run-tests-batch-and-exit
+;;
+;; From the top level directory of the Emacs development repository,
+;; you can use this instead:
+;;
+;;     $ make -C test package-tests
 
 ;;; Code:
 
@@ -112,7 +117,7 @@
                                            upload-base)
                                 &rest body)
   "Set up temporary locations and variables for testing."
-  (declare (indent 1))
+  (declare (indent 1) (debug (([&rest form]) body)))
   `(let* ((package-test-user-dir (make-temp-file "pkg-test-user-dir-" t))
           (process-environment (cons (format "HOME=%s" package-test-user-dir)
                                      process-environment))
@@ -158,6 +163,7 @@
 
 (defmacro with-fake-help-buffer (&rest body)
   "Execute BODY in a temp buffer which is treated as the \"*Help*\" buffer."
+  (declare (debug body))
   `(with-temp-buffer
     (help-mode)
     ;; Trick `help-buffer' into using the temp buffer.
@@ -189,12 +195,33 @@ Must called from within a `tar-mode' buffer."
   "Return the package version as a string."
   (package-version-join (package-desc-version desc)))
 
+(defun package-test--compatible-p (pkg-desc pkg-sample &optional kind)
+  (and (cl-every (lambda (f)
+                   (equal (funcall f pkg-desc)
+                          (funcall f pkg-sample)))
+                 (cons (if kind #'package-desc-kind #'ignore)
+                       '(package-desc-name
+                         package-desc-version
+                         package-desc-summary
+                         package-desc-reqs
+                         package-desc-archive
+                         package-desc-dir
+                         package-desc-signed)))
+       ;; The `extras' field should contain at least the specified elements.
+       (let ((extras (package-desc-extras pkg-desc))
+             (extras-sample (package-desc-extras pkg-sample)))
+         (cl-every (lambda (sample-elem)
+                     (member sample-elem extras))
+                   extras-sample))))
+
 (ert-deftest package-test-desc-from-buffer ()
   "Parse an elisp buffer to get a `package-desc' object."
   (with-package-test (:basedir "package-resources" :file "simple-single-1.3.el")
-    (should (equal (package-buffer-info) simple-single-desc)))
+    (should (package-test--compatible-p
+             (package-buffer-info) simple-single-desc 'kind)))
   (with-package-test (:basedir "package-resources" :file "simple-depend-1.0.el")
-    (should (equal (package-buffer-info) simple-depend-desc)))
+    (should (package-test--compatible-p
+             (package-buffer-info) simple-depend-desc 'kind)))
   (with-package-test (:basedir "package-resources"
                                :file "multi-file-0.2.3.tar")
     (tar-mode)
@@ -222,15 +249,12 @@ Must called from within a `tar-mode' buffer."
       (with-temp-buffer
         (insert-file-contents (expand-file-name "simple-single-pkg.el"
                                                 simple-pkg-dir))
-        (should (string= (buffer-string)
-                         (concat ";;; -*- no-byte-compile: t -*-\n"
-                                 "(define-package \"simple-single\" \"1.3\" "
-                                 "\"A single-file package "
-                                 "with no dependencies\" 'nil "
-                                 ":authors '((\"J. R. Hacker\" . \"jrh@example.com\")) "
-                                 ":maintainer '(\"J. R. Hacker\" . \"jrh@example.com\") "
-                                 ":url \"http://doodles.au\""
-                                 ")\n"))))
+        (goto-char (point-min))
+        (let ((sexp (read (current-buffer))))
+          (should (eq (car-safe sexp) 'define-package))
+          (should (package-test--compatible-p
+                   (apply #'package-desc-from-define (cdr sexp))
+                   simple-single-desc))))
       (should (file-exists-p autoloads-file))
       (should-not (get-file-buffer autoloads-file)))))
 
@@ -242,6 +266,9 @@ Must called from within a `tar-mode' buffer."
     (package-install 'simple-depend)
     (should (package-installed-p 'simple-single))
     (should (package-installed-p 'simple-depend))))
+
+(declare-function macro-problem-func "macro-problem" ())
+(declare-function macro-problem-10-and-90 "macro-problem" ())
 
 (ert-deftest package-test-macro-compilation ()
   "Install a package which includes a dependency."
@@ -341,11 +368,33 @@ Must called from within a `tar-mode' buffer."
       (should-not (re-search-forward "^\\s-+simple-single\\s-+1.3\\s-+\\(available\\|new\\)" nil t))
       (kill-buffer buf))))
 
+(ert-deftest package-test-list-filter-by-name ()
+  "Ensure package list is filtered correctly by package name."
+  (with-package-test ()
+    (let ((buf (package-list-packages)))
+      (package-menu-filter-by-name "tetris")
+      (goto-char (point-min))
+      (should (re-search-forward "^\\s-+tetris" nil t))
+      (should (= (count-lines (point-min) (point-max)) 1))
+      (kill-buffer buf))))
+
+(ert-deftest package-test-list-clear-filter ()
+  "Ensure package list filter is cleared correctly."
+  (with-package-test ()
+    (let ((buf (package-list-packages)))
+      (let ((num-packages (count-lines (point-min) (point-max))))
+        (should (> num-packages 1))
+        (package-menu-filter-by-name "tetris")
+        (should (= (count-lines (point-min) (point-max)) 1))
+        (package-menu-clear-filter)
+        (should (= (count-lines (point-min) (point-max)) num-packages)))
+      (kill-buffer buf))))
+
 (ert-deftest package-test-update-archives ()
   "Test updating package archives."
   (with-package-test ()
     (let ((buf (package-list-packages)))
-      (package-menu-refresh)
+      (revert-buffer)
       (search-forward-regexp "^ +simple-single")
       (package-menu-mark-install)
       (package-menu-execute)
@@ -353,7 +402,7 @@ Must called from within a `tar-mode' buffer."
       (let ((package-test-data-dir
              (expand-file-name "package-resources/newer-versions" package-test-file-dir)))
         (setq package-archives `(("gnu" . ,package-test-data-dir)))
-        (package-menu-refresh)
+        (revert-buffer)
 
         ;; New version should be available and old version should be installed
         (goto-char (point-min))
@@ -365,7 +414,7 @@ Must called from within a `tar-mode' buffer."
 
         (package-menu-mark-upgrades)
         (package-menu-execute)
-        (package-menu-refresh)
+        (revert-buffer)
         (should (package-installed-p 'simple-single '(1 4)))))))
 
 (ert-deftest package-test-update-archives-async ()
@@ -406,6 +455,16 @@ Must called from within a `tar-mode' buffer."
              (search-forward-regexp "^ +simple-single" nil t))))
       (if (process-live-p process) (kill-process process)))))
 
+(ert-deftest package-test-update-archives/ignore-nil-entry ()
+  "Ignore any packages that are nil.  Test for Bug#28502."
+  (with-package-test ()
+    (let* ((with-nil-entry (expand-file-name "package-resources/with-nil-entry"
+                                             package-test-file-dir))
+           (package-archives `(("with-nil-entry" . ,with-nil-entry))))
+      (package-initialize)
+      (package-refresh-contents)
+      (should (equal (length package-archive-contents) 2)))))
+
 (ert-deftest package-test-describe-package ()
   "Test displaying help for a package."
 
@@ -414,7 +473,7 @@ Must called from within a `tar-mode' buffer."
   (with-fake-help-buffer
    (describe-package '5x5)
    (goto-char (point-min))
-   (should (search-forward "5x5 is a built-in package." nil t))
+   (should (search-forward "5x5 is built-in." nil t))
    ;; Don't assume the descriptions are in any particular order.
    (save-excursion (should (search-forward "Status: Built-in." nil t)))
    (save-excursion (should (search-forward "Summary: simple little puzzle game" nil t)))
@@ -428,16 +487,29 @@ Must called from within a `tar-mode' buffer."
     (with-fake-help-buffer
      (describe-package 'simple-single)
      (goto-char (point-min))
-     (should (search-forward "simple-single is an installed package." nil t))
+     (should (search-forward "Package simple-single is installed." nil t))
      (save-excursion (should (re-search-forward "Status: Installed in ['`‘]simple-single-1.3/['’] (unsigned)." nil t)))
      (save-excursion (should (search-forward "Version: 1.3" nil t)))
      (save-excursion (should (search-forward "Summary: A single-file package with no dependencies" nil t)))
      (save-excursion (should (search-forward "Homepage: http://doodles.au" nil t)))
      (save-excursion (should (re-search-forward "Keywords: \\[?frobnicate\\]?" nil t)))
-     ;; No description, though. Because at this point we don't know
-     ;; what archive the package originated from, and we don't have
-     ;; its readme file saved.
+     (save-excursion (should (search-forward "This package provides a minor mode to frobnicate"
+                                             nil t)))
      )))
+
+(ert-deftest package-test-describe-installed-multi-file-package ()
+  "Test displaying of the readme for installed multi-file package."
+
+  (with-package-test ()
+    (package-initialize)
+    (package-refresh-contents)
+    (package-install 'multi-file)
+    (with-fake-help-buffer
+     (describe-package 'multi-file)
+     (goto-char (point-min))
+     (should (search-forward "Homepage: http://puddles.li" nil t))
+     (should (search-forward "This is a bare-bones readme file for the multi-file"
+                             nil t)))))
 
 (ert-deftest package-test-describe-non-installed-package ()
   "Test displaying of the readme for non-installed package."
@@ -467,15 +539,25 @@ Must called from within a `tar-mode' buffer."
 
 (ert-deftest package-test-signed ()
   "Test verifying package signature."
-  (skip-unless (ignore-errors
-		 (let ((homedir (make-temp-file "package-test" t)))
-		   (unwind-protect
-		       (let ((process-environment
-			      (cons (format "HOME=%s" homedir)
-				    process-environment)))
-			 (epg-check-configuration (epg-configuration))
-			 (epg-find-configuration 'OpenPGP))
-		     (delete-directory homedir t)))))
+  (skip-unless (let ((homedir (make-temp-file "package-test" t)))
+		 (unwind-protect
+		     (let ((process-environment
+			    (cons (concat "HOME=" homedir)
+				  process-environment)))
+                       (require 'epg-config)
+                       (defvar epg-config--program-alist)
+		       (epg-find-configuration
+                        'OpenPGP nil
+                        ;; By default we require gpg2 2.1+ due to some
+                        ;; practical problems with pinentry.  But this
+                        ;; test works fine with 2.0 as well.
+                        (let ((prog-alist (copy-tree epg-config--program-alist)))
+                          (setf (alist-get "gpg2"
+                                           (alist-get 'OpenPGP prog-alist)
+                                           nil nil #'equal)
+                                "2.0")
+                          prog-alist)))
+		   (delete-directory homedir t))))
   (let* ((keyring (expand-file-name "key.pub" package-test-data-dir))
 	 (package-test-data-dir
 	   (expand-file-name "package-resources/signed" package-test-file-dir)))
@@ -484,17 +566,19 @@ Must called from within a `tar-mode' buffer."
       (package-import-keyring keyring)
       (package-refresh-contents)
       (let ((package-check-signature 'allow-unsigned))
-        (should (package-install 'signed-good))
+        (should (progn (package-install 'signed-good) 'noerror))
         (should-error (package-install 'signed-bad)))
+      (package-delete (car (alist-get 'signed-good package-alist)))
       (let ((package-check-signature t))
-        (should (package-install 'signed-good))
+        (should (progn (package-install 'signed-good) 'noerror))
         (should-error (package-install 'signed-bad)))
+      (package-delete (car (alist-get 'signed-good package-alist)))
       (let ((package-check-signature nil))
-        (should (package-install 'signed-good))
-        (should (package-install 'signed-bad)))
+        (should (progn (package-install 'signed-good) 'noerror))
+        (should (progn (package-install 'signed-bad) 'noerror)))
       ;; Check if the installed package status is updated.
       (let ((buf (package-list-packages)))
-	(package-menu-refresh)
+        (revert-buffer)
 	(should (re-search-forward
 		 "^\\s-+signed-good\\s-+\\(\\S-+\\)\\s-+\\(\\S-+\\)\\s-"
 		 nil t))
@@ -504,7 +588,7 @@ Must called from within a `tar-mode' buffer."
       (with-fake-help-buffer
        (describe-package 'signed-good)
        (goto-char (point-min))
-       (should (re-search-forward "signed-good is an? \\(\\S-+\\) package." nil t))
+       (should (re-search-forward "Package signed-good is \\(\\S-+\\)\\." nil t))
        (should (string-equal (match-string-no-properties 1) "installed"))
        (should (re-search-forward
 		"Status: Installed in ['`‘]signed-good-1.0/['’]."
@@ -556,8 +640,17 @@ Must called from within a `tar-mode' buffer."
         (setq archive-contents
               (package-read-from-string
                (buffer-substring (point-min) (point-max)))))
-      (should (equal archive-contents
-                     (list 1 package-x-test--single-archive-entry-1-3))))))
+      (should (equal 1 (car archive-contents)))
+      (should (equal 2 (length archive-contents)))
+      (let ((pac (cadr archive-contents))
+            (pac-sample package-x-test--single-archive-entry-1-3))
+        (should (equal (pop pac) (pop pac-sample)))
+        (dotimes (i 4)
+          (should (equal (aref pac i) (aref pac-sample i))))
+        ;; The `extras' field should contain at least the specified elements.
+        (should (cl-every (lambda (sample-elem)
+                            (member sample-elem (aref pac 4)))
+                          (aref pac-sample 4)))))))
 
 (ert-deftest package-x-test-upload-new-version ()
   "Test uploading a new version of a package"
@@ -577,8 +670,17 @@ Must called from within a `tar-mode' buffer."
         (setq archive-contents
               (package-read-from-string
                (buffer-substring (point-min) (point-max)))))
-      (should (equal archive-contents
-                     (list 1 package-x-test--single-archive-entry-1-4))))))
+      (should (equal 1 (car archive-contents)))
+      (should (equal 2 (length archive-contents)))
+      (let ((pac (cadr archive-contents))
+            (pac-sample package-x-test--single-archive-entry-1-4))
+        (should (equal (pop pac) (pop pac-sample)))
+        (dotimes (i 4)
+          (should (equal (aref pac i) (aref pac-sample i))))
+        ;; The `extras' field should contain at least the specified elements.
+        (should (cl-every (lambda (sample-elem)
+                            (member sample-elem (aref pac 4)))
+                          (aref pac-sample 4)))))))
 
 (ert-deftest package-test-get-deps ()
   "Test `package--get-deps' with complex structures."
@@ -589,25 +691,16 @@ Must called from within a `tar-mode' buffer."
                  multi-file-desc
                  new-pkg-desc
                  simple-depend-desc-1
-                 simple-depend-desc-2))))
+                 simple-depend-desc-2)))
+        (pkg-cmp #'string-lessp))
     (should
-     (equal (package--get-deps 'simple-depend)
-            '(simple-single)))
+     (equal (sort (package--get-deps '(simple-depend)) pkg-cmp)
+            (sort (list 'simple-depend 'simple-single) pkg-cmp)))
     (should
-     (equal (package--get-deps 'simple-depend 'indirect)
-            nil))
-    (should
-     (equal (package--get-deps 'simple-depend 'direct)
-            '(simple-single)))
-    (should
-     (equal (package--get-deps 'simple-depend-2)
-            '(simple-depend-1 multi-file simple-depend simple-single)))
-    (should
-     (equal (package--get-deps 'simple-depend-2 'indirect)
-            '(simple-depend multi-file simple-single)))
-    (should
-     (equal (package--get-deps 'simple-depend-2 'direct)
-            '(simple-depend-1 multi-file)))))
+     (equal (sort (package--get-deps '(simple-depend-2)) pkg-cmp)
+            (sort (list 'simple-depend-2 'simple-depend-1 'multi-file
+                        'simple-depend 'simple-single)
+                  pkg-cmp)))))
 
 (ert-deftest package-test-sort-by-dependence ()
   "Test `package--sort-by-dependence' with complex structures."

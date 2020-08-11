@@ -1,6 +1,6 @@
 ;;; eval-tests.el --- unit tests for src/eval.c      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2016-2019 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2020 Free Software Foundation, Inc.
 
 ;; Author: Philipp Stephani <phst@google.com>
 
@@ -26,6 +26,7 @@
 ;;; Code:
 
 (require 'ert)
+(eval-when-compile (require 'cl-lib))
 
 (ert-deftest eval-tests--bug24673 ()
   "Check that Bug#24673 has been fixed."
@@ -37,8 +38,7 @@
 (ert-deftest eval-tests--bugs-24912-and-24913 ()
   "Check that Emacs doesn't accept weird argument lists.
 Bug#24912 and Bug#24913."
-  (dolist (args '((&optional) (&rest) (&optional &rest) (&rest &optional)
-                  (&optional &rest a) (&optional a &rest)
+  (dolist (args '((&rest &optional)
                   (&rest a &optional) (&rest &optional a)
                   (&optional &optional) (&optional &optional a)
                   (&optional a &optional b)
@@ -47,7 +47,22 @@ Bug#24912 and Bug#24913."
     (should-error (eval `(funcall (lambda ,args)) t) :type 'invalid-function)
     (should-error (byte-compile-check-lambda-list args))
     (let ((byte-compile-debug t))
-      (should-error (eval `(byte-compile (lambda ,args)) t)))))
+      (ert-info ((format "bytecomp: args = %S" args))
+       (should-error (eval `(byte-compile (lambda ,args)) t))))))
+
+(ert-deftest eval-tests-accept-empty-optional-rest ()
+  "Check that Emacs accepts empty &optional and &rest arglists.
+Bug#24912."
+  (dolist (args '((&optional) (&rest) (&optional &rest)
+                  (&optional &rest a) (&optional a &rest)))
+    (let ((fun `(lambda ,args 'ok)))
+      (ert-info ("eval")
+        (should (eq (funcall (eval fun t)) 'ok)))
+      (ert-info ("byte comp check")
+        (byte-compile-check-lambda-list args))
+      (ert-info ("bytecomp")
+        (let ((byte-compile-debug t))
+          (should (eq (funcall (byte-compile fun)) 'ok)))))))
 
 
 (dolist (form '(let let*))
@@ -99,6 +114,31 @@ crash/abort/malloc assert failure on the next test."
         (signal-hook-function #'ignore))
     (should-error (eval-tests--exceed-specbind-limit))))
 
+(ert-deftest defvar/bug31072 ()
+  "Check that Bug#31072 is fixed."
+  (should-error (eval '(defvar 1) t) :type 'wrong-type-argument))
+
+(ert-deftest defvaralias-overwrite-warning ()
+  "Test for Bug#5950."
+  (defvar eval-tests--foo)
+  (setq eval-tests--foo 2)
+  (defvar eval-tests--foo-alias)
+  (setq eval-tests--foo-alias 1)
+  (cl-letf (((symbol-function 'display-warning)
+             (lambda (type &rest _)
+               (throw 'got-warning type))))
+    ;; Warn if we lose a value through aliasing.
+    (should (equal
+             '(defvaralias losing-value eval-tests--foo-alias)
+             (catch 'got-warning
+               (defvaralias 'eval-tests--foo-alias 'eval-tests--foo))))
+    ;; Don't warn if we don't.
+    (makunbound 'eval-tests--foo-alias)
+    (should (eq 'no-warning
+                (catch 'got-warning
+                  (defvaralias 'eval-tests--foo-alias 'eval-tests--foo)
+                  'no-warning)))))
+
 (ert-deftest eval-tests-byte-code-being-evaluated-is-protected-from-gc ()
   "Regression test for Bug#33014.
 Check that byte-compiled objects being executed by exec-byte-code
@@ -128,5 +168,12 @@ are found on the stack and therefore not garbage collected."
 (defun eval-tests-33014-redefine ()
   "Remove the Lisp reference to the byte-compiled object."
   (setf (symbol-function #'eval-tests-33014-func) nil))
+
+(defun eval-tests-19790-backquote-comma-dot-substitution ()
+  "Regression test for Bug#19790.
+Don't handle destructive splicing in backquote expressions (like
+in Common Lisp).  Instead, make sure substitution in backquote
+expressions works for identifiers starting with period."
+  (should (equal (let ((.x 'identity)) (eval `(,.x 'ok))) 'ok)))
 
 ;;; eval-tests.el ends here

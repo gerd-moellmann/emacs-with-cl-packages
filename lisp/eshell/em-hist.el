@@ -1,6 +1,6 @@
 ;;; em-hist.el --- history list management  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2019 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -59,6 +59,7 @@
 
 (require 'ring)
 (require 'esh-opt)
+(require 'esh-mode)
 (require 'em-pred)
 (require 'eshell)
 
@@ -152,7 +153,7 @@ element, regardless of any text on the command line.  In that case,
   :group 'eshell-hist)
 
 (defcustom eshell-hist-word-designator
-  "^:?\\([0-9]+\\|[$^%*]\\)?\\(\\*\\|-[0-9]*\\|[$^%*]\\)?"
+  "^:?\\([0-9]+\\|[$^%*]\\)?\\(-[0-9]*\\|[$^%*]\\)?"
   "The regexp used to identify history word designators."
   :type 'regexp
   :group 'eshell-hist)
@@ -192,7 +193,6 @@ element, regardless of any text on the command line.  In that case,
 (defvar eshell-isearch-map
   (let ((map (copy-keymap isearch-mode-map)))
     (define-key map [(control ?m)] 'eshell-isearch-return)
-    (define-key map [return] 'eshell-isearch-return)
     (define-key map [(control ?r)] 'eshell-isearch-repeat-backward)
     (define-key map [(control ?s)] 'eshell-isearch-repeat-forward)
     (define-key map [(control ?g)] 'eshell-isearch-abort)
@@ -216,14 +216,11 @@ Returns non-nil if INPUT is blank."
 Returns nil if INPUT is prepended by blank space, otherwise non-nil."
   (not (string-match-p "\\`\\s-+" input)))
 
-(defun eshell-hist-initialize ()
+(defun eshell-hist-initialize ()    ;Called from `eshell-mode' via intern-soft!
   "Initialize the history management code for one Eshell buffer."
-  (add-hook 'eshell-expand-input-functions
-	    'eshell-expand-history-references nil t)
-
   (when (eshell-using-module 'eshell-cmpl)
     (add-hook 'pcomplete-try-first-hook
-	      'eshell-complete-history-reference nil t))
+	      #'eshell-complete-history-reference nil t))
 
   (if (and (eshell-using-module 'eshell-rebind)
 	   (not eshell-non-interactive-p))
@@ -238,11 +235,13 @@ Returns nil if INPUT is prepended by blank space, otherwise non-nil."
 		   (lambda ()
 		     (if (>= (point) eshell-last-output-end)
 			 (setq overriding-terminal-local-map
-			       eshell-isearch-map)))) nil t)
+			       eshell-isearch-map))))
+                  nil t)
 	(add-hook 'isearch-mode-end-hook
 		  (function
 		   (lambda ()
-		     (setq overriding-terminal-local-map nil))) nil t))
+		     (setq overriding-terminal-local-map nil)))
+                  nil t))
     (define-key eshell-mode-map [up] 'eshell-previous-matching-input-from-input)
     (define-key eshell-mode-map [down] 'eshell-next-matching-input-from-input)
     (define-key eshell-mode-map [(control up)] 'eshell-previous-input)
@@ -291,17 +290,17 @@ Returns nil if INPUT is prepended by blank space, otherwise non-nil."
     (if eshell-history-file-name
 	(eshell-read-history nil t))
 
-    (add-hook 'eshell-exit-hook 'eshell-write-history nil t))
+    (add-hook 'eshell-exit-hook #'eshell-write-history nil t))
 
   (unless eshell-history-ring
     (setq eshell-history-ring (make-ring eshell-history-size)))
 
-  (add-hook 'eshell-exit-hook 'eshell-write-history nil t)
+  (add-hook 'eshell-exit-hook #'eshell-write-history nil t)
 
-  (add-hook 'kill-emacs-hook 'eshell-save-some-history)
+  (add-hook 'kill-emacs-hook #'eshell-save-some-history)
 
   (make-local-variable 'eshell-input-filter-functions)
-  (add-hook 'eshell-input-filter-functions 'eshell-add-to-history nil t)
+  (add-hook 'eshell-input-filter-functions #'eshell-add-to-history nil t)
 
   (define-key eshell-command-map [(control ?l)] 'eshell-list-history)
   (define-key eshell-command-map [(control ?x)] 'eshell-get-next-from-history))
@@ -469,15 +468,16 @@ lost if `eshell-history-ring' is not empty.  If
 Useful within process sentinels.
 
 See also `eshell-read-history'."
-  (let ((file (or filename eshell-history-file-name)))
+  (let* ((file (or filename eshell-history-file-name))
+	 (resolved-file (if (stringp file) (file-truename file))))
     (cond
      ((or (null file)
 	  (equal file "")
 	  (null eshell-history-ring)
 	  (ring-empty-p eshell-history-ring))
       nil)
-     ((not (file-writable-p file))
-      (message "Cannot write history file %s" file))
+     ((not (file-writable-p resolved-file))
+      (message "Cannot write history file %s" resolved-file))
      (t
       (let* ((ring eshell-history-ring)
 	     (index (ring-length ring)))
@@ -492,7 +492,7 @@ See also `eshell-read-history'."
               (insert (substring-no-properties (ring-ref ring index)) ?\n)
 	      (subst-char-in-region start (1- (point)) ?\n ?\177)))
 	  (eshell-with-private-file-modes
-	   (write-region (point-min) (point-max) file append
+	   (write-region (point-min) (point-max) resolved-file append
 			 'no-message))))))))
 
 (defun eshell-list-history ()
@@ -584,21 +584,30 @@ See also `eshell-read-history'."
 
 (defun eshell-expand-history-references (beg end)
   "Parse and expand any history references in current input."
-  (let ((result (eshell-hist-parse-arguments beg end)))
+  (let ((result (eshell-hist-parse-arguments beg end))
+	(full-line (buffer-substring-no-properties beg end)))
     (when result
       (let ((textargs (nreverse (nth 0 result)))
 	    (posb (nreverse (nth 1 result)))
-	    (pose (nreverse (nth 2 result))))
+	    (pose (nreverse (nth 2 result)))
+	    (full-line-subst (eshell-history-substitution full-line)))
 	(save-excursion
-	  (while textargs
-	    (let ((str (eshell-history-reference (car textargs))))
-	      (unless (eq str (car textargs))
-		(goto-char (car posb))
-		(insert-and-inherit str)
-		(delete-char (- (car pose) (car posb)))))
-	    (setq textargs (cdr textargs)
-		  posb (cdr posb)
-		  pose (cdr pose))))))))
+	  (if full-line-subst
+	      ;; Found a ^foo^bar substitution
+	      (progn
+		(goto-char beg)
+		(insert-and-inherit full-line-subst)
+		(delete-char (- end beg)))
+	    ;; Try to expand other substitutions
+	    (while textargs
+	      (let ((str (eshell-history-reference (car textargs))))
+		(unless (eq str (car textargs))
+		  (goto-char (car posb))
+		  (insert-and-inherit str)
+		  (delete-char (- (car pose) (car posb)))))
+	      (setq textargs (cdr textargs)
+		    posb (cdr posb)
+		    pose (cdr pose)))))))))
 
 (defvar pcomplete-stub)
 (defvar pcomplete-last-completion-raw)
@@ -633,20 +642,31 @@ See also `eshell-read-history'."
 		   (setq history (cdr history)))
 		 (cdr fhist)))))))
 
+(defun eshell-history-substitution (line)
+  "Expand quick hist substitutions formatted as ^foo^bar^.
+Returns nil if string does not match quick substitution format,
+and acts like !!:s/foo/bar/ otherwise."
+  ;; `^string1^string2^'
+  ;;      Quick Substitution.  Repeat the last command, replacing
+  ;;      STRING1 with STRING2.  Equivalent to `!!:s/string1/string2/'
+  (when (and (eshell-using-module 'eshell-pred)
+	     (string-match
+	      "^\\^\\([^^]+\\)\\^\\([^^]+\\)\\(?:\\^\\(.*\\)\\)?$"
+	      line))
+    ;; Save trailing match as `eshell-history-reference' runs string-match.
+    (let ((matched-end (match-string 3 line)))
+      (concat
+       (eshell-history-reference
+	(format "!!:s/%s/%s/"
+		(match-string 1 line)
+		(match-string 2 line)))
+       matched-end))))
+
 (defun eshell-history-reference (reference)
   "Expand directory stack REFERENCE.
 The syntax used here was taken from the Bash info manual.
 Returns the resultant reference, or the same string REFERENCE if none
 matched."
-  ;; `^string1^string2^'
-  ;;      Quick Substitution.  Repeat the last command, replacing
-  ;;      STRING1 with STRING2.  Equivalent to `!!:s/string1/string2/'
-  (if (and (eshell-using-module 'eshell-pred)
-	   (string-match "\\^\\([^^]+\\)\\^\\([^^]+\\)\\^?\\s-*$"
-			 reference))
-      (setq reference (format "!!:s/%s/%s/"
-			      (match-string 1 reference)
-			      (match-string 2 reference))))
   ;; `!'
   ;;      Start a history substitution, except when followed by a
   ;;      space, tab, the end of the line, = or (.
@@ -736,7 +756,7 @@ matched."
 	(setq nth (eshell-hist-word-reference nth)))
       (unless (numberp mth)
 	(setq mth (eshell-hist-word-reference mth)))
-      (cons (mapconcat 'identity (eshell-sublist textargs nth mth) " ")
+      (cons (mapconcat #'identity (eshell-sublist textargs nth mth) " ")
 	    end))))
 
 (defun eshell-hist-parse-modifier (hist reference)

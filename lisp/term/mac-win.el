@@ -72,7 +72,7 @@
 (eval-when-compile (require 'cl-lib))
 
 ;; (if (not (eq window-system 'mac))
-;;     (error "%s: Loading mac-win.el but not compiled for Mac" (invocation-name)))
+;;     (error "%s: Loading mac-win.el but not compiled for Mac" invocation-name))
 
 (require 'term/common-win)
 (require 'frame)
@@ -451,7 +451,7 @@ The entries are currently based on emoji-sequences.txt 13.0.")
           sequence)
     (cons multistyles unistyles)))
 
-(defun mac-compose-gstring-for-variation-with-trailer (gstring)
+(defun mac-compose-gstring-for-variation-with-trailer (gstring direction)
   "Compose glyph-string GSTRING for graphic display.
 GSTRING must have three glyphs; the first is a character that is
 sensitive to the variation selectors 15 (U+FE0E, text-style) and
@@ -470,7 +470,7 @@ skin tones (U+1F3FB - U+1F3FF)."
     (lglyph-set-from-to g2 (1- (lglyph-from g2)) (1- (lglyph-to g2)))
     (lgstring-set-glyph gstring 1 g2)
     (lgstring-set-glyph gstring 2 nil)
-    (setq gstring (copy-sequence (font-shape-gstring gstring)))
+    (setq gstring (copy-sequence (font-shape-gstring gstring direction)))
     (when gstring
       (lgstring-set-header gstring saved-header)
       (lgstring-set-id gstring nil)
@@ -485,7 +485,7 @@ skin tones (U+1F3FB - U+1F3FF)."
 	(setq i (1+ i)))))
   gstring)
 
-(defun mac-compose-gstring-for-text-style-variation (gstring)
+(defun mac-compose-gstring-for-text-style-variation (gstring _direction)
   "Compose glyph-string GSTRING in text style for graphic display.
 GSTRING must have two glyphs; the first is a character that is
 sensitive to the text/emoji-style variation selector, and the
@@ -497,7 +497,7 @@ second is a glyph for the variation selector 15 (U+FE0E)."
     (lgstring-set-glyph gstring 1 nil))
   gstring)
 
-(defun mac-compose-gstring-for-emoji-style-variation (gstring)
+(defun mac-compose-gstring-for-emoji-style-variation (gstring direction)
   "Compose glyph-string GSTRING in emoji style for graphic display.
 GSTRING must have two glyphs; the first is a character that is
 sensitive to the text/emoji-style variation selector, and the
@@ -507,7 +507,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
     (lgstring-set-header gstring (vector (lgstring-font gstring)
 					 (lgstring-char gstring 0)))
     (lgstring-set-glyph gstring 1 nil)
-    (setq gstring (copy-sequence (font-shape-gstring gstring)))
+    (setq gstring (copy-sequence (font-shape-gstring gstring direction)))
     (when gstring
       (lgstring-set-header gstring saved-header)
       (lgstring-set-id gstring nil)
@@ -682,7 +682,8 @@ second is a glyph for the variation selector 16 (U+FE0F)."
   :type 'integer
   :group 'mac)
 
-(declare-function mac-font-shape-gstring-nocache "macfont.m" (gstring))
+(declare-function mac-font-shape-gstring-nocache "macfont.m"
+                  (gstring direction))
 
 (defvar mac-auto-operator-composition-cache (make-hash-table :test 'equal))
 
@@ -722,28 +723,29 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	 (or (= i len1)
 	     (and (< i len1) (null (lgstring-glyph gstring1 i)))))))
 
-(defun mac-auto-operator-composition-shape-gstring (gstring)
+(defun mac-auto-operator-composition-shape-gstring (gstring direction)
   "Like `font-shape-gstring', but return nil unless GSTRING is minimal.
 GSTRING is minimal if and only if the shaped GSTRING does not
 coincide with the concatenation of the shaped ones of any proper
 prefix of GSTRING and the corresponding suffix."
   (if (gethash (lgstring-header gstring) mac-auto-operator-composition-cache)
       nil
-    (let ((full (mac-font-shape-gstring-nocache (mac-subgstring gstring)))
+    (let ((full (mac-font-shape-gstring-nocache
+                 (mac-subgstring gstring) direction))
 	  (char-len (lgstring-char-len gstring))
 	  (i 1))
       (while (and full (< i char-len))
 	(let ((partial (mac-font-shape-gstring-nocache
-			(mac-subgstring gstring 0 i))))
+			(mac-subgstring gstring 0 i) direction)))
 	  (when (and partial (mac-gstring-prefix-p partial full))
             (setq partial (mac-font-shape-gstring-nocache
-                           (mac-subgstring gstring i)))
+                           (mac-subgstring gstring i) direction))
             (if (and partial (mac-gstring-prefix-p partial
                                                    (mac-subgstring full i)))
                 (setq full nil))))
 	(setq i (1+ i)))
       (if full
-	  (font-shape-gstring gstring)
+	  (font-shape-gstring gstring direction)
 	(puthash (copy-sequence (lgstring-header gstring)) t
 		 mac-auto-operator-composition-cache)
 	nil))))
@@ -2479,15 +2481,19 @@ non-nil, and the input device supports it."
 		  (progn
 		    (redisplay t)
 		    (window-line-height nil window-to-scroll))))
+	     (tab-line-height
+	      (window-line-height 'tab-line window-to-scroll))
 	     (header-line-height
 	      (window-line-height 'header-line window-to-scroll))
 	     (first-height (window-line-height 0 window-to-scroll))
 	     (last-height (window-line-height -1 window-to-scroll))
-	     (first-y (or (car header-line-height) 0))
+	     (first-y (+ (or (car tab-line-height) 0)
+                         (or (car header-line-height) 0)))
 	     (first-height-sans-hidden-top
 	      (cond ((= (car first-height) 0) ; completely invisible.
 		     0)
-		    ((null header-line-height) ; no header line.
+		    ((not (or tab-line-height
+                              header-line-height)) ; no tab or header line.
 		     (+ (car first-height) (nth 3 first-height)))
 		    (t	  ; might be partly hidden by the header line.
 		     (+ (- (car first-height)
@@ -2978,8 +2984,8 @@ scaling.  If you don't want to trigger tab group overview by the
 pinch close gesture, then remap this command to
 `mac-magnify-text-scale'."
   (interactive "e")
-  (if (not (or (>= (cadr (x-server-version)) 13)
-               (> (car (x-server-version)) 10)))
+  (if (not (or (> (car (x-server-version)) 10)
+               (>= (cadr (x-server-version)) 13)))
       (mac-magnify-text-scale event)
     (let ((phase (plist-get (nth 3 event) :phase)))
       (if (or (null phase) (eq phase 'began))
@@ -3198,7 +3204,7 @@ standard ones in `x-handle-args'."
   ;; Make sure we have a valid resource name.
   (or (stringp x-resource-name)
       (let (i)
-	(setq x-resource-name (invocation-name))
+	(setq x-resource-name (copy-sequence invocation-name))
 
 	;; Change any . or * characters in x-resource-name to hyphens,
 	;; so as not to choke when we use it in X resource queries.
@@ -3314,7 +3320,7 @@ standard ones in `x-handle-args'."
 			     splash-screen-keymap)
 
   ;; Running on macOS 10.10 or later.
-  (when (or (>= (cadr (x-server-version)) 10) (> (car (x-server-version)) 10))
+  (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 10))
     (advice-add 'fancy-startup-screen :after
                 (lambda (&optional _concise)
                   (set (make-local-variable 'face-remapping-alist)
@@ -3325,7 +3331,7 @@ standard ones in `x-handle-args'."
   (push 'mac-mouse-buffer-menu selection-inhibit-update-commands)
 
   ;; Running on macOS 10.12 or later.
-  (when (or (>= (cadr (x-server-version)) 12) (> (car (x-server-version)) 10))
+  (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 12))
     (define-key ctl-x-5-map "5" 'mac-ctl-x-5-revolve-frame-tabbing)
     (define-key-after menu-bar-showhide-menu [mac-toggle-tab-bar]
       '(menu-item "Tab-bar" mac-toggle-tab-bar
@@ -3333,7 +3339,7 @@ standard ones in `x-handle-args'."
                   :button (:toggle . (mac-frame-tab-group-property
                                       nil :tab-bar-visible-p)))
       'menu-bar-mode)
-    (when (or (>= (cadr (x-server-version)) 13) (> (car (x-server-version)) 10))
+    (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 13))
       (define-key-after menu-bar-showhide-menu [mac-toggle-tab-group-overview]
         '(menu-item "Tab Group Overview" mac-toggle-tab-group-overview
                     :enable (mac-frame-tab-group-property nil :selected-frame)
