@@ -6065,7 +6065,7 @@ mac_iosurface_create (size_t width, size_t height)
 
   dispatch_queue_t queue =
     dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-  copyFromToBackSemaphore = dispatch_semaphore_create (0);
+  copyFromFrontToBackSemaphore = dispatch_semaphore_create (0);
 
   dispatch_async (queue, ^{
       size_t width = IOSurfaceGetWidth (backSurface);
@@ -6108,19 +6108,20 @@ mac_iosurface_create (size_t width, size_t height)
 	  IOSurfaceUnlock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	}
 
-      dispatch_semaphore_signal (copyFromToBackSemaphore);
+      dispatch_semaphore_signal (copyFromFrontToBackSemaphore);
     });
 }
 
 - (void)waitCopyFromFrontToBack
 {
-  if (copyFromToBackSemaphore)
+  if (copyFromFrontToBackSemaphore)
     {
-      dispatch_semaphore_wait (copyFromToBackSemaphore, DISPATCH_TIME_FOREVER);
+      dispatch_semaphore_wait (copyFromFrontToBackSemaphore,
+			       DISPATCH_TIME_FOREVER);
 #if !OS_OBJECT_USE_OBJC_RETAIN_RELEASE
-      dispatch_release (copyFromToBackSemaphore);
+      dispatch_release (copyFromFrontToBackSemaphore);
 #endif
-      copyFromToBackSemaphore = NULL;
+      copyFromFrontToBackSemaphore = NULL;
     }
 }
 

@@ -1007,7 +1007,7 @@ typedef NSInteger NSGlyphProperty;
 
   /* Semaphore used for synchronizing completion of asynchronous copy
      from CALayer contents to backing bitmap after swapping.  */
-  dispatch_semaphore_t copyFromToBackSemaphore;
+  dispatch_semaphore_t copyFromFrontToBackSemaphore;
 
 #if HAVE_MAC_METAL
   /* GPU-accessible image data for backing bitmap and CALayer
