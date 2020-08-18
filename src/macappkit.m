@@ -2605,13 +2605,17 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	 live resize transition layer used in full screen transition
 	 looks translucent if we make overlayView a subview of
 	 emacsView.  */
-      if (emacsView.layer)
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+      if (emacsView.wantsUpdateLayer)
+#endif
 	[emacsWindow.contentView addSubview:overlayView];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
       else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
 	[emacsView addSubview:overlayView];
       else
 	[emacsWindow.contentView addSubview:overlayView positioned:NSWindowBelow
 				 relativeTo:emacsView];
+#endif
       [self synchronizeOverlayViewFrame];
     }
 }
@@ -6007,6 +6011,11 @@ mac_iosurface_create (size_t width, size_t height)
   NSSize size = view.bounds.size;
   size_t width = size.width * scaleFactor;
   size_t height = size.height * scaleFactor;
+  NSColorSpace *colorSpace = view.window.colorSpace;
+  CGColorSpaceRef color_space = (colorSpace ? colorSpace.CGColorSpace
+				 /* The window does not have a backing
+				    store, and is off-screen.  */
+				 : mac_cg_color_space_rgb);
   CGContextRef bitmaps[2] = {NULL, NULL};
   IOSurfaceRef surfaces[2] = {NULL, NULL};
 
@@ -6023,7 +6032,7 @@ mac_iosurface_create (size_t width, size_t height)
 	  bytes_per_row = IOSurfaceGetBytesPerRow (surfaces[i]);
 	}
       bitmaps[i] = CGBitmapContextCreate (data, width, height, 8, bytes_per_row,
-					  view.window.colorSpace.CGColorSpace,
+					  color_space,
 					  /* This combination enables
 					     us to use LCD Font
 					     smoothing.  */
@@ -6499,14 +6508,14 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (BOOL)isOpaque
 {
-  return !(has_visual_effect_view_p () && self.layer);
+  return !(has_visual_effect_view_p () && self.wantsUpdateLayer);
 }
 
 #if HAVE_MAC_METAL
 - (void)updateMTLObjects
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     return;
 #endif
   [backing updateMTLObjectsForView:self];
@@ -6515,7 +6524,14 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (BOOL)wantsUpdateLayer
 {
-  return self.layer != nil && !emacsViewUpdateLayerDisabled;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (self.layer == nil
+      /* This method may be called when creating the layer tree, where
+	 the view layer is not ready.  */
+      && !FRAME_MAC_DOUBLE_BUFFERED_P (self.emacsFrame))
+    return NO;
+#endif
+  return !emacsViewUpdateLayerDisabled;
 }
 
 - (void)updateLayer
@@ -6569,7 +6585,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)synchronizeBacking
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     return;
 #endif
   if (!synchronizeBackingSuspended)
@@ -6585,7 +6601,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   eassert (pthread_main_np ());
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     {
       [self lockFocus];
 
@@ -6602,7 +6618,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   eassert (pthread_main_np ());
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     {
       [self unlockFocus];
 
@@ -6615,7 +6631,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     {
       [self scrollRect:rect by:delta];
 
@@ -6701,7 +6717,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 {
   [super scrollRect:aRect by:offset];
   if (rounded_bottom_corners_need_masking_p ()
-      && !self.layer)
+      && !self.wantsUpdateLayer)
     {
       if (roundedBottomCornersCopied)
 	[self setNeedsDisplay:YES];
@@ -15583,9 +15599,7 @@ mac_update_accessibility_status (struct frame *f)
     }
 #endif
 
-  [CATransaction setDisableActions:YES];
   [[overlayView layer] addSublayer:animationLayer];
-  [CATransaction commit];
 }
 
 - (CALayer *)layerForRect:(NSRect)rect
