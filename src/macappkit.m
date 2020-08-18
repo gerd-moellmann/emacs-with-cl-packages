@@ -4537,7 +4537,7 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
   if ([NSApp isHidden])
     window.needsOrderFrontOnUnhide = YES;
   else
-    mac_within_gui (^{
+    mac_within_app (^{
 	struct frame *p = FRAME_PARENT_FRAME (f);
 
 	if (p)
