@@ -495,6 +495,12 @@ typedef NSInteger NSPaperOrientation;
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
+@interface NSView (AvailableOn1080AndLater)
+@property (readonly) BOOL wantsUpdateLayer;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSView (AvailableOn1090AndLater)
 - (void)setLayerUsesCoreImageFilters:(BOOL)usesFilters;
