@@ -322,6 +322,13 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+@interface NSAppearance (AvailableOn110000AndLater)
++ (NSAppearance *)currentDrawingAppearance;
+- (void)performAsCurrentDrawingAppearance:(void (NS_NOESCAPE ^)(void))block;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
 @interface NSApplication (AppearanceCustomization) <NSAppearanceCustomization>
 @end

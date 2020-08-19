@@ -1163,6 +1163,31 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
   return result;
 }
 
+static void
+mac_with_current_drawing_appearance (NSAppearance *appearance,
+				     void (NS_NOESCAPE ^block) (void))
+{
+  if (
+#if __clang_major__ >= 9
+      @available (macOS 11.0, *)
+#else
+      [appearance
+	respondsToSelector:@selector(performAsCurrentDrawingAppearance:)]
+#endif
+      )
+    [appearance performAsCurrentDrawingAppearance:block];
+  else if (has_visual_effect_view_p ())
+    {
+      NSAppearance *oldAppearance = [NS_APPEARANCE currentAppearance];
+
+      [NS_APPEARANCE setCurrentAppearance:appearance];
+      block ();
+      [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+    }
+  else
+    block ();
+}
+
 
 /************************************************************************
 			     Application
@@ -8211,17 +8236,11 @@ create_resize_indicator_image (void)
 
   if (flag)
     {
-      NSAppearance *oldAppearance;
-      CGColorRef borderColor;
+      CGColorRef __block borderColor;
 
-      if (has_visual_effect_view_p ())
-	{
-	  oldAppearance = [NS_APPEARANCE currentAppearance];
-	  [NS_APPEARANCE setCurrentAppearance:self.effectiveAppearance];
-	}
-      borderColor = NSColor.selectedControlColor.copyCGColor;
-      if (has_visual_effect_view_p ())
-	[NS_APPEARANCE setCurrentAppearance:oldAppearance];
+      mac_with_current_drawing_appearance (self.effectiveAppearance, ^{
+	  borderColor = NSColor.selectedControlColor.copyCGColor;
+	});
 
       [layer setValue:((id) kCFBooleanTrue) forKey:@"showingBorder"];
 
@@ -8292,8 +8311,7 @@ mac_color_lookup (const char *color_name)
   Lisp_Object result = Qnil;
   char *colon;
   NSColorListName listName = @"System";
-  NSColor *color = nil, *colorInSRGB;
-  NSAppearance *oldAppearance, *appearance;
+  NSColor *color = nil;
 
   /* color_name is of the form either "mac:COLOR_LIST_NAME:COLOR_NAME"
      or "mac:COLOR_NAME".  The latter form is for system colors.  */
@@ -8337,15 +8355,15 @@ mac_color_lookup (const char *color_name)
   if (!color)
     return Qnil;
 
-  if (has_visual_effect_view_p ())
-    {
-      oldAppearance = [NS_APPEARANCE currentAppearance];
-      appearance = ([NSApp respondsToSelector:@selector(effectiveAppearance)]
-		    ? [NSApp effectiveAppearance]
-		    : [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
-      [NS_APPEARANCE setCurrentAppearance:appearance];
-    }
-  colorInSRGB = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+  NSAppearance *appearance =
+    ([NSApp respondsToSelector:@selector(effectiveAppearance)]
+     ? [NSApp effectiveAppearance]
+     : [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
+  NSColor * __block colorInSRGB;
+
+  mac_with_current_drawing_appearance (appearance, ^{
+      colorInSRGB = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+    });
   if (colorInSRGB)
     {
       CGFloat components[4];
@@ -8355,8 +8373,6 @@ mac_color_lookup (const char *color_name)
 					  (int) (components[1] * 255 + .5),
 					  (int) (components[2] * 255 + .5)));
     }
-  if (has_visual_effect_view_p ())
-    [NS_APPEARANCE setCurrentAppearance:oldAppearance];
 
   return result;
 }
@@ -9052,13 +9068,27 @@ static BOOL NonmodalScrollerPagingBehavior;
   [self.window.backgroundColor set];
   NSRectFill (aRect);
   [super drawRect:aRect];
-  if (has_visual_effect_view_p ()
-      && ![NS_APPEARANCE currentAppearance].allowsVibrancy
-      && !mac_accessibility_display_options.reduce_transparency_p)
+  if (has_visual_effect_view_p ())
     {
-      [[self.window.backgroundColor colorWithAlphaComponent:0.25] set];
-      NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
-				NSCompositingOperationSourceOver);
+      NSAppearance *currentDrawingAppearance;
+
+      if (
+#if __clang_major__ >= 9
+	  @available (macOS 11.0, *)
+#else
+	  [NS_APPEARANCE respondsToSelector:@selector(currentDrawingAppearance)]
+#endif
+	  )
+	currentDrawingAppearance = [NS_APPEARANCE currentDrawingAppearance];
+      else
+	currentDrawingAppearance = [NS_APPEARANCE currentAppearance];
+      if (!currentDrawingAppearance.allowsVibrancy
+	  && !mac_accessibility_display_options.reduce_transparency_p)
+	{
+	  [[self.window.backgroundColor colorWithAlphaComponent:0.25] set];
+	  NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
+				    NSCompositingOperationSourceOver);
+	}
     }
 }
 
