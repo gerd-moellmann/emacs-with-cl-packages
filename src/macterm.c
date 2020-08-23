@@ -5891,6 +5891,8 @@ syms_of_macterm (void)
   DEFSYM (Qapplication_kvo, "application-kvo");
   DEFSYM (Qchange, "change");
 
+  DEFSYM (Qmac_map_system_symbol, "mac-map-system-symbol");
+
   staticpro (&x_display_rdb_list);
   x_display_rdb_list = Qnil;
 

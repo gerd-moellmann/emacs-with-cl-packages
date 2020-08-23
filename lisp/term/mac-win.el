@@ -3393,6 +3393,127 @@ standard ones in `x-handle-args'."
 ;; Initiate drag and drop
 (define-key special-event-map [drag-n-drop] 'mac-dnd-handle-drag-n-drop-event)
 
+(defcustom mac-system-symbol-map
+  (mapcar (lambda (arg)
+	    (cons (purecopy (car arg)) (purecopy (cdr arg))))
+  '(
+    ("etc/images/attach" . "paperclip")
+    ("etc/images/back-arrow". "arrowshape.turn.up.backward")
+    ("etc/images/bookmark_add" . "bookmark")
+    ("etc/images/cancel" . "xmark.circle")
+    ("etc/images/checked" . "checkmark.square")
+    ("etc/images/close" . "xmark")
+    ("etc/images/connect" . "rectangle.connected.to.line.below")
+    ("etc/images/contact" . "person.crop.square.fill.and.at.rectangle")
+    ("etc/images/copy" . "doc.on.doc")
+    ("etc/images/cut" . "scissors")
+    ("etc/images/data-save" . "tray.and.arrow.down")
+    ("etc/images/delete" . "trash")
+    ("etc/images/describe" . "doc.badge.gearshape")
+    ("etc/images/diropen" . "folder")
+    ("etc/images/disconnect" . "slider.horizontal.below.rectangle")
+    ("etc/images/exit" . "pip.exit")
+    ("etc/images/fwd-arrow". "arrowshape.turn.up.forward")
+    ("etc/images/help" . "lifepreserver")
+    ("etc/images/home" . "house")
+    ("etc/images/index" . "list.bullet.rectangle")
+    ("etc/images/info" . "lightbulb")
+    ("etc/images/jump-to" . "arrow.turn.right.down")
+    ;; ("etc/images/letter")
+    ("etc/images/left-arrow" . "chevron.backward")
+    ("etc/images/lock" . "lock")
+    ("etc/images/lock-broken" . "lock.slash")
+    ("etc/images/lock-ok" . "lock.circle")
+    ;; ("etc/images/mh-logo")
+    ("etc/images/new" . "doc.badge.plus")
+    ("etc/images/next-node" . "chevron.forward.square")
+    ("etc/images/next-page" . "book")
+    ("etc/images/open" . "doc")
+    ("etc/images/paste" . "doc.on.clipboard")
+    ("etc/images/preferences" . "wrench.and.screwdriver")
+    ("etc/images/prev-node" . "chevron.backward.square")
+    ("etc/images/print" . "printer")
+    ("etc/images/redo" . "arrow.uturn.forward")
+    ("etc/images/refresh" . "arrow.clockwise")
+    ("etc/images/right-arrow" . "chevron.forward")
+    ("etc/images/save" . "square.and.arrow.down")
+    ("etc/images/saveas" . "square.and.arrow.down.on.square")
+    ("etc/images/search" . "magnifyingglass")
+    ("etc/images/search-replace" . "text.magnifyingglass")
+    ;; ("etc/images/separator")
+    ("etc/images/show" . "eye")
+    ;; ("etc/images/sort-ascending")
+    ;; ("etc/images/sort-column-ascending")
+    ;; ("etc/images/sort-criteria")
+    ;; ("etc/images/sort-descending")
+    ;; ("etc/images/sort-row-ascending")
+    ("etc/images/spell" . "textformat.abc.dottedunderline")
+    ;; ("etc/images/splash")
+    ("etc/images/unchecked" . "square")
+    ("etc/images/undo" . "arrow.uturn.backward")
+    ("etc/images/up-arrow" . "chevron.up")
+    ("etc/images/up-node" . "chevron.up.square")
+    ("etc/images/zoom-in" . "plus.magnifyingglass")
+    ("etc/images/zoom-out" . "minus.magnifyingglass")
+    ))
+  "How icons for tool bars are mapped to macOS system symbols.
+Emacs must be run on macOS 11.0 and later for this to have any effect."
+  :package-version '(Mac\ port . "7.10")
+  :type '(alist :key-type (string :tag "Emacs icon")
+                :value-type (choice (repeat (string :tag "Symbol name"))
+				    (string :tag "Symbol name")))
+  :group 'mac)
+
+(defcustom mac-icon-map-list '(mac-system-symbol-map)
+  "A list of alists that map icon file names to system symbols.
+The alists are searched in the order they appear.  The first match is used.
+The keys in the alists are file names without extension and with two directory
+components.  For example, to map /usr/local/share/emacs/26.3/etc/images/new.xpm
+to system symbol doc.badge.plus, use:
+
+  (\"etc/images/new\" . \"doc.badge.plus\")
+
+The list elements are either the symbol name for the alist or the
+alist itself.
+
+If you don't want system symbols, set the variable to nil."
+  :package-version '(Mac\ port . "7.10")
+  :type '(choice (const :tag "Don't use system symbols" nil)
+		 (repeat
+                  (choice symbol
+			  (alist :key-type (string :tag "Emacs icon")
+                                 :value-type
+                                 (choice (repeat (string :tag "Symbol name"))
+				         (string :tag "Symbol name"))))))
+  :group 'mac)
+
+(defconst mac-system-symbol-cache (make-hash-table :weakness t :test 'equal))
+
+(defun mac-map-system-symbol (file)
+  "Map icon with file name FILE to a macOS system symbol name.
+This uses `mac-icon-map-list' to map icon file names to macOS
+system symbol names."
+  (when (stringp file)
+    (or (gethash file mac-system-symbol-cache)
+	(puthash
+	 file
+	 (save-match-data
+	   (let* ((file-sans (file-name-sans-extension file))
+		  (key (and (string-match "/\\([^/]+/[^/]+/[^/]+$\\)"
+					  file-sans)
+			    (match-string 1 file-sans)))
+		  (icon-map mac-icon-map-list)
+		  elem value)
+	     (while (and (null value) icon-map)
+	       (setq elem (car icon-map)
+		     value (assoc-string (or key file-sans)
+					 (if (symbolp elem)
+					     (symbol-value elem)
+					   elem))
+		     icon-map (cdr icon-map)))
+	     (and value (cdr value))))
+	 mac-system-symbol-cache))))
+
 (provide 'mac-win)
 (provide 'term/mac-win)
 

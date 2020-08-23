@@ -537,6 +537,13 @@ static const NSControlStateValue NSControlStateValueOff = NSOffState;
 static const NSControlStateValue NSControlStateValueOn = NSOnState;
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+@interface NSImage (AvailableOn110000AndLater)
++ (instancetype)imageWithSystemSymbolName:(NSString *)symbolName
+		 accessibilityDescription:(NSString *)description;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
 @protocol NSTouchBarDelegate @end
 

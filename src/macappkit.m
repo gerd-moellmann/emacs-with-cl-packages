@@ -9842,6 +9842,23 @@ mac_is_frame_window_toolbar_visible (struct frame *f)
   return [[window toolbar] isVisible];
 }
 
+/* Copied from gtkutil.c.  */
+
+static Lisp_Object
+file_for_image (Lisp_Object image)
+{
+  Lisp_Object specified_file = Qnil;
+  Lisp_Object tail;
+
+  for (tail = XCDR (image);
+       NILP (specified_file) && CONSP (tail) && CONSP (XCDR (tail));
+       tail = XCDR (XCDR (tail)))
+    if (EQ (XCAR (tail), QCfile))
+      specified_file = XCAR (XCDR (tail));
+
+  return specified_file;
+}
+
 /* Update the tool bar for frame F.  Add new buttons and remove old.  */
 
 void
@@ -9877,9 +9894,8 @@ update_frame_tool_bar (struct frame *f)
       bool enabled_p = !NILP (PROP (TOOL_BAR_ITEM_ENABLED_P));
       bool selected_p = !NILP (PROP (TOOL_BAR_ITEM_SELECTED_P));
       int idx = 0;
-      ptrdiff_t img_id;
-      struct image *img;
       Lisp_Object image;
+      NSImage *systemSymbol = nil;
       NSString *label = nil;
       NSArrayOf (id) *cgImages = nil;
       NSToolbarItemIdentifier identifier = TOOLBAR_ICON_ITEM_IDENTIFIER;
@@ -9912,45 +9928,88 @@ update_frame_tool_bar (struct frame *f)
 	  if (!valid_image_p (image))
 	    continue;
 
-	  if (use_multiimage_icons_p)
-	    FRAME_BACKING_SCALE_FACTOR (f) = 1;
-          img_id = lookup_image (f, image);
-	  if (use_multiimage_icons_p)
-	    [frameController updateBackingScaleFactor];
-          img = IMAGE_FROM_ID (f, img_id);
-          prepare_image_for_display (f, img);
+	  if (
+#if __clang_major__ >= 9
+	      @available (macOS 10.16, *)
+#else
+	      [NSImage respondsToSelector:@selector(imageWithSystemSymbolName:accessibilityDescription:)]
+#endif
+	      )
+	    {
+	      Lisp_Object specified_file = file_for_image (image);
+	      Lisp_Object names = Qnil;
+	      if (!NILP (specified_file)
+		  && !NILP (Ffboundp (Qmac_map_system_symbol)))
+		names = call1 (Qmac_map_system_symbol, specified_file);
 
-          if (img->cg_image == NULL)
-	    continue;
+	      if (CONSP (names))
+		{
+		  Lisp_Object tem;
+		  for (tem = names; CONSP (tem); tem = XCDR (tem))
+		    if (! NILP (tem) && STRINGP (XCAR (tem)))
+		      {
+			NSString *str = [NSString
+					   stringWithLispString:(XCAR (tem))];
+			systemSymbol = [NSImage imageWithSystemSymbolName:str
+						 accessibilityDescription:nil];
+			if (systemSymbol) break;
+		      }
+		}
+	      else if (STRINGP (names))
+		{
+		  NSString *str = [NSString stringWithLispString:names];
+		  systemSymbol = [NSImage imageWithSystemSymbolName:str
+					   accessibilityDescription:nil];
+		}
+	    }
+
+	  if (!systemSymbol)
+	    {
+	      ptrdiff_t img_id;
+	      struct image *img;
+
+	      if (use_multiimage_icons_p)
+		FRAME_BACKING_SCALE_FACTOR (f) = 1;
+	      img_id = lookup_image (f, image);
+	      if (use_multiimage_icons_p)
+		[frameController updateBackingScaleFactor];
+	      img = IMAGE_FROM_ID (f, img_id);
+	      prepare_image_for_display (f, img);
+
+	      if (img->cg_image == NULL)
+		continue;
+
+	      /* As displayed images of toolbar image items are scaled
+		 to square shapes, narrow images such as separators
+		 look weird.  So we use separator items for too narrow
+		 disabled images.  */
+	      if (CGImageGetWidth (img->cg_image) <= 2 && !enabled_p)
+		identifier = toolbar_separator_item_identifier_if_available ();
+	      else if (!use_multiimage_icons_p
+		       || img->target_backing_scale == 0)
+		cgImages = [NSArray
+			     arrayWithObject:((__bridge id) img->cg_image)];
+	      else
+		{
+		  CGImageRef cg_image = img->cg_image;
+
+		  FRAME_BACKING_SCALE_FACTOR (f) = 2;
+		  img_id = lookup_image (f, image);
+		  [frameController updateBackingScaleFactor];
+		  img = IMAGE_FROM_ID (f, img_id);
+		  prepare_image_for_display (f, img);
+
+		  /* It's OK for img->cg_image to become NULL here.  */
+		  cgImages = [NSArray arrayWithObjects:((__bridge id) cg_image),
+				      ((__bridge id) img->cg_image), nil];
+		}
+	    }
 
 	  if (STRINGP (PROP (TOOL_BAR_ITEM_LABEL)))
 	    label = [NSString
 		      stringWithLispString:(PROP (TOOL_BAR_ITEM_LABEL))];
 	  else
 	    label = @"";
-
-	  /* As displayed images of toolbar image items are scaled to
-	     square shapes, narrow images such as separators look
-	     weird.  So we use separator items for too narrow disabled
-	     images.  */
-	  if (CGImageGetWidth (img->cg_image) <= 2 && !enabled_p)
-	    identifier = toolbar_separator_item_identifier_if_available ();
-	  else if (!use_multiimage_icons_p || img->target_backing_scale == 0)
-	    cgImages = [NSArray arrayWithObject:((__bridge id) img->cg_image)];
-	  else
-	    {
-	      CGImageRef cg_image = img->cg_image;
-
-	      FRAME_BACKING_SCALE_FACTOR (f) = 2;
-	      img_id = lookup_image (f, image);
-	      [frameController updateBackingScaleFactor];
-	      img = IMAGE_FROM_ID (f, img_id);
-	      prepare_image_for_display (f, img);
-
-	      /* It's OK for img->cg_image to become NULL here.  */
-	      cgImages = [NSArray arrayWithObjects:((__bridge id) cg_image),
-				  ((__bridge id) img->cg_image), nil];
-	    }
 	}
 
       if (!identifier)
@@ -9975,7 +10034,10 @@ update_frame_tool_bar (struct frame *f)
 	    {
 	      EmacsToolbarItem *item = [items objectAtIndex:pos];
 
-	      [item setCoreGraphicsImages:cgImages];
+	      if (systemSymbol)
+		item.image = systemSymbol;
+	      else
+		[item setCoreGraphicsImages:cgImages];
 	      [item setLabel:label];
 	      [item setEnabled:(enabled_p || idx >= 0)];
 	      [item setTag:i];
