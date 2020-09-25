@@ -11777,82 +11777,83 @@ init_menu_bar (void)
 						    appKitBundle, NULL));
 }
 
-/* Fill menu bar with the items defined by WV.  If DEEP_P, consider
-   the entire menu trees we supply, rather than just the menu bar item
-   names.  */
+/* Fill menu bar with the items defined by FIRST_WV.  If DEEP_P,
+   consider the entire menu trees we supply, rather than just the menu
+   bar item names.  */
 
 void
-mac_fill_menubar (widget_value *wv, bool deep_p)
+mac_fill_menubar (widget_value *first_wv, bool deep_p)
 {
-  NSMenu *newMenu, *mainMenu = [NSApp mainMenu], *helpMenu = nil;
-  NSInteger index, nitems = [mainMenu numberOfItems];
-  bool needs_update_p = deep_p;
+  mac_within_gui (^{
+      NSMenu *newMenu, *mainMenu = [NSApp mainMenu], *helpMenu = nil;
+      NSInteger index = 1, nitems = [mainMenu numberOfItems];
+      bool needs_update_p = deep_p;
 
-  newMenu = [[EmacsMenu alloc] init];
-  [newMenu setAutoenablesItems:NO];
+      newMenu = [[EmacsMenu alloc] init];
+      [newMenu setAutoenablesItems:NO];
 
-  for (index = 1; wv != NULL; wv = wv->next, index++)
-    {
-      NSString *title = CF_BRIDGING_RELEASE (CFStringCreateWithCString
-					     (NULL, wv->name,
-					      kCFStringEncodingMacRoman));
-      NSMenu *submenu;
-
-      /* The title of the Help menu needs to be localized in order for
-	 Spotlight for Help to be installed on Mac OS X 10.5.  */
-      if ([title isEqualToString:@"Help"])
-	title = localizedMenuTitleForHelp;
-      if (!needs_update_p)
+      for (widget_value *wv = first_wv; wv != NULL; wv = wv->next, index++)
 	{
-	  if (index >= nitems)
-	    needs_update_p = true;
-	  else
+	  NSString *title = CF_BRIDGING_RELEASE (CFStringCreateWithCString
+						 (NULL, wv->name,
+						  kCFStringEncodingMacRoman));
+	  NSMenu *submenu;
+
+	  /* The title of the Help menu needs to be localized in order
+	     for Spotlight for Help to be installed on Mac OS X
+	     10.5.  */
+	  if ([title isEqualToString:@"Help"])
+	    title = localizedMenuTitleForHelp;
+	  if (!needs_update_p)
 	    {
-	      submenu = [[mainMenu itemAtIndex:index] submenu];
-	      if (!(submenu && [title isEqualToString:[submenu title]]))
+	      if (index >= nitems)
 		needs_update_p = true;
+	      else
+		{
+		  submenu = [[mainMenu itemAtIndex:index] submenu];
+		  if (!(submenu && [title isEqualToString:[submenu title]]))
+		    needs_update_p = true;
+		}
 	    }
+
+	  submenu = [[NSMenu alloc] initWithTitle:title];
+	  [submenu setAutoenablesItems:NO];
+
+	  /* To make Input Manager add "Special Characters..." to the
+	     "Edit" menu, we have to localize the menu title.  */
+	  if ([title isEqualToString:@"Edit"])
+	    title = localizedMenuTitleForEdit;
+	  else if (title == localizedMenuTitleForHelp)
+	    helpMenu = submenu;
+
+	  [newMenu setSubmenu:submenu
+		      forItem:[newMenu addItemWithTitle:title action:nil
+					  keyEquivalent:@""]];
+
+	  if (wv->contents)
+	    [submenu fillWithWidgetValue:wv->contents];
+
+	  MRC_RELEASE (submenu);
 	}
 
-      submenu = [[NSMenu alloc] initWithTitle:title];
-      [submenu setAutoenablesItems:NO];
+      if (!needs_update_p && index != nitems)
+	needs_update_p = true;
 
-      /* To make Input Manager add "Special Characters..." to the
-	 "Edit" menu, we have to localize the menu title.  */
-      if ([title isEqualToString:@"Edit"])
-	title = localizedMenuTitleForEdit;
-      else if (title == localizedMenuTitleForHelp)
-	helpMenu = submenu;
+      if (needs_update_p)
+	{
+	  NSMenuItem *appleMenuItem = MRC_RETAIN ([mainMenu itemAtIndex:0]);
 
-      [newMenu setSubmenu:submenu
-		  forItem:[newMenu addItemWithTitle:title action:nil
-				      keyEquivalent:@""]];
+	  [mainMenu removeItem:appleMenuItem];
+	  [newMenu insertItem:appleMenuItem atIndex:0];
+	  MRC_RELEASE (appleMenuItem);
 
-      if (wv->contents)
-	[submenu fillWithWidgetValue:wv->contents];
-
-      MRC_RELEASE (submenu);
-    }
-
-  if (!needs_update_p && index != nitems)
-    needs_update_p = true;
-
-  if (needs_update_p)
-    {
-      NSMenuItem *appleMenuItem = MRC_RETAIN ([mainMenu itemAtIndex:0]);
-
-      [mainMenu removeItem:appleMenuItem];
-      [newMenu insertItem:appleMenuItem atIndex:0];
-      MRC_RELEASE (appleMenuItem);
-
-      mac_within_gui (^{
 	  [NSApp setMainMenu:newMenu];
 	  if (helpMenu)
 	    [NSApp setHelpMenu:helpMenu];
-	});
-    }
+	}
 
-  MRC_RELEASE (newMenu);
+      MRC_RELEASE (newMenu);
+    });
 }
 
 static void
@@ -11925,14 +11926,19 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
   EmacsFrameController *focusFrameController =
     dpyinfo->mac_focus_frame ? FRAME_CONTROLLER (dpyinfo->mac_focus_frame) : nil;
 
-  [menu setAutoenablesItems:NO];
-  [menu fillWithWidgetValue:first_wv->contents];
+  /* Inserting a menu item in a non-main thread causes hang on macOS
+     Big Sur beta 8.  */
+  mac_within_gui (^{
+      [menu setAutoenablesItems:NO];
+      [menu fillWithWidgetValue:first_wv->contents];
+    });
 
   mac_menu_set_in_use (true);
   mac_track_menu_with_block (^{
-  [focusFrameController noteLeaveEmacsView];
-  [frameController popUpMenu:menu atLocationInEmacsView:(NSMakePoint (x, y))];
-  [focusFrameController noteEnterEmacsView];
+      [focusFrameController noteLeaveEmacsView];
+      [frameController popUpMenu:menu
+	   atLocationInEmacsView:(NSMakePoint (x, y))];
+      [focusFrameController noteEnterEmacsView];
     });
   mac_menu_set_in_use (false);
 
