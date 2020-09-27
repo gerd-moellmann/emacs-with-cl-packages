@@ -10938,49 +10938,53 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
       if (NILP (only_dir_p) && NILP (mustmatch))
 	{
 	  /* This is a save dialog */
-	  NSSavePanel *savePanel = [EmacsSavePanel savePanel];
+	  NSSavePanel *savePanel = EmacsSavePanel.savePanel;
 	  NSModalResponse __block response;
 
-	  [savePanel setTitle:title];
-	  [savePanel setPrompt:@"OK"];
-	  [savePanel setNameFieldLabel:@"Enter Name:"];
+	  savePanel.title = title;
+	  savePanel.prompt = @"OK";
+	  savePanel.nameFieldLabel = @"Enter Name:";
 	  if ([savePanel respondsToSelector:@selector(setShowsTagField:)])
-	    [savePanel setShowsTagField:NO];
+	    savePanel.showsTagField = NO;
 
-	  [savePanel setDirectoryURL:[NSURL fileURLWithPath:directory
-						isDirectory:YES]];
+	  savePanel.directoryURL = [NSURL fileURLWithPath:directory
+					      isDirectory:YES];
 	  if (nondirectory)
-	    [savePanel setNameFieldStringValue:nondirectory];
+	    savePanel.nameFieldStringValue = nondirectory;
 	  mac_within_app (^{response = [savePanel runModal];});
 	  if (response == NSModalResponseOK)
-	    url = MRC_RETAIN ([savePanel URL]);
+	    url = MRC_RETAIN (savePanel.URL);
 	}
       else
 	{
 	  /* This is an open dialog */
-	  NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+	  NSOpenPanel *openPanel = NSOpenPanel.openPanel;
 	  NSModalResponse __block response;
 
-	  [openPanel setTitle:title];
-	  [openPanel setPrompt:@"OK"];
-	  [openPanel setAllowsMultipleSelection:NO];
-	  [openPanel setCanChooseDirectories:YES];
-	  [openPanel setCanChooseFiles:(NILP (only_dir_p))];
+	  openPanel.title = title;
+	  openPanel.prompt = @"OK";
+	  openPanel.allowsMultipleSelection = NO;
+	  openPanel.canChooseDirectories = YES;
+	  openPanel.canChooseFiles = NILP (only_dir_p);
 
-	  [openPanel setDirectoryURL:[NSURL fileURLWithPath:directory
-						isDirectory:YES]];
+	  openPanel.directoryURL = [NSURL fileURLWithPath:directory
+					      isDirectory:YES];
 	  if (nondirectory)
-	    [openPanel setNameFieldStringValue:nondirectory];
-	  [openPanel setAllowedFileTypes:nil];
+	    openPanel.nameFieldStringValue = nondirectory;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 110000
+	  openPanel.allowedContentTypes = @[];
+#else
+	  openPanel.allowedFileTypes = nil;
+#endif
 	  mac_within_app (^{response = [openPanel runModal];});
 	  if (response == NSModalResponseOK)
-	    url = MRC_RETAIN ([[openPanel URLs] objectAtIndex:0]);
+	    url = MRC_RETAIN ([openPanel.URLs objectAtIndex:0]);
 	}
     });
   mac_menu_set_in_use (false);
 
-  if ([url isFileURL])
-    file = [[url path] lispString];
+  if (url.isFileURL)
+    file = url.path.lispString;
   MRC_RELEASE (url);
 
   unblock_input ();

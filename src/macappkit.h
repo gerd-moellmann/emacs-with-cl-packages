@@ -379,7 +379,7 @@ enum {
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSSavePanel (AvailableOn1090AndLater)
-- (void)setShowsTagField:(BOOL)flag;
+@property BOOL showsTagField;
 @end
 #endif
 
