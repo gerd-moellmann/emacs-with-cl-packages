@@ -3547,7 +3547,7 @@ mac_cg_image_source_find_2x_index (CGImageSourceRef source)
 static CFStringRef
 mac_create_type_identifier_for_image_spec (Lisp_Object spec)
 {
-  CFStringRef identifier = NULL, tag_class, tag;
+  CFStringRef identifier = NULL;
   Lisp_Object val, format = image_spec_value (spec, intern (":format"), NULL);
 
   if (NILP (format))
@@ -3557,18 +3557,26 @@ mac_create_type_identifier_for_image_spec (Lisp_Object spec)
   if (CONSP (val)
       && (val = Fcar_safe (Fcdr_safe (Fassq (format, val))),
 	  STRINGP (val)))
-    tag_class = kUTTagClassFilenameExtension;
-  else
     {
-      tag_class = kUTTagClassMIMEType;
-      val = SYMBOL_NAME (format);
+      CFStringRef extension = cfstring_create_with_string (val);
+
+      if (extension)
+	{
+	  identifier = mac_uti_create_with_filename_extension (extension);
+	  CFRelease (extension);
+	}
     }
 
-  tag = cfstring_create_with_string (val);
-  if (tag)
+  if (identifier == NULL)
     {
-      identifier = UTTypeCreatePreferredIdentifierForTag (tag_class, tag, NULL);
-      CFRelease (tag);
+      CFStringRef mime_type =
+	cfstring_create_with_string (SYMBOL_NAME (format));
+
+      if (mime_type)
+	{
+	  identifier = mac_uti_create_with_mime_type (mime_type);
+	  CFRelease (mime_type);
+	}
     }
 
   return identifier;
@@ -3645,8 +3653,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
     }
   else
     {
-      gif_p = UTTypeEqual (type, kUTTypeGIF);
-      tiff_p = UTTypeEqual (type, kUTTypeTIFF);
+      gif_p = CFEqual (type, UTI_GIF);
+      tiff_p = CFEqual (type, UTI_TIFF);
       specified_type = CFRetain (type);
     }
   if (specified_type)
@@ -3679,7 +3687,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
       if (type == NULL
 	  || (real_type = CGImageSourceGetType (source),
-	      real_type && UTTypeEqual (type, real_type)))
+	      real_type && CFEqual (type, real_type)))
 	src_props = CGImageSourceCopyProperties (source, NULL);
       if (src_props)
 	{
@@ -8171,7 +8179,7 @@ png_load (struct frame *f, struct image *img)
 static bool
 png_load (struct frame *f, struct image *img)
 {
-  return image_load_image_io (f, img, kUTTypePNG);
+  return image_load_image_io (f, img, UTI_PNG);
 }
 
 #elif defined HAVE_NS
@@ -8753,7 +8761,7 @@ jpeg_load (struct frame *f, struct image *img)
 static bool
 jpeg_load (struct frame *f, struct image *img)
 {
-  return image_load_image_io (f, img, kUTTypeJPEG);
+  return image_load_image_io (f, img, UTI_JPEG);
 }
 #endif  /* HAVE_MACGUI */
 
@@ -9201,7 +9209,7 @@ tiff_load (struct frame *f, struct image *img)
 static bool
 tiff_load (struct frame *f, struct image *img)
 {
-  return image_load_image_io (f, img, kUTTypeTIFF);
+  return image_load_image_io (f, img, UTI_TIFF);
 }
 
 #elif defined HAVE_NS
@@ -9807,7 +9815,7 @@ gif_load (struct frame *f, struct image *img)
 static bool
 gif_load (struct frame *f, struct image *img)
 {
-  return image_load_image_io (f, img, kUTTypeGIF);
+  return image_load_image_io (f, img, UTI_GIF);
 }
 #endif /* HAVE_MACGUI */
 
@@ -10838,9 +10846,7 @@ is not available.  */)
 	    Lisp_Object ext = Qnil;
 
 	    identifier = CFArrayGetValueAtIndex (identifiers[j], i);
-	    extension =
-	      UTTypeCopyPreferredTagWithClass (identifier,
-					       kUTTagClassFilenameExtension);
+	    extension = mac_uti_copy_filename_extension (identifier);
 	    if (extension)
 	      {
 		ext = cfstring_to_lisp_nodecode (extension);

@@ -1191,6 +1191,45 @@ mac_with_current_drawing_appearance (NSAppearance *appearance,
     block ();
 }
 
+CFStringRef
+mac_uti_create_with_mime_type (CFStringRef mime_type)
+{
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+  return CF_BRIDGING_RETAIN ([UTType typeWithMIMEType:((__bridge NSString *)
+						       mime_type)]
+			     .identifier);
+#else
+  return UTTypeCreatePreferredIdentifierForTag (kUTTagClassMIMEType,
+						mime_type, kUTTypeData);
+#endif
+}
+
+CFStringRef
+mac_uti_create_with_filename_extension (CFStringRef extension)
+{
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+  return CF_BRIDGING_RETAIN ([UTType
+			       typeWithFilenameExtension:((__bridge NSString *)
+							  extension)]
+			     .identifier);
+#else
+  return UTTypeCreatePreferredIdentifierForTag (kUTTagClassFilenameExtension,
+						extension, kUTTypeData);
+#endif
+}
+
+CFStringRef
+mac_uti_copy_filename_extension (CFStringRef uti)
+{
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+  return CF_BRIDGING_RETAIN ([UTType typeWithIdentifier:((__bridge NSString *)
+							 uti)]
+			     .preferredFilenameExtension);
+#else
+  return UTTypeCopyPreferredTagWithClass (uti, kUTTagClassFilenameExtension);
+#endif
+}
+
 
 /************************************************************************
 			     Application
@@ -13113,7 +13152,7 @@ update_dragged_types (void)
 Lisp_Object
 mac_dnd_default_known_types (void)
 {
-  return list3 ([(__bridge NSPasteboardType)kUTTypeURL UTF8LispString],
+  return list3 ([(__bridge NSPasteboardType)UTI_URL UTF8LispString],
 		[NSPasteboardTypeString UTF8LispString],
 		[NSPasteboardTypeTIFF UTF8LispString]);
 }
@@ -14481,7 +14520,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   NSData *data;
   NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
 
-  if (type && !UTTypeEqual ((__bridge CFStringRef) type, kUTTypePDF))
+  if (type && !CFEqual ((__bridge CFStringRef) type, UTI_PDF))
     goto error;
 
   fileHandle = [NSFileHandle fileHandleForReadingFromURL:url error:NULL];
@@ -14514,7 +14553,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 {
   NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
 
-  if (type && !UTTypeEqual ((__bridge CFStringRef) type, kUTTypePDF))
+  if (type && !CFEqual ((__bridge CFStringRef) type, UTI_PDF))
     goto error;
   if ([data length] < 5 || memcmp ([data bytes], "%PDF-", 5) != 0)
     goto error;
@@ -14538,7 +14577,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 
 + (NSArrayOf (NSString *) *)supportedTypes
 {
-  return [NSArray arrayWithObject:((__bridge NSString *) kUTTypePDF)];
+  return [NSArray arrayWithObject:((__bridge NSString *) UTI_PDF)];
 }
 
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index

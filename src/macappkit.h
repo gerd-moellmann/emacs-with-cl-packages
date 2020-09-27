@@ -26,6 +26,9 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #if HAVE_MAC_METAL
 #import <Metal/Metal.h>
 #endif
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#endif
 #define Z (current_buffer->text->z)
 
 #ifndef NSFoundationVersionNumber10_8_3

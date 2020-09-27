@@ -425,6 +425,22 @@ BLOCK_EXPORT void * _NSConcreteGlobalBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_A
 BLOCK_EXPORT void * _NSConcreteStackBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
 #endif
 
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+#define UTI_PNG		(CFSTR ("public.png"))
+#define UTI_JPEG	(CFSTR ("public.jpeg"))
+#define UTI_TIFF	(CFSTR ("public.tiff"))
+#define UTI_GIF		(CFSTR ("com.compuserve.gif"))
+#define UTI_URL		(CFSTR ("public.url"))
+#define UTI_PDF		(CFSTR ("com.adobe.pdf"))
+#else
+#define UTI_PNG		kUTTypePNG
+#define UTI_JPEG	kUTTypeJPEG
+#define UTI_TIFF	kUTTypeTIFF
+#define UTI_GIF		kUTTypeGIF
+#define UTI_URL		kUTTypeURL
+#define UTI_PDF		kUTTypePDF
+#endif
+
 /* From macfns.c.  */
 
 extern void mac_free_gcs (struct frame *);
@@ -575,6 +591,9 @@ extern double mac_system_uptime (void);
 extern bool mac_is_current_process_frontmost (void);
 extern void mac_bring_current_process_to_front (bool);
 extern bool mac_trash_file (const char *, CFErrorRef *);
+extern CFStringRef mac_uti_create_with_mime_type (CFStringRef);
+extern CFStringRef mac_uti_create_with_filename_extension (CFStringRef);
+extern CFStringRef mac_uti_copy_filename_extension (CFStringRef);
 extern OSStatus install_application_handler (void);
 extern Lisp_Object mac_application_state (void);
 extern void mac_set_frame_window_title (struct frame *, CFStringRef);
