@@ -398,19 +398,19 @@ The entries are currently based on emoji-variation-sequences.txt 13.0.")
 \U0001F466\U0001F467\U0001F468\U0001F469\U0001F46B\U0001F46C\U0001F46D\
 \U0001F46E\U0001F470\U0001F471\U0001F472\U0001F473\U0001F474\U0001F475\
 \U0001F476\U0001F477\U0001F478\U0001F47C\U0001F481\U0001F482\U0001F483\
-\U0001F485\U0001F486\U0001F487\U0001F4AA\U0001F574\U0001F575\U0001F57A\
-\U0001F590\U0001F595\U0001F596\U0001F645\U0001F646\U0001F647\U0001F64B\
-\U0001F64C\U0001F64D\U0001F64E\U0001F64F\U0001F6A3\U0001F6B4\U0001F6B5\
-\U0001F6B6\U0001F6C0\U0001F6CC\U0001F90C\U0001F90F\U0001F918\U0001F919\
-\U0001F91A\U0001F91B\U0001F91C\U0001F91E\U0001F91F\U0001F926\U0001F930\
-\U0001F931\U0001F932\U0001F933\U0001F934\U0001F935\U0001F936\U0001F937\
-\U0001F938\U0001F939\U0001F93D\U0001F93E\U0001F977\U0001F9B5\U0001F9B6\
-\U0001F9B8\U0001F9B9\U0001F9BB\U0001F9CD\U0001F9CE\U0001F9CF\U0001F9D1\
-\U0001F9D2\U0001F9D3\U0001F9D4\U0001F9D5\U0001F9D6\U0001F9D7\U0001F9D8\
-\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD"))
+\U0001F485\U0001F486\U0001F487\U0001F48F\U0001F4AA\U0001F574\U0001F575\
+\U0001F57A\U0001F590\U0001F595\U0001F596\U0001F645\U0001F646\U0001F647\
+\U0001F64B\U0001F64C\U0001F64D\U0001F64E\U0001F64F\U0001F6A3\U0001F6B4\
+\U0001F6B5\U0001F6B6\U0001F6C0\U0001F6CC\U0001F90C\U0001F90F\U0001F918\
+\U0001F919\U0001F91A\U0001F91B\U0001F91C\U0001F91E\U0001F91F\U0001F926\
+\U0001F930\U0001F931\U0001F932\U0001F933\U0001F934\U0001F935\U0001F936\
+\U0001F937\U0001F938\U0001F939\U0001F93D\U0001F93E\U0001F977\U0001F9B5\
+\U0001F9B6\U0001F9B8\U0001F9B9\U0001F9BB\U0001F9CD\U0001F9CE\U0001F9CF\
+\U0001F9D1\U0001F9D2\U0001F9D3\U0001F9D4\U0001F9D5\U0001F9D6\U0001F9D7\
+\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-sequences.txt 13.0.")
+The entries are currently based on emoji-sequences.txt 13.1.")
 
 (defconst mac-emoji-gendered-zwj-characters-alist
   '((role . "\u2695\u2696\u2708\
@@ -423,12 +423,12 @@ The entries are currently based on emoji-sequences.txt 13.0.")
 \U0001F482\U0001F486\U0001F487\U0001F575\U0001F645\U0001F646\U0001F647\
 \U0001F64B\U0001F64D\U0001F64E\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\
 \U0001F926\U0001F935\U0001F937\U0001F938\U0001F939\U0001F93C\U0001F93D\
-\U0001F93E\U0001F9B8\U0001F9B9\U0001F9CD\U0001F9CE\U0001F9CF\U0001F9D6\
-\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD\
-\U0001F9DE\U0001F9DF"))
+\U0001F93E\U0001F9B8\U0001F9B9\U0001F9CD\U0001F9CE\U0001F9CF\U0001F9D4\
+\U0001F9D6\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\
+\U0001F9DD\U0001F9DE\U0001F9DF"))
   "Groups of characters that are parts of the gendered zwj sequences.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-zwj-sequences.txt 13.0.")
+The entries are currently based on emoji-zwj-sequences.txt 13.1.")
 
 (defconst mac-emoji-tag-base-characters-alist
   '((flag "\U0001F3F4" "[\U000E0030-\U000E0039\U000E0061-\U000E007A]+"))
@@ -436,7 +436,7 @@ The entries are currently based on emoji-zwj-sequences.txt 13.0.")
 It is an alist of label symbols vs lists whose elements are of
 the form (CHARS SPEC) where CHARS is a string of tag base
 characters and SPEC is a regexp for the corresponding tag spec.
-The entries are currently based on emoji-sequences.txt 13.0.")
+The entries are currently based on emoji-sequences.txt 13.1.")
 
 (defun mac-emoji-multistyles-unistyles (sequence)
   "Split emoji SEQUENCE into a cons of multistyles and unistyles."
@@ -588,12 +588,16 @@ second is a glyph for the variation selector 16 (U+FE0F)."
          (man "\U0001F468") (woman "\U0001F469") (person "\U0001F9D1")
 	 (girl "\U0001F467") (boy "\U0001F466")
 	 (red-heart "\u2764") (kiss-mark "\U0001F48B") (handshake "\U0001F91D")
+         (fire "\U0001F525") (adhesive-bandage "\U0001FA79")
          (white-flag "\U0001F3F3") (transgender "\u26A7") (rainbow "\U0001F308")
          (black-flag "\U0001F3F4") (skull-and-crossbones "\u2620")
          (cat "\U0001F408") (black-large-square "\u2B1B")
          (dog "\U0001F415") (safety-vest "\U0001F9BA")
          (bear "\U0001F43B") (snowflake "\u2744")
          (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
+         (face-with-open-mouth "\U0001F62E") (dashing-away "\U0001F4A8")
+         (knocked-out-face "\U0001F635") (dizzy "\U0001F4AB")
+         (face-without-mouth "\U0001F636") (fog "\U0001F32B")
          (christmas-tree "\U0001F384")
          (female "\u2640") (male "\u2642")
          (vs16? (concat vs16 "?"))
@@ -627,6 +631,8 @@ second is a glyph for the variation selector 16 (U+FE0F)."
                  "\\|[" object-multistyles "]" vs16?
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring -1]
+       [,(concat red-heart zwj "\\(?:" fire "\\|" adhesive-bandage "\\)")
+	1 font-shape-gstring -1]
        [,(concat white-flag zwj "\\(?:" transgender vs16? "\\|" rainbow "\\)")
 	1 font-shape-gstring -1]
        [,(concat black-flag zwj skull-and-crossbones vs16?)
@@ -639,13 +645,21 @@ second is a glyph for the variation selector 16 (U+FE0F)."
 	1 font-shape-gstring -1]
        [,(concat eye zwj left-speech-bubble vs16?)
 	1 font-shape-gstring -1]
+       [,(concat face-with-open-mouth zwj dashing-away)
+	1 font-shape-gstring -1]
+       [,(concat knocked-out-face zwj dizzy)
+	1 font-shape-gstring -1]
+       [,(concat face-without-mouth zwj fog vs16?)
+	1 font-shape-gstring -1]
        [,(concat person zwj christmas-tree)
 	1 font-shape-gstring -1]
        [,(concat "[" signs "]." female-or-male vs16?)
 	1 font-shape-gstring -1]))
     (set-char-table-range
      composition-function-table ?\uFE0F
-     `([,(concat white-flag vs16 zwj
+     `([,(concat red-heart vs16 zwj "\\(?:" fire "\\|" adhesive-bandage "\\)")
+	1 font-shape-gstring 0]
+       [,(concat white-flag vs16 zwj
                  "\\(?:" transgender vs16? "\\|" rainbow "\\)")
         1 font-shape-gstring 0]
        [,(concat eye vs16 zwj left-speech-bubble vs16?)
@@ -660,6 +674,12 @@ second is a glyph for the variation selector 16 (U+FE0F)."
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring 0]
        [,(concat "[" signs "]." zwj female-or-male vs16?)
+	1 font-shape-gstring 0]
+       [,(concat man "." zwj "\\(?:" red-heart vs16? zwj
+                 "\\(?:" kiss-mark zwj "\\)?" man modifiers "\\)")
+	1 font-shape-gstring 0]
+       [,(concat woman "." zwj "\\(?:" red-heart vs16? zwj
+		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman modifiers "\\)")
 	1 font-shape-gstring 0]
        [,(concat "\\(" man "\\|" person "\\)." zwj handshake zwj
                  "\\1" modifiers)
