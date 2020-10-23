@@ -706,6 +706,7 @@ typedef NSInteger NSGlyphProperty;
 @interface NSColor (Emacs)
 + (NSColor *)colorWithEmacsColorPixel:(unsigned long)pixel;
 - (CGColorRef)copyCGColor;
+- (BOOL)getSRGBComponents:(CGFloat *)components;
 @end
 
 @interface NSImage (Emacs)

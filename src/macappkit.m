@@ -534,6 +534,18 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 #endif
 }
 
+- (BOOL)getSRGBComponents:(CGFloat *)components
+{
+  NSColor *color = [self colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+
+  if (color == nil)
+    return NO;
+
+  [color getComponents:components];
+
+  return YES;
+}
+
 @end				// NSColor (Emacs)
 
 @implementation NSImage (Emacs)
@@ -8350,7 +8362,7 @@ create_resize_indicator_image (void)
 Lisp_Object
 mac_color_lookup (const char *color_name)
 {
-  Lisp_Object result = Qnil;
+  Lisp_Object __block result = Qnil;
   char *colon;
   NSColorListName listName = @"System";
   NSColor *color = nil;
@@ -8401,20 +8413,15 @@ mac_color_lookup (const char *color_name)
     ([NSApp respondsToSelector:@selector(effectiveAppearance)]
      ? [NSApp effectiveAppearance]
      : [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
-  NSColor * __block colorInSRGB;
 
   mac_with_current_drawing_appearance (appearance, ^{
-      colorInSRGB = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-    });
-  if (colorInSRGB)
-    {
       CGFloat components[4];
 
-      [colorInSRGB getComponents:components];
-      result = make_fixnum (RGB_TO_ULONG ((int) (components[0] * 255 + .5),
-					  (int) (components[1] * 255 + .5),
-					  (int) (components[2] * 255 + .5)));
-    }
+      if ([color getSRGBComponents:components])
+	result = make_fixnum (RGB_TO_ULONG ((int) (components[0] * 255 + .5),
+					    (int) (components[1] * 255 + .5),
+					    (int) (components[2] * 255 + .5)));
+    });
 
   return result;
 }
