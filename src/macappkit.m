@@ -546,6 +546,31 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   return YES;
 }
 
++ (NSColor *)colorWithCoreGraphicsColor:(CGColorRef)cgColor
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
+  if ([self respondsToSelector:@selector(colorWithCGColor:)])
+#endif
+    return [self colorWithCGColor:cgColor];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
+  CGColorSpaceRef color_space = CGColorGetColorSpace (cgColor);
+
+  if (color_space)
+    {
+      NSColorSpace *colorSpace =
+	MRC_AUTORELEASE ([[NSColorSpace alloc]
+			   initWithCGColorSpace:color_space]);
+
+      return [NSColor
+	       colorWithColorSpace:colorSpace
+			components:(CGColorGetComponents (cgColor))
+			     count:(CGColorGetNumberOfComponents (cgColor))];
+    }
+
+  return nil;
+#endif
+}
+
 @end				// NSColor (Emacs)
 
 @implementation NSImage (Emacs)
@@ -14582,6 +14607,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return NO;
 }
 
+- (BOOL)shouldNotCache
+{
+  return NO;
+}
+
 + (NSArrayOf (NSString *) *)supportedTypes
 {
   return [NSArray arrayWithObject:((__bridge NSString *) UTI_PDF)];
@@ -14611,6 +14641,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
 	      inContext:(CGContextRef)ctx
+		options:(NSDictionaryOf (NSString *, id) *)options /* unused */
 {
   PDFPage *page = [self pageAtIndex:index];
   NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
@@ -14651,6 +14682,443 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 }
 
 @end				// EmacsPDFDocument
+
+@implementation EmacsSVGDocument
+
+/* WebView object that was used in the last deallocated
+   EmacsSVGDocument object.  This is reused to avoid the overhead of
+   WebView object creation.  */
+#ifdef USE_WK_API
+static WKWebView *EmacsSVGDocumentLastWebView;
+#else
+static WebView *EmacsSVGDocumentLastWebView;
+#endif
+
+- (instancetype)initWithURL:(NSURL *)url
+		    options:(NSDictionaryOf (NSString *, id) *)options
+{
+  NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingFromURL:url
+								 error:NULL];
+  NSData *data = fileHandle.availableData;
+
+  if (!data)
+    goto error;
+
+  self = [self initWithData:data options:options];
+
+  return self;
+
+ error:
+  self = [super init];
+  MRC_RELEASE (self);
+  self = nil;
+
+  return self;
+}
+
+- (NSSize)frameSizeForBoundingBox:(id)boundingBox widthBaseVal:(id)widthBaseVal
+		    heightBaseVal:(id)heightBaseVal imageWidth:(int *)imageWidth
+		      imageHeight:(int *)imageHeight
+{
+  NSNumber *unitType, *num;
+  NSSize frameSize;
+  int width, height;
+  enum {
+	SVG_LENGTHTYPE_PERCENTAGE = 2
+  };
+
+  unitType = [widthBaseVal valueForKey:@"unitType"];
+  if (unitType.intValue == SVG_LENGTHTYPE_PERCENTAGE)
+    {
+      frameSize.width =
+	round ([[boundingBox valueForKey:@"x"] doubleValue]
+	       + [[boundingBox valueForKey:@"width"] doubleValue]);
+      num = [widthBaseVal valueForKey:@"valueInSpecifiedUnits"];
+      width = lround (frameSize.width * num.doubleValue / 100);
+    }
+  else
+    {
+      num = [widthBaseVal valueForKey:@"value"];
+      width = lround (num.doubleValue);
+      frameSize.width = width;
+    }
+
+  unitType = [heightBaseVal valueForKey:@"unitType"];
+  if (unitType.intValue == SVG_LENGTHTYPE_PERCENTAGE)
+    {
+      frameSize.height =
+	round ([[boundingBox valueForKey:@"y"] doubleValue]
+	       + [[boundingBox valueForKey:@"height"] doubleValue]);
+      num = [heightBaseVal valueForKey:@"valueInSpecifiedUnits"];
+      height = lround (frameSize.height * num.doubleValue / 100);
+    }
+  else
+    {
+      num = [heightBaseVal valueForKey:@"value"];
+      height = lround (num.doubleValue);
+      frameSize.height = height;
+    }
+
+  *imageWidth = width;
+  *imageHeight = height;
+
+  return frameSize;
+}
+
+- (instancetype)initWithData:(NSData *)data
+		     options:(NSDictionaryOf (NSString *, id) *)options
+{
+  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
+
+  if (type && !CFEqual ((__bridge CFStringRef) type, UTI_SVG))
+    {
+      self = [super init];
+      MRC_RELEASE (self);
+      self = nil;
+
+      return self;
+    }
+
+  self = [super init];
+
+  if (self == nil)
+    return nil;
+
+  NSRect frameRect = NSMakeRect (0, 0, 100, 100); /* Adjusted later.  */
+  if (!EmacsSVGDocumentLastWebView)
+    {
+#ifdef USE_WK_API
+      WKWebViewConfiguration *configuration =
+	[[WKWebViewConfiguration alloc] init];
+
+      configuration.suppressesIncrementalRendering = YES;
+      webView = [[WKWebView alloc] initWithFrame:frameRect
+				   configuration:configuration];
+      MRC_RELEASE (configuration);
+#else  /* !USE_WK_API */
+      webView = [[WebView alloc] initWithFrame:frameRect frameName:nil
+				     groupName:nil];
+#endif  /* !USE_WK_API */
+    }
+  else
+    {
+      webView = EmacsSVGDocumentLastWebView;
+      EmacsSVGDocumentLastWebView = nil;
+      webView.frame = frameRect;
+    }
+
+  NSURL *baseURL = [options objectForKey:@"baseURL"];
+#ifdef USE_WK_API
+  webView.navigationDelegate = self;
+  [webView loadData:data MIMEType:@"image/svg+xml"
+	   characterEncodingName:@"UTF-8" baseURL:baseURL];
+#else  /* !USE_WK_API */
+  webView.frameLoadDelegate = self;
+  webView.mainFrame.frameView.allowsScrolling = NO;
+  [webView.mainFrame loadData:data MIMEType:@"image/svg+xml"
+	     textEncodingName:nil baseURL:baseURL];
+#endif  /* !USE_WK_API */
+
+  /* webView.isLoading is not sufficient if we have <image
+     xlink:href=... /> */
+  while (!isLoaded)
+    mac_run_loop_run_once (0);
+
+  int width = -1, height;
+  @try
+    {
+      id boundingBox, widthBaseVal, heightBaseVal;
+      enum {SVG_LENGTHTYPE_PERCENTAGE = 2};
+#ifdef USE_WK_API
+      NSString * __block jsonString;
+      BOOL __block finished = NO;
+      NSString *script = @""
+"var documentElement = document.documentElement;\n"
+"function filter (obj, names) {\n"
+"  return names.reduce ((acc, nm) => {acc[nm] = obj[nm]; return acc;}, {});\n"
+"}\n"
+"JSON.stringify (['width', 'height'].reduce\n"
+"  ((obj, dim) => {\n"
+"     obj[dim + 'BaseVal'] =\n"
+"       filter (documentElement[dim].baseVal,\n"
+"	       ['unitType', 'value', 'valueInSpecifiedUnits']);\n"
+"     return obj;\n"
+"   }, {boundingBox:\n"
+"       ((documentElement.width.baseVal.unitType != SVGLength.SVG_LENGTHTYPE_PERCENTAGE\n"
+"	 && documentElement.height.baseVal.unitType != SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
+"	? null : filter (documentElement.getBBox (),\n"
+"			 ['x', 'y', 'width', 'height']))}))";
+      [webView evaluateJavaScript:script
+		completionHandler:^(id scriptResult, NSError *error) {
+	  if ([scriptResult isKindOfClass:NSString.class])
+	    jsonString = MRC_RETAIN (scriptResult);
+	  else
+	    jsonString = nil;
+	  finished = YES;
+	}];
+
+      while (!finished)
+	mac_run_loop_run_once (0);
+
+      if (jsonString == nil)
+	widthBaseVal = nil;
+      else
+	{
+	  NSData *data =
+	    [jsonString dataUsingEncoding:NSUTF8StringEncoding];
+	  NSDictionary *jsonObject =
+	    [NSJSONSerialization JSONObjectWithData:data options:0
+					      error:NULL];
+
+	  boundingBox = jsonObject[@"boundingBox"];
+	  widthBaseVal = jsonObject[@"widthBaseVal"];
+	  heightBaseVal = jsonObject[@"heightBaseVal"];
+	  MRC_AUTORELEASE (jsonString);
+	}
+#else  /* !USE_WK_API */
+      WebScriptObject *rootElement =
+	[webView.windowScriptObject
+	    valueForKeyPath:@"document.rootElement"];
+
+      widthBaseVal = [rootElement valueForKeyPath:@"width.baseVal"];
+      heightBaseVal = [rootElement valueForKeyPath:@"height.baseVal"];
+      if ((((NSNumber *) [widthBaseVal valueForKey:@"unitType"]).intValue
+	   == SVG_LENGTHTYPE_PERCENTAGE)
+	  || (((NSNumber *) [heightBaseVal valueForKey:@"unitType"]).intValue
+	      == SVG_LENGTHTYPE_PERCENTAGE))
+	boundingBox = [rootElement callWebScriptMethod:@"getBBox"
+					 withArguments:[NSArray array]];
+      else
+	boundingBox = nil;
+
+#endif  /* !USE_WK_API */
+      if (widthBaseVal)
+	frameRect.size = [self frameSizeForBoundingBox:boundingBox
+					  widthBaseVal:widthBaseVal
+					 heightBaseVal:heightBaseVal
+					    imageWidth:&width
+					   imageHeight:&height];
+#ifdef USE_WK_API
+      finished = NO;
+      script = [NSString stringWithFormat:@""
+"const svgElement = document.createElementNS ('http://www.w3.org/2000/svg', 'svg');\n"
+"const gElement = document.createElementNS ('http://www.w3.org/2000/svg', 'g');\n"
+"svgElement.setAttribute ('width', '%d');\n"
+"svgElement.setAttribute ('height', '%d');\n"
+"svgElement.setAttribute ('viewBox', '0, 0, %d, %d');\n"
+"if (documentElement.width.baseVal.unitType == SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
+"  documentElement.width.baseVal.newValueSpecifiedUnits (SVGLength.SVG_LENGTHTYPE_PERCENTAGE, 100);\n"
+"if (documentElement.height.baseVal.unitType == SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
+"  documentElement.height.baseVal.newValueSpecifiedUnits (SVGLength.SVG_LENGTHTYPE_PERCENTAGE, 100);\n"
+"document.replaceChild (svgElement, documentElement);\n"
+"svgElement.appendChild (gElement);\n"
+"gElement.appendChild (documentElement);\n"
+"documentElement = svgElement;\n"
+"null;", width, height, width, height];
+
+      [webView evaluateJavaScript:script
+		completionHandler:^(id scriptResult, NSError *error) {
+	  finished = YES;
+	}];
+
+      while (!finished)
+	mac_run_loop_run_once (0);
+#endif
+    }
+  @catch (NSException *exception)
+    {
+    }
+
+  if (width < 0)
+    {
+      MRC_RELEASE (self);
+      self = nil;
+
+      return self;
+    }
+
+  webView.frame = frameRect;
+  frameRect.size.width = width;
+  frameRect.origin.y = NSHeight (frameRect) - height;
+  frameRect.size.height = height;
+  viewRect = frameRect;
+
+  return self;
+}
+
+- (void)dealloc
+{
+  MRC_RELEASE (EmacsSVGDocumentLastWebView);
+  EmacsSVGDocumentLastWebView = webView;
+#if !USE_ARC
+  [super dealloc];
+#endif
+}
+
++ (BOOL)shouldInitializeInMainThread
+{
+  return YES;
+}
+
+- (BOOL)shouldNotCache
+{
+  return YES;
+}
+
++ (NSArrayOf (NSString *) *)supportedTypes
+{
+  return [NSArray arrayWithObject:((__bridge NSString *) UTI_SVG)];
+}
+
+- (NSUInteger)pageCount
+{
+  return 1;
+}
+
+- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
+{
+  return viewRect.size;
+}
+
+- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
+{
+  return NULL;
+}
+
+- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
+{
+  return nil;
+}
+
+- (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
+	      inContext:(CGContextRef)ctx
+		options:(NSDictionaryOf (NSString *, id) *)options
+{
+  mac_within_app (^{
+      CGColorRef cg_background = ((__bridge CGColorRef)
+				  [options objectForKey:@"backgroundColor"]);
+#ifdef USE_WK_API
+      NSString *bgInHex = nil;
+      CGFloat components[4];
+
+      if (cg_background && [[NSColor colorWithCGColor:cg_background]
+			     getSRGBComponents:components])
+	bgInHex = [NSString stringWithFormat:@"#%02x%02x%02x",
+			    (int) (components[0] * 255 + .5),
+			    (int) (components[1] * 255 + .5),
+			    (int) (components[2] * 255 + .5)];
+
+      CGAffineTransform ctm = CGContextGetCTM (ctx);
+      NSRect destRect = NSRectFromCGRect (CGRectApplyAffineTransform
+					  (NSRectToCGRect (rect), ctm));
+
+      destRect.origin = NSZeroPoint;
+      destRect.size.width = lround (NSWidth (destRect));
+      destRect.size.height = lround (NSHeight (destRect));
+
+      ctm = CGAffineTransformTranslate (ctm, NSMinX (rect), NSMinY (rect));
+      ctm = CGAffineTransformScale (ctm, NSWidth (rect) / NSWidth (viewRect),
+				    NSHeight (rect) / NSHeight (viewRect));
+
+      CGAffineTransform flip = CGAffineTransformMake (1, 0, 0, -1,
+						      0, NSHeight (destRect));
+      ctm = CGAffineTransformConcat (ctm, flip);
+      flip.ty = NSHeight (viewRect);
+      ctm = CGAffineTransformConcat (flip, ctm);
+
+      BOOL __block finished = NO;
+      int destWidth = NSWidth (destRect), destHeight = NSHeight (destRect);
+      NSString *script = [NSString stringWithFormat:@""
+"documentElement.style.backgroundColor = '%@';\n"
+"documentElement.setAttribute ('width', '%d');\n"
+"documentElement.setAttribute ('height', '%d');\n"
+"documentElement.setAttribute ('viewBox', '0, 0, %d, %d');\n"
+"gElement.setAttribute ('transform', 'matrix (%f, %f, %f, %f, %f, %f)');\n"
+"null;", bgInHex ? bgInHex : @"transparent",
+				   destWidth, destHeight, destWidth, destHeight,
+				   ctm.a, ctm.b, ctm.c, ctm.d, ctm.tx, ctm.ty];
+
+      [webView evaluateJavaScript:script
+		completionHandler:^(id scriptResult, NSError *error) {
+	  finished = YES;
+	}];
+
+      while (!finished)
+	mac_run_loop_run_once (0);
+
+      WKSnapshotConfiguration *snapshotConfiguration =
+	[[WKSnapshotConfiguration alloc] init];
+      NSImage * __block image;
+
+      webView.frame = destRect;
+      [webView _setOverrideDeviceScaleFactor:1];
+      finished = NO;
+      [webView takeSnapshotWithConfiguration:snapshotConfiguration
+			   completionHandler:^(NSImage *snapshotImage,
+					       NSError *error) {
+	  image = MRC_RETAIN (snapshotImage);
+	  finished = YES;
+	}];
+      MRC_RELEASE (snapshotConfiguration);
+
+      while (!finished)
+	mac_run_loop_run_once (0);
+
+      if (image)
+	{
+	  NSGraphicsContext *gcontext =
+	    [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:NO];
+	  [NSGraphicsContext saveGraphicsState];
+	  NSGraphicsContext.currentContext = gcontext;
+	  NSRectClip (rect);
+	  [[NSAffineTransform transform] set];
+	  [image drawInRect:destRect];
+	  MRC_RELEASE (image);
+	  [NSGraphicsContext restoreGraphicsState];
+	}
+#else  /* !USE_WK_API */
+      NSColor *savedBackgroundColor;
+      if (cg_background)
+	{
+	  savedBackgroundColor = [webView valueForKey:@"backgroundColor"];
+	  [webView setValue:[NSColor colorWithCoreGraphicsColor:cg_background]
+		     forKey:@"backgroundColor"];
+	}
+
+      NSAffineTransform *transform = [NSAffineTransform transform];
+      NSGraphicsContext *gcontext =
+	[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
+
+      [NSGraphicsContext saveGraphicsState];
+      NSGraphicsContext.currentContext = gcontext;
+      [transform translateXBy:(NSMinX (rect)) yBy:(NSMinY (rect))];
+      [transform scaleXBy:(NSWidth (rect) / NSWidth (viewRect))
+		      yBy:(NSHeight (rect) / NSHeight (viewRect))];
+      [transform translateXBy:(- NSMinX (viewRect))
+			  yBy:(- NSMinY (viewRect))];
+      [transform concat];
+      [webView displayRectIgnoringOpacity:viewRect inContext:gcontext];
+      [NSGraphicsContext restoreGraphicsState];
+
+      if (cg_background)
+	[webView setValue:savedBackgroundColor forKey:@"backgroundColor"];
+#endif  /* !USE_WK_API */
+    });
+}
+
+#ifdef USE_WK_API
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation;
+{
+  isLoaded = YES;
+}
+#else
+- (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame
+{
+  isLoaded = YES;
+}
+#endif
+
+@end				// EmacsSVGDocument
 
 @implementation EmacsDocumentRasterizer
 - (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
@@ -14816,6 +15284,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return YES;
 }
 
+- (BOOL)shouldNotCache
+{
+  return NO;
+}
+
 #if !USE_ARC
 - (void)dealloc
 {
@@ -14871,6 +15344,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
 	      inContext:(CGContextRef)ctx
+		options:(NSDictionaryOf (NSString *, id) *)options /* unused */
 {
   NSLayoutManager *layoutManager = [self layoutManager];
   NSTextContainer *textContainer =
@@ -14929,6 +15403,7 @@ static NSArrayOf (Class <EmacsDocumentRasterizer>) *
 document_rasterizer_get_classes (void)
 {
   return [NSArray arrayWithObjects:[EmacsPDFDocument class],
+		  [EmacsSVGDocument class],
 		  [EmacsDocumentRasterizer class],
 		  nil];
 }
@@ -15086,7 +15561,7 @@ mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
       if (document == nil)
 	document = MRC_AUTORELEASE (document_rasterizer_create (nsurl,
 								nsoptions));
-      if (document)
+      if (document && !document.shouldNotCache)
 	document_cache_set (key, document, modificationDate);
     }
 
@@ -15110,7 +15585,7 @@ mac_document_create_with_data (CFDataRef data, CFDictionaryRef options)
 
   if (document == nil)
     document = MRC_AUTORELEASE (document_rasterizer_create (nsdata, nsoptions));
-  if (document)
+  if (document && !document.shouldNotCache)
     document_cache_set (key, document, nil);
 
   document_cache_evict ();
@@ -15147,13 +15622,16 @@ mac_document_copy_page_info (EmacsDocumentRef document, size_t index,
 
 void
 mac_document_draw_page (CGContextRef c, CGRect rect, EmacsDocumentRef document,
-			size_t index)
+			size_t index, CFDictionaryRef options)
 {
   id <EmacsDocumentRasterizer> documentRasterizer =
     (__bridge id <EmacsDocumentRasterizer>) document;
 
   [documentRasterizer drawPageAtIndex:index inRect:(NSRectFromCGRect (rect))
-			    inContext:c];
+			    inContext:c
+			      options:((__bridge
+					NSDictionaryOf (NSString *, id) *)
+				       options)];
 }
 
 

@@ -412,8 +412,8 @@ compiled with the ImageMagick support, so you can scale and rotate
 images even without ImageMagick.
 
   The @code{image-io} image type also provides rasterization of
-several document formats such as PDF, RTF, HTML, WEBARCHIVE, DOC, etc.
-The list of supported formats can be obtained by evaluating
+several document formats such as PDF, SVG, RTF, HTML, WEBARCHIVE, DOC,
+etc.  The list of supported formats can be obtained by evaluating
 @code{(image-io-types)}.  Because the @code{image-io} image type
 accepts the same image descriptor properties as the @code{imagemagick}
 image type does (@pxref{ImageMagick Images,,, elisp, The Emacs Lisp

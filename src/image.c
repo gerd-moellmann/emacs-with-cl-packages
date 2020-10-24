@@ -3609,7 +3609,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   CGContextRef context;
   CGRect rectangle, clip_rectangle;
   CGAffineTransform preclip_transform, postclip_transform;
-  Boolean has_alpha_p, gif_p, tiff_p;
+  bool has_alpha_p, gif_p, tiff_p, svg_p;
   dispatch_group_t group;
 
   /* Open the file.  */
@@ -3648,13 +3648,14 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   num_values = 1;
   if (type == NULL)
     {
-      gif_p = tiff_p = false;
+      gif_p = tiff_p = svg_p = false;
       specified_type = mac_create_type_identifier_for_image_spec (img->spec);
     }
   else
     {
       gif_p = CFEqual (type, UTI_GIF);
       tiff_p = CFEqual (type, UTI_TIFF);
+      svg_p = CFEqual (type, UTI_SVG);
       specified_type = CFRetain (type);
     }
   if (specified_type)
@@ -3871,19 +3872,44 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       CFRelease (source);
     }
 
-  if (obj == NULL && type == NULL)
+  if (obj == NULL && (type == NULL || svg_p))
     {
       EmacsDocumentRef document;
 
       options = NULL;
+      num_values = 0;
       if (specified_type)
 	{
-	  keys[0] = CFSTR ("UTI"); /* NSFileTypeDocumentOption */
-	  options = CFDictionaryCreate (NULL, (const void **) keys,
-					(const void **) &specified_type, 1,
-					&kCFTypeDictionaryKeyCallBacks,
-					&kCFTypeDictionaryValueCallBacks);
+	  keys[num_values] = CFSTR ("UTI"); /* NSFileTypeDocumentOption */
+	  values[num_values] = specified_type;
+	  num_values++;
 	}
+      /* Add base URL for SVG images.  */
+      CFURLRef base_url = NULL;
+      if (url)
+	base_url = CFRetain (url);
+      else if (data && STRINGP (BVAR (current_buffer, filename)))
+	{
+	  Lisp_Object file =
+	    ENCODE_FILE (remove_slash_colon (BVAR (current_buffer, filename)));
+
+	  base_url =
+	    CFURLCreateFromFileSystemRepresentation (NULL, SDATA (file),
+						     SBYTES (file), false);
+	}
+      if (base_url)
+	{
+	  keys[num_values] = CFSTR ("baseURL");
+	  values[num_values] = base_url;
+	  num_values++;
+	}
+      if (num_values)
+	options = CFDictionaryCreate (NULL, (const void **) keys,
+				      (const void **) values, num_values,
+				      &kCFTypeDictionaryKeyCallBacks,
+				      &kCFTypeDictionaryValueCallBacks);
+      if (base_url)
+	CFRelease (base_url);
 
       if (url)
 	document = mac_document_create_with_url (url, options);
@@ -4121,12 +4147,12 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       rectangle.size.width = rectangle.size.height;
       rectangle.size.height = tmp;
     }
+  CGColorRef specified_or_frame_bg = NULL;
   if (has_alpha_p || fmod (rotation, 90) != 0)
     {
       Lisp_Object specified_bg;
       Emacs_Color color;
       CGFloat rgba[4];
-      CGColorRef cg_color;
 
       specified_bg = image_spec_value (img->spec, QCbackground, NULL);
       if (!STRINGP (specified_bg)
@@ -4167,7 +4193,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 		  else
 		    mac_document_draw_page (mask_context, rectangle,
 					    (EmacsDocumentRef) obj,
-					    page_index);
+					    page_index, NULL);
 		  CGContextRelease (mask_context);
 		  CFRelease (obj);
 		});
@@ -4196,13 +4222,13 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	  CGColorRelease (default_bg);
 	  default_bg = NULL;
 	}
-      cg_color = CGColorCreate (mac_cg_color_space_rgb, rgba);
-      if (cg_color && (default_bg == NULL || CGColorGetAlpha (default_bg) != 1))
+      specified_or_frame_bg = CGColorCreate (mac_cg_color_space_rgb, rgba);
+      if (specified_or_frame_bg
+	  && (default_bg == NULL || CGColorGetAlpha (default_bg) != 1))
 	{
-	  CGContextSetFillColorWithColor (context, cg_color);
+	  CGContextSetFillColorWithColor (context, specified_or_frame_bg);
 	  CGContextFillRect (context, CGRectMake (0, 0, width, height));
 	}
-      CGColorRelease (cg_color);
       if (default_bg && CGColorGetAlpha (default_bg) != 0)
 	{
 	  CGContextSetFillColorWithColor (context, default_bg);
@@ -4218,9 +4244,19 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   if (CFGetTypeID (obj) == CGImageGetTypeID ())
     CGContextDrawImage (context, rectangle, (CGImageRef) obj);
   else
-    mac_document_draw_page (context, rectangle, (EmacsDocumentRef) obj,
-			    page_index);
+    {
+      keys[0] = CFSTR ("backgroundColor");
+      options = CFDictionaryCreate (NULL, (const void **) keys,
+				    (const void **) &specified_or_frame_bg, 1,
+				    &kCFTypeDictionaryKeyCallBacks,
+				    &kCFTypeDictionaryValueCallBacks);
+      mac_document_draw_page (context, rectangle, (EmacsDocumentRef) obj,
+			      page_index, options);
+      if (options)
+	CFRelease (options);
+    }
   CGContextRelease (context);
+  CGColorRelease (specified_or_frame_bg);
   CFRelease (obj);
 
   img->width = width;

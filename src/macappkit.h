@@ -151,6 +151,7 @@ typedef NSString * NSWindowTabbingIdentifier;
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
 @interface NSColor (AvailableOn1080AndLater)
++ (NSColor *)colorWithCGColor:(CGColorRef)cgColor;
 - (CGColorRef)CGColor;
 @end
 #endif
@@ -707,6 +708,7 @@ typedef NSInteger NSGlyphProperty;
 + (NSColor *)colorWithEmacsColorPixel:(unsigned long)pixel;
 - (CGColorRef)copyCGColor;
 - (BOOL)getSRGBComponents:(CGFloat *)components;
++ (NSColor *)colorWithCoreGraphicsColor:(CGColorRef)cgColor;
 @end
 
 @interface NSImage (Emacs)
@@ -1413,18 +1415,48 @@ typedef NSInteger NSGlyphProperty;
 - (instancetype)initWithData:(NSData *)data
 		     options:(NSDictionaryOf (NSString *, id) *)options;
 + (BOOL)shouldInitializeInMainThread;
+- (BOOL)shouldNotCache;
 + (NSArrayOf (NSString *) *)supportedTypes;
 - (NSUInteger)pageCount;
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
 - (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
 - (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index;
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
-	      inContext:(CGContextRef)ctx;
+	      inContext:(CGContextRef)ctx
+		options:(NSDictionaryOf (NSString *, id) *)options;
 @end
 
 /* Class for PDF rasterization.  */
 
 @interface EmacsPDFDocument : PDFDocument <EmacsDocumentRasterizer>
+@end
+
+/* Class for SVG rasterization.  It also works as a WKWebView
+   navigation delegate or a WebView frame load delegate.  */
+
+@interface EmacsSVGDocument : NSObject <EmacsDocumentRasterizer
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+#ifdef USE_WK_API
+					, WKNavigationDelegate
+#else
+					, WebFrameLoadDelegate
+#endif
+#endif
+				       >
+{
+  /* View to render the SVG image.  */
+#ifdef USE_WK_API
+  WKWebView *webView;
+#else
+  WebView *webView;
+#endif
+
+  /* Rectangle shown as the SVG image within webView.  */
+  NSRect viewRect;
+
+  /* Whether a page load has completed.  */
+  BOOL isLoaded;
+}
 @end
 
 /* Class for document rasterization other than PDF.  It also works as
