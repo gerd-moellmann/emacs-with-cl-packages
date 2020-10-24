@@ -1376,37 +1376,6 @@ typedef NSInteger NSGlyphProperty;
 				scaleFactor:(CGFloat)scaleFactor;
 @end
 
-/* Class for SVG frame load delegate.  */
-@interface EmacsSVGLoader : NSObject
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
-#ifdef USE_WK_API
-			    <WKNavigationDelegate>
-#else
-			    <WebFrameLoadDelegate>
-#endif
-#endif
-{
-  /* Frame and image data structures to which the SVG image is
-     loaded.  */
-  struct frame *emacsFrame;
-  struct image *emacsImage;
-
-  /* Function called when checking image size.  */
-  bool (*checkImageSizeFunc) (struct frame *, int, int);
-
-  /* Function called when reporting image load errors.  */
-  void (*imageErrorFunc) (const char *, ...);
-
-  /* Whether a page load has completed.  */
-  BOOL isLoaded;
-}
-- (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
-		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
-		    imageErrorFunc:(void (*)(const char *, ...))imageError;
-- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
-	 baseURL:(NSURL *)url;
-@end
-
 /* Protocol for document rasterization.  */
 
 @protocol EmacsDocumentRasterizer <NSObject>
