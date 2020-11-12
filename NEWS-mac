@@ -1,5 +1,25 @@
+* emacs-27.1-mac-8.1 (2020-11-12)
+
+** Fixed bugs
+
+*** Crash when emacs --daemon is connected from emacsclient -t.
+Reported by Akinori MUSHA.
+
+*** Hang when preparing the menu bar on macOS Big Sur.
+
+** Improvements
+
+*** Use system symbols as tool bar icons on macOS Big Sur.
+
+*** Update emoji data to version 13.1.
+
+*** The image type `image-io' (and its `imagemagick' fallback) now
+supports SVG with scaling, cropping, and arbitrary rotation.
+
+
 * emacs-27.1-mac-8.0 (2020-08-11)
 Based on Emacs 27.1.
+https://lists.gnu.org/r/emacs-devel/2020-08/msg00246.html
 
 ** Fixed bugs
 
