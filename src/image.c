@@ -3547,7 +3547,7 @@ mac_cg_image_source_find_2x_index (CGImageSourceRef source)
 static CFStringRef
 mac_create_type_identifier_for_image_spec (Lisp_Object spec)
 {
-  CFStringRef identifier = NULL, tag_class, tag;
+  CFStringRef identifier = NULL;
   Lisp_Object val, format = image_spec_value (spec, intern (":format"), NULL);
 
   if (NILP (format))
@@ -3557,18 +3557,26 @@ mac_create_type_identifier_for_image_spec (Lisp_Object spec)
   if (CONSP (val)
       && (val = Fcar_safe (Fcdr_safe (Fassq (format, val))),
 	  STRINGP (val)))
-    tag_class = kUTTagClassFilenameExtension;
-  else
     {
-      tag_class = kUTTagClassMIMEType;
-      val = SYMBOL_NAME (format);
+      CFStringRef extension = cfstring_create_with_string (val);
+
+      if (extension)
+	{
+	  identifier = mac_uti_create_with_filename_extension (extension);
+	  CFRelease (extension);
+	}
     }
 
-  tag = cfstring_create_with_string (val);
-  if (tag)
+  if (identifier == NULL)
     {
-      identifier = UTTypeCreatePreferredIdentifierForTag (tag_class, tag, NULL);
-      CFRelease (tag);
+      CFStringRef mime_type =
+	cfstring_create_with_string (SYMBOL_NAME (format));
+
+      if (mime_type)
+	{
+	  identifier = mac_uti_create_with_mime_type (mime_type);
+	  CFRelease (mime_type);
+	}
     }
 
   return identifier;
@@ -3601,7 +3609,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   CGContextRef context;
   CGRect rectangle, clip_rectangle;
   CGAffineTransform preclip_transform, postclip_transform;
-  Boolean has_alpha_p, gif_p, tiff_p;
+  bool has_alpha_p, gif_p, tiff_p, svg_p;
   dispatch_group_t group;
 
   /* Open the file.  */
@@ -3640,13 +3648,14 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   num_values = 1;
   if (type == NULL)
     {
-      gif_p = tiff_p = false;
+      gif_p = tiff_p = svg_p = false;
       specified_type = mac_create_type_identifier_for_image_spec (img->spec);
     }
   else
     {
-      gif_p = UTTypeEqual (type, kUTTypeGIF);
-      tiff_p = UTTypeEqual (type, kUTTypeTIFF);
+      gif_p = CFEqual (type, UTI_GIF);
+      tiff_p = CFEqual (type, UTI_TIFF);
+      svg_p = CFEqual (type, UTI_SVG);
       specified_type = CFRetain (type);
     }
   if (specified_type)
@@ -3679,7 +3688,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
       if (type == NULL
 	  || (real_type = CGImageSourceGetType (source),
-	      real_type && UTTypeEqual (type, real_type)))
+	      real_type && CFEqual (type, real_type)))
 	src_props = CGImageSourceCopyProperties (source, NULL);
       if (src_props)
 	{
@@ -3863,19 +3872,44 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       CFRelease (source);
     }
 
-  if (obj == NULL && type == NULL)
+  if (obj == NULL && (type == NULL || svg_p))
     {
       EmacsDocumentRef document;
 
       options = NULL;
+      num_values = 0;
       if (specified_type)
 	{
-	  keys[0] = CFSTR ("UTI"); /* NSFileTypeDocumentOption */
-	  options = CFDictionaryCreate (NULL, (const void **) keys,
-					(const void **) &specified_type, 1,
-					&kCFTypeDictionaryKeyCallBacks,
-					&kCFTypeDictionaryValueCallBacks);
+	  keys[num_values] = CFSTR ("UTI"); /* NSFileTypeDocumentOption */
+	  values[num_values] = specified_type;
+	  num_values++;
 	}
+      /* Add base URL for SVG images.  */
+      CFURLRef base_url = NULL;
+      if (url)
+	base_url = CFRetain (url);
+      else if (data && STRINGP (BVAR (current_buffer, filename)))
+	{
+	  Lisp_Object file =
+	    ENCODE_FILE (remove_slash_colon (BVAR (current_buffer, filename)));
+
+	  base_url =
+	    CFURLCreateFromFileSystemRepresentation (NULL, SDATA (file),
+						     SBYTES (file), false);
+	}
+      if (base_url)
+	{
+	  keys[num_values] = CFSTR ("baseURL");
+	  values[num_values] = base_url;
+	  num_values++;
+	}
+      if (num_values)
+	options = CFDictionaryCreate (NULL, (const void **) keys,
+				      (const void **) values, num_values,
+				      &kCFTypeDictionaryKeyCallBacks,
+				      &kCFTypeDictionaryValueCallBacks);
+      if (base_url)
+	CFRelease (base_url);
 
       if (url)
 	document = mac_document_create_with_url (url, options);
@@ -4113,12 +4147,12 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       rectangle.size.width = rectangle.size.height;
       rectangle.size.height = tmp;
     }
+  CGColorRef specified_or_frame_bg = NULL;
   if (has_alpha_p || fmod (rotation, 90) != 0)
     {
       Lisp_Object specified_bg;
       Emacs_Color color;
       CGFloat rgba[4];
-      CGColorRef cg_color;
 
       specified_bg = image_spec_value (img->spec, QCbackground, NULL);
       if (!STRINGP (specified_bg)
@@ -4159,7 +4193,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 		  else
 		    mac_document_draw_page (mask_context, rectangle,
 					    (EmacsDocumentRef) obj,
-					    page_index);
+					    page_index, NULL);
 		  CGContextRelease (mask_context);
 		  CFRelease (obj);
 		});
@@ -4188,13 +4222,13 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	  CGColorRelease (default_bg);
 	  default_bg = NULL;
 	}
-      cg_color = CGColorCreate (mac_cg_color_space_rgb, rgba);
-      if (cg_color && (default_bg == NULL || CGColorGetAlpha (default_bg) != 1))
+      specified_or_frame_bg = CGColorCreate (mac_cg_color_space_rgb, rgba);
+      if (specified_or_frame_bg
+	  && (default_bg == NULL || CGColorGetAlpha (default_bg) != 1))
 	{
-	  CGContextSetFillColorWithColor (context, cg_color);
+	  CGContextSetFillColorWithColor (context, specified_or_frame_bg);
 	  CGContextFillRect (context, CGRectMake (0, 0, width, height));
 	}
-      CGColorRelease (cg_color);
       if (default_bg && CGColorGetAlpha (default_bg) != 0)
 	{
 	  CGContextSetFillColorWithColor (context, default_bg);
@@ -4210,9 +4244,19 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   if (CFGetTypeID (obj) == CGImageGetTypeID ())
     CGContextDrawImage (context, rectangle, (CGImageRef) obj);
   else
-    mac_document_draw_page (context, rectangle, (EmacsDocumentRef) obj,
-			    page_index);
+    {
+      keys[0] = CFSTR ("backgroundColor");
+      options = CFDictionaryCreate (NULL, (const void **) keys,
+				    (const void **) &specified_or_frame_bg, 1,
+				    &kCFTypeDictionaryKeyCallBacks,
+				    &kCFTypeDictionaryValueCallBacks);
+      mac_document_draw_page (context, rectangle, (EmacsDocumentRef) obj,
+			      page_index, options);
+      if (options)
+	CFRelease (options);
+    }
   CGContextRelease (context);
+  CGColorRelease (specified_or_frame_bg);
   CFRelease (obj);
 
   img->width = width;
@@ -8171,7 +8215,7 @@ png_load (struct frame *f, struct image *img)
 static bool
 png_load (struct frame *f, struct image *img)
 {
-  return image_load_image_io (f, img, kUTTypePNG);
+  return image_load_image_io (f, img, UTI_PNG);
 }
 
 #elif defined HAVE_NS
@@ -8753,7 +8797,7 @@ jpeg_load (struct frame *f, struct image *img)
 static bool
 jpeg_load (struct frame *f, struct image *img)
 {
-  return image_load_image_io (f, img, kUTTypeJPEG);
+  return image_load_image_io (f, img, UTI_JPEG);
 }
 #endif  /* HAVE_MACGUI */
 
@@ -9201,7 +9245,7 @@ tiff_load (struct frame *f, struct image *img)
 static bool
 tiff_load (struct frame *f, struct image *img)
 {
-  return image_load_image_io (f, img, kUTTypeTIFF);
+  return image_load_image_io (f, img, UTI_TIFF);
 }
 
 #elif defined HAVE_NS
@@ -9807,7 +9851,7 @@ gif_load (struct frame *f, struct image *img)
 static bool
 gif_load (struct frame *f, struct image *img)
 {
-  return image_load_image_io (f, img, kUTTypeGIF);
+  return image_load_image_io (f, img, UTI_GIF);
 }
 #endif /* HAVE_MACGUI */
 
@@ -10838,9 +10882,7 @@ is not available.  */)
 	    Lisp_Object ext = Qnil;
 
 	    identifier = CFArrayGetValueAtIndex (identifiers[j], i);
-	    extension =
-	      UTTypeCopyPreferredTagWithClass (identifier,
-					       kUTTagClassFilenameExtension);
+	    extension = mac_uti_copy_filename_extension (identifier);
 	    if (extension)
 	      {
 		ext = cfstring_to_lisp_nodecode (extension);
@@ -11375,88 +11417,7 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
 static bool
 svg_load (struct frame *f, struct image *img)
 {
-  extern bool mac_svg_load_image (struct frame *, struct image *,
-				  unsigned char *, ptrdiff_t, Emacs_Color *,
-				  Lisp_Object,
-				  bool (*) (struct frame *, int, int),
-				  void (*) (const char *, ...));
-  Lisp_Object specified_bg;
-  Emacs_Color background;
-  bool success_p = 0;
-  Lisp_Object file_name;
-
-  specified_bg = image_spec_value (img->spec, QCbackground, NULL);
-  if (!STRINGP (specified_bg)
-      || !mac_defined_color (f, SSDATA (specified_bg), &background, 0, 0))
-    {
-      background.pixel = FRAME_BACKGROUND_PIXEL (f);
-      background.red = RED16_FROM_ULONG (background.pixel);
-      background.green = GREEN16_FROM_ULONG (background.pixel);
-      background.blue = BLUE16_FROM_ULONG (background.pixel);
-    }
-
-  /* If IMG->spec specifies a file name, create a non-file spec from it.  */
-  file_name = image_spec_value (img->spec, QCfile, NULL);
-  if (STRINGP (file_name))
-    {
-      int fd;
-      Lisp_Object file;
-      unsigned char *contents;
-      ptrdiff_t size;
-
-      file = image_find_image_fd (file_name, &fd);
-      if (!STRINGP (file))
-	{
-	  image_error ("Cannot find image file `%s'", file_name, Qnil);
-	  return 0;
-	}
-
-      file = mac_preprocess_image_for_2x_file (f, img, file, &fd);
-
-      /* Read the entire file into memory.  */
-      contents = slurp_file (fd, &size);
-      if (contents == NULL)
-	{
-	  image_error ("Error loading SVG image `%s'", img->spec, Qnil);
-	  return 0;
-	}
-      /* If the file was slurped into memory properly, parse it.  */
-      success_p = mac_svg_load_image (f, img, contents, size, &background, file,
-				      check_image_size, image_error);
-      xfree (contents);
-    }
-  /* Else its not a file, its a lisp object.  Load the image from a
-     lisp object rather than a file.  */
-  else
-    {
-      Lisp_Object data, original_filename;
-
-      data = image_spec_value (img->spec, QCdata, NULL);
-      if (!STRINGP (data))
-	{
-	  image_error ("Invalid image data `%s'", data, Qnil);
-	  return 0;
-	}
-      data = mac_preprocess_image_for_2x_data (f, img, data, false);
-      original_filename = BVAR (current_buffer, filename);
-      success_p = mac_svg_load_image (f, img, SDATA (data), SBYTES (data),
-				      &background,
-				      (STRINGP (original_filename)
-				       ? ENCODE_FILE (remove_slash_colon
-						      (original_filename))
-				       : Qnil),
-				      check_image_size, image_error);
-    }
-
-  if (success_p)
-    {
-      mac_postprocess_image_for_2x (img);
-      /* Maybe fill in the background field while we have ximg handy. */
-      if (NILP (image_spec_value (img->spec, QCbackground, NULL)))
-	IMAGE_BACKGROUND (img, f, img->pixmap);
-    }
-
-  return success_p;
+  return image_load_image_io (f, img, UTI_SVG);
 }
 #endif /* defined HAVE_MACGUI */
 

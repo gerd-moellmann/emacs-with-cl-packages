@@ -26,6 +26,9 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #if HAVE_MAC_METAL
 #import <Metal/Metal.h>
 #endif
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#endif
 #define Z (current_buffer->text->z)
 
 #ifndef NSFoundationVersionNumber10_8_3
@@ -148,6 +151,7 @@ typedef NSString * NSWindowTabbingIdentifier;
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
 @interface NSColor (AvailableOn1080AndLater)
++ (NSColor *)colorWithCGColor:(CGColorRef)cgColor;
 - (CGColorRef)CGColor;
 @end
 #endif
@@ -322,6 +326,13 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+@interface NSAppearance (AvailableOn110000AndLater)
++ (NSAppearance *)currentDrawingAppearance;
+- (void)performAsCurrentDrawingAppearance:(void (NS_NOESCAPE ^)(void))block;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
 @interface NSApplication (AppearanceCustomization) <NSAppearanceCustomization>
 @end
@@ -372,7 +383,7 @@ enum {
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSSavePanel (AvailableOn1090AndLater)
-- (void)setShowsTagField:(BOOL)flag;
+@property BOOL showsTagField;
 @end
 #endif
 
@@ -495,6 +506,12 @@ typedef NSInteger NSPaperOrientation;
 @end
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
+@interface NSView (AvailableOn1080AndLater)
+@property (readonly) BOOL wantsUpdateLayer;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
 @interface NSView (AvailableOn1090AndLater)
 - (void)setLayerUsesCoreImageFilters:(BOOL)usesFilters;
@@ -522,6 +539,13 @@ enum {
 typedef NSInteger NSControlStateValue;
 static const NSControlStateValue NSControlStateValueOff = NSOffState;
 static const NSControlStateValue NSControlStateValueOn = NSOnState;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+@interface NSImage (AvailableOn110000AndLater)
++ (instancetype)imageWithSystemSymbolName:(NSString *)symbolName
+		 accessibilityDescription:(NSString *)description;
+@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101201
@@ -683,6 +707,8 @@ typedef NSInteger NSGlyphProperty;
 @interface NSColor (Emacs)
 + (NSColor *)colorWithEmacsColorPixel:(unsigned long)pixel;
 - (CGColorRef)copyCGColor;
+- (BOOL)getSRGBComponents:(CGFloat *)components;
++ (NSColor *)colorWithCoreGraphicsColor:(CGColorRef)cgColor;
 @end
 
 @interface NSImage (Emacs)
@@ -1007,7 +1033,7 @@ typedef NSInteger NSGlyphProperty;
 
   /* Semaphore used for synchronizing completion of asynchronous copy
      from CALayer contents to backing bitmap after swapping.  */
-  dispatch_semaphore_t copyFromToBackSemaphore;
+  dispatch_semaphore_t copyFromFrontToBackSemaphore;
 
 #if HAVE_MAC_METAL
   /* GPU-accessible image data for backing bitmap and CALayer
@@ -1350,37 +1376,6 @@ typedef NSInteger NSGlyphProperty;
 				scaleFactor:(CGFloat)scaleFactor;
 @end
 
-/* Class for SVG frame load delegate.  */
-@interface EmacsSVGLoader : NSObject
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
-#ifdef USE_WK_API
-			    <WKNavigationDelegate>
-#else
-			    <WebFrameLoadDelegate>
-#endif
-#endif
-{
-  /* Frame and image data structures to which the SVG image is
-     loaded.  */
-  struct frame *emacsFrame;
-  struct image *emacsImage;
-
-  /* Function called when checking image size.  */
-  bool (*checkImageSizeFunc) (struct frame *, int, int);
-
-  /* Function called when reporting image load errors.  */
-  void (*imageErrorFunc) (const char *, ...);
-
-  /* Whether a page load has completed.  */
-  BOOL isLoaded;
-}
-- (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
-		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
-		    imageErrorFunc:(void (*)(const char *, ...))imageError;
-- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
-	 baseURL:(NSURL *)url;
-@end
-
 /* Protocol for document rasterization.  */
 
 @protocol EmacsDocumentRasterizer <NSObject>
@@ -1389,18 +1384,48 @@ typedef NSInteger NSGlyphProperty;
 - (instancetype)initWithData:(NSData *)data
 		     options:(NSDictionaryOf (NSString *, id) *)options;
 + (BOOL)shouldInitializeInMainThread;
+- (BOOL)shouldNotCache;
 + (NSArrayOf (NSString *) *)supportedTypes;
 - (NSUInteger)pageCount;
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index;
 - (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index;
 - (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index;
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
-	      inContext:(CGContextRef)ctx;
+	      inContext:(CGContextRef)ctx
+		options:(NSDictionaryOf (NSString *, id) *)options;
 @end
 
 /* Class for PDF rasterization.  */
 
 @interface EmacsPDFDocument : PDFDocument <EmacsDocumentRasterizer>
+@end
+
+/* Class for SVG rasterization.  It also works as a WKWebView
+   navigation delegate or a WebView frame load delegate.  */
+
+@interface EmacsSVGDocument : NSObject <EmacsDocumentRasterizer
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
+#ifdef USE_WK_API
+					, WKNavigationDelegate
+#else
+					, WebFrameLoadDelegate
+#endif
+#endif
+				       >
+{
+  /* View to render the SVG image.  */
+#ifdef USE_WK_API
+  WKWebView *webView;
+#else
+  WebView *webView;
+#endif
+
+  /* Rectangle shown as the SVG image within webView.  */
+  NSRect viewRect;
+
+  /* Whether a page load has completed.  */
+  BOOL isLoaded;
+}
 @end
 
 /* Class for document rasterization other than PDF.  It also works as

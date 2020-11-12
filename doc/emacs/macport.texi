@@ -8,10 +8,10 @@
 
   This section briefly describes the peculiarities of using Emacs
 under macOS with the Mac port.  This port provides a native GUI
-support for Mac OS X 10.6 -- macOS 10.15.  Note that Emacs 23 and
-later already contain the official GUI support via the NS (Cocoa) port
-for macOS (@pxref{Mac OS / GNUstep}).  So if it is good enough for
-you, then you don't need to try this.
+support for Mac OS X 10.6 -- macOS 11.0.  Note that Emacs 23 and later
+already contain the official GUI support via the NS (Cocoa) port for
+macOS (@pxref{Mac OS / GNUstep}).  So if it is good enough for you,
+then you don't need to try this.
 
   The Mac port is a descendant of the following ports for Mac OS X:
 
@@ -412,8 +412,8 @@ compiled with the ImageMagick support, so you can scale and rotate
 images even without ImageMagick.
 
   The @code{image-io} image type also provides rasterization of
-several document formats such as PDF, RTF, HTML, WEBARCHIVE, DOC, etc.
-The list of supported formats can be obtained by evaluating
+several document formats such as PDF, SVG, RTF, HTML, WEBARCHIVE, DOC,
+etc.  The list of supported formats can be obtained by evaluating
 @code{(image-io-types)}.  Because the @code{image-io} image type
 accepts the same image descriptor properties as the @code{imagemagick}
 image type does (@pxref{ImageMagick Images,,, elisp, The Emacs Lisp

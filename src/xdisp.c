@@ -13713,7 +13713,7 @@ update_tool_bar (struct frame *f, bool save_match_data)
 
 #ifdef HAVE_EXT_TOOL_BAR
 #ifdef HAVE_INT_TOOL_BAR
-  if (!FRAME_INTERNAL_TOOL_BAR_P (f))
+  if (!FRAME_WINDOW_P (f) || !FRAME_INTERNAL_TOOL_BAR_P (f))
 #endif
     do_update = FRAME_EXTERNAL_TOOL_BAR (f);
 #ifdef HAVE_INT_TOOL_BAR

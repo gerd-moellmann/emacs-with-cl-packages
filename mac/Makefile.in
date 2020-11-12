@@ -62,6 +62,7 @@ lprojdirs = Emacs.app/Contents/Resources/English.lproj \
   Emacs.app/Contents/Resources/no.lproj \
   Emacs.app/Contents/Resources/pl.lproj \
   Emacs.app/Contents/Resources/pt.lproj \
+  Emacs.app/Contents/Resources/pt_BR.lproj \
   Emacs.app/Contents/Resources/pt_PT.lproj \
   Emacs.app/Contents/Resources/ro.lproj \
   Emacs.app/Contents/Resources/ru.lproj \

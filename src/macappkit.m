@@ -534,6 +534,43 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 #endif
 }
 
+- (BOOL)getSRGBComponents:(CGFloat *)components
+{
+  NSColor *color = [self colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+
+  if (color == nil)
+    return NO;
+
+  [color getComponents:components];
+
+  return YES;
+}
+
++ (NSColor *)colorWithCoreGraphicsColor:(CGColorRef)cgColor
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
+  if ([self respondsToSelector:@selector(colorWithCGColor:)])
+#endif
+    return [self colorWithCGColor:cgColor];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
+  CGColorSpaceRef color_space = CGColorGetColorSpace (cgColor);
+
+  if (color_space)
+    {
+      NSColorSpace *colorSpace =
+	MRC_AUTORELEASE ([[NSColorSpace alloc]
+			   initWithCGColorSpace:color_space]);
+
+      return [NSColor
+	       colorWithColorSpace:colorSpace
+			components:(CGColorGetComponents (cgColor))
+			     count:(CGColorGetNumberOfComponents (cgColor))];
+    }
+
+  return nil;
+#endif
+}
+
 @end				// NSColor (Emacs)
 
 @implementation NSImage (Emacs)
@@ -1161,6 +1198,73 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
 #endif
 
   return result;
+}
+
+static void
+mac_with_current_drawing_appearance (NSAppearance *appearance,
+				     void (NS_NOESCAPE ^block) (void))
+{
+  if (
+#if __clang_major__ >= 9
+      /* We use 10.16 instead of 11.0 because the binary compiled with
+	 SDK 10.15 and earlier thinks the OS version as 10.16 rather
+	 than 11.0 if it is executed on Big Sur.  */
+      @available (macOS 10.16, *)
+#else
+      [appearance
+	respondsToSelector:@selector(performAsCurrentDrawingAppearance:)]
+#endif
+      )
+    [appearance performAsCurrentDrawingAppearance:block];
+  else if (has_visual_effect_view_p ())
+    {
+      NSAppearance *oldAppearance = [NS_APPEARANCE currentAppearance];
+
+      [NS_APPEARANCE setCurrentAppearance:appearance];
+      block ();
+      [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+    }
+  else
+    block ();
+}
+
+CFStringRef
+mac_uti_create_with_mime_type (CFStringRef mime_type)
+{
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+  return CF_BRIDGING_RETAIN ([UTType typeWithMIMEType:((__bridge NSString *)
+						       mime_type)]
+			     .identifier);
+#else
+  return UTTypeCreatePreferredIdentifierForTag (kUTTagClassMIMEType,
+						mime_type, kUTTypeData);
+#endif
+}
+
+CFStringRef
+mac_uti_create_with_filename_extension (CFStringRef extension)
+{
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+  return CF_BRIDGING_RETAIN ([UTType
+			       typeWithFilenameExtension:((__bridge NSString *)
+							  extension)]
+			     .identifier);
+#else
+  return UTTypeCreatePreferredIdentifierForTag (kUTTagClassFilenameExtension,
+						extension, kUTTypeData);
+#endif
+}
+
+CFStringRef
+mac_uti_copy_filename_extension (CFStringRef uti)
+{
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+  return CF_BRIDGING_RETAIN ([UTType typeWithIdentifier:((__bridge NSString *)
+							 uti)]
+			     .preferredFilenameExtension);
+#else
+  return UTTypeCopyPreferredTagWithClass (uti, kUTTagClassFilenameExtension);
+#endif
 }
 
 
@@ -2605,13 +2709,17 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	 live resize transition layer used in full screen transition
 	 looks translucent if we make overlayView a subview of
 	 emacsView.  */
-      if (emacsView.layer)
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+      if (emacsView.wantsUpdateLayer)
+#endif
 	[emacsWindow.contentView addSubview:overlayView];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
       else if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13))
 	[emacsView addSubview:overlayView];
       else
 	[emacsWindow.contentView addSubview:overlayView positioned:NSWindowBelow
 				 relativeTo:emacsView];
+#endif
       [self synchronizeOverlayViewFrame];
     }
 }
@@ -4533,7 +4641,7 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
   if ([NSApp isHidden])
     window.needsOrderFrontOnUnhide = YES;
   else
-    mac_within_gui (^{
+    mac_within_app (^{
 	struct frame *p = FRAME_PARENT_FRAME (f);
 
 	if (p)
@@ -6007,6 +6115,11 @@ mac_iosurface_create (size_t width, size_t height)
   NSSize size = view.bounds.size;
   size_t width = size.width * scaleFactor;
   size_t height = size.height * scaleFactor;
+  NSColorSpace *colorSpace = view.window.colorSpace;
+  CGColorSpaceRef color_space = (colorSpace ? colorSpace.CGColorSpace
+				 /* The window does not have a backing
+				    store, and is off-screen.  */
+				 : mac_cg_color_space_rgb);
   CGContextRef bitmaps[2] = {NULL, NULL};
   IOSurfaceRef surfaces[2] = {NULL, NULL};
 
@@ -6023,7 +6136,7 @@ mac_iosurface_create (size_t width, size_t height)
 	  bytes_per_row = IOSurfaceGetBytesPerRow (surfaces[i]);
 	}
       bitmaps[i] = CGBitmapContextCreate (data, width, height, 8, bytes_per_row,
-					  view.window.colorSpace.CGColorSpace,
+					  color_space,
 					  /* This combination enables
 					     us to use LCD Font
 					     smoothing.  */
@@ -6065,7 +6178,7 @@ mac_iosurface_create (size_t width, size_t height)
 
   dispatch_queue_t queue =
     dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-  copyFromToBackSemaphore = dispatch_semaphore_create (0);
+  copyFromFrontToBackSemaphore = dispatch_semaphore_create (0);
 
   dispatch_async (queue, ^{
       size_t width = IOSurfaceGetWidth (backSurface);
@@ -6108,19 +6221,20 @@ mac_iosurface_create (size_t width, size_t height)
 	  IOSurfaceUnlock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	}
 
-      dispatch_semaphore_signal (copyFromToBackSemaphore);
+      dispatch_semaphore_signal (copyFromFrontToBackSemaphore);
     });
 }
 
 - (void)waitCopyFromFrontToBack
 {
-  if (copyFromToBackSemaphore)
+  if (copyFromFrontToBackSemaphore)
     {
-      dispatch_semaphore_wait (copyFromToBackSemaphore, DISPATCH_TIME_FOREVER);
+      dispatch_semaphore_wait (copyFromFrontToBackSemaphore,
+			       DISPATCH_TIME_FOREVER);
 #if !OS_OBJECT_USE_OBJC_RETAIN_RELEASE
-      dispatch_release (copyFromToBackSemaphore);
+      dispatch_release (copyFromFrontToBackSemaphore);
 #endif
-      copyFromToBackSemaphore = NULL;
+      copyFromFrontToBackSemaphore = NULL;
     }
 }
 
@@ -6498,14 +6612,14 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (BOOL)isOpaque
 {
-  return !(has_visual_effect_view_p () && self.layer);
+  return !(has_visual_effect_view_p () && self.wantsUpdateLayer);
 }
 
 #if HAVE_MAC_METAL
 - (void)updateMTLObjects
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     return;
 #endif
   [backing updateMTLObjectsForView:self];
@@ -6514,7 +6628,14 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (BOOL)wantsUpdateLayer
 {
-  return self.layer != nil && !emacsViewUpdateLayerDisabled;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
+  if (self.layer == nil
+      /* This method may be called when creating the layer tree, where
+	 the view layer is not ready.  */
+      && !FRAME_MAC_DOUBLE_BUFFERED_P (self.emacsFrame))
+    return NO;
+#endif
+  return !emacsViewUpdateLayerDisabled;
 }
 
 - (void)updateLayer
@@ -6523,11 +6644,6 @@ static BOOL emacsViewUpdateLayerDisabled;
   NSData *rectanglesData = ((__bridge NSData *)
 			    (FRAME_FLASH_RECTANGLES_DATA (f)));
   NSData *savedImageBuffersData;
-
-  /* Work around a crash when creating a GUI frame on macOS Big Sur
-     Beta.  */
-  if (f->output_data.mac->normal_gc == NULL)
-    return;
 
   if (backing.lockCount)
     return;
@@ -6573,7 +6689,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)synchronizeBacking
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     return;
 #endif
   if (!synchronizeBackingSuspended)
@@ -6589,7 +6705,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   eassert (pthread_main_np ());
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     {
       [self lockFocus];
 
@@ -6606,7 +6722,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   eassert (pthread_main_np ());
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     {
       [self unlockFocus];
 
@@ -6619,7 +6735,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.layer)
+  if (!self.wantsUpdateLayer)
     {
       [self scrollRect:rect by:delta];
 
@@ -6705,7 +6821,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 {
   [super scrollRect:aRect by:offset];
   if (rounded_bottom_corners_need_masking_p ()
-      && !self.layer)
+      && !self.wantsUpdateLayer)
     {
       if (roundedBottomCornersCopied)
 	[self setNeedsDisplay:YES];
@@ -8199,17 +8315,11 @@ create_resize_indicator_image (void)
 
   if (flag)
     {
-      NSAppearance *oldAppearance;
-      CGColorRef borderColor;
+      CGColorRef __block borderColor;
 
-      if (has_visual_effect_view_p ())
-	{
-	  oldAppearance = [NS_APPEARANCE currentAppearance];
-	  [NS_APPEARANCE setCurrentAppearance:self.effectiveAppearance];
-	}
-      borderColor = NSColor.selectedControlColor.copyCGColor;
-      if (has_visual_effect_view_p ())
-	[NS_APPEARANCE setCurrentAppearance:oldAppearance];
+      mac_with_current_drawing_appearance (self.effectiveAppearance, ^{
+	  borderColor = NSColor.selectedControlColor.copyCGColor;
+	});
 
       [layer setValue:((id) kCFBooleanTrue) forKey:@"showingBorder"];
 
@@ -8277,11 +8387,10 @@ create_resize_indicator_image (void)
 Lisp_Object
 mac_color_lookup (const char *color_name)
 {
-  Lisp_Object result = Qnil;
+  Lisp_Object __block result = Qnil;
   char *colon;
   NSColorListName listName = @"System";
-  NSColor *color = nil, *colorInSRGB;
-  NSAppearance *oldAppearance, *appearance;
+  NSColor *color = nil;
 
   /* color_name is of the form either "mac:COLOR_LIST_NAME:COLOR_NAME"
      or "mac:COLOR_NAME".  The latter form is for system colors.  */
@@ -8325,26 +8434,19 @@ mac_color_lookup (const char *color_name)
   if (!color)
     return Qnil;
 
-  if (has_visual_effect_view_p ())
-    {
-      oldAppearance = [NS_APPEARANCE currentAppearance];
-      appearance = ([NSApp respondsToSelector:@selector(effectiveAppearance)]
-		    ? [NSApp effectiveAppearance]
-		    : [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
-      [NS_APPEARANCE setCurrentAppearance:appearance];
-    }
-  colorInSRGB = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-  if (colorInSRGB)
-    {
+  NSAppearance *appearance =
+    ([NSApp respondsToSelector:@selector(effectiveAppearance)]
+     ? [NSApp effectiveAppearance]
+     : [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
+
+  mac_with_current_drawing_appearance (appearance, ^{
       CGFloat components[4];
 
-      [colorInSRGB getComponents:components];
-      result = make_fixnum (RGB_TO_ULONG ((int) (components[0] * 255 + .5),
-					  (int) (components[1] * 255 + .5),
-					  (int) (components[2] * 255 + .5)));
-    }
-  if (has_visual_effect_view_p ())
-    [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+      if ([color getSRGBComponents:components])
+	result = make_fixnum (RGB_TO_ULONG ((int) (components[0] * 255 + .5),
+					    (int) (components[1] * 255 + .5),
+					    (int) (components[2] * 255 + .5)));
+    });
 
   return result;
 }
@@ -9040,13 +9142,27 @@ static BOOL NonmodalScrollerPagingBehavior;
   [self.window.backgroundColor set];
   NSRectFill (aRect);
   [super drawRect:aRect];
-  if (has_visual_effect_view_p ()
-      && ![NS_APPEARANCE currentAppearance].allowsVibrancy
-      && !mac_accessibility_display_options.reduce_transparency_p)
+  if (has_visual_effect_view_p ())
     {
-      [[self.window.backgroundColor colorWithAlphaComponent:0.25] set];
-      NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
-				NSCompositingOperationSourceOver);
+      NSAppearance *currentDrawingAppearance;
+
+      if (
+#if __clang_major__ >= 9
+	  @available (macOS 10.16, *)
+#else
+	  [NS_APPEARANCE respondsToSelector:@selector(currentDrawingAppearance)]
+#endif
+	  )
+	currentDrawingAppearance = [NS_APPEARANCE currentDrawingAppearance];
+      else
+	currentDrawingAppearance = [NS_APPEARANCE currentAppearance];
+      if (!currentDrawingAppearance.allowsVibrancy
+	  && !mac_accessibility_display_options.reduce_transparency_p)
+	{
+	  [[self.window.backgroundColor colorWithAlphaComponent:0.25] set];
+	  NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
+				    NSCompositingOperationSourceOver);
+	}
     }
 }
 
@@ -9797,6 +9913,23 @@ mac_is_frame_window_toolbar_visible (struct frame *f)
   return [[window toolbar] isVisible];
 }
 
+/* Copied from gtkutil.c.  */
+
+static Lisp_Object
+file_for_image (Lisp_Object image)
+{
+  Lisp_Object specified_file = Qnil;
+  Lisp_Object tail;
+
+  for (tail = XCDR (image);
+       NILP (specified_file) && CONSP (tail) && CONSP (XCDR (tail));
+       tail = XCDR (XCDR (tail)))
+    if (EQ (XCAR (tail), QCfile))
+      specified_file = XCAR (XCDR (tail));
+
+  return specified_file;
+}
+
 /* Update the tool bar for frame F.  Add new buttons and remove old.  */
 
 void
@@ -9832,9 +9965,8 @@ update_frame_tool_bar (struct frame *f)
       bool enabled_p = !NILP (PROP (TOOL_BAR_ITEM_ENABLED_P));
       bool selected_p = !NILP (PROP (TOOL_BAR_ITEM_SELECTED_P));
       int idx = 0;
-      ptrdiff_t img_id;
-      struct image *img;
       Lisp_Object image;
+      NSImage *systemSymbol = nil;
       NSString *label = nil;
       NSArrayOf (id) *cgImages = nil;
       NSToolbarItemIdentifier identifier = TOOLBAR_ICON_ITEM_IDENTIFIER;
@@ -9867,45 +9999,88 @@ update_frame_tool_bar (struct frame *f)
 	  if (!valid_image_p (image))
 	    continue;
 
-	  if (use_multiimage_icons_p)
-	    FRAME_BACKING_SCALE_FACTOR (f) = 1;
-          img_id = lookup_image (f, image);
-	  if (use_multiimage_icons_p)
-	    [frameController updateBackingScaleFactor];
-          img = IMAGE_FROM_ID (f, img_id);
-          prepare_image_for_display (f, img);
+	  if (
+#if __clang_major__ >= 9
+	      @available (macOS 10.16, *)
+#else
+	      [NSImage respondsToSelector:@selector(imageWithSystemSymbolName:accessibilityDescription:)]
+#endif
+	      )
+	    {
+	      Lisp_Object specified_file = file_for_image (image);
+	      Lisp_Object names = Qnil;
+	      if (!NILP (specified_file)
+		  && !NILP (Ffboundp (Qmac_map_system_symbol)))
+		names = call1 (Qmac_map_system_symbol, specified_file);
 
-          if (img->cg_image == NULL)
-	    continue;
+	      if (CONSP (names))
+		{
+		  Lisp_Object tem;
+		  for (tem = names; CONSP (tem); tem = XCDR (tem))
+		    if (! NILP (tem) && STRINGP (XCAR (tem)))
+		      {
+			NSString *str = [NSString
+					   stringWithLispString:(XCAR (tem))];
+			systemSymbol = [NSImage imageWithSystemSymbolName:str
+						 accessibilityDescription:nil];
+			if (systemSymbol) break;
+		      }
+		}
+	      else if (STRINGP (names))
+		{
+		  NSString *str = [NSString stringWithLispString:names];
+		  systemSymbol = [NSImage imageWithSystemSymbolName:str
+					   accessibilityDescription:nil];
+		}
+	    }
+
+	  if (!systemSymbol)
+	    {
+	      ptrdiff_t img_id;
+	      struct image *img;
+
+	      if (use_multiimage_icons_p)
+		FRAME_BACKING_SCALE_FACTOR (f) = 1;
+	      img_id = lookup_image (f, image);
+	      if (use_multiimage_icons_p)
+		[frameController updateBackingScaleFactor];
+	      img = IMAGE_FROM_ID (f, img_id);
+	      prepare_image_for_display (f, img);
+
+	      if (img->cg_image == NULL)
+		continue;
+
+	      /* As displayed images of toolbar image items are scaled
+		 to square shapes, narrow images such as separators
+		 look weird.  So we use separator items for too narrow
+		 disabled images.  */
+	      if (CGImageGetWidth (img->cg_image) <= 2 && !enabled_p)
+		identifier = toolbar_separator_item_identifier_if_available ();
+	      else if (!use_multiimage_icons_p
+		       || img->target_backing_scale == 0)
+		cgImages = [NSArray
+			     arrayWithObject:((__bridge id) img->cg_image)];
+	      else
+		{
+		  CGImageRef cg_image = img->cg_image;
+
+		  FRAME_BACKING_SCALE_FACTOR (f) = 2;
+		  img_id = lookup_image (f, image);
+		  [frameController updateBackingScaleFactor];
+		  img = IMAGE_FROM_ID (f, img_id);
+		  prepare_image_for_display (f, img);
+
+		  /* It's OK for img->cg_image to become NULL here.  */
+		  cgImages = [NSArray arrayWithObjects:((__bridge id) cg_image),
+				      ((__bridge id) img->cg_image), nil];
+		}
+	    }
 
 	  if (STRINGP (PROP (TOOL_BAR_ITEM_LABEL)))
 	    label = [NSString
 		      stringWithLispString:(PROP (TOOL_BAR_ITEM_LABEL))];
 	  else
 	    label = @"";
-
-	  /* As displayed images of toolbar image items are scaled to
-	     square shapes, narrow images such as separators look
-	     weird.  So we use separator items for too narrow disabled
-	     images.  */
-	  if (CGImageGetWidth (img->cg_image) <= 2 && !enabled_p)
-	    identifier = toolbar_separator_item_identifier_if_available ();
-	  else if (!use_multiimage_icons_p || img->target_backing_scale == 0)
-	    cgImages = [NSArray arrayWithObject:((__bridge id) img->cg_image)];
-	  else
-	    {
-	      CGImageRef cg_image = img->cg_image;
-
-	      FRAME_BACKING_SCALE_FACTOR (f) = 2;
-	      img_id = lookup_image (f, image);
-	      [frameController updateBackingScaleFactor];
-	      img = IMAGE_FROM_ID (f, img_id);
-	      prepare_image_for_display (f, img);
-
-	      /* It's OK for img->cg_image to become NULL here.  */
-	      cgImages = [NSArray arrayWithObjects:((__bridge id) cg_image),
-				  ((__bridge id) img->cg_image), nil];
-	    }
 	}
 
       if (!identifier)
@@ -9930,7 +10105,10 @@ update_frame_tool_bar (struct frame *f)
 	    {
 	      EmacsToolbarItem *item = [items objectAtIndex:pos];
 
-	      [item setCoreGraphicsImages:cgImages];
+	      if (systemSymbol)
+		item.image = systemSymbol;
+	      else
+		[item setCoreGraphicsImages:cgImages];
 	      [item setLabel:label];
 	      [item setEnabled:(enabled_p || idx >= 0)];
 	      [item setTag:i];
@@ -10831,49 +11009,53 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
       if (NILP (only_dir_p) && NILP (mustmatch))
 	{
 	  /* This is a save dialog */
-	  NSSavePanel *savePanel = [EmacsSavePanel savePanel];
+	  NSSavePanel *savePanel = EmacsSavePanel.savePanel;
 	  NSModalResponse __block response;
 
-	  [savePanel setTitle:title];
-	  [savePanel setPrompt:@"OK"];
-	  [savePanel setNameFieldLabel:@"Enter Name:"];
+	  savePanel.title = title;
+	  savePanel.prompt = @"OK";
+	  savePanel.nameFieldLabel = @"Enter Name:";
 	  if ([savePanel respondsToSelector:@selector(setShowsTagField:)])
-	    [savePanel setShowsTagField:NO];
+	    savePanel.showsTagField = NO;
 
-	  [savePanel setDirectoryURL:[NSURL fileURLWithPath:directory
-						isDirectory:YES]];
+	  savePanel.directoryURL = [NSURL fileURLWithPath:directory
+					      isDirectory:YES];
 	  if (nondirectory)
-	    [savePanel setNameFieldStringValue:nondirectory];
+	    savePanel.nameFieldStringValue = nondirectory;
 	  mac_within_app (^{response = [savePanel runModal];});
 	  if (response == NSModalResponseOK)
-	    url = MRC_RETAIN ([savePanel URL]);
+	    url = MRC_RETAIN (savePanel.URL);
 	}
       else
 	{
 	  /* This is an open dialog */
-	  NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+	  NSOpenPanel *openPanel = NSOpenPanel.openPanel;
 	  NSModalResponse __block response;
 
-	  [openPanel setTitle:title];
-	  [openPanel setPrompt:@"OK"];
-	  [openPanel setAllowsMultipleSelection:NO];
-	  [openPanel setCanChooseDirectories:YES];
-	  [openPanel setCanChooseFiles:(NILP (only_dir_p))];
+	  openPanel.title = title;
+	  openPanel.prompt = @"OK";
+	  openPanel.allowsMultipleSelection = NO;
+	  openPanel.canChooseDirectories = YES;
+	  openPanel.canChooseFiles = NILP (only_dir_p);
 
-	  [openPanel setDirectoryURL:[NSURL fileURLWithPath:directory
-						isDirectory:YES]];
+	  openPanel.directoryURL = [NSURL fileURLWithPath:directory
+					      isDirectory:YES];
 	  if (nondirectory)
-	    [openPanel setNameFieldStringValue:nondirectory];
-	  [openPanel setAllowedFileTypes:nil];
+	    openPanel.nameFieldStringValue = nondirectory;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 110000
+	  openPanel.allowedContentTypes = @[];
+#else
+	  openPanel.allowedFileTypes = nil;
+#endif
 	  mac_within_app (^{response = [openPanel runModal];});
 	  if (response == NSModalResponseOK)
-	    url = MRC_RETAIN ([[openPanel URLs] objectAtIndex:0]);
+	    url = MRC_RETAIN ([openPanel.URLs objectAtIndex:0]);
 	}
     });
   mac_menu_set_in_use (false);
 
-  if ([url isFileURL])
-    file = [[url path] lispString];
+  if (url.isFileURL)
+    file = url.path.lispString;
   MRC_RELEASE (url);
 
   unblock_input ();
@@ -11670,82 +11852,83 @@ init_menu_bar (void)
 						    appKitBundle, NULL));
 }
 
-/* Fill menu bar with the items defined by WV.  If DEEP_P, consider
-   the entire menu trees we supply, rather than just the menu bar item
-   names.  */
+/* Fill menu bar with the items defined by FIRST_WV.  If DEEP_P,
+   consider the entire menu trees we supply, rather than just the menu
+   bar item names.  */
 
 void
-mac_fill_menubar (widget_value *wv, bool deep_p)
+mac_fill_menubar (widget_value *first_wv, bool deep_p)
 {
-  NSMenu *newMenu, *mainMenu = [NSApp mainMenu], *helpMenu = nil;
-  NSInteger index, nitems = [mainMenu numberOfItems];
-  bool needs_update_p = deep_p;
+  mac_within_gui (^{
+      NSMenu *newMenu, *mainMenu = [NSApp mainMenu], *helpMenu = nil;
+      NSInteger index = 1, nitems = [mainMenu numberOfItems];
+      bool needs_update_p = deep_p;
 
-  newMenu = [[EmacsMenu alloc] init];
-  [newMenu setAutoenablesItems:NO];
+      newMenu = [[EmacsMenu alloc] init];
+      [newMenu setAutoenablesItems:NO];
 
-  for (index = 1; wv != NULL; wv = wv->next, index++)
-    {
-      NSString *title = CF_BRIDGING_RELEASE (CFStringCreateWithCString
-					     (NULL, wv->name,
-					      kCFStringEncodingMacRoman));
-      NSMenu *submenu;
-
-      /* The title of the Help menu needs to be localized in order for
-	 Spotlight for Help to be installed on Mac OS X 10.5.  */
-      if ([title isEqualToString:@"Help"])
-	title = localizedMenuTitleForHelp;
-      if (!needs_update_p)
+      for (widget_value *wv = first_wv; wv != NULL; wv = wv->next, index++)
 	{
-	  if (index >= nitems)
-	    needs_update_p = true;
-	  else
+	  NSString *title = CF_BRIDGING_RELEASE (CFStringCreateWithCString
+						 (NULL, wv->name,
+						  kCFStringEncodingMacRoman));
+	  NSMenu *submenu;
+
+	  /* The title of the Help menu needs to be localized in order
+	     for Spotlight for Help to be installed on Mac OS X
+	     10.5.  */
+	  if ([title isEqualToString:@"Help"])
+	    title = localizedMenuTitleForHelp;
+	  if (!needs_update_p)
 	    {
-	      submenu = [[mainMenu itemAtIndex:index] submenu];
-	      if (!(submenu && [title isEqualToString:[submenu title]]))
+	      if (index >= nitems)
 		needs_update_p = true;
+	      else
+		{
+		  submenu = [[mainMenu itemAtIndex:index] submenu];
+		  if (!(submenu && [title isEqualToString:[submenu title]]))
+		    needs_update_p = true;
+		}
 	    }
+
+	  submenu = [[NSMenu alloc] initWithTitle:title];
+	  [submenu setAutoenablesItems:NO];
+
+	  /* To make Input Manager add "Special Characters..." to the
+	     "Edit" menu, we have to localize the menu title.  */
+	  if ([title isEqualToString:@"Edit"])
+	    title = localizedMenuTitleForEdit;
+	  else if (title == localizedMenuTitleForHelp)
+	    helpMenu = submenu;
+
+	  [newMenu setSubmenu:submenu
+		      forItem:[newMenu addItemWithTitle:title action:nil
+					  keyEquivalent:@""]];
+
+	  if (wv->contents)
+	    [submenu fillWithWidgetValue:wv->contents];
+
+	  MRC_RELEASE (submenu);
 	}
 
-      submenu = [[NSMenu alloc] initWithTitle:title];
-      [submenu setAutoenablesItems:NO];
+      if (!needs_update_p && index != nitems)
+	needs_update_p = true;
 
-      /* To make Input Manager add "Special Characters..." to the
-	 "Edit" menu, we have to localize the menu title.  */
-      if ([title isEqualToString:@"Edit"])
-	title = localizedMenuTitleForEdit;
-      else if (title == localizedMenuTitleForHelp)
-	helpMenu = submenu;
+      if (needs_update_p)
+	{
+	  NSMenuItem *appleMenuItem = MRC_RETAIN ([mainMenu itemAtIndex:0]);
 
-      [newMenu setSubmenu:submenu
-		  forItem:[newMenu addItemWithTitle:title action:nil
-				      keyEquivalent:@""]];
+	  [mainMenu removeItem:appleMenuItem];
+	  [newMenu insertItem:appleMenuItem atIndex:0];
+	  MRC_RELEASE (appleMenuItem);
 
-      if (wv->contents)
-	[submenu fillWithWidgetValue:wv->contents];
-
-      MRC_RELEASE (submenu);
-    }
-
-  if (!needs_update_p && index != nitems)
-    needs_update_p = true;
-
-  if (needs_update_p)
-    {
-      NSMenuItem *appleMenuItem = MRC_RETAIN ([mainMenu itemAtIndex:0]);
-
-      [mainMenu removeItem:appleMenuItem];
-      [newMenu insertItem:appleMenuItem atIndex:0];
-      MRC_RELEASE (appleMenuItem);
-
-      mac_within_gui (^{
 	  [NSApp setMainMenu:newMenu];
 	  if (helpMenu)
 	    [NSApp setHelpMenu:helpMenu];
-	});
-    }
+	}
 
-  MRC_RELEASE (newMenu);
+      MRC_RELEASE (newMenu);
+    });
 }
 
 static void
@@ -11818,14 +12001,19 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
   EmacsFrameController *focusFrameController =
     dpyinfo->mac_focus_frame ? FRAME_CONTROLLER (dpyinfo->mac_focus_frame) : nil;
 
-  [menu setAutoenablesItems:NO];
-  [menu fillWithWidgetValue:first_wv->contents];
+  /* Inserting a menu item in a non-main thread causes hang on macOS
+     Big Sur beta 8.  */
+  mac_within_gui (^{
+      [menu setAutoenablesItems:NO];
+      [menu fillWithWidgetValue:first_wv->contents];
+    });
 
   mac_menu_set_in_use (true);
   mac_track_menu_with_block (^{
-  [focusFrameController noteLeaveEmacsView];
-  [frameController popUpMenu:menu atLocationInEmacsView:(NSMakePoint (x, y))];
-  [focusFrameController noteEnterEmacsView];
+      [focusFrameController noteLeaveEmacsView];
+      [frameController popUpMenu:menu
+	   atLocationInEmacsView:(NSMakePoint (x, y))];
+      [focusFrameController noteEnterEmacsView];
     });
   mac_menu_set_in_use (false);
 
@@ -12996,7 +13184,7 @@ update_dragged_types (void)
 Lisp_Object
 mac_dnd_default_known_types (void)
 {
-  return list3 ([(__bridge NSPasteboardType)kUTTypeURL UTF8LispString],
+  return list3 ([(__bridge NSPasteboardType)UTI_URL UTF8LispString],
 		[NSPasteboardTypeString UTF8LispString],
 		[NSPasteboardTypeTIFF UTF8LispString]);
 }
@@ -13957,114 +14145,186 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
 
 
 /************************************************************************
-			    Image support
+			Document rasterization
  ************************************************************************/
 
-@implementation NSView (Emacs)
+static NSMutableDictionaryOf (id, NSDictionaryOf (NSString *, id) *)
+  *documentRasterizerCache;
+static NSDate *documentRasterizerCacheOldestTimestamp;
+#define DOCUMENT_RASTERIZER_CACHE_DURATION 60.0
 
-- (Emacs_Pix_Container)createXImageFromRect:(NSRect)rect
-			    backgroundColor:(NSColor *)color
-				scaleFactor:(CGFloat)scaleFactor
+@implementation EmacsPDFDocument
+
+/* Like -[PDFDocument initWithURL:], but suppress warnings if not
+   loading a PDF file.  */
+
+- (instancetype)initWithURL:(NSURL *)url
+		    options:(NSDictionaryOf (NSString *, id) *)options
 {
-  Emacs_Pix_Container ximg;
-  CGContextRef context;
-  NSGraphicsContext *gcontext;
-  NSAffineTransform *transform;
+  NSFileHandle *fileHandle;
+  NSData *data;
+  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
 
-  ximg = image_create_pix_container (NULL, NSWidth (rect) * scaleFactor,
-				     NSHeight (rect) * scaleFactor, 0);
-  context = CGBitmapContextCreate (ximg->data, ximg->width, ximg->height, 8,
-				   ximg->bytes_per_line,
-				   mac_cg_color_space_rgb,
-				   kCGImageAlphaNoneSkipFirst
-				   | kCGBitmapByteOrder32Host);
-  if (context == NULL)
-    {
-      image_free_pix_container (NULL, ximg);
+  if (type && !CFEqual ((__bridge CFStringRef) type, UTI_PDF))
+    goto error;
 
-      return NULL;
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-  gcontext = [NSGraphicsContext graphicsContextWithCGContext:context
-						     flipped:NO];
+  fileHandle = [NSFileHandle fileHandleForReadingFromURL:url error:NULL];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
+  data = [fileHandle readDataUpToLength:5 error:NULL];
 #else
-  gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:context
-							flipped:NO];
+  data = [fileHandle readDataOfLength:5];
 #endif
-  transform = [NSAffineTransform transform];
-  [transform scaleBy:scaleFactor];
-  [transform translateXBy:(- NSMinX (rect)) yBy:(- NSMinY (rect))];
-  [NSGraphicsContext saveGraphicsState];
-  NSGraphicsContext.currentContext = gcontext;
-  [transform concat];
-  if (!(self.isOpaque && NSContainsRect (self.bounds, rect)))
-    {
-      [gcontext saveGraphicsState];
-      [(color ? color : [NSColor clearColor]) set];
-      NSRectFill (rect);
-      [gcontext restoreGraphicsState];
-    }
-#ifdef USE_WK_API
-  if ([self isKindOfClass:[WKWebView class]])
-    {
-      WKWebView *webView = (WKWebView *) self;
-      WKSnapshotConfiguration *snapshotConfiguration =
-	[[WKSnapshotConfiguration alloc] init];
-      NSImage * __block image;
-      BOOL __block finished = NO;
 
-      [webView _setOverrideDeviceScaleFactor:scaleFactor];
-      [webView takeSnapshotWithConfiguration:snapshotConfiguration
-			   completionHandler:^(NSImage *snapshotImage,
-					       NSError *error) {
-	  image = MRC_RETAIN (snapshotImage);
-	  finished = YES;
-	}];
-      MRC_RELEASE (snapshotConfiguration);
+  if ([data length] < 5 || memcmp ([data bytes], "%PDF-", 5) != 0)
+    goto error;
 
-      while (!finished)
-	mac_run_loop_run_once (0);
+  self = [self initWithURL:url];
 
-      if (image == nil)
-	{
-	  [NSGraphicsContext restoreGraphicsState];
-	  CGContextRelease (context);
-	  image_free_pix_container (NULL, ximg);
+  return self;
 
-	  return NULL;
-	}
+ error:
+  self = [super init];
+  MRC_RELEASE (self);
+  self = nil;
 
-      rect = NSIntersectionRect (rect, self.bounds);
-      [image drawAtPoint:rect.origin fromRect:rect
-	       operation:NSCompositingOperationSourceOver fraction:1];
-      MRC_RELEASE (image);
-    }
-  else
-#endif
-    [self displayRectIgnoringOpacity:rect inContext:gcontext];
-  [NSGraphicsContext restoreGraphicsState];
-  CGContextRelease (context);
-
-  return ximg;
+  return self;
 }
 
-@end				// NSView (Emacs)
+/* Like -[PDFDocument initWithData:], but suppress warnings if not
+   loading a PDF data.  */
 
-@implementation EmacsSVGLoader
-
-- (instancetype)initWithEmacsFrame:(struct frame *)f emacsImage:(struct image *)img
-		checkImageSizeFunc:(bool (*)(struct frame *, int, int))checkImageSize
-		    imageErrorFunc:(void (*)(const char *, ...))imageError
+- (instancetype)initWithData:(NSData *)data
+		     options:(NSDictionaryOf (NSString *, id) *)options
 {
+  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
+
+  if (type && !CFEqual ((__bridge CFStringRef) type, UTI_PDF))
+    goto error;
+  if ([data length] < 5 || memcmp ([data bytes], "%PDF-", 5) != 0)
+    goto error;
+
+  self = [self initWithData:data];
+
+  return self;
+
+ error:
   self = [super init];
+  MRC_RELEASE (self);
+  self = nil;
 
-  if (self == nil)
-    return nil;
+  return self;
+}
 
-  emacsFrame = f;
-  emacsImage = img;
-  checkImageSizeFunc = checkImageSize;
-  imageErrorFunc = imageError;
++ (BOOL)shouldInitializeInMainThread
+{
+  return NO;
+}
+
+- (BOOL)shouldNotCache
+{
+  return NO;
+}
+
++ (NSArrayOf (NSString *) *)supportedTypes
+{
+  return [NSArray arrayWithObject:((__bridge NSString *) UTI_PDF)];
+}
+
+- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
+{
+  PDFPage *page = [self pageAtIndex:index];
+  NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
+  int rotation = [page rotation];
+
+  if (rotation == 0 || rotation == 180)
+    return NSMakeSize (ceil (NSWidth (bounds)), ceil (NSHeight (bounds)));
+  else
+    return NSMakeSize (ceil (NSHeight (bounds)), ceil (NSWidth (bounds)));
+}
+
+- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
+{
+  return NULL;
+}
+
+- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
+{
+  return [self documentAttributes];
+}
+
+- (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
+	      inContext:(CGContextRef)ctx
+		options:(NSDictionaryOf (NSString *, id) *)options /* unused */
+{
+  PDFPage *page = [self pageAtIndex:index];
+  NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
+  int rotation = [page rotation];
+  CGFloat width, height;
+
+  if (rotation == 0 || rotation == 180)
+    width = ceil (NSWidth (bounds)), height = ceil (NSHeight (bounds));
+  else
+    width = ceil (NSHeight (bounds)), height = ceil (NSWidth (bounds));
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+  if ([page respondsToSelector:@selector(drawWithBox:toContext:)])
+#endif
+    {
+      CGContextSaveGState (ctx);
+      CGContextTranslateCTM (ctx, NSMinX (rect), NSMinY (rect));
+      CGContextScaleCTM (ctx, NSWidth (rect) / width, NSHeight (rect) / height);
+      [page drawWithBox:kPDFDisplayBoxTrimBox toContext:ctx];
+      CGContextRestoreGState (ctx);
+    }
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+  else
+    {
+      NSAffineTransform *transform = [NSAffineTransform transform];
+      NSGraphicsContext *gcontext =
+	[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
+
+      [NSGraphicsContext saveGraphicsState];
+      NSGraphicsContext.currentContext = gcontext;
+      [transform translateXBy:(NSMinX (rect)) yBy:(NSMinY (rect))];
+      [transform scaleXBy:(NSWidth (rect) / width)
+		      yBy:(NSHeight (rect) / height)];
+      [transform concat];
+      [page drawWithBox:kPDFDisplayBoxTrimBox];
+      [NSGraphicsContext restoreGraphicsState];
+    }
+#endif
+}
+
+@end				// EmacsPDFDocument
+
+@implementation EmacsSVGDocument
+
+/* WebView object that was used in the last deallocated
+   EmacsSVGDocument object.  This is reused to avoid the overhead of
+   WebView object creation.  */
+#ifdef USE_WK_API
+static WKWebView *EmacsSVGDocumentLastWebView;
+#else
+static WebView *EmacsSVGDocumentLastWebView;
+#endif
+
+- (instancetype)initWithURL:(NSURL *)url
+		    options:(NSDictionaryOf (NSString *, id) *)options
+{
+  NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingFromURL:url
+								 error:NULL];
+  NSData *data = fileHandle.availableData;
+
+  if (!data)
+    goto error;
+
+  self = [self initWithData:data options:options];
+
+  return self;
+
+ error:
+  self = [super init];
+  MRC_RELEASE (self);
+  self = nil;
 
   return self;
 }
@@ -14118,182 +14378,345 @@ mac_osa_script (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
   return frameSize;
 }
 
-- (bool)loadData:(NSData *)data backgroundColor:(NSColor *)backgroundColor
-	 baseURL:(NSURL *)url
+- (instancetype)initWithData:(NSData *)data
+		     options:(NSDictionaryOf (NSString *, id) *)options
 {
-  bool __block result;
+  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
 
-  mac_within_app (^{
-      NSRect frameRect = NSMakeRect (0, 0, 100, 100); /* Adjusted later.  */
-      int width = -1, height;
-      CGFloat scaleFactor;
+  if (type && !CFEqual ((__bridge CFStringRef) type, UTI_SVG))
+    {
+      self = [super init];
+      MRC_RELEASE (self);
+      self = nil;
+
+      return self;
+    }
+
+  self = [super init];
+
+  if (self == nil)
+    return nil;
+
+  NSRect frameRect = NSMakeRect (0, 0, 100, 100); /* Adjusted later.  */
+  if (!EmacsSVGDocumentLastWebView)
+    {
 #ifdef USE_WK_API
-      static WKWebView *webView;
+      WKWebViewConfiguration *configuration =
+	[[WKWebViewConfiguration alloc] init];
 
-      if (!webView)
-	{
-	  WKWebViewConfiguration *configuration =
-	    [[WKWebViewConfiguration alloc] init];
+      configuration.suppressesIncrementalRendering = YES;
+      webView = [[WKWebView alloc] initWithFrame:frameRect
+				   configuration:configuration];
+      MRC_RELEASE (configuration);
+#else  /* !USE_WK_API */
+      webView = [[WebView alloc] initWithFrame:frameRect frameName:nil
+				     groupName:nil];
+#endif  /* !USE_WK_API */
+    }
+  else
+    {
+      webView = EmacsSVGDocumentLastWebView;
+      EmacsSVGDocumentLastWebView = nil;
+      webView.frame = frameRect;
+    }
 
-	  configuration.suppressesIncrementalRendering = YES;
-	  webView = [[WKWebView alloc] initWithFrame:frameRect
-				       configuration:configuration];
-	  MRC_RELEASE (configuration);
-	}
-      else
-	webView.frame = frameRect;
-#define DELEGATE navigationDelegate
-      eassert (!webView.DELEGATE);
-      webView.DELEGATE = self;
-      [webView loadData:data MIMEType:@"image/svg+xml"
-	       characterEncodingName:@"UTF-8" baseURL:url];
-#else
-      static WebView *webView;
+  NSURL *baseURL = [options objectForKey:@"baseURL"];
+#ifdef USE_WK_API
+  webView.navigationDelegate = self;
+  [webView loadData:data MIMEType:@"image/svg+xml"
+	   characterEncodingName:@"UTF-8" baseURL:baseURL];
+#else  /* !USE_WK_API */
+  webView.frameLoadDelegate = self;
+  webView.mainFrame.frameView.allowsScrolling = NO;
+  [webView.mainFrame loadData:data MIMEType:@"image/svg+xml"
+	     textEncodingName:nil baseURL:baseURL];
+#endif  /* !USE_WK_API */
 
-      if (!webView)
-	webView = [[WebView alloc] initWithFrame:frameRect frameName:nil
-				       groupName:nil];
-      else
-	webView.frame = frameRect;
-#define DELEGATE frameLoadDelegate
-      eassert (!webView.DELEGATE);
-      webView.DELEGATE = self;
-      webView.mainFrame.frameView.allowsScrolling = NO;
-      [webView setValue:backgroundColor forKey:@"backgroundColor"];
-      [webView.mainFrame loadData:data MIMEType:@"image/svg+xml"
-		 textEncodingName:nil baseURL:url];
-#endif
+  /* webView.isLoading is not sufficient if we have <image
+     xlink:href=... /> */
+  while (!isLoaded)
+    mac_run_loop_run_once (0);
 
-      /* webView.isLoading is not sufficient if we have <image
-	 xlink:href=... /> */
-      while (!isLoaded)
+  int width = -1, height;
+  @try
+    {
+      id boundingBox, widthBaseVal, heightBaseVal;
+      enum {SVG_LENGTHTYPE_PERCENTAGE = 2};
+#ifdef USE_WK_API
+      NSString * __block jsonString;
+      BOOL __block finished = NO;
+      NSString *script = @""
+"var documentElement = document.documentElement;\n"
+"function filter (obj, names) {\n"
+"  return names.reduce ((acc, nm) => {acc[nm] = obj[nm]; return acc;}, {});\n"
+"}\n"
+"JSON.stringify (['width', 'height'].reduce\n"
+"  ((obj, dim) => {\n"
+"     obj[dim + 'BaseVal'] =\n"
+"       filter (documentElement[dim].baseVal,\n"
+"	       ['unitType', 'value', 'valueInSpecifiedUnits']);\n"
+"     return obj;\n"
+"   }, {boundingBox:\n"
+"       ((documentElement.width.baseVal.unitType != SVGLength.SVG_LENGTHTYPE_PERCENTAGE\n"
+"	 && documentElement.height.baseVal.unitType != SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
+"	? null : filter (documentElement.getBBox (),\n"
+"			 ['x', 'y', 'width', 'height']))}))";
+      [webView evaluateJavaScript:script
+		completionHandler:^(id scriptResult, NSError *error) {
+	  if ([scriptResult isKindOfClass:NSString.class])
+	    jsonString = MRC_RETAIN (scriptResult);
+	  else
+	    jsonString = nil;
+	  finished = YES;
+	}];
+
+      while (!finished)
 	mac_run_loop_run_once (0);
 
-      @try
+      if (jsonString == nil)
+	widthBaseVal = nil;
+      else
 	{
-	  id boundingBox, widthBaseVal, heightBaseVal;
+	  NSData *data =
+	    [jsonString dataUsingEncoding:NSUTF8StringEncoding];
+	  NSDictionary *jsonObject =
+	    [NSJSONSerialization JSONObjectWithData:data options:0
+					      error:NULL];
+
+	  boundingBox = jsonObject[@"boundingBox"];
+	  widthBaseVal = jsonObject[@"widthBaseVal"];
+	  heightBaseVal = jsonObject[@"heightBaseVal"];
+	  MRC_AUTORELEASE (jsonString);
+	}
+#else  /* !USE_WK_API */
+      WebScriptObject *rootElement =
+	[webView.windowScriptObject
+	    valueForKeyPath:@"document.rootElement"];
+
+      widthBaseVal = [rootElement valueForKeyPath:@"width.baseVal"];
+      heightBaseVal = [rootElement valueForKeyPath:@"height.baseVal"];
+      if ((((NSNumber *) [widthBaseVal valueForKey:@"unitType"]).intValue
+	   == SVG_LENGTHTYPE_PERCENTAGE)
+	  || (((NSNumber *) [heightBaseVal valueForKey:@"unitType"]).intValue
+	      == SVG_LENGTHTYPE_PERCENTAGE))
+	boundingBox = [rootElement callWebScriptMethod:@"getBBox"
+					 withArguments:[NSArray array]];
+      else
+	boundingBox = nil;
+
+#endif  /* !USE_WK_API */
+      if (widthBaseVal)
+	frameRect.size = [self frameSizeForBoundingBox:boundingBox
+					  widthBaseVal:widthBaseVal
+					 heightBaseVal:heightBaseVal
+					    imageWidth:&width
+					   imageHeight:&height];
 #ifdef USE_WK_API
-	  NSString * __block jsonString;
-	  BOOL __block finished = NO;
-	  CGFloat components[4];
-	  NSColor *colorInSRGB =
-	    [backgroundColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-	  NSString *script;
+      finished = NO;
+      script = [NSString stringWithFormat:@""
+"const svgElement = document.createElementNS ('http://www.w3.org/2000/svg', 'svg');\n"
+"const gElement = document.createElementNS ('http://www.w3.org/2000/svg', 'g');\n"
+"svgElement.setAttribute ('width', '%d');\n"
+"svgElement.setAttribute ('height', '%d');\n"
+"svgElement.setAttribute ('viewBox', '0, 0, %d, %d');\n"
+"if (documentElement.width.baseVal.unitType == SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
+"  documentElement.width.baseVal.newValueSpecifiedUnits (SVGLength.SVG_LENGTHTYPE_PERCENTAGE, 100);\n"
+"if (documentElement.height.baseVal.unitType == SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
+"  documentElement.height.baseVal.newValueSpecifiedUnits (SVGLength.SVG_LENGTHTYPE_PERCENTAGE, 100);\n"
+"document.replaceChild (svgElement, documentElement);\n"
+"svgElement.appendChild (gElement);\n"
+"gElement.appendChild (documentElement);\n"
+"documentElement = svgElement;\n"
+"null;", width, height, width, height];
 
-	  [colorInSRGB getComponents:components];
-	  script = [NSString stringWithFormat:@"\
-const rootElement = document.rootElement;				\
-rootElement.style.backgroundColor = '#%02x%02x%02x';			\
-function filter (obj, names) {						\
-  return names.reduce ((acc, nm) => {acc[nm] = obj[nm]; return acc;}, {}); \
-}									\
-JSON.stringify (['width', 'height'].reduce				\
-  ((obj, dim) => {							\
-     obj[dim + 'BaseVal'] =						\
-       filter (rootElement[dim].baseVal,				\
-	       ['unitType', 'value', 'valueInSpecifiedUnits']);		\
-     return obj;							\
-   }, {boundingBox: filter (rootElement.getBBox (),			\
-			    ['x', 'y', 'width', 'height'])}))",
-				       (int) (components[0] * 255 + 0.5),
-				       (int) (components[1] * 255 + 0.5),
-				       (int) (components[2] * 255 + 0.5)];
-	  [webView evaluateJavaScript:script
-		    completionHandler:^(id scriptResult, NSError *error) {
-	      if ([scriptResult isKindOfClass:NSString.class])
-		jsonString = MRC_RETAIN (scriptResult);
-	      else
-		jsonString = nil;
-	      finished = YES;
-	    }];
+      [webView evaluateJavaScript:script
+		completionHandler:^(id scriptResult, NSError *error) {
+	  finished = YES;
+	}];
 
-	  while (!finished)
-	    mac_run_loop_run_once (0);
-
-	  if (jsonString == nil)
-	    boundingBox = nil;
-	  else
-	    {
-	      NSData *data =
-		[jsonString dataUsingEncoding:NSUTF8StringEncoding];
-	      NSDictionary *jsonObject =
-		[NSJSONSerialization JSONObjectWithData:data options:0
-						  error:NULL];
-
-	      boundingBox = jsonObject[@"boundingBox"];
-	      widthBaseVal = jsonObject[@"widthBaseVal"];
-	      heightBaseVal = jsonObject[@"heightBaseVal"];
-	      MRC_AUTORELEASE (jsonString);
-	    }
-#else
-	  WebScriptObject *rootElement =
-	    [webView.windowScriptObject
-		valueForKeyPath:@"document.rootElement"];
-
-	  boundingBox = [rootElement callWebScriptMethod:@"getBBox"
-					   withArguments:[NSArray array]];
-	  widthBaseVal = [rootElement valueForKeyPath:@"width.baseVal"];
-	  heightBaseVal = [rootElement valueForKeyPath:@"height.baseVal"];
+      while (!finished)
+	mac_run_loop_run_once (0);
 #endif
-	  if (boundingBox)
-	    frameRect.size = [self frameSizeForBoundingBox:boundingBox
-					      widthBaseVal:widthBaseVal
-					     heightBaseVal:heightBaseVal
-						imageWidth:&width
-					       imageHeight:&height];
-	}
-      @catch (NSException *exception)
+    }
+  @catch (NSException *exception)
+    {
+    }
+
+  if (width < 0)
+    {
+      MRC_RELEASE (self);
+      self = nil;
+
+      return self;
+    }
+
+  webView.frame = frameRect;
+  frameRect.size.width = width;
+  frameRect.origin.y = NSHeight (frameRect) - height;
+  frameRect.size.height = height;
+  viewRect = frameRect;
+
+  return self;
+}
+
+- (void)dealloc
+{
+  MRC_RELEASE (EmacsSVGDocumentLastWebView);
+  EmacsSVGDocumentLastWebView = webView;
+#if !USE_ARC
+  [super dealloc];
+#endif
+}
+
++ (BOOL)shouldInitializeInMainThread
+{
+  return YES;
+}
+
+- (BOOL)shouldNotCache
+{
+  return YES;
+}
+
++ (NSArrayOf (NSString *) *)supportedTypes
+{
+  return [NSArray arrayWithObject:((__bridge NSString *) UTI_SVG)];
+}
+
+- (NSUInteger)pageCount
+{
+  return 1;
+}
+
+- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
+{
+  return viewRect.size;
+}
+
+- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
+{
+  return NULL;
+}
+
+- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
+{
+  return nil;
+}
+
+- (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
+	      inContext:(CGContextRef)ctx
+		options:(NSDictionaryOf (NSString *, id) *)options
+{
+  mac_within_app (^{
+      CGColorRef cg_background = ((__bridge CGColorRef)
+				  [options objectForKey:@"backgroundColor"]);
+#ifdef USE_WK_API
+      NSString *bgInHex = nil;
+      CGFloat components[4];
+
+      if (cg_background && [[NSColor colorWithCGColor:cg_background]
+			     getSRGBComponents:components])
+	bgInHex = [NSString stringWithFormat:@"#%02x%02x%02x",
+			    (int) (components[0] * 255 + .5),
+			    (int) (components[1] * 255 + .5),
+			    (int) (components[2] * 255 + .5)];
+
+      CGAffineTransform ctm = CGContextGetCTM (ctx);
+      NSRect destRect = NSRectFromCGRect (CGRectApplyAffineTransform
+					  (NSRectToCGRect (rect), ctm));
+
+      destRect.origin = NSZeroPoint;
+      destRect.size.width = lround (NSWidth (destRect));
+      destRect.size.height = lround (NSHeight (destRect));
+
+      ctm = CGAffineTransformTranslate (ctm, NSMinX (rect), NSMinY (rect));
+      ctm = CGAffineTransformScale (ctm, NSWidth (rect) / NSWidth (viewRect),
+				    NSHeight (rect) / NSHeight (viewRect));
+
+      CGAffineTransform flip = CGAffineTransformMake (1, 0, 0, -1,
+						      0, NSHeight (destRect));
+      ctm = CGAffineTransformConcat (ctm, flip);
+      flip.ty = NSHeight (viewRect);
+      ctm = CGAffineTransformConcat (flip, ctm);
+
+      BOOL __block finished = NO;
+      int destWidth = NSWidth (destRect), destHeight = NSHeight (destRect);
+      NSString *script = [NSString stringWithFormat:@""
+"documentElement.style.backgroundColor = '%@';\n"
+"documentElement.setAttribute ('width', '%d');\n"
+"documentElement.setAttribute ('height', '%d');\n"
+"documentElement.setAttribute ('viewBox', '0, 0, %d, %d');\n"
+"gElement.setAttribute ('transform', 'matrix (%f, %f, %f, %f, %f, %f)');\n"
+"null;", bgInHex ? bgInHex : @"transparent",
+				   destWidth, destHeight, destWidth, destHeight,
+				   ctm.a, ctm.b, ctm.c, ctm.d, ctm.tx, ctm.ty];
+
+      [webView evaluateJavaScript:script
+		completionHandler:^(id scriptResult, NSError *error) {
+	  finished = YES;
+	}];
+
+      while (!finished)
+	mac_run_loop_run_once (0);
+
+      WKSnapshotConfiguration *snapshotConfiguration =
+	[[WKSnapshotConfiguration alloc] init];
+      NSImage * __block image;
+
+      webView.frame = destRect;
+      [webView _setOverrideDeviceScaleFactor:1];
+      finished = NO;
+      [webView takeSnapshotWithConfiguration:snapshotConfiguration
+			   completionHandler:^(NSImage *snapshotImage,
+					       NSError *error) {
+	  image = MRC_RETAIN (snapshotImage);
+	  finished = YES;
+	}];
+      MRC_RELEASE (snapshotConfiguration);
+
+      while (!finished)
+	mac_run_loop_run_once (0);
+
+      if (image)
 	{
+	  NSGraphicsContext *gcontext =
+	    [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:NO];
+	  [NSGraphicsContext saveGraphicsState];
+	  NSGraphicsContext.currentContext = gcontext;
+	  NSRectClip (rect);
+	  [[NSAffineTransform transform] set];
+	  [image drawInRect:destRect];
+	  MRC_RELEASE (image);
+	  [NSGraphicsContext restoreGraphicsState];
 	}
-
-      if (width < 0)
+#else  /* !USE_WK_API */
+      NSColor *savedBackgroundColor;
+      if (cg_background)
 	{
-	  webView.DELEGATE = nil;
-	  (*imageErrorFunc) ("Error reading SVG image `%s'", emacsImage->spec);
-	  result = 0;
-
-	  return;
+	  savedBackgroundColor = [webView valueForKey:@"backgroundColor"];
+	  [webView setValue:[NSColor colorWithCoreGraphicsColor:cg_background]
+		     forKey:@"backgroundColor"];
 	}
 
-      webView.frame = frameRect;
-      frameRect.size.width = width;
-      frameRect.origin.y = NSHeight (frameRect) - height;
-      frameRect.size.height = height;
+      NSAffineTransform *transform = [NSAffineTransform transform];
+      NSGraphicsContext *gcontext =
+	[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
 
-      scaleFactor = 1;
-      if (emacsImage->target_backing_scale == 0)
-	{
-	  emacsImage->target_backing_scale =
-	    FRAME_BACKING_SCALE_FACTOR (emacsFrame);
-	  if (emacsImage->target_backing_scale == 2)
-	    {
-	      width *= 2;
-	      height *= 2;
-	      scaleFactor = 2;
-	    }
-	}
+      [NSGraphicsContext saveGraphicsState];
+      NSGraphicsContext.currentContext = gcontext;
+      [transform translateXBy:(NSMinX (rect)) yBy:(NSMinY (rect))];
+      [transform scaleXBy:(NSWidth (rect) / NSWidth (viewRect))
+		      yBy:(NSHeight (rect) / NSHeight (viewRect))];
+      [transform translateXBy:(- NSMinX (viewRect))
+			  yBy:(- NSMinY (viewRect))];
+      [transform concat];
+      [webView displayRectIgnoringOpacity:viewRect inContext:gcontext];
+      [NSGraphicsContext restoreGraphicsState];
 
-      if (!(*checkImageSizeFunc) (emacsFrame, width, height))
-	{
-	  webView.DELEGATE = nil;
-	  (*imageErrorFunc) ("Invalid image size (see `max-image-size')");
-
-	  result = 0;
-	  return;
-	}
-
-      emacsImage->width = width;
-      emacsImage->height = height;
-      emacsImage->pixmap = [webView createXImageFromRect:frameRect
-					 backgroundColor:backgroundColor
-					     scaleFactor:scaleFactor];
-      webView.DELEGATE = nil;
-#undef DELEGATE
-
-      result = 1;
+      if (cg_background)
+	[webView setValue:savedBackgroundColor forKey:@"backgroundColor"];
+#endif  /* !USE_WK_API */
     });
-
-  return result;
 }
 
 #ifdef USE_WK_API
@@ -14308,186 +14731,7 @@ JSON.stringify (['width', 'height'].reduce				\
 }
 #endif
 
-@end				// EmacsSVGLoader
-
-bool
-mac_svg_load_image (struct frame *f, struct image *img, unsigned char *contents,
-		    ptrdiff_t size, Emacs_Color *color,
-		    Lisp_Object encoded_file,
-		    bool (*check_image_size_func) (struct frame *, int, int),
-		    void (*image_error_func) (const char *, ...))
-{
-  EmacsSVGLoader *loader =
-    [[EmacsSVGLoader alloc] initWithEmacsFrame:f emacsImage:img
-			    checkImageSizeFunc:check_image_size_func
-				imageErrorFunc:image_error_func];
-  NSData *data =
-    [NSData dataWithBytesNoCopy:contents length:size freeWhenDone:NO];
-  NSColor *backgroundColor = [NSColor colorWithEmacsColorPixel:color->pixel];
-  NSURL *url =
-    (STRINGP (encoded_file)
-     ? [NSURL fileURLWithPath:[NSString stringWithLispString:encoded_file]]
-     : nil);
-  /* WebKit may repeatedly call waitpid for a child process
-     (WebKitPluginHost) while it returns -1 in its plug-in
-     initialization.  So we need to avoid calling wait3 for an
-     arbitrary child process in our own SIGCHLD handler.  */
-  int mask = sigblock (sigmask (SIGCHLD));
-  bool result = [loader loadData:data backgroundColor:backgroundColor
-			 baseURL:url];
-
-  sigsetmask (mask);
-  MRC_RELEASE (loader);
-
-  return result;
-}
-
-
-/************************************************************************
-			Document rasterization
- ************************************************************************/
-
-static NSMutableDictionaryOf (id, NSDictionaryOf (NSString *, id) *)
-  *documentRasterizerCache;
-static NSDate *documentRasterizerCacheOldestTimestamp;
-#define DOCUMENT_RASTERIZER_CACHE_DURATION 60.0
-
-@implementation EmacsPDFDocument
-
-/* Like -[PDFDocument initWithURL:], but suppress warnings if not
-   loading a PDF file.  */
-
-- (instancetype)initWithURL:(NSURL *)url
-		    options:(NSDictionaryOf (NSString *, id) *)options
-{
-  NSFileHandle *fileHandle;
-  NSData *data;
-  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
-
-  if (type && !UTTypeEqual ((__bridge CFStringRef) type, kUTTypePDF))
-    goto error;
-
-  fileHandle = [NSFileHandle fileHandleForReadingFromURL:url error:NULL];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
-  data = [fileHandle readDataUpToLength:5 error:NULL];
-#else
-  data = [fileHandle readDataOfLength:5];
-#endif
-
-  if ([data length] < 5 || memcmp ([data bytes], "%PDF-", 5) != 0)
-    goto error;
-
-  self = [self initWithURL:url];
-
-  return self;
-
- error:
-  self = [super init];
-  MRC_RELEASE (self);
-  self = nil;
-
-  return self;
-}
-
-/* Like -[PDFDocument initWithData:], but suppress warnings if not
-   loading a PDF data.  */
-
-- (instancetype)initWithData:(NSData *)data
-		     options:(NSDictionaryOf (NSString *, id) *)options
-{
-  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
-
-  if (type && !UTTypeEqual ((__bridge CFStringRef) type, kUTTypePDF))
-    goto error;
-  if ([data length] < 5 || memcmp ([data bytes], "%PDF-", 5) != 0)
-    goto error;
-
-  self = [self initWithData:data];
-
-  return self;
-
- error:
-  self = [super init];
-  MRC_RELEASE (self);
-  self = nil;
-
-  return self;
-}
-
-+ (BOOL)shouldInitializeInMainThread
-{
-  return NO;
-}
-
-+ (NSArrayOf (NSString *) *)supportedTypes
-{
-  return [NSArray arrayWithObject:((__bridge NSString *) kUTTypePDF)];
-}
-
-- (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
-{
-  PDFPage *page = [self pageAtIndex:index];
-  NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
-  int rotation = [page rotation];
-
-  if (rotation == 0 || rotation == 180)
-    return NSMakeSize (ceil (NSWidth (bounds)), ceil (NSHeight (bounds)));
-  else
-    return NSMakeSize (ceil (NSHeight (bounds)), ceil (NSWidth (bounds)));
-}
-
-- (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
-{
-  return NULL;
-}
-
-- (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
-{
-  return [self documentAttributes];
-}
-
-- (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
-	      inContext:(CGContextRef)ctx
-{
-  PDFPage *page = [self pageAtIndex:index];
-  NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
-  int rotation = [page rotation];
-  CGFloat width, height;
-
-  if (rotation == 0 || rotation == 180)
-    width = ceil (NSWidth (bounds)), height = ceil (NSHeight (bounds));
-  else
-    width = ceil (NSHeight (bounds)), height = ceil (NSWidth (bounds));
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
-  if ([page respondsToSelector:@selector(drawWithBox:toContext:)])
-#endif
-    {
-      CGContextSaveGState (ctx);
-      CGContextTranslateCTM (ctx, NSMinX (rect), NSMinY (rect));
-      CGContextScaleCTM (ctx, NSWidth (rect) / width, NSHeight (rect) / height);
-      [page drawWithBox:kPDFDisplayBoxTrimBox toContext:ctx];
-      CGContextRestoreGState (ctx);
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
-  else
-    {
-      NSAffineTransform *transform = [NSAffineTransform transform];
-      NSGraphicsContext *gcontext =
-	[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
-
-      [NSGraphicsContext saveGraphicsState];
-      NSGraphicsContext.currentContext = gcontext;
-      [transform translateXBy:(NSMinX (rect)) yBy:(NSMinY (rect))];
-      [transform scaleXBy:(NSWidth (rect) / width)
-		      yBy:(NSHeight (rect) / height)];
-      [transform concat];
-      [page drawWithBox:kPDFDisplayBoxTrimBox];
-      [NSGraphicsContext restoreGraphicsState];
-    }
-#endif
-}
-
-@end				// EmacsPDFDocument
+@end				// EmacsSVGDocument
 
 @implementation EmacsDocumentRasterizer
 - (instancetype)initWithAttributedString:(NSAttributedString *)anAttributedString
@@ -14653,6 +14897,11 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
   return YES;
 }
 
+- (BOOL)shouldNotCache
+{
+  return NO;
+}
+
 #if !USE_ARC
 - (void)dealloc
 {
@@ -14708,6 +14957,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 
 - (void)drawPageAtIndex:(NSUInteger)index inRect:(NSRect)rect
 	      inContext:(CGContextRef)ctx
+		options:(NSDictionaryOf (NSString *, id) *)options /* unused */
 {
   NSLayoutManager *layoutManager = [self layoutManager];
   NSTextContainer *textContainer =
@@ -14766,6 +15016,7 @@ static NSArrayOf (Class <EmacsDocumentRasterizer>) *
 document_rasterizer_get_classes (void)
 {
   return [NSArray arrayWithObjects:[EmacsPDFDocument class],
+		  [EmacsSVGDocument class],
 		  [EmacsDocumentRasterizer class],
 		  nil];
 }
@@ -14923,7 +15174,7 @@ mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
       if (document == nil)
 	document = MRC_AUTORELEASE (document_rasterizer_create (nsurl,
 								nsoptions));
-      if (document)
+      if (document && !document.shouldNotCache)
 	document_cache_set (key, document, modificationDate);
     }
 
@@ -14947,7 +15198,7 @@ mac_document_create_with_data (CFDataRef data, CFDictionaryRef options)
 
   if (document == nil)
     document = MRC_AUTORELEASE (document_rasterizer_create (nsdata, nsoptions));
-  if (document)
+  if (document && !document.shouldNotCache)
     document_cache_set (key, document, nil);
 
   document_cache_evict ();
@@ -14984,13 +15235,16 @@ mac_document_copy_page_info (EmacsDocumentRef document, size_t index,
 
 void
 mac_document_draw_page (CGContextRef c, CGRect rect, EmacsDocumentRef document,
-			size_t index)
+			size_t index, CFDictionaryRef options)
 {
   id <EmacsDocumentRasterizer> documentRasterizer =
     (__bridge id <EmacsDocumentRasterizer>) document;
 
   [documentRasterizer drawPageAtIndex:index inRect:(NSRectFromCGRect (rect))
-			    inContext:c];
+			    inContext:c
+			      options:((__bridge
+					NSDictionaryOf (NSString *, id) *)
+				       options)];
 }
 
 
@@ -15587,11 +15841,7 @@ mac_update_accessibility_status (struct frame *f)
     }
 #endif
 
-  [CATransaction setDisableActions:YES];
   [[overlayView layer] addSublayer:animationLayer];
-  /* This avoids flickering the mode-line in the splash screen with
-     mouse-wheel scrolling.  */
-  [CATransaction commit];
 }
 
 - (CALayer *)layerForRect:(NSRect)rect
