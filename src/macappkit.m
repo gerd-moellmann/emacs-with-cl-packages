@@ -2728,6 +2728,19 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 			change:(NSDictionaryOf (NSKeyValueChangeKey, id) *)change
 		       context:(void *)context
 {
+  if ([keyPath isEqualToString:@"sizeMode"])
+    {
+      if ([change objectForKey:NSKeyValueChangeNotificationIsPriorKey])
+	[emacsView suspendSynchronizingBackingBitmap:YES];
+      else
+	{
+	  [emacsView suspendSynchronizingBackingBitmap:NO];
+	  [emacsView synchronizeBacking];
+	}
+
+      return;
+    }
+
   BOOL updateOverlayViewParticipation = NO;
 
   if ([keyPath isEqualToString:@"sublayers"])
@@ -2920,6 +2933,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
      window on macOS 10.12.  It is too late to remove the view in the
      windowWillClose: delegate method, so we remove it here.  */
   [emacsView removeFromSuperview];
+  [emacsWindow.toolbar removeObserver:self forKeyPath:@"sizeMode"];
   [emacsWindow close];
 }
 
@@ -9786,6 +9800,13 @@ toolbar_separator_item_identifier_if_available (void)
   [toolbar setDelegate:self];
   [toolbar setVisible:visible];
 
+  /* -[NSToolbar setSizeMode:] posts NSViewFrameDidChangeNotification
+      for EmacsView, but with a bogus (intermediate?) value for view's
+      frame and bounds.  We suspend -[EmacsView synchronizeBacking]
+      while setting toolbar's size mode.  */
+  [toolbar addObserver:self forKeyPath:@"sizeMode"
+	       options:NSKeyValueObservingOptionPrior context:nil];
+
   [emacsWindow setToolbar:toolbar];
   MRC_RELEASE (toolbar);
 
@@ -9812,7 +9833,7 @@ toolbar_separator_item_identifier_if_available (void)
 	   || EQ (Vtool_bar_style, Qtext_image_horiz))
     displayMode = NSToolbarDisplayModeIconAndLabel;
 
-  /* -[NSToolbar setDisplayMode] posts
+  /* -[NSToolbar setDisplayMode:] posts
       NSViewFrameDidChangeNotification for EmacsView, but with a bogus
       (intermediate?) value for view's frame and bounds.  We suspend
       -[EmacsView synchronizeBacking] while setting toolbar's display
