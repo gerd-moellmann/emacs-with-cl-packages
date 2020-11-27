@@ -5612,8 +5612,8 @@ fail;
      else
        AC_MSG_RESULT(before 10.11)
      fi
-     AC_MSG_CHECKING(Mac OS X version min required >= 11.0)
-     AC_CACHE_VAL(emacs_cv_mac_os_x_min_required_11_0,
+     AC_MSG_CHECKING(Mac OS X version min required >= 11)
+     AC_CACHE_VAL(emacs_cv_mac_os_x_min_required_11,
      [AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #ifdef HAVE_AVAILABILITYMACROS_H
 #include <AvailabilityMacros.h>
@@ -5621,15 +5621,15 @@ fail;
 [[#if MAC_OS_X_VERSION_MIN_REQUIRED >= 110000
 fail;
 #endif
-]])], emacs_cv_mac_os_x_min_required_11_0=no, emacs_cv_mac_os_x_min_required_11_0=yes)])
+]])], emacs_cv_mac_os_x_min_required_11=no, emacs_cv_mac_os_x_min_required_11=yes)])
      libs_uniform_type_identifiers=
-     if test $emacs_cv_mac_os_x_min_required_11_0 = yes; then
-       AC_MSG_RESULT(11.0 or later)
+     if test $emacs_cv_mac_os_x_min_required_11 = yes; then
+       AC_MSG_RESULT(11 or later)
        AC_DEFINE(HAVE_UNIFORM_TYPE_IDENTIFIERS, 1,
 		 [Define to 1 if using UniformTypeIdentifiers framework.])
        libs_uniform_type_identifiers="-framework UniformTypeIdentifiers"
      else
-       AC_MSG_RESULT(before 11.0)
+       AC_MSG_RESULT(before 11)
      fi
      libs_macgui="-framework Carbon -framework WebKit -framework Quartz -framework QuartzCore -framework IOKit -framework OSAKit -framework Accelerate -framework IOSurface $libs_metal $libs_uniform_type_identifiers -framework Cocoa"
      headerpad_extra=BD0

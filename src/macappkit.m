@@ -1206,9 +1206,9 @@ mac_with_current_drawing_appearance (NSAppearance *appearance,
 {
   if (
 #if __clang_major__ >= 9
-      /* We use 10.16 instead of 11.0 because the binary compiled with
+      /* We use 10.16 instead of 11 because the binary compiled with
 	 SDK 10.15 and earlier thinks the OS version as 10.16 rather
-	 than 11.0 if it is executed on Big Sur.  */
+	 than 11 if it is executed on Big Sur.  */
       @available (macOS 10.16, *)
 #else
       [appearance

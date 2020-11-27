@@ -3480,7 +3480,7 @@ standard ones in `x-handle-args'."
     ("etc/images/zoom-out" . "minus.magnifyingglass")
     ))
   "How icons for tool bars are mapped to macOS system symbols.
-Emacs must be run on macOS 11.0 and later for this to have any effect."
+Emacs must be run on macOS 11 and later for this to have any effect."
   :package-version '(Mac\ port . "7.10")
   :type '(alist :key-type (string :tag "Emacs icon")
                 :value-type (choice (repeat (string :tag "Symbol name"))

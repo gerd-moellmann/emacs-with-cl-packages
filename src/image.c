@@ -3744,7 +3744,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
 	  /* Get animation-related properties for animated GIF (all
 	     versions), PNG (OS X 10.10 and later), HEICS (macOS 10.15
-	     and later), or WebP (macOS 11.0 and later).  Note that
+	     and later), or WebP (macOS 11 and later).  Note that
 	     kCGImageProperty{GIF,APNG,HEICS,WebP}LoopCount have the
 	     same value (CFSTR ("LoopCount")).  Likewise for
 	     (Unclamped)DelayTime.  */
