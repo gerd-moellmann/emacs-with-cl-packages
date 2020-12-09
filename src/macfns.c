@@ -904,6 +904,7 @@ x_to_mac_color (const char *colorname)
 		break;
 	      t = color[size];
 	      color[size] = '\0';
+	      errno = 0;
 	      value = strtoul(color, &end, 16);
 	      color[size] = t;
 	      if (errno == ERANGE || end - color != size)
@@ -952,6 +953,7 @@ x_to_mac_color (const char *colorname)
 	     our numbers, and we don't.  */
 	  if (!isxdigit(color[0]) || color[1] == 'x')
 	    break;
+	  errno = 0;
 	  value = strtoul(color, &end, 16);
 	  if (errno == ERANGE)
 	    break;
