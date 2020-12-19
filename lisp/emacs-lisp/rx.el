@@ -255,9 +255,9 @@ Left-fold the list L, starting with X, by the binary function F."
   x)
 
 (defun rx--normalise-or-arg (form)
-  "Normalise the `or' argument FORM.
+  "Normalize the `or' argument FORM.
 Characters become strings, user-definitions and `eval' forms are expanded,
-and `or' forms are normalised recursively."
+and `or' forms are normalized recursively."
   (cond ((characterp form)
          (char-to-string form))
         ((and (consp form) (memq (car form) '(or |)))
@@ -1413,7 +1413,7 @@ into a plain rx-expression, collecting names into `rx--pcase-vars'."
                 (mapconcat #'symbol-name rx--pcase-vars " ")))
        `(backref ,index)))
     ((and `(,head . ,rest)
-          (guard (and (symbolp head)
+          (guard (and (or (symbolp head) (memq head '(?\s ??)))
                       (not (memq head '(literal regexp regex eval))))))
      (cons head (mapcar #'rx--pcase-transform rest)))
     (_ rx)))

@@ -280,8 +280,11 @@ Then evaluate RESULT to get return value, default nil.
 (defmacro dotimes (spec &rest body)
   "Loop a certain number of times.
 Evaluate BODY with VAR bound to successive integers running from 0,
-inclusive, to COUNT, exclusive.  Then evaluate RESULT to get
-the return value (nil if RESULT is omitted).  Its use is deprecated.
+inclusive, to COUNT, exclusive.
+
+Finally RESULT is evaluated to get the return value (nil if
+RESULT is omitted).  Using RESULT is deprecated, and may result
+in compilation warnings about unused variables.
 
 \(fn (VAR COUNT [RESULT]) BODY...)"
   (declare (indent 1) (debug dolist))
@@ -2694,30 +2697,34 @@ floating point support."
   "Insert the character you type in the minibuffer and exit.
 Discard all previous input before inserting and exiting the minibuffer."
   (interactive)
-  (delete-minibuffer-contents)
-  (insert last-command-event)
-  (exit-minibuffer))
+  (when (minibufferp)
+    (delete-minibuffer-contents)
+    (insert last-command-event)
+    (exit-minibuffer)))
 
 (defun read-char-from-minibuffer-insert-other ()
   "Handle inserting of a character other than allowed.
 Display an error on trying to insert a disallowed character.
 Also discard all previous input in the minibuffer."
   (interactive)
-  (delete-minibuffer-contents)
-  (ding)
-  (discard-input)
-  (minibuffer-message "Wrong answer")
-  (sit-for 2))
+  (when (minibufferp)
+    (delete-minibuffer-contents)
+    (ding)
+    (discard-input)
+    (minibuffer-message "Wrong answer")
+    (sit-for 2)))
 
 (defvar empty-history)
 
 (defun read-char-from-minibuffer (prompt &optional chars history)
-  "Read a character from the minibuffer, prompting for PROMPT.
+  "Read a character from the minibuffer, prompting for it with PROMPT.
 Like `read-char', but uses the minibuffer to read and return a character.
-When CHARS is non-nil, any input that is not one of CHARS is ignored.
-When HISTORY is a symbol, then allows navigating in a history.
-The navigation commands are `M-p' and `M-n', with `RET' to select
-a character from history."
+Optional argument CHARS, if non-nil, should be a list of characters;
+the function will ignore any input that is not one of CHARS.
+Optional argument HISTORY, if non-nil, should be a symbol that
+specifies the history list variable to use for navigating in input
+history using `M-p' and `M-n', with `RET' to select a character from
+history."
   (let* ((empty-history '())
          (map (if (consp chars)
                   (or (gethash chars read-char-from-minibuffer-map-hash)
@@ -2732,6 +2739,8 @@ a character from history."
                                  map)
                                read-char-from-minibuffer-map-hash))
                 read-char-from-minibuffer-map))
+         ;; Protect this-command when called from pre-command-hook (bug#45029)
+         (this-command this-command)
          (result
           (read-from-minibuffer prompt nil map nil
                                 (or history 'empty-history)))
@@ -2786,28 +2795,31 @@ a character from history."
   "Insert the answer \"y\" and exit the minibuffer of `y-or-n-p'.
 Discard all previous input before inserting and exiting the minibuffer."
   (interactive)
-  (delete-minibuffer-contents)
-  (insert "y")
-  (exit-minibuffer))
+  (when (minibufferp)
+    (delete-minibuffer-contents)
+    (insert "y")
+    (exit-minibuffer)))
 
 (defun y-or-n-p-insert-n ()
   "Insert the answer \"n\" and exit the minibuffer of `y-or-n-p'.
 Discard all previous input before inserting and exiting the minibuffer."
   (interactive)
-  (delete-minibuffer-contents)
-  (insert "n")
-  (exit-minibuffer))
+  (when (minibufferp)
+    (delete-minibuffer-contents)
+    (insert "n")
+    (exit-minibuffer)))
 
 (defun y-or-n-p-insert-other ()
   "Handle inserting of other answers in the minibuffer of `y-or-n-p'.
 Display an error on trying to insert a disallowed character.
 Also discard all previous input in the minibuffer."
   (interactive)
-  (delete-minibuffer-contents)
-  (ding)
-  (discard-input)
-  (minibuffer-message "Please answer y or n")
-  (sit-for 2))
+  (when (minibufferp)
+    (delete-minibuffer-contents)
+    (ding)
+    (discard-input)
+    (minibuffer-message "Please answer y or n")
+    (sit-for 2)))
 
 (defvar empty-history)
 
@@ -2860,6 +2872,8 @@ is nil and `use-dialog-box' is non-nil."
       (setq prompt (funcall padded prompt))
       (let* ((empty-history '())
              (enable-recursive-minibuffers t)
+             ;; Protect this-command when called from pre-command-hook (bug#45029)
+             (this-command this-command)
              (str (read-from-minibuffer
                    prompt nil
                    (make-composed-keymap y-or-n-p-map query-replace-map)

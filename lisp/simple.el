@@ -247,7 +247,7 @@ from which next-error navigated, and a target buffer TO-BUFFER."
                                                         extra-test-exclusive)
   "Try the current buffer when outside navigation.
 But return nil if we navigated to the current buffer by the means
-of `next-error' command.  Othewise, return it if it's next-error
+of `next-error' command.  Otherwise, return it if it's next-error
 capable."
   ;; Check that next-error-buffer has no buffer-local value
   ;; (i.e. we never navigated to the current buffer from another),
@@ -6865,6 +6865,12 @@ rests."
   "Move point to beginning of current line as displayed.
 \(If there's an image in the line, this disregards newlines
 that are part of the text that the image rests on.)
+
+When moving from position that has no `field' property, this
+command doesn't enter text which has non-nil `field' property.
+In particular, when invoked in the minibuffer, the command will
+stop short of entering the text of the minibuffer prompt.
+See `inhibit-field-text-motion' for how to inhibit this.
 
 With argument ARG not nil or 1, move forward ARG - 1 lines first.
 If point reaches the beginning or end of buffer, it stops there.

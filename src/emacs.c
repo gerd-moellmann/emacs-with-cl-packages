@@ -171,7 +171,7 @@ static uintmax_t heap_bss_diff;
    We mark being in the exec'd process by a daemon name argument of
    form "--daemon=\nFD0,FD1\nNAME" where FD are the pipe file descriptors,
    NAME is the original daemon name, if any. */
-#if defined NS_IMPL_COCOA || (defined HAVE_NTGUI && defined CYGWIN) || defined HAVE_MACGUI
+#if defined NS_IMPL_COCOA || defined CYGWIN || defined HAVE_MACGUI
 # define DAEMON_MUST_EXEC
 #endif
 
@@ -1658,23 +1658,27 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
     {
 #ifdef NS_IMPL_COCOA
       /* Started from GUI? */
-      /* FIXME: Do the right thing if get_homedir returns "", or if
-         chdir fails.  */
-      if (! inhibit_window_system && ! isatty (STDIN_FILENO) && ! ch_to_dir)
-        chdir (get_homedir ());
+      bool go_home = (!ch_to_dir && !inhibit_window_system
+		      && !isatty (STDIN_FILENO));
       if (skip_args < argc)
         {
           if (!strncmp (argv[skip_args], "-psn", 4))
             {
               skip_args += 1;
-              if (! ch_to_dir) chdir (get_homedir ());
+	      go_home |= !ch_to_dir;
             }
           else if (skip_args+1 < argc && !strncmp (argv[skip_args+1], "-psn", 4))
             {
               skip_args += 2;
-              if (! ch_to_dir) chdir (get_homedir ());
+	      go_home |= !ch_to_dir;
             }
         }
+      if (go_home)
+	{
+	  char const *home = get_homedir ();
+	  if (*home && chdir (home) == 0)
+	    emacs_wd = emacs_get_current_dir_name ();
+	}
 #endif  /* COCOA */
     }
 #endif /* HAVE_NS */

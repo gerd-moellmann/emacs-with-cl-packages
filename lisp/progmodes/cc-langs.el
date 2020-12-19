@@ -3643,7 +3643,7 @@ When \"(\" is present, that defun will attempt to parse a
 parenthesized expression inside the template.  When \")\" is
 present it will treat an unbalanced closing paren as a sign of
 the invalidity of the putative template construct."
-  t "[<;{},|+&->)]"
+  t "[<;{},|+&>)-]"
   c++ "[<;{},>()]")
 (c-lang-defvar c-<>-notable-chars-re (c-lang-const c-<>-notable-chars-re))
 
@@ -3683,6 +3683,20 @@ Foo bar = gnu;"
   t nil
   c++ t)
 (c-lang-defvar c-recognize-paren-inits (c-lang-const c-recognize-paren-inits))
+
+(c-lang-defconst c-recognize-bare-brace-inits
+  "Non-nil means that brace initializers without \"=\" exist,
+i.e. constructs like
+
+int foo[] {1, 2, 3};
+
+in addition to the more classic
+
+int foo[] = {1, 2, 3};"
+  t nil
+  c++ t)
+(c-lang-defvar c-recognize-bare-brace-inits
+	       (c-lang-const c-recognize-bare-brace-inits))
 
 (c-lang-defconst c-recognize-paren-inexpr-blocks
   "Non-nil to recognize gcc style in-expression blocks,

@@ -1435,11 +1435,15 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
       if (FRAMEP (gfocus))
 	{
 	  focus = FRAME_FOCUS_FRAME (XFRAME (gfocus));
-	  if ((FRAMEP (focus) && XFRAME (focus) == SELECTED_FRAME ())
+	  if (FRAMEP (focus) && XFRAME (focus) == SELECTED_FRAME ())
 	      /* Redirect frame focus also when FRAME has its minibuffer
-		 window on the selected frame (see Bug#24500).  */
+		 window on the selected frame (see Bug#24500).
+
+		 Don't do that: It causes redirection problem with a
+		 separate minibuffer frame (Bug#24803) and problems
+		 when updating the cursor on such frames.
 	      || (NILP (focus)
-		  && EQ (FRAME_MINIBUF_WINDOW (f), sf->selected_window)))
+		  && EQ (FRAME_MINIBUF_WINDOW (f), sf->selected_window)))  */
 	    Fredirect_frame_focus (gfocus, frame);
 	}
     }
@@ -6149,7 +6153,7 @@ when the mouse is over clickable text.  */);
   Vmouse_highlight = Qt;
 
   DEFVAR_LISP ("make-pointer-invisible", Vmake_pointer_invisible,
-               doc: /* If non-nil, make pointer invisible while typing.
+               doc: /* If non-nil, make mouse pointer invisible while typing.
 The pointer becomes visible again when the mouse is moved.  */);
   Vmake_pointer_invisible = Qt;
 
@@ -6225,7 +6229,7 @@ window of that frame is the buffer whose text will be eventually shown
 in the minibuffer window.
 
 Any other non-nil value means to resize minibuffer-only frames by
-calling `fit-frame-to-buffer'.  */);
+calling `fit-mini-frame-to-buffer'.  */);
   resize_mini_frames = Qnil;
 
   DEFVAR_LISP ("focus-follows-mouse", focus_follows_mouse,

@@ -1,4 +1,4 @@
-;;; doc-view.el --- View PDF/PostScript/DVI files in Emacs -*- lexical-binding: t -*-
+;;; doc-view.el --- Document viewer for Emacs -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2007-2020 Free Software Foundation, Inc.
 ;;
@@ -22,17 +22,20 @@
 
 ;;; Requirements:
 
-;; doc-view.el requires GNU Emacs 22.1 or newer.  You also need Ghostscript,
-;; `dvipdf' (comes with Ghostscript) or `dvipdfm' (comes with teTeX or TeXLive)
-;; and `pdftotext', which comes with xpdf (http://www.foolabs.com/xpdf/) or
-;; poppler (http://poppler.freedesktop.org/).
+;; Viewing PS/PDF/DVI files requires Ghostscript, `dvipdf' (comes with
+;; Ghostscript) or `dvipdfm' (comes with teTeX or TeXLive) and
+;; `pdftotext', which comes with xpdf (http://www.foolabs.com/xpdf/)
+;; or poppler (http://poppler.freedesktop.org/).
+;; Djvu documents require `ddjvu' (from DjVuLibre).
+;; ODF files require `soffice' (from LibreOffice).
 
 ;;; Commentary:
 
-;; DocView is a document viewer for Emacs.  It converts PDF, PS and DVI files
-;; to a set of PNG files, one PNG for each page, and displays the PNG images
-;; inside an Emacs buffer.  This buffer uses `doc-view-mode' which provides
-;; convenient key bindings for browsing the document.
+;; DocView is a document viewer for Emacs.  It converts a number of
+;; document formats (including PDF, PS, DVI, Djvu and ODF files) to a
+;; set of PNG files, one PNG for each page, and displays the PNG
+;; images inside an Emacs buffer.  This buffer uses `doc-view-mode'
+;; which provides convenient key bindings for browsing the document.
 ;;
 ;; To use it simply open a document file with
 ;;
@@ -429,6 +432,7 @@ Typically \"page-%s.png\".")
     (define-key map "P"               'doc-view-fit-page-to-window)
     (define-key map "F"               'doc-view-fit-window-to-page) ;F = frame
     ;; Killing the buffer (and the process)
+    (define-key map (kbd "k")         'image-kill-buffer)
     (define-key map (kbd "K")         'doc-view-kill-proc)
     ;; Slicing the image
     (define-key map (kbd "c s")       'doc-view-set-slice)
@@ -511,7 +515,7 @@ Typically \"page-%s.png\".")
     ;; Toggle between text and image display or editing
     (define-key map (kbd "C-c C-c") 'doc-view-toggle-display)
     map)
-  "Keymap used by `doc-minor-view-mode'.")
+  "Keymap used by `doc-view-minor-mode'.")
 
 ;;;; Navigation Commands
 

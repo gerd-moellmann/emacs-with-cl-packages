@@ -3055,6 +3055,10 @@ struct image
 # if !defined USE_CAIRO && defined HAVE_XRENDER
   /* Picture versions of pixmap and mask for compositing.  */
   Picture picture, mask_picture;
+
+  /* We need to store the original image dimensions in case we have to
+     call XGetImage.  */
+  int original_width, original_height;
 # endif
 #endif	/* HAVE_X_WINDOWS */
 #ifdef HAVE_NTGUI
@@ -3591,7 +3595,7 @@ void recompute_basic_faces (struct frame *);
 int face_at_buffer_position (struct window *, ptrdiff_t, ptrdiff_t *,
                              ptrdiff_t, bool, int, enum lface_attribute_index);
 int face_for_overlay_string (struct window *, ptrdiff_t, ptrdiff_t *, ptrdiff_t,
-                             bool, Lisp_Object);
+                             bool, Lisp_Object, enum lface_attribute_index);
 int face_at_string_position (struct window *, Lisp_Object, ptrdiff_t, ptrdiff_t,
                              ptrdiff_t *, enum face_id, bool,
                              enum lface_attribute_index);

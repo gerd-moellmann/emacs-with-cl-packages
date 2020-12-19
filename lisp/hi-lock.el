@@ -136,9 +136,9 @@ patterns."
 (put 'hi-lock-file-patterns-policy 'risky-local-variable t)
 
 (defcustom hi-lock-auto-select-face nil
-  "Non-nil means highlighting commands do not prompt for the face to use.
-Instead, each hi-lock command will cycle through the faces in
-`hi-lock-face-defaults'."
+  "When nil, highlighting commands prompt for the face to use.
+When non-nil, highlighting command determine the faces to use
+by cycling through the faces in `hi-lock-face-defaults'."
   :type 'boolean
   :version "24.4")
 
@@ -773,6 +773,7 @@ REGEXP is highlighted."
     (font-lock-add-keywords nil hi-lock-file-patterns t)
     (font-lock-flush)))
 
+;;;###autoload
 (defun hi-lock-find-patterns ()
   "Add patterns from the current buffer to the list of hi-lock patterns."
   (interactive)

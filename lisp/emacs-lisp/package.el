@@ -963,7 +963,8 @@ untar into a directory named DIR; otherwise, signal an error."
       (write-region
        (concat
         ";;; Generated package description from "
-        (replace-regexp-in-string "-pkg\\.el\\'" ".el" pkg-file)
+        (replace-regexp-in-string "-pkg\\.el\\'" ".el"
+                                  (file-name-nondirectory pkg-file))
         "  -*- no-byte-compile: t -*-\n"
         (prin1-to-string
          (nconc
@@ -3593,7 +3594,7 @@ This is used for `tabulated-list-format' in `package-menu-mode'."
       (string< a b))))
 
 (defun package-menu--populate-new-package-list ()
-  "Decide which packages are new in `package-archives-contents'.
+  "Decide which packages are new in `package-archive-contents'.
 Store this list in `package-menu--new-package-list'."
   ;; Find which packages are new.
   (when package-menu--old-archive-contents

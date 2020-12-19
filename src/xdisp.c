@@ -180,8 +180,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    present (non-empty) only if the corresponding display margin is
    shown in the window.  If the glyph array for a marginal area is not
    present its beginning and end coincide, i.e. such arrays are
-   actually empty (they contain no glyphs).  Frame glyph matrics, used
-   on text-mode terminals (see below) never have marginal areas, they
+   actually empty (they contain no glyphs).  Frame glyph matrices, used
+   on text-mode terminals (see below) never have marginal areas; they
    treat the entire frame-wide row of glyphs as a single large "text
    area".
 
@@ -1700,6 +1700,7 @@ pos_visible_p (struct window *w, ptrdiff_t charpos, int *x, int *y,
 		     from a display vector, we need to consume all of
 		     the glyphs from that display vector.  */
 		  start_display (&it2, w, top);
+		  it2.glyph_row = NULL;
 		  move_it_to (&it2, charpos - 1, -1, -1, -1, MOVE_TO_POS);
 		  /* If we didn't get to CHARPOS - 1, there's some
 		     replacing display property at that position, and
@@ -1823,6 +1824,7 @@ pos_visible_p (struct window *w, ptrdiff_t charpos, int *x, int *y,
 		     of the display line where the display string
 		     begins.  */
 		  start_display (&it3, w, top);
+		  it3.glyph_row = NULL;
 		  move_it_to (&it3, -1, 0, top_y, -1, MOVE_TO_X | MOVE_TO_Y);
 		  /* If it3_moved stays false after the 'while' loop
 		     below, that means we already were at a newline
@@ -4328,7 +4330,7 @@ face_at_pos (const struct it *it, enum lface_attribute_index attr_filter)
 	                               (IT_CHARPOS (*it)
 				        + TEXT_PROP_DISTANCE_LIMIT),
 	                               false,
-	                               from_overlay);
+	                               from_overlay, attr_filter);
 	}
       else
 	{
@@ -7227,14 +7229,21 @@ static next_element_function const get_next_element[NUM_IT_METHODS] =
 
 
 /* Return true iff a character at CHARPOS (and BYTEPOS) is composed
-   (possibly with the following characters).  */
+   (possibly with the following characters).
+
+  Note: we pass -1 as the "resolved bidi level" when the iterator
+  doesn't have the bidi_p flag set, because in that case we really
+  don't know what is the directionality of the text, so we leave it to
+  the shaping engine to figure that out.  */
 
 #define CHAR_COMPOSED_P(IT,CHARPOS,BYTEPOS,END_CHARPOS)			\
   ((IT)->cmp_it.id >= 0							\
    || ((IT)->cmp_it.stop_pos == (CHARPOS)				\
        && composition_reseat_it (&(IT)->cmp_it, CHARPOS, BYTEPOS,	\
 				 END_CHARPOS, (IT)->w,			\
-				 (IT)->bidi_it.resolved_level,		\
+				 (IT)->bidi_p				\
+				 ? (IT)->bidi_it.resolved_level		\
+				 : -1,					\
 				 FACE_FROM_ID_OR_NULL ((IT)->f,		\
 						       (IT)->face_id),	\
 				 (IT)->string)))
@@ -8220,10 +8229,10 @@ next_element_from_display_vector (struct it *it)
 	    next_face_id = it->dpvec_face_id;
 	  else
 	    {
-	      int lface_id =
-		GLYPH_CODE_FACE (it->dpvec[it->current.dpvec_index + 1]);
+              Lisp_Object gc = it->dpvec[it->current.dpvec_index + 1];
+              int lface_id = GLYPH_CODE_P (gc) ? GLYPH_CODE_FACE (gc) : 0;
 
-	      if (lface_id > 0)
+              if (lface_id > 0)
 		next_face_id = merge_faces (it->w, Qt, lface_id,
 					    it->saved_face_id);
 	    }
@@ -10442,7 +10451,7 @@ contains long lines that shall be truncated anyway.
 
 The optional argument Y-LIMIT, if non-nil, specifies the maximum Y
 coordinate beyond which the text is to be ignored; it is therefore
-also the maxcomp height that the function can return (excluding the
+also the maximum height that the function can return (excluding the
 height of the mode- or header-line, if any).  Y-LIMIT nil or omitted
 means consider all of the accessible portion of buffer text up to the
 position specified by TO.  Since calculating the text height of a
@@ -15616,7 +15625,12 @@ redisplay_internal (void)
 	      && CHARPOS (this_line_end_pos) == CHARPOS (tlendpos)
               /* Line has same height as before.  Otherwise other lines
                  would have to be shifted up or down.  */
-	      && this_line_pixel_height == line_height_before)
+	      && this_line_pixel_height == line_height_before
+	      /* Cannot use this optimization if hscrolling current
+		 line and this line is the current one, because
+		 display_line above is not informed about the
+		 current-line's vpos, and cannot DTRT in that case.  */
+	      && !hscrolling_current_line_p (w))
 	    {
  	      /* If this is not the window's last line, we must adjust
  		 the charstarts of the lines below.  */
@@ -21858,13 +21872,14 @@ extend_face_to_end_of_line (struct it *it)
      in the text area has to be drawn to the end of the text area.  */
   it->glyph_row->fill_line_p = true;
 
+  const int orig_face_id = it->face_id;
   /* If current character of IT is not ASCII, make sure we have the
      ASCII face.  This will be automatically undone the next time
      get_next_display_element returns a multibyte character.  Note
      that the character will always be single byte in unibyte
      text.  */
   if (!ASCII_CHAR_P (it->c))
-      it->face_id = FACE_FOR_CHAR (f, face, 0, -1, Qnil);
+    it->face_id = FACE_FOR_CHAR (f, face, 0, -1, Qnil);
 
   /* The default face, possibly remapped. */
   struct face *default_face =
@@ -22058,6 +22073,7 @@ extend_face_to_end_of_line (struct it *it)
 	  if (stretch_width < 0)
 	    it->glyph_row->x = stretch_width;
 	}
+      it->face_id = orig_face_id;
     }
   else
 #endif	/* HAVE_WINDOW_SYSTEM */
@@ -22067,7 +22083,6 @@ extend_face_to_end_of_line (struct it *it)
       struct text_pos saved_pos = it->position;
       Lisp_Object saved_object = it->object;;
       enum display_element_type saved_what = it->what;
-      int saved_face_id = it->face_id;
 
       it->what = IT_CHARACTER;
       memset (&it->position, 0, sizeof it->position);
@@ -22111,14 +22126,15 @@ extend_face_to_end_of_line (struct it *it)
                      default_face->id : face->id);
 
       /* Display fill-column indicator if needed.  */
-      /* We need to subtract 1 to the indicator_column here because we
-	 will add the indicator IN the column indicator number, not
-	 after it.  We compare the variable it->current_x before
-	 producing the glyph.  When FRAME_WINDOW_P we subtract
-	 CHAR_WIDTH calculating STRETCH_WIDTH for the same reason.  */
-      const int indicator_column =
-	fill_column_indicator_column (it, 1) - 1;
-      do
+      const int indicator_column = fill_column_indicator_column (it, 1);
+
+      /* Make sure our idea of current_x is in sync with the glyphs
+	 actually in the glyph row.  They might differ because
+	 append_space_for_newline can insert one glyph without
+	 updating current_x.  */
+      it->current_x = it->glyph_row->used[TEXT_AREA];
+
+      while (it->current_x <= it->last_visible_x)
 	{
 	  if (it->current_x != indicator_column)
 	    PRODUCE_GLYPHS (it);
@@ -22136,7 +22152,6 @@ extend_face_to_end_of_line (struct it *it)
 	      it->c = it->char_to_display = ' ';
 	    }
 	}
-      while (it->current_x <= it->last_visible_x);
 
       if (WINDOW_RIGHT_MARGIN_WIDTH (it->w) > 0
 	  && (it->glyph_row->used[RIGHT_MARGIN_AREA]
@@ -22170,7 +22185,7 @@ extend_face_to_end_of_line (struct it *it)
       it->object = saved_object;
       it->position = saved_pos;
       it->what = saved_what;
-      it->face_id = saved_face_id;
+      it->face_id = orig_face_id;
     }
 }
 
@@ -22732,10 +22747,11 @@ display_count_lines_visually (struct it *it)
 	  SET_TEXT_POS (from, PT, PT_BYTE);
 	  to = IT_CHARPOS (*it);
 	}
-      start_display (&tem_it, it->w, from);
       /* Need to disable visual mode temporarily, since otherwise the
-	 call to move_it_to will cause infinite recursion.  */
+	 call to move_it_to below and inside start_display will cause
+	 infinite recursion.  */
       specbind (Qdisplay_line_numbers, Qrelative);
+      start_display (&tem_it, it->w, from);
       /* Some redisplay optimizations could invoke us very far from
 	 PT, which will make the caller painfully slow.  There should
 	 be no need to go too far beyond the window's bottom, as any
@@ -22836,6 +22852,10 @@ maybe_produce_line_number (struct it *it)
   int lnum_face_id = merge_faces (it->w, Qline_number, 0, DEFAULT_FACE_ID);
   int current_lnum_face_id
     = merge_faces (it->w, Qline_number_current_line, 0, DEFAULT_FACE_ID);
+  /* From here onwards, we must prevent freeing realized faces, because
+     we are using the above 2 face IDs for the glyphs we produce.  */
+  bool save_free_realized_faces = inhibit_free_realized_faces;
+  inhibit_free_realized_faces = true;
   /* Compute point's line number if needed.  */
   if ((EQ (Vdisplay_line_numbers, Qrelative)
        || EQ (Vdisplay_line_numbers, Qvisual)
@@ -22965,9 +22985,12 @@ maybe_produce_line_number (struct it *it)
 	  it->lnum_width = 0;
 	  it->lnum_pixel_width = 0;
 	  bidi_unshelve_cache (itdata, false);
+	  inhibit_free_realized_faces = save_free_realized_faces;
 	  return;
 	}
     }
+
+  inhibit_free_realized_faces = save_free_realized_faces;
 
   /* Record the width in pixels we need for the line number display.  */
   it->lnum_pixel_width = tem_it.current_x;
@@ -26884,7 +26907,7 @@ display_string (const char *string, Lisp_Object lisp_string, Lisp_Object face_st
   else
     max_x = min (max_x, it->last_visible_x);
 
-  /* Skip over display elements that are not visible. because IT->w is
+  /* Skip over display elements that are not visible because IT->w is
      hscrolled.  */
   if (it->current_x < it->first_visible_x)
     move_it_in_display_line_to (it, 100000, it->first_visible_x,
@@ -34904,8 +34927,10 @@ but does not change the fact they are interpreted as raw bytes.  */);
 
   DEFVAR_LISP ("max-mini-window-height", Vmax_mini_window_height,
     doc: /* Maximum height for resizing mini-windows (the minibuffer and the echo area).
-If a float, it specifies a fraction of the mini-window frame's height.
-If an integer, it specifies a number of lines.  */);
+If a float, it specifies the maximum height in units of the
+mini-window frame's height.
+If an integer, it specifies the maximum height in units of the
+mini-window frame's default font's height.  */);
   Vmax_mini_window_height = make_float (0.25);
 
   DEFVAR_LISP ("resize-mini-windows", Vresize_mini_windows,
@@ -35083,6 +35108,8 @@ It has no effect when set to 0, or when line numbers are not absolute.  */);
 
   DEFVAR_BOOL ("display-fill-column-indicator", Vdisplay_fill_column_indicator,
     doc: /* Non-nil means display the fill column indicator.
+If you set this non-nil, make sure `display-fill-column-indicator-character'
+is also non-nil.
 See Info node `Displaying Boundaries' for details.  */);
   Vdisplay_fill_column_indicator = false;
   DEFSYM (Qdisplay_fill_column_indicator, "display-fill-column-indicator");
@@ -35100,8 +35127,8 @@ See Info node `Displaying Boundaries' for details.  */);
 
   DEFVAR_LISP ("display-fill-column-indicator-character", Vdisplay_fill_column_indicator_character,
     doc: /* Character to draw the indicator when `display-fill-column-indicator' is non-nil.
-The default is U+2502 but a good alternative is (ascii 124)
-if the font in fill-column-indicator face does not support Unicode characters.
+A good candidate is U+2502, and an alternative is (ascii 124) if the
+font of `fill-column-indicator' face does not support Unicode characters.
 See Info node `Displaying Boundaries' for details.  */);
   Vdisplay_fill_column_indicator_character = Qnil;
   DEFSYM (Qdisplay_fill_column_indicator_character, "display-fill-column-indicator-character");

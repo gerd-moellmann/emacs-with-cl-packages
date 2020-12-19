@@ -2395,6 +2395,10 @@ image_set_transform (struct frame *f, struct image *img)
 # if !defined USE_CAIRO && defined HAVE_XRENDER
   if (!img->picture)
     return;
+
+  /* Store the original dimensions as we'll overwrite them later.  */
+  img->original_width = img->width;
+  img->original_height = img->height;
 # endif
 
   /* Determine size.  */
@@ -3238,6 +3242,11 @@ image_get_x_image (struct frame *f, struct image *img, bool mask_p)
 
   if (ximg_in_img)
     return ximg_in_img;
+#ifdef HAVE_XRENDER
+  else if (img->picture)
+    return XGetImage (FRAME_X_DISPLAY (f), !mask_p ? img->pixmap : img->mask,
+		      0, 0, img->original_width, img->original_height, ~0, ZPixmap);
+#endif
   else
     return XGetImage (FRAME_X_DISPLAY (f), !mask_p ? img->pixmap : img->mask,
 		      0, 0, img->width, img->height, ~0, ZPixmap);
@@ -9515,11 +9524,13 @@ gif_load (struct frame *f, struct image *img)
       if (gif == NULL)
 	{
 #if HAVE_GIFERRORSTRING
-	  image_error ("Cannot open `%s': %s",
-		       file, build_string (GifErrorString (gif_err)));
-#else
-	  image_error ("Cannot open `%s'", file);
+	  const char *errstr = GifErrorString (gif_err);
+	  if (errstr)
+	    image_error ("Cannot open `%s': %s", file, build_string (errstr));
+	  else
 #endif
+	  image_error ("Cannot open `%s'", file);
+
 	  return 0;
 	}
     }
@@ -9545,11 +9556,13 @@ gif_load (struct frame *f, struct image *img)
       if (!gif)
 	{
 #if HAVE_GIFERRORSTRING
-	  image_error ("Cannot open memory source `%s': %s",
-		       img->spec, build_string (GifErrorString (gif_err)));
-#else
-	  image_error ("Cannot open memory source `%s'", img->spec);
+	  const char *errstr = GifErrorString (gif_err);
+	  if (errstr)
+	    image_error ("Cannot open memory source `%s': %s",
+			 img->spec, build_string (errstr));
+	  else
 #endif
+	  image_error ("Cannot open memory source `%s'", img->spec);
 	  return 0;
 	}
     }
@@ -9829,9 +9842,9 @@ gif_load (struct frame *f, struct image *img)
       if (error_text)
 	image_error ("Error closing `%s': %s",
 		     img->spec, build_string (error_text));
-#else
-      image_error ("Error closing `%s'", img->spec);
+      else
 #endif
+      image_error ("Error closing `%s'", img->spec);
     }
 
   /* Maybe fill in the background field while we have ximg handy. */

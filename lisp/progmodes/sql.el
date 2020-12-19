@@ -2740,7 +2740,7 @@ highlighting rules in SQL mode.")
              nil 'require-match
              init 'sql-product-history init))))
 
-(defun sql-add-product (product display &optional plist)
+(defun sql-add-product (product display &rest plist)
   "Add support for a database product in `sql-mode'.
 
 Add PRODUCT to `sql-product-alist' which enables `sql-mode' to
@@ -2866,8 +2866,8 @@ See `sql-product-alist' for a list of products and supported features."
 
 The KEYWORDS-ONLY flag is passed to font-lock to specify whether
 only keywords should be highlighted and syntactic highlighting
-skipped.  The IMENU flag indicates whether `imenu-mode' should
-also be configured."
+skipped.  The IMENU flag indicates whether `imenu' should also be
+configured."
 
   (let
       ;; Get the product-specific syntax-alist.
