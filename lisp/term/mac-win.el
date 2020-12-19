@@ -1435,10 +1435,12 @@ Currently the `mailto' and `org-protocol' schemes are supported."
 		    (not (eq (aref url (- (match-end 0) 2)) ?:)))
 	       (setq url (concat (substring url 0 (1- (match-end 0)))
 				 ":" (substring url (1- (match-end 0))))))
-	   (condition-case err
-	       (org-protocol-check-filename-for-protocol url (list url) nil)
-	     (error
-	      (message "%s" (error-message-string err))))
+           (let ((file-path nil))
+             (condition-case err
+                 (setq file-path (org-protocol-check-filename-for-protocol url (list url) nil))
+	       (error
+	        (message "%s" (error-message-string err))))
+             (if (stringp file-path) (switch-to-buffer (find-file-noselect file-path))))
 	   (select-frame-set-input-focus (selected-frame)))
 	  (t
 	   (mac-resume-apple-event ae t)))))
