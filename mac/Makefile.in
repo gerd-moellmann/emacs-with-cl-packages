@@ -99,6 +99,7 @@ macosx-bundle: ${lprojdirs} Emacs.app/Contents/MacOS/Emacs.sh \
 macosx-app: macosx-bundle Emacs.app/Contents/MacOS/Emacs $(bundle_pdmp)
 Emacs.app/Contents/MacOS/Emacs: ../src/emacs${EXEEXT}
 	${MKDIR_P} Emacs.app/Contents/MacOS
+	rm -f $@
 	cp $< $@
 Emacs.app/Contents/MacOS/Emacs.pdmp: ../src/emacs${EXEEXT}.pdmp
 	${MKDIR_P} Emacs.app/Contents/MacOS
