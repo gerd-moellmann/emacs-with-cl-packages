@@ -8732,10 +8732,14 @@ static BOOL NonmodalScrollerPagingBehavior;
   NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
 
   [userDefaults synchronize];
-  NonmodalScrollerButtonDelay =
-    [userDefaults doubleForKey:@"NSScrollerButtonDelay"];
-  NonmodalScrollerButtonPeriod =
-    [userDefaults doubleForKey:@"NSScrollerButtonPeriod"];
+  /* NSScrollerButtonDelay and NSScrollerButtonPeriod are not
+     initialized on macOS 10.15.  */
+  if ([userDefaults objectForKey:@"NSScrollerButtonDelay"])
+    NonmodalScrollerButtonDelay =
+      [userDefaults doubleForKey:@"NSScrollerButtonDelay"];
+  if ([userDefaults objectForKey:@"NSScrollerButtonPeriod"])
+    NonmodalScrollerButtonPeriod =
+      [userDefaults doubleForKey:@"NSScrollerButtonPeriod"];
   NonmodalScrollerPagingBehavior =
     [userDefaults boolForKey:@"AppleScrollerPagingBehavior"];
 }
