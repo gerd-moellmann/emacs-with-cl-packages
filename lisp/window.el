@@ -1,6 +1,6 @@
 ;;; window.el --- GNU Emacs window commands aside from those written in C  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1989, 1992-1994, 2000-2020 Free Software
+;; Copyright (C) 1985, 1989, 1992-1994, 2000-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -1716,9 +1716,11 @@ interpret DELTA as pixels."
   (setq window (window-normalize-window window))
   (cond
    ((< delta 0)
-    (max (- (window-min-size window horizontal ignore pixelwise)
-	    (window-size window horizontal pixelwise))
-	 delta))
+    (let ((min-size (window-min-size window horizontal ignore pixelwise))
+          (size (window-size window horizontal pixelwise)))
+      (if (<= size min-size)
+          0
+        (max (- min-size size) delta))))
    ((> delta 0)
     (if (window-size-fixed-p window horizontal ignore)
 	0

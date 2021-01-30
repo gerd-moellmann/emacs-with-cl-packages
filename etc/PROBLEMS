@@ -1,6 +1,6 @@
 Known Problems with GNU Emacs
 
-Copyright (C) 1987-1989, 1993-1999, 2001-2020 Free Software Foundation,
+Copyright (C) 1987-1989, 1993-1999, 2001-2021 Free Software Foundation,
 Inc.
 See the end of the file for license conditions.
 
@@ -692,6 +692,11 @@ versions of gnutls-cli, or use Emacs's built-in gnutls support.
 * Runtime problems related to font handling
 
 ** Characters are displayed as empty boxes or with wrong font under X.
+
+*** This may be due to your local fontconfig customization.
+Try removing or moving aside "$XDG_CONFIG_HOME/fontconfig/conf.d" and
+"$XDG_CONFIG_HOME/fontconfig/fonts.conf"
+($XDG_CONFIG_HOME is treated as "~/.config" if not set)
 
 *** This can occur when two different versions of FontConfig are used.
 For example, XFree86 4.3.0 has one version and Gnome usually comes
@@ -2878,6 +2883,19 @@ A solution is to link with GCC, like this:
 
 Since the .o object files already exist, this will not recompile Emacs
 with GCC, but just restart by trying again to link temacs.
+
+*** Building Emacs with -lcurses fails with undefined symbols like BC.
+
+The 'configure' script attempts to use several terminal libraries,
+including tinfo, ncurses, and terminfo, and curses (in that order).
+If it happens to choose the long-obsolete curses library, Emacs will
+not link correctly.  Emacs 28 is expected to work around this problem;
+in the meantime you can work around it by installing tinfo, ncurses or
+terminfo instead.
+
+This problem can happen on AIX 7.2 if you build with IBM's compiler XLC,
+as AIX's ncurses library suffers from the libgcc problem mentioned above.
+To work around this, configure and build with GCC.
 
 *** Sun with acc: Link failure when using acc on a Sun.
 

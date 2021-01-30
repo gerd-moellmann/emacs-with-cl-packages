@@ -1,6 +1,6 @@
 /* NeXT/Open/GNUstep / macOS communication module.      -*- coding: utf-8 -*-
 
-Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2020 Free Software
+Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2021 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -2480,7 +2480,7 @@ ns_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
   id view;
   NSPoint view_position;
   Lisp_Object frame, tail;
-  struct frame *f;
+  struct frame *f = NULL;
   struct ns_display_info *dpyinfo;
 
   NSTRACE ("ns_mouse_position");

@@ -1,6 +1,6 @@
 ;;; isearch.el --- incremental search minor mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1997, 1999-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1997, 1999-2021 Free Software Foundation, Inc.
 
 ;; Author: Daniel LaLiberte <liberte@cs.uiuc.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -655,6 +655,10 @@ This is like `describe-bindings', but displays only Isearch keys."
                              (if isearch-success 'isearch-abort binding))))
     map))
 
+;; Note: Before adding more key bindings to this map, please keep in
+;; mind that any unbound key exits Isearch and runs the command bound
+;; to it in the local or global map.  So in effect every key unbound
+;; in this map is implicitly bound.
 (defvar isearch-mode-map
   (let ((i 0)
 	(map (make-keymap)))

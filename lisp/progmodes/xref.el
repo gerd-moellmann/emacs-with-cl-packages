@@ -1,6 +1,6 @@
 ;; xref.el --- Cross-referencing commands              -*-lexical-binding:t-*-
 
-;; Copyright (C) 2014-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -876,16 +876,15 @@ Return an alist of the form ((FILENAME . (XREF ...)) ...)."
   (let ((inhibit-read-only t)
         (buffer-undo-list t))
     (save-excursion
-      (erase-buffer)
       (condition-case err
-          (xref--insert-xrefs
-           (xref--analyze (funcall xref--fetcher)))
+          (let ((alist (xref--analyze (funcall xref--fetcher))))
+            (erase-buffer)
+            (xref--insert-xrefs alist))
         (user-error
          (insert
           (propertize
            (error-message-string err)
-           'face 'error))))
-      (goto-char (point-min)))))
+           'face 'error)))))))
 
 (defun xref--show-defs-buffer (fetcher alist)
   (let ((xrefs (funcall fetcher)))

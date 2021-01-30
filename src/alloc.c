@@ -1,6 +1,6 @@
 /* Storage allocation and gc for GNU Emacs Lisp interpreter.
 
-Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2020 Free Software
+Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2021 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -5990,10 +5990,12 @@ garbage_collect (void)
 
   gc_in_progress = 0;
 
-  unblock_input ();
-
   consing_until_gc = gc_threshold
     = consing_threshold (gc_cons_threshold, Vgc_cons_percentage, 0);
+
+  /* Unblock *after* re-setting `consing_until_gc` in case `unblock_input`
+     signals an error (see bug#43389).  */
+  unblock_input ();
 
   if (garbage_collection_messages && NILP (Vmemory_full))
     {

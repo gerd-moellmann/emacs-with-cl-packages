@@ -1,6 +1,6 @@
 /* Window creation, deletion and examination for GNU Emacs.
    Does not include redisplay.
-   Copyright (C) 1985-1987, 1993-1998, 2000-2020 Free Software
+   Copyright (C) 1985-1987, 1993-1998, 2000-2021 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -2272,7 +2272,7 @@ return value is a list of elements of the form (PARAMETER . VALUE).  */)
 Lisp_Object
 window_parameter (struct window *w, Lisp_Object parameter)
 {
-  Lisp_Object result = Fassq (parameter, w->window_parameters);
+  Lisp_Object result = assq_no_quit (parameter, w->window_parameters);
 
   return CDR_SAFE (result);
 }
