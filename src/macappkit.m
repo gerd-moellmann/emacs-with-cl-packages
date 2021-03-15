@@ -10887,7 +10887,10 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 
 - (void)showHourglass:(id)sender
 {
-  if (hourglassWindow == nil)
+  if (hourglassWindow == nil
+      /* Adding a child window to a window on an inactive space would
+	 cause space switching.  */
+      && emacsWindow.isOnActiveSpace)
     {
       NSRect rect = NSMakeRect (0, 0, HOURGLASS_WIDTH, HOURGLASS_HEIGHT);
       NSProgressIndicator *indicator =
@@ -10962,9 +10965,17 @@ mac_show_hourglass (struct frame *f)
 {
   if (!FRAME_TOOLTIP_P (f) && FRAME_PARENT_FRAME (f) == NULL)
     {
-      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+      /* If we try to add a child window to a window that is currently
+	 hidden by window tabbing, then its parent window would
+	 suddenly appear at the position where it was previously
+	 hidden.  */
+      Lisp_Object tab_selected_frame = mac_get_tab_group_selected_frame (f);
+      if (NILP (tab_selected_frame) || XFRAME (tab_selected_frame) == f)
+	{
+	  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
-      mac_within_gui (^{[frameController showHourglass:nil];});
+	  mac_within_gui (^{[frameController showHourglass:nil];});
+	}
     }
 }
 
