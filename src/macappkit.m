@@ -14597,8 +14597,15 @@ static WebView *EmacsSVGDocumentLastWebView;
 
 - (void)dealloc
 {
+  /* Deallocating WKWebView from a non-main thread causes crash on
+     macOS High Sierra and Mojave.  */
+  CFTypeRef lastWebView = CF_BRIDGING_RETAIN (EmacsSVGDocumentLastWebView);
+
   MRC_RELEASE (EmacsSVGDocumentLastWebView);
   EmacsSVGDocumentLastWebView = webView;
+  dispatch_async (dispatch_get_main_queue (), ^{
+      CF_BRIDGING_RELEASE (lastWebView);
+    });
 #if !USE_ARC
   [super dealloc];
 #endif
