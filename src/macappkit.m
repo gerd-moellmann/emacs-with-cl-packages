@@ -47,6 +47,7 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #define MRC_AUTORELEASE(receiver)	((id) (receiver))
 #define CF_BRIDGING_RETAIN		CFBridgingRetain
 #define CF_BRIDGING_RELEASE		CFBridgingRelease
+#define CF_ESCAPING_BRIDGE		CFBridgingRetain
 #else
 #define MRC_RETAIN(receiver)		[(receiver) retain]
 #define MRC_RELEASE(receiver)		[(receiver) release]
@@ -61,6 +62,11 @@ static inline id
 CF_BRIDGING_RELEASE (CFTypeRef X)
 {
   return [(id)(X) autorelease];
+}
+static inline CFTypeRef
+CF_ESCAPING_BRIDGE (id X)
+{
+  return (CFTypeRef) X;
 }
 #endif
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
@@ -5671,8 +5677,7 @@ mac_create_frame_window (struct frame *f)
   mac_within_gui (^{
       frameController = [[EmacsFrameController alloc] initWithEmacsFrame:f];
     });
-  FRAME_MAC_WINDOW (f) =
-    (void *) CF_BRIDGING_RETAIN (MRC_AUTORELEASE (frameController));
+  FRAME_MAC_WINDOW (f) = (void *) CF_ESCAPING_BRIDGE (frameController);
 
   if (f->size_hint_flags & (USPosition | PPosition)
       || FRAME_PARENT_FRAME (f))
@@ -5852,7 +5857,7 @@ mac_cursor_create (ThemeCursor shape, const Emacs_Color *fore_color,
   cursor = [[NSCursor alloc] initWithImage:image hotSpot:[cursor hotSpot]];
   MRC_RELEASE (image);
 
-  return CF_BRIDGING_RETAIN (MRC_AUTORELEASE (cursor));
+  return CF_ESCAPING_BRIDGE (cursor);
 }
 
 void
@@ -12398,12 +12403,11 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 	[[EmacsDialogView alloc] initWithWidgetValue:first_wv];
 
       cfpanel =
-	CF_BRIDGING_RETAIN (MRC_AUTORELEASE
-			    ([[NSPanel alloc]
-			       initWithContentRect:[dialogView frame]
-					 styleMask:NSWindowStyleMaskTitled
-					   backing:NSBackingStoreBuffered
-					     defer:YES]));
+	CF_ESCAPING_BRIDGE ([[NSPanel alloc]
+			      initWithContentRect:[dialogView frame]
+					styleMask:NSWindowStyleMaskTitled
+					  backing:NSBackingStoreBuffered
+					    defer:YES]);
       panel = (__bridge NSPanel *) cfpanel;
 
       NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
@@ -15213,17 +15217,16 @@ mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
 			 that's OK.  */
 		      nsoptions, @"options", nil];
 
-      document = document_cache_lookup (key, modificationDate);
+      document = MRC_RETAIN (document_cache_lookup (key, modificationDate));
       if (document == nil)
-	document = MRC_AUTORELEASE (document_rasterizer_create (nsurl,
-								nsoptions));
+	document = document_rasterizer_create (nsurl, nsoptions);
       if (document && !document.shouldNotCache)
 	document_cache_set (key, document, modificationDate);
     }
 
   document_cache_evict ();
 
-  return CF_BRIDGING_RETAIN (document);
+  return CF_ESCAPING_BRIDGE (document);
 }
 
 EmacsDocumentRef
@@ -15237,16 +15240,17 @@ mac_document_create_with_data (CFDataRef data, CFDictionaryRef options)
 		  /* The value of nsoptions might be nil, but that's
 		     OK.  */
 		  nsoptions, @"options", nil];
-  id <EmacsDocumentRasterizer> document = document_cache_lookup (key, nil);
+  id <EmacsDocumentRasterizer> document =
+    MRC_RETAIN (document_cache_lookup (key, nil));
 
   if (document == nil)
-    document = MRC_AUTORELEASE (document_rasterizer_create (nsdata, nsoptions));
+    document = document_rasterizer_create (nsdata, nsoptions);
   if (document && !document.shouldNotCache)
     document_cache_set (key, document, nil);
 
   document_cache_evict ();
 
-  return CF_BRIDGING_RETAIN (document);
+  return CF_ESCAPING_BRIDGE (document);
 }
 
 size_t
@@ -16812,7 +16816,7 @@ mac_sound_create (Lisp_Object file, Lisp_Object data)
   else
     sound = nil;
 
-  return CF_BRIDGING_RETAIN (MRC_AUTORELEASE (sound));
+  return CF_ESCAPING_BRIDGE (sound);
 }
 
 void
