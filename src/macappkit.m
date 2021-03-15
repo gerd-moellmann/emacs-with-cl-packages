@@ -17413,6 +17413,9 @@ main (int argc, char **argv)
   if (!err && !getrlimit (RLIMIT_STACK, &rlim)
       && 0 <= rlim.rlim_cur && rlim.rlim_cur <= LONG_MAX)
     {
+      /* In case the current stack size limit is not a multiple of
+	 page size.  */
+      rlim.rlim_cur = round_page (rlim.rlim_cur);
       rlim_t lim = rlim.rlim_cur;
 
       /* Approximate the amount regex.c needs per unit of
