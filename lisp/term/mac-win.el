@@ -2380,12 +2380,26 @@ reference URLs of the form \"file:///.file/id=...\"."
 
 ;;;; Key-value observing for application
 
+(defcustom mac-effective-appearance-change-hook nil
+  "Hook run when the macOS global appearance changes; either manually or
+automatically. If nil, Emacs will set the frame foreground and background
+colors to match the macOS settings. Otherwise, the hook functions are
+called and Emacs will not make any other changes to frame colors.
+
+A hook function can determine the current appearance by checking the
+:appearance property of (mac-application-state)."
+  :package-version '(Mac\ port . "8.2")
+  :type 'hook
+  :group 'mac)
+
 (defun mac-handle-application-effective-appearance-change (_event)
   (interactive "e")
-  (clear-face-cache)
-  (dolist (frame (frame-list))
-    (set-frame-parameter frame 'background-color
-			 (frame-parameter frame 'background-color))))
+  (if mac-effective-appearance-change-hook
+      (run-hooks 'mac-effective-appearance-change-hook)
+    (clear-face-cache)
+    (dolist (frame (frame-list))
+      (set-frame-parameter frame 'background-color
+			   (frame-parameter frame 'background-color)))))
 
 (define-key mac-apple-event-map [application-kvo effectiveAppearance]
   'mac-handle-application-effective-appearance-change)
