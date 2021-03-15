@@ -3598,7 +3598,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   CFURLRef url = NULL;
   CFDataRef data = NULL;
   CFStringRef specified_type = NULL;
-  CFDictionaryRef options;
+  CFDictionaryRef options = NULL;
   CFStringRef keys[2];
   CFTypeRef values[2];
   CFIndex num_values;
@@ -3652,9 +3652,6 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 			   SBYTES (specified_data));
     }
 
-  keys[0] = kCGImageSourceShouldCache;
-  values[0] = (CFTypeRef) kCFBooleanFalse;
-  num_values = 1;
   if (type == NULL)
     {
       gif_p = tiff_p = svg_p = false;
@@ -3667,17 +3664,24 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       svg_p = CFEqual (type, UTI_SVG);
       specified_type = CFRetain (type);
     }
-  if (specified_type)
+
+  if (!svg_p)
     {
-      keys[num_values] = kCGImageSourceTypeIdentifierHint;
-      values[num_values] = (CFTypeRef) specified_type;
-      num_values++;
+      keys[0] = kCGImageSourceShouldCache;
+      values[0] = (CFTypeRef) kCFBooleanFalse;
+      num_values = 1;
+      if (specified_type)
+	{
+	  keys[num_values] = kCGImageSourceTypeIdentifierHint;
+	  values[num_values] = (CFTypeRef) specified_type;
+	  num_values++;
+	}
+      options = CFDictionaryCreate (NULL, (const void **) keys,
+				    (const void **) values, num_values,
+				    &kCFTypeDictionaryKeyCallBacks,
+				    &kCFTypeDictionaryValueCallBacks);
     }
 
-  options = CFDictionaryCreate (NULL, (const void **) keys,
-				(const void **) values, num_values,
-				&kCFTypeDictionaryKeyCallBacks,
-				&kCFTypeDictionaryValueCallBacks);
   if (options)
     {
       if (url)
