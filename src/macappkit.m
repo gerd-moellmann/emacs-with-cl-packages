@@ -6202,15 +6202,14 @@ mac_iosurface_create (size_t width, size_t height)
   copyFromFrontToBackSemaphore = dispatch_semaphore_create (0);
 
   dispatch_async (queue, ^{
-      size_t width = IOSurfaceGetWidth (backSurface);
-      size_t height = IOSurfaceGetHeight (backSurface);
-
 #if HAVE_MAC_METAL
       if (backTexture)
 	{
 	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
 	  id <MTLBlitCommandEncoder> blitCommandEncoder =
 	    [commandBuffer blitCommandEncoder];
+	  size_t width = IOSurfaceGetWidth (backSurface);
+	  size_t height = IOSurfaceGetHeight (backSurface);
 
 	  [blitCommandEncoder copyFromTexture:frontTexture
 				  sourceSlice:0 sourceLevel:0
@@ -6227,18 +6226,11 @@ mac_iosurface_create (size_t width, size_t height)
       else
 #endif
 	{
-	  vImage_Buffer src, dest;
-
-	  src.data = IOSurfaceGetBaseAddress (frontSurface);
-	  src.rowBytes = IOSurfaceGetBytesPerRow (frontSurface);
-	  dest.data = IOSurfaceGetBaseAddress (backSurface);
-	  dest.rowBytes = IOSurfaceGetBytesPerRow (backSurface);
-	  src.width = dest.width = width;
-	  src.height = dest.height = height;
-
 	  IOSurfaceLock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	  IOSurfaceLock (backSurface, 0, NULL);
-	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+	  memcpy (IOSurfaceGetBaseAddress (backSurface),
+		  IOSurfaceGetBaseAddress (frontSurface),
+		  IOSurfaceGetAllocSize (backSurface));
 	  IOSurfaceUnlock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	}
 
