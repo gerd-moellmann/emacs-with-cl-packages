@@ -6163,15 +6163,15 @@ mac_iosurface_create (size_t width, size_t height)
 					   | kCGBitmapByteOrder32Host));
       CGContextTranslateCTM (bitmaps[i], 0, height);
       CGContextScaleCTM (bitmaps[i], scaleFactor, - scaleFactor);
-      if (surfaces[i])
-	IOSurfaceUnlock (surfaces[i], 0, NULL);
-      else
+      if (!surfaces[i])
 	break;
     }
   backBitmap = bitmaps[0];
   backSurface = surfaces[0];
   frontBitmap = bitmaps[1];
   frontSurface = surfaces[1];
+  if (frontSurface)
+    IOSurfaceUnlock (frontSurface, 0, NULL);
 #if HAVE_MAC_METAL
   [self updateMTLObjectsForView:view];
 #endif
@@ -6184,6 +6184,8 @@ mac_iosurface_create (size_t width, size_t height)
   CGContextRef bitmap = backBitmap;
   backBitmap = frontBitmap;
   frontBitmap = bitmap;
+
+  IOSurfaceUnlock (backSurface, 0, NULL);
 
   IOSurfaceRef surface = backSurface;
   backSurface = frontSurface;
@@ -6220,6 +6222,7 @@ mac_iosurface_create (size_t width, size_t height)
 	  [blitCommandEncoder endEncoding];
 	  [commandBuffer commit];
 	  [commandBuffer waitUntilCompleted];
+	  IOSurfaceLock (backSurface, 0, NULL);
 	}
       else
 #endif
@@ -6236,7 +6239,6 @@ mac_iosurface_create (size_t width, size_t height)
 	  IOSurfaceLock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	  IOSurfaceLock (backSurface, 0, NULL);
 	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	  IOSurfaceUnlock (backSurface, 0, NULL);
 	  IOSurfaceUnlock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	}
 
@@ -6351,14 +6353,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       layer.contents = (__bridge id) frontSurface;
     }
   else
-    {
-      if (backSurface)
-	IOSurfaceLock (backSurface, kIOSurfaceLockReadOnly, NULL);
-      layer.contents =
-	CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backBitmap));
-      if (backSurface)
-	IOSurfaceUnlock (backSurface, kIOSurfaceLockReadOnly, NULL);
-    }
+    layer.contents =
+      CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backBitmap));
   layer.contentsScale = scaleFactor;
 }
 
@@ -6366,8 +6362,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 {
   lockCount++;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, 0, NULL);
 
   [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext =
@@ -6384,8 +6378,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   eassert (backBitmap);
 
   lockCount--;
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, 0, NULL);
   [NSGraphicsContext restoreGraphicsState];
 }
 
@@ -6498,8 +6490,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     [NSMutableData dataWithCapacity:(count * sizeof (vImage_Buffer))];
   vImage_Buffer *imageBuffers = imageBuffersData.mutableBytes;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, kIOSurfaceLockReadOnly, NULL);
   unsigned char *srcData = CGBitmapContextGetData (backBitmap);
   NSInteger scale = scaleFactor;
   NativeRectangle backing_rectangle = {0, 0,
@@ -6521,8 +6511,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 			    + rectangle.x * sizeof (Pixel_8888)) * scale;
       mac_vimage_copy_8888 (&src, dest, kvImageNoFlags);
     }
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, kIOSurfaceLockReadOnly, NULL);
 
   return imageBuffersData;
 }
@@ -6534,8 +6522,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   const NativeRectangle *rectangles = rectanglesData.bytes;
   const vImage_Buffer *imageBuffers = imageBuffersData.bytes;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, 0, NULL);
   unsigned char *destData = CGBitmapContextGetData (backBitmap);
   NSInteger scale = scaleFactor;
   NativeRectangle backing_rectangle = {0, 0,
@@ -6556,8 +6542,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       mac_vimage_copy_8888 (src, &dest, kvImageNoFlags);
       free (src->data);
     }
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, 0, NULL);
 }
 
 @end				// EmacsBacking
