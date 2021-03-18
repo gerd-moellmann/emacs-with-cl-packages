@@ -2396,7 +2396,7 @@ A hook function can determine the current appearance by checking the
   (clear-face-cache)
   (dolist (frame (frame-list))
     (set-frame-parameter frame 'background-color
-			 (frame-parameter frame 'background-color)))))
+			 (frame-parameter frame 'background-color))))
 
 (define-key mac-apple-event-map [application-kvo effectiveAppearance]
   'mac-handle-application-effective-appearance-change)
