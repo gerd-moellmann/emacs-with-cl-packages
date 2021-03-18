@@ -9967,6 +9967,38 @@ file_for_image (Lisp_Object image)
   return specified_file;
 }
 
+static NSImage *
+mac_cached_system_symbol (NSString *name)
+{
+  NSImage *systemSymbol = nil;
+
+  if (
+#if __clang_major__ >= 9
+      @available (macOS 10.16, *)
+#else
+      [NSImage respondsToSelector:@selector(imageWithSystemSymbolName:accessibilityDescription:)]
+#endif
+      )
+    {
+      static NSMutableDictionaryOf (NSString *, id) *systemSymbolCache = nil;
+      id obj = [systemSymbolCache objectForKey:name];
+
+      if ([obj isKindOfClass:[NSImage class]])
+	systemSymbol = obj;
+      else if (obj == nil)
+	{
+	  if (systemSymbolCache == nil)
+	    systemSymbolCache = [[NSMutableDictionary alloc] init];
+	  systemSymbol = [NSImage imageWithSystemSymbolName:name
+				   accessibilityDescription:nil];
+	  obj = systemSymbol ? systemSymbol : NSNull.null;
+	  [systemSymbolCache setObject:obj forKey:name];
+	}
+    }
+
+  return systemSymbol;
+}
+
 /* Update the tool bar for frame F.  Add new buttons and remove old.  */
 
 void
@@ -10058,16 +10090,14 @@ update_frame_tool_bar (struct frame *f)
 		      {
 			NSString *str = [NSString
 					   stringWithLispString:(XCAR (tem))];
-			systemSymbol = [NSImage imageWithSystemSymbolName:str
-						 accessibilityDescription:nil];
+			systemSymbol = mac_cached_system_symbol (str);
 			if (systemSymbol) break;
 		      }
 		}
 	      else if (STRINGP (names))
 		{
 		  NSString *str = [NSString stringWithLispString:names];
-		  systemSymbol = [NSImage imageWithSystemSymbolName:str
-					   accessibilityDescription:nil];
+		  systemSymbol = mac_cached_system_symbol (str);
 		}
 	    }
 
