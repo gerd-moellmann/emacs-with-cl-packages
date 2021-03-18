@@ -6163,15 +6163,15 @@ mac_iosurface_create (size_t width, size_t height)
 					   | kCGBitmapByteOrder32Host));
       CGContextTranslateCTM (bitmaps[i], 0, height);
       CGContextScaleCTM (bitmaps[i], scaleFactor, - scaleFactor);
-      if (surfaces[i])
-	IOSurfaceUnlock (surfaces[i], 0, NULL);
-      else
+      if (!surfaces[i])
 	break;
     }
   backBitmap = bitmaps[0];
   backSurface = surfaces[0];
   frontBitmap = bitmaps[1];
   frontSurface = surfaces[1];
+  if (frontSurface)
+    IOSurfaceUnlock (frontSurface, 0, NULL);
 #if HAVE_MAC_METAL
   [self updateMTLObjectsForView:view];
 #endif
@@ -6184,6 +6184,8 @@ mac_iosurface_create (size_t width, size_t height)
   CGContextRef bitmap = backBitmap;
   backBitmap = frontBitmap;
   frontBitmap = bitmap;
+
+  IOSurfaceUnlock (backSurface, 0, NULL);
 
   IOSurfaceRef surface = backSurface;
   backSurface = frontSurface;
@@ -6200,15 +6202,14 @@ mac_iosurface_create (size_t width, size_t height)
   copyFromFrontToBackSemaphore = dispatch_semaphore_create (0);
 
   dispatch_async (queue, ^{
-      size_t width = IOSurfaceGetWidth (backSurface);
-      size_t height = IOSurfaceGetHeight (backSurface);
-
 #if HAVE_MAC_METAL
       if (backTexture)
 	{
 	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
 	  id <MTLBlitCommandEncoder> blitCommandEncoder =
 	    [commandBuffer blitCommandEncoder];
+	  size_t width = IOSurfaceGetWidth (backSurface);
+	  size_t height = IOSurfaceGetHeight (backSurface);
 
 	  [blitCommandEncoder copyFromTexture:frontTexture
 				  sourceSlice:0 sourceLevel:0
@@ -6220,23 +6221,16 @@ mac_iosurface_create (size_t width, size_t height)
 	  [blitCommandEncoder endEncoding];
 	  [commandBuffer commit];
 	  [commandBuffer waitUntilCompleted];
+	  IOSurfaceLock (backSurface, 0, NULL);
 	}
       else
 #endif
 	{
-	  vImage_Buffer src, dest;
-
-	  src.data = IOSurfaceGetBaseAddress (frontSurface);
-	  src.rowBytes = IOSurfaceGetBytesPerRow (frontSurface);
-	  dest.data = IOSurfaceGetBaseAddress (backSurface);
-	  dest.rowBytes = IOSurfaceGetBytesPerRow (backSurface);
-	  src.width = dest.width = width;
-	  src.height = dest.height = height;
-
 	  IOSurfaceLock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	  IOSurfaceLock (backSurface, 0, NULL);
-	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	  IOSurfaceUnlock (backSurface, 0, NULL);
+	  memcpy (IOSurfaceGetBaseAddress (backSurface),
+		  IOSurfaceGetBaseAddress (frontSurface),
+		  IOSurfaceGetAllocSize (backSurface));
 	  IOSurfaceUnlock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	}
 
@@ -6351,14 +6345,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       layer.contents = (__bridge id) frontSurface;
     }
   else
-    {
-      if (backSurface)
-	IOSurfaceLock (backSurface, kIOSurfaceLockReadOnly, NULL);
-      layer.contents =
-	CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backBitmap));
-      if (backSurface)
-	IOSurfaceUnlock (backSurface, kIOSurfaceLockReadOnly, NULL);
-    }
+    layer.contents =
+      CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backBitmap));
   layer.contentsScale = scaleFactor;
 }
 
@@ -6366,8 +6354,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 {
   lockCount++;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, 0, NULL);
 
   [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext =
@@ -6384,10 +6370,44 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   eassert (backBitmap);
 
   lockCount--;
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, 0, NULL);
   [NSGraphicsContext restoreGraphicsState];
 }
+
+#if HAVE_MAC_METAL
+static id <MTLTexture>
+mtl_device_get_buffer_texture (id <MTLDevice> device,
+			       NSUInteger width, NSUInteger height)
+{
+  static NSMapTableOf (id <MTLDevice>, id <MTLTexture>) *textureCache = nil;
+  id <MTLTexture> bufferTexture = [textureCache objectForKey:device];
+
+  if (width > bufferTexture.width)
+    bufferTexture = nil;
+  else
+    width = bufferTexture.width;
+  if (height > bufferTexture.height)
+    bufferTexture = nil;
+  else
+    height = bufferTexture.height;
+  if (bufferTexture == nil)
+    {
+      MTLTextureDescriptor *textureDescriptor =
+	[MTLTextureDescriptor
+	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				       width:width height:height mipmapped:NO];
+
+      bufferTexture = [device newTextureWithDescriptor:textureDescriptor];
+      if (textureCache == nil)
+	textureCache = [[NSMapTable alloc]
+			 initWithKeyOptions:NSHashTableObjectPointerPersonality
+			       valueOptions:NSMapTableStrongMemory capacity:0];
+      [textureCache setObject:bufferTexture forKey:device];
+      MRC_RELEASE(bufferTexture);
+    }
+
+  return bufferTexture;
+}
+#endif
 
 - (void)scrollRect:(NSRect)rect by:(NSSize)delta
 {
@@ -6407,12 +6427,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 #if HAVE_MAC_METAL
   if (backTexture && width * height >= 0x10000)
     {
-      MTLTextureDescriptor *textureDescriptor =
-	[MTLTextureDescriptor
-	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-				       width:width height:height mipmapped:NO];
       id <MTLTexture> texture =
-	[mtlCommandQueue.device newTextureWithDescriptor:textureDescriptor];
+	mtl_device_get_buffer_texture (mtlCommandQueue.device, width, height);
       id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
       id <MTLBlitCommandEncoder> blitCommandEncoder =
 	[commandBuffer blitCommandEncoder];
@@ -6437,7 +6453,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       [commandBuffer commit];
       [commandBuffer waitUntilCompleted];
       IOSurfaceLock (backSurface, 0, NULL);
-      MRC_RELEASE (texture);
     }
   else
 #endif
@@ -6498,8 +6513,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     [NSMutableData dataWithCapacity:(count * sizeof (vImage_Buffer))];
   vImage_Buffer *imageBuffers = imageBuffersData.mutableBytes;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, kIOSurfaceLockReadOnly, NULL);
   unsigned char *srcData = CGBitmapContextGetData (backBitmap);
   NSInteger scale = scaleFactor;
   NativeRectangle backing_rectangle = {0, 0,
@@ -6521,8 +6534,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 			    + rectangle.x * sizeof (Pixel_8888)) * scale;
       mac_vimage_copy_8888 (&src, dest, kvImageNoFlags);
     }
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, kIOSurfaceLockReadOnly, NULL);
 
   return imageBuffersData;
 }
@@ -6534,8 +6545,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   const NativeRectangle *rectangles = rectanglesData.bytes;
   const vImage_Buffer *imageBuffers = imageBuffersData.bytes;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, 0, NULL);
   unsigned char *destData = CGBitmapContextGetData (backBitmap);
   NSInteger scale = scaleFactor;
   NativeRectangle backing_rectangle = {0, 0,
@@ -6556,8 +6565,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       mac_vimage_copy_8888 (src, &dest, kvImageNoFlags);
       free (src->data);
     }
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, 0, NULL);
 }
 
 @end				// EmacsBacking
@@ -9960,6 +9967,38 @@ file_for_image (Lisp_Object image)
   return specified_file;
 }
 
+static NSImage *
+mac_cached_system_symbol (NSString *name)
+{
+  NSImage *systemSymbol = nil;
+
+  if (
+#if __clang_major__ >= 9
+      @available (macOS 10.16, *)
+#else
+      [NSImage respondsToSelector:@selector(imageWithSystemSymbolName:accessibilityDescription:)]
+#endif
+      )
+    {
+      static NSMutableDictionaryOf (NSString *, id) *systemSymbolCache = nil;
+      id obj = [systemSymbolCache objectForKey:name];
+
+      if ([obj isKindOfClass:[NSImage class]])
+	systemSymbol = obj;
+      else if (obj == nil)
+	{
+	  if (systemSymbolCache == nil)
+	    systemSymbolCache = [[NSMutableDictionary alloc] init];
+	  systemSymbol = [NSImage imageWithSystemSymbolName:name
+				   accessibilityDescription:nil];
+	  obj = systemSymbol ? systemSymbol : NSNull.null;
+	  [systemSymbolCache setObject:obj forKey:name];
+	}
+    }
+
+  return systemSymbol;
+}
+
 /* Update the tool bar for frame F.  Add new buttons and remove old.  */
 
 void
@@ -10051,16 +10090,14 @@ update_frame_tool_bar (struct frame *f)
 		      {
 			NSString *str = [NSString
 					   stringWithLispString:(XCAR (tem))];
-			systemSymbol = [NSImage imageWithSystemSymbolName:str
-						 accessibilityDescription:nil];
+			systemSymbol = mac_cached_system_symbol (str);
 			if (systemSymbol) break;
 		      }
 		}
 	      else if (STRINGP (names))
 		{
 		  NSString *str = [NSString stringWithLispString:names];
-		  systemSymbol = [NSImage imageWithSystemSymbolName:str
-					   accessibilityDescription:nil];
+		  systemSymbol = mac_cached_system_symbol (str);
 		}
 	    }
 
