@@ -446,7 +446,7 @@ OPTION_DEFAULT_ON([xim],[at runtime, default X11 XIM to off])
 AC_ARG_WITH([mac],[AS_HELP_STRING([--with-mac],
 [use GUI on macOS.
 On by default on macOS.])],[],[with_mac=maybe])
-OPTION_DEFAULT_ON([mac-metal],[use Metal framework in application-side double buffering])
+OPTION_DEFAULT_OFF([mac-metal],[use Metal framework in application-side double buffering (experimental)])
 OPTION_DEFAULT_OFF([ns],[use Nextstep (macOS Cocoa or GNUstep) windowing system.])
 OPTION_DEFAULT_OFF([w32], [use native MS Windows GUI in a Cygwin build])
 
