@@ -1,5 +1,5 @@
 /* Composite sequence support.
-   Copyright (C) 2001-2020 Free Software Foundation, Inc.
+   Copyright (C) 2001-2021 Free Software Foundation, Inc.
    Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H14PRO021
@@ -1284,7 +1284,7 @@ composition_reseat_it (struct composition_it *cmp_it, ptrdiff_t charpos,
 	     is backward in the buffer, which can only happen if the
 	     display routines were called to perform the bidi
 	     reordering.  But it doesn't harm to test for that, and
-	     avoid someon raising their brows and thinking it's a
+	     avoid someone raising their brows and thinking it's a
 	     subtle bug...  */
 	  if (bidi_level < 0)
 	    direction = Qnil;

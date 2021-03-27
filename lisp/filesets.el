@@ -1,6 +1,6 @@
 ;;; filesets.el --- handle group of files
 
-;; Copyright (C) 2002-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2021 Free Software Foundation, Inc.
 
 ;; Author: Thomas Link <sanobast-emacs@yahoo.de>
 ;; Maintainer: emacs-devel@gnu.org
@@ -52,7 +52,7 @@
 
 ;; BTW, if you close a fileset, files, which have been changed, will
 ;; be silently saved.  Change this behavior by setting
-;; `filesets-save-buffer-fn'.
+;; `filesets-save-buffer-function'.
 
 ;;; Supported modes for inclusion groups (`filesets-ingroup-patterns'):
 ;; - Elisp

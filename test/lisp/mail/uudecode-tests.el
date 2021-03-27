@@ -1,6 +1,6 @@
 ;;; uudecode-tests.el --- Tests for uudecode.el  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
 
 ;; Author: Stefan Kangas <stefankangas@gmail.com>
 
@@ -43,12 +43,12 @@
   (uudecode-tests-read-file
    (expand-file-name "uuencoded.txt" uudecode-tests-data-dir))
   "Uuencoded data for bookmark-tests.el
-Same as `bookmark-tests-decoded-str' but uuencoded.")
+Same as `uudecode-tests-decoded-str' but uuencoded.")
 (defvar uudecode-tests-decoded-str
   (uudecode-tests-read-file
    (expand-file-name "uudecoded.txt" uudecode-tests-data-dir))
   "Plain text data for bookmark-tests.el
-Same as `bookmark-tests-encoded-str' but plain text.")
+Same as `uudecode-tests-encoded-str' but plain text.")
 
 (ert-deftest uudecode-tests-decode-region-internal ()
   ;; Write to buffer

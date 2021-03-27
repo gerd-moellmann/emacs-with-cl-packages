@@ -1,6 +1,6 @@
 ;;; gnus-util.el --- utility functions for Gnus
 
-;; Copyright (C) 1996-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -1379,7 +1379,7 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
 (autoload 'ido-completing-read "ido")
 (defun gnus-ido-completing-read (prompt collection &optional require-match
                                         initial-input history def)
-  "Call `ido-completing-read-function'."
+  "Call `ido-completing-read'."
   (ido-completing-read prompt collection nil require-match
 		       initial-input history def))
 

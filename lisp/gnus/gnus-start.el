@@ -1,6 +1,6 @@
 ;;; gnus-start.el --- startup functions for Gnus -*- lexical-binding:t -*-
 
-;; Copyright (C) 1996-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -71,7 +71,7 @@ uses considerably less memory."
                  (const :tag "Write directly to file" nil)))
 
 (defcustom gnus-init-file (nnheader-concat gnus-home-directory ".gnus")
-  "Your Gnus Emacs-Lisp startup file name.
+  "Your Gnus Emacs Lisp startup file name.
 If a file with the `.el' or `.elc' suffixes exists, it will be read instead."
   :group 'gnus-start
   :type 'file)
@@ -82,7 +82,7 @@ If a file with the `.el' or `.elc' suffixes exists, it will be read instead."
 	       (directory-file-name installation-directory))
 	      "site-lisp/gnus-init")
     (error nil))
-  "The site-wide Gnus Emacs-Lisp startup file name, or nil if none.
+  "The site-wide Gnus Emacs Lisp startup file name, or nil if none.
 If a file with the `.el' or `.elc' suffixes exists, it will be read instead."
   :group 'gnus-start
   :type '(choice file (const nil)))

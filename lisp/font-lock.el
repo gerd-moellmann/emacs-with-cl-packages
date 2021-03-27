@@ -1,6 +1,6 @@
 ;;; font-lock.el --- Electric font lock mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2021 Free Software Foundation, Inc.
 
 ;; Author: Jamie Zawinski
 ;;	Richard Stallman
@@ -821,7 +821,7 @@ happens, so the major mode can be corrected."
 	     ;; `font-lock-keywords-alist'.
 	     (when top-cell
 	       (dolist (keyword-list-how-pair (cdr top-cell))
-		 ;; `keywords-list-how-pair' is a cons with a list of
+                 ;; `keyword-list-how-pair' is a cons with a list of
 		 ;; keywords in the car top-cell and the original how
 		 ;; argument in the cdr top-cell.
 		 (setcar keyword-list-how-pair

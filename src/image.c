@@ -1,6 +1,6 @@
 /* Functions for image support on window system.
 
-Copyright (C) 1989, 1992-2020 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2021 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -2395,6 +2395,10 @@ image_set_transform (struct frame *f, struct image *img)
 # if !defined USE_CAIRO && defined HAVE_XRENDER
   if (!img->picture)
     return;
+
+  /* Store the original dimensions as we'll overwrite them later.  */
+  img->original_width = img->width;
+  img->original_height = img->height;
 # endif
 
   /* Determine size.  */
@@ -3238,6 +3242,11 @@ image_get_x_image (struct frame *f, struct image *img, bool mask_p)
 
   if (ximg_in_img)
     return ximg_in_img;
+#ifdef HAVE_XRENDER
+  else if (img->picture)
+    return XGetImage (FRAME_X_DISPLAY (f), !mask_p ? img->pixmap : img->mask,
+		      0, 0, img->original_width, img->original_height, ~0, ZPixmap);
+#endif
   else
     return XGetImage (FRAME_X_DISPLAY (f), !mask_p ? img->pixmap : img->mask,
 		      0, 0, img->width, img->height, ~0, ZPixmap);
@@ -3589,7 +3598,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
   CFURLRef url = NULL;
   CFDataRef data = NULL;
   CFStringRef specified_type = NULL;
-  CFDictionaryRef options;
+  CFDictionaryRef options = NULL;
   CFStringRef keys[2];
   CFTypeRef values[2];
   CFIndex num_values;
@@ -3643,9 +3652,6 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 			   SBYTES (specified_data));
     }
 
-  keys[0] = kCGImageSourceShouldCache;
-  values[0] = (CFTypeRef) kCFBooleanFalse;
-  num_values = 1;
   if (type == NULL)
     {
       gif_p = tiff_p = svg_p = false;
@@ -3658,17 +3664,24 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       svg_p = CFEqual (type, UTI_SVG);
       specified_type = CFRetain (type);
     }
-  if (specified_type)
+
+  if (!svg_p)
     {
-      keys[num_values] = kCGImageSourceTypeIdentifierHint;
-      values[num_values] = (CFTypeRef) specified_type;
-      num_values++;
+      keys[0] = kCGImageSourceShouldCache;
+      values[0] = (CFTypeRef) kCFBooleanFalse;
+      num_values = 1;
+      if (specified_type)
+	{
+	  keys[num_values] = kCGImageSourceTypeIdentifierHint;
+	  values[num_values] = (CFTypeRef) specified_type;
+	  num_values++;
+	}
+      options = CFDictionaryCreate (NULL, (const void **) keys,
+				    (const void **) values, num_values,
+				    &kCFTypeDictionaryKeyCallBacks,
+				    &kCFTypeDictionaryValueCallBacks);
     }
 
-  options = CFDictionaryCreate (NULL, (const void **) keys,
-				(const void **) values, num_values,
-				&kCFTypeDictionaryKeyCallBacks,
-				&kCFTypeDictionaryValueCallBacks);
   if (options)
     {
       if (url)
@@ -3744,7 +3757,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 
 	  /* Get animation-related properties for animated GIF (all
 	     versions), PNG (OS X 10.10 and later), HEICS (macOS 10.15
-	     and later), or WebP (macOS 11.0 and later).  Note that
+	     and later), or WebP (macOS 11 and later).  Note that
 	     kCGImageProperty{GIF,APNG,HEICS,WebP}LoopCount have the
 	     same value (CFSTR ("LoopCount")).  Likewise for
 	     (Unclamped)DelayTime.  */
@@ -4481,6 +4494,7 @@ static int
 xbm_scan (char **s, char *end, char *sval, int *ival)
 {
   unsigned char c UNINIT;
+  char *sval_end = sval + BUFSIZ;
 
  loop:
 
@@ -4540,7 +4554,7 @@ xbm_scan (char **s, char *end, char *sval, int *ival)
   else if (c_isalpha (c) || c == '_')
     {
       *sval++ = c;
-      while (*s < end
+      while (*s < end && sval < sval_end
 	     && (c = *(*s)++, (c_isalnum (c) || c == '_')))
 	*sval++ = c;
       *sval = 0;
@@ -9515,11 +9529,13 @@ gif_load (struct frame *f, struct image *img)
       if (gif == NULL)
 	{
 #if HAVE_GIFERRORSTRING
-	  image_error ("Cannot open `%s': %s",
-		       file, build_string (GifErrorString (gif_err)));
-#else
-	  image_error ("Cannot open `%s'", file);
+	  const char *errstr = GifErrorString (gif_err);
+	  if (errstr)
+	    image_error ("Cannot open `%s': %s", file, build_string (errstr));
+	  else
 #endif
+	  image_error ("Cannot open `%s'", file);
+
 	  return 0;
 	}
     }
@@ -9545,11 +9561,13 @@ gif_load (struct frame *f, struct image *img)
       if (!gif)
 	{
 #if HAVE_GIFERRORSTRING
-	  image_error ("Cannot open memory source `%s': %s",
-		       img->spec, build_string (GifErrorString (gif_err)));
-#else
-	  image_error ("Cannot open memory source `%s'", img->spec);
+	  const char *errstr = GifErrorString (gif_err);
+	  if (errstr)
+	    image_error ("Cannot open memory source `%s': %s",
+			 img->spec, build_string (errstr));
+	  else
 #endif
+	  image_error ("Cannot open memory source `%s'", img->spec);
 	  return 0;
 	}
     }
@@ -9829,9 +9847,9 @@ gif_load (struct frame *f, struct image *img)
       if (error_text)
 	image_error ("Error closing `%s': %s",
 		     img->spec, build_string (error_text));
-#else
-      image_error ("Error closing `%s'", img->spec);
+      else
 #endif
+      image_error ("Error closing `%s'", img->spec);
     }
 
   /* Maybe fill in the background field while we have ximg handy. */

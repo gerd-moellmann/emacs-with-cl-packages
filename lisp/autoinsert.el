@@ -1,6 +1,6 @@
 ;;; autoinsert.el --- automatic mode-dependent insertion of text into new files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1994-1995, 1998, 2000-2020 Free Software
+;; Copyright (C) 1985-1987, 1994-1995, 1998, 2000-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Charlie Martin <crm@cs.duke.edu>
@@ -264,7 +264,7 @@ Foundation Web site at @url{https://www.gnu.org/licenses/fdl.html}.
 @end quotation
 
 The document was typeset with
-@uref{http://www.texinfo.org/, GNU Texinfo}.
+@uref{https://www.gnu.org/software/texinfo/, GNU Texinfo}.
 
 @end copying
 

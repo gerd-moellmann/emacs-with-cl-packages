@@ -1,6 +1,6 @@
 ;;; printing.el --- printing utilities  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2000-2001, 2003-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2001, 2003-2021 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Keywords: wp, print, PostScript
@@ -4721,7 +4721,7 @@ Each element has the form:
 
    (MENU-PART . NUMBER-OF-ITEMS)
 
-See `pr-visible-entry-alist'.")
+See `pr-visible-entry-list'.")
 
 
 (defun pr-menu-index (entry index)

@@ -1,6 +1,6 @@
 ;;; calendar.el --- calendar functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1988-1995, 1997, 2000-2020 Free Software Foundation,
+;; Copyright (C) 1988-1995, 1997, 2000-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -1088,7 +1088,7 @@ calendar."
   "Name of buffer used for sunrise/sunset times.")
 
 (defconst calendar-hebrew-yahrzeit-buffer "*Yahrzeits*"
-  "Name of the buffer used by `list-yahrzeit-dates'.")
+  "Name of the buffer used by `calendar-hebrew-list-yahrzeits'.")
 
 (defmacro calendar-increment-month (mon yr n &optional nmonths)
   "Increment the variables MON and YR by N months.

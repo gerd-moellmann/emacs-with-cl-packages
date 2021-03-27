@@ -1,5 +1,5 @@
 /* Deal with the X Resource Manager.
-   Copyright (C) 1990, 1993-1994, 2000-2020 Free Software Foundation,
+   Copyright (C) 1990, 1993-1994, 2000-2021 Free Software Foundation,
    Inc.
 
 Author: Joseph Arceneaux
@@ -289,9 +289,9 @@ get_user_app (const char *class)
       /* Check in the home directory.  This is a bit of a hack; let's
 	 hope one's home directory doesn't contain ':' or '%'.  */
       char const *home = get_homedir ();
-      db = search_magic_path (home, class, "%L/%N");
+      db = search_magic_path (home, class, "/%L/%N");
       if (! db)
-	db = search_magic_path (home, class, "%N");
+	db = search_magic_path (home, class, "/%N");
     }
 
   return db;

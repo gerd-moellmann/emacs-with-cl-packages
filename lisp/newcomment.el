@@ -1,6 +1,6 @@
 ;;; newcomment.el --- (un)comment regions of buffers -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
 
 ;; Author: code extracted from Emacs-20's simple.el
 ;; Maintainer: Stefan Monnier <monnier@gnu.org>
@@ -1292,7 +1292,15 @@ changed with `comment-style'."
 
 (defun comment-region-default (beg end &optional arg)
   (if comment-combine-change-calls
-      (combine-change-calls beg end (comment-region-default-1 beg end arg))
+      (combine-change-calls beg
+          ;; A new line might get inserted and whitespace deleted
+          ;; after END for line comments.  Ensure the next argument is
+          ;; after any and all changes.
+          (save-excursion
+            (goto-char end)
+            (forward-line)
+            (point))
+        (comment-region-default-1 beg end arg))
     (comment-region-default-1 beg end arg)))
 
 ;;;###autoload

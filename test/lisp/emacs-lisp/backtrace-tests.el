@@ -1,6 +1,6 @@
 ;;; backtrace-tests.el --- Tests for backtraces -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
 ;; Author: Gemini Lasswell
 
@@ -41,7 +41,7 @@
          (backtrace-mode)
          (setq backtrace-frames (backtrace-get-frames))
          (let ((this-index))
-           ;; Discard all past `backtrace-tests-make-backtrace'.
+           ;; Discard all past `backtrace-tests--make-backtrace'.
            (dotimes (index (length backtrace-frames))
              (when (eq (backtrace-frame-fun (nth index backtrace-frames))
                        'backtrace-tests--make-backtrace)

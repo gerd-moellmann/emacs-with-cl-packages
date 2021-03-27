@@ -1,6 +1,6 @@
 ;;; mh-junk.el --- MH-E interface to anti-spam measures
 
-;; Copyright (C) 2003-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2021 Free Software Foundation, Inc.
 
 ;; Author: Satyaki Das <satyaki@theforce.stanford.edu>,
 ;;         Bill Wohler <wohler@newt.com>
@@ -58,7 +58,7 @@ program, see:
 (defun mh-blacklist-a-msg (message)
   "Blacklist MESSAGE.
 If MESSAGE is nil then the message at point is blacklisted.
-The hook `mh-blacklisted-msg-hook' is called after you mark a message
+The hook `mh-blacklist-msg-hook' is called after you mark a message
 for blacklisting."
   (save-excursion
     (if (numberp message)

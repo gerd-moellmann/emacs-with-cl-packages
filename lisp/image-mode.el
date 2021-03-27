@@ -1,6 +1,6 @@
 ;;; image-mode.el --- support for visiting image files  -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2005-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2021 Free Software Foundation, Inc.
 ;;
 ;; Author: Richard Stallman <rms@gnu.org>
 ;; Keywords: multimedia
@@ -836,7 +836,9 @@ was inserted."
       (setq image-transform-rotation
             (or (exif-orientation
                  (ignore-error exif-error
-                   (exif-parse-buffer)))
+                   ;; exif-parse-buffer can move point, so preserve it.
+                   (save-excursion
+                     (exif-parse-buffer))))
                 0.0)))
     ;; Swap width and height when changing orientation
     ;; between portrait and landscape.

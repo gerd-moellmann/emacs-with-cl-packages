@@ -1,6 +1,6 @@
 ;;; help.el --- help commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2020 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -179,7 +179,7 @@ Do not call this in the scope of `with-help-window'."
 		     (if (same-window-p (buffer-name standard-output))
 			 ;; Say how to scroll this window.
 			 (substitute-command-keys
-			  "\\[scroll-up] to scroll the help.")
+                          "\\[scroll-up-command] to scroll the help.")
 		       ;; Say how to scroll some other window.
 		       (substitute-command-keys
 			"\\[scroll-other-window] to scroll the help."))))))))
@@ -216,7 +216,7 @@ I METHOD    Describe a specific input method, or RET for current.
 k KEYS      Display the full documentation for the key sequence.
 K KEYS      Show the Emacs manual's section for the command bound to KEYS.
 l           Show last 300 input keystrokes (lossage).
-L LANG-ENV  Describes a specific language environment, or RET for current.
+L LANG-ENV  Describe a specific language environment, or RET for current.
 m           Display documentation of current minor modes and current major mode,
               including their special commands.
 n           Display news of recent Emacs changes.
@@ -1243,7 +1243,7 @@ window."
 	   ".")
 	  ((eq scroll 'other)
 	   ", \\[scroll-other-window] to scroll help.")
-	  (scroll ", \\[scroll-up] to scroll help."))))
+          (scroll ", \\[scroll-up-command] to scroll help."))))
     (message "%s"
      (substitute-command-keys (concat quit-part scroll-part)))))
 

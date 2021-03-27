@@ -1,6 +1,6 @@
 ;;; antlr-mode.el --- major mode for ANTLR grammar files
 
-;; Copyright (C) 1999-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
 
 ;; Author: Christoph Wedler <Christoph.Wedler@sap.com>
 ;; Keywords: languages, ANTLR, code generator
@@ -1875,7 +1875,7 @@ cell where the two values determine the area inside the braces."
 (defun antlr-option-spec (level option specs existsp)
   "Return version correct option value specification.
 Return specification for option OPTION of kind level LEVEL.  SPECS
-should correspond to the VALUE-SPEC... in `antlr-option-alists'.
+should correspond to the VALUE-SPEC... in `antlr-options-alists'.
 EXISTSP determines whether the option already exists."
   (let (value)
     (while (and specs (>= antlr-tool-version (caar specs)))

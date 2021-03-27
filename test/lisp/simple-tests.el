@@ -1,6 +1,6 @@
 ;;; simple-test.el --- Tests for simple.el           -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
 
 ;; Author: Artur Malabarba <bruce.connor.am@gmail.com>
 
@@ -760,11 +760,12 @@ See Bug#21722."
   (let* ((str "foo\\n")
          (expected-point `((beg-last-out . ,(1+ (length str)))
                            (end-last-out . ,(1+ (* 2 (length str))))
-                           (save-point . 1))))
+                           (save-point . 1)
+                           (erase . ,(1+ (length str)))
+                           (nil . ,(1+ (length str))))))
     (dolist (output-buffer-is-current '(nil))
       (with-shell-command-dont-erase-buffer str output-buffer-is-current
-        (when (memq shell-command-dont-erase-buffer '(beg-last-out end-last-out save-point))
-          (should (= (point) (alist-get shell-command-dont-erase-buffer expected-point))))))))
+        (should (= (point) (alist-get shell-command-dont-erase-buffer expected-point)))))))
 
 
 (provide 'simple-test)

@@ -1,6 +1,6 @@
 ;;; gitmerge.el --- help merge one Emacs branch into another
 
-;; Copyright (C) 2010-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
 
 ;; Authors: David Engster <deng@randomsample.de>
 ;;          Stefan Monnier <monnier@iro.umontreal.ca>
@@ -126,7 +126,7 @@ If nil, the function `gitmerge-default-branch' guesses.")
     (string-to-number (match-string 1))))
 
 (defun gitmerge-default-branch ()
-  "Default for branch that should be merged; eg \"origin/emacs-26\"."
+  "Default for branch that should be merged; eg \"origin/emacs-27\"."
   (or gitmerge-default-branch
       (format "origin/emacs-%s" (1- (gitmerge-emacs-version)))))
 

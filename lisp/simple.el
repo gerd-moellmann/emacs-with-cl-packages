@@ -1,6 +1,6 @@
 ;;; simple.el --- basic editing commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1993-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1993-2021 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -247,7 +247,7 @@ from which next-error navigated, and a target buffer TO-BUFFER."
                                                         extra-test-exclusive)
   "Try the current buffer when outside navigation.
 But return nil if we navigated to the current buffer by the means
-of `next-error' command.  Othewise, return it if it's next-error
+of `next-error' command.  Otherwise, return it if it's next-error
 capable."
   ;; Check that next-error-buffer has no buffer-local value
   ;; (i.e. we never navigated to the current buffer from another),
@@ -5536,8 +5536,9 @@ START and END specify the portion of the current buffer to be copied."
 
 (defvar activate-mark-hook nil
   "Hook run when the mark becomes active.
-It is also run at the end of a command, if the mark is active and
-it is possible that the region may have changed.")
+It is also run when the region is reactivated, for instance after
+using a command that switches back to a buffer that has an active
+mark.")
 
 (defvar deactivate-mark-hook nil
   "Hook run when the mark becomes inactive.")
@@ -6865,6 +6866,12 @@ rests."
   "Move point to beginning of current line as displayed.
 \(If there's an image in the line, this disregards newlines
 that are part of the text that the image rests on.)
+
+When moving from position that has no `field' property, this
+command doesn't enter text which has non-nil `field' property.
+In particular, when invoked in the minibuffer, the command will
+stop short of entering the text of the minibuffer prompt.
+See `inhibit-field-text-motion' for how to inhibit this.
 
 With argument ARG not nil or 1, move forward ARG - 1 lines first.
 If point reaches the beginning or end of buffer, it stops there.

@@ -1,5 +1,5 @@
 /* Definitions and headers for AppKit framework on macOS.
-   Copyright (C) 2008-2020  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2021  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -1080,6 +1080,7 @@ typedef NSInteger NSGlyphProperty;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;
+- (void)suspendSynchronizingBackingBitmap:(BOOL)flag;
 - (void)synchronizeBacking;
 - (void)lockFocusOnBacking;
 - (void)unlockFocusOnBacking;

@@ -1,6 +1,6 @@
 GNU Emacs NEWS -- history of user-visible changes.  26-Mar-1986
 
-Copyright (C) 1985-1986, 2006-2020 Free Software Foundation, Inc.
+Copyright (C) 1985-1986, 2006-2021 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 
@@ -1944,7 +1944,7 @@ It's Beat CCA Week.
     described by dot and mark, at its corners;
     the existing text is pushed to the right.
   clear-rectangle:
-    replace the rectangle described by dot ane mark
+    replace the rectangle described by dot and mark
     with blanks.  The previous text is deleted.
   delete-rectangle:
     delete the text of the specified rectangle,

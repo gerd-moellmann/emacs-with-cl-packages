@@ -25,7 +25,7 @@
 @copying
 This manual documents the Semantic library and utilities.
 
-Copyright @copyright{} 1999--2005, 2007, 2009--2020 Free Software
+Copyright @copyright{} 1999--2005, 2007, 2009--2021 Free Software
 Foundation, Inc.
 
 @quotation
@@ -269,7 +269,7 @@ preprocessors.
 @item semantic/grammar.el
 @itemx semantic/bovine/grammar.el
 The ``bovine'' grammar.  This is the first grammar mode written for
-@semantic{} and is useful for simple creating simple parsers.
+@semantic{} and is useful for creating simple parsers.
 
 @item semantic/wisent.el
 @itemx semantic/wisent/wisent.el

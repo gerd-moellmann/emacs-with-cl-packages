@@ -1,6 +1,6 @@
 ;;; electric-tests.el --- tests for electric.el
 
-;; Copyright (C) 2013-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords:
@@ -867,7 +867,8 @@ baz\"\""
     (should (equal (buffer-string) "int main () {\n  \n}"))))
 
 (ert-deftest electric-layout-control-reindentation ()
-  "Same as `e-l-int-main-kernel-style', but checking Bug#35254."
+  "Same as `emacs-lisp-int-main-kernel-style', but checking
+Bug#35254."
   (ert-with-test-buffer ()
     (plainer-c-mode)
     (electric-layout-local-mode 1)

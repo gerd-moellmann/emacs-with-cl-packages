@@ -1,6 +1,6 @@
 /* Basic character support.
 
-Copyright (C) 2001-2020 Free Software Foundation, Inc.
+Copyright (C) 2001-2021 Free Software Foundation, Inc.
 Copyright (C) 1995, 1997, 1998, 2001 Electrotechnical Laboratory, JAPAN.
   Licensed to the Free Software Foundation.
 Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
@@ -550,9 +550,9 @@ parse_str_as_multibyte (const unsigned char *str, ptrdiff_t len,
 
 /* Arrange unibyte text at STR of NBYTES bytes as a multibyte text.
    It actually converts only such 8-bit characters that don't construct
-   a multibyte sequence to multibyte forms of Latin-1 characters.  If
-   NCHARS is nonzero, set *NCHARS to the number of characters in the
-   text.  It is assured that we can use LEN bytes at STR as a work
+   a multibyte sequence to multibyte forms of raw bytes.  If NCHARS
+   is nonzero, set *NCHARS to the number of characters in the text.
+   It is assured that we can use LEN bytes at STR as a work
    area and that is enough.  Return the number of bytes of the
    resulting text.  */
 

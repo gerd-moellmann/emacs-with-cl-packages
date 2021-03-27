@@ -1,6 +1,6 @@
 ;; xref.el --- Cross-referencing commands              -*-lexical-binding:t-*-
 
-;; Copyright (C) 2014-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -852,8 +852,10 @@ Return an alist of the form ((FILENAME . (XREF ...)) ...)."
           (or
            (assoc-default 'fetched-xrefs alist)
            (funcall fetcher)))
-         (xref-alist (xref--analyze xrefs)))
+         (xref-alist (xref--analyze xrefs))
+         (dd default-directory))
     (with-current-buffer (get-buffer-create xref-buffer-name)
+      (setq default-directory dd)
       (xref--xref-buffer-mode)
       (xref--show-common-initialize xref-alist fetcher alist)
       (pop-to-buffer (current-buffer))
@@ -876,16 +878,16 @@ Return an alist of the form ((FILENAME . (XREF ...)) ...)."
   (let ((inhibit-read-only t)
         (buffer-undo-list t))
     (save-excursion
-      (erase-buffer)
       (condition-case err
-          (xref--insert-xrefs
-           (xref--analyze (funcall xref--fetcher)))
+          (let ((alist (xref--analyze (funcall xref--fetcher))))
+            (erase-buffer)
+            (xref--insert-xrefs alist))
         (user-error
+         (erase-buffer)
          (insert
           (propertize
            (error-message-string err)
-           'face 'error))))
-      (goto-char (point-min)))))
+           'face 'error)))))))
 
 (defun xref--show-defs-buffer (fetcher alist)
   (let ((xrefs (funcall fetcher)))
@@ -903,13 +905,15 @@ Return an alist of the form ((FILENAME . (XREF ...)) ...)."
 When there is more than one definition, split the selected window
 and show the list in a small window at the bottom.  And use a
 local keymap that binds `RET' to `xref-quit-and-goto-xref'."
-  (let ((xrefs (funcall fetcher)))
+  (let ((xrefs (funcall fetcher))
+        (dd default-directory))
     (cond
      ((not (cdr xrefs))
       (xref-pop-to-location (car xrefs)
                             (assoc-default 'display-action alist)))
      (t
       (with-current-buffer (get-buffer-create xref-buffer-name)
+        (setq default-directory dd)
         (xref--transient-buffer-mode)
         (xref--show-common-initialize (xref--analyze xrefs) fetcher alist)
         (pop-to-buffer (current-buffer)

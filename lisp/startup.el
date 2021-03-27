@@ -1,6 +1,6 @@
 ;;; startup.el --- process Emacs shell arguments  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-2020 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1992, 1994-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -649,11 +649,12 @@ It is the default value of the variable `top-level'."
 	   ;; Use FOO/., so that if FOO is a symlink, file-attributes
 	   ;; describes the directory linked to, not FOO itself.
 	   (or (and default-directory
-		    (equal (file-attributes
-		       (concat (file-name-as-directory pwd) "."))
-		      (file-attributes
-		       (concat (file-name-as-directory default-directory)
-			       "."))))
+		    (ignore-errors
+		      (equal (file-attributes
+			      (concat (file-name-as-directory pwd) "."))
+			     (file-attributes
+			      (concat (file-name-as-directory default-directory)
+				      ".")))))
 	       (setq process-environment
 		     (delete (concat "PWD=" pwd)
 			     process-environment)))))
@@ -926,7 +927,8 @@ the name of the init-file to load.  If this file cannot be
 loaded, and ALTERNATE-FILENAME-FUNCTION is non-nil, then it is
 called with no arguments and should return the name of an
 alternate init-file to load.  If LOAD-DEFAULTS is non-nil, then
-load default.el after the init-file.
+load default.el after the init-file, unless `inhibit-default-init'
+is non-nil.
 
 This function sets `user-init-file' to the name of the loaded
 init-file, or to a default value if loading is not possible."
@@ -982,8 +984,8 @@ init-file, or to a default value if loading is not possible."
                     (sit-for 1))
                   (setq user-init-file source))))
 
-            (when load-defaults
-
+            (when (and load-defaults
+                       (not inhibit-default-init))
               ;; Prevent default.el from changing the value of
               ;; `inhibit-startup-screen'.
               (let ((inhibit-startup-screen nil))
@@ -1389,7 +1391,7 @@ please check its value")
        (expand-file-name
         "init"
         startup-init-directory))
-     (not inhibit-default-init))
+     t)
 
     (when (and deactivate-mark transient-mark-mode)
       (with-current-buffer (window-buffer)
@@ -1508,7 +1510,7 @@ Consider using a subdirectory instead, e.g.: %s"
 (defun x-apply-session-resources ()
   "Apply X resources which specify initial values for Emacs variables.
 This is called from a window-system initialization function, such
-as `x-initialize-window-system' for X, either at startup (prior
+as `window-system-initialization' for X, either at startup (prior
 to reading the init file), or afterwards when the user first
 opens a graphical frame.
 

@@ -1,7 +1,7 @@
 ;;; trampver.el --- Transparent Remote Access, Multiple Protocol  -*- lexical-binding:t -*-
 ;;; lisp/trampver.el.  Generated from trampver.el.in by configure.
 
-;; Copyright (C) 2003-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2021 Free Software Foundation, Inc.
 
 ;; Author: Kai Großjohann <kai.grossjohann@gmx.net>
 ;; Maintainer: Michael Albinus <michael.albinus@gmx.de>
@@ -39,7 +39,7 @@
 (defvar inhibit-message)
 
 ;;;###tramp-autoload
-(defconst tramp-version "2.4.3.27.1"
+(defconst tramp-version "2.4.5.27.2"
   "This version of Tramp.")
 
 ;;;###tramp-autoload
@@ -51,6 +51,7 @@
     ;; Suppress message from `emacs-repository-get-branch'.  We must
     ;; also handle out-of-tree builds.
     (let ((inhibit-message t)
+	  (debug-on-error nil)
 	  (dir (or (locate-dominating-file (locate-library "tramp") ".git")
 		   source-directory)))
       ;; `emacs-repository-get-branch' has been introduced with Emacs 27.1.
@@ -64,6 +65,7 @@
     ;; Suppress message from `emacs-repository-get-version'.  We must
     ;; also handle out-of-tree builds.
     (let ((inhibit-message t)
+	  (debug-on-error nil)
 	  (dir (or (locate-dominating-file (locate-library "tramp") ".git")
 		   source-directory)))
       (and (stringp dir) (file-directory-p dir)
@@ -73,7 +75,7 @@
 ;; Check for Emacs version.
 (let ((x   (if (not (string-lessp emacs-version "24.4"))
       "ok"
-    (format "Tramp 2.4.3.27.1 is not fit for %s"
+    (format "Tramp 2.4.5.27.2 is not fit for %s"
             (replace-regexp-in-string "\n" "" (emacs-version))))))
   (unless (string-equal "ok" x) (error "%s" x)))
 
@@ -93,7 +95,7 @@
 	 ("2.2.13.25.2" . "25.3")
          ("2.3.3" . "26.1") ("2.3.3.26.1" . "26.1") ("2.3.5.26.2" . "26.2")
          ("2.3.5.26.3" . "26.3")
-         ("2.4.3.27.1" . "27.1")))
+         ("2.4.3.27.1" . "27.1") ("2.4.5.27.2" . "27.2")))
 
 (add-hook 'tramp-unload-hook
 	  (lambda ()

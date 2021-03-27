@@ -1,6 +1,6 @@
 ;;; flymake-cc.el --- Flymake support for GNU tools for C/C++     -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords: languages, c
@@ -86,7 +86,7 @@ SOURCE."
              (cond ((derived-mode-p 'c++-mode) "c++")
                    (t "c")))))
 
-(defvar-local flymake-cc--proc nil "Internal variable for `flymake-gcc'")
+(defvar-local flymake-cc--proc nil "Internal variable for `flymake-cc'")
 
 ;; forward declare this to shoosh compiler (instead of requiring
 ;; flymake-proc)

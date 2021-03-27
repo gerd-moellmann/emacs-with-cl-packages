@@ -1,6 +1,6 @@
 /* Buffer manipulation primitives for GNU Emacs.
 
-Copyright (C) 1985-1989, 1993-1995, 1997-2020 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1995, 1997-2021 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -67,8 +67,9 @@ struct buffer buffer_defaults;
 
 /* This structure marks which slots in a buffer have corresponding
    default values in buffer_defaults.
-   Each such slot has a nonzero value in this structure.
-   The value has only one nonzero bit.
+   Each such slot has a value in this structure.
+   The value is a positive Lisp integer that must be smaller than
+   MAX_PER_BUFFER_VARS.
 
    When a buffer has its own local value for a slot,
    the entry for that slot (found in the same slot in this structure)
@@ -5625,6 +5626,9 @@ Use the command `abbrev-mode' to change this variable.  */);
   DEFVAR_PER_BUFFER ("fill-column", &BVAR (current_buffer, fill_column),
 		     Qintegerp,
 		     doc: /* Column beyond which automatic line-wrapping should happen.
+It is used by filling commands, such as `fill-region' and `fill-paragraph',
+and by `auto-fill-mode', which see.
+See also `current-fill-column'.
 Interactively, you can set the buffer local value using \\[set-fill-column].  */);
 
   DEFVAR_PER_BUFFER ("left-margin", &BVAR (current_buffer, left_margin),

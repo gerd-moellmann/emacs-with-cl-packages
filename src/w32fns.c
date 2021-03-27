@@ -1,6 +1,6 @@
 /* Graphical user interface functions for the Microsoft Windows API.
 
-Copyright (C) 1989, 1992-2020 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2021 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -4576,7 +4576,10 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	  int size, i;
 	  W32Msg wmsg;
 	  HIMC context = get_ime_context_fn (hwnd);
-	  wmsg.dwModifiers = w32_get_key_modifiers (wParam, lParam);
+	  wmsg.dwModifiers =
+	    w32_ignore_modifiers_on_IME_input
+	    ? 0
+	    : w32_get_key_modifiers (wParam, lParam);
 	  /* Get buffer size.  */
 	  size = get_composition_string_fn (context, GCS_RESULTSTR, NULL, 0);
 	  buffer = alloca (size);
@@ -8626,8 +8629,8 @@ DEFUN ("w32-register-hot-key", Fw32_register_hot_key,
        doc: /* Register KEY as a hot-key combination.
 Certain key combinations like Alt-Tab and Win-R are reserved for
 system use on Windows, and therefore are normally intercepted by the
-system.  These key combinations can be received by registering them
-as hot-keys, except for Win-L which always locks the computer.
+system.  These key combinations can be used in Emacs by registering
+them as hot-keys, except for Win-L which always locks the computer.
 
 On Windows 98 and ME, KEY must be a one element key definition in
 vector form that would be acceptable to `define-key' (e.g. [A-tab] for
@@ -8636,16 +8639,19 @@ Alt-Tab).  The meta modifier is interpreted as Alt if
 modifier keys.  The return value is the hotkey-id if registered,
 otherwise nil.
 
-On Windows versions since NT, KEY can also be specified as [M-], [s-] or
-[h-] to indicate that all combinations of that key should be processed
-by Emacs instead of the operating system.  The super and hyper
-modifiers are interpreted according to the current values of
-`w32-lwindow-modifier' and `w32-rwindow-modifier'.  For instance,
-setting `w32-lwindow-modifier' to `super' and then calling
-`(w32-register-hot-key [s-])' grabs all combinations of the left Windows
-key to Emacs, but leaves the right Windows key free for the operating
-system keyboard shortcuts.  The return value is t if the call affected
-any key combinations, otherwise nil.  */)
+On Windows versions since NT, KEY can also be specified as just a
+modifier key, [M-], [s-] or [H-], to indicate that all combinations
+of the respective modifier key should be processed by Emacs instead
+of the operating system.  The super and hyper modifiers are
+interpreted according to the current values of `w32-lwindow-modifier'
+and `w32-rwindow-modifier'.  For instance, setting `w32-lwindow-modifier'
+to `super' and then calling `(w32-register-hot-key [s-])' grabs all
+combinations of the left Windows key to Emacs as keys with the Super
+modifier, but leaves the right Windows key free for the operating
+system keyboard shortcuts.
+
+The return value is t if the call affected any key combinations,
+otherwise nil.  */)
   (Lisp_Object key)
 {
   key = w32_parse_and_hook_hot_key (key, 1);
@@ -10693,6 +10699,15 @@ tip frame.  */);
 	       w32_disable_abort_dialog,
 	       doc: /* Non-nil means don't display the abort dialog when aborting.  */);
   w32_disable_abort_dialog = 0;
+
+  DEFVAR_BOOL ("w32-ignore-modifiers-on-IME-input",
+	       w32_ignore_modifiers_on_IME_input,
+	       doc: /* Whether to ignore modifier keys when processing input with IME.
+Some MS-Windows input methods use modifier keys such as Ctrl or Alt to input
+characters, in which case applying the modifiers will change the input.
+The default value of this variable is therefore t, to ignore modifier
+keys when IME input is received.  */);
+  w32_ignore_modifiers_on_IME_input = true;
 
 #if 0 /* TODO: Port to W32 */
   defsubr (&Sx_change_window_property);

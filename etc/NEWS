@@ -1,6 +1,6 @@
 GNU Emacs NEWS -- history of user-visible changes.
 
-Copyright (C) 2017-2020 Free Software Foundation, Inc.
+Copyright (C) 2017-2021 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Please send Emacs bug reports to 'bug-gnu-emacs@gnu.org'.
@@ -15,16 +15,39 @@ in older Emacs versions.
 You can narrow news to a specific version by calling 'view-emacs-news'
 with a prefix argument or by typing 'C-u C-h C-n'.
 
-Temporary note:
-+++ indicates that all relevant manuals in doc/ have been updated.
---- means no change in the manuals is needed.
-When you add a new item, use the appropriate mark if you are sure it
-applies, and please also update docstrings as needed.
+
+* Changes in Emacs 27.2
+
+This is a bug-fix release with no new features.
+
+
+* Lisp Changes in Emacs 27.2
+
+** The behavior of the user option 'resize-mini-frames' has changed.
+If set to a non-nil value which isn't a function, resize the mini
+frame using the new function 'fit-mini-frame-to-buffer' which won't
+skip leading or trailing empty lines of the buffer.
+
+
+* Changes in Specialized Modes and Packages in Emacs 27.2
+
+** Tramp
+
+*** The user option 'tramp-completion-reread-directory-timeout' is now obsolete.
+
+
+* Changes in Emacs 27.2 on Non-Free Operating Systems
+
+** Emacs now ignores modifier keys when IME input is used.
+By default, pressing Ctrl, Shift, and Alt keys while using IME input
+will no longer apply the modifiers to the produced characters, as
+there are IMEs which use keys with modifiers to input some
+characters.  Customize the variable 'w32-ignore-modifiers-on-IME-input'
+to nil to get back the old behavior.
 
 
 * Installation Changes in Emacs 27.1
 
----
 ** Emacs now uses GMP, the GNU Multiple Precision library.
 By default, if 'configure' does not find a suitable libgmp, it
 arranges for the included mini-gmp library to be built and used.
@@ -58,7 +81,6 @@ that building with Cairo enabled results in using Pango instead of
 libXft for font support, and that Pango 1.44 has removed support for
 bitmapped fonts.
 
-+++
 ** Emacs now uses a "portable dumper" instead of unexec.
 This improves compatibility with memory allocation on modern systems,
 and in particular better supports the Address Space Layout
@@ -202,10 +224,11 @@ it won't work right without some adjustment:
 
 ** Emacs now notifies systemd when startup finishes or shutdown begins.
 Units that are ordered after 'emacs.service' will only be started
-after Emacs has finished initialization and is ready for use.
-(If your Emacs is installed in a non-standard location and you copied the
-emacs.service file to e.g. "~/.config/systemd/user/", you will need to copy
-the new version of the file again.)
+after Emacs has finished initialization and is ready for use, and
+Emacs needs to be built with systemd support.  (If your Emacs is
+installed in a non-standard location and you copied the "emacs.service"
+file to e.g. "~/.config/systemd/user/", you will need to copy the new
+version of the file again.)
 
 
 * Changes in Emacs 27.1
@@ -623,7 +646,7 @@ same as the 'C-x C-+' and 'C-x C--' commands.
 This new command (which inserts an <a id="foo">_</a> skeleton) is
 bound to 'C-c C-c #'.
 
-** New command 'font-lock-refontify'.
+** New command 'font-lock-debug-fontify'.
 This is an interactive convenience function to be used when developing
 font locking for a mode.  It recomputes the font locking data and then
 re-fontifies the buffer.
@@ -1102,7 +1125,7 @@ prefer to rely upon existing Emacs facilities for formatting code but
 the 'sql-indent' package provides facilities to aid more casual SQL
 developers layout queries and complex expressions.
 
-**** 'sql-use-indent-support' (default t) enables SQL indention support.
+**** 'sql-use-indent-support' (default t) enables SQL indentation support.
 The 'sql-indent' package from ELPA must be installed to get the
 indentation support in 'sql-mode' and 'sql-interactive-mode'.
 
@@ -1916,6 +1939,11 @@ The value of the new 'sender' slot (if a string) is used to set gpg's
 "--sender" option.  This feature is used by
 'mml-secure-openpgp-sign-with-sender'.  See gpg(1) manual page about
 "--sender" for more information.
+
+*** 'epg-find-configuration' no longer finds GnuPG 2.0 through 2.1.5.
+Previously, it found these versions by mistake.  The intent was to
+find GnuPG 2.1.6 or later, or find GnuPG 1.4.3 or later within the
+GnuPG 1 series.
 
 ** Rmail
 

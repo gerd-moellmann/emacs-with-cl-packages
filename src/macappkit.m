@@ -1,5 +1,5 @@
 /* Functions for GUI implemented with Cocoa AppKit on macOS.
-   Copyright (C) 2008-2020  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2021  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -47,6 +47,7 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #define MRC_AUTORELEASE(receiver)	((id) (receiver))
 #define CF_BRIDGING_RETAIN		CFBridgingRetain
 #define CF_BRIDGING_RELEASE		CFBridgingRelease
+#define CF_ESCAPING_BRIDGE		CFBridgingRetain
 #else
 #define MRC_RETAIN(receiver)		[(receiver) retain]
 #define MRC_RELEASE(receiver)		[(receiver) release]
@@ -61,6 +62,11 @@ static inline id
 CF_BRIDGING_RELEASE (CFTypeRef X)
 {
   return [(id)(X) autorelease];
+}
+static inline CFTypeRef
+CF_ESCAPING_BRIDGE (id X)
+{
+  return (CFTypeRef) X;
 }
 #endif
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
@@ -1206,9 +1212,9 @@ mac_with_current_drawing_appearance (NSAppearance *appearance,
 {
   if (
 #if __clang_major__ >= 9
-      /* We use 10.16 instead of 11.0 because the binary compiled with
+      /* We use 10.16 instead of 11 because the binary compiled with
 	 SDK 10.15 and earlier thinks the OS version as 10.16 rather
-	 than 11.0 if it is executed on Big Sur.  */
+	 than 11 if it is executed on Big Sur.  */
       @available (macOS 10.16, *)
 #else
       [appearance
@@ -2728,6 +2734,19 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 			change:(NSDictionaryOf (NSKeyValueChangeKey, id) *)change
 		       context:(void *)context
 {
+  if ([keyPath isEqualToString:@"sizeMode"])
+    {
+      if ([change objectForKey:NSKeyValueChangeNotificationIsPriorKey])
+	[emacsView suspendSynchronizingBackingBitmap:YES];
+      else
+	{
+	  [emacsView suspendSynchronizingBackingBitmap:NO];
+	  [emacsView synchronizeBacking];
+	}
+
+      return;
+    }
+
   BOOL updateOverlayViewParticipation = NO;
 
   if ([keyPath isEqualToString:@"sublayers"])
@@ -2920,6 +2939,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
      window on macOS 10.12.  It is too late to remove the view in the
      windowWillClose: delegate method, so we remove it here.  */
   [emacsView removeFromSuperview];
+  [emacsWindow.toolbar removeObserver:self forKeyPath:@"sizeMode"];
   [emacsWindow close];
 }
 
@@ -5657,8 +5677,7 @@ mac_create_frame_window (struct frame *f)
   mac_within_gui (^{
       frameController = [[EmacsFrameController alloc] initWithEmacsFrame:f];
     });
-  FRAME_MAC_WINDOW (f) =
-    (void *) CF_BRIDGING_RETAIN (MRC_AUTORELEASE (frameController));
+  FRAME_MAC_WINDOW (f) = (void *) CF_ESCAPING_BRIDGE (frameController);
 
   if (f->size_hint_flags & (USPosition | PPosition)
       || FRAME_PARENT_FRAME (f))
@@ -5838,7 +5857,7 @@ mac_cursor_create (ThemeCursor shape, const Emacs_Color *fore_color,
   cursor = [[NSCursor alloc] initWithImage:image hotSpot:[cursor hotSpot]];
   MRC_RELEASE (image);
 
-  return CF_BRIDGING_RETAIN (MRC_AUTORELEASE (cursor));
+  return CF_ESCAPING_BRIDGE (cursor);
 }
 
 void
@@ -6144,15 +6163,15 @@ mac_iosurface_create (size_t width, size_t height)
 					   | kCGBitmapByteOrder32Host));
       CGContextTranslateCTM (bitmaps[i], 0, height);
       CGContextScaleCTM (bitmaps[i], scaleFactor, - scaleFactor);
-      if (surfaces[i])
-	IOSurfaceUnlock (surfaces[i], 0, NULL);
-      else
+      if (!surfaces[i])
 	break;
     }
   backBitmap = bitmaps[0];
   backSurface = surfaces[0];
   frontBitmap = bitmaps[1];
   frontSurface = surfaces[1];
+  if (frontSurface)
+    IOSurfaceUnlock (frontSurface, 0, NULL);
 #if HAVE_MAC_METAL
   [self updateMTLObjectsForView:view];
 #endif
@@ -6165,6 +6184,8 @@ mac_iosurface_create (size_t width, size_t height)
   CGContextRef bitmap = backBitmap;
   backBitmap = frontBitmap;
   frontBitmap = bitmap;
+
+  IOSurfaceUnlock (backSurface, 0, NULL);
 
   IOSurfaceRef surface = backSurface;
   backSurface = frontSurface;
@@ -6181,15 +6202,14 @@ mac_iosurface_create (size_t width, size_t height)
   copyFromFrontToBackSemaphore = dispatch_semaphore_create (0);
 
   dispatch_async (queue, ^{
-      size_t width = IOSurfaceGetWidth (backSurface);
-      size_t height = IOSurfaceGetHeight (backSurface);
-
 #if HAVE_MAC_METAL
       if (backTexture)
 	{
 	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
 	  id <MTLBlitCommandEncoder> blitCommandEncoder =
 	    [commandBuffer blitCommandEncoder];
+	  size_t width = IOSurfaceGetWidth (backSurface);
+	  size_t height = IOSurfaceGetHeight (backSurface);
 
 	  [blitCommandEncoder copyFromTexture:frontTexture
 				  sourceSlice:0 sourceLevel:0
@@ -6201,23 +6221,16 @@ mac_iosurface_create (size_t width, size_t height)
 	  [blitCommandEncoder endEncoding];
 	  [commandBuffer commit];
 	  [commandBuffer waitUntilCompleted];
+	  IOSurfaceLock (backSurface, 0, NULL);
 	}
       else
 #endif
 	{
-	  vImage_Buffer src, dest;
-
-	  src.data = IOSurfaceGetBaseAddress (frontSurface);
-	  src.rowBytes = IOSurfaceGetBytesPerRow (frontSurface);
-	  dest.data = IOSurfaceGetBaseAddress (backSurface);
-	  dest.rowBytes = IOSurfaceGetBytesPerRow (backSurface);
-	  src.width = dest.width = width;
-	  src.height = dest.height = height;
-
 	  IOSurfaceLock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	  IOSurfaceLock (backSurface, 0, NULL);
-	  mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	  IOSurfaceUnlock (backSurface, 0, NULL);
+	  memcpy (IOSurfaceGetBaseAddress (backSurface),
+		  IOSurfaceGetBaseAddress (frontSurface),
+		  IOSurfaceGetAllocSize (backSurface));
 	  IOSurfaceUnlock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	}
 
@@ -6332,14 +6345,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       layer.contents = (__bridge id) frontSurface;
     }
   else
-    {
-      if (backSurface)
-	IOSurfaceLock (backSurface, kIOSurfaceLockReadOnly, NULL);
-      layer.contents =
-	CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backBitmap));
-      if (backSurface)
-	IOSurfaceUnlock (backSurface, kIOSurfaceLockReadOnly, NULL);
-    }
+    layer.contents =
+      CF_BRIDGING_RELEASE (CGBitmapContextCreateImage (backBitmap));
   layer.contentsScale = scaleFactor;
 }
 
@@ -6347,8 +6354,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 {
   lockCount++;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, 0, NULL);
 
   [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext =
@@ -6365,10 +6370,44 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   eassert (backBitmap);
 
   lockCount--;
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, 0, NULL);
   [NSGraphicsContext restoreGraphicsState];
 }
+
+#if HAVE_MAC_METAL
+static id <MTLTexture>
+mtl_device_get_buffer_texture (id <MTLDevice> device,
+			       NSUInteger width, NSUInteger height)
+{
+  static NSMapTableOf (id <MTLDevice>, id <MTLTexture>) *textureCache = nil;
+  id <MTLTexture> bufferTexture = [textureCache objectForKey:device];
+
+  if (width > bufferTexture.width)
+    bufferTexture = nil;
+  else
+    width = bufferTexture.width;
+  if (height > bufferTexture.height)
+    bufferTexture = nil;
+  else
+    height = bufferTexture.height;
+  if (bufferTexture == nil)
+    {
+      MTLTextureDescriptor *textureDescriptor =
+	[MTLTextureDescriptor
+	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				       width:width height:height mipmapped:NO];
+
+      bufferTexture = [device newTextureWithDescriptor:textureDescriptor];
+      if (textureCache == nil)
+	textureCache = [[NSMapTable alloc]
+			 initWithKeyOptions:NSHashTableObjectPointerPersonality
+			       valueOptions:NSMapTableStrongMemory capacity:0];
+      [textureCache setObject:bufferTexture forKey:device];
+      MRC_RELEASE(bufferTexture);
+    }
+
+  return bufferTexture;
+}
+#endif
 
 - (void)scrollRect:(NSRect)rect by:(NSSize)delta
 {
@@ -6388,12 +6427,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 #if HAVE_MAC_METAL
   if (backTexture && width * height >= 0x10000)
     {
-      MTLTextureDescriptor *textureDescriptor =
-	[MTLTextureDescriptor
-	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-				       width:width height:height mipmapped:NO];
       id <MTLTexture> texture =
-	[mtlCommandQueue.device newTextureWithDescriptor:textureDescriptor];
+	mtl_device_get_buffer_texture (mtlCommandQueue.device, width, height);
       id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
       id <MTLBlitCommandEncoder> blitCommandEncoder =
 	[commandBuffer blitCommandEncoder];
@@ -6418,7 +6453,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       [commandBuffer commit];
       [commandBuffer waitUntilCompleted];
       IOSurfaceLock (backSurface, 0, NULL);
-      MRC_RELEASE (texture);
     }
   else
 #endif
@@ -6479,8 +6513,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     [NSMutableData dataWithCapacity:(count * sizeof (vImage_Buffer))];
   vImage_Buffer *imageBuffers = imageBuffersData.mutableBytes;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, kIOSurfaceLockReadOnly, NULL);
   unsigned char *srcData = CGBitmapContextGetData (backBitmap);
   NSInteger scale = scaleFactor;
   NativeRectangle backing_rectangle = {0, 0,
@@ -6502,8 +6534,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 			    + rectangle.x * sizeof (Pixel_8888)) * scale;
       mac_vimage_copy_8888 (&src, dest, kvImageNoFlags);
     }
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, kIOSurfaceLockReadOnly, NULL);
 
   return imageBuffersData;
 }
@@ -6515,8 +6545,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   const NativeRectangle *rectangles = rectanglesData.bytes;
   const vImage_Buffer *imageBuffers = imageBuffersData.bytes;
   [self waitCopyFromFrontToBack];
-  if (backSurface)
-    IOSurfaceLock (backSurface, 0, NULL);
   unsigned char *destData = CGBitmapContextGetData (backBitmap);
   NSInteger scale = scaleFactor;
   NativeRectangle backing_rectangle = {0, 0,
@@ -6537,8 +6565,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
       mac_vimage_copy_8888 (src, &dest, kvImageNoFlags);
       free (src->data);
     }
-  if (backSurface)
-    IOSurfaceUnlock (backSurface, 0, NULL);
 }
 
 @end				// EmacsBacking
@@ -8718,10 +8744,14 @@ static BOOL NonmodalScrollerPagingBehavior;
   NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
 
   [userDefaults synchronize];
-  NonmodalScrollerButtonDelay =
-    [userDefaults doubleForKey:@"NSScrollerButtonDelay"];
-  NonmodalScrollerButtonPeriod =
-    [userDefaults doubleForKey:@"NSScrollerButtonPeriod"];
+  /* NSScrollerButtonDelay and NSScrollerButtonPeriod are not
+     initialized on macOS 10.15.  */
+  if ([userDefaults objectForKey:@"NSScrollerButtonDelay"])
+    NonmodalScrollerButtonDelay =
+      [userDefaults doubleForKey:@"NSScrollerButtonDelay"];
+  if ([userDefaults objectForKey:@"NSScrollerButtonPeriod"])
+    NonmodalScrollerButtonPeriod =
+      [userDefaults doubleForKey:@"NSScrollerButtonPeriod"];
   NonmodalScrollerPagingBehavior =
     [userDefaults boolForKey:@"AppleScrollerPagingBehavior"];
 }
@@ -9786,6 +9816,13 @@ toolbar_separator_item_identifier_if_available (void)
   [toolbar setDelegate:self];
   [toolbar setVisible:visible];
 
+  /* -[NSToolbar setSizeMode:] posts NSViewFrameDidChangeNotification
+      for EmacsView, but with a bogus (intermediate?) value for view's
+      frame and bounds.  We suspend -[EmacsView synchronizeBacking]
+      while setting toolbar's size mode.  */
+  [toolbar addObserver:self forKeyPath:@"sizeMode"
+	       options:NSKeyValueObservingOptionPrior context:nil];
+
   [emacsWindow setToolbar:toolbar];
   MRC_RELEASE (toolbar);
 
@@ -9812,7 +9849,7 @@ toolbar_separator_item_identifier_if_available (void)
 	   || EQ (Vtool_bar_style, Qtext_image_horiz))
     displayMode = NSToolbarDisplayModeIconAndLabel;
 
-  /* -[NSToolbar setDisplayMode] posts
+  /* -[NSToolbar setDisplayMode:] posts
       NSViewFrameDidChangeNotification for EmacsView, but with a bogus
       (intermediate?) value for view's frame and bounds.  We suspend
       -[EmacsView synchronizeBacking] while setting toolbar's display
@@ -9930,6 +9967,38 @@ file_for_image (Lisp_Object image)
   return specified_file;
 }
 
+static NSImage *
+mac_cached_system_symbol (NSString *name)
+{
+  NSImage *systemSymbol = nil;
+
+  if (
+#if __clang_major__ >= 9
+      @available (macOS 10.16, *)
+#else
+      [NSImage respondsToSelector:@selector(imageWithSystemSymbolName:accessibilityDescription:)]
+#endif
+      )
+    {
+      static NSMutableDictionaryOf (NSString *, id) *systemSymbolCache = nil;
+      id obj = [systemSymbolCache objectForKey:name];
+
+      if ([obj isKindOfClass:[NSImage class]])
+	systemSymbol = obj;
+      else if (obj == nil)
+	{
+	  if (systemSymbolCache == nil)
+	    systemSymbolCache = [[NSMutableDictionary alloc] init];
+	  systemSymbol = [NSImage imageWithSystemSymbolName:name
+				   accessibilityDescription:nil];
+	  obj = systemSymbol ? systemSymbol : NSNull.null;
+	  [systemSymbolCache setObject:obj forKey:name];
+	}
+    }
+
+  return systemSymbol;
+}
+
 /* Update the tool bar for frame F.  Add new buttons and remove old.  */
 
 void
@@ -10021,16 +10090,14 @@ update_frame_tool_bar (struct frame *f)
 		      {
 			NSString *str = [NSString
 					   stringWithLispString:(XCAR (tem))];
-			systemSymbol = [NSImage imageWithSystemSymbolName:str
-						 accessibilityDescription:nil];
+			systemSymbol = mac_cached_system_symbol (str);
 			if (systemSymbol) break;
 		      }
 		}
 	      else if (STRINGP (names))
 		{
 		  NSString *str = [NSString stringWithLispString:names];
-		  systemSymbol = [NSImage imageWithSystemSymbolName:str
-					   accessibilityDescription:nil];
+		  systemSymbol = mac_cached_system_symbol (str);
 		}
 	    }
 
@@ -10862,7 +10929,10 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 
 - (void)showHourglass:(id)sender
 {
-  if (hourglassWindow == nil)
+  if (hourglassWindow == nil
+      /* Adding a child window to a window on an inactive space would
+	 cause space switching.  */
+      && emacsWindow.isOnActiveSpace)
     {
       NSRect rect = NSMakeRect (0, 0, HOURGLASS_WIDTH, HOURGLASS_HEIGHT);
       NSProgressIndicator *indicator =
@@ -10937,9 +11007,17 @@ mac_show_hourglass (struct frame *f)
 {
   if (!FRAME_TOOLTIP_P (f) && FRAME_PARENT_FRAME (f) == NULL)
     {
-      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+      /* If we try to add a child window to a window that is currently
+	 hidden by window tabbing, then its parent window would
+	 suddenly appear at the position where it was previously
+	 hidden.  */
+      Lisp_Object tab_selected_frame = mac_get_tab_group_selected_frame (f);
+      if (NILP (tab_selected_frame) || XFRAME (tab_selected_frame) == f)
+	{
+	  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
-      mac_within_gui (^{[frameController showHourglass:nil];});
+	  mac_within_gui (^{[frameController showHourglass:nil];});
+	}
     }
 }
 
@@ -12362,12 +12440,11 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 	[[EmacsDialogView alloc] initWithWidgetValue:first_wv];
 
       cfpanel =
-	CF_BRIDGING_RETAIN (MRC_AUTORELEASE
-			    ([[NSPanel alloc]
-			       initWithContentRect:[dialogView frame]
-					 styleMask:NSWindowStyleMaskTitled
-					   backing:NSBackingStoreBuffered
-					     defer:YES]));
+	CF_ESCAPING_BRIDGE ([[NSPanel alloc]
+			      initWithContentRect:[dialogView frame]
+					styleMask:NSWindowStyleMaskTitled
+					  backing:NSBackingStoreBuffered
+					    defer:YES]);
       panel = (__bridge NSPanel *) cfpanel;
 
       NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
@@ -14561,8 +14638,15 @@ static WebView *EmacsSVGDocumentLastWebView;
 
 - (void)dealloc
 {
+  /* Deallocating WKWebView from a non-main thread causes crash on
+     macOS High Sierra and Mojave.  */
+  CFTypeRef lastWebView = CF_BRIDGING_RETAIN (EmacsSVGDocumentLastWebView);
+
   MRC_RELEASE (EmacsSVGDocumentLastWebView);
   EmacsSVGDocumentLastWebView = webView;
+  dispatch_async (dispatch_get_main_queue (), ^{
+      CF_BRIDGING_RELEASE (lastWebView);
+    });
 #if !USE_ARC
   [super dealloc];
 #endif
@@ -15170,17 +15254,16 @@ mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
 			 that's OK.  */
 		      nsoptions, @"options", nil];
 
-      document = document_cache_lookup (key, modificationDate);
+      document = MRC_RETAIN (document_cache_lookup (key, modificationDate));
       if (document == nil)
-	document = MRC_AUTORELEASE (document_rasterizer_create (nsurl,
-								nsoptions));
+	document = document_rasterizer_create (nsurl, nsoptions);
       if (document && !document.shouldNotCache)
 	document_cache_set (key, document, modificationDate);
     }
 
   document_cache_evict ();
 
-  return CF_BRIDGING_RETAIN (document);
+  return CF_ESCAPING_BRIDGE (document);
 }
 
 EmacsDocumentRef
@@ -15194,16 +15277,17 @@ mac_document_create_with_data (CFDataRef data, CFDictionaryRef options)
 		  /* The value of nsoptions might be nil, but that's
 		     OK.  */
 		  nsoptions, @"options", nil];
-  id <EmacsDocumentRasterizer> document = document_cache_lookup (key, nil);
+  id <EmacsDocumentRasterizer> document =
+    MRC_RETAIN (document_cache_lookup (key, nil));
 
   if (document == nil)
-    document = MRC_AUTORELEASE (document_rasterizer_create (nsdata, nsoptions));
+    document = document_rasterizer_create (nsdata, nsoptions);
   if (document && !document.shouldNotCache)
     document_cache_set (key, document, nil);
 
   document_cache_evict ();
 
-  return CF_BRIDGING_RETAIN (document);
+  return CF_ESCAPING_BRIDGE (document);
 }
 
 size_t
@@ -16769,7 +16853,7 @@ mac_sound_create (Lisp_Object file, Lisp_Object data)
   else
     sound = nil;
 
-  return CF_BRIDGING_RETAIN (MRC_AUTORELEASE (sound));
+  return CF_ESCAPING_BRIDGE (sound);
 }
 
 void
@@ -17388,6 +17472,9 @@ main (int argc, char **argv)
   if (!err && !getrlimit (RLIMIT_STACK, &rlim)
       && 0 <= rlim.rlim_cur && rlim.rlim_cur <= LONG_MAX)
     {
+      /* In case the current stack size limit is not a multiple of
+	 page size.  */
+      rlim.rlim_cur = round_page (rlim.rlim_cur);
       rlim_t lim = rlim.rlim_cur;
 
       /* Approximate the amount regex.c needs per unit of

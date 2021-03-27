@@ -1,6 +1,6 @@
 ;;; menu-bar.el --- define a default menu bar
 
-;; Copyright (C) 1993-1995, 2000-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1995, 2000-2021 Free Software Foundation, Inc.
 
 ;; Author: Richard M. Stallman
 ;; Maintainer: emacs-devel@gnu.org
@@ -333,6 +333,8 @@
 
     (bindings--define-key menu [tags-continue]
       '(menu-item "Continue Tags Search" fileloop-continue
+                  :enable (and (featurep 'fileloop)
+                               (not (eq fileloop--operate-function 'ignore)))
                   :help "Continue last tags search operation"))
     (bindings--define-key menu [tags-srch]
       '(menu-item "Search Tagged Files..." tags-search
@@ -382,6 +384,8 @@
   (let ((menu (make-sparse-keymap "Replace")))
     (bindings--define-key menu [tags-repl-continue]
       '(menu-item "Continue Replace" fileloop-continue
+                  :enable (and (featurep 'fileloop)
+                               (not (eq fileloop--operate-function 'ignore)))
                   :help "Continue last tags replace operation"))
     (bindings--define-key menu [tags-repl]
       '(menu-item "Replace in Tagged Files..." tags-query-replace
@@ -2426,7 +2430,7 @@ created in the future."
 (put 'menu-bar-mode 'standard-value '(t))
 
 (defun toggle-menu-bar-mode-from-frame (&optional arg)
-  "Toggle menu bar on or off, based on the status of the current frame.
+  "Toggle display of the menu bar of the current frame.
 See `menu-bar-mode' for more information."
   (interactive (list (or current-prefix-arg 'toggle)))
   (if (eq arg 'toggle)

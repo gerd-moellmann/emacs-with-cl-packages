@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1993, 1995, 1998--1999, 2001--2020 Free Software
+@c Copyright (C) 1990--1993, 1995, 1998--1999, 2001--2021 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Tips
@@ -93,6 +93,11 @@ it to Emacs.  If and when we do, we can change the name easily enough.
 
 If one prefix is insufficient, your package can use two or three
 alternative common prefixes, so long as they make sense.
+
+@item
+We recommend enabling @code{lexical-binding} in new code, and
+converting existing Emacs Lisp code to enable @code{lexical-binding}
+if it doesn't already.  @xref{Using Lexical Binding}.
 
 @item
 Put a call to @code{provide} at the end of each separate Lisp file.
@@ -963,9 +968,9 @@ explains these conventions, starting with an example:
 
 @smallexample
 @group
-;;; foo.el --- Support for the Foo programming language
+;;; foo.el --- Support for the Foo programming language  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2020 Your Name
+;; Copyright (C) 2010-2021 Your Name
 @end group
 
 ;; Author: Your Name <yourname@@example.com>
@@ -986,14 +991,14 @@ explains these conventions, starting with an example:
   The very first line should have this format:
 
 @example
-;;; @var{filename} --- @var{description}
+;;; @var{filename} --- @var{description}  -*- lexical-binding: t; -*-
 @end example
 
 @noindent
-The description should be contained in one line.  If the file
-needs a @samp{-*-} specification, put it after @var{description}.
-If this would make the first line too long, use a Local Variables
-section at the end of the file.
+The description should be contained in one line.  If the file needs to
+set more variables in the @samp{-*-} specification, add it after
+@code{lexical-binding}.  If this would make the first line too long, use
+a Local Variables section at the end of the file.
 
   The copyright notice usually lists your name (if you wrote the
 file).  If you have an employer who claims copyright on your work, you

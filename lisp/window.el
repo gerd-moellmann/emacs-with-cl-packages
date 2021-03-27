@@ -1,6 +1,6 @@
 ;;; window.el --- GNU Emacs window commands aside from those written in C  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1989, 1992-1994, 2000-2020 Free Software
+;; Copyright (C) 1985, 1989, 1992-1994, 2000-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -1716,9 +1716,11 @@ interpret DELTA as pixels."
   (setq window (window-normalize-window window))
   (cond
    ((< delta 0)
-    (max (- (window-min-size window horizontal ignore pixelwise)
-	    (window-size window horizontal pixelwise))
-	 delta))
+    (let ((min-size (window-min-size window horizontal ignore pixelwise))
+          (size (window-size window horizontal pixelwise)))
+      (if (<= size min-size)
+          0
+        (max (- min-size size) delta))))
    ((> delta 0)
     (if (window-size-fixed-p window horizontal ignore)
 	0
@@ -3406,7 +3408,7 @@ routines."
   "Resize minibuffer-only frame FRAME."
   (if (functionp resize-mini-frames)
       (funcall resize-mini-frames frame)
-    (fit-frame-to-buffer frame)))
+    (fit-mini-frame-to-buffer frame)))
 
 (defun window--sanitize-window-sizes (horizontal)
   "Assert that all windows on selected frame are large enough.
@@ -5404,7 +5406,7 @@ frame.  The selected window is not changed by this function."
 		(set-window-parameter
 		 (window-parent new) 'window-side window-side))))
 	   ((eq window-combination-resize 'atom)
-	    ;; Make sure `window--check-frame' won't destroy an existing
+            ;; Make sure `window--check' won't destroy an existing
 	    ;; atomic window in case the new window gets nested inside.
 	    (unless (window-parameter window 'window-atom)
 	      (set-window-parameter window 'window-atom t))
@@ -5412,7 +5414,13 @@ frame.  The selected window is not changed by this function."
 	      (set-window-parameter (window-parent new) 'window-atom t))
 	    (set-window-parameter new 'window-atom t)))
 
-	  ;; Sanitize sizes unless SIZE was specified.
+          ;; Make the new window inherit the `min-margins' parameter of
+          ;; WINDOW (Bug#44483).
+          (let ((min-margins (window-parameter window 'min-margins)))
+            (when min-margins
+              (set-window-parameter new 'min-margins min-margins)))
+
+          ;; Sanitize sizes unless SIZE was specified.
 	  (unless size
             (window--sanitize-window-sizes horizontal))
 
@@ -8762,6 +8770,14 @@ Return 0 otherwise."
 
 (declare-function tool-bar-height "xdisp.c" (&optional frame pixelwise))
 
+(defun fit-mini-frame-to-buffer (&optional frame)
+  "Adjust size of minibuffer FRAME to display its contents.
+FRAME should be a minibuffer-only frame and defaults to the
+selected one.  Unlike `fit-frame-to-buffer' FRAME will fit to the
+contents of its buffer with any leading or trailing empty lines
+included."
+  (fit-frame-to-buffer-1 frame))
+
 (defun fit-frame-to-buffer (&optional frame max-height min-height max-width min-width only)
   "Adjust size of FRAME to display the contents of its buffer exactly.
 FRAME can be any live frame and defaults to the selected one.
@@ -8780,8 +8796,18 @@ horizontally only.
 The new position and size of FRAME can be additionally determined
 by customizing the options `fit-frame-to-buffer-sizes' and
 `fit-frame-to-buffer-margins' or setting the corresponding
-parameters of FRAME."
+parameters of FRAME.
+
+Any leading or trailing empty lines of the buffer content are not
+considered."
   (interactive)
+  (fit-frame-to-buffer-1 frame max-height min-height max-width min-width only t t))
+
+(defun fit-frame-to-buffer-1 (&optional frame max-height min-height max-width min-width only from to)
+  "Helper function for `fit-frame-to-buffer'.
+FROM and TO are the buffer positions to determine the size to fit
+to, see `window-text-pixel-size'.  The remaining arguments are as
+for `fit-frame-to-buffer'."
   (unless (fboundp 'display-monitor-attributes-list)
     (user-error "Cannot resize frame in non-graphic Emacs"))
   (setq frame (window-normalize-frame frame))
@@ -8916,7 +8942,7 @@ parameters of FRAME."
            ;; Note: Currently, for a new frame the sizes of the header
            ;; and mode line may be estimated incorrectly
            (size
-            (window-text-pixel-size window t t max-width max-height))
+            (window-text-pixel-size window from to max-width max-height))
            (width (max (car size) min-width))
            (height (max (cdr size) min-height)))
       ;; Don't change height or width when the window's size is fixed
@@ -9519,13 +9545,16 @@ cycling order is middle -> top -> bottom."
   :group 'windows)
 
 (defun recenter-top-bottom (&optional arg)
-  "Move current buffer line to the specified window line.
-With no prefix argument, successive calls place point according
-to the cycling order defined by `recenter-positions'.
+  "Scroll the window so that current line is in the middle of the window.
+Successive invocations scroll the window in a cyclical order to put
+the current line at certain places within the window, as determined by
+`recenter-positions'.  By default, the second invocation puts the
+current line at the top-most window line, the third invocation puts it
+on the bottom-most window line, and then the order is reused in a
+cyclical manner.
 
-A prefix argument is handled like `recenter':
- With numeric prefix ARG, move current line to window-line ARG.
- With plain `C-u', move current line to window center."
+With numeric prefix ARG, move current line ARG lines below the window top.
+With plain \\[universal-argument], move current line to window center."
   (interactive "P")
   (cond
    (arg (recenter arg t))                 ; Always respect ARG.

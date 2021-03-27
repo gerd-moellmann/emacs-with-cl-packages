@@ -1,5 +1,5 @@
 /* Font driver on macOS Core text.
-   Copyright (C) 2009-2020 Free Software Foundation, Inc.
+   Copyright (C) 2009-2021 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -832,7 +832,7 @@ macfont_store_descriptor_attributes (CTFontDescriptorRef desc,
       } numeric_traits[] =
           {{FONT_WEIGHT_INDEX, kCTFontWeightTrait,
             {{-0.4, 50},	/* light */
-             {-0.24, 87.5},	/* (semi-light + normal) / 2 */
+             {-0.2, 87.5},	/* (semi-light + normal) / 2 */
              {0, 100},		/* normal */
              {0.24, 140},	/* (semi-bold + normal) / 2 */
              {0.4, 200},	/* bold */
@@ -1933,7 +1933,7 @@ macfont_create_attributes_with_spec (Lisp_Object spec)
   } numeric_traits[] =
       {{FONT_WEIGHT_INDEX, kCTFontWeightTrait,
         {{-0.4, 50},		/* light */
-         {-0.24, 87.5},		/* (semi-light + normal) / 2 */
+         {-0.2, 87.5},		/* (semi-light + normal) / 2 */
          {0, 100},		/* normal */
          {0.24, 140},		/* (semi-bold + normal) / 2 */
          {0.4, 200},		/* bold */

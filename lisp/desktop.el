@@ -1,6 +1,6 @@
 ;;; desktop.el --- save partial status of Emacs when killed -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1995, 1997, 2000-2020 Free Software Foundation,
+;; Copyright (C) 1993-1995, 1997, 2000-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Morten Welinder <terra@diku.dk>
@@ -1037,7 +1037,7 @@ file.
 
 To upgrade a version 206 file to version 208, call this command
 explicitly with a prefix argument: \\[universal-argument] \\[desktop-save].
-If you are upgrading from Emacs 24 or older, we recommed to do
+If you are upgrading from Emacs 24 or older, we recommend to do
 this once you decide you no longer need compatibility with versions
 of Emacs before 25.1.
 

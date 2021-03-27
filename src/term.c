@@ -1,5 +1,5 @@
 /* Terminal control module for terminals described by TERMCAP
-   Copyright (C) 1985-1987, 1993-1995, 1998, 2000-2020 Free Software
+   Copyright (C) 1985-1987, 1993-1995, 1998, 2000-2021 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -3842,7 +3842,9 @@ clear_tty_hooks (struct terminal *terminal)
   terminal->update_begin_hook = 0;
   terminal->update_end_hook = 0;
   terminal->set_terminal_window_hook = 0;
-  terminal->defined_color_hook = 0;
+  /* Don't clear the defined_color_hook, as that makes it impossible
+     to unload or load a theme when some TTY frame is suspended.  */
+  /* terminal->defined_color_hook = 0; */
   terminal->mouse_position_hook = 0;
   terminal->frame_rehighlight_hook = 0;
   terminal->frame_raise_lower_hook = 0;

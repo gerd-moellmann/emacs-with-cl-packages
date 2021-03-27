@@ -1,6 +1,6 @@
 ;;; emacs-module-tests --- Test GNU Emacs modules.  -*- lexical-binding: t; -*-
 
-;; Copyright 2015-2020 Free Software Foundation, Inc.
+;; Copyright 2015-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -318,6 +318,9 @@ local reference."
   (with-temp-buffer
     (let ((standard-output (current-buffer)))
       (describe-function-1 #'mod-test-sum)
+      (goto-char (point-min))
+      (while (re-search-forward "`[^']*/data/emacs-module/" nil t)
+        (replace-match "`data/emacs-module/"))
       (should (equal
                (buffer-substring-no-properties 1 (point-max))
                (format "a module function in `data/emacs-module/mod-test%s'.

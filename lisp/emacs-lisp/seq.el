@@ -1,6 +1,6 @@
 ;;; seq.el --- Sequence manipulation functions  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Keywords: sequences
@@ -284,6 +284,9 @@ sorted.  FUNCTION must be a function of one argument."
 (cl-defmethod seq-reverse ((sequence sequence))
   (reverse sequence))
 
+;; We are autoloading seq-concatenate because cl-concatenate needs
+;; that when it's inlined, per the cl-proclaim in cl-macs.el.
+;;;###autoload
 (cl-defgeneric seq-concatenate (type &rest sequences)
   "Concatenate SEQUENCES into a single sequence of type TYPE.
 TYPE must be one of following symbols: vector, string or list.
@@ -336,9 +339,11 @@ list."
   "Reduce the function FUNCTION across SEQUENCE, starting with INITIAL-VALUE.
 
 Return the result of calling FUNCTION with INITIAL-VALUE and the
-first element of SEQUENCE, then calling FUNCTION with that result and
-the second element of SEQUENCE, then with that result and the third
-element of SEQUENCE, etc.
+first element of SEQUENCE, then calling FUNCTION with that result
+and the second element of SEQUENCE, then with that result and the
+third element of SEQUENCE, etc.  FUNCTION will be called with
+INITIAL-VALUE (and then the accumulated value) as the first
+argument, and the elements from SEQUENCE as the second argument.
 
 If SEQUENCE is empty, return INITIAL-VALUE and FUNCTION is not called."
   (if (seq-empty-p sequence)

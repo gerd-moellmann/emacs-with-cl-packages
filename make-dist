@@ -1,7 +1,7 @@
 #!/bin/sh
 ### make-dist: create an Emacs distribution tar file from current srcdir
 
-## Copyright (C) 1995, 1997-1998, 2000-2020 Free Software Foundation,
+## Copyright (C) 1995, 1997-1998, 2000-2021 Free Software Foundation,
 ## Inc.
 
 ## This file is part of GNU Emacs.
@@ -110,7 +110,7 @@ while [ $# -gt 0 ]; do
      ;;
 
     ## Include the test/ directory.
-    ## This is for backward compability to when --no-tests was the default.
+    ## This is for backward compatibility to when --no-tests was the default.
     "--tests")
       with_tests=yes
      ;;

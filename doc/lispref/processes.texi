@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2020 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2021 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Processes
@@ -1969,7 +1969,8 @@ describing the type of event.
 default sentinel function, which inserts a message in the process's
 buffer with the process name and the string describing the event.
 
-  The string describing the event looks like one of the following:
+  The string describing the event looks like one of the following (but
+this is not an exhaustive list of event strings):
 
 @itemize @bullet
 @item
@@ -1998,6 +1999,9 @@ core.
 
 @item
 @code{"open\n"}.
+
+@item
+@code{"run\n"}.
 
 @item
 @code{"connection broken by remote peer\n"}.
@@ -3082,7 +3086,8 @@ signaled. Call @code{puny-encode-domain} on @var{name}
 first if you wish to lookup internationalized hostnames.
 
 If successful it returns a list of Lisp representations of network
-addresses, otherwise it returns @code{nil}.
+addresses, otherwise it returns @code{nil}.  In the latter case, it
+also displays the error message hopefully explaining what went wrong.
 
 By default both IPv4 and IPv6 lookups are attempted.  The optional
 argument @var{family} controls this behavior, specifying the symbol

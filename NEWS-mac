@@ -1,4 +1,44 @@
+* emacs-27.2-mac-8.2 (2021-03-27)
+Based on Emacs 27.2.
+The configure option --with-mac-metal is disabled by default.
+I originally turned it on because it lowered the CPU load.
+But I recently realized that it was caused by its lower frame rate.
+M1 Mac accomplishes 60fps with or without Metal even with large
+frames, and the CPU load does not get an advantage from the use of
+Metal there.
+
+** Fixed bugs
+
+*** Some light weight fonts are not recognized on Big Sur.
+Contributed by Frank Patz-Brockmann.
+
+*** Crash when displaying multiple SVG images on High Sierra/Mojave.
+Reported by Adam Sneller.
+
+*** Unintended frame switch when showing hourglasses.
+Reported by JD Smith.
+
+*** Crash if the stack size limit is not a multiple of page size.
+Reported by Christos Kalkanis.
+
+*** Scroll by scroll bar slot press is too fast on Catalina and later.
+
+*** org-protocol does not open file when there is file-path returned.
+Contributed by Shi Schspa.
+
+*** Sometimes hexadecimal color name is not recognized.
+Reported by Nicolas P. Rougier.
+
+*** Changing tool bar icon size from context menu clobbers display.
+
+** Improvements
+
+*** New hook mac-effective-appearance-change-hook.
+Contributed by Peter Hardy.
+
+
 * emacs-27.1-mac-8.1 (2020-11-12)
+https://lists.gnu.org/r/emacs-devel/2020-11/msg00470.html
 
 ** Fixed bugs
 

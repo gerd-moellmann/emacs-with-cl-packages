@@ -1,6 +1,6 @@
 ;;; cus-start.el --- define customization properties of builtins  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999-2021 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: internal
@@ -317,9 +317,9 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
              (resize-mini-frames
               frames (choice
                       (const :tag "Never" nil)
-                      (const :tag "Fit frame to buffer" t)
+                      (const :tag "Fit mini frame to buffer" t)
                       (function :tag "User-defined function"))
-               "27.1")
+               "27.2")
              (menu-bar-mode frames boolean nil
 			    ;; FIXME?
                             ;; :initialize custom-initialize-default
@@ -336,7 +336,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					    (const :tag "Never" nil)
 					    (const :tag "Always" t)
 					    (repeat (symbol :tag "Parameter")))
-					   "25.1")
+					   "27.1")
 	     (iconify-child-frame frames
 				  (choice
 				   (const :tag "Do nothing" nil)

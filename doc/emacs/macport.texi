@@ -1,6 +1,6 @@
 @c This is part of the Emacs Mac port manual.
 @c Copyright (C) 2000-2008 Free Software Foundation, Inc.
-@c Copyright (C) 2012-2020  YAMAMOTO Mitsuharu
+@c Copyright (C) 2012-2021  YAMAMOTO Mitsuharu
 @c See file emacs.texi for copying conditions.
 @node Mac Port
 @appendix Emacs and macOS with the Mac port
@@ -8,7 +8,7 @@
 
   This section briefly describes the peculiarities of using Emacs
 under macOS with the Mac port.  This port provides a native GUI
-support for Mac OS X 10.6 -- macOS 11.0.  Note that Emacs 23 and later
+support for Mac OS X 10.6 -- macOS 11.  Note that Emacs 23 and later
 already contain the official GUI support via the NS (Cocoa) port for
 macOS (@pxref{Mac OS / GNUstep}).  So if it is good enough for you,
 then you don't need to try this.

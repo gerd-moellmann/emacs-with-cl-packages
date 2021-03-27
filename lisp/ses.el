@@ -1,6 +1,6 @@
 ;;; ses.el -- Simple Emacs Spreadsheet  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2021 Free Software Foundation, Inc.
 
 ;; Author: Jonathan Yavner <jyavner@member.fsf.org>
 ;; Maintainer: Vincent Belaïche <vincentb1@users.sourceforge.net>
@@ -378,7 +378,7 @@ area of a spreadsheet.")
 ;;  "Side-effect variables".  They are set in one function, altered in
 ;;  another as a side effect, then read back by the first, as a way of
 ;;  passing back more than one value.  These declarations are just to make
-;;  the compiler happy, and to conform to standard Emacs-Lisp practice (I
+;;  the compiler happy, and to conform to standard Emacs Lisp practice (I
 ;;  think the make-local-variable trick above is cleaner).
 ;;
 
@@ -395,7 +395,7 @@ left-justification of the result.  Set to error-signal if `ses-call-printer'
 encountered an error during printing.  Otherwise nil.")
 
 (defvar ses-start-time nil
-  "Time when current operation started.  Used by `ses-time-check' to decide
+  "Time when current operation started.  Used by `ses--time-check' to decide
 when to emit a progress message.")
 
 

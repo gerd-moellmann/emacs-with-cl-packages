@@ -1351,7 +1351,8 @@ This variable is set by `nnmaildir-request-article'.")
 	(throw 'return nil))
       (with-current-buffer (or to-buffer nntp-server-buffer)
 	(erase-buffer)
-	(nnheader-insert-file-contents nnmaildir-article-file-name))
+	(let ((coding-system-for-read mm-text-coding-system))
+	  (mm-insert-file-contents nnmaildir-article-file-name)))
       (cons gname num-msgid))))
 
 (defun nnmaildir-request-post (&optional _server)
@@ -1761,7 +1762,7 @@ This variable is set by `nnmaildir-request-article'.")
 	  nnmaildir--cur-server nil)
 
     ;; This slightly obscure invocation of `alist-get' removes SERVER from
-    ;; `nnmaildir-servers'.
+    ;; `nnmaildir--servers'.
     (setf (alist-get (nnmaildir--srv-address server)
 		     nnmaildir--servers server 'remove #'equal)
 	  server))

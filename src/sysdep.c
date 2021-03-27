@@ -1,5 +1,5 @@
 /* Interfaces to system-dependent kernel and library entries.
-   Copyright (C) 1985-1988, 1993-1995, 1999-2020 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1999-2021 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1447,6 +1447,7 @@ set_window_size (int fd, int height, int width)
 
   /* BSD-style.  */
   struct winsize size;
+  memset (&size, 0, sizeof (size));
   size.ws_row = height;
   size.ws_col = width;
 
@@ -1457,6 +1458,7 @@ set_window_size (int fd, int height, int width)
 
   /* SunOS - style.  */
   struct ttysize size;
+  memset (&size, 0, sizeof (size));
   size.ts_lines = height;
   size.ts_cols = width;
 
@@ -1978,7 +1980,8 @@ init_signals (void)
 #endif
 
 #if !HAVE_DECL_SYS_SIGLIST && !defined _sys_siglist
-  if (! initialized)
+  if (! initialized
+      || dumped_with_pdumper_p ())
     {
       sys_siglist[SIGABRT] = "Aborted";
 # ifdef SIGAIO

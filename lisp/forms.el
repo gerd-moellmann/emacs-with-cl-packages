@@ -1,6 +1,6 @@
 ;;; forms.el --- Forms mode: edit a file as a form to fill in
 
-;; Copyright (C) 1991, 1994-1997, 2001-2020 Free Software Foundation,
+;; Copyright (C) 1991, 1994-1997, 2001-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Johan Vromans <jvromans@squirrel.nl>
@@ -286,7 +286,7 @@
 ;; record.
 ;;
 ;; `write-file-functions' is defined to save the actual data file
-;; instead of the buffer data, `revert-file-hook' is defined to
+;; instead of the buffer data, `revert-buffer-function' is defined to
 ;; revert a forms to original.
 
 ;;; Code:

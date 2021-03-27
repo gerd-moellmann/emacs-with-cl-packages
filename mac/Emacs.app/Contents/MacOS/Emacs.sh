@@ -1,7 +1,7 @@
 #!/bin/bash
 ### Emacs.sh - GNU Emacs Mac port startup script.
 
-## Copyright (C) 2012-2020  YAMAMOTO Mitsuharu
+## Copyright (C) 2012-2021  YAMAMOTO Mitsuharu
 
 ## This file is part of GNU Emacs Mac port.
 

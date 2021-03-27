@@ -4,7 +4,7 @@ dnl	autoconf
 dnl in the directory containing this script.
 dnl If you changed any AC_DEFINES, also run autoheader.
 dnl
-dnl Copyright (C) 1994-1996, 1999-2020 Free Software Foundation, Inc.
+dnl Copyright (C) 1994-1996, 1999-2021 Free Software Foundation, Inc.
 dnl
 dnl  This file is part of GNU Emacs.
 dnl
@@ -23,7 +23,7 @@ dnl  along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 AC_PREREQ(2.65)
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
-AC_INIT(GNU Emacs, 27.1, bug-gnu-emacs@gnu.org, , https://www.gnu.org/software/emacs/)
+AC_INIT(GNU Emacs, 27.2, bug-gnu-emacs@gnu.org, , https://www.gnu.org/software/emacs/)
 
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
 dnl and then quoted again for a C string.  Separate options with spaces.
@@ -446,7 +446,7 @@ OPTION_DEFAULT_ON([xim],[at runtime, default X11 XIM to off])
 AC_ARG_WITH([mac],[AS_HELP_STRING([--with-mac],
 [use GUI on macOS.
 On by default on macOS.])],[],[with_mac=maybe])
-OPTION_DEFAULT_ON([mac-metal],[use Metal framework in application-side double buffering])
+OPTION_DEFAULT_OFF([mac-metal],[use Metal framework in application-side double buffering (experimental)])
 OPTION_DEFAULT_OFF([ns],[use Nextstep (macOS Cocoa or GNUstep) windowing system.])
 OPTION_DEFAULT_OFF([w32], [use native MS Windows GUI in a Cygwin build])
 
@@ -5298,7 +5298,7 @@ fi
 
 version=$PACKAGE_VERSION
 
-copyright="Copyright (C) 2020 Free Software Foundation, Inc."
+copyright="Copyright (C) 2021 Free Software Foundation, Inc."
 AC_DEFINE_UNQUOTED(COPYRIGHT, ["$copyright"],
   [Short copyright string for this version of Emacs.])
 AC_SUBST(copyright)
@@ -5612,8 +5612,8 @@ fail;
      else
        AC_MSG_RESULT(before 10.11)
      fi
-     AC_MSG_CHECKING(Mac OS X version min required >= 11.0)
-     AC_CACHE_VAL(emacs_cv_mac_os_x_min_required_11_0,
+     AC_MSG_CHECKING(Mac OS X version min required >= 11)
+     AC_CACHE_VAL(emacs_cv_mac_os_x_min_required_11,
      [AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #ifdef HAVE_AVAILABILITYMACROS_H
 #include <AvailabilityMacros.h>
@@ -5621,15 +5621,15 @@ fail;
 [[#if MAC_OS_X_VERSION_MIN_REQUIRED >= 110000
 fail;
 #endif
-]])], emacs_cv_mac_os_x_min_required_11_0=no, emacs_cv_mac_os_x_min_required_11_0=yes)])
+]])], emacs_cv_mac_os_x_min_required_11=no, emacs_cv_mac_os_x_min_required_11=yes)])
      libs_uniform_type_identifiers=
-     if test $emacs_cv_mac_os_x_min_required_11_0 = yes; then
-       AC_MSG_RESULT(11.0 or later)
+     if test $emacs_cv_mac_os_x_min_required_11 = yes; then
+       AC_MSG_RESULT(11 or later)
        AC_DEFINE(HAVE_UNIFORM_TYPE_IDENTIFIERS, 1,
 		 [Define to 1 if using UniformTypeIdentifiers framework.])
        libs_uniform_type_identifiers="-framework UniformTypeIdentifiers"
      else
-       AC_MSG_RESULT(before 11.0)
+       AC_MSG_RESULT(before 11)
      fi
      libs_macgui="-framework Carbon -framework WebKit -framework Quartz -framework QuartzCore -framework IOKit -framework OSAKit -framework Accelerate -framework IOSurface $libs_metal $libs_uniform_type_identifiers -framework Cocoa"
      headerpad_extra=BD0
@@ -5721,7 +5721,7 @@ AC_SUBST(WINDOW_SYSTEM_OBJ)
 
 AH_TOP([/* GNU Emacs site configuration template file.
 
-Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2020
+Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2021
   Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.

@@ -1,6 +1,6 @@
 ;;; tramp-cache.el --- file information caching for Tramp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2000, 2005-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2000, 2005-2021 Free Software Foundation, Inc.
 
 ;; Author: Daniel Pittman <daniel@inanna.danann.net>
 ;;         Michael Albinus <michael.albinus@gmx.de>
@@ -514,7 +514,7 @@ for all methods.  Resulting data are derived from connection history."
 	   tramp-cache-read-persistent-data)
   (condition-case err
       (with-temp-buffer
-	(insert-file-contents tramp-persistency-file-name)
+	(insert-file-contents-literally tramp-persistency-file-name)
 	(let ((list (read (current-buffer)))
 	      (tramp-verbose 0)
 	      element key item)

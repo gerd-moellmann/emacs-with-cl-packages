@@ -1,6 +1,6 @@
 ;;; face-remap.el --- Functions for managing `face-remapping-alist'  -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2008-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
 ;;
 ;; Author: Miles Bader <miles@gnu.org>
 ;; Keywords: faces, face remapping, display, user commands
@@ -33,7 +33,7 @@
 ;;
 ;;   (face RELATIVE_SPECS_1 RELATIVE_SPECS_2 ... BASE_SPECS)
 ;;
-;; The "specs" values are a lists of face names or face attribute-value
+;; The "specs" values are lists of face names or face attribute-value
 ;; pairs, and are merged together, with earlier values taking precedence.
 ;;
 ;; The RELATIVE_SPECS_* values are added by `face-remap-add-relative'
@@ -183,13 +183,13 @@ to apply on top of the normal definition of FACE."
 This causes the remappings specified by `face-remap-add-relative'
 to apply on top of the face specification given by SPECS.
 
-The remaining arguments, SPECS, should form a list of faces.
-Each list element should be either a face name or a property list
+The remaining arguments, SPECS, specify the base of the remapping.
+Each one of SPECS should be either a face name or a property list
 of face attribute/value pairs, like in a `face' text property.
 
-If SPECS is empty, call `face-remap-reset-base' to use the normal
-definition of FACE as the base remapping; note that this is
-different from SPECS containing a single value nil, which means
+If SPECS is empty or a single face `eq' to FACE, call `face-remap-reset-base'
+to use the normal definition of FACE as the base remapping; note that
+this is different from SPECS containing a single value nil, which means
 not to inherit from the global definition of FACE at all."
   (while (and (consp specs) (not (null (car specs))) (null (cdr specs)))
     (setq specs (car specs)))
@@ -325,9 +325,9 @@ INC may be passed as a numeric prefix argument.
 The actual adjustment made depends on the final component of the
 key-binding used to invoke the command, with all modifiers removed:
 
-   +, =   Increase the default face height by one step
-   -      Decrease the default face height by one step
-   0      Reset the default face height to the global default
+   +, =   Increase the height of the default face by one step
+   -      Decrease the height of the default face by one step
+   0      Reset the height of the default face to the global default
 
 After adjusting, continue to read input events and further adjust
 the face height as long as the input event read

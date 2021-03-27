@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1997, 1999--2020 Free Software Foundation, Inc.
+@c Copyright (C) 1997, 1999--2021 Free Software Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node International
 @chapter International Character Set Support
@@ -562,6 +562,12 @@ function that you add to the hook variable @code{quail-activate-hook}.
 method's keys by defining key bindings in the keymap returned by the
 function @code{quail-translation-keymap}, using @code{define-key}.
 @xref{Init Rebinding}.
+
+  Input methods are inhibited when the text in the buffer is read-only
+for some reason.  This is so single-character key bindings work in
+modes that make buffer text or parts of it read-only, such as
+@code{read-only-mode} and @code{image-mode}, even when an input method
+is active.
 
   Another facility for typing characters not on your keyboard is by
 using @kbd{C-x 8 @key{RET}} (@code{insert-char}) to insert a single

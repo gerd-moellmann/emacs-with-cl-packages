@@ -1,6 +1,6 @@
 ;;; nndoc.el --- single file access for Gnus
 
-;; Copyright (C) 1995-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2021 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -352,6 +352,7 @@ from the document.")
 	    nndoc-group-alist)
       (setq nndoc-dissection-alist nil)
       (with-current-buffer nndoc-current-buffer
+	(set-buffer-multibyte nil)
 	(erase-buffer)
 	(condition-case error
 	    (if (and (stringp nndoc-address)

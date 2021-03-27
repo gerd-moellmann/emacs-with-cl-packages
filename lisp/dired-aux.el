@@ -1,6 +1,6 @@
 ;;; dired-aux.el --- less commonly used parts of dired -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994, 1998, 2000-2020 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994, 1998, 2000-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>.
@@ -954,8 +954,13 @@ Dired buffer as a subdirectory, then it deletes that subdirectory
 from the buffer as well.
 To kill an entire subdirectory \(without killing its line in the
 parent directory), go to its directory header line and use this
-command with a prefix argument (the value does not matter)."
-  ;; Returns count of killed lines.  FMT="" suppresses message.
+command with a prefix argument (the value does not matter).
+
+This function returns the number of killed lines.
+
+FMT is a format string used for messaging the user about the
+killed lines, and defaults to \"Killed %d line%s.\" if not
+present.  A FMT of \"\" will suppress the messaging."
   (interactive "P")
   (if arg
       (if (dired-get-subdir)
@@ -3023,7 +3028,13 @@ REGEXP should use constructs supported by your local `grep' command."
           (query-replace-read-args
            "Query replace regexp in marked files" t t)))
      (list (nth 0 common) (nth 1 common))))
-  (with-current-buffer (dired-do-find-regexp from)
+  (require 'xref)
+  (defvar xref-show-xrefs-function)
+  (with-current-buffer
+      (let ((xref-show-xrefs-function
+             ;; Some future-proofing (bug#44905).
+             (eval (car (get 'xref-show-xrefs-function 'standard-value)))))
+        (dired-do-find-regexp from))
     (xref-query-replace-in-results from to)))
 
 (defun dired-nondirectory-p (file)

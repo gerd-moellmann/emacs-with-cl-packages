@@ -1,6 +1,6 @@
 ;;; erc-track.el --- Track modified channel buffers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2021 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
@@ -864,7 +864,7 @@ is in `erc-mode'."
 
 (defvar erc-track-last-non-erc-buffer nil
   "Stores the name of the last buffer you were in before activating
-`erc-track-switch-buffers'.")
+`erc-track-switch-buffer'.")
 
 (defun erc-track-sort-by-activest ()
   "Sort erc-modified-channels-alist by activity.

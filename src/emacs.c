@@ -1,6 +1,6 @@
 /* Fully extensible Emacs, running on Unix, intended for GNU.
 
-Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2020 Free Software
+Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2021 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -171,7 +171,7 @@ static uintmax_t heap_bss_diff;
    We mark being in the exec'd process by a daemon name argument of
    form "--daemon=\nFD0,FD1\nNAME" where FD are the pipe file descriptors,
    NAME is the original daemon name, if any. */
-#if defined NS_IMPL_COCOA || (defined HAVE_NTGUI && defined CYGWIN) || defined HAVE_MACGUI
+#if defined NS_IMPL_COCOA || defined CYGWIN || defined HAVE_MACGUI
 # define DAEMON_MUST_EXEC
 #endif
 
@@ -187,7 +187,8 @@ bool build_details;
 /* Name for the server started by the daemon.*/
 static char *daemon_name;
 
-/* 0 not a daemon, 1 new-style (foreground), 2 old-style (background).  */
+/* 0 not a daemon, 1 new-style (foreground), 2 old-style (background).
+   A negative value means the daemon initialization was already done.  */
 int daemon_type;
 
 #ifndef WINDOWSNT
@@ -1658,23 +1659,27 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
     {
 #ifdef NS_IMPL_COCOA
       /* Started from GUI? */
-      /* FIXME: Do the right thing if get_homedir returns "", or if
-         chdir fails.  */
-      if (! inhibit_window_system && ! isatty (STDIN_FILENO) && ! ch_to_dir)
-        chdir (get_homedir ());
+      bool go_home = (!ch_to_dir && !inhibit_window_system
+		      && !isatty (STDIN_FILENO));
       if (skip_args < argc)
         {
           if (!strncmp (argv[skip_args], "-psn", 4))
             {
               skip_args += 1;
-              if (! ch_to_dir) chdir (get_homedir ());
+	      go_home |= !ch_to_dir;
             }
           else if (skip_args+1 < argc && !strncmp (argv[skip_args+1], "-psn", 4))
             {
               skip_args += 2;
-              if (! ch_to_dir) chdir (get_homedir ());
+	      go_home |= !ch_to_dir;
             }
         }
+      if (go_home)
+	{
+	  char const *home = get_homedir ();
+	  if (*home && chdir (home) == 0)
+	    emacs_wd = emacs_get_current_dir_name ();
+	}
 #endif  /* COCOA */
     }
 #endif /* HAVE_NS */
@@ -2415,7 +2420,10 @@ all of which are called before Emacs is actually killed.  */
   int exit_code;
 
 #ifdef HAVE_LIBSYSTEMD
-  sd_notify(0, "STOPPING=1");
+  /* Notify systemd we are shutting down, but only if we have notified
+     it about startup.  */
+  if (daemon_type == -1)
+    sd_notify(0, "STOPPING=1");
 #endif /* HAVE_LIBSYSTEMD */
 
   /* Fsignal calls emacs_abort () if it sees that waiting_for_input is
@@ -2920,7 +2928,7 @@ from the parent process and its tty file descriptors.  */)
     }
 
   /* Set it to an invalid value so we know we've already run this function.  */
-  daemon_type = -1;
+  daemon_type = -daemon_type;
 
 #else  /* WINDOWSNT */
   /* Signal the waiting emacsclient process.  */

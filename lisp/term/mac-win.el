@@ -1,7 +1,7 @@
 ;;; mac-win.el --- parse switches controlling interface with Mac window system -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1999-2008  Free Software Foundation, Inc.
-;; Copyright (C) 2009-2020  YAMAMOTO Mitsuharu
+;; Copyright (C) 2009-2021  YAMAMOTO Mitsuharu
 
 ;; Author: Andrew Choi <akochoi@mac.com>
 ;;	YAMAMOTO Mitsuharu <mituharu@math.s.chiba-u.ac.jp>
@@ -1435,10 +1435,12 @@ Currently the `mailto' and `org-protocol' schemes are supported."
 		    (not (eq (aref url (- (match-end 0) 2)) ?:)))
 	       (setq url (concat (substring url 0 (1- (match-end 0)))
 				 ":" (substring url (1- (match-end 0))))))
-	   (condition-case err
-	       (org-protocol-check-filename-for-protocol url (list url) nil)
-	     (error
-	      (message "%s" (error-message-string err))))
+           (let ((file-path nil))
+             (condition-case err
+                 (setq file-path (org-protocol-check-filename-for-protocol url (list url) nil))
+	       (error
+	        (message "%s" (error-message-string err))))
+             (if (stringp file-path) (switch-to-buffer (find-file-noselect file-path))))
 	   (select-frame-set-input-focus (selected-frame)))
 	  (t
 	   (mac-resume-apple-event ae t)))))
@@ -2378,8 +2380,19 @@ reference URLs of the form \"file:///.file/id=...\"."
 
 ;;;; Key-value observing for application
 
+(defcustom mac-effective-appearance-change-hook nil
+  "Hook run when the macOS global appearance changes; either manually or
+automatically.
+
+A hook function can determine the current appearance by checking the
+:appearance property of (mac-application-state)."
+  :package-version '(Mac\ port . "8.2")
+  :type 'hook
+  :group 'mac)
+
 (defun mac-handle-application-effective-appearance-change (_event)
   (interactive "e")
+  (run-hooks 'mac-effective-appearance-change-hook)
   (clear-face-cache)
   (dolist (frame (frame-list))
     (set-frame-parameter frame 'background-color
@@ -3480,7 +3493,7 @@ standard ones in `x-handle-args'."
     ("etc/images/zoom-out" . "minus.magnifyingglass")
     ))
   "How icons for tool bars are mapped to macOS system symbols.
-Emacs must be run on macOS 11.0 and later for this to have any effect."
+Emacs must be run on macOS 11 and later for this to have any effect."
   :package-version '(Mac\ port . "7.10")
   :type '(alist :key-type (string :tag "Emacs icon")
                 :value-type (choice (repeat (string :tag "Symbol name"))

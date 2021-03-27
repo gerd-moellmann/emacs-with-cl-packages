@@ -1,6 +1,6 @@
 ;;; xterm.el --- define function key sequences and standard colors for xterm  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1995, 2001-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1995, 2001-2021 Free Software Foundation, Inc.
 
 ;; Author: FSF
 ;; Keywords: terminals
@@ -767,7 +767,8 @@ Can be nil to mean \"no timeout\".")
 By not redisplaying right away for xterm queries, we can avoid
 unsightly flashing during initialization. Give up and redisplay
 anyway if we've been waiting a little while."
-  (let ((start-time (current-time)))
+  (let ((start-time (current-time))
+        (inhibit--record-char t))
     (or (let ((inhibit-redisplay t))
           (read-event nil nil xterm-query-redisplay-timeout))
         (read-event nil nil

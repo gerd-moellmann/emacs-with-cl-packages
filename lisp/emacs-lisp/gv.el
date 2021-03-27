@@ -1,6 +1,6 @@
 ;;; gv.el --- generalized variables  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2012-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: extensions
@@ -306,8 +306,7 @@ The return value is the last VAL in the list.
        (gv-letplace (getter setter) place
          (funcall do `(edebug-after ,before ,index ,getter)
                   (lambda (store)
-                    `(progn (edebug-after ,before ,index ,getter)
-                            ,(funcall setter store)))))))
+                    `(edebug-after ,before ,index ,(funcall setter store)))))))
 
 ;;; The common generalized variables.
 

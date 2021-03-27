@@ -1,6 +1,6 @@
 ;;; man.el --- browse UNIX manual pages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1994, 1996-1997, 2001-2020 Free Software
+;; Copyright (C) 1993-1994, 1996-1997, 2001-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Barry A. Warsaw <bwarsaw@cen.com>
@@ -1541,8 +1541,8 @@ The following man commands are available in the buffer.  Try
 
 \\[man]       Prompt to retrieve a new manpage.
 \\[Man-follow-manual-reference]       Retrieve reference in SEE ALSO section.
-\\[Man-next-manpage]   Jump to next manpage in circular list.
-\\[Man-previous-manpage]   Jump to previous manpage in circular list.
+\\[Man-next-manpage]     Jump to next manpage in circular list.
+\\[Man-previous-manpage]     Jump to previous manpage in circular list.
 \\[Man-next-section]       Jump to next manpage section.
 \\[Man-previous-section]       Jump to previous manpage section.
 \\[Man-goto-section]       Go to a manpage section.

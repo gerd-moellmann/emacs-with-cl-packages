@@ -1,6 +1,6 @@
 ;;; tooltip.el --- show tooltip windows
 
-;; Copyright (C) 1997, 1999-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999-2021 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@acm.org>
 ;; Keywords: help c mouse tools
@@ -138,7 +138,10 @@ of the `tooltip' face are used instead."
      :inherit variable-pitch)
     (t
      :inherit variable-pitch))
-  "Face for tooltips."
+  "Face for tooltips.
+
+When using the GTK toolkit, this face will only be used if
+`x-gtk-use-system-tooltips' is non-nil."
   :group 'tooltip
   :group 'basic-faces)
 

@@ -1,6 +1,6 @@
 /* Graphical user interface functions for macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2020  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2021  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -904,6 +904,7 @@ x_to_mac_color (const char *colorname)
 		break;
 	      t = color[size];
 	      color[size] = '\0';
+	      errno = 0;
 	      value = strtoul(color, &end, 16);
 	      color[size] = t;
 	      if (errno == ERANGE || end - color != size)
@@ -952,6 +953,7 @@ x_to_mac_color (const char *colorname)
 	     our numbers, and we don't.  */
 	  if (!isxdigit(color[0]) || color[1] == 'x')
 	    break;
+	  errno = 0;
 	  value = strtoul(color, &end, 16);
 	  if (errno == ERANGE)
 	    break;

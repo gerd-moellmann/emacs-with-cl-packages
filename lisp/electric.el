@@ -1,6 +1,6 @@
 ;;; electric.el --- window maker and Command loop for `electric' modes
 
-;; Copyright (C) 1985-1986, 1995, 2001-2020 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1995, 2001-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Author: K. Shane Hartman
@@ -424,7 +424,7 @@ If multiple rules match, only first one is executed.")
                   ;;
                   ;; FIXME: when `newline'ing, we exceptionally
                   ;; prevent a specific behavior of
-                  ;; `eletric-pair-mode', that of opening an extra
+                  ;; `electric-pair-mode', that of opening an extra
                   ;; newline between newly inserted matching paris.
                   ;; In theory that behavior should be provided by
                   ;; `electric-layout-mode' instead, which should be

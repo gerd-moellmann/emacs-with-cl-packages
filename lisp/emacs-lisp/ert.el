@@ -1,6 +1,6 @@
 ;;; ert.el --- Emacs Lisp Regression Testing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2008, 2010-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2008, 2010-2021 Free Software Foundation, Inc.
 
 ;; Author: Christian Ohler <ohler@gnu.org>
 ;; Keywords: lisp, tools
@@ -729,7 +729,7 @@ run.  ARGS are the arguments to `debugger'."
               ;; This means we have to limit `print-level' and
               ;; `print-length' when printing result objects.  That
               ;; might not be worth while when we can also use
-              ;; `ert-results-rerun-test-debugging-errors-at-point',
+              ;; `ert-results-rerun-test-at-point-debugging-errors',
               ;; (i.e., when running interactively) but having the
               ;; backtrace ready for printing is important for batch
               ;; use.
@@ -951,7 +951,7 @@ Selectors that do not, such as (member ...), just return the
 set implied by them without checking whether it is really
 contained in UNIVERSE."
   ;; This code needs to match the cases in
-  ;; `ert-insert-human-readable-selector'.
+  ;; `ert--insert-human-readable-selector'.
   (pcase-exhaustive selector
     ('nil nil)
     ('t (pcase-exhaustive universe

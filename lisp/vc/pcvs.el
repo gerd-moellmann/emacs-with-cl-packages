@@ -1,6 +1,6 @@
 ;;; pcvs.el --- a front-end to CVS  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1991-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1991-2021 Free Software Foundation, Inc.
 
 ;; Author: The PCL-CVS Trust <pcl-cvs@cyclic.com>
 ;;	Per Cederqvist <ceder@lysator.liu.se>
@@ -1624,8 +1624,7 @@ With prefix argument, prompt for cvs flags."
 (defun-cvs-mode (cvs-mode-diff . DOUBLE) (flags)
   "Diff the selected files against the repository.
 This command compares the files in your working area against the
-revision which they are based upon.
-See also `cvs-diff-ignore-marks'."
+revision which they are based upon."
   (interactive
    (list (cvs-add-branch-prefix
 	  (cvs-add-secondary-branch-prefix

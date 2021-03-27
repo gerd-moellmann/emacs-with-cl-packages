@@ -1,6 +1,6 @@
 ;;; project.el --- Operations on the current project  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -441,6 +441,7 @@ requires quoting, e.g. `\\[quoted-insert]<space>'."
   (require 'xref)
   (require 'grep)
   (let* ((pr (project-current t))
+         (default-directory (car (project-roots pr)))
          (files
           (if (not current-prefix-arg)
               (project-files pr (project-roots pr))
@@ -473,6 +474,7 @@ pattern to search for."
   (interactive (list (project--read-regexp)))
   (require 'xref)
   (let* ((pr (project-current t))
+         (default-directory (car (project-roots pr)))
          (files
           (project-files pr (append
                              (project-roots pr)

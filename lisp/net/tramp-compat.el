@@ -1,6 +1,6 @@
 ;;; tramp-compat.el --- Tramp compatibility functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -41,7 +41,16 @@
 (require 'shell)
 (require 'subr-x)
 
+;; `temporary-file-directory' as function is introduced with Emacs 26.1.
 (declare-function tramp-handle-temporary-file-directory "tramp")
+
+(defconst tramp-compat-emacs-compiled-version (eval-when-compile emacs-version)
+  "The Emacs version used for compilation.")
+
+(unless (= emacs-major-version
+	   (car (version-to-list tramp-compat-emacs-compiled-version)))
+  (warn "Tramp has been compiled with Emacs %s, this is Emacs %s"
+	tramp-compat-emacs-compiled-version emacs-version))
 
 ;; For not existing functions, obsolete functions, or functions with a
 ;; changed argument list, there are compiler warnings.  We want to

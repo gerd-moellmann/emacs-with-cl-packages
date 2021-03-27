@@ -1,6 +1,6 @@
 ;;; cus-dep.el --- find customization dependencies
 ;;
-;; Copyright (C) 1997, 2001-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2021 Free Software Foundation, Inc.
 ;;
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: internal
@@ -99,7 +99,7 @@ Usage: emacs -batch -l ./cus-dep.el -f custom-make-dependencies DIRS"
                   (setq name (intern name)))
               (condition-case nil
                   (while (re-search-forward
-                          "^(def\\(custom\\|face\\|group\\)" nil t)
+                          "^(def\\(custom\\|face\\|group\\|ine\\(?:-globalized\\)?-minor-mode\\)" nil t)
                     (beginning-of-line)
                     (let ((type (match-string 1))
 			  (expr (read (current-buffer))))

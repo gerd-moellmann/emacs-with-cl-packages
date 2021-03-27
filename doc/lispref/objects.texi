@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2020 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2021 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Lisp Data Types
@@ -147,9 +147,6 @@ starting list count:
 @samp{#N=} gives the name to an object, and @samp{#N#} represents that
 object, so when reading back the object, they will be the same object
 instead of copies (@pxref{Circular Objects}).
-
-@item #@@N
-Skip the next @samp{N} characters (@pxref{Comments}).
 
 @item #xN
 @samp{N} represented as a hexadecimal number (@samp{#x2a}).

@@ -1,6 +1,6 @@
 ;;; display-fill-column-indicator.el --- interface for display-fill-column-indicator -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: convenience
@@ -51,6 +51,8 @@ This uses `display-fill-column-indicator' internally.
 To change the position of the column displayed by default
 customize `display-fill-column-indicator-column'.  You can change the
 character for the indicator setting `display-fill-column-indicator-character'.
+The globalized version is `global-display-fill-column-indicator-mode',
+which see.
 See Info node `Displaying Boundaries' for details."
   :lighter nil
   (if display-fill-column-indicator-mode
@@ -73,7 +75,9 @@ See Info node `Displaying Boundaries' for details."
 
 ;;;###autoload
 (define-globalized-minor-mode global-display-fill-column-indicator-mode
-  display-fill-column-indicator-mode display-fill-column-indicator--turn-on)
+  display-fill-column-indicator-mode display-fill-column-indicator--turn-on
+  ;; See bug#41145
+  :group 'display-fill-column-indicator)
 
 (provide 'display-fill-column-indicator)
 

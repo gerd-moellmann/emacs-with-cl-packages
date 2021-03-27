@@ -1,6 +1,6 @@
 ;;; ebrowse.el --- Emacs C++ class browser & tags facility  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2021 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -3616,7 +3616,7 @@ completion."
 ;;; Tags query replace & search
 
 (defvar ebrowse-tags-loop-form ()
-  "Form for `ebrowse-loop-continue'.
+  "Form for `ebrowse-tags-loop-continue'.
 Evaluated for each file in the tree.  If it returns nil, proceed
 with the next file.")
 

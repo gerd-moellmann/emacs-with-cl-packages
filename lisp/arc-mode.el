@@ -1,6 +1,6 @@
 ;;; arc-mode.el --- simple editing of archives
 
-;; Copyright (C) 1995, 1997-1998, 2001-2020 Free Software Foundation,
+;; Copyright (C) 1995, 1997-1998, 2001-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Morten Welinder <terra@gnu.org>
@@ -1799,10 +1799,10 @@ This doesn't recover lost files, it just undoes changes in the buffer itself."
         files
 	visual
         emacs-int-has-32bits)
-    (when (= p -1)
-      ;; If the offset of end-of-central-directory is -1, this is a
-      ;; Zip64 extended ZIP file format, and we need to glean the info
-      ;; from Zip64 records instead.
+    (when (or (= p #xffffffff) (= p -1))
+      ;; If the offset of end-of-central-directory is 0xFFFFFFFF, this
+      ;; is a Zip64 extended ZIP file format, and we need to glean the
+      ;; info from Zip64 records instead.
       ;;
       ;; First, find the Zip64 end-of-central-directory locator.
       (search-backward "PK\006\007")
@@ -1828,6 +1828,15 @@ This doesn't recover lost files, it just undoes changes in the buffer itself."
              (efnname (let ((str (buffer-substring (+ p 46) (+ p 46 fnlen))))
 			(decode-coding-string
 			 str archive-file-name-coding-system)))
+             (ucsize  (if (and (or (= ucsize #xffffffff) (= ucsize -1))
+                               (> exlen 0))
+                          ;; APPNOTE.TXT, para 4.5.3: the Extra Field
+                          ;; begins with 2 bytes of signature
+                          ;; (\000\001), followed by 2 bytes that give
+                          ;; the size of the extra block, followed by
+                          ;; an 8-byte uncompressed size.
+                          (archive-l-e (+ p 46 fnlen 4) 8)
+                        ucsize))
 	     (isdir   (and (= ucsize 0)
 			   (string= (file-name-nondirectory efnname) "")))
 	     (mode    (cond ((memq creator '(2 3)) ; Unix

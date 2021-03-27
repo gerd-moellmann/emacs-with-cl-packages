@@ -1,6 +1,6 @@
 ;;; custom-tests.el --- tests for custom.el  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2018-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -150,5 +150,43 @@
                               (concat
                                (widget-apply field :value-to-internal origvalue)
                                "bar"))))))
+
+(defcustom custom--test-local-option 'initial
+  "Buffer-local user option for testing."
+  :group 'emacs
+  :type '(choice (const initial) (const changed))
+  :local t)
+
+(defcustom custom--test-permanent-option 'initial
+  "Permanently local user option for testing."
+  :group 'emacs
+  :type '(choice (const initial) (const changed))
+  :local 'permanent)
+
+(ert-deftest custom-test-local-option ()
+  "Test :local user options."
+  ;; Initial default values.
+  (should (eq custom--test-local-option 'initial))
+  (should (eq custom--test-permanent-option 'initial))
+  (should (eq (default-value 'custom--test-local-option) 'initial))
+  (should (eq (default-value 'custom--test-permanent-option) 'initial))
+  (let ((obuf (current-buffer)))
+    (with-temp-buffer
+      ;; Changed buffer-local values.
+      (setq custom--test-local-option 'changed)
+      (setq custom--test-permanent-option 'changed)
+      (should (eq custom--test-local-option 'changed))
+      (should (eq custom--test-permanent-option 'changed))
+      (should (eq (default-value 'custom--test-local-option) 'initial))
+      (should (eq (default-value 'custom--test-permanent-option) 'initial))
+      (with-current-buffer obuf
+        (should (eq custom--test-local-option 'initial))
+        (should (eq custom--test-permanent-option 'initial)))
+      ;; Permanent variable remains unchanged.
+      (kill-all-local-variables)
+      (should (eq custom--test-local-option 'initial))
+      (should (eq custom--test-permanent-option 'changed))
+      (should (eq (default-value 'custom--test-local-option) 'initial))
+      (should (eq (default-value 'custom--test-permanent-option) 'initial)))))
 
 ;;; custom-tests.el ends here

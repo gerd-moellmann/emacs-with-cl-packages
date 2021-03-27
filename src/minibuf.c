@@ -1,6 +1,6 @@
 /* Minibuffer input and completion.
 
-Copyright (C) 1985-1986, 1993-2020 Free Software Foundation, Inc.
+Copyright (C) 1985-1986, 1993-2021 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -666,7 +666,8 @@ read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
   /* If cursor is on the minibuffer line,
      show the user we have exited by putting it in column 0.  */
   if (XWINDOW (minibuf_window)->cursor.vpos >= 0
-      && !noninteractive)
+      && !noninteractive
+      && !FRAME_INITIAL_P (SELECTED_FRAME ()))
     {
       XWINDOW (minibuf_window)->cursor.hpos = 0;
       XWINDOW (minibuf_window)->cursor.x = 0;

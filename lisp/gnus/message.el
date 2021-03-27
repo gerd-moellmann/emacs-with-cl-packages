@@ -1,6 +1,6 @@
 ;;; message.el --- composing mail and news messages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail, news
@@ -8019,7 +8019,7 @@ See `gmm-tool-bar-from-list' for the format of the list."
 		  (library image &optional path no-error))
 
 (defun message-make-tool-bar (&optional force)
-  "Make a message mode tool bar from `message-tool-bar-list'.
+  "Make a message mode tool bar from `message-tool-bar'.
 When FORCE, rebuild the tool bar."
   (when (and (boundp 'tool-bar-mode)
 	     tool-bar-mode

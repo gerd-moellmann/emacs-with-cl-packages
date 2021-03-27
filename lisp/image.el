@@ -1,6 +1,6 @@
 ;;; image.el --- image API  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: multimedia
@@ -840,7 +840,7 @@ multiplication factor for the current value."
 N=0 refers to the initial animation frame.
 COUNT is the total number of frames in the animation.
 TIME-ELAPSED is the total time that has elapsed since
-`image-animate-start' was called.
+`image-animate' was called.
 LIMIT determines when to stop.  If t, loop forever.  If nil, stop
  after displaying the last animation frame.  Otherwise, stop
  after LIMIT seconds have elapsed.

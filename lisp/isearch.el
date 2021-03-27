@@ -1,6 +1,6 @@
 ;;; isearch.el --- incremental search minor mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1997, 1999-2020 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1997, 1999-2021 Free Software Foundation, Inc.
 
 ;; Author: Daniel LaLiberte <liberte@cs.uiuc.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -310,7 +310,8 @@ matching the current search string is highlighted lazily
 When multiple windows display the current buffer, the
 highlighting is displayed only on the selected window, unless
 this variable is set to the symbol `all-windows'."
-  :type '(choice boolean
+  :type '(choice (const :tag "Off" nil)
+                 (const :tag "On, and applied to current window" t)
                  (const :tag "On, and applied to all windows" all-windows))
   :group 'lazy-highlight
   :group 'isearch)
@@ -655,6 +656,10 @@ This is like `describe-bindings', but displays only Isearch keys."
                              (if isearch-success 'isearch-abort binding))))
     map))
 
+;; Note: Before adding more key bindings to this map, please keep in
+;; mind that any unbound key exits Isearch and runs the command bound
+;; to it in the local or global map.  So in effect every key unbound
+;; in this map is implicitly bound.
 (defvar isearch-mode-map
   (let ((i 0)
 	(map (make-keymap)))

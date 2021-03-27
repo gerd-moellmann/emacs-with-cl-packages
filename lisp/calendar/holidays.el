@@ -1,6 +1,6 @@
 ;;; holidays.el --- holiday functions for the calendar package  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1989-1990, 1992-1994, 1997, 2001-2020 Free Software
+;; Copyright (C) 1989-1990, 1992-1994, 1997, 2001-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -310,7 +310,7 @@ to the list.  To include the phases of the moon, add
 
      (lunar-phases)
 
-to the holiday list, where `lunar-phases' is an Emacs-Lisp function that
+to the holiday list, where `lunar-phases' is an Emacs Lisp function that
 you've written to return a (possibly empty) list of the relevant VISIBLE dates
 with descriptive strings such as
 

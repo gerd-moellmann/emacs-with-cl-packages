@@ -1,6 +1,6 @@
 ;;; frame.el --- multi-frame management independent of window systems  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 1996-1997, 2000-2020 Free Software
+;; Copyright (C) 1993-1994, 1996-1997, 2000-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -1344,6 +1344,7 @@ FRAME defaults to the selected frame."
 FRAME defaults to the selected frame."
   (setq frame (window-normalize-frame frame))
   (- (frame-native-height frame)
+     (if (fboundp 'tab-bar-height) (tab-bar-height frame t) 0)
      (* 2 (frame-internal-border-width frame))))
 
 (defun frame-outer-width (&optional frame)

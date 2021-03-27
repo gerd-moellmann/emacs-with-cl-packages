@@ -1,6 +1,6 @@
 ;;; ede/detect.el --- EDE project detection and file associations
 
-;; Copyright (C) 2014-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -25,7 +25,7 @@
 ;;
 ;; Detection comes in multiple forms:
 ;;
-;; `ede-detect-scan-directory-for-project' -
+;; `ede--detect-scan-directory-for-project' -
 ;;        Scan for a project via the file system.
 ;; `ede-detect-directory-for-project' -
 ;;        Check our file cache for a project.  If that fails, use

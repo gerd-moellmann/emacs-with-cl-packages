@@ -1,6 +1,6 @@
 ;;; rmailout.el --- "RMAIL" mail reader for Emacs: output message to a file
 
-;; Copyright (C) 1985, 1987, 1993-1994, 2001-2020 Free Software
+;; Copyright (C) 1985, 1987, 1993-1994, 2001-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -579,7 +579,7 @@ from a non-Rmail buffer.  In this case, COUNT is ignored."
                      (progn
                        (if rmail-delete-after-output
                            (rmail-delete-message))
-                       (if (> count 0)
+                       (if (>= count 0)
                            (let ((msgnum rmail-current-message))
                              (rmail-next-message 1)
                              (eq rmail-current-message (1+ msgnum)))))

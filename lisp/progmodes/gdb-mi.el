@@ -1,6 +1,6 @@
 ;;; gdb-mi.el --- User Interface for running GDB  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
 
 ;; Author: Nick Roberts <nickrob@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -2891,7 +2891,7 @@ If NOPRESERVE is non-nil, window point is not restored after CUSTOM-DEFUN."
        (,custom-defun)
        (gdb-update-buffer-name)
        ,@(when (not nopreserve)
-          '((set-window-start window start)
+          '((set-window-start window start t)
             (set-window-point window p))))))
 
 (defmacro def-gdb-trigger-and-handler (trigger-name gdb-command

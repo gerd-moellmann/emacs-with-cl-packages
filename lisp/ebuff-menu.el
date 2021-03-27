@@ -1,6 +1,6 @@
 ;;; ebuff-menu.el --- electric-buffer-list mode
 
-;; Copyright (C) 1985-1986, 1994, 2001-2020 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1994, 2001-2021 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Richard Mlynarik <mly@ai.mit.edu>
@@ -162,6 +162,7 @@ Run hooks in `electric-buffer-menu-mode-hook' on entry.
 	(message "")))
     (when select
       (set-buffer buffer)
+      (goto-char select)
       (let ((opoint (point-marker)))
 	(Buffer-menu-execute)
 	(goto-char (point-min))

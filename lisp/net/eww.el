@@ -1,6 +1,6 @@
 ;;; eww.el --- Emacs Web Wowser  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: html
@@ -345,7 +345,7 @@ the default EWW buffer."
       (narrow-to-region start end)
       (goto-char start)
       (let ((case-fold-search t))
-        (while (re-search-forward "<[^0-9a-z!/]" nil t)
+        (while (re-search-forward "<[^0-9a-z!?/]" nil t)
           (goto-char (match-beginning 0))
           (delete-region (point) (1+ (point)))
           (insert "&lt;"))))))
@@ -363,11 +363,11 @@ the default EWW buffer."
 
 ;;;###autoload
 (defun eww-search-words ()
-  "Search the web for the text between BEG and END.
+  "Search the web for the text in the region.
 If region is active (and not whitespace), search the web for
-the text between BEG and END.  Else, prompt the user for a search
-string.  See the `eww-search-prefix' variable for the search
-engine used."
+the text between region beginning and end.  Else, prompt the
+user for a search string.  See the variable `eww-search-prefix'
+for the search engine used."
   (interactive)
   (if (use-region-p)
       (let ((region-string (buffer-substring (region-beginning) (region-end))))
@@ -1661,7 +1661,7 @@ Use link at point if there is one, else the current page's URL."
         (suffix ""))
     (when (string-match "\\`\\(.*\\)\\([.][^.]+\\)" file)
       (setq stem (match-string 1 file)
-            suffix (match-string 2)))
+            suffix (match-string 2 file)))
     (while (file-exists-p (expand-file-name file directory))
       (setq file (format "%s(%d)%s" stem count suffix))
       (setq count (1+ count)))

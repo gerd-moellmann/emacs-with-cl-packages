@@ -1,6 +1,6 @@
 ;;; rmail.el --- main code of "RMAIL" mail reader for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1988, 1993-1998, 2000-2020 Free Software
+;; Copyright (C) 1985-1988, 1993-1998, 2000-2021 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -582,7 +582,7 @@ Examples:
 ;; This pattern should catch all the common variants.
 ;; rms: I deleted the change to delete tags in square brackets
 ;; because they mess up RT tags.
-(defvar rmail-reply-regexp "\\`\\(Re\\(([0-9]+)\\|\\[[0-9]+\\]\\|\\^[0-9]+\\)?: *\\)*"
+(defvar rmail-reply-regexp "\\`\\(Re\\(([0-9]+)\\|\\[[0-9]+\\]\\|\\^[0-9]+\\)?\u00a0*: *\\)*"
   "Regexp to delete from Subject line before inserting `rmail-reply-prefix'.")
 
 (defcustom rmail-display-summary nil
@@ -2809,7 +2809,7 @@ The current mail message becomes the message displayed."
 	(with-current-buffer rmail-view-buffer
 	  ;; We give the view buffer a buffer-local value of
 	  ;; rmail-header-style based on the binding in effect when
-	  ;; this function is called; `rmail-toggle-headers' can
+          ;; this function is called; `rmail-toggle-header' can
 	  ;; inspect this value to determine how to toggle.
 	  (set (make-local-variable 'rmail-header-style) header-style)
           ;; In case viewing the previous message sets the paragraph
@@ -3398,7 +3398,8 @@ whitespace, replacing whitespace runs with a single space and
 removing prefixes such as Re:, Fwd: and so on and mailing list
 tags such as [tag]."
   (let ((subject (or (rmail-get-header "Subject" msgnum) ""))
-	(regexp "\\`[ \t\n]*\\(\\(\\w\\{1,3\\}:\\|\\[[^]]+]\\)[ \t\n]+\\)*"))
+	(regexp
+         "\\`[ \t\n]*\\(\\(\\w\\{1,3\\}\u00a0*:\\|\\[[^]]+]\\)[ \t\n]+\\)*"))
     (setq subject (rfc2047-decode-string subject))
     (setq subject (replace-regexp-in-string regexp "" subject))
     (replace-regexp-in-string "[ \t\n]+" " " subject)))

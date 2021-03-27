@@ -1,6 +1,6 @@
 ;;; nsm.el --- Network Security Manager  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2020 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: encryption, security, network
@@ -164,7 +164,7 @@ STATUS SETTINGS.  HOST is the host domain, PORT is a TCP port
 number, STATUS is the peer status returned by
 `gnutls-peer-status', and SETTINGS is the persistent and session
 settings for the host HOST.  Please refer to the contents of
-`nsm-setting-file' for details.  If a problem is found, the check
+`nsm-settings-file' for details.  If a problem is found, the check
 function is required to return an error message, and nil
 otherwise.
 
