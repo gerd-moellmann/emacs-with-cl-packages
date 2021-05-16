@@ -63,7 +63,7 @@ make_log (void)
   Lisp_Object log = make_hash_table (hashtest_profiler, heap_size,
 				     DEFAULT_REHASH_SIZE,
 				     DEFAULT_REHASH_THRESHOLD,
-				     Qnil, false);
+				     Qnil);
   struct Lisp_Hash_Table *h = XHASH_TABLE (log);
 
   /* What is special about our hash-tables is that the values are pre-filled

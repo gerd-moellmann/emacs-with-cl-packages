@@ -104,7 +104,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "syntax.h"
 #include "sysselect.h"
 #include "systime.h"
-#include "puresize.h"
 
 #include "getpagesize.h"
 #include "gnutls.h"
@@ -3028,8 +3027,6 @@ You must run Emacs in batch mode in order to dump it.  */)
   Lisp_Object tem;
   Lisp_Object symbol;
   specpdl_ref count = SPECPDL_INDEX ();
-
-  check_pure_size ();
 
   if (! noninteractive)
     error ("Dumping Emacs works only in batch mode");

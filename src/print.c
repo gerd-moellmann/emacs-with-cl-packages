@@ -2509,9 +2509,6 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 	    print_object (Fhash_table_rehash_threshold (obj),
 			  printcharfun, escapeflag);
 
-	    if (h->purecopy)
-	      print_c_string (" purecopy t", printcharfun);
-
 	    print_c_string (" data (", printcharfun);
 
 	    ptrdiff_t size = h->count;

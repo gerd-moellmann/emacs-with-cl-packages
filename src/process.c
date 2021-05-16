@@ -8750,7 +8750,7 @@ sentinel or a process filter function has an error.  */);
    const struct socket_options *sopt;
 
 #define ADD_SUBFEATURE(key, val) \
-  subfeatures = pure_cons (pure_cons (key, pure_cons (val, Qnil)), subfeatures)
+  subfeatures = Fcons (Fcons (key, Fcons (val, Qnil)), subfeatures)
 
    ADD_SUBFEATURE (QCnowait, Qt);
 #ifdef DATAGRAM_SOCKETS
@@ -8772,7 +8772,7 @@ sentinel or a process filter function has an error.  */);
    ADD_SUBFEATURE (QCserver, Qt);
 
    for (sopt = socket_options; sopt->name; sopt++)
-     subfeatures = pure_cons (intern_c_string (sopt->name), subfeatures);
+     subfeatures = Fcons (intern_c_string (sopt->name), subfeatures);
 
    Fprovide (intern_c_string ("make-network-process"), subfeatures);
  }

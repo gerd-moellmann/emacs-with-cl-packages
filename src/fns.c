@@ -36,7 +36,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "intervals.h"
 #include "window.h"
-#include "puresize.h"
 #include "gnutls.h"
 
 enum equal_kind { EQUAL_NO_QUIT, EQUAL_PLAIN, EQUAL_INCLUDING_PROPERTIES };
@@ -2653,7 +2652,6 @@ ARRAY is a vector, string, char-table, or bool-vector.  */)
       size = SCHARS (array);
       if (size != 0)
 	{
-	  CHECK_IMPURE (array, XSTRING (array));
 	  unsigned char str[MAX_MULTIBYTE_LENGTH];
 	  int len;
 	  if (STRING_MULTIBYTE (array))
@@ -2695,7 +2693,6 @@ This makes STRING unibyte and may change its length.  */)
   ptrdiff_t len = SBYTES (string);
   if (len != 0 || STRING_MULTIBYTE (string))
     {
-      CHECK_IMPURE (string, XSTRING (string));
       memset (SDATA (string), 0, len);
       STRING_SET_CHARS (string, len);
       STRING_SET_UNIBYTE (string);
@@ -4263,16 +4260,12 @@ hash_index_size (struct Lisp_Hash_Table *h, ptrdiff_t size)
    size exceeds REHASH_THRESHOLD.
 
    WEAK specifies the weakness of the table.  If non-nil, it must be
-   one of the symbols `key', `value', `key-or-value', or `key-and-value'.
-
-   If PURECOPY is non-nil, the table can be copied to pure storage via
-   `purecopy' when Emacs is being dumped. Such tables can no longer be
-   changed after purecopy.  */
+   one of the symbols `key', `value', `key-or-value', or `key-and-value'. */
 
 Lisp_Object
 make_hash_table (struct hash_table_test test, EMACS_INT size,
 		 float rehash_size, float rehash_threshold,
-		 Lisp_Object weak, bool purecopy)
+		 Lisp_Object weak)
 {
   struct Lisp_Hash_Table *h;
   Lisp_Object table;
@@ -4301,7 +4294,6 @@ make_hash_table (struct hash_table_test test, EMACS_INT size,
   h->next = make_vector (size, make_fixnum (-1));
   h->index = make_vector (hash_index_size (h, size), make_fixnum (-1));
   h->next_weak = NULL;
-  h->purecopy = purecopy;
   h->mutable = true;
 
   /* Set up the free list.  */
@@ -4402,11 +4394,6 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	    set_hash_next_slot (h, i, HASH_INDEX (h, start_of_bucket));
 	    set_hash_index_slot (h, start_of_bucket, i);
 	  }
-
-#ifdef ENABLE_CHECKING
-      if (HASH_TABLE_P (Vpurify_flag) && XHASH_TABLE (Vpurify_flag) == h)
-	message ("Growing hash table to: %"pD"d", next_size);
-#endif
     }
 }
 
@@ -4470,7 +4457,6 @@ check_mutable_hash_table (Lisp_Object obj, struct Lisp_Hash_Table *h)
 {
   if (!h->mutable)
     signal_error ("hash table test modifies table", obj);
-  eassert (!PURE_P (h));
 }
 
 static void
@@ -4998,16 +4984,10 @@ key, value, one of key or value, or both key and value, depending on
 WEAK.  WEAK t is equivalent to `key-and-value'.  Default value of WEAK
 is nil.
 
-:purecopy PURECOPY -- If PURECOPY is non-nil, the table can be copied
-to pure storage when Emacs is being dumped, making the contents of the
-table read only. Any further changes to purified tables will result
-in an error.
-
 usage: (make-hash-table &rest KEYWORD-ARGS)  */)
   (ptrdiff_t nargs, Lisp_Object *args)
 {
   Lisp_Object test, weak;
-  bool purecopy;
   struct hash_table_test testdesc;
   ptrdiff_t i;
   USE_SAFE_ALLOCA;
@@ -5041,9 +5021,9 @@ usage: (make-hash-table &rest KEYWORD-ARGS)  */)
       testdesc.cmpfn = cmpfn_user_defined;
     }
 
-  /* See if there's a `:purecopy PURECOPY' argument.  */
-  i = get_key_arg (QCpurecopy, nargs, args, used);
-  purecopy = i && !NILP (args[i]);
+  /* Ignore a `:purecopy PURECOPY' argument.  We used to accept those, but
+     they were only meaningful when we had the purespace. */
+  get_key_arg (QCpurecopy, nargs, args, used);
   /* See if there's a `:size SIZE' argument.  */
   i = get_key_arg (QCsize, nargs, args, used);
   Lisp_Object size_arg = i ? args[i] : Qnil;
@@ -5093,8 +5073,7 @@ usage: (make-hash-table &rest KEYWORD-ARGS)  */)
       signal_error ("Invalid argument list", args[i]);
 
   SAFE_FREE ();
-  return make_hash_table (testdesc, size, rehash_size, rehash_threshold, weak,
-			  purecopy);
+  return make_hash_table (testdesc, size, rehash_size, rehash_threshold, weak);
 }
 
 

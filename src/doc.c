@@ -450,8 +450,6 @@ store_function_docstring (Lisp_Object obj, EMACS_INT offset)
 	{
 	  tem = Fcdr (Fcdr (fun));
 	  if (CONSP (tem) && FIXNUMP (XCAR (tem)))
-	    /* FIXME: This modifies typically pure hash-cons'd data, so its
-	       correctness is quite delicate.  */
 	    XSETCAR (tem, make_fixnum (offset));
 	}
     }
@@ -541,7 +539,6 @@ the same file name is found in the `doc-directory'.  */)
       int i = ARRAYELTS (buildobj);
       while (0 <= --i)
 	Vbuild_files = Fcons (build_string (buildobj[i]), Vbuild_files);
-      Vbuild_files = Fpurecopy (Vbuild_files);
     }
 
   fd = emacs_open (name, O_RDONLY, 0);

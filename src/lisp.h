@@ -859,9 +859,6 @@ struct Lisp_Symbol
 	 special (with `defvar' etc), and shouldn't be lexically bound.  */
       bool_bf declared_special : 1;
 
-      /* True if pointed to from purespace and hence can't be GC'd.  */
-      bool_bf pinned : 1;
-
       /* The symbol's name, as a Lisp string.  */
       Lisp_Object name;
 
@@ -2426,12 +2423,8 @@ struct Lisp_Hash_Table
   /* Index of first free entry in free list, or -1 if none.  */
   ptrdiff_t next_free;
 
-  /* True if the table can be purecopied.  The table cannot be
-     changed afterwards.  */
-  bool purecopy;
-
   /* True if the table is mutable.  Ordinarily tables are mutable, but
-     pure tables are not, and while a table is being mutated it is
+     some tables are not, and while a table is being mutated it is
      immutable for recursive attempts to mutate it.  */
   bool mutable;
 
@@ -4010,7 +4003,7 @@ EMACS_UINT hash_string (char const *, ptrdiff_t);
 EMACS_UINT sxhash (Lisp_Object);
 Lisp_Object hashfn_user_defined (Lisp_Object, struct Lisp_Hash_Table *);
 Lisp_Object make_hash_table (struct hash_table_test, EMACS_INT, float, float,
-                             Lisp_Object, bool);
+                             Lisp_Object);
 ptrdiff_t hash_lookup (struct Lisp_Hash_Table *, Lisp_Object, Lisp_Object *);
 ptrdiff_t hash_put (struct Lisp_Hash_Table *, Lisp_Object, Lisp_Object,
 		    Lisp_Object);
@@ -4177,7 +4170,6 @@ extern void parse_str_as_multibyte (const unsigned char *, ptrdiff_t,
 
 /* Defined in alloc.c.  */
 extern void *my_heap_start (void);
-extern void check_pure_size (void);
 unsigned char *resize_string_data (Lisp_Object, ptrdiff_t, int, int);
 extern void malloc_warning (const char *);
 extern AVOID memory_full (size_t);
@@ -4236,11 +4228,8 @@ extern Lisp_Object list4 (Lisp_Object, Lisp_Object, Lisp_Object, Lisp_Object);
 extern Lisp_Object list5 (Lisp_Object, Lisp_Object, Lisp_Object, Lisp_Object,
 			  Lisp_Object);
 extern Lisp_Object listn (ptrdiff_t, Lisp_Object, ...);
-extern Lisp_Object pure_listn (ptrdiff_t, Lisp_Object, ...);
 #define list(...) \
   listn (ARRAYELTS (((Lisp_Object []) {__VA_ARGS__})), __VA_ARGS__)
-#define pure_list(...) \
-  pure_listn (ARRAYELTS (((Lisp_Object []) {__VA_ARGS__})), __VA_ARGS__)
 
 enum gc_root_type
 {
@@ -4313,17 +4302,7 @@ extern Lisp_Object make_uninit_multibyte_string (EMACS_INT, EMACS_INT);
 extern Lisp_Object make_string_from_bytes (const char *, ptrdiff_t, ptrdiff_t);
 extern Lisp_Object make_specified_string (const char *,
 					  ptrdiff_t, ptrdiff_t, bool);
-extern Lisp_Object make_pure_string (const char *, ptrdiff_t, ptrdiff_t, bool);
-extern Lisp_Object make_pure_c_string (const char *, ptrdiff_t);
 extern void pin_string (Lisp_Object string);
-
-/* Make a string allocated in pure space, use STR as string data.  */
-
-INLINE Lisp_Object
-build_pure_c_string (const char *str)
-{
-  return make_pure_c_string (str, strlen (str));
-}
 
 /* Make a string from the data at STR, treating it as multibyte if the
    data warrants.  */
@@ -4334,7 +4313,6 @@ build_string (const char *str)
   return make_string (str, strlen (str));
 }
 
-extern Lisp_Object pure_cons (Lisp_Object, Lisp_Object);
 extern Lisp_Object make_vector (ptrdiff_t, Lisp_Object);
 extern struct Lisp_Vector *allocate_nil_vector (ptrdiff_t)
   ATTRIBUTE_RETURNS_NONNULL;

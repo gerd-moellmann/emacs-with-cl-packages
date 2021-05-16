@@ -1028,7 +1028,7 @@ make_frame (bool mini_p)
 
   fset_face_hash_table
     (f, make_hash_table (hashtest_eq, DEFAULT_HASH_SIZE, DEFAULT_REHASH_SIZE,
-                         DEFAULT_REHASH_THRESHOLD, Qnil, false));
+                         DEFAULT_REHASH_THRESHOLD, Qnil));
 
   if (mini_p)
     {
@@ -1192,7 +1192,7 @@ make_initial_frame (void)
   Vframe_list = Fcons (frame, Vframe_list);
 
   tty_frame_count = 1;
-  fset_name (f, build_pure_c_string ("F1"));
+  fset_name (f, build_string ("F1"));
 
   SET_FRAME_VISIBLE (f, 1);
 

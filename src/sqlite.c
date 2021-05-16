@@ -769,9 +769,9 @@ syms_of_sqlite (void)
 
   DEFSYM (Qsqlite_locked_error, "sqlite-locked-error");
   Fput (Qsqlite_locked_error, Qerror_conditions,
-	Fpurecopy (list2 (Qsqlite_locked_error, Qerror)));
+	list2 (Qsqlite_locked_error, Qerror));
   Fput (Qsqlite_locked_error, Qerror_message,
-	build_pure_c_string ("Database locked"));
+	build_string ("Database locked"));
 
   DEFSYM (Qsqlitep, "sqlitep");
   DEFSYM (Qfalse, "false");
