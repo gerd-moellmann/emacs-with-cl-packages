@@ -7454,6 +7454,15 @@ not_in_argv (NSString *arg)
   [self initWithFrame: r];
   [self setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
 
+    /* These settings mean AppKit will retain the contents of the frame
+     on resize.  Unfortunately it also means the frame will not be
+     automatically marked for display, but we can do that ourselves in
+     viewDidResize.  */
+  [self setWantsLayer:YES];
+  [self setLayerContentsRedrawPolicy:
+          NSViewLayerContentsRedrawOnSetNeedsDisplay];
+  [self setLayerContentsPlacement:NSViewLayerContentsPlacementTopLeft];
+
   FRAME_NS_VIEW (f) = self;
   emacsframe = f;
 #ifdef NS_IMPL_COCOA
@@ -8254,10 +8263,23 @@ not_in_argv (NSString *arg)
 
 - (void)viewWillDraw
 {
-  /* If the frame has been garbaged there's no point in redrawing
-     anything.  */
-  if (FRAME_GARBAGED_P (emacsframe))
-    [self setNeedsDisplay:NO];
+  if (FRAME_GARBAGED_P (emacsframe)
+      && !redisplaying_p)
+    {
+      /* If there is IO going on when redisplay is run here Emacs
+         crashes.  I think it's because this code will always be run
+         within the run loop and for whatever reason processing input
+         is dangerous.  This technique was stolen wholesale from
+         nsmenu.m and seems to work.  */
+      bool owfi = waiting_for_input;
+      waiting_for_input = 0;
+      block_input ();
+
+      redisplay ();
+
+      unblock_input ();
+      waiting_for_input = owfi;
+    }
 }
 
 - (void)drawRect: (NSRect)rect
@@ -8268,7 +8290,8 @@ not_in_argv (NSString *arg)
   NSTRACE ("[EmacsView drawRect:" NSTRACE_FMT_RECT "]",
            NSTRACE_ARG_RECT(rect));
 
-  if (!emacsframe || !emacsframe->output_data.ns)
+  if (!emacsframe || !emacsframe->output_data.ns
+      || FRAME_GARBAGED_P (emacsframe))
     return;
 
   block_input ();
