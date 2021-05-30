@@ -6424,83 +6424,49 @@ mtl_device_get_buffer_texture (id <MTLDevice> device,
   srcX = NSMinX (rect), srcY = NSMinY (rect);
   width = NSWidth (rect), height = NSHeight (rect);
 
-#if HAVE_MAC_METAL
-  if (backTexture && width * height >= 0x10000)
-    {
-      id <MTLTexture> texture =
-	mtl_device_get_buffer_texture (mtlCommandQueue.device, width, height);
-      id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
-      id <MTLBlitCommandEncoder> blitCommandEncoder =
-	[commandBuffer blitCommandEncoder];
+  eassert (CGBitmapContextGetBitsPerPixel (backBitmap)
+	   == 8 * sizeof (Pixel_8888));
+  NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backBitmap);
+  const NSInteger bytesPerPixel = sizeof (Pixel_8888);
+  unsigned char *srcData = CGBitmapContextGetData (backBitmap);
+  vImage_Buffer src, dest;
 
-      [blitCommandEncoder copyFromTexture:backTexture
-			      sourceSlice:0 sourceLevel:0
-			     sourceOrigin:(MTLOriginMake (srcX, srcY, 0))
-			       sourceSize:(MTLSizeMake (width, height, 1))
-				toTexture:texture
-			 destinationSlice:0 destinationLevel:0
-			destinationOrigin:(MTLOriginMake (0, 0, 0))];
-      [blitCommandEncoder copyFromTexture:texture
-			      sourceSlice:0 sourceLevel:0
-			     sourceOrigin:(MTLOriginMake (0, 0, 0))
-			       sourceSize:(MTLSizeMake (width, height, 1))
-				toTexture:backTexture
-			 destinationSlice:0 destinationLevel:0
-			destinationOrigin:(MTLOriginMake (srcX + deltaX,
-							  srcY + deltaY, 0))];
-      [blitCommandEncoder endEncoding];
-      IOSurfaceUnlock (backSurface, 0, NULL);
-      [commandBuffer commit];
-      [commandBuffer waitUntilCompleted];
-      IOSurfaceLock (backSurface, 0, NULL);
-    }
-  else
-#endif
+  src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
+  src.height = height;
+  src.width = width;
+  src.rowBytes = bytesPerRow;
+  if (deltaY != 0)
     {
-      eassert (CGBitmapContextGetBitsPerPixel (backBitmap)
-	       == 8 * sizeof (Pixel_8888));
-      NSInteger bytesPerRow = CGBitmapContextGetBytesPerRow (backBitmap);
-      const NSInteger bytesPerPixel = sizeof (Pixel_8888);
-      unsigned char *srcData = CGBitmapContextGetData (backBitmap);
-      vImage_Buffer src, dest;
-
-      src.data = srcData + srcY * bytesPerRow + srcX * bytesPerPixel;
-      src.height = height;
-      src.width = width;
-      src.rowBytes = bytesPerRow;
-      if (deltaY != 0)
+      if (deltaY > 0)
 	{
-	  if (deltaY > 0)
-	    {
-	      src.data += (src.height - 1) * bytesPerRow;
-	      src.rowBytes = - bytesPerRow;
-	    }
-	  dest = src;
-	  dest.data += deltaY * bytesPerRow + deltaX * bytesPerPixel;
-	  /* As of macOS 10.13, vImageCopyBuffer no longer does
-	     multi-threading even if we give it kvImageNoFlags.  We
-	     rather pass kvImageDoNotTile so it works with overlapping
-	     areas on older versions.  */
-	  mac_vimage_copy_8888 (&src, &dest, kvImageDoNotTile);
+	  src.data += (src.height - 1) * bytesPerRow;
+	  src.rowBytes = - bytesPerRow;
 	}
-      else /* deltaY == 0, which does not happen on the current
-	  version of Emacs. */
+      dest = src;
+      dest.data += deltaY * bytesPerRow + deltaX * bytesPerPixel;
+      /* As of macOS 10.13, vImageCopyBuffer no longer does
+	 multi-threading even if we give it kvImageNoFlags.  We rather
+	 pass kvImageDoNotTile so it works with overlapping areas on
+	 older versions.  */
+      mac_vimage_copy_8888 (&src, &dest, kvImageDoNotTile);
+    }
+  else /* deltaY == 0, which does not happen on the current version of
+	  Emacs. */
+    {
+      dest = src;
+      dest.data += /* deltaY * bytesPerRow + */ deltaX * bytesPerPixel;
+      if (labs (deltaX) >= src.width)
+	mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
+      else if (deltaX == 0)
+	return;
+      else
 	{
-	  dest = src;
-	  dest.data += /* deltaY * bytesPerRow + */ deltaX * bytesPerPixel;
-	  if (labs (deltaX) >= src.width)
-	    mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
-	  else if (deltaX == 0)
-	    return;
-	  else
-	    {
-	      vImage_Buffer buf;
+	  vImage_Buffer buf;
 
-	      mac_vimage_buffer_init_8888 (&buf, src.height, src.width);
-	      mac_vimage_copy_8888 (&src, &buf, kvImageNoFlags);
-	      mac_vimage_copy_8888 (&buf, &dest, kvImageNoFlags);
-	      free (buf.data);
-	    }
+	  mac_vimage_buffer_init_8888 (&buf, src.height, src.width);
+	  mac_vimage_copy_8888 (&src, &buf, kvImageNoFlags);
+	  mac_vimage_copy_8888 (&buf, &dest, kvImageNoFlags);
+	  free (buf.data);
 	}
     }
 }
