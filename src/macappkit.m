@@ -6984,14 +6984,16 @@ event_phase_to_symbol (NSEventPhase phase)
   switch (type)
     {
     case NSEventTypeScrollWheel:
-      if ([theEvent respondsToSelector:@selector(hasPreciseScrollingDeltas)]
-	  && [theEvent hasPreciseScrollingDeltas])
+      if ([theEvent respondsToSelector:@selector(hasPreciseScrollingDeltas)])
 	{
-	  scrollingDeltaX = [theEvent scrollingDeltaX];
-	  scrollingDeltaY = [theEvent scrollingDeltaY];
+	  if ([theEvent hasPreciseScrollingDeltas])
+	    {
+	      scrollingDeltaX = [theEvent scrollingDeltaX];
+	      scrollingDeltaY = [theEvent scrollingDeltaY];
+	    }
 	}
       else if ([theEvent respondsToSelector:@selector(_continuousScroll)]
-	  && [theEvent _continuousScroll])
+	       && [theEvent _continuousScroll])
 	{
 	  scrollingDeltaX = [theEvent deviceDeltaX];
 	  scrollingDeltaY = [theEvent deviceDeltaY];
