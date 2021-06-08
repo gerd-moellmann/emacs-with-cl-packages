@@ -6373,42 +6373,6 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   [NSGraphicsContext restoreGraphicsState];
 }
 
-#if HAVE_MAC_METAL
-static id <MTLTexture>
-mtl_device_get_buffer_texture (id <MTLDevice> device,
-			       NSUInteger width, NSUInteger height)
-{
-  static NSMapTableOf (id <MTLDevice>, id <MTLTexture>) *textureCache = nil;
-  id <MTLTexture> bufferTexture = [textureCache objectForKey:device];
-
-  if (width > bufferTexture.width)
-    bufferTexture = nil;
-  else
-    width = bufferTexture.width;
-  if (height > bufferTexture.height)
-    bufferTexture = nil;
-  else
-    height = bufferTexture.height;
-  if (bufferTexture == nil)
-    {
-      MTLTextureDescriptor *textureDescriptor =
-	[MTLTextureDescriptor
-	  texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-				       width:width height:height mipmapped:NO];
-
-      bufferTexture = [device newTextureWithDescriptor:textureDescriptor];
-      if (textureCache == nil)
-	textureCache = [[NSMapTable alloc]
-			 initWithKeyOptions:NSHashTableObjectPointerPersonality
-			       valueOptions:NSMapTableStrongMemory capacity:0];
-      [textureCache setObject:bufferTexture forKey:device];
-      MRC_RELEASE(bufferTexture);
-    }
-
-  return bufferTexture;
-}
-#endif
-
 - (void)scrollRect:(NSRect)rect by:(NSSize)delta
 {
   NSInteger deltaX, deltaY, srcX, srcY, width, height;
