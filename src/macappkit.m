@@ -6403,11 +6403,13 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     {
       if (deltaY > 0)
 	{
-	  src.data += (src.height - 1) * bytesPerRow;
+	  src.data = ((unsigned char *) src.data
+		      + (src.height - 1) * bytesPerRow);
 	  src.rowBytes = - bytesPerRow;
 	}
       dest = src;
-      dest.data += deltaY * bytesPerRow + deltaX * bytesPerPixel;
+      dest.data = ((unsigned char *) dest.data
+		   + deltaY * bytesPerRow + deltaX * bytesPerPixel);
       /* As of macOS 10.13, vImageCopyBuffer no longer does
 	 multi-threading even if we give it kvImageNoFlags.  We rather
 	 pass kvImageDoNotTile so it works with overlapping areas on
@@ -6418,7 +6420,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 	  Emacs. */
     {
       dest = src;
-      dest.data += /* deltaY * bytesPerRow + */ deltaX * bytesPerPixel;
+      dest.data = ((unsigned char *) dest.data
+		   + /* deltaY * bytesPerRow + */ deltaX * bytesPerPixel);
       if (labs (deltaX) >= src.width)
 	mac_vimage_copy_8888 (&src, &dest, kvImageNoFlags);
       else if (deltaX == 0)
