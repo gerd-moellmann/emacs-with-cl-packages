@@ -1447,6 +1447,25 @@ static bool handling_queued_nsevents_p;
     setenv ("CAVIEW_USE_GL", "1", 0);
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+  /* Work around bogus view bounds/frame values on some versions of
+     macOS 11.x (x >= 3?) when using system image tool bar icons in
+     the `expanded' style, which is default for the executable
+     compiled with macOS 10.* SDKs.  */
+  if ((mac_operating_system_version.major > 10
+       || mac_operating_system_version.minor > 15)
+      && [[NSUserDefaults standardUserDefaults]
+	   objectForKey:@"NSWindowSupportsAutomaticInlineTitle"] == nil)
+    {
+      NSDictionaryOf (NSString *, NSString *) *appDefaults =
+	[NSDictionary
+	  dictionaryWithObject:@"YES"
+			forKey:@"NSWindowSupportsAutomaticInlineTitle"];
+
+      [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
+    }
+#endif
+
   /* Some functions/methods in CoreFoundation/Foundation increase the
      maximum number of open files for the process in their first call.
      We make dummy calls to them and then reduce the resource limit
@@ -9945,7 +9964,7 @@ update_frame_tool_bar (struct frame *f)
   NSToolbar *toolbar;
   int i, win_gravity = f->output_data.mac->toolbar_win_gravity;
   int pos;
-  bool use_multiimage_icons_p = true;
+  bool use_multiimage_icons_p = true, system_symbol_inhibited_p = false;
 
   block_input ();
 
@@ -9960,6 +9979,14 @@ update_frame_tool_bar (struct frame *f)
     ([window respondsToSelector:@selector(backingScaleFactor)]
      || [window userSpaceScaleFactor] > 1);
 #endif
+
+  NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+  if ([userDefaults objectForKey:@"NSWindowSupportsAutomaticInlineTitle"]
+      && ![userDefaults boolForKey:@"NSWindowSupportsAutomaticInlineTitle"])
+    /* Work around bogus view bounds/frame values on some versions of
+       macOS 11.x (x >= 3?) when using system image tool bar icons in
+       the `expanded' style.  */
+    system_symbol_inhibited_p = true;
 
   toolbar = [window toolbar];
   pos = 0;
@@ -10003,38 +10030,39 @@ update_frame_tool_bar (struct frame *f)
 	  if (!valid_image_p (image))
 	    continue;
 
-	  if (
+	  if (!system_symbol_inhibited_p)
+	    if (
 #if __clang_major__ >= 9
-	      @available (macOS 10.16, *)
+		@available (macOS 10.16, *)
 #else
-	      [NSImage respondsToSelector:@selector(imageWithSystemSymbolName:accessibilityDescription:)]
+		[NSImage respondsToSelector:@selector(imageWithSystemSymbolName:accessibilityDescription:)]
 #endif
-	      )
-	    {
-	      Lisp_Object specified_file = file_for_image (image);
-	      Lisp_Object names = Qnil;
-	      if (!NILP (specified_file)
-		  && !NILP (Ffboundp (Qmac_map_system_symbol)))
-		names = call1 (Qmac_map_system_symbol, specified_file);
+		)
+	      {
+		Lisp_Object specified_file = file_for_image (image);
+		Lisp_Object names = Qnil;
+		if (!NILP (specified_file)
+		    && !NILP (Ffboundp (Qmac_map_system_symbol)))
+		  names = call1 (Qmac_map_system_symbol, specified_file);
 
-	      if (CONSP (names))
-		{
-		  Lisp_Object tem;
-		  for (tem = names; CONSP (tem); tem = XCDR (tem))
-		    if (! NILP (tem) && STRINGP (XCAR (tem)))
-		      {
-			NSString *str = [NSString
-					   stringWithLispString:(XCAR (tem))];
-			systemSymbol = mac_cached_system_symbol (str);
-			if (systemSymbol) break;
-		      }
-		}
-	      else if (STRINGP (names))
-		{
-		  NSString *str = [NSString stringWithLispString:names];
-		  systemSymbol = mac_cached_system_symbol (str);
-		}
-	    }
+		if (CONSP (names))
+		  {
+		    Lisp_Object tem;
+		    for (tem = names; CONSP (tem); tem = XCDR (tem))
+		      if (! NILP (tem) && STRINGP (XCAR (tem)))
+			{
+			  NSString *str = [NSString
+					    stringWithLispString:(XCAR (tem))];
+			  systemSymbol = mac_cached_system_symbol (str);
+			  if (systemSymbol) break;
+			}
+		  }
+		else if (STRINGP (names))
+		  {
+		    NSString *str = [NSString stringWithLispString:names];
+		    systemSymbol = mac_cached_system_symbol (str);
+		  }
+	      }
 
 	  if (!systemSymbol)
 	    {
