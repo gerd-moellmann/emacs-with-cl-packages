@@ -1451,8 +1451,15 @@ static bool handling_queued_nsevents_p;
   /* Work around bogus view bounds/frame values on some versions of
      macOS 11.x (x >= 3?) when using system image tool bar icons in
      the `expanded' style, which is default for the executable
-     compiled with macOS 10.* SDKs.  */
-  if ((mac_operating_system_version.major > 10
+     compiled with macOS 10.* SDKs.  Probably it is related to the
+     following warning about layout recursion:
+
+       It's not legal to call -layoutSubtreeIfNeeded on a view which
+       is already being laid out.  If you are implementing the view's
+       -layout method, you can call -[super layout] instead. Break on
+       void _NSDetectedLayoutRecursion(void) to debug.  This will be
+       logged only once.  This may break in the future.  */
+   if ((mac_operating_system_version.major > 10
        || mac_operating_system_version.minor > 15)
       && [[NSUserDefaults standardUserDefaults]
 	   objectForKey:@"NSWindowSupportsAutomaticInlineTitle"] == nil)
