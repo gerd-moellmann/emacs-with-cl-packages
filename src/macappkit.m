@@ -3851,8 +3851,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 - (CALayer *)liveResizeTransitionLayerWithDefaultBackground:(BOOL)flag
 {
   struct frame *f = emacsFrame;
-  struct window *root_window;
-  CGFloat rootWindowMaxY;
   CALayer *rootLayer, *contentLayer;
   CGSize contentLayerSize;
   NSView *contentView = [emacsWindow contentView];
@@ -3879,33 +3877,41 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       GC gc = mac_gc_for_face_id (f, face_id, f->output_data.mac->normal_gc);
       CGColorRef borderColor = CGColorCreateCopyWithAlpha (gc->cg_back_color,
 							   1.0f);
-
-      rootLayer.borderColor = borderColor;
+      CALayer *borderLayer = [CALayer layer];
+      NSRect frameRect = contentViewRect;
+      frameRect.origin.y -= internalBorderWidth;
+      frameRect.size.height += internalBorderWidth;
+      borderLayer.frame = frameRect;
+      borderLayer.autoresizingMask = (kCALayerWidthSizable
+				       | kCALayerHeightSizable);
+      borderLayer.borderColor = borderColor;
       CGColorRelease (borderColor);
-      rootLayer.borderWidth = internalBorderWidth;
+      borderLayer.borderWidth = internalBorderWidth;
 
       contentLayer = [CALayer layer];
-      contentLayer.frame = NSRectToCGRect (NSInsetRect (contentViewRect,
-							internalBorderWidth,
-							internalBorderWidth));
+      frameRect = NSInsetRect (contentViewRect, internalBorderWidth, 0);
+      frameRect.size.height -= internalBorderWidth;
+      contentLayer.frame = frameRect;
       contentLayer.autoresizingMask = (kCALayerWidthSizable
 				       | kCALayerHeightSizable);
       contentLayer.masksToBounds = YES;
       [rootLayer addSublayer:contentLayer];
+      [rootLayer addSublayer:borderLayer];
     }
   contentLayer.layoutManager = [CAConstraintLayoutManager layoutManager];
   if (flag)
     contentLayer.backgroundColor = f->output_data.mac->normal_gc->cg_back_color;
   contentLayerSize = contentLayer.bounds.size;
 
-  root_window = XWINDOW (FRAME_ROOT_WINDOW (f));
-  rootWindowMaxY = (WINDOW_TOP_EDGE_Y (root_window)
-		    + WINDOW_PIXEL_HEIGHT (root_window));
+  struct window *root_window = XWINDOW (FRAME_ROOT_WINDOW (f));
+  CGFloat rootWindowMinY = WINDOW_TOP_EDGE_Y (root_window);
+  CGFloat rootWindowMaxY = WINDOW_BOTTOM_EDGE_Y (root_window);
 
   mac_foreach_window (f, ^(struct window *w) {
       enum {MIN_X_SCALE = 1 << 0, MAX_X_SCALE = 1 << 1,
-	    MIN_Y_SCALE = 1 << 2, MAX_Y_SCALE = 1 << 3, MAX_Y_OFFSET = 1 << 4,
-	    MIN_X_NEXT_MIN = 1 << 5};
+	    MIN_Y_SCALE = 1 << 2, MAX_Y_SCALE = 1 << 3,
+	    MIN_Y_OFFSET = 1 << 4, MAX_Y_OFFSET = 1 << 5,
+	    MIN_X_NEXT_MIN = 1 << 6};
       NSString *nextLayerName = nil;
       NSRect rects[4];
       int constraints[4];
@@ -3913,11 +3919,18 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
       rects[0] = NSMakeRect (WINDOW_LEFT_EDGE_X (w), WINDOW_TOP_EDGE_Y (w),
 			     WINDOW_PIXEL_WIDTH (w), WINDOW_PIXEL_HEIGHT (w));
-      constraints[0] = MIN_X_SCALE | MIN_Y_SCALE;
+      if (NSMinY (rects[0]) <= rootWindowMinY)
+	/* Tool/tab bar or topmost window.  */
+	constraints[0] = MIN_X_SCALE | MIN_Y_OFFSET;
+      else if (NSMinY (rects[0]) >= rootWindowMaxY)
+	/* Bottommost (minibuffer) window.  */
+	constraints[0] = MIN_X_SCALE | MAX_Y_OFFSET;
+      else
+	constraints[0] = MIN_X_SCALE | MIN_Y_SCALE;
       if (!w->pseudo_window_p)
 	{
 	  int x, y, width, height;
-	  int bottom_idx = 0, right_idx = 0, constraint_y = MIN_Y_SCALE;
+	  int bottom_idx = 0, right_idx = 0;
 	  int bottom_fill_idx;
 	  CGFloat right_width, bottom_height;
 
@@ -3933,15 +3946,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	    {
 	      bottom_fill_idx = nrects++;
 	      bottom_idx = nrects++;
-	    }
-	  else
-	    {
-	      if (NSMinY (rects[0]) >= rootWindowMaxY)
-		/* Bottommost (minibuffer) window.  */
-		{
-		  constraints[0] = MIN_X_SCALE | MAX_Y_OFFSET;
-		  constraint_y = MAX_Y_OFFSET;
-		}
 	    }
 
 	  if (bottom_idx)
@@ -3963,8 +3967,23 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	    {
 	      NSDivideRect (rects[0], &rects[right_idx], &rects[0],
 			    right_width, NSMaxXEdge);
-	      constraints[right_idx] = MAX_X_SCALE | constraint_y;
+	      constraints[right_idx] =
+		(MAX_X_SCALE | (constraints[0]
+				& (MIN_Y_SCALE | MAX_Y_SCALE
+				   | MIN_Y_OFFSET | MAX_Y_OFFSET)));
 	    }
+	}
+      else if (!NSIsEmptyRect (rects[0])) /* Tool/tab bar.  */
+	{
+	  int bar_fill_idx = 0, bar_idx = nrects++;
+
+	  rects[bar_idx] = rects[0];
+	  constraints[bar_idx] = constraints[0];
+	  NSDivideRect (rects[bar_idx], &rects[bar_fill_idx],
+			&rects[bar_idx], 1, NSMaxXEdge);
+	  constraints[bar_fill_idx] =
+	    (constraints[bar_idx] ^ (MIN_X_SCALE
+				     | MAX_X_SCALE | MIN_X_NEXT_MIN));
 	}
       for (i = 0; i < nrects; i++)
 	{
@@ -4031,17 +4050,22 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 						   attribute:attribute]];
 
 	    }
-	  if (constraints[i] & (MIN_Y_SCALE | MAX_Y_SCALE | MAX_Y_OFFSET))
+	  if (constraints[i] & (MIN_Y_SCALE | MAX_Y_SCALE
+				| MIN_Y_OFFSET | MAX_Y_OFFSET))
 	    {
 	      CAConstraintAttribute srcAttr;
 	      CGFloat offset;
 
-	      if (constraints[i] & MAX_Y_OFFSET)
+	      if (constraints[i] & MIN_Y_OFFSET)
 		{
-		  srcAttr = kCAConstraintMaxY;
-		  offset = (NSMaxY (rects[i]) - internalBorderWidth
-			    - contentLayerSize.height);
-		  attribute = kCAConstraintMaxY;
+		  srcAttr = attribute = kCAConstraintMinY;
+		  offset = NSMinY (rects[i]);
+		  scale = 1;
+		}
+	      else if (constraints[i] & MAX_Y_OFFSET)
+		{
+		  srcAttr = attribute = kCAConstraintMaxY;
+		  offset = NSMaxY (rects[i]) - contentLayerSize.height;
 		  scale = 1;
 		}
 	      else
@@ -4051,14 +4075,12 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 		  if (constraints[i] & MIN_Y_SCALE)
 		    {
 		      attribute = kCAConstraintMinY;
-		      scale = ((NSMinY (rects[i]) - internalBorderWidth)
-			       / contentLayerSize.height);
+		      scale = NSMinY (rects[i]) / contentLayerSize.height;
 		    }
 		  else
 		    {
 		      attribute = kCAConstraintMaxY;
-		      scale = ((NSMaxY (rects[i]) - internalBorderWidth)
-			       / contentLayerSize.height);
+		      scale = NSMaxY (rects[i]) / contentLayerSize.height;
 		    }
 		}
 	      [layer addConstraint:[CAConstraint
