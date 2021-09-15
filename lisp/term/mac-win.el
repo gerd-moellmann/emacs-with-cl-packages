@@ -388,7 +388,7 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 \U0001F6E2\U0001F6E3\U0001F6E4\U0001F6E5\U0001F6E9\U0001F6F0\U0001F6F3"))
   "Groups of characters that are sensitive to variation selectors 15 and 16.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-variation-sequences.txt 13.0.")
+The entries are currently based on emoji-variation-sequences.txt 14.0.")
 
 (defconst mac-emoji-modifier-base-characters-alist
   '((t . "\u261D\u26F9\u270A\u270B\u270C\u270D\
@@ -407,10 +407,12 @@ The entries are currently based on emoji-variation-sequences.txt 13.0.")
 \U0001F936\U0001F937\U0001F938\U0001F939\U0001F93D\U0001F93E\U0001F977\
 \U0001F9B5\U0001F9B6\U0001F9B8\U0001F9B9\U0001F9BB\U0001F9CD\U0001F9CE\
 \U0001F9CF\U0001F9D1\U0001F9D2\U0001F9D3\U0001F9D4\U0001F9D5\U0001F9D6\
-\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD"))
+\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD\
+\U0001FAC3\U0001FAC4\U0001FAC5\U0001FAF0\U0001FAF1\U0001FAF2\U0001FAF3\
+\U0001FAF4\U0001FAF5\U0001FAF6"))
   "Groups of characters that are sensitive to emoji modifiers.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-sequences.txt 13.1.")
+The entries are currently based on emoji-sequences.txt 14.0.")
 
 (defconst mac-emoji-gendered-zwj-characters-alist
   '((role . "\u2695\u2696\u2708\
@@ -428,7 +430,7 @@ The entries are currently based on emoji-sequences.txt 13.1.")
 \U0001F9DD\U0001F9DE\U0001F9DF"))
   "Groups of characters that are parts of the gendered zwj sequences.
 It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-zwj-sequences.txt 13.1.")
+The entries are currently based on emoji-zwj-sequences.txt 14.0.")
 
 (defconst mac-emoji-tag-base-characters-alist
   '((flag "\U0001F3F4" "[\U000E0030-\U000E0039\U000E0061-\U000E007A]+"))
@@ -436,7 +438,7 @@ The entries are currently based on emoji-zwj-sequences.txt 13.1.")
 It is an alist of label symbols vs lists whose elements are of
 the form (CHARS SPEC) where CHARS is a string of tag base
 characters and SPEC is a regexp for the corresponding tag spec.
-The entries are currently based on emoji-sequences.txt 13.1.")
+The entries are currently based on emoji-sequences.txt 14.0.")
 
 (defun mac-emoji-multistyles-unistyles (sequence)
   "Split emoji SEQUENCE into a cons of multistyles and unistyles."
@@ -588,6 +590,7 @@ second is a glyph for the variation selector 16 (U+FE0F)."
          (man "\U0001F468") (woman "\U0001F469") (person "\U0001F9D1")
 	 (girl "\U0001F467") (boy "\U0001F466")
 	 (red-heart "\u2764") (kiss-mark "\U0001F48B") (handshake "\U0001F91D")
+         (rightwards-hand "\U0001FAF1") (leftwards-hand "\U0001FAF2")
          (fire "\U0001F525") (adhesive-bandage "\U0001FA79")
          (white-flag "\U0001F3F3") (transgender "\u26A7") (rainbow "\U0001F308")
          (black-flag "\U0001F3F4") (skull-and-crossbones "\u2620")
@@ -631,6 +634,8 @@ second is a glyph for the variation selector 16 (U+FE0F)."
                  "\\|[" object-multistyles "]" vs16?
                  "\\|[" object-unistyles "]\\)")
 	1 font-shape-gstring -1]
+       [,(concat rightwards-hand "." leftwards-hand)
+        1 font-shape-gstring -1]
        [,(concat red-heart zwj "\\(?:" fire "\\|" adhesive-bandage "\\)")
 	1 font-shape-gstring -1]
        [,(concat white-flag zwj "\\(?:" transgender vs16? "\\|" rainbow "\\)")
@@ -688,6 +693,8 @@ second is a glyph for the variation selector 16 (U+FE0F)."
                  "\\1" modifiers)
 	1 font-shape-gstring 0]
        [,(concat woman "." zwj handshake zwj man-or-woman modifiers)
+	1 font-shape-gstring 0]
+       [,(concat rightwards-hand "." zwj leftwards-hand modifiers)
 	1 font-shape-gstring 0]
        [,(concat person "." zwj christmas-tree)
 	1 font-shape-gstring 0]
