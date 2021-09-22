@@ -1080,7 +1080,6 @@ typedef NSInteger NSGlyphProperty;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;
-- (void)suspendSynchronizingBackingBitmap:(BOOL)flag;
 - (void)synchronizeBacking;
 - (void)lockFocusOnBacking;
 - (void)unlockFocusOnBacking;
