@@ -6674,19 +6674,6 @@ static BOOL emacsViewUpdateLayerDisabled;
 		   forRectanglesData:rectanglesData];
 }
 
-- (void)synchronizeBacking
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-  if (!self.wantsUpdateLayer)
-    return;
-#endif
-  if (backing && !NSEqualSizes (backing.size, self.bounds.size))
-    {
-      MRC_RELEASE (backing);
-      backing = nil;
-    }
-}
-
 - (void)lockFocusOnBacking
 {
   eassert (pthread_main_np ());
@@ -6699,6 +6686,15 @@ static BOOL emacsViewUpdateLayerDisabled;
       return;
     }
 #endif
+  if (backingSizeOutOfSync)
+    {
+      if (backing && !NSEqualSizes (backing.size, self.bounds.size))
+	{
+	  MRC_RELEASE (backing);
+	  backing = nil;
+	}
+      backingSizeOutOfSync = NO;
+    }
   if (!backing)
     backing = [[EmacsBacking alloc] initWithView:self];
   [backing lockFocus];
@@ -6741,7 +6737,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (void)viewFrameDidChange:(NSNotification *)notification
 {
-  [self synchronizeBacking];
+  backingSizeOutOfSync = YES;
 }
 
 @end				// EmacsView
@@ -7903,7 +7899,7 @@ mac_ts_active_input_string_in_echo_area_p (struct frame *f)
 
   [super viewDidEndLiveResize];
   [self synchronizeChildFrameOrigins];
-  [self synchronizeBacking];
+  backingSizeOutOfSync = YES;
   mac_handle_size_change (f, NSWidth (frameRect), NSHeight (frameRect));
   /* Exit from mac_select so as to react to the frame size change,
      especially in a full screen tile on OS X 10.11.  */

@@ -1074,10 +1074,12 @@ typedef NSInteger NSGlyphProperty;
 {
   /* Backing resources for applicaion-side double buffering.  */
   EmacsBacking *backing;
+
+  /* Whether the backing size is out of sync with the view size.  */
+  BOOL backingSizeOutOfSync;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;
-- (void)synchronizeBacking;
 - (void)lockFocusOnBacking;
 - (void)unlockFocusOnBacking;
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta;
