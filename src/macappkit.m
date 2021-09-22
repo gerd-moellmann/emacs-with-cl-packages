@@ -6674,23 +6674,17 @@ static BOOL emacsViewUpdateLayerDisabled;
 		   forRectanglesData:rectanglesData];
 }
 
-- (void)suspendSynchronizingBackingBitmap:(BOOL)flag
-{
-  synchronizeBackingSuspended = flag;
-}
-
 - (void)synchronizeBacking
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
   if (!self.wantsUpdateLayer)
     return;
 #endif
-  if (!synchronizeBackingSuspended)
-    if (backing && !NSEqualSizes (backing.size, self.bounds.size))
-      {
-	MRC_RELEASE (backing);
-	backing = nil;
-      }
+  if (backing && !NSEqualSizes (backing.size, self.bounds.size))
+    {
+      MRC_RELEASE (backing);
+      backing = nil;
+    }
 }
 
 - (void)lockFocusOnBacking
@@ -9811,15 +9805,7 @@ toolbar_separator_item_identifier_if_available (void)
 	   || EQ (Vtool_bar_style, Qtext_image_horiz))
     displayMode = NSToolbarDisplayModeIconAndLabel;
 
-  /* -[NSToolbar setDisplayMode] posts
-      NSViewFrameDidChangeNotification for EmacsView, but with a bogus
-      (intermediate?) value for view's frame and bounds.  We suspend
-      -[EmacsView synchronizeBacking] while setting toolbar's display
-      mode.  */
-  [emacsView suspendSynchronizingBackingBitmap:YES];
   [toolbar setDisplayMode:displayMode];
-  [emacsView suspendSynchronizingBackingBitmap:NO];
-  [emacsView synchronizeBacking];
 }
 
 /* Store toolbar item click event from SENDER to kbd_buffer.  */

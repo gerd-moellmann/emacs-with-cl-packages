@@ -1074,9 +1074,6 @@ typedef NSInteger NSGlyphProperty;
 {
   /* Backing resources for applicaion-side double buffering.  */
   EmacsBacking *backing;
-
-  /* Whether backing synchronization is suspended.  */
-  BOOL synchronizeBackingSuspended;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;
