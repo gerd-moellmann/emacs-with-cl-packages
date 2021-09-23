@@ -3867,7 +3867,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       NSRect frameRect = contentViewRect;
       frameRect.origin.y -= internalBorderWidth;
       frameRect.size.height += internalBorderWidth;
-      borderLayer.frame = frameRect;
+      borderLayer.frame = NSRectToCGRect (frameRect);
       borderLayer.autoresizingMask = (kCALayerWidthSizable
 				       | kCALayerHeightSizable);
       borderLayer.borderColor = borderColor;
@@ -3877,7 +3877,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       contentLayer = [CALayer layer];
       frameRect = NSInsetRect (contentViewRect, internalBorderWidth, 0);
       frameRect.size.height -= internalBorderWidth;
-      contentLayer.frame = frameRect;
+      contentLayer.frame = NSRectToCGRect (frameRect);
       contentLayer.autoresizingMask = (kCALayerWidthSizable
 				       | kCALayerHeightSizable);
       contentLayer.masksToBounds = YES;
