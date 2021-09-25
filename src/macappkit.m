@@ -3423,6 +3423,15 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [emacsView scrollBackingRect:rect by:delta];
 }
 
+- (void)invalidateEmacsViewBackingRect:(CGRect)invalidRect
+			     clipRects:(const CGRect *)clipRects
+				 count:(CFIndex)count
+			  forCGContext:(CGContextRef)context
+{
+  [emacsView invalidateBackingRect:invalidRect
+			 clipRects:clipRects count:count forCGContext:context];
+}
+
 #if HAVE_MAC_METAL
 - (void)updateEmacsViewMTLObjects
 {
@@ -6205,7 +6214,10 @@ mac_iosurface_create (size_t width, size_t height)
   frontBitmap = bitmaps[1];
   frontSurface = surfaces[1];
   if (frontSurface)
-    IOSurfaceUnlock (frontSurface, 0, NULL);
+    {
+      IOSurfaceUnlock (frontSurface, 0, NULL);
+      invalidRectValues = [[NSMutableArray alloc] initWithCapacity:0];
+    }
 #if HAVE_MAC_METAL
   [self updateMTLObjectsForView:view];
 #endif
@@ -6231,6 +6243,9 @@ mac_iosurface_create (size_t width, size_t height)
   frontTexture = texture;
 #endif
 
+  NSArrayOf (NSValue *) *rectValues = invalidRectValues;
+  invalidRectValues = [[NSMutableArray alloc] initWithCapacity:0];
+
   dispatch_queue_t queue =
     dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
   copyFromFrontToBackSemaphore = dispatch_semaphore_create (0);
@@ -6242,16 +6257,22 @@ mac_iosurface_create (size_t width, size_t height)
 	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
 	  id <MTLBlitCommandEncoder> blitCommandEncoder =
 	    [commandBuffer blitCommandEncoder];
-	  size_t width = IOSurfaceGetWidth (backSurface);
-	  size_t height = IOSurfaceGetHeight (backSurface);
 
-	  [blitCommandEncoder copyFromTexture:frontTexture
-				  sourceSlice:0 sourceLevel:0
-				 sourceOrigin:(MTLOriginMake (0, 0, 0))
-				   sourceSize:(MTLSizeMake (width, height, 1))
-				    toTexture:backTexture
-			     destinationSlice:0 destinationLevel:0
-			    destinationOrigin:(MTLOriginMake (0, 0, 0))];
+	  for (NSValue *value in rectValues)
+	    {
+	      NSRect rect = value.rectValue;
+	      MTLOrigin origin = MTLOriginMake (NSMinX (rect) * scaleFactor,
+						NSMinY (rect) * scaleFactor, 0);
+	      MTLSize size = MTLSizeMake (NSWidth (rect) * scaleFactor,
+					  NSHeight (rect) * scaleFactor, 1);
+
+	      [blitCommandEncoder copyFromTexture:frontTexture
+				      sourceSlice:0 sourceLevel:0
+				     sourceOrigin:origin sourceSize:size
+					toTexture:backTexture
+				 destinationSlice:0 destinationLevel:0
+				destinationOrigin:origin];
+	    }
 	  [blitCommandEncoder endEncoding];
 	  [commandBuffer commit];
 	  [commandBuffer waitUntilCompleted];
@@ -6262,12 +6283,38 @@ mac_iosurface_create (size_t width, size_t height)
 	{
 	  IOSurfaceLock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	  IOSurfaceLock (backSurface, 0, NULL);
-	  memcpy (IOSurfaceGetBaseAddress (backSurface),
-		  IOSurfaceGetBaseAddress (frontSurface),
-		  IOSurfaceGetAllocSize (backSurface));
+	  unsigned char *backBase = IOSurfaceGetBaseAddress (backSurface);
+	  unsigned char *frontBase = IOSurfaceGetBaseAddress (frontSurface);
+	  size_t bytesPerRow = IOSurfaceGetBytesPerRow (backSurface);
+	  size_t surfaceWidth = IOSurfaceGetWidth (backSurface);
+	  vImage_Buffer src, dest;
+	  src.rowBytes = dest.rowBytes = bytesPerRow;
+	  for (NSValue *value in rectValues)
+	    {
+	      NSRect rect = value.rectValue;
+	      size_t x = NSMinX (rect) * scaleFactor;
+	      size_t y = NSMinY (rect) * scaleFactor;
+	      size_t offset = y * bytesPerRow + x * sizeof (Pixel_8888);
+	      src.width = NSWidth (rect) * scaleFactor;
+	      src.height = NSHeight (rect) * scaleFactor;
+
+	      if (surfaceWidth - src.width < surfaceWidth / 16)
+		memcpy (backBase + offset, frontBase + offset,
+			((src.height - 1) * bytesPerRow
+			 + src.width * sizeof (Pixel_8888)));
+	      else
+		{
+		  src.data = frontBase + offset;
+		  dest.width = src.width;
+		  dest.height = src.height;
+		  dest.data = backBase + offset;
+		  mac_vimage_copy_8888 (&src, &dest, kvImageDoNotTile);
+		}
+	    }
 	  IOSurfaceUnlock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	}
 
+      MRC_RELEASE (rectValues);
       dispatch_semaphore_signal (copyFromFrontToBackSemaphore);
     });
 }
@@ -6295,6 +6342,7 @@ mac_iosurface_create (size_t width, size_t height)
   if (frontSurface)
     CFRelease (frontSurface);
 #if !USE_ARC
+  [invalidRectValues release];
 #if HAVE_MAC_METAL
   [backTexture release];
   [frontTexture release];
@@ -6313,6 +6361,81 @@ mac_iosurface_create (size_t width, size_t height)
 {
   return NSMakeSize (CGBitmapContextGetWidth (backBitmap) / scaleFactor,
 		     CGBitmapContextGetHeight (backBitmap) / scaleFactor);
+}
+
+- (BOOL)wantsInvalidRectForCGContext:(CGContextRef)context
+{
+  return invalidRectValues && context == backBitmap;
+}
+
+- (void)invalidateRect:(NSRect)rect
+{
+  if (!invalidRectValues)
+    return;
+
+  NSUInteger i, j, count = invalidRectValues.count;
+  NSRect r, boundsRect = {NSZeroPoint, self.size};
+
+  rect = NSIntersectionRect (rect, boundsRect);
+  if (NSIsEmptyRect (rect))
+    return;
+
+#if 1
+  /* Usually count is not so large, and the simple linear search would
+     be enough.  */
+  for (i = 0; i < count; i++)
+    {
+      r = [[invalidRectValues objectAtIndex:i] rectValue];
+      if (NSMinY (rect) <= NSMaxY (r))
+	break;
+    }
+  if (i == count || NSMaxY (rect) < NSMinY (r))
+    [invalidRectValues insertObject:[NSValue valueWithRect:rect] atIndex:i];
+  else
+    {
+      NSUInteger j = i++;
+
+      rect = NSUnionRect (rect, r);
+      for (; i < count; i++)
+	{
+	  r = [[invalidRectValues objectAtIndex:i] rectValue];
+	  if (NSMaxY (rect) < NSMinY (r))
+	    break;
+	  rect = NSUnionRect (rect, r);
+	}
+      [invalidRectValues replaceObjectAtIndex:j++
+				   withObject:[NSValue valueWithRect:rect]];
+      [invalidRectValues removeObjectsInRange:(NSMakeRange (j, i - j))];
+    }
+#else
+  i = [invalidRectValues
+	indexOfObject:[NSValue
+			valueWithRect:(NSMakeRect (0, NSMinY (rect), 0, 0))]
+	inSortedRange:NSMakeRange (0, count)
+	      options:NSBinarySearchingInsertionIndex
+	usingComparator:^(id obj1, id obj2) {
+      CGFloat y1 = NSMaxY (((NSValue *) obj1).rectValue);
+      CGFloat y2 = NSMaxY (((NSValue *) obj2).rectValue);
+      return (NSComparisonResult) (y1 > y2 ? NSOrderedDescending
+				   : y1 < y2 ? NSOrderedAscending
+				   : NSOrderedSame);
+    }];
+  for (j = i; j < count; j++)
+    {
+      r = [invalidRectValues objectAtIndex:j].rectValue;
+      if (NSMaxY (rect) < NSMinY (r))
+	break;
+      rect = NSUnionRect (rect, r);
+    }
+  if (i == j)
+    [invalidRectValues insertObject:[NSValue valueWithRect:rect] atIndex:i];
+  else
+    {
+      [invalidRectValues replaceObjectAtIndex:i++
+				   withObject:[NSValue valueWithRect:rect]];
+      [invalidRectValues removeObjectsInRange:(NSMakeRange (i, j - i))];
+    }
+#endif
 }
 
 #if HAVE_MAC_METAL
@@ -6410,6 +6533,11 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 - (void)scrollRect:(NSRect)rect by:(NSSize)delta
 {
   NSInteger deltaX, deltaY, srcX, srcY, width, height;
+
+  if ((delta.width == 0 && delta.height == 0) || NSIsEmptyRect (rect))
+    return;
+
+  [self invalidateRect:(NSOffsetRect (rect, delta.width, delta.height))];
 
   if (scaleFactor != 1.0)
     {
@@ -6531,6 +6659,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 			      + rectangle.x * sizeof (Pixel_8888)) * scale;
       mac_vimage_copy_8888 (src, &dest, kvImageNoFlags);
       free (src->data);
+      [self invalidateRect:(NSMakeRect (rectangle.x, rectangle.y,
+					rectangle.width, rectangle.height))];
     }
 }
 
@@ -6726,6 +6856,22 @@ static BOOL emacsViewUpdateLayerDisabled;
     }
 #endif
   [backing scrollRect:rect by:delta];
+}
+
+- (void)invalidateBackingRect:(CGRect)invalidRect
+		    clipRects:(const CGRect *)clipRects count:(CFIndex)count
+		 forCGContext:(CGContextRef)context
+{
+  if (![backing wantsInvalidRectForCGContext:context])
+    return;
+
+  if (count == 0)
+    [backing invalidateRect:(NSRectFromCGRect (invalidRect))];
+  else
+    for (CFIndex i = 0; i < count; i++)
+      [backing
+	invalidateRect:(NSIntersectionRect (NSRectFromCGRect (invalidRect),
+					    NSRectFromCGRect (clipRects[i])))];
 }
 
 - (void)viewDidChangeBackingProperties
@@ -8119,7 +8265,7 @@ mac_accumulate_global_focus_view_clip_rect (const CGRect *clip_rects,
 static
 #endif
 CGContextRef
-mac_begin_cg_clip (struct frame *f, GC gc)
+mac_begin_cg_clip (struct frame *f, GC gc, CGRect invalid_rect)
 {
   CGContextRef context;
   const CGRect *clip_rects;
@@ -8157,6 +8303,15 @@ mac_begin_cg_clip (struct frame *f, GC gc)
   CGContextSaveGState (context);
   if (n_clip_rects)
     CGContextClipToRects (context, clip_rects, n_clip_rects);
+  if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
+    {
+      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+      [frameController invalidateEmacsViewBackingRect:invalid_rect
+					    clipRects:clip_rects
+						count:n_clip_rects
+					 forCGContext:context];
+    }
 
   return context;
 }
@@ -8185,13 +8340,14 @@ mac_end_cg_clip (struct frame *f)
 
 #if DRAWING_USE_GCD
 void
-mac_draw_to_frame (struct frame *f, GC gc, void (^block) (CGContextRef, GC))
+mac_draw_to_frame (struct frame *f, GC gc, CGRect invalid_rect,
+		   void (^block) (CGContextRef, GC))
 {
   CGContextRef context;
 
   if (global_focus_view_frame != f || global_focus_drawing_queue == NULL)
     {
-      context = mac_begin_cg_clip (f, gc);
+      context = mac_begin_cg_clip (f, gc, invalid_rect);
       block (context, gc);
       mac_end_cg_clip (f);
     }
@@ -8219,6 +8375,15 @@ mac_draw_to_frame (struct frame *f, GC gc, void (^block) (CGContextRef, GC))
 	  CGContextSaveGState (context);
 	  if (n_clip_rects)
 	    CGContextClipToRects (context, clip_rects, n_clip_rects);
+	  if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
+	    {
+	      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+	      [frameController invalidateEmacsViewBackingRect:invalid_rect
+						    clipRects:clip_rects
+							count:n_clip_rects
+						 forCGContext:context];
+	    }
 	  block (context, gc);
 	  CGContextRestoreGState (context);
 	  mac_free_gc (gc);

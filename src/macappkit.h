@@ -989,6 +989,10 @@ typedef NSInteger NSGlyphProperty;
 - (void)lockFocusOnEmacsView;
 - (void)unlockFocusOnEmacsView;
 - (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
+- (void)invalidateEmacsViewBackingRect:(CGRect)invalidRect
+			     clipRects:(const CGRect *)clipRects
+				 count:(CFIndex)count
+			  forCGContext:(CGContextRef)context;
 #if HAVE_MAC_METAL
 - (void)updateEmacsViewMTLObjects;
 #endif
@@ -1048,12 +1052,21 @@ typedef NSInteger NSGlyphProperty;
 
   CGFloat scaleFactor;
 
+  /* Array of rectangles (in the view coordinate system) covering the
+     area where backBitmap has been modified from frontBitmap, or nil
+     if frontSurface is NULL.  NSMaxY (invalidRectValues[i].rectValue)
+     should be less than NSMinY (invalidRectValues[i + 1].rectValue)
+     for any i < invalidRectValues.count - 1.  */
+  NSMutableArrayOf (NSValue *) *invalidRectValues;
+
   /* Lock count for backing bitmap.  */
   char lockCount;
 }
 - (instancetype)initWithView:(NSView *)view;
 - (char)lockCount;
 - (NSSize)size;
+- (BOOL)wantsInvalidRectForCGContext:(CGContextRef)context;
+- (void)invalidateRect:(NSRect)rect;
 #if HAVE_MAC_METAL
 - (void)updateMTLObjectsForView:(NSView *)view;
 #endif
@@ -1083,6 +1096,9 @@ typedef NSInteger NSGlyphProperty;
 - (void)lockFocusOnBacking;
 - (void)unlockFocusOnBacking;
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta;
+- (void)invalidateBackingRect:(CGRect)invalidRect
+		    clipRects:(const CGRect *)clipRects count:(CFIndex)count
+		 forCGContext:(CGContextRef)context;
 #if HAVE_MAC_METAL
 - (void)updateMTLObjects;
 #endif

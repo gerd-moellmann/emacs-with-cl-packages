@@ -123,10 +123,10 @@ static void
 mac_erase_rectangle (struct frame *f, GC gc, int x, int y,
 		     int width, int height)
 {
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
-  {
-    CGRect rect = mac_rect_make (f, x, y, width, height);
+  CGRect rect = mac_rect_make (f, x, y, width, height);
 
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
+  {
     CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, rect, gc);
     if (gc->xgcv.fill_style == FillOpaqueStippled && gc->xgcv.stipple)
       {
@@ -137,11 +137,12 @@ mac_erase_rectangle (struct frame *f, GC gc, int x, int y,
 	  scale = FRAME_BACKING_SCALE_FACTOR (f);
 	CGImageRef image_mask =
 	  (CGImageRef) CFArrayGetValueAtIndex (gc->xgcv.stipple, scale - 1);
-	rect = CGRectMake (0, 0, CGImageGetWidth (image_mask) / (CGFloat) scale,
-			   CGImageGetHeight (image_mask) / (CGFloat) scale);
+	CGRect r = CGRectMake (0, 0,
+			       CGImageGetWidth (image_mask) / (CGFloat) scale,
+			       CGImageGetHeight (image_mask) / (CGFloat) scale);
 	CGContextScaleCTM (context, 1, -1);
 	CGContextSetInterpolationQuality (context, kCGInterpolationNone);
-	CGContextDrawTiledImage (context, rect, image_mask);
+	CGContextDrawTiledImage (context, r, image_mask);
       }
   }
   MAC_END_DRAW_TO_FRAME (f);
@@ -175,11 +176,12 @@ mac_draw_cg_image (struct frame *f, GC gc,
 		   int src_x, int src_y, int width, int height,
 		   int dest_x, int dest_y, int flags)
 {
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
-  {
-    CGRect dest_rect, bounds;
+  CGRect dest_rect = mac_rect_make (f, dest_x, dest_y, width, height);
 
-    dest_rect = mac_rect_make (f, dest_x, dest_y, width, height);
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, dest_rect, context);
+  {
+    CGRect bounds;
+
     if (!(flags & MAC_DRAW_CG_IMAGE_2X))
       bounds = mac_rect_make (f, dest_x - src_x, dest_y - src_y,
 			      CGImageGetWidth (image),
@@ -255,13 +257,11 @@ mac_create_image_mask_from_bitmap_data (const char *bits, int width, int height)
 static void
 mac_fill_rectangle (struct frame *f, GC gc, int x, int y, int width, int height)
 {
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
-  CGContextSetFillColorWithColor (context, gc->cg_fore_color);
-  {
-    CGRect rect = mac_rect_make (f, x, y, width, height);
+  CGRect rect = mac_rect_make (f, x, y, width, height);
 
-    CGContextFillRects (context, &rect, 1);
-  }
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
+  CGContextSetFillColorWithColor (context, gc->cg_fore_color);
+  CGContextFillRects (context, &rect, 1);
   MAC_END_DRAW_TO_FRAME (f);
 }
 
@@ -270,14 +270,11 @@ mac_fill_rectangle (struct frame *f, GC gc, int x, int y, int width, int height)
 static void
 mac_draw_rectangle (struct frame *f, GC gc, int x, int y, int width, int height)
 {
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
-  {
-    CGRect rect;
+  CGRect rect = mac_rect_make (f, x, y, width + 1, height + 1);
 
-    CGContextSetStrokeColorWithColor (context, gc->cg_fore_color);
-    rect = mac_rect_make (f, x, y, width + 1, height + 1);
-    CGContextStrokeRect (context, CGRectInset (rect, 0.5f, 0.5f));
-  }
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
+  CGContextSetStrokeColorWithColor (context, gc->cg_fore_color);
+  CGContextStrokeRect (context, CGRectInset (rect, 0.5f, 0.5f));
   MAC_END_DRAW_TO_FRAME (f);
 }
 
@@ -285,9 +282,10 @@ static void
 mac_fill_trapezoid_for_relief (struct frame *f, GC gc, int x, int y,
 			       int width, int height, int top_p)
 {
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
+  CGRect rect = mac_rect_make (f, x, y, width, height);
+
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   {
-    CGRect rect = mac_rect_make (f, x, y, width, height);
     CGPoint points[4];
 
     points[0].x = points[1].x = CGRectGetMinX (rect);
@@ -321,9 +319,10 @@ mac_erase_corners_for_relief (struct frame *f, GC gc, int x, int y,
 			      int width, int height,
 			      CGFloat radius, CGFloat margin, int corners)
 {
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
+  CGRect rect = mac_rect_make (f, x, y, width, height);
+
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   {
-    CGRect rect = mac_rect_make (f, x, y, width, height);
     int i;
 
     for (i = 0; i < CORNER_LAST; i++)
@@ -354,13 +353,13 @@ static void
 mac_draw_horizontal_wave (struct frame *f, GC gc, int x, int y,
 			  int width, int height, int wave_length)
 {
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
+  CGRect wave_clip = mac_rect_make (f, x, y, width, height);
+
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, wave_clip, context);
   {
-    CGRect wave_clip;
     CGFloat gperiod, gx1, gxmax, gy1, gy2;
 
     gperiod = wave_length * 2;
-    wave_clip = mac_rect_make (f, x, y, width, height);
     gx1 = floor ((CGRectGetMinX (wave_clip) - 1.0f) / gperiod) * gperiod + 0.5f;
     gxmax = CGRectGetMaxX (wave_clip);
     gy1 = (CGFloat) y + 0.5f;
@@ -384,15 +383,12 @@ static void
 mac_invert_rectangle (struct frame *f, int x, int y, int width, int height)
 {
   GC gc = f->output_data.mac->normal_gc;
+  CGRect rect = mac_rect_make (f, x, y, width, height);
 
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   CGContextSetGrayFillColor (context, 1.0f, 1.0f);
   CGContextSetBlendMode (context, kCGBlendModeDifference);
-  {
-    CGRect rect = mac_rect_make (f, x, y, width, height);
-
-    CGContextFillRects (context, &rect, 1);
-  }
+  CGContextFillRects (context, &rect, 1);
   MAC_END_DRAW_TO_FRAME (f);
 }
 
