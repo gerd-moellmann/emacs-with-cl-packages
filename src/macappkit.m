@@ -6391,7 +6391,7 @@ mac_iosurface_create (size_t width, size_t height)
     }
   if (i == count || NSMaxY (rect) < NSMinY (r))
     [invalidRectValues insertObject:[NSValue valueWithRect:rect] atIndex:i];
-  else
+  else if (!NSContainsRect (r, rect))
     {
       NSUInteger j = i++;
 
