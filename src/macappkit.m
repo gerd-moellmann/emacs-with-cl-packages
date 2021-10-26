@@ -1459,8 +1459,8 @@ static bool handling_queued_nsevents_p;
        -layout method, you can call -[super layout] instead. Break on
        void _NSDetectedLayoutRecursion(void) to debug.  This will be
        logged only once.  This may break in the future.  */
-   if ((mac_operating_system_version.major > 10
-       || mac_operating_system_version.minor > 15)
+  /* NSWindowSupportsAutomaticInlineTitle has no effect on macOS 12.  */
+  if (floor (NSAppKitVersionNumber) == NSAppKitVersionNumber11_0
       && [[NSUserDefaults standardUserDefaults]
 	   objectForKey:@"NSWindowSupportsAutomaticInlineTitle"] == nil)
     {
@@ -10135,13 +10135,23 @@ update_frame_tool_bar (struct frame *f)
      || [window userSpaceScaleFactor] > 1);
 #endif
 
-  NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-  if ([userDefaults objectForKey:@"NSWindowSupportsAutomaticInlineTitle"]
-      && ![userDefaults boolForKey:@"NSWindowSupportsAutomaticInlineTitle"])
-    /* Work around bogus view bounds/frame values on some versions of
-       macOS 11.x (x >= 3?) when using system image tool bar icons in
-       the `expanded' style.  */
+  /* Work around bogus view bounds/frame values on some versions of
+     macOS 11.x (x >= 3?) when using system image tool bar icons in
+     the `expanded' style., which is default for the executable
+     compiled with macOS 10.* SDKs.  */
+  /* NSWindowSupportsAutomaticInlineTitle has no effect on macOS 12.  */
+  if (floor (NSAppKitVersionNumber) == NSAppKitVersionNumber11_0)
+    {
+      NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+
+      if ([userDefaults objectForKey:@"NSWindowSupportsAutomaticInlineTitle"]
+	  && ![userDefaults boolForKey:@"NSWindowSupportsAutomaticInlineTitle"])
+	system_symbol_inhibited_p = true;
+    }
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+  else
     system_symbol_inhibited_p = true;
+#endif
 
   toolbar = [window toolbar];
   pos = 0;
