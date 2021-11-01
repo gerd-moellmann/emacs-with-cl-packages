@@ -2029,8 +2029,22 @@ enum
 
 verify (PROCESS_OPEN_FDS == EXEC_MONITOR_OUTPUT + 1);
 
+static void create_process_vfork (Lisp_Object, char **, Lisp_Object);
+static void create_process_posix_spawn (Lisp_Object, char **, Lisp_Object);
+
 static void
 create_process (Lisp_Object process, char **new_argv, Lisp_Object current_dir)
+{
+#ifdef DARWIN_OS
+  if (darwin_try_posix_spawn)
+    return create_process_posix_spawn (process, new_argv, current_dir);
+#endif
+  return create_process_vfork (process, new_argv, current_dir);
+}
+
+static void
+create_process_vfork (Lisp_Object process, char **new_argv,
+		      Lisp_Object current_dir)
 {
   struct Lisp_Process *p = XPROCESS (process);
   int inchannel, outchannel;
@@ -2257,6 +2271,149 @@ create_process (Lisp_Object process, char **new_argv, Lisp_Object current_dir)
   /* Stop blocking in the parent.  */
   unblock_child_signal (&oldset);
   unblock_input ();
+
+  if (pid < 0)
+    report_file_errno (CHILD_SETUP_ERROR_DESC, Qnil, vfork_errno);
+  else
+    {
+      /* vfork succeeded.  */
+
+      /* Close the pipe ends that the child uses, or the child's pty.  */
+      close_process_fd (&p->open_fd[SUBPROCESS_STDIN]);
+      close_process_fd (&p->open_fd[SUBPROCESS_STDOUT]);
+
+#ifdef WINDOWSNT
+      register_child (pid, inchannel);
+#endif /* WINDOWSNT */
+
+      pset_tty_name (p, lisp_pty_name);
+
+#ifndef WINDOWSNT
+      /* Wait for child_setup to complete in case that vfork is
+	 actually defined as fork.  The descriptor
+	 XPROCESS (proc)->open_fd[EXEC_MONITOR_OUTPUT]
+	 of a pipe is closed at the child side either by close-on-exec
+	 on successful execve or the _exit call in child_setup.  */
+      {
+	char dummy;
+
+	close_process_fd (&p->open_fd[EXEC_MONITOR_OUTPUT]);
+	emacs_read (p->open_fd[READ_FROM_EXEC_MONITOR], &dummy, 1);
+	close_process_fd (&p->open_fd[READ_FROM_EXEC_MONITOR]);
+      }
+#endif
+      if (!NILP (p->stderrproc))
+	{
+	  struct Lisp_Process *pp = XPROCESS (p->stderrproc);
+	  close_process_fd (&pp->open_fd[SUBPROCESS_STDOUT]);
+	}
+    }
+}
+
+static void
+create_process_posix_spawn (Lisp_Object process, char **new_argv,
+			    Lisp_Object current_dir)
+{
+  struct Lisp_Process *p = XPROCESS (process);
+  int inchannel, outchannel;
+  pid_t pid = -1;
+  int vfork_errno;
+  int forkin, forkout, forkerr = -1;
+  bool pty_flag = 0;
+  char pty_name[PTY_NAME_SIZE];
+  Lisp_Object lisp_pty_name = Qnil;
+
+  inchannel = outchannel = -1;
+
+  if (p->pty_flag)
+    outchannel = inchannel = allocate_pty (pty_name);
+
+  if (inchannel >= 0)
+    {
+      p->open_fd[READ_FROM_SUBPROCESS] = inchannel;
+#if ! defined (USG) || defined (USG_SUBTTY_WORKS)
+      /* On most USG systems it does not work to open the pty's tty here,
+	 then close it and reopen it in the child.  */
+      /* Don't let this terminal become our controlling terminal
+	 (in case we don't have one).  */
+      forkout = forkin = emacs_open (pty_name, O_RDWR | O_NOCTTY, 0);
+      if (forkin < 0)
+	report_file_error ("Opening pty", Qnil);
+      p->open_fd[SUBPROCESS_STDIN] = forkin;
+#else
+      forkin = forkout = -1;
+#endif /* not USG, or USG_SUBTTY_WORKS */
+      pty_flag = 1;
+      lisp_pty_name = build_string (pty_name);
+    }
+  else
+    {
+      if (emacs_pipe (p->open_fd + SUBPROCESS_STDIN) != 0
+	  || emacs_pipe (p->open_fd + READ_FROM_SUBPROCESS) != 0)
+	report_file_error ("Creating pipe", Qnil);
+      forkin = p->open_fd[SUBPROCESS_STDIN];
+      outchannel = p->open_fd[WRITE_TO_SUBPROCESS];
+      inchannel = p->open_fd[READ_FROM_SUBPROCESS];
+      forkout = p->open_fd[SUBPROCESS_STDOUT];
+
+      if (!NILP (p->stderrproc))
+	{
+	  struct Lisp_Process *pp = XPROCESS (p->stderrproc);
+
+	  forkerr = pp->open_fd[SUBPROCESS_STDOUT];
+
+	  /* Close unnecessary file descriptors.  */
+	  close_process_fd (&pp->open_fd[WRITE_TO_SUBPROCESS]);
+	  close_process_fd (&pp->open_fd[SUBPROCESS_STDIN]);
+	}
+    }
+
+#ifndef WINDOWSNT
+  if (emacs_pipe (p->open_fd + READ_FROM_EXEC_MONITOR) != 0)
+    report_file_error ("Creating pipe", Qnil);
+#endif
+
+  fcntl (inchannel, F_SETFL, O_NONBLOCK);
+  fcntl (outchannel, F_SETFL, O_NONBLOCK);
+
+  /* Record this as an active process, with its channels.  */
+  chan_process[inchannel] = process;
+  p->infd = inchannel;
+  p->outfd = outchannel;
+
+  /* Previously we recorded the tty descriptor used in the subprocess.
+     It was only used for getting the foreground tty process, so now
+     we just reopen the device (see emacs_get_tty_pgrp) as this is
+     more portable (see USG_SUBTTY_WORKS above).  */
+
+  p->pty_flag = pty_flag;
+  pset_status (p, Qrun);
+
+  if (!EQ (p->command, Qt))
+    add_process_read_fd (inchannel);
+
+  ptrdiff_t count = SPECPDL_INDEX ();
+
+  /* This may signal an error.  */
+  setup_process_coding_systems (process);
+  char **env = make_environment_block (current_dir);
+
+  pty_flag = p->pty_flag;
+  eassert (pty_flag == ! NILP (lisp_pty_name));
+
+  vfork_errno
+    = emacs_spawn (&pid, forkin, forkout, forkerr, new_argv, env,
+                   SSDATA (current_dir),
+                   pty_flag ? SSDATA (lisp_pty_name) : NULL);
+
+  eassert ((vfork_errno == 0) == (0 < pid));
+
+  p->pid = pid;
+  if (pid >= 0)
+    p->alive = 1;
+
+  /* Environment block no longer needed.  */
+  unbind_to (count, Qnil);
 
   if (pid < 0)
     report_file_errno (CHILD_SETUP_ERROR_DESC, Qnil, vfork_errno);
