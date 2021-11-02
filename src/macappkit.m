@@ -1224,11 +1224,18 @@ mac_with_current_drawing_appearance (NSAppearance *appearance,
     [appearance performAsCurrentDrawingAppearance:block];
   else if (has_visual_effect_view_p ())
     {
+      /* Suppress warnings about deprecated declarations.  This #if
+	 shouldn't be necessary if the compiler can handle @available
+	 above properly.  */
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 110000
       NSAppearance *oldAppearance = [NS_APPEARANCE currentAppearance];
 
       [NS_APPEARANCE setCurrentAppearance:appearance];
       block ();
       [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+#else
+      emacs_abort ();
+#endif
     }
   else
     block ();
@@ -9309,7 +9316,16 @@ static BOOL NonmodalScrollerPagingBehavior;
 	  )
 	currentDrawingAppearance = [NS_APPEARANCE currentDrawingAppearance];
       else
-	currentDrawingAppearance = [NS_APPEARANCE currentAppearance];
+	{
+	  /* Suppress warnings about deprecated declarations.  This
+	     #if shouldn't be necessary if the compiler can handle
+	     @available above properly.  */
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 110000
+	  currentDrawingAppearance = [NS_APPEARANCE currentAppearance];
+#else
+	  emacs_abort ();
+#endif
+	}
       if (!currentDrawingAppearance.allowsVibrancy
 	  && !mac_accessibility_display_options.reduce_transparency_p)
 	{
