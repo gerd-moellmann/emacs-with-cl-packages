@@ -30,9 +30,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* In order to be able to use `posix_spawn', it needs to support some
    variant of `chdir' as well as `setsid'.  */
-/* On Darwin, availability of a variant of `chdir' is check at runtime
-   so executables compiled on older versions can use `posix_spawn'
-   when running on Darwin 19 (macOS 10.15) and later.  */
+/* On Darwin, availability of a variant of `chdir' is checked at
+   runtime so executables compiled on older versions can use
+   `posix_spawn' when running on Darwin 19 (macOS 10.15) or later.  */
 #if defined HAVE_SPAWN_H && defined HAVE_POSIX_SPAWN			\
   && defined HAVE_POSIX_SPAWNATTR_SETFLAGS				\
   && (defined DARWIN_OS							\
