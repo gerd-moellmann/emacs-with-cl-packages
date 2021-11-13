@@ -156,12 +156,29 @@ mac_foreach_window_1 (struct window *w,
 }
 
 /* Like foreach_window in window.c, but takes BLOCK rather than FN and
-   USER_DATA.  Stops when BLOCK returns 0.  */
+   USER_DATA, and processes the tool bar and tab bar windows, too.
+   Stops when BLOCK returns 0.  */
 
 void
 mac_foreach_window (struct frame *f,
 		    bool (CF_NOESCAPE ^block) (struct window *))
 {
+  AUTO_LIST2 (rest, f->tool_bar_window, f->tab_bar_window);
+
+  for (; CONSP (rest); rest = XCDR (rest))
+    {
+      Lisp_Object window = XCAR (rest);
+
+      if (WINDOWP (window))
+	{
+	  struct window *w = XWINDOW (window);
+
+	  if (WINDOW_TOTAL_LINES (w) > 0)
+	    if (!block (w))
+	      return;
+	}
+    }
+
   /* delete_frame may set FRAME_ROOT_WINDOW (f) to Qnil.  */
   if (WINDOWP (FRAME_ROOT_WINDOW (f)))
     mac_foreach_window_1 (XWINDOW (FRAME_ROOT_WINDOW (f)), block);

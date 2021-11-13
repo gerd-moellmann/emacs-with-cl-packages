@@ -68,6 +68,9 @@ static const NSAppKitVersion NSAppKitVersionNumber10_14 = 1671;
 #ifndef __MAC_11_0
 static const NSAppKitVersion NSAppKitVersionNumber10_15 = 1894;
 #endif
+#ifndef __MAC_12_0
+static const NSAppKitVersion NSAppKitVersionNumber11_0 = 2022;
+#endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500 || (WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300)
 #define USE_WK_API 1
@@ -989,6 +992,10 @@ typedef NSInteger NSGlyphProperty;
 - (void)lockFocusOnEmacsView;
 - (void)unlockFocusOnEmacsView;
 - (void)scrollEmacsViewRect:(NSRect)aRect by:(NSSize)offset;
+- (void)invalidateEmacsViewBackingRect:(CGRect)invalidRect
+			     clipRects:(const CGRect *)clipRects
+				 count:(CFIndex)count
+			  forCGContext:(CGContextRef)context;
 #if HAVE_MAC_METAL
 - (void)updateEmacsViewMTLObjects;
 #endif
@@ -1048,12 +1055,21 @@ typedef NSInteger NSGlyphProperty;
 
   CGFloat scaleFactor;
 
+  /* Array of rectangles (in the view coordinate system) covering the
+     area where backBitmap has been modified from frontBitmap, or nil
+     if frontSurface is NULL.  NSMaxY (invalidRectValues[i].rectValue)
+     should be less than NSMinY (invalidRectValues[i + 1].rectValue)
+     for any i < invalidRectValues.count - 1.  */
+  NSMutableArrayOf (NSValue *) *invalidRectValues;
+
   /* Lock count for backing bitmap.  */
   char lockCount;
 }
 - (instancetype)initWithView:(NSView *)view;
 - (char)lockCount;
 - (NSSize)size;
+- (BOOL)wantsInvalidRectForCGContext:(CGContextRef)context;
+- (void)invalidateRect:(NSRect)rect;
 #if HAVE_MAC_METAL
 - (void)updateMTLObjectsForView:(NSView *)view;
 #endif
@@ -1075,16 +1091,17 @@ typedef NSInteger NSGlyphProperty;
   /* Backing resources for applicaion-side double buffering.  */
   EmacsBacking *backing;
 
-  /* Whether backing synchronization is suspended.  */
-  BOOL synchronizeBackingSuspended;
+  /* Whether the backing size is out of sync with the view size.  */
+  BOOL backingSizeOutOfSync;
 }
 - (struct frame *)emacsFrame;
 + (void)globallyDisableUpdateLayer:(BOOL)flag;
-- (void)suspendSynchronizingBackingBitmap:(BOOL)flag;
-- (void)synchronizeBacking;
 - (void)lockFocusOnBacking;
 - (void)unlockFocusOnBacking;
 - (void)scrollBackingRect:(NSRect)rect by:(NSSize)delta;
+- (void)invalidateBackingRect:(CGRect)invalidRect
+		    clipRects:(const CGRect *)clipRects count:(CFIndex)count
+		 forCGContext:(CGContextRef)context;
 #if HAVE_MAC_METAL
 - (void)updateMTLObjects;
 #endif

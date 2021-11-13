@@ -658,9 +658,10 @@ extern void mac_create_frame_window (struct frame *);
 extern void mac_dispose_frame_window (struct frame *);
 extern void mac_change_frame_window_wm_state (struct frame *, WMState, WMState);
 #if DRAWING_USE_GCD
-extern void mac_draw_to_frame (struct frame *, GC, void (^) (CGContextRef, GC));
+extern void mac_draw_to_frame (struct frame *, GC, CGRect,
+			       void (^) (CGContextRef, GC));
 #else
-extern CGContextRef mac_begin_cg_clip (struct frame *, GC);
+extern CGContextRef mac_begin_cg_clip (struct frame *, GC, CGRect);
 extern void mac_end_cg_clip (struct frame *);
 #endif
 extern void mac_scroll_area (struct frame *, GC, int, int, int, int, int, int);
@@ -741,13 +742,13 @@ extern void mac_sound_play (CFTypeRef, Lisp_Object, Lisp_Object);
 extern void mac_within_gui (void (^ CF_NOESCAPE block) (void));
 
 #if DRAWING_USE_GCD
-#define MAC_BEGIN_DRAW_TO_FRAME(f, gc, context)			\
-  mac_draw_to_frame (f, gc, ^(CGContextRef context, GC gc) {
+#define MAC_BEGIN_DRAW_TO_FRAME(f, gc, rect, context)			\
+  mac_draw_to_frame (f, gc, rect, ^(CGContextRef context, GC gc) {
 #define MAC_END_DRAW_TO_FRAME(f)		\
   })
 #else
-#define MAC_BEGIN_DRAW_TO_FRAME(f, gc, context)		\
-  do {CGContextRef context = mac_begin_cg_clip (f, gc)
+#define MAC_BEGIN_DRAW_TO_FRAME(f, gc, rect, context)		\
+  do {CGContextRef context = mac_begin_cg_clip (f, gc, rect)
 #define MAC_END_DRAW_TO_FRAME(f)		\
   mac_end_cg_clip (f);} while (0)
 #endif

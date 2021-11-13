@@ -2930,7 +2930,7 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
      MAC_END_DRAW_TO_FRAME in a non-main thread, because the thread
      executions are synchronized at the calls to
      unset_global_focus_view_frame found in macappkit.m.  */
-  MAC_BEGIN_DRAW_TO_FRAME (f, gc, context);
+  MAC_BEGIN_DRAW_TO_FRAME (f, gc, CGRectInfinite, context);
 
   if (!CGRectIsNull (background_rect))
     CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, background_rect, gc);

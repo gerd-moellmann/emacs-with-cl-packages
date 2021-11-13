@@ -1,3 +1,31 @@
+* emacs-27.2-mac-8.3 (2021-11-13)
+
+** Fixed bugs
+
+*** Frame may become blank with rapid repetitive zoomings.
+
+*** Frame may become blank with isearch if the executable is compiled
+with SDK 10.15 or earlier and runs on some later versions of macOS 11,
+or NSWindowSupportsAutomaticInlineTitle is set to NO on macOS 11.
+Note: NSWindowSupportsAutomaticInlineTitle has no effect on macOS 12.
+
+** Improvements
+
+*** Incorporate process creation code that uses posix_spawn.
+This is a workaround for slow process creation on macOS 12, where
+vfork is declared deprecated and mostly identical to fork.  The new
+process creation code is incorporated from the posix-spawn-no-gnulib
+branch upstream, and enabled by default on macOS 10.15 and later.  If
+you have a problem with this new code, then set the variable
+darwin-try-posix-spawn to nil so as to revert to the original one.
+
+*** Avoid copying whole bitmap in application-side double buffering.
+
+*** Update emoji data to version 14.0.
+
+*** Live resize transition animation takes account of tab bar area.
+
+
 * emacs-27.2-mac-8.2 (2021-03-27)
 Based on Emacs 27.2.
 The configure option --with-mac-metal is disabled by default.
@@ -6,6 +34,7 @@ But I recently realized that it was caused by its lower frame rate.
 M1 Mac accomplishes 60fps with or without Metal even with large
 frames, and the CPU load does not get an advantage from the use of
 Metal there.
+https://lists.gnu.org/r/emacs-devel/2021-03/msg01331.html
 
 ** Fixed bugs
 
