@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2021  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2022  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 

@@ -1,6 +1,6 @@
 /* Selection processing for Emacs on macOS.
    Copyright (C) 2005-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2021  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2022  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
