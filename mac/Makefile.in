@@ -34,47 +34,10 @@ else
 bundle_pdmp :=
 endif
 
-lprojdirs = Emacs.app/Contents/Resources/English.lproj \
-  Emacs.app/Contents/Resources/Dutch.lproj \
-  Emacs.app/Contents/Resources/French.lproj \
-  Emacs.app/Contents/Resources/German.lproj \
-  Emacs.app/Contents/Resources/Italian.lproj \
-  Emacs.app/Contents/Resources/Japanese.lproj \
-  Emacs.app/Contents/Resources/Spanish.lproj \
-  Emacs.app/Contents/Resources/ar.lproj \
-  Emacs.app/Contents/Resources/ca.lproj \
-  Emacs.app/Contents/Resources/cs.lproj \
-  Emacs.app/Contents/Resources/da.lproj \
-  Emacs.app/Contents/Resources/el.lproj \
-  Emacs.app/Contents/Resources/en_AU.lproj \
-  Emacs.app/Contents/Resources/en_GB.lproj \
-  Emacs.app/Contents/Resources/es_419.lproj \
-  Emacs.app/Contents/Resources/es_MX.lproj \
-  Emacs.app/Contents/Resources/fi.lproj \
-  Emacs.app/Contents/Resources/fr_CA.lproj \
-  Emacs.app/Contents/Resources/he.lproj \
-  Emacs.app/Contents/Resources/hi.lproj \
-  Emacs.app/Contents/Resources/hr.lproj \
-  Emacs.app/Contents/Resources/hu.lproj \
-  Emacs.app/Contents/Resources/id.lproj \
-  Emacs.app/Contents/Resources/ko.lproj \
-  Emacs.app/Contents/Resources/ms.lproj \
-  Emacs.app/Contents/Resources/no.lproj \
-  Emacs.app/Contents/Resources/pl.lproj \
-  Emacs.app/Contents/Resources/pt.lproj \
-  Emacs.app/Contents/Resources/pt_BR.lproj \
-  Emacs.app/Contents/Resources/pt_PT.lproj \
-  Emacs.app/Contents/Resources/ro.lproj \
-  Emacs.app/Contents/Resources/ru.lproj \
-  Emacs.app/Contents/Resources/sk.lproj \
-  Emacs.app/Contents/Resources/sv.lproj \
-  Emacs.app/Contents/Resources/th.lproj \
-  Emacs.app/Contents/Resources/tr.lproj \
-  Emacs.app/Contents/Resources/uk.lproj \
-  Emacs.app/Contents/Resources/vi.lproj \
-  Emacs.app/Contents/Resources/zh_CN.lproj \
-  Emacs.app/Contents/Resources/zh_HK.lproj \
-  Emacs.app/Contents/Resources/zh_TW.lproj
+lprojs = English Dutch French German Italian Japanese Spanish \
+  ar ca cs da el en_AU en_GB es_419 es_MX fi fr_CA he hi hr hu id ko ms no \
+  pl pt pt_BR pt_PT ro ru sk sv th tr uk vi zh_CN zh_HK zh_TW
+lprojdirs = $(patsubst %,Emacs.app/Contents/Resources/%.lproj,${lprojs})
 
 ${lprojdirs}:
 	${MKDIR_P} $@
