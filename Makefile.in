@@ -501,8 +501,8 @@ write_subdir=if [ -f "$${subdir}/subdirs.el" ]; \
 install-arch-dep: src install-arch-indep install-etcdoc install-$(NTDIR)
 	umask 022; ${MKDIR_P} "$(DESTDIR)${bindir}"
 	$(MAKE) -C lib-src install
-	if test "${mac_appdir}" != ""; then \
-	  umask 022; mkdir -p $(DESTDIR)${mac_appdir}/Emacs.app; \
+	if test "$(realpath $(DESTDIR)${mac_appdir})" != "`cd mac && /bin/pwd`"; then \
+	  umask 022; ${MKDIR_P} $(DESTDIR)${mac_appdir}/Emacs.app; \
 	  (cd mac/Emacs.app; (tar -chf - . | \
 		(cd $(DESTDIR)${mac_appdir}/Emacs.app; umask 022; tar -xvf - \
 			&& cat > /dev/null))) || exit 1; \
