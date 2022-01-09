@@ -83,6 +83,8 @@
 (require 'menu-bar)
 (require 'fontset)
 (require 'dnd)
+(require 'tool-bar)
+(eval-when-compile (require 'mwheel))
 
 (defvar mac-service-selection)
 (defvar mac-system-script-code)
@@ -846,6 +848,7 @@ language."
 		  (string source target &optional normalization-form))
 (declare-function mac-convert-property-list "mac.c"
                   (property-list &optional format hash-bound))
+(declare-function image-metadata "image.c" (spec &optional frame))
 
 (defun mac-utxt-to-string (data &optional coding-system source-encoding)
   (or coding-system (setq coding-system mac-system-coding-system))
@@ -2894,6 +2897,7 @@ non-nil, and the input device supports it."
                   (frame prop value))
 (declare-function mac-frame-tab-group-property "macfns.c"
                   (&optional frame prop))
+(declare-function x-server-version "macfns.c" (&optional terminal))
 
 (defvar mac-text-scale-magnification 1.0
   "Magnification value for text scaling.
@@ -3176,6 +3180,10 @@ This returns an error if any Emacs frames are Mac frames."
 (declare-function x-get-resource "frame.c"
 		  (attribute class &optional component subclass))
 (declare-function x-parse-geometry "frame.c" (string))
+(declare-function set-fontset-font "fontset.c"
+                  (name target font-spec &optional frame add))
+(defvar x-resource-name)
+(defvar x-command-line-resources)
 
 (defun mac-handle-args (args)
   "Process the Mac-related command line options in ARGS.
