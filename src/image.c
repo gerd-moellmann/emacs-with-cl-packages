@@ -3695,7 +3695,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
     {
       CFStringRef real_type;
       CFDictionaryRef src_props = NULL, props = NULL;
-      size_t count;
+      size_t count = 0;
       int loop_count = -1;
       double delay_time = -1.0;
 
