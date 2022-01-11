@@ -3672,9 +3672,24 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       num_values = 1;
       if (specified_type)
 	{
-	  keys[num_values] = kCGImageSourceTypeIdentifierHint;
-	  values[num_values] = (CFTypeRef) specified_type;
-	  num_values++;
+	  bool supported_by_image_io_p = true;
+	  if (type == NULL)
+	    {
+	      CFArrayRef utis = CGImageSourceCopyTypeIdentifiers ();
+	      if (utis)
+		{
+		  CFRange range = CFRangeMake (0, CFArrayGetCount (utis));
+		  supported_by_image_io_p =
+		    CFArrayContainsValue (utis, range, specified_type);
+		  CFRelease (utis);
+		}
+	    }
+	  if (supported_by_image_io_p)
+	    {
+	      keys[num_values] = kCGImageSourceTypeIdentifierHint;
+	      values[num_values] = (CFTypeRef) specified_type;
+	      num_values++;
+	    }
 	}
       options = CFDictionaryCreate (NULL, (const void **) keys,
 				    (const void **) values, num_values,
