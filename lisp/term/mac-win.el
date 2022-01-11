@@ -2444,16 +2444,17 @@ A hook function can determine the current appearance by checking the
 (defvar mac-ignore-momentum-wheel-events)
 (defvar mac-redisplay-dont-reset-vscroll)
 
-(defun mac-forward-wheel-event (horizontal function event &rest arguments)
-  (let ((delta-key (if horizontal :delta-x :delta-y)))
-    (if (or horizontal
+(defun mac-forward-wheel-event (force function event &rest arguments)
+  (let* ((horizontal (memq (event-basic-type event) '(wheel-left wheel-right)))
+         (delta-key (if horizontal :delta-x :delta-y)))
+    (if (or force
             (null (nth 3 event))
             (/= (plist-get (nth 3 event) delta-key) 0.0))
         (if (null (plist-get (nth 3 event) delta-key))
             (apply function event arguments)
           (setf (nth 3 event)
                 (round (abs (plist-get (nth 3 event) delta-key))))
-          (when (> (nth 3 event) 0)
+          (when (or force (> (nth 3 event) 0))
             (let ((mouse-wheel-progressive-speed nil))
               (apply function event arguments)))))))
 
