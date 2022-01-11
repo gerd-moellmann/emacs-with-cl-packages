@@ -2444,6 +2444,19 @@ A hook function can determine the current appearance by checking the
 (defvar mac-ignore-momentum-wheel-events)
 (defvar mac-redisplay-dont-reset-vscroll)
 
+(defun mac-forward-wheel-event (horizontal function event &rest arguments)
+  (let ((delta-key (if horizontal :delta-x :delta-y)))
+    (if (or horizontal
+            (null (nth 3 event))
+            (/= (plist-get (nth 3 event) delta-key) 0.0))
+        (if (null (plist-get (nth 3 event) delta-key))
+            (apply function event arguments)
+          (setf (nth 3 event)
+                (round (abs (plist-get (nth 3 event) delta-key))))
+          (when (> (nth 3 event) 0)
+            (let ((mouse-wheel-progressive-speed nil))
+              (apply function event arguments)))))))
+
 (defun mac-mwheel-scroll (event)
   "Scroll up or down according to the EVENT.
 Mostly like `mwheel-scroll', but try scrolling by pixel unit if
@@ -2462,15 +2475,7 @@ non-nil, and the input device supports it."
   (if (not (memq (event-basic-type event) '(wheel-up wheel-down)))
       (when (memq (event-basic-type event) '(wheel-left wheel-right))
         (if mouse-wheel-tilt-scroll
-            (if (null (plist-get (nth 3 event) :delta-x))
-                (mwheel-scroll event)
-              (setf (nth 3 event)
-                    (round (abs (plist-get (nth 3 event) :delta-x))))
-              (when (> (nth 3 event) 0)
-                (let ((mouse-wheel-scroll-amount
-                       '(1 ((shift) . 5) ((control))))
-                      (mouse-wheel-progressive-speed nil))
-                  (mwheel-scroll event))))
+            (mac-forward-wheel-event t 'mwheel-scroll event)
           (cond ((and
                   ;; "Swipe between pages" enabled.
                   (plist-get (nth 3 event)
@@ -2492,16 +2497,7 @@ non-nil, and the input device supports it."
     (if (or (not mac-mouse-wheel-smooth-scroll)
 	    (delq 'click (delq 'double (delq 'triple (event-modifiers event))))
 	    (null (plist-get (nth 3 event) :scrolling-delta-y)))
-	(if (or (null (nth 3 event))
-                (/= (plist-get (nth 3 event) :delta-y) 0.0))
-            (if (null (plist-get (nth 3 event) :delta-y))
-                (mwheel-scroll event)
-              (setf (nth 3 event)
-                    (round (abs (plist-get (nth 3 event) :delta-y))))
-              (when (> (nth 3 event) 0)
-                (let ((mouse-wheel-scroll-amount '(1 ((shift) . 5) ((control))))
-                      (mouse-wheel-progressive-speed nil))
-                  (mwheel-scroll event)))))
+        (mac-forward-wheel-event nil 'mwheel-scroll event)
       ;; TODO: ignore momentum scroll events after buffer switch.
       (let* ((window-to-scroll (if mouse-wheel-follow-mouse
 				   (posn-window (event-start event))))
@@ -2847,7 +2843,23 @@ non-nil, and the input device supports it."
 		(deactivate-mark)
 		(goto-char newpoint)))))))))
 
+(defun mac-mouse-wheel-text-scale (event)
+  "Increase or decrease the height of the default face according to the EVENT."
+  (interactive (list last-input-event))
+  (mac-forward-wheel-event nil 'mouse-wheel-text-scale event))
+
+(defun mac-image-mouse-increase-size (&optional event)
+  "Increase the image size using the mouse."
+  (interactive "e")
+  (mac-forward-wheel-event nil 'image-mouse-increase-size event))
+
+(defun mac-image-mouse-decrease-size (&optional event)
+  "Decrease the image size using the mouse."
+  (interactive "e")
+  (mac-forward-wheel-event nil 'image-mouse-decrease-size event))
+
 (defvar mac-mwheel-installed-bindings nil)
+(defvar mac-mwheel-installed-text-scale-bindings nil)
 
 (define-minor-mode mac-mouse-wheel-mode
   "Toggle mouse wheel support with smooth scroll (Mac Mouse Wheel mode)."
@@ -2855,17 +2867,34 @@ non-nil, and the input device supports it."
   :global t
   :group 'mac
   ;; Remove previous bindings, if any.
-  (while mac-mwheel-installed-bindings
-    (let ((key (pop mac-mwheel-installed-bindings)))
-      (when (eq (lookup-key (current-global-map) key) 'mac-mwheel-scroll)
-        (global-unset-key key))))
+  (mouse-wheel--remove-bindings mac-mwheel-installed-bindings
+                                '(mac-mwheel-scroll))
+  (mouse-wheel--remove-bindings mac-mwheel-installed-text-scale-bindings
+                                '(mac-mouse-wheel-text-scale))
+  (setq mac-mwheel-installed-bindings nil)
+  (setq mac-mwheel-installed-text-scale-bindings nil)
+  (define-key image-map [remap image-mouse-increase-size] nil)
+  (define-key image-map [remap image-mouse-decrease-size] nil)
   ;; Setup bindings as needed.
   (when mac-mouse-wheel-mode
-    (dolist (event '(wheel-down wheel-up wheel-left wheel-right))
-      (dolist (key (mapcar (lambda (amt) `[(,@(if (consp amt) (car amt)) ,event)])
-                           mouse-wheel-scroll-amount))
-        (global-set-key key 'mac-mwheel-scroll)
-	(push key mac-mwheel-installed-bindings)))))
+    (dolist (binding mouse-wheel-scroll-amount)
+      (cond
+       ;; Bindings for changing font size.
+       ((and (consp binding) (eq (cdr binding) 'text-scale))
+        (dolist (event '(wheel-down wheel-up))
+          (let ((key `[,(list (caar binding) event)]))
+            (global-set-key key 'mac-mouse-wheel-text-scale)
+            (push key mac-mwheel-installed-text-scale-bindings))))
+       ;; Bindings for scrolling.
+       (t
+        (dolist (event '(wheel-down wheel-up wheel-left wheel-right))
+          (let ((key `[(,@(if (consp binding) (car binding)) ,event)]))
+            (global-set-key key 'mac-mwheel-scroll)
+            (push key mac-mwheel-installed-bindings))))))
+    (define-key image-map [remap image-mouse-increase-size]
+      'mac-image-mouse-increase-size)
+    (define-key image-map [remap image-mouse-decrease-size]
+      'mac-image-mouse-decrease-size)))
 
 
 ;;; Swipe events
