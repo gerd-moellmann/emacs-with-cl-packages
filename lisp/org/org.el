@@ -1,7 +1,7 @@
 ;;; org.el --- Outline-based notes management and organizer -*- lexical-binding: t; -*-
 
 ;; Carstens outline-mode for keeping track of everything.
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Maintainer: Bastien Guerry <bzg@gnu.org>
@@ -9,7 +9,7 @@
 ;; Homepage: https://orgmode.org
 ;; Package-Requires: ((emacs "25.1"))
 
-;; Version: 9.5.1
+;; Version: 9.5.2
 
 ;; This file is part of GNU Emacs.
 ;;
@@ -693,7 +693,7 @@ defined in org-duration.el.")
 If a description starts with <C>, the file is not part of Emacs and Org mode,
 so loading it will require that you have properly installed org-contrib
 package from NonGNU Emacs Lisp Package Archive
-http://elpa.nongnu.org/nongnu/org-contrib.html
+https://elpa.nongnu.org/nongnu/org-contrib.html
 
 You can also use this system to load external packages (i.e. neither Org
 core modules, nor org-contrib modules).  Just add symbols
@@ -773,7 +773,7 @@ For export specific modules, see also `org-export-backends'."
 If a description starts with <C>, the file is not part of Emacs and Org mode,
 so loading it will require that you have properly installed org-contrib
 package from NonGNU Emacs Lisp Package Archive
-http://elpa.nongnu.org/nongnu/org-contrib.html
+https://elpa.nongnu.org/nongnu/org-contrib.html
 
 Unlike to `org-modules', libraries in this list will not be
 loaded along with Org, but only once the export framework is
@@ -5114,7 +5114,6 @@ stacked delimiters is N.  Escaping delimiters is not possible."
 				     '(invisible t))
 		(add-text-properties (match-beginning 3) (match-end 3)
 				     '(invisible t)))
-              (goto-char (match-end 0))
 	      (throw :exit t))))))))
 
 (defun org-emphasize (&optional char)
@@ -6905,7 +6904,7 @@ frame is not changed."
       (setq beg (point)
 	    heading (org-get-heading 'no-tags))
       (org-end-of-subtree t t)
-      (when (org-at-heading-p) (backward-char 1))
+      (when (and (not (eobp)) (org-at-heading-p)) (backward-char 1))
       (setq end (point)))
     (when (and (buffer-live-p org-last-indirect-buffer)
 	       (not (eq org-indirect-buffer-display 'new-frame))
@@ -11323,13 +11322,14 @@ or a character."
 	    (setq
 	     new
 	     (if nump
-                 (let ((msg (format "Priority %s-%s, SPC to remove: "
-				    (number-to-string org-priority-highest)
-				    (number-to-string org-priority-lowest))))
-                   (if (< 9 org-priority-lowest)
-		       (string-to-number (read-string msg))
-                     (message msg)
-                     (string-to-number (char-to-string (read-char-exclusive)))))
+                 (let* ((msg (format "Priority %s-%s, SPC to remove: "
+                                     (number-to-string org-priority-highest)
+                                     (number-to-string org-priority-lowest)))
+                        (s (if (< 9 org-priority-lowest)
+                               (read-string msg)
+                             (message msg)
+                             (char-to-string (read-char-exclusive)))))
+                   (if (equal s " ") ?\s (string-to-number s)))
 	       (progn (message "Priority %c-%c, SPC to remove: "
 			       org-priority-highest org-priority-lowest)
 		      (save-match-data

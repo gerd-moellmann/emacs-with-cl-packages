@@ -1,6 +1,6 @@
 ;;; ox-icalendar.el --- iCalendar Back-End for Org Export Engine -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2022 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;;      Nicolas Goaziou <n dot goaziou at gmail dot com>
@@ -888,8 +888,8 @@ Return ICS file name."
     (org-export-to-file 'icalendar outfile
       async subtreep visible-only body-only
       '(:ascii-charset utf-8 :ascii-links-to-notes nil)
-      (lambda (file)
-	(run-hook-with-args 'org-icalendar-after-save-hook file) nil))))
+      '(lambda (file)
+	 (run-hook-with-args 'org-icalendar-after-save-hook file) nil))))
 
 ;;;###autoload
 (defun org-icalendar-export-agenda-files (&optional async)

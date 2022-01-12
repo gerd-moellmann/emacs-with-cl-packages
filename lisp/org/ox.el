@@ -1,6 +1,6 @@
 ;;; ox.el --- Export Framework for Org Mode          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Maintainer: Nicolas Goaziou <n.goaziou at gmail dot com>
@@ -6373,7 +6373,11 @@ use it to set a major mode there, e.g,
     (&optional async subtreep visible-only body-only ext-plist)
     (interactive)
     (org-export-to-buffer \\='latex \"*Org LATEX Export*\"
-      async subtreep visible-only body-only ext-plist (lambda () (LaTeX-mode))))
+      async subtreep visible-only body-only ext-plist
+      #'LaTeX-mode))
+
+When expressed as an anonymous function, using `lambda',
+POST-PROCESS needs to be quoted.
 
 This function returns BUFFER."
   (declare (indent 2))
@@ -6436,7 +6440,10 @@ to send the output file through additional processing, e.g,
     (let ((outfile (org-export-output-file-name \".tex\" subtreep)))
       (org-export-to-file \\='latex outfile
         async subtreep visible-only body-only ext-plist
-        (lambda (file) (org-latex-compile file)))
+        #'org-latex-compile)))
+
+When expressed as an anonymous function, using `lambda',
+POST-PROCESS needs to be quoted.
 
 The function returns either a file name returned by POST-PROCESS,
 or FILE."

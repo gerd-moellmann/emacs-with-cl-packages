@@ -1,6 +1,6 @@
 ;;; shr.el --- Simple HTML Renderer -*- lexical-binding: t -*-
 
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: html
@@ -605,7 +605,7 @@ size, and full-buffer size."
               (insert ? )
               (shr-mark-fill start))
             (put-text-property (1- (point)) (point) 'display ""))
-          (put-text-property start (1+ start) 'shr-target-id id))
+          (put-text-property (1- (point)) (point) 'shr-target-id id))
 	;; If style is set, then this node has set the color.
 	(when style
 	  (shr-colorize-region
@@ -941,9 +941,11 @@ size, and full-buffer size."
 	  shr-base))
   (when (zerop (length url))
     (setq url nil))
-  ;; Strip leading whitespace
+  ;; Strip leading/trailing whitespace
   (and url (string-match "\\`\\s-+" url)
        (setq url (substring url (match-end 0))))
+  (and url (string-match "\\s-+\\'" url)
+       (setq url (substring url 0 (match-beginning 0))))
   (cond ((zerop (length url))
          (nth 3 base))
         ((or (not base)

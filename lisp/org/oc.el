@@ -1,6 +1,6 @@
 ;;; oc.el --- Org Cite library                  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2022 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <mail@nicolasgoaziou.fr>
 
@@ -1540,7 +1540,7 @@ The generated function inserts or edit a citation at point.  More specifically,
 
   On a citation reference:
 
-    - on the prefix or right before th \"@\" character, insert a new reference
+    - on the prefix or right before the \"@\" character, insert a new reference
       before the current one,
     - on the suffix, insert it after the reference,
     - otherwise, update the cite key, preserving both affixes.

@@ -1,6 +1,6 @@
 ;;; esh-cmd.el --- command invocation  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -945,12 +945,12 @@ at the moment are:
       ;; In that case, unwrap the value before checking the delimiter
       ;; value.
       (if (and val
-               (not (processp val))
+               (not (eshell-processp val))
                (not (eq val t)))
           (error "Unmatched delimiter: %S" val)
         ;; Eshell-command expect a list like (<process>) to know if the
         ;; command should be async or not.
-        (or (and (processp val) delim) val)))))
+        (or (and (eshell-processp val) delim) val)))))
 
 (defun eshell-resume-command (proc status)
   "Resume the current command when a process ends."

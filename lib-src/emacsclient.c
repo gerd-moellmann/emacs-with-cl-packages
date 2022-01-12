@@ -1,6 +1,6 @@
 /* Client process that communicates with GNU Emacs acting as server.
 
-Copyright (C) 1986-1987, 1994, 1999-2021 Free Software Foundation, Inc.
+Copyright (C) 1986-1987, 1994, 1999-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1458,7 +1458,6 @@ set_local_socket (char const *server_name)
   else
     {
       /* socket_name is a file name component.  */
-      sock_status = ENOENT;
       char const *xdg_runtime_dir = egetenv ("XDG_RUNTIME_DIR");
       if (xdg_runtime_dir)
 	{
@@ -1468,7 +1467,7 @@ set_local_socket (char const *server_name)
 			 ? connect_socket (AT_FDCWD, sockname, s, 0)
 			 : ENAMETOOLONG);
 	}
-      if (sock_status == ENOENT)
+      else
 	{
 	  char const *tmpdir = egetenv ("TMPDIR");
 	  if (tmpdir)

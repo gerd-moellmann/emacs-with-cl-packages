@@ -1,6 +1,6 @@
 /* Display generation from window structure and buffer text.
 
-Copyright (C) 1985-1988, 1993-1995, 1997-2021 Free Software Foundation,
+Copyright (C) 1985-1988, 1993-1995, 1997-2022 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -10239,11 +10239,12 @@ move_it_to (struct it *it, ptrdiff_t to_charpos, int to_x, int to_y, int to_vpos
 
 /* Move iterator IT backward by a specified y-distance DY, DY >= 0.
 
-   If DY > 0, move IT backward at least that many pixels.  DY = 0
-   means move IT backward to the preceding line start or BEGV.  This
-   function may move over more than DY pixels if IT->current_y - DY
-   ends up in the middle of a line; in this case IT->current_y will be
-   set to the top of the line moved to.  */
+   If DY > 0, move IT backward that many pixels.
+   DY = 0 means move IT backward to the preceding line start or to BEGV.
+   This function may move over less or more than DY pixels if
+   IT->current_y - DY ends up in the middle of a line; in this case
+   IT->current_y will be set to the top of the line either before or
+   after the exact pixel coordinate.  */
 
 void
 move_it_vertically_backward (struct it *it, int dy)
@@ -13527,11 +13528,15 @@ tab_bar_height (struct frame *f, int *n_rows, bool pixelwise)
                     0, 0, 0, STRING_MULTIBYTE (f->desired_tab_bar_string));
   it.paragraph_embedding = L2R;
 
+  clear_glyph_row (temp_row);
   while (!ITERATOR_AT_END_P (&it))
     {
-      clear_glyph_row (temp_row);
       it.glyph_row = temp_row;
       display_tab_bar_line (&it, -1);
+      /* If the tab-bar string includes newlines, get past it, because
+	 display_tab_bar_line doesn't.  */
+      if (ITERATOR_AT_END_OF_LINE_P (&it))
+	set_iterator_to_next (&it, true);
     }
   clear_glyph_row (temp_row);
 
@@ -13657,6 +13662,10 @@ redisplay_tab_bar (struct frame *f)
 	      extra -= h;
 	    }
 	  display_tab_bar_line (&it, height + h);
+	  /* If the tab-bar string includes newlines, get past it,
+	     because display_tab_bar_line doesn't.  */
+	  if (ITERATOR_AT_END_OF_LINE_P (&it))
+	    set_iterator_to_next (&it, true);
 	}
     }
   else
@@ -17452,9 +17461,9 @@ cursor_row_fully_visible_p (struct window *w, bool force_p,
 
 enum
 {
-  SCROLLING_SUCCESS,
-  SCROLLING_FAILED,
-  SCROLLING_NEED_LARGER_MATRICES
+  SCROLLING_SUCCESS = 1,
+  SCROLLING_FAILED = 0,
+  SCROLLING_NEED_LARGER_MATRICES = -1
 };
 
 /* If scroll-conservatively is more than this, never recenter.
@@ -17828,10 +17837,11 @@ compute_window_start_on_continuation_line (struct window *w)
 		     row, DEFAULT_FACE_ID);
       reseat_at_previous_visible_line_start (&it);
 
-      /* If the line start is "too far" away from the window start,
-         say it takes too much time to compute a new window start.
-         Also, give up if the line start is after point, as in that
-         case point will not be visible with any window start we
+      /* Give up (by not using the code in the block below) and say it
+         takes too much time to compute a new window start, if the
+         line start is "too far" away from the window start.  Also,
+         give up if the line start is after point, as in that case
+         point will not be visible with any window start we
          compute.  */
       if (IT_CHARPOS (it) <= PT
 	  || (CHARPOS (start_pos) - IT_CHARPOS (it)

@@ -1,6 +1,6 @@
 ;;; minibuffer.el --- Minibuffer completion functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Package: emacs
@@ -283,8 +283,9 @@ the form (concat S2 S)."
          ((eq (car-safe action) 'boundaries)
           (let ((beg (or (and (eq (car-safe res) 'boundaries) (cadr res)) 0)))
             `(boundaries
-              ,(max (length s1)
-                    (+ beg (- (length s1) (length s2))))
+              ,(min (length string)
+                    (max (length s1)
+                         (+ beg (- (length s1) (length s2)))))
               . ,(and (eq (car-safe res) 'boundaries) (cddr res)))))
          ((stringp res)
           (if (string-prefix-p s2 res completion-ignore-case)

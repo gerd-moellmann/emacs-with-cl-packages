@@ -1,6 +1,6 @@
 ;;; loadup.el --- load up standardly loaded Lisp files for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994, 2001-2021 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -553,7 +553,9 @@ lost after dumping")))
                    (lexical-binding nil))
                (if (member tmp-dump-mode '("pdump" "pbootstrap"))
                    (dump-emacs-portable (expand-file-name output invocation-directory))
-                 (dump-emacs output "temacs")
+                 (dump-emacs output (if (eq system-type 'ms-dos)
+                                        "temacs.exe"
+                                      "temacs"))
                  (message "%d pure bytes used" pure-bytes-used))
                (setq success t))
           (unless success
