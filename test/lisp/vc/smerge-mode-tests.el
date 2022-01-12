@@ -1,3 +1,5 @@
+;;; smerge-mode-tests.el --- Tests for smerge-mode.el  -*- lexical-binding:t -*-
+
 ;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -32,3 +34,5 @@
     (should (equal (buffer-substring (point-min) (point-max)) ""))))
 
 (provide 'smerge-mode-tests)
+
+;;; smerge-mode-tests.el ends here

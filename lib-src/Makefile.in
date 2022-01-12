@@ -44,40 +44,15 @@ WERROR_CFLAGS = @WERROR_CFLAGS@
 # Program name transformation.
 TRANSFORM = @program_transform_name@
 
-# 'make' verbosity.
-AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-
-AM_V_CC = $(am__v_CC_@AM_V@)
-am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
-am__v_CC_0 = @echo "  CC      " $@;
-am__v_CC_1 =
-
-AM_V_CCLD = $(am__v_CCLD_@AM_V@)
-am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
-am__v_CCLD_0 = @echo "  CCLD    " $@;
-am__v_CCLD_1 =
-
-AM_V_GEN = $(am__v_GEN_@AM_V@)
-am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
-am__v_GEN_0 = @echo "  GEN     " $@;
-am__v_GEN_1 =
-
-AM_V_RC = $(am__v_RC_@AM_V@)
-am__v_RC_ = $(am__v_RC_@AM_DEFAULT_V@)
-am__v_RC_0 = @echo "  RC      " $@;
-am__v_RC_1 =
-
-AM_V_at = $(am__v_at_@AM_V@)
-am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
-am__v_at_0 = @
-am__v_at_1 =
+top_builddir = @top_builddir@
+-include ${top_builddir}/src/verbose.mk
 
 # ==================== Where To Install Things ====================
 
 # Location to install Emacs.app under GNUstep / macOS.
 # Later values may use this.
 ns_appbindir=@ns_appbindir@
-mac_appbindir=@mac_appbindir@
+ns_applibexecdir=@ns_applibexecdir@
 
 # The default location for installation.  Everything is placed in
 # subdirectories of this directory.  The default values for many of
@@ -205,14 +180,43 @@ LIBRESOLV=@LIBRESOLV@
 LIBS_MAIL=@LIBS_MAIL@
 ## empty or -lrt or -lposix4 if HAVE_CLOCK_GETTIME
 LIB_CLOCK_GETTIME = @LIB_CLOCK_GETTIME@
+## empty or -lbcrypt or -ladvapi32
+LIB_GETRANDOM = @LIB_GETRANDOM@
 ## Whatever libraries are needed for euidaccess
 LIB_EACCESS=@LIB_EACCESS@
 ## empty or -lwsock2 for MinGW
 LIB_WSOCK32=@LIB_WSOCK32@
 
+## Extra libraries for etags
+LIBS_ETAGS = $(LIB_CLOCK_GETTIME) $(LIB_GETRANDOM)
+
+HAVE_SECCOMP=@HAVE_SECCOMP@
+HAVE_LIBSECCOMP=@HAVE_LIBSECCOMP@
+LIBSECCOMP_LIBS=@LIBSECCOMP_LIBS@
+LIBSECCOMP_CFLAGS=@LIBSECCOMP_CFLAGS@
+
+# Currently, we can only generate seccomp filter files for x86-64.
+ifeq ($(HAVE_SECCOMP),yes)
+ifeq ($(HAVE_LIBSECCOMP),yes)
+ifeq ($(shell uname -m),x86_64)
+# We require SECCOMP_RET_KILL_PROCESS, which is only available in
+# Linux 4.14 and later.
+ifeq ($(shell { echo 4.14; uname -r | cut -d . -f 1-2; } | \
+              sort -C -t . -n -k 1,1 -k 2,2 && \
+              echo 1),1)
+SECCOMP_FILTER=1
+endif
+endif
+endif
+endif
+
+ifeq ($(SECCOMP_FILTER),1)
+DONT_INSTALL += seccomp-filter$(EXEEXT)
+endif
+
 ## Extra libraries to use when linking movemail.
 LIBS_MOVE = $(LIBS_MAIL) $(KRB4LIB) $(DESLIB) $(KRB5LIB) $(CRYPTOLIB) \
-            $(COM_ERRLIB) $(LIBHESIOD) $(LIBRESOLV) $(LIB_WSOCK32)
+  $(COM_ERRLIB) $(LIBHESIOD) $(LIBRESOLV) $(LIB_WSOCK32) $(LIBS_ETAGS)
 
 ## Extra libraries when linking emacsclient
 ## (empty or -lcomctl32 for MinGW)
@@ -232,14 +236,16 @@ BASE_CFLAGS = $(C_SWITCH_SYSTEM) $(C_SWITCH_MACHINE) \
 	      -I${srcdir} -I${srcdir}/../src -I${srcdir}/../lib
 
 ALL_CFLAGS = ${BASE_CFLAGS} ${PROFILING_CFLAGS} ${LDFLAGS} ${CPPFLAGS} ${CFLAGS}
-## Unused.
-LINK_CFLAGS = ${BASE_CFLAGS} ${LDFLAGS} ${CFLAGS}
 CPP_CFLAGS = ${BASE_CFLAGS} ${PROFILING_CFLAGS} ${CPPFLAGS} ${CFLAGS}
 
 # Configuration files for .o files to depend on.
 config_h = ../src/config.h $(srcdir)/../src/conf_post.h
 
 all: ${EXE_FILES} ${SCRIPTS}
+
+ifeq ($(SECCOMP_FILTER),1)
+all: seccomp-filter.bpf seccomp-filter-exec.bpf
+endif
 
 .PHONY: all need-blessmail maybe-blessmail
 
@@ -310,7 +316,7 @@ $(DESTDIR)${archlibdir}: all
 	fi
 
 .PHONY: install uninstall mostlyclean clean distclean maintainer-clean
-.PHONY: bootstrap-clean extraclean check tags
+.PHONY: bootstrap-clean check tags
 
 install: $(DESTDIR)${archlibdir}
 	@echo
@@ -338,6 +344,7 @@ mostlyclean:
 	rm -f core ./*.o ./*.res
 
 clean: mostlyclean
+	-rm -f seccomp-filter.bpf seccomp-filter.pfc seccomp-filter-exec.bpf seccomp-filter-exec.pfc
 	rm -f ${EXE_FILES}
 
 distclean: clean
@@ -345,8 +352,6 @@ distclean: clean
 
 bootstrap-clean maintainer-clean: distclean
 
-extraclean: maintainer-clean
-	rm -f ./*~ \#*
 
 ## Test the contents of the directory.
 check:
@@ -363,7 +368,7 @@ TAGS: etags${EXEEXT} ${tagsfiles}
 	$(MAKE) -C ../lib all
 
 etags_deps = ${srcdir}/etags.c $(NTLIB) $(config_h)
-etags_libs = $(NTLIB) $(LOADLIBES)
+etags_libs = $(NTLIB) $(LOADLIBES) $(LIBS_ETAGS)
 
 etags${EXEEXT}: ${etags_deps}
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} -o $@ $< $(etags_libs)
@@ -422,5 +427,16 @@ update-game-score${EXEEXT}: ${srcdir}/update-game-score.c $(NTLIB) $(config_h)
 
 emacsclient.res: ../nt/emacsclient.rc $(NTINC)/../icons/emacs.ico
 	$(AM_V_RC)$(WINDRES) -O coff --include-dir=$(NTINC)/.. -o $@ $<
+
+ifeq ($(SECCOMP_FILTER),1)
+seccomp-filter$(EXEEXT): $(srcdir)/seccomp-filter.c $(config_h)
+	$(AM_V_CCLD)$(CC) $(ALL_CFLAGS) $(LIBSECCOMP_CFLAGS) $< \
+	  $(LIBSECCOMP_LIBS) -o $@
+
+seccomp-filter.bpf seccomp-filter.pfc seccomp-filter-exec.bpf seccomp-filter-exec.pfc: seccomp-filter$(EXEEXT)
+	$(AM_V_GEN)./seccomp-filter$(EXEEXT) \
+	  seccomp-filter.bpf seccomp-filter.pfc \
+	  seccomp-filter-exec.bpf seccomp-filter-exec.pfc
+endif
 
 ## Makefile ends here.

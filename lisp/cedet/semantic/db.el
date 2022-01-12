@@ -50,27 +50,23 @@
 (defvar semanticdb-database-list nil
   "List of all active databases.")
 
-(defvar semanticdb-new-database-class 'semanticdb-project-database-file
+(defvar-local semanticdb-new-database-class 'semanticdb-project-database-file
   "The default type of database created for new files.
 This can be changed on a per file basis, so that some directories
 are saved using one mechanism, and some directories via a different
 mechanism.")
-(make-variable-buffer-local 'semanticdb-new-database-class)
 
-(defvar semanticdb-default-find-index-class 'semanticdb-find-search-index
+(defvar-local semanticdb-default-find-index-class 'semanticdb-find-search-index
   "The default type of search index to use for a `semanticdb-table's.
 This can be changed to try out new types of search indices.")
-(make-variable-buffer-local 'semanticdb-default-find=index-class)
 
 ;;;###autoload
-(defvar semanticdb-current-database nil
+(defvar-local semanticdb-current-database nil
   "For a given buffer, this is the currently active database.")
-(make-variable-buffer-local 'semanticdb-current-database)
 
 ;;;###autoload
-(defvar semanticdb-current-table nil
+(defvar-local semanticdb-current-table nil
   "For a given buffer, this is the currently active database table.")
-(make-variable-buffer-local 'semanticdb-current-table)
 
 ;;; ABSTRACT CLASSES
 ;;
@@ -89,7 +85,7 @@ same major mode as the current buffer.")
 	 :documentation "The tags belonging to this table.")
    (db-refs :initform nil
 	    :documentation
-	    "List of `semanticdb-table' objects refering to this one.
+	    "List of `semanticdb-table' objects referring to this one.
 These aren't saved, but are instead recalculated after load.
 See the file semanticdb-ref.el for how this slot is used.")
    (index :type semanticdb-abstract-search-index
@@ -325,12 +321,12 @@ Adds the number of tags in this file to the object print name."
   '(list-of semanticdb-abstract-table))
 
 (defclass semanticdb-project-database (eieio-instance-tracker)
-  ((tracking-symbol :initform semanticdb-database-list)
+  ((tracking-symbol :initform 'semanticdb-database-list)
    (reference-directory :type string
 			:documentation "Directory this database refers to.
 When a cache directory is specified, then this refers to the directory
 this database contains symbols for.")
-   (new-table-class :initform semanticdb-table
+   (new-table-class :initform 'semanticdb-table
 		    :type class
 		    :documentation
 		    "New tables created for this database are of this class.")
@@ -764,7 +760,7 @@ If a particular major mode wants to search any mode, put the
 Do not set the value of this variable permanently.")
 
 (defmacro semanticdb-with-match-any-mode (&rest body)
-  "A Semanticdb search occurring withing BODY will search tags in all modes.
+  "A Semanticdb search occurring within BODY will search tags in all modes.
 This temporarily sets `semanticdb-match-any-mode' while executing BODY."
   (declare (indent 0) (debug t))
   `(let ((semanticdb-match-any-mode t))
@@ -825,13 +821,12 @@ must return a string, (the root directory) or a list of strings (multiple
 root directories in a more complex system).  This variable should be used
 by project management programs like EDE or JDE.")
 
-(defvar semanticdb-project-system-databases nil
+(defvar-local semanticdb-project-system-databases nil
   "List of databases containing system library information.
 Mode authors can create their own system databases which know
 detailed information about the system libraries for querying purposes.
 Put those into this variable as a buffer-local, or mode-local
 value.")
-(make-variable-buffer-local 'semanticdb-project-system-databases)
 
 (defvar semanticdb-search-system-databases t
   "Non-nil if search routines are to include a system database.")
@@ -1016,10 +1011,9 @@ DONTLOAD does not affect the creation of new database objects."
        )
       )))
 
-(defvar semanticdb-out-of-buffer-create-table-fcn nil
+(defvar-local semanticdb-out-of-buffer-create-table-fcn nil
   "When non-nil, a function for creating a semanticdb table.
 This should take a filename to be parsed.")
-(make-variable-buffer-local 'semanticdb-out-of-buffer-create-table-fcn)
 
 (defun semanticdb-create-table-for-file-not-in-buffer (filename)
   "Create a table for the file FILENAME.

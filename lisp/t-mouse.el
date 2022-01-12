@@ -1,4 +1,4 @@
-;;; t-mouse.el --- mouse support within the text terminal
+;;; t-mouse.el --- mouse support within the text terminal  -*- lexical-binding:t -*-
 
 ;; Author: Nick Roberts <nickrob@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -25,7 +25,7 @@
 ;;; Commentary:
 
 ;; This package provides access to mouse event as reported by the gpm-Linux
-;; package. It tries to reproduce the functionality offered by Emacs under X.
+;; package.  It tries to reproduce the functionality offered by Emacs under X.
 ;; The "gpm" server runs under Linux, so this package is rather
 ;; Linux-dependent.
 
@@ -62,8 +62,6 @@
     (gpm-mouse-stop))
   (set-terminal-parameter nil 'gpm-mouse-active nil))
 
-;;;###autoload
-(define-obsolete-function-alias 't-mouse-mode 'gpm-mouse-mode "23.1")
 ;;;###autoload
 (define-minor-mode gpm-mouse-mode
   "Toggle mouse support in GNU/Linux consoles (GPM Mouse mode).

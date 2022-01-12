@@ -1,3 +1,5 @@
+;;; ccl-tests.el --- unit tests for ccl.el  -*- lexical-binding:t -*-
+
 ;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
@@ -230,3 +232,19 @@ At EOF:
   (with-temp-buffer
     (ccl-dump prog-midi-code)
     (should (equal (buffer-string) prog-midi-dump))))
+
+(ert-deftest ccl-hash-table ()
+  (let ((sym (gensym))
+        (table (make-hash-table :test 'eq)))
+    (puthash 16 17 table)
+    (puthash 17 16 table)
+    (define-translation-hash-table sym table)
+    (let* ((prog `(2
+                   ((loop
+                     (lookup-integer ,sym r0 r1)))))
+           (compiled (ccl-compile prog))
+           (registers [17 0 0 0 0 0 0 0]))
+      (ccl-execute compiled registers)
+      (should (equal registers [2 16 0 0 0 0 0 1])))))
+
+;;; ccl-tests.el ends here

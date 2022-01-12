@@ -23,7 +23,7 @@
 ;;; Commentary:
 
 ;; This package provides an implementation of the Secret Service API
-;; <http://www.freedesktop.org/wiki/Specifications/secret-storage-spec>.
+;; <https://www.freedesktop.org/wiki/Specifications/secret-storage-spec>.
 ;; This API is meant to make GNOME-Keyring- and KWallet-like daemons
 ;; available under a common D-BUS interface and thus increase
 ;; interoperability between GNOME, KDE and other applications having
@@ -159,7 +159,7 @@
   "Whether there is a daemon offering the Secret Service API.")
 
 (defvar secrets-debug nil
-  "Write debug messages")
+  "Write debug messages.")
 
 (defconst secrets-service "org.freedesktop.secrets"
   "The D-Bus name used to talk to Secret Service.")
@@ -643,7 +643,7 @@ starting with a colon.  Example:
 The object labels of the found items are returned as list."
   (mapcar
    (lambda (item-path) (secrets-get-item-property item-path "Label"))
-   (apply 'secrets-search-item-paths collection attributes)))
+   (apply #'secrets-search-item-paths collection attributes)))
 
 (defun secrets-create-item (collection item password &rest attributes)
   "Create a new item in COLLECTION with label ITEM and password PASSWORD.
@@ -780,9 +780,9 @@ ITEM can also be an object path, which is used if contained in COLLECTION."
 (defvar secrets-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map (make-composed-keymap special-mode-map widget-keymap))
-    (define-key map "n" 'next-line)
-    (define-key map "p" 'previous-line)
-    (define-key map "z" 'kill-current-buffer)
+    (define-key map "n" #'next-line)
+    (define-key map "p" #'previous-line)
+    (define-key map "z" #'kill-current-buffer)
     map)
   "Keymap used in `secrets-mode' buffers.")
 
@@ -792,11 +792,11 @@ In this mode, widgets represent the search results.
 
 \\{secrets-mode-map}"
   (setq buffer-undo-list t)
-  (set (make-local-variable 'revert-buffer-function)
-       #'secrets-show-collections)
+  (setq-local revert-buffer-function
+              #'secrets-show-collections)
   ;; When we toggle, we must set temporary widgets.
-  (set (make-local-variable 'tree-widget-after-toggle-functions)
-       '(secrets-tree-widget-after-toggle-function)))
+  (add-hook 'tree-widget-after-toggle-functions
+            #'secrets-tree-widget-after-toggle-function nil t))
 
 ;; It doesn't make sense to call it interactively.
 (put 'secrets-mode 'disabled t)
@@ -859,7 +859,7 @@ to their attributes."
 	 ;; padding is needed to format attribute names.
 	 (padding
 	  (apply
-	   'max
+	   #'max
 	   (cons
 	    (1+ (length "password"))
 	    (mapcar
@@ -957,3 +957,5 @@ to their attributes."
 ;; * Check, whether the dh-ietf1024-aes128-cbc-pkcs7 algorithm can be
 ;;   used for the transfer of the secrets.  Currently, we use the
 ;;   plain algorithm.
+
+;;; secrets.el ends here

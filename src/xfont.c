@@ -133,7 +133,7 @@ compare_font_names (const void *name1, const void *name2)
 
 /* Decode XLFD as iso-8859-1 into OUTPUT, and return the byte length
    of the decoding result.  LEN is the byte length of XLFD, or -1 if
-   XLFD is NUL terminated.  The caller must assure that OUTPUT is at
+   XLFD is NULL terminated.  The caller must assure that OUTPUT is at
    least twice (plus 1) as large as XLFD.  */
 
 static ptrdiff_t
@@ -166,7 +166,7 @@ xfont_encode_coding_xlfd (char *xlfd)
 
   while (*p0)
     {
-      int c = STRING_CHAR_ADVANCE (p0);
+      int c = string_char_advance (&p0);
 
       if (c >= 0x100)
 	return -1;
@@ -596,7 +596,10 @@ xfont_list_family (struct frame *f)
   char **names;
   int num_fonts, i;
   Lisp_Object list;
-  char *last_family UNINIT;
+  char const *last_family;
+#if defined GCC_LINT || defined lint
+  last_family = "";
+#endif
   int last_len;
 
   block_input ();

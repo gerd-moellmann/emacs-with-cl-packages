@@ -31,7 +31,6 @@
 ;; buffer.
 
 ;; To make this the default, you must do
-;; (require 'ehelp)
 ;; (define-key global-map "\C-h" 'ehelp-command)
 ;; (define-key global-map [help] 'ehelp-command)
 ;; (define-key global-map [f1] 'ehelp-command)
@@ -96,8 +95,7 @@
     map)
   "Keymap defining commands available in `electric-help-mode'.")
 
-(defvar electric-help-orig-major-mode nil)
-(make-variable-buffer-local 'electric-help-orig-major-mode)
+(defvar-local electric-help-orig-major-mode nil)
 
 (defun electric-help-mode ()
   "`with-electric-help' temporarily places its buffer in this mode.
@@ -219,7 +217,7 @@ BUFFER is put back into its original major mode."
 			     'electric-help-retain))))
       (Electric-command-loop
         'exit
-	(function (lambda ()
+        (lambda ()
 	  (sit-for 0) ;necessary if last command was end-of-buffer or
 	              ;beginning-of-buffer - otherwise pos-visible-in-window-p
 	              ;will yield a wrong result.
@@ -241,7 +239,7 @@ BUFFER is put back into its original major mode."
 		  (t
 		   (cond (standard "Press SPC to scroll, DEL to scroll back, q to exit, r to retain ")
 			 (both)
-			 (t (setq both (substitute-command-keys "Press \\[scroll-up] to scroll, \\[scroll-down] to scroll back, \\[electric-help-exit] to exit, \\[electric-help-retain] to retain ")))))))))
+                         (t (setq both (substitute-command-keys "Press \\[scroll-up] to scroll, \\[scroll-down] to scroll back, \\[electric-help-exit] to exit, \\[electric-help-retain] to retain "))))))))
 		    t))))
 
 

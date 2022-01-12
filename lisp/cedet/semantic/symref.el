@@ -1,4 +1,4 @@
-;;; semantic/symref.el --- Symbol Reference API
+;;; semantic/symref.el --- Symbol Reference API  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
@@ -144,7 +144,7 @@ ARGS are the initialization arguments to pass to the created class."
 	 )
     (when (not (class-p class))
       (error "Unknown symref tool %s" semantic-symref-tool))
-    (setq inst (apply 'make-instance class args))
+    (setq inst (apply #'make-instance class args))
     inst))
 
 (defvar semantic-symref-last-result nil
@@ -427,7 +427,7 @@ until the next command is executed."
 	    (kill-buffer buff)))
 	semantic-symref-recently-opened-buffers)
   (setq semantic-symref-recently-opened-buffers nil)
-  (remove-hook 'post-command-hook 'semantic-symref-cleanup-recent-buffers-fcn)
+  (remove-hook 'post-command-hook #'semantic-symref-cleanup-recent-buffers-fcn)
   )
 
 (cl-defmethod semantic-symref-result-get-tags ((result semantic-symref-result)
@@ -453,7 +453,7 @@ already."
 		   lines)))
       ;; Kill off dead buffers, unless we were requested to leave them open.
       (if (not open-buffers)
-	  (add-hook 'post-command-hook 'semantic-symref-cleanup-recent-buffers-fcn)
+	  (add-hook 'post-command-hook #'semantic-symref-cleanup-recent-buffers-fcn)
 	;; Else, just clear the saved buffers so they aren't deleted later.
 	(setq semantic-symref-recently-opened-buffers nil)
 	)
@@ -511,9 +511,10 @@ Optional OPEN-BUFFERS, when nil will use a faster version of
 `find-file' when a file needs to be opened.  If non-nil, then
 normal buffer initialization will be used.
 This function will leave buffers loaded from a file open, but
-will add buffers that must be opened to `semantic-symref-recently-opened-buffers'.
-Any caller MUST deal with that variable, either clearing it, or deleting the
-buffers that were opened."
+will add buffers that must be opened to
+`semantic-symref-recently-opened-buffers'.
+Any caller MUST deal with that variable, either clearing it, or
+deleting the buffers that were opened."
   (let* ((line (car hit))
 	 (file (cdr hit))
 	 (buff (find-buffer-visiting file))

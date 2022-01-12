@@ -1,4 +1,4 @@
-;;; robin.el --- yet another input method (smaller than quail)
+;;; robin.el --- yet another input method (smaller than quail)  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -276,8 +276,7 @@ this robin package will be the following.
        (?c \"AC\"
 	   (?d \"ACD\")
 	   (?e \"ACE\")))
-   (?b \"B\"))
-")
+   (?b \"B\"))")
 
 ;;;###autoload
 (defmacro robin-define-package (name docstring &rest rules)
@@ -371,14 +370,12 @@ Internal use only."
 
 ;;; Interactive use
 
-(defvar robin-mode nil
+(defvar-local robin-mode nil
   "If non-nil, `robin-input-method' is active.")
-(make-variable-buffer-local 'robin-mode)
 
-(defvar robin-current-package-name nil
+(defvar-local robin-current-package-name nil
   "String representing the name of the current robin package.
 A nil value means no package is selected.")
-(make-variable-buffer-local 'robin-current-package-name)
 
 ;;;###autoload
 (defun robin-use-package (name)
@@ -424,8 +421,7 @@ While this input method is active, the variable
 	(add-hook 'minibuffer-exit-hook 'robin-exit-from-minibuffer))
     (run-hooks 'input-method-activate-hook
 	       'robin-activate-hook)
-    (set (make-local-variable 'input-method-function)
-	 'robin-input-method)))
+    (setq-local input-method-function 'robin-input-method)))
 
 (define-obsolete-variable-alias
   'robin-inactivate-hook

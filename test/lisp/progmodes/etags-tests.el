@@ -1,4 +1,4 @@
-;;; etags-tests.el --- Test suite for etags.el.
+;;; etags-tests.el --- Test suite for etags.el.  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2016-2021 Free Software Foundation, Inc.
 
@@ -111,3 +111,5 @@
             (should (visit-tags-table-buffer))
             (should (equal tags-file-name (car tag-tables)))))
       (delete-file file))))
+
+;;; etags-tests.el ends here

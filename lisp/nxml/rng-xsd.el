@@ -22,16 +22,16 @@
 
 ;;; Commentary:
 
-;; The main entry point is `rng-xsd-compile'. The validator
+;; The main entry point is `rng-xsd-compile'.  The validator
 ;; knows to use this for the datatype library with URI
-;; http://www.w3.org/2001/XMLSchema-datatypes because it
+;; https://www.w3.org/2001/XMLSchema-datatypes because it
 ;; is the value of the rng-dt-compile property on that URI
 ;; as a symbol.
 ;;
 ;; W3C XML Schema Datatypes are specified by
-;;   http://www.w3.org/TR/xmlschema-2/
+;;   https://www.w3.org/TR/xmlschema-2/
 ;; Guidelines for using them with RELAX NG are described in
-;;   http://relaxng.org/xsd.html
+;;   https://relaxng.org/xsd.html
 
 ;;; Code:
 

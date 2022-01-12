@@ -1,4 +1,4 @@
-;;; srecode/document.el --- Documentation (comment) generation
+;;; srecode/document.el --- Documentation (comment) generation  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
@@ -88,8 +88,7 @@ versions of names.  This is an alist with each element of the form:
  (MATCH . RESULT)
 MATCH is a regexp to match in the type field.
 RESULT is a string."
-  :group 'document
-  :type '(repeat (cons (string :tag "Regexp")
+  :type '(repeat (cons (regexp :tag "Regexp")
 		       (string :tag "Doc Text"))))
 
 (defcustom srecode-document-autocomment-function-alist
@@ -144,8 +143,7 @@ A string may end in a space, in which case, last-alist is searched to
 see how best to describe what can be returned.
 Doesn't always work correctly, but that is just because English
 doesn't always work correctly."
-  :group 'document
-  :type '(repeat (cons (string :tag "Regexp")
+  :type '(repeat (cons (regexp :tag "Regexp")
 		       (string :tag "Doc Text"))))
 
 (defcustom srecode-document-autocomment-common-nouns-abbrevs
@@ -175,8 +173,7 @@ versions of names.  This is an alist with each element of the form:
  (MATCH . RESULT)
 MATCH is a regexp to match in the type field.
 RESULT is a string."
-  :group 'document
-  :type '(repeat (cons (string :tag "Regexp")
+  :type '(repeat (cons (regexp :tag "Regexp")
 		       (string :tag "Doc Text"))))
 
 (defcustom srecode-document-autocomment-return-first-alist
@@ -192,8 +189,7 @@ This is an alist with each element of the form:
  (MATCH . RESULT)
 MATCH is a regexp to match in the type field.
 RESULT is a string."
-  :group 'document
-  :type '(repeat (cons (string :tag "Regexp")
+  :type '(repeat (cons (regexp :tag "Regexp")
 		       (string :tag "Doc Text"))))
 
 (defcustom srecode-document-autocomment-return-last-alist
@@ -213,8 +209,7 @@ This is an alist with each element of the form:
 MATCH is a regexp to match in the type field.
 RESULT is a string, which can contain %s, which is replaced with
 `match-string' 1."
-  :group 'document
-  :type '(repeat (cons (string :tag "Regexp")
+  :type '(repeat (cons (regexp :tag "Regexp")
 		       (string :tag "Doc Text"))))
 
 (defcustom srecode-document-autocomment-param-alist
@@ -233,8 +228,7 @@ MATCH is a regexp to match in the type field.
 RESULT is a string of text to use to describe MATCH.
 When one is encountered, document-insert-parameters will automatically
 place this comment after the parameter name."
-  :group 'document
-  :type '(repeat (cons (string :tag "Regexp")
+  :type '(repeat (cons (regexp :tag "Regexp")
 		       (string :tag "Doc Text"))))
 
 (defcustom srecode-document-autocomment-param-type-alist
@@ -258,8 +252,7 @@ This is an alist with each element of the form:
  (MATCH . RESULT)
 MATCH is a regexp to match in the type field.
 RESULT is a string."
-  :group 'document
-  :type '(repeat (cons (string :tag "Regexp")
+  :type '(repeat (cons (regexp :tag "Regexp")
 		       (string :tag "Doc Text"))))
 
 ;;;###autoload
@@ -716,7 +709,7 @@ allocating something based on its type."
 	    (setq al (cdr al)))))
     news))
 
-(defun srecode-document-parameter-comment (param &optional commentlist)
+(defun srecode-document-parameter-comment (param &optional _commentlist)
   "Convert tag or string PARAM into a name,comment pair.
 Optional COMMENTLIST is list of previously existing comments to
 use instead in alist form.  If the name doesn't appear in the list of

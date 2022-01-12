@@ -30,6 +30,7 @@
 (require 'mail-utils)
 (require 'rfc2047)
 (autoload 'message-make-date "message")
+(autoload 'message-narrow-to-headers "message")
 
 (defgroup sendmail nil
   "Mail sending commands for Emacs."
@@ -276,6 +277,7 @@ The default value matches citations like `foo-bar>' plus whitespace."
     (define-key map "\C-c\C-f\C-r" 'mail-reply-to)
     (define-key map "\C-c\C-f\C-a" 'mail-mail-reply-to)    ; author
     (define-key map "\C-c\C-f\C-l" 'mail-mail-followup-to) ; list
+    (define-key map "\C-c\C-f\C-d" 'mail-insert-disposition-notification-to)
     (define-key map "\C-c\C-t" 'mail-text)
     (define-key map "\C-c\C-y" 'mail-yank-original)
     (define-key map "\C-c\C-r" 'mail-yank-region)
@@ -323,6 +325,9 @@ The default value matches citations like `foo-bar>' plus whitespace."
 
     (define-key map [menu-bar headers expand-aliases]
       '("Expand Aliases" . expand-mail-aliases))
+
+    (define-key map [menu-bar headers disposition-notification]
+      '("Disposition-Notification-To" . mail-insert-disposition-notification-to))
 
     (define-key map [menu-bar headers mail-reply-to]
       '("Mail-Reply-To" . mail-mail-reply-to))
@@ -537,7 +542,7 @@ This also saves the value of `send-mail-function' via Customize."
 	    (display-buffer (current-buffer))
 	    (let ((completion-ignore-case t))
               (completing-read
-               (format "Send mail via (default %s): " (caar options))
+               (format-prompt "Send mail via" (caar options))
                options nil 'require-match nil nil (car options))))))
     ;; Return the choice.
     (cdr (assoc-string choice options t))))
@@ -699,29 +704,25 @@ Turning on Mail mode runs the normal hooks `text-mode-hook' and
   (make-local-variable 'mail-reply-action)
   (make-local-variable 'mail-send-actions)
   (make-local-variable 'mail-return-action)
-  (make-local-variable 'mail-encode-mml)
-  (setq mail-encode-mml nil)
+  (setq-local mail-encode-mml nil)
   (setq buffer-offer-save t)
-  (make-local-variable 'font-lock-defaults)
-  (setq font-lock-defaults '(mail-font-lock-keywords t t))
+  (setq-local font-lock-defaults '(mail-font-lock-keywords t t))
   (make-local-variable 'paragraph-separate)
   (setq-local normal-auto-fill-function #'mail-mode-auto-fill)
   (setq-local fill-paragraph-function #'mail-mode-fill-paragraph)
   ;; Allow using comment commands to add/remove quoting (this only does
   ;; anything if mail-yank-prefix is set to a non-nil value).
-  (set (make-local-variable 'comment-start) mail-yank-prefix)
+  (setq-local comment-start mail-yank-prefix)
   (if mail-yank-prefix
-      (set (make-local-variable 'comment-start-skip)
-	   (concat "^" (regexp-quote mail-yank-prefix) "[ \t]*")))
-  (make-local-variable 'adaptive-fill-regexp)
+      (setq-local comment-start-skip
+                  (concat "^" (regexp-quote mail-yank-prefix) "[ \t]*")))
   ;; Also update the paragraph-separate entry if you change this.
-  (setq adaptive-fill-regexp
-	(concat "[ \t]*[-[:alnum:]]+>+[ \t]*\\|"
-		adaptive-fill-regexp))
-  (make-local-variable 'adaptive-fill-first-line-regexp)
-  (setq adaptive-fill-first-line-regexp
-	(concat "[ \t]*[-[:alnum:]]*>+[ \t]*\\|"
-		adaptive-fill-first-line-regexp))
+  (setq-local adaptive-fill-regexp
+              (concat "[ \t]*[-[:alnum:]]+>+[ \t]*\\|"
+                      adaptive-fill-regexp))
+  (setq-local adaptive-fill-first-line-regexp
+              (concat "[ \t]*[-[:alnum:]]*>+[ \t]*\\|"
+                      adaptive-fill-first-line-regexp))
   (add-hook 'completion-at-point-functions #'mail-completion-at-point-function
             nil 'local)
   ;; `-- ' precedes the signature.  `-----' appears at the start of the
@@ -729,14 +730,21 @@ Turning on Mail mode runs the normal hooks `text-mode-hook' and
   ;; Lines containing just >= 3 dashes, perhaps after whitespace,
   ;; are also sometimes used and should be separators.
   (setq paragraph-separate
-	(concat (regexp-quote mail-header-separator)
+        (if (zerop (length mail-header-separator))
+	    (concat
 		;; This is based on adaptive-fill-regexp (presumably
 		;; the idea is to allow navigation etc of cited paragraphs).
-		"$\\|\t*[-–!|#%;>*·•‣⁃◦ ]+$"
+		"\t*[-–!|#%;>*·•‣⁃◦ ]+$"
 		"\\|[ \t]*[-[:alnum:]]*>+[ \t]*$\\|[ \t]*$\\|"
 		"--\\( \\|-+\\)$\\|"
-		page-delimiter)))
-
+		page-delimiter)
+	  (concat (regexp-quote mail-header-separator)
+                  ;; This is based on adaptive-fill-regexp (presumably
+                  ;; the idea is to allow navigation etc of cited paragraphs).
+                  "$\\|\t*[-–!|#%;>*·•‣⁃◦ ]+$"
+                  "\\|[ \t]*[-[:alnum:]]*>+[ \t]*$\\|[ \t]*$\\|"
+                  "--\\( \\|-+\\)$\\|"
+                  page-delimiter))))
 
 (defun mail-header-end ()
   "Return the buffer location of the end of headers, as a number."
@@ -766,10 +774,11 @@ Concretely: replace the first blank line in the header with the separator."
   "Remove header separator to put the message in correct form for sendmail.
 Leave point at the start of the delimiter line."
   (goto-char (point-min))
-  (when (re-search-forward
-	 (concat "^" (regexp-quote mail-header-separator) "\n")
-	 nil t)
-    (replace-match "\n"))
+  (unless (zerop (length mail-header-separator))
+    (when (re-search-forward
+           (concat "^" (regexp-quote mail-header-separator) "\n")
+           nil t)
+      (replace-match "\n")))
   (rfc822-goto-eoh))
 
 (defun mail-mode-auto-fill ()
@@ -891,8 +900,9 @@ the user from the mailer."
                 (concat "\\(?:[[:space:];,]\\|\\`\\)"
                         (regexp-opt mail-mailing-lists t)
                         "\\(?:[[:space:];,]\\|\\'\\)"))))
-        (mail-combine-fields "To")
-        (mail-combine-fields "Cc")
+        (unless noninteractive
+          (mail-combine-fields "To")
+          (mail-combine-fields "Cc"))
 	;; If there are mailing lists defined
 	(when ml
 	  (save-excursion
@@ -934,7 +944,9 @@ the user from the mailer."
 		(error "Message contains non-ASCII characters"))))
 	;; Complain about any invalid line.
 	(goto-char (point-min))
-	(re-search-forward (regexp-quote mail-header-separator) (point-max) t)
+        ;; Search for mail-header-eeparator as whole line.
+	(re-search-forward (concat "^" (regexp-quote mail-header-separator) "$")
+                           (point-max) t)
 	(let ((header-end (or (match-beginning 0) (point-max))))
 	  (goto-char (point-min))
 	  (while (< (point) header-end)
@@ -965,7 +977,10 @@ the user from the mailer."
 
 (defun mail-envelope-from ()
   "Return the envelope mail address to use when sending mail.
-This function uses `mail-envelope-from'."
+This function uses the `mail-envelope-from' variable.
+
+The buffer should be narrowed to the headers of the mail message
+before this function is called."
   (if (eq mail-envelope-from 'header)
       (nth 1 (mail-extract-address-components
  	      (mail-fetch-field "From")))
@@ -983,7 +998,7 @@ but lower priority than the local value of `buffer-file-coding-system'.
 See also the function `select-message-coding-system'.")
 
 ;;;###autoload
-(defvar default-sendmail-coding-system 'iso-latin-1
+(defvar default-sendmail-coding-system 'utf-8
   "Default coding system for encoding the outgoing mail.
 This variable is used only when `sendmail-coding-system' is nil.
 
@@ -1181,7 +1196,12 @@ external program defined by `sendmail-program'."
 	;; local binding in the mail buffer will take effect.
 	(envelope-from
 	 (and mail-specify-envelope-from
-	      (or (mail-envelope-from) user-mail-address))))
+	      (or (save-restriction
+                    ;; Only look at the headers when fetching the
+                    ;; envelope address.
+                    (message-narrow-to-headers)
+                    (mail-envelope-from))
+                  user-mail-address))))
     (unwind-protect
 	(with-current-buffer tembuf
 	  (erase-buffer)
@@ -1582,6 +1602,25 @@ Returns non-nil if FIELD was originally present."
   (interactive)
   (expand-abbrev)
   (goto-char (mail-text-start)))
+
+(defun mail-insert-disposition-notification-to ()
+  "Insert a Disposition-Notification-To header, if it doesn't already exist."
+  (interactive)
+  (expand-abbrev)
+  (save-excursion
+    (or (mail-position-on-field "Disposition-Notification-To")
+        (insert
+	 (format
+	  "%s"
+	  (save-excursion
+            (save-restriction
+              (message-narrow-to-headers)
+              (or (mail-fetch-field "Reply-To")
+                  (mail-fetch-field "From")
+                  (with-temp-buffer
+                    (mail-insert-from-field)
+                    (substring (buffer-string) (length "From: ") -1))))))))))
+
 
 (defun mail-signature (&optional atpoint)
   "Sign letter with signature.
@@ -1804,14 +1843,14 @@ If the current line has `mail-yank-prefix', insert it on the new line."
 
 (declare-function mml-attach-file "mml"
 		  (file &optional type description disposition))
-(declare-function mm-default-file-encoding "mm-encode" (file))
 
 (defun mail-add-attachment (file)
   "Add FILE as a MIME attachment to the end of the mail message being composed."
   (interactive "fAttach file: ")
   (mml-attach-file file
-		   (or (mm-default-file-encoding file)
-		       "application/octet-stream") nil)
+		   (or (mm-default-file-type file)
+		       "application/octet-stream")
+		   nil)
   (setq mail-encode-mml t))
 
 
@@ -1911,7 +1950,8 @@ The seventh argument ACTIONS is a list of actions to take
 	   (setq initialized t)))
     (if (and buffer-auto-save-file-name
 	     (file-exists-p buffer-auto-save-file-name))
-	(message "Auto save file for draft message exists; consider M-x mail-recover"))
+        (message (substitute-command-keys
+                  "Auto save file for draft message exists; consider \\[mail-recover]")))
     initialized))
 
 (declare-function dired-view-file "dired" ())

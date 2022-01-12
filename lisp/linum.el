@@ -5,7 +5,7 @@
 ;; Author: Markus Triska <markus.triska@gmx.at>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: convenience
-;; Version: 0.9x
+;; Old-Version: 0.9x
 
 ;; This file is part of GNU Emacs.
 
@@ -28,17 +28,16 @@
 ;;
 ;; Toggle display of line numbers with M-x linum-mode.  To enable
 ;; line numbering in all buffers, use M-x global-linum-mode.
+;;
+;; Consider using native line numbers instead:
+;;   M-x display-line-numbers-mode
 
 ;;; Code:
 
-(defconst linum-version "0.9x")
-
-(defvar linum-overlays nil "Overlays used in this buffer.")
-(defvar linum-available nil "Overlays available for reuse.")
+(defvar-local linum-overlays nil "Overlays used in this buffer.")
+(defvar-local linum-available nil "Overlays available for reuse.")
 (defvar linum-before-numbering-hook nil
   "Functions run in each buffer before line numbering starts.")
-
-(mapc #'make-variable-buffer-local '(linum-overlays linum-available))
 
 (defgroup linum nil
   "Show line numbers in the left margin."
@@ -223,7 +222,7 @@ Linum mode is a buffer-local minor mode."
   ;; update overlays on deletions, and after newlines are inserted
   (when (or (= beg end)
             (= end (point-max))
-            (string-match-p "\n" (buffer-substring-no-properties beg end)))
+            (string-search "\n" (buffer-substring-no-properties beg end)))
     (linum-update-current)))
 
 (defun linum-after-scroll (win _start)
@@ -244,6 +243,9 @@ Linum mode is a buffer-local minor mode."
   (global-linum-mode -1)
   ;; continue standard unloading
   nil)
+
+(defconst linum-version "0.9x")
+(make-obsolete-variable 'linum-version 'emacs-version "28.1")
 
 (provide 'linum)
 

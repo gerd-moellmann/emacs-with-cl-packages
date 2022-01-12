@@ -1,4 +1,5 @@
 ;;; epa-hook.el --- preloaded code to enable epa-file.el -*- lexical-binding: t -*-
+
 ;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
@@ -20,10 +21,12 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Commentary:
+
 ;;; Code:
 
 (defgroup epa-file nil
-  "The EasyPG Assistant hooks for transparent file encryption"
+  "The EasyPG Assistant hooks for transparent file encryption."
   :version "23.1"
   :group 'epa)
 
@@ -35,10 +38,10 @@
 (defcustom epa-file-name-regexp (purecopy "\\.gpg\\(~\\|\\.~[0-9]+~\\)?\\'")
   "Regexp which matches filenames to be encrypted with GnuPG.
 
-If you set this outside Custom while epa-file is already enabled, you
-have to call `epa-file-name-regexp-update' after setting it to
-properly update file-name-handler-alist.  Setting this through Custom
-does that automatically."
+If you set this outside Custom while epa-file is already enabled,
+you have to call `epa-file-name-regexp-update' after setting it
+to properly update `file-name-handler-alist'.  Setting this
+through Custom does that automatically."
   :type 'regexp
   :group 'epa-file
   :set 'epa-file--file-name-regexp-set)
@@ -72,6 +75,9 @@ May either be a string or a list of strings.")
   (list epa-file-name-regexp nil 'epa-file))
 
 (defun epa-file-name-regexp-update ()
+  "Update `file-name-handler-alist' after configuring outside Custom.
+After setting `epa-file-name-regexp-update' outside the Custom
+interface, update `file-name-handler-alist'."
   (interactive)
   (unless (equal (car epa-file-handler) epa-file-name-regexp)
     (setcar epa-file-handler epa-file-name-regexp)))

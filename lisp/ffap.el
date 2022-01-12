@@ -1,4 +1,4 @@
-;;; ffap.el --- find file (or url) at point
+;;; ffap.el --- find file (or url) at point  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1995-1997, 2000-2021 Free Software Foundation, Inc.
 
@@ -54,6 +54,8 @@
 ;; C-x 5 r		ffap-read-only-other-frame
 ;; C-x 5 d		ffap-dired-other-frame
 ;;
+;; C-x t f		ffap-other-tab
+;;
 ;; S-mouse-3     ffap-at-mouse
 ;; C-S-mouse-3   ffap-menu
 ;;
@@ -107,8 +109,6 @@
 (eval-when-compile (require 'cl-lib))
 (require 'url-parse)
 (require 'thingatpt)
-
-(define-obsolete-variable-alias 'ffap-version 'emacs-version "23.2")
 
 (defgroup ffap nil
   "Find file or URL at point."
@@ -260,6 +260,7 @@ ffap most of the time."
   :type 'boolean
   :group 'ffap)
 
+;;;###autoload
 (defcustom ffap-file-finder 'find-file
   "The command called by `find-file-at-point' to find a file."
   :type 'function
@@ -301,15 +302,14 @@ disable ffap most of the time."
   :version "20.3")
 
 
-;;; Compatibility:
-;;
-;; This version of ffap supports only the Emacs it is distributed in.
-;; See the ftp site for a more general version.  The following
-;; functions are necessary "leftovers" from the more general version.
+;;; Obsolete:
 
 (defun ffap-mouse-event ()		; current mouse event, or nil
+  (declare (obsolete nil "28.1"))
   (and (listp last-nonmenu-event) last-nonmenu-event))
+
 (defun ffap-event-buffer (event)
+  (declare (obsolete nil "28.1"))
   (window-buffer (car (event-start event))))
 
 
@@ -465,11 +465,11 @@ Returned values:
 			     mesg) nil)
 	      ((string-match "not responding$" mesg) mesg)
 	      ;; v19:
-	      ;; (file-error "connection failed" "permission denied"
+              ;; (file-error "Connection failed" "permission denied"
 	      ;;             "nonesuch" "ffap-machine-p")
-	      ;; (file-error "connection failed" "host is unreachable"
+              ;; (file-error "Connection failed" "host is unreachable"
 	      ;;	     "gopher.house.gov" "ffap-machine-p")
-	      ;; (file-error "connection failed" "address already in use"
+              ;; (file-error "Connection failed" "address already in use"
 	      ;;	     "ftp.uu.net" "ffap-machine-p")
 	      ((equal mesg "connection failed")
 	       (if (string= (downcase (nth 2 error)) "permission denied")
@@ -690,14 +690,13 @@ Optional DEPTH limits search depth."
   (setq depth (1- depth))
   (cons dir
 	(and (not (eq depth -1))
-	     (apply 'nconc
+             (apply #'nconc
 		    (mapcar
-		     (function
-		      (lambda (d)
-			(cond
-			 ((not (file-directory-p d)) nil)
-			 ((file-symlink-p d) (list d))
-			 (t (ffap-all-subdirs-loop d depth)))))
+                     (lambda (d)
+                       (cond
+                        ((not (file-directory-p d)) nil)
+                        ((file-symlink-p d) (list d))
+                        (t (ffap-all-subdirs-loop d depth))))
 		     (directory-files dir t "\\`[^.]")
 		     )))))
 
@@ -710,13 +709,12 @@ Set to 0 to avoid all searching, or nil for no limit.")
 The subdirs begin with the original directory, and the depth of the
 search is bounded by `ffap-kpathsea-depth'.  This is intended to mimic
 kpathsea, a library used by some versions of TeX."
-  (apply 'nconc
+  (apply #'nconc
 	 (mapcar
-	  (function
-	   (lambda (dir)
-	     (if (string-match "[^/]//\\'" dir)
-		 (ffap-all-subdirs (substring dir 0 -2) ffap-kpathsea-depth)
-	       (list dir))))
+          (lambda (dir)
+            (if (string-match "[^/]//\\'" dir)
+                (ffap-all-subdirs (substring dir 0 -2) ffap-kpathsea-depth)
+              (list dir)))
 	  path)))
 
 (defun ffap-locate-file (file nosuffix path)
@@ -1049,22 +1047,19 @@ out of NAME."
                         "/pub/gnu/emacs/elisp-archive/"))
     (substring name 2))))
 
-(defcustom ffap-rfc-path
-  (concat (ffap-host-to-filename "ftp.rfc-editor.org") "/in-notes/rfc%s.txt")
+(defcustom ffap-rfc-path "https://www.rfc-editor.org/in-notes/rfc%s.txt"
   "A `format' string making a filename for RFC documents.
-This can be an ange-ftp or Tramp remote filename to download, or
-a local filename if you have full set of RFCs locally.  See also
-`ffap-rfc-directories'."
+This can be an URL, an ange-ftp or Tramp remote filename to
+download, or a local filename if you have the full set of RFCs
+locally.  See also `ffap-rfc-directories'."
   :type 'string
-  :version "23.1"
-  :group 'ffap)
+  :version "28.1")
 
 (defcustom ffap-rfc-directories nil
   "A list of directories to look for RFC files.
 If a given RFC isn't in these then `ffap-rfc-path' is offered."
   :type '(repeat directory)
-  :version "23.1"
-  :group 'ffap)
+  :version "23.1")
 
 (defun ffap-rfc (name)
   (let ((num (match-string 1 name)))
@@ -1080,7 +1075,7 @@ If a given RFC isn't in these then `ffap-rfc-path' is offered."
     ;; Slightly controversial decisions:
     ;; * strip trailing "@", ":" and enclosing "{"/"}".
     ;; * no commas (good for latex)
-    (file "--:\\\\${}+<>@-Z_[:alpha:]~*?" "{<@" "@>;.,!:}")
+    (file "--:\\\\${}+<>@-Z_[:alpha:]~*?#" "{<@" "@>;.,!:}")
     ;; An url, or maybe an email/news message-id:
     (url "--:=&?$+@-Z_[:alpha:]~#,%;*()!'" "^[0-9a-zA-Z]" ":;.,!?")
     ;; Find a string that does *not* contain a colon:
@@ -1093,8 +1088,8 @@ If a given RFC isn't in these then `ffap-rfc-path' is offered."
     (latex-mode "--:\\\\$+<>@-Z_[:alpha:]~*?" "<@" "@>;.,!:")
     (tex-mode "--:\\\\$+<>@-Z_[:alpha:]~*?" "<@" "@>;.,!:")
     )
-  "Alist of (MODE CHARS BEG END), where MODE is a symbol,
-possibly a major-mode name, or one of the symbols
+  "Alist of (MODE CHARS BEG END), where MODE is a symbol.
+This is possibly a major-mode name, or one of the symbols
 `file', `url', `machine', and `nocolon'.
 Function `ffap-string-at-point' uses the data fields as follows:
 1. find a maximal string of CHARS around point,
@@ -1106,6 +1101,121 @@ The arguments CHARS, BEG and END are handled as described in
 (defvar ffap-string-at-point nil
   ;; Added at suggestion of RHOGEE (for ff-paths), 7/24/95.
   "Last string returned by the function `ffap-string-at-point'.")
+
+(defcustom ffap-file-name-with-spaces nil
+  "If non-nil, enable looking for paths with spaces in `ffap-string-at-point'.
+Enabling this variable may lead to `find-file-at-point' guessing
+wrong more often when trying to find a file name intermingled
+with normal text, but can be useful when working on systems that
+normally use spaces in file names (like Microsoft Windows and the
+like)."
+  :type 'boolean
+  :version "28.1")
+
+(defun ffap-search-backward-file-end (&optional dir-separator end)
+  "Search backward position point where file would probably end.
+Optional DIR-SEPARATOR defaults to \"/\".  The search maximum is
+`line-end-position' or optional END point.
+
+Suppose the cursor is somewhere that might be near end of file,
+the guessing would position point before punctuation (like comma)
+after the file extension:
+
+  C:\temp\file.log, which contain ....
+  =============================== (before)
+  ---------------- (after)
+
+
+  C:\temp\file.log on Windows or /tmp/file.log on Unix
+  =============================== (before)
+  ---------------- (after)
+
+The strategy is to search backward until DIR-SEPARATOR which defaults to
+\"/\" and then take educated guesses.
+
+Move point and return point if an adjustment was done."
+  (unless dir-separator
+    (setq dir-separator "/"))
+  (let ((opoint (point))
+	point punct whitespace-p)
+    (when (re-search-backward
+	   (regexp-quote dir-separator) (line-beginning-position) t)
+      ;; Move to the beginning of the match..
+      (forward-char 1)
+      ;; ... until typical punctuation.
+      (when (re-search-forward "\\([][<>()\"'`,.:;]\\)"
+			       (or end
+				   (line-end-position))
+			       t)
+	(setq end (match-end 0))
+	(setq punct (match-string 1))
+	(setq whitespace-p (looking-at "[ \t\r\n]\\|$"))
+	(goto-char end)
+	(cond
+	 ((and (string-equal punct ".")
+	       whitespace-p)            ;end of sentence
+	  (setq point (1- (point))))
+	 ((and (string-equal punct ".")
+	       (looking-at "[a-zA-Z0-9.]+")) ;possibly file extension
+	  (setq point (match-end 0)))
+	 (t
+	  (setq point (point)))))
+      (goto-char opoint)
+      (when point
+	(goto-char point)
+	point))))
+
+(defun ffap-search-forward-file-end (&optional dir-separator)
+  "Search DIR-SEPARATOR and position point at file's maximum ending.
+This includes spaces.
+Optional DIR-SEPARATOR defaults to \"/\".
+Call `ffap-search-backward-file-end' to refine the ending point."
+  (unless dir-separator
+    (setq dir-separator "/"))
+  (let* ((chars                         ;expected chars in file name
+	  (concat "[^][^<>()\"'`;,#*|"
+		  ;; exclude the opposite as we know the separator
+		  (if (string-equal dir-separator "/")
+		      "\\\\"
+		    "/")
+		  "\t\r\n]"))
+	 (re (concat
+	      chars "*"
+	      (if dir-separator
+		  (regexp-quote dir-separator)
+		"/")
+	      chars "*")))
+    (when (looking-at re)
+      (goto-char (match-end 0)))))
+
+(defun ffap-dir-separator-near-point ()
+  "Search backward and forward for closest slash or backlash in line.
+Return string slash or backslash.  Point is moved to closest position."
+  (let ((point (point))
+	str pos)
+    (when (looking-at ".*?/")
+      (setq str "/"
+	    pos (match-end 0)))
+    (when (and (looking-at ".*?\\\\")
+               (or (null pos)
+	           (< (match-end 0) pos)))
+      (setq str "\\"
+	    pos (match-end 0)))
+    (goto-char point)
+    (when (and (re-search-backward "/" (line-beginning-position) t)
+               (or (null pos)
+	           (< (- point (point)) (- pos point))))
+      (setq str "/"
+	    pos (1+ (point)))) ;1+ to keep cursor at the end of char
+    (goto-char point)
+    (when (and (re-search-backward "\\\\" (line-beginning-position) t)
+               (or (null pos)
+		   (< (- point (point)) (- pos point))))
+      (setq str "\\"
+	    pos (1+ (point))))
+    (when pos
+      (goto-char pos))
+    str))
 
 (defun ffap-string-at-point (&optional mode)
   "Return a string of characters from around point.
@@ -1126,7 +1236,8 @@ Set the variables `ffap-string-at-point' and
 
 When the region is active and larger than `ffap-max-region-length',
 return an empty string, and set `ffap-string-at-point-region' to '(1 1)."
-  (let* ((args
+  (let* (dir-separator
+         (args
 	  (cdr
 	   (or (assq (or mode major-mode) ffap-string-at-point-mode-alist)
 	       (assq 'file ffap-string-at-point-mode-alist))))
@@ -1135,14 +1246,25 @@ return an empty string, and set `ffap-string-at-point-region' to '(1 1)."
          (beg (if region-selected
 		  (region-beginning)
 		(save-excursion
-		  (skip-chars-backward (car args))
-		  (skip-chars-forward (nth 1 args) pt)
+	          (if (and ffap-file-name-with-spaces
+			   (memq mode '(nil file)))
+		      (when (setq dir-separator (ffap-dir-separator-near-point))
+		        (while (re-search-backward
+			        (regexp-quote dir-separator)
+			        (line-beginning-position) t)
+		          (goto-char (match-beginning 0))))
+		    (skip-chars-backward (car args))
+		    (skip-chars-forward (nth 1 args) pt))
 		  (point))))
          (end (if region-selected
 		  (region-end)
 		(save-excursion
 		  (skip-chars-forward (car args))
 		  (skip-chars-backward (nth 2 args) pt)
+	          (when (and ffap-file-name-with-spaces
+			     (memq mode '(nil file)))
+		    (ffap-search-forward-file-end dir-separator)
+		    (ffap-search-backward-file-end dir-separator))
 		  (point))))
          (region-len (- (max beg end) (min beg end))))
 
@@ -1236,12 +1358,14 @@ Set to nil to disable matching gopher bookmarks.")
 (defun ffap--gopher-var-on-line ()
   "Return (KEY . VALUE) of gopher bookmark on current line."
   (save-excursion
-    (let ((eol (progn (end-of-line) (skip-chars-backward " ") (point)))
-          (bol (progn (beginning-of-line) (point))))
-     (when (re-search-forward ffap-gopher-regexp eol t)
-       (let ((key (match-string 1))
-             (val (buffer-substring-no-properties (match-end 0) eol)))
-         (cons (intern (downcase key)) val))))))
+    (end-of-line)
+    (skip-chars-backward " ")
+    (let ((eol (point)))
+      (beginning-of-line)
+      (when (re-search-forward ffap-gopher-regexp eol t)
+        (let ((key (match-string 1))
+              (val (buffer-substring-no-properties (match-end 0) eol)))
+          (cons (intern (downcase key)) val))))))
 
 (defun ffap-gopher-at-point ()
   "If point is inside a gopher bookmark block, return its URL.
@@ -1256,7 +1380,8 @@ Sets the variable `ffap-string-at-point-region' to the bounds of URL, if any."
                          (point)))
              (bookmark (cl-loop for keyval = (ffap--gopher-var-on-line)
                                 while keyval collect keyval
-                                do (forward-line 1))))
+                                do (forward-line 1)
+                                until (eobp))))
         (when bookmark
           (setq ffap-string-at-point-region (list beg (point)))
           (let-alist (nconc bookmark '((type . "1") (port . "70")))
@@ -1293,7 +1418,7 @@ which may actually result in an URL rather than a filename."
 	 (string (ffap-string-at-point)) ; uses mode alist
 	 (name
 	  (or (condition-case nil
-		  (and (not (string-match "//" string)) ; foo.com://bar
+		  (and (not (string-search "//" string)) ; foo.com://bar
 		       (substitute-in-file-name string))
 		(error nil))
 	      string))
@@ -1400,24 +1525,37 @@ which may actually result in an URL rather than a filename."
 ;; The solution here is to forcefully activate url-handler-mode, which
 ;; takes care of it for us.
 
+(defun ffap--url-file-handler (operation &rest args)
+  (let ((inhibit-file-name-handlers
+         (cons 'ffap--url-file-handler inhibit-file-name-handlers))
+        (inhibit-file-name-operation operation))
+    (cl-case operation
+      ;; We mainly just want to disable these bits:
+      (substitute-in-file-name (car args))
+      (expand-file-name (car args))
+      (otherwise
+       (apply operation args)))))
+
 (defun ffap-read-file-or-url (prompt guess)
   "Read file or URL from minibuffer, with PROMPT and initial GUESS."
-  (or guess (setq guess default-directory))
-  ;; Tricky: guess may have or be a local directory, like "w3/w3.elc"
-  ;; or "w3/" or "../el/ffap.el" or "../../../"
-  (if (ffap-url-p guess)
-      ;; FIXME: We earlier tried to make use of `url-file-handler' so
-      ;; `read-file-name' could also be used for URLs, but it
-      ;; introduced all kinds of subtle breakage such as:
-      ;; - (file-name-directory "http://a") returning "http://a/"
-      ;; - Trying to contact remote hosts with no justification
-      ;; These should be fixed in url-handler-mode before we can try
-      ;; using it here again.
-      (read-string prompt guess nil nil t)
-    (unless (ffap-file-remote-p guess)
-      (setq guess (abbreviate-file-name (expand-file-name guess))))
-    (read-file-name prompt (file-name-directory guess) nil nil
-                    (file-name-nondirectory guess))))
+  (let ((elem (cons ffap-url-regexp #'ffap--url-file-handler)))
+    (unwind-protect
+        (progn
+          (push elem file-name-handler-alist)
+          (if (ffap-url-p guess)
+              (read-file-name prompt guess guess)
+            (unless guess
+              (setq guess default-directory))
+            (unless (ffap-file-remote-p guess)
+              (setq guess (abbreviate-file-name (expand-file-name guess))))
+            (read-file-name prompt
+                            (file-name-directory guess) nil nil
+                            (file-name-nondirectory guess))))
+      ;; Remove the special handler manually.  We used to just let-bind
+      ;; file-name-handler-alist to preserve its value, but that caused
+      ;; other modifications to be lost (e.g. when Tramp gets loaded
+      ;; during the completing-read call).
+      (setq file-name-handler-alist (delq elem file-name-handler-alist)))))
 
 ;; The rest of this page is just to work with package complete.el.
 ;; This code assumes that you load ffap.el after complete.el.
@@ -1501,8 +1639,9 @@ If `ffap-url-regexp' is not nil, the FILENAME may also be an URL.
 With a prefix, this command behaves exactly like `ffap-file-finder'.
 If `ffap-require-prefix' is set, the prefix meaning is reversed.
 See also the variables `ffap-dired-wildcards', `ffap-newfile-prompt',
-`ffap-url-unwrap-local', `ffap-url-unwrap-remote', and the functions
-`ffap-file-at-point' and `ffap-url-at-point'."
+`ffap-url-unwrap-local', `ffap-url-unwrap-remote',
+`ffap-file-name-with-spaces', and the functions `ffap-file-at-point'
+and `ffap-url-at-point'."
   (interactive)
   (if (and (called-interactively-p 'interactive)
 	   (if ffap-require-prefix (not current-prefix-arg)
@@ -1529,9 +1668,9 @@ See also the variables `ffap-dired-wildcards', `ffap-newfile-prompt',
        ((or (not ffap-newfile-prompt)
 	    (file-exists-p filename)
 	    (y-or-n-p "File does not exist, create buffer? "))
-	(funcall ffap-file-finder
-		 ;; expand-file-name fixes "~/~/.emacs" bug sent by CHUCKR.
-		 (expand-file-name filename)))
+	(find-file
+	 ;; expand-file-name fixes "~/~/.emacs" bug sent by CHUCKR.
+	 (expand-file-name filename)))
        ;; User does not want to find a non-existent file:
        ((signal 'file-missing (list "Opening file buffer"
 				    "No such file or directory"
@@ -1551,9 +1690,8 @@ For example, try \":/\" for URL (and some FTP) references."
   :type '(choice (const nil) regexp)
   :group 'ffap)
 
-(defvar ffap-menu-alist nil
+(defvar-local ffap-menu-alist nil
   "Buffer local cache of menu presented by `ffap-menu'.")
-(make-variable-buffer-local 'ffap-menu-alist)
 
 (defvar ffap-menu-text-plist
   (cond
@@ -1607,11 +1745,13 @@ Each ALIST entry looks like (STRING . DATA) and defines one choice.
 Function CONT is applied to the entry chosen by the user."
   ;; Note: this function is used with a different continuation
   ;; by the ffap-url add-on package.
-  ;; Could try rewriting to use easymenu.el or lmenu.el.
+  ;; Could try rewriting to use easymenu.el.
   (let (choice)
     (cond
      ;; Emacs mouse:
-     ((and (fboundp 'x-popup-menu) (ffap-mouse-event))
+     ((and (fboundp 'x-popup-menu)
+           (listp last-nonmenu-event)
+           last-nonmenu-event)
       (setq choice
 	    (x-popup-menu
 	     t
@@ -1624,7 +1764,7 @@ Function CONT is applied to the entry chosen by the user."
 	;; Bug: prompting may assume unique strings, no "".
 	(setq choice
 	      (completing-read
-	       (format "%s (default %s): " title (car (car alist)))
+	       (format-prompt title (car (car alist)))
 	       alist nil t
 	       ;; (cons (car (car alist)) 0)
 	       nil)))
@@ -1666,8 +1806,7 @@ Applies `ffap-menu-text-plist' text properties at all matches."
   ;; Remove duplicates.
   (setq ffap-menu-alist			; sort by item
 	(sort ffap-menu-alist
-	      (function
-	       (lambda (a b) (string-lessp (car a) (car b))))))
+              (lambda (a b) (string-lessp (car a) (car b)))))
   (let ((ptr ffap-menu-alist))		; remove duplicates
     (while (cdr ptr)
       (if (equal (car (car ptr)) (car (car (cdr ptr))))
@@ -1675,8 +1814,7 @@ Applies `ffap-menu-text-plist' text properties at all matches."
 	(setq ptr (cdr ptr)))))
   (setq ffap-menu-alist			; sort by position
 	(sort ffap-menu-alist
-	      (function
-	       (lambda (a b) (< (cdr a) (cdr b)))))))
+              (lambda (a b) (< (cdr a) (cdr b))))))
 
 
 ;;; Mouse Support (`ffap-at-mouse'):
@@ -1706,7 +1844,7 @@ Return value:
 	   (ffap-guesser))))
     (cond
      (guess
-      (set-buffer (ffap-event-buffer e))
+      (set-buffer (window-buffer (car (event-start e))))
       (ffap-highlight)
       (unwind-protect
 	  (progn
@@ -1758,6 +1896,14 @@ Only intended for interactive use."
       (set-window-dedicated-p win wdp))
     value))
 
+(defun ffap-other-tab (filename)
+  "Like `ffap', but put buffer in another tab.
+Only intended for interactive use."
+  (interactive (list (ffap-prompter nil " other tab")))
+  (pcase (save-window-excursion (find-file-at-point filename))
+    ((or (and (pred bufferp) b) `(,(and (pred bufferp) b) . ,_))
+     (switch-to-buffer-other-tab b))))
+
 (defun ffap--toggle-read-only (buffer-or-list)
   (dolist (buffer (if (listp buffer-or-list)
 		      buffer-or-list
@@ -1791,6 +1937,14 @@ Only intended for interactive use."
     (ffap--toggle-read-only value)
     value))
 
+(defun ffap-read-only-other-tab (filename)
+  "Like `ffap', but put buffer in another tab and mark as read-only.
+Only intended for interactive use."
+  (interactive (list (ffap-prompter nil " read only other tab")))
+  (let ((value (window-buffer (ffap-other-tab filename))))
+    (ffap--toggle-read-only value)
+    value))
+
 (defun ffap-alternate-file (filename)
   "Like `ffap' and `find-alternate-file'.
 Only intended for interactive use."
@@ -1813,12 +1967,6 @@ Only intended for interactive use."
     (find-file-at-point filename)))
 
 (defalias 'find-file-literally-at-point 'ffap-literally)
-
-
-;;; Bug Reporter:
-
-(define-obsolete-function-alias 'ffap-bug 'report-emacs-bug "23.1")
-(define-obsolete-function-alias 'ffap-submit-bug 'report-emacs-bug "23.1")
 
 
 ;;; Hooks for Gnus, VM, Rmail:
@@ -2013,6 +2161,7 @@ This hook is intended to be put in `file-name-at-point-functions'."
 
      (global-set-key [remap find-file-other-window] 'ffap-other-window)
      (global-set-key [remap find-file-other-frame] 'ffap-other-frame)
+     (global-set-key [remap find-file-other-tab] 'ffap-other-tab)
      (global-set-key [remap find-file-read-only-other-window] 'ffap-read-only-other-window)
      (global-set-key [remap find-file-read-only-other-frame] 'ffap-read-only-other-frame)
 

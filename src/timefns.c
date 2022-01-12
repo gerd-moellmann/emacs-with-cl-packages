@@ -19,6 +19,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
+/* Work around GCC bug 102671.  */
+#if 10 <= __GNUC__
+# pragma GCC diagnostic ignored "-Wanalyzer-null-dereference"
+#endif
+
 #include "systime.h"
 
 #include "blockinput.h"
@@ -593,31 +598,29 @@ timespec_to_lisp (struct timespec t)
 }
 
 /* Return NUMERATOR / DENOMINATOR, rounded to the nearest double.
-   Arguments must be Lisp integers, and DENOMINATOR must be nonzero.  */
+   Arguments must be Lisp integers, and DENOMINATOR must be positive.  */
 static double
 frac_to_double (Lisp_Object numerator, Lisp_Object denominator)
 {
-  intmax_t intmax_numerator;
-  if (FASTER_TIMEFNS && EQ (denominator, make_fixnum (1))
-      && integer_to_intmax (numerator, &intmax_numerator))
-    return intmax_numerator;
+  intmax_t intmax_numerator, intmax_denominator;
+  if (FASTER_TIMEFNS
+      && integer_to_intmax (numerator, &intmax_numerator)
+      && integer_to_intmax (denominator, &intmax_denominator)
+      && intmax_numerator % intmax_denominator == 0)
+    return intmax_numerator / intmax_denominator;
 
   /* Compute number of base-FLT_RADIX digits in numerator and denominator.  */
   mpz_t const *n = bignum_integer (&mpz[0], numerator);
   mpz_t const *d = bignum_integer (&mpz[1], denominator);
-  ptrdiff_t nbits = mpz_sizeinbase (*n, 2);
-  ptrdiff_t dbits = mpz_sizeinbase (*d, 2);
-  eassume (0 < nbits);
-  eassume (0 < dbits);
-  ptrdiff_t ndig = (nbits + LOG2_FLT_RADIX - 1) / LOG2_FLT_RADIX;
-  ptrdiff_t ddig = (dbits + LOG2_FLT_RADIX - 1) / LOG2_FLT_RADIX;
+  ptrdiff_t ndig = mpz_sizeinbase (*n, FLT_RADIX);
+  ptrdiff_t ddig = mpz_sizeinbase (*d, FLT_RADIX);
 
   /* Scale with SCALE when doing integer division.  That is, compute
      (N * FLT_RADIX**SCALE) / D [or, if SCALE is negative, N / (D *
      FLT_RADIX**-SCALE)] as a bignum, convert the bignum to double,
      then divide the double by FLT_RADIX**SCALE.  First scale N
      (or scale D, if SCALE is negative) ...  */
-  ptrdiff_t scale = ddig - ndig + DBL_MANT_DIG + 1;
+  ptrdiff_t scale = ddig - ndig + DBL_MANT_DIG;
   if (scale < 0)
     {
       mpz_mul_2exp (mpz[1], *d, - (scale * LOG2_FLT_RADIX));
@@ -645,7 +648,7 @@ frac_to_double (Lisp_Object numerator, Lisp_Object denominator)
      round to the nearest integer; otherwise, it is less than
      FLT_RADIX ** (DBL_MANT_DIG + 1) and round it to the nearest
      multiple of FLT_RADIX.  Break ties to even.  */
-  if (mpz_sizeinbase (*q, 2) < DBL_MANT_DIG * LOG2_FLT_RADIX)
+  if (mpz_sizeinbase (*q, FLT_RADIX) <= DBL_MANT_DIG)
     {
       /* Converting to double will use the whole quotient so add 1 to
 	 its absolute value as per round-to-even; i.e., if the doubled
@@ -770,44 +773,48 @@ decode_time_components (enum timeform form,
   /* Normalize out-of-range lower-order components by carrying
      each overflow into the next higher-order component.  */
   us += ps / 1000000 - (ps % 1000000 < 0);
-  mpz_set_intmax (mpz[0], us / 1000000 - (us % 1000000 < 0));
-  mpz_add (mpz[0], mpz[0], *bignum_integer (&mpz[1], low));
-  mpz_addmul_ui (mpz[0], *bignum_integer (&mpz[1], high), 1 << LO_TIME_BITS);
+  mpz_t *s = &mpz[1];
+  mpz_set_intmax (*s, us / 1000000 - (us % 1000000 < 0));
+  mpz_add (*s, *s, *bignum_integer (&mpz[0], low));
+  mpz_addmul_ui (*s, *bignum_integer (&mpz[0], high), 1 << LO_TIME_BITS);
   ps = ps % 1000000 + 1000000 * (ps % 1000000 < 0);
   us = us % 1000000 + 1000000 * (us % 1000000 < 0);
 
-  if (result)
+  Lisp_Object hz;
+  switch (form)
     {
-      switch (form)
-	{
-	case TIMEFORM_HI_LO:
-	  /* Floats and nil were handled above, so it was an integer.  */
-	  result->hz = make_fixnum (1);
-	  break;
+    case TIMEFORM_HI_LO:
+      /* Floats and nil were handled above, so it was an integer.  */
+      mpz_swap (mpz[0], *s);
+      hz = make_fixnum (1);
+      break;
 
-	case TIMEFORM_HI_LO_US:
-	  mpz_mul_ui (mpz[0], mpz[0], 1000000);
-	  mpz_add_ui (mpz[0], mpz[0], us);
-	  result->hz = make_fixnum (1000000);
-	  break;
+    case TIMEFORM_HI_LO_US:
+      mpz_set_ui (mpz[0], us);
+      mpz_addmul_ui (mpz[0], *s, 1000000);
+      hz = make_fixnum (1000000);
+      break;
 
-	case TIMEFORM_HI_LO_US_PS:
-	  mpz_mul_ui (mpz[0], mpz[0], 1000000);
-	  mpz_add_ui (mpz[0], mpz[0], us);
-	  mpz_mul_ui (mpz[0], mpz[0], 1000000);
-	  mpz_add_ui (mpz[0], mpz[0], ps);
-	  result->hz = trillion;
-	  break;
+    case TIMEFORM_HI_LO_US_PS:
+      {
+	#if FASTER_TIMEFNS && TRILLION <= ULONG_MAX
+	  unsigned long i = us;
+	  mpz_set_ui (mpz[0], i * 1000000 + ps);
+	  mpz_addmul_ui (mpz[0], *s, TRILLION);
+	#else
+	  intmax_t i = us;
+	  mpz_set_intmax (mpz[0], i * 1000000 + ps);
+	  mpz_addmul (mpz[0], *s, ztrillion);
+	#endif
+	hz = trillion;
+      }
+      break;
 
-	default:
-	  eassume (false);
-	}
-      result->ticks = make_integer_mpz ();
+    default:
+      eassume (false);
     }
-  else
-    *dresult = mpz_get_d (mpz[0]) + (us * 1e6L + ps) / 1e12L;
 
-  return 0;
+  return decode_ticks_hz (make_integer_mpz (), hz, result, dresult);
 }
 
 enum { DECODE_SECS_ONLY = WARN_OBSOLETE_TIMESTAMPS + 1 };
@@ -1309,45 +1316,41 @@ or (if you need time as a string) `format-time-string'.  */)
    determine how many bytes would be written, use NULL for S and
    ((size_t) -1) for MAXSIZE.
 
-   This function behaves like nstrftime, except it allows NUL
-   bytes in FORMAT and it does not support nanoseconds.  */
+   This function behaves like nstrftime, except it allows null
+   bytes in FORMAT.  */
 static size_t
 emacs_nmemftime (char *s, size_t maxsize, const char *format,
 		 size_t format_len, const struct tm *tp, timezone_t tz, int ns)
 {
+  int saved_errno = errno;
   size_t total = 0;
 
-  /* Loop through all the NUL-terminated strings in the format
-     argument.  Normally there's just one NUL-terminated string, but
+  /* Loop through all the null-terminated strings in the format
+     argument.  Normally there's just one null-terminated string, but
      there can be arbitrarily many, concatenated together, if the
      format contains '\0' bytes.  nstrftime stops at the first
      '\0' byte so we must invoke it separately for each such string.  */
   for (;;)
     {
-      size_t len;
-      size_t result;
-
+      errno = 0;
+      size_t result = nstrftime (s, maxsize, format, tp, tz, ns);
+      if (result == 0 && errno != 0)
+	return result;
       if (s)
-	s[0] = '\1';
-
-      result = nstrftime (s, maxsize, format, tp, tz, ns);
-
-      if (s)
-	{
-	  if (result == 0 && s[0] != '\0')
-	    return 0;
-	  s += result + 1;
-	}
+	s += result + 1;
 
       maxsize -= result + 1;
       total += result;
-      len = strlen (format);
+      size_t len = strlen (format);
       if (len == format_len)
-	return total;
+	break;
       total++;
       format += len + 1;
       format_len -= len + 1;
     }
+
+  errno = saved_errno;
+  return total;
 }
 
 static Lisp_Object
@@ -1377,10 +1380,11 @@ format_time_string (char const *format, ptrdiff_t formatlen,
 
   while (true)
     {
-      buf[0] = '\1';
+      errno = 0;
       len = emacs_nmemftime (buf, size, format, formatlen, tmp, tz, ns);
-      if ((0 < len && len < size) || (len == 0 && buf[0] == '\0'))
+      if (len != 0 || errno == 0)
 	break;
+      eassert (errno == ERANGE);
 
       /* Buffer was too small, so make it bigger and try again.  */
       len = emacs_nmemftime (NULL, SIZE_MAX, format, formatlen, tmp, tz, ns);
@@ -2046,7 +2050,7 @@ syms_of_timefns (void)
   defsubr (&Scurrent_time_zone);
   defsubr (&Sset_time_zone_rule);
 
-  flt_radix_power = make_vector (flt_radix_power_size, Qnil);
+  flt_radix_power = make_nil_vector (flt_radix_power_size);
   staticpro (&flt_radix_power);
 
 #ifdef NEED_ZTRILLION_INIT

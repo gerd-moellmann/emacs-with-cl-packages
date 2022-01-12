@@ -1,4 +1,4 @@
-;;; gnus-range.el --- range and sequence functions for Gnus
+;;; gnus-range.el --- range and sequence functions for Gnus  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
@@ -40,6 +40,8 @@ If RANGE is a single range, return (RANGE).  Otherwise, return RANGE."
 
 (define-obsolete-function-alias 'gnus-copy-sequence 'copy-tree "27.1")
 
+;;; We could be using `seq-difference' here, but it's much slower
+;;; on these data sets.  See bug#50877.
 (defun gnus-set-difference (list1 list2)
   "Return a list of elements of LIST1 that do not appear in LIST2."
   (let ((hash2 (make-hash-table :test 'eq))
@@ -87,7 +89,7 @@ Both ranges must be in ascending order."
   (setq range2 (gnus-range-normalize range2))
   (let* ((new-range (cons nil (copy-sequence range1)))
          (r new-range)
-         (safe t))
+         ) ;; (safe t)
     (while (cdr r)
       (let* ((r1 (cadr r))
              (r2 (car range2))
@@ -179,12 +181,8 @@ Both lists have to be sorted over <."
 
 ;;;###autoload
 (defun gnus-intersection (list1 list2)
-  (let ((result nil))
-    (while list2
-      (when (memq (car list2) list1)
-	(setq result (cons (car list2) result)))
-      (setq list2 (cdr list2)))
-    result))
+  (declare (obsolete seq-intersection "28.1"))
+  (nreverse (seq-intersection list1 list2 #'eq)))
 
 ;;;###autoload
 (defun gnus-sorted-intersection (list1 list2)

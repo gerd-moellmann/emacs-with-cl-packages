@@ -1,14 +1,19 @@
-dnl A placeholder for <stddef.h>, for platforms that have issues.
-# stddef_h.m4 serial 6
+# stddef_h.m4 serial 11
 dnl Copyright (C) 2009-2021 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
 
-AC_DEFUN([gl_STDDEF_H],
+dnl A placeholder for <stddef.h>, for platforms that have issues.
+
+AC_DEFUN_ONCE([gl_STDDEF_H],
 [
   AC_REQUIRE([gl_STDDEF_H_DEFAULTS])
   AC_REQUIRE([gt_TYPE_WCHAR_T])
+
+  dnl Persuade OpenBSD <stddef.h> to declare max_align_t.
+  AC_REQUIRE([gl_USE_SYSTEM_EXTENSIONS])
+
   STDDEF_H=
 
   dnl Test whether the type max_align_t exists and whether its alignment
@@ -19,10 +24,17 @@ AC_DEFUN([gl_STDDEF_H],
        [AC_LANG_PROGRAM(
           [[#include <stddef.h>
             unsigned int s = sizeof (max_align_t);
-            #if defined __GNUC__ || defined __IBM__ALIGNOF__
+            #if defined __GNUC__ || defined __clang__ || defined __IBM__ALIGNOF__
             int check1[2 * (__alignof__ (double) <= __alignof__ (max_align_t)) - 1];
             int check2[2 * (__alignof__ (long double) <= __alignof__ (max_align_t)) - 1];
             #endif
+            typedef struct { char a; max_align_t b; } max_helper;
+            typedef struct { char a; long b; } long_helper;
+            typedef struct { char a; double b; } double_helper;
+            typedef struct { char a; long double b; } long_double_helper;
+            int check3[2 * (offsetof (long_helper, b) <= offsetof (max_helper, b)) - 1];
+            int check4[2 * (offsetof (double_helper, b) <= offsetof (max_helper, b)) - 1];
+            int check5[2 * (offsetof (long_double_helper, b) <= offsetof (max_helper, b)) - 1];
           ]])],
        [gl_cv_type_max_align_t=yes],
        [gl_cv_type_max_align_t=no])
@@ -56,11 +68,26 @@ AC_DEFUN([gl_STDDEF_H],
   fi
 ])
 
+# gl_STDDEF_MODULE_INDICATOR([modulename])
+# sets the shell variable that indicates the presence of the given module
+# to a C preprocessor expression that will evaluate to 1.
+# This macro invocation must not occur in macros that are AC_REQUIREd.
 AC_DEFUN([gl_STDDEF_MODULE_INDICATOR],
 [
-  dnl Use AC_REQUIRE here, so that the default settings are expanded once only.
-  AC_REQUIRE([gl_STDDEF_H_DEFAULTS])
+  dnl Ensure to expand the default settings once only.
+  gl_STDDEF_H_REQUIRE_DEFAULTS
   gl_MODULE_INDICATOR_SET_VARIABLE([$1])
+])
+
+# Initializes the default values for AC_SUBSTed shell variables.
+# This macro must not be AC_REQUIREd.  It must only be invoked, and only
+# outside of macros or in macros that are not AC_REQUIREd.
+AC_DEFUN([gl_STDDEF_H_REQUIRE_DEFAULTS],
+[
+  m4_defun(GL_MODULE_INDICATOR_PREFIX[_STDDEF_H_MODULE_INDICATOR_DEFAULTS], [
+  ])
+  m4_require(GL_MODULE_INDICATOR_PREFIX[_STDDEF_H_MODULE_INDICATOR_DEFAULTS])
+  AC_REQUIRE([gl_STDDEF_H_DEFAULTS])
 ])
 
 AC_DEFUN([gl_STDDEF_H_DEFAULTS],

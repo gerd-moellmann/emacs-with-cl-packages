@@ -1,10 +1,11 @@
-;;; webjump.el --- programmable Web hotlist
+;;; webjump.el --- programmable Web hotlist  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996-1997, 2001-2021 Free Software Foundation, Inc.
 
-;; Author:    Neil W. Van Dyke <nwv@acm.org>
-;; Created:   09-Aug-1996
-;; Keywords:  comm www
+;; Author:     Neil W. Van Dyke <nwv@acm.org>
+;; Maintainer: emacs-devel@gnu.org
+;; Created:    09-Aug-1996
+;; Keywords:   comm www
 
 ;; This file is part of GNU Emacs.
 
@@ -40,7 +41,6 @@
 
 ;; You may wish to add something like the following to your init file:
 ;;
-;;   (require 'webjump)
 ;;   (global-set-key "\C-cj" 'webjump)
 ;;   (setq webjump-sites
 ;;         (append '(
@@ -79,10 +79,10 @@
      ;; GNU FTP Mirror List from https://www.gnu.org/order/ftp.html
      [mirrors "https://ftp.gnu.org/pub/gnu/"
               "https://ftpmirror.gnu.org"])
-    ("GNU Project Home Page" . "www.gnu.org")
+    ("GNU Project Website" . "www.gnu.org")
 
     ;; Emacs.
-    ("Emacs Home Page" .
+    ("Emacs Website" .
      "www.gnu.org/software/emacs/emacs.html")
     ("Savannah Emacs page" .
      "savannah.gnu.org/projects/emacs")
@@ -96,9 +96,6 @@
     ("DuckDuckGo" .
      [simple-query "duckduckgo.com"
 		   "duckduckgo.com/?q=" ""])
-    ("Google" .
-     [simple-query "www.google.com"
-		   "www.google.com/search?q=" ""])
     ("Google Groups" .
      [simple-query "groups.google.com"
 		   "groups.google.com/groups?q=" ""])
@@ -255,7 +252,7 @@ Please submit bug reports and other feedback to the author, Neil W. Van Dyke
 		 (cond ((not expr) "")
 		       ((stringp expr) expr)
 		       ((vectorp expr) (webjump-builtin expr name))
-		       ((listp expr) (eval expr))
+		       ((listp expr) (eval expr t))
 		       ((symbolp expr)
 			(if (fboundp expr)
 			    (funcall expr name)
@@ -323,8 +320,7 @@ Please submit bug reports and other feedback to the author, Neil W. Van Dyke
 
 (defun webjump-read-url-choice (what urls &optional default)
   ;; Note: Convert this to use `webjump-read-choice' someday.
-  (let* ((completions (mapcar (function (lambda (n) (cons n n)))
-                              urls))
+  (let* ((completions (mapcar (lambda (n) (cons n n)) urls))
 	 (input (completing-read (concat what
                                          ;;(if default " (RET for default)" "")
                                          ": ")

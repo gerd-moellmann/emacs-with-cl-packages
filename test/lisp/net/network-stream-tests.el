@@ -24,6 +24,8 @@
 
 ;;; Code:
 
+(require 'ert)
+(require 'ert-x)
 (require 'gnutls)
 (require 'network-stream)
 ;; The require above is needed for 'open-network-stream' to work, but
@@ -126,7 +128,7 @@
     (when prev
       (setq string (concat prev string))
       (process-put proc 'previous-string nil)))
-  (if (and (not (string-match "\n" string))
+  (if (and (not (string-search "\n" string))
            (> (length string) 0))
       (process-put proc 'previous-string string))
   (let ((command (split-string string)))
@@ -136,7 +138,20 @@
      (t
       ))))
 
+(defun network-test--resolve-system-name ()
+  (cl-loop for address in (network-lookup-address-info (system-name))
+           when (or (and (= (length address) 5)
+                         ;; IPv4 localhost addresses start with 127.
+                         (= (elt address 0) 127))
+                    (and (= (length address) 9)
+                         ;; IPv6 localhost address.
+                         (equal address [0 0 0 0 0 0 0 1 0])))
+           return t))
+
 (ert-deftest echo-server-with-dns ()
+  (unless (network-test--resolve-system-name)
+    (ert-skip "Can't test resolver for (system-name)"))
+
   (let* ((server (make-server (system-name)))
          (port (aref (process-contact server :local) 4))
          (proc (make-network-process :name "foo"
@@ -226,16 +241,13 @@
       (should (equal (buffer-string) "foo\n")))
     (delete-process server)))
 
-(defconst network-stream-tests--datadir
-  (expand-file-name "test/data/net" source-directory))
-
 (defun make-tls-server (port)
   (start-process "gnutls" (generate-new-buffer "*tls*")
                  "gnutls-serv" "--http"
                  "--x509keyfile"
-                 (concat network-stream-tests--datadir "/key.pem")
+                 (ert-resource-file "key.pem")
                  "--x509certfile"
-                 (concat network-stream-tests--datadir "/cert.pem")
+                 (ert-resource-file "cert.pem")
                  "--port" (format "%s" port)))
 
 (ert-deftest connect-to-tls-ipv4-wait ()
@@ -295,6 +307,7 @@
                                           :name "bar"
                                           :buffer (generate-new-buffer "*foo*")
                                           :nowait t
+                                          :family 'ipv4
                                           :tls-parameters
                                           (cons 'gnutls-x509pki
                                                 (gnutls-boot-parameters
@@ -598,7 +611,7 @@
   (skip-unless (gnutls-available-p))
   (let ((server (make-tls-server 44667))
         (times 0)
-        nowait
+        (nowait nil) ; Workaround Bug#47080
         proc status)
     (unwind-protect
         (progn
@@ -724,4 +737,56 @@
     44777
     (vector :nowait t))))
 
+(ert-deftest check-network-process-coding-system-bind ()
+  "Check that binding coding-system-for-{read,write} works."
+  (let* ((coding-system-for-read 'binary)
+         (coding-system-for-write 'utf-8-unix)
+         (server
+         (make-network-process
+          :name "server"
+          :server t
+          :noquery t
+          :family 'ipv4
+          :service t
+          :host 'local))
+         (coding (process-coding-system server)))
+    (should (eq (car coding) 'binary))
+    (should (eq (cdr coding) 'utf-8-unix))
+    (delete-process server)))
+
+(ert-deftest check-network-process-coding-system-no-override ()
+  "Check that coding-system-for-{read,write} is not overridden by :coding nil."
+  (let* ((coding-system-for-read 'binary)
+         (coding-system-for-write 'utf-8-unix)
+         (server
+         (make-network-process
+          :name "server"
+          :server t
+          :noquery t
+          :family 'ipv4
+          :service t
+          :coding nil
+          :host 'local))
+         (coding (process-coding-system server)))
+    (should (eq (car coding) 'binary))
+    (should (eq (cdr coding) 'utf-8-unix))
+    (delete-process server)))
+
+(ert-deftest check-network-process-coding-system-override ()
+  "Check that :coding non-nil overrides coding-system-for-{read,write}."
+  (let* ((coding-system-for-read 'binary)
+         (coding-system-for-write 'utf-8-unix)
+         (server
+         (make-network-process
+          :name "server"
+          :server t
+          :noquery t
+          :family 'ipv4
+          :service t
+          :coding 'georgian-academy
+          :host 'local))
+         (coding (process-coding-system server)))
+    (should (eq (car coding) 'georgian-academy))
+    (should (eq (cdr coding) 'georgian-academy))
+    (delete-process server)))
 ;;; network-stream-tests.el ends here

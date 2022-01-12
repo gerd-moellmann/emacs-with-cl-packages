@@ -828,9 +828,6 @@ Hooks run when speedbar visits a file in the selected frame.
 @cindex @code{speedbar-visiting-tag-hook}
 @item speedbar-visiting-tag-hook
 Hooks run when speedbar visits a tag in the selected frame.
-@cindex @code{speedbar-load-hook}
-@item speedbar-load-hook
-Hooks run when speedbar is loaded.
 @cindex @code{speedbar-reconfigure-keymaps-hook}
 @item speedbar-reconfigure-keymaps-hook
 Hooks run when the keymaps are regenerated.  Keymaps are reconfigured
@@ -899,7 +896,7 @@ augmented with speedbar.
 
 @enumerate
 @item
-Create the keymap variable @code{@var{name}-speedbar-key-map}.
+Create the keymap variable @code{@var{name}-speedbar-mode-map}.
 
 @item
 Create a function, named whatever you like, which assigns values into your
@@ -907,18 +904,17 @@ keymap.  Use this command to create the keymap before assigning
 bindings:
 
 @smallexample
-    (setq @var{name}-speedbar-key-map (speedbar-make-specialized-keymap))
+    (setq @var{name}-speedbar-mode-map (speedbar-make-specialized-keymap))
 @end smallexample
 
 This function creates a special keymap for use in speedbar.
 
 @item
-Call your install function, or assign it to a hook like this:
+Call your install function, like this:
 
 @smallexample
-(if (featurep 'speedbar)
-    (@var{name}-install-speedbar-variables)
-  (add-hook 'speedbar-load-hook '@var{name}-install-speedbar-variables))
+(with-eval-after-load 'speedbar
+  (@var{name}-install-speedbar-variables))
 @end smallexample
 
 @item
@@ -981,7 +977,7 @@ Next, register your extension like this;
 @example
   (speedbar-add-expansion-list '("MyExtension"
                                  MyExtension-speedbar-menu-items
-                                 MyExtension-speedbar-key-map
+                                 MyExtension-speedbar-mode-map
                                  MyExtension-speedbar-buttons))
 @end example
 

@@ -1,4 +1,4 @@
-;;; threads.el --- tests for threads.
+;;; thread-tests.el --- tests for threads. -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
 
@@ -70,12 +70,12 @@
    (thread-live-p (make-thread #'ignore))))
 
 (ert-deftest threads-all-threads ()
-  "Simple test for all-threads."
+  "Simple test for `all-threads'."
   (skip-unless (featurep 'threads))
   (should (listp (all-threads))))
 
 (ert-deftest threads-main-thread ()
-  "Simple test for all-threads."
+  "Simple test for `all-threads'."
   (skip-unless (featurep 'threads))
   (should (eq main-thread (car (all-threads)))))
 
@@ -155,7 +155,7 @@
   (should (eq (type-of (make-mutex)) 'mutex)))
 
 (ert-deftest threads-mutex-lock-unlock ()
-  "Test mutex-lock and unlock."
+  "Test `mutex-lock' and unlock."
   (skip-unless (featurep 'threads))
   (should
    (let ((mx (make-mutex)))
@@ -315,8 +315,8 @@
   "Test signaling a thread as soon as it is started by the OS."
   (skip-unless (featurep 'threads))
   (let ((thread
-         (make-thread #'(lambda ()
-                          (while t (thread-yield))))))
+         (make-thread (lambda ()
+                        (while t (thread-yield))))))
     (thread-signal thread 'error nil)
     (sit-for 1)
     (should-not (thread-live-p thread))
@@ -331,7 +331,7 @@
     (let (buffer-read-only)
       (erase-buffer))
     (let ((thread
-           (make-thread #'(lambda () (thread-signal main-thread 'error nil)))))
+           (make-thread (lambda () (thread-signal main-thread 'error nil)))))
       (while (thread-live-p thread)
         (thread-yield))
       (read-event nil nil 0.1)
@@ -392,4 +392,4 @@
   (let ((th (make-thread 'ignore)))
     (should-not (equal th main-thread))))
 
-;;; threads.el ends here
+;;; thread-tests.el ends here

@@ -28,8 +28,15 @@ DUMPING = @DUMPING@
 
 MKDIR_P = @MKDIR_P@
 
+configuration=@configuration@
+mac_self_contained=@mac_self_contained@
+
 ifeq ($(DUMPING),pdumper)
+ifeq (${mac_self_contained},no)
 bundle_pdmp := Emacs.app/Contents/MacOS/Emacs.pdmp
+else
+bundle_pdmp := Emacs.app/Contents/MacOS/libexec/${configuration}/Emacs.pdmp
+endif
 else
 bundle_pdmp :=
 endif
@@ -64,9 +71,11 @@ Emacs.app/Contents/MacOS/Emacs: ../src/emacs${EXEEXT}
 	${MKDIR_P} Emacs.app/Contents/MacOS
 	rm -f $@
 	cp $< $@
-Emacs.app/Contents/MacOS/Emacs.pdmp: ../src/emacs${EXEEXT}.pdmp
-	${MKDIR_P} Emacs.app/Contents/MacOS
+ifeq ($(DUMPING),pdumper)
+$(bundle_pdmp): ../src/emacs${EXEEXT}.pdmp
+	${MKDIR_P} $(dir $@)
 	cp $< $@
+endif
 
 .PHONY: all
 

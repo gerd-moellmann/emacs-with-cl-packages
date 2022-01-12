@@ -119,7 +119,7 @@ patch.  So, don't change these variables, unless the default doesn't work."
 (defcustom ediff-context-diff-label-regexp
   (let ((stuff "\\([^ \t\n]+\\)"))
     (concat "\\(" 	; context diff 2-liner
-            "^\\*\\*\\* +" stuff "[^*]+[\t ]*\n--- +" stuff
+            "^\\*\\*\\* +" stuff "[^*]+\n--- +" stuff
             "\\|" 	; unified format diff 2-liner
             "^--- +" stuff ".*\n\\+\\+\\+ +" stuff
             "\\)"))
@@ -128,18 +128,19 @@ You probably don't want to change that, unless you are using an obscure patch
 program."
   :type 'regexp)
 
-;; The buffer of the patch file.  Local to control buffer.
-(ediff-defvar-local ediff-patchbufer nil "")
+(ediff-defvar-local ediff-patchbufer nil
+  "The buffer of the patch file.  Local to control buffer.")
 
-;; The buffer where patch displays its diagnostics.
-(ediff-defvar-local ediff-patch-diagnostics nil "")
+(ediff-defvar-local ediff-patch-diagnostics nil
+  "The buffer where patch displays its diagnostics.")
 
-;; Map of patch buffer.  Has the form:
-;;    ((filename1 marker1 marker2) (filename2 marker1 marker2) ...)
-;; where filenames are files to which patch would have applied the patch;
-;; marker1 delimits the beginning of the corresponding patch and marker2 does
-;; it for the end.
-(ediff-defvar-local ediff-patch-map nil "")
+(ediff-defvar-local ediff-patch-map nil
+  "Map of patch buffer.
+Has the form:
+   ((filename1 marker1 marker2) (filename2 marker1 marker2) ...)
+where filenames are files to which patch would have applied the patch;
+marker1 delimits the beginning of the corresponding patch and marker2 does
+it for the end.")
 
 ;; strip prefix from filename
 ;; returns /dev/null, if can't strip prefix
@@ -193,7 +194,7 @@ program."
     (let ((count 0)
 	  (mark1 (point-min-marker))
 	  (mark1-end (point-min))
-	  (possible-file-names '("/dev/null" . "/dev/null"))
+	  (possible-file-names `(,null-device . ,null-device))
 	  mark2-end mark2 filenames
 	  beg1 beg2 end1 end2
 	  patch-map opoint)
@@ -217,10 +218,10 @@ program."
 	    (setq possible-file-names
 		  (cons (if (and beg1 end1)
 			    (buffer-substring beg1 end1)
-			  "/dev/null")
+			  null-device)
 			(if (and beg2 end2)
 			    (buffer-substring beg2 end2)
-			  "/dev/null")))
+			  null-device)))
             ;; Remove file junk (Bug#26084).
             (while (re-search-backward
                     (concat "^\\(?:" diff-file-junk-re "\\)") mark1-end t)
@@ -309,12 +310,12 @@ program."
 				   (file-exists-p (cdr m2)))
 			  (setq base-dir1 (car m1)
 				base-dir2 (car m2))))))))
-	      (or (string= (car proposed-file-names) "/dev/null")
+	      (or (string= (car proposed-file-names) null-device)
 		  (setcar proposed-file-names
 			  (ediff-file-name-sans-prefix
 			   (car proposed-file-names) base-dir1)))
 	      (or (string=
-		   (cdr proposed-file-names) "/dev/null")
+		   (cdr proposed-file-names) null-device)
 		  (setcdr proposed-file-names
 			  (ediff-file-name-sans-prefix
 			   (cdr proposed-file-names) base-dir2)))
@@ -323,7 +324,7 @@ program."
 
     ;; take the given file name into account
     (or (file-directory-p filename)
-	(string= "/dev/null" filename)
+	(string= null-device filename)
 	(setcar (ediff-get-session-objA (car ediff-patch-map))
 		(cons (file-name-nondirectory filename)
 		      (file-name-nondirectory filename))))
@@ -465,6 +466,9 @@ are two possible targets for this %spatch.  However, these files do not exist."
 				     file1 file2 (if multi-patch-p "multi-" ""))))
 		    (princ "
 \nPlease enter an alternative patch target ...\n"))
+                  (when (and (string= file1 file2)
+                             (y-or-n-p (format "Create %s?" file1)))
+                    (write-region (point-min) (point-min) file1))
 		  (let ((directory t)
 			target)
 		    (while directory
@@ -582,7 +586,7 @@ optional argument, then use it."
 	 patch-buf
 	 (if (and ediff-patch-map
 		  (not (string-match-p
-			"^/dev/null"
+			(concat "^" null-device)
 			;; this is the file to patch
 			(ediff-get-session-objA-name (car ediff-patch-map))))
 		  (> (length

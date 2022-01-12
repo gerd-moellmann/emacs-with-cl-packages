@@ -1,4 +1,4 @@
-;;; scroll-lock.el --- Scroll lock scrolling.
+;;; scroll-lock.el --- Scroll lock scrolling.  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2005-2021 Free Software Foundation, Inc.
 
@@ -40,9 +40,8 @@
     map)
   "Keymap for Scroll Lock mode.")
 
-(defvar scroll-lock-preserve-screen-pos-save scroll-preserve-screen-position
+(defvar-local scroll-lock-preserve-screen-pos-save scroll-preserve-screen-position
   "Used for saving the state of `scroll-preserve-screen-position'.")
-(make-variable-buffer-local 'scroll-lock-preserve-screen-pos-save)
 
 (defvar scroll-lock-temporary-goal-column 0
   "Like `temporary-goal-column' but for scroll-lock-* commands.")
@@ -64,7 +63,7 @@ MS-Windows systems if `w32-scroll-lock-modifier' is non-nil."
       (progn
 	(setq scroll-lock-preserve-screen-pos-save
 	      scroll-preserve-screen-position)
-	(set (make-local-variable 'scroll-preserve-screen-position) 'always))
+        (setq-local scroll-preserve-screen-position 'always))
     (setq scroll-preserve-screen-position
 	  scroll-lock-preserve-screen-pos-save)))
 

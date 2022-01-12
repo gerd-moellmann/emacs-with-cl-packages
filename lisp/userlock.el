@@ -1,4 +1,4 @@
-;;; userlock.el --- handle file access contention between multiple users
+;;; userlock.el --- handle file access contention between multiple users  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1985-1986, 2001-2021 Free Software Foundation, Inc.
 
@@ -39,6 +39,10 @@
 
 (define-error 'file-locked "File is locked" 'file-error)
 
+(defun userlock--fontify-key (key)
+  "Add the `help-key-binding' face to string KEY."
+  (propertize key 'face 'help-key-binding))
+
 ;;;###autoload
 (defun ask-user-about-lock (file opponent)
   "Ask user what to do when he wants to edit FILE but it is locked by OPPONENT.
@@ -64,8 +68,12 @@ in any way you like."
 			  (match-string 0 opponent)))
 	      opponent))
       (while (null answer)
-	(message "%s locked by %s: (s, q, p, ?)? "
-		 short-file short-opponent)
+        (message "%s locked by %s: (%s, %s, %s, %s)? "
+                 short-file short-opponent
+                 (userlock--fontify-key "s")
+                 (userlock--fontify-key "q")
+                 (userlock--fontify-key "p")
+                 (userlock--fontify-key "?"))
 	(if noninteractive (error "Cannot resolve lock conflict in batch mode"))
 	(let ((tem (let ((inhibit-quit t)
 			 (cursor-in-echo-area t))
@@ -80,7 +88,12 @@ in any way you like."
 				      (?? . help))))
 	    (cond ((null answer)
 		   (beep)
-		   (message "Please type q, s, or p; or ? for help")
+                   (message "Please type %s, %s, or %s; or %s for help"
+                            (userlock--fontify-key "q")
+                            (userlock--fontify-key "s")
+                            (userlock--fontify-key "p")
+                            ;; FIXME: Why do we use "?" here and "C-h" below?
+                            (userlock--fontify-key "?"))
 		   (sit-for 3))
 		  ((eq (cdr answer) 'help)
 		   (ask-user-about-lock-help)
@@ -91,14 +104,19 @@ in any way you like."
 
 (defun ask-user-about-lock-help ()
   (with-output-to-temp-buffer "*Help*"
-    (princ "It has been detected that you want to modify a file that someone else has
+    (with-current-buffer standard-output
+      (insert
+       (format
+        "It has been detected that you want to modify a file that someone else has
 already started modifying in Emacs.
 
-You can <s>teal the file; the other user becomes the
+You can <%s>teal the file; the other user becomes the
   intruder if (s)he ever unmodifies the file and then changes it again.
-You can <p>roceed; you edit at your own (and the other user's) risk.
-You can <q>uit; don't modify this file.")
-    (with-current-buffer standard-output
+You can <%s>roceed; you edit at your own (and the other user's) risk.
+You can <%s>uit; don't modify this file."
+        (userlock--fontify-key "s")
+        (userlock--fontify-key "p")
+        (userlock--fontify-key "q")))
       (help-mode))))
 
 (define-error 'file-supersession nil 'file-error)
@@ -107,7 +125,8 @@ You can <q>uit; don't modify this file.")
   (with-demoted-errors "Unchanged content check: %S"
     ;; Even tho we receive `filename', we know that `filename' refers to the current
     ;; buffer's file.
-    (cl-assert (equal filename (expand-file-name buffer-file-truename)))
+    (cl-assert (equal (expand-file-name filename)
+                      (expand-file-name buffer-file-truename)))
     ;; Note: rather than read the file and compare to the buffer, we could save
     ;; the buffer and compare to the file, but for encrypted data this
     ;; wouldn't work well (and would risk exposing the data).
@@ -151,15 +170,20 @@ The buffer in question is current when this function is called."
   (save-window-excursion
     (let ((prompt
 	   (format "%s changed on disk; \
-really edit the buffer? (y, n, r or C-h) "
-		   (file-name-nondirectory filename)))
+really edit the buffer? (%s, %s, %s or %s) "
+                   (file-name-nondirectory filename)
+                   (userlock--fontify-key "y")
+                   (userlock--fontify-key "n")
+                   (userlock--fontify-key "r")
+                   ;; FIXME: Why do we use "C-h" here and "?" above?
+                   (userlock--fontify-key "C-h")))
 	  (choices '(?y ?n ?r ?? ?\C-h))
 	  answer)
       (when noninteractive
 	(message "%s" prompt)
 	(error "Cannot resolve conflict in batch mode"))
       (while (null answer)
-	(setq answer (read-char-from-minibuffer prompt choices))
+	(setq answer (read-char-choice prompt choices))
 	(cond ((memq answer '(?? ?\C-h))
 	       (ask-user-about-supersession-help)
 	       (setq answer nil))
@@ -170,27 +194,43 @@ really edit the buffer? (y, n, r or C-h) "
 		       (list "File reverted" filename)))
 	      ((eq answer ?n)
 	       (signal 'file-supersession
-		       (list "File changed on disk" filename)))))
+		       (list "File changed on disk" filename)))
+	      ((eq answer ?y))
+	      (t (setq answer nil))))
       (message
        "File on disk now will become a backup file if you save these changes.")
       (setq buffer-backed-up nil))))
 
 (defun ask-user-about-supersession-help ()
   (with-output-to-temp-buffer "*Help*"
-    (princ
-     (substitute-command-keys
-      "You want to modify a buffer whose disk file has changed
+    (with-current-buffer standard-output
+      (insert
+       (format
+        "You want to modify a buffer whose disk file has changed
 since you last read it in or saved it with this buffer.
 
-If you say `y' to go ahead and modify this buffer,
+If you say %s to go ahead and modify this buffer,
 you risk ruining the work of whoever rewrote the file.
-If you say `r' to revert, the contents of the buffer are refreshed
+If you say %s to revert, the contents of the buffer are refreshed
 from the file on disk.
-If you say `n', the change you started to make will be aborted.
+If you say %s, the change you started to make will be aborted.
 
-Usually, you should type `n' and then `\\[revert-buffer]',
-to get the latest version of the file, then make the change again."))
-    (with-current-buffer standard-output
+Usually, you should type %s to get the latest version of the
+file, then make the change again."
+        (userlock--fontify-key "y")
+        (userlock--fontify-key "r")
+        (userlock--fontify-key "n")
+        (userlock--fontify-key "r")))
       (help-mode))))
+
+;;;###autoload
+(defun userlock--handle-unlock-error (error)
+  "Report an ERROR that occurred while unlocking a file."
+  (display-warning
+   '(unlock-file)
+   ;; There is no need to explain that this is an unlock error because
+   ;; ERROR is a `file-error' condition, which explains this.
+   (message "%s, ignored" (error-message-string error))
+   :warning))
 
 ;;; userlock.el ends here

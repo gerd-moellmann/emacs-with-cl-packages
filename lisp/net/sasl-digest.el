@@ -1,4 +1,4 @@
-;;; sasl-digest.el --- DIGEST-MD5 module for the SASL client framework
+;;; sasl-digest.el --- DIGEST-MD5 module for the SASL client framework  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2000, 2007-2021 Free Software Foundation, Inc.
 
@@ -29,9 +29,9 @@
 ;; It is caller's responsibility to base64-decode challenges and
 ;; base64-encode responses in IMAP4 AUTHENTICATE command.
 ;;
-;; Passphrase should be longer than 16 bytes. (See RFC 2195)
+;; Passphrase should be longer than 16 bytes.  (See RFC 2195)
 
-;;; Commentary:
+;;; Code:
 
 (require 'sasl)
 (require 'hmac-md5)

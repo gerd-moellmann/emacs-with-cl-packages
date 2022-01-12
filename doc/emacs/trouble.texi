@@ -57,6 +57,13 @@ incremental search, @kbd{C-g} behaves specially; it may take two
 successive @kbd{C-g} characters to get out of a search.
 @xref{Incremental Search}, for details.
 
+  If you type @kbd{C-g} in a minibuffer, this quits the command that
+opened that minibuffer, closing it.  If that minibuffer is not the
+most recently opened one (which can happen when
+@code{minibuffer-follows-selected-frame} is @code{nil} (@pxref{Basic
+Minibuffer})), @kbd{C-g} also closes the more recently opened ones,
+quitting their associated commands, after asking you for confirmation.
+
   On MS-DOS, the character @kbd{C-@key{Break}} serves as a quit character
 like @kbd{C-g}.  The reason is that it is not feasible, on MS-DOS, to
 recognize @kbd{C-g} while a command is running, between interactions
@@ -386,7 +393,7 @@ this---saving them---updates the files themselves.
 associated with any files, or if the autosave was not recent enough to
 have recorded important changes, you can use the
 @file{etc/emacs-buffer.gdb} script with GDB (the GNU Debugger) to
-retrieve them from a core dump--provided that a core dump was saved,
+retrieve them from a core dump---provided that a core dump was saved,
 and that the Emacs executable was not stripped of its debugging
 symbols.
 
@@ -721,18 +728,24 @@ will be sent to the Emacs maintainers at
 @ifhtml
 @url{https://lists.gnu.org/mailman/listinfo/bug-gnu-emacs, bug-gnu-emacs}.
 @end ifhtml
-(If you want to suggest an improvement or new feature, use the same
-address.)  If you cannot send mail from inside Emacs, you can copy the
+If you cannot send mail from inside Emacs, you can copy the
 text of your report to your normal mail client (if your system
 supports it, you can type @kbd{C-c M-i} to have Emacs do this for you)
 and send it to that address.  Or you can simply send an email to that
 address describing the problem.
 
-Your report will be sent to the @samp{bug-gnu-emacs} mailing list, and
-stored in the GNU Bug Tracker at @url{https://debbugs.gnu.org}.  Please
-include a valid reply email address, in case we need to ask you for
-more information about your report.  Submissions are moderated, so
-there may be a delay before your report appears.
+If you want to submit code to Emacs (to fix a problem or implement a
+new feature), the easiest way to do this is to send a patch to the
+Emacs issue tracker.  This is done with the @kbd{M-x
+submit-emacs-patch} command, and works much the same as when reporting
+bugs.
+
+In any case, your report will be sent to the @samp{bug-gnu-emacs}
+mailing list, and stored in the GNU Bug Tracker at
+@url{https://debbugs.gnu.org}.  Please include a valid reply email
+address, in case we need to ask you for more information about your
+report.  Submissions are moderated, so there may be a delay before
+your report appears.
 
 You do not need to know how the GNU Bug Tracker works in order to
 report a bug, but if you want to, you can read the tracker's online
@@ -1339,8 +1352,13 @@ downloaded the repository source, you should read the file
 from a normal build).
 
 If you would like to make more extensive contributions, see the
-@file{CONTRIBUTE} file in the Emacs distribution for information on
-how to be an Emacs developer.
+@file{CONTRIBUTE} file in the Emacs source tree for information on how
+to be an Emacs developer.  That file is distributed as part of the source
+tarball of every released Emacs version, and can also be found on-line
+in the @url{https://git.savannah.gnu.org/cgit/emacs.git/tree/CONTRIBUTE,
+Emacs on-line source repository}.  If you cloned the Emacs repository,
+per the instructions in @url{https://savannah.gnu.org/projects/emacs/},
+you will find this file in the top directory of the source Emacs tree.
 
 For documentation on Emacs (to understand how to implement your
 desired change), refer to:

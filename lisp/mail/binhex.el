@@ -29,12 +29,6 @@
 
 ;;; Code:
 
-(eval-and-compile
-  (defalias 'binhex-char-int
-    (if (fboundp 'char-int)
-	'char-int
-      'identity)))
-
 (defgroup binhex nil
   "Decoding of BinHex (binary-to-hexadecimal) data."
   :group 'mail
@@ -44,19 +38,16 @@
   "Non-nil value should be a string that names a binhex decoder.
 The program should expect to read binhex data on its standard
 input and write the converted data to its standard output."
-  :type 'string
-  :group 'binhex)
+  :type 'string)
 
 (defcustom binhex-decoder-switches '("-d")
   "List of command line flags passed to the command `binhex-decoder-program'."
-  :group 'binhex
   :type '(repeat string))
 
 (defcustom binhex-use-external
   (executable-find binhex-decoder-program)
   "Use external binhex program."
   :version "22.1"
-  :group 'binhex
   :type 'boolean)
 
 (defconst binhex-alphabet-decoding-alist
@@ -83,12 +74,10 @@ input and write the converted data to its standard output."
   "^[^:]...............................................................$")
 (defconst binhex-end-line ":$")		; unused
 
-(defvar binhex-temporary-file-directory
-  (cond ((fboundp 'temp-directory) (temp-directory))
-	((boundp 'temporary-file-directory) temporary-file-directory)
-	("/tmp/")))
+(make-obsolete-variable 'binhex-temporary-file-directory
+                        'temporary-file-directory "28.1")
 
-(defun binhex-insert-char (char &optional count ignored buffer)
+(defun binhex-insert-char (char &optional count _ignored buffer)
   "Insert COUNT copies of CHARACTER into BUFFER."
   (if (or (null buffer) (eq buffer (current-buffer)))
       (insert-char char count)
@@ -152,14 +141,14 @@ input and write the converted data to its standard output."
 (defun binhex-string-big-endian (string)
   (let ((ret 0) (i 0) (len (length string)))
     (while (< i len)
-      (setq ret (+ (ash ret 8) (binhex-char-int (aref string i)))
+      (setq ret (+ (ash ret 8) (aref string i))
 	    i (1+ i)))
     ret))
 
 (defun binhex-string-little-endian (string)
   (let ((ret 0) (i 0) (shift 0) (len (length string)))
     (while (< i len)
-      (setq ret (+ ret (ash (binhex-char-int (aref string i)) shift))
+      (setq ret (+ ret (ash (aref string i) shift))
 	    i (1+ i)
 	    shift (+ shift 8)))
     ret))
@@ -169,11 +158,11 @@ input and write the converted data to its standard output."
     (let ((pos (point-min)) len)
       (vector
        (prog1
-	   (setq len (binhex-char-int (char-after pos)))
+           (setq len (char-after pos))
 	 (setq pos (1+ pos)))
        (buffer-substring pos (setq pos (+ pos len)))
        (prog1
-	   (setq len (binhex-char-int (char-after pos)))
+           (setq len (char-after pos))
 	 (setq pos (1+ pos)))
        (buffer-substring pos (setq pos (+ pos 4)))
        (buffer-substring pos (setq pos (+ pos 4)))
@@ -281,11 +270,12 @@ If HEADER-ONLY is non-nil only decode header and return filename."
 (defun binhex-decode-region-external (start end)
   "Binhex decode region between START and END using external decoder."
   (interactive "r")
-  (let ((cbuf (current-buffer)) firstline work-buffer
+  (let ((cbuf (current-buffer))
+	work-buffer ;; firstline
 	(file-name (expand-file-name
 		    (concat (binhex-decode-region-internal start end t)
 			    ".data")
-		    binhex-temporary-file-directory)))
+		    temporary-file-directory)))
     (save-excursion
       (goto-char start)
       (when (re-search-forward binhex-begin-line nil t)
@@ -295,9 +285,9 @@ If HEADER-ONLY is non-nil only decode header and return filename."
 		(set-buffer (setq work-buffer
 				  (generate-new-buffer " *binhex-work*")))
 		(buffer-disable-undo work-buffer)
-		(insert-buffer-substring cbuf firstline end)
-		(cd binhex-temporary-file-directory)
-		(apply 'call-process-region
+		(insert-buffer-substring cbuf nil end) ;; firstline
+		(cd temporary-file-directory)
+		(apply #'call-process-region
 		       (point-min)
 		       (point-max)
 		       binhex-decoder-program
@@ -324,6 +314,8 @@ If HEADER-ONLY is non-nil only decode header and return filename."
   (if binhex-use-external
       (binhex-decode-region-external start end)
     (binhex-decode-region-internal start end)))
+
+(define-obsolete-function-alias 'binhex-char-int #'identity "28.1")
 
 (provide 'binhex)
 

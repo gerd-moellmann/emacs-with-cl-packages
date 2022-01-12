@@ -1,6 +1,6 @@
 ;;; generator.el --- generators  -*- lexical-binding: t -*-
 
-;;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2021  Free Software Foundation, Inc.
 
 ;; Author: Daniel Colascione <dancol@dancol.org>
 ;; Keywords: extensions, elisp
@@ -153,7 +153,7 @@ DYNAMIC-VAR bound to STATIC-VAR."
 (defun cps--add-state (kind body)
   "Create a new CPS state of KIND with BODY and return the state's name."
   (declare (indent 1))
-  (let* ((state (cps--gensym "cps-state-%s-" kind)))
+  (let ((state (cps--gensym "cps-state-%s-" kind)))
     (push (list state body cps--cleanup-function) cps--states)
     (push state cps--bindings)
     state))
@@ -467,7 +467,7 @@ DYNAMIC-VAR bound to STATIC-VAR."
           (guard (cps--special-form-p name))
           (guard (not (memq name cps-standard-special-forms))))
      name                               ; Shut up byte compiler
-     (error "special form %S incorrect or not supported" form))
+     (error "Special form %S incorrect or not supported" form))
 
     ;; Process regular function applications with nontrivial
     ;; parameters, converting them to applications of trivial
@@ -633,7 +633,7 @@ modified copy."
                          ;; If we're exiting non-locally (error, quit,
                          ;; etc.)  close the iterator.
                          ,(cps--make-close-iterator-form terminal-state)))))
-                  (t (error "unknown iterator operation %S" op))))))
+                  (t (error "Unknown iterator operation %S" op))))))
          ,(when finalizer-symbol
             '(funcall iterator
                       :stash-finalizer
@@ -668,12 +668,12 @@ sub-iterator function returns via `iter-end-of-sequence'."
          (iter-close ,valsym)))))
 
 (defmacro iter-defun (name arglist &rest body)
-  "Creates a generator NAME.
+  "Create a generator NAME that accepts ARGLIST as its arguments.
 When called as a function, NAME returns an iterator value that
 encapsulates the state of a computation that produces a sequence
 of values.  Callers can retrieve each value using `iter-next'."
   (declare (indent defun)
-           (debug (&define name lambda-list lambda-doc def-body))
+           (debug (&define name lambda-list lambda-doc &rest sexp))
            (doc-string 3))
   (cl-assert lexical-binding)
   (let* ((parsed-body (macroexp-parse-body body))
@@ -687,14 +687,14 @@ of values.  Callers can retrieve each value using `iter-next'."
   "Return a lambda generator.
 `iter-lambda' is to `iter-defun' as `lambda' is to `defun'."
   (declare (indent defun)
-           (debug (&define lambda-list lambda-doc def-body)))
+           (debug (&define lambda-list lambda-doc &rest sexp)))
   (cl-assert lexical-binding)
   `(lambda ,arglist
      ,(cps-generate-evaluator body)))
 
 (defmacro iter-make (&rest body)
   "Return a new iterator."
-  (declare (debug t))
+  (declare (debug (&rest sexp)))
   (cps-generate-evaluator body))
 
 (defconst iter-empty (lambda (_op _val) (signal 'iter-end-of-sequence nil))
@@ -711,7 +711,7 @@ iterator cannot supply more values."
 
 (defun iter-close (iterator)
   "Terminate an iterator early.
-Run any unwind-protect handlers in scope at the point ITERATOR
+Run any `unwind-protect' handlers in scope at the point ITERATOR
 is blocked."
   (funcall iterator :close nil))
 
@@ -720,22 +720,25 @@ is blocked."
 Evaluate BODY with VAR bound to each value from ITERATOR.
 Return the value with which ITERATOR finished iteration."
   (declare (indent 1)
-           (debug ((symbolp form) body)))
+           (debug ((symbolp form) &rest sexp)))
   (let ((done-symbol (cps--gensym "iter-do-iterator-done"))
         (condition-symbol (cps--gensym "iter-do-condition"))
         (it-symbol (cps--gensym "iter-do-iterator"))
         (result-symbol (cps--gensym "iter-do-result")))
-    `(let (,var
-           ,result-symbol
+    `(let (,result-symbol
            (,done-symbol nil)
            (,it-symbol ,iterator))
-       (while (not ,done-symbol)
-         (condition-case ,condition-symbol
-             (setf ,var (iter-next ,it-symbol))
-           (iter-end-of-sequence
-            (setf ,result-symbol (cdr ,condition-symbol))
-            (setf ,done-symbol t)))
-         (unless ,done-symbol ,@body))
+       (while
+           (let ((,var
+                  (condition-case ,condition-symbol
+                      (iter-next ,it-symbol)
+                    (iter-end-of-sequence
+                     (setf ,result-symbol (cdr ,condition-symbol))
+                     (setf ,done-symbol t)))))
+             (unless ,done-symbol
+               ,@body
+               ;; Loop until done-symbol is set.
+               t)))
        ,result-symbol)))
 
 (defvar cl--loop-args)

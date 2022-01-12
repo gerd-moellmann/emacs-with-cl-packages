@@ -1,4 +1,4 @@
-;;; cc-vars.el --- user customization variables for CC Mode
+;;; cc-vars.el --- user customization variables for CC Mode -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1985, 1987, 1992-2021 Free Software Foundation, Inc.
 
@@ -41,6 +41,9 @@
     (load "cc-bytecomp" nil t)))
 
 (cc-require 'cc-defs)
+
+(defvar c-syntactic-context)
+(defvar c-syntactic-element)
 
 (cc-eval-when-compile
   (require 'custom)
@@ -575,7 +578,9 @@ comment styles:
 
  javadoc -- Javadoc style for \"/** ... */\" comments (default in Java mode).
  autodoc -- Pike autodoc style for \"//! ...\" comments (default in Pike mode).
- gtkdoc  -- GtkDoc style for \"/** ... **/\" comments (default in C and C++ modes).
+ gtkdoc  -- GtkDoc style for \"/** ... **/\" comments
+						   (default in C and C++ modes).
+ doxygen -- Doxygen style.
 
 The value may also be a list of doc comment styles, in which case all
 of them are recognized simultaneously (presumably with markup cues
@@ -1222,7 +1227,7 @@ can always override the use of `c-default-style' by making calls to
        ;; Anchor pos: None.
        ))
 (defcustom c-offsets-alist nil
-  "Association list of syntactic element symbols and indentation offsets.
+  "Alist of syntactic element symbols and indentation offsets.
 As described below, each cons cell in this list has the form:
 
     (SYNTACTIC-SYMBOL . OFFSET)
@@ -1422,23 +1427,23 @@ localized, they cannot be made global again.
 This variable must be set appropriately before CC Mode is loaded.
 
 The list of variables to buffer localize are:
-    c-basic-offset
-    c-comment-only-line-offset
-    c-indent-comment-alist
-    c-indent-comments-syntactically-p
-    c-block-comment-prefix
-    c-comment-prefix-regexp
-    c-doc-comment-style
-    c-cleanup-list
-    c-hanging-braces-alist
-    c-hanging-colons-alist
-    c-hanging-semi&comma-criteria
-    c-backslash-column
-    c-backslash-max-column
-    c-label-minimum-indentation
-    c-offsets-alist
-    c-special-indent-hook
-    c-indentation-style"
+    `c-basic-offset'
+    `c-comment-only-line-offset'
+    `c-indent-comment-alist'
+    `c-indent-comments-syntactically-p'
+    `c-block-comment-prefix'
+    `c-comment-prefix-regexp'
+    `c-doc-comment-style'
+    `c-cleanup-list'
+    `c-hanging-braces-alist'
+    `c-hanging-colons-alist'
+    `c-hanging-semi&comma-criteria'
+    `c-backslash-column'
+    `c-backslash-max-column'
+    `c-label-minimum-indentation'
+    `c-offsets-alist'
+    `c-special-indent-hook'
+    `c-indentation-style'"
   :type 'boolean
   :safe 'booleanp
   :group 'c)
@@ -1649,6 +1654,15 @@ white space either before or after the operator, but not both."
   :type 'boolean
   :group 'c)
 
+(defcustom c-cpp-indent-to-body-directives '("pragma")
+  "Preprocessor directives which will be indented as statements.
+
+A list of Preprocessor directives which when reindented, or newly
+typed in, will cause the \"#\" introducing the directive to be
+indented as a statement."
+  :type '(repeat string)
+  :group 'c)
+
 ;; Initialize the next two to a regexp which never matches.
 (defvar c-noise-macro-with-parens-name-re regexp-unmatchable)
 (make-variable-buffer-local 'c-noise-macro-with-parens-name-re)
@@ -1660,7 +1674,8 @@ white space either before or after the operator, but not both."
 like \"INLINE\" which are syntactic noise.  Such a macro/extension is complete
 in itself, never having parentheses.  All these names must be syntactically
 valid identifiers.  Alternatively, this variable may be a regular expression
-which matches the names of such macros.
+which matches the names of such macros, in which case it must have a submatch
+1 which matches the actual noise macro name.
 
 If you change this variable's value, call the function
 `c-make-noise-macro-regexps' to set the necessary internal variables (or do
@@ -1676,7 +1691,8 @@ this implicitly by reinitializing C/C++/Objc Mode on any buffer)."
 which optionally have arguments in parentheses, and which expand to nothing.
 All these names must be syntactically valid identifiers.  These are recognized
 by CC Mode only in declarations.  Alternatively, this variable may be a
-regular expression which matches the names of such macros.
+regular expression which matches the names of such macros, in which case it
+must have a submatch 1 which matches the actual noise macro name.
 
 If you change this variable's value, call the function
 `c-make-noise-macro-regexps' to set the necessary internal variables (or do
@@ -1754,7 +1770,7 @@ variables.")
 		      ; all XEmacsen.
 	  ((null c-macro-names-with-semicolon)
 	   nil)
-	  (t (error "c-make-macro-with-semi-re: invalid \
+	  (t (error "c-make-macro-with-semi-re: Invalid \
 c-macro-names-with-semicolon: %s"
 		    c-macro-names-with-semicolon))))))
 
@@ -1848,13 +1864,13 @@ Set from `c-comment-prefix-regexp' at mode initialization.")
 (defvar c-string-par-start
 ;;   (concat "\\(" (default-value 'paragraph-start) "\\)\\|[ \t]*\\\\$")
   "\f\\|[ \t]*\\\\?$"
-  "Value of paragraph-start used when scanning strings.
+  "Value of `paragraph-start' used when scanning strings.
 It treats escaped EOLs as whitespace.")
 
 (defvar c-string-par-separate
   ;; (concat "\\(" (default-value 'paragraph-separate) "\\)\\|[ \t]*\\\\$")
   "[ \t\f]*\\\\?$"
-  "Value of paragraph-separate used when scanning strings.
+  "Value of `paragraph-separate' used when scanning strings.
 It treats escaped EOLs as whitespace.")
 
 (defvar c-sentence-end-with-esc-eol
@@ -1862,7 +1878,7 @@ It treats escaped EOLs as whitespace.")
 		;; N.B.:  "$" would be illegal when not enclosed like "\\($\\)".
 		"\\|" "[.?!][]\"')}]* ?\\\\\\($\\)[ \t\n]*"
 		"\\)")
-  "Value used like sentence-end used when scanning strings.
+  "Value used like `sentence-end' used when scanning strings.
 It treats escaped EOLs as whitespace.")
 
 

@@ -1,4 +1,4 @@
-;;; reftex-vars.el --- configuration variables for RefTeX
+;;; reftex-vars.el --- configuration variables for RefTeX  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1997-1999, 2001-2021 Free Software Foundation, Inc.
 
@@ -121,7 +121,7 @@
        (regexp "tables?" "tab\\." "Tabellen?"))
       ("table*"    ?t nil nil caption)
 
-      ("\\footnote[]{}" ?n "fn:" "~\\ref{%s}" 2
+      ("\\footnote[]{}" ?n "fn:" "~\\footref{%s}" 2
        (regexp "footnotes?" "Fussnoten?"))
 
       ("any"       ?\  " "   "~\\ref{%s}" nil)
@@ -263,7 +263,7 @@ distribution.  Mixed-case symbols are convenience aliases.")
 (defgroup reftex nil
   "LaTeX label and citation support."
   :tag "RefTeX"
-  :link '(url-link :tag "Home Page"
+  :link '(url-link :tag "Website"
                    "https://www.gnu.org/software/auctex/reftex.html")
   :link '(emacs-commentary-link :tag "Commentary in reftex.el" "reftex.el")
   :link '(custom-manual "(reftex)Top")
@@ -282,7 +282,7 @@ distribution.  Mixed-case symbols are convenience aliases.")
 The file name is expected after the command, either in braces or separated
 by whitespace."
   :group 'reftex-table-of-contents-browser
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat string))
 
 (defcustom reftex-max-section-depth 12
@@ -319,7 +319,7 @@ commands, promotion only works correctly if this list is sorted first
 by set, then within each set by level.  The promotion commands always
 select the nearest entry with the correct new level."
   :group 'reftex-table-of-contents-browser
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat
           (cons (string :tag "sectioning macro" "")
                 (choice
@@ -330,7 +330,8 @@ select the nearest entry with the correct new level."
   "The maximum level of toc entries which will be included in the TOC.
 Section headings with a bigger level will be ignored.  In RefTeX, chapters
 are level 1, sections are level 2 etc.
-This variable can be changed from within the *toc* buffer with the `t' key."
+This variable can be changed from within the *toc* buffer with \
+\\<reftex-toc-mode-map>\\[reftex-toc-max-level]."
   :group 'reftex-table-of-contents-browser
   :type 'integer)
 
@@ -433,8 +434,8 @@ This flag can be toggled from within the *toc* buffer with the `f' key."
   :type 'boolean)
 
 (defcustom reftex-revisit-to-follow nil
-  "Non-nil means, follow-mode will revisit files if necessary.
-If nil, follow-mode will be suspended for stuff in unvisited files."
+  "Non-nil means, `follow-mode' will revisit files if necessary.
+If nil, `follow-mode' will be suspended for stuff in unvisited files."
   :group 'reftex-table-of-contents-browser
   :group 'reftex-referencing-labels
   :type 'boolean)
@@ -463,7 +464,7 @@ The value of this variable is a list of symbols with associations in the
 constant `reftex-label-alist-builtin'.  Check that constant for a full list
 of options."
   :group 'reftex-defining-label-environments
-  :set   'reftex-set-dirty
+  :set   #'reftex-set-dirty
   :type `(set
           :indent 4
           :inline t
@@ -611,7 +612,7 @@ Any list entry may also be a symbol.  If that has an association in
 list.  However, builtin defaults should normally be set with the variable
 `reftex-default-label-alist-entries'."
   :group 'reftex-defining-label-environments
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type
   `(repeat
     (choice :tag "Package or Detailed   "
@@ -741,8 +742,8 @@ The function must take an argument BOUND.  If non-nil, BOUND is a
 boundary for backwards searches which should be observed.
 
 Here is an example.  The LaTeX package linguex.sty defines list macros
-`\\ex.', `\\a.', etc for lists which are terminated by `\\z.' or an empty
-line.
+`\\ex.', `\\a.', etc for lists which are terminated by `\\z.' or an
+empty line.
 
     \\ex.  \\label{ex:12} Some text in an exotic language ...
           \\a. \\label{ex:13} more stuff
@@ -766,10 +767,12 @@ And here is the setup for RefTeX:
        (save-excursion
          ;; Search for any of the linguex item macros at the beginning of a line
          (if (re-search-backward
-              \"^[ \\t]*\\\\(\\\\\\\\\\\\(ex\\\\|a\\\\|b\\\\|c\\\\|d\\\\|e\\\\|f\\\\)g?\\\\.\\\\)\" bound t)
+              (concat \"^[ \\t]*\\\\(\\\\\\\\\\\\(ex\\\\|a\\\\|\"
+                      \"b\\\\|c\\\\|d\\\\|e\\\\|f\\\\)g?\\\\.\\\\)\")
+              bound t)
              (progn
                (setq p1 (match-beginning 1))
-               ;; Make sure no empty line or \\z. is between us and the item macro
+               ;; Make sure no empty line or \\z. is between us and item macro
                (if (re-search-forward \"\\n[ \\t]*\\n\\\\|\\\\\\\\z\\\\.\" pos t)
                    ;; Return nil because list was already closed
                    nil
@@ -886,55 +889,53 @@ DOWNCASE    t:   Downcase words before using them."
                          (string :tag ""))
                 (option (boolean :tag "Downcase words          "))))
 
-(if (featurep 'xemacs)
-    ;; XEmacs 21.5 doesn't have explicitly numbered matching groups,
-    ;; so this list mustn't get any more items.
-    (defconst reftex-label-regexps '("\\\\label{\\([^}]*\\)}"))
-  (defcustom reftex-label-regexps
-    `(;; Normal \\label{foo} labels
-      "\\\\label{\\(?1:[^}]*\\)}"
-      ;; keyvals [..., label = {foo}, ...] forms used by ctable,
-      ;; listings, breqn, ...
-      ,(concat
-        ;; Make sure we search only for optional arguments of
-        ;; environments/macros and don't match any other [.  ctable
-        ;; provides a macro called \ctable, listings/breqn have
-        ;; environments.  Start with a backslash and a group for names
-        "\\\\\\(?:"
-        ;; begin, optional spaces and opening brace
-        "begin[[:space:]]*{"
-        ;; Build a regexp for env names
-        (regexp-opt '("lstlisting" "dmath" "dseries" "dgroup" "darray"))
-        ;; closing brace, optional spaces
-        "}[[:space:]]*"
-        ;; Now for macros
-        "\\|"
-        ;; Build a regexp for macro names; currently only \ctable
-        (regexp-opt '("ctable"))
-        ;; Close the group for names
-        "\\)"
-        ;; Match the opening [ and the following chars
-        "\\[[^][]*"
-        ;; Allow nested levels of chars enclosed in braces
-        "\\(?:{[^}{]*"
-          "\\(?:{[^}{]*"
-            "\\(?:{[^}{]*}[^}{]*\\)*"
-          "}[^}{]*\\)*"
-        "}[^][]*\\)*"
-        ;; Match the label key
-        "\\<label[[:space:]]*=[[:space:]]*"
-        ;; Match the label value; braces around the value are
-        ;; optional.
-        "{?\\(?1:[^] ,}\r\n\t%]+\\)}?"
-        ;; We are done.  Just search until the next closing bracket
-        "[^]]*\\]"))
-    "List of regexps matching \\label definitions.
+(defcustom reftex-label-regexps
+  `(;; Normal \\label{foo} labels
+    "\\\\label{\\(?1:[^}]*\\)}"
+    ;; keyvals [..., label = {foo}, ...] forms used by ctable,
+    ;; listings, breqn, ...
+    ,(concat
+      ;; Make sure we search only for optional arguments of
+      ;; environments/macros and don't match any other [.  ctable
+      ;; provides a macro called \ctable, beamer/breqn/listings have
+      ;; environments.  Start with a backslash and a group for names
+      "\\\\\\(?:"
+      ;; begin, optional spaces and opening brace
+      "begin[[:space:]]*{"
+      ;; Build a regexp for env names
+      (regexp-opt '("lstlisting" "dmath" "dseries" "dgroup"
+                    "darray" "frame"))
+      ;; closing brace, optional spaces
+      "}[[:space:]]*"
+      ;; Now for macros
+      "\\|"
+      ;; Build a regexp for macro names; currently only \ctable
+      (regexp-opt '("ctable"))
+      ;; Close the group for names
+      "\\)"
+      ;; Match the opening [ and the following chars
+      "\\[[^][]*"
+      ;; Allow nested levels of chars enclosed in braces
+      "\\(?:{[^}{]*"
+      "\\(?:{[^}{]*"
+      "\\(?:{[^}{]*}[^}{]*\\)*"
+      "}[^}{]*\\)*"
+      "}[^][]*\\)*"
+      ;; Match the label key
+      "\\<label[[:space:]]*=[[:space:]]*"
+      ;; Match the label value; braces around the value are
+      ;; optional.
+      "{?\\(?1:[^] ,}\r\n\t%]+\\)"
+      ;; We are done.  Just search until the next closing bracket
+      "[^]]*\\]"))
+  "List of regexps matching \\label definitions.
 The default value matches usual \\label{...} definitions and
 keyval style [..., label = {...}, ...] label definitions.  The
 regexp for keyval style explicitly looks for environments
 provided by the packages \"listings\" (\"lstlisting\"),
-\"breqn\" (\"dmath\", \"dseries\", \"dgroup\", \"darray\") and
-the macro \"\\ctable\" provided by the package of the same name.
+\"beamer\" (\"frame\"), \"breqn\" (\"dmath\", \"dseries\",
+\"dgroup\", \"darray\") and the macro \"\\ctable\" provided by
+the package of the same name.
 
 It is assumed that the regexp group 1 matches the label text, so
 you have to define it using \\(?1:...\\) when adding new regexps.
@@ -942,13 +943,13 @@ you have to define it using \\(?1:...\\) when adding new regexps.
 When changed from Lisp, make sure to call
 `reftex-compile-variables' afterwards to make the change
 effective."
-    :version "27.1"
-    :set (lambda (symbol value)
-	   (set symbol value)
-	   (when (fboundp 'reftex-compile-variables)
-	     (reftex-compile-variables)))
-    :group 'reftex-defining-label-environments
-    :type '(repeat (regexp :tag "Regular Expression"))))
+  :version "28.1"
+  :set (lambda (symbol value)
+	 (set symbol value)
+	 (when (fboundp 'reftex-compile-variables)
+	   (reftex-compile-variables)))
+  :group 'reftex-defining-label-environments
+  :type '(repeat (regexp :tag "Regular Expression")))
 
 (defcustom reftex-label-ignored-macros-and-environments nil
   "List of macros and environments to be ignored when searching for labels.
@@ -1059,7 +1060,7 @@ This is used to string together whole reference sets, like
 
 (defcustom reftex-ref-style-alist
   '(("Default" t
-     (("\\ref" ?\C-m) ("\\Ref" ?R) ("\\pageref" ?p)))
+     (("\\ref" ?\C-m) ("\\Ref" ?R) ("\\footref" ?n) ("\\pageref" ?p)))
     ("Varioref" "varioref"
      (("\\vref" ?v) ("\\Vref" ?V) ("\\vpageref" ?g)))
     ("Fancyref" "fancyref"
@@ -1079,7 +1080,7 @@ the macro type is being prompted for.  (See also
 `reftex-ref-macro-prompt'.)  The keys, represented as characters,
 have to be unique."
   :group 'reftex-referencing-labels
-  :version "27.1"
+  :version "28.1"
   :type '(alist :key-type (string :tag "Style name")
 		:value-type (group (choice :tag "Package"
 					   (const :tag "Any package" t)
@@ -1194,7 +1195,7 @@ File names matched by these regexps will not be parsed by RefTeX.
 Intended for files which contain only `@string' macro definitions and the
 like, which are ignored by RefTeX anyway."
   :group 'reftex-citation-support
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat (regexp)))
 
 (defcustom reftex-default-bibliography nil
@@ -1208,7 +1209,7 @@ path."
   :type '(repeat (file)))
 
 (defcustom reftex-sort-bibtex-matches 'reverse-year
-  "Sorting of the entries found in BibTeX databases by reftex-citation.
+  "Sorting of the entries found in BibTeX databases by `reftex-citation'.
 Possible values:
 nil            Do not sort entries.
 `author'       Sort entries by author name.
@@ -1292,7 +1293,7 @@ prompt for values.  Possible values are:
 
 nil     Never prompt for optional arguments
 t       Always prompt
-maybe   Prompt only if `reftex-citation' was called with C-u prefix arg
+maybe   Prompt only if `reftex-citation' was called with \\[universal-argument] prefix arg
 
 Unnecessary empty optional arguments are removed before insertion into
 the buffer.  See `reftex-cite-cleanup-optional-args'."
@@ -1314,7 +1315,7 @@ macro before insertion.  For example, it will change
     \\cite[][Chapter 1]{Jones}     -> \\cite[Chapter 1]{Jones}
     \\cite[see][]{Jones}           -> \\cite[see][]{Jones}
     \\cite[see][Chapter 1]{Jones}  -> \\cite{Jones}
-Is is possible that other packages have other conventions about which
+It is possible that other packages have other conventions about which
 optional argument is interpreted how - that is why this cleaning up
 can be turned off."
   :group 'reftex-citation-support
@@ -1364,7 +1365,7 @@ should return the string to insert into the buffer."
   :type '(choice (const nil) function))
 
 (defcustom reftex-select-bib-mode-hook nil
-  "Mode hook for reftex-select-bib-mode."
+  "Mode hook for `reftex-select-bib-mode'."
   :group 'reftex-citation-support
   :type 'hook)
 
@@ -1456,7 +1457,7 @@ Note that AUCTeX sets these things internally for RefTeX as well, so
 with a sufficiently new version of AUCTeX, you should not set the
 package here."
   :group 'reftex-index-support
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type `(list
           (repeat
            :inline t
@@ -1694,8 +1695,8 @@ entries and for BibTeX database files with live associated buffers."
   "Non-nil means, echoed information for cite macros is cached.
 The information displayed in the echo area for cite macros is
 cached and even saved along with the parsing information.  The
-cache survives document scans.  In order to clear it, use M-x
-reftex-reset-mode <RET>."
+cache survives document scans.  In order to clear it, use
+\\[reftex-reset-mode]."
   :group 'reftex-viewing-cross-references
   :type 'boolean)
 
@@ -1724,7 +1725,7 @@ Multiple directories can be separated by the system dependent `path-separator'.
 Directories ending in `//' or `!!' will be expanded recursively.
 See also `reftex-use-external-file-finders'."
   :group 'reftex-finding-files
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat (string :tag "Specification")))
 
 (defcustom reftex-bibpath-environment-variables '("BIBINPUTS" "TEXBIB")
@@ -1740,7 +1741,7 @@ Directories ending in `//' or `!!' will be expanded recursively.
 See also `reftex-use-external-file-finders'."
   :group 'reftex-citation-support
   :group 'reftex-finding-files
-  :set 'reftex-set-dirty
+  :set #'reftex-set-dirty
   :type '(repeat (string :tag "Specification")))
 
 (defcustom reftex-file-extensions '(("tex" . (".tex" ".ltx"))
@@ -1840,7 +1841,7 @@ upon the variable `reftex-initialize-temporary-buffers'."
 
 (defcustom reftex-initialize-temporary-buffers nil
   "Non-nil means do initializations even when visiting file temporarily.
-When nil, RefTeX may turn off find-file hooks and other stuff to briefly
+When nil, RefTeX may turn off `find-file' hooks and other stuff to briefly
 visit a file.
 When t, the full default initializations are done (find-file-hook etc.).
 Instead of t or nil, this variable may also be a list of hook functions to
@@ -1861,11 +1862,11 @@ of the regular expressions in this list, that file is not parsed by RefTeX."
 
 (defcustom reftex-enable-partial-scans nil
   "Non-nil means, re-parse only 1 file when asked to re-parse.
-Re-parsing is normally requested with a `C-u' prefix to many RefTeX commands,
+Re-parsing is normally requested with a \\[universal-argument] prefix to many RefTeX commands,
 or with the `r' key in menus.  When this option is t in a multifile document,
 we will only parse the current buffer, or the file associated with the label
 or section heading near point in a menu.  Requesting re-parsing of an entire
-multifile document then requires a `C-u C-u' prefix or the capital `R' key
+multifile document then requires a \\[universal-argument] \\[universal-argument] prefix or the capital `R' key
 in menus."
   :group 'reftex-optimizations-for-large-documents
   :type 'boolean)
@@ -2100,6 +2101,8 @@ construct:  \\bbb [xxx] {aaa}."
   "Hook which is being run when loading reftex.el."
   :group 'reftex-miscellaneous-configurations
   :type 'hook)
+(make-obsolete-variable 'reftex-load-hook
+                        "use `with-eval-after-load' instead." "28.1")
 
 (defcustom reftex-mode-hook nil
   "Hook which is being run when turning on RefTeX mode."

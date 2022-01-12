@@ -269,6 +269,8 @@ SPC, 6, 3, 4, or 7 specifying a tone (SPC:陰平, 6:陽平, 3:上聲, 4:去聲,
 	(tit-moveleft ",<")
 	(tit-keyprompt nil))
 
+    (princ (format ";;; %s  -*- lexical-binding:t -*-\n"
+                   (file-name-nondirectory filename)))
     (princ ";; Quail package `")
     (princ package)
     (princ "\n")
@@ -375,7 +377,7 @@ SPC, 6, 3, 4, or 7 specifying a tone (SPC:陰平, 6:陽平, 3:上聲, 4:去聲,
     ;; Arg DOCSTRING
     (let ((doc (concat tit-prompt "\n"))
 	  (comments (if tit-comments
-			(mapconcat 'identity (nreverse tit-comments) "\n")))
+			(mapconcat #'identity (nreverse tit-comments) "\n")))
 	  (doc-ext (nth 2 (assoc package quail-cxterm-package-ext-info))))
       (if comments
 	  (setq doc (concat doc "\n" comments "\n")))
@@ -625,8 +627,8 @@ To get complete usage, invoke \"emacs -batch -f batch-titdic-convert -h\"."
      py-converter
      "\
 ;; \"pinyin.map\" is included in a free package called CCE.  It is
-;; available at:
-;;	http://ftp.debian.org/debian/dists/potato/main
+;; available at: [link needs updating  -- SK 2021-09-27]
+;;	https://ftp.debian.org/debian/dists/potato/main
 ;;		/source/utils/cce_0.36.orig.tar.gz
 ;; This package contains the following copyright notice.
 ;;
@@ -653,8 +655,8 @@ To get complete usage, invoke \"emacs -batch -f batch-titdic-convert -h\"."
      ziranma-converter
      "\
 ;; \"ziranma.cin\" is included in a free package called CCE.  It is
-;; available at:
-;;	http://ftp.debian.org/debian/dists/potato/main
+;; available at: [link needs updating  -- SK 2021-09-27]
+;;	https://ftp.debian.org/debian/dists/potato/main
 ;;		/source/utils/cce_0.36.orig.tar.gz
 ;; This package contains the following copyright notice.
 ;;
@@ -737,12 +739,10 @@ To get complete usage, invoke \"emacs -batch -f batch-titdic-convert -h\"."
 ;; method is for inputting CNS characters.
 
 (defun tsang-quick-converter (dicbuf tsang-p big5-p)
-  (let ((fulltitle (if tsang-p (if big5-p "倉頡" "倉頡")
-		     (if big5-p "簡易" "簡易")))
+  (let ((fulltitle (if tsang-p "倉頡" "簡易"))
 	dic)
     (goto-char (point-max))
-    (if big5-p
-	(insert (format "\"中文輸入【%s】BIG5
+    (insert (format "\"中文輸入【%s】%s
 
 	漢語%s輸入鍵盤
 
@@ -753,19 +753,7 @@ To get complete usage, invoke \"emacs -batch -f batch-titdic-convert -h\"."
       [Z  ] [X 難] [C 金] [V 女] [B 月] [N 弓] [M 一]
 
 \\\\<quail-translation-docstring>\"\n"
-			fulltitle fulltitle))
-      (insert (format "\"中文輸入【%s】CNS
-
-	漢語%s輸入鍵盤
-
-   [Q 手] [W 田] [E 水] [R 口] [T 廿] [Y 卜] [U 山] [I 戈] [O 人] [P 心]
-
-    [A 日] [S 尸] [D 木] [F 火] [G 土] [H 竹] [J 十] [L 中]
-
-      [Z  ] [X 難] [C 金] [V 女] [B 月] [N 弓] [M 一]
-
-\\\\<quail-translation-docstring>\"\n"
-		      fulltitle fulltitle)))
+		    fulltitle (if big5-p "BIG5" "CNS") fulltitle))
     (insert "  '((\".\" . quail-next-translation-block)
    (\",\" . quail-prev-translation-block))
   nil nil)\n\n")
@@ -793,9 +781,9 @@ To get complete usage, invoke \"emacs -batch -f batch-titdic-convert -h\"."
 	    (if val (setq trans (concat val trans)))
 	    (puthash key trans table)
 	    (forward-line 1)))
-	(maphash #'(lambda (key val) (setq dic (cons (cons key val) dic)))
+        (maphash (lambda (key val) (setq dic (cons (cons key val) dic)))
 		 table)))
-    (setq dic (sort dic (function (lambda (x y) (string< (car x ) (car y))))))
+    (setq dic (sort dic (lambda (x y) (string< (car x ) (car y)))))
     (dolist (elt dic)
       (insert (format "(%S\t%S)\n" (car elt) (cdr elt))))
     (let ((punctuation '((";" "；﹔，、﹐﹑" "；﹔，、﹐﹑")
@@ -943,20 +931,20 @@ method `chinese-tonepy' with which you must specify tones by digits
 	  (if val (setq trans (vconcat val trans)))
 	  (puthash key trans table)
 	  (forward-line 1))
-	(maphash #'(lambda (key trans)
-		     (let ((len (length trans))
-			   i)
-		       (if (and (= len 1) (= (length (aref trans 0)) 1))
-			   (setq trans (aref trans 0))
-			 (setq i 0)
-			 (while (and (< i len)
-				     (= (length (aref trans i)) 1))
-			   (setq i (1+ i)))
-			 (if (= i len)
-			     (setq trans (mapconcat 'identity trans "")))))
-		     (setq dic (cons (cons key trans) dic)))
+        (maphash (lambda (key trans)
+                   (let ((len (length trans))
+                         i)
+                     (if (and (= len 1) (= (length (aref trans 0)) 1))
+                         (setq trans (aref trans 0))
+                       (setq i 0)
+                       (while (and (< i len)
+                                   (= (length (aref trans i)) 1))
+                         (setq i (1+ i)))
+                       (if (= i len)
+                           (setq trans (mapconcat #'identity trans "")))))
+                   (setq dic (cons (cons key trans) dic)))
 		 table)))
-    (setq dic (sort dic (function (lambda (x y) (string< (car x) (car y))))))
+    (setq dic (sort dic (lambda (x y) (string< (car x) (car y)))))
     (goto-char (point-max))
     (insert (format "%S\n" "汉字输入∷【自然】∷
 
@@ -1147,6 +1135,8 @@ the generated Quail package is saved."
 	;; Explicitly set eol format to `unix'.
 	(setq coding-system-for-write 'utf-8-unix)
 	(with-temp-file (expand-file-name quailfile dirname)
+          (insert (format ";;; %s  -*- lexical-binding:t -*-\n"
+                          (file-name-nondirectory quailfile)))
 	  (insert (format-message ";; Quail package `%s'\n" name))
 	  (insert (format-message
 		   ";;   Generated by the command `miscdic-convert'\n"))
@@ -1212,8 +1202,10 @@ The library is named pinyin.el, and contains the constant
         (dst-file (cadr command-line-args-left))
         (coding-system-for-write 'utf-8-unix))
     (with-temp-file dst-file
-      (insert ";; This file is automatically generated from pinyin.map,\
- by the\n;; function pinyin-convert.\n\n")
+      (insert ";;; " (file-name-nondirectory dst-file)
+              "   -*- lexical-binding:t -*-
+;; This file is automatically generated from pinyin.map, by the
+;; function pinyin-convert.\n\n")
       (insert "(defconst pinyin-character-map\n'(")
       (let ((pos (point)))
         (insert-file-contents src-file)

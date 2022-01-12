@@ -839,7 +839,7 @@ files.
 @item f
 Find the file that the cursor points to (@code{cvs-mode-find-file}).  If
 the cursor points to a directory, run @code{dired} on that directory;
-@inforef{Dired, , emacs}.
+@pxref{Dired, Emacs Manual, , emacs}.
 
 @item o
 Like @kbd{f}, but use another window
@@ -1389,7 +1389,7 @@ bugs, please report them separately.
 If you have problems using PCL-CVS or other questions, send them to
 the @url{https://lists.gnu.org/mailman/listinfo/help-gnu-emacs,
 help-gnu-emacs mailing list}.  This is a good place to get help, as is
-the @url{http://lists.nongnu.org/mailman/listinfo/info-cvs, info-cvs list}.
+the @url{https://lists.nongnu.org/mailman/listinfo/info-cvs, info-cvs list}.
 
 If you have ideas for improvements, or if you have written some
 extensions to this package, we would like to hear from you.  We hope that

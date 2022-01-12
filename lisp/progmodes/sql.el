@@ -6,7 +6,6 @@
 ;; Maintainer: Michael Mauger <michael@mauger.com>
 ;; Version: 3.6
 ;; Keywords: comm languages processes
-;; URL: https://savannah.gnu.org/projects/emacs/
 
 ;; This file is part of GNU Emacs.
 
@@ -232,10 +231,6 @@
 
 (require 'cl-lib)
 (require 'comint)
-;; Need the following to allow GNU Emacs 19 to compile the file.
-(eval-when-compile
-  (require 'regexp-opt))
-(require 'custom)
 (require 'thingatpt)
 (require 'view)
 (eval-when-compile (require 'subr-x))   ; string-empty-p
@@ -257,7 +252,6 @@
 (defcustom sql-user ""
   "Default username."
   :type 'string
-  :group 'SQL
   :safe 'stringp)
 
 (defcustom sql-password ""
@@ -265,33 +259,28 @@
 If you customize this, the value will be stored in your init
 file.  Since that is a plaintext file, this could be dangerous."
   :type 'string
-  :group 'SQL
   :risky t)
 
 (defcustom sql-database ""
   "Default database."
   :type 'string
-  :group 'SQL
   :safe 'stringp)
 
 (defcustom sql-server ""
   "Default server or host."
   :type 'string
-  :group 'SQL
   :safe 'stringp)
 
 (defcustom sql-port 0
   "Default port for connecting to a MySQL or Postgres server."
   :version "24.1"
   :type 'number
-  :group 'SQL
   :safe 'numberp)
 
 (defcustom sql-default-directory nil
   "Default directory for SQL processes."
   :version "25.1"
   :type '(choice (const nil) string)
-  :group 'SQL
   :safe 'stringp)
 
 ;; Login parameter type
@@ -348,8 +337,7 @@ file.  Since that is a plaintext file, this could be dangerous."
                             (const :format "" :completion)
                             (sexp :tag ":completion")
                             (const :format "" :must-match)
-                            (restricted-sexp
-                             :match-alternatives (listp stringp))))
+                            (symbol :tag ":must-match")))
               (const port)))
 
 ;; SQL Product support
@@ -461,7 +449,7 @@ file.  Since that is a plaintext file, this could be dangerous."
      :prompt-regexp "^mysql> "
      :prompt-length 6
      :prompt-cont-regexp "^    -> "
-     :syntax-alist ((?# . "< b"))
+     :syntax-alist ((?# . "< b") (?\\ . "\\"))
      :input-filter sql-remove-tabs-filter)
 
     (oracle
@@ -496,6 +484,7 @@ file.  Since that is a plaintext file, this could be dangerous."
      :prompt-regexp "^[[:alnum:]_]*=[#>] "
      :prompt-length 5
      :prompt-cont-regexp "^[[:alnum:]_]*[-(][#>] "
+     :statement sql-postgres-statement-starters
      :input-filter sql-remove-tabs-filter
      :terminator ("\\(^\\s-*\\\\g\\|;\\)" . "\\g"))
 
@@ -707,9 +696,9 @@ making new SQLi sessions."
                  (repeat :inline t
                          (list :tab "Other"
                                (symbol :tag " Variable Symbol")
+                               ;; FIXME: Why "Value *Expression*"?
                                (sexp   :tag "Value Expression")))))
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 (defvaralias 'sql-dialect 'sql-product)
 
@@ -723,7 +712,6 @@ This allows highlighting buffers properly when you open them."
                                    (capitalize (symbol-name (car prod-info))))
                               ,(car prod-info)))
                     sql-product-alist))
-  :group 'SQL
   :safe 'symbolp)
 
 ;; SQL indent support
@@ -735,7 +723,6 @@ SQL statements with easy customizations to support varied layout
 requirements.
 
 The package must be available to be loaded and activated."
-  :group 'SQL
   :link '(url-link "https://elpa.gnu.org/packages/sql-indent.html")
   :type 'boolean
   :version "27.1")
@@ -846,12 +833,11 @@ host key."
         (setq w (locate-user-emacs-file (concat "sql-wallet" ext)
                                         (concat ".sql-wallet" ext)))
         (when (file-exists-p w)
-          (setq wallet w)))))
+          (setq wallet (list w))))))
   "Identification of the password wallet.
 See `sql-password-search-wallet-function' to understand how this value
 is used to locate the password wallet."
-  :type `(plist-get (symbol-plist 'auth-sources) 'custom-type)
-  :group 'SQL
+  :type (plist-get (symbol-plist 'auth-sources) 'custom-type)
   :version "27.1")
 
 (defvar sql-password-search-wallet-function #'sql-auth-source-search-wallet
@@ -878,8 +864,7 @@ current input in the SQLi buffer to the process."
   :type '(choice (const :tag "Nothing" nil)
 		 (const :tag "The semicolon `;'" semicolon)
 		 (const :tag "The string `go' by itself" go))
-  :version "20.8"
-  :group 'SQL)
+  :version "20.8")
 
 (defcustom sql-send-terminator nil
   "When non-nil, add a terminator to text sent to the SQL interpreter.
@@ -905,10 +890,9 @@ it automatically."
 		 (const  :tag "Default Terminator" t)
 		 (string :tag "Terminator String")
 		 (cons   :tag "Terminator Pattern and String"
-			 (string :tag "Terminator Pattern")
+			 (regexp :tag "Terminator Pattern")
 			 (string :tag "Terminator String")))
-  :version "22.2"
-  :group 'SQL)
+  :version "22.2")
 
 (defvar sql-contains-names nil
   "When non-nil, the current buffer contains database names.
@@ -932,8 +916,7 @@ buffer."
   :type '(choice (const :tag "Default" t)
                  (const :tag "No display" nil)
 		 (function :tag "Display Buffer function"))
-  :version "27.1"
-  :group 'SQL)
+  :version "27.1")
 
 ;; imenu support for sql-mode.
 
@@ -971,8 +954,7 @@ This is used to initialize `comint-input-ring-file-name'.
 Note that the size of the input history is determined by the variable
 `comint-input-ring-size'."
   :type '(choice (const :tag "none" nil)
-		 (file))
-  :group 'SQL)
+		 (file)))
 
 (defcustom sql-input-ring-separator "\n--\n"
   "Separator between commands in the history file.
@@ -987,21 +969,18 @@ does not have it, setting `sql-input-ring-separator' will have no
 effect.  In that case multiline commands will be split into several
 commands when the input history is read, as if you had set
 `sql-input-ring-separator' to \"\\n\"."
-  :type 'string
-  :group 'SQL)
+  :type 'string)
 
 ;; The usual hooks
 
 (defcustom sql-interactive-mode-hook '(sql-indent-enable)
   "Hook for customizing `sql-interactive-mode'."
   :type 'hook
-  :group 'SQL
   :version "27.1")
 
 (defcustom sql-mode-hook '(sql-indent-enable)
   "Hook for customizing `sql-mode'."
   :type 'hook
-  :group 'SQL
   :version "27.1")
 
 (defcustom sql-set-sqli-hook '()
@@ -1009,8 +988,7 @@ commands when the input history is read, as if you had set
 
 This is called by `sql-set-sqli-buffer' when the value of `sql-buffer'
 is changed."
-  :type 'hook
-  :group 'SQL)
+  :type 'hook)
 
 (defcustom sql-login-hook '()
   "Hook for interacting with a buffer in `sql-interactive-mode'.
@@ -1018,23 +996,7 @@ is changed."
 This hook is invoked in a buffer once it is ready to accept input
 for the first time."
   :version "24.1"
-  :type 'hook
-  :group 'SQL)
-
-;; Customization for ANSI
-
-(defcustom sql-ansi-statement-starters
-  (regexp-opt '("create" "alter" "drop"
-                "select" "insert" "update" "delete" "merge"
-                "grant" "revoke"))
-  "Regexp of keywords that start SQL commands.
-
-All products share this list; products should define a regexp to
-identify additional keywords in a variable defined by
-the :statement feature."
-  :version "24.1"
-  :type 'string
-  :group 'SQL)
+  :type 'hook)
 
 ;; Customization for Oracle
 
@@ -1046,27 +1008,17 @@ Starts `sql-interactive-mode' after doing some setup.
 On Windows, \"sqlplus\" usually starts the sqlplus \"GUI\".  In order
 to start the sqlplus console, use \"plus33\" or something similar.
 You will find the file in your Orant\\bin directory."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-oracle-options '("-L")
   "List of additional options for `sql-oracle-program'."
   :type '(repeat string)
-  :version "24.4"
-  :group 'SQL)
+  :version "24.4")
 
 (defcustom sql-oracle-login-params '(user password database)
   "List of login parameters needed to connect to Oracle."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
-
-(defcustom sql-oracle-statement-starters
-  (regexp-opt '("declare" "begin" "with"))
-  "Additional statement starting keywords in Oracle."
-  :version "24.1"
-  :type 'string
-  :group 'SQL)
+  :version "24.1")
 
 (defcustom sql-oracle-scan-on t
   "Non-nil if placeholders should be replaced in Oracle SQLi.
@@ -1082,8 +1034,7 @@ You need to issue the following command in SQL*Plus to be safe:
 
 In older versions of SQL*Plus, this was the SET SCAN OFF command."
   :version "24.1"
-  :type 'boolean
-  :group 'SQL)
+  :type 'boolean)
 
 (defcustom sql-db2-escape-newlines nil
   "Non-nil if newlines should be escaped by a backslash in DB2 SQLi.
@@ -1092,8 +1043,7 @@ When non-nil, Emacs will automatically insert a space and
 backslash prior to every newline in multi-line SQL statements as
 they are submitted to an interactive DB2 session."
   :version "24.3"
-  :type 'boolean
-  :group 'SQL)
+  :type 'boolean)
 
 ;; Customization for SQLite
 
@@ -1103,21 +1053,18 @@ they are submitted to an interactive DB2 session."
   "Command to start SQLite.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-sqlite-options nil
   "List of additional options for `sql-sqlite-program'."
   :type '(repeat string)
-  :version "20.8"
-  :group 'SQL)
+  :version "20.8")
 
 (defcustom sql-sqlite-login-params '((database :file nil
                                                :must-match confirm))
   "List of login parameters needed to connect to SQLite."
   :type 'sql-login-params
-  :version "26.1"
-  :group 'SQL)
+  :version "26.1")
 
 ;; Customization for MariaDB
 
@@ -1134,22 +1081,19 @@ Starts `sql-interactive-mode' after doing some setup."
   "Command to start mysql by Oracle.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-mysql-options nil
   "List of additional options for `sql-mysql-program'.
 The following list of options is reported to make things work
 on Windows: \"-C\" \"-t\" \"-f\" \"-n\"."
   :type '(repeat string)
-  :version "20.8"
-  :group 'SQL)
+  :version "20.8")
 
 (defcustom sql-mysql-login-params '(user password database server)
   "List of login parameters needed to connect to MySQL."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 ;; Customization for Solid
 
@@ -1157,14 +1101,12 @@ on Windows: \"-C\" \"-t\" \"-f\" \"-n\"."
   "Command to start SOLID SQL Editor.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-solid-login-params '(user password server)
   "List of login parameters needed to connect to Solid."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 ;; Customization for Sybase
 
@@ -1172,21 +1114,18 @@ Starts `sql-interactive-mode' after doing some setup."
   "Command to start isql by Sybase.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-sybase-options nil
   "List of additional options for `sql-sybase-program'.
 Some versions of isql might require the -n option in order to work."
   :type '(repeat string)
-  :version "20.8"
-  :group 'SQL)
+  :version "20.8")
 
 (defcustom sql-sybase-login-params '(server user password database)
   "List of login parameters needed to connect to Sybase."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 ;; Customization for Informix
 
@@ -1194,14 +1133,12 @@ Some versions of isql might require the -n option in order to work."
   "Command to start dbaccess by Informix.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-informix-login-params '(database)
   "List of login parameters needed to connect to Informix."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 ;; Customization for Ingres
 
@@ -1209,14 +1146,12 @@ Starts `sql-interactive-mode' after doing some setup."
   "Command to start sql by Ingres.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-ingres-login-params '(database)
   "List of login parameters needed to connect to Ingres."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 ;; Customization for Microsoft
 
@@ -1229,21 +1164,18 @@ Starts `sql-interactive-mode' after doing some setup."
   "Command to start osql by Microsoft.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-ms-options '("-w" "300" "-n")
   ;; -w is the linesize
   "List of additional options for `sql-ms-program'."
   :type '(repeat string)
-  :version "22.1"
-  :group 'SQL)
+  :version "22.1")
 
 (defcustom sql-ms-login-params '(user password server database)
   "List of login parameters needed to connect to Microsoft."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 ;; Customization for Postgres
 
@@ -1251,8 +1183,7 @@ Starts `sql-interactive-mode' after doing some setup."
   "Command to start psql by Postgres.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-postgres-options '("-P" "pager=off")
   "List of additional options for `sql-postgres-program'.
@@ -1263,8 +1194,7 @@ name, add the string \"-u\" to the list of options.  If you want to
 provide a user name on the command line (newer versions such as 7.1),
 add your name with a \"-U\" prefix (such as \"-Umark\") to the list."
   :type '(repeat string)
-  :version "20.8"
-  :group 'SQL)
+  :version "20.8")
 
 (defcustom sql-postgres-login-params
   `((user :default ,(user-login-name))
@@ -1275,8 +1205,7 @@ add your name with a \"-U\" prefix (such as \"-Umark\") to the list."
     server)
   "List of login parameters needed to connect to Postgres."
   :type 'sql-login-params
-  :version "26.1"
-  :group 'SQL)
+  :version "26.1")
 
 (defun sql-postgres-list-databases ()
   "Return a list of available PostgreSQL databases."
@@ -1297,20 +1226,17 @@ add your name with a \"-U\" prefix (such as \"-Umark\") to the list."
   "Command to start isql by Interbase.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-interbase-options nil
   "List of additional options for `sql-interbase-program'."
   :type '(repeat string)
-  :version "20.8"
-  :group 'SQL)
+  :version "20.8")
 
 (defcustom sql-interbase-login-params '(user password database)
   "List of login parameters needed to connect to Interbase."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 ;; Customization for DB2
 
@@ -1318,20 +1244,17 @@ Starts `sql-interactive-mode' after doing some setup."
   "Command to start db2 by IBM.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-db2-options nil
   "List of additional options for `sql-db2-program'."
   :type '(repeat string)
-  :version "20.8"
-  :group 'SQL)
+  :version "20.8")
 
 (defcustom sql-db2-login-params nil
   "List of login parameters needed to connect to DB2."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 ;; Customization for Linter
 
@@ -1339,20 +1262,17 @@ Starts `sql-interactive-mode' after doing some setup."
   "Command to start inl by RELEX.
 
 Starts `sql-interactive-mode' after doing some setup."
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-linter-options nil
   "List of additional options for `sql-linter-program'."
   :type '(repeat string)
-  :version "21.3"
-  :group 'SQL)
+  :version "21.3")
 
 (defcustom sql-linter-login-params '(user password database server)
   "Login parameters to needed to connect to Linter."
   :type 'sql-login-params
-  :version "24.1"
-  :group 'SQL)
+  :version "24.1")
 
 
 
@@ -1436,10 +1356,7 @@ specified, it's `sql-product' or `sql-connection' must match."
 
 (defvar sql-interactive-mode-map
   (let ((map (make-sparse-keymap)))
-    (if (fboundp 'set-keymap-parent)
-	(set-keymap-parent map comint-mode-map); Emacs
-      (if (fboundp 'set-keymap-parents)
-	  (set-keymap-parents map (list comint-mode-map)))); XEmacs
+    (set-keymap-parent map comint-mode-map)
     (if (fboundp 'set-keymap-name)
 	(set-keymap-name map 'sql-interactive-mode-map)); XEmacs
     (define-key map (kbd "C-j") 'sql-accumulate-and-indent)
@@ -1566,6 +1483,26 @@ Based on `comint-mode-map'.")
     table)
   "Syntax table used in `sql-mode' and `sql-interactive-mode'.")
 
+;; Motion Function Keywords
+
+(defvar sql-ansi-statement-starters
+  (regexp-opt '("create" "alter" "drop"
+                "select" "insert" "update" "delete" "merge"
+                "grant" "revoke"))
+  "Regexp of keywords that start SQL commands.
+
+All products share this list; products should define a regexp to
+identify additional keywords in a variable defined by
+the :statement feature.")
+
+(defvar sql-oracle-statement-starters
+  (regexp-opt '("declare" "begin" "with"))
+  "Additional statement-starting keywords in Oracle.")
+
+(defvar sql-postgres-statement-starters
+  (regexp-opt '("with"))
+  "Additional statement-starting keywords in Postgres.")
+
 ;; Font lock support
 
 (defvar sql-mode-font-lock-object-name
@@ -1609,9 +1546,7 @@ statement.  The format of variable should be a valid
 ;; `sql-font-lock-keywords-builder' function and follow the
 ;; implementation pattern used for the other products in this file.
 
-(eval-when-compile
-  (defvar sql-mode-ansi-font-lock-keywords)
-  (setq sql-mode-ansi-font-lock-keywords nil))
+(defvar sql-mode-ansi-font-lock-keywords)
 
 (eval-and-compile
   (defun sql-font-lock-keywords-builder (face boundaries &rest keywords)
@@ -1638,7 +1573,7 @@ statement.  The format of variable should be a valid
 	    face)))
 
   (defun sql-regexp-abbrev (keyword)
-    (let ((brk   (string-match "[~]" keyword))
+    (let ((brk   (string-search "~" keyword))
           (len   (length keyword))
           (sep   "\\(?:")
           re i)
@@ -1788,7 +1723,7 @@ to add functions and PL/SQL keywords.")
                            "ORDER BY 2 DESC, 3 DESC, 4 DESC, 5 DESC, 6 DESC, 1;")
                    nil nil)
       (with-current-buffer b
-        (set (make-local-variable 'sql-product) 'oracle)
+        (setq-local sql-product 'oracle)
         (sql-product-font-lock t nil)
         (font-lock-mode +1)))))
 
@@ -2374,7 +2309,8 @@ function `regexp-opt'.")
 "ansi_warnings" "forceplan" "showplan_all" "showplan_text"
 "statistics" "implicit_transactions" "remote_proc_transactions"
 "transaction" "xact_abort"
-) t)
+)
+                   t)
        "\\)\\)\\|go\\s-*\\|use\\s-+\\|setuser\\s-+\\|dbcc\\s-+\\).*$")
       'font-lock-doc-face)
 
@@ -2856,9 +2792,9 @@ See `sql-product-alist' for a list of products and supported features."
                (member feature sql-indirect-features)
                (not not-indirect)
                (symbolp v))
-              (eval v)
+              (symbol-value v)
             v))
-      (error "`%s' is not a known product; use `sql-add-product' to add it first." product)
+      (error "`%s' is not a known product; use `sql-add-product' to add it first" product)
       nil)))
 
 (defun sql-product-font-lock (keywords-only imenu)
@@ -2874,7 +2810,7 @@ configured."
       ((syntax-alist (sql-product-font-lock-syntax-alist)))
 
     ;; Get the product-specific keywords.
-    (set (make-local-variable 'sql-mode-font-lock-keywords)
+    (setq-local sql-mode-font-lock-keywords
          (append
           (unless (eq sql-product 'ansi)
             (sql-get-product-feature sql-product :font-lock))
@@ -2886,15 +2822,13 @@ configured."
 
     ;; Setup font-lock.  Force re-parsing of `font-lock-defaults'.
     (kill-local-variable 'font-lock-set-defaults)
-    (set (make-local-variable 'font-lock-defaults)
+    (setq-local font-lock-defaults
          (list 'sql-mode-font-lock-keywords
                keywords-only t syntax-alist))
 
     ;; Force font lock to reinitialize if it is already on
     ;; Otherwise, we can wait until it can be started.
-    (when (and (fboundp 'font-lock-mode)
-	       (boundp 'font-lock-mode)
-	       font-lock-mode)
+    (when font-lock-mode
       (font-lock-mode-internal nil)
       (font-lock-mode-internal t))
 
@@ -3018,7 +2952,7 @@ adds a fontification pattern to fontify identifiers ending in
   "Display a SQLi buffer based on `sql-display-sqli-buffer-function'.
 
 If BUF is hidden or `sql-display-sqli-buffer-function' is nil,
-then the buffer will not be displayed. Otherwise the BUF is
+then the buffer will not be displayed.  Otherwise the BUF is
 displayed."
   (unless (sql-buffer-hidden-p buf)
     (cond
@@ -3057,7 +2991,7 @@ displayed."
 ;; (defconst sql-smie-grammar
 ;;   (smie-prec2->grammar
 ;;    (smie-bnf->prec2
-;;     ;; Partly based on http://www.h2database.com/html/grammar.html
+;;     ;; Partly based on https://www.h2database.com/html/grammar.html
 ;;     '((cmd ("SELECT" select-exp "FROM" select-table-exp)
 ;;            )
 ;;       (select-exp ("*") (exp) (exp "AS" column-alias))
@@ -3790,8 +3724,7 @@ to avoid deleting non-prompt output."
 
           ;; If we've found all the expected prompts, stop looking
           (if (= sql-output-newline-count 0)
-              (setq sql-output-newline-count nil
-                    oline (concat "\n" oline))
+              (setq sql-output-newline-count nil)
 
             ;; Still more possible prompts, leave them for the next pass
             (setq sql-preoutput-hold oline
@@ -3836,6 +3769,8 @@ to avoid deleting non-prompt output."
 	    (with-current-buffer sql-buffer
               (when sql-debug-send
                 (message ">>SQL> %S" s))
+              (insert "\n")
+              (comint-set-process-mark)
 
 	      ;; Send the string (trim the trailing whitespace)
 	      (sql-input-sender (get-buffer-process (current-buffer)) s)
@@ -3908,7 +3843,7 @@ to avoid deleting non-prompt output."
 
 (defun sql-remove-tabs-filter (str)
   "Replace tab characters with spaces."
-  (replace-regexp-in-string "\t" " " str nil t))
+  (string-replace "\t" " " str))
 
 (defun sql-toggle-pop-to-buffer-after-send-region (&optional value)
   "Toggle `sql-pop-to-buffer-after-send-region'.
@@ -3929,7 +3864,7 @@ If given the optional parameter VALUE, sets
   "If non-nil, display messages related to the use of redirection.")
 
 (defun sql-str-literal (s)
-  (concat "'" (replace-regexp-in-string "[']" "''" s) "'"))
+  (concat "'" (string-replace "[']" "''" s) "'"))
 
 (defun sql-redirect (sqlbuf command &optional outbuf save-prior)
   "Execute the SQL command and send output to OUTBUF.
@@ -4041,13 +3976,13 @@ for each match."
                        (cond
                         ((numberp c) (match-string c))
                         ((stringp c) (match-substitute-replacement c))
-                        (t (error "sql-redirect-value: unknown REGEXP-GROUPS value - %s" c))))
+                        (t (error "sql-redirect-value: Unknown REGEXP-GROUPS value - %s" c))))
                    regexp-groups))
           ;; String is specified; return replacement string
           ((stringp regexp-groups)
            (match-substitute-replacement regexp-groups))
           (t
-           (error "sql-redirect-value: unknown REGEXP-GROUPS value - %s"
+           (error "sql-redirect-value: Unknown REGEXP-GROUPS value - %s"
                   regexp-groups)))
          results)))
 
@@ -4196,8 +4131,8 @@ details or extends the listing to include other schemas objects."
     (sql-execute-feature sqlbuf "*List All*" :list-all enhanced nil)
     (with-current-buffer sqlbuf
       ;; Contains the name of database objects
-      (set (make-local-variable 'sql-contains-names) t)
-      (set (make-local-variable 'sql-buffer) sqlbuf))))
+      (setq-local sql-contains-names t)
+      (setq-local sql-buffer sqlbuf))))
 
 (defun sql-list-table (name &optional enhanced)
   "List the details of a database table named NAME.
@@ -4244,15 +4179,15 @@ must tell Emacs.  Here's how to do that in your init file:
 
 \(add-hook \\='sql-mode-hook
           (lambda ()
-	    (modify-syntax-entry ?\\\\ \".\" sql-mode-syntax-table)))"
-  :group 'SQL
+	    (modify-syntax-entry ?\\\\ \"\\\\\" sql-mode-syntax-table)))"
   :abbrev-table sql-mode-abbrev-table
 
-  (if sql-mode-menu
-      (easy-menu-add sql-mode-menu)); XEmacs
+  (when (and (featurep 'xemacs)
+             sql-mode-menu)
+      (easy-menu-add sql-mode-menu))
 
   ;; (smie-setup sql-smie-grammar #'sql-smie-rules)
-  (set (make-local-variable 'comment-start) "--")
+  (setq-local comment-start "--")
   ;; Make each buffer in sql-mode remember the "current" SQLi buffer.
   (make-local-variable 'sql-buffer)
   ;; Add imenu support for sql-mode.  Note that imenu-generic-expression
@@ -4262,12 +4197,24 @@ must tell Emacs.  Here's how to do that in your init file:
 	imenu-case-fold-search t)
   ;; Make `sql-send-paragraph' work on paragraphs that contain indented
   ;; lines.
-  (set (make-local-variable 'paragraph-separate) "[\f]*$")
-  (set (make-local-variable 'paragraph-start) "[\n\f]")
+  (setq-local paragraph-separate "[\f]*$")
+  (setq-local paragraph-start "[\n\f]")
   ;; Abbrevs
   (setq-local abbrev-all-caps 1)
   ;; Contains the name of database objects
-  (set (make-local-variable 'sql-contains-names) t)
+  (setq-local sql-contains-names t)
+  (setq-local syntax-propertize-function
+              (syntax-propertize-rules
+               ;; Handle escaped apostrophes within strings.
+               ("''"
+                (0
+                 (if (save-excursion (nth 3 (syntax-ppss (match-beginning 0))))
+	             (string-to-syntax ".")
+                   (forward-char -1)
+                   nil)))
+               ;; Propertize rules to not have /- and -* start comments.
+               ("\\(/-\\)" (1 "."))
+               ("\\(-\\*\\)" (1 "."))))
   ;; Set syntax and font-face highlighting
   ;; Catch changes to sql-product and highlight accordingly
   (sql-set-product (or sql-product 'ansi)) ; Fixes bug#13591
@@ -4280,7 +4227,7 @@ must tell Emacs.  Here's how to do that in your init file:
 (put 'sql-interactive-mode 'mode-class 'special)
 (put 'sql-interactive-mode 'custom-mode-group 'SQL)
 ;; FIXME: Why not use `define-derived-mode'?
-(defun sql-interactive-mode ()
+(define-derived-mode sql-interactive-mode comint-mode "SQLi[?]"
   "Major mode to use a SQL interpreter interactively.
 
 Do not call this function by yourself.  The environment must be
@@ -4340,32 +4287,30 @@ Here is an example for your init file.  It keeps the SQLi buffer a
 certain length.
 
 \(add-hook \\='sql-interactive-mode-hook
-    (function (lambda ()
-        (setq comint-output-filter-functions #\\='comint-truncate-buffer))))
+    (lambda ()
+        (setq comint-output-filter-functions #\\='comint-truncate-buffer)))
 
 Here is another example.  It will always put point back to the statement
 you entered, right above the output it created.
 
 \(setq comint-output-filter-functions
-       (function (lambda (STR) (comint-show-output))))"
+       (lambda (STR) (comint-show-output)))"
+  :syntax-table sql-mode-syntax-table
   ;; FIXME: The doc above uses `setq' on `comint-output-filter-functions',
   ;; whereas hooks should be manipulated with things like `add/remove-hook'.
-  (delay-mode-hooks (comint-mode))
+  :after-hook (sql--adjust-interactive-setup)
 
   ;; Get the `sql-product' for this interactive session.
-  (set (make-local-variable 'sql-product)
-       (or sql-interactive-product
-	   sql-product))
+  (setq-local sql-product (or sql-interactive-product
+                           sql-product))
 
   ;; Setup the mode.
-  (setq major-mode 'sql-interactive-mode)
   (setq mode-name
         (concat "SQLi[" (or (sql-get-product-feature sql-product :name)
                             (symbol-name sql-product)) "]"))
-  (use-local-map sql-interactive-mode-map)
-  (if sql-interactive-mode-menu
-      (easy-menu-add sql-interactive-mode-menu)) ; XEmacs
-  (set-syntax-table sql-mode-syntax-table)
+  (when (and (featurep 'xemacs)
+             sql-interactive-mode-menu)
+    (easy-menu-add sql-interactive-mode-menu))
 
   ;; Note that making KEYWORDS-ONLY nil will cause havoc if you try
   ;; SELECT 'x' FROM DUAL with SQL*Plus, because the title of the column
@@ -4374,7 +4319,7 @@ you entered, right above the output it created.
   (sql-product-font-lock t nil)
 
   ;; Enable commenting and uncommenting of the region.
-  (set (make-local-variable 'comment-start) "--")
+  (setq-local comment-start "--")
   ;; Abbreviation table init and case-insensitive.  It is not activated
   ;; by default.
   (setq local-abbrev-table sql-mode-abbrev-table)
@@ -4383,35 +4328,36 @@ you entered, right above the output it created.
   (let ((proc (get-buffer-process (current-buffer))))
     (when proc (set-process-sentinel proc #'sql-stop)))
   ;; Save the connection and login params
-  (set (make-local-variable 'sql-user)       sql-user)
-  (set (make-local-variable 'sql-database)   sql-database)
-  (set (make-local-variable 'sql-server)     sql-server)
-  (set (make-local-variable 'sql-port)       sql-port)
-  (set (make-local-variable 'sql-connection) sql-connection)
+  (setq-local sql-user       sql-user)
+  (setq-local sql-database   sql-database)
+  (setq-local sql-server     sql-server)
+  (setq-local sql-port       sql-port)
+  (setq-local sql-connection sql-connection)
   (setq-default sql-connection nil)
   ;; Contains the name of database objects
-  (set (make-local-variable 'sql-contains-names) t)
+  (setq-local sql-contains-names t)
   ;; Keep track of existing object names
-  (set (make-local-variable 'sql-completion-object) nil)
-  (set (make-local-variable 'sql-completion-column) nil)
+  (setq-local sql-completion-object nil)
+  (setq-local sql-completion-column nil)
   ;; Create a useful name for renaming this buffer later.
-  (set (make-local-variable 'sql-alternate-buffer-name)
-       (sql-make-alternate-buffer-name))
+  (setq-local sql-alternate-buffer-name
+              (sql-make-alternate-buffer-name))
   ;; User stuff.  Initialize before the hook.
-  (set (make-local-variable 'sql-prompt-regexp)
-       (or (sql-get-product-feature sql-product :prompt-regexp) "^"))
-  (set (make-local-variable 'sql-prompt-length)
-       (sql-get-product-feature sql-product :prompt-length))
-  (set (make-local-variable 'sql-prompt-cont-regexp)
-       (sql-get-product-feature sql-product :prompt-cont-regexp))
+  (setq-local sql-prompt-regexp
+              (or (sql-get-product-feature sql-product :prompt-regexp) "^"))
+  (setq-local sql-prompt-length
+              (sql-get-product-feature sql-product :prompt-length))
+  (setq-local sql-prompt-cont-regexp
+              (sql-get-product-feature sql-product :prompt-cont-regexp))
   (make-local-variable 'sql-output-newline-count)
   (make-local-variable 'sql-preoutput-hold)
   (add-hook 'comint-preoutput-filter-functions
             #'sql-interactive-remove-continuation-prompt nil t)
   (make-local-variable 'sql-input-ring-separator)
-  (make-local-variable 'sql-input-ring-file-name)
-  ;; Run the mode hook (along with comint's hooks).
-  (run-mode-hooks 'sql-interactive-mode-hook)
+  (make-local-variable 'sql-input-ring-file-name))
+
+(defun sql--adjust-interactive-setup ()
+  "Finish the mode's setup after running the mode hook."
   ;; Set comint based on user overrides.
   (setq comint-prompt-regexp
         (if sql-prompt-cont-regexp
@@ -4420,7 +4366,7 @@ you entered, right above the output it created.
           sql-prompt-regexp))
   (setq left-margin (or sql-prompt-length 0))
   ;; Install input sender
-  (set (make-local-variable 'comint-input-sender) #'sql-input-sender)
+  (setq-local comint-input-sender #'sql-input-sender)
   ;; People wanting a different history file for each
   ;; buffer/process/client/whatever can change separator and file-name
   ;; on the sql-interactive-mode-hook.
@@ -4490,7 +4436,7 @@ is specified in the connection settings."
                 (dolist (vv connect-set)
                   (let ((var (car vv))
                         (val (cadr vv)))
-                    (set-default var (eval val))))
+                    (set-default var (eval val)))) ;FIXME: Why `eval'?
                 (setq-default sql-connection connection)
 
                 ;; :sqli-login params variable
@@ -4521,10 +4467,10 @@ is specified in the connection settings."
                                               (if vals (cons var vals) var)))))
 
                 ;; Start the SQLi session with revised list of login parameters
-                (eval `(let ((,param-var ',rem-vars))
-                         (sql-product-interactive
-                          ',sql-product
-                          ',(or buf-name (format "<%s>" connection))))))
+                (cl-progv (list param-var) (list rem-vars)
+                  (sql-product-interactive
+                   sql-product
+                   (or buf-name (format "<%s>" connection)))))
 
             (user-error "SQL Connection <%s> does not exist" connection)
             nil)))
@@ -4595,7 +4541,10 @@ optionally is saved to the user's init file."
          (format "Connection <%s>\t%s" (car conn)
                  (let ((sql-user "") (sql-database "")
                        (sql-server "") (sql-port 0))
-                   (eval `(let ,(cdr conn) (sql-make-alternate-buffer-name)))))
+                   (cl-progv
+                       (mapcar #'car (cdr conn))
+                       (mapcar #'cadr (cdr conn))
+                     (sql-make-alternate-buffer-name))))
          (list 'sql-connect (car conn))
          t))
     sql-connection-alist)
@@ -4698,8 +4647,7 @@ the call to \\[sql-product-interactive] with
 
               ;; Set the new buffer name
               (setq new-sqli-buffer (current-buffer))
-              (set (make-local-variable 'sql-buffer)
-                   (buffer-name new-sqli-buffer))
+              (setq-local sql-buffer (buffer-name new-sqli-buffer))
 
               ;; Set `sql-buffer' in the start buffer
               (with-current-buffer start-buffer
@@ -4977,8 +4925,7 @@ The default comes from `process-coding-system-alist' and
 
 See the distinct values in ALL_OBJECTS.OBJECT_TYPE for possible values."
   :version "24.1"
-  :type '(repeat string)
-  :group 'SQL)
+  :type '(repeat string))
 
 (defun sql-oracle-completion-object (sqlbuf schema)
   (sql-redirect-value
@@ -5624,21 +5571,18 @@ buffer.
 (defcustom sql-vertica-program "vsql"
   "Command to start the Vertica client."
   :version "25.1"
-  :type 'file
-  :group 'SQL)
+  :type 'file)
 
 (defcustom sql-vertica-options '("-P" "pager=off")
   "List of additional options for `sql-vertica-program'.
 The default value disables the internal pager."
   :version "25.1"
-  :type '(repeat string)
-  :group 'SQL)
+  :type '(repeat string))
 
 (defcustom sql-vertica-login-params '(user password database server)
   "List of login parameters needed to connect to Vertica."
   :version "25.1"
-  :type 'sql-login-params
-  :group 'SQL)
+  :type 'sql-login-params)
 
 (defun sql-comint-vertica (product options &optional buf-name)
   "Create comint buffer and connect to Vertica."
@@ -5664,7 +5608,7 @@ The default value disables the internal pager."
 
 (provide 'sql)
 
-;;; sql.el ends here
-
 ; LocalWords:  sql SQL SQLite sqlite Sybase Informix MySQL
 ; LocalWords:  Postgres SQLServer SQLi
+
+;;; sql.el ends here

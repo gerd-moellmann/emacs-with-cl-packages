@@ -1,4 +1,4 @@
-;;; crm.el --- read multiple strings with completion
+;;; crm.el --- read multiple strings with completion  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1985-1986, 1993-2021 Free Software Foundation, Inc.
 
@@ -183,8 +183,7 @@ Return t if the current element is now a valid match; otherwise return nil."
 Like `minibuffer-complete-word' but for `completing-read-multiple'."
   (interactive)
   (crm--completion-command beg end
-    (completion-in-region--single-word
-     beg end minibuffer-completion-table minibuffer-completion-predicate)))
+    (completion-in-region--single-word beg end)))
 
 (defun crm-complete-and-exit ()
   "If all of the minibuffer elements are valid completions then exit.
@@ -269,12 +268,6 @@ with empty strings removed."
 	  (split-string input crm-separator t)))
     (remove-hook 'choose-completion-string-functions
 		 'crm--choose-completion-string)))
-
-(define-obsolete-function-alias 'crm-minibuffer-complete 'crm-complete "23.1")
-(define-obsolete-function-alias
-  'crm-minibuffer-completion-help 'crm-completion-help "23.1")
-(define-obsolete-function-alias
-  'crm-minibuffer-complete-and-exit 'crm-complete-and-exit "23.1")
 
 ;; testing and debugging
 ;; (defun crm-init-test-environ ()

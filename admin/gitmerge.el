@@ -1,4 +1,4 @@
-;;; gitmerge.el --- help merge one Emacs branch into another
+;;; gitmerge.el --- help merge one Emacs branch into another  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
 
@@ -6,6 +6,8 @@
 ;;          Stefan Monnier <monnier@iro.umontreal.ca>
 
 ;; Keywords: maint
+
+;; This file is part of GNU Emacs.
 
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -52,7 +54,7 @@
   ;; caused false positives.  --Stef
   (let ((skip "back[- ]?port\\|cherry picked from commit\\|\
 \\(do\\( no\\|n['’]\\)t\\|no need to\\) merge\\|not to be merged\\|\
-bump \\(Emacs \\)?version\\|Auto-commit"))
+bump Emacs version\\|Auto-commit"))
     (if noninteractive skip
       ;; "Regenerate" is quite prone to false positives.
       ;; We only want to skip merging things like AUTHORS and ldefs-boot.
@@ -126,7 +128,7 @@ If nil, the function `gitmerge-default-branch' guesses.")
     (string-to-number (match-string 1))))
 
 (defun gitmerge-default-branch ()
-  "Default for branch that should be merged; eg \"origin/emacs-27\"."
+  "Default for branch that should be merged; eg \"origin/emacs-26\"."
   (or gitmerge-default-branch
       (format "origin/emacs-%s" (1- (gitmerge-emacs-version)))))
 
@@ -354,7 +356,7 @@ Returns non-nil if conflicts remain."
                   ;; The conflict markers remain so we return non-nil.
                   (message "Failed to fix NEWS conflict"))))
              ;; Generated files.
-             ((member file '("lisp/ldefs-boot.el"))
+             ((member file '("lisp/ldefs-boot.el" "etc/AUTHORS"))
               ;; We are in the file's buffer, so names are relative.
               (call-process "git" nil t nil "reset" "--"
                             (file-name-nondirectory file))
@@ -390,7 +392,7 @@ is nil, only the single commit BEG is merged."
 			(if end "s were " " was ")
 			"skipped:\n\n")
 	      ""))
-    (apply 'call-process "git" nil t nil "log" "--oneline"
+    (apply #'call-process "git" nil t nil "log" "--oneline"
 	   (if end (list (concat beg "~.." end))
 	     `("-1" ,beg)))
     (insert "\n")
@@ -422,7 +424,7 @@ MISSING must be a list of SHA1 strings."
       (unless end
 	(setq end beg))
       (unless (zerop
-	       (apply 'call-process "git" nil t nil "merge" "--no-ff"
+	       (apply #'call-process "git" nil t nil "merge" "--no-ff"
 		      (append (when skip '("-s" "ours"))
 			      `("-m" ,commitmessage ,end))))
 	(gitmerge-write-missing missing from)

@@ -1,4 +1,4 @@
-;;; mh-xface.el --- MH-E X-Face and Face header field display
+;;; mh-xface.el --- MH-E X-Face and Face header field display  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2002-2003, 2005-2021 Free Software Foundation, Inc.
 
@@ -23,12 +23,11 @@
 
 ;;; Commentary:
 
-;;; Change Log:
-
 ;;; Code:
 
 (require 'mh-e)
 
+(autoload 'mail-header-parse-address "mail-parse")
 (autoload 'message-fetch-field "message")
 
 (defvar mh-show-xface-function
@@ -192,11 +191,7 @@ The directories are searched for in the order they appear in the list.")
     (let* ((from-field (ignore-errors (car (message-tokenize-header
                                             (mh-get-header-field "from:")))))
            (from (car (ignore-errors
-                        ;; Don't use mh-funcall-if-exists because
-                        ;; ietf-drums-parse-address might exist at run-time but
-                        ;; not at compile-time.
-                        (when (fboundp 'ietf-drums-parse-address)
-                          (ietf-drums-parse-address from-field)))))
+                        (mail-header-parse-address from-field))))
            (host (and from
                       (string-match "\\([^+]*\\)\\(\\+.*\\)?@\\(.*\\)" from)
                       (downcase (match-string 3 from))))
@@ -365,7 +360,7 @@ Replace the ?/ character with a ?! character and append .png.
 Also replaces special characters with `mh-url-hexify-string'
 since not all characters, such as :, are valid within Windows
 filenames.  In addition, replaces * with %2a. See URL
-`http://msdn.microsoft.com/library/default.asp?url=/library/en-us/shellcc/platform/shell/reference/ifaces/iitemnamelimits/GetValidCharacters.asp'."
+`https://msdn.microsoft.com/library/default.asp?url=/library/en-us/shellcc/platform/shell/reference/ifaces/iitemnamelimits/GetValidCharacters.asp'."
   (format "%s/%s.png" mh-x-image-cache-directory
           (mh-replace-regexp-in-string
            "\\*" "%2a"
@@ -393,10 +388,12 @@ filenames.  In addition, replaces * with %2a. See URL
 (defun mh-x-image-url-sane-p (url)
   "Check if URL is something sensible."
   (let ((len (length url)))
-    (cond ((< len 5) nil)
-          ((not (equal (substring url 0 5) "http:")) nil)
-          ((> len 100) nil)
-          (t t))))
+    (cond ((> len 100) nil)
+          ((and (>= len 5)
+                (equal (substring url 0 5) "http:") t))
+          ((and (>= len 6)
+                (equal (substring url 0 6) "https:") t))
+          (t nil))))
 
 (defun mh-x-image-display (image marker)
   "Display IMAGE at MARKER."
@@ -425,8 +422,7 @@ After the image is fetched, it is stored in CACHE-FILE. It will
 be displayed in a buffer and position specified by MARKER. The
 actual display is carried out by the SENTINEL function."
   (if mh-wget-executable
-      (let ((buffer (get-buffer-create (generate-new-buffer-name
-                                        mh-temp-fetch-buffer)))
+      (let ((buffer (generate-new-buffer mh-temp-fetch-buffer))
             (filename (or (mh-funcall-if-exists make-temp-file "mhe-fetch")
                           (expand-file-name (make-temp-name "~/mhe-fetch")))))
         (with-current-buffer buffer

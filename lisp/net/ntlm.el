@@ -69,7 +69,6 @@
 
 (require 'md4)
 (require 'hmac-md5)
-(require 'calc)
 
 (defgroup ntlm nil
   "NTLM (NT LanManager) authentication."
@@ -133,32 +132,93 @@ is not given."
 	    domain				;buffer field
 	    ))))
 
-(defun ntlm-compute-timestamp ()
-  "Compute an NTLMv2 timestamp.
+;; Poor man's bignums: natural numbers represented as lists of bytes
+;; in little-endian order.
+;; When this code no longer needs to run on Emacs 26 or older, all this
+;; silliness should be simplified to use ordinary Lisp integers.
+
+(eval-and-compile                       ; for compile-time simplification
+  (defun ntlm--bignat-of-int (x)
+    "Convert the natural number X into a bignat."
+    (declare (pure t))
+    (and (not (zerop x))
+         (cons (logand x #xff) (ntlm--bignat-of-int (ash x -8)))))
+
+  (defun ntlm--bignat-add (a b &optional carry)
+    "Add the bignats A and B and the natural number CARRY."
+    (declare (pure t))
+    (and (or a b (and carry (not (zerop carry))))
+         (let ((s (+ (if a (car a) 0)
+                     (if b (car b) 0)
+                     (or carry 0))))
+           (cons (logand s #xff)
+                 (ntlm--bignat-add (cdr a) (cdr b) (ash s -8))))))
+
+  (defun ntlm--bignat-shift-left (x n)
+    "Multiply the bignat X by 2^{8N}."
+    (declare (pure t))
+    (if (zerop n) x (ntlm--bignat-shift-left (cons 0 x) (1- n))))
+
+  (defun ntlm--bignat-mul-byte (a b)
+    "Multiply the bignat A with the byte B."
+    (declare (pure t))
+    (let ((p (mapcar (lambda (x) (* x b)) a)))
+      (ntlm--bignat-add
+       (mapcar (lambda (x) (logand x #xff)) p)
+       (cons 0 (mapcar (lambda (x) (ash x -8)) p)))))
+
+  (defun ntlm--bignat-mul (a b)
+    "Multiply the bignats A and B."
+    (declare (pure t))
+    (and a b (ntlm--bignat-add (ntlm--bignat-mul-byte a (car b))
+                               (cons 0 (ntlm--bignat-mul a (cdr b))))))
+
+  (defun ntlm--bignat-of-string (s)
+    "Convert the string S (in decimal) to a bignat."
+    (declare (pure t))
+    (ntlm--bignat-of-digits (reverse (string-to-list s))))
+
+  (defun ntlm--bignat-of-digits (digits)
+    "Convert the little-endian list DIGITS of decimal digits to a bignat."
+    (declare (pure t))
+    (and digits
+         (ntlm--bignat-add
+          nil
+          (ntlm--bignat-mul-byte (ntlm--bignat-of-digits (cdr digits)) 10)
+          (- (car digits) ?0))))
+
+  (defun ntlm--bignat-to-int64 (x)
+    "Convert the bignat X to a 64-bit little-endian number as a string."
+    (declare (pure t))
+    (apply #'unibyte-string (mapcar (lambda (n) (or (nth n x) 0))
+                                    (number-sequence 0 7))))
+  )
+
+(defun ntlm--time-to-timestamp (time)
+  "Convert TIME to an NTLMv2 timestamp.
 Return a unibyte string representing the number of tenths of a
 microsecond since January 1, 1601 as a 64-bit little-endian
-signed integer."
-  ;; FIXME: This can likely be significantly simplified using the new
-  ;; bignums support!
-  (let* ((s-to-tenths-of-us "mul(add(lsh($1,16),$2),10000000)")
-	 (us-to-tenths-of-us "mul($3,10)")
-	 (ps-to-tenths-of-us "idiv($4,100000)")
-	 (tenths-of-us-since-jan-1-1601
-	  (apply #'calc-eval (concat "add(add(add("
-				    s-to-tenths-of-us ","
-				    us-to-tenths-of-us "),"
-				    ps-to-tenths-of-us "),"
-				    ;; tenths of microseconds between
-				    ;; 1601-01-01 and 1970-01-01
-				    "116444736000000000)")
-		 'rawnum (time-convert nil 'list)))
-	 result-bytes)
-    (dotimes (_byte 8)
-      (push (calc-eval "and($1,16#FF)" 'rawnum tenths-of-us-since-jan-1-1601)
-	    result-bytes)
-      (setq tenths-of-us-since-jan-1-1601
-	    (calc-eval "rsh($1,8,64)" 'rawnum tenths-of-us-since-jan-1-1601)))
-    (apply #'unibyte-string (nreverse result-bytes))))
+signed integer.  TIME must be on the form (HIGH LOW USEC PSEC)."
+  (let* ((s-hi (ntlm--bignat-of-int (nth 0 time)))
+         (s-lo (ntlm--bignat-of-int (nth 1 time)))
+         (s (ntlm--bignat-add (ntlm--bignat-shift-left s-hi 2) s-lo))
+         (us*10 (ntlm--bignat-of-int (* (nth 2 time) 10)))
+         (ps/1e5 (ntlm--bignat-of-int (/ (nth 3 time) 100000)))
+	 ;; tenths of microseconds between 1601-01-01 and 1970-01-01
+         (to-unix-epoch (ntlm--bignat-of-string "116444736000000000"))
+         (tenths-of-us-since-jan-1-1601
+          (ntlm--bignat-add
+           (ntlm--bignat-add
+            (ntlm--bignat-add
+             (ntlm--bignat-mul s (ntlm--bignat-of-int 10000000))
+             us*10)
+            ps/1e5)
+           to-unix-epoch)))
+    (ntlm--bignat-to-int64 tenths-of-us-since-jan-1-1601)))
+
+(defun ntlm-compute-timestamp ()
+  "Current time as an NTLMv2 timestamp, as a unibyte string."
+  (ntlm--time-to-timestamp (time-convert nil 'list)))
 
 (defun ntlm-generate-nonce ()
   "Generate a random nonce, not to be used more than once.
@@ -345,8 +405,8 @@ by PASSWORD-HASHES.  PASSWORD-HASHES should be a return value of
 	(ntlm-md4hash password)))
 
 (defun ntlm-ascii2unicode (str len)
-  "Convert an ASCII string into a NT Unicode string, which is
-little-endian utf16."
+  "Convert an ASCII string STR of length LEN into a NT Unicode string.
+NT Unicode strings are little-endian utf16."
   ;; FIXME: Can't we use encode-coding-string with a `utf-16le' coding system?
   (let ((utf (make-string (* 2 len) 0))
         (i 0)
@@ -368,25 +428,24 @@ little-endian utf16."
     buf))
 
 (defun ntlm-smb-passwd-hash (passwd)
-  "Return the SMB password hash string of 16 bytes long for the given password
-string PASSWD.  PASSWD is truncated to 14 bytes if longer."
+  "Return SMB password hash string of 16 bytes long for password string PASSWD.
+PASSWD is truncated to 14 bytes if longer."
   (let ((len (min (length passwd) 14)))
     (ntlm-smb-des-e-p16
      (concat (substring (upcase passwd) 0 len) ;fill top 14 bytes with passwd
 	     (make-string (- 15 len) 0)))))
 
 (defun ntlm-smb-owf-encrypt (passwd c8)
-  "Return the response string of 24 bytes long for the given password
-string PASSWD based on the DES encryption.  PASSWD is of at most 14
-bytes long and the challenge string C8 of 8 bytes long."
+  "Return response string of 24 bytes long for PASSWD based on DES encryption.
+PASSWD is of at most 14 bytes long and the challenge string C8 of
+8 bytes long."
   (let* ((len (min (length passwd) 16))
          (p22 (concat (substring passwd 0 len) ;Fill top 16 bytes with passwd.
 		      (make-string (- 22 len) 0))))
     (ntlm-smb-des-e-p24 p22 c8)))
 
 (defun ntlm-smb-des-e-p24 (p22 c8)
-  "Return a 24 bytes hashed string for a 21 bytes string P22 and a 8 bytes
-string C8."
+  "Return 24 bytes hashed string for a 21 bytes string P22 and a 8 bytes string C8."
   (concat (ntlm-smb-hash c8 p22 t)		;hash first 8 bytes of p22
 	  (ntlm-smb-hash c8 (substring p22 7) t)
 	  (ntlm-smb-hash c8 (substring p22 14) t)))
@@ -400,8 +459,8 @@ string C8."
 			 (substring p15 7) t)))
 
 (defun ntlm-smb-hash (in key forw)
-  "Return the hash string of length 8 for a string IN of length 8 and
-a string KEY of length 8.  FORW is t or nil."
+  "Return hash string of length 8 for IN of length 8 and KEY of length 8.
+FORW is t or nil."
   (let ((out (make-string 8 0))
 	(inb (make-string 64 0))
 	(keyb (make-string 64 0))
@@ -543,8 +602,8 @@ a string KEY of length 8.  FORW is t or nil."
 		     [ 2  1 14  7  4 10  8 13 15 12  9  0  3  5  6 11]]])
 
 (defsubst ntlm-string-permute (in perm n)
-  "Return a string of length N for a string IN and a permutation vector
-PERM of size N.  The length of IN should be height of PERM."
+  "Return string of length N for string IN and permutation vector PERM of size N.
+The length of IN should be height of PERM."
   (let ((i 0) (out (make-string n 0)))
     (while (< i n)
       (aset out i (aref in (- (aref perm i) 1)))
@@ -641,8 +700,8 @@ backward."
     (ntlm-string-permute rl ntlm-smb-perm6 64)))
 
 (defun ntlm-md4hash (passwd)
-  "Return the 16 bytes MD4 hash of a string PASSWD after converting it
-into a Unicode string.  PASSWD is truncated to 128 bytes if longer."
+  "Return 16 bytes MD4 hash of string PASSWD after converting it to Unicode.
+PASSWD is truncated to 128 bytes if longer."
   (let* ((len (min (length passwd) 128)) ;Pwd can't be > than 128 characters.
          ;; Password must be converted to NT Unicode.
          (wpwd (ntlm-ascii2unicode passwd len)))

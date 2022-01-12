@@ -795,7 +795,7 @@ See `faceup-properties' for a list of tracked properties."
       nil
     (if (and (null pos)
              (faceup-has-any-text-property (point-min)))
-        ;; `pos' is `nil' and the character at `point-min' contains a
+        ;; `pos' is nil and the character at `point-min' contains a
         ;; tracked property, return `point-min'.
         (point-min)
       (unless pos
@@ -1169,11 +1169,6 @@ Intended to be called when a file is loaded."
        (file-name-directory load-file-name)
      ;; File is being evaluated using, for example, `eval-buffer'.
      default-directory)))
-
-
-;; ----------------------------------------------------------------------
-;; The end
-;;
 
 (provide 'faceup)
 

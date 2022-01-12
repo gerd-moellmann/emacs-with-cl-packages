@@ -1,4 +1,4 @@
-;;; gnus-util.el --- utility functions for Gnus
+;;; gnus-util.el --- utility functions for Gnus  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
@@ -87,6 +87,7 @@ This is a compatibility function for different Emacsen."
 
 (defmacro gnus-eval-in-buffer-window (buffer &rest forms)
   "Pop to BUFFER, evaluate FORMS, and then return to the original window."
+  (declare (indent 1) (debug t))
   (let ((tempvar (make-symbol "GnusStartBufferWindow"))
 	(w (make-symbol "w"))
 	(buf (make-symbol "buf")))
@@ -102,9 +103,6 @@ This is a compatibility function for different Emacsen."
 	       (pop-to-buffer ,buf))
 	     ,@forms)
 	 (select-window ,tempvar)))))
-
-(put 'gnus-eval-in-buffer-window 'lisp-indent-function 1)
-(put 'gnus-eval-in-buffer-window 'edebug-form-spec '(form body))
 
 (defsubst gnus-goto-char (point)
   (and point (goto-char point)))
@@ -156,7 +154,7 @@ is slower."
 	(and (string-match "(.+)" from)
 	     (setq name (substring from (1+ (match-beginning 0))
 				   (1- (match-end 0)))))
-	(and (string-match "()" from)
+	(and (string-search "()" from)
 	     (setq name address))
 	;; XOVER might not support folded From headers.
 	(and (string-match "(.*" from)
@@ -267,7 +265,7 @@ If END is non-nil, use the end of the span instead."
 (defun gnus-newsgroup-directory-form (newsgroup)
   "Make hierarchical directory name from NEWSGROUP name."
   (let* ((newsgroup (gnus-newsgroup-savable-name newsgroup))
-	 (idx (string-match ":" newsgroup)))
+	 (idx (string-search ":" newsgroup)))
     (concat
      (if idx (substring newsgroup 0 idx))
      (if idx "/")
@@ -302,31 +300,28 @@ Symbols are also allowed; their print names are used instead."
 
 (defmacro gnus-local-set-keys (&rest plist)
   "Set the keys in PLIST in the current keymap."
+  (declare (indent 1))
   `(gnus-define-keys-1 (current-local-map) ',plist))
 
 (defmacro gnus-define-keys (keymap &rest plist)
   "Define all keys in PLIST in KEYMAP."
-  `(gnus-define-keys-1 (quote ,keymap) (quote ,plist)))
+  (declare (indent 1))
+  `(gnus-define-keys-1 ,(if (symbolp keymap) keymap `',keymap) (quote ,plist)))
 
 (defmacro gnus-define-keys-safe (keymap &rest plist)
   "Define all keys in PLIST in KEYMAP without overwriting previous definitions."
+  (declare (indent 1))
   `(gnus-define-keys-1 (quote ,keymap) (quote ,plist) t))
-
-(put 'gnus-define-keys 'lisp-indent-function 1)
-(put 'gnus-define-keys-safe 'lisp-indent-function 1)
-(put 'gnus-local-set-keys 'lisp-indent-function 1)
 
 (defmacro gnus-define-keymap (keymap &rest plist)
   "Define all keys in PLIST in KEYMAP."
+  (declare (indent 1))
   `(gnus-define-keys-1 ,keymap (quote ,plist)))
-
-(put 'gnus-define-keymap 'lisp-indent-function 1)
 
 (defun gnus-define-keys-1 (keymap plist &optional safe)
   (when (null keymap)
     (error "Can't set keys in a null keymap"))
-  (cond ((symbolp keymap)
-	 (setq keymap (symbol-value keymap)))
+  (cond ((symbolp keymap) (error "First arg should be a keymap object"))
 	((keymapp keymap))
 	((listp keymap)
 	 (set (car keymap) nil)
@@ -413,7 +408,7 @@ Cache the result as a text property stored in DATE."
 
 (defun gnus-mode-string-quote (string)
   "Quote all \"%\"'s in STRING."
-  (replace-regexp-in-string "%" "%%" string))
+  (string-replace "%" "%%" string))
 
 (defsubst gnus-make-hashtable (&optional size)
   "Make a hash table of SIZE, testing on `equal'."
@@ -450,14 +445,12 @@ displayed in the echo area."
       `(let (str time)
 	 (cond ((eq gnus-add-timestamp-to-message 'log)
 		(setq str (let (message-log-max)
-			    (apply 'message ,format-string ,args)))
+			    (apply #'message ,format-string ,args)))
 		(when (and message-log-max
 			   (> message-log-max 0)
 			   (/= (length str) 0))
 		  (setq time (current-time))
-		  (with-current-buffer (if (fboundp 'messages-buffer)
-					   (messages-buffer)
-					 (get-buffer-create "*Messages*"))
+		  (with-current-buffer (messages-buffer)
 		    (goto-char (point-max))
 		    (let ((inhibit-read-only t))
 		      (insert ,timestamp str "\n")
@@ -478,7 +471,7 @@ displayed in the echo area."
 		  (message "%s" (concat ,timestamp str))
 		  str))
 	       (t
-		(apply 'message ,format-string ,args)))))))
+		(apply #'message ,format-string ,args)))))))
 
 (defvar gnus-action-message-log nil)
 
@@ -498,8 +491,8 @@ inside loops."
   (if (<= level gnus-verbose)
       (let ((message
 	     (if gnus-add-timestamp-to-message
-		 (apply 'gnus-message-with-timestamp args)
-	       (apply 'message args))))
+		 (apply #'gnus-message-with-timestamp args)
+	       (apply #'message args))))
 	(when (and (consp gnus-action-message-log)
 		   (<= level 3))
 	  (push message gnus-action-message-log))
@@ -520,7 +513,7 @@ inside loops."
   "Beep an error if LEVEL is equal to or less than `gnus-verbose'.
 ARGS are passed to `message'."
   (when (<= (floor level) gnus-verbose)
-    (apply 'message args)
+    (apply #'message args)
     (ding)
     (let (duration)
       (when (and (floatp level)
@@ -540,7 +533,7 @@ ARGS are passed to `message'."
 
 (defun gnus-extract-references (references)
   "Return a list of Message-IDs in REFERENCES (in In-Reply-To
-  format), trimmed to only contain the Message-IDs."
+format), trimmed to only contain the Message-IDs."
   (let ((ids (gnus-split-references references))
 	refs)
     (dolist (id ids)
@@ -688,6 +681,8 @@ yield \"nnimap:yxa\"."
   (define-key (symbol-value (intern (format "gnus-%s-mode-map" type)))
     [menu-bar edit] 'undefined))
 
+(defvar print-string-length)
+
 (defmacro gnus-bind-print-variables (&rest forms)
   "Bind print-* variables and evaluate FORMS.
 This macro is used with `prin1', `pp', etc. in order to ensure
@@ -768,7 +763,7 @@ nil.  See also `gnus-bind-print-variables'."
 If there's no subdirectory, delete DIRECTORY as well."
   (when (file-directory-p directory)
     (let ((files (directory-files
-		  directory t (rx (or (not ".") "..."))))
+		  directory t directory-files-no-dot-files-regexp))
 	  file dir)
       (while files
 	(setq file (pop files))
@@ -787,7 +782,7 @@ If there's no subdirectory, delete DIRECTORY as well."
   string)
 
 (defsubst gnus-put-text-property-excluding-newlines (beg end prop val)
-  "The same as `put-text-property', but don't put this prop on any newlines in the region."
+  "Like `put-text-property', but don't put this prop on any newlines in the region."
   (save-match-data
     (save-excursion
       (save-restriction
@@ -798,7 +793,7 @@ If there's no subdirectory, delete DIRECTORY as well."
 	(put-text-property beg (point) prop val)))))
 
 (defsubst gnus-put-overlay-excluding-newlines (beg end prop val)
-  "The same as `put-text-property', but don't put this prop on any newlines in the region."
+  "Like `put-text-property', but don't put this prop on any newlines in the region."
   (save-match-data
     (save-excursion
       (save-restriction
@@ -858,63 +853,9 @@ the user are disabled, it is recommended that only the most minimal
 operations are performed by FORMS.  If you wish to assign many
 complicated values atomically, compute the results into temporary
 variables and then do only the assignment atomically."
+  (declare (indent 0) (debug t))
   `(let ((inhibit-quit gnus-atomic-be-safe))
      ,@forms))
-
-(put 'gnus-atomic-progn 'lisp-indent-function 0)
-
-(defmacro gnus-atomic-progn-assign (protect &rest forms)
-  "Evaluate FORMS, but ensure that the variables listed in PROTECT
-are not changed if anything in FORMS signals an error or otherwise
-non-locally exits.  The variables listed in PROTECT are updated atomically.
-It is safe to use gnus-atomic-progn-assign with long computations.
-
-Note that if any of the symbols in PROTECT were unbound, they will be
-set to nil on a successful assignment.  In case of an error or other
-non-local exit, it will still be unbound."
-  (let* ((temp-sym-map (mapcar (lambda (x) (list (make-symbol
-						  (concat (symbol-name x)
-							  "-tmp"))
-						 x))
-			       protect))
-	 (sym-temp-map (mapcar (lambda (x) (list (cadr x) (car x)))
-			       temp-sym-map))
-	 (temp-sym-let (mapcar (lambda (x) (list (car x)
-						 `(and (boundp ',(cadr x))
-						       ,(cadr x))))
-			       temp-sym-map))
-	 (sym-temp-let sym-temp-map)
-	 (temp-sym-assign (apply 'append temp-sym-map))
-	 (sym-temp-assign (apply 'append sym-temp-map))
-	 (result (make-symbol "result-tmp")))
-    `(let (,@temp-sym-let
-	   ,result)
-       (let ,sym-temp-let
-	 (setq ,result (progn ,@forms))
-	 (setq ,@temp-sym-assign))
-       (let ((inhibit-quit gnus-atomic-be-safe))
-	 (setq ,@sym-temp-assign))
-       ,result)))
-
-(put 'gnus-atomic-progn-assign 'lisp-indent-function 1)
-;(put 'gnus-atomic-progn-assign 'edebug-form-spec '(sexp body))
-
-(defmacro gnus-atomic-setq (&rest pairs)
-  "Similar to setq, except that the real symbols are only assigned when
-there are no errors.  And when the real symbols are assigned, they are
-done so atomically.  If other variables might be changed via side-effect,
-see gnus-atomic-progn-assign.  It is safe to use gnus-atomic-setq
-with potentially long computations."
-  (let ((tpairs pairs)
-	syms)
-    (while tpairs
-      (push (car tpairs) syms)
-      (setq tpairs (cddr tpairs)))
-    `(gnus-atomic-progn-assign ,syms
-       (setq ,@pairs))))
-
-;(put 'gnus-atomic-setq 'edebug-form-spec '(body))
-
 
 ;;; Functions for saving to babyl/mail files.
 
@@ -950,7 +891,7 @@ FILENAME exists and is Babyl format."
       (setq rmail-default-rmail-file filename) ; 22
     (setq rmail-default-file filename))        ; 23
   (let ((artbuf (current-buffer))
-	(tmpbuf (get-buffer-create " *Gnus-output*"))
+	(tmpbuf (gnus-get-buffer-create " *Gnus-output*"))
         ;; Babyl rmail.el defines this, mbox does not.
         (babyl (fboundp 'rmail-insert-rmail-file-header)))
     (save-excursion
@@ -1015,6 +956,12 @@ FILENAME exists and is Babyl format."
                 (rmail-swap-buffers-maybe)
                 (rmail-maybe-set-message-counters))
               (widen)
+              (unless babyl
+		(goto-char (point-max))
+		;; Ensure we have a blank line before the next message.
+		(unless (bolp)
+		  (insert "\n"))
+		(insert "\n"))
               (narrow-to-region (point-max) (point-max)))
 	    (insert-buffer-substring tmpbuf)
 	    (when msg
@@ -1036,7 +983,7 @@ FILENAME exists and is Babyl format."
   (require 'nnmail)
   (setq filename (expand-file-name filename))
   (let ((artbuf (current-buffer))
-	(tmpbuf (get-buffer-create " *Gnus-output*")))
+	(tmpbuf (gnus-get-buffer-create " *Gnus-output*")))
     (save-excursion
       ;; Create the file, if it doesn't exist.
       (when (and (not (get-file-buffer filename))
@@ -1108,18 +1055,23 @@ ARG is passed to the first function."
 (defun gnus-run-hooks (&rest funcs)
   "Does the same as `run-hooks', but saves the current buffer."
   (save-current-buffer
-    (apply 'run-hooks funcs)))
+    (apply #'run-hooks funcs)))
 
 (defun gnus-run-hook-with-args (hook &rest args)
   "Does the same as `run-hook-with-args', but saves the current buffer."
   (save-current-buffer
-    (apply 'run-hook-with-args hook args)))
+    (apply #'run-hook-with-args hook args)))
 
 (defun gnus-run-mode-hooks (&rest funcs)
   "Run `run-mode-hooks', saving the current buffer."
-  (save-current-buffer (apply 'run-mode-hooks funcs)))
+  (save-current-buffer (apply #'run-mode-hooks funcs)))
 
 ;;; Various
+
+(defmacro gnus--\,@ (exp)
+  "Splice EXP's value (a list of Lisp forms) into the code."
+  (declare (debug t))
+  `(progn ,@(eval exp t)))
 
 (defvar gnus-group-buffer)		; Compiler directive
 (defun gnus-alive-p ()
@@ -1179,7 +1131,7 @@ ARG is passed to the first function."
       (maphash
        (lambda (group active)
 	 (when active
-	   (insert (format "%s %d %d y\n"
+	   (insert (format "%S %d %d y\n"
 			   (if full-names
 			       group
 			     (gnus-group-real-name group))
@@ -1193,6 +1145,7 @@ ARG is passed to the first function."
 
 ;; Fixme: Why not use `with-output-to-temp-buffer'?
 (defmacro gnus-with-output-to-file (file &rest body)
+  (declare (indent 1) (debug t))
   (let ((buffer (make-symbol "output-buffer"))
         (size (make-symbol "output-buffer-size"))
         (leng (make-symbol "output-buffer-length"))
@@ -1214,9 +1167,6 @@ ARG is passed to the first function."
          (let ((coding-system-for-write 'no-conversion))
 	 (write-region (substring ,buffer 0 ,leng) nil ,file
 		       ,append 'no-msg))))))
-
-(put 'gnus-with-output-to-file 'lisp-indent-function 1)
-(put 'gnus-with-output-to-file 'edebug-form-spec '(form body))
 
 (defun gnus-add-text-properties-when
   (property value start end properties &optional object)
@@ -1260,9 +1210,7 @@ ARG is passed to the first function."
 	   (string-equal (downcase x) (downcase y)))))
 
 (defcustom gnus-use-byte-compile t
-  "If non-nil, byte-compile crucial run-time code.
-Setting it to nil has no effect after the first time `gnus-byte-compile'
-is run."
+  "If non-nil, byte-compile crucial run-time code."
   :type 'boolean
   :version "22.1"
   :group 'gnus-various)
@@ -1270,13 +1218,8 @@ is run."
 (defun gnus-byte-compile (form)
   "Byte-compile FORM if `gnus-use-byte-compile' is non-nil."
   (if gnus-use-byte-compile
-      (progn
-	(require 'bytecomp)
-	(defalias 'gnus-byte-compile
-	  (lambda (form)
-	    (let ((byte-compile-warnings '(unresolved callargs redefine)))
-	      (byte-compile form))))
-	(gnus-byte-compile form))
+      (let ((byte-compile-warnings '(unresolved callargs redefine)))
+	(byte-compile form))
     form))
 
 (defun gnus-remassoc (key alist)
@@ -1296,16 +1239,19 @@ sure of changing the value of `foo'."
       (cons (cons key value) (gnus-remassoc key alist))
     (gnus-remassoc key alist)))
 
+(defvar gnus-info-buffer)
+(declare-function gnus-configure-windows "gnus-win" (setting &optional force))
+
 (defun gnus-create-info-command (node)
   "Create a command that will go to info NODE."
-  `(lambda ()
-     (interactive)
-     ,(concat "Enter the info system at node " node)
-     (Info-goto-node ,node)
-     (setq gnus-info-buffer (current-buffer))
-     (gnus-configure-windows 'info)))
+  (lambda ()
+    (:documentation (format "Enter the info system at node %s." node))
+    (interactive)
+    (info node)
+    (setq gnus-info-buffer (current-buffer))
+    (gnus-configure-windows 'info)))
 
-(defun gnus-not-ignore (&rest args)
+(defun gnus-not-ignore (&rest _args)
   t)
 
 (defvar gnus-directory-sep-char-regexp "/"
@@ -1357,7 +1303,7 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
     `(,spec elem))
    ((listp spec)
     (if (memq (car spec) '(or and not))
-	`(,(car spec) ,@(mapcar 'gnus-make-predicate-1 (cdr spec)))
+	`(,(car spec) ,@(mapcar #'gnus-make-predicate-1 (cdr spec)))
       (error "Invalid predicate specifier: %s" spec)))))
 
 (defun gnus-completing-read (prompt collection &optional require-match
@@ -1387,8 +1333,10 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
 (declare-function iswitchb-read-buffer "iswitchb"
 		  (prompt &optional default require-match
 			  _predicate start matches-set))
+(declare-function iswitchb-minibuffer-setup "iswitchb")
 (defvar iswitchb-temp-buflist)
 (defvar iswitchb-mode)
+(defvar iswitchb-make-buflist-hook)
 
 (defun gnus-iswitchb-completing-read (prompt collection &optional require-match
                                             initial-input history def)
@@ -1409,16 +1357,14 @@ SPEC is a predicate specifier that contains stuff like `or', `and',
     (unwind-protect
         (progn
           (or iswitchb-mode
-	      (add-hook 'minibuffer-setup-hook 'iswitchb-minibuffer-setup))
+	      (add-hook 'minibuffer-setup-hook #'iswitchb-minibuffer-setup))
           (iswitchb-read-buffer prompt def require-match))
       (or iswitchb-mode
-	  (remove-hook 'minibuffer-setup-hook 'iswitchb-minibuffer-setup)))))
-
-(put 'gnus-parse-without-error 'lisp-indent-function 0)
-(put 'gnus-parse-without-error 'edebug-form-spec '(body))
+	  (remove-hook 'minibuffer-setup-hook #'iswitchb-minibuffer-setup)))))
 
 (defmacro gnus-parse-without-error (&rest body)
   "Allow continuing onto the next line even if an error occurs."
+  (declare (indent 0) (debug t))
   `(while (not (eobp))
      (condition-case ()
 	 (progn
@@ -1453,11 +1399,12 @@ CHOICE is a list of the choice char and help message at IDX."
 		   prompt
 		   (concat
 		    (mapconcat (lambda (s) (char-to-string (car s)))
-			       choice ", ") ", ?"))
+			       choice ", ")
+		    ", ?"))
 	  (setq tchar (read-char))
 	  (when (not (assq tchar choice))
 	    (setq tchar nil)
-	    (setq buf (get-buffer-create "*Gnus Help*"))
+	    (setq buf (gnus-get-buffer-create "*Gnus Help*"))
 	    (pop-to-buffer buf)
 	    (fundamental-mode)
 	    (buffer-disable-undo)
@@ -1509,7 +1456,7 @@ Return nil otherwise."
 
 (defvar tool-bar-mode)
 
-(defun gnus-tool-bar-update (&rest ignore)
+(defun gnus-tool-bar-update (&rest _ignore)
   "Update the tool bar."
   (when (and (boundp 'tool-bar-mode)
 	     tool-bar-mode)
@@ -1535,7 +1482,7 @@ sequence, this is like `mapcar'.  With several, it is like the Common Lisp
   (if seqs2_n
       (let* ((seqs (cons seq1 seqs2_n))
 	     (cnt 0)
-	     (heads (mapcar (lambda (seq)
+	     (heads (mapcar (lambda (_seq)
 			      (make-symbol (concat "head"
 						   (int-to-string
 						    (setq cnt (1+ cnt))))))
@@ -1569,7 +1516,7 @@ sequence, this is like `mapcar'.  With several, it is like the Common Lisp
 			 ((memq 'type lst)
 			  (symbol-name system-type))
 			 (t nil)))
-	 codename)
+	 ) ;; codename
     (cond
      ((not (memq 'emacs lst))
       nil)
@@ -1581,13 +1528,13 @@ sequence, this is like `mapcar'.  With several, it is like the Common Lisp
      (t emacs-version))))
 
 (defun gnus-rename-file (old-path new-path &optional trim)
-  "Rename OLD-PATH as NEW-PATH.  If TRIM, recursively delete
-empty directories from OLD-PATH."
+  "Rename OLD-PATH as NEW-PATH.
+If TRIM, recursively delete empty directories from OLD-PATH."
   (when (file-exists-p old-path)
     (let* ((old-dir (file-name-directory old-path))
-	   (old-name (file-name-nondirectory old-path))
+	   ;; (old-name (file-name-nondirectory old-path))
 	   (new-dir (file-name-directory new-path))
-	   (new-name (file-name-nondirectory new-path))
+	   ;; (new-name (file-name-nondirectory new-path))
 	   temp)
       (gnus-make-directory new-dir)
       (rename-file old-path new-path t)
@@ -1601,17 +1548,17 @@ empty directories from OLD-PATH."
 			 (file-truename
 			  (concat old-dir "..")))))))))
 
-(defun gnus-set-file-modes (filename mode)
-  "Wrapper for set-file-modes."
+(defun gnus-set-file-modes (filename mode &optional flag)
+  "Wrapper for `set-file-modes'."
   (ignore-errors
-    (set-file-modes filename mode)))
+    (set-file-modes filename mode flag)))
 
 (defun gnus-rescale-image (image size)
   "Rescale IMAGE to SIZE if possible.
 SIZE is in format (WIDTH . HEIGHT).  Return a new image.
 Sizes are in pixels."
-  (if (not (display-graphic-p))
-      image
+  (when (display-images-p)
+    (declare-function image-size "image.c" (spec &optional pixels frame))
     (let ((new-width (car size))
           (new-height (cdr size)))
       (when (> (cdr (image-size image t)) new-height)
@@ -1619,8 +1566,8 @@ Sizes are in pixels."
                                   :max-height new-height)))
       (when (> (car (image-size image t)) new-width)
 	(setq image (create-image (plist-get (cdr image) :data) nil t
-                                  :max-width new-width)))
-      image)))
+                                  :max-width new-width)))))
+  image)
 
 (defun gnus-recursive-directory-files (dir)
   "Return all regular files below DIR.
@@ -1654,6 +1601,7 @@ The first found will be returned if a file has hard or symbolic links."
   "To each element of LIST apply PREDICATE.
 Return nil if LIST is no list or is empty or some test returns nil;
 otherwise, return t."
+  (declare (obsolete nil "28.1"))
   (when (and list (listp list))
     (let ((result (mapcar predicate list)))
       (not (memq nil result)))))
@@ -1687,7 +1635,7 @@ lists of strings."
       (setq props (plist-put props :foreground (face-foreground face)))
       (setq props (plist-put props :background (face-background face))))
     (ignore-errors
-      (apply 'create-image file type data-p props))))
+      (apply #'create-image file type data-p props))))
 
 (defun gnus-put-image (glyph &optional string category)
   (let ((point (point)))

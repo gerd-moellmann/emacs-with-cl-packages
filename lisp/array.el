@@ -1,4 +1,4 @@
-;;; array.el --- array editing commands for GNU Emacs
+;;; array.el --- array editing commands for GNU Emacs  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1987, 2000-2021 Free Software Foundation, Inc.
 
@@ -769,25 +769,25 @@ Return COLUMN."
 
 (defvar array-mode-map
   (let ((map (make-keymap)))
-    (define-key map "\M-ad"   'array-display-local-variables)
-    (define-key map "\M-am"   'array-make-template)
-    (define-key map "\M-ae"   'array-expand-rows)
-    (define-key map "\M-ar"   'array-reconfigure-rows)
-    (define-key map "\M-a="   'array-what-position)
-    (define-key map "\M-ag"   'array-goto-cell)
-    (define-key map "\M-af"   'array-fill-rectangle)
-    (define-key map "\C-n"    'array-next-row)
-    (define-key map "\C-p"    'array-previous-row)
-    (define-key map "\C-f"    'array-forward-column)
-    (define-key map "\C-b"    'array-backward-column)
-    (define-key map "\M-n"    'array-copy-down)
-    (define-key map "\M-p"    'array-copy-up)
-    (define-key map "\M-f"    'array-copy-forward)
-    (define-key map "\M-b"    'array-copy-backward)
-    (define-key map "\M-\C-n" 'array-copy-row-down)
-    (define-key map "\M-\C-p" 'array-copy-row-up)
-    (define-key map "\M-\C-f" 'array-copy-column-forward)
-    (define-key map "\M-\C-b" 'array-copy-column-backward)
+    (define-key map "\M-ad"   #'array-display-local-variables)
+    (define-key map "\M-am"   #'array-make-template)
+    (define-key map "\M-ae"   #'array-expand-rows)
+    (define-key map "\M-ar"   #'array-reconfigure-rows)
+    (define-key map "\M-a="   #'array-what-position)
+    (define-key map "\M-ag"   #'array-goto-cell)
+    (define-key map "\M-af"   #'array-fill-rectangle)
+    (define-key map "\C-n"    #'array-next-row)
+    (define-key map "\C-p"    #'array-previous-row)
+    (define-key map "\C-f"    #'array-forward-column)
+    (define-key map "\C-b"    #'array-backward-column)
+    (define-key map "\M-n"    #'array-copy-down)
+    (define-key map "\M-p"    #'array-copy-up)
+    (define-key map "\M-f"    #'array-copy-forward)
+    (define-key map "\M-b"    #'array-copy-backward)
+    (define-key map "\M-\C-n" #'array-copy-row-down)
+    (define-key map "\M-\C-p" #'array-copy-row-up)
+    (define-key map "\M-\C-f" #'array-copy-column-forward)
+    (define-key map "\M-\C-b" #'array-copy-column-backward)
     map)
   "Keymap used in array mode.")
 
@@ -805,8 +805,9 @@ NOT recognized as integers or real numbers.
   The array MUST reside at the top of the buffer.
 
   TABs are not respected, and may be converted into spaces at any time.
-Setting the variable `array-respect-tabs' to non-nil will prevent TAB conversion,
-but will cause many functions to give errors if they encounter one.
+Setting the variable `array-respect-tabs' to non-nil will prevent
+TAB conversion, but will cause many functions to give errors if
+they encounter one.
 
   Upon entering array mode, you will be prompted for the values of
 several variables.  Others will be calculated based on the values you
@@ -815,16 +816,18 @@ in array mode may have different values assigned to the variables.
 The variables are:
 
 Variables you assign:
-     array-max-row:          The number of rows in the array.
-     array-max-column:       The number of columns in the array.
-     array-columns-per-line: The number of columns in the array per line of buffer.
-     array-field-width:      The width of each field, in characters.
-     array-rows-numbered:    A logical variable describing whether to ignore
-                       row numbers in the buffer.
+     `array-max-row':          The number of rows in the array.
+     `array-max-column':       The number of columns in the array.
+     `array-columns-per-line': The number of columns in the array
+                             per line of buffer.
+     `array-field-width':      The width of each field, in characters.
+     `array-rows-numbered':    A logical variable describing whether to ignore
+                             row numbers in the buffer.
 
 Variables which are calculated:
-     array-line-length:      The number of characters in a buffer line.
-     array-lines-per-row:    The number of buffer lines used to display each row.
+     `array-line-length':      The number of characters in a buffer line.
+     `array-lines-per-row':    The number of buffer lines used to
+                             display each row.
 
   The following commands are available (an asterisk indicates it may
 take a numeric prefix argument):
@@ -834,17 +837,17 @@ take a numeric prefix argument):
     *  	\\[array-next-row]	  Move down one row.
     *  	\\[array-previous-row]	  Move up one row.
 
-    *   \\[array-copy-forward]	  Copy the current field into the column to the right.
-    *   \\[array-copy-backward]	  Copy the current field into the column to the left.
-    *   \\[array-copy-down]	  Copy the current field into the row below.
-    *   \\[array-copy-up]	  Copy the current field into the row above.
+    *   \\[array-copy-forward]	  Copy current field into the column to the right.
+    *   \\[array-copy-backward]	  Copy current field into the column to the left.
+    *   \\[array-copy-down]	  Copy current field into the row below.
+    *   \\[array-copy-up]	  Copy current field into the row above.
 
-    *   \\[array-copy-column-forward]   Copy the current column into the column to the right.
-    *   \\[array-copy-column-backward]   Copy the current column into the column to the left.
+    *   \\[array-copy-column-forward]   Copy current column into the column to the right.
+    *   \\[array-copy-column-backward]   Copy current column into the column to the left.
     *   \\[array-copy-row-down]   Copy the current row into the row below.
     *   \\[array-copy-row-up]   Copy the current row into the row above.
 
-        \\[array-fill-rectangle]   Copy the field at mark into every cell with row and column
+        \\[array-fill-rectangle]   Copy field at mark into every cell with row and column
                   between that of point and mark.
 
 	\\[array-what-position]	  Display the current array row and column.
@@ -855,7 +858,7 @@ take a numeric prefix argument):
         \\[array-expand-rows]   Expand the array (remove row numbers and
                   newlines inside rows)
 
-        \\[array-display-local-variables]   Display the current values of local variables.
+        \\[array-display-local-variables]   Display current values of local variables.
 
 Entering array mode calls the function `array-mode-hook'."
   (make-local-variable 'array-buffer-line)
@@ -863,25 +866,25 @@ Entering array mode calls the function `array-mode-hook'."
   (make-local-variable 'array-row)
   (make-local-variable 'array-column)
   (make-local-variable 'array-copy-string)
-  (set (make-local-variable 'array-respect-tabs) nil)
-  (set (make-local-variable 'array-max-row)
-       (read-number "Number of array rows: "))
-  (set (make-local-variable 'array-max-column)
-       (read-number "Number of array columns: "))
-  (set (make-local-variable 'array-columns-per-line)
-       (read-number "Array columns per line: "))
-  (set (make-local-variable 'array-field-width)
-       (read-number "Field width: "))
-  (set (make-local-variable 'array-rows-numbered)
-       (y-or-n-p "Rows numbered? "))
-  (set (make-local-variable 'array-line-length)
-       (* array-field-width array-columns-per-line))
-  (set (make-local-variable 'array-lines-per-row)
-       (+ (floor (1- array-max-column) array-columns-per-line)
-          (if array-rows-numbered 2 1)))
+  (setq-local array-respect-tabs nil)
+  (setq-local array-max-row
+              (read-number "Number of array rows: "))
+  (setq-local array-max-column
+              (read-number "Number of array columns: "))
+  (setq-local array-columns-per-line
+              (read-number "Array columns per line: "))
+  (setq-local array-field-width
+              (read-number "Field width: "))
+  (setq-local array-rows-numbered
+              (y-or-n-p "Rows numbered? "))
+  (setq-local array-line-length
+              (* array-field-width array-columns-per-line))
+  (setq-local array-lines-per-row
+              (+ (floor (1- array-max-column) array-columns-per-line)
+                 (if array-rows-numbered 2 1)))
   (message "")
   (force-mode-line-update)
-  (set (make-local-variable 'truncate-lines) t)
+  (setq-local truncate-lines t)
   (setq overwrite-mode 'overwrite-mode-textual))
 
 

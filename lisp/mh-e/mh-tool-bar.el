@@ -1,4 +1,4 @@
-;;; mh-tool-bar.el --- MH-E tool bar support
+;;; mh-tool-bar.el --- MH-E tool bar support  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2002-2003, 2005-2021 Free Software Foundation, Inc.
 
@@ -23,8 +23,6 @@
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
-
-;;; Change Log:
 
 ;;; Code:
 
@@ -356,7 +354,7 @@ Use SEQUENCE-MAP if display is limited; DEFAULT-MAP otherwise."
         '(list ,@(mapcar (lambda (x) `(quote ,x)) folder-defaults))
         "List of buttons to include in MH-Folder tool bar."
         :group 'mh-tool-bar
-        :set 'mh-tool-bar-folder-buttons-set
+        :set #'mh-tool-bar-folder-buttons-set
         :type '(set ,@(cl-loop for x in folder-buttons
                                for y in folder-docs
                                collect `(const :tag ,y ,x)))
@@ -367,7 +365,7 @@ Use SEQUENCE-MAP if display is limited; DEFAULT-MAP otherwise."
         '(list ,@(mapcar (lambda (x) `(quote ,x)) letter-defaults))
         "List of buttons to include in MH-Letter tool bar."
         :group 'mh-tool-bar
-        :set 'mh-tool-bar-letter-buttons-set
+        :set #'mh-tool-bar-letter-buttons-set
         :type '(set ,@(cl-loop for x in letter-buttons
                                for y in letter-docs
                                collect `(const :tag ,y ,x)))

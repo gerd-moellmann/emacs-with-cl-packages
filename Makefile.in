@@ -48,8 +48,6 @@
 #
 # make extraclean
 #      Still more severe - delete backup and autosave files, too.
-#      Also generated files that do not normally change and can be slow
-#      to rebuild (eg leim/ja-dic).
 #
 # make bootstrap
 #      Removes all the compiled files to force a new bootstrap from a
@@ -95,31 +93,33 @@ configuration=@configuration@
 ### The nt/ subdirectory gets built only for MinGW
 NTDIR=@NTDIR@
 
-# 'make' verbosity.
-AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+top_builddir = @top_builddir@
+-include ${top_builddir}/src/verbose.mk
 
-AM_V_GEN = $(am__v_GEN_@AM_V@)
-am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
-am__v_GEN_0 = @echo "  GEN     " $@;
-am__v_GEN_1 =
+FIND_DELETE = @FIND_DELETE@
 
-AM_V_at = $(am__v_at_@AM_V@)
-am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
-am__v_at_0 = @
-am__v_at_1 =
+HAVE_NATIVE_COMP = @HAVE_NATIVE_COMP@
+
+USE_STARTUP_NOTIFICATION = @USE_STARTUP_NOTIFICATION@
 
 # ==================== Where To Install Things ====================
 
 # Location to install Emacs.app on macOS
 mac_appdir=@mac_appdir@
 mac_appbindir=@mac_appbindir@
+mac_applibexecdir=@mac_applibexecdir@
 mac_appresdir=@mac_appresdir@
+mac_applibdir=@mac_applibdir@
+# Either yes or no depending on whether this is a relocatable Emacs.app.
 mac_self_contained=@mac_self_contained@
 
 # Location to install Emacs.app under GNUstep / macOS.
 # Later values may use these.
+ns_appdir=@ns_appdir@
 ns_appbindir=@ns_appbindir@
+ns_applibexecdir=@ns_applibexecdir@
 ns_appresdir=@ns_appresdir@
+ns_applibdir=@ns_applibdir@
 # Either yes or no depending on whether this is a relocatable Emacs.app.
 ns_self_contained=@ns_self_contained@
 
@@ -172,9 +172,6 @@ infodir=@infodir@
 # Info files not in the doc/misc directory (we get those via make echo-info).
 INFO_NONMISC=emacs.info eintr.info elisp.info
 
-# If no makeinfo was found and configured --without-makeinfo, "no"; else "yes".
-HAVE_MAKEINFO=@HAVE_MAKEINFO@
-
 # Directory for local state files for all programs.
 localstatedir=@localstatedir@
 
@@ -202,8 +199,8 @@ x_default_search_path=@x_default_search_path@
 # Where the etc/emacs.desktop file is to be installed.
 desktopdir=$(datarootdir)/applications
 
-# Where the etc/emacs.appdata.xml file is to be installed.
-appdatadir=$(datarootdir)/metainfo
+# Where the etc/emacs.metainfo.xml file is to be installed.
+metainfodir=$(datarootdir)/metainfo
 
 # Where the etc/emacs.service file is to be installed.
 # The system value (typically /usr/lib/systemd/user) can be
@@ -226,6 +223,10 @@ iconsrcdir=$(srcdir)/etc/images/icons
 
 # These variables hold the values Emacs will actually use.  They are
 # based on the values of the standard Make variables above.
+
+# Where lisp files are installed in a distributed with Emacs (relative
+# path to the installation directory).
+lispdirrel=@lispdirrel@
 
 # Where to install the lisp files distributed with Emacs.
 # This includes the Emacs version, so that the lisp files for different
@@ -293,10 +294,16 @@ use_gamedir=$(gameuser)$(gamegroup)
 # not use an absolute path.  So we must take care to always run
 # INSTALL-type commands from the directory containing the Makefile.
 # This explains (I think) the cd thisdir seen in several install rules.
+SYSTEM_TYPE = @SYSTEM_TYPE@
 INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_INFO = @INSTALL_INFO@
+ifeq ($(SYSTEM_TYPE),cygwin)
+  INSTALL_ELN = $(INSTALL)
+else
+  INSTALL_ELN = $(INSTALL_DATA)
+endif
 # By default, we uphold the dignity of our programs.
 INSTALL_STRIP =
 MKDIR_P = @MKDIR_P@
@@ -339,9 +346,22 @@ CONFIG_STATUS_FILES_IN = \
 COPYDIR = ${srcdir}/etc ${srcdir}/lisp
 COPYDESTS = "$(DESTDIR)${etcdir}" "$(DESTDIR)${lispdir}"
 
+ifeq (${mac_self_contained},no)
+ifeq (${ns_self_contained},no)
+BIN_DESTDIR='$(DESTDIR)${bindir}/'
+ELN_DESTDIR = $(DESTDIR)${libdir}/emacs/${version}/
+else
+BIN_DESTDIR='${ns_appbindir}/'
+ELN_DESTDIR = ${ns_applibdir}/
+endif
+else
+BIN_DESTDIR='${mac_appbindir}/'
+ELN_DESTDIR = ${mac_applibdir}/
+endif
+
 all: ${SUBDIR} info
 
-.PHONY: all ${SUBDIR} blessmail epaths-force epaths-force-w32 etc-emacsver
+.PHONY: all ${SUBDIR} blessmail epaths-force epaths-force-w32 epaths-force-mac-self-contained epaths-force-ns-self-contained etc-emacsver
 
 # If configure were to just generate emacsver.tex from emacsver.tex.in
 # in the normal way, the timestamp of emacsver.tex would always be
@@ -373,6 +393,7 @@ epaths-force:
 	@(gamedir='${gamedir}'; \
 	  sed < ${srcdir}/src/epaths.in > epaths.h.$$$$		\
 	  -e 's;\(#.*PATH_LOADSEARCH\).*$$;\1 "${standardlisppath}";' \
+	  -e 's;\(#.*PATH_REL_LOADSEARCH\).*$$;\1 "${lispdirrel}";' 	\
 	  -e 's;\(#.*PATH_SITELOADSEARCH\).*$$;\1 "${locallisppath}";' \
 	  -e 's;\(#.*PATH_DUMPLOADSEARCH\).*$$;\1 "${buildlisppath}";' \
 	  -e '/^#define PATH_[^ ]*SEARCH /s/\([":]\):*/\1/g'		\
@@ -403,9 +424,26 @@ epaths-force-w32:
 	  w32locallisppath=$${w32locallisppath//$${w32prefix}/"%emacs_dir%"} ; \
 	  sed < ${srcdir}/nt/epaths.nt > epaths.h.$$$$		\
 	  -e 's;\(#.*PATH_SITELOADSEARCH\).*$$;\1 "'"$${w32locallisppath//;/\\;}"'";' \
+	  -e 's;\(#.*PATH_REL_LOADSEARCH\).*$$;\1 "${lispdirrel}";' \
 	  -e '/^.*#/s/@VER@/${version}/g' 			\
 	  -e '/^.*#/s/@CFG@/${configuration}/g' 		\
 	  -e "/^.*#/s|@SRC@|$${w32srcdir}|g") &&		\
+	${srcdir}/build-aux/move-if-change epaths.h.$$$$ src/epaths.h
+
+# A NextStep style app bundle is relocatable, so instead of
+# hard-coding paths try to generate them at run-time.
+#
+# The paths are mostly the same, and the bundle paths are different
+# between macOS and GNUstep, so just replace any references to the app
+# bundle root itself with the relative path.
+epaths-force-mac-self-contained: epaths-force
+	@(sed < src/epaths.h > epaths.h.$$$$		\
+	  -e 's;${mac_appdir}/Emacs.app/;;') &&			\
+	${srcdir}/build-aux/move-if-change epaths.h.$$$$ src/epaths.h
+
+epaths-force-ns-self-contained: epaths-force
+	@(sed < src/epaths.h > epaths.h.$$$$		\
+	  -e 's;${ns_appdir}/;;') &&			\
 	${srcdir}/build-aux/move-if-change epaths.h.$$$$ src/epaths.h
 
 lib-src src: $(NTDIR) lib
@@ -430,7 +468,8 @@ lib lib-src lisp nt: Makefile
 dirstate = .git/logs/HEAD
 VCSWITNESS = $(if $(wildcard $(srcdir)/$(dirstate)),$$(srcdir)/../$(dirstate))
 src: Makefile
-	$(MAKE) -C $@ VCSWITNESS='$(VCSWITNESS)' all
+	$(MAKE) -C $@ VCSWITNESS='$(VCSWITNESS)' BIN_DESTDIR='$(BIN_DESTDIR)' \
+		 ELN_DESTDIR='$(ELN_DESTDIR)' all
 
 blessmail: Makefile src
 	$(MAKE) -C lib-src maybe-blessmail
@@ -470,14 +509,14 @@ $(srcdir)/configure: $(srcdir)/configure.ac $(srcdir)/m4/*.m4
 # ==================== Installation ====================
 
 .PHONY: install install-arch-dep install-arch-indep install-etcdoc install-info
-.PHONY: install-man install-etc install-strip install-$(NTDIR)
+.PHONY: install-man install-etc install-strip install-$(NTDIR) install-eln
 .PHONY: uninstall uninstall-$(NTDIR)
 
 ## If we let lib-src do its own installation, that means we
 ## don't have to duplicate the list of utilities to install in
 ## this Makefile as well.
 
-install: all install-arch-indep install-etcdoc install-arch-dep install-$(NTDIR) blessmail
+install: all install-arch-indep install-etcdoc install-arch-dep install-$(NTDIR) blessmail install-eln
 	@true
 
 ## Ensure that $subdir contains a subdirs.el file.
@@ -670,9 +709,6 @@ install-etcdoc: src install-arch-indep
 ## If info/dir is missing, but we have install-info, we should let
 ## that handle it.  If info/dir is present and we do not have install-info,
 ## we should check for missing entries and add them by hand.
-##
-## FIXME:
-## If HAVE_MAKEINFO = no and there are no info files, do not install info/dir.
 install-info: info
 	umask 022; ${MKDIR_P} "$(DESTDIR)${infodir}"
 	-unset CDPATH; \
@@ -684,10 +720,9 @@ install-info: info
 	   [ -f "$(DESTDIR)${infodir}/dir" ] || \
 	      [ ! -f ${srcdir}/info/dir ] || \
 	      ${INSTALL_DATA} ${srcdir}/info/dir "$(DESTDIR)${infodir}/dir"; \
-	   info_misc=`$(MAKE) --no-print-directory -s -C doc/misc echo-info`; \
+	   info_misc=`MAKEFLAGS= $(MAKE) --no-print-directory -s -C doc/misc echo-info`; \
 	   cd ${srcdir}/info ; \
 	   for elt in ${INFO_NONMISC} $${info_misc}; do \
-	      test "$(HAVE_MAKEINFO)" = "no" && test ! -f $$elt && continue; \
 	      for f in `ls $$elt $$elt-[1-9] $$elt-[1-9][0-9] 2>/dev/null`; do \
 	       (cd "$${thisdir}"; \
 	        ${INSTALL_DATA} ${srcdir}/info/$$f "$(DESTDIR)${infodir}/$$f"); \
@@ -726,19 +761,44 @@ install-man:
 ## Note: emacs22 does not have all the resolutions.
 EMACS_ICON=emacs
 
+ifeq (${USE_STARTUP_NOTIFICATION},no)
+USE_STARTUP_NOTIFICATION_SED_CMD=-e "/^StartupNotify=true$$/d"
+endif
 install-etc:
 	umask 022; ${MKDIR_P} "$(DESTDIR)${desktopdir}"
 	tmp=etc/emacs.tmpdesktop; rm -f $${tmp}; \
 	sed -e "/^Exec=emacs/ s/emacs/${EMACS_NAME}/" \
 	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
+	  $(USE_STARTUP_NOTIFICATION_SED_CMD) \
 	  ${srcdir}/etc/emacs.desktop > $${tmp}; \
 	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/${EMACS_NAME}.desktop"; \
 	rm -f $${tmp}
-	umask 022; ${MKDIR_P} "$(DESTDIR)${appdatadir}"
-	tmp=etc/emacs.tmpappdata; rm -f $${tmp}; \
+	tmp=etc/emacsclient.tmpdesktop; rm -f $${tmp}; \
+	client_name=`echo emacsclient | sed '$(TRANSFORM)'`${EXEEXT}; \
+	sed -e "/^Exec=emacsclient/ s|emacsclient|${bindir}/$${client_name}|" \
+	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
+	  $(USE_STARTUP_NOTIFICATION_SED_CMD) \
+	  ${srcdir}/etc/emacsclient.desktop > $${tmp}; \
+	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/$${client_name}.desktop"; \
+	rm -f $${tmp}
+	tmp=etc/emacs-mail.tmpdesktop; rm -f $${tmp}; \
+	sed -e "/^Exec=emacs/ s/emacs/${EMACS_NAME}/" \
+	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
+	  ${srcdir}/etc/emacs-mail.desktop > $${tmp}; \
+	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/${EMACS_NAME}-mail.desktop"; \
+	rm -f $${tmp}
+	tmp=etc/emacsclient-mail.tmpdesktop; rm -f $${tmp}; \
+	client_name=`echo emacsclient | sed '$(TRANSFORM)'`${EXEEXT}; \
+	sed -e "/^Exec=emacsclient/ s|emacsclient|${bindir}/$${client_name}|" \
+	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
+	  ${srcdir}/etc/emacsclient-mail.desktop > $${tmp}; \
+	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/$${client_name}-mail.desktop"; \
+	rm -f $${tmp}
+	umask 022; ${MKDIR_P} "$(DESTDIR)${metainfodir}"
+	tmp=etc/emacs.tmpmetainfo; rm -f $${tmp}; \
 	sed -e "s/emacs\.desktop/${EMACS_NAME}.desktop/" \
-	  ${srcdir}/etc/emacs.appdata.xml > $${tmp}; \
-	${INSTALL_DATA} $${tmp} "$(DESTDIR)${appdatadir}/${EMACS_NAME}.appdata.xml"; \
+	  ${srcdir}/etc/emacs.metainfo.xml > $${tmp}; \
+	${INSTALL_DATA} $${tmp} "$(DESTDIR)${metainfodir}/${EMACS_NAME}.metainfo.xml"; \
 	rm -f $${tmp}
 	umask 022; $(MKDIR_P) "$(DESTDIR)$(systemdunitdir)"
 	tmp=etc/emacs.tmpservice; rm -f $${tmp}; \
@@ -764,6 +824,14 @@ install-etc:
 	    || exit 1; \
 	  done ; \
 	done
+
+### Install native compiled Lisp files.
+install-eln: lisp
+ifeq ($(HAVE_NATIVE_COMP),yes)
+	umask 022 ; \
+	find native-lisp -type d -exec $(MKDIR_P) "$(ELN_DESTDIR){}" \; ; \
+	find native-lisp -type f -exec ${INSTALL_ELN} "{}" "$(ELN_DESTDIR){}" \;
+endif
 
 ### Build Emacs and install it, stripping binaries while installing them.
 install-strip:
@@ -792,7 +860,7 @@ uninstall: uninstall-$(NTDIR) uninstall-doc
 	done
 	-rm -rf "$(DESTDIR)${libexecdir}/emacs/${version}"
 	thisdir=`/bin/pwd`; \
-	(info_misc=`$(MAKE) --no-print-directory -s -C doc/misc echo-info`; \
+	(info_misc=`MAKEFLAGS= $(MAKE) --no-print-directory -s -C doc/misc echo-info`; \
 	 if cd "$(DESTDIR)${infodir}"; then \
 	   for elt in ${INFO_NONMISC} $${info_misc}; do \
 	     (cd "$${thisdir}"; \
@@ -817,7 +885,7 @@ uninstall: uninstall-$(NTDIR) uninstall-doc
 	     "hicolor/scalable/mimetypes/${EMACS_NAME}-document23.svg"; \
 	fi)
 	-rm -f "$(DESTDIR)${desktopdir}/${EMACS_NAME}.desktop"
-	-rm -f "$(DESTDIR)${appdatadir}/${EMACS_NAME}.appdata.xml"
+	-rm -f "$(DESTDIR)${metainfodir}/${EMACS_NAME}.metainfo.xml"
 	-rm -f "$(DESTDIR)$(systemdunitdir)/${EMACS_NAME}.service"
   ifneq (,$(use_gamedir))
 	for file in snake-scores tetris-scores; do \
@@ -851,12 +919,11 @@ endef
 ###      target for GCC does not delete 'libgcc.a', because recompiling it
 ###      is rarely necessary and takes a lot of time.
 mostlyclean_dirs = src oldXMenu lwlib lib lib-src nt doc/emacs doc/misc \
-  doc/lispref doc/lispintro
+  doc/lispref doc/lispintro test
 
 $(foreach dir,$(mostlyclean_dirs),$(eval $(call submake_template,$(dir),mostlyclean)))
 
 mostlyclean: $(mostlyclean_dirs:=_mostlyclean)
-	[ ! -d test ] || $(MAKE) -C test $@
 
 ### 'clean'
 ###      Delete all files from the current directory that are normally
@@ -866,15 +933,14 @@ mostlyclean: $(mostlyclean_dirs:=_mostlyclean)
 ###      with them.
 ###
 ###      Delete '.dvi' files here if they are not part of the distribution.
-clean_dirs = $(mostlyclean_dirs) mac nextstep
+clean_dirs = $(mostlyclean_dirs) mac nextstep admin/charsets admin/unidata
 
 $(foreach dir,$(clean_dirs),$(eval $(call submake_template,$(dir),clean)))
 
 clean: $(clean_dirs:=_clean)
-	$(MAKE) -C admin/charsets $@
-	[ ! -d test ] || $(MAKE) -C test $@
 	-rm -f ./*.tmp etc/*.tmp*
 	-rm -rf info-dir.*
+	-rm -rf native-lisp
 
 ### 'bootclean'
 ###      Delete all files that need to be remade for a clean bootstrap.
@@ -892,17 +958,11 @@ top_distclean=\
 	rm -f config.status config.log~ \
 	  Makefile makefile lib/gnulib.mk ${SUBDIR_MAKEFILES}
 
-distclean_dirs = $(clean_dirs) leim lisp
+distclean_dirs = $(clean_dirs) leim lisp admin/grammars
 
 $(foreach dir,$(distclean_dirs),$(eval $(call submake_template,$(dir),distclean)))
 
-maybeclean_dirs = test admin/grammars admin/unidata admin/charsets
-
 distclean: $(distclean_dirs:=_distclean)
-	for dir in $(filter-out test,$(maybeclean_dirs)); do \
-	  $(MAKE) -C $$dir $@ || exit; \
-	done
-	[ ! -d test ] || $(MAKE) -C test $@
 	${top_distclean}
 
 ### 'bootstrap-clean'
@@ -911,10 +971,6 @@ distclean: $(distclean_dirs:=_distclean)
 $(foreach dir,$(distclean_dirs),$(eval $(call submake_template,$(dir),bootstrap-clean)))
 
 bootstrap-clean: $(distclean_dirs:=_bootstrap-clean)
-	for dir in $(filter-out test,$(maybeclean_dirs)); do \
-	  $(MAKE) -C $$dir $@ || exit; \
-	done
-	[ ! -d test ] || $(MAKE) -C test $@
 	[ ! -f config.log ] || mv -f config.log config.log~
 	rm -rf ${srcdir}/info
 	rm -f ${srcdir}/etc/refcards/emacsver.tex
@@ -933,36 +989,25 @@ bootstrap-clean: $(distclean_dirs:=_bootstrap-clean)
 ###      begin to build the program.
 top_maintainer_clean=\
 	${top_distclean}; \
-	rm -fr autom4te.cache
+	rm -fr ${srcdir}/autom4te.cache
 
-maintainer_clean_dirs = src leim lisp
+$(foreach dir,$(distclean_dirs),$(eval $(call submake_template,$(dir),maintainer-clean)))
 
-$(foreach dir,$(maintainer_clean_dirs),$(eval $(call submake_template,$(dir),maintainer-clean)))
-
-maintainer-clean: bootstrap-clean $(maintainer_clean_dirs:=_maintainer-clean)
-	for dir in $(filter-out test,$(maybeclean_dirs)); do \
-	  $(MAKE) -C $$dir $@ || exit; \
-	done
-	[ ! -d test ] || $(MAKE) -C test $@
+maintainer-clean: $(distclean_dirs:=_maintainer-clean)
+	rm -rf ${srcdir}/info
+	rm -f ${srcdir}/etc/refcards/emacsver.tex
 	${top_maintainer_clean}
 
 ### This doesn't actually appear in the coding standards, but Karl
 ### says GCC supports it, and that's where the configuration part of
 ### the coding standards seem to come from.  It's like distclean, but
 ### it deletes backup and autosave files too.
-### Note that we abuse this in some subdirectories (eg leim),
-### to delete some generated files that are slow to rebuild.
-extraclean_dirs = ${NTDIR} lib-src src leim \
-  admin/charsets admin/grammars admin/unidata lisp lib
-
-$(foreach dir,$(extraclean_dirs),$(eval $(call submake_template,$(dir),extraclean)))
-
-extraclean: $(extraclean_dirs:=_extraclean)
-	${top_maintainer_clean}
-	-rm -f config-tmp-* aclocal.m4 configure
-	-rm -f ./*~ \#* etc/refcards/emacsver.tex doc/emacs/emacsver.texi
-	-rm -f info/*.info info/dir
-	-rmdir info 2>/dev/null
+extraclean: maintainer-clean
+	-rm -f config-tmp-* ${srcdir}/aclocal.m4 ${srcdir}/configure \
+	  ${srcdir}/src/config.in
+	-[ "${srcdir}" = "." ] || \
+	  find ${srcdir} '(' -name '*~' -o -name '#*' ')' ${FIND_DELETE}
+	-find . '(' -name '*~' -o -name '#*' ')' ${FIND_DELETE}
 
 # The src subdir knows how to do the right thing
 # even when the build directory and source dir are different.
@@ -971,16 +1016,19 @@ extraclean: $(extraclean_dirs:=_extraclean)
 # I removed it because it causes `make tags` to build Emacs.
 TAGS tags: lib lib-src # src
 	$(MAKE) -C src tags
+	$(MAKE) -C doc/emacs tags
+	$(MAKE) -C doc/lispintro tags
+	$(MAKE) -C doc/lispref tags
+	$(MAKE) -C doc/misc tags
 
 CHECK_TARGETS = check check-maybe check-expensive check-all
 .PHONY: $(CHECK_TARGETS)
 $(CHECK_TARGETS): all
-ifeq ($(wildcard test),test)
 	$(MAKE) -C test $@
-else
-	@echo "You do not seem to have the test/ directory."
-	@echo "Maybe you used a release tarfile that lacks tests."
-endif
+
+test/%:
+	$(MAKE) -C test $*
+
 
 dist:
 	cd ${srcdir}; ./make-dist
@@ -996,24 +1044,34 @@ $(DOCS):
 	$(MAKE) -C doc/$(subst -, ,$@)
 
 .PHONY: $(DOCS) docs pdf ps
-.PHONY: info dvi dist html info-real info-dir check-info
+.PHONY: info dvi dist html info-dir check-info
 
 ## TODO add etc/refcards.
 docs: $(DOCS)
 dvi: $(DVIS)
 html: $(HTMLS)
-info-real: $(INFOS)
+info: $(INFOS) info-dir
 pdf: $(PDFS)
 ps: $(PSS)
 
+# This dependency is due to those doc/misc/ manuals that use .org sources.
+# Depending on src is sufficient, but ends up being slow, since the
+# uncompiled lisp/org/*.el files are used to build the .texi files
+# (which can be slow even with the elc files).
+misc-info: lisp
+# Using src rather than lisp because one is less likely to get unnecessary
+# rebuilds of stuff that is not strictly necessary for generating manuals.
+misc-dvi misc-html misc-pdf misc-ps: src
+
 info-dir: ${srcdir}/info/dir
 
-## Hopefully doc/misc/*.texi is not too long for some systems?
+texi_misc = $(shell MAKEFLAGS= ${MAKE} --no-print-directory -s -C doc/misc echo-sources)
+
 srcdir_doc_info_dir_inputs = \
   ${srcdir}/doc/emacs/emacs.texi \
   ${srcdir}/doc/lispintro/emacs-lisp-intro.texi \
   ${srcdir}/doc/lispref/elisp.texi \
-  $(sort $(wildcard ${srcdir}/doc/misc/*.texi))
+  $(addprefix ${srcdir}/doc/misc/,${texi_misc})
 info_dir_inputs = \
   ../build-aux/dir_top \
   $(subst ${srcdir}/doc/,,${srcdir_doc_info_dir_inputs})
@@ -1026,7 +1084,7 @@ info_dir_deps = \
 ## installation location by the install-info rule, but we also
 ## need one in the source directory for people running uninstalled.
 ## FIXME it would be faster to use the install-info program if we have it,
-## but then we would need to depend on info-real, which would
+## but then we would need to depend on ${INFOS}, which would
 ## slow down parallelization.
 ${srcdir}/info/dir: ${info_dir_deps}
 	$(AM_V_at)${MKDIR_P} ${srcdir}/info
@@ -1080,23 +1138,6 @@ uninstall-dvi: $(UNINSTALL_DVI)
 uninstall-html: $(UNINSTALL_HTML)
 uninstall-pdf: $(UNINSTALL_PDF)
 uninstall-ps: $(UNINSTALL_PS)
-
-
-# Note that man/Makefile knows how to put the info files in $(srcdir),
-# so we can do ok running make in the build dir.
-# This used to have a clause that exited with an error if MAKEINFO = no.
-# But it is inappropriate to do so without checking if makeinfo is
-# actually needed - it is not if the info files are up-to-date.  (Bug#3982)
-# Only the doc/*/Makefiles can decide that, so we let those rules run
-# and give a standard error if makeinfo is needed but missing.
-# While it would be nice to give a more detailed error message, that
-# would require changing every rule in doc/ that builds an info file,
-# and it's not worth it.  This case is only relevant if you download a
-# release, then change the .texi files.
-info:
-  ifneq ($(HAVE_MAKEINFO),no)
-	$(MAKE) info-real info-dir
-  endif
 
 ## build-aux/make-info-dir expects only certain dircategories.
 check-info: info
@@ -1156,7 +1197,7 @@ ChangeLog:
 	  ./$(emacslog) -o $(CHANGELOG) -n $(CHANGELOG_HISTORY_INDEX_MAX)
 
 # Check that we are in a good state for changing history.
-PREFERRED_BRANCH = emacs-27
+PREFERRED_BRANCH = emacs-28
 preferred-branch-is-current:
 	git branch | grep -q '^\* $(PREFERRED_BRANCH)$$'
 unchanged-history-files:

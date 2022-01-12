@@ -344,7 +344,7 @@ to the value obtained by evaluating FORM."
 Each element is a regular expression.  Buffers with a name matched by any of
 these won't be deleted."
   :version "23.3"                       ; added Warnings - bug#6336
-  :type '(repeat string)
+  :type '(repeat regexp)
   :group 'desktop)
 
 ;;;###autoload
@@ -534,7 +534,7 @@ can guess how to load the mode's definition.")
   '((defining-kbd-macro nil)
     (isearch-mode nil)
     (vc-mode nil)
-    (vc-dired-mode nil)
+    (vc-dir-mode nil)
     (erc-track-minor-mode nil)
     (savehist-mode nil))
   "Table mapping minor mode variables to minor mode functions.
@@ -706,8 +706,9 @@ if different)."
                                  "\\)\\'")))
     (dolist (buffer (buffer-list))
       (let ((bufname (buffer-name buffer)))
-	(unless (or (eq (aref bufname 0) ?\s) ;; Don't kill internal buffers
-		    (string-match-p preserve-regexp bufname))
+       (unless (or (null bufname)
+                   (eq (aref bufname 0) ?\s) ;; Don't kill internal buffers
+		   (string-match-p preserve-regexp bufname))
 	  (kill-buffer buffer)))))
   (delete-other-windows)
   (when (and desktop-restore-frames
@@ -731,7 +732,7 @@ if different)."
 
 ;; ----------------------------------------------------------------------------
 (unless noninteractive
-  (add-hook 'kill-emacs-hook #'desktop-kill))
+  (add-hook 'kill-emacs-query-functions #'desktop-kill))
 
 (defun desktop-kill ()
   "If `desktop-save-mode' is non-nil, do what `desktop-save' says to do.
@@ -759,7 +760,11 @@ is nil, ask the user where to save the desktop."
        (unless (yes-or-no-p "Error while saving the desktop.  Ignore? ")
 	 (signal (car err) (cdr err))))))
   ;; If we own it, we don't anymore.
-  (when (eq (emacs-pid) (desktop-owner)) (desktop-release-lock)))
+  (when (eq (emacs-pid) (desktop-owner))
+    ;; Allow exiting Emacs even if we can't delete the desktop file.
+    (ignore-error 'file-error
+      (desktop-release-lock)))
+  t)
 
 ;; ----------------------------------------------------------------------------
 (defun desktop-list* (&rest args)
@@ -1222,7 +1227,13 @@ This function is a no-op when Emacs is running in batch mode.
 It returns t if a desktop file was loaded, nil otherwise.
 \n(fn DIRNAME)"
   (interactive "i\nP")
-  (unless noninteractive
+  (if (or noninteractive
+          (and (desktop-owner)
+               (= (desktop-owner) (emacs-pid))))
+      (message "Not reloading the desktop%s"
+               (if noninteractive
+                   ""
+                 "; already loaded"))
     (setq desktop-dirname
           (file-name-as-directory
            (expand-file-name

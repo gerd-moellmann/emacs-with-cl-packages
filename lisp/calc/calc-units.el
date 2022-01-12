@@ -37,14 +37,14 @@
 ;;; Updated April 2002 by Jochen Küpper
 
 ;;; Updated August 2007, using
-;;;     CODATA (http://physics.nist.gov/cuu/Constants/index.html)
-;;;     NIST   (http://physics.nist.gov/Pubs/SP811/appenB9.html)
+;;;     CODATA (https://physics.nist.gov/cuu/Constants/index.html)
+;;;     NIST   (https://physics.nist.gov/Pubs/SP811/appenB9.html)
 ;;;     ESUWM  (Encyclopaedia of Scientific Units, Weights and
 ;;;             Measures, by François Cardarelli)
 ;;; All conversions are exact unless otherwise noted.
 
 ;; CODATA values updated February 2016, using 2014 adjustment
-;; http://arxiv.org/pdf/1507.07956.pdf
+;; https://arxiv.org/pdf/1507.07956.pdf
 
 ;; Updated November 2018 for the redefinition of the SI
 ;; https://www.bipm.org/utils/en/pdf/CGPM/Draft-Resolution-A-EN.pdf
@@ -59,7 +59,7 @@
     ( mi      "5280 ft"              "Mile" )
     ( au      "149597870691. m"      "Astronomical Unit" nil
               "149597870691 m (*)")
-              ;; (approx) NASA JPL (http://neo.jpl.nasa.gov/glossary/au.html)
+              ;; (approx) NASA JPL (https://neo.jpl.nasa.gov/glossary/au.html)
     ( lyr     "c yr"                 "Light Year" )
     ( pc      "3.0856775854*10^16 m" "Parsec  (**)" nil
               "3.0856775854 10^16 m (*)") ;; (approx) ESUWM
@@ -406,7 +406,7 @@ Entries are (SYMBOL EXPR DOC-STRING TEMP-TYPE BASE-UNITS).")
 If EXPR is nil, return nil."
   (if expr
       (let ((cexpr (math-compose-expr expr 0)))
-        (replace-regexp-in-string
+        (string-replace
          " / " "/"
          (if (stringp cexpr)
              cexpr
@@ -529,7 +529,7 @@ If COMP or STD is non-nil, put that in the units table instead."
   (calc-slow-wrapper
    (let* ((expr (calc-top-n 1)))
      (unless (math-units-in-expr-p expr t)
-       (error "No units in expression."))
+       (error "No units in expression"))
      (let* ((old-units (math-extract-units expr))
             (defunits (math-get-default-units expr))
             units
@@ -860,23 +860,22 @@ If COMP or STD is non-nil, put that in the units table instead."
 	     tab)
 	(message "Building units table...")
 	(setq math-units-table-buffer-valid nil)
-	(setq tab (mapcar (function
-			   (lambda (x)
-			     (list (car x)
-				   (and (nth 1 x)
-					(if (stringp (nth 1 x))
-					    (let ((exp (math-read-plain-expr
-							(nth 1 x))))
-					      (if (eq (car-safe exp) 'error)
-						  (error "Format error in definition of %s in units table: %s"
-							 (car x) (nth 2 exp))
-						exp))
-					  (nth 1 x)))
-				   (nth 2 x)
-				   (nth 3 x)
-				   (and (not (nth 1 x))
-					(list (cons (car x) 1)))
-                                   (nth 4 x))))
+        (setq tab (mapcar (lambda (x)
+                            (list (car x)
+                                  (and (nth 1 x)
+                                       (if (stringp (nth 1 x))
+                                           (let ((exp (math-read-plain-expr
+                                                       (nth 1 x))))
+                                             (if (eq (car-safe exp) 'error)
+                                                 (error "Format error in definition of %s in units table: %s"
+                                                        (car x) (nth 2 exp))
+                                               exp))
+                                         (nth 1 x)))
+                                  (nth 2 x)
+                                  (nth 3 x)
+                                  (and (not (nth 1 x))
+                                       (list (cons (car x) 1)))
+                                  (nth 4 x)))
 			  combined-units))
 	(let ((math-units-table tab))
 	  (mapc #'math-find-base-units tab))
@@ -1100,10 +1099,9 @@ If COMP or STD is non-nil, put that in the units table instead."
 	       (setq math-decompose-units-cache
 		     (cons entry
 			   (sort ulist
-				 (function
-				  (lambda (x y)
-				    (not (Math-lessp (nth 1 x)
-						     (nth 1 y))))))))))
+                                 (lambda (x y)
+                                   (not (Math-lessp (nth 1 x)
+                                                    (nth 1 y)))))))))
 	 (cdr math-decompose-units-cache))))
 
 (defun math-decompose-unit-part (unit)
@@ -2159,7 +2157,7 @@ If non-nil, return a list consisting of the note and the cents coefficient."
    (calc-unary-op "midi" 'calcFunc-midi arg)))
 
 (defun calc-spn (arg)
-  "Return the scientific pitch notation corresponding to the expression on the stack."
+  "Return scientific pitch notation corresponding to the expression on the stack."
   (interactive "P")
   (calc-slow-wrapper
    (calc-unary-op "spn" 'calcFunc-spn arg)))

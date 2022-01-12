@@ -264,7 +264,7 @@ enum
 
 /* Defined in callproc.c.  */
 
-extern Lisp_Object encode_current_directory (void);
+extern Lisp_Object get_current_directory (bool);
 extern void record_kill_process (struct Lisp_Process *, Lisp_Object);
 
 /* Defined in sysdep.c.  */
@@ -284,6 +284,7 @@ extern bool kbd_on_hold_p (void);
 typedef void (*fd_callback) (int fd, void *data);
 
 extern void add_read_fd (int fd, fd_callback func, void *data);
+extern void add_non_keyboard_read_fd (int fd, fd_callback func, void *data);
 extern void delete_read_fd (int fd);
 extern void add_write_fd (int fd, fd_callback func, void *data);
 extern void delete_write_fd (int fd);
@@ -299,6 +300,8 @@ extern Lisp_Object remove_slash_colon (Lisp_Object);
 
 extern void update_processes_for_thread_death (Lisp_Object);
 extern void dissociate_controlling_tty (void);
+
+extern int open_channel_for_module (Lisp_Object);
 
 INLINE_HEADER_END
 

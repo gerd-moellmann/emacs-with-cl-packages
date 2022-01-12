@@ -1,4 +1,4 @@
-;;; gnus-delay.el --- Delayed posting of articles
+;;; gnus-delay.el --- Delayed posting of articles  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
 
@@ -44,24 +44,20 @@
 
 (defcustom gnus-delay-group "delayed"
   "Group name for storing delayed articles."
-  :type 'string
-  :group 'gnus-delay)
+  :type 'string)
 
 (defcustom gnus-delay-header "X-Gnus-Delayed"
   "Header name for storing info about delayed articles."
-  :type 'string
-  :group 'gnus-delay)
+  :type 'string)
 
 (defcustom gnus-delay-default-delay "3d"
   "Default length of delay."
-  :type 'string
-  :group 'gnus-delay)
+  :type 'string)
 
 (defcustom gnus-delay-default-hour 8
   "If deadline is given as date, then assume this time of day."
   :version "22.1"
-  :type 'integer
-  :group 'gnus-delay)
+  :type 'integer)
 
 ;;;###autoload
 (defun gnus-delay-article (delay)
@@ -75,14 +71,18 @@ DELAY is a string, giving the length of the time.  Possible values are:
   variable `gnus-delay-default-hour', minute and second are zero.
 
 * hh:mm for a specific time.  Use 24h format.  If it is later than this
-  time, then the deadline is tomorrow, else today."
-  (interactive
-   (list (read-string
-	  "Target date (YYYY-MM-DD), time (hh:mm), or length of delay (units in [mhdwMY]): "
-	  gnus-delay-default-delay)))
+  time, then the deadline is tomorrow, else today.
+
+The value of `message-draft-headers' determines which headers are
+generated when the article is delayed.  Remaining headers are
+generated when the article is sent."
+  (interactive (list (read-string
+		      "Target date (YYYY-MM-DD), time (hh:mm), or length of delay (units in [mhdwMY]): "
+		      gnus-delay-default-delay))
+	       message-mode)
   ;; Allow spell checking etc.
   (run-hooks 'message-send-hook)
-  (let (num unit days year month day hour minute deadline)
+  (let (num unit year month day hour minute deadline) ;; days
     (cond ((string-match
 	    "\\([0-9][0-9][0-9]?[0-9]?\\)-\\([0-9]+\\)-\\([0-9]+\\)"
 	    delay)
@@ -167,7 +167,7 @@ DELAY is a string, giving the length of the time.  Possible values are:
 	    (message "Delay header missing for article %d" article)))))))
 
 ;;;###autoload
-(defun gnus-delay-initialize (&optional no-keymap no-check)
+(defun gnus-delay-initialize (&optional _no-keymap no-check)
   "Initialize the gnus-delay package.
 This sets up a key binding in `message-mode' to delay a message.
 This tells Gnus to look for delayed messages after getting new news.
@@ -175,7 +175,7 @@ This tells Gnus to look for delayed messages after getting new news.
 The optional arg NO-KEYMAP is ignored.
 Checking delayed messages is skipped if optional arg NO-CHECK is non-nil."
   (unless no-check
-    (add-hook 'gnus-get-new-news-hook 'gnus-delay-send-queue)))
+    (add-hook 'gnus-get-new-news-hook #'gnus-delay-send-queue)))
 
 (provide 'gnus-delay)
 

@@ -1,4 +1,4 @@
-;;; hanoi.el --- towers of hanoi in Emacs
+;;; hanoi.el --- towers of hanoi in Emacs  -*- lexical-binding: t -*-
 
 ;; Author: Damon Anton Permezel
 ;; Maintainer: emacs-devel@gnu.org
@@ -70,34 +70,34 @@
   :group 'games)
 
 (defcustom hanoi-horizontal-flag nil
-  "If non-nil, hanoi poles are oriented horizontally."
-  :group 'hanoi :type 'boolean)
+  "Non-nil means that hanoi poles are oriented horizontally."
+  :type 'boolean)
 
 (defcustom hanoi-move-period 1.0
   "Time, in seconds, for each pole-to-pole move of a ring.
 If nil, move rings as fast as possible while displaying all
 intermediate positions."
-  :group 'hanoi :type '(restricted-sexp :match-alternatives (numberp 'nil)))
+  :type '(restricted-sexp :match-alternatives (numberp 'nil)))
 
 (defcustom hanoi-use-faces nil
   "If nil, all hanoi-*-face variables are ignored."
-  :group 'hanoi :type 'boolean)
+  :type 'boolean)
 
 (defcustom hanoi-pole-face 'highlight
   "Face for poles.  Ignored if hanoi-use-faces is nil."
-  :group 'hanoi :type 'face)
+  :type 'face)
 
 (defcustom hanoi-base-face 'highlight
   "Face for base.  Ignored if hanoi-use-faces is nil."
-  :group 'hanoi :type 'face)
+  :type 'face)
 
 (defcustom hanoi-even-ring-face 'region
   "Face for even-numbered rings.  Ignored if hanoi-use-faces is nil."
-  :group 'hanoi :type 'face)
+  :type 'face)
 
 (defcustom hanoi-odd-ring-face 'secondary-selection
   "Face for odd-numbered rings.  Ignored if hanoi-use-faces is nil."
-  :group 'hanoi :type 'face)
+  :type 'face)
 
 
 ;;;
@@ -131,9 +131,9 @@ Repent before ring 31 moves."
 
 ;;;###autoload
 (defun hanoi-unix-64 ()
-  "Like hanoi-unix, but pretend to have a 64-bit clock.
+  "Like `hanoi-unix', but pretend to have a 64-bit clock.
 This is, necessarily (as of Emacs 20.3), a crock.  When the
-current-time interface is made s2G-compliant, hanoi.el will need
+`current-time' interface is made s2G-compliant, hanoi.el will need
 to be updated."
   (interactive)
   (let* ((start (ftruncate (float-time)))
@@ -284,7 +284,7 @@ BITS must be of length nrings.  Start at START-TIME."
     (force-mode-line-update)))
 
 (defun hanoi-put-face (start end value &optional object)
-  "If hanoi-use-faces is non-nil, call put-text-property for face property."
+  "If `hanoi-use-faces' is non-nil, call `put-text-property' for face property."
   (if hanoi-use-faces
       (put-text-property start end 'face value object)))
 

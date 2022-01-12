@@ -36,6 +36,7 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "coding.h"
 #include "frame.h"
 #include "dispextern.h"
+#include "xwidget.h"
 #include "fontset.h"
 #include "termhooks.h"
 #include "termopts.h"
@@ -871,9 +872,13 @@ mac_clear_under_internal_border (struct frame *f)
       int height = FRAME_PIXEL_HEIGHT (f);
       int margin = FRAME_TOP_MARGIN_HEIGHT (f);
       int face_id =
-	!NILP (Vface_remapping_alist)
-	? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
-	: INTERNAL_BORDER_FACE_ID;
+	(FRAME_PARENT_FRAME (f)
+	 ? (!NILP (Vface_remapping_alist)
+	    ? lookup_basic_face (NULL, f, CHILD_FRAME_BORDER_FACE_ID)
+	    : CHILD_FRAME_BORDER_FACE_ID)
+	 : (!NILP (Vface_remapping_alist)
+	    ? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
+	    : INTERNAL_BORDER_FACE_ID));
       GC gc = mac_gc_for_face_id (f, face_id, f->output_data.mac->normal_gc);
 
       block_input ();
@@ -919,9 +924,13 @@ mac_after_update_window_line (struct window *w, struct glyph_row *desired_row)
       {
 	int y = WINDOW_TO_FRAME_PIXEL_Y (w, max (0, desired_row->y));
 	int face_id =
-	  !NILP (Vface_remapping_alist)
-	  ? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
-	  : INTERNAL_BORDER_FACE_ID;
+	  (FRAME_PARENT_FRAME (f)
+	   ? (!NILP (Vface_remapping_alist)
+	      ? lookup_basic_face (NULL, f, CHILD_FRAME_BORDER_FACE_ID)
+	      : CHILD_FRAME_BORDER_FACE_ID)
+	   : (!NILP (Vface_remapping_alist)
+	      ? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
+	      : INTERNAL_BORDER_FACE_ID));
 	GC gc = mac_gc_for_face_id (f, face_id, f->output_data.mac->normal_gc);
 
 	block_input ();
@@ -1279,7 +1288,7 @@ mac_draw_glyph_string_background (struct glyph_string *s, bool force_p)
      shouldn't be drawn in the first place.  */
   if (!s->background_filled_p)
     {
-      int box_line_width = max (s->face->box_line_width, 0);
+      int box_line_width = max (s->face->box_horizontal_line_width, 0);
 
       if (s->stippled_p)
 	{
@@ -1322,7 +1331,7 @@ mac_draw_glyph_string_foreground (struct glyph_string *s)
      of S to the right of that box line.  */
   if (s->face->box != FACE_NO_BOX
       && s->first_glyph->left_box_line_p)
-    x = s->x + eabs (s->face->box_line_width);
+    x = s->x + max (s->face->box_vertical_line_width, 0);
   else
     x = s->x;
 
@@ -1370,7 +1379,7 @@ mac_draw_composite_glyph_string_foreground (struct glyph_string *s)
      of S to the right of that box line.  */
   if (s->face && s->face->box != FACE_NO_BOX
       && s->first_glyph->left_box_line_p)
-    x = s->x + eabs (s->face->box_line_width);
+    x = s->x + max (s->face->box_vertical_line_width, 0);
   else
     x = s->x;
 
@@ -1462,7 +1471,7 @@ mac_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
      of S to the right of that box line.  */
   if (s->face && s->face->box != FACE_NO_BOX
       && s->first_glyph->left_box_line_p)
-    x = s->x + eabs (s->face->box_line_width);
+    x = s->x + max (s->face->box_vertical_line_width, 0);
   else
     x = s->x;
 
@@ -1720,7 +1729,7 @@ mac_setup_relief_colors (struct glyph_string *s)
 static void
 mac_draw_relief_rect (struct frame *f,
 		      int left_x, int top_y, int right_x, int bottom_y,
-		      int width, bool raised_p, bool top_p, bool bot_p,
+		      int hwidth, int vwidth, bool raised_p, bool top_p, bool bot_p,
 		      bool left_p, bool right_p,
 		      NativeRectangle *clip_rect)
 {
@@ -1744,7 +1753,7 @@ mac_draw_relief_rect (struct frame *f,
   if (left_p)
     {
       mac_fill_rectangle (f, top_left_gc, left_x, top_y,
-			  width, bottom_y + 1 - top_y);
+			  vwidth, bottom_y + 1 - top_y);
       if (top_p)
 	corners |= 1 << CORNER_TOP_LEFT;
       if (bot_p)
@@ -1752,8 +1761,8 @@ mac_draw_relief_rect (struct frame *f,
     }
   if (right_p)
     {
-      mac_fill_rectangle (f, bottom_right_gc, right_x + 1 - width, top_y,
-			  width, bottom_y + 1 - top_y);
+      mac_fill_rectangle (f, bottom_right_gc, right_x + 1 - vwidth, top_y,
+			  vwidth, bottom_y + 1 - top_y);
       if (top_p)
 	corners |= 1 << CORNER_TOP_RIGHT;
       if (bot_p)
@@ -1763,25 +1772,25 @@ mac_draw_relief_rect (struct frame *f,
     {
       if (!right_p)
 	mac_fill_rectangle (f, top_left_gc, left_x, top_y,
-			    right_x + 1 - left_x, width);
+			    right_x + 1 - left_x, hwidth);
       else
 	mac_fill_trapezoid_for_relief (f, top_left_gc, left_x, top_y,
-				       right_x + 1 - left_x, width, 1);
+				       right_x + 1 - left_x, hwidth, 1);
     }
   if (bot_p)
     {
       if (!left_p)
-	mac_fill_rectangle (f, bottom_right_gc, left_x, bottom_y + 1 - width,
-			    right_x + 1 - left_x, width);
+	mac_fill_rectangle (f, bottom_right_gc, left_x, bottom_y + 1 - hwidth,
+			    right_x + 1 - left_x, hwidth);
       else
 	mac_fill_trapezoid_for_relief (f, bottom_right_gc,
-				       left_x, bottom_y + 1 - width,
-				       right_x + 1 - left_x, width, 0);
+				       left_x, bottom_y + 1 - hwidth,
+				       right_x + 1 - left_x, hwidth, 0);
     }
-  if (left_p && width != 1)
+  if (left_p && vwidth > 1)
     mac_fill_rectangle (f, bottom_right_gc, left_x, top_y,
 			1, bottom_y + 1 - top_y);
-  if (top_p && width != 1)
+  if (top_p && hwidth > 1)
     mac_fill_rectangle (f, bottom_right_gc, left_x, top_y,
 			right_x + 1 - left_x, 1);
   if (corners)
@@ -1806,8 +1815,9 @@ mac_draw_relief_rect (struct frame *f,
 
 static void
 mac_draw_box_rect (struct glyph_string *s,
-		   int left_x, int top_y, int right_x, int bottom_y, int width,
-		   bool left_p, bool right_p, NativeRectangle *clip_rect)
+		   int left_x, int top_y, int right_x, int bottom_y, int hwidth,
+		   int vwidth, bool left_p, bool right_p,
+		   NativeRectangle *clip_rect)
 {
   XGCValues xgcv;
 
@@ -1817,21 +1827,21 @@ mac_draw_box_rect (struct glyph_string *s,
 
   /* Top.  */
   mac_fill_rectangle (s->f, s->gc, left_x, top_y,
-		      right_x - left_x + 1, width);
+		      right_x - left_x + 1, hwidth);
 
   /* Left.  */
   if (left_p)
     mac_fill_rectangle (s->f, s->gc, left_x, top_y,
-			width, bottom_y - top_y + 1);
+			vwidth, bottom_y - top_y + 1);
 
   /* Bottom.  */
-  mac_fill_rectangle (s->f, s->gc, left_x, bottom_y - width + 1,
-		      right_x - left_x + 1, width);
+  mac_fill_rectangle (s->f, s->gc, left_x, bottom_y - hwidth + 1,
+		      right_x - left_x + 1, hwidth);
 
   /* Right.  */
   if (right_p)
-    mac_fill_rectangle (s->f, s->gc, right_x - width + 1,
-			top_y, width, bottom_y - top_y + 1);
+    mac_fill_rectangle (s->f, s->gc, right_x - vwidth + 1,
+			top_y, vwidth, bottom_y - top_y + 1);
 
   mac_set_foreground (s->gc, xgcv.foreground);
   mac_reset_clip_rectangles (s->f, s->gc);
@@ -1843,7 +1853,7 @@ mac_draw_box_rect (struct glyph_string *s,
 static void
 mac_draw_glyph_string_box (struct glyph_string *s)
 {
-  int width, left_x, right_x, top_y, bottom_y, last_x;
+  int hwidth, vwidth, left_x, right_x, top_y, bottom_y, last_x;
   bool raised_p, left_p, right_p;
   struct glyph *last_glyph;
   NativeRectangle clip_rect;
@@ -1852,12 +1862,29 @@ mac_draw_glyph_string_box (struct glyph_string *s)
 	    ? WINDOW_RIGHT_EDGE_X (s->w)
 	    : window_box_right (s->w, s->area));
 
-  /* The glyph that may have a right box line.  */
-  last_glyph = (s->cmp || s->img
-		? s->first_glyph
-		: s->first_glyph + s->nchars - 1);
+  /* The glyph that may have a right box line.  For static
+     compositions and images, the right-box flag is on the first glyph
+     of the glyph string; for other types it's on the last glyph.  */
+  if (s->cmp || s->img)
+    last_glyph = s->first_glyph;
+  else if (s->first_glyph->type == COMPOSITE_GLYPH
+	   && s->first_glyph->u.cmp.automatic)
+    {
+      /* For automatic compositions, we need to look up the last glyph
+	 in the composition.  */
+        struct glyph *end = s->row->glyphs[s->area] + s->row->used[s->area];
+	struct glyph *g = s->first_glyph;
+	for (last_glyph = g++;
+	     g < end && g->u.cmp.automatic && g->u.cmp.id == s->cmp_id
+	       && g->slice.cmp.to < s->cmp_to;
+	     last_glyph = g++)
+	  ;
+    }
+  else
+    last_glyph = s->first_glyph + s->nchars - 1;
 
-  width = eabs (s->face->box_line_width);
+  vwidth = eabs (s->face->box_vertical_line_width);
+  hwidth = eabs (s->face->box_horizontal_line_width);
   raised_p = s->face->box == FACE_RAISED_BOX;
   left_x = s->x;
   right_x = (s->row->full_width_p && s->extends_to_end_of_line_p
@@ -1878,13 +1905,13 @@ mac_draw_glyph_string_box (struct glyph_string *s)
   get_glyph_string_clip_rect (s, &clip_rect);
 
   if (s->face->box == FACE_SIMPLE_BOX)
-    mac_draw_box_rect (s, left_x, top_y, right_x, bottom_y, width,
-		       left_p, right_p, &clip_rect);
+    mac_draw_box_rect (s, left_x, top_y, right_x, bottom_y, hwidth,
+		       vwidth, left_p, right_p, &clip_rect);
   else
     {
       mac_setup_relief_colors (s);
-      mac_draw_relief_rect (s->f, left_x, top_y, right_x, bottom_y,
-			    width, raised_p, true, true, left_p, right_p,
+      mac_draw_relief_rect (s->f, left_x, top_y, right_x, bottom_y, hwidth,
+			    vwidth, raised_p, true, true, left_p, right_p,
 			    &clip_rect);
     }
 }
@@ -1903,7 +1930,7 @@ mac_draw_image_foreground (struct glyph_string *s)
   if (s->face->box != FACE_NO_BOX
       && s->first_glyph->left_box_line_p
       && s->slice.x == 0)
-    x += eabs (s->face->box_line_width);
+    x += max (s->face->box_vertical_line_width, 0);
 
   /* If there is a margin around the image, adjust x- and y-position
      by that margin.  */
@@ -1921,6 +1948,8 @@ mac_draw_image_foreground (struct glyph_string *s)
       mac_detect_scale_mismatch (s->f, s->img->target_backing_scale);
       if (s->img->target_backing_scale == 2)
 	flags |= MAC_DRAW_CG_IMAGE_2X;
+      if (!s->img->smoothing)
+	flags |= MAC_DRAW_CG_IMAGE_NO_INTERPOLATION;
       mac_draw_cg_image (s->f, s->gc, s->img->cg_image, s->img->cg_transform,
 			 s->slice.x, s->slice.y,
 			 s->slice.width, s->slice.height, x, y, flags);
@@ -1965,7 +1994,7 @@ mac_draw_image_relief (struct glyph_string *s)
   if (s->face->box != FACE_NO_BOX
       && s->first_glyph->left_box_line_p
       && s->slice.x == 0)
-    x += eabs (s->face->box_line_width);
+    x += max (s->face->box_vertical_line_width, 0);
 
   /* If there is a margin around the image, adjust x- and y-position
      by that margin.  */
@@ -1977,11 +2006,14 @@ mac_draw_image_relief (struct glyph_string *s)
   if (s->hl == DRAW_IMAGE_SUNKEN
       || s->hl == DRAW_IMAGE_RAISED)
     {
-      thick = (tab_bar_button_relief < 0
-	       ? DEFAULT_TAB_BAR_BUTTON_RELIEF
-	       : (tool_bar_button_relief < 0
-		  ? DEFAULT_TOOL_BAR_BUTTON_RELIEF
-		  : min (tool_bar_button_relief, 1000000)));
+      if (s->face->id == TAB_BAR_FACE_ID)
+	thick = (tab_bar_button_relief < 0
+		 ? DEFAULT_TAB_BAR_BUTTON_RELIEF
+		 : min (tab_bar_button_relief, 1000000));
+      else
+	thick = (tool_bar_button_relief < 0
+		 ? DEFAULT_TOOL_BAR_BUTTON_RELIEF
+		 : min (tool_bar_button_relief, 1000000));
       raised_p = s->hl == DRAW_IMAGE_RAISED;
     }
   else
@@ -2000,11 +2032,11 @@ mac_draw_image_relief (struct glyph_string *s)
 	  && FIXNUMP (XCAR (Vtab_bar_button_margin))
 	  && FIXNUMP (XCDR (Vtab_bar_button_margin)))
 	{
-	  extra_x = XFIXNUM (XCAR (Vtab_bar_button_margin));
-	  extra_y = XFIXNUM (XCDR (Vtab_bar_button_margin));
+	  extra_x = XFIXNUM (XCAR (Vtab_bar_button_margin)) - thick;
+	  extra_y = XFIXNUM (XCDR (Vtab_bar_button_margin)) - thick;
 	}
       else if (FIXNUMP (Vtab_bar_button_margin))
-	extra_x = extra_y = XFIXNUM (Vtab_bar_button_margin);
+	extra_x = extra_y = XFIXNUM (Vtab_bar_button_margin) - thick;
     }
 
   if (s->face->id == TOOL_BAR_FACE_ID)
@@ -2033,7 +2065,7 @@ mac_draw_image_relief (struct glyph_string *s)
 
   mac_setup_relief_colors (s);
   get_glyph_string_clip_rect (s, &r);
-  mac_draw_relief_rect (s->f, x, y, x1, y1, thick, raised_p,
+  mac_draw_relief_rect (s->f, x, y, x1, y1, thick, thick, raised_p,
 			top_p, bot_p, left_p, right_p, &r);
 }
 
@@ -2073,8 +2105,8 @@ mac_draw_glyph_string_bg_rect (struct glyph_string *s, int x, int y, int w, int 
 static void
 mac_draw_image_glyph_string (struct glyph_string *s)
 {
-  int box_line_hwidth = eabs (s->face->box_line_width);
-  int box_line_vwidth = max (s->face->box_line_width, 0);
+  int box_line_hwidth = max (s->face->box_vertical_line_width, 0);
+  int box_line_vwidth = max (s->face->box_horizontal_line_width, 0);
   int height;
 
   height = s->height;
@@ -2206,14 +2238,15 @@ mac_draw_stretch_glyph_string (struct glyph_string *s)
   else if (!s->background_filled_p)
     {
       int background_width = s->background_width;
-      int x = s->x, left_x = window_box_left_offset (s->w, TEXT_AREA);
+      int x = s->x, text_left_x = window_box_left (s->w, TEXT_AREA);
 
-      /* Don't draw into left margin, fringe or scrollbar area
-         except for header line and mode line.  */
-      if (x < left_x && !s->row->mode_line_p)
+      /* Don't draw into left fringe or scrollbar area except for
+         header line and mode line.  */
+      if (s->area == TEXT_AREA
+	  && x < text_left_x && !s->row->mode_line_p)
 	{
-	  background_width -= left_x - x;
-	  x = left_x;
+	  background_width -= text_left_x - x;
+	  x = text_left_x;
 	}
       if (background_width > 0)
 	mac_draw_glyph_string_bg_rect (s, x, s->y, background_width, s->height);
@@ -2305,6 +2338,10 @@ mac_draw_glyph_string (struct glyph_string *s)
     {
     case IMAGE_GLYPH:
       mac_draw_image_glyph_string (s);
+      break;
+
+    case XWIDGET_GLYPH:
+      x_draw_xwidget_glyph_string (s);
       break;
 
     case STRETCH_GLYPH:
@@ -3581,6 +3618,10 @@ mac_draw_bar_cursor (struct window *w, struct glyph_row *row, int width, enum te
   if (cursor_glyph == NULL)
     return;
 
+  /* Experimental avoidance of cursor on xwidget.  */
+  if (cursor_glyph->type == XWIDGET_GLYPH)
+    return;
+
   /* If on an image, draw like a normal cursor.  That's usually better
      visible than drawing a bar, esp. if the image is large so that
      the bar might not be in the window.  */
@@ -3778,16 +3819,14 @@ mac_new_font (struct frame *f, Lisp_Object font_object, int fontset)
   FRAME_CONFIG_SCROLL_BAR_COLS (f)
     = (FRAME_CONFIG_SCROLL_BAR_WIDTH (f) + unit - 1) / unit;
 
-  if (FRAME_MAC_WINDOW (f) != 0)
-    {
-      /* Don't change the size of a tip frame; there's no point in
-	 doing it because it's done in Fx_show_tip, and it leads to
-	 problems because the tip frame has no widget.  */
-      if (!FRAME_TOOLTIP_P (f))
-	adjust_frame_size (f, FRAME_COLS (f) * FRAME_COLUMN_WIDTH (f),
-			   FRAME_LINES (f) * FRAME_LINE_HEIGHT (f), 3,
-			   false, Qfont);
-    }
+
+  /* Don't change the size of a tip frame; there's no point in doing it
+     because it's done in Fx_show_tip, and it leads to problems because
+     the tip frame has no widget.  */
+  if (FRAME_MAC_WINDOW (f) != 0 && !FRAME_TOOLTIP_P (f))
+    adjust_frame_size
+      (f, FRAME_COLS (f) * FRAME_COLUMN_WIDTH (f),
+       FRAME_LINES (f) * FRAME_LINE_HEIGHT (f), 3, false, Qfont);
 
   return font_object;
 }
@@ -3815,21 +3854,16 @@ mac_handle_origin_change (struct frame *f)
 }
 
 void
-mac_handle_size_change (struct frame *f, int pixelwidth, int pixelheight)
+mac_handle_size_change (struct frame *f, int width, int height)
 {
-  int width, height;
-
   /* This might be called when a full screen window is closed on OS X
      10.10.  */
   if (!WINDOWP (FRAME_ROOT_WINDOW (f)))
     return;
 
-  width = FRAME_PIXEL_TO_TEXT_WIDTH (f, pixelwidth);
-  height = FRAME_PIXEL_TO_TEXT_HEIGHT (f, pixelheight);
-
   /* Pass true for DELAY since we can't run Lisp code inside of a
      block_input.  */
-  change_frame_size (f, width, height, false, true, false, true);
+  change_frame_size (f, width, height, false, true, false);
 
   /* Clear out any recollection of where the mouse highlighting was,
      since it might be in a place that's outside the new frame size.
@@ -4033,25 +4067,21 @@ mac_check_fullscreen (struct frame *f)
   mac_change_frame_window_wm_state (f, flags_to_set, flags_to_clear);
 }
 
-/* Call this to change the size of frame F's x-window.
-   If CHANGE_GRAVITY, change to top-left-corner window gravity
-   for this size change and subsequent size changes.
-   Otherwise we leave the window gravity unchanged.  */
+/* Change the size of frame F's X window to WIDTH and HEIGHT pixels.  If
+   CHANGE_GRAVITY, change to top-left-corner window gravity for this
+   size change and subsequent size changes.  Otherwise we leave the
+   window gravity unchanged.  */
 
 static void
 mac_set_window_size (struct frame *f, bool change_gravity,
-		     int width, int height, bool pixelwise)
+		     int width, int height)
 {
-  int pixelwidth, pixelheight;
-
   block_input ();
 
   if (!FRAME_TOOLTIP_P (f)
       /* Don't override pending size change.  */
       && f->new_height == 0 && f->new_width == 0)
     {
-      int text_width, text_height;
-
       /* When the frame is maximized/fullscreen or running under for
          example Xmonad, x_set_window_size_1 will be a no-op.
          In that case, the right thing to do is extend rows/width to
@@ -4059,22 +4089,14 @@ mac_set_window_size (struct frame *f, bool change_gravity,
          turns out to not be a no-op (there is no way to know).
          The size will be adjusted again if the frame gets a
          ConfigureNotify event as a result of x_set_window_size.  */
-      text_width = FRAME_PIXEL_TO_TEXT_WIDTH (f, FRAME_PIXEL_WIDTH (f));
-      text_height = FRAME_PIXEL_TO_TEXT_HEIGHT (f, FRAME_PIXEL_HEIGHT (f));
-
-      change_frame_size (f, text_width, text_height, false, true, false, true);
+      change_frame_size (f, FRAME_PIXEL_WIDTH (f), FRAME_PIXEL_HEIGHT (f),
+			 false, true, false);
     }
 
-  pixelwidth = (pixelwise
-		? FRAME_TEXT_TO_PIXEL_WIDTH (f, width)
-		: FRAME_TEXT_COLS_TO_PIXEL_WIDTH (f, width));
-  pixelheight = (pixelwise
-		 ? FRAME_TEXT_TO_PIXEL_HEIGHT (f, height)
-		 : FRAME_TEXT_LINES_TO_PIXEL_HEIGHT (f, height));
   f->win_gravity = NorthWestGravity;
   mac_wm_set_size_hint (f, 0, false);
 
-  mac_size_frame_window (f, pixelwidth, pixelheight, true);
+  mac_size_frame_window (f, width, height, true);
 
   SET_FRAME_GARBAGED (f);
 
@@ -4191,17 +4213,9 @@ mac_handle_visibility_change (struct frame *f)
 	  buf.arg = Qnil;
 	  kbd_buffer_store_event (&buf);
 	}
-      else if (! NILP (Vframe_list) && ! NILP (XCDR (Vframe_list)))
-	/* Force a redisplay sooner or later to update the
-	   frame titles in case this is the second frame.  */
-	record_asynch_buffer_change ();
     }
   else if (FRAME_OBSCURED_P (f) && visible == 1)
-    {
-      SET_FRAME_GARBAGED (f);
-      /* Force a redisplay sooner or later.  */
-      record_asynch_buffer_change ();
-    }
+    SET_FRAME_GARBAGED (f);
   else if (FRAME_VISIBLE_P (f) && !visible)
     if (iconified)
       {
@@ -4976,6 +4990,32 @@ mac_get_selected_range (struct window *w, CFRange *range)
   range->length = end - start;
 }
 
+/* Like fetch_char_advance, but fetch character from the buffer BUF.  */
+
+static inline int
+buf_fetch_char_advance (struct buffer *buf, ptrdiff_t *charidx,
+			ptrdiff_t *byteidx)
+{
+  int output;
+  ptrdiff_t c = *charidx, b = *byteidx;
+  c++;
+  unsigned char *chp = BUF_BYTE_ADDRESS (buf, b);
+  if (!NILP (BVAR (buf, enable_multibyte_characters)))
+    {
+      int chlen;
+      output = string_char_and_length (chp, &chlen);
+      b += chlen;
+    }
+  else
+    {
+      output = *chp;
+      b++;
+    }
+  *charidx = c;
+  *byteidx = b;
+  return output;
+}
+
 /* Store the text of the buffer BUF from START to END as Unicode
    characters in CHARACTERS.  Return true if successful.  */
 
@@ -4985,31 +5025,11 @@ mac_store_buffer_text_to_unicode_chars (struct buffer *buf, EMACS_INT start,
 {
   EMACS_INT start_byte = buf_charpos_to_bytepos (buf, start);
 
-#define BUF_FETCH_CHAR_ADVANCE(OUTPUT, BUF, CHARIDX, BYTEIDX)	\
-  do    							\
-    {								\
-      CHARIDX++;						\
-      if (!NILP (BVAR (BUF, enable_multibyte_characters)))	\
-	{							\
-	  unsigned char *ptr = BUF_BYTE_ADDRESS (BUF, BYTEIDX);	\
-	  int len;						\
-								\
-	  OUTPUT= STRING_CHAR_AND_LENGTH (ptr, len);		\
-	  BYTEIDX += len;					\
-	}							\
-      else							\
-	{							\
-	  OUTPUT = BUF_FETCH_BYTE (BUF, BYTEIDX);		\
-	  BYTEIDX++;						\
-	}							\
-    }								\
-  while (0)
-
   while (start < end)
     {
       int c;
 
-      BUF_FETCH_CHAR_ADVANCE (c, buf, start, start_byte);
+      c = buf_fetch_char_advance (buf, &start, &start_byte);
       *characters++ = (c < 0xD800 || (c > 0xDFFF && c < 0x10000)) ? c : 0xfffd;
     }
 
@@ -5596,17 +5616,20 @@ mac_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
   terminal->name = xlispstrdup (display_name);
 
   Lisp_Object system_name = Fsystem_name ();
-
-  ptrdiff_t nbytes = SBYTES (Vinvocation_name) + 1;
-  if (STRINGP (system_name)
-      && INT_ADD_WRAPV (nbytes, SBYTES (system_name) + 1, &nbytes))
-    memory_full (SIZE_MAX);
-  dpyinfo->mac_id_name = xmalloc (nbytes);
-  char *nametail = lispstpcpy (dpyinfo->mac_id_name, Vinvocation_name);
+  static char const title[] = "GNU Emacs";
   if (STRINGP (system_name))
     {
-      *nametail++ = '@';
-      lispstpcpy (nametail, system_name);
+      static char const at[] = " at ";
+      ptrdiff_t nbytes = sizeof (title) + sizeof (at);
+      if (INT_ADD_WRAPV (nbytes, SBYTES (system_name), &nbytes))
+	memory_full (SIZE_MAX);
+      dpyinfo->mac_id_name = xmalloc (nbytes);
+      sprintf (dpyinfo->mac_id_name, "%s%s%s", title, at, SDATA (system_name));
+    }
+  else
+    {
+      dpyinfo->mac_id_name = xmalloc (sizeof (title));
+      strcpy (dpyinfo->mac_id_name, title);
     }
 
   /* Put the rdb where we can find it in a way that works on

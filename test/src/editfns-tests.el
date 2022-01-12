@@ -1,21 +1,21 @@
-;;; editfns-tests.el -- tests for editfns.c
+;;; editfns-tests.el --- tests for editfns.c  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2016-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software; you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
@@ -106,7 +106,31 @@
            #("foobar" 3 6 (face error))))
   (should (ert-equal-including-properties
            (format (concat "%s " (propertize "%s" 'face 'error)) "foo" "bar")
-           #("foo bar" 4 7 (face error)))))
+           #("foo bar" 4 7 (face error))))
+  ;; Bug #46317
+  (let ((s (propertize "X" 'prop "val")))
+    (should (ert-equal-including-properties
+             (format (concat "%3s/" s) 12)
+             #(" 12/X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%3S/" s) 12)
+             #(" 12/X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%3d/" s) 12)
+             #(" 12/X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%-3s/" s) 12)
+             #("12 /X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%-3S/" s) 12)
+             #("12 /X" 4 5 (prop "val"))))
+    (should (ert-equal-including-properties
+             (format (concat "%-3d/" s) 12)
+             #("12 /X" 4 5 (prop "val"))))))
+
+(ert-deftest propertize/error-even-number-of-args ()
+  "Number of args for `propertize' must be odd."
+  (should-error (propertize "foo" 'bar) :type 'wrong-number-of-arguments))
 
 ;; Tests for bug#5131.
 (defun transpose-test-reverse-word (start end)
@@ -124,8 +148,8 @@
   "Validate character position to byte position translation."
   (let ((bytes '()))
     (dotimes (pos len)
-      (setq bytes (add-to-list 'bytes (position-bytes (1+ pos)) t)))
-    bytes))
+      (push (position-bytes (1+ pos)) bytes))
+    (nreverse bytes)))
 
 (ert-deftest transpose-ascii-regions-test ()
   (with-temp-buffer

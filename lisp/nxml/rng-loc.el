@@ -182,7 +182,7 @@ If TYPE-ID is non-nil, then locate the schema for this TYPE-ID."
     (while files
       (setq type-ids (rng-possible-type-ids-using (car files) type-ids))
       (setq files (cdr files)))
-    (rng-uniquify-equal (sort type-ids 'string<))))
+    (seq-uniq (sort type-ids 'string<))))
 
 (defun rng-locate-schema-file-using (files)
   "Locate a schema using the schema locating files FILES.
@@ -501,7 +501,7 @@ saved to the first writable file in `rng-schema-locating-files'."
 	       nil
 	     (error "Buffer does not have a filename")))
 	  ((and prompt
-		(not (y-or-n-p (format "Save %s to %s "
+                (not (y-or-n-p (format "Save %s to %s?"
 				       (if type-id
 					   "type identifier"
 					 "schema location")
@@ -539,7 +539,7 @@ saved to the first writable file in `rng-schema-locating-files'."
 				       locating-file-uri))))))
 	       (indent-according-to-mode)
 	       (when (or (not modified)
-			 (y-or-n-p (format "Save file %s "
+                         (y-or-n-p (format "Save file %s?"
 					   (buffer-file-name))))
 		 (save-buffer))))))))
 

@@ -153,7 +153,7 @@ the window (a.k.a.@: the @dfn{dominating} monitor).
 
 This function itself does not make the new frame the selected frame.
 @xref{Input Focus}.  The previously selected frame remains selected.
-On graphical terminals, however, the windowing system may select the
+On graphical terminals, however, the window system may select the
 new frame for its own reasons.
 @end deffn
 
@@ -496,7 +496,8 @@ a graphical terminal:
      | |  |_____________ Title Bar ______________|  |
      | | (1)_____________ Menu Bar ______________|  | ^
      | | (2)_____________ Tool Bar ______________|  | ^
-     | | (3) _________ Internal Border ________  |  | ^
+     | | (3)_____________ Tab Bar _______________|  | ^
+     | |  |  _________ Internal Border ________  |  | ^
      | |  | |   ^                              | |  | |
      | |  | |   |                              | |  | |
 Outer  |  | | Inner                            | |  | Native
@@ -642,6 +643,15 @@ GTK+, on the other hand, never wraps the tool bar but may
 automatically increase the outer width of a frame in order to
 accommodate an overlong tool bar.
 
+@item Tab Bar
+@cindex tab bar
+The tab bar (@pxref{Tab Bars,,,emacs, The GNU Emacs Manual}) is always
+drawn by Emacs itself.  The tab bar appears above the tool bar in
+Emacs built with an internal tool bar, and below the tool bar in
+builds with an external tool bar.
+Display of the tab bar can be suppressed by setting the
+@code{tab-bar-lines} parameter (@pxref{Layout Parameters}) to zero.
+
 @item Native Frame
 @cindex native frame
 @cindex native edges
@@ -696,9 +706,17 @@ parameter (@pxref{Management Parameters}).
 
 @item Internal Border
 The internal border is a border drawn by Emacs around the inner frame
-(see below).  Its width is specified by the @code{internal-border-width}
-frame parameter (@pxref{Layout Parameters}).  Its color is specified by
-the background of the @code{internal-border} face.
+(see below).  The specification of its appearance depends on whether
+or not the given frame is a child frame (@pxref{Child Frames}).
+
+For normal frames its width is specified by the @code{internal-border-width}
+frame parameter (@pxref{Layout Parameters}), and its color is specified by the
+background of the @code{internal-border} face.
+
+For child frames its width is specified by the @code{child-frame-border-width}
+frame parameter (but will use the @code{internal-border-width} parameter as
+fallback), and its color is specified by the background of the
+@code{child-frame-border} face.
 
 @item Inner Frame
 @cindex inner frame
@@ -734,8 +752,8 @@ the internal border, one vertical scroll bar, and one left and one right
 fringe if they are specified for this frame, see @ref{Layout
 Parameters}.  Its height can be obtained by removing from that of the
 native height the widths of the internal border and the heights of the
-frame's internal menu and tool bars and one horizontal scroll bar if
-specified for this frame.
+frame's internal menu and tool bars, the tab bar and one horizontal
+scroll bar if specified for this frame.
 @end table
 
 @cindex absolute position
@@ -1114,9 +1132,9 @@ The optional fourth argument @var{pixelwise} non-@code{nil} means that
 refuse to truly honor the request if it does not increase/decrease the
 frame height to a multiple of its character height.
 
-When used interactively, this command will set the height of the
-currently selected frame to the number of lines specified by the
-numeric prefix.
+When used interactively, this command will ask the user for the number
+of lines to set the height of the currently selected frame.  You can
+also provide this value with a numeric prefix.
 @end defun
 
 @defun set-frame-width frame width &optional pretend pixelwise
@@ -1130,9 +1148,9 @@ The optional fourth argument @var{pixelwise} non-@code{nil} means that
 refuse to fully honor the request if it does not increase/decrease the
 frame width to a multiple of its character width.
 
-When used interactively, this command will set the width of the
-currently selected frame to the number of columns specified by the
-numeric prefix.
+When used interactively, this command will ask the user for the number
+of columns to set the width of the currently selected frame.  You can
+also provide this value with a numeric prefix.
 @end defun
 
 None of these three functions will make a frame smaller than needed to
@@ -1202,10 +1220,10 @@ width of one scroll bar provided this option is @code{nil} and keep it
 unchanged if this option is @code{t} or a list containing
 @code{vertical-scroll-bars}.
 
-The default value is @code{'(tab-bar-lines tool-bar-lines)} for Lucid,
+The default value is @code{(tab-bar-lines tool-bar-lines)} for Lucid,
 Motif and MS-Windows (which means that adding/removing a tool or tab
 bar there does not change the outer frame height),
-@code{'(tab-bar-lines)} on all other window systems including GTK+
+@code{(tab-bar-lines)} on all other window systems including GTK+
 (which means that changing any of the parameters listed above with the
 exception of @code{tab-bar-lines} may change the size of the outer
 frame), and @code{t} otherwise (which means the outer frame size never
@@ -1792,6 +1810,13 @@ The width in pixels of the frame's outer border (@pxref{Frame Geometry}).
 The width in pixels of the frame's internal border (@pxref{Frame
 Geometry}).
 
+@vindex child-frame-border-width@r{, a frame parameter}
+@item child-frame-border-width
+The width in pixels of the frame's internal border (@pxref{Frame
+Geometry}) if the given frame is a child frame (@pxref{Child Frames}).
+If this is @code{nil}, the value specified by the
+@code{internal-border-width} parameter is used instead.
+
 @vindex vertical-scroll-bars@r{, a frame parameter}
 @item vertical-scroll-bars
 Whether the frame has scroll bars (@pxref{Scroll Bars}) for vertical
@@ -1861,6 +1886,13 @@ whenever the tool bar wraps (@pxref{Frame Layout}).
 The position of the tool bar when Emacs was built with GTK+.  Its value
 can be one of @code{top}, @code{bottom} @code{left}, @code{right}.  The
 default is @code{top}.
+
+@vindex tab-bar-lines@r{, a frame parameter}
+@item tab-bar-lines
+The number of lines to use for the tab bar (@pxref{Tab Bars,,,emacs, The
+GNU Emacs Manual}).  The default is one if Tab Bar mode is enabled and
+zero otherwise.  This value may change whenever the tab bar wraps
+(@pxref{Frame Layout}).
 
 @vindex line-spacing@r{, a frame parameter}
 @item line-spacing
@@ -2010,8 +2042,8 @@ the @sc{cdr} of the cell is either @code{t} or @code{top-only}.
 
 The parameters described below provide support for resizing a frame by
 dragging its internal borders with the mouse.  They also allow moving a
-frame with the mouse by dragging the header line of its topmost or the
-mode line of its bottommost window.
+frame with the mouse by dragging the header or tab line of its topmost
+or the mode line of its bottommost window.
 
 These parameters are mostly useful for child frames (@pxref{Child
 Frames}) that come without window manager decorations.  If necessary,
@@ -2027,6 +2059,11 @@ borders, if present, with the mouse.
 @item drag-with-header-line
 If non-@code{nil}, the frame can be moved with the mouse by dragging the
 header line of its topmost window.
+
+@vindex drag-with-tab-line@r{, a frame parameter}
+@item drag-with-tab-line
+If non-@code{nil}, the frame can be moved with the mouse by dragging the
+tab line of its topmost window.
 
 @vindex drag-with-mode-line@r{, a frame parameter}
 @item drag-with-mode-line
@@ -2195,10 +2232,11 @@ it and see if it works.)
 @vindex ns-appearance@r{, a frame parameter}
 @item ns-appearance
 Only available on macOS, if set to @code{dark} draw this frame's
-window-system window using the ``vibrant dark'' theme, otherwise use
-the system default.  The ``vibrant dark'' theme can be used to set the
-toolbar and scrollbars to a dark appearance when using an Emacs theme
-with a dark background.
+window-system window using the ``vibrant dark'' theme, and if set to
+@code{light} use the ``aqua'' theme, otherwise use the system default.
+The ``vibrant dark'' theme can be used to set the toolbar and
+scrollbars to a dark appearance when using an Emacs theme with a dark
+background.
 
 @vindex ns-transparent-titlebar@r{, a frame parameter}
 @item ns-transparent-titlebar
@@ -2222,6 +2260,9 @@ How to display the cursor.  Legitimate values are:
 @table @code
 @item box
 Display a filled box.  (This is the default.)
+@item (box . @var{size})
+Display a filled box.  However, display it as a hollow box if point is
+under masked image larger than @var{size} pixels in either dimension.
 @item hollow
 Display a hollow box.
 @item nil
@@ -2396,7 +2437,7 @@ attribute of the @code{default} face.
 
 @vindex foreground-color@r{, a frame parameter}
 @item foreground-color
-The color to use for the image of a character.  It is equivalent to
+The color to use for characters.  It is equivalent to
 the @code{:foreground} attribute of the @code{default} face.
 
 @vindex background-color@r{, a frame parameter}
@@ -2611,7 +2652,7 @@ When Emacs gets one of these commands, it generates a
 @code{delete-frame} event, whose normal definition is a command that
 calls the function @code{delete-frame}.  @xref{Misc Events}.
 
-@deffn Command delete-other-frames &optional frame
+@deffn Command delete-other-frames &optional frame iconify
 This command deletes all frames on @var{frame}'s terminal, except
 @var{frame}.  If @var{frame} uses another frame's minibuffer, that
 minibuffer frame is left untouched.  The argument @var{frame} must
@@ -2622,6 +2663,9 @@ this command works by calling @code{delete-frame} with @var{force}
 This function does not delete any of @var{frame}'s child frames
 (@pxref{Child Frames}).  If @var{frame} is a child frame, it deletes
 @var{frame}'s siblings only.
+
+With the prefix argument @var{iconify}, the frames are iconified rather
+than deleted.
 @end deffn
 
 
@@ -2667,18 +2711,19 @@ frame and defaults to the selected frame.  It never returns a frame
 whose @code{no-other-frame} parameter (@pxref{Frame Interaction
 Parameters}) is non-@code{nil}.
 
-The second argument, @var{minibuf}, says which frames to consider:
+The second argument, @var{minibuf}, says which frames to consider when
+deciding what the next frame should be:
 
 @table @asis
 @item @code{nil}
-Exclude minibuffer-only frames.
+Consider all frames except minibuffer-only frames.
 @item @code{visible}
-Consider all visible frames.
+Consider only visible frames.
 @item 0
-Consider all visible or iconified frames.
+Consider only visible or iconified frames.
 @item a window
 Consider only the frames using that particular window as their
-minibuffer.
+minibuffer window.
 @item anything else
 Consider all frames.
 @end table
@@ -2732,7 +2777,8 @@ Terminals}.
 @cindex selected frame
 
 At any time, one frame in Emacs is the @dfn{selected frame}.  The
-selected window always resides on the selected frame.
+selected window (@pxref{Selecting Windows}) always resides on the
+selected frame.
 
 When Emacs displays its frames on several terminals (@pxref{Multiple
 Terminals}), each terminal has its own selected frame.  But only one
@@ -2966,12 +3012,11 @@ Auto-selection}).
 
 Note that this option does not distinguish ``sloppy'' focus (where the
 frame that previously had focus retains focus as long as the mouse
-pointer does not move into another window manager window) from
-``strict'' focus (where a frame immediately loses focus when it's left
-by the mouse pointer).  Neither does it recognize whether your window
-manager supports delayed focusing or auto-raising where you can
-explicitly specify the time until a new frame gets focus or is
-auto-raised.
+pointer does not move into another window-system window) from ``strict''
+focus (where a frame immediately loses focus when it's left by the mouse
+pointer).  Neither does it recognize whether your window manager
+supports delayed focusing or auto-raising where you can explicitly
+specify the time until a new frame gets focus or is auto-raised.
 
 You can supply a ``focus follows mouse'' policy for individual Emacs
 windows by customizing the variable @code{mouse-autoselect-window}
@@ -3524,6 +3569,13 @@ This abnormal hook exists for the benefit of packages like
 @file{xt-mouse.el} that need to do mouse handling at the Lisp level.
 @end defvar
 
+@defvar tty-menu-calls-mouse-position-function
+If non-@code{nil}, TTY menus will call @code{mouse-position-function}
+as described above.  This exists for cases where
+@code{mouse-position-function} is not safe to be called by the TTY
+menus, such as if it could trigger redisplay.
+@end defvar
+
 @defun set-mouse-position frame x y
 This function @dfn{warps the mouse} to position @var{x}, @var{y} in
 frame @var{frame}.  The arguments @var{x} and @var{y} are integers,
@@ -3739,10 +3791,31 @@ for instance using the window manager, then this produces a quit and
   You can specify the mouse pointer style for particular text or
 images using the @code{pointer} text property, and for images with the
 @code{:pointer} and @code{:map} image properties.  The values you can
-use in these properties are @code{text} (or @code{nil}), @code{arrow},
-@code{hand}, @code{vdrag}, @code{hdrag}, @code{modeline}, and
-@code{hourglass}.  @code{text} stands for the usual mouse pointer
-style used over text.
+use in these properties are in the table below.  The actual shapes
+may vary between systems; the descriptions are examples.
+
+@table @code
+@item text
+@itemx nil
+The usual mouse pointer style used over text (an ``I''-like shape).
+
+@item arrow
+@itemx vdrag
+@itemx modeline
+An arrow that points north-west.
+
+@item hand
+A hand that points upwards.
+
+@item hdrag
+A right-left arrow.
+
+@item nhdrag
+An up-down arrow.
+
+@item hourglass
+A rotating ring.
+@end table
 
   Over void parts of the window (parts that do not correspond to any
 of the buffer contents), the mouse pointer usually uses the
@@ -3897,13 +3970,15 @@ detailed knowledge of what types other applications use for drag and
 drop.
 
 @vindex dnd-protocol-alist
+@vindex browse-url-handlers
+@vindex browse-url-default-handlers
   When an URL is dropped on Emacs it may be a file, but it may also be
 another URL type (https, etc.).  Emacs first checks
 @code{dnd-protocol-alist} to determine what to do with the URL@.  If
-there is no match there and if @code{browse-url-browser-function} is
-an alist, Emacs looks for a match there.  If no match is found the
-text for the URL is inserted.  If you want to alter Emacs behavior,
-you can customize these variables.
+there is no match there, Emacs looks for a match in
+@code{browse-url-handlers} and @code{browse-url-default-handlers}.  If
+still no match has been found, the text for the URL is inserted.  If
+you want to alter Emacs behavior, you can customize these variables.
 
 @node Color Names
 @section Color Names
@@ -3995,11 +4070,11 @@ If @var{color} is not defined, the value is @code{nil}.
 (color-values "black")
      @result{} (0 0 0)
 (color-values "white")
-     @result{} (65280 65280 65280)
+     @result{} (65535 65535 65535)
 (color-values "red")
-     @result{} (65280 0 0)
+     @result{} (65535 0 0)
 (color-values "pink")
-     @result{} (65280 49152 51968)
+     @result{} (65535 49344 52171)
 (color-values "hungry")
      @result{} nil
 @end example

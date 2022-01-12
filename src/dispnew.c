@@ -25,7 +25,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <unistd.h>
 
 #include "lisp.h"
-#include "ptr-bounds.h"
 #include "termchar.h"
 /* cm.h must come after dispextern.h on Windows.  */
 #include "dispextern.h"
@@ -474,6 +473,11 @@ adjust_glyph_matrix (struct window *w, struct glyph_matrix *matrix, int x, int y
 		= row->glyphs[LEFT_MARGIN_AREA] + left;
 	      row->glyphs[RIGHT_MARGIN_AREA]
 		= row->glyphs[TEXT_AREA] + dim.width - left - right;
+	      /* Leave room for a border glyph.  */
+	      if (!FRAME_WINDOW_P (XFRAME (w->frame))
+		  && !WINDOW_RIGHTMOST_P (w)
+		  && right > 0)
+		row->glyphs[RIGHT_MARGIN_AREA] -= 1;
 	      row->glyphs[LAST_AREA]
 		= row->glyphs[LEFT_MARGIN_AREA] + dim.width;
 	    }
@@ -881,7 +885,7 @@ clear_glyph_row (struct glyph_row *row)
   enum { off = offsetof (struct glyph_row, used) };
 
   /* Zero everything except pointers in `glyphs'.  */
-  memset (row->used, 0, sizeof *row - off);
+  memset ((char *) row + off, 0, sizeof *row - off);
 }
 
 
@@ -1030,7 +1034,7 @@ copy_row_except_pointers (struct glyph_row *to, struct glyph_row *from)
 {
   enum { off = offsetof (struct glyph_row, x) };
 
-  memcpy (&to->x, &from->x, sizeof *to - off);
+  memcpy ((char *) to + off, (char *) from + off, sizeof *to - off);
 }
 
 
@@ -1141,7 +1145,14 @@ prepare_desired_row (struct window *w, struct glyph_row *row, bool mode_line_p)
 	row->glyphs[TEXT_AREA] = row->glyphs[LEFT_MARGIN_AREA] + left;
       if (w->right_margin_cols > 0
 	  && (right != row->glyphs[LAST_AREA] - row->glyphs[RIGHT_MARGIN_AREA]))
-	row->glyphs[RIGHT_MARGIN_AREA] = row->glyphs[LAST_AREA] - right;
+	{
+	  row->glyphs[RIGHT_MARGIN_AREA] = row->glyphs[LAST_AREA] - right;
+	  /* Leave room for a border glyph.  */
+	  if (!FRAME_WINDOW_P (XFRAME (w->frame))
+	      && !WINDOW_RIGHTMOST_P (w)
+	      && right > 0)
+	    row->glyphs[RIGHT_MARGIN_AREA] -= 1;
+	}
     }
 }
 
@@ -1831,7 +1842,7 @@ adjust_frame_glyphs (struct frame *f)
   /* Don't forget the buffer for decode_mode_spec.  */
   adjust_decode_mode_spec_buffer (f);
 
-  f->glyphs_initialized_p = 1;
+  f->glyphs_initialized_p = true;
 
   unblock_input ();
 }
@@ -2252,7 +2263,7 @@ free_glyphs (struct frame *f)
       /* Block interrupt input so that we don't get surprised by an X
          event while we're in an inconsistent state.  */
       block_input ();
-      f->glyphs_initialized_p = 0;
+      f->glyphs_initialized_p = false;
 
       /* Release window sub-matrices.  */
       if (!NILP (f->root_window))
@@ -3241,9 +3252,16 @@ update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
       build_frame_matrix (f);
 
       /* Update the display.  */
-      update_begin (f);
-      paused_p = update_frame_1 (f, force_p, inhibit_hairy_id_p, 1, false);
-      update_end (f);
+      if (FRAME_INITIAL_P (f))
+        /* No actual display to update so the "update" is a nop and
+           obviously isn't interrupted by pending input.  */
+        paused_p = false;
+      else
+        {
+          update_begin (f);
+          paused_p = update_frame_1 (f, force_p, inhibit_hairy_id_p, 1, false);
+          update_end (f);
+        }
 
       if (FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f))
         {
@@ -3319,6 +3337,53 @@ update_frame_with_menu (struct frame *f, int row, int col)
   /* Reset flags indicating that a window should be updated.  */
   set_window_update_flags (root_window, false);
   display_completed = !paused_p;
+}
+
+/* Update the mouse position for a frame F.  This handles both
+   updating the display for mouse-face properties and updating the
+   help echo text.
+
+   Returns the number of events generated.  */
+int
+update_mouse_position (struct frame *f, int x, int y)
+{
+  previous_help_echo_string = help_echo_string;
+  help_echo_string = Qnil;
+
+  note_mouse_highlight (f, x, y);
+
+  /* If the contents of the global variable help_echo_string
+     has changed, generate a HELP_EVENT.  */
+  if (!NILP (help_echo_string)
+      || !NILP (previous_help_echo_string))
+    {
+      Lisp_Object frame;
+      XSETFRAME (frame, f);
+
+      gen_help_event (help_echo_string, frame, help_echo_window,
+                      help_echo_object, help_echo_pos);
+      return 1;
+    }
+
+  return 0;
+}
+
+DEFUN ("display--update-for-mouse-movement", Fdisplay__update_for_mouse_movement,
+       Sdisplay__update_for_mouse_movement, 2, 2, 0,
+       doc: /* Handle mouse movement detected by Lisp code.
+
+This function should be called when Lisp code detects the mouse has
+moved, even if `track-mouse' is nil.  This handles updates that do not
+rely on input events such as updating display for mouse-face
+properties or updating the help echo text.  */)
+  (Lisp_Object mouse_x, Lisp_Object mouse_y)
+{
+  CHECK_FIXNUM (mouse_x);
+  CHECK_FIXNUM (mouse_y);
+
+  update_mouse_position (SELECTED_FRAME (), XFIXNUM (mouse_x),
+                         XFIXNUM (mouse_y));
+  return Qnil;
 }
 
 
@@ -3535,6 +3600,7 @@ update_window (struct window *w, bool force_p)
       int yb;
       bool changed_p = 0, mouse_face_overwritten_p = 0;
       int n_updated = 0;
+      bool invisible_rows_marked = false;
 
 #ifdef HAVE_WINDOW_SYSTEM
       gui_update_window_begin (w);
@@ -3626,12 +3692,35 @@ update_window (struct window *w, bool force_p)
 	       tempted to optimize redisplay based on lines displayed
 	       in the first redisplay.  */
 	    if (MATRIX_ROW_BOTTOM_Y (row) >= yb)
-	      for (i = vpos + 1; i < w->current_matrix->nrows - 1; ++i)
-		SET_MATRIX_ROW_ENABLED_P (w->current_matrix, i, false);
+	      {
+		for (i = vpos + 1; i < w->current_matrix->nrows - 1; ++i)
+		  SET_MATRIX_ROW_ENABLED_P (w->current_matrix, i, false);
+		invisible_rows_marked = true;
+	      }
 	  }
 
       /* Was display preempted?  */
       paused_p = row < end;
+
+      if (!paused_p && !invisible_rows_marked)
+	{
+	  /* If we didn't mark the invisible rows in the current
+	     matrix as invalid above, do that now.  This can happen if
+	     scrolling_window updates the last visible rows of the
+	     current matrix, in which case the above loop doesn't get
+	     to examine the last visible row.  */
+	  int i;
+	  for (i = 0; i < w->current_matrix->nrows - 1; ++i)
+	    {
+	      struct glyph_row *current_row = MATRIX_ROW (w->current_matrix, i);
+	      if (current_row->enabled_p
+		  && MATRIX_ROW_BOTTOM_Y (current_row) >= yb)
+		{
+		  for (++i ; i < w->current_matrix->nrows - 1; ++i)
+		    SET_MATRIX_ROW_ENABLED_P (w->current_matrix, i, false);
+		}
+	    }
+	}
 
     set_cursor:
 
@@ -4895,12 +4984,6 @@ scrolling (struct frame *frame)
   unsigned *new_hash = old_hash + height;
   int *draw_cost = (int *) (new_hash + height);
   int *old_draw_cost = draw_cost + height;
-  old_hash = ptr_bounds_clip (old_hash, height * sizeof *old_hash);
-  new_hash = ptr_bounds_clip (new_hash, height * sizeof *new_hash);
-  draw_cost = ptr_bounds_clip (draw_cost, height * sizeof *draw_cost);
-  old_draw_cost = ptr_bounds_clip (old_draw_cost,
-				   height * sizeof *old_draw_cost);
-
   eassert (current_matrix);
 
   /* Compute hash codes of all the lines.  Also calculate number of
@@ -5699,32 +5782,34 @@ handle_window_change_signal (int sig)
      termcap-controlled terminal, but we can't decide which.
      Therefore, we resize the frames corresponding to each tty.
   */
-  for (tty = tty_list; tty; tty = tty->next) {
+  for (tty = tty_list; tty; tty = tty->next)
+    {
+      if (! tty->term_initted)
+	continue;
 
-    if (! tty->term_initted)
-      continue;
+      /* Suspended tty frames have tty->input == NULL avoid trying to
+	 use it.  */
+      if (!tty->input)
+	continue;
 
-    /* Suspended tty frames have tty->input == NULL avoid trying to
-       use it.  */
-    if (!tty->input)
-      continue;
+      get_tty_size (fileno (tty->input), &width, &height);
 
-    get_tty_size (fileno (tty->input), &width, &height);
+      if (width > 5 && height > 2)
+	{
+	  Lisp_Object tail, frame;
 
-    if (width > 5 && height > 2) {
-      Lisp_Object tail, frame;
+	  FOR_EACH_FRAME (tail, frame)
+	    {
+	      struct frame *f = XFRAME (frame);
 
-      FOR_EACH_FRAME (tail, frame)
-        if (FRAME_TERMCAP_P (XFRAME (frame)) && FRAME_TTY (XFRAME (frame)) == tty)
-          /* Record the new sizes, but don't reallocate the data
-             structures now.  Let that be done later outside of the
-             signal handler.  */
-          change_frame_size (XFRAME (frame), width,
-			     height - FRAME_MENU_BAR_LINES (XFRAME (frame))
-			     - FRAME_TAB_BAR_LINES (XFRAME (frame)),
-			     0, 1, 0, 0);
+	      if (FRAME_TERMCAP_P (f) && FRAME_TTY (f) == tty)
+		/* Record the new sizes, but don't reallocate the data
+		   structures now.  Let that be done later outside of the
+		   signal handler.  */
+		change_frame_size (f, width, height, false, true, false);
+	    }
+	}
     }
-  }
 }
 
 static void
@@ -5742,7 +5827,6 @@ deliver_window_change_signal (int sig)
 void
 do_pending_window_change (bool safe)
 {
-  /* If window change signal handler should have run before, run it now.  */
   if (redisplaying_p && !safe)
     return;
 
@@ -5750,15 +5834,20 @@ do_pending_window_change (bool safe)
     {
       Lisp_Object tail, frame;
 
-      delayed_size_change = 0;
+      delayed_size_change = false;
 
       FOR_EACH_FRAME (tail, frame)
 	{
 	  struct frame *f = XFRAME (frame);
 
-	  if (f->new_height != 0 || f->new_width != 0)
+	  /* Negative new_width or new_height values mean no change is
+	     required (a native size can never drop below zero).  If
+	     new_size_p is not set, this means the size change was
+	     requested by adjust_frame_size but has not been honored by
+	     the window manager yet.  */
+	  if (f->new_size_p && (f->new_height >= 0 || f->new_width >= 0))
 	    change_frame_size (f, f->new_width, f->new_height,
-			       0, 0, safe, f->new_pixelwise);
+			       false, false, safe);
 	}
     }
 }
@@ -5766,47 +5855,46 @@ do_pending_window_change (bool safe)
 
 static void
 change_frame_size_1 (struct frame *f, int new_width, int new_height,
-		     bool pretend, bool delay, bool safe, bool pixelwise)
+		     bool pretend, bool delay, bool safe)
 {
-  /* If we can't deal with the change now, queue it for later.  */
   if (delay || (redisplaying_p && !safe))
     {
+      if (CONSP (frame_size_history)
+	  && ((new_width != f->new_width
+	       || new_height != f->new_height
+	       || new_width != FRAME_PIXEL_WIDTH (f)
+	       || new_height != FRAME_PIXEL_HEIGHT (f))))
+	frame_size_history_extra
+	  (f, build_string ("change_frame_size_1, delayed"),
+	   FRAME_PIXEL_WIDTH (f), FRAME_PIXEL_HEIGHT (f),
+	   new_width, new_height, f->new_width, f->new_height);
+
+      /* We can't deal with the change now, queue it for later.  */
       f->new_width = new_width;
       f->new_height = new_height;
-      f->new_pixelwise = pixelwise;
-      delayed_size_change = 1;
+      f->new_size_p = true;
+      delayed_size_change = true;
     }
   else
     {
-      /* This size-change overrides any pending one for this frame.  */
-      f->new_height = 0;
-      f->new_width = 0;
-      f->new_pixelwise = 0;
-
-      /* If an argument is zero, set it to the current value.  */
-      if (pixelwise)
-	{
-	  new_width = (new_width <= 0) ? FRAME_TEXT_WIDTH (f) : new_width;
-	  new_height = (new_height <= 0) ? FRAME_TEXT_HEIGHT (f) : new_height;
-	}
-      else
-	{
-	  new_width = (((new_width <= 0) ? FRAME_COLS (f) : new_width)
-		       * FRAME_COLUMN_WIDTH (f));
-	  new_height = (((new_height <= 0) ? FRAME_LINES (f) : new_height)
-			* FRAME_LINE_HEIGHT (f));
-	}
-
-      /* Adjust frame size but make sure set_window_size_hook does not
-	 get called.  */
-      adjust_frame_size (f, new_width, new_height, 5, pretend,
-			 Qchange_frame_size);
+      /* Storing -1 in the new_width/new_height slots means that no size
+	 change is pending.  Native sizes are always non-negative.
+	 Reset the new_size_p slot as well.  */
+      f->new_height = -1;
+      f->new_width = -1;
+      f->new_size_p = false;
+      /* adjust_frame_size wants its arguments in terms of text_width
+	 and text_height, so convert them here.  For pathologically
+	 small frames, the resulting values may be negative though.  */
+      adjust_frame_size (f, FRAME_PIXEL_TO_TEXT_WIDTH (f, new_width),
+			 FRAME_PIXEL_TO_TEXT_HEIGHT (f, new_height), 5,
+			 pretend, Qchange_frame_size);
     }
 }
 
 
-/* Change text height/width of frame F.  Values may be given as zero to
-   indicate that no change is needed.
+/* Change native height/width of frame F to NEW_WIDTH/NEW_HEIGHT pixels.
+   Values may be given as -1 to indicate that no change is needed.
 
    If DELAY, assume we're being called from a signal handler, and queue
    the change for later - perhaps the next redisplay.  Since this tries
@@ -5816,7 +5904,7 @@ change_frame_size_1 (struct frame *f, int new_width, int new_height,
    change frame sizes while a redisplay is in progress.  */
 void
 change_frame_size (struct frame *f, int new_width, int new_height,
-		   bool pretend, bool delay, bool safe, bool pixelwise)
+		   bool pretend, bool delay, bool safe)
 {
   Lisp_Object tail, frame;
 
@@ -5826,13 +5914,12 @@ change_frame_size (struct frame *f, int new_width, int new_height,
          size affects all frames.  Termcap now supports multiple
          ttys. */
       FOR_EACH_FRAME (tail, frame)
-	if (! FRAME_WINDOW_P (XFRAME (frame)))
+	if (!FRAME_WINDOW_P (XFRAME (frame)))
 	  change_frame_size_1 (XFRAME (frame), new_width, new_height,
-			       pretend, delay, safe, pixelwise);
+			       pretend, delay, safe);
     }
   else
-    change_frame_size_1 (f, new_width, new_height, pretend, delay, safe,
-			 pixelwise);
+    change_frame_size_1 (f, new_width, new_height, pretend, delay, safe);
 }
 
 /***********************************************************************
@@ -6002,7 +6089,14 @@ additional wait period, in milliseconds; this is for backwards compatibility.
    READING is true if reading input.
    If DISPLAY_OPTION is >0 display process output while waiting.
    If DISPLAY_OPTION is >1 perform an initial redisplay before waiting.
-*/
+
+   Returns a boolean Qt if we waited the full time and returns Qnil if the
+   wait was interrupted by incoming process output or keyboard events.
+
+   FIXME: When `wait_reading_process_output` returns early because of
+   process output, instead of returning nil we should loop and wait some
+   more (i.e. until either there's pending input events or the timeout
+   expired).  */
 
 Lisp_Object
 sit_for (Lisp_Object timeout, bool reading, int display_option)
@@ -6010,6 +6104,8 @@ sit_for (Lisp_Object timeout, bool reading, int display_option)
   intmax_t sec;
   int nsec;
   bool do_display = display_option > 0;
+  bool curbuf_eq_winbuf
+    = (current_buffer == XBUFFER (XWINDOW (selected_window)->contents));
 
   swallow_events (do_display);
 
@@ -6061,10 +6157,18 @@ sit_for (Lisp_Object timeout, bool reading, int display_option)
   gobble_input ();
 #endif
 
-  wait_reading_process_output (sec, nsec, reading ? -1 : 1, do_display,
-			       Qnil, NULL, 0);
+  int nbytes
+    = wait_reading_process_output (sec, nsec, reading ? -1 : 1, do_display,
+			           Qnil, NULL, 0);
 
-  return detect_input_pending () ? Qnil : Qt;
+  if (reading && curbuf_eq_winbuf)
+    /* Timers and process filters/sentinels may have changed the selected
+       window (e.g. in response to a connection from emacsclient), in which
+       case we should follow it (unless we weren't in the selected-window's
+       buffer to start with).  */
+    set_buffer_internal (XBUFFER (XWINDOW (selected_window)->contents));
+
+  return (nbytes > 0 || detect_input_pending ()) ? Qnil : Qt;
 }
 
 
@@ -6413,9 +6517,8 @@ init_display_interactive (void)
     t->display_info.tty->top_frame = selected_frame;
     change_frame_size (XFRAME (selected_frame),
                        FrameCols (t->display_info.tty),
-                       FrameRows (t->display_info.tty)
-		       - FRAME_MENU_BAR_LINES (f)
-		       - FRAME_TAB_BAR_LINES (f), 0, 0, 1, 0);
+                       FrameRows (t->display_info.tty),
+		       false, false, true);
 
     /* Delete the initial terminal. */
     if (--initial_terminal->reference_count == 0
@@ -6507,6 +6610,7 @@ syms_of_display (void)
 {
   defsubr (&Sredraw_frame);
   defsubr (&Sredraw_display);
+  defsubr (&Sdisplay__update_for_mouse_movement);
   defsubr (&Sframe_or_buffer_changed_p);
   defsubr (&Sopen_termscript);
   defsubr (&Sding);
@@ -6613,7 +6717,7 @@ See `buffer-display-table' for more information.  */);
 
   DEFVAR_LISP ("tab-bar-position", Vtab_bar_position,
 	       doc: /* Specify on which side from the tool bar the tab bar shall be.
-Possible values are `t' (below the tool bar), `nil' (above the tool bar).
+Possible values are t (below the tool bar), nil (above the tool bar).
 This option affects only builds where the tool bar is not external.  */);
 
   pdumper_do_now_and_after_load (syms_of_display_for_pdumper);

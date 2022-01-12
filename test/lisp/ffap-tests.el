@@ -74,8 +74,73 @@ left alone when opening a URL in an external browser."
              (urls nil)
              (ffap-url-fetcher (lambda (url) (push url urls) nil)))
     (should-not (ffap-other-window "https://www.gnu.org"))
-    (should (equal (current-window-configuration) old))
+    (should (compare-window-configurations (current-window-configuration) old))
     (should (equal urls '("https://www.gnu.org")))))
+
+(defun ffap-test-string (space string)
+  (let ((ffap-file-name-with-spaces space))
+    (with-temp-buffer
+      (insert string)
+      (goto-char (point-min))
+      (forward-char 10)
+      (ffap-string-at-point))))
+
+(ert-deftest ffap-test-with-spaces ()
+  (should
+   (equal
+    (ffap-test-string
+     t "c:/Program Files/Open Text Evaluation Media/Open Text Exceed 14 x86/Program here.txt")
+    "/Program Files/Open Text Evaluation Media/Open Text Exceed 14 x86/Program here.txt"))
+  (should
+   (equal
+    (ffap-test-string
+     nil "c:/Program Files/Open Text Evaluation Media/Open Text Exceed 14 x86/Program here.txt")
+    "c:/Program"))
+  (should
+   (equal
+    (ffap-test-string
+     t "c:/Program Files/Open Text Evaluation Media/Open Text Exceed 14 x86/Program Files/Hummingbird/")
+    "/Program Files/Open Text Evaluation Media/Open Text Exceed 14 x86/Program Files/Hummingbird/"))
+  (should
+   (equal
+    (ffap-test-string
+     t "c:\\Program Files\\Open Text Evaluation Media\\Open Text Exceed 14 x86\\Program Files\\Hummingbird\\")
+    "\\Program Files\\Open Text Evaluation Media\\Open Text Exceed 14 x86\\Program Files\\Hummingbird\\"))
+  (should
+   (equal
+    (ffap-test-string
+     t "c:\\Program Files\\Freescale\\CW for MPC55xx and MPC56xx 2.10\\PowerPC_EABI_Tools\\Command_Line_Tools\\CLT_Usage_Notes.txt")
+    "\\Program Files\\Freescale\\CW for MPC55xx and MPC56xx 2.10\\PowerPC_EABI_Tools\\Command_Line_Tools\\CLT_Usage_Notes.txt"))
+  (should
+   (equal
+    (ffap-test-string
+     t "C:\\temp\\program.log on Windows or /var/log/program.log on Unix.")
+    "\\temp\\program.log")))
+
+(ert-deftest ffap-test-no-newlines ()
+  (should-not
+   (with-temp-buffer
+     (save-excursion (insert "type="))
+     (ffap-guess-file-name-at-point))))
+
+(ert-deftest ffap-ido-mode ()
+  (require 'ido)
+  (with-temp-buffer
+    (let ((ido-mode t)
+          (read-file-name-function read-file-name-function)
+          (read-buffer-function read-buffer-function))
+      ;; Says ert-deftest:
+      ;; Macros in BODY are expanded when the test is defined, not when it
+      ;; is run.  If a macro (possibly with side effects) is to be tested,
+      ;; it has to be wrapped in `(eval (quote ...))'.
+      (eval (quote (ido-everywhere)))
+      (let ((read-file-name-function (lambda (&rest args)
+                                       (expand-file-name
+                                        (nth 4 args)
+                                        (nth 1 args)))))
+        (save-excursion (insert "ffap-tests.el"))
+        (let (kill-buffer-query-functions)
+          (kill-buffer (call-interactively #'find-file-at-point)))))))
 
 (provide 'ffap-tests)
 

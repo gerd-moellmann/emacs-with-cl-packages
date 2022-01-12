@@ -168,12 +168,14 @@ Thus, this does not include the current directory.")
 (defvar eshell-last-dir-ring nil
   "The last directory that Eshell was in.")
 
+(defconst eshell-inside-emacs (format "%s,eshell" emacs-version)
+  "Value for the `INSIDE_EMACS' environment variable.")
+
 ;;; Functions:
 
 (defun eshell-dirs-initialize ()    ;Called from `eshell-mode' via intern-soft!
   "Initialize the builtin functions for Eshell."
-  (make-local-variable 'eshell-variable-aliases-list)
-  (setq eshell-variable-aliases-list
+  (setq-local eshell-variable-aliases-list
 	(append
 	 eshell-variable-aliases-list
          `(("-" ,(lambda (indices)
@@ -191,15 +193,16 @@ Thus, this does not include the current directory.")
 		        (unless (ring-empty-p eshell-last-dir-ring)
 			  (expand-file-name
 			   (ring-ref eshell-last-dir-ring 0))))
+            t)
+           ("INSIDE_EMACS" eshell-inside-emacs
             t))))
 
   (when eshell-cd-on-directory
-    (make-local-variable 'eshell-interpreter-alist)
-    (setq eshell-interpreter-alist
-	  (cons (cons #'(lambda (file _args)
-                          (eshell-lone-directory-p file))
-		      'eshell-dirs-substitute-cd)
-		eshell-interpreter-alist)))
+    (setq-local eshell-interpreter-alist
+                (cons (cons (lambda (file _args)
+                              (eshell-lone-directory-p file))
+                            'eshell-dirs-substitute-cd)
+                      eshell-interpreter-alist)))
 
   (add-hook 'eshell-parse-argument-hook
 	    #'eshell-parse-user-reference nil t)
@@ -221,7 +224,7 @@ Thus, this does not include the current directory.")
 
   (add-hook 'eshell-exit-hook #'eshell-write-last-dir-ring nil t)
 
-  (add-hook 'kill-emacs-hook #'eshell-save-some-last-dir))
+  (add-hook 'kill-emacs-query-functions #'eshell-save-some-last-dir))
 
 (defun eshell-save-some-last-dir ()
   "Save the list-dir-ring for any open Eshell buffers."
@@ -235,7 +238,8 @@ Thus, this does not include the current directory.")
 			(format-message
 			 "Save last dir ring for Eshell buffer `%s'? "
 			 (buffer-name buf)))))
-	      (eshell-write-last-dir-ring))))))
+	      (eshell-write-last-dir-ring)))))
+  t)
 
 (defun eshell-lone-directory-p (file)
   "Test whether FILE is just a directory name, and not a command name."
@@ -284,9 +288,8 @@ Thus, this does not include the current directory.")
 	       (eshell-read-user-names)
 	       (pcomplete-uniquify-list
 		(mapcar
-		 (function
-		  (lambda (user)
-		    (file-name-as-directory (cdr user))))
+                 (lambda (user)
+                   (file-name-as-directory (cdr user)))
 		 eshell-user-names)))))))
 
 (defun eshell/pwd (&rest _args)

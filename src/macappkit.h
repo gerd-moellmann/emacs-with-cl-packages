@@ -858,6 +858,7 @@ typedef NSInteger NSGlyphProperty;
 #endif
 - (void)updatePresentationOptions;
 - (void)showMenuBar;
+- (BOOL)doesHoldQuit;
 @end
 
 /* Like NSWindow, but allows suspend/resume resize control tracking.

@@ -90,11 +90,10 @@ or `eshell-printn' for display."
 	     (car args))
 	    (t
 	     (mapcar
-	      (function
-	       (lambda (arg)
-		 (if (stringp arg)
-		     (set-text-properties 0 (length arg) nil arg))
-		 arg))
+              (lambda (arg)
+                (if (stringp arg)
+                    (set-text-properties 0 (length arg) nil arg))
+                arg)
 	      args)))))
       (if output-newline
 	  (cond
@@ -165,7 +164,7 @@ or `eshell-printn' for display."
 	 (set-default-file-modes
 	  (- 511 (car (read-from-string
 		       (concat "?\\" (number-to-string (car args)))))))
-       (error "setting umask symbolically is not yet implemented"))
+       (error "Setting umask symbolically is not yet implemented"))
      (eshell-print
       "Warning: umask changed for all new files created by Emacs.\n"))
    nil))

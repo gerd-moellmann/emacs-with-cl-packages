@@ -1,4 +1,4 @@
-;;; advice-tests.el --- Test suite for the new advice thingy.
+;;; nadvice-tests.el --- Test suite for the new advice thingy.  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
 
@@ -208,4 +208,4 @@ function being an around advice."
 ;; no-byte-compile: t
 ;; End:
 
-;;; advice-tests.el ends here.
+;;; nadvice-tests.el ends here

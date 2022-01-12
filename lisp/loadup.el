@@ -1,4 +1,4 @@
-;;; loadup.el --- load up standardly loaded Lisp files for Emacs
+;;; loadup.el --- load up standardly loaded Lisp files for Emacs  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1985-1986, 1992, 1994, 2001-2021 Free Software
 ;; Foundation, Inc.
@@ -57,7 +57,7 @@
 ;; bidi.c needs for its job.
 (setq redisplay--inhibit-bidi t)
 
-(message "dump mode: %s" dump-mode)
+(message "Dump mode: %s" dump-mode)
 
 ;; Add subdirectories to the load-path for files that might get
 ;; autoloaded when bootstrapping or running Emacs normally.
@@ -112,7 +112,7 @@
 
 (if (eq t purify-flag)
     ;; Hash consing saved around 11% of pure space in my tests.
-    (setq purify-flag (make-hash-table :test 'equal :size 80000)))
+    (setq purify-flag (make-hash-table :test #'equal :size 80000)))
 
 (message "Using load-path %s" load-path)
 
@@ -134,7 +134,7 @@
 
 ;; Do it after subr, since both after-load-functions and add-hook are
 ;; implemented in subr.el.
-(add-hook 'after-load-functions (lambda (f) (garbage-collect)))
+(add-hook 'after-load-functions (lambda (_) (garbage-collect)))
 
 (load "version")
 
@@ -151,13 +151,14 @@
 ;; variable its advertised default value (it starts as nil, see
 ;; xdisp.c).
 (setq resize-mini-windows 'grow-only)
-(setq load-source-file-function 'load-with-code-conversion)
+(setq load-source-file-function #'load-with-code-conversion)
 (load "files")
 
 ;; Load-time macro-expansion can only take effect after setting
 ;; load-source-file-function because of where it is called in lread.c.
 (load "emacs-lisp/macroexp")
-(if (byte-code-function-p (symbol-function 'macroexpand-all))
+(if (or (byte-code-function-p (symbol-function 'macroexpand-all))
+        (subr-native-elisp-p (symbol-function 'macroexpand-all)))
     nil
   ;; Since loaddefs is not yet loaded, macroexp's uses of pcase will simply
   ;; fail until pcase is explicitly loaded.  This also means that we have to
@@ -170,7 +171,6 @@
 (load "cus-face")
 (load "faces")  ; after here, `defface' may be used.
 
-(load "button")
 
 ;; We don't want to store loaddefs.el in the repository because it is
 ;; a generated file; but it is required in order to compile the lisp files.
@@ -187,12 +187,13 @@
   ;; In case loaddefs hasn't been generated yet.
   (file-error (load "ldefs-boot.el")))
 
-(let ((new (make-hash-table :test 'equal)))
+(let ((new (make-hash-table :test #'equal)))
   ;; Now that loaddefs has populated definition-prefixes, purify its contents.
   (maphash (lambda (k v) (puthash (purecopy k) (purecopy v) new))
            definition-prefixes)
   (setq definition-prefixes new))
 
+(load "button")                  ;After loaddefs, because of define-minor-mode!
 (load "emacs-lisp/nadvice")
 (load "emacs-lisp/cl-preloaded")
 (load "obarray")        ;abbrev.el is implemented in terms of obarrays.
@@ -253,9 +254,6 @@
 (load "startup")
 (load "term/tty-colors")
 (load "font-core")
-;; facemenu must be loaded before font-lock, because `facemenu-keymap'
-;; needs to be defined when font-lock is loaded.
-(load "facemenu")
 (load "emacs-lisp/syntax")
 (load "font-lock")
 (load "jit-lock")
@@ -265,6 +263,7 @@
     (load "scroll-bar"))
 (load "select")
 (load "emacs-lisp/timer")
+(load "emacs-lisp/easymenu")
 (load "isearch")
 (load "rfn-eshadow")
 
@@ -276,7 +275,6 @@
 (load "textmodes/paragraphs")
 (load "progmodes/prog-mode")
 (load "emacs-lisp/lisp-mode")
-(load "progmodes/elisp-mode")
 (load "textmodes/text-mode")
 (load "textmodes/fill")
 (load "newcomment")
@@ -344,6 +342,13 @@
     ;; Do it after loading term/foo-win.el since the value of the
     ;; mouse-wheel-*-event vars depends on those files being loaded or not.
     (load "mwheel"))
+
+;; progmodes/elisp-mode.el must be after w32-fns.el, to avoid this:
+;;"Eager macro-expansion failure: (void-function w32-convert-standard-filename)"
+;; which happens while processing 'elisp-flymake-byte-compile', when
+;; elisp-mode.elc is outdated.
+(load "progmodes/elisp-mode")
+
 ;; Preload some constants and floating point functions.
 (load "emacs-lisp/float-sup")
 
@@ -351,10 +356,15 @@
 (load "vc/ediff-hook")
 (load "uniquify")
 (load "electric")
+(load "paren")
+
+(load "emacs-lisp/shorthands")
+
 (load "emacs-lisp/eldoc")
 (load "cus-start") ;Late to reduce customize-rogue (needs loaddefs.el anyway)
 (if (not (eq system-type 'ms-dos))
     (load "tooltip"))
+(load "international/iso-transl") ; Binds Alt-[ and friends.
 
 ;; This file doesn't exist when building a development version of Emacs
 ;; from the repository.  It is generated just after temacs is built.
@@ -404,7 +414,7 @@ lost after dumping")))
             emacs-repository-branch (ignore-errors (emacs-repository-get-branch)))
       ;; A constant, so we shouldn't change it with `setq'.
       (defconst emacs-build-number
-	(if versions (1+ (apply 'max versions)) 1))))
+	(if versions (1+ (apply #'max versions)) 1))))
 
 
 (message "Finding pointers to doc strings...")
@@ -434,11 +444,11 @@ lost after dumping")))
 ;; We keep the load-history data in PURE space.
 ;; Make sure that the spine of the list is not in pure space because it can
 ;; be destructively mutated in lread.c:build_load_history.
-(setq load-history (mapcar 'purecopy load-history))
+(setq load-history (mapcar #'purecopy load-history))
 
 (set-buffer-modified-p nil)
 
-(remove-hook 'after-load-functions (lambda (f) (garbage-collect)))
+(remove-hook 'after-load-functions (lambda (_) (garbage-collect)))
 
 (if (boundp 'load--prefer-newer)
     (progn
@@ -452,6 +462,43 @@ lost after dumping")))
 
 ;; At this point, we're ready to resume undo recording for scratch.
 (buffer-enable-undo "*scratch*")
+
+(when (featurep 'native-compile)
+  ;; Fix the compilation unit filename to have it working when
+  ;; installed or if the source directory got moved.  This is set to be
+  ;; a pair in the form of:
+  ;;     (rel-filename-from-install-bin . rel-filename-from-local-bin).
+  (let ((h (make-hash-table :test #'eq))
+        (bin-dest-dir (cadr (member "--bin-dest" command-line-args)))
+        (eln-dest-dir (cadr (member "--eln-dest" command-line-args))))
+    (when (and bin-dest-dir eln-dest-dir)
+      (setq eln-dest-dir
+            (concat eln-dest-dir "native-lisp/" comp-native-version-dir "/"))
+      (mapatoms (lambda (s)
+                  (let ((f (symbol-function s)))
+                    (when (subr-native-elisp-p f)
+                      (puthash (subr-native-comp-unit f) nil h)))))
+      (maphash (lambda (cu _)
+                 (let* ((file (native-comp-unit-file cu))
+                        (preloaded (equal (substring (file-name-directory file)
+                                                     -10 -1)
+                                          "preloaded"))
+                        (eln-dest-dir-eff (if preloaded
+                                              (expand-file-name "preloaded"
+                                                                eln-dest-dir)
+                                            eln-dest-dir)))
+                   (native-comp-unit-set-file
+                    cu
+	            (cons
+                     ;; Relative filename from the installed binary.
+                     (file-relative-name (expand-file-name
+                                          (file-name-nondirectory
+                                           file)
+                                          eln-dest-dir-eff)
+                                         bin-dest-dir)
+                     ;; Relative filename from the built uninstalled binary.
+                     (file-relative-name file invocation-directory)))))
+	       h))))
 
 (when (hash-table-p purify-flag)
   (let ((strings 0)
@@ -480,12 +527,19 @@ lost after dumping")))
 ;; Make sure we will attempt bidi reordering henceforth.
 (setq redisplay--inhibit-bidi nil)
 
+
+
 (if dump-mode
     (let ((output (cond ((equal dump-mode "pdump") "emacs.pdmp")
                         ((equal dump-mode "dump") "emacs")
                         ((equal dump-mode "bootstrap") "emacs")
                         ((equal dump-mode "pbootstrap") "bootstrap-emacs.pdmp")
-                        (t (error "unrecognized dump mode %s" dump-mode)))))
+                        (t (error "Unrecognized dump mode %s" dump-mode)))))
+      (when (and (featurep 'native-compile)
+                 (equal dump-mode "pdump"))
+        ;; Don't enable this before bootstrap is completed, as the
+        ;; compiler infrastructure may not be usable yet.
+        (setq comp-enable-subr-trampolines t))
       (message "Dumping under the name %s" output)
       (condition-case ()
           (delete-file output)
@@ -495,7 +549,8 @@ lost after dumping")))
       (let (success)
         (unwind-protect
              (let ((tmp-dump-mode dump-mode)
-                   (dump-mode nil))
+                   (dump-mode nil)
+                   (lexical-binding nil))
                (if (member tmp-dump-mode '("pdump" "pbootstrap"))
                    (dump-emacs-portable (expand-file-name output invocation-directory))
                  (dump-emacs output "temacs")
@@ -542,8 +597,9 @@ lost after dumping")))
 ;; Don't keep `load-file-name' set during the top-level session!
 ;; Otherwise, it breaks a lot of code which does things like
 ;; (or load-file-name byte-compile-current-file).
+(setq load-true-file-name nil)
 (setq load-file-name nil)
-(eval top-level)
+(eval top-level t)
 
 
 ;; Local Variables:

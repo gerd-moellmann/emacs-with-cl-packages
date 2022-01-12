@@ -1,4 +1,4 @@
-;;; composite.el --- support character composition
+;;; composite.el --- support character composition  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
 
@@ -593,7 +593,6 @@ All non-spacing characters have this function in
 		       (as (lglyph-ascent glyph))
 		       (de (lglyph-descent glyph))
 		       (ce (/ (+ lb rb) 2))
-		       (w (lglyph-width glyph))
 		       xoff yoff)
 		  (cond
 		   ((and class (>= class 200) (<= class 240))
@@ -653,14 +652,15 @@ All non-spacing characters have this function in
 		   ((and (= class 0)
 			 (eq (get-char-code-property (lglyph-char glyph)
                                                      ;; Me = enclosing mark
-						     'general-category) 'Me))
+						     'general-category)
+			     'Me))
 		    ;; Artificially laying out glyphs in an enclosing
 		    ;; mark is difficult.  All we can do is to adjust
 		    ;; the x-offset and width of the base glyph to
 		    ;; align it at the center of the glyph of the
 		    ;; enclosing mark hoping that the enclosing mark
 		    ;; is big enough.  We also have to adjust the
-		    ;; x-offset and width of the mark ifself properly
+		    ;; x-offset and width of the mark itself properly
 		    ;; depending on how the glyph is designed.
 
 		    ;; (non-spacing or not).  For instance, when we
@@ -695,9 +695,7 @@ All non-spacing characters have this function in
 
 (defun compose-gstring-for-dotted-circle (gstring direction)
   (let* ((dc (lgstring-glyph gstring 0)) ; glyph of dotted-circle
-	 (dc-id (lglyph-code dc))
 	 (fc (lgstring-glyph gstring 1)) ; glyph of the following char
-	 (fc-id (lglyph-code fc))
 	 (gstr (and nil (font-shape-gstring gstring direction))))
     (if (and gstr
 	     (or (= (lgstring-glyph-len gstr) 1)
@@ -747,7 +745,18 @@ All non-spacing characters have this function in
      unicode-category-table))
   ;; for dotted-circle
   (aset composition-function-table #x25CC
-	`([,(purecopy ".\\c^") 0 compose-gstring-for-dotted-circle])))
+	`([,(purecopy ".\\c^") 0 compose-gstring-for-dotted-circle]))
+  ;; For prettier display of fractions
+  (set-char-table-range
+   composition-function-table
+   #x2044
+   ;; We use font-shape-gstring so that if the font doesn't support
+   ;; fractional display, the characters are shown separately, not as
+   ;; a composed cluster.
+   (list (vector (purecopy "[1-9][0-9][0-9]\u2044[0-9]+")
+                 3 'font-shape-gstring)
+         (vector (purecopy "[1-9][0-9]\u2044[0-9]+") 2 'font-shape-gstring)
+         (vector (purecopy "[1-9]\u2044[0-9]+") 1 'font-shape-gstring))))
 
 (defun compose-gstring-for-terminal (gstring _direction)
   "Compose glyph-string GSTRING for terminal display.
@@ -806,6 +815,35 @@ prepending a space before it."
 	      (setq i (1+ i)))))))
     gstring))
 
+(defun compose-gstring-for-variation-glyph (gstring _direction)
+  "Compose glyph-string GSTRING for graphic display.
+GSTRING must have two glyphs; the first is a glyph for a han character,
+and the second is a glyph for a variation selector."
+  (let* ((font (lgstring-font gstring))
+	 (han (lgstring-char gstring 0))
+	 (vs (lgstring-char gstring 1))
+	 (glyphs (font-variation-glyphs font han))
+	 (g0 (lgstring-glyph gstring 0))
+	 (g1 (lgstring-glyph gstring 1)))
+    (catch 'tag
+      (dolist (elt glyphs)
+	(if (= (car elt) vs)
+	    (progn
+	      (lglyph-set-code g0 (cdr elt))
+	      (lglyph-set-from-to g0 (lglyph-from g0) (lglyph-to g1))
+	      (lgstring-set-glyph gstring 1 nil)
+	      (throw 'tag gstring)))))))
+
+;; We explicitly don't handle #xFE0F (VS-16) here, because that's
+;; taken care of by font_range in font.c, which will check for an
+;; emoji font for codepoints used in compositions even if they're not
+;; emoji themselves, and thus choose the Emoji presentation for them
+;; when followed by VS-16.  VS-15 *is* handled here, because if it's
+;; handled in font_range, we end up choosing the Emoji presentation
+;; rather than the Text presentation.
+(let ((elt '([".." 1 compose-gstring-for-variation-glyph])))
+  (set-char-table-range composition-function-table '(#xFE00 . #xFE0E) elt)
+  (set-char-table-range composition-function-table '(#xE0100 . #xE01EF) elt))
 
 (defun auto-compose-chars (func from to font-object string direction)
   "Compose the characters at FROM by FUNC.
@@ -855,7 +893,7 @@ Auto Composition mode in all buffers (this is the default)."
   "Toggle Auto Composition mode in all buffers.
 
 For more information on Auto Composition mode, see
-`auto-composition-mode' ."
+`auto-composition-mode'."
   :global t
   :variable (default-value 'auto-composition-mode))
 

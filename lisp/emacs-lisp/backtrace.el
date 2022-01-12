@@ -190,7 +190,7 @@ This is commonly used to recompute `backtrace-frames'.")
 (defvar-local backtrace-print-function #'cl-prin1
   "Function used to print values in the current Backtrace buffer.")
 
-(defvar-local backtrace-goto-source-functions nil
+(defvar backtrace-goto-source-functions nil
   "Abnormal hook used to jump to the source code for the current frame.
 Each hook function is called with no argument, and should return
 non-nil if it is able to switch to the buffer containing the
@@ -638,10 +638,8 @@ content of the sexp."
          (source-available (plist-get (backtrace-frame-flags frame)
                                       :source-available)))
     (unless (and source-available
-                 (catch 'done
-                   (dolist (func backtrace-goto-source-functions)
-                     (when (funcall func)
-                       (throw 'done t)))))
+                 (run-hook-with-args-until-success
+                  'backtrace-goto-source-functions))
       (user-error "Source code location not known"))))
 
 (defun backtrace-help-follow-symbol (&optional pos)
@@ -870,7 +868,7 @@ commands.
 \\{backtrace-mode-map}
 
 A mode which inherits from Backtrace mode, or a command which
-creates a backtrace-mode buffer, should usually do the following:
+creates a `backtrace-mode' buffer, should usually do the following:
 
  - Set `backtrace-revert-hook', if the buffer contents need
    to be specially recomputed prior to `revert-buffer'.

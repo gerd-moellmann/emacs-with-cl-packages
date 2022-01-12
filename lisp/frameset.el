@@ -396,17 +396,17 @@ Properties can be set with
 ;; or, if you're only changing a few items,
 ;;
 ;;   (defvar my-filter-alist
-;;     (nconc '((my-param1 . :never)
-;;              (my-param2 . my-filtering-function))
-;;            frameset-filter-alist)
+;;     (append '((my-param1 . :never)
+;;		 (my-param2 . my-filtering-function))
+;;	       frameset-filter-alist)
 ;;     "My brief customized parameter filter alist.")
 ;;
 ;; and pass it to the FILTER arg of the save/restore functions,
 ;; ALWAYS taking care of not modifying the original lists; if you're
 ;; going to do any modifying of my-filter-alist, please use
 ;;
-;;   (nconc '((my-param1 . :never) ...)
-;;          (copy-sequence frameset-filter-alist))
+;;   (append '((my-param1 . :never) ...)
+;;	     (copy-sequence frameset-filter-alist))
 ;;
 ;; One thing you shouldn't forget is that they are alists, so searching
 ;; in them is sequential.  If you just want to change the default of
@@ -445,7 +445,7 @@ DO NOT MODIFY.  See `frameset-filter-alist' for a full description.")
 
 ;;;###autoload
 (defvar frameset-persistent-filter-alist
-  (nconc
+  (append
    '((background-color            . frameset-filter-sanitize-color)
      (buffer-list                 . :never)
      (buffer-predicate            . :never)
@@ -636,7 +636,7 @@ see `frameset-filter-alist'."
       (not (frameset-switch-to-gui-p parameters))
       (let* ((prefix:p (symbol-name (car current)))
 	     (p (intern (substring prefix:p
-				   (1+ (string-match-p ":" prefix:p)))))
+				   (1+ (string-search ":" prefix:p)))))
 	     (val (cdr current))
 	     (found (assq p filtered)))
 	(if (not found)
@@ -882,7 +882,7 @@ For the description of FORCE-ONSCREEN, see `frameset-restore'.
 When forced onscreen, frames wider than the monitor's workarea are converted
 to fullwidth, and frames taller than the workarea are converted to fullheight.
 NOTE: This only works for non-iconified frames."
-  (pcase-let* ((`(,left ,top ,width ,height) (cl-cdadr (frame-monitor-attributes frame)))
+  (pcase-let* ((`(,left ,top ,width ,height) (cdadr (frame-monitor-attributes frame)))
 	       (right (+ left width -1))
 	       (bottom (+ top height -1))
 	       (fr-left (frameset-compute-pos (frame-parameter frame 'left) left right))
@@ -1178,7 +1178,8 @@ FORCE-ONSCREEN can be:
 	   - a list (LEFT TOP WIDTH HEIGHT), describing the workarea.
 	   It must return non-nil to force the frame onscreen, nil otherwise.
 
-CLEANUP-FRAMES allows \"cleaning up\" the frame list after restoring a frameset:
+CLEANUP-FRAMES allows \"cleaning up\" the frame list after
+restoring a frameset:
   t        Delete all frames that were not created or restored upon.
   nil      Keep all frames.
   FUNC     A function called with two arguments:

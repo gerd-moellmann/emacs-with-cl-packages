@@ -1,4 +1,4 @@
-;;; eieio-opt.el -- eieio optional functions (debug, printing, speedbar)
+;;; eieio-opt.el --- eieio optional functions (debug, printing, speedbar)  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996, 1998-2003, 2005, 2008-2021 Free Software
 ;; Foundation, Inc.
@@ -136,9 +136,9 @@ are not abstract."
 	  (def (symbol-function ctr)))
       (goto-char (point-min))
       (prin1 ctr)
-      (insert (format " is an %s object constructor function"
+      (insert (format " is an %sobject constructor function"
 		      (if (autoloadp def)
-			  "autoloaded"
+			  "autoloaded "
 			"")))
       (when (and (autoloadp def)
 		 (null location))
@@ -278,14 +278,7 @@ are not abstract."
 
 (if eieio-class-speedbar-key-map
     nil
-  (if (not (featurep 'speedbar))
-      (add-hook 'speedbar-load-hook (lambda ()
-				      (eieio-class-speedbar-make-map)
-				      (speedbar-add-expansion-list
-				       '("EIEIO"
-					 eieio-class-speedbar-menu
-					 eieio-class-speedbar-key-map
-					 eieio-class-speedbar))))
+  (with-eval-after-load 'speedbar
     (eieio-class-speedbar-make-map)
     (speedbar-add-expansion-list '("EIEIO"
 				   eieio-class-speedbar-menu
@@ -330,7 +323,7 @@ current expansion depth."
 (defun eieio-sb-expand (text class indent)
   "For button TEXT, expand CLASS at the current location.
 Argument INDENT is the depth of indentation."
-  (cond ((string-match "\\+" text)	;we have to expand this file
+  (cond ((string-search "+" text)	;we have to expand this file
 	 (speedbar-change-expand-button-char ?-)
 	 (speedbar-with-writable
 	   (save-excursion
@@ -339,7 +332,7 @@ Argument INDENT is the depth of indentation."
 	       (while subclasses
 		 (eieio-class-button (car subclasses) (1+ indent))
 		 (setq subclasses (cdr subclasses)))))))
-	((string-match "-" text)	;we have to contract this node
+	((string-search "-" text)	;we have to contract this node
 	 (speedbar-change-expand-button-char ?+)
 	 (speedbar-delete-subblock indent))
 	(t (error "Ooops...  not sure what to do")))

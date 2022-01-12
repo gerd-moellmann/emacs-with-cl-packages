@@ -1,4 +1,4 @@
-;;; subr-tests.el --- Tests for subr.el
+;;; subr-tests.el --- Tests for subr.el  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
 
@@ -60,6 +60,69 @@
                            "\\<\\(?:\\(?:fals\\|tru\\)e\\)\\>")
                      (quote
                       (0 font-lock-keyword-face))))))))
+
+
+;;;; List functions.
+
+(ert-deftest subr-test-caaar ()
+  (should (null (caaar '())))
+  (should (null (caaar '(() (2)))))
+  (should (null (caaar '((() (2)) (a b)))))
+  (should-error (caaar '(1 2)) :type 'wrong-type-argument)
+  (should-error (caaar '((1 2))) :type 'wrong-type-argument)
+  (should (=  1 (caaar '(((1 2) (3 4))))))
+  (should (null (caaar '((() (3 4)))))))
+
+(ert-deftest subr-test-caadr ()
+  (should (null (caadr '())))
+  (should (null (caadr '(1))))
+  (should-error (caadr '(1 2)) :type 'wrong-type-argument)
+  (should (= 2 (caadr '(1 (2 3)))))
+  (should (equal '((2) (3)) (caadr '((1) (((2) (3))) (4))))))
+
+
+;;;; Keymap support.
+
+(ert-deftest subr-test-kbd ()
+  (should (equal (kbd "f") "f"))
+  (should (equal (kbd "<f1>") [f1]))
+  (should (equal (kbd "RET") "\C-m"))
+  (should (equal (kbd "C-x a") "\C-xa"))
+  ;; Check that kbd handles both new and old style key descriptions
+  ;; (bug#45536).
+  (should (equal (kbd "s-<return>") [s-return]))
+  (should (equal (kbd "<s-return>") [s-return]))
+  (should (equal (kbd "C-M-<return>") [C-M-return]))
+  (should (equal (kbd "<C-M-return>") [C-M-return])))
+
+(ert-deftest subr-test-define-prefix-command ()
+  (define-prefix-command 'foo-prefix-map)
+  (defvar foo-prefix-map)
+  (declare-function foo-prefix-map "subr-tests")
+  (should (keymapp foo-prefix-map))
+  (should (fboundp #'foo-prefix-map))
+  ;; With optional argument.
+  (define-prefix-command 'bar-prefix 'bar-prefix-map)
+  (defvar bar-prefix-map)
+  (declare-function bar-prefix "subr-tests")
+  (should (keymapp bar-prefix-map))
+  (should (fboundp #'bar-prefix))
+  ;; Returns the symbol.
+  (should (eq (define-prefix-command 'foo-bar) 'foo-bar)))
+
+(ert-deftest subr-test-local-key-binding ()
+  (with-temp-buffer
+    (emacs-lisp-mode)
+    (should (keymapp (local-key-binding [menu-bar])))
+    (should-not (local-key-binding [f12]))))
+
+(ert-deftest subr-test-global-key-binding ()
+  (should (eq (global-key-binding [f1]) 'help-command))
+  (should (eq (global-key-binding "x") 'self-insert-command))
+  (should-not (global-key-binding [f12])))
+
+
+;;;; Mode hooks.
 
 (defalias 'subr-tests--parent-mode
   (if (fboundp 'prog-mode) 'prog-mode 'fundamental-mode))
@@ -172,27 +235,28 @@
   (should (equal (version-to-list "6.9.30Beta") '(6 9 30 -2)))
   (should (equal (version-to-list "6.9.30_Beta") '(6 9 30 -2)))
 
-  (should (equal
-            (error-message-string (should-error (version-to-list "OTP-18.1.5")))
-            "Invalid version syntax: `OTP-18.1.5' (must start with a number)"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "")))
-            "Invalid version syntax: `' (must start with a number)"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "1.0..7.5")))
-            "Invalid version syntax: `1.0..7.5'"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "1.0prepre2")))
-            "Invalid version syntax: `1.0prepre2'"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "22.8X3")))
-            "Invalid version syntax: `22.8X3'"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "beta22.8alpha3")))
-            "Invalid version syntax: `beta22.8alpha3' (must start with a number)"))
-  (should (equal
-            (error-message-string (should-error (version-to-list "honk")))
-            "Invalid version syntax: `honk' (must start with a number)"))
+  (let ((text-quoting-style 'grave))
+    (should (equal
+             (error-message-string (should-error (version-to-list "OTP-18.1.5")))
+             "Invalid version syntax: `OTP-18.1.5' (must start with a number)"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "")))
+             "Invalid version syntax: `' (must start with a number)"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "1.0..7.5")))
+             "Invalid version syntax: `1.0..7.5'"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "1.0prepre2")))
+             "Invalid version syntax: `1.0prepre2'"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "22.8X3")))
+             "Invalid version syntax: `22.8X3'"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "beta22.8alpha3")))
+             "Invalid version syntax: `beta22.8alpha3' (must start with a number)"))
+    (should (equal
+             (error-message-string (should-error (version-to-list "honk")))
+             "Invalid version syntax: `honk' (must start with a number)")))
   (should (equal
             (error-message-string (should-error (version-to-list 9)))
             "Version must be a string"))
@@ -231,18 +295,40 @@
     (should (equal (version-to-list "6_9_30.Beta") '(6 9 30 -2)))
     (should (equal (version-to-list "6_9_30Beta") '(6 9 30 -2)))
 
-    (should (equal
-              (error-message-string (should-error (version-to-list "1_0__7_5")))
-              "Invalid version syntax: `1_0__7_5'"))
-    (should (equal
-              (error-message-string (should-error (version-to-list "1_0prepre2")))
-              "Invalid version syntax: `1_0prepre2'"))
-    (should (equal
-              (error-message-string (should-error (version-to-list "22.8X3")))
-              "Invalid version syntax: `22.8X3'"))
-    (should (equal
-              (error-message-string (should-error (version-to-list "beta22_8alpha3")))
-              "Invalid version syntax: `beta22_8alpha3' (must start with a number)"))))
+    (let ((text-quoting-style 'grave))
+      (should (equal
+               (error-message-string (should-error (version-to-list "1_0__7_5")))
+               "Invalid version syntax: `1_0__7_5'"))
+      (should (equal
+               (error-message-string (should-error (version-to-list "1_0prepre2")))
+               "Invalid version syntax: `1_0prepre2'"))
+      (should (equal
+               (error-message-string (should-error (version-to-list "22.8X3")))
+               "Invalid version syntax: `22.8X3'"))
+      (should (equal
+               (error-message-string (should-error (version-to-list "beta22_8alpha3")))
+               "Invalid version syntax: `beta22_8alpha3' (must start with a number)")))))
+
+(ert-deftest subr-test-version-list-< ()
+  (should (version-list-< '(0) '(1)))
+  (should (version-list-< '(0 9) '(1 0)))
+  (should (version-list-< '(1 -1) '(1 0)))
+  (should (version-list-< '(1 -2) '(1 -1)))
+  (should (not (version-list-< '(1) '(0))))
+  (should (not (version-list-< '(1 1) '(1 0))))
+  (should (not (version-list-< '(1) '(1 0))))
+  (should (not (version-list-< '(1 0) '(1 0 0)))))
+
+(ert-deftest subr-test-version-list-= ()
+  (should (version-list-= '(1) '(1)))
+  (should (version-list-= '(1 0) '(1)))
+  (should (not (version-list-= '(0) '(1)))))
+
+(ert-deftest subr-test-version-list-<= ()
+  (should (version-list-<= '(0) '(1)))
+  (should (version-list-<= '(1) '(1)))
+  (should (version-list-<= '(1 0) '(1)))
+  (should (not (version-list-<= '(1) '(0)))))
 
 (defun subr-test--backtrace-frames-with-backtrace-frame (base)
   "Reference implementation of `backtrace-frames'."
@@ -315,7 +401,7 @@ cf. Bug#25477."
   "Test for https://debbugs.gnu.org/22027 ."
   (let ((default "foo") res)
     (cl-letf (((symbol-function 'read-string)
-               (lambda (_prompt _init _hist def) def)))
+               (lambda (_prompt &optional _init _hist def _inher-input) def)))
       (setq res (read-passwd "pass: " 'confirm (mapconcat #'string default "")))
       (should (string= default res)))))
 
@@ -381,6 +467,15 @@ See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19350."
   (should (equal (flatten-tree '(1 ("foo" "bar") 2))
                  '(1 "foo" "bar" 2))))
 
+(ert-deftest subr--tests-letrec ()
+  ;; Test that simple cases of `letrec' get optimized back to `let*'.
+  (should (equal (macroexpand '(letrec ((subr-tests-var1 1)
+                                        (subr-tests-var2 subr-tests-var1))
+                                 (+ subr-tests-var1 subr-tests-var2)))
+                 '(let* ((subr-tests-var1 1)
+                         (subr-tests-var2 subr-tests-var1))
+                    (+ subr-tests-var1 subr-tests-var2)))))
+
 (defvar subr-tests--hook nil)
 
 (ert-deftest subr-tests-add-hook-depth ()
@@ -397,11 +492,11 @@ See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19350."
   (should (equal subr-tests--hook '(f5 f2 f1 f4 f3)))
   (add-hook 'subr-tests--hook 'f6)
   (should (equal subr-tests--hook '(f5 f6 f2 f1 f4 f3)))
-  ;; Make sure `t' is equivalent to 90.
+  ;; Make sure t is equivalent to 90.
   (add-hook 'subr-tests--hook 'f7 90)
   (add-hook 'subr-tests--hook 'f8 t)
   (should (equal subr-tests--hook '(f5 f6 f2 f1 f4 f3 f7 f8)))
-  ;; Make sue `nil' is equivalent to 0.
+  ;; Make sure nil is equivalent to 0.
   (add-hook 'subr-tests--hook 'f9 0)
   (add-hook 'subr-tests--hook 'f10)
   (should (equal subr-tests--hook '(f5 f10 f9 f6 f2 f1 f4 f3 f7 f8)))
@@ -416,6 +511,277 @@ See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19350."
                  nil))
   (should-error (ignore-error foo
                   (read ""))))
+
+(ert-deftest string-replace ()
+  (should (equal (string-replace "foo" "bar" "zot")
+                 "zot"))
+  (should (equal (string-replace "foo" "bar" "foozot")
+                 "barzot"))
+  (should (equal (string-replace "foo" "bar" "barfoozot")
+                 "barbarzot"))
+  (should (equal (string-replace "zot" "bar" "barfoozot")
+                 "barfoobar"))
+  (should (equal (string-replace "z" "bar" "barfoozot")
+                 "barfoobarot"))
+  (should (equal (string-replace "zot" "bar" "zat")
+                 "zat"))
+  (should (equal (string-replace "azot" "bar" "zat")
+                 "zat"))
+  (should (equal (string-replace "azot" "bar" "azot")
+                 "bar"))
+
+  (should (equal (string-replace "azot" "bar" "foozotbar")
+                 "foozotbar"))
+
+  (should (equal (string-replace "fo" "bar" "lafofofozot")
+                 "labarbarbarzot"))
+
+  (should (equal (string-replace "\377" "x" "a\377b")
+                 "axb"))
+  (should (equal (string-replace "\377" "x" "a\377ø")
+                 "axø"))
+  (should (equal (string-replace (string-to-multibyte "\377") "x" "a\377b")
+                 "axb"))
+  (should (equal (string-replace (string-to-multibyte "\377") "x" "a\377ø")
+                 "axø"))
+
+  (should (equal (string-replace "ana" "ANA" "ananas") "ANAnas"))
+
+  (should (equal (string-replace "a" "" "") ""))
+  (should (equal (string-replace "a" "" "aaaaa") ""))
+  (should (equal (string-replace "ab" "" "ababab") ""))
+  (should (equal (string-replace "ab" "" "abcabcabc") "ccc"))
+  (should (equal (string-replace "a" "aa" "aaa") "aaaaaa"))
+  (should (equal (string-replace "abc" "defg" "abc") "defg"))
+
+  (should (equal (should-error (string-replace "" "x" "abc"))
+                 '(wrong-length-argument 0))))
+
+(ert-deftest subr-replace-regexp-in-string ()
+  (should (equal (replace-regexp-in-string "a+" "xy" "abaabbabaaba")
+                 "xybxybbxybxybxy"))
+  ;; FIXEDCASE
+  (let ((case-fold-search t))
+    (should (equal (replace-regexp-in-string "a+" "xy" "ABAABBABAABA")
+                   "XYBXYBBXYBXYBXY"))
+    (should (equal (replace-regexp-in-string "a+" "xy" "ABAABBABAABA" t)
+                   "xyBxyBBxyBxyBxy"))
+    (should (equal (replace-regexp-in-string
+                    "a[bc]*" "xyz"
+                    "a A ab AB Ab aB abc ABC Abc AbC aBc")
+                   "xyz XYZ xyz XYZ Xyz xyz xyz XYZ Xyz Xyz xyz"))
+    (should (equal (replace-regexp-in-string
+                    "a[bc]*" "xyz"
+                    "a A ab AB Ab aB abc ABC Abc AbC aBc" t)
+                   "xyz xyz xyz xyz xyz xyz xyz xyz xyz xyz xyz")))
+  (let ((case-fold-search nil))
+    (should (equal (replace-regexp-in-string "a+" "xy" "ABAABBABAABA")
+                   "ABAABBABAABA")))
+  ;; group substitution
+  (should (equal (replace-regexp-in-string
+                  "a\\(b*\\)" "<\\1,\\&>" "babbcaabacbab")
+                 "b<bb,abb>c<,a><b,ab><,a>cb<b,ab>"))
+  (should (equal (replace-regexp-in-string
+                  "x\\(?2:..\\)\\(?1:..\\)\\(..\\)\\(..\\)\\(..\\)"
+                  "<\\3,\\5,\\4,\\1,\\2>" "yxabcdefghijkl")
+                 "y<ef,ij,gh,cd,ab>kl"))
+  ;; LITERAL
+  (should (equal (replace-regexp-in-string
+                  "a\\(b*\\)" "<\\1,\\&>" "babbcaabacbab" nil t)
+                 "b<\\1,\\&>c<\\1,\\&><\\1,\\&><\\1,\\&>cb<\\1,\\&>"))
+  (should (equal (replace-regexp-in-string
+                  "a" "\\\\,\\?" "aba")
+                 "\\,\\?b\\,\\?"))
+  (should (equal (replace-regexp-in-string
+                  "a" "\\\\,\\?" "aba" nil t)
+                 "\\\\,\\?b\\\\,\\?"))
+  ;; SUBEXP
+  (should (equal (replace-regexp-in-string
+                  "\\(a\\)\\(b*\\)c" "xy" "babbcdacd" nil nil 2)
+                 "baxycdaxycd"))
+  ;; START
+  (should (equal (replace-regexp-in-string
+                  "ab" "x" "abcabdabeabf" nil nil nil 4)
+                 "bdxexf"))
+  ;; An empty pattern matches once before every character.
+  (should (equal (replace-regexp-in-string "" "x" "abc")
+                 "xaxbxc"))
+  (should (equal (replace-regexp-in-string "y*" "x" "abc")
+                 "xaxbxc"))
+  ;; replacement function
+  (should (equal (replace-regexp-in-string
+                  "a\\(b*\\)c"
+                  (lambda (s)
+                    (format "<%s,%s,%s,%s,%s>"
+                            s
+                            (match-beginning 0) (match-end 0)
+                            (match-beginning 1) (match-end 1)))
+                  "babbcaacabc")
+                 "b<abbc,0,4,1,3>a<ac,0,2,1,1><abc,0,3,1,2>"))
+  ;; anchors (bug#15107, bug#44861)
+  (should (equal (replace-regexp-in-string "a\\B" "b" "a aaaa")
+                 "a bbba"))
+  (should (equal (replace-regexp-in-string "\\`\\|x" "z" "--xx--")
+                 "z--zz--")))
+
+(ert-deftest subr-match-substitute-replacement ()
+  (with-temp-buffer
+    (insert "Alpha Beta Gamma Delta Epsilon")
+    (goto-char (point-min))
+    (re-search-forward "B\\(..\\)a")
+    (should (equal (match-substitute-replacement "carrot")
+                   "Carrot"))
+    (should (equal (match-substitute-replacement "<\\&>")
+                   "<Beta>"))
+    (should (equal (match-substitute-replacement "m\\1a")
+                   "Meta"))
+    (should (equal (match-substitute-replacement "ernin" nil nil nil 1)
+                   "Bernina")))
+  (let ((s "Tau Beta Gamma Delta Epsilon"))
+    (string-match "B\\(..\\)a" s)
+    (should (equal (match-substitute-replacement "carrot" nil nil s)
+                   "Carrot"))
+    (should (equal (match-substitute-replacement "<\\&>" nil nil s)
+                   "<Beta>"))
+    (should (equal (match-substitute-replacement "m\\1a" nil nil s)
+                   "Meta"))
+    (should (equal (match-substitute-replacement "ernin" nil nil s 1)
+                   "Bernina"))))
+
+(ert-deftest subr-tests--change-group-33341 ()
+  (with-temp-buffer
+    (buffer-enable-undo)
+    (insert "0\n")
+    (let ((g (prepare-change-group)))
+      (activate-change-group g)
+      (insert "b\n")
+      (insert "c\n")
+      (cancel-change-group g))
+    (should (equal (buffer-string) "0\n"))
+    (erase-buffer)
+    (setq buffer-undo-list nil)
+    (insert "0\n")
+    (let ((g (prepare-change-group)))
+      (activate-change-group g)
+      (insert "b\n")
+      (insert "c\n")
+      (accept-change-group g))
+    (should (equal (buffer-string) "0\nb\nc\n"))
+    (undo-boundary)
+    (undo)
+    (should (equal (buffer-string) ""))))
+
+(defvar subr--ordered nil)
+
+(ert-deftest subr--add-to-ordered-list-eq ()
+  (setq subr--ordered nil)
+  (add-to-ordered-list 'subr--ordered 'b 2)
+  (should (equal subr--ordered '(b)))
+  (add-to-ordered-list 'subr--ordered 'c 3)
+  (should (equal subr--ordered '(b c)))
+  (add-to-ordered-list 'subr--ordered 'a 1)
+  (should (equal subr--ordered '(a b c)))
+  (add-to-ordered-list 'subr--ordered 'e)
+  (should (equal subr--ordered '(a b c e)))
+  (add-to-ordered-list 'subr--ordered 'd 4)
+  (should (equal subr--ordered '(a b c d e)))
+  (add-to-ordered-list 'subr--ordered 'e)
+  (should (equal subr--ordered '(a b c d e)))
+  (add-to-ordered-list 'subr--ordered 'b 5)
+  (should (equal subr--ordered '(a c d b e))))
+
+
+;;; Apropos.
+
+(ert-deftest apropos-apropos-internal ()
+  (should (equal (apropos-internal "^next-line$") '(next-line)))
+  (should (>= (length (apropos-internal "^help")) 100))
+  (should-not (apropos-internal "^test-a-missing-symbol-foo-bar-zot$")))
+
+(ert-deftest apropos-apropos-internal/predicate ()
+  (should (equal (apropos-internal "^next-line$" #'commandp) '(next-line)))
+  (should (>= (length (apropos-internal "^help" #'commandp)) 15))
+  (should-not (apropos-internal "^next-line$" #'keymapp)))
+
+
+(ert-deftest test-buffer-local-boundp ()
+  (let ((buf (generate-new-buffer "boundp")))
+    (with-current-buffer buf
+      (setq-local test-boundp t))
+    (setq test-global-boundp t)
+    (should (buffer-local-boundp 'test-boundp buf))
+    (should-not (buffer-local-boundp 'test-not-boundp buf))
+    (should (buffer-local-boundp 'test-global-boundp buf))))
+
+(ert-deftest test-replace-string-in-region ()
+  (with-temp-buffer
+    (insert "foo bar zot foobar")
+    (should (= (replace-string-in-region "foo" "new" (point-min) (point-max))
+               2))
+    (should (equal (buffer-string) "new bar zot newbar")))
+
+  (with-temp-buffer
+    (insert "foo bar zot foobar")
+    (should (= (replace-string-in-region "foo" "new" (point-min) 14)
+               1))
+    (should (equal (buffer-string) "new bar zot foobar")))
+
+  (with-temp-buffer
+    (insert "foo bar zot foobar")
+    (should-error (replace-string-in-region "foo" "new" (point-min) 30)))
+
+  (with-temp-buffer
+    (insert "Foo bar zot foobar")
+    (should (= (replace-string-in-region "Foo" "new" (point-min))
+               1))
+    (should (equal (buffer-string) "new bar zot foobar"))))
+
+(ert-deftest test-replace-regexp-in-region ()
+  (with-temp-buffer
+    (insert "foo bar zot foobar")
+    (should (= (replace-regexp-in-region "fo+" "new" (point-min) (point-max))
+               2))
+    (should (equal (buffer-string) "new bar zot newbar")))
+
+  (with-temp-buffer
+    (insert "foo bar zot foobar")
+    (should (= (replace-regexp-in-region "fo+" "new" (point-min) 14)
+               1))
+    (should (equal (buffer-string) "new bar zot foobar")))
+
+  (with-temp-buffer
+    (insert "foo bar zot foobar")
+    (should-error (replace-regexp-in-region "fo+" "new" (point-min) 30)))
+
+  (with-temp-buffer
+    (insert "Foo bar zot foobar")
+    (should (= (replace-regexp-in-region "Fo+" "new" (point-min))
+               1))
+    (should (equal (buffer-string) "new bar zot foobar"))))
+
+(ert-deftest test-with-existing-directory ()
+  (let ((dir (make-temp-name "/tmp/not-exist-")))
+    (let ((default-directory dir))
+      (should-not (file-exists-p default-directory)))
+    (with-existing-directory
+      (should-not (equal dir default-directory))
+      (should (file-exists-p default-directory)))))
+
+(ert-deftest subr-test-internal--format-docstring-line ()
+  (should
+   (string= (let ((fill-column 70))
+              (internal--format-docstring-line
+               "In addition to any hooks its parent mode might have run, this \
+mode runs the hook ‘foo-bar-baz-very-long-name-indeed-mode-hook’, as the final \
+or penultimate step during initialization."))
+            "In addition to any hooks its parent mode might have run, this mode
+runs the hook ‘foo-bar-baz-very-long-name-indeed-mode-hook’, as the
+final or penultimate step during initialization.")))
+
+(ert-deftest test-ensure-list ()
+  (should (equal (ensure-list nil) nil))
+  (should (equal (ensure-list :foo) '(:foo)))
+  (should (equal (ensure-list '(1 2 3)) '(1 2 3))))
 
 (provide 'subr-tests)
 ;;; subr-tests.el ends here

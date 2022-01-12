@@ -1,4 +1,4 @@
-;;; gametree.el --- manage game analysis trees in Emacs
+;;; gametree.el --- manage game analysis trees in Emacs  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1997, 1999, 2001-2021 Free Software Foundation, Inc.
 
@@ -79,7 +79,6 @@
 
 ;;; Code:
 
-(require 'derived)
 (require 'outline)
 
 ;;;; Configuration variables
@@ -98,35 +97,30 @@ numbers of moves by Black (if considered in isolation) by the ellipsis
 conflicts with the use of ellipsis by Outline mode to denote collapsed
 subtrees.  The author uses \":\" because it agrees nicely with a set of
 LaTeX macros he uses for typesetting annotated games."
-  :type 'regexp
-  :group 'gametree)
+  :type 'regexp)
 
 (defcustom gametree-full-ply-regexp (regexp-quote ".")
   "Matches ends of numbers of moves by the \"first\" player.
 For instance, it is an almost universal convention in chess to postfix
 numbers of moves by White (if considered in isolation) by the dot \".\"."
-  :type 'regexp
-  :group 'gametree)
+  :type 'regexp)
 
 (defcustom gametree-half-ply-format "%d:"
   "Output format for move numbers of moves by the \"second\" player.
 Has to contain \"%d\" to output the actual number."
-  :type 'string
-  :group 'gametree)
+  :type 'string)
 
 (defcustom gametree-full-ply-format "%d."
   "Output format for move numbers of moves by the \"first\" player.
 Has to contain \"%d\" to output the actual number."
-  :type 'string
-  :group 'gametree)
+  :type 'string)
 
 (defcustom gametree-make-heading-function
-  (function (lambda (level)
-              (insert (make-string level ?*))))
+  (lambda (level)
+    (insert (make-string level ?*)))
   "A function of one numeric argument, LEVEL, to insert a heading at point.
 You should change this if you change `outline-regexp'."
-  :type 'function
-  :group 'gametree)
+  :type 'function)
 
 (defvar gametree-local-layout nil
   "A list encoding the layout (i.e. the show or hide state) of the file.
@@ -138,18 +132,15 @@ the file is visited (subject to the usual restriction via
 
 (defcustom gametree-score-opener "{score="
   "The string which opens a score tag, and precedes the actual score."
-  :type 'string
-  :group 'gametree)
+  :type 'string)
 
 (defcustom gametree-score-manual-flag "!"
   "String marking the line as manually (as opposed to automatically) scored."
-  :type 'string
-  :group 'gametree)
+  :type 'string)
 
 (defcustom gametree-score-closer "}"
   "The string which closes a score tag, and follows the actual score."
-  :type 'string
-  :group 'gametree)
+  :type 'string)
 
 (defcustom gametree-score-regexp
   (concat "[^\n\^M]*\\("
@@ -167,13 +158,11 @@ line as *manually* (as opposed to automatically) scored, which
 prevents the program from recursively applying the scoring algorithm
 on the subtree headed by the marked line, and makes it use the manual
 score instead."
-  :type 'regexp
-  :group 'gametree)
+  :type 'regexp)
 
 (defcustom gametree-default-score 0
   "Score to assume for branches lacking score tags."
-  :type 'integer
-  :group 'gametree)
+  :type 'integer)
 
 ;;;; Helper functions
 
@@ -324,7 +313,7 @@ This value is simply the outline heading level of the current line."
 (defun gametree-hack-file-layout ()
   (save-excursion
     (goto-char (point-min))
-    (if (looking-at "[^\n]*-*-[^\n]*gametree-local-layout: \\([^;\n]*\\);")
+    (if (looking-at "[^\n]*-[^\n]*gametree-local-layout: \\([^;\n]*\\);")
         (progn
           (goto-char (match-beginning 1))
           (delete-region (point) (match-end 1))
@@ -519,7 +508,7 @@ being entered automatically (and thus should lack the manual mark)."
         (insert (int-to-string (prefix-numeric-value score))))))
 
 (defun gametree-compute-and-insert-score ()
-  "Compute current node score, maybe recursively from subnodes. Insert it.
+  "Compute current node score, maybe recursively from subnodes.  Insert it.
 Subnodes which have been manually scored are honored."
   (interactive "*")
   (let ((auto (not (and (looking-at gametree-score-regexp)

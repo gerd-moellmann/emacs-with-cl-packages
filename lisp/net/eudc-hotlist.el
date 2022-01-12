@@ -1,4 +1,4 @@
-;;; eudc-hotlist.el --- hotlist management for EUDC
+;;; eudc-hotlist.el --- hotlist management for EUDC  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
 
@@ -37,12 +37,12 @@
 
 (defvar eudc-hotlist-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "a" 'eudc-hotlist-add-server)
-    (define-key map "d" 'eudc-hotlist-delete-server)
-    (define-key map "s" 'eudc-hotlist-select-server)
-    (define-key map "t" 'eudc-hotlist-transpose-servers)
-    (define-key map "q" 'eudc-hotlist-quit-edit)
-    (define-key map "x" 'kill-current-buffer)
+    (define-key map "a" #'eudc-hotlist-add-server)
+    (define-key map "d" #'eudc-hotlist-delete-server)
+    (define-key map "s" #'eudc-hotlist-select-server)
+    (define-key map "t" #'eudc-hotlist-transpose-servers)
+    (define-key map "q" #'eudc-hotlist-quit-edit)
+    (define-key map "x" #'kill-current-buffer)
     map))
 
 (define-derived-mode eudc-hotlist-mode fundamental-mode "EUDC-Servers"
@@ -174,9 +174,8 @@ These are the special commands of this mode:
     ["Save and Quit" eudc-hotlist-quit-edit t]
     ["Exit without Saving" kill-this-buffer t]))
 
-(easy-menu-define eudc-hotlist-emacs-menu
-    eudc-hotlist-mode-map
-    ""
+(easy-menu-define eudc-hotlist-emacs-menu eudc-hotlist-mode-map
+    "EUDC hotlist Menu."
     eudc-hotlist-menu)
 
 ;;; eudc-hotlist.el ends here

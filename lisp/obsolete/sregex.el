@@ -1,4 +1,4 @@
-;;; sregex.el --- symbolic regular expressions
+;;; sregex.el --- symbolic regular expressions  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1997-1998, 2000-2021 Free Software Foundation, Inc.
 
@@ -208,7 +208,7 @@
 ;;   This is a "trapdoor" for including ordinary regular expression
 ;;   strings in the result.  Some regular expressions are clearer when
 ;;   written the old way: "[a-z]" vs. (sregexq (char (?a . ?z))), for
-;;   instance.  However, see the note under "Bugs," below.
+;;   instance.
 
 ;; Each CHAR-CLAUSE that is passed to (char ...) and (not-char ...)
 ;; has one of the following forms:
@@ -236,8 +236,6 @@
 ;; - add support for non-greedy operators *? and +?
 ;; - bug: (sregexq (opt (opt ?a))) returns "a??" which is a non-greedy "a?"
 
-;;; Bugs:
-
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
@@ -246,15 +244,15 @@
 (defvar sregex--current-sregex nil)
 (defun sregex-info () nil)
 (defmacro sregex-save-match-data (&rest forms) (cons 'save-match-data forms))
-(defun sregex-replace-match (r &optional f l str subexp x)
+(defun sregex-replace-match (r &optional f l str subexp _x)
   (replace-match r f l str subexp))
-(defun sregex-match-string (c &optional i x) (match-string c i))
-(defun sregex-match-string-no-properties (count &optional in-string sregex)
+(defun sregex-match-string (c &optional i _x) (match-string c i))
+(defun sregex-match-string-no-properties (count &optional in-string _sregex)
   (match-string-no-properties count in-string))
-(defun sregex-match-beginning (count &optional sregex) (match-beginning count))
-(defun sregex-match-end (count &optional sregex) (match-end count))
-(defun sregex-match-data (&optional sregex) (match-data))
-(defun sregex-backref-num (n &optional sregex) n)
+(defun sregex-match-beginning (count &optional _sregex) (match-beginning count))
+(defun sregex-match-end (count &optional _sregex) (match-end count))
+(defun sregex-match-data (&optional _sregex) (match-data))
+(defun sregex-backref-num (n &optional _sregex) n)
 
 
 (defun sregex (&rest exps)
@@ -525,23 +523,23 @@ has one of the following forms:
           (concat "\\(?:" re "\\)")
         re))))
 
-(defun sregex--group (exps combine) (concat "\\(" (sregex--sequence exps nil) "\\)"))
+(defun sregex--group (exps _combine) (concat "\\(" (sregex--sequence exps nil) "\\)"))
 
-(defun sregex--backref (exps combine) (concat "\\" (int-to-string (car exps))))
-(defun sregex--opt (exps combine) (concat (sregex--sequence exps 'suffix) "?"))
-(defun sregex--0+ (exps combine) (concat (sregex--sequence exps 'suffix) "*"))
-(defun sregex--1+ (exps combine) (concat (sregex--sequence exps 'suffix) "+"))
+(defun sregex--backref (exps _combine) (concat "\\" (int-to-string (car exps))))
+(defun sregex--opt (exps _combine) (concat (sregex--sequence exps 'suffix) "?"))
+(defun sregex--0+ (exps _combine) (concat (sregex--sequence exps 'suffix) "*"))
+(defun sregex--1+ (exps _combine) (concat (sregex--sequence exps 'suffix) "+"))
 
-(defun sregex--char (exps combine) (sregex--char-aux nil exps))
-(defun sregex--not-char (exps combine) (sregex--char-aux t exps))
+(defun sregex--char (exps _combine) (sregex--char-aux nil exps))
+(defun sregex--not-char (exps _combine) (sregex--char-aux t exps))
 
-(defun sregex--syntax (exps combine) (format "\\s%c" (car exps)))
-(defun sregex--not-syntax (exps combine) (format "\\S%c" (car exps)))
+(defun sregex--syntax (exps _combine) (format "\\s%c" (car exps)))
+(defun sregex--not-syntax (exps _combine) (format "\\S%c" (car exps)))
 
 (defun sregex--regex (exps combine)
   (if combine (concat "\\(?:" (car exps) "\\)") (car exps)))
 
-(defun sregex--repeat (exps combine)
+(defun sregex--repeat (exps _combine)
   (let* ((min (or (pop exps) 0))
 	 (minstr (number-to-string min))
 	 (max (pop exps)))

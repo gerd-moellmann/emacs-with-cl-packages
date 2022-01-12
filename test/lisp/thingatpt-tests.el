@@ -1,4 +1,4 @@
-;;; thingatpt.el --- tests for thing-at-point.
+;;; thingatpt-tests.el --- tests for thing-at-point.  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2013-2021 Free Software Foundation, Inc.
 
@@ -70,7 +70,7 @@
     ;; UUID, only hex is allowed
     ("01234567-89ab-cdef-ABCD-EF0123456789" 1 uuid "01234567-89ab-cdef-ABCD-EF0123456789")
     ("01234567-89ab-cdef-ABCD-EF012345678G" 1 uuid nil))
-  "List of thing-at-point tests.
+  "List of `thing-at-point' tests.
 Each list element should have the form
 
   (STRING POS THING RESULT)
@@ -146,4 +146,89 @@ position to retrieve THING.")
       (should (thing-at-point-looking-at "2abcd"))
       (should (equal (match-data) m2)))))
 
-;;; thingatpt.el ends here
+(ert-deftest test-symbol-thing-1 ()
+  (with-temp-buffer
+    (insert "foo bar zot")
+    (goto-char 4)
+    (should (eq (symbol-at-point) 'foo))
+    (forward-char 1)
+    (should (eq (symbol-at-point) 'bar))
+    (forward-char 1)
+    (should (eq (symbol-at-point) 'bar))
+    (forward-char 1)
+    (should (eq (symbol-at-point) 'bar))
+    (forward-char 1)
+    (should (eq (symbol-at-point) 'bar))
+    (forward-char 1)
+    (should (eq (symbol-at-point) 'zot))))
+
+(ert-deftest test-symbol-thing-2 ()
+  (with-temp-buffer
+    (insert " bar ")
+    (goto-char (point-max))
+    (should (eq (symbol-at-point) nil))
+    (forward-char -1)
+    (should (eq (symbol-at-point) 'bar))))
+
+(ert-deftest test-symbol-thing-2 ()
+  (with-temp-buffer
+    (insert " bar ")
+    (goto-char (point-max))
+    (should (eq (symbol-at-point) nil))
+    (forward-char -1)
+    (should (eq (symbol-at-point) 'bar))))
+
+(ert-deftest test-symbol-thing-3 ()
+  (with-temp-buffer
+    (insert "bar")
+    (goto-char 2)
+    (should (eq (symbol-at-point) 'bar))))
+
+(ert-deftest test-symbol-thing-3 ()
+  (with-temp-buffer
+    (insert "`[[`(")
+    (goto-char 2)
+    (should (eq (symbol-at-point) nil))))
+
+(defun test--number (number pos)
+  (with-temp-buffer
+    (insert (format "%s\n" number))
+    (goto-char (point-min))
+    (forward-char pos)
+    (number-at-point)))
+
+(ert-deftest test-numbers-none ()
+  (should (equal (test--number "foo" 0) nil)))
+
+(ert-deftest test-numbers-decimal ()
+  (should (equal (test--number "42" 0) 42))
+  (should (equal (test--number "42" 1) 42))
+  (should (equal (test--number "42" 2) 42)))
+
+(ert-deftest test-numbers-hex-lisp ()
+  (should (equal (test--number "#x42" 0) 66))
+  (should (equal (test--number "#x42" 1) 66))
+  (should (equal (test--number "#x42" 2) 66))
+  (should (equal (test--number "#xf00" 0) 3840))
+  (should (equal (test--number "#xf00" 1) 3840))
+  (should (equal (test--number "#xf00" 2) 3840))
+  (should (equal (test--number "#xf00" 3) 3840)))
+
+(ert-deftest test-numbers-hex-c ()
+  (should (equal (test--number "0x42" 0) 66))
+  (should (equal (test--number "0x42" 1) 66))
+  (should (equal (test--number "0x42" 2) 66))
+  (should (equal (test--number "0xf00" 0) 3840))
+  (should (equal (test--number "0xf00" 1) 3840))
+  (should (equal (test--number "0xf00" 2) 3840))
+  (should (equal (test--number "0xf00" 3) 3840)))
+
+(ert-deftest test-fields ()
+  (with-temp-buffer
+    (insert (propertize "foo" 'field 1) "bar" (propertize "zot" 'field 2))
+    (goto-char 1)
+    (should (eq (symbol-at-point) 'foo))
+    (goto-char 5)
+    (should (eq (symbol-at-point) 'bar))))
+
+;;; thingatpt-tests.el ends here

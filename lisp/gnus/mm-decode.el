@@ -40,8 +40,8 @@
 
 (defvar gnus-current-window-configuration)
 
-(add-hook 'gnus-exit-gnus-hook 'mm-destroy-postponed-undisplay-list)
-(add-hook 'gnus-exit-gnus-hook 'mm-temp-files-delete)
+(add-hook 'gnus-exit-gnus-hook #'mm-destroy-postponed-undisplay-list)
+(add-hook 'gnus-exit-gnus-hook #'mm-temp-files-delete)
 
 (defgroup mime-display ()
   "Display of MIME in mail and news articles."
@@ -602,11 +602,10 @@ files left at the next time."
 	(push temp fails)))
     (if fails
 	;; Schedule the deletion of the files left at the next time.
-	(progn
-	  (write-region (concat (mapconcat 'identity (nreverse fails) "\n")
+	(with-file-modes #o600
+	  (write-region (concat (mapconcat #'identity (nreverse fails) "\n")
 				"\n")
-			nil cache-file nil 'silent)
-	  (set-file-modes cache-file #o600))
+			nil cache-file nil 'silent))
       (when (file-exists-p cache-file)
 	(ignore-errors (delete-file cache-file))))
     (setq mm-temp-files-to-be-deleted nil)))
@@ -650,7 +649,7 @@ MIME-Version header before proceeding."
 	      (setq description (mail-decode-encoded-word-string
 				 description)))))
       (if (or (not ctl)
-	      (not (string-match "/" (car ctl))))
+	      (not (string-search "/" (car ctl))))
 	  (mm-dissect-singlepart
 	   (list mm-dissect-default-type)
 	   (and cte (intern (downcase (mail-header-strip-cte cte))))
@@ -911,8 +910,10 @@ external if displayed external."
 	;; The function is a string to be executed.
 	(mm-insert-part handle)
 	(mm-add-meta-html-tag handle)
-	(let* ((dir (make-temp-file
-		     (expand-file-name "emm." mm-tmp-directory) 'dir))
+	;; We create a private sub-directory where we store our files.
+	(let* ((dir (with-file-modes #o700
+		      (make-temp-file
+		       (expand-file-name "emm." mm-tmp-directory) 'dir)))
 	       (filename (or
 			  (mail-content-type-get
 			   (mm-handle-disposition handle) 'filename)
@@ -924,8 +925,6 @@ external if displayed external."
 			      (assoc "needsterminal" mime-info)))
 	       (copiousoutput (assoc "copiousoutput" mime-info))
 	       file buffer)
-	  ;; We create a private sub-directory where we store our files.
-	  (set-file-modes dir #o700)
 	  (if filename
 	      (setq file (expand-file-name
 			  (gnus-map-function mm-file-name-rewrite-functions
@@ -941,14 +940,15 @@ external if displayed external."
 		;; `mailcap-mime-extensions'.
 		(setq suffix (car (rassoc (mm-handle-media-type handle)
 					  mailcap-mime-extensions))))
-	      (setq file (make-temp-file (expand-file-name "mm." dir)
-					 nil suffix))))
+	      (setq file (with-file-modes #o600
+			   (make-temp-file (expand-file-name "mm." dir)
+					   nil suffix)))))
 	  (let ((coding-system-for-write mm-binary-coding-system))
 	    (write-region (point-min) (point-max) file nil 'nomesg))
 	  ;; The file is deleted after the viewer exists.  If the users edits
 	  ;; the file, changes will be lost.  Set file to read-only to make it
 	  ;; clear.
-	  (set-file-modes file #o400)
+	  (set-file-modes file #o400 'nofollow)
 	  (message "Viewing with %s" method)
 	  (cond
 	   (needsterm
@@ -1081,7 +1081,8 @@ external if displayed external."
 	    (string= total "\"%s\""))
 	(setq uses-stdin nil)
 	(push (shell-quote-argument
-	       (gnus-map-function mm-path-name-rewrite-functions file)) out))
+	       (gnus-map-function mm-path-name-rewrite-functions file))
+	      out))
        ((string= total "%t")
 	(push (shell-quote-argument (car type-list)) out))
        (t
@@ -1092,7 +1093,7 @@ external if displayed external."
       (push (shell-quote-argument
 	     (gnus-map-function mm-path-name-rewrite-functions file))
 	    out))
-    (mapconcat 'identity (nreverse out) "")))
+    (mapconcat #'identity (nreverse out) "")))
 
 (defun mm-remove-parts (handles)
   "Remove the displayed MIME parts represented by HANDLES."
@@ -1255,6 +1256,7 @@ in HANDLE."
 
 (defmacro mm-with-part (handle &rest forms)
   "Run FORMS in the temp buffer containing the contents of HANDLE."
+  (declare (indent 1) (debug t))
   ;; The handle-buffer's content is a sequence of bytes, not a sequence of
   ;; chars, so the buffer should be unibyte.  It may happen that the
   ;; handle-buffer is multibyte for some reason, in which case now is a good
@@ -1270,8 +1272,6 @@ in HANDLE."
 	  (mm-handle-encoding handle)
 	  (mm-handle-media-type handle))
 	 ,@forms))))
-(put 'mm-with-part 'lisp-indent-function 1)
-(put 'mm-with-part 'edebug-form-spec '(body))
 
 (defun mm-get-part (handle &optional no-cache)
   "Return the contents of HANDLE as a string.
@@ -1364,10 +1364,7 @@ PROMPT overrides the default one used to ask user for a file name."
 	  (setq file
 		(read-file-name
 		 (or prompt
-		     (format "Save MIME part to%s: "
-			     (if filename
-				 (format " (default %s)" filename)
-			       "")))
+		     (format-prompt "Save MIME part to" filename))
 		 (or directory mm-default-directory default-directory)
 		 (expand-file-name
 		  (or filename "")
@@ -1668,18 +1665,25 @@ If RECURSIVE, search recursively."
   (let ((type (car ctl))
 	(subtype (cadr (split-string (car ctl) "/")))
 	(mm-security-handle ctl) ;; (car CTL) is the type.
+	(smime-type (cdr (assq 'smime-type (mm-handle-type parts))))
 	protocol func functest)
     (cond
      ((or (equal type "application/x-pkcs7-mime")
 	  (equal type "application/pkcs7-mime"))
       (with-temp-buffer
 	(when (and (cond
+		    ((equal smime-type "signed-data") t)
 		    ((eq mm-decrypt-option 'never) nil)
 		    ((eq mm-decrypt-option 'always) t)
 		    ((eq mm-decrypt-option 'known) t)
-		    (t (y-or-n-p
-			(format "Decrypt (S/MIME) part? "))))
+		    (t (y-or-n-p "Decrypt (S/MIME) part? ")))
 		   (mm-view-pkcs7 parts from))
+	  (goto-char (point-min))
+	  ;; The encrypted document is a MIME part, and may use either
+	  ;; CRLF (Outlook and the like) or newlines for end-of-line
+	  ;; markers.  Translate from CRLF.
+	  (while (search-forward "\r\n" nil t)
+	    (replace-match "\n"))
 	  ;; Normally there will be a Content-type header here, but
 	  ;; some mailers don't add that to the encrypted part, which
 	  ;; makes the subsequent re-dissection fail here.
@@ -1688,7 +1692,21 @@ If RECURSIVE, search recursively."
 	    (unless (mail-fetch-field "content-type")
 	      (goto-char (point-max))
 	      (insert "Content-type: text/plain\n\n")))
-	  (setq parts (mm-dissect-buffer t)))))
+	  (setq parts
+		(if (equal smime-type "signed-data")
+		    (list (propertize
+			   "multipart/signed"
+			   'protocol "application/pkcs7-signature"
+			   'gnus-info
+			   (format
+			    "%s:%s"
+			    (get-text-property 0 'gnus-info
+					       (car mm-security-handle))
+			    (get-text-property 0 'gnus-details
+					       (car mm-security-handle))))
+			  (mm-dissect-buffer t)
+			  parts)
+		  (mm-dissect-buffer t))))))
      ((equal subtype "signed")
       (unless (and (setq protocol
 			 (mm-handle-multipart-ctl-parameter ctl 'protocol))

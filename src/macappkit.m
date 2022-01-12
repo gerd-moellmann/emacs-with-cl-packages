@@ -2211,6 +2211,11 @@ emacs_windows_need_display_p (void)
     }
 }
 
+- (BOOL)doesHoldQuit
+{
+  return hold_quit != NULL;
+}
+
 @end				// EmacsController
 
 OSStatus
@@ -2682,6 +2687,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   emacsView.layerContentsRedrawPolicy =
     NSViewLayerContentsRedrawOnSetNeedsDisplay;
   emacsView.layerContentsPlacement = NSViewLayerContentsPlacementTopLeft;
+#ifdef HAVE_XWIDGETS
+  FRAME_MAC_VIEW (f) = (__bridge void *) emacsView;
+#endif
 }
 
 - (void)setupOverlayView
@@ -7062,10 +7070,19 @@ static BOOL emacsViewUpdateLayerDisabled;
 	set_global_focus_view_frame (f);
 	if (tab_bar_p)
 	  {
+	    Lisp_Object tab_bar_arg;
+
 	    if (down_p)
-	      handle_tab_bar_click (f, x, y, 1, 0);
+	      tab_bar_arg = handle_tab_bar_click (f, x, y, 1, 0);
 	    else
-	      handle_tab_bar_click (f, x, y, 0, inputEvent.modifiers);
+	      tab_bar_arg = handle_tab_bar_click (f, x, y, 0,
+						  inputEvent.modifiers);
+	    if (!NILP (tab_bar_arg))
+	      {
+		XSETFRAME (inputEvent.frame_or_window, f);
+		inputEvent.kind = MOUSE_CLICK_EVENT;
+		inputEvent.arg = tab_bar_arg;
+	      }
 	  }
 	else
 	  {
@@ -10003,11 +10020,6 @@ toolbar_separator_item_identifier_if_available (void)
       XSETFRAME (frame, f);
       buf.kind = TOOL_BAR_EVENT;
       buf.frame_or_window = frame;
-      buf.arg = frame;
-      kbd_buffer_store_event (&buf);
-
-      buf.kind = TOOL_BAR_EVENT;
-      buf.frame_or_window = frame;
       buf.arg = PROP (TOOL_BAR_ITEM_KEY);
       buf.modifiers = mac_event_to_emacs_modifiers ([NSApp currentEvent]);
       kbd_buffer_store_event (&buf);
@@ -10252,7 +10264,7 @@ update_frame_tool_bar (struct frame *f)
 
 	      if (use_multiimage_icons_p)
 		FRAME_BACKING_SCALE_FACTOR (f) = 1;
-	      img_id = lookup_image (f, image);
+	      img_id = lookup_image (f, image, -1);
 	      if (use_multiimage_icons_p)
 		[frameController updateBackingScaleFactor];
 	      img = IMAGE_FROM_ID (f, img_id);
@@ -10276,7 +10288,7 @@ update_frame_tool_bar (struct frame *f)
 		  CGImageRef cg_image = img->cg_image;
 
 		  FRAME_BACKING_SCALE_FACTOR (f) = 2;
-		  img_id = lookup_image (f, image);
+		  img_id = lookup_image (f, image, -1);
 		  [frameController updateBackingScaleFactor];
 		  img = IMAGE_FROM_ID (f, img_id);
 		  prepare_image_for_display (f, img);
@@ -11696,7 +11708,16 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	     for binary compatibility.
 	     Update: this is necessary for passing Control-Tab to
 	     Emacs on Mac OS X 10.5 and later.  */
-	  [firstResponder keyDown:theEvent];
+	  /* With the xwidget support, -[NSMenu performKeyEquivalent:]
+	     might be called outside read_socket_hook.  This means
+	     keyboard quit is not held in hold_quit and causes longjmp
+	     within the GUI thread.  We reroute the event to the GUI
+	     queue to avoid this.  */
+	  if (!emacsController.doesHoldQuit
+	      && mac_keydown_cgevent_quit_p (theEvent.coreGraphicsEvent))
+	    [NSApp postEvent:theEvent atStart:YES];
+	  else
+	    [firstResponder keyDown:theEvent];
 
 	  return YES;
 	}
@@ -12002,7 +12023,7 @@ mac_activate_menubar (struct frame *f)
 
   eassert (FRAME_MAC_P (f));
 
-  set_frame_menubar (f, false, true);
+  set_frame_menubar (f, true);
   block_input ();
   selection = mac_activate_menubar_1 (f);
   unblock_input ();
@@ -14663,11 +14684,26 @@ static WebView *EmacsSVGDocumentLastWebView;
     {
       id boundingBox, widthBaseVal, heightBaseVal;
       enum {SVG_LENGTHTYPE_PERCENTAGE = 2};
+      NSString *styleSheet = [options objectForKey:@"styleSheet"];
 #ifdef USE_WK_API
       NSString * __block jsonString;
       BOOL __block finished = NO;
-      NSString *script = @""
+      /* Characters unescaped with encodeURIComponent.  */
+      static NSCharacterSet *allowedCharacters;
+      if (allowedCharacters == nil)
+	allowedCharacters = MRC_RETAIN ([NSCharacterSet
+					  characterSetWithCharactersInString:@""
+					  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+					  "abcdefghijklmnopqrstuvwxyz"
+					  "0123456789" "-_.!~*'()"]);
+      NSString *encodedStyleSheet =
+	[styleSheet
+	  stringByAddingPercentEncodingWithAllowedCharacters:allowedCharacters];
+      NSString *script = [NSString stringWithFormat:@""
 "var documentElement = document.documentElement;\n"
+"const styleElement = document.createElementNS ('http://www.w3.org/2000/svg', 'style');\n"
+"styleElement.textContent = decodeURIComponent (\"%@\");\n"
+"documentElement.appendChild (styleElement);\n"
 "function filter (obj, names) {\n"
 "  return names.reduce ((acc, nm) => {acc[nm] = obj[nm]; return acc;}, {});\n"
 "}\n"
@@ -14681,7 +14717,8 @@ static WebView *EmacsSVGDocumentLastWebView;
 "       ((documentElement.width.baseVal.unitType != SVGLength.SVG_LENGTHTYPE_PERCENTAGE\n"
 "	 && documentElement.height.baseVal.unitType != SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
 "	? null : filter (documentElement.getBBox (),\n"
-"			 ['x', 'y', 'width', 'height']))}))";
+"			 ['x', 'y', 'width', 'height']))}))",
+				   encodedStyleSheet ? encodedStyleSheet : @""];
       [webView evaluateJavaScript:script
 		completionHandler:^(id scriptResult, NSError *error) {
 	  if ([scriptResult isKindOfClass:NSString.class])
@@ -14710,18 +14747,26 @@ static WebView *EmacsSVGDocumentLastWebView;
 	  MRC_AUTORELEASE (jsonString);
 	}
 #else  /* !USE_WK_API */
-      WebScriptObject *rootElement =
-	[webView.windowScriptObject
-	    valueForKeyPath:@"document.rootElement"];
+      DOMDocument *document =
+	[webView.windowScriptObject valueForKey:@"document"];
+      DOMElement *documentElement = document.documentElement;
+      if (styleSheet)
+	{
+	  DOMElement *styleElement =
+	    [document createElementNS:@"http://www.w3.org/2000/svg"
+			qualifiedName:@"style"];
+	  styleElement.textContent = styleSheet;
+	  [documentElement appendChild:styleElement];
+	}
 
-      widthBaseVal = [rootElement valueForKeyPath:@"width.baseVal"];
-      heightBaseVal = [rootElement valueForKeyPath:@"height.baseVal"];
+      widthBaseVal = [documentElement valueForKeyPath:@"width.baseVal"];
+      heightBaseVal = [documentElement valueForKeyPath:@"height.baseVal"];
       if ((((NSNumber *) [widthBaseVal valueForKey:@"unitType"]).intValue
 	   == SVG_LENGTHTYPE_PERCENTAGE)
 	  || (((NSNumber *) [heightBaseVal valueForKey:@"unitType"]).intValue
 	      == SVG_LENGTHTYPE_PERCENTAGE))
-	boundingBox = [rootElement callWebScriptMethod:@"getBBox"
-					 withArguments:[NSArray array]];
+	boundingBox = [documentElement callWebScriptMethod:@"getBBox"
+					     withArguments:[NSArray array]];
       else
 	boundingBox = nil;
 
@@ -14836,19 +14881,34 @@ static WebView *EmacsSVGDocumentLastWebView;
 		options:(NSDictionaryOf (NSString *, id) *)options
 {
   mac_within_app (^{
-      CGColorRef cg_background = ((__bridge CGColorRef)
-				  [options objectForKey:@"backgroundColor"]);
+      NSArrayOf (NSString *) *keys =
+	[NSArray arrayWithObjects:@"foregroundColor", @"backgroundColor", nil];
+      NSMutableDictionaryOf (NSString *, NSString *) *colorsInHex =
+	[NSMutableDictionary dictionaryWithCapacity:keys.count];
+
+      for (NSString *key in keys)
+	{
+	  CGColorRef cg_color = ((__bridge CGColorRef)
+				 [options objectForKey:key]);
+	  CGFloat components[4];
+
+	  if (cg_color && [[NSColor colorWithCoreGraphicsColor:cg_color]
+			    getSRGBComponents:components])
+	    {
+	      NSString *colorInHex =
+		[NSString stringWithFormat:@"#%02x%02x%02x",
+			  (int) (components[0] * 255 + .5),
+			  (int) (components[1] * 255 + .5),
+			  (int) (components[2] * 255 + .5)];
+
+	      if (colorInHex)
+		[colorsInHex setObject:colorInHex forKey:key];
+	    }
+	}
+
+      NSString *fgInHex = [colorsInHex objectForKey:@"foregroundColor"];
+      NSString *bgInHex = [colorsInHex objectForKey:@"backgroundColor"];
 #ifdef USE_WK_API
-      NSString *bgInHex = nil;
-      CGFloat components[4];
-
-      if (cg_background && [[NSColor colorWithCGColor:cg_background]
-			     getSRGBComponents:components])
-	bgInHex = [NSString stringWithFormat:@"#%02x%02x%02x",
-			    (int) (components[0] * 255 + .5),
-			    (int) (components[1] * 255 + .5),
-			    (int) (components[2] * 255 + .5)];
-
       CGAffineTransform ctm = CGContextGetCTM (ctx);
       NSRect destRect = NSRectFromCGRect (CGRectApplyAffineTransform
 					  (NSRectToCGRect (rect), ctm));
@@ -14870,12 +14930,15 @@ static WebView *EmacsSVGDocumentLastWebView;
       BOOL __block finished = NO;
       int destWidth = NSWidth (destRect), destHeight = NSHeight (destRect);
       NSString *script = [NSString stringWithFormat:@""
+"documentElement.style.color = '%@';\n"
+"documentElement.style.fill = 'currentColor';\n"
 "documentElement.style.backgroundColor = '%@';\n"
 "documentElement.setAttribute ('width', '%d');\n"
 "documentElement.setAttribute ('height', '%d');\n"
 "documentElement.setAttribute ('viewBox', '0, 0, %d, %d');\n"
 "gElement.setAttribute ('transform', 'matrix (%f, %f, %f, %f, %f, %f)');\n"
-"null;", bgInHex ? bgInHex : @"transparent",
+"null;", fgInHex ? fgInHex : @"black",
+				 bgInHex ? bgInHex : @"transparent",
 				   destWidth, destHeight, destWidth, destHeight,
 				   ctm.a, ctm.b, ctm.c, ctm.d, ctm.tx, ctm.ty];
 
@@ -14918,13 +14981,18 @@ static WebView *EmacsSVGDocumentLastWebView;
 	  [NSGraphicsContext restoreGraphicsState];
 	}
 #else  /* !USE_WK_API */
-      NSColor *savedBackgroundColor;
-      if (cg_background)
+      DOMDocument *document =
+	[webView.windowScriptObject valueForKey:@"document"];
+      DOMElement *documentElement = document.documentElement;
+
+      if (fgInHex)
 	{
-	  savedBackgroundColor = [webView valueForKey:@"backgroundColor"];
-	  [webView setValue:[NSColor colorWithCoreGraphicsColor:cg_background]
-		     forKey:@"backgroundColor"];
+	  documentElement.style.color = fgInHex;
+	  [documentElement.style setProperty:@"fill" value:@"currentColor"
+				      priority:@""];
 	}
+      if (bgInHex)
+	documentElement.style.backgroundColor = bgInHex;
 
       NSAffineTransform *transform = [NSAffineTransform transform];
       NSGraphicsContext *gcontext =
@@ -14940,9 +15008,6 @@ static WebView *EmacsSVGDocumentLastWebView;
       [transform concat];
       [webView displayRectIgnoringOpacity:viewRect inContext:gcontext];
       [NSGraphicsContext restoreGraphicsState];
-
-      if (cg_background)
-	[webView setValue:savedBackgroundColor forKey:@"backgroundColor"];
 #endif  /* !USE_WK_API */
     });
 }

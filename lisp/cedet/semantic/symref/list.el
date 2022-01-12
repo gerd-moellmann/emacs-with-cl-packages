@@ -1,4 +1,4 @@
-;;; semantic/symref/list.el --- Symref Output List UI.
+;;; semantic/symref/list.el --- Symref Output List UI  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
@@ -85,10 +85,12 @@ current project to find references to the input SYM.  The
 references are the organized by file and the name of the function
 they are used in.
 Display the references in `semantic-symref-results-mode'."
-  (interactive (list (let ((tag (semantic-current-tag)))
-                       (read-string " Symrefs for: " nil nil
-                                    (when tag
-                                      (regexp-quote (semantic-tag-name tag)))))))
+  (interactive (list (let* ((tag (semantic-current-tag))
+                            (default (when tag
+                                       (regexp-quote
+                                        (semantic-tag-name tag)))))
+                       (read-string (format-prompt " Symrefs for" default)
+                                    nil nil default))))
   ;; FIXME: Shouldn't the input be in Emacs regexp format, for
   ;; consistency? Converting it to extended is not hard.
   (semantic-fetch-tags)
@@ -106,20 +108,20 @@ Display the references in `semantic-symref-results-mode'."
 (defvar semantic-symref-results-mode-map
   (let ((km (make-sparse-keymap)))
     (suppress-keymap km)
-    (define-key km "\C-i" 'forward-button)
-    (define-key km "\M-C-i" 'backward-button)
-    (define-key km " " 'push-button)
-    (define-key km "-" 'semantic-symref-list-toggle-showing)
-    (define-key km "=" 'semantic-symref-list-toggle-showing)
-    (define-key km "+" 'semantic-symref-list-toggle-showing)
-    (define-key km "n" 'semantic-symref-list-next-line)
-    (define-key km "p" 'semantic-symref-list-prev-line)
-    (define-key km "q" 'quit-window)
-    (define-key km "\C-c\C-e" 'semantic-symref-list-expand-all)
-    (define-key km "\C-c\C-r" 'semantic-symref-list-contract-all)
-    (define-key km "R" 'semantic-symref-list-rename-open-hits)
-    (define-key km "(" 'semantic-symref-list-create-macro-on-open-hit)
-    (define-key km "E" 'semantic-symref-list-call-macro-on-open-hits)
+    (define-key km "\C-i" #'forward-button)
+    (define-key km "\M-C-i" #'backward-button)
+    (define-key km " " #'push-button)
+    (define-key km "-" #'semantic-symref-list-toggle-showing)
+    (define-key km "=" #'semantic-symref-list-toggle-showing)
+    (define-key km "+" #'semantic-symref-list-toggle-showing)
+    (define-key km "n" #'semantic-symref-list-next-line)
+    (define-key km "p" #'semantic-symref-list-prev-line)
+    (define-key km "q" #'quit-window)
+    (define-key km "\C-c\C-e" #'semantic-symref-list-expand-all)
+    (define-key km "\C-c\C-r" #'semantic-symref-list-contract-all)
+    (define-key km "R" #'semantic-symref-list-rename-open-hits)
+    (define-key km "(" #'semantic-symref-list-create-macro-on-open-hit)
+    (define-key km "E" #'semantic-symref-list-call-macro-on-open-hits)
     km)
   "Keymap used in `semantic-symref-results-mode'.")
 
@@ -150,7 +152,7 @@ Display the references in `semantic-symref-results-mode'."
 
 (easy-menu-define semantic-symref-list-menu
   semantic-symref-results-mode-map
-  "Symref Mode Menu"
+  "Symref Mode Menu."
   semantic-symref-list-menu-entries)
 
 (defcustom semantic-symref-auto-expand-results nil
@@ -174,7 +176,7 @@ Display the references in `semantic-symref-results-mode'."
     (switch-to-buffer-other-window buff)
     (set-buffer buff)
     (semantic-symref-results-mode)
-    (set (make-local-variable 'semantic-symref-current-results) res)
+    (setq-local semantic-symref-current-results res)
     (semantic-symref-results-dump res)
     (goto-char (point-min))))
 
@@ -182,7 +184,7 @@ Display the references in `semantic-symref-results-mode'."
   "Major-mode for displaying Semantic Symbol Reference results."
   (buffer-disable-undo)
   ;; FIXME: Why bother turning off font-lock?
-  (set (make-local-variable 'font-lock-global-modes) nil)
+  (setq-local font-lock-global-modes nil)
   (font-lock-mode -1))
 
 (defcustom semantic-symref-results-summary-function 'semantic-format-tag-prototype

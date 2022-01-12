@@ -6,24 +6,27 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software; you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
 ;; Unit tests for code in src/lread.c.
 
 ;;; Code:
+
+(require 'ert)
+(require 'ert-x)
 
 (ert-deftest lread-char-number ()
   (should (equal (read "?\\N{U+A817}") #xA817)))
@@ -146,32 +149,13 @@ literals (Bug#20852)."
 
 (ert-deftest lread-test-bug26837 ()
   "Test for https://debbugs.gnu.org/26837 ."
-  (let ((load-path (cons
-                    (file-name-as-directory
-                     (expand-file-name "data" (getenv "EMACS_TEST_DIRECTORY")))
-                    load-path)))
+  (let ((load-path (cons (ert-resource-directory) load-path)))
     (load "somelib" nil t)
     (should (string-suffix-p "/somelib.el" (caar load-history)))
     (load "somelib2" nil t)
     (should (string-suffix-p "/somelib2.el" (caar load-history)))
     (load "somelib" nil t)
     (should (string-suffix-p "/somelib.el" (caar load-history)))))
-
-(ert-deftest lread-tests--old-style-backquotes ()
-  "Check that loading doesn't accept old-style backquotes."
-  (lread-tests--with-temp-file file-name
-    (write-region "(` (a b))" nil file-name)
-    (let ((data (should-error (load file-name nil :nomessage :nosuffix))))
-      (should (equal (cdr data)
-                     (list (concat (format-message "Loading `%s': " file-name)
-                                   "old-style backquotes detected!")))))))
-
-(ert-deftest lread-tests--force-new-style-backquotes ()
-  (let ((data (should-error (read "(` (a b))"))))
-    (should (equal (cdr data) '("Old-style backquotes detected!"))))
-  (should (equal (let ((force-new-style-backquotes t))
-                   (read "(` (a b))"))
-                 '(`(a b)))))
 
 (ert-deftest lread-lread--substitute-object-in-subtree ()
   (let ((x (cons 0 1)))
@@ -205,5 +189,78 @@ literals (Bug#20852)."
 
 (ert-deftest lread-circular-hash ()
   (should-error (read "#s(hash-table data #0=(#0# . #0#))")))
+
+(ert-deftest test-inhibit-interaction ()
+  (let ((inhibit-interaction t))
+    (should-error (read-char "foo: "))
+    (should-error (read-event "foo: "))
+    (should-error (read-char-exclusive "foo: "))))
+
+(ert-deftest lread-float ()
+  (should (equal (read "13") 13))
+  (should (equal (read "+13") 13))
+  (should (equal (read "-13") -13))
+  (should (equal (read "13.") 13))
+  (should (equal (read "+13.") 13))
+  (should (equal (read "-13.") -13))
+  (should (equal (read "13.25") 13.25))
+  (should (equal (read "+13.25") 13.25))
+  (should (equal (read "-13.25") -13.25))
+  (should (equal (read ".25") 0.25))
+  (should (equal (read "+.25") 0.25))
+  (should (equal (read "-.25") -0.25))
+  (should (equal (read "13e4") 130000.0))
+  (should (equal (read "+13e4") 130000.0))
+  (should (equal (read "-13e4") -130000.0))
+  (should (equal (read "13e+4") 130000.0))
+  (should (equal (read "+13e+4") 130000.0))
+  (should (equal (read "-13e+4") -130000.0))
+  (should (equal (read "625e-4") 0.0625))
+  (should (equal (read "+625e-4") 0.0625))
+  (should (equal (read "-625e-4") -0.0625))
+  (should (equal (read "1.25e2") 125.0))
+  (should (equal (read "+1.25e2") 125.0))
+  (should (equal (read "-1.25e2") -125.0))
+  (should (equal (read "1.25e+2") 125.0))
+  (should (equal (read "+1.25e+2") 125.0))
+  (should (equal (read "-1.25e+2") -125.0))
+  (should (equal (read "1.25e-1") 0.125))
+  (should (equal (read "+1.25e-1") 0.125))
+  (should (equal (read "-1.25e-1") -0.125))
+  (should (equal (read "4.e3") 4000.0))
+  (should (equal (read "+4.e3") 4000.0))
+  (should (equal (read "-4.e3") -4000.0))
+  (should (equal (read "4.e+3") 4000.0))
+  (should (equal (read "+4.e+3") 4000.0))
+  (should (equal (read "-4.e+3") -4000.0))
+  (should (equal (read "5.e-1") 0.5))
+  (should (equal (read "+5.e-1") 0.5))
+  (should (equal (read "-5.e-1") -0.5))
+  (should (equal (read "0") 0))
+  (should (equal (read "+0") 0))
+  (should (equal (read "-0") 0))
+  (should (equal (read "0.") 0))
+  (should (equal (read "+0.") 0))
+  (should (equal (read "-0.") 0))
+  (should (equal (read "0.0") 0.0))
+  (should (equal (read "+0.0") 0.0))
+  (should (equal (read "-0.0") -0.0))
+  (should (equal (read "0e5") 0.0))
+  (should (equal (read "+0e5") 0.0))
+  (should (equal (read "-0e5") -0.0))
+  (should (equal (read "0e-5") 0.0))
+  (should (equal (read "+0e-5") 0.0))
+  (should (equal (read "-0e-5") -0.0))
+  (should (equal (read ".0e-5") 0.0))
+  (should (equal (read "+.0e-5") 0.0))
+  (should (equal (read "-.0e-5") -0.0))
+  (should (equal (read "0.0e-5") 0.0))
+  (should (equal (read "+0.0e-5") 0.0))
+  (should (equal (read "-0.0e-5") -0.0))
+  (should (equal (read "0.e-5") 0.0))
+  (should (equal (read "+0.e-5") 0.0))
+  (should (equal (read "-0.e-5") -0.0))
+  )
+
 
 ;;; lread-tests.el ends here

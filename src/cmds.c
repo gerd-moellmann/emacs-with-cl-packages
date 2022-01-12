@@ -31,15 +31,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 static int internal_self_insert (int, EMACS_INT);
 
-DEFUN ("forward-point", Fforward_point, Sforward_point, 1, 1, 0,
-       doc: /* Return buffer position N characters after (before if N negative) point.  */)
-  (Lisp_Object n)
-{
-  CHECK_FIXNUM (n);
-
-  return make_fixnum (PT + XFIXNUM (n));
-}
-
 /* Add N to point; or subtract N if FORWARD is false.  N defaults to 1.
    Validate the new location.  Return nil.  */
 static Lisp_Object
@@ -399,8 +390,8 @@ internal_self_insert (int c, EMACS_INT n)
 		  /* We will delete too many columns.  Let's fill columns
 		     by spaces so that the remaining text won't move.  */
 		  ptrdiff_t actual = PT_BYTE;
-		  DEC_POS (actual);
-		  if (FETCH_CHAR (actual) == '\t')
+		  actual -= prev_char_len (actual);
+		  if (FETCH_BYTE (actual) == '\t')
 		    /* Rather than add spaces, let's just keep the tab. */
 		    chars_to_delete--;
 		  else
@@ -461,7 +452,10 @@ internal_self_insert (int c, EMACS_INT n)
 	  string = concat2 (string, tem);
 	}
 
-      replace_range (PT, PT + chars_to_delete, string, 1, 1, 1, 0);
+      ptrdiff_t to;
+      if (INT_ADD_WRAPV (PT, chars_to_delete, &to))
+	to = PTRDIFF_MAX;
+      replace_range (PT, to, string, 1, 1, 1, 0, false);
       Fforward_char (make_fixnum (n));
     }
   else if (n > 1)
@@ -527,7 +521,6 @@ syms_of_cmds (void)
 This is run after inserting the character.  */);
   Vpost_self_insert_hook = Qnil;
 
-  defsubr (&Sforward_point);
   defsubr (&Sforward_char);
   defsubr (&Sbackward_char);
   defsubr (&Sforward_line);
@@ -536,25 +529,4 @@ This is run after inserting the character.  */);
 
   defsubr (&Sdelete_char);
   defsubr (&Sself_insert_command);
-}
-
-void
-keys_of_cmds (void)
-{
-  int n;
-
-  initial_define_key (global_map, Ctl ('I'), "self-insert-command");
-  for (n = 040; n < 0177; n++)
-    initial_define_key (global_map, n, "self-insert-command");
-#ifdef MSDOS
-  for (n = 0200; n < 0240; n++)
-    initial_define_key (global_map, n, "self-insert-command");
-#endif
-  for (n = 0240; n < 0400; n++)
-    initial_define_key (global_map, n, "self-insert-command");
-
-  initial_define_key (global_map, Ctl ('A'), "beginning-of-line");
-  initial_define_key (global_map, Ctl ('B'), "backward-char");
-  initial_define_key (global_map, Ctl ('E'), "end-of-line");
-  initial_define_key (global_map, Ctl ('F'), "forward-char");
 }

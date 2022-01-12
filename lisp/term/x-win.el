@@ -75,7 +75,6 @@
 (require 'frame)
 (require 'mouse)
 (require 'scroll-bar)
-(require 'faces)
 (require 'select)
 (require 'menu-bar)
 (require 'fontset)
@@ -132,7 +131,7 @@ When a session manager tells Emacs that the window system is shutting
 down, this function is called.  It calls the functions in the hook
 `emacs-save-session-functions'.  Functions are called with the current
 buffer set to a temporary buffer.  Functions should use `insert' to insert
-lisp code to save the session state.  The buffer is saved in a file in the
+Lisp code to save the session state.  The buffer is saved in a file in the
 home directory of the user running Emacs.  The file is evaluated when
 Emacs is restarted by the session manager.
 
@@ -1356,7 +1355,7 @@ This returns an error if any Emacs frames are X frames."
 (declare-function x-get-selection-internal "xselect.c"
 		  (selection-symbol target-type &optional time-stamp terminal))
 
-(add-to-list 'display-format-alist '("\\`[^:]*:[0-9]+\\(\\.[0-9]+\\)?\\'" . x))
+(add-to-list 'display-format-alist '("\\`.*:[0-9]+\\(\\.[0-9]+\\)?\\'" . x))
 (cl-defmethod handle-args-function (args &context (window-system x))
   (x-handle-args args))
 
@@ -1407,13 +1406,13 @@ This returns an error if any Emacs frames are X frames."
     ("etc/images/right-arrow" . ("go-next" "gtk-go-forward"))
     ("etc/images/home" . ("go-home" "gtk-home"))
     ("etc/images/jump-to" . ("go-jump" "gtk-jump-to"))
-    ("etc/images/index" . "gtk-index")
+    ("etc/images/index" . ("gtk-search" "gtk-index"))
     ("etc/images/exit" . ("application-exit" "gtk-quit"))
     ("etc/images/cancel" . "gtk-cancel")
     ("etc/images/info" . ("dialog-information" "gtk-info"))
     ("etc/images/bookmark_add" . "n:bookmark_add")
     ;; Used in Gnus and/or MH-E:
-    ("etc/images/attach" . "gtk-attach")
+    ("etc/images/attach" . ("mail-attachment" "gtk-attach"))
     ("etc/images/connect" . "gtk-connect")
     ("etc/images/contact" . "gtk-contact")
     ("etc/images/delete" . ("edit-delete" "gtk-delete"))
@@ -1425,14 +1424,16 @@ This returns an error if any Emacs frames are X frames."
     ("etc/images/lock" . "gtk-lock")
     ("etc/images/next-page" . "gtk-next-page")
     ("etc/images/refresh" . ("view-refresh" "gtk-refresh"))
+    ("etc/images/search-replace" . "edit-find-replace")
     ("etc/images/sort-ascending" . ("view-sort-ascending" "gtk-sort-ascending"))
     ("etc/images/sort-column-ascending" . "gtk-sort-column-ascending")
     ("etc/images/sort-criteria" . "gtk-sort-criteria")
     ("etc/images/sort-descending" . ("view-sort-descending"
 				     "gtk-sort-descending"))
     ("etc/images/sort-row-ascending" . "gtk-sort-row-ascending")
+    ("etc/images/spell" . ("tools-check-spelling" "gtk-spell-check"))
     ("images/gnus/toggle-subscription" . "gtk-task-recurring")
-    ("images/mail/compose" . "gtk-mail-compose")
+    ("images/mail/compose" . ("mail-message-new" "gtk-mail-compose"))
     ("images/mail/copy" . "gtk-mail-copy")
     ("images/mail/forward" . "gtk-mail-forward")
     ("images/mail/inbox" . "gtk-inbox")
@@ -1442,7 +1443,7 @@ This returns an error if any Emacs frames are X frames."
     ("images/mail/reply-all" . "gtk-mail-reply-to-all")
     ("images/mail/reply" . "gtk-mail-reply")
     ("images/mail/save-draft" . "gtk-mail-handling")
-    ("images/mail/send" . "gtk-mail-send")
+    ("images/mail/send" . ("mail-send" "gtk-mail-send"))
     ("images/mail/spam" . "gtk-spam")
     ;; Used for GDB Graphical Interface
     ("images/gud/break" . "gtk-no")

@@ -1,4 +1,4 @@
-;;; kermit.el --- additions to shell mode for use with kermit
+;;; kermit.el --- additions to shell mode for use with kermit -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1988, 2001-2021 Free Software Foundation, Inc.
 
@@ -29,7 +29,7 @@
 ;; is that I can log onto machines with primitive operating systems (VMS and
 ;; ATT system V :-), and still have the features of shell-mode available for
 ;; command history, etc.  It's also handy to be able to run a file transfer in
-;; an emacs window.  The transfer is in the "background", but you can also
+;; an Emacs window.  The transfer is in the "background", but you can also
 ;; monitor or stop it easily.
 
 ;; The ^\ key is bound to a function for sending escape sequences to kermit,

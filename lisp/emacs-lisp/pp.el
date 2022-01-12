@@ -94,33 +94,31 @@ after OUT-BUFFER-NAME."
 	 ;; This function either decides not to display it at all
 	 ;; or displays it in the usual way.
 	 (temp-buffer-show-function
-	  (function
-	   (lambda (buf)
-	     (with-current-buffer buf
-	       (goto-char (point-min))
-	       (end-of-line 1)
-	       (if (or (< (1+ (point)) (point-max))
-		       (>= (- (point) (point-min)) (frame-width)))
-		   (let ((temp-buffer-show-function old-show-function)
-			 (old-selected (selected-window))
-			 (window (display-buffer buf)))
-		     (goto-char (point-min)) ; expected by some hooks ...
-		     (make-frame-visible (window-frame window))
-		     (unwind-protect
-			 (progn
-			   (select-window window)
-			   (run-hooks 'temp-buffer-show-hook))
-		       (when (window-live-p old-selected)
-			 (select-window old-selected))
-		       (message "See buffer %s." out-buffer-name)))
-		 (message "%s" (buffer-substring (point-min) (point)))
-		 ))))))
+          (lambda (buf)
+            (with-current-buffer buf
+              (goto-char (point-min))
+              (end-of-line 1)
+              (if (or (< (1+ (point)) (point-max))
+                      (>= (- (point) (point-min)) (frame-width)))
+                  (let ((temp-buffer-show-function old-show-function)
+                        (old-selected (selected-window))
+                        (window (display-buffer buf)))
+                    (goto-char (point-min)) ; expected by some hooks ...
+                    (make-frame-visible (window-frame window))
+                    (unwind-protect
+                        (progn
+                          (select-window window)
+                          (run-hooks 'temp-buffer-show-hook))
+                      (when (window-live-p old-selected)
+                        (select-window old-selected))
+                      (message "See buffer %s." out-buffer-name)))
+                (message "%s" (buffer-substring (point-min) (point))))))))
     (with-output-to-temp-buffer out-buffer-name
       (pp expression)
       (with-current-buffer standard-output
 	(emacs-lisp-mode)
 	(setq buffer-read-only nil)
-	(set (make-local-variable 'font-lock-verbose) nil)))))
+        (setq-local font-lock-verbose nil)))))
 
 ;;;###autoload
 (defun pp-eval-expression (expression)
@@ -129,8 +127,9 @@ Also add the value to the front of the list in the variable `values'."
   (interactive
    (list (read--expression "Eval: ")))
   (message "Evaluating...")
-  (push (eval expression lexical-binding) values)
-  (pp-display-expression (car values) "*Pp Eval Output*"))
+  (let ((result (eval expression lexical-binding)))
+    (values--store-value result)
+    (pp-display-expression result "*Pp Eval Output*")))
 
 ;;;###autoload
 (defun pp-macroexpand-expression (expression)
@@ -140,7 +139,7 @@ Also add the value to the front of the list in the variable `values'."
   (pp-display-expression (macroexpand-1 expression) "*Pp Macroexpand Output*"))
 
 (defun pp-last-sexp ()
-  "Read sexp before point.  Ignores leading comment characters."
+  "Read sexp before point.  Ignore leading comment characters."
   (with-syntax-table emacs-lisp-mode-syntax-table
     (let ((pt (point)))
       (save-excursion
@@ -160,17 +159,20 @@ Also add the value to the front of the list in the variable `values'."
 ;;;###autoload
 (defun pp-eval-last-sexp (arg)
   "Run `pp-eval-expression' on sexp before point.
-With argument, pretty-print output into current buffer.
+With ARG, pretty-print output into current buffer.
 Ignores leading comment characters."
   (interactive "P")
   (if arg
-      (insert (pp-to-string (eval (pp-last-sexp) lexical-binding)))
-    (pp-eval-expression (pp-last-sexp))))
+      (insert (pp-to-string (eval (elisp--eval-defun-1
+                                   (macroexpand (pp-last-sexp)))
+                                  lexical-binding)))
+    (pp-eval-expression (elisp--eval-defun-1
+                         (macroexpand (pp-last-sexp))))))
 
 ;;;###autoload
 (defun pp-macroexpand-last-sexp (arg)
   "Run `pp-macroexpand-expression' on sexp before point.
-With argument, pretty-print output into current buffer.
+With ARG, pretty-print output into current buffer.
 Ignores leading comment characters."
   (interactive "P")
   (if arg

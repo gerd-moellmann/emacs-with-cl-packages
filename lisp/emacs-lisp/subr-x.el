@@ -62,7 +62,7 @@ Is equivalent to:
     (+ (- (/ (+ 5 20) 25)) 40)
 Note how the single `-' got converted into a list before
 threading."
-  (declare (indent 1)
+  (declare (indent 0)
            (debug (form &rest [&or symbolp (sexp &rest form)])))
   `(internal--thread-argument t ,@forms))
 
@@ -79,7 +79,7 @@ Is equivalent to:
     (+ 40 (- (/ 25 (+ 20 5))))
 Note how the single `-' got converted into a list before
 threading."
-  (declare (indent 1) (debug thread-first))
+  (declare (indent 0) (debug thread-first))
   `(internal--thread-argument nil ,@forms))
 
 (defsubst internal--listify (elt)
@@ -107,7 +107,7 @@ If ELT is of the form ((EXPR)), listify (EXPR) with a dummy symbol."
 (defun internal--build-binding (binding prev-var)
   "Check and build a single BINDING with PREV-VAR."
   (thread-first
-      binding
+    binding
     internal--listify
     internal--check-binding
     (internal--build-binding-value-form prev-var)))
@@ -127,7 +127,7 @@ This is like `if-let' but doesn't handle a VARLIST of the form
 \(SYMBOL SOMETHING) specially."
   (declare (indent 2)
            (debug ((&rest [&or symbolp (symbolp form) (form)])
-                   form body)))
+                   body)))
   (if varlist
       `(let* ,(setq varlist (internal--build-bindings varlist))
          (if ,(caar (last varlist))
@@ -146,9 +146,7 @@ This is like `when-let' but doesn't handle a VARLIST of the form
   "Bind variables according to VARLIST and conditionally evaluate BODY.
 Like `when-let*', except if BODY is empty and all the bindings
 are non-nil, then the result is non-nil."
-  (declare (indent 1)
-           (debug ((&rest [&or symbolp (symbolp form) (form)])
-                   body)))
+  (declare (indent 1) (debug if-let*))
   (let (res)
     (if varlist
         `(let* ,(setq varlist (internal--build-bindings varlist))
@@ -156,6 +154,7 @@ are non-nil, then the result is non-nil."
              ,@(or body `(,res))))
       `(let* () ,@(or body '(t))))))
 
+;;;###autoload
 (defmacro if-let (spec then &rest else)
   "Bind variables according to SPEC and evaluate THEN or ELSE.
 Evaluate each binding in turn, as in `let*', stopping if a
@@ -173,9 +172,9 @@ As a special case, interprets a SPEC of the form \(SYMBOL SOMETHING)
 like \((SYMBOL SOMETHING)).  This exists for backward compatibility
 with an old syntax that accepted only one binding."
   (declare (indent 2)
-           (debug ([&or (&rest [&or symbolp (symbolp form) (form)])
-                        (symbolp form)]
-                   form body)))
+           (debug ([&or (symbolp form)  ; must be first, Bug#48489
+                        (&rest [&or symbolp (symbolp form) (form)])]
+                   body)))
   (when (and (<= (length spec) 2)
              (not (listp (car spec))))
     ;; Adjust the single binding case
@@ -214,27 +213,14 @@ The variable list SPEC is the same as in `if-let'."
 
 (define-obsolete-function-alias 'string-reverse 'reverse "25.1")
 
-(defsubst string-trim-left (string &optional regexp)
-  "Trim STRING of leading string matching REGEXP.
-
-REGEXP defaults to \"[ \\t\\n\\r]+\"."
-  (if (string-match (concat "\\`\\(?:" (or regexp "[ \t\n\r]+") "\\)") string)
-      (substring string (match-end 0))
-    string))
-
-(defsubst string-trim-right (string &optional regexp)
-  "Trim STRING of trailing string matching REGEXP.
-
-REGEXP defaults to  \"[ \\t\\n\\r]+\"."
-  (let ((i (string-match-p (concat "\\(?:" (or regexp "[ \t\n\r]+") "\\)\\'")
-                           string)))
-    (if i (substring string 0 i) string)))
-
-(defsubst string-trim (string &optional trim-left trim-right)
-  "Trim STRING of leading and trailing strings matching TRIM-LEFT and TRIM-RIGHT.
-
-TRIM-LEFT and TRIM-RIGHT default to \"[ \\t\\n\\r]+\"."
-  (string-trim-left (string-trim-right string trim-right) trim-left))
+;;;###autoload
+(defun string-truncate-left (string length)
+  "Truncate STRING to LENGTH, replacing initial surplus with \"...\"."
+  (let ((strlen (length string)))
+    (if (<= strlen length)
+	string
+      (setq length (max 0 (- length 3)))
+      (concat "..." (substring string (max 0 (- strlen 1 length)))))))
 
 (defsubst string-blank-p (string)
   "Check whether STRING is either empty or only whitespace.
@@ -253,6 +239,116 @@ carriage return."
   (if (string-suffix-p suffix string)
       (substring string 0 (- (length string) (length suffix)))
     string))
+
+;;;###autoload
+(defun string-clean-whitespace (string)
+  "Clean up whitespace in STRING.
+All sequences of whitespaces in STRING are collapsed into a
+single space character, and leading/trailing whitespace is
+removed."
+  (let ((blank "[[:blank:]\r\n]+"))
+    (string-trim (replace-regexp-in-string blank " " string t t)
+                 blank blank)))
+
+(defun string-fill (string length)
+  "Try to word-wrap STRING so that no lines are longer than LENGTH.
+Wrapping is done where there is whitespace.  If there are
+individual words in STRING that are longer than LENGTH, the
+result will have lines that are longer than LENGTH."
+  (with-temp-buffer
+    (insert string)
+    (goto-char (point-min))
+    (let ((fill-column length)
+          (adaptive-fill-mode nil))
+      (fill-region (point-min) (point-max)))
+    (buffer-string)))
+
+(defun string-limit (string length &optional end coding-system)
+  "Return a substring of STRING that is (up to) LENGTH characters long.
+If STRING is shorter than or equal to LENGTH characters, return the
+entire string unchanged.
+
+If STRING is longer than LENGTH characters, return a substring
+consisting of the first LENGTH characters of STRING.  If END is
+non-nil, return the last LENGTH characters instead.
+
+If CODING-SYSTEM is non-nil, STRING will be encoded before
+limiting, and LENGTH is interpreted as the number of bytes to
+limit the string to.  The result will be a unibyte string that is
+shorter than LENGTH, but will not contain \"partial\" characters,
+even if CODING-SYSTEM encodes characters with several bytes per
+character.
+
+When shortening strings for display purposes,
+`truncate-string-to-width' is almost always a better alternative
+than this function."
+  (unless (natnump length)
+    (signal 'wrong-type-argument (list 'natnump length)))
+  (if coding-system
+      (let ((result nil)
+            (result-length 0)
+            (index (if end (1- (length string)) 0)))
+        ;; FIXME: This implementation, which uses encode-coding-char
+        ;; to encode the string one character at a time, is in general
+        ;; incorrect: coding-systems that produce prefix or suffix
+        ;; bytes, such as ISO-2022-based or UTF-8/16 with BOM, will
+        ;; produce those bytes for each character, instead of just
+        ;; once for the entire string.  encode-coding-char attempts to
+        ;; remove those extra bytes at least in some situations, but
+        ;; it cannot do that in all cases.  And in any case, producing
+        ;; what is supposed to be a UTF-16 or ISO-2022-CN encoded
+        ;; string which lacks the BOM bytes at the beginning and the
+        ;; charset designation sequences at the head and tail of the
+        ;; result will definitely surprise the callers in some cases.
+        (while (let ((encoded (encode-coding-char
+                               (aref string index) coding-system)))
+                 (and (<= (+ (length encoded) result-length) length)
+                      (progn
+                        (push encoded result)
+                        (cl-incf result-length (length encoded))
+                        (setq index (if end (1- index)
+                                      (1+ index))))
+                      (if end (> index -1)
+                        (< index (length string)))))
+          ;; No body.
+          )
+        (apply #'concat (if end result (nreverse result))))
+    (cond
+     ((<= (length string) length) string)
+     (end (substring string (- (length string) length)))
+     (t (substring string 0 length)))))
+
+;;;###autoload
+(defun string-lines (string &optional omit-nulls)
+  "Split STRING into a list of lines.
+If OMIT-NULLS, empty lines will be removed from the results."
+  (split-string string "\n" omit-nulls))
+
+(defun string-pad (string length &optional padding start)
+  "Pad STRING to LENGTH using PADDING.
+If PADDING is nil, the space character is used.  If not nil, it
+should be a character.
+
+If STRING is longer than the absolute value of LENGTH, no padding
+is done.
+
+If START is nil (or not present), the padding is done to the end
+of the string, and if non-nil, padding is done to the start of
+the string."
+  (unless (natnump length)
+    (signal 'wrong-type-argument (list 'natnump length)))
+  (let ((pad-length (- length (length string))))
+    (if (< pad-length 0)
+        string
+      (concat (and start
+                   (make-string pad-length (or padding ?\s)))
+              string
+              (and (not start)
+                   (make-string pad-length (or padding ?\s)))))))
+
+(defun string-chop-newline (string)
+  "Remove the final newline (if any) from STRING."
+  (string-remove-suffix "\n" string))
 
 (defun replace-region-contents (beg end replace-fn
                                     &optional max-secs max-costs)
@@ -282,6 +378,28 @@ it makes no sense to convert it to a string using
 	      (let ((tmp-buffer (current-buffer)))
 		(set-buffer source-buffer)
 		(replace-buffer-contents tmp-buffer max-secs max-costs)))))))))
+
+(defmacro named-let (name bindings &rest body)
+  "Looping construct taken from Scheme.
+Like `let', bind variables in BINDINGS and then evaluate BODY,
+but with the twist that BODY can evaluate itself recursively by
+calling NAME, where the arguments passed to NAME are used
+as the new values of the bound variables in the recursive invocation."
+  (declare (indent 2) (debug (symbolp (&rest (symbolp form)) body)))
+  (require 'cl-lib)
+  (let ((fargs (mapcar (lambda (b) (if (consp b) (car b) b)) bindings))
+        (aargs (mapcar (lambda (b) (if (consp b) (cadr b))) bindings)))
+    ;; According to the Scheme semantics of named let, `name' is not in scope
+    ;; while evaluating the expressions in `bindings', and for this reason, the
+    ;; "initial" function call below needs to be outside of the `cl-labels'.
+    ;; When the "self-tco" eliminates all recursive calls, the `cl-labels'
+    ;; expands to a lambda which the byte-compiler then combines with the
+    ;; funcall to make a `let' so we end up with a plain `while' loop and no
+    ;; remaining `lambda' at all.
+    `(funcall
+      (cl-labels ((,name ,fargs . ,body)) #',name)
+      . ,aargs)))
+
 
 (provide 'subr-x)
 

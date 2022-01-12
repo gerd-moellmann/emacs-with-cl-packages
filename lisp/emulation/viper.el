@@ -15,7 +15,7 @@
 ;; of the bug report be sent to the maintainer's email address.
 
 (defconst viper-version "3.14.2 of July 4, 2013"
-  "The current version of Viper")
+  "The current version of Viper.")
 
 ;; This file is part of GNU Emacs.
 
@@ -516,7 +516,7 @@ If Viper is enabled, turn it off.  Otherwise, turn it on."
 
 ;;;###autoload
 (defun viper-mode ()
-  "Turn on Viper emulation of Vi in Emacs. See Info node `(viper)Top'."
+  "Turn on Viper emulation of Vi in Emacs.  See Info node `(viper)Top'."
   (interactive)
   (if (not noninteractive)
       (progn
@@ -577,7 +577,7 @@ For more information on Viper:
 To submit a bug report or to contact the author, type :submitReport in Vi
 command mode.  To shoo Viper away and return to pure Emacs (horror!), type:
 
-   M-x viper-go-away
+   \\[viper-go-away]
 
 This startup message appears whenever you load Viper, unless you type `y' now."
 		      ))
@@ -617,7 +617,7 @@ This startup message appears whenever you load Viper, unless you type `y' now."
 
 ;; This hook designed to enable Vi-style editing in comint-based modes."
 (defun viper-comint-mode-hook ()
-  (set (make-local-variable 'require-final-newline) nil)
+  (setq-local require-final-newline nil)
   (setq viper-ex-style-editing nil
 	viper-ex-style-motion nil)
   (viper-change-state-to-insert))
@@ -695,9 +695,6 @@ It also can't undo some Viper settings."
     'mark-even-if-inactive viper-saved-non-viper-variables))
 
   ;; Ideally, we would like to be able to de-localize local variables
-  (unless
-      (and (fboundp 'add-to-ordered-list) (boundp 'emulation-mode-map-alists))
-    (viper-delocalize-var 'minor-mode-map-alist))
   (viper-delocalize-var 'require-final-newline)
 
   ;; deactivate all advices done by Viper.
@@ -705,11 +702,9 @@ It also can't undo some Viper settings."
 
   (setq viper-mode nil)
 
-  (when (and (fboundp 'add-to-ordered-list) (boundp 'emulation-mode-map-alists))
-    (setq emulation-mode-map-alists
-	  (delq 'viper--intercept-key-maps
-		(delq 'viper--key-maps emulation-mode-map-alists))
-	  ))
+  (setq emulation-mode-map-alists
+	(delq 'viper--intercept-key-maps
+	      (delq 'viper--key-maps emulation-mode-map-alists)))
 
   (viper-delocalize-var 'viper-vi-minibuffer-minor-mode)
   (viper-delocalize-var 'viper-insert-minibuffer-minor-mode)
@@ -943,13 +938,11 @@ Two differences:
     (setq viper-vi-state-cursor-color color-name)))
 
 
-  (when (and (fboundp 'add-to-ordered-list) (boundp 'emulation-mode-map-alists))
-    ;; needs to be as early as possible
-    (add-to-ordered-list
-     'emulation-mode-map-alists 'viper--intercept-key-maps 100)
-    ;; needs to be after cua-mode
-    (add-to-ordered-list 'emulation-mode-map-alists 'viper--key-maps 500)
-    )
+  ;; needs to be as early as possible
+  (add-to-ordered-list
+   'emulation-mode-map-alists 'viper--intercept-key-maps 100)
+  ;; needs to be after cua-mode
+  (add-to-ordered-list 'emulation-mode-map-alists 'viper--key-maps 500)
 
   ;; Emacs shell, ange-ftp, and comint-based modes
   (add-hook 'comint-mode-hook #'viper-comint-mode-hook) ; comint
@@ -1062,18 +1055,13 @@ This may be needed if the previous `:map' command terminated abnormally."
   (viper--advice-add 'add-minor-mode :after
    (lambda (&rest _)
     "Run viper-normalize-minor-mode-map-alist after adding a minor mode."
-    (viper-normalize-minor-mode-map-alist)
-    (unless
-	(and (fboundp 'add-to-ordered-list) (boundp 'emulation-mode-map-alists))
-      (setq-default minor-mode-map-alist minor-mode-map-alist))))
+    (viper-normalize-minor-mode-map-alist)))
 
   ;; catch frame switching event
   (if (viper-window-display-p)
       (viper--advice-add
        'handle-switch-frame :before
-       (lambda (&rest _)
-	 "Remember the selected frame before the switch-frame event."
-	 (viper-remember-current-frame (selected-frame)))))
+       #'viper-remember-current-frame))
 
   ) ; end viper-non-hook-settings
 
@@ -1201,7 +1189,7 @@ These two lines must come in the order given."))
 
 ;; The default viper-toggle-key is \C-z; for the novice, it suspends or
 ;; iconifies Emacs
-(define-key viper-vi-intercept-map viper-toggle-key 'viper-toggle-key-action)
+(define-key viper-vi-intercept-map viper-toggle-key #'viper-toggle-key-action)
 (define-key
   viper-emacs-intercept-map viper-toggle-key #'viper-change-state-to-vi)
 
@@ -1221,7 +1209,6 @@ These two lines must come in the order given."))
   (viper-harness-minor-mode "outline")
   (viper-harness-minor-mode "allout")
   (viper-harness-minor-mode "xref")
-  (viper-harness-minor-mode "lmenu")
   (viper-harness-minor-mode "vc")
   (viper-harness-minor-mode "ltx-math") ; LaTeX-math-mode in AUC-TeX, which
   (viper-harness-minor-mode "latex")    ; sits in one of these two files
@@ -1254,12 +1241,7 @@ These two lines must come in the order given."))
   ;; Without setting the default, new buffers that come up in emacs mode have
   ;; minor-mode-map-alist = nil, unless we call viper-change-state-*
   (when (eq viper-current-state 'emacs-state)
-    (viper-change-state-to-emacs)
-    (unless
-        (and (fboundp 'add-to-ordered-list)
-             (boundp 'emulation-mode-map-alists))
-      (setq-default minor-mode-map-alist minor-mode-map-alist))
-    )
+    (viper-change-state-to-emacs))
 
   (if (this-major-mode-requires-vi-state major-mode)
       (viper-mode))
@@ -1271,10 +1253,5 @@ These two lines must come in the order given."))
 (run-hooks 'viper-load-hook) ; the last chance to change something
 
 (provide 'viper)
-
-
-;; Local Variables:
-;; eval: (put 'viper-deflocalvar 'lisp-indent-hook 'defun)
-;; End:
 
 ;;; viper.el ends here

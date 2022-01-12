@@ -227,6 +227,15 @@ File Names}, for information on how to visit a file whose name
 actually contains wildcard characters.  You can disable the wildcard
 feature by customizing @code{find-file-wildcards}.
 
+@vindex query-about-changed-file
+  If you're asking to visit a file that's already visited in a buffer,
+but the file has changed externally, Emacs normally asks you whether
+you want to re-read the file from disk.  But if you set
+@code{query-about-changed-file} to @code{nil}, Emacs won't query you,
+but will instead just display the buffer's contents before the
+changes, and show an echo-area message telling you how to revert the
+buffer from the file.
+
 @kindex C-x C-v
 @findex find-alternate-file
   If you visit the wrong file unintentionally by typing its name
@@ -733,6 +742,17 @@ always supposed to end in newlines.  Such major modes set the variable
 setting the latter variable, you can control how these modes handle
 final newlines.
 
+@vindex file-preserve-symlinks-on-save
+If this option is non-@code{nil} and you're visiting a file via a
+symbolic link, Emacs will break the symbolic link upon saving the
+buffer, and will write the buffer to a file with the same name as the
+symbolic link, if the value of @code{file-precious-flag} is
+non-@code{nil} (@pxref{Saving Buffers, file-precious-flag,, elisp, The
+Emacs Lisp Reference Manual}).  If you want Emacs to save the buffer
+to the file the symbolic link points to (thereby preserving the link)
+in these cases, customize the variable
+@code{file-preserve-symlinks-on-save} to @code{t}.
+
 @vindex write-region-inhibit-fsync
   Normally, when a program writes a file, the operating system briefly
 caches the file's data in main memory before committing the data to
@@ -789,7 +809,9 @@ Emacs buffer visiting it has unsaved changes.
 @vindex create-lockfiles
   You can prevent the creation of lock files by setting the variable
 @code{create-lockfiles} to @code{nil}.  @strong{Caution:} by
-doing so you will lose the benefits that this feature provides.
+doing so you will lose the benefits that this feature provides.  You
+can also control where lock files are written by using the
+@code{lock-file-name-transforms} variable.
 
 @cindex collision
   If you begin to modify the buffer while the visited file is locked by
@@ -833,6 +855,14 @@ warning message and asks for confirmation before saving; answer
   If you are notified that simultaneous editing has already taken
 place, one way to compare the buffer to its file is the @kbd{M-x
 diff-buffer-with-file} command.  @xref{Comparing Files}.
+
+@vindex remote-file-name-inhibit-locks
+  You can prevent the creation of remote lock files by setting the
+variable @code{remote-file-name-inhibit-locks} to @code{t}.
+
+@cindex lock-file-mode
+  The minor mode @code{lock-file-mode}, called interactively, toggles
+the local value of @code{create-lockfiles} in the current buffer.
 
 @node File Shadowing
 @subsection Shadowing Files
@@ -921,14 +951,15 @@ Manual}).  For customizations, see the Custom group @code{time-stamp}.
 @node Reverting
 @section Reverting a Buffer
 @findex revert-buffer
+@findex revert-buffer-with-fine-grain
 @cindex drastic changes
 @cindex reread a file
 
   If you have made extensive changes to a file-visiting buffer and
 then change your mind, you can @dfn{revert} the changes and go back to
-the saved version of the file.  To do this, type @kbd{M-x
-revert-buffer}.  Since reverting unintentionally could lose a lot of
-work, Emacs asks for confirmation first.
+the saved version of the file.  To do this, type @kbd{C-x x g}.  Since
+reverting unintentionally could lose a lot of work, Emacs asks for
+confirmation first if the buffer is modified.
 
   The @code{revert-buffer} command tries to position point in such a
 way that, if the file was edited only slightly, you will be at
@@ -940,6 +971,19 @@ reverted changes as a single modification to the buffer's undo history
 (@pxref{Undo}).  Thus, after reverting, you can type @kbd{C-/} or its
 aliases to bring the reverted changes back, if you happen to change
 your mind.
+
+@vindex revert-buffer-with-fine-grain-max-seconds
+  To revert a buffer more conservatively, you can use the command
+@code{revert-buffer-with-fine-grain}.  This command acts like
+@code{revert-buffer}, but it tries to be as non-destructive as
+possible, making an effort to preserve all markers, properties and
+overlays in the buffer.  Since reverting this way can be very slow
+when you have made a large number of changes, you can modify the
+variable @code{revert-buffer-with-fine-grain-max-seconds} to
+specify a maximum amount of seconds that replacing the buffer
+contents this way should take.  Note that it is not ensured that the
+whole execution of @code{revert-buffer-with-fine-grain} won't take
+longer than this.
 
   Some kinds of buffers that are not associated with files, such as
 Dired buffers, can also be reverted.  For them, reverting means
@@ -957,6 +1001,17 @@ regular expressions, @code{find-file} and @code{revert-buffer} will
 revert it automatically if it has changed---provided the buffer itself
 is not modified.  (If you have edited the text, it would be wrong to
 discard your changes.)
+
+@vindex revert-buffer-quick-short-answers
+@findex revert-buffer-quick
+  The @kbd{C-x x g} keystroke is bound to the
+@code{revert-buffer-quick} command.  This is like the
+@code{revert-buffer} command, but prompts less.  Unlike
+@code{revert-buffer}, it will not prompt if the current buffer visits
+a file, and the buffer is not modified.  It also respects the
+@code{revert-buffer-quick-short-answers} user option.  If this option
+is non-@code{nil}, use a shorter @kbd{y/n} query instead of a longer
+@kbd{yes/no} query.
 
   You can also tell Emacs to revert buffers automatically when their
 visited files change on disk; @pxref{Auto Revert}.
@@ -1135,6 +1190,13 @@ visited file.  (You can inhibit this by setting the variable
 @code{delete-auto-save-files} to @code{nil}.)  Changing the visited
 file name with @kbd{C-x C-w} or @code{set-visited-file-name} renames
 any auto-save file to go with the new visited name.
+
+@vindex kill-buffer-delete-auto-save-files
+  Killing a buffer, by default, doesn't remove the buffer's auto-save
+file.  If @code{kill-buffer-delete-auto-save-files} is non-@code{nil},
+killing a buffer that has an auto-save file will make Emacs prompt the
+user for whether the auto-save file should be deleted.  (This is
+inhibited if @code{delete-auto-save-files} is @code{nil}.)
 
 @node Auto Save Control
 @subsection Controlling Auto-Saving
@@ -1615,6 +1677,10 @@ Convert the entire buffer to unified diff format
 unified format to context format.  When the mark is active, convert
 only the hunks within the region.
 
+@item C-c C-l
+@findex diff-refresh-hunk
+Re-generate the current hunk (@code{diff-refresh-hunk}).
+
 @item C-c C-w
 @findex diff-ignore-whitespace-hunk
 Re-generate the current hunk, disregarding changes in whitespace
@@ -1680,12 +1746,16 @@ exists.
   @kbd{M-x copy-file} copies the contents of the file @var{old} to the
 file @var{new}.
 
+@vindex copy-directory-create-symlink
 @findex copy-directory
   @kbd{M-x copy-directory} copies directories, similar to the
 @command{cp -r} shell command.  If @var{new} is a directory name, it
 creates a copy of the @var{old} directory and puts it in @var{new}.
 Otherwise it copies all the contents of @var{old} into a new directory
-named @var{new}.
+named @var{new}.  If @code{copy-directory-create-symlink} is
+non-@code{nil} and @var{old} is a symbolic link, this command will
+copy the symbolic link.  If @code{nil}, this command will follow the
+link and copy the contents instead.  (This is the default.)
 
 @cindex renaming files
 @findex rename-file
@@ -2150,7 +2220,12 @@ To reset all transformations to the initial state, use
 @findex image-previous-file
 You can press @kbd{n} (@code{image-next-file}) and @kbd{p}
 (@code{image-previous-file}) to visit the next image file and the
-previous image file in the same directory, respectively.
+previous image file in the same directory, respectively.  These
+commands will consult the ``parent'' dired buffer to determine what
+the next/previous image file is.  These commands also work when
+opening a file from archive files (like zip or tar files), and will
+then instead consult the archive mode buffer.  If neither an archive
+nor a dired ``parent'' buffer can be found, a dired buffer is opened.
 
 @findex image-mode-mark-file
 @findex image-mode-unmark-file

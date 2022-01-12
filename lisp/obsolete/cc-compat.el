@@ -1,4 +1,4 @@
-;;; cc-compat.el --- cc-mode compatibility with c-mode.el confusion
+;;; cc-compat.el --- cc-mode compatibility with c-mode.el confusion  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1985, 1987, 1992-2021 Free Software Foundation, Inc.
 
@@ -80,7 +80,7 @@ This is in addition to c-continued-statement-offset.")
 
 ;; these offsets are taken by brute force testing c-mode.el, since
 ;; there's no logic to what it does.
-(let* ((offsets	'(c-offsets-alist .
+(let* ((offsets	'((c-offsets-alist .
 		    ((defun-block-intro     . cc-block-intro-offset)
 		     (statement-block-intro . cc-block-intro-offset)
 		     (defun-open            . 0)
@@ -95,7 +95,7 @@ This is in addition to c-continued-statement-offset.")
 		     (case-label            . c-label-offset)
 		     (access-label          . c-label-offset)
 		     (label                 . c-label-offset)
-		     ))))
+		     )))))
   (c-add-style "BOCM" offsets))
 
 
@@ -156,7 +156,7 @@ This is in addition to c-continued-statement-offset.")
 	 (if bracep 0 c-indent-level)))))
 
 
-(defun cc-substatement-open-offset (langelem)
+(defun cc-substatement-open-offset (_langelem)
   (+ c-continued-statement-offset c-continued-brace-offset))
 
 

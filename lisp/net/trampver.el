@@ -7,6 +7,10 @@
 ;; Maintainer: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
 ;; Package: tramp
+;; Version: 2.5.2-pre
+;; Package-Requires: ((emacs "25.1"))
+;; Package-Type: multi
+;; URL: https://www.gnu.org/software/tramp/
 
 ;; This file is part of GNU Emacs.
 
@@ -25,21 +29,18 @@
 
 ;;; Commentary:
 
-;; Convenience functions around the Tramp version. Partly generated
+;; Convenience functions around the Tramp version.  Partly generated
 ;; during Tramp configuration.
 
 ;;; Code:
 
-;; In the Tramp GIT, the version number is auto-frobbed from tramp.el,
-;; and the bug report address is auto-frobbed from configure.ac.
-;; Emacs version check is defined in macro AC_EMACS_INFO of
-;; aclocal.m4; should be changed only there.
-
-;; Needed for Emacs 24.
-(defvar inhibit-message)
+;; In the Tramp GIT repository, the version number, the bug report
+;; address and the required Emacs version are auto-frobbed from
+;; configure.ac, so you should edit that file and run "autoconf &&
+;; ./configure" to change them.
 
 ;;;###tramp-autoload
-(defconst tramp-version "2.4.5.27.2"
+(defconst tramp-version "2.5.2-pre"
   "This version of Tramp.")
 
 ;;;###tramp-autoload
@@ -73,11 +74,16 @@
   "The repository revision of the Tramp sources.")
 
 ;; Check for Emacs version.
-(let ((x   (if (not (string-lessp emacs-version "24.4"))
+(let ((x   (if (not (string-lessp emacs-version "25.1"))
       "ok"
-    (format "Tramp 2.4.5.27.2 is not fit for %s"
+    (format "Tramp 2.5.2-pre is not fit for %s"
             (replace-regexp-in-string "\n" "" (emacs-version))))))
   (unless (string-equal "ok" x) (error "%s" x)))
+
+(defun tramp-inside-emacs ()
+  "Version string provided by INSIDE_EMACS enmvironment variable."
+  (concat (or (getenv "INSIDE_EMACS") emacs-version)
+	  ",tramp:" tramp-version))
 
 ;; Tramp versions integrated into Emacs.  If a user option declares a
 ;; `:package-version' which doesn't belong to an integrated Tramp
@@ -104,8 +110,3 @@
 (provide 'trampver)
 
 ;;; trampver.el ends here
-
-;; Local Variables:
-;; mode: Emacs-Lisp
-;; coding: utf-8
-;; End:

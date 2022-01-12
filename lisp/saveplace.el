@@ -1,4 +1,4 @@
-;;; saveplace.el --- automatically save place in files
+;;; saveplace.el --- automatically save place in files  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1993-1994, 2001-2021 Free Software Foundation, Inc.
 
@@ -42,7 +42,6 @@
   "Automatically save place in files."
   :group 'data)
 
-
 (defvar save-place-alist nil
   "Alist of saved places to go back to when revisiting files.
 Each element looks like (FILENAME . POSITION);
@@ -56,7 +55,7 @@ This alist is saved between Emacs sessions.")
   :type 'file)
 
 (defcustom save-place-version-control nil
-  "Controls whether to make numbered backups of master save-place file.
+  "Controls whether to make numbered backups of master `save-place' file.
 It can have four values: t, nil, `never', and `nospecial'.  The first
 three have the same meaning that they do for the variable
 `version-control', and the final value `nospecial' means just use the
@@ -87,6 +86,13 @@ You may do this anytime by calling the complementary function,
 this happens automatically before saving `save-place-alist' to
 `save-place-file'."
   :type 'boolean)
+
+(defcustom save-place-abbreviate-file-names nil
+  "If non-nil, abbreviate file names before saving them.
+This can simplify sharing the `save-place-file' file across
+different hosts."
+  :type 'boolean
+  :version "28.1")
 
 (defcustom save-place-save-skipped t
   "If non-nil, remember files matching `save-place-skip-check-regexp'.
@@ -175,10 +181,14 @@ file:
 (declare-function dired-get-filename "dired" (&optional localp no-error-if-not-filep))
 
 (defun save-place-to-alist ()
-  ;; put filename and point in a cons box and then cons that onto the
-  ;; front of the save-place-alist, if save-place-mode is non-nil.
-  ;; Otherwise, just delete that file from the alist.
-  ;; first check to make sure alist has been loaded in from the master
+  "Add current buffer filename and position to `save-place-alist'.
+Put filename and point in a cons box and then cons that onto the
+front of the `save-place-alist', if `save-place-mode' is non-nil.
+Otherwise, just delete that file from the alist.
+
+If `save-place-abbreviate-file-names' is non-nil, abbreviate the
+file names."
+  ;; First check to make sure alist has been loaded in from the master
   ;; file.  If not, do so, then feel free to modify the alist.  It
   ;; will be saved again when Emacs is killed.
   (or save-place-loaded (load-save-place-alist-from-file))
@@ -195,6 +205,8 @@ file:
                (or (not save-place-ignore-files-regexp)
                    (not (string-match save-place-ignore-files-regexp
                                       item))))
+      (when save-place-abbreviate-file-names
+        (setq item (abbreviate-file-name item)))
       (let ((cell (assoc item save-place-alist))
             (position (cond ((eq major-mode 'hexl-mode)
 			     (with-no-warnings
@@ -248,8 +260,8 @@ may have changed) back to `save-place-alist'."
       (delete-region (point-min) (point-max))
       (when save-place-forget-unreadable-files
 	(save-place-forget-unreadable-files))
-      (insert (format ";;; -*- coding: %s -*-\n"
-                      (symbol-name coding-system-for-write)))
+      (insert (format ";;; -*- coding: %s; mode: lisp-data -*-\n"
+                      coding-system-for-write))
       (let ((print-length nil)
             (print-level nil))
         (pp save-place-alist (current-buffer)))

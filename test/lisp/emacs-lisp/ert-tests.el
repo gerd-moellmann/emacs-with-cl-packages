@@ -6,18 +6,18 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software: you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License as
-;; published by the Free Software Foundation, either version 3 of the
-;; License, or (at your option) any later version.
-;;
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
-;;
+;; GNU Emacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; GNU Emacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see `https://www.gnu.org/licenses/'.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -800,6 +800,25 @@ This macro is used to test if macroexpansion in `should' works."
     (should (eql 1 (ert-stats-completed-expected stats)))
     (should (eql 0 (ert-stats-completed-unexpected stats)))
     (should (eql 1 (ert-stats-skipped stats)))))
+
+(ert-deftest ert-test-with-demoted-errors ()
+  "Check that ERT correctly handles `with-demoted-errors'."
+  :expected-result :failed  ;; FIXME!  Bug#11218
+  (should-not (with-demoted-errors (error "Foo"))))
+
+(ert-deftest ert-test-fail-inside-should ()
+  "Check that `ert-fail' inside `should' works correctly."
+  (let ((result (ert-run-test
+                 (make-ert-test
+                  :name 'test-1
+                  :body (lambda () (should (integerp (ert-fail "Boo"))))))))
+    (should (ert-test-failed-p result))
+    (should (equal (ert-test-failed-condition result)
+                   '(ert-test-failed "Boo")))))
+
+(ert-deftest ert-test-deftest-lexical-binding-t ()
+  "Check that `lexical-binding' in `ert-deftest' has the file value."
+  (should (equal lexical-binding t)))
 
 
 (provide 'ert-tests)

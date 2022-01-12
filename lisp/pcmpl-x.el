@@ -21,13 +21,15 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Commentary:
+
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
 (require 'pcomplete)
 
 
-;;;; tlmgr - http://www.tug.org/texlive/tlmgr.html
+;;;; tlmgr - https://www.tug.org/texlive/tlmgr.html
 
 (defcustom pcmpl-x-tlmgr-program "tlmgr"
   "Name of the tlmgr program."
@@ -141,7 +143,7 @@
           (pcomplete-here* (pcomplete-dirs-or-entries)))))))
 
 
-;;;; ack - http://betterthangrep.com
+;;;; ack - https://betterthangrep.com
 
 ;; Usage:
 ;;   - To complete short options type '-' first
@@ -285,6 +287,39 @@ long options."
         (pcomplete-here* (cdr (assq (if (pcomplete-match "^--" 0) 'long 'short)
                                     (pcmpl-x-ag-options))))
       (pcomplete-here* (pcomplete-dirs-or-entries)))))
+
+;;;###autoload
+(defun pcomplete/bcc32 ()
+  "Completion function for Borland's C++ compiler."
+  (let ((cur (pcomplete-arg 0)))
+    (cond
+     ((string-match "\\`-w\\([^;]+;\\)*\\([^;]*\\)\\'" cur)
+      (pcomplete-here
+       '("ali" "amb" "amp" "asc" "asm" "aus" "bbf" "bei" "big" "ccc"
+         "cln" "cod" "com" "cpt" "csu" "def" "dig" "dpu" "dsz" "dup"
+         "eas" "eff" "ext" "hch" "hid" "ias" "ibc" "ifr" "ill" "nil"
+         "lin" "lvc" "mcs" "mes" "mpc" "mpd" "msg" "nak" "ncf" "nci"
+         "ncl" "nfd" "ngu" "nin" "nma" "nmu" "nod" "nop" "npp" "nsf"
+         "nst" "ntd" "nto" "nvf" "obi" "obs" "ofp" "osh" "ovf" "par"
+         "pch" "pck" "pia" "pin" "pow" "prc" "pre" "pro" "rch" "ret"
+         "rng" "rpt" "rvl" "sig" "spa" "stl" "stu" "stv" "sus" "tai"
+         "tes" "thr" "ucp" "use" "voi" "zdi")
+       (match-string 2 cur)))
+     ((string-match "\\`-[LIn]\\([^;]+;\\)*\\([^;]*\\)\\'" cur)
+      (pcomplete-here (pcomplete-dirs) (match-string 2 cur)))
+     ((string-match "\\`-[Ee]\\(.*\\)\\'" cur)
+      (pcomplete-here (pcomplete-dirs-or-entries "\\.[Ee][Xx][Ee]\\'")
+                      (match-string 1 cur)))
+     ((string-match "\\`-o\\(.*\\)\\'" cur)
+      (pcomplete-here (pcomplete-dirs-or-entries "\\.[Oo][Bb][Jj]\\'")
+                      (match-string 1 cur)))
+     (t
+      (pcomplete-opt "3456ABCDEHIKLMNOPRSTUVXabcdefgijklnoptuvwxyz"))))
+  (while (pcomplete-here
+          (pcomplete-dirs-or-entries "\\.[iCc]\\([Pp][Pp]\\)?\\'"))))
+
+;;;###autoload
+(defalias 'pcomplete/bcc 'pcomplete/bcc32)
 
 (provide 'pcmpl-x)
 ;;; pcmpl-x.el ends here

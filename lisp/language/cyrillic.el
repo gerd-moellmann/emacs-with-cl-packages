@@ -1,4 +1,4 @@
-;;; cyrillic.el --- support for Cyrillic -*- coding: utf-8; -*-
+;;; cyrillic.el --- support for Cyrillic -*- coding: utf-8; lexical-binding: t; -*-
 
 ;; Copyright (C) 1997-1998, 2001-2021 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
@@ -33,7 +33,7 @@
 ;; are converted to Unicode internally.  See
 ;; <URL:http://www.ecma.ch/ecma1/STAND/ECMA-113.HTM>.  For more info
 ;; on Cyrillic charsets, see
-;; <URL:http://czyborra.com/charsets/cyrillic.html>.  The KOI and
+;; <URL:https://czyborra.com/charsets/cyrillic.html>.  The KOI and
 ;; Alternativnyj coding systems should live in code-pages.el, but
 ;; they've always been preloaded and the coding system autoload
 ;; mechanism didn't get accepted, so they have to stay here and
@@ -168,13 +168,6 @@ Support for Russian using koi8-r and the russian-computer input method.")
   :mnemonic ?*
   :charset-list '(ibm866)
   :mime-charset 'cp866)
-
-(define-coding-system 'koi8-u
-  "KOI8-U 8-bit encoding for Cyrillic (MIME: KOI8-U)"
-  :coding-type 'charset
-  :mnemonic ?U
-  :charset-list '(koi8-u)
-  :mime-charset 'koi8-u)
 
 (define-coding-system 'koi8-t
   "KOI8-T 8-bit encoding for Cyrillic"

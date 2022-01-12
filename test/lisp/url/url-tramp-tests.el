@@ -1,4 +1,4 @@
-;;; url-tramp-tests.el --- Test suite for Tramp / URL conversion.
+;;; url-tramp-tests.el --- Test suite for Tramp / URL conversion.  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
 

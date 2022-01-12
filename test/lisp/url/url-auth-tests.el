@@ -1,4 +1,4 @@
-;;; url-auth-tests.el --- Test suite for url-auth.
+;;; url-auth-tests.el --- Test suite for url-auth.  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
 
@@ -154,7 +154,7 @@ Essential is how realms and paths are matched."
          auth)
 
     (dolist (row (list
-                  ;; If :expected-user is `nil' it indicates
+                  ;; If :expected-user is nil it indicates
                   ;; authentication information shouldn't be found.
 
                   ;; non-existent server

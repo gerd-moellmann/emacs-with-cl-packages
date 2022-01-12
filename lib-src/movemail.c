@@ -270,6 +270,7 @@ main (int argc, char **argv)
 	 You might also wish to verify that your system is one which
 	 uses lock files for this purpose.  Some systems use other methods.  */
 
+      bool lockname_unlinked = false;
       inname_len = strlen (inname);
       lockname = xmalloc (inname_len + sizeof ".lock");
       strcpy (lockname, inname);
@@ -312,15 +313,10 @@ main (int argc, char **argv)
 	     Five minutes should be good enough to cope with crashes
 	     and wedgitude, and long enough to avoid being fooled
 	     by time differences between machines.  */
-	  if (stat (lockname, &st) >= 0)
-	    {
-	      time_t now = time (0);
-	      if (st.st_ctime < now - 300)
-		{
-		  unlink (lockname);
-		  lockname = 0;
-		}
-	    }
+	  if (!lockname_unlinked
+	      && stat (lockname, &st) == 0
+	      && st.st_ctime < time (0) - 300)
+	    lockname_unlinked = unlink (lockname) == 0 || errno == ENOENT;
 	}
 
       delete_lockname = lockname;
@@ -580,7 +576,7 @@ pfatal_with_name (char *name)
 static void
 pfatal_and_delete (char *name)
 {
-  char *s = strerror (errno);
+  const char *s = strerror (errno);
   unlink (name);
   fatal ("%s for %s", s, name);
 }

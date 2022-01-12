@@ -289,7 +289,7 @@ DEFUN ("x-menu-bar-open-internal", Fx_menu_bar_open_internal, Sx_menu_bar_open_i
   block_input ();
 
   if (FRAME_EXTERNAL_MENU_BAR (f))
-    set_frame_menubar (f, false, true);
+    set_frame_menubar (f, true);
 
   menubar = FRAME_X_OUTPUT (f)->menubar_widget;
   if (menubar)
@@ -368,7 +368,7 @@ If FRAME is nil or not given, use the selected frame.  */)
   f = decode_window_system_frame (frame);
 
   if (FRAME_EXTERNAL_MENU_BAR (f))
-    set_frame_menubar (f, false, true);
+    set_frame_menubar (f, true);
 
   menubar = FRAME_X_OUTPUT (f)->menubar_widget;
   if (menubar)
@@ -433,7 +433,7 @@ x_activate_menubar (struct frame *f)
     return;
 #endif
 
-  set_frame_menubar (f, false, true);
+  set_frame_menubar (f, true);
   block_input ();
   popup_activated_flag = 1;
 #ifdef USE_GTK
@@ -641,7 +641,7 @@ update_frame_menubar (struct frame *f)
   lw_refigure_widget (x->column_widget, True);
 
   /* Force the pane widget to resize itself.  */
-  adjust_frame_size (f, -1, -1, 2, false, Qupdate_frame_menubar);
+  adjust_frame_size (f, -1, -1, 2, false, Qmenu_bar_lines);
   unblock_input ();
 #endif /* USE_GTK */
 }
@@ -677,12 +677,10 @@ apply_systemfont_to_menu (struct frame *f, Widget w)
 
 #endif
 
-/* Set the contents of the menubar widgets of frame F.
-   The argument FIRST_TIME is currently ignored;
-   it is set the first time this is called, from initialize_frame_menubar.  */
+/* Set the contents of the menubar widgets of frame F.  */
 
 void
-set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
+set_frame_menubar (struct frame *f, bool deep_p)
 {
   xt_or_gtk_widget menubar_widget, old_widget;
 #ifdef USE_X_TOOLKIT
@@ -763,7 +761,7 @@ set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
 
       /* Save the frame's previous menu bar contents data.  */
       if (previous_menu_items_used)
-	memcpy (previous_items, XVECTOR (f->menu_bar_vector)->contents,
+	memcpy (previous_items, xvector_contents (f->menu_bar_vector),
 		previous_menu_items_used * word_size);
 
       /* Fill in menu_items with the current menu bar contents.
@@ -1029,7 +1027,7 @@ initialize_frame_menubar (struct frame *f)
   /* This function is called before the first chance to redisplay
      the frame.  It has to be, so the frame will have the right size.  */
   fset_menu_bar_items (f, menu_bar_items (FRAME_MENU_BAR_ITEMS (f)));
-  set_frame_menubar (f, true, true);
+  set_frame_menubar (f, true);
 }
 
 
@@ -1046,6 +1044,7 @@ free_frame_menubar (struct frame *f)
   /* Motif automatically shrinks the frame in lw_destroy_all_widgets.
      If we want to preserve the old height, calculate it now so we can
      restore it below.  */
+  int old_width = FRAME_TEXT_WIDTH (f);
   int old_height = FRAME_TEXT_HEIGHT (f) + FRAME_MENUBAR_HEIGHT (f);
 #endif
 
@@ -1079,26 +1078,43 @@ free_frame_menubar (struct frame *f)
       lw_destroy_all_widgets ((LWLIB_ID) f->output_data.x->id);
       f->output_data.x->menubar_widget = NULL;
 
+      /* When double-buffering is enabled and the frame shall not be
+	 resized either because resizing is inhibited or the frame is
+	 fullheight, some (usually harmless) display artifacts like a
+	 doubled mode line may show up.  Sometimes the configuration
+	 gets messed up in a more serious fashion though and you may
+	 have to resize the frame to get it back in a normal state.  */
       if (f->output_data.x->widget)
 	{
 #ifdef USE_MOTIF
 	  XtVaGetValues (f->output_data.x->widget, XtNx, &x1, XtNy, &y1, NULL);
 	  if (x1 == 0 && y1 == 0)
 	    XtVaSetValues (f->output_data.x->widget, XtNx, x0, XtNy, y0, NULL);
-	  if (frame_inhibit_resize (f, false, Qmenu_bar_lines))
-	    adjust_frame_size (f, -1, old_height, 1, false, Qfree_frame_menubar_1);
+	  /* When resizing is inhibited and a normal Motif frame is not
+	     fullheight, we have to explicitly request its old sizes
+	     here since otherwise turning off the menu bar will shrink
+	     the frame but turning them on again will not resize it
+	     back.  For a fullheight frame we let the window manager
+	     deal with this problem.  */
+	  if (frame_inhibit_resize (f, false, Qmenu_bar_lines)
+	      && !EQ (get_frame_param (f, Qfullscreen), Qfullheight))
+	    adjust_frame_size (f, old_width, old_height, 1, false,
+			       Qmenu_bar_lines);
 	  else
-	    adjust_frame_size (f, -1, -1, 2, false, Qfree_frame_menubar_1);
+	    adjust_frame_size (f, -1, -1, 2, false, Qmenu_bar_lines);
 #else
-	  adjust_frame_size (f, -1, -1, 2, false, Qfree_frame_menubar_1);
+	  adjust_frame_size (f, -1, -1, 2, false, Qmenu_bar_lines);
 #endif /* USE_MOTIF */
 	}
       else
 	{
 #ifdef USE_MOTIF
 	  if (WINDOWP (FRAME_ROOT_WINDOW (f))
-	      && frame_inhibit_resize (f, false, Qmenu_bar_lines))
-	    adjust_frame_size (f, -1, old_height, 1, false, Qfree_frame_menubar_2);
+	      /* See comment above.  */
+	      && frame_inhibit_resize (f, false, Qmenu_bar_lines)
+	      && !EQ (get_frame_param (f, Qfullscreen), Qfullheight))
+	    adjust_frame_size (f, old_width, old_height, 1, false,
+			       Qmenu_bar_lines);
 #endif
 	}
 
@@ -1587,6 +1603,14 @@ x_menu_show (struct frame *f, int x, int y, int menuflags,
 				  STRINGP (help) ? help : Qnil);
 	  if (prev_wv)
 	    prev_wv->next = wv;
+	  else if (!save_wv)
+	    {
+	      /* This emacs_abort call pacifies gcc 11.2.1 when Emacs
+		 is configured with --enable-gcc-warnings.  FIXME: If
+		 save_wv can be null, do something better; otherwise,
+		 explain why save_wv cannot be null.  */
+	      emacs_abort ();
+	    }
 	  else
 	    save_wv->contents = wv;
 	  if (!NILP (descrip))

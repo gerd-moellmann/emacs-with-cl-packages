@@ -1,4 +1,4 @@
-;;; mml-smime.el --- S/MIME support for MML
+;;; mml-smime.el --- S/MIME support for MML  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
 
@@ -129,7 +129,7 @@ Whether the passphrase is cached at all is controlled by
     (if func
 	(funcall func handle ctl))))
 
-(defun mml-smime-openssl-sign (cont)
+(defun mml-smime-openssl-sign (_cont)
   (when (null smime-keys)
     (customize-variable 'smime-keys)
     (error "No S/MIME keys configured, use customize to add your key"))
@@ -154,14 +154,9 @@ Whether the passphrase is cached at all is controlled by
 	  (write-region (point-min) (point-max) file))
 	(push file certfiles)
 	(push file tmpfiles)))
-    (if (smime-encrypt-buffer certfiles)
-	(progn
-	  (while (setq tmp (pop tmpfiles))
-	    (delete-file tmp))
-	  t)
-      (while (setq tmp (pop tmpfiles))
-	(delete-file tmp))
-      nil))
+    (smime-encrypt-buffer certfiles)
+    (while (setq tmp (pop tmpfiles))
+      (delete-file tmp)))
   (goto-char (point-max)))
 
 (defvar gnus-extract-address-components)
@@ -184,7 +179,7 @@ Whether the passphrase is cached at all is controlled by
 		(and from (smime-get-key-by-email from)))
 	      (smime-get-key-by-email
 	       (gnus-completing-read "Sign this part with what signature"
-                                     (mapcar 'car smime-keys) nil nil nil
+                                     (mapcar #'car smime-keys) nil nil nil
                                      (and (listp (car-safe smime-keys))
                                           (caar smime-keys))))))))
 
@@ -292,7 +287,7 @@ Whether the passphrase is cached at all is controlled by
 					 (point-min) (point))
 					addresses)))
 	      (delete-region (point-min) (point)))
-	    (setq addresses (mapcar 'downcase addresses))))
+	    (setq addresses (mapcar #'downcase addresses))))
 	(if (not (member (downcase (or (mm-handle-multipart-from ctl) ""))
 			 addresses))
 	    (mm-sec-error 'gnus-info "Sender address forged")
@@ -304,7 +299,7 @@ Whether the passphrase is cached at all is controlled by
 	 (concat "Sender claimed to be: " (mm-handle-multipart-from ctl) "\n"
 		 (if addresses
 		     (concat "Addresses in certificate: "
-			     (mapconcat 'identity addresses ", "))
+			     (mapconcat #'identity addresses ", "))
 		   "No addresses found in certificate. (Requires OpenSSL 0.9.6 or later.)")
 		 "\n" "\n"
 		 "OpenSSL output:\n"
@@ -314,12 +309,11 @@ Whether the passphrase is cached at all is controlled by
 		 (buffer-string) "\n")))))
   handle)
 
-(defun mml-smime-openssl-verify-test (handle ctl)
+(defun mml-smime-openssl-verify-test (_handle _ctl)
   smime-openssl-program)
 
 (defvar epg-user-id-alist)
 (defvar epg-digest-algorithm-alist)
-(defvar inhibit-redisplay)
 (defvar password-cache-expiry)
 
 (eval-when-compile
@@ -334,7 +328,6 @@ Whether the passphrase is cached at all is controlled by
   (autoload 'epg-verify-string "epg")
   (autoload 'epg-sign-string "epg")
   (autoload 'epg-encrypt-string "epg")
-  (autoload 'epg-passphrase-callback-function "epg")
   (autoload 'epg-context-set-passphrase-callback "epg")
   (autoload 'epg-sub-key-fingerprint "epg")
   (autoload 'epg-configuration "epg-config")
@@ -375,9 +368,7 @@ Content-Disposition: attachment; filename=smime.p7s
       (goto-char (point-max)))))
 
 (defun mml-smime-epg-encrypt (cont)
-  (let* ((inhibit-redisplay t)
-	 (boundary (mml-compute-boundary cont))
-	 (cipher (mml-secure-epg-encrypt 'CMS cont)))
+  (let* ((cipher (mml-secure-epg-encrypt 'CMS cont)))
     (delete-region (point-min) (point-max))
     (goto-char (point-min))
     (insert "\
@@ -393,8 +384,7 @@ Content-Disposition: attachment; filename=smime.p7m
 
 (defun mml-smime-epg-verify (handle ctl)
   (catch 'error
-    (let ((inhibit-redisplay t)
-	  context plain signature-file part signature)
+    (let (context part signature) ;; plain signature-file
       (when (or (null (setq part (mm-find-raw-part-by-type
 				  ctl (or (mm-handle-multipart-ctl-parameter
 					   ctl 'protocol)
@@ -410,22 +400,23 @@ Content-Disposition: attachment; filename=smime.p7m
 					   nil t)))))
 	(mm-sec-error 'gnus-info "Corrupted")
 	(throw 'error handle))
-      (setq part (replace-regexp-in-string "\n" "\r\n" part)
+      (setq part (string-replace "\n" "\r\n" part)
 	    context (epg-make-context 'CMS))
       (condition-case error
-	  (setq plain (epg-verify-string context (mm-get-part signature) part))
+	  ;; (setq plain
+	  (epg-verify-string context (mm-get-part signature) part) ;;)
 	(error
 	 (mm-sec-error 'gnus-info "Failed")
-	 (if (eq (car error) 'quit)
-	     (mm-sec-status 'gnus-details "Quit.")
-	   (mm-sec-status 'gnus-details (format "%S" error)))
+	 (mm-sec-status 'gnus-details (if (eq (car error) 'quit)
+	                                  "Quit."
+	                                (format "%S" error)))
 	 (throw 'error handle)))
       (mm-sec-status
        'gnus-info
        (epg-verify-result-to-string (epg-context-result-for context 'verify)))
       handle)))
 
-(defun mml-smime-epg-verify-test (handle ctl)
+(defun mml-smime-epg-verify-test (_handle _ctl)
   t)
 
 (provide 'mml-smime)

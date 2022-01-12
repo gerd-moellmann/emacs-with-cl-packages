@@ -135,7 +135,7 @@ dynlib_addr (void (*funcptr) (void), const char **fname, const char **symname)
   void *addr = (void *) funcptr;
 
   /* Step 1: Find the handle of the module where ADDR lives.  */
-  if (os_subtype == OS_9X
+  if (os_subtype == OS_SUBTYPE_9X
       /* Windows NT family version before XP (v5.1).  */
       || ((w32_major_version + (w32_minor_version > 0)) < 6))
     {
@@ -301,15 +301,11 @@ dynlib_error (void)
   return dlerror ();
 }
 
-/* FIXME: Currently there is no way to unload a module, so this
-   function is never used.  */
-#if false
 int
 dynlib_close (dynlib_handle_ptr h)
 {
   return dlclose (h) == 0;
 }
-#endif
 
 #else
 

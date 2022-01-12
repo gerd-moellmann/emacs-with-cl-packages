@@ -1,4 +1,4 @@
-;;; sami.el --- Quail package for inputting Sámi  -*-coding: utf-8;-*-
+;;; sami.el --- Quail package for inputting Sámi  -*-coding: utf-8; lexical-binding: t -*-
 
 ;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
 
@@ -33,7 +33,7 @@
 ;; - skolt-sami-prefix
 ;; - kildin-sami-prefix
 
-;;; Code
+;;; Code:
 
 (require 'quail)
 

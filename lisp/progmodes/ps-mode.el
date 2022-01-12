@@ -1,4 +1,4 @@
-;;; ps-mode.el --- PostScript mode for GNU Emacs
+;;; ps-mode.el --- PostScript mode for GNU Emacs  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1999, 2001-2021 Free Software Foundation, Inc.
 
@@ -39,7 +39,6 @@
   "Peter Kleiweg <p.c.j.kleiweg@rug.nl>, bug-gnu-emacs@gnu.org")
 
 (require 'comint)
-(require 'easymenu)
 (require 'smie)
 
 ;; Define core `PostScript' group.
@@ -282,20 +281,20 @@ If nil, use `temporary-file-directory'."
 
 (defvar ps-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-c\C-v" 'ps-run-boundingbox)
-    (define-key map "\C-c\C-u" 'ps-mode-uncomment-region)
-    (define-key map "\C-c\C-t" 'ps-mode-epsf-rich)
-    (define-key map "\C-c\C-s" 'ps-run-start)
-    (define-key map "\C-c\C-r" 'ps-run-region)
-    (define-key map "\C-c\C-q" 'ps-run-quit)
-    (define-key map "\C-c\C-p" 'ps-mode-print-buffer)
-    (define-key map "\C-c\C-o" 'ps-mode-comment-out-region)
-    (define-key map "\C-c\C-k" 'ps-run-kill)
-    (define-key map "\C-c\C-j" 'ps-mode-other-newline)
-    (define-key map "\C-c\C-l" 'ps-run-clear)
-    (define-key map "\C-c\C-b" 'ps-run-buffer)
+    (define-key map "\C-c\C-v" #'ps-run-boundingbox)
+    (define-key map "\C-c\C-u" #'ps-mode-uncomment-region)
+    (define-key map "\C-c\C-t" #'ps-mode-epsf-rich)
+    (define-key map "\C-c\C-s" #'ps-run-start)
+    (define-key map "\C-c\C-r" #'ps-run-region)
+    (define-key map "\C-c\C-q" #'ps-run-quit)
+    (define-key map "\C-c\C-p" #'ps-mode-print-buffer)
+    (define-key map "\C-c\C-o" #'ps-mode-comment-out-region)
+    (define-key map "\C-c\C-k" #'ps-run-kill)
+    (define-key map "\C-c\C-j" #'ps-mode-other-newline)
+    (define-key map "\C-c\C-l" #'ps-run-clear)
+    (define-key map "\C-c\C-b" #'ps-run-buffer)
     ;; FIXME: Add `indent' to backward-delete-char-untabify-method instead?
-    (define-key map "\177" 'ps-mode-backward-delete-char)
+    (define-key map "\177" #'ps-mode-backward-delete-char)
     map)
   "Local keymap to use in PostScript mode.")
 
@@ -337,10 +336,10 @@ If nil, use `temporary-file-directory'."
 (defvar ps-run-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map comint-mode-map)
-    (define-key map "\C-c\C-q" 'ps-run-quit)
-    (define-key map "\C-c\C-k" 'ps-run-kill)
-    (define-key map "\C-c\C-e" 'ps-run-goto-error)
-    (define-key map [mouse-2] 'ps-run-mouse-goto-error)
+    (define-key map "\C-c\C-q" #'ps-run-quit)
+    (define-key map "\C-c\C-k" #'ps-run-kill)
+    (define-key map "\C-c\C-e" #'ps-run-goto-error)
+    (define-key map [mouse-2] #'ps-run-mouse-goto-error)
     map)
   "Local keymap to use in PostScript run mode.")
 
@@ -447,7 +446,7 @@ If nil, use `temporary-file-directory'."
      ps-mode-submit-bug-report
      t]))
 
-(easy-menu-define ps-mode-main ps-mode-map "PostScript" ps-mode-menu-main)
+(easy-menu-define ps-mode-main ps-mode-map "PostScript Menu." ps-mode-menu-main)
 
 
 
@@ -501,18 +500,18 @@ point to the corresponding spot in the PostScript window, if input
 to the interpreter was sent from that window.
 Typing \\<ps-run-mode-map>\\[ps-run-goto-error] when the cursor is at the number has the same effect."
   (setq-local syntax-propertize-function #'ps-mode-syntax-propertize)
-  (set (make-local-variable 'font-lock-defaults)
-       '((ps-mode-font-lock-keywords
- 	  ps-mode-font-lock-keywords-1
- 	  ps-mode-font-lock-keywords-2
- 	  ps-mode-font-lock-keywords-3)
-	 nil))
+  (setq-local font-lock-defaults
+              '((ps-mode-font-lock-keywords
+                 ps-mode-font-lock-keywords-1
+                 ps-mode-font-lock-keywords-2
+                 ps-mode-font-lock-keywords-3)
+                nil))
   (smie-setup nil #'ps-mode-smie-rules)
   (setq-local electric-indent-chars
               (append '(?> ?\] ?\}) electric-indent-chars))
-  (set (make-local-variable 'comment-start) "%")
+  (setq-local comment-start "%")
   ;; NOTE: `\' has a special meaning in strings only
-  (set (make-local-variable 'comment-start-skip) "%+[ \t]*")
+  (setq-local comment-start-skip "%+[ \t]*")
   ;; enable doc-view-minor-mode => C-c C-c starts viewing the current ps file
   ;; with doc-view-mode.
   (doc-view-minor-mode 1))
@@ -910,11 +909,11 @@ plus the usually uncoded characters inserted on positions 1 through 28."
 (define-derived-mode ps-run-mode comint-mode "Interactive PS"
   "Major mode in interactive PostScript window.
 This mode is invoked from `ps-mode' and should not be called directly."
-  (set (make-local-variable 'font-lock-defaults)
-       '((ps-run-font-lock-keywords
-	  ps-run-font-lock-keywords-1
-	  ps-run-font-lock-keywords-2)
-	 t))
+  (setq-local font-lock-defaults
+              '((ps-run-font-lock-keywords
+                 ps-run-font-lock-keywords-1
+                 ps-run-font-lock-keywords-2)
+                t))
   (setq mode-line-process '(":%s")))
 
 (defun ps-run-running ()
@@ -1093,7 +1092,7 @@ Use line numbers if `ps-run-error-line-numbers' is not nil."
 
 
 ;;
-(add-hook 'kill-emacs-hook 'ps-run-cleanup)
+(add-hook 'kill-emacs-hook #'ps-run-cleanup)
 
 (provide 'ps-mode)
 

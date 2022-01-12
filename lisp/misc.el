@@ -1,4 +1,4 @@
-;;; misc.el --- some nonstandard editing and utility commands for Emacs
+;;; misc.el --- some nonstandard editing and utility commands for Emacs  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1989, 2001-2021 Free Software Foundation, Inc.
 
@@ -41,7 +41,7 @@ The characters copied are inserted in the buffer before point."
     (save-excursion
       (beginning-of-line)
       (backward-char 1)
-      (skip-chars-backward "\ \t\n")
+      (skip-chars-backward " \t\n")
       (move-to-column cc)
       ;; Default is enough to copy the whole rest of the line.
       (setq n (if arg (prefix-numeric-value arg) (point-max)))
@@ -69,7 +69,9 @@ The characters copied are inserted in the buffer before point."
 Case is ignored if `case-fold-search' is non-nil in the current buffer.
 Goes backward if ARG is negative; error if CHAR not found.
 Ignores CHAR at point."
-  (interactive "p\ncZap up to char: ")
+  (interactive (list (prefix-numeric-value current-prefix-arg)
+		     (read-char-from-minibuffer "Zap up to char: "
+						nil 'read-char-history)))
   (let ((direction (if (>= arg 0) 1 -1)))
     (kill-region (point)
 		 (progn
@@ -125,7 +127,7 @@ upper atmosphere.  These cause momentary pockets of higher-pressure
 air to form, which act as lenses that deflect incoming cosmic rays,
 focusing them to strike the drive platter and flip the desired bit.
 You can type `M-x butterfly C-M-c' to run it.  This is a permuted
-variation of `C-x M-c M-butterfly' from url `http://xkcd.com/378/'."
+variation of `C-x M-c M-butterfly' from url `https://xkcd.com/378/'."
   (interactive)
   (if (yes-or-no-p "Do you really want to unleash the powers of the butterfly? ")
       (progn
@@ -137,7 +139,7 @@ variation of `C-x M-c M-butterfly' from url `http://xkcd.com/378/'."
 	(sit-for (* 5 (/ (abs (random)) (float most-positive-fixnum))))
 	(message "Successfully flipped one bit!"))
     (message "Well, then go to xkcd.com!")
-    (browse-url "http://xkcd.com/378/")))
+    (browse-url "https://xkcd.com/378/")))
 
 ;; A command to list dynamically loaded libraries.  This useful in
 ;; environments where dynamic-library-alist is used, i.e., Windows
@@ -162,7 +164,7 @@ Internal use only."
   "Recompute the list of dynamic libraries.
 Internal use only."
   (setq tabulated-list-format  ; recomputed because column widths can change
-        (let ((max-id-len 0) (max-name-len 0))
+        (let ((max-id-len 7) (max-name-len 11))
           (dolist (lib dynamic-library-alist)
             (let ((id-len (length (symbol-name (car lib))))
                   (name-len (apply 'max (mapcar 'length (cdr lib)))))
@@ -181,7 +183,9 @@ Internal use only."
         (push (list id (vector (symbol-name id)
                                (list-dynamic-libraries--loaded from)
                                (mapconcat 'identity (cdr lib) ", ")))
-              tabulated-list-entries)))))
+              tabulated-list-entries))))
+  (when (not dynamic-library-alist)
+    (message "No dynamic libraries found")))
 
 ;;;###autoload
 (defun list-dynamic-libraries (&optional loaded-only-p buffer)

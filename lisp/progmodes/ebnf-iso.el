@@ -1,4 +1,4 @@
-;;; ebnf-iso.el --- parser for ISO EBNF
+;;; ebnf-iso.el --- parser for ISO EBNF  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
 
@@ -38,7 +38,7 @@
 ;; ---------------
 ;;
 ;;	See the URL:
-;;	`http://www.cl.cam.ac.uk/~mgk25/iso-ebnf.html'
+;;	`https://www.cl.cam.ac.uk/~mgk25/iso-ebnf.html'
 ;;	("International Standard of the ISO EBNF Notation").
 ;;
 ;;
@@ -379,9 +379,8 @@
     (aset ebnf-iso-token-table ?.  'character)))
 
 
-;; replace the range "\240-\377" (see `ebnf-range-regexp').
 (defconst ebnf-iso-non-terminal-chars
-  (ebnf-range-regexp " 0-9A-Za-z_" ?\240 ?\377))
+  " 0-9A-Za-z_\u00a0-\u00ff")
 
 
 (defun ebnf-iso-lex ()
@@ -487,9 +486,8 @@ See documentation for variable `ebnf-iso-lex'."
        ))))
 
 
-;; replace the range "\177-\237" (see `ebnf-range-regexp').
 (defconst ebnf-iso-comment-chars
-  (ebnf-range-regexp "^*(\000-\010\016-\037" ?\177 ?\237))
+  "^*(\000-\010\016-\037\177\u0080-\u009f")
 
 
 (defun ebnf-iso-skip-comment ()

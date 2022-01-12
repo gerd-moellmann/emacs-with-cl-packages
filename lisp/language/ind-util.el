@@ -1,4 +1,4 @@
-;;; ind-util.el --- Transliteration and Misc. Tools for Indian Languages -*- coding: utf-8-emacs; -*-
+;;; ind-util.el --- Transliteration and Misc. Tools for Indian Languages -*- coding: utf-8-emacs; lexical-binding: t; -*-
 
 ;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
 
@@ -40,7 +40,7 @@
 (defun indian-regexp-of-hashtbl-keys (hashtbl)
   "Return the regular expression of hash table keys."
   (let (keys)
-    (maphash (lambda (key val) (push key keys)) hashtbl)
+    (maphash (lambda (key _val) (push key keys)) hashtbl)
     (regexp-opt keys)))
 
 (defvar indian-dev-base-table
@@ -232,8 +232,8 @@
   '(
     (;; VOWELS
      (?അ nil) (?ആ ?ാ) (?ഇ ?ി) (?ഈ ?ീ) (?ഉ ?ു) (?ഊ ?ൂ)
-     (?ഋ ?ൃ) (?ഌ nil) nil (?ഏ ?േ) (?എ ?െ) (?ഐ ?ൈ)
-     nil (?ഓ ?ോ) (?ഒ ?ൊ) (?ഔ ?ൌ) nil nil)
+     (?ഋ ?ൃ) (?ഌ ?ൢ) (?ൡ ?ൣ) (?ഏ ?േ) (?എ ?െ) (?ഐ ?ൈ)
+     nil (?ഒ ?ൊ) (?ഓ ?ോ) (?ഔ ?ൗ) (?് ?്) (?ൠ ?ൄ))
     (;; CONSONANTS
      ?ക ?ഖ ?ഗ ?ഘ ?ങ                  ;; GUTTRULS
      ?ച ?ഛ ?ജ ?ഝ ?ഞ                  ;; PALATALS
@@ -243,13 +243,16 @@
      ?യ ?ര ?റ ?ല ?ള ?ഴ ?വ          ;; SEMIVOWELS
      ?ശ ?ഷ ?സ ?ഹ                    ;; SIBILANTS
      nil nil nil nil nil nil nil nil      ;; NUKTAS
-     "ജ്ഞ" "ക്ഷ")
+     "ജ്ഞ" "ക്ഷ"
+     "റ്റ" "ന്റ" "ത്ത" "ത്ഥ" "ഞ്ഞ" "ങ്ങ" "ന്ന"
+     "ഞ്ച" "ന്ക" "ങ്ക" "ച്ച" "ച്ഛ" "ക്ക"
+     "ബ്ബ" "ക്ക" "ഗ്ഗ" "ജ്ജ" "മ്മ" "പ്പ" "വ്വ" "ക്സ" "ശ്ശ")
     (;; Misc Symbols
      nil ?ം ?ഃ nil ?് nil nil)
     (;; Digits
      ?൦ ?൧ ?൨ ?൩ ?൪ ?൫ ?൬ ?൭ ?൮ ?൯)
-    (;; Inscript-extra (4)  (#, $, ^, *, ])
-     "്ര" "ര്" "ത്ര" "ശ്ര" nil)))
+    (;; Chillus
+     "ണ്" ?ൺ "ന്" ?ൻ "ര്" ?ർ "ല്" ?ൽ "ള്" ?ൾ)))
 
 (defvar indian-tml-base-table
   '(
@@ -322,6 +325,29 @@
      ("GY" "dny") "x")
     (;; misc -- 7
      ".N" (".n" "M") "H" ".a" ".h" ("AUM" "OM") "..")))
+
+(defvar indian-mlm-mozhi-table
+  '(;; for encode/decode
+    (;; vowels -- 18
+     "a" ("aa" "A") "i" ("ii" "I") "u" ("uu" "U")
+     "R" "Ll" "Lll" ("E" "ae") "e" "ai"
+     nil  "o"   "O"   "au"  "~" "RR")
+    (;; consonants -- 40
+     ("k" "c")   "kh"  "g"   "gh"  "ng"
+     "ch" ("Ch" "chh") "j" "jh" "nj"
+     "T"   "Th"  "D"   "Dh"  "N"
+     "th"  "thh" "d"   "dh"  "n"   nil
+     "p"   ("ph" "f")  "b"   "bh"  "m"
+     "y"   "r"   "rr"  "l"  "L" "zh" ("v" "w")
+     ("S" "z") "sh" "s" "h"
+     nil nil nil nil nil nil nil nil
+     nil "X"
+     ;; some of these are extra to Mozhi
+     ("t" "tt") "nt" "tth" "tthh" "nnj" "nng" "nn"
+     "nch" "nc" "nk" "cch" "cchh" "cc"
+     "B" ("C" "K" "q") "G" "J" "M" "P" "V" "x" "Z")
+    (;; misc -- 7
+     nil nil "H")))
 
 (defvar indian-kyoto-harvard-table
   '(;; for encode/decode
@@ -461,7 +487,7 @@
    c trans-c))
 
 (defun indian-make-hash (table trans-table)
-  "Indian Transliteration Hash for decode/encode"
+  "Indian Transliteration Hash for decode/encode."
   (let* ((encode-hash (make-hash-table :test 'equal))
 	 (decode-hash (make-hash-table :test 'equal))
 	 (hashtbls (cons encode-hash decode-hash))
@@ -524,6 +550,10 @@
   (indian-make-hash indian-mlm-base-table
 			  indian-itrans-v5-table))
 
+(defvar indian-mlm-mozhi-hash
+  (indian-make-hash indian-mlm-base-table
+			  indian-mlm-mozhi-table))
+
 (defvar indian-tml-itrans-v5-hash
   (indian-make-hash indian-tml-base-table
 			  indian-itrans-v5-table-for-tamil))
@@ -535,7 +565,7 @@
        (let ((regexp ,(indian-regexp-of-hashtbl-keys
 		       (if encode-p (car (eval hashtable))
 			 (cdr (eval hashtable))))))
-	 (narrow-to-region from to)
+	 (narrow-to-region ,from ,to)
 	 (goto-char (point-min))
 	 (while (re-search-forward regexp nil t)
 	   (let ((matchstr (gethash (match-string 0)
@@ -583,7 +613,7 @@
 
 ;; The followings provide conversion between IS 13194 (ISCII) and UCS.
 
-(let
+(dlet
     ;;Unicode vs IS13194  ;; only Devanagari is supported now.
     ((ucs-devanagari-to-is13194-alist
       '((?\x0900 . "[U+0900]")
@@ -779,27 +809,27 @@
   ;; only Devanagari is supported now.
   (concat "[" (char-to-string #x0900)
           "-" (char-to-string #x097f) "]")
-  "Regexp that matches to conversion")
+  "Regexp that matches to conversion.")
 
 (defun indian-ucs-to-iscii-region (from to)
-  "Converts the indian UCS characters in the region to ISCII.
-Returns new end position."
+  "Convert the indian UCS characters in the region to ISCII.
+Return new end position."
   (interactive "r")
   ;; only Devanagari is supported now.
   (save-excursion
     (save-restriction
       (narrow-to-region from to)
       (goto-char (point-min))
-      (let* ((current-repertory is13194-default-repertory))
+      ;; (let* ((current-repertory is13194-default-repertory))
 	(while (re-search-forward indian-ucs-to-is13194-regexp nil t)
 	  (replace-match
 	   (get-char-code-property (string-to-char (match-string 0))
-				   'iscii))))
+				   'iscii)));; )
       (point-max))))
 
 (defun indian-iscii-to-ucs-region (from to)
-  "Converts the ISCII characters in the region to UCS.
-Returns new end position."
+  "Convert the ISCII characters in the region to UCS.
+Return new end position."
   (interactive "r")
   ;; only Devanagari is supported now.
   (save-excursion
@@ -1216,7 +1246,7 @@ Returns new end position."
   (interactive "r")
   (save-excursion
     (save-restriction
-      (let ((pos from)
+      (let (;; (pos from)
 	    (alist (char-table-extra-slot indian-2-column-to-ucs-chartable 0)))
 	(narrow-to-region from to)
 	(decompose-region from to)

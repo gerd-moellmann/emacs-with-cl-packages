@@ -24,21 +24,21 @@
 ;;; Commentary:
 ;;
 ;; This is a very generalized form of find; it basically implements a
-;; recursive directory descent. The conditions which bound the search
+;; recursive directory descent.  The conditions which bound the search
 ;; are expressed as predicates, and I have not addressed the question
 ;; of how to wrap up the common chores that find does in a simpler
 ;; format than writing code for all the various predicates.
 ;;
 ;; Some random thoughts are to express simple queries directly with
 ;; user-level functions, and perhaps use some kind of forms interface
-;; for medium-level queries. Really complicated queries can be
+;; for medium-level queries.  Really complicated queries can be
 ;; expressed in Lisp.
 ;;
 
 ;;; Todo
 ;;
 ;; It would be nice if we could sort the results without running the find
-;; again. Maybe that could work by storing the original file attributes?
+;; again.  Maybe that could work by storing the original file attributes?
 
 ;;; Code:
 
@@ -212,24 +212,17 @@ It is a function which takes two arguments, the directory and its parent."
 
     (use-local-map (append (make-sparse-keymap) (current-local-map)))
 
-    (make-local-variable 'find-lisp-file-predicate)
-    (setq find-lisp-file-predicate file-predicate)
-    (make-local-variable 'find-lisp-directory-predicate)
-    (setq find-lisp-directory-predicate directory-predicate)
-    (make-local-variable 'find-lisp-regexp)
-    (setq find-lisp-regexp regexp)
+    (setq-local find-lisp-file-predicate file-predicate)
+    (setq-local find-lisp-directory-predicate directory-predicate)
+    (setq-local find-lisp-regexp regexp)
 
-    (make-local-variable 'revert-buffer-function)
-    (setq revert-buffer-function
-	  (function
-	   (lambda (_ignore1 _ignore2)
-	     (find-lisp-insert-directory
-	      default-directory
-	      find-lisp-file-predicate
-	      find-lisp-directory-predicate
-	      'ignore)
-	     )
-	   ))
+    (setq-local revert-buffer-function
+                (lambda (_ignore1 _ignore2)
+                  (find-lisp-insert-directory
+                   default-directory
+                   find-lisp-file-predicate
+                   find-lisp-directory-predicate
+                   'ignore)))
 
     ;; Set subdir-alist so that Tree Dired will work:
     (if (fboundp 'dired-simple-subdir-alist)
@@ -238,8 +231,8 @@ It is a function which takes two arguments, the directory and its parent."
 	(dired-simple-subdir-alist)
       ;; else we have an ancient tree dired (or classic dired, where
       ;; this does no harm)
-      (set (make-local-variable 'dired-subdir-alist)
-	   (list (cons default-directory (point-min-marker)))))
+      (setq-local dired-subdir-alist
+                  (list (cons default-directory (point-min-marker)))))
     (find-lisp-insert-directory
      dir file-predicate directory-predicate 'ignore)
     (goto-char (point-min))
@@ -267,11 +260,10 @@ It is a function which takes two arguments, the directory and its parent."
     (insert find-lisp-line-indent "\n")
     ;; Run the find function
     (mapc
-     (function
-      (lambda (file)
-	(find-lisp-find-dired-insert-file
-	 (substring file len)
-	 (current-buffer))))
+     (lambda (file)
+       (find-lisp-find-dired-insert-file
+        (substring file len)
+        (current-buffer)))
      (sort files 'string-lessp))
     ;; FIXME: Sort function is ignored for now
     ;; (funcall sort-function files))

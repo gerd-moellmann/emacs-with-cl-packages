@@ -1,4 +1,4 @@
-;;; bat-mode.el --- Major mode for editing DOS/Windows scripts
+;;; bat-mode.el --- Major mode for editing DOS/Windows scripts  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2003, 2008-2021 Free Software Foundation, Inc.
 
@@ -42,7 +42,7 @@
 ;; See documentation of function `bat-mode'.
 ;;
 ;; Separate package `dos-indent' (Matthew Fidler) provides rudimentary
-;; indentation, see http://www.emacswiki.org/emacs/dos-indent.el.
+;; indentation, see https://www.emacswiki.org/emacs/dos-indent.el.
 ;;
 ;; Acknowledgements:
 ;;
@@ -175,7 +175,7 @@
 
 ;;;###autoload
 (define-derived-mode bat-mode prog-mode "Bat"
-  "Major mode for editing DOS/Windows batch files.\n
+  "Major mode for editing DOS/Windows batch files.
 Start a new script from `bat-template'.  Read help pages for DOS commands
 with `bat-cmd-help'.  Navigate between sections using `imenu'.
 Run script using `bat-run' and `bat-run-args'.\n

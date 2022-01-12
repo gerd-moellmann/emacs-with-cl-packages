@@ -102,7 +102,16 @@
 
 ;;;###autoload
 (define-minor-mode url-handler-mode
-  "Toggle using `url' library for URL filenames (URL Handler mode)."
+  ;; Can't use "\\[find-file]" below as it produces "[open]":
+  "Handle URLs as if they were file names throughout Emacs.
+After switching on this minor mode, Emacs file primitives handle
+URLs.  For instance:
+
+  (file-exists-p \"https://www.gnu.org/\")
+  => t
+
+and `C-x C-f https://www.gnu.org/ RET' will give you the HTML at
+that URL in a buffer."
   :global t :group 'url
   ;; Remove old entry, if any.
   (setq file-name-handler-alist
@@ -299,8 +308,8 @@ BUFFER should be a complete URL buffer as returned by `url-retrieve'.
 If the headers specify a coding-system (and current buffer is multibyte),
 it is applied to the body before it is inserted.
 Returns a list of the form (SIZE CHARSET), where SIZE is the size in bytes
-of the inserted text and CHARSET is the charset that was specified in the header,
-or nil if none was found.
+of the inserted text and CHARSET is the charset that was specified in the
+header, or nil if none was found.
 BEG and END can be used to only insert a subpart of the body.
 They count bytes from the beginning of the body."
   (let* ((handle (with-current-buffer buffer (mm-dissect-buffer t)))
@@ -339,8 +348,7 @@ if it had been inserted from a file named URL."
         (decode-coding-inserted-region (point-min) (point) url
                                        visit beg end replace))
       (let ((inserted (car size-and-charset)))
-        (list url (or (and (fboundp 'after-insert-file-set-coding)
-                           (after-insert-file-set-coding inserted visit))
+        (list url (or (after-insert-file-set-coding inserted visit)
                       inserted))))))
 
 ;;;###autoload

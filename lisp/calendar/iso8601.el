@@ -41,7 +41,7 @@
 ;;
 ;; The standard can be found at:
 ;;
-;; http://www.loc.gov/standards/datetime/iso-tc154-wg5_n0038_iso_wd_8601-1_2016-02-16.pdf
+;; https://www.loc.gov/standards/datetime/iso-tc154-wg5_n0038_iso_wd_8601-1_2016-02-16.pdf
 ;;
 ;; The Wikipedia page on the standard is also informative:
 ;;
@@ -57,7 +57,7 @@
 (defun iso8601--concat-regexps (regexps)
   (mapconcat (lambda (regexp)
                (concat "\\(?:"
-                       (replace-regexp-in-string "(" "(?:" regexp)
+                       (string-replace "(" "(?:" regexp)
                        "\\)"))
              regexps "\\|"))
 
@@ -69,6 +69,8 @@
   "\\([+-]?[0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)")
 (defconst iso8601--outdated-date-match
   "--\\([0-9][0-9]\\)-?\\([0-9][0-9]\\)")
+(defconst iso8601--outdated-reduced-precision-date-match
+  "---?\\([0-9][0-9]\\)")
 (defconst iso8601--week-date-match
   "\\([+-]?[0-9][0-9][0-9][0-9]\\)-?W\\([0-9][0-9]\\)-?\\([0-9]\\)?")
 (defconst iso8601--ordinal-date-match
@@ -79,6 +81,7 @@
          iso8601--full-date-match
          iso8601--without-day-match
          iso8601--outdated-date-match
+         iso8601--outdated-reduced-precision-date-match
          iso8601--week-date-match
          iso8601--ordinal-date-match)))
 
@@ -89,13 +92,13 @@
   "\\(Z\\|\\([+-]\\)\\([0-9][0-9]\\):?\\([0-9][0-9]\\)?\\)")
 
 (defconst iso8601--full-time-match
-  (concat "\\(" (replace-regexp-in-string "(" "(?:" iso8601--time-match) "\\)"
+  (concat "\\(" (string-replace "(" "(?:" iso8601--time-match) "\\)"
           "\\(" iso8601--zone-match "\\)?"))
 
 (defconst iso8601--combined-match
   (concat "\\(" iso8601--date-match "\\)"
           "\\(?:T\\("
-          (replace-regexp-in-string "(" "(?:" iso8601--time-match)
+          (string-replace "(" "(?:" iso8601--time-match)
           "\\)"
           "\\(" iso8601--zone-match "\\)?\\)?"))
 
@@ -136,7 +139,8 @@ See `decode-time' for the meaning of FORM."
       (when zone-string
         (setf (decoded-time-zone date)
               ;; The time zone in decoded times are in seconds.
-              (* (iso8601-parse-zone zone-string) 60)))
+	      (* (iso8601-parse-zone zone-string) 60))
+	(setf (decoded-time-dst date) nil))
       date)))
 
 (defun iso8601-parse-date (string)
@@ -201,6 +205,12 @@ See `decode-time' for the meaning of FORM."
       (iso8601--decoded-time :year year
                              :month (decoded-time-month month-day)
                              :day (decoded-time-day month-day))))
+   ;; Obsolete format with implied year: --MM
+   ((iso8601--match "--\\([0-9][0-9]\\)" string)
+    (iso8601--decoded-time :month (string-to-number (match-string 1 string))))
+   ;; Obsolete format with implied year and month: ---DD
+   ((iso8601--match "---\\([0-9][0-9]\\)" string)
+    (iso8601--decoded-time :day (string-to-number (match-string 1 string))))
    (t
     (signal 'wrong-type-argument string))))
 
@@ -221,17 +231,22 @@ See `decode-time' for the meaning of FORM."
                            (string-to-number (match-string 2 time))))
               (second (and (match-string 3 time)
                            (string-to-number (match-string 3 time))))
-	      (fraction (and (not (zerop (length (match-string 4 time))))
-                             (string-to-number (match-string 4 time)))))
+              (frac-string (match-string 4 time))
+              fraction fraction-precision)
+          (when frac-string
+            ;; Remove trailing zeroes.
+            (setq frac-string (replace-regexp-in-string "0+\\'" "" frac-string))
+            (when (length> frac-string 0)
+              (setq fraction (string-to-number frac-string)
+                    fraction-precision (length frac-string))))
           (when (and fraction
                      (eq form t))
             (cond
              ;; Sub-second time.
              (second
-              (let ((digits (1+ (truncate (log fraction 10)))))
-                (setq second (cons (+ (* second (expt 10 digits))
-                                      fraction)
-                                   (expt 10 digits)))))
+              (setq second (cons (+ (* second (expt 10 fraction-precision))
+                                    fraction)
+                                 (expt 10 fraction-precision))))
              ;; Fractional minute.
              (minute
               (setq second (iso8601--decimalize fraction 60)))
@@ -332,6 +347,9 @@ Return the number of minutes."
     (list start end
           (or duration
 	      ;; FIXME: Support subseconds.
+	      ;; FIXME: It makes no sense to decode a time difference
+	      ;; according to (decoded-time-zone end), or according to
+	      ;; any other time zone for that matter.
               (decode-time (time-subtract (iso8601--encode-time end)
                                           (iso8601--encode-time start))
 			   (or (decoded-time-zone end) 0) 'integer)))))
@@ -354,7 +372,7 @@ Return the number of minutes."
         (iso8601--value month)
         (iso8601--value year)
         nil
-        dst
+	(if (or dst zone) dst -1)
         zone))
 
 (defun iso8601--encode-time (time)

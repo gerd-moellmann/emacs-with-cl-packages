@@ -24,7 +24,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "character.h"
 #include "buffer.h"
 #include "keyboard.h"
-#include "ptr-bounds.h"
 #include "syntax.h"
 #include "window.h"
 
@@ -47,7 +46,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    indirect threaded, using GCC's computed goto extension.  This code,
    as currently implemented, is incompatible with BYTE_CODE_SAFE and
    BYTE_CODE_METER.  */
-#if (defined __GNUC__ && !defined __STRICT_ANSI__ && !defined __CHKP__ \
+#if (defined __GNUC__ && !defined __STRICT_ANSI__ \
      && !BYTE_CODE_SAFE && !defined BYTE_CODE_METER)
 #define BYTE_CODE_THREADED
 #endif
@@ -220,10 +219,10 @@ DEFINE (Bdup, 0211)							\
 DEFINE (Bsave_excursion, 0212)						\
 DEFINE (Bsave_window_excursion, 0213) /* Obsolete since Emacs-24.1.  */	\
 DEFINE (Bsave_restriction, 0214)					\
-DEFINE (Bcatch, 0215)							\
+DEFINE (Bcatch, 0215)		/* Obsolete since Emacs-25.  */         \
 									\
 DEFINE (Bunwind_protect, 0216)						\
-DEFINE (Bcondition_case, 0217)						\
+DEFINE (Bcondition_case, 0217)	/* Obsolete since Emacs-25.  */         \
 DEFINE (Btemp_output_buffer_setup, 0220) /* Obsolete since Emacs-24.1.  */ \
 DEFINE (Btemp_output_buffer_show, 0221)  /* Obsolete since Emacs-24.1.  */ \
 									\
@@ -319,6 +318,19 @@ the third, MAXDEPTH, the maximum stack depth used in this function.
 If the third argument is incorrect, Emacs may crash.  */)
   (Lisp_Object bytestr, Lisp_Object vector, Lisp_Object maxdepth)
 {
+  if (! (STRINGP (bytestr) && VECTORP (vector) && FIXNATP (maxdepth)))
+    error ("Invalid byte-code");
+
+  if (STRING_MULTIBYTE (bytestr))
+    {
+      /* BYTESTR must have been produced by Emacs 20.2 or earlier
+	 because it produced a raw 8-bit string for byte-code and now
+	 such a byte-code string is loaded as multibyte with raw 8-bit
+	 characters converted to multibyte form.  Convert them back to
+	 the original unibyte form.  */
+      bytestr = Fstring_as_unibyte (bytestr);
+    }
+
   return exec_byte_code (bytestr, vector, maxdepth, Qnil, 0, NULL);
 }
 
@@ -344,21 +356,10 @@ exec_byte_code (Lisp_Object bytestr, Lisp_Object vector, Lisp_Object maxdepth,
   int volatile this_op = 0;
 #endif
 
-  CHECK_STRING (bytestr);
-  CHECK_VECTOR (vector);
-  CHECK_FIXNAT (maxdepth);
+  eassert (!STRING_MULTIBYTE (bytestr));
 
   ptrdiff_t const_length = ASIZE (vector);
-
-  if (STRING_MULTIBYTE (bytestr))
-    /* BYTESTR must have been produced by Emacs 20.2 or the earlier
-       because they produced a raw 8-bit string for byte-code and now
-       such a byte-code string is loaded as multibyte while raw 8-bit
-       characters converted to multibyte form.  Thus, now we must
-       convert them back to the originally intended unibyte form.  */
-    bytestr = Fstring_as_unibyte (bytestr);
-
-  ptrdiff_t bytestr_length = SBYTES (bytestr);
+  ptrdiff_t bytestr_length = SCHARS (bytestr);
   Lisp_Object *vectorp = XVECTOR (vector)->contents;
 
   unsigned char quitcounter = 1;
@@ -366,14 +367,12 @@ exec_byte_code (Lisp_Object bytestr, Lisp_Object vector, Lisp_Object maxdepth,
   USE_SAFE_ALLOCA;
   void *alloc;
   SAFE_ALLOCA_LISP_EXTRA (alloc, stack_items, bytestr_length);
-  ptrdiff_t item_bytes = stack_items * word_size;
-  Lisp_Object *stack_base = ptr_bounds_clip (alloc, item_bytes);
+  Lisp_Object *stack_base = alloc;
   Lisp_Object *top = stack_base;
   *top = vector; /* Ensure VECTOR survives GC (Bug#33014).  */
   Lisp_Object *stack_lim = stack_base + stack_items;
-  unsigned char *bytestr_data = alloc;
-  bytestr_data = ptr_bounds_clip (bytestr_data + item_bytes, bytestr_length);
-  memcpy (bytestr_data, SDATA (bytestr), bytestr_length);
+  unsigned char const *bytestr_data = memcpy (stack_lim,
+					      SDATA (bytestr), bytestr_length);
   unsigned char const *pc = bytestr_data;
   ptrdiff_t count = SPECPDL_INDEX ();
 
@@ -763,7 +762,7 @@ exec_byte_code (Lisp_Object bytestr, Lisp_Object vector, Lisp_Object maxdepth,
 				 save_restriction_save ());
 	  NEXT;
 
-	CASE (Bcatch):		/* Obsolete since 24.4.  */
+	CASE (Bcatch):		/* Obsolete since 25.  */
 	  {
 	    Lisp_Object v1 = POP;
 	    TOP = internal_catch (TOP, eval_sub, v1);
@@ -807,7 +806,7 @@ exec_byte_code (Lisp_Object bytestr, Lisp_Object vector, Lisp_Object maxdepth,
 	    NEXT;
 	  }
 
-	CASE (Bcondition_case):		/* Obsolete since 24.4.  */
+	CASE (Bcondition_case):		/* Obsolete since 25.  */
 	  {
 	    Lisp_Object handlers = POP, body = POP;
 	    TOP = internal_lisp_condition_case (TOP, body, handlers);
@@ -1172,7 +1171,7 @@ exec_byte_code (Lisp_Object bytestr, Lisp_Object vector, Lisp_Object maxdepth,
 	    CHECK_CHARACTER (TOP);
 	    int c = XFIXNAT (TOP);
 	    if (NILP (BVAR (current_buffer, enable_multibyte_characters)))
-	      MAKE_CHAR_MULTIBYTE (c);
+	      c = make_char_multibyte (c);
 	    XSETFASTINT (TOP, syntax_code_spec[SYNTAX (c)]);
 	  }
 	  NEXT;
@@ -1402,7 +1401,6 @@ exec_byte_code (Lisp_Object bytestr, Lisp_Object vector, Lisp_Object maxdepth,
             Lisp_Object v1 = POP;
             ptrdiff_t i;
             struct Lisp_Hash_Table *h = XHASH_TABLE (jmp_table);
-            hash_rehash_if_needed (h);
 
             /* h->count is a faster approximation for HASH_TABLE_SIZE (h)
                here. */

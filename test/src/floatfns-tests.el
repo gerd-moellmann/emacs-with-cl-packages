@@ -1,4 +1,4 @@
-;;; floatfns-tests.el --- tests for floating point operations
+;;; floatfns-tests.el --- tests for floating point operations -*- lexical-binding: t -*-
 
 ;; Copyright 2017-2021 Free Software Foundation, Inc.
 
@@ -16,6 +16,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Code:
 
 (require 'ert)
 
@@ -125,3 +127,5 @@
              (ash (1- (ash 1 53)) 2045))))
 
 (provide 'floatfns-tests)
+
+;;; floatfns-tests.el ends here

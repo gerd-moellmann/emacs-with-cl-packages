@@ -34,7 +34,7 @@
 (defvar nsm-temporary-host-settings nil)
 
 (defgroup nsm nil
-  "Network Security Manager"
+  "Network Security Manager."
   :version "25.1"
   :group 'comm)
 
@@ -239,7 +239,7 @@ otherwise."
         (mapc
          (lambda (info)
            (let ((local-ip (nth 1 info))
-                 (mask (nth 2 info)))
+                 (mask (nth 3 info)))
              (when
                  (nsm-network-same-subnet (substring local-ip 0 -1)
                                           (substring mask 0 -1)
@@ -311,9 +311,9 @@ See also: `network-security-protocol-checks' and `nsm-noninteractive'"
                                                   (map-values results)
                                                   "\n")
                                                  "\n")
-                                                "\n* ")))))
-                 (delete-process process)
-                 (setq process nil)))
+						"\n* "))))))
+	(delete-process process)
+	(setq process nil))
       (run-hook-with-args 'nsm-tls-post-check-functions
                           host port status settings results)))
   process)
@@ -371,7 +371,7 @@ Reference:
 Sheffer, Holz, Saint-Andre (May 2015).  \"Recommendations for Secure
 Use of Transport Layer Security (TLS) and Datagram Transport Layer
 Security (DTLS)\", \"(4.1.  General Guidelines)\"
-`https://tools.ietf.org/html/rfc7525\#section-4.1'"
+`https://tools.ietf.org/html/rfc7525#section-4.1'"
   (let ((kx (plist-get status :key-exchange)))
     (and (string-match "^\\bRSA\\b" kx)
          (format-message
@@ -446,8 +446,8 @@ this check has no effect on GnuTLS >= 3.2.0.
 
 Reference:
 
-[1]: Schneier, Bruce (1996). Applied Cryptography (Second ed.). John
-Wiley & Sons. ISBN 0-471-11709-9.
+[1]: Schneier, Bruce (1996).  Applied Cryptography (Second ed.).
+John Wiley & Sons.  ISBN 0-471-11709-9.
 [2]: N. Mavrogiannopoulos, FSF (Apr 2015).  \"GnuTLS NEWS -- History
 of user-visible changes.\" Version 3.4.0,
 `https://gitlab.com/gnutls/gnutls/blob/master/NEWS'"
@@ -466,9 +466,9 @@ man-in-the-middle attacks.
 
 Reference:
 
-GnuTLS authors (2018). \"GnuTLS Manual 4.3.3 Anonymous
+GnuTLS authors (2018).  \"GnuTLS Manual 4.3.3 Anonymous
 authentication\",
-`https://www.gnutls.org/manual/gnutls.html\#Anonymous-authentication'"
+`https://www.gnutls.org/manual/gnutls.html#Anonymous-authentication'"
   (let ((kx (plist-get status :key-exchange)))
     (and (string-match "\\bANON\\b" kx)
          (format-message
@@ -603,7 +603,7 @@ References:
 full SHA-1\", `https://shattered.io/static/shattered.pdf'
 [2]: Chromium Security Education TLS/SSL.  \"Deprecated and Removed
 Features (SHA-1 Certificate Signatures)\",
-`https://www.chromium.org/Home/chromium-security/education/tls\#TOC-SHA-1-Certificate-Signatures'
+`https://www.chromium.org/Home/chromium-security/education/tls#TOC-SHA-1-Certificate-Signatures'
 [3]: Jones J.C (2017).  \"The end of SHA-1 on the Public Web\",
 `https://blog.mozilla.org/security/2017/02/23/the-end-of-sha-1-on-the-public-web/'
 [4]: Apple Support (2017).  \"Move to SHA-256 signed certificates to
@@ -640,7 +640,7 @@ References:
 
 [1]: Sotirov A, Stevens M et al (2008).  \"MD5 considered harmful today
 - Creating a rogue CA certificate\",
-`http://www.win.tue.nl/hashclash/rogue-ca/'
+`https://www.win.tue.nl/hashclash/rogue-ca/'
 [2]: Turner S, Chen L (2011).  \"Updated Security Considerations for
 the MD5 Message-Digest and the HMAC-MD5 Algorithms\",
 `https://tools.ietf.org/html/rfc6151'"
@@ -964,6 +964,7 @@ protocol."
 
 (defun nsm-write-settings ()
   (with-temp-file nsm-settings-file
+    (insert ";;;; -*- mode: lisp-data -*-\n")
     (insert "(\n")
     (dolist (setting nsm-permanent-host-settings)
       (insert " ")

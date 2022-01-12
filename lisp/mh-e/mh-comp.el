@@ -1,4 +1,4 @@
-;;; mh-comp.el --- MH-E functions for composing and sending messages
+;;; mh-comp.el --- MH-E functions for composing and sending messages  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1993, 1995, 1997, 2000-2021 Free Software Foundation,
 ;; Inc.
@@ -29,8 +29,6 @@
 ;; that are used to send the mail. Other that those, functions that
 ;; are needed in mh-letter.el should be found there.
 
-;;; Change Log:
-
 ;;; Code:
 
 (require 'mh-e)
@@ -40,6 +38,7 @@
 (require 'sendmail)
 
 (autoload 'easy-menu-add "easymenu")
+(autoload 'mail-header-parse-address "mail-parse")
 (autoload 'mml-insert-tag "mml")
 
 
@@ -305,6 +304,7 @@ message and scan line."
   (let ((draft-buffer (current-buffer))
         (file-name buffer-file-name)
         (config mh-previous-window-config)
+        ;; FIXME this is subtly different to select-message-coding-system.
         (coding-system-for-write
          (if (fboundp 'select-message-coding-system)
              (select-message-coding-system) ; Emacs has this since at least 21.1
@@ -318,7 +318,7 @@ message and scan line."
              (or (and (boundp 'sendmail-coding-system) sendmail-coding-system)
                  (and (default-boundp 'buffer-file-coding-system)
                       (default-value 'buffer-file-coding-system))
-                 'iso-latin-1)))))
+                 'utf-8)))))
     ;; Older versions of spost do not support -msgid and -mime.
     (unless mh-send-uses-spost-flag
       ;; Adding a Message-ID field looks good, makes it easier to search for
@@ -434,43 +434,42 @@ See also `mh-send'."
     (mh-insert-header-separator)
     ;; Merge in components
     (mh-mapc
-     (function
-      (lambda (header-field)
-        (let ((field (car header-field))
-              (value (cdr header-field))
-              (case-fold-search t))
-          (cond
-           ;; Address field
-           ((string-match field "^To$\\|^Cc$\\|^From$")
-            (cond
-             ((not (mh-goto-header-field (concat field ":")))
-              ;; Header field does not exist, add it
-              (mh-goto-header-end 0)
-              (insert field ": " value "\n"))
-             ((string-equal value "")
-              ;; Header field already exists and no value
-              )
-             (t
-              ;; Header field exists and we have a value
-              (let (address mailbox (alias (mh-alias-expand value)))
-                (and alias
-                     (setq address (ietf-drums-parse-address alias))
-                     (setq mailbox (car address)))
-                ;; XXX - Need to parse all addresses out of field
-                (if (and
-                     (not (mh-regexp-in-field-p
-                           (concat "\\b" (regexp-quote value) "\\b") field))
-                     mailbox
-                     (not (mh-regexp-in-field-p
-                           (concat "\\b" (regexp-quote mailbox) "\\b") field)))
-                    (insert " " value ","))
-                ))))
-           ((string-match field "^Fcc$")
-            ;; Folder reference
-            (mh-modify-header-field field value))
-           ;; Text field, that's an easy case
-           (t
-            (mh-modify-header-field field value))))))
+     (lambda (header-field)
+       (let ((field (car header-field))
+             (value (cdr header-field))
+             (case-fold-search t))
+         (cond
+          ;; Address field
+          ((string-match field "^To$\\|^Cc$\\|^From$")
+           (cond
+            ((not (mh-goto-header-field (concat field ":")))
+             ;; Header field does not exist, add it
+             (mh-goto-header-end 0)
+             (insert field ": " value "\n"))
+            ((string-equal value "")
+             ;; Header field already exists and no value
+             )
+            (t
+             ;; Header field exists and we have a value
+             (let (address mailbox (alias (mh-alias-expand value)))
+               (and alias
+                    (setq address (mail-header-parse-address alias))
+                    (setq mailbox (car address)))
+               ;; XXX - Need to parse all addresses out of field
+               (if (and
+                    (not (mh-regexp-in-field-p
+                          (concat "\\b" (regexp-quote value) "\\b") field))
+                    mailbox
+                    (not (mh-regexp-in-field-p
+                          (concat "\\b" (regexp-quote mailbox) "\\b") field)))
+                   (insert " " value ","))
+               ))))
+          ((string-match field "^Fcc$")
+           ;; Folder reference
+           (mh-modify-header-field field value))
+          ;; Text field, that's an easy case
+          (t
+           (mh-modify-header-field field value)))))
      (mh-components-to-list components-file))
     (delete-file components-file)
     (goto-char (point-min))
@@ -639,8 +638,10 @@ See also `mh-compose-forward-as-mime-flag',
 (defun mh-forwarded-letter-subject (from subject)
   "Return a Subject suitable for a forwarded message.
 Original message has headers FROM and SUBJECT."
-  (let ((addr-start (string-match "<" from))
-        (comment (string-match "(" from)))
+  ;; Join continued lines.
+  (setq from (replace-regexp-in-string "\\s *\n\\s +" " " from))
+  (let ((addr-start (string-search "<" from))
+        (comment (string-search "(" from)))
     (cond ((and addr-start (> addr-start 0))
            ;; Full Name <luser@host>
            (setq from (substring from 0 (1- addr-start))))
@@ -699,33 +700,34 @@ message and scan line."
       ;; trumping anything in the distcomps file.
       (let ((components-file (mh-bare-components mh-dist-formfile)))
         (mh-mapc
-         (function
-          (lambda (header-field)
-            (let ((field (car header-field))
-                  (value (cdr header-field))
-                  (case-fold-search t))
-              (cond
-               ((string-match field "^Resent-Fcc$")
-                (setq comp-fcc value))
-               ((string-match field "^Resent-From$")
-                (or from
-                    (setq from value)))
-               ((string-match field "^Resent-To$")
-                (setq comp-to value))
-               ((string-match field "^Resent-Cc$")
-                (setq comp-cc value))
-               ((string-match field "^Resent-Bcc$")
-                (setq comp-bcc value))
-               ((string-match field "^Resent-.*$")
-                (mh-insert-fields field value))))))
+         (lambda (header-field)
+           (let ((field (car header-field))
+                 (value (cdr header-field))
+                 (case-fold-search t))
+             (cond
+              ((string-match field "^Resent-Fcc$")
+               (setq comp-fcc value))
+              ((string-match field "^Resent-From$")
+               (or from
+                   (setq from value)))
+              ((string-match field "^Resent-To$")
+               (setq comp-to value))
+              ((string-match field "^Resent-Cc$")
+               (setq comp-cc value))
+              ((string-match field "^Resent-Bcc$")
+               (setq comp-bcc value))
+              ((string-match field "^Resent-.*$")
+               (mh-insert-fields field value)))))
          (mh-components-to-list components-file))
         (delete-file components-file))
-      (mh-insert-fields "Resent-To:" (mapconcat 'identity (list to comp-to) ", ")
-                        "Resent-Cc:" (mapconcat 'identity (list cc comp-cc) ", ")
-                        "Resent-Fcc:" (mapconcat 'identity (list fcc
-                                                                 comp-fcc) ", ")
-                        "Resent-Bcc:" (mapconcat 'identity (list bcc
-                                                                 comp-bcc) ", ")
+      (mh-insert-fields "Resent-To:" (mapconcat #'identity (list to comp-to)
+                                                ", ")
+                        "Resent-Cc:" (mapconcat #'identity (list cc comp-cc)
+                                                ", ")
+                        "Resent-Fcc:" (mapconcat #'identity (list fcc comp-fcc)
+                                                 ", ")
+                        "Resent-Bcc:" (mapconcat #'identity (list bcc comp-bcc)
+                                                 ", ")
                         "Resent-From:" from)
       (save-buffer)
       (message "Redistributing...")
@@ -1097,7 +1099,7 @@ letter."
   (setq mode-line-buffer-identification (list "    {%b}"))
   (mh-logo-display)
   (mh-make-local-hook 'kill-buffer-hook)
-  (add-hook 'kill-buffer-hook 'mh-tidy-draft-buffer nil t)
+  (add-hook 'kill-buffer-hook #'mh-tidy-draft-buffer nil t)
   (run-hook-with-args 'mh-compose-letter-function to subject cc))
 
 (defun mh-insert-x-mailer ()
@@ -1166,7 +1168,7 @@ This should be the last function called when composing the draft."
 MSG can be a message number, a list of message numbers, or a sequence.
 The hook `mh-annotate-msg-hook' is run after annotating; see its
 documentation for variables it can use."
-  (apply 'mh-exec-cmd "anno" folder
+  (apply #'mh-exec-cmd "anno" folder
          (if (listp msg) (append msg args) (cons msg args)))
   (save-excursion
     (cond ((get-buffer folder)          ; Buffer may be deleted

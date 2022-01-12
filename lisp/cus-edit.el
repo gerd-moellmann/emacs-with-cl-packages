@@ -408,10 +408,6 @@ Use group `text' for this instead.  This group is deprecated."
   "Input from the menus."
   :group 'environment)
 
-(defgroup dnd nil
-  "Handling data from drag and drop."
-  :group 'environment)
-
 (defgroup auto-save nil
   "Preventing accidental loss of data."
   :group 'files)
@@ -492,13 +488,19 @@ Return a list suitable for use in `interactive'."
 	  (default (and (symbolp v) (custom-variable-p v) (symbol-name v)))
 	  (enable-recursive-minibuffers t)
 	  val)
-     (setq val (completing-read
-		(if default (format "Customize variable (default %s): " default)
-		  "Customize variable: ")
-		obarray 'custom-variable-p t nil nil default))
+     (setq val (completing-read (format-prompt "Customize variable" default)
+		                obarray 'custom-variable-p t nil nil default))
      (list (if (equal val "")
 	       (if (symbolp v) v nil)
 	     (intern val)))))
+
+(defvar custom-actioned-widget nil
+  "Widget for which to show the menu of available actions.
+
+When showing a menu for a custom-variable, custom-face or custom-group widget,
+the respective custom-*-action functions bind this variable to that widget, and
+the respective custom-*-menu menus use the binding in their :enable and
+:selected forms.")
 
 (defun custom-menu-filter (menu widget)
   "Convert MENU to the form used by `widget-choose'.
@@ -568,7 +570,7 @@ value unless you are sure you know what it does."
 	   (unless no-suffix
 	     (goto-char (point-max))
 	     (insert "..."))
-	   (buffer-string)))))
+	   (propertize (buffer-string) 'custom-data symbol)))))
 
 (defcustom custom-unlispify-tag-names t
   "Display tag names as words instead of symbols if non-nil."
@@ -735,47 +737,85 @@ groups after non-groups, if nil do not order groups at all."
 ;; `custom-buffer-create-internal' if `custom-buffer-verbose-help' is non-nil.
 
 (defvar custom-commands
-  '((" Apply " Custom-set t
-     "Apply settings (for the current session only)."
-     "index"
-     "Apply")
-    (" Apply and Save " Custom-save
-     (or custom-file user-init-file)
-     "Apply settings and save for future sessions."
-     "save"
-     "Save")
+  '((" Apply " Custom-set t "Apply settings (for the current session only)."
+     "index" "Apply" (modified))
+    (" Apply and Save " Custom-save (or custom-file user-init-file)
+     "Apply settings and save for future sessions." "save" "Save"
+     (modified set changed rogue))
     (" Undo Edits " Custom-reset-current t
      "Restore customization buffer to reflect existing settings."
-     "refresh"
-     "Undo")
+     "refresh" "Undo" (modified))
     (" Reset Customizations " Custom-reset-saved t
-     "Undo any settings applied only for the current session."
-     "undo"
-     "Reset")
+     "Undo any settings applied only for the current session." "undo" "Reset"
+     (modified set changed rogue))
     (" Erase Customizations " Custom-reset-standard
      (or custom-file user-init-file)
-     "Un-customize settings in this and future sessions."
-     "delete"
-     "Uncustomize")
-    (" Help for Customize " Custom-help t
-     "Get help for using Customize."
-     "help"
-     "Help")
-    (" Exit " Custom-buffer-done t "Exit Customize." "exit" "Exit")))
+     "Un-customize settings in this and future sessions." "delete" "Uncustomize"
+     (modified set changed rogue saved))
+    (" Help for Customize " Custom-help t "Get help for using Customize."
+     "help" "Help" t)
+    (" Exit " Custom-buffer-done t "Exit Customize." "exit" "Exit" t))
+  "Alist of specifications for Customize menu items, tool bar icons and buttons.
+Each member has the format (TAG COMMAND VISIBLE HELP ICON LABEL ENABLE).
+TAG is a string, used as the :tag property of a widget.
+COMMAND is the command that the item or button runs.
+VISIBLE should be a form, suitable to pass as the :visible property for menu
+or tool bar items.
+HELP should be a string that can be used as the help echo property for tooltips
+and the like.
+ICON is a string that names the image to use for the tool bar item, like in the
+first argument of `tool-bar-local-item'.
+LABEL should be a string, used as the name of the menu items.
+ENABLE should be a list of custom states or t.  When ENABLE is t, the item is
+always enabled.  Otherwise, it is enabled only if at least one option displayed
+in the Custom buffer is in a state present in ENABLE.")
+
+(defvar-local custom-command-buttons nil
+  "A list that holds the buttons that act on all settings in a Custom buffer.
+`custom-buffer-create-internal' adds the buttons to this list.
+Changes in the state of the custom options should notify the buttons via the
+:notify property, so buttons can be enabled/disabled correctly at all times.")
 
 (defun Custom-help ()
   "Read the node on Easy Customization in the Emacs manual."
   (interactive)
   (info "(emacs)Easy Customization"))
 
-(defvar custom-reset-menu
-  '(("Undo Edits in Customization Buffer" . Custom-reset-current)
-    ("Revert This Session's Customizations" . Custom-reset-saved)
-    ("Erase Customizations" . Custom-reset-standard))
-  "Alist of actions for the `Reset' button.
+(defvar custom-reset-menu nil
+  "If non-nil, an alist of actions for the `Reset' button.
+
+This variable is kept for backward compatibility reasons, please use
+`custom-reset-extended-menu' instead.
+
 The key is a string containing the name of the action, the value is a
 Lisp function taking the widget as an element which will be called
 when the action is chosen.")
+
+(defvar custom-reset-extended-menu
+  (let ((map (make-sparse-keymap)))
+    (define-key-after map [Custom-reset-current]
+      '(menu-item "Undo Edits in Customization Buffer" Custom-reset-current
+                  :enable (seq-some (lambda (option)
+                                      (eq (widget-get option :custom-state)
+                                          'modified))
+                                    custom-options)))
+    (define-key-after map [Custom-reset-saved]
+      '(menu-item "Revert This Session's Customizations" Custom-reset-saved
+                  :enable (seq-some (lambda (option)
+                                      (memq (widget-get option :custom-state)
+                                          '(modified set changed rogue)))
+                                    custom-options)))
+    (when (or custom-file user-init-file)
+      (define-key-after map [Custom-reset-standard]
+        '(menu-item "Erase Customizations" Custom-reset-standard
+                    :enable (seq-some
+                             (lambda (option)
+                               (memq (widget-get option :custom-state)
+                                     '(modified set changed rogue saved)))
+                             custom-options))))
+    map)
+  "A menu for the \"Revert...\" button.
+Used in `custom-reset' to show a menu to the user.")
 
 (defvar custom-options nil
   "Customization widgets in the current buffer.")
@@ -808,22 +848,26 @@ has been executed, nil otherwise."
 If a setting was edited and set before, this saves it.  If a
 setting was merely edited before, this sets it then saves it."
   (interactive)
-  (when (custom-command-apply
-	 (lambda (child)
-	   (when (memq (widget-get child :custom-state)
-		       '(modified set changed rogue))
-	     (widget-apply child :custom-mark-to-save)))
-	 "Save all settings in this buffer? " t)
-    ;; Save changes to buffer and redraw.
-    (custom-save-all)
-    (dolist (child custom-options)
-      (widget-apply child :custom-state-set-and-redraw))))
+  (let (edited-widgets)
+    (when (custom-command-apply
+	   (lambda (child)
+	     (when (memq (widget-get child :custom-state)
+		         '(modified set changed rogue))
+               (push child edited-widgets)
+	       (widget-apply child :custom-mark-to-save)))
+	   "Save all settings in this buffer? " t)
+      ;; Save changes to buffer.
+      (custom-save-all)
+      ;; Redraw and recalculate the state when necessary.
+      (dolist (widget edited-widgets)
+        (widget-apply widget :custom-state-set-and-redraw)))))
 
 (defun custom-reset (_widget &optional event)
   "Select item from reset menu."
   (let* ((completion-ignore-case t)
 	 (answer (widget-choose "Reset settings"
-				custom-reset-menu
+                                (or custom-reset-menu
+                                    custom-reset-extended-menu)
 				event)))
     (if answer
 	(funcall answer))))
@@ -1088,9 +1132,7 @@ for the MODE to customize."
       (if (and group (not current-prefix-arg))
 	  major-mode
 	(intern
-	 (completing-read (if group
-			      (format "Mode (default %s): " major-mode)
-			    "Mode: ")
+	 (completing-read (format-prompt "Mode" (and group major-mode))
 			  obarray
 			  'custom-group-of-mode
 			  t nil nil (if group (symbol-name major-mode))))))))
@@ -1170,8 +1212,8 @@ Show the buffer in another window, but don't select it."
     (unless (eq symbol basevar)
       (message "`%s' is an alias for `%s'" symbol basevar))))
 
-(defvar customize-changed-options-previous-release "26.3"
-  "Version for `customize-changed-options' to refer back to by default.")
+(defvar customize-changed-options-previous-release "27.2"
+  "Version for `customize-changed' to refer back to by default.")
 
 ;; Packages will update this variable, so make it available.
 ;;;###autoload
@@ -1207,10 +1249,11 @@ the user might see the value in an error message, a good choice is
 the official name of the package, such as MH-E or Gnus.")
 
 ;;;###autoload
-(defalias 'customize-changed 'customize-changed-options)
+(define-obsolete-function-alias 'customize-changed-options
+  #'customize-changed "28.1")
 
 ;;;###autoload
-(defun customize-changed-options (&optional since-version)
+(defun customize-changed (&optional since-version)
   "Customize all settings whose meanings have changed in Emacs itself.
 This includes new user options and faces, and new customization
 groups, as well as older options and faces whose meanings or
@@ -1223,8 +1266,8 @@ that were added or redefined since that version."
   (interactive
    (list
     (read-from-minibuffer
-     (format "Customize options changed, since version (default %s): "
-	     customize-changed-options-previous-release))))
+     (format-prompt "Customize options changed, since version"
+	            customize-changed-options-previous-release))))
   (if (equal since-version "")
       (setq since-version nil)
     (unless (condition-case nil
@@ -1260,10 +1303,11 @@ that were added or redefined since that version."
 		   (push (list symbol 'custom-group) found))
 	       (if (custom-variable-p symbol)
 		   (push (list symbol 'custom-variable) found))
-	       (if (custom-facep symbol)
+               (if (facep symbol)
 		   (push (list symbol 'custom-face) found)))))))
     (if found
-	(custom-buffer-create (custom-sort-items found t 'first)
+        (custom-buffer-create (custom--filter-obsolete-variables
+                               (custom-sort-items found t 'first))
 			      "*Customize Changed Options*")
       (user-error "No user option defaults have been changed since Emacs %s"
                   since-version))))
@@ -1370,7 +1414,7 @@ symbols `custom-face' or `custom-variable'."
     (mapatoms (lambda (symbol)
 		(and (or (get symbol 'customized-face)
 			 (get symbol 'customized-face-comment))
-		     (custom-facep symbol)
+                     (facep symbol)
 		     (push (list symbol 'custom-face) found))
 		(and (or (get symbol 'customized-value)
 			 (get symbol 'customized-variable-comment))
@@ -1417,7 +1461,7 @@ symbols `custom-face' or `custom-variable'."
     (mapatoms (lambda (symbol)
 		(and (or (get symbol 'saved-face)
 			 (get symbol 'saved-face-comment))
-		     (custom-facep symbol)
+                     (facep symbol)
 		     (push (list symbol 'custom-face) found))
 		(and (or (get symbol 'saved-value)
 			 (get symbol 'saved-variable-comment))
@@ -1455,7 +1499,7 @@ If TYPE is `groups', include only groups."
              (if (get symbol 'custom-group)
                  (push (list symbol 'custom-group) found)))
          (if (memq type '(nil faces))
-             (if (custom-facep symbol)
+             (if (facep symbol)
                  (push (list symbol 'custom-face) found)))
          (if (memq type '(nil options))
              (if (and (boundp symbol)
@@ -1469,7 +1513,8 @@ If TYPE is `groups', include only groups."
 						(symbol-name type))
 	     pattern))
     (custom-buffer-create
-     (custom-sort-items found t custom-buffer-order-groups)
+     (custom--filter-obsolete-variables
+      (custom-sort-items found t custom-buffer-order-groups))
      "*Customize Apropos*")))
 
 ;;;###autoload
@@ -1559,7 +1604,10 @@ that option.
 DESCRIPTION is unused."
   (pop-to-buffer-same-window
    (custom-get-fresh-buffer (or name "*Customization*")))
-  (custom-buffer-create-internal options))
+  (custom-buffer-create-internal options)
+  ;; Notify the command buttons, to correctly enable/disable them.
+  (dolist (btn custom-command-buttons)
+    (widget-apply btn :notify)))
 
 ;;;###autoload
 (defun custom-buffer-create-other-window (options &optional name _description)
@@ -1624,8 +1672,11 @@ Otherwise use brackets."
 		   'custom-button-pressed
 		 'custom-button-pressed-unraised))))
 
+(defvar custom--invocation-options nil)
+
 (defun custom-buffer-create-internal (options &optional _description)
   (Custom-mode)
+  (setq custom--invocation-options options)
   (let ((init-file (or custom-file user-init-file)))
     ;; Insert verbose help at the top of the custom buffer.
     (when custom-buffer-verbose-help
@@ -1676,11 +1727,24 @@ or a regular expression.")
     (if custom-buffer-verbose-help
 	(widget-insert "
 Operate on all settings in this buffer:\n"))
-    (let ((button (lambda (tag action active help _icon _label)
+    (let ((button (lambda (tag action visible help _icon _label active)
 		    (widget-insert " ")
-		    (if (eval active)
-			(widget-create 'push-button :tag tag
-				       :help-echo help :action action))))
+                    (if (eval visible)
+                        (push (widget-create
+                               'push-button :tag tag
+                               :help-echo help :action action
+                               :notify
+                               (lambda (widget)
+                                 (when (listp active)
+                                   (if (seq-some
+                                        (lambda (widget)
+                                          (memq
+                                           (widget-get widget :custom-state)
+                                           active))
+                                        custom-options)
+                                       (widget-apply widget :activate)
+                                     (widget-apply widget :deactivate)))))
+                              custom-command-buttons))))
 	  (commands custom-commands))
       (if custom-reset-button-menu
 	  (progn
@@ -1853,7 +1917,7 @@ item in another window.\n\n"))
 (widget-put (get 'editable-field 'widget-type)
 	    :custom-show (lambda (_widget value)
 			   (let ((pp (pp-to-string value)))
-			     (cond ((string-match-p "\n" pp)
+			     (cond ((string-search "\n" pp)
 				    nil)
 				   ((> (length pp) 40)
 				    nil)
@@ -2219,7 +2283,11 @@ and `face'."
   (let ((state (widget-get widget :custom-state)))
     (unless (eq state 'modified)
       (unless (memq state '(nil unknown hidden))
-	(widget-put widget :custom-state 'modified))
+	(widget-put widget :custom-state 'modified)
+        ;; Tell our buttons and the tool bar that we changed the widget's state.
+        (force-mode-line-update)
+        (dolist (btn custom-command-buttons)
+          (widget-apply btn :notify)))
       ;; Update the status text (usually from "STANDARD" to "EDITED
       ;; bla bla" in the buffer after the command has run.  Otherwise
       ;; commands like `M-u' (that work on a region in the buffer)
@@ -2258,7 +2326,10 @@ and `face'."
 	       (custom-group-state-update widget)))
 	    (t
 	     (setq widget nil)))))
-  (widget-setup))
+  (widget-setup)
+  (force-mode-line-update)
+  (dolist (btn custom-command-buttons)
+    (widget-apply btn :notify)))
 
 (defun custom-show (widget value)
   "Non-nil if WIDGET should be shown with VALUE by default."
@@ -2674,11 +2745,15 @@ try matching its doc string against `custom-guess-doc-alist'."
 		 buttons)
 	   (insert " ")
 	   (let* ((format (widget-get type :format))
-		  tag-format value-format)
-	     (unless (string-match ":" format)
+                  tag-format)
+             ;; We used to drop the widget tag when creating TYPE, passing
+             ;; everything after the colon (including whitespace characters
+             ;; after it) as the :format for TYPE.  We don't drop the tag
+             ;; anymore, but we should keep an immediate whitespace character,
+             ;; if present, and it's easier to do it here.
+             (unless (string-match ":\\s-?" format)
 	       (error "Bad format"))
 	     (setq tag-format (substring format 0 (match-end 0)))
-	     (setq value-format (substring format (match-end 0)))
 	     (push (widget-create-child-and-convert
 		    widget 'item
 		    :format tag-format
@@ -2689,11 +2764,10 @@ try matching its doc string against `custom-guess-doc-alist'."
 		    :sample-face (if obsolete
 				     'custom-variable-obsolete
 				   'custom-variable-tag)
-		    tag)
+		    :tag tag)
 		   buttons)
 	     (push (widget-create-child-and-convert
 		    widget type
-		    :format value-format
 		    :value value)
 		   children))))
     (unless (eq custom-buffer-style 'tree)
@@ -2757,7 +2831,7 @@ the present value is saved to its :shown-value property instead."
 			  (list (widget-value
 				 (car-safe
 				  (widget-get widget :children)))))
-	    (error "There are unsaved changes")))
+	    (message "Note: There are unsaved changes")))
 	(widget-put widget :documentation-shown nil)
 	(widget-put widget :custom-state 'hidden))
       (custom-redraw widget)
@@ -2793,7 +2867,9 @@ Possible return values are `standard', `saved', `set', `themed',
 		   (and (equal value (eval (car tmp)))
 			(equal comment temp))
 		 (error nil))
-	       'set
+               (if (equal value (eval (car (get symbol 'standard-value))))
+                   'standard
+	         'set)
 	     'changed))
 	  ((progn (setq tmp (get symbol 'theme-value))
 		  (setq temp (get symbol 'saved-variable-comment))
@@ -2838,14 +2914,20 @@ Modified means that the widget that holds the value has been edited by the user
 in a customize buffer.
 To check for other states, call `custom-variable-state'."
   (catch 'get-error
-    (let* ((symbol (widget-get widget :value))
+    (let* ((form (widget-get widget :custom-form))
+           (symbol (widget-get widget :value))
            (get (or (get symbol 'custom-get) 'default-value))
            (value (if (default-boundp symbol)
                       (condition-case nil
                           (funcall get symbol)
                         (error (throw 'get-error t)))
-                    (symbol-value symbol))))
-      (not (equal value (widget-value (car (widget-get widget :children))))))))
+                    (symbol-value symbol)))
+           (orig-value (widget-value (car (widget-get widget :children)))))
+      (not (equal (if (memq form '(lisp mismatch))
+                      ;; Mimic `custom-variable-value-create'.
+                      (custom-quote value)
+                    value)
+                  orig-value)))))
 
 (defun custom-variable-state-set (widget &optional state)
   "Set the state of WIDGET to STATE.
@@ -2863,52 +2945,92 @@ otherwise."
 (defun custom-variable-standard-value (widget)
   (get (widget-value widget) 'standard-value))
 
-(defvar custom-variable-menu
-  `(("Set for Current Session" custom-variable-set
-     (lambda (widget)
-       (eq (widget-get widget :custom-state) 'modified)))
-    ;; Note that in all the backquoted code in this file, we test
-    ;; init-file-user rather than user-init-file.  This is in case
-    ;; cus-edit is loaded by something in site-start.el, because
-    ;; user-init-file is not set at that stage.
-    ;; https://lists.gnu.org/r/emacs-devel/2007-10/msg00310.html
-    ,@(when (or custom-file init-file-user)
-	'(("Save for Future Sessions" custom-variable-save
-	   (lambda (widget)
-	     (memq (widget-get widget :custom-state)
-		   '(modified set changed rogue))))))
-    ("Undo Edits" custom-redraw
-     (lambda (widget)
-       (and (default-boundp (widget-value widget))
-	    (memq (widget-get widget :custom-state) '(modified changed)))))
-    ("Revert This Session's Customization" custom-variable-reset-saved
-     (lambda (widget)
-       (memq (widget-get widget :custom-state)
-	     '(modified set changed rogue))))
-    ,@(when (or custom-file init-file-user)
-	'(("Erase Customization" custom-variable-reset-standard
-	   (lambda (widget)
-	     (and (get (widget-value widget) 'standard-value)
-		  (memq (widget-get widget :custom-state)
-			'(modified set changed saved rogue)))))))
-    ("Set to Backup Value" custom-variable-reset-backup
-     (lambda (widget)
-       (get (widget-value widget) 'backup-value)))
-    ("---" ignore ignore)
-    ("Add Comment" custom-comment-show custom-comment-invisible-p)
-    ("---" ignore ignore)
-    ("Show Current Value" custom-variable-edit
-     (lambda (widget)
-       (eq (widget-get widget :custom-form) 'lisp)))
-    ("Show Saved Lisp Expression" custom-variable-edit-lisp
-     (lambda (widget)
-       (eq (widget-get widget :custom-form) 'edit))))
-  "Alist of actions for the `custom-variable' widget.
+(defun custom-variable-current-value (widget)
+  "Return the current value of the variable edited by WIDGET.
+
+WIDGET should be a custom-variable widget."
+  (let* ((symbol (widget-value widget))
+         (get (or (get symbol 'custom-get) 'default-value))
+         (type (custom-variable-type symbol))
+         (conv (widget-convert type)))
+    (if (default-boundp symbol)
+        (funcall get symbol)
+      (widget-get conv :value))))
+
+(defvar custom-variable-menu nil
+  "If non-nil, an alist of actions for the `custom-variable' widget.
+
+This variable is kept for backward compatibility reasons, please use
+`custom-variable-extended-menu' instead.
+
 Each entry has the form (NAME ACTION FILTER) where NAME is the name of
 the menu entry, ACTION is the function to call on the widget when the
 menu is selected, and FILTER is a predicate which takes a `custom-variable'
 widget as an argument, and returns non-nil if ACTION is valid on that
 widget.  If FILTER is nil, ACTION is always valid.")
+
+(defvar custom-variable-extended-menu
+  ;; No need to give the keymap a prompt, `widget-choose' takes care of it.
+  (let ((map (make-sparse-keymap)))
+    (define-key-after map [custom-variable-set]
+      '(menu-item "Set for Current Session" custom-variable-set
+                  :enable (eq (widget-get custom-actioned-widget :custom-state)
+                              'modified)))
+    ;; Conditionally add items that depend on having loaded the custom-file,
+    ;; rather than giving it a :visible form, because we used to conditionally
+    ;; add this item when using simplified menus.
+    ;; Note that we test init-file-user rather than user-init-file.  This is
+    ;; in case cus-edit is loaded by something in site-start.el, because
+    ;; user-init-file is not set at that stage.
+    ;; https://lists.gnu.org/r/emacs-devel/2007-10/msg00310.html
+    (when (or custom-file init-file-user)
+      (define-key-after map [custom-variable-save]
+        '(menu-item "Save for Future Sessions" custom-variable-save
+                    :enable (memq
+                             (widget-get custom-actioned-widget :custom-state)
+                             '(modified set changed rogue)))))
+    (define-key-after map [custom-redraw]
+      '(menu-item "Undo Edits" custom-redraw
+                  :enable (memq
+                           (widget-get custom-actioned-widget :custom-state)
+                           '(modified changed))))
+    (define-key-after map [custom-variable-reset-saved]
+      '(menu-item "Revert This Session's Customization"
+                  custom-variable-reset-saved
+                  :enable (memq
+                           (widget-get custom-actioned-widget :custom-state)
+                           '(modified set changed rogue))))
+    (when (or custom-file init-file-user)
+      (define-key-after map [custom-variable-reset-standard]
+        '(menu-item "Erase Customization" custom-variable-reset-standard
+                    :enable (memq
+                             (widget-get custom-actioned-widget :custom-state)
+                             '(modified set changed saved rogue)))))
+    (define-key-after map [custom-variable-reset-backup]
+      '(menu-item "Set to Backup Value" custom-variable-reset-backup
+                  :enable (get
+                           (widget-value custom-actioned-widget)
+                           'backup-value)))
+    (define-key-after map [sep0]
+      '(menu-item "---"))
+    (define-key-after map [custom-comment-show]
+      '(menu-item "Add Comment" custom-comment-show
+                  :enable (custom-comment-invisible-p custom-actioned-widget)))
+    (define-key-after map [sep1]
+      '(menu-item "---"))
+    (define-key-after map [custom-variable-edit]
+      '(menu-item "Show Current Value" custom-variable-edit
+                  :button (:radio . (eq (widget-get custom-actioned-widget
+                                                    :custom-form)
+                                        'edit))))
+    (define-key-after map [custom-variable-edit-lisp]
+      '(menu-item "Show Saved Lisp Expression" custom-variable-edit-lisp
+                  :button (:radio . (eq (widget-get custom-actioned-widget
+                                                    :custom-form)
+                                        'lisp))))
+    map)
+  "A menu for `custom-variable' widgets.
+Used in `custom-variable-action' to show a menu to the user.")
 
 (defun custom-variable-action (widget &optional event)
   "Show the menu for `custom-variable' WIDGET.
@@ -2919,12 +3041,17 @@ Optional EVENT is the location for the menu."
       (custom-variable-state-set widget))
     (custom-redraw-magic widget)
     (let* ((completion-ignore-case t)
+           (custom-actioned-widget widget)
 	   (answer (widget-choose (concat "Operation on "
-					  (custom-unlispify-tag-name
-					   (widget-get widget :value)))
-				  (custom-menu-filter custom-variable-menu
-						      widget)
-				  event)))
+                                          (custom-unlispify-tag-name
+                                           (widget-get widget :value)))
+                                  ;; Get rid of checks like this one if we ever
+                                  ;; remove the simplified menus.
+                                  (if custom-variable-menu
+                                      (custom-menu-filter custom-variable-menu
+                                                          widget)
+                                    custom-variable-extended-menu)
+                                  event)))
       (if answer
 	  (funcall answer widget)))))
 
@@ -2960,10 +3087,12 @@ Optional EVENT is the location for the menu."
 	     (setq comment nil)
 	     ;; Make the comment invisible by hand if it's empty
 	     (custom-comment-hide comment-widget))
-	   (custom-variable-backup-value widget)
+           (setq val (widget-value child))
+           (unless (equal (eval val) (custom-variable-current-value widget))
+	     (custom-variable-backup-value widget))
 	   (custom-push-theme 'theme-value symbol 'user
-			      'set (custom-quote (widget-value child)))
-	   (funcall set symbol (eval (setq val (widget-value child))))
+                              'set (custom-quote val))
+	   (funcall set symbol (eval val))
 	   (put symbol 'customized-value (list val))
 	   (put symbol 'variable-comment comment)
 	   (put symbol 'customized-variable-comment comment))
@@ -2972,10 +3101,12 @@ Optional EVENT is the location for the menu."
 	     (setq comment nil)
 	     ;; Make the comment invisible by hand if it's empty
 	     (custom-comment-hide comment-widget))
-	   (custom-variable-backup-value widget)
+           (setq val (widget-value child))
+           (unless (equal val (custom-variable-current-value widget))
+	     (custom-variable-backup-value widget))
 	   (custom-push-theme 'theme-value symbol 'user
-			      'set (custom-quote (widget-value child)))
-	   (funcall set symbol (setq val (widget-value child)))
+			      'set (custom-quote val))
+	   (funcall set symbol val)
 	   (put symbol 'customized-value (list (custom-quote val)))
 	   (put symbol 'variable-comment comment)
 	   (put symbol 'customized-variable-comment comment)))
@@ -3044,17 +3175,23 @@ before this operation becomes the backup value."
   (let* ((symbol (widget-value widget))
 	 (saved-value (get symbol 'saved-value))
 	 (comment (get symbol 'saved-variable-comment))
+         (old-value (custom-variable-current-value widget))
          value)
-    (custom-variable-backup-value widget)
     (if (not (or saved-value comment))
-        ;; If there is no saved value, remove the setting.
-        (custom-push-theme 'theme-value symbol 'user 'reset)
+        (progn
+          (setq value (car (get symbol 'standard-value)))
+          ;; If there is no saved value, remove the setting.
+          (custom-push-theme 'theme-value symbol 'user 'reset)
+          ;; And reset this property too.
+          (put symbol 'variable-comment nil))
       (setq value (car-safe saved-value))
       (custom-push-theme 'theme-value symbol 'user 'set value)
       (put symbol 'variable-comment comment))
+    (unless (equal (eval value) old-value)
+      (custom-variable-backup-value widget))
     (ignore-errors
       (funcall (or (get symbol 'custom-set) #'set-default) symbol
-               (eval (or value (car (get symbol 'standard-value))))))
+               (eval value)))
     (put symbol 'customized-value nil)
     (put symbol 'customized-variable-comment nil)
     (widget-put widget :custom-state 'unknown)
@@ -3067,7 +3204,9 @@ If `custom-reset-standard-variables-list' is nil, save, reset and
 redraw the widget immediately."
   (let* ((symbol (widget-value widget)))
     (if (get symbol 'standard-value)
-	(custom-variable-backup-value widget)
+	(unless (equal (custom-variable-current-value widget)
+                       (eval (car (get symbol 'standard-value))))
+          (custom-variable-backup-value widget))
       (user-error "No standard setting known for %S" symbol))
     (put symbol 'variable-comment nil)
     (put symbol 'customized-value nil)
@@ -3104,13 +3243,8 @@ becomes the backup value, so you can get it again."
 (defun custom-variable-backup-value (widget)
   "Back up the current value for WIDGET's variable.
 The backup value is kept in the car of the `backup-value' property."
-  (let* ((symbol (widget-value widget))
-	 (get (or (get symbol 'custom-get) 'default-value))
-	 (type (custom-variable-type symbol))
-	 (conv (widget-convert type))
-	 (value (if (default-boundp symbol)
-		    (funcall get symbol)
-		  (widget-get conv :value))))
+  (let ((symbol (widget-value widget))
+	(value (custom-variable-current-value widget)))
     (put symbol 'backup-value (list value))))
 
 (defun custom-variable-reset-backup (widget)
@@ -3176,6 +3310,7 @@ face attributes (as specified by a `default' defface entry)."
   :convert-widget 'custom-face-edit-convert-widget
   :args (mapcar (lambda (att)
 		  (list 'group :inline t
+			:format "%v"
 			:sibling-args (widget-get (nth 1 att) :sibling-args)
 			(list 'const :format "" :value (nth 0 att))
 			(nth 1 att)))
@@ -3576,19 +3711,24 @@ the present value is saved to its :shown-value property instead."
 	  (widget-put widget :buttons buttons))
 
       ;; Draw an ordinary `custom-face' widget
-      (let ((opoint (point)))
-	;; Visibility indicator.
-	(push (widget-create-child-and-convert
-	       widget 'custom-visibility
-	       :help-echo "Hide or show this face."
-	       :on "Hide" :off "Show"
-	       :on-glyph "down" :off-glyph "right"
-	       :action 'custom-toggle-hide-face
-	       (not hiddenp))
-	      buttons)
-	;; Face name (tag).
-	(insert " " tag)
-	(widget-specify-sample widget opoint (point)))
+      ;; Visibility indicator.
+      (push (widget-create-child-and-convert
+             widget 'custom-visibility
+             :help-echo "Hide or show this face."
+             :on "Hide" :off "Show"
+             :on-glyph "down" :off-glyph "right"
+             :action 'custom-toggle-hide-face
+             (not hiddenp))
+            buttons)
+      ;; Face name (tag).
+      (insert " ")
+      (push (widget-create-child-and-convert
+             widget 'face-link
+	     :button-face 'link
+             :tag tag
+             :action (lambda (&rest _x)
+                       (find-face-definition symbol)))
+            buttons)
       (insert
        (cond ((eq custom-buffer-style 'face) " ")
 	     ((string-match-p "face\\'" tag)   ":")
@@ -3687,38 +3827,73 @@ the present value is saved to its :shown-value property instead."
           (widget-put widget :children children)
 	  (custom-face-state-set widget))))))
 
-(defvar custom-face-menu
-  `(("Set for Current Session" custom-face-set)
-    ,@(when (or custom-file init-file-user)
-	'(("Save for Future Sessions" custom-face-save)))
-    ("Undo Edits" custom-redraw
-     (lambda (widget)
-       (memq (widget-get widget :custom-state) '(modified changed))))
-    ("Revert This Session's Customization" custom-face-reset-saved
-     (lambda (widget)
-       (memq (widget-get widget :custom-state) '(modified set changed))))
-    ,@(when (or custom-file init-file-user)
-	'(("Erase Customization" custom-face-reset-standard
-	   (lambda (widget)
-	     (get (widget-value widget) 'face-defface-spec)))))
-    ("---" ignore ignore)
-    ("Add Comment" custom-comment-show custom-comment-invisible-p)
-    ("---" ignore ignore)
-    ("For Current Display" custom-face-edit-selected
-     (lambda (widget)
-       (not (eq (widget-get widget :custom-form) 'selected))))
-    ("For All Kinds of Displays" custom-face-edit-all
-     (lambda (widget)
-       (not (eq (widget-get widget :custom-form) 'all))))
-    ("Show Lisp Expression" custom-face-edit-lisp
-     (lambda (widget)
-       (not (eq (widget-get widget :custom-form) 'lisp)))))
-  "Alist of actions for the `custom-face' widget.
+(defun cus--face-link (widget _format)
+  (widget-create-child-and-convert
+   widget 'face-link
+   :button-face 'link
+   :tag "link"
+   :action (lambda (&rest _x)
+             (customize-face (widget-value widget)))))
+
+(defvar custom-face-menu nil
+  "If non-nil, an alist of actions for the `custom-face' widget.
+
+This variable is kept for backward compatibility reasons, please use
+`custom-face-extended-menu' instead.
+
 Each entry has the form (NAME ACTION FILTER) where NAME is the name of
 the menu entry, ACTION is the function to call on the widget when the
 menu is selected, and FILTER is a predicate which takes a `custom-face'
 widget as an argument, and returns non-nil if ACTION is valid on that
 widget.  If FILTER is nil, ACTION is always valid.")
+
+(defvar custom-face-extended-menu
+  (let ((map (make-sparse-keymap)))
+    (define-key-after map [custom-face-set]
+      '(menu-item "Set for Current Session" custom-face-set))
+    (when (or custom-file init-file-user)
+      (define-key-after map [custom-face-save]
+        '(menu-item "Save for Future Sessions" custom-face-save)))
+    (define-key-after map [custom-redraw]
+      '(menu-item "Undo Edits" custom-redraw
+                  :enable (memq
+                           (widget-get custom-actioned-widget :custom-state)
+                           '(modified changed))))
+    (define-key-after map [custom-face-reset-saved]
+      '(menu-item "Revert This Session's Customization" custom-face-reset-saved
+                  :enable (memq
+                           (widget-get custom-actioned-widget :custom-state)
+                           '(modified set changed))))
+    (when (or custom-file init-file-user)
+      (define-key-after map [custom-face-reset-standard]
+        '(menu-item "Erase Customization" custom-face-reset-standard
+                    :enable (get (widget-value custom-actioned-widget)
+                                 'face-defface-spec))))
+    (define-key-after map [sep0]
+      '(menu-item "---"))
+    (define-key-after map [custom-comment-show]
+      '(menu-item "Add Comment" custom-comment-show
+                  :enable (custom-comment-invisible-p custom-actioned-widget)))
+    (define-key-after map [sep1]
+      '(menu-item "---"))
+    (define-key-after map [custom-face-edit-selected]
+      '(menu-item "For Current Display" custom-face-edit-selected
+                  :button (:radio . (eq (widget-get custom-actioned-widget
+                                                    :custom-form)
+                                        'selected))))
+    (define-key-after map [custom-face-edit-all]
+      '(menu-item "For All Kinds of Displays" custom-face-edit-all
+                  :button (:radio . (eq (widget-get custom-actioned-widget
+                                                    :custom-form)
+                                        'all))))
+    (define-key-after map [custom-face-edit-lisp]
+      '(menu-item "Show Lisp Expression" custom-face-edit-lisp
+                  :button (:radio . (eq (widget-get custom-actioned-widget
+                                                    :custom-form)
+                                        'lisp))))
+    map)
+  "A menu for `custom-face' widgets.
+Used in `custom-face-action' to show a menu to the user.")
 
 (defun custom-face-edit-selected (widget)
   "Edit selected attributes of the value of WIDGET."
@@ -3786,12 +3961,15 @@ Optional EVENT is the location for the menu."
   (if (eq (widget-get widget :custom-state) 'hidden)
       (custom-toggle-hide widget)
     (let* ((completion-ignore-case t)
+           (custom-actioned-widget widget)
 	   (symbol (widget-get widget :value))
 	   (answer (widget-choose (concat "Operation on "
 					  (custom-unlispify-tag-name symbol))
-				  (custom-menu-filter custom-face-menu
-						      widget)
-				  event)))
+                                  (if custom-face-menu
+                                      (custom-menu-filter custom-face-menu
+                                                          widget)
+                                    custom-face-extended-menu)
+                                  event)))
       (if answer
 	  (funcall answer widget)))))
 
@@ -3836,7 +4014,22 @@ Optional EVENT is the location for the menu."
 
 (defun custom-face-save (widget)
   "Save the face edited by WIDGET."
-  (custom-face-mark-to-save widget)
+  (let ((form (widget-get widget :custom-form)))
+    (if (memq form '(all lisp))
+        (custom-face-mark-to-save widget)
+      ;; The user is working on only a selected terminal type;
+      ;; make sure we save the entire spec to `custom-file'. (Bug #40866)
+      ;; If recreating a widget that may have been edited by the user, remember
+      ;; to always save the edited value into the :shown-value property, so
+      ;; we use that value for the recreated widget.  (Bug#44331)
+      (widget-put widget :shown-value (custom-face-widget-to-spec widget))
+      (custom-face-edit-all widget)
+      (widget-put widget :shown-value nil) ; Reset it after we used it.
+      (custom-face-mark-to-save widget)
+      (if (eq form 'selected)
+          (custom-face-edit-selected widget)
+        ;; `form' is edit or mismatch; can't happen.
+        (widget-put widget :custom-form form))))
   (custom-save-all)
   (custom-face-state-set-and-redraw widget))
 
@@ -3916,7 +4109,7 @@ restoring it to the state of a face that has never been customized."
 
 (define-widget 'face 'symbol
   "A Lisp face name (with sample)."
-  :format "%{%t%}: (%{sample%}) %v"
+  :format "%{%t%}: %f (%{sample%}) %v"
   :tag "Face"
   :value 'default
   :sample-face-get 'widget-face-sample-face-get
@@ -3926,6 +4119,7 @@ restoring it to the state of a face that has never been customized."
                                 obarray #'facep 'strict)
   :prompt-match 'facep
   :prompt-history 'widget-face-prompt-value-history
+  :format-handler 'cus--face-link
   :validate (lambda (widget)
 	      (unless (facep (widget-value widget))
 		(widget-put widget
@@ -4063,6 +4257,13 @@ and so forth.  The remaining group tags are shown with `custom-group-tag'."
     (if visible
 	(insert "--------")))
   (widget-default-create widget))
+
+(defun custom--filter-obsolete-variables (items)
+  "Filter obsolete variables from ITEMS."
+  (seq-remove (lambda (item)
+                (and (eq (nth 1 item) 'custom-variable)
+                     (get (nth 0 item) 'byte-obsolete-variable)))
+              items))
 
 (defun custom-group-members (symbol groups-only)
   "Return SYMBOL's custom group members.
@@ -4269,12 +4470,13 @@ This works for both graphical and text displays."
 					     ?\s))
 	   ;; Members.
 	   (message "Creating group...")
-	   (let* ((members (custom-sort-items
-			    members
-			    ;; Never sort the top-level custom group.
-			    (unless (eq symbol 'emacs)
-			      custom-buffer-sort-alphabetically)
-			    custom-buffer-order-groups))
+           (let* ((members (custom--filter-obsolete-variables
+                            (custom-sort-items
+                             members
+                             ;; Never sort the top-level custom group.
+                             (unless (eq symbol 'emacs)
+                               custom-buffer-sort-alphabetically)
+                             custom-buffer-order-groups)))
 		  (prefixes (widget-get widget :custom-prefixes))
 		  (custom-prefix-list (custom-prefix-add symbol prefixes))
 		  (have-subtitle (and (not (eq symbol 'emacs))
@@ -4311,30 +4513,49 @@ This works for both graphical and text displays."
            (insert "\n")
            (custom-group--draw-horizontal-line)))))
 
-(defvar custom-group-menu
-  `(("Set for Current Session" custom-group-set
-     (lambda (widget)
-       (eq (widget-get widget :custom-state) 'modified)))
-    ,@(when (or custom-file init-file-user)
-	'(("Save for Future Sessions" custom-group-save
-	   (lambda (widget)
-	     (memq (widget-get widget :custom-state) '(modified set))))))
-    ("Undo Edits" custom-group-reset-current
-     (lambda (widget)
-       (memq (widget-get widget :custom-state) '(modified))))
-    ("Revert This Session's Customizations" custom-group-reset-saved
-     (lambda (widget)
-       (memq (widget-get widget :custom-state) '(modified set))))
-    ,@(when (or custom-file init-file-user)
-	'(("Erase Customization" custom-group-reset-standard
-	   (lambda (widget)
-	     (memq (widget-get widget :custom-state) '(modified set saved)))))))
-  "Alist of actions for the `custom-group' widget.
+(defvar custom-group-menu nil
+  "If non-nil, an alist of actions for the `custom-group' widget.
+
+This variable is kept for backward compatibility reasons, please use
+`custom-group-extended-menu' instead.
+
 Each entry has the form (NAME ACTION FILTER) where NAME is the name of
 the menu entry, ACTION is the function to call on the widget when the
 menu is selected, and FILTER is a predicate which takes a `custom-group'
 widget as an argument, and returns non-nil if ACTION is valid on that
 widget.  If FILTER is nil, ACTION is always valid.")
+
+(defvar custom-group-extended-menu
+  (let ((map (make-sparse-keymap)))
+    (define-key-after map [custom-group-set]
+      '(menu-item "Set for Current Session" custom-group-set
+                  :enable (eq (widget-get custom-actioned-widget :custom-state)
+                              'modified)))
+    (when (or custom-file init-file-user)
+      (define-key-after map [custom-group-save]
+        '(menu-item "Save for Future Sessions" custom-group-save
+                    :enable (memq
+                             (widget-get custom-actioned-widget :custom-state)
+                             '(modified set)))))
+    (define-key-after map [custom-group-reset-current]
+      '(menu-item "Undo Edits" custom-group-reset-current
+                  :enable (eq (widget-get custom-actioned-widget :custom-state)
+                              'modified)))
+    (define-key-after map [custom-group-reset-saved]
+      '(menu-item "Revert This Session's Customizations"
+                  custom-group-reset-saved
+                  :enable (memq
+                           (widget-get custom-actioned-widget :custom-state)
+                           '(modified set))))
+    (when (or custom-file init-file-user)
+      (define-key-after map [custom-group-reset-standard]
+        '(menu-item "Erase Customization" custom-group-reset-standard
+                    :enable (memq
+                             (widget-get custom-actioned-widget :custom-state)
+                             '(modified set saved)))))
+    map)
+    "A menu for `custom-group' widgets.
+Used in `custom-group-action' to show a menu to the user.")
 
 (defun custom-group-action (widget &optional event)
   "Show the menu for `custom-group' WIDGET.
@@ -4342,12 +4563,15 @@ Optional EVENT is the location for the menu."
   (if (eq (widget-get widget :custom-state) 'hidden)
       (custom-toggle-hide widget)
     (let* ((completion-ignore-case t)
+           (custom-actioned-widget widget)
 	   (answer (widget-choose (concat "Operation on "
 					  (custom-unlispify-tag-name
 					   (widget-get widget :value)))
-				  (custom-menu-filter custom-group-menu
-						      widget)
-				  event)))
+                                  (if custom-group-menu
+                                      (custom-menu-filter custom-group-menu
+                                                          widget)
+                                    custom-group-extended-menu)
+                                  event)))
       (if answer
 	  (funcall answer widget)))))
 
@@ -4433,8 +4657,8 @@ You can set this option through Custom, if you carefully read the
 last paragraph below.  However, usually it is simpler to write
 something like the following in your init file:
 
-\(setq custom-file \"~/.emacs-custom.el\")
-\(load custom-file)
+(setq custom-file \"~/.config/emacs-custom.el\")
+(load custom-file)
 
 Note that both lines are necessary: the first line tells Custom to
 save all customizations in this file, but does not load it.
@@ -4511,8 +4735,9 @@ if only the first line of the docstring is shown."))
       (let ((inhibit-read-only t)
 	    (print-length nil)
 	    (print-level nil))
-	(custom-save-variables)
-	(custom-save-faces))
+        (atomic-change-group
+	  (custom-save-variables)
+	  (custom-save-faces)))
       (let ((file-precious-flag t))
 	(save-buffer))
       (if old-buffer
@@ -4589,15 +4814,12 @@ This function does not save the buffer."
 	    (setq pos (line-beginning-position))))
 	(goto-char pos)))))
 
-(defvar sort-fold-case) ; defined in sort.el
-
 (defun custom-save-variables ()
   "Save all customized variables in `custom-file'."
   (save-excursion
     (custom-save-delete 'custom-set-variables)
     (let ((standard-output (current-buffer))
-	  (saved-list (make-list 1 0))
-	  sort-fold-case)
+	  (saved-list (make-list 1 0)))
       ;; First create a sorted list of saved variables.
       (mapatoms
        (lambda (symbol)
@@ -4679,8 +4901,7 @@ This function does not save the buffer."
     (custom-save-delete 'custom-reset-faces)
     (custom-save-delete 'custom-set-faces)
     (let ((standard-output (current-buffer))
-	  (saved-list (make-list 1 0))
-	  sort-fold-case)
+	  (saved-list (make-list 1 0)))
       ;; First create a sorted list of saved faces.
       (mapatoms
        (lambda (symbol)
@@ -4702,7 +4923,7 @@ This function does not save the buffer."
 	(let ((spec (car-safe (get symbol 'theme-face)))
 	      (value (get symbol 'saved-face))
 	      (now (not (or (get symbol 'face-defface-spec)
-			    (and (not (custom-facep symbol))
+                            (and (not (facep symbol))
 				 (not (get symbol 'force-face))))))
 	      (comment (get symbol 'saved-face-comment)))
 	  (when (or (and spec (eq (nth 0 spec) 'user))
@@ -4821,9 +5042,19 @@ The format is suitable for use with `easy-menu-define'."
 	 (mapcar (lambda (arg)
 		   (let ((tag     (nth 0 arg))
 			 (command (nth 1 arg))
-			 (active  (nth 2 arg))
-			 (help    (nth 3 arg)))
-		     (vector tag command :active (eval active) :help help)))
+                         (visible (nth 2 arg))
+                         (help    (nth 3 arg))
+                         (active  (nth 6 arg)))
+                     (vector tag command :visible (eval visible)
+                             :active
+                             `(or (eq t ',active)
+                                  (seq-some ,(lambda (widget)
+                                               (memq
+                                                (widget-get widget
+                                                            :custom-state)
+                                                active))
+                                            custom-options))
+                             :help help)))
 		 custom-commands)))
 
 (defvar tool-bar-map)
@@ -4842,7 +5073,10 @@ The format is suitable for use with `easy-menu-define'."
   (error "You can't edit this part of the Custom buffer"))
 
 (defun Custom-newline (pos &optional event)
-  "Invoke button at POS, or refuse to allow editing of Custom buffer."
+  "Invoke button at POS, or refuse to allow editing of Custom buffer.
+
+To see what function the widget will call, use the
+`widget-describe' command."
   (interactive "@d")
   (let ((button (get-char-property pos 'button)))
     ;; If there is no button at point, then use the one at the start
@@ -4865,8 +5099,6 @@ If several parents are listed, go to the first of them."
 	(let* ((button (get-char-property (point) 'button))
 	       (parent (downcase (widget-get  button :tag))))
 	  (customize-group parent)))))
-
-(define-obsolete-variable-alias 'custom-mode-hook 'Custom-mode-hook "23.1")
 
 (defcustom Custom-mode-hook nil
   "Hook called when entering Custom mode."
@@ -4902,8 +5134,8 @@ If several parents are listed, go to the first of them."
 The following commands are available:
 
 \\<widget-keymap>\
-Move to next button, link or editable field.     \\[widget-forward]
-Move to previous button, link or editable field. \\[widget-backward]
+Move to next button, link or editable field.      \\[widget-forward]
+Move to previous button, link or editable field.  \\[widget-backward]
 \\<custom-field-keymap>\
 Complete content of editable text field.   \\[widget-complete]
 \\<custom-mode-map>\
@@ -4919,7 +5151,6 @@ Erase customizations; set options
 Entry to this mode calls the value of `Custom-mode-hook'
 if that value is non-nil."
   (use-local-map custom-mode-map)
-  (easy-menu-add Custom-mode-menu)
   (setq-local tool-bar-map
 	      (or custom-tool-bar-map
 		  ;; Set up `custom-tool-bar-map'.
@@ -4931,16 +5162,20 @@ if that value is non-nil."
 			:label (nth 5 arg)))
 		     custom-commands)
 		    (setq custom-tool-bar-map map))))
+  (setq-local custom--invocation-options nil)
+  (setq-local revert-buffer-function #'custom--revert-buffer)
   (make-local-variable 'custom-options)
   (make-local-variable 'custom-local-buffer)
   (custom--initialize-widget-variables)
   (add-hook 'widget-edit-functions 'custom-state-buffer-message nil t))
 
+(defun custom--revert-buffer (_ignore-auto _noconfirm)
+  (unless custom--invocation-options
+    (error "Insufficient data to revert"))
+  (custom-buffer-create custom--invocation-options
+                        (buffer-name)))
+
 (put 'Custom-mode 'mode-class 'special)
-
-(define-obsolete-function-alias 'custom-mode 'Custom-mode "23.1")
-
-;;; The End.
 
 (provide 'cus-edit)
 

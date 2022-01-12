@@ -155,11 +155,11 @@ extern unsigned int w32_get_short_filename (const char *, char *, int);
 
 /* Prepare our standard handles for proper inheritance by child processes.  */
 extern void prepare_standard_handles (int in, int out,
-				      int err, HANDLE handles[4]);
+				      int err, HANDLE handles[3]);
 
 /* Reset our standard handles to their original state.  */
 extern void reset_standard_handles (int in, int out,
-				    int err, HANDLE handles[4]);
+				    int err, HANDLE handles[3]);
 
 /* Return the string resource associated with KEY of type TYPE.  */
 extern LPBYTE w32_get_resource (const char * key, LPDWORD type);
@@ -187,6 +187,7 @@ extern DWORD multiByteToWideCharFlags;
 
 extern char *w32_my_exename (void);
 extern const char *w32_relocate (const char *);
+extern char *realpath (const char *, char *);
 
 extern void init_environment (char **);
 extern void check_windows_init_file (void);
@@ -194,6 +195,7 @@ extern void syms_of_ntproc (void);
 extern void syms_of_ntterm (void);
 extern void dostounix_filename (register char *);
 extern void unixtodos_filename (register char *);
+extern const char *map_w32_filename (const char *, const char **);
 extern int  filename_from_ansi (const char *, char *);
 extern int  filename_to_ansi (const char *, char *);
 extern int  filename_from_utf16 (const wchar_t *, char *);
@@ -215,12 +217,15 @@ extern int sys_rename_replace (char const *, char const *, BOOL);
 extern int pipe2 (int *, int);
 extern void register_aux_fd (int);
 
-extern void set_process_dir (char *);
+extern void set_process_dir (const char *);
 extern int sys_spawnve (int, char *, char **, char **);
 extern void register_child (pid_t, int);
 
 extern void sys_sleep (int);
 extern int sys_link (const char *, const char *);
+extern int openat (int, const char *, int, int);
+extern int fchmodat (int, char const *, mode_t, int);
+extern int lchmod (char const *, mode_t);
 
 /* Return total and free memory info.  */
 extern int w32_memory_info (unsigned long long *, unsigned long long *,
@@ -228,6 +233,9 @@ extern int w32_memory_info (unsigned long long *, unsigned long long *,
 
 /* Compare 2 UTF-8 strings in locale-dependent fashion.  */
 extern int w32_compare_strings (const char *, const char *, char *, int);
+
+/* Return the number of processor execution units on this system.  */
+extern unsigned w32_get_nproc (void);
 
 /* Return a cryptographically secure seed for PRNG.  */
 extern int w32_init_random (void *, ptrdiff_t);

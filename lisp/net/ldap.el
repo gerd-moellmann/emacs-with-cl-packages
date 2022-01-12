@@ -1,4 +1,4 @@
-;;; ldap.el --- client interface to LDAP for Emacs
+;;; ldap.el --- client interface to LDAP for Emacs  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
 
@@ -29,11 +29,10 @@
 ;;    `ldapsearch' to actually perform the searches.  That program can be
 ;;    found in all LDAP developer kits such as:
 ;;      - UM-LDAP 3.3 (http://www.umich.edu/~dirsvcs/ldap/)
-;;      - OpenLDAP (http://www.openldap.org/)
+;;      - OpenLDAP (https://www.openldap.org/)
 
 ;;; Code:
 
-(require 'custom)
 (require 'password-cache)
 
 (autoload 'auth-source-search "auth-source")
@@ -52,7 +51,8 @@ a separator."
 
 (defcustom ldap-default-port nil
   "Default TCP port for LDAP connections.
-Initialized from the LDAP library at build time. Default value is 389."
+Initialized from the LDAP library at build time.
+Default value is 389."
   :type '(choice (const :tag "Use library default" nil)
 		 (integer :tag "Port number")))
 
@@ -154,8 +154,7 @@ Valid properties include:
 		 (string :tag "Argument")))
 
 (defcustom ldap-ldapsearch-password-prompt-regexp "Enter LDAP Password: "
-  "A regular expression used to recognize the `ldapsearch'
-program's password prompt."
+  "Regexp used to recognize the `ldapsearch' program's password prompt."
   :type 'regexp
   :version "25.1")
 
@@ -419,12 +418,12 @@ RFC2798 Section 9.1.1")
   (encode-coding-string str ldap-coding-system))
 
 (defun ldap-decode-address (str)
-  (mapconcat 'ldap-decode-string
+  (mapconcat #'ldap-decode-string
 	     (split-string str "\\$")
 	     "\n"))
 
 (defun ldap-encode-address (str)
-  (mapconcat 'ldap-encode-string
+  (mapconcat #'ldap-encode-string
 	     (split-string str "\n")
 	     "$"))
 
@@ -602,7 +601,7 @@ an alist of attribute/value pairs."
 	(sizelimit (plist-get search-plist 'sizelimit))
 	(withdn (plist-get search-plist 'withdn))
 	(numres 0)
-	arglist dn name value record result proc)
+	arglist dn name value record result)
     (if (or (null filter)
 	    (equal "" filter))
 	(error "No search filter"))
@@ -672,7 +671,7 @@ an alist of attribute/value pairs."
 				   " bind distinguished name (binddn)"))
 		  (error "Failed ldapsearch invocation: %s \"%s\""
 			 ldap-ldapsearch-prog
-			 (mapconcat 'identity proc-args "\" \""))))))
+			 (mapconcat #'identity proc-args "\" \""))))))
 	(apply #'call-process ldap-ldapsearch-prog
 	       ;; Ignore stderr, which can corrupt results
 	       nil (list buf nil) nil
@@ -727,7 +726,7 @@ an alist of attribute/value pairs."
 	  (setq record nil)
 	  (skip-chars-forward " \t\n")
 	  (message "Parsing results... %d" numres)
-	  (1+ numres))
+	  (setq numres (1+ numres)))
 	(message "Parsing results... done")
 	(nreverse result)))))
 

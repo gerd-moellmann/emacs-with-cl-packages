@@ -144,8 +144,7 @@ Otherwise, Emacs will attempt to use rsh to invoke du on the remote machine."
   (when (eshell-using-module 'eshell-cmpl)
     (add-hook 'pcomplete-try-first-hook
 	      'eshell-complete-host-reference nil t))
-  (make-local-variable 'eshell-complex-commands)
-  (setq eshell-complex-commands
+  (setq-local eshell-complex-commands
 	(append '("grep" "egrep" "fgrep" "agrep" "glimpse" "locate"
 		  "cat" "time" "cp" "mv" "make" "du" "diff")
 		eshell-complex-commands)))
@@ -166,11 +165,13 @@ Otherwise, Emacs will attempt to use rsh to invoke du on the remote machine."
 (put 'eshell/man 'eshell-no-numeric-conversions t)
 
 (defun eshell/info (&rest args)
-  "Run the info command in-frame with the same behavior as command-line `info', ie:
+  "Run the info command in-frame with the same behavior as command-line `info'.
+For example:
   `info'           => goes to top info window
   `info arg1'      => IF arg1 is a file, then visits arg1
   `info arg1'      => OTHERWISE goes to top info window and then menu item arg1
-  `info arg1 arg2' => does action for arg1 (either visit-file or menu-item) and then menu item arg2
+  `info arg1 arg2' => does action for arg1 (either visit-file or menu-item) and
+                      then menu item arg2
   etc."
   (eval-and-compile (require 'info))
   (let ((file (cond
@@ -419,9 +420,8 @@ Remove the DIRECTORY(ies), if they are empty.")
 		  (apply 'eshell-shuffle-files
 			 command action
 			 (mapcar
-			  (function
-			   (lambda (file)
-			     (concat source "/" file)))
+                          (lambda (file)
+                            (concat source "/" file))
 			  (directory-files source))
 			 target func t args)
 		  (when (eq func 'rename-file)
@@ -439,7 +439,10 @@ Remove the DIRECTORY(ies), if they are empty.")
 		       (setq link (file-symlink-p source)))
 		  (progn
 		    (apply 'eshell-funcalln 'make-symbolic-link
-			   link target args)
+			   link target
+                           ;; `make-symbolic-link' doesn't have
+                           ;; KEEP-TIME; just OK-IF-ALREADY-EXISTS.
+                           (list (car args)))
 		    (if (eq func 'rename-file)
 			(if (and (file-directory-p source)
 				 (not (file-symlink-p source)))
@@ -469,8 +472,6 @@ Remove the DIRECTORY(ies), if they are empty.")
 	   (eshell-parse-command
 	    (format "tar %s %s" tar-args archive) args))))
 
-(defvar ange-cache)			; XEmacs?  See esh-util
-
 ;; this is to avoid duplicating code...
 (defmacro eshell-mvcpln-template (command action func query-var
 					  force-var &optional preserve)
@@ -488,8 +489,7 @@ Remove the DIRECTORY(ies), if they are empty.")
 		       (or (not no-dereference)
 			   (not (file-symlink-p (car args)))))))
 	 (eshell-shorthand-tar-command ,command args)
-       (let ((target (car (last args)))
-	     ange-cache)
+       (let ((target (car (last args))))
 	 (setcdr (last args 2) nil)
 	 (eshell-shuffle-files
 	  ,command ,action args target ,func nil
@@ -755,15 +755,12 @@ external command."
 				      (eshell-stringify-list
 				       (flatten-tree args)))
 			      " "))
-	     (cmd (progn
-		    (set-text-properties 0 (length args)
-					 '(invisible t) args)
-		    (format "%s -n %s"
-			    (pcase command
-			      ("egrep" "grep -E")
-			      ("fgrep" "grep -F")
-			      (x x))
-			    args)))
+	     (cmd (format "%s -nH %s"
+			  (pcase command
+			    ("egrep" "grep -E")
+			    ("fgrep" "grep -F")
+			    (x x))
+			  args))
 	     compilation-scroll-output)
 	(grep cmd)))))
 
@@ -790,9 +787,9 @@ external command."
 
 ;; completions rules for some common UNIX commands
 
-(defsubst eshell-complete-hostname ()
-  "Complete a command that wants a hostname for an argument."
-  (pcomplete-here (eshell-read-host-names)))
+(autoload 'pcmpl-unix-complete-hostname "pcmpl-unix")
+(define-obsolete-function-alias 'eshell-complete-hostname
+  #'pcmpl-unix-complete-hostname "28.1")
 
 (defun eshell-complete-host-reference ()
   "If there is a host reference, complete it."
@@ -801,26 +798,7 @@ external command."
     (when (setq index (string-match "@[a-z.]*\\'" arg))
       (setq pcomplete-stub (substring arg (1+ index))
 	    pcomplete-last-completion-raw t)
-      (throw 'pcomplete-completions (eshell-read-host-names)))))
-
-(defalias 'pcomplete/ftp    'eshell-complete-hostname)
-(defalias 'pcomplete/ncftp  'eshell-complete-hostname)
-(defalias 'pcomplete/ping   'eshell-complete-hostname)
-(defalias 'pcomplete/rlogin 'eshell-complete-hostname)
-
-(defun pcomplete/telnet ()
-  (require 'pcmpl-unix)
-  (pcomplete-opt "xl(pcmpl-unix-user-names)")
-  (eshell-complete-hostname))
-
-(defun pcomplete/rsh ()
-  "Complete `rsh', which, after the user and hostname, is like xargs."
-  (require 'pcmpl-unix)
-  (pcomplete-opt "l(pcmpl-unix-user-names)")
-  (eshell-complete-hostname)
-  (pcomplete-here (funcall pcomplete-command-completion-function))
-  (funcall (or (pcomplete-find-completion-function (pcomplete-arg 1))
-	       pcomplete-default-completion-function)))
+      (throw 'pcomplete-completions (pcomplete-read-host-names)))))
 
 (defvar block-size)
 (defvar by-bytes)
@@ -924,7 +902,7 @@ Summarize disk usage of each FILE, recursively for directories.")
        ;; filesystem support means nothing under Windows
        (if (eshell-under-windows-p)
 	   (setq only-one-filesystem nil))
-       (let ((size 0.0) ange-cache)
+       (let ((size 0.0))
 	 (while args
 	   (if only-one-filesystem
 	       (setq only-one-filesystem
@@ -991,7 +969,7 @@ Show wall-clock time elapsed during execution of COMMAND.")
       (set-window-configuration eshell-diff-window-config)))
 
 (defun nil-blank-string (string)
-  "Return STRING, or nil if STRING contains only non-blank characters."
+  "Return STRING, or nil if STRING contains only blank characters."
   (cond
     ((string-match "[^[:blank:]]" string) string)
     (nil)))
@@ -1026,18 +1004,17 @@ Show wall-clock time elapsed during execution of COMMAND.")
 	       (throw 'eshell-replace-command
 		      (eshell-parse-command "*diff" orig-args))))
 	  (when (fboundp 'diff-mode)
-	    (make-local-variable 'compilation-finish-functions)
 	    (add-hook
 	     'compilation-finish-functions
-	     `(lambda (buff msg)
+	     (lambda (buff _msg)
 		(with-current-buffer buff
 		  (diff-mode)
-		  (set (make-local-variable 'eshell-diff-window-config)
-		       ,config)
-		  (local-set-key [?q] 'eshell-diff-quit)
+                  (setq-local eshell-diff-window-config config)
+		  (local-set-key [?q] #'eshell-diff-quit)
 		  (if (fboundp 'turn-on-font-lock-if-enabled)
 		      (turn-on-font-lock-if-enabled))
-		  (goto-char (point-min))))))
+		  (goto-char (point-min))))
+	     nil t))
 	  (pop-to-buffer (current-buffer))))))
   nil)
 

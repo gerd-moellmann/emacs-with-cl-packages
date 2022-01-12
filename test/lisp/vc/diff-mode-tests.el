@@ -1,3 +1,5 @@
+;;; diff-mode-tests.el --- Tests for diff-mode.el  -*- lexical-binding:t -*-
+
 ;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
 
 ;; Author: Dima Kogan <dima@secretsauce.net>
@@ -20,11 +22,10 @@
 
 ;;; Code:
 
+(require 'ert)
+(require 'ert-x)
 (require 'diff-mode)
 (require 'diff)
-
-(defconst diff-mode-tests--datadir
-  (expand-file-name "test/data/vc/diff-mode" source-directory))
 
 (ert-deftest diff-mode-test-ignore-trailing-dashes ()
   "Check to make sure we successfully ignore trailing -- made by
@@ -202,11 +203,158 @@ youthfulness
           (kill-buffer buf2)
           (delete-directory temp-dir 'recursive))))))
 
+(ert-deftest diff-mode-test-hunk-text-no-newline ()
+  "Check output of `diff-hunk-text' with no newline at end of file."
+
+  ;; First check unified change/remove/add cases with newline
+  (let ((hunk "\
+@@ -1 +1 @@
+-foo
++bar
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo
+"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar
+")))
+
+  (let ((hunk "\
+@@ -1 +0,0 @@
+-foo
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo
+"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+")))
+
+  (let ((hunk "\
+@@ -0,0 +1 @@
++bar
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar
+")))
+
+  ;; Check unified change/remove cases with no newline in old file
+  (let ((hunk "\
+@@ -1 +1 @@
+-foo
+\\ No newline at end of file
++bar
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar
+")))
+
+  (let ((hunk "\
+@@ -1 +0,0 @@
+-foo
+\\ No newline at end of file
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+")))
+
+  ;; Check unified change/add cases with no newline in new file
+  (let ((hunk "\
+@@ -1 +1 @@
+-foo
++bar
+\\ No newline at end of file
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo
+"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar")))
+
+  (let ((hunk "\
+@@ -0,0 +1 @@
++bar
+\\ No newline at end of file
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar")))
+
+  ;; Check unified change case with no newline in both old/new file
+  (let ((hunk "\
+@@ -1 +1 @@
+-foo
+\\ No newline at end of file
++bar
+\\ No newline at end of file
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar")))
+
+  ;; Check context-after unified change case with no newline in both old/new file
+  (let ((hunk "\
+@@ -1,2 +1,2 @@
+-foo
++bar
+ baz
+\\ No newline at end of file
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo
+baz"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar
+baz")))
+
+  (let ((hunk "\
+@@ -1,2 +1,2 @@
+-foo
+-baz
+\\ No newline at end of file
++bar
++baz
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo
+baz"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar
+baz
+")))
+
+  (let ((hunk "\
+@@ -1,2 +1,2 @@
+-foo
+-baz
++bar
++baz
+\\ No newline at end of file
+"))
+    (should (equal (diff-hunk-text hunk nil nil) "\
+foo
+baz
+"))
+    (should (equal (diff-hunk-text hunk t nil) "\
+bar
+baz"))))
+
 (ert-deftest diff-mode-test-font-lock ()
   "Check font-locking of diff hunks."
+  ;; See comments in diff-hunk-file-names about nonascii.
+  ;; In such cases, the diff-font-lock-syntax portion of this fails.
+  :expected-result (if (string-match-p "[[:nonascii:]]"
+                                       (ert-resource-directory))
+                       :failed :passed)
   (skip-unless (executable-find shell-file-name))
   (skip-unless (executable-find diff-command))
-  (let ((default-directory diff-mode-tests--datadir)
+  (let ((default-directory (ert-resource-directory))
         (old "hello_world.c")
         (new "hello_emacs.c")
         (diff-buffer (get-buffer-create "*Diff*"))
@@ -242,6 +390,7 @@ youthfulness
                  111 124 (face diff-context)
                  124 127 (face diff-context))))
 
+      ;; Test diff-font-lock-syntax.
       (should (equal (mapcar (lambda (o)
                                (list (- (overlay-start o) diff-beg)
                                      (- (overlay-end o) diff-beg)
@@ -265,9 +414,12 @@ youthfulness
 
 (ert-deftest diff-mode-test-font-lock-syntax-one-line ()
   "Check diff syntax highlighting for one line with no newline at end."
+  :expected-result (if (string-match-p "[[:nonascii:]]"
+                                       (ert-resource-directory))
+                       :failed :passed)
   (skip-unless (executable-find shell-file-name))
   (skip-unless (executable-find diff-command))
-  (let ((default-directory diff-mode-tests--datadir)
+  (let ((default-directory (ert-resource-directory))
         (old "hello_world_1.c")
         (new "hello_emacs_1.c")
         (diff-buffer (get-buffer-create "*Diff*"))
@@ -316,4 +468,17 @@ youthfulness
                        (114 131 (diff-mode syntax face font-lock-string-face))
                        (134 140 (diff-mode syntax face font-lock-keyword-face))))))))
 
+(ert-deftest test-hunk-file-names ()
+  (with-temp-buffer
+    (insert "diff -c /tmp/ange-ftp13518wvE.el /tmp/ange-ftp1351895K.el\n")
+    (goto-char (point-min))
+    (should (equal (diff-hunk-file-names)
+                   '("/tmp/ange-ftp1351895K.el" "/tmp/ange-ftp13518wvE.el"))))
+  (with-temp-buffer
+    (insert "diff -c -L /ftp:slbhao:/home/albinus/src/tramp/lisp/tramp.el -L /ftp:slbhao:/home/albinus/src/emacs/lisp/net/tramp.el /tmp/ange-ftp13518wvE.el /tmp/ange-ftp1351895K.el\n")
+    (goto-char (point-min))
+    (should (equal (diff-hunk-file-names)
+                   '("/tmp/ange-ftp1351895K.el" "/tmp/ange-ftp13518wvE.el")))))
+
 (provide 'diff-mode-tests)
+;;; diff-mode-tests.el ends here

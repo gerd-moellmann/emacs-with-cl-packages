@@ -612,7 +612,7 @@ should not change this value.")
 		 (setq next prev
 		       prev nil)
 	       (if (or (< index limit)
-		       (<= (+ len (or (string-match "\n" tail)
+		       (<= (+ len (or (string-search "\n" tail)
 				      (length tail)))
 			   rfc2047-encode-max-chars))
 		   (setq prev next
@@ -716,11 +716,13 @@ Point moves to the end of the region."
 	   (goto-char e)))))
 
 (defun rfc2047-fold-field ()
-  "Fold the current header field."
+  "Fold the current header field.
+Return the new end point."
   (save-excursion
     (save-restriction
       (rfc2047-narrow-to-field)
-      (rfc2047-fold-region (point-min) (point-max)))))
+      (rfc2047-fold-region (point-min) (point-max))
+      (point-max))))
 
 (defun rfc2047-fold-region (b e)
   "Fold long lines in region B to E."
@@ -1109,7 +1111,7 @@ strings are stripped."
   "Decode MIME-encoded STRING and return the result.
 If ADDRESS-MIME is non-nil, strip backslashes which precede characters
 other than `\"' and `\\' in quoted strings."
-  (if (string-match "=\\?" string)
+  (if (string-search "=?" string)
       (with-temp-buffer
 	;; We used to only call mm-enable-multibyte if `m' is non-nil,
 	;; but this can't be the right criterion.  Don't just revert this

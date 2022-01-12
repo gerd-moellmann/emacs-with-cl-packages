@@ -208,10 +208,8 @@ variable."
     (unless (comint-check-proc buffer-name)
       (comint-exec buffer buffer-name rlogin-program nil args)
       (rlogin-mode)
-      (make-local-variable 'rlogin-host)
-      (setq rlogin-host host)
-      (make-local-variable 'rlogin-remote-user)
-      (setq rlogin-remote-user user)
+      (setq-local rlogin-host host)
+      (setq-local rlogin-remote-user user)
       (ignore-errors
         (cond ((eq rlogin-directory-tracking-mode t)
                ;; Do this here, rather than calling the tracking mode
@@ -240,8 +238,8 @@ ange-ftp.  If called as a function, give it no argument.
 If called with a negative prefix argument, disable directory tracking
 entirely.
 
-If called with a positive, numeric prefix argument, e.g.
-`\\[universal-argument] 1 M-x rlogin-directory-tracking-mode',
+If called with a positive, numeric prefix argument, for example
+\\[universal-argument] 1 \\[rlogin-directory-tracking-mode],
 then do directory tracking but assume the remote filesystem is the same as
 the local system.  This only works in general if the remote machine and the
 local one share the same directories (e.g. through NFS)."

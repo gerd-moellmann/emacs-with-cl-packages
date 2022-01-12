@@ -44,8 +44,7 @@
 
 (defcustom ielm-noisy t
   "If non-nil, IELM will beep on error."
-  :type 'boolean
-  :group 'ielm)
+  :type 'boolean)
 
 (defcustom ielm-prompt-read-only t
   "If non-nil, the IELM prompt is read only.
@@ -74,7 +73,6 @@ buffers, including IELM buffers.  If you sometimes use IELM on
 text-only terminals or with `emacs -nw', you might wish to use
 another binding for `comint-kill-whole-line'."
   :type 'boolean
-  :group 'ielm
   :version "22.1")
 
 (defcustom ielm-prompt "ELISP> "
@@ -90,8 +88,7 @@ does not update the prompt of an *ielm* buffer with a running process.
 For IELM buffers that are not called `*ielm*', you can execute
 \\[inferior-emacs-lisp-mode] in that IELM buffer to update the value,
 for new prompts.  This works even if the buffer has a running process."
-  :type 'string
-  :group 'ielm)
+  :type 'string)
 
 (defvar ielm-prompt-internal "ELISP> "
   "Stored value of `ielm-prompt' in the current IELM buffer.
@@ -103,8 +100,7 @@ customizes `ielm-prompt'.")
   "Controls whether \\<ielm-map>\\[ielm-return] has intelligent behavior in IELM.
 If non-nil, \\[ielm-return] evaluates input for complete sexps, or inserts a newline
 and indents for incomplete sexps.  If nil, always inserts newlines."
-  :type 'boolean
-  :group 'ielm)
+  :type 'boolean)
 
 (defcustom ielm-dynamic-multiline-inputs t
   "Force multiline inputs to start from column zero?
@@ -112,15 +108,13 @@ If non-nil, after entering the first line of an incomplete sexp, a newline
 will be inserted after the prompt, moving the input to the next line.
 This gives more frame width for large indented sexps, and allows functions
 such as `edebug-defun' to work with such inputs."
-  :type 'boolean
-  :group 'ielm)
+  :type 'boolean)
 
 (defvaralias 'inferior-emacs-lisp-mode-hook 'ielm-mode-hook)
 (defcustom ielm-mode-hook nil
   "Hooks to be run when IELM (`inferior-emacs-lisp-mode') is started."
   :options '(eldoc-mode)
-  :type 'hook
-  :group 'ielm)
+  :type 'hook)
 
 ;; We define these symbols (that are only used buffer-locally in ielm
 ;; buffers) this way to avoid having them be defined in the global
@@ -366,9 +360,9 @@ nonempty, then flushes the buffer."
               ;; that same let.  To avoid problems, neither of
               ;; these buffers should be alive during the
               ;; evaluation of form.
-              (let* ((*1 *)
-                     (*2 **)
-                     (*3 ***)
+              (let* ((*1 (bound-and-true-p *))
+                     (*2 (bound-and-true-p **))
+                     (*3 (bound-and-true-p ***))
                      (active-process (ielm-process))
                      (old-standard-output standard-output)
                      new-standard-output
@@ -446,18 +440,18 @@ nonempty, then flushes the buffer."
                                  (concat (buffer-string) aux))))))
           (error
            (setq error-type "IELM Error")
-           (setq result (format "Error during pretty-printing (bug in pp): %S"
-                                err)))
+           (setq result (format "Error during pretty-printing: %S" err)))
           (quit  (setq error-type "IELM Error")
                  (setq result "Quit during pretty-printing"))))
       (if error-type
           (progn
             (when ielm-noisy (ding))
-            (setq output (concat output "*** " error-type " ***  "))
-            (setq output (concat output result)))
+            (setq output (concat output
+                                 "*** " error-type " ***  "
+                                 result)))
         ;; There was no error, so shift the *** values
-        (setq *** **)
-        (setq ** *)
+        (setq *** (bound-and-true-p **))
+        (setq ** (bound-and-true-p *))
         (setq * result))
       (when (or (not for-effect) (not (equal output "")))
         (setq output (concat output "\n"))))
@@ -534,37 +528,40 @@ Customized bindings may be defined in `ielm-map', which currently contains:
   :syntax-table emacs-lisp-mode-syntax-table
 
   (setq comint-prompt-regexp (concat "^" (regexp-quote ielm-prompt)))
-  (set (make-local-variable 'paragraph-separate) "\\'")
-  (set (make-local-variable 'paragraph-start) comint-prompt-regexp)
+  (setq-local paragraph-separate "\\'")
+  (setq-local paragraph-start comint-prompt-regexp)
   (setq comint-input-sender 'ielm-input-sender)
   (setq comint-process-echoes nil)
-  (set (make-local-variable 'completion-at-point-functions)
-       '(comint-replace-by-expanded-history
-         ielm-complete-filename elisp-completion-at-point))
-  (add-function :before-until (local 'eldoc-documentation-function)
-                #'elisp-eldoc-documentation-function)
-  (set (make-local-variable 'ielm-prompt-internal) ielm-prompt)
-  (set (make-local-variable 'comint-prompt-read-only) ielm-prompt-read-only)
+  (dolist (f '(elisp-completion-at-point
+               ielm-complete-filename
+               comint-replace-by-expanded-history))
+    (add-hook 'completion-at-point-functions f nil t))
+  (add-hook 'eldoc-documentation-functions
+            #'elisp-eldoc-var-docstring nil t)
+  (add-hook 'eldoc-documentation-functions
+            #'elisp-eldoc-funcall nil t)
+  (setq-local ielm-prompt-internal ielm-prompt)
+  (setq-local comint-prompt-read-only ielm-prompt-read-only)
   (setq comint-get-old-input 'ielm-get-old-input)
-  (set (make-local-variable 'comint-completion-addsuffix) '("/" . ""))
+  (setq-local comint-completion-addsuffix '("/" . ""))
   (setq mode-line-process '(":%s on " (:eval (buffer-name ielm-working-buffer))))
   ;; Useful for `hs-minor-mode'.
   (setq-local comment-start ";")
   (setq-local comment-use-syntax t)
   (setq-local lexical-binding t)
 
-  (set (make-local-variable 'indent-line-function) #'ielm-indent-line)
-  (set (make-local-variable 'ielm-working-buffer) (current-buffer))
-  (set (make-local-variable 'fill-paragraph-function) #'lisp-fill-paragraph)
+  (setq-local indent-line-function #'ielm-indent-line)
+  (setq-local ielm-working-buffer (current-buffer))
+  (setq-local fill-paragraph-function #'lisp-fill-paragraph)
 
   ;; Value holders
-  (set (make-local-variable '*) nil)
-  (set (make-local-variable '**) nil)
-  (set (make-local-variable '***) nil)
-  (set (make-local-variable 'ielm-match-data) nil)
+  (setq-local * nil)
+  (setq-local ** nil)
+  (setq-local *** nil)
+  (setq-local ielm-match-data nil)
 
   ;; font-lock support
-  (set (make-local-variable 'font-lock-defaults)
+  (setq-local font-lock-defaults
        '(ielm-font-lock-keywords nil nil ((?: . "w") (?- . "w") (?* . "w"))))
 
   ;; A dummy process to keep comint happy. It will never get any input
@@ -579,7 +576,7 @@ Customized bindings may be defined in `ielm-map', which currently contains:
 
     ;; Lisp output can include raw characters that confuse comint's
     ;; carriage control code.
-    (set (make-local-variable 'comint-inhibit-carriage-motion) t)
+    (setq-local comint-inhibit-carriage-motion t)
 
     ;; Add a silly header
     (insert ielm-header)

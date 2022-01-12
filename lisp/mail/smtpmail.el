@@ -50,9 +50,10 @@
 
 ;; Modified by Simon Josefsson <jas@pdc.kth.se>, 22/2/99, to support SMTP
 ;; Authentication by the AUTH mechanism.
-;; See http://www.ietf.org/rfc/rfc2554.txt
+;; See https://www.ietf.org/rfc/rfc2554.txt
 
 ;;; Code:
+;;; Dependencies
 
 (require 'sendmail)
 (require 'auth-source)
@@ -61,11 +62,11 @@
 (autoload 'message-make-message-id "message")
 (autoload 'rfc2104-hash "rfc2104")
 
-;;;
+;;; Options
+
 (defgroup smtpmail nil
   "SMTP protocol for sending mail."
   :group 'mail)
-
 
 (defcustom smtpmail-default-smtp-server nil
   "Specify default SMTP server.
@@ -134,8 +135,9 @@ Used for the value of `sendmail-coding-system' when
 
 (defcustom smtpmail-queue-mail nil
   "Non-nil means mail is queued; otherwise it is sent immediately.
-If queued, it is stored in the directory `smtpmail-queue-dir'
-and sent with `smtpmail-send-queued-mail'."
+If queued, it is stored in the directory `smtpmail-queue-dir' and
+sent with `smtpmail-send-queued-mail'.  Also see
+`smtpmail-store-queue-variables'."
   :type 'boolean)
 
 (defcustom smtpmail-queue-dir "~/Mail/queued-mail/"
@@ -172,11 +174,21 @@ mean \"try again\"."
   :type 'integer
   :version "27.1")
 
-;; End of customizable variables.
+(defcustom smtpmail-store-queue-variables nil
+  "If non-nil, store SMTP variables when queueing mail.
+These will then be used when sending the queue."
+  :type 'boolean
+  :version "28.1")
 
+;;; Variables
 
 (defvar smtpmail-address-buffer)
-(defvar smtpmail-recipient-address-list)
+(defvar smtpmail-recipient-address-list nil)
+(defvar smtpmail--stored-queue-variables
+  '(smtpmail-smtp-server
+    smtpmail-stream-type
+    smtpmail-smtp-service
+    smtpmail-smtp-user))
 
 (defvar smtpmail-queue-counter 0)
 
@@ -186,11 +198,13 @@ mean \"try again\"."
 (defvar smtpmail-auth-supported '(cram-md5 plain login)
   "List of supported SMTP AUTH mechanisms.
 The list is in preference order.
-Every element should have a matching `cl-defmethod' for
+Every element should have a matching `cl-defmethod'
 for `smtpmail-try-auth-method'.")
 
 (defvar smtpmail-mail-address nil
   "Value to use for envelope-from address for mail from ambient buffer.")
+
+;;; Functions
 
 ;;;###autoload
 (defun smtpmail-send-it ()
@@ -205,11 +219,15 @@ for `smtpmail-try-auth-method'.")
         ;; Examine this variable now, so that
 	;; local binding in the mail buffer will take effect.
 	(smtpmail-mail-address
-         (or (and mail-specify-envelope-from (mail-envelope-from))
-             (let ((from (mail-fetch-field "from")))
-	       (and from
-		    (cadr (mail-extract-address-components from))))
-	     (smtpmail-user-mail-address)))
+         (save-restriction
+           ;; Only look at the headers when fetching the
+           ;; envelope address.
+           (message-narrow-to-headers)
+           (or (and mail-specify-envelope-from (mail-envelope-from))
+               (let ((from (mail-fetch-field "from")))
+	         (and from
+		      (cadr (mail-extract-address-components from))))
+	       (smtpmail-user-mail-address))))
 	(smtpmail-code-conv-from
 	 (if enable-multibyte-characters
 	     (let ((sendmail-coding-system smtpmail-code-conv-from))
@@ -324,7 +342,7 @@ for `smtpmail-try-auth-method'.")
 	    ;; Insert an extra newline if we need it to work around
 	    ;; Sun's bug that swallows newlines.
 	    (goto-char (1+ delimline))
-	    (if (eval mail-mailer-swallows-blank-line)
+	    (if (eval mail-mailer-swallows-blank-line t)
 		(newline))
 	    ;; Find and handle any Fcc fields.
 	    (goto-char (point-min))
@@ -381,11 +399,17 @@ for `smtpmail-try-auth-method'.")
 		 nil t)
 		(insert-buffer-substring tembuf)
 		(write-file file-data)
-                (write-region
-                 (concat "(setq smtpmail-recipient-address-list '"
-			 (prin1-to-string smtpmail-recipient-address-list)
-			 ")\n")
-                 nil file-elisp nil 'silent)
+                (let ((coding-system-for-write 'utf-8))
+                  (with-temp-buffer
+                    (insert "(setq ")
+                    (dolist (var (cons 'smtpmail-recipient-address-list
+                                       ;; Perhaps store the server etc.
+                                       (and smtpmail-store-queue-variables
+                                            smtpmail--stored-queue-variables)))
+                      (insert (format "     %s %S\n" var (symbol-value var))))
+                    (insert ")\n")
+                    (write-region (point-min) (point-max) file-elisp
+                                  nil 'silent)))
 		(write-region (concat file-data "\n") nil
                               (expand-file-name smtpmail-queue-index-file
                                                 smtpmail-queue-dir)
@@ -405,26 +429,30 @@ for `smtpmail-try-auth-method'.")
     (let (file-data file-elisp
           (qfile (expand-file-name smtpmail-queue-index-file
                                    smtpmail-queue-dir))
+          (stored (cons 'smtpmail-recipient-address-list
+                        smtpmail--stored-queue-variables))
+          smtpmail-recipient-address-list
+          (smtpmail-smtp-server smtpmail-smtp-server)
+          (smtpmail-stream-type smtpmail-stream-type)
+          (smtpmail-smtp-service smtpmail-smtp-service)
+          (smtpmail-smtp-user smtpmail-smtp-user)
 	  result)
       (insert-file-contents qfile)
       (goto-char (point-min))
       (while (not (eobp))
 	(setq file-data (buffer-substring (point) (line-end-position)))
 	(setq file-elisp (concat file-data ".el"))
-        ;; FIXME: Avoid `load' which can execute arbitrary code and is hence
-        ;; a source of security holes.  Better read the file and extract the
-        ;; data "by hand".
-	;;(load file-elisp)
-        (with-temp-buffer
-          (insert-file-contents file-elisp)
-          (goto-char (point-min))
-          (pcase (read (current-buffer))
-            (`(setq smtpmail-recipient-address-list ',v)
-             (skip-chars-forward " \n\t")
-             (unless (eobp) (message "Ignoring trailing text in %S"
-                                     file-elisp))
-             (setq smtpmail-recipient-address-list v))
-            (sexp (error "Unexpected code in %S: %S" file-elisp sexp))))
+        (let ((coding-system-for-read 'utf-8))
+          (with-temp-buffer
+            (insert-file-contents file-elisp)
+            (let ((form (read (current-buffer))))
+              (when (or (not (consp form))
+                        (not (eq (car form) 'setq))
+                        (not (consp (cdr form))))
+                (error "Unexpected code in %S: %S" file-elisp form))
+              (cl-loop for (var val) on (cdr form) by #'cddr
+                       when (memq var stored)
+                       do (set var val)))))
 	;; Insert the message literally: it is already encoded as per
 	;; the MIME headers, and code conversions might guess the
 	;; encoding wrongly.
@@ -432,15 +460,20 @@ for `smtpmail-try-auth-method'.")
 	  (let ((coding-system-for-read 'no-conversion))
 	    (insert-file-contents file-data))
           (let ((smtpmail-mail-address
-                 (or (and mail-specify-envelope-from (mail-envelope-from))
+                 (or (and mail-specify-envelope-from
+                          (save-restriction
+                            ;; Only look at the headers when fetching the
+                            ;; envelope address.
+                            (message-narrow-to-headers)
+                            (mail-envelope-from)))
                      user-mail-address)))
-            (if (not (null smtpmail-recipient-address-list))
-                (when (setq result (smtpmail-via-smtp
-				    smtpmail-recipient-address-list
-				    (current-buffer)))
-		  (error "Sending failed: %s"
-                         (smtpmail--sanitize-error-message result)))
-              (error "Sending failed; no recipients"))))
+            (if (not smtpmail-recipient-address-list)
+                (error "Sending failed; no recipients")
+              (when (setq result (smtpmail-via-smtp
+				  smtpmail-recipient-address-list
+				  (current-buffer)))
+		(error "Sending failed: %s"
+                       (smtpmail--sanitize-error-message result))))))
 	(delete-file file-data)
 	(delete-file file-elisp)
 	(delete-region (point-at-bol) (point-at-bol 2)))
@@ -483,16 +516,9 @@ for `smtpmail-try-auth-method'.")
 
 (defun smtpmail-maybe-append-domain (recipient)
   (if (or (not smtpmail-sendto-domain)
-	  (string-match "@" recipient))
+	  (string-search "@" recipient))
       recipient
     (concat recipient "@" smtpmail-sendto-domain)))
-
-(defun smtpmail-intersection (list1 list2)
-  (let ((result nil))
-    (dolist (el2 list2)
-      (when (memq el2 list1)
-	(push el2 result)))
-    (nreverse result)))
 
 (defun smtpmail-command-or-throw (process string &optional code)
   (let (ret)
@@ -510,8 +536,10 @@ for `smtpmail-try-auth-method'.")
 	(if port
 	    (format "%s" port)
 	  "smtp"))
-  (let* ((mechs (cdr-safe (assoc 'auth supported-extensions)))
-	 (mech (car (smtpmail-intersection mechs smtpmail-auth-supported)))
+  (let* ((mechs (seq-intersection
+                 smtpmail-auth-supported
+                 (cdr-safe (assoc 'auth supported-extensions))
+                 #'eq))
 	 (auth-source-creation-prompts
           '((user  . "SMTP user name for %h: ")
             (secret . "SMTP password for %u@%h: ")))
@@ -524,6 +552,7 @@ for `smtpmail-try-auth-method'.")
 		      :require (and ask-for-password
 				    '(:user :secret))
 		      :create ask-for-password)))
+         (mech (or (plist-get auth-info :smtp-auth) (car mechs)))
          (user (plist-get auth-info :user))
          (password (plist-get auth-info :secret))
 	 (save-function (and ask-for-password
@@ -567,7 +596,7 @@ USER and PASSWORD should be non-nil."
   (error "Mechanism %S not implemented" mech))
 
 (cl-defmethod smtpmail-try-auth-method
-  (process (_mech (eql cram-md5)) user password)
+  (process (_mech (eql 'cram-md5)) user password)
   (let ((ret (smtpmail-command-or-throw process "AUTH CRAM-MD5")))
     (when (eq (car ret) 334)
       (let* ((challenge (substring (cadr ret) 4))
@@ -589,13 +618,13 @@ USER and PASSWORD should be non-nil."
 	(smtpmail-command-or-throw process encoded)))))
 
 (cl-defmethod smtpmail-try-auth-method
-  (process (_mech (eql login)) user password)
+  (process (_mech (eql 'login)) user password)
   (smtpmail-command-or-throw process "AUTH LOGIN")
   (smtpmail-command-or-throw process (base64-encode-string user t))
   (smtpmail-command-or-throw process (base64-encode-string password t)))
 
 (cl-defmethod smtpmail-try-auth-method
-  (process (_mech (eql plain)) user password)
+  (process (_mech (eql 'plain)) user password)
   ;; We used to send an empty initial request, and wait for an
   ;; empty response, and then send the password, but this
   ;; violate a SHOULD in RFC 2222 paragraph 5.1.  Note that this
@@ -606,6 +635,14 @@ USER and PASSWORD should be non-nil."
    (concat "AUTH PLAIN "
 	   (base64-encode-string (concat "\0" user "\0" password) t))
    235))
+
+(cl-defmethod smtpmail-try-auth-method
+  (process (_mech (eql xoauth2)) user password)
+  (smtpmail-command-or-throw
+   process
+   (concat "AUTH XOAUTH2 "
+           (base64-encode-string
+            (concat "user=" user "\1auth=Bearer " password "\1\1") t))))
 
 (defun smtpmail-response-code (string)
   (when string
@@ -623,7 +660,7 @@ USER and PASSWORD should be non-nil."
 	   (= code (car response)))))
 
 (defun smtpmail-response-text (response)
-  (mapconcat 'identity (cdr response) "\n"))
+  (mapconcat #'identity (cdr response) "\n"))
 
 (defun smtpmail-query-smtp-server ()
   "Query for an SMTP server and try to contact it.
@@ -663,7 +700,7 @@ Returns an error if the server cannot be contacted."
        (let ((parts (split-string user-mail-address "@")))
 	 (and (= (length parts) 2)
 	      ;; There's a dot in the domain name.
-	      (string-match "\\." (cadr parts))
+	      (string-search "." (cadr parts))
 	      user-mail-address))))
 
 (defun smtpmail-via-smtp (recipient smtpmail-text-buffer
@@ -679,13 +716,17 @@ Returns an error if the server cannot be contacted."
         ;; `smtpmail-mail-address' should be set to the appropriate
         ;; buffer-local value by the caller, but in case not:
         (envelope-from
-	 (or smtpmail-mail-address
-	     (and mail-specify-envelope-from
-		  (mail-envelope-from))
-	     (let ((from (mail-fetch-field "from")))
-	       (and from
-		    (cadr (mail-extract-address-components from))))
-	     (smtpmail-user-mail-address)))
+         (save-restriction
+           ;; Only look at the headers when fetching the
+           ;; envelope address.
+           (message-narrow-to-headers)
+	   (or smtpmail-mail-address
+	       (and mail-specify-envelope-from
+		    (mail-envelope-from))
+	       (let ((from (mail-fetch-field "from")))
+	         (and from
+		      (cadr (mail-extract-address-components from))))
+	       (smtpmail-user-mail-address))))
 	process-buffer
 	result
 	auth-mechanisms
@@ -737,7 +778,7 @@ Returns an error if the server cannot be contacted."
 			   "Unable to contact server")))
 
 	  ;; set the send-filter
-	  (set-process-filter process 'smtpmail-process-filter)
+	  (set-process-filter process #'smtpmail-process-filter)
 
 	  (let* ((greeting (plist-get (cdr result) :greeting))
 		 (code (smtpmail-response-code greeting)))
@@ -788,15 +829,15 @@ Returns an error if the server cannot be contacted."
 
 	    (when (or (member 'onex supported-extensions)
 		      (member 'xone supported-extensions))
-	      (smtpmail-command-or-throw process (format "ONEX")))
+	      (smtpmail-command-or-throw process "ONEX"))
 
 	    (when (and smtpmail-debug-verb
 		       (or (member 'verb supported-extensions)
 			   (member 'xvrb supported-extensions)))
-	      (smtpmail-command-or-throw process (format "VERB")))
+	      (smtpmail-command-or-throw process "VERB"))
 
 	    (when (member 'xusr supported-extensions)
-	      (smtpmail-command-or-throw process (format "XUSR")))
+	      (smtpmail-command-or-throw process "XUSR"))
 
 	    ;; MAIL FROM:<sender>
 	    (let ((size-part
@@ -1082,6 +1123,12 @@ many continuation lines."
 	;; get rid of any continuation lines
 	(while (and (looking-at "^[ \t].*\n") (< (point) header-end))
 	  (replace-match ""))))))
+
+;; Obsolete.
+
+(defun smtpmail-intersection (list1 list2)
+  (declare (obsolete seq-intersection "28.1"))
+  (seq-intersection list2 list1 #'eq))
 
 (provide 'smtpmail)
 

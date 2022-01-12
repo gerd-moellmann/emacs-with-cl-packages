@@ -45,7 +45,7 @@
 ;; dabbrev-case-replace		nil		t
 ;;
 ;; Set the variables you want special for your mode like this:
-;; (set (make-local-variable 'dabbrev-case-replace) nil)
+;; (setq-local dabbrev-case-replace nil)
 ;; Then you don't interfere with other modes.
 ;;
 ;; If your mode handles buffers that refers to other buffers
@@ -59,10 +59,10 @@
 
 ;; Example for GNUS (when we write a reply, we want dabbrev to look in
 ;; the article for expansion):
-;; (set (make-local-variable 'dabbrev-friend-buffer-function)
-;;      (lambda (buffer)
-;;         (with-current-buffer buffer
-;;           (memq major-mode '(news-reply-mode gnus-article-mode)))))
+;; (setq-local dabbrev-friend-buffer-function
+;;             (lambda (buffer)
+;;                (with-current-buffer buffer
+;;                  (memq major-mode '(news-reply-mode gnus-article-mode)))))
 
 
 ;; Known bugs and limitations.
@@ -568,8 +568,7 @@ See also `dabbrev-abbrev-char-regexp' and \\[dabbrev-completion]."
 	major-mode)))
 
 (defun dabbrev--goto-start-of-abbrev ()
-  "Back over all abbrev type characters and then moves forward over
-all skip characters."
+  "Back over all abbrev type characters then move forward over all skip characters."
   ;; Move backwards over abbrev chars
   (save-match-data
     (when (> (point) (minibuffer-prompt-end))

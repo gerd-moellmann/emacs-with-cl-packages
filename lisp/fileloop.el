@@ -4,18 +4,20 @@
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 
-;; This program is free software; you can redistribute it and/or modify
+;; This file is part of GNU Emacs.
+
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -42,6 +44,7 @@
 
 (defcustom fileloop-revert-buffers 'silent
   "Whether to revert files during fileloop operation.
+This can be one of:
   `silent' means to only do it if `revert-without-query' is applicable;
   t        means to offer to do it for all applicable files;
   nil      means never to do it"
@@ -118,7 +121,10 @@ operating on the next file and nil otherwise."
         (kill-all-local-variables)
         (erase-buffer)
         (setq new next)
-        (insert-file-contents new nil))
+        (condition-case nil
+            (insert-file-contents new nil)
+          (file-missing
+           (fileloop-next-file novisit))))
       new)))
 
 (defun fileloop-continue ()
@@ -169,7 +175,8 @@ operating on the next file and nil otherwise."
 		(goto-char pos))
 	    (push-mark original-point t))
 
-	  (switch-to-buffer (current-buffer))
+          (let (switch-to-buffer-preserve-window-point)
+	    (switch-to-buffer (current-buffer)))
 
 	  ;; Now operate on the file.
 	  ;; If value is non-nil, continue to scan the next file.
@@ -204,30 +211,34 @@ operating on the next file and nil otherwise."
 ;;;###autoload
 (defun fileloop-initialize-replace (from to files case-fold &optional delimited)
   "Initialize a new round of query&replace on several files.
-  FROM is a regexp and TO is the replacement to use.
-  FILES describes the files, as in `fileloop-initialize'.
-  CASE-FOLD can be t, nil, or `default':
-    if it is nil, matching of FROM is case-sensitive.
-    if it is t, matching of FROM is case-insensitive, except
-       when `search-upper-case' is non-nil and FROM includes
-       upper-case letters.
-    if it is `default', the function uses the value of
-       `case-fold-search' instead.
-  DELIMITED if non-nil means replace only word-delimited matches."
+FROM is a regexp and TO is the replacement to use.
+FILES describes the files, as in `fileloop-initialize'.
+CASE-FOLD can be t, nil, or `default':
+  if it is nil, matching of FROM is case-sensitive.
+  if it is t, matching of FROM is case-insensitive, except
+     when `search-upper-case' is non-nil and FROM includes
+     upper-case letters.
+  if it is `default', the function uses the value of
+     `case-fold-search' instead.
+DELIMITED if non-nil means replace only word-delimited matches."
   ;; FIXME: Not sure how the delimited-flag interacts with the regexp-flag in
   ;; `perform-replace', so I just try to mimic the old code.
-  (fileloop-initialize
-   files
-   (lambda ()
-     (let ((case-fold-search (fileloop--case-fold from case-fold)))
-       (if (re-search-forward from nil t)
-	   ;; When we find a match, move back
-	   ;; to the beginning of it so perform-replace
-	   ;; will see it.
-	   (goto-char (match-beginning 0)))))
-   (lambda ()
-     (let ((case-fold-search (fileloop--case-fold from case-fold)))
-       (perform-replace from to t t delimited nil multi-query-replace-map)))))
+  (let ((mstart (make-hash-table :test 'eq)))
+    (fileloop-initialize
+     files
+     (lambda ()
+       (let ((case-fold-search (fileloop--case-fold from case-fold)))
+         (when (re-search-forward from nil t)
+           ;; When we find a match, save its beginning for
+           ;; `perform-replace' (we used to just set point, but this
+           ;; is unreliable in the face of
+           ;; `switch-to-buffer-preserve-window-point').
+           (puthash (current-buffer) (match-beginning 0) mstart))))
+     (lambda ()
+       (let ((case-fold-search (fileloop--case-fold from case-fold)))
+         (perform-replace from to t t delimited nil multi-query-replace-map
+                          (gethash (current-buffer) mstart (point-min))
+                          (point-max)))))))
 
 (provide 'fileloop)
 ;;; fileloop.el ends here

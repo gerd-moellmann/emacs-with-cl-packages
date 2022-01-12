@@ -136,6 +136,8 @@ struct tty_display_info
   const char *TS_enter_reverse_mode; /* "mr" -- enter reverse video mode.  */
   const char *TS_exit_underline_mode; /* "us" -- start underlining.  */
   const char *TS_enter_underline_mode; /* "ue" -- end underlining.  */
+  const char *TS_enter_strike_through_mode; /* "smxx" -- turn on strike-through
+					       mode.  */
 
   /* "as"/"ae" -- start/end alternate character set.  Not really
      supported, yet.  */
@@ -232,7 +234,7 @@ extern struct tty_display_info *tty_list;
 #define CURTTY() FRAME_TTY (SELECTED_FRAME())
 
 struct input_event;
-extern bool tty_handle_tab_bar_click (struct frame *, int, int, bool,
-				      struct input_event *);
+extern Lisp_Object tty_handle_tab_bar_click (struct frame *, int, int, bool,
+					     struct input_event *);
 
 #endif /* EMACS_TERMCHAR_H */

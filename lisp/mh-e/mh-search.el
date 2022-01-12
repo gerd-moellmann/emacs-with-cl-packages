@@ -1,4 +1,4 @@
-;;; mh-search  ---  MH-Search mode
+;;; mh-search.el --- MH-Search mode  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1993, 1995, 2001-2021 Free Software Foundation, Inc.
 
@@ -38,8 +38,6 @@
 ;;      read the documentation for `mh-search' to get started. That
 ;;      documentation will direct you to the specific instructions for
 ;;      your particular searcher.
-
-;;; Change Log:
 
 ;;; Code:
 
@@ -274,23 +272,23 @@ folder containing the index search results."
                             t)))
 
         ;; Copy the search results over.
-        (maphash #'(lambda (folder msgs)
-                     (let ((cur (car (mh-translate-range folder "cur")))
-                           (msgs (sort (cl-loop
-                                        for msg being the hash-keys of msgs
-                                        collect msg)
-                                       #'<)))
-                       (mh-exec-cmd "refile" msgs "-src" folder
-                                    "-link" index-folder)
-                       ;; Restore cur to old value, that refile changed
-                       (when cur
-                         (mh-exec-cmd-quiet nil "mark" folder "-add" "-zero"
-                                            "-sequence"
-                                            "cur" (format "%s" cur)))
-                       (cl-loop for msg in msgs
-                                do (cl-incf result-count)
-                                (setf (gethash result-count origin-map)
-                                      (cons folder msg)))))
+        (maphash (lambda (folder msgs)
+                   (let ((cur (car (mh-translate-range folder "cur")))
+                         (msgs (sort (cl-loop
+                                      for msg being the hash-keys of msgs
+                                      collect msg)
+                                     #'<)))
+                     (mh-exec-cmd "refile" msgs "-src" folder
+                                  "-link" index-folder)
+                     ;; Restore cur to old value, that refile changed
+                     (when cur
+                       (mh-exec-cmd-quiet nil "mark" folder "-add" "-zero"
+                                          "-sequence"
+                                          "cur" (format "%s" cur)))
+                     (cl-loop for msg in msgs
+                              do (cl-incf result-count)
+                              (setf (gethash result-count origin-map)
+                                    (cons folder msg)))))
                  folder-results-map)
 
         ;; Vist the results folder.
@@ -332,7 +330,7 @@ configuration and is used when the search folder is dismissed."
   (interactive (list (mh-prompt-for-folder "Search" mh-current-folder nil nil t)
                      (current-window-configuration)))
   ;; FIXME: `pick-folder' is unused!
-  (let ((pick-folder (if (equal folder "+") mh-current-folder folder)))
+  (let () ;; (pick-folder (if (equal folder "+") mh-current-folder folder))
     (switch-to-buffer-other-window "search-pattern")
     (if (or (zerop (buffer-size))
             (not (y-or-n-p "Reuse pattern? ")))
@@ -356,7 +354,7 @@ configuration and is used when the search folder is dismissed."
           "---------\n")
   (mh-search-mode)
   (goto-char (point-min))
-  (dotimes (i 5)
+  (dotimes (_ 5)
     (add-text-properties (point) (1+ (point)) '(front-sticky t))
     (add-text-properties (- (mh-line-end-position) 2)
                          (1- (mh-line-end-position))
@@ -453,7 +451,7 @@ search all folders."
 
 (defvar mh-flists-search-folders)
 
-(defun mh-flists-execute (&rest ignored)
+(defun mh-flists-execute (&rest _ignored)
   "Execute flists.
 Search for messages belonging to `mh-flists-sequence' in the
 folders specified by `mh-flists-search-folders'. If
@@ -618,7 +616,7 @@ The hook `mh-search-mode-hook' is called upon entry to this mode.
 
 \\{mh-search-mode-map}"
 
-  (easy-menu-add mh-pick-menu)
+  (mh-do-in-xemacs (easy-menu-add mh-pick-menu))
   (mh-set-help mh-search-mode-help-messages))
 
 
@@ -880,7 +878,7 @@ used to search."
               folder-path
             (format "%s/" folder-path)))))
 
-(defalias 'mh-swish++-next-result 'mh-swish-next-result)
+(defalias 'mh-swish++-next-result #'mh-swish-next-result)
 
 (defun mh-swish++-regexp-builder (regexp-list)
   "Generate query for swish++.
@@ -1136,10 +1134,10 @@ REGEXP-LIST is an alist of fields and values."
         ((atom (cadr expr)) `(or (and ,expr)))
         ((eq (caadr expr) 'not) (mh-mairix-convert-to-sop* (cadadr expr)))
         ((eq (caadr expr) 'and) (mh-mairix-convert-to-sop*
-                                 `(or ,@(mapcar #'(lambda (x) `(not ,x))
+                                 `(or ,@(mapcar (lambda (x) `(not ,x))
                                                 (cdadr expr)))))
         ((eq (caadr expr) 'or) (mh-mairix-convert-to-sop*
-                                `(and ,@(mapcar #'(lambda (x) `(not ,x))
+                                `(and ,@(mapcar (lambda (x) `(not ,x))
                                                 (cdadr expr)))))
         (t (error "Unreachable: %s" expr))))
 
@@ -1450,7 +1448,7 @@ being the list of messages originally from that folder."
 (defun mh-index-execute-commands ()
   "Perform the outstanding operations on the actual messages.
 The copies in the searched folder are then deleted, refiled,
-blacklisted and whitelisted to get the desired result. Before
+blocklisted and allowlisted to get the desired result. Before
 processing the messages we make sure that the message is
 identical to the one that the user has marked in the index
 buffer."
@@ -1467,12 +1465,12 @@ buffer."
            (with-current-buffer folder
              (let ((old-refile-list mh-refile-list)
                    (old-delete-list mh-delete-list)
-                   (old-blacklist mh-blacklist)
-                   (old-whitelist mh-whitelist))
+                   (old-blocklist mh-blocklist)
+                   (old-allowlist mh-allowlist))
                (setq mh-refile-list nil
                      mh-delete-list msgs
-                     mh-blacklist nil
-                     mh-whitelist nil)
+                     mh-blocklist nil
+                     mh-allowlist nil)
                (unwind-protect (mh-execute-commands)
                  (setq mh-refile-list
                        (mapcar (lambda (x)
@@ -1484,11 +1482,11 @@ buffer."
                        mh-delete-list
                        (cl-loop for x in old-delete-list
                                 unless (memq x msgs) collect x)
-                       mh-blacklist
-                       (cl-loop for x in old-blacklist
+                       mh-blocklist
+                       (cl-loop for x in old-blocklist
                                 unless (memq x msgs) collect x)
-                       mh-whitelist
-                       (cl-loop for x in old-whitelist
+                       mh-allowlist
+                       (cl-loop for x in old-allowlist
                                 unless (memq x msgs) collect x))
                  (mh-set-folder-modified-p (mh-outstanding-commands-p))
                  (when (mh-outstanding-commands-p)
@@ -1496,8 +1494,8 @@ buffer."
        (mh-index-matching-source-msgs (append (cl-loop for x in mh-refile-list
                                                        append (cdr x))
                                               mh-delete-list
-                                              mh-blacklist
-                                              mh-whitelist)
+                                              mh-blocklist
+                                              mh-allowlist)
                                       t))
       folders)))
 
@@ -1620,7 +1618,7 @@ garbled."
     (cl-loop for seq in seq-list
              do (apply #'mh-exec-cmd "mark" mh-current-folder
                        "-sequence" (symbol-name (car seq)) "-add"
-                       (mapcar #'(lambda (x) (format "%s" x)) (cdr seq))))))
+                       (mapcar (lambda (x) (format "%s" x)) (cdr seq))))))
 
 ;;;###mh-autoload
 (defun mh-create-sequence-map (seq-list)
@@ -1853,7 +1851,7 @@ PROC is used to convert the value to actual data."
                                     (1+ last-slash) (1- last-space)))
                  (buffer-substring-no-properties (1+ last-space) end))))))
 
-(defalias 'mh-md5-parser 'mh-openssl-parser)
+(defalias 'mh-md5-parser #'mh-openssl-parser)
 
 ;;;###mh-autoload
 (defun mh-index-update-maps (folder &optional origin-map)
@@ -1945,4 +1943,4 @@ folder buffer."
 ;; sentence-end-double-space: nil
 ;; End:
 
-;;; mh-search ends here
+;;; mh-search.el ends here

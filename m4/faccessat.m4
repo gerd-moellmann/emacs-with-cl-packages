@@ -1,4 +1,4 @@
-# serial 8
+# serial 10
 # See if we need to provide faccessat replacement.
 
 dnl Copyright (C) 2009-2021 Free Software Foundation, Inc.
@@ -20,7 +20,7 @@ AC_DEFUN([gl_FUNC_FACCESSAT],
   if test $ac_cv_func_faccessat = no; then
     HAVE_FACCESSAT=0
   else
-    case "$gl_cv_func_lstat_dereferences_slashed_symlink" in
+    case $gl_cv_func_lstat_dereferences_slashed_symlink in
       *yes) ;;
       *)    REPLACE_FACCESSAT=1 ;;
     esac

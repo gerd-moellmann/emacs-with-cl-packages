@@ -1,4 +1,4 @@
-;;; pcmpl-linux.el --- functions for dealing with GNU/Linux completions
+;;; pcmpl-linux.el --- functions for dealing with GNU/Linux completions  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
 
@@ -31,11 +31,6 @@
 
 (require 'pcomplete)
 
-;; Unused.
-;;; (defgroup pcmpl-linux nil
-;;;   "Functions for dealing with GNU/Linux completions."
-;;;   :group 'pcomplete)
-
 ;; Functions:
 
 ;;;###autoload
@@ -50,33 +45,37 @@
   (while (pcomplete-here
 	  (if (file-directory-p "/proc")
               (directory-files "/proc" nil "\\`[0-9]+\\'"))
-	  nil 'identity)))
+	  nil #'identity)))
 
 ;;;###autoload
 (defun pcomplete/umount ()
   "Completion for GNU/Linux `umount'."
   (pcomplete-opt "hVafrnvt(pcmpl-linux-fs-types)")
   (while (pcomplete-here (pcmpl-linux-mounted-directories)
-			 nil 'identity)))
+			 nil #'identity)))
 
 ;;;###autoload
 (defun pcomplete/mount ()
   "Completion for GNU/Linux `mount'."
   (pcomplete-opt "hVanfFrsvwt(pcmpl-linux-fs-types)o?L?U?")
-  (while (pcomplete-here (pcomplete-entries) nil 'identity)))
+  (while (pcomplete-here (pcomplete-entries) nil #'identity)))
+
+(defconst pcmpl-linux-fs-modules-path-format "/lib/modules/%s/kernel/fs/")
 
 (defun pcmpl-linux-fs-types ()
   "Return a list of available fs modules on GNU/Linux systems."
   (let ((kernel-ver (pcomplete-process-result "uname" "-r")))
     (directory-files
-     (concat "/lib/modules/" kernel-ver "/kernel/fs/"))))
+     (format pcmpl-linux-fs-modules-path-format kernel-ver))))
+
+(defconst pcmpl-linux-mtab-file "/etc/mtab")
 
 (defun pcmpl-linux-mounted-directories ()
   "Return a list of mounted directory names."
   (let (points)
-    (when (file-readable-p "/etc/mtab")
+    (when (file-readable-p pcmpl-linux-mtab-file)
       (with-temp-buffer
-	(insert-file-contents-literally "/etc/mtab")
+        (insert-file-contents-literally pcmpl-linux-mtab-file)
 	(while (not (eobp))
 	  (let* ((line (buffer-substring (point) (line-end-position)))
 		 (args (split-string line " ")))

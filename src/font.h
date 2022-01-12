@@ -70,8 +70,9 @@ INLINE_HEADER_BEGIN
 enum font_property_index
   {
     /* FONT-TYPE is a symbol indicating a font backend; currently `x',
-       `xft', and `ftx' are available on X, `uniscribe' and `gdi' on
-       Windows, and `ns' under Cocoa / GNUstep.  */
+       `xft', `xfthb', `ftrc', and `ftcrhb' are available on X;
+       `harfbuzz', `uniscribe', and `gdi' on Windows, and `ns' under
+       Cocoa / GNUstep.  */
     FONT_TYPE_INDEX,
 
     /* FONT-FOUNDRY is a foundry name (symbol).  */
@@ -888,7 +889,7 @@ valid_font_driver (struct font_driver const *d)
 extern Lisp_Object font_update_drivers (struct frame *f, Lisp_Object list);
 extern Lisp_Object font_range (ptrdiff_t, ptrdiff_t, ptrdiff_t *,
 			       struct window *, struct face *,
-			       Lisp_Object);
+			       Lisp_Object, int);
 extern void font_fill_lglyph_metrics (Lisp_Object, struct font *, unsigned int);
 
 extern Lisp_Object font_put_extra (Lisp_Object font, Lisp_Object prop,
@@ -941,7 +942,6 @@ extern void syms_of_ftfont (void);
 extern struct font_driver const xfont_driver;
 extern Lisp_Object xfont_get_cache (struct frame *);
 extern void syms_of_xfont (void);
-extern void syms_of_ftxfont (void);
 #ifdef HAVE_XFT
 extern struct font_driver const xftfont_driver;
 #ifdef HAVE_HARFBUZZ
@@ -949,7 +949,6 @@ extern struct font_driver xfthbfont_driver;
 #endif	/* HAVE_HARFBUZZ */
 #endif
 #if defined HAVE_FREETYPE || defined HAVE_XFT
-extern struct font_driver const ftxfont_driver;
 extern void syms_of_xftfont (void);
 #endif
 #ifdef HAVE_BDFFONT

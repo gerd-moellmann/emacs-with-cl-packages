@@ -1,27 +1,25 @@
 /* Copyright (C) 1991-2021 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
-   The GNU C Library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU General Public
-   License as published by the Free Software Foundation; either
-   version 3 of the License, or (at your option) any later version.
+   This file is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Lesser General Public License as
+   published by the Free Software Foundation; either version 3 of the
+   License, or (at your option) any later version.
 
-   The GNU C Library is distributed in the hope that it will be useful,
+   This file is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Lesser General Public License for more details.
 
-   You should have received a copy of the GNU General Public
-   License along with the GNU C Library; if not, see
-   <https://www.gnu.org/licenses/>.  */
+   You should have received a copy of the GNU Lesser General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifdef _LIBC
 # define USE_IN_EXTENDED_LOCALE_MODEL 1
 # define HAVE_STRUCT_ERA_ENTRY 1
 # define HAVE_TM_GMTOFF 1
-# define HAVE_TM_ZONE 1
+# define HAVE_STRUCT_TM_TM_ZONE 1
 # define HAVE_TZNAME 1
-# define HAVE_TZSET 1
 # include "../locale/localeinfo.h"
 #else
 # include <config.h>
@@ -34,6 +32,7 @@
 #endif
 
 #include <ctype.h>
+#include <errno.h>
 #include <time.h>
 
 #if HAVE_TZNAME && !HAVE_DECL_TZNAME
@@ -68,15 +67,8 @@ extern char *tzname[];
 #include <string.h>
 #include <stdbool.h>
 
+#include "attribute.h"
 #include <intprops.h>
-
-#ifndef FALLTHROUGH
-# if __GNUC__ < 7
-#  define FALLTHROUGH ((void) 0)
-# else
-#  define FALLTHROUGH __attribute__ ((__fallthrough__))
-# endif
-#endif
 
 #ifdef COMPILE_WIDE
 # include <endian.h>
@@ -113,7 +105,7 @@ extern char *tzname[];
 #define SHR(a, b)       \
   (-1 >> 1 == -1        \
    ? (a) >> (b)         \
-   : (a) / (1 << (b)) - ((a) % (1 << (b)) < 0))
+   : ((a) + ((a) < 0)) / (1 << (b)) - ((a) < 0))
 
 #define TM_YEAR_BASE 1900
 
@@ -170,7 +162,10 @@ extern char *tzname[];
       size_t _w = pad == L_('-') || width < 0 ? 0 : width;                    \
       size_t _incr = _n < _w ? _w : _n;                                       \
       if (_incr >= maxsize - i)                                               \
-        return 0;                                                             \
+        {                                                                     \
+          errno = ERANGE;                                                     \
+          return 0;                                                           \
+        }                                                                     \
       if (p)                                                                  \
         {                                                                     \
           if (_n < _w)                                                        \
@@ -348,8 +343,8 @@ tm_diff (const struct tm *a, const struct tm *b)
      but it's OK to assume that A and B are close to each other.  */
   int a4 = SHR (a->tm_year, 2) + SHR (TM_YEAR_BASE, 2) - ! (a->tm_year & 3);
   int b4 = SHR (b->tm_year, 2) + SHR (TM_YEAR_BASE, 2) - ! (b->tm_year & 3);
-  int a100 = a4 / 25 - (a4 % 25 < 0);
-  int b100 = b4 / 25 - (b4 % 25 < 0);
+  int a100 = (a4 + (a4 < 0)) / 25 - (a4 < 0);
+  int b100 = (b4 + (b4 < 0)) / 25 - (b4 < 0);
   int a400 = SHR (a100, 2);
   int b400 = SHR (b100, 2);
   int intervening_leap_days = (a4 - b4) - (a100 - b100) + (a400 - b400);
@@ -372,7 +367,7 @@ tm_diff (const struct tm *a, const struct tm *b)
 #define ISO_WEEK1_WDAY 4 /* Thursday */
 #define YDAY_MINIMUM (-366)
 static int iso_week_days (int, int);
-#ifdef __GNUC__
+#if defined __GNUC__ || defined __clang__
 __inline__
 #endif
 static int
@@ -396,7 +391,6 @@ iso_week_days (int yday, int wday)
 #endif
 
 #ifdef my_strftime
-# undef HAVE_TZSET
 # define extra_args , tz, ns
 # define extra_args_spec , timezone_t tz, int ns
 #else
@@ -456,6 +450,7 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
   size_t maxsize = (size_t) -1;
 #endif
 
+  int saved_errno = errno;
   int hour12 = tp->tm_hour;
 #ifdef _NL_CURRENT
   /* We cannot make the following values variables since we must delay
@@ -502,17 +497,8 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
   const char *format_end = NULL;
 #endif
 
-#if ! defined _LIBC && ! HAVE_RUN_TZSET_TEST
-  /* Solaris 2.5.x and 2.6 tzset sometimes modify the storage returned
-     by localtime.  On such systems, we must either use the tzset and
-     localtime wrappers to work around the bug (which sets
-     HAVE_RUN_TZSET_TEST) or make a copy of the structure.  */
-  struct tm copy = *tp;
-  tp = &copy;
-#endif
-
   zone = NULL;
-#if HAVE_TM_ZONE
+#if HAVE_STRUCT_TM_TM_ZONE
   /* The POSIX test suite assumes that setting
      the environment variable TZ to a new value before calling strftime()
      will influence the result (the %Z format) even if the information in
@@ -529,7 +515,7 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
     }
   else
     {
-# if !HAVE_TM_ZONE
+# if !HAVE_STRUCT_TM_TM_ZONE
       /* Infer the zone name from *TZ instead of from TZNAME.  */
       tzname_vec = tz->tzname_copy;
 # endif
@@ -539,7 +525,7 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
     {
       /* POSIX.1 requires that local time zone information be used as
          though strftime called tzset.  */
-# if HAVE_TZSET
+# ifndef my_strftime
       if (!*tzset_called)
         {
           tzset ();
@@ -927,9 +913,11 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
             }
 
           {
-            int century = tp->tm_year / 100 + TM_YEAR_BASE / 100;
-            century -= tp->tm_year % 100 < 0 && 0 < century;
-            DO_YEARISH (2, tp->tm_year < - TM_YEAR_BASE, century);
+            bool negative_year = tp->tm_year < - TM_YEAR_BASE;
+            bool zero_thru_1899 = !negative_year & (tp->tm_year < 0);
+            int century = ((tp->tm_year - 99 * zero_thru_1899) / 100
+                           + TM_YEAR_BASE / 100);
+            DO_YEARISH (2, negative_year, century);
           }
 
         case L_('x'):
@@ -1138,8 +1126,8 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
             int ndigs = ns_digits;
             while (width < ndigs || (1 < ndigs && n % 10 == 0))
               ndigs--, n /= 10;
-            for (int i = ndigs; 0 < i; i--)
-              buf[i - 1] = n % 10 + L_('0'), n /= 10;
+            for (int j = ndigs; 0 < j; j--)
+              buf[j - 1] = n % 10 + L_('0'), n /= 10;
             if (!pad)
               pad = L_('0');
             width_cpy (0, ndigs, buf);
@@ -1202,7 +1190,13 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
             time_t t;
 
             ltm = *tp;
+            ltm.tm_yday = -1;
             t = mktime_z (tz, &ltm);
+            if (ltm.tm_yday < 0)
+              {
+                errno = EOVERFLOW;
+                return 0;
+              }
 
             /* Generate string value for T using time_t arithmetic;
                this works even if sizeof (long) < sizeof (time_t).  */
@@ -1431,7 +1425,7 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
 
                 /* POSIX.1 requires that local time zone information be used as
                    though strftime called tzset.  */
-# if HAVE_TZSET
+# ifndef my_strftime
                 if (!*tzset_called)
                   {
                     tzset ();
@@ -1500,5 +1494,6 @@ __strftime_internal (STREAM_OR_CHAR_T *s, STRFTIME_ARG (size_t maxsize)
     *p = L_('\0');
 #endif
 
+  errno = saved_errno;
   return i;
 }

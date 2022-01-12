@@ -160,13 +160,7 @@ Where and how to get Gnus?
 
 @subsubheading Answer
 
-Gnus is released independent from releases of Emacs.  Therefore, the
-version bundled with Emacs might not be up to date (e.g., Gnus 5.9
-bundled with Emacs 21 is outdated).
-You can get the latest released version of Gnus from
-@uref{https://www.gnus.org/dist/gnus.tar.gz}
-or from
-@uref{https://ftp.gnus.org/pub/gnus/gnus.tar.gz}.
+Gnus is bundled with Emacs.
 
 @node FAQ 1-4
 @subsubheading Question 1.4
@@ -1449,7 +1443,7 @@ details.
 
 However, what you really want is the Insidious Big Brother
 Database bbdb. Get it from
-@uref{http://bbdb.sourceforge.net/, bbdb's homepage}.
+@uref{http://bbdb.sourceforge.net/, bbdb's website}.
 Now place the following in @file{~/.gnus.el}, to activate bbdb for Gnus:
 
 @example
@@ -1523,10 +1517,10 @@ Now you only have to tell Gnus to include the X-face in your postings by saying
 
 @example
 (setq message-default-headers
-        (with-temp-buffer
-          (insert "X-Face: ")
-          (insert-file-contents "~/.xface")
-          (buffer-string)))
+      (with-temp-buffer
+        (insert "X-Face: ")
+        (insert-file-contents "~/.xface")
+        (buffer-string)))
 @end example
 @noindent
 
@@ -1565,7 +1559,7 @@ if you already use Gnus 5.10, if you still use 5.8.8 or
       "Request confirmation when replying to news."
       (interactive)
       (when (or (not (gnus-news-group-p gnus-newsgroup-name))
-                (y-or-n-p "Really reply by mail to article author? "))
+                (y-or-n-p "Really reply by mail to article author?"))
         ad-do-it))))
 @end example
 @noindent
@@ -1757,7 +1751,7 @@ more then one article."
   (let ((archive-name
          (format
           "nnml:1.%s"
-          (replace-in-string gnus-newsgroup-name "^.*:" ""))))
+          (replace-regexp-in-string "^.*:" "" gnus-newsgroup-name))))
     (gnus-summary-copy-article n archive-name)))
 @end example
 @noindent
@@ -1941,13 +1935,13 @@ when you're online.
 
 Let's talk about Unix systems first: For the news part,
 the easiest solution is a small nntp server like
-@uref{http://www.leafnode.org/, Leafnode} or
+@uref{https://www.leafnode.org/, Leafnode} or
 @uref{http://patrik.iki.fi/sn/, sn},
 of course you can also install a full featured news
 server like
 @uref{https://www.isc.org/othersoftware/, inn}.
 Then you want to fetch your Mail, popular choices
-are @uref{http://www.fetchmail.info/, fetchmail}
+are @uref{https://www.fetchmail.info/, fetchmail}
 and @uref{http://pyropus.ca/software/getmail/, getmail}.
 You should tell those to write the mail to your disk and
 Gnus to read it from there. Last but not least the mail
@@ -2144,7 +2138,7 @@ I need real-time help, where to find it?
 
 @subsubheading Answer
 
-Point your IRC client to irc.freenode.net, channel #gnus.
+Point your IRC client to irc.libera.chat, channel #gnus.
 
 @node FAQ 9 - Tuning Gnus
 @subsection Tuning Gnus

@@ -1,4 +1,4 @@
-;;; cus-face.el --- customization support for faces
+;;; cus-face.el --- customization support for faces  -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 1996-1997, 1999-2021 Free Software Foundation, Inc.
 ;;
@@ -26,8 +26,6 @@
 ;; See `custom.el'.
 
 ;;; Code:
-
-(defalias 'custom-facep 'facep)
 
 ;;; Declaring a face.
 
@@ -166,30 +164,37 @@
 	     :help-echo "Control box around text."
 	     (const :tag "Off" nil)
 	     (list :tag "Box"
-		   :value (:line-width 2 :color "grey75" :style released-button)
-		   (const :format "" :value :line-width)
-		   (integer :tag "Width")
+                   :value (:line-width (2 . 2) :color "grey75" :style released-button)
+                   (const :format "" :value :line-width)
+                   (cons :tag "Width" :extra-offset 2
+                         (integer :tag "Vertical")
+                         (integer :tag "Horizontal"))
 		   (const :format "" :value :color)
 		   (choice :tag "Color" (const :tag "*" nil) color)
 		   (const :format "" :value :style)
 		   (choice :tag "Style"
 			   (const :tag "Raised" released-button)
 			   (const :tag "Sunken" pressed-button)
+			   (const :tag "Flat"   flat-button)
 			   (const :tag "None" nil))))
      ;; filter to make value suitable for customize
      (lambda (real-value)
        (and real-value
 	    (let ((lwidth
 		   (or (and (consp real-value)
-			    (plist-get real-value :line-width))
+                            (if (listp (cdr real-value))
+                                (plist-get real-value :line-width)
+                              real-value))
 		       (and (integerp real-value) real-value)
-		       1))
+                       '(1 . 1)))
 		  (color
 		   (or (and (consp real-value) (plist-get real-value :color))
 		       (and (stringp real-value) real-value)
 		       nil))
 		  (style
 		   (and (consp real-value) (plist-get real-value :style))))
+              (if (integerp lwidth)
+                  (setq lwidth (cons (abs lwidth) lwidth)))
 	      (list :line-width lwidth :color color :style style))))
      ;; filter to make customized-value suitable for storing
      (lambda (cus-value)
@@ -388,7 +393,7 @@ Each of the arguments ARGS has this form:
 This means reset FACE to its value in FROM-THEME."
   (apply 'custom-theme-reset-faces 'user args))
 
-;;; The End.
+(define-obsolete-function-alias 'custom-facep #'facep "28.1")
 
 (provide 'cus-face)
 

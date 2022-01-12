@@ -1,4 +1,4 @@
-;;; pong.el --- classical implementation of pong
+;;; pong.el --- classical implementation of pong  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
 
@@ -33,88 +33,72 @@
 ;;; Customization
 
 (defgroup pong nil
-  "Emacs-Lisp implementation of the classical game pong."
+  "Emacs Lisp implementation of the classical game pong."
   :tag "Pong"
   :group 'games)
 
 (defcustom pong-buffer-name "*Pong*"
   "Name of the buffer used to play."
-  :group 'pong
   :type '(string))
 
 (defcustom pong-width 50
   "Width of the playfield."
-  :group 'pong
   :type '(integer))
 
 (defcustom pong-height (min 30 (- (frame-height) 6))
   "Height of the playfield."
-  :group 'pong
   :type '(integer))
 
 (defcustom pong-bat-width 3
   "Width of the bats for pong."
-  :group 'pong
   :type '(integer))
 
 (defcustom pong-blank-color "black"
   "Color used for background."
-  :group 'pong
   :type 'color)
 
 (defcustom pong-bat-color "yellow"
   "Color used for bats."
-  :group 'pong
   :type 'color)
 
 (defcustom pong-ball-color "red"
   "Color used for the ball."
-  :group 'pong
   :type 'color)
 
 (defcustom pong-border-color "white"
   "Color used for pong borders."
-  :group 'pong
   :type 'color)
 
 (defcustom pong-left-key "4"
   "Alternate key to press for bat 1 to go up (primary one is [left])."
-  :group 'pong
   :type '(restricted-sexp :match-alternatives (stringp vectorp)))
 
 (defcustom pong-right-key "6"
   "Alternate key to press for bat 1 to go down (primary one is [right])."
-  :group 'pong
   :type '(restricted-sexp :match-alternatives (stringp vectorp)))
 
 (defcustom pong-up-key "8"
   "Alternate key to press for bat 2 to go up (primary one is [up])."
-  :group 'pong
   :type '(restricted-sexp :match-alternatives (stringp vectorp)))
 
 (defcustom pong-down-key "2"
   "Alternate key to press for bat 2 to go down (primary one is [down])."
-  :group 'pong
   :type '(restricted-sexp :match-alternatives (stringp vectorp)))
 
 (defcustom pong-quit-key "q"
   "Key to press to quit pong."
-  :group 'pong
   :type '(restricted-sexp :match-alternatives (stringp vectorp)))
 
 (defcustom pong-pause-key "p"
   "Key to press to pause pong."
-  :group 'pong
   :type '(restricted-sexp :match-alternatives (stringp vectorp)))
 
 (defcustom pong-resume-key "p"
   "Key to press to resume pong."
-  :group 'pong
   :type '(restricted-sexp :match-alternatives (stringp vectorp)))
 
 (defcustom pong-timer-delay 0.1
   "Time to wait between every cycle."
-  :group 'pong
   :type 'number)
 
 
@@ -232,7 +216,6 @@
 
 (defun pong-init-buffer ()
   "Initialize pong buffer and draw stuff thanks to gamegrid library."
-  (interactive)
   (get-buffer-create pong-buffer-name)
   (switch-to-buffer pong-buffer-name)
   (use-local-map pong-mode-map)
@@ -265,7 +248,7 @@
   "Move bat 1 up.
 This is called left for historical reasons, since in some pong
 implementations you move with left/right paddle."
-  (interactive)
+  (interactive nil pong-mode)
   (if (> pong-bat-player1 1)
       (and
        (setq pong-bat-player1 (1- pong-bat-player1))
@@ -275,7 +258,7 @@ implementations you move with left/right paddle."
 
 (defun pong-move-right ()
   "Move bat 1 down."
-  (interactive)
+  (interactive nil pong-mode)
   (if (< (+ pong-bat-player1 pong-bat-width) (1- pong-height))
       (and
        (setq pong-bat-player1 (1+ pong-bat-player1))
@@ -285,7 +268,7 @@ implementations you move with left/right paddle."
 
 (defun pong-move-up ()
   "Move bat 2 up."
-  (interactive)
+  (interactive nil pong-mode)
   (if (> pong-bat-player2 1)
       (and
        (setq pong-bat-player2 (1- pong-bat-player2))
@@ -295,7 +278,7 @@ implementations you move with left/right paddle."
 
 (defun pong-move-down ()
   "Move bat 2 down."
-  (interactive)
+  (interactive nil pong-mode)
   (if (< (+ pong-bat-player2 pong-bat-width) (1- pong-height))
       (and
        (setq pong-bat-player2 (1+ pong-bat-player2))
@@ -428,7 +411,7 @@ detection and checks if a player scores."
 
 (defun pong-pause ()
   "Pause the game."
-  (interactive)
+  (interactive nil pong-mode)
   (gamegrid-kill-timer)
   ;; Oooohhh ugly.  I don't know why, gamegrid-kill-timer don't do the
   ;; jobs it is made for.  So I have to do it "by hand".  Anyway, next
@@ -440,7 +423,7 @@ detection and checks if a player scores."
 
 (defun pong-resume ()
   "Resume a paused game."
-  (interactive)
+  (interactive nil pong-mode)
   (define-key pong-mode-map pong-pause-key 'pong-pause)
   (gamegrid-start-timer pong-timer-delay 'pong-update-game))
 
@@ -448,7 +431,7 @@ detection and checks if a player scores."
 
 (defun pong-quit ()
   "Quit the game and kill the pong buffer."
-  (interactive)
+  (interactive nil pong-mode)
   (gamegrid-kill-timer)
   ;; Be sure not to draw things in another buffer and wait for some
   ;; time.

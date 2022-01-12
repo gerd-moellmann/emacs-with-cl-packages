@@ -1,4 +1,4 @@
-;;; replace-tests.el --- tests for replace.el.
+;;; replace-tests.el --- tests for replace.el.  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
 
@@ -465,7 +465,12 @@ Return the last evalled form in BODY."
                    ;; isearch-lazy-highlight-new-loop and sit-for (bug#36328)
                    ((symbol-function 'replace-highlight)
                     (lambda (&rest _args)
-                      (string-match "[A-Z ]" "ForestGreen"))))
+                      (string-match "[A-Z ]" "ForestGreen")))
+                   ;; Override `sit-for' and `ding' so that we don't have
+                   ;; to wait and listen to bells when running the test.
+                   ((symbol-function 'sit-for)
+                    (lambda (&rest _args) (redisplay)))
+                   ((symbol-function 'ding) 'ignore))
            (perform-replace ,from ,to t replace-tests-perform-replace-regexp-flag nil))
          ,@body))))
 
@@ -545,5 +550,71 @@ Return the last evalled form in BODY."
       ((?\s . (1 2 4)) (?U . (3)))
       ?q
       (string= expected (buffer-string))))))
+
+(defmacro replace-tests-with-highlighted-occurrence (highlight-locus &rest body)
+  "Helper macro to test the highlight of matches when navigating occur buffer.
+
+Eval BODY with `next-error-highlight' and `next-error-highlight-no-select'
+bound to HIGHLIGHT-LOCUS."
+  (declare (indent 1) (debug (form body)))
+  `(let ((regexp "foo")
+         (next-error-highlight ,highlight-locus)
+         (next-error-highlight-no-select ,highlight-locus)
+         (buffer (generate-new-buffer "test"))
+         (inhibit-message t))
+     (unwind-protect
+         ;; Local bind to disable the deletion of `occur-highlight-overlay'
+         (cl-letf (((symbol-function 'occur-goto-locus-delete-o) (lambda ())))
+           (with-current-buffer buffer (dotimes (_ 3) (insert regexp ?\n)))
+           (pop-to-buffer buffer)
+           (occur regexp)
+           (pop-to-buffer "*Occur*")
+           (occur-next)
+           ,@body)
+       (kill-buffer buffer)
+       (kill-buffer "*Occur*"))))
+
+(ert-deftest occur-highlight-occurrence ()
+  "Test for https://debbugs.gnu.org/39121 ."
+  (let ((alist '((nil . nil) (0.5 . t) (t . t) (fringe-arrow . nil)))
+        (check-overlays
+         (lambda (has-ov)
+           (eq has-ov (not (null (overlays-in (point-min) (point-max))))))))
+    (pcase-dolist (`(,highlight-locus . ,has-overlay) alist)
+      ;; Visiting occurrences
+      (replace-tests-with-highlighted-occurrence highlight-locus
+        (occur-mode-goto-occurrence)
+        (should (funcall check-overlays has-overlay)))
+      ;; Displaying occurrences
+      (replace-tests-with-highlighted-occurrence highlight-locus
+        (occur-mode-display-occurrence)
+        (with-current-buffer (marker-buffer
+                              (caar (get-text-property (point) 'occur-target)))
+          (should (funcall check-overlays has-overlay)))))))
+
+(ert-deftest replace-regexp-bug45973 ()
+  "Test for https://debbugs.gnu.org/45973 ."
+  (let ((before "1RB 1LC 1RC 1RB 1RD 0LE 1LA 1LD 1RH 0LA")
+        (after  "1LB 1RC 1LC 1LB 1LD 0RE 1RA 1RD 1LH 0RA"))
+    (with-temp-buffer
+      (insert before)
+      (goto-char (point-min))
+      (replace-regexp
+       "\\(\\(L\\)\\|\\(R\\)\\)"
+       '(replace-eval-replacement
+         replace-quote
+         (if (match-string 2) "R" "L")))
+      (should (equal (buffer-string) after)))))
+
+(ert-deftest test-count-matches ()
+  (with-temp-buffer
+    (insert "oooooooooo")
+    (goto-char (point-min))
+    (should (= (count-matches "oo") 5))
+    (should (= (count-matches "o+") 1)))
+  (with-temp-buffer
+    (insert "o\n\n\n\no\n\n")
+    (goto-char (point-min))
+    (should (= (count-matches "^$") 4))))
 
 ;;; replace-tests.el ends here

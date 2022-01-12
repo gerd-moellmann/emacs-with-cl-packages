@@ -1,22 +1,24 @@
-;;; text-property-search-tests.el --- Testing text-property-search
+;;; text-property-search-tests.el --- Testing text-property-search  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
 ;; Author: Lars Ingebrigtsen <larsi@gnus.org>
 ;; Keywords:
 
-;; This program is free software; you can redistribute it and/or modify
+;; This file is part of GNU Emacs.
+
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -150,6 +152,24 @@
    (text-property-search-backward 'face 'italic nil)
    46 57 nil
    (point-max)))
+
+
+;;;; Position after search.
+
+(defun text-property-search--pos-test (fun pos &optional reverse)
+  (with-temp-buffer
+    (insert (concat "foo "
+                  (propertize "bar" 'x t)
+                  " baz"))
+    (goto-char (if reverse (point-max) (point-min)))
+    (funcall fun 'x t)
+    (should (= (point) pos))))
+
+(ert-deftest text-property-search-forward-point-at-beginning ()
+  (text-property-search--pos-test #'text-property-search-forward 5))
+
+(ert-deftest text-property-search-backward-point-at-end ()
+  (text-property-search--pos-test #'text-property-search-backward 8 t))
 
 (provide 'text-property-search-tests)
 

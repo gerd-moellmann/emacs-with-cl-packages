@@ -24,7 +24,6 @@
 
 ;;; Code:
 
-
 (require 'ediff-init)
 (require 'ediff-util)
 
@@ -78,16 +77,16 @@ are `-I REGEXP', to ignore changes whose lines match the REGEXP."
   "Options to pass to `ediff-diff-program'.
 If Unix diff is used as `ediff-diff-program',
 then a useful option is `-w', to ignore space.
-Options `-c', `-u', and `-i' are not allowed. Case sensitivity can be
+Options `-c', `-u', and `-i' are not allowed.  Case sensitivity can be
 toggled interactively using \\[ediff-toggle-ignore-case].
 
-Do not remove the default options. If you need to change this variable, add new
+Do not remove the default options.  If you need to change this variable, add new
 options after the default ones.
 
 This variable is not for customizing the look of the differences produced by
-the command \\[ediff-show-diff-output]. Use the variable
+the command \\[ediff-show-diff-output].  Use the variable
 `ediff-custom-diff-options' for that."
-  :set 'ediff-set-diff-options
+  :set #'ediff-set-diff-options
   :type 'string)
 
 (ediff-defvar-local ediff-ignore-case nil
@@ -104,8 +103,8 @@ Use `setq-default' if setting it in .emacs")
 GNU diff3 doesn't have such an option."
   :type 'string)
 
-;; the actual options used in comparison
-(ediff-defvar-local ediff-actual-diff-options ediff-diff-options "")
+(ediff-defvar-local ediff-actual-diff-options ediff-diff-options
+  "The actual options used in comparison.")
 
 (defcustom ediff-custom-diff-program ediff-diff-program
   "Program to use for generating custom diff output for saving it in a file.
@@ -124,8 +123,8 @@ This output is not used by Ediff internally."
   :set 'ediff-set-diff-options
   :type 'string)
 
-;; the actual options used in comparison
-(ediff-defvar-local ediff-actual-diff3-options ediff-diff3-options "")
+(ediff-defvar-local ediff-actual-diff3-options ediff-diff3-options
+  "The actual options used in comparison.")
 
 (defcustom ediff-diff3-ok-lines-regexp
   "^\\([1-3]:\\|====\\|  \\|.*Warning *:\\|.*No newline\\|.*missing newline\\|^\C-m$\\)"
@@ -133,23 +132,23 @@ This output is not used by Ediff internally."
 Lines that do not match are assumed to be error messages."
   :type 'regexp)
 
-;; keeps the status of the current diff in 3-way jobs.
-;; the status can be =diff(A), =diff(B), or =diff(A+B)
-(ediff-defvar-local ediff-diff-status "" "")
+(ediff-defvar-local ediff-diff-status ""
+  "Keeps the status of the current diff in 3-way jobs.
+The status can be =diff(A), =diff(B), or =diff(A+B).")
 
 
 ;;; Fine differences
 
 (ediff-defvar-local ediff-auto-refine (if (ediff-has-face-support-p) 'on 'nix)
   "If `on', Ediff auto-highlights fine diffs for the current diff region.
-If `off', auto-highlighting is not used. If `nix', no fine diffs are shown
+If `off', auto-highlighting is not used.  If `nix', no fine diffs are shown
 at all, unless the user force-refines the region by hitting `*'.
 
 This variable can be set either in .emacs or toggled interactively.
 Use `setq-default' if setting it in .emacs")
 
 (ediff-defvar-local ediff-ignore-similar-regions nil
-  "If t, skip over difference regions that differ only in the white space and line breaks.
+  "If t, skip difference regions that differ only in white space and line breaks.
 This variable can be set either in .emacs or toggled interactively.
 Use `setq-default' if setting it in .emacs")
 
@@ -180,12 +179,12 @@ Lines that do not match are assumed to be error messages.")
   "Pattern to match lines produced by diff that describe differences.")
 
 (ediff-defvar-local ediff-setup-diff-regions-function nil
-  "value is a function symbol depending on the kind of job is to be done.
-For 2-way jobs and for ediff-merge, it should be `ediff-setup-diff-regions'.
+  "Value is a function symbol depending on the kind of job is to be done.
+For 2-way jobs and for `ediff-merge', it should be `ediff-setup-diff-regions'.
 For jobs requiring diff3, it should be `ediff-setup-diff-regions3'.
 
 The function should take three mandatory arguments, file-A, file-B, and
-file-C. It may ignore file C for diff2 jobs. It should also take
+file-C.  It may ignore file C for diff2 jobs.  It should also take
 one optional arguments, diff-number to refine.")
 
 
@@ -231,10 +230,7 @@ one optional arguments, diff-number to refine.")
 	   (sit-for 2)
 	   ;; 1 is an error exit code
 	   1)
-	  (t (message "Computing differences between %s and %s ..."
-		      (file-name-nondirectory file1)
-		      (file-name-nondirectory file2))
-	     ;; this erases the diff buffer automatically
+	  (t ;; this erases the diff buffer automatically
 	     (ediff-exec-process ediff-diff-program
 				 diff-buffer
 				 'synchronize
@@ -325,6 +321,10 @@ one optional arguments, diff-number to refine.")
 	    (error-buf ediff-error-buffer))
 	(ediff-skip-unsuitable-frames)
 	(switch-to-buffer error-buf)
+        ;; We output data from the diff command using `raw-text' as
+        ;; the coding system, so decode before displaying.
+        (when (eq ediff-coding-system-for-read 'raw-text)
+          (decode-coding-region (point-min) (point-max) 'undecided))
 	(ediff-kill-buffer-carefully ctl-buf)
 	(user-error "Errors in diff output.  Diff output is in %S" diff-buff))))
 
@@ -823,13 +823,10 @@ one optional arguments, diff-number to refine.")
       (setq overlay-list (cons overlay overlay-list))
       (if (> (length diff-list) 1)
 	  (setq diff-list (cdr (cdr diff-list)))
-	(error "ediff-set-fine-overlays-for-combined-merge: corrupt list of
-delimiter regions"))
-      )
+        (error "Corrupt list of delimiter regions")))
     (setq overlay-list (reverse overlay-list))
     (ediff-set-fine-diff-vector
-     reg-num 'C (apply #'vector overlay-list))
-    ))
+     reg-num 'C (apply #'vector overlay-list))))
 
 
 ;; Convert diff list to overlays for a given DIFF-REGION
@@ -1142,7 +1139,10 @@ are ignored."
 	 (if (string-match "buffer" (symbol-name ediff-job-name))
 	     ediff-coding-system-for-write
 	   ediff-coding-system-for-read))
-	args)
+        (process-environment
+         ;; Avoid localization of messages so we can parse the output.
+         (cons "LC_MESSAGES=C" process-environment))
+        args)
     (setq args (append (split-string options)
                        (mapcar (lambda (file)
                                  (when (stringp file)
@@ -1226,35 +1226,30 @@ are ignored."
 Used for splitting difference regions into individual words.")
 
 ;; \240 is Unicode symbol for nonbreakable whitespace
-(defvar ediff-whitespace " \n\t\f\r\240"
+(defvar-local ediff-whitespace " \n\t\f\r\240"
   "Characters constituting white space.
 These characters are ignored when differing regions are split into words.")
-(make-variable-buffer-local 'ediff-whitespace)
 
-(defvar ediff-word-1 "-[:word:]_"
+(defvar-local ediff-word-1 "-[:word:]_"
   "Characters that constitute words of type 1.
 More precisely, [ediff-word-1] is a regexp that matches type 1 words.
 See `ediff-forward-word' for more details.")
-(make-variable-buffer-local 'ediff-word-1)
 
-(defvar ediff-word-2 "0-9.,"
+(defvar-local ediff-word-2 "0-9.,"
   "Characters that constitute words of type 2.
 More precisely, [ediff-word-2] is a regexp that matches type 2 words.
 See `ediff-forward-word' for more details.")
-(make-variable-buffer-local 'ediff-word-2)
 
-(defvar ediff-word-3 "`'?!:;\"{}[]()"
+(defvar-local ediff-word-3 "`'?!:;\"{}[]()"
   "Characters that constitute words of type 3.
 More precisely, [ediff-word-3] is a regexp that matches type 3 words.
 See `ediff-forward-word' for more details.")
-(make-variable-buffer-local 'ediff-word-3)
 
-(defvar ediff-word-4
+(defvar-local ediff-word-4
   (concat "^" ediff-word-1 ediff-word-2 ediff-word-3 ediff-whitespace)
   "Characters that constitute words of type 4.
 More precisely, [ediff-word-4] is a regexp that matches type 4 words.
 See `ediff-forward-word' for more details.")
-(make-variable-buffer-local 'ediff-word-4)
 
 ;; Split region along word boundaries. Each word will be on its own line.
 ;; Output to buffer out-buffer.
@@ -1463,8 +1458,7 @@ affects only files whose names match the expression."
 	 (message "Ignoring letter case is not supported by this diff program"))
 	(t
 	 (sit-for 1)
-	 (ediff-update-diffs)))
-  )
+         (ediff-update-diffs))))
 
 (provide 'ediff-diff)
 ;;; ediff-diff.el ends here

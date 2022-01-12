@@ -221,7 +221,7 @@ buf_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
       while (best_below != charpos)
 	{
 	  best_below++;
-	  BUF_INC_POS (b, best_below_byte);
+	  best_below_byte += buf_next_char_len (b, best_below_byte);
 	}
 
       /* If this position is quite far from the nearest known position,
@@ -246,7 +246,7 @@ buf_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
       while (best_above != charpos)
 	{
 	  best_above--;
-	  BUF_DEC_POS (b, best_above_byte);
+	  best_above_byte -= buf_prev_char_len (b, best_above_byte);
 	}
 
       /* If this position is quite far from the nearest known position,
@@ -372,7 +372,7 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
       while (best_below_byte < bytepos)
 	{
 	  best_below++;
-	  BUF_INC_POS (b, best_below_byte);
+	  best_below_byte += buf_next_char_len (b, best_below_byte);
 	}
 
       /* If this position is quite far from the nearest known position,
@@ -399,7 +399,7 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
       while (best_above_byte > bytepos)
 	{
 	  best_above--;
-	  BUF_DEC_POS (b, best_above_byte);
+	  best_above_byte -= buf_prev_char_len (b, best_above_byte);
 	}
 
       /* If this position is quite far from the nearest known position,
@@ -634,16 +634,15 @@ set_marker_restricted_both (Lisp_Object marker, Lisp_Object buffer,
 /* Detach a marker so that it no longer points anywhere and no longer
    slows down editing.  Do not free the marker, though, as a change
    function could have inserted it into an undo list (Bug#30931).  */
+
 void
 detach_marker (Lisp_Object marker)
 {
   Fset_marker (marker, Qnil, Qnil);
 }
 
-/* Remove MARKER from the chain of whatever buffer it is in,
-   leaving it points to nowhere.  This is called during garbage
-   collection, so we must be careful to ignore and preserve
-   mark bits, including those in chain fields of markers.  */
+/* Remove MARKER from the chain of whatever buffer it is in.  Set its
+   buffer NULL.  */
 
 void
 unchain_marker (register struct Lisp_Marker *marker)
@@ -804,7 +803,7 @@ verify_bytepos (ptrdiff_t charpos)
   while (below != charpos)
     {
       below++;
-      BUF_INC_POS (current_buffer, below_byte);
+      below_byte += buf_next_char_len (current_buffer, below_byte);
     }
 
   return below_byte;

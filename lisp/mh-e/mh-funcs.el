@@ -1,4 +1,4 @@
-;;; mh-funcs.el --- MH-E functions not everyone will use right away
+;;; mh-funcs.el --- MH-E functions not everyone will use right away  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1993, 1995, 2001-2021 Free Software Foundation, Inc.
 
@@ -29,8 +29,6 @@
 ;; Please add the functions in alphabetical order. If only one or two
 ;; small support routines are needed, place them with the function;
 ;; otherwise, create a separate section for them.
-
-;;; Change Log:
 
 ;;; Code:
 
@@ -348,7 +346,7 @@ See `mh-store-msg' for a description of DIRECTORY."
         (error "Error occurred during execution of %s" command)))))
 
 ;;;###mh-autoload
-(defun mh-undo-folder (&rest ignored)
+(defun mh-undo-folder (&rest _ignored)
   "Undo all refiles and deletes in the current folder.
 Arguments are IGNORED (for `revert-buffer')."
   (interactive)
@@ -356,8 +354,8 @@ Arguments are IGNORED (for `revert-buffer')."
              (yes-or-no-p "Undo all commands in folder? "))
          (setq mh-delete-list nil
                mh-refile-list nil
-               mh-blacklist nil
-               mh-whitelist nil
+               mh-blocklist nil
+               mh-allowlist nil
                mh-seq-list nil
                mh-next-direction 'forward)
          (with-mh-folder-updating (nil)

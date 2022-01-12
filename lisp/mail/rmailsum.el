@@ -51,10 +51,10 @@ Setting this option to nil might speed up the generation of summaries."
   :group 'rmail-summary)
 
 (defvar rmail-summary-font-lock-keywords
-  '(("^.....D.*" . font-lock-string-face)			; Deleted.
-    ("^.....-.*" . font-lock-type-face)				; Unread.
+  '(("^ *[0-9]+D.*" . font-lock-string-face)			; Deleted.
+    ("^ *[0-9]+-.*" . font-lock-type-face)			; Unread.
     ;; Neither of the below will be highlighted if either of the above are:
-    ("^.....[^D-] \\(......\\)" 1 font-lock-keyword-face)	; Date.
+    ("^ *[0-9]+[^D-] \\(......\\)" 1 font-lock-keyword-face)	; Date.
     ("{ \\([^\n}]+\\) }" 1 font-lock-comment-face))		; Labels.
   "Additional expressions to highlight in Rmail Summary mode.")
 
@@ -121,6 +121,7 @@ Setting this option to nil might speed up the generation of summaries."
     (define-key map [?\S-\ ] 'rmail-summary-scroll-msg-down)
     (define-key map "\177"   'rmail-summary-scroll-msg-down)
     (define-key map "?"      'describe-mode)
+    (define-key map "\C-c\C-d"      'rmail-summary-epa-decrypt)
     (define-key map "\C-c\C-n" 'rmail-summary-next-same-subject)
     (define-key map "\C-c\C-p" 'rmail-summary-previous-same-subject)
     (define-key map "\C-c\C-s\C-d" 'rmail-summary-sort-by-date)
@@ -532,8 +533,7 @@ message."
 	;; Set up the rest of its state and local variables.
 	(setq buffer-read-only t)
 	(rmail-summary-mode)
-	(make-local-variable 'minor-mode-alist)
-	(setq minor-mode-alist (list (list t (concat ": " description))))
+        (setq-local minor-mode-alist (list (list t (concat ": " description))))
 	(setq rmail-buffer rbuf
 	      rmail-summary-redo redo
 	      rmail-total-messages total)))
@@ -755,7 +755,12 @@ the message being processed."
 				   (forward-char -1)
 				   (skip-chars-backward " \t")
 				   (point))))))
-		    len mch lo)
+		    len mch lo newline)
+               ;; If there are multiple lines in FROM,
+               ;; discard up to the last newline in it.
+               (while (and (stringp from)
+                           (setq newline (string-search "\n" from)))
+                 (setq from (substring from (1+ newline))))
 	       (if (or (null from)
 		       (string-match
 			(or rmail-user-mail-address-regexp
@@ -930,14 +935,15 @@ a negative argument means to delete and move backward."
   (unless (numberp count) (setq count 1))
   (let (del-msg
         (backward (< count 0)))
-    (while (and (/= count 0)
-		;; Don't waste time if we are at the beginning
-		;; and trying to go backward.
-		(not (and backward (bobp))))
+    (while (/= count 0)
+      ;; Don't waste time counting down without doing anything if we
+      ;; are at the beginning and trying to go backward.
+      (if (and backward (bobp))
+          (setq count -1))
       (rmail-summary-goto-msg)
       (with-current-buffer rmail-buffer
-	(rmail-delete-message)
-	(setq del-msg rmail-current-message))
+	(setq del-msg rmail-current-message)
+	(rmail-delete-message))
       (rmail-summary-mark-deleted del-msg)
       (while (and (not (if backward (bobp) (eobp)))
 		  (save-excursion (beginning-of-line)
@@ -974,8 +980,9 @@ a negative argument means to delete and move forward."
 	  (delete-char 1)
 	  (insert "D"))
 	;; Discard cached new summary line.
-	(with-current-buffer rmail-buffer
-	  (aset rmail-summary-vector (1- n) nil))))
+        (when n
+	  (with-current-buffer rmail-buffer
+	    (aset rmail-summary-vector (1- n) nil)))))
   (beginning-of-line))
 
 (defun rmail-summary-update-line (n)
@@ -1094,13 +1101,10 @@ Commands for sorting the summary:
   (set-syntax-table text-mode-syntax-table)
   (make-local-variable 'rmail-buffer)
   (make-local-variable 'rmail-total-messages)
-  (make-local-variable 'rmail-current-message)
-  (setq rmail-current-message nil)
-  (make-local-variable 'rmail-summary-redo)
-  (setq rmail-summary-redo nil)
+  (setq-local rmail-current-message nil)
+  (setq-local rmail-summary-redo nil)
   (make-local-variable 'revert-buffer-function)
-  (make-local-variable 'font-lock-defaults)
-  (setq font-lock-defaults '(rmail-summary-font-lock-keywords t))
+  (setq-local font-lock-defaults '(rmail-summary-font-lock-keywords t))
   (rmail-summary-enable))
 
 ;; Summary features need to be disabled during edit mode.
@@ -1293,8 +1297,7 @@ Returns non-nil if message N was found."
   ;; Make sure we have an overlay to use.
   (or rmail-summary-overlay
       (progn
-	(make-local-variable 'rmail-summary-overlay)
-	(setq rmail-summary-overlay (make-overlay (point) (point)))
+        (setq-local rmail-summary-overlay (make-overlay (point) (point)))
 	(overlay-put rmail-summary-overlay 'rmail-summary t)))
   ;; If this message is in the summary, use the overlay to highlight it.
   ;; Otherwise, don't highlight anything.
@@ -1491,6 +1494,12 @@ argument says to read a file name and use that file as the inbox."
   (rmail-pop-to-buffer rmail-buffer)
   (rmail-edit-current-message)
   (use-local-map rmail-summary-edit-map))
+
+(defun rmail-summary-epa-decrypt ()
+  "Decrypt this message."
+  (interactive)
+  (rmail-pop-to-buffer rmail-buffer)
+  (rmail-epa-decrypt))
 
 (defun rmail-summary-cease-edit ()
   "Finish editing message, then go back to Rmail summary buffer."

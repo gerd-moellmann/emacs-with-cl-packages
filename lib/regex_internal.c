@@ -4,16 +4,16 @@
    Contributed by Isamu Hasegawa <isamu@yamato.ibm.com>.
 
    The GNU C Library is free software; you can redistribute it and/or
-   modify it under the terms of the GNU General Public
+   modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
-   version 3 of the License, or (at your option) any later version.
+   version 2.1 of the License, or (at your option) any later version.
 
    The GNU C Library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   Lesser General Public License for more details.
 
-   You should have received a copy of the GNU General Public
+   You should have received a copy of the GNU Lesser General Public
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
@@ -300,18 +300,20 @@ build_wcs_upper_buffer (re_string_t *pstr)
       while (byte_idx < end_idx)
 	{
 	  wchar_t wc;
+	  unsigned char ch = pstr->raw_mbs[pstr->raw_mbs_idx + byte_idx];
 
-	  if (isascii (pstr->raw_mbs[pstr->raw_mbs_idx + byte_idx])
-	      && mbsinit (&pstr->cur_state))
+	  if (isascii (ch) && mbsinit (&pstr->cur_state))
 	    {
-	      /* In case of a singlebyte character.  */
-	      pstr->mbs[byte_idx]
-		= toupper (pstr->raw_mbs[pstr->raw_mbs_idx + byte_idx]);
 	      /* The next step uses the assumption that wchar_t is encoded
 		 ASCII-safe: all ASCII values can be converted like this.  */
-	      pstr->wcs[byte_idx] = (wchar_t) pstr->mbs[byte_idx];
-	      ++byte_idx;
-	      continue;
+	      wchar_t wcu = __towupper (ch);
+	      if (isascii (wcu))
+		{
+		  pstr->mbs[byte_idx] = wcu;
+		  pstr->wcs[byte_idx] = wcu;
+		  byte_idx++;
+		  continue;
+		}
 	    }
 
 	  remain_len = end_idx - byte_idx;
@@ -348,7 +350,6 @@ build_wcs_upper_buffer (re_string_t *pstr)
 	    {
 	      /* It is an invalid character, an incomplete character
 		 at the end of the string, or '\0'.  Just use the byte.  */
-	      int ch = pstr->raw_mbs[pstr->raw_mbs_idx + byte_idx];
 	      pstr->mbs[byte_idx] = ch;
 	      /* And also cast it to wide char.  */
 	      pstr->wcs[byte_idx++] = (wchar_t) ch;
@@ -1210,6 +1211,10 @@ re_node_set_merge (re_node_set *dest, const re_node_set *src)
 
   if (__glibc_unlikely (dest->nelem == 0))
     {
+      /* Although we already guaranteed above that dest->alloc != 0 and
+         therefore dest->elems != NULL, add a debug assertion to pacify
+         GCC 11.2.1's -fanalyzer.  */
+      DEBUG_ASSERT (dest->elems);
       dest->nelem = src->nelem;
       memcpy (dest->elems, src->elems, src->nelem * sizeof (Idx));
       return REG_NOERROR;
@@ -1285,7 +1290,10 @@ re_node_set_insert (re_node_set *set, Idx elem)
 
   if (__glibc_unlikely (set->nelem) == 0)
     {
-      /* We already guaranteed above that set->alloc != 0.  */
+      /* Although we already guaranteed above that set->alloc != 0 and
+         therefore set->elems != NULL, add a debug assertion to pacify
+         GCC 11.2 -fanalyzer.  */
+      DEBUG_ASSERT (set->elems);
       set->elems[0] = elem;
       ++set->nelem;
       return true;
@@ -1313,6 +1321,7 @@ re_node_set_insert (re_node_set *set, Idx elem)
     {
       for (idx = set->nelem; set->elems[idx - 1] > elem; idx--)
 	set->elems[idx] = set->elems[idx - 1];
+      DEBUG_ASSERT (set->elems[idx - 1] < elem);
     }
 
   /* Insert the new element.  */

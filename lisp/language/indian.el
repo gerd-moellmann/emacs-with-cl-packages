@@ -1,4 +1,4 @@
-;;; indian.el --- Indian languages support -*- coding: utf-8; -*-
+;;; indian.el --- Indian languages support -*- coding: utf-8; lexical-binding: t; -*-
 
 ;; Copyright (C) 1997, 1999, 2001-2021 Free Software Foundation, Inc.
 ;; Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
@@ -25,7 +25,7 @@
 ;;; Commentary:
 
 ;; This file contains definitions of Indian language environments, and
-;; setups for displaying the scrtipts used there.
+;; setups for displaying the scripts used there.
 
 ;;; Code:
 
@@ -381,7 +381,7 @@ South Indian language Malayalam is supported in this language environment."))
 	 (if slot
 	     (set-char-table-range
 	      composition-function-table key
-	      (list (vector (cdr slot) 0 'font-shape-gstring))))))
+	      (list (vector (cdr slot) 0 #'font-shape-gstring))))))
    char-script-table))
 
 (provide 'indian)

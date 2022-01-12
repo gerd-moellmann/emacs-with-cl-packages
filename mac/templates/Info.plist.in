@@ -605,6 +605,14 @@ along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.
 	<string>Emacs Mac port requires permission to send AppleEvents to other applications.</string>
 	<key>NSAppleScriptEnabled</key>
 	<string>YES</string>
+	<!-- For xwidget webkit to browse remote url,
+	     but this set no restriction at all.  Consult apple's documentation
+	     for detail information about `NSApplicationDefinedMask'. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>NSPrincipalClass</key>
 	<string>EmacsApplication</string>
 	<key>NSRequiresAquaSystemAppearance</key>

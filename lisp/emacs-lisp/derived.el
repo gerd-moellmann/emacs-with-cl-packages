@@ -1,4 +1,4 @@
-;;; derived.el --- allow inheritance of major modes
+;;; derived.el --- allow inheritance of major modes  -*- lexical-binding: t; -*-
 ;; (formerly mode-clone.el)
 
 ;; Copyright (C) 1993-1994, 1999, 2001-2021 Free Software Foundation,
@@ -94,19 +94,19 @@
 ;;; PRIVATE: defsubst must be defined before they are first used
 
 (defsubst derived-mode-hook-name (mode)
-  "Construct a mode-hook name based on a MODE name."
+  "Construct a mode-hook name based on the symbol MODE."
   (intern (concat (symbol-name mode) "-hook")))
 
 (defsubst derived-mode-map-name (mode)
-  "Construct a map name based on a MODE name."
+  "Construct a map name based on the symbol MODE."
   (intern (concat (symbol-name mode) "-map")))
 
 (defsubst derived-mode-syntax-table-name (mode)
-  "Construct a syntax-table name based on a MODE name."
+  "Construct a syntax-table name based on the symbol MODE."
   (intern (concat (symbol-name mode) "-syntax-table")))
 
 (defsubst derived-mode-abbrev-table-name (mode)
-  "Construct an abbrev-table name based on a MODE name."
+  "Construct an abbrev-table name based on the symbol MODE."
   (intern (concat (symbol-name mode) "-abbrev-table")))
 
 ;; PUBLIC: define a new major mode which inherits from an existing one.
@@ -120,7 +120,7 @@ The arguments are as follows:
 CHILD:     the name of the command for the derived mode.
 PARENT:    the name of the command for the parent mode (e.g. `text-mode')
            or nil if there is no parent.
-NAME:      a string which will appear in the status line (e.g. \"Hypertext\")
+NAME:      a string that will appear in the mode line (e.g. \"HTML\")
 DOCSTRING: an optional documentation string--if you do not supply one,
            the function will attempt to invent something useful.
 KEYWORD-ARGS:
@@ -139,8 +139,11 @@ KEYWORD-ARGS:
                    A nil value means to simply use the same abbrev-table
                    as the parent.
            :after-hook FORM
-                   A single lisp form which is evaluated after the mode
+                   A single Lisp form which is evaluated after the mode
                    hooks have been run.  It should not be quoted.
+           :interactive BOOLEAN
+                   Whether the derived mode should be `interactive' or not.
+                   The default is t.
 
 BODY:      forms to execute just before running the
            hooks for the new mode.  Do not use `interactive' here.
@@ -163,8 +166,8 @@ the parent, and then sets the variable `case-fold-search' to nil:
 Note that if the documentation string had been left out, it would have
 been generated automatically, with a reference to the keymap.
 
-The new mode runs the hook constructed by the function
-`derived-mode-hook-name'.
+The new mode runs the hook named MODE-hook.  For `foo-mode',
+the hook will be named `foo-mode-hook'.
 
 See Info node `(elisp)Derived Modes' for more details.
 
@@ -194,6 +197,7 @@ See Info node `(elisp)Derived Modes' for more details.
 	(declare-syntax t)
 	(hook (derived-mode-hook-name child))
 	(group nil)
+        (interactive t)
         (after-hook nil))
 
     ;; Process the keyword args.
@@ -203,6 +207,7 @@ See Info node `(elisp)Derived Modes' for more details.
 	(:abbrev-table (setq abbrev (pop body)) (setq declare-abbrev nil))
 	(:syntax-table (setq syntax (pop body)) (setq declare-syntax nil))
         (:after-hook (setq after-hook (pop body)))
+        (:interactive (setq interactive (pop body)))
 	(_ (pop body))))
 
     (setq docstring (derived-mode-make-docstring
@@ -246,7 +251,7 @@ No problems result if this variable is not bound.
 
        (defun ,child ()
 	 ,docstring
-	 (interactive)
+	 ,(and interactive '(interactive))
 					; Run the parent.
 	 (delay-mode-hooks
 
@@ -306,15 +311,17 @@ No problems result if this variable is not bound.
       ;; Use a default docstring.
       (setq docstring
 	    (if (null parent)
-		;; FIXME filling.
-		(format "Major-mode.\nUses keymap `%s'%s%s." map
-			(if abbrev (format "%s abbrev table `%s'"
-					   (if syntax "," " and") abbrev) "")
-			(if syntax (format " and syntax-table `%s'" syntax) ""))
+                (concat
+                 "Major-mode.\n"
+                 (internal--format-docstring-line
+                  "Uses keymap `%s'%s%s." map
+                  (if abbrev (format "%s abbrev table `%s'"
+                                     (if syntax "," " and") abbrev) "")
+                  (if syntax (format " and syntax-table `%s'" syntax) "")))
 	      (format "Major mode derived from `%s' by `define-derived-mode'.
 It inherits all of the parent's attributes, but has its own keymap%s:
 
-  `%s'%s
+%s
 
 which more-or-less shadow%s %s's corresponding table%s."
 		      parent
@@ -323,12 +330,14 @@ which more-or-less shadow%s %s's corresponding table%s."
 			    (abbrev "\nand abbrev table")
 			    (syntax "\nand syntax table")
 			    (t ""))
-		      map
-		      (cond ((and abbrev syntax)
-			     (format ", `%s' and `%s'" abbrev syntax))
-			    ((or abbrev syntax)
-			     (format " and `%s'" (or abbrev syntax)))
-			    (t ""))
+                      (internal--format-docstring-line
+                       "  `%s'%s"
+                       map
+                       (cond ((and abbrev syntax)
+                              (format ", `%s' and `%s'" abbrev syntax))
+                             ((or abbrev syntax)
+                              (format " and `%s'" (or abbrev syntax)))
+                             (t "")))
 		      (if (or abbrev syntax) "" "s")
 		      parent
 		      (if (or abbrev syntax) "s" "")))))
@@ -336,20 +345,22 @@ which more-or-less shadow%s %s's corresponding table%s."
     (unless (string-match (regexp-quote (symbol-name hook)) docstring)
       ;; Make sure the docstring mentions the mode's hook.
       (setq docstring
-	    (concat docstring
-		    (if (null parent)
-			"\n\nThis mode "
-		      (concat
-		       "\n\nIn addition to any hooks its parent mode "
-		       (if (string-match (format "[`‘]%s['’]"
-                                                 (regexp-quote
-						  (symbol-name parent)))
-					 docstring)
-                           nil
-			 (format "`%s' " parent))
-		       "might have run,\nthis mode "))
-		    (format "runs the hook `%s'" hook)
-		    ", as the final or penultimate step\nduring initialization.")))
+            (concat docstring "\n\n"
+                    (internal--format-docstring-line
+                     "%s%s%s"
+                     (if (null parent)
+                         "This mode "
+                       (concat
+                        "In addition to any hooks its parent mode "
+                        (if (string-match (format "[`‘]%s['’]"
+                                                  (regexp-quote
+                                                   (symbol-name parent)))
+                                          docstring)
+                            nil
+                          (format "`%s' " parent))
+                        "might have run, this mode "))
+                     (format "runs the hook `%s'" hook)
+                     ", as the final or penultimate step during initialization."))))
 
     (unless (string-match "\\\\[{[]" docstring)
       ;; And don't forget to put the mode's keymap.
@@ -364,6 +375,7 @@ which more-or-less shadow%s %s's corresponding table%s."
 
 (defsubst derived-mode-setup-function-name (mode)
   "Construct a setup-function name based on a MODE name."
+  (declare (obsolete nil "28.1"))
   (intern (concat (symbol-name mode) "-setup")))
 
 

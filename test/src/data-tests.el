@@ -26,10 +26,10 @@
 (defconst data-tests--float-greater-than-fixnums (+ 1.0 most-positive-fixnum)
   "A floating-point value that is greater than all fixnums.
 It is also as small as conveniently possible, to make the tests sharper.
-Adding 1.0 to most-positive-fixnum should suffice on all
+Adding 1.0 to `most-positive-fixnum' should suffice on all
 practical Emacs platforms, since the result is a power of 2 and
 this is exactly representable and is greater than
-most-positive-fixnum, which is just less than a power of 2.")
+`most-positive-fixnum', which is just less than a power of 2.")
 
 (ert-deftest data-tests-= ()
   (should-error (=))
@@ -204,11 +204,11 @@ most-positive-fixnum, which is just less than a power of 2.")
                "")))
 
 (defun test-bool-vector-count-consecutive-tc (desc)
-  "Run a test case for bool-vector-count-consecutive.
+  "Run a test case for `bool-vector-count-consecutive'.
 DESC is a string describing the test.  It is a sequence of
 hexadecimal digits describing the bool vector.  We exhaustively
 test all counts at all possible positions in the vector by
-comparing the subr with a much slower lisp implementation."
+comparing the subr with a much slower Lisp implementation."
   (let ((bv (test-bool-vector-bv-from-hex-string desc)))
     (cl-loop
      for lf in '(nil t)
@@ -324,7 +324,7 @@ comparing the subr with a much slower lisp implementation."
 
 (defvar binding-test-some-local 'some)
 (with-current-buffer binding-test-buffer-A
-  (set (make-local-variable 'binding-test-some-local) 'local))
+  (setq-local binding-test-some-local 'local))
 
 (ert-deftest binding-test-manual ()
   "A test case from the elisp manual."
@@ -338,12 +338,54 @@ comparing the subr with a much slower lisp implementation."
     (should (eq binding-test-some-local 'local))))
 
 (ert-deftest binding-test-setq-default ()
-  "Test that a setq-default has no effect when there is a local binding."
+  "Test that a `setq-default' has no effect when there is a local binding."
   (with-current-buffer binding-test-buffer-B
     ;; This variable is not local in this buffer.
     (let ((binding-test-some-local 'something-else))
       (setq-default binding-test-some-local 'new-default))
     (should (eq binding-test-some-local 'some))))
+
+(ert-deftest data-tests--let-buffer-local ()
+  (let ((blvar (make-symbol "blvar")))
+    (set-default blvar nil)
+    (make-variable-buffer-local blvar)
+
+    (dolist (var (list blvar 'left-margin))
+      (let ((def (default-value var)))
+        (with-temp-buffer
+          (should (equal def (symbol-value var)))
+          (cl-progv (list var) (list 42)
+            (should (equal (symbol-value var) 42))
+            (should (equal (default-value var) (symbol-value var)))
+            (set var 123)
+            (should (not (local-variable-p var)))
+            (should (equal (symbol-value var) 123))
+            (should (equal (default-value var) (symbol-value var)))) ;bug#44733
+          (should (equal (symbol-value var) def))
+          (should (equal (default-value var) (symbol-value var))))
+        (should (equal (default-value var) def))))))
+
+(ert-deftest data-tests--let-buffer-local-no-unwind-other-buffers ()
+  "Test that a let-binding for a buffer-local unwinds only current-buffer."
+  (let ((blvar (make-symbol "blvar")))
+    (set-default blvar 0)
+    (make-variable-buffer-local blvar)
+    (dolist (var (list blvar 'left-margin))
+      (let* ((def (default-value var))
+             (newdef (+ def 1))
+             (otherbuf (generate-new-buffer "otherbuf")))
+        (with-temp-buffer
+          (cl-progv (list var) (list newdef)
+            (with-current-buffer otherbuf
+              (set var 123)
+              (should (local-variable-p var))
+              (should (equal (symbol-value var) 123))
+              (should (equal (default-value var) newdef))))
+          (with-current-buffer otherbuf
+            (should (local-variable-p var))
+            (should (equal (symbol-value var) 123))
+            (should (equal (default-value var) def)))
+          )))))
 
 (ert-deftest binding-test-makunbound ()
   "Tests of makunbound, from the manual."
@@ -357,29 +399,60 @@ comparing the subr with a much slower lisp implementation."
 		   (eq binding-test-some-local 'outer))))))
 
 (ert-deftest binding-test-defvar-bool ()
-  "Test DEFVAR_BOOL"
+  "Test DEFVAR_BOOL."
   (let ((display-hourglass 5))
     (should (eq display-hourglass t))))
 
 (ert-deftest binding-test-defvar-int ()
-  "Test DEFVAR_INT"
+  "Test DEFVAR_INT."
   (should-error (setq gc-cons-threshold 5.0) :type 'wrong-type-argument))
 
 (ert-deftest binding-test-set-constant-t ()
-  "Test setting the constant t"
+  "Test setting the constant t."
   (with-no-warnings (should-error (setq t 'bob) :type 'setting-constant)))
 
 (ert-deftest binding-test-set-constant-nil ()
-  "Test setting the constant nil"
+  "Test setting the constant nil."
   (with-no-warnings (should-error (setq nil 'bob) :type 'setting-constant)))
 
 (ert-deftest binding-test-set-constant-keyword ()
-  "Test setting a keyword constant"
+  "Test setting a keyword constant."
   (with-no-warnings (should-error (setq :keyword 'bob) :type 'setting-constant)))
 
 (ert-deftest binding-test-set-constant-nil ()
-  "Test setting a keyword to itself"
+  "Test setting a keyword to itself."
   (with-no-warnings (should (setq :keyword :keyword))))
+
+(ert-deftest data-tests--set-default-per-buffer ()
+  :expected-result t ;; Not fixed yet!
+  ;; FIXME: Performance tests are inherently unreliable.
+  ;; Using wall-clock time makes it even worse, so don't bother unless
+  ;; we have the primitive to measure cpu-time.
+  (skip-unless (fboundp 'current-cpu-time))
+  ;; Test performance of set-default on DEFVAR_PER_BUFFER variables.
+  ;; More specifically, test the problem seen in bug#41029 where setting
+  ;; the default value of a variable takes time proportional to the
+  ;; number of buffers.
+  (let* ((fun #'error)
+         (test (lambda ()
+                 (with-temp-buffer
+                   (let ((st (car (current-cpu-time))))
+                     (dotimes (_ 1000)
+                       (let ((case-fold-search 'data-test))
+                         ;; Use an indirection through a mutable var
+                         ;; to try and make sure the byte-compiler
+                         ;; doesn't optimize away the let bindings.
+                         (funcall fun)))
+                     ;; FIXME: Handle the wraparound, if any.
+                     (- (car (current-cpu-time)) st)))))
+         (_ (setq fun #'ignore))
+         (time1 (funcall test))
+         (bufs (mapcar (lambda (_) (generate-new-buffer " data-test"))
+                       (make-list 1000 nil)))
+         (time2 (funcall test)))
+    (mapc #'kill-buffer bufs)
+    ;; Don't divide one time by the other since they may be 0.
+    (should (< time2 (* time1 5)))))
 
 ;; More tests to write -
 ;; kill-local-variable
@@ -684,7 +757,7 @@ comparing the subr with a much slower lisp implementation."
   ;;   forwarding, but this needs to happen before the var is accessed
   ;;   from the Lisp side and before we switch to another buffer.
   ;; The trigger in bug#34318 doesn't exist any more because the C code has
-  ;; changes.  Instead I found the trigger below.
+  ;; changed.  Instead I found the trigger below.
   (with-temp-buffer
     (setq last-coding-system-used 'bug34318)
     (make-local-variable 'last-coding-system-used)

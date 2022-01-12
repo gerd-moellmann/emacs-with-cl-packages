@@ -1,4 +1,4 @@
-;;; mail-extr.el --- extract full name and address from email header
+;;; mail-extr.el --- extract full name and address from email header  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1991-1994, 1997, 2001-2021 Free Software Foundation,
 ;; Inc.
@@ -222,23 +222,20 @@
   "Whether to try to guess middle initial from mail address.
 If true, then when we see an address like \"John Smith <jqs@host.com>\"
 we will assume that \"John Q. Smith\" is the fellow's name."
-  :type 'boolean
-  :group 'mail-extr)
+  :type 'boolean)
 
 (defcustom mail-extr-ignore-single-names nil
   "Whether to ignore a name that is just a single word.
 If true, then when we see an address like \"Idiot <dumb@stupid.com>\"
 we will act as though we couldn't find a full name in the address."
   :type 'boolean
-  :version "22.1"
-  :group 'mail-extr)
+  :version "22.1")
 
 (defcustom mail-extr-ignore-realname-equals-mailbox-name t
 "Whether to ignore a name that is equal to the mailbox name.
 If true, then when the address is like \"Single <single@address.com>\"
 we will act as though we couldn't find a full name in the address."
-  :type 'boolean
-  :group 'mail-extr)
+  :type 'boolean)
 
 ;; Matches a leading title that is not part of the name (does not
 ;; contribute to uniquely identifying the person).
@@ -248,19 +245,16 @@ we will act as though we couldn't find a full name in the address."
   "Matches prefixes to the full name that identify a person's position.
 These are stripped from the full name because they do not contribute to
 uniquely identifying the person."
-  :type 'regexp
-  :group 'mail-extr)
+  :type 'regexp)
 
 (defcustom mail-extr-@-binds-tighter-than-! nil
   "Whether the local mail transport agent looks at ! before @."
-  :type 'boolean
-  :group 'mail-extr)
+  :type 'boolean)
 
 (defcustom mail-extr-mangle-uucp nil
   "Whether to throw away information in UUCP addresses
 by translating things like \"foo!bar!baz@host\" into \"baz@bar.UUCP\"."
-  :type 'boolean
-  :group 'mail-extr)
+  :type 'boolean)
 
 ;;----------------------------------------------------------------------
 ;; what orderings are meaningful?????
@@ -713,7 +707,10 @@ This function is primarily meant for when you're displaying the
 result to the user: Many prettifications are applied to the
 result returned.  If you want to decode an address for further
 non-display use, you should probably use
-`mail-header-parse-address' instead."
+`mail-header-parse-address' instead.  Also see
+`mail-header-parse-address-lax' for a function that's less strict
+than `mail-header-parse-address', but does less post-processing
+to the results."
   (let ((canonicalization-buffer (get-buffer-create " *canonical address*"))
 	(extraction-buffer (get-buffer-create " *extract address components*"))
 	value-list)
@@ -760,7 +757,6 @@ non-display use, you should probably use
 	      end-of-address
 	      <-pos >-pos @-pos colon-pos comma-pos !-pos %-pos \;-pos
 	      group-:-pos group-\;-pos route-addr-:-pos
-	      record-pos-symbol
 	      first-real-pos last-real-pos
 	      phrase-beg phrase-end
 	      ;; Dynamically set in mail-extr-voodoo.
@@ -852,13 +848,16 @@ non-display use, you should probably use
 	      )
 	     ;; record the position of various interesting chars, determine
 	     ;; validity later.
-	     ((setq record-pos-symbol
-		    (cdr (assq char
-			       '((?< . <-pos) (?> . >-pos) (?@ . @-pos)
-				 (?: . colon-pos) (?, . comma-pos) (?! . !-pos)
-				 (?% . %-pos) (?\; . \;-pos)))))
-	      (set record-pos-symbol
-		   (cons (point) (symbol-value record-pos-symbol)))
+	     ((memq char '(?< ?> ?@ ?: ?, ?!  ?% ?\;))
+	      (push (point) (pcase-exhaustive char
+			      (?<  <-pos)
+			      (?>  >-pos)
+			      (?@  @-pos)
+			      (?:  colon-pos)
+			      (?,  comma-pos)
+			      (?!  !-pos)
+			      (?%  %-pos)
+			      (?\; \;-pos)))
 	      (forward-char 1))
 	     ((eq char ?.)
 	      (forward-char 1))
@@ -1065,7 +1064,7 @@ non-display use, you should probably use
 	    (mail-extr-demarkerize route-addr-:-pos)
 	    (setq route-addr-:-pos nil
 		  >-pos (mail-extr-demarkerize >-pos)
-		  %-pos (mapcar 'mail-extr-demarkerize %-pos)))
+		  %-pos (mapcar #'mail-extr-demarkerize %-pos)))
 
 	  ;; de-listify @-pos
 	  (setq @-pos (car @-pos))
@@ -1122,7 +1121,7 @@ non-display use, you should probably use
 		       (setq insert-point (point-max)))
 		      (%-pos
 		       (setq insert-point (car (last %-pos))
-			     saved-%-pos (mapcar 'mail-extr-markerize %-pos)
+			     saved-%-pos (mapcar #'mail-extr-markerize %-pos)
 			     %-pos nil
 			     @-pos (mail-extr-markerize @-pos)))
 		      (@-pos
@@ -1162,7 +1161,7 @@ non-display use, you should probably use
 		       "uucp"))
 		  (setq !-pos (cdr !-pos))))
 	      (and saved-%-pos
-		   (setq %-pos (append (mapcar 'mail-extr-demarkerize
+		   (setq %-pos (append (mapcar #'mail-extr-demarkerize
 					       saved-%-pos)
 				       %-pos)))
 	      (setq @-pos (mail-extr-demarkerize @-pos))
@@ -1461,8 +1460,7 @@ If it is neither nil nor a string, modifying of names will never take
 place.  It affects how `mail-extract-address-components' works."
   :type '(choice (regexp :size 0)
 		 (const :tag "Always enabled" nil)
-		 (const :tag "Always disabled" t))
-  :group 'mail-extr)
+		 (const :tag "Always disabled" t)))
 
 (defun mail-extr-voodoo (mbox-beg mbox-end canonicalization-buffer)
   (unless (and mail-extr-disable-voodoo
@@ -1851,10 +1849,15 @@ place.  It affects how `mail-extract-address-components' works."
 ;; Updated by the RIPE Network Coordination Centre.
 ;;
 ;; Source: ISO 3166 Maintenance Agency
-;; http://www.iso.org/iso/en/prods-services/iso3166ma/02iso-3166-code-lists/list-en1-semic.txt
-;; http://www.iana.org/domain-names.htm
-;; http://www.iana.org/cctld/cctld-whois.htm
+;; https://www.iso.org/iso/en/prods-services/iso3166ma/02iso-3166-code-lists/list-en1-semic.txt
+;; https://www.iana.org/domain-names.htm
+;; https://www.iana.org/cctld/cctld-whois.htm
 ;; Latest change: 2007/11/15
+
+;; FIXME: There are over 1500 top level domains, the vast majority of
+;; which are not in the below list.  Should they be?
+;; https://data.iana.org/TLD/tlds-alpha-by-domain.txt
+;; https://en.wikipedia.org/wiki/List_of_Internet_top-level_domains
 
 (defconst mail-extr-all-top-level-domains
   (let ((ob (make-vector 739 0)))
@@ -2145,6 +2148,80 @@ place.  It affects how `mail-extract-address-components' works."
        ("uucp" t		"Unix to Unix CoPy")
        ;; Infrastructure Domains:
        ("arpa" t		"Advanced Research Projects Agency (U.S. DoD)")
+       ;; Geographic Domains:
+       ("abudhabi"        "Abu Dhabi")
+       ("africa"          "Africa")
+       ("alsace"          "Alsace, France")
+       ("amsterdam"       "Amsterdam, The Netherlands")
+       ("arab"            "League of Arab States")
+       ("asia"            "Asia-Pacific region")
+       ("bar"             "Bar, Montenegro")
+       ("barcelona"       "Barcelona, Spain")
+       ("bayern"          "Bavaria, Germany")
+       ("bcn"             "Barcelona, Spain")
+       ("berlin"          "Berlin, Germany")
+       ("boston"          "Boston, Massachusetts")
+       ("brussels"        "Brussels, Belgium")
+       ("budapest"        "Budapest, Hungary")
+       ("bzh"             "Brittany, France")
+       ("capetown"        "Cape Town, South Africa")
+       ("cat"             "Catalonia, Spain")
+       ("cologne"         "Cologne, Germany")
+       ("corsica"         "Corsica, France")
+       ("cymru"           "Wales, United Kingdom")
+       ("doha"            "Doha")
+       ("dubai"           "Dubai")
+       ("durban"          "Durban, South Africa")
+       ("eus"             "Basque, Spain and France")
+       ("frl"             "Friesland, Netherlands")
+       ("gal"             "Galicia, Spain")
+       ("gent"            "Ghent, Belgium")
+       ("hamburg"         "Hamburg, Germany")
+       ("helsinki"        "Helsinki, Finland")
+       ("irish"           "Ireland")
+       ("ist"             "İstanbul, Turkey")
+       ("istanbul"        "İstanbul, Turkey")
+       ("joburg"          "Johannesburg, South Africa")
+       ("kiwi"            "New Zealanders")
+       ("koeln"           "Cologne, Germany")
+       ("krd"             "Kurdistan")
+       ("kyoto"           "Kyoto, Japan")
+       ("lat"             "Latin America")
+       ("london"          "London, United Kingdom")
+       ("madrid"          "Madrid, Spain")
+       ("melbourne"       "Melbourne, Australia")
+       ("miami"           "Miami, Florida")
+       ("nagoya"          "Nagoya, Japan")
+       ("nrw"             "North Rhine-Westphalia, Germany")
+       ("nyc"             "New York City, New York")
+       ("okinawa"         "Okinawa, Japan")
+       ("osaka"           "Osaka, Japan")
+       ("paris"           "Paris, France")
+       ("quebec"          "Québec, Canada")
+       ("rio"             "Rio de Janeiro, Brazil")
+       ("ruhr"            "Ruhr, Germany")
+       ("ryukyu"          "Ryukyu Islands, Japan")
+       ("saarland"        "Saarland, Germany")
+       ("scot"            "Scotland, United Kingdom")
+       ("stockholm"       "Stockholm, Sweden")
+       ("swiss"           "Switzerland")
+       ("sydney"          "Sydney, Australia")
+       ("taipei"          "Taipei, Taiwan")
+       ("tatar"           "Tatars")
+       ("tirol"           "Tyrol, Austria")
+       ("tokyo"           "Tokyo, Japan")
+       ("vegas"           "Las Vegas, Nevada")
+       ("wales"           "Wales, United Kingdom")
+       ("wien"            "Vienna, Austria")
+       ("yokohama"        "Yokohama, Japan")
+       ("zuerich"         "Zurich, Switzerland")
+       ;; Internationalized Geographic Domains:
+       ("xn--1qqw23a"     "Foshan, China")
+       ("xn--xhq521b"     "Guangdong, China")
+       ("xn--80adxhks"    "Moscow, Russia")
+       ("xn--p1acf"       "Russia")
+       ("xn--mgbca7dzdo"  "Abu Dhabi")
+       ("xn--ngbrx"       "Arab")
        ))
     ob))
 
@@ -2162,13 +2239,13 @@ place.  It affects how `mail-extract-address-components' works."
 
 
 ;(let ((all nil))
-;  (mapatoms #'(lambda (x)
+;  (mapatoms (lambda (x)
 ;		(if (and (boundp x)
 ;			 (string-match "^mail-extr-" (symbol-name x)))
 ;		    (setq all (cons x all)))))
 ;  (setq all (sort all #'string-lessp))
 ;  (cons 'setq
-;	(apply 'nconc (mapcar #'(lambda (x)
+;	(apply 'nconc (mapcar (lambda (x)
 ;				  (list x (symbol-value x)))
 ;			      all))))
 

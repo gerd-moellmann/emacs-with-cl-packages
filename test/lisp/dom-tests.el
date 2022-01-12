@@ -5,6 +5,8 @@
 ;; Author: Simen Heggestøyl <simenheg@gmail.com>
 ;; Keywords:
 
+;; This file is part of GNU Emacs.
+
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
@@ -83,6 +85,13 @@
     (should-not (dom-attributes dom))
     (dom-set-attribute dom attr value)
     (should (equal (dom-attr dom attr) value))))
+
+(ert-deftest dom-tests-remove-attribute ()
+  (let ((dom (copy-tree '(body ((foo . "bar") (zot . "foobar"))))))
+    (should (equal (dom-attr dom 'foo) "bar"))
+    (dom-remove-attribute dom 'foo)
+    (should (equal (dom-attr dom 'foo) nil))
+    (should (equal dom '(body ((zot . "foobar")))))))
 
 (ert-deftest dom-tests-attr ()
   (let ((dom (dom-tests--tree)))
@@ -199,6 +208,14 @@ child results in an error."
     (with-temp-buffer
       (dom-pp node t)
       (should (equal (buffer-string) "(\"foo\" nil)")))))
+
+(ert-deftest dom-test-search ()
+  (let ((dom '(a nil (b nil (c nil)))))
+    (should (equal (dom-search dom (lambda (d) (eq (dom-tag d) 'a)))
+                   (list dom)))
+    (should (equal (dom-search dom (lambda (d) (memq (dom-tag d) '(b c))))
+                   (list (car (dom-children dom))
+                         (car (dom-children (car (dom-children dom)))))))))
 
 (provide 'dom-tests)
 ;;; dom-tests.el ends here

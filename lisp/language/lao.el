@@ -1,4 +1,4 @@
-;;; lao.el --- support for Lao -*- coding: utf-8 -*-
+;;; lao.el --- support for Lao -*- coding: utf-8; lexical-binding: t; -*-
 
 ;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
@@ -66,7 +66,7 @@
 					(t (string c))))
 			      (cdr l) ""))
 	   ;; Element of composition-function-table.
-	   (elt (list (vector regexp 1 'lao-composition-function)
+	   (elt (list (vector regexp 1 #'lao-composition-function)
 		      fallback-rule))
 	   ch)
       (dotimes (i len)

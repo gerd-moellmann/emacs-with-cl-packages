@@ -382,10 +382,10 @@ count_bytes (ptrdiff_t pos, ptrdiff_t bytepos, ptrdiff_t endpos)
 
   if (pos <= endpos)
     for ( ; pos < endpos; pos++)
-      INC_POS (bytepos);
+      bytepos += next_char_len (bytepos);
   else
     for ( ; pos > endpos; pos--)
-      DEC_POS (bytepos);
+      bytepos -= prev_char_len (bytepos);
 
   return bytepos;
 }
@@ -626,8 +626,7 @@ copy_text (const unsigned char *from_addr, unsigned char *to_addr,
 
       while (bytes_left > 0)
 	{
-	  int thislen, c;
-	  c = STRING_CHAR_AND_LENGTH (from_addr, thislen);
+	  int thislen, c = string_char_and_length (from_addr, &thislen);
 	  if (! ASCII_CHAR_P (c))
 	    c &= 0xFF;
 	  *to_addr++ = c;
@@ -715,7 +714,7 @@ insert_char (int c)
   insert ((char *) str, len);
 }
 
-/* Insert the NUL-terminated string S before point.  */
+/* Insert the null-terminated string S before point.  */
 
 void
 insert_string (const char *s)
@@ -1393,7 +1392,7 @@ adjust_after_insert (ptrdiff_t from, ptrdiff_t from_byte,
 void
 replace_range (ptrdiff_t from, ptrdiff_t to, Lisp_Object new,
                bool prepare, bool inherit, bool markers,
-               bool adjust_match_data)
+               bool adjust_match_data, bool inhibit_mod_hooks)
 {
   ptrdiff_t inschars = SCHARS (new);
   ptrdiff_t insbytes = SBYTES (new);
@@ -1553,8 +1552,11 @@ replace_range (ptrdiff_t from, ptrdiff_t to, Lisp_Object new,
   if (adjust_match_data)
     update_search_regs (from, to, from + SCHARS (new));
 
-  signal_after_change (from, nchars_del, GPT - from);
-  update_compositions (from, GPT, CHECK_BORDER);
+  if (!inhibit_mod_hooks)
+    {
+      signal_after_change (from, nchars_del, GPT - from);
+      update_compositions (from, GPT, CHECK_BORDER);
+    }
 }
 
 /* Replace the text from character positions FROM to TO with
@@ -1990,7 +1992,7 @@ prepare_to_modify_buffer_1 (ptrdiff_t start, ptrdiff_t end,
       /* Make binding buffer-file-name to nil effective.  */
       && !NILP (BVAR (base_buffer, filename))
       && SAVE_MODIFF >= MODIFF)
-    lock_file (BVAR (base_buffer, file_truename));
+    Flock_file (BVAR (base_buffer, file_truename));
 
   /* If `select-active-regions' is non-nil, save the region text.  */
   /* FIXME: Move this to Elisp (via before-change-functions).  */

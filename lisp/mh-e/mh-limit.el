@@ -1,4 +1,4 @@
-;;; mh-limit.el --- MH-E display limits
+;;; mh-limit.el --- MH-E display limits  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2001-2003, 2006-2021 Free Software Foundation, Inc.
 
@@ -24,8 +24,6 @@
 ;;; Commentary:
 
 ;; "Poor man's threading" by psg.
-
-;;; Change Log:
 
 ;;; Code:
 
@@ -148,7 +146,7 @@ Use \\<mh-folder-mode-map>\\[mh-widen] to undo this command."
   "Put all following messages with same subject in sequence 'subject.
 If arg ALL is t, move to beginning of folder buffer to collect all
 messages.
-If arg ALL is nil, collect only messages fron current one on forward.
+If arg ALL is nil, collect only messages from current one on forward.
 
 Return number of messages put in the sequence:
 
@@ -198,7 +196,7 @@ It would be desirable to avoid hard-coding this.")
 
 This function only works with an unthreaded folder. If arg ALL is
 t, move to beginning of folder buffer to collect all messages. If
-arg ALL is nil, collect only messages fron current one on
+arg ALL is nil, collect only messages from current one on
 forward.
 
 Return number of messages put in the sequence:
@@ -237,7 +235,7 @@ Return number of messages put in the sequence:
               (setq list (cons (mh-get-msg-num t) list)))
           (if (assoc 'subject mh-seq-list) (mh-delete-seq 'subject))
           ;; sort the result into a sequence
-          (let ((sorted-list (sort (copy-sequence list) 'mh-lessp)))
+          (let ((sorted-list (sort (copy-sequence list) #'mh-lessp)))
             (while sorted-list
               (mh-add-msgs-to-seq (car sorted-list) 'subject nil)
               (setq sorted-list (cdr sorted-list)))

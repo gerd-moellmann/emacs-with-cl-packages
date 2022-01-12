@@ -1,4 +1,4 @@
-;;; ucs-normalize.el --- Unicode normalization NFC/NFD/NFKD/NFKC
+;;; ucs-normalize.el --- Unicode normalization NFC/NFD/NFKD/NFKC  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
 
@@ -25,8 +25,8 @@
 ;; This program has passed the NormalizationTest-5.2.0.txt.
 ;;
 ;; References:
-;; http://www.unicode.org/reports/tr15/
-;; http://www.unicode.org/review/pr-29.html
+;; https://www.unicode.org/reports/tr15/
+;; https://www.unicode.org/review/pr-29.html
 ;;
 ;; HFS-Normalization:
 ;; Reference:
@@ -98,7 +98,7 @@
 ;;
 ;; D. Sorting and Composition  of Smaller Blocks (`ucs-normalize-block-compose-chars')
 ;;
-;;    The block will be split to multiple samller blocks by starter
+;;    The block will be split to multiple smaller blocks by starter
 ;;    characters.  Each block is sorted, and composed if necessary.
 ;;
 ;; E. Composition of Entire Block (`ucs-normalize-compose-chars')
@@ -131,7 +131,7 @@
       #x1D1BF #x1D1C0)
    "Composition Exclusion List.
   This list is taken from
-    http://www.unicode.org/Public/UNIDATA/5.2/CompositionExclusions.txt")
+    https://www.unicode.org/Public/UNIDATA/5.2/CompositionExclusions.txt")
 
   ;; Unicode ranges that decompositions & combining characters are defined.
   (defvar check-range nil)
@@ -185,7 +185,7 @@
   ;; always returns nil, something the code here doesn't like.
   (define-char-code-property 'decomposition "uni-decomposition.el")
   (define-char-code-property 'canonical-combining-class "uni-combining.el")
-  (let ((char 0) ccc decomposition)
+  (let (ccc decomposition)
     (mapc
      (lambda (start-end)
        (cl-do ((char (car start-end) (+ char 1))) ((> char (cdr start-end)))
@@ -441,7 +441,7 @@ decomposition."
     (concat (quick-check-list-to-regexp quick-check-list) "\\|[가-힣]"))
 
   (defun quick-check-composition-list-to-regexp (quick-check-list)
-    (concat (quick-check-list-to-regexp quick-check-list) "\\|[ᅡ-ᅵᆨ-ᇂ]"))
+    (quick-check-list-to-regexp quick-check-list))
 )
 
 
@@ -612,14 +612,16 @@ COMPOSITION-PREDICATE will be used to compose region."
 (defun ucs-normalize-hfs-nfd-post-read-conversion (len)
   (save-excursion
     (save-restriction
-      (narrow-to-region (point) (+ (point) len))
-      (ucs-normalize-HFS-NFC-region (point-min) (point-max))
-      (- (point-max) (point-min)))))
+      (save-match-data
+        (narrow-to-region (point) (+ (point) len))
+        (ucs-normalize-HFS-NFC-region (point-min) (point-max))
+        (- (point-max) (point-min))))))
 
 ;; Pre-write conversion for `utf-8-hfs'.
 ;; _from and _to are legacy arguments (see `define-coding-system').
 (defun ucs-normalize-hfs-nfd-pre-write-conversion (_from _to)
-  (ucs-normalize-HFS-NFD-region (point-min) (point-max)))
+  (save-match-data
+    (ucs-normalize-HFS-NFD-region (point-min) (point-max))))
 
 ;;; coding-system definition
 (define-coding-system 'utf-8-hfs

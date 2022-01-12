@@ -227,7 +227,7 @@ supports it in developing GNU and promoting software freedom.''
 @c learn Emacs Lisp starting with the Emacs Lisp Reference Manual.
 @c
 @c        Richard Stallman <rms@gnu.org>,
-@c        https://lists.gnu.org/archive/html/emacs-devel/2018-05/msg00374.html
+@c        https://lists.gnu.org/r/emacs-devel/2018-05/msg00374.html
 
 @shortcontents
 @contents
@@ -238,7 +238,7 @@ supports it in developing GNU and promoting software freedom.''
 
 @ifset WWW_GNU_ORG
 @html
-<p>The homepage for GNU Emacs is at
+<p>The GNU Emacs website is at
 <a href="/software/emacs/">https://www.gnu.org/software/emacs/</a>.<br>
 To view this manual in other formats, click
 <a href="/software/emacs/manual/eintr.html">here</a>.
@@ -929,7 +929,7 @@ GNU Emacs Lisp is largely inspired by Maclisp, which was written at MIT
 in the 1960s.  It is somewhat inspired by Common Lisp, which became a
 standard in the 1980s.  However, Emacs Lisp is much simpler than Common
 Lisp.  (The standard Emacs distribution contains an optional extensions
-file, @file{cl.el}, that adds many Common Lisp features to Emacs Lisp.)
+file, @file{cl-lib.el}, that adds many Common Lisp features to Emacs Lisp.)
 
 @node Note for Novices
 @unnumberedsec A Note for Novices
@@ -1162,6 +1162,10 @@ computer.  Often, people use the term @dfn{expression}
 indiscriminately.  (Also, in many texts, the word @dfn{form} is used
 as a synonym for expression.)
 
+@c This and the next paragraph say ``kinds of atom'', but that is not
+@c a typo, just slightly ``old-fashioned wording which adds a fillip
+@c of interest to it'', and ``is more elegant writing'', according to
+@c RMS.
 Incidentally, the atoms that make up our universe were named such when
 they were thought to be indivisible; but it has been found that physical
 atoms are not indivisible.  Parts can split off an atom or it can
@@ -1363,19 +1367,6 @@ C-e}:
 @smallexample
 (this is an unquoted list)
 @end smallexample
-
-@ignore
-@noindent
-What you see depends on which version of Emacs you are running.  GNU
-Emacs version 22 provides more information than version 20 and before.
-First, the more recent result of generating an error; then the
-earlier, version 20 result.
-
-@need 1250
-@noindent
-In GNU Emacs version 22, a @file{*Backtrace*} window will open up and
-you will see the following in it:
-@end ignore
 
 A @file{*Backtrace*} window will open up and you should see the
 following in it:
@@ -1838,19 +1829,6 @@ Debugger entered--Lisp error: (void-function fill-column)
 (Remember, to quit the debugger and make the debugger window go away,
 type @kbd{q} in the @file{*Backtrace*} buffer.)
 
-@ignore
-@need 800
-In GNU Emacs 20 and before, you will produce an error message that says:
-
-@smallexample
-Symbol's function definition is void:@: fill-column
-@end smallexample
-
-@noindent
-(The message will go away as soon as you move the cursor or type
-another key.)
-@end ignore
-
 @node Void Variable
 @subsection Error Message for a Symbol Without a Value
 @cindex Symbol without value error
@@ -1906,18 +1884,6 @@ evaluated the preceding s-expression, which in this case was
 Since @code{+} does not have a value bound to it, just the function
 definition, the error message reported that the symbol's value as a
 variable was void.
-
-@ignore
-@need 800
-In GNU Emacs version 20 and before, your error message will say:
-
-@example
-Symbol's value as variable is void:@: +
-@end example
-
-@noindent
-The meaning is the same as in GNU Emacs 22.
-@end ignore
 
 @node Arguments
 @section Arguments
@@ -2180,9 +2146,10 @@ number---the number of characters the location is from the beginning
 of the buffer.)  In Emacs Lisp, @code{+} can be used to add the
 numeric value of marker positions as numbers.
 
+@cindex @samp{predicate} defined
 The @samp{p} of @code{number-or-marker-p} is the embodiment of a
 practice started in the early days of Lisp programming.  The @samp{p}
-stands for ``predicate''.  In the jargon used by the early Lisp
+stands for @dfn{predicate}.  In the jargon used by the early Lisp
 researchers, a predicate refers to a function to determine whether some
 property is true or false.  So the @samp{p} tells us that
 @code{number-or-marker-p} is the name of a function that determines
@@ -2196,19 +2163,6 @@ This is the value of the argument that was passed to @code{+}.  If the
 addition had been passed the correct type of object, the value passed
 would have been a number, such as 37, rather than a symbol like
 @code{hello}.  But then you would not have got the error message.
-
-@ignore
-@need 1250
-In GNU Emacs version 20 and before, the echo area displays an error
-message that says:
-
-@smallexample
-Wrong type argument:@: number-or-marker-p, hello
-@end smallexample
-
-This says, in different words, the same as the top line of the
-@file{*Backtrace*} buffer.
-@end ignore
 
 @node message
 @subsection The @code{message} Function
@@ -4252,7 +4206,7 @@ times.
 
 The part of the buffer between point and mark is called @dfn{the
 region}.  Numerous commands work on the region, including
-@code{center-region}, @code{count-lines-region}, @code{kill-region}, and
+@code{center-region}, @code{count-words-region}, @code{kill-region}, and
 @code{print-region}.
 
 The @code{save-excursion} special form saves the location of point and
@@ -4265,7 +4219,7 @@ evaluated.
 
 In Emacs, a function frequently moves point as part of its internal
 workings even though a user would not expect this.  For example,
-@code{count-lines-region} moves point.  To prevent the user from being
+@code{count-words-region} moves point.  To prevent the user from being
 bothered by jumps that are both unexpected and (from the user's point of
 view) unnecessary, @code{save-excursion} is often used to keep point in
 the location expected by the user.  The use of
@@ -5848,7 +5802,7 @@ written like this:
 @subsection The @code{let} Expression in @code{insert-buffer}
 
 After ensuring that the variable @code{buffer} refers to a buffer itself
-and not just to the name of a buffer, the @code{insert-buffer function}
+and not just to the name of a buffer, the @code{insert-buffer} function
 continues with a @code{let} expression.  This specifies three local
 variables, @code{start}, @code{end}, and @code{newmark} and binds them
 to the initial value @code{nil}.  These variables are used inside the
@@ -6663,9 +6617,9 @@ original text of the function:
 @end group
 @end smallexample
 
-(In recent versions of GNU Emacs, the @code{what-line} function has
+(In modern versions of GNU Emacs, the @code{what-line} function has
 been expanded to tell you your line number in a narrowed buffer as
-well as your line number in a widened buffer.  The recent version is
+well as your line number in a widened buffer.  The modern version is
 more complex than the version shown here.  If you feel adventurous,
 you might want to look at it after figuring out how this version
 works.  You will probably need to use @kbd{C-h f}
@@ -10392,9 +10346,8 @@ echo area: @code{^Jgazelle^J^Jgiraffe^J^Jlion^J^Jtiger^Jnil}, in which
 each @samp{^J} stands for a newline.)
 
 @need 1500
-In a recent instance of GNU Emacs, you can evaluate these expressions
-directly in the Info buffer, and the echo area will grow to show the
-results.
+You can evaluate these expressions directly in the Info buffer, and
+the echo area will grow to show the results.
 
 @smallexample
 @group
@@ -13525,10 +13478,9 @@ The template for an interactive function definition is, as always:
 
 What we need to do is fill in the slots.
 
-The name of the function should be self-explanatory and similar to the
-existing @code{count-lines-region} name.  This makes the name easier
+The name of the function should be self-explanatory and easy
 to remember.  @code{count-words-region} is the obvious choice.  Since
-that name is now used for the standard Emacs command to count words, we
+that name is used for the standard Emacs command to count words, we
 will name our implementation @code{@value{COUNT-WORDS}}.
 
 The function counts words within a region.  This means that the
@@ -14702,7 +14654,9 @@ Let's re-use @kbd{C-c =} as a convenient keybinding:
 
 Now we can try out @code{count-words-defun}: install both
 @code{count-words-in-defun} and @code{count-words-defun}, and set the
-keybinding, and then place the cursor within the following definition:
+keybinding.  Then copy the following to an Emacs Lisp buffer (like,
+for instance, @file{*scratch*}), place the cursor within the
+definition, and use the @kbd{C-c =} command.
 
 @smallexample
 @group
@@ -17507,9 +17461,9 @@ Manual}, for more information.
 @findex line-to-top-of-window
 @cindex Simple extension in @file{.emacs} file
 
-Here is a simple extension to Emacs that moves the line point is on to
-the top of the window.  I use this all the time, to make text easier
-to read.
+Here is a simple extension to Emacs that moves the line that point is
+on to the top of the window.  I use this all the time, to make text
+easier to read.
 
 You can put the following code into a separate file and then load it
 from your @file{.emacs} file, or you can include it within your
@@ -17523,7 +17477,7 @@ Here is the definition:
 ;;; Line to top of window;
 ;;; replace three keystroke sequence  C-u 0 C-l
 (defun line-to-top-of-window ()
-  "Move the line point is on to top of window."
+  "Move the line that point is on to top of window."
   (interactive)
   (recenter 0))
 @end group
@@ -17532,10 +17486,9 @@ Here is the definition:
 @need 1250
 Now for the keybinding.
 
-Nowadays, function keys as well as mouse button events and
-non-@sc{ascii} characters are written within square brackets, without
-quotation marks.  (In Emacs version 18 and before, you had to write
-different function key bindings for each different make of terminal.)
+Function keys as well as mouse button events and non-@sc{ascii}
+characters are written within square brackets, without quotation
+marks.
 
 I bind @code{line-to-top-of-window} to my @key{F6} function key like
 this:
@@ -17550,18 +17503,18 @@ Your Init File, emacs, The GNU Emacs Manual}.
 @cindex Conditional 'twixt two versions of Emacs
 @cindex Version of Emacs, choosing
 @cindex Emacs version, choosing
-If you run two versions of GNU Emacs, such as versions 22 and 23, and
+If you run two versions of GNU Emacs, such as versions 27 and 28, and
 use one @file{.emacs} file, you can select which code to evaluate with
 the following conditional:
 
 @smallexample
 @group
 (cond
- ((= 22 emacs-major-version)
-  ;; evaluate version 22 code
+ ((= 27 emacs-major-version)
+  ;; evaluate version 27 code
   ( @dots{} ))
- ((= 23 emacs-major-version)
-  ;; evaluate version 23 code
+ ((= 28 emacs-major-version)
+  ;; evaluate version 28 code
   ( @dots{} )))
 @end group
 @end smallexample
@@ -17891,7 +17844,7 @@ xmodmap -e "keysym Alt_L = Meta_L Alt_L"
 Finally, a feature I really like: a modified mode line.
 
 When I work over a network, I forget which machine I am using.  Also,
-I tend to I lose track of where I am, and which line point is on.
+I tend to lose track of where I am, and which line point is on.
 
 So I reset my mode line to look like this:
 
@@ -18105,8 +18058,7 @@ argument of 4:
 @end smallexample
 
 @noindent
-In a recent GNU Emacs, you will create and enter a @file{*Backtrace*}
-buffer that says:
+This will create and enter a @file{*Backtrace*} buffer that says:
 
 @noindent
 @smallexample
@@ -18140,25 +18092,12 @@ In practice, for a bug as simple as this, the Lisp error line will
 tell you what you need to know to correct the definition.  The
 function @code{1=} is void.
 
-@ignore
-@need 800
-In GNU Emacs 20 and before, you will see:
-
-@smallexample
-Symbol's function definition is void:@: 1=
-@end smallexample
-
-@noindent
-which has the same meaning as the @file{*Backtrace*} buffer line in
-version 21.
-@end ignore
-
 However, suppose you are not quite certain what is going on?
 You can read the complete backtrace.
 
-In this case, you need to run a recent GNU Emacs, which automatically
-starts the debugger that puts you in the @file{*Backtrace*} buffer; or
-else, you need to start the debugger manually as described below.
+Emacs automatically starts the debugger that puts you in the
+@file{*Backtrace*} buffer.  You can also start the debugger manually
+as described below.
 
 Read the @file{*Backtrace*} buffer from the bottom up; it tells you
 what Emacs did that led to the error.  Emacs made an interactive call
@@ -18198,14 +18137,8 @@ then run your test again.
 @section @code{debug-on-entry}
 @findex debug-on-entry
 
-A recent GNU Emacs starts the debugger automatically when your
-function has an error.
-
-@ignore
-GNU Emacs version 20 and before did not; it simply
-presented you with an error message.  You had to start the debugger
-manually.
-@end ignore
+Emacs starts the debugger automatically when your function has an
+error.
 
 Incidentally, you can start the debugger manually for all versions of
 Emacs; the advantage is that the debugger runs even if you do not have
@@ -20080,8 +20013,8 @@ the tic marks themselves and their spacing:
 @code{defvar}.  The @code{boundp} predicate checks whether it has
 already been set; @code{boundp} returns @code{nil} if it has not.  If
 @code{graph-blank} were unbound and we did not use this conditional
-construction, in a recent GNU Emacs, we would enter the debugger and
-see an error message saying @samp{@w{Debugger entered--Lisp error:}
+construction, we would enter the debugger and see an error message
+saying @samp{@w{Debugger entered--Lisp error:}
 @w{(void-variable graph-blank)}}.)
 
 @need 1200

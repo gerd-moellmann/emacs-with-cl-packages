@@ -1,4 +1,4 @@
-;;; erc-dcc.el --- CTCP DCC module for ERC
+;;; erc-dcc.el --- CTCP DCC module for ERC  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1993-1995, 1998, 2002-2004, 2006-2021 Free Software
 ;; Foundation, Inc.
@@ -7,7 +7,7 @@
 ;;         Noah Friedman <friedman@prep.ai.mit.edu>
 ;;         Per Persson <pp@sno.pp.se>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>
-;; Keywords: comm, processes
+;; Keywords: comm
 ;; Created: 1994-01-23
 
 ;; This file is part of GNU Emacs.
@@ -55,12 +55,6 @@
 ;; Require at run-time too to silence compiler.
 (require 'pcomplete)
 
-;;;###autoload(autoload 'erc-dcc-mode "erc-dcc")
-(define-erc-module dcc nil
-  "Provide Direct Client-to-Client support for ERC."
-  ((add-hook 'erc-server-401-functions 'erc-dcc-no-such-nick))
-  ((remove-hook 'erc-server-401-functions 'erc-dcc-no-such-nick)))
-
 (defgroup erc-dcc nil
   "DCC stands for Direct Client Communication, where you and your
 friend's client programs connect directly to each other,
@@ -71,9 +65,14 @@ Using DCC get and send, you can transfer files directly from and to other
 IRC users."
   :group 'erc)
 
+;;;###autoload(autoload 'erc-dcc-mode "erc-dcc")
+(define-erc-module dcc nil
+  "Provide Direct Client-to-Client support for ERC."
+  ((add-hook 'erc-server-401-functions #'erc-dcc-no-such-nick))
+  ((remove-hook 'erc-server-401-functions #'erc-dcc-no-such-nick)))
+
 (defcustom erc-dcc-verbose nil
   "If non-nil, be verbose about DCC activity reporting."
-  :group 'erc-dcc
   :type 'boolean)
 
 (defconst erc-dcc-connection-types
@@ -82,8 +81,10 @@ IRC users."
 All values of the list must be uppercase strings.")
 
 (defvar erc-dcc-list nil
-  "List of DCC connections. Looks like:
-  ((:nick \"nick!user@host\" :type GET :peer proc :parent proc :size size :file file)
+  "List of DCC connections.
+Looks like:
+  ((:nick \"nick!user@host\" :type GET :peer proc
+    :parent proc :size size :file file)
    (:nick \"nick!user@host\" :type CHAT :peer proc :parent proc)
    (:nick \"nick\" :type SEND :peer server-proc :parent parent-proc :file
    file :sent <marker> :confirmed <marker>))
@@ -119,7 +120,8 @@ All values of the list must be uppercase strings.")
 ;; more: the entry data from erc-dcc-list for this particular process.
 (defvar erc-dcc-connect-function 'erc-dcc-open-network-stream)
 
-(defun erc-dcc-open-network-stream (procname buffer addr port entry)
+(defun erc-dcc-open-network-stream (procname buffer addr port _entry)
+  ;; FIXME: Time to try activating this again!?
   (if nil;  (fboundp 'open-network-stream-nowait)  ;; this currently crashes
                                                    ;; cvs emacs
       (open-network-stream-nowait procname buffer addr port)
@@ -162,8 +164,8 @@ All values of the list must be uppercase strings.")
 ;;; Misc macros and utility functions
 
 (defun erc-dcc-member (&rest args)
-  "Return the first matching entry in `erc-dcc-list' which satisfies the
-constraints given as a plist in ARGS.  Returns nil on no match.
+  "Return first matching entry in `erc-dcc-list' satisfying constraints in ARGS.
+ARGS is a plist.  Return nil on no match.
 
 The property :nick is treated specially, if it contains a `!' character,
 it is treated as a nick!user@host string, and compared with the :nick property
@@ -186,7 +188,9 @@ compared with `erc-nick-equal-p' which is IRC case-insensitive."
                             (plist-get elt prop)))
             ;; if the property exists and is equal, we continue, else, try the
             ;; next element of the list
-            (or (and (eq prop :nick) (string-match "!" val)
+            (or (and (eq prop :nick) (if (>= emacs-major-version 28)
+                                         (string-search "!" val)
+                                       (string-match "!" val))
                      test (string-equal test val))
                 (and (eq prop :nick)
                      test val
@@ -202,8 +206,7 @@ compared with `erc-nick-equal-p' which is IRC case-insensitive."
     result))
 
 (defun erc-pack-int (value)
-  "Convert an integer into a packed string in network byte order,
-which is big-endian."
+  "Convert integer into a packed string in network byte order, which is big-endian."
   ;; make sure value is not negative
   (when (< value 0)
     (error "ERC-DCC (erc-pack-int): packet size is negative"))
@@ -285,7 +288,6 @@ The result is also a string."
   "IP address to listen on when offering files.
 Should be set to a string or nil.  If nil, automatic detection of
 the host interface to use will be attempted."
-  :group 'erc-dcc
   :type (list 'choice (list 'const :tag "Auto-detect" nil)
               (list 'string :tag "IP-address"
                     :valid-regexp erc-dcc-ipv4-regexp)))
@@ -294,7 +296,6 @@ the host interface to use will be attempted."
   "IP address to use for outgoing DCC offers.
 Should be set to a string or nil.  If nil, use the value of
 `erc-dcc-listen-host'."
-  :group 'erc-dcc
   :type (list 'choice (list 'const :tag "Same as erc-dcc-listen-host" nil)
               (list 'string :tag "IP-address"
                     :valid-regexp erc-dcc-ipv4-regexp)))
@@ -305,7 +306,6 @@ Should be set to a string or nil.  If nil, use the value of
         You might want to set `erc-dcc-auto-masks' for this.
 `auto' - Automatically accept the request and begin downloading the file
 `ignore' - Ignore incoming DCC Send requests completely."
-  :group 'erc-dcc
   :type '(choice (const ask) (const auto) (const ignore)))
 
 (defun erc-dcc-get-host (proc)
@@ -322,7 +322,6 @@ If variable `erc-dcc-host' is non-nil, use it.  Otherwise call
 (defcustom erc-dcc-port-range nil
   "If nil, any available user port is used for outgoing DCC connections.
 If set to a cons, it specifies a range of ports to use in the form (min . max)"
-  :group 'erc-dcc
   :type '(choice
           (const :tag "Any port" nil)
           (cons :tag "Port range"
@@ -334,7 +333,6 @@ If set to a cons, it specifies a range of ports to use in the form (min . max)"
 accepted automatically.  A user identifier has the form \"nick!login@host\".
 For instance, to accept all incoming DCC send offers automatically, add the
 string \".*!.*@.*\" to this list."
-  :group 'erc-dcc
   :type '(repeat regexp))
 
 (defun erc-dcc-server (name filter sentinel)
@@ -390,7 +388,6 @@ the accepted connection."
 (defcustom erc-dcc-get-default-directory nil
   "Default directory for incoming DCC file transfers.
 If this is nil, then the current value of `default-directory' is used."
-  :group 'erc-dcc
   :type '(choice (const nil :tag "Default directory") directory))
 
 ;;;###autoload
@@ -419,34 +416,34 @@ where FOO is one of CLOSE, GET, SEND, LIST, CHAT, etc."
   (pcomplete-here
    (pcase (intern (downcase (pcomplete-arg 1)))
      ('chat (mapcar (lambda (elt) (plist-get elt :nick))
-                    (erc-remove-if-not
-                     #'(lambda (elt)
-                         (eq (plist-get elt :type) 'CHAT))
+                    (cl-remove-if-not
+                     (lambda (elt)
+                       (eq (plist-get elt :type) 'CHAT))
                      erc-dcc-list)))
-     ('close (erc-delete-dups
+     ('close (delete-dups
               (mapcar (lambda (elt) (symbol-name (plist-get elt :type)))
                       erc-dcc-list)))
      ('get (mapcar #'erc-dcc-nick
-                   (erc-remove-if-not
-                    #'(lambda (elt)
-                        (eq (plist-get elt :type) 'GET))
+                   (cl-remove-if-not
+                    (lambda (elt)
+                      (eq (plist-get elt :type) 'GET))
                     erc-dcc-list)))
      ('send (pcomplete-erc-all-nicks))))
   (pcomplete-here
    (pcase (intern (downcase (pcomplete-arg 2)))
      ('get (mapcar (lambda (elt) (plist-get elt :file))
-                   (erc-remove-if-not
-                    #'(lambda (elt)
-                        (and (eq (plist-get elt :type) 'GET)
-                             (erc-nick-equal-p (erc-extract-nick
-                                                (plist-get elt :nick))
-                                               (pcomplete-arg 1))))
+                   (cl-remove-if-not
+                    (lambda (elt)
+                      (and (eq (plist-get elt :type) 'GET)
+                           (erc-nick-equal-p (erc-extract-nick
+                                              (plist-get elt :nick))
+                                             (pcomplete-arg 1))))
                     erc-dcc-list)))
      ('close (mapcar #'erc-dcc-nick
-                     (erc-remove-if-not
-                      #'(lambda (elt)
-                          (eq (plist-get elt :type)
-                              (intern (upcase (pcomplete-arg 1)))))
+                     (cl-remove-if-not
+                      (lambda (elt)
+                        (eq (plist-get elt :type)
+                            (intern (upcase (pcomplete-arg 1)))))
                       erc-dcc-list)))
      ('send (pcomplete-entries)))))
 
@@ -467,7 +464,7 @@ where FOO is one of CLOSE, GET, SEND, LIST, CHAT, etc."
          'dcc-chat-offer ?n nick)
         t))))
 
-(defun erc-dcc-do-CLOSE-command (proc &optional type nick)
+(defun erc-dcc-do-CLOSE-command (_proc &optional type nick)
   "Close a connection.  Usage: /dcc close type nick.
 At least one of TYPE and NICK must be provided."
   ;; disambiguate type and nick if only one is provided
@@ -516,8 +513,8 @@ PROC is the server process."
          (filename (or file (plist-get elt :file) "unknown")))
     (if elt
         (let* ((file (read-file-name
-                      (format "Local filename (default %s): "
-                              (file-name-nondirectory filename))
+                      (format-prompt "Local filename"
+                                     (file-name-nondirectory filename))
                       (or erc-dcc-get-default-directory
                           default-directory)
                       (expand-file-name (file-name-nondirectory filename)
@@ -537,10 +534,9 @@ PROC is the server process."
        nil '(notice error) 'active
        'dcc-get-notfound ?n nick ?f filename))))
 
-(defvar erc-dcc-byte-count nil)
-(make-variable-buffer-local 'erc-dcc-byte-count)
+(defvar-local erc-dcc-byte-count nil)
 
-(defun erc-dcc-do-LIST-command (proc)
+(defun erc-dcc-do-LIST-command (_proc)
   "This is the handler for the /dcc list command.
 It lists the current state of `erc-dcc-list' in an easy to read manner."
   (let ((alist erc-dcc-list)
@@ -627,17 +623,22 @@ that subcommand."
        ?q query ?n nick ?u login ?h host))))
 
 (defconst erc-dcc-ctcp-query-send-regexp
-  (concat "^DCC SEND \\("
+  (concat "^DCC SEND \\(?:"
           ;; Following part matches either filename without spaces
           ;; or filename enclosed in double quotes with any number
           ;; of escaped double quotes inside.
-          "\"\\(\\(.*?\\(\\\\\"\\)?\\)+?\\)\"\\|\\([^ ]+\\)"
+          "\"\\(\\(?:\\\\\"\\|[^\"\\]\\)+\\)\"\\|\\([^ ]+\\)"
           "\\) \\([0-9]+\\) \\([0-9]+\\) *\\([0-9]*\\)"))
 
 (define-inline erc-dcc-unquote-filename (filename)
   (inline-quote
-   (erc-replace-regexp-in-string "\\\\\\\\" "\\"
-                                 (erc-replace-regexp-in-string "\\\\\"" "\"" ,filename t t) t t)))
+   (if (>= emacs-major-version 28)
+       (string-replace
+        "\\\\" "\\"
+        (string-replace "\\\"" "\"" ,filename))
+     (replace-regexp-in-string
+      "\\\\\\\\" "\\"
+      (replace-regexp-in-string "\\\\\"" "\"" ,filename t t) t t))))
 
 (defun erc-dcc-handle-ctcp-send (proc query nick login host to)
   "This is called if a CTCP DCC SEND subcommand is sent to the client.
@@ -653,11 +654,11 @@ It extracts the information about the dcc request and adds it to
        ?r "SEND" ?n nick ?u login ?h host))
      ((string-match erc-dcc-ctcp-query-send-regexp query)
       (let ((filename
-             (or (match-string 5 query)
-                 (erc-dcc-unquote-filename (match-string 2 query))))
-            (ip       (erc-decimal-to-ip (match-string 6 query)))
-            (port     (match-string 7 query))
-            (size     (match-string 8 query)))
+             (or (match-string 2 query)
+                 (erc-dcc-unquote-filename (match-string 1 query))))
+            (ip       (erc-decimal-to-ip (match-string 3 query)))
+            (port     (match-string 4 query))
+            (size     (match-string 5 query)))
         ;; FIXME: a warning really should also be sent
         ;; if the ip address != the host the dcc sender is on.
         (erc-display-message
@@ -703,7 +704,6 @@ the matching regexp, or nil if none found."
 `ask' - Report the Chat request, and wait for the user to manually accept it
 `auto' - Automatically accept the request and open a new chat window
 `ignore' - Ignore incoming DCC chat requests completely."
-  :group 'erc-dcc
   :type '(choice (const ask) (const auto) (const ignore)))
 
 (defun erc-dcc-handle-ctcp-chat (proc query nick login host to)
@@ -750,21 +750,17 @@ the matching regexp, or nil if none found."
        'dcc-malformed ?n nick ?u login ?h host ?q query)))))
 
 
-(defvar erc-dcc-entry-data nil
+(defvar-local erc-dcc-entry-data nil
   "Holds the `erc-dcc-list' entry for this DCC connection.")
-(make-variable-buffer-local 'erc-dcc-entry-data)
 
 ;;; SEND handling
 
 (defcustom erc-dcc-block-size 1024
   "Block size to use for DCC SEND sessions."
-  :group 'erc-dcc
   :type 'integer)
 
 (defcustom erc-dcc-pump-bytes nil
-  "If set to an integer, keep sending until that number of bytes are
-unconfirmed."
-  :group 'erc-dcc
+  "If an integer, keep sending until that number of bytes are unconfirmed."
   :type '(choice (const nil) integer))
 
 (define-inline erc-dcc-get-parent (proc)
@@ -836,9 +832,7 @@ bytes sent."
 
 (defcustom erc-dcc-send-connect-hook
   '(erc-dcc-display-send erc-dcc-send-block)
-  "Hook run whenever the remote end of a DCC SEND offer connected to your
-listening port."
-  :group 'erc-dcc
+  "Hook run when remote end of a DCC SEND offer connected to your listening port."
   :type 'hook)
 
 (defun erc-dcc-nick (plist)
@@ -869,7 +863,7 @@ listening port."
     (buffer-string)))
 
 (defun erc-dcc-send-file (nick file &optional pproc)
-  "Open a socket for incoming connections, and send a CTCP send request to the
+  "Open socket for incoming connections and send a CTCP send request to the
 other client."
   (interactive "sNick: \nfFile: ")
   (when (null pproc) (if (processp erc-server-process)
@@ -901,11 +895,9 @@ other client."
 
 (defcustom erc-dcc-receive-cache (* 1024 512)
   "Number of bytes to let the receive buffer grow before flushing it."
-  :group 'erc-dcc
   :type 'integer)
 
-(defvar erc-dcc-file-name nil)
-(make-variable-buffer-local 'erc-dcc-file-name)
+(defvar-local erc-dcc-file-name nil)
 
 (defun erc-dcc-get-file (entry file parent-proc)
   "Set up a transfer from the remote client to the local over a TCP connection.
@@ -944,12 +936,12 @@ and making the connection."
       (set-process-coding-system proc 'binary 'binary)
       (set-buffer-file-coding-system 'binary t)
 
-      (set-process-filter proc 'erc-dcc-get-filter)
-      (set-process-sentinel proc 'erc-dcc-get-sentinel)
+      (set-process-filter proc #'erc-dcc-get-filter)
+      (set-process-sentinel proc #'erc-dcc-get-sentinel)
       (setq entry (plist-put entry :start-time (erc-current-time)))
       (setq entry (plist-put entry :peer proc)))))
 
-(defun erc-dcc-append-contents (buffer file)
+(defun erc-dcc-append-contents (buffer _file)
   "Append the contents of BUFFER to FILE.
 The contents of the BUFFER will then be erased."
   (with-current-buffer buffer
@@ -1002,7 +994,7 @@ rather than every 1024 byte block, but nobody seems to care."
          proc (erc-pack-int received-bytes)))))))
 
 
-(defun erc-dcc-get-sentinel (proc event)
+(defun erc-dcc-get-sentinel (proc _event)
   "This is the process sentinel for CTCP DCC SEND connections.
 It shuts down the connection and notifies the user that the
 transfer is complete."
@@ -1027,25 +1019,21 @@ transfer is complete."
 
 (defcustom erc-dcc-chat-buffer-name-format "DCC-CHAT-%s"
   "Format to use for DCC Chat buffer names."
-  :group 'erc-dcc
   :type 'string)
 
 (defcustom erc-dcc-chat-mode-hook nil
   "Hook calls when `erc-dcc-chat-mode' finished setting up the buffer."
-  :group 'erc-dcc
   :type 'hook)
 
 (defcustom erc-dcc-chat-connect-hook nil
-  ""
-  :group 'erc-dcc
+  "" ; FIXME
   :type 'hook)
 
 (defcustom erc-dcc-chat-exit-hook nil
-  ""
-  :group 'erc-dcc
+  "" ; FIXME
   :type 'hook)
 
-(defun erc-cmd-CREQ (line &optional force)
+(defun erc-cmd-CREQ (line &optional _force)
   "Set or get the DCC chat request flag.
 Possible values are: ask, auto, ignore."
   (when (string-match "^\\s-*\\(auto\\|ask\\|ignore\\)?$" line)
@@ -1060,7 +1048,7 @@ Possible values are: ask, auto, ignore."
                                      erc-dcc-chat-request)))
       t)))
 
-(defun erc-cmd-SREQ (line &optional force)
+(defun erc-cmd-SREQ (line &optional _force)
   "Set or get the DCC send request flag.
 Possible values are: ask, auto, ignore."
   (when (string-match "^\\s-*\\(auto\\|ask\\|ignore\\)?$" line)
@@ -1077,7 +1065,7 @@ Possible values are: ask, auto, ignore."
 
 (defun pcomplete/erc-mode/CREQ ()
   (pcomplete-here '("auto" "ask" "ignore")))
-(defalias 'pcomplete/erc-mode/SREQ 'pcomplete/erc-mode/CREQ)
+(defalias 'pcomplete/erc-mode/SREQ #'pcomplete/erc-mode/CREQ)
 
 (define-obsolete-variable-alias 'erc-dcc-chat-filter-hook
   'erc-dcc-chat-filter-functions "24.3")
@@ -1089,19 +1077,19 @@ the unprocessed output.")
 
 (defvar erc-dcc-chat-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "RET") 'erc-send-current-line)
-    (define-key map "\t" 'completion-at-point)
+    (define-key map (kbd "RET") #'erc-send-current-line)
+    (define-key map "\t" #'completion-at-point)
     map)
   "Keymap for `erc-dcc-mode'.")
 
 (define-derived-mode erc-dcc-chat-mode fundamental-mode "DCC-Chat"
   "Major mode for wasting time via DCC chat."
   (setq mode-line-process '(":%s")
-        erc-send-input-line-function 'erc-dcc-chat-send-input-line
+        erc-send-input-line-function #'erc-dcc-chat-send-input-line
         erc-default-recipients '(dcc))
-  (add-hook 'completion-at-point-functions 'erc-complete-word-at-point nil t))
+  (add-hook 'completion-at-point-functions #'erc-complete-word-at-point nil t))
 
-(defun erc-dcc-chat-send-input-line (recipient line &optional force)
+(defun erc-dcc-chat-send-input-line (recipient line &optional _force)
   "Send LINE to the remote end.
 Argument RECIPIENT should always be the symbol dcc, and force
 is ignored."
@@ -1152,14 +1140,14 @@ other client."
     (setq erc-input-marker (make-marker))
     (erc-display-prompt buffer (point-max))
     (set-process-buffer proc buffer)
-    (add-hook 'kill-buffer-hook 'erc-dcc-chat-buffer-killed nil t)
+    (add-hook 'kill-buffer-hook #'erc-dcc-chat-buffer-killed nil t)
     (run-hook-with-args 'erc-dcc-chat-connect-hook proc)
     buffer))
 
 (defun erc-dcc-chat-accept (entry parent-proc)
   "Accept an incoming DCC connection and open a DCC window."
-  (let* ((nick (erc-extract-nick (plist-get entry :nick)))
-         buffer proc)
+  (let* (;; (nick (erc-extract-nick (plist-get entry :nick)))
+         proc) ;; buffer
     (setq proc
           (funcall erc-dcc-connect-function
                    "dcc-chat" nil
@@ -1169,9 +1157,10 @@ other client."
     ;; XXX: connected, should we kill the ip/port properties?
     (setq entry (plist-put entry :peer proc))
     (setq entry (plist-put entry :parent parent-proc))
-    (set-process-filter proc 'erc-dcc-chat-filter)
-    (set-process-sentinel proc 'erc-dcc-chat-sentinel)
-    (setq buffer (erc-dcc-chat-setup entry))))
+    (set-process-filter proc #'erc-dcc-chat-filter)
+    (set-process-sentinel proc #'erc-dcc-chat-sentinel)
+    ;; (setq buffer
+    (erc-dcc-chat-setup entry))) ;; )
 
 (defun erc-dcc-chat-filter (proc str)
   (let ((orig-buffer (current-buffer)))
@@ -1193,8 +1182,8 @@ other client."
         (setq posn (match-end 0))
         (erc-display-message
          nil nil proc
-         'dcc-chat-privmsg ?n (erc-propertize erc-dcc-from 'font-lock-face
-                                              'erc-nick-default-face) ?m line))
+         'dcc-chat-privmsg ?n (propertize erc-dcc-from 'font-lock-face
+                                          'erc-nick-default-face) ?m line))
       (setq erc-dcc-unprocessed-output (substring str posn)))))
 
 (defun erc-dcc-chat-buffer-killed ()

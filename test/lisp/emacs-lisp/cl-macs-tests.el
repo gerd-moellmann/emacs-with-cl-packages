@@ -4,18 +4,18 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software: you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License as
-;; published by the Free Software Foundation, either version 3 of the
-;; License, or (at your option) any later version.
-;;
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
-;;
+;; GNU Emacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; GNU Emacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see `https://www.gnu.org/licenses/'.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -38,6 +38,15 @@
                           and c = (cl-third numlist)
                           collect (list c b a))
                  '((4.0 2 1) (8.3 6 5) (10.4 9 8)))))
+
+(ert-deftest cl-macs-loop-and-arrays ()
+  "Bug#40727"
+  (should (equal (cl-loop for y = (- (or x 0)) and x across [1 2]
+                          collect (cons x y))
+                 '((1 . 0) (2 . -1))))
+  (should (equal (cl-loop for x across [1 2] and y = (- (or x 0))
+                          collect (cons x y))
+                 '((1 . 0) (2 . -1)))))
 
 (ert-deftest cl-macs-loop-destructure ()
   (should (equal (cl-loop for (a b c) in '((1 2 4.0) (5 6 8.3) (8 9 10.4))
@@ -416,7 +425,9 @@ collection clause."
                  '(2 3 4 5 6))))
 
 (ert-deftest cl-macs-loop-across-ref ()
-  (should (equal (cl-loop with my-vec = ["one" "two" "three"]
+  (should (equal (cl-loop with my-vec = (vector (cl-copy-seq "one")
+                                                (cl-copy-seq "two")
+                                                (cl-copy-seq "three"))
                           for x across-ref my-vec
                           do (setf (aref x 0) (upcase (aref x 0)))
                           finally return my-vec)
@@ -498,7 +509,6 @@ collection clause."
 
 (ert-deftest cl-macs-loop-for-as-equals-and ()
   "Test for https://debbugs.gnu.org/29799 ."
-  :expected-result :failed
   (let ((arr (make-vector 3 0)))
     (should (equal '((0 0) (1 1) (2 2))
                    (cl-loop for k below 3 for x = k and z = (elt arr k)
@@ -532,7 +542,6 @@ collection clause."
 
 (ert-deftest cl-macs-loop-conditional-step-clauses ()
   "These tests failed under the initial fixes in #bug#29799."
-  :expected-result :failed
   (should (cl-loop for i from 1 upto 100 and j = 1 then (1+ j)
                    if (not (= i j))
                    return nil
@@ -591,5 +600,68 @@ collection clause."
                    and z = 1
                    collect y into result1
                    finally return  (equal (nreverse result) result1))))
+
+(ert-deftest cl-macs-aux-edebug ()
+  "Check that Bug#40431 is fixed."
+  (with-temp-buffer
+    (prin1 '(cl-defun cl-macs-aux-edebug-test-fun (&aux ((a . b) '(1 . 2)))
+              (list a b))
+           (current-buffer))
+    ;; Just make sure the function can be instrumented.
+    (edebug-defun)))
+
+;;; cl-labels
+
+(ert-deftest cl-macs--labels ()
+  ;; Simple recursive function.
+  (cl-labels ((len (xs) (if xs (1+ (len (cdr xs))) 0)))
+    (should (equal (len (make-list 42 t)) 42)))
+
+  (let ((list-42 (make-list 42 t))
+        (list-42k (make-list 42000 t)))
+
+    (cl-labels
+        ;; Simple tail-recursive function.
+        ((len (xs n) (if xs (len (cdr xs) (1+ n)) n))
+         ;; Slightly obfuscated version to exercise tail calls from
+         ;; `let', `progn', `and' and `or'.
+         (len2 (xs n) (or (and (not xs) n)
+                          (let (n1)
+                            (and xs
+                                 (progn (setq n1 (1+ n))
+                                        (len2 (cdr xs) n1))))))
+         ;; Tail calls in error and success handlers.
+         (len3 (xs n)
+               (if xs
+                   (condition-case k
+                       (/ 1 (logand n 1))
+                     (arith-error (len3 (cdr xs) (1+ n)))
+                     (:success (len3 (cdr xs) (+ n k))))
+                 n)))
+      (should (equal (len nil 0) 0))
+      (should (equal (len2 nil 0) 0))
+      (should (equal (len3 nil 0) 0))
+      (should (equal (len list-42 0) 42))
+      (should (equal (len2 list-42 0) 42))
+      (should (equal (len3 list-42 0) 42))
+      ;; Should not bump into stack depth limits.
+      (should (equal (len list-42k 0) 42000))
+      (should (equal (len2 list-42k 0) 42000))
+      (should (equal (len3 list-42k 0) 42000))))
+
+  ;; Check that non-recursive functions are handled more efficiently.
+  (should (pcase (macroexpand '(cl-labels ((f (x) (+ x 1))) (f 5)))
+            (`(let* ,_ (funcall ,_ 5)) t)))
+
+  ;; Case of "tail-recursive lambdas".
+  (should (pcase (macroexpand
+                  '(cl-labels ((len (xs n) (if xs (len (cdr xs) (1+ n)) n)))
+                     #'len))
+            (`(function (lambda (,_ ,_) . ,_)) t))))
+
+(ert-deftest cl-macs--progv ()
+  (should (= (cl-progv '(test test) '(1 2) test) 2))
+  (should (equal (cl-progv '(test1 test2) '(1 2) (list test1 test2))
+                 '(1 2))))
 
 ;;; cl-macs-tests.el ends here

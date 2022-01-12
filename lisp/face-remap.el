@@ -23,7 +23,6 @@
 
 ;;; Commentary:
 
-;;
 ;; This file defines some simple operations that can be used for
 ;; maintaining the `face-remapping-alist' in a cooperative way.  This is
 ;; especially important for the `default' face.
@@ -52,8 +51,6 @@
 ;; mode setting face remappings, e.g., of the default face.
 ;;
 ;; All modifications cause face-remapping-alist to be made buffer-local.
-;;
-
 
 ;;; Code:
 
@@ -217,17 +214,35 @@ Each positive or negative step scales the default face height by this amount."
   :type 'number
   :version "23.1")
 
-;; current remapping cookie for text-scale-mode
-(defvar text-scale-mode-remapping nil)
-(make-variable-buffer-local 'text-scale-mode-remapping)
+(defvar-local text-scale-mode-remapping nil
+  "Current remapping cookie for `text-scale-mode'.")
 
-;; Lighter displayed for text-scale-mode in mode-line minor-mode list
-(defvar text-scale-mode-lighter "+0")
-(make-variable-buffer-local 'text-scale-mode-lighter)
+(defvar-local text-scale-mode-lighter "+0"
+  "Lighter displayed for `text-scale-mode' in mode-line minor-mode list.")
 
-;; Number of steps that text-scale-mode will increase/decrease text height
-(defvar text-scale-mode-amount 0)
-(make-variable-buffer-local 'text-scale-mode-amount)
+(defvar-local text-scale-mode-amount 0
+  "Number of steps that `text-scale-mode' will increase/decrease text height.")
+
+(defvar-local text-scale-remap-header-line nil
+  "If non-nil, text scaling may change font size of header lines too.")
+
+(defun face-remap--clear-remappings ()
+  (dolist (remapping
+           ;; This is a bit messy to stay backwards compatible.
+           ;; In the future, this can be simplified to just use
+           ;; `text-scale-mode-remapping'.
+           (if (consp (car-safe text-scale-mode-remapping))
+               text-scale-mode-remapping
+             (list text-scale-mode-remapping)))
+    (face-remap-remove-relative remapping))
+  (setq text-scale-mode-remapping nil))
+
+(defun face-remap--remap-face (sym)
+  (push (face-remap-add-relative sym
+                       :height
+                       (expt text-scale-mode-step
+                             text-scale-mode-amount))
+        text-scale-mode-remapping))
 
 (define-minor-mode text-scale-mode
   "Minor mode for displaying buffer text in a larger/smaller font.
@@ -240,20 +255,31 @@ face size by the value of the variable `text-scale-mode-step'
 The `text-scale-increase', `text-scale-decrease', and
 `text-scale-set' functions may be used to interactively modify
 the variable `text-scale-mode-amount' (they also enable or
-disable `text-scale-mode' as necessary)."
+disable `text-scale-mode' as necessary).
+
+If `text-scale-remap-header-line' is non-nil, also change
+the font size of the header line."
   :lighter (" " text-scale-mode-lighter)
-  (when text-scale-mode-remapping
-    (face-remap-remove-relative text-scale-mode-remapping))
+  (face-remap--clear-remappings)
   (setq text-scale-mode-lighter
 	(format (if (>= text-scale-mode-amount 0) "+%d" "%d")
 		text-scale-mode-amount))
-  (setq text-scale-mode-remapping
-	(and text-scale-mode
-	     (face-remap-add-relative 'default
-					  :height
-					  (expt text-scale-mode-step
-						text-scale-mode-amount))))
+  (when text-scale-mode
+    (face-remap--remap-face 'default)
+    (when text-scale-remap-header-line
+      (face-remap--remap-face 'header-line)))
   (force-window-update (current-buffer)))
+
+(defun text-scale--refresh (symbol newval operation where)
+  "Watcher for `text-scale-remap-header-line'.
+See `add-variable-watcher'."
+  (when (and (eq symbol 'text-scale-remap-header-line)
+             (eq operation 'set)
+             text-scale-mode)
+    (with-current-buffer where
+      (let ((text-scale-remap-header-line newval))
+        (text-scale-mode 1)))))
+(add-variable-watcher 'text-scale-remap-header-line #'text-scale--refresh)
 
 (defun text-scale-min-amount ()
   "Return the minimum amount of text-scaling we allow."
@@ -323,7 +349,7 @@ See `text-scale-increase' for more details."
 INC may be passed as a numeric prefix argument.
 
 The actual adjustment made depends on the final component of the
-key-binding used to invoke the command, with all modifiers removed:
+keybinding used to invoke the command, with all modifiers removed:
 
    +, =   Increase the height of the default face by one step
    -      Decrease the height of the default face by one step
@@ -371,7 +397,7 @@ a top-level keymap, `text-scale-increase' or
 (defcustom buffer-face-mode-face 'variable-pitch
   "The face specification used by `buffer-face-mode'.
 It may contain any value suitable for a `face' text property,
-including a face name, a list of face names, a face-attribute
+including a face name, a list of face names, a face attribute
 plist, etc."
   :type '(choice (face)
 		 (repeat :tag "List of faces" face)
@@ -380,8 +406,7 @@ plist, etc."
   :version "23.1")
 
 ;; current remapping cookie for  buffer-face-mode
-(defvar buffer-face-mode-remapping nil)
-(make-variable-buffer-local 'buffer-face-mode-remapping)
+(defvar-local buffer-face-mode-remapping nil)
 
 ;;;###autoload
 (define-minor-mode buffer-face-mode
@@ -413,7 +438,7 @@ local, and sets it to FACE."
     (setq specs (car specs)))
   (if (null specs)
       (buffer-face-mode 0)
-    (set (make-local-variable 'buffer-face-mode-face) specs)
+    (setq-local buffer-face-mode-face specs)
     (buffer-face-mode t)))
 
 ;;;###autoload
@@ -437,7 +462,7 @@ buffer local, and set it to SPECS."
   (if (or (null specs)
 	  (and buffer-face-mode (equal buffer-face-mode-face specs)))
       (buffer-face-mode 0)
-    (set (make-local-variable 'buffer-face-mode-face) specs)
+    (setq-local buffer-face-mode-face specs)
     (buffer-face-mode t)))
 
 (defun buffer-face-mode-invoke (specs arg &optional interactive)

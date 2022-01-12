@@ -30,13 +30,15 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 
 /* To help make dependencies clearer elsewhere, this file typically
-   does not #include other files.  The exceptions are first stdbool.h
+   does not #include other files.  The exceptions are stdbool.h
    because it is unlikely to interfere with configuration and bool is
-   such a core part of the C language, and second ms-w32.h (DOS_NT
+   such a core part of the C language, attribute.h because its
+   ATTRIBUTE_* macros are used here, and ms-w32.h (DOS_NT
    only) because it historically was included here and changing that
    would take some work.  */
 
 #include <stdbool.h>
+#include <attribute.h>
 
 #if defined WINDOWSNT && !defined DEFER_MS_W32_H
 # include <ms-w32.h>
@@ -65,39 +67,60 @@ typedef unsigned int bool_bf;
 typedef bool bool_bf;
 #endif
 
-/* Simulate __has_attribute on compilers that lack it.  It is used only
-   on arguments like alloc_size that are handled in this simulation.
-   __has_attribute should be used only in #if expressions, as Oracle
+/* A substitute for __has_attribute on compilers that lack it.
+   It is used only on arguments like cleanup that are handled here.
+   This macro should be used only in #if expressions, as Oracle
    Studio 12.5's __has_attribute does not work in plain code.  */
-#ifndef __has_attribute
-# define __has_attribute(a) __has_attribute_##a
-# define __has_attribute_alloc_size GNUC_PREREQ (4, 3, 0)
-# define __has_attribute_cleanup GNUC_PREREQ (3, 4, 0)
-# define __has_attribute_cold GNUC_PREREQ (4, 3, 0)
-# define __has_attribute_externally_visible GNUC_PREREQ (4, 1, 0)
-# define __has_attribute_no_address_safety_analysis false
-# define __has_attribute_no_sanitize_address GNUC_PREREQ (4, 8, 0)
-# define __has_attribute_no_sanitize_undefined GNUC_PREREQ (4, 9, 0)
-# define __has_attribute_warn_unused_result GNUC_PREREQ (3, 4, 0)
+#if (defined __has_attribute \
+     && (!defined __clang_minor__ \
+         || 3 < __clang_major__ + (5 <= __clang_minor__)))
+# define HAS_ATTRIBUTE(a) __has_attribute (__##a##__)
+#else
+# define HAS_ATTRIBUTE(a) HAS_ATTR_##a
+# define HAS_ATTR_cleanup GNUC_PREREQ (3, 4, 0)
+# define HAS_ATTR_no_address_safety_analysis false
+# define HAS_ATTR_no_sanitize false
+# define HAS_ATTR_no_sanitize_address GNUC_PREREQ (4, 8, 0)
+# define HAS_ATTR_no_sanitize_undefined GNUC_PREREQ (4, 9, 0)
 #endif
 
-/* Simulate __has_feature on compilers that lack it.  It is used only
+/* A substitute for __has_feature on compilers that lack it.  It is used only
    to define ADDRESS_SANITIZER below.  */
-#ifndef __has_feature
-# define __has_feature(a) false
+#ifdef __has_feature
+# define HAS_FEATURE(a) __has_feature (a)
+#else
+# define HAS_FEATURE(a) false
 #endif
 
 /* True if addresses are being sanitized.  */
-#if defined __SANITIZE_ADDRESS__ || __has_feature (address_sanitizer)
+#if defined __SANITIZE_ADDRESS__ || HAS_FEATURE (address_sanitizer)
 # define ADDRESS_SANITIZER true
 #else
 # define ADDRESS_SANITIZER false
 #endif
 
+#ifdef emacs
+/* We include stdlib.h here, because Gnulib's stdlib.h might redirect
+   'free' to its replacement, and we want to avoid that in unexec
+   builds.  Inclduing it here will render its inclusion after config.h
+   a no-op.  */
+# if (defined DARWIN_OS && defined HAVE_UNEXEC) || defined HYBRID_MALLOC
+#  include <stdlib.h>
+# endif
+#endif
+
 #if defined DARWIN_OS && defined emacs && defined HAVE_UNEXEC
+# undef malloc
 # define malloc unexec_malloc
+# undef realloc
 # define realloc unexec_realloc
+# undef free
 # define free unexec_free
+
+extern void *unexec_malloc (size_t);
+extern void *unexec_realloc (void *, size_t);
+extern void unexec_free (void *);
+
 /* Name of the segment whose VM protection is the default (read/write)
    for temacs but read-only for the dumped executable.  */
 #define EMACS_READ_ONLY_SEGMENT "EMACS_READ_ONLY"
@@ -111,12 +134,23 @@ typedef bool bool_bf;
    accomplish this.  */
 #ifdef HYBRID_MALLOC
 #ifdef emacs
+#undef malloc
 #define malloc hybrid_malloc
+#undef realloc
 #define realloc hybrid_realloc
+#undef aligned_alloc
 #define aligned_alloc hybrid_aligned_alloc
+#undef calloc
 #define calloc hybrid_calloc
+#undef free
 #define free hybrid_free
-#endif
+
+extern void *hybrid_malloc (size_t);
+extern void *hybrid_calloc (size_t, size_t);
+extern void hybrid_free (void *);
+extern void *hybrid_aligned_alloc (size_t, size_t);
+extern void *hybrid_realloc (void *, size_t);
+#endif	/* emacs */
 #endif	/* HYBRID_MALLOC */
 
 /* We have to go this route, rather than the old hpux9 approach of
@@ -230,37 +264,8 @@ extern void _DebPrint (const char *fmt, ...);
 extern char *emacs_getenv_TZ (void);
 extern int emacs_setenv_TZ (char const *);
 
-/* Avoid __attribute__ ((cold)) on MinGW; see thread starting at
-   <https://lists.gnu.org/r/emacs-devel/2019-04/msg01152.html>. */
-#if __has_attribute (cold) && !defined __MINGW32__
-# define ATTRIBUTE_COLD __attribute__ ((cold))
-#else
-# define ATTRIBUTE_COLD
-#endif
-
-#if __GNUC__ >= 3  /* On GCC 3.0 we might get a warning.  */
-#define NO_INLINE __attribute__((noinline))
-#else
-#define NO_INLINE
-#endif
-
-#if __has_attribute (externally_visible)
-#define EXTERNALLY_VISIBLE __attribute__((externally_visible))
-#else
-#define EXTERNALLY_VISIBLE
-#endif
-
-#if GNUC_PREREQ (2, 7, 0)
-# define ATTRIBUTE_FORMAT(spec) __attribute__ ((__format__ spec))
-#else
-# define ATTRIBUTE_FORMAT(spec) /* empty */
-#endif
-
-#if GNUC_PREREQ (7, 0, 0)
-# define FALLTHROUGH __attribute__ ((__fallthrough__))
-#else
-# define FALLTHROUGH ((void) 0)
-#endif
+#define NO_INLINE ATTRIBUTE_NOINLINE
+#define EXTERNALLY_VISIBLE ATTRIBUTE_EXTERNALLY_VISIBLE
 
 #if GNUC_PREREQ (4, 4, 0) && defined __GLIBC_MINOR__
 # define PRINTF_ARCHETYPE __gnu_printf__
@@ -292,15 +297,7 @@ extern int emacs_setenv_TZ (char const *);
 #define ATTRIBUTE_FORMAT_PRINTF(string_index, first_to_check) \
   ATTRIBUTE_FORMAT ((PRINTF_ARCHETYPE, string_index, first_to_check))
 
-#define ARG_NONNULL _GL_ARG_NONNULL
-#define ATTRIBUTE_CONST _GL_ATTRIBUTE_CONST
-#define ATTRIBUTE_UNUSED _GL_UNUSED
-
-#if GNUC_PREREQ (3, 3, 0) && !defined __ICC
-# define ATTRIBUTE_MAY_ALIAS __attribute__ ((__may_alias__))
-#else
-# define ATTRIBUTE_MAY_ALIAS
-#endif
+#define ARG_NONNULL ATTRIBUTE_NONNULL
 
 /* Declare NAME to be a pointer to an object of type TYPE, initialized
    to the address ADDR, which may be of a different type.  Accesses
@@ -311,17 +308,9 @@ extern int emacs_setenv_TZ (char const *);
   type ATTRIBUTE_MAY_ALIAS *name = (type *) (addr)
 
 #if 3 <= __GNUC__
-# define ATTRIBUTE_MALLOC __attribute__ ((__malloc__))
 # define ATTRIBUTE_SECTION(name) __attribute__((section (name)))
 #else
-# define ATTRIBUTE_MALLOC
 #define ATTRIBUTE_SECTION(name)
-#endif
-
-#if __has_attribute (alloc_size)
-# define ATTRIBUTE_ALLOC_SIZE(args) __attribute__ ((__alloc_size__ args))
-#else
-# define ATTRIBUTE_ALLOC_SIZE(args)
 #endif
 
 #define ATTRIBUTE_MALLOC_SIZE(args) ATTRIBUTE_MALLOC ATTRIBUTE_ALLOC_SIZE (args)
@@ -341,10 +330,10 @@ extern int emacs_setenv_TZ (char const *);
 /* Attribute of functions whose code should not have addresses
    sanitized.  */
 
-#if __has_attribute (no_sanitize_address)
+#if HAS_ATTRIBUTE (no_sanitize_address)
 # define ATTRIBUTE_NO_SANITIZE_ADDRESS \
     __attribute__ ((no_sanitize_address)) ADDRESS_SANITIZER_WORKAROUND
-#elif __has_attribute (no_address_safety_analysis)
+#elif HAS_ATTRIBUTE (no_address_safety_analysis)
 # define ATTRIBUTE_NO_SANITIZE_ADDRESS \
     __attribute__ ((no_address_safety_analysis)) ADDRESS_SANITIZER_WORKAROUND
 #else
@@ -353,9 +342,9 @@ extern int emacs_setenv_TZ (char const *);
 
 /* Attribute of functions whose undefined behavior should not be sanitized.  */
 
-#if __has_attribute (no_sanitize_undefined)
+#if HAS_ATTRIBUTE (no_sanitize_undefined)
 # define ATTRIBUTE_NO_SANITIZE_UNDEFINED __attribute__ ((no_sanitize_undefined))
-#elif __has_attribute (no_sanitize)
+#elif HAS_ATTRIBUTE (no_sanitize)
 # define ATTRIBUTE_NO_SANITIZE_UNDEFINED \
     __attribute__ ((no_sanitize ("undefined")))
 #else
@@ -430,15 +419,13 @@ extern int emacs_setenv_TZ (char const *);
 
 #else
 
-/* Use 'static' instead of 'extern inline' because 'static' typically
-   has better performance for Emacs.  Do not use the 'inline' keyword,
-   as modern compilers inline automatically.  ATTRIBUTE_UNUSED
-   pacifies gcc -Wunused-function.  */
+/* Use 'static inline' instead of 'extern inline' because 'static inline'
+   has much better performance for Emacs when compiled with 'gcc -Og'.  */
 
 # ifndef INLINE
 #  define INLINE EXTERN_INLINE
 # endif
-# define EXTERN_INLINE static ATTRIBUTE_UNUSED
+# define EXTERN_INLINE static inline
 # define INLINE_HEADER_BEGIN
 # define INLINE_HEADER_END
 

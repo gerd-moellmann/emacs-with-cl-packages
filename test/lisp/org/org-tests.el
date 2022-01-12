@@ -1,4 +1,4 @@
-;;; org-tests.el --- tests for org/org.el
+;;; org-tests.el --- tests for org/org.el  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
@@ -29,3 +29,5 @@ Ref <https://debbugs.gnu.org/30310>."
   (should (require 'org-version nil t))
   (should (equal (version-to-list (org-release))
                  (cdr (assq 'org package--builtin-versions)))))
+
+;;; org-tests.el ends here

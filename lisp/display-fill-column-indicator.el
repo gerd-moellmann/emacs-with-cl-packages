@@ -45,7 +45,7 @@
 
 ;;;###autoload
 (define-minor-mode display-fill-column-indicator-mode
-  "Toggle display of fill-column indicator.
+  "Toggle display of `fill-column' indicator.
 This uses `display-fill-column-indicator' internally.
 
 To change the position of the column displayed by default
@@ -59,12 +59,13 @@ See Info node `Displaying Boundaries' for details."
       (progn
         (setq display-fill-column-indicator t)
         (unless display-fill-column-indicator-character
-          (if (and (char-displayable-p ?\u2502)
-                   (or (not (display-graphic-p))
-                       (eq (aref (query-font (car (internal-char-font nil ?\u2502))) 0)
-                           (face-font 'default))))
-              (setq display-fill-column-indicator-character ?\u2502)
-            (setq display-fill-column-indicator-character ?|))))
+          (setq display-fill-column-indicator-character
+                (if (and (char-displayable-p ?\u2502)
+                         (or (not (display-graphic-p))
+                             (eq (aref (query-font (car (internal-char-font nil ?\u2502))) 0)
+                                 (face-font 'default))))
+                    ?\u2502
+                  ?|))))
     (setq display-fill-column-indicator nil)))
 
 (defun display-fill-column-indicator--turn-on ()
@@ -76,8 +77,7 @@ See Info node `Displaying Boundaries' for details."
 ;;;###autoload
 (define-globalized-minor-mode global-display-fill-column-indicator-mode
   display-fill-column-indicator-mode display-fill-column-indicator--turn-on
-  ;; See bug#41145
-  :group 'display-fill-column-indicator)
+  :predicate '((not special-mode) t))
 
 (provide 'display-fill-column-indicator)
 

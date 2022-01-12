@@ -114,7 +114,6 @@ This is default behavior of shells like bash."
     backward-list
     forward-page
     backward-page
-    forward-point
     forward-paragraph
     backward-paragraph
     backward-prefix-chars
@@ -137,6 +136,11 @@ This is default behavior of shells like bash."
   :type '(repeat function)
   :group 'eshell-rebind)
 
+(defvar eshell-rebind-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c M-l") #'eshell-lock-local-map)
+    map))
+
 ;; Internal Variables:
 
 (defvar eshell-input-keymap)
@@ -144,6 +148,12 @@ This is default behavior of shells like bash."
 (defvar eshell-lock-keymap)
 
 ;;; Functions:
+
+(define-minor-mode eshell-rebind-mode
+  "Minor mode for the eshell-rebind module.
+
+\\{eshell-rebind-mode-map}"
+  :keymap eshell-rebind-mode-map)
 
 (defun eshell-rebind-initialize ()  ;Called from `eshell-mode' via intern-soft!
   "Initialize the inputting code."
@@ -153,12 +163,12 @@ This is default behavior of shells like bash."
     (add-hook 'pre-command-hook 'eshell-save-previous-point nil t)
     (make-local-variable 'overriding-local-map)
     (add-hook 'post-command-hook 'eshell-rebind-input-map nil t)
-    (set (make-local-variable 'eshell-lock-keymap) nil)
-    (define-key eshell-command-map [(meta ?l)] 'eshell-lock-local-map)))
+    (setq-local eshell-lock-keymap nil)
+    (eshell-rebind-mode)))
 
 (defun eshell-lock-local-map (&optional arg)
   "Lock or unlock the current local keymap.
-Within a prefix arg, set the local keymap to its normal value, and
+With prefix ARG, set the local keymap to its normal value, and
 lock it at that."
   (interactive "P")
   (if (or arg (not eshell-lock-keymap))
@@ -209,8 +219,7 @@ lock it at that."
 
 (defun eshell-setup-input-keymap ()
   "Setup the input keymap to be used during input editing."
-  (make-local-variable 'eshell-input-keymap)
-  (setq eshell-input-keymap (make-sparse-keymap))
+  (setq-local eshell-input-keymap (make-sparse-keymap))
   (set-keymap-parent eshell-input-keymap eshell-mode-map)
   (let ((bindings eshell-rebind-keys-alist))
     (while bindings

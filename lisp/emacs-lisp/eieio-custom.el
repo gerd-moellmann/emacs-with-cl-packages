@@ -1,4 +1,4 @@
-;;; eieio-custom.el -- eieio object customization  -*- lexical-binding:t -*-
+;;; eieio-custom.el --- eieio object customization  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1999-2001, 2005, 2007-2021 Free Software Foundation,
 ;; Inc.
@@ -33,7 +33,6 @@
 (require 'eieio)
 (require 'widget)
 (require 'wid-edit)
-(require 'custom)
 
 ;;; Compatibility
 
@@ -47,7 +46,7 @@
 	     :documentation "A string for testing custom.
 This is the next line of documentation.")
    (listostuff :initarg :listostuff
-	       :initform ("1" "2" "3")
+	       :initform '("1" "2" "3")
 	       :type list
 	       :custom (repeat (string :tag "Stuff"))
 	       :label "List of Strings"
@@ -334,7 +333,7 @@ Optional argument GROUP is the sub-group of slots to display."
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map widget-keymap)
     map)
-  "Keymap for EIEIO Custom mode")
+  "Keymap for EIEIO Custom mode.")
 
 (define-derived-mode eieio-custom-mode fundamental-mode "EIEIO Custom"
   "Major mode for customizing EIEIO objects.
@@ -366,8 +365,7 @@ These groups are specified with the `:group' slot flag."
     (widget-insert "\n\n")
     (widget-insert "Edit object " (eieio-object-name obj) "\n\n")
     ;; Create the widget editing the object.
-    (make-local-variable 'eieio-wo)
-    (setq eieio-wo (eieio-custom-widget-insert obj :eieio-group g))
+    (setq-local eieio-wo (eieio-custom-widget-insert obj :eieio-group g))
     ;;Now generate the apply buttons
     (widget-insert "\n")
     (eieio-custom-object-apply-reset obj)
@@ -376,10 +374,8 @@ These groups are specified with the `:group' slot flag."
     ;;(widget-minor-mode)
     (goto-char (point-min))
     (widget-forward 3)
-    (make-local-variable 'eieio-co)
-    (setq eieio-co obj)
-    (make-local-variable 'eieio-cog)
-    (setq eieio-cog g)))
+    (setq-local eieio-co obj)
+    (setq-local eieio-cog g)))
 
 (cl-defmethod eieio-custom-object-apply-reset ((_obj eieio-default-superclass))
   "Insert an Apply and Reset button into the object editor.

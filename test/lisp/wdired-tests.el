@@ -4,18 +4,18 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software; you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
@@ -31,7 +31,7 @@ Partially modifying a file name should succeed."
   (let* ((test-dir (make-temp-file "test-dir-" t))
 	 (test-file (concat (file-name-as-directory test-dir) "foo.c"))
 	 (replace "bar")
-	 (new-file (replace-regexp-in-string "foo" replace test-file))
+	 (new-file (string-replace "foo" replace test-file))
 	 (wdired-use-interactive-rename t))
     (write-region "" nil test-file nil 'silent)
     (advice-add 'dired-query ; Don't ask confirmation to overwrite a file.
@@ -106,11 +106,10 @@ only the name before the link arrow."
   "Test editing a file name without saving the change.
 Finding the new name should be possible while still in
 wdired-mode."
-  :expected-result (if (< emacs-major-version 27) :failed :passed)
   (let* ((test-dir (make-temp-file "test-dir-" t))
 	 (test-file (concat (file-name-as-directory test-dir) "foo.c"))
 	 (replace "bar")
-	 (new-file (replace-regexp-in-string "foo" replace test-file)))
+	 (new-file (string-replace "foo" replace test-file)))
     (write-region "" nil test-file nil 'silent)
     (let ((buf (find-file-noselect test-dir)))
       (unwind-protect
@@ -143,6 +142,7 @@ wdired-get-filename before and after editing."
   (let* ((test-dir (make-temp-file "test-dir-" t))
          (server-socket-dir test-dir)
          (dired-listing-switches "-Fl")
+         (dired-ls-F-marks-symlinks (eq system-type 'darwin))
          (buf (find-file-noselect test-dir)))
     (unwind-protect
         (progn
@@ -178,6 +178,22 @@ wdired-get-filename before and after editing."
       (server-force-delete)
       (delete-directory test-dir t))))
 
+(ert-deftest wdired-test-bug39280 ()
+  "Test for https://debbugs.gnu.org/39280."
+  (let* ((test-dir (make-temp-file "test-dir" 'dir))
+         (fname "foo")
+         (full-fname (expand-file-name fname test-dir)))
+    (make-empty-file full-fname)
+    (let ((buf (find-file-noselect test-dir)))
+      (unwind-protect
+	  (with-current-buffer buf
+	    (dired-toggle-read-only)
+            (dolist (old '(t nil))
+              (should (equal fname (wdired-get-filename 'nodir old)))
+              (should (equal full-fname (wdired-get-filename nil old))))
+	    (wdired-finish-edit))
+	(if buf (kill-buffer buf))
+	(delete-directory test-dir t)))))
 
 (provide 'wdired-tests)
 ;;; wdired-tests.el ends here

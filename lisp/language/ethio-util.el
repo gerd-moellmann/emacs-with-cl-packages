@@ -1,4 +1,4 @@
-;;; ethio-util.el --- utilities for Ethiopic	-*- coding: utf-8-emacs; -*-
+;;; ethio-util.el --- utilities for Ethiopic	-*- coding: utf-8-emacs; lexical-binding: t; -*-
 
 ;; Copyright (C) 1997-1998, 2002-2021 Free Software Foundation, Inc.
 ;; Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
@@ -98,44 +98,74 @@
 ;; users' preference
 ;;
 
-(defvar ethio-primary-language 'tigrigna
+(defgroup ethiopic nil
+  "Options for writing Ethiopic."
+  :version "28.1"
+  :group 'languages)
+
+(defcustom ethio-primary-language 'tigrigna
   "Symbol that defines the primary language in SERA --> FIDEL conversion.
-The value should be one of: `tigrigna', `amharic' or `english'.")
+The value should be one of: `tigrigna', `amharic' or `english'."
+  :version "28.1"
+  :type '(choice (const :tag "Tigrigna" tigrigna)
+                 (const :tag "Amharic" amharic)
+                 (const :tag "English" english)))
 
-(defvar ethio-secondary-language 'english
+(defcustom ethio-secondary-language 'english
   "Symbol that defines the secondary language in SERA --> FIDEL conversion.
-The value should be one of: `tigrigna', `amharic' or `english'.")
+The value should be one of: `tigrigna', `amharic' or `english'."
+  :version "28.1"
+  :type '(choice (const :tag "Tigrigna" tigrigna)
+                 (const :tag "Amharic" amharic)
+                 (const :tag "English" english)))
 
-(defvar ethio-use-colon-for-colon nil
+(defcustom ethio-use-colon-for-colon nil
   "Non-nil means associate ASCII colon with Ethiopic colon.
 If nil, associate ASCII colon with Ethiopic word separator, i.e., two
 vertically stacked dots.  All SERA <--> FIDEL converters refer this
-variable.")
+variable."
+  :version "28.1"
+  :type 'boolean)
 
-(defvar ethio-use-three-dot-question nil
-  "Non-nil means associate ASCII question mark with Ethiopic old style question mark (three vertically stacked dots).
+(defcustom ethio-use-three-dot-question nil
+  "If non-nil, associate ASCII question mark with Ethiopic question mark.
+The Ethiopic old style question mark is three vertically stacked dots.
 If nil, associate ASCII question mark with Ethiopic stylized question
-mark.  All SERA <--> FIDEL converters refer this variable.")
+mark.  All SERA <--> FIDEL converters refer this variable."
+  :version "28.1"
+  :type 'boolean)
 
-(defvar ethio-quote-vowel-always nil
-  "Non-nil means always put an apostrophe before an isolated vowel (except at word initial) in FIDEL --> SERA conversion.
+(defcustom ethio-quote-vowel-always nil
+  "Non-nil means always put an apostrophe before an isolated vowel.
+This happens in FIDEL --> SERA conversions.  Isolated vowels at
+word beginning do not get an apostrophe put before them.
 If nil, put an apostrophe only between a 6th-form consonant and an
-isolated vowel.")
+isolated vowel."
+  :version "28.1"
+  :type 'boolean)
 
-(defvar ethio-W-sixth-always nil
-  "Non-nil means convert the Wu-form of a 12-form consonant to \"W'\" instead of \"Wu\" in FIDEL --> SERA conversion.")
+(defcustom ethio-W-sixth-always nil
+  "Non-nil means convert the Wu-form of a 12-form consonant to \"W'\".
+This is instead of \"Wu\" in FIDEL --> SERA conversion."
+  :version "28.1"
+  :type 'boolean)
 
-(defvar ethio-numeric-reduction 0
+(defcustom ethio-numeric-reduction 0
   "Degree of reduction in converting Ethiopic digits into Arabic digits.
 Should be 0, 1 or 2.
 For example, ({10}{9}{100}{80}{7}) is converted into:
     \\=`10\\=`9\\=`100\\=`80\\=`7  if `ethio-numeric-reduction' is 0,
     \\=`109100807	    if `ethio-numeric-reduction' is 1,
-    \\=`10900807	    if `ethio-numeric-reduction' is 2.")
+    \\=`10900807	    if `ethio-numeric-reduction' is 2."
+  :version "28.1"
+  :type 'integer)
 
-(defvar ethio-java-save-lowercase nil
+(defcustom ethio-java-save-lowercase nil
   "Non-nil means save Ethiopic characters in lowercase hex numbers to Java files.
-If nil, use uppercases.")
+If nil, use uppercases."
+  :version "28.1"
+  :type 'boolean)
+
 
 (defun ethio-prefer-amharic-p ()
   (or (eq ethio-primary-language 'amharic)
@@ -828,11 +858,12 @@ The 2nd and 3rd arguments BEGIN and END specify the region."
     (set-buffer-modified-p nil)))
 
 ;;;###autoload
-(defun ethio-tex-to-fidel-buffer nil
+(defun ethio-tex-to-fidel-buffer ()
   "Convert fidel-tex commands in the current buffer into fidel chars."
   (interactive)
-  (let ((buffer-read-only nil)
-	(p) (ch))
+  (let ((inhibit-read-only t)
+	;; (p) (ch)
+	)
 
     ;; TeX macros to Ethiopic characters
     (robin-convert-region (point-min) (point-max) "ethiopic-tex")
@@ -967,8 +998,7 @@ Otherwise, [0-9A-F]."
 ;; Ethiopic word separator vs. ASCII space
 ;;
 
-(defvar ethio-prefer-ascii-space t)
-(make-variable-buffer-local 'ethio-prefer-ascii-space)
+(defvar-local ethio-prefer-ascii-space t)
 
 (defun ethio-toggle-space nil
   "Toggle ASCII space and Ethiopic separator for keyboard input."
@@ -1014,7 +1044,7 @@ With ARG, insert that many delimiters."
 ;;
 
 ;;;###autoload
-(defun ethio-composition-function (pos to font-object string _direction)
+(defun ethio-composition-function (pos _to _font-object string _direction)
   (setq pos (1- pos))
   (let ((pattern "\\ce\\(áŸ\\|ö ‡Š\\)"))
     (if string
@@ -2067,6 +2097,10 @@ mark."
 
 ;; The ethiopic-tex package is not used for keyboard input, therefore
 ;; not registered with the register-input-method function.
+
+;; Local Variables:
+;; checkdoc-symbol-words: ("-->")
+;; End:
 
 (provide 'ethio-util)
 

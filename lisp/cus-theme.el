@@ -1,7 +1,7 @@
-;;; cus-theme.el -- custom theme creation user interface  -*- lexical-binding: t -*-
-;;
+;;; cus-theme.el --- custom theme creation user interface  -*- lexical-binding: t -*-
+
 ;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
-;;
+
 ;; Author: Alex Schroeder <alex@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: help, faces
@@ -21,6 +21,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Commentary:
 
 ;;; Code:
 
@@ -66,7 +68,7 @@ Do not call this mode function yourself.  It is meant for internal use."
   shadow secondary-selection trailing-whitespace
   font-lock-builtin-face font-lock-comment-delimiter-face
   font-lock-comment-face font-lock-constant-face
-  font-lock-doc-face font-lock-function-name-face
+  font-lock-doc-face font-lock-doc-markup-face font-lock-function-name-face
   font-lock-keyword-face font-lock-negation-char-face
   font-lock-preprocessor-face font-lock-regexp-grouping-backslash
   font-lock-regexp-grouping-construct font-lock-string-face
@@ -108,66 +110,66 @@ named *Custom Theme*."
     (unless (y-or-n-p "Include basic face customizations in this theme? ")
       (setq custom-theme--listed-faces nil)))
 
-  (if (eq theme 'user)
-      (widget-insert "This buffer contains all the Custom settings you have made.
-You can convert them into a new custom theme, and optionally
-remove them from your saved Custom file.\n\n"))
-
-  (widget-create 'push-button
-		 :tag " Visit Theme "
-		 :help-echo "Insert the settings of a pre-defined theme."
-		 :action (lambda (_widget &optional _event)
-                           (call-interactively #'custom-theme-visit-theme)))
-  (widget-insert "  ")
-  (widget-create 'push-button
-		 :tag " Merge Theme "
-		 :help-echo "Merge in the settings of a pre-defined theme."
-		 :action (lambda (_widget &optional _event)
-                           (call-interactively #'custom-theme-merge-theme)))
-  (widget-insert "  ")
-  (widget-create 'push-button
-		 :tag " Revert "
-		 :help-echo "Revert this buffer to its original state."
-		 :action (lambda (&rest ignored) (revert-buffer)))
-
-  (widget-insert "\n\nTheme name : ")
-  (setq custom-theme-name
-	(widget-create 'editable-field
-		       :value (if (and theme (not (eq theme 'user)))
-				  (symbol-name theme)
-				"")))
-  (widget-insert "Description: ")
-  (setq custom-theme-description
-	(widget-create 'text
-		       :value (format-time-string "Created %Y-%m-%d.")))
-  (widget-create 'push-button
-                 :notify #'custom-theme-write
-     		 " Save Theme ")
-  (when (eq theme 'user)
-    (setq custom-theme--migrate-settings t)
-    (widget-insert "  ")
-    (widget-create 'checkbox
-		   :value custom-theme--migrate-settings
-		   :action (lambda (widget &optional event)
-			     (when (widget-value widget)
-			       (widget-toggle-action widget event)
-			       (setq custom-theme--migrate-settings
-				     (widget-value widget)))))
-    (widget-insert (propertize " Remove saved theme settings from Custom save file."
-			       'face '(variable-pitch (:height 0.9)))))
-
   (let (vars values faces face-specs)
 
     ;; Load the theme settings.
     (when theme
-      (unless (eq theme 'user)
-	(load-theme theme nil t))
+      (if (eq theme 'user)
+          (widget-insert "This buffer contains all the Custom settings you have made.
+You can convert them into a new custom theme, and optionally
+remove them from your saved Custom file.\n\n")
+        (load-theme theme nil t))
+
       (dolist (setting (get theme 'theme-settings))
 	(if (eq (car setting) 'theme-value)
 	    (progn (push (nth 1 setting) vars)
 	    	   (push (nth 3 setting) values))
 	  (push (nth 1 setting) faces)
 	  (push (nth 3 setting) face-specs))))
+
+    (widget-create 'push-button
+		   :tag " Visit Theme "
+		   :help-echo "Insert the settings of a pre-defined theme."
+		   :action (lambda (_widget &optional _event)
+                             (call-interactively #'custom-theme-visit-theme)))
+    (widget-insert "  ")
+    (widget-create 'push-button
+		   :tag " Merge Theme "
+		   :help-echo "Merge in the settings of a pre-defined theme."
+		   :action (lambda (_widget &optional _event)
+                             (call-interactively #'custom-theme-merge-theme)))
+    (widget-insert "  ")
+    (widget-create 'push-button
+		   :tag " Revert "
+		   :help-echo "Revert this buffer to its original state."
+		   :action (lambda (&rest ignored) (revert-buffer)))
+
+    (widget-insert "\n\nTheme name : ")
+    (setq custom-theme-name
+	  (widget-create 'editable-field
+		         :value (if (and theme (not (eq theme 'user)))
+				    (symbol-name theme)
+				  "")))
+    (widget-insert "Description: ")
+    (setq custom-theme-description
+          (widget-create 'text :format "%v"
+                         :value (or (get theme 'theme-documentation)
+                                    (format-time-string "Created %Y-%m-%d."))))
+    (widget-create 'push-button
+                   :notify #'custom-theme-write
+                   " Save Theme ")
+    (when (eq theme 'user)
+      (setq custom-theme--migrate-settings t)
+      (widget-insert "  ")
+      (widget-create 'checkbox
+		     :value custom-theme--migrate-settings
+		     :action (lambda (widget &optional event)
+			       (when (widget-value widget)
+			         (widget-toggle-action widget event)
+			         (setq custom-theme--migrate-settings
+				       (widget-value widget)))))
+      (widget-insert (propertize " Remove saved theme settings from Custom save file."
+			         'face '(variable-pitch (:height 0.9)))))
 
     ;; If THEME is non-nil, insert all of that theme's faces.
     ;; Otherwise, insert those in `custom-theme--listed-faces'.
@@ -419,14 +421,13 @@ It includes all variables in list VARS."
 			    (widget-value child)
 			  ;; Child is null if the widget is closed (hidden).
 			  (car (widget-get widget :shown-value)))))
-	    (when (boundp symbol)
-	      (unless (bolp)
-		(princ "\n"))
-	      (princ " '(")
-	      (prin1 symbol)
-	      (princ " ")
-	      (prin1 (custom-quote value))
-	      (princ ")")))))
+	    (unless (bolp)
+	      (princ "\n"))
+	    (princ " '(")
+	    (prin1 symbol)
+	    (princ " ")
+	    (prin1 (custom-quote value))
+	    (princ ")"))))
       (if (bolp)
 	  (princ " "))
       (princ ")")
@@ -454,7 +455,7 @@ It includes all faces in list FACES."
 		   ;; Child is null if the widget is closed (hidden).
 		   ((widget-get widget :shown-value))
 		   (t (custom-face-get-current-spec symbol)))))
-	    (when (and (facep symbol) value)
+	    (when value
 	      (princ (if (bolp) " '(" "\n '("))
 	      (prin1 symbol)
 	      (princ " ")
@@ -658,10 +659,12 @@ Theme files are named *-theme.el in `"))
 	    (insert-file-contents fn)
 	    (let ((sexp (let ((read-circle nil))
 			  (condition-case nil
-			      (read (current-buffer))
-			    (end-of-file nil)))))
-              (and (eq (car-safe sexp) 'deftheme)
-		   (setq doc (nth 2 sexp))))))))
+                              (progn
+                                (re-search-forward "^(deftheme")
+                                (beginning-of-line)
+                                (read (current-buffer)))
+                            (error nil)))))
+              (setq doc (nth 2 sexp)))))))
     (cond ((null doc)
 	   "(no documentation available)")
 	  ((string-match ".*" doc)

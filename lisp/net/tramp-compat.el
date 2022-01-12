@@ -23,15 +23,15 @@
 
 ;;; Commentary:
 
-;; Tramp's main Emacs version for development is Emacs 27.  This
-;; package provides compatibility functions for Emacs 24, Emacs 25 and
-;; Emacs 26.
+;; Tramp's main Emacs version for development is Emacs 28.  This
+;; package provides compatibility functions for Emacs 25, Emacs 26 and
+;; Emacs 27.
 
 ;;; Code:
 
-;; In Emacs 24 and 25, `tramp-unload-file-name-handlers' is not
-;; autoloaded.  So we declare it here in order to avoid recursive
-;; load.  This will be overwritten in tramp.el.
+;; In Emacs 25, `tramp-unload-file-name-handlers' is not autoloaded.
+;; So we declare it here in order to avoid recursive load.  This will
+;; be overwritten in tramp.el.
 (defun tramp-unload-file-name-handlers () ".")
 
 (require 'auth-source)
@@ -41,8 +41,11 @@
 (require 'shell)
 (require 'subr-x)
 
+(declare-function tramp-error "tramp")
 ;; `temporary-file-directory' as function is introduced with Emacs 26.1.
 (declare-function tramp-handle-temporary-file-directory "tramp")
+(declare-function tramp-tramp-file-p "tramp")
+(defvar tramp-temp-name-prefix)
 
 (defconst tramp-compat-emacs-compiled-version (eval-when-compile emacs-version)
   "The Emacs version used for compilation.")
@@ -60,22 +63,25 @@
   `(when (functionp ,function)
      (with-no-warnings (funcall ,function ,@arguments))))
 
-(defsubst tramp-compat-temporary-file-directory ()
-  "Return name of directory for temporary files.
-It is the default value of `temporary-file-directory'."
-  ;; We must return a local directory.  If it is remote, we could run
-  ;; into an infloop.
-  (eval (car (get 'temporary-file-directory 'standard-value))))
+;; We must use a local directory.  If it is remote, we could run into
+;; an infloop.
+(defconst tramp-compat-temporary-file-directory
+  (eval (car (get 'temporary-file-directory 'standard-value)) t)
+  "The default value of `temporary-file-directory'.")
+
+(defsubst tramp-compat-make-temp-name ()
+  "Generate a local temporary file name (compat function)."
+  (make-temp-name
+   (expand-file-name
+    tramp-temp-name-prefix tramp-compat-temporary-file-directory)))
 
 (defsubst tramp-compat-make-temp-file (f &optional dir-flag)
   "Create a local temporary file (compat function).
 Add the extension of F, if existing."
-  (let* (file-name-handler-alist
-	 (prefix (expand-file-name
-		  (symbol-value 'tramp-temp-name-prefix)
-		  (tramp-compat-temporary-file-directory)))
-	 (extension (file-name-extension f t)))
-    (make-temp-file prefix dir-flag extension)))
+  (make-temp-file
+   (expand-file-name
+    tramp-temp-name-prefix tramp-compat-temporary-file-directory)
+   dir-flag (file-name-extension f t)))
 
 ;; `temporary-file-directory' as function is introduced with Emacs 26.1.
 (defalias 'tramp-compat-temporary-file-directory-function
@@ -83,31 +89,7 @@ Add the extension of F, if existing."
       #'temporary-file-directory
     #'tramp-handle-temporary-file-directory))
 
-(defun tramp-compat-process-running-p (process-name)
-  "Return t if system process PROCESS-NAME is running for `user-login-name'."
-  (when (stringp process-name)
-    (cond
-     ;; GNU Emacs 22 on w32.
-     ((fboundp 'w32-window-exists-p)
-      (tramp-compat-funcall 'w32-window-exists-p process-name process-name))
-
-     ;; GNU Emacs 23+.
-     ((and (fboundp 'list-system-processes) (fboundp 'process-attributes))
-      (let (result)
-	(dolist (pid (tramp-compat-funcall 'list-system-processes) result)
-	  (let ((attributes (process-attributes pid)))
-	    (when (and (string-equal
-                        (cdr (assoc 'user attributes)) (user-login-name))
-                       (let ((comm (cdr (assoc 'comm attributes))))
-                         ;; The returned command name could be truncated
-                         ;; to 15 characters.  Therefore, we cannot check
-                         ;; for `string-equal'.
-                         (and comm (string-match-p
-                                    (concat "^" (regexp-quote comm))
-                                    process-name))))
-	      (setq result t)))))))))
-
-;; `file-attribute-*' are introduced in Emacs 25.1.
+;; `file-attribute-*' are introduced in Emacs 26.1.
 
 (defalias 'tramp-compat-file-attribute-type
   (if (fboundp 'file-attribute-type)
@@ -189,31 +171,19 @@ and later, and is a float in Emacs 26 and earlier."
 This is a string of ten letters or dashes as in ls -l."
       (nth 8 attributes))))
 
-;; `format-message' is new in Emacs 25.1.
-(unless (fboundp 'format-message)
-  (defalias 'format-message #'format))
-
-;; `directory-name-p' is new in Emacs 25.1.
-(defalias 'tramp-compat-directory-name-p
-  (if (fboundp 'directory-name-p)
-      #'directory-name-p
-    (lambda (name)
-      "Return non-nil if NAME ends with a directory separator character."
-      (let ((len (length name))
-            (lastc ?.))
-	(if (> len 0)
-            (setq lastc (aref name (1- len))))
-	(or (= lastc ?/)
-            (and (memq system-type '(windows-nt ms-dos))
-		 (= lastc ?\\)))))))
-
 ;; `file-missing' is introduced in Emacs 26.1.
 (defconst tramp-file-missing
   (if (get 'file-missing 'error-conditions) 'file-missing 'file-error)
   "The error symbol for the `file-missing' error.")
 
+(defsubst tramp-compat-file-missing (vec file)
+  "Emit the `file-missing' error."
+  (if (get 'file-missing 'error-conditions)
+      (tramp-error vec tramp-file-missing file)
+    (tramp-error vec tramp-file-missing "No such file or directory: %s" file)))
+
 ;; `file-local-name', `file-name-quoted-p', `file-name-quote' and
-;; `file-name-unquote' are introduced in Emacs 26.
+;; `file-name-unquote' are introduced in Emacs 26.1.
 (defalias 'tramp-compat-file-local-name
   (if (fboundp 'file-local-name)
       #'file-local-name
@@ -223,7 +193,8 @@ It returns a file name which can be used directly as argument of
 `process-file', `start-file-process', or `shell-command'."
       (or (file-remote-p name 'localname) name))))
 
-;; `file-name-quoted-p' got a second argument in Emacs 27.1.
+;; `file-name-quoted-p', `file-name-quote' and `file-name-unquote' got
+;; a second argument in Emacs 27.1.
 (defalias 'tramp-compat-file-name-quoted-p
   (if (and
        (fboundp 'file-name-quoted-p)
@@ -265,7 +236,7 @@ NAME is unquoted."
 	   localname (if (= (length localname) 2) "/" (substring localname 2))))
 	(concat (file-remote-p name) localname)))))
 
-;; `tramp-syntax' has changed its meaning in Emacs 26.  We still
+;; `tramp-syntax' has changed its meaning in Emacs 26.1.  We still
 ;; support old settings.
 (defsubst tramp-compat-tramp-syntax ()
   "Return proper value of `tramp-syntax'."
@@ -273,13 +244,6 @@ NAME is unquoted."
   (cond ((eq tramp-syntax 'ftp) 'default)
 	((eq tramp-syntax 'sep) 'separate)
 	(t tramp-syntax)))
-
-;; `cl-struct-slot-info' has been introduced with Emacs 25.
-(defmacro tramp-compat-tramp-file-name-slots ()
-  "Return a list of slot names."
-  (if (fboundp 'cl-struct-slot-info)
-      '(cdr (mapcar #'car (cl-struct-slot-info 'tramp-file-name)))
-    '(cdr (mapcar #'car (get 'tramp-file-name 'cl-struct-slots)))))
 
 ;; The signature of `tramp-make-tramp-file-name' has been changed.
 ;; Therefore, we cannot use `url-tramp-convert-url-to-tramp' prior
@@ -293,10 +257,9 @@ NAME is unquoted."
       #'exec-path
     (lambda ()
       "List of directories to search programs to run in remote subprocesses."
-      (let ((handler (find-file-name-handler default-directory 'exec-path)))
-	(if handler
-	    (funcall handler 'exec-path)
-	  exec-path)))))
+      (if-let ((handler (find-file-name-handler default-directory 'exec-path)))
+	  (funcall handler 'exec-path)
+	exec-path))))
 
 ;; `time-equal-p' has appeared in Emacs 27.1.
 (defalias 'tramp-compat-time-equal-p
@@ -331,16 +294,128 @@ A nil value for either argument stands for the current time."
     (lambda (reporter &optional value _suffix)
       (progress-reporter-update reporter value))))
 
+;; `ignore-error' is new in Emacs Emacs 27.1.
+(defmacro tramp-compat-ignore-error (condition &rest body)
+  "Execute BODY; if the error CONDITION occurs, return nil.
+Otherwise, return result of last form in BODY.
+
+CONDITION can also be a list of error conditions."
+  (declare (debug t) (indent 1))
+  `(condition-case nil (progn ,@body) (,condition nil)))
+
+;; `file-modes', `set-file-modes' and `set-file-times' got argument
+;; FLAG in Emacs 28.1.
+(defalias 'tramp-compat-file-modes
+  (if (equal (tramp-compat-funcall 'func-arity #'file-modes) '(1 . 2))
+      #'file-modes
+    (lambda (filename &optional _flag)
+      (file-modes filename))))
+
+(defalias 'tramp-compat-set-file-modes
+  (if (equal (tramp-compat-funcall 'func-arity #'set-file-modes) '(2 . 3))
+      #'set-file-modes
+    (lambda (filename mode &optional _flag)
+      (set-file-modes filename mode))))
+
+(defalias 'tramp-compat-set-file-times
+  (if (equal (tramp-compat-funcall 'func-arity #'set-file-times) '(1 . 3))
+      #'set-file-times
+    (lambda (filename &optional timestamp _flag)
+      (set-file-times filename timestamp))))
+
+;; `directory-files' and `directory-files-and-attributes' got argument
+;; COUNT in Emacs 28.1.
+(defalias 'tramp-compat-directory-files
+  (if (equal (tramp-compat-funcall 'func-arity #'directory-files) '(1 . 5))
+      #'directory-files
+    (lambda (directory &optional full match nosort _count)
+      (directory-files directory full match nosort))))
+
+(defalias 'tramp-compat-directory-files-and-attributes
+  (if (equal (tramp-compat-funcall 'func-arity #'directory-files-and-attributes)
+	     '(1 . 6))
+      #'directory-files-and-attributes
+    (lambda (directory &optional full match nosort id-format _count)
+      (directory-files-and-attributes directory full match nosort id-format))))
+
+;; `directory-empty-p' is new in Emacs 28.1.
+(defalias 'tramp-compat-directory-empty-p
+  (if (fboundp 'directory-empty-p)
+      #'directory-empty-p
+    (lambda (dir)
+      (and (file-directory-p dir)
+	   (null (tramp-compat-directory-files
+		  dir nil directory-files-no-dot-files-regexp t 1))))))
+
+;; Function `null-device' is new in Emacs 28.1.
+(defalias 'tramp-compat-null-device
+  (if (fboundp 'null-device)
+      #'null-device
+    (lambda ()
+      (if (tramp-tramp-file-p default-directory) "/dev/null" null-device))))
+
+;; Function `string-replace' is new in Emacs 28.1.
+(defalias 'tramp-compat-string-replace
+  (if (fboundp 'string-replace)
+      #'string-replace
+    (lambda (from-string to-string in-string)
+      (let ((case-fold-search nil))
+        (replace-regexp-in-string
+         (regexp-quote from-string) to-string in-string t t)))))
+
+;; Function `string-search' is new in Emacs 28.1.
+(defalias 'tramp-compat-string-search
+  (if (fboundp 'string-search)
+      #'string-search
+    (lambda (needle haystack &optional start-pos)
+      (let ((case-fold-search nil))
+        (string-match-p (regexp-quote needle) haystack start-pos)))))
+
+;; Function `make-lock-file-name' is new in Emacs 28.1.
+(defalias 'tramp-compat-make-lock-file-name
+  (if (fboundp 'make-lock-file-name)
+      #'make-lock-file-name
+    (lambda (filename)
+      (expand-file-name
+       (concat
+        ".#" (file-name-nondirectory filename))
+       (file-name-directory filename)))))
+
+;; Function `file-name-concat' is new in Emacs 28.1.
+(defalias 'tramp-compat-file-name-concat
+  (if (fboundp 'file-name-concat)
+      #'file-name-concat
+    (lambda (directory &rest components)
+      (let ((components (cl-remove-if (lambda (el)
+                                        (or (null el) (equal "" el)))
+                                      components))
+	    file-name-handler-alist)
+        (if (null components)
+	    directory
+          (apply #'tramp-compat-file-name-concat
+	         (concat (unless (or (equal "" directory) (null directory))
+                           (file-name-as-directory directory))
+                         (car components))
+	         (cdr components)))))))
+
+(dolist (elt (all-completions "tramp-compat-" obarray 'functionp))
+  (put (intern elt) 'tramp-suppress-trace t))
+
 (add-hook 'tramp-unload-hook
 	  (lambda ()
 	    (unload-feature 'tramp-loaddefs 'force)
 	    (unload-feature 'tramp-compat 'force)))
 
+(provide 'tramp-compat)
+
 ;;; TODO:
 ;;
-;; * Starting with Emacs 25.1, replace `tramp-message-show-message' by
-;;   the reverse of `inhibit-message'.
-
-(provide 'tramp-compat)
+;; * `func-arity' exists since Emacs 26.1.
+;;
+;; * Starting with Emacs 27.1, there's no need to escape open
+;;   parentheses with a backslash in docstrings anymore.
+;;
+;; * Starting with Emacs 27.1, there's `make-empty-file'.  Could be
+;;   used instead of `write-region'.
 
 ;;; tramp-compat.el ends here

@@ -41,11 +41,14 @@ Alternatively, you can type @kbd{C-g} to exit the minibuffer by
 canceling the command asking for the argument (@pxref{Quitting}).
 
 @cindex default argument
+@vindex minibuffer-default-prompt-format
   Sometimes, the prompt shows a @dfn{default argument}, inside
 parentheses before the colon.  This default will be used as the
 argument if you just type @key{RET}.  For example, commands that read
 buffer names usually show a buffer name as the default; you can type
-@key{RET} to operate on that default buffer.
+@key{RET} to operate on that default buffer.  You can customize how
+the default argument is shown with the user option
+@code{minibuffer-default-prompt-format}.
 
 @cindex Minibuffer Electric Default mode
 @cindex mode, Minibuffer Electric Default
@@ -64,10 +67,27 @@ minibuffer-electric-default-mode}.
 
   Since the minibuffer appears in the echo area, it can conflict with
 other uses of the echo area.  If an error message or an informative
-message is emitted while the minibuffer is active, the message hides
-the minibuffer for a few seconds, or until you type something; then
-the minibuffer comes back.  While the minibuffer is in use, Emacs does
-not echo keystrokes.
+message is emitted while the minibuffer is active, the message is
+displayed in brackets after the minibuffer text for a few seconds, or
+until you type something; then the message disappears.  While the
+minibuffer is in use, Emacs does not echo keystrokes.
+
+@vindex minibuffer-follows-selected-frame
+  While using the minibuffer, you can switch to a different frame,
+perhaps to note text you need to enter (@pxref{Frame Commands}).  By
+default, the active minibuffer moves to this new frame.  If you set
+the user option @code{minibuffer-follows-selected-frame} to
+@code{nil}, then the minibuffer stays in the frame where you opened
+it, and you must switch back to that frame in order to complete (or
+abort) the current command.  If you set that option to a value which
+is neither @code{nil} nor @code{t}, the minibuffer moves frame only
+after a recursive minibuffer has been opened in the current command
+(@pxref{Recursive Mini,,, elisp}).  This option is mainly to retain
+(approximately) the behavior prior to Emacs 28.1.  Note that the
+effect of the command, when you finally finish using the minibuffer,
+always takes place in the frame where you first opened it.  The sole
+exception is that when that frame no longer exists, the action takes
+place in the currently selected frame.
 
 @node Minibuffer File
 @section Minibuffers for File Names
@@ -230,6 +250,9 @@ You might need also to enable @code{minibuffer-depth-indicate-mode}
 to show the current recursion depth in the minibuffer prompt
 on recursive use of the minibuffer.
 
+  When active, the minibuffer is usually in @code{minibuffer-mode}.
+This is an internal Emacs mode without any special features.
+
 @findex minibuffer-inactive-mode
   When not active, the minibuffer is in @code{minibuffer-inactive-mode},
 and clicking @kbd{mouse-1} there shows the @file{*Messages*} buffer.
@@ -354,9 +377,9 @@ used with the completion list:
 @itemx @key{prior}
 Typing @kbd{M-v}, while in the minibuffer, selects the window showing
 the completion list (@code{switch-to-completions}).  This paves the
-way for using the commands below.  @key{PageUp} or @key{prior} does
-the same.  You can also select the window in other ways
-(@pxref{Windows}).
+way for using the commands below.  @key{PageUp}, @key{prior} and
+@kbd{M-g M-c} does the same.  You can also select the window in other
+ways (@pxref{Windows}).
 
 @findex choose-completion
 @item @key{RET}
@@ -368,12 +391,14 @@ point (@code{choose-completion}).
 @findex next-completion
 @item @key{TAB}
 @item @key{RIGHT}
+@item @key{n}
 While in the completion list buffer, these keys move point to the
 following completion alternative (@code{next-completion}).
 
 @findex previous-completion
 @item @key{S-TAB}
 @item @key{LEFT}
+@item @key{p}
 While in the completion list buffer, these keys move point to the
 previous completion alternative (@code{previous-completion}).
 
@@ -607,6 +632,14 @@ completion command replaces that with the next completion alternative,
 in a cyclic manner.  If you give @code{completion-cycle-threshold} a
 numeric value @var{n}, completion commands switch to this cycling
 behavior only when there are @var{n} or fewer alternatives.
+
+@vindex completions-format
+  When displaying completions, Emacs will normally pop up a new buffer
+to display the completions.  The completions will (by default) be
+sorted in columns horizontally in alphabetical order, but this can be
+changed by changing the @code{completions-format} user option.  If
+@code{vertical}, sort the completions vertically in columns instead,
+and if @code{one-column}, just use a single column.
 
 @node Minibuffer History
 @section Minibuffer History

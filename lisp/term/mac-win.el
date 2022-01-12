@@ -78,7 +78,6 @@
 (require 'frame)
 (require 'mouse)
 (require 'scroll-bar)
-(require 'faces)
 (require 'select)
 (require 'menu-bar)
 (require 'fontset)
@@ -345,363 +344,6 @@ The optional arg SCALE is the scale factor, and defaults to 2."
 
 
 ;;;; Composition
-(defconst mac-emoji-variation-characters-alist
-  '((keycap . "#*0123456789")
-    (non-keycap . "\u00A9\u00AE\u203C\u2049\u2122\u2139\u2194\u2195\
-\u2196\u2197\u2198\u2199\u21A9\u21AA\u231A\u231B\u2328\u23CF\u23E9\u23EA\
-\u23ED\u23EE\u23EF\u23F1\u23F2\u23F3\u23F8\u23F9\u23FA\u24C2\u25AA\u25AB\
-\u25B6\u25C0\u25FB\u25FC\u25FD\u25FE\u2600\u2601\u2602\u2603\u2604\u260E\
-\u2611\u2614\u2615\u2618\u261D\u2620\u2622\u2623\u2626\u262A\u262E\u262F\
-\u2638\u2639\u263A\u2640\u2642\u2648\u2649\u264A\u264B\u264C\u264D\u264E\
-\u264F\u2650\u2651\u2652\u2653\u265F\u2660\u2663\u2665\u2666\u2668\u267B\
-\u267E\u267F\u2692\u2693\u2694\u2695\u2696\u2697\u2699\u269B\u269C\u26A0\
-\u26A1\u26A7\u26AA\u26AB\u26B0\u26B1\u26BD\u26BE\u26C4\u26C5\u26C8\u26CF\
-\u26D1\u26D3\u26D4\u26E9\u26EA\u26F0\u26F1\u26F2\u26F3\u26F4\u26F5\u26F7\
-\u26F8\u26F9\u26FA\u26FD\u2702\u2708\u2709\u270C\u270D\u270F\u2712\u2714\
-\u2716\u271D\u2721\u2733\u2734\u2744\u2747\u2753\u2757\u2763\u2764\u27A1\
-\u2934\u2935\u2B05\u2B06\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\
-\u3299\
-\U0001F004\U0001F170\U0001F171\U0001F17E\U0001F17F\U0001F202\U0001F21A\
-\U0001F22F\U0001F237\U0001F30D\U0001F30E\U0001F30F\U0001F315\U0001F31C\
-\U0001F321\U0001F324\U0001F325\U0001F326\U0001F327\U0001F328\U0001F329\
-\U0001F32A\U0001F32B\U0001F32C\U0001F336\U0001F378\U0001F37D\U0001F393\
-\U0001F396\U0001F397\U0001F399\U0001F39A\U0001F39B\U0001F39E\U0001F39F\
-\U0001F3A7\U0001F3AC\U0001F3AD\U0001F3AE\U0001F3C2\U0001F3C4\U0001F3C6\
-\U0001F3CA\U0001F3CB\U0001F3CC\U0001F3CD\U0001F3CE\U0001F3D4\U0001F3D5\
-\U0001F3D6\U0001F3D7\U0001F3D8\U0001F3D9\U0001F3DA\U0001F3DB\U0001F3DC\
-\U0001F3DD\U0001F3DE\U0001F3DF\U0001F3E0\U0001F3ED\U0001F3F3\U0001F3F5\
-\U0001F3F7\U0001F408\U0001F415\U0001F41F\U0001F426\U0001F43F\U0001F441\
-\U0001F442\U0001F446\U0001F447\U0001F448\U0001F449\U0001F44D\U0001F44E\
-\U0001F453\U0001F46A\U0001F47D\U0001F4A3\U0001F4B0\U0001F4B3\U0001F4BB\
-\U0001F4BF\U0001F4CB\U0001F4DA\U0001F4DF\U0001F4E4\U0001F4E5\U0001F4E6\
-\U0001F4EA\U0001F4EB\U0001F4EC\U0001F4ED\U0001F4F7\U0001F4F9\U0001F4FA\
-\U0001F4FB\U0001F4FD\U0001F508\U0001F50D\U0001F512\U0001F513\U0001F549\
-\U0001F54A\U0001F550\U0001F551\U0001F552\U0001F553\U0001F554\U0001F555\
-\U0001F556\U0001F557\U0001F558\U0001F559\U0001F55A\U0001F55B\U0001F55C\
-\U0001F55D\U0001F55E\U0001F55F\U0001F560\U0001F561\U0001F562\U0001F563\
-\U0001F564\U0001F565\U0001F566\U0001F567\U0001F56F\U0001F570\U0001F573\
-\U0001F574\U0001F575\U0001F576\U0001F577\U0001F578\U0001F579\U0001F587\
-\U0001F58A\U0001F58B\U0001F58C\U0001F58D\U0001F590\U0001F5A5\U0001F5A8\
-\U0001F5B1\U0001F5B2\U0001F5BC\U0001F5C2\U0001F5C3\U0001F5C4\U0001F5D1\
-\U0001F5D2\U0001F5D3\U0001F5DC\U0001F5DD\U0001F5DE\U0001F5E1\U0001F5E3\
-\U0001F5E8\U0001F5EF\U0001F5F3\U0001F5FA\U0001F610\U0001F687\U0001F68D\
-\U0001F691\U0001F694\U0001F698\U0001F6AD\U0001F6B2\U0001F6B9\U0001F6BA\
-\U0001F6BC\U0001F6CB\U0001F6CD\U0001F6CE\U0001F6CF\U0001F6E0\U0001F6E1\
-\U0001F6E2\U0001F6E3\U0001F6E4\U0001F6E5\U0001F6E9\U0001F6F0\U0001F6F3"))
-  "Groups of characters that are sensitive to variation selectors 15 and 16.
-It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-variation-sequences.txt 14.0.")
-
-(defconst mac-emoji-modifier-base-characters-alist
-  '((t . "\u261D\u26F9\u270A\u270B\u270C\u270D\
-\U0001F385\U0001F3C2\U0001F3C3\U0001F3C4\U0001F3C7\U0001F3CA\U0001F3CB\
-\U0001F3CC\U0001F442\U0001F443\U0001F446\U0001F447\U0001F448\U0001F449\
-\U0001F44A\U0001F44B\U0001F44C\U0001F44D\U0001F44E\U0001F44F\U0001F450\
-\U0001F466\U0001F467\U0001F468\U0001F469\U0001F46B\U0001F46C\U0001F46D\
-\U0001F46E\U0001F470\U0001F471\U0001F472\U0001F473\U0001F474\U0001F475\
-\U0001F476\U0001F477\U0001F478\U0001F47C\U0001F481\U0001F482\U0001F483\
-\U0001F485\U0001F486\U0001F487\U0001F48F\U0001F491\U0001F4AA\U0001F574\
-\U0001F575\U0001F57A\U0001F590\U0001F595\U0001F596\U0001F645\U0001F646\
-\U0001F647\U0001F64B\U0001F64C\U0001F64D\U0001F64E\U0001F64F\U0001F6A3\
-\U0001F6B4\U0001F6B5\U0001F6B6\U0001F6C0\U0001F6CC\U0001F90C\U0001F90F\
-\U0001F918\U0001F919\U0001F91A\U0001F91B\U0001F91C\U0001F91E\U0001F91F\
-\U0001F926\U0001F930\U0001F931\U0001F932\U0001F933\U0001F934\U0001F935\
-\U0001F936\U0001F937\U0001F938\U0001F939\U0001F93D\U0001F93E\U0001F977\
-\U0001F9B5\U0001F9B6\U0001F9B8\U0001F9B9\U0001F9BB\U0001F9CD\U0001F9CE\
-\U0001F9CF\U0001F9D1\U0001F9D2\U0001F9D3\U0001F9D4\U0001F9D5\U0001F9D6\
-\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\U0001F9DD\
-\U0001FAC3\U0001FAC4\U0001FAC5\U0001FAF0\U0001FAF1\U0001FAF2\U0001FAF3\
-\U0001FAF4\U0001FAF5\U0001FAF6"))
-  "Groups of characters that are sensitive to emoji modifiers.
-It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-sequences.txt 14.0.")
-
-(defconst mac-emoji-gendered-zwj-characters-alist
-  '((role . "\u2695\u2696\u2708\
-\U0001F33E\U0001F373\U0001F37C\U0001F393\U0001F3A4\U0001F3A8\U0001F3EB\
-\U0001F3ED\U0001F4BB\U0001F4BC\U0001F527\U0001F52C\U0001F680\U0001F692\
-\U0001F9AF\U0001F9BC\U0001F9BD")
-    (hair . "\U0001F9B0\U0001F9B1\U0001F9B2\U0001F9B3")
-    (gendered . "\u26F9\U0001F3C3\U0001F3C4\U0001F3CA\U0001F3CB\U0001F3CC\
-\U0001F46E\U0001F46F\U0001F470\U0001F471\U0001F473\U0001F477\U0001F481\
-\U0001F482\U0001F486\U0001F487\U0001F575\U0001F645\U0001F646\U0001F647\
-\U0001F64B\U0001F64D\U0001F64E\U0001F6A3\U0001F6B4\U0001F6B5\U0001F6B6\
-\U0001F926\U0001F935\U0001F937\U0001F938\U0001F939\U0001F93C\U0001F93D\
-\U0001F93E\U0001F9B8\U0001F9B9\U0001F9CD\U0001F9CE\U0001F9CF\U0001F9D4\
-\U0001F9D6\U0001F9D7\U0001F9D8\U0001F9D9\U0001F9DA\U0001F9DB\U0001F9DC\
-\U0001F9DD\U0001F9DE\U0001F9DF"))
-  "Groups of characters that are parts of the gendered zwj sequences.
-It is an alist of label symbols vs sequences of characters.
-The entries are currently based on emoji-zwj-sequences.txt 14.0.")
-
-(defconst mac-emoji-tag-base-characters-alist
-  '((flag "\U0001F3F4" "[\U000E0030-\U000E0039\U000E0061-\U000E007A]+"))
-  "Groups of emoji characters that are sensitive to tags.
-It is an alist of label symbols vs lists whose elements are of
-the form (CHARS SPEC) where CHARS is a string of tag base
-characters and SPEC is a regexp for the corresponding tag spec.
-The entries are currently based on emoji-sequences.txt 14.0.")
-
-(defun mac-emoji-multistyles-unistyles (sequence)
-  "Split emoji SEQUENCE into a cons of multistyles and unistyles."
-  (let ((variations-regexp
-         (concat "["
-                 (mapconcat 'cdr mac-emoji-variation-characters-alist "")
-                 "]"))
-        multistyles unistyles)
-    (mapc (lambda (c) (if (string-match variations-regexp (string c))
-                          (push c multistyles)
-                        (push c unistyles)))
-          sequence)
-    (cons multistyles unistyles)))
-
-(defun mac-compose-gstring-for-variation-with-trailer (gstring direction)
-  "Compose glyph-string GSTRING for graphic display.
-GSTRING must have three glyphs; the first is a character that is
-sensitive to the variation selectors 15 (U+FE0E, text-style) and
-16 (U+FE0F, emoji-style), the second is a glyph for one of the
-variation selectors, and the third is a \"trailer\" character
-that participates in the whole composition, e.g., the combining
-enclosing keycap character (U+20E3) or the emoji modifiers for
-skin tones (U+1F3FB - U+1F3FF)."
-  (let ((saved-header (lgstring-header gstring))
-	(g2 (lgstring-glyph gstring 2))
-	(i 0)
-	glyph from to)
-    (lgstring-set-header gstring (vector (lgstring-font gstring)
-					 (lgstring-char gstring 0)
-					 (lgstring-char gstring 2)))
-    (lglyph-set-from-to g2 (1- (lglyph-from g2)) (1- (lglyph-to g2)))
-    (lgstring-set-glyph gstring 1 g2)
-    (lgstring-set-glyph gstring 2 nil)
-    (setq gstring (copy-sequence (font-shape-gstring gstring direction)))
-    (when gstring
-      (lgstring-set-header gstring saved-header)
-      (lgstring-set-id gstring nil)
-      (while (and (< i (lgstring-glyph-len gstring))
-		  (setq glyph (copy-sequence (lgstring-glyph gstring i))))
-	(setq from (lglyph-from glyph)
-	      to (lglyph-to glyph))
-	(if (>= from 1) (setq from (1+ from)))
-	(if (>= to 1) (setq to (1+ to)))
-	(lglyph-set-from-to glyph from to)
-	(lgstring-set-glyph gstring i glyph)
-	(setq i (1+ i)))))
-  gstring)
-
-(defun mac-compose-gstring-for-text-style-variation (gstring _direction)
-  "Compose glyph-string GSTRING in text style for graphic display.
-GSTRING must have two glyphs; the first is a character that is
-sensitive to the text/emoji-style variation selector, and the
-second is a glyph for the variation selector 15 (U+FE0E)."
-  (let ((g0 (lgstring-glyph gstring 0))
-	(g1 (lgstring-glyph gstring 1)))
-    (lglyph-set-from-to g0 (lglyph-from g0) (lglyph-to g1))
-    (lglyph-set-char g0 0)
-    (lgstring-set-glyph gstring 1 nil))
-  gstring)
-
-(defun mac-compose-gstring-for-emoji-style-variation (gstring direction)
-  "Compose glyph-string GSTRING in emoji style for graphic display.
-GSTRING must have two glyphs; the first is a character that is
-sensitive to the text/emoji-style variation selector, and the
-second is a glyph for the variation selector 16 (U+FE0F)."
-  (let ((saved-header (lgstring-header gstring))
-	glyph)
-    (lgstring-set-header gstring (vector (lgstring-font gstring)
-					 (lgstring-char gstring 0)))
-    (lgstring-set-glyph gstring 1 nil)
-    (setq gstring (copy-sequence (font-shape-gstring gstring direction)))
-    (when gstring
-      (lgstring-set-header gstring saved-header)
-      (lgstring-set-id gstring nil)
-      (setq glyph (copy-sequence (lgstring-glyph gstring 0)))
-      (lglyph-set-from-to glyph (lglyph-from glyph) (1+ (lglyph-to glyph)))
-      (lglyph-set-char glyph 0)
-      (lgstring-set-glyph gstring 0 glyph)))
-  gstring)
-
-(defun mac-setup-composition-function-table ()
-  ;; Regional Indicator Symbols
-  (set-char-table-range composition-function-table '(#x1F1E6 . #x1F1FF)
-			'([".[\x1F1E6-\x1F1FF]" 0 font-shape-gstring]))
-  (let* ((variations
-          (mapconcat 'cdr mac-emoji-variation-characters-alist ""))
-         (modifications
-          (mapconcat 'cdr mac-emoji-modifier-base-characters-alist ""))
-         (modification-multistyles
-          (car (mac-emoji-multistyles-unistyles modifications))))
-    ;; Variation Selectors 15 and 16
-    (let ((regexp-keycap
-	   (concat "[" (cdr (assq 'keycap mac-emoji-variation-characters-alist))
-		   "].\u20E3"))
-	  (regexp-all (concat "[" variations "]."))
-	  (regexp-modified
-           (concat "[" modification-multistyles "].[\x1F3FB-\x1F3FF]")))
-      (set-char-table-range
-       composition-function-table ?\uFE0E
-       `([,regexp-keycap 1 mac-compose-gstring-for-variation-with-trailer 1]
-	 [,regexp-modified 1 mac-compose-gstring-for-variation-with-trailer -1]
-	 [,regexp-all 1 mac-compose-gstring-for-text-style-variation -1]))
-      (set-char-table-range
-       composition-function-table ?\uFE0F
-       `([,regexp-keycap 1 mac-compose-gstring-for-variation-with-trailer 0]
-	 [,regexp-modified 1 mac-compose-gstring-for-variation-with-trailer 0]
-	 [,regexp-all 1 mac-compose-gstring-for-emoji-style-variation 0])))
-    ;; Emoji Modifiers
-    (set-char-table-range
-     composition-function-table '(#x1F3FB . #x1F3FF)
-     `([,(concat "[" modifications "].") 1 font-shape-gstring 0]))
-    ;; Emoji Tag Sequences
-    (let* ((tag-term "\U000E007F")
-           (modifications-regexp (concat "[" modifications "]"))
-           rules)
-      (dolist (entry mac-emoji-tag-base-characters-alist)
-        (let* ((base-chars (nth 1 entry))
-               (tag-spec (nth 2 entry))
-               (base-multistyles
-                (car (mac-emoji-multistyles-unistyles base-chars)))
-               base-modifications)
-          (push `[,(concat "[" base-chars "]\\(?:" tag-spec "\\)" tag-term)
-                  1 font-shape-gstring -1] rules)
-          (when (/= (length base-multistyles) 0)
-            (push `[,(concat "[" base-multistyles "]\uFE0E\\(?:"
-                             tag-spec "\\)" tag-term)
-                    2 font-shape-gstring -2] rules)
-            (push `[,(concat "[" base-multistyles "]\uFE0F\\(?:"
-                             tag-spec "\\)" tag-term)
-                    2 font-shape-gstring -1] rules))
-          (mapc (lambda (c) (if (string-match modifications-regexp (string c))
-                                (push c base-modifications)))
-                base-chars)
-          (when (/= (length base-modifications) 0)
-            (push `[,(concat "[" base-modifications "][\x1F3FB-\x1F3FF]\\(?:"
-                             tag-spec "\\)" tag-term)
-                    2 font-shape-gstring -1] rules)
-            (let ((base-modification-multistyles
-                   (car (mac-emoji-multistyles-unistyles base-modifications))))
-              (if (/= (length base-modification-multistyles) 0)
-                  (push `[,(concat "[" base-modification-multistyles
-                                   "]\uFE0F[\x1F3FB-\x1F3FF]\\(?:"
-                                   tag-spec "\\)" tag-term)
-                          3 font-shape-gstring -2] rules))))))
-      (set-char-table-range
-       composition-function-table '(#xE0020 . #xE007E) (nreverse rules))))
-  ;; Emoji ZWJ Sequences.
-  (let* ((zwj "\u200D") (vs16 "\uFE0F") (modifiers "[\x1F3FB-\x1F3FF]")
-         (man "\U0001F468") (woman "\U0001F469") (person "\U0001F9D1")
-	 (girl "\U0001F467") (boy "\U0001F466")
-	 (red-heart "\u2764") (kiss-mark "\U0001F48B") (handshake "\U0001F91D")
-         (rightwards-hand "\U0001FAF1") (leftwards-hand "\U0001FAF2")
-         (fire "\U0001F525") (adhesive-bandage "\U0001FA79")
-         (white-flag "\U0001F3F3") (transgender "\u26A7") (rainbow "\U0001F308")
-         (black-flag "\U0001F3F4") (skull-and-crossbones "\u2620")
-         (cat "\U0001F408") (black-large-square "\u2B1B")
-         (dog "\U0001F415") (safety-vest "\U0001F9BA")
-         (bear "\U0001F43B") (snowflake "\u2744")
-         (eye "\U0001F441") (left-speech-bubble "\U0001F5E8")
-         (face-with-open-mouth "\U0001F62E") (dashing-away "\U0001F4A8")
-         (knocked-out-face "\U0001F635") (dizzy "\U0001F4AB")
-         (face-without-mouth "\U0001F636") (fog "\U0001F32B")
-         (christmas-tree "\U0001F384")
-         (female "\u2640") (male "\u2642")
-         (vs16? (concat vs16 "?"))
-	 (man-or-woman (concat "[" man woman "]"))
-         (man-woman-or-person (concat "[" man woman person "]"))
-	 (girl-or-boy (concat "[" girl boy "]"))
-	 (female-or-male (concat "[" female male "]"))
-	 (children (concat "\\(?:" girl "\\(?:" zwj girl-or-boy "\\)?"
-			   "\\|" boy "\\(?:" zwj boy "\\)?\\)"))
-         (object-multis-unis
-          (mac-emoji-multistyles-unistyles
-           (mapconcat (lambda (symbol)
-                        (cdr (assq symbol
-                                   mac-emoji-gendered-zwj-characters-alist)))
-                      '(role hair) "")))
-         (object-multistyles (car object-multis-unis))
-         (object-unistyles (cdr object-multis-unis))
-         (signs (cdr (assq 'gendered mac-emoji-gendered-zwj-characters-alist)))
-         (sign-multistyles (car (mac-emoji-multistyles-unistyles signs))))
-    (set-char-table-range
-     composition-function-table (string-to-char zwj)
-     `([,(concat man ".\\(?:\\(?:" man-or-woman zwj "\\)?" children
-                 "\\|" red-heart vs16? zwj
-                 "\\(?:" kiss-mark zwj "\\)?" man "\\)")
-	1 font-shape-gstring -1]
-       [,(concat woman ".\\(?:\\(?:" woman zwj "\\)?" children
-                 "\\|" red-heart vs16? zwj
-		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman "\\)")
-	1 font-shape-gstring -1]
-       [,(concat man-woman-or-person ".\\(?:" handshake zwj person
-                 "\\|[" object-multistyles "]" vs16?
-                 "\\|[" object-unistyles "]\\)")
-	1 font-shape-gstring -1]
-       [,(concat rightwards-hand "." leftwards-hand)
-        1 font-shape-gstring -1]
-       [,(concat red-heart zwj "\\(?:" fire "\\|" adhesive-bandage "\\)")
-	1 font-shape-gstring -1]
-       [,(concat white-flag zwj "\\(?:" transgender vs16? "\\|" rainbow "\\)")
-	1 font-shape-gstring -1]
-       [,(concat black-flag zwj skull-and-crossbones vs16?)
-	1 font-shape-gstring -1]
-       [,(concat cat zwj black-large-square)
-	1 font-shape-gstring -1]
-       [,(concat dog zwj safety-vest)
-	1 font-shape-gstring -1]
-       [,(concat bear zwj snowflake vs16?)
-	1 font-shape-gstring -1]
-       [,(concat eye zwj left-speech-bubble vs16?)
-	1 font-shape-gstring -1]
-       [,(concat face-with-open-mouth zwj dashing-away)
-	1 font-shape-gstring -1]
-       [,(concat knocked-out-face zwj dizzy)
-	1 font-shape-gstring -1]
-       [,(concat face-without-mouth zwj fog vs16?)
-	1 font-shape-gstring -1]
-       [,(concat person zwj christmas-tree)
-	1 font-shape-gstring -1]
-       [,(concat "[" signs "]." female-or-male vs16?)
-	1 font-shape-gstring -1]))
-    (set-char-table-range
-     composition-function-table ?\uFE0F
-     `([,(concat red-heart vs16 zwj "\\(?:" fire "\\|" adhesive-bandage "\\)")
-	1 font-shape-gstring 0]
-       [,(concat white-flag vs16 zwj
-                 "\\(?:" transgender vs16? "\\|" rainbow "\\)")
-        1 font-shape-gstring 0]
-       [,(concat eye vs16 zwj left-speech-bubble vs16?)
-	1 font-shape-gstring 0]
-       [,(concat "[" sign-multistyles "]." zwj female-or-male vs16?)
-	1 font-shape-gstring 0]
-       ,@(aref composition-function-table ?\uFE0F)))
-    (set-char-table-range
-     composition-function-table '(#x1F3FB . #x1F3FF)
-     `([,(concat man-woman-or-person "." zwj
-                 "\\(?:[" object-multistyles "]" vs16?
-                 "\\|[" object-unistyles "]\\)")
-	1 font-shape-gstring 0]
-       [,(concat "[" signs "]." zwj female-or-male vs16?)
-	1 font-shape-gstring 0]
-       [,(concat man "." zwj "\\(?:" red-heart vs16? zwj
-                 "\\(?:" kiss-mark zwj "\\)?" man modifiers "\\)")
-	1 font-shape-gstring 0]
-       [,(concat woman "." zwj "\\(?:" red-heart vs16? zwj
-		 "\\(?:" kiss-mark zwj "\\)?" man-or-woman modifiers "\\)")
-	1 font-shape-gstring 0]
-       [,(concat person "." zwj "\\(?:" red-heart vs16? zwj
-		 "\\(?:" kiss-mark zwj "\\)?" person modifiers "\\)")
-	1 font-shape-gstring 0]
-       [,(concat "\\(" man "\\|" person "\\)." zwj handshake zwj
-                 "\\1" modifiers)
-	1 font-shape-gstring 0]
-       [,(concat woman "." zwj handshake zwj man-or-woman modifiers)
-	1 font-shape-gstring 0]
-       [,(concat rightwards-hand "." zwj leftwards-hand modifiers)
-	1 font-shape-gstring 0]
-       [,(concat person "." zwj christmas-tree)
-	1 font-shape-gstring 0]
-       ,@(aref composition-function-table #x1F3FB)))))
-
 (defcustom mac-auto-operator-composition-characters "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
   "Sequence of characters used in automatic operator composition."
   :package-version '(Mac\ port . "5.10")
@@ -1803,29 +1445,6 @@ the echo area or in a buffer where the cursor is not displayed."
 	      (error nil))))
       (setq mac-ts-active-input-string active-input-string))))
 
-(defvar mac-emoji-font-regexp "\\<emoji\\>"
-  "Regexp matching font names for emoji.
-This is used for complementing the variation selector
-16 (emoji-style) when inserting emoji characters that are
-sensitive to the variation selector.")
-
-(defun mac-complement-emoji-by-variation-selector (string)
-  (let ((len (length string))
-	base)
-    (cond ((and (= len 1)
-		(string-match
-		 (regexp-quote string)
-		 (mapconcat 'cdr mac-emoji-variation-characters-alist "")))
-	   (concat string "\uFE0F"))
-	  ((and (= len 2)
-		(eq (aref string 1) #x20E3)
-		(string-match
-		 (regexp-quote (setq base (substring string 0 1)))
-		 (cdr (assq 'keycap mac-emoji-variation-characters-alist))))
-	   (concat base "\uFE0F\u20E3"))
-	  (t
-	   string))))
-
 (defun mac-text-input-insert-text (event)
   (interactive "e")
   (let* ((ae (mac-event-ae event))
@@ -1860,14 +1479,7 @@ sensitive to the variation selector.")
 			   (+ (point-min) (car replacement-range)
 			      (cdr replacement-range)))
 	  (error nil)))
-    (let ((string (mac-utxt-to-string text coding))
-	  (font (cdr (get-text-property 0 'NSFont text)))) ; NSFontAttributeName
-      (if (and (fontp font)
-	       (not (next-single-property-change 0 'NSFont text))
-	       (string-match mac-emoji-font-regexp
-			     (symbol-name (font-get font :family))))
-	  (setq string (mac-complement-emoji-by-variation-selector string)))
-      (mac-unread-string string))))
+    (mac-unread-string (mac-utxt-to-string text coding))))
 
 (defcustom mac-selected-keyboard-input-source-change-hook nil
   "Hook run for a change to the selected keyboard input source.
@@ -2458,12 +2070,12 @@ A hook function can determine the current appearance by checking the
             (let ((mouse-wheel-progressive-speed nil))
               (apply function event arguments)))))))
 
-(defun mac-mwheel-scroll (event)
+(defun mac-mwheel-scroll (event &optional arg)
   "Scroll up or down according to the EVENT.
 Mostly like `mwheel-scroll', but try scrolling by pixel unit if
 EVENT has no modifier keys, `mac-mouse-wheel-smooth-scroll' is
 non-nil, and the input device supports it."
-  (interactive (list last-input-event))
+  (interactive (list last-input-event current-prefix-arg))
   (setq mac-ignore-momentum-wheel-events nil)
   ;; (nth 3 event) is a plist that may contain the following keys:
   ;; :direction-inverted-from-device-p		(boolean)
@@ -2476,7 +2088,7 @@ non-nil, and the input device supports it."
   (if (not (memq (event-basic-type event) '(wheel-up wheel-down)))
       (when (memq (event-basic-type event) '(wheel-left wheel-right))
         (if mouse-wheel-tilt-scroll
-            (mac-forward-wheel-event t 'mwheel-scroll event)
+            (mac-forward-wheel-event t 'mwheel-scroll event arg)
           (cond ((and
                   ;; "Swipe between pages" enabled.
                   (plist-get (nth 3 event)
@@ -2498,7 +2110,7 @@ non-nil, and the input device supports it."
     (if (or (not mac-mouse-wheel-smooth-scroll)
 	    (delq 'click (delq 'double (delq 'triple (event-modifiers event))))
 	    (null (plist-get (nth 3 event) :scrolling-delta-y)))
-        (mac-forward-wheel-event nil 'mwheel-scroll event)
+        (mac-forward-wheel-event arg 'mwheel-scroll event arg)
       ;; TODO: ignore momentum scroll events after buffer switch.
       (let* ((window-to-scroll (if mouse-wheel-follow-mouse
 				   (posn-window (event-start event))))
@@ -2859,8 +2471,24 @@ non-nil, and the input device supports it."
   (interactive "e")
   (mac-forward-wheel-event nil 'image-mouse-decrease-size event))
 
-(defvar mac-mwheel-installed-bindings nil)
-(defvar mac-mwheel-installed-text-scale-bindings nil)
+(defvar mac-mouse-wheel--installed-bindings-alist nil
+  "Alist of all installed mouse wheel key bindings.")
+
+(defun mac-mouse-wheel--add-binding (key fun)
+  "Bind mouse wheel button KEY to function FUN.
+Save it for later removal by `mouse-wheel--remove-bindings'."
+  (global-set-key key fun)
+  (push (cons key fun) mac-mouse-wheel--installed-bindings-alist))
+
+(defun mac-mouse-wheel--remove-bindings ()
+  "Remove all mouse wheel key bindings.
+This is a helper function for `mac-mouse-wheel-mode'."
+  (dolist (binding mac-mouse-wheel--installed-bindings-alist)
+    (let ((key (car binding))
+          (fun (cdr binding)))
+     (when (eq (lookup-key (current-global-map) key) fun)
+       (global-unset-key key))))
+  (setq mac-mouse-wheel--installed-bindings-alist nil))
 
 (define-minor-mode mac-mouse-wheel-mode
   "Toggle mouse wheel support with smooth scroll (Mac Mouse Wheel mode)."
@@ -2868,34 +2496,31 @@ non-nil, and the input device supports it."
   :global t
   :group 'mac
   ;; Remove previous bindings, if any.
-  (mouse-wheel--remove-bindings mac-mwheel-installed-bindings
-                                '(mac-mwheel-scroll))
-  (mouse-wheel--remove-bindings mac-mwheel-installed-text-scale-bindings
-                                '(mac-mouse-wheel-text-scale))
-  (setq mac-mwheel-installed-bindings nil)
-  (setq mac-mwheel-installed-text-scale-bindings nil)
+  (mac-mouse-wheel--remove-bindings)
   (define-key image-map [remap image-mouse-increase-size] nil)
   (define-key image-map [remap image-mouse-decrease-size] nil)
   ;; Setup bindings as needed.
   (when mac-mouse-wheel-mode
-    (dolist (binding mouse-wheel-scroll-amount)
-      (cond
-       ;; Bindings for changing font size.
-       ((and (consp binding) (eq (cdr binding) 'text-scale))
-        (dolist (event '(wheel-down wheel-up))
-          (let ((key `[,(list (caar binding) event)]))
-            (global-set-key key 'mac-mouse-wheel-text-scale)
-            (push key mac-mwheel-installed-text-scale-bindings))))
-       ;; Bindings for scrolling.
-       (t
-        (dolist (event '(wheel-down wheel-up wheel-left wheel-right))
-          (let ((key `[(,@(if (consp binding) (car binding)) ,event)]))
-            (global-set-key key 'mac-mwheel-scroll)
-            (push key mac-mwheel-installed-bindings))))))
+    (mac-mouse-wheel--setup-bindings)
     (define-key image-map [remap image-mouse-increase-size]
       'mac-image-mouse-increase-size)
     (define-key image-map [remap image-mouse-decrease-size]
       'mac-image-mouse-decrease-size)))
+
+(defun mac-mouse-wheel--setup-bindings ()
+  (dolist (binding mouse-wheel-scroll-amount)
+    (cond
+     ;; Bindings for changing font size.
+     ((and (consp binding) (eq (cdr binding) 'text-scale))
+      (dolist (event (list mouse-wheel-down-event mouse-wheel-up-event))
+        (mouse-wheel--add-binding `[,(list (caar binding) event)]
+                                  'mac-mouse-wheel-text-scale)))
+     ;; Bindings for scrolling.
+     (t
+      (dolist (event (list mouse-wheel-down-event mouse-wheel-up-event
+                           mouse-wheel-left-event mouse-wheel-right-event))
+        (dolist (key (mouse-wheel--create-scroll-keys binding event))
+          (mouse-wheel--add-binding key 'mac-mwheel-scroll)))))))
 
 
 ;;; Swipe events
@@ -3290,19 +2915,6 @@ standard ones in `x-handle-args'."
   ;; Create the default fontset.
   (create-default-fontset)
 
-  (set-fontset-font t nil (font-spec :family "Apple Symbols"
-				     :registry "iso10646-1") nil 'prepend)
-  (when (and (string-match "darwin\\([0-9]+\\)" system-configuration)
-	     (>= (string-to-number (match-string 1 system-configuration)) 11))
-    ;; Built on Mac OS X 10.7 or later.
-    (let ((spec (font-spec :family "Apple Color Emoji" :registry "iso10646-1")))
-      (set-fontset-font t nil spec nil 'append)
-      ;; Work around lots of font lookups in emoji compositions.
-      (set-fontset-font t #xFE0F spec)	; Variation Selector 16
-      (set-fontset-font t '(#x1F1E6 . #x1F1FF) spec) ; Regional Indicator Syms
-      (set-fontset-font t '(#x1F3FB . #x1F3FF) spec))) ; Emoji Modifiers
-  (mac-setup-composition-function-table)
-  ;; (set-fontset-font t nil (font-spec :family "LastResort") nil 'append)
   (set-fontset-font t '(#x20000 . #x2FFFF)
 		    '("HanaMinB" . "unicode-sip") nil 'append)
 
@@ -3401,7 +3013,8 @@ standard ones in `x-handle-args'."
 
   ;; Running on macOS 10.12 or later.
   (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 12))
-    (define-key ctl-x-5-map "5" 'mac-ctl-x-5-revolve-frame-tabbing)
+    ;; "C-x 5 5" conflicts with other-frame-prefix on Emacs 28.
+    ;; (define-key ctl-x-5-map "5" 'mac-ctl-x-5-revolve-frame-tabbing)
     (define-key-after menu-bar-showhide-menu [mac-toggle-tab-bar]
       '(menu-item "Tab-bar" mac-toggle-tab-bar
                   :enable (mac-frame-single-tab-p)

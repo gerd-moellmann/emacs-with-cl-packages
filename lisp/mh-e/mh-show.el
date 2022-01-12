@@ -1,4 +1,4 @@
-;;; mh-show.el --- MH-Show mode
+;;; mh-show.el --- MH-Show mode  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1993, 1995, 1997, 2000-2021 Free Software Foundation,
 ;; Inc.
@@ -25,8 +25,6 @@
 ;;; Commentary:
 
 ;; Mode for showing messages.
-
-;;; Change Log:
 
 ;;; Code:
 
@@ -136,7 +134,7 @@ displayed."
         (show-window (get-buffer-window mh-show-buffer))
         (display-mime-buttons-flag mh-display-buttons-for-inline-parts-flag))
     (if (not (eq (next-window (minibuffer-window)) (selected-window)))
-        (delete-other-windows))         ; force ourself to the top window
+        (delete-other-windows))         ; force ourselves to the top window
     (mh-in-show-buffer (mh-show-buffer)
       (setq mh-display-buttons-for-inline-parts-flag display-mime-buttons-flag)
       (if (and show-window
@@ -187,7 +185,7 @@ Sets the current buffer to the show buffer."
     (set-buffer folder)
     ;; When Gnus uses external displayers it has to keep handles longer. So
     ;; we will delete these handles when mh-quit is called on the folder. It
-    ;; would be nicer if there are weak pointers in emacs lisp, then we could
+    ;; would be nicer if there are weak pointers in Emacs Lisp, then we could
     ;; get the garbage collector to do this for us.
     (unless (mh-buffer-data)
       (setf (mh-buffer-data) (mh-make-buffer-data)))
@@ -195,7 +193,7 @@ Sets the current buffer to the show buffer."
     (let ((formfile mh-mhl-format-file)
           (clean-message-header mh-clean-message-header-flag)
           (invisible-headers mh-invisible-header-fields-compiled)
-          (visible-headers nil)
+          ;; (visible-headers nil)
           (msg-filename (mh-msg-filename msg-num folder-name))
           (show-buffer mh-show-buffer)
           (mm-inline-media-tests mh-mm-inline-media-tests))
@@ -219,8 +217,7 @@ Sets the current buffer to the show buffer."
              (erase-buffer)
              ;; Changing contents, so this hook needs to be reinitialized.
              ;; pgp.el uses this.
-             (if (boundp 'write-contents-hooks) ;Emacs 19
-                 (kill-local-variable 'write-contents-hooks))
+             (kill-local-variable 'write-contents-functions)
              (font-lock-mode -1)
              (mh-show-mode)
              (if formfile
@@ -242,7 +239,7 @@ Sets the current buffer to the show buffer."
              (cond (clean-message-header
                     (mh-clean-msg-header (point-min)
                                          invisible-headers
-                                         visible-headers)
+                                         nil) ;; visible-headers
                     (goto-char (point-min)))
                    (t
                     (mh-start-of-uncleaned-message)))
@@ -466,8 +463,10 @@ still visible.\n")
 (mh-defun-show-buffer mh-show-index-visit-folder mh-index-visit-folder t)
 (mh-defun-show-buffer mh-show-toggle-tick mh-toggle-tick)
 (mh-defun-show-buffer mh-show-narrow-to-tick mh-narrow-to-tick)
-(mh-defun-show-buffer mh-show-junk-blacklist mh-junk-blacklist)
-(mh-defun-show-buffer mh-show-junk-whitelist mh-junk-whitelist)
+(mh-defun-show-buffer mh-show-junk-allowlist mh-junk-allowlist)
+(mh-defun-show-buffer mh-show-junk-whitelist mh-junk-allowlist)
+(make-obsolete 'mh-show-junk-whitelist 'mh-show-junk-allowlist "28.1")
+(mh-defun-show-buffer mh-show-junk-blocklist mh-junk-blocklist)
 (mh-defun-show-buffer mh-show-index-new-messages mh-index-new-messages)
 (mh-defun-show-buffer mh-show-index-ticked-messages mh-index-ticked-messages)
 (mh-defun-show-buffer mh-show-index-sequenced-messages
@@ -636,7 +635,8 @@ still visible.\n")
 
 (gnus-define-keys (mh-show-junk-map "J" mh-show-mode-map)
   "?"    mh-prefix-help
-  "b"    mh-show-junk-blacklist
+  "a"    mh-show-junk-allowlist
+  "b"    mh-show-junk-blocklist
   "w"    mh-show-junk-whitelist)
 
 (gnus-define-keys (mh-show-ps-print-map "P" mh-show-mode-map)
@@ -863,10 +863,11 @@ See also `mh-folder-mode'.
       (turn-on-font-lock))
   (when mh-decode-mime-flag
     (mh-make-local-hook 'kill-buffer-hook)
-    (add-hook 'kill-buffer-hook 'mh-mime-cleanup nil t))
-  (easy-menu-add mh-show-sequence-menu)
-  (easy-menu-add mh-show-message-menu)
-  (easy-menu-add mh-show-folder-menu)
+    (add-hook 'kill-buffer-hook #'mh-mime-cleanup nil t))
+  (mh-do-in-xemacs
+    (easy-menu-add mh-show-sequence-menu)
+    (easy-menu-add mh-show-message-menu)
+    (easy-menu-add mh-show-folder-menu))
   (make-local-variable 'mh-show-folder-buffer)
   (buffer-disable-undo)
   (use-local-map mh-show-mode-map))

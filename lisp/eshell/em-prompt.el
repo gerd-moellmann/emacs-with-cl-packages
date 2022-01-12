@@ -48,10 +48,9 @@ as is common with most shells."
 (autoload 'eshell/pwd "em-dirs")
 
 (defcustom eshell-prompt-function
-  (function
-   (lambda ()
-     (concat (abbreviate-file-name (eshell/pwd))
-	     (if (= (user-uid) 0) " # " " $ "))))
+  (lambda ()
+    (concat (abbreviate-file-name (eshell/pwd))
+            (if (= (user-uid) 0) " # " " $ ")))
   "A function that returns the Eshell prompt string.
 Make sure to update `eshell-prompt-regexp' so that it will match your
 prompt."
@@ -97,7 +96,19 @@ arriving, or after."
   :options '(eshell-show-maximum-output)
   :group 'eshell-prompt)
 
+(defvar eshell-prompt-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-n") #'eshell-next-prompt)
+    (define-key map (kbd "C-c C-p") #'eshell-previous-prompt)
+    map))
+
 ;;; Functions:
+
+(define-minor-mode eshell-prompt-mode
+  "Minor mode for eshell-prompt module.
+
+\\{eshell-prompt-mode-map}"
+  :keymap eshell-prompt-mode-map)
 
 (defun eshell-prompt-initialize ()  ;Called from `eshell-mode' via intern-soft!
   "Initialize the prompting code."
@@ -106,13 +117,10 @@ arriving, or after."
 
     (make-local-variable 'eshell-prompt-regexp)
     (if eshell-prompt-regexp
-	(set (make-local-variable 'paragraph-start) eshell-prompt-regexp))
+        (setq-local paragraph-start eshell-prompt-regexp))
 
-    (set (make-local-variable 'eshell-skip-prompt-function)
-	 'eshell-skip-prompt)
-
-    (define-key eshell-command-map [(control ?n)] 'eshell-next-prompt)
-    (define-key eshell-command-map [(control ?p)] 'eshell-previous-prompt)))
+    (setq-local eshell-skip-prompt-function #'eshell-skip-prompt)
+    (eshell-prompt-mode)))
 
 (defun eshell-emit-prompt ()
   "Emit a prompt if eshell is being used interactively."

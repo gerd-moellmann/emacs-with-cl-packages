@@ -75,7 +75,7 @@ List elements are cons cells of the form
 
 If a file name matches REGEXP, then use help mode MODE instead of the
 buffer's major mode."
-  :group 'info-lookup :type '(repeat (cons (string :tag "Regexp")
+  :group 'info-lookup :type '(repeat (cons (regexp :tag "Regexp")
 					   (symbol :tag "Mode"))))
 
 (defvar info-lookup-history nil
@@ -261,7 +261,8 @@ system."
 (defun info-lookup-symbol (symbol &optional mode)
   "Display the definition of SYMBOL, as found in the relevant manual.
 When this command is called interactively, it reads SYMBOL from the
-minibuffer.  In the minibuffer, use M-n to yank the default argument
+minibuffer.  In the minibuffer, use \\<minibuffer-local-completion-map>\
+\\[next-history-element] to yank the default argument
 value into the minibuffer so you can edit it.  The default symbol is the
 one found at point.
 
@@ -275,7 +276,8 @@ With prefix arg MODE a query for the symbol help mode is offered."
 (defun info-lookup-file (file &optional mode)
   "Display the documentation of a file.
 When this command is called interactively, it reads FILE from the minibuffer.
-In the minibuffer, use M-n to yank the default file name
+In the minibuffer, use \\<minibuffer-local-completion-map>\
+\\[next-history-element] to yank the default file name
 into the minibuffer so you can edit it.
 The default file name is the one found at point.
 
@@ -297,9 +299,7 @@ If optional argument QUERY is non-nil, query for the help mode."
 	 (completion-ignore-case (info-lookup->ignore-case topic mode))
 	 (enable-recursive-minibuffers t)
 	 (value (completing-read
-		 (if default
-		     (format "Describe %s (default %s): " topic default)
-		   (format "Describe %s: " topic))
+		 (format-prompt "Describe %s" default topic)
 		 completions nil nil nil 'info-lookup-history default)))
     (list (if (equal value "") default value) mode)))
 
@@ -557,7 +557,7 @@ Return nil if there is nothing appropriate in the buffer near point."
 		  (info-lookup->regexp topic mode)))
 	(start (point)) end regexp subexp result)
     (save-excursion
-      (if (symbolp rule)
+      (if (functionp rule)
 	  (setq result (funcall rule))
 	(if (consp rule)
 	    (setq regexp (car rule)
@@ -610,6 +610,7 @@ Return nil if there is nothing appropriate in the buffer near point."
 
 (defun info-lookup-guess-custom-symbol ()
   "Get symbol at point in custom buffers."
+  (declare (obsolete nil "28.1"))
   (condition-case nil
       (save-excursion
 	(let ((case-fold-search t)
@@ -902,6 +903,12 @@ Return nil if there is nothing appropriate in the buffer near point."
  :parse-rule "[$@%]?\\([_a-zA-Z0-9]+\\|[^a-zA-Z]\\)")
 
 (info-lookup-maybe-add-help
+ :mode 'python-mode
+ :doc-spec `((,(if (Info-find-file "python3.9" t)
+                   "(python3.9)Index"
+                 "(python)Index"))))
+
+(info-lookup-maybe-add-help
  :mode 'cperl-mode
  :regexp "[$@%][^a-zA-Z]\\|\\$\\^[A-Z]\\|[$@%]?[a-zA-Z][_a-zA-Z0-9]*"
  :other-modes '(perl-mode))
@@ -1065,7 +1072,9 @@ Return nil if there is nothing appropriate in the buffer near point."
  :mode 'Custom-mode
  :ignore-case t
  :regexp "[^][()`'‘’,:\" \t\n]+"
- :parse-rule 'info-lookup-guess-custom-symbol
+ :parse-rule (lambda ()
+               (when-let ((symbol (get-text-property (point) 'custom-data)))
+                 (symbol-name symbol)))
  :other-modes '(emacs-lisp-mode))
 
 (info-lookup-maybe-add-help

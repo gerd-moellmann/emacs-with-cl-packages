@@ -33,14 +33,24 @@
   "Type of the external image converter to use.
 The value should a symbol, either `imagemagick', `graphicsmagick',
 or `ffmpeg'.
+
 If nil, Emacs will try to find one of the supported converters
-installed on the system."
+installed on the system.
+
+The actual range of image formats that will be converted depends
+on what image formats the chosen converter reports being able to
+handle.  `auto-mode-alist' is then used to further filter what
+formats that are to be supported: Only the suffixes that map to
+`image-mode' will be handled."
   :group 'image
   :type 'symbol
   :version "27.1")
 
 (defvar image-converter-regexp nil
   "A regexp that matches the file name suffixes that can be converted.")
+
+(defvar image-converter-file-name-extensions nil
+  "A list of file name suffixes that can be converted.")
 
 (defvar image-converter--converters
   '((graphicsmagick :command ("gm" "convert") :probe ("-list" "format"))
@@ -58,15 +68,17 @@ is a string, it should be a MIME format string like
   (unless image-converter
     (image-converter--find-converter))
   ;; When image-converter was customized
-  (if (and image-converter (not image-converter-regexp))
-      (when-let ((formats (image-converter--probe image-converter)))
-        (setq image-converter-regexp (concat "\\." (regexp-opt formats) "\\'"))))
+  (when (and image-converter (not image-converter-regexp))
+    (when-let ((formats (image-converter--probe image-converter)))
+      (setq image-converter-regexp
+            (concat "\\." (regexp-opt formats) "\\'"))
+      (setq image-converter-file-name-extensions formats)))
   (and image-converter
        (or (and (not data-p)
                 (string-match image-converter-regexp source))
            (and data-p
                 (symbolp data-p)
-                (string-match "/" (symbol-name data-p))
+                (string-search "/" (symbol-name data-p))
                 (string-match
                  image-converter-regexp
                  (concat "foo." (image-converter--mime-type data-p)))))
@@ -121,7 +133,7 @@ data is returned as a string."
         (list value)
       value)))
 
-(cl-defmethod image-converter--probe ((type (eql graphicsmagick)))
+(cl-defmethod image-converter--probe ((type (eql 'graphicsmagick)))
   "Check whether the system has GraphicsMagick installed."
   (with-temp-buffer
     (let ((command (image-converter--value type :command))
@@ -139,7 +151,7 @@ data is returned as a string."
             (push (downcase (match-string 1)) formats)))
         (nreverse formats)))))
 
-(cl-defmethod image-converter--probe ((type (eql imagemagick)))
+(cl-defmethod image-converter--probe ((type (eql 'imagemagick)))
   "Check whether the system has ImageMagick installed."
   (with-temp-buffer
     (let ((command (image-converter--value type :command))
@@ -159,7 +171,7 @@ data is returned as a string."
           (push (downcase (match-string 1)) formats)))
       (nreverse formats))))
 
-(cl-defmethod image-converter--probe ((type (eql ffmpeg)))
+(cl-defmethod image-converter--probe ((type (eql 'ffmpeg)))
   "Check whether the system has ffmpeg installed."
   (with-temp-buffer
     (let ((command (image-converter--value type :command))
@@ -181,17 +193,31 @@ data is returned as a string."
   "Find an installed image converter."
   (catch 'done
     (dolist (elem image-converter--converters)
-      (when-let ((formats (image-converter--probe (car elem))))
+      (when-let ((formats (image-converter--filter-formats
+                           (image-converter--probe (car elem)))))
         (setq image-converter (car elem)
-              image-converter-regexp (concat "\\." (regexp-opt formats) "\\'"))
+              image-converter-regexp (concat "\\." (regexp-opt formats) "\\'")
+              image-converter-file-name-extensions formats)
         (throw 'done image-converter)))))
 
-(cl-defmethod image-converter--convert ((type (eql graphicsmagick)) source
+(defun image-converter--filter-formats (suffixes)
+  "Filter SUFFIXES based on `auto-mode-alist'.
+Only suffixes that map to `image-mode' are returned."
+  (cl-loop with case-fold-search = (if (not auto-mode-case-fold)
+                                       nil
+                                     t)
+           for suffix in suffixes
+           when (eq (cdr (assoc (concat "foo." suffix) auto-mode-alist
+                                #'string-match))
+                    'image-mode)
+           collect suffix))
+
+(cl-defmethod image-converter--convert ((type (eql 'graphicsmagick)) source
                                         image-format)
   "Convert using GraphicsMagick."
   (image-converter--convert-magick type source image-format))
 
-(cl-defmethod image-converter--convert ((type (eql imagemagick)) source
+(cl-defmethod image-converter--convert ((type (eql 'imagemagick)) source
                                         image-format)
   "Convert using ImageMagick."
   (image-converter--convert-magick type source image-format))
@@ -223,7 +249,7 @@ data is returned as a string."
       ;; error message.
       (buffer-string))))
 
-(cl-defmethod image-converter--convert ((type (eql ffmpeg)) source
+(cl-defmethod image-converter--convert ((type (eql 'ffmpeg)) source
                                         image-format)
   "Convert using ffmpeg."
   (let ((command (image-converter--value type :command)))

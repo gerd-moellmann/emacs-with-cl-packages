@@ -463,7 +463,7 @@ Return non-nil if it is necessary to update the local UIDL file."
 		(when (cdr elt)
 		  (insert "(\"" (pop elt) "\"\n   ")
 		  (while elt
-		    (insert (format "\"%s\" %s\n   " (pop elt) (pop elt))))
+		    (insert (format "%S %s\n   " (pop elt) (pop elt))))
 		  (delete-char -4)
 		  (insert ")\n  ")))
 	      (delete-char -3)
@@ -551,8 +551,8 @@ Returns the process associated with the connection."
       (when result
 	(let ((response (plist-get (cdr result) :greeting)))
 	  (setq pop3-timestamp
-		(substring response (or (string-match "<" response) 0)
-			   (+ 1 (or (string-match ">" response) -1)))))
+		(substring response (or (string-search "<" response) 0)
+			   (+ 1 (or (string-search ">" response) -1)))))
 	(set-process-query-on-exit-flag (car result) nil)
 	(erase-buffer)
 	(car result)))))
@@ -725,9 +725,9 @@ Otherwise, return the size of the message-id MSG."
 	  (setq pop3-read-point (point-marker))
 	  (goto-char (match-beginning 0))
 	  (setq end (point-marker))
-	  (mapcar #'(lambda (s) (let ((split (split-string s " ")))
-				  (cons (string-to-number (nth 0 split))
-					(string-to-number (nth 1 split)))))
+          (mapcar (lambda (s) (let ((split (split-string s " ")))
+                           (cons (string-to-number (nth 0 split))
+                                 (string-to-number (nth 1 split)))))
 		  (split-string (buffer-substring start end) "\r\n" t)))))))
 
 (defun pop3-retr (process msg crashbuf)

@@ -47,7 +47,6 @@
 ;; Documentation-purposes only: actually loaded in loadup.el.
 (require 'frame)
 (require 'mouse)
-(require 'faces)
 (require 'menu-bar)
 (require 'fontset)
 (require 'dnd)
@@ -121,6 +120,15 @@ The properties returned may include `top', `left', `height', and `width'."
 (define-key global-map [?\s-d] 'isearch-repeat-backward)
 (define-key global-map [?\s-e] 'isearch-yank-kill)
 (define-key global-map [?\s-f] 'isearch-forward)
+(define-key esc-map [?\s-f] 'isearch-forward-regexp)
+(define-key minibuffer-local-isearch-map [?\s-f]
+  'isearch-forward-exit-minibuffer)
+(define-key isearch-mode-map [?\s-f] 'isearch-repeat-forward)
+(define-key global-map [?\s-F] 'isearch-backward)
+(define-key esc-map [?\s-F] 'isearch-backward-regexp)
+(define-key minibuffer-local-isearch-map [?\s-F]
+  'isearch-reverse-exit-minibuffer)
+(define-key isearch-mode-map [?\s-F] 'isearch-repeat-backward)
 (define-key global-map [?\s-g] 'isearch-repeat-forward)
 (define-key global-map [?\s-h] 'ns-do-hide-emacs)
 (define-key global-map [?\s-H] 'ns-do-hide-others)
@@ -148,9 +156,8 @@ The properties returned may include `top', `left', `height', and `width'."
 (define-key global-map [?\s-|] 'shell-command-on-region)
 (define-key global-map [s-kp-bar] 'shell-command-on-region)
 (define-key global-map [?\C-\s- ] 'ns-do-show-character-palette)
-;; (as in Terminal.app)
-(define-key global-map [s-right] 'ns-next-frame)
-(define-key global-map [s-left] 'ns-prev-frame)
+(define-key global-map [s-right] 'move-end-of-line)
+(define-key global-map [s-left] 'move-beginning-of-line)
 
 (define-key global-map [home] 'beginning-of-buffer)
 (define-key global-map [end] 'end-of-buffer)
@@ -314,10 +321,9 @@ The overlay is assigned the face `ns-working-text-face'."
   (interactive)
   (ns-delete-working-text)
   (let ((start (point)))
-    (insert ns-working-text)
-    (overlay-put (setq ns-working-overlay (make-overlay start (point)
-							(current-buffer) nil t))
-		 'face 'ns-working-text-face)))
+    (overlay-put (setq ns-working-overlay (make-overlay start (point)))
+                 'after-string
+                 (propertize ns-working-text 'face 'ns-working-text-face))))
 
 (defun ns-echo-working-text ()
   "Echo contents of `ns-working-text' in message display area.
@@ -340,8 +346,7 @@ See `ns-insert-working-text'."
          ;; Still alive?
          (overlay-buffer ns-working-overlay))
     (with-current-buffer (overlay-buffer ns-working-overlay)
-      (delete-region (overlay-start ns-working-overlay)
-                     (overlay-end ns-working-overlay))
+      (overlay-put ns-working-overlay 'after-string nil)
       (delete-overlay ns-working-overlay)))
    ((integerp ns-working-overlay)
     (let ((msg (current-message))
@@ -369,9 +374,8 @@ prompting.  If file is a directory perform a `find-file' on it."
         (find-file f)
       (push-mark (+ (point) (cadr (insert-file-contents f)))))))
 
-(defvar ns-select-overlay nil
+(defvar-local ns-select-overlay nil
   "Overlay used to highlight areas in files requested by Nextstep apps.")
-(make-variable-buffer-local 'ns-select-overlay)
 
 (defvar ns-input-line) 			; nsterm.m
 
@@ -582,8 +586,8 @@ string dropped into the current buffer."
 ;; Based on a function by David Reitter <dreitter@inf.ed.ac.uk> ;
 ;; see https://lists.gnu.org/r/emacs-devel/2005-09/msg00681.html .
 (defun ns-toggle-toolbar (&optional frame)
-  "Switches the tool bar on and off in frame FRAME.
- If FRAME is nil, the change applies to the selected frame."
+  "Switch the tool bar on and off in frame FRAME.
+If FRAME is nil, the change applies to the selected frame."
   (interactive)
   (modify-frame-parameters
    frame (list (cons 'tool-bar-lines
@@ -628,15 +632,21 @@ This function has been overloaded in Nextstep.")
 (defvar ns-input-fontsize)
 
 (defun ns-respond-to-change-font ()
-  "Respond to changeFont: event, expecting `ns-input-font' and\n\
-`ns-input-fontsize' of new font."
+  "Set the font chosen in the font-picker panel.
+Respond to changeFont: event, expecting ns-input-font and
+ns-input-fontsize of new font."
   (interactive)
-  (modify-frame-parameters (selected-frame)
-                           (list (cons 'fontsize ns-input-fontsize)))
-  (modify-frame-parameters (selected-frame)
-                           (list (cons 'font ns-input-font)))
-  (set-frame-font ns-input-font))
-
+  (let ((face 'default))
+    (set-face-attribute face t
+                        :family ns-input-font
+                        :height (* 10 ns-input-fontsize))
+    (set-face-attribute face (selected-frame)
+                        :family ns-input-font
+                        :height (* 10 ns-input-fontsize))
+    (let ((spec (list (list t (face-attr-construct 'default)))))
+      (put face 'customized-face spec)
+      (custom-push-theme 'theme-face face 'user 'set spec)
+      (put face 'face-modified nil))))
 
 ;; Default fontset for macOS.  This is mainly here to show how a fontset
 ;; can be set up manually.  Ordinarily, fontsets are auto-created whenever

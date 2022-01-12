@@ -1,4 +1,4 @@
-;;; shell-tests.el  -*- lexical-binding:t -*-
+;;; shell-tests.el --- Tests for shell.el  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
 
@@ -44,5 +44,24 @@
     (insert "cd ba;")
     (should (equal (shell--parse-pcomplete-arguments)
                    '(("cd" "ba" "") 1 4 7)))))
+
+(ert-deftest shell-tests-split-string ()
+  (should (equal (split-string-shell-command "ls /tmp")
+                 '("ls" "/tmp")))
+  (should (equal (split-string-shell-command "ls '/tmp/foo bar'")
+                 '("ls" "/tmp/foo bar")))
+  (should (equal (split-string-shell-command "ls \"/tmp/foo bar\"")
+                 '("ls" "/tmp/foo bar")))
+  (should (equal (split-string-shell-command "ls /tmp/'foo bar'")
+                 '("ls" "/tmp/foo bar")))
+  (should (equal (split-string-shell-command "ls /tmp/'foo\"bar'")
+                 '("ls" "/tmp/foo\"bar")))
+  (should (equal (split-string-shell-command "ls /tmp/\"foo''bar\"")
+                 '("ls" "/tmp/foo''bar")))
+  (should (equal (split-string-shell-command "ls /tmp/'foo\\ bar'")
+                 '("ls" "/tmp/foo\\ bar")))
+  (unless (memq system-type '(windows-nt ms-dos))
+    (should (equal (split-string-shell-command "ls /tmp/foo\\ bar")
+                   '("ls" "/tmp/foo bar")))))
 
 ;;; shell-tests.el ends here

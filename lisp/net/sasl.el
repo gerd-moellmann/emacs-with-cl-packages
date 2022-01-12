@@ -1,4 +1,4 @@
-;;; sasl.el --- SASL client framework
+;;; sasl.el --- SASL client framework  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2000, 2007-2021 Free Software Foundation, Inc.
 
@@ -35,8 +35,8 @@
 ;;; Code:
 
 (defvar sasl-mechanisms
-  '("SCRAM-SHA-1" "CRAM-MD5" "DIGEST-MD5" "PLAIN" "LOGIN" "ANONYMOUS"
-    "NTLM"))
+  '("SCRAM-SHA-256" "SCRAM-SHA-1" "CRAM-MD5" "DIGEST-MD5" "PLAIN" "LOGIN"
+    "ANONYMOUS" "NTLM"))
 
 (defvar sasl-mechanism-alist
   '(("CRAM-MD5" sasl-cram)
@@ -45,6 +45,7 @@
     ("LOGIN" sasl-login)
     ("ANONYMOUS" sasl-anonymous)
     ("NTLM" sasl-ntlm)
+    ("SCRAM-SHA-256" sasl-scram-sha256)
     ("SCRAM-SHA-1" sasl-scram-rfc)))
 
 (defvar sasl-unique-id-function #'sasl-unique-id-function)
@@ -160,15 +161,8 @@ the current challenge.  At the first time STEP should be set to nil."
     (if function
 	(vector function (funcall function client step)))))
 
-(defvar sasl-read-passphrase nil)
+(defvar sasl-read-passphrase 'read-passwd)
 (defun sasl-read-passphrase (prompt)
-  (if (not sasl-read-passphrase)
-      (if (functionp 'read-passwd)
-	  (setq sasl-read-passphrase 'read-passwd)
-	(if (load "passwd" t)
-	    (setq sasl-read-passphrase 'read-passwd)
-	  (autoload 'ange-ftp-read-passwd "ange-ftp")
-	  (setq sasl-read-passphrase 'ange-ftp-read-passwd))))
   (funcall sasl-read-passphrase prompt))
 
 (defun sasl-unique-id ()
@@ -209,7 +203,7 @@ It contain at least 64 bits of entropy."
 (defconst sasl-plain-steps
   '(sasl-plain-response))
 
-(defun sasl-plain-response (client step)
+(defun sasl-plain-response (client _step)
   (let ((passphrase
 	 (sasl-read-passphrase
 	  (format "PLAIN passphrase for %s: " (sasl-client-name client))))
@@ -235,12 +229,12 @@ It contain at least 64 bits of entropy."
     sasl-login-response-1
     sasl-login-response-2))
 
-(defun sasl-login-response-1 (client step)
+(defun sasl-login-response-1 (client _step)
 ;;;  (unless (string-match "^Username:" (sasl-step-data step))
 ;;;    (sasl-error (format "Unexpected response: %s" (sasl-step-data step))))
   (sasl-client-name client))
 
-(defun sasl-login-response-2 (client step)
+(defun sasl-login-response-2 (client _step)
 ;;;  (unless (string-match "^Password:" (sasl-step-data step))
 ;;;    (sasl-error (format "Unexpected response: %s" (sasl-step-data step))))
   (sasl-read-passphrase
@@ -256,7 +250,7 @@ It contain at least 64 bits of entropy."
   '(ignore				;no initial response
     sasl-anonymous-response))
 
-(defun sasl-anonymous-response (client step)
+(defun sasl-anonymous-response (client _step)
   (or (sasl-client-property client 'trace)
       (sasl-client-name client)))
 

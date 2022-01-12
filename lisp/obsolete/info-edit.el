@@ -1,4 +1,4 @@
-;; info-edit.el --- Editing info files  -*- lexical-binding:t -*-
+;;; info-edit.el --- Editing info files  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1985-1986, 1992-2021 Free Software Foundation, Inc.
 
@@ -36,7 +36,7 @@
 (define-obsolete-variable-alias 'Info-edit-map 'Info-edit-mode-map "24.1")
 (defvar Info-edit-mode-map (let ((map (make-sparse-keymap)))
                              (set-keymap-parent map text-mode-map)
-                             (define-key map "\C-c\C-c" 'Info-cease-edit)
+                             (define-key map "\C-c\C-c" #'Info-cease-edit)
                              map)
   "Local keymap used within `e' command of Info.")
 

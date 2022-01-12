@@ -1,4 +1,4 @@
-;;; url-privacy.el --- Global history tracking for URL package
+;;; url-privacy.el --- Global history tracking for URL package  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996-1999, 2004-2021 Free Software Foundation, Inc.
 
@@ -19,11 +19,13 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Commentary:
+
 ;;; Code:
 
 (require 'url-vars)
 
-(defun url-device-type (&optional device)
+(defun url-device-type (&optional _device)
   (declare (obsolete nil "27.1"))
   (or window-system 'tty))
 

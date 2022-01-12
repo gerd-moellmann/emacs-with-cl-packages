@@ -1,4 +1,4 @@
-;;; vnvni.el --- Quail package for Vietnamese by VNI method
+;;; vnvni.el --- Quail package for Vietnamese by VNI method  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2001-2021 Free Software Foundation, Inc.
 
@@ -303,3 +303,5 @@ and postfix: E66 -> E6, a55 -> a5, etc.
 ;; Local Variables:
 ;; coding: utf-8
 ;; End:
+
+;;; vnvni.el ends here

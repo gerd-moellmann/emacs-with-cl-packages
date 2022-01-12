@@ -51,8 +51,6 @@
 ;; this, but I think the health of my hands is far more important than a
 ;; few pages of virtual memory.
 
-;; This program has no hope of working in Emacs 18.
-
 ;; This package was inspired by Roland McGrath's hanoi-break.el.
 ;; Several people contributed feedback and ideas, including
 ;;      Roland McGrath <roland@gnu.org>
@@ -489,7 +487,7 @@ Return nil if the file is missing or if the time is not a Lisp time value."
 		 (goto-char (point-min))
 		 (read (current-buffer)))
 	     (end-of-file
-	      (error "End of file in `%s'" file))))))))
+	      (warn "End of file in `%s'" file))))))))
 
 (defun type-break-get-previous-count ()
   "Get previous keystroke count from `type-break-file-name'.
@@ -507,7 +505,7 @@ integer."
                           (forward-line 1)
                           (read (current-buffer)))
                       (end-of-file
-                       (error "End of file in `%s'" file)))))))
+                       (warn "End of file in `%s'" file)))))))
         file
       0)))
 
@@ -958,11 +956,7 @@ FRAC should be the inverse of the fractional value; for example, a value of
     sum))
 
 (defun type-break-time-stamp (&optional when)
-  (if (fboundp 'format-time-string)
-      (format-time-string type-break-time-stamp-format when)
-    ;; Emacs 19.28 and prior do not have format-time-string.
-    ;; In that case, result is not customizable.  Upgrade today!
-    (format "[%s] " (substring (current-time-string when) 11 16))))
+  (format-time-string type-break-time-stamp-format when))
 
 (defun type-break-format-time (secs)
   (let ((mins (/ secs 60)))

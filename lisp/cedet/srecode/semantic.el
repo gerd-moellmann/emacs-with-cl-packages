@@ -1,4 +1,4 @@
-;;; srecode/semantic.el --- Semantic specific extensions to SRecode.
+;;; srecode/semantic.el --- Semantic specific extensions to SRecode  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
 
@@ -57,7 +57,7 @@ This class will be used to derive dictionary values.")
 
 (cl-defmethod srecode-compound-toString((cp srecode-semantic-tag)
 				     function
-				     dictionary)
+				     _dictionary)
   "Convert the compound dictionary value CP to a string.
 If FUNCTION is non-nil, then FUNCTION is somehow applied to an
 aspect of the compound value."
@@ -201,7 +201,7 @@ variable default values, and other things."
   (let ((tag (or srecode-semantic-selected-tag
 		 (srecode-semantic-tag-from-kill-ring))))
     (when (not tag)
-      "No tag for current template.  Use the semantic kill-ring.")
+      (error "No tag for current template.  Use the semantic kill-ring"))
     (srecode-semantic-apply-tag-to-dict
      (srecode-semantic-tag (semantic-tag-name tag)
 			   :prime tag)
@@ -410,7 +410,9 @@ as `function' will leave point where code might be inserted."
     ;; Insert the template.
     (let ((endpt (srecode-insert-fcn temp dict nil t)))
 
-      (run-hook-with-args 'point-insert-fcn tag)
+      (if (functionp point-insert-fcn)
+          (funcall point-insert-fcn tag)
+        (dolist (f point-insert-fcn) (funcall f tag)))
       ;;(sit-for 1)
 
       (cond

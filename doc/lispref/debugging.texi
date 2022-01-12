@@ -424,7 +424,7 @@ move to it and type @key{RET}, to visit the source code.  You can also
 type @key{RET} while point is on any name of a function or variable
 which is not underlined, to see help information for that symbol in a
 help buffer, if any exists.  The @code{xref-find-definitions} command,
-bound to @key{M-.}, can also be used on any identifier in a backtrace
+bound to @kbd{M-.}, can also be used on any identifier in a backtrace
 (@pxref{Looking Up Identifiers,,,emacs, The GNU Emacs Manual}).
 
 In backtraces, the tails of long lists and the ends of long strings,
@@ -997,11 +997,12 @@ start looking for ways to optimize that piece.
 @findex profiler-report
 @findex profiler-stop
 Emacs has built-in support for this.  To begin profiling, type
-@kbd{M-x profiler-start}.  You can choose to profile by processor
-usage, memory usage, or both.  Then run the code you'd like to speed
-up.  After that, type @kbd{M-x profiler-report} to display a summary
-buffer for each resource (cpu and memory) that you chose to profile.
-The names of the report buffers include the times at which the reports
+@w{@kbd{M-x profiler-start}}.  You can choose to sample CPU usage
+periodically (@code{cpu}), when memory is allocated (@code{memory}),
+or both.  Then run the code you'd like to speed up.  After that, type
+@kbd{M-x profiler-report} to display a summary buffer for CPU usage
+sampled by each type (cpu and memory) that you chose to profile.  The
+names of the report buffers include the times at which the reports
 were generated, so you can generate another report later on without
 erasing previous results.  When you have finished profiling, type
 @kbd{M-x profiler-stop} (there is a small overhead associated with
@@ -1009,13 +1010,14 @@ profiling, so we don't recommend leaving it active except when you are
 actually running the code you want to examine).
 
 The profiler report buffer shows, on each line, a function that was
-called, followed by how much resources (cpu or memory) it used in
+called, preceded by how much CPU resources it used in
 absolute and percentage terms since profiling started.  If a given
-line has a @samp{+} symbol at the left-hand side, you can expand that
-line by typing @kbd{@key{RET}}, in order to see the function(s) called
-by the higher-level function.  Use a prefix argument (@kbd{C-u
-@key{RET}}) to see the whole call tree below a function.  Pressing
-@kbd{@key{RET}} again will collapse back to the original state.
+line has a @samp{+} symbol to the left of the function name, you can
+expand that line by typing @kbd{@key{RET}}, in order to see the
+function(s) called by the higher-level function.  Use a prefix
+argument (@kbd{C-u @key{RET}}) to see the whole call tree below a
+function.  Pressing @kbd{@key{RET}} again will collapse back to the
+original state.
 
 Press @kbd{j} or @kbd{mouse-2} to jump to the definition of a function
 at point.  Press @kbd{d} to view a function's documentation.  You can
@@ -1040,9 +1042,10 @@ functions written in Lisp, it cannot profile Emacs primitives.
 @cindex @file{benchmark.el}
 @cindex benchmarking
 You can measure the time it takes to evaluate individual Emacs Lisp
-forms using the @file{benchmark} library.  See the macros
-@code{benchmark-run}, @code{benchmark-run-compiled} and
-@code{benchmark-progn} in @file{benchmark.el}.  You can also use the
+forms using the @file{benchmark} library.  See the function
+@code{benchmark-call} as well as the macros @code{benchmark-run},
+@code{benchmark-run-compiled}, @code{benchmark-progn} and
+@code{benchmark-call} in @file{benchmark.el}.  You can also use the
 @code{benchmark} command for timing forms interactively.
 
 @c Not worth putting in the printed manual.

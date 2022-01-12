@@ -1,4 +1,4 @@
-;;; seq-tests.el --- Tests for sequences.el
+;;; seq-tests.el --- Tests for seq.el  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
@@ -28,6 +28,9 @@
 
 (require 'ert)
 (require 'seq)
+
+(eval-when-compile
+  (require 'cl-lib))
 
 (defmacro with-test-sequences (spec &rest body)
   "Successively bind VAR to a list, vector, and string built from SEQ.
@@ -108,16 +111,12 @@ Evaluate BODY for each created sequence.
                  '((a 0) (b 1) (c 2) (d 3)))))
 
 (ert-deftest test-seq-do-indexed ()
-  (let ((result nil))
-    (seq-do-indexed (lambda (elt i)
-                      (add-to-list 'result (list elt i)))
-                    nil)
-    (should (equal result nil)))
+  (let (result)
+    (seq-do-indexed (lambda (elt i) (push (list elt i) result)) ())
+    (should-not result))
   (with-test-sequences (seq '(4 5 6))
-    (let ((result nil))
-      (seq-do-indexed (lambda (elt i)
-                        (add-to-list 'result (list elt i)))
-                      seq)
+    (let (result)
+      (seq-do-indexed (lambda (elt i) (push (list elt i) result)) seq)
       (should (equal (seq-elt result 0) '(6 2)))
       (should (equal (seq-elt result 1) '(5 1)))
       (should (equal (seq-elt result 2) '(4 0))))))
@@ -126,7 +125,7 @@ Evaluate BODY for each created sequence.
   (with-test-sequences (seq '(6 7 8 9 10))
     (should (equal (seq-filter #'test-sequences-evenp seq) '(6 8 10)))
     (should (equal (seq-filter #'test-sequences-oddp seq) '(7 9)))
-    (should (equal (seq-filter (lambda (elt) nil) seq) '())))
+    (should (equal (seq-filter (lambda (_) nil) seq) '())))
   (with-test-sequences (seq '())
     (should (equal (seq-filter #'test-sequences-evenp seq) '()))))
 
@@ -134,7 +133,7 @@ Evaluate BODY for each created sequence.
   (with-test-sequences (seq '(6 7 8 9 10))
     (should (equal (seq-remove #'test-sequences-evenp seq) '(7 9)))
     (should (equal (seq-remove #'test-sequences-oddp seq) '(6 8 10)))
-    (should (same-contents-p (seq-remove (lambda (elt) nil) seq) seq)))
+    (should (same-contents-p (seq-remove (lambda (_) nil) seq) seq)))
   (with-test-sequences (seq '())
     (should (equal (seq-remove #'test-sequences-evenp seq) '()))))
 
@@ -142,7 +141,7 @@ Evaluate BODY for each created sequence.
   (with-test-sequences (seq '(6 7 8 9 10))
     (should (equal (seq-count #'test-sequences-evenp seq) 3))
     (should (equal (seq-count #'test-sequences-oddp seq) 2))
-    (should (equal (seq-count (lambda (elt) nil) seq) 0)))
+    (should (equal (seq-count (lambda (_) nil) seq) 0)))
   (with-test-sequences (seq '())
     (should (equal (seq-count #'test-sequences-evenp seq) 0))))
 
@@ -199,7 +198,7 @@ Evaluate BODY for each created sequence.
 
 (ert-deftest test-seq-every-p ()
   (with-test-sequences (seq '(43 54 22 1))
-    (should (seq-every-p (lambda (elt) t) seq))
+    (should (seq-every-p (lambda (_) t) seq))
     (should-not (seq-every-p #'test-sequences-oddp seq))
     (should-not (seq-every-p #'test-sequences-evenp seq)))
   (with-test-sequences (seq '(42 54 22 2))
@@ -337,6 +336,33 @@ Evaluate BODY for each created sequence.
     (should (same-contents-p list vector))
     (should (vectorp vector))))
 
+(ert-deftest test-seq-union ()
+  (let ((v1 '(1 2 3))
+        (v2 '(3 5)))
+   (should (same-contents-p (seq-union v1 v2)
+                            '(1 2 3 5))))
+
+  (let ((v1 '(1 2 3 4 5 6))
+        (v2 '(4 5 6 7 8 9)))
+   (should (same-contents-p (seq-union v1 v2)
+                            '(1 2 3 4 5 6 7 8 9))))
+
+  (let ((v1 [1 2 3 4 5])
+        (v2 [4 5 6 "a"]))
+   (should (same-contents-p (seq-union v1 v2)
+                            '(1 2 3 4 5 6 "a"))))
+
+  (let ((v1 '("a" "b" "c"))
+        (v2 '("f" "c" "e" "a")))
+   (should (same-contents-p (seq-union v1 v2)
+                            '("a" "b" "c" "f" "e"))))
+
+  (let ((v1 '("a"))
+        (v2 '("a"))
+        (testfn #'eq))
+   (should (same-contents-p (seq-union v1 v2 testfn)
+                            '("a" "a")))))
+
 (ert-deftest test-seq-intersection ()
   (let ((v1 [2 3 4 5])
         (v2 [1 3 5 6 7]))
@@ -384,6 +410,30 @@ Evaluate BODY for each created sequence.
       (should (null b))
       (should (null c)))))
 
+(ert-deftest test-seq-setq ()
+  (with-test-sequences (seq '(1 2 3 4))
+    (let (a b c d e)
+      (seq-setq (a b c d e) seq)
+      (should (= a 1))
+      (should (= b 2))
+      (should (= c 3))
+      (should (= d 4))
+      (should (null e)))
+    (let (a b others)
+      (seq-setq (a b &rest others) seq)
+      (should (= a 1))
+      (should (= b 2))
+      (should (same-contents-p others (seq-drop seq 2)))))
+  (let ((a)
+        (seq '(1 (2 (3 (4))))))
+    (seq-setq (_ (_ (_ (a)))) seq)
+    (should (= a 4)))
+  (let (seq a b c)
+    (seq-setq (a b c) seq)
+    (should (null a))
+    (should (null b))
+    (should (null c))))
+
 (ert-deftest test-seq-min-max ()
   (with-test-sequences (seq '(4 5 3 2 0 4))
     (should (= (seq-min seq) 0))
@@ -410,12 +460,10 @@ Evaluate BODY for each created sequence.
 
 (ert-deftest test-seq-random-elt-take-all ()
   (let ((seq '(a b c d e))
-        (elts '()))
-    (should (= 0 (length elts)))
+        elts)
     (dotimes (_ 1000)
       (let ((random-elt (seq-random-elt seq)))
-        (add-to-list 'elts
-                     random-elt)))
+        (cl-pushnew random-elt elts)))
     (should (= 5 (length elts)))))
 
 (ert-deftest test-seq-random-elt-signal-on-empty ()

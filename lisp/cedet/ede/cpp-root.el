@@ -1,4 +1,4 @@
-;;; ede/cpp-root.el --- A simple way to wrap a C++ project with a single root
+;;; ede/cpp-root.el --- A simple way to wrap a C++ project with a single root  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2007-2021 Free Software Foundation, Inc.
 
@@ -103,7 +103,7 @@
 ;;
 ;; If the cpp-root project style is right for you, but you want a
 ;; dynamic loader, instead of hard-coding values in your .emacs, you
-;; can do that too, but you will need to write some lisp code.
+;; can do that too, but you will need to write some Lisp code.
 ;;
 ;; To do that, you need to add an entry to the
 ;; `ede-project-class-files' list, and also provide two functions to
@@ -275,7 +275,7 @@ Each directory needs a project file to control it.")
 ;; objects is deleted.
 
 (cl-defmethod initialize-instance ((this ede-cpp-root-project)
-				&rest fields)
+				   &rest _fields)
   "Make sure the :file is fully expanded."
   ;; Add ourselves to the master list
   (cl-call-next-method)
@@ -310,7 +310,7 @@ Each directory needs a project file to control it.")
 ;; project, simplifying authoring new single-point projects.
 
 (cl-defmethod ede-find-subproject-for-directory ((proj ede-cpp-root-project)
-					      dir)
+					         _dir)
   "Return PROJ, for handling all subdirs below DIR."
   proj)
 
@@ -319,7 +319,7 @@ Each directory needs a project file to control it.")
 ;; Creating new targets on a per directory basis is a good way to keep
 ;; files organized.  See ede-emacs for an example with multiple file
 ;; types.
-(cl-defmethod ede-find-target ((proj ede-cpp-root-project) buffer)
+(cl-defmethod ede-find-target ((proj ede-cpp-root-project) _buffer)
   "Find an EDE target in PROJ for BUFFER.
 If one doesn't exist, create a new one for this directory."
   (let* ((targets (oref proj targets))
@@ -451,7 +451,7 @@ This is for project include paths and spp source files."
   "Get the pre-processor map for project THIS."
   (ede-preprocessor-map  (ede-target-parent this)))
 
-(cl-defmethod project-compile-project ((proj ede-cpp-root-project) &optional command)
+(cl-defmethod project-compile-project ((proj ede-cpp-root-project) &optional _command)
   "Compile the entire current project PROJ.
 Argument COMMAND is the command to use when compiling."
   ;; we need to be in the proj root dir for this to work
@@ -474,24 +474,9 @@ Argument COMMAND is the command to use for compiling the target."
     (project-compile-project (oref obj project) command)))
 
 
-(cl-defmethod project-rescan ((this ede-cpp-root-project))
+(cl-defmethod project-rescan ((_this ede-cpp-root-project))
   "Don't rescan this project from the sources."
   (message "cpp-root has nothing to rescan."))
-
-;;; Quick Hack
-(defun ede-create-lots-of-projects-under-dir (dir projfile &rest attributes)
-  "Create a bunch of projects under directory DIR.
-PROJFILE is a file name sans directory that indicates a subdirectory
-is a project directory.
-Generic ATTRIBUTES, such as :include-path can be added.
-Note: This needs some work."
-  (let ((files (directory-files dir t)))
-    (dolist (F files)
-      (if (file-exists-p (expand-file-name projfile F))
-	  `(ede-cpp-root-project (file-name-nondirectory F)
-				 :name (file-name-nondirectory F)
-				 :file (expand-file-name projfile F)
-				 attributes)))))
 
 (provide 'ede/cpp-root)
 

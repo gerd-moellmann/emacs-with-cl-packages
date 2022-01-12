@@ -1,22 +1,24 @@
-;;; subr-x-tests.el --- Testing the extended lisp routines
+;;; subr-x-tests.el --- Testing the extended lisp routines  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
 ;; Author: Fabián E. Gallina <fgallina@gnu.org>
 ;; Keywords:
 
-;; This program is free software; you can redistribute it and/or modify
+;; This file is part of GNU Emacs.
+
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -453,18 +455,18 @@
   "Test `thread-first' wraps single function names."
   (should (equal (macroexpand
                   '(thread-first 5
-                     -))
+                                 -))
                  '(- 5)))
   (should (equal (macroexpand
                   '(thread-first (+ 1 2)
-                     -))
+                                 -))
                  '(- (+ 1 2)))))
 
 (ert-deftest subr-x-test-thread-first-expansion ()
   "Test `thread-first' expands correctly."
   (should (equal
            (macroexpand '(thread-first
-                             5
+                           5
                            (+ 20)
                            (/ 25)
                            -
@@ -475,13 +477,13 @@
   "Test several `thread-first' examples."
   (should (equal (thread-first (+ 40 2)) 42))
   (should (equal (thread-first
-                     5
+                   5
                    (+ 20)
                    (/ 25)
                    -
                    (+ 40)) 39))
   (should (equal (thread-first
-                     "this-is-a-string"
+                   "this-is-a-string"
                    (split-string "-")
                    (nbutlast 2)
                    (append (list "good")))
@@ -498,18 +500,18 @@
   "Test `thread-last' wraps single function names."
   (should (equal (macroexpand
                   '(thread-last 5
-                     -))
+                                -))
                  '(- 5)))
   (should (equal (macroexpand
                   '(thread-last (+ 1 2)
-                     -))
+                                -))
                  '(- (+ 1 2)))))
 
 (ert-deftest subr-x-test-thread-last-expansion ()
   "Test `thread-last' expands correctly."
   (should (equal
            (macroexpand '(thread-last
-                             5
+                           5
                            (+ 20)
                            (/ 25)
                            -
@@ -520,13 +522,13 @@
   "Test several `thread-last' examples."
   (should (equal (thread-last (+ 40 2)) 42))
   (should (equal (thread-last
-                     5
+                   5
                    (+ 20)
                    (/ 25)
                    -
                    (+ 40)) 39))
   (should (equal (thread-last
-                     (list 1 -2 3 -4 5)
+                   (list 1 -2 3 -4 5)
                    (mapcar #'abs)
                    (cl-reduce #'+)
                    (format "abs sum is: %s"))
@@ -579,6 +581,62 @@
   (should (equal (string-remove-suffix "a" "a") ""))
   (should (equal (string-remove-suffix "a" "aa") "a"))
   (should (equal (string-remove-suffix "a" "ba") "b")))
+
+(ert-deftest subr-clean-whitespace ()
+  (should (equal (string-clean-whitespace " foo ") "foo"))
+  (should (equal (string-clean-whitespace " foo   \r\n\t  Bar") "foo Bar")))
+
+(ert-deftest subr-string-fill ()
+  (should (equal (string-fill "foo" 10) "foo"))
+  (should (equal (string-fill "foobar" 5) "foobar"))
+  (should (equal (string-fill "foo bar zot" 5) "foo\nbar\nzot"))
+  (should (equal (string-fill "foo bar zot" 7) "foo bar\nzot")))
+
+(ert-deftest subr-string-limit ()
+  (should (equal (string-limit "foo" 10) "foo"))
+  (should (equal (string-limit "foo" 2) "fo"))
+  (should (equal (string-limit "foo" 2 t) "oo"))
+  (should (equal (string-limit "abc" 10 t) "abc"))
+  (should (equal (string-limit "foo" 0) ""))
+  (should-error (string-limit "foo" -1)))
+
+(ert-deftest subr-string-limit-coding ()
+  (should (not (multibyte-string-p (string-limit "foó" 10 nil 'utf-8))))
+  (should (equal (string-limit "foó" 10 nil 'utf-8) "fo\303\263"))
+  (should (equal (string-limit "foó" 3 nil 'utf-8) "fo"))
+  (should (equal (string-limit "foó" 4 nil 'utf-8) "fo\303\263"))
+  (should (equal (string-limit "foóa" 4 nil 'utf-8) "fo\303\263"))
+  (should (equal (string-limit "foóá" 4 nil 'utf-8) "fo\303\263"))
+  (should (equal (string-limit "foóá" 4 nil 'utf-8-with-signature)
+                 "fo\303\263"))
+  (should (equal (string-limit "foóa" 4 nil 'iso-8859-1) "fo\363a"))
+  (should (equal (string-limit "foóá" 4 nil 'iso-8859-1) "fo\363\341"))
+  (should (equal (string-limit "foóá" 4 nil 'utf-16) "\000f\000o"))
+
+  (should (equal (string-limit "foó" 10 t 'utf-8) "fo\303\263"))
+  (should (equal (string-limit "foó" 3 t 'utf-8) "o\303\263"))
+  (should (equal (string-limit "foó" 4 t 'utf-8) "fo\303\263"))
+  (should (equal (string-limit "foóa" 4 t 'utf-8) "o\303\263a"))
+  (should (equal (string-limit "foóá" 4 t 'utf-8) "\303\263\303\241"))
+  (should (equal (string-limit "foóá" 2 t 'utf-8-with-signature) "\303\241"))
+  (should (equal (string-limit "foóa" 4 t 'iso-8859-1) "fo\363a"))
+  (should (equal (string-limit "foóá" 4 t 'iso-8859-1) "fo\363\341"))
+  (should (equal (string-limit "foóá" 4 t 'utf-16) "\000\363\000\341")))
+
+(ert-deftest subr-string-lines ()
+  (should (equal (string-lines "foo") '("foo")))
+  (should (equal (string-lines "foo \nbar") '("foo " "bar"))))
+
+(ert-deftest subr-string-pad ()
+  (should (equal (string-pad "foo" 5) "foo  "))
+  (should (equal (string-pad "foo" 5 ?-) "foo--"))
+  (should (equal (string-pad "foo" 5 ?- t) "--foo"))
+  (should (equal (string-pad "foo" 2 ?-) "foo")))
+
+(ert-deftest subr-string-chop-newline ()
+  (should (equal (string-chop-newline "foo\n") "foo"))
+  (should (equal (string-chop-newline "foo\nbar\n") "foo\nbar"))
+  (should (equal (string-chop-newline "foo\nbar") "foo\nbar")))
 
 (provide 'subr-x-tests)
 ;;; subr-x-tests.el ends here

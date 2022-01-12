@@ -36,28 +36,12 @@ emacs = "${EMACS}" -batch --no-site-file --no-site-lisp
 lparen = (
 unifiles = $(addprefix ${unidir}/,$(sort $(shell sed -n 's/^[ \t][ \t]*${lparen}"\(uni-[^"]*\)"$$/\1/p' ${srcdir}/unidata-gen.el)))
 
-# 'make' verbosity.
-AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-
-AM_V_ELC = $(am__v_ELC_@AM_V@)
-am__v_ELC_ = $(am__v_ELC_@AM_DEFAULT_V@)
-am__v_ELC_0 = @echo "  ELC     " $@;
-am__v_ELC_1 =
-
-AM_V_GEN = $(am__v_GEN_@AM_V@)
-am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
-am__v_GEN_0 = @echo "  GEN     " $@;
-am__v_GEN_1 =
-
-AM_V_at = $(am__v_at_@AM_V@)
-am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
-am__v_at_0 = @
-am__v_at_1 =
+-include ${top_builddir}/src/verbose.mk
 
 .PHONY: all
 
 all: ${top_srcdir}/src/macuvs.h ${unifiles} ${unidir}/charscript.el \
-  ${unidir}/charprop.el
+  ${unidir}/charprop.el ${unidir}/emoji-zwj.el
 
 ## Specify .elc as an order-only prereq so as to not needlessly rebuild
 ## target just because the .elc is missing.
@@ -97,30 +81,39 @@ charscript.el: ${unidir}/charscript.el
 
 blocks = ${srcdir}/blocks.awk
 
-${unidir}/charscript.el: ${srcdir}/Blocks.txt ${blocks}
-	$(AM_V_GEN)$(AWK) -f ${blocks} < $< > $@
+${unidir}/charscript.el: ${blocks}
 
+${unidir}/charscript.el: ${srcdir}/Blocks.txt ${srcdir}/emoji-data.txt
+	$(AM_V_GEN)$(AWK) -f ${blocks} $^ > $@
 
-.PHONY: clean bootstrap-clean distclean maintainer-clean extraclean
+.PHONY: emoji-zwj.el
+emoji-zwj.el: ${unidir}/emoji-zwj.el
+
+zwj = ${srcdir}/emoji-zwj.awk
+
+${unidir}/emoji-zwj.el: ${srcdir}/emoji-zwj-sequences.txt $(srcdir)/emoji-sequences.txt ${zwj}
+	$(AM_V_GEN)$(AWK) -f ${zwj} $^ > $@
+
+.PHONY: clean bootstrap-clean distclean maintainer-clean gen-clean
 
 clean:
 	rm -f ${srcdir}/*.elc unidata.txt
 
+## IMO this should also run gen-clean.
 bootstrap-clean: clean
 
 distclean: clean
 	rm -f Makefile
 
-maintainer-clean: distclean
-
-## Do not remove these files, even in a bootstrap, because they rarely
-## change and it slows down bootstrap (a tiny bit).
-## Cf leim/ja-dic (which is much slower).
-
 ## macuvs.h is a generated file, but it's also checked in because
 ## macOS builds would need to do a headless bootstrap without it,
 ## which is currently awkward.  To avoid changing checked-in files
 ## from a make target, we don't delete it here.
-extraclean: distclean
+gen-clean:
 	rm -f ${unidir}/charscript.el*
+	rm -f ${unidir}/emoji-zwj.el*
 	rm -f ${unifiles} ${unidir}/charprop.el
+## ref: https://lists.gnu.org/r/emacs-devel/2013-11/msg01029.html
+
+maintainer-clean: gen-clean distclean
+

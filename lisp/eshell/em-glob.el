@@ -91,7 +91,7 @@ This option slows down recursive glob processing by quite a bit."
 
 (defcustom eshell-error-if-no-glob nil
   "If non-nil, it is an error for a glob pattern not to match.
- This mimics the behavior of zsh if non-nil, but bash if nil."
+This mimics the behavior of zsh if non-nil, but bash if nil."
   :type 'boolean
   :group 'eshell-glob)
 
@@ -129,7 +129,7 @@ This option slows down recursive glob processing by quite a bit."
   "Initialize the extended globbing code."
   ;; it's important that `eshell-glob-chars-list' come first
   (when (boundp 'eshell-special-chars-outside-quoting)
-    (set (make-local-variable 'eshell-special-chars-outside-quoting)
+    (setq-local eshell-special-chars-outside-quoting
 	 (append eshell-glob-chars-list eshell-special-chars-outside-quoting)))
   (add-hook 'eshell-parse-argument-hook 'eshell-parse-glob-chars t t)
   (add-hook 'eshell-pre-rewrite-command-hook
@@ -205,7 +205,7 @@ resulting regular expression."
 	regexp)
     (while (string-match
 	    (or eshell-glob-chars-regexp
-		(set (make-local-variable 'eshell-glob-chars-regexp)
+                (setq-local eshell-glob-chars-regexp
 		     (format "[%s]+" (apply 'string eshell-glob-chars-list))))
 	    pattern matched-in-pattern)
       (let* ((op-begin (match-beginning 0))
@@ -232,8 +232,6 @@ resulting regular expression."
 	    (regexp-quote (substring pattern matched-in-pattern))
 	    "\\'")))
 
-(defvar ange-cache)			; XEmacs?  See esh-util
-
 (defun eshell-extended-glob (glob)
   "Return a list of files generated from GLOB, perhaps looking for DIRS-ONLY.
 This function almost fully supports zsh style filename generation
@@ -252,7 +250,7 @@ the form:
 
    (INCLUDE-REGEXP EXCLUDE-REGEXP (PRED-FUNC-LIST) (MOD-FUNC-LIST))"
   (let ((paths (eshell-split-path glob))
-	eshell-glob-matches message-shown ange-cache)
+        eshell-glob-matches message-shown)
     (unwind-protect
 	(if (and (cdr paths)
 		 (file-name-absolute-p (car paths)))
@@ -268,7 +266,7 @@ the form:
 
 ;; FIXME does this really need to abuse eshell-glob-matches, message-shown?
 (defun eshell-glob-entries (path globs &optional recurse-p)
-  "Glob the entries in PATHS, possibly recursing if RECURSE-P is non-nil."
+  "Glob the entries in PATH, possibly recursing if RECURSE-P is non-nil."
   (let* ((entries (ignore-errors
 		    (file-name-all-completions "" path)))
 	 (case-fold-search eshell-glob-case-insensitive)
@@ -293,7 +291,7 @@ the form:
     (let ((index 1))
       (setq incl glob)
       (while (and (eq incl glob)
-		  (setq index (string-match "~" glob index)))
+		  (setq index (string-search "~" glob index)))
 	(if (or (get-text-property index 'escaped glob)
 		(or (= (1+ index) len)))
 	    (setq index (1+ index))

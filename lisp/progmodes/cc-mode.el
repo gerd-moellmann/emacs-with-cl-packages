@@ -1,4 +1,4 @@
-;;; cc-mode.el --- major mode for editing C and similar languages
+;;; cc-mode.el --- major mode for editing C and similar languages -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1985, 1987, 1992-2021 Free Software Foundation, Inc.
 
@@ -113,6 +113,7 @@
 ;; Silence the compiler.
 (cc-bytecomp-defvar adaptive-fill-first-line-regexp) ; Emacs
 (cc-bytecomp-defun run-mode-hooks)	; Emacs 21.1
+(cc-bytecomp-defvar awk-mode-syntax-table)
 
 ;; We set this variable during mode init, yet we don't require
 ;; font-lock.
@@ -277,6 +278,29 @@ control).  See \"cc-mode.el\" for more info."
 	 (apply 'define-abbrev table (car defs))))
       (setq defs (cdr defs)))))
 (put 'c-define-abbrev-table 'lisp-indent-function 1)
+
+(defun c-populate-abbrev-table ()
+  ;; Insert the standard keywords which may need electric indentation into the
+  ;; current mode's abbreviation table.
+  (let ((table (intern (concat (symbol-name major-mode) "-abbrev-table")))
+	(defs c-std-abbrev-keywords)
+	)
+    (unless (and (boundp table)
+		 (abbrev-table-p (symbol-value table)))
+      (define-abbrev-table table nil))
+    (setq local-abbrev-table (symbol-value table))
+    (while defs
+      (unless (intern-soft (car defs) local-abbrev-table) ; Don't overwrite the
+					; abbrev's use count.
+	(condition-case nil
+	    (define-abbrev (symbol-value table)
+	      (car defs) (car defs)
+	      'c-electric-continued-statement 0 t)
+	  (wrong-number-of-arguments
+	   (define-abbrev (symbol-value table)
+	     (car defs) (car defs)
+	     'c-electric-continued-statement 0))))
+      (setq defs (cdr defs)))))
 
 (defun c-bind-special-erase-keys ()
   ;; Only used in Emacs to bind C-c C-<delete> and C-c C-<backspace>
@@ -476,11 +500,14 @@ preferably use the `c-mode-menu' language constant directly."
   (save-excursion
     (when (< beg end)
       (goto-char beg)
+      (let ((lim (c-determine-limit 1000))
+	    (lim+ (c-determine-+ve-limit 1000 end)))
       (when
 	  (and (not (bobp))
-	       (progn (c-backward-syntactic-ws) (eq (point) beg))
+	       (progn (c-backward-syntactic-ws lim) (eq (point) beg))
 	       (/= (skip-chars-backward c-symbol-chars (1- (point))) 0)
-	       (progn (goto-char beg) (c-forward-syntactic-ws) (<= (point) end))
+	       (progn (goto-char beg) (c-forward-syntactic-ws lim+)
+		      (<= (point) end))
 	       (> (point) beg)
 	       (goto-char end)
 	       (looking-at c-symbol-char-key))
@@ -491,14 +518,14 @@ preferably use the `c-mode-menu' language constant directly."
       (goto-char end)
       (when
 	  (and (not (eobp))
-	       (progn (c-forward-syntactic-ws) (eq (point) end))
+	       (progn (c-forward-syntactic-ws lim+) (eq (point) end))
 	       (looking-at c-symbol-char-key)
-	       (progn (c-backward-syntactic-ws) (>= (point) beg))
+	       (progn (c-backward-syntactic-ws lim) (>= (point) beg))
 	       (< (point) end)
 	       (/= (skip-chars-backward c-symbol-chars (1- (point))) 0))
 	(goto-char (1+ end))
 	(c-end-of-current-token)
-	(c-unfind-type (buffer-substring-no-properties end (point)))))))
+	(c-unfind-type (buffer-substring-no-properties end (point))))))))
 
 ;; c-maybe-stale-found-type records a place near the region being
 ;; changed where an element of `found-types' might become stale.  It
@@ -535,10 +562,21 @@ preferably use the `c-mode-menu' language constant directly."
 ;; and `after-change-functions'.  Note that this variable is not set when
 ;; `c-before-change' is invoked by a change to text properties.
 
+(defvar c-min-syn-tab-mkr nil)
+;; The minimum buffer position where there's a `c-fl-syn-tab' text property,
+;; or nil if there aren't any.  This is a marker, or nil if there's currently
+;; no such text property.
+(make-variable-buffer-local 'c-min-syn-tab-mkr)
+
+(defvar c-max-syn-tab-mkr nil)
+;; The maximum buffer position plus 1 where there's a `c-fl-syn-tab' text
+;; property, or nil if there aren't any.  This is a marker, or nil if there's
+;; currently no such text property.
+(make-variable-buffer-local 'c-max-syn-tab-mkr)
+
 (defun c-basic-common-init (mode default-style)
-  "Do the necessary initialization for the syntax handling routines
-and the line breaking/filling code.  Intended to be used by other
-packages that embed CC Mode.
+  "Initialize the syntax handling routines and the line breaking/filling code.
+Intended to be used by other packages that embed CC Mode.
 
 MODE is the CC Mode flavor to set up, e.g. `c-mode' or `java-mode'.
 DEFAULT-STYLE tells which indentation style to install.  It has the
@@ -549,6 +587,8 @@ This function cannot do that since `c-init-language-vars' is a macro
 that requires a literal mode spec at compile time."
 
   (setq c-buffer-is-cc-mode mode)
+
+  (c-populate-abbrev-table)
 
   ;; these variables should always be buffer local; they do not affect
   ;; indentation style.
@@ -599,12 +639,18 @@ that requires a literal mode spec at compile time."
   ;; doesn't work with filladapt but it's better than nothing.
   (set (make-local-variable 'fill-paragraph-function) 'c-fill-paragraph)
 
+  ;; Initialize the cache for `c-looking-at-or-maybe-in-bracelist'.
+  (setq c-laomib-cache nil)
   ;; Initialize the three literal sub-caches.
   (c-truncate-lit-pos-cache 1)
   ;; Initialize the cache of brace pairs, and opening braces/brackets/parens.
   (c-state-cache-init)
   ;; Initialize the "brace stack" cache.
   (c-init-bs-cache)
+
+  ;; Keep track of where `c-fl-syn-tab' text properties are set.
+  (setq c-min-syn-tab-mkr nil)
+  (setq c-max-syn-tab-mkr nil)
 
   (when (or c-recognize-<>-arglists
 	    (c-major-mode-is 'awk-mode)
@@ -684,8 +730,8 @@ that requires a literal mode spec at compile time."
 ;;   ;; Put submode indicators onto minor-mode-alist, but only once.
 ;;   (or (assq 'c-submode-indicators minor-mode-alist)
 ;;       (setq minor-mode-alist
-;; 	    (cons '(c-submode-indicators c-submode-indicators)
-;; 		  minor-mode-alist)))
+;;	    (cons '(c-submode-indicators c-submode-indicators)
+;;		  minor-mode-alist)))
   (c-update-modeline)
 
   ;; Install the functions that ensure that various internal caches
@@ -922,6 +968,7 @@ Note that the style variables are always made local to the buffer."
 (defmacro c-run-mode-hooks (&rest hooks)
   ;; Emacs 21.1 has introduced a system with delayed mode hooks that
   ;; requires the use of the new function `run-mode-hooks'.
+  (declare (debug t))
   (if (cc-bytecomp-fboundp 'run-mode-hooks)
       `(run-mode-hooks ,@hooks)
     `(progn ,@(mapcar (lambda (hook) `(run-hooks ,hook)) hooks))))
@@ -955,8 +1002,8 @@ Note that the style variables are always made local to the buffer."
       (goto-char (match-beginning 1))
       (setq m-beg (point))
       (c-end-of-macro)
-      (when (c-major-mode-is 'c++-mode)
-	(save-excursion (c-depropertize-raw-strings-in-region m-beg (point))))
+      (when c-ml-string-opener-re
+	(save-excursion (c-depropertize-ml-strings-in-region m-beg (point))))
       (c-clear-char-property-with-value m-beg (point) 'syntax-table '(1)))
 
     (while (and (< (point) end)
@@ -966,8 +1013,8 @@ Note that the style variables are always made local to the buffer."
       (setq m-beg (point))
       (c-end-of-macro))
     (when (and ss-found (> (point) end))
-      (when (c-major-mode-is 'c++-mode)
-	(save-excursion (c-depropertize-raw-strings-in-region m-beg (point))))
+      (when c-ml-string-opener-re
+	(save-excursion (c-depropertize-ml-strings-in-region m-beg (point))))
       (c-clear-char-property-with-value m-beg (point) 'syntax-table '(1)))
 
     (while (and (< (point) c-new-END)
@@ -975,8 +1022,8 @@ Note that the style variables are always made local to the buffer."
       (goto-char (match-beginning 1))
       (setq m-beg (point))
       (c-end-of-macro)
-      (when (c-major-mode-is 'c++-mode)
-	(save-excursion (c-depropertize-raw-strings-in-region m-beg (point))))
+      (when c-ml-string-opener-re
+	(save-excursion (c-depropertize-ml-strings-in-region m-beg (point))))
       (c-clear-char-property-with-value
        m-beg (point) 'syntax-table '(1)))))
 
@@ -1126,12 +1173,15 @@ Note that the style variables are always made local to the buffer."
 	  )))))
 
 (defun c-unescaped-nls-in-string-p (&optional quote-pos)
-  ;; Return whether unescaped newlines can be inside strings.
+  ;; Return whether unescaped newlines can be inside strings.  If the current
+  ;; language handles multi-line strings, the value of this function is always
+  ;; nil.
   ;;
   ;; QUOTE-POS, if present, is the position of the opening quote of a string.
   ;; Depending on the language, there might be a special character before it
   ;; signifying the validity of such NLs.
   (cond
+   (c-ml-string-opener-re nil)
    ((null c-multiline-string-start-char) nil)
    ((c-characterp c-multiline-string-start-char)
     (and quote-pos
@@ -1207,52 +1257,94 @@ Note that the style variables are always made local to the buffer."
 	(c-put-syn-tab (1- (point)) '(15)))
        (t nil)))))
 
-(defvar c-fl-syn-tab-region nil)
-  ;; Non-nil when a `c-restore-string-fences' is "in force".  It's value is a
-  ;; cons of the BEG and END of the region currently "mirroring" the
-  ;; c-fl-syn-tab properties as syntax-table properties.
+(defun c-put-syn-tab (pos value)
+  ;; Set both the syntax-table and the c-fl-syn-tab text properties at POS to
+  ;; VALUE (which should not be nil).
+  ;; `(let ((-pos- ,pos)
+  ;;	 (-value- ,value))
+  (c-put-char-property pos 'syntax-table value)
+  (c-put-char-property pos 'c-fl-syn-tab value)
+  (cond
+   ((null c-min-syn-tab-mkr)
+    (setq c-min-syn-tab-mkr (copy-marker pos t)))
+   ((< pos c-min-syn-tab-mkr)
+    (move-marker c-min-syn-tab-mkr pos)))
+  (cond
+   ((null c-max-syn-tab-mkr)
+    (setq c-max-syn-tab-mkr (copy-marker (1+ pos) nil)))
+   ((>= pos c-max-syn-tab-mkr)
+    (move-marker c-max-syn-tab-mkr (1+ pos))))
+  (c-truncate-lit-pos-cache pos))
+
+(defun c-clear-syn-tab (pos)
+  ;; Remove both the 'syntax-table and `c-fl-syn-tab properties at POS.
+     (c-clear-char-property pos 'syntax-table)
+     (c-clear-char-property pos 'c-fl-syn-tab)
+     (when c-min-syn-tab-mkr
+       (if (and (eq pos (marker-position c-min-syn-tab-mkr))
+		(eq (1+ pos) (marker-position c-max-syn-tab-mkr)))
+	   (progn
+	     (move-marker c-min-syn-tab-mkr nil)
+	     (move-marker c-max-syn-tab-mkr nil)
+	     (setq c-min-syn-tab-mkr nil  c-max-syn-tab-mkr nil))
+	 (when (eq pos (marker-position c-min-syn-tab-mkr))
+	   (move-marker c-min-syn-tab-mkr
+			(if (c-get-char-property (1+ pos) 'c-fl-syn-tab)
+			    (1+ pos)
+			  (c-next-single-property-change
+			   (1+ pos) 'c-fl-syn-tab nil c-max-syn-tab-mkr))))
+	 (when (eq (1+ pos) (marker-position c-max-syn-tab-mkr))
+	   (move-marker c-max-syn-tab-mkr
+			(if (c-get-char-property (1- pos) 'c-fl-syn-tab)
+			    pos
+			  (c-previous-single-property-change
+			   pos 'c-fl-syn-tab nil (1+ c-min-syn-tab-mkr)))))))
+     (c-truncate-lit-pos-cache pos))
 
 (defun c-clear-string-fences ()
-  ;; Clear syntax-table text properties in the region defined by
-  ;; `c-cl-syn-tab-region' which are "mirrored" by c-fl-syn-tab text
-  ;; properties.  However, any such " character which ends up not being
+  ;; Clear syntax-table text properties which are "mirrored" by c-fl-syn-tab
+  ;; text properties.  However, any such " character which ends up not being
   ;; balanced by another " is left with a '(1) syntax-table property.
-  (when c-fl-syn-tab-region
-    (let ((beg (car c-fl-syn-tab-region))
-	  (end (cdr c-fl-syn-tab-region))
-	  s pos)
-      (setq pos beg)
+  (when
+      (and c-min-syn-tab-mkr c-max-syn-tab-mkr)
+    (let (s pos)
+      (setq pos c-min-syn-tab-mkr)
       (while
 	  (and
-	   (< pos end)
-	   (setq pos
-		 (c-min-property-position pos end 'c-fl-syn-tab))
-	   (< pos end))
+	   (< pos c-max-syn-tab-mkr)
+	   (setq pos (c-min-property-position pos
+					      c-max-syn-tab-mkr
+					      'c-fl-syn-tab))
+	   (< pos c-max-syn-tab-mkr))
 	(c-clear-char-property pos 'syntax-table)
 	(setq pos (1+ pos)))
       ;; Check we haven't left any unbalanced "s.
       (save-excursion
-	(setq pos beg)
+	(setq pos c-min-syn-tab-mkr)
 	;; Is there already an unbalanced " before BEG?
-	(setq pos (c-min-property-position pos end 'c-fl-syn-tab))
-	(when (< pos end) (goto-char pos))
-	(when (and (save-match-data
-		     (c-search-backward-char-property-with-value-on-char
-		      'c-fl-syn-tab '(15) ?\"
-		      (max (- (point) 500) (point-min))))
-		   (not (equal (c-get-char-property (point) 'syntax-table) '(1))))
-	  (setq pos (1+ pos)))
-	(while (< pos end)
+	(setq pos (c-min-property-position pos c-max-syn-tab-mkr
+					   'c-fl-syn-tab))
+	(when (< pos c-max-syn-tab-mkr)
+	  (goto-char pos)
+	  (when (and (save-match-data
+		       (c-search-backward-char-property-with-value-on-char
+			'c-fl-syn-tab '(15) ?\"
+			(max (- (point) 500) (point-min))))
+		     (not (equal (c-get-char-property (point) 'syntax-table) '(1))))
+	    (setq pos (1+ pos))))
+	(while (< pos c-max-syn-tab-mkr)
 	  (setq pos
-		(c-min-property-position pos end 'c-fl-syn-tab))
-	  (when (< pos end)
+		(c-min-property-position pos c-max-syn-tab-mkr 'c-fl-syn-tab))
+	  (when (< pos c-max-syn-tab-mkr)
 	    (if (memq (char-after pos) c-string-delims)
 		(progn
 		  ;; Step over the ".
-		  (setq s (parse-partial-sexp pos end nil nil nil
+		  (setq s (parse-partial-sexp pos c-max-syn-tab-mkr
+					      nil nil nil
 					      'syntax-table))
 		  ;; Seek a (bogus) matching ".
-		  (setq s (parse-partial-sexp (point) end nil nil s
+		  (setq s (parse-partial-sexp (point) c-max-syn-tab-mkr
+					      nil nil s
 					      'syntax-table))
 		  ;; When a bogus matching " is found, do nothing.
 		  ;; Otherwise mark the " with 'syntax-table '(1).
@@ -1262,23 +1354,22 @@ Note that the style variables are always made local to the buffer."
 		       (c-get-char-property (1- (point)) 'c-fl-syn-tab))
 		    (c-put-char-property pos 'syntax-table '(1)))
 		  (setq pos (point)))
-	      (setq pos (1+ pos))))))
-      (setq c-fl-syn-tab-region nil))))
+	      (setq pos (1+ pos)))))))))
 
-(defun c-restore-string-fences (beg end)
-  ;; Restore any syntax-table text properties in the region (BEG END) which
-  ;; are "mirrored" by c-fl-syn-tab text properties.
-  (let ((pos beg))
-    (while
-	(and
-	 (< pos end)
-	 (setq pos
-	       (c-min-property-position pos end 'c-fl-syn-tab))
-	 (< pos end))
-      (c-put-char-property pos 'syntax-table
-			   (c-get-char-property pos 'c-fl-syn-tab))
-      (setq pos (1+ pos)))
-    (setq c-fl-syn-tab-region (cons beg end))))
+(defun c-restore-string-fences ()
+  ;; Restore any syntax-table text properties which are "mirrored" by
+  ;; c-fl-syn-tab text properties.
+  (when (and c-min-syn-tab-mkr c-max-syn-tab-mkr)
+    (let ((pos c-min-syn-tab-mkr))
+      (while
+	  (and
+	   (< pos c-max-syn-tab-mkr)
+	   (setq pos
+		 (c-min-property-position pos c-max-syn-tab-mkr 'c-fl-syn-tab))
+	   (< pos c-max-syn-tab-mkr))
+	(c-put-char-property pos 'syntax-table
+			     (c-get-char-property pos 'c-fl-syn-tab))
+	(setq pos (1+ pos))))))
 
 (defvar c-bc-changed-stringiness nil)
 ;; Non-nil when, in a before-change function, the deletion of a range of text
@@ -1311,7 +1402,7 @@ Note that the style variables are always made local to the buffer."
 		     (memq (char-after) c-string-delims))
 	    (c-clear-syn-tab (point)))))
       (c-clear-syn-tab (point)))
-     (t (c-benign-error "c-remove-string-fences: wrong position")))))
+     (t (c-benign-error "c-remove-string-fences: Wrong position")))))
 
 (defun c-before-change-check-unbalanced-strings (beg end)
   ;; If BEG or END is inside an unbalanced string, remove the syntax-table
@@ -1346,7 +1437,8 @@ Note that the style variables are always made local to the buffer."
     ;; quotes up until the next unescaped EOL.  Also guard against the change
     ;; being the insertion of \ before an EOL, escaping it.
     (cond
-     ((c-characterp c-multiline-string-start-char)
+     ((and (not c-ml-string-opener-re)
+	   (c-characterp c-multiline-string-start-char))
       ;; The text about to be inserted might contain a multiline string
       ;; opener.  Set c-new-END after anything which might be affected.
       ;; Go to the end of the putative multiline string.
@@ -1372,7 +1464,8 @@ Note that the style variables are always made local to the buffer."
 	       (< (point) (point-max))))))
       (setq c-new-END (max (point) c-new-END)))
 
-     (c-multiline-string-start-char
+     ((and (not c-ml-string-opener-re)
+	   c-multiline-string-start-char)
       (setq c-bc-changed-stringiness
 	    (not (eq (eq end-literal-type 'string)
 		     (eq beg-literal-type 'string))))
@@ -1396,9 +1489,11 @@ Note that the style variables are always made local to the buffer."
 		 (c-will-be-escaped end beg end))
 	    (c-remove-string-fences end)
 	    (goto-char (1+ end)))
-	   ;; Are we unescaping a newline by inserting stuff between \ and \n?
-	   ((and (eq end beg)
-		 (c-is-escaped end))
+	   ;; Are we unescaping a newline ...
+	   ((and
+	     (c-is-escaped end)
+	     (or (eq beg end) ; .... by inserting stuff between \ and \n?
+		 (c-will-be-unescaped beg))) ;  ... by removing an odd number of \s?
 	    (goto-char (1+ end))) ; To after the NL which is being unescaped.
 	   (t
 	    (goto-char end)))
@@ -1406,7 +1501,7 @@ Note that the style variables are always made local to the buffer."
 
       ;; Move to end of logical line (as it will be after the change, or as it
       ;; was before unescaping a NL.)
-      (re-search-forward "\\(\\\\\\(.\\|\n\\)\\|[^\\\n\r]\\)*" nil t)
+      (re-search-forward "\\(?:\\\\\\(?:.\\|\n\\)\\|[^\\\n\r]\\)*" nil t)
       ;; We're at an EOLL or point-max.
       (if (equal (c-get-char-property (point) 'syntax-table) '(15))
 	  (if (memq (char-after) '(?\n ?\r))
@@ -1415,7 +1510,7 @@ Note that the style variables are always made local to the buffer."
 	    ;; Opening " at EOB.
 	    (c-clear-syn-tab (1- (point))))
 	(when (and (c-search-backward-char-property 'syntax-table '(15) c-new-BEG)
-		   (memq (char-after) c-string-delims)) ; Ignore an unterminated raw string's (.
+		   (memq (char-after) c-string-delims)) ; Ignore an unterminated ml string's (.
 	  ;; Opening " on last line of text (without EOL).
 	  (c-remove-string-fences)
 	  (setq c-new-BEG (min c-new-BEG (point))))))
@@ -1429,17 +1524,21 @@ Note that the style variables are always made local to the buffer."
 
     (unless
 	(or (and
-	     ;; Don't set c-new-BEG/END if we're in a raw string.
+	     ;; Don't set c-new-BEG/END if we're in an ml string.
+	     c-ml-string-opener-re
 	     (eq beg-literal-type 'string)
-	     (c-at-c++-raw-string-opener (car beg-limits)))
+	     (c-ml-string-opener-at-or-around-point (car beg-limits)))
 	    (and c-multiline-string-start-char
+		 (not c-ml-string-opener-re)
 		 (not (c-characterp c-multiline-string-start-char))))
       (when (and (eq end-literal-type 'string)
-		 (not (eq (char-before (cdr end-limits)) ?\())
-		 (memq (char-after (car end-limits)) c-string-delims)
-		 (equal (c-get-char-property (car end-limits) 'syntax-table)
-			'(15)))
-	(c-remove-string-fences (car end-limits))
+		 (or (memq (char-before (cdr end-limits)) c-string-delims)
+		     (memq (char-before (cdr end-limits)) '(?\n ?\r)))
+		 (memq (char-after (car end-limits)) c-string-delims))
+	(setq c-new-END (max c-new-END (cdr end-limits)))
+	(when (equal (c-get-char-property (car end-limits) 'syntax-table)
+		     '(15))
+	  (c-remove-string-fences (car end-limits)))
 	(setq c-new-END (max c-new-END (cdr end-limits))))
 
       (when (and (eq beg-literal-type 'string)
@@ -1457,6 +1556,7 @@ Note that the style variables are always made local to the buffer."
   ;; This function is called exclusively as an after-change function via
   ;; `c-before-font-lock-functions'.
   (if (and c-multiline-string-start-char
+	   (not c-ml-string-opener-re)
 	   (not (c-characterp c-multiline-string-start-char)))
       ;; Only the last " might need to be marked.
       (c-save-buffer-state
@@ -1499,6 +1599,7 @@ Note that the style variables are always made local to the buffer."
 	   ((and (null beg-literal-type)
 		 (goto-char beg)
 		 (and (not (bobp))
+		      (not c-ml-string-opener-re)
 		      (eq (char-before) c-multiline-string-start-char))
 		 (memq (char-after) c-string-delims))
 	    (cons (point)
@@ -1512,13 +1613,18 @@ Note that the style variables are always made local to the buffer."
 		   ; insertion/deletion of string delimiters.
 	  (max
 	   (progn
-	     (goto-char (min (1+ end)	; 1+, in case a NL has become escaped.
-			     (point-max)))
-	     (re-search-forward "\\(\\\\\\(.\\|\n\\)\\|[^\\\n\r]\\)*"
+	     (goto-char
+	      (if (and (memq (char-after end) '(?\n ?\r))
+		       (c-is-escaped end))
+		  (min (1+ end)	; 1+, if we're inside an escaped NL.
+		       (point-max))
+		end))
+	     (re-search-forward "\\(?:\\\\\\(?:.\\|\n\\)\\|[^\\\n\r]\\)*"
 				nil t)
 	     (point))
 	   c-new-END))
 	 s)
+
       (goto-char
        (cond ((null beg-literal-type)
 	      c-new-BEG)
@@ -1542,8 +1648,9 @@ Note that the style variables are always made local to the buffer."
 	     (and (memq (char-before) c-string-delims)
 		  (not (nth 4 s)))))	; Check we're actually out of the
 					; comment. not stuck at EOB
-	(unless (and (c-major-mode-is 'c++-mode)
-		     (c-maybe-re-mark-raw-string))
+	(unless
+	    (and c-ml-string-opener-re
+		 (c-maybe-re-mark-ml-string))
 	  (if (c-unescaped-nls-in-string-p (1- (point)))
 	      (looking-at "\\(\\\\\\(.\\|\n\\)\\|[^\"]\\)*")
 	    (looking-at (cdr (assq (char-before) c-string-innards-re-alist))))
@@ -1582,21 +1689,15 @@ Note that the style variables are always made local to the buffer."
 	     (progn (goto-char end)
 		    (setq lit-start (c-literal-start)))
 	     (memq (char-after lit-start) c-string-delims)
-	     (or (not (c-major-mode-is 'c++-mode))
+	     (or (not c-ml-string-opener-re)
 		 (progn
 		   (goto-char lit-start)
-		   (and (not (and (eq (char-before) ?R)
-				  (looking-at c-c++-raw-string-opener-1-re)))
-			(not (and (eq (char-after) ?\()
-				  (equal (c-get-char-property
-					  (point) 'syntax-table)
-					 '(15))))))
+		   (not (c-ml-string-opener-at-or-around-point)))
 		 (save-excursion
 		   (c-beginning-of-macro))))
       (goto-char (1+ end))		; After the \
-      ;; Search forward for EOLL
-      (setq lim (re-search-forward "\\(\\\\\\(.\\|\n\\)\\|[^\\\n\r]\\)*"
-				   nil t))
+      ;; Search forward for EOLL.
+      (setq lim (c-point 'eoll))
       (goto-char (1+ end))
       (when (c-search-forward-char-property-with-value-on-char
 	     'syntax-table '(15) ?\" lim)
@@ -1888,7 +1989,7 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 	(widen)
 	(unwind-protect
 	    (progn
-	      (c-restore-string-fences (point-min) (point-max))
+	      (c-restore-string-fences)
 	      (save-excursion
 		;; Are we inserting/deleting stuff in the middle of an
 		;; identifier?
@@ -1907,7 +2008,7 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 		;; We search for appropriate c-type properties "near"
 		;; the change.  First, find an appropriate boundary
 		;; for this property search.
-		(let (lim
+		(let (lim lim-2
 		      type type-pos
 		      marked-id term-pos
 		      (end1
@@ -1918,8 +2019,11 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 		  (when (>= end1 beg) ; Don't hassle about changes entirely in
 					; comments.
 		    ;; Find a limit for the search for a `c-type' property
+		    ;; Point is currently undefined.  A `goto-char' somewhere is needed.  (2020-12-06).
+		    (setq lim-2 (c-determine-limit 1000 (point) ; that is wrong.  FIXME!!!  (2020-12-06)
+						   ))
 		    (while
-			(and (/= (skip-chars-backward "^;{}") 0)
+			(and (/= (skip-chars-backward "^;{}" lim-2) 0)
 			     (> (point) (point-min))
 			     (memq (c-get-char-property (1- (point)) 'face)
 				   '(font-lock-comment-face font-lock-string-face))))
@@ -1943,7 +2047,8 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 				(buffer-substring-no-properties (point) type-pos)))
 
 			(goto-char end1)
-			(skip-chars-forward "^;{}") ; FIXME!!!  loop for
+			(setq lim-2 (c-determine-+ve-limit 1000))
+			(skip-chars-forward "^;{}" lim-2) ; FIXME!!!  loop for
 					; comment, maybe
 			(setq lim (point))
 			(setq term-pos
@@ -1958,13 +2063,19 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 		(if c-get-state-before-change-functions
 		    (mapc (lambda (fn)
 			    (funcall fn beg end))
-			  c-get-state-before-change-functions))))
+			  c-get-state-before-change-functions))
+
+		(c-laomib-invalidate-cache beg end)))
 	  (c-clear-string-fences))))
     (c-truncate-lit-pos-cache beg)
     ;; The following must be done here rather than in `c-after-change'
     ;; because newly inserted parens would foul up the invalidation
     ;; algorithm.
-    (c-invalidate-state-cache beg)))
+    (c-invalidate-state-cache beg)
+    ;; The following must happen after the previous, which likely alters
+    ;; the macro cache.
+    (when c-opt-cpp-symbol
+      (c-invalidate-macro-cache beg end))))
 
 (defvar c-in-after-change-fontification nil)
 (make-variable-buffer-local 'c-in-after-change-fontification)
@@ -2018,7 +2129,7 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 	  (widen)
 	  (unwind-protect
 	      (progn
-		(c-restore-string-fences (point-min) (point-max))
+		(c-restore-string-fences)
 		(when (> end (point-max))
 		  ;; Some emacsen might return positions past the end. This
 		  ;; has been observed in Emacs 20.7 when rereading a buffer
@@ -2109,7 +2220,8 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 	old-pos
 	(new-pos pos)
 	capture-opener
-	bod-lim bo-decl)
+	bod-lim bo-decl
+	paren-state containing-brace)
     (goto-char (c-point 'bol new-pos))
     (unless lit-start
       (setq bod-lim (c-determine-limit 500))
@@ -2128,12 +2240,16 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 	   (setq old-pos (point))
 	   (let (pseudo)
 	     (while
-		 (progn
-		   (c-syntactic-skip-backward "^;{}" bod-lim t)
-		   (and (eq (char-before) ?})
-			(save-excursion
-			  (backward-char)
-			  (setq pseudo (c-cheap-inside-bracelist-p (c-parse-state))))))
+		 (and
+		  ;; N.B. `c-syntactic-skip-backward' doesn't check (> (point)
+		  ;; lim) and can loop if that's not the case.
+		  (> (point) bod-lim)
+		  (progn
+		    (c-syntactic-skip-backward "^;{}" bod-lim t)
+		    (and (eq (char-before) ?})
+			 (save-excursion
+			   (backward-char)
+			   (setq pseudo (c-cheap-inside-bracelist-p (c-parse-state)))))))
 	       (goto-char pseudo))
 	     t)
 	   (> (point) bod-lim)
@@ -2166,7 +2282,14 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 		      (and (eq (char-before) ?{)
 			   (save-excursion
 			     (backward-char)
-			     (consp (c-looking-at-or-maybe-in-bracelist))))
+			     (setq paren-state (c-parse-state))
+			     (while
+				 (and
+				  (setq containing-brace
+					(c-pull-open-brace paren-state))
+				  (not (eq (char-after containing-brace) ?{))))
+			     (consp (c-looking-at-or-maybe-in-bracelist
+				     containing-brace containing-brace))))
 		      )))
 	   (not (bobp)))
 	(backward-char))		; back over (, [, <.
@@ -2177,25 +2300,47 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 (defun c-fl-decl-end (pos)
   ;; If POS is inside a declarator, return the end of the token that follows
   ;; the declarator, otherwise return nil.  POS being in a literal does not
-  ;; count as being in a declarator (on pragmatic grounds).
+  ;; count as being in a declarator (on pragmatic grounds).  POINT is not
+  ;; preserved.
   (goto-char pos)
   (let ((lit-start (c-literal-start))
+	(lim (c-determine-limit 1000))
 	enclosing-attribute pos1)
     (unless lit-start
-      (c-backward-syntactic-ws)
-      (when (setq enclosing-attribute (c-slow-enclosing-c++-attribute))
+      (c-backward-syntactic-ws
+       lim)
+      (when (setq enclosing-attribute (c-enclosing-c++-attribute))
 	(goto-char (car enclosing-attribute))) ; Only happens in C++ Mode.
       (when (setq pos1 (c-on-identifier))
 	(goto-char pos1)
 	(let ((lim (save-excursion
 		     (and (c-beginning-of-macro)
 			  (progn (c-end-of-macro) (point))))))
-	  (when (and (c-forward-declarator lim)
-		     (or (not (eq (char-after) ?\())
-			 (c-go-list-forward nil lim))
-		     (eq (c-forward-token-2 1 nil lim) 0))
-	    (c-backward-syntactic-ws)
-	    (point)))))))
+	  (and (c-forward-declarator lim)
+	       (if (eq (char-after) ?\()
+		   (and
+		    (c-go-list-forward nil lim)
+		    (progn (c-forward-syntactic-ws lim)
+			   (not (eobp)))
+		    (progn
+		      (if (looking-at c-symbol-char-key)
+			  ;; Deal with baz (foo((bar)) type var), where
+			  ;; foo((bar)) is not semantically valid.  The result
+			  ;; must be after var).
+			  (and
+			   (goto-char pos)
+			   (setq pos1 (c-on-identifier))
+			   (goto-char pos1)
+			   (progn
+			     (c-backward-syntactic-ws lim)
+			     (eq (char-before) ?\())
+			   (c-fl-decl-end (1- (point))))
+			(c-backward-syntactic-ws lim)
+			(point))))
+		 (and (progn (c-forward-syntactic-ws lim)
+			     (not (eobp)))
+		      (c-backward-syntactic-ws lim)
+		      (point)))))))))
 
 (defun c-change-expand-fl-region (_beg _end _old-len)
   ;; Expand the region (c-new-BEG c-new-END) to an after-change font-lock
@@ -2255,69 +2400,48 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
   ;; line was fouled up by context fontification.
   (save-restriction
     (widen)
-    (let (new-beg new-end new-region case-fold-search string-fence-beg lim)
-      ;; Check how far back we need to extend the region where we reapply the
-      ;; string fence syntax-table properties.  These must be in place for the
-      ;; coming fontification operations.
-      (save-excursion
-	(goto-char (if c-in-after-change-fontification
-		       (min beg c-new-BEG)
-		     beg))
-	(setq lim (max (- (point) 500) (point-min)))
-	(while
+    (let (new-beg new-end new-region case-fold-search)
+      (c-save-buffer-state nil
+	;; Temporarily reapply the string fence syntax-table properties.
+	(unwind-protect
 	    (progn
-	      (skip-chars-backward "^\"" lim)
-	      (or (bobp) (backward-char))
-	      (save-excursion
-		(eq (logand (skip-chars-backward "\\\\") 1) 1))))
-	(setq string-fence-beg
-	      (cond ((c-get-char-property (point) 'c-fl-syn-tab)
-		     (point))
-		    (c-in-after-change-fontification
-		     c-new-BEG)
-		    (t beg)))
-	(c-save-buffer-state nil
-	  ;; Temporarily reapply the string fence syntax-table properties.
-	  (c-with-extended-string-fences
-	   string-fence-beg (if c-in-after-change-fontification
-				(max end c-new-END)
-			      end)
-
-	   (if (and c-in-after-change-fontification
-		    (< beg c-new-END) (> end c-new-BEG))
-	       ;; Region and the latest after-change fontification region overlap.
-	       ;; Determine the upper and lower bounds of our adjusted region
-	       ;; separately.
-	       (progn
-		 (if (<= beg c-new-BEG)
-		     (setq c-in-after-change-fontification nil))
-		 (setq new-beg
-		       (if (and (>= beg (c-point 'bol c-new-BEG))
-				(<= beg c-new-BEG))
-			   ;; Either jit-lock has accepted `c-new-BEG', or has
-			   ;; (probably) extended the change region spuriously
-			   ;; to BOL, which position likely has a
-			   ;; syntactically different position.  To ensure
-			   ;; correct fontification, we start at `c-new-BEG',
-			   ;; assuming any characters to the left of
-			   ;; `c-new-BEG' on the line do not require
-			   ;; fontification.
-			   c-new-BEG
-			 (setq new-region (c-before-context-fl-expand-region beg end)
-			       new-end (cdr new-region))
-			 (car new-region)))
-		 (setq new-end
-		       (if (and (>= end (c-point 'bol c-new-END))
-				(<= end c-new-END))
-			   c-new-END
-			 (or new-end
-			     (cdr (c-before-context-fl-expand-region beg end))))))
-	     ;; Context (etc.) fontification.
-	     (setq new-region (c-before-context-fl-expand-region beg end)
-		   new-beg (car new-region)  new-end (cdr new-region)))
-	   ;; Finally invoke font lock's functionality.
-	   (funcall (default-value 'font-lock-fontify-region-function)
-		    new-beg new-end verbose)))))))
+	      (c-restore-string-fences)
+	      (if (and c-in-after-change-fontification
+		       (< beg c-new-END) (> end c-new-BEG))
+		  ;; Region and the latest after-change fontification region overlap.
+		  ;; Determine the upper and lower bounds of our adjusted region
+		  ;; separately.
+		  (progn
+		    (if (<= beg c-new-BEG)
+			(setq c-in-after-change-fontification nil))
+		    (setq new-beg
+			  (if (and (>= beg (c-point 'bol c-new-BEG))
+				   (<= beg c-new-BEG))
+			      ;; Either jit-lock has accepted `c-new-BEG', or has
+			      ;; (probably) extended the change region spuriously
+			      ;; to BOL, which position likely has a
+			      ;; syntactically different position.  To ensure
+			      ;; correct fontification, we start at `c-new-BEG',
+			      ;; assuming any characters to the left of
+			      ;; `c-new-BEG' on the line do not require
+			      ;; fontification.
+			      c-new-BEG
+			    (setq new-region (c-before-context-fl-expand-region beg end)
+				  new-end (cdr new-region))
+			    (car new-region)))
+		    (setq new-end
+			  (if (and (>= end (c-point 'bol c-new-END))
+				   (<= end c-new-END))
+			      c-new-END
+			    (or new-end
+				(cdr (c-before-context-fl-expand-region beg end))))))
+		;; Context (etc.) fontification.
+		(setq new-region (c-before-context-fl-expand-region beg end)
+		      new-beg (car new-region)  new-end (cdr new-region)))
+	      ;; Finally invoke font lock's functionality.
+	      (funcall (default-value 'font-lock-fontify-region-function)
+		       new-beg new-end verbose))
+	  (c-clear-string-fences))))))
 
 (defun c-after-font-lock-init ()
   ;; Put on `font-lock-mode-hook'.  This function ensures our after-change
@@ -2385,6 +2509,7 @@ This function is called from `c-common-init', once per mode initialization."
 
 ;; Emacs < 22 and XEmacs
 (defmacro c-advise-fl-for-region (function)
+  (declare (debug t))
   `(defadvice ,function (before get-awk-region activate)
      ;; Make sure that any string/regexp is completely font-locked.
      (when c-buffer-is-cc-mode
@@ -2442,22 +2567,17 @@ opening \" and the next unescaped end of line."
 
 (defvar c-mode-syntax-table
   (funcall (c-lang-const c-make-mode-syntax-table c))
-  "Syntax table used in c-mode buffers.")
-
-(c-define-abbrev-table 'c-mode-abbrev-table
-  '(("else" "else" c-electric-continued-statement 0)
-    ("while" "while" c-electric-continued-statement 0))
-  "Abbreviation table used in c-mode buffers.")
+  "Syntax table used in `c-mode' buffers.")
 
 (defvar c-mode-map
   (let ((map (c-make-inherited-keymap)))
     map)
-  "Keymap used in c-mode buffers.")
+  "Keymap used in `c-mode' buffers.")
 ;; Add bindings which are only useful for C.
 (define-key c-mode-map "\C-c\C-e"  'c-macro-expand)
 
 
-(easy-menu-define c-c-menu c-mode-map "C Mode Commands"
+(easy-menu-define c-c-menu c-mode-map "C Mode Commands."
 		  (cons "C" (c-lang-const c-mode-menu c)))
 
 ;; In XEmacs >= 21.5 modes should add their own entries to
@@ -2496,7 +2616,7 @@ opening \" and the next unescaped end of line."
   "Major mode for editing C code.
 
 To submit a problem report, enter `\\[c-submit-bug-report]' from a
-c-mode buffer.  This automatically sets up a mail buffer with version
+`c-mode' buffer.  This automatically sets up a mail buffer with version
 information already added.  You just need to add a description of the
 problem, including a reproducible test case, and send the message.
 
@@ -2514,20 +2634,29 @@ Key bindings:
   (setq abbrev-mode t)
   (c-init-language-vars-for 'c-mode)
   (c-common-init 'c-mode)
-  (easy-menu-add c-c-menu)
+  (when (featurep 'xemacs)
+    (easy-menu-add c-c-menu))
   (cc-imenu-init cc-imenu-c-generic-expression)
   (add-hook 'flymake-diagnostic-functions 'flymake-cc nil t)
   (c-run-mode-hooks 'c-mode-common-hook))
 
 (defconst c-or-c++-mode--regexp
   (eval-when-compile
-    (let ((id "[a-zA-Z0-9_]+") (ws "[ \t\r]+") (ws-maybe "[ \t\r]*"))
+    (let ((id "[a-zA-Z_][a-zA-Z0-9_]*") (ws "[ \t]+") (ws-maybe "[ \t]*")
+          (headers '("string" "string_view" "iostream" "map" "unordered_map"
+                     "set" "unordered_set" "vector" "tuple")))
       (concat "^" ws-maybe "\\(?:"
-                    "using"     ws "\\(?:namespace" ws "std;\\|std::\\)"
-              "\\|" "namespace" "\\(:?" ws id "\\)?" ws-maybe "{"
-              "\\|" "class"     ws id ws-maybe "[:{\n]"
-              "\\|" "template"  ws-maybe "<.*>"
-              "\\|" "#include"  ws-maybe "<\\(?:string\\|iostream\\|map\\)>"
+                    "using"     ws "\\(?:namespace" ws
+                                     "\\|" id "::"
+                                     "\\|" id ws-maybe "=\\)"
+              "\\|" "\\(?:inline" ws "\\)?namespace"
+                    "\\(:?" ws "\\(?:" id "::\\)*" id "\\)?" ws-maybe "{"
+              "\\|" "class"     ws id
+                    "\\(?:" ws "final" "\\)?" ws-maybe "[:{;\n]"
+              "\\|" "struct"     ws id "\\(?:" ws "final" ws-maybe "[:{\n]"
+                                         "\\|" ws-maybe ":\\)"
+              "\\|" "template"  ws-maybe "<.*?>"
+              "\\|" "#include"  ws-maybe "<" (regexp-opt headers) ">"
               "\\)")))
   "A regexp applied to C header files to check if they are really C++.")
 
@@ -2543,6 +2672,7 @@ should be used.
 This function attempts to use file contents to determine whether
 the code is C or C++ and based on that chooses whether to enable
 `c-mode' or `c++-mode'."
+  (interactive)
   (if (save-excursion
         (save-restriction
           (save-match-data
@@ -2560,12 +2690,6 @@ the code is C or C++ and based on that chooses whether to enable
   (funcall (c-lang-const c-make-mode-syntax-table c++))
   "Syntax table used in c++-mode buffers.")
 
-(c-define-abbrev-table 'c++-mode-abbrev-table
-  '(("else" "else" c-electric-continued-statement 0)
-    ("while" "while" c-electric-continued-statement 0)
-    ("catch" "catch" c-electric-continued-statement 0))
-  "Abbreviation table used in c++-mode buffers.")
-
 (defvar c++-mode-map
   (let ((map (c-make-inherited-keymap)))
     map)
@@ -2576,7 +2700,7 @@ the code is C or C++ and based on that chooses whether to enable
 (define-key c++-mode-map "<"        'c-electric-lt-gt)
 (define-key c++-mode-map ">"        'c-electric-lt-gt)
 
-(easy-menu-define c-c++-menu c++-mode-map "C++ Mode Commands"
+(easy-menu-define c-c++-menu c++-mode-map "C++ Mode Commands."
 		  (cons "C++" (c-lang-const c-mode-menu c++)))
 
 ;;;###autoload
@@ -2602,7 +2726,8 @@ Key bindings:
   (setq abbrev-mode t)
   (c-init-language-vars-for 'c++-mode)
   (c-common-init 'c++-mode)
-  (easy-menu-add c-c++-menu)
+  (when (featurep 'xemacs)
+    (easy-menu-add c-c++-menu))
   (cc-imenu-init cc-imenu-c++-generic-expression)
   (add-hook 'flymake-diagnostic-functions 'flymake-cc nil t)
   (c-run-mode-hooks 'c-mode-common-hook))
@@ -2612,21 +2737,16 @@ Key bindings:
 
 (defvar objc-mode-syntax-table
   (funcall (c-lang-const c-make-mode-syntax-table objc))
-  "Syntax table used in objc-mode buffers.")
-
-(c-define-abbrev-table 'objc-mode-abbrev-table
-  '(("else" "else" c-electric-continued-statement 0)
-    ("while" "while" c-electric-continued-statement 0))
-  "Abbreviation table used in objc-mode buffers.")
+  "Syntax table used in `objc-mode' buffers.")
 
 (defvar objc-mode-map
   (let ((map (c-make-inherited-keymap)))
     map)
-  "Keymap used in objc-mode buffers.")
+  "Keymap used in `objc-mode' buffers.")
 ;; Add bindings which are only useful for Objective-C.
 (define-key objc-mode-map "\C-c\C-e" 'c-macro-expand)
 
-(easy-menu-define c-objc-menu objc-mode-map "ObjC Mode Commands"
+(easy-menu-define c-objc-menu objc-mode-map "ObjC Mode Commands."
 		  (cons "ObjC" (c-lang-const c-mode-menu objc)))
 
 ;;;###autoload (add-to-list 'auto-mode-alist '("\\.m\\'" . objc-mode))
@@ -2635,7 +2755,7 @@ Key bindings:
 (define-derived-mode objc-mode prog-mode "ObjC"
   "Major mode for editing Objective C code.
 To submit a problem report, enter `\\[c-submit-bug-report]' from an
-objc-mode buffer.  This automatically sets up a mail buffer with
+`objc-mode' buffer.  This automatically sets up a mail buffer with
 version information already added.  You just need to add a description
 of the problem, including a reproducible test case, and send the
 message.
@@ -2654,7 +2774,8 @@ Key bindings:
   (setq abbrev-mode t)
   (c-init-language-vars-for 'objc-mode)
   (c-common-init 'objc-mode)
-  (easy-menu-add c-objc-menu)
+  (when (featurep 'xemacs)
+    (easy-menu-add c-objc-menu))
   (cc-imenu-init nil 'cc-imenu-objc-function)
   (c-run-mode-hooks 'c-mode-common-hook))
 
@@ -2663,19 +2784,12 @@ Key bindings:
 
 (defvar java-mode-syntax-table
   (funcall (c-lang-const c-make-mode-syntax-table java))
-  "Syntax table used in java-mode buffers.")
-
-(c-define-abbrev-table 'java-mode-abbrev-table
-  '(("else" "else" c-electric-continued-statement 0)
-    ("while" "while" c-electric-continued-statement 0)
-    ("catch" "catch" c-electric-continued-statement 0)
-    ("finally" "finally" c-electric-continued-statement 0))
-  "Abbreviation table used in java-mode buffers.")
+  "Syntax table used in `java-mode' buffers.")
 
 (defvar java-mode-map
   (let ((map (c-make-inherited-keymap)))
     map)
-  "Keymap used in java-mode buffers.")
+  "Keymap used in `java-mode' buffers.")
 ;; Add bindings which are only useful for Java.
 
 ;; Regexp trying to describe the beginning of a Java top-level
@@ -2683,9 +2797,9 @@ Key bindings:
 ;; since it's practically impossible to write a regexp that reliably
 ;; matches such a construct.  Other tools are necessary.
 (defconst c-Java-defun-prompt-regexp
-  "^[ \t]*\\(\\(\\(public\\|protected\\|private\\|const\\|abstract\\|synchronized\\|final\\|static\\|threadsafe\\|transient\\|native\\|volatile\\)\\s-+\\)*\\(\\(\\([[a-zA-Z][][_$.a-zA-Z0-9]*[][_$.a-zA-Z0-9]+\\|[[a-zA-Z]\\)\\s-*\\)\\s-+\\)\\)?\\(\\([[a-zA-Z][][_$.a-zA-Z0-9]*\\s-+\\)\\s-*\\)?\\([_a-zA-Z][^][ \t:;.,{}()\^?=]*\\|\\([_$a-zA-Z][_$.a-zA-Z0-9]*\\)\\)\\s-*\\(([^);{}]*)\\)?\\([] \t]*\\)\\(\\s-*\\<throws\\>\\s-*\\(\\([_$a-zA-Z][_$.a-zA-Z0-9]*\\)[, \t\n\r\f\v]*\\)+\\)?\\s-*")
+  "^[ \t]*\\(\\(\\(public\\|protected\\|private\\|const\\|abstract\\|synchronized\\|final\\|static\\|threadsafe\\|transient\\|native\\|volatile\\)\\s-+\\)*\\(\\(\\([[a-zA-Z][][_$.a-zA-Z0-9]+\\|[[a-zA-Z]\\)\\s-*\\)\\s-+\\)\\)?\\(\\([[a-zA-Z][][_$.a-zA-Z0-9]*\\s-+\\)\\s-*\\)?\\([_a-zA-Z][^][ \t:;.,{}()\^?=]*\\|\\([_$a-zA-Z][_$.a-zA-Z0-9]*\\)\\)\\s-*\\(([^);{}]*)\\)?\\([] \t]*\\)\\(\\s-*\\<throws\\>\\s-*\\(\\([_$a-zA-Z][_$.a-zA-Z0-9]*\\)[, \t\n\r\f\v]*\\)+\\)?\\s-*")
 
-(easy-menu-define c-java-menu java-mode-map "Java Mode Commands"
+(easy-menu-define c-java-menu java-mode-map "Java Mode Commands."
 		  (cons "Java" (c-lang-const c-mode-menu java)))
 
 ;;;###autoload (add-to-list 'auto-mode-alist '("\\.java\\'" . java-mode))
@@ -2694,7 +2808,7 @@ Key bindings:
 (define-derived-mode java-mode prog-mode "Java"
   "Major mode for editing Java code.
 To submit a problem report, enter `\\[c-submit-bug-report]' from a
-java-mode buffer.  This automatically sets up a mail buffer with
+`java-mode' buffer.  This automatically sets up a mail buffer with
 version information already added.  You just need to add a description
 of the problem, including a reproducible test case, and send the
 message.
@@ -2711,7 +2825,8 @@ Key bindings:
   (setq abbrev-mode t)
   (c-init-language-vars-for 'java-mode)
   (c-common-init 'java-mode)
-  (easy-menu-add c-java-menu)
+  (when (featurep 'xemacs)
+    (easy-menu-add c-java-menu))
   (cc-imenu-init cc-imenu-java-generic-expression)
   (c-run-mode-hooks 'c-mode-common-hook))
 
@@ -2720,18 +2835,15 @@ Key bindings:
 
 (defvar idl-mode-syntax-table
   (funcall (c-lang-const c-make-mode-syntax-table idl))
-  "Syntax table used in idl-mode buffers.")
-
-(c-define-abbrev-table 'idl-mode-abbrev-table nil
-  "Abbreviation table used in idl-mode buffers.")
+  "Syntax table used in `idl-mode' buffers.")
 
 (defvar idl-mode-map
   (let ((map (c-make-inherited-keymap)))
     map)
-  "Keymap used in idl-mode buffers.")
+  "Keymap used in `idl-mode' buffers.")
 ;; Add bindings which are only useful for IDL.
 
-(easy-menu-define c-idl-menu idl-mode-map "IDL Mode Commands"
+(easy-menu-define c-idl-menu idl-mode-map "IDL Mode Commands."
 		  (cons "IDL" (c-lang-const c-mode-menu idl)))
 
 ;;;###autoload (add-to-list 'auto-mode-alist '("\\.idl\\'" . idl-mode))
@@ -2740,7 +2852,7 @@ Key bindings:
 (define-derived-mode idl-mode prog-mode "IDL"
   "Major mode for editing CORBA's IDL, PSDL and CIDL code.
 To submit a problem report, enter `\\[c-submit-bug-report]' from an
-idl-mode buffer.  This automatically sets up a mail buffer with
+`idl-mode' buffer.  This automatically sets up a mail buffer with
 version information already added.  You just need to add a description
 of the problem, including a reproducible test case, and send the
 message.
@@ -2756,7 +2868,8 @@ Key bindings:
   (c-initialize-cc-mode t)
   (c-init-language-vars-for 'idl-mode)
   (c-common-init 'idl-mode)
-  (easy-menu-add c-idl-menu)
+  (when (featurep 'xemacs)
+    (easy-menu-add c-idl-menu))
   ;;(cc-imenu-init cc-imenu-idl-generic-expression) ;TODO
   (c-run-mode-hooks 'c-mode-common-hook))
 
@@ -2765,21 +2878,16 @@ Key bindings:
 
 (defvar pike-mode-syntax-table
   (funcall (c-lang-const c-make-mode-syntax-table pike))
-  "Syntax table used in pike-mode buffers.")
-
-(c-define-abbrev-table 'pike-mode-abbrev-table
-  '(("else" "else" c-electric-continued-statement 0)
-    ("while" "while" c-electric-continued-statement 0))
-  "Abbreviation table used in pike-mode buffers.")
+  "Syntax table used in `pike-mode' buffers.")
 
 (defvar pike-mode-map
   (let ((map (c-make-inherited-keymap)))
     map)
-  "Keymap used in pike-mode buffers.")
+  "Keymap used in `pike-mode' buffers.")
 ;; Additional bindings.
 (define-key pike-mode-map "\C-c\C-e" 'c-macro-expand)
 
-(easy-menu-define c-pike-menu pike-mode-map "Pike Mode Commands"
+(easy-menu-define c-pike-menu pike-mode-map "Pike Mode Commands."
 		  (cons "Pike" (c-lang-const c-mode-menu pike)))
 
 ;;;###autoload (add-to-list 'auto-mode-alist '("\\.\\(u?lpc\\|pike\\|pmod\\(\\.in\\)?\\)\\'" . pike-mode))
@@ -2789,7 +2897,7 @@ Key bindings:
 (define-derived-mode pike-mode prog-mode "Pike"
   "Major mode for editing Pike code.
 To submit a problem report, enter `\\[c-submit-bug-report]' from a
-pike-mode buffer.  This automatically sets up a mail buffer with
+`pike-mode' buffer.  This automatically sets up a mail buffer with
 version information already added.  You just need to add a description
 of the problem, including a reproducible test case, and send the
 message.
@@ -2806,7 +2914,8 @@ Key bindings:
   (setq	abbrev-mode t)
   (c-init-language-vars-for 'pike-mode)
   (c-common-init 'pike-mode)
-  (easy-menu-add c-pike-menu)
+  (when (featurep 'xemacs)
+    (easy-menu-add c-pike-menu))
   ;;(cc-imenu-init cc-imenu-pike-generic-expression) ;TODO
   (c-run-mode-hooks 'c-mode-common-hook))
 
@@ -2819,15 +2928,10 @@ Key bindings:
 ;;;###autoload (add-to-list 'interpreter-mode-alist '("nawk" . awk-mode))
 ;;;###autoload (add-to-list 'interpreter-mode-alist '("gawk" . awk-mode))
 
-(c-define-abbrev-table 'awk-mode-abbrev-table
-  '(("else" "else" c-electric-continued-statement 0)
-    ("while" "while" c-electric-continued-statement 0))
-  "Abbreviation table used in awk-mode buffers.")
-
 (defvar awk-mode-map
   (let ((map (c-make-inherited-keymap)))
     map)
-  "Keymap used in awk-mode buffers.")
+  "Keymap used in `awk-mode' buffers.")
 ;; Add bindings which are only useful for awk.
 (define-key awk-mode-map "#" 'self-insert-command);Overrides electric parent binding.
 (define-key awk-mode-map "/" 'self-insert-command);Overrides electric parent binding.
@@ -2840,7 +2944,7 @@ Key bindings:
 (define-key awk-mode-map "\C-\M-a" 'c-awk-beginning-of-defun)
 (define-key awk-mode-map "\C-\M-e" 'c-awk-end-of-defun)
 
-(easy-menu-define c-awk-menu awk-mode-map "AWK Mode Commands"
+(easy-menu-define c-awk-menu awk-mode-map "AWK Mode Commands."
 		  (cons "AWK" (c-lang-const c-mode-menu awk)))
 
 ;; (require 'cc-awk) brings these in.
@@ -2851,7 +2955,7 @@ Key bindings:
 (define-derived-mode awk-mode prog-mode "AWK"
   "Major mode for editing AWK code.
 To submit a problem report, enter `\\[c-submit-bug-report]' from an
-awk-mode buffer.  This automatically sets up a mail buffer with version
+`awk-mode' buffer.  This automatically sets up a mail buffer with version
 information already added.  You just need to add a description of the
 problem, including a reproducible test case, and send the message.
 
@@ -2880,7 +2984,7 @@ Key bindings:
 ;; bug reporting
 
 (defconst c-mode-help-address
-  "submit@debbugs.gnu.org"
+  "bug-gnu-emacs@gnu.org"
   "Address(es) for CC Mode bug reports.")
 
 (defun c-version ()

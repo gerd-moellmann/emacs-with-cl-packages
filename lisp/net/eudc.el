@@ -25,7 +25,7 @@
 ;;; Commentary:
 ;;    This package provides a common interface to query directory servers using
 ;;    different protocols such as LDAP, CCSO PH/QI or BBDB.  Queries can be
-;;    made through an interactive form or inline. Inline query strings in
+;;    made through an interactive form or inline.  Inline query strings in
 ;;    buffers are expanded with appropriately formatted query results
 ;;    (especially used to expand email addresses in message buffers).  EUDC
 ;;    also interfaces with the BBDB package to let you register query results
@@ -49,10 +49,6 @@
 
 (require 'cl-lib)
 
-(eval-and-compile
-  (if (not (fboundp 'make-overlay))
-      (require 'overlay)))
-
 (unless (fboundp 'custom-menu-create)
   (autoload 'custom-menu-create "cus-edit"))
 
@@ -69,12 +65,12 @@
 (defvar eudc-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map widget-keymap)
-    (define-key map "q" 'kill-current-buffer)
-    (define-key map "x" 'kill-current-buffer)
-    (define-key map "f" 'eudc-query-form)
-    (define-key map "b" 'eudc-try-bbdb-insert)
-    (define-key map "n" 'eudc-move-to-next-record)
-    (define-key map "p" 'eudc-move-to-previous-record)
+    (define-key map "q" #'kill-current-buffer)
+    (define-key map "x" #'kill-current-buffer)
+    (define-key map "f" #'eudc-query-form)
+    (define-key map "b" #'eudc-try-bbdb-insert)
+    (define-key map "n" #'eudc-move-to-next-record)
+    (define-key map "p" #'eudc-move-to-previous-record)
     map))
 
 (defvar mode-popup-menu)
@@ -411,13 +407,12 @@ if any, is called to print the value in cdr of FIELD."
 	(val (cdr field)))
     (if match
 	(progn
-	  (eval (list (cdr match) val))
+	  (funcall (cdr match) val)
 	  (insert "\n"))
       (mapc
-       (function
-	(lambda (val-elem)
-	  (indent-to col)
-	  (insert val-elem "\n")))
+       (lambda (val-elem)
+         (indent-to col)
+         (insert val-elem "\n"))
        (cond
 	((listp val) val)
 	((stringp val) (split-string val "\n"))
@@ -464,37 +459,33 @@ otherwise they are formatted according to `eudc-user-attribute-names-alist'."
 	  ;; Replace field names with user names, compute max width
 	  (setq precords
 		(mapcar
-		 (function
-		  (lambda (record)
-		    (mapcar
-		     (function
-		      (lambda (field)
-			(setq attribute-name
-			      (if raw-attr-names
-				  (symbol-name (car field))
-				(eudc-format-attribute-name-for-display (car field))))
-			(if (> (length attribute-name) width)
-			    (setq width (length attribute-name)))
-			(cons attribute-name (cdr field))))
-		     record)))
+                 (lambda (record)
+                   (mapcar
+                    (lambda (field)
+                      (setq attribute-name
+                            (if raw-attr-names
+                                (symbol-name (car field))
+                              (eudc-format-attribute-name-for-display (car field))))
+                      (if (> (length attribute-name) width)
+                          (setq width (length attribute-name)))
+                      (cons attribute-name (cdr field)))
+                    record))
 		 records))
 	  ;; Display the records
 	  (setq first-record (point))
 	  (mapc
-	   (function
-	    (lambda (record)
-	      (setq beg (point))
-	      ;; Map over the record fields to print the attribute/value pairs
-	      (mapc (function
-		     (lambda (field)
-		       (eudc-print-record-field field width)))
-		    record)
-	      ;; Store the record internal format in some convenient place
-	      (overlay-put (make-overlay beg (point))
-			   'eudc-record
-			   (car records))
-	      (setq records (cdr records))
-	      (insert "\n")))
+           (lambda (record)
+             (setq beg (point))
+             ;; Map over the record fields to print the attribute/value pairs
+             (mapc (lambda (field)
+                     (eudc-print-record-field field width))
+                   record)
+             ;; Store the record internal format in some convenient place
+             (overlay-put (make-overlay beg (point))
+                          'eudc-record
+                          (car records))
+             (setq records (cdr records))
+             (insert "\n"))
 	   precords))
 	(insert "\n")
 	(widget-create 'push-button
@@ -518,12 +509,11 @@ otherwise they are formatted according to `eudc-user-attribute-names-alist'."
     (if (not (and (boundp 'eudc-form-widget-list)
 		  eudc-form-widget-list))
 	(error "Not in a directory query form buffer")
-      (mapc (function
-	     (lambda (wid-field)
-	       (setq value (widget-value (cdr wid-field)))
-	       (if (not (string= value ""))
-		   (setq query-alist (cons (cons (car wid-field) value)
-					   query-alist)))))
+      (mapc (lambda (wid-field)
+              (setq value (widget-value (cdr wid-field)))
+              (if (not (string= value ""))
+                  (setq query-alist (cons (cons (car wid-field) value)
+                                          query-alist))))
 	    eudc-form-widget-list)
       (kill-buffer (current-buffer))
       (eudc-display-records (eudc-query query-alist) eudc-use-raw-directory-names))))
@@ -543,49 +533,47 @@ otherwise they are formatted according to `eudc-user-attribute-names-alist'."
 
     (if (null (cdar rec))
 	(list record)			; No duplicate attrs in this record
-      (mapc (function
-	     (lambda (field)
-	       (if (listp (cdr field))
-		   (setq duplicates (cons field duplicates))
-		 (setq unique (cons field unique)))))
+      (mapc (lambda (field)
+              (if (listp (cdr field))
+                  (setq duplicates (cons field duplicates))
+                (setq unique (cons field unique))))
 	    record)
       (setq result (list unique))
       ;; Map over the record fields that have multiple values
       (mapc
-       (function
-	(lambda (field)
-	  (let ((method (if (consp eudc-duplicate-attribute-handling-method)
-			    (cdr
-			     (assq
-			      (or
-			       (car
-				(rassq
-				 (car field)
-				 (symbol-value
-				  eudc-protocol-attributes-translation-alist)))
-			       (car field))
-			      eudc-duplicate-attribute-handling-method))
-			  eudc-duplicate-attribute-handling-method)))
-	    (cond
-	     ((or (null method) (eq 'list method))
-	      (setq result
-		    (eudc-add-field-to-records field result)))
-	     ((eq 'first method)
-	      (setq result
-		    (eudc-add-field-to-records (cons (car field)
-						     (cadr field))
-					       result)))
-	     ((eq 'concat method)
-	      (setq result
-		    (eudc-add-field-to-records (cons (car field)
-						     (mapconcat
-						      #'identity
-						      (cdr field)
-						      "\n"))
-                                               result)))
-	     ((eq 'duplicate method)
-	      (setq result
-		    (eudc-distribute-field-on-records field result)))))))
+       (lambda (field)
+         (let ((method (if (consp eudc-duplicate-attribute-handling-method)
+                           (cdr
+                            (assq
+                             (or
+                              (car
+                               (rassq
+                                (car field)
+                                (symbol-value
+                                 eudc-protocol-attributes-translation-alist)))
+                              (car field))
+                             eudc-duplicate-attribute-handling-method))
+                         eudc-duplicate-attribute-handling-method)))
+           (cond
+            ((or (null method) (eq 'list method))
+             (setq result
+                   (eudc-add-field-to-records field result)))
+            ((eq 'first method)
+             (setq result
+                   (eudc-add-field-to-records (cons (car field)
+                                                (cadr field))
+                                          result)))
+            ((eq 'concat method)
+             (setq result
+                   (eudc-add-field-to-records (cons (car field)
+                                                (mapconcat
+                                                 #'identity
+                                                 (cdr field)
+                                                 "\n"))
+                                          result)))
+            ((eq 'duplicate method)
+             (setq result
+                   (eudc-distribute-field-on-records field result))))))
        duplicates)
       result)))
 
@@ -593,19 +581,17 @@ otherwise they are formatted according to `eudc-user-attribute-names-alist'."
   "Eliminate records that do not contain all ATTRS from RECORDS."
   (delq nil
 	(mapcar
-	 (function
-	  (lambda (rec)
-	    (if (cl-every (lambda (attr)
-			    (consp (assq attr rec)))
-			  attrs)
-		rec)))
+         (lambda (rec)
+           (if (cl-every (lambda (attr)
+                           (consp (assq attr rec)))
+                         attrs)
+               rec))
 	 records)))
 
 (defun eudc-add-field-to-records (field records)
   "Add FIELD to each individual record in RECORDS and return the resulting list."
-  (mapcar (function
-	   (lambda (r)
-	     (cons field r)))
+  (mapcar (lambda (r)
+            (cons field r))
 	  records))
 
 (defun eudc-distribute-field-on-records (field records)
@@ -678,7 +664,7 @@ If ERROR is non-nil, report an error if there is none."
   (let ((result (eudc-query (list (cons 'name name)) '(email)))
 	email)
     (if (null (cdr result))
-	(setq email (cl-cdaar result))
+        (setq email (cdaar result))
       (error "Multiple match--use the query form"))
     (if error
 	(if email
@@ -696,7 +682,7 @@ If ERROR is non-nil, report an error if there is none."
   (let ((result (eudc-query (list (cons 'name name)) '(phone)))
 	phone)
     (if (null (cdr result))
-	(setq phone (cl-cdaar result))
+        (setq phone (cdaar result))
       (error "Multiple match--use the query form"))
     (if error
 	(if phone
@@ -812,8 +798,9 @@ see `eudc-inline-expansion-servers'."
   "Query the directory server, and return the matching responses.
 The variable `eudc-inline-query-format' controls how to associate the
 individual QUERY-WORDS with directory attribute names.
-After querying the server for the given string, the expansion specified by
-`eudc-inline-expansion-format' is applied to the matches before returning them.inserted in the buffer at point.
+After querying the server for the given string, the expansion
+specified by `eudc-inline-expansion-format' is applied to the
+matches before returning them.inserted in the buffer at point.
 Multiple servers can be tried with the same query until one finds a match,
 see `eudc-inline-expansion-servers'."
   (cond
@@ -886,10 +873,9 @@ see `eudc-inline-expansion-servers'."
 	    (let ((response-string
                    (apply #'format
                           (car eudc-inline-expansion-format)
-                          (mapcar (function
-                                   (lambda (field)
-                                     (or (cdr (assq field r))
-                                         "")))
+                          (mapcar (lambda (field)
+                                    (or (cdr (assq field r))
+                                        ""))
                                   (eudc-translate-attribute-list
                                    (cdr eudc-inline-expansion-format))))))
 	      (if (> (length response-string) 0)
@@ -929,16 +915,14 @@ queries the server for the existing fields and displays a corresponding form."
     ;; Build the list of prompts
     (setq prompts (if eudc-use-raw-directory-names
 		      (mapcar #'symbol-name (eudc-translate-attribute-list fields))
-		    (mapcar (function
-			     (lambda (field)
-			       (or (cdr (assq field eudc-user-attribute-names-alist))
-				   (capitalize (symbol-name field)))))
+                    (mapcar (lambda (field)
+                              (or (cdr (assq field eudc-user-attribute-names-alist))
+                                  (capitalize (symbol-name field))))
 			    fields)))
     ;; Loop over prompt strings to find the longest one
-    (mapc (function
-	   (lambda (prompt)
-	     (if (> (length prompt) width)
-		 (setq width (length prompt)))))
+    (mapc (lambda (prompt)
+            (if (> (length prompt) width)
+                (setq width (length prompt))))
 	  prompts)
     ;; Insert the first widget out of the mapcar to leave the cursor
     ;; in the first field
@@ -949,14 +933,13 @@ queries the server for the existing fields and displays a corresponding form."
 				      eudc-form-widget-list))
     (setq fields (cdr fields))
     (setq prompts (cdr prompts))
-    (mapc (function
-	   (lambda (field)
-	     (widget-insert "\n\n" (format (concat "%" (int-to-string width) "s: ") (car prompts)))
-	     (setq widget (widget-create 'editable-field
-					 :size 15))
-	     (setq eudc-form-widget-list (cons (cons field widget)
-					       eudc-form-widget-list))
-	     (setq prompts (cdr prompts))))
+    (mapc (lambda (field)
+            (widget-insert "\n\n" (format (concat "%" (int-to-string width) "s: ") (car prompts)))
+            (setq widget (widget-create 'editable-field
+                                        :size 15))
+            (setq eudc-form-widget-list (cons (cons field widget)
+                                          eudc-form-widget-list))
+            (setq prompts (cdr prompts)))
 	  fields)
     (widget-insert "\n\n")
     (widget-create 'push-button
@@ -1070,8 +1053,6 @@ queries the server for the existing fields and displays a corresponding form."
 
 ;;{{{      Menus and keymaps
 
-(require 'easymenu)
-
 (defconst eudc-custom-generated-menu (cdr (custom-menu-create 'eudc)))
 
 (defconst eudc-tail-menu
@@ -1118,27 +1099,26 @@ queries the server for the existing fields and displays a corresponding form."
 	     (append
 	      '("Server")
 	      (mapcar
-	       (function
-		(lambda (servspec)
-		  (let* ((server (car servspec))
-			 (protocol (cdr servspec))
-			 (proto-name (symbol-name protocol)))
-		    (setq command (intern (concat "eudc-set-server-"
-						  server
-						  "-"
-						  proto-name)))
-		    (if (not (fboundp command))
-			(fset command
-			      `(lambda ()
-				 (interactive)
-				 (eudc-set-server ,server (quote ,protocol))
-				 (message "Selected directory server is now %s (%s)"
-					  ,server
-					  ,proto-name))))
-		    (vector (format "%s (%s)" server proto-name)
-			    command
-			    :style 'radio
-			    :selected `(equal eudc-server ,server)))))
+               (lambda (servspec)
+                 (let* ((server (car servspec))
+                        (protocol (cdr servspec))
+                        (proto-name (symbol-name protocol)))
+                   (setq command (intern (concat "eudc-set-server-"
+                                                 server
+                                                 "-"
+                                                 proto-name)))
+                   (if (not (fboundp command))
+                       (fset command
+                             (lambda ()
+                               (interactive)
+                               (eudc-set-server server protocol)
+                               (message "Selected directory server is now %s (%s)"
+                                        server
+                                        proto-name))))
+                   (vector (format "%s (%s)" server proto-name)
+                           command
+                           :style 'radio
+                           :selected `(equal eudc-server ,server))))
 	       eudc-server-hotlist)
 	      eudc-server-menu))
 	    eudc-tail-menu)))
@@ -1150,7 +1130,9 @@ queries the server for the existing fields and displays a corresponding form."
     (cons "Directory Servers"
 	  (easy-menu-create-menu "Directory Servers" (cdr (eudc-menu))))))
 
-;;; Load time initializations :
+;;}}}
+
+;;{{{ Load time initializations
 
 ;; Load the options file
 (if (and (not noninteractive)

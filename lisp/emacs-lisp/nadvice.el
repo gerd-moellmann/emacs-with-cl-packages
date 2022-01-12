@@ -5,18 +5,20 @@
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: extensions, lisp, tools
 
-;; This program is free software; you can redistribute it and/or modify
+;; This file is part of GNU Emacs.
+
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -83,42 +85,50 @@ Each element has the form (WHERE BYTECODE STACK) where:
       (if (eq bytecode (cadr elem)) (setq where (car elem))))
     where))
 
+(defun advice--make-single-doc (flist function macrop)
+  (let ((where (advice--where flist)))
+    (concat
+     (format "This %s has %s advice: "
+             (if macrop "macro" "function")
+             where)
+     (let ((fun (advice--car flist)))
+       (if (symbolp fun) (format-message "`%S'." fun)
+         (let* ((name (cdr (assq 'name (advice--props flist))))
+                (doc (documentation fun t))
+                (usage (help-split-fundoc doc function)))
+           (if usage (setq doc (cdr usage)))
+           (if name
+               (if doc
+                   (format "%s\n%s" name doc)
+                 (format "%s" name))
+             (or doc "No documentation")))))
+     "\n")))
+
 (defun advice--make-docstring (function)
   "Build the raw docstring for FUNCTION, presumably advised."
   (let* ((flist (indirect-function function))
          (docfun nil)
          (macrop (eq 'macro (car-safe flist)))
          (docstring nil))
-    (if macrop (setq flist (cdr flist)))
-    (while (advice--p flist)
-      (let ((doc (aref flist 4))
-            (where (advice--where flist)))
+    (when macrop
+      (setq flist (cdr flist)))
+    (if (and (autoloadp flist)
+             (get function 'advice--pending))
+        (setq docstring
+              (advice--make-single-doc (get function 'advice--pending)
+                                       function macrop))
+      (while (advice--p flist)
         ;; Hack attack!  For advices installed before calling
         ;; Snarf-documentation, the integer offset into the DOC file will not
         ;; be installed in the "core unadvised function" but in the advice
         ;; object instead!  So here we try to undo the damage.
-        (if (integerp doc) (setq docfun flist))
-        (setq docstring
-              (concat
-               docstring
-               (format "This %s has %s advice: "
-                       (if macrop "macro" "function")
-                       where)
-               (let ((fun (advice--car flist)))
-                 (if (symbolp fun) (format-message "`%S'." fun)
-                   (let* ((name (cdr (assq 'name (advice--props flist))))
-                          (doc (documentation fun t))
-                          (usage (help-split-fundoc doc function)))
-                     (if usage (setq doc (cdr usage)))
-                     (if name
-                         (if doc
-                             (format "%s\n%s" name doc)
-                           (format "%s" name))
-                       (or doc "No documentation")))))
-               "\n")))
-      (setq flist (advice--cdr flist)))
-    (if docstring (setq docstring (concat docstring "\n")))
-    (unless docfun (setq docfun flist))
+        (when (integerp (aref flist 4))
+          (setq docfun flist))
+        (setq docstring (concat docstring (advice--make-single-doc
+                                           flist function macrop))
+              flist (advice--cdr flist))))
+    (unless docfun
+      (setq docfun flist))
     (let* ((origdoc (unless (eq function docfun) ;Avoid inf-loops.
                       (documentation docfun t)))
            (usage (help-split-fundoc origdoc function)))
@@ -129,7 +139,12 @@ Each element has the form (WHERE BYTECODE STACK) where:
                         (if (stringp arglist) t
                           (help--make-usage-docstring function arglist)))
                     (setq origdoc (cdr usage)) (car usage)))
-      (help-add-fundoc-usage (concat docstring origdoc) usage))))
+      (help-add-fundoc-usage (concat origdoc
+                                     (if (string-suffix-p "\n" origdoc)
+                                         "\n"
+                                       "\n\n")
+                                     docstring)
+                             usage))))
 
 (defun advice-eval-interactive-spec (spec)
   "Evaluate the interactive spec SPEC."
@@ -145,7 +160,7 @@ Each element has the form (WHERE BYTECODE STACK) where:
    (t (eval spec))))
 
 (defun advice--interactive-form (function)
-  ;; Like `interactive-form' but tries to avoid autoloading functions.
+  "Like `interactive-form' but tries to avoid autoloading functions."
   (when (commandp function)
     (if (not (and (symbolp function) (autoloadp (indirect-function function))))
         (interactive-form function)
@@ -230,7 +245,7 @@ WHERE is a symbol to select an entry in `advice--where-alist'."
                           (list (advice--remove-function rest function)))))))
 
 (defvar advice--buffer-local-function-sample nil
-  "keeps an example of the special \"run the default value\" functions.
+  "Keeps an example of the special \"run the default value\" functions.
 These functions play the same role as t in buffer-local hooks, and to recognize
 them, we keep a sample here against which to compare.  Each instance is
 different, but `function-equal' will hopefully ignore those differences.")
@@ -314,8 +329,26 @@ is also interactive.  There are 3 cases:
   `(advice--add-function ,where (gv-ref ,(advice--normalize-place place))
                          ,function ,props))
 
+(declare-function comp-subr-trampoline-install "comp")
+
 ;;;###autoload
 (defun advice--add-function (where ref function props)
+  (when (and (featurep 'native-compile)
+             (subr-primitive-p (gv-deref ref)))
+    (let ((subr-name (intern (subr-name (gv-deref ref)))))
+      ;; Requiring the native compiler to advice `macroexpand' cause a
+      ;; circular dependency in eager macro expansion.  uniquify is
+      ;; advising `rename-buffer' while being loaded in loadup.el.
+      ;; This would require the whole native compiler machinery but we
+      ;; don't want to include it in the dump.  Because these two
+      ;; functions are already handled in
+      ;; `native-comp-never-optimize-functions' we hack the problem
+      ;; this way for now :/
+      (unless (memq subr-name '(macroexpand rename-buffer))
+        ;; Must require explicitly as during bootstrap we have no
+        ;; autoloads.
+        (require 'comp)
+        (comp-subr-trampoline-install subr-name))))
   (let* ((name (cdr (assq 'name props)))
          (a (advice--member-p (or name function) (if name t) (gv-deref ref))))
     (when a
@@ -483,7 +516,7 @@ arguments.  Note if NAME is nil the advice is anonymous;
 otherwise it is named `SYMBOL@NAME'.
 
 \(fn SYMBOL (WHERE LAMBDA-LIST &optional NAME DEPTH) &rest BODY)"
-  (declare (indent 2) (doc-string 3) (debug (sexp sexp body)))
+  (declare (indent 2) (doc-string 3) (debug (sexp sexp def-body)))
   (or (listp args) (signal 'wrong-type-argument (list 'listp args)))
   (or (<= 2 (length args) 4)
       (signal 'wrong-number-of-arguments (list 2 4 (length args))))

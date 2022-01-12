@@ -423,16 +423,15 @@ of a holiday list.
 
 The optional LABEL is used to label the buffer created."
   (interactive
-   (let* ((start-year (calendar-read
-                       "Starting year of holidays (>0): "
+   (let* ((start-year (calendar-read-sexp
+                       "Starting year of holidays (>0)"
                        (lambda (x) (> x 0))
-                       (number-to-string (calendar-extract-year
-                                       (calendar-current-date)))))
-          (end-year (calendar-read
-                     (format "Ending year (inclusive) of holidays (>=%s): "
-                             start-year)
+                       (calendar-extract-year (calendar-current-date))))
+          (end-year (calendar-read-sexp
+                     "Ending year (inclusive) of holidays (>=%s)"
                      (lambda (x) (>= x start-year))
-                     (number-to-string start-year)))
+                     start-year
+                     start-year))
           (completion-ignore-case t)
           (lists
            (list
@@ -483,7 +482,7 @@ The optional LABEL is used to label the buffer created."
       (calendar-increment-month displayed-month displayed-year 3)
       (setq s (calendar-absolute-from-gregorian
                (list displayed-month 1 displayed-year))))
-    (save-excursion
+    (save-current-buffer
       (calendar-in-read-only-buffer holiday-buffer
         (calendar-set-mode-line
          (if (= y1 y2)
@@ -684,7 +683,7 @@ nil, or if the date is not visible, there is no holiday."
         (y displayed-year))
     (calendar-increment-month m y -1)
     (holiday-filter-visible-calendar
-     (calendar-dlet* (year date)
+     (calendar-dlet (year date)
        (list
         (progn
           (setq year y

@@ -1,21 +1,21 @@
-;;; fns-tests.el --- tests for src/fns.c
+;;; fns-tests.el --- tests for src/fns.c  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software: you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License as
-;; published by the Free Software Foundation, either version 3 of the
-;; License, or (at your option) any later version.
-;;
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
-;;
+;; GNU Emacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; GNU Emacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see `https://www.gnu.org/licenses/'.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -49,21 +49,21 @@
   (should-error (nreverse))
   (should-error (nreverse 1))
   (should-error (nreverse (make-char-table 'foo)))
-  (should (equal (nreverse "xyzzy") "yzzyx"))
-  (let ((A []))
+  (should (equal (nreverse (copy-sequence "xyzzy")) "yzzyx"))
+  (let ((A (vector)))
     (nreverse A)
     (should (equal A [])))
-  (let ((A [0]))
+  (let ((A (vector 0)))
     (nreverse A)
     (should (equal A [0])))
-  (let ((A [1 2 3 4]))
+  (let ((A (vector 1 2 3 4)))
     (nreverse A)
     (should (equal A [4 3 2 1])))
-  (let ((A [1 2 3 4]))
+  (let ((A (vector 1 2 3 4)))
     (nreverse A)
     (nreverse A)
     (should (equal A [1 2 3 4])))
-  (let* ((A [1 2 3 4])
+  (let* ((A (vector 1 2 3 4))
 	 (B (nreverse (nreverse A))))
     (should (equal A B))))
 
@@ -146,13 +146,13 @@
 ;; Invalid UTF-8 sequences shall be indicated.  How to create such strings?
 
 (ert-deftest fns-tests-sort ()
-  (should (equal (sort '(9 5 2 -1 5 3 8 7 4) (lambda (x y) (< x y)))
+  (should (equal (sort (list 9 5 2 -1 5 3 8 7 4) (lambda (x y) (< x y)))
 		 '(-1 2 3 4 5 5 7 8 9)))
-  (should (equal (sort '(9 5 2 -1 5 3 8 7 4) (lambda (x y) (> x y)))
+  (should (equal (sort (list 9 5 2 -1 5 3 8 7 4) (lambda (x y) (> x y)))
 		 '(9 8 7 5 5 4 3 2 -1)))
-  (should (equal (sort '[9 5 2 -1 5 3 8 7 4] (lambda (x y) (< x y)))
+  (should (equal (sort (vector 9 5 2 -1 5 3 8 7 4) (lambda (x y) (< x y)))
 		 [-1 2 3 4 5 5 7 8 9]))
-  (should (equal (sort '[9 5 2 -1 5 3 8 7 4] (lambda (x y) (> x y)))
+  (should (equal (sort (vector 9 5 2 -1 5 3 8 7 4) (lambda (x y) (> x y)))
 		 [9 8 7 5 5 4 3 2 -1]))
   (should (equal
 	   (sort
@@ -166,13 +166,15 @@
   (should (equal (should-error (sort "cba" #'<) :type 'wrong-type-argument)
                  '(wrong-type-argument list-or-vector-p "cba"))))
 
+(defvar w32-collate-ignore-punctuation)
+
 (ert-deftest fns-tests-collate-sort ()
   (skip-unless (fns-tests--collate-enabled-p))
 
   ;; Punctuation and whitespace characters are relevant for POSIX.
   (should
    (equal
-    (sort '("11" "12" "1 1" "1 2" "1.1" "1.2")
+    (sort (list "11" "12" "1 1" "1 2" "1.1" "1.2")
 	  (lambda (a b) (string-collate-lessp a b "POSIX")))
     '("1 1" "1 2" "1.1" "1.2" "11" "12")))
   ;; Punctuation and whitespace characters are not taken into account
@@ -180,7 +182,7 @@
   (when (eq system-type 'windows-nt)
     (should
      (equal
-      (sort '("11" "12" "1 1" "1 2" "1.1" "1.2")
+      (sort (list "11" "12" "1 1" "1 2" "1.1" "1.2")
             (lambda (a b)
               (let ((w32-collate-ignore-punctuation t))
                 (string-collate-lessp
@@ -190,7 +192,7 @@
   ;; Diacritics are different letters for POSIX, they sort lexicographical.
   (should
    (equal
-    (sort '("Ævar" "Agustín" "Adrian" "Eli")
+    (sort (list "Ævar" "Agustín" "Adrian" "Eli")
 	  (lambda (a b) (string-collate-lessp a b "POSIX")))
     '("Adrian" "Agustín" "Eli" "Ævar")))
   ;; Diacritics are sorted between similar letters for other locales,
@@ -198,7 +200,7 @@
   (when (eq system-type 'windows-nt)
     (should
      (equal
-      (sort '("Ævar" "Agustín" "Adrian" "Eli")
+      (sort (list "Ævar" "Agustín" "Adrian" "Eli")
             (lambda (a b)
               (let ((w32-collate-ignore-punctuation t))
                 (string-collate-lessp
@@ -212,7 +214,7 @@
   (should (not (string-version-lessp "foo20000.png" "foo12.png")))
   (should (string-version-lessp "foo.png" "foo2.png"))
   (should (not (string-version-lessp "foo2.png" "foo.png")))
-  (should (equal (sort '("foo12.png" "foo2.png" "foo1.png")
+  (should (equal (sort (list "foo12.png" "foo2.png" "foo1.png")
                        'string-version-lessp)
                  '("foo1.png" "foo2.png" "foo12.png")))
   (should (string-version-lessp "foo2" "foo1234"))
@@ -228,9 +230,9 @@
   (should (equal (func-arity 'format) '(1 . many)))
   (require 'info)
   (should (equal (func-arity 'Info-goto-node) '(1 . 3)))
-  (should (equal (func-arity (lambda (&rest x))) '(0 . many)))
-  (should (equal (func-arity (eval (lambda (x &optional y)) nil)) '(1 . 2)))
-  (should (equal (func-arity (eval (lambda (x &optional y)) t)) '(1 . 2)))
+  (should (equal (func-arity (lambda (&rest _x))) '(0 . many)))
+  (should (equal (func-arity (eval '(lambda (_x &optional y)) nil)) '(1 . 2)))
+  (should (equal (func-arity (eval '(lambda (_x &optional y)) t)) '(1 . 2)))
   (should (equal (func-arity 'let) '(1 . unevalled))))
 
 (defun fns-tests--string-repeat (s o)
@@ -432,9 +434,9 @@
   (should-error (mapcan))
   (should-error (mapcan #'identity))
   (should-error (mapcan #'identity (make-char-table 'foo)))
-  (should (equal (mapcan #'list '(1 2 3)) '(1 2 3)))
+  (should (equal (mapcan #'list (list 1 2 3)) '(1 2 3)))
   ;; `mapcan' is destructive
-  (let ((data '((foo) (bar))))
+  (let ((data (list (list 'foo) (list 'bar))))
     (should (equal (mapcan #'identity data) '(foo bar)))
     (should (equal data                     '((foo bar) (bar))))))
 
@@ -784,7 +786,15 @@
   ;; string containing hanzi character, compare by character
   (should (equal 2 (string-distance "ab" "ab我她")))
   (should (equal 1 (string-distance "ab" "a我b")))
-  (should (equal 1 (string-distance "我" "她"))))
+  (should (equal 1 (string-distance "我" "她")))
+
+  ;; correct behaviour with empty strings
+  (should (equal 0 (string-distance "" "")))
+  (should (equal 0 (string-distance "" "" t)))
+  (should (equal 1 (string-distance "x" "")))
+  (should (equal 1 (string-distance "x" "" t)))
+  (should (equal 1 (string-distance "" "x")))
+  (should (equal 1 (string-distance "" "x" t))))
 
 (ert-deftest test-bignum-eql ()
   "Test that `eql' works for bignums."
@@ -858,6 +868,22 @@
        (puthash k k h)))
     (should (= 100 (hash-table-count h)))))
 
+(ert-deftest test-sxhash-equal ()
+  (should (= (sxhash-equal (* most-positive-fixnum most-negative-fixnum))
+	     (sxhash-equal (* most-positive-fixnum most-negative-fixnum))))
+  (should (= (sxhash-equal (make-string 1000 ?a))
+	     (sxhash-equal (make-string 1000 ?a))))
+  (should (= (sxhash-equal (point-marker))
+	     (sxhash-equal (point-marker))))
+  (should (= (sxhash-equal (make-vector 1000 (make-string 10 ?a)))
+	     (sxhash-equal (make-vector 1000 (make-string 10 ?a)))))
+  (should (= (sxhash-equal (make-bool-vector 1000 t))
+	     (sxhash-equal (make-bool-vector 1000 t))))
+  (should (= (sxhash-equal (make-char-table nil (make-string 10 ?a)))
+	     (sxhash-equal (make-char-table nil (make-string 10 ?a)))))
+  (should (= (sxhash-equal (record 'a (make-string 10 ?a)))
+	     (sxhash-equal (record 'a (make-string 10 ?a))))))
+
 (ert-deftest test-secure-hash ()
   (should (equal (secure-hash 'md5    "foobar")
                  "3858f62230ac3c915f300c664312c63f"))
@@ -874,6 +900,219 @@
   (should (equal (secure-hash 'sha512 "foobar")
                  (concat "0a50261ebd1a390fed2bf326f2673c145582a6342d5"
                          "23204973d0219337f81616a8069b012587cf5635f69"
-                         "25f1b56c360230c19b273500ee013e030601bf2425"))))
+                         "25f1b56c360230c19b273500ee013e030601bf2425")))
+  ;; Test that a call to getrandom returns the right format.
+  ;; This does not test randomness; it's merely a format check.
+  (should (string-match "\\`[0-9a-f]\\{128\\}\\'"
+                        (secure-hash 'sha512 'iv-auto 100))))
 
-(provide 'fns-tests)
+(ert-deftest test-vector-delete ()
+  (let ((v1 (make-vector 1000 1)))
+    (should (equal (delete t [nil t]) [nil]))
+    (should (equal (delete 1 v1) (vector)))
+    (should (equal (delete 2 v1) v1))))
+
+(ert-deftest string-search ()
+  (should (equal (string-search "zot" "foobarzot") 6))
+  (should (equal (string-search "foo" "foobarzot") 0))
+  (should (not (string-search "fooz" "foobarzot")))
+  (should (not (string-search "zot" "foobarzo")))
+  (should (equal (string-search "ab" "ab") 0))
+  (should (equal (string-search "ab\0" "ab") nil))
+  (should (equal (string-search "ab" "abababab" 3) 4))
+  (should (equal (string-search "ab" "ababac" 3) nil))
+  (should (equal (string-search "aaa" "aa") nil))
+  (let ((case-fold-search t))
+    (should (equal (string-search "ab" "AB") nil)))
+
+  (should (equal
+           (string-search (make-string 2 130)
+	                  (concat "helló" (make-string 5 130 t) "bár"))
+           5))
+  (should (equal
+           (string-search (make-string 2 127)
+	                  (concat "helló" (make-string 5 127 t) "bár"))
+           5))
+
+  (should (equal (string-search "\377" "a\377ø") 1))
+  (should (equal (string-search "\377" "a\377a") 1))
+
+  (should (not (string-search (make-string 1 255) "a\377ø")))
+  (should (not (string-search (make-string 1 255) "a\377a")))
+
+  (should (equal (string-search "fóo" "zotfóo") 3))
+
+  (should (equal (string-search (string-to-multibyte "\377") "ab\377c") 2))
+  (should (equal (string-search "\303" "aøb") nil))
+  (should (equal (string-search "\270" "aøb") nil))
+  (should (equal (string-search "ø" "\303\270") nil))
+  (should (equal (string-search "ø" (make-string 32 ?a)) nil))
+  (should (equal (string-search "ø" (string-to-multibyte (make-string 32 ?a)))
+                 nil))
+  (should (equal (string-search "o" (string-to-multibyte
+                                     (apply #'string
+                                            (number-sequence ?a ?z))))
+                 14))
+
+  (should (equal (string-search "a\U00010f98z" "a\U00010f98a\U00010f98z") 2))
+
+  (should-error (string-search "a" "abc" -1))
+  (should-error (string-search "a" "abc" 4))
+  (should-error (string-search "a" "abc" 100000000000))
+
+  (should (equal (string-search "a" "aaa" 3) nil))
+  (should (equal (string-search "aa" "aa" 1) nil))
+  (should (equal (string-search "\0" "") nil))
+
+  (should (equal (string-search "" "") 0))
+  (should-error (string-search "" "" 1))
+  (should (equal (string-search "" "abc") 0))
+  (should (equal (string-search "" "abc" 2) 2))
+  (should (equal (string-search "" "abc" 3) 3))
+  (should-error (string-search "" "abc" 4))
+  (should-error (string-search "" "abc" -1))
+
+  (should-not (string-search "ø" "foo\303\270"))
+  (should-not (string-search "\303\270" "ø"))
+  (should-not (string-search "\370" "ø"))
+  (should-not (string-search (string-to-multibyte "\370") "ø"))
+  (should-not (string-search "ø" "\370"))
+  (should-not (string-search "ø" (string-to-multibyte "\370")))
+  (should-not (string-search "\303\270" "\370"))
+  (should-not (string-search (string-to-multibyte "\303\270") "\370"))
+  (should-not (string-search "\303\270" (string-to-multibyte "\370")))
+  (should-not (string-search (string-to-multibyte "\303\270")
+                             (string-to-multibyte "\370")))
+  (should-not (string-search "\370" "\303\270"))
+  (should-not (string-search (string-to-multibyte "\370") "\303\270"))
+  (should-not (string-search "\370" (string-to-multibyte "\303\270")))
+  (should-not (string-search (string-to-multibyte "\370")
+                             (string-to-multibyte "\303\270")))
+  (should (equal (string-search (string-to-multibyte "o\303\270") "foo\303\270")
+                 2))
+  (should (equal (string-search "\303\270" "foo\303\270") 3)))
+
+(ert-deftest object-intervals ()
+  (should (equal (object-intervals (propertize "foo" 'bar 'zot))
+                 '((0 3 (bar zot)))))
+  (should (equal (object-intervals (concat (propertize "foo" 'bar 'zot)
+                                           (propertize "foo" 'gazonk "gazonk")))
+                 '((0 3 (bar zot)) (3 6 (gazonk "gazonk")))))
+  (should (equal
+           (with-temp-buffer
+             (insert "foobar")
+             (put-text-property 1 3 'foo 1)
+             (put-text-property 3 6 'bar 2)
+             (put-text-property 2 5 'zot 3)
+             (object-intervals (current-buffer)))
+           '((0 1 (foo 1)) (1 2 (zot 3 foo 1)) (2 4 (zot 3 bar 2))
+             (4 5 (bar 2)) (5 6 nil)))))
+
+(ert-deftest length-equals-tests ()
+  (should-not (length< (list 1 2 3) 2))
+  (should-not (length< (list 1 2 3) 3))
+  (should (length< (list 1 2 3) 4))
+
+  (should-not (length< "abc" 2))
+  (should-not (length< "abc" 3))
+  (should (length< "abc" 4))
+
+  (should (length> (list 1 2 3) 2))
+  (should-not (length> (list 1 2 3) 3))
+  (should-not (length> (list 1 2 3) 4))
+
+  (should (length> "abc" 2))
+  (should-not (length> "abc" 3))
+  (should-not (length> "abc" 4))
+
+  (should-not (length= (list 1 2 3) 2))
+  (should (length= (list 1 2 3) 3))
+  (should-not (length= (list 1 2 3) 4))
+
+  (should-not (length= "abc" 2))
+  (should (length= "abc" 3))
+  (should-not (length= "abc" 4))
+
+  (should-not (length< (list 1 2 3) -1))
+  (should-not (length< (list 1 2 3) 0))
+  (should-not (length< (list 1 2 3) -10))
+
+  (should (length> (list 1 2 3) -1))
+  (should (length> (list 1 2 3) 0))
+
+  (should-not (length= (list 1 2 3) -1))
+  (should-not (length= (list 1 2 3) 0))
+  (should-not (length= (list 1 2 3) 1))
+
+  (should-error
+   (let ((list (list 1)))
+     (setcdr list list)
+     (length< list #x1fffe))))
+
+(defun approx-equal (list1 list2)
+  (and (equal (length list1) (length list2))
+       (cl-loop for v1 in list1
+                for v2 in list2
+                when (not (or (= v1 v2)
+                              (< (abs (- v1 v2)) 0.1)))
+                return nil
+                finally return t)))
+
+(ert-deftest test-buffer-line-stats-nogap ()
+  (with-temp-buffer
+    (insert "")
+    (should (approx-equal (buffer-line-statistics) '(0 0 0))))
+  (with-temp-buffer
+    (insert "123\n")
+    (should (approx-equal (buffer-line-statistics) '(1 3 3))))
+  (with-temp-buffer
+    (insert "123\n12345\n123\n")
+    (should (approx-equal (buffer-line-statistics) '(3 5 3.66))))
+  (with-temp-buffer
+    (insert "123\n12345\n123")
+    (should (approx-equal (buffer-line-statistics) '(3 5 3.66))))
+  (with-temp-buffer
+    (insert "123\n12345")
+    (should (approx-equal (buffer-line-statistics) '(2 5 4))))
+
+  (with-temp-buffer
+    (insert "123\n12é45\n123\n")
+    (should (approx-equal (buffer-line-statistics) '(3 6 4))))
+
+  (with-temp-buffer
+    (insert "\n\n\n")
+    (should (approx-equal (buffer-line-statistics) '(3 0 0)))))
+
+(ert-deftest test-buffer-line-stats-gap ()
+  (with-temp-buffer
+    (dotimes (_ 1000)
+      (insert "12345678901234567890123456789012345678901234567890\n"))
+    (goto-char (point-min))
+    ;; This should make a gap appear.
+    (insert "123\n")
+    (delete-region (point-min) (point))
+    (should (approx-equal (buffer-line-statistics) '(1000 50 50.0))))
+  (with-temp-buffer
+    (dotimes (_ 1000)
+      (insert "12345678901234567890123456789012345678901234567890\n"))
+    (goto-char (point-min))
+    (insert "123\n")
+    (should (approx-equal (buffer-line-statistics) '(1001 50 49.9))))
+  (with-temp-buffer
+    (dotimes (_ 1000)
+      (insert "12345678901234567890123456789012345678901234567890\n"))
+    (goto-char (point-min))
+    (insert "123\n")
+    (goto-char (point-max))
+    (insert "fóo")
+    (should (approx-equal (buffer-line-statistics) '(1002 50 49.9)))))
+
+(ert-deftest test-line-number-at-position ()
+  (with-temp-buffer
+    (insert (make-string 10 ?\n))
+    (should (= (line-number-at-pos (point)) 11))
+    (should (= (line-number-at-pos nil) 11))
+    (should-error (line-number-at-pos -1))
+    (should-error (line-number-at-pos 100))))
+
+;;; fns-tests.el ends here

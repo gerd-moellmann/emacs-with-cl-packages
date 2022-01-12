@@ -33,15 +33,15 @@
 ;; @ A high degree of configurability
 ;;
 ;; @ The ability to have the same shell on every system Emacs has been
-;;   ported to. Since Eshell imposes no external requirements, and
+;;   ported to.  Since Eshell imposes no external requirements, and
 ;;   relies upon only the Lisp functions exposed by Emacs, it is quite
-;;   operating system independent. Several of the common UNIX
+;;   operating system independent.  Several of the common UNIX
 ;;   commands, such as ls, mv, rm, ln, etc., have been implemented in
 ;;   Lisp in order to provide a more consistent work environment.
 ;;
 ;; For those who might be using an older version of Eshell, version
-;; 2.1 represents an entirely new, module-based architecture. It
-;; supports most of the features offered by modern shells. Here is a
+;; 2.1 represents an entirely new, module-based architecture.  It
+;; supports most of the features offered by modern shells.  Here is a
 ;; brief list of some of its more visible features:
 ;;
 ;; @ Command argument completion (tcsh, zsh)
@@ -136,7 +136,7 @@
 ;;   errors, such as 'dri' for `dir'.  Since executing non-existent
 ;;   programs is rarely the intention of the user, eshell could prompt
 ;;   for the replacement string, and then record that in a database of
-;;   known misspellings. (Note: The typo at the beginning of this
+;;   known misspellings.  (Note: The typo at the beginning of this
 ;;   paragraph wasn't discovered until two months after I wrote the
 ;;   text; it was not intentional).
 ;;
@@ -240,7 +240,7 @@ session.  Return the buffer selected (or created).
 
 With a nonnumeric prefix arg, create a new session.
 
-With a numeric prefix arg (as in `C-u 42 M-x eshell RET'), switch
+With a numeric prefix arg (as in `\\[universal-argument] 42 \\[eshell]'), switch
 to the session with that number, or create it if it doesn't
 already exist.
 
@@ -265,14 +265,18 @@ information on Eshell, see Info node `(eshell)Top'."
       (eshell-mode))
     buf))
 
-(defun eshell-return-exits-minibuffer ()
-  ;; This is supposedly run after enabling esh-mode, when eshell-mode-map
-  ;; already exists.
-  (defvar eshell-mode-map)
-  (define-key eshell-mode-map [(control ?g)] 'abort-recursive-edit)
-  (define-key eshell-mode-map [(control ?m)] 'exit-minibuffer)
-  (define-key eshell-mode-map [(control ?j)] 'exit-minibuffer)
-  (define-key eshell-mode-map [(meta control ?m)] 'exit-minibuffer))
+(define-minor-mode eshell-command-mode
+  "Minor mode for `eshell-command' input.
+\\{eshell-command-mode-map}"
+  :keymap (let ((map (make-sparse-keymap)))
+            (define-key map [(control ?g)] 'abort-recursive-edit)
+            (define-key map [(control ?m)] 'exit-minibuffer)
+            (define-key map [(control ?j)] 'exit-minibuffer)
+            (define-key map [(meta control ?m)] 'exit-minibuffer)
+            map))
+
+(define-obsolete-function-alias 'eshell-return-exits-minibuffer
+  #'eshell-command-mode "28.1")
 
 (defvar eshell-non-interactive-p nil
   "A variable which is non-nil when Eshell is not running interactively.
@@ -290,9 +294,9 @@ With prefix ARG, insert output into the current buffer at point."
     (setq arg current-prefix-arg))
   (let ((eshell-non-interactive-p t))
     ;; Enable `eshell-mode' only in this minibuffer.
-    (minibuffer-with-setup-hook #'(lambda ()
-                                    (eshell-mode)
-                                    (eshell-return-exits-minibuffer))
+    (minibuffer-with-setup-hook (lambda ()
+                                  (eshell-mode)
+                                  (eshell-command-mode +1))
       (unless command
         (setq command (read-from-minibuffer "Emacs shell command: "))
 	(if (eshell-using-module 'eshell-hist)
@@ -379,15 +383,6 @@ corresponding to a successful execution."
 	  (if (and status-var (symbolp status-var))
 	      (set status-var eshell-last-command-status))
 	  (cadr result))))))
-
-;;;_* Reporting bugs
-;;
-;; If you do encounter a bug, on any system, please report
-;; it -- in addition to any particular oddities in your configuration
-;; -- so that the problem may be corrected for the benefit of others.
-
-;;;###autoload
-(define-obsolete-function-alias 'eshell-report-bug 'report-emacs-bug "23.1")
 
 ;;; Code:
 

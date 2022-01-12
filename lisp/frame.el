@@ -36,7 +36,7 @@ as its argument.")
 (cl-generic-define-context-rewriter window-system (value)
   ;; If `value' is a `consp', it's probably an old-style specializer,
   ;; so just use it, and anyway `eql' isn't very useful on cons cells.
-  `(window-system ,(if (consp value) value `(eql ,value))))
+  `(window-system ,(if (consp value) value `(eql ',value))))
 
 (cl-defmethod frame-creation-function (params &context (window-system nil))
   ;; It's tempting to get rid of tty-create-frame-with-faces and turn it into
@@ -301,7 +301,7 @@ This function runs the abnormal hook `move-frame-functions'."
 (declare-function tool-bar-mode "tool-bar" (&optional arg))
 (declare-function tool-bar-height "xdisp.c" (&optional frame pixelwise))
 
-(defalias 'tool-bar-lines-needed 'tool-bar-height)
+(defalias 'tool-bar-lines-needed #'tool-bar-height)
 
 ;; startup.el calls this function after loading the user's init
 ;; file.  Now default-frame-alist and initial-frame-alist contain
@@ -367,6 +367,7 @@ there (in decreasing order of priority)."
       ;; by the lines added in x-create-frame for the tab-bar and
       ;; switch `tab-bar-mode' off.
       (when (display-graphic-p)
+        (declare-function tab-bar-height "xdisp.c" (&optional frame pixelwise))
 	(let* ((init-lines
 		(assq 'tab-bar-lines initial-frame-alist))
 	       (other-lines
@@ -614,15 +615,6 @@ there (in decreasing order of priority)."
 	      (face-set-after-frame-default frame-initial-frame)
 	      (setq newparms (delq new-bg newparms)))
 
-	    (when (numberp (car frame-size-history))
-	      (setq frame-size-history
-		    (cons (1- (car frame-size-history))
-			  (cons
-			   (list frame-initial-frame
-				 "FRAME-NOTICE-USER"
-				 nil newparms)
-			   (cdr frame-size-history)))))
-
 	    (modify-frame-parameters frame-initial-frame newparms)))))
 
     ;; Restore the original buffer.
@@ -689,8 +681,8 @@ is not considered (see `next-frame')."
 				  0))
   (select-frame-set-input-focus (selected-frame)))
 
-(defalias 'next-multiframe-window 'next-window-any-frame)
-(defalias 'previous-multiframe-window 'previous-window-any-frame)
+(defalias 'next-multiframe-window #'next-window-any-frame)
+(defalias 'previous-multiframe-window #'previous-window-any-frame)
 
 (defun window-system-for-display (display)
   "Return the window system for DISPLAY.
@@ -708,10 +700,23 @@ Return nil if we don't know how to interpret DISPLAY."
 (defun make-frame-on-display (display &optional parameters)
   "Make a frame on display DISPLAY.
 The optional argument PARAMETERS specifies additional frame parameters."
-  (interactive (list (completing-read
-                      (format "Make frame on display: ")
-                      (x-display-list))))
+  (interactive (if (fboundp 'x-display-list)
+                   (list (completing-read "Make frame on display: "
+                                          (x-display-list)))
+                 (user-error "This Emacs build does not support X displays")))
   (make-frame (cons (cons 'display display) parameters)))
+
+(defun make-frame-on-current-monitor (&optional parameters)
+  "Make a frame on the currently selected monitor.
+Like `make-frame-on-monitor' and with the same PARAMETERS as in `make-frame'."
+  (interactive)
+  (let* ((monitor-workarea
+          (cdr (assq 'workarea (frame-monitor-attributes))))
+         (geometry-parameters
+          (when monitor-workarea
+            `((top . ,(nth 1 monitor-workarea))
+              (left . ,(nth 0 monitor-workarea))))))
+    (make-frame (append geometry-parameters parameters))))
 
 (defun make-frame-on-monitor (monitor &optional display parameters)
   "Make a frame on monitor MONITOR.
@@ -721,7 +726,7 @@ argument PARAMETERS specifies additional frame parameters."
    (list
     (let* ((default (cdr (assq 'name (frame-monitor-attributes)))))
       (completing-read
-       (format "Make frame on monitor (default %s): " default)
+       (format-prompt "Make frame on monitor" default)
        (or (delq nil (mapcar (lambda (a)
                                (cdr (assq 'name a)))
                              (display-monitor-attributes-list)))
@@ -748,7 +753,7 @@ If DISPLAY is nil, that stands for the selected frame's display."
    (list
     (let* ((default (frame-parameter nil 'display))
            (display (completing-read
-                     (format "Close display (default %s): " default)
+                     (format-prompt "Close display" default)
                      (delete-dups
                       (mapcar (lambda (frame)
                                 (frame-parameter frame 'display))
@@ -767,7 +772,7 @@ If DISPLAY is nil, that stands for the selected frame's display."
                                 (format "Delete %s frames? " (length frames))
                               (format "Delete %s ? " (car frames))))))
         (error "Abort!")
-      (mapc 'delete-frame frames)
+      (mapc #'delete-frame frames)
       (x-close-connection display))))
 
 (defun make-frame-command ()
@@ -780,6 +785,27 @@ When called from Lisp, returns the new frame."
   (if (display-graphic-p)
       (make-frame)
     (select-frame (make-frame))))
+
+(defun clone-frame (&optional frame no-windows)
+  "Make a new frame with the same parameters and windows as FRAME.
+With a prefix arg NO-WINDOWS, don't clone the window configuration.
+
+FRAME defaults to the selected frame.  The frame is created on the
+same terminal as FRAME.  If the terminal is a text-only terminal then
+also select the new frame."
+  (interactive (list (selected-frame) current-prefix-arg))
+  (let* ((frame (or frame (selected-frame)))
+         (windows (unless no-windows
+                    (window-state-get (frame-root-window frame))))
+         (default-frame-alist
+           (seq-remove (lambda (elem) (eq (car elem) 'name))
+                       (frame-parameters frame)))
+         (new-frame (make-frame)))
+    (when windows
+      (window-state-put windows (frame-root-window new-frame) 'safe))
+    (unless (display-graphic-p)
+      (select-frame new-frame))
+    new-frame))
 
 (defvar before-make-frame-hook nil
   "Functions to run before `make-frame' creates a new frame.")
@@ -910,12 +936,6 @@ the new frame according to its own rules."
       (unless (assq param parameters)
         (let ((val (frame-parameter oldframe param)))
           (when val (set-frame-parameter frame param val)))))
-
-    (when (numberp (car frame-size-history))
-      (setq frame-size-history
-	    (cons (1- (car frame-size-history))
-		  (cons (list frame "MAKE-FRAME")
-			(cdr frame-size-history)))))
 
     ;; We can run `window-configuration-change-hook' for this frame now.
     (frame-after-make-frame frame t)
@@ -1058,6 +1078,23 @@ that variable should be nil."
       (setq arg (1+ arg)))
     (select-frame-set-input-focus frame)))
 
+(defun other-frame-prefix ()
+  "Display the buffer of the next command in a new frame.
+The next buffer is the buffer displayed by the next command invoked
+immediately after this command (ignoring reading from the minibuffer).
+Creates a new frame before displaying the buffer.
+When `switch-to-buffer-obey-display-actions' is non-nil,
+`switch-to-buffer' commands are also supported."
+  (interactive)
+  (display-buffer-override-next-command
+   (lambda (buffer alist)
+     (cons (display-buffer-pop-up-frame
+            buffer (append '((inhibit-same-window . t))
+                           alist))
+           'frame))
+   nil "[other-frame]")
+  (message "Display next command buffer in a new frame..."))
+
 (defun iconify-or-deiconify-frame ()
   "Iconify the selected frame, or deiconify if it's currently an icon."
   (interactive)
@@ -1101,7 +1138,7 @@ If there is no frame by that name, signal an error."
    (let* ((frame-names-alist (make-frame-names-alist))
 	   (default (car (car frame-names-alist)))
 	   (input (completing-read
-		   (format "Select Frame (default %s): " default)
+		   (format-prompt "Select Frame" default)
 		   frame-names-alist nil t nil 'frame-name-history)))
      (if (= (length input) 0)
 	 (list default)
@@ -1130,8 +1167,8 @@ e.g. (mapc \\='frame-set-background-mode (frame-list))."
   :group 'faces
   :set #'(lambda (var value)
 	   (set-default var value)
-	   (mapc 'frame-set-background-mode (frame-list)))
-  :initialize 'custom-initialize-changed
+	   (mapc #'frame-set-background-mode (frame-list)))
+  :initialize #'custom-initialize-changed
   :type '(choice (const dark)
 		 (const light)
 		 (const :tag "automatic" nil)))
@@ -1144,6 +1181,27 @@ e.g. (mapc \\='frame-set-background-mode (frame-list))."
 
 (defvar inhibit-frame-set-background-mode nil)
 
+(defun frame--current-backround-mode (frame)
+  (let* ((frame-default-bg-mode (frame-terminal-default-bg-mode frame))
+         (bg-color (frame-parameter frame 'background-color))
+         (tty-type (tty-type frame))
+         (default-bg-mode
+	   (if (or (window-system frame)
+		   (and tty-type
+			(string-match "^\\(xterm\\|rxvt\\|dtterm\\|eterm\\)"
+				      tty-type)))
+	       'light
+	     'dark)))
+    (cond (frame-default-bg-mode)
+	  ((equal bg-color "unspecified-fg") ; inverted colors
+	   (if (eq default-bg-mode 'light) 'dark 'light))
+	  ((not (color-values bg-color frame))
+	   default-bg-mode)
+	  ((color-dark-p (mapcar (lambda (c) (/ c 65535.0))
+	                         (color-values bg-color frame)))
+	   'dark)
+	  (t 'light))))
+
 (defun frame-set-background-mode (frame &optional keep-face-specs)
   "Set up display-dependent faces on FRAME.
 Display-dependent faces are those which have different definitions
@@ -1152,30 +1210,8 @@ according to the `background-mode' and `display-type' frame parameters.
 If optional arg KEEP-FACE-SPECS is non-nil, don't recalculate
 face specs for the new background mode."
   (unless inhibit-frame-set-background-mode
-    (let* ((frame-default-bg-mode (frame-terminal-default-bg-mode frame))
-	   (bg-color (frame-parameter frame 'background-color))
-	   (tty-type (tty-type frame))
-	   (default-bg-mode
-	     (if (or (window-system frame)
-		     (and tty-type
-			  (string-match "^\\(xterm\\|rxvt\\|dtterm\\|eterm\\)"
-					tty-type)))
-		 'light
-	       'dark))
-	   (non-default-bg-mode (if (eq default-bg-mode 'light) 'dark 'light))
-	   (bg-mode
-	    (cond (frame-default-bg-mode)
-		  ((equal bg-color "unspecified-fg") ; inverted colors
-		   non-default-bg-mode)
-		  ((not (color-values bg-color frame))
-		   default-bg-mode)
-		  ((>= (apply '+ (color-values bg-color frame))
-		       ;; Just looking at the screen, colors whose
-		       ;; values add up to .6 of the white total
-		       ;; still look dark to me.
-		       (* (apply '+ (color-values "white" frame)) .6))
-		   'light)
-		  (t 'dark)))
+    (let* ((bg-mode
+	    (frame--current-backround-mode frame))
 	   (display-type
 	    (cond ((null (window-system frame))
 		   (if (tty-display-color-p frame) 'color 'mono))
@@ -1215,13 +1251,10 @@ face specs for the new background mode."
                          ;; during startup with -rv on the command
                          ;; line for the initial frame, because frames
                          ;; are not recorded in the pdump file.
-                         (assq face (frame-face-alist))
+                         (gethash face (frame--face-hash-table))
                          (face-spec-match-p face
                                             (face-user-default-spec face)
-                                            ;; FIXME: why selected-frame and
-                                            ;; not the frame that is the
-                                            ;; argument to this function?
-                                            (selected-frame))))
+                                            frame)))
 		   (push face locally-modified-faces)))
 	    ;; Now change to the new frame parameters
 	    (modify-frame-parameters frame params)
@@ -1243,6 +1276,26 @@ the `background-mode' terminal parameter."
 	(if bg-resource
 	    (intern (downcase bg-resource))))
       (terminal-parameter frame 'background-mode)))
+
+;; FIXME: This needs to be significantly improved before we can use it:
+;; - Fix the "scope" to be consistent: the code below is partly per-frame
+;;   and partly all-frames :-(
+;; - Make it interact correctly with color themes (e.g. modus-themes).
+;;   Maybe automatically disabling color themes that disagree with the
+;;   selected value of `dark-mode'.
+;; - Check interaction with "(in|re)verse-video".
+;;
+;; (define-minor-mode dark-mode
+;;   "Use light text on dark background."
+;;   :global t
+;;   :group 'faces
+;;   (when (eq dark-mode
+;;             (eq 'light (frame--current-backround-mode (selected-frame))))
+;;     ;; FIXME: Change the face's SPEC instead?
+;;     (set-face-attribute 'default nil
+;;                         :foreground (face-attribute 'default :background)
+;;                         :background (face-attribute 'default :foreground))
+;;     (frame-set-background-mode (selected-frame))))
 
 
 ;;;; Frame configurations
@@ -1328,9 +1381,9 @@ differing font heights."
 If FRAME is omitted, describe the currently selected frame."
   (cdr (assq 'width (frame-parameters frame))))
 
-(defalias 'frame-border-width 'frame-internal-border-width)
-(defalias 'frame-pixel-width 'frame-native-width)
-(defalias 'frame-pixel-height 'frame-native-height)
+(defalias 'frame-border-width #'frame-internal-border-width)
+(defalias 'frame-pixel-width #'frame-native-width)
+(defalias 'frame-pixel-height #'frame-native-height)
 
 (defun frame-inner-width (&optional frame)
   "Return inner width of FRAME in pixels.
@@ -1364,7 +1417,7 @@ FRAME defaults to the selected frame."
 (declare-function x-list-fonts "xfaces.c"
                   (pattern &optional face frame maximum width))
 
-(defun set-frame-font (font &optional keep-size frames)
+(defun set-frame-font (font &optional keep-size frames inhibit-customize)
   "Set the default font to FONT.
 When called interactively, prompt for the name of a font, and use
 that font on the selected frame.  When called from Lisp, FONT
@@ -1381,15 +1434,18 @@ If FRAMES is non-nil, it should be a list of frames to act upon,
 or t meaning all existing graphical frames.
 Also, if FRAMES is non-nil, alter the user's Customization settings
 as though the font-related attributes of the `default' face had been
-\"set in this session\", so that the font is applied to future frames."
+\"set in this session\", so that the font is applied to future frames.
+
+If INHIBIT-CUSTOMIZE is non-nil, don't update the user's
+Customization settings."
   (interactive
    (let* ((completion-ignore-case t)
-	  (font (completing-read "Font name: "
+          (default (frame-parameter nil 'font))
+	  (font (completing-read (format-prompt "Font name" default)
 				 ;; x-list-fonts will fail with an error
 				 ;; if this frame doesn't support fonts.
 				 (x-list-fonts "*" nil (selected-frame))
-                                 nil nil nil nil
-                                 (frame-parameter nil 'font))))
+                                 nil nil nil nil default)))
      (list font current-prefix-arg nil)))
   (when (or (stringp font) (fontp font))
     (let* ((this-frame (selected-frame))
@@ -1418,7 +1474,8 @@ as though the font-related attributes of the `default' face had been
 	       f
 	       (list (cons 'height (round height (frame-char-height f)))
 		     (cons 'width  (round width  (frame-char-width f))))))))
-      (when frames
+      (when (and frames
+                 (not inhibit-customize))
 	;; Alter the user's Custom setting of the `default' face, but
 	;; only for font-related attributes.
 	(let ((specs (cadr (assq 'user (get 'default 'theme-face))))
@@ -1470,7 +1527,7 @@ To get the frame's current background color, use `frame-parameters'."
   "Set the foreground color of the selected frame to COLOR-NAME.
 When called interactively, prompt for the name of the color to use.
 To get the frame's current foreground color, use `frame-parameters'."
-  (interactive (list (read-color "Foreground color: ")))
+  (interactive (list (read-color "Foreground color: " nil nil nil t)))
   (modify-frame-parameters (selected-frame)
 			   (list (cons 'foreground-color color-name)))
   (or window-system
@@ -1553,8 +1610,9 @@ When called interactively, prompt for the name of the frame.
 On text terminals, the frame name is displayed on the mode line.
 On graphical displays, it is displayed on the frame's title bar."
   (interactive
-   (list (read-string "Frame name: " nil nil
-                      (cdr (assq 'name (frame-parameters))))))
+   (let ((default (cdr (assq 'name (frame-parameters)))))
+     (list (read-string (format-prompt "Frame name" default) nil nil
+                        default))))
   (modify-frame-parameters (selected-frame)
 			   (list (cons 'name name))))
 
@@ -1649,26 +1707,104 @@ and width values are in pixels.
 
 (defun frame--size-history (&optional frame)
   "Print history of resize operations for FRAME.
-Print prettified version of `frame-size-history' into a buffer
-called *frame-size-history*.  Optional argument FRAME denotes the
-frame whose history will be printed.  FRAME defaults to the
-selected frame."
+This function dumps a prettified version of `frame-size-history'
+into a buffer called *frame-size-history*.  The optional argument
+FRAME denotes the frame whose history will be dumped; it defaults
+to the selected frame.
+
+Storing information about resize operations is off by default.
+If you set the variable `frame-size-history' like this
+
+(setq frame-size-history '(100))
+
+then Emacs will save information about the next 100 significant
+operations affecting any frame's size in that variable.  This
+function prints the entries for FRAME stored in that variable in
+a more legible way.
+
+All lines start with an indication of the requested action.  An
+entry like `menu-bar-lines' or `scroll-bar-width' indicates that
+a change of the corresponding frame parameter or Lisp variable
+was requested.  An entry like gui_figure_window_size indicates
+that that C function was executed, an entry like ConfigureNotify
+indicates that that event was received.
+
+In long entries, a number in parentheses displays the INHIBIT
+parameter passed to the C function adjust_frame_size.  Such
+entries may also display changes of frame rectangles in a form
+like R=n1xn2~>n3xn4 where R denotes the rectangle type (TS for
+text, NS for native and IS for inner frame rectangle sizes, all
+in pixels, TC for text rectangle sizes in frame columns and
+lines), n1 and n2 denote the old width and height and n3 and n4
+the new width and height in the according units.  MS stands for
+the minimum inner frame size in pixels, IH and IV, if present,
+indicate that resizing horizontally and/or vertically was
+inhibited (either by `frame-inhibit-implied-resize' or because of
+the frame's fullscreen state).
+
+Shorter entries represent C functions that process width and
+height changes of the native rectangle where PS stands for the
+frame's present pixel width and height, XS for a requested pixel
+width and height and DS for some earlier requested but so far
+delayed pixel width and height.
+
+Very short entries represent calls of C functions that do not
+directly ask for size changes but may indirectly affect the size
+of frames like calls to map a frame or change its visibility."
   (let ((history (reverse frame-size-history))
-	entry)
+	entry item)
     (setq frame (window-normalize-frame frame))
     (with-current-buffer (get-buffer-create "*frame-size-history*")
       (erase-buffer)
       (insert (format "Frame size history of %s\n" frame))
       (while (consp (setq entry (pop history)))
-	(when (eq (car entry) frame)
-          (pop entry)
-          (insert (format "%s" (pop entry)))
-          (move-to-column 24 t)
-          (while entry
-            (insert (format " %s" (pop entry))))
-          (insert "\n")))
-      (unless frame-size-history
-        (insert "Frame size history is nil.\n")))))
+        (setq item (car entry))
+	(cond
+         ((not (consp item))
+          ;; An item added quickly for debugging purposes.
+          (insert (format "%s\n" entry)))
+         ((and (eq (nth 0 item) frame) (= (nth 1 item) 1))
+          ;; Length 1 is a "plain event".
+          (insert (format "%s\n" (nth 2 item))))
+         ((and (eq (nth 0 item) frame) (= (nth 1 item) 2))
+          ;; Length 2 is an "extra" item.
+          (insert (format "%s" (nth 2 item)))
+          (setq item (nth 0 (cdr entry)))
+          (insert (format ", PS=%sx%s" (nth 0 item) (nth 1 item)))
+          (when (or (>= (nth 2 item) 0) (>= (nth 3 item) 0))
+            (insert (format ", XS=%sx%s" (nth 2 item) (nth 3 item))))
+          (setq item (nth 1 (cdr entry)))
+          (when (or (>= (nth 0 item) 0) (>= (nth 1 item) 0))
+            (insert (format ", DS=%sx%s" (nth 0 item) (nth 1 item))))
+          (insert "\n"))
+         ((and (eq (nth 0 item) frame) (= (nth 1 item) 5))
+          ;; Length 5 is an `adjust-frame-size' item.
+          (insert (format "%s (%s)" (nth 3 item) (nth 2 item)))
+          (setq item (nth 0 (cdr entry)))
+          (unless (and (= (nth 0 item) (nth 2 item))
+                       (= (nth 1 item) (nth 3 item)))
+            (insert (format ", TS=%sx%s~>%sx%s"
+                            (nth 0 item) (nth 1 item) (nth 2 item) (nth 3 item))))
+          (setq item (nth 1 (cdr entry)))
+          (unless (and (= (nth 0 item) (nth 2 item))
+                       (= (nth 1 item) (nth 3 item)))
+            (insert (format ", TC=%sx%s~>%sx%s"
+                            (nth 0 item) (nth 1 item) (nth 2 item) (nth 3 item))))
+          (setq item (nth 2 (cdr entry)))
+          (unless (and (= (nth 0 item) (nth 2 item))
+                       (= (nth 1 item) (nth 3 item)))
+            (insert (format ", NS=%sx%s~>%sx%s"
+                            (nth 0 item) (nth 1 item) (nth 2 item) (nth 3 item))))
+          (setq item (nth 3 (cdr entry)))
+          (unless (and (= (nth 0 item) (nth 2 item))
+                       (= (nth 1 item) (nth 3 item)))
+            (insert (format ", IS=%sx%s~>%sx%s"
+                            (nth 0 item) (nth 1 item) (nth 2 item) (nth 3 item))))
+          (setq item (nth 4 (cdr entry)))
+          (insert (format ", MS=%sx%s" (nth 0 item) (nth 1 item)))
+          (when (nth 2 item) (insert " IH"))
+          (when (nth 3 item) (insert " IV"))
+          (insert "\n")))))))
 
 (declare-function x-frame-edges "xfns.c" (&optional frame type))
 (declare-function w32-frame-edges "w32fns.c" (&optional frame type))
@@ -1926,7 +2062,7 @@ for FRAME."
 ;; features change, it will be easy to find all the tests for such
 ;; capabilities by a simple text search.  See more about the history
 ;; and the intent of these functions in
-;; http://lists.gnu.org/archive/html/bug-gnu-emacs/2019-04/msg00004.html
+;; https://lists.gnu.org/archive/html/bug-gnu-emacs/2019-04/msg00004.html
 ;; or in https://debbugs.gnu.org/cgi/bugreport.cgi?bug=35058#17.
 
 (declare-function msdos-mouse-p "dosfns.c")
@@ -1979,9 +2115,9 @@ frame's display)."
        (fboundp 'image-mask-p)
        (fboundp 'image-size)))
 
-(defalias 'display-blink-cursor-p 'display-graphic-p)
-(defalias 'display-multi-frame-p 'display-graphic-p)
-(defalias 'display-multi-font-p 'display-graphic-p)
+(defalias 'display-blink-cursor-p #'display-graphic-p)
+(defalias 'display-multi-frame-p #'display-graphic-p)
+(defalias 'display-multi-font-p #'display-graphic-p)
 
 (defun display-selections-p (&optional display)
   "Return non-nil if DISPLAY supports selections.
@@ -2332,13 +2468,15 @@ In the 3rd, 4th, and 6th examples, the returned value is relative to
 the opposite frame edge from the edge indicated in the input spec."
   (cons (car spec) (frame-geom-value-cons (car spec) (cdr spec) frame)))
 
-(defun delete-other-frames (&optional frame)
+(defun delete-other-frames (&optional frame iconify)
   "Delete all frames on FRAME's terminal, except FRAME.
 If FRAME uses another frame's minibuffer, the minibuffer frame is
 left untouched.  Do not delete any of FRAME's child frames.  If
 FRAME is a child frame, delete its siblings only.  FRAME must be
-a live frame and defaults to the selected one."
-  (interactive)
+a live frame and defaults to the selected one.
+If the prefix arg ICONIFY is non-nil, just iconify the frames rather than
+deleting them."
+  (interactive "i\nP")
   (setq frame (window-normalize-frame frame))
   (let ((minibuffer-frame (window-frame (minibuffer-window frame)))
         (this (next-frame frame t))
@@ -2353,7 +2491,7 @@ a live frame and defaults to the selected one."
                   (and parent (not (eq (frame-parent this) parent)))
                   ;; Do not delete a child frame of FRAME.
                   (eq (frame-parent this) frame))
-        (delete-frame this))
+        (if iconify (iconify-frame this) (delete-frame this)))
       (setq this next))
     ;; In a second round consider all remaining frames.
     (setq this (next-frame frame t))
@@ -2365,7 +2503,7 @@ a live frame and defaults to the selected one."
                   (and parent (not (eq (frame-parent this) parent)))
                   ;; Do not delete a child frame of FRAME.
                   (eq (frame-parent this) frame))
-        (delete-frame this))
+        (if iconify (iconify-frame this) (delete-frame this)))
       (setq this next))))
 
 
@@ -2391,7 +2529,7 @@ parameters `bottom-divider-width' and `right-divider-width'."
   :type '(choice (const :tag "Bottom only" bottom-only)
 		 (const :tag "Right only" right-only)
 		 (const :tag "Bottom and right" t))
-  :initialize 'custom-initialize-default
+  :initialize #'custom-initialize-default
   :set (lambda (symbol value)
 	 (set-default symbol value)
          (when window-divider-mode
@@ -2412,7 +2550,7 @@ parameter `bottom-divider-width'."
   :type '(restricted-sexp
           :tag "Default width of bottom dividers"
           :match-alternatives (window-divider-width-valid-p))
-  :initialize 'custom-initialize-default
+  :initialize #'custom-initialize-default
   :set (lambda (symbol value)
 	 (set-default symbol value)
          (when window-divider-mode
@@ -2429,7 +2567,7 @@ parameter `right-divider-width'."
   :type '(restricted-sexp
           :tag "Default width of right dividers"
           :match-alternatives (window-divider-width-valid-p))
-  :initialize 'custom-initialize-default
+  :initialize #'custom-initialize-default
   :set (lambda (symbol value)
 	 (set-default symbol value)
          (when window-divider-mode
@@ -2548,13 +2686,15 @@ Use 0 or negative value to blink forever."
 This starts the timer `blink-cursor-timer', which makes the cursor blink
 if appropriate.  It also arranges to cancel that timer when the next
 command starts, by installing a pre-command hook."
-  (when (null blink-cursor-timer)
+  (cond
+   ((null blink-cursor-mode) (blink-cursor-mode -1))
+   ((null blink-cursor-timer)
     ;; Set up the timer first, so that if this signals an error,
     ;; blink-cursor-end is not added to pre-command-hook.
     (setq blink-cursor-blinks-done 1)
     (blink-cursor--start-timer)
-    (add-hook 'pre-command-hook 'blink-cursor-end)
-    (internal-show-cursor nil nil)))
+    (add-hook 'pre-command-hook #'blink-cursor-end)
+    (internal-show-cursor nil nil))))
 
 (defun blink-cursor-timer-function ()
   "Timer function of timer `blink-cursor-timer'."
@@ -2568,14 +2708,14 @@ command starts, by installing a pre-command hook."
   (when (and (> blink-cursor-blinks 0)
              (<= (* 2 blink-cursor-blinks) blink-cursor-blinks-done))
     (blink-cursor-suspend)
-    (add-hook 'post-command-hook 'blink-cursor-check)))
+    (add-hook 'post-command-hook #'blink-cursor-check)))
 
 (defun blink-cursor-end ()
   "Stop cursor blinking.
 This is installed as a pre-command hook by `blink-cursor-start'.
 When run, it cancels the timer `blink-cursor-timer' and removes
 itself as a pre-command hook."
-  (remove-hook 'pre-command-hook 'blink-cursor-end)
+  (remove-hook 'pre-command-hook #'blink-cursor-end)
   (internal-show-cursor nil t)
   (when blink-cursor-timer
     (cancel-timer blink-cursor-timer)
@@ -2611,7 +2751,7 @@ stopped by `blink-cursor-suspend'.  Internally calls
 `blink-cursor--should-blink' and returns its result."
   (let ((should-blink (blink-cursor--should-blink)))
     (when (and should-blink (not blink-cursor-idle-timer))
-      (remove-hook 'post-command-hook 'blink-cursor-check)
+      (remove-hook 'post-command-hook #'blink-cursor-check)
       (blink-cursor--start-idle-timer))
     should-blink))
 
@@ -2633,18 +2773,18 @@ This command is effective only on graphical frames.  On text-only
 terminals, cursor blinking is controlled by the terminal."
   :init-value (not (or noninteractive
 		       no-blinking-cursor
-		       (eq system-type 'ms-dos)
-		       (not (display-blink-cursor-p))))
-  :initialize 'custom-initialize-delay
+		       (eq system-type 'ms-dos)))
+  :initialize #'custom-initialize-delay
   :group 'cursor
   :global t
   (blink-cursor-suspend)
   (remove-hook 'after-delete-frame-functions #'blink-cursor--rescan-frames)
   (remove-function after-focus-change-function #'blink-cursor--rescan-frames)
   (when blink-cursor-mode
-    (add-function :after after-focus-change-function #'blink-cursor--rescan-frames)
+    (add-function :after after-focus-change-function
+                  #'blink-cursor--rescan-frames)
     (add-hook 'after-delete-frame-functions #'blink-cursor--rescan-frames)
-    (blink-cursor--start-idle-timer)))
+    (blink-cursor-check)))
 
 
 ;; Frame maximization/fullscreen
@@ -2699,22 +2839,20 @@ See also `toggle-frame-maximized'."
 	      (set-frame-parameter frame 'fullscreen fullscreen-restore)
 	    (set-frame-parameter frame 'fullscreen nil)))
       (modify-frame-parameters
-       frame `((fullscreen . fullboth) (fullscreen-restore . ,fullscreen))))
-    ;; Manipulating a frame without waiting for the fullscreen
-    ;; animation to complete can cause a crash, or other unexpected
-    ;; behavior, on macOS (bug#28496).
-    (when (featurep 'cocoa) (sleep-for 0.5))))
+       frame `((fullscreen . fullboth) (fullscreen-restore . ,fullscreen))))))
 
 
 ;;;; Key bindings
 
-(define-key ctl-x-5-map "2" 'make-frame-command)
-(define-key ctl-x-5-map "1" 'delete-other-frames)
-(define-key ctl-x-5-map "0" 'delete-frame)
-(define-key ctl-x-5-map "o" 'other-frame)
-(define-key global-map [f11] 'toggle-frame-fullscreen)
-(define-key global-map [(meta f10)] 'toggle-frame-maximized)
-(define-key esc-map    [f10]        'toggle-frame-maximized)
+(define-key ctl-x-5-map "2" #'make-frame-command)
+(define-key ctl-x-5-map "1" #'delete-other-frames)
+(define-key ctl-x-5-map "0" #'delete-frame)
+(define-key ctl-x-5-map "o" #'other-frame)
+(define-key ctl-x-5-map "5" #'other-frame-prefix)
+(define-key ctl-x-5-map "c" #'clone-frame)
+(define-key global-map [f11] #'toggle-frame-fullscreen)
+(define-key global-map [(meta f10)] #'toggle-frame-maximized)
+(define-key esc-map    [f10]        #'toggle-frame-maximized)
 
 
 ;; Misc.
@@ -2728,6 +2866,14 @@ See also `toggle-frame-maximized'."
 ;; Defined in dispnew.c.
 (make-obsolete-variable
  'window-system-version "it does not give useful information." "24.3")
+
+(defun set-frame-property--interactive (prompt number)
+  "Get a value for `set-frame-width' or `set-frame-height', prompting with PROMPT.
+Offer NUMBER as default value, if it is a natural number."
+  (if (and current-prefix-arg (not (consp current-prefix-arg)))
+      (list (selected-frame) (prefix-numeric-value current-prefix-arg))
+    (let ((default (and (natnump number) number)))
+      (list (selected-frame) (read-number prompt default)))))
 
 ;; Variables whose change of value should trigger redisplay of the
 ;; current buffer.

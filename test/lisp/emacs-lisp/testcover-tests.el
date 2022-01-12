@@ -6,18 +6,18 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software: you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License as
-;; published by the Free Software Foundation, either version 3 of the
-;; License, or (at your option) any later version.
-;;
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
-;;
+;; GNU Emacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; GNU Emacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see `https://www.gnu.org/licenses/'.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -31,25 +31,9 @@
 ;;; Code:
 
 (require 'ert)
+(require 'ert-x)
 (require 'testcover)
 (require 'skeleton)
-
-;; Use `eval-and-compile' around all these definitions because they're
-;; used by the macro `testcover-tests-define-tests'.
-
-(eval-and-compile
-  (defvar testcover-tests-file-dir
-    (expand-file-name
-     "testcover-resources/"
-     (file-name-directory (or (bound-and-true-p byte-compile-current-file)
-                              load-file-name
-                              buffer-file-name)))
-    "Directory of the \"testcover-tests.el\" file."))
-
-(eval-and-compile
-  (defvar testcover-tests-test-cases
-    (expand-file-name "testcases.el" testcover-tests-file-dir)
-    "File containing marked up code to instrument and check."))
 
 ;; Convert Testcover's overlays to plain text.
 
@@ -62,6 +46,7 @@ is working correctly on a code sample.  OPTARGS are optional
 arguments for `testcover-start'."
     (interactive "r")
     (let ((tempfile (make-temp-file "testcover-tests-" nil ".el"))
+          (find-file-suppress-same-file-warnings t)
           (code (buffer-substring beg end))
           (marked-up-code))
       (unwind-protect
@@ -114,7 +99,8 @@ arguments for `testcover-start'."
 (eval-and-compile
   (defun testcover-tests-run-test-case (marked-up-code)
     "Test the operation of Testcover on the string MARKED-UP-CODE."
-    (let ((tempfile (make-temp-file "testcover-tests-" nil ".el")))
+    (let ((tempfile (make-temp-file "testcover-tests-" nil ".el"))
+          (find-file-suppress-same-file-warnings t))
       (unwind-protect
           (progn
             (with-temp-file tempfile
@@ -149,7 +135,7 @@ Construct and return a list of `ert-deftest' forms.  See testcases.el
 for documentation of the test definition format."
     (let (results)
       (with-temp-buffer
-        (insert-file-contents testcover-tests-test-cases)
+        (insert-file-contents (ert-resource-file "testcases.el"))
         (goto-char (point-min))
         (while (re-search-forward
                 (concat "^;; ==== \\([^ ]+?\\) ====\n"

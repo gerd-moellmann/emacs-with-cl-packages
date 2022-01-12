@@ -27,6 +27,7 @@
 
 (require 'ert)
 (eval-when-compile (require 'cl-lib))
+(require 'subr-x)
 
 (ert-deftest eval-tests--bug24673 ()
   "Check that Bug#24673 has been fixed."
@@ -38,31 +39,40 @@
 (ert-deftest eval-tests--bugs-24912-and-24913 ()
   "Check that Emacs doesn't accept weird argument lists.
 Bug#24912 and Bug#24913."
-  (dolist (args '((&rest &optional)
-                  (&rest a &optional) (&rest &optional a)
-                  (&optional &optional) (&optional &optional a)
-                  (&optional a &optional b)
-                  (&rest &rest) (&rest &rest a)
-                  (&rest a &rest b)))
-    (should-error (eval `(funcall (lambda ,args)) t) :type 'invalid-function)
-    (should-error (byte-compile-check-lambda-list args))
-    (let ((byte-compile-debug t))
-      (ert-info ((format "bytecomp: args = %S" args))
-       (should-error (eval `(byte-compile (lambda ,args)) t))))))
+  (dolist (lb '(t false))
+    (ert-info ((prin1-to-string lb) :prefix "lexical-binding: ")
+      (let ((lexical-binding lb))
+        (dolist (args '((&rest &optional)
+                        (&rest a &optional) (&rest &optional a)
+                        (&optional &optional) (&optional &optional a)
+                        (&optional a &optional b)
+                        (&rest &rest) (&rest &rest a)
+                        (&rest a &rest b)
+                        (&rest) (&optional &rest)
+                        ))
+          (ert-info ((prin1-to-string args) :prefix "args: ")
+            (should-error
+             (eval `(funcall (lambda ,args)) lb) :type 'invalid-function)
+            (should-error (byte-compile-check-lambda-list args))
+            (let ((byte-compile-debug t))
+              (should-error (eval `(byte-compile (lambda ,args)) lb)))))))))
 
-(ert-deftest eval-tests-accept-empty-optional-rest ()
-  "Check that Emacs accepts empty &optional and &rest arglists.
+(ert-deftest eval-tests-accept-empty-optional ()
+  "Check that Emacs accepts empty &optional arglists.
 Bug#24912."
-  (dolist (args '((&optional) (&rest) (&optional &rest)
-                  (&optional &rest a) (&optional a &rest)))
-    (let ((fun `(lambda ,args 'ok)))
-      (ert-info ("eval")
-        (should (eq (funcall (eval fun t)) 'ok)))
-      (ert-info ("byte comp check")
-        (byte-compile-check-lambda-list args))
-      (ert-info ("bytecomp")
-        (let ((byte-compile-debug t))
-          (should (eq (funcall (byte-compile fun)) 'ok)))))))
+  (dolist (lb '(t false))
+    (ert-info ((prin1-to-string lb) :prefix "lexical-binding: ")
+      (let ((lexical-binding lb))
+        (dolist (args '((&optional) (&optional &rest a)))
+          (ert-info ((prin1-to-string args) :prefix "args: ")
+            (let ((fun `(lambda ,args 'ok)))
+              (ert-info ("eval")
+                (should (eq (funcall (eval fun lb)) 'ok)))
+              (ert-info ("byte comp check")
+                (byte-compile-check-lambda-list args))
+              (ert-info ("bytecomp")
+                (let ((byte-compile-debug t))
+                  (should (eq (funcall (byte-compile fun)) 'ok)))))))))))
 
 
 (dolist (form '(let let*))
@@ -175,5 +185,54 @@ Don't handle destructive splicing in backquote expressions (like
 in Common Lisp).  Instead, make sure substitution in backquote
 expressions works for identifiers starting with period."
   (should (equal (let ((.x 'identity)) (eval `(,.x 'ok))) 'ok)))
+
+(ert-deftest eval-tests/backtrace-in-batch-mode ()
+  (let ((emacs (expand-file-name invocation-name invocation-directory)))
+    (skip-unless (file-executable-p emacs))
+    (with-temp-buffer
+      (let ((status (call-process emacs nil t nil
+                                  "--quick" "--batch"
+                                  (concat "--eval="
+                                          (prin1-to-string
+                                           '(progn
+                                              (defun foo () (error "Boo"))
+                                              (foo)))))))
+        (should (natnump status))
+        (should-not (eql status 0)))
+      (goto-char (point-min))
+      (ert-info ((concat "Process output:\n" (buffer-string)))
+        (search-forward "  foo()")
+        (search-forward "  normal-top-level()")))))
+
+(ert-deftest eval-tests/backtrace-in-batch-mode/inhibit ()
+  (let ((emacs (expand-file-name invocation-name invocation-directory)))
+    (skip-unless (file-executable-p emacs))
+    (with-temp-buffer
+      (let ((status (call-process
+                     emacs nil t nil
+                     "--quick" "--batch"
+                     (concat "--eval="
+                             (prin1-to-string
+                              '(progn
+                                 (defun foo () (error "Boo"))
+                                 (let ((backtrace-on-error-noninteractive nil))
+                                   (foo))))))))
+        (should (natnump status))
+        (should-not (eql status 0)))
+      (should (equal (string-trim (buffer-string)) "Boo")))))
+
+(ert-deftest eval-tests/backtrace-in-batch-mode/demoted-errors ()
+  (let ((emacs (expand-file-name invocation-name invocation-directory)))
+    (skip-unless (file-executable-p emacs))
+    (with-temp-buffer
+      (should (eql  0 (call-process emacs nil t nil
+                                    "--quick" "--batch"
+                                    (concat "--eval="
+                                            (prin1-to-string
+                                             '(with-demoted-errors "Error: %S"
+                                                (error "Boo")))))))
+      (goto-char (point-min))
+      (should (equal (string-trim (buffer-string))
+                     "Error: (error \"Boo\")")))))
 
 ;;; eval-tests.el ends here

@@ -233,7 +233,7 @@ server there that you can connect to.  See also
 					  (const :format "" "password")
 					  (string :format "Password: %v")))))))
 
-(make-obsolete 'nntp-authinfo-file nil "Emacs 24.1")
+(make-obsolete 'nntp-authinfo-file nil "24.1")
 
 
 
@@ -309,7 +309,7 @@ backend doesn't catch this error.")
 
 (defun nntp-record-command (string)
   "Record the command STRING."
-  (with-current-buffer (get-buffer-create "*nntp-log*")
+  (with-current-buffer (gnus-get-buffer-create "*nntp-log*")
     (goto-char (point-max))
     (insert (format-time-string "%Y%m%dT%H%M%S.%3N")
 	    " " nntp-address " " string "\n")))
@@ -335,16 +335,16 @@ retried once before actually displaying the error report."
 
     (apply #'error args)))
 
-(defmacro nntp-copy-to-buffer (buffer start end)
+(defsubst nntp-copy-to-buffer (buffer start end)
   "Copy string from unibyte current buffer to multibyte buffer."
-  `(let ((string (buffer-substring ,start ,end)))
-     (with-current-buffer ,buffer
+  (let ((string (buffer-substring start end)))
+     (with-current-buffer buffer
        (erase-buffer)
        (insert string)
        (goto-char (point-min))
        nil)))
 
-(defsubst nntp-wait-for (process wait-for buffer &optional decode discard)
+(defun nntp-wait-for (process wait-for buffer &optional decode discard)
   "Wait for WAIT-FOR to arrive from PROCESS."
 
   (with-current-buffer (process-buffer process)
@@ -436,7 +436,7 @@ retried once before actually displaying the error report."
     (when process
       (process-buffer process))))
 
-(defsubst nntp-retrieve-data (command address _port buffer
+(defun nntp-retrieve-data (command address _port buffer
 				      &optional wait-for callback decode)
   "Use COMMAND to retrieve data into BUFFER from PORT on ADDRESS."
   (let ((process (or (nntp-find-connection buffer)
@@ -469,7 +469,7 @@ retried once before actually displaying the error report."
              nil)))
       (nnheader-report 'nntp "Couldn't open connection to %s" address))))
 
-(defsubst nntp-send-command (wait-for &rest strings)
+(defun nntp-send-command (wait-for &rest strings)
   "Send STRINGS to server and wait until WAIT-FOR returns."
   (when (not (or nnheader-callback-function
                  nntp-inhibit-output))
@@ -600,7 +600,7 @@ retried once before actually displaying the error report."
     nil)))
 
 (defun nntp-with-open-group-function (group server connectionless bodyfun)
-  "Protect against servers that don't like clients that keep idle connections opens.
+  "Protect against servers that don't like clients that keep idle connections open.
 The problem being that these servers may either close a connection or
 simply ignore any further requests on a connection.  Closed
 connections are not detected until `accept-process-output' has updated
@@ -651,7 +651,7 @@ command whose response triggered the error."
     nntp-with-open-group-internal))
 
 (defmacro nntp-with-open-group (group server &optional connectionless &rest forms)
-  "Protect against servers that don't like clients that keep idle connections opens.
+  "Protect against servers that don't like clients that keep idle connections open.
 The problem being that these servers may either close a connection or
 simply ignore any further requests on a connection.  Closed
 connections are not detected until `accept-process-output' has updated
@@ -1209,7 +1209,7 @@ If SEND-IF-FORCE, only send authinfo to the server if the
 			  (read-passwd (format "NNTP (%s@%s) password: "
 					       user nntp-address)))))))
 	  (if (not result)
-	      (signal 'nntp-authinfo-rejected "Password rejected")
+	      (error "Password rejected")
 	    result))))))
 
 ;;; Internal functions.
@@ -1247,8 +1247,8 @@ If SEND-IF-FORCE, only send authinfo to the server if the
 	  (and nntp-connection-timeout
 	       (run-at-time
 		nntp-connection-timeout nil
-		`(lambda ()
-		   (nntp-kill-buffer ,pbuffer)))))
+		(lambda ()
+		  (nntp-kill-buffer pbuffer)))))
 	 (process
 	  (condition-case err
 	      (let ((coding-system-for-read 'binary)
@@ -1263,7 +1263,17 @@ If SEND-IF-FORCE, only send authinfo to the server if the
 		     "nntpd" pbuffer nntp-address nntp-port-number
 		     :type (cadr (assoc nntp-open-connection-function map))
 		     :end-of-command "^\\([2345]\\|[.]\\).*\n"
-		     :capability-command "HELP\r\n"
+		     :capability-command
+		     (lambda (greeting)
+		       (if (and greeting
+				(string-match "Typhoon" greeting))
+			   ;; Certain versions of the Typhoon server
+			   ;; doesn't understand the CAPABILITIES
+			   ;; command, but includes the capability
+			   ;; data in the HELP command instead.
+			   "HELP\r\n"
+			 ;; Use the correct command for everything else.
+			 "CAPABILITIES\r\n"))
 		     :success "^3"
 		     :starttls-function
 		     (lambda (capabilities)
@@ -1320,7 +1330,7 @@ If SEND-IF-FORCE, only send authinfo to the server if the
     (dolist (entry nntp-server-action-alist)
       (when (string-match (car entry) nntp-server-type)
 	(if (not (functionp (cadr entry)))
-	    (eval (cadr entry))
+	    (eval (cadr entry) t)
 	  (funcall (cadr entry)))))))
 
 (defun nntp-async-wait (process wait-for buffer decode callback)
@@ -1687,7 +1697,7 @@ If SEND-IF-FORCE, only send authinfo to the server if the
 		   ;; article comes from that group, I'd say.
 		   ((and (setq newsgroups
 			       (mail-fetch-field "newsgroups"))
-			 (not (string-match "," newsgroups)))
+			 (not (string-search "," newsgroups)))
 		    newsgroups)
 		   ;; If there is more than one group in the
 		   ;; Newsgroups header, then the Xref header should
@@ -1715,7 +1725,7 @@ If SEND-IF-FORCE, only send authinfo to the server if the
 		  number (string-to-number (match-string 2 xref))))
 	   ((and (setq newsgroups
 		       (mail-fetch-field "newsgroups"))
-		 (not (string-match "," newsgroups)))
+		 (not (string-search "," newsgroups)))
 	    (setq group newsgroups))
 	   (group)
 	   (t (setq group ""))))
@@ -1741,7 +1751,8 @@ If SEND-IF-FORCE, only send authinfo to the server if the
 ;; ==========================================================================
 
 (defvoo nntp-open-telnet-envuser nil
-  "If non-nil, telnet session (client and server both) will support the ENVIRON option and not prompt for login name.")
+  "If non-nil, telnet session supports the ENVIRON option.
+Don't prompt for login name.  This applies to both client and server.")
 
 (defvoo nntp-telnet-shell-prompt "bash\\|[$>] *\r?$"
   "Regular expression to match the shell prompt on the remote machine.")

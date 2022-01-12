@@ -1,5 +1,5 @@
 .\" See section COPYING for copyright and redistribution information.
-.TH EMACS 1 "2007 April 13" "GNU Emacs @version@"
+.TH EMACS 1 "2021-09-28" "GNU Emacs @version@" "GNU"
 .
 .
 .SH NAME
@@ -197,7 +197,7 @@ searches for Lisp files.
 .\" START DELETING HERE IF YOU'RE NOT USING X
 .SS Using Emacs with X
 .I Emacs
-has been tailored to work well with the X window system.
+has been tailored to work well with the X Window System.
 If you run
 .I Emacs
 from under X windows, it will create its own X window to
@@ -214,6 +214,9 @@ Specify the name which should be assigned to the initial
 .I Emacs
 window.
 This controls looking up X resources as well as the window title.
+.TP
+.BR \-\-no\-x\-resources
+Do not load X resources.
 .TP
 .BI \-T " name\fR,\fP " \-\-title= "name"
 Specify the title for the initial X window.
@@ -566,7 +569,7 @@ distribution.
 /usr/local/share/info \(em files for the Info documentation browser.
 The complete text of the Emacs reference manual is included in a
 convenient tree structured form.
-Also includes the Emacs Lisp Reference Manual, useful to anyone
+This includes the Emacs Lisp Reference Manual, useful to anyone
 wishing to write programs in the Emacs Lisp extension language,
 and the Introduction to Programming in Emacs Lisp.
 
@@ -673,3 +676,7 @@ document into another language, under the above conditions for
 modified versions, except that this permission notice may be stated
 in a translation approved by the Free Software Foundation.
 .
+
+.\" Local Variables:
+.\" time-stamp-pattern: "3/.TH EMACS 1 \"%Y-%02m-%02d\" \"GNU Emacs @version@\" \"GNU\"$"
+.\" End:

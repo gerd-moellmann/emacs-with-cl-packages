@@ -1,4 +1,4 @@
-;;; files-x.el --- extended file handling commands
+;;; files-x.el --- extended file handling commands  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2009-2021 Free Software Foundation, Inc.
 
@@ -45,9 +45,7 @@ Intended to be used in the `interactive' spec of
 		       (symbol-name default)))
          (variable
 	  (completing-read
-	   (if default
-	       (format "%s (default %s): " prompt default)
-	     (format "%s: " prompt))
+           (format-prompt prompt default)
 	   obarray
 	   (lambda (sym)
 	     (or (custom-variable-p sym)
@@ -65,9 +63,7 @@ Intended to be used in the `interactive' spec of
     (let* ((default (and (symbolp major-mode) (symbol-name major-mode)))
            (value
             (completing-read
-             (if default
-                 (format "Add %s with value (default %s): " variable default)
-               (format "Add %s with value: " variable))
+             (format-prompt "Add %s with value" default variable)
              obarray
              (lambda (sym)
                (string-match-p "-mode\\'" (symbol-name sym)))
@@ -79,11 +75,8 @@ Intended to be used in the `interactive' spec of
    ((eq variable 'coding)
     (let ((default (and (symbolp buffer-file-coding-system)
                         (symbol-name buffer-file-coding-system))))
-      (read-coding-system
-       (if default
-           (format "Add %s with value (default %s): " variable default)
-         (format "Add %s with value: " variable))
-       default)))
+      (read-coding-system (format-prompt "Add %s with value" default variable)
+                          default)))
    (t
     (let ((default (format "%S"
                            (cond ((eq variable 'unibyte) t)
@@ -102,9 +95,7 @@ Intended to be used in the `interactive' spec of
   (let* ((default (and (symbolp major-mode) (symbol-name major-mode)))
 	 (mode
 	  (completing-read
-	   (if default
-	       (format "Mode or subdirectory (default %s): " default)
-	     (format "Mode or subdirectory: "))
+	   (format-prompt "Mode or subdirectory" default)
 	   obarray
 	   (lambda (sym)
 	     (and (string-match-p "-mode\\'" (symbol-name sym))
@@ -579,13 +570,12 @@ from the MODE alist ignoring the input argument VALUE."
 (defvar enable-connection-local-variables t
   "Non-nil means enable use of connection-local variables.")
 
-(defvar connection-local-variables-alist nil
+(defvar-local connection-local-variables-alist nil
   "Alist of connection-local variable settings in the current buffer.
 Each element in this list has the form (VAR . VALUE), where VAR
 is a connection-local variable (a symbol) and VALUE is its value.
 The actual value in the buffer may differ from VALUE, if it is
 changed by the user.")
-(make-variable-buffer-local 'connection-local-variables-alist)
 (setq ignored-local-variables
       (cons 'connection-local-variables-alist ignored-local-variables))
 
@@ -612,7 +602,7 @@ PROFILES is a list of connection profiles (symbols).")
   "Normalize plist CRITERIA according to properties.
 Return a reordered plist."
   (apply
-   'append
+   #'append
    (mapcar
     (lambda (property)
       (when (and (plist-member criteria property) (plist-get criteria property))
@@ -683,7 +673,7 @@ in order."
 (defun hack-connection-local-variables (criteria)
   "Read connection-local variables according to CRITERIA.
 Store the connection-local variables in buffer local
-variable`connection-local-variables-alist'.
+variable `connection-local-variables-alist'.
 
 This does nothing if `enable-connection-local-variables' is nil."
   (when enable-connection-local-variables
@@ -709,13 +699,14 @@ will not be changed."
         (copy-tree connection-local-variables-alist)))
    (hack-local-variables-apply)))
 
-(defsubst connection-local-criteria-for-default-directory ()
-  "Return a connection-local criteria, which represents `default-directory'."
+(defsubst connection-local-criteria-for-default-directory (&optional application)
+  "Return a connection-local criteria, which represents `default-directory'.
+If APPLICATION is nil, the symbol `tramp' is used."
   (when (file-remote-p default-directory)
-    `(:application tramp
-       :protocol ,(file-remote-p default-directory 'method)
-       :user     ,(file-remote-p default-directory 'user)
-       :machine  ,(file-remote-p default-directory 'host))))
+    `(:application ,(or application 'tramp)
+       :protocol   ,(file-remote-p default-directory 'method)
+       :user       ,(file-remote-p default-directory 'user)
+       :machine    ,(file-remote-p default-directory 'host))))
 
 ;;;###autoload
 (defmacro with-connection-local-variables (&rest body)
@@ -738,6 +729,16 @@ Execute BODY, and unwind connection-local variables."
 		 (kill-local-variable (car variable)))))))
      ;; No connection-local variables to apply.
      ,@body))
+
+;;;###autoload
+(defun path-separator ()
+  "The connection-local value of `path-separator'."
+  (with-connection-local-variables path-separator))
+
+;;;###autoload
+(defun null-device ()
+  "The connection-local value of `null-device'."
+  (with-connection-local-variables null-device))
 
 
 

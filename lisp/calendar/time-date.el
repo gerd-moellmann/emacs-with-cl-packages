@@ -1,4 +1,4 @@
-;;; time-date.el --- Date and time handling functions
+;;; time-date.el --- Date and time handling functions  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
 
@@ -278,6 +278,10 @@ Lower-case specifiers return only the unit.
 optional leading \".\" for zero-padding.  For example, \"%.3Y\" will
 return something of the form \"001 year\".
 
+The \"%s\" spec takes an additional optional parameter,
+introduced by the \",\" character, to say how many decimals to
+use.  \"%,1s\" means \"use one decimal\".
+
 The \"%z\" specifier does not print anything.  When it is used, specifiers
 must be given in order of decreasing size.  To the left of \"%z\", nothing
 is output until the first non-zero unit is encountered."
@@ -289,10 +293,11 @@ is output until the first non-zero unit is encountered."
                  ("s" "second"        1)
                  ("z")))
         (case-fold-search t)
-        spec match usedunits zeroflag larger prev name unit num zeropos)
-    (while (string-match "%\\.?[0-9]*\\(.\\)" string start)
+        spec match usedunits zeroflag larger prev name unit num zeropos
+        fraction)
+    (while (string-match "%\\.?[0-9]*\\(,[0-9]\\)?\\(.\\)" string start)
       (setq start (match-end 0)
-            spec (match-string 1 string))
+            spec (match-string 2 string))
       (unless (string-equal spec "%")
         (or (setq match (assoc (downcase spec) units))
             (error "Bad format specifier: `%s'" spec))
@@ -307,12 +312,17 @@ is output until the first non-zero unit is encountered."
         (push match usedunits)))
     (and zeroflag larger
          (error "Units are not in decreasing order of size"))
-    (setq seconds (time-convert seconds 'integer))
+    (unless (numberp seconds)
+      (setq seconds (float-time seconds)))
+    (setq fraction (mod seconds 1)
+          seconds (round seconds))
     (dolist (u units)
       (setq spec (car u)
             name (cadr u)
             unit (nth 2 u))
-      (when (string-match (format "%%\\(\\.?[0-9]+\\)?\\(%s\\)" spec) string)
+      (when (string-match
+             (format "%%\\(\\.?[0-9]+\\)?\\(,[0-9]+\\)?\\(%s\\)" spec)
+             string)
         (if (string-equal spec "z")     ; must be last in units
             (setq string
                   (replace-regexp-in-string
@@ -327,13 +337,27 @@ is output until the first non-zero unit is encountered."
               (setq zeropos (unless (zerop num) (match-beginning 0))))
           (setq string
                 (replace-match
-                 (format (concat "%" (match-string 1 string) "d%s") num
-                         (if (string-equal (match-string 2 string) spec)
-                             ""       ; lower-case, no unit-name
+                 (format (if (match-string 2 string)
+                             (concat
+                              "%"
+                              (and (match-string 1 string)
+                                   (if (= (elt (match-string 1 string) 0) ?.)
+                                       (concat "0" (substring
+                                                    (match-string 1 string) 1))
+                                     (match-string 1 string)))
+                              (concat "." (substring
+                                           (match-string 2 string) 1))
+                              "f%s")
+                           (concat "%" (match-string 1 string) "d%s"))
+                         (if (= unit 1)
+                             (+ num fraction)
+                           num)
+                         (if (string-equal (match-string 3 string) spec)
+                             ""         ; lower-case, no unit-name
                            (format " %s%s" name
                                    (if (= num 1) "" "s"))))
                  t t string))))))
-  (replace-regexp-in-string "%%" "%" string))
+  (string-replace "%%" "%" string))
 
 (defvar seconds-to-string
   (list (list 1 "ms" 0.001)
@@ -355,6 +379,8 @@ is output until the first non-zero unit is encountered."
 
 (defun date-days-in-month (year month)
   "The number of days in MONTH in YEAR."
+  (unless (and (numberp month) (<= 1 month 12))
+    (error "Month %s is invalid" month))
   (if (= month 2)
       (if (date-leap-year-p year)
           29
@@ -399,10 +425,10 @@ changes in daylight saving time are not taken into account."
     (when (decoded-time-year delta)
       (cl-incf (decoded-time-year time) (decoded-time-year delta)))
 
-    ;; Months are pretty simple.
+    ;; Months are pretty simple, but start at 1 (for January).
     (when (decoded-time-month delta)
-      (let ((new (+ (decoded-time-month time) (decoded-time-month delta))))
-        (setf (decoded-time-month time) (mod new 12))
+      (let ((new (+ (1- (decoded-time-month time)) (decoded-time-month delta))))
+        (setf (decoded-time-month time) (1+ (mod new 12)))
         (cl-incf (decoded-time-year time) (/ new 12))))
 
     ;; Adjust for month length (as described in the doc string).
@@ -499,6 +525,8 @@ changes in daylight saving time are not taken into account."
 (defun decoded-time-set-defaults (time &optional default-zone)
   "Set any nil values in `decoded-time' TIME to default values.
 The default value is based on January 1st, 1970 at midnight.
+This year is used to guarantee portability; see Info
+node `(elisp) Time of Day'.
 
 TIME is modified and returned."
   (unless (decoded-time-second time)
@@ -513,18 +541,32 @@ TIME is modified and returned."
   (unless (decoded-time-month time)
     (setf (decoded-time-month time) 1))
   (unless (decoded-time-year time)
-    (setf (decoded-time-year time) 0))
+    (setf (decoded-time-year time) 1970))
 
-  ;; When we don't have a time zone and we don't have a DST, then mark
-  ;; it as unknown.
-  (when (and (not (decoded-time-zone time))
-             (not (decoded-time-dst time)))
-    (setf (decoded-time-dst time) -1))
+  ;; When we don't have a time zone, default to DEFAULT-ZONE without
+  ;; DST if DEFAULT-ZONE if given, and to unknown DST otherwise.
+  (unless (decoded-time-zone time)
+    (if default-zone
+	(progn (setf (decoded-time-zone time) default-zone)
+	       (setf (decoded-time-dst time) nil))
+      (setf (decoded-time-dst time) -1)))
 
-  (when (and (not (decoded-time-zone time))
-             default-zone)
-    (setf (decoded-time-zone time) 0))
   time)
+
+(defun decoded-time-period (time)
+  "Interpret DECODED as a period and return its length in seconds.
+For computational purposes, years are 365 days long and months
+are 30 days long."
+  (+ (if (consp (decoded-time-second time))
+         ;; Fractional second.
+         (/ (float (car (decoded-time-second time)))
+            (cdr (decoded-time-second time)))
+       (or (decoded-time-second time) 0))
+     (* (or (decoded-time-minute time) 0) 60)
+     (* (or (decoded-time-hour time) 0) 60 60)
+     (* (or (decoded-time-day time) 0) 60 60 24)
+     (* (or (decoded-time-month time) 0) 60 60 24 30)
+     (* (or (decoded-time-year time) 0) 60 60 24 365)))
 
 (provide 'time-date)
 

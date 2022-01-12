@@ -9,7 +9,7 @@
 ;; Maintainer: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
 ;; Keywords: wp, print, PostScript
 ;; Version: 7.3.5
-;; X-URL: http://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre
+;; URL: https://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre
 
 (eval-when-compile (require 'cl-lib))
 
@@ -450,7 +450,7 @@ Please send all bug fixes and enhancements to
 ;;     (setq ps-left-header (list 'moe-func 'larry-var "(Curly)"))
 ;;
 ;; Note that Curly has the PostScript string delimiters inside his quotes --
-;; those aren't misplaced lisp delimiters!
+;; those aren't misplaced Lisp delimiters!
 ;;
 ;; Without them, PostScript would attempt to call the undefined function Curly,
 ;; which would result in a PostScript error.
@@ -676,7 +676,7 @@ Please send all bug fixes and enhancements to
 ;; Valid values for `ps-print-control-characters' are:
 ;;
 ;;  8-bit           This is the value to use when you want an ASCII encoding of
-;;                  any control or non-ASCII character. Control characters are
+;;                  any control or non-ASCII character.  Control characters are
 ;;                  encoded as "^D", and non-ASCII characters have an
 ;;                  octal encoding.
 ;;
@@ -689,7 +689,7 @@ Please send all bug fixes and enhancements to
 ;;                  European 8-bits accented characters are printed according
 ;;                  the current font.
 ;;
-;;  nil             No ASCII encoding. Any character is printed according the
+;;  nil             No ASCII encoding.  Any character is printed according the
 ;;                  current font.
 ;;
 ;; Any other value is treated as nil.
@@ -968,7 +968,7 @@ Please send all bug fixes and enhancements to
 ;;	    ps-font-info-database))
 ;; - Now you can use this font family with any size:
 ;;	(setq ps-font-family 'Helvetica)
-;; - if you want to use this family in another emacs session, you must put into
+;; - if you want to use this family in another Emacs session, you must put into
 ;;   your `~/.emacs':
 ;;	(require 'ps-print)
 ;;	(setq ps-font-info-database (append ...)))
@@ -1101,7 +1101,7 @@ Please send all bug fixes and enhancements to
 ;; -----------------------
 ;;
 ;; As ps-print uses PostScript to print buffers, it is possible to have other
-;; attributes associated with faces. So the new attributes used by ps-print
+;; attributes associated with faces.  So the new attributes used by ps-print
 ;; are:
 ;;
 ;;   strikeout - like underline, but the line is in middle of text.
@@ -1423,7 +1423,7 @@ Please send all bug fixes and enhancements to
 ;;  * Check `ps-paper-type': Sudhakar Frederick <sfrederi@asc.corp.mot.com>
 ;;
 ;; Thanks to Jacques Duthen <duthen@cegelec-red.fr> (Jack) for version 3.4 I
-;; started from. [vinicius]
+;; started from.  [vinicius]
 ;;
 ;; Thanks to Jim Thompson <?@?> for the 2.8 version I started from.  [jack]
 ;;
@@ -2788,7 +2788,7 @@ Each element comprises: font family (the key), name, bold, italic, bold-italic,
 reference size, line height, space width, average character width.
 To get the info for another specific font (say Helvetica), do the following:
 - create a new buffer
-- generate the PostScript image to a file (C-u M-x ps-print-buffer)
+- generate the PostScript image to a file (\\[universal-argument] \\[ps-print-buffer])
 - open this file and delete the leading `%' (which is the PostScript comment
   character) from the line
 	   `% 3 cm 20 cm moveto  10/Courier ReportFontInfo  showpage'
@@ -3856,7 +3856,7 @@ It can be retrieved with `(ps-get ALIST-SYM KEY)'."
 (defun ps-color-scale (color)
   ;; Scale 16-bit X-COLOR-VALUE to PostScript color value in [0, 1] interval.
   (mapcar #'(lambda (value) (/ value ps-print-color-scale))
-	  (ps-color-values color)))
+	  (color-values color)))
 
 
 (defun ps-face-underlined-p (face)
@@ -3878,7 +3878,7 @@ Note: No major/minor-mode is activated and no local variables are evaluated for
 	(with-temp-buffer
 	  (insert-file-contents filename)
 	  (buffer-string))
-      (error "ps-print PostScript prologue `%s' file was not found"
+      (error "ps-print: PostScript prologue `%s' file was not found"
 	     filename))))
 
 
@@ -4114,7 +4114,6 @@ If EXTENSION is any other symbol, it is ignored."
 
 (defun ps-message-log-max ()
   (and (not (string= (buffer-name) "*Messages*"))
-       (boundp 'message-log-max)
        message-log-max))
 
 
@@ -4523,7 +4522,7 @@ page-height == ((floor print-height ((th + ls) * zh)) * ((th + ls) * zh)) - th
        (let* ((name   (concat (file-name-nondirectory (or (buffer-file-name)
 							  (buffer-name)))
 			      ".ps"))
-	      (prompt (format "Save PostScript to file (default %s): " name))
+	      (prompt (format-prompt "Save PostScript to file" name))
 	      (res    (read-file-name prompt default-directory name nil)))
 	 (while (cond ((file-directory-p res)
 		       (ding)
@@ -5752,7 +5751,7 @@ XSTART YSTART are the relative position for the first page in a sheet.")
 	;; evaluated at dump-time because X isn't initialized.
 	ps-color-p            (and ps-print-color-p (ps-color-device))
 	ps-print-color-scale  (if ps-color-p
-				  (float (car (ps-color-values "white")))
+				  (float (car (color-values "white")))
 				1.0)
 	ps-default-background (ps-rgb-color
 			       (cond
@@ -5761,7 +5760,7 @@ XSTART YSTART are the relative position for the first page in a sheet.")
 				     (eq genfunc 'ps-generate-postscript))
 				 nil)
 				((eq ps-default-bg 'frame-parameter)
-				 (ps-frame-parameter nil 'background-color))
+				 (frame-parameter nil 'background-color))
 				((eq ps-default-bg t)
 				 (ps-face-background-name 'default))
 				(t
@@ -5775,7 +5774,7 @@ XSTART YSTART are the relative position for the first page in a sheet.")
 				     (eq genfunc 'ps-generate-postscript))
 				 nil)
 				((eq ps-default-fg 'frame-parameter)
-				 (ps-frame-parameter nil 'foreground-color))
+				 (frame-parameter nil 'foreground-color))
 				((eq ps-default-fg t)
 				 (ps-face-foreground-name 'default))
 				(t
@@ -6275,10 +6274,6 @@ If FACE is not a valid face name, use default face."
   (goto-char to))
 
 
-;; Ensure that face-list is fbound.
-(or (fboundp 'face-list) (defalias 'face-list 'list-faces))
-
-
 (defun ps-build-reference-face-lists ()
   (setq ps-print-face-alist nil)
   (if ps-auto-font-detect
@@ -6511,10 +6506,11 @@ If FACE is not a valid face name, use default face."
     (and (buffer-live-p ps-buffer)
 	 (buffer-modified-p ps-buffer)
 	 (not (yes-or-no-p "Unprinted PostScript waiting; exit anyway? "))
-	 (error "Unprinted PostScript"))))
+	 (error "Unprinted PostScript")))
+  t)
 
 (unless noninteractive
-  (add-hook 'kill-emacs-hook #'ps-kill-emacs-check))
+  (add-hook 'kill-emacs-query-functions #'ps-kill-emacs-check))
 
 (provide 'ps-print)
 

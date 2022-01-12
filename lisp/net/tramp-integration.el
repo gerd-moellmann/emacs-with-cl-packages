@@ -42,6 +42,8 @@
 (declare-function tramp-dissect-file-name "tramp")
 (declare-function tramp-file-name-equal-p "tramp")
 (declare-function tramp-tramp-file-p "tramp")
+(declare-function tramp-rename-files "tramp-cmds")
+(declare-function tramp-rename-these-files "tramp-cmds")
 (defvar eshell-path-env)
 (defvar ido-read-file-name-non-ido)
 (defvar info-lookup-alist)
@@ -49,6 +51,7 @@
 (defvar recentf-exclude)
 (defvar tramp-current-connection)
 (defvar tramp-postfix-host-format)
+(defvar tramp-use-ssh-controlmaster-options)
 
 ;;; Fontification of `read-file-name':
 
@@ -183,14 +186,14 @@ NAME must be equal to `tramp-current-connection'."
 ;;; Integration of ido.el:
 
 (with-eval-after-load 'ido
-  (add-to-list 'ido-read-file-name-non-ido 'tramp-rename-files)
-  (add-to-list 'ido-read-file-name-non-ido 'tramp-these-rename-files)
+  (add-to-list 'ido-read-file-name-non-ido #'tramp-rename-files)
+  (add-to-list 'ido-read-file-name-non-ido #'tramp-rename-these-files)
   (add-hook 'tramp-integration-unload-hook
 	    (lambda ()
 	      (setq ido-read-file-name-non-ido
-		    (delq 'tramp-these-rename-files ido-read-file-name-non-ido)
+		    (delq #'tramp-rename-these-files ido-read-file-name-non-ido)
 		    ido-read-file-name-non-ido
-		    (delq 'tramp-rename-files ido-read-file-name-non-ido)))))
+		    (delq #'tramp-rename-files ido-read-file-name-non-ido)))))
 
 ;;; Integration of ivy.el:
 
@@ -198,17 +201,17 @@ NAME must be equal to `tramp-current-connection'."
   (add-to-list 'ivy-completing-read-handlers-alist
 	       '(tramp-rename-files . completing-read-default))
   (add-to-list 'ivy-completing-read-handlers-alist
-	       '(tramp-these-rename-files . completing-read-default))
+	       '(tramp-rename-these-files . completing-read-default))
   (add-hook
    'tramp-integration-unload-hook
    (lambda ()
      (setq ivy-completing-read-handlers-alist
 	   (delete
-	    (assq 'tramp-these-rename-files ivy-completing-read-handlers-alist)
+	    (assq #'tramp-rename-these-files ivy-completing-read-handlers-alist)
 	    ivy-completing-read-handlers-alist)
 	   ivy-completing-read-handlers-alist
 	   (delete
-	    (assq 'tramp-rename-files ivy-completing-read-handlers-alist)
+	    (assq #'tramp-rename-files ivy-completing-read-handlers-alist)
 	    ivy-completing-read-handlers-alist)))))
 
 ;;; Integration of info-look.el:
@@ -231,7 +234,7 @@ NAME must be equal to `tramp-current-connection'."
 	     (delete (info-lookup->mode-cache 'symbol 'tramp-info-lookup-mode)
 		     (info-lookup->topic-cache 'symbol)))))
 
-  (dolist (mode (mapcar 'car (info-lookup->topic-value 'symbol)))
+  (dolist (mode (mapcar #'car (info-lookup->topic-value 'symbol)))
     ;; Add `tramp-info-lookup-mode' to `other-modes' for either
     ;; `emacs-lisp-mode' itself, or to modes which use
     ;; `emacs-lisp-mode' as `other-modes'.  Reset `info-lookup-cache'.
@@ -261,24 +264,57 @@ NAME must be equal to `tramp-current-connection'."
 		  (delete (info-lookup->mode-cache 'symbol ',mode)
 			  (info-lookup->topic-cache 'symbol))))))))
 
+;;; Integration of compile.el:
+
+;; Compilation processes use `accept-process-output' such a way that
+;; Tramp's parallel `accept-process-output' blocks.  See last part of
+;; Bug#45518.  So we don't use ssh ControlMaster options.
+(defun tramp-compile-disable-ssh-controlmaster-options ()
+  "Don't allow ssh ControlMaster while compiling."
+  (setq-local tramp-use-ssh-controlmaster-options nil))
+
+(with-eval-after-load 'compile
+  (add-hook 'compilation-mode-hook
+	    #'tramp-compile-disable-ssh-controlmaster-options)
+  (add-hook 'tramp-integration-unload-hook
+	    (lambda ()
+	      (remove-hook 'compilation-start-hook
+			   #'tramp-compile-disable-ssh-controlmaster-options))))
+
 ;;; Default connection-local variables for Tramp:
-
-(defconst tramp-connection-local-default-profile
-  '((shell-file-name . "/bin/sh")
-    (shell-command-switch . "-c"))
-  "Default connection-local variables for remote connections.")
-
 ;; `connection-local-set-profile-variables' and
 ;; `connection-local-set-profiles' exists since Emacs 26.1.
+
+(defconst tramp-connection-local-default-system-variables
+  '((path-separator . ":")
+    (null-device . "/dev/null"))
+  "Default connection-local system variables for remote connections.")
+
+(tramp-compat-funcall
+ 'connection-local-set-profile-variables
+ 'tramp-connection-local-default-system-profile
+ tramp-connection-local-default-system-variables)
+
+(tramp-compat-funcall
+ 'connection-local-set-profiles
+ '(:application tramp)
+ 'tramp-connection-local-default-system-profile)
+
+(defconst tramp-connection-local-default-shell-variables
+  '((shell-file-name . "/bin/sh")
+    (shell-command-switch . "-c"))
+  "Default connection-local shell variables for remote connections.")
+
+(tramp-compat-funcall
+ 'connection-local-set-profile-variables
+ 'tramp-connection-local-default-shell-profile
+ tramp-connection-local-default-shell-variables)
+
 (with-eval-after-load 'shell
   (tramp-compat-funcall
-   'connection-local-set-profile-variables
-   'tramp-connection-local-default-profile
-   tramp-connection-local-default-profile)
-  (tramp-compat-funcall
    'connection-local-set-profiles
-   `(:application tramp)
-   'tramp-connection-local-default-profile))
+   '(:application tramp)
+   'tramp-connection-local-default-shell-profile))
 
 (add-hook 'tramp-unload-hook
 	  (lambda () (unload-feature 'tramp-integration 'force)))

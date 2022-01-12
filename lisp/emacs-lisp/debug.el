@@ -29,7 +29,6 @@
 
 (require 'cl-lib)
 (require 'backtrace)
-(require 'button)
 
 (defgroup debugger nil
   "Debuggers and related commands for Emacs."
@@ -120,7 +119,7 @@ This is to optimize `debugger-make-xrefs'.")
 (defvar debugger-jumping-flag nil
   "Non-nil means that `debug-on-entry' is disabled.
 This variable is used by `debugger-jump', `debugger-step-through',
-and `debugger-reenable' to temporarily disable debug-on-entry.")
+and `debugger-reenable' to temporarily disable `debug-on-entry'.")
 
 (defvar inhibit-trace)                  ;Not yet implemented.
 
@@ -129,7 +128,7 @@ and `debugger-reenable' to temporarily disable debug-on-entry.")
 It is a list expected to take the form (CAUSE . REST)
 where CAUSE can be:
 - debug: called for entry to a flagged function.
-- t: called because of debug-on-next-call.
+- t: called because of `debug-on-next-call'.
 - lambda: same thing but via `funcall'.
 - exit: called because of exit of a flagged function.
 - error: called because of `debug-on-error'.")
@@ -183,7 +182,11 @@ the debugger will not be entered."
                     (equal "initial_terminal" (terminal-name)))))
           ;; Don't let `inhibit-message' get in our way (especially important if
           ;; `non-interactive-frame' evaluated to a non-nil value.
-          (inhibit-message nil))
+          (inhibit-message nil)
+          ;; We may be entering the debugger from a context that has
+          ;; let-bound `inhibit-read-only', which means that all
+          ;; buffers would be read/write while the debugger is running.
+          (inhibit-read-only nil))
       (unless non-interactive-frame
         (message "Entering debugger..."))
       (let (debugger-value
@@ -214,7 +217,7 @@ the debugger will not be entered."
 	      last-input-event last-command-event last-nonmenu-event
 	      last-event-frame
 	      overriding-local-map
-	      load-read-function
+	      (load-read-function #'read)
 	      ;; If we are inside a minibuffer, allow nesting
 	      ;; so that we don't get an error from the `e' command.
 	      (enable-recursive-minibuffers
@@ -263,16 +266,15 @@ the debugger will not be entered."
 				    (window-frame debugger-previous-window)))
 		          `((previous-window . ,debugger-previous-window))))))
 	        (setq debugger-window (selected-window))
-	        (if (eq debugger-previous-window debugger-window)
-		    (when debugger-jumping-flag
-		      ;; Try to restore previous height of debugger
-		      ;; window.
-		      (condition-case nil
-			  (window-resize
-			   debugger-window
-			   (- debugger-previous-window-height
-			      (window-total-height debugger-window)))
-		        (error nil)))
+		(when debugger-jumping-flag
+		  ;; Try to restore previous height of debugger
+		  ;; window.
+		  (condition-case nil
+		      (window-resize
+		       debugger-window
+		       (- debugger-previous-window-height
+			  (window-total-height debugger-window)))
+		    (error nil))
 		  (setq debugger-previous-window debugger-window))
 	        (message "")
 	        (let ((standard-output nil)
@@ -322,7 +324,7 @@ the debugger will not be entered."
 
 (make-obsolete 'debugger-insert-backtrace
                "use a `backtrace-mode' buffer or `backtrace-to-string'."
-               "Emacs 27.1")
+               "27.1")
 
 (defun debugger-insert-backtrace (frames do-xrefs)
   "Format and insert the backtrace FRAMES at point.
@@ -333,7 +335,7 @@ Make functions into cross-reference buttons if DO-XREFS is non-nil."
 
 (defun debugger-setup-buffer (args)
   "Initialize the `*Backtrace*' buffer for entry to the debugger.
-That buffer should be current already and in debugger-mode."
+That buffer should be current already and in `debugger-mode'."
   (setq backtrace-frames (nthcdr
                           ;; Remove debug--implement-debug-on-entry and the
                           ;; advice's `apply' frame.
@@ -388,7 +390,7 @@ Include the reason for debugger entry from ARGS."
         (`(set ,buffer) (format "setting %s in buffer %s to %s"
                                 symbol buffer
                                 (backtrace-print-to-string newval)))
-        (_ (error "unrecognized watchpoint triggered %S" (cdr args))))
+        (_ (error "Unrecognized watchpoint triggered %S" (cdr args))))
       ": ")
      (insert ?\n))
     ;; Debugger entered for an error.
@@ -452,7 +454,7 @@ will be used, such as in a debug on exit from a frame."
   (exit-recursive-edit))
 
 (defun debugger-jump ()
-  "Continue to exit from this frame, with all debug-on-entry suspended."
+  "Continue to exit from this frame, with all `debug-on-entry' suspended."
   (interactive)
   (debugger-frame)
   (setq debugger-jumping-flag t)
@@ -462,7 +464,7 @@ will be used, such as in a debug on exit from a frame."
   (exit-recursive-edit))
 
 (defun debugger-reenable ()
-  "Turn all debug-on-entry functions back on.
+  "Turn all `debug-on-entry' functions back on.
 This function is put on `post-command-hook' by `debugger-jump' and
 removes itself from that hook."
   (setq debugger-jumping-flag nil)
@@ -670,9 +672,7 @@ Redefining FUNCTION also cancels it."
      (when (special-form-p fn)
        (setq fn nil))
      (setq val (completing-read
-		(if fn
-		    (format "Debug on entry to function (default %s): " fn)
-		  "Debug on entry to function: ")
+                (format-prompt "Debug on entry to function" fn)
 		obarray
 		#'(lambda (symbol)
 		    (and (fboundp symbol)
@@ -695,7 +695,7 @@ Redefining FUNCTION also cancels it."
 ;;;###autoload
 (defun cancel-debug-on-entry (&optional function)
   "Undo effect of \\[debug-on-entry] on FUNCTION.
-If FUNCTION is nil, cancel debug-on-entry for all functions.
+If FUNCTION is nil, cancel `debug-on-entry' for all functions.
 When called interactively, prompt for FUNCTION in the minibuffer.
 To specify a nil argument interactively, exit with an empty minibuffer."
   (interactive
@@ -775,8 +775,7 @@ another symbol also cancels it."
    (let* ((var-at-point (variable-at-point))
           (var (and (symbolp var-at-point) var-at-point))
           (val (completing-read
-                (concat "Debug when setting variable"
-                        (if var (format " (default %s): " var) ": "))
+                (format-prompt "Debug when setting variable" var)
                 obarray #'boundp
                 t nil nil (and var (symbol-name var)))))
      (list (if (equal val "") var (intern val)))))
@@ -799,7 +798,7 @@ another symbol also cancels it."
 ;;;###autoload
 (defun cancel-debug-on-variable-change (&optional variable)
   "Undo effect of \\[debug-on-variable-change] on VARIABLE.
-If VARIABLE is nil, cancel debug-on-variable-change for all variables.
+If VARIABLE is nil, cancel `debug-on-variable-change' for all variables.
 When called interactively, prompt for VARIABLE in the minibuffer.
 To specify a nil argument interactively, exit with an empty minibuffer."
   (interactive

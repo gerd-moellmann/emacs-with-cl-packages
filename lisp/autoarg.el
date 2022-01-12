@@ -1,4 +1,4 @@
-;;; autoarg.el --- make digit keys supply prefix args
+;;; autoarg.el --- make digit keys supply prefix args -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1998, 2000-2021 Free Software Foundation, Inc.
 
@@ -59,9 +59,8 @@
 ;; (define-key autoarg-mode-map [?\r] 'autoarg-terminate)
 
 (defvar autoarg-kp-digits
-  (let (alist)
-    (dotimes (i 10 alist)
-      (push (cons (intern (format "kp-%d" i)) i) alist))))
+  (mapcar (lambda (i) (cons (intern (format "kp-%d" i)) i))
+          (reverse (number-sequence 0 9))))
 
 (defun autoarg-kp-digit-argument (arg)
   "Part of the numeric argument for the next command, like `digit-argument'."
@@ -105,10 +104,10 @@ For example:
 `6 9 a' inserts 69 `a's into the buffer.
 `6 9 \\[autoarg-terminate] \\[autoarg-terminate]' inserts `69' into the buffer and
 then invokes the normal binding of \\[autoarg-terminate].
-`C-u \\[autoarg-terminate]' invokes the normal binding of \\[autoarg-terminate] four times.
+`\\[universal-argument] \\[autoarg-terminate]' invokes the normal binding of \\[autoarg-terminate] four times.
 
 \\{autoarg-mode-map}"
-  nil " Aarg" autoarg-mode-map :global t :group 'keyboard)
+  :lighter" Aarg" :global t :group 'keyboard)
 
 ;;;###autoload
 (define-minor-mode autoarg-kp-mode
@@ -119,7 +118,7 @@ This is similar to `autoarg-mode' but rebinds the keypad keys
 `kp-1' etc. to supply digit arguments.
 
 \\{autoarg-kp-mode-map}"
-  nil " Aakp" autoarg-kp-mode-map :global t :group 'keyboard
+  :lighter " Aakp" :global t :group 'keyboard
   (if autoarg-kp-mode
       (dotimes (i 10)
 	(let ((sym (intern (format "kp-%d" i))))

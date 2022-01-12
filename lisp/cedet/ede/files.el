@@ -1,4 +1,4 @@
-;;; ede/files.el --- Associate projects with files and directories.
+;;; ede/files.el --- Associate projects with files and directories.  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
@@ -33,6 +33,7 @@
 ;; till no ede-project-autoload structure matches.
 ;;
 
+(require 'eieio)
 (require 'ede)
 
 (declare-function ede-locate-file-in-hash "ede/locate")
@@ -75,13 +76,13 @@ Allows for one-project-object-for-a-tree type systems."
   (oref this rootproject))
 
 (cl-defmethod ede-project-root-directory ((this ede-project-placeholder)
-				       &optional file)
+				          &optional _file)
   "If a project knows its root, return it here.
 Allows for one-project-object-for-a-tree type systems.
 Optional FILE is the file to test.  It is ignored in preference
 of the anchor file for the project."
-  (let ((root (or (ede-project-root this) this)))
-    (file-name-directory (expand-file-name (oref this file)))))
+  ;; (let ((root (or (ede-project-root this) this)))
+  (file-name-directory (expand-file-name (oref this file)))) ;; )
 
 
 ;; Why INODEs?
@@ -96,15 +97,12 @@ of the anchor file for the project."
 
 (defun ede--put-inode-dir-hash (dir inode)
   "Add to the EDE project hash DIR associated with INODE."
-  (when (fboundp 'puthash)
-    (puthash dir inode ede-inode-directory-hash)
-    inode))
+  (puthash dir inode ede-inode-directory-hash)
+  inode)
 
 (defun ede--get-inode-dir-hash (dir)
   "Get the EDE project hash DIR associated with INODE."
-  (when (fboundp 'gethash)
-    (gethash dir ede-inode-directory-hash)
-    ))
+  (gethash dir ede-inode-directory-hash))
 
 (defun ede--inode-for-dir (dir)
   "Return the inode for the directory DIR."
@@ -144,7 +142,7 @@ Does not check subprojects."
 
 (defun ede-directory-get-open-project (dir &optional rootreturn)
   "Return an already open project that is managing DIR.
-Optional ROOTRETURN specifies a symbol to set to the root project.
+Optional ROOTRETURN specifies a `gv-ref' to set to the root project.
 If DIR is the root project, then it is the same."
   (let* ((inode (ede--inode-for-dir dir))
 	 (ft (file-name-as-directory (expand-file-name dir)))
@@ -156,7 +154,8 @@ If DIR is the root project, then it is the same."
     ;; Default answer is this project
     (setq ans proj)
     ;; Save.
-    (when rootreturn (set rootreturn proj))
+    (when rootreturn (if (symbolp rootreturn) (set rootreturn proj)
+                       (setf (gv-deref rootreturn) proj)))
     ;; Find subprojects.
     (when (and proj (if ede--disable-inode
 			(not (string= ft (expand-file-name
@@ -272,28 +271,24 @@ Do this only when developing new projects that are incorrectly putting
 Do this whenever a new project is created, as opposed to loaded."
   ;; TODO - Use maphash, and delete by regexp, not by dir searching!
   (setq dir (expand-file-name dir))
-  (when (fboundp 'remhash)
-    (remhash (file-name-as-directory dir) ede-project-directory-hash)
-    ;; Look for all subdirs of D, and remove them.
-    (let ((match (concat "^" (regexp-quote dir))))
-      (maphash (lambda (K O)
-		 (when (string-match match K)
-		   (remhash K ede-project-directory-hash)))
-	       ede-project-directory-hash))
-    ))
+  (remhash (file-name-as-directory dir) ede-project-directory-hash)
+  ;; Look for all subdirs of D, and remove them.
+  (let ((match (concat "^" (regexp-quote dir))))
+    (maphash (lambda (K _O)
+               (when (string-match match K)
+                 (remhash K ede-project-directory-hash)))
+             ede-project-directory-hash)))
 
 (defun ede--directory-project-from-hash (dir)
   "If there is an already loaded project for DIR, return it from the hash."
-  (when (fboundp 'gethash)
-    (setq dir (expand-file-name dir))
-    (gethash dir ede-project-directory-hash nil)))
+  (setq dir (expand-file-name dir))
+  (gethash dir ede-project-directory-hash nil))
 
 (defun ede--directory-project-add-description-to-hash (dir desc)
   "Add to the EDE project hash DIR associated with DESC."
-  (when (fboundp 'puthash)
-    (setq dir (expand-file-name dir))
-    (puthash dir desc ede-project-directory-hash)
-    desc))
+  (setq dir (expand-file-name dir))
+  (puthash dir desc ede-project-directory-hash)
+  desc)
 
 ;;; DIRECTORY-PROJECT-P, -CONS
 ;;
@@ -370,7 +365,7 @@ If DIR is not part of a project, return nil."
 
      (t nil))))
 
-(defalias 'ede-toplevel-project-or-nil 'ede-toplevel-project)
+(defalias 'ede-toplevel-project-or-nil #'ede-toplevel-project)
 
 ;;; DIRECTORY CONVERSION STUFF
 ;;
@@ -476,15 +471,15 @@ is returned."
 
     ans))
 
-(cl-defmethod ede-expand-filename-impl ((this ede-project) filename &optional force)
+(cl-defmethod ede-expand-filename-impl ((this ede-project) filename &optional _force)
   "Return a fully qualified file name based on project THIS.
 FILENAME should be just a filename which occurs in a directory controlled
 by this project.
 Optional argument FORCE forces the default filename to be provided even if it
 doesn't exist."
   (let ((loc (ede-get-locator-object this))
-	(path (ede-project-root-directory this))
-	(proj (oref this subproj))
+	;; (path (ede-project-root-directory this))
+	;; (proj (oref this subproj))
 	(found nil))
     ;; find it Locally.
     (setq found (or (ede-expand-filename-local this filename)

@@ -1,4 +1,4 @@
-;;; epg-config.el --- configuration of the EasyPG Library
+;;; epg-config.el --- configuration of the EasyPG Library  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
 
@@ -21,7 +21,10 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Commentary:
+
 ;;; Code:
+;;; Prelude
 
 (eval-when-compile (require 'cl-lib))
 
@@ -33,6 +36,8 @@
 
 (define-obsolete-variable-alias 'epg-bug-report-address
   'report-emacs-bug-address "27.1")
+
+;;; Options
 
 (defgroup epg ()
   "Interface to the GNU Privacy Guard (GnuPG)."
@@ -106,6 +111,8 @@ through the minibuffer, instead of external Pinentry program."
 Note that the buffer name starts with a space."
   :type 'boolean)
 
+;;; Constants
+
 (defconst epg-gpg-minimum-version "1.4.3")
 (defconst epg-gpg2-minimum-version "2.1.6")
 
@@ -133,6 +140,8 @@ The first element of each entry is protocol symbol, which is
 either `OpenPGP' or `CMS'.  The second element is a function
 which constructs a configuration object (actually a plist).")
 
+;;; "Configuration"
+
 (defvar epg--configurations nil)
 
 ;;;###autoload
@@ -150,7 +159,7 @@ version requirement is met."
     (setq program-alist epg-config--program-alist))
   (let ((entry (assq protocol program-alist)))
     (unless entry
-      (error "Unknown protocol %S" protocol))
+      (error "Unknown protocol `%S'" protocol))
     (cl-destructuring-bind (symbol . alist)
         (cdr entry)
       (let ((constructor
@@ -202,13 +211,13 @@ version requirement is met."
 	(cond
 	 ((eq type 'group)
 	  (if (string-match "\\`\\([^:]+\\):" args)
-		  (setq groups
-			(cons (cons (downcase (match-string 1 args))
-				    (delete "" (split-string
-						(substring args
-							   (match-end 0))
-						";")))
-			      groups))
+	      (setq groups
+		    (cons (cons (downcase (match-string 1 args))
+				(delete "" (split-string
+					    (substring args
+						       (match-end 0))
+					    ";")))
+			  groups))
 	    (if epg-debug
 		(message "Invalid group configuration: %S" args))))
 	 ((memq type '(pubkey cipher digest compress))

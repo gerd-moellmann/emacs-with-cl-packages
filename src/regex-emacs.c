@@ -58,7 +58,7 @@
 #define RE_STRING_CHAR(p, multibyte) \
   (multibyte ? STRING_CHAR (p) : *(p))
 #define RE_STRING_CHAR_AND_LENGTH(p, len, multibyte) \
-  (multibyte ? STRING_CHAR_AND_LENGTH (p, len) : ((len) = 1, *(p)))
+  (multibyte ? string_char_and_length (p, &(len)) : ((len) = 1, *(p)))
 
 #define RE_CHAR_TO_MULTIBYTE(c) UNIBYTE_TO_CHAR (c)
 
@@ -89,7 +89,7 @@
 #define GET_CHAR_AFTER(c, p, len)		\
   do {						\
     if (target_multibyte)			\
-      (c) = STRING_CHAR_AND_LENGTH (p, len);	\
+      (c) = string_char_and_length (p, &(len));	\
     else					\
       {						\
 	(c) = *p;				\
@@ -929,7 +929,7 @@ typedef struct
    ? 0									\
    : ((fail_stack).stack						\
       = REGEX_REALLOCATE ((fail_stack).stack,				\
-	  (fail_stack).size * sizeof (fail_stack_elt_t),		\
+	  (fail_stack).avail * sizeof (fail_stack_elt_t),		\
           min (emacs_re_max_failures * TYPICAL_FAILURE_SIZE,                  \
                ((fail_stack).size * FAIL_STACK_GROWTH_FACTOR))          \
           * sizeof (fail_stack_elt_t)),                                 \
@@ -969,7 +969,11 @@ typedef struct
 #define ENSURE_FAIL_STACK(space)					\
 while (REMAINING_AVAIL_SLOTS <= space) {				\
   if (!GROW_FAIL_STACK (fail_stack))					\
-    return -2;								\
+    {									\
+      unbind_to (count, Qnil);						\
+      SAFE_FREE ();							\
+      return -2;							\
+    }									\
   DEBUG_PRINT ("\n  Doubled stack; size now: %td\n", fail_stack.size);	\
   DEBUG_PRINT ("	 slots available: %td\n", REMAINING_AVAIL_SLOTS);\
 }
@@ -979,6 +983,8 @@ while (REMAINING_AVAIL_SLOTS <= space) {				\
 do {									\
   char *destination;							\
   intptr_t n = num;							\
+  eassert (0 < n && n < num_regs);					\
+  eassert (REG_UNSET (regstart[n]) <= REG_UNSET (regend[n]));		\
   ENSURE_FAIL_STACK(3);							\
   DEBUG_PRINT ("    Push reg %"PRIdPTR" (spanning %p -> %p)\n",		\
 	       n, regstart[n], regend[n]);				\
@@ -1017,8 +1023,10 @@ do {									\
     }									\
   else									\
     {									\
+      eassert (0 < pfreg && pfreg < num_regs);				\
       regend[pfreg] = POP_FAILURE_POINTER ();				\
       regstart[pfreg] = POP_FAILURE_POINTER ();				\
+      eassert (REG_UNSET (regstart[pfreg]) <= REG_UNSET (regend[pfreg])); \
       DEBUG_PRINT ("     Pop reg %ld (spanning %p -> %p)\n",		\
 		   pfreg, regstart[pfreg], regend[pfreg]);		\
     }									\
@@ -1757,6 +1765,7 @@ regex_compile (re_char *pattern, ptrdiff_t size,
   /* Initialize the compile stack.  */
   compile_stack.stack = xmalloc (INIT_COMPILE_STACK_SIZE
 				 * sizeof *compile_stack.stack);
+  __lsan_ignore_object (compile_stack.stack);
   compile_stack.size = INIT_COMPILE_STACK_SIZE;
   compile_stack.avail = 0;
 
@@ -2113,17 +2122,20 @@ regex_compile (re_char *pattern, ptrdiff_t size,
 			if (CHAR_BYTE8_P (c1))
 			  c = BYTE8_TO_CHAR (128);
 		      }
-		    if (CHAR_BYTE8_P (c))
-		      {
-			c = CHAR_TO_BYTE8 (c);
-			c1 = CHAR_TO_BYTE8 (c1);
-			for (; c <= c1; c++)
-			  SET_LIST_BIT (c);
-		      }
-		    else if (multibyte)
-		      SETUP_MULTIBYTE_RANGE (range_table_work, c, c1);
-		    else
-		      SETUP_UNIBYTE_RANGE (range_table_work, c, c1);
+                    if (c <= c1)
+                      {
+                        if (CHAR_BYTE8_P (c))
+                          {
+                            c = CHAR_TO_BYTE8 (c);
+                            c1 = CHAR_TO_BYTE8 (c1);
+                            for (; c <= c1; c++)
+                              SET_LIST_BIT (c);
+                          }
+                        else if (multibyte)
+                          SETUP_MULTIBYTE_RANGE (range_table_work, c, c1);
+                        else
+                          SETUP_UNIBYTE_RANGE (range_table_work, c, c1);
+                      }
 		  }
 	      }
 
@@ -2395,7 +2407,7 @@ regex_compile (re_char *pattern, ptrdiff_t size,
 
 		    if (lower_bound == 0)
 		      {
-			/* A succeed_n that starts with 0 is really a
+			/* A succeed_n that starts with 0 is really
 			   a simple on_failure_jump_loop.  */
 			INSERT_JUMP (on_failure_jump_loop, laststart,
 				     b + 3 + nbytes);
@@ -3164,10 +3176,6 @@ re_search (struct re_pattern_buffer *bufp, const char *string, ptrdiff_t size,
 		      regs, size);
 }
 
-/* Head address of virtual concatenation of string.  */
-#define HEAD_ADDR_VSTRING(P)		\
-  (((P) >= size1 ? string2 : string1))
-
 /* Address of POS in the concatenation of virtual string. */
 #define POS_ADDR_VSTRING(POS)					\
   (((POS) >= size1 ? string2 - size1 : string1) + (POS))
@@ -3297,7 +3305,7 @@ re_search_2 (struct re_pattern_buffer *bufp, const char *str1, ptrdiff_t size1,
 		      {
 			int buf_charlen;
 
-			buf_ch = STRING_CHAR_AND_LENGTH (d, buf_charlen);
+			buf_ch = string_char_and_length (d, &buf_charlen);
 			buf_ch = RE_TRANSLATE (translate, buf_ch);
 			if (fastmap[CHAR_LEADING_CODE (buf_ch)])
 			  break;
@@ -3327,7 +3335,7 @@ re_search_2 (struct re_pattern_buffer *bufp, const char *str1, ptrdiff_t size1,
 		      {
 			int buf_charlen;
 
-			buf_ch = STRING_CHAR_AND_LENGTH (d, buf_charlen);
+			buf_ch = string_char_and_length (d, &buf_charlen);
 			if (fastmap[CHAR_LEADING_CODE (buf_ch)])
 			  break;
 			range -= buf_charlen;
@@ -3410,16 +3418,12 @@ re_search_2 (struct re_pattern_buffer *bufp, const char *str1, ptrdiff_t size1,
 	  if (multibyte)
 	    {
 	      re_char *p = POS_ADDR_VSTRING (startpos) + 1;
-	      re_char *p0 = p;
-	      re_char *phead = HEAD_ADDR_VSTRING (startpos);
+	      int len = raw_prev_char_len (p);
 
-	      /* Find the head of multibyte form.  */
-	      PREV_CHAR_BOUNDARY (p, phead);
-	      range += p0 - 1 - p;
+	      range += len - 1;
 	      if (range > 0)
 		break;
-
-	      startpos -= p0 - 1 - p;
+	      startpos -= len - 1;
 	    }
 	}
     }
@@ -3571,9 +3575,11 @@ skip_noops (re_char *p, re_char *pend)
    opcode.  When the function finishes, *PP will be advanced past that opcode.
    C is character to test (possibly after translations) and CORIG is original
    character (i.e. without any translations).  UNIBYTE denotes whether c is
-   unibyte or multibyte character. */
+   unibyte or multibyte character.
+   CANON_TABLE is the canonicalisation table for case folding or Qnil.  */
 static bool
-execute_charset (re_char **pp, int c, int corig, bool unibyte)
+execute_charset (re_char **pp, int c, int corig, bool unibyte,
+                 Lisp_Object canon_table)
 {
   eassume (0 <= c && 0 <= corig);
   re_char *p = *pp, *rtp = NULL;
@@ -3613,11 +3619,9 @@ execute_charset (re_char **pp, int c, int corig, bool unibyte)
           (class_bits & BIT_BLANK && ISBLANK (c)) ||
 	  (class_bits & BIT_WORD  && ISWORD  (c)) ||
 	  ((class_bits & BIT_UPPER) &&
-	   (ISUPPER (c) || (corig != c &&
-			    c == downcase (corig) && ISLOWER (c)))) ||
+	   (ISUPPER (corig) || (!NILP (canon_table) && ISLOWER (corig)))) ||
 	  ((class_bits & BIT_LOWER) &&
-	   (ISLOWER (c) || (corig != c &&
-			    c == upcase (corig) && ISUPPER(c)))) ||
+	   (ISLOWER (corig) || (!NILP (canon_table) && ISUPPER (corig)))) ||
 	  (class_bits & BIT_PUNCT && ISPUNCT (c)) ||
 	  (class_bits & BIT_GRAPH && ISGRAPH (c)) ||
 	  (class_bits & BIT_PRINT && ISPRINT (c)))
@@ -3692,7 +3696,8 @@ mutually_exclusive_p (struct re_pattern_buffer *bufp, re_char *p1,
 	else if ((re_opcode_t) *p1 == charset
 		 || (re_opcode_t) *p1 == charset_not)
 	  {
-	    if (!execute_charset (&p1, c, c, !multibyte || ASCII_CHAR_P (c)))
+	    if (!execute_charset (&p1, c, c, !multibyte || ASCII_CHAR_P (c),
+                                  Qnil))
 	      {
 		DEBUG_PRINT ("	 No match => fast loop.\n");
 		return true;
@@ -3823,7 +3828,7 @@ mutually_exclusive_p (struct re_pattern_buffer *bufp, re_char *p1,
 /* Matching routines.  */
 
 /* re_match_2 matches the compiled pattern in BUFP against the
-   the (virtual) concatenation of STRING1 and STRING2 (of length SIZE1
+   (virtual) concatenation of STRING1 and STRING2 (of length SIZE1
    and SIZE2, respectively).  We start matching at POS, and stop
    matching at STOP.
 
@@ -3868,6 +3873,10 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 		     re_char *string2, ptrdiff_t size2,
 		     ptrdiff_t pos, struct re_registers *regs, ptrdiff_t stop)
 {
+  eassume (0 <= size1);
+  eassume (0 <= size2);
+  eassume (0 <= pos && pos <= stop && stop <= size1 + size2);
+
   /* General temporaries.  */
   int mcnt;
 
@@ -3923,8 +3932,7 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
      attempt) by a subexpression part of the pattern, that is, the
      regnum-th regstart pointer points to where in the pattern we began
      matching and the regnum-th regend points to right after where we
-     stopped matching the regnum-th subexpression.  (The zeroth register
-     keeps track of what the whole pattern matches.)  */
+     stopped matching the regnum-th subexpression.  */
   re_char **regstart UNINIT, **regend UNINIT;
 
   /* The following record the register info as found in the above
@@ -3973,28 +3981,21 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
   /* Do not bother to initialize all the register variables if there are
      no groups in the pattern, as it takes a fair amount of time.  If
      there are groups, we include space for register 0 (the whole
-     pattern), even though we never use it, since it simplifies the
-     array indexing.  We should fix this.  */
-  if (bufp->re_nsub)
+     pattern) in REGSTART[0], even though we never use it, to avoid
+     the undefined behavior of subtracting 1 from REGSTART.  */
+  ptrdiff_t re_nsub = num_regs - 1;
+  if (0 < re_nsub)
     {
-      regstart = SAFE_ALLOCA (num_regs * 4 * sizeof *regstart);
+      regstart = SAFE_ALLOCA ((re_nsub * 4 + 1) * sizeof *regstart);
       regend = regstart + num_regs;
-      best_regstart = regend + num_regs;
-      best_regend = best_regstart + num_regs;
-    }
+      best_regstart = regend + re_nsub;
+      best_regend = best_regstart + re_nsub;
 
-  /* The starting position is bogus.  */
-  if (pos < 0 || pos > size1 + size2)
-    {
-      unbind_to (count, Qnil);
-      SAFE_FREE ();
-      return -1;
+      /* Initialize subexpression text positions to unset, to mark ones
+	 that no start_memory/stop_memory has been seen for.  */
+      for (re_char **apos = regstart + 1; apos < best_regstart + 1; apos++)
+	*apos = NULL;
     }
-
-  /* Initialize subexpression text positions to -1 to mark ones that no
-     start_memory/stop_memory has been seen for.  */
-  for (ptrdiff_t reg = 1; reg < num_regs; reg++)
-    regstart[reg] = regend[reg] = NULL;
 
   /* We move 'string1' into 'string2' if the latter's empty -- but not if
      'string1' is null.  */
@@ -4130,6 +4131,8 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 		    {
 		      regstart[reg] = best_regstart[reg];
 		      regend[reg] = best_regend[reg];
+		      eassert (REG_UNSET (regstart[reg])
+			       <= REG_UNSET (regend[reg]));
 		    }
 		}
 	    } /* d != end_match_2 */
@@ -4177,7 +4180,9 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 
 	      for (ptrdiff_t reg = 1; reg < num_regs; reg++)
 		{
-		  if (REG_UNSET (regstart[reg]) || REG_UNSET (regend[reg]))
+		  eassert (REG_UNSET (regstart[reg])
+			   <= REG_UNSET (regend[reg]));
+		  if (REG_UNSET (regend[reg]))
 		    regs->start[reg] = regs->end[reg] = -1;
 		  else
 		    {
@@ -4238,13 +4243,13 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 
 		PREFETCH ();
 		if (multibyte)
-		  pat_ch = STRING_CHAR_AND_LENGTH (p, pat_charlen);
+		  pat_ch = string_char_and_length (p, &pat_charlen);
 		else
 		  {
 		    pat_ch = RE_CHAR_TO_MULTIBYTE (*p);
 		    pat_charlen = 1;
 		  }
-		buf_ch = STRING_CHAR_AND_LENGTH (d, buf_charlen);
+		buf_ch = string_char_and_length (d, &buf_charlen);
 
 		if (TRANSLATE (buf_ch) != pat_ch)
 		  {
@@ -4266,7 +4271,7 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 		PREFETCH ();
 		if (multibyte)
 		  {
-		    pat_ch = STRING_CHAR_AND_LENGTH (p, pat_charlen);
+		    pat_ch = string_char_and_length (p, &pat_charlen);
 		    pat_ch = RE_CHAR_TO_UNIBYTE (pat_ch);
 		  }
 		else
@@ -4363,7 +4368,7 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 	      }
 
 	    p -= 1;
-	    if (!execute_charset (&p, c, corig, unibyte_char))
+	    if (!execute_charset (&p, c, corig, unibyte_char, translate))
 	      goto fail;
 
 	    d += len;
@@ -4377,12 +4382,12 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 	   registers data structure) under the register number.  */
 	case start_memory:
 	  DEBUG_PRINT ("EXECUTING start_memory %d:\n", *p);
+	  eassert (0 < *p && *p < num_regs);
 
 	  /* In case we need to undo this operation (via backtracking).  */
 	  PUSH_FAILURE_REG (*p);
 
 	  regstart[*p] = d;
-	  regend[*p] = NULL;	/* probably unnecessary.  -sm  */
 	  DEBUG_PRINT ("  regstart: %td\n", POINTER_TO_OFFSET (regstart[*p]));
 
 	  /* Move past the register number and inner group count.  */
@@ -4395,6 +4400,7 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 	case stop_memory:
 	  DEBUG_PRINT ("EXECUTING stop_memory %d:\n", *p);
 
+	  eassert (0 < *p && *p < num_regs);
 	  eassert (!REG_UNSET (regstart[*p]));
 	  /* Strictly speaking, there should be code such as:
 
@@ -4427,7 +4433,9 @@ re_match_2_internal (struct re_pattern_buffer *bufp,
 	    DEBUG_PRINT ("EXECUTING duplicate %d.\n", regno);
 
 	    /* Can't back reference a group which we've never matched.  */
-	    if (REG_UNSET (regstart[regno]) || REG_UNSET (regend[regno]))
+	    eassert (0 < regno && regno < num_regs);
+	    eassert (REG_UNSET (regstart[regno]) <= REG_UNSET (regend[regno]));
+	    if (REG_UNSET (regend[regno]))
 	      goto fail;
 
 	    /* Where in input to try to start matching.  */

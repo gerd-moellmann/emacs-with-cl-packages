@@ -92,13 +92,14 @@ developing GNU and promoting software freedom.''
 Published by the Free Software Foundation @*
 51 Franklin Street, Fifth Floor @*
 Boston, MA 02110-1301 USA @*
-ISBN 978-0-9831592-5-4
+ISBN 978-0-9831592-8-5
 
 @sp 2
-Cover art by Etienne Suvasa; cover design by Matt Lee.
+Cover art by Etienne Suvasa; cover design by FSF staff.
 
 @end titlepage
 
+@headings double
 
 @summarycontents
 @contents
@@ -115,7 +116,7 @@ ways to customize it; it corresponds to GNU Emacs version @value{EMACSVER}.
 @c See 'manual-html-mono' and 'manual-html-node' in admin/admin.el.
 @ifset WWW_GNU_ORG
 @html
-The homepage for GNU Emacs is at
+The GNU Emacs website is at
 <a href="/software/emacs/">https://www.gnu.org/software/emacs/</a>.<br>
 To view this manual in other formats, click
 <a href="/software/emacs/manual/emacs.html">here</a>.<br>
@@ -159,7 +160,7 @@ Fundamental Editing Commands
 
 Important Text-Changing Commands
 * Mark::                The mark: how to delimit a region of text.
-* Killing::             Killing (cutting) and yanking (copying) text.
+* Killing::             Killing (cutting) and yanking (pasting) text.
 * Registers::           Saving a text string or a location in the buffer.
 * Display::             Controlling what text is displayed.
 * Search::              Finding or replacing occurrences of a string.
@@ -218,7 +219,7 @@ Appendices
 * GNU Free Documentation License:: The license for this documentation.
 * Emacs Invocation::    Hairy startup options.
 * X Resources::         X resources for customizing Emacs.
-* Antinews::            Information about Emacs version 26.
+* Antinews::            Information about Emacs version 27.
 * Mac Port::            Using Emacs under macOS with the Mac port.
 * Mac OS / GNUstep::     Using Emacs under macOS and GNUstep.
 * Microsoft Windows::   Using Emacs on Microsoft Windows and MS-DOS.
@@ -795,6 +796,8 @@ Maintaining Large Programs
 @ifnottex
 * Emerge::              A convenient way of merging two versions of a program.
 @end ifnottex
+* Bug Reference::       Highlighting references to bug reports and browsing
+                          them in their issue trackers.
 
 Version Control
 
@@ -857,6 +860,13 @@ Customizing VC
 * CVS Options::           Options for CVS.
 @end ifnottex
 
+Projects
+
+* Project File Commands::   Commands for handling project files.
+* Project Buffer Commands:: Commands for handling project buffers.
+* Switching Projects::      Switching between projects.
+* Managing Projects::       Managing the project list file.
+
 Change Logs
 
 * Change Log Commands:: Commands for editing change log files.
@@ -902,6 +912,7 @@ Abbrevs
 * Abbrev Concepts::     Fundamentals of defined abbrevs.
 * Defining Abbrevs::    Defining an abbrev, so it will expand when typed.
 * Expanding Abbrevs::   Controlling expansion: prefixes, canceling expansion.
+* Abbrevs Suggestions:: Get automatic suggestions about defined abbrevs.
 * Editing Abbrevs::     Viewing or editing the entire list of defined abbrevs.
 * Saving Abbrevs::      Saving the entire list of abbrevs for another session.
 * Dynamic Abbrevs::     Abbreviations for words already in the buffer.
@@ -1289,11 +1300,12 @@ programmer, but if you are not interested in customizing, you can
 ignore the customization hints.
 
   This is primarily a reference manual, but can also be used as a
-primer.  If you are new to Emacs, we recommend you start with
-the integrated, learn-by-doing tutorial, before reading the manual.  To
-run the tutorial, start Emacs and type @kbd{C-h t}.  The tutorial
-describes commands, tells you when to try them, and explains the
-results.  The tutorial is available in several languages.
+primer.  If you are new to Emacs, we recommend you start with the
+integrated, learn-by-doing tutorial, before reading the manual.  To
+run the tutorial, start Emacs and type @kbd{C-h t} (which is ``control
+h and then t'').  The tutorial describes commands, tells you when to
+try them, and explains the results.  The tutorial is available in
+several languages.
 
   On first reading, just skim chapters 1 and 2, which describe the
 notational conventions of the manual and the general appearance of the

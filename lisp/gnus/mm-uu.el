@@ -145,6 +145,14 @@ This can be either \"inline\" or \"attachment\".")
      ,#'mm-uu-pgp-key-extract
      ,#'mm-uu-gpg-key-skip-to-last
      nil)
+    (markdown-emacs-sources
+     "^```\\(?:elisp\\|emacs-lisp\\|\n(\\)"
+     "^```$"
+     ,#'mm-uu-emacs-sources-extract)
+    (markdown-diff ;; this should be higher than `git-format-patch'
+     "^```\\(?:diff\\|patch\\|\ndiff --git \\)"
+     "^```$"
+     ,#'mm-uu-diff-extract)
     (emacs-sources
      "^;;;?[ \t]*[^ \t]+\\.el[ \t]*--"
      "^;;;?[ \t]*\\([^ \t]+\\.el\\)[ \t]+ends here"
@@ -192,7 +200,7 @@ This can be either \"inline\" or \"attachment\".")
      ,(lambda () (mm-uu-verbatim-marks-extract 0 0))
      nil)
     (LaTeX
-     "^\\([\\\\%][^\n]+\n\\)*\\\\documentclass.*[[{%]"
+     "^\\([\\%][^\n]+\n\\)*\\\\documentclass.*[[{%]"
      "^\\\\end{document}"
      ,#'mm-uu-latex-extract
      nil
@@ -251,19 +259,23 @@ The value should be nil on displays where the face
 			 (((type tty)
 			   (class color)
 			   (background dark))
-			  (:background "dark blue"))
+			  (:background "dark blue"
+			   :extend t))
 			 (((class color)
 			   (background dark))
 			  (:foreground "light yellow"
-			   :background "dark green"))
+			   :background "dark green"
+			   :extend t))
 			 (((type tty)
 			   (class color)
 			   (background light))
-			  (:foreground "dark blue"))
+			  (:foreground "dark blue"
+			   :extend t))
 			 (((class color)
 			   (background light))
 			  (:foreground "dark green"
-			   :background "light yellow"))
+			   :background "light yellow"
+			   :extend t))
 			 (t
 			  ()))
   "Face for extracted buffers."
@@ -507,7 +519,7 @@ apply the face `mm-uu-extract'."
       (list (mm-make-handle buf mm-uu-text-plain-type)))))
 
 (defun mm-uu-pgp-signed-extract ()
-  (let ((mm-security-handle (list (format "multipart/signed"))))
+  (let ((mm-security-handle (list (substring "multipart/signed"))))
     (mm-set-handle-multipart-parameter
      mm-security-handle 'protocol "application/x-gnus-pgp-signature")
     (save-restriction
@@ -575,7 +587,7 @@ apply the face `mm-uu-extract'."
 	(list (mm-make-handle buf '("application/pgp-encrypted")))))))
 
 (defun mm-uu-pgp-encrypted-extract ()
-  (let ((mm-security-handle (list (format "multipart/encrypted"))))
+  (let ((mm-security-handle (list (substring "multipart/encrypted"))))
     (mm-set-handle-multipart-parameter
      mm-security-handle 'protocol "application/x-gnus-pgp-encrypted")
     (save-restriction

@@ -71,11 +71,10 @@ Currently under control of this var:
 - Define <class>-child-p and <class>-list-p predicates.
 - Allow object names in constructors.")
 
-(defconst eieio-unbound
-  (if (and (boundp 'eieio-unbound) (symbolp eieio-unbound))
-      eieio-unbound
-    (make-symbol "unbound"))
+(define-obsolete-variable-alias 'eieio-unbound 'eieio--unbound "28.1")
+(defvar eieio--unbound (make-symbol "eieio--unbound")
   "Uninterned symbol representing an unbound slot in an object.")
+(defvar eieio--unbound-form (macroexp-quote eieio--unbound))
 
 ;; This is a bootstrap for eieio-default-superclass so it has a value
 ;; while it is being built itself.
@@ -169,7 +168,7 @@ Return nil if that option doesn't exist."
   (and (recordp obj)
        (eieio--class-p (eieio--object-class obj))))
 
-(define-obsolete-function-alias 'object-p 'eieio-object-p "25.1")
+(define-obsolete-function-alias 'object-p #'eieio-object-p "25.1")
 
 (defun class-abstract-p (class)
   "Return non-nil if CLASS is abstract.
@@ -215,7 +214,8 @@ It creates an autoload function for CNAME's constructor."
       ;; turn this into a usable self-pointing symbol
       (when eieio-backward-compatibility
         (set cname cname)
-        (make-obsolete-variable cname (format "use \\='%s instead" cname)
+        (make-obsolete-variable cname (format "\
+use \\='%s or turn off `eieio-backward-compatibility' instead" cname)
                                 "25.1"))
 
       (setf (cl--find-class cname) newc)
@@ -241,9 +241,9 @@ It creates an autoload function for CNAME's constructor."
 
 (cl-deftype list-of (elem-type)
   `(and list
-        (satisfies (lambda (list)
-                     (cl-every (lambda (elem) (cl-typep elem ',elem-type))
-                               list)))))
+        (satisfies ,(lambda (list)
+                      (cl-every (lambda (elem) (cl-typep elem elem-type))
+                                list)))))
 
 
 (defun eieio-make-class-predicate (class)
@@ -263,6 +263,7 @@ It creates an autoload function for CNAME's constructor."
          (object-of-class-p obj class))))
 
 (defvar eieio--known-slot-names nil)
+(defvar eieio--known-class-slot-names nil)
 
 (defun eieio-defclass-internal (cname superclasses slots options)
   "Define CNAME as a new subclass of SUPERCLASSES.
@@ -346,19 +347,20 @@ See `defclass' for more information."
     (when eieio-backward-compatibility
       (let ((csym (intern (concat (symbol-name cname) "-list-p"))))
         (defalias csym
-              `(lambda (obj)
-                 ,(format
-                   "Test OBJ to see if it a list of objects which are a child of type %s"
-                   cname)
-                 (when (listp obj)
-                   (let ((ans t)) ;; nil is valid
-                     ;; Loop over all the elements of the input list, test
-                     ;; each to make sure it is a child of the desired object class.
-                     (while (and obj ans)
-                       (setq ans (and (eieio-object-p (car obj))
-                                      (object-of-class-p (car obj) ,cname)))
-                       (setq obj (cdr obj)))
-                     ans))))
+          (lambda (obj)
+            (:documentation
+             (format
+              "Test OBJ to see if it a list of objects which are a child of type %s"
+              cname))
+            (when (listp obj)
+              (let ((ans t)) ;; nil is valid
+                ;; Loop over all the elements of the input list, test
+                ;; each to make sure it is a child of the desired object class.
+                (while (and obj ans)
+                  (setq ans (and (eieio-object-p (car obj))
+                                 (object-of-class-p (car obj) 'cname)))
+                  (setq obj (cdr obj)))
+                ans))))
         (make-obsolete csym (format
                              "use (cl-typep ... \\='(list-of %s)) instead"
                              cname)
@@ -379,7 +381,7 @@ See `defclass' for more information."
     (pcase-dolist (`(,name . ,slot) slots)
       (let* ((init    (or (plist-get slot :initform)
 			  (if (member :initform slot) nil
-			    eieio-unbound)))
+			    eieio--unbound-form)))
 	     (initarg (plist-get slot :initarg))
 	     (docstr  (plist-get slot :documentation))
 	     (prot    (plist-get slot :protection))
@@ -392,6 +394,14 @@ See `defclass' for more information."
 
 	     (skip-nil (eieio--class-option-assoc options :allow-nil-initform))
 	     )
+
+        (unless (or (macroexp-const-p init)
+                    (eieio--eval-default-p init))
+          ;; FIXME: We duplicate this test here and in `defclass' because
+          ;; if we move this part to `defclass' we may break some existing
+          ;; code (because the `fboundp' test in `eieio--eval-default-p'
+          ;; returns a different result at compile time).
+          (setq init (macroexp-quote init)))
 
 	;; Clean up the meaning of protection.
         (setq prot
@@ -455,8 +465,9 @@ See `defclass' for more information."
            (n (length slots))
            (v (make-vector n nil)))
       (dotimes (i n)
-        (setf (aref v i) (eieio-default-eval-maybe
-                          (cl--slot-descriptor-initform (aref slots i)))))
+        (setf (aref v i) (eval
+                          (cl--slot-descriptor-initform (aref slots i))
+                          t)))
       (setf (eieio--class-class-allocation-values newc) v))
 
     ;; Attach slot symbols into a hash table, and store the index of
@@ -511,7 +522,7 @@ See `defclass' for more information."
     cname
     ))
 
-(defsubst eieio-eval-default-p (val)
+(defun eieio--eval-default-p (val)
   "Whether the default value VAL should be evaluated for use."
   (and (consp val) (symbolp (car val)) (fboundp (car val))))
 
@@ -520,10 +531,10 @@ See `defclass' for more information."
 If SKIPNIL is non-nil, then if default value is nil return t instead."
   (let ((value (cl--slot-descriptor-initform slot))
         (spec (cl--slot-descriptor-type slot)))
-    (if (not (or (eieio-eval-default-p value) ;FIXME: Why?
+    (if (not (or (not (macroexp-const-p value))
                  eieio-skip-typecheck
                  (and skipnil (null value))
-                 (eieio--perform-slot-validation spec value)))
+                 (eieio--perform-slot-validation spec (eval value t))))
         (signal 'invalid-slot-type (list (cl--slot-descriptor-name slot) spec value)))))
 
 (defun eieio--slot-override (old new skipnil)
@@ -544,7 +555,7 @@ If SKIPNIL is non-nil, then if default value is nil return t instead."
              type tp a))
       (setf (cl--slot-descriptor-type new) tp))
     ;; If we have a repeat, only update the initarg...
-    (unless (eq d eieio-unbound)
+    (unless (eq d eieio--unbound-form)
       (eieio--perform-slot-validation-for-default new skipnil)
       (setf (cl--slot-descriptor-initform old) d))
 
@@ -587,8 +598,8 @@ If SKIPNIL is non-nil, then if default value is nil return t instead."
 (defun eieio--add-new-slot (newc slot init alloc
 				 &optional defaultoverride skipnil)
   "Add into NEWC attribute SLOT.
-If a slot of that name already exists in NEWC, then do nothing.  If it doesn't exist,
-INIT is the initarg, if any.
+If a slot of that name already exists in NEWC, then do nothing.
+If it doesn't exist, INIT is the initarg, if any.
 Argument ALLOC specifies if the slot is allocated per instance, or per class.
 If optional DEFAULTOVERRIDE is non-nil, then if A exists in NEWC,
 we must override its value for a default.
@@ -602,6 +613,8 @@ if default value is nil."
          (cold (car (cl-member a (eieio--class-class-slots newc)
                                :key #'cl--slot-descriptor-name))))
     (cl-pushnew a eieio--known-slot-names)
+    (when (eq alloc :class)
+      (cl-pushnew a eieio--known-class-slot-names))
     (condition-case nil
         (if (sequencep d) (setq d (copy-sequence d)))
       ;; This copy can fail on a cons cell with a non-cons in the cdr.  Let's
@@ -677,7 +690,7 @@ the new child class."
 (defun eieio--perform-slot-validation (spec value)
   "Return non-nil if SPEC does not match VALUE."
   (or (eq spec t)			; t always passes
-      (eq value eieio-unbound)		; unbound always passes
+      (eq value eieio--unbound)		; unbound always passes
       (cl-typep value spec)))
 
 (defun eieio--validate-slot-value (class slot-idx value slot)
@@ -713,7 +726,7 @@ an error."
 INSTANCE is the object being referenced.  SLOTNAME is the offending
 slot.  If the slot is ok, return VALUE.
 Argument FN is the function calling this verifier."
-  (if (and (eq value eieio-unbound) (not eieio-skip-typecheck))
+  (if (and (eq value eieio--unbound) (not eieio-skip-typecheck))
       (slot-unbound instance (eieio--object-class instance) slotname fn)
     value))
 
@@ -728,9 +741,11 @@ Argument FN is the function calling this verifier."
               (pcase slot
                 ((and (or `',name (and name (pred keywordp)))
                       (guard (not (memq name eieio--known-slot-names))))
-                 (macroexp--warn-and-return
-                  (format-message "Unknown slot `%S'" name) exp 'compile-only))
-                (_ exp)))))
+                 (macroexp-warn-and-return
+                  (format-message "Unknown slot `%S'" name)
+                  exp nil 'compile-only))
+                (_ exp))))
+           (gv-setter eieio-oset))
   (cl-check-type slot symbol)
   (cl-check-type obj (or eieio-object class))
   (let* ((class (cond ((symbolp obj)
@@ -752,14 +767,30 @@ Argument FN is the function calling this verifier."
       (eieio-barf-if-slot-unbound (aref obj c) obj slot 'oref))))
 
 
-(defun eieio-oref-default (obj slot)
+(defun eieio-oref-default (class slot)
   "Do the work for the macro `oref-default' with similar parameters.
-Fills in OBJ's SLOT with its default value."
-  (cl-check-type obj (or eieio-object class))
+Fills in CLASS's SLOT with its default value."
+  (declare (gv-setter eieio-oset-default)
+           (compiler-macro
+            (lambda (exp)
+              (ignore class)
+              (pcase slot
+                ((and (or `',name (and name (pred keywordp)))
+                      (guard (not (memq name eieio--known-slot-names))))
+                 (macroexp-warn-and-return
+                  (format-message "Unknown slot `%S'" name)
+                  exp nil 'compile-only))
+                ((and (or `',name (and name (pred keywordp)))
+                      (guard (not (memq name eieio--known-class-slot-names))))
+                 (macroexp-warn-and-return
+                  (format-message "Slot `%S' is not class-allocated" name)
+                  exp nil 'compile-only))
+                (_ exp)))))
+  (cl-check-type class (or eieio-object class))
   (cl-check-type slot symbol)
-  (let* ((cl (cond ((symbolp obj) (cl--find-class obj))
-                   ((eieio-object-p obj) (eieio--object-class obj))
-                   (t obj)))
+  (let* ((cl (cond ((symbolp class) (cl--find-class class))
+                   ((eieio-object-p class) (eieio--object-class class))
+                   (t class)))
 	 (c (eieio--slot-name-index cl slot)))
     (if (not c)
 	;; It might be missing because it is a :class allocated slot.
@@ -769,27 +800,13 @@ Fills in OBJ's SLOT with its default value."
 	    ;; Oref that slot.
 	    (aref (eieio--class-class-allocation-values cl)
 		  c)
-	  (slot-missing obj slot 'oref-default))
+	  (slot-missing class slot 'oref-default))
       (eieio-barf-if-slot-unbound
        (let ((val (cl--slot-descriptor-initform
                    (aref (eieio--class-slots cl)
                          (- c (eval-when-compile eieio--object-num-slots))))))
-	 (eieio-default-eval-maybe val))
-       obj (eieio--class-name cl) 'oref-default))))
-
-(defun eieio-default-eval-maybe (val)
-  "Check VAL, and return what `oref-default' would provide."
-  ;; FIXME: What the hell is this supposed to do?  Shouldn't it evaluate
-  ;; variables as well?  Why not just always call `eval'?
-  (cond
-   ;; Is it a function call?  If so, evaluate it.
-   ((eieio-eval-default-p val)
-    (eval val))
-   ;;;; check for quoted things, and unquote them
-   ;;((and (consp val) (eq (car val) 'quote))
-   ;; (car (cdr val)))
-   ;; return it verbatim
-   (t val)))
+	 (eval val t))
+       class (eieio--class-name cl) 'oref-default))))
 
 (defun eieio-oset (obj slot value)
   "Do the work for the macro `oset'.
@@ -816,6 +833,21 @@ Fills in OBJ's SLOT with VALUE."
 (defun eieio-oset-default (class slot value)
   "Do the work for the macro `oset-default'.
 Fills in the default value in CLASS' in SLOT with VALUE."
+  (declare (compiler-macro
+            (lambda (exp)
+              (ignore class value)
+              (pcase slot
+                ((and (or `',name (and name (pred keywordp)))
+                      (guard (not (memq name eieio--known-slot-names))))
+                 (macroexp-warn-and-return
+                  (format-message "Unknown slot `%S'" name)
+                  exp nil 'compile-only))
+                ((and (or `',name (and name (pred keywordp)))
+                      (guard (not (memq name eieio--known-class-slot-names))))
+                 (macroexp-warn-and-return
+                  (format-message "Slot `%S' is not class-allocated" name)
+                  exp nil 'compile-only))
+                (_ exp)))))
   (setq class (eieio--class-object class))
   (cl-check-type class eieio--class)
   (cl-check-type slot symbol)
@@ -832,22 +864,18 @@ Fills in the default value in CLASS' in SLOT with VALUE."
           (signal 'invalid-slot-name (list (eieio--class-name class) slot)))
       ;; `oset-default' on an instance-allocated slot is allowed by EIEIO but
       ;; not by CLOS and is mildly inconsistent with the :initform thingy, so
-      ;; it'd be nice to get of it.  This said, it is/was used at one place by
-      ;; gnus/registry.el, so it might be used elsewhere as well, so let's
-      ;; keep it for now.
+      ;; it'd be nice to get rid of it.
+      ;; This said, it is/was used at one place by gnus/registry.el, so it
+      ;; might be used elsewhere as well, so let's keep it for now.
       ;; FIXME: Generate a compile-time warning for it!
       ;; (error "Can't `oset-default' an instance-allocated slot: %S of %S"
       ;;        slot class)
       (eieio--validate-slot-value class c value slot)
       ;; Set this into the storage for defaults.
-      (if (eieio-eval-default-p value)
-          (error "Can't set default to a sexp that gets evaluated again"))
       (setf (cl--slot-descriptor-initform
-             ;; FIXME: Apparently we set it both in `slots' and in
-             ;; `object-cache', which seems redundant.
              (aref (eieio--class-slots class)
                    (- c (eval-when-compile eieio--object-num-slots))))
-              value)
+            (macroexp-quote value))
       ;; Take the value, and put it into our cache object.
       (eieio-oset (eieio--class-default-object-cache class)
                   slot value)
@@ -925,7 +953,7 @@ need be... May remove that later...)"
        class))
 
 (defun eieio--c3-merge-lists (reversed-partial-result remaining-inputs)
-  "Merge REVERSED-PARTIAL-RESULT REMAINING-INPUTS in a consistent order, if possible.
+  "Try to merge REVERSED-PARTIAL-RESULT REMAINING-INPUTS in a consistent order.
 If a consistent order does not exist, signal an error."
   (setq remaining-inputs (delq nil remaining-inputs))
   (if (null remaining-inputs)
@@ -1026,7 +1054,7 @@ method invocation orders of the involved classes."
          (eieio--class-precedence-c3 class))))))
 
 (define-obsolete-function-alias
-  'class-precedence-list 'eieio--class-precedence-list "24.4")
+  'class-precedence-list #'eieio--class-precedence-list "24.4")
 
 
 ;;; Here are some special types of errors
@@ -1089,8 +1117,20 @@ These match if the argument is the name of a subclass of CLASS."
 
 (defmacro eieio-declare-slots (&rest slots)
   "Declare that SLOTS are known eieio object slot names."
-  `(eval-when-compile
-     (setq eieio--known-slot-names (append ',slots eieio--known-slot-names))))
+  (let ((slotnames (mapcar (lambda (s) (if (consp s) (car s) s)) slots))
+        (classslots (delq nil
+                          (mapcar (lambda (s)
+                                    (when (and (consp s)
+                                               (eq :class (plist-get (cdr s)
+                                                                     :allocation)))
+                                      (car s)))
+                                  slots))))
+    `(eval-when-compile
+       ,@(when classslots
+           (mapcar (lambda (s) `(add-to-list 'eieio--known-class-slot-names ',s))
+                   classslots))
+       ,@(mapcar (lambda (s) `(add-to-list 'eieio--known-slot-names ',s))
+                 slotnames))))
 
 (provide 'eieio-core)
 

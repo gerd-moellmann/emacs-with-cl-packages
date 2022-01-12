@@ -141,6 +141,18 @@ based on the font pixel size."
                  (const :tag "Automatically compute" auto))
   :version "26.1")
 
+(defcustom image-transform-smoothing #'image--default-smoothing
+  "Whether to do smoothing when applying transforms to images.
+Common transforms are rescaling and rotation.
+
+Valid values are nil (no smoothing), t (smoothing) or a predicate
+function that is called with the image specification and should return
+either nil or non-nil."
+  :type '(choice (const :tag "Do smoothing" t)
+                 (const :tag "No smoothing" nil)
+                 function)
+  :version "28.1")
+
 (defcustom image-use-external-converter nil
   "If non-nil, `create-image' will use external converters for exotic formats.
 Emacs handles most of the common image formats (SVG, JPEG, PNG, GIF
@@ -264,9 +276,9 @@ compatibility with versions of Emacs that lack the variable
 ;; Used to be in image-type-header-regexps, but now not used anywhere
 ;; (since 2009-08-28).
 (defun image-jpeg-p (data)
-  (declare (obsolete "It is unused inside Emacs and will be removed." "27.1"))
   "Value is non-nil if DATA, a string, consists of JFIF image data.
 We accept the tag Exif because that is the same format."
+  (declare (obsolete "It is unused inside Emacs and will be removed." "27.1"))
   (setq data (ignore-errors (string-to-unibyte data)))
   (when (and data (string-match-p "\\`\xff\xd8" data))
     (catch 'jfif
@@ -485,11 +497,40 @@ Image file names that are not absolute are searched for in the
             type 'png
             data-p t)))
   (when (image-type-available-p type)
-    (append (list 'image :type type (if data-p :data :file) file-or-data)
-            (and (not (plist-get props :scale))
-                 (list :scale
-                       (image-compute-scaling-factor image-scaling-factor)))
-	    props)))
+    (let ((image
+           (append (list 'image :type type (if data-p :data :file)
+                         file-or-data)
+                   (and (not (plist-get props :scale))
+                        ;; Add default scaling.
+                        (list :scale
+                              (image-compute-scaling-factor
+                               image-scaling-factor)))
+	           props)))
+      ;; Add default smoothing.
+      (unless (plist-member props :transform-smoothing)
+        (setq image (nconc image
+                           (list :transform-smoothing
+                                 (pcase image-transform-smoothing
+                                   ('t t)
+                                   ('nil nil)
+                                   (func (funcall func image)))))))
+      image)))
+
+(defun image--default-smoothing (image)
+  "Say whether IMAGE should be smoothed when transformed."
+  (let* ((props (nthcdr 5 image))
+         (scaling (plist-get props :scale))
+         (rotation (plist-get props :rotation)))
+    (cond
+     ;; We always smooth when scaling down and small upwards scaling.
+     ((and scaling (< scaling 2))
+      t)
+     ;; Smooth when doing non-90-degree rotation
+     ((and rotation
+           (or (not (zerop (mod rotation 1)))
+               (not (zerop (% (truncate rotation) 90)))))
+      t)
+     (t nil))))
 
 (defun image--set-property (image property value)
   "Set PROPERTY in IMAGE to VALUE.
@@ -562,12 +603,16 @@ means display it in the right marginal area."
 (defun insert-image (image &optional string area slice)
   "Insert IMAGE into current buffer at point.
 IMAGE is displayed by inserting STRING into the current buffer
-with a `display' property whose value is the image.  STRING
-defaults to a single space if you omit it.
+with a `display' property whose value is the image.
+
+STRING defaults to a single space if you omit it, which means
+that the inserted image will behave as whitespace syntactically.
+
 AREA is where to display the image.  AREA nil or omitted means
 display it in the text area, a value of `left-margin' means
 display it in the left marginal area, a value of `right-margin'
 means display it in the right marginal area.
+
 SLICE specifies slice of IMAGE to insert.  SLICE nil or omitted
 means insert whole image.  SLICE is a list (X Y WIDTH HEIGHT)
 specifying the X and Y positions and WIDTH and HEIGHT of image area
@@ -679,8 +724,10 @@ BUFFER nil or omitted means use the current buffer."
       (setq path (cdr path)))
     (if found filename)))
 
+(defvar find-image--cache (make-hash-table :test #'equal))
+
 ;;;###autoload
-(defun find-image (specs)
+(defun find-image (specs &optional cache)
   "Find an image, choosing one of a list of image specifications.
 
 SPECS is a list of image specifications.
@@ -695,26 +742,33 @@ is supported, and FILE exists, is used to construct the image
 specification to be returned.  Return nil if no specification is
 satisfied.
 
+If CACHE is non-nil, results are cached and returned on subsequent calls.
+
 The image is looked for in `image-load-path'.
 
 Image files should not be larger than specified by `max-image-size'."
-  (let (image)
-    (while (and specs (null image))
-      (let* ((spec (car specs))
-	     (type (plist-get spec :type))
-	     (data (plist-get spec :data))
-	     (file (plist-get spec :file))
-	     found)
-	(when (image-type-available-p type)
-	  (cond ((stringp file)
-		 (if (setq found (image-search-load-path file))
-		     (setq image
-			   (cons 'image (plist-put (copy-sequence spec)
-						   :file found)))))
-		((not (null data))
-		 (setq image (cons 'image spec)))))
-	(setq specs (cdr specs))))
-    image))
+  (or (and cache
+           (gethash specs find-image--cache))
+      (let ((orig-specs specs)
+            image)
+        (while (and specs (null image))
+          (let* ((spec (car specs))
+	         (type (plist-get spec :type))
+	         (data (plist-get spec :data))
+	         (file (plist-get spec :file))
+	         found)
+	    (when (image-type-available-p type)
+	      (cond ((stringp file)
+		     (if (setq found (image-search-load-path file))
+		         (setq image
+			       (cons 'image (plist-put (copy-sequence spec)
+						       :file found)))))
+		    ((not (null data))
+		     (setq image (cons 'image spec)))))
+	    (setq specs (cdr specs))))
+        (when cache
+          (setf (gethash orig-specs find-image--cache) image))
+        image)))
 
 
 ;;;###autoload
@@ -763,7 +817,7 @@ in which case you might want to use `image-default-frame-delay'."
 	(cons images delay)))))
 
 (defun image-animated-p (image)
-  "Like `image-multi-frame-p', but returns nil if no delay is specified."
+  "Like `image-multi-frame-p', but return nil if no delay is specified."
   (let ((multi (image-multi-frame-p image)))
     (and (cdr multi) multi)))
 
@@ -784,6 +838,10 @@ number, play until that number of seconds has elapsed."
       (if (setq timer (image-animate-timer image))
 	  (cancel-timer timer))
       (plist-put (cdr image) :animate-buffer (current-buffer))
+      (plist-put (cdr image) :animate-tardiness 0)
+      ;; Stash the data about the animation here so that we don't
+      ;; trigger image recomputation unnecessarily later.
+      (plist-put (cdr image) :animate-multi-frame-data animation)
       (run-with-timer 0.2 nil #'image-animate-timeout
 		      image (or index 0) (car animation)
 		      0 limit (+ (float-time) 0.2)))))
@@ -814,9 +872,10 @@ Frames are indexed from 0.  Optional argument NOCHECK non-nil means
 do not check N is within the range of frames present in the image."
   (unless nocheck
     (if (< n 0) (setq n 0)
-      (setq n (min n (1- (car (image-multi-frame-p image)))))))
+      (setq n (min n (1- (car (plist-get (cdr image)
+                                         :animate-multi-frame-data)))))))
   (plist-put (cdr image) :index n)
-  (force-window-update))
+  (force-window-update (plist-get (cdr image) :animate-buffer)))
 
 (defun image-animate-get-speed (image)
   "Return the speed factor for animating IMAGE."
@@ -848,20 +907,25 @@ The minimum delay between successive frames is `image-minimum-frame-delay'.
 
 If the image has a non-nil :speed property, it acts as a multiplier
 for the animation speed.  A negative value means to animate in reverse."
+  ;; We keep track of "how late" image frames arrive.  We decay the
+  ;; previous cumulative value by 10% and then add the current delay.
+  (plist-put (cdr image) :animate-tardiness
+             (+ (* (plist-get (cdr image) :animate-tardiness) 0.9)
+                (float-time (time-since target-time))))
   (when (and (buffer-live-p (plist-get (cdr image) :animate-buffer))
-             ;; Delayed more than two seconds more than expected.
-	     (or (time-less-p (time-since target-time) 2)
+             ;; Cumulatively delayed two seconds more than expected.
+             (or (< (plist-get (cdr image) :animate-tardiness) 2)
 		 (progn
 		   (message "Stopping animation; animation possibly too big")
 		   nil)))
     (image-show-frame image n t)
     (let* ((speed (image-animate-get-speed image))
 	   (time (current-time))
-	   (animation (image-multi-frame-p image))
 	   (time-to-load-image (time-since time))
-	   (stated-delay-time (/ (or (cdr animation)
-				     image-default-frame-delay)
-				 (float (abs speed))))
+	   (stated-delay-time
+            (/ (or (cdr (plist-get (cdr image) :animate-multi-frame-data))
+		   image-default-frame-delay)
+	       (float (abs speed))))
 	   ;; Subtract off the time we took to load the image from the
 	   ;; stated delay time.
 	   (delay (max (float-time (time-subtract stated-delay-time
@@ -1074,6 +1138,7 @@ default is 20%."
     image))
 
 (defun image--get-imagemagick-and-warn (&optional position)
+  (declare-function image-transforms-p "image.c" (&optional frame))
   (unless (or (fboundp 'imagemagick-types) (image-transforms-p))
     (error "Cannot rescale images on this terminal"))
   (let ((image (image--get-image position)))
@@ -1126,7 +1191,9 @@ rotations by only multiples of 90 degrees."
                       360)))))
 
 (defun image-save ()
-  "Save the image under point."
+  "Save the image under point.
+This writes the original image data to a file.  Rotating or
+changing the displayed image size does not affect the saved image."
   (interactive)
   (let ((image (image--get-image)))
     (with-temp-buffer

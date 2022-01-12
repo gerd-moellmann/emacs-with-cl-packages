@@ -4,18 +4,18 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software; you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; This program is distributed in the hope that it will be useful,
+;; GNU Emacs is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
 
@@ -354,6 +354,57 @@ otherwise, use a different charset."
   (let ((err (list 'error)))
     (setcdr err err)
     (should-error (error-message-string err) :type 'circular-list)))
+
+(print-tests--deftest print-hash-table-test ()
+  (should
+   (string-match
+    "data (2 3)"
+    (let ((h (make-hash-table)))
+      (puthash 1 2 h)
+      (puthash 2 3 h)
+      (remhash 1 h)
+      (format "%S" h))))
+
+  (should
+   (string-match
+    "data ()"
+    (let ((h (make-hash-table)))
+      (let ((print-length 0))
+        (format "%S" h)))))
+
+  (should
+   (string-match
+    "data (99 99)"
+    (let ((h (make-hash-table)))
+      (dotimes (i 100)
+        (puthash i i h))
+      (dotimes (i 99)
+        (remhash i h))
+      (let ((print-length 1))
+        (format "%S" h))))))
+
+(print-tests--deftest print-integers-as-characters ()
+  ;; Bug#44155.
+  (let* ((print-integers-as-characters t)
+         (chars '(?? ?\; ?\( ?\) ?\{ ?\} ?\[ ?\] ?\" ?\' ?\\ ?f ?~ ?Á 32
+                  ?\n ?\r ?\t ?\b ?\f ?\a ?\v ?\e ?\d))
+         (nums '(-1 -65 0 1 31 #x80 #x9f #x110000 #x3fff80 #x3fffff))
+         (nonprints '(#xd800 #xdfff #x030a #xffff #x2002 #x200c))
+         (printed-chars (print-tests--prin1-to-string chars))
+         (printed-nums (print-tests--prin1-to-string nums))
+         (printed-nonprints (print-tests--prin1-to-string nonprints)))
+    (should (equal (read printed-chars) chars))
+    (should (equal
+             printed-chars
+             (concat
+              "(?? ?\\; ?\\( ?\\) ?\\{ ?\\} ?\\[ ?\\] ?\\\" ?\\' ?\\\\"
+              " ?f ?~ ?Á ?\\s ?\\n ?\\r ?\\t ?\\b ?\\f 7 11 27 127)")))
+    (should (equal (read printed-nums) nums))
+    (should (equal printed-nums
+                   "(-1 -65 0 1 31 128 159 1114112 4194176 4194303)"))
+    (should (equal (read printed-nonprints) nonprints))
+    (should (equal printed-nonprints
+                   "(55296 57343 778 65535 8194 8204)"))))
 
 (provide 'print-tests)
 ;;; print-tests.el ends here

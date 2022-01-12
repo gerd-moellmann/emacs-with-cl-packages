@@ -279,7 +279,10 @@ its function definition is used.
 COUNT is a repeat count, or nil for once, or 0 for infinite loop.
 
 Optional third arg LOOPFUNC may be a function that is called prior to
-each iteration of the macro.  Iteration stops if LOOPFUNC returns nil.  */)
+each iteration of the macro.  Iteration stops if LOOPFUNC returns nil.
+
+The buffer shown in the currently selected window will be made the current
+buffer before the macro is executed.  */)
   (Lisp_Object macro, Lisp_Object count, Lisp_Object loopfunc)
 {
   Lisp_Object final;
@@ -321,7 +324,7 @@ each iteration of the macro.  Iteration stops if LOOPFUNC returns nil.  */)
 	    break;
 	}
 
-      command_loop_1 ();
+      command_loop_2 (list1 (Qminibuffer_quit));
 
       executing_kbd_macro_iterations = ++success_count;
 

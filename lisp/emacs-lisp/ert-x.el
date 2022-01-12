@@ -30,6 +30,7 @@
 
 (eval-when-compile (require 'cl-lib))
 (require 'ert)
+(require 'subr-x) ; string-trim
 
 
 ;;; Test buffers.
@@ -97,18 +98,9 @@ To be used in ERT tests.  If BODY finishes successfully, the test
 buffer is killed; if there is an error, the test buffer is kept
 around on error for further inspection.  Its name is derived from
 the name of the test and the result of NAME-FORM."
-  (declare (debug ((":name" form) body))
+  (declare (debug ((":name" form) def-body))
            (indent 1))
   `(ert--call-with-test-buffer ,name-form (lambda () ,@body)))
-
-;; We use these `put' forms in addition to the (declare (indent)) in
-;; the defmacro form since the `declare' alone does not lead to
-;; correct indentation before the .el/.elc file is loaded.
-;; Autoloading these `put' forms solves this.
-;;;###autoload
-(progn
-  ;; TODO(ohler): Figure out what these mean and make sure they are correct.
-  (put 'ert-with-test-buffer 'lisp-indent-function 1))
 
 ;;;###autoload
 (defun ert-kill-all-test-buffers ()
@@ -176,6 +168,18 @@ test for `called-interactively' in the command will fail."
     (when (and deactivate-mark transient-mark-mode) (deactivate-mark))
     (cl-assert (not unread-command-events) t)
     return-value))
+
+(defmacro ert-simulate-keys (keys &rest body)
+  "Execute BODY with KEYS as pseudo-interactive input."
+  (declare (debug t) (indent 1))
+  `(let ((unread-command-events
+          ;; Add some C-g to try and make sure we still exit
+          ;; in case something goes wrong.
+          (append ,keys '(?\C-g ?\C-g ?\C-g)))
+         ;; Tell `read-from-minibuffer' not to read from stdin when in
+         ;; batch mode.
+         (executing-kbd-macro t))
+     ,@body))
 
 (defun ert-run-idle-timers ()
   "Run all idle timers (from `timer-idle-list')."
@@ -341,6 +345,46 @@ convert it to a string and pass it to COLLECTOR first."
                            (funcall func object)))
       (funcall func object printcharfun))))
 
+(defvar ert-resource-directory-format "%s-resources/"
+  "Format for `ert-resource-directory'.")
+(defvar ert-resource-directory-trim-left-regexp ""
+  "Regexp for `string-trim' (left) used by `ert-resource-directory'.")
+(defvar ert-resource-directory-trim-right-regexp "\\(-tests?\\)?\\.el"
+  "Regexp for `string-trim' (right) used by `ert-resource-directory'.")
+
+;; Has to be a macro for `load-file-name'.
+(defmacro ert-resource-directory ()
+  "Return absolute file name of the resource (test data) directory.
+
+The path to the resource directory is the \"resources\" directory
+in the same directory as the test file this is called from.
+
+If that directory doesn't exist, find a directory based on the
+test file name.  If the file is named \"foo-tests.el\", return
+the absolute file name for \"foo-resources\".
+
+If you want a different resource directory naming scheme, set the
+variable `ert-resource-directory-format'.  Before formatting, the
+file name will be trimmed using `string-trim' with arguments
+`ert-resource-directory-trim-left-regexp' and
+`ert-resource-directory-trim-right-regexp'."
+  `(let* ((testfile ,(or (macroexp-file-name)
+                         buffer-file-name))
+          (default-directory (file-name-directory testfile)))
+     (file-truename
+      (if (file-accessible-directory-p "resources/")
+          (expand-file-name "resources/")
+        (expand-file-name
+         (format ert-resource-directory-format
+                 (string-trim testfile
+                              ert-resource-directory-trim-left-regexp
+                              ert-resource-directory-trim-right-regexp)))))))
+
+(defmacro ert-resource-file (file)
+  "Return absolute file name of resource (test data) file named FILE.
+A resource file is defined as any file placed in the resource
+directory as returned by `ert-resource-directory'."
+  `(expand-file-name ,file (ert-resource-directory)))
 
 (provide 'ert-x)
 

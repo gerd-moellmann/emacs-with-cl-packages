@@ -40,6 +40,7 @@
 
 (require 'image)
 (require 'exif)
+(require 'dired)
 (eval-when-compile (require 'cl-lib))
 
 ;;; Image mode window-info management.
@@ -93,6 +94,9 @@ Its value should be one of the following:
 
 (defvar-local image-transform-rotation 0.0
   "Rotation angle for the image in the current Image mode buffer.")
+
+(defvar-local image--transform-smoothing nil
+  "Whether to use transform smoothing.")
 
 (defvar image-transform-right-angle-fudge 0.0001
   "Snap distance to a multiple of a right angle.
@@ -456,6 +460,7 @@ call."
     (define-key map "sb" 'image-transform-fit-both)
     (define-key map "ss" 'image-transform-set-scale)
     (define-key map "sr" 'image-transform-set-rotation)
+    (define-key map "sm" 'image-transform-set-smoothing)
     (define-key map "so" 'image-transform-original)
     (define-key map "s0" 'image-transform-reset)
 
@@ -522,6 +527,8 @@ call."
 	 :help "Rotate the image"]
 	["Set Rotation..." image-transform-set-rotation
 	 :help "Set rotation angle of the image"]
+        ["Set Smoothing..." image-transform-set-smoothing
+        :help "Toggle smoothing"]
 	["Original Size" image-transform-original
 	 :help "Reset image to actual size"]
 	["Reset to Default Size" image-transform-reset
@@ -611,24 +618,35 @@ Key bindings:
   (setq major-mode 'image-mode)
   (setq image-transform-resize image-auto-resize)
 
+  ;; Bail out early if we have no image data.
+  (if (zerop (buffer-size))
+      (funcall (if (called-interactively-p 'any) 'error 'message)
+               (if (file-exists-p buffer-file-name)
+                   "Empty file"
+                 "(New file)"))
+    (image-mode--display)))
+
+(defun image-mode--display ()
   (if (not (image-get-display-property))
       (progn
         (when (condition-case err
-                (progn
-	          (image-toggle-display-image)
-                  t)
-              (unknown-image-type
-               (image-mode-as-text)
-               (funcall
-                (if (called-interactively-p 'any) 'error 'message)
-                "Unknown image type; consider switching `image-use-external-converter' on")
-               nil)
-              (error
-               (image-mode-as-text)
-               (funcall
-                (if (called-interactively-p 'any) 'error 'message)
-                "Cannot display image: %s" (cdr err))
-               nil))
+                  (progn
+	            (image-toggle-display-image)
+                    t)
+                (unknown-image-type
+                 (image-mode-as-text)
+                 (funcall
+                  (if (called-interactively-p 'any) 'error 'message)
+                  (if image-use-external-converter
+                      "Unknown image type"
+                    "Unknown image type; consider switching `image-use-external-converter' on"))
+                 nil)
+                (error
+                 (image-mode-as-text)
+                 (funcall
+                  (if (called-interactively-p 'any) 'error 'message)
+                  "Cannot display image: %s" (cdr err))
+                 nil))
 	  ;; If attempt to display the image fails.
 	  (if (not (image-get-display-property))
 	      (error "Invalid image"))
@@ -654,6 +672,9 @@ Key bindings:
   (add-hook 'after-revert-hook #'image-after-revert-hook nil t)
   (when image-auto-resize-on-window-resize
     (add-hook 'window-state-change-functions #'image--window-state-change nil t))
+
+  (add-function :before-while (local 'isearch-filter-predicate)
+                #'image-mode-isearch-filter)
 
   (run-mode-hooks 'image-mode-hook)
   (let ((image (image-get-display-property))
@@ -692,8 +713,7 @@ Key bindings:
 Image minor mode provides the key \\<image-mode-map>\\[image-toggle-display],
 to switch back to `image-mode' and display an image file as the
 actual image."
-  nil (:eval (if image-type (format " Image[%s]" image-type) " Image"))
-  image-minor-mode-map
+  :lighter (:eval (if image-type (format " Image[%s]" image-type) " Image"))
   :group 'image
   :version "22.1"
   (if image-minor-mode
@@ -706,13 +726,14 @@ A non-mage major mode found from `auto-mode-alist' or fundamental mode
 displays an image file as text."
   ;; image-mode-as-text = normal-mode + image-minor-mode
   (let ((previous-image-type image-type)) ; preserve `image-type'
-    (major-mode-restore '(image-mode image-mode-maybe image-mode-as-text))
+    (major-mode-restore '(image-mode image-mode-as-text))
     ;; Restore `image-type' after `kill-all-local-variables' in `normal-mode'.
     (setq image-type previous-image-type)
     ;; Enable image minor mode with `C-c C-c'.
     (image-minor-mode 1)
-    ;; Show the image file as text.
-    (image-toggle-display-text)))
+    (unless (image-get-display-property)
+      ;; Show the image file as text.
+      (image-toggle-display-text))))
 
 (defun image-mode-as-hex ()
   "Set a non-image mode as major mode in combination with image minor mode.
@@ -756,8 +777,6 @@ on these modes."
                  (if (image-get-display-property)
                      "text" "an image or hex") ".")))
 
-(define-obsolete-function-alias 'image-mode-maybe 'image-mode "23.2")
-
 (defun image-toggle-display-text ()
   "Show the image file as text.
 Remove text properties that display the image."
@@ -771,6 +790,14 @@ Remove text properties that display the image."
     (set-buffer-modified-p modified)
     (if (called-interactively-p 'any)
 	(message "Repeat this command to go back to displaying the image"))))
+
+(defun image-mode-isearch-filter (_beg _end)
+  "Show image as text when trying to search/replace in the image buffer."
+  (save-match-data
+    (when (and (derived-mode-p 'image-mode)
+               (image-get-display-property))
+      (image-mode-as-text)))
+  t)
 
 (defvar archive-superior-buffer)
 (defvar tar-superior-buffer)
@@ -816,20 +843,28 @@ was inserted."
 		      (- (nth 2 edges) (nth 0 edges))))
 	 (max-height (when edges
 		       (- (nth 3 edges) (nth 1 edges))))
-	 (type (if (featurep 'mac)
+	 (inhibit-read-only t)
+	 (buffer-undo-list t)
+	 (modified (buffer-modified-p))
+	 props image type)
+
+    ;; If the data in the current buffer isn't from an existing file,
+    ;; but we have a file name (this happens when visiting images from
+    ;; a zip file, for instance), provide a type hint based on the
+    ;; suffix.
+    (when (and data-p filename)
+      (setq data-p (intern (format "image/%s"
+                                   (file-name-extension filename)))))
+    (setq type (if (featurep 'mac)
                    (let ((image-type (image-type file-or-data nil data-p)))
                      (if (and (image--imagemagick-wanted-p filename)
                               (memq (intern (upcase (symbol-name image-type)))
                                     (imagemagick-types)))
                          'imagemagick
                        image-type))
-	         (if (image--imagemagick-wanted-p filename)
-		     'imagemagick
-		   (image-type file-or-data nil data-p))))
-	 (inhibit-read-only t)
-	 (buffer-undo-list t)
-	 (modified (buffer-modified-p))
-	 props image)
+                 (if (image--imagemagick-wanted-p filename)
+                     'imagemagick
+                   (image-type file-or-data nil data-p))))
 
     ;; Get the rotation data from the file, if any.
     (when (zerop image-transform-rotation) ; don't reset modified value
@@ -848,10 +883,13 @@ was inserted."
     ;; :scale 1: If we do not set this, create-image will apply
     ;; default scaling based on font size.
     (setq image (if (not edges)
-		    (create-image file-or-data type data-p :scale 1)
+		    (create-image file-or-data type data-p :scale 1
+                                  :format (and filename data-p))
 		  (create-image file-or-data type data-p :scale 1
 				:max-width max-width
-				:max-height max-height)))
+				:max-height max-height
+                                ;; Type hint.
+                                :format (and filename data-p))))
 
     ;; Discard any stale image data before looking it up again.
     (image-flush image)
@@ -930,6 +968,9 @@ Otherwise, display the image by calling `image-mode'."
           (get-buffer-window-list (current-buffer) 'nomini 'visible))
     (image-toggle-display-image)))
 
+(defvar image-auto-resize-timer nil
+  "Timer for `image-auto-resize-on-window-resize' option.")
+
 (defun image--window-state-change (window)
   ;; Wait for a bit of idle-time before actually performing the change,
   ;; so as to batch together sequences of closely consecutive size changes.
@@ -938,8 +979,14 @@ Otherwise, display the image by calling `image-mode'."
   ;; consecutive calls happen without any redisplay between them,
   ;; the costly operation of image resizing should happen only once.
   (when (numberp image-auto-resize-on-window-resize)
-    (run-with-idle-timer image-auto-resize-on-window-resize nil
-                         #'image-fit-to-window window)))
+    (when image-auto-resize-timer
+      (cancel-timer image-auto-resize-timer))
+    (setq image-auto-resize-timer
+          (run-with-idle-timer image-auto-resize-on-window-resize nil
+                               #'image-fit-to-window window))))
+
+(defvar image-fit-to-window-lock nil
+  "Lock for `image-fit-to-window' timer function.")
 
 (defun image-fit-to-window (window)
   "Adjust size of image to display it exactly in WINDOW boundaries."
@@ -953,10 +1000,22 @@ Otherwise, display the image by calling `image-mode'."
                    (edges (window-inside-pixel-edges window))
                    (window-width  (- (nth 2 edges) (nth 0 edges)))
                    (window-height (- (nth 3 edges) (nth 1 edges))))
+              ;; If the size has been changed manually (with `+'/`-'),
+              ;; then :max-width/:max-height is nil.  In that case, do
+              ;; no automatic resizing.
               (when (and image-width image-height
+                         ;; Don't do resizing if we have a manual
+                         ;; rotation (from the `r' command), either.
+                         (not (plist-get (cdr spec) :rotation))
                          (or (not (= image-width  window-width))
                              (not (= image-height window-height))))
-                (image-toggle-display-image)))))))))
+                (unless image-fit-to-window-lock
+                  (unwind-protect
+                      (progn
+                        (setq-local image-fit-to-window-lock t)
+                        (ignore-error 'remote-file-error
+                          (image-toggle-display-image)))
+                    (setq image-fit-to-window-lock nil)))))))))))
 
 
 ;;; Animated images
@@ -1081,28 +1140,87 @@ replacing the current Image mode buffer."
     (error "The buffer is not in Image mode"))
   (unless buffer-file-name
     (error "The current image is not associated with a file"))
-  (let* ((file (file-name-nondirectory buffer-file-name))
-	 (images (image-mode--images-in-directory file))
-	 (idx 0))
-    (catch 'image-visit-next-file
-      (dolist (f images)
-	(if (string= f file)
-	    (throw 'image-visit-next-file (1+ idx)))
-	(setq idx (1+ idx))))
-    (setq idx (mod (+ idx (or n 1)) (length images)))
-    (let ((image (nth idx images))
-          (dir (file-name-directory buffer-file-name)))
-      (find-alternate-file image)
-      ;; If we have dired buffer(s) open to where this image is, then
-      ;; place point on it.
+  (let ((next (image-mode--next-file buffer-file-name n)))
+    (unless next
+      (user-error "No %s file in this directory"
+                  (if (> n 0)
+                      "next"
+                    "prev")))
+    (if (stringp next)
+        (find-alternate-file next)
+      (funcall next))))
+
+(defun image-mode--directory-buffers (file)
+  "Return an alist of type/buffer for all \"parent\" buffers to image FILE.
+This is normally a list of Dired buffers, but can also be archive and
+tar mode buffers."
+  (let ((buffers nil)
+        (dir (file-name-directory file)))
+    (cond
+     ((and (boundp 'tar-superior-buffer)
+	   tar-superior-buffer)
+      (when (buffer-live-p tar-superior-buffer)
+        (push (cons 'tar tar-superior-buffer) buffers)))
+     ((and (boundp 'archive-superior-buffer)
+	   archive-superior-buffer)
+      (when (buffer-live-p archive-superior-buffer)
+        (push (cons 'archive archive-superior-buffer) buffers)))
+     (t
+      ;; Find a dired buffer.
       (dolist (buffer (buffer-list))
-	(with-current-buffer buffer
-	  (when (and (derived-mode-p 'dired-mode)
+        (with-current-buffer buffer
+          (when (and (derived-mode-p 'dired-mode)
 	             (equal (file-truename dir)
 		            (file-truename default-directory)))
-            (save-window-excursion
-              (switch-to-buffer (current-buffer) t t)
-              (dired-goto-file (expand-file-name image dir)))))))))
+            (push (cons 'dired (current-buffer)) buffers))))
+      ;; If we can't find any buffers to navigate in, we open a dired
+      ;; buffer.
+      (unless buffers
+        (push (cons 'dired (find-file-noselect dir)) buffers)
+        (message "Opened a dired buffer on %s" dir))))
+    buffers))
+
+(declare-function archive-next-file-displayer "arc-mode")
+(declare-function tar-next-file-displayer "tar-mode")
+
+(defun image-mode--next-file (file n)
+  "Go to the next image file in the parent buffer of FILE.
+This is typically a dired buffer, but may also be a tar/archive buffer.
+Return the next image file from that buffer.
+If N is negative, go to the previous file."
+  (let ((regexp (image-file-name-regexp))
+        (buffers (image-mode--directory-buffers file))
+        next)
+    (dolist (buffer buffers)
+      ;; We do this traversal for all the dired buffers open on this
+      ;; directory.  There probably is just one, but we want to move
+      ;; point in all of them.
+      (save-window-excursion
+        (switch-to-buffer (cdr buffer) t t)
+        (cl-case (car buffer)
+          ('dired
+           (dired-goto-file file)
+           (let (found)
+             (while (and (not found)
+                         ;; Stop if we reach the end/start of the buffer.
+                         (if (> n 0)
+                             (not (eobp))
+                           (not (bobp))))
+               (dired-next-line n)
+               (let ((candidate (dired-get-filename nil t)))
+                 (when (and candidate
+                            (string-match-p regexp candidate))
+                   (setq found candidate))))
+             (if found
+                 (setq next found)
+               ;; If we didn't find a next/prev file, then restore
+               ;; point.
+               (dired-goto-file file))))
+          ('archive
+           (setq next (archive-next-file-displayer file regexp n)))
+          ('tar
+           (setq next (tar-next-file-displayer file regexp n))))))
+    next))
 
 (defun image-previous-file (&optional n)
   "Visit the preceding image in the same directory as the current file.
@@ -1130,7 +1248,7 @@ will have the line where the image appears (if any) marked.
 If no such buffer exists, it will be opened."
   (interactive)
   (unless buffer-file-name
-    (error "The current buffer doesn't visit a file."))
+    (error "Current buffer is not visiting a file"))
   (image-mode--mark-file buffer-file-name #'dired-mark "marked"))
 
 (defun image-mode-unmark-file ()
@@ -1142,7 +1260,7 @@ any).
 If no such buffer exists, it will be opened."
   (interactive)
   (unless buffer-file-name
-    (error "The current buffer doesn't visit a file."))
+    (error "Current buffer is not visiting a file"))
   (image-mode--mark-file buffer-file-name #'dired-unmark "unmarked"))
 
 (declare-function dired-mark "dired" (arg &optional interactive))
@@ -1369,7 +1487,10 @@ return value is suitable for appending to an image spec."
 	,@(when (cdr resized)
 	    (list :height (cdr resized)))
 	,@(unless (= 0.0 image-transform-rotation)
-	    (list :rotation image-transform-rotation))))))
+	    (list :rotation image-transform-rotation))
+        ,@(when image--transform-smoothing
+            (list :transform-smoothing
+                  (string= image--transform-smoothing "smooth")))))))
 
 (defun image-transform-set-scale (scale)
   "Prompt for a number, and resize the current image by that amount."
@@ -1402,6 +1523,12 @@ ROTATION should be in degrees."
   (setq image-transform-rotation (float (mod rotation 360)))
   (image-toggle-display-image))
 
+(defun image-transform-set-smoothing (smoothing)
+  (interactive (list (completing-read "Smoothing: "
+                                      '("none" "smooth") nil t)))
+  (setq image--transform-smoothing smoothing)
+  (image-toggle-display-image))
+
 (defun image-transform-original ()
   "Display the current image with the original (actual) size and rotation."
   (interactive)
@@ -1414,7 +1541,8 @@ ROTATION should be in degrees."
   (interactive)
   (setq image-transform-resize image-auto-resize
 	image-transform-rotation 0.0
-	image-transform-scale 1)
+	image-transform-scale 1
+        image--transform-smoothing nil)
   (image-toggle-display-image))
 
 (provide 'image-mode)

@@ -1,4 +1,4 @@
-;;; w32-fns.el --- Lisp routines for 32-bit Windows
+;;; w32-fns.el --- Lisp routines for 32-bit Windows  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1994, 2001-2021 Free Software Foundation, Inc.
 
@@ -55,7 +55,7 @@
 	       w32-system-shells)))
 
 (defun w32-shell-dos-semantics ()
-  "Return non-nil if the interactive shell being used expects MS-DOS shell semantics."
+  "Return non-nil if current interactive shell expects MS-DOS shell semantics."
   (or (w32-system-shell-p (w32-shell-name))
       (and (member (downcase (file-name-nondirectory (w32-shell-name)))
 		   '("cmdproxy" "cmdproxy.exe"))
@@ -202,8 +202,7 @@ This function is provided for backward compatibility, since
   (interactive
    (list (let ((default locale-coding-system))
            (read-coding-system
-            (format "Coding system for system calls (default %s): "
-                    default)
+            (format-prompt "Coding system for system calls" default)
             default))))
   (check-coding-system coding-system)
   (setq locale-coding-system coding-system))
@@ -238,14 +237,18 @@ bit output with no translation."
   ;; value from x-select-font etc, so list the most important charsets last.
   (w32-add-charset-info "iso8859-14" 'w32-charset-ansi  28604)
   (w32-add-charset-info "iso8859-15" 'w32-charset-ansi  28605)
+  (w32-add-charset-info "iso8859-16" 'w32-charset-ansi  28606)
   ;; The following two are included for pattern matching.
   (w32-add-charset-info "jisx0201" 'w32-charset-shiftjis 932)
   (w32-add-charset-info "jisx0208" 'w32-charset-shiftjis 932)
   (w32-add-charset-info "jisx0201-latin" 'w32-charset-shiftjis 932)
   (w32-add-charset-info "jisx0201-katakana" 'w32-charset-shiftjis 932)
+  (w32-add-charset-info "jisx0212" 'w32-charset-shiftjis 932)
   (w32-add-charset-info "ksc5601.1989" 'w32-charset-hangeul 949)
+  (w32-add-charset-info "ksx1001" 'w32-charset-hangeul 949)
   (w32-add-charset-info "big5" 'w32-charset-chinesebig5 950)
   (w32-add-charset-info "gb2312.1980" 'w32-charset-gb2312 936)
+  (w32-add-charset-info "gbk" 'w32-charset-gb2312 936)
   (w32-add-charset-info "ms-symbol" 'w32-charset-symbol nil)
   (w32-add-charset-info "ms-oem" 'w32-charset-oem 437)
   (w32-add-charset-info "ms-oemlatin" 'w32-charset-oem 850)
@@ -259,9 +262,12 @@ bit output with no translation."
   (w32-add-charset-info "iso8859-9" 'w32-charset-turkish 1254)
   (w32-add-charset-info "iso8859-13" 'w32-charset-baltic 1257)
   (w32-add-charset-info "koi8-r" 'w32-charset-russian 20866)
+  (w32-add-charset-info "microsoft-cp1251" 'w32-charset-russian 1251)
+  (w32-add-charset-info "windows-1251" 'w32-charset-russian 1251)
   (w32-add-charset-info "tis620-2533" 'w32-charset-russian 28595)
   (w32-add-charset-info "iso8859-11" 'w32-charset-thai 874)
   (w32-add-charset-info "windows-1258" 'w32-charset-vietnamese 1258)
+  (w32-add-charset-info "viscii" 'w32-charset-vietnamese 1258)
   (w32-add-charset-info "ksc5601.1992" 'w32-charset-johab 1361)
   (w32-add-charset-info "mac-roman" 'w32-charset-mac 10000)
   (w32-add-charset-info "iso10646-1" 'w32-charset-default t)
@@ -378,10 +384,10 @@ for any permissions.
 
 This is required because the Windows build environment is not required
 to include Sed, which is used by leim/Makefile.in to do the job."
-  (find-file orig)
-  (goto-char (point-max))
-  (insert-file-contents extra)
-  (delete-matching-lines "^$\\|^;")
-  (save-buffers-kill-emacs t))
+  (with-current-buffer (find-file-noselect orig)
+    (goto-char (point-max))
+    (insert-file-contents extra)
+    (delete-matching-lines "^$\\|^;")
+    (save-buffers-kill-emacs t)))
 
 ;;; w32-fns.el ends here

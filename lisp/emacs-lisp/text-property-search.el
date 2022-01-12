@@ -31,28 +31,40 @@
 
 (defun text-property-search-forward (property &optional value predicate
                                               not-current)
-  "Search for the next region of text whose PROPERTY matches VALUE.
-
-If not found, return nil and don't move point.
-If found, move point to end of the region and return a `prop-match'
-object describing the match.  To access the details of the match,
-use `prop-match-beginning' and `prop-match-end' for the buffer
-positions that limit the region, and `prop-match-value' for the
-value of PROPERTY in the region.
-
+  "Search for the next region of text where PREDICATE is true.
 PREDICATE is used to decide whether a value of PROPERTY should be
 considered as matching VALUE.
-If PREDICATE is t, that means a value must `equal' VALUE to be
-considered a match.
-If PREDICATE is nil, a value will match if it is non-nil and
-is NOT `equal' to VALUE.
+
 If PREDICATE is a function, it will be called with two arguments:
 VALUE and the value of PROPERTY.  The function should return
 non-nil if these two values are to be considered a match.
 
+Two special values of PREDICATE can also be used:
+If PREDICATE is t, that means a value must `equal' VALUE to be
+considered a match.
+If PREDICATE is nil (which is the default value), a value will
+match if is not `equal' to VALUE.  Furthermore, a nil PREDICATE
+means that the match region is ended if the value changes.  For
+instance, this means that if you loop with
+
+  (while (setq prop (text-property-search-forward 'face))
+    ...)
+
+you will get all distinct regions with non-nil `face' values in
+the buffer, and the `prop' object will have the details about the
+match.  See the manual for more details and examples about how
+VALUE and PREDICATE interact.
+
 If NOT-CURRENT is non-nil, the function will search for the first
 region that doesn't include point and has a value of PROPERTY
-that matches VALUE."
+that matches VALUE.
+
+If no matches can be found, return nil and don't move point.
+If found, move point to the end of the region and return a
+`prop-match' object describing the match.  To access the details
+of the match, use `prop-match-beginning' and `prop-match-end' for
+the buffer positions that limit the region, and
+`prop-match-value' for the value of PROPERTY in the region."
   (interactive
    (list
     (let ((string (completing-read "Search for property: " obarray)))
@@ -125,7 +137,7 @@ that matches VALUE."
   "Search for the previous region of text whose PROPERTY matches VALUE.
 
 Like `text-property-search-forward', which see, but searches backward,
-and if a matching region is found, moves point to its beginning."
+and if a matching region is found, place point at the start of the region."
   (interactive
    (list
     (let ((string (completing-read "Search for property: " obarray)))
@@ -137,11 +149,19 @@ and if a matching region is found, moves point to its beginning."
     nil)
    ;; We're standing in the property we're looking for, so find the
    ;; end.
-   ((and (text-property--match-p
-          value (get-text-property (1- (point)) property)
-          predicate)
-         (not not-current))
-    (text-property--find-end-backward (1- (point)) property value predicate))
+   ((text-property--match-p
+     value (get-text-property (1- (point)) property)
+     predicate)
+    (let ((origin (point))
+          (match (text-property--find-end-backward
+                  (1- (point)) property value predicate)))
+      ;; When we want to ignore the current element, then repeat the
+      ;; search if we haven't moved out of it yet.
+      (if (and not-current
+               (equal (get-text-property (point) property)
+                      (get-text-property origin property)))
+          (text-property-search-backward property value predicate)
+        match)))
    (t
     (let ((origin (point))
           (ended nil)
@@ -206,3 +226,5 @@ and if a matching region is found, moves point to its beginning."
   (funcall predicate value prop-value))
 
 (provide 'text-property-search)
+
+;;; text-property-search.el ends here

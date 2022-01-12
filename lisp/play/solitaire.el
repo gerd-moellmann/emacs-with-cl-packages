@@ -1,4 +1,4 @@
-;;; solitaire.el --- game of solitaire in Emacs Lisp
+;;; solitaire.el --- game of solitaire in Emacs Lisp  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1994, 2001-2021 Free Software Foundation, Inc.
 
@@ -38,8 +38,7 @@
 
 (defcustom solitaire-mode-hook nil
   "Hook to run upon entry to Solitaire."
-  :type 'hook
-  :group 'solitaire)
+  :type 'hook)
 
 (defvar solitaire-mode-map
   (let ((map (make-sparse-keymap)))
@@ -94,6 +93,7 @@ To learn how to play Solitaire, see the documentation for function
 \\<solitaire-mode-map>
 The usual mnemonic keys move the cursor around the board; in addition,
 \\[solitaire-move] is a prefix character for actually moving a stone on the board."
+  :interactive nil
   (setq truncate-lines t)
   (setq show-trailing-whitespace nil))
 
@@ -119,8 +119,7 @@ The usual mnemonic keys move the cursor around the board; in addition,
   "Non-nil means check for possible moves after each major change.
 This takes a while, so switch this on if you like to be informed when
 the game is over, or off, if you are working on a slow machine."
-  :type 'boolean
-  :group 'solitaire)
+  :type 'boolean)
 
 (defconst solitaire-valid-directions
   '(solitaire-left solitaire-right solitaire-up solitaire-down))
@@ -250,7 +249,7 @@ Pick your favorite shortcuts:
     (setq solitaire-end-y (solitaire-current-line))))
 
 (defun solitaire-right ()
-  (interactive)
+  (interactive nil solitaire-mode)
   (let ((start (point)))
     (forward-char)
     (while (= ?\s (following-char))
@@ -261,7 +260,7 @@ Pick your favorite shortcuts:
       (goto-char start))))
 
 (defun solitaire-left ()
-  (interactive)
+  (interactive nil solitaire-mode)
   (let ((start (point)))
     (backward-char)
     (while (= ?\s (following-char))
@@ -272,7 +271,7 @@ Pick your favorite shortcuts:
       (goto-char start))))
 
 (defun solitaire-up ()
-  (interactive)
+  (interactive nil solitaire-mode)
   (let ((start (point))
 	(c (current-column)))
     (forward-line -1)
@@ -288,7 +287,7 @@ Pick your favorite shortcuts:
       (goto-char start))))
 
 (defun solitaire-down ()
-  (interactive)
+  (interactive nil solitaire-mode)
   (let ((start (point))
 	(c (current-column)))
     (forward-line 1)
@@ -303,13 +302,13 @@ Pick your favorite shortcuts:
       (goto-char start))))
 
 (defun solitaire-center-point ()
-  (interactive)
+  (interactive nil solitaire-mode)
   (goto-char solitaire-center))
 
-(defun solitaire-move-right () (interactive) (solitaire-move '[right]))
-(defun solitaire-move-left () (interactive) (solitaire-move '[left]))
-(defun solitaire-move-up () (interactive) (solitaire-move '[up]))
-(defun solitaire-move-down () (interactive) (solitaire-move '[down]))
+(defun solitaire-move-right () (interactive nil solitaire-mode) (solitaire-move '[right]))
+(defun solitaire-move-left () (interactive nil solitaire-mode) (solitaire-move '[left]))
+(defun solitaire-move-up () (interactive nil solitaire-mode) (solitaire-move '[up]))
+(defun solitaire-move-down () (interactive nil solitaire-mode) (solitaire-move '[down]))
 
 (defun solitaire-possible-move (movesymbol)
   "Check if a move is possible from current point in the specified direction.
@@ -334,7 +333,7 @@ which a stone will be taken away) and target."
 
 (defun solitaire-move (dir)
   "Pseudo-prefix command to move a stone in Solitaire."
-  (interactive "kMove where? ")
+  (interactive "kMove where? " solitaire-mode)
   (let* ((class (solitaire-possible-move (lookup-key solitaire-mode-map dir)))
 	 (buffer-read-only nil))
     (if (stringp class)
@@ -358,7 +357,7 @@ which a stone will be taken away) and target."
 
 (defun solitaire-undo (arg)
   "Undo a move in Solitaire."
-  (interactive "P")
+  (interactive "P" solitaire-mode)
   (let ((buffer-read-only nil))
     (undo arg))
   (save-excursion
@@ -395,7 +394,7 @@ which a stone will be taken away) and target."
 
 (defun solitaire-do-check (&optional _arg)
   "Check for any possible moves in Solitaire."
-  (interactive "P")
+  (interactive "P" solitaire-mode)
   (let ((moves (solitaire-check)))
     (cond ((= 1 solitaire-stones)
 	   (message "Yeah! You made it! Only the King is left!"))
@@ -416,7 +415,7 @@ Seen in info on text lines."
 (defun solitaire-solve ()
   "Spoil Solitaire by solving the game for you - nearly ...
 ... stops with five stones left ;)"
-  (interactive)
+  (interactive nil solitaire-mode)
   (when (< solitaire-stones 32)
     (error "Cannot solve game in progress"))
   (let ((allmoves [up up S-down up left left S-right up up left S-down

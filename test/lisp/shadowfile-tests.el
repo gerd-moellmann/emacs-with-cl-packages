@@ -1,21 +1,23 @@
-;;; shadowfile-tests.el --- Tests of shadowfile
+;;; shadowfile-tests.el --- Tests of shadowfile  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
-;; This program is free software: you can redistribute it and/or
+;; This file is part of GNU Emacs.
+;;
+;; GNU Emacs is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
 ;; published by the Free Software Foundation, either version 3 of the
 ;; License, or (at your option) any later version.
 ;;
-;; This program is distributed in the hope that it will be useful, but
+;; GNU Emacs is distributed in the hope that it will be useful, but
 ;; WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 ;; General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see `https://www.gnu.org/licenses/'.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -67,10 +69,15 @@
       (format "/mock::%s" temporary-file-directory)))
   "Temporary directory for Tramp tests.")
 
-(setq password-cache-expiry nil
-      shadow-debug (getenv "EMACS_HYDRA_CI")
+(setq auth-source-save-behavior nil
+      password-cache-expiry nil
+      shadow-debug (or (getenv "EMACS_HYDRA_CI") (getenv "EMACS_EMBA_CI"))
+      ;; When the remote user id is 0, Tramp refuses unsafe temporary files.
+      tramp-allow-unsafe-temporary-files
+      (or tramp-allow-unsafe-temporary-files noninteractive)
+      tramp-cache-read-persistent-data t ;; For auth-sources.
+      tramp-persistency-file-name nil
       tramp-verbose 0
-      tramp-message-show-message nil
       ;; On macOS, `temporary-file-directory' is a symlinked directory.
       temporary-file-directory (file-truename temporary-file-directory)
       shadow-test-remote-temporary-file-directory
@@ -116,8 +123,8 @@
   (ignore-errors (delete-file shadow-info-file))
   (ignore-errors (delete-file shadow-todo-file))
   ;; Reset variables.
+  (shadow-invalidate-hashtable)
   (setq shadow-info-buffer nil
-        shadow-hashtable nil
         shadow-todo-buffer nil
         shadow-files-to-copy nil))
 
@@ -126,6 +133,7 @@
 Per definition, all files are identical on the different hosts of
 a cluster (or site).  This is not tested here; it must be
 guaranteed by the originator of a cluster definition."
+  :tags '(:expensive-test)
   (skip-unless (not (memq system-type '(windows-nt ms-dos))))
   (skip-unless (file-remote-p shadow-test-remote-temporary-file-directory))
 
@@ -139,9 +147,9 @@ guaranteed by the originator of a cluster definition."
 	;; We must mock `read-from-minibuffer' and `read-string', in
 	;; order to avoid interactive arguments.
 	(cl-letf* (((symbol-function #'read-from-minibuffer)
-		    (lambda (&rest args) (pop mocked-input)))
+		    (lambda (&rest _args) (pop mocked-input)))
 		   ((symbol-function #'read-string)
-		    (lambda (&rest args) (pop mocked-input))))
+		    (lambda (&rest _args) (pop mocked-input))))
 
           ;; Cleanup & initialize.
           (shadow--tests-cleanup)
@@ -256,9 +264,9 @@ guaranteed by the originator of a cluster definition."
 	;; We must mock `read-from-minibuffer' and `read-string', in
 	;; order to avoid interactive arguments.
 	(cl-letf* (((symbol-function #'read-from-minibuffer)
-		    (lambda (&rest args) (pop mocked-input)))
+		    (lambda (&rest _args) (pop mocked-input)))
 		   ((symbol-function #'read-string)
-		    (lambda (&rest args) (pop mocked-input))))
+		    (lambda (&rest _args) (pop mocked-input))))
 
           ;; Cleanup & initialize.
           (shadow--tests-cleanup)
@@ -609,9 +617,9 @@ guaranteed by the originator of a cluster definition."
 	;; We must mock `read-from-minibuffer' and `read-string', in
 	;; order to avoid interactive arguments.
 	(cl-letf* (((symbol-function #'read-from-minibuffer)
-		    (lambda (&rest args) (pop mocked-input)))
+		    (lambda (&rest _args) (pop mocked-input)))
 		   ((symbol-function #'read-string)
-		    (lambda (&rest args) (pop mocked-input))))
+		    (lambda (&rest _args) (pop mocked-input))))
 
           ;; Cleanup & initialize.
           (shadow--tests-cleanup)
@@ -638,7 +646,9 @@ guaranteed by the originator of a cluster definition."
 		 (expand-file-name
 		  "shadowfile-tests"
 		  shadow-test-remote-temporary-file-directory))
-		mocked-input `(,cluster1 ,file1 ,cluster2 ,file2 ,(kbd "RET")))
+		mocked-input
+                `(,cluster1 ,file1 ,cluster2 ,file2
+                  ,primary ,file1 ,(kbd "RET")))
 	  (with-temp-buffer
             (set-visited-file-name file1)
 	    (call-interactively #'shadow-define-literal-group)
@@ -652,7 +662,31 @@ guaranteed by the originator of a cluster definition."
 	  (should (member (format "/%s:%s" cluster1 (file-local-name file1))
                           (car shadow-literal-groups)))
 	  (should (member (format "/%s:%s" cluster2 (file-local-name file2))
-                          (car shadow-literal-groups))))
+                          (car shadow-literal-groups)))
+          ;; Bug#49596.
+	  (should (member (concat primary file1) (car shadow-literal-groups)))
+
+          ;; Error handling.
+          (setq shadow-literal-groups nil)
+          ;; There's no `buffer-file-name'.
+          (with-temp-buffer
+            (call-interactively #'shadow-define-literal-group)
+            (set-buffer-modified-p nil))
+          (should-not shadow-literal-groups)
+	  ;; Define an empty literal group.
+	  (setq mocked-input `(,(kbd "RET")))
+	  (with-temp-buffer
+            (set-visited-file-name file1)
+	    (call-interactively #'shadow-define-literal-group)
+            (set-buffer-modified-p nil))
+          (should-not shadow-literal-groups)
+          ;; Use a non-existing site name.
+	  (setq mocked-input `("foo" ,(kbd "RET")))
+	  (with-temp-buffer
+            (set-visited-file-name file1)
+	    (call-interactively #'shadow-define-literal-group)
+            (set-buffer-modified-p nil))
+          (should-not shadow-literal-groups))
 
       ;; Cleanup.
       (shadow--tests-cleanup))))
@@ -670,9 +704,9 @@ guaranteed by the originator of a cluster definition."
 	;; We must mock `read-from-minibuffer' and `read-string', in
 	;; order to avoid interactive arguments.
 	(cl-letf* (((symbol-function #'read-from-minibuffer)
-		    (lambda (&rest args) (pop mocked-input)))
+		    (lambda (&rest _args) (pop mocked-input)))
 		   ((symbol-function #'read-string)
-		    (lambda (&rest args) (pop mocked-input))))
+		    (lambda (&rest _args) (pop mocked-input))))
 
           ;; Cleanup & initialize.
           (shadow--tests-cleanup)
@@ -727,6 +761,7 @@ guaranteed by the originator of a cluster definition."
   (skip-unless (file-writable-p shadow-test-remote-temporary-file-directory))
 
   (let ((backup-inhibited t)
+        create-lockfiles
         (shadow-info-file shadow-test-info-file)
 	(shadow-todo-file shadow-test-todo-file)
         (shadow-inhibit-message t)
@@ -866,11 +901,13 @@ guaranteed by the originator of a cluster definition."
 
 (ert-deftest shadow-test09-shadow-copy-files ()
   "Check that needed shadow files are copied."
+  :tags '(:expensive-test)
   (skip-unless (not (memq system-type '(windows-nt ms-dos))))
   (skip-unless (file-remote-p shadow-test-remote-temporary-file-directory))
   (skip-unless (file-writable-p shadow-test-remote-temporary-file-directory))
 
   (let ((backup-inhibited t)
+        create-lockfiles
         (shadow-info-file shadow-test-info-file)
 	(shadow-todo-file shadow-test-todo-file)
         (shadow-inhibit-message t)
@@ -924,7 +961,7 @@ guaranteed by the originator of a cluster definition."
 	  ;; action.
           (add-function
            :before (symbol-function #'write-region)
-	   (lambda (&rest args)
+           (lambda (&rest _args)
              (when (and (buffer-file-name) mocked-input)
                (should (equal (buffer-file-name) (pop mocked-input)))))
            '((name . "write-region-mock")))

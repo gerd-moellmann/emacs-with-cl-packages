@@ -1,4 +1,4 @@
-;;; network-stream-tests.el --- tests for network processes       -*- lexical-binding: t; -*-
+;;; shr-tests.el --- tests for shr.el  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2016-2021 Free Software Foundation, Inc.
 
@@ -23,14 +23,13 @@
 
 ;;; Code:
 
+(require 'ert)
+(require 'ert-x)
 (require 'shr)
-
-(defconst shr-tests--datadir
-  (expand-file-name "test/data/shr" source-directory))
 
 (defun shr-test (name)
   (with-temp-buffer
-    (insert-file-contents (format (concat shr-tests--datadir "/%s.html") name))
+    (insert-file-contents (format (concat (ert-resource-directory) "/%s.html") name))
     (let ((dom (libxml-parse-html-region (point-min) (point-max)))
           (shr-width 80)
           (shr-use-fonts nil))
@@ -39,7 +38,7 @@
       (cons (buffer-substring-no-properties (point-min) (point-max))
             (with-temp-buffer
               (insert-file-contents
-               (format (concat shr-tests--datadir "/%s.txt") name))
+               (format (concat (ert-resource-directory) "/%s.txt") name))
               (while (re-search-forward "%\\([0-9A-F][0-9A-F]\\)" nil t)
                 (replace-match (string (string-to-number (match-string 1) 16))
                                t t))
@@ -47,7 +46,7 @@
 
 (ert-deftest rendering ()
   (skip-unless (fboundp 'libxml-parse-html-region))
-  (dolist (file (directory-files shr-tests--datadir nil "\\.html\\'"))
+  (dolist (file (directory-files (ert-resource-directory) nil "\\.html\\'"))
     (let* ((name (replace-regexp-in-string "\\.html\\'" "" file))
            (result (shr-test name)))
       (unless (equal (car result) (cdr result))
@@ -68,4 +67,4 @@
 
 (require 'shr)
 
-;;; shr-stream-tests.el ends here
+;;; shr-tests.el ends here

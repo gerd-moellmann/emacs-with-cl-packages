@@ -1,4 +1,4 @@
-;;; x-dnd.el --- drag and drop support for X
+;;; x-dnd.el --- drag and drop support for X  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2004-2021 Free Software Foundation, Inc.
 
@@ -32,7 +32,7 @@
 (require 'dnd)
 
 ;;; Customizable variables
-(defcustom x-dnd-test-function 'x-dnd-default-test-function
+(defcustom x-dnd-test-function #'x-dnd-default-test-function
   "The function drag and drop uses to determine if to accept or reject a drop.
 The function takes three arguments, WINDOW, ACTION and TYPES.
 WINDOW is where the mouse is when the function is called.  WINDOW may be a
@@ -377,7 +377,7 @@ Currently XDND, Motif and old KDE 1.x protocols are recognized."
     ("XdndActionMove" . move)
     ("XdndActionLink" . link)
     ("XdndActionAsk" . ask))
-  "Mapping from XDND action types to lisp symbols.")
+  "Mapping from XDND action types to Lisp symbols.")
 
 (declare-function x-change-window-property "xfns.c"
 		  (prop value &optional frame type format outer-P))
@@ -411,20 +411,16 @@ Coordinates are required to be absolute.
 FRAME is the frame and W is the window where the drop happened.
 If W is a window, return its absolute coordinates,
 otherwise return the frame coordinates."
-  (let* ((frame-left (frame-parameter frame 'left))
-	 ;; If the frame is outside the display, frame-left looks like
-	 ;; '(0 -16).  Extract the -16.
-	 (frame-real-left (if (consp frame-left) (car (cdr frame-left))
-			    frame-left))
-	 (frame-top (frame-parameter frame 'top))
-	 (frame-real-top (if (consp frame-top) (car (cdr frame-top))
-			   frame-top)))
+  (let* ((frame-left (or (car-safe (cdr-safe (frame-parameter frame 'left)))
+			 (frame-parameter frame 'left)))
+	 (frame-top (or (car-safe (cdr-safe (frame-parameter frame 'top)))
+			(frame-parameter frame 'top))))
     (if (windowp w)
 	(let ((edges (window-inside-pixel-edges w)))
 	  (cons
-	   (+ frame-real-left (nth 0 edges))
-	   (+ frame-real-top (nth 1 edges))))
-      (cons frame-real-left frame-real-top))))
+	   (+ frame-left (nth 0 edges))
+	   (+ frame-top (nth 1 edges))))
+      (cons frame-left frame-top))))
 
 (declare-function x-get-atom-name "xselect.c" (value &optional frame))
 (declare-function x-send-client-message "xselect.c"
@@ -434,15 +430,11 @@ otherwise return the frame coordinates."
 
 (defun x-dnd-version-from-flags (flags)
   "Return the version byte from the 32 bit FLAGS in an XDndEnter message."
-  (if (consp flags)   ;; Long as cons
-      (ash (car flags) -8)
-    (ash flags -24))) ;; Ordinary number
+  (ash flags -24))
 
 (defun x-dnd-more-than-3-from-flags (flags)
   "Return the nmore-than3 bit from the 32 bit FLAGS in an XDndEnter message."
-  (if (consp flags)
-      (logand (cdr flags) 1)
-    (logand flags 1)))
+  (logand flags 1))
 
 (defun x-dnd-handle-xdnd (event frame window message _format data)
   "Receive one XDND event (client message) and send the appropriate reply.
@@ -454,7 +446,7 @@ FORMAT is 32 (not used).  MESSAGE is the data part of an XClientMessageEvent."
 		(version (x-dnd-version-from-flags flags))
 		(more-than-3 (x-dnd-more-than-3-from-flags flags))
 		(dnd-source (aref data 0)))
-	(message "%s %s" version  more-than-3)
+	   (message "%s %s" version more-than-3)
 	   (if version  ;; If flags is bad, version will be nil.
 	       (x-dnd-save-state
 		window nil nil
@@ -495,10 +487,12 @@ FORMAT is 32 (not used).  MESSAGE is the data part of an XClientMessageEvent."
 	((equal "XdndDrop" message)
 	 (if (windowp window) (select-window window))
 	 (let* ((dnd-source (aref data 0))
+		(timestamp (aref data 2))
 		(value (and (x-dnd-current-type window)
 			    (x-get-selection-internal
 			     'XdndSelection
-			     (intern (x-dnd-current-type window)))))
+			     (intern (x-dnd-current-type window))
+			     timestamp)))
 		success action)
 
 	   (setq action (if value
@@ -545,14 +539,14 @@ FORMAT is 32 (not used).  MESSAGE is the data part of an XClientMessageEvent."
 
 	((eq size 4)
 	 (if (eq byteorder ?l)
-	     (cons (+ (ash (aref data (+ 3 offset)) 8)
-		      (aref data (+ 2 offset)))
-		   (+ (ash (aref data (1+ offset)) 8)
-		      (aref data offset)))
-	   (cons (+ (ash (aref data offset) 8)
-		    (aref data (1+ offset)))
-		 (+ (ash (aref data (+ 2 offset)) 8)
-		    (aref data (+ 3 offset))))))))
+	     (+ (ash (aref data (+ 3 offset)) 24)
+		(ash (aref data (+ 2 offset)) 16)
+		(ash (aref data (1+ offset)) 8)
+		(aref data offset))
+	   (+ (ash (aref data offset) 24)
+	      (ash (aref data (1+ offset)) 16)
+	      (ash (aref data (+ 2 offset)) 8)
+	      (aref data (+ 3 offset)))))))
 
 (defun x-dnd-motif-value-to-list (value size byteorder)
   (let ((bytes (cond ((eq size 2)
@@ -560,15 +554,10 @@ FORMAT is 32 (not used).  MESSAGE is the data part of an XClientMessageEvent."
 			    (logand value ?\xff)))
 
 		     ((eq size 4)
-		      (if (consp value)
-			  (list (logand (ash (car value) -8) ?\xff)
-				(logand (car value) ?\xff)
-				(logand (ash (cdr value) -8) ?\xff)
-				(logand (cdr value) ?\xff))
-			(list (logand (ash value -24) ?\xff)
-			      (logand (ash value -16) ?\xff)
-			      (logand (ash value -8) ?\xff)
-			      (logand value ?\xff)))))))
+		      (list (logand (ash value -24) ?\xff)
+			    (logand (ash value -16) ?\xff)
+			    (logand (ash value -8) ?\xff)
+			    (logand value ?\xff))))))
     (if (eq byteorder ?l)
 	(reverse bytes)
       bytes)))

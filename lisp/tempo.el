@@ -25,22 +25,22 @@
 ;;; Commentary:
 
 ;; This file provides a simple way to define powerful templates, or
-;; macros, if you wish. It is mainly intended for, but not limited to,
+;; macros, if you wish.  It is mainly intended for, but not limited to,
 ;; other programmers to be used for creating shortcuts for editing
-;; certain kind of documents. It was originally written to be used by
+;; certain kind of documents.  It was originally written to be used by
 ;; a HTML editing mode written by Nelson Minar <nelson@santafe.edu>,
 ;; and his html-helper-mode.el is probably the best example of how to
 ;; use this program.
 
 ;; A template is defined as a list of items to be inserted in the
-;; current buffer at point. Some of the items can be simple strings,
+;; current buffer at point.  Some of the items can be simple strings,
 ;; while other can control formatting or define special points of
 ;; interest in the inserted text.
 
 ;; If a template defines a "point of interest" that point is inserted
 ;; in a buffer-local list of "points of interest" that the user can
 ;; jump between with the commands `tempo-backward-mark' and
-;; `tempo-forward-mark'. If the template definer provides a prompt for
+;; `tempo-forward-mark'.  If the template definer provides a prompt for
 ;; the point, and the variable `tempo-interactive' is non-nil, the
 ;; user will be prompted for a string to be inserted in the buffer,
 ;; using the minibuffer.
@@ -49,21 +49,21 @@
 ;; current region if the template command is called with a prefix (or
 ;; a non-nil argument).
 
-;; More flexible templates can be created by including lisp symbols,
+;; More flexible templates can be created by including Lisp symbols,
 ;; which will be evaluated as variables, or lists, which will be
-;; evaluated as lisp expressions.
+;; evaluated as Lisp expressions.
 
 ;; See the documentation for tempo-define-template for the different
 ;; items that can be used to define a tempo template.
 
 ;; One of the more powerful features of tempo templates are automatic
-;; completion. With every template can be assigned a special tag that
+;; completion.  With every template can be assigned a special tag that
 ;; should be recognized by `tempo-complete-tag' and expanded to the
-;; complete template. By default the tags are added to a global list
+;; complete template.  By default the tags are added to a global list
 ;; of template tags, and are matched against the last word before
-;; point. But if you assign your tags to a specific list, you can also
+;; point.  But if you assign your tags to a specific list, you can also
 ;; specify another method for matching text in the buffer against the
-;; tags. In the HTML mode, for instance, the tags are matched against
+;; tags.  In the HTML mode, for instance, the tags are matched against
 ;; the text between the last `<' and point.
 
 ;; When defining a template named `foo', a symbol named
@@ -75,7 +75,7 @@
 ;; ftp.lysator.liu.se in the directory /pub/emacs
 
 ;; There is also a WWW page at
-;; http://www.lysator.liu.se/~davidk/elisp/ which has some information
+;; https://www.lysator.liu.se/~davidk/elisp/ which has some information
 
 ;;; Known bugs:
 
@@ -177,7 +177,7 @@ If `tempo-match-finder' is a string, it should contain a regular
 expression with at least one \\( \\) pair.  When searching for tags,
 `tempo-complete-tag' calls `re-search-backward' with this string, and
 the string between the first \\( and \\) is used for matching against
-each string in the tag list. If one is found, the whole text between
+each string in the tag list.  If one is found, the whole text between
 the first \\( and the point is replaced with the inserted template.
 
 You will probably want to include \\=\\= at the end of the regexp to
@@ -220,7 +220,9 @@ list of elements in the template, TAG is the tag used for completion,
 DOCUMENTATION is the documentation string for the insertion command
 created, and TAGLIST (a symbol) is the tag list that TAG (if provided)
 should be added to.  If TAGLIST is nil and TAG is non-nil, TAG is
-added to `tempo-tags'.
+added to `tempo-tags'.  If TAG already corresponds to a template in
+the tag list, modify the list so that TAG now corresponds to the newly
+defined template.
 
 The elements in ELEMENTS can be of several types:
 
@@ -245,7 +247,7 @@ The elements in ELEMENTS can be of several types:
    happens when you call the template function with a prefix argument.
  - (s NAME): Inserts text previously read with the (p ..) construct.
    Finds the insertion saved under NAME and inserts it.  Acts like `p'
-   if tempo-interactive is nil.
+   if `tempo-interactive' is nil.
  - `&': If there is only whitespace between the line start and point,
    nothing happens.  Otherwise a newline is inserted.
  - `%': If there is only whitespace between point and end of line,
@@ -304,8 +306,8 @@ mode, ON-REGION is ignored and assumed true if the region is active."
 	    (goto-char tempo-region-start))
 	(save-excursion
 	  (tempo-insert-mark (point-marker))
-	  (mapc (function (lambda (elt)
-			    (tempo-insert elt on-region)))
+          (mapc (lambda (elt)
+                  (tempo-insert elt on-region))
 		(symbol-value template))
 	  (tempo-insert-mark (point-marker)))
 	(tempo-forward-mark))
@@ -317,8 +319,8 @@ mode, ON-REGION is ignored and assumed true if the region is active."
 ;;; tempo-insert
 
 (defun tempo-insert (element on-region)
-  "Insert a template element.
-Insert one element from a template. If ON-REGION is non-nil the `r'
+  "Insert a template ELEMENT.
+Insert one element from a template.  If ON-REGION is non-nil the `r'
 elements are replaced with the current region.
 
 See documentation for `tempo-define-template' for the kind of elements
@@ -351,9 +353,8 @@ possible."
 	((and (consp element)
 	      (eq (car element) 's)) (tempo-insert-named (car (cdr element))))
 	((and (consp element)
-	      (eq (car element) 'l)) (mapcar (function
-					      (lambda (elt)
-						(tempo-insert elt on-region)))
+              (eq (car element) 'l)) (mapcar (lambda (elt)
+                                               (tempo-insert elt on-region))
 					     (cdr element)))
 	((eq element 'p) (tempo-insert-mark (point-marker)))
 	((eq element 'r) (if on-region
@@ -444,12 +445,12 @@ never prompted."
 ;;; tempo-is-user-element
 
 (defun tempo-is-user-element (element)
-  "Tries all the user-defined element handlers in `tempo-user-elements'."
+  "Try all the user-defined element handlers in `tempo-user-elements'."
   ;; Sigh... I need (some list)
   (catch 'found
-    (mapc (function (lambda (handler)
-		      (let ((result (funcall handler element)))
-			(if result (throw 'found result)))))
+    (mapc (lambda (handler)
+            (let ((result (funcall handler element)))
+              (if result (throw 'found result))))
 	  tempo-user-elements)
     (throw 'found nil)))
 
@@ -464,7 +465,7 @@ never prompted."
 ;;; tempo-save-named
 
 (defun tempo-save-named (name data)	; Had an optional prompt for 'v
-  "Save some data for later insertion
+  "Save some data for later insertion.
 The contents of DATA is saved under the name NAME.
 
 The data can later be retrieved with `tempo-lookup-named'.
@@ -544,10 +545,9 @@ and insert the results."
   (interactive)
   (let ((next-mark (catch 'found
 		     (mapc
-		      (function
-		       (lambda (mark)
-			 (if (< (point) mark)
-			     (throw 'found mark))))
+                      (lambda (mark)
+                        (if (< (point) mark)
+                            (throw 'found mark)))
 		      tempo-marks)
 		     ;; return nil if not found
 		     nil)))
@@ -563,11 +563,10 @@ and insert the results."
   (let ((prev-mark (catch 'found
 		     (let (last)
 		       (mapc
-			(function
-			 (lambda (mark)
-			   (if (<= (point) mark)
-			       (throw 'found last))
-			   (setq last mark)))
+                        (lambda (mark)
+                          (if (<= (point) mark)
+                              (throw 'found last))
+                          (setq last mark))
 			tempo-marks)
 		       last))))
     (if prev-mark
@@ -579,14 +578,20 @@ and insert the results."
 (defun tempo-add-tag (tag template &optional tag-list)
   "Add a template tag.
 Add the TAG, that should complete to TEMPLATE to the list in TAG-LIST,
-or to `tempo-tags' if TAG-LIST is nil."
+or to `tempo-tags' if TAG-LIST is nil.  If TAG was already in the list,
+replace its template with TEMPLATE."
 
   (interactive "sTag: \nCTemplate: ")
   (if (null tag-list)
       (setq tag-list 'tempo-tags))
-  (if (not (assoc tag (symbol-value tag-list)))
-      (set tag-list (cons (cons tag template) (symbol-value tag-list))))
-  (tempo-invalidate-collection))
+  (let ((entry (assoc tag (symbol-value tag-list))))
+    (if entry
+        ;; Tag is already in the list, assign a new template to it.
+        (setcdr entry template)
+      ;; Tag is not present in the list, add it with its template.
+      (set tag-list (cons (cons tag template) (symbol-value tag-list)))))
+  ;; Invalidate globally if we're modifying 'tempo-tags'.
+  (tempo-invalidate-collection (eq tag-list 'tempo-tags)))
 
 ;;;
 ;;; tempo-use-tag-list
@@ -609,10 +614,17 @@ COMPLETION-FUNCTION just sets `tempo-match-finder' locally."
 ;;;
 ;;; tempo-invalidate-collection
 
-(defun tempo-invalidate-collection ()
-  "Marks the tag collection as obsolete.
-Whenever it is needed again it will be rebuilt."
-  (setq tempo-dirty-collection t))
+(defun tempo-invalidate-collection (&optional global)
+  "Mark the tag collection as obsolete.
+Whenever it is needed again it will be rebuilt.  If GLOBAL is non-nil,
+mark the tag collection of all buffers as obsolete, not just the
+current one."
+  (if global
+      (dolist (buffer (buffer-list))
+        (with-current-buffer buffer
+          (when (assq 'tempo-dirty-collection (buffer-local-variables))
+            (setq tempo-dirty-collection t))))
+    (setq tempo-dirty-collection t)))
 
 ;;;
 ;;; tempo-build-collection
@@ -625,11 +637,11 @@ If `tempo-dirty-collection' is nil, the old collection is reused."
 	       tempo-collection)
 	  (setq tempo-collection
 		(apply (function append)
-		       (mapcar (function (lambda (tag-list)
+                       (mapcar (lambda (tag-list)
 					; If the format for
 					; tempo-local-tags changes,
 					; change this
-					   (eval (car tag-list))))
+                                 (eval (car tag-list)))
 			       tempo-local-tags))))
     (setq tempo-dirty-collection nil)))
 

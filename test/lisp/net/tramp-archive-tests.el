@@ -4,18 +4,20 @@
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
-;; This program is free software: you can redistribute it and/or
+;; This file is part of GNU Emacs.
+;;
+;; GNU Emacs is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
 ;; published by the Free Software Foundation, either version 3 of the
 ;; License, or (at your option) any later version.
 ;;
-;; This program is distributed in the hope that it will be useful, but
+;; GNU Emacs is distributed in the hope that it will be useful, but
 ;; WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 ;; General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see `https://www.gnu.org/licenses/'.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -27,40 +29,74 @@
 ;; tests in tramp-tests.el.
 
 (require 'ert)
+(require 'ert-x)
 (require 'tramp-archive)
 (defvar tramp-copy-size-limit)
 (defvar tramp-persistency-file-name)
 
-(defconst tramp-archive-test-resource-directory
-  (let ((default-directory
-	  (if load-in-progress
-	      (file-name-directory load-file-name)
-	    default-directory)))
-    (cond
-     ((file-accessible-directory-p (expand-file-name "resources"))
-      (expand-file-name "resources"))
-     ((file-accessible-directory-p (expand-file-name "tramp-archive-resources"))
-      (expand-file-name "tramp-archive-resources"))))
-  "The resources directory test files are located in.")
+;; `ert-resource-file' was introduced in Emacs 28.1.
+(unless (macrop 'ert-resource-file)
+  (eval-and-compile
+    (defvar ert-resource-directory-format "%s-resources/"
+      "Format for `ert-resource-directory'.")
+    (defvar ert-resource-directory-trim-left-regexp ""
+      "Regexp for `string-trim' (left) used by `ert-resource-directory'.")
+    (defvar ert-resource-directory-trim-right-regexp "\\(-tests?\\)?\\.el"
+      "Regexp for `string-trim' (right) used by `ert-resource-directory'.")
 
-(defconst tramp-archive-test-file-archive
-  (file-truename
-   (expand-file-name "foo.tar.gz" tramp-archive-test-resource-directory))
+    (defmacro ert-resource-directory ()
+      "Return absolute file name of the resource directory for this file.
+
+The path to the resource directory is the \"resources\" directory
+in the same directory as the test file.
+
+If that directory doesn't exist, use the directory named like the
+test file but formatted by `ert-resource-directory-format' and trimmed
+using `string-trim' with arguments
+`ert-resource-directory-trim-left-regexp' and
+`ert-resource-directory-trim-right-regexp'.  The default values mean
+that if called from a test file named \"foo-tests.el\", return
+the absolute file name for \"foo-resources\"."
+      `(let* ((testfile ,(or (bound-and-true-p byte-compile-current-file)
+                             (and load-in-progress load-file-name)
+                             buffer-file-name))
+              (default-directory (file-name-directory testfile)))
+	 (file-truename
+	  (if (file-accessible-directory-p "resources/")
+              (expand-file-name "resources/")
+            (expand-file-name
+             (format
+	      ert-resource-directory-format
+              (string-trim testfile
+			   ert-resource-directory-trim-left-regexp
+			   ert-resource-directory-trim-right-regexp)))))))
+
+    (defmacro ert-resource-file (file)
+      "Return file name of resource file named FILE.
+A resource file is in the resource directory as per
+`ert-resource-directory'."
+      `(expand-file-name ,file (ert-resource-directory)))))
+
+(defconst tramp-archive-test-file-archive (ert-resource-file "foo.tar.gz")
   "The test file archive.")
+
+(defun tramp-archive-test-file-archive-hexlified ()
+    "Return hexlified `tramp-archive-test-file-archive'.
+Do not hexlify \"/\".  This hexlified string is used in `file:///' URLs."
+  (let* ((url-unreserved-chars (cons ?/ url-unreserved-chars)))
+    (url-hexify-string tramp-archive-test-file-archive)))
 
 (defconst tramp-archive-test-archive
   (file-name-as-directory tramp-archive-test-file-archive)
   "The test archive.")
 
 (defconst tramp-archive-test-directory
-  (file-truename
-   (expand-file-name "foo.iso" tramp-archive-test-resource-directory))
+  (file-truename (ert-resource-file "foo.iso"))
   "A directory file name, which looks like an archive.")
 
 (setq password-cache-expiry nil
       tramp-cache-read-persistent-data t ;; For auth-sources.
       tramp-copy-size-limit nil
-      tramp-message-show-message nil
       tramp-persistency-file-name nil
       tramp-verbose 0)
 
@@ -175,7 +211,8 @@ variables, so we check the Emacs version directly."
       (should
        (string-equal
 	host
-	(url-hexify-string (concat "file://" tramp-archive-test-file-archive))))
+	(url-hexify-string
+	 (concat "file://" (tramp-archive-test-file-archive-hexlified)))))
       (should-not port)
       (should (string-equal localname "/"))
       (should (string-equal archive tramp-archive-test-file-archive)))
@@ -194,7 +231,8 @@ variables, so we check the Emacs version directly."
       (should
        (string-equal
 	host
-	(url-hexify-string (concat "file://" tramp-archive-test-file-archive))))
+	(url-hexify-string
+	 (concat "file://" (tramp-archive-test-file-archive-hexlified)))))
       (should-not port)
       (should (string-equal localname "/foo"))
       (should (string-equal archive tramp-archive-test-file-archive)))
@@ -227,20 +265,20 @@ variables, so we check the Emacs version directly."
 	       (concat
 		(tramp-gvfs-url-file-name
 		 (tramp-make-tramp-file-name
-		  tramp-archive-method
-		  ;; User and Domain.
-		  nil nil
-		  ;; Host.
-		  (url-hexify-string
-		   (concat
-		    "file://"
-		    ;; `directory-file-name' does not leave file
-		    ;; archive boundaries.  So we must cut the
-		    ;; trailing slash ourselves.
-		    (substring
-		     (file-name-directory tramp-archive-test-file-archive)
-		     0 -1)))
-		  nil "/"))
+		  (make-tramp-file-name
+		   :method tramp-archive-method
+		   :host
+		   (url-hexify-string
+		    (concat
+		     "file://"
+		     ;; `directory-file-name' does not leave file
+		     ;; archive boundaries.  So we must cut the
+		     ;; trailing slash ourselves.
+		     (substring
+		      (file-name-directory
+		       (tramp-archive-test-file-archive-hexlified))
+		      0 -1)))
+		   :localname "/")))
 		(file-name-nondirectory tramp-archive-test-file-archive)))))
 	    (should-not port)
 	    (should (string-equal localname "/bar"))
@@ -253,15 +291,26 @@ variables, so we check the Emacs version directly."
   "Check `expand-file-name'."
   (should
    (string-equal
-    (expand-file-name "/foo.tar/path/./file") "/foo.tar/path/file"))
+    (expand-file-name (concat tramp-archive-test-archive "path/./file"))
+    (concat tramp-archive-test-archive "path/file")))
   (should
-   (string-equal (expand-file-name "/foo.tar/path/../file") "/foo.tar/file"))
+   (string-equal
+    (expand-file-name (concat tramp-archive-test-archive "path/../file"))
+    (concat tramp-archive-test-archive "file")))
   ;; `expand-file-name' does not care "~/" in archive file names.
   (should
-   (string-equal (expand-file-name "/foo.tar/~/file") "/foo.tar/~/file"))
+   (string-equal
+    (expand-file-name (concat tramp-archive-test-archive "~/file"))
+    (concat tramp-archive-test-archive "~/file")))
   ;; `expand-file-name' does not care file archive boundaries.
-  (should (string-equal (expand-file-name "/foo.tar/./file") "/foo.tar/file"))
-  (should (string-equal (expand-file-name "/foo.tar/../file") "/file")))
+  (should
+   (string-equal
+    (expand-file-name (concat tramp-archive-test-archive "./file"))
+    (concat tramp-archive-test-archive "file")))
+  (should
+   (string-equal
+    (expand-file-name (concat tramp-archive-test-archive "../file"))
+    (concat (ert-resource-directory) "file"))))
 
 ;; This test is inspired by Bug#30293.
 (ert-deftest tramp-archive-test05-expand-file-name-non-archive-directory ()
@@ -286,38 +335,59 @@ This checks also `file-name-as-directory', `file-name-directory',
 
   (should
    (string-equal
-    (directory-file-name "/foo.tar/path/to/file") "/foo.tar/path/to/file"))
+    (directory-file-name (concat tramp-archive-test-archive "path/to/file"))
+    (concat tramp-archive-test-archive "path/to/file")))
   (should
    (string-equal
-    (directory-file-name "/foo.tar/path/to/file/") "/foo.tar/path/to/file"))
+    (directory-file-name (concat tramp-archive-test-archive "path/to/file/"))
+    (concat tramp-archive-test-archive "path/to/file")))
   ;; `directory-file-name' does not leave file archive boundaries.
-  (should (string-equal (directory-file-name "/foo.tar/") "/foo.tar/"))
+  (should
+   (string-equal
+    (directory-file-name tramp-archive-test-archive) tramp-archive-test-archive))
 
   (should
    (string-equal
-    (file-name-as-directory "/foo.tar/path/to/file") "/foo.tar/path/to/file/"))
+    (file-name-as-directory (concat tramp-archive-test-archive "path/to/file"))
+    (concat tramp-archive-test-archive "path/to/file/")))
   (should
    (string-equal
-    (file-name-as-directory "/foo.tar/path/to/file/") "/foo.tar/path/to/file/"))
-  (should (string-equal (file-name-as-directory "/foo.tar/") "/foo.tar/"))
-  (should (string-equal (file-name-as-directory "/foo.tar") "/foo.tar/"))
+    (file-name-as-directory (concat tramp-archive-test-archive "path/to/file/"))
+    (concat tramp-archive-test-archive "path/to/file/")))
+  (should
+   (string-equal
+    (file-name-as-directory tramp-archive-test-archive)
+    tramp-archive-test-archive))
+  (should
+   (string-equal
+    (file-name-as-directory tramp-archive-test-file-archive)
+    tramp-archive-test-archive))
 
   (should
    (string-equal
-    (file-name-directory "/foo.tar/path/to/file") "/foo.tar/path/to/"))
+    (file-name-directory (concat tramp-archive-test-archive "path/to/file"))
+    (concat tramp-archive-test-archive "path/to/")))
   (should
    (string-equal
-    (file-name-directory "/foo.tar/path/to/file/") "/foo.tar/path/to/file/"))
-  (should (string-equal (file-name-directory "/foo.tar/") "/foo.tar/"))
+    (file-name-directory (concat tramp-archive-test-archive "path/to/file/"))
+    (concat tramp-archive-test-archive "path/to/file/")))
+  (should
+   (string-equal
+    (file-name-directory tramp-archive-test-archive) tramp-archive-test-archive))
 
   (should
-   (string-equal (file-name-nondirectory "/foo.tar/path/to/file") "file"))
+   (string-equal
+    (file-name-nondirectory (concat tramp-archive-test-archive "path/to/file"))
+    "file"))
   (should
-   (string-equal (file-name-nondirectory "/foo.tar/path/to/file/") ""))
-  (should (string-equal (file-name-nondirectory "/foo.tar/") ""))
+   (string-equal
+    (file-name-nondirectory (concat tramp-archive-test-archive "path/to/file/"))
+    ""))
+  (should (string-equal (file-name-nondirectory tramp-archive-test-archive) ""))
 
   (should-not
-   (unhandled-file-name-directory "/foo.tar/path/to/file")))
+   (unhandled-file-name-directory
+    (concat tramp-archive-test-archive "path/to/file"))))
 
 (ert-deftest tramp-archive-test07-file-exists-p ()
   "Check `file-exist-p', `write-region' and `delete-file'."
@@ -785,7 +855,7 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
       (tramp-archive-cleanup-hash))))
 
 ;; The functions were introduced in Emacs 26.1.
-(ert-deftest tramp-archive-test39-make-nearby-temp-file ()
+(ert-deftest tramp-archive-test40-make-nearby-temp-file ()
   "Check `make-nearby-temp-file' and `temporary-file-directory'."
   (skip-unless tramp-archive-enabled)
   ;; Since Emacs 26.1.
@@ -822,7 +892,7 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
     (delete-directory tmp-file)
     (should-not (file-exists-p tmp-file))))
 
-(ert-deftest tramp-archive-test42-file-system-info ()
+(ert-deftest tramp-archive-test43-file-system-info ()
   "Check that `file-system-info' returns proper values."
   (skip-unless tramp-archive-enabled)
   ;; Since Emacs 27.1.
@@ -848,27 +918,36 @@ This tests also `file-executable-p', `file-writable-p' and `set-file-modes'."
 
   ;; tramp-archive is neither loaded at Emacs startup, nor when
   ;; loading a file like "/mock::foo" (which loads Tramp).
-  (let ((default-directory (expand-file-name temporary-file-directory))
-	(code
+  (let ((code
 	 "(progn \
-	    (message \"tramp-archive loaded: %%s %%s\" \
-              (featurep 'tramp) (featurep 'tramp-archive)) \
-	    (file-attributes %S \"/\") \
-	    (message \"tramp-archive loaded: %%s %%s\" \
-              (featurep 'tramp) (featurep 'tramp-archive)))"))
-    (dolist (file `("/mock::foo" ,(concat tramp-archive-test-archive "foo")))
-      (should
-       (string-match
-	(format
-	 "tramp-archive loaded: nil nil[[:ascii:]]+tramp-archive loaded: t %s"
-	 (tramp-archive-file-name-p file))
-	(shell-command-to-string
-	 (format
-	  "%s -batch -Q -L %s --eval %s"
-	  (shell-quote-argument
-	   (expand-file-name invocation-name invocation-directory))
-	  (mapconcat #'shell-quote-argument load-path " -L ")
-	  (shell-quote-argument (format code file)))))))))
+	    (message \"tramp-archive loaded: %%s\" \
+              (featurep 'tramp-archive)) \
+	    (let ((inhibit-message t)) \
+              (file-attributes %S \"/\")) \
+	    (message \"tramp-archive loaded: %%s\" \
+              (featurep 'tramp-archive))))"))
+    (dolist (default-directory
+              `(,temporary-file-directory
+		;;  Starting Emacs in a directory which has
+		;; `tramp-archive-file-name-regexp' syntax is
+		;; supported only with Emacs > 27.2 (sigh!).
+		;; (Bug#48476)
+                ,(file-name-as-directory tramp-archive-test-directory)))
+      (dolist (file `("/mock::foo" ,(concat tramp-archive-test-archive "foo")))
+        (should
+         (string-match
+	  (format
+	   "tramp-archive loaded: %s[[:ascii:]]+tramp-archive loaded: %s"
+	   (tramp-archive-file-name-p default-directory)
+	   (or (tramp-archive-file-name-p default-directory)
+               (tramp-archive-file-name-p file)))
+	  (shell-command-to-string
+	   (format
+	    "%s -batch -Q -L %s --eval %s"
+	    (shell-quote-argument
+	     (expand-file-name invocation-name invocation-directory))
+	    (mapconcat #'shell-quote-argument load-path " -L ")
+	    (shell-quote-argument (format code file))))))))))
 
 (ert-deftest tramp-archive-test45-delay-load ()
   "Check that `tramp-archive' is loaded lazily, only when needed."
@@ -971,4 +1050,5 @@ If INTERACTIVE is non-nil, the tests are run interactively."
    "^tramp-archive"))
 
 (provide 'tramp-archive-tests)
+
 ;;; tramp-archive-tests.el ends here

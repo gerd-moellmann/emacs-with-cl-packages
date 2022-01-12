@@ -188,6 +188,11 @@ struct mac_output
      and the window has not yet been created.  */
   Window window_desc;
 
+#ifdef HAVE_XWIDGETS
+  /* NSView for this window.  Don't use this outside nsxwidget.m.  */
+  void *view;
+#endif
+
   /* The window that is the parent of this window.
      Usually this is a window that was made by the window manager,
      but it can be the root window, and it can be explicitly specified
@@ -306,6 +311,10 @@ struct mac_output
 /* Return the Mac window used for displaying data in frame F.  */
 #define FRAME_MAC_WINDOW(f) ((f)->output_data.mac->window_desc)
 #define FRAME_NATIVE_WINDOW(f) ((f)->output_data.mac->window_desc)
+
+#ifdef HAVE_XWIDGETS
+#define FRAME_MAC_VIEW(f)	((f)->output_data.mac->view)
+#endif
 
 #define FRAME_FONT(f) ((f)->output_data.mac->font)
 #define FRAME_FONTSET(f) ((f)->output_data.mac->fontset)
@@ -433,6 +442,7 @@ BLOCK_EXPORT void * _NSConcreteStackBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AN
 #define UTI_URL		(CFSTR ("public.url"))
 #define UTI_PDF		(CFSTR ("com.adobe.pdf"))
 #define UTI_SVG		(CFSTR ("public.svg-image"))
+#define UTI_IMAGE	(CFSTR ("public.image"))
 #else
 #define UTI_PNG		kUTTypePNG
 #define UTI_JPEG	kUTTypeJPEG
@@ -445,6 +455,7 @@ BLOCK_EXPORT void * _NSConcreteStackBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AN
 #else
 #define UTI_SVG		(CFSTR ("public.svg-image"))
 #endif
+#define UTI_IMAGE	kUTTypeImage
 #endif
 
 /* From macfns.c.  */
@@ -581,6 +592,7 @@ extern Lisp_Object xrm_get_resource (XrmDatabase, const char *, const char *);
 extern XrmDatabase xrm_get_preference_database (const char *);
 extern bool mac_service_provider_registered_p (void);
 extern Lisp_Object mac_carbon_version_string (void);
+extern const char *mac_relocate (const char *);
 
 /* Defined in macappkit.m.  */
 

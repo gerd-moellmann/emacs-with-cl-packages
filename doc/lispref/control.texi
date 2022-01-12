@@ -555,10 +555,21 @@ Two symbols to avoid are @code{t}, which behaves like @code{_}
 Likewise, it makes no sense to bind keyword symbols
 (@pxref{Constant Variables}).
 
+@item (cl-type @var{type})
+Matches if @var{expval} is of type @var{type}, which is a type
+descriptor as accepted by @code{cl-typep} (@pxref{Type Predicates,,,cl,Common
+Lisp Extensions}).  Examples:
+
+@lisp
+(cl-type integer)
+(cl-type (integer 0 10))
+@end lisp
+
 @item (pred @var{function})
 Matches if the predicate @var{function} returns non-@code{nil}
-when called on @var{expval}.
-the predicate @var{function} can have one of the following forms:
+when called on @var{expval}.  The test can be negated with the syntax
+@code{(pred (not @var{function}))}.
+The predicate @var{function} can have one of the following forms:
 
 @table @asis
 @item function name (a symbol)
@@ -616,17 +627,13 @@ match, @code{and} matches.
 @item (or @var{pattern1} @var{pattern2}@dots{})
 Attempts to match @var{pattern1}, @var{pattern2}, @dots{}, in order,
 until one of them succeeds.  In that case, @code{or} likewise matches,
-and the rest of the sub-patterns are not tested.  (Note that there
-must be at least two sub-patterns.
-Simply @w{@code{(or @var{pattern1})}} signals error.)
-@c Issue: Is this correct and intended?
-@c        Are there exceptions, qualifications?
-@c        (Btw, ``Please avoid it'' is a poor error message.)
+and the rest of the sub-patterns are not tested.
 
 To present a consistent environment (@pxref{Intro Eval})
 to @var{body-forms} (thus avoiding an evaluation error on match),
-if any of the sub-patterns let-binds a set of symbols,
-they @emph{must} all bind the same set of symbols.
+the set of variables bound by the pattern is the union of the
+variables bound by each sub-pattern.  If a variable is not bound by
+the sub-pattern that matched, then it is bound to @code{nil}.
 
 @ifnottex
 @anchor{rx in pcase}
@@ -1305,6 +1312,10 @@ element of @var{list}.  The bindings are performed as if by
 up being equivalent to @code{dolist} (@pxref{Iteration}).
 @end defmac
 
+@defmac pcase-setq pattern value@dots{}
+Assign values to variables in a @code{setq} form, destructuring each
+@var{value} according to its respective @var{pattern}.
+@end defmac
 
 @node Iteration
 @section Iteration
@@ -2015,7 +2026,8 @@ that can be handled).
 This special form establishes the error handlers @var{handlers} around
 the execution of @var{protected-form}.  If @var{protected-form} executes
 without error, the value it returns becomes the value of the
-@code{condition-case} form; in this case, the @code{condition-case} has
+@code{condition-case} form (in the absence of a success handler; see below).
+In this case, the @code{condition-case} has
 no effect.  The @code{condition-case} form makes a difference when an
 error occurs during @var{protected-form}.
 
@@ -2064,6 +2076,12 @@ error description.
 
 If @var{var} is @code{nil}, that means no variable is bound.  Then the
 error symbol and associated data are not available to the handler.
+
+@cindex success handler
+As a special case, one of the @var{handlers} can be a list of the
+form @code{(:success @var{body}@dots{})}, where @var{body} is executed
+with @var{var} (if non-@code{nil}) bound to the return value of
+@var{protected-form} when that expression terminates without error.
 
 @cindex rethrow a signal
 Sometimes it is necessary to re-throw a signal caught by

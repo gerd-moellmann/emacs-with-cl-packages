@@ -123,94 +123,6 @@ load-path.
 
 * Crash bugs
 
-** Emacs crashes when running in a terminal, if compiled with GCC 4.5.0
-
-This version of GCC is buggy: see
-
-  https://debbugs.gnu.org/6031
-  https://gcc.gnu.org/bugzilla/show_bug.cgi?id=43904
-
-You can work around this error in gcc-4.5 by omitting sibling call
-optimization.  To do this, configure Emacs with
-
- ./configure CFLAGS="-g -O2 -fno-optimize-sibling-calls"
-
-** Emacs compiled with GCC 4.6.1 crashes on MS-Windows when C-g is pressed
-
-This is known to happen when Emacs is compiled with MinGW GCC 4.6.1
-with the -O2 option (which is the default in the Windows build).  The
-reason is a bug in MinGW GCC 4.6.1; to work around, either add the
-'-fno-omit-frame-pointer' switch to GCC or compile without
-optimizations ('--no-opt' switch to the configure.bat script).
-
-** Emacs crashes in x-popup-dialog.
-
-This can happen if the dialog widget cannot find the font it wants to
-use.  You can work around the problem by specifying another font with
-an X resource--for example, 'Emacs.dialog*.font: 9x15' (or any font that
-happens to exist on your X server).
-
-** Emacs crashes when you use Bibtex mode.
-
-This happens if your system puts a small limit on stack size.  You can
-prevent the problem by using a suitable shell command (often 'ulimit')
-to raise the stack size limit before you run Emacs.
-
-Patches to raise the stack size limit automatically in 'main'
-(src/emacs.c) on various systems would be greatly appreciated.
-
-** Error message 'Symbol’s value as variable is void: x', followed by
-a segmentation fault and core dump.
-
-This has been tracked to a bug in tar!  People report that tar erroneously
-added a line like this at the beginning of files of Lisp code:
-
-   x FILENAME, N bytes, B tape blocks
-
-If your tar has this problem, install GNU tar--if you can manage to
-untar it :-).
-
-** Emacs can crash when displaying PNG images with transparency.
-
-This is due to a bug introduced in ImageMagick 6.8.2-3.  The bug should
-be fixed in ImageMagick 6.8.3-10.  See <URL:https://debbugs.gnu.org/13867>.
-
-** Crashes when displaying GIF images in Emacs built with version
-libungif-4.1.0 are resolved by using version libungif-4.1.0b1.
-Configure checks for the correct version, but this problem could occur
-if a binary built against a shared libungif is run on a system with an
-older version.
-
-** Emacs aborts inside the function 'tparam1'.
-
-This can happen if Emacs was built without terminfo support, but the
-terminal's capabilities use format that is only supported by terminfo.
-If your system has ncurses installed, this might happen if your
-version of ncurses is broken; upgrading to a newer version of ncurses
-and reconfiguring and rebuilding Emacs should solve this.
-
-All modern systems support terminfo, so even if ncurses is not the
-problem, you should look for a way to configure Emacs so that it uses
-terminfo when built.
-
-** Emacs crashes when using some version of the Exceed X server.
-
-Upgrading to a newer version of Exceed has been reported to prevent
-these crashes.  You should consider switching to a free X server, such
-as Xming or Cygwin/X.
-
-** Emacs crashes with SIGSEGV in XtInitializeWidgetClass.
-
-It crashes on X, but runs fine when called with option "-nw".
-
-This has been observed when Emacs is linked with GNU ld but without passing
-the -z nocombreloc flag.  Emacs normally knows to pass the -z nocombreloc
-flag when needed, so if you come across a situation where the flag is
-necessary but missing, please report it via M-x report-emacs-bug.
-
-On platforms such as Solaris, you can also work around this problem by
-configuring your compiler to use the native linker instead of GNU ld.
-
 ** When Emacs is compiled with Gtk+, closing a display kills Emacs.
 
 There is a long-standing bug in GTK that prevents it from recovering
@@ -266,11 +178,31 @@ The relevant bug report is here:
 A workaround is to set XLIB_SKIP_ARGB_VISUALS=1 in the environment
 before starting Emacs, or run Emacs as root.
 
+** Emacs crashes with SIGTRAP when trying to start a WebKit xwidget.
+
+This could happen if the version of WebKitGTK installed on your system
+is buggy, and errors out trying to start a subprocess through
+Bubblewrap sandboxing.  You can avoid the crash by setting the
+environment variables SNAP, SNAP_NAME and SNAP_REVISION, which will
+make WebKit use GLib to launch subprocesses instead.  For example,
+invoke Emacs like this (where "..." stands for the other command-line
+arguments you intend to pass to Emacs):
+
+  $ SNAP=1 SNAP_NAME=1 SNAP_REVISION=1 emacs ...
+
 ** Emacs crashes when you try to view a file with complex characters.
 
 One possible reason for this could be a bug in the libotf or the
 libm17n-flt/m17n-db libraries Emacs uses for displaying complex
-scripts.  Make sure you have the latest versions of these libraries
+scripts.
+
+The easiest and the recommended way of solving these crashes is to
+build Emacs with HarfBuzz as the shaping engine library instead of
+libm17n-flt.  Building with HarfBuzz is the default since Emacs 27.1.
+
+If you must use libm17n-flt, read on.
+
+Make sure you have the latest versions of these libraries
 installed.  If the problem still persists with the latest released
 versions of these libraries, you can try building these libraries from
 their CVS repository:
@@ -318,6 +250,171 @@ element from LD_LIBRARY_PATH before starting emacs proper.
 Or you could recompile Emacs with an -Wl,-rpath option that
 gives the location of the correct libotf.
 
+** Emacs crashes in x-popup-dialog.
+
+This can happen if the dialog widget cannot find the font it wants to
+use.  You can work around the problem by specifying another font with
+an X resource--for example, 'Emacs.dialog*.font: 9x15' (or any font that
+happens to exist on your X server).
+
+** Emacs crashes when you use Bibtex mode.
+
+This happens if your system puts a small limit on stack size.  You can
+prevent the problem by using a suitable shell command (often 'ulimit')
+to raise the stack size limit before you run Emacs.
+
+Patches to raise the stack size limit automatically in 'main'
+(src/emacs.c) on various systems would be greatly appreciated.
+
+** Error message 'Symbol’s value as variable is void: x', followed by
+a segmentation fault and core dump.
+
+This has been tracked to a bug in tar!  People report that tar erroneously
+added a line like this at the beginning of files of Lisp code:
+
+   x FILENAME, N bytes, B tape blocks
+
+If your tar has this problem, install GNU tar--if you can manage to
+untar it :-).
+
+** Emacs crashes when running in a terminal, if compiled with GCC 4.5.0
+
+This version of GCC is buggy: see
+
+  https://debbugs.gnu.org/6031
+  https://gcc.gnu.org/bugzilla/show_bug.cgi?id=43904
+
+You can work around this error in gcc-4.5 by omitting sibling call
+optimization.  To do this, configure Emacs with
+
+ ./configure CFLAGS="-g -O2 -fno-optimize-sibling-calls"
+
+** Emacs compiled with GCC 4.6.1 crashes on MS-Windows when C-g is pressed
+
+This is known to happen when Emacs is compiled with MinGW GCC 4.6.1
+with the -O2 option (which is the default in the Windows build).  The
+reason is a bug in MinGW GCC 4.6.1; to work around, either add the
+'-fno-omit-frame-pointer' switch to GCC or compile without
+optimizations ('--no-opt' switch to the configure.bat script).
+
+** Emacs can crash when displaying PNG images with transparency.
+
+This is due to a bug introduced in ImageMagick 6.8.2-3.  The bug should
+be fixed in ImageMagick 6.8.3-10.  See <URL:https://debbugs.gnu.org/13867>.
+
+** Crashes when displaying GIF images in Emacs built with version
+libungif-4.1.0 are resolved by using version libungif-4.1.0b1.
+Configure checks for the correct version, but this problem could occur
+if a binary built against a shared libungif is run on a system with an
+older version.
+
+** Emacs aborts inside the function 'tparam1'.
+
+This can happen if Emacs was built without terminfo support, but the
+terminal's capabilities use format that is only supported by terminfo.
+If your system has ncurses installed, this might happen if your
+version of ncurses is broken; upgrading to a newer version of ncurses
+and reconfiguring and rebuilding Emacs should solve this.
+
+All modern systems support terminfo, so even if ncurses is not the
+problem, you should look for a way to configure Emacs so that it uses
+terminfo when built.
+
+** Emacs crashes when using some version of the Exceed X server.
+
+Upgrading to a newer version of Exceed has been reported to prevent
+these crashes.  You should consider switching to a free X server, such
+as Xming or Cygwin/X.
+
+** Emacs crashes with SIGSEGV in XtInitializeWidgetClass.
+
+It crashes on X, but runs fine when called with option "-nw".
+
+This has been observed when Emacs is linked with GNU ld but without passing
+the -z nocombreloc flag.  Emacs normally knows to pass the -z nocombreloc
+flag when needed, so if you come across a situation where the flag is
+necessary but missing, please report it via M-x report-emacs-bug.
+
+On platforms such as Solaris, you can also work around this problem by
+configuring your compiler to use the native linker instead of GNU ld.
+
+* Problems when reading or debugging Emacs C code
+
+Because Emacs does not install a copy of its C source code, users
+normally cannot easily read that code via commands like 'M-x
+describe-function' (C-h f) that display the definition of a function.
+However, some GNU/Linux systems provide separate packages containing
+this source code which can get C-h f to work if you are willing to do
+some tinkering, and some systems also provide packages containing
+debug info, which when combined with the source can be used to debug
+Emacs at the C level.
+
+** Debian-based source and debuginfo
+
+On recent Debian-based systems, you can obtain and use a source
+package of Emacs as follows.
+
+*** Add the appropriate URI to /etc/apt/sources.list.
+
+To do this, become superuser and uncomment or add the appropriate
+'deb-src' line.  Details depend on the distribution.
+
+*** Execute a command like 'apt-get source emacs'.
+
+On older systems, append the top-level version number, e.g., 'apt-get
+source emacs25'.  The target directory for unpacking the source tree
+is the current directory.
+
+*** Set find-function-C-source-directory accordingly.
+
+Once you have installed the source package, for example at
+/home/myself/deb-src/emacs-27.1, add the following line to your
+startup file:
+
+     (setq find-function-C-source-directory
+           "/home/myself/deb-src/emacs-27.1/src/")
+
+The installation directory of the Emacs source package will contain
+the exact package name and version number of Emacs that is installed
+on your system.  If a new Emacs package is installed, the source
+package must be reinstalled as well, and the setting in your startup
+file must be updated.
+
+*** Debian-based debuginfo
+
+You can also install a debug package of Emacs with a command like
+'apt-get install emacs-dbg' (on older systems, 'apt-get install
+emacs25-dbg').  You need to arrange for GDB to find where you
+installed the source code, e.g., by using GDB's 'directory' command.
+
+** Red Hat-based source and debuginfo
+
+On recent Red Hat-based systems, you can install source and debug info
+via superuser commands like the following:
+
+  # Add the *-debuginfo repositories (exact command depends on system).
+  dnf config-manager --set-enabled fedora-debuginfo updates-debuginfo'
+
+  # Install Emacs source and debug info.
+  dnf install emacs-debugsource
+
+To get describe-function and similar commands to work, you can then
+add something like the following to your startup file:
+
+     (setq find-function-C-source-directory
+           "/usr/src/debug/emacs-27.1-1.fc31.x86_64/src/")
+
+However, the exact directory name will depend on the system, and you
+will need to both upgrade source and debug info when your system
+upgrades or patches Emacs, and change your startup file accordingly.
+
+** Source and debuginfo for other systems
+
+If your system follows neither the Debian nor the Red Hat patterns,
+you can obtain the source and debuginfo by obtaining the source code
+of Emacs, building Emacs with the appropriate debug flags enabled, and
+running the just-built Emacs.
+
 * General runtime problems
 
 ** Lisp problems
@@ -341,27 +438,6 @@ EMACSLOADPATH overrides which directories the function "load" will search.
 
 If you observe strange problems, check for this variable in your
 environment.
-
-*** Using epop3.el package causes Emacs to signal an error.
-
-The error message might be something like this:
-
-  "Lisp nesting exceeds max-lisp-eval-depth"
-
-This happens because epop3 redefines the function gethash, which is a
-built-in primitive beginning with Emacs 21.1.  We don't have a patch
-for epop3 to fix it, but perhaps a newer version of epop3 corrects that.
-
-*** Buffers from 'with-output-to-temp-buffer' get set up in Help mode.
-
-Changes in Emacs 20.4 to the hooks used by that function cause
-problems for some packages, specifically BBDB.  See the function's
-documentation for the hooks involved.  BBDB 2.00.06 fixes the problem.
-
-*** The Hyperbole package causes *Help* buffers not to be displayed in
-Help mode due to setting 'temp-buffer-show-hook' rather than using
-'add-hook'.  Using '(add-hook 'temp-buffer-show-hook 'help-mode-finish)'
-after loading Hyperbole should fix this.
 
 ** Keyboard problems
 
@@ -497,13 +573,6 @@ This can happen with CVS versions 1.12.8 and 1.12.9.  Upgrade to CVS
 For example, simply moving through a file that contains hundreds of
 thousands of characters per line is slow, and consumes a lot of CPU.
 This is a known limitation of Emacs with no solution at this time.
-
-*** Emacs uses 100% of CPU time
-
-This was a known problem with some old versions of the Semantic package.
-The solution was to upgrade Semantic to version 2.0pre4 (distributed
-with CEDET 1.0pre4) or later.  Note that Emacs includes Semantic since
-23.2, and this issue does not apply to the included version.
 
 *** Display artifacts on GUI frames on X-based systems.
 
@@ -689,6 +758,11 @@ completed" message that tls.el relies upon, causing affected Emacs
 functions to hang.  To work around the problem, use older or newer
 versions of gnutls-cli, or use Emacs's built-in gnutls support.
 
+*** SVG images may be cropped incorrectly with librsvg 2.45 or older.
+
+Librsvg 2.46 and above have improved geometry code which Emacs is able
+to take advantage of.
+
 * Runtime problems related to font handling
 
 ** Characters are displayed as empty boxes or with wrong font under X.
@@ -697,6 +771,18 @@ versions of gnutls-cli, or use Emacs's built-in gnutls support.
 Try removing or moving aside "$XDG_CONFIG_HOME/fontconfig/conf.d" and
 "$XDG_CONFIG_HOME/fontconfig/fonts.conf"
 ($XDG_CONFIG_HOME is treated as "~/.config" if not set)
+
+Running Emacs as
+
+    FC_DEBUG=1024 emacs
+
+will cause fontconfig to output information about which configuration
+files it is reading.  Running Emacs as
+
+    FC_DEBUG=1 emacs
+
+will result in information about the results of fontconfig's font
+matching (including the filename(s) of the resulting fonts).
 
 *** This can occur when two different versions of FontConfig are used.
 For example, XFree86 4.3.0 has one version and Gnome usually comes
@@ -710,7 +796,7 @@ same version of FontConfig as the rest of the system uses.  For KDE,
 it is sufficient to recompile Qt.
 
 *** Some fonts have a missing glyph and no default character.  This is
-known to occur for character number 160 (no-break space) in some
+known to occur for character number 160 (no-break space, U+A0) in some
 fonts, such as Lucida but Emacs sets the display table for the unibyte
 and Latin-1 version of this character to display a space.
 
@@ -742,7 +828,7 @@ build emacs with Cairo enabled ("configure --with-cairo" and have the
 appropriate Cairo development packages installed) as this
 configuration does not suffer from this problem.  See
 <https://github.com/googlefonts/Inconsolata/issues/42> and
-<https://lists.gnu.org/archive/html/bug-gnu-emacs/2020-01/msg00456.html>
+<https://lists.gnu.org/r/bug-gnu-emacs/2020-01/msg00456.html>
 for more discussion.
 
 ** Under X, an unexpected monospace font is used as the default font.
@@ -1051,20 +1137,6 @@ The same problem happens on any other system if you are using fcitx
 you want to use fcitx with Emacs, you have two choices.  Toggle fcitx
 by another key (e.g. C-\) by modifying ~/.fcitx/config, or be
 accustomed to use C-@ for 'set-mark-command'.
-
-*** Link-time optimization with clang doesn't work on Fedora 20.
-
-As of May 2014, Fedora 20 has broken LLVMgold.so plugin support in clang
-(tested with clang-3.4-6.fc20) - 'clang --print-file-name=LLVMgold.so'
-prints 'LLVMgold.so' instead of full path to plugin shared library, and
-'clang -flto' is unable to find the plugin with the following error:
-
-/bin/ld: error: /usr/bin/../lib/LLVMgold.so: could not load plugin library:
-/usr/bin/../lib/LLVMgold.so: cannot open shared object file: No such file
-or directory
-
-The only way to avoid this is to build your own clang from source code
-repositories, as described at http://clang.llvm.org/get_started.html.
 
 *** M-SPC seems to be ignored as input.
 
@@ -1571,7 +1643,20 @@ even if you should be able to paste, and similar).
 You can get back menus on each frame by starting emacs like this:
 % env UBUNTU_MENUPROXY= emacs
 
+*** Mouse click coordinates not recognized correctly on multiple monitors.
+
+This happens on the proprietary X server ASTEC-X when the number of
+monitors is changed after the server has started.  A workaround is to
+restart the X server after the monitor configuration has been changed.
+
 * Runtime problems on character terminals
+
+*** With X forwarding, mouse highlighting can make Emacs slow.
+
+If you see slow updates when moving the mouse in an Emacs running on a
+remote X server, try this:
+
+    (setq mouse-highlight nil)
 
 ** The meta key does not work on xterm.
 
@@ -1883,6 +1968,75 @@ To avoid it, set xterm-extra-capabilities to a value other than
 'check' (the default).  See that variable's documentation (in
 term/xterm.el) for more details.
 
+** Incorrect or corrupted display of some Unicode characters
+
+*** Linux console problems with double-width characters
+
+The Linux console declares UTF-8 encoding, but supports only a limited
+number of Unicode characters, and can cause Emacs produce corrupted or
+garbled display with some unusual characters and sequences.  Emacs 28
+and later by default disables 'auto-composition-mode' on this console,
+for that reason, but this might not be enough.  One known problem with
+this console is that zero-width and double-width characters are
+displayed incorrectly (as a single-column characters), and that causes
+the cursor to be out of sync with the actual display.
+
+One way of working around this is to use the display-table feature to
+display the problematic characters as some other, less problematic
+ones.  Here's an example of setting up the standard display table to
+show the U+01F64F PERSON WITH FOLDED HANDS character as a diamond with
+a special face:
+
+  (or standard-display-table
+      (setq standard-display-table (make-display-table)))
+  (aset standard-display-table
+	#x1f64f (vector (make-glyph-code #xFFFD 'escape-glyph)))
+
+Similar setup can be done with any other problematic character.  If
+the console cannot even display the U+FFFD REPLACEMENT CHARACTER, you
+can use some ASCII character instead, like '?'; it will stand out due
+to the 'escape-glyph' face.  The disadvantage of this method is that
+all such characters will look the same on display, and the only way of
+knowing what is the real codepoint in the buffer is to go to the
+character and type "C-u C-x =".
+
+*** Messed-up display on the Kitty text terminal
+
+This terminal has its own peculiar ideas about display of unusual
+characters.  For example, it hides the U+00AD SOFT HYPHEN characters
+on display, which messes up Emacs cursor addressing, since Emacs
+doesn't know these characters are effectively treated as zero-width
+characters.
+
+One way of working around such "hidden" characters is to tell Emacs to
+display them as zero-width:
+
+  (aset glyphless-char-display #xAD 'zero-width)
+
+Another possibility is to use display-table to display SOFT HYPHEN as
+a regular ASCII dash character '-':
+
+  (or standard-display-table
+      (setq standard-display-table (make-display-table)))
+  (aset standard-display-table
+        #xAD (vector (make-glyph-code ?- 'escape-glyph)))
+
+Another workaround is to set 'nobreak-char-ascii-display' to a non-nil
+value, which will cause any non-ASCII space and hyphen characters to
+be displayed as their ASCII counterparts, with a special face.
+
+Kitty also differs from many other character terminals in how it
+handles character compositions.  As one example, Emoji sequences that
+begin with a non-Emoji character and end in U+FE0F VARIATION SELECTOR
+16 should be composed into an Emoji glyph; Kitty assumes that all such
+Emoji glyphs have 2-column width, whereas Emacs and many other text
+terminals display them as 1-column glyphs.  Again, this causes cursor
+addressing to get out of sync and eventually messes up the display.
+
+One possible workaround for problems caused by character composition
+is to turn off 'auto-composition-mode' on Kitty terminals.
+
+
 * Runtime problems specific to individual Unix variants
 
 ** GNU/Linux
@@ -1892,11 +2046,6 @@ term/xterm.el) for more details.
 A few versions of the Linux kernel have timer bugs that break CPU
 profiling; see Bug#34235.  To fix the problem, upgrade to one of the
 kernel versions 4.14.97, 4.19.19, or 4.20.6, or later.
-
-*** GNU/Linux: Process output is corrupted.
-
-There is a bug in Linux kernel 2.6.10 PTYs that can cause emacs to
-read corrupted process output.
 
 *** GNU/Linux: Remote access to CVS with SSH causes file corruption.
 
@@ -2163,6 +2312,7 @@ We list bugs in current versions here.  See also the section on legacy
 systems.
 
 *** On Solaris 10, Emacs crashes during the build process.
+(This applies only with './configure --with-unexec=yes', which is rare.)
 This was reported for Emacs 25.2 on i386-pc-solaris2.10 with Sun
 Studio 12 (Sun C 5.9) and with Oracle Developer Studio 12.6 (Sun C
 5.15), and intermittently for sparc-sun-solaris2.10 with Oracle
@@ -2180,66 +2330,6 @@ Solaris.  See Bug#26638.
 This is a Solaris feature (at least on Intel x86 cpus).  Type C-r
 C-r C-t, to toggle whether C-x gets through to Emacs.
 
-*** Problem with remote X server on Suns.
-
-On a Sun, running Emacs on one machine with the X server on another
-may not work if you have used the unshared system libraries.  This
-is because the unshared libraries fail to use YP for host name lookup.
-As a result, the host name you specify may not be recognized.
-
-*** Solaris 2.6: Emacs crashes with SIGBUS or SIGSEGV on Solaris after you delete a frame.
-
-We suspect that this is a bug in the X libraries provided by
-Sun.  There is a report that one of these patches fixes the bug and
-makes the problem stop:
-
-105216-01 105393-01 105518-01 105621-01 105665-01 105615-02 105216-02
-105667-01 105401-08 105615-03 105621-02 105686-02 105736-01 105755-03
-106033-01 105379-01 105786-01 105181-04 105379-03 105786-04 105845-01
-105284-05 105669-02 105837-01 105837-02 105558-01 106125-02 105407-01
-
-Another person using a newer system (kernel patch level Generic_105181-06)
-suspects that the bug was fixed by one of these more recent patches:
-
-106040-07  SunOS 5.6: X Input & Output Method patch
-106222-01  OpenWindows 3.6: filemgr (ff.core) fixes
-105284-12  Motif 1.2.7: sparc Runtime library patch
-
-*** Solaris 7 or 8: Emacs reports a BadAtom error (from X)
-
-This happens when Emacs was built on some other version of Solaris.
-Rebuild it on Solaris 8.
-
-*** When using M-x dbx with the SparcWorks debugger, the 'up' and 'down'
-commands do not move the arrow in Emacs.
-
-You can fix this by adding the following line to '~/.dbxinit':
-
- dbxenv output_short_file_name off
-
-*** On Solaris, CTRL-t is ignored by Emacs when you use
-the fr.ISO-8859-15 locale (and maybe other related locales).
-
-You can fix this by editing the file:
-
-        /usr/openwin/lib/locale/iso8859-15/Compose
-
-Near the bottom there is a line that reads:
-
-        Ctrl<t> <quotedbl> <Y>                  : "\276"        threequarters
-
-while it should read:
-
-        Ctrl<T> <quotedbl> <Y>                  : "\276"        threequarters
-
-Note the lower case <t>.  Changing this line should make C-t work.
-
-*** On Solaris, Emacs fails to set menu-bar-update-hook on startup, with error
-"Error in menu-bar-update-hook: (error Point before start of properties)".
-This seems to be a GCC optimization bug that occurs for GCC 4.1.2 (-g
-and -g -O2) and GCC 4.2.3 (-g -O and -g -O2).  You can fix this by
-compiling with GCC 4.2.3 or CC 5.7, with no optimizations.
-
 * Runtime problems specific to MS-Windows
 
 ** Emacs on Windows 9X requires UNICOWS.DLL
@@ -2252,7 +2342,7 @@ implementation is only available in UNICOWS.DLL, which implements the
 Microsoft Layer for Unicode on Windows 9X, or "MSLU".  This article on
 MSDN:
 
-  http://msdn.microsoft.com/en-us/goglobal/bb688166.aspx
+  https://web.archive.org/web/20151224032644/https://msdn.microsoft.com/en-us/goglobal/bb688166.aspx
 
 includes a short description of MSLU and a link where it can be
 downloaded.
@@ -2319,7 +2409,7 @@ dialogs introduced in Windows 7.  It is explicitly described in the
 MSDN documentation of the GetOpenFileName API used by Emacs to pop up
 the file selection dialog.  For the details, see
 
-  http://msdn.microsoft.com/en-us/library/windows/desktop/ms646839%28v=vs.85%29.aspx
+  https://msdn.microsoft.com/en-us/library/windows/desktop/ms646839%28v=vs.85%29.aspx
 
 The dialog shows the last directory in which the user selected a file
 in a previous invocation of the dialog with the same initial
@@ -2661,19 +2751,55 @@ If you do, please send it to bug-gnu-emacs@gnu.org so we can list it here.
 
 * Runtime problems specific to macOS
 
+** Error message when opening Emacs on macOS
+
+When opening Emacs, you may see an error message saying something like
+this:
+
+  "Emacs" can't be opened because Apple cannot check it for malicious
+  software. This software needs to be updated. Contact the developer
+  for more information.
+
+The reason is that Apple incorrectly catalogs Emacs as potentially
+malicious software and thus shows this error message.
+
+To avoid this alert, open Finder, go to Applications, control-click
+the Emacs app icon, and then choose Open.  This adds a security
+exception for Emacs and from now on you should be able to open it by
+double-clicking on its icon, like any other app.
+
 ** macOS doesn't come with libxpm, so only XPM3 is supported.
 
 Libxpm is available for macOS as part of the XQuartz project.
 
-** The color list can become corrupt.
+** Synthetic fonts on macOS
 
-This can be seen when Emacs is run from the command line and produces
-output containing the text:
+Synthetic bold looks thinner if the background is darker than the
+foreground and font smoothing is turned on.  In such cases, you can
+turn off synthetic bold for particular fonts and use overstriking
+instead by customizing the variable 'face-ignored-fonts'.  For
+instance, if the problem is with the Monaco font, you could put
+something like the following in your init file:
 
-    non-keyed archive cannot be decoded by NSKeyedUnarchiver
+(push "\\`-[^-]*-monaco-bold-" face-ignored-fonts)
 
-The solution is to delete '$HOME/Library/Colors/Emacs.clr'.
+** Native Compilation on macOS
 
+Native complitation requires the libgccjit library to be installed and
+its path available to Emacs.  Errors such as:
+
+    libgccjit.so: error: error invoking gcc driver
+    Error: Internal native compiler error failed to compile
+
+indicate Emacs can't find the library in running time.  One can set
+the "LIBRARY_PATH" environment variable in the early initialization
+file; for example:
+
+(setenv "LIBRARY_PATH"
+  (string-join
+    '("/usr/local/opt/gcc/lib/gcc/11"
+      "/usr/local/opt/libgccjit/lib/gcc/11"
+      "/usr/local/opt/gcc/lib/gcc/11/gcc/x86_64-apple-darwin20/11.2.0") ":"))
 
 * Build-time problems
 
@@ -2683,15 +2809,29 @@ The solution is to delete '$HOME/Library/Colors/Emacs.clr'.
 
 This indicates a mismatch between the C compiler and preprocessor that
 configure is using.  For example, on Solaris 10 trying to use
-CC=/opt/SUNWspro/bin/cc (the Sun Studio compiler) together with
-CPP=/usr/ccs/lib/cpp can result in errors of this form (you may also
-see the error '"/usr/include/sys/isa_defs.h", line 500: undefined control').
+CC=/opt/developerstudio12.6/bin/cc (the Oracle Developer Studio
+compiler) together with CPP=/usr/lib/cpp can result in errors of
+this form.
 
 The solution is to tell configure to use the correct C preprocessor
-for your C compiler (CPP="/opt/SUNWspro/bin/cc -E" in the above
-example).
+for your C compiler (CPP="/opt/developerstudio12.6/bin/cc -E" in the
+above example).
 
 ** Compilation
+
+*** Link-time optimization with clang doesn't work on Fedora 20.
+
+As of May 2014, Fedora 20 has broken LLVMgold.so plugin support in clang
+(tested with clang-3.4-6.fc20) - 'clang --print-file-name=LLVMgold.so'
+prints 'LLVMgold.so' instead of full path to plugin shared library, and
+'clang -flto' is unable to find the plugin with the following error:
+
+/bin/ld: error: /usr/bin/../lib/LLVMgold.so: could not load plugin library:
+/usr/bin/../lib/LLVMgold.so: cannot open shared object file: No such file
+or directory
+
+The only way to avoid this is to build your own clang from source code
+repositories, as described at http://clang.llvm.org/get_started.html.
 
 *** Building Emacs over NFS fails with "Text file busy".
 
@@ -2748,11 +2888,6 @@ The symbol is sendmmsg@FBSD_1.4.  This is due to a faulty libgio
 library on these systems.  The solution is to reconfigure Emacs while
 disabling all the features that require libgio: rsvg, dbus, gconf, and
 imagemagick.
-
-*** Building Emacs for Cygwin can fail with GCC 3
-
-As of Emacs 22.1, there have been stability problems with Cygwin
-builds of Emacs using GCC 3.  Cygwin users are advised to use GCC 4.
 
 *** Building Emacs 23.3 and later will fail under Cygwin 1.5.19
 
@@ -2883,19 +3018,6 @@ A solution is to link with GCC, like this:
 
 Since the .o object files already exist, this will not recompile Emacs
 with GCC, but just restart by trying again to link temacs.
-
-*** Building Emacs with -lcurses fails with undefined symbols like BC.
-
-The 'configure' script attempts to use several terminal libraries,
-including tinfo, ncurses, and terminfo, and curses (in that order).
-If it happens to choose the long-obsolete curses library, Emacs will
-not link correctly.  Emacs 28 is expected to work around this problem;
-in the meantime you can work around it by installing tinfo, ncurses or
-terminfo instead.
-
-This problem can happen on AIX 7.2 if you build with IBM's compiler XLC,
-as AIX's ncurses library suffers from the libgcc problem mentioned above.
-To work around this, configure and build with GCC.
 
 *** Sun with acc: Link failure when using acc on a Sun.
 
@@ -3073,7 +3195,69 @@ This section covers bugs reported on very old hardware or software.
 If you are using hardware and an operating system shipped after 2000,
 it is unlikely you will see any of these.
 
-*** Solaris 2.x
+** Solaris
+
+*** Problem with remote X server on Suns.
+
+On a Sun, running Emacs on one machine with the X server on another
+may not work if you have used the unshared system libraries.  This
+is because the unshared libraries fail to use YP for host name lookup.
+As a result, the host name you specify may not be recognized.
+
+*** Solaris 2.6: Emacs crashes with SIGBUS or SIGSEGV on Solaris after you delete a frame.
+
+We suspect that this is a bug in the X libraries provided by
+Sun.  There is a report that one of these patches fixes the bug and
+makes the problem stop:
+
+105216-01 105393-01 105518-01 105621-01 105665-01 105615-02 105216-02
+105667-01 105401-08 105615-03 105621-02 105686-02 105736-01 105755-03
+106033-01 105379-01 105786-01 105181-04 105379-03 105786-04 105845-01
+105284-05 105669-02 105837-01 105837-02 105558-01 106125-02 105407-01
+
+Another person using a newer system (kernel patch level Generic_105181-06)
+suspects that the bug was fixed by one of these more recent patches:
+
+106040-07  SunOS 5.6: X Input & Output Method patch
+106222-01  OpenWindows 3.6: filemgr (ff.core) fixes
+105284-12  Motif 1.2.7: sparc Runtime library patch
+
+*** Solaris 7 or 8: Emacs reports a BadAtom error (from X)
+
+This happens when Emacs was built on some other version of Solaris.
+Rebuild it on Solaris 8.
+
+*** When using M-x dbx with the SparcWorks debugger, the 'up' and 'down'
+commands do not move the arrow in Emacs.
+
+You can fix this by adding the following line to '~/.dbxinit':
+
+ dbxenv output_short_file_name off
+
+*** On Solaris, CTRL-t is ignored by Emacs when you use
+the fr.ISO-8859-15 locale (and maybe other related locales).
+
+You can fix this by editing the file:
+
+        /usr/openwin/lib/locale/iso8859-15/Compose
+
+Near the bottom there is a line that reads:
+
+        Ctrl<t> <quotedbl> <Y>                  : "\276"        threequarters
+
+while it should read:
+
+        Ctrl<T> <quotedbl> <Y>                  : "\276"        threequarters
+
+Note the lower case <t>.  Changing this line should make C-t work.
+
+*** On Solaris, Emacs fails to set menu-bar-update-hook on startup, with error
+"Error in menu-bar-update-hook: (error Point before start of properties)".
+This seems to be a GCC optimization bug that occurs for GCC 4.1.2 (-g
+and -g -O2) and GCC 4.2.3 (-g -O and -g -O2).  You can fix this by
+compiling with GCC 4.2.3 or CC 5.7, with no optimizations.
+
+*** Other legacy Solaris problems
 
 **** Strange results from format %d in a few cases, on a Sun.
 

@@ -118,8 +118,9 @@ If the data is invalid, an `exif-error' is signaled."
                                     dest))
             (when-let ((app1 (cdr (assq #xffe1 (exif--parse-jpeg)))))
               (exif--parse-exif-chunk app1))))
-      (when-let ((app1 (cdr (assq #xffe1 (exif--parse-jpeg)))))
-        (exif--parse-exif-chunk app1)))))
+      (save-excursion
+        (when-let ((app1 (cdr (assq #xffe1 (exif--parse-jpeg)))))
+          (exif--parse-exif-chunk app1))))))
 
 (defun exif-orientation (exif)
   "Return the orientation (in degrees) in EXIF.
@@ -165,7 +166,7 @@ If the orientation isn't present in the data, return nil."
       ;; Another magical number.
       (unless (= (exif--read-number 2 le) #x002a)
         (signal 'exif-error "Invalid TIFF header length"))
-      (let ((offset (exif--read-number 2 le)))
+      (let ((offset (exif--read-number 4 le)))
         ;; Jump to where the IFD (directory) starts and parse it.
         (when (> (1+ offset) (point-max))
           (signal 'exif-error "Invalid IFD (directory) offset"))

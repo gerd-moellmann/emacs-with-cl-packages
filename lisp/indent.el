@@ -39,8 +39,8 @@
 (defvar indent-line-function 'indent-relative
   "Function to indent the current line.
 This function will be called with no arguments.
-If it is called somewhere where auto-indentation cannot be done
-\(e.g. inside a string), the function should simply return `noindent'.
+If it is called somewhere where it cannot auto-indent, the function
+should return `noindent' to signal that it didn't.
 Setting this function is all you need to make TAB indent appropriately.
 Don't rebind TAB unless you really need to.")
 
@@ -52,6 +52,8 @@ or in the line's indentation, otherwise it inserts a \"real\" TAB character.
 If `complete', TAB first tries to indent the current line, and if the line
 was already indented, then try to complete the thing at point.
 
+Also see `tab-first-completion'.
+
 Some programming language modes have their own variable to control this,
 e.g., `c-tab-always-indent', and do not respect this variable."
   :group 'indent
@@ -60,22 +62,44 @@ e.g., `c-tab-always-indent', and do not respect this variable."
 	  (const :tag "Indent if inside indentation, else TAB" nil)
 	  (const :tag "Indent, or if already indented complete" complete)))
 
+(defcustom tab-first-completion nil
+  "Governs the behavior of TAB completion on the first press of the key.
+When nil, complete.  When `eol', only complete if point is at the
+end of a line.  When `word', complete unless the next character
+has word syntax (according to `syntax-after').  When
+`word-or-paren', complete unless the next character is part of a
+word or a parenthesis.  When `word-or-paren-or-punct', complete
+unless the next character is part of a word, parenthesis, or
+punctuation.  Typing TAB a second time always results in
+completion.
+
+This variable has no effect unless `tab-always-indent' is `complete'."
+  :group 'indent
+  :type '(choice
+          (const :tag "Always complete" nil)
+          (const :tag "Unless at the end of a line" 'eol)
+          (const :tag "Unless looking at a word" 'word)
+          (const :tag "Unless at a word or parenthesis" 'word-or-paren)
+          (const :tag "Unless at a word, parenthesis, or punctuation." 'word-or-paren-or-punct))
+  :version "28.1")
+
+(defvar indent-line-ignored-functions '(indent-relative
+                                        indent-relative-maybe
+                                        indent-relative-first-indent-point)
+  "Values that are ignored by `indent-according-to-mode'.")
 
 (defun indent-according-to-mode ()
   "Indent line in proper way for current major mode.
 Normally, this is done by calling the function specified by the
 variable `indent-line-function'.  However, if the value of that
-variable is `indent-relative' or `indent-relative-first-indent-point',
+variable is present in the `indent-line-ignored-functions' variable,
 handle it specially (since those functions are used for tabbing);
 in that case, indent by aligning to the previous non-blank line."
   (interactive)
   (save-restriction
     (widen)
   (syntax-propertize (line-end-position))
-  (if (memq indent-line-function
-            '(indent-relative
-              indent-relative-maybe
-              indent-relative-first-indent-point))
+  (if (memq indent-line-function indent-line-ignored-functions)
       ;; These functions are used for tabbing, but can't be used for
       ;; indenting.  Replace with something ad-hoc.
       (let ((column (save-excursion
@@ -113,7 +137,7 @@ or performs symbol completion, depending on `tab-always-indent'.
 The function called to actually indent the line or insert a tab
 is given by the variable `indent-line-function'.
 
-If a prefix argument is given, after this function indents the
+If a prefix argument is given (ARG), after this function indents the
 current line or inserts a tab, it also rigidly indents the entire
 balanced expression which starts at the beginning of the current
 line, to reflect the current line's indentation.
@@ -141,7 +165,8 @@ prefix argument is ignored."
    (t
     (let ((old-tick (buffer-chars-modified-tick))
           (old-point (point))
-	  (old-indent (current-indentation)))
+	  (old-indent (current-indentation))
+          (syn `(,(syntax-after (point)))))
 
       ;; Indent the line.
       (or (not (eq (indent--funcall-widened indent-line-function) 'noindent))
@@ -154,7 +179,20 @@ prefix argument is ignored."
        ;; If the text was already indented right, try completion.
        ((and (eq tab-always-indent 'complete)
              (eq old-point (point))
-             (eq old-tick (buffer-chars-modified-tick)))
+             (eq old-tick (buffer-chars-modified-tick))
+             (or (null tab-first-completion)
+                 (eq last-command this-command)
+                 (and (equal tab-first-completion 'eol)
+                      (eolp))
+                 (and (member tab-first-completion
+                              '(word word-or-paren word-or-paren-or-punct))
+                      (not (member 2 syn)))
+                 (and (member tab-first-completion
+                              '(word-or-paren word-or-paren-or-punct))
+                      (not (or (member 4 syn)
+                               (member 5 syn))))
+                 (and (equal tab-first-completion 'word-or-paren-or-punct)
+                      (not (member 1 syn)))))
         (completion-at-point))
 
        ;; If a prefix argument was given, rigidly indent the following
@@ -212,8 +250,9 @@ It is activated by calling `indent-rigidly' interactively.")
 If called interactively with no prefix argument, activate a
 transient mode in which the indentation can be adjusted interactively
 by typing \\<indent-rigidly-map>\\[indent-rigidly-left], \\[indent-rigidly-right], \\[indent-rigidly-left-to-tab-stop], or \\[indent-rigidly-right-to-tab-stop].
-Typing any other key deactivates the transient mode, and this key is then
-acted upon as normally.
+Typing any other key exits this mode, and this key is then
+acted upon as normally.  If `transient-mark-mode' is enabled,
+exiting also deactivates the mark.
 
 If called from a program, or interactively with prefix ARG,
 indent all lines starting in the region forward by ARG columns.
@@ -424,7 +463,7 @@ Optional fifth argument OBJECT specifies the string or buffer to operate on."
 	(put-text-property begin to prop (funcall func val) object))))
 
 (defun increase-left-margin (from to inc)
-  "Increase or decrease the left-margin of the region.
+  "Increase or decrease the `left-margin' of the region.
 With no prefix argument, this adds `standard-indent' of indentation.
 A prefix arg (optional third arg INC noninteractively) specifies the amount
 to change the margin by, in characters.
@@ -481,12 +520,15 @@ If `auto-fill-mode' is active, re-fills region to fit in new margin."
 
 (defun beginning-of-line-text (&optional n)
   "Move to the beginning of the text on this line.
-With optional argument, move forward N-1 lines first.
-From the beginning of the line, moves past the left-margin indentation, the
-fill-prefix, and any indentation used for centering or right-justifying the
-line, but does not move past any whitespace that was explicitly inserted
-\(such as a tab used to indent the first line of a paragraph)."
-  (interactive "p")
+
+With optional argument N, move forward N-1 lines first.
+
+From the beginning of the line, moves past the `left-margin'
+indentation, the `fill-prefix', and any indentation used for
+centering or right-justifying the line, but does not move past
+any whitespace that was explicitly inserted (such as a tab used
+to indent the first line of a paragraph)."
+  (interactive "^p")
   (beginning-of-line n)
   (skip-chars-forward " \t")
   ;; Skip over fill-prefix.

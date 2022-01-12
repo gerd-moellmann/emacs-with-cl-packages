@@ -62,7 +62,7 @@
 ;; activated or deactivated, `hs-minor-mode-hook' is run w/ `run-hooks'.
 ;;
 ;; Additionally, Joseph Eydelnant writes:
-;;   I enjoy your package hideshow.el Ver. 5.24 2001/02/13
+;;   I enjoy your package hideshow.el Version 5.24 2001/02/13
 ;;   a lot and I've been looking for the following functionality:
 ;;   toggle hide/show all with a single key.
 ;;   Here are a few lines of code that lets me do just that.
@@ -232,13 +232,11 @@
 
 (defcustom hs-hide-comments-when-hiding-all t
   "Hide the comments too when you do an `hs-hide-all'."
-  :type 'boolean
-  :group 'hideshow)
+  :type 'boolean)
 
 (defcustom hs-minor-mode-hook nil
   "Hook called when hideshow minor mode is activated or deactivated."
   :type 'hook
-  :group 'hideshow
   :version "21.1")
 
 (defcustom hs-isearch-open 'code
@@ -254,8 +252,7 @@ This has effect only if `search-invisible' is set to `open'."
   :type '(choice (const :tag "open only code blocks" code)
                  (const :tag "open only comment blocks" comment)
                  (const :tag "open both code and comment blocks" t)
-                 (const :tag "don't open any of them" nil))
-  :group 'hideshow)
+                 (const :tag "don't open any of them" nil)))
 
 ;;;###autoload
 (defvar hs-special-modes-alist
@@ -264,7 +261,10 @@ This has effect only if `search-invisible' is set to `open'."
     (c++-mode "{" "}" "/[*/]" nil nil)
     (bibtex-mode ("@\\S(*\\(\\s(\\)" 1))
     (java-mode "{" "}" "/[*/]" nil nil)
-    (js-mode "{" "}" "/[*/]" nil)))
+    (js-mode "{" "}" "/[*/]" nil)
+    (mhtml-mode "{\\|<[^/>]*?" "}\\|</[^/>]*[^/]>" "<!--" mhtml-forward nil)
+    ;; Add more support here.
+    ))
   "Alist for initializing the hideshow variables for different modes.
 Each element has the form
   (MODE START END COMMENT-START FORWARD-SEXP-FUNC ADJUST-BEG-FUNC).
@@ -310,7 +310,7 @@ a block), `hs-hide-all', `hs-hide-block' and `hs-hide-level'.")
 These commands include the toggling commands (when the result is to show
 a block), `hs-show-all' and `hs-show-block'.")
 
-(defvar hs-set-up-overlay #'ignore
+(defcustom hs-set-up-overlay #'ignore
   "Function called with one arg, OV, a newly initialized overlay.
 Hideshow puts a unique overlay on each range of text to be hidden
 in the buffer.  Here is a simple example of how to use this variable:
@@ -326,7 +326,9 @@ in the buffer.  Here is a simple example of how to use this variable:
 
 This example shows how to get information from the overlay as well
 as how to set its `display' property.  See `hs-make-overlay' and
-info node `(elisp)Overlays'.")
+info node `(elisp)Overlays'."
+  :type 'function
+  :version "28.1")
 
 ;;---------------------------------------------------------------------------
 ;; internal variables
@@ -945,8 +947,7 @@ Key bindings:
         (add-hook 'change-major-mode-hook
                   #'turn-off-hideshow
                   nil t)
-        (easy-menu-add hs-minor-mode-menu)
-        (set (make-local-variable 'line-move-ignore-invisible) t)
+        (setq-local line-move-ignore-invisible t)
         (add-to-invisibility-spec '(hs . t)))
     (remove-from-invisibility-spec '(hs . t))
     ;; hs-show-all does nothing unless h-m-m is non-nil.

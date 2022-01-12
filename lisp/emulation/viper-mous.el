@@ -1,4 +1,4 @@
-;;; viper-mous.el --- mouse support for Viper
+;;; viper-mous.el --- mouse support for Viper  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1994-1997, 2001-2021 Free Software Foundation, Inc.
 
@@ -23,8 +23,6 @@
 ;;; Commentary:
 
 ;;; Code:
-
-(provide 'viper-mous)
 
 ;; compiler pacifier
 (defvar double-click-time)
@@ -60,31 +58,21 @@
 Takes two parameters: a COUNT, indicating how many words to return,
 and CLICK-COUNT, telling whether this is the first click, a double-click,
 or a triple-click."
-  :type 'symbol
-  :group 'viper-mouse)
+  :type 'symbol)
 
 ;; time interval in millisecond within which successive clicks are
 ;; considered related
 (defcustom viper-multiclick-timeout (if (viper-window-display-p)
-				      (if (featurep 'xemacs)
-					  mouse-track-multi-click-time
-					double-click-time)
+                                        double-click-time
 				    500)
-  "Time interval in millisecond within which successive mouse clicks are
-considered related."
-  :type 'integer
-  :group 'viper-mouse)
-
-;; current event click count; XEmacs only
-(defvar viper-current-click-count 0)
-;; time stamp of the last click event; XEmacs only
-(defvar viper-last-click-event-timestamp 0)
+  "Time interval in milliseconds for mouse clicks to be considered related."
+  :type 'integer)
 
 ;; Local variable used to toggle wraparound search on click.
-(viper-deflocalvar  viper-mouse-click-search-noerror t)
+(defvar-local viper-mouse-click-search-noerror t)
 
 ;; Local variable used to delimit search after wraparound.
-(viper-deflocalvar  viper-mouse-click-search-limit nil)
+(defvar-local viper-mouse-click-search-limit nil)
 
 ;; remembers prefix argument to pass along to commands invoked by second
 ;; click.
@@ -105,7 +93,7 @@ considered related."
 ;;; Code
 
 (defsubst viper-multiclick-p ()
-  (not (viper-sit-for-short viper-multiclick-timeout t)))
+  (not (sit-for (/ viper-multiclick-timeout 1000.0) t)))
 
 ;; Returns window where click occurs
 (defun viper-mouse-click-window (click)
@@ -127,7 +115,7 @@ considered related."
   (buffer-name (viper-mouse-click-window-buffer click)))
 
 (defsubst viper-mouse-click-posn (click)
-  "Returns position of a click."
+  "Return position of a click."
   (declare (obsolete nil "27.1"))
   (posn-point (event-start click)))
 
@@ -279,11 +267,9 @@ See `viper-surrounding-word' for the definition of a word in this case."
 	       (setq interrupting-event (read-event))
 	       (viper-mouse-event-p last-input-event)))
 	    (progn ; interrupted wait
-	      (setq viper-global-prefix-argument arg)
-	      ;; count this click for XEmacs
-	      (viper-event-click-count click))
+              (setq viper-global-prefix-argument arg))
 	  ;; uninterrupted wait or the interrupting event wasn't a mouse event
-	  (setq click-count (viper-event-click-count click))
+          (setq click-count (event-click-count click))
 	  (if (> click-count 1)
 	      (setq arg viper-global-prefix-argument
 		    viper-global-prefix-argument nil))
@@ -300,33 +286,8 @@ See `viper-surrounding-word' for the definition of a word in this case."
       (string-match "\\(mouse-\\|frame\\|screen\\|track\\)"
 		    (prin1-to-string (viper-event-key event)))))
 
-;; XEmacs has no double-click events.  So, we must simulate.
-;; So, we have to simulate event-click-count.
-(defun viper-event-click-count (click)
-  (if (featurep 'xemacs) (viper-event-click-count-xemacs click)
-    (event-click-count click)))
-
-(when (featurep 'xemacs)
-
-  ;; kind of semaphore for updating viper-current-click-count
-  (defvar viper-counting-clicks-p nil)
-
-  (defun viper-event-click-count-xemacs (click)
-    (let ((time-delta (- (event-timestamp click)
-			 viper-last-click-event-timestamp))
-	  inhibit-quit)
-      (while viper-counting-clicks-p
-	(ignore))
-      (setq viper-counting-clicks-p t)
-      (if (> time-delta viper-multiclick-timeout)
-	  (setq viper-current-click-count 0))
-      (discard-input)
-      (setq viper-current-click-count (1+ viper-current-click-count)
-	    viper-last-click-event-timestamp (event-timestamp click))
-      (setq viper-counting-clicks-p nil)
-      (if (viper-sit-for-short viper-multiclick-timeout t)
-	  viper-current-click-count
-	0))))
+(define-obsolete-function-alias 'viper-event-click-count
+  #'event-click-count "28.1")
 
 (declare-function viper-forward-word "viper-cmd" (arg))
 (declare-function viper-adjust-window "viper-cmd" ())
@@ -364,11 +325,9 @@ this command.
 	    (setq viper-global-prefix-argument (or viper-global-prefix-argument
 						   arg)
 		  ;; remember command that was before the multiclick
-		  this-command last-command)
-	    ;; make sure we counted this event---needed for XEmacs only
-	    (viper-event-click-count click))
+                  this-command last-command))
 	;; uninterrupted wait
-	(setq click-count (viper-event-click-count click))
+        (setq click-count (event-click-count click))
 	(setq click-word (viper-mouse-click-get-word click nil click-count))
 
 	(if (> click-count 1)
@@ -443,7 +402,7 @@ this command.
 	  (setq arg (1- arg)))
 	))))
 
-(defun viper-mouse-catch-frame-switch (event arg)
+(defun viper-mouse-catch-frame-switch (_event arg)
   "Catch the event of switching frame.
 Usually is bound to a `down-mouse' event to work properly.  See sample
 bindings in the Viper manual."
@@ -472,8 +431,9 @@ bindings in the Viper manual."
 ;; until you do something other than viper-mouse-click-* command.
 ;; In XEmacs, you have to manually select frame B (with the mouse click) in
 ;; order to shift focus to frame B.
-(defsubst viper-remember-current-frame (frame)
-  (setq last-command 'handle-switch-frame
+(defun viper-remember-current-frame (&rest _)
+  "Remember the selected frame before the switch-frame event."
+  (setq last-command #'handle-switch-frame
 	viper-current-frame-saved (selected-frame)))
 
 
@@ -482,8 +442,8 @@ bindings in the Viper manual."
 ;; Emacs.  EVENT-TYPE is either `up' or `down'.  Up returns button-up key; down
 ;; returns button-down key.
 (defun viper-parse-mouse-key (key-var event-type)
-  (let ((key (eval key-var))
-	button-spec meta-spec shift-spec control-spec key-spec)
+  (let ((key (symbol-value key-var))
+	button-spec meta-spec shift-spec control-spec)
     (if (null key)
 	;; just return nil
 	()
@@ -506,10 +466,9 @@ bindings in the Viper manual."
 	    control-spec
 	    (if (memq 'control key) "C-" ""))
 
-      (setq key-spec
-	    (vector
-	     (intern (concat control-spec meta-spec
-                             shift-spec button-spec)))))))
+      (vector
+       (intern (concat control-spec meta-spec
+                       shift-spec button-spec))))))
 
 (defun viper-unbind-mouse-search-key ()
   (if viper-mouse-up-search-key-parsed
@@ -533,8 +492,8 @@ bindings in the Viper manual."
 	(viper-parse-mouse-key 'viper-mouse-search-key 'up)
 	viper-mouse-down-search-key-parsed
 	(viper-parse-mouse-key 'viper-mouse-search-key 'down))
-  (cond ((or (null viper-mouse-up-search-key-parsed)
-	     (null viper-mouse-down-search-key-parsed))
+  (cond ((not (and viper-mouse-up-search-key-parsed
+	           viper-mouse-down-search-key-parsed))
 	 nil) ; just quit
 	((and (null force)
 	      (key-binding viper-mouse-up-search-key-parsed)
@@ -552,9 +511,9 @@ bindings in the Viper manual."
 	  viper-mouse-down-search-key-parsed))
 	(t
 	 (global-set-key viper-mouse-up-search-key-parsed
-			 'viper-mouse-click-search-word)
+			 #'viper-mouse-click-search-word)
 	 (global-set-key viper-mouse-down-search-key-parsed
-			 'viper-mouse-catch-frame-switch))))
+			 #'viper-mouse-catch-frame-switch))))
 
 ;; If FORCE, bind even if this mouse action is already bound to something else
 (defun viper-bind-mouse-insert-key (&optional force)
@@ -562,8 +521,8 @@ bindings in the Viper manual."
 	(viper-parse-mouse-key 'viper-mouse-insert-key 'up)
 	viper-mouse-down-insert-key-parsed
 	(viper-parse-mouse-key 'viper-mouse-insert-key 'down))
-  (cond ((or (null viper-mouse-up-insert-key-parsed)
-	     (null viper-mouse-down-insert-key-parsed))
+  (cond ((not (and viper-mouse-up-insert-key-parsed
+	           viper-mouse-down-insert-key-parsed))
 	 nil) ; just quit
 	((and (null force)
 	      (key-binding viper-mouse-up-insert-key-parsed)
@@ -581,9 +540,9 @@ bindings in the Viper manual."
 	  viper-mouse-down-insert-key-parsed))
 	(t
 	 (global-set-key viper-mouse-up-insert-key-parsed
-			 'viper-mouse-click-insert-word)
+			 #'viper-mouse-click-insert-word)
 	 (global-set-key viper-mouse-down-insert-key-parsed
-			 'viper-mouse-catch-frame-switch))))
+			 #'viper-mouse-catch-frame-switch))))
 
 (defun viper-reset-mouse-search-key (symb val)
   (viper-unbind-mouse-search-key)
@@ -609,8 +568,7 @@ This buffer may be different from the one where the click occurred."
 		     (const :format "%v " shift)
 		     (const control))
 	       (integer :tag "Button"))
-  :set 'viper-reset-mouse-search-key
-  :group 'viper-mouse)
+  :set #'viper-reset-mouse-search-key)
 
 (defcustom viper-mouse-insert-key '(meta shift 2)
   "Key used to click-insert in Viper.
@@ -625,14 +583,7 @@ This buffer may be different from the one where the click occurred."
 		     (const :format "%v " shift)
 		     (const control))
 	       (integer :tag "Button"))
-  :set 'viper-reset-mouse-insert-key
-  :group 'viper-mouse)
+  :set #'viper-reset-mouse-insert-key)
 
-
-
-;; Local Variables:
-;; eval: (put 'viper-deflocalvar 'lisp-indent-hook 'defun)
-;; End:
-
-
+(provide 'viper-mous)
 ;;; viper-mous.el ends here

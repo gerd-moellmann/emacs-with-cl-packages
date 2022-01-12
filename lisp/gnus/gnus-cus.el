@@ -1,4 +1,4 @@
-;;; gnus-cus.el --- customization commands for Gnus
+;;; gnus-cus.el --- customization commands for Gnus  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1996, 1999-2021 Free Software Foundation, Inc.
 
@@ -49,18 +49,15 @@ if that value is non-nil."
   ;; Emacs stuff:
   (when (and (facep 'custom-button-face)
 	     (facep 'custom-button-pressed-face))
-    (set (make-local-variable 'widget-button-face)
-	 'custom-button-face)
-    (set (make-local-variable 'widget-button-pressed-face)
-	 'custom-button-pressed-face)
-    (set (make-local-variable 'widget-mouse-face)
-	 'custom-button-pressed-face))
+    (setq-local widget-button-face 'custom-button-face)
+    (setq-local widget-button-pressed-face 'custom-button-pressed-face)
+    (setq-local widget-mouse-face 'custom-button-pressed-face))
   (when (and (boundp 'custom-raised-buttons)
 	     (symbol-value 'custom-raised-buttons))
-    (set (make-local-variable 'widget-push-button-prefix) "")
-    (set (make-local-variable 'widget-push-button-suffix) "")
-    (set (make-local-variable 'widget-link-prefix) "")
-    (set (make-local-variable 'widget-link-suffix) "")))
+    (setq-local widget-push-button-prefix "")
+    (setq-local widget-push-button-suffix "")
+    (setq-local widget-link-prefix "")
+    (setq-local widget-link-suffix "")))
 
 ;;; Group Customization:
 
@@ -340,7 +337,8 @@ category."))
 
 (defun gnus-group-customize (group &optional topic)
   "Edit the group or topic on the current line."
-  (interactive (list (gnus-group-group-name) (gnus-group-topic-name)))
+  (interactive (list (gnus-group-group-name) (gnus-group-topic-name))
+	       gnus-group-mode)
   (let (info
 	(types (mapcar (lambda (entry)
 			 `(cons :format "%v%h\n"
@@ -380,10 +378,8 @@ category."))
     (gnus-kill-buffer "*Gnus Customize*")
     (switch-to-buffer (gnus-get-buffer-create "*Gnus Customize*"))
     (gnus-custom-mode)
-    (make-local-variable 'gnus-custom-group)
-    (setq gnus-custom-group group)
-    (make-local-variable 'gnus-custom-topic)
-    (setq gnus-custom-topic topic)
+    (setq-local gnus-custom-group group)
+    (setq-local gnus-custom-topic topic)
     (buffer-disable-undo)
     (widget-insert "Customize the ")
     (if group
@@ -422,7 +418,7 @@ category."))
 	  (setq tmp (cdr tmp))))
 
       (setq gnus-custom-params
-            (apply 'widget-create 'group
+            (apply #'widget-create 'group
                    :value values
                    (delq nil
                          (list `(set :inline t
@@ -488,9 +484,9 @@ form, but who cares?"
     (buffer-enable-undo)
     (goto-char (point-min))))
 
-(defun gnus-group-customize-done (&rest ignore)
+(defun gnus-group-customize-done (&rest _ignore)
   "Apply changes and bury the buffer."
-  (interactive)
+  (interactive nil gnus-custom-mode)
   (let ((params (widget-value gnus-custom-params)))
     (if gnus-custom-topic
 	(gnus-topic-set-parameters gnus-custom-topic params)
@@ -834,7 +830,7 @@ eh?")))
   "Customize score file FILE.
 When called interactively, FILE defaults to the current score file.
 This can be changed using the `\\[gnus-score-change-score-file]' command."
-  (interactive (list gnus-current-score-file))
+  (interactive (list gnus-current-score-file) gnus-summary-mode)
   (unless file
     (error "No score file for %s" gnus-newsgroup-name))
   (let ((scores (gnus-score-load file))
@@ -848,8 +844,7 @@ This can be changed using the `\\[gnus-score-change-score-file]' command."
     (kill-buffer (gnus-get-buffer-create "*Gnus Customize*"))
     (switch-to-buffer (gnus-get-buffer-create "*Gnus Customize*"))
     (gnus-custom-mode)
-    (make-local-variable 'gnus-custom-score-alist)
-    (setq gnus-custom-score-alist scores)
+    (setq-local gnus-custom-score-alist scores)
     (widget-insert "Customize the ")
     (widget-create 'info-link
 		   :help-echo "Push me to learn more."
@@ -867,8 +862,7 @@ Check the [ ] for the entries you want to apply to this score file, then
 edit the value to suit your taste.  Don't forget to mark the checkbox,
 if you do all your changes will be lost.  ")
     (widget-insert "\n\n")
-    (make-local-variable 'gnus-custom-scores)
-    (setq gnus-custom-scores
+    (setq-local gnus-custom-scores
 	  (widget-create 'group
 			 :value scores
 			 `(checklist :inline t
@@ -934,7 +928,7 @@ articles in the thread.
     (use-local-map widget-keymap)
     (widget-setup)))
 
-(defun gnus-score-customize-done (&rest ignore)
+(defun gnus-score-customize-done (&rest _ignore)
   "Reset the score alist with the present value."
   (let ((alist gnus-custom-score-alist)
 	(value (widget-value gnus-custom-scores)))
@@ -1007,7 +1001,7 @@ articles in the thread.
 
 (defun gnus-agent-customize-category (category)
   "Edit the CATEGORY."
-  (interactive (list (gnus-category-name)))
+  (interactive (list (gnus-category-name)) gnus-custom-mode)
   (let ((info (assq category gnus-category-alist))
         (defaults (list nil '(agent-predicate . false)
                         (cons 'agent-enable-expiration
@@ -1034,14 +1028,15 @@ articles in the thread.
         (widget-create
          'push-button
          :notify
-         (lambda (&rest ignore)
+         (lambda (&rest _ignore)
            (let* ((info (assq gnus-agent-cat-name gnus-category-alist))
                   (widgets category-fields))
              (while widgets
                (let* ((widget (pop widgets))
                       (value (condition-case nil (widget-value widget) (error))))
                  (eval `(setf (,(widget-get widget :accessor) ',info)
-                              ',value)))))
+                              ',value)
+                       t))))
            (gnus-category-write)
            (gnus-kill-buffer (current-buffer))
            (when (get-buffer gnus-category-buffer)
@@ -1052,10 +1047,9 @@ articles in the thread.
          "\n    Note: Empty fields default to the customizable global\
  variables.\n\n")
 
-        (set (make-local-variable 'gnus-agent-cat-name)
-             name))
+        (setq-local gnus-agent-cat-name name))
 
-      (set (make-local-variable 'category-fields) nil)
+      (setq-local category-fields nil)
       (gnus-agent-cat-prepare-category-field agent-predicate)
 
       (gnus-agent-cat-prepare-category-field agent-score)
@@ -1107,8 +1101,6 @@ articles in the thread.
       (use-local-map widget-keymap)
       (widget-setup)
       (buffer-enable-undo))))
-
-;;; The End:
 
 (provide 'gnus-cus)
 

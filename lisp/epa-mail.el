@@ -1,4 +1,5 @@
 ;;; epa-mail.el --- the EasyPG Assistant, minor-mode for mail composer -*- lexical-binding: t -*-
+
 ;; Copyright (C) 2006-2021 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
@@ -20,10 +21,14 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Commentary:
+
 ;;; Code:
 
 (require 'epa)
 (require 'mail-utils)
+
+;;; Local Mode
 
 (defvar epa-mail-mode-map
   (let ((keymap (make-sparse-keymap)))
@@ -45,10 +50,19 @@
 (defvar epa-mail-mode-on-hook nil)
 (defvar epa-mail-mode-off-hook nil)
 
+(defcustom epa-mail-offer-skip t
+  "If non-nil, when a recipient has no key, ask whether to skip it.
+Otherwise, signal an error."
+  :type 'boolean
+  :version "28.1"
+  :group 'epa-mail)
+
 ;;;###autoload
 (define-minor-mode epa-mail-mode
   "A minor-mode for composing encrypted/clearsigned mails."
-  nil " epa-mail" epa-mail-mode-map)
+  :lighter " epa-mail")
+
+;;; Utilities
 
 (defun epa-mail--find-usable-key (keys usage)
   "Find a usable key from KEYS for USAGE.
@@ -63,6 +77,8 @@ USAGE would be `sign' or `encrypt'."
 	      (throw 'found (car keys)))
 	  (setq pointer (cdr pointer))))
       (setq keys (cdr keys)))))
+
+;;; Commands
 
 ;;;###autoload
 (defun epa-mail-decrypt ()
@@ -93,8 +109,9 @@ use from your key ring."
   (interactive
    (save-excursion
      (goto-char (point-min))
-     (if (search-forward mail-header-separator nil t)
-	 (forward-line))
+     (rfc822-goto-eoh)
+     (unless (eobp)
+       (forward-line))
      (setq epa-last-coding-system-specified
 	   (or coding-system-for-write
 	       (select-safe-coding-system (point) (point-max))))
@@ -120,9 +137,7 @@ If no one is selected, default secret key is used.  "
       (goto-char (point-min))
       (save-restriction
 	(narrow-to-region (point)
-			  (if (search-forward mail-header-separator nil 0)
-			      (match-beginning 0)
-			    (point)))
+                          (progn (rfc822-goto-eoh) (point)))
 	(setq recipients-string
 	      (mapconcat #'identity
 			 (nconc (mail-fetch-field "to" nil nil t)
@@ -155,7 +170,7 @@ If no one is selected, default secret key is used.  "
 	    (apply #'nconc
 		   (mapcar
 		    (lambda (recipient)
-		      (let ((tem (assoc recipient epa-mail-aliases)))
+		      (let ((tem (assoc (downcase recipient) epa-mail-aliases)))
 			(if tem (copy-sequence (cdr tem))
 			  (list recipient))))
 		    real-recipients)))
@@ -205,27 +220,35 @@ If no one is selected, symmetric encryption will be performed.  "
 			      (epa-mail--find-usable-key
 			       (epg-list-keys
 				(epg-make-context epa-protocol)
-				(if (string-match "@" recipient)
+				(if (string-search "@" recipient)
 				    (concat "<" recipient ">")
 				  recipient))
 			       'encrypt)))
 			 (unless (or recipient-key
-				     (y-or-n-p
-				      (format
-				       "No public key for %s; skip it? "
-				       recipient)))
+                                     (and epa-mail-offer-skip
+				          (y-or-n-p
+                                           (format
+                                            "No public key for %s; skip it? "
+                                            recipient)))
+                                     )
 			   (error "No public key for %s" recipient))
 			 (if recipient-key (list recipient-key))))
 		       default-recipients)))))
 
       (goto-char (point-min))
-      (if (search-forward mail-header-separator nil t)
-	  (forward-line))
+      (rfc822-goto-eoh)
+      (unless (eobp)
+	(forward-line))
       (setq start (point))
 
       (setq epa-last-coding-system-specified
 	    (or coding-system-for-write
 		(select-safe-coding-system (point) (point-max)))))
+
+    ;; Insert contents of requested attachments, if any.
+    (when (and (eq major-mode 'mail-mode) mail-encode-mml)
+      (mml-to-mime)
+      (setq mail-encode-mml nil))
 
     ;; Don't let some read-only text stop us from encrypting.
     (let ((inhibit-read-only t))
@@ -240,6 +263,8 @@ The buffer is expected to contain a mail message."
   (declare (interactive-only t))
   (interactive)
   (epa-import-armor-in-region (point-min) (point-max)))
+
+;;; Global Mode
 
 ;;;###autoload
 (define-minor-mode epa-global-mail-mode

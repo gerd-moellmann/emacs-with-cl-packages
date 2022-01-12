@@ -25,15 +25,15 @@
 ;; For usage information, see the documentation for rng-validate-mode.
 ;;
 ;; This file provides a minor mode that continually validates a buffer
-;; against a RELAX NG schema. The validation state is used to support
-;; schema-sensitive editing as well as validation. Validation is
+;; against a RELAX NG schema.  The validation state is used to support
+;; schema-sensitive editing as well as validation.  Validation is
 ;; performed while Emacs is idle.  XML parsing is done using
-;; xmltok.el. This file is responsible for checking that end-tags
+;; xmltok.el.  This file is responsible for checking that end-tags
 ;; match their start-tags.  Namespace processing is handled by
-;; nxml-ns.el. The RELAX NG Compact Syntax schema is parsed into
+;; nxml-ns.el.  The RELAX NG Compact Syntax schema is parsed into
 ;; internal form by rng-cmpct.el.  This internal form is described by
 ;; rng-pttrn.el.  Validation of the document by matching against this
-;; internal form is done by rng-match.el. Handling of W3C XML Schema
+;; internal form is done by rng-match.el.  Handling of W3C XML Schema
 ;; datatypes is delegated by rng-match.el to rng-xsd.el.  The minor
 ;; mode is intended to be used in conjunction with the nxml major
 ;; mode, but does not have to be.
@@ -44,11 +44,11 @@
 ;; parse and validate it from start to end.  As we parse and validate
 ;; the buffer, we periodically cache the state.  The state has three
 ;; components: the stack of open elements, the namespace processing
-;; state and the RELAX NG validation state. The state is cached as the
+;; state and the RELAX NG validation state.  The state is cached as the
 ;; value of the rng-state text property on the closing greater-than of
 ;; tags (but at intervals, not on every tag).  We keep track of the
 ;; position up to which cached state is known to be correct by adding
-;; a function to the buffer's after-change-functions. This is stored
+;; a function to the buffer's after-change-functions.  This is stored
 ;; in the rng-validate-up-to-date-end variable.  The first way in
 ;; which we make validation incremental is obvious: we start
 ;; validation from the first cached state before
@@ -59,7 +59,7 @@
 ;; minimizing destructive changes to the objects storing the state.
 ;; When state is changed, we use the old state to create new objects
 ;; representing the new state rather than destructively modifying the
-;; objects representing the old state. Copying the state is just a
+;; objects representing the old state.  Copying the state is just a
 ;; matter of making a list of three objects, one for each component of
 ;; the state; the three objects themselves can be shared and do not
 ;; need to be copied.
@@ -132,36 +132,30 @@ A quick validation validates at most one chunk."
 
 ;; Global variables
 
-(defvar rng-validate-timer nil)
-(make-variable-buffer-local 'rng-validate-timer)
+(defvar-local rng-validate-timer nil)
 ;; ensure that we can cancel the timer even after a kill-all-local-variables
 (put 'rng-validate-timer 'permanent-local t)
 
-(defvar rng-validate-quick-timer nil)
-(make-variable-buffer-local 'rng-validate-quick-timer)
+(defvar-local rng-validate-quick-timer nil)
 ;; ensure that we can cancel the timer even after a kill-all-local-variables
 (put 'rng-validate-quick-timer 'permanent-local t)
 
-(defvar rng-error-count nil
+(defvar-local rng-error-count nil
   "Number of errors in the current buffer.
 Always equal to number of overlays with category `rng-error'.")
-(make-variable-buffer-local 'rng-error-count)
 
-(defvar rng-message-overlay nil
+(defvar-local rng-message-overlay nil
   "Overlay in this buffer whose `help-echo' property was last printed.
 It is nil if none.")
-(make-variable-buffer-local 'rng-message-overlay)
 
-(defvar rng-message-overlay-inhibit-point nil
+(defvar-local rng-message-overlay-inhibit-point nil
   "Position at which message from overlay should be inhibited.
 If point is equal to this and the error overlay around
 point is `rng-message-overlay', then the `help-echo' property
 of the error overlay should not be printed with `message'.")
-(make-variable-buffer-local 'rng-message-overlay-inhibit-point)
 
-(defvar rng-message-overlay-current nil
+(defvar-local rng-message-overlay-current nil
   "Non-nil if `rng-message-overlay' is still the current message.")
-(make-variable-buffer-local 'rng-message-overlay-current)
 
 (defvar rng-open-elements nil
   "Stack of names of open elements represented as a list.
@@ -178,11 +172,10 @@ indicating an unresolvable entity or character reference.")
 
 (defvar rng-collecting-text nil)
 
-(defvar rng-validate-up-to-date-end nil
+(defvar-local rng-validate-up-to-date-end nil
   "Last position where validation is known to be up to date.")
-(make-variable-buffer-local 'rng-validate-up-to-date-end)
 
-(defvar rng-conditional-up-to-date-start nil
+(defvar-local rng-conditional-up-to-date-start nil
   "Marker for the start of the conditionally up-to-date region.
 It is nil if there is no conditionally up-to-date region.  The
 conditionally up-to-date region must be such that for any cached
@@ -191,20 +184,17 @@ if at some point it is determined that S becomes correct for P,
 then all states with position >= P in the conditionally up to
 date region must also then be correct and all errors between P
 and the end of the region must then be correctly marked.")
-(make-variable-buffer-local 'rng-conditional-up-to-date-start)
 
-(defvar rng-conditional-up-to-date-end nil
+(defvar-local rng-conditional-up-to-date-end nil
   "Marker for the end of the conditionally up-to-date region.
 It is nil if there is no conditionally up-to-date region.
 See the variable `rng-conditional-up-to-date-start'.")
-(make-variable-buffer-local 'rng-conditional-up-to-date-end)
 
 (defvar rng-parsing-for-state nil
   "Non-nil means we are currently parsing just to compute the state.
 Should be dynamically bound.")
 
-(defvar rng-dtd nil)
-(make-variable-buffer-local 'rng-dtd)
+(defvar-local rng-dtd nil)
 
 ;;;###autoload
 (define-minor-mode rng-validate-mode
@@ -271,7 +261,7 @@ to use for finding the schema."
 	 (remove-hook 'after-change-functions #'rng-after-change-function t))))
 
 (defun rng-set-schema-file-and-validate (filename)
-  "Sets the schema and turns on `rng-validate-mode' if not already on.
+  "Set the schema and turn on `rng-validate-mode' if not already on.
 The schema is set like `rng-set-schema'."
   (interactive "fSchema file: ")
   (rng-set-schema-file filename)
@@ -972,9 +962,8 @@ Return nil at end of buffer, t otherwise."
     (and type t)))
 
 (defun rng-process-start-tag (tag-type)
-  "TAG-TYPE is `start-tag' for a start-tag, `empty-element' for
-an empty element.  `partial-empty-element' should be passed
-as empty-element."
+  "TAG-TYPE is `start-tag' for a start-tag, `empty-element' for an empty element.
+`partial-empty-element' should be passed as empty-element."
   (and rng-collecting-text (rng-flush-text))
   (setq rng-collecting-text nil)
   (setq rng-pending-contents nil)

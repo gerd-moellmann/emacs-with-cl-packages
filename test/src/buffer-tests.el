@@ -19,9 +19,7 @@
 
 ;;; Code:
 
-(require 'ert)
-(require 'seq)
-(eval-when-compile (require 'cl-lib))
+(require 'cl-lib)
 
 (ert-deftest overlay-modification-hooks-message-other-buf ()
   "Test for bug#21824.
@@ -756,7 +754,7 @@ with parameters from the *Messages* buffer modification."
       (should-length 2 (overlays-in 1 (point-max)))
       (should-length 1 (overlays-in (point-max) (point-max)))
       (narrow-to-region 1 50)
-      (should-length 0 (overlays-in 1 (point-max)))
+      (should-length 1 (overlays-in 1 (point-max)))
       (should-length 1 (overlays-in (point-max) (point-max))))))
 
 
@@ -1313,5 +1311,176 @@ with parameters from the *Messages* buffer modification."
         (ovshould nonempty-eob-beg 3 5)
         (ovshould nonempty-eob-end 4 5)
         (ovshould empty-eob        5 5)))))
+
+(ert-deftest buffer-multibyte-overlong-sequences ()
+  (dolist (uni '("\xE0\x80\x80"
+                 "\xF0\x80\x80\x80"
+                 "\xF8\x8F\xBF\xBF\x80"))
+    (let ((multi (string-to-multibyte uni)))
+      (should
+       (string-equal
+        multi
+        (with-temp-buffer
+          (set-buffer-multibyte nil)
+          (insert uni)
+          (set-buffer-multibyte t)
+          (buffer-string)))))))
+
+;; https://debbugs.gnu.org/33492
+(ert-deftest buffer-tests-buffer-local-variables-undo ()
+  "Test that `buffer-undo-list' appears in `buffer-local-variables'."
+  (with-temp-buffer
+    (should (assq 'buffer-undo-list (buffer-local-variables)))))
+
+(ert-deftest buffer-tests-inhibit-buffer-hooks ()
+  "Test `get-buffer-create' argument INHIBIT-BUFFER-HOOKS."
+  (let* (run-bluh (bluh (lambda () (setq run-bluh t))))
+    (unwind-protect
+        (let* ( run-kbh  (kbh  (lambda () (setq run-kbh  t)))
+                run-kbqf (kbqf (lambda () (setq run-kbqf t))) )
+
+          ;; Inhibited.
+          (add-hook 'buffer-list-update-hook bluh)
+          (with-current-buffer (generate-new-buffer " foo" t)
+            (add-hook 'kill-buffer-hook kbh nil t)
+            (add-hook 'kill-buffer-query-functions kbqf nil t)
+            (kill-buffer))
+          (with-temp-buffer (ignore))
+          (with-output-to-string (ignore))
+          (should-not run-bluh)
+          (should-not run-kbh)
+          (should-not run-kbqf)
+
+          ;; Not inhibited.
+          (with-current-buffer (generate-new-buffer " foo")
+            (should run-bluh)
+            (add-hook 'kill-buffer-hook kbh nil t)
+            (add-hook 'kill-buffer-query-functions kbqf nil t)
+            (kill-buffer))
+          (should run-kbh)
+          (should run-kbqf))
+      (remove-hook 'buffer-list-update-hook bluh))))
+
+(ert-deftest buffer-tests-inhibit-buffer-hooks-indirect ()
+  "Indirect buffers do not call `get-buffer-create'."
+  (dolist (inhibit '(nil t))
+    (let ((base (get-buffer-create "foo" inhibit)))
+      (unwind-protect
+          (dotimes (_i 11)
+            (let* (flag*
+                   (flag (lambda () (prog1 t (setq flag* t))))
+                   (indirect (make-indirect-buffer base "foo[indirect]" nil
+                                                   inhibit)))
+              (unwind-protect
+                  (progn
+                    (with-current-buffer indirect
+                      (add-hook 'kill-buffer-query-functions flag nil t))
+                    (kill-buffer indirect)
+                    (if inhibit
+                        (should-not flag*)
+                      (should flag*)))
+                (let (kill-buffer-query-functions)
+                  (when (buffer-live-p indirect)
+                    (kill-buffer indirect))))))
+        (let (kill-buffer-query-functions)
+          (when (buffer-live-p base)
+            (kill-buffer base)))))))
+
+(ert-deftest zero-length-overlays-and-not ()
+  (with-temp-buffer
+    (insert "hello")
+    (let ((long-overlay (make-overlay 2 4))
+          (zero-overlay (make-overlay 3 3)))
+      ;; Exclude.
+      (should (= (length (overlays-at 3)) 1))
+      (should (eq (car (overlays-at 3)) long-overlay))
+      ;; Include.
+      (should (= (length (overlays-in 3 3)) 2))
+      (should (memq long-overlay (overlays-in 3 3)))
+      (should (memq zero-overlay (overlays-in 3 3))))))
+
+(ert-deftest test-remove-overlays ()
+  (with-temp-buffer
+    (insert "foo")
+    (make-overlay (point) (point))
+    (should (= (length (overlays-in (point-min) (point-max))) 1))
+    (remove-overlays)
+    (should (= (length (overlays-in (point-min) (point-max))) 0)))
+
+  (with-temp-buffer
+    (insert "foo")
+    (goto-char 2)
+    (make-overlay (point) (point))
+    ;; We only count zero-length overlays at the end of the buffer.
+    (should (= (length (overlays-in 1 2)) 0))
+    (narrow-to-region 1 2)
+    ;; We've now narrowed, so the zero-length overlay is at the end of
+    ;; the (accessible part of the) buffer.
+    (should (= (length (overlays-in 1 2)) 1))
+    (remove-overlays)
+    (should (= (length (overlays-in (point-min) (point-max))) 0))))
+
+(ert-deftest test-kill-buffer-auto-save-default ()
+  (let ((file (make-temp-file "ert"))
+        auto-save)
+    (should (file-exists-p file))
+    ;; Always answer yes.
+    (cl-letf (((symbol-function #'yes-or-no-p) (lambda (_) t)))
+      (unwind-protect
+          (progn
+            (find-file file)
+            (auto-save-mode t)
+            (insert "foo\n")
+            (should buffer-auto-save-file-name)
+            (setq auto-save buffer-auto-save-file-name)
+            (do-auto-save)
+            (should (file-exists-p auto-save))
+            (kill-buffer (current-buffer))
+            (should (file-exists-p auto-save)))
+        (ignore-errors (delete-file file))
+        (when auto-save
+          (ignore-errors (delete-file auto-save)))))))
+
+(ert-deftest test-kill-buffer-auto-save-delete ()
+  (let ((file (make-temp-file "ert"))
+        auto-save)
+    (should (file-exists-p file))
+    (setq kill-buffer-delete-auto-save-files t)
+    ;; Always answer yes.
+    (cl-letf (((symbol-function #'yes-or-no-p) (lambda (_) t)))
+      (unwind-protect
+          (progn
+            (find-file file)
+            (auto-save-mode t)
+            (insert "foo\n")
+            (should buffer-auto-save-file-name)
+            (setq auto-save buffer-auto-save-file-name)
+            (do-auto-save)
+            (should (file-exists-p auto-save))
+            ;; This should delete the auto-save file.
+            (kill-buffer (current-buffer))
+            (should-not (file-exists-p auto-save)))
+        (ignore-errors (delete-file file))
+        (when auto-save
+          (ignore-errors (delete-file auto-save)))))
+    ;; Answer no to deletion.
+    (cl-letf (((symbol-function #'yes-or-no-p)
+               (lambda (prompt)
+                 (not (string-search "Delete auto-save file" prompt)))))
+      (unwind-protect
+          (progn
+            (find-file file)
+            (auto-save-mode t)
+            (insert "foo\n")
+            (should buffer-auto-save-file-name)
+            (setq auto-save buffer-auto-save-file-name)
+            (do-auto-save)
+            (should (file-exists-p auto-save))
+            ;; This should not delete the auto-save file.
+            (kill-buffer (current-buffer))
+            (should (file-exists-p auto-save)))
+        (ignore-errors (delete-file file))
+        (when auto-save
+          (ignore-errors (delete-file auto-save)))))))
 
 ;;; buffer-tests.el ends here

@@ -92,13 +92,13 @@ See also `eshell-visual-commands' and `eshell-visual-options'."
 
 (defcustom eshell-visual-options
   nil
-  "An alist of the form
+  "An alist of commands that present their output in a visual fashion.
+It has this form:
 
   ((COMMAND1 OPTION1 OPTION2...)
    (COMMAND2 OPTION1 ...))
 
-of commands with options that present their output in a visual
-fashion.  For example, a sensible entry would be
+For example, a sensible entry would be
 
   (\"git\" \"--help\" \"--paginate\")
 
@@ -143,8 +143,7 @@ behavior for short-lived processes, see bug#18108."
 
 (defun eshell-term-initialize ()    ;Called from `eshell-mode' via intern-soft!
   "Initialize the `term' interface code."
-  (make-local-variable 'eshell-interpreter-alist)
-  (setq eshell-interpreter-alist
+  (setq-local eshell-interpreter-alist
 	(cons (cons #'eshell-visual-command-p
 		    'eshell-exec-visual)
 	      eshell-interpreter-alist)))
@@ -179,9 +178,8 @@ allowed."
     (save-current-buffer
       (switch-to-buffer term-buf)
       (term-mode)
-      (set (make-local-variable 'term-term-name) eshell-term-name)
-      (make-local-variable 'eshell-parent-buffer)
-      (setq eshell-parent-buffer eshell-buf)
+      (setq-local term-term-name eshell-term-name)
+      (setq-local eshell-parent-buffer eshell-buf)
       (term-exec term-buf program program nil args)
       (let ((proc (get-buffer-process term-buf)))
 	(if (and proc (eq 'run (process-status proc)))

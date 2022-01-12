@@ -6,18 +6,18 @@
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software: you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License as
-;; published by the Free Software Foundation, either version 3 of the
-;; License, or (at your option) any later version.
-;;
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
-;;
+;; GNU Emacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; GNU Emacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -35,17 +35,6 @@
 (require 'ert-x)
 (require 'edebug)
 (require 'kmacro)
-
-;; Use `eval-and-compile' because this is used by the macro
-;; `edebug-tests-deftest'.
-(eval-and-compile
-  (defvar edebug-tests-sample-code-file
-    (expand-file-name
-     "edebug-resources/edebug-test-code.el"
-     (file-name-directory (or (bound-and-true-p byte-compile-current-file)
-                              load-file-name
-                              buffer-file-name)))
-    "Name of file containing code samples for Edebug tests."))
 
 (defvar edebug-tests-temp-file nil
   "Name of temp file containing sample code stripped of stop point symbols.")
@@ -108,7 +97,10 @@ back to the top level.")
 
               ;; sit-on interferes with keyboard macros.
               (edebug-sit-on-break nil)
-              (edebug-continue-kbd-macro t))
+              (edebug-continue-kbd-macro t)
+
+              ;; don't print backtraces, otherwise error messages don't match
+              (backtrace-on-error-noninteractive nil))
      ,@body))
 
 (defmacro edebug-tests-with-normal-env (&rest body)
@@ -116,7 +108,8 @@ back to the top level.")
   (declare (debug (body)))
   `(edebug-tests-with-default-config
     (let ((edebug-tests-failure-in-post-command nil)
-          (edebug-tests-temp-file (make-temp-file "edebug-tests-" nil ".el")))
+          (edebug-tests-temp-file (make-temp-file "edebug-tests-" nil ".el"))
+          (find-file-suppress-same-file-warnings t))
       (edebug-tests-setup-code-file edebug-tests-temp-file)
       (ert-with-message-capture
        edebug-tests-messages
@@ -221,20 +214,21 @@ be the same as every keystroke) execute the thunk at the same
 index."
   (let* ((edebug-tests-thunks thunks)
          (edebug-tests-kbd-macro-index 0)
+         (find-file-suppress-same-file-warnings t)
          saved-local-map)
     (with-current-buffer (find-file-noselect edebug-tests-temp-file)
       (setq saved-local-map overriding-local-map)
       (setq overriding-local-map edebug-tests-keymap)
-      (add-hook 'post-command-hook 'edebug-tests-post-command))
+      (add-hook 'post-command-hook #'edebug-tests-post-command))
     (advice-add 'exit-recursive-edit
-                :around 'edebug-tests-preserve-keyboard-macro-state)
+                :around #'edebug-tests-preserve-keyboard-macro-state)
     (unwind-protect
         (kmacro-call-macro nil nil nil kbdmac)
       (advice-remove 'exit-recursive-edit
-                     'edebug-tests-preserve-keyboard-macro-state)
+                     #'edebug-tests-preserve-keyboard-macro-state)
       (with-current-buffer (find-file-noselect edebug-tests-temp-file)
         (setq overriding-local-map saved-local-map)
-        (remove-hook 'post-command-hook 'edebug-tests-post-command)))))
+        (remove-hook 'post-command-hook #'edebug-tests-post-command)))))
 
 (defun edebug-tests-preserve-keyboard-macro-state (orig &rest args)
   "Call ORIG with ARGS preserving the value of `executing-kbd-macro'.
@@ -344,7 +338,7 @@ evaluate to \"symbol\", \"symbol-1\", \"symbol-2\", etc."
 Write the loadable code to a buffer for TMPFILE, and set
 `edebug-tests-stop-points' to a map from defined symbols to stop
 point names to positions in the file."
-  (with-current-buffer (find-file-noselect edebug-tests-sample-code-file)
+  (with-current-buffer (find-file-noselect (ert-resource-file "edebug-test-code.el"))
     (let ((marked-up-code (buffer-string)))
       (with-temp-file tmpfile
         (insert marked-up-code))))
@@ -729,7 +723,7 @@ test and possibly others should be updated."
           (edebug-on-error nil)
           error-message
           (command-error-function (lambda (&rest args)
-                                    (setq error-message (cl-cadar args)))))
+                                    (setq error-message (cadar args)))))
      (edebug-tests-run-kbd-macro
       "@"    (edebug-tests-should-be-at "format-node" "start")
       "SPC"  (edebug-tests-should-be-at "format-node" "vectorp")
@@ -750,7 +744,7 @@ test and possibly others should be updated."
           (edebug-on-error nil)
           (error-message "")
           (command-error-function (lambda (&rest args)
-                                    (setq error-message (cl-cadar args)))))
+                                    (setq error-message (cadar args)))))
      (edebug-tests-run-kbd-macro
       "@ SPC SPC SPC SPC SPC"
       (edebug-tests-should-be-at "try-flavors" "macro")
@@ -863,12 +857,14 @@ test and possibly others should be updated."
 (ert-deftest edebug-tests-trivial-backquote ()
   "Edebug can instrument a trivial backquote expression (Bug#23651)."
   (edebug-tests-with-normal-env
-   (read-only-mode -1)
-   (delete-region (point-min) (point-max))
-   (insert  "`1")
-   (read-only-mode)
+   (let ((inhibit-read-only t))
+     (delete-region (point-min) (point-max))
+     (insert  "`1"))
    (edebug-eval-defun nil)
-   (should (string-match-p (regexp-quote "1 (#o1, #x1, ?\\C-a)")
+   ;; `eval-defun' outputs its message to the echo area in a rather
+   ;; funny way, so the "1" and the " (#o1, #x1, ?\C-a)" end up placed
+   ;; there in separate pieces (via `print' rather than via `message').
+   (should (string-match-p (regexp-quote " (#o1, #x1, ?\\C-a)")
                            edebug-tests-messages))
    (setq edebug-tests-messages "")
 
@@ -918,13 +914,17 @@ test and possibly others should be updated."
 (ert-deftest edebug-tests-cl-macrolet ()
   "Edebug can instrument `cl-macrolet' expressions. (Bug#29919)"
   (edebug-tests-with-normal-env
-   (edebug-tests-setup-@ "use-cl-macrolet" '(10) t)
+   (edebug-tests-locate-def "use-cl-macrolet")
    (edebug-tests-run-kbd-macro
-    "@ SPC SPC"
+    "C-u C-M-x SPC"
     (edebug-tests-should-be-at "use-cl-macrolet" "func")
-    (edebug-tests-should-match-result-in-messages "+")
-    "g"
-    (should (equal edebug-tests-@-result "The result of applying + to (1 x) is 11")))))
+    (edebug-tests-should-match-result-in-messages "+"))
+   (let ((edebug-initial-mode 'Go-nonstop))
+     (edebug-tests-setup-@ "use-cl-macrolet" '(10) t))
+   (edebug-tests-run-kbd-macro
+    "@ SPC g"
+    (should (equal edebug-tests-@-result "The result of applying + to (1 x) is 11"))
+     )))
 
 (ert-deftest edebug-tests-backtrace-goto-source ()
   "Edebug can jump to instrumented source from its *Edebug-Backtrace* buffer."
@@ -937,6 +937,161 @@ test and possibly others should be updated."
     (edebug-tests-should-be-at "range" "start")
     "g"
     (should (equal edebug-tests-@-result '(0 1))))))
+
+(ert-deftest edebug-cl-defmethod-qualifier ()
+  "Check that secondary `cl-defmethod' forms don't stomp over
+primary ones (Bug#42671)."
+  (with-temp-buffer
+    (let* ((edebug-all-defs t)
+           (edebug-initial-mode 'Go-nonstop)
+           (defined-symbols ())
+           (edebug-new-definition-function
+            (lambda (def-name)
+              (push def-name defined-symbols)
+              (edebug-new-definition def-name))))
+      (dolist (form '((cl-defmethod edebug-cl-defmethod-qualifier ((_ number)))
+                      (cl-defmethod edebug-cl-defmethod-qualifier
+                        :around ((_ number)))))
+        (print form (current-buffer)))
+      (eval-buffer)
+      (should
+       (equal
+        defined-symbols
+        (list (intern "edebug-cl-defmethod-qualifier :around (number)")
+              (intern "edebug-cl-defmethod-qualifier (number)")))))))
+
+(ert-deftest edebug-tests--conflicting-internal-names ()
+  "Check conflicts between form's head symbols and Edebug spec elements."
+  (edebug-tests-with-normal-env
+   (edebug-tests-setup-@ "cl-flet1" '(10) t)))
+
+(ert-deftest edebug-tests-gv-expander ()
+  "Edebug can instrument `gv-expander' expressions."
+  (edebug-tests-with-normal-env
+   (edebug-tests-setup-@ "use-gv-expander" nil t)
+   (should (equal
+            (catch 'text
+              (run-at-time 0 nil
+                           (lambda () (throw 'text (buffer-substring (point) (+ (point) 5)))))
+              (eval '(setf (edebug-test-code-use-gv-expander (cons 'a 'b)) 3) t))
+            "(func"))))
+
+(defun edebug-tests--read (form spec)
+  (with-temp-buffer
+    (print form (current-buffer))
+    (goto-char (point-min))
+    (cl-letf ((edebug-all-forms t)
+              ((get (car form) 'edebug-form-spec) spec))
+      (edebug--read nil (current-buffer)))))
+
+(ert-deftest edebug-tests--&rest-behavior ()
+  ;; `&rest' is documented to allow the last "repetition" to be aborted early.
+  (should (edebug-tests--read '(dummy x 1 y 2 z)
+                              '(&rest symbolp integerp)))
+  ;; `&rest' should notice here that the "symbolp integerp" sequence
+  ;; is not respected.
+  (should-error (edebug-tests--read '(dummy x 1 2 y)
+                                    '(&rest symbolp integerp))))
+
+(ert-deftest edebug-tests-cl-flet ()
+  "Check that Edebug can instrument `cl-flet' forms without name
+clashes (Bug#41853)."
+  (with-temp-buffer
+    (dolist (form '((defun edebug-tests-cl-flet-1 ()
+                      (cl-flet ((inner () 0)) (message "Hi"))
+                      (cl-flet ((inner () 1)) (inner)))
+                    (defun edebug-tests-cl-flet-2 ()
+                      (cl-flet ((inner () 2)) (inner)))))
+      (print form (current-buffer)))
+    (let* ((edebug-all-defs t)
+           (edebug-initial-mode 'Go-nonstop)
+           (instrumented-names ())
+           (edebug-new-definition-function
+            (lambda (name)
+              (when (memq name instrumented-names)
+                (error "Duplicate definition of `%s'" name))
+              (push name instrumented-names)
+              (edebug-new-definition name)))
+           ;; Make generated symbols reproducible.
+           (gensym-counter 10000))
+      (eval-buffer)
+      ;; Use `format' so as to throw away differences due to
+      ;; interned/uninterned symbols.
+      (should (equal (format "%s" (reverse instrumented-names))
+                     ;; The outer definitions come after the inner
+                     ;; ones because their body ends later.
+                     ;; FIXME: We'd rather have names such as
+                     ;; `edebug-tests-cl-flet-1@inner@cl-flet@10000',
+                     ;; but that requires further changes to Edebug.
+                     (format "%s" '(inner@cl-flet@10000
+                                    inner@cl-flet@10001
+                                    edebug-tests-cl-flet-1
+                                    inner@cl-flet@10002
+                                    edebug-tests-cl-flet-2)))))))
+
+(defmacro edebug-tests--duplicate-symbol-backtrack (arg)
+  "Helper macro that exemplifies Bug#42701.
+ARG is either (FORM) or (FORM IGNORED)."
+  (declare (debug ([&or (form) (form sexp)])))
+  (car arg))
+
+(ert-deftest edebug-tests-duplicate-symbol-backtrack ()
+  "Check that Edebug doesn't create duplicate symbols when
+backtracking (Bug#42701)."
+  (with-temp-buffer
+    (print '(defun edebug-tests-duplicate-symbol-backtrack ()
+              (edebug-tests--duplicate-symbol-backtrack
+               ;; Passing (FORM IGNORED) forces backtracking.
+               ((lambda () 123) ignored)))
+           (current-buffer))
+    (let* ((edebug-all-defs t)
+           (edebug-initial-mode 'Go-nonstop)
+           (instrumented-names ())
+           (edebug-new-definition-function
+            (lambda (name)
+              (when (memq name instrumented-names)
+                (error "Duplicate definition of `%s'" name))
+              (push name instrumented-names)
+              (edebug-new-definition name)))
+           ;; Make generated symbols reproducible.
+           (gensym-counter 10000))
+      (eval-buffer)
+      ;; The anonymous symbols are uninterned.  Use their names so we
+      ;; can perform the assertion.  The names should still be unique.
+      (should (equal (mapcar #'symbol-name (reverse instrumented-names))
+                     ;; The outer definition comes after the inner
+                     ;; ones because its body ends later.
+                     ;; FIXME: There are twice as many inner
+                     ;; definitions as expected due to Bug#42701.
+                     ;; Once that bug is fixed, remove the duplicates.
+                     '("edebug-anon10000"
+                       "edebug-anon10001"
+                       "edebug-tests-duplicate-symbol-backtrack"))))))
+
+(defmacro edebug-tests--duplicate-&define (_arg)
+  "Helper macro for the ERT test `edebug-tests-duplicate-&define'.
+The Edebug specification is similar to the one used by `cl-flet'
+previously; see Bug#41988."
+  (declare (debug (&or (&define name function-form) (defun)))))
+
+(ert-deftest edebug-tests-duplicate-&define ()
+  "Check that Edebug doesn't backtrack out of `&define' forms.
+This avoids potential duplicate definitions (Bug#41988)."
+  (with-temp-buffer
+    (print '(defun edebug-tests-duplicate-&define ()
+              (edebug-tests--duplicate-&define
+               (edebug-tests-duplicate-&define-inner () nil)))
+           (current-buffer))
+    (let* ((edebug-all-defs t)
+           (edebug-initial-mode 'Go-nonstop)
+           (instrumented-names ())
+           (edebug-new-definition-function
+            (lambda (name)
+              (when (memq name instrumented-names)
+                (error "Duplicate definition of `%s'" name))
+              (push name instrumented-names)
+              (edebug-new-definition name))))
+      (should-error (eval-buffer) :type 'invalid-read-syntax))))
 
 (provide 'edebug-tests)
 ;;; edebug-tests.el ends here

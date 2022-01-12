@@ -3010,126 +3010,14 @@ mac_initialize_operating_system_version ()
     }
 }
 
-const char *mac_exec_path, *mac_load_path, *mac_etc_directory;
-
-/* Set up environment variables so that Emacs can correctly find its
-   support files when packaged as an application bundle.  Directories
-   placed in /usr/local/share/emacs/<emacs-version>/, /usr/local/bin,
-   and /usr/local/libexec/emacs/<emacs-version>/<system-configuration>
-   by `make install' by default can instead be placed in
-   .../Emacs.app/Contents/Resources/ and
-   .../Emacs.app/Contents/MacOS/.  Each of these environment variables
-   is changed only if it is not already set.  Presumably if the user
-   sets an environment variable, he will want to use files in his path
-   instead of ones in the application bundle.  */
 void
 init_mac_osx_environment (void)
 {
-  CFBundleRef bundle;
-  CFURLRef bundleURL;
-  CFStringRef cf_app_bundle_pathname;
-  CFLocaleRef locale;
-  int app_bundle_pathname_len;
-  char *app_bundle_pathname;
-  char *p, *q;
-  struct stat st;
-
   /* Initialize the operating system version.  */
   mac_initialize_operating_system_version ();
 
   /* Initialize locale related variables.  */
   mac_system_script_code = mac_get_system_script_code ();
-
-  /* Fetch the pathname of the application bundle as a C string into
-     app_bundle_pathname.  */
-
-  bundle = CFBundleGetMainBundle ();
-  if (!bundle || CFBundleGetIdentifier (bundle) == NULL)
-    {
-      /* We could not find the bundle identifier.  For now, prevent
-	 the fatal error by bringing it up in the terminal. */
-      inhibit_window_system = 1;
-      return;
-    }
-
-  bundleURL = CFBundleCopyBundleURL (bundle);
-  if (!bundleURL)
-    return;
-
-  cf_app_bundle_pathname = CFURLCopyFileSystemPath (bundleURL,
-						    kCFURLPOSIXPathStyle);
-  CFRelease (bundleURL);
-  {
-    Lisp_Object temp = cfstring_to_lisp_nodecode (cf_app_bundle_pathname);
-
-    app_bundle_pathname_len = SBYTES (temp);
-    app_bundle_pathname = SSDATA (temp);
-  }
-
-  CFRelease (cf_app_bundle_pathname);
-
-  /* P should have sufficient room for the pathname of the bundle plus
-     the subpath in it leading to the respective directories.  Q
-     should have three times that much room because EMACSLOADPATH can
-     have the value "<path to site-lisp dir>:<path to lisp dir>:<path
-     to leim dir>".  */
-  p = (char *) alloca (app_bundle_pathname_len + 50);
-  q = (char *) alloca (3 * app_bundle_pathname_len + 150);
-
-  /* Set `mac_load_path'.  */
-  q[0] = '\0';
-
-  strcpy (p, app_bundle_pathname);
-  strcat (p, "/Contents/Resources/site-lisp");
-  if (stat (p, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR)
-    strcat (q, p);
-
-  strcpy (p, app_bundle_pathname);
-  strcat (p, "/Contents/Resources/lisp");
-  if (stat (p, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR)
-    {
-      if (q[0] != '\0')
-	strcat (q, ":");
-      strcat (q, p);
-    }
-
-  strcpy (p, app_bundle_pathname);
-  strcat (p, "/Contents/Resources/leim");
-  if (stat (p, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR)
-    {
-      if (q[0] != '\0')
-	strcat (q, ":");
-      strcat (q, p);
-    }
-
-  if (q[0] != '\0')
-    mac_load_path = strdup (q);
-
-  /* Set `mac_exec_path'.  */
-  q[0] = '\0';
-
-  strcpy (p, app_bundle_pathname);
-  strcat (p, "/Contents/MacOS/libexec");
-  if (stat (p, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR)
-    strcat (q, p);
-
-  strcpy (p, app_bundle_pathname);
-  strcat (p, "/Contents/MacOS/bin");
-  if (stat (p, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR)
-    {
-      if (q[0] != '\0')
-	strcat (q, ":");
-      strcat (q, p);
-    }
-
-  if (q[0] != '\0')
-    mac_exec_path = strdup (q);
-
-  /* Set `mac_etc_directory'.  */
-  strcpy (p, app_bundle_pathname);
-  strcat (p, "/Contents/Resources/etc");
-  if (stat (p, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR)
-    mac_etc_directory = strdup (p);
 
   if (IS_DAEMON)
     inhibit_window_system = 1;
@@ -3146,7 +3034,7 @@ init_mac_osx_environment (void)
 
   /* macOS doesn't set any environment variables for the locale when
      run from the GUI. Get the locale from the OS and set LANG. */
-  locale = CFLocaleCopyCurrent ();
+  CFLocaleRef locale = CFLocaleCopyCurrent ();
   if (locale)
     {
       Lisp_Object identifier =
@@ -3159,6 +3047,43 @@ init_mac_osx_environment (void)
     }
 }
 
+const char *
+mac_relocate (const char *epath)
+/* If we're running in a self-contained app bundle some hard-coded
+   paths are relative to the root of the bundle, so work out the full
+   path.
+
+   FIXME: I think this should be able to handle cases where multiple
+   directories are separated by colons.  */
+{
+#ifdef MAC_SELF_CONTAINED
+  CFBundleRef bundle = CFBundleGetMainBundle ();
+  CFURLRef bundleURL = NULL, relocatedURL = NULL;
+
+  if (bundle)
+    bundleURL = CFBundleCopyBundleURL (bundle);
+  if (bundleURL)
+    {
+      relocatedURL =
+	CFURLCreateFromFileSystemRepresentationRelativeToBase (NULL, epath,
+							       strlen (epath),
+							       true, bundleURL);
+      CFRelease (bundleURL);
+    }
+  if (relocatedURL)
+    {
+      static char relocated_dir[MAXPATHLEN];
+      if (CFURLResourceIsReachable (relocatedURL, NULL)
+	  && CFURLGetFileSystemRepresentation (relocatedURL, true,
+					       relocated_dir,
+					       sizeof (relocated_dir)))
+	epath = relocated_dir;
+      CFRelease (relocatedURL);
+    }
+#endif
+
+  return epath;
+}
 
 void
 syms_of_mac (void)

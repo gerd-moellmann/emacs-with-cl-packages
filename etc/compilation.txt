@@ -153,7 +153,7 @@ Failing Scenarios:
 cucumber foo/cucumber.feature:6 # Scenario: assertion false (Test::Unit)
 cucumber foo/cucumber.feature:9 # Scenario: assertion false (RSpec)
 cucumber foo/cucumber.feature:12 # Scenario: backtrace in step definition
-cucumber foo/cucumber.feature:15 # Scenario: deeep backtrace in step definition
+cucumber foo/cucumber.feature:15 # Scenario: deep backtrace in step definition
 
 5 scenarios (4 failed, 1 undefined)
 5 steps (4 failed, 1 undefined)
@@ -235,6 +235,20 @@ Register 6 contains wrong type
 ==1332== Invalid write of size 1
 ==1332==    at 0x4040743C: System::getErrorString() (../src/Lib/System.cpp:217)
 ==1332==    by 0x8008621: main (vtest.c:180)
+
+
+* javac Java compiler
+
+symbol: javac
+
+Should also work when compiling Java with Gradle.  We use the position
+of "^" in the third line as column number because no explicit value is
+present.
+
+Test.java:5: error: ';' expected
+        foo foo
+               ^
+1 error
 
 
 * IBM jikes
@@ -367,6 +381,7 @@ made it more strict about the error message that follows.
 keyboard handler.c(537) : warning C4005: 'min' : macro redefinition
 d:\tmp\test.c(23) : error C2143: syntax error : missing ';' before 'if'
 d:\tmp\test.c(1145) : see declaration of 'nsRefPtr'
+c:\tmp\test.cpp(101,11): error C4101: 'bias0123': unreferenced local variable [c:\tmp\project.vcxproj]
 1>test_main.cpp(29): error C2144: syntax error : 'int' should be preceded by ';'
 1>test_main.cpp(29): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
 1>
@@ -521,6 +536,14 @@ cc-1070 cc: WARNING File = linkl.c, Line = 38
 cf90-113 f90comp: ERROR NSE, File = Hoved.f90, Line = 16, Column = 3
 
 
+* ShellCheck
+
+In autogen.sh line 38:
+autoconf_min=`sed -n 's/^ *AC_PREREQ(\([0-9\.]*\)).*/\1/p' configure.ac`
+^----------^ SC2034: autoconf_min appears unused. Verify use (or export if used externally).
+             ^-- SC2006: Use $(...) notation instead of legacy backticked `...`.
+
+
 * Sun Ada (VADS, Solaris)
 
 symbol: sun-ada
@@ -669,3 +692,11 @@ COPYING PERMISSIONS:
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+;;; Local Variables:
+;;; outline-regexp: "\\*\\_>"
+;;; outline-minor-mode-cycle: t
+;;; outline-minor-mode-highlight: t
+;;; eval: (outline-minor-mode 1)
+;;; End:

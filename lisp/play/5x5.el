@@ -1,4 +1,4 @@
-;;; 5x5.el --- simple little puzzle game
+;;; 5x5.el --- simple little puzzle game  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
 
@@ -31,7 +31,7 @@
 ;; o The code for updating the grid needs to be re-done.  At the moment it
 ;;   simply re-draws the grid every time a move is made.
 ;;
-;; o Look into tarting up the display with color.  gamegrid.el looks
+;; o Look into improving the display with color.  gamegrid.el looks
 ;;   interesting, perhaps that is the way to go?
 
 ;;; Thanks:
@@ -47,8 +47,6 @@
 
 ;;; Code:
 
-;; Things we need.
-
 (eval-when-compile (require 'cl-lib))
 
 ;; Customize options.
@@ -60,55 +58,50 @@
 
 (defcustom 5x5-grid-size 5
   "Size of the playing area."
-  :type  'integer
-  :group '5x5)
+  :type  'integer)
 
 (defcustom 5x5-x-scale 4
   "X scaling factor for drawing the grid."
-  :type  'integer
-  :group '5x5)
+  :type  'integer)
 
 (defcustom 5x5-y-scale 3
   "Y scaling factor for drawing the grid."
-  :type  'integer
-  :group '5x5)
+  :type  'integer)
 
 (defcustom 5x5-animate-delay .01
   "Delay in seconds when animating a solution crack."
-  :type  'number
-  :group '5x5)
+  :type  'number)
 
 (defcustom 5x5-hassle-me t
   "Should 5x5 ask you when you want to do a destructive operation?"
-  :type  'boolean
-  :group '5x5)
+  :type  'boolean)
 
 (defcustom 5x5-mode-hook nil
   "Hook run on starting 5x5."
-  :type  'hook
-  :group '5x5)
+  :type  'hook)
 
 ;; Non-customize variables.
 
 (defmacro 5x5-defvar-local (var value doc)
   "Define VAR to VALUE with documentation DOC and make it buffer local."
+  (declare (obsolete defvar-local "28.1"))
   `(progn
      (defvar ,var ,value ,doc)
      (make-variable-buffer-local (quote ,var))))
 
-(5x5-defvar-local 5x5-grid nil
+(defvar-local 5x5-grid nil
   "5x5 grid contents.")
 
-(5x5-defvar-local 5x5-x-pos 2
+(defvar-local 5x5-x-pos 2
   "X position of cursor.")
 
-(5x5-defvar-local 5x5-y-pos 2
+(defvar-local 5x5-y-pos 2
   "Y position of cursor.")
 
-(5x5-defvar-local 5x5-moves 0
+(defvar-local 5x5-moves 0
   "Moves made.")
 
-(5x5-defvar-local 5x5-cracking nil
+(defvar-local 5x5-cracking nil
   "Are we in cracking mode?")
 
 (defvar 5x5-buffer-name "*5x5*"
@@ -148,7 +141,7 @@
     map)
   "Local keymap for the 5x5 game.")
 
-(5x5-defvar-local 5x5-solver-output nil
+(defvar-local 5x5-solver-output nil
   "List that is the output of an arithmetic solver.
 
 This list L is such that
@@ -186,6 +179,7 @@ GRID is the grid of positions to click.")
 
 (define-derived-mode 5x5-mode special-mode "5x5"
   "A mode for playing `5x5'."
+  :interactive nil
   (setq buffer-read-only t
         truncate-lines   t)
   (buffer-disable-undo))
@@ -228,7 +222,7 @@ Quit current game           \\[5x5-quit-game]"
 
 (defun 5x5-new-game ()
   "Start a new game of `5x5'."
-  (interactive)
+  (interactive nil 5x5-mode)
   (when (if (called-interactively-p 'interactive)
 	    (5x5-y-or-n-p "Start a new game? ") t)
     (setq 5x5-x-pos (/ 5x5-grid-size 2)
@@ -241,7 +235,7 @@ Quit current game           \\[5x5-quit-game]"
 
 (defun 5x5-quit-game ()
   "Quit the current game of `5x5'."
-  (interactive)
+  (interactive nil 5x5-mode)
   (kill-buffer 5x5-buffer-name))
 
 (defun 5x5-make-new-grid ()
@@ -296,7 +290,7 @@ Quit current game           \\[5x5-quit-game]"
 (defun 5x5-draw-grid-end ()
   "Draw the top/bottom of the grid."
   (insert "+")
-  (dotimes (x 5x5-grid-size)
+  (dotimes (_ 5x5-grid-size)
     (insert "-" (make-string 5x5-x-scale ?-)))
   (insert "-+ "))
 
@@ -304,11 +298,11 @@ Quit current game           \\[5x5-quit-game]"
   "Draw the grids GRIDS into the current buffer."
   (let ((inhibit-read-only t) grid-org)
     (erase-buffer)
-    (dolist (grid grids) (5x5-draw-grid-end))
+    (dolist (_ grids) (5x5-draw-grid-end))
     (insert "\n")
     (setq grid-org (point))
     (dotimes (y 5x5-grid-size)
-      (dotimes (lines 5x5-y-scale)
+      (dotimes (_lines 5x5-y-scale)
         (dolist (grid grids)
           (dotimes (x 5x5-grid-size)
             (insert (if (zerop x) "| " " ")
@@ -321,7 +315,7 @@ Quit current game           \\[5x5-quit-game]"
 	  (save-excursion
 	    (goto-char grid-org)
 	    (beginning-of-line (+ 1 (/ 5x5-y-scale 2)))
-	    (let ((solution-grid (cl-cdadr 5x5-solver-output)))
+            (let ((solution-grid (cdadr 5x5-solver-output)))
 	      (dotimes (y 5x5-grid-size)
 		(save-excursion
 		  (forward-char  (+ 1 (/ (1+ 5x5-x-scale) 2)))
@@ -338,7 +332,7 @@ Quit current game           \\[5x5-quit-game]"
 		    (forward-char  (1+ 5x5-x-scale))))
 		(forward-line  5x5-y-scale))))
 	(setq 5x5-solver-output nil)))
-    (dolist (grid grids) (5x5-draw-grid-end))
+    (dolist (_grid grids) (5x5-draw-grid-end))
     (insert "\n")
     (insert (format "On: %d  Moves: %d" (5x5-grid-value (car grids)) 5x5-moves))))
 
@@ -393,7 +387,7 @@ Mutate the result."
 (defun 5x5-crack (breeder)
   "Attempt to find a solution for 5x5.
 
-5x5-crack takes the argument BREEDER which should be a function that takes
+`5x5-crack' takes the argument BREEDER which should be a function that takes
 two parameters, the first will be a grid vector array that is the current
 solution and the second will be the best solution so far.  The function
 should return a grid vector array that is the new solution."
@@ -449,8 +443,9 @@ should return a grid vector array that is the new solution."
   solution)
 
 (defun 5x5-play-solution (solution best)
-  "Play a solution on an empty grid.  This destroys the current game
-in progress because it is an animated attempt."
+  "Play a solution on an empty grid.
+This destroys the current game in progress because it is an
+animated attempt."
   (5x5-new-game)
   (let ((inhibit-quit t))
     (dotimes (y 5x5-grid-size)
@@ -479,14 +474,14 @@ position."
 		grid)))
 
 (defun 5x5-vec-to-grid (grid-matrix)
-  "Convert a grid matrix GRID-MATRIX in Calc format to a grid in
-5x5 format.  See function `5x5-grid-to-vec'."
+  "Convert a grid matrix GRID-MATRIX in Calc format to a grid in 5x5 format.
+See function `5x5-grid-to-vec'."
   (apply
-   'vector
+   #'vector
    (mapcar
     (lambda (x)
       (apply
-       'vector
+       #'vector
        (mapcar
 	(lambda (y) (/= (cadr y) 0))
 	(cdr x))))
@@ -510,7 +505,9 @@ position."
 Log a matrix VALUE of (mod B 2) forms, only B is output and
 Scilab matrix notation is used.  VALUE is returned so that it is
 easy to log a value with minimal rewrite of code."
-	(when (buffer-live-p 5x5-log-buffer)
+        (when (buffer-live-p 5x5-log-buffer)
+          (defvar calc-matrix-brackets)
+          (defvar calc-vector-commas)
 	  (let* ((unpacked-value
 		  (math-map-vec
 		   (lambda (row) (math-map-vec 'cadr row))
@@ -522,7 +519,7 @@ easy to log a value with minimal rewrite of code."
 	      (insert name ?= value-to-log ?\n))))
 	value))
   (defsubst 5x5-log-init ())
-  (defsubst 5x5-log (name value) value)))
+  (defsubst 5x5-log (_name value) value)))
 
 (declare-function math-map-vec "calc-vec" (f a))
 (declare-function math-sub "calc" (a b))
@@ -540,6 +537,10 @@ easy to log a value with minimal rewrite of code."
 (declare-function calcFunc-mcol "calc-vec" (mat n))
 (declare-function calcFunc-vconcat "calc-vec" (a b))
 (declare-function calcFunc-index "calc-vec" (n &optional start incr))
+(defvar calc-word-size)
+(defvar calc-leading-zeros)
+(defvar calc-number-radix)
+(defvar calc-command-flags)
 
 (defun 5x5-solver (grid)
   "Return a list of solutions for GRID.
@@ -582,7 +583,7 @@ Solutions are sorted from least to greatest Hamming weight."
 	       (math-sub dest org))))
 
 	   ;; transferm is the transfer matrix, ie it is the 25x25
-	   ;; matrix applied everytime a flip is carried out where a
+	   ;; matrix applied every time a flip is carried out where a
 	   ;; flip is defined by a 25x1 Dirac vector --- ie all zeros
 	   ;; but 1 in the position that is flipped.
 	   (transferm
@@ -678,16 +679,16 @@ Solutions are sorted from least to greatest Hamming weight."
 	    (5x5-log
 	     "cb"
 	     (math-mul inv-base-change targetv))); CB
-	   (row-1  (math-make-intv 3  1 transferm-kernel-size)) ; 1..2
+           ;; (row-1  (math-make-intv 3  1 transferm-kernel-size)) ; 1..2
 	   (row-2   (math-make-intv 1 transferm-kernel-size
 				    grid-size-squared)); 3..25
 	   (col-1 (math-make-intv 3 1  (- grid-size-squared
 					  transferm-kernel-size))); 1..23
-	   (col-2 (math-make-intv 1 (- grid-size-squared
-				       transferm-kernel-size)
-				  grid-size-squared)); 24..25
-	   (ctransferm-1-: (calcFunc-mrow ctransferm row-1))
-	   (ctransferm-1-1 (calcFunc-mcol ctransferm-1-: col-1))
+           ;; (col-2 (math-make-intv 1 (- grid-size-squared
+           ;;      		       transferm-kernel-size)
+           ;;      		  grid-size-squared)) ; 24..25
+           ;; (ctransferm-1-: (calcFunc-mrow ctransferm row-1))
+           ;; (ctransferm-1-1 (calcFunc-mcol ctransferm-1-: col-1))
 
 	   ;; By construction ctransferm-:-2 = 0, so ctransferm-1-2 = 0
 	   ;; and ctransferm-2-2 = 0.
@@ -703,8 +704,8 @@ Solutions are sorted from least to greatest Hamming weight."
 	   ;;
 	   ;;(ctransferm-2-2 (calcFunc-mcol ctransferm-2-: col-2))
 
-	   (ctarget-1 (calcFunc-mrow ctarget row-1))
-	   (ctarget-2 (calcFunc-mrow ctarget row-2))
+           ;; (ctarget-1 (calcFunc-mrow ctarget row-1))
+           (ctarget-2 (calcFunc-mrow ctarget row-2))
 
 	   ;;   ctarget-1(2x1)  =   ctransferm-1-1(2x23) *cx-1(23x1)
 	   ;;                     + ctransferm-1-2(2x2) *cx-2(2x1);
@@ -746,9 +747,9 @@ Solutions are sorted from least to greatest Hamming weight."
 		    ;; The Hamming Weight is computed by matrix reduction
 		    ;; with an ad-hoc operator.
 		    (math-reduce-vec
-		     ;; (cl-cadadr '(vec (mod x 2))) => x
-		     (lambda (r x) (+ (if (integerp r) r (cl-cadadr r))
-				      (cl-cadadr x)))
+                     ;; (cadadr '(vec (mod x 2))) => x
+                     (lambda (r x) (+ (if (integerp r) r (cadadr r))
+                                      (cadadr x)))
 		     solution); car
 		    (5x5-vec-to-grid
 		     (calcFunc-arrange solution 5x5-grid-size));cdr
@@ -777,13 +778,13 @@ Solutions are sorted from least to greatest Hamming weight."
       (message "5x5 Solution computation done.")
       solution-list)))
 
-(defun 5x5-solve-suggest (&optional n)
+(defun 5x5-solve-suggest (&optional _n)
   "Suggest to the user where to click.
 
 Argument N is ignored."
   ;; For the time being n is ignored, the idea was to use some numeric
   ;; argument to show a limited amount of positions.
-  (interactive "P")
+  (interactive "P" 5x5-mode)
   (5x5-log-init)
   (let ((solutions (5x5-solver 5x5-grid)))
     (setq 5x5-solver-output
@@ -802,11 +803,11 @@ there are 4 possible solutions.  When function
 `5x5-solve-suggest' (press `\\[5x5-solve-suggest]') is called the
 solution that is presented is the one that needs least number of
 strokes --- other solutions can be viewed by rotating through the
-list. The list of solution is ordered by number of strokes, so
+list.  The list of solution is ordered by number of strokes, so
 rotating left just after calling `5x5-solve-suggest' will show
 the solution with second least number of strokes, while rotating
 right will show the solution with greatest number of strokes."
-  (interactive "P")
+  (interactive "P" 5x5-mode)
   (let ((len  (length 5x5-solver-output)))
     (when (>= len 3)
       (setq n (if (integerp n) n 1)
@@ -840,7 +841,7 @@ right will show the solution with greatest number of strokes."
 If N is not supplied, rotate by 1.  Similar to function
 `5x5-solve-rotate-left' except that rotation is right instead of
 lest."
-  (interactive "P")
+  (interactive "P" 5x5-mode)
   (setq n
 	(if (integerp n) (- n)
 	  -1))
@@ -852,7 +853,7 @@ lest."
 
 (defun 5x5-flip-current ()
   "Make a move on the current cursor location."
-  (interactive)
+  (interactive nil 5x5-mode)
   (setq 5x5-grid (5x5-make-move 5x5-grid 5x5-y-pos 5x5-x-pos))
   (5x5-made-move)
   (unless 5x5-cracking
@@ -864,61 +865,61 @@ lest."
 
 (defun 5x5-up ()
   "Move up."
-  (interactive)
+  (interactive nil 5x5-mode)
   (unless (zerop 5x5-y-pos)
     (cl-decf 5x5-y-pos)
     (5x5-position-cursor)))
 
 (defun 5x5-down ()
   "Move down."
-  (interactive)
+  (interactive nil 5x5-mode)
   (unless (= 5x5-y-pos (1- 5x5-grid-size))
     (cl-incf 5x5-y-pos)
     (5x5-position-cursor)))
 
 (defun 5x5-left ()
   "Move left."
-  (interactive)
+  (interactive nil 5x5-mode)
   (unless (zerop 5x5-x-pos)
     (cl-decf 5x5-x-pos)
     (5x5-position-cursor)))
 
 (defun 5x5-right ()
   "Move right."
-  (interactive)
+  (interactive nil 5x5-mode)
   (unless (= 5x5-x-pos (1- 5x5-grid-size))
     (cl-incf 5x5-x-pos)
     (5x5-position-cursor)))
 
 (defun 5x5-bol ()
   "Move to beginning of line."
-  (interactive)
+  (interactive nil 5x5-mode)
   (setq 5x5-x-pos 0)
   (5x5-position-cursor))
 
 (defun 5x5-eol ()
   "Move to end of line."
-  (interactive)
+  (interactive nil 5x5-mode)
   (setq 5x5-x-pos (1- 5x5-grid-size))
   (5x5-position-cursor))
 
 (defun 5x5-first ()
   "Move to the first cell."
-  (interactive)
+  (interactive nil 5x5-mode)
   (setq 5x5-x-pos 0
         5x5-y-pos 0)
   (5x5-position-cursor))
 
 (defun 5x5-last ()
   "Move to the last cell."
-  (interactive)
+  (interactive nil 5x5-mode)
   (setq 5x5-x-pos (1- 5x5-grid-size)
         5x5-y-pos (1- 5x5-grid-size))
   (5x5-position-cursor))
 
 (defun 5x5-randomize ()
   "Randomize the grid."
-  (interactive)
+  (interactive nil 5x5-mode)
   (when (5x5-y-or-n-p "Start a new game with a random grid? ")
     (setq 5x5-x-pos (/ 5x5-grid-size 2)
           5x5-y-pos (/ 5x5-grid-size 2)
