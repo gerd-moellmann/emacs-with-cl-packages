@@ -408,72 +408,22 @@ mac_invert_flash_rectangles (struct frame *f)
     }
 }
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-/* Invert rectangles RECTANGLES[0], ..., RECTANGLES[N-1] in the frame F,
-   excluding scroll bar area.  */
-
-static void
-mac_invert_rectangles (struct frame *f, NativeRectangle *rectangles, int n)
-{
-  int i;
-
-  for (i = 0; i < n; i++)
-    mac_invert_rectangle (f, rectangles[i].x, rectangles[i].y,
-			  rectangles[i].width, rectangles[i].height);
-  if (FRAME_HAS_VERTICAL_SCROLL_BARS (f))
-    {
-      Lisp_Object bar;
-
-      for (bar = FRAME_SCROLL_BARS (f); !NILP (bar);
-	   bar = XSCROLL_BAR (bar)->next)
-	{
-	  struct scroll_bar *b = XSCROLL_BAR (bar);
-	  NativeRectangle bar_rect, r;
-
-	  STORE_NATIVE_RECT (bar_rect, b->left, b->top, b->width, b->height);
-	  for (i = 0; i < n; i++)
-	    if (gui_intersect_rectangles (rectangles + i, &bar_rect, &r))
-	      mac_invert_rectangle (f, r.x, r.y, r.width, r.height);
-	}
-    }
-}
-#endif
-
 static void
 mac_invert_rectangles_and_flush (struct frame *f, NativeRectangle *rectangles,
 				 int n, bool invert_p)
 {
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  if (!(mac_operating_system_version.major == 10
-	&& mac_operating_system_version.minor < 10)
-      || FRAME_MAC_DOUBLE_BUFFERED_P (f))
-#endif
+  if (invert_p)
+    FRAME_FLASH_RECTANGLES_DATA (f) =
+      CFDataCreateWithBytesNoCopy (NULL, (const UInt8 *) rectangles,
+				   n * sizeof (NativeRectangle),
+				   kCFAllocatorNull);
+  mac_invalidate_rectangles (f, rectangles, n);
+  mac_run_loop_run_once (0);
+  if (FRAME_FLASH_RECTANGLES_DATA (f))
     {
-      if (invert_p)
-	FRAME_FLASH_RECTANGLES_DATA (f) =
-	  CFDataCreateWithBytesNoCopy (NULL, (const UInt8 *) rectangles,
-				       n * sizeof (NativeRectangle),
-				       kCFAllocatorNull);
-      mac_invalidate_rectangles (f, rectangles, n);
-      mac_run_loop_run_once (0);
-      if (FRAME_FLASH_RECTANGLES_DATA (f))
-	{
-	  CFRelease (FRAME_FLASH_RECTANGLES_DATA (f));
-	  FRAME_FLASH_RECTANGLES_DATA (f) = NULL;
-	}
+      CFRelease (FRAME_FLASH_RECTANGLES_DATA (f));
+      FRAME_FLASH_RECTANGLES_DATA (f) = NULL;
     }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  else
-    {
-      CGRect rect = CGRectMake (rectangles[n - 1].x, rectangles[n - 1].y,
-				rectangles[n - 1].width,
-				rectangles[n - 1].height);
-
-      mac_invert_rectangles (f, rectangles, n);
-      mac_mask_rounded_bottom_corners (f, rect, invert_p);
-      mac_force_flush (f);
-    }
-#endif
 }
 
 /* Mac replacement for XChangeGC.  */

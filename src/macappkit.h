@@ -33,9 +33,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef double NSAppKitVersion;
-#ifndef NSAppKitVersionNumber10_9
-static const NSAppKitVersion NSAppKitVersionNumber10_9 = 1265;
-#endif
 #ifndef NSAppKitVersionNumber10_10_Max
 static const NSAppKitVersion NSAppKitVersionNumber10_10_Max = 1349;
 #endif
@@ -149,13 +146,6 @@ typedef NSInteger NSWindowListOptions;
 typedef NSInteger NSModalResponse;
 #endif
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-@interface NSWindow (Undocumented)
-- (NSRect)_intersectBottomCornersWithRect:(NSRect)viewRect;
-- (void)_maskRoundedBottomCorners:(NSRect)clipRect;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 @interface NSWindowTabGroup : NSObject
 @property (readonly, copy) NSArrayOf (NSWindow *) *windows;
@@ -234,13 +224,6 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-@interface NSAppearance (AvailableOn101000AndLater)
-@property (readonly, copy) NSAppearanceName name;
-@property (readonly) BOOL allowsVibrancy;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef NSInteger NSWindowLevel;
 #endif
@@ -275,10 +258,6 @@ enum {
   NSProgressIndicatorStyleBar = NSProgressIndicatorBarStyle,
   NSProgressIndicatorStyleSpinning = NSProgressIndicatorSpinningStyle
 };
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-typedef NSUInteger NSEventModifierFlags;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
@@ -336,18 +315,6 @@ enum {
 static const NSBezelStyle NSBezelStyleRounded = NSRoundedBezelStyle;
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-@interface NSWorkspace (AvailableOn101000AndLater)
-- (BOOL)accessibilityDisplayShouldIncreaseContrast;
-- (BOOL)accessibilityDisplayShouldDifferentiateWithoutColor;
-- (BOOL)accessibilityDisplayShouldReduceTransparency;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-typedef NSUInteger NSAutoresizingMaskOptions;
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
   NSCompositingOperationSourceOver = NSCompositeSourceOver
@@ -392,12 +359,6 @@ static const NSControlStateValue NSControlStateValueOn = NSOnState;
 @property (assign) id <NSTouchBarDelegate> delegate;
 @property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
 @property (copy) NSTouchBarItemIdentifier principalItemIdentifier;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-@interface NSLayoutConstraint (AvailableOn101000AndLater)
-@property (getter=isActive) BOOL active;
 @end
 #endif
 
@@ -562,14 +523,6 @@ typedef NSInteger NSGlyphProperty;
 + (NSCursor *)_windowResizeSouthEastCursor;
 @end
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-/* Workarounds for memory leaks on OS X 10.9.  */
-@interface NSApplication (Undocumented)
-- (void)_installMemoryPressureDispatchSources;
-- (void)_installMemoryStatusDispatchSources;
-@end
-#endif
-
 @interface EmacsApplication : NSApplication
 @end
 
@@ -633,17 +586,6 @@ typedef NSInteger NSGlyphProperty;
      Topics".  */
   NSString *searchStringForAllHelpTopics;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
-  /* Date of last flushWindow call.  */
-  NSDate *lastFlushDate;
-
-  /* Timer for deferring flushWindow call.  */
-  NSTimer *flushTimer;
-
-  /* Set of windows whose flush is deferred.  */
-  NSMutableSetOf (NSWindow *) *deferredFlushWindows;
-#endif
-
   /* Set of key paths for which NSApp is observed via the
      `application-kvo' subkeymap in mac-apple-event-map.  */
   NSSetOf (NSString *) *observedKeyPaths;
@@ -659,9 +601,6 @@ typedef NSInteger NSGlyphProperty;
 - (void)cancelHelpEchoForEmacsFrame:(struct frame *)f;
 - (BOOL)conflictingKeyBindingsDisabled;
 - (void)setConflictingKeyBindingsDisabled:(BOOL)flag;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-- (void)flushWindow:(NSWindow *)window force:(BOOL)flag;
-#endif
 - (void)updatePresentationOptions;
 - (void)showMenuBar;
 - (BOOL)doesHoldQuit;
@@ -812,9 +751,6 @@ typedef NSInteger NSGlyphProperty;
 - (NSRect)convertEmacsViewRectFromScreen:(NSRect)rect;
 - (NSRect)centerScanEmacsViewRect:(NSRect)rect;
 - (void)invalidateCursorRectsForEmacsView;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-- (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag;
-#endif
 - (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect;
 - (NSBitmapImageRep *)bitmapImageRep;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
@@ -933,11 +869,6 @@ typedef NSInteger NSGlyphProperty;
 
   /* Whether key events were interpreted by intepretKeyEvents:.  */
   BOOL keyEventsInterpreted;
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  /* Whether scrollRect:by: has copied rounded bottom corner area.  */
-  BOOL roundedBottomCornersCopied;
-#endif
 
   /* Whether the raw key event below has mapped any of CGEvent flags.
      It is precalculated in keyDown: so as to avoid regeneration of a

@@ -8,7 +8,7 @@
 
   This section briefly describes the peculiarities of using Emacs
 under macOS with the Mac port.  This port provides a native GUI
-support for OS X 10.9 -- macOS 12.  Note that Emacs 23 and later
+support for OS X 10.10 -- macOS 12.  Note that Emacs 23 and later
 already contain the official GUI support via the NS (Cocoa) port for
 macOS (@pxref{Mac OS / GNUstep}).  So if it is good enough for you,
 then you don't need to try this.
@@ -504,11 +504,10 @@ setting of the global appearance are dynamically reflected.
 interpreted as those in the sRGB color space.  This may give a
 different look from other ports of GNU Emacs.
 
-  On OS X 10.10 and later, one can blend and blur background colors of
-the focused frame with the contents behind it.  This can be customized
-per face by a special background stipple name
-@samp{alpha:@var{alpha}}, where @var{alpha} is a decimal
-representation of a floating-point number from 0.0 (maximum
+  One can blend and blur background colors of the focused frame with
+the contents behind it.  This can be customized per face by a special
+background stipple name @samp{alpha:@var{alpha}}, where @var{alpha} is
+a decimal representation of a floating-point number from 0.0 (maximum
 transparency) to 1.0 (completely opaque).  The number @var{alpha} may
 be followed by @samp{%} and in this case it should be from 0.0 to
 100.0.  It can be specified as a ``File'' value for the Stipple
@@ -526,20 +525,19 @@ or X resources emulation by the Preferences system:
 defaults write org.gnu.Emacs Emacs.fringe.attributeStipple alpha:.5
 @end smallexample
 
-  On OS X 10.10 and later, the color of scroll bars can be controlled
-by the value of the @code{scroll-bar-background} frame parameter.  If
-it is @code{nil}, which is the default, then the frame background
-color is used instead.  Its color also affects the appearance of other
-GUI parts: scroll bars on On OS X 10.10 and later, and the title bar,
-the tool bar, (the tab bar on macOS 10.12 and later), and popup menus
-on OS X 10.10 -- macOS 10.13 become light (or dark) if the color is
-considered light (or dark, respectively).  On macOS 10.14 and later,
-the appearance of GUI parts other than scroll bars respect the global
-setting, which is available via @code{(mac-application-state)}.  On
-macOS 10.12 and later, the title/tool/tab bars look slightly colored
-with the value of the @code{scroll-bar-background} frame parameter (or
-the frame background color) if the frame is focused and not in
-fullscreen.
+  The color of scroll bars can be controlled by the value of the
+@code{scroll-bar-background} frame parameter.  If it is @code{nil},
+which is the default, then the frame background color is used instead.
+Its color also affects the appearance of other GUI parts: scroll bars,
+the title bar, the tool bar, (the tab bar on macOS 10.12 and later),
+and popup menus on OS X 10.10 -- macOS 10.13 become light (or dark) if
+the color is considered light (or dark, respectively).  On macOS 10.14
+and later, the appearance of GUI parts other than scroll bars respect
+the global setting, which is available via
+@code{(mac-application-state)}.  On macOS 10.12 and later, the
+title/tool/tab bars look slightly colored with the value of the
+@code{scroll-bar-background} frame parameter (or the frame background
+color) if the frame is focused and not in fullscreen.
 
 @node Mac Fullscreen
 @section Fullscreen support on the Mac Port

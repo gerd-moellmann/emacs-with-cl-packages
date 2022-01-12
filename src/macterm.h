@@ -443,11 +443,7 @@ enum {
 #define UTI_GIF		kUTTypeGIF
 #define UTI_URL		kUTTypeURL
 #define UTI_PDF		kUTTypePDF
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 #define UTI_SVG		kUTTypeScalableVectorGraphics
-#else
-#define UTI_SVG		(CFSTR ("public.svg-image"))
-#endif
 #define UTI_IMAGE	kUTTypeImage
 #endif
 
@@ -711,7 +707,6 @@ extern Emacs_Cursor mac_cursor_create (ThemeCursor, const Emacs_Color *,
 extern void mac_cursor_set (Emacs_Cursor);
 extern void mac_cursor_release (Emacs_Cursor);
 extern void mac_invalidate_frame_cursor_rects (struct frame *f);
-extern void mac_mask_rounded_bottom_corners (struct frame *, CGRect, bool);
 extern void mac_invalidate_rectangles (struct frame *, NativeRectangle *, int);
 extern void mac_update_frame_window_style (struct frame *);
 extern void mac_update_frame_window_parent (struct frame *);

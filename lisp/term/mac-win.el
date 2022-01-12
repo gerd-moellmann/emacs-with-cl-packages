@@ -3000,12 +3000,10 @@ standard ones in `x-handle-args'."
   (substitute-key-definition 'exit-splash-screen 'mac-exit-splash-screen
 			     splash-screen-keymap)
 
-  ;; Running on macOS 10.10 or later.
-  (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 10))
-    (advice-add 'fancy-startup-screen :after
-                (lambda (&optional _concise)
-                  (set (make-local-variable 'face-remapping-alist)
-                       '((default :stipple "alpha:50%"))))))
+  (advice-add 'fancy-startup-screen :after
+              (lambda (&optional _concise)
+                (set (make-local-variable 'face-remapping-alist)
+                     '((default :stipple "alpha:50%")))))
 
   (if (eq (lookup-key global-map [C-down-mouse-1]) 'mouse-buffer-menu)
       (global-set-key [C-down-mouse-1] 'mac-mouse-buffer-menu))

@@ -57,15 +57,6 @@ enum lgstring_direction
     DIR_R2L = -1, DIR_UNKNOWN = 0, DIR_L2R = 1,
   };
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-#define mac_font_get_glyph_for_cid mac_ctfont_get_glyph_for_cid
-#elif !defined (HAVE_NS)
-extern CGGlyph mac_ctfont_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
-					     CGFontIndex);
-extern CGGlyph mac_font_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
-					   CGFontIndex);
-#endif
-
 #define MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE \
   (CFSTR ("MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE"))
 

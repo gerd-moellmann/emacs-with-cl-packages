@@ -56,10 +56,8 @@ static CFStringRef mac_font_create_preferred_family_for_attributes (CFDictionary
 static CFIndex mac_font_shape (CTFontRef, CFStringRef,
 			       struct mac_glyph_layout *, CFIndex,
 			       enum lgstring_direction);
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-static CGGlyph mac_ctfont_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
-                                             CGFontIndex);
-#endif
+static CGGlyph mac_font_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
+					   CGFontIndex);
 
 struct macfont_metrics;
 
@@ -211,56 +209,6 @@ mac_screen_font_get_advance_width_for_glyph (ScreenFontRef font, CGGlyph glyph)
 
   return advancement.width;
 }
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-static CGGlyph
-mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
-                            CGFontIndex cid)
-{
-  CGGlyph result = kCGFontIndexInvalid;
-  NSFont *nsFont = (NSFont *) font;
-  unichar characters[] = {0xfffd};
-  NSString *string =
-    [NSString stringWithCharacters:characters
-			    length:ARRAYELTS (characters)];
-  NSGlyphInfo *glyphInfo =
-    [NSGlyphInfo glyphInfoWithCharacterIdentifier:cid
-				       collection:collection
-				       baseString:string];
-  NSDictionary *attributes =
-    [NSDictionary dictionaryWithObjectsAndKeys:nsFont,NSFontAttributeName,
-		  glyphInfo,NSGlyphInfoAttributeName,nil];
-  NSTextStorage *textStorage =
-    [[NSTextStorage alloc] initWithString:string
-			       attributes:attributes];
-  NSLayoutManager *layoutManager = [[NSLayoutManager alloc] init];
-  NSTextContainer *textContainer = [[NSTextContainer alloc] init];
-  NSFont *fontInTextStorage;
-
-  [layoutManager addTextContainer:textContainer];
-  [textContainer release];
-  [textStorage addLayoutManager:layoutManager];
-  [layoutManager release];
-
-  /* Force layout.  */
-  (void) [layoutManager glyphRangeForTextContainer:textContainer];
-
-  fontInTextStorage = [textStorage attribute:NSFontAttributeName atIndex:0
-			      effectiveRange:NULL];
-  if (fontInTextStorage == nsFont
-      || [[fontInTextStorage fontName] isEqualToString:[nsFont fontName]])
-    {
-      NSGlyph glyph = [layoutManager glyphAtIndex:0];
-
-      if (glyph < [nsFont numberOfGlyphs])
-	result = glyph;
-    }
-
-  [textStorage release];
-
-  return result;
-}
-#endif
 
 static ScreenFontRef
 mac_screen_font_create_with_name (CFStringRef name, CGFloat size)
@@ -4075,12 +4023,9 @@ mac_font_shape (CTFontRef font, CFStringRef string,
    different in behavior on OS X 10.9 and earlier.  For these
    versions, we use the NSGlyphInfo version instead.  */
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-static
-#endif
-CGGlyph
-mac_ctfont_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
-                              CGFontIndex cid)
+static CGGlyph
+mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
+			    CGFontIndex cid)
 {
   CGGlyph result = kCGFontIndexInvalid;
   UniChar characters[] = {0xfffd};

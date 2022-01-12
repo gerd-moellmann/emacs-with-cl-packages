@@ -90,14 +90,6 @@ enum {
    | CFOBJECT_TO_LISP_DONT_DECODE_STRING			\
    | CFOBJECT_TO_LISP_DONT_DECODE_DICTIONARY_KEY)
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-#define NS_APPEARANCE_NAME_VIBRANT_LIGHT	NSAppearanceNameVibrantLight
-#define NS_APPEARANCE_NAME_VIBRANT_DARK		NSAppearanceNameVibrantDark
-#else
-#define NS_APPEARANCE_NAME_VIBRANT_LIGHT (@"NSAppearanceNameVibrantLight")
-#define NS_APPEARANCE_NAME_VIBRANT_DARK	(@"NSAppearanceNameVibrantDark")
-#endif
-
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
 #define NS_TOUCH_BAR	NSTouchBar
 #define NS_CUSTOM_TOUCH_BAR_ITEM NSCustomTouchBarItem
@@ -851,45 +843,12 @@ mac_nsobject_to_lisp (CFTypeRef obj)
 }
 
 static bool
-has_visual_effect_view_p (void)
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-  return true;
-#else
-  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9);
-#endif
-}
-
-static bool
 has_system_appearance_p (void)
 {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
   return true;
 #else
   return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_13);
-#endif
-}
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-/* Whether window's bottom corners need masking so they look rounded.
-   If we use NSVisualEffectView (available on OS X 10.10 and later)
-   for the content view, then we don't have to mask the corners
-   manually.  */
-
-static bool
-rounded_bottom_corners_need_masking_p (void)
-{
-  return !has_visual_effect_view_p ()
-}
-#endif
-
-static bool
-has_gesture_recognizer_p (void)
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-  return true;
-#else
-  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9);
 #endif
 }
 
@@ -1042,7 +1001,7 @@ mac_with_current_drawing_appearance (NSAppearance *appearance,
 #endif
       )
     [appearance performAsCurrentDrawingAppearance:block];
-  else if (has_visual_effect_view_p ())
+  else
     {
       /* Suppress warnings about deprecated declarations.  This #if
 	 shouldn't be necessary if the compiler can handle @available
@@ -1057,8 +1016,6 @@ mac_with_current_drawing_appearance (NSAppearance *appearance,
       emacs_abort ();
 #endif
     }
-  else
-    block ();
 }
 
 CFStringRef
@@ -1155,32 +1112,6 @@ static bool handling_queued_nsevents_p;
     }
 }
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-/* Workarounds for memory leaks on OS X 10.9.  */
-
-- (void)_installMemoryPressureDispatchSources
-{
-  static BOOL doNotInstallDispatchSources;
-
-  if (doNotInstallDispatchSources)
-    return;
-  [super _installMemoryPressureDispatchSources];
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
-    doNotInstallDispatchSources = YES;
-}
-
-- (void)_installMemoryStatusDispatchSources
-{
-  static BOOL doNotInstallDispatchSources;
-
-  if (doNotInstallDispatchSources)
-    return;
-  [super _installMemoryStatusDispatchSources];
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
-    doNotInstallDispatchSources = YES;
-}
-#endif
-
 - (void)setMainMenu:(NSMenu *)mainMenu
 {
   NSMenu *currentMainMenu = [self mainMenu];
@@ -1210,11 +1141,6 @@ static bool handling_queued_nsevents_p;
     [NSApp removeObserver:self forKeyPath:keyPath];
 #if !USE_ARC
   [observedKeyPaths release];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  [lastFlushDate release];
-  [flushTimer release];
-  [deferredFlushWindows release];
-#endif
   [super dealloc];
 #endif
 }
@@ -1248,19 +1174,12 @@ static bool handling_queued_nsevents_p;
 	   name:NSAntialiasThresholdChangedNotification
 	 object:nil];
 
-  if ([NSWorkspace instancesRespondToSelector:@selector(accessibilityDisplayShouldIncreaseContrast)])
-    {
-      mac_update_accessibility_display_options ();
-      [[[NSWorkspace sharedWorkspace] notificationCenter]
-	addObserver:self
-	   selector:@selector(accessibilityDisplayOptionsDidChange:)
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
-	       name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification
-#else
-	       name:@"NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification"
-#endif
-	     object:nil];
-    }
+  mac_update_accessibility_display_options ();
+  [[[NSWorkspace sharedWorkspace] notificationCenter]
+    addObserver:self
+       selector:@selector(accessibilityDisplayOptionsDidChange:)
+	   name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification
+	 object:nil];
 
   [NSApp registerUserInterfaceItemSearchHandler:self];
   Vmac_help_topics = Qnil;
@@ -1779,68 +1698,6 @@ emacs_windows_need_display_p (void)
 
   conflictingKeyBindingsDisabled = flag;
 }
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-#define FLUSH_WINDOW_MIN_INTERVAL (1/60.0)
-
-- (void)flushWindow:(NSWindow *)window force:(BOOL)flag
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  /* Deferring flush seems to be unnecessary and give a reverse effect
-     on OS X 10.11.  */
-  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max))
-#endif
-    [window flushWindow];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  else
-    {
-      NSTimeInterval timeInterval;
-
-      if (deferredFlushWindows == nil)
-	deferredFlushWindows = [[NSMutableSet alloc] initWithCapacity:0];
-      if (window)
-	[deferredFlushWindows addObject:window];
-
-      if (!flag && lastFlushDate
-	  && (timeInterval = - [lastFlushDate timeIntervalSinceNow],
-	      timeInterval < FLUSH_WINDOW_MIN_INTERVAL))
-	{
-	  if (![flushTimer isValid])
-	    {
-	      MRC_RELEASE (flushTimer);
-	      timeInterval = FLUSH_WINDOW_MIN_INTERVAL - timeInterval;
-	      flushTimer =
-		MRC_RETAIN ([NSTimer scheduledTimerWithTimeInterval:timeInterval
-							     target:self
-							   selector:@selector(processDeferredFlushWindow:)
-							   userInfo:nil
-							    repeats:NO]);
-	    }
-	}
-      else
-	{
-	  MRC_RELEASE (lastFlushDate);
-	  lastFlushDate = [[NSDate alloc] init];
-	  [flushTimer invalidate];
-	  MRC_RELEASE (flushTimer);
-	  flushTimer = nil;
-
-	  for (NSWindow *window in deferredFlushWindows)
-	    [window flushWindow];
-	  [deferredFlushWindows removeAllObjects];
-	}
-    }
-#endif
-}
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-- (void)processDeferredFlushWindow:(NSTimer *)theTimer
-{
-  if (!handling_queued_nsevents_p)
-    [self flushWindow:nil force:YES];
-}
-#endif
-#endif
 
 /* Some key bindings in mac_apple_event_map are regarded as methods in
    the application delegate.  */
@@ -2427,9 +2284,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (id <NSAppearanceCustomization>)appearanceCustomization
 {
-  if (!has_visual_effect_view_p ())
-    return nil;
-  else if (has_system_appearance_p ())
+  if (has_system_appearance_p ())
     return self.contentView;
   else
     return self;
@@ -2637,15 +2492,12 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
      to NO leads to crash in some situations.  */
   CFBridgingRetain (window);
 #endif
-  if (has_visual_effect_view_p ())
-    {
-      id visualEffectView = [[(NSClassFromString (@"NSVisualEffectView")) alloc]
-			      initWithFrame:[window.contentView frame]];
+  NSVisualEffectView *visualEffectView =
+    [[NSVisualEffectView alloc] initWithFrame:[window.contentView frame]];
 
-      window.contentView = visualEffectView;
-      MRC_RELEASE (visualEffectView);
-      FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
-    }
+  window.contentView = visualEffectView;
+  MRC_RELEASE (visualEffectView);
+  FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
   if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
     {
       FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f) = true;
@@ -2680,10 +2532,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   emacsWindow = window;
   [window setDelegate:self];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
-    [window useOptimizedDrawing:YES];
-#endif
   [[window contentView] addSubview:emacsView];
   [self updateBackingScaleFactor];
   [self updateEmacsViewIsHiddenOrHasHiddenAncestor];
@@ -3218,37 +3066,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [emacsWindow invalidateCursorRectsForView:emacsView];
 }
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-- (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag
-{
-  NSRect rect = [emacsView convertRect:clipRect toView:nil];
-
-  rect = [emacsWindow _intersectBottomCornersWithRect:rect];
-  if (!NSIsEmptyRect (rect))
-    {
-      if (flag)
-	[emacsWindow _maskRoundedBottomCorners:rect];
-      else
-	{
-	  struct frame *f = emacsFrame;
-
-	  if (!FRAME_GARBAGED_P (f))
-	    {
-	      NSView *frameView = [[emacsWindow contentView] superview];
-
-	      rect = [frameView convertRect:rect fromView:nil];
-	      [frameView displayRectIgnoringOpacity:rect];
-	    }
-	  else
-	    {
-	      rect = [emacsView convertRect:rect fromView:nil];
-	      [emacsView setNeedsDisplayInRect:rect];
-	    }
-	}
-    }
-}
-#endif
-
 - (void)setEmacsViewNeedsDisplayInRects:(const NSRect *)rects
 				  count:(NSUInteger)count
 {
@@ -3305,20 +3122,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [self noteLeaveEmacsView];
 
   [emacsController setConflictingKeyBindingsDisabled:NO];
-}
-
-- (void)windowDidResignMain:(NSNotification *)notification
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  /* OS X 10.10 seems to do this task for us.  */
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
-    {
-      eassert ([emacsView isMemberOfClass:[EmacsMainView class]]);
-
-      [(EmacsMainView *)emacsView unmarkText];
-      [[NSInputManager currentInputManager] markedTextAbandoned:emacsView];
-    }
-#endif
 }
 
 - (void)windowDidMove:(NSNotification *)notification
@@ -5284,19 +5087,15 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
 
   mac_within_gui (^{
       [window setBackgroundColor:[NSColor colorWithEmacsColorPixel:color]];
-      if (has_visual_effect_view_p ())
-	{
-	  /* This formula comes from frame-set-background-mode in
-	     frame.el.  */
-	  NSAppearanceName name =
-	    ((RED_FROM_ULONG (color) + GREEN_FROM_ULONG (color)
-	      + BLUE_FROM_ULONG (color)) >= (int) (0xff * 3 * .6)
-	     ? NS_APPEARANCE_NAME_VIBRANT_LIGHT
-	     : NS_APPEARANCE_NAME_VIBRANT_DARK);
+      /* This formula comes from frame-set-background-mode in
+	 frame.el.  */
+      NSAppearanceName name =
+	((RED_FROM_ULONG (color) + GREEN_FROM_ULONG (color)
+	  + BLUE_FROM_ULONG (color)) >= (int) (0xff * 3 * .6)
+	 ? NSAppearanceNameVibrantLight : NSAppearanceNameVibrantDark);
 
-	  window.appearanceCustomization.appearance =
-	    [NSAppearance appearanceNamed:name];
-	}
+      window.appearanceCustomization.appearance =
+	[NSAppearance appearanceNamed:name];
     });
 }
 
@@ -5330,7 +5129,7 @@ mac_force_flush (struct frame *f)
       block_input ();
       window = FRAME_MAC_WINDOW_OBJECT (f);
       if (window.isVisible)
-	mac_within_gui (^{[emacsController flushWindow:window force:YES];});
+	mac_within_gui (^{[window flushWindow];});
       unblock_input ();
 
       return;
@@ -5360,7 +5159,7 @@ mac_flush_1 (struct frame *f)
 	  EmacsWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
 	  if (window.isVisible)
-	    [emacsController flushWindow:window force:NO];
+	    [window flushWindow];
 
 	  return;
 	}
@@ -5401,7 +5200,6 @@ mac_update_frame_end (struct frame *f)
       CGRect clip_rect = unset_global_focus_view_frame ();
 
       [frameController unlockFocusOnEmacsView];
-      mac_mask_rounded_bottom_corners (f, clip_rect, false);
     });
 }
 
@@ -5549,13 +5347,8 @@ mac_cursor_create (ThemeCursor shape, const Emacs_Color *fore_color,
 
 	  CGContextClearRect (context, CGRectMake (0, 0, width, height));
 	  [NSGraphicsContext saveGraphicsState];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 	  gcontext = [NSGraphicsContext graphicsContextWithCGContext:context
 							     flipped:NO];
-#else
-	  gcontext = [NSGraphicsContext graphicsContextWithGraphicsPort:context
-								flipped:NO];
-#endif
 	  NSGraphicsContext.currentContext = gcontext;
 	  [rep draw];
 	  [NSGraphicsContext restoreGraphicsState];
@@ -5616,22 +5409,6 @@ mac_invalidate_frame_cursor_rects (struct frame *f)
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
   [frameController invalidateCursorRectsForEmacsView];
-}
-
-void
-mac_mask_rounded_bottom_corners (struct frame *f, CGRect clip_rect,
-				 bool direct_p)
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  if (rounded_bottom_corners_need_masking_p ()
-      && !FRAME_MAC_DOUBLE_BUFFERED_P (f))
-    {
-      EmacsFrameController *frameController = FRAME_CONTROLLER (f);
-
-      [frameController maskRoundedBottomCorners:(NSRectFromCGRect (clip_rect))
-				       directly:direct_p];
-    }
-#endif
 }
 
 void
@@ -5794,22 +5571,7 @@ static vImage_Error
 mac_vimage_copy_8888 (const vImage_Buffer *src, const vImage_Buffer *dest,
 		      vImage_Flags flags)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  if (vImageCopyBuffer != NULL)
-#endif
-    return vImageCopyBuffer (src, dest, sizeof (Pixel_8888), flags);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000 || MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-    {
-      const uint8_t identityMap[] = {0, 1, 2, 3};
-
-      return vImagePermuteChannels_ARGB8888 (src, dest, identityMap, flags);
-    }
-#endif
+  return vImageCopyBuffer (src, dest, sizeof (Pixel_8888), flags);
 }
 
 static IOSurfaceRef
@@ -6174,11 +5936,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 
   [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext =
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
     [NSGraphicsContext graphicsContextWithCGContext:backBitmap flipped:NO];
-#else
-    [NSGraphicsContext graphicsContextWithGraphicsPort:backBitmap flipped:NO];
-#endif
 }
 
 - (void)unlockFocus
@@ -6394,7 +6152,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (BOOL)isOpaque
 {
-  return !(has_visual_effect_view_p () && self.wantsUpdateLayer);
+  return !self.wantsUpdateLayer;
 }
 
 #if HAVE_MAC_METAL
@@ -6593,41 +6351,6 @@ static BOOL emacsViewUpdateLayerDisabled;
   [rawKeyEvent release];
   [markedText release];
   [super dealloc];
-}
-#endif
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-- (void)drawRect:(NSRect)aRect
-{
-  [super drawRect:aRect];
-  roundedBottomCornersCopied = NO;
-}
-#endif
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-- (void)scrollRect:(NSRect)aRect by:(NSSize)offset
-{
-  [super scrollRect:aRect by:offset];
-  if (rounded_bottom_corners_need_masking_p ()
-      && !self.wantsUpdateLayer)
-    {
-      if (roundedBottomCornersCopied)
-	[self setNeedsDisplay:YES];
-      else
-	{
-	  NSRect rect = [self convertRect:aRect toView:nil];
-
-	  rect = [[self window] _intersectBottomCornersWithRect:rect];
-	  if (!NSIsEmptyRect (rect))
-	    {
-	      rect = [self convertRect:rect fromView:nil];
-	      rect.origin.x += offset.width;
-	      rect.origin.y += offset.height;
-	      [self setNeedsDisplayInRect:rect];
-	      roundedBottomCornersCopied = YES;
-	    }
-	}
-    }
 }
 #endif
 
@@ -6857,12 +6580,7 @@ event_phase_to_symbol (NSEventPhase phase)
       break;
 
     case NSEventTypeMagnify:
-      if (has_gesture_recognizer_p ())
-	phase = event_phase_to_symbol (theEvent.phase);
-      else
-	/* For a non-scroll event, -[NSEvent phase] always returns
-	   NSEventPhaseNone on OS X 10.8 - 10.9. */
-	phase = Qnone;
+      phase = event_phase_to_symbol (theEvent.phase);
       FALLTHROUGH;
     case NSEventTypeGesture:
       deltaY = theEvent.magnification;
@@ -6870,10 +6588,7 @@ event_phase_to_symbol (NSEventPhase phase)
 
     case NSEventTypeRotate:
       deltaX = theEvent.rotation;
-      if (has_gesture_recognizer_p ())
-	phase = event_phase_to_symbol (theEvent.phase);
-      else
-	phase = Qnone;
+      phase = event_phase_to_symbol (theEvent.phase);
       break;
 
 #if __LP64__
@@ -7767,18 +7482,12 @@ mac_ts_active_input_string_in_echo_area_p (struct frame *f)
 
 /* Emacs frame containing the globally focused NSView.  */
 static struct frame *global_focus_view_frame;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-static CGRect global_focus_view_accumulated_clip_rect;
-#endif
 /* Whether view's core animation layer contents are out of sync with
    the backing bitmap and need to be updated.  */
 static bool global_focus_view_modified_p;
 /* -[EmacsView drawRect:] might be called during update_frame.  */
 static struct frame *saved_focus_view_frame;
 static CGContextRef saved_focus_view_context;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-static CGRect saved_focus_view_accumulated_clip_rect;
-#endif
 static bool saved_focus_view_modified_p;
 #if DRAWING_USE_GCD
 static dispatch_queue_t global_focus_drawing_queue;
@@ -7793,19 +7502,10 @@ set_global_focus_view_frame (struct frame *f)
       if (saved_focus_view_frame)
 	{
 	  saved_focus_view_context = FRAME_CG_CONTEXT (saved_focus_view_frame);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-	  saved_focus_view_accumulated_clip_rect =
-	    global_focus_view_accumulated_clip_rect;
-#endif
 	  saved_focus_view_modified_p = global_focus_view_modified_p;
 	}
       global_focus_view_frame = f;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
       FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] CGContext];
-#else
-      FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] graphicsPort];
-      global_focus_view_accumulated_clip_rect = CGRectNull;
-#endif
       global_focus_view_modified_p = false;
     }
 #if DRAWING_USE_GCD
@@ -7857,9 +7557,6 @@ unset_global_focus_view_frame (void)
 
   if (global_focus_view_frame != saved_focus_view_frame)
     {
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-      result = global_focus_view_accumulated_clip_rect;
-#endif
       FRAME_CG_CONTEXT (global_focus_view_frame) = NULL;
       if (FRAME_MAC_DOUBLE_BUFFERED_P (global_focus_view_frame)
 	  && global_focus_view_modified_p)
@@ -7873,35 +7570,12 @@ unset_global_focus_view_frame (void)
       if (global_focus_view_frame)
 	{
 	  FRAME_CG_CONTEXT (global_focus_view_frame) = saved_focus_view_context;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-	  global_focus_view_accumulated_clip_rect =
-	    saved_focus_view_accumulated_clip_rect;
-#endif
 	  global_focus_view_modified_p = saved_focus_view_modified_p;
 	}
     }
   saved_focus_view_frame = NULL;
 
   return result;
-}
-
-static void
-mac_accumulate_global_focus_view_clip_rect (const CGRect *clip_rects,
-					    CFIndex n_clip_rects)
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  if (n_clip_rects)
-    {
-      CFIndex i;
-
-      for (i = 0; i < n_clip_rects; i++)
-	global_focus_view_accumulated_clip_rect =
-	  CGRectUnion (global_focus_view_accumulated_clip_rect,
-		       clip_rects[i]);
-    }
-  else
-    global_focus_view_accumulated_clip_rect = CGRectInfinite;
-#endif
 }
 
 #if DRAWING_USE_GCD
@@ -7931,16 +7605,9 @@ mac_begin_cg_clip (struct frame *f, GC gc, CGRect invalid_rect)
 
       mac_within_gui (^{
 	  [frameController lockFocusOnEmacsView];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 	  FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] CGContext];
-#else
-	  FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext]
-				   graphicsPort];
-#endif
 	});
     }
-  else
-    mac_accumulate_global_focus_view_clip_rect (clip_rects, n_clip_rects);
 
   context = FRAME_CG_CONTEXT (f);
   CGContextSaveGState (context);
@@ -8032,7 +7699,6 @@ mac_draw_to_frame (struct frame *f, GC gc, CGRect invalid_rect,
 	  mac_free_gc (gc);
 	});
 
-      mac_accumulate_global_focus_view_clip_rect (clip_rects, n_clip_rects);
       global_focus_view_modified_p = true;
     }
 }
@@ -8804,36 +8470,34 @@ static BOOL NonmodalScrollerPagingBehavior;
   [self.window.backgroundColor set];
   NSRectFill (aRect);
   [super drawRect:aRect];
-  if (has_visual_effect_view_p ())
-    {
-      NSAppearance *currentDrawingAppearance;
 
-      if (
+  NSAppearance *currentDrawingAppearance;
+
+  if (
 #if __clang_major__ >= 9
-	  @available (macOS 10.16, *)
+      @available (macOS 10.16, *)
 #else
-	  [NSAppearance respondsToSelector:@selector(currentDrawingAppearance)]
+      [NSAppearance respondsToSelector:@selector(currentDrawingAppearance)]
 #endif
-	  )
-	currentDrawingAppearance = NSAppearance.currentDrawingAppearance;
-      else
-	{
-	  /* Suppress warnings about deprecated declarations.  This
-	     #if shouldn't be necessary if the compiler can handle
-	     @available above properly.  */
+      )
+    currentDrawingAppearance = NSAppearance.currentDrawingAppearance;
+  else
+    {
+      /* Suppress warnings about deprecated declarations.  This #if
+	 shouldn't be necessary if the compiler can handle @available
+	 above properly.  */
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 110000
-	  currentDrawingAppearance = NSAppearance.currentAppearance;
+      currentDrawingAppearance = NSAppearance.currentAppearance;
 #else
-	  emacs_abort ();
+      emacs_abort ();
 #endif
-	}
-      if (!currentDrawingAppearance.allowsVibrancy
-	  && !mac_accessibility_display_options.reduce_transparency_p)
-	{
-	  [[self.window.backgroundColor colorWithAlphaComponent:0.25] set];
-	  NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
-				    NSCompositingOperationSourceOver);
-	}
+    }
+  if (!currentDrawingAppearance.allowsVibrancy
+      && !mac_accessibility_display_options.reduce_transparency_p)
+    {
+      [[self.window.backgroundColor colorWithAlphaComponent:0.25] set];
+      NSRectFillUsingOperation ([self rectForPart:NSScrollerKnobSlot],
+				NSCompositingOperationSourceOver);
     }
 }
 
@@ -8868,7 +8532,7 @@ static BOOL NonmodalScrollerPagingBehavior;
      So we change EmacsScroller's appearance to NSAppearanceNameAqua
      if otherwise it becomes NSAppearanceNameVibrantLight.  */
   if ([effectiveAppearance.name
-	  isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
+	  isEqualToString:NSAppearanceNameVibrantLight])
     return [NSAppearance appearanceNamed:NSAppearanceNameAqua];
   else
     return effectiveAppearance;
@@ -9175,11 +8839,10 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 
 - (void)setVibrantScrollersHidden:(BOOL)flag
 {
-  if (has_visual_effect_view_p ())
-    for (NSView *view in emacsView.subviews)
-      if ([view isKindOfClass:[EmacsScroller class]]
-	  && view.effectiveAppearance.allowsVibrancy)
-	[view setHidden:flag];
+  for (NSView *view in emacsView.subviews)
+    if ([view isKindOfClass:[EmacsScroller class]]
+	&& view.effectiveAppearance.allowsVibrancy)
+      [view setHidden:flag];
 }
 
 @end				// EmacsFrameController (ScrollBar)
@@ -10542,19 +10205,14 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
       [hourglassWindow setBackgroundColor:[NSColor clearColor]];
       [hourglassWindow setOpaque:NO];
       [hourglassWindow setIgnoresMouseEvents:YES];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-      if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
-	[hourglassWindow useOptimizedDrawing:YES];
-#endif
       [hourglassWindow setContentView:indicator];
       [indicator startAnimation:sender];
       MRC_RELEASE (indicator);
       [self updateHourglassWindowOrigin];
-      if (has_visual_effect_view_p ())
-	hourglassWindow.appearance =
-	  ((windowManagerState & WM_STATE_FULLSCREEN)
-	   ? emacsWindow.appearanceCustomization.appearance
-	   : emacsWindow.appearance);
+      hourglassWindow.appearance =
+	((windowManagerState & WM_STATE_FULLSCREEN)
+	 ? emacsWindow.appearanceCustomization.appearance
+	 : emacsWindow.appearance);
       [emacsWindow addChildWindow:hourglassWindow ordered:NSWindowAbove];
       [hourglassWindow orderWindow:NSWindowAbove
 			relativeTo:[emacsWindow windowNumber]];
@@ -10796,11 +10454,8 @@ create_ok_cancel_buttons_view (void)
   [view addSubview:okButton];
 
   viewsDictionary = NSDictionaryOfVariableBindings (cancelButton, okButton);
-  formats = (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
-	     ? [NSArray arrayWithObjects:@"V:|-5-[cancelButton]-5-|",
-			@"[cancelButton]-[okButton(==cancelButton)]-|", nil]
-	     : [NSArray arrayWithObjects:@"V:|[cancelButton]-5-|",
-			@"|-[cancelButton]-[okButton(==cancelButton)]-|", nil]);
+  formats = [NSArray arrayWithObjects:@"V:|-5-[cancelButton]-5-|",
+		     @"[cancelButton]-[okButton(==cancelButton)]-|", nil];
   for (NSString *format in formats)
     {
       NSArrayOf (NSLayoutConstraint *) *constraints =
@@ -10809,11 +10464,7 @@ create_ok_cancel_buttons_view (void)
 			      options:NSLayoutFormatAlignAllCenterY
 			      metrics:nil views:viewsDictionary];
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
       [NSLayoutConstraint activateConstraints:constraints];
-#else
-      [view addConstraints:constraints];
-#endif
     }
   [view setFrameSize:[view fittingSize]];
 
@@ -12266,13 +11917,8 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 						forKey:((__bridge NSString *)
 							kCGPDFContextMediaBox)];
 		  NSGraphicsContext *gcontext =
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 		    [NSGraphicsContext graphicsContextWithCGContext:context
 							    flipped:NO];
-#else
-		    [NSGraphicsContext graphicsContextWithGraphicsPort:context
-							       flipped:NO];
-#endif
 
 		  CGPDFContextBeginPage (context,
 					 (__bridge CFDictionaryRef) pageInfo);
@@ -14657,11 +14303,7 @@ static WebView *EmacsSVGDocumentLastWebView;
   NSRange glyphRange = [layoutManager glyphRangeForTextContainer:textContainer];
   NSAffineTransform *transform = [NSAffineTransform transform];
   NSGraphicsContext *gcontext =
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
     [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:YES];
-#else
-    [NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES];
-#endif
 
   [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext = gcontext;
@@ -15970,64 +15612,6 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 }
 
 @end				// NSLayoutManager (Emacs)
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-CGGlyph
-mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
-			    CGFontIndex cid)
-{
-  if (!(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9))
-    return mac_ctfont_get_glyph_for_cid (font, collection, cid);
-
-  CGGlyph result = kCGFontIndexInvalid;
-  NSFont *nsFont = (__bridge NSFont *) font;
-  unichar characters[] = {0xfffd};
-  NSString *string =
-    [NSString stringWithCharacters:characters
-			    length:(ARRAYELTS (characters))];
-  NSGlyphInfo *glyphInfo =
-    [NSGlyphInfo glyphInfoWithCharacterIdentifier:cid
-				       collection:((NSCharacterCollection)
-						   collection)
-				       baseString:string];
-  NSDictionaryOf (NSString *, id) *attributes =
-    [NSDictionary dictionaryWithObjectsAndKeys:nsFont,NSFontAttributeName,
-		  glyphInfo,NSGlyphInfoAttributeName,nil];
-  NSTextStorage *textStorage =
-    [[NSTextStorage alloc] initWithString:string
-			       attributes:attributes];
-  NSLayoutManager *layoutManager = [[NSLayoutManager alloc] init];
-  NSTextContainer *textContainer = [[NSTextContainer alloc] init];
-  NSFont *fontInTextStorage;
-
-  [layoutManager addTextContainer:textContainer];
-  MRC_RELEASE (textContainer);
-  [textStorage addLayoutManager:layoutManager];
-  MRC_RELEASE (layoutManager);
-
-  /* Force layout.  */
-  (void) [layoutManager glyphRangeForTextContainer:textContainer];
-
-  fontInTextStorage = [textStorage attribute:NSFontAttributeName atIndex:0
-			      effectiveRange:NULL];
-  if (fontInTextStorage == nsFont
-      || [[fontInTextStorage fontName] isEqualToString:[nsFont fontName]])
-    {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
-      result = [layoutManager CGGlyphAtIndex:0 isValidIndex:NULL];
-#else
-      NSGlyph glyph = [layoutManager glyphAtIndex:0];
-
-      if (glyph < [nsFont numberOfGlyphs])
-	result = glyph;
-#endif
-    }
-
-  MRC_RELEASE (textStorage);
-
-  return result;
-}
-#endif
 
 CFIndex
 mac_font_get_weight (CTFontRef font)
