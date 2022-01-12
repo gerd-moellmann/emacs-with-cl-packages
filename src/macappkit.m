@@ -14741,14 +14741,14 @@ static WebView *EmacsSVGDocumentLastWebView;
 "svgElement.setAttribute ('height', '%d');\n"
 "svgElement.setAttribute ('viewBox', '0, 0, %d, %d');\n"
 "if (documentElement.width.baseVal.unitType == SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
-"  documentElement.width.baseVal.newValueSpecifiedUnits (SVGLength.SVG_LENGTHTYPE_PERCENTAGE, 100);\n"
+"  documentElement.setAttribute ('width', '%d');\n"
 "if (documentElement.height.baseVal.unitType == SVGLength.SVG_LENGTHTYPE_PERCENTAGE)\n"
-"  documentElement.height.baseVal.newValueSpecifiedUnits (SVGLength.SVG_LENGTHTYPE_PERCENTAGE, 100);\n"
+"  documentElement.setAttribute ('height', '%d');\n"
 "document.replaceChild (svgElement, documentElement);\n"
 "svgElement.appendChild (gElement);\n"
 "gElement.appendChild (documentElement);\n"
 "documentElement = svgElement;\n"
-"null;", width, height, width, height];
+"null;", width, height, width, height, width, height];
 
       [webView evaluateJavaScript:script
 		completionHandler:^(id scriptResult, NSError *error) {
