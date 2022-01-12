@@ -2905,8 +2905,8 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
   block_input ();
 
   if (with_background)
-    background_rect = mac_rect_make (f, x, y - FONT_BASE (s->font),
-				     s->width, FONT_HEIGHT (s->font));
+    background_rect = CGRectMake (x, y - FONT_BASE (s->font),
+				  s->width, FONT_HEIGHT (s->font));
   else
     background_rect = CGRectNull;
 
@@ -2965,9 +2965,7 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
 	     Apple says there are no plans to address this issue
 	     (rdar://11644870) currently.  So we add a workaround.  */
 	  if (FRAME_BACKING_SCALE_FACTOR (f) != 1
-	      && !FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f)
-	      && (mac_operating_system_version.major > 10
-		  || mac_operating_system_version.minor >= 7))
+	      && !FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f))
 	    bold_factor = synthetic_bold_factor * 2;
 	  else
 	    bold_factor = synthetic_bold_factor;
@@ -2980,19 +2978,13 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
       CGContextSetTextMatrix (context, atfm);
       CGContextSetTextPosition (context, text_position.x, text_position.y);
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-      if ((macfont_info->color_bitmap_p || macfont_info->svg_p)
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
-	  && CTFontDrawGlyphs != NULL
-#endif
-	  )
+      if (macfont_info->color_bitmap_p || macfont_info->svg_p)
 	{
 	  if (len > 0)
 	    CTFontDrawGlyphs (macfont_info->macfont, glyphs, positions, len,
 			      context);
 	}
       else
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1070 */
 	{
 	  CGContextSetFont (context, macfont_info->cgfont);
 	  CGContextSetFontSize (context, font_size);

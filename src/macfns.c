@@ -1987,11 +1987,7 @@ mac_is_url_suitable_for_proxy (CFURLRef url)
       CFBooleanRef isUbiquitousItem = NULL;
       bool ubiquitous_item_p =
 	(CFURLCopyResourcePropertyForKey (url,
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
 					  kCFURLIsUbiquitousItemKey,
-#else
-					  CFSTR ("NSURLIsUbiquitousItemKey"),
-#endif
 					  &isUbiquitousItem, NULL)
 	 && isUbiquitousItem
 	 && CFBooleanGetValue (isUbiquitousItem));
@@ -5150,8 +5146,7 @@ specifying the built-in Core Image transition filters:
   numeric properties:  :angle, :radius
   symbolic properties: :direction
 
-`page-curl-with-shadow': Like `page-curl', but with shadow.  Fall back
-                         on `page-curl' on Mac OS X 10.6 or earlier.
+`page-curl-with-shadow': Like `page-curl', but with shadow.
   numeric properties:  :angle, :radius, :shadow-size, :shadow-amount
   symbolic properties: :direction
 

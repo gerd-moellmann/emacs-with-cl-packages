@@ -37,9 +37,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef double NSAppKitVersion;
-#ifndef NSAppKitVersionNumber10_6
-static const NSAppKitVersion NSAppKitVersionNumber10_6 = 1038;
-#endif
 #ifndef NSAppKitVersionNumber10_7
 static const NSAppKitVersion NSAppKitVersionNumber10_7 = 1138;
 #endif
@@ -145,13 +142,6 @@ typedef NSString * NSWindowTabbingIdentifier;
 /* Some methods that are not declared in older versions.  Should be
    used with some runtime check such as `respondsToSelector:'. */
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-@interface NSColor (AvailableOn1070AndLater)
-+ (NSColor *)colorWithSRGBRed:(CGFloat)red green:(CGFloat)green
-			 blue:(CGFloat)blue alpha:(CGFloat)alpha;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
 @interface NSColor (AvailableOn1080AndLater)
 + (NSColor *)colorWithCGColor:(CGColorRef)cgColor;
@@ -164,13 +154,6 @@ typedef NSString * NSWindowTabbingIdentifier;
 - (BOOL)trashItemAtURL:(NSURL *)url resultingItemURL:(NSURL **)outResultingURL
 		 error:(NSError **)error;
 @end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-  NSApplicationPresentationFullScreen			= 1 << 10,
-  NSApplicationPresentationAutoHideToolbar		= 1 << 11
-};
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
@@ -194,35 +177,6 @@ typedef NSInteger NSModalResponse;
 static const NSModalResponse NSModalResponseAbort = NSRunAbortedResponse;
 static const NSModalResponse NSModalResponseContinue = NSRunContinuesResponse;
 static const NSModalResponse NSModalResponseOK = NSOKButton;
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-  NSWindowCollectionBehaviorFullScreenPrimary	= 1 << 7,
-  NSWindowCollectionBehaviorFullScreenAuxiliary	= 1 << 8
-};
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-  NSWindowAnimationBehaviorDefault		= 0,
-  NSWindowAnimationBehaviorNone			= 2,
-  NSWindowAnimationBehaviorDocumentWindow	= 3,
-  NSWindowAnimationBehaviorUtilityWindow	= 4,
-  NSWindowAnimationBehaviorAlertPanel		= 5
-};
-typedef NSInteger NSWindowAnimationBehavior;
-
-enum {
-  NSFullScreenWindowMask = 1 << 14
-};
-
-@interface NSWindow (AvailableOn1070AndLater)
-- (NSWindowAnimationBehavior)animationBehavior;
-- (void)setAnimationBehavior:(NSWindowAnimationBehavior)newAnimationBehavior;
-- (void)toggleFullScreen:(id)sender;
-- (CGFloat)backingScaleFactor;
-@end
 #endif
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
@@ -289,12 +243,6 @@ typedef NSInteger NSWindowTabbingMode;
 @property NSWindowTabbingMode tabbingMode;
 @property (copy) NSWindowTabbingIdentifier tabbingIdentifier;
 @property (readonly, copy) NSArrayOf (NSWindow *) *tabbedWindows;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-@interface NSScreen (AvailableOn1070AndLater)
-- (CGFloat)backingScaleFactor;
 @end
 #endif
 
@@ -390,28 +338,6 @@ enum {
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-    NSEventPhaseNone        = 0,
-    NSEventPhaseBegan       = 0x1 << 0,
-    NSEventPhaseStationary  = 0x1 << 1,
-    NSEventPhaseChanged     = 0x1 << 2,
-    NSEventPhaseEnded       = 0x1 << 3,
-    NSEventPhaseCancelled   = 0x1 << 4,
-};
-typedef NSUInteger NSEventPhase;
-
-@interface NSEvent (AvailableOn1070AndLater)
-- (BOOL)hasPreciseScrollingDeltas;
-- (CGFloat)scrollingDeltaX;
-- (CGFloat)scrollingDeltaY;
-- (NSEventPhase)momentumPhase;
-- (BOOL)isDirectionInvertedFromDevice;
-- (NSEventPhase)phase;
-+ (BOOL)isSwipeTrackingFromScrollEventsEnabled;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
 enum {
     NSEventTypeSmartMagnify = 32
@@ -475,18 +401,6 @@ enum {
   NSEventModifierFlagDeviceIndependentFlagsMask
 				= NSDeviceIndependentModifierFlagsMask
 };
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-@interface NSAnimationContext (AvailableOn1070AndLater)
-+ (void)runAnimationGroup:(void (^)(NSAnimationContext *context))changes
-        completionHandler:(void (^)(void))completionHandler;
-- (void)setTimingFunction:(CAMediaTimingFunction *)newTimingFunction;
-@end
-
-@interface CALayer (AvailableOn1070AndLater)
-@property CGFloat contentsScale;
-@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
@@ -569,15 +483,6 @@ static const NSControlStateValue NSControlStateValueOn = NSOnState;
 @property (assign) id <NSTouchBarDelegate> delegate;
 @property (copy) NSArrayOf (NSTouchBarItemIdentifier) *defaultItemIdentifiers;
 @property (copy) NSTouchBarItemIdentifier principalItemIdentifier;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-@interface NSView (AvailableOn1070AndLater)
-@property BOOL translatesAutoresizingMaskIntoConstraints;
-@end
-
-@interface NSLayoutConstraint : NSObject <NSAnimatablePropertyContainer>
 @end
 #endif
 
@@ -1176,9 +1081,6 @@ typedef NSInteger NSGlyphProperty;
   BOOL highlighted;
 }
 - (void)setHighlighted:(BOOL)flag;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
-- (void)setShowsResizeIndicator:(BOOL)flag;
-#endif
 @end
 
 /* Class for scroller that doesn't do modal mouse tracking.  */
@@ -1342,14 +1244,6 @@ typedef NSInteger NSGlyphProperty;
 @end
 
 @interface EmacsMenu : NSMenu
-@end
-
-@interface NSEvent (Undocumented)
-- (BOOL)_continuousScroll;
-- (NSInteger)_scrollPhase;
-- (CGFloat)deviceDeltaX;
-- (CGFloat)deviceDeltaY;
-- (CGFloat)deviceDeltaZ;
 @end
 
 @interface EmacsController (Menu) <NSMenuDelegate, NSUserInterfaceItemSearching>

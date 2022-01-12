@@ -427,13 +427,6 @@ enum {
   THEME_RESIZE_SOUTHEAST_CURSOR			= 34
 };
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED == 1060
-BLOCK_EXPORT void _Block_object_assign (void *, const void *, const int) AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
-BLOCK_EXPORT void _Block_object_dispose (const void *, const int) AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
-BLOCK_EXPORT void * _NSConcreteGlobalBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
-BLOCK_EXPORT void * _NSConcreteStackBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
-#endif
-
 #if HAVE_UNIFORM_TYPE_IDENTIFIERS
 #define UTI_PNG		(CFSTR ("public.png"))
 #define UTI_JPEG	(CFSTR ("public.jpeg"))
@@ -644,12 +637,6 @@ extern Lisp_Object mac_get_tab_group_selected_frame (struct frame *);
 extern Lisp_Object mac_get_tab_group_frames (struct frame *);
 extern CGPoint mac_get_global_mouse ();
 extern bool mac_is_frame_window_toolbar_visible (struct frame *);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
-extern CGRect mac_rect_make (struct frame *, CGFloat, CGFloat,
-			     CGFloat, CGFloat);
-#else
-#define mac_rect_make(f, x, y, w, h)	CGRectMake (x, y, w, h)
-#endif
 extern void mac_set_frame_window_structure_bounds (struct frame *,
 						   NativeRectangle);
 extern void mac_get_frame_window_structure_bounds (struct frame *,

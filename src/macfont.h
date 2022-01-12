@@ -50,11 +50,7 @@ enum {
   kCTFontTraitItalic = kCTFontItalicTrait,
   kCTFontTraitBold = kCTFontBoldTrait,
   kCTFontTraitMonoSpace = kCTFontMonoSpaceTrait,
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
   kCTFontTraitColorGlyphs = kCTFontColorGlyphsTrait
-#else
-  kCTFontTraitColorGlyphs = (1 << 13)
-#endif
 };
 
 enum {

@@ -124,7 +124,7 @@ static void
 mac_erase_rectangle (struct frame *f, GC gc, int x, int y,
 		     int width, int height)
 {
-  CGRect rect = mac_rect_make (f, x, y, width, height);
+  CGRect rect = CGRectMake (x, y, width, height);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   {
@@ -177,20 +177,19 @@ mac_draw_cg_image (struct frame *f, GC gc,
 		   int src_x, int src_y, int width, int height,
 		   int dest_x, int dest_y, int flags)
 {
-  CGRect dest_rect = mac_rect_make (f, dest_x, dest_y, width, height);
+  CGRect dest_rect = CGRectMake (dest_x, dest_y, width, height);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, dest_rect, context);
   {
     CGRect bounds;
 
     if (!(flags & MAC_DRAW_CG_IMAGE_2X))
-      bounds = mac_rect_make (f, dest_x - src_x, dest_y - src_y,
-			      CGImageGetWidth (image),
-			      CGImageGetHeight (image));
+      bounds = CGRectMake (dest_x - src_x, dest_y - src_y,
+			   CGImageGetWidth (image), CGImageGetHeight (image));
     else
-      bounds = mac_rect_make (f, dest_x - src_x, dest_y - src_y,
-			      CGImageGetWidth (image) / 2,
-			      CGImageGetHeight (image) / 2);
+      bounds = CGRectMake (dest_x - src_x, dest_y - src_y,
+			   CGImageGetWidth (image) / 2,
+			   CGImageGetHeight (image) / 2);
     if (!(flags & MAC_DRAW_CG_IMAGE_OVERLAY))
       CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, dest_rect, gc);
     CGContextClipToRects (context, &dest_rect, 1);
@@ -258,7 +257,7 @@ mac_create_image_mask_from_bitmap_data (const char *bits, int width, int height)
 static void
 mac_fill_rectangle (struct frame *f, GC gc, int x, int y, int width, int height)
 {
-  CGRect rect = mac_rect_make (f, x, y, width, height);
+  CGRect rect = CGRectMake (x, y, width, height);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   CGContextSetFillColorWithColor (context, gc->cg_fore_color);
@@ -271,7 +270,7 @@ mac_fill_rectangle (struct frame *f, GC gc, int x, int y, int width, int height)
 static void
 mac_draw_rectangle (struct frame *f, GC gc, int x, int y, int width, int height)
 {
-  CGRect rect = mac_rect_make (f, x, y, width + 1, height + 1);
+  CGRect rect = CGRectMake (x, y, width + 1, height + 1);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   CGContextSetStrokeColorWithColor (context, gc->cg_fore_color);
@@ -283,7 +282,7 @@ static void
 mac_fill_trapezoid_for_relief (struct frame *f, GC gc, int x, int y,
 			       int width, int height, int top_p)
 {
-  CGRect rect = mac_rect_make (f, x, y, width, height);
+  CGRect rect = CGRectMake (x, y, width, height);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   {
@@ -320,7 +319,7 @@ mac_erase_corners_for_relief (struct frame *f, GC gc, int x, int y,
 			      int width, int height,
 			      CGFloat radius, CGFloat margin, int corners)
 {
-  CGRect rect = mac_rect_make (f, x, y, width, height);
+  CGRect rect = CGRectMake (x, y, width, height);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   {
@@ -354,7 +353,7 @@ static void
 mac_draw_horizontal_wave (struct frame *f, GC gc, int x, int y,
 			  int width, int height, int wave_length)
 {
-  CGRect wave_clip = mac_rect_make (f, x, y, width, height);
+  CGRect wave_clip = CGRectMake (x, y, width, height);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, wave_clip, context);
   {
@@ -384,7 +383,7 @@ static void
 mac_invert_rectangle (struct frame *f, int x, int y, int width, int height)
 {
   GC gc = f->output_data.mac->normal_gc;
-  CGRect rect = mac_rect_make (f, x, y, width, height);
+  CGRect rect = CGRectMake (x, y, width, height);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   CGContextSetGrayFillColor (context, 1.0f, 1.0f);
@@ -466,9 +465,9 @@ mac_invert_rectangles_and_flush (struct frame *f, NativeRectangle *rectangles,
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
   else
     {
-      CGRect rect = mac_rect_make (f, rectangles[n - 1].x, rectangles[n - 1].y,
-				   rectangles[n - 1].width,
-				   rectangles[n - 1].height);
+      CGRect rect = CGRectMake (rectangles[n - 1].x, rectangles[n - 1].y,
+				rectangles[n - 1].width,
+				rectangles[n - 1].height);
 
       mac_invert_rectangles (f, rectangles, n);
       mac_mask_rounded_bottom_corners (f, rect, invert_p);
@@ -635,8 +634,7 @@ mac_set_clip_rectangles (struct frame *f, GC gc,
     {
       NativeRectangle *rect = rectangles + i;
 
-      clip_rects[i] = mac_rect_make (f, rect->x, rect->y,
-				     rect->width, rect->height);
+      clip_rects[i] = CGRectMake (rect->x, rect->y, rect->width, rect->height);
     }
 
   if (gc->clip_rects_data)
