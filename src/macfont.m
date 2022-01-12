@@ -691,28 +691,6 @@ static struct
     { NULL }
   };
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-static const struct
-{
-  CFStringRef language;
-  CFStringRef font_names[3];
-} macfont_language_default_font_names[] = {
-  { CFSTR ("ja"), { CFSTR ("HiraKakuProN-W3"), /* 10.5 - 10.9 */
-                    CFSTR ("HiraKakuPro-W3"),  /* 10.4 */
-                    NULL }},
-  { CFSTR ("ko"), { CFSTR ("AppleSDGothicNeo-Regular"), /* 10.8 - 10.9 */
-                    CFSTR ("AppleGothic"), /* 10.4 - 10.7 */
-                    NULL }},
-  { CFSTR ("zh-Hans"), { CFSTR ("STHeitiSC-Light"), /* 10.6 - 10.9 */
-                         CFSTR ("STXihei"),	    /* 10.4 - 10.5 */
-                         NULL }},
-  { CFSTR ("zh-Hant"), { CFSTR ("STHeitiTC-Light"), /* 10.6 - 10.9 */
-                         CFSTR ("LiHeiPro"),	    /* 10.4 - 10.5 */
-                         NULL }},
-  { NULL }
-};
-#endif
-
 static CGFloat macfont_antialias_threshold;
 
 void
@@ -4202,90 +4180,22 @@ static CFArrayRef
 mac_font_copy_default_descriptors_for_language (CFStringRef language)
 {
   CFArrayRef result = NULL;
+  CTFontRef user_font = CTFontCreateUIFontForLanguage (kCTFontUIFontUser, 0,
+						       language);
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-  if (CTFontCopyDefaultCascadeListForLanguages != NULL)
-#endif
+  if (user_font)
     {
-      CTFontRef user_font =
-	CTFontCreateUIFontForLanguage (kCTFontUIFontUser, 0, language);
+      CFArrayRef languages = CFArrayCreate (NULL, (const void **) &language, 1,
+					    &kCFTypeArrayCallBacks);
 
-      if (user_font)
-        {
-          CFArrayRef languages =
-            CFArrayCreate (NULL, (const void **) &language, 1,
-                           &kCFTypeArrayCallBacks);
-
-          if (languages)
-            {
-              result = CTFontCopyDefaultCascadeListForLanguages (user_font,
-                                                                 languages);
-              CFRelease (languages);
-            }
-          CFRelease (user_font);
-        }
+      if (languages)
+	{
+	  result = CTFontCopyDefaultCascadeListForLanguages (user_font,
+							     languages);
+	  CFRelease (languages);
+	}
+      CFRelease (user_font);
     }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-  else		/* CTFontCopyDefaultCascadeListForLanguages == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1080 */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-    {
-      CFIndex i;
-
-      for (i = 0; macfont_language_default_font_names[i].language; i++)
-        {
-          if (CFEqual (macfont_language_default_font_names[i].language,
-                       language))
-            {
-              CFMutableArrayRef descriptors =
-                CFArrayCreateMutable (NULL, 0, &kCFTypeArrayCallBacks);
-
-              if (descriptors)
-                {
-                  CFIndex j;
-
-                  for (j = 0;
-                       macfont_language_default_font_names[i].font_names[j];
-                       j++)
-                    {
-                      CFDictionaryRef attributes =
-                        CFDictionaryCreate (NULL,
-                                            ((const void **)
-                                             &kCTFontNameAttribute),
-                                            ((const void **)
-                                             &macfont_language_default_font_names[i].font_names[j]),
-                                            1, &kCFTypeDictionaryKeyCallBacks,
-                                            &kCFTypeDictionaryValueCallBacks);
-
-                      if (attributes)
-                        {
-                          CTFontDescriptorRef pat_desc =
-                            CTFontDescriptorCreateWithAttributes (attributes);
-
-                          if (pat_desc)
-                            {
-                              CTFontDescriptorRef descriptor =
-                                CTFontDescriptorCreateMatchingFontDescriptor (pat_desc, NULL);
-
-                              if (descriptor)
-                                {
-                                  CFArrayAppendValue (descriptors, descriptor);
-                                  CFRelease (descriptor);
-                                }
-                              CFRelease (pat_desc);
-                            }
-                          CFRelease (attributes);
-                        }
-                    }
-                  result = descriptors;
-                }
-              break;
-            }
-        }
-    }
-#endif
 
   return result;
 }

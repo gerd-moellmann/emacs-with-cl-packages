@@ -45,24 +45,6 @@ struct mac_glyph_layout
   CGGlyph glyph_id;
 };
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-enum {
-  kCTFontTraitItalic = kCTFontItalicTrait,
-  kCTFontTraitBold = kCTFontBoldTrait,
-  kCTFontTraitMonoSpace = kCTFontMonoSpaceTrait,
-  kCTFontTraitColorGlyphs = kCTFontColorGlyphsTrait
-};
-
-enum {
-  kCTCharacterCollectionIdentityMapping = kCTIdentityMappingCharacterCollection,
-  kCTCharacterCollectionAdobeJapan1 = kCTAdobeJapan1CharacterCollection
-};
-
-enum {
-  kCTFontOrientationDefault = kCTFontDefaultOrientation
-};
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 enum {
   kCTFontTableSVG = 'SVG '

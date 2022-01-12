@@ -37,9 +37,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef double NSAppKitVersion;
-#ifndef NSAppKitVersionNumber10_7
-static const NSAppKitVersion NSAppKitVersionNumber10_7 = 1138;
-#endif
 #ifndef NSAppKitVersionNumber10_8
 static const NSAppKitVersion NSAppKitVersionNumber10_8 = 1187;
 #endif
@@ -141,20 +138,6 @@ typedef NSString * NSWindowTabbingIdentifier;
 
 /* Some methods that are not declared in older versions.  Should be
    used with some runtime check such as `respondsToSelector:'. */
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-@interface NSColor (AvailableOn1080AndLater)
-+ (NSColor *)colorWithCGColor:(CGColorRef)cgColor;
-- (CGColorRef)CGColor;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-@interface NSFileManager (AvailableOn1080AndLater)
-- (BOOL)trashItemAtURL:(NSURL *)url resultingItemURL:(NSURL **)outResultingURL
-		 error:(NSError **)error;
-@end
-#endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
@@ -338,16 +321,6 @@ enum {
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-enum {
-    NSEventTypeSmartMagnify = 32
-};
-
-enum {
-    NSEventPhaseMayBegin    = 0x1 << 5
-};
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
 typedef NSUInteger NSEventModifierFlags;
 #endif
@@ -420,12 +393,6 @@ typedef NSInteger NSPaperOrientation;
 - (BOOL)accessibilityDisplayShouldIncreaseContrast;
 - (BOOL)accessibilityDisplayShouldDifferentiateWithoutColor;
 - (BOOL)accessibilityDisplayShouldReduceTransparency;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-@interface NSView (AvailableOn1080AndLater)
-@property (readonly) BOOL wantsUpdateLayer;
 @end
 #endif
 
@@ -614,9 +581,7 @@ typedef NSInteger NSGlyphProperty;
 
 @interface NSColor (Emacs)
 + (NSColor *)colorWithEmacsColorPixel:(unsigned long)pixel;
-- (CGColorRef)copyCGColor;
 - (BOOL)getSRGBComponents:(CGFloat *)components;
-+ (NSColor *)colorWithCoreGraphicsColor:(CGColorRef)cgColor;
 @end
 
 @interface NSImage (Emacs)

@@ -1129,11 +1129,9 @@ mac_inhibit_double_buffering_default_value (void)
 static bool
 mac_inhibit_double_buffering_force_default_p (void)
 {
-  /* macOS 10.14 uses layer-backed views by default.  And OS X 10.7
-     and earlier does not have -[NSView updateLayer].  */
+  /* macOS 10.14 uses layer-backed views by default.  */
   return (mac_operating_system_version.major > 10
-	  || mac_operating_system_version.minor >= 14
-	  || mac_operating_system_version.minor <= 7);
+	  || mac_operating_system_version.minor >= 14);
 }
 
 static void

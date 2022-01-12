@@ -23,21 +23,6 @@
 export EMACS_REINVOKED_FROM_SHELL=1
 [ -L $0 ] && set "$(readlink ${0%.sh})" "$@" || set "${0%.sh}" "$@"
 
-case $(sw_vers -productVersion) in
-    10.[0-7]|10.[0-7].*)
-	# "$HOME/.MacOSX/environment.plist" is ignored on OS X 10.8.
-	if [ -f "$HOME/.MacOSX/environment.plist" ]; then
-	    # Invocation via "Login Items" or "Resume" resets PATH.
-	    case ${SHLVL} in
-		1)
-		    p=$(defaults read "$HOME/.MacOSX/environment" PATH 2>/dev/null) && PATH=$p
-		    ;;
-	    esac
-	    exec "$@"
-	fi
-	;;
-esac
-
 case ${SHLVL} in
     1) ;;
     *) exec "$@" ;;

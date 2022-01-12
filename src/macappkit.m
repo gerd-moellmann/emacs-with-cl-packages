@@ -51,7 +51,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #define MRC_RELEASE(receiver)		[(receiver) release]
 #define MRC_AUTORELEASE(receiver)	[(receiver) autorelease]
 #define CF_ESCAPING_BRIDGE(X)		((CFTypeRef) (X))
-#define __bridge
 #endif
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
 #define CF_AUTORELEASE	CFAutorelease
@@ -474,47 +473,6 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 			  alpha:1.0f];
 }
 
-- (CGColorRef)copyCGColor
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-  if ([self respondsToSelector:@selector(CGColor)])
-#endif
-    return CGColorRetain (self.CGColor);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-  else
-    {
-      CGColorSpaceRef cgColorSpace;
-      CGFloat *components;
-
-      if ([self.colorSpaceName isEqualToString:NSNamedColorSpace])
-	cgColorSpace = NULL;
-      else
-	cgColorSpace = self.colorSpace.CGColorSpace;
-      if (cgColorSpace)
-	{
-	  components = alloca (sizeof (CGFloat) * self.numberOfComponents);
-	  [self getComponents:components];
-	}
-      else
-	{
-	  NSColor *colorInSRGB =
-	    [self colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-
-	  if (colorInSRGB)
-	    {
-	      components = alloca (sizeof (CGFloat) * 4);
-	      cgColorSpace = mac_cg_color_space_rgb;
-	      [colorInSRGB getComponents:components];
-	    }
-	}
-      if (cgColorSpace)
-	return CGColorCreate (cgColorSpace, components);
-    }
-
-  return NULL;
-#endif
-}
-
 - (BOOL)getSRGBComponents:(CGFloat *)components
 {
   NSColor *color = [self colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
@@ -525,31 +483,6 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   [color getComponents:components];
 
   return YES;
-}
-
-+ (NSColor *)colorWithCoreGraphicsColor:(CGColorRef)cgColor
-{
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-  if ([self respondsToSelector:@selector(colorWithCGColor:)])
-#endif
-    return [self colorWithCGColor:cgColor];
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-  CGColorSpaceRef color_space = CGColorGetColorSpace (cgColor);
-
-  if (color_space)
-    {
-      NSColorSpace *colorSpace =
-	MRC_AUTORELEASE ([[NSColorSpace alloc]
-			   initWithCGColorSpace:color_space]);
-
-      return [NSColor
-	       colorWithColorSpace:colorSpace
-			components:(CGColorGetComponents (cgColor))
-			     count:(CGColorGetNumberOfComponents (cgColor))];
-    }
-
-  return nil;
-#endif
 }
 
 @end				// NSColor (Emacs)
@@ -7022,9 +6955,8 @@ event_phase_to_symbol (NSEventPhase phase)
       if (has_gesture_recognizer_p ())
 	phase = event_phase_to_symbol (theEvent.phase);
       else
-	/* For a non-scroll event, -[NSEvent phase] crashes on Mac OS
-	   X 10.7, and always returns NSEventPhaseNone on OS X 10.8 -
-	   10.9. */
+	/* For a non-scroll event, -[NSEvent phase] always returns
+	   NSEventPhaseNone on OS X 10.8 - 10.9. */
 	phase = Qnone;
       FALLTHROUGH;
     case NSEventTypeGesture:
@@ -8238,14 +8170,14 @@ mac_scroll_area (struct frame *f, GC gc, int src_x, int src_y,
       CGColorRef __block borderColor;
 
       mac_with_current_drawing_appearance (self.effectiveAppearance, ^{
-	  borderColor = NSColor.selectedControlColor.copyCGColor;
+	  borderColor = CGColorRetain (NSColor.selectedControlColor.CGColor);
 	});
 
       [layer setValue:((id) kCFBooleanTrue) forKey:@"showingBorder"];
 
       [CATransaction setDisableActions:YES];
       layer.borderColor = borderColor;
-      CFRelease (borderColor);
+      CGColorRelease (borderColor);
       [CATransaction commit];
 
       layer.borderWidth = 3.0;
@@ -11197,15 +11129,9 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
       UInt32 code;
       Boolean isEnabled;
 
-      if (_IsSymbolicHotKeyEvent ((EventRef) [theEvent eventRef], &code,
-				  &isEnabled)
-	  && isEnabled)
-	{
-	  if (code == 98 /* Show Help menu, Mac OS X 10.5 and later */
-	      && floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_7)
-	    [emacsController showMenuBar];
-	}
-      else
+      if (!(_IsSymbolicHotKeyEvent ((EventRef) [theEvent eventRef], &code,
+				    &isEnabled)
+	    && isEnabled))
 	{
 	  if ([theEvent type] == NSEventTypeKeyDown
 	      && (([theEvent modifierFlags]
@@ -14462,7 +14388,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 				 [options objectForKey:key]);
 	  CGFloat components[4];
 
-	  if (cg_color && [[NSColor colorWithCoreGraphicsColor:cg_color]
+	  if (cg_color && [[NSColor colorWithCGColor:cg_color]
 			    getSRGBComponents:components])
 	    {
 	      NSString *colorInHex =
@@ -14810,7 +14736,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 			       objectForKey:NSBackgroundColorDocumentAttribute];
 
   /* `backgroundColor' might be nil, but that's OK.  */
-  return [backgroundColor copyCGColor];
+  return CGColorRetain (backgroundColor.CGColor);
 }
 
 - (NSDictionaryOf (NSString *, id) *)documentAttributesOfPageAtIndex:(NSUInteger)index
