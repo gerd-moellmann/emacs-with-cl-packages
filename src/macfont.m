@@ -56,8 +56,6 @@ static CFStringRef mac_font_create_preferred_family_for_attributes (CFDictionary
 static CFIndex mac_font_shape (CTFontRef, CFStringRef,
 			       struct mac_glyph_layout *, CFIndex,
 			       enum lgstring_direction);
-static CFArrayRef mac_font_copy_default_descriptors_for_language (CFStringRef);
-static CFStringRef mac_font_copy_default_name_for_charset_and_languages (CFCharacterSetRef, CFArrayRef);
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 static CGGlyph mac_ctfont_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
                                              CGFontIndex);
@@ -3724,37 +3722,14 @@ mac_font_create_preferred_family_for_attributes (CFDictionaryRef attributes)
 
   if (charset_string && CFStringGetLength (charset_string) > 0)
     {
-      CFStringRef keys[] = {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-        kCTLanguageAttributeName
-#else
-        CFSTR ("NSLanguage")
-#endif
-      };
+      CFStringRef keys[] = {kCTLanguageAttributeName};
       CFTypeRef values[] = {NULL};
       CFIndex num_values = 0;
       CFArrayRef languages
         = CFDictionaryGetValue (attributes, kCTFontLanguagesAttribute);
 
       if (languages && CFArrayGetCount (languages) > 0)
-        {
-          if (
-#ifdef HAVE_MACGUI
-	      mac_operating_system_version.major > 10
-	      || mac_operating_system_version.minor >= 9
-#else
-	      CTGetCoreTextVersion () >= kCTVersionNumber10_9
-#endif
-	      )
-            values[num_values++] = CFArrayGetValueAtIndex (languages, 0);
-          else
-            {
-              CFCharacterSetRef charset =
-                CFDictionaryGetValue (attributes, kCTFontCharacterSetAttribute);
-
-              result = mac_font_copy_default_name_for_charset_and_languages (charset, languages);
-            }
-        }
+	values[num_values++] = CFArrayGetValueAtIndex (languages, 0);
       if (result == NULL)
         {
           CFAttributedStringRef attr_string = NULL;
@@ -4171,73 +4146,6 @@ mac_ctfont_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
             }
         }
       CFRelease (ctline);
-    }
-
-  return result;
-}
-
-static CFArrayRef
-mac_font_copy_default_descriptors_for_language (CFStringRef language)
-{
-  CFArrayRef result = NULL;
-  CTFontRef user_font = CTFontCreateUIFontForLanguage (kCTFontUIFontUser, 0,
-						       language);
-
-  if (user_font)
-    {
-      CFArrayRef languages = CFArrayCreate (NULL, (const void **) &language, 1,
-					    &kCFTypeArrayCallBacks);
-
-      if (languages)
-	{
-	  result = CTFontCopyDefaultCascadeListForLanguages (user_font,
-							     languages);
-	  CFRelease (languages);
-	}
-      CFRelease (user_font);
-    }
-
-  return result;
-}
-
-static CFStringRef
-mac_font_copy_default_name_for_charset_and_languages (CFCharacterSetRef charset,
-                                                      CFArrayRef languages)
-{
-  CFStringRef result = NULL;
-  CFStringRef language = CFArrayGetValueAtIndex (languages, 0);
-  CFArrayRef descriptors =
-    mac_font_copy_default_descriptors_for_language (language);
-
-  if (descriptors)
-    {
-      CFIndex i, count = CFArrayGetCount (descriptors);
-
-      for (i = 0; i < count; i++)
-        {
-          CTFontDescriptorRef descriptor =
-            CFArrayGetValueAtIndex (descriptors, i);
-
-          if (macfont_supports_charset_and_languages_p (descriptor, charset,
-                                                        Qnil, languages))
-            {
-              CFStringRef family =
-                CTFontDescriptorCopyAttribute (descriptor,
-					       kCTFontFamilyNameAttribute);
-              if (family)
-                {
-                  if (!CFStringHasPrefix (family, CFSTR ("."))
-                      && !CFEqual (family, CFSTR ("LastResort")))
-                    {
-                      result = family;
-                      break;
-                    }
-                  else
-                    CFRelease (family);
-                }
-            }
-        }
-      CFRelease (descriptors);
     }
 
   return result;

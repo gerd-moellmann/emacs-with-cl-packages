@@ -66,9 +66,6 @@ extern CGGlyph mac_font_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
 					   CGFontIndex);
 #endif
 
-#ifndef kCTVersionNumber10_9
-#define kCTVersionNumber10_9 0x00060000
-#endif
 #define MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE \
   (CFSTR ("MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE"))
 

@@ -52,17 +52,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #define MRC_AUTORELEASE(receiver)	[(receiver) autorelease]
 #define CF_ESCAPING_BRIDGE(X)		((CFTypeRef) (X))
 #endif
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-#define CF_AUTORELEASE	CFAutorelease
-#else
-static inline CFTypeRef
-CF_AUTORELEASE (CFTypeRef X)
-{
-  id __autoreleasing result = CFBridgingRelease (X);
-
-  return (__bridge CFTypeRef) result;
-}
-#endif
 
 /************************************************************************
 			       General
@@ -100,20 +89,6 @@ enum {
   (CFOBJECT_TO_LISP_WITH_TAG					\
    | CFOBJECT_TO_LISP_DONT_DECODE_STRING			\
    | CFOBJECT_TO_LISP_DONT_DECODE_DICTIONARY_KEY)
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-#define NS_STACK_VIEW	NSStackView
-#else
-#define NS_STACK_VIEW	(NSClassFromString (@"NSStackView"))
-#endif
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-#define NS_APPEARANCE	NSAppearance
-#define NS_APPEARANCE_NAME_AQUA	NSAppearanceNameAqua
-#else
-#define NS_APPEARANCE	(NSClassFromString (@"NSAppearance"))
-#define NS_APPEARANCE_NAME_AQUA	(@"NSAppearanceNameAqua")
-#endif
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 #define NS_APPEARANCE_NAME_VIBRANT_LIGHT	NSAppearanceNameVibrantLight
@@ -419,7 +394,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   CGEventSetFlags (event, (CGEventFlags) [self modifierFlags]);
   CGEventSetTimestamp (event, [self timestamp] * kSecondScale);
 
-  return (CGEventRef) CF_AUTORELEASE (event);
+  return (CGEventRef) CFAutorelease (event);
 }
 
 @end				// NSEvent (Emacs)
@@ -625,10 +600,9 @@ mac_within_app (void (^block) (void))
 {
   return ([self isEqual:[[NSScreen screens] objectAtIndex:0]]
 	  /* OS X 10.9 may have menu bars on non-main screens (in an
-	     inactive appearance) if [NSScreen
-	     screensHaveSeparateSpaces] returns YES.  */
-	  || ([NSScreen respondsToSelector:@selector(screensHaveSeparateSpaces)]
-	      && [NSScreen screensHaveSeparateSpaces]));
+	     inactive appearance) if
+	     NSScreen.screensHaveSeparateSpaces returns YES.  */
+	  || NSScreen.screensHaveSeparateSpaces);
 }
 
 @end				// NSScreen (Emacs)
@@ -1036,54 +1010,18 @@ bool
 mac_trash_file (const char *filename, CFErrorRef *cferror)
 {
   bool result;
+  NSError * __autoreleasing error;
+  NSURL *url =
+    (CFBridgingRelease
+     (CFURLCreateFromFileSystemRepresentation (NULL,
+					       (const UInt8 *) filename,
+					       strlen (filename), false)));
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
-  /* -[NSFileManager trashItemAtURL:resultingItemURL:error:] trashes
-     the destination of the specified symbolic link instead of the
-     symbolic link itself on OS X 10.8 - 10.8.2.  */
-  if (NSFoundationVersionNumber >= NSFoundationVersionNumber10_8_3)
-#endif
-    {
-      NSError * __autoreleasing error;
-      NSURL *url =
-	(CFBridgingRelease
-	 (CFURLCreateFromFileSystemRepresentation (NULL,
-						   (const UInt8 *) filename,
-						   strlen (filename), false)));
-
-      result = [[NSFileManager defaultManager] trashItemAtURL:url
-					     resultingItemURL:NULL
-							error:&error];
-      if (!result && cferror)
-	*cferror = (CFErrorRef) CFBridgingRetain (error);
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
-  else
-    {
-      OSStatus err;
-      FSRef fref;
-
-      err = FSPathMakeRefWithOptions ((const UInt8 *) filename,
-				      kFSPathMakeRefDoNotFollowLeafSymlink,
-				      &fref, NULL);
-      if (err == noErr)
-	/* FSPathMoveObjectToTrashSync tries to delete the destination
-	   of the specified symbolic link.  So we use
-	   FSMoveObjectToTrashSync for an FSRef created with
-	   kFSPathMakeRefDoNotFollowLeafSymlink.  */
-	err = FSMoveObjectToTrashSync (&fref, NULL,
-				       kFSFileOperationDefaultOptions);
-      if (err == noErr)
-	result = true;
-      else
-	{
-	  result = false;
-	  if (cferror)
-	    *cferror = CFErrorCreate (NULL, kCFErrorDomainOSStatus, err,
-				      NULL);
-	}
-    }
-#endif
+  result = [[NSFileManager defaultManager] trashItemAtURL:url
+					 resultingItemURL:NULL
+						    error:&error];
+  if (!result && cferror)
+    *cferror = (CFErrorRef) CFBridgingRetain (error);
 
   return result;
 }
@@ -1110,11 +1048,11 @@ mac_with_current_drawing_appearance (NSAppearance *appearance,
 	 shouldn't be necessary if the compiler can handle @available
 	 above properly.  */
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 110000
-      NSAppearance *oldAppearance = [NS_APPEARANCE currentAppearance];
+      NSAppearance *oldAppearance = NSAppearance.currentAppearance;
 
-      [NS_APPEARANCE setCurrentAppearance:appearance];
+      NSAppearance.currentAppearance = appearance;
       block ();
-      [NS_APPEARANCE setCurrentAppearance:oldAppearance];
+      NSAppearance.currentAppearance = oldAppearance;
 #else
       emacs_abort ();
 #endif
@@ -1227,8 +1165,7 @@ static bool handling_queued_nsevents_p;
   if (doNotInstallDispatchSources)
     return;
   [super _installMemoryPressureDispatchSources];
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9
-      && !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_8))
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
     doNotInstallDispatchSources = YES;
 }
 
@@ -1239,8 +1176,7 @@ static bool handling_queued_nsevents_p;
   if (doNotInstallDispatchSources)
     return;
   [super _installMemoryStatusDispatchSources];
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9
-      && !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_8))
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_9)
     doNotInstallDispatchSources = YES;
 }
 #endif
@@ -2226,21 +2162,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 - (void)suspendResizeTracking:(NSEvent *)event
 	   positionAdjustment:(NSPoint)adjustment
 {
-  NSPoint locationInWindow = [event locationInWindow];
-
-  /* OS X 10.9 no longer needs position adjustment.  */
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_8)
-    {
-      if (resizeTrackingStartLocation.x * 2
-	  < resizeTrackingStartWindowSize.width)
-	locationInWindow.x += adjustment.x;
-      if (!(resizeTrackingStartLocation.y * 2
-	    <= resizeTrackingStartWindowSize.height))
-	locationInWindow.y -= adjustment.y;
-    }
-  mouseUpEvent = MRC_RETAIN ([event
-			       mouseEventByChangingType:NSEventTypeLeftMouseUp
-					    andLocation:locationInWindow]);
+  mouseUpEvent =
+    MRC_RETAIN ([event mouseEventByChangingType:NSEventTypeLeftMouseUp
+				    andLocation:event.locationInWindow]);
   [NSApp postEvent:mouseUpEvent atStart:YES];
   MOUSE_TRACKING_SET_RESUMPTION (emacsController, self, resumeResizeTracking);
 }
@@ -2570,8 +2494,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [overlayView setLayer:[CALayer layer]];
   [overlayView setWantsLayer:YES];
   /* OS X 10.9 needs this.  */
-  if ([overlayView respondsToSelector:@selector(setLayerUsesCoreImageFilters:)])
-    [overlayView setLayerUsesCoreImageFilters:YES];
+  [overlayView setLayerUsesCoreImageFilters:YES];
 
   [self setupAnimationLayer];
 
@@ -5372,7 +5295,7 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
 	     : NS_APPEARANCE_NAME_VIBRANT_DARK);
 
 	  window.appearanceCustomization.appearance =
-	    [NS_APPEARANCE appearanceNamed:name];
+	    [NSAppearance appearanceNamed:name];
 	}
     });
 }
@@ -5863,26 +5786,8 @@ static vImage_Error
 mac_vimage_buffer_init_8888 (vImage_Buffer *buf, vImagePixelCount height,
 			     vImagePixelCount width)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
-  if (vImageBuffer_Init != NULL)
-#endif
-    return vImageBuffer_Init (buf, height, width, 8 * sizeof (Pixel_8888),
-			      kvImageNoFlags);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1090
-  else
-#endif
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090 || MAC_OS_X_VERSION_MIN_REQUIRED < 1090
-    {
-      buf->data = malloc (height * width * sizeof (Pixel_8888));
-      buf->height = height;
-      buf->width = width;
-      buf->rowBytes = width * sizeof (Pixel_8888);
-
-      return kvImageNoError;
-    }
-#endif
+  return vImageBuffer_Init (buf, height, width, 8 * sizeof (Pixel_8888),
+			    kvImageNoFlags);
 }
 
 static vImage_Error
@@ -8255,7 +8160,7 @@ mac_color_lookup (const char *color_name)
   NSAppearance *appearance =
     ([NSApp respondsToSelector:@selector(effectiveAppearance)]
      ? [NSApp effectiveAppearance]
-     : [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA]);
+     : [NSAppearance appearanceNamed:NSAppearanceNameAqua]);
 
   mac_with_current_drawing_appearance (appearance, ^{
       CGFloat components[4];
@@ -8293,7 +8198,7 @@ mac_color_list_alist (void)
 			Multi-monitor support
  ************************************************************************/
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090 && MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
 static NSArrayOf (NSDictionary *) *
 mac_display_get_info_dictionaries (IOOptionBits options)
 {
@@ -8378,7 +8283,7 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
   NSArrayOf (NSScreen *) *screens = [NSScreen screens];
   NSUInteger i, count = [screens count];
   Lisp_Object monitor_frames = Fmake_vector (make_fixnum (count), Qnil);
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090 && MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
   NSArrayOf (NSDictionary *) *infoDictionaries =
     mac_display_get_info_dictionaries (kIODisplayOnlyPreferredName);
 #endif
@@ -8445,15 +8350,9 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101500 || MAC_OS_X_VERSION_MIN_REQUIRED < 101500
 	{
 	  CFDictionaryRef displayInfo;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
 	  displayInfo =
 	    mac_display_copy_info_dictionary_for_cgdisplay (displayID,
 							    infoDictionaries);
-#else
-	  displayInfo =
-	    IODisplayCreateInfoDictionary (CGDisplayIOServicePort (displayID),
-					   kIODisplayOnlyPreferredName);
-#endif
 	  if (displayInfo)
 	    {
 	      CFDictionaryRef localizedNames =
@@ -8913,17 +8812,17 @@ static BOOL NonmodalScrollerPagingBehavior;
 #if __clang_major__ >= 9
 	  @available (macOS 10.16, *)
 #else
-	  [NS_APPEARANCE respondsToSelector:@selector(currentDrawingAppearance)]
+	  [NSAppearance respondsToSelector:@selector(currentDrawingAppearance)]
 #endif
 	  )
-	currentDrawingAppearance = [NS_APPEARANCE currentDrawingAppearance];
+	currentDrawingAppearance = NSAppearance.currentDrawingAppearance;
       else
 	{
 	  /* Suppress warnings about deprecated declarations.  This
 	     #if shouldn't be necessary if the compiler can handle
 	     @available above properly.  */
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 110000
-	  currentDrawingAppearance = [NS_APPEARANCE currentAppearance];
+	  currentDrawingAppearance = NSAppearance.currentAppearance;
 #else
 	  emacs_abort ();
 #endif
@@ -8970,7 +8869,7 @@ static BOOL NonmodalScrollerPagingBehavior;
      if otherwise it becomes NSAppearanceNameVibrantLight.  */
   if ([effectiveAppearance.name
 	  isEqualToString:NS_APPEARANCE_NAME_VIBRANT_LIGHT])
-    return [NS_APPEARANCE appearanceNamed:NS_APPEARANCE_NAME_AQUA];
+    return [NSAppearance appearanceNamed:NSAppearanceNameAqua];
   else
     return effectiveAppearance;
 }
@@ -10782,8 +10681,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 	  savePanel.title = title;
 	  savePanel.prompt = @"OK";
 	  savePanel.nameFieldLabel = @"Enter Name:";
-	  if ([savePanel respondsToSelector:@selector(setShowsTagField:)])
-	    savePanel.showsTagField = NO;
+	  savePanel.showsTagField = NO;
 
 	  savePanel.directoryURL = [NSURL fileURLWithPath:directory
 					      isDirectory:YES];
@@ -12043,7 +11941,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
 	  }
 
       scrollView = [[NSScrollView alloc] init];
-      stackView = [NS_STACK_VIEW stackViewWithViews:touchButtons];
+      stackView = [NSStackView stackViewWithViews:touchButtons];
       scrollView.documentView = stackView;
       contentView = scrollView.contentView;
       [stackView.trailingAnchor

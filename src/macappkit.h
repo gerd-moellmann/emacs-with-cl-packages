@@ -31,15 +31,8 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 #define Z (current_buffer->text->z)
 
-#ifndef NSFoundationVersionNumber10_8_3
-#define NSFoundationVersionNumber10_8_3 945.16
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef double NSAppKitVersion;
-#ifndef NSAppKitVersionNumber10_8
-static const NSAppKitVersion NSAppKitVersionNumber10_8 = 1187;
-#endif
 #ifndef NSAppKitVersionNumber10_9
 static const NSAppKitVersion NSAppKitVersionNumber10_9 = 1265;
 #endif
@@ -156,12 +149,6 @@ typedef NSInteger NSWindowListOptions;
 typedef NSInteger NSModalResponse;
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-static const NSModalResponse NSModalResponseAbort = NSRunAbortedResponse;
-static const NSModalResponse NSModalResponseContinue = NSRunContinuesResponse;
-static const NSModalResponse NSModalResponseOK = NSOKButton;
-#endif
-
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
 @interface NSWindow (Undocumented)
 - (NSRect)_intersectBottomCornersWithRect:(NSRect)viewRect;
@@ -229,34 +216,9 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSScreen (AvailableOn1090AndLater)
-+ (BOOL)screensHaveSeparateSpaces;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101500
 @interface NSScreen (AvailableOn101500AndLater)
 @property (readonly, copy) NSString *localizedName;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSAppearance : NSObject
-+ (NSAppearance *)appearanceNamed:(NSAppearanceName)name;
-+ (NSAppearance *)currentAppearance;
-+ (void)setCurrentAppearance:(NSAppearance *)appearance;
-@end
-
-@protocol NSAppearanceCustomization <NSObject>
-@property (retain) NSAppearance *appearance;
-@property (readonly, retain) NSAppearance *effectiveAppearance;
-@end
-
-@interface NSWindow (AppearanceCustomization) <NSAppearanceCustomization>
-@end
-
-@interface NSView (AppearanceCustomization) <NSAppearanceCustomization>
 @end
 #endif
 
@@ -313,12 +275,6 @@ enum {
   NSProgressIndicatorStyleBar = NSProgressIndicatorBarStyle,
   NSProgressIndicatorStyleSpinning = NSProgressIndicatorSpinningStyle
 };
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSSavePanel (AvailableOn1090AndLater)
-@property BOOL showsTagField;
-@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
@@ -380,25 +336,11 @@ enum {
 static const NSBezelStyle NSBezelStyleRounded = NSRoundedBezelStyle;
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-enum {
-  NSPaperOrientationPortrait	= NSPortraitOrientation,
-  NSPaperOrientationLandscape	= NSLandscapeOrientation
-};
-typedef NSInteger NSPaperOrientation;
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
 @interface NSWorkspace (AvailableOn101000AndLater)
 - (BOOL)accessibilityDisplayShouldIncreaseContrast;
 - (BOOL)accessibilityDisplayShouldDifferentiateWithoutColor;
 - (BOOL)accessibilityDisplayShouldReduceTransparency;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSView (AvailableOn1090AndLater)
-- (void)setLayerUsesCoreImageFilters:(BOOL)usesFilters;
 @end
 #endif
 
@@ -499,12 +441,6 @@ static const NSControlStateValue NSControlStateValueOn = NSOnState;
 @property (readonly, retain) NSLayoutYAxisAnchor *centerYAnchor;
 @property (readonly, retain) NSLayoutYAxisAnchor *firstBaselineAnchor;
 @property (readonly, retain) NSLayoutYAxisAnchor *lastBaselineAnchor;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSStackView : NSView
-+ (instancetype)stackViewWithViews:(NSArrayOf (NSView *) *)views;
 @end
 #endif
 
