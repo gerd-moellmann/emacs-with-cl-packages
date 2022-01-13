@@ -7791,7 +7791,7 @@ mac_color_lookup (const char *color_name)
     }
   if (listName)
     {
-      NSColorName colorName = [NSString stringWithUTF8String:color_name];
+      NSColorName colorName = @(color_name);
       NSColorList *colorList = [NSColorList colorListNamed:listName];
 
       if (!colorList)
