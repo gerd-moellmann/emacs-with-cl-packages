@@ -3104,9 +3104,6 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
         {
           CGContextSetTextDrawingMode (context, kCGTextFillStroke);
 
-#if HAVE_MACGUI
-	  CGContextSetLineWidth (context, synthetic_bold_factor * font_size);
-#else
           /* Stroke line width for text drawing is not correctly
              scaled on Retina display/HiDPI mode when drawn to screen
              (whereas it is correctly scaled when drawn to bitmaps),
@@ -3127,19 +3124,16 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
             CGContextSetLineWidth (context, synthetic_bold_factor * font_size);
 #endif
-#endif
           CG_SET_STROKE_COLOR_WITH_FACE_FOREGROUND (context, face, f);
         }
       if (no_antialias_p)
         CGContextSetShouldAntialias (context, false);
 
-#ifdef HAVE_NS
       if (!NILP (ns_use_thin_smoothing))
         {
           CGContextSetShouldSmoothFonts(context, YES);
           CGContextSetFontSmoothingStyle(context, 16);
         }
-#endif
 
       CGContextSetTextMatrix (context, atfm);
       CGContextSetTextPosition (context, text_position.x, text_position.y);
