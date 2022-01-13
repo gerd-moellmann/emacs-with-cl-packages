@@ -919,6 +919,9 @@ macfont_descriptor_entity (CTFontDescriptorRef desc, Lisp_Object extra,
     ASET (entity, FONT_AVGWIDTH_INDEX, make_fixnum (0));
   ASET (entity, FONT_EXTRA_INDEX, Fcopy_sequence (extra));
   name = CTFontDescriptorCopyAttribute (desc, kCTFontNameAttribute);
+  /* Avoid fixnum overflow on 32-bit build.  The top 4 bits is used to
+     describe appearance of the font, and we never use them.  */
+  sym_traits &= 0x0fffffff;
   font_put_extra (entity, QCfont_entity,
 		  Fcons (make_mint_ptr ((void *) name),
 			 make_fixnum (sym_traits)));
