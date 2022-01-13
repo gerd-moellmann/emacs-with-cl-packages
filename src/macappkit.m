@@ -512,7 +512,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
 #else
 	   argument:block
 #endif
-	      order:0 modes:[NSArray arrayWithObject:NSDefaultRunLoopMode]];
+	      order:0 modes:@[NSDefaultRunLoopMode]];
   [self run];
 }
 
@@ -1654,13 +1654,13 @@ emacs_windows_need_display_p (void)
       if (keyBindingsWithConflicts == nil)
 	{
 	  NSArrayOf (NSString *) *writingDirectionCommands =
-	    [NSArray arrayWithObjects:@"insertRightToLeftSlash:",
-		     @"makeBaseWritingDirectionNatural:",
-		     @"makeBaseWritingDirectionLeftToRight:",
-		     @"makeBaseWritingDirectionRightToLeft:",
-		     @"makeTextWritingDirectionNatural:",
-		     @"makeTextWritingDirectionLeftToRight:",
-		     @"makeTextWritingDirectionRightToLeft:", nil];
+	    @[@"insertRightToLeftSlash:",
+	      @"makeBaseWritingDirectionNatural:",
+	      @"makeBaseWritingDirectionLeftToRight:",
+	      @"makeBaseWritingDirectionRightToLeft:",
+	      @"makeTextWritingDirectionNatural:",
+	      @"makeTextWritingDirectionLeftToRight:",
+	      @"makeTextWritingDirectionRightToLeft:"];
 	  NSMutableDictionaryOf (NSString *, NSString *) *dictionary;
 
 	  /* Replace entries for prefix keys and writing direction
@@ -3552,7 +3552,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	      CIFilter *filter = [CIFilter filterWithName:@"CIGaussianBlur"];
 
 	      [filter setDefaults];
-	      layer.filters = [NSArray arrayWithObject:filter];
+	      layer.filters = @[filter];
 	      layer.masksToBounds = YES;
 	      attribute = kCAConstraintMinX;
 	      nextLayerName = [NSString stringWithFormat:@"layer-%p-%d",
@@ -3885,7 +3885,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
      -[NSToolbarFullScreenWindowManager getToolbarLayout]:
      getToolbarLayout called with a nil content view.  */
   if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_10_Max)
-    return [NSArray arrayWithObject:window];
+    return @[window];
   else
     {
       EmacsFrameController * __unsafe_unretained weakSelf = self;
@@ -6853,7 +6853,7 @@ event_phase_to_symbol (NSEventPhase phase)
       keyEventsInterpreted = YES;
       rawKeyEvent = theEvent;
       rawKeyEventHasMappedFlags = (mapped_flags != 0);
-      [self interpretKeyEvents:[NSArray arrayWithObject:theEvent]];
+      [self interpretKeyEvents:@[theEvent]];
       rawKeyEvent = nil;
       rawKeyEventHasMappedFlags = NO;
       if (keyEventsInterpreted)
@@ -7441,8 +7441,8 @@ mac_ts_active_input_string_in_echo_area_p (struct frame *f)
 
   mainBar.delegate = self;
   mainBar.defaultItemIdentifiers =
-    [NSArray arrayWithObjects:NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER,
-	     NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST, nil];
+    @[NS_TOUCH_BAR_ITEM_IDENTIFIER_CHARACTER_PICKER,
+      NS_TOUCH_BAR_ITEM_IDENTIFIER_CANDIDATE_LIST];
 
   return MRC_AUTORELEASE (mainBar);
 }
@@ -8983,8 +8983,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
 
 - (void)setCoreGraphicsImage:(CGImageRef)cgImage
 {
-  [self setCoreGraphicsImages:[NSArray arrayWithObject:((__bridge id)
-							cgImage)]];
+  self.coreGraphicsImages = @[(__bridge id) cgImage];
 }
 
 - (void)setCoreGraphicsImages:(NSArrayOf (id) *)cgImages
@@ -9044,12 +9043,12 @@ mac_get_default_scroll_bar_height (struct frame *f)
 
 - (NSArrayOf (NSToolbarItemIdentifier) *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar
 {
-  return [NSArray arrayWithObject:TOOLBAR_ICON_ITEM_IDENTIFIER];
+  return @[TOOLBAR_ICON_ITEM_IDENTIFIER];
 }
 
 - (NSArrayOf (NSToolbarItemIdentifier) *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar
 {
-  return [NSArray arrayWithObject:TOOLBAR_ICON_ITEM_IDENTIFIER];
+  return @[TOOLBAR_ICON_ITEM_IDENTIFIER];
 }
 
 - (BOOL)validateToolbarItem:(NSToolbarItem *)theItem
@@ -9374,8 +9373,7 @@ update_frame_tool_bar (struct frame *f)
 	      if (CGImageGetWidth (img->cg_image) <= 2 && !enabled_p)
 		identifier = nil;
 	      else if (img->target_backing_scale == 0)
-		cgImages = [NSArray
-			     arrayWithObject:((__bridge id) img->cg_image)];
+		cgImages = @[(__bridge id) img->cg_image];
 	      else
 		{
 		  CGImageRef cg_image = img->cg_image;
@@ -9386,7 +9384,8 @@ update_frame_tool_bar (struct frame *f)
 		  img = IMAGE_FROM_ID (f, img_id);
 		  prepare_image_for_display (f, img);
 
-		  /* It's OK for img->cg_image to become NULL here.  */
+		  /* The value of img->cg_image may be NULL, so we
+		     don't use NSArray literals here.  */
 		  cgImages = [NSArray arrayWithObjects:((__bridge id) cg_image),
 				      ((__bridge id) img->cg_image), nil];
 		}
@@ -10426,7 +10425,6 @@ create_ok_cancel_buttons_view (void)
   NSView *view;
   NSButton *cancelButton, *okButton;
   NSDictionaryOf (NSString *, id) *viewsDictionary;
-  NSArrayOf (NSString *) *formats;
 
   cancelButton = [[NSButton alloc] init];
   [cancelButton setBezelStyle:NSBezelStyleRounded];
@@ -10447,9 +10445,8 @@ create_ok_cancel_buttons_view (void)
   [view addSubview:okButton];
 
   viewsDictionary = NSDictionaryOfVariableBindings (cancelButton, okButton);
-  formats = [NSArray arrayWithObjects:@"V:|-5-[cancelButton]-5-|",
-		     @"[cancelButton]-[okButton(==cancelButton)]-|", nil];
-  for (NSString *format in formats)
+  for (NSString *format in @[@"V:|-5-[cancelButton]-5-|",
+			     @"[cancelButton]-[okButton(==cancelButton)]-|"])
     {
       NSArrayOf (NSLayoutConstraint *) *constraints =
 	[NSLayoutConstraint
@@ -10947,7 +10944,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 
 - (NSArrayOf (NSString *) *)localizedTitlesForItem:(id)item
 {
-  return [NSArray arrayWithObject:item];
+  return @[item];
 }
 
 - (void)performActionForItem:(id)item
@@ -11548,8 +11545,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
   NSTouchBar *touchBar = [[NS_TOUCH_BAR alloc] init];
 
   touchBar.delegate = self;
-  touchBar.defaultItemIdentifiers =
-    [NSArray arrayWithObject:EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG];
+  touchBar.defaultItemIdentifiers = @[EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG];
   touchBar.principalItemIdentifier = EMACS_TOUCH_BAR_ITEM_IDENTIFIER_DIALOG;
 
   return MRC_AUTORELEASE (touchBar);
@@ -12042,7 +12038,7 @@ mac_get_selection_from_symbol (Lisp_Object sym, bool clear_p, Selection *sel)
 
       *sel = (__bridge Selection) [NSPasteboard pasteboardWithName:name];
       if (clear_p)
-	[(__bridge NSPasteboard *)*sel declareTypes:[NSArray array] owner:nil];
+	[(__bridge NSPasteboard *)*sel declareTypes:@[] owner:nil];
     }
 
   return noErr;
@@ -12065,7 +12061,7 @@ get_pasteboard_data_type_from_symbol (Lisp_Object sym, Selection sel)
 
   if (dataType && sel)
     {
-      NSArrayOf (NSPasteboardType) *array = [NSArray arrayWithObject:dataType];
+      NSArrayOf (NSPasteboardType) *array = @[dataType];
 
       dataType = [(__bridge NSPasteboard *)sel availableTypeFromArray:array];
     }
@@ -12086,7 +12082,7 @@ mac_valid_selection_target_p (Lisp_Object sym)
 OSStatus
 mac_clear_selection (Selection *sel)
 {
-  [(__bridge NSPasteboard *)*sel declareTypes:[NSArray array] owner:nil];
+  [(__bridge NSPasteboard *)*sel declareTypes:@[] owner:nil];
 
   return noErr;
 }
@@ -12122,7 +12118,7 @@ mac_put_selection_value (Selection sel, Lisp_Object target, Lisp_Object value)
   if (dataType == nil)
     return noTypeErr;
 
-  [pboard addTypes:[NSArray arrayWithObject:dataType] owner:nil];
+  [pboard addTypes:@[dataType] owner:nil];
 
   if (dataType == nil)
     return noTypeErr;
@@ -12481,8 +12477,7 @@ mac_dnd_default_known_types (void)
 	  && mac_get_selection_from_symbol (Vmac_service_selection, false,
 					    &sel) == noErr
 	  && sel
-	  && (array = [NSArray arrayWithObject:sendType],
-	      [(__bridge NSPasteboard *)sel availableTypeFromArray:array])))
+	  && [(__bridge NSPasteboard *)sel availableTypeFromArray:@[sendType]]))
     {
       Lisp_Object rest;
       NSPasteboardType dataType;
@@ -12514,7 +12509,7 @@ mac_dnd_default_known_types (void)
   if (err != noErr || sel == NULL)
     return NO;
 
-  [pboard declareTypes:[NSArray array] owner:nil];
+  [pboard declareTypes:@[] owner:nil];
 
   servicePboard = (__bridge NSPasteboard *) sel;
   for (NSPasteboardType type in [servicePboard types])
@@ -12524,7 +12519,7 @@ mac_dnd_default_known_types (void)
 
 	if (data)
 	  {
-	    [pboard addTypes:[NSArray arrayWithObject:type] owner:nil];
+	    [pboard addTypes:@[type] owner:nil];
 	    result = [pboard setData:data forType:type] || result;
 	  }
       }
@@ -12548,14 +12543,14 @@ copy_pasteboard_to_service_selection (NSPasteboard *pboard)
     return NO;
 
   servicePboard = (__bridge NSPasteboard *) sel;
-  [servicePboard declareTypes:[NSArray array] owner:nil];
+  [servicePboard declareTypes:@[] owner:nil];
   for (NSPasteboardType type in [pboard types])
     {
       NSData *data = [pboard dataForType:type];
 
       if (data)
 	{
-	  [servicePboard addTypes:[NSArray arrayWithObject:type] owner:nil];
+	  [servicePboard addTypes:@[type] owner:nil];
 	  result = [servicePboard setData:data forType:type] || result;
 	}
     }
@@ -13501,7 +13496,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 
 + (NSArrayOf (NSString *) *)supportedTypes
 {
-  return [NSArray arrayWithObject:((__bridge NSString *) UTI_PDF)];
+  return @[(__bridge NSString *) UTI_PDF];
 }
 
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
@@ -13798,7 +13793,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 	  || (((NSNumber *) [heightBaseVal valueForKey:@"unitType"]).intValue
 	      == SVG_LENGTHTYPE_PERCENTAGE))
 	boundingBox = [documentElement callWebScriptMethod:@"getBBox"
-					     withArguments:[NSArray array]];
+					     withArguments:@[]];
       else
 	boundingBox = nil;
 
@@ -13885,7 +13880,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 
 + (NSArrayOf (NSString *) *)supportedTypes
 {
-  return [NSArray arrayWithObject:((__bridge NSString *) UTI_SVG)];
+  return @[(__bridge NSString *) UTI_SVG];
 }
 
 - (NSUInteger)pageCount
@@ -13913,8 +13908,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 		options:(NSDictionaryOf (NSString *, id) *)options
 {
   mac_within_app (^{
-      NSArrayOf (NSString *) *keys =
-	[NSArray arrayWithObjects:@"foregroundColor", @"backgroundColor", nil];
+      NSArrayOf (NSString *) *keys = @[@"foregroundColor", @"backgroundColor"];
       NSMutableDictionaryOf (NSString *, NSString *) *colorsInHex =
 	[NSMutableDictionary dictionaryWithCapacity:keys.count];
 
@@ -14336,10 +14330,9 @@ didCompleteLayoutForTextContainer:(NSTextContainer *)aTextContainer
 static NSArrayOf (Class <EmacsDocumentRasterizer>) *
 document_rasterizer_get_classes (void)
 {
-  return [NSArray arrayWithObjects:[EmacsPDFDocument class],
-		  [EmacsSVGDocument class],
-		  [EmacsDocumentRasterizer class],
-		  nil];
+  return @[[EmacsPDFDocument class],
+	   [EmacsSVGDocument class],
+	   [EmacsDocumentRasterizer class]];
 }
 
 CFArrayRef
@@ -14850,7 +14843,7 @@ ax_get_selected_text_ranges (EmacsMainView *emacsView)
 {
   NSValue *rangeValue = [NSValue valueWithRange:[emacsView selectedRange]];
 
-  return [NSArray arrayWithObject:rangeValue];
+  return @[rangeValue];
 }
 
 - (id)accessibilityAttributeValue:(NSAccessibilityAttributeName)attribute
