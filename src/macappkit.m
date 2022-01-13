@@ -1207,14 +1207,8 @@ static bool handling_queued_nsevents_p;
   if (floor (NSAppKitVersionNumber) == NSAppKitVersionNumber11_0
       && [[NSUserDefaults standardUserDefaults]
 	   objectForKey:@"NSWindowSupportsAutomaticInlineTitle"] == nil)
-    {
-      NSDictionaryOf (NSString *, NSString *) *appDefaults =
-	[NSDictionary
-	  dictionaryWithObject:@"YES"
-			forKey:@"NSWindowSupportsAutomaticInlineTitle"];
-
-      [[NSUserDefaults standardUserDefaults] registerDefaults:appDefaults];
-    }
+    [NSUserDefaults.standardUserDefaults
+      registerDefaults:@{@"NSWindowSupportsAutomaticInlineTitle" : @"YES"}];
 #endif
 
   /* Some functions/methods in CoreFoundation/Foundation increase the
@@ -5572,11 +5566,10 @@ static IOSurfaceRef
 mac_iosurface_create (size_t width, size_t height)
 {
   NSDictionary *properties =
-    [NSDictionary dictionaryWithObjectsAndKeys:@(width), kIOSurfaceWidth,
-		  @(height), kIOSurfaceHeight,
-		  @4, kIOSurfaceBytesPerElement,
-		  @((uint32_t) 'BGRA'), kIOSurfacePixelFormat,
-		  nil];
+    @{(__bridge NSString *) kIOSurfaceWidth : @(width),
+      (__bridge NSString *) kIOSurfaceHeight : @(height),
+      (__bridge NSString *) kIOSurfaceBytesPerElement : @4,
+      (__bridge NSString *) kIOSurfacePixelFormat : @((uint32_t) 'BGRA')};
 
   return IOSurfaceCreate ((__bridge CFDictionaryRef) properties);
 }
@@ -6304,16 +6297,10 @@ static BOOL emacsViewUpdateLayerDisabled;
 {
   if (self == [EmacsMainView class])
     {
-      NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+      NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
 
       if ([defaults objectForKey:@"ApplePressAndHoldEnabled"] == nil)
-	{
-	  NSDictionaryOf (NSString *, NSString *) *appDefaults =
-	    [NSDictionary dictionaryWithObject:@"NO"
-					forKey:@"ApplePressAndHoldEnabled"];
-
-	  [defaults registerDefaults:appDefaults];
-	}
+	[defaults registerDefaults:@{@"ApplePressAndHoldEnabled" : @"NO"}];
     }
 }
 
@@ -10594,7 +10581,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
   widget_value *wv;
   NSFont *menuFont = [NSFont menuFontOfSize:0];
   NSDictionaryOf (NSString *, id) *attributes =
-    [NSDictionary dictionaryWithObject:menuFont forKey:NSFontAttributeName];
+    @{NSFontAttributeName : menuFont};
   NSSize spaceSize = [@" " sizeWithAttributes:attributes];
   CGFloat maxTabStop = 0;
 
@@ -11868,7 +11855,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 	  NSBitmapImageRep *bitmap = [frameController bitmapImageRep];
 	  NSData *data =
 	    [bitmap representationUsingType:NSBitmapImageFileTypePNG
-				 properties:[NSDictionary dictionary]];
+				 properties:@{}];
 
 	  if (data)
 	    string = [data lispString];
@@ -11902,9 +11889,8 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 		  NSData *mediaBoxData =
 		    [NSData dataWithBytes:&mediaBox length:(sizeof (CGRect))];
 		  NSDictionary *pageInfo =
-		    [NSDictionary dictionaryWithObject:mediaBoxData
-						forKey:((__bridge NSString *)
-							kCGPDFContextMediaBox)];
+		    @{((__bridge NSString *) kCGPDFContextMediaBox)
+		      : mediaBoxData};
 		  NSGraphicsContext *gcontext =
 		    [NSGraphicsContext graphicsContextWithCGContext:context
 							    flipped:NO];
@@ -14413,7 +14399,8 @@ document_cache_set (id <NSCopying> key, id <EmacsDocumentRasterizer> document,
   value = [NSDictionary dictionaryWithObjectsAndKeys:document, @"document",
 			currentDate, @"timestamp",
 			/* The value of modificationDate might be nil,
-			   but that's OK.  */
+			   so we don't use NSDictionary literals
+			   here.  */
 			modificationDate, NSFileModificationDate,
 			nil];
   /* This might update an object containing the oldest time stamp.
@@ -14480,8 +14467,8 @@ mac_document_create_with_url (CFURLRef url, CFDictionaryRef options)
     {
       NSDictionaryOf (NSString *, id) *key =
 	[NSDictionary dictionaryWithObjectsAndKeys:nsurl, @"URL",
-		      /* The value of nsoptions might be nil, but
-			 that's OK.  */
+		      /* The value of nsoptions might be nil, so we
+			 don't use NSDictionary literals here.  */
 		      nsoptions, @"options", nil];
 
       document = MRC_RETAIN (document_cache_lookup (key, modificationDate));
@@ -14504,8 +14491,8 @@ mac_document_create_with_data (CFDataRef data, CFDictionaryRef options)
     (__bridge NSDictionaryOf (NSString *, id) *) options;
   NSDictionaryOf (NSString *, id) *key =
     [NSDictionary dictionaryWithObjectsAndKeys:nsdata, @"data",
-		  /* The value of nsoptions might be nil, but that's
-		     OK.  */
+		  /* The value of nsoptions might be nil, so we don't
+		     use NSDictionary literals here.  */
 		  nsoptions, @"options", nil];
   id <EmacsDocumentRasterizer> document =
     MRC_RETAIN (document_cache_lookup (key, nil));
@@ -15051,7 +15038,7 @@ ax_get_rtf_for_range (EmacsMainView *emacsView, id parameter)
 
   return [attributedString
 	   RTFFromRange:(NSMakeRange (0, [attributedString length]))
-	   documentAttributes:[NSDictionary dictionary]];
+	   documentAttributes:@{}];
 }
 
 static id
