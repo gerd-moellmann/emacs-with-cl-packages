@@ -1661,14 +1661,14 @@ emacs_windows_need_display_p (void)
 	     commands with dummy ones.  */
 	  keyBindingsWithConflicts =
 	    MRC_RETAIN ([keyBindingManager dictionary]);
-	  dictionary = [keyBindingsWithConflicts mutableCopy];
+	  dictionary = keyBindingsWithConflicts.mutableCopy;
 	  for (NSString *key in keyBindingsWithConflicts)
 	    {
-	      id object = [keyBindingsWithConflicts objectForKey:key];
+	      id object = keyBindingsWithConflicts[key];
 
-	      if (![object isKindOfClass:[NSString class]]
+	      if (![object isKindOfClass:NSString.class]
 		  || [writingDirectionCommands containsObject:object])
-		[dictionary setObject:@"dummy:" forKey:key];
+		dictionary[key] = @"dummy:";
 	    }
 	  keyBindingsWithoutConflicts = dictionary;
 	}
@@ -2254,8 +2254,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 {
   if ([keyPath isEqualToString:@"overviewVisible"])
     {
-      if (!((NSNumber *)
-	    [change objectForKey:NSKeyValueChangeNewKey]).charValue)
+      if (!((NSNumber *) change[NSKeyValueChangeNewKey]).charValue)
 	{
 	  id delegate = self.delegate;
 
@@ -2411,7 +2410,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   if ([keyPath isEqualToString:@"sublayers"])
     {
-      if ([change objectForKey:NSKeyValueChangeNotificationIsPriorKey])
+      if (change[NSKeyValueChangeNotificationIsPriorKey])
 	[self synchronizeOverlayViewFrame];
       else
 	updateOverlayViewParticipation = YES;
@@ -3516,8 +3515,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	     superlayer.  Actually not needed on OS X 10.9.  */
 	  actions = [NSMutableDictionary
 		      dictionaryWithDictionary:layer.actions];
-	  [actions setObject:[NSNull null] forKey:@"position"];
-	  [actions setObject:[NSNull null] forKey:@"bounds"];
+	  actions[@"position"] = NSNull.null;
+	  actions[@"bounds"] = NSNull.null;
 	  layer.actions = actions;
 
 	  if (constraints[i] & (MIN_X_SCALE | MAX_X_SCALE))
@@ -5871,8 +5870,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     return;
 #endif
   CGDirectDisplayID displayID =
-    (CGDirectDisplayID) [[view.window.screen.deviceDescription
-			     objectForKey:@"NSScreenNumber"] unsignedIntValue];
+    ((CGDirectDisplayID)
+     view.window.screen.deviceDescription[@"NSScreenNumber"].unsignedIntValue);
   id <MTLDevice> newDevice = CGDirectDisplayCopyCurrentMetalDevice (displayID);
 
   if (newDevice != mtlCommandQueue.device)
@@ -5893,7 +5892,7 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
 	    }
 	}
       MRC_RELEASE (mtlCommandQueue);
-      mtlCommandQueue = [newDevice newCommandQueue];
+      mtlCommandQueue = newDevice.newCommandQueue;
     }
   MRC_RELEASE (newDevice);
 }
@@ -7894,15 +7893,15 @@ mac_display_copy_info_dictionary_for_cgdisplay (CGDirectDisplayID displayID,
        (or kDisplayProductID, kDisplaySerialNumber) key to a SInt32
        value, whereas the return type of CGDisplayVendorNumber (or
        CGDisplayModelNumber, CGDisplaySerialNumber) is uint32_t.  */
-    [info setObject:@(val) forKey:@kDisplayVendorID];
+    info[@kDisplayVendorID] = @(val);
 
   val = CGDisplayModelNumber (displayID);
   if (val != kDisplayProductIDGeneric && val != 0xFFFFFFFF)
-    [info setObject:@(val) forKey:@kDisplayProductID];
+    info[@kDisplayProductID] = @(val);
 
   val = CGDisplaySerialNumber (displayID);
   if (val != 0x00000000 && val != 0xFFFFFFFF)
-    [info setObject:@(val) forKey:@kDisplaySerialNumber];
+    info[@kDisplaySerialNumber] = @(val);
 
   [infoDictionaries enumerateObjectsUsingBlock:
 		      ^(NSDictionary *dictionary, NSUInteger idx, BOOL *stop) {
@@ -7965,9 +7964,9 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
 				 make_fixnum (screen.backingScaleFactor)),
 			  attributes);
 
-      displayID = (CGDirectDisplayID) [[[screen deviceDescription]
-					 objectForKey:@"NSScreenNumber"]
-					unsignedIntValue];
+      displayID =
+	((CGDirectDisplayID)
+	 [screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue]);
 #if HAVE_MAC_METAL
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
       if (CGDirectDisplayCopyCurrentMetalDevice != NULL)
@@ -9204,9 +9203,9 @@ mac_cached_system_symbol (NSString *name)
       )
     {
       static NSMutableDictionaryOf (NSString *, id) *systemSymbolCache = nil;
-      id obj = [systemSymbolCache objectForKey:name];
+      id obj = systemSymbolCache[name];
 
-      if ([obj isKindOfClass:[NSImage class]])
+      if ([obj isKindOfClass:NSImage.class])
 	systemSymbol = obj;
       else if (obj == nil)
 	{
@@ -9215,7 +9214,7 @@ mac_cached_system_symbol (NSString *name)
 	  systemSymbol = [NSImage imageWithSystemSymbolName:name
 				   accessibilityDescription:nil];
 	  obj = systemSymbol ? systemSymbol : NSNull.null;
-	  [systemSymbolCache setObject:obj forKey:name];
+	  systemSymbolCache[name] = obj;
 	}
     }
 
@@ -13047,10 +13046,10 @@ static Lisp_Object
 mac_osa_error_info_to_lisp (NSDictionaryOf (NSString *, id) *errorInfo)
 {
   Lisp_Object result = Qnil;
-  NSString *errorMessage = [errorInfo objectForKey:OSAScriptErrorMessage];
-  NSNumber *errorNumber = [errorInfo objectForKey:OSAScriptErrorNumber];
-  NSString *errorAppName = [errorInfo objectForKey:OSAScriptErrorAppName];
-  NSValue *errorRange = [errorInfo objectForKey:OSAScriptErrorRange];
+  NSString *errorMessage = errorInfo[OSAScriptErrorMessage];
+  NSNumber *errorNumber = errorInfo[OSAScriptErrorNumber];
+  NSString *errorAppName = errorInfo[OSAScriptErrorAppName];
+  NSValue *errorRange = errorInfo[OSAScriptErrorRange];
 
   if (errorRange)
     {
@@ -13415,7 +13414,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 {
   NSFileHandle *fileHandle;
   NSData *data;
-  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
+  NSString *type = options[@"UTI"]; /* NSFileTypeDocumentOption */
 
   if (type && !CFEqual ((__bridge CFStringRef) type, UTI_PDF))
     goto error;
@@ -13448,7 +13447,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 - (instancetype)initWithData:(NSData *)data
 		     options:(NSDictionaryOf (NSString *, id) *)options
 {
-  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
+  NSString *type = options[@"UTI"]; /* NSFileTypeDocumentOption */
 
   if (type && !CFEqual ((__bridge CFStringRef) type, UTI_PDF))
     goto error;
@@ -13633,7 +13632,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 - (instancetype)initWithData:(NSData *)data
 		     options:(NSDictionaryOf (NSString *, id) *)options
 {
-  NSString *type = [options objectForKey:@"UTI"]; /* NSFileTypeDocumentOption */
+  NSString *type = options[@"UTI"]; /* NSFileTypeDocumentOption */
 
   if (type && !CFEqual ((__bridge CFStringRef) type, UTI_SVG))
     {
@@ -13672,7 +13671,7 @@ static WebView *EmacsSVGDocumentLastWebView;
       webView.frame = frameRect;
     }
 
-  NSURL *baseURL = [options objectForKey:@"baseURL"];
+  NSURL *baseURL = options[@"baseURL"];
 #ifdef USE_WK_API
   webView.navigationDelegate = self;
   [webView loadData:data MIMEType:@"image/svg+xml"
@@ -13694,7 +13693,7 @@ static WebView *EmacsSVGDocumentLastWebView;
     {
       id boundingBox, widthBaseVal, heightBaseVal;
       enum {SVG_LENGTHTYPE_PERCENTAGE = 2};
-      NSString *styleSheet = [options objectForKey:@"styleSheet"];
+      NSString *styleSheet = options[@"styleSheet"];
 #ifdef USE_WK_API
       NSString * __block jsonString;
       BOOL __block finished = NO;
@@ -13897,8 +13896,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 
       for (NSString *key in keys)
 	{
-	  CGColorRef cg_color = ((__bridge CGColorRef)
-				 [options objectForKey:key]);
+	  CGColorRef cg_color = (__bridge CGColorRef) options[key];
 	  CGFloat components[4];
 
 	  if (cg_color && [[NSColor colorWithCGColor:cg_color]
@@ -13911,12 +13909,12 @@ static WebView *EmacsSVGDocumentLastWebView;
 			  (int) (components[2] * 255 + .5)];
 
 	      if (colorInHex)
-		[colorsInHex setObject:colorInHex forKey:key];
+		colorsInHex[key] = colorInHex;
 	    }
 	}
 
-      NSString *fgInHex = [colorsInHex objectForKey:@"foregroundColor"];
-      NSString *bgInHex = [colorsInHex objectForKey:@"backgroundColor"];
+      NSString *fgInHex = colorsInHex[@"foregroundColor"];
+      NSString *bgInHex = colorsInHex[@"backgroundColor"];
 #ifdef USE_WK_API
       CGAffineTransform ctm = CGContextGetCTM (ctx);
       NSRect destRect = NSRectFromCGRect (CGRectApplyAffineTransform
@@ -14071,15 +14069,13 @@ static WebView *EmacsSVGDocumentLastWebView;
       return self;
     }
 
-  viewMode = [[docAttributes objectForKey:NSViewModeDocumentAttribute]
-	       intValue];
+  viewMode = [docAttributes[NSViewModeDocumentAttribute] intValue];
   if (viewMode == 0)
     [textContainer setLineFragmentPadding:0];
   else
     {
       /* page layout */
-      NSSize pageSize =
-	[[docAttributes objectForKey:NSPaperSizeDocumentAttribute] sizeValue];
+      NSSize pageSize = [docAttributes[NSPaperSizeDocumentAttribute] sizeValue];
       NSAttributedStringDocumentAttributeKey __unsafe_unretained
 	marginAttributes[4] = {
 	NSLeftMarginDocumentAttribute, NSRightMarginDocumentAttribute,
@@ -14089,7 +14085,7 @@ static WebView *EmacsSVGDocumentLastWebView;
       int i;
 
       for (i = 0; i < 4; i++)
-	marginValues[i] = [docAttributes objectForKey:marginAttributes[i]];
+	marginValues[i] = docAttributes[marginAttributes[i]];
       for (i = 0; i < 2; i++)
 	if (marginValues[i])
 	  pageSize.width -= [marginValues[i] doubleValue];
@@ -14244,8 +14240,8 @@ static WebView *EmacsSVGDocumentLastWebView;
 
 - (CGColorRef)copyBackgroundCGColorOfPageAtIndex:(NSUInteger)index
 {
-  NSColor *backgroundColor = [documentAttributes
-			       objectForKey:NSBackgroundColorDocumentAttribute];
+  NSColor *backgroundColor =
+    documentAttributes[NSBackgroundColorDocumentAttribute];
 
   /* `backgroundColor' might be nil, but that's OK.  */
   return CGColorRetain (backgroundColor.CGColor);
@@ -14340,9 +14336,8 @@ document_cache_evict (void)
   oldestTimestamp = nil;
   for (id key in [documentRasterizerCache allKeys])
     {
-      NSDictionaryOf (NSString *, id) *value =
-	[documentRasterizerCache objectForKey:key];
-      NSDate *timestamp = [value objectForKey:@"timestamp"];
+      NSDictionaryOf (NSString *, id) *value = documentRasterizerCache[key];
+      NSDate *timestamp = value[@"timestamp"];
 
       if ([currentDate timeIntervalSinceDate:timestamp]
 	  >= DOCUMENT_RASTERIZER_CACHE_DURATION)
@@ -14367,13 +14362,13 @@ document_cache_lookup (id key, NSDate *modificationDate)
   if (documentRasterizerCache)
     {
       NSDictionaryOf (NSString *, id) *dictionary =
-	[documentRasterizerCache objectForKey:key];
+	documentRasterizerCache[key];
 
       if (dictionary
 	  && (modificationDate == nil
 	      || [modificationDate
 		   isEqualToDate:[dictionary fileModificationDate]]))
-	result = [dictionary objectForKey:@"document"];
+	result = dictionary[@"document"];
     }
 
   return result;
@@ -14401,7 +14396,7 @@ document_cache_set (id <NSCopying> key, id <EmacsDocumentRasterizer> document,
      Even in such a case, documentRasterizerCacheOldestTimestamp still
      holds an older or equal date than the real oldest time stamp in
      the cache.  */
-  [documentRasterizerCache setObject:value forKey:key];
+  documentRasterizerCache[key] = value;
   if (documentRasterizerCacheOldestTimestamp == nil)
     documentRasterizerCacheOldestTimestamp = MRC_RETAIN (currentDate);
 }
@@ -15260,10 +15255,9 @@ get_symbol_from_filter_input_key (NSString *key)
   attributes = [filter attributes];
   for (NSString *key in [filter inputKeys])
     {
-      NSDictionary *keyAttributes = [attributes objectForKey:key];
+      NSDictionary *keyAttributes = attributes[key];
 
-      if ([[keyAttributes objectForKey:kCIAttributeClass]
-	    isEqualToString:@"NSNumber"]
+      if ([keyAttributes[kCIAttributeClass] isEqualToString:@"NSNumber"]
 	  && ![key isEqualToString:kCIInputTimeKey])
 	{
 	  Lisp_Object symbol = get_symbol_from_filter_input_key (key);
@@ -15276,8 +15270,8 @@ get_symbol_from_filter_input_key (NSString *key)
 		[filter setValue:@(XFLOATINT (value)) forKey:key];
 	    }
 	}
-      else if ([[keyAttributes objectForKey:kCIAttributeType]
-		 isEqualToString:kCIAttributeTypeOpaqueColor])
+      else if ([keyAttributes[kCIAttributeType]
+		   isEqualToString:kCIAttributeTypeOpaqueColor])
 	{
 	  Lisp_Object symbol = get_symbol_from_filter_input_key (key);
 
@@ -15341,9 +15335,8 @@ get_symbol_from_filter_input_key (NSString *key)
   NSDictionaryOf (NSString *, id) *attributes = filter.attributes;
   CGFloat scaleFactor = 1.0;
 
-  if ([[[attributes objectForKey:kCIInputCenterKey]
-	 objectForKey:kCIAttributeType]
-	isEqualToString:kCIAttributeTypePosition])
+  if ([attributes[kCIInputCenterKey][kCIAttributeType]
+	  isEqualToString:kCIAttributeTypePosition])
     {
       CGPoint center = layer.position;
 
@@ -15352,8 +15345,8 @@ get_symbol_from_filter_input_key (NSString *key)
 		forKey:kCIInputCenterKey];
     }
 
-  if ([[attributes objectForKey:kCIAttributeFilterName]
-	isEqualToString:@"CIPageCurlWithShadowTransition"])
+  if ([attributes[kCIAttributeFilterName]
+	  isEqualToString:@"CIPageCurlWithShadowTransition"])
     {
       CGRect frame = layer.frame;
       CGAffineTransform atfm =
@@ -15521,7 +15514,7 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 
 	    actions = [NSMutableDictionary
 			dictionaryWithDictionary:[layer actions]];
-	    [actions setObject:transition forKey:@"sublayers"];
+	    actions[@"sublayers"] = transition;
 	    layer.actions = actions;
 
 	    newContentLayer = [CALayer layer];
