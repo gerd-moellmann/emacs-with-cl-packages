@@ -245,7 +245,7 @@ static void mac_within_lisp_deferred_unless_popup (void (^) (void));
 
   @synchronized (self)
   {
-    obj = [self objectAtIndex:0];
+    obj = self[0];
     obj = (obj == NSNull.null) ? nil : MRC_AUTORELEASE (MRC_RETAIN (obj));
     [self removeObjectAtIndex:0];
   }
@@ -590,7 +590,7 @@ mac_within_app (void (^block) (void))
 
 - (BOOL)canShowMenuBar
 {
-  return ([self isEqual:[[NSScreen screens] objectAtIndex:0]]
+  return ([self isEqual:NSScreen.screens[0]]
 	  /* OS X 10.9 may have menu bars on non-main screens (in an
 	     inactive appearance) if
 	     NSScreen.screensHaveSeparateSpaces returns YES.  */
@@ -4068,9 +4068,9 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 {
   NSArrayOf (NSWindow *) *orderedWindows = [NSApp orderedWindows];
 
-  if ([orderedWindows count] > 0)
+  if (orderedWindows.count > 0)
     {
-      NSWindow *frontWindow = [orderedWindows objectAtIndex:0];
+      NSWindow *frontWindow = orderedWindows[0];
 
       return ([frontWindow isEqual:hourglassWindow]
 	      || [frontWindow isEqual:emacsWindow]);
@@ -4316,7 +4316,7 @@ mac_send_frame_window_behind (struct frame *f)
 	  NSArrayOf (__kindof NSWindow *) *childWindows =
 	    parentWindow.childWindows;
 
-	  if (![window isEqual:[childWindows objectAtIndex:0]])
+	  if (![window isEqual:childWindows[0]])
 	    for (NSWindow *childWindow in childWindows)
 	      if (![childWindow isEqual:window])
 		{
@@ -4388,12 +4388,12 @@ mac_activate_frame_window (struct frame *f)
 static NSRect
 mac_get_base_screen_frame (void)
 {
-  NSArrayOf (NSScreen *) *screens = [NSScreen screens];
+  NSArrayOf (NSScreen *) *screens = NSScreen.screens;
 
-  if ([screens count] > 0)
-    return [[screens objectAtIndex:0] frame];
+  if (screens.count > 0)
+    return [screens[0] frame];
   else
-    return [[NSScreen mainScreen] frame];
+    return NSScreen.mainScreen.frame;
 }
 
 static void
@@ -4942,16 +4942,16 @@ mac_get_frame_window_menu_bar_size (struct frame *f)
 {
   NSSize menuBarSize = NSZeroSize;
 
-  if ([NSMenu menuBarVisible])
+  if (NSMenu.menuBarVisible)
     {
       NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
-      NSScreen *screen = [window screen];
+      NSScreen *screen = window.screen;
 
-      if (![screen canShowMenuBar])
-	screen = [[NSScreen screens] objectAtIndex:0];
+      if (!screen.canShowMenuBar)
+	screen = NSScreen.screens[0];
       if (screen)
-	menuBarSize.width = NSWidth ([screen frame]);
-      menuBarSize.height = [[NSApp mainMenu] menuBarHeight];
+	menuBarSize.width = NSWidth (screen.frame);
+      menuBarSize.height = [NSApp mainMenu].menuBarHeight;
     }
 
   return NSSizeToCGSize (menuBarSize);
@@ -5352,8 +5352,8 @@ mac_cursor_create (ThemeCursor shape, const Emacs_Color *fore_color,
 	  CGContextRelease (context);
 	  if (cgImage)
 	    {
-	      rep = [[[NSImage imageWithCGImage:cgImage exclusive:NO]
-		       representations] objectAtIndex:0];
+	      rep = [NSImage imageWithCGImage:cgImage
+				    exclusive:NO].representations[0];
 	      CGImageRelease (cgImage);
 	    }
 	}
@@ -5793,7 +5793,7 @@ mac_iosurface_create (size_t width, size_t height)
      be enough.  */
   for (i = 0; i < count; i++)
     {
-      r = [[invalidRectValues objectAtIndex:i] rectValue];
+      r = [invalidRectValues[i] rectValue];
       if (NSMinY (rect) <= NSMaxY (r))
 	break;
     }
@@ -5806,7 +5806,7 @@ mac_iosurface_create (size_t width, size_t height)
       rect = NSUnionRect (rect, r);
       for (; i < count; i++)
 	{
-	  r = [[invalidRectValues objectAtIndex:i] rectValue];
+	  r = [invalidRectValues[i] rectValue];
 	  if (NSMaxY (rect) < NSMinY (r))
 	    break;
 	  rect = NSUnionRect (rect, r);
@@ -5830,7 +5830,7 @@ mac_iosurface_create (size_t width, size_t height)
     }];
   for (j = i; j < count; j++)
     {
-      r = [invalidRectValues objectAtIndex:j].rectValue;
+      r = invalidRectValues[j].rectValue;
       if (NSMaxY (rect) < NSMinY (r))
 	break;
       rect = NSUnionRect (rect, r);
@@ -7956,7 +7956,7 @@ mac_display_monitor_attributes_list (struct mac_display_info *dpyinfo)
   while (i-- > 0)
     {
       Lisp_Object geometry, workarea, attributes = Qnil;
-      NSScreen *screen = [screens objectAtIndex:i];
+      NSScreen *screen = screens[i];
       CGDirectDisplayID displayID;
       CGSize size;
       NSRect rect;
@@ -8982,17 +8982,15 @@ mac_get_default_scroll_bar_height (struct frame *f)
     return;
 
   count = [cgImages count];
-  image = [NSImage imageWithCGImage:((__bridge CGImageRef)
-				     [cgImages objectAtIndex:0])
+  image = [NSImage imageWithCGImage:((__bridge CGImageRef) cgImages[0])
 			  exclusive:(count == 1)];
   for (i = 1; i < count; i++)
     {
       NSArrayOf (NSImageRep *) *reps =
-	[[NSImage imageWithCGImage:((__bridge CGImageRef)
-				    [cgImages objectAtIndex:i])
+	[[NSImage imageWithCGImage:((__bridge CGImageRef) cgImages[i])
 			 exclusive:NO] representations];
 
-      [image addRepresentation:[reps objectAtIndex:0]];
+      [image addRepresentation:reps[0]];
     }
 
   [self setImage:image];
@@ -9393,15 +9391,14 @@ update_frame_tool_bar (struct frame *f)
 	  NSUInteger count = [items count];
 
 	  if (pos >= count
-	      || ![identifier isEqualToString:[[items objectAtIndex:pos]
-						itemIdentifier]])
+	      || ![identifier isEqualToString:[items[pos] itemIdentifier]])
 	    {
 	      [toolbar insertItemWithItemIdentifier:identifier atIndex:pos];
 	      items = [toolbar items];
 	      count = [items count];
 	    }
 
-	  EmacsToolbarItem *item = [items objectAtIndex:pos];
+	  EmacsToolbarItem *item = items[pos];
 
 	  if (systemSymbol)
 	    item.image = systemSymbol;
@@ -9908,8 +9905,8 @@ mac_event_to_emacs_modifiers (NSEvent *event)
 void
 mac_get_screen_info (struct mac_display_info *dpyinfo)
 {
-  NSArrayOf (NSScreen *) *screens = [NSScreen screens];
-  NSWindowDepth depth = [[screens objectAtIndex:0] depth];
+  NSArrayOf (NSScreen *) *screens = NSScreen.screens;
+  NSWindowDepth depth = [screens[0] depth];
   NSRect frame;
 
   dpyinfo->n_planes = NSBitsPerPixelFromDepth (depth);
@@ -9917,7 +9914,7 @@ mac_get_screen_info (struct mac_display_info *dpyinfo)
 
   frame = NSZeroRect;
   for (NSScreen *screen in screens)
-    frame = NSUnionRect (frame, [screen frame]);
+    frame = NSUnionRect (frame, screen.frame);
   dpyinfo->width = NSWidth (frame);
   dpyinfo->height = NSHeight (frame);
 }
@@ -10351,7 +10348,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
 #endif
 	  mac_within_app (^{response = [openPanel runModal];});
 	  if (response == NSModalResponseOK)
-	    url = MRC_RETAIN ([openPanel.URLs objectAtIndex:0]);
+	    url = MRC_RETAIN (openPanel.URLs[0]);
 	}
     });
   mac_menu_set_in_use (false);
@@ -11151,8 +11148,8 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 		needs_update_p = true;
 	      else
 		{
-		  submenu = [[mainMenu itemAtIndex:index] submenu];
-		  if (!(submenu && [title isEqualToString:[submenu title]]))
+		  submenu = [mainMenu itemAtIndex:index].submenu;
+		  if (!(submenu && [title isEqualToString:submenu.title]))
 		    needs_update_p = true;
 		}
 	    }
@@ -11777,12 +11774,12 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
 - (NSRect)rectForPage:(NSInteger)page
 {
-  NSRect rect = [[views objectAtIndex:(page - 1)] visibleRect];
+  NSRect rect = [views[page - 1] visibleRect];
   NSInteger i;
 
   rect.origin = NSZeroPoint;
   for (i = 0; i < page - 1; i++)
-    rect.origin.y += NSHeight ([[views objectAtIndex:i] visibleRect]);
+    rect.origin.y += NSHeight ([views[i] visibleRect]);
 
   return rect;
 }
@@ -11790,20 +11787,20 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 - (void)drawRect:(NSRect)aRect
 {
   CGFloat y = 0;
-  NSInteger i = 0, pageCount = [views count];
+  NSInteger i = 0, pageCount = views.count;
 
   while (y < NSMinY (aRect) && i < pageCount)
     {
-      NSView *view = [views objectAtIndex:i++];
+      NSView *view = views[i++];
 
-      y += NSHeight ([view visibleRect]);
+      y += NSHeight (view.visibleRect);
     }
   while (y < NSMaxY (aRect) && i < pageCount)
     {
-      NSView *view = [views objectAtIndex:i++];
-      NSRect rect = [view visibleRect];
+      NSView *view = views[i++];
+      NSRect rect = view.visibleRect;
       NSGraphicsContext *gcontext = NSGraphicsContext.currentContext;
-      NSAffineTransform *transform = [NSAffineTransform transform];
+      NSAffineTransform *transform = NSAffineTransform.transform;
 
       [gcontext saveGraphicsState];
       [transform translateXBy:(- NSMinX (rect)) yBy:(y - NSMinY (rect))];
@@ -11812,7 +11809,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
       [view displayRectIgnoringOpacity:rect inContext:gcontext];
       [EmacsView globallyDisableUpdateLayer:NO];
       [gcontext restoreGraphicsState];
-      y += NSHeight ([view visibleRect]);
+      y += NSHeight (view.visibleRect);
     }
 }
 
@@ -14218,7 +14215,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 
 - (NSLayoutManager *)layoutManager
 {
-  return [[textStorage layoutManagers] objectAtIndex:0];
+  return textStorage.layoutManagers[0];
 }
 
 - (NSUInteger)pageCount
@@ -14235,14 +14232,13 @@ static WebView *EmacsSVGDocumentLastWebView;
 
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
 {
-  NSLayoutManager *layoutManager = [self layoutManager];
-  NSTextContainer *textContainer =
-    [[layoutManager textContainers] objectAtIndex:index];
+  NSLayoutManager *layoutManager = self.layoutManager;
+  NSTextContainer *textContainer = layoutManager.textContainers[index];
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
-  return [textContainer size];
+  return textContainer.size;
 #else
-  return [textContainer containerSize];
+  return textContainer.containerSize;
 #endif
 }
 
@@ -14264,16 +14260,15 @@ static WebView *EmacsSVGDocumentLastWebView;
 	      inContext:(CGContextRef)ctx
 		options:(NSDictionaryOf (NSString *, id) *)options /* unused */
 {
-  NSLayoutManager *layoutManager = [self layoutManager];
-  NSTextContainer *textContainer =
-    [[layoutManager textContainers] objectAtIndex:index];
+  NSLayoutManager *layoutManager = self.layoutManager;
+  NSTextContainer *textContainer = layoutManager.textContainers[index];
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
-  NSSize containerSize = [textContainer size];
+  NSSize containerSize = textContainer.size;
 #else
-  NSSize containerSize = [textContainer containerSize];
+  NSSize containerSize = textContainer.containerSize;
 #endif
   NSRange glyphRange = [layoutManager glyphRangeForTextContainer:textContainer];
-  NSAffineTransform *transform = [NSAffineTransform transform];
+  NSAffineTransform *transform = NSAffineTransform.transform;
   NSGraphicsContext *gcontext =
     [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:YES];
 
@@ -14294,12 +14289,11 @@ didCompleteLayoutForTextContainer:(NSTextContainer *)aTextContainer
 {
   if (aTextContainer == nil)
     {
-      NSLayoutManager *layoutManager = [self layoutManager];
-      NSTextContainer *firstContainer =
-	[[layoutManager textContainers] objectAtIndex:0];
+      NSLayoutManager *layoutManager = self.layoutManager;
+      NSTextContainer *firstContainer = layoutManager.textContainers[0];
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
       NSTextContainer *textContainer = [[NSTextContainer alloc]
-					 initWithSize:[firstContainer size]];
+					 initWithSize:firstContainer.size];
 #else
       NSSize containerSize = [firstContainer containerSize];
       NSTextContainer *textContainer = [[NSTextContainer alloc]
@@ -15178,9 +15172,9 @@ get_symbol_from_filter_input_key (NSString *key)
 {
   NSArrayOf (NSString *) *components =
     [key componentsSeparatedByCamelCasingWithCharactersInSet:nil];
-  NSUInteger count = [components count];
+  NSUInteger count = components.count;
 
-  if (count > 1 && [[components objectAtIndex:0] isEqualToString:@"input"])
+  if (count > 1 && [components[0] isEqualToString:@"input"])
     {
       NSMutableArrayOf (NSString *) *symbolComponents =
 	[NSMutableArray arrayWithCapacity:(count - 1)];
@@ -15188,10 +15182,8 @@ get_symbol_from_filter_input_key (NSString *key)
       Lisp_Object string;
 
       for (index = 1; index < count; index++)
-	[symbolComponents addObject:[[components objectAtIndex:index]
-				      lowercaseString]];
-      string = [[symbolComponents componentsJoinedByString:@"-"]
-		 UTF8LispString];
+	[symbolComponents addObject:[components[index] lowercaseString]];
+      string = [symbolComponents componentsJoinedByString:@"-"].UTF8LispString;
       AUTO_STRING (colon, ":");
       return Fintern (concat2 (colon, string), Qnil);
     }
@@ -15346,14 +15338,14 @@ get_symbol_from_filter_input_key (NSString *key)
 
 - (void)adjustTransitionFilter:(CIFilter *)filter forLayer:(CALayer *)layer
 {
-  NSDictionaryOf (NSString *, id) *attributes = [filter attributes];
+  NSDictionaryOf (NSString *, id) *attributes = filter.attributes;
   CGFloat scaleFactor = 1.0;
 
   if ([[[attributes objectForKey:kCIInputCenterKey]
 	 objectForKey:kCIAttributeType]
 	isEqualToString:kCIAttributeTypePosition])
     {
-      CGPoint center = [layer position];
+      CGPoint center = layer.position;
 
       [filter setValue:[CIVector vectorWithX:(center.x * scaleFactor)
 					   Y:(center.y * scaleFactor)]
@@ -15367,7 +15359,7 @@ get_symbol_from_filter_input_key (NSString *key)
       CGAffineTransform atfm =
 	CGAffineTransformMakeTranslation (CGRectGetMinX (frame) * scaleFactor,
 					  CGRectGetMinY (frame) * scaleFactor);
-      CALayer *contentLayer = [[layer sublayers] objectAtIndex:0];
+      CALayer *contentLayer = layer.sublayers[0];
       CGFloat scale = 1 / emacsWindow.backingScaleFactor;
       CIImage *image;
 
@@ -15444,7 +15436,7 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 	}
 
       layer = [frameController layerForRect:(NSRectFromCGRect (rect))];
-      contentLayer = [[layer sublayers] objectAtIndex:0];
+      contentLayer = layer.sublayers[0];
 
       if (anim_type == ANIM_TYPE_FADE_IN)
 	contentLayer.opacity = 0;
