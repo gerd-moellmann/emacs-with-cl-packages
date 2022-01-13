@@ -1807,14 +1807,9 @@ emacs_windows_need_display_p (void)
 	    if ([window isKindOfClass:[EmacsWindow class]]
 		&& window.isVisible && window.parentWindow == nil)
 	      {
-		if (windowNumbers)
-		  {
-		    NSNumber *windowNumber =
-		      [NSNumber numberWithInteger:[window windowNumber]];
-
-		    if (![windowNumbers containsObject:windowNumber])
-		      continue;
-		  }
+		if (windowNumbers
+		    && ![windowNumbers containsObject:@(window.windowNumber)])
+		  continue;
 
 		frameController = (EmacsFrameController *) [window delegate];
 		windowManagerState = [frameController windowManagerState];
@@ -4148,8 +4143,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	  [[NSMapTable alloc]
 	    initWithKeyOptions:NSMapTableObjectPointerPersonality
 		  valueOptions:NSMapTableStrongMemory capacity:0];
-      [savedChildWindowAlphaMap
-	setObject:[NSNumber numberWithDouble:child.alphaValue] forKey:child];
+      [savedChildWindowAlphaMap setObject:@(child.alphaValue) forKey:child];
       child.alphaValue = 0;
     }];
 }
@@ -5578,11 +5572,10 @@ static IOSurfaceRef
 mac_iosurface_create (size_t width, size_t height)
 {
   NSDictionary *properties =
-    [NSDictionary dictionaryWithObjectsAndKeys:
-	      [NSNumber numberWithUnsignedLong:width], kIOSurfaceWidth,
-	      [NSNumber numberWithUnsignedLong:height], kIOSurfaceHeight,
-	      [NSNumber numberWithInt:4], kIOSurfaceBytesPerElement,
-	      [NSNumber numberWithUnsignedInt:'BGRA'], kIOSurfacePixelFormat,
+    [NSDictionary dictionaryWithObjectsAndKeys:@(width), kIOSurfaceWidth,
+		  @(height), kIOSurfaceHeight,
+		  @4, kIOSurfaceBytesPerElement,
+		  @((uint32_t) 'BGRA'), kIOSurfacePixelFormat,
 		  nil];
 
   return IOSurfaceCreate ((__bridge CFDictionaryRef) properties);
@@ -7914,15 +7907,15 @@ mac_display_copy_info_dictionary_for_cgdisplay (CGDirectDisplayID displayID,
        (or kDisplayProductID, kDisplaySerialNumber) key to a SInt32
        value, whereas the return type of CGDisplayVendorNumber (or
        CGDisplayModelNumber, CGDisplaySerialNumber) is uint32_t.  */
-    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplayVendorID];
+    [info setObject:@(val) forKey:@kDisplayVendorID];
 
   val = CGDisplayModelNumber (displayID);
   if (val != kDisplayProductIDGeneric && val != 0xFFFFFFFF)
-    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplayProductID];
+    [info setObject:@(val) forKey:@kDisplayProductID];
 
   val = CGDisplaySerialNumber (displayID);
   if (val != 0x00000000 && val != 0xFFFFFFFF)
-    [info setObject:[NSNumber numberWithInt:val] forKey:@kDisplaySerialNumber];
+    [info setObject:@(val) forKey:@kDisplaySerialNumber];
 
   [infoDictionaries enumerateObjectsUsingBlock:
 		      ^(NSDictionary *dictionary, NSUInteger idx, BOOL *stop) {
@@ -12272,9 +12265,8 @@ update_apple_event_handler (void)
 					     &eventID))
 	    return;
 
-	  unsigned long long code =
-	    ((unsigned long long) eventClass << 32) + eventID;
-	  NSNumber *value = [NSNumber numberWithUnsignedLongLong:code];
+	  NSNumber *value = @(((unsigned long long) eventClass << 32)
+			      + eventID);
 
 	  if (![registered_apple_event_specs containsObject:value])
 	    {
@@ -14826,7 +14818,7 @@ ax_get_insertion_point_line_number (EmacsMainView *emacsView)
 
   line = mac_ax_line_for_index (f, -1);
 
-  return line >= 0 ? [NSNumber numberWithLong:line] : nil;
+  return line >= 0 ? @(line) : nil;
 }
 
 static id
@@ -14840,7 +14832,7 @@ ax_get_number_of_characters (EmacsMainView *emacsView)
 {
   EMACS_INT length = mac_ax_number_of_characters ([emacsView emacsFrame]);
 
-  return [NSNumber numberWithLong:length];
+  return @(length);
 }
 
 static id
@@ -14950,7 +14942,7 @@ ax_get_line_for_index (EmacsMainView *emacsView, id parameter)
 
   line = mac_ax_line_for_index (f, [(NSNumber *)parameter longValue]);
 
-  return line >= 0 ? [NSNumber numberWithLong:line] : nil;
+  return line >= 0 ? @(line) : nil;
 }
 
 static id
@@ -15284,8 +15276,7 @@ get_symbol_from_filter_input_key (NSString *key)
 	direction = Qnil;
 
       if (!NILP (direction))
-	[filter setValue:[NSNumber numberWithDouble:direction_angle]
-		  forKey:kCIInputAngleKey];
+	[filter setValue:@(direction_angle) forKey:kCIInputAngleKey];
     }
 
   if ([filterName isEqualToString:@"CIPageCurlTransition"]
@@ -15310,8 +15301,7 @@ get_symbol_from_filter_input_key (NSString *key)
 	      Lisp_Object value = Fplist_get (properties, symbol);
 
 	      if (NUMBERP (value))
-		[filter setValue:[NSNumber numberWithDouble:(XFLOATINT (value))]
-			  forKey:key];
+		[filter setValue:@(XFLOATINT (value)) forKey:key];
 	    }
 	}
       else if ([[keyAttributes objectForKey:kCIAttributeType]
@@ -15508,8 +15498,7 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 
       duration = Fplist_get (properties, QCduration);
       if (NUMBERP (duration))
-	[CATransaction setValue:[NSNumber
-				  numberWithDouble:(XFLOATINT (duration))]
+	[CATransaction setValue:@(XFLOATINT (duration))
 			 forKey:kCATransactionAnimationDuration];
 
       [CATransaction setCompletionBlock:^{
