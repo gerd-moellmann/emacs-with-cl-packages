@@ -722,20 +722,19 @@ static void (*impOrderOut) (id, SEL, id);
 + (void)setup
 {
   Method methodCloseNew =
-    class_getInstanceMethod ([self class], @selector(close));
+    class_getInstanceMethod (self.class, @selector(close));
   Method methodOrderOutNew =
-    class_getInstanceMethod ([self class], @selector(orderOut:));
+    class_getInstanceMethod (self.class, @selector(orderOut:));
   IMP impCloseNew = method_getImplementation (methodCloseNew);
   IMP impOrderOutNew = method_getImplementation (methodOrderOutNew);
   const char *typeCloseNew = method_getTypeEncoding (methodCloseNew);
   const char *typeOrderOutNew = method_getTypeEncoding (methodOrderOutNew);
 
   impClose = ((void (*) (id, SEL))
-	      class_replaceMethod ([NSWindow class], @selector(close),
+	      class_replaceMethod (NSWindow.class, @selector(close),
 				   impCloseNew, typeCloseNew));
   impOrderOut = ((void (*) (id, SEL, id))
-		 class_replaceMethod ([NSWindow class],
-				      @selector(orderOut:),
+		 class_replaceMethod (NSWindow.class, @selector(orderOut:),
 				      impOrderOutNew, typeOrderOutNew));
 }
 
@@ -769,7 +768,7 @@ mac_nsvalue_to_lisp (CFTypeRef obj)
 {
   Lisp_Object result = Qnil;
 
-  if ([(__bridge id)obj isKindOfClass:[NSValue class]])
+  if ([(__bridge id)obj isKindOfClass:NSValue.class])
     {
       NSValue *value = (__bridge NSValue *) obj;
       const char *type = [value objCType];
@@ -819,7 +818,7 @@ mac_nsfont_to_lisp (CFTypeRef obj)
 {
   Lisp_Object result = Qnil;
 
-  if ([(__bridge id)obj isKindOfClass:[NSFont class]])
+  if ([(__bridge id)obj isKindOfClass:NSFont.class])
     {
       result = macfont_nsctfont_to_spec ((void *) obj);
       if (!NILP (result))
@@ -1118,9 +1117,9 @@ static bool handling_queued_nsevents_p;
 
   if (![mainMenu isEqual:currentMainMenu])
     {
-      if ([currentMainMenu isKindOfClass:[EmacsMenu class]])
+      if ([currentMainMenu isKindOfClass:EmacsMenu.class])
 	[[NSNotificationCenter defaultCenter] removeObserver:currentMainMenu];
-      if ([mainMenu isKindOfClass:[EmacsMenu class]])
+      if ([mainMenu isKindOfClass:EmacsMenu.class])
 	[[NSNotificationCenter defaultCenter]
 	  addObserver:mainMenu
 	     selector:@selector(menuDidBeginTracking:)
@@ -1150,7 +1149,7 @@ static bool handling_queued_nsevents_p;
 - (void)applicationWillFinishLaunching:(NSNotification *)notification
 {
   [EmacsPosingWindow setup];
-  [NSFontManager setFontPanelFactory:[EmacsFontPanel class]];
+  [NSFontManager setFontPanelFactory:EmacsFontPanel.class];
   serviceProviderRegistered = mac_service_provider_registered_p ();
   init_menu_bar ();
   init_apple_event_handler ();
@@ -1444,7 +1443,7 @@ static BOOL extendReadSocketIntervalOnce;
 	    && ([NSApp keyWindow] || (flags & NSEventModifierFlagCommand))
 	    /* Avoid activating context help mode with `help' key.  */
 	    && !([[[NSApp keyWindow] firstResponder]
-		   isMemberOfClass:[EmacsMainView class]]
+		   isMemberOfClass:EmacsMainView.class]
 		 && key_code == kVK_Help
 		 && (flags & (NSEventModifierFlagControl
 			      | NSEventModifierFlagOption
@@ -1750,7 +1749,7 @@ emacs_windows_need_display_p (void)
       return;
     }
 
-  if ([window isKindOfClass:[EmacsWindow class]])
+  if ([window isKindOfClass:EmacsWindow.class])
     {
       EmacsFrameController *frameController = ((EmacsFrameController *)
 					       [window delegate]);
@@ -1798,7 +1797,7 @@ emacs_windows_need_display_p (void)
 
 	  options = NSApplicationPresentationDefault;
 	  for (NSWindow *window in [NSApp windows])
-	    if ([window isKindOfClass:[EmacsWindow class]]
+	    if ([window isKindOfClass:EmacsWindow.class]
 		&& window.isVisible && window.parentWindow == nil)
 	      {
 		if (windowNumbers
@@ -1835,7 +1834,7 @@ emacs_windows_need_display_p (void)
 {
   NSWindow *window = [NSApp keyWindow].topLevelWindow;;
 
-  if ([window isKindOfClass:[EmacsWindow class]])
+  if ([window isKindOfClass:EmacsWindow.class])
     {
       EmacsFrameController *frameController = ((EmacsFrameController *)
 					       [window delegate]);
@@ -2503,7 +2502,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       window.level = oldWindow.level;
       [window setExcludedFromWindowsMenu:oldWindow.isExcludedFromWindowsMenu];
       for (NSWindow *childWindow in oldWindow.childWindows)
-	if ([childWindow isKindOfClass:[EmacsWindow class]])
+	if ([childWindow isKindOfClass:EmacsWindow.class])
 	  {
 	    [(EmacsWindow *)childWindow suspendConstrainingToScreen:YES];
 	    [oldWindow removeChildWindow:childWindow];
@@ -3767,12 +3766,12 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   /* Child windows seem to be temporarily removed during full screen
      transition.  */
   for (NSWindow *childWindow in self.emacsWindow.childWindows)
-    if ([childWindow isKindOfClass:[EmacsWindow class]])
+    if ([childWindow isKindOfClass:EmacsWindow.class])
       [(EmacsWindow *)childWindow suspendConstrainingToScreen:YES];
   [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
 						   BOOL success) {
       for (NSWindow *childWindow in window.childWindows)
-	if ([childWindow isKindOfClass:[EmacsWindow class]])
+	if ([childWindow isKindOfClass:EmacsWindow.class])
 	  [(EmacsWindow *)childWindow suspendConstrainingToScreen:NO];
     }];
 }
@@ -3843,12 +3842,12 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
     }
 
   for (NSWindow *childWindow in self.emacsWindow.childWindows)
-    if ([childWindow isKindOfClass:[EmacsWindow class]])
+    if ([childWindow isKindOfClass:EmacsWindow.class])
       [(EmacsWindow *)childWindow suspendConstrainingToScreen:YES];
   [self addFullScreenTransitionCompletionHandler:^(EmacsWindow *window,
 						   BOOL success) {
       for (NSWindow *childWindow in window.childWindows)
-	if ([childWindow isKindOfClass:[EmacsWindow class]])
+	if ([childWindow isKindOfClass:EmacsWindow.class])
 	  [(EmacsWindow *)childWindow suspendConstrainingToScreen:NO];
     }];
 
@@ -4267,7 +4266,7 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 		    }
 
 		window.tabbingMode = tabbingMode;
-		if ([mainWindow isKindOfClass:[EmacsWindow class]])
+		if ([mainWindow isKindOfClass:EmacsWindow.class])
 		  {
 		    mainWindow.tabbingMode = tabbingMode;
 		    /* If the Tab Overview UI is visible and the window
@@ -4286,7 +4285,7 @@ mac_bring_frame_window_to_front_and_activate (struct frame *f, bool activate_p)
 	    if (tabbingMode != NSWindowTabbingModeAutomatic)
 	      {
 		window.tabbingMode = NSWindowTabbingModeAutomatic;
-		if ([mainWindow isKindOfClass:[EmacsWindow class]])
+		if ([mainWindow isKindOfClass:EmacsWindow.class])
 		  mainWindow.tabbingMode = NSWindowTabbingModeAutomatic;
 	      }
 	  }
@@ -6294,7 +6293,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 + (void)initialize
 {
-  if (self == [EmacsMainView class])
+  if (self == EmacsMainView.class)
     {
       NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
 
@@ -6885,7 +6884,7 @@ event_phase_to_symbol (NSEventPhase phase)
 
       if (rawKeyEventHasMappedFlags
 	  || [rawKeyEvent type] == NSEventTypeKeyUp
-	  || ([aString isKindOfClass:[NSString class]]
+	  || ([aString isKindOfClass:NSString.class]
 	      && [aString isEqualToString:[rawKeyEvent characters]]
 	      && [(NSString *)aString length] == 1
 	      && ((character = [aString characterAtIndex:0]) < 0x80
@@ -6907,7 +6906,7 @@ event_phase_to_symbol (NSEventPhase phase)
   inputEvent.timestamp = [[NSApp currentEvent] timestamp] * 1000;
   XSETFRAME (inputEvent.frame_or_window, f);
 
-  if ([aString isKindOfClass:[NSString class]])
+  if ([aString isKindOfClass:NSString.class])
     {
       NSUInteger i, length = [(NSString *)aString length];
       unichar character;
@@ -7035,7 +7034,7 @@ event_phase_to_symbol (NSEventPhase phase)
       NSRange range = NSMakeRange (aRange.location - markedRange.location,
 				   aRange.length);
 
-      if ([markedText isKindOfClass:[NSAttributedString class]])
+      if ([markedText isKindOfClass:NSAttributedString.class])
 	result = [markedText attributedSubstringFromRange:range];
       else
 	{
@@ -8058,7 +8057,7 @@ static BOOL NonmodalScrollerPagingBehavior;
 
 + (void)initialize
 {
-  if (self == [NonmodalScroller class])
+  if (self == NonmodalScroller.class)
     {
       [self updateBehavioralParameters];
       [[NSDistributedNotificationCenter defaultCenter]
@@ -8374,9 +8373,9 @@ static BOOL NonmodalScrollerPagingBehavior;
 
   for (i = 0; i < count; i++)
     {
-      CGFloat width = [[self class]
-			scrollerWidthForControlSize:controlSizes[i]
-				      scrollerStyle:NSScrollerStyleLegacy];
+      CGFloat width = [self.class
+			  scrollerWidthForControlSize:controlSizes[i]
+			  scrollerStyle:NSScrollerStyleLegacy];
 
       if (shorterDimension >= width)
 	{
@@ -8819,7 +8818,7 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 - (void)setVibrantScrollersHidden:(BOOL)flag
 {
   for (NSView *view in emacsView.subviews)
-    if ([view isKindOfClass:[EmacsScroller class]]
+    if ([view isKindOfClass:EmacsScroller.class]
 	&& view.effectiveAppearance.allowsVibrancy)
       [view setHidden:flag];
 }
@@ -9133,7 +9132,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
     {
       NSToolbarItem *item = [(id <EmacsToolbarItemViewer>)hitView item];
 
-      if ([item isKindOfClass:[EmacsToolbarItem class]])
+      if ([item isKindOfClass:EmacsToolbarItem.class])
 	{
 #define PROP(IDX) AREF (f->tool_bar_items, i * TOOL_BAR_ITEM_NSLOTS + (IDX))
 	  NSInteger i = [item tag];
@@ -9574,7 +9573,7 @@ free_frame_tool_bar (struct frame *f)
       hitView = [contentView hitTest:[[contentView superview]
 				       convertPoint:[event locationInWindow]
 				       fromView:nil]];
-      if ([hitView isKindOfClass:[NSSlider class]])
+      if ([hitView isKindOfClass:NSSlider.class])
 	trackedSlider = (NSSlider *) hitView;
     }
 
@@ -9639,7 +9638,7 @@ free_frame_tool_bar (struct frame *f)
   /* This might look strange, but can happen on Mac OS X 10.5 and
      later inside [fontPanel makeFirstResponder:accessoryView] (in
      mac_font_dialog) if the panel is shown for the first time.  */
-  if ([[fontPanel delegate] isMemberOfClass:[EmacsFontDialogController class]])
+  if ([[fontPanel delegate] isMemberOfClass:EmacsFontDialogController.class])
     return;
 
   currentEvent = [NSApp currentEvent];
@@ -10646,7 +10645,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
   if (window == nil)
     window = FRAME_MAC_WINDOW_OBJECT (SELECTED_FRAME ());
   firstResponder = [window firstResponder];
-  if ([firstResponder isMemberOfClass:[EmacsMainView class]])
+  if ([firstResponder isMemberOfClass:EmacsMainView.class])
     {
       UInt32 code;
       Boolean isEnabled;
@@ -12799,7 +12798,7 @@ handle_action_invocation (NSInvocation *invocation)
 			 arg);
 	  }
 
-      if ([sender isKindOfClass:[NSView class]])
+      if ([sender isKindOfClass:NSView.class])
 	{
 	  Lisp_Object frame = [[sender window] lispFrame];
 
@@ -14306,9 +14305,9 @@ didCompleteLayoutForTextContainer:(NSTextContainer *)aTextContainer
 static NSArrayOf (Class <EmacsDocumentRasterizer>) *
 document_rasterizer_get_classes (void)
 {
-  return @[[EmacsPDFDocument class],
-	   [EmacsSVGDocument class],
-	   [EmacsDocumentRasterizer class]];
+  return @[EmacsPDFDocument.class,
+	   EmacsSVGDocument.class,
+	   EmacsDocumentRasterizer.class];
 }
 
 CFArrayRef
@@ -14405,7 +14404,7 @@ static id <EmacsDocumentRasterizer>
 document_rasterizer_create (id url_or_data,
 			    NSDictionaryOf (NSString *, id) *options)
 {
-  BOOL isURL = [url_or_data isKindOfClass:[NSURL class]];
+  BOOL isURL = [url_or_data isKindOfClass:NSURL.class];
 
   for (Class class in document_rasterizer_get_classes ())
     {
