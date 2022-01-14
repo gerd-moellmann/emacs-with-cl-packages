@@ -1661,7 +1661,7 @@ emacs_windows_need_display_p (void)
 	     commands with dummy ones.  */
 	  keyBindingsWithConflicts =
 	    MRC_RETAIN ([keyBindingManager dictionary]);
-	  dictionary = keyBindingsWithConflicts.mutableCopy;
+	  dictionary = [keyBindingsWithConflicts mutableCopy];
 	  for (NSString *key in keyBindingsWithConflicts)
 	    {
 	      id object = keyBindingsWithConflicts[key];
