@@ -56,6 +56,18 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    For other widget types, OSR seems possible, but will not care for a
    while.  */
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
+@interface WKWebView (AvailableOn101100AndLater)
+@property (nullable, nonatomic, copy) NSString *customUserAgent;
+@end
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
+@interface WKOpenPanelParameters : NSObject
+@property (nonatomic, readonly) BOOL allowsMultipleSelection;
+@end
+#endif
+
 /* Xwidget webkit.  */
 
 @interface XwWebView : WKWebView
@@ -91,6 +103,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
       self.urlScriptBlocked = [[NSMutableDictionary alloc] init];
       self.navigationDelegate = self;
       self.UIDelegate = self;
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
+      if ([self respondsToSelector:@selector(setCustomUserAgent:)])
+#endif
       self.customUserAgent =
         @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6)"
         @" AppleWebKit/603.3.8 (KHTML, like Gecko)"
@@ -187,7 +202,11 @@ createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration
 - (void)webView:(WKWebView *)webView
 runOpenPanelWithParameters:(WKOpenPanelParameters *)parameters
 initiatedByFrame:(WKFrameInfo *)frame
+#ifdef HAVE_MACGUI
+completionHandler:(void (^)(NSArrayOf (NSURL *) *URLs))completionHandler
+#else
 completionHandler:(void (^)(NSArray<NSURL *> *URLs))completionHandler
+#endif
 {
   NSOpenPanel *openPanel = [NSOpenPanel openPanel];
   openPanel.canChooseFiles = YES;
@@ -257,7 +276,11 @@ completionHandler:(void (^)(NSArray<NSURL *> *URLs))completionHandler
     }];
 }
 
+#ifdef HAVE_MACGUI
+- (void)interpretKeyEvents:(NSArrayOf (NSEvent *) *)eventArray
+#else
 - (void)interpretKeyEvents:(NSArray<NSEvent *> *)eventArray
+#endif
 {
   /* We should do nothing and do not forward (default implementation
      if we not override here) to let emacs collect key events and ask
