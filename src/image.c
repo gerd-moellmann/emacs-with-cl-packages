@@ -4215,8 +4215,8 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
       int desired_width, desired_height;
       Lisp_Object value = image_spec_value (img->spec, QCrotation, NULL);
 
-      if (FLOATP (value))
-	rotation = XFLOAT_DATA (value);
+      if (NUMBERP (value))
+	rotation = XFLOATINT (value);
       else if (NILP (value))
 	{
 	  /* If no :rotation is explicitly specified, apply the
