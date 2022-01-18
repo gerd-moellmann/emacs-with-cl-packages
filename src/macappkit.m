@@ -5869,8 +5869,8 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
     return;
 #endif
   CGDirectDisplayID displayID =
-    ((CGDirectDisplayID)
-     view.window.screen.deviceDescription[@"NSScreenNumber"].unsignedIntValue);
+    (CGDirectDisplayID) [view.window.screen.deviceDescription[@"NSScreenNumber"]
+			     unsignedIntValue];
   id <MTLDevice> newDevice = CGDirectDisplayCopyCurrentMetalDevice (displayID);
 
   if (newDevice != mtlCommandQueue.device)
