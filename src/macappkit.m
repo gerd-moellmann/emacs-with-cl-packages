@@ -1419,7 +1419,6 @@ static BOOL extendReadSocketIntervalOnce;
 
 - (void)handleOneNSEvent:(NSEvent *)event
 {
-  struct mac_display_info *dpyinfo = &one_mac_display_info;
   struct input_event inev;
 
   do_help = 0;
@@ -5779,7 +5778,7 @@ mac_iosurface_create (size_t width, size_t height)
   if (!invalidRectValues)
     return;
 
-  NSUInteger i, j, count = invalidRectValues.count;
+  NSUInteger i, count = invalidRectValues.count;
   NSRect r, boundsRect = {NSZeroPoint, self.size};
 
   rect = NSIntersectionRect (rect, boundsRect);
@@ -5826,6 +5825,7 @@ mac_iosurface_create (size_t width, size_t height)
 				   : y1 < y2 ? NSOrderedAscending
 				   : NSOrderedSame);
     }];
+  NSUInteger j;
   for (j = i; j < count; j++)
     {
       r = invalidRectValues[j].rectValue;
