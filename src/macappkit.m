@@ -1915,7 +1915,7 @@ mac_application_state (void)
  ************************************************************************/
 
 static void set_global_focus_view_frame (struct frame *);
-static CGRect unset_global_focus_view_frame (void);
+static void unset_global_focus_view_frame (void);
 static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 #define DEFAULT_NUM_COLS (80)
@@ -5182,8 +5182,7 @@ mac_update_frame_end (struct frame *f)
   EmacsFrameController *frameController = FRAME_CONTROLLER (f);
 
   mac_within_gui (^{
-      CGRect clip_rect = unset_global_focus_view_frame ();
-
+      unset_global_focus_view_frame ();
       [frameController unlockFocusOnEmacsView];
     });
 }
@@ -7526,11 +7525,9 @@ mac_draw_queue_dispatch_async (void (^block) (void))
     block ();
 }
 
-static CGRect
+static void
 unset_global_focus_view_frame (void)
 {
-  CGRect result = CGRectNull;
-
   mac_draw_queue_sync ();
 
   if (global_focus_view_frame != saved_focus_view_frame)
@@ -7552,8 +7549,6 @@ unset_global_focus_view_frame (void)
 	}
     }
   saved_focus_view_frame = NULL;
-
-  return result;
 }
 
 #if DRAWING_USE_GCD
