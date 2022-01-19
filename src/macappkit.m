@@ -12451,7 +12451,6 @@ mac_dnd_default_known_types (void)
 		     returnType:(NSPasteboardType)returnType
 {
   Selection sel;
-  NSArrayOf (NSPasteboardType) *array;
 
   if ([sendType length] == 0
       || (!NILP (Fmac_selection_owner_p (Vmac_service_selection, Qnil))

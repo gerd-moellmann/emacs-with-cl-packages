@@ -5174,7 +5174,6 @@ usage: (mac-start-animation FRAME-OR-WINDOW &rest PROPERTIES) */)
 {
   Lisp_Object frame_or_window, properties;
   struct frame *f;
-  CGFloat alpha;
   ptrdiff_t count;
 
   frame_or_window = args[0];
