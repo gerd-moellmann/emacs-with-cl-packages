@@ -521,13 +521,15 @@ Some context functions add menu items below the separator."
 (defvar context-menu-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [mouse-3] nil)
-    (define-key map [down-mouse-3] context-menu-entry)
+    (define-key map [down-mouse-3]
+      (if (featurep 'mac) #'mac-mouse-context-menu context-menu-entry))
     (define-key map [menu] #'context-menu-open)
     (if (featurep 'w32)
         (define-key map [apps] #'context-menu-open))
     (when (or (featurep 'mac) (featurep 'ns))
       (define-key map [C-mouse-1] nil)
-      (define-key map [C-down-mouse-1] context-menu-entry))
+      (define-key map [C-down-mouse-1]
+        (if (featurep 'mac) #'mac-mouse-context-menu context-menu-entry)))
     map)
   "Context Menu mode map.")
 

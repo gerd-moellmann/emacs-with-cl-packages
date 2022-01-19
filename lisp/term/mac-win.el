@@ -2045,6 +2045,17 @@ A hook function can determine the current appearance by checking the
   (let ((mac-popup-menu-add-contextual-menu t))
     (mouse-buffer-menu event)))
 
+(defun mac-mouse-context-menu (event)
+  "Pop up the context menu combined with the system contextual menu."
+  (interactive "e")
+  (let ((mac-popup-menu-add-contextual-menu t)
+        (map (context-menu-map)))
+    (if (commandp map)
+        (call-interactively map)
+      (condition-case nil
+          (popup-menu map event)
+        (quit nil)))))
+
 
 ;;; Mouse wheel smooth scroll
 
@@ -3008,6 +3019,8 @@ standard ones in `x-handle-args'."
   (if (eq (lookup-key global-map [C-down-mouse-1]) 'mouse-buffer-menu)
       (global-set-key [C-down-mouse-1] 'mac-mouse-buffer-menu))
   (push 'mac-mouse-buffer-menu selection-inhibit-update-commands)
+
+  (push 'mac-mouse-context-menu selection-inhibit-update-commands)
 
   ;; Running on macOS 10.12 or later.
   (when (or (> (car (x-server-version)) 10) (>= (cadr (x-server-version)) 12))
