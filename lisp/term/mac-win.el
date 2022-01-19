@@ -2040,7 +2040,7 @@ A hook function can determine the current appearance by checking the
     (popup-menu (mouse-menu-bar-map) last-nonmenu-event))))
 
 (defun mac-mouse-buffer-menu (event)
-  "Like 'mouse-buffer-menu', but contextual menu is added if possible."
+  "Like `mouse-buffer-menu', but contextual menu is added if possible."
   (interactive "e")
   (let ((mac-popup-menu-add-contextual-menu t))
     (mouse-buffer-menu event)))
