@@ -862,6 +862,16 @@ can_auto_hide_menu_bar_without_hiding_dock_p (void)
 #endif
 }
 
+static bool
+has_notch_support_p (void)
+{
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 120000
+  return true;
+#else
+  return !(floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber11_0);
+#endif
+}
+
 /* Autorelease pool.  */
 
 #if __clang_major__ >= 3
@@ -1846,7 +1856,8 @@ emacs_windows_need_display_p (void)
 	  if ((options & (NSApplicationPresentationFullScreen
 			  | NSApplicationPresentationAutoHideMenuBar))
 	      == (NSApplicationPresentationFullScreen
-		  | NSApplicationPresentationAutoHideMenuBar))
+		  | NSApplicationPresentationAutoHideMenuBar)
+	      && !has_notch_support_p ())
 	    {
 	      options &= ~NSApplicationPresentationAutoHideMenuBar;
 	      [NSApp setPresentationOptions:options];
