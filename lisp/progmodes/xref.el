@@ -118,16 +118,16 @@ When it is a file name, it should be the \"expanded\" version.")
 (defcustom xref-file-name-display 'project-relative
   "Style of file name display in *xref* buffers.
 
-If the value is the symbol `abs', the default, show the file names
-in their full absolute form.
+If the value is the symbol `abs', show the file names in their
+full absolute form.
 
 If `nondirectory', show only the nondirectory (a.k.a. \"base name\")
 part of the file name.
 
-If `project-relative', show only the file name relative to the
-current project root.  If there is no current project, or if the
-file resides outside of its root, show that particular file name
-in its full absolute form."
+If `project-relative', the default, show only the file name
+relative to the current project root.  If there is no current
+project, or if the file resides outside of its root, show that
+particular file name in its full absolute form."
   :type '(choice (const :tag "absolute file name" abs)
                  (const :tag "nondirectory file name" nondirectory)
                  (const :tag "relative to project root" project-relative))
@@ -1626,7 +1626,7 @@ IGNORES is a list of glob patterns for files to ignore."
     (ripgrep
      .
      ;; '!*/' is there to filter out dirs (e.g. submodules).
-     "xargs -0 rg <C> --null -nH --no-messages -g '!*/' -e <R>"
+     "xargs -0 rg <C> --null -nH --no-heading --no-messages -g '!*/' -e <R>"
      ))
   "Associative list mapping program identifiers to command templates.
 

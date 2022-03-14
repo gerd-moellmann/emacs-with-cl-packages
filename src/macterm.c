@@ -914,7 +914,9 @@ mac_draw_fringe_bitmap (struct window *w, struct glyph_row *row, struct draw_fri
       overlay_p = 1;
     }
 
-  if (p->which && p->which < max_fringe_bmp)
+  if (p->which
+      && p->which < max_fringe_bmp
+      && p->which < max_used_fringe_bitmap)
     {
       XGCValues gcv;
       int flags;
@@ -925,6 +927,16 @@ mac_draw_fringe_bitmap (struct window *w, struct glyph_row *row, struct draw_fri
 			   ? (p->overlay_p ? face->background
 			      : f->output_data.mac->cursor_pixel)
 			   : face->foreground));
+      if (!fringe_bmp[p->which])
+	{
+	  /* This fringe bitmap is known to fringe.c, but lacks the
+	     CGImage data which shadows that bitmap.  This is typical
+	     to define-fringe-bitmap being called when the selected
+	     frame was not a GUI frame, for example, when packages
+	     that define fringe bitmaps are loaded by a daemon Emacs.
+	     Create the missing CGImage now.  */
+	  gui_define_fringe_bitmap (f, p->which);
+	}
       flags = overlay_p ? MAC_DRAW_CG_IMAGE_OVERLAY : 0;
       if (FRAME_BACKING_SCALE_FACTOR (f) != 1)
 	flags |= MAC_DRAW_CG_IMAGE_NO_INTERPOLATION;

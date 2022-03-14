@@ -730,8 +730,7 @@ position clicked before acting.
 This function returns a list (URL NEW-WINDOW-FLAG)
 for use in `interactive'."
   (let ((event (elt (this-command-keys) 0)))
-    (when (mouse-event-p event)
-      (mouse-set-point event)))
+    (mouse-set-point event))
   (list (read-string prompt (or (and transient-mark-mode mark-active
 				     ;; rfc2396 Appendix E.
 				     (replace-regexp-in-string
@@ -836,7 +835,10 @@ If optional arg TEMP-FILE-NAME is non-nil, delete it instead."
 (defun browse-url-of-dired-file ()
   "In Dired, ask a WWW browser to display the file named on this line."
   (interactive)
-  (let ((tem (dired-get-filename t t)))
+  (let ((tem (dired-get-filename t t))
+        ;; Some URL handlers open files in Emacs.  We want to always
+        ;; open in a browser, so disable those.
+        (browse-url-default-handlers nil))
     (if tem
 	(browse-url-of-file (expand-file-name tem))
       (error "No file on this line"))))
