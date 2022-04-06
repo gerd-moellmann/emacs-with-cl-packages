@@ -1,6 +1,6 @@
 ;;; page.el --- page motion commands for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 2001-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: wp convenience
@@ -170,8 +170,6 @@ point, respectively."
   (interactive)
   (apply #'message (cons "Page %d, line %d" (page--what-page))))
 
-
-;;; Place `provide' at end of file.
 (provide 'page)
 
 ;;; page.el ends here

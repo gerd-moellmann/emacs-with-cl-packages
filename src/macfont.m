@@ -1,5 +1,5 @@
 /* Font driver on macOS Core text.
-   Copyright (C) 2009-2021 Free Software Foundation, Inc.
+   Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -56,12 +56,8 @@ static CFStringRef mac_font_create_preferred_family_for_attributes (CFDictionary
 static CFIndex mac_font_shape (CTFontRef, CFStringRef,
 			       struct mac_glyph_layout *, CFIndex,
 			       enum lgstring_direction);
-static CFArrayRef mac_font_copy_default_descriptors_for_language (CFStringRef);
-static CFStringRef mac_font_copy_default_name_for_charset_and_languages (CFCharacterSetRef, CFArrayRef);
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-static CGGlyph mac_ctfont_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
-                                             CGFontIndex);
-#endif
+static CGGlyph mac_font_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
+					   CGFontIndex);
 
 struct macfont_metrics;
 
@@ -213,56 +209,6 @@ mac_screen_font_get_advance_width_for_glyph (ScreenFontRef font, CGGlyph glyph)
 
   return advancement.width;
 }
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-static CGGlyph
-mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
-                            CGFontIndex cid)
-{
-  CGGlyph result = kCGFontIndexInvalid;
-  NSFont *nsFont = (NSFont *) font;
-  unichar characters[] = {0xfffd};
-  NSString *string =
-    [NSString stringWithCharacters:characters
-			    length:ARRAYELTS (characters)];
-  NSGlyphInfo *glyphInfo =
-    [NSGlyphInfo glyphInfoWithCharacterIdentifier:cid
-				       collection:collection
-				       baseString:string];
-  NSDictionary *attributes =
-    [NSDictionary dictionaryWithObjectsAndKeys:nsFont,NSFontAttributeName,
-		  glyphInfo,NSGlyphInfoAttributeName,nil];
-  NSTextStorage *textStorage =
-    [[NSTextStorage alloc] initWithString:string
-			       attributes:attributes];
-  NSLayoutManager *layoutManager = [[NSLayoutManager alloc] init];
-  NSTextContainer *textContainer = [[NSTextContainer alloc] init];
-  NSFont *fontInTextStorage;
-
-  [layoutManager addTextContainer:textContainer];
-  [textContainer release];
-  [textStorage addLayoutManager:layoutManager];
-  [layoutManager release];
-
-  /* Force layout.  */
-  (void) [layoutManager glyphRangeForTextContainer:textContainer];
-
-  fontInTextStorage = [textStorage attribute:NSFontAttributeName atIndex:0
-			      effectiveRange:NULL];
-  if (fontInTextStorage == nsFont
-      || [[fontInTextStorage fontName] isEqualToString:[nsFont fontName]])
-    {
-      NSGlyph glyph = [layoutManager glyphAtIndex:0];
-
-      if (glyph < [nsFont numberOfGlyphs])
-	result = glyph;
-    }
-
-  [textStorage release];
-
-  return result;
-}
-#endif
 
 static ScreenFontRef
 mac_screen_font_create_with_name (CFStringRef name, CGFloat size)
@@ -691,28 +637,6 @@ static struct
     { NULL }
   };
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-static const struct
-{
-  CFStringRef language;
-  CFStringRef font_names[3];
-} macfont_language_default_font_names[] = {
-  { CFSTR ("ja"), { CFSTR ("HiraKakuProN-W3"), /* 10.5 - 10.9 */
-                    CFSTR ("HiraKakuPro-W3"),  /* 10.4 */
-                    NULL }},
-  { CFSTR ("ko"), { CFSTR ("AppleSDGothicNeo-Regular"), /* 10.8 - 10.9 */
-                    CFSTR ("AppleGothic"), /* 10.4 - 10.7 */
-                    NULL }},
-  { CFSTR ("zh-Hans"), { CFSTR ("STHeitiSC-Light"), /* 10.6 - 10.9 */
-                         CFSTR ("STXihei"),	    /* 10.4 - 10.5 */
-                         NULL }},
-  { CFSTR ("zh-Hant"), { CFSTR ("STHeitiTC-Light"), /* 10.6 - 10.9 */
-                         CFSTR ("LiHeiPro"),	    /* 10.4 - 10.5 */
-                         NULL }},
-  { NULL }
-};
-#endif
-
 static CGFloat macfont_antialias_threshold;
 
 void
@@ -919,6 +843,9 @@ macfont_descriptor_entity (CTFontDescriptorRef desc, Lisp_Object extra,
     ASET (entity, FONT_AVGWIDTH_INDEX, make_fixnum (0));
   ASET (entity, FONT_EXTRA_INDEX, Fcopy_sequence (extra));
   name = CTFontDescriptorCopyAttribute (desc, kCTFontNameAttribute);
+  /* Avoid fixnum overflow on 32-bit build.  The top 4 bits is used to
+     describe appearance of the font, and we never use them.  */
+  sym_traits &= 0x0fffffff;
   font_put_extra (entity, QCfont_entity,
 		  Fcons (make_mint_ptr ((void *) name),
 			 make_fixnum (sym_traits)));
@@ -1132,7 +1059,8 @@ struct macfont_metrics
 };
 
 #define METRICS_VALUE(metrics, member)                          \
-  (((metrics)->member##_high << 8) | (metrics)->member##_low)
+  ((int) (((unsigned int) (metrics)->member##_high << 8)        \
+          | (metrics)->member##_low))
 #define METRICS_SET_VALUE(metrics, member, value)                   \
   do {short tmp = (value); (metrics)->member##_low = tmp & 0xff;    \
     (metrics)->member##_high = tmp >> 8;} while (0)
@@ -2435,8 +2363,12 @@ macfont_list (struct frame *f, Lisp_Object spec)
             continue;
 
           /* Don't use a color bitmap font unless its family is
-             explicitly specified.  */
-          if ((sym_traits & kCTFontTraitColorGlyphs) && NILP (family))
+             explicitly specified or we're looking for a font for
+             emoji.  */
+          if ((sym_traits & kCTFontTraitColorGlyphs)
+              && NILP (family)
+              && !EQ (CDR_SAFE (assq_no_quit (QCscript, AREF (spec, FONT_EXTRA_INDEX))),
+                      Qemoji))
             continue;
 
           if (j > 0
@@ -2897,8 +2829,8 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
   block_input ();
 
   if (with_background)
-    background_rect = mac_rect_make (f, x, y - FONT_BASE (s->font),
-				     s->width, FONT_HEIGHT (s->font));
+    background_rect = CGRectMake (x, y - FONT_BASE (s->font),
+				  s->width, FONT_HEIGHT (s->font));
   else
     background_rect = CGRectNull;
 
@@ -2957,9 +2889,7 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
 	     Apple says there are no plans to address this issue
 	     (rdar://11644870) currently.  So we add a workaround.  */
 	  if (FRAME_BACKING_SCALE_FACTOR (f) != 1
-	      && !FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f)
-	      && (mac_operating_system_version.major > 10
-		  || mac_operating_system_version.minor >= 7))
+	      && !FRAME_SYNTHETIC_BOLD_WORKAROUND_DISABLED_P (f))
 	    bold_factor = synthetic_bold_factor * 2;
 	  else
 	    bold_factor = synthetic_bold_factor;
@@ -2972,19 +2902,13 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
       CGContextSetTextMatrix (context, atfm);
       CGContextSetTextPosition (context, text_position.x, text_position.y);
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-      if ((macfont_info->color_bitmap_p || macfont_info->svg_p)
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
-	  && CTFontDrawGlyphs != NULL
-#endif
-	  )
+      if (macfont_info->color_bitmap_p || macfont_info->svg_p)
 	{
 	  if (len > 0)
 	    CTFontDrawGlyphs (macfont_info->macfont, glyphs, positions, len,
 			      context);
 	}
       else
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1070 */
 	{
 	  CGContextSetFont (context, macfont_info->cgfont);
 	  CGContextSetFontSize (context, font_size);
@@ -3096,9 +3020,6 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
         {
           CGContextSetTextDrawingMode (context, kCGTextFillStroke);
 
-#if HAVE_MACGUI
-	  CGContextSetLineWidth (context, synthetic_bold_factor * font_size);
-#else
           /* Stroke line width for text drawing is not correctly
              scaled on Retina display/HiDPI mode when drawn to screen
              (whereas it is correctly scaled when drawn to bitmaps),
@@ -3119,19 +3040,16 @@ macfont_draw (struct glyph_string *s, int from, int to, int x, int y,
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
             CGContextSetLineWidth (context, synthetic_bold_factor * font_size);
 #endif
-#endif
           CG_SET_STROKE_COLOR_WITH_FACE_FOREGROUND (context, face, f);
         }
       if (no_antialias_p)
         CGContextSetShouldAntialias (context, false);
 
-#ifdef HAVE_NS
       if (!NILP (ns_use_thin_smoothing))
         {
           CGContextSetShouldSmoothFonts(context, YES);
           CGContextSetFontSmoothingStyle(context, 16);
         }
-#endif
 
       CGContextSetTextMatrix (context, atfm);
       CGContextSetTextPosition (context, text_position.x, text_position.y);
@@ -3308,10 +3226,8 @@ macfont_shape (Lisp_Object lgstring, Lisp_Object direction)
 	wadjust = lround (gl->advance);
       if (xoff != 0 || yoff != 0 || wadjust != metrics.width)
         {
-          Lisp_Object vec = make_uninit_vector (3);
-          ASET (vec, 0, make_fixnum (xoff));
-          ASET (vec, 1, make_fixnum (yoff));
-          ASET (vec, 2, make_fixnum (wadjust));
+          Lisp_Object vec = CALLN (Fvector, make_fixnum (xoff),
+				   make_fixnum (yoff), make_fixnum (wadjust));
           LGLYPH_SET_ADJUSTMENT (lglyph, vec);
         }
     }
@@ -3754,37 +3670,14 @@ mac_font_create_preferred_family_for_attributes (CFDictionaryRef attributes)
 
   if (charset_string && CFStringGetLength (charset_string) > 0)
     {
-      CFStringRef keys[] = {
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1090
-        kCTLanguageAttributeName
-#else
-        CFSTR ("NSLanguage")
-#endif
-      };
+      CFStringRef keys[] = {kCTLanguageAttributeName};
       CFTypeRef values[] = {NULL};
       CFIndex num_values = 0;
       CFArrayRef languages
         = CFDictionaryGetValue (attributes, kCTFontLanguagesAttribute);
 
       if (languages && CFArrayGetCount (languages) > 0)
-        {
-          if (
-#ifdef HAVE_MACGUI
-	      mac_operating_system_version.major > 10
-	      || mac_operating_system_version.minor >= 9
-#else
-	      CTGetCoreTextVersion () >= kCTVersionNumber10_9
-#endif
-	      )
-            values[num_values++] = CFArrayGetValueAtIndex (languages, 0);
-          else
-            {
-              CFCharacterSetRef charset =
-                CFDictionaryGetValue (attributes, kCTFontCharacterSetAttribute);
-
-              result = mac_font_copy_default_name_for_charset_and_languages (charset, languages);
-            }
-        }
+	values[num_values++] = CFArrayGetValueAtIndex (languages, 0);
       if (result == NULL)
         {
           CFAttributedStringRef attr_string = NULL;
@@ -4130,12 +4023,9 @@ mac_font_shape (CTFontRef font, CFStringRef string,
    different in behavior on OS X 10.9 and earlier.  For these
    versions, we use the NSGlyphInfo version instead.  */
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-static
-#endif
-CGGlyph
-mac_ctfont_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
-                              CGFontIndex cid)
+static CGGlyph
+mac_font_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
+			    CGFontIndex cid)
 {
   CGGlyph result = kCGFontIndexInvalid;
   UniChar characters[] = {0xfffd};
@@ -4201,141 +4091,6 @@ mac_ctfont_get_glyph_for_cid (CTFontRef font, CTCharacterCollection collection,
             }
         }
       CFRelease (ctline);
-    }
-
-  return result;
-}
-
-static CFArrayRef
-mac_font_copy_default_descriptors_for_language (CFStringRef language)
-{
-  CFArrayRef result = NULL;
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1080
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-  if (CTFontCopyDefaultCascadeListForLanguages != NULL)
-#endif
-    {
-      CTFontRef user_font =
-	CTFontCreateUIFontForLanguage (kCTFontUIFontUser, 0, language);
-
-      if (user_font)
-        {
-          CFArrayRef languages =
-            CFArrayCreate (NULL, (const void **) &language, 1,
-                           &kCFTypeArrayCallBacks);
-
-          if (languages)
-            {
-              result = CTFontCopyDefaultCascadeListForLanguages (user_font,
-                                                                 languages);
-              CFRelease (languages);
-            }
-          CFRelease (user_font);
-        }
-    }
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-  else		/* CTFontCopyDefaultCascadeListForLanguages == NULL */
-#endif
-#endif	/* MAC_OS_X_VERSION_MAX_ALLOWED >= 1080 */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1080
-    {
-      CFIndex i;
-
-      for (i = 0; macfont_language_default_font_names[i].language; i++)
-        {
-          if (CFEqual (macfont_language_default_font_names[i].language,
-                       language))
-            {
-              CFMutableArrayRef descriptors =
-                CFArrayCreateMutable (NULL, 0, &kCFTypeArrayCallBacks);
-
-              if (descriptors)
-                {
-                  CFIndex j;
-
-                  for (j = 0;
-                       macfont_language_default_font_names[i].font_names[j];
-                       j++)
-                    {
-                      CFDictionaryRef attributes =
-                        CFDictionaryCreate (NULL,
-                                            ((const void **)
-                                             &kCTFontNameAttribute),
-                                            ((const void **)
-                                             &macfont_language_default_font_names[i].font_names[j]),
-                                            1, &kCFTypeDictionaryKeyCallBacks,
-                                            &kCFTypeDictionaryValueCallBacks);
-
-                      if (attributes)
-                        {
-                          CTFontDescriptorRef pat_desc =
-                            CTFontDescriptorCreateWithAttributes (attributes);
-
-                          if (pat_desc)
-                            {
-                              CTFontDescriptorRef descriptor =
-                                CTFontDescriptorCreateMatchingFontDescriptor (pat_desc, NULL);
-
-                              if (descriptor)
-                                {
-                                  CFArrayAppendValue (descriptors, descriptor);
-                                  CFRelease (descriptor);
-                                }
-                              CFRelease (pat_desc);
-                            }
-                          CFRelease (attributes);
-                        }
-                    }
-                  result = descriptors;
-                }
-              break;
-            }
-        }
-    }
-#endif
-
-  return result;
-}
-
-static CFStringRef
-mac_font_copy_default_name_for_charset_and_languages (CFCharacterSetRef charset,
-                                                      CFArrayRef languages)
-{
-  CFStringRef result = NULL;
-  CFStringRef language = CFArrayGetValueAtIndex (languages, 0);
-  CFArrayRef descriptors =
-    mac_font_copy_default_descriptors_for_language (language);
-
-  if (descriptors)
-    {
-      CFIndex i, count = CFArrayGetCount (descriptors);
-
-      for (i = 0; i < count; i++)
-        {
-          CTFontDescriptorRef descriptor =
-            CFArrayGetValueAtIndex (descriptors, i);
-
-          if (macfont_supports_charset_and_languages_p (descriptor, charset,
-                                                        Qnil, languages))
-            {
-              CFStringRef family =
-                CTFontDescriptorCopyAttribute (descriptor,
-					       kCTFontFamilyNameAttribute);
-              if (family)
-                {
-                  if (!CFStringHasPrefix (family, CFSTR ("."))
-                      && !CFEqual (family, CFSTR ("LastResort")))
-                    {
-                      result = family;
-                      break;
-                    }
-                  else
-                    CFRelease (family);
-                }
-            }
-        }
-      CFRelease (descriptors);
     }
 
   return result;

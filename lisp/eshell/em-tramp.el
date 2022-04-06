@@ -1,6 +1,6 @@
 ;;; em-tramp.el --- Eshell features that require TRAMP  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: Aidan Gauland <aidalgol@no8wireless.co.nz>
 
@@ -51,10 +51,9 @@
   (when (eshell-using-module 'eshell-cmpl)
     (add-hook 'pcomplete-try-first-hook
 	      'eshell-complete-host-reference nil t))
-  (make-local-variable 'eshell-complex-commands)
-  (setq eshell-complex-commands
-	(append '("su" "sudo")
-		eshell-complex-commands)))
+  (setq-local eshell-complex-commands
+              (append '("su" "sudo")
+                      eshell-complex-commands)))
 
 (autoload 'eshell-parse-command "esh-cmd")
 

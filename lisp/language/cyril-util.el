@@ -1,6 +1,6 @@
-;;; cyril-util.el --- utilities for Cyrillic scripts
+;;; cyril-util.el --- utilities for Cyrillic scripts  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-1998, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2001-2022 Free Software Foundation, Inc.
 
 ;; Keywords: mule, multilingual, Cyrillic
 
@@ -47,7 +47,7 @@
 
 ;;;###autoload
 (defun standard-display-cyrillic-translit (&optional cyrillic-language)
-  "Display a cyrillic buffer using a transliteration.
+  "Display a Cyrillic buffer using a transliteration.
 For readability, the table is slightly
 different from the one used for the input method `cyrillic-translit'.
 

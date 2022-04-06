@@ -1,5 +1,6 @@
-;;; netrc.el --- .netrc parsing functionality
-;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
+;;; netrc.el --- .netrc parsing functionality  -*- lexical-binding: t -*-
+
+;; Copyright (C) 1996-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -40,8 +41,7 @@
 (defcustom netrc-file "~/.authinfo"
   "File where user credentials are stored."
   :version "24.1"
-  :type 'file
-  :group 'netrc)
+  :type 'file)
 
 (defvar netrc-services-file "/etc/services"
   "The name of the services file.")

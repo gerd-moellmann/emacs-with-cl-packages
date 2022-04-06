@@ -1,5 +1,5 @@
 /* Interface definition for macOS Core text font backend.
-   Copyright (C) 2009-2021 Free Software Foundation, Inc.
+   Copyright (C) 2009-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -45,28 +45,6 @@ struct mac_glyph_layout
   CGGlyph glyph_id;
 };
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-enum {
-  kCTFontTraitItalic = kCTFontItalicTrait,
-  kCTFontTraitBold = kCTFontBoldTrait,
-  kCTFontTraitMonoSpace = kCTFontMonoSpaceTrait,
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-  kCTFontTraitColorGlyphs = kCTFontColorGlyphsTrait
-#else
-  kCTFontTraitColorGlyphs = (1 << 13)
-#endif
-};
-
-enum {
-  kCTCharacterCollectionIdentityMapping = kCTIdentityMappingCharacterCollection,
-  kCTCharacterCollectionAdobeJapan1 = kCTAdobeJapan1CharacterCollection
-};
-
-enum {
-  kCTFontOrientationDefault = kCTFontDefaultOrientation
-};
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 enum {
   kCTFontTableSVG = 'SVG '
@@ -79,18 +57,6 @@ enum lgstring_direction
     DIR_R2L = -1, DIR_UNKNOWN = 0, DIR_L2R = 1,
   };
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-#define mac_font_get_glyph_for_cid mac_ctfont_get_glyph_for_cid
-#elif !defined (HAVE_NS)
-extern CGGlyph mac_ctfont_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
-					     CGFontIndex);
-extern CGGlyph mac_font_get_glyph_for_cid (CTFontRef, CTCharacterCollection,
-					   CGFontIndex);
-#endif
-
-#ifndef kCTVersionNumber10_9
-#define kCTVersionNumber10_9 0x00060000
-#endif
 #define MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE \
   (CFSTR ("MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE"))
 

@@ -1,6 +1,6 @@
 ;;; esh-opt.el --- command options processing  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -22,14 +22,6 @@
 ;;; Commentary:
 
 ;;; Code:
-
-
-;; Unused.
-;; (defgroup eshell-opt nil
-;;   "The options processing code handles command argument parsing for
-;; Eshell commands implemented in Lisp."
-;;   :tag "Command options processing"
-;;   :group 'eshell)
 
 ;;; User Functions:
 

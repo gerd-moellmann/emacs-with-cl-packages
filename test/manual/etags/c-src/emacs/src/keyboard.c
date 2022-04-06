@@ -1,6 +1,6 @@
 /* Keyboard and mouse input; editor command loop.
 
-Copyright (C) 1985-1989, 1993-1997, 1999-2021 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1997, 1999-2022 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -5754,7 +5754,7 @@ make_lispy_event (struct input_event *event)
 	    ignore_mouse_drag_p = 0;
 	  }
 
-	/* Now we're releasing a button - check the co-ordinates to
+	/* Now we're releasing a button - check the coordinates to
            see if this was a click or a drag.  */
 	else if (event->modifiers & up_modifier)
 	  {

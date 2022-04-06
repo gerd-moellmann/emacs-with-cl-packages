@@ -1,5 +1,5 @@
 /* Definitions and headers for AppKit framework on macOS.
-   Copyright (C) 2008-2021  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2022  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -31,24 +31,8 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 #define Z (current_buffer->text->z)
 
-#ifndef NSFoundationVersionNumber10_8_3
-#define NSFoundationVersionNumber10_8_3 945.16
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef double NSAppKitVersion;
-#ifndef NSAppKitVersionNumber10_6
-static const NSAppKitVersion NSAppKitVersionNumber10_6 = 1038;
-#endif
-#ifndef NSAppKitVersionNumber10_7
-static const NSAppKitVersion NSAppKitVersionNumber10_7 = 1138;
-#endif
-#ifndef NSAppKitVersionNumber10_8
-static const NSAppKitVersion NSAppKitVersionNumber10_8 = 1187;
-#endif
-#ifndef NSAppKitVersionNumber10_9
-static const NSAppKitVersion NSAppKitVersionNumber10_9 = 1265;
-#endif
 #ifndef NSAppKitVersionNumber10_10_Max
 static const NSAppKitVersion NSAppKitVersionNumber10_10_Max = 1349;
 #endif
@@ -145,34 +129,6 @@ typedef NSString * NSWindowTabbingIdentifier;
 /* Some methods that are not declared in older versions.  Should be
    used with some runtime check such as `respondsToSelector:'. */
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-@interface NSColor (AvailableOn1070AndLater)
-+ (NSColor *)colorWithSRGBRed:(CGFloat)red green:(CGFloat)green
-			 blue:(CGFloat)blue alpha:(CGFloat)alpha;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-@interface NSColor (AvailableOn1080AndLater)
-+ (NSColor *)colorWithCGColor:(CGColorRef)cgColor;
-- (CGColorRef)CGColor;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-@interface NSFileManager (AvailableOn1080AndLater)
-- (BOOL)trashItemAtURL:(NSURL *)url resultingItemURL:(NSURL **)outResultingURL
-		 error:(NSError **)error;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-  NSApplicationPresentationFullScreen			= 1 << 10,
-  NSApplicationPresentationAutoHideToolbar		= 1 << 11
-};
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
     NSWindowListOrderedFrontToBack = (1 << 0)
@@ -188,48 +144,6 @@ typedef NSInteger NSWindowListOptions;
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 typedef NSInteger NSModalResponse;
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-static const NSModalResponse NSModalResponseAbort = NSRunAbortedResponse;
-static const NSModalResponse NSModalResponseContinue = NSRunContinuesResponse;
-static const NSModalResponse NSModalResponseOK = NSOKButton;
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-  NSWindowCollectionBehaviorFullScreenPrimary	= 1 << 7,
-  NSWindowCollectionBehaviorFullScreenAuxiliary	= 1 << 8
-};
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-  NSWindowAnimationBehaviorDefault		= 0,
-  NSWindowAnimationBehaviorNone			= 2,
-  NSWindowAnimationBehaviorDocumentWindow	= 3,
-  NSWindowAnimationBehaviorUtilityWindow	= 4,
-  NSWindowAnimationBehaviorAlertPanel		= 5
-};
-typedef NSInteger NSWindowAnimationBehavior;
-
-enum {
-  NSFullScreenWindowMask = 1 << 14
-};
-
-@interface NSWindow (AvailableOn1070AndLater)
-- (NSWindowAnimationBehavior)animationBehavior;
-- (void)setAnimationBehavior:(NSWindowAnimationBehavior)newAnimationBehavior;
-- (void)toggleFullScreen:(id)sender;
-- (CGFloat)backingScaleFactor;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-@interface NSWindow (Undocumented)
-- (NSRect)_intersectBottomCornersWithRect:(NSRect)viewRect;
-- (void)_maskRoundedBottomCorners:(NSRect)clipRect;
-@end
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
@@ -292,40 +206,9 @@ typedef NSInteger NSWindowTabbingMode;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-@interface NSScreen (AvailableOn1070AndLater)
-- (CGFloat)backingScaleFactor;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSScreen (AvailableOn1090AndLater)
-+ (BOOL)screensHaveSeparateSpaces;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101500
 @interface NSScreen (AvailableOn101500AndLater)
 @property (readonly, copy) NSString *localizedName;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSAppearance : NSObject
-+ (NSAppearance *)appearanceNamed:(NSAppearanceName)name;
-+ (NSAppearance *)currentAppearance;
-+ (void)setCurrentAppearance:(NSAppearance *)appearance;
-@end
-
-@protocol NSAppearanceCustomization <NSObject>
-@property (retain) NSAppearance *appearance;
-@property (readonly, retain) NSAppearance *effectiveAppearance;
-@end
-
-@interface NSWindow (AppearanceCustomization) <NSAppearanceCustomization>
-@end
-
-@interface NSView (AppearanceCustomization) <NSAppearanceCustomization>
 @end
 #endif
 
@@ -338,13 +221,6 @@ typedef NSInteger NSWindowTabbingMode;
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101400
 @interface NSApplication (AppearanceCustomization) <NSAppearanceCustomization>
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-@interface NSAppearance (AvailableOn101000AndLater)
-@property (readonly, copy) NSAppearanceName name;
-@property (readonly) BOOL allowsVibrancy;
 @end
 #endif
 
@@ -382,48 +258,6 @@ enum {
   NSProgressIndicatorStyleBar = NSProgressIndicatorBarStyle,
   NSProgressIndicatorStyleSpinning = NSProgressIndicatorSpinningStyle
 };
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSSavePanel (AvailableOn1090AndLater)
-@property BOOL showsTagField;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-enum {
-    NSEventPhaseNone        = 0,
-    NSEventPhaseBegan       = 0x1 << 0,
-    NSEventPhaseStationary  = 0x1 << 1,
-    NSEventPhaseChanged     = 0x1 << 2,
-    NSEventPhaseEnded       = 0x1 << 3,
-    NSEventPhaseCancelled   = 0x1 << 4,
-};
-typedef NSUInteger NSEventPhase;
-
-@interface NSEvent (AvailableOn1070AndLater)
-- (BOOL)hasPreciseScrollingDeltas;
-- (CGFloat)scrollingDeltaX;
-- (CGFloat)scrollingDeltaY;
-- (NSEventPhase)momentumPhase;
-- (BOOL)isDirectionInvertedFromDevice;
-- (NSEventPhase)phase;
-+ (BOOL)isSwipeTrackingFromScrollEventsEnabled;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-enum {
-    NSEventTypeSmartMagnify = 32
-};
-
-enum {
-    NSEventPhaseMayBegin    = 0x1 << 5
-};
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-typedef NSUInteger NSEventModifierFlags;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
@@ -477,52 +311,8 @@ enum {
 };
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-@interface NSAnimationContext (AvailableOn1070AndLater)
-+ (void)runAnimationGroup:(void (^)(NSAnimationContext *context))changes
-        completionHandler:(void (^)(void))completionHandler;
-- (void)setTimingFunction:(CAMediaTimingFunction *)newTimingFunction;
-@end
-
-@interface CALayer (AvailableOn1070AndLater)
-@property CGFloat contentsScale;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 static const NSBezelStyle NSBezelStyleRounded = NSRoundedBezelStyle;
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-enum {
-  NSPaperOrientationPortrait	= NSPortraitOrientation,
-  NSPaperOrientationLandscape	= NSLandscapeOrientation
-};
-typedef NSInteger NSPaperOrientation;
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-@interface NSWorkspace (AvailableOn101000AndLater)
-- (BOOL)accessibilityDisplayShouldIncreaseContrast;
-- (BOOL)accessibilityDisplayShouldDifferentiateWithoutColor;
-- (BOOL)accessibilityDisplayShouldReduceTransparency;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
-@interface NSView (AvailableOn1080AndLater)
-@property (readonly) BOOL wantsUpdateLayer;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSView (AvailableOn1090AndLater)
-- (void)setLayerUsesCoreImageFilters:(BOOL)usesFilters;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-typedef NSUInteger NSAutoresizingMaskOptions;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
@@ -572,21 +362,6 @@ static const NSControlStateValue NSControlStateValueOn = NSOnState;
 @end
 #endif
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-@interface NSView (AvailableOn1070AndLater)
-@property BOOL translatesAutoresizingMaskIntoConstraints;
-@end
-
-@interface NSLayoutConstraint : NSObject <NSAnimatablePropertyContainer>
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 101000
-@interface NSLayoutConstraint (AvailableOn101000AndLater)
-@property (getter=isActive) BOOL active;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101100
 @interface NSLayoutAnchor : NSObject <NSCopying, NSCoding>
 - (NSLayoutConstraint *)constraintEqualToAnchor:(NSLayoutAnchor *)anchor;
@@ -627,12 +402,6 @@ static const NSControlStateValue NSControlStateValueOn = NSOnState;
 @property (readonly, retain) NSLayoutYAxisAnchor *centerYAnchor;
 @property (readonly, retain) NSLayoutYAxisAnchor *firstBaselineAnchor;
 @property (readonly, retain) NSLayoutYAxisAnchor *lastBaselineAnchor;
-@end
-#endif
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
-@interface NSStackView : NSView
-+ (instancetype)stackViewWithViews:(NSArrayOf (NSView *) *)views;
 @end
 #endif
 
@@ -709,9 +478,7 @@ typedef NSInteger NSGlyphProperty;
 
 @interface NSColor (Emacs)
 + (NSColor *)colorWithEmacsColorPixel:(unsigned long)pixel;
-- (CGColorRef)copyCGColor;
 - (BOOL)getSRGBComponents:(CGFloat *)components;
-+ (NSColor *)colorWithCoreGraphicsColor:(CGColorRef)cgColor;
 @end
 
 @interface NSImage (Emacs)
@@ -755,14 +522,6 @@ typedef NSInteger NSGlyphProperty;
 + (NSCursor *)_windowResizeSouthWestCursor;
 + (NSCursor *)_windowResizeSouthEastCursor;
 @end
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-/* Workarounds for memory leaks on OS X 10.9.  */
-@interface NSApplication (Undocumented)
-- (void)_installMemoryPressureDispatchSources;
-- (void)_installMemoryStatusDispatchSources;
-@end
-#endif
 
 @interface EmacsApplication : NSApplication
 @end
@@ -827,17 +586,6 @@ typedef NSInteger NSGlyphProperty;
      Topics".  */
   NSString *searchStringForAllHelpTopics;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101100
-  /* Date of last flushWindow call.  */
-  NSDate *lastFlushDate;
-
-  /* Timer for deferring flushWindow call.  */
-  NSTimer *flushTimer;
-
-  /* Set of windows whose flush is deferred.  */
-  NSMutableSetOf (NSWindow *) *deferredFlushWindows;
-#endif
-
   /* Set of key paths for which NSApp is observed via the
      `application-kvo' subkeymap in mac-apple-event-map.  */
   NSSetOf (NSString *) *observedKeyPaths;
@@ -853,11 +601,9 @@ typedef NSInteger NSGlyphProperty;
 - (void)cancelHelpEchoForEmacsFrame:(struct frame *)f;
 - (BOOL)conflictingKeyBindingsDisabled;
 - (void)setConflictingKeyBindingsDisabled:(BOOL)flag;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-- (void)flushWindow:(NSWindow *)window force:(BOOL)flag;
-#endif
 - (void)updatePresentationOptions;
 - (void)showMenuBar;
+- (BOOL)doesHoldQuit;
 @end
 
 /* Like NSWindow, but allows suspend/resume resize control tracking.
@@ -1005,9 +751,6 @@ typedef NSInteger NSGlyphProperty;
 - (NSRect)convertEmacsViewRectFromScreen:(NSRect)rect;
 - (NSRect)centerScanEmacsViewRect:(NSRect)rect;
 - (void)invalidateCursorRectsForEmacsView;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-- (void)maskRoundedBottomCorners:(NSRect)clipRect directly:(BOOL)flag;
-#endif
 - (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect;
 - (NSBitmapImageRep *)bitmapImageRep;
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist;
@@ -1127,11 +870,6 @@ typedef NSInteger NSGlyphProperty;
   /* Whether key events were interpreted by intepretKeyEvents:.  */
   BOOL keyEventsInterpreted;
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 101000
-  /* Whether scrollRect:by: has copied rounded bottom corner area.  */
-  BOOL roundedBottomCornersCopied;
-#endif
-
   /* Whether the raw key event below has mapped any of CGEvent flags.
      It is precalculated in keyDown: so as to avoid regeneration of a
      CGEvent object.  */
@@ -1175,9 +913,6 @@ typedef NSInteger NSGlyphProperty;
   BOOL highlighted;
 }
 - (void)setHighlighted:(BOOL)flag;
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
-- (void)setShowsResizeIndicator:(BOOL)flag;
-#endif
 @end
 
 /* Class for scroller that doesn't do modal mouse tracking.  */
@@ -1341,14 +1076,6 @@ typedef NSInteger NSGlyphProperty;
 @end
 
 @interface EmacsMenu : NSMenu
-@end
-
-@interface NSEvent (Undocumented)
-- (BOOL)_continuousScroll;
-- (NSInteger)_scrollPhase;
-- (CGFloat)deviceDeltaX;
-- (CGFloat)deviceDeltaY;
-- (CGFloat)deviceDeltaZ;
 @end
 
 @interface EmacsController (Menu) <NSMenuDelegate, NSUserInterfaceItemSearching>

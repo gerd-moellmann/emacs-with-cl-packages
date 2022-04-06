@@ -1,6 +1,6 @@
 ;;; esh-var.el --- handling of variables  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -34,7 +34,8 @@
 ;;
 ;; "-" is a valid part of a variable name.
 ;;
-;;   $<MYVAR>-TOO
+;;   $\"MYVAR\"-TOO
+;;   $'MYVAR'-TOO
 ;;
 ;; Only "MYVAR" is part of the variable name in this case.
 ;;
@@ -45,7 +46,7 @@
 ;;
 ;;   $(lisp)
 ;;
-;; Returns result of lisp evaluation.  Note: Used alone like this, it
+;; Returns result of Lisp evaluation.  Note: Used alone like this, it
 ;; is identical to just saying (lisp); but with the variable expansion
 ;; form, the result may be interpolated a larger string, such as
 ;; '$(lisp)/other'.
@@ -54,6 +55,11 @@
 ;;
 ;; Returns the value of an eshell subcommand.  See the note above
 ;; regarding Lisp evaluations.
+;;
+;;   $<command>
+;;
+;; Evaluates an eshell subcommand, redirecting the output to a
+;; temporary file, and returning the file name.
 ;;
 ;;   $ANYVAR[10]
 ;;
@@ -113,7 +119,6 @@
 (require 'esh-io)
 
 (require 'pcomplete)
-(require 'env)
 (require 'ring)
 
 (defgroup eshell-var nil
@@ -179,42 +184,60 @@ if they are quoted with a backslash."
 	      (eshell-apply-indices eshell-command-arguments
 				    indices)))))
   "This list provides aliasing for variable references.
-It is very similar in concept to what `eshell-user-aliases-list' does
-for commands.  Each member of this defines the name of a command,
-and the Lisp value to return for that variable if it is accessed
-via the syntax `$NAME'.
+Each member defines the name of a variable, and a Lisp value used to
+compute the string value that will be returned when the variable is
+accessed via the syntax `$NAME'.
 
-If the value is a function, that function will be called with two
-arguments: the list of the indices that was used in the reference, and
-whether the user is requesting the length of the ultimate element.
-For example, a reference of `$NAME[10][20]' would result in the
-function for alias `NAME' being called (assuming it were aliased to a
-function), and the arguments passed to this function would be the list
-'(10 20)', and nil."
+If the value is a function, call that function with two arguments: the
+list of the indices that was used in the reference, and whether the
+user is requesting the length of the ultimate element.  For example, a
+reference of `$NAME[10][20]' would result in the function for alias
+`NAME' being called (assuming it were aliased to a function), and the
+arguments passed to this function would be the list '(10 20)', and
+nil.
+
+If the value is a string, return the value for the variable with that
+name in the current environment.  If no variable with that name exists
+in the environment, but if a symbol with that same name exists and has
+a value bound to it, return its value instead.  You can prioritize
+symbol values over environment values by setting
+`eshell-prefer-lisp-variables' to t.
+
+If the value is a symbol, return the value bound to it.
+
+If the value has any other type, signal an error.
+
+Additionally, each member may specify if it should be copied to the
+environment of created subprocesses."
   :type '(repeat (list string sexp
 		       (choice (const :tag "Copy to environment" t)
 			       (const :tag "Use only in Eshell" nil)))))
 
 (put 'eshell-variable-aliases-list 'risky-local-variable t)
 
+(defvar eshell-var-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c M-v") #'eshell-insert-envvar)
+    map))
+
 ;;; Functions:
+
+(define-minor-mode eshell-var-mode
+  "Minor mode for the esh-var module.
+
+\\{eshell-var-mode-map}"
+  :keymap eshell-var-mode-map)
 
 (defun eshell-var-initialize ()     ;Called from `eshell-mode' via intern-soft!
   "Initialize the variable handle code."
   ;; Break the association with our parent's environment.  Otherwise,
   ;; changing a variable will affect all of Emacs.
   (unless eshell-modify-global-environment
-    (set (make-local-variable 'process-environment)
-	 (eshell-copy-environment)))
+    (setq-local process-environment (eshell-copy-environment)))
 
-  ;; This is supposedly run after enabling esh-mode, when eshell-command-map
-  ;; already exists.
-  (defvar eshell-command-map)
-  (define-key eshell-command-map [(meta ?v)] 'eshell-insert-envvar)
-
-  (set (make-local-variable 'eshell-special-chars-inside-quoting)
+  (setq-local eshell-special-chars-inside-quoting
        (append eshell-special-chars-inside-quoting '(?$)))
-  (set (make-local-variable 'eshell-special-chars-outside-quoting)
+  (setq-local eshell-special-chars-outside-quoting
        (append eshell-special-chars-outside-quoting '(?$)))
 
   (add-hook 'eshell-parse-argument-hook #'eshell-interpolate-variable t t)
@@ -338,7 +361,7 @@ This function is explicit for adding to `eshell-parse-argument-hook'."
 (defun pcomplete/eshell-mode/setq ()
   "Completion function for Eshell's `setq'."
   (while (and (pcomplete-here (all-completions pcomplete-stub
-					       obarray 'boundp))
+					       obarray #'boundp))
 	      (pcomplete-here))))
 
 ;; FIXME the real "env" command does more than this, it runs a program
@@ -363,9 +386,8 @@ This function is explicit for adding to `eshell-parse-argument-hook'."
 
 (defun eshell-envvar-names (&optional environment)
   "Return a list of currently visible environment variable names."
-  (mapcar (function
-	   (lambda (x)
-	     (substring x 0 (string-match "=" x))))
+  (mapcar (lambda (x)
+            (substring x 0 (string-search "=" x)))
 	  (or environment process-environment)))
 
 (defun eshell-environment-variables ()
@@ -410,9 +432,12 @@ variable.
 Possible options are:
 
   NAME          an environment or Lisp variable value
-  <LONG-NAME>   disambiguates the length of the name
+  \"LONG-NAME\"   disambiguates the length of the name
+  'LONG-NAME'   as above
   {COMMAND}     result of command is variable's value
-  (LISP-FORM)   result of Lisp form is variable's value"
+  (LISP-FORM)   result of Lisp form is variable's value
+  <COMMAND>     write the output of command to a temporary file;
+                result is the file name"
   (cond
    ((eq (char-after) ?{)
     (let ((end (eshell-find-delimiter ?\{ ?\})))
@@ -444,8 +469,12 @@ Possible options are:
                    (eshell-as-subcommand ,(eshell-parse-command cmd))
                    (ignore
                     (nconc eshell-this-command-hook
+                           ;; Quote this lambda; it will be evaluated
+                           ;; by `eshell-do-eval', which requires very
+                           ;; particular forms in order to work
+                           ;; properly.  See bug#54190.
                            (list (function (lambda ()
-                                              (delete-file ,temp))))))
+                                   (delete-file ,temp))))))
                    (quote ,temp)))
             (goto-char (1+ end)))))))
    ((eq (char-after) ?\()
@@ -599,14 +628,13 @@ For example, to retrieve the second element of a user's record in
     (sort
      (append
       (mapcar
-       (function
-	(lambda (varname)
-	  (let ((value (eshell-get-variable varname)))
-	    (if (and value
-		     (stringp value)
-		     (file-directory-p value))
-		(concat varname "/")
-	      varname))))
+       (lambda (varname)
+         (let ((value (eshell-get-variable varname)))
+           (if (and value
+                    (stringp value)
+                    (file-directory-p value))
+               (concat varname "/")
+             varname)))
        (eshell-envvar-names (eshell-environment-variables)))
       (all-completions argname obarray 'boundp)
       completions)

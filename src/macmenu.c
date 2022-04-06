@@ -1,6 +1,6 @@
 /* Menu support for GNU Emacs on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2021  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2022  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -97,12 +97,10 @@ If FRAME is nil or not given, use the selected frame.  */)
 }
 
 
-/* Set the contents of the menubar widgets of frame F.
-   The argument FIRST_TIME is currently ignored;
-   it is set the first time this is called, from initialize_frame_menubar.  */
+/* Set the contents of the menubar widgets of frame F.  */
 
 void
-set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
+set_frame_menubar (struct frame *f, bool deep_p)
 {
   int menubar_widget = f->output_data.mac->menubar_widget;
   Lisp_Object items;
@@ -167,7 +165,7 @@ set_frame_menubar (struct frame *f, bool first_time, bool deep_p)
 
       /* Save the frame's previous menu bar contents data.  */
       if (previous_menu_items_used)
-	memcpy (previous_items, XVECTOR (f->menu_bar_vector)->contents,
+	memcpy (previous_items, xvector_contents (f->menu_bar_vector),
 		previous_menu_items_used * word_size);
 
       /* Fill in menu_items with the current menu bar contents.
@@ -486,6 +484,14 @@ mac_menu_show (struct frame *f, int x, int y, int menuflags,
 				  STRINGP (help) ? help : Qnil);
 	  if (prev_wv)
 	    prev_wv->next = wv;
+	  else if (!save_wv)
+	    {
+	      /* This emacs_abort call pacifies gcc 11.2.1 when Emacs
+		 is configured with --enable-gcc-warnings.  FIXME: If
+		 save_wv can be null, do something better; otherwise,
+		 explain why save_wv cannot be null.  */
+	      emacs_abort ();
+	    }
 	  else
 	    save_wv->contents = wv;
 	  if (!NILP (descrip))

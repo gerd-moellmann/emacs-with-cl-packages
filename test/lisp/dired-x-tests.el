@@ -1,6 +1,6 @@
 ;;; dired-x-tests.el --- Test suite for dired-x. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -49,5 +49,18 @@
                          (sort (dired-get-marked-files 'local) #'string<))))
       (delete-directory dir 'recursive))))
 
+(ert-deftest dired-guess-default ()
+  (let ((dired-guess-shell-alist-user nil)
+        (dired-guess-shell-alist-default
+         '(("\\.png\\'" "display")
+           ("\\.gif\\'" "display" "xloadimage")
+           ("\\.gif\\'" "feh")
+           ("\\.jpe?g\\'" "xloadimage"))))
+    (should (equal (dired-guess-default '("/tmp/foo.png")) "display"))
+    (should (equal (dired-guess-default '("/tmp/foo.gif"))
+                   '("display" "xloadimage" "feh")))
+    (should (equal (dired-guess-default '("/tmp/foo.png" "/tmp/foo.txt"))
+                   nil))))
+
 (provide 'dired-x-tests)
-;; dired-x-tests.el ends here
+;;; dired-x-tests.el ends here

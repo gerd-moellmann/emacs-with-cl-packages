@@ -1,6 +1,6 @@
 ;;; pc-win.el --- setup support for `PC windows' (whatever that is)  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1994, 1996-1997, 1999, 2001-2021 Free Software
+;; Copyright (C) 1994, 1996-1997, 1999, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Morten Welinder <terra@diku.dk>
@@ -290,7 +290,7 @@ This is used by `msdos-show-help'.")
              (not cursor-in-echo-area)) ;Don't overwrite a prompt.
     (cond
      ((stringp help)
-      (setq help (replace-regexp-in-string "\n" ", " help))
+      (setq help (string-replace "\n" ", " help))
       (unless (or msdos-previous-message
 		  (string-equal help (current-message))
 		  (and (stringp msdos-last-help-message)

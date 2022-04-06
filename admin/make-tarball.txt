@@ -5,7 +5,7 @@ Instructions to create pretest or release tarballs. -*- coding: utf-8 -*-
 
 Steps to take before starting on the first pretest in any release sequence:
 
-0.  The release branch (e.g. emacs-27) should already have been made
+0.  The release branch (e.g. emacs-28) should already have been made
     and you should use it for all that follows.  Diffs from this
     branch should be going to the emacs-diffs mailing list.
 
@@ -14,12 +14,13 @@ Steps to take before starting on the first pretest in any release sequence:
 
 2.  Consider increasing the value of the variable
     'customize-changed-options-previous-release' in cus-edit.el to
-    refer to a newer version of Emacs.  (This is probably needed only
-    when preparing the first pretest for a major Emacs release.)
+    refer to a newer version of Emacs.  (This is now done when cutting
+    the release branch, see admin/release-branch.txt.)
     Commit cus-edit.el if changed.
 
 3.  Remove any old pretests from https://alpha.gnu.org/gnu/emacs/pretest.
     You can use 'gnupload --delete' (see below for more gnupload details).
+    (We currently don't bother with this.)
 
 General steps (for each step, check for possible errors):
 
@@ -41,6 +42,17 @@ General steps (for each step, check for possible errors):
     Make sure the tree is built, or at least configured.  That's
     because some of the commands below run Make, so they need
     Makefiles to be present.
+
+    For Emacs 28 and later, as long as --with-native-compilation is
+    not the default, the tree needs to be configured with
+    native-compilation enabled, to ensure all the pertinent *.elc
+    files will end up in the tarball.  Otherwise, the *.eln files
+    might not build correctly on the user's system.
+
+    For a release (as opposed to pretest), delete any left-over "---"
+    and "+++" markers from etc/NEWS, as well as the "Temporary note"
+    section at the beginning of that file, and commit etc/NEWS if it
+    was modified.
 
 2.  Regenerate the etc/AUTHORS file:
       M-: (require 'authors) RET
@@ -73,20 +85,29 @@ General steps (for each step, check for possible errors):
 
 3.  Set the version number (M-x load-file RET admin/admin.el RET, then
     M-x set-version RET).  For a pretest, start at version .90.  After
-    .99, use .990 (so that it sorts).
+    .99, use .990 (so that it sorts).  Commit the resulting changes
+    as one, with nothing else included, and using a log message
+    of the format "Bump Emacs version to ...", so that the commit can
+    be skipped when merging branches (see admin/gitmerge.el).
 
     The final pretest should be a release candidate.
     Before a release candidate is made, the tasks listed in
     admin/release-process must be completed.
 
-    Set the version number to that of the actual release.  Pick a date
-    about a week from now when you intend to make the release.  Use M-x
-    add-release-logs to add entries to etc/HISTORY and the ChangeLog
-    file.  It's best not to commit these files until the release is
-    actually made.  Merge the entries from (unversioned) ChangeLog
-    into the top of the current versioned ChangeLog.N and commit that
-    along with etc/HISTORY.  Then you can tag that commit as the
-    release.
+    Set the version number to that of the actual release (commit in
+    one, as described above).  Pick a date about a week from now when
+    you intend to make the release.  Use M-x add-release-logs to add
+    entries to etc/HISTORY and the ChangeLog file.  It's best not to
+    commit these files until the release is actually made.  Merge the
+    entries from (unversioned) ChangeLog into the top of the current
+    versioned ChangeLog.N and commit that along with etc/HISTORY.
+    Then you can tag that commit as the release.
+
+    Alternatively, you can commit and tag with the RC tag right away,
+    and delay the final tagging until you actually decide to make a
+    release and announce it.  The "git tag" command can tag a specific
+    commit if you give it the SHA1 of that commit, even if additional
+    commits have been pushed in the meantime.
 
     Name the tar file as emacs-XX.Y-rc1.tar.  If all goes well in the
     following week, you can simply rename the file and use it for the
@@ -101,11 +122,11 @@ General steps (for each step, check for possible errors):
     Never replace an existing tarfile!  If you need to fix something,
     always upload it with a different name.
 
-4.   autoreconf -i -I m4 --force
-     make bootstrap
+4.    autoreconf -i -I m4 --force
+      make bootstrap
 
-     make -C etc/refcards
-     make -C etc/refcards clean
+      make -C etc/refcards
+      make -C etc/refcards clean
 
     If some of the etc/refcards, especially the non-English ones, fail
     to build, you probably need to install some TeX/LaTeX packages, in
@@ -119,13 +140,18 @@ General steps (for each step, check for possible errors):
 5.  Copy lisp/loaddefs.el to lisp/ldefs-boot.el.
 
     Commit ChangeLog.N, etc/AUTHORS, lisp/ldefs-boot.el, and the
-    files changed by M-x set-version.
+    files changed by M-x set-version.  The easiest way of doing that
+    is "C-x v d ROOT-DIR RET", then go to the first modified file,
+    press 'M' to mark all modified files, and finally 'v' to commit
+    them.  Make sure the commit log message mentions all the changes
+    in all modified files, as by default 'v' doesn't necessarily do
+    so.
 
     If someone else made a commit between step 1 and now,
     you need to repeat from step 4 onwards.  (You can commit the files
     from step 2 and 3 earlier to reduce the chance of this.)
 
-6.  ./make-dist --snapshot --no-compress
+6.   ./make-dist --snapshot --no-compress
 
     Check the contents of the new tar with admin/diff-tar-files
     against the previous release (if this is the first pretest) or the
@@ -133,13 +159,29 @@ General steps (for each step, check for possible errors):
     yourself, find it at <https://alpha.gnu.org/gnu/emacs/pretest>.
     Releases are of course at <https://ftp.gnu.org/pub/gnu/emacs/>.
 
+     ./admin/diff-tar-files emacs-OLD.tar.gz emacs-NEW.tar.gz
+
+    Alternatively:
+
+     tar tJf emacs-OLD.tar.xz | sed -e 's,^[^/]*,,' | sort > old_tmp
+     tar tJf emacs-NEW.tar.xz | sed -e 's,^[^/]*,,' | sort > new_tmp
+     diff -u old_tmp new_tmp
+
     If this is the first pretest of a major release, just comparing
     with the previous release may overlook many new files.  You can try
-    something like 'find . | sort' in a clean repository, and compare the
-    results against the new tar contents.
+    something like 'find . | sort' in a clean repository, and
+    compare the results against the new tar contents.  Another
+    alternative is using something like:
+
+     tar cf - emacs-NEW | tar t -C /tmp | grep -Ev "\.(o|d)$" | sort
+
+    Where emacs-NEW is the directory containing your clean repository.
+    The output of this command might be easier to compare to the
+    tarball than the one you get from find.
 
 7.   tar -xf emacs-NEW.tar; cd emacs-NEW
      ./configure --prefix=/tmp/emacs && make check && make install
+
     Use 'script' or M-x compile to save the compilation log in
     compile-NEW.log and compare it against an old one.  The easiest way
     to do that is to visit the old log in Emacs, change the version
@@ -147,8 +189,31 @@ General steps (for each step, check for possible errors):
     M-x ediff.  Especially check that Info files aren't built, and that
     no autotools (autoconf etc) run.
 
-8.  cd EMACS_ROOT_DIR && git tag -a TAG && git push origin tag TAG
-    TAG is emacs-XX.Y.ZZ for a pretest, emacs-XX.Y for a release.
+8.  You can now tag the release/pretest and push it together with the
+    last commit:
+
+     cd EMACS_ROOT_DIR && git tag -a TAG -m "Emacs TAG"
+     git push
+     git push --tags
+
+    Here TAG is emacs-XX.Y.ZZ for a pretest, emacs-XX.Y for a release.
+    For a release, if you are producing a release candidate first, use
+    emacs-XX.Y-rcN (N = 1, 2, ...) when you tar the RC, and add the
+    actual release tag later, when the official release tarball is
+    uploaded to ftp.gnu.org.  When adding a tag later, it is safer to
+    use the SHA1 of the last commit which went into the release
+    tarball, in case there were some intervening commits since then:
+
+     git tag -a TAG -m "Emacs TAG" SHA1
+     git push --tags
+
+    In the past, we were not always consistent with the annotation
+    (i.e. -m "Emacs TAG").  The preferred format is like this for a
+    pretest, release candidate and final release:
+
+     git tag -a emacs-28.0.90  -m "Emacs 28.0.90 pretest"
+     git tag -a emacs-28.1-rc1 -m "Emacs 28.1 RC1"
+     git tag -a emacs-28.1     -m "Emacs 28.1 release"
 
 9. Decide what compression schemes to offer.
     For a release, at least gz and xz:
@@ -172,7 +237,9 @@ General steps (for each step, check for possible errors):
        FILE.gz FILE.xz ...
 
     You only need the --user part if you have multiple GPG keys and do
-    not want to use the default.
+    not want to use the default.  Instead of "your@gpg.key.email" you
+    could also use the fingerprint of the key, a 40-digit hex number.
+    (Alternatively, define default-key in your ~/.gnupg/gpg.conf file.)
     Obviously, if you do not have a fast uplink, be prepared for the
     upload to take a while.
 
@@ -212,26 +279,53 @@ General steps (for each step, check for possible errors):
     because replies that invariably are not announcements also get
     sent out as if they were.)
 
-12. After a release, update the Emacs pages as below.
+    To create the included SHA1 and SHA256 checksums, run:
 
+     sha1sum emacs-NEW.tar.xz
+     sha256sum emacs-NEW.tar.xz
+
+12. After a release, update the Emacs pages as described below.
+
+13. Bump the Emacs version on the release branch.
+    If the released version was XX.Y, use 'set-version' from
+    admin/admin.el to bump the version on the release branch to
+    XX.Y.50.  Commit the changes.
 
 UPDATING THE EMACS WEB PAGES AFTER A RELEASE
 
-As soon as possible after a release, the Emacs web pages should be updated.
-(See admin/notes/www for general information.)
+As soon as possible after a release, the Emacs web pages at
+https://www.gnu.org/software/emacs/ should be updated.  (See
+admin/notes/www for general information.)
 
 The pages to update are:
 
 emacs.html (for a new major release, a more thorough update is needed)
 history.html
 add the new NEWS file as news/NEWS.xx.y
+Copy new etc/MACHINES to MACHINES and CONTRIBUTE to CONTRIBUTE
 
 For every new release, a banner is displayed on top of the emacs.html
 page.  Uncomment and the release banner in emacs.html.  Keep it on the
-page for about a month, then comment it again.
+page for about a month, then comment it again.  The new release banner
+looks like this:
+
+    <div class="release-banner">
+	<div class="container">
+	    <h2><em>Emacs 27.1 is out</em>, download it <a href="download.html">here</a>!</h2>
+	</div>
+    </div>
 
 Regenerate the various manuals in manual/.
 The scripts admin/make-manuals and admin/upload-manuals summarize the process.
+
+If you have Texinfo installed locally, make-manuals might fail if it
+cannot find epsf.tex.  In that case define in the environment
+
+  TEXINPUTS=:/path/to/texinfo-tree/doc
+
+where /path/to/texinfo-tree is the absolute file name of the top-level
+directory where you have the Texinfo source tree.  Then re-run
+make-manuals.
 
 Browsing <https://web.cvs.savannah.gnu.org/viewvc/?root=emacs> is one
 way to check for any files that still need updating.

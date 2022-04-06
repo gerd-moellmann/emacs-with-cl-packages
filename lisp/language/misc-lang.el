@@ -1,4 +1,4 @@
-;;; misc-lang.el --- support for miscellaneous languages (characters)
+;;; misc-lang.el --- support for miscellaneous languages (characters)  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
@@ -136,10 +136,81 @@ thin (i.e. 1-dot width) space."
 (set-char-table-range
  composition-function-table
  '(#x600 . #x74F)
- (list (vector "[\u0600-\u074F\u200C\u200D]+" 0
-               'arabic-shape-gstring)
-       (vector "[\u200C\u200D][\u0600-\u074F\u200C\u200D]+" 1
-               'arabic-shape-gstring)))
+ (list (vector "[\u200C\u200D][\u0600-\u074F\u200C\u200D]+"
+               1 #'arabic-shape-gstring)
+       (vector "[\u0600-\u074F\u200C\u200D]+"
+               0 #'arabic-shape-gstring)))
+
+;; The Egyptian Hieroglyph Format Controls were introduced in Unicode
+;; Standard v12.0.  Apparently, they are not yet well supported in
+;; existing fonts, as of late 2020.  But there's no reason for us not
+;; to be ready for when they will be!
+;; The below is needed to support the arrangement of the Egyptian
+;; Hieroglyphs in "quadrats", as directed by the format controls,
+;; which specify how the hieroglyphs should be joined horizontally and
+;; vertically.
+(defun egyptian-shape-grouping (gstring direction)
+  (if (= (lgstring-char gstring 0) #x13437)
+      (let ((nchars (lgstring-char-len gstring))
+            (i 1)
+            (nesting 1)
+            ch)
+        ;; Find where this group ends.
+        (while (and (< i nchars) (> nesting 0))
+          (setq ch (lgstring-char gstring i))
+          (cond
+           ((= ch #x13437)
+            (setq nesting (1+ nesting)))
+           ((= ch #x13438)
+            (setq nesting (1- nesting))))
+          (setq i (1+ i)))
+        (when (zerop nesting)
+          ;; Make a new gstring from the characters that constitute a
+          ;; complete nested group.
+          (let ((new-header (make-vector (1+ i) nil))
+                (new-gstring (make-vector (+ i 2) nil)))
+            (aset new-header 0 (lgstring-font gstring))
+            (dotimes (j i)
+              (aset new-header (1+ j) (lgstring-char gstring j))
+              (lgstring-set-glyph new-gstring j (lgstring-glyph gstring j)))
+            (lgstring-set-header new-gstring new-header)
+            (font-shape-gstring new-gstring direction))))))
+
+(let ((hieroglyph "[\U00013000-\U0001342F]"))
+  ;; HORIZONTAL/VERTICAL JOINER and INSERT AT.../OVERLAY controls
+  (set-char-table-range
+   composition-function-table
+   '(#x13430 . #x13436)
+   (list (vector (concat hieroglyph "[\U00013430-\U00013436]" hieroglyph)
+                 ;; We use font-shape-gstring so that, if the font
+                 ;; doesn't support these controls, the glyphs are
+                 ;; displayed individually, and not as a single
+                 ;; grapheme cluster.
+                 1 #'font-shape-gstring)))
+  ;; Grouping controls
+  (set-char-table-range
+   composition-function-table
+   #x13437
+   (list (vector "\U00013437[\U00013000-\U0001343F]+"
+                 0 #'egyptian-shape-grouping)))
+  ;; "Normal" hieroglyphs, for fonts that don't support the above
+  ;; controls, but do shape sequences of hieroglyphs without the
+  ;; controls.
+  ;; FIXME: As of late 2021, Egyptian Hieroglyph Format Controls are
+  ;; not yet supported in existing fonts and/or shaping engines, but
+  ;; some fonts do provide ligatures with which texts in Egyptian
+  ;; Hieroglyphs are correctly displayed.  If and when these format
+  ;; controls are supported, as described in section 11.4 "Egyptian
+  ;; Hieroglyphs" of the Unicode Standard, the five lines below (which
+  ;; allow composition of hieroglyphs without formatting controls
+  ;; around) can be removed, and the entry in etc/HELLO can be
+  ;; restored to:
+  ;; Egyptian Hieroglyphs (𓂋𓐰𓏤𓈖𓆎𓅓𓏏𓐰𓊖) 𓅓𓊵𓐰𓐷𓏏𓊪𓐸, 𓇍𓇋𓂻𓍘𓇋
+  (set-char-table-range
+   composition-function-table
+   '(#x13000 . #x1342E)
+   (list (vector "[\U00013000-\U0001342E]+"
+                 0 #'font-shape-gstring))))
 
 (provide 'misc-lang)
 

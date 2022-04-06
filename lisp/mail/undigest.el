@@ -1,6 +1,6 @@
 ;;; undigest.el --- digest-cracking support for the RMAIL mail reader  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1994, 1996, 2001-2021 Free Software
+;; Copyright (C) 1985-1986, 1994, 1996, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -125,7 +125,7 @@ See rmail-digest-methods."
 	  ;; Undo masking of separators inside digestified messages
 	  (goto-char (point-min))
 	  (while (search-forward
-		  (replace-regexp-in-string "\n-" "\n " separator) nil t)
+		  (string-replace "\n-" "\n " separator) nil t)
 	    (replace-match separator))
 	  ;; Return the list of marker pairs
 	  (nreverse result))))))

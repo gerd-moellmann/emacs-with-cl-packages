@@ -1,6 +1,6 @@
-;;; tpu-mapper.el --- create a TPU-edt X-windows keymap file
+;;; tpu-mapper.el --- create a TPU-edt X-windows keymap file  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1993-1995, 2001-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1993-1995, 2001-2022 Free Software Foundation, Inc.
 
 ;; Author: Rob Riepel <riepel@networking.stanford.edu>
 ;; Keywords: emulations
@@ -69,7 +69,7 @@
 
 ;;;###autoload
 (defun tpu-mapper ()
-  "Create an Emacs lisp file defining the TPU-edt keypad for X-windows.
+  "Create an Emacs Lisp file defining the TPU-edt keypad for X-windows.
 
 This command displays an instruction screen showing the TPU-edt keypad
 and asks you to press the TPU-edt editing keys.  It uses the keys you

@@ -8,7 +8,7 @@
 @syncodeindex pg cp
 
 @copying
-Copyright @copyright{} 2004--2005, 2007--2021 Free Software Foundation,
+Copyright @copyright{} 2004--2005, 2007--2022 Free Software Foundation,
 Inc.
 
 @quotation
@@ -95,16 +95,6 @@ There are no Gnus dependencies in this file.
 Read passwords from user, possibly using a password cache.
 @c As of 2005-10-21...
 There are no Gnus dependencies in this file.
-
-@item tls.el
-TLS/SSL support via wrapper around GnuTLS
-@c As of 2005-10-21...
-There are no Gnus dependencies in this file.
-
-@item pgg*.el
-Glue for the various PGP implementations.
-@c As of 2005-10-21...
-There are no Gnus dependencies in these files.
 
 @item sha1.el
 SHA1 Secure Hash Algorithm.

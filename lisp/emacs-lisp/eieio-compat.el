@@ -1,6 +1,6 @@
 ;;; eieio-compat.el --- Compatibility with Older EIEIO versions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1995-1996, 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: OO, lisp
@@ -105,7 +105,7 @@ Summary:
   (declare (doc-string 3) (obsolete cl-defmethod "25.1")
            (debug
             (&define                    ; this means we are defining something
-             [&or name ("setf" name :name setf)]
+             [&name sexp]   ;Allow (setf ...) additionally to symbols.
              ;; ^^ This is the methods symbol
              [ &optional symbolp ]                ; this is key :before etc
              cl-generic-method-args               ; arguments

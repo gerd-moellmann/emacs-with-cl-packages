@@ -1,5 +1,5 @@
 /* Thread definitions
-Copyright (C) 2012-2021 Free Software Foundation, Inc.
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -26,6 +26,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 
 #ifdef MSDOS
+#include <time.h>               /* struct rpl_timespec */
 #include <signal.h>		/* sigset_t */
 #endif
 
@@ -140,7 +141,6 @@ struct thread_state
      for user-input when that process-filter was called.
      waiting_for_input cannot be used as that is by definition 0 when
      lisp code is being evalled.
-     This is also used in record_asynch_buffer_change.
      For that purpose, this must be 0
      when not inside wait_reading_process_output.  */
   int m_waiting_for_user_input_p;

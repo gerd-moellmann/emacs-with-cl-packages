@@ -1,5 +1,5 @@
 /* Terminal hooks for GNU Emacs on the Microsoft Windows API.
-   Copyright (C) 1992, 1999, 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 1992, 1999, 2001-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -803,7 +803,7 @@ initialize_w32_display (struct terminal *term, int *width, int *height)
       ceol_initialized = FALSE;
     }
 
-  if (os_subtype == OS_NT)
+  if (os_subtype == OS_SUBTYPE_NT)
     w32_console_unicode_input = 1;
   else
     w32_console_unicode_input = 0;

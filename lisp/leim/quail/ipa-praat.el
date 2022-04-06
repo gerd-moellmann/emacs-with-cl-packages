@@ -1,6 +1,6 @@
-;;; ipa-praat.el --- Inputting IPA characters with the conventions of Praat
+;;; ipa-praat.el --- Inputting IPA characters with the conventions of Praat  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
 
 ;; Author: Oliver Scholz <epameinondas@gmx.de>
 ;; Keywords: multilingual, input method, IPA
@@ -35,7 +35,7 @@
  "ipa-praat" "IPA" "IPAP" t
  "International Phonetic Alphabet input method.
 This follows the input method of the phonetic analysis program
-Praat (http://www.fon.hum.uva.nl/praat/).
+Praat (https://www.fon.hum.uva.nl/praat/).
 
 
 * Vowels

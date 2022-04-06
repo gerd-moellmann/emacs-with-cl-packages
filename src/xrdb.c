@@ -1,5 +1,5 @@
 /* Deal with the X Resource Manager.
-   Copyright (C) 1990, 1993-1994, 2000-2021 Free Software Foundation,
+   Copyright (C) 1990, 1993-1994, 2000-2022 Free Software Foundation,
    Inc.
 
 Author: Joseph Arceneaux
@@ -353,7 +353,7 @@ get_environ_db (void)
 	  p = filename = xmalloc (strlen (home) + 1 + sizeof xdefaults
 				  + 1 + SBYTES (system_name));
 	  char *e = splice_dir_file (p, home, xdefaults);
-	  *e++ = '/';
+	  *e++ = '-';
 	  lispstpcpy (e, system_name);
 	}
     }

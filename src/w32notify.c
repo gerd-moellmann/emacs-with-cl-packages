@@ -1,6 +1,6 @@
 /* Filesystem notifications support for GNU Emacs on the Microsoft Windows API.
 
-Copyright (C) 2012-2021 Free Software Foundation, Inc.
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
 
 Author: Eli Zaretskii <eliz@gnu.org>
 
@@ -566,7 +566,7 @@ generate notifications correctly, though.  */)
   CHECK_LIST (filter);
 
   /* The underlying features are available only since XP.  */
-  if (os_subtype == OS_9X
+  if (os_subtype == OS_SUBTYPE_9X
       || (w32_major_version == 5 && w32_minor_version < 1))
     {
       errno = ENOSYS;

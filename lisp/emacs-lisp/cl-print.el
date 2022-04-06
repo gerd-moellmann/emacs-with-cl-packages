@@ -1,6 +1,6 @@
 ;;; cl-print.el --- CL-style generic printing  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords:
@@ -32,8 +32,6 @@
 ;; The main entry point is `cl-prin1'.
 
 ;;; Code:
-
-(require 'button)
 
 (defvar cl-print-readably nil
   "If non-nil, try and make sure the result can be `read'.")

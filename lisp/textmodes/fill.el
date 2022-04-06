@@ -1,6 +1,6 @@
-;;; fill.el --- fill commands for Emacs
+;;; fill.el --- fill commands for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-1997, 1999, 2001-2021 Free
+;; Copyright (C) 1985-1986, 1992, 1994-1997, 1999, 2001-2022 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -40,23 +40,22 @@ Non-nil means changing indent doesn't end a paragraph.
 That mode can handle paragraphs with extra indentation on the first line,
 but it requires separator lines between paragraphs.
 A value of nil means that any change in indentation starts a new paragraph."
-  :type 'boolean
-  :group 'fill)
+  :type 'boolean)
 
 (defcustom colon-double-space nil
   "Non-nil means put two spaces after a colon when filling."
-  :type 'boolean
-  :group 'fill)
-(put 'colon-double-space 'safe-local-variable 'booleanp)
+  :type 'boolean)
+(put 'colon-double-space 'safe-local-variable #'booleanp)
 
 (defcustom fill-separate-heterogeneous-words-with-space nil
   "Non-nil means to use a space to separate words of a different kind.
-This will be done with a word in the end of a line and a word in
-the beginning of the next line when concatenating them for
-filling those lines.  Whether to use a space depends on how the
-words are categorized."
+For example, when an English word at the end of a line and a CJK word
+at the beginning of the next line are joined into a single line, they
+will be separated by a space if this variable is non-nil.
+Whether to use a space to separate such words also depends on the entry
+in `fill-nospace-between-words-table' for the characters before and
+after the newline."
   :type 'boolean
-  :group 'fill
   :version "26.1")
 
 (defvar fill-paragraph-function nil
@@ -75,8 +74,7 @@ such as `fill-forward-paragraph-function'.")
 Kinsoku processing is designed to prevent certain characters from being
 placed at the beginning or end of a line by filling.
 See the documentation of `kinsoku' for more information."
-  :type 'boolean
-  :group 'fill)
+  :type 'boolean)
 
 (defun set-fill-prefix ()
   "Set the fill prefix to the current line up to point.
@@ -96,8 +94,7 @@ reinserts the fill prefix in each resulting line."
 
 (defcustom adaptive-fill-mode t
   "Non-nil means determine a paragraph's fill prefix from its text."
-  :type 'boolean
-  :group 'fill)
+  :type 'boolean)
 
 (defcustom adaptive-fill-regexp
   ;; Added `!' for doxygen comments starting with `//!' or `/*!'.
@@ -113,8 +110,7 @@ standard indentation for the whole paragraph.
 If the paragraph has just one line, the indentation is taken from that
 line, but in that case `adaptive-fill-first-line-regexp' also plays
 a role."
-  :type 'regexp
-  :group 'fill)
+  :type 'regexp)
 
 (defcustom adaptive-fill-first-line-regexp (purecopy "\\`[ \t]*\\'")
   "Regexp specifying whether to set fill prefix from a one-line paragraph.
@@ -126,18 +122,18 @@ By default, this regexp matches sequences of just spaces and tabs.
 
 However, we never use a prefix from a one-line paragraph
 if it would act as a paragraph-starter on the second line."
-  :type 'regexp
-  :group 'fill)
+  :type 'regexp)
 
 (defcustom adaptive-fill-function #'ignore
   "Function to call to choose a fill prefix for a paragraph.
 A nil return value means the function has not determined the fill prefix."
   :version "27.1"
-  :type 'function
-  :group 'fill)
+  :type 'function)
 
 (defvar fill-indent-according-to-mode nil ;Screws up CC-mode's filling tricks.
   "Whether or not filling should try to use the major mode's indentation.")
+
+(defvar current-fill-column--has-warned nil)
 
 (defun current-fill-column ()
   "Return the fill-column to use for this line.
@@ -164,7 +160,14 @@ number equals or exceeds the local fill-column - right-margin difference."
 			     (< col fill-col)))
 	    (setq here change
 		  here-col col))
-	  (max here-col fill-col)))))
+	  (max here-col fill-col))
+      ;; This warning was added in 28.1.  It should be removed later,
+      ;; and this function changed to never return nil.
+      (unless current-fill-column--has-warned
+        (lwarn '(fill-column) :warning
+               "Setting this variable to nil is obsolete; use `(auto-fill-mode -1)' instead")
+        (setq current-fill-column--has-warned t))
+      most-positive-fixnum)))
 
 (defun canonically-space-region (beg end)
   "Remove extra spaces between words in region.
@@ -367,15 +370,13 @@ which is an error according to some typographical conventions."
 The predicates are called with no arguments, with point at the place to
 be tested.  If it returns a non-nil value, fill commands do not break
 the line there."
-  :group 'fill
   :type 'hook
   :options '(fill-french-nobreak-p fill-single-word-nobreak-p
              fill-single-char-nobreak-p))
 
 (defcustom fill-nobreak-invisible nil
   "Non-nil means that fill commands do not break lines in invisible text."
-  :type 'boolean
-  :group 'fill)
+  :type 'boolean)
 
 (defun fill-nobreak-p ()
   "Return nil if breaking the line at point is allowed.
@@ -422,12 +423,12 @@ and `fill-nobreak-invisible'."
   ;; Register `kinsoku' for scripts HAN, KANA, BOPOMOFO, and CJK-MISC.
   ;; Also tell that they don't use space between words.
   (map-char-table
-   #'(lambda (key val)
-       (when (memq val '(han kana bopomofo cjk-misc))
-	 (set-char-table-range fill-find-break-point-function-table
-			       key 'kinsoku)
-	 (set-char-table-range fill-nospace-between-words-table
-			       key t)))
+   (lambda (key val)
+     (when (memq val '(han kana bopomofo cjk-misc))
+       (set-char-table-range fill-find-break-point-function-table
+                             key 'kinsoku)
+       (set-char-table-range fill-nospace-between-words-table
+                             key t)))
    char-script-table)
   ;; Do the same thing also for full width characters and half
   ;; width kana variants.
@@ -647,20 +648,27 @@ The break position will be always after LINEBEG and generally before point."
 
 (defun fill-region-as-paragraph (from to &optional justify
 				      nosqueeze squeeze-after)
-  "Fill the region as one paragraph.
-It removes any paragraph breaks in the region and extra newlines at the end,
-indents and fills lines between the margins given by the
-`current-left-margin' and `current-fill-column' functions.
-\(In most cases, the variable `fill-column' controls the width.)
-It leaves point at the beginning of the line following the paragraph.
+  "Fill the region as if it were a single paragraph.
+This command removes any paragraph breaks in the region and
+extra newlines at the end, and indents and fills lines between the
+margins given by the `current-left-margin' and `current-fill-column'
+functions.  (In most cases, the variable `fill-column' controls the
+width.)  It leaves point at the beginning of the line following the
+region.
 
-Normally performs justification according to the `current-justification'
-function, but with a prefix arg, does full justification instead.
+Normally, the command performs justification according to
+the `current-justification' function, but with a prefix arg, it
+does full justification instead.
 
-From a program, optional third arg JUSTIFY can specify any type of
-justification.  Fourth arg NOSQUEEZE non-nil means not to make spaces
-between words canonical before filling.  Fifth arg SQUEEZE-AFTER, if non-nil,
-means don't canonicalize spaces before that position.
+When called from Lisp, optional third arg JUSTIFY can specify any
+type of justification; see `default-justification' for the possible
+values.
+Optional fourth arg NOSQUEEZE non-nil means not to make spaces
+between words canonical before filling.
+Fifth arg SQUEEZE-AFTER, if non-nil, should be a buffer position; it
+means canonicalize spaces only starting from that position.
+See `canonically-space-region' for the meaning of canonicalization
+of spaces.
 
 Return the `fill-prefix' used for filling.
 
@@ -727,7 +735,7 @@ space does not end a sentence, so don't break a line there."
       (goto-char from)
       (beginning-of-line)
 
-      (if (not justify)	  ; filling disabled: just check indentation
+      (if (not justify)     ; filling disabled: just check indentation
 	  (progn
 	    (goto-char from)
 	    (while (< (point) to)
@@ -754,10 +762,10 @@ space does not end a sentence, so don't break a line there."
 	;; This is the actual filling loop.
 	(goto-char from)
 	(let (linebeg)
-	  (while (< (point) to)
+          (while (< (point) to)
 	    (setq linebeg (point))
 	    (move-to-column (current-fill-column))
-	    (if (when (< (point) to)
+	    (if (when (and (< (point) to) (< linebeg to))
 		  ;; Find the position where we'll break the line.
 		  ;; Use an immediately following space, if any.
 		  ;; However, note that `move-to-column' may overshoot
@@ -1053,7 +1061,7 @@ than line breaks untouched, and fifth arg TO-EOP non-nil means
 to keep filling to the end of the paragraph (or next hard newline,
 if variable `use-hard-newlines' is on).
 
-Return the fill-prefix used for filling the last paragraph.
+Return the `fill-prefix' used for filling the last paragraph.
 
 If `sentence-end-double-space' is non-nil, then period followed by one
 space does not end a sentence, so don't break a line there."
@@ -1103,6 +1111,10 @@ space does not end a sentence, so don't break a line there."
 (defcustom default-justification 'left
   "Method of justifying text not otherwise specified.
 Possible values are `left', `right', `full', `center', or `none'.
+The values `left' and `right' mean lines are lined up at,
+respectively, left or right margin, and ragged at the other margin.
+`full' means lines are lined up at both margins.  `center' means each
+line is centered.  `none' means no justification or centering.
 The requested kind of justification is done whenever lines are filled.
 The `justification' text-property can locally override this variable."
   :type '(choice (const left)
@@ -1110,8 +1122,7 @@ The `justification' text-property can locally override this variable."
 		 (const full)
 		 (const center)
 		 (const none))
-  :safe 'symbolp
-  :group 'fill)
+  :safe 'symbolp)
 (make-variable-buffer-local 'default-justification)
 
 (defun current-justification ()
@@ -1133,6 +1144,7 @@ However, it returns nil rather than `none' to mean \"don't justify\"."
 (defun set-justification (begin end style &optional whole-par)
   "Set the region's justification style to STYLE.
 This commands prompts for the kind of justification to use.
+See `default-justification' for the possible values and their meaning.
 If the mark is not active, this command operates on the current paragraph.
 If the mark is active, it operates on the region.  However, if the
 beginning and end of the region are not at paragraph breaks, they are
@@ -1184,7 +1196,8 @@ If the mark is not active, this applies to the current paragraph."
 
 (defun set-justification-left (b e)
   "Make paragraphs in the region left-justified.
-This means they are flush at the left margin and ragged on the right.
+This means lines are flush (lined up) at the left margin and ragged
+on the right.
 This is usually the default, but see the variable `default-justification'.
 If the mark is not active, this applies to the current paragraph."
   (interactive (list (if mark-active (region-beginning) (point))
@@ -1193,7 +1206,8 @@ If the mark is not active, this applies to the current paragraph."
 
 (defun set-justification-right (b e)
   "Make paragraphs in the region right-justified.
-This means they are flush at the right margin and ragged on the left.
+This means lines are flush (lined up) at the right margin and ragged
+on the left.
 If the mark is not active, this applies to the current paragraph."
   (interactive (list (if mark-active (region-beginning) (point))
 		     (if mark-active (region-end) (point))))
@@ -1201,7 +1215,7 @@ If the mark is not active, this applies to the current paragraph."
 
 (defun set-justification-full (b e)
   "Make paragraphs in the region fully justified.
-This makes lines flush on both margins by inserting spaces between words.
+This makes lines be lined up on both margins by inserting spaces between words.
 If the mark is not active, this applies to the current paragraph."
   (interactive (list (if mark-active (region-beginning) (point))
 		     (if mark-active (region-end) (point))))
@@ -1236,7 +1250,8 @@ If the mark is not active, this applies to the current paragraph."
 Normally does full justification: adds spaces to the line to make it end at
 the column given by `current-fill-column'.
 Optional first argument HOW specifies alternate type of justification:
-it can be `left', `right', `full', `center', or `none'.
+it can be `left', `right', `full', `center', or `none'; for their
+meaning, see `default-justification'.
 If HOW is t, will justify however the `current-justification' function says to.
 If HOW is nil or missing, full justification is done by default.
 Second arg EOP non-nil means that this is the last line of the paragraph, so

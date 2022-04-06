@@ -1,6 +1,6 @@
-;;; tests/eshell-tests.el --- Eshell test suite
+;;; eshell-tests.el --- Eshell test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -60,6 +60,8 @@
   "Insert a command at the end of the buffer."
   (eshell-insert-command text func)
   (eshell-match-result regexp))
+
+(defvar eshell-history-file-name)
 
 (defun eshell-test-command-result (command)
   "Like `eshell-command-result', but not using HOME."
@@ -128,6 +130,10 @@ e.g. \"{(+ 1 2)} 3\" => 3"
   "Interpolate Lisp form evaluation"
   (should (equal (eshell-test-command-result "+ $(+ 1 2) 3") 6)))
 
+(ert-deftest eshell-test/interp-temp-cmd ()
+  "Interpolate command result redirected to temp file"
+  (should (equal (eshell-test-command-result "cat $<echo hi>") "hi")))
+
 (ert-deftest eshell-test/interp-concat ()
   "Interpolate and concat command"
   (should (equal (eshell-test-command-result "+ ${+ 1 2}3 3") 36)))
@@ -169,6 +175,13 @@ e.g. \"{(+ 1 2)} 3\" => 3"
   (with-temp-eshell
    (eshell-command-result-p "+ 1 2; + $_ 4"
                              "3\n6\n")))
+
+(ert-deftest eshell-test/inside-emacs-var ()
+  "Test presence of \"INSIDE_EMACS\" in subprocesses"
+  (with-temp-eshell
+   (eshell-command-result-p "env"
+                            (format "INSIDE_EMACS=%s,eshell"
+                                    emacs-version))))
 
 (ert-deftest eshell-test/escape-nonspecial ()
   "Test that \"\\c\" and \"c\" are equivalent when \"c\" is not a
@@ -253,4 +266,4 @@ chars"
 
 (provide 'eshell-tests)
 
-;;; tests/eshell-tests.el ends here
+;;; eshell-tests.el ends here

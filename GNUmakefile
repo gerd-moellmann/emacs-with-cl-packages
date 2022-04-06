@@ -1,6 +1,6 @@
 # Build Emacs from a fresh tarball or version-control checkout.
 
-# Copyright (C) 2011-2021 Free Software Foundation, Inc.
+# Copyright (C) 2011-2022 Free Software Foundation, Inc.
 #
 # This file is part of GNU Emacs.
 #
@@ -50,6 +50,8 @@ help:
 	@echo "make distclean        -- delete all build and configuration files,"
 	@echo "                         leave only files included in source distribution"
 	@echo "make maintainer-clean -- delete almost everything that can be regenerated"
+	@echo "make extraclean       -- like maintainer-clean, and also delete"
+	@echo "                         backup and autosave files"
 	@echo "make bootstrap        -- delete all compiled files to force a new bootstrap"
 	@echo "                         from a clean slate, then build in the normal way"
 	@echo "make uninstall        -- remove files installed by 'make install'"

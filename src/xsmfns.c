@@ -1,7 +1,7 @@
 /* Session management module for systems which understand the X Session
    management protocol.
 
-Copyright (C) 2002-2021 Free Software Foundation, Inc.
+Copyright (C) 2002-2022 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -357,7 +357,7 @@ ice_conn_watch_CB (IceConn iceConn, IcePointer clientData,
     }
 
   ice_fd = IceConnectionNumber (iceConn);
-  add_read_fd (ice_fd, x_session_check_input, NULL);
+  add_non_keyboard_read_fd (ice_fd, x_session_check_input, NULL);
 }
 
 /* Create the client leader window.  */

@@ -1,6 +1,6 @@
 ;;; ibuffer-tests.el --- Test suite. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -82,7 +82,7 @@
         (test1 '((mode . org-mode)
                  (or (size-gt . 10000)
                      (and (not (starred-name))
-                          (directory . "\<org\>")))))
+                          (directory . "<org>")))))
         (test2 '((or (mode . emacs-lisp-mode) (file-extension . "elc?")
                      (and (starred-name) (name . "elisp"))
                      (mode . lisp-interaction-mode))))
@@ -826,4 +826,4 @@
   (should (equal (ibuffer-unary-operand '(not . a)) 'a)))
 
 (provide 'ibuffer-tests)
-;; ibuffer-tests.el ends here
+;;; ibuffer-tests.el ends here

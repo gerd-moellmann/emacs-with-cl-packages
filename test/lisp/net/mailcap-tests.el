@@ -1,6 +1,6 @@
 ;;; mailcap-tests.el --- tests for mailcap.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Mark Oteiza <mvoteiza@udel.edu>
 
@@ -24,13 +24,10 @@
 ;;; Code:
 
 (require 'ert)
+(require 'ert-x)
 (require 'mailcap)
 
-(defconst mailcap-tests-data-dir
-  (expand-file-name "test/data/mailcap" source-directory))
-
-(defconst mailcap-tests-path
-  (expand-file-name "mime.types" mailcap-tests-data-dir)
+(defconst mailcap-tests-path (ert-resource-file "mime.types")
   "String used as PATH argument of `mailcap-parse-mimetypes'.")
 
 (defconst mailcap-tests-mime-extensions (copy-alist mailcap-mime-extensions))

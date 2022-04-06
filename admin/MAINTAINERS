@@ -131,6 +131,13 @@ Amin Bandali
 	    lisp/erc/*
 	    doc/misc/erc.texi
 
+Andrea Corallo
+	Lisp native compiler
+	    src/comp.c
+	    lisp/emacs-lisp/comp.el
+	    lisp/emacs-lisp/comp-cstr.el
+	    test/src/comp-*.el
+
 ==============================================================================
 2. Areas that someone is willing to maintain, although he would not
 necessarily mind if someone else was the official maintainer.
@@ -213,6 +220,7 @@ Paul Eggert
 	src/* (except for *.m, *w32*, bitmaps, files others want to maintain)
 
 Michael Albinus
+        .gitlab-ci.yml
 	src/inotify.c
         lisp/autorevert.el
 	lisp/eshell/em-tramp.el

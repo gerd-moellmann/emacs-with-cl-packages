@@ -1,6 +1,6 @@
-;;; version.el --- record version number of Emacs
+;;; version.el --- record version number of Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1992, 1994-1995, 1999-2021 Free Software
+;; Copyright (C) 1985, 1992, 1994-1995, 1999-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -29,14 +29,12 @@
 (defconst emacs-major-version
   (progn (string-match "^[0-9]+" emacs-version)
          (string-to-number (match-string 0 emacs-version)))
-  "Major version number of this version of Emacs.
-This variable first existed in version 19.23.")
+  "Major version number of this version of Emacs.")
 
 (defconst emacs-minor-version
   (progn (string-match "^[0-9]+\\.\\([0-9]+\\)" emacs-version)
          (string-to-number (match-string 1 emacs-version)))
-  "Minor version number of this version of Emacs.
-This variable first existed in version 19.23.")
+  "Minor version number of this version of Emacs.")
 
 (defconst emacs-build-system (system-name)
   "Name of the system on which Emacs was built, or nil if not available.")
@@ -56,8 +54,13 @@ developing Emacs.")
 (defvar cairo-version-string)
 
 (defun emacs-version (&optional here)
-  "Return string describing the version of Emacs that is running.
-If optional argument HERE is non-nil, insert string at point.
+  "Display the version of Emacs that is running in this session.
+With a prefix argument, insert the Emacs version string at point
+instead of displaying it.
+If called from Lisp, by default return the version string; but
+if the optional argument HERE is non-nil, insert the string at
+point instead.
+
 Don't use this function in programs to choose actions according
 to the system configuration; look at `system-configuration' instead."
   (interactive "P")
@@ -125,7 +128,7 @@ or if we could not determine the revision.")
 		  (looking-at "[[:xdigit:]]\\{40\\}"))
 	   (match-string 0)))))
 
-(defun emacs-repository-get-version (&optional dir external)
+(defun emacs-repository-get-version (&optional dir _external)
   "Try to return as a string the repository revision of the Emacs sources.
 The format of the returned string is dependent on the VCS in use.
 Value is nil if the sources do not seem to be under version

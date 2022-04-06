@@ -1,6 +1,6 @@
 ;;; callint-tests.el --- unit tests for callint.c    -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2022 Free Software Foundation, Inc.
 
 ;; Author: Philipp Stephani <phst@google.com>
 
@@ -29,7 +29,8 @@
 
 (ert-deftest call-interactively/incomplete-multibyte-sequence ()
   "Check that Bug#30004 is fixed."
-  (let ((data (should-error (call-interactively (lambda () (interactive "\xFF"))))))
+  (let* ((text-quoting-style 'grave)
+         (data (should-error (call-interactively (lambda () (interactive "\xFF"))))))
     (should
      (equal
       (cdr data)

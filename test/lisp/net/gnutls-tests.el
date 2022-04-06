@@ -1,6 +1,6 @@
-;;; gnutls-tests.el --- Test suite for gnutls.el
+;;; gnutls-tests.el --- Test suite for gnutls.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; Author: Ted Zlatanov <tzz@lifelogs.com>
 
@@ -241,6 +241,7 @@
 
 (ert-deftest test-gnutls-005-aead-ciphers ()
   "Test the GnuTLS AEAD ciphers"
+  :tags '(:expensive-test)
   (skip-unless (memq 'AEAD-ciphers (gnutls-available-p)))
   (setq gnutls-tests-message-prefix "AEAD verification: ")
   (let ((keys '("mykey" "mykey2"))

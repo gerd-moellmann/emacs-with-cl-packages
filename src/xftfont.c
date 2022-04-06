@@ -1,5 +1,5 @@
 /* xftfont.c -- XFT font driver.
-   Copyright (C) 2006-2021 Free Software Foundation, Inc.
+   Copyright (C) 2006-2022 Free Software Foundation, Inc.
    Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H13PRO009
@@ -32,6 +32,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "font.h"
 #include "ftfont.h"
 #include "pdumper.h"
+
+#ifndef FC_LCD_FILTER
+/* Older fontconfig versions don't have FC_LCD_FILTER.  */
+# define FC_LCD_FILTER "lcdfilter"
+#endif
+
 
 /* Xft font driver.  */
 

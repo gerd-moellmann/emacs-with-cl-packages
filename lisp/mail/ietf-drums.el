@@ -1,6 +1,6 @@
 ;;; ietf-drums.el --- Functions for parsing RFC 2822 headers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; This file is part of GNU Emacs.
@@ -150,7 +150,7 @@ backslash and doublequote.")
       (buffer-string))))
 
 (defun ietf-drums-get-comment (string)
-  "Return the first comment in STRING."
+  "Return the last comment in STRING."
   (with-temp-buffer
     (ietf-drums-init string)
     (let (result c)
@@ -232,13 +232,13 @@ If DECODE, the DISPLAY-NAME will have RFC2047 decoding performed
       ;; If we found no display-name, then we look for comments.
       (if display-name
 	  (setq display-string
-		(mapconcat 'identity (reverse display-name) " "))
+		(mapconcat #'identity (reverse display-name) " "))
 	(setq display-string (ietf-drums-get-comment string)))
       (if (not mailbox)
 	  (when (and display-string
-		     (string-match "@" display-string))
+		     (string-search "@" display-string))
 	    (cons
-	     (mapconcat 'identity (nreverse display-name) "")
+	     (mapconcat #'identity (nreverse display-name) "")
 	     (ietf-drums-get-comment string)))
 	(cons mailbox (if decode
                           (rfc2047-decode-string display-string)

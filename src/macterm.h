@@ -1,6 +1,6 @@
 /* Display module for macOS.
    Copyright (C) 2000-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2021  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2022  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -188,6 +188,11 @@ struct mac_output
      and the window has not yet been created.  */
   Window window_desc;
 
+#ifdef HAVE_XWIDGETS
+  /* NSView for this window.  Don't use this outside nsxwidget.m.  */
+  void *view;
+#endif
+
   /* The window that is the parent of this window.
      Usually this is a window that was made by the window manager,
      but it can be the root window, and it can be explicitly specified
@@ -307,6 +312,10 @@ struct mac_output
 #define FRAME_MAC_WINDOW(f) ((f)->output_data.mac->window_desc)
 #define FRAME_NATIVE_WINDOW(f) ((f)->output_data.mac->window_desc)
 
+#ifdef HAVE_XWIDGETS
+#define FRAME_MAC_VIEW(f)	((f)->output_data.mac->view)
+#endif
+
 #define FRAME_FONT(f) ((f)->output_data.mac->font)
 #define FRAME_FONTSET(f) ((f)->output_data.mac->fontset)
 
@@ -418,13 +427,6 @@ enum {
   THEME_RESIZE_SOUTHEAST_CURSOR			= 34
 };
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED == 1060
-BLOCK_EXPORT void _Block_object_assign (void *, const void *, const int) AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
-BLOCK_EXPORT void _Block_object_dispose (const void *, const int) AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
-BLOCK_EXPORT void * _NSConcreteGlobalBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
-BLOCK_EXPORT void * _NSConcreteStackBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AND_LATER;
-#endif
-
 #if HAVE_UNIFORM_TYPE_IDENTIFIERS
 #define UTI_PNG		(CFSTR ("public.png"))
 #define UTI_JPEG	(CFSTR ("public.jpeg"))
@@ -433,6 +435,7 @@ BLOCK_EXPORT void * _NSConcreteStackBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AN
 #define UTI_URL		(CFSTR ("public.url"))
 #define UTI_PDF		(CFSTR ("com.adobe.pdf"))
 #define UTI_SVG		(CFSTR ("public.svg-image"))
+#define UTI_IMAGE	(CFSTR ("public.image"))
 #else
 #define UTI_PNG		kUTTypePNG
 #define UTI_JPEG	kUTTypeJPEG
@@ -440,11 +443,8 @@ BLOCK_EXPORT void * _NSConcreteStackBlock[32] AVAILABLE_MAC_OS_X_VERSION_10_6_AN
 #define UTI_GIF		kUTTypeGIF
 #define UTI_URL		kUTTypeURL
 #define UTI_PDF		kUTTypePDF
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 #define UTI_SVG		kUTTypeScalableVectorGraphics
-#else
-#define UTI_SVG		(CFSTR ("public.svg-image"))
-#endif
+#define UTI_IMAGE	kUTTypeImage
 #endif
 
 /* From macfns.c.  */
@@ -581,6 +581,7 @@ extern Lisp_Object xrm_get_resource (XrmDatabase, const char *, const char *);
 extern XrmDatabase xrm_get_preference_database (const char *);
 extern bool mac_service_provider_registered_p (void);
 extern Lisp_Object mac_carbon_version_string (void);
+extern const char *mac_relocate (const char *);
 
 /* Defined in macappkit.m.  */
 
@@ -632,12 +633,6 @@ extern Lisp_Object mac_get_tab_group_selected_frame (struct frame *);
 extern Lisp_Object mac_get_tab_group_frames (struct frame *);
 extern CGPoint mac_get_global_mouse ();
 extern bool mac_is_frame_window_toolbar_visible (struct frame *);
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
-extern CGRect mac_rect_make (struct frame *, CGFloat, CGFloat,
-			     CGFloat, CGFloat);
-#else
-#define mac_rect_make(f, x, y, w, h)	CGRectMake (x, y, w, h)
-#endif
 extern void mac_set_frame_window_structure_bounds (struct frame *,
 						   NativeRectangle);
 extern void mac_get_frame_window_structure_bounds (struct frame *,
@@ -712,7 +707,6 @@ extern Emacs_Cursor mac_cursor_create (ThemeCursor, const Emacs_Color *,
 extern void mac_cursor_set (Emacs_Cursor);
 extern void mac_cursor_release (Emacs_Cursor);
 extern void mac_invalidate_frame_cursor_rects (struct frame *f);
-extern void mac_mask_rounded_bottom_corners (struct frame *, CGRect, bool);
 extern void mac_invalidate_rectangles (struct frame *, NativeRectangle *, int);
 extern void mac_update_frame_window_style (struct frame *);
 extern void mac_update_frame_window_parent (struct frame *);

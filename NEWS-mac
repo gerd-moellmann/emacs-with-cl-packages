@@ -1,4 +1,25 @@
+* emacs-28.1-mac-9.0 (2022-04-06)
+Based on Emacs 28.1.
+Drop support for Mac OS X 10.6 - OS X 10.9.
+Emoji composition handling is aligned with upstream.  You may find
+some incompatibilities with the previous versions.
+
+** Fixed bugs
+
+*** Rotated SVG is clipped when dimension is specified by percentage.
+
+*** Typing F10 on a full-screen frame causes hang on Monterey.
+Reported by Brandon Bremen.
+It no longer hangs, but still F10 does not activate the menu bar for a
+full-screen frame on Monterey if the "Automatically hide and show the
+menu bar in full screen" setting is checked (default).
+
+*** When posix_spawn is used, emacs-gdb doesn't work properly.
+Apply a fix for Bug#54667.
+
+
 * emacs-27.2-mac-8.3 (2021-11-13)
+https://lists.gnu.org/r/emacs-devel/2021-11/msg00947.html
 
 ** Fixed bugs
 

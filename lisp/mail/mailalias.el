@@ -1,6 +1,6 @@
 ;;; mailalias.el --- expand and complete mailing address aliases -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1995-1997, 2001-2021 Free Software
+;; Copyright (C) 1985, 1987, 1995-1997, 2001-2022 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -255,9 +255,9 @@ removed from alias expansions."
 By default, this is the file specified by `mail-personal-alias-file'."
   (interactive
    (list
-    (read-file-name (format "Read mail alias file (default %s): "
-			    mail-personal-alias-file)
-		    nil mail-personal-alias-file t)))
+    (read-file-name
+     (format-prompt "Read mail alias file" mail-personal-alias-file)
+     nil mail-personal-alias-file t)))
   (setq file (expand-file-name (or file mail-personal-alias-file)))
   ;; In case mail-aliases is t, make sure define-mail-alias
   ;; does not recursively call build-mail-aliases.
@@ -517,7 +517,7 @@ PREFIX is the string we want to complete."
 	    (setq mail-names
 		  (sort (append (if (consp mail-aliases)
 				    (mapcar
-				     (function (lambda (a) (list (car a))))
+                                     (lambda (a) (list (car a)))
 				     mail-aliases))
 				(if (consp mail-local-names)
 				    mail-local-names)

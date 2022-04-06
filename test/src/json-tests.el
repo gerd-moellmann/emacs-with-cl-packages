@@ -1,6 +1,6 @@
 ;;; json-tests.el --- unit tests for json.c          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2022 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -50,6 +50,34 @@
       (goto-char 1)
       (should (equal (json-parse-buffer) lisp))
       (should (eobp)))))
+
+(ert-deftest json-serialize/roundtrip-scalars ()
+  "Check that Bug#42994 is fixed."
+  (skip-unless (fboundp 'json-serialize))
+  (dolist (case '((:null "null")
+                  (:false "false")
+                  (t "true")
+                  (0 "0")
+                  (123 "123")
+                  (-456 "-456")
+                  (3.75 "3.75")
+                  ;; The noncharacter U+FFFF should be passed through,
+                  ;; cf. https://www.unicode.org/faq/private_use.html#noncharacters.
+                  ("abc\uFFFFαβγ𝔸𝐁𝖢\"\\"
+                   "\"abc\uFFFFαβγ𝔸𝐁𝖢\\\"\\\\\"")))
+    (cl-destructuring-bind (lisp json) case
+      (ert-info ((format "%S ↔ %S" lisp json))
+        (should (equal (json-serialize lisp) json))
+        (with-temp-buffer
+          (json-insert lisp)
+          (should (equal (buffer-string) json))
+          (should (eobp)))
+        (should (equal (json-parse-string json) lisp))
+        (with-temp-buffer
+          (insert json)
+          (goto-char 1)
+          (should (equal (json-parse-buffer) lisp))
+          (should (eobp)))))))
 
 (ert-deftest json-serialize/object ()
   (skip-unless (fboundp 'json-serialize))
@@ -224,7 +252,7 @@ Test with both unibyte and multibyte strings."
   (let* ((input
           "{ \"abc\" : [9, false] , \"def\" : null }")
          (output
-          (replace-regexp-in-string " " "" input)))
+          (string-replace " " "" input)))
     (should (equal (json-parse-string input
                                       :object-type 'plist
                                       :null-object :json-null

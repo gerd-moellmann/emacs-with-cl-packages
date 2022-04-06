@@ -1,12 +1,16 @@
 ;;; trampver.el --- Transparent Remote Access, Multiple Protocol  -*- lexical-binding:t -*-
 ;;; lisp/trampver.el.  Generated from trampver.el.in by configure.
 
-;; Copyright (C) 2003-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
 
 ;; Author: Kai Großjohann <kai.grossjohann@gmx.net>
 ;; Maintainer: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
 ;; Package: tramp
+;; Version: 2.5.2.28.1
+;; Package-Requires: ((emacs "25.1"))
+;; Package-Type: multi
+;; URL: https://www.gnu.org/software/tramp/
 
 ;; This file is part of GNU Emacs.
 
@@ -25,21 +29,18 @@
 
 ;;; Commentary:
 
-;; Convenience functions around the Tramp version. Partly generated
+;; Convenience functions around the Tramp version.  Partly generated
 ;; during Tramp configuration.
 
 ;;; Code:
 
-;; In the Tramp GIT, the version number is auto-frobbed from tramp.el,
-;; and the bug report address is auto-frobbed from configure.ac.
-;; Emacs version check is defined in macro AC_EMACS_INFO of
-;; aclocal.m4; should be changed only there.
-
-;; Needed for Emacs 24.
-(defvar inhibit-message)
+;; In the Tramp GIT repository, the version number, the bug report
+;; address and the required Emacs version are auto-frobbed from
+;; configure.ac, so you should edit that file and run "autoconf &&
+;; ./configure" to change them.
 
 ;;;###tramp-autoload
-(defconst tramp-version "2.4.5.27.2"
+(defconst tramp-version "2.5.2.28.1"
   "This version of Tramp.")
 
 ;;;###tramp-autoload
@@ -73,11 +74,16 @@
   "The repository revision of the Tramp sources.")
 
 ;; Check for Emacs version.
-(let ((x   (if (not (string-lessp emacs-version "24.4"))
+(let ((x   (if (not (string-lessp emacs-version "25.1"))
       "ok"
-    (format "Tramp 2.4.5.27.2 is not fit for %s"
+    (format "Tramp 2.5.2.28.1 is not fit for %s"
             (replace-regexp-in-string "\n" "" (emacs-version))))))
   (unless (string-equal "ok" x) (error "%s" x)))
+
+(defun tramp-inside-emacs ()
+  "Version string provided by INSIDE_EMACS enmvironment variable."
+  (concat (or (getenv "INSIDE_EMACS") emacs-version)
+	  ",tramp:" tramp-version))
 
 ;; Tramp versions integrated into Emacs.  If a user option declares a
 ;; `:package-version' which doesn't belong to an integrated Tramp
@@ -95,7 +101,8 @@
 	 ("2.2.13.25.2" . "25.3")
          ("2.3.3" . "26.1") ("2.3.3.26.1" . "26.1") ("2.3.5.26.2" . "26.2")
          ("2.3.5.26.3" . "26.3")
-         ("2.4.3.27.1" . "27.1") ("2.4.5.27.2" . "27.2")))
+         ("2.4.3.27.1" . "27.1") ("2.4.5.27.2" . "27.2")
+         ("2.5.2.28.1" . "28.1")))
 
 (add-hook 'tramp-unload-hook
 	  (lambda ()
@@ -104,8 +111,3 @@
 (provide 'trampver)
 
 ;;; trampver.el ends here
-
-;; Local Variables:
-;; mode: Emacs-Lisp
-;; coding: utf-8
-;; End:

@@ -1,6 +1,6 @@
 ;;; char-fold.el --- match unicode to similar ASCII -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2022 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: matching
@@ -19,6 +19,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Commentary:
 
 ;;; Code:
 
@@ -324,6 +326,13 @@ from which to start."
     (while (< i end)
       (pcase (aref string i)
         (?\s (setq spaces (1+ spaces)))
+        ((pred (lambda (c) (and char-fold-symmetric
+                                (if isearch-regexp
+                                    isearch-regexp-lax-whitespace
+                                  isearch-lax-whitespace)
+                                (stringp search-whitespace-regexp)
+                                (string-match-p search-whitespace-regexp (char-to-string c)))))
+         (setq spaces (1+ spaces)))
         (c (when (> spaces 0)
              (push (char-fold--make-space-string spaces) out)
              (setq spaces 0))
@@ -370,11 +379,7 @@ from which to start."
       (setq i (1+ i)))
     (when (> spaces 0)
       (push (char-fold--make-space-string spaces) out))
-    (let ((regexp (apply #'concat (nreverse out))))
-      ;; Limited by `MAX_BUF_SIZE' in `regex-emacs.c'.
-      (if (> (length regexp) 5000)
-          (regexp-quote string)
-        regexp))))
+    (apply #'concat (nreverse out))))
 
 
 ;;; Commands provided for completeness.

@@ -1,6 +1,6 @@
-;;; eudcb-ph.el --- Emacs Unified Directory Client - CCSO PH/QI Backend
+;;; eudcb-ph.el --- Emacs Unified Directory Client - CCSO PH/QI Backend  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2022 Free Software Foundation, Inc.
 
 ;; Author: Oscar Figueiredo <oscar@cpe.fr>
 ;;         Pavel Janík <Pavel@Janik.cz>
@@ -69,7 +69,7 @@ defaulting to `eudc-default-return-attributes'."
 			       query
 			       " "))
 		  (if return-fields
-		      (concat " return " (mapconcat 'symbol-name return-fields " ")))))
+		      (concat " return " (mapconcat #'symbol-name return-fields " ")))))
     (and (> (length request) 6)
 	 (eudc-ph-do-request request)
 	 (eudc-ph-parse-query-result return-fields))))
@@ -189,7 +189,7 @@ SERVER is either a string naming the server or a list (NAME PORT)."
   (with-current-buffer (process-buffer process)
     (eudc-ph-send-command process "quit")
     (eudc-ph-read-response process)
-    (run-at-time 2 nil 'delete-process process)))
+    (run-at-time 2 nil #'delete-process process)))
 
 (defun eudc-ph-send-command (process command)
   (goto-char (point-max))

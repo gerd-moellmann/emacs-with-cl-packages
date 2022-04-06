@@ -1,6 +1,6 @@
-;;; latin1-disp.el --- display tables for other ISO 8859 on Latin-1 terminals -*-coding: utf-8;-*-
+;;; latin1-disp.el --- display tables for non-ASCII on Latin-1 terminals -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
 
 ;; Author: Dave Love <fx@gnu.org>
 ;; Keywords: i18n
@@ -22,17 +22,22 @@
 
 ;;; Commentary:
 
-;; This package sets up display of ISO 8859-n for n>1 by substituting
-;; Latin-1 characters and sequences of them for characters which can't
-;; be displayed, either because we're on a tty or because we don't
-;; have the relevant window system fonts available.  For instance,
-;; Latin-9 is very similar to Latin-1, so we can display most Latin-9
-;; characters using the Latin-1 characters at the same code point and
-;; fall back on more-or-less mnemonic ASCII sequences for the rest.
+;; This package sets up display of many non-ASCII characters by
+;; substituting ASCII and Latin-1 characters and sequences of them for
+;; characters which can't be displayed, either because we're on a tty
+;; or because we don't have the relevant window system fonts
+;; available.  For instance, Latin-9 is very similar to Latin-1, so we
+;; can display most Latin-9 characters using the Latin-1 characters at
+;; the same code point and fall back on more-or-less mnemonic ASCII
+;; sequences for the rest.
 
 ;; For the Latin charsets the ASCII sequences are mostly consistent
 ;; with the Quail prefix input sequences.  Latin-4 uses the Quail
 ;; postfix sequences since a prefix method isn't defined for Latin-4.
+
+;; Non-Latin non-ASCII characters are generally displayed as ASCII
+;; strings remotely reminiscent of the original characters, as best as
+;; possible.  See `latin1-display-ucs-per-lynx'.
 
 ;; [A different approach is taken in the DOS display tables in
 ;; term/internal.el, and the relevant ASCII sequences from there are
@@ -86,8 +91,8 @@ use either \\[customize] or the function `latin1-display'."
   :group 'latin1-display
   :type 'boolean
   :require 'latin1-disp
-  :initialize 'custom-initialize-default
-  :set (lambda (symbol value)
+  :initialize #'custom-initialize-default
+  :set (lambda (_symbol value)
 	 (if value
 	     (apply #'latin1-display latin1-display-sets)
 	   (latin1-display))))
@@ -186,8 +191,8 @@ character set."
 		     'arabic-iso8859-6
 		   (car (remq 'ascii (get-language-info language
 							'charset))))))
-    (map-charset-chars #'(lambda (range arg)
-			   (standard-display-default (car range) (cdr range)))
+    (map-charset-chars (lambda (range _arg)
+                         (standard-display-default (car range) (cdr range)))
 		       charset))
   (sit-for 0))
 
@@ -201,11 +206,10 @@ character set: `latin-2', `hebrew' etc."
 	 (char (and info (decode-char (car (remq 'ascii info)) ?\ ))))
     (and char (char-displayable-p char))))
 
-(defun latin1-display-setup (set &optional force)
+(defun latin1-display-setup (set &optional _force)
   "Set up Latin-1 display for characters in the given SET.
 SET must be a member of `latin1-display-sets'.  Normally, check
-whether a font for SET is available and don't set the display if it
-is.  If FORCE is non-nil, set up the display regardless."
+whether a font for SET is available and don't set the display if it is."
   (cond
    ((eq set 'latin-2)
     (latin1-display-identities set)
@@ -735,7 +739,7 @@ is.  If FORCE is non-nil, set up the display regardless."
   (sit-for 0))
 
 ;;;###autoload
-(defcustom latin1-display-ucs-per-lynx nil
+(defcustom latin1-display-ucs-per-lynx nil ;FIXME: Isn't this a minor mode?
   "Set up Latin-1/ASCII display for Unicode characters.
 This uses the transliterations of the Lynx browser.  The display isn't
 changed if the display can render Unicode characters.
@@ -745,8 +749,8 @@ use either \\[customize] or the function `latin1-display'."
   :group 'latin1-display
   :type 'boolean
   :require 'latin1-disp
-  :initialize 'custom-initialize-default
-  :set (lambda (symbol value)
+  :initialize #'custom-initialize-default
+  :set (lambda (_symbol value)
 	 (if value
 	     (latin1-display-ucs-per-lynx 1)
 	   (latin1-display-ucs-per-lynx -1))))
