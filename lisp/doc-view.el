@@ -1110,8 +1110,8 @@ If PAGE is nil, convert the whole document."
         ,@(if page `(,(format "-page=%d" page)))
         ,djvu
         ,tiff)
-      callback)
-     tiff callback)))
+      callback))
+   tiff callback))
 
 (defun doc-view-pdfdraw-program-subcommand ()
   "Return the mutool subcommand replacing mudraw.
