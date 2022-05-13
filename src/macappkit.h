@@ -1152,6 +1152,7 @@ typedef NSInteger NSGlyphProperty;
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
 #ifdef USE_WK_API
 					, WKNavigationDelegate
+					, WKURLSchemeHandler
 #else
 					, WebFrameLoadDelegate
 #endif
