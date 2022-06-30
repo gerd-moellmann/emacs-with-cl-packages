@@ -924,7 +924,7 @@ system."
   "Search through all marked files for a match for REGEXP.
 For marked directories, use the files displayed from those directories.
 Stops when a match is found.
-To continue searching for next match, use command \\[tags-loop-continue]."
+To continue searching for next match, use command \\[fileloop-continue]."
   (interactive "sSearch marked files (regexp): ")
   (tags-search regexp
                (mapcar #'car (vc-dir-marked-only-files-and-states))))
@@ -933,8 +933,14 @@ To continue searching for next match, use command \\[tags-loop-continue]."
   "Do `query-replace-regexp' of FROM with TO, on all marked files.
 If a directory is marked, then use the files displayed for that directory.
 Third arg DELIMITED (prefix arg) means replace only word-delimited matches.
+
+As each match is found, the user must type a character saying
+what to do with it.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time.
+
 If you exit (\\[keyboard-quit], RET or q), you can resume the query replace
-with the command \\[tags-loop-continue]."
+with the command \\[fileloop-continue]."
   ;; FIXME: this is almost a copy of `dired-do-query-replace-regexp'.  This
   ;; should probably be made generic and used in both places instead of
   ;; duplicating it here.

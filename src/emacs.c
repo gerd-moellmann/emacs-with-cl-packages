@@ -958,20 +958,24 @@ load_pdump (int argc, char **argv)
   sprintf (dump_file, "%s%c%s%s",
            path_exec, DIRECTORY_SEP, argv0_base, suffix);
 #if !defined MAC_SELF_CONTAINED && !defined NS_SELF_CONTAINED
-  /* Assume the Emacs binary lives in a sibling directory as set up by
-     the default installation configuration.  */
-  const char *go_up = "../../../../bin/";
-  needed += (strip_suffix ? strlen (strip_suffix) : 0)
-    - strlen (suffix) + strlen (go_up);
-  if (exec_bufsize < needed)
+  if (!(emacs_executable && *emacs_executable))
     {
-      xfree (emacs_executable);
-      emacs_executable = xpalloc (NULL, &exec_bufsize, needed - exec_bufsize,
-				  -1, 1);
+      /* If we didn't find the Emacs binary, assume that it lives in a
+	 sibling directory as set up by the default installation
+	 configuration.  */
+      const char *go_up = "../../../../bin/";
+      needed += (strip_suffix ? strlen (strip_suffix) : 0)
+	- strlen (suffix) + strlen (go_up);
+      if (exec_bufsize < needed)
+	{
+	  xfree (emacs_executable);
+	  emacs_executable = xpalloc (NULL, &exec_bufsize,
+				      needed - exec_bufsize, -1, 1);
+	}
+      sprintf (emacs_executable, "%s%c%s%s%s",
+	       path_exec, DIRECTORY_SEP, go_up, argv0_base,
+	       strip_suffix ? strip_suffix : "");
     }
-  sprintf (emacs_executable, "%s%c%s%s%s",
-	   path_exec, DIRECTORY_SEP, go_up, argv0_base,
-	   strip_suffix ? strip_suffix : "");
 #endif
   result = pdumper_load (dump_file, emacs_executable);
 
@@ -1387,7 +1391,7 @@ emacs_main (int argc, char **argv)
      related to the GUI system, like -font, -geometry, and -title, and
      then processes the rest of arguments whose priority is below
      those that are related to the GUI system.  The arguments
-     porcessed by 'command-line' are removed from 'command-line-args';
+     processed by 'command-line' are removed from 'command-line-args';
      the arguments processed by 'command-line-1' aren't, they are only
      removed from 'command-line-args-left'.
 

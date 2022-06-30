@@ -222,7 +222,7 @@ rejected, and the function returns nil."
 
 (defcustom next-error-find-buffer-function #'ignore
   "Function called to find a `next-error' capable buffer.
-This functions takes the same three arguments as the function
+This function takes the same three arguments as the function
 `next-error-find-buffer', and should return the buffer to be
 used by the subsequent invocation of the command `next-error'
 and `previous-error'.
@@ -5183,7 +5183,7 @@ If `kill-append-merge-undo' is non-nil, remove the last undo
 boundary in the current buffer."
   (let ((cur (car kill-ring)))
     (kill-new (if before-p (concat string cur) (concat cur string))
-              (or (string= cur "")
+              (or (= (length cur) 0)
                   (null (get-text-property 0 'yank-handler cur)))))
   (when (and kill-append-merge-undo (not buffer-read-only))
     (let ((prev buffer-undo-list)
@@ -8735,9 +8735,10 @@ Valid values include:
                            paraphernalia if Gnus is running, particularly
                            the Gcc: header for archiving.
 
-Additional valid symbols may be available; check with the author of
-your package for details.  The function should return non-nil if it
-succeeds.
+Additional valid symbols may be available; check in the manual of
+your mail user agent package for details.  You may also define
+your own symbol to be used as value for this variable using
+`define-mail-user-agent'.
 
 See also `read-mail-command' concerning reading mail."
   :type '(radio (function-item :tag "Message package"

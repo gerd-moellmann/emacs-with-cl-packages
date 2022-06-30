@@ -1850,13 +1850,24 @@ Return POS.  */)
 DEFUN ("set-window-start", Fset_window_start, Sset_window_start, 2, 3, 0,
        doc: /* Make display in WINDOW start at position POS in WINDOW's buffer.
 WINDOW must be a live window and defaults to the selected one.  Return
-POS.  Optional third arg NOFORCE non-nil inhibits next redisplay from
-overriding motion of point in order to display at this exact start.
+POS.
+
+Optional third arg NOFORCE non-nil prevents next redisplay from
+moving point if displaying the window at POS makes point invisible;
+redisplay will then choose the WINDOW's start position by itself in
+that case, i.e. it will disregard POS if adhering to it will make
+point not visible in the window.
 
 For reliable setting of WINDOW start position, make sure point is
 at a position that will be visible when that start is in effect,
 otherwise there's a chance POS will be disregarded, e.g., if point
-winds up in a partially-visible line.  */)
+winds up in a partially-visible line.
+
+The setting of the WINDOW's start position takes effect during the
+next redisplay cycle, not immediately.  If NOFORCE is nil or
+omitted, forcing the display of WINDOW to start at POS cancels
+any setting of WINDOW's vertical scroll (\"vscroll\") amount
+set by `set-window-vscroll' and by scrolling functions.  */)
   (Lisp_Object window, Lisp_Object pos, Lisp_Object noforce)
 {
   register struct window *w = decode_live_window (window);

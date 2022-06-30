@@ -1706,19 +1706,18 @@ rather than FUN itself, to `minibuffer-setup-hook'."
 
 (defun find-file (filename &optional wildcards)
   "Edit file FILENAME.
-Switch to a buffer visiting file FILENAME,
-creating one if none already exists.
+\\<minibuffer-local-map>Switch to a buffer visiting file FILENAME, creating one if none
+already exists.
 Interactively, the default if you just type RET is the current directory,
 but the visited file name is available through the minibuffer history:
 type \\[next-history-element] to pull it into the minibuffer.
 
-The first time \\[next-history-element] is used after Emacs prompts for
-the file name, the result is affected by `file-name-at-point-functions',
-which by default try to guess the file name by looking at point in the
-current buffer.  Customize the value of `file-name-at-point-functions'
-or set it to nil, if you want only the visited file name and the
-current directory to be available on first \\[next-history-element]
-request.
+The first time \\[next-history-element] is used after Emacs prompts for the file name,
+the result is affected by `file-name-at-point-functions', which by
+default try to guess the file name by looking at point in the current
+buffer.  Customize the value of `file-name-at-point-functions' or set
+it to nil, if you want only the visited file name and the current
+directory to be available on first \\[next-history-element] request.
 
 You can visit files on remote machines by specifying something
 like /ssh:SOME_REMOTE_MACHINE:FILE for the file name.  You can
@@ -1731,7 +1730,7 @@ Interactively, or if WILDCARDS is non-nil in a call from Lisp,
 expand wildcards (if any) and visit multiple files.  You can
 suppress wildcard expansion by setting `find-file-wildcards' to nil.
 
-To visit a file without any kind of conversion and without
+\\<global-map>To visit a file without any kind of conversion and without
 automatically choosing a major mode, use \\[find-file-literally]."
   (interactive
    (find-file-read-args "Find file: "
@@ -1747,6 +1746,7 @@ automatically choosing a major mode, use \\[find-file-literally]."
 Like \\[find-file] (which see), but creates a new window or reuses
 an existing one.  See the function `display-buffer'.
 
+\\<minibuffer-local-map>\
 Interactively, the default if you just type RET is the current directory,
 but the visited file name is available through the minibuffer history:
 type \\[next-history-element] to pull it into the minibuffer.
@@ -1779,6 +1779,7 @@ expand wildcards (if any) and visit multiple files."
 Like \\[find-file] (which see), but creates a new frame or reuses
 an existing one.  See the function `display-buffer'.
 
+\\<minibuffer-local-map>\
 Interactively, the default if you just type RET is the current directory,
 but the visited file name is available through the minibuffer history:
 type \\[next-history-element] to pull it into the minibuffer.
@@ -3887,8 +3888,8 @@ inhibited."
       (with-demoted-errors "Directory-local variables error: %s"
 	;; Note this is a no-op if enable-local-variables is nil.
 	(hack-dir-local-variables))
-      (let ((result (append (hack-local-variables--find-variables)
-                            (hack-local-variables-prop-line))))
+      (let ((result (append (hack-local-variables--find-variables handle-mode)
+                            (hack-local-variables-prop-line handle-mode))))
         (if (and enable-local-variables
                  (not (inhibit-local-variables-p)))
             (progn
@@ -7108,15 +7109,15 @@ by `sh' are supported."
   :group 'dired)
 
 (defun file-expand-wildcards (pattern &optional full)
-  "Expand wildcard pattern PATTERN.
-This returns a list of file names that match the pattern.
-Files are sorted in `string<' order.
+  "Expand (a.k.a. \"glob\") file-name wildcard pattern PATTERN.
+This returns a list of file names that match PATTERN.
+The returned list of file names is sorted in the `string<' order.
 
 If PATTERN is written as an absolute file name,
-the values are absolute also.
+the expansions in the returned list are also absolute.
 
 If PATTERN is written as a relative file name, it is interpreted
-relative to the current default directory, `default-directory'.
+relative to the current `default-directory'.
 The file names returned are normally also relative to the current
 default directory.  However, if FULL is non-nil, they are absolute."
   (save-match-data
@@ -7236,7 +7237,9 @@ need to be passed verbatim to shell commands."
 
 
 (defvar insert-directory-program (purecopy "ls")
-  "Absolute or relative name of the `ls' program used by `insert-directory'.")
+  "Absolute or relative name of the `ls'-like program.
+This is used by `insert-directory' and `dired-insert-directory'
+\(thus, also by `dired').")
 
 (defcustom directory-free-space-program (purecopy "df")
   "Program to get the amount of free space on a file system.
