@@ -106,8 +106,8 @@ Any level x includes messages for all levels 1 .. x-1.  The levels are
  4  activities
  5  internal
  6  sent and received strings
- 7  file caching
- 8  connection properties
+ 7  connection properties
+ 8  file caching
  9  test commands
 10  traces (huge)
 11  call traces (maintainer only)."
@@ -612,7 +612,7 @@ This regexp must match both `tramp-initial-end-of-output' and
   "Regexp matching password-like prompts.
 The regexp should match at end of buffer.
 
-This variable is, by default, initialised from
+This variable is, by default, initialized from
 `password-word-equivalents' when Tramp is loaded, and it is
 usually more convenient to add new passphrases to that variable
 instead of altering this variable.
@@ -3818,7 +3818,7 @@ Let-bind it when necessary.")
 
 		    ;; When we shall insert only a part of the file, we
 		    ;; copy this part.  This works only for the shell file
-		    ;; name handlers.  It doesn't work for crypted files.
+                    ;; name handlers.  It doesn't work for encrypted files.
 		    (when (and (or beg end)
 			       (tramp-sh-file-name-handler-p v)
 			       (null tramp-crypt-enabled))
@@ -3916,7 +3916,7 @@ Return nil when there is no lockfile."
 	       (buffer-string))))))
 
 (defvar tramp-lock-pid nil
-  "A random nunber local for every connection.
+  "A random number local for every connection.
 Do not set it manually, it is used buffer-local in `tramp-get-lock-pid'.")
 
 (defun tramp-get-lock-pid (file)
@@ -5439,7 +5439,7 @@ This handles also chrooted environments, which are not regarded as local."
      ;; handlers.  `tramp-local-host-p' is also called for "smb" and
      ;; alike, where it must fail.
      (tramp-sh-file-name-handler-p vec)
-     ;; Direct actions aren't possible for crypted directories.
+     ;; Direct actions aren't possible for encrypted directories.
      (null tramp-crypt-enabled)
      ;; The local temp directory must be writable for the other user.
      (file-writable-p

@@ -8398,7 +8398,19 @@ presented."
   :global t :group 'mode-line)
 
 (define-minor-mode auto-save-mode
-  "Toggle auto-saving in the current buffer (Auto Save mode)."
+  "Toggle auto-saving in the current buffer (Auto Save mode).
+
+When this mode is enabled, Emacs periodically saves each file-visiting
+buffer in a separate \"auto-save file\".  This is a safety measure to
+prevent you from losing more than a limited amount of work if the
+system crashes.
+
+Auto-saving does not alter the file visited by the buffer: the visited
+file is changed only when you request saving it explicitly (such as
+with \\[save-buffer]).  If you want to save the buffer into its
+visited files automatically, use \\[auto-save-visited-mode]).
+
+For more details, see Info node `(emacs) Auto Save'."
   :variable ((and buffer-auto-save-file-name
                   ;; If auto-save is off because buffer has shrunk,
                   ;; then toggling should turn it on.

@@ -45,7 +45,9 @@
 
 (defcustom native-comp-speed 2
   "Optimization level for native compilation, a number between -1 and 3.
- -1 functions are kept in bytecode form and no native compilation is performed.
+ -1 functions are kept in bytecode form and no native compilation is performed
+    (but *.eln files are still produced, and include the compiled code in
+    bytecode form).
   0 native compilation is performed with no optimizations.
   1 light optimizations.
   2 max optimization level fully adherent to the language semantic.
@@ -3695,7 +3697,7 @@ Prepare every function for final compilation and drive the C back-end."
 				 (file-name-base output) "-")
 			 nil ".el")))
 	(with-temp-file temp-file
-          (insert ";; -*-coding: nil; -*-\n")
+          (insert ";; -*-coding: utf-8-emacs-unix; -*-\n")
           (mapc (lambda (e)
                   (insert (prin1-to-string e)))
                 expr))

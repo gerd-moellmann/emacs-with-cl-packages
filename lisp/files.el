@@ -419,17 +419,23 @@ idle for `auto-save-visited-interval' seconds."
            (timer-set-idle-time auto-save--timer value :repeat))))
 
 (define-minor-mode auto-save-visited-mode
-  "Toggle automatic saving to file-visiting buffers on or off.
+  "Toggle automatic saving of file-visiting buffers to their files.
 
-Unlike `auto-save-mode', this mode will auto-save buffer contents
-to the visited files directly and will also run all save-related
-hooks.  See Info node `Saving' for details of the save process.
+When this mode is enabled, file-visiting buffers are automatically
+saved to their files.  This is in contrast to `auto-save-mode', which
+auto-saves those buffers to a separate file, leaving the original
+file intact.  See Info node `Saving' for details of the save process.
+
+The user option `auto-save-visited-interval' controls how often to
+auto-save a buffer into its visited file.
 
 You can also set the buffer-local value of the variable
 `auto-save-visited-mode' to nil.  A buffer where the buffer-local
 value of this variable is nil is ignored for the purpose of
 `auto-save-visited-mode', even if `auto-save-visited-mode' is
-enabled."
+enabled.
+
+For more details, see Info node `(emacs) Auto Save Files'."
   :group 'auto-save
   :global t
   (when auto-save--timer (cancel-timer auto-save--timer))
@@ -1221,8 +1227,8 @@ Tip: You can use this expansion of remote identifier components
 
 (defcustom remote-file-name-inhibit-cache 10
   "Whether to use the remote file-name cache for read access.
-When nil, never expire cached values (caution)
-When t, never use the cache (safe, but may be slow)
+When nil, never expire cached values (caution).
+When t, never use the cache (safe, but may be slow).
 A number means use cached values for that amount of seconds since caching.
 
 The attributes of remote files are cached for better performance.
@@ -5027,14 +5033,16 @@ extension, the value is \"\"."
             "")))))
 
 (defun file-name-with-extension (filename extension)
-  "Set the EXTENSION of a FILENAME.
+  "Return FILENAME modified to have the specified EXTENSION.
 The extension (in a file name) is the part that begins with the last \".\".
+This function removes any existing extension from FILENAME, and then
+appends EXTENSION to it.
 
-Trims a leading dot from the EXTENSION so that either \"foo\" or
-\".foo\" can be given.
+EXTENSION may include the leading dot; if it doesn't, this function
+will provide it.
 
-Errors if the FILENAME or EXTENSION are empty, or if the given
-FILENAME has the format of a directory.
+It is an error if FILENAME or EXTENSION is empty, or if FILENAME
+is in the form of a directory name according to `directory-name-p'.
 
 See also `file-name-sans-extension'."
   (let ((extn (string-trim-left extension "[.]")))
