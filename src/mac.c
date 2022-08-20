@@ -2967,7 +2967,7 @@ mac_initialize_operating_system_version ()
   const char *filename = "/System/Library/CoreServices/SystemVersion.plist";
   CFURLRef url;
   CFPropertyListRef plist = NULL;
-  CFDataRef data = NULL;
+  CFArrayRef array = NULL;
 
   url = CFURLCreateFromFileSystemRepresentation (NULL, (const UInt8 *) filename,
 						 strlen (filename), false);
@@ -2984,29 +2984,26 @@ mac_initialize_operating_system_version ()
 	    CFDictionaryGetValue (plist, CFSTR ("ProductVersion"));
 
 	  if (value && CFGetTypeID (value) == CFStringGetTypeID ())
-	    data = CFStringCreateExternalRepresentation (NULL, value,
-							 kCFStringEncodingUTF8,
-							 '\0');
+	    array = CFStringCreateArrayBySeparatingStrings (NULL, value,
+							    CFSTR ("."));
 	}
       CFRelease (plist);
     }
-  if (data)
+  if (array)
     {
-      long major, minor, patch;
-      int nmatches;
+      CFIndex count = CFArrayGetCount (array);
 
-      nmatches = sscanf ((const char *) CFDataGetBytePtr (data),
-			 "%ld.%ld.%ld", &major, &minor, &patch);
-      if (nmatches == 3 || nmatches == 2)
+      if (count == 3 || count == 2)
 	{
-	  if (nmatches == 2)
-	    patch = 0;
-	  mac_operating_system_version.major = major;
-	  mac_operating_system_version.minor = minor;
-	  mac_operating_system_version.patch = patch;
+	  mac_operating_system_version.major =
+	    CFStringGetIntValue (CFArrayGetValueAtIndex (array, 0));
+	  mac_operating_system_version.minor =
+	    CFStringGetIntValue (CFArrayGetValueAtIndex (array, 1));
+	  mac_operating_system_version.patch =
+	    (count == 2 ? 0
+	     : CFStringGetIntValue (CFArrayGetValueAtIndex (array, 2)));
 	}
-
-      CFRelease (data);
+      CFRelease (array);
     }
 }
 
