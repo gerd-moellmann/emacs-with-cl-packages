@@ -9057,20 +9057,23 @@ mac_get_default_scroll_bar_height (struct frame *f)
   if (toolbar == nil)
     return;
 
-  [toolbar setSizeMode:NSToolbarSizeModeSmall];
-  [toolbar setAllowsUserCustomization:YES];
-  [toolbar setAutosavesConfiguration:NO];
-  [toolbar setDelegate:self];
-  [toolbar setVisible:visible];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 110000
+  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_15)
+    toolbar.sizeMode = NSToolbarSizeModeSmall;
+#endif
+  toolbar.allowsUserCustomization = YES;
+  toolbar.autosavesConfiguration = NO;
+  toolbar.delegate = self;
+  toolbar.visible = visible;
 
-  [emacsWindow setToolbar:toolbar];
+  emacsWindow.toolbar = toolbar;
   MRC_RELEASE (toolbar);
 
   [self updateToolbarDisplayMode];
 
   button = [emacsWindow standardWindowButton:NSWindowToolbarButton];
-  [button setTarget:emacsController];
-  [button setAction:(NSSelectorFromString (@"toolbar-pill-button-clicked:"))];
+  button.target = emacsController;
+  button.action = NSSelectorFromString (@"toolbar-pill-button-clicked:");
 }
 
 /* Update display mode of the toolbar for the frame according to
