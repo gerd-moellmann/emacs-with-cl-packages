@@ -9058,8 +9058,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
     return;
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 110000
-  if (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_15)
-    toolbar.sizeMode = NSToolbarSizeModeSmall;
+  toolbar.sizeMode = NSToolbarSizeModeSmall;
 #endif
   toolbar.allowsUserCustomization = YES;
   toolbar.autosavesConfiguration = NO;
