@@ -554,7 +554,9 @@ select_window (Lisp_Object window, Lisp_Object norecord,
 	 frame is active.  */
       Fselect_frame (frame, norecord);
       /* Fselect_frame called us back so we've done all the work already.  */
-      eassert (EQ (window, selected_window));
+      eassert (EQ (window, selected_window)
+	       || (EQ (window, f->minibuffer_window)
+		   && NILP (Fminibufferp (XWINDOW (window)->contents, Qt))));
       return window;
     }
   else
@@ -1232,7 +1234,7 @@ WINDOW must be a live window and defaults to the selected one.
 Clip the number to a reasonable value if out of range.
 Return the new number.  NCOL should be zero or positive.
 
-Note that if `automatic-hscrolling' is non-nil, you cannot scroll the
+Note that if `auto-hscroll-mode' is non-nil, you cannot scroll the
 window so that the location of point moves off-window.  */)
   (Lisp_Object window, Lisp_Object ncol)
 {
@@ -1850,13 +1852,24 @@ Return POS.  */)
 DEFUN ("set-window-start", Fset_window_start, Sset_window_start, 2, 3, 0,
        doc: /* Make display in WINDOW start at position POS in WINDOW's buffer.
 WINDOW must be a live window and defaults to the selected one.  Return
-POS.  Optional third arg NOFORCE non-nil inhibits next redisplay from
-overriding motion of point in order to display at this exact start.
+POS.
+
+Optional third arg NOFORCE non-nil prevents next redisplay from
+moving point if displaying the window at POS makes point invisible;
+redisplay will then choose the WINDOW's start position by itself in
+that case, i.e. it will disregard POS if adhering to it will make
+point not visible in the window.
 
 For reliable setting of WINDOW start position, make sure point is
 at a position that will be visible when that start is in effect,
 otherwise there's a chance POS will be disregarded, e.g., if point
-winds up in a partially-visible line.  */)
+winds up in a partially-visible line.
+
+The setting of the WINDOW's start position takes effect during the
+next redisplay cycle, not immediately.  If NOFORCE is nil or
+omitted, forcing the display of WINDOW to start at POS cancels
+any setting of WINDOW's vertical scroll (\"vscroll\") amount
+set by `set-window-vscroll' and by scrolling functions.  */)
   (Lisp_Object window, Lisp_Object pos, Lisp_Object noforce)
 {
   register struct window *w = decode_live_window (window);
@@ -6620,7 +6633,7 @@ and redisplay normally--don't erase and redraw the frame.  */)
 	     considered to be part of the visible height of the line.
 	  */
 	  h += extra_line_spacing;
-	  while (-it.current_y > h)
+	  while (-it.current_y > h && it.what != IT_EOB)
 	    move_it_by_lines (&it, 1);
 
 	  charpos = IT_CHARPOS (it);
@@ -8296,7 +8309,8 @@ on their symbols to be controlled by this variable.  */);
   Vscroll_preserve_screen_position = Qnil;
 
   DEFVAR_LISP ("window-point-insertion-type", Vwindow_point_insertion_type,
-	       doc: /* Type of marker to use for `window-point'.  */);
+	       doc: /* Insertion type of marker to use for `window-point'.
+See `marker-insertion-type' for the meaning of the possible values.  */);
   Vwindow_point_insertion_type = Qnil;
   DEFSYM (Qwindow_point_insertion_type, "window-point-insertion-type");
 

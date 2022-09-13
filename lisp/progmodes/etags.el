@@ -1702,7 +1702,7 @@ Point should be just after a string that matches TAG."
 ;;;###autoload
 (defalias 'next-file 'tags-next-file)
 (make-obsolete 'next-file
-               "use tags-next-file or fileloop-initialize and fileloop-next-file instead" "27.1")
+               "use `tags-next-file' or `fileloop-initialize' and `fileloop-next-file' instead" "27.1")
 ;;;###autoload
 (defun tags-next-file (&optional initialize novisit)
   "Select next file among files in current tags table.
@@ -1836,7 +1836,13 @@ Also see the documentation of the `tags-file-name' variable."
 Third arg DELIMITED (prefix arg) means replace only word-delimited matches.
 If you exit (\\[keyboard-quit], RET or q), you can resume the query replace
 with the command \\[fileloop-continue].
-For non-interactive use, superseded by `fileloop-initialize-replace'."
+
+As each match is found, the user must type a character saying
+what to do with it.  Type SPC or `y' to replace the match,
+DEL or `n' to skip and go to the next match.  For more directions,
+type \\[help-command] at that time.
+
+For non-interactive use, this is superseded by `fileloop-initialize-replace'."
   (declare (advertised-calling-convention (from to &optional delimited) "27.1"))
   (interactive (query-replace-read-args "Tags query replace (regexp)" t t))
   (fileloop-initialize-replace

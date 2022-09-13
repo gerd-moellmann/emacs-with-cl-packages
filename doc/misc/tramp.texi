@@ -667,6 +667,11 @@ may be used in your init file:
 (with-eval-after-load 'tramp (tramp-change-syntax 'simplified))
 @end lisp
 
+@vindex enable-remote-dir-locals
+Changing other variables via directory-local variables on a remote
+directory must be enabled by setting @code{enable-remote-dir-locals}
+to non-@code{nil}, @xref{Directory Variables, , , emacs}.
+
 
 @menu
 * Connection types::            Types of connections to remote hosts.
@@ -2397,7 +2402,7 @@ example below:
 @end lisp
 
 @vindex password-word-equivalents
-This user option is, by default, initialised from
+This user option is, by default, initialized from
 @code{password-word-equivalents} when @value{tramp} is loaded, and it
 is usually more convenient to add new passphrases to that user option
 instead of altering this user option.
@@ -3156,7 +3161,7 @@ names.  Beside the @code{default} value, @var{syntax} can be
 @item @code{simplified}
 @cindex simplified syntax
 
-The remote file name syntax is similar to the syntax used by Ange FTP@.
+This remote file name syntax is similar to the syntax used by Ange FTP@.
 A remote file name has the form
 @code{@value{prefix}user@@host@value{postfix}path/to/file}.  The
 @code{user@@} part is optional, and the method is determined by
@@ -3168,7 +3173,7 @@ A remote file name has the form
 @clear unified
 @set separate
 @include trampver.texi
-The remote file name syntax is similar to the syntax used by XEmacs.
+This remote file name syntax originated in the XEmacs text editor.
 A remote file name has the form
 @code{@trampfn{method,user@@host,path/to/file}}.  The @code{method}
 and @code{user@@} parts are optional.
@@ -4008,8 +4013,10 @@ methods}.  Internally, file archives are mounted via the
 @acronym{GVFS} @option{archive} method.
 
 A file archive is a regular file of kind @file{/path/to/dir/file.EXT}.
-The extension @samp{.EXT} identifies the type of the file archive.  A
-file inside a file archive, called archive file name, has the name
+The extension @samp{.EXT} identifies the type of the file archive.  To
+examine the contents of an archive with Dired, open file name as if it
+were a directory (i.e., open @file{/path/to/dir/file.EXT/}).  A file
+inside a file archive, called archive file name, has the name
 @file{/path/to/dir/file.EXT/dir/file}.
 
 Most of the @ref{Magic File Names, , magic file name operations,
@@ -4983,13 +4990,6 @@ minibuffer:
   (before my-minibuffer-complete activate)
   (expand-abbrev))
 @end group
-
-@group
-;; If you use partial-completion-mode
-(defadvice PC-do-completion
-  (before my-PC-do-completion activate)
-  (expand-abbrev))
-@end group
 @end lisp
 
 The reduced typing: @kbd{C-x C-f xy @key{TAB}}.
@@ -5446,15 +5446,15 @@ The verbosity levels are
 @*@indent @w{ 4}  activities
 @*@indent @w{ 5}  internal
 @*@indent @w{ 6}  sent and received strings
-@*@indent @w{ 7}  file caching
-@*@indent @w{ 8}  connection properties
+@*@indent @w{ 7}  connection properties
+@*@indent @w{ 8}  file caching
 @*@indent @w{ 9}  test commands
 @*@indent @w{10}  traces (huge)
 @*@indent @w{11}  call traces (maintainer only)
 
 With @code{tramp-verbose} greater than or equal to 4, messages are
 also written to a @value{tramp} debug buffer.  Such debug buffers are
-essential to bug and problem analyses.  For @value{tramp} bug reports,
+essential to bug and problem analyzes.  For @value{tramp} bug reports,
 set the @code{tramp-verbose} level to 6 (@pxref{Bug Reports}).
 
 The debug buffer is in

@@ -3230,6 +3230,8 @@ macfont_shape (Lisp_Object lgstring, Lisp_Object direction)
 				   make_fixnum (yoff), make_fixnum (wadjust));
           LGLYPH_SET_ADJUSTMENT (lglyph, vec);
         }
+      else
+	LGLYPH_SET_ADJUSTMENT (lglyph, Qnil);
     }
 
   unblock_input ();

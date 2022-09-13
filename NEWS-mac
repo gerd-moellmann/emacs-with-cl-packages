@@ -1,8 +1,20 @@
+* emacs-28.2-mac-9.1 (2022-09-13)
+Based on Emacs 28.2.
+
+** Fixed bugs
+
+*** DJVU to TIFF converter in DocView does not properly support @2x.
+
+*** SVG rendering via WebKit 2 does not support local file references.
+Reported by Howard Melman.
+
+
 * emacs-28.1-mac-9.0 (2022-04-06)
 Based on Emacs 28.1.
 Drop support for Mac OS X 10.6 - OS X 10.9.
 Emoji composition handling is aligned with upstream.  You may find
 some incompatibilities with the previous versions.
+https://lists.gnu.org/r/emacs-devel/2022-04/msg00175.html
 
 ** Fixed bugs
 

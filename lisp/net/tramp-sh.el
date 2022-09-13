@@ -115,7 +115,7 @@ configuration."
   "Which ssh Control* arguments to use.
 
 If it is a string, it should have the form
-\"-o ControlMaster=auto -o ControlPath=\\='tramp.%%r@%%h:%%p\\='
+\"-o ControlMaster=auto -o ControlPath=tramp.%%C
 -o ControlPersist=no\".  Percent characters in the ControlPath
 spec must be doubled, because the string is used as format string.
 
@@ -130,6 +130,15 @@ The string is used in `tramp-methods'.")
 
 It is the string \"-T\" if supported by the local scp (since
 release 8.0), otherwise the string \"\".  If it is nil, it will
+be auto-detected by Tramp.
+
+The string is used in `tramp-methods'.")
+
+(defvar tramp-scp-force-scp-protocol nil
+  "Force scp protocol.
+
+It is the string \"-O\" if supported by the local scp (since
+release 8.6), otherwise the string \"\".  If it is nil, it will
 be auto-detected by Tramp.
 
 The string is used in `tramp-methods'.")
@@ -170,7 +179,7 @@ The string is used in `tramp-methods'.")
                 (tramp-remote-shell-args    ("-c"))
                 (tramp-copy-program         "scp")
                 (tramp-copy-args            (("-P" "%p") ("-p" "%k")
-					     ("%x") ("-q") ("-r") ("%c")))
+					     ("%x") ("%y") ("-q") ("-r") ("%c")))
                 (tramp-copy-keep-date       t)
                 (tramp-copy-recursive       t)))
  (add-to-list 'tramp-methods
@@ -186,7 +195,7 @@ The string is used in `tramp-methods'.")
                 (tramp-remote-shell-args    ("-c"))
                 (tramp-copy-program         "scp")
                 (tramp-copy-args            (("-P" "%p") ("-p" "%k")
-				             ("%x") ("-q") ("-r") ("%c")))
+				             ("%x") ("%y") ("-q") ("-r") ("%c")))
                 (tramp-copy-keep-date       t)
                 (tramp-copy-recursive       t)))
  (add-to-list 'tramp-methods
@@ -1189,12 +1198,18 @@ component is used as the target of the symlink."
 	    ;; The scripts could fail, for example with huge file size.
 	    (tramp-do-file-attributes-with-ls v localname id-format))))))))
 
+(defconst tramp-sunos-unames (regexp-opt '("SunOS 5.10" "SunOS 5.11"))
+  "Regexp to determine remote SunOS.")
+
 (defun tramp-sh--quoting-style-options (vec)
   "Quoting style options to be used for VEC."
   (or
    (tramp-get-ls-command-with
     vec "--quoting-style=literal --show-control-chars")
-   (tramp-get-ls-command-with vec "-w")
+   ;; ls on Solaris does not return an error in that case.  We've got
+   ;; reports for "SunOS 5.11" so far.
+   (unless (tramp-check-remote-uname vec tramp-sunos-unames)
+     (tramp-get-ls-command-with vec "-w"))
    ""))
 
 (defun tramp-do-file-attributes-with-ls (vec localname &optional id-format)
@@ -1574,6 +1589,7 @@ ID-FORMAT valid values are `string' and `integer'."
       ;; Examine `file-attributes' cache to see if request can be
       ;; satisfied without remote operation.
       (or (tramp-check-cached-permissions v ?x)
+	  (tramp-check-cached-permissions v ?s)
 	  (tramp-run-test "-x" filename)))))
 
 (defun tramp-sh-handle-file-readable-p (filename)
@@ -2304,7 +2320,8 @@ The method used must be an out-of-band method."
 		    ?h (or host "") ?u (or user "") ?p (or port "")
 		    ?r listener ?c options ?k (if keep-date " " "")
                     ?n (concat "2>" (tramp-get-remote-null-device v))
-		    ?x (tramp-scp-strict-file-name-checking v))
+		    ?x (tramp-scp-strict-file-name-checking v)
+		    ?y (tramp-scp-force-scp-protocol v))
 	      copy-program (tramp-get-method-parameter v 'tramp-copy-program)
 	      copy-keep-date (tramp-get-method-parameter
 			      v 'tramp-copy-keep-date)
@@ -2663,7 +2680,9 @@ The method used must be an out-of-band method."
 	  ;; Try to insert the amount of free space.
 	  (goto-char (point-min))
 	  ;; First find the line to put it on.
-	  (when (re-search-forward "^\\([[:space:]]*total\\)" nil t)
+	  (when (and (re-search-forward "^\\([[:space:]]*total\\)" nil t)
+		     ;; Emacs 29.1 or later.
+		     (not (fboundp 'dired--insert-disk-space)))
 	    (when-let ((available (get-free-disk-space ".")))
 	      ;; Replace "total" with "total used", to avoid confusion.
 	      (replace-match "\\1 used in directory")
@@ -2817,8 +2836,10 @@ implementation will be used."
 			       (string-match-p "sh$" program)
 			       (= (length args) 2)
 			       (string-equal "-c" (car args))
-			       ;; Don't if there is a string.
-			       (not (string-match-p "'\\|\"" (cadr args)))))
+			       ;; Don't if there is a quoted string.
+			       (not (string-match-p "'\\|\"" (cadr args)))
+			       ;; Check, that /dev/tty is usable.
+			       (tramp-get-remote-dev-tty v)))
 		 ;; When PROGRAM is nil, we just provide a tty.
 		 (args (if (not heredoc) args
 			 (let ((i 250))
@@ -3080,10 +3101,10 @@ implementation will be used."
       ;; Determine input.
       (if (null infile)
 	  (setq input (tramp-get-remote-null-device v))
-	(setq infile (expand-file-name infile))
+	(setq infile (tramp-compat-file-name-unquote (expand-file-name infile)))
 	(if (tramp-equal-remote default-directory infile)
 	    ;; INFILE is on the same remote host.
-	    (setq input (tramp-file-local-name infile))
+	    (setq input (tramp-unquote-file-local-name infile))
 	  ;; INFILE must be copied to remote host.
 	  (setq input (tramp-make-tramp-temp-file v)
 		tmpinput (tramp-make-tramp-file-name v input 'nohop))
@@ -3114,7 +3135,7 @@ implementation will be used."
 	  (setcar (cdr destination) (expand-file-name (cadr destination)))
 	  (if (tramp-equal-remote default-directory (cadr destination))
 	      ;; stderr is on the same remote host.
-	      (setq stderr (tramp-file-local-name (cadr destination)))
+	      (setq stderr (tramp-unquote-file-local-name (cadr destination)))
 	    ;; stderr must be copied to remote host.  The temporary
 	    ;; file must be deleted after execution.
 	    (setq stderr (tramp-make-tramp-temp-file v)
@@ -3135,7 +3156,8 @@ implementation will be used."
               (setq ret (tramp-send-command-and-check
 			 v (format
 			    "cd %s && %s"
-			    (tramp-shell-quote-argument localname) command)
+			    (tramp-unquote-shell-quote-argument localname)
+			    command)
 			 t t t))
 	    (unless (natnump ret) (setq ret 1))
 	    ;; We should add the output anyway.
@@ -3167,8 +3189,7 @@ implementation will be used."
       ;; Cleanup.  We remove all file cache values for the connection,
       ;; because the remote process could have changed them.
       (when tmpinput (delete-file tmpinput))
-
-      (unless process-file-side-effects
+      (when process-file-side-effects
         (tramp-flush-directory-properties v ""))
 
       ;; Return exit status.
@@ -3985,9 +4006,6 @@ Returns the exit code of the `test' program."
       switch
       (tramp-shell-quote-argument localname)))))
 
-(defconst tramp-sunos-unames (regexp-opt '("SunOS 5.10" "SunOS 5.11"))
-  "Regexp to determine remote SunOS.")
-
 (defun tramp-find-executable
   (vec progname dirlist &optional ignore-tilde ignore-path)
   "Search for PROGNAME in $PATH and all directories mentioned in DIRLIST.
@@ -4093,13 +4111,10 @@ file exists and nonzero exit status otherwise."
     ;; The algorithm is as follows: we try a list of several commands.
     ;; For each command, we first run `$cmd /' -- this should return
     ;; true, as the root directory always exists.  And then we run
-    ;; `$cmd /this\ file\ does\ not\ exist ', hoping that the file indeed
-    ;; does not exist.  This should return false.  We use the first
-    ;; command we find that seems to work.
+    ;; `$cmd /\ this\ file\ does\ not\ exist\ ', hoping that the file
+    ;; indeed does not exist.  This should return false.  We use the
+    ;; first command we find that seems to work.
     ;; The list of commands to try is as follows:
-    ;; `ls -d'            This works on most systems, but NetBSD 1.4
-    ;;                    has a bug: `ls' always returns zero exit
-    ;;                    status, even for files which don't exist.
     ;; `test -e'          Some Bourne shells have a `test' builtin
     ;;                    which does not know the `-e' option.
     ;; `/bin/test -e'     For those, the `test' binary on disk normally
@@ -4107,6 +4122,10 @@ file exists and nonzero exit status otherwise."
     ;;                    is sometimes `/bin/test' and sometimes it's
     ;;                    `/usr/bin/test'.
     ;; `/usr/bin/test -e' In case `/bin/test' does not exist.
+    ;; `ls -d'            This works on most systems, but NetBSD 1.4
+    ;;                    has a bug: `ls' always returns zero exit
+    ;;                    status, even for files which don't exist.
+
     (unless (or
 	     (ignore-errors
 	       (and (setq result (format "%s -e" (tramp-get-test-command vec)))
@@ -4766,13 +4785,13 @@ Goes through the list `tramp-inline-compress-commands'."
 	      (if (zerop
 		   (tramp-call-process
 		    vec "ssh" nil nil nil
-		    "-G" "-o" "ControlPath='tramp.%C'" "0.0.0.1"))
+		    "-G" "-o" "ControlPath=tramp.%C" "0.0.0.1"))
 		  (setq tramp-ssh-controlmaster-options
 			(concat tramp-ssh-controlmaster-options
-				" -o ControlPath='tramp.%%C'"))
+				" -o ControlPath=tramp.%%C"))
 		(setq tramp-ssh-controlmaster-options
 		      (concat tramp-ssh-controlmaster-options
-			      " -o ControlPath='tramp.%%r@%%h:%%p'")))
+			      " -o ControlPath=tramp.%%r@%%h:%%p")))
 	      (when (zerop
 		     (tramp-call-process
 		      vec "ssh" nil nil nil
@@ -4809,6 +4828,33 @@ Goes through the list `tramp-inline-compress-commands'."
 		  (setq tramp-scp-strict-file-name-checking "-T")))))))
       tramp-scp-strict-file-name-checking)))
 
+(defun tramp-scp-force-scp-protocol (vec)
+  "Return the force scp protocol argument of the local scp."
+  (cond
+   ;; No options to be computed.
+   ((null (assoc "%y" (tramp-get-method-parameter vec 'tramp-copy-args)))
+    "")
+
+   ;; There is already a value to be used.
+   ((stringp tramp-scp-force-scp-protocol)
+    tramp-scp-force-scp-protocol)
+
+   ;; Determine the options.
+   (t (setq tramp-scp-force-scp-protocol "")
+      (let ((case-fold-search t))
+	(ignore-errors
+	  (when (executable-find "scp")
+	    (with-tramp-progress-reporter
+		vec 4 "Computing force scp protocol argument"
+	      (with-temp-buffer
+		(tramp-call-process vec "scp" nil t nil "-O")
+		(goto-char (point-min))
+		(unless
+                    (search-forward-regexp
+                     "\\(illegal\\|unknown\\) option -- O" nil t)
+		  (setq tramp-scp-force-scp-protocol "-O")))))))
+      tramp-scp-force-scp-protocol)))
+
 (defun tramp-timeout-session (vec)
   "Close the connection VEC after a session timeout.
 If there is just some editing, retry it after 5 seconds."
@@ -4839,6 +4885,7 @@ connection if a previous connection has died for some reason."
     ;; If Tramp opens the same connection within a short time frame,
     ;; there is a problem.  We shall signal this.
     (unless (or (process-live-p p)
+                (and (processp p) (not non-essential))
 		(not (tramp-file-name-equal-p
 		      vec (car tramp-current-connection)))
 		(time-less-p
@@ -5814,6 +5861,12 @@ This command is returned only if `delete-by-moving-to-trash' is non-nil."
 		    vec (format command (tramp-file-local-name tmpfile)))
 		   command))
 	(delete-file tmpfile)))))
+
+(defun tramp-get-remote-dev-tty (vec)
+  "Check, whether remote /dev/tty is usable."
+  (with-tramp-connection-property vec "dev-tty"
+    (tramp-send-command-and-check
+     vec "echo </dev/tty")))
 
 ;; Some predefined connection properties.
 (defun tramp-get-inline-compress (vec prop size)

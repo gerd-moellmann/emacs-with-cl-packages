@@ -9057,20 +9057,22 @@ mac_get_default_scroll_bar_height (struct frame *f)
   if (toolbar == nil)
     return;
 
-  [toolbar setSizeMode:NSToolbarSizeModeSmall];
-  [toolbar setAllowsUserCustomization:YES];
-  [toolbar setAutosavesConfiguration:NO];
-  [toolbar setDelegate:self];
-  [toolbar setVisible:visible];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 110000
+  toolbar.sizeMode = NSToolbarSizeModeSmall;
+#endif
+  toolbar.allowsUserCustomization = YES;
+  toolbar.autosavesConfiguration = NO;
+  toolbar.delegate = self;
+  toolbar.visible = visible;
 
-  [emacsWindow setToolbar:toolbar];
+  emacsWindow.toolbar = toolbar;
   MRC_RELEASE (toolbar);
 
   [self updateToolbarDisplayMode];
 
   button = [emacsWindow standardWindowButton:NSWindowToolbarButton];
-  [button setTarget:emacsController];
-  [button setAction:(NSSelectorFromString (@"toolbar-pill-button-clicked:"))];
+  button.target = emacsController;
+  button.action = NSSelectorFromString (@"toolbar-pill-button-clicked:");
 }
 
 /* Update display mode of the toolbar for the frame according to
@@ -13558,6 +13560,8 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
    WebView object creation.  */
 #ifdef USE_WK_API
 static WKWebView *EmacsSVGDocumentLastWebView;
+/* Fake scheme for circumventing local file access restriction. */
+#define URL_FAKE_FILE_SCHEME (@"EmacsSVGDocument.file")
 #else
 static WebView *EmacsSVGDocumentLastWebView;
 #endif
@@ -13660,6 +13664,8 @@ static WebView *EmacsSVGDocumentLastWebView;
 	[[WKWebViewConfiguration alloc] init];
 
       configuration.suppressesIncrementalRendering = YES;
+      [configuration setURLSchemeHandler:self
+			    forURLScheme:URL_FAKE_FILE_SCHEME];
       webView = [[WKWebView alloc] initWithFrame:frameRect
 				   configuration:configuration];
       MRC_RELEASE (configuration);
@@ -13677,6 +13683,13 @@ static WebView *EmacsSVGDocumentLastWebView;
 
   NSURL *baseURL = options[@"baseURL"];
 #ifdef USE_WK_API
+  if (baseURL)
+    {
+      NSURLComponents *components =
+	[NSURLComponents componentsWithURL:baseURL resolvingAgainstBaseURL:YES];
+      components.scheme = URL_FAKE_FILE_SCHEME;
+      baseURL = components.URL;
+    }
   webView.navigationDelegate = self;
   [webView loadData:data MIMEType:@"image/svg+xml"
 	   characterEncodingName:@"UTF-8" baseURL:baseURL];
@@ -14024,9 +14037,81 @@ static WebView *EmacsSVGDocumentLastWebView;
 }
 
 #ifdef USE_WK_API
-- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation;
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation
 {
   isLoaded = YES;
+}
+
+- (void)webView:(WKWebView *)webView startURLSchemeTask:(id <WKURLSchemeTask>)urlSchemeTask
+{
+  NSURL *url = urlSchemeTask.request.URL;
+  NSURLComponents *components =
+    [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:YES];
+
+  eassert ([components.scheme caseInsensitiveCompare:URL_FAKE_FILE_SCHEME]
+	   == NSOrderedSame);
+  components.scheme = NSURLFileScheme;
+  url = components.URL;
+
+  NSError *error = nil;
+  NSFileHandle *fileHandle =
+    [NSFileHandle fileHandleForReadingFromURL:url error:&error];
+
+  NSString *mimeType = nil;
+  if (fileHandle)
+    {
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+      UTType *contentType;
+      if ([url getResourceValue:&contentType forKey:NSURLContentTypeKey
+			  error:&error])
+	mimeType = contentType.preferredMIMEType;
+#else
+      NSString *typeIdentifier;
+      if ([url getResourceValue:&typeIdentifier forKey:NSURLTypeIdentifierKey
+			  error:&error])
+	mimeType = CFBridgingRelease
+	  (UTTypeCopyPreferredTagWithClass (((__bridge CFStringRef)
+					     typeIdentifier),
+					    kUTTagClassMIMEType));
+#endif
+    }
+
+  NSData *data = nil;
+  if (mimeType)
+    {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
+      data = [fileHandle readDataToEndOfFileAndReturnError:&error];
+#else
+      @try
+	{
+	  data = [fileHandle readDataToEndOfFile];
+	}
+      @catch (NSException *exception)
+	{
+	  error = [NSError errorWithDomain:NSCocoaErrorDomain
+				      code:NSFileReadUnknownError
+				  userInfo:exception.userInfo];
+	}
+#endif
+    }
+
+  if (!data)
+    {
+      [urlSchemeTask didFailWithError:error];
+      return;
+    }
+
+  NSURLResponse *response =
+    MRC_AUTORELEASE ([[NSURLResponse alloc]
+		       initWithURL:urlSchemeTask.request.URL MIMEType:mimeType
+		       expectedContentLength:data.length textEncodingName:nil]);
+  [urlSchemeTask didReceiveResponse:response];
+  [urlSchemeTask didReceiveData:data];
+  [urlSchemeTask didFinish];
+}
+
+- (void)webView:(WKWebView *)webView stopURLSchemeTask:(id <WKURLSchemeTask>)urlSchemeTask
+{
 }
 #else
 - (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame
