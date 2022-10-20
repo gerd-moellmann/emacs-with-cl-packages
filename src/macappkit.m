@@ -15215,7 +15215,8 @@ mac_update_accessibility_status (struct frame *f)
 
 - (CALayer *)layerForRect:(NSRect)rect
 {
-  NSRect rectInLayer = [emacsView convertRect:rect toView:overlayView];
+  NSRect rectInLayer = [emacsView convertRect:rect
+				       toView:emacsWindow.contentView];
   CALayer *layer, *contentLayer;
   NSBitmapImageRep *bitmap;
 
