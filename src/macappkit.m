@@ -11081,7 +11081,8 @@ init_menu_bar (void)
 	     action:@selector(about:)
 	     keyEquivalent:@""];
   [appleMenu addItem:[NSMenuItem separatorItem]];
-  [appleMenu addItemWithTitle:@"Preferences..."
+  [appleMenu addItemWithTitle:(mac_operating_system_version.major >= 13
+			       ? @"Settings..." : @"Preferences...")
 	     action:@selector(preferences:) keyEquivalent:@""];
   [appleMenu addItem:[NSMenuItem separatorItem]];
   [appleMenu setSubmenu:servicesMenu
