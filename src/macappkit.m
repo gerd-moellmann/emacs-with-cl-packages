@@ -3216,9 +3216,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   if (windowManagerState & WM_STATE_FULLSCREEN)
     {
-      NSRect screenFrame = [[window screen] frame];
+      NSScreen *screen = window.screen;
 
-      result = screenFrame.size;
+      /* On macOS 12, window.screen might become nil when waking up
+	 from sleep and window was on a non-primary screen.  */
+      if (screen)
+	result = screen.frame.size;
+      else
+	result = proposedFrameSize;
     }
   else
     {
