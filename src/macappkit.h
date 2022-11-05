@@ -1159,18 +1159,22 @@ typedef NSInteger NSGlyphProperty;
 #endif
 				       >
 {
-  /* View to render the SVG image.  */
 #ifdef USE_WK_API
+  /* View to render the SVG image.  */
   WKWebView *webView;
+
+  /* The block called when navigation is complete.  */
+  void (^finishNavigationHandler) (WKWebView *, WKNavigation *);
 #else
+  /* View to render the SVG image.  */
   WebView *webView;
+
+  /* The block called when a page load completes.  */
+  void (^finishLoadForFrameHandler) (WebView *, WebFrame *);
 #endif
 
   /* Rectangle shown as the SVG image within webView.  */
   NSRect viewRect;
-
-  /* Whether a page load has completed.  */
-  BOOL isLoaded;
 }
 @end
 
