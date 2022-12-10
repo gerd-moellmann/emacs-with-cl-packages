@@ -3549,7 +3549,6 @@ slurp_file (int fd, ptrdiff_t *size)
 			MAC Image Load Functions
  ***********************************************************************/
 
-static void compute_image_size (size_t, size_t, struct image *, int *, int *);
 static bool xbm_image_p (Lisp_Object object);
 
 /* Return the name of 2x image file that corresponds to the given
