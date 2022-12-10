@@ -825,7 +825,7 @@ language."
 (defconst mac-keyboard-modifier-mask-alist
   (mapcar
    (lambda (modifier-bit)
-     (cons (car modifier-bit) (lsh 1 (cdr modifier-bit))))
+     (cons (car modifier-bit) (ash 1 (cdr modifier-bit))))
    '((command  . 8)			; cmdKeyBit
      (shift    . 9)			; shiftKeyBit
      (option   . 11)			; optionKeyBit
