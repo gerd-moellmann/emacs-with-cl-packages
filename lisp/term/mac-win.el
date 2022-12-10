@@ -773,15 +773,14 @@ language."
   (or from (setq from 0))
   (or to (setq to (length bytes)))
   (let* ((len (- to from))
-	 (extended-sign-len (- (1+ (ceiling (log most-positive-fixnum 2)))
-			       (* 8 len)))
 	 (result 0))
     (dotimes (i len)
-      (setq result (logior (lsh result 8)
-			   (aref bytes (+ from (if (eq (byteorder) ?B) i
-						 (- len i 1)))))))
-    (if (> extended-sign-len 0)
-	(ash (lsh result extended-sign-len) (- extended-sign-len))
+      (setq result (logior (ash result 8)
+                           (aref bytes (+ from (if (eq (byteorder) ?B) i
+                                                 (- len i 1)))))))
+    (if (and (> len 0)
+             (> (aref bytes (if (eq (byteorder) ?B) from (- to 1))) 127))
+	(logior (ash -1 (* 8 len)) result)
       result)))
 
 (defun mac-ae-selection-range (ae)
