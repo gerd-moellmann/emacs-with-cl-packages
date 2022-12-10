@@ -2787,7 +2787,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 					    & WM_STATE_SKIP_TASKBAR) != 0)];
 }
 
-- (void)updateWindowLevel;
+- (void)updateWindowLevel
 {
   NSWindowLevel level = NSNormalWindowLevel;
 
