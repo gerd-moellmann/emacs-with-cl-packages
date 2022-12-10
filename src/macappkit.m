@@ -8222,9 +8222,8 @@ static BOOL NonmodalScrollerPagingBehavior;
     {
       NSPoint point = [self convertPoint:[theEvent locationInWindow]
 			    fromView:nil];
-      NSRect bounds, knobRect;
+      NSRect knobRect;
 
-      bounds = [self bounds];
       knobRect = [self rectForPart:NSScrollerKnob];
 
       if (jumpsToClickedSpot)
@@ -8304,12 +8303,11 @@ static BOOL NonmodalScrollerPagingBehavior;
     {
       NSPoint point = [self convertPoint:[theEvent locationInWindow]
 			    fromView:nil];
-      NSRect bounds, knobSlotRect;
+      NSRect knobSlotRect;
 
       if (knobGrabOffset <= -1)
 	knobGrabOffset = - (knobGrabOffset + 1);
 
-      bounds = [self bounds];
       knobSlotRect = [self rectForPart:NSScrollerKnobSlot];
       if (!isHorizontal)
 	knobMinEdgeInSlot = point.y - knobGrabOffset - NSMinY (knobSlotRect);
@@ -8534,9 +8532,8 @@ static BOOL NonmodalScrollerPagingBehavior;
       BOOL enabled = [self isEnabled];
       double floatValue = [self doubleValue];
       CGFloat knobProportion = [self knobProportion];
-      NSRect bounds, knobSlotRect;
+      NSRect knobSlotRect;
 
-      bounds = [self bounds];
       [self setDoubleValue:0];
       [self setKnobProportion:0];
       [self setEnabled:YES];
