@@ -1013,7 +1013,7 @@ through this without \"emulated closures\".  For example,
     (mac-send-apple-event
      apple-event
      (lambda (reply-ae)
-       (let* ((orig-ae (mac-ae-parameter reply-ae 'original-apple-event))
+       (let* ((orig-ae (mac-ae-parameter reply-ae \\='original-apple-event))
               (context1-value (mac-ae-parameter orig-ae :context1))
 	      (context2-value (mac-ae-parameter orig-ae :context2)))
 	 ...))))"
