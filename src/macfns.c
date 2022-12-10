@@ -2027,9 +2027,9 @@ mac_update_title_bar (struct frame *f, bool save_match_data)
       mac_set_frame_window_modified (f, !MINI_WINDOW_P (w) && modified_p);
       if (STRINGP (file_name))
 	{
-	  UInt8 *name = SDATA (ENCODE_FILE (remove_slash_colon (file_name)));
+	  char *name = SSDATA (ENCODE_FILE (remove_slash_colon (file_name)));
 
-	  url = CFURLCreateFromFileSystemRepresentation (NULL, name,
+	  url = CFURLCreateFromFileSystemRepresentation (NULL, (UInt8 *) name,
 							 strlen (name), false);
 	  if (url && !mac_is_url_suitable_for_proxy (url))
 	    {

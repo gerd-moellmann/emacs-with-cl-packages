@@ -3039,7 +3039,7 @@ init_mac_osx_environment (void)
       AUTO_STRING (encoding, ".UTF-8");
 
       /* Set LANG to locale, but not if LANG is already set. */
-      setenv ("LANG", SDATA (concat2 (identifier, encoding)), 0);
+      setenv ("LANG", SSDATA (concat2 (identifier, encoding)), 0);
       CFRelease (locale);
     }
 }
