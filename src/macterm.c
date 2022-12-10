@@ -4905,7 +4905,7 @@ mac_cgevent_to_input_event (CGEventRef cgevent, struct input_event *buf)
   return mapped_flags;
 }
 
-void
+static void
 mac_get_selected_range (struct window *w, CFRange *range)
 {
   struct buffer *b = XBUFFER (w->contents);

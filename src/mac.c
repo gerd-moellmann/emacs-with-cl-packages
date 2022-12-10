@@ -2054,7 +2054,7 @@ xrm_get_preference_database (const char *application)
 
 /* Convert a lisp string to the 4 byte character code.  */
 
-OSType
+static OSType
 mac_get_code_from_arg (Lisp_Object arg, OSType defCode)
 {
   OSType result;

@@ -1821,7 +1821,7 @@ mac_set_name_internal (struct frame *f, Lisp_Object name)
        suggesting a new name, which lisp code should override; if
        F->explicit_name is set, ignore the new name; otherwise, set it.  */
 
-void
+static void
 mac_set_name (struct frame *f, Lisp_Object name, bool explicit)
 {
   /* Make sure that requests from lisp code override requests from
