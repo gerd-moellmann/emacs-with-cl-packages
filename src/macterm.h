@@ -631,7 +631,7 @@ extern Lisp_Object mac_get_tab_group_overview_visible_p (struct frame *);
 extern Lisp_Object mac_get_tab_group_tab_bar_visible_p (struct frame *);
 extern Lisp_Object mac_get_tab_group_selected_frame (struct frame *);
 extern Lisp_Object mac_get_tab_group_frames (struct frame *);
-extern CGPoint mac_get_global_mouse ();
+extern CGPoint mac_get_global_mouse (void);
 extern bool mac_is_frame_window_toolbar_visible (struct frame *);
 extern void mac_set_frame_window_structure_bounds (struct frame *,
 						   NativeRectangle);
