@@ -11844,7 +11844,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
   struct frame *f;
   NSWindow *window;
   NSView *contentView;
-  int count = SPECPDL_INDEX ();
+  ptrdiff_t count = SPECPDL_INDEX ();
 
   specbind (Qredisplay_dont_pause, Qt);
   redisplay_preserve_echo_area (31);

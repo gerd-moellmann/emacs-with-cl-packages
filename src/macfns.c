@@ -4364,7 +4364,7 @@ visible.  */)
      (Lisp_Object frames)
 {
   Lisp_Object rest, tmp;
-  int count;
+  ptrdiff_t count;
 
   if (!CONSP (frames))
     frames = list1 (frames);
