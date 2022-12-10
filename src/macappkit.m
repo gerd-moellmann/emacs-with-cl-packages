@@ -8352,6 +8352,8 @@ static BOOL NonmodalScrollerPagingBehavior;
 		  && part != NSScrollerDecrementPage)
 		unhilite = YES;
 	      break;
+	    default:
+	      break;
 	    }
 	}
 
@@ -8672,9 +8674,8 @@ scroller_part_to_scroll_bar_part (NSScrollerPart part,
     case NSScrollerIncrementPage:	return scroll_bar_below_handle;
     case NSScrollerKnob:		return scroll_bar_handle;
     case NSScrollerNoPart:		return scroll_bar_end_scroll;
+    default:				return -1;
     }
-
-  return -1;
 }
 
 static int
@@ -8687,9 +8688,8 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
     case NSScrollerIncrementPage:	return scroll_bar_after_handle;
     case NSScrollerKnob:		return scroll_bar_horizontal_handle;
     case NSScrollerNoPart:		return scroll_bar_end_scroll;
+    default:				return -1;
     }
-
-  return -1;
 }
 
 /* Generate an Emacs input event in response to a scroller action sent
