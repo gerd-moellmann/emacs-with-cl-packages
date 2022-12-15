@@ -2288,14 +2288,7 @@ mac_default_font_parameter (struct frame *f, Lisp_Object parms)
 
 DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
        1, 1, 0,
-       doc: /* Make a new window, which is called a "frame" in Emacs terms.
-Return an Emacs frame object.  PARMS is an alist of frame parameters.
-If the parameters specify that the frame should not have a minibuffer,
-and do not specify a specific minibuffer window to use, then
-`default-minibuffer-frame' must be a frame whose minibuffer can be
-shared by the new frame.
-
-This function is an internal primitive--use `make-frame' instead.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object parms)
 {
   struct frame *f;
@@ -2774,8 +2767,7 @@ will return nil.  */)
 }
 
 DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
-       doc: /* Internal function called by `color-defined-p'.
-\(Note that the Nextstep version of this function ignores FRAME.)  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object color, Lisp_Object frame)
 {
   Emacs_Color foo;
@@ -2790,7 +2782,7 @@ DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
 }
 
 DEFUN ("xw-color-values", Fxw_color_values, Sxw_color_values, 1, 2, 0,
-       doc: /* Internal function called by `color-values'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object color, Lisp_Object frame)
 {
   Emacs_Color foo;
@@ -2805,7 +2797,7 @@ DEFUN ("xw-color-values", Fxw_color_values, Sxw_color_values, 1, 2, 0,
 }
 
 DEFUN ("xw-display-color-p", Fxw_display_color_p, Sxw_display_color_p, 0, 1, 0,
-       doc: /* Internal function called by `display-color-p'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -2818,11 +2810,7 @@ DEFUN ("xw-display-color-p", Fxw_display_color_p, Sxw_display_color_p, 0, 1, 0,
 
 DEFUN ("x-display-grayscale-p", Fx_display_grayscale_p, Sx_display_grayscale_p,
        0, 1, 0,
-       doc: /* Return t if the display supports shades of gray.
-Note that color displays do support shades of gray.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -2835,15 +2823,7 @@ If omitted or nil, that stands for the selected frame's display.  */)
 
 DEFUN ("x-display-pixel-width", Fx_display_pixel_width, Sx_display_pixel_width,
        0, 1, 0,
-       doc: /* Return the width in pixels of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-\(On MS Windows, this function does not accept terminal objects.)
-
-On \"multi-monitor\" setups this refers to the pixel width for all
-physical monitors associated with TERMINAL.  To get information for
-each physical monitor, use `display-monitor-attributes-list'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -2853,15 +2833,7 @@ each physical monitor, use `display-monitor-attributes-list'.  */)
 
 DEFUN ("x-display-pixel-height", Fx_display_pixel_height,
        Sx_display_pixel_height, 0, 1, 0,
-       doc: /* Return the height in pixels of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-\(On MS Windows, this function does not accept terminal objects.)
-
-On \"multi-monitor\" setups this refers to the pixel height for all
-physical monitors associated with TERMINAL.  To get information for
-each physical monitor, use `display-monitor-attributes-list'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -2871,11 +2843,7 @@ each physical monitor, use `display-monitor-attributes-list'.  */)
 
 DEFUN ("x-display-planes", Fx_display_planes, Sx_display_planes,
        0, 1, 0,
-       doc: /* Return the number of bitplanes of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-\(On MS Windows, this function does not accept terminal objects.)  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -2885,11 +2853,7 @@ If omitted or nil, that stands for the selected frame's display.
 
 DEFUN ("x-display-color-cells", Fx_display_color_cells, Sx_display_color_cells,
        0, 1, 0,
-       doc: /* Return the number of color cells of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-\(On MS Windows, this function does not accept terminal objects.)  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -2901,13 +2865,7 @@ If omitted or nil, that stands for the selected frame's display.
 DEFUN ("x-server-max-request-size", Fx_server_max_request_size,
        Sx_server_max_request_size,
        0, 1, 0,
-       doc: /* Return the maximum request size of the server of display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-On MS Windows, this function just returns 1.
-On Nextstep, this function just returns nil.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -2916,37 +2874,14 @@ On Nextstep, this function just returns nil.  */)
 }
 
 DEFUN ("x-server-vendor", Fx_server_vendor, Sx_server_vendor, 0, 1, 0,
-       doc: /* Return the "vendor ID" string of the GUI software on TERMINAL.
-
-\(Labeling every distributor as a "vendor" embodies the false assumption
-that operating systems cannot be developed and distributed noncommercially.)
-The optional argument TERMINAL specifies which display to ask about.
-
-For GNU and Unix systems, this queries the X server software.
-For MS Windows and Nextstep the result is hard-coded.
-
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   return build_string ("Apple Inc.");
 }
 
 DEFUN ("x-server-version", Fx_server_version, Sx_server_version, 0, 1, 0,
-       doc: /* Return the version numbers of the GUI software on TERMINAL.
-The value is a list of three integers specifying the version of the GUI
-software in use.
-
-For GNU and Unix system, the first 2 numbers are the version of the X
-Protocol used on TERMINAL and the 3rd number is the distributor-specific
-release number.  For MS-Windows, the 3 numbers report the version and
-the build number of the OS.
-
-See also the function `x-server-vendor'.
-
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   return list3i (mac_operating_system_version.major,
@@ -2955,30 +2890,14 @@ If omitted or nil, that stands for the selected frame's display.  */)
 }
 
 DEFUN ("x-display-screens", Fx_display_screens, Sx_display_screens, 0, 1, 0,
-       doc: /* Return the number of screens on the server of display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-On MS Windows, this function just returns 1.
-On Nextstep, "screen" is in X terminology, not that of Nextstep.
-For the number of physical monitors, use `(length
-\(display-monitor-attributes-list TERMINAL))' instead.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   return make_fixnum (1);
 }
 
 DEFUN ("x-display-mm-height", Fx_display_mm_height, Sx_display_mm_height, 0, 1, 0,
-       doc: /* Return the height in millimeters of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-\(On MS Windows, this function does not accept terminal objects.)
-
-On \"multi-monitor\" setups this refers to the height in millimeters for
-all physical monitors associated with TERMINAL.  To get information
-for each physical monitor, use `display-monitor-attributes-list'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -2994,15 +2913,7 @@ for each physical monitor, use `display-monitor-attributes-list'.  */)
 }
 
 DEFUN ("x-display-mm-width", Fx_display_mm_width, Sx_display_mm_width, 0, 1, 0,
-       doc: /* Return the width in millimeters of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-\(On MS Windows, this function does not accept terminal objects.)
-
-On \"multi-monitor\" setups this refers to the width in millimeters for
-all physical monitors associated with TERMINAL.  To get information
-for each physical monitor, use `display-monitor-attributes-list'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -3019,14 +2930,7 @@ for each physical monitor, use `display-monitor-attributes-list'.  */)
 
 DEFUN ("x-display-backing-store", Fx_display_backing_store,
        Sx_display_backing_store, 0, 1, 0,
-       doc: /* Return an indication of whether display TERMINAL does backing store.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-The value may be `always', `when-mapped', or `not-useful'.
-On Nextstep, the value may be `buffered', `retained', or `non-retained'.
-On MS Windows, this returns nothing useful.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   return intern ("not-useful");
@@ -3034,15 +2938,7 @@ On MS Windows, this returns nothing useful.  */)
 
 DEFUN ("x-display-visual-class", Fx_display_visual_class,
        Sx_display_visual_class, 0, 1, 0,
-       doc: /* Return the visual class of the display TERMINAL.
-The value is one of the symbols `static-gray', `gray-scale',
-`static-color', `pseudo-color', `true-color', or `direct-color'.
-\(On MS Windows, the second and last result above are not possible.)
-
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-\(On MS Windows, this function does not accept terminal objects.)  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -3052,12 +2948,7 @@ If omitted or nil, that stands for the selected frame's display.
 
 DEFUN ("x-display-save-under", Fx_display_save_under,
        Sx_display_save_under, 0, 1, 0,
-       doc: /* Return t if the display TERMINAL supports the save-under feature.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-On MS Windows, this just returns nil.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -3383,13 +3274,7 @@ mac_display_info_for_name (Lisp_Object name)
 
 
 DEFUN ("x-open-connection", Fx_open_connection, Sx_open_connection,
-       1, 3, 0,
-       doc: /* Open a connection to a display server.
-DISPLAY is the name of the display to connect to.
-Optional second arg XRM-STRING is a string of resources in xrdb format.
-If the optional third arg MUST-SUCCEED is non-nil,
-terminate Emacs if we can't open the connection.
-\(In the Nextstep version, the last two arguments are currently ignored.)  */)
+       1, 3, 0, doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object display, Lisp_Object xrm_string, Lisp_Object must_succeed)
 {
   char *xrm_option;
@@ -3428,10 +3313,7 @@ terminate Emacs if we can't open the connection.
 
 DEFUN ("x-close-connection", Fx_close_connection,
        Sx_close_connection, 1, 1, 0,
-       doc: /* Close the connection to TERMINAL's server.
-For TERMINAL, specify a terminal object, a frame or a display name (a
-string).  If TERMINAL is nil, that stands for the selected frame's terminal.
-\(On MS Windows, this function does not accept terminal objects.)  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -3445,7 +3327,7 @@ string).  If TERMINAL is nil, that stands for the selected frame's terminal.
 }
 
 DEFUN ("x-display-list", Fx_display_list, Sx_display_list, 0, 0, 0,
-       doc: /* Return the list of display names that Emacs has connections to.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (void)
 {
   Lisp_Object result = Qnil;
@@ -3458,17 +3340,7 @@ DEFUN ("x-display-list", Fx_display_list, Sx_display_list, 0, 0, 0,
 }
 
 DEFUN ("x-synchronize", Fx_synchronize, Sx_synchronize, 1, 2, 0,
-       doc: /* If ON is non-nil, report X errors as soon as the erring request is made.
-This function has an effect only on X Windows.  With MS Windows, it is
-defined but does nothing.
-
-If ON is nil, allow buffering of requests.
-Turning on synchronization prohibits the Xlib routines from buffering
-requests and seriously degrades performance, but makes debugging much
-easier.
-The optional second argument TERMINAL specifies which display to act on.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If TERMINAL is omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object on, Lisp_Object terminal)
 {
   struct mac_display_info *dpyinfo = check_x_display_info (terminal);
@@ -3906,35 +3778,7 @@ mac_hide_tip (bool delete)
 
 
 DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
-       doc: /* Show STRING in a "tooltip" window on frame FRAME.
-A tooltip window is a small window displaying a string.
-
-This is an internal function; Lisp code should call `tooltip-show'.
-
-FRAME nil or omitted means use the selected frame.
-
-PARMS is an optional list of frame parameters which can be used to
-change the tooltip's appearance.
-
-Automatically hide the tooltip after TIMEOUT seconds.  TIMEOUT nil
-means use the default timeout of 5 seconds.
-
-If the list of frame parameters PARMS contains a `left' parameter,
-display the tooltip at that x-position.  If the list of frame parameters
-PARMS contains no `left' but a `right' parameter, display the tooltip
-right-adjusted at that x-position. Otherwise display it at the
-x-position of the mouse, with offset DX added (default is 5 if DX isn't
-specified).
-
-Likewise for the y-position: If a `top' frame parameter is specified, it
-determines the position of the upper edge of the tooltip window.  If a
-`bottom' parameter but no `top' frame parameter is specified, it
-determines the position of the lower edge of the tooltip window.
-Otherwise display the tooltip window at the y-position of the mouse,
-with offset DY added (default is -10).
-
-A tooltip's maximum size is specified by `x-max-tooltip-size'.
-Text larger than the specified size is clipped.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object string, Lisp_Object frame, Lisp_Object parms,
    Lisp_Object timeout, Lisp_Object dx, Lisp_Object dy)
 {
@@ -4178,8 +4022,7 @@ Text larger than the specified size is clipped.  */)
 
 
 DEFUN ("x-hide-tip", Fx_hide_tip, Sx_hide_tip, 0, 0, 0,
-       doc: /* Hide the current tooltip window, if there is any.
-Value is t if tooltip was open, nil otherwise.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (void)
 {
   return mac_hide_tip (!tooltip_reuse_hidden_frame);
@@ -5321,135 +5164,97 @@ syms_of_macfns (void)
 	build_pure_c_string ("Undefined color"));
 
   DEFVAR_LISP ("x-pointer-shape", Vx_pointer_shape,
-    doc: /* The shape of the pointer when over text.
-Changing the value does not affect existing frames
-unless you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_pointer_shape = Qnil;
 
 #if false /* This doesn't really do anything.  */
   DEFVAR_LISP ("x-nontext-pointer-shape", Vx_nontext_pointer_shape,
-    doc: /* The shape of the pointer when not over text.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
 #endif
   Vx_nontext_pointer_shape = Qnil;
 
   DEFVAR_LISP ("x-hourglass-pointer-shape", Vx_hourglass_pointer_shape,
-    doc: /* The shape of the pointer when Emacs is busy.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_hourglass_pointer_shape = Qnil;
 
 #if false /* This doesn't really do anything.  */
   DEFVAR_LISP ("x-mode-pointer-shape", Vx_mode_pointer_shape,
-    doc: /* The shape of the pointer when over the mode line.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
 #endif
   Vx_mode_pointer_shape = Qnil;
 
   DEFVAR_LISP ("x-sensitive-text-pointer-shape",
-	      Vx_sensitive_text_pointer_shape,
-	       doc: /* The shape of the pointer when over mouse-sensitive text.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       Vx_sensitive_text_pointer_shape,
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_sensitive_text_pointer_shape = Qnil;
 
   DEFVAR_LISP ("x-window-horizontal-drag-cursor",
-	      Vx_window_horizontal_drag_shape,
-  doc: /* Pointer shape to use for indicating a window can be dragged horizontally.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       Vx_window_horizontal_drag_shape,
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_horizontal_drag_shape = Qnil;
 
   DEFVAR_LISP ("x-window-vertical-drag-cursor",
-	      Vx_window_vertical_drag_shape,
-  doc: /* Pointer shape to use for indicating a window can be dragged vertically.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       Vx_window_vertical_drag_shape,
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_vertical_drag_shape = Qnil;
 
   DEFVAR_LISP ("x-window-left-edge-cursor",
 	       Vx_window_left_edge_shape,
-  doc: /* Pointer shape indicating a left x-window edge can be dragged.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_left_edge_shape = Qnil;
 
   DEFVAR_LISP ("x-window-top-left-corner-cursor",
 	       Vx_window_top_left_corner_shape,
-  doc: /* Pointer shape indicating a top left x-window corner can be dragged.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_top_left_corner_shape = Qnil;
 
   DEFVAR_LISP ("x-window-top-edge-cursor",
 	       Vx_window_top_edge_shape,
-  doc: /* Pointer shape indicating a top x-window edge can be dragged.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_top_edge_shape = Qnil;
 
   DEFVAR_LISP ("x-window-top-right-corner-cursor",
 	       Vx_window_top_right_corner_shape,
-  doc: /* Pointer shape indicating a top right x-window corner can be dragged.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_top_right_corner_shape = Qnil;
 
   DEFVAR_LISP ("x-window-right-edge-cursor",
 	       Vx_window_right_edge_shape,
-  doc: /* Pointer shape indicating a right x-window edge can be dragged.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_right_edge_shape = Qnil;
 
   DEFVAR_LISP ("x-window-bottom-right-corner-cursor",
 	       Vx_window_bottom_right_corner_shape,
-  doc: /* Pointer shape indicating a bottom right x-window corner can be dragged.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_bottom_right_corner_shape = Qnil;
 
   DEFVAR_LISP ("x-window-bottom-edge-cursor",
 	       Vx_window_bottom_edge_shape,
-  doc: /* Pointer shape indicating a bottom x-window edge can be dragged.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_bottom_edge_shape = Qnil;
 
   DEFVAR_LISP ("x-window-bottom-left-corner-cursor",
 	       Vx_window_bottom_left_corner_shape,
-  doc: /* Pointer shape indicating a bottom left x-window corner can be dragged.
-This variable takes effect when you create a new frame
-or when you set the mouse color.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_window_bottom_left_corner_shape = Qnil;
 
   DEFVAR_LISP ("x-cursor-fore-pixel", Vx_cursor_fore_pixel,
-    doc: /* A string indicating the foreground color of the cursor box.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_cursor_fore_pixel = Qnil;
 
   DEFVAR_LISP ("x-max-tooltip-size", Vx_max_tooltip_size,
-    doc: /* Maximum size for tooltips.
-Value is a pair (COLUMNS . ROWS).  Text larger than this is clipped.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_max_tooltip_size = Fcons (make_fixnum (80), make_fixnum (40));
 
   DEFVAR_LISP ("x-no-window-manager", Vx_no_window_manager,
-    doc: /* Non-nil if no window manager is in use.
-Emacs doesn't try to figure this out; this is always nil
-unless you set it to something else.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   /* We don't have any way to find this out, so set it to nil
      and maybe the user would like to set it to t.  */
   Vx_no_window_manager = Qnil;
 
   DEFVAR_LISP ("x-pixel-size-width-font-regexp",
 	       Vx_pixel_size_width_font_regexp,
-    doc: /* Regexp matching a font name whose width is the same as `PIXEL_SIZE'.
-
-Since Emacs gets the width of a font matching this regexp from the
-PIXEL_SIZE field of the name, the font-finding mechanism gets faster for
-such a font.  This is especially effective for large fonts such as
-Chinese, Japanese, and Korean.  */);
+	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_pixel_size_width_font_regexp = Qnil;
 
   Fprovide (Qmac, Qnil);
