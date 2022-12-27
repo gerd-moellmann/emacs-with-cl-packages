@@ -679,10 +679,13 @@ language."
 	(cons type str)))))
 
 (defun mac-select-convert-to-pasteboard-filenames (selection type value)
-  (let ((filename (xselect-convert-to-filename selection type value)))
-    (and filename
-	 (cons type (mac-convert-property-list `(array . [(string . ,filename)])
-                                               'xml1)))))
+  (if-let ((filename (cdr (xselect-convert-to-filename selection type value))))
+      (let ((coding (or file-name-coding-system
+                        default-file-name-coding-system)))
+        (cons type
+              (mac-convert-property-list
+               `(array . [(string . ,(decode-coding-string filename coding))])
+               'xml1)))))
 
 (setq selection-converter-alist
       (nconc
