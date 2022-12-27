@@ -3062,7 +3062,8 @@ mac_relocate (const char *epath)
   if (bundleURL)
     {
       relocatedURL =
-	CFURLCreateFromFileSystemRepresentationRelativeToBase (NULL, epath,
+	CFURLCreateFromFileSystemRepresentationRelativeToBase (NULL,
+							       (UInt8 *) epath,
 							       strlen (epath),
 							       true, bundleURL);
       CFRelease (bundleURL);
@@ -3072,7 +3073,7 @@ mac_relocate (const char *epath)
       static char relocated_dir[MAXPATHLEN];
       if (CFURLResourceIsReachable (relocatedURL, NULL)
 	  && CFURLGetFileSystemRepresentation (relocatedURL, true,
-					       relocated_dir,
+					       (UInt8 *) relocated_dir,
 					       sizeof (relocated_dir)))
 	epath = relocated_dir;
       CFRelease (relocatedURL);
