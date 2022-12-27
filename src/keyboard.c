@@ -6003,7 +6003,7 @@ make_lispy_event (struct input_event *event)
 	    }
           else if (event->modifiers & click_modifier)
 	    {
-	      /* Emit a maginify/rotate event.  */
+	      /* Emit a magnify/rotate event.  */
 	      event->modifiers &= ~click_modifier;
 	      symbol_num += 8;
 	    }
