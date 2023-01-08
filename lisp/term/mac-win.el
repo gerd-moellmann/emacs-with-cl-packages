@@ -70,6 +70,7 @@
 ;; ../startup.el.
 
 (eval-when-compile (require 'cl-lib))
+(eval-when-compile (require 'subr-x))
 
 ;; (if (not (eq window-system 'mac))
 ;;     (error "%s: Loading mac-win.el but not compiled for Mac" invocation-name))
