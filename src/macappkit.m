@@ -2476,7 +2476,11 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       contentRect = [contentView frame];
       contentRect.origin = [[contentView superview]
 			     convertPoint:contentRect.origin toView:nil];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+      contentRect.origin = [oldWindow convertPointToScreen:contentRect.origin];
+#else
       contentRect.origin = [oldWindow convertRectToScreen:contentRect].origin;
+#endif
     }
 
   window = [[EmacsWindow alloc] initWithContentRect:contentRect
@@ -2689,10 +2693,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 		  NSPoint location = [currentEvent locationInWindow];
 
 		  if (eventWindow)
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+		    location = [eventWindow convertPointToScreen:location];
+#else
 		    location =
 		      [eventWindow
 			convertRectToScreen:(NSMakeRect (location.x, location.y,
 							 0, 0))].origin;
+#endif
 		  screen = [NSScreen screenContainingPoint:location];
 		}
 
@@ -2725,8 +2733,13 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 	  parentContentRect = [parentContentView convertRect:parentContentRect
 						      toView:nil];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+	  parentContentRect.origin =
+	    [parentWindow convertPointToScreen:parentContentRect.origin];
+#else
 	  parentContentRect.origin =
 	    [parentWindow convertRectToScreen:parentContentRect].origin;
+#endif
 
 	  if (windowManagerState & WM_STATE_FULLSCREEN)
 	    frameRect = parentContentRect;
@@ -3025,14 +3038,22 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 {
   point = [emacsView convertPoint:point toView:nil];
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+  return [emacsWindow convertPointToScreen:point];
+#else
   return [emacsWindow
 	   convertRectToScreen:(NSMakeRect (point.x, point.y, 0, 0))].origin;
+#endif
 }
 
 - (NSPoint)convertEmacsViewPointFromScreen:(NSPoint)point
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+  point = [emacsWindow convertPointFromScreen:point];
+#else
   point = [emacsWindow
 	    convertRectFromScreen:(NSMakeRect (point.x, point.y, 0, 0))].origin;
+#endif
 
   return [emacsView convertPoint:point fromView:nil];
 }
@@ -3040,14 +3061,22 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 - (NSRect)convertEmacsViewRectToScreen:(NSRect)rect
 {
   rect = [emacsView convertRect:rect toView:nil];
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+  rect.origin = [emacsWindow convertPointToScreen:rect.origin];
+#else
   rect.origin = [emacsWindow convertRectToScreen:rect].origin;
+#endif
 
   return rect;
 }
 
 - (NSRect)convertEmacsViewRectFromScreen:(NSRect)rect
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+  rect.origin = [emacsWindow convertPointFromScreen:rect.origin];
+#else
   rect.origin = [emacsWindow convertRectFromScreen:rect].origin;
+#endif
   rect = [emacsView convertRect:rect fromView:nil];
 
   return rect;
