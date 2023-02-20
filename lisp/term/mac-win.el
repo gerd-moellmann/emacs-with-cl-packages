@@ -2733,6 +2733,21 @@ pinch close gesture, then remap this command to
 (global-set-key [rotate-right] 'ignore)
 (global-set-key [S-rotate-left] 'ignore)
 (global-set-key [S-rotate-right] 'ignore)
+(dolist (prefix (list 'left-margin 'right-margin 'left-fringe 'right-fringe
+                      'vertical-scroll-bar 'horizontal-scroll-bar
+                      'mode-line 'header-line))
+  (global-set-key (vector prefix 'magnify-up)
+                  'mac-magnify-text-scale-or-overview-tab-group)
+  (global-set-key (vector prefix 'magnify-down)
+                  'mac-magnify-text-scale-or-overview-tab-group)
+  (global-set-key (vector prefix 'S-magnify-up)
+                  'mac-mouse-turn-on-fullscreen)
+  (global-set-key (vector prefix 'S-magnify-down)
+                  'mac-mouse-turn-off-fullscreen)
+  (global-set-key (vector prefix 'rotate-left) 'ignore)
+  (global-set-key (vector prefix 'rotate-right) 'ignore)
+  (global-set-key (vector prefix 'S-rotate-left) 'ignore)
+  (global-set-key (vector prefix 'S-rotate-right) 'ignore))
 
 
 ;;; Frame tabbing (macOS 10.12 and later)
