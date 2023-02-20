@@ -5102,7 +5102,7 @@ mac_get_frame_at_mouse ()
 }
 
 CGPoint
-mac_get_global_mouse ()
+mac_get_global_mouse (void)
 {
   NSPoint mouseLocation = [NSEvent mouseLocation];
   NSRect baseScreenFrame = mac_get_base_screen_frame ();

@@ -2942,7 +2942,7 @@ mac_service_provider_registered_p (void)
 }
 
 Lisp_Object
-mac_carbon_version_string ()
+mac_carbon_version_string (void)
 {
   Lisp_Object result = Qnil;
   CFBundleRef bundle;
@@ -2962,7 +2962,7 @@ mac_carbon_version_string ()
 struct mac_operating_system_version mac_operating_system_version;
 
 static void
-mac_initialize_operating_system_version ()
+mac_initialize_operating_system_version (void)
 {
   const char *filename = "/System/Library/CoreServices/SystemVersion.plist";
   CFURLRef url;
