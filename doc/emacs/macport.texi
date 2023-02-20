@@ -8,7 +8,7 @@
 
   This section briefly describes the peculiarities of using Emacs
 under macOS with the Mac port.  This port provides a native GUI
-support for OS X 10.10 -- macOS 12.  Note that Emacs 23 and later
+support for OS X 10.10 -- macOS 13.  Note that Emacs 23 and later
 already contain the official GUI support via the NS (Cocoa) port for
 macOS (@pxref{Mac OS / GNUstep}).  So if it is good enough for you,
 then you don't need to try this.
