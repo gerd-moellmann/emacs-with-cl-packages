@@ -6051,9 +6051,9 @@ make_lispy_event (struct input_event *event)
                         event->arg);
 	else if (event->modifiers & (double_modifier | triple_modifier)
 #ifdef HAVE_MACGUI
-	    || !NILP (event->arg)
+		 || !NILP (event->arg)
 #endif
-	    )
+		 )
 #ifdef HAVE_MACGUI
 	  {
 	    if (mac_ignore_momentum_wheel_events)
