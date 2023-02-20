@@ -339,7 +339,7 @@ struct mac_output
   ((f)->output_data.mac->double_buffered_p)
 
 /* This gives the mac_display_info structure for the display F is on.  */
-#define FRAME_DISPLAY_INFO(f) (&one_mac_display_info)
+#define FRAME_DISPLAY_INFO(f) ((void) (f), (&one_mac_display_info))
 
 /* Mac-specific scroll bar stuff.  */
 
