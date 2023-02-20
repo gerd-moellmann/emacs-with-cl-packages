@@ -2942,48 +2942,57 @@ mac_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
 
   block_input ();
 
-  {
-    Lisp_Object frame, tail;
+  Lisp_Object frame, tail;
 
-    /* Clear the mouse-moved flag for every frame on this display.  */
-    FOR_EACH_FRAME (tail, frame)
-      if (FRAME_MAC_P (XFRAME (frame)))
-	XFRAME (frame)->mouse_moved = false;
+  /* Clear the mouse-moved flag for every frame on this display.  */
+  FOR_EACH_FRAME (tail, frame)
+    if (FRAME_MAC_P (XFRAME (frame)))
+      XFRAME (frame)->mouse_moved = false;
 
-    /* If mouse was grabbed on a frame and we are not dropping, give
-       coords for that frame even if the mouse is now outside it.
-       Otherwise check for window under mouse on one of our
-       frames.  */
-    if (gui_mouse_grabbed (dpyinfo) && !EQ (track_mouse, Qdropping))
-      f1 = dpyinfo->last_mouse_frame;
-    else
-      f1 = XFRAME (mac_event_frame ());
+  if (gui_mouse_grabbed (dpyinfo) && !EQ (track_mouse, Qdropping))
+    /* If mouse was grabbed on a frame, give coords for that frame
+       even if the mouse is now outside it.  */
+    f1 = dpyinfo->last_mouse_frame;
+  else
+    {
+      f1 = mac_get_frame_at_mouse ();
+      if ((!f1 || FRAME_TOOLTIP_P (f1))
+	  && EQ (track_mouse, Qdropping)
+	  && gui_mouse_grabbed (dpyinfo))
+	/* When dropping then if we didn't get a frame or only a
+	   tooltip frame and the mouse was grabbed on a frame, give
+	   coords for that frame even if the mouse is now outside
+	   it.  */
+	f1 = dpyinfo->last_mouse_frame;
+      else if (f1 && FRAME_TOOLTIP_P (f1))
+	f1 = NULL;
 
-    if (f1)
-      {
-	/* Ok, we found a frame.  Store all the values.
-	   last_mouse_glyph is a rectangle used to reduce the
-	   generation of mouse events.  To not miss any motion events,
-	   we must divide the frame into rectangles of the size of the
-	   smallest character that could be displayed on it, i.e. into
-	   the same rectangles that matrices on the frame are divided
-	   into.  */
-	CGPoint mouse_pos = mac_get_frame_mouse (f1);
+      if (!f1)
+	f1 = XFRAME (mac_event_frame ());
+    }
 
-	/* FIXME: what if F1 is not an X frame?  */
-	dpyinfo = FRAME_DISPLAY_INFO (f1);
-	remember_mouse_glyph (f1, mouse_pos.x, mouse_pos.y,
-			      &dpyinfo->last_mouse_glyph);
-	dpyinfo->last_mouse_glyph_frame = f1;
+  if (f1)
+    {
+      /* Ok, we found a frame.  Store all the values.
+	 last_mouse_glyph is a rectangle used to reduce the generation
+	 of mouse events.  To not miss any motion events, we must
+	 divide the frame into rectangles of the size of the smallest
+	 character that could be displayed on it, i.e. into the same
+	 rectangles that matrices on the frame are divided into.  */
+      CGPoint mouse_pos = mac_get_frame_mouse (f1);
 
-	*bar_window = Qnil;
-	*part = 0;
-	*fp = f1;
-	XSETINT (*x, mouse_pos.x);
-	XSETINT (*y, mouse_pos.y);
-	*timestamp = dpyinfo->last_mouse_movement_time;
-      }
-  }
+      dpyinfo = FRAME_DISPLAY_INFO (f1);
+      remember_mouse_glyph (f1, mouse_pos.x, mouse_pos.y,
+			    &dpyinfo->last_mouse_glyph);
+      dpyinfo->last_mouse_glyph_frame = f1;
+
+      *bar_window = Qnil;
+      *part = 0;
+      *fp = f1;
+      XSETINT (*x, mouse_pos.x);
+      XSETINT (*y, mouse_pos.y);
+      *timestamp = dpyinfo->last_mouse_movement_time;
+    }
 
   unblock_input ();
 }

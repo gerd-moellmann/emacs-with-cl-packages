@@ -5085,6 +5085,22 @@ mac_get_frame_mouse (struct frame *f)
   return NSPointToCGPoint (mouseLocation);
 }
 
+struct frame *
+mac_get_frame_at_mouse ()
+{
+  NSInteger windowNumber = [NSWindow windowNumberAtPoint:NSEvent.mouseLocation
+			     belowWindowWithWindowNumber:0];
+  NSWindow *window = [NSApp windowWithWindowNumber:windowNumber];
+
+  if (![window isKindOfClass:EmacsWindow.class])
+    return NULL;
+
+  EmacsFrameController *frameController = ((EmacsFrameController *)
+					   window.delegate);
+
+  return frameController.emacsFrame;
+}
+
 CGPoint
 mac_get_global_mouse ()
 {
@@ -6741,7 +6757,7 @@ event_phase_to_symbol (NSEventPhase phase)
   Mouse_HLInfo *hlinfo = &dpyinfo->mouse_highlight;
   NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
 
-  if (![[self window] isKeyWindow])
+  if (theEvent.type == NSEventTypeMouseMoved && !self.window.isKeyWindow)
     return;
 
   previous_help_echo_string = help_echo_string;

@@ -642,6 +642,7 @@ extern CGSize mac_get_frame_window_menu_bar_size (struct frame *);
 extern CGRect mac_get_frame_window_tool_bar_rect (struct frame *);
 extern CGRect mac_get_frame_window_content_rect (struct frame *, bool);
 extern CGPoint mac_get_frame_mouse (struct frame *);
+extern struct frame *mac_get_frame_at_mouse (void);
 extern void mac_convert_frame_point_to_global (struct frame *, int *, int *);
 extern void mac_set_frame_window_background (struct frame *, unsigned long);
 extern void mac_update_frame_begin (struct frame *);
