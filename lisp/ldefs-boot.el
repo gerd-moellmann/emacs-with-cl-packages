@@ -18222,8 +18222,9 @@ non-nil value.  If that value is non-nil, but not t, then the image type
 must be available." nil nil)
 
 (autoload 'create-image "image" "\
-Create an image.
-FILE-OR-DATA is an image file name or image data.
+Create an image from FILE-OR-DATA.
+FILE-OR-DATA is an image file name or image data.  If it is a relative
+file name, the function will look for it along `image-load-path'.
 
 Optional TYPE is a symbol describing the image type.  If TYPE is omitted
 or nil, try to determine the image type from its first few bytes
@@ -18241,10 +18242,6 @@ automatically scaled up in proportion to the default font.
 Value is the image created, or nil if images of type TYPE are not supported.
 
 Images should not be larger than specified by `max-image-size'.
-
-Image file names that are not absolute are searched for in the
-\"images\" sub-directory of `data-directory' and
-`x-bitmap-file-path' (in that order).
 
 \(fn FILE-OR-DATA &optional TYPE DATA-P &rest PROPS)" nil nil)
 
@@ -35091,7 +35088,7 @@ Add archive file name handler to `file-name-handler-alist'." (when (and tramp-ar
 
 ;;;### (autoloads nil "trampver" "net/trampver.el" (0 0 0 0))
 ;;; Generated autoloads from net/trampver.el
-(push (purecopy '(tramp 2 5 3 28 2)) package--builtin-versions)
+(push (purecopy '(tramp 2 5 4 -1)) package--builtin-versions)
 
 (register-definition-prefixes "trampver" '("tramp-"))
 
