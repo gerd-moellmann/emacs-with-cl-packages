@@ -312,7 +312,9 @@ enum {
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
-static const NSBezelStyle NSBezelStyleRounded = NSRoundedBezelStyle;
+static const NSBezelStyle NSBezelStylePush = NSRoundedBezelStyle;
+#elif MAC_OS_X_VERSION_MAX_ALLOWED < 140000
+static const NSBezelStyle NSBezelStylePush = NSBezelStyleRounded;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
