@@ -961,12 +961,28 @@ mac_bring_current_process_to_front (bool front_window_only_p)
 {
   NSApplicationActivationOptions options;
 
-  if (front_window_only_p)
-    options = NSApplicationActivateIgnoringOtherApps;
+  if (
+#if __clang_major__ >= 9
+      @available (macOS 14.0, *)
+#else
+      [NSApp respondsToSelector:@selector(activate:)]
+#endif
+      )
+    options = 0;
   else
-    options = (NSApplicationActivateAllWindows
-	       | NSApplicationActivateIgnoringOtherApps);
-  [[NSRunningApplication currentApplication] activateWithOptions:options];
+    {
+      /* Suppress warnings about deprecated declarations.  This #if
+	 shouldn't be necessary if the compiler can handle @available
+	 above properly.  */
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 140000
+      options = NSApplicationActivateIgnoringOtherApps;
+#else
+      emacs_abort ();
+#endif
+    }
+  if (!front_window_only_p)
+    options |= NSApplicationActivateAllWindows;
+  [NSRunningApplication.currentApplication activateWithOptions:options];
 }
 
 /* Move FILENAME to the trash without using the Finder and return
@@ -1363,7 +1379,25 @@ static bool handling_queued_nsevents_p;
 /* Equivalent of (ns-hide-emacs 'active).  */
 - (void)activate:(id)sender
 {
-  [NSApp activateIgnoringOtherApps:YES];
+  if (
+#if __clang_major__ >= 9
+      @available (macOS 14.0, *)
+#else
+      [NSApp respondsToSelector:@selector(activate:)]
+#endif
+      )
+    [NSApp activate];
+  else
+    {
+      /* Suppress warnings about deprecated declarations.  This #if
+	 shouldn't be necessary if the compiler can handle @available
+	 above properly.  */
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 140000
+      [NSApp activateIgnoringOtherApps:YES];
+#else
+      emacs_abort ();
+#endif
+    }
 }
 
 /* Event handling  */

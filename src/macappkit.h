@@ -129,6 +129,12 @@ typedef NSString * NSWindowTabbingIdentifier;
 /* Some methods that are not declared in older versions.  Should be
    used with some runtime check such as `respondsToSelector:'. */
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 140000
+@interface NSApplication (AvailableOn140000AndLater)
+- (void)activate;
+@end
+#endif
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
     NSWindowListOrderedFrontToBack = (1 << 0)
