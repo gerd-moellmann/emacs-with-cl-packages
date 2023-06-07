@@ -10515,14 +10515,14 @@ create_ok_cancel_buttons_view (void)
   NSDictionaryOf (NSString *, id) *viewsDictionary;
 
   cancelButton = [[NSButton alloc] init];
-  [cancelButton setBezelStyle:NSBezelStyleRounded];
+  [cancelButton setBezelStyle:NSBezelStylePush];
   [cancelButton setTitle:@"Cancel"];
   [cancelButton setAction:@selector(cancel:)];
   [cancelButton setKeyEquivalent:@"\e"];
   [cancelButton setTranslatesAutoresizingMaskIntoConstraints:NO];
 
   okButton = [[NSButton alloc] init];
-  [okButton setBezelStyle:NSBezelStyleRounded];
+  [okButton setBezelStyle:NSBezelStylePush];
   [okButton setTitle:@"OK"];
   [okButton setAction:@selector(ok:)];
   [okButton setKeyEquivalent:@"\r"];
@@ -11453,7 +11453,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv, int x, int 
       [self addSubview:button];
       MRC_RELEASE (button);
 
-      [button setBezelStyle:NSBezelStyleRounded];
+      [button setBezelStyle:NSBezelStylePush];
       [button setFont:[NSFont systemFontOfSize:0]];
       [button setTitle:label];
 
