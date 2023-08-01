@@ -129,12 +129,6 @@ typedef NSString * NSWindowTabbingIdentifier;
 /* Some methods that are not declared in older versions.  Should be
    used with some runtime check such as `respondsToSelector:'. */
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 140000
-@interface NSApplication (AvailableOn140000AndLater)
-- (void)activate;
-@end
-#endif
-
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
     NSWindowListOrderedFrontToBack = (1 << 0)
@@ -318,9 +312,7 @@ enum {
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
-static const NSBezelStyle NSBezelStylePush = NSRoundedBezelStyle;
-#elif MAC_OS_X_VERSION_MAX_ALLOWED < 140000
-static const NSBezelStyle NSBezelStylePush = NSBezelStyleRounded;
+static const NSBezelStyle NSBezelStyleRounded = NSRoundedBezelStyle;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
@@ -1112,7 +1104,7 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsMainView (DragAndDrop) <NSDraggingDestination>
 @end
 
-@interface EmacsFrameController (DragAndDrop)
+@interface EmacsFrameController (DragAndDrop) <NSDraggingSource>
 - (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSPasteboardType) *)pboardTypes;
 - (void)setOverlayViewHighlighted:(BOOL)flag;
 @end

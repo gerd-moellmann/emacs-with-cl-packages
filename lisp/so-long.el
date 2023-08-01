@@ -1,6 +1,6 @@
 ;;; so-long.el --- Say farewell to performance problems with minified code.  -*- lexical-binding:t -*-
 ;;
-;; Copyright (C) 2015-2016, 2018-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2016, 2018-2023 Free Software Foundation, Inc.
 
 ;; Author: Phil Sainty <psainty@orcon.net.nz>
 ;; Maintainer: Phil Sainty <psainty@orcon.net.nz>
@@ -684,8 +684,8 @@ subsequently called."
                                   (function :tag "Action")
                                   (function :tag "Revert")))
   :set #'so-long--action-alist-setter
+  :risky t
   :package-version '(so-long . "1.0"))
-(put 'so-long-action-alist 'risky-local-variable t)
 
 (defcustom so-long-action 'so-long-mode
   "The action taken by `so-long' when long lines are detected.
@@ -839,7 +839,7 @@ was established."
     )
   ;; It's not clear to me whether all of these would be problematic, but they
   ;; seemed like reasonable targets.  Some are certainly excessive in smaller
-  ;; buffers of minified code, but we should be aiming to maximise performance
+  ;; buffers of minified code, but we should be aiming to maximize performance
   ;; by default, so that Emacs is as responsive as we can manage in even very
   ;; large buffers of minified code.
   "List of buffer-local minor modes to explicitly disable.
@@ -880,7 +880,7 @@ If `so-long-revert' is subsequently invoked, then the variables are restored
 to their original states.
 
 The combination of `line-move-visual' (enabled) and `truncate-lines' (disabled)
-is important for maximising responsiveness when moving vertically within an
+is important for maximizing responsiveness when moving vertically within an
 extremely long line, as otherwise the full length of the line may need to be
 scanned to find the next position.
 
@@ -986,7 +986,7 @@ See also `so-long-mode-line-info'."
 ;; Modes that go slowly and line lengths excessive
 ;; Font-lock performance becoming oppressive
 ;; All of my CPU tied up with strings
-;; These are a few of my least-favourite things
+;; These are a few of my least-favorite things
 
 (defvar-local so-long-original-values nil
   "Alist holding the buffer's original `major-mode' value, and other data.
@@ -1518,14 +1518,14 @@ The variables are set in accordance with what was remembered in `so-long'."
       (kill-local-variable variable))))
 
 (defun so-long-mode-maintain-preserved-variables ()
-  "Set any 'preserved' variables.
+  "Set any \"preserved\" variables.
 
 The variables are set in accordance with what was remembered in `so-long'."
   (dolist (var (so-long-original 'so-long-mode-preserved-variables))
     (so-long-restore-variable var)))
 
 (defun so-long-mode-maintain-preserved-minor-modes ()
-  "Enable or disable 'preserved' minor modes.
+  "Enable or disable \"preserved\" minor modes.
 
 The modes are set in accordance with what was remembered in `so-long'."
   (dolist (mode (so-long-original 'so-long-mode-preserved-minor-modes))

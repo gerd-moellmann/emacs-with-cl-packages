@@ -1,6 +1,6 @@
 ;;; paragraphs.el --- paragraph and sentence parsing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1991, 1994-1997, 1999-2022 Free Software
+;; Copyright (C) 1985-1987, 1991, 1994-1997, 1999-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -96,8 +96,8 @@ lines that start paragraphs from lines that separate them.
 
 If the variable `use-hard-newlines' is non-nil, then only lines following a
 hard newline are considered to match."
-  :type 'regexp)
-(put 'paragraph-start 'safe-local-variable #'stringp)
+  :type 'regexp
+  :safe #'stringp)
 
 ;; paragraph-start requires a hard newline, but paragraph-separate does not:
 ;; It is assumed that paragraph-separate is distinctive enough to be believed
@@ -113,8 +113,8 @@ This is matched against the text at the left margin, which is not necessarily
 the beginning of the line, so it should not use \"^\" as an anchor.  This
 ensures that the paragraph functions will work equally within a region of
 text indented by a margin setting."
-  :type 'regexp)
-(put 'paragraph-separate 'safe-local-variable #'stringp)
+  :type 'regexp
+  :safe #'stringp)
 
 (defcustom sentence-end-double-space t
   "Non-nil means a single space does not end a sentence.
@@ -125,8 +125,8 @@ This value is used by the function `sentence-end' to construct the
 regexp describing the end of a sentence, when the value of the variable
 `sentence-end' is nil.  See Info node `(elisp)Standard Regexps'."
   :type 'boolean
+  :safe #'booleanp
   :group 'fill)
-(put 'sentence-end-double-space 'safe-local-variable #'booleanp)
 
 (defcustom sentence-end-without-period nil
   "Non-nil means a sentence will end without a period.
@@ -137,8 +137,8 @@ This value is used by the function `sentence-end' to construct the
 regexp describing the end of a sentence, when the value of the variable
 `sentence-end' is nil.  See Info node `(elisp)Standard Regexps'."
   :type 'boolean
+  :safe #'booleanp
   :group 'fill)
-(put 'sentence-end-without-period 'safe-local-variable #'booleanp)
 
 (defcustom sentence-end-without-space
   "。．？！"
@@ -147,8 +147,8 @@ regexp describing the end of a sentence, when the value of the variable
 This value is used by the function `sentence-end' to construct the
 regexp describing the end of a sentence, when the value of the variable
 `sentence-end' is nil.  See Info node `(elisp)Standard Regexps'."
-  :type 'string)
-(put 'sentence-end-without-space 'safe-local-variable #'stringp)
+  :type 'string
+  :safe  #'stringp)
 
 (defcustom sentence-end nil
   "Regexp describing the end of a sentence.
@@ -158,14 +158,14 @@ All paragraph boundaries also end sentences, regardless.
 The value nil means to use the default value defined by the
 function `sentence-end'.  You should always use this function
 to obtain the value of this variable."
-  :type '(choice regexp (const :tag "Use default value" nil)))
-(put 'sentence-end 'safe-local-variable #'string-or-null-p)
+  :type '(choice regexp (const :tag "Use default value" nil))
+  :safe #'string-or-null-p)
 
 (defcustom sentence-end-base "[.?!…‽][]\"'”’)}»›]*"
   "Regexp matching the basic end of a sentence, not including following space."
   :type 'regexp
+  :safe #'stringp
   :version "25.1")
-(put 'sentence-end-base 'safe-local-variable #'stringp)
 
 (defun sentence-end ()
   "Return the regexp describing the end of a sentence.
@@ -192,14 +192,14 @@ in between.  See Info node `(elisp)Standard Regexps'."
 
 (defcustom page-delimiter "^\014"
   "Regexp describing line-beginnings that separate pages."
-  :type 'regexp)
-(put 'page-delimiter 'safe-local-variable #'stringp)
+  :type 'regexp
+  :safe #'stringp)
 
 (defcustom paragraph-ignore-fill-prefix nil
   "Non-nil means the paragraph commands are not affected by `fill-prefix'.
 This is desirable in modes where blank lines are the paragraph delimiters."
-  :type 'boolean)
-(put 'paragraph-ignore-fill-prefix 'safe-local-variable #'booleanp)
+  :type 'boolean
+  :safe #'booleanp)
 
 ;; Silence the compiler.
 (defun forward-paragraph (&optional arg)
@@ -479,18 +479,62 @@ sentences.  Also, every paragraph boundary terminates sentences as well."
       (setq arg (1- arg)))
     (constrain-to-field nil opoint t)))
 
-(defun repunctuate-sentences (&optional no-query)
+(defun count-sentences (start end)
+  "Count sentences in current buffer from START to END."
+  (let ((sentences 0)
+        (inhibit-field-text-motion t))
+    (save-excursion
+      (save-restriction
+        (narrow-to-region start end)
+        (goto-char (point-min))
+        (let* ((prev (point))
+               (next (forward-sentence)))
+          (while (and (not (null next))
+                      (not (= prev next)))
+            (setq prev next
+                  next (ignore-errors (forward-sentence))
+                  sentences (1+ sentences))))
+        ;; Remove last possibly empty sentence
+        (when (/= (skip-chars-backward " \t\n") 0)
+          (setq sentences (1- sentences)))
+	sentences))))
+
+(defun repunctuate-sentences-filter (_start _end)
+  "Search filter used by `repunctuate-sentences' to skip unneeded spaces.
+By default, it skips occurrences that already have two spaces."
+  (/= 2 (- (point) (save-excursion (skip-chars-backward " ") (point)))))
+
+(defvar repunctuate-sentences-filter #'repunctuate-sentences-filter
+  "The default filter used by `repunctuate-sentences'.
+It is advised to use `add-function' on this to add more filters,
+for example, `(looking-back (rx (or \"e.g.\" \"i.e.\") \" \") 5)'
+with a set of predefined abbreviations to skip from adding two spaces.")
+
+(defun repunctuate-sentences (&optional no-query start end)
   "Put two spaces at the end of sentences from point to the end of buffer.
-It works using `query-replace-regexp'.
-If optional argument NO-QUERY is non-nil, make changes without
-asking for confirmation."
-  (interactive)
+It works using `query-replace-regexp'.  In Transient Mark mode,
+if the mark is active, operate on the contents of the region.
+Second and third arg START and END specify the region to operate on.
+If optional argument NO-QUERY is non-nil, make changes without asking
+for confirmation.  You can use `repunctuate-sentences-filter' to add
+filters to skip occurrences of spaces that don't need to be replaced."
+  (declare (interactive-args (start (use-region-beginning))
+                             (end (use-region-end))))
+  (interactive (list nil (use-region-beginning) (use-region-end)))
   (let ((regexp "\\([]\"')]?\\)\\([.?!]\\)\\([]\"')]?\\) +")
         (to-string "\\1\\2\\3  "))
     (if no-query
-        (while (re-search-forward regexp nil t)
-          (replace-match to-string))
-      (query-replace-regexp regexp to-string))))
+        (progn
+          (when start (goto-char start))
+          (while (re-search-forward regexp end t)
+            (replace-match to-string)))
+      (unwind-protect
+          (progn
+            (add-function :after-while isearch-filter-predicate
+                          repunctuate-sentences-filter)
+            (query-replace-regexp regexp to-string nil start end))
+        (remove-function isearch-filter-predicate
+                         repunctuate-sentences-filter)))))
 
 
 (defun backward-sentence (&optional arg)

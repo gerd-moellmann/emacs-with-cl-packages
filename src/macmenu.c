@@ -46,11 +46,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "menu.h"
 
-extern void mac_fill_menubar (widget_value *, bool);
-extern int create_and_show_popup_menu (struct frame *, widget_value *,
-				       int, int, bool);
-extern int create_and_show_dialog (struct frame *, widget_value *);
-
 
 /* Nonzero means a menu is currently active.  */
 static int popup_activated_flag;
@@ -125,7 +120,7 @@ set_frame_menubar (struct frame *f, bool deep_p)
 
       struct buffer *prev = current_buffer;
       Lisp_Object buffer;
-      ptrdiff_t specpdl_count = SPECPDL_INDEX ();
+      specpdl_ref specpdl_count = SPECPDL_INDEX ();
       int previous_menu_items_used = f->menu_bar_items_used;
       Lisp_Object *previous_items
 	= alloca (previous_menu_items_used * sizeof *previous_items);
@@ -156,8 +151,6 @@ set_frame_menubar (struct frame *f, bool deep_p)
 
       /* If it has changed current-menubar from previous value,
 	 really recompute the menubar from the value.  */
-      if (! NILP (Vlucid_menu_bar_dirty_flag))
-	call0 (Qrecompute_lucid_menubar);
       safe_run_hooks (Qmenu_bar_update_hook);
       fset_menu_bar_items (f, menu_bar_items (FRAME_MENU_BAR_ITEMS (f)));
 
@@ -353,11 +346,16 @@ mac_menu_show (struct frame *f, int x, int y, int menuflags,
 {
   int i, selection;
   widget_value *wv, *save_wv = 0, *first_wv = 0, *prev_wv = 0;
-  widget_value **submenu_stack
-    = alloca (menu_items_used * sizeof *submenu_stack);
-  Lisp_Object *subprefix_stack
-    = alloca (menu_items_used * sizeof *subprefix_stack);
+  widget_value **submenu_stack;
+  Lisp_Object *subprefix_stack;
   int submenu_depth = 0;
+
+  USE_SAFE_ALLOCA;
+
+  submenu_stack = SAFE_ALLOCA (menu_items_used
+			       * sizeof *submenu_stack);
+  subprefix_stack = SAFE_ALLOCA (menu_items_used
+				 * sizeof *subprefix_stack);
 
   eassert (FRAME_MAC_P (f));
 
@@ -366,6 +364,7 @@ mac_menu_show (struct frame *f, int x, int y, int menuflags,
   if (menu_items_used <= MENU_ITEMS_PANE_LENGTH)
     {
       *error_name = "Empty menu";
+      SAFE_FREE ();
       return Qnil;
     }
 
@@ -592,6 +591,8 @@ mac_menu_show (struct frame *f, int x, int y, int menuflags,
 			  entry = Fcons (subprefix_stack[j], entry);
 		    }
 		  unblock_input ();
+
+		  SAFE_FREE ();
 		  return entry;
 		}
 	      i += MENU_ITEMS_ITEM_LENGTH;
@@ -606,6 +607,8 @@ mac_menu_show (struct frame *f, int x, int y, int menuflags,
     }
 
   unblock_input ();
+
+  SAFE_FREE ();
   return Qnil;
 }
 
@@ -636,7 +639,7 @@ mac_dialog_show (struct frame *f, Lisp_Object title,
   /* Whether we've seen the boundary between left-hand elts and right-hand.  */
   bool boundary_seen = false;
 
-  ptrdiff_t specpdl_count = SPECPDL_INDEX ();
+  specpdl_ref specpdl_count = SPECPDL_INDEX ();
 
   eassert (FRAME_MAC_P (f));
 
@@ -786,7 +789,7 @@ mac_popup_dialog (struct frame *f, Lisp_Object header, Lisp_Object contents)
   Lisp_Object title;
   const char *error_name;
   Lisp_Object selection;
-  ptrdiff_t specpdl_count = SPECPDL_INDEX ();
+  specpdl_ref specpdl_count = SPECPDL_INDEX ();
 
   check_window_system (f);
 

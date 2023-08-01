@@ -1,7 +1,6 @@
 ;;; doctor.el --- psychological help for frustrated users  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1994, 1996, 2000-2022 Free Software
-;; Foundation, Inc.
+;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: games
@@ -126,11 +125,9 @@
     (set what ww)
     first))
 
-(defvar doctor-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\n" 'doctor-read-print)
-    (define-key map "\r" 'doctor-ret-or-read)
-    map))
+(defvar-keymap doctor-mode-map
+  "C-j" #'doctor-read-print
+  "RET" #'doctor-ret-or-read)
 
 (define-derived-mode doctor-mode text-mode "Doctor"
   "Major mode for running the Doctor (Eliza) program.
@@ -138,14 +135,14 @@ Like Text mode with Auto Fill mode
 except that RET when point is after a newline, or LFD at any time,
 reads the sentence before point, and prints the Doctor's answer."
   :interactive nil
-  (make-doctor-variables)
+  (doctor-make-variables)
   (turn-on-auto-fill)
   (doctor-type '(i am the psychotherapist \.
 		 (doc$ doctor--please) (doc$ doctor--describe) your (doc$ doctor--problems) \.
 		 each time you are finished talking\, type \R\E\T twice \.))
   (insert "\n"))
 
-(defun make-doctor-variables ()
+(defun doctor-make-variables ()
   (setq-local doctor--typos
               (mapcar (lambda (x)
                         (put (car x) 'doctor-correction  (cadr x))
@@ -1621,6 +1618,8 @@ Hack on previous word, setting global variable DOCTOR-OWNER to correct result."
 
 
 (defun doctor-chat () (doctor-type (doc$ doctor--chatlst)))
+
+(define-obsolete-function-alias 'make-doctor-variables #'doctor-make-variables "29.1")
 
 (provide 'doctor)
 

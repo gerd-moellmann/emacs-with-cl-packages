@@ -21,6 +21,7 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "macgui.h"
 #include "frame.h"
+#include "../lwlib/lwlib-widget.h"
 
 #define RGB_TO_ULONG(r, g, b) (((r) << 16) | ((g) << 8) | (b))
 #define ARGB_TO_ULONG(a, r, g, b) (((a) << 24) | ((r) << 16) | ((g) << 8) | (b))
@@ -446,6 +447,14 @@ enum {
 #define UTI_SVG		kUTTypeScalableVectorGraphics
 #define UTI_IMAGE	kUTTypeImage
 #endif
+#define UTI_HEIC	(CFSTR ("public.heic"))
+#define UTI_WEBP	(CFSTR ("org.webmproject.webp"))
+
+enum mac_return_frame_mode {
+  RETURN_FRAME_NEVER,
+  RETURN_FRAME_EVENTUALLY,
+  RETURN_FRAME_NOW
+};
 
 /* From macfns.c.  */
 
@@ -527,6 +536,10 @@ extern void cleanup_all_suspended_apple_events (void);
 extern void mac_menu_set_in_use (bool);
 extern Lisp_Object mac_popup_dialog (struct frame *, Lisp_Object, Lisp_Object);
 extern bool name_is_separator (const char *);
+extern void mac_fill_menubar (widget_value *, bool);
+extern int create_and_show_popup_menu (struct frame *, widget_value *,
+				       int, int, bool);
+extern int create_and_show_dialog (struct frame *, widget_value *);
 
 /* Defined in macfns.c */
 
@@ -539,6 +552,7 @@ extern void mac_change_tool_bar_height (struct frame *, int);
 extern void mac_implicitly_set_name (struct frame *, Lisp_Object, Lisp_Object);
 extern void mac_set_scroll_bar_default_width (struct frame *);
 extern void mac_set_scroll_bar_default_height (struct frame *);
+extern void mac_move_tooltip_to_mouse_location (void);
 
 /* Defined in mac.c.  */
 
@@ -642,7 +656,7 @@ extern CGSize mac_get_frame_window_menu_bar_size (struct frame *);
 extern CGRect mac_get_frame_window_tool_bar_rect (struct frame *);
 extern CGRect mac_get_frame_window_content_rect (struct frame *, bool);
 extern CGPoint mac_get_frame_mouse (struct frame *);
-extern struct frame *mac_get_frame_at_mouse (void);
+extern struct frame *mac_get_frame_at_mouse (bool);
 extern void mac_convert_frame_point_to_global (struct frame *, int *, int *);
 extern void mac_set_frame_window_background (struct frame *, unsigned long);
 extern void mac_update_frame_begin (struct frame *);
@@ -702,6 +716,10 @@ extern bool mac_selection_has_target_p (Selection, Lisp_Object);
 extern Lisp_Object mac_get_selection_value (Selection, Lisp_Object);
 extern Lisp_Object mac_get_selection_target_list (Selection);
 extern Lisp_Object mac_dnd_default_known_types (void);
+extern DragActions mac_dnd_begin_drag_and_drop (struct frame *, DragActions,
+						enum mac_return_frame_mode,
+						struct frame **, bool,
+						Lisp_Object, bool);
 
 extern Emacs_Cursor mac_cursor_create (ThemeCursor, const Emacs_Color *,
 				       const Emacs_Color *);
@@ -748,20 +766,37 @@ extern void mac_within_gui (void (^ CF_NOESCAPE block) (void));
   mac_end_cg_clip (f);} while (0)
 #endif
 
-#define CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND(f, context, rect, gc)	\
+#define CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND(f, context, rect, gc,	\
+						respect_alpha_background) \
   do {									\
-    if ((gc)->xgcv.background_transparency == 0)			\
-      CGContextSetFillColorWithColor (context, (gc)->cg_back_color);	\
+    bool clear_p = false, change_alpha_p = false;			\
+    CGFloat alpha = 0;							\
+    if ((gc)->xgcv.background_transparency == 0				\
+	&& (!(respect_alpha_background) || (f)->alpha_background == 1.0)) \
+      ;									\
     else if (FRAME_BACKGROUND_ALPHA_ENABLED_P (f)			\
 	     && !mac_accessibility_display_options.reduce_transparency_p) \
       {									\
-	CGContextClearRect (context, rect);				\
-	CGContextSetFillColorWithColor (context, (gc)->cg_back_color);	\
+	clear_p = true;							\
+	if ((respect_alpha_background) && (f)->alpha_background != 1.0)	\
+	  {								\
+	    change_alpha_p = true;					\
+	    alpha = ((255 - (gc)->xgcv.background_transparency) / 255.0f \
+		     * (f)->alpha_background);				\
+	  }								\
+	}								\
+    else								\
+      {									\
+	change_alpha_p = true;						\
+	alpha = 1.0f;							\
       }									\
+    if (clear_p) CGContextClearRect (context, rect);			\
+    if (!change_alpha_p)						\
+      CGContextSetFillColorWithColor (context, (gc)->cg_back_color);	\
     else								\
       {									\
 	CGColorRef color =						\
-	  CGColorCreateCopyWithAlpha ((gc)->cg_back_color, 1.0f);	\
+	  CGColorCreateCopyWithAlpha ((gc)->cg_back_color, alpha);	\
 	CGContextSetFillColorWithColor (context, color);		\
 	CGColorRelease (color);						\
       }									\
@@ -774,8 +809,6 @@ extern void *macfont_get_nsctfont (struct font *);
 extern Lisp_Object macfont_nsctfont_to_spec (void *);
 
 /* Defined in xdisp.c */
-extern struct glyph *x_y_to_hpos_vpos (struct window *, int, int,
-				       int *, int *, int *, int *, int *);
 extern void frame_to_window_pixel_xy (struct window *, int *, int *);
 extern void rows_from_pos_range (struct window *, ptrdiff_t , ptrdiff_t,
 				 Lisp_Object, struct glyph_row **,

@@ -2509,7 +2509,7 @@ Each type should be a string of length 4 or the symbol
 		     dst_desc_type, &dst_desc);
   if (err == noErr)
     {
-      result = Fcdr (mac_aedesc_to_lisp (&dst_desc));
+      result = CDR (mac_aedesc_to_lisp (&dst_desc));
       AEDisposeDesc (&dst_desc);
     }
   unblock_input ();
@@ -2712,7 +2712,7 @@ get_cfstring_encoding_from_lisp (Lisp_Object obj)
 
       attrs = AREF (CODING_SYSTEM_SPEC (obj), 0);
       plist = CODING_ATTR_PLIST (attrs);
-      obj = Fplist_get (plist, QCmime_charset);
+      obj = plist_get (plist, QCmime_charset);
     }
 
   if (SYMBOLP (obj))

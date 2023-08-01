@@ -87,7 +87,7 @@ mac_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
       /* Don't allow a quit within the converter.
 	 When the user types C-g, he would be surprised
 	 if by luck it came during a converter.  */
-      ptrdiff_t count = SPECPDL_INDEX ();
+      specpdl_ref count = SPECPDL_INDEX ();
       specbind (Qinhibit_quit, Qt);
 
       for (rest = Vselection_converter_alist; CONSP (rest); rest = XCDR (rest))
@@ -95,14 +95,28 @@ mac_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
 	  if (!(CONSP (XCAR (rest))
 		&& (target_type = XCAR (XCAR (rest)),
 		    SYMBOLP (target_type))
-		&& mac_valid_selection_target_p (target_type)
-		&& (handler_fn = XCDR (XCAR (rest)),
-		    SYMBOLP (handler_fn))))
+		&& mac_valid_selection_target_p (target_type)))
 	    continue;
 
+	  handler_fn = XCDR (XCAR (rest));
+	  if (CONSP (handler_fn))
+	    handler_fn = XCDR (handler_fn);
+	  if (!SYMBOLP (handler_fn))
+	    continue;
+
+	  Lisp_Object tem = selection_value;
+
+	  if (STRINGP (tem))
+	    {
+	      Lisp_Object local_value = Fget_text_property (make_fixnum (0),
+							    target_type, tem);
+
+	      if (!NILP (local_value))
+		tem = local_value;
+	    }
+
 	  if (!NILP (handler_fn))
-	    value = call3 (handler_fn, selection_name,
-			   target_type, selection_value);
+	    value = call3 (handler_fn, selection_name, target_type, tem);
 	  else
 	    value = Qnil;
 
@@ -154,7 +168,7 @@ mac_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
 	/* We know it's not the CAR, so it's easy.  */
 	Lisp_Object rest = dpyinfo->terminal->Vselection_alist;
 	for (; CONSP (rest); rest = XCDR (rest))
-	  if (EQ (prev_value, Fcar (XCDR (rest))))
+	  if (EQ (prev_value, CAR (XCDR (rest))))
 	    {
 	      XSETCDR (rest, XCDR (XCDR (rest)));
 	      break;
@@ -176,7 +190,7 @@ static Lisp_Object
 mac_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
 			 bool local_request, struct mac_display_info *dpyinfo)
 {
-  Lisp_Object local_value;
+  Lisp_Object local_value, tem;
   Lisp_Object handler_fn, value, type, check;
 
   if (!mac_selection_owner_p (selection_symbol, dpyinfo))
@@ -195,16 +209,30 @@ mac_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
       /* Don't allow a quit within the converter.
 	 When the user types C-g, he would be surprised
 	 if by luck it came during a converter.  */
-      ptrdiff_t count = SPECPDL_INDEX ();
+      specpdl_ref count = SPECPDL_INDEX ();
       specbind (Qinhibit_quit, Qt);
 
       CHECK_SYMBOL (target_type);
-      handler_fn = Fcdr (Fassq (target_type, Vselection_converter_alist));
+      handler_fn = CDR (Fassq (target_type, Vselection_converter_alist));
+
+      if (CONSP (handler_fn))
+	handler_fn = XCDR (handler_fn);
+
+      tem = XCAR (XCDR (local_value));
+
+      if (STRINGP (tem))
+	{
+	  local_value = Fget_text_property (make_fixnum (0),
+					    target_type, tem);
+
+	  if (!NILP (local_value))
+	    tem = local_value;
+	}
 
       if (!NILP (handler_fn))
 	value = call3 (handler_fn,
 		       selection_symbol, (local_request ? Qnil : target_type),
-		       XCAR (XCDR (local_value)));
+		       tem);
       else
 	value = Qnil;
       value = unbind_to (count, value);
@@ -249,7 +277,7 @@ mac_clear_frame_selections (struct frame *f)
 	 && EQ (frame, XCAR (XCDR (XCDR (XCDR (XCAR (t->Vselection_alist)))))))
     {
       /* Run the `x-lost-selection-functions' abnormal hook.  */
-      Lisp_Object selection = Fcar (Fcar (t->Vselection_alist));
+      Lisp_Object selection = CAR (CAR (t->Vselection_alist));
 
       if (mac_selection_owner_p (selection, dpyinfo))
 	CALLN (Frun_hook_with_args, Qx_lost_selection_functions, selection);
@@ -1086,9 +1114,10 @@ syms_of_macselect (void)
   DEFVAR_LISP ("selection-converter-alist", Vselection_converter_alist,
 	       doc: /* An alist associating selection-types with functions.
 These functions are called to convert the selection, with three args:
-the name of the selection (typically `PRIMARY', `SECONDARY', or `CLIPBOARD');
-a desired type to which the selection should be converted;
-and the local selection value (whatever was given to `mac-own-selection').
+the name of the selection (typically `PRIMARY', `SECONDARY', or
+`CLIPBOARD'); a desired type to which the selection should be
+converted; and the local selection value (whatever was given to
+`mac-own-selection').
 
 The function should return the value to send to the Pasteboard Manager
 \(must be a string).  A return value of nil
@@ -1127,6 +1156,7 @@ The types are chosen in the order they appear in the list.  */);
      `mac-pasteboard-data-type'.  */
   DEFSYM (Qmac_pasteboard_name, "mac-pasteboard-name");
   DEFSYM (Qmac_pasteboard_data_type, "mac-pasteboard-data-type");
+  DEFSYM (Qmac_pasteboard_dnd_target_class, "mac-pasteboard-dnd-target-class");
   DEFSYM (Qmac_apple_event_class, "mac-apple-event-class");
   DEFSYM (Qmac_apple_event_id, "mac-apple-event-id");
   DEFSYM (Qemacs_suspension_id, "emacs-suspension-id");

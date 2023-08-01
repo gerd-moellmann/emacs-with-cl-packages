@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 
-## Copyright (C) 2020, 2022 Free Software Foundation, Inc.
+## Copyright (C) 2020, 2022-2023 Free Software Foundation, Inc.
 
 ## Author: Robert Pluim <rpluim@gmail.com>
 
@@ -106,7 +106,8 @@ END {
 
      for (elt in ch)
     {
-        printf("(#x%s .\n,(eval-when-compile (regexp-opt\n'(\n%s\n))))\n", elt, vec[elt])
+        entries = vec[elt] sprintf("\n\"\\N{U+%s}\\N{U+FE0E}\"\n\"\\N{U+%s}\\N{U+FE0F}\"", elt, elt)
+        printf("(#x%s .\n,(eval-when-compile (regexp-opt\n'(\n%s\n))))\n", elt, entries)
     }
      print "))"
      print "  (set-char-table-range composition-function-table"
@@ -114,7 +115,7 @@ END {
      print "                        (nconc (char-table-range composition-function-table (car elt))"
      print "                               (list (vector (cdr elt)"
      print "                                             0"
-     print "                                             'compose-gstring-for-graphic)))))"
+     print "                                             #'compose-gstring-for-graphic)))))"
 
      print ";; The following two blocks are derived by hand from emoji-sequences.txt"
      print ";; FIXME: add support for Emoji_Keycap_Sequence once we learn how to respect FE0F/VS-16"
@@ -126,7 +127,7 @@ END {
      print "                      (nconc (char-table-range composition-function-table '(#x1F1E6 . #x1F1FF))"
      print "                             (list (vector \"[\\U0001F1E6-\\U0001F1FF][\\U0001F1E6-\\U0001F1FF]\""
      print "                                           0"
-     print "                                    'compose-gstring-for-graphic))))"
+     print "                                           #'compose-gstring-for-graphic))))"
 
      print ";; UK Flags"
      print "(set-char-table-range composition-function-table"
@@ -134,7 +135,7 @@ END {
      print "                      (nconc (char-table-range composition-function-table #x1F3F4)"
      print "                             (list (vector \"\\U0001F3F4\\U000E0067\\U000E0062\\\\(?:\\U000E0065\\U000E006E\\U000E0067\\\\|\\U000E0073\\U000E0063\\U000E0074\\\\|\\U000E0077\\U000E006C\\U000E0073\\\\)\\U000E007F\""
      print "                                           0"
-     print "                                    'compose-gstring-for-graphic))))"
+     print "                                           #'compose-gstring-for-graphic))))"
 
      printf "\n(provide 'emoji-zwj)"
 }

@@ -1,6 +1,6 @@
 ;;; rmailout.el --- "RMAIL" mail reader for Emacs: output message to a file  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 1987, 1993-1994, 2001-2022 Free Software
+;; Copyright (C) 1985, 1987, 1993-1994, 2001-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -107,9 +107,8 @@ error: %S\n"
 	 (read-file
 	  (expand-file-name
 	   (read-file-name
-	    (concat "Output message to mail file (default "
-		    (file-name-nondirectory default-file)
-		    "): ")
+            (format-prompt "Output message to mail file"
+                           (file-name-nondirectory default-file))
 	    (file-name-directory default-file)
 	    (abbreviate-file-name default-file))
 	   (file-name-directory default-file))))

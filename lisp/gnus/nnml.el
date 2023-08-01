@@ -1,6 +1,6 @@
 ;;; nnml.el --- mail spool access for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
 
 ;; Authors: Didier Verna <didier@didierverna.net> (adding compaction)
 ;;	Simon Josefsson <simon@josefsson.org>
@@ -89,6 +89,7 @@ non-nil.")
 
 (defconst nnml-version "nnml 1.0"
   "nnml version.")
+(make-obsolete-variable 'nnml-version 'emacs-version "29.1")
 
 (defvoo nnml-nov-file-name ".overview")
 
@@ -600,7 +601,7 @@ non-nil.")
 		  (search-forward id nil t)) ; We find the ID.
 	;; And the id is in the fourth field.
 	(if (not (and (search-backward "\t" nil t 4)
-		      (not (search-backward "\t" (point-at-bol) t))))
+                      (not (search-backward "\t" (line-beginning-position) t))))
 	    (forward-line 1)
 	  (beginning-of-line)
 	  (setq found t)
@@ -754,7 +755,7 @@ article number.  This function is called narrowed to an article."
     (nnheader-insert-nov headers)))
 
 (defsubst nnml-header-value ()
-  (buffer-substring (match-end 0) (point-at-eol)))
+  (buffer-substring (match-end 0) (line-end-position)))
 
 (defun nnml-parse-head (chars &optional number)
   "Parse the head of the current buffer."
@@ -1065,7 +1066,7 @@ Use the nov database for the current group if available."
 					(regexp-quote
 					 (concat group ":" old-number-string))
 					"\\>")
-				(point-at-eol) t))
+                                (line-end-position) t))
 		      (replace-match
 		       (concat group ":" new-number-string)))
 		    ;; Save to the new file:
@@ -1083,21 +1084,20 @@ Use the nov database for the current group if available."
 		;; #### doing anything on them.
 		;; 2 a/ read articles:
 		(let ((read (gnus-info-read info)))
-		  (setq read (gnus-remove-from-range read (list new-number)))
-		  (when (gnus-member-of-range old-number read)
-		    (setq read (gnus-remove-from-range read (list old-number)))
-		    (setq read (gnus-add-to-range read (list new-number))))
+		  (setq read (range-remove read (list new-number)))
+		  (when (range-member-p old-number read)
+		    (setq read (range-remove read (list old-number)))
+		    (setq read (range-add-list read (list new-number))))
 		  (setf (gnus-info-read info) read))
 		;; 2 b/ marked articles:
 		(let ((oldmarks (gnus-info-marks info))
 		      mark newmarks)
 		  (while (setq mark (pop oldmarks))
-		    (setcdr mark (gnus-remove-from-range (cdr mark)
-							 (list new-number)))
-		    (when (gnus-member-of-range old-number (cdr mark))
-		      (setcdr mark (gnus-remove-from-range (cdr mark)
-							   (list old-number)))
-		      (setcdr mark (gnus-add-to-range (cdr mark)
+		    (setcdr mark (range-remove (cdr mark) (list new-number)))
+		    (when (range-member-p old-number (cdr mark))
+		      (setcdr mark (range-remove (cdr mark)
+						 (list old-number)))
+		      (setcdr mark (range-add-list (cdr mark)
 						      (list new-number))))
 		    (push mark newmarks))
 		  (setf (gnus-info-marks info) newmarks))
@@ -1114,7 +1114,7 @@ Use the nov database for the current group if available."
 				     (regexp-quote
 				      (concat group ":" old-number-string))
 				     "\\>")
-			     (point-at-eol) t)
+                             (line-end-position) t)
 			(replace-match
 			 (concat "\\1" group ":" new-number-string))))))
 		;; 4/ Possibly remove the article from the backlog:

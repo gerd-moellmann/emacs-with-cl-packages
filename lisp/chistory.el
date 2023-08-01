@@ -1,6 +1,6 @@
 ;;; chistory.el --- list command history  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: K. Shane Hartman
 ;; Maintainer: emacs-devel@gnu.org
@@ -119,8 +119,6 @@ The buffer is left in Command History mode."
 	  (error "No command history")
 	(command-history-mode)))))
 
-(define-obsolete-variable-alias 'command-history-map
-  'command-history-mode-map "24.1")
 (defvar command-history-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map (make-composed-keymap lisp-mode-shared-map

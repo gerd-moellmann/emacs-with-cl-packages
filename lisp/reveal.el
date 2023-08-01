@@ -1,6 +1,6 @@
 ;;; reveal.el --- Automatically reveal hidden text at point -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: outlines
@@ -210,13 +210,11 @@ that text."
   (let ((reveal-auto-hide t))
     (reveal-post-command)))
 
-(defvar reveal-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; Override the default move-beginning-of-line and move-end-of-line
-    ;; which skips valuable invisible text.
-    (define-key map [remap move-beginning-of-line] 'beginning-of-line)
-    (define-key map [remap move-end-of-line] 'end-of-line)
-    map))
+(defvar-keymap reveal-mode-map
+  ;; Override the default move-beginning-of-line and move-end-of-line
+  ;; which skips valuable invisible text.
+  "<remap> <move-beginning-of-line>" #'beginning-of-line
+  "<remap> <move-end-of-line>"       #'end-of-line)
 
 ;;;###autoload
 (define-minor-mode reveal-mode

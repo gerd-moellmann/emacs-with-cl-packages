@@ -1,6 +1,6 @@
 ;;; url-auth.el --- Uniform Resource Locator authorization modules -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-1999, 2004-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1999, 2004-2023 Free Software Foundation, Inc.
 
 ;; Keywords: comm, data, processes, hypermedia
 
@@ -87,18 +87,23 @@ instead of the filename inheritance method."
      ((and prompt (not byserv))
       (setq user (or
 		  (url-do-auth-source-search server type :user)
-		  (read-string (url-auth-user-prompt href realm)
-			       (or user (user-real-login-name))))
+                  (and (url-interactive-p)
+		       (read-string (url-auth-user-prompt href realm)
+			            (or user (user-real-login-name)))))
 	    pass (or
 		  (url-do-auth-source-search server type :secret)
-		  (read-passwd "Password: " nil (or pass ""))))
+                  (and (url-interactive-p)
+		       (read-passwd "Password: " nil (or pass "")))))
       (set url-basic-auth-storage
 	   (cons (list server
 		       (cons file
 			     (setq retval
 				   (base64-encode-string
 				    (format "%s:%s" user
-					    (encode-coding-string pass 'utf-8))
+                                            (if pass
+					        (encode-coding-string pass
+                                                                      'utf-8)
+                                              ""))
                                     t))))
 		 (symbol-value url-basic-auth-storage))))
      (byserv
@@ -117,11 +122,13 @@ instead of the filename inheritance method."
 	  (progn
 	    (setq user (or
 			(url-do-auth-source-search server type :user)
-			(read-string (url-auth-user-prompt href realm)
-				     (user-real-login-name)))
+                        (and (url-interactive-p)
+			     (read-string (url-auth-user-prompt href realm)
+				          (user-real-login-name))))
 		  pass (or
 			(url-do-auth-source-search server type :secret)
-			(read-passwd "Password: "))
+                        (and (url-interactive-p)
+			     (read-passwd "Password: ")))
 		  retval (base64-encode-string (format "%s:%s" user pass) t)
 		  byserv (assoc server (symbol-value url-basic-auth-storage)))
 	    (setcdr byserv
@@ -233,11 +240,13 @@ CREDS is a plist that may have properties `:user' and `:secret'."
   ;; plist-put modify the same plist.
   (setq creds
         (plist-put creds :user
-                   (read-string (url-auth-user-prompt url realm)
-                                (or (plist-get creds :user)
-                                    (user-real-login-name)))))
+                   (and (url-interactive-p)
+                        (read-string (url-auth-user-prompt url realm)
+                                     (or (plist-get creds :user)
+                                         (user-real-login-name))))))
   (plist-put creds :secret
-             (read-passwd "Password: " nil (plist-get creds :secret))))
+             (and (url-interactive-p)
+                  (read-passwd "Password: " nil (plist-get creds :secret)))))
 
 (defun url-digest-auth-directory-id-assoc (dirkey keylist)
   "Find the best match for DIRKEY in key alist KEYLIST.
@@ -301,8 +310,8 @@ object."
 (defun url-digest-auth-build-response (key url realm attrs)
   "Compute authorization string for the given challenge using KEY.
 
-The string looks like 'Digest username=\"John\", realm=\"The
-Realm\", ...'
+The string looks like \"Digest username=\"John\", realm=\"The
+Realm\", ...\"
 
 Part of the challenge is already solved in a pre-computed KEY
 which is list of a realm (or a directory), user name, and hash

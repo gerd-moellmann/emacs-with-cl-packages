@@ -1,6 +1,6 @@
 ;;; cyrillic.el --- support for Cyrillic -*- coding: utf-8; lexical-binding: t; -*-
 
-;; Copyright (C) 1997-1998, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2001-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -131,13 +131,15 @@ Support for Russian using koi8-r and the russian-computer input method.")
   :mime-charset 'koi8-u)
 
 (set-language-info-alist
- "Ukrainian" '((charset koi8-u)
+ "Ukrainian" '((tutorial . "TUTORIAL.uk")
+	       (charset koi8-u)
 	       (coding-system koi8-u)
 	       (coding-priority koi8-u)
 	       (nonascii-translation . koi8-u)
 	       (input-method . "ukrainian-computer")
+	       (sample-text . "Ukrainian (Українська)	Вітаю / Добрий день! / Привіт")
 	       (documentation
-		. "Support for Ukrainian with KOI8-U character set."))
+		. "Support for Ukrainian with koi8-u character set."))
  '("Cyrillic"))
 
 ;;; ALTERNATIVNYJ stuff
@@ -254,12 +256,14 @@ Support for Russian using koi8-r and the russian-computer input method.")
 \(The name Belarusian replaced Byelorussian in the early 1990s.)"))
  '("Cyrillic"))
 
+;; The Mongolian-traditional language environment is in misc-lang.el.
 (set-language-info-alist
- "Ukrainian" '((coding-system koi8-u)
-	       (coding-priority koi8-u)
-	       (input-method . "ukrainian-computer")
-	       (documentation
-		. "Support for Ukrainian with koi8-u character set."))
+ "Mongolian-cyrillic" '((coding-system utf-8)
+	                (coding-priority utf-8)
+	                (input-method . "cyrillic-mongolian")
+		        (sample-text . "Mongolian (монгол хэл)	Сайн байна уу?")
+	                (documentation
+		         . "Support for Mongolian language with Cyrillic alphabet."))
  '("Cyrillic"))
 
 (provide 'cyrillic)

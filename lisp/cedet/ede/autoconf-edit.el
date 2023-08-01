@@ -1,6 +1,6 @@
 ;;; ede/autoconf-edit.el --- Keymap for autoconf  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998-2000, 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2000, 2009-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: project
@@ -382,16 +382,16 @@ Optional argument BODY is the code to execute which edits the autoconf file."
     (beginning-of-line)
     (let* ((end-of-cmd
 	    (save-excursion
-	      (if (re-search-forward "(" (point-at-eol) t)
+              (if (re-search-forward "(" (line-end-position) t)
 		  (progn
 		    (forward-char -1)
 		    (forward-sexp 1)
 		    (point))
 		;; Else, just return EOL.
-		(point-at-eol))))
+                (line-end-position))))
 	   (cnt 0))
       (save-restriction
-	(narrow-to-region (point-at-bol) end-of-cmd)
+        (narrow-to-region (line-beginning-position) end-of-cmd)
 	(condition-case nil
 	    (progn
 	      (down-list 1)
@@ -416,7 +416,7 @@ INDEX starts at 1."
   (down-list 1)
   (re-search-forward ", ?" nil nil (1- index))
   (let ((end (save-excursion
-	       (re-search-forward ",\\|)" (point-at-eol))
+               (re-search-forward ",\\|)" (line-end-position))
 	       (forward-char -1)
 	       (point))))
     (setq autoconf-deleted-text (buffer-substring (point) end))

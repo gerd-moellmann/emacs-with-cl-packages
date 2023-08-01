@@ -1,6 +1,6 @@
 ;;; semantic/decorate/include.el --- Decoration modes for include statements  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -330,7 +330,7 @@ This mode provides a nice context menu on the include statements."
 	)
       ))
 
-    ;; @TODO - if not a tag w/ a position, we need to get one.  How?
+    ;; @TODO - if not a tag with a position, we need to get one.  How?
 
     (when (semantic-tag-with-position-p tag)
       (let ((ol (semantic-decorate-tag tag

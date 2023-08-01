@@ -1,6 +1,6 @@
 ;;; vhdl-mode.el --- major mode for editing VHDL code  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1992-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
 
 ;; Authors:     Reto Zimmermann <reto@gnu.org>
 ;;              Rodney J. Whitby <software.vhdl-mode@rwhitby.net>
@@ -16,7 +16,7 @@
 ;; Reto also said in Apr 2021 that he preferred to keep the XEmacs
 ;; compatibility code.
 
-(defconst vhdl-version "3.38.1"
+(defconst vhdl-version "3.38.5"
   "VHDL Mode version number.")
 
 (defconst vhdl-time-stamp "2015-03-12"
@@ -229,20 +229,20 @@ Overrides local variable `indent-tabs-mode'."
     ;; [Error] Assignment error: variable is illegal target of signal assignment
     ("ADVance MS" "vacom" "-work \\1" "make" "-f \\1"
      nil "valib \\1; vamap \\2 \\1" "./" "work/" "Makefile" "adms"
-     ("^\\s-+\\([0-9]+\\):\\s-+" nil 1 nil) ("^Compiling file \\(.+\\)" 1)
+     ("^\\s-+\\([0-9]+\\):\\s-+" nil 1 nil nil) ("^Compiling file \\(.+\\)" 1)
      ("ENTI/\\1.vif" "ARCH/\\1-\\2.vif" "CONF/\\1.vif"
       "PACK/\\1.vif" "BODY/\\1.vif" upcase))
     ;; Aldec
     ;; COMP96 ERROR COMP96_0018: "Identifier expected." "test.vhd" 66 3
     ("Aldec" "vcom" "-work \\1" "make" "-f \\1"
      nil "vlib \\1; vmap \\2 \\1" "./" "work/" "Makefile" "aldec"
-     ("^.* ERROR [^:]+: \".*\" \"\\([^ \t\n]+\\)\" \\([0-9]+\\) \\([0-9]+\\)" 1 2 3) ("" 0)
+     ("^.* ERROR [^:]+: \".*\" \"\\([^ \t\n]+\\)\" \\([0-9]+\\) \\([0-9]+\\)" 1 2 3 nil) ("" 0)
      nil)
     ;; Cadence Leapfrog: cv -file test.vhd
     ;; duluth: *E,430 (test.vhd,13): identifier (POSITIV) is not declared
     ("Cadence Leapfrog" "cv" "-work \\1 -file" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "leapfrog"
-     ("^duluth: \\*E,[0-9]+ (\\([^ \t\n]+\\),\\([0-9]+\\)):" 1 2 nil) ("" 0)
+     ("^duluth: \\*E,[0-9]+ (\\([^ \t\n]+\\),\\([0-9]+\\)):" 1 2 nil nil) ("" 0)
      ("\\1/entity" "\\2/\\1" "\\1/configuration"
       "\\1/package" "\\1/body" downcase))
     ;; Cadence Affirma NC vhdl: ncvhdl test.vhd
@@ -250,7 +250,7 @@ Overrides local variable `indent-tabs-mode'."
     ;; (PLL_400X_TOP) is not declared [10.3].
     ("Cadence NC" "ncvhdl" "-work \\1" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "ncvhdl"
-     ("^ncvhdl_p: \\*E,\\w+ (\\([^ \t\n]+\\),\\([0-9]+\\)|\\([0-9]+\\)):" 1 2 3) ("" 0)
+     ("^ncvhdl_p: \\*E,\\w+ (\\([^ \t\n]+\\),\\([0-9]+\\)|\\([0-9]+\\)):" 1 2 3 nil) ("" 0)
      ("\\1/entity/pc.db" "\\2/\\1/pc.db" "\\1/configuration/pc.db"
       "\\1/package/pc.db" "\\1/body/pc.db" downcase))
     ;; ghdl vhdl
@@ -258,21 +258,21 @@ Overrides local variable `indent-tabs-mode'."
     ;; bad_counter.vhdl:13:14: operator "=" is overloaded
     ("GHDL" "ghdl" "-i --workdir=\\1 --ieee=synopsys -fexplicit " "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "ghdl"
-     ("^ghdl_p: \\*E,\\w+ (\\([^ \t\n]+\\),\\([0-9]+\\)|\\([0-9]+\\)):" 1 2 3) ("" 0)
+     ("^ghdl_p: \\*E,\\w+ (\\([^ \t\n]+\\),\\([0-9]+\\)|\\([0-9]+\\)):" 1 2 3 nil) ("" 0)
      ("\\1/entity" "\\2/\\1" "\\1/configuration"
       "\\1/package" "\\1/body" downcase))
     ;; IBM Compiler
     ;; 00 COACHDL* | [CCHDL-1]: File: adder.vhd, line.column: 120.6
     ("IBM Compiler" "g2tvc" "-src" "precomp" "\\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "ibm"
-     ("^[0-9]+ COACHDL.*: File: \\([^ \t\n]+\\), *line.column: \\([0-9]+\\).\\([0-9]+\\)" 1 2 3) (" " 0)
+     ("^[0-9]+ COACHDL.*: File: \\([^ \t\n]+\\), *line.column: \\([0-9]+\\).\\([0-9]+\\)" 1 2 3 nil) (" " 0)
      nil)
     ;; Ikos Voyager: analyze test.vhd
     ;; analyze test.vhd
     ;; E L4/C5:        this library unit is inaccessible
     ("Ikos" "analyze" "-l \\1" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "ikos"
-     ("^E L\\([0-9]+\\)/C\\([0-9]+\\):" nil 1 2)
+     ("^E L\\([0-9]+\\)/C\\([0-9]+\\):" nil 1 2 nil)
      ("^analyze +\\(.+ +\\)*\\(.+\\)$" 2)
      nil)
     ;; ModelSim, Model Technology: vcom test.vhd
@@ -286,7 +286,7 @@ Overrides local variable `indent-tabs-mode'."
     ;;    counter_rtl.vhd(29):Conditional signal assignment line__29
     ("ModelSim" "vcom" "-93 -work \\1" "make" "-f \\1"
      nil "vlib \\1; vmap \\2 \\1" "./" "work/" "Makefile" "modelsim"
-     ("\\(ERROR:\\|WARNING\\[[0-9]+\\]:\\|\\*\\* Error:\\|\\*\\* Warning: \\[[0-9]+\\]\\| +\\) \\([^ ]+\\)(\\([0-9]+\\)):" 2 3 nil)
+     ("^\\(?:\\(?1:ERROR\\|\\*\\* Error\\)\\|\\(?2:WARNING\\|\\*\\* Warning\\)\\|\\(?3:NOTE\\|\\*\\* Note\\)\\)[^:]*:\\( *\\[[0-9]+]\\| ([^)]+)\\)? \\(?4:[^ \t\n]+\\)(\\(?5:[0-9]+\\)):" 4 5 nil (2 . 3))
      ("" 0)
      ("\\1/_primary.dat" "\\2/\\1.dat" "\\1/_primary.dat"
       "\\1/_primary.dat" "\\1/body.dat" downcase))
@@ -294,7 +294,7 @@ Overrides local variable `indent-tabs-mode'."
     ;; test.vhd:34: error message
     ("LEDA ProVHDL" "provhdl" "-w \\1 -f" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "provhdl"
-     ("^\\([^ \t\n:]+\\):\\([0-9]+\\): " 1 2 nil) ("" 0)
+     ("^\\([^ \t\n:]+\\):\\([0-9]+\\): " 1 2 nil nil) ("" 0)
      ("ENTI/\\1.vif" "ARCH/\\1-\\2.vif" "CONF/\\1.vif"
       "PACK/\\1.vif" "BODY/BODY-\\1.vif" upcase))
     ;; Quartus compiler
@@ -305,21 +305,21 @@ Overrides local variable `indent-tabs-mode'."
     ;; Warning: VHDL Process Statement warning at dvi2sdi_tst.vhd(172): ...
     ("Quartus" "make" "-work \\1" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "quartus"
-     ("^\\(Error\\|Warning\\): .* \\([^ \t\n]+\\)(\\([0-9]+\\))" 2 3 nil) ("" 0)
+     ("^\\(Error\\|Warning\\): .* \\([^ \t\n]+\\)(\\([0-9]+\\))" 2 3 nil nil) ("" 0)
      nil)
     ;; QuickHDL, Mentor Graphics: qvhcom test.vhd
     ;; ERROR: test.vhd(24): near "dnd": expecting: END
     ;; WARNING[4]: test.vhd(30): A space is required between ...
     ("QuickHDL" "qvhcom" "-work \\1" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "quickhdl"
-     ("^\\(ERROR\\|WARNING\\)[^:]*: \\([^ \t\n]+\\)(\\([0-9]+\\)):" 2 3 nil) ("" 0)
+     ("^\\(ERROR\\|WARNING\\)[^:]*: \\([^ \t\n]+\\)(\\([0-9]+\\)):" 2 3 nil nil) ("" 0)
      ("\\1/_primary.dat" "\\2/\\1.dat" "\\1/_primary.dat"
       "\\1/_primary.dat" "\\1/body.dat" downcase))
     ;; Savant: scram -publish-cc test.vhd
     ;; test.vhd:87: _set_passed_through_out_port(IIR_Boolean) not defined for
     ("Savant" "scram" "-publish-cc -design-library-name \\1" "make" "-f \\1"
      nil "mkdir \\1" "./" "work._savant_lib/" "Makefile" "savant"
-     ("^\\([^ \t\n:]+\\):\\([0-9]+\\): " 1 2 nil) ("" 0)
+     ("^\\([^ \t\n:]+\\):\\([0-9]+\\): " 1 2 nil nil) ("" 0)
      ("\\1_entity.vhdl" "\\2_secondary_units._savant_lib/\\2_\\1.vhdl"
       "\\1_config.vhdl" "\\1_package.vhdl"
       "\\1_secondary_units._savant_lib/\\1_package_body.vhdl" downcase))
@@ -327,39 +327,39 @@ Overrides local variable `indent-tabs-mode'."
     ;; Error: CSVHDL0002: test.vhd: (line 97): Invalid prefix
     ("Simili" "vhdlp" "-work \\1" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "simili"
-     ("^\\(Error\\|Warning\\): \\w+: \\([^ \t\n]+\\): (line \\([0-9]+\\)): " 2 3 nil) ("" 0)
+     ("^\\(Error\\|Warning\\): \\w+: \\([^ \t\n]+\\): (line \\([0-9]+\\)): " 2 3 nil nil) ("" 0)
      ("\\1/prim.var" "\\2/_\\1.var" "\\1/prim.var"
       "\\1/prim.var" "\\1/_body.var" downcase))
     ;; Speedwave (Innoveda): analyze -libfile vsslib.ini -src test.vhd
     ;;     ERROR[11]::File test.vhd Line 100: Use of undeclared identifier
     ("Speedwave" "analyze" "-libfile vsslib.ini -src" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "speedwave"
-     ("^ *ERROR\\[[0-9]+]::File \\([^ \t\n]+\\) Line \\([0-9]+\\):" 1 2 nil) ("" 0)
+     ("^ *ERROR\\[[0-9]+]::File \\([^ \t\n]+\\) Line \\([0-9]+\\):" 1 2 nil nil) ("" 0)
      nil)
     ;; Synopsys, VHDL Analyzer (sim): vhdlan -nc test.vhd
     ;; **Error: vhdlan,703 test.vhd(22): OTHERS is not legal in this context.
     ("Synopsys" "vhdlan" "-nc -work \\1" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "synopsys"
-     ("^\\*\\*Error: vhdlan,[0-9]+ \\([^ \t\n]+\\)(\\([0-9]+\\)):" 1 2 nil) ("" 0)
+     ("^\\*\\*Error: vhdlan,[0-9]+ \\([^ \t\n]+\\)(\\([0-9]+\\)):" 1 2 nil nil) ("" 0)
      ("\\1.sim" "\\2__\\1.sim" "\\1.sim" "\\1.sim" "\\1__.sim" upcase))
     ;; Synopsys, VHDL Analyzer (syn): vhdlan -nc -spc test.vhd
     ;; **Error: vhdlan,703 test.vhd(22): OTHERS is not legal in this context.
     ("Synopsys Design Compiler" "vhdlan" "-nc -spc -work \\1" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "synopsys_dc"
-     ("^\\*\\*Error: vhdlan,[0-9]+ \\([^ \t\n]+\\)(\\([0-9]+\\)):" 1 2 nil) ("" 0)
+     ("^\\*\\*Error: vhdlan,[0-9]+ \\([^ \t\n]+\\)(\\([0-9]+\\)):" 1 2 nil nil) ("" 0)
      ("\\1.syn" "\\2__\\1.syn" "\\1.syn" "\\1.syn" "\\1__.syn" upcase))
     ;; Synplify:
     ;; @W:"test.vhd":57:8:57:9|Optimizing register bit count_x(5) to a constant 0
     ("Synplify" "n/a" "n/a" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "synplify"
-     ("^@[EWN]:\"\\([^ \t\n]+\\)\":\\([0-9]+\\):\\([0-9]+\\):" 1 2 3) ("" 0)
+     ("^@[EWN]:\"\\([^ \t\n]+\\)\":\\([0-9]+\\):\\([0-9]+\\):" 1 2 3 nil) ("" 0)
      nil)
     ;; Vantage: analyze -libfile vsslib.ini -src test.vhd
     ;;     Compiling "test.vhd" line 1...
     ;; **Error: LINE 49 *** No aggregate value is valid in this context.
     ("Vantage" "analyze" "-libfile vsslib.ini -src" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "vantage"
-     ("^\\*\\*Error: LINE \\([0-9]+\\) \\*\\*\\*" nil 1 nil)
+     ("^\\*\\*Error: LINE \\([0-9]+\\) \\*\\*\\*" nil 1 nil nil)
      ("^ *Compiling \"\\(.+\\)\" " 1)
      nil)
     ;; VeriBest: vc vhdl test.vhd
@@ -369,22 +369,29 @@ Overrides local variable `indent-tabs-mode'."
     ;; [Error] Name BITA is unknown
     ("VeriBest" "vc" "vhdl" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "veribest"
-     ("^ +\\([0-9]+\\): +[^ ]" nil 1 nil) ("" 0)
+     ("^ +\\([0-9]+\\): +[^ ]" nil 1 nil nil) ("" 0)
      nil)
     ;; Viewlogic: analyze -libfile vsslib.ini -src test.vhd
     ;;     Compiling "test.vhd" line 1...
     ;; **Error: LINE 49 *** No aggregate value is valid in this context.
     ("Viewlogic" "analyze" "-libfile vsslib.ini -src" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "viewlogic"
-     ("^\\*\\*Error: LINE \\([0-9]+\\) \\*\\*\\*" nil 1 nil)
+     ("^\\*\\*Error: LINE \\([0-9]+\\) \\*\\*\\*" nil 1 nil nil)
      ("^ *Compiling \"\\(.+\\)\" " 1)
      nil)
     ;; Xilinx XST:
     ;; ERROR:HDLParsers:164 - "test.vhd" Line 3. parse error
     ("Xilinx XST" "xflow" "" "make" "-f \\1"
      nil "mkdir \\1" "./" "work/" "Makefile" "xilinx"
-     ("^ERROR:HDLParsers:[0-9]+ - \"\\([^ \t\n]+\\)\" Line \\([0-9]+\\)\\." 1 2 nil) ("" 0)
+     ("^ERROR:HDLParsers:[0-9]+ - \"\\([^ \t\n]+\\)\" Line \\([0-9]+\\)\\." 1 2 nil nil) ("" 0)
      nil)
+    ;; Xilinx Vivado:
+    ;; ERROR: [VRFC 10-1412] syntax error near o_idle [test.vhd:23]
+    ("Xilinx Vivado" "xvhdl" "" "make" "-f \\1"
+     nil "mkdir \\1" "./" "work/" "Makefile" "vivado"
+     ("^\\(?:\\(?1:ERROR\\)\\|\\(?2:WARNING\\)\\|\\(?3:INFO\\)\\): \\(.+\\) \\[\\(?4:[^ \t\n]+\\):\\(?5:[0-9]+\\)\\]" 4 5 nil (2 . 3)) ("" 0)
+     ("\\1/entity" "\\2/\\1" "\\1/configuration"
+      "\\1/package" "\\1/body" downcase))
     )
   "List of available VHDL compilers and their properties.
 Each list entry specifies the following items for a compiler:
@@ -407,6 +414,13 @@ Error message:
   File subexp index: index of subexpression that matches the file name
   Line subexp index: index of subexpression that matches the line number
   Column subexp idx: index of subexpression that matches the column number
+  Type subexp      : message type, can be nil for a real error, 1 for warning
+                     or 0 for info. Type can also be detected using the form
+                     (WARNING . INFO).  In that case this will be equivalent to
+                     1 if the WARNING’th subexpression matched or else
+                     equivalent to 0 if the INFO’th subexpression matched, or
+                     else equivalent to nil if neither of them matched. See
+                     also `compilation-error-regexp-alist'.
 File message:
   Regexp           : regular expression to match a file name message
   File subexp index: index of subexpression that matches the file name
@@ -476,7 +490,14 @@ NOTE: Activate new error and file message regexps and reflect the new setting
 		      (integer :tag "Line subexp index")
 		      (choice  :tag "Column subexp    "
 			      (integer :tag "Index")
-			      (const :tag "No column number" nil)))
+			      (const :tag "No column number" nil))
+			    (choice  :tag "Type    "
+			      (const :tag "Info" 0)
+			      (const :tag "Warning" 1)
+			      (const :tag "Error" nil)
+			      (cons :tag "Type detection"
+			        (natnum :tag "Warning subexp index")
+			        (natnum :tag "Info subexp index   "))))
 		(list :tag "File message" :indent 4
 		      (regexp  :tag "Regexp           ")
 		      (integer :tag "File subexp index"))
@@ -2507,11 +2528,10 @@ consistent searching."
 
 (defmacro vhdl-prepare-search-2 (&rest body)
   "Enable case insensitive search, switch to syntax table that includes `_',
-arrange to ignore `intangible' overlays, then execute BODY, and finally restore
-the old environment.  Used for consistent searching."
+then execute BODY, and finally restore the old environment.
+Used for consistent searching."
   (declare (debug t))
-  `(let ((case-fold-search t)		; case insensitive search
-         (inhibit-point-motion-hooks t))
+  `(let ((case-fold-search t))		; case insensitive search
      ;; use extended syntax table
      (with-syntax-table vhdl-mode-ext-syntax-table
        ;; execute BODY safely
@@ -7707,7 +7727,7 @@ non-nil, indentation is done before aligning."
        (save-excursion
 	 (goto-char begin)
 	 (let (element
-	       (eol (point-at-eol)))
+               (eol (line-end-position)))
 	   (setq element (nth 0 copy))
 	   (when (and (or (and (listp (car element))
 			       (memq major-mode (car element)))
@@ -7733,7 +7753,7 @@ space is inserted after the token in MATCH."
       ;; Determine the greatest whitespace distance to the alignment
       ;; character
       (goto-char begin)
-      (setq eol (point-at-eol)
+      (setq eol (line-end-position)
 	    bol (setq begin (progn (beginning-of-line) (point))))
       (while (< bol end)
 	(save-excursion
@@ -7750,13 +7770,13 @@ space is inserted after the token in MATCH."
 	      (setq max distance))))
 	(forward-line)
 	(setq bol (point)
-	      eol (point-at-eol))
+              eol (line-end-position))
 	(setq lines (1+ lines)))
       ;; Now insert enough maxs to push each assignment operator to
       ;; the same column.  We need to use 'lines' as a counter, since
       ;; the location of the mark may change
       (goto-char (setq bol begin))
-      (setq eol (point-at-eol))
+      (setq eol (line-end-position))
       (while (> lines 0)
   	(when (and (vhdl-re-search-forward match eol t)
 		   (save-excursion
@@ -7776,7 +7796,7 @@ space is inserted after the token in MATCH."
 	(beginning-of-line)
 	(forward-line)
 	(setq bol (point)
-	      eol (point-at-eol))
+              eol (line-end-position))
 	(setq lines (1- lines))))))
 
 (defun vhdl-align-region-groups (beg end &optional spacing
@@ -8647,7 +8667,7 @@ buffer."
 	   (forward-char)
 	   (vhdl-forward-syntactic-ws))
 	 (goto-char end)
-	 (when (> pos (point-at-eol))
+         (when (> pos (line-end-position))
 	   (error "ERROR:  Not within a generic/port clause"))
 	 ;; delete closing parenthesis on separate line (not supported style)
 	 (when (save-excursion (beginning-of-line) (looking-at "^\\s-*);"))
@@ -8789,7 +8809,10 @@ project is defined."
 (defun vhdl-electric-period (count) "`..' --> ` => '"
   (interactive "p")
   (if (and vhdl-stutter-mode (= count 1) (not (vhdl-in-literal)))
-      (cond ((= (preceding-char) vhdl-last-input-event)
+      ;; We use this-command-keys below to account for translation of
+      ;; kp-decimal into '.'; vhdl-last-input-event doesn't catch
+      ;; that.
+      (cond ((eq (preceding-char) (aref (this-command-keys) 0))
 	     (progn (delete-char -1)
 		    (unless (eq (preceding-char) ? ) (insert " "))
 		    (insert "=> ")))
@@ -10687,8 +10710,9 @@ Include a library specification, if not already there."
 	 (replace-match "" t t)
 	 (vhdl-template-insert-date))
        (goto-char beg)
-       (while (search-forward "<year>" end t)
-	 (replace-match (format-time-string "%Y" nil) t t))
+       (let ((year (format-time-string "%Y")))
+	 (while (search-forward "<year>" end t)
+	   (replace-match year t t)))
        (goto-char beg)
        (when file-title
 	 (while (search-forward "<title string>" end t)
@@ -12834,7 +12858,7 @@ expressions (e.g. for index ranges of types and signals)."
   "Return the line number of the line containing point."
   (save-restriction
     (widen)
-    (1+ (count-lines (point-min) (point-at-bol)))))
+    (1+ (count-lines (point-min) (line-beginning-position)))))
 
 (defun vhdl-line-kill-entire (&optional arg)
   "Delete entire line."
@@ -12851,7 +12875,7 @@ expressions (e.g. for index ranges of types and signals)."
   "Copy current line."
   (interactive "p")
   (save-excursion
-    (let ((position (point-at-bol)))
+    (let ((position (line-beginning-position)))
       (forward-line (or arg 1))
       (copy-region-as-kill position (point)))))
 
@@ -14954,8 +14978,8 @@ otherwise use cached data."
 
 (defun vhdl-speedbar-insert-hierarchy ( ent-alist-arg conf-alist-arg
                                         package-alist ent-inst-list depth)
-  "Insert hierarchy of ENT-ALIST, CONF-ALIST, and PACKAGE-ALIST."
-  (if (not (or ent-alist conf-alist package-alist))
+  "Insert hierarchy of ENT-ALIST-ARG, CONF-ALIST-ARG, and PACKAGE-ALIST."
+  (if (not (or ent-alist-arg conf-alist-arg package-alist))
       (vhdl-speedbar-make-title-line "No VHDL design units!" depth)
     (let ((ent-alist ent-alist-arg)
           (conf-alist conf-alist-arg)
@@ -16748,7 +16772,7 @@ current project/directory."
   (let ((ent-alist ent-alist-arg)
 	(conf-alist conf-alist-arg)
 	(margin (current-indentation))
-	(beg (point-at-bol))
+        (beg (line-beginning-position))
 	ent-entry inst-entry inst-path inst-prev-path tmp-alist) ;; cons-key
     ;; insert block configuration (for architecture)
     (vhdl-insert-keyword "FOR ") (insert arch-name "\n")

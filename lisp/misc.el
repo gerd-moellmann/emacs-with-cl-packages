@@ -1,6 +1,6 @@
 ;;; misc.el --- some nonstandard editing and utility commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1989, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1989, 2001-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: convenience
@@ -33,7 +33,9 @@
   "Copy characters from previous nonblank line, starting just above point.
 Copy ARG characters, but not past the end of that line.
 If no argument given, copy the entire rest of the line.
-The characters copied are inserted in the buffer before point."
+The characters copied are inserted in the buffer before point.
+
+Also see the `duplicate-line' command."
   (interactive "P")
   (let ((cc (current-column))
 	n
@@ -61,18 +63,99 @@ The characters copied are inserted in the buffer before point."
 				 (+ n (point)))))))
     (insert string)))
 
+(defcustom duplicate-line-final-position 0
+  "Where to put point after `duplicate-line' or `duplicate-dwim'.
+When 0, leave point on the original line.
+When 1, move point to the first new line.
+When -1, move point to the last new line.
+The same column is preserved after moving to a new line."
+  :type '(choice (const :tag "Leave point on old line" 0)
+                 (const :tag "Move point to first new line" 1)
+                 (const :tag "Move point to last new line" -1)
+                 (integer))
+  :group 'editing
+  :version "29.1")
+
+;;;###autoload
+(defun duplicate-line (&optional n)
+  "Duplicate the current line N times.
+Interactively, N is the prefix numeric argument, and defaults to 1.
+The user option `duplicate-line-final-position' specifies where to
+move point after duplicating the line.
+Also see the `copy-from-above-command' command."
+  (interactive "p")
+  (unless n
+    (setq n 1))
+  (let ((line (buffer-substring (line-beginning-position) (line-end-position)))
+        (pos (point))
+        (col (current-column)))
+    (forward-line 1)
+    (unless (bolp)
+      (insert "\n"))
+    (dotimes (_ n)
+      (insert line "\n"))
+    (unless (< duplicate-line-final-position 0)
+      (goto-char pos))
+    (unless (eq duplicate-line-final-position 0)
+      (forward-line duplicate-line-final-position)
+      (move-to-column col))))
+
+(declare-function rectangle--duplicate-right "rect" (n))
+
+;; `duplicate-dwim' preserves an active region and changes the buffer
+;; outside of it: disregard the region when immediately undoing the
+;; actions of this command.
+(put 'duplicate-dwim 'undo-inhibit-region t)
+
+;;;###autoload
+(defun duplicate-dwim (&optional n)
+  "Duplicate the current line or region N times.
+If the region is inactive, duplicate the current line (like `duplicate-line').
+Otherwise, duplicate the region, which remains active afterwards.
+If the region is rectangular, duplicate on its right-hand side.
+Interactively, N is the prefix numeric argument, and defaults to 1."
+  (interactive "p")
+  (unless n
+    (setq n 1))
+  (cond
+   ;; Duplicate rectangle.
+   ((bound-and-true-p rectangle-mark-mode)
+    (rectangle--duplicate-right n)
+    (setq deactivate-mark nil))
+
+   ;; Duplicate (contiguous) region.
+   ((use-region-p)
+    (let* ((beg (region-beginning))
+           (end (region-end))
+           (text (buffer-substring beg end)))
+      (save-excursion
+        (goto-char end)
+        (dotimes (_ n)
+          (insert text))))
+    (setq deactivate-mark nil))
+
+   ;; Duplicate line.
+   (t (duplicate-line n))))
+
 ;; Variation of `zap-to-char'.
 
 ;;;###autoload
-(defun zap-up-to-char (arg char)
+(defun zap-up-to-char (arg char &optional interactive)
   "Kill up to, but not including ARGth occurrence of CHAR.
+When run interactively, the argument INTERACTIVE is non-nil.
 Case is ignored if `case-fold-search' is non-nil in the current buffer.
 Goes backward if ARG is negative; error if CHAR not found.
-Ignores CHAR at point."
+Ignores CHAR at point.
+If called interactively, do a case sensitive search if CHAR
+is an upper-case character."
   (interactive (list (prefix-numeric-value current-prefix-arg)
 		     (read-char-from-minibuffer "Zap up to char: "
-						nil 'read-char-history)))
-  (let ((direction (if (>= arg 0) 1 -1)))
+						nil 'read-char-history)
+                     t))
+  (let ((direction (if (>= arg 0) 1 -1))
+        (case-fold-search (if (and interactive (char-uppercase-p char))
+                              nil
+                            case-fold-search)))
     (kill-region (point)
 		 (progn
 		   (forward-char direction)
@@ -126,7 +209,7 @@ ripples outward, changing the flow of the eddy currents in the
 upper atmosphere.  These cause momentary pockets of higher-pressure
 air to form, which act as lenses that deflect incoming cosmic rays,
 focusing them to strike the drive platter and flip the desired bit.
-You can type `M-x butterfly C-M-c' to run it.  This is a permuted
+You can type \\`M-x butterfly C-M-c' to run it.  This is a permuted
 variation of `C-x M-c M-butterfly' from url `https://xkcd.com/378/'."
   (interactive)
   (if (yes-or-no-p "Do you really want to unleash the powers of the butterfly? ")

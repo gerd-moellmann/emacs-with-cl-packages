@@ -1,10 +1,10 @@
 ;;; ob-comint.el --- Babel Functions for Interaction with Comint Buffers -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research, comint
-;; Homepage: https://orgmode.org
+;; URL: https://orgmode.org
 
 ;; This file is part of GNU Emacs.
 
@@ -30,6 +30,10 @@
 ;; org-babel at large.
 
 ;;; Code:
+
+(require 'org-macs)
+(org-assert-version)
+
 (require 'ob-core)
 (require 'org-compat)
 (require 'comint)
@@ -70,11 +74,14 @@ or user `keyboard-quit' during execution of body."
   (let ((buffer (nth 0 meta))
 	(eoe-indicator (nth 1 meta))
 	(remove-echo (nth 2 meta))
-	(full-body (nth 3 meta)))
+	(full-body (nth 3 meta))
+        (org-babel-comint-prompt-separator
+         "org-babel-comint-prompt-separator"))
     `(org-babel-comint-in-buffer ,buffer
        (let* ((string-buffer "")
 	      (comint-output-filter-functions
-	       (cons (lambda (text) (setq string-buffer (concat string-buffer text)))
+	       (cons (lambda (text)
+                       (setq string-buffer (concat string-buffer text)))
 		     comint-output-filter-functions))
 	      dangling-text)
 	 ;; got located, and save dangling text
@@ -89,15 +96,30 @@ or user `keyboard-quit' during execution of body."
 	 (while (progn
 		  (goto-char comint-last-input-end)
 		  (not (save-excursion
-			 (and (re-search-forward
-			       (regexp-quote ,eoe-indicator) nil t)
-			      (re-search-forward
-			       comint-prompt-regexp nil t)))))
+		       (and (re-search-forward
+			     (regexp-quote ,eoe-indicator) nil t)
+			    (re-search-forward
+			     comint-prompt-regexp nil t)))))
 	   (accept-process-output (get-buffer-process (current-buffer))))
 	 ;; replace cut dangling text
 	 (goto-char (process-mark (get-buffer-process (current-buffer))))
 	 (insert dangling-text)
 
+         ;; Filter out prompts.
+         (setq string-buffer
+               (replace-regexp-in-string
+                ;; Sometimes, we get multiple agglomerated
+                ;; prompts together in a single output:
+                ;; "prompt prompt prompt output"
+                ;; Remove them progressively, so that
+                ;; possible "^" in the prompt regexp gets to
+                ;; work as we remove the heading prompt
+                ;; instance.
+                (if (string-prefix-p "^" comint-prompt-regexp)
+                    (format "^\\(%s\\)+" (substring comint-prompt-regexp 1))
+                  comint-prompt-regexp)
+                ,org-babel-comint-prompt-separator
+                string-buffer))
 	 ;; remove echo'd FULL-BODY from input
 	 (when (and ,remove-echo ,full-body
 		    (string-match
@@ -105,7 +127,9 @@ or user `keyboard-quit' during execution of body."
 		      "\n" "[\r\n]+" (regexp-quote (or ,full-body "")))
 		     string-buffer))
 	   (setq string-buffer (substring string-buffer (match-end 0))))
-	 (split-string string-buffer comint-prompt-regexp)))))
+         (delete "" (split-string
+                     string-buffer
+                     ,org-babel-comint-prompt-separator))))))
 
 (defun org-babel-comint-input-command (buffer cmd)
   "Pass CMD to BUFFER.
@@ -124,9 +148,7 @@ statement (not large blocks of code)."
     (while (progn
              (goto-char comint-last-input-end)
              (not (and (re-search-forward comint-prompt-regexp nil t)
-                       (goto-char (match-beginning 0))
-                       (string= (face-name (face-at-point))
-                                "comint-highlight-prompt"))))
+                     (goto-char (match-beginning 0)))))
       (accept-process-output (get-buffer-process buffer)))))
 
 (defun org-babel-comint-eval-invisibly-and-wait-for-file
@@ -166,7 +188,7 @@ source block, and the name of the temp file.")
 (defvar-local org-babel-comint-async-chunk-callback nil
   "Callback function to clean Babel async output results before insertion.
 Its single argument is a string consisting of output from the
-comint process.  It should return a string that will be be passed
+comint process.  It should return a string that will be passed
 to `org-babel-insert-result'.")
 
 (defvar-local org-babel-comint-async-dangling nil

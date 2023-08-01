@@ -1,6 +1,6 @@
 /* Simple built-in editing commands.
 
-Copyright (C) 1985, 1993-1998, 2001-2022 Free Software Foundation, Inc.
+Copyright (C) 1985, 1993-1998, 2001-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -518,7 +518,8 @@ syms_of_cmds (void)
 
   DEFVAR_LISP ("post-self-insert-hook", Vpost_self_insert_hook,
 	       doc: /* Hook run at the end of `self-insert-command'.
-This is run after inserting the character.  */);
+This is run after inserting a character.
+The hook can access the inserted character via `last-command-event'.  */);
   Vpost_self_insert_hook = Qnil;
 
   defsubr (&Sforward_char);

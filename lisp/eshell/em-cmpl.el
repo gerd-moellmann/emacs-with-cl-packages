@@ -1,6 +1,6 @@
 ;;; em-cmpl.el --- completion using the TAB key  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -158,14 +158,6 @@ to writing a completion function."
   (eshell-cmpl--custom-variable-docstring 'pcomplete-autolist)
   :type (get 'pcomplete-autolist 'custom-type))
 
-(defcustom eshell-cmpl-suffix-list (list ?/ ?:)
-  (eshell-cmpl--custom-variable-docstring 'pcomplete-suffix-list)
-  :type (get 'pcomplete-suffix-list 'custom-type)
-  :group 'pcomplete)
-;; Only labeled obsolete in 26.1, but all it does it set
-;; pcomplete-suffix-list, which is itself obsolete since 24.1.
-(make-obsolete-variable 'eshell-cmpl-suffix-list nil "24.1")
-
 (defcustom eshell-cmpl-recexact nil
   (eshell-cmpl--custom-variable-docstring 'pcomplete-recexact)
   :type (get 'pcomplete-recexact 'custom-type))
@@ -226,19 +218,17 @@ to writing a completion function."
   (let ((completion-at-point-functions '(elisp-completion-at-point)))
     (completion-at-point)))
 
-(defvar eshell-cmpl-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [(control ?i)] #'completion-at-point)
-    ;; jww (1999-10-19): Will this work on anything but X?
-    (define-key map [backtab] #'pcomplete-reverse)
-    (define-key map [(meta ??)] #'completion-help-at-point)
-    (define-key map [(meta control ?i)] #'eshell-complete-lisp-symbol)
-    ;; C-c prefix:
-    (define-key map (kbd "C-c M-h") #'eshell-completion-help)
-    (define-key map (kbd "C-c TAB") #'pcomplete-expand-and-complete)
-    (define-key map (kbd "C-c C-i") #'pcomplete-expand-and-complete)
-    (define-key map (kbd "C-c SPC") #'pcomplete-expand)
-    map))
+(defvar-keymap eshell-cmpl-mode-map
+  "C-i"       #'completion-at-point
+  ;; jww (1999-10-19): Will this work on anything but X?
+  "<backtab>" #'pcomplete-reverse
+  "M-?"       #'completion-help-at-point
+  "C-M-i"     #'eshell-complete-lisp-symbol
+  ;; C-c prefix:
+  "C-c M-h"   #'eshell-completion-help
+  "C-c TAB"   #'pcomplete-expand-and-complete
+  "C-c C-i"   #'pcomplete-expand-and-complete
+  "C-c SPC"   #'pcomplete-expand)
 
 (define-minor-mode eshell-cmpl-mode
   "Minor mode that provides a keymap when `eshell-cmpl' active.
@@ -264,9 +254,6 @@ to writing a completion function."
               eshell-cmpl-ignore-case)
   (setq-local pcomplete-autolist
               eshell-cmpl-autolist)
-  (if (boundp 'pcomplete-suffix-list)
-      (setq-local pcomplete-suffix-list
-                  eshell-cmpl-suffix-list))
   (setq-local pcomplete-recexact
               eshell-cmpl-recexact)
   (setq-local pcomplete-man-function
@@ -313,18 +300,24 @@ to writing a completion function."
       (describe-prefix-bindings)
     (call-interactively 'pcomplete-help)))
 
+(defun eshell--pcomplete-insert-tab ()
+  (if (not pcomplete-allow-modifications)
+      (throw 'pcompleted nil)
+    (insert-and-inherit "\t")
+    (throw 'pcompleted t)))
+
 (defun eshell-complete-parse-arguments ()
   "Parse the command line arguments for `pcomplete-argument'."
   (when (and eshell-no-completion-during-jobs
-	     (eshell-interactive-process))
-    (insert-and-inherit "\t")
-    (throw 'pcompleted t))
+	     (eshell-interactive-process-p))
+    (eshell--pcomplete-insert-tab))
   (let ((end (point-marker))
 	(begin (save-excursion (eshell-bol) (point)))
 	(posns (list t))
 	args delim)
-    (when (memq this-command '(pcomplete-expand
-			       pcomplete-expand-and-complete))
+    (when (and pcomplete-allow-modifications
+	       (memq this-command '(pcomplete-expand
+			            pcomplete-expand-and-complete)))
       (run-hook-with-args 'eshell-expand-input-functions begin end)
       (if (= begin end)
 	  (end-of-line))
@@ -337,14 +330,11 @@ to writing a completion function."
 	       (setq begin (1+ (cadr delim))
 		     args (eshell-parse-arguments begin end)))
 	      ((eq (car delim) ?\()
-	       (eshell-complete-lisp-symbol)
-	       (throw 'pcompleted t))
+	       (throw 'pcompleted (elisp-completion-at-point)))
 	      (t
-	       (insert-and-inherit "\t")
-	       (throw 'pcompleted t))))
+	       (eshell--pcomplete-insert-tab))))
     (when (get-text-property (1- end) 'comment)
-      (insert-and-inherit "\t")
-      (throw 'pcompleted t))
+      (eshell--pcomplete-insert-tab))
     (let ((pos begin))
       (while (< pos end)
 	(if (get-text-property pos 'arg-begin)
@@ -398,13 +388,19 @@ to writing a completion function."
          ;; we complete.  Adjust `pcomplete-stub' accordingly!
 	 (if (and (> (length pcomplete-stub) 0)
 	          (eq (aref pcomplete-stub 0) eshell-explicit-command-char))
-	     (setq pcomplete-stub (substring pcomplete-stub 1)))))
-    (completion-table-dynamic
-     (lambda (filename)
-       (if (file-name-directory filename)
-           (if eshell-force-execution
-               (pcomplete-dirs-or-entries nil #'file-readable-p)
-             (pcomplete-executables))
+             (setq pcomplete-stub (substring pcomplete-stub 1))))
+        (filename (pcomplete-arg)))
+    ;; Do not use `completion-table-dynamic' when completing a command file
+    ;; name since it doesn't know about boundaries and would end up doing silly
+    ;; things like adding a SPC char when completing to "/usr/sbin/".
+    ;;
+    ;; If you work on this function, be careful not to reintroduce bug#48995.
+    (if (file-name-directory filename)
+        (if eshell-force-execution
+            (pcomplete-dirs-or-entries nil #'file-readable-p)
+          (pcomplete-executables))
+      (completion-table-dynamic
+       (lambda (filename)
 	 (let* ((paths (eshell-get-path))
 		(cwd (file-name-as-directory
 		      (expand-file-name default-directory)))

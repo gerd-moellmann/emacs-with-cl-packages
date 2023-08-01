@@ -24,7 +24,10 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 typedef Lisp_Object XrmDatabase;
 
+#ifdef Z
+#define Z_defined 1
 #undef Z
+#endif
 #undef DEBUG
 #ifdef HAVE_UNEXEC
 #undef free
@@ -49,8 +52,11 @@ typedef Lisp_Object XrmDatabase;
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #undef max
 #define max(a, b) ((a) > (b) ? (a) : (b))
+#ifdef Z_defined
 #undef Z
 #define Z (current_buffer->text->z)
+#undef Z_defined
+#endif
 #undef ALIGN
 
 #include <Accelerate/Accelerate.h>

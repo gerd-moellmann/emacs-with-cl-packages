@@ -1,6 +1,6 @@
 ;;; european.el --- support for European languages -*- coding: utf-8; lexical-binding: t; -*-
 
-;; Copyright (C) 1997-1998, 2000-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1997-1998, 2000-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -585,7 +585,7 @@ and it selects the Spanish tutorial."))
 	     (nonascii-translation . iso-8859-9)
 	     (unibyte-display . iso-latin-5)
 	     (input-method . "turkish-postfix")
-	     (sample-text . "Turkish (Türkçe)	Merhaba")
+	     (sample-text . "Turkish (Türkçe)	Esenlikler / Merhaba")
 	     (setup-function . turkish-case-conversion-enable)
 	     (exit-function . turkish-case-conversion-disable)
 	     (documentation . "Support for Turkish.
