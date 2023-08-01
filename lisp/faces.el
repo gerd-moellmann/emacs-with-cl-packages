@@ -1193,7 +1193,7 @@ an integer value."
            (:height
             'integerp)
            (:stipple
-            (and (memq (window-system frame) '(x ns)) ; No stipple on w32
+            (and (memq (window-system frame) '(x mac ns)) ; No stipple on w32
                  (mapcar #'list
                          (apply #'nconc
                                 (mapcar (lambda (dir)
