@@ -1,5 +1,5 @@
 /* Definitions and headers for AppKit framework on macOS.
-   Copyright (C) 2008-2022  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2023  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -128,6 +128,12 @@ typedef NSString * NSWindowTabbingIdentifier;
 
 /* Some methods that are not declared in older versions.  Should be
    used with some runtime check such as `respondsToSelector:'. */
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 140000
+@interface NSApplication (AvailableOn140000AndLater)
+- (void)activate;
+@end
+#endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
 enum {
@@ -312,7 +318,9 @@ enum {
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
-static const NSBezelStyle NSBezelStyleRounded = NSRoundedBezelStyle;
+static const NSBezelStyle NSBezelStylePush = NSRoundedBezelStyle;
+#elif MAC_OS_X_VERSION_MAX_ALLOWED < 140000
+static const NSBezelStyle NSBezelStylePush = NSBezelStyleRounded;
 #endif
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 101200
@@ -1101,6 +1109,9 @@ typedef NSInteger NSGlyphProperty;
 - (OSErr)copyDescTo:(AEDesc *)desc;
 @end
 
+@interface EmacsMainView (DragAndDrop) <NSDraggingDestination>
+@end
+
 @interface EmacsFrameController (DragAndDrop)
 - (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSPasteboardType) *)pboardTypes;
 - (void)setOverlayViewHighlighted:(BOOL)flag;
@@ -1159,18 +1170,22 @@ typedef NSInteger NSGlyphProperty;
 #endif
 				       >
 {
-  /* View to render the SVG image.  */
 #ifdef USE_WK_API
+  /* View to render the SVG image.  */
   WKWebView *webView;
+
+  /* The block called when navigation is complete.  */
+  void (^finishNavigationHandler) (WKWebView *, WKNavigation *);
 #else
+  /* View to render the SVG image.  */
   WebView *webView;
+
+  /* The block called when a page load completes.  */
+  void (^finishLoadForFrameHandler) (WebView *, WebFrame *);
 #endif
 
   /* Rectangle shown as the SVG image within webView.  */
   NSRect viewRect;
-
-  /* Whether a page load has completed.  */
-  BOOL isLoaded;
 }
 @end
 

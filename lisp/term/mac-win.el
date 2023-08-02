@@ -1,7 +1,7 @@
 ;;; mac-win.el --- parse switches controlling interface with Mac window system -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1999-2008  Free Software Foundation, Inc.
-;; Copyright (C) 2009-2022  YAMAMOTO Mitsuharu
+;; Copyright (C) 2009-2023  YAMAMOTO Mitsuharu
 
 ;; Author: Andrew Choi <akochoi@mac.com>
 ;;	YAMAMOTO Mitsuharu <mituharu@math.s.chiba-u.ac.jp>
@@ -70,6 +70,7 @@
 ;; ../startup.el.
 
 (eval-when-compile (require 'cl-lib))
+(eval-when-compile (require 'subr-x))
 
 ;; (if (not (eq window-system 'mac))
 ;;     (error "%s: Loading mac-win.el but not compiled for Mac" invocation-name))
@@ -679,10 +680,13 @@ language."
 	(cons type str)))))
 
 (defun mac-select-convert-to-pasteboard-filenames (selection type value)
-  (let ((filename (xselect-convert-to-filename selection type value)))
-    (and filename
-	 (cons type (mac-convert-property-list `(array . [(string . ,filename)])
-                                               'xml1)))))
+  (if-let ((filename (cdr (xselect-convert-to-filename selection type value))))
+      (let ((coding (or file-name-coding-system
+                        default-file-name-coding-system)))
+        (cons type
+              (mac-convert-property-list
+               `(array . [(string . ,(decode-coding-string filename coding))])
+               'xml1)))))
 
 (setq selection-converter-alist
       (nconc
@@ -773,15 +777,14 @@ language."
   (or from (setq from 0))
   (or to (setq to (length bytes)))
   (let* ((len (- to from))
-	 (extended-sign-len (- (1+ (ceiling (log most-positive-fixnum 2)))
-			       (* 8 len)))
 	 (result 0))
     (dotimes (i len)
-      (setq result (logior (lsh result 8)
-			   (aref bytes (+ from (if (eq (byteorder) ?B) i
-						 (- len i 1)))))))
-    (if (> extended-sign-len 0)
-	(ash (lsh result extended-sign-len) (- extended-sign-len))
+      (setq result (logior (ash result 8)
+                           (aref bytes (+ from (if (eq (byteorder) ?B) i
+                                                 (- len i 1)))))))
+    (if (and (> len 0)
+             (> (aref bytes (if (eq (byteorder) ?B) from (- to 1))) 127))
+	(logior (ash -1 (* 8 len)) result)
       result)))
 
 (defun mac-ae-selection-range (ae)
@@ -826,7 +829,7 @@ language."
 (defconst mac-keyboard-modifier-mask-alist
   (mapcar
    (lambda (modifier-bit)
-     (cons (car modifier-bit) (lsh 1 (cdr modifier-bit))))
+     (cons (car modifier-bit) (ash 1 (cdr modifier-bit))))
    '((command  . 8)			; cmdKeyBit
      (shift    . 9)			; shiftKeyBit
      (option   . 11)			; optionKeyBit
@@ -1014,7 +1017,7 @@ through this without \"emulated closures\".  For example,
     (mac-send-apple-event
      apple-event
      (lambda (reply-ae)
-       (let* ((orig-ae (mac-ae-parameter reply-ae 'original-apple-event))
+       (let* ((orig-ae (mac-ae-parameter reply-ae \\='original-apple-event))
               (context1-value (mac-ae-parameter orig-ae :context1))
 	      (context2-value (mac-ae-parameter orig-ae :context2)))
 	 ...))))"
@@ -2730,6 +2733,21 @@ pinch close gesture, then remap this command to
 (global-set-key [rotate-right] 'ignore)
 (global-set-key [S-rotate-left] 'ignore)
 (global-set-key [S-rotate-right] 'ignore)
+(dolist (prefix (list 'left-margin 'right-margin 'left-fringe 'right-fringe
+                      'vertical-scroll-bar 'horizontal-scroll-bar
+                      'mode-line 'header-line))
+  (global-set-key (vector prefix 'magnify-up)
+                  'mac-magnify-text-scale-or-overview-tab-group)
+  (global-set-key (vector prefix 'magnify-down)
+                  'mac-magnify-text-scale-or-overview-tab-group)
+  (global-set-key (vector prefix 'S-magnify-up)
+                  'mac-mouse-turn-on-fullscreen)
+  (global-set-key (vector prefix 'S-magnify-down)
+                  'mac-mouse-turn-off-fullscreen)
+  (global-set-key (vector prefix 'rotate-left) 'ignore)
+  (global-set-key (vector prefix 'rotate-right) 'ignore)
+  (global-set-key (vector prefix 'S-rotate-left) 'ignore)
+  (global-set-key (vector prefix 'S-rotate-right) 'ignore))
 
 
 ;;; Frame tabbing (macOS 10.12 and later)

@@ -1,6 +1,6 @@
 /* Unix emulation routines for GNU Emacs on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2022  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2023  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -2054,7 +2054,7 @@ xrm_get_preference_database (const char *application)
 
 /* Convert a lisp string to the 4 byte character code.  */
 
-OSType
+static OSType
 mac_get_code_from_arg (Lisp_Object arg, OSType defCode)
 {
   OSType result;
@@ -2942,7 +2942,7 @@ mac_service_provider_registered_p (void)
 }
 
 Lisp_Object
-mac_carbon_version_string ()
+mac_carbon_version_string (void)
 {
   Lisp_Object result = Qnil;
   CFBundleRef bundle;
@@ -2962,7 +2962,7 @@ mac_carbon_version_string ()
 struct mac_operating_system_version mac_operating_system_version;
 
 static void
-mac_initialize_operating_system_version ()
+mac_initialize_operating_system_version (void)
 {
   const char *filename = "/System/Library/CoreServices/SystemVersion.plist";
   CFURLRef url;
@@ -3039,7 +3039,7 @@ init_mac_osx_environment (void)
       AUTO_STRING (encoding, ".UTF-8");
 
       /* Set LANG to locale, but not if LANG is already set. */
-      setenv ("LANG", SDATA (concat2 (identifier, encoding)), 0);
+      setenv ("LANG", SSDATA (concat2 (identifier, encoding)), 0);
       CFRelease (locale);
     }
 }
@@ -3062,7 +3062,8 @@ mac_relocate (const char *epath)
   if (bundleURL)
     {
       relocatedURL =
-	CFURLCreateFromFileSystemRepresentationRelativeToBase (NULL, epath,
+	CFURLCreateFromFileSystemRepresentationRelativeToBase (NULL,
+							       (UInt8 *) epath,
 							       strlen (epath),
 							       true, bundleURL);
       CFRelease (bundleURL);
@@ -3072,7 +3073,7 @@ mac_relocate (const char *epath)
       static char relocated_dir[MAXPATHLEN];
       if (CFURLResourceIsReachable (relocatedURL, NULL)
 	  && CFURLGetFileSystemRepresentation (relocatedURL, true,
-					       relocated_dir,
+					       (UInt8 *) relocated_dir,
 					       sizeof (relocated_dir)))
 	epath = relocated_dir;
       CFRelease (relocatedURL);

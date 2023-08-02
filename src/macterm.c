@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2022  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2023  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -2942,48 +2942,57 @@ mac_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
 
   block_input ();
 
-  {
-    Lisp_Object frame, tail;
+  Lisp_Object frame, tail;
 
-    /* Clear the mouse-moved flag for every frame on this display.  */
-    FOR_EACH_FRAME (tail, frame)
-      if (FRAME_MAC_P (XFRAME (frame)))
-	XFRAME (frame)->mouse_moved = false;
+  /* Clear the mouse-moved flag for every frame on this display.  */
+  FOR_EACH_FRAME (tail, frame)
+    if (FRAME_MAC_P (XFRAME (frame)))
+      XFRAME (frame)->mouse_moved = false;
 
-    /* If mouse was grabbed on a frame and we are not dropping, give
-       coords for that frame even if the mouse is now outside it.
-       Otherwise check for window under mouse on one of our
-       frames.  */
-    if (gui_mouse_grabbed (dpyinfo) && !EQ (track_mouse, Qdropping))
-      f1 = dpyinfo->last_mouse_frame;
-    else
-      f1 = XFRAME (mac_event_frame ());
+  if (gui_mouse_grabbed (dpyinfo) && !EQ (track_mouse, Qdropping))
+    /* If mouse was grabbed on a frame, give coords for that frame
+       even if the mouse is now outside it.  */
+    f1 = dpyinfo->last_mouse_frame;
+  else
+    {
+      f1 = mac_get_frame_at_mouse ();
+      if ((!f1 || FRAME_TOOLTIP_P (f1))
+	  && EQ (track_mouse, Qdropping)
+	  && gui_mouse_grabbed (dpyinfo))
+	/* When dropping then if we didn't get a frame or only a
+	   tooltip frame and the mouse was grabbed on a frame, give
+	   coords for that frame even if the mouse is now outside
+	   it.  */
+	f1 = dpyinfo->last_mouse_frame;
+      else if (f1 && FRAME_TOOLTIP_P (f1))
+	f1 = NULL;
 
-    if (f1)
-      {
-	/* Ok, we found a frame.  Store all the values.
-	   last_mouse_glyph is a rectangle used to reduce the
-	   generation of mouse events.  To not miss any motion events,
-	   we must divide the frame into rectangles of the size of the
-	   smallest character that could be displayed on it, i.e. into
-	   the same rectangles that matrices on the frame are divided
-	   into.  */
-	CGPoint mouse_pos = mac_get_frame_mouse (f1);
+      if (!f1)
+	f1 = XFRAME (mac_event_frame ());
+    }
 
-	/* FIXME: what if F1 is not an X frame?  */
-	dpyinfo = FRAME_DISPLAY_INFO (f1);
-	remember_mouse_glyph (f1, mouse_pos.x, mouse_pos.y,
-			      &dpyinfo->last_mouse_glyph);
-	dpyinfo->last_mouse_glyph_frame = f1;
+  if (f1)
+    {
+      /* Ok, we found a frame.  Store all the values.
+	 last_mouse_glyph is a rectangle used to reduce the generation
+	 of mouse events.  To not miss any motion events, we must
+	 divide the frame into rectangles of the size of the smallest
+	 character that could be displayed on it, i.e. into the same
+	 rectangles that matrices on the frame are divided into.  */
+      CGPoint mouse_pos = mac_get_frame_mouse (f1);
 
-	*bar_window = Qnil;
-	*part = 0;
-	*fp = f1;
-	XSETINT (*x, mouse_pos.x);
-	XSETINT (*y, mouse_pos.y);
-	*timestamp = dpyinfo->last_mouse_movement_time;
-      }
-  }
+      dpyinfo = FRAME_DISPLAY_INFO (f1);
+      remember_mouse_glyph (f1, mouse_pos.x, mouse_pos.y,
+			    &dpyinfo->last_mouse_glyph);
+      dpyinfo->last_mouse_glyph_frame = f1;
+
+      *bar_window = Qnil;
+      *part = 0;
+      *fp = f1;
+      XSETINT (*x, mouse_pos.x);
+      XSETINT (*y, mouse_pos.y);
+      *timestamp = dpyinfo->last_mouse_movement_time;
+    }
 
   unblock_input ();
 }
@@ -4905,7 +4914,7 @@ mac_cgevent_to_input_event (CGEventRef cgevent, struct input_event *buf)
   return mapped_flags;
 }
 
-void
+static void
 mac_get_selected_range (struct window *w, CFRange *range)
 {
   struct buffer *b = XBUFFER (w->contents);
@@ -5879,26 +5888,19 @@ syms_of_macterm (void)
      from cus-start.el and other places, like "M-x set-variable".  */
   DEFVAR_BOOL ("x-use-underline-position-properties",
 	       x_use_underline_position_properties,
-     doc: /* Non-nil means make use of UNDERLINE_POSITION font properties.
-A value of nil means ignore them.  If you encounter fonts with bogus
-UNDERLINE_POSITION font properties, set this to nil.  You can also use
-`underline-minimum-offset' to override the font's UNDERLINE_POSITION for
-small font display sizes.  */);
+	       doc: /* SKIP: real doc in xterm.c.  */);
   x_use_underline_position_properties = true;
   DEFSYM (Qx_use_underline_position_properties,
 	  "x-use-underline-position-properties");
 
   DEFVAR_BOOL ("x-underline-at-descent-line",
 	       x_underline_at_descent_line,
-     doc: /* Non-nil means to draw the underline at the same place as the descent line.
-A value of nil means to draw the underline according to the value of the
-variable `x-use-underline-position-properties', which is usually at the
-baseline level.  The default value is nil.  */);
+	       doc: /* SKIP: real doc in xterm.c.  */);
   x_underline_at_descent_line = false;
   DEFSYM (Qx_underline_at_descent_line, "x-underline-at-descent-line");
 
   DEFVAR_LISP ("x-toolkit-scroll-bars", Vx_toolkit_scroll_bars,
-    doc: /* If not nil, Emacs uses toolkit scroll bars.  */);
+	       doc: /* SKIP: real doc in xterm.c.  */);
   Vx_toolkit_scroll_bars = Qt;
 
   DEFVAR_BOOL ("mac-redisplay-dont-reset-vscroll", mac_redisplay_dont_reset_vscroll,

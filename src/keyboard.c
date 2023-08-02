@@ -6003,7 +6003,7 @@ make_lispy_event (struct input_event *event)
 	    }
           else if (event->modifiers & click_modifier)
 	    {
-	      /* Emit a maginify/rotate event.  */
+	      /* Emit a magnify/rotate event.  */
 	      event->modifiers &= ~click_modifier;
 	      symbol_num += 8;
 	    }
@@ -6051,9 +6051,9 @@ make_lispy_event (struct input_event *event)
                         event->arg);
 	else if (event->modifiers & (double_modifier | triple_modifier)
 #ifdef HAVE_MACGUI
-	    || !NILP (event->arg)
+		 || !NILP (event->arg)
 #endif
-	    )
+		 )
 #ifdef HAVE_MACGUI
 	  {
 	    if (mac_ignore_momentum_wheel_events)
@@ -11481,6 +11481,9 @@ The `posn-' functions access elements of such lists.  */)
 DEFUN ("posn-at-point", Fposn_at_point, Sposn_at_point, 0, 2, 0,
        doc: /* Return position information for buffer position POS in WINDOW.
 POS defaults to point in WINDOW; WINDOW defaults to the selected window.
+
+If POS is in invisible text or is hidden by `display' properties,
+this function may report on buffer positions before or after POS.
 
 Return nil if POS is not visible in WINDOW.  Otherwise,
 the return value is similar to that returned by `event-start' for

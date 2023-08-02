@@ -1,6 +1,6 @@
 /* Display module for macOS.
    Copyright (C) 2000-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2022  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2023  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -339,7 +339,7 @@ struct mac_output
   ((f)->output_data.mac->double_buffered_p)
 
 /* This gives the mac_display_info structure for the display F is on.  */
-#define FRAME_DISPLAY_INFO(f) (&one_mac_display_info)
+#define FRAME_DISPLAY_INFO(f) ((void) (f), (&one_mac_display_info))
 
 /* Mac-specific scroll bar stuff.  */
 
@@ -631,7 +631,7 @@ extern Lisp_Object mac_get_tab_group_overview_visible_p (struct frame *);
 extern Lisp_Object mac_get_tab_group_tab_bar_visible_p (struct frame *);
 extern Lisp_Object mac_get_tab_group_selected_frame (struct frame *);
 extern Lisp_Object mac_get_tab_group_frames (struct frame *);
-extern CGPoint mac_get_global_mouse ();
+extern CGPoint mac_get_global_mouse (void);
 extern bool mac_is_frame_window_toolbar_visible (struct frame *);
 extern void mac_set_frame_window_structure_bounds (struct frame *,
 						   NativeRectangle);
@@ -642,6 +642,7 @@ extern CGSize mac_get_frame_window_menu_bar_size (struct frame *);
 extern CGRect mac_get_frame_window_tool_bar_rect (struct frame *);
 extern CGRect mac_get_frame_window_content_rect (struct frame *, bool);
 extern CGPoint mac_get_frame_mouse (struct frame *);
+extern struct frame *mac_get_frame_at_mouse (void);
 extern void mac_convert_frame_point_to_global (struct frame *, int *, int *);
 extern void mac_set_frame_window_background (struct frame *, unsigned long);
 extern void mac_update_frame_begin (struct frame *);

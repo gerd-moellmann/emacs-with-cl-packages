@@ -47,6 +47,7 @@
 	 (t
 	  (pcase (or window-system 'tty)
 	    ('x "X11")
+            ('mac "Mac")
 	    ('ns "OpenStep")
 	    ('tty "TTY")
 	    (_ nil)))))

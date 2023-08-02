@@ -883,14 +883,17 @@ load_pdump (int argc, char **argv)
     }
 
   /* Where's our executable?  */
-  ptrdiff_t bufsize, exec_bufsize;
-  emacs_executable = load_pdump_find_executable (argv[0], &bufsize);
-  exec_bufsize = bufsize;
+  ptrdiff_t exec_bufsize, bufsize, needed;
+  emacs_executable = load_pdump_find_executable (argv[0], &exec_bufsize);
 
   /* If we couldn't find our executable, go straight to looking for
      the dump in the hardcoded location.  */
   if (!(emacs_executable && *emacs_executable))
-    goto hardcoded;
+    {
+      bufsize = 0;
+      dump_file = NULL;
+      goto hardcoded;
+    }
 
   if (dump_file)
     {
@@ -918,8 +921,8 @@ load_pdump (int argc, char **argv)
 		      strip_suffix_length))
 	exenamelen = prefix_length;
     }
-  ptrdiff_t needed = exenamelen + strlen (suffix) + 1;
-  dump_file = xpalloc (NULL, &bufsize, needed - bufsize, -1, 1);
+  bufsize = exenamelen + strlen (suffix) + 1;
+  dump_file = xpalloc (NULL, &bufsize, 1, -1, 1);
   memcpy (dump_file, emacs_executable, exenamelen);
   strcpy (dump_file + exenamelen, suffix);
   result = pdumper_load (dump_file, emacs_executable);
