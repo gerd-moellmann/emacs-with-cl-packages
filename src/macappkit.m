@@ -3448,7 +3448,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   CALayer *rootLayer, *contentLayer;
   CGSize contentLayerSize;
   NSView *contentView = [emacsWindow contentView];
-  NSRect contentViewRect = [contentView visibleRect];
+  /* Use `bounds' rather than `visibleRect' because the latter
+     contains the area below the title bar on macOS 14 where NSView's
+     `clipsToBounds' property is defaulted to NO.  */
+  NSRect contentViewRect = contentView.bounds;
   NSBitmapImageRep *bitmap = [self bitmapImageRep];
   id image = (id) [bitmap CGImage];
   CGFloat internalBorderWidth = FRAME_INTERNAL_BORDER_WIDTH (f);
@@ -11835,7 +11838,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
   for (NSView *view in theViews)
     {
-      NSRect rect = [view visibleRect];
+      NSRect rect = view.bounds;
 
       if (width < NSWidth (rect))
 	width = NSWidth (rect);
@@ -11876,12 +11879,12 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
 - (NSRect)rectForPage:(NSInteger)page
 {
-  NSRect rect = [views[page - 1] visibleRect];
+  NSRect rect = [views[page - 1] bounds];
   NSInteger i;
 
   rect.origin = NSZeroPoint;
   for (i = 0; i < page - 1; i++)
-    rect.origin.y += NSHeight ([views[i] visibleRect]);
+    rect.origin.y += NSHeight ([views[i] bounds]);
 
   return rect;
 }
@@ -11895,12 +11898,12 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
     {
       NSView *view = views[i++];
 
-      y += NSHeight (view.visibleRect);
+      y += NSHeight (view.bounds);
     }
   while (y < NSMaxY (aRect) && i < pageCount)
     {
       NSView *view = views[i++];
-      NSRect rect = view.visibleRect;
+      NSRect rect = view.bounds;
       NSGraphicsContext *gcontext = NSGraphicsContext.currentContext;
       NSAffineTransform *transform = NSAffineTransform.transform;
 
@@ -11911,7 +11914,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
       [view displayRectIgnoringOpacity:rect inContext:gcontext];
       [EmacsView globallyDisableUpdateLayer:NO];
       [gcontext restoreGraphicsState];
-      y += NSHeight (view.visibleRect);
+      y += NSHeight (view.bounds);
     }
 }
 
@@ -11970,7 +11973,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
       CGRect __block mediaBox;
 
       mac_within_gui (^{
-	  mediaBox = NSRectToCGRect ([contentView visibleRect]);
+	  mediaBox = NSRectToCGRect (contentView.bounds);
 	});
       if (consumer)
 	{
@@ -11984,7 +11987,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 	  while (1)
 	    {
 	      mac_within_gui (^{
-		  CGRect mediaBox = NSRectToCGRect ([contentView visibleRect]);
+		  CGRect mediaBox = NSRectToCGRect (contentView.bounds);
 		  NSData *mediaBoxData =
 		    [NSData dataWithBytes:&mediaBox length:(sizeof (CGRect))];
 		  NSDictionary *pageInfo =
