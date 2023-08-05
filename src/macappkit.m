@@ -115,6 +115,11 @@ static void mac_within_gui_allowing_inner_lisp (void (^ CF_NOESCAPE) (void));
 static void mac_within_lisp (void (^ CF_NOESCAPE) (void));
 static void mac_within_lisp_deferred_unless_popup (void (^) (void));
 
+#define MAC_SELECT_ALLOW_LISP_EVALUATION 1
+#if MAC_SELECT_ALLOW_LISP_EVALUATION
+static bool mac_select_allow_lisp_evaluation;
+#endif
+
 @implementation NSData (Emacs)
 
 /* Return a unibyte Lisp string.  */
@@ -1652,7 +1657,13 @@ emacs_windows_need_display_p (void)
      Do it only if there's something to cancel.
      Otherwise, the startup message is cleared when the
      mouse leaves the frame.  */
-  if (any_help_event_p)
+  if (any_help_event_p
+      /* But never if `mouse-drag-and-drop-region' is in progress,
+	 since that results in the tooltip being dismissed when the
+	 mouse moves on top.  */
+      && !((EQ (track_mouse, Qdrag_source)
+	    || EQ (track_mouse, Qdropping))
+	   && gui_mouse_grabbed (FRAME_DISPLAY_INFO (f))))
     {
       Lisp_Object frame;
 
@@ -3437,7 +3448,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   CALayer *rootLayer, *contentLayer;
   CGSize contentLayerSize;
   NSView *contentView = [emacsWindow contentView];
-  NSRect contentViewRect = [contentView visibleRect];
+  /* Use `bounds' rather than `visibleRect' because the latter
+     contains the area below the title bar on macOS 14 where NSView's
+     `clipsToBounds' property is defaulted to NO.  */
+  NSRect contentViewRect = contentView.bounds;
   NSBitmapImageRep *bitmap = [self bitmapImageRep];
   id image = (id) [bitmap CGImage];
   CGFloat internalBorderWidth = FRAME_INTERNAL_BORDER_WIDTH (f);
@@ -4500,7 +4514,7 @@ mac_move_frame_window_structure_1 (struct frame *f, int x, int y)
 OSStatus
 mac_move_frame_window_structure (struct frame *f, int x, int y)
 {
-  mac_within_gui (^{mac_move_frame_window_structure_1 (f, x, y);});
+  mac_within_app (^{mac_move_frame_window_structure_1 (f, x, y);});
 
   return noErr;
 }
@@ -5120,19 +5134,28 @@ mac_get_frame_mouse (struct frame *f)
 }
 
 struct frame *
-mac_get_frame_at_mouse ()
+mac_get_frame_at_mouse (bool ignore_tooltip_p)
 {
-  NSInteger windowNumber = [NSWindow windowNumberAtPoint:NSEvent.mouseLocation
-			     belowWindowWithWindowNumber:0];
-  NSWindow *window = [NSApp windowWithWindowNumber:windowNumber];
+  NSPoint mouseLocation = NSEvent.mouseLocation;
+  NSInteger windowNumber = 0;
 
-  if (![window isKindOfClass:EmacsWindow.class])
-    return NULL;
+  while (true)
+    {
+      windowNumber = [NSWindow windowNumberAtPoint:mouseLocation
+		       belowWindowWithWindowNumber:windowNumber];
 
-  EmacsFrameController *frameController = ((EmacsFrameController *)
-					   window.delegate);
+      NSWindow *window = [NSApp windowWithWindowNumber:windowNumber];
 
-  return frameController.emacsFrame;
+      if (![window isKindOfClass:EmacsWindow.class])
+	return NULL;
+
+      EmacsFrameController *frameController = ((EmacsFrameController *)
+					       window.delegate);
+      struct frame *f = frameController.emacsFrame;
+
+      if (!(ignore_tooltip_p && FRAME_TOOLTIP_P (f)))
+	return f;
+    }
 }
 
 CGPoint
@@ -6615,7 +6638,7 @@ event_phase_to_symbol (NSEventPhase phase)
   BOOL isSwipeTrackingFromScrollEventsEnabled = NO;
   CGFloat deltaX = 0, deltaY = 0, deltaZ = 0;
   CGFloat scrollingDeltaX = 0, scrollingDeltaY = 0;
-  Lisp_Object phase = Qnil, momentumPhase = Qnil;
+  Lisp_Object phase = Qnil, momentumPhase = Qnil, arg = Qnil;
 
   switch (type)
     {
@@ -6704,41 +6727,35 @@ event_phase_to_symbol (NSEventPhase phase)
   if (type == NSEventTypeScrollWheel || type == NSEventTypeSwipe)
     {
       if (isDirectionInvertedFromDevice)
-	inputEvent.arg = list2 (QCdirection_inverted_from_device_p, Qt);
+	arg = list2 (QCdirection_inverted_from_device_p, Qt);
       if (type == NSEventTypeScrollWheel)
 	{
-	  inputEvent.arg = nconc2 (inputEvent.arg,
-				   list (QCdelta_x, make_float (deltaX),
-					 QCdelta_y, make_float (deltaY),
-					 QCdelta_z, make_float (deltaZ)));
+	  arg = nconc2 (arg, list (QCdelta_x, make_float (deltaX),
+				   QCdelta_y, make_float (deltaY),
+				   QCdelta_z, make_float (deltaZ)));
 	  if (scrollingDeltaX != 0 || scrollingDeltaY != 0)
-	    inputEvent.arg = nconc2 (inputEvent.arg,
-				     list4 (QCscrolling_delta_x,
-					    make_float (scrollingDeltaX),
-					    QCscrolling_delta_y,
-					    make_float (scrollingDeltaY)));
+	    arg = nconc2 (arg, list4 (QCscrolling_delta_x,
+				      make_float (scrollingDeltaX),
+				      QCscrolling_delta_y,
+				      make_float (scrollingDeltaY)));
 	  if (!NILP (phase))
-	    inputEvent.arg = nconc2 (inputEvent.arg, list2 (QCphase, phase));
+	    arg = nconc2 (arg, list2 (QCphase, phase));
 	  if (!NILP (momentumPhase))
-	    inputEvent.arg = nconc2 (inputEvent.arg,
-				     list2 (QCmomentum_phase, momentumPhase));
+	    arg = nconc2 (arg, list2 (QCmomentum_phase, momentumPhase));
 	  if (isSwipeTrackingFromScrollEventsEnabled)
-	    inputEvent.arg =
-	      nconc2 (inputEvent.arg,
-		      list2 (QCswipe_tracking_from_scroll_events_enabled_p,
-			     Qt));
+	    arg = nconc2 (arg,
+			  list2 (QCswipe_tracking_from_scroll_events_enabled_p,
+				 Qt));
 	}
     }
   else if (type == NSEventTypeMagnify)
-    inputEvent.arg = list4 (QCmagnification, make_float (deltaY),
-			    QCphase, phase);
+    arg = list4 (QCmagnification, make_float (deltaY), QCphase, phase);
   else if (type == NSEventTypeGesture)
-    inputEvent.arg = list2 (QCmagnification, make_float (deltaY));
+    arg = list2 (QCmagnification, make_float (deltaY));
   else if (type == NSEventTypeRotate)
-    inputEvent.arg = list4 (QCrotation, make_float (deltaX),
-			    QCphase, phase);
+    arg = list4 (QCrotation, make_float (deltaX), QCphase, phase);
   else
-    inputEvent.arg = Qnil;
+    arg = Qnil;
   inputEvent.kind = (deltaY != 0 || scrollingDeltaY != 0
 		     || type == NSEventTypeMagnify || type == NSEventTypeGesture
 		     ? WHEEL_EVENT : HORIZ_WHEEL_EVENT);
@@ -6754,6 +6771,7 @@ event_phase_to_symbol (NSEventPhase phase)
   XSETINT (inputEvent.x, point.x);
   XSETINT (inputEvent.y, point.y);
   XSETFRAME (inputEvent.frame_or_window, f);
+  inputEvent.arg = make_vector (1, arg);
   inputEvent.timestamp = theEvent.timestamp * 1000;
   [self sendAction:action to:target];
 }
@@ -7250,9 +7268,8 @@ event_phase_to_symbol (NSEventPhase phase)
 
   if (OVERLAYP (Vmac_ts_active_input_overlay)
       && !NILP (Foverlay_get (Vmac_ts_active_input_overlay, Qbefore_string))
-      && !NILP (Fmarker_buffer (OVERLAY_START (Vmac_ts_active_input_overlay))))
-    location = (marker_position (OVERLAY_START (Vmac_ts_active_input_overlay))
-		- BEGV);
+      && !NILP (Foverlay_buffer (Vmac_ts_active_input_overlay)))
+    location = OVERLAY_START (Vmac_ts_active_input_overlay) - BEGV;
 
   /* The cast below is just for determining the return type.  The
      object `markedText' might be of class NSAttributedString.  */
@@ -7284,7 +7301,7 @@ mac_ts_active_input_string_in_echo_area_p (struct frame *f)
   Lisp_Object val = buffer_local_value (intern ("isearch-mode"),
 					XWINDOW (f->selected_window)->contents);
 
-  if (!(NILP (val) || EQ (val, Qunbound)))
+  if (!(NILP (val) || BASE_EQ (val, Qunbound)))
     return true;
 
   if (OVERLAYP (Vmac_ts_active_input_overlay)
@@ -10370,7 +10387,7 @@ mac_file_dialog (Lisp_Object prompt, Lisp_Object dir,
   struct frame *f = SELECTED_FRAME ();
   NSURL * __block url = nil;
   Lisp_Object file = Qnil;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
   NSString *title, *directory, *nondirectory = nil;
 
   check_window_system (f);
@@ -11765,7 +11782,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
       });
     Lisp_Object session_obj =
       make_unibyte_string ((char *) &session, sizeof (NSModalSession));
-    ptrdiff_t specpdl_count = SPECPDL_INDEX ();
+    specpdl_ref specpdl_count = SPECPDL_INDEX ();
     NSModalResponse __block response;
 
     record_unwind_protect (pop_down_dialog,
@@ -11821,7 +11838,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
   for (NSView *view in theViews)
     {
-      NSRect rect = [view visibleRect];
+      NSRect rect = view.bounds;
 
       if (width < NSWidth (rect))
 	width = NSWidth (rect);
@@ -11862,12 +11879,12 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
 
 - (NSRect)rectForPage:(NSInteger)page
 {
-  NSRect rect = [views[page - 1] visibleRect];
+  NSRect rect = [views[page - 1] bounds];
   NSInteger i;
 
   rect.origin = NSZeroPoint;
   for (i = 0; i < page - 1; i++)
-    rect.origin.y += NSHeight ([views[i] visibleRect]);
+    rect.origin.y += NSHeight ([views[i] bounds]);
 
   return rect;
 }
@@ -11881,12 +11898,12 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
     {
       NSView *view = views[i++];
 
-      y += NSHeight (view.visibleRect);
+      y += NSHeight (view.bounds);
     }
   while (y < NSMaxY (aRect) && i < pageCount)
     {
       NSView *view = views[i++];
-      NSRect rect = view.visibleRect;
+      NSRect rect = view.bounds;
       NSGraphicsContext *gcontext = NSGraphicsContext.currentContext;
       NSAffineTransform *transform = NSAffineTransform.transform;
 
@@ -11897,7 +11914,7 @@ create_and_show_dialog (struct frame *f, widget_value *first_wv)
       [view displayRectIgnoringOpacity:rect inContext:gcontext];
       [EmacsView globallyDisableUpdateLayer:NO];
       [gcontext restoreGraphicsState];
-      y += NSHeight (view.visibleRect);
+      y += NSHeight (view.bounds);
     }
 }
 
@@ -11920,7 +11937,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
   struct frame *f;
   NSWindow *window;
   NSView *contentView;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
 
   specbind (Qredisplay_dont_pause, Qt);
   redisplay_preserve_echo_area (31);
@@ -11956,7 +11973,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
       CGRect __block mediaBox;
 
       mac_within_gui (^{
-	  mediaBox = NSRectToCGRect ([contentView visibleRect]);
+	  mediaBox = NSRectToCGRect (contentView.bounds);
 	});
       if (consumer)
 	{
@@ -11970,7 +11987,7 @@ mac_export_frames (Lisp_Object frames, Lisp_Object type)
 	  while (1)
 	    {
 	      mac_within_gui (^{
-		  CGRect mediaBox = NSRectToCGRect ([contentView visibleRect]);
+		  CGRect mediaBox = NSRectToCGRect (contentView.bounds);
 		  NSData *mediaBoxData =
 		    [NSData dataWithBytes:&mediaBox length:(sizeof (CGRect))];
 		  NSDictionary *pageInfo =
@@ -12365,6 +12382,31 @@ init_apple_event_handler (void)
 
 static NSMutableArrayOf (NSPasteboardType) *registered_dragged_types;
 
+/* Global state maintained during a drag-and-drop operation.  */
+
+/* Flag that indicates if a drag-and-drop operation is in progress.  */
+static bool mac_dnd_in_progress;
+
+/* Whether or not to move the tooltip along with the mouse pointer
+   during drag-and-drop.  */
+static bool mac_dnd_update_tooltip;
+
+/* Whether or not to return a frame from
+   `mac_dnd_begin_drag_and_drop'.  */
+static enum mac_return_frame_mode mac_dnd_return_frame;
+
+/* The frame that should be returned by
+   `mac_dnd_begin_drag_and_drop'.  */
+static struct frame *mac_dnd_return_frame_object;
+
+/* The action the drop target actually chose to perform.  */
+static NSDragOperation mac_dnd_action;
+
+/* The action we want the drop target to perform.  The drop target may
+   elect to perform some different action, which is guaranteed to be
+   in `mac_dnd_action' upon completion of a drop.  */
+static NSDragOperation mac_dnd_wanted_action;
+
 @implementation EmacsMainView (DragAndDrop)
 
 - (void)setDragHighlighted:(BOOL)flag
@@ -12375,9 +12417,45 @@ static NSMutableArrayOf (NSPasteboardType) *registered_dragged_types;
   [frameController setOverlayViewHighlighted:flag];
 }
 
+- (BOOL)allowsLispEvaluationInDragging
+{
+  /* Lisp evaluation is safe in the `x-begin-drag' context, because no
+     other Lisp threads are running unlike the `mac_select' one.  */
+  return mac_dnd_in_progress
+#if MAC_SELECT_ALLOW_LISP_EVALUATION
+    || mac_select_allow_lisp_evaluation
+#endif
+    ;
+}
+
 - (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender
 {
   [self setDragHighlighted:YES];
+
+  return NSDragOperationGeneric;
+}
+
+- (BOOL)wantsPeriodicDraggingUpdates
+{
+  return self.allowsLispEvaluationInDragging;
+}
+
+- (NSDragOperation)draggingUpdated:(id <NSDraggingInfo>)sender
+{
+  if (self.allowsLispEvaluationInDragging)
+    {
+      NSPoint location = [self convertPoint:sender.draggingLocation
+				   fromView:nil];
+      Lisp_Object frame, x, y;
+
+      XSETFRAME (frame, self.emacsFrame);
+      XSETINT (x, location.x);
+      XSETINT (y, location.y);
+      mac_within_lisp (^{
+	  safe_call (4, Vmac_drag_motion_function, frame, x, y);
+	  redisplay ();
+	});
+    }
 
   return NSDragOperationGeneric;
 }
@@ -12475,6 +12553,147 @@ drag_operation_to_actions (NSDragOperation operation)
   [overlayView setHighlighted:flag];
 }
 
+- (NSDragOperation)draggingSession:(NSDraggingSession *)session
+sourceOperationMaskForDraggingContext:(NSDraggingContext)context
+{
+  return mac_dnd_wanted_action;
+}
+
+- (void)draggingSession:(NSDraggingSession *)session
+           movedToPoint:(NSPoint)screenPoint
+{
+  if (mac_dnd_return_frame != RETURN_FRAME_NEVER)
+    {
+      NSInteger windowNumber = [NSWindow windowNumberAtPoint:screenPoint
+				 belowWindowWithWindowNumber:0];
+      NSWindow *window = [NSApp windowWithWindowNumber:windowNumber];
+
+      if (window != emacsWindow)
+	mac_dnd_return_frame = RETURN_FRAME_NOW;
+
+      if (mac_dnd_return_frame != RETURN_FRAME_NOW
+	  || ![window isKindOfClass:EmacsWindow.class])
+	goto out;
+
+      EmacsFrameController *frameController = ((EmacsFrameController *)
+					       window.delegate);
+      struct frame *f = frameController.emacsFrame;
+
+      if (FRAME_TOOLTIP_P (f))
+	goto out;
+
+      mac_dnd_return_frame_object = f;
+
+      NSPoint location =
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+	[window convertPointFromScreen:screenPoint];
+#else
+	[window convertRectFromScreen:(NSMakeRect (screenPoint.x, screenPoint.y,
+						   0, 0))].origin;
+#endif
+      NSEvent *event = [NSEvent keyEventWithType:NSKeyDown location:location
+				   modifierFlags:0 timestamp:0
+				    windowNumber:windowNumber context:nil
+				      characters:@"\e"
+				charactersIgnoringModifiers:@"\e"
+				       isARepeat:NO keyCode:kVK_Escape];
+
+      [NSApp postEvent:event atStart:YES];
+    }
+
+ out:
+  if (mac_dnd_update_tooltip)
+    mac_move_tooltip_to_mouse_location ();
+}
+
+- (void)draggingSession:(NSDraggingSession *)session
+	   endedAtPoint:(NSPoint)screenPoint
+	      operation:(NSDragOperation)operation
+{
+  mac_dnd_action = operation;
+  mac_dnd_in_progress = false;
+}
+
+- (void)trackDraggingObjects:(NSArrayOf (id <NSPasteboardWriting>) *)objects
+     unregisterAsDestination:(BOOL)unregisterAsDestination
+{
+  NSMutableArrayOf (NSImage *) *images =
+    [NSMutableArray arrayWithCapacity:objects.count];
+  CGFloat totalImageWidth = 0, maxImageHeight = 0;
+
+  for (id <NSPasteboardWriting> object in objects)
+    {
+      NSImage *image = nil;
+
+      if (!mac_dnd_update_tooltip && [object isKindOfClass:NSURL.class])
+	{
+	  NSURL *url = (NSURL *) object;
+
+	  if (url.isFileURL)
+	    image = [NSWorkspace.sharedWorkspace iconForFile:url.path];
+	}
+      if (!image)
+	image = MRC_AUTORELEASE ([[NSImage alloc]
+				   initWithSize:(NSMakeSize (2, 1))]);
+      [images addObject:image];
+
+      NSSize size = image.size;
+
+      totalImageWidth += size.width;
+      if (size.height > maxImageHeight)
+	maxImageHeight = size.height;
+    }
+
+  NSPoint locationInView =
+    [self convertEmacsViewPointFromScreen:NSEvent.mouseLocation];
+  NSEvent *event =
+    [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown
+		       location:[emacsView convertPoint:locationInView
+						 toView:nil]
+		  modifierFlags:NSEvent.modifierFlags timestamp:0
+		   windowNumber:emacsWindow.windowNumber context:nil
+		    eventNumber:0 clickCount:1 pressure:0];
+  NSMutableArrayOf (NSDraggingItem *) *items =
+    [NSMutableArray arrayWithCapacity:objects.count];
+
+  locationInView.x -= totalImageWidth / 2;
+  for (NSUInteger i = 0; i < objects.count; i++)
+    {
+      NSDraggingItem *item = [[NSDraggingItem alloc]
+			       initWithPasteboardWriter:objects[i]];
+      NSImage *image = images[i];
+      NSSize size = image.size;
+
+      [item setDraggingFrame:(NSMakeRect (locationInView.x,
+					  locationInView.y - maxImageHeight,
+					  size.width, size.height))
+		    contents:image];
+      [items addObject:item];
+      MRC_RELEASE (item);
+      locationInView.x += size.width;
+    }
+
+  NSArrayOf (NSPasteboardType) *savedTypes = nil;
+
+  if (unregisterAsDestination)
+    {
+      savedTypes = [emacsView registeredDraggedTypes];
+      [emacsView unregisterDraggedTypes];
+    }
+
+  NSDraggingSession *session = [emacsView beginDraggingSessionWithItems:items
+								  event:event
+								 source:self];
+
+  session.animatesToStartingPositionsOnCancelOrFail = NO;
+  mac_dnd_in_progress = true;
+  while (mac_dnd_in_progress)
+    mac_run_loop_run_once (kEventDurationForever);
+
+  if (unregisterAsDestination)
+    [emacsView registerForDraggedTypes:savedTypes];
+}
+
 @end				// EmacsFrameController (DragAndDrop)
 
 /* Update the pasteboard types derived from the value of
@@ -12528,6 +12747,80 @@ mac_dnd_default_known_types (void)
   return list3 ([(__bridge NSPasteboardType)UTI_URL UTF8LispString],
 		[NSPasteboardTypeString UTF8LispString],
 		[NSPasteboardTypeTIFF UTF8LispString]);
+}
+
+DragActions
+mac_dnd_begin_drag_and_drop (struct frame *f, DragActions actions,
+			     enum mac_return_frame_mode mode,
+			     struct frame **frame_return,
+			     bool allow_current_frame, Lisp_Object class_names,
+			     bool follow_tooltip)
+{
+  if (mode == RETURN_FRAME_NOW)
+    {
+      struct frame *f1 = mac_get_frame_at_mouse (false);
+
+      if (f1 && !FRAME_TOOLTIP_P (f1))
+	{
+	  *frame_return = f1;
+
+	  return NSDragOperationNone;
+	}
+    }
+
+  if (mac_dnd_in_progress)
+    error ("A drag-and-drop session is already in progress");
+
+  NSMutableArrayOf (Class) *classes = [NSMutableArray arrayWithCapacity:0];
+
+  for (; CONSP (class_names); class_names = XCDR (class_names))
+    if (STRINGP (XCAR (class_names)))
+      {
+	NSString *name = [NSString stringWithLispString:(XCAR (class_names))];
+	Class class = NSClassFromString (name);
+
+	if ([class conformsToProtocol:@protocol(NSPasteboardReading)]
+	    && [class conformsToProtocol:@protocol(NSPasteboardWriting)]
+	    && ![class isEqual:NSPasteboardItem.class])
+	  [classes addObject:class];
+      }
+
+  Selection sel;
+  NSPasteboard *pasteboard = nil;
+
+  mac_get_selection_from_symbol (QXdndSelection, false, &sel);
+  if (sel)
+    pasteboard = (__bridge NSPasteboard *) sel;
+
+  NSArray *objects = [pasteboard readObjectsForClasses:classes options:nil];
+  if (objects.count == 0)
+    error ("No DND objects in XdndSelection");
+
+  mac_dnd_action = NSDragOperationNone;
+  mac_dnd_wanted_action = actions;
+  mac_dnd_return_frame = mode;
+  mac_dnd_return_frame_object = NULL;
+  mac_dnd_update_tooltip = follow_tooltip;
+
+  EmacsFrameController *frameController = FRAME_CONTROLLER (f);
+
+  mac_within_gui_allowing_inner_lisp (^{
+      [frameController trackDraggingObjects:objects
+		    unregisterAsDestination:!allow_current_frame];
+    });
+
+  /* The drop happened, so delete the tooltip.  */
+  if (follow_tooltip)
+    Fx_hide_tip ();
+
+  /* Assume all buttons have been released since the drag-and-drop
+     operation is now over.  */
+  if (!mac_dnd_return_frame_object)
+    FRAME_DISPLAY_INFO (f)->grabbed = 0;
+
+  *frame_return = mac_dnd_return_frame_object;
+
+  return mac_dnd_action;
 }
 
 
@@ -15382,7 +15675,7 @@ get_symbol_from_filter_input_key (NSString *key)
   NSString *filterName;
   CIFilter *filter;
   NSDictionaryOf (NSString *, id) *attributes;
-  Lisp_Object type = Fplist_get (properties, QCtype);
+  Lisp_Object type = plist_get (properties, QCtype);
 
   if (EQ (type, Qbars_swipe))
     filterName = @"CIBarsSwipeTransition";
@@ -15413,7 +15706,7 @@ get_symbol_from_filter_input_key (NSString *key)
       || EQ (type, Qpage_curl_with_shadow) /* [-pi, pi], default 0 */
       || EQ (type, Qswipe))		   /* [-pi, pi], default 0 */
     {
-      Lisp_Object direction = Fplist_get (properties, QCdirection);
+      Lisp_Object direction = plist_get (properties, QCdirection);
       double direction_angle;
 
       if (EQ (direction, Qleft))
@@ -15454,7 +15747,7 @@ get_symbol_from_filter_input_key (NSString *key)
 
 	  if (!NILP (symbol))
 	    {
-	      Lisp_Object value = Fplist_get (properties, symbol);
+	      Lisp_Object value = plist_get (properties, symbol);
 
 	      if (NUMBERP (value))
 		[filter setValue:@(XFLOATINT (value)) forKey:key];
@@ -15467,7 +15760,7 @@ get_symbol_from_filter_input_key (NSString *key)
 
 	  if (!NILP (symbol))
 	    {
-	      Lisp_Object value = Fplist_get (properties, symbol);
+	      Lisp_Object value = plist_get (properties, symbol);
 	      CGFloat components[4];
 	      int i;
 
@@ -15602,9 +15895,9 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 	{
 	  Lisp_Object type;
 
-	  direction = Fplist_get (properties, QCdirection);
+	  direction = plist_get (properties, QCdirection);
 
-	  type = Fplist_get (properties, QCtype);
+	  type = plist_get (properties, QCtype);
 	  if (EQ (type, Qnone))
 	    anim_type = ANIM_TYPE_NONE;
 	  else if (EQ (type, Qfade_in))
@@ -15651,7 +15944,7 @@ mac_start_animation (Lisp_Object frame_or_window, Lisp_Object properties)
 
       [frameController addLayer:layer];
 
-      duration = Fplist_get (properties, QCduration);
+      duration = plist_get (properties, QCduration);
       if (NUMBERP (duration))
 	[CATransaction setValue:@(XFLOATINT (duration))
 			 forKey:kCATransactionAnimationDuration];
@@ -16596,6 +16889,10 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
   block_input ();
   turn_on_atimers (false);
   thread_may_switch_p = !NILP (XCDR (Fall_threads ()));
+#if MAC_SELECT_ALLOW_LISP_EVALUATION
+  mac_select_allow_lisp_evaluation = !thread_may_switch_p;
+  bool __block completed_p = false;
+#endif
   mac_within_gui_and_here (^{
       if (thread_may_switch_p)
 	mac_set_buffer_and_glyph_matrix_access_restricted (true);
@@ -16650,11 +16947,47 @@ mac_select (int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 	}
       if (thread_may_switch_p)
 	mac_set_buffer_and_glyph_matrix_access_restricted (false);
+#if MAC_SELECT_ALLOW_LISP_EVALUATION
+      mac_select_allow_lisp_evaluation = false;
+      completed_p = true;
+#endif
     },
     ^{
-      r = thread_select (pselect, nfds, rfds, wfds, efds, timeout, sigmask);
-      dispatch_source_merge_data (mac_select_dispatch_source,
-				  MAC_SELECT_COMMAND_TERMINATE);
+#if MAC_SELECT_ALLOW_LISP_EVALUATION
+      if (thread_may_switch_p)
+	{
+#endif
+	  r = thread_select (pselect, nfds, rfds, wfds, efds, timeout, sigmask);
+	  dispatch_source_merge_data (mac_select_dispatch_source,
+				      MAC_SELECT_COMMAND_TERMINATE);
+#if MAC_SELECT_ALLOW_LISP_EVALUATION
+	}
+      else
+	{
+	  dispatch_queue_t queue =
+	    dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+
+	  dispatch_async (queue, ^{
+	      r = pselect (nfds, rfds, wfds, efds, timeout, sigmask);
+	      dispatch_source_merge_data (mac_select_dispatch_source,
+					  MAC_SELECT_COMMAND_TERMINATE);
+	    });
+	  dispatch_semaphore_wait (mac_lisp_semaphore, DISPATCH_TIME_FOREVER);
+	  while (!completed_p)
+	    {
+	      void (^block_lisp) (void) = [mac_lisp_queue dequeue];
+	      bool was_waiting_for_input = waiting_for_input;
+
+	      waiting_for_input = 0;
+	      block_lisp ();
+	      waiting_for_input = was_waiting_for_input;
+	      mac_within_gui (nil);
+	      dispatch_semaphore_wait (mac_lisp_semaphore,
+				       DISPATCH_TIME_FOREVER);
+	    }
+	  dispatch_semaphore_signal (mac_lisp_semaphore);
+	}
+#endif
       if (r > 0 && FD_ISSET (mac_select_fds[1], rfds))
 	/* Pretend that `select' is interrupted by a signal.  */
 	r = -1;

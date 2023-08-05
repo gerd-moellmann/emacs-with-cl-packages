@@ -1112,7 +1112,7 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsMainView (DragAndDrop) <NSDraggingDestination>
 @end
 
-@interface EmacsFrameController (DragAndDrop)
+@interface EmacsFrameController (DragAndDrop) <NSDraggingSource>
 - (void)registerEmacsViewForDraggedTypes:(NSArrayOf (NSPasteboardType) *)pboardTypes;
 - (void)setOverlayViewHighlighted:(BOOL)flag;
 @end

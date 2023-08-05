@@ -1,6 +1,6 @@
 1. What's this?
 
-This is "Mac port" addition to GNU Emacs 28.  This provides a native
+This is "Mac port" addition to GNU Emacs 29.  This provides a native
 GUI support for OS X 10.10 - macOS 13.  Note that Emacs 23 and later
 already contain the official GUI support via the NS (Cocoa) port.  So
 if it is good enough for you, then you don't need to try this.
@@ -100,7 +100,7 @@ The Mac port is a descendant of the following ports for Mac OS X:
       * Update display while the resize control (or the slider in the
 	font panel) is being dragged
 
-Being a port of Emacs 28, the Mac port also supports the following
+Being a port of Emacs 29, the Mac port also supports the following
 Emacs 23 features besides those inherited from the above ancestors:
 
   * The `fullscreen' frame parameter, with all values supported:
@@ -135,23 +135,17 @@ Emacs 23 features besides those inherited from the above ancestors:
     Sequences) even for the OS-bundled Hiragino fonts, which do not
     contain the UVS subtable in their cmap table as of Mac OS X 10.6.
 
-It also supports the following Emacs 24-28 features that are not
+It also supports the following Emacs 24-29 features that are not
 supported on all the standard platforms/ports:
 
-  * Can be compiled with the ImageMagick support.  Even without the
-    ImageMagick library, the Mac port provides a fallback using the
-    Image I/O framework so you can scale and rotate images.
+  * Even without the ImageMagick library, the Mac port provides a
+    fallback using the Image I/O framework so you can rotate images.
   * The variable `tool-bar-style' works like in GTK+.  The values
     `both-horiz', `text-image-horiz' are synonymous with `both'.
-  * Horizontal scroll bar support.
 
-In addition to the standard Emacs 28 features, the Mac port includes
+In addition to the standard Emacs 29 features, the Mac port includes
 the following Mac-specific ones:
 
-  * Pixel-based mouse wheel smooth scroll for newer mice/trackpads.
-  * Gesture event handling for newer trackpads.  By default, pinch
-    out/in are bound to text size scaling.  With the shift key, they
-    turn on/off fullscreen status of the frame.
   * Apple event sending with (a)synchronous reply handling.  ODB
     Editor Suite support is added as an example.  (Only tested with
     QuickCursor.  Add "<string>org.gnu.Emacs</string>" to the elements
@@ -185,13 +179,6 @@ the following Mac-specific ones:
   * Experimental support for accessibility with respect to the custom
     view for Emacs frames.  It is required to support "Text to Speech"
     on Mac OS X 10.7.  Still there are several glitches.
-  * Can display color bitmap fonts such as Apple Color Emoji, if
-    compiled and executed on Mac OS X 10.7 or later.  Also supports
-    display of some combinations of regional indicator symbols, such
-    as U+1F1EF followed by U+1F1F5, as national flags.  Variation
-    Selectors 15 (text-style) and 16 (emoji-style) are also supported.
-    On OS X 10.10.3 and later, emoji modifiers for skin tones (U+1F3FB
-    - U+1F3FF) are supported as well.
   * New function `mac-start-animation', which provides animation
     effects on Mac OS 10.5 and later via Core Animation.  You can see
     the default animations with buffer switching by horizontal
@@ -234,9 +221,9 @@ Dock without separating a GUI process (not thread) from the main Emacs
      `configure' script with "$ ./autogen.sh" and skip to Step k.
      (You will need the tools mentioned in the file INSTALL.REPO.)
 
-  c. Get the official GNU Emacs 28.X distribution tarball from some
+  c. Get the official GNU Emacs 29.X distribution tarball from some
      GNU mirror site if this file is part of
-     emacs-28.X-mac-V.W.tar.gz.  Untar the tarball.  Let
+     emacs-29.X-mac-V.W.tar.gz.  Untar the tarball.  Let
      EMACS_SOURCE_TOP be the top directory of the source tree.
 
   d. Apply the patch `patch-mac' to the source tree.

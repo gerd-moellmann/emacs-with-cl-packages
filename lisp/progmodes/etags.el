@@ -1,7 +1,6 @@
 ;;; etags.el --- etags facility for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1988-1989, 1992-1996, 1998, 2000-2022 Free
-;; Software Foundation, Inc.
+;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
 
 ;; Author: Roland McGrath <roland@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -145,7 +144,12 @@ Otherwise, `find-tag-default' is used."
   :type '(choice (const nil) function))
 
 (define-obsolete-variable-alias 'find-tag-marker-ring-length
-  'xref-marker-ring-length "25.1")
+  'tags-location-ring-length "25.1")
+
+(defvar tags-location-ring-length 16
+  "Size of the find-tag marker ring.
+This variable has no effect, and is kept only for backward compatibility.
+The actual size of the find-tag marker ring is unlimited.")
 
 (defcustom tags-tag-face 'default
   "Face for tags in the output of `tags-apropos'."
@@ -180,10 +184,12 @@ Example value:
 		       (sexp :tag "Tags to search")))
   :version "21.1")
 
-(defvaralias 'find-tag-marker-ring 'xref--marker-ring)
+(defvar find-tag-marker-ring (make-ring 16)
+  "Find-tag marker ring.
+Obsolete variable kept for compatibility.  It is not used in any way.")
 (make-obsolete-variable
  'find-tag-marker-ring
- "use `xref-push-marker-stack' or `xref-pop-marker-stack' instead."
+ "use `xref-push-marker-stack' or `xref-go-back' instead."
  "25.1")
 
 (defvar default-tags-table-function nil
@@ -191,7 +197,7 @@ Example value:
 This function receives no arguments and should return the default
 tags table file to use for the current buffer.")
 
-(defvar tags-location-ring (make-ring xref-marker-ring-length)
+(defvar tags-location-ring (make-ring tags-location-ring-length)
   "Ring of markers which are locations visited by \\[find-tag].
 Pop back to the last location with \\[negative-argument] \\[find-tag].")
 
@@ -292,7 +298,7 @@ file the tag was in."
            (or (locate-dominating-file default-directory "TAGS")
                default-directory)))
      (list (read-file-name
-            "Visit tags table (default TAGS): "
+            (format-prompt "Visit tags table" "TAGS")
             ;; default to TAGS from default-directory up to root.
             default-tag-dir
             (expand-file-name "TAGS" default-tag-dir)
@@ -625,7 +631,7 @@ Returns t if it visits a tags table, or nil if there are no more in the list."
 		  (car list))
 		;; Finally, prompt the user for a file name.
 		(expand-file-name
-		 (read-file-name "Visit tags table (default TAGS): "
+                 (read-file-name (format-prompt "Visit tags table" "TAGS")
 				 default-directory
 				 "TAGS"
 				 t))))))
@@ -731,13 +737,13 @@ Returns t if it visits a tags table, or nil if there are no more in the list."
   (interactive)
   ;; Clear out the markers we are throwing away.
   (let ((i 0))
-    (while (< i xref-marker-ring-length)
+    (while (< i tags-location-ring-length)
       (if (aref (cddr tags-location-ring) i)
 	  (set-marker (aref (cddr tags-location-ring) i) nil))
       (setq i (1+ i))))
   (xref-clear-marker-stack)
   (setq tags-file-name nil
-	tags-location-ring (make-ring xref-marker-ring-length)
+	tags-location-ring (make-ring tags-location-ring-length)
 	tags-table-list nil
 	tags-table-computed-list nil
 	tags-table-computed-list-for nil
@@ -1068,7 +1074,7 @@ See documentation of variable `tags-file-name'."
 	   regexp next-p t))
 
 ;;;###autoload
-(defalias 'pop-tag-mark 'xref-pop-marker-stack)
+(defalias 'pop-tag-mark 'xref-go-back)
 
 
 (defvar tag-lines-already-matched nil
@@ -1141,7 +1147,7 @@ error message."
 	      ;; Naive match found.  Qualify the match.
 	      (and (funcall (car order) pattern)
 		   ;; Make sure it is not a previous qualified match.
-		   (not (member (set-marker match-marker (point-at-bol))
+                   (not (member (set-marker match-marker (line-beginning-position))
 				tag-lines-already-matched))
 		   (throw 'qualified-match-found nil))
 	      (if next-line-after-failure-p
@@ -1311,11 +1317,11 @@ buffer-local values of tags table format variables."
 
       ;; Find the end of the tag and record the whole tag text.
       (search-forward "\177")
-      (setq tag-text (buffer-substring (1- (point)) (point-at-bol)))
+      (setq tag-text (buffer-substring (1- (point)) (line-beginning-position)))
       ;; If use-explicit is non-nil and explicit tag is present, use it as part of
       ;; return value. Else just skip it.
       (setq explicit-start (point))
-      (when (and (search-forward "\001" (point-at-bol 2) t)
+      (when (and (search-forward "\001" (line-beginning-position 2) t)
 		 use-explicit)
 	(setq tag-text (buffer-substring explicit-start (1- (point)))))
 
@@ -1781,10 +1787,10 @@ Bind `case-fold-search' during the evaluation, depending on the value of
 (defun tags--compat-initialize (initialize)
   (fileloop-initialize
    (tags--compat-files initialize)
+   (lambda () (tags-loop-eval tags-loop-scan))
    (if tags-loop-operate
        (lambda () (tags-loop-eval tags-loop-operate))
-     (lambda () (message "Scanning file %s...found" buffer-file-name) nil))
-   (lambda () (tags-loop-eval tags-loop-scan))))
+     (lambda () (message "Scanning file %s...found" buffer-file-name) nil))))
 
 ;;;###autoload
 (defun tags-loop-continue (&optional first-time)
@@ -1995,23 +2001,23 @@ see the doc of that variable if you want to add names to the list."
       (setq set-list (delete (car set-list) set-list)))
     (goto-char (point-min))
     (insert-before-markers
-     "Type `t' to select a tags table or set of tags tables:\n\n")
+     (substitute-command-keys
+      "Type \\`t' to select a tags table or set of tags tables:\n\n"))
     (if desired-point
 	(goto-char desired-point))
     (set-window-start (selected-window) 1 t))
   (set-buffer-modified-p nil)
   (select-tags-table-mode))
 
-(defvar select-tags-table-mode-map ; Doc string?
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map button-buffer-map)
-    (define-key map "t" 'push-button)
-    (define-key map " " 'next-line)
-    (define-key map "\^?" 'previous-line)
-    (define-key map "n" 'next-line)
-    (define-key map "p" 'previous-line)
-    (define-key map "q" 'select-tags-table-quit)
-    map))
+(defvar-keymap select-tags-table-mode-map
+  :doc "Keymap for `select-tags-table-mode'."
+  :parent button-buffer-map
+  "t"   #'push-button
+  "SPC" #'next-line
+  "DEL" #'previous-line
+  "n"   #'next-line
+  "p"   #'previous-line
+  "q"   #'select-tags-table-quit)
 
 (define-derived-mode select-tags-table-mode special-mode "Select Tags Table"
   "Major mode for choosing a current tags table among those already loaded."

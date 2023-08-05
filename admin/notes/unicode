@@ -1,6 +1,6 @@
                                             -*-mode: text; coding: utf-8;-*-
 
-Copyright (C) 2002-2022 Free Software Foundation, Inc.
+Copyright (C) 2002-2023 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Importing a new Unicode Standard version into Emacs
@@ -15,17 +15,33 @@ Emacs uses the following files from the Unicode Character Database
   . BidiMirroring.txt
   . IVD_Sequences.txt
   . NormalizationTest.txt
+  . PropertyValueAliases.txt
+  . ScriptExtensions.txt
+  . Scripts.txt
   . SpecialCasing.txt
+  . confusables.txt
   . emoji-data.txt
   . emoji-zwj-sequences.txt
+  . emoji-variation-sequences.txt
   . emoji-sequences.txt
   . BidiCharacterTest.txt
 
-First, the first 10 files need to be copied into admin/unidata/, and
-the file https://www.unicode.org/copyright.html should be copied over
+Emacs also uses the file emoji-test.txt which should be imported from
+the Unicode's Public/emoji/ directory, and IdnaMappingTable.txt from
+the Public/idna/ directory.
+
+First, the first 15 files, emoji-test.txt and IdnaMappingTable.txt
+need to be copied into admin/unidata/, and the file
+https://www.unicode.org/copyright.html should be copied over
 copyright.html in admin/unidata (some of them might need trailing
 whitespace removed before they can be committed to the Emacs
 repository).
+
+Next, review the assignment of default values of the Bidi Class
+property to blocks in the file extracted/DerivedBidiClass.txt from the
+UCD (search for "unassigned" in that file).  Any changes should be
+reflected in the unidata-gen.el file, where it sets up the default
+values around line 210.
 
 Then Emacs should be rebuilt for them to take effect.  Rebuilding
 Emacs updates several derived files elsewhere in the Emacs source
@@ -126,6 +142,20 @@ involving VS-15 and VS-16, if so you may need to update the value
 generated for auto-composition-emoji-eligible-codepoints by
 admin/unidata/emoji-zwj.awk.  Note that your emoji font might not have
 glyphs for the newest codepoints yet.
+
+Visit "emoji-variation-sequences.txt", and run the following lisp
+fragment to actually insert the described codepoints, then check that
+all the text in parentheses displays correctly (it can be helpful to
+have `glyphless-char-display-control' customized to show hex codes for
+variation selectors).
+
+(save-excursion
+ (goto-char (point-min))
+ (while (re-search-forward "^\\([0-9A-Z]+\\) \\([0-9A-Z]+\\).*(\\([^)]+\\))" nil t)
+   (let ((ch (string-to-number (match-string 1) 16))
+         (sel (string-to-number (match-string 2) 16))
+         (sp (match-string 3)))
+     (replace-match (format "%s %c%c " sp ch sel) nil nil nil 3))))
 
 Finally, etc/NEWS should be updated to announce the support for the
 new Unicode version.

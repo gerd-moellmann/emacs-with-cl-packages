@@ -23,7 +23,7 @@ Emacs, and interacting with an IDL shell run as a subprocess.
 This is edition @value{EDITION} of the IDLWAVE User Manual for IDLWAVE
 @value{VERSION}.
 
-Copyright @copyright{} 1999--2022 Free Software Foundation, Inc.
+Copyright @copyright{} 1999--2023 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -217,7 +217,7 @@ Integrity checks and auto-termination of logical blocks.
 @item
 Routine name space conflict search with likelihood-of-use ranking.
 @item
-Support for @file{imenu} (Emacs) and @file{func-menu} (XEmacs).
+Support for @file{imenu}.
 @item
 Documentation support.
 @item
@@ -1372,10 +1372,9 @@ among, with differing advantages and disadvantages.  The variable
 to (as long as @code{idlwave-help-use-assistant} is not set).  This
 function is used to set the variable @code{browse-url-browser-function}
 locally for IDLWAVE help only.  Customize the latter variable to see
-what choices of browsers your system offers.  Certain browsers like
-@code{w3} (bundled with many versions of Emacs) and @code{w3m}
-(@uref{http://emacs-w3m.namazu.org/}) are run within Emacs, and use
-Emacs buffers to display the HTML help.  This can be convenient,
+what choices of browsers your system offers.  Certain browsers like EWW
+(@pxref{Top, EWW,, eww, The Emacs Web Wowser Manual}) are run within Emacs,
+and use Emacs buffers to display the HTML help.  This can be convenient,
 especially on small displays, and images can even be displayed in-line
 on newer Emacs versions.  However, better formatting results are often
 achieved with external browsers, like Mozilla.  IDLWAVE assumes any
@@ -2298,12 +2297,11 @@ Regexp matching the start of a document library header.
 @cindex Motion commands
 @cindex Program structure, moving through
 @cindex Code structure, moving through
-@cindex @file{Func-menu}, XEmacs package
-@cindex @file{Imenu}, Emacs package
+@cindex @file{Imenu}
 @cindex Function definitions, jumping to
 @cindex Procedure definitions, jumping to
 
-IDLWAVE supports both @file{Imenu} and @file{Func-menu}, two packages
+IDLWAVE supports @file{Imenu}, a package
 which make it easy to jump to the definitions of functions and
 procedures in the current file with a pop-up selection.  To bind
 @file{Imenu} to a mouse-press, use in your @file{.emacs}:
@@ -2670,7 +2668,7 @@ As a special case, any error message in the output will be displayed
 @node Debugging IDL Programs
 @section Debugging IDL Programs
 @cindex Debugging
-@cindex Keybindings for debugging
+@cindex Key bindings for debugging
 @cindex Toolbar
 
 Programs can be compiled, run, and debugged directly from the source
@@ -3800,7 +3798,7 @@ configuration is not possible, but choices abound.  The default
 @code{idlwave-help-browser-function} inherits the browser configured
 in @code{browse-url-browser-function}.
 
-Note that the HTML files decompiled from the help sources contain
+Note that the HTML files recompiled from the help sources contain
 specific references to the @samp{Symbol} font, which by default is not
 permitted in normal encodings (it's invalid, technically).  Though it
 only impacts a few symbols, you can trick Mozilla-based browsers into
@@ -4116,17 +4114,6 @@ console shell, the environment is set not from your usual shell
 configuration files (e.g., @file{.cshrc}), but from the file
 @file{~/.MacOSX/environment.plist}.  Either include your path settings
 there, or start Emacs and IDLWAVE from the shell.
-
-@item @strong{I'm getting errors like @samp{Symbol's value as variable is void:
-cl-builtin-gethash} on completion or routine info.}
-
-This error arises if you upgraded Emacs from 20.x to 21.x without
-re-installing IDLWAVE@.  Old Emacs and new Emacs are not byte-compatible
-in compiled lisp files.  Presumably, you kept the original .elc files in
-place, and this is the source of the error.  If you recompile (or just
-"make; make install") from source, it should resolve this problem.
-Another option is to recompile the @file{idlw*.el} files by hand using
-@kbd{M-x byte-compile-file}.
 
 @item @strong{@kbd{M-@key{TAB}} doesn't complete words, it switches
 windows on my desktop.}

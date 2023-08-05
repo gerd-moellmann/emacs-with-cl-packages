@@ -1,6 +1,6 @@
 ;;; newcomment.el --- (un)comment regions of buffers -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: code extracted from Emacs-20's simple.el
 ;; Maintainer: Stefan Monnier <monnier@gnu.org>
@@ -1235,33 +1235,21 @@ changed with `comment-style'."
     ;; FIXME: maybe we should call uncomment depending on ARG.
     (funcall comment-region-function beg end arg)))
 
-(defun comment-region-default-1 (beg end &optional arg noadjust)
-  "Comment region between BEG and END.
-See `comment-region' for ARG.  If NOADJUST, do not skip past
-leading/trailing space when determining the region to comment
-out."
+(defun comment-region-default-1 (beg end &optional arg)
   (let* ((numarg (prefix-numeric-value arg))
 	 (style (cdr (assoc comment-style comment-styles)))
 	 (lines (nth 2 style))
 	 (block (nth 1 style))
 	 (multi (nth 0 style)))
 
-    (if noadjust
-        (when (bolp)
-          (setq end (1- end)))
-      ;; We use `chars' instead of `syntax' because `\n' might be
-      ;; of end-comment syntax rather than of whitespace syntax.
-      ;; sanitize BEG and END
-      (goto-char beg)
-      (skip-chars-forward " \t\n\r")
-      (beginning-of-line)
-      (setq beg (max beg (point)))
-      (goto-char end)
-      (skip-chars-backward " \t\n\r")
-      (end-of-line)
-      (setq end (min end (point)))
-      (when (>= beg end)
-        (error "Nothing to comment")))
+    ;; We use `chars' instead of `syntax' because `\n' might be
+    ;; of end-comment syntax rather than of whitespace syntax.
+    ;; sanitize BEG and END
+    (goto-char beg) (skip-chars-forward " \t\n\r") (beginning-of-line)
+    (setq beg (max beg (point)))
+    (goto-char end) (skip-chars-backward " \t\n\r") (end-of-line)
+    (setq end (min end (point)))
+    (if (>= beg end) (error "Nothing to comment"))
 
     ;; sanitize LINES
     (setq lines
@@ -1368,10 +1356,15 @@ is passed on to the respective function."
   "Call the comment command you want (Do What I Mean).
 If the region is active and `transient-mark-mode' is on, call
 `comment-region' (unless it only consists of comments, in which
-case it calls `uncomment-region').
+case it calls `uncomment-region'); in this case, prefix numeric
+argument ARG specifies how many characters to remove from each
+comment delimiter (so don't specify a prefix argument whose value
+is greater than the total length of the comment delimiters).
 Else, if the current line is empty, call `comment-insert-comment-function'
 if it is defined, otherwise insert a comment and indent it.
-Else if a prefix ARG is specified, call `comment-kill'.
+Else, if a prefix ARG is specified, call `comment-kill'; in this
+case, prefix numeric argument ARG specifies on how many lines to kill
+the comments.
 Else, call `comment-indent'.
 You can configure `comment-style' to change the way regions are commented."
   (interactive "*P")

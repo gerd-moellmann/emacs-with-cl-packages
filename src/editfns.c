@@ -1,6 +1,6 @@
 /* Lisp functions pertaining to editing.                 -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1987, 1989, 1993-2022 Free Software Foundation, Inc.
+Copyright (C) 1985-2023 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -55,6 +55,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifdef WINDOWSNT
 # include "w32common.h"
 #endif
+
+#ifdef HAVE_TREE_SITTER
+#include "treesit.h"
+#endif
+
 static void update_buffer_properties (ptrdiff_t, ptrdiff_t);
 static Lisp_Object styled_format (ptrdiff_t, Lisp_Object *, bool);
 
@@ -161,7 +166,7 @@ DEFUN ("byte-to-string", Fbyte_to_string, Sbyte_to_string, 1, 1, 0,
   if (XFIXNUM (byte) < 0 || XFIXNUM (byte) > 255)
     error ("Invalid byte");
   b = XFIXNUM (byte);
-  return make_string_from_bytes ((char *) &b, 1, 1);
+  return make_unibyte_string ((char *) &b, 1);
 }
 
 DEFUN ("string-to-char", Fstring_to_char, Sstring_to_char, 1, 1, 0,
@@ -265,51 +270,20 @@ If you set the marker not to point anywhere, the buffer will have no mark.  */)
 
 /* Find all the overlays in the current buffer that touch position POS.
    Return the number found, and store them in a vector in VEC
-   of length LEN.  */
+   of length LEN.
+
+   Note: this can return overlays that do not touch POS.  The caller
+   should filter these out. */
 
 static ptrdiff_t
-overlays_around (EMACS_INT pos, Lisp_Object *vec, ptrdiff_t len)
+overlays_around (ptrdiff_t pos, Lisp_Object *vec, ptrdiff_t len)
 {
-  ptrdiff_t idx = 0;
-
-  for (struct Lisp_Overlay *tail = current_buffer->overlays_before;
-       tail; tail = tail->next)
-    {
-      Lisp_Object overlay = make_lisp_ptr (tail, Lisp_Vectorlike);
-      Lisp_Object end = OVERLAY_END (overlay);
-      ptrdiff_t endpos = OVERLAY_POSITION (end);
-      if (endpos < pos)
-	  break;
-      Lisp_Object start = OVERLAY_START (overlay);
-      ptrdiff_t startpos = OVERLAY_POSITION (start);
-      if (startpos <= pos)
-	{
-	  if (idx < len)
-	    vec[idx] = overlay;
-	  /* Keep counting overlays even if we can't return them all.  */
-	  idx++;
-	}
-    }
-
-  for (struct Lisp_Overlay *tail = current_buffer->overlays_after;
-       tail; tail = tail->next)
-    {
-      Lisp_Object overlay = make_lisp_ptr (tail, Lisp_Vectorlike);
-      Lisp_Object start = OVERLAY_START (overlay);
-      ptrdiff_t startpos = OVERLAY_POSITION (start);
-      if (pos < startpos)
-	break;
-      Lisp_Object end = OVERLAY_END (overlay);
-      ptrdiff_t endpos = OVERLAY_POSITION (end);
-      if (pos <= endpos)
-	{
-	  if (idx < len)
-	    vec[idx] = overlay;
-	  idx++;
-	}
-    }
-
-  return idx;
+  /* Find all potentially rear-advance overlays at (POS - 1).  Find
+     all overlays at POS, so end at (POS + 1).  Find even empty
+     overlays, which due to the way 'overlays-in' works implies that
+     we might also fetch empty overlays starting at (POS + 1).  */
+  return overlays_in (pos - 1, pos + 1, false, &vec, &len,
+		      true, false, NULL);
 }
 
 DEFUN ("get-pos-property", Fget_pos_property, Sget_pos_property, 2, 3, 0,
@@ -369,11 +343,12 @@ at POSITION.  */)
 	  if (!NILP (tem))
 	    {
 	      /* Check the overlay is indeed active at point.  */
-	      Lisp_Object start = OVERLAY_START (ol), finish = OVERLAY_END (ol);
-	      if ((OVERLAY_POSITION (start) == posn
-		   && XMARKER (start)->insertion_type == 1)
-		  || (OVERLAY_POSITION (finish) == posn
-		      && XMARKER (finish)->insertion_type == 0))
+	      if ((OVERLAY_START (ol) == posn
+		   && OVERLAY_FRONT_ADVANCE_P (ol))
+		  || (OVERLAY_END (ol) == posn
+		      && ! OVERLAY_REAR_ADVANCE_P (ol))
+		  || OVERLAY_START (ol) > posn
+		  || OVERLAY_END (ol) < posn)
 		; /* The overlay will not cover a char inserted at point.  */
 	      else
 		{
@@ -648,7 +623,7 @@ Field boundaries are not noticed if `inhibit-field-text-motion' is non-nil.  */)
   prev_new = make_fixnum (XFIXNUM (new_pos) - 1);
 
   if (NILP (Vinhibit_field_text_motion)
-      && !EQ (new_pos, old_pos)
+      && !BASE_EQ (new_pos, old_pos)
       && (!NILP (Fget_char_property (new_pos, Qfield, Qnil))
           || !NILP (Fget_char_property (old_pos, Qfield, Qnil))
           /* To recognize field boundaries, we must also look at the
@@ -709,27 +684,10 @@ Field boundaries are not noticed if `inhibit-field-text-motion' is non-nil.  */)
 }
 
 
-DEFUN ("line-beginning-position",
-       Fline_beginning_position, Sline_beginning_position, 0, 1, 0,
-       doc: /* Return the character position of the first character on the current line.
-With optional argument N, scan forward N - 1 lines first.
-If the scan reaches the end of the buffer, return that position.
-
-This function ignores text display directionality; it returns the
-position of the first character in logical order, i.e. the smallest
-character position on the logical line.  See `vertical-motion' for
-movement by screen lines.
-
-This function constrains the returned position to the current field
-unless that position would be on a different line from the original,
-unconstrained result.  If N is nil or 1, and a front-sticky field
-starts at point, the scan stops as soon as it starts.  To ignore field
-boundaries, bind `inhibit-field-text-motion' to t.
-
-This function does not move point.  */)
-  (Lisp_Object n)
+static ptrdiff_t
+bol (Lisp_Object n, ptrdiff_t *out_count)
 {
-  ptrdiff_t charpos, bytepos, count;
+  ptrdiff_t bytepos, charpos, count;
 
   if (NILP (n))
     count = 0;
@@ -740,23 +698,88 @@ This function does not move point.  */)
       CHECK_INTEGER (n);
       count = NILP (Fnatnump (n)) ? -BUF_BYTES_MAX : BUF_BYTES_MAX;
     }
-
+  if (out_count)
+    *out_count = count;
   scan_newline_from_point (count, &charpos, &bytepos);
+  return charpos;
+}
 
+DEFUN ("pos-bol", Fpos_bol, Spos_bol, 0, 1, 0,
+       doc: /* Return the position of the first character on the current line.
+With optional argument N, scan forward N - 1 lines first.
+If the scan reaches the end of the buffer, return that position.
+
+This function ignores text display directionality; it returns the
+position of the first character in logical order, i.e. the smallest
+character position on the logical line.  See `vertical-motion' for
+movement by screen lines.
+
+This function does not move point.  Also see `line-beginning-position'.  */)
+  (Lisp_Object n)
+{
+  return make_fixnum (bol (n, NULL));
+}
+
+DEFUN ("line-beginning-position",
+       Fline_beginning_position, Sline_beginning_position, 0, 1, 0,
+       doc: /* Return the position of the first character in the current line/field.
+This function is like `pos-bol' (which see), but respects fields.
+
+This function constrains the returned position to the current field
+unless that position would be on a different line from the original,
+unconstrained result.  If N is nil or 1, and a front-sticky field
+starts at point, the scan stops as soon as it starts.  To ignore field
+boundaries, bind `inhibit-field-text-motion' to t.
+
+This function does not move point.  */)
+  (Lisp_Object n)
+{
+  ptrdiff_t count, charpos = bol (n, &count);
   /* Return END constrained to the current input field.  */
   return Fconstrain_to_field (make_fixnum (charpos), make_fixnum (PT),
 			      count != 0 ? Qt : Qnil,
 			      Qt, Qnil);
 }
 
-DEFUN ("line-end-position", Fline_end_position, Sline_end_position, 0, 1, 0,
-       doc: /* Return the character position of the last character on the current line.
+static ptrdiff_t
+eol (Lisp_Object n)
+{
+  ptrdiff_t count;
+
+  if (NILP (n))
+    count = 1;
+  else if (FIXNUMP (n))
+    count = clip_to_bounds (-BUF_BYTES_MAX, XFIXNUM (n), BUF_BYTES_MAX);
+  else
+    {
+      CHECK_INTEGER (n);
+      count = NILP (Fnatnump (n)) ? -BUF_BYTES_MAX : BUF_BYTES_MAX;
+    }
+  return find_before_next_newline (PT, 0, count - (count <= 0),
+				   NULL);
+}
+
+DEFUN ("pos-eol", Fpos_eol, Spos_eol, 0, 1, 0,
+       doc: /* Return the position of the last character on the current line.
 With argument N not nil or 1, move forward N - 1 lines first.
 If scan reaches end of buffer, return that position.
 
 This function ignores text display directionality; it returns the
 position of the last character in logical order, i.e. the largest
 character position on the line.
+
+This function does not move point.  Also see `line-end-position'.  */)
+  (Lisp_Object n)
+{
+  return make_fixnum (eol (n));
+}
+
+DEFUN ("line-end-position", Fline_end_position, Sline_end_position, 0, 1, 0,
+       doc: /* Return the position of the last character in the current line/field.
+With argument N not nil or 1, move forward N - 1 lines first.
+If scan reaches end of buffer, return that position.
+
+This function is like `pos-eol' (which see), but respects fields.
 
 This function constrains the returned position to the current field
 unless that would be on a different line from the original,
@@ -767,24 +790,8 @@ boundaries bind `inhibit-field-text-motion' to t.
 This function does not move point.  */)
   (Lisp_Object n)
 {
-  ptrdiff_t clipped_n;
-  ptrdiff_t end_pos;
-  ptrdiff_t orig = PT;
-
-  if (NILP (n))
-    clipped_n = 1;
-  else if (FIXNUMP (n))
-    clipped_n = clip_to_bounds (-BUF_BYTES_MAX, XFIXNUM (n), BUF_BYTES_MAX);
-  else
-    {
-      CHECK_INTEGER (n);
-      clipped_n = NILP (Fnatnump (n)) ? -BUF_BYTES_MAX : BUF_BYTES_MAX;
-    }
-  end_pos = find_before_next_newline (orig, 0, clipped_n - (clipped_n <= 0),
-				      NULL);
-
   /* Return END_POS constrained to the current input field.  */
-  return Fconstrain_to_field (make_fixnum (end_pos), make_fixnum (orig),
+  return Fconstrain_to_field (make_fixnum (eol (n)), make_fixnum (PT),
 			      Qnil, Qt, Qnil);
 }
 
@@ -797,7 +804,7 @@ save_excursion_save (union specbinding *pdl)
   pdl->unwind_excursion.marker = Fpoint_marker ();
   /* Selected window if current buffer is shown in it, nil otherwise.  */
   pdl->unwind_excursion.window
-    = (EQ (XWINDOW (selected_window)->contents, Fcurrent_buffer ())
+    = (BASE_EQ (XWINDOW (selected_window)->contents, Fcurrent_buffer ())
        ? selected_window : Qnil);
 }
 
@@ -821,7 +828,7 @@ save_excursion_restore (Lisp_Object marker, Lisp_Object window)
   /* If buffer was visible in a window, and a different window was
      selected, and the old selected window is still showing this
      buffer, restore point in that window.  */
-  if (WINDOWP (window) && !EQ (window, selected_window))
+  if (WINDOWP (window) && !BASE_EQ (window, selected_window))
     {
       /* Set window point if WINDOW is live and shows the current buffer.  */
       Lisp_Object contents = XWINDOW (window)->contents;
@@ -847,7 +854,7 @@ usage: (save-excursion &rest BODY)  */)
   (Lisp_Object args)
 {
   register Lisp_Object val;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
 
   record_unwind_protect_excursion ();
 
@@ -861,7 +868,7 @@ BODY is executed just like `progn'.
 usage: (save-current-buffer &rest BODY)  */)
   (Lisp_Object args)
 {
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
 
   record_unwind_current_buffer ();
   return unbind_to (count, Fprogn (args));
@@ -1172,8 +1179,7 @@ This ignores the environment variables LOGNAME and USER, so it differs from
 }
 
 DEFUN ("user-uid", Fuser_uid, Suser_uid, 0, 0, 0,
-       doc: /* Return the effective uid of Emacs.
-Value is a fixnum, if it's small enough, otherwise a bignum.  */)
+       doc: /* Return the effective uid of Emacs, as an integer.  */)
   (void)
 {
   uid_t euid = geteuid ();
@@ -1181,8 +1187,7 @@ Value is a fixnum, if it's small enough, otherwise a bignum.  */)
 }
 
 DEFUN ("user-real-uid", Fuser_real_uid, Suser_real_uid, 0, 0, 0,
-       doc: /* Return the real uid of Emacs.
-Value is a fixnum, if it's small enough, otherwise a bignum.  */)
+       doc: /* Return the real uid of Emacs, as an integer.  */)
   (void)
 {
   uid_t uid = getuid ();
@@ -1208,8 +1213,7 @@ Return nil if a group with such GID does not exists or is not known.  */)
 }
 
 DEFUN ("group-gid", Fgroup_gid, Sgroup_gid, 0, 0, 0,
-       doc: /* Return the effective gid of Emacs.
-Value is a fixnum, if it's small enough, otherwise a bignum.  */)
+       doc: /* Return the effective gid of Emacs, as an integer.  */)
   (void)
 {
   gid_t egid = getegid ();
@@ -1217,8 +1221,7 @@ Value is a fixnum, if it's small enough, otherwise a bignum.  */)
 }
 
 DEFUN ("group-real-gid", Fgroup_real_gid, Sgroup_real_gid, 0, 0, 0,
-       doc: /* Return the real gid of Emacs.
-Value is a fixnum, if it's small enough, otherwise a bignum.  */)
+       doc: /* Return the real gid of Emacs, as an integer.  */)
   (void)
 {
   gid_t gid = getgid ();
@@ -1306,8 +1309,7 @@ DEFUN ("system-name", Fsystem_name, Ssystem_name, 0, 0, 0,
 }
 
 DEFUN ("emacs-pid", Femacs_pid, Semacs_pid, 0, 0, 0,
-       doc: /* Return the process ID of Emacs, as a number.
-Value is a fixnum, if it's small enough, otherwise a bignum.  */)
+       doc: /* Return the process ID of Emacs, as an integer.  */)
   (void)
 {
   pid_t pid = getpid ();
@@ -2022,7 +2024,7 @@ nil.  */)
       return Qt;
     }
 
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
 
 
   ptrdiff_t diags = size_a + size_b + 3;
@@ -2247,7 +2249,7 @@ Both characters must have the same length of multi-byte form.  */)
   ptrdiff_t changed = 0;
   unsigned char fromstr[MAX_MULTIBYTE_LENGTH], tostr[MAX_MULTIBYTE_LENGTH];
   unsigned char *p;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
 #define COMBINING_NO	 0
 #define COMBINING_BEFORE 1
 #define COMBINING_AFTER  2
@@ -2394,6 +2396,14 @@ Both characters must have the same length of multi-byte form.  */)
 	      if (NILP (noundo))
 		record_change (pos, 1);
 	      for (i = 0; i < len; i++) *p++ = tostr[i];
+
+#ifdef HAVE_TREE_SITTER
+	      /* In the previous branch, replace_range() notifies
+                 changes to tree-sitter, but in this branch, we
+                 modified buffer content manually, so we need to
+                 notify tree-sitter manually.  */
+	      treesit_record_change (pos_byte, pos_byte + len, pos_byte + len);
+#endif
 	    }
 	  last_changed =  pos + 1;
 	}
@@ -2593,6 +2603,15 @@ It returns the number of characters changed.  */)
 		    *p++ = *str++;
 		  signal_after_change (pos, 1, 1);
 		  update_compositions (pos, pos + 1, CHECK_BORDER);
+
+#ifdef HAVE_TREE_SITTER
+		  /* In the previous branch, replace_range() notifies
+                     changes to tree-sitter, but in this branch, we
+                     modified buffer content manually, so we need to
+                     notify tree-sitter manually.  */
+		  treesit_record_change (pos_byte, pos_byte + len,
+					 pos_byte + len);
+#endif
 		}
 	      characters_changed++;
 	    }
@@ -2656,16 +2675,247 @@ DEFUN ("delete-and-extract-region", Fdelete_and_extract_region,
   return del_range_1 (XFIXNUM (start), XFIXNUM (end), 1, 1);
 }
 
+/* Alist of buffers in which labeled restrictions are used.  The car
+   of each list element is a buffer, the cdr is a list of triplets
+   (label begv-marker zv-marker).  The last triplet of that list
+   always uses the (uninterned) Qoutermost_restriction label, and
+   records the restriction bounds that were current when the first
+   labeled restriction was entered (which may be a narrowing that was
+   set by the user and is visible on display).  This alist is used
+   internally by narrow-to-region, internal--labeled-narrow-to-region,
+   widen, internal--unlabel-restriction and save-restriction.  For
+   efficiency reasons, an alist is used instead of a buffer-local
+   variable: otherwise reset_outermost_restrictions, which is called
+   during each redisplay cycle, would have to loop through all live
+   buffers.  */
+static Lisp_Object labeled_restrictions;
+
+/* Add BUF with its list of labeled RESTRICTIONS in the
+   labeled_restrictions alist.  */
+static void
+labeled_restrictions_add (Lisp_Object buf, Lisp_Object restrictions)
+{
+  labeled_restrictions = nconc2 (list1 (list2 (buf, restrictions)),
+				 labeled_restrictions);
+}
+
+/* Remove BUF and its list of labeled restrictions from the
+   labeled_restrictions alist.  Do nothing if BUF is not present in
+   labeled_restrictions.  */
+static void
+labeled_restrictions_remove (Lisp_Object buf)
+{
+  labeled_restrictions = Fdelq (Fassoc (buf, labeled_restrictions, Qnil),
+				labeled_restrictions);
+}
+
+/* Retrieve one of the labeled restriction bounds in BUF from the
+   labeled_restrictions alist, as a marker, or return nil if BUF is
+   not in labeled_restrictions or is a killed buffer.  When OUTERMOST
+   is true, the restriction bounds that were current when the first
+   labeled restriction was entered are returned.  Otherwise the bounds
+   of the innermost labeled restriction are returned.  */
+static Lisp_Object
+labeled_restrictions_get_bound (Lisp_Object buf, bool begv, bool outermost)
+{
+  if (NILP (Fbuffer_live_p (buf)))
+    return Qnil;
+  Lisp_Object restrictions = assq_no_quit (buf, labeled_restrictions);
+  if (NILP (restrictions))
+    return Qnil;
+  restrictions = XCAR (XCDR (restrictions));
+  Lisp_Object bounds
+    = outermost
+      ? XCDR (assq_no_quit (Qoutermost_restriction, restrictions))
+      : XCDR (XCAR (restrictions));
+  eassert (! NILP (bounds));
+  Lisp_Object marker = begv ? XCAR (bounds) : XCAR (XCDR (bounds));
+  eassert (EQ (Fmarker_buffer (marker), buf));
+  return marker;
+}
+
+/* Retrieve the label of the innermost labeled restriction in BUF.
+   Return nil if BUF is not in labeled_restrictions or is a killed
+   buffer.  */
+static Lisp_Object
+labeled_restrictions_peek_label (Lisp_Object buf)
+{
+  if (NILP (Fbuffer_live_p (buf)))
+    return Qnil;
+  Lisp_Object restrictions = assq_no_quit (buf, labeled_restrictions);
+  if (NILP (restrictions))
+    return Qnil;
+  Lisp_Object label = XCAR (XCAR (XCAR (XCDR (restrictions))));
+  eassert (! NILP (label));
+  return label;
+}
+
+/* Add a labeled RESTRICTION for BUF in the labeled_restrictions
+   alist.  */
+static void
+labeled_restrictions_push (Lisp_Object buf, Lisp_Object restriction)
+{
+  Lisp_Object restrictions = assq_no_quit (buf, labeled_restrictions);
+  if (NILP (restrictions))
+    labeled_restrictions_add (buf, list1 (restriction));
+  else
+    XSETCDR (restrictions, list1 (nconc2 (list1 (restriction),
+					  XCAR (XCDR (restrictions)))));
+}
+
+/* Remove the innermost labeled restriction in BUF from the
+   labeled_restrictions alist.  Do nothing if BUF is not present in
+   labeled_restrictions.  */
+static void
+labeled_restrictions_pop (Lisp_Object buf)
+{
+  Lisp_Object restrictions = assq_no_quit (buf, labeled_restrictions);
+  if (NILP (restrictions))
+    return;
+  if (EQ (labeled_restrictions_peek_label (buf), Qoutermost_restriction))
+    labeled_restrictions_remove (buf);
+  else
+    XSETCDR (restrictions, list1 (XCDR (XCAR (XCDR (restrictions)))));
+}
+
+/* Unconditionally remove all labeled restrictions in current_buffer.  */
+void
+labeled_restrictions_remove_in_current_buffer (void)
+{
+  labeled_restrictions_remove (Fcurrent_buffer ());
+}
+
+static void
+unwind_reset_outermost_restriction (Lisp_Object buf)
+{
+  Lisp_Object begv = labeled_restrictions_get_bound (buf, true, false);
+  Lisp_Object zv = labeled_restrictions_get_bound (buf, false, false);
+  if (! NILP (begv) && ! NILP (zv))
+    {
+      SET_BUF_BEGV_BOTH (XBUFFER (buf),
+			 marker_position (begv), marker_byte_position (begv));
+      SET_BUF_ZV_BOTH (XBUFFER (buf),
+		       marker_position (zv), marker_byte_position (zv));
+    }
+  else
+    labeled_restrictions_remove (buf);
+}
+
+/* Restore the restriction bounds that were current when the first
+   labeled restriction was entered, and restore the bounds of the
+   innermost labeled restriction upon return.
+   In particular, this function is called when redisplay starts, so
+   that if a Lisp function executed during redisplay calls (redisplay)
+   while labeled restrictions are in effect, these restrictions will
+   not become visible on display.
+   See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=57207#140 and
+   https://debbugs.gnu.org/cgi/bugreport.cgi?bug=57207#254 for example
+   recipes that demonstrate why this is necessary.  */
+void
+reset_outermost_restrictions (void)
+{
+  Lisp_Object val, buf;
+  for (val = labeled_restrictions; CONSP (val); val = XCDR (val))
+    {
+      buf = XCAR (XCAR (val));
+      eassert (BUFFERP (buf));
+      Lisp_Object begv = labeled_restrictions_get_bound (buf, true, true);
+      Lisp_Object zv = labeled_restrictions_get_bound (buf, false, true);
+      if (! NILP (begv) && ! NILP (zv))
+	{
+	  SET_BUF_BEGV_BOTH (XBUFFER (buf),
+			     marker_position (begv), marker_byte_position (begv));
+	  SET_BUF_ZV_BOTH (XBUFFER (buf),
+			   marker_position (zv), marker_byte_position (zv));
+	  record_unwind_protect (unwind_reset_outermost_restriction, buf);
+	}
+      else
+	labeled_restrictions_remove (buf);
+    }
+}
+
+/* Helper functions to save and restore the labeled restrictions of
+   the current buffer in Fsave_restriction.  */
+static Lisp_Object
+labeled_restrictions_save (void)
+{
+  Lisp_Object buf = Fcurrent_buffer ();
+  Lisp_Object restrictions = assq_no_quit (buf, labeled_restrictions);
+  if (! NILP (restrictions))
+    restrictions = XCAR (XCDR (restrictions));
+  return Fcons (buf, Fcopy_sequence (restrictions));
+}
+
+static void
+labeled_restrictions_restore (Lisp_Object buf_and_restrictions)
+{
+  Lisp_Object buf = XCAR (buf_and_restrictions);
+  Lisp_Object restrictions = XCDR (buf_and_restrictions);
+  labeled_restrictions_remove (buf);
+  if (! NILP (restrictions))
+    labeled_restrictions_add (buf, restrictions);
+}
+
+static void
+unwind_labeled_narrow_to_region (Lisp_Object label)
+{
+  Finternal__unlabel_restriction (label);
+  Fwiden ();
+}
+
+/* Narrow current_buffer to BEGV-ZV with a restriction labeled with
+   LABEL.  */
+void
+labeled_narrow_to_region (Lisp_Object begv, Lisp_Object zv,
+			  Lisp_Object label)
+{
+  Finternal__labeled_narrow_to_region (begv, zv, label);
+  record_unwind_protect (restore_point_unwind, Fpoint_marker ());
+  record_unwind_protect (unwind_labeled_narrow_to_region, label);
+}
+
 DEFUN ("widen", Fwiden, Swiden, 0, 0, "",
        doc: /* Remove restrictions (narrowing) from current buffer.
-This allows the buffer's full text to be seen and edited.  */)
+
+This allows the buffer's full text to be seen and edited.
+
+However, when restrictions have been set by `with-restriction' with a
+label, `widen' restores the narrowing limits set by `with-restriction'.
+To gain access to other portions of the buffer, use
+`without-restriction' with the same label.  */)
   (void)
 {
-  if (BEG != BEGV || Z != ZV)
-    current_buffer->clip_changed = 1;
-  BEGV = BEG;
-  BEGV_BYTE = BEG_BYTE;
-  SET_BUF_ZV_BOTH (current_buffer, Z, Z_BYTE);
+  Lisp_Object buf = Fcurrent_buffer ();
+  Lisp_Object label = labeled_restrictions_peek_label (buf);
+
+  if (NILP (label))
+    {
+      if (BEG != BEGV || Z != ZV)
+	current_buffer->clip_changed = 1;
+      BEGV = BEG;
+      BEGV_BYTE = BEG_BYTE;
+      SET_BUF_ZV_BOTH (current_buffer, Z, Z_BYTE);
+    }
+  else
+    {
+      Lisp_Object begv = labeled_restrictions_get_bound (buf, true, false);
+      Lisp_Object zv = labeled_restrictions_get_bound (buf, false, false);
+      eassert (! NILP (begv) && ! NILP (zv));
+      ptrdiff_t begv_charpos = marker_position (begv);
+      ptrdiff_t zv_charpos = marker_position (zv);
+      if (begv_charpos != BEGV || zv_charpos != ZV)
+	current_buffer->clip_changed = 1;
+      SET_BUF_BEGV_BOTH (current_buffer,
+			 begv_charpos, marker_byte_position (begv));
+      SET_BUF_ZV_BOTH (current_buffer,
+		       zv_charpos, marker_byte_position (zv));
+      /* If the only remaining bounds in labeled_restrictions for
+	 current_buffer are the bounds that were set by the user, no
+	 labeled restriction is in effect in current_buffer anymore:
+	 remove it from the labeled_restrictions alist.  */
+      if (EQ (label, Qoutermost_restriction))
+	labeled_restrictions_pop (buf);
+    }
   /* Changing the buffer bounds invalidates any recorded current column.  */
   invalidate_current_column ();
   return Qnil;
@@ -2680,7 +2930,14 @@ See also `save-restriction'.
 
 When calling from Lisp, pass two arguments START and END:
 positions (integers or markers) bounding the text that should
-remain visible.  */)
+remain visible.
+
+However, when restrictions have been set by `with-restriction' with a
+label, `narrow-to-region' can be used only within the limits of these
+restrictions.  If the START or END arguments are outside these limits,
+the corresponding limit set by `with-restriction' is used instead of the
+argument.  To gain access to other portions of the buffer, use
+`without-restriction' with the same label.  */)
   (Lisp_Object start, Lisp_Object end)
 {
   EMACS_INT s = fix_position (start), e = fix_position (end);
@@ -2693,11 +2950,28 @@ remain visible.  */)
   if (!(BEG <= s && s <= e && e <= Z))
     args_out_of_range (start, end);
 
+  Lisp_Object buf = Fcurrent_buffer ();
+  if (! NILP (labeled_restrictions_peek_label (buf)))
+    {
+      /* Limit the start and end positions to those of the innermost
+	 labeled restriction.  */
+      Lisp_Object begv = labeled_restrictions_get_bound (buf, true, false);
+      Lisp_Object zv = labeled_restrictions_get_bound (buf, false, false);
+      eassert (! NILP (begv) && ! NILP (zv));
+      ptrdiff_t begv_charpos = marker_position (begv);
+      ptrdiff_t zv_charpos = marker_position (zv);
+      if (s < begv_charpos) s = begv_charpos;
+      if (s > zv_charpos) s = zv_charpos;
+      if (e < begv_charpos) e = begv_charpos;
+      if (e > zv_charpos) e = zv_charpos;
+    }
+
   if (BEGV != s || ZV != e)
     current_buffer->clip_changed = 1;
 
   SET_BUF_BEGV (current_buffer, s);
   SET_BUF_ZV (current_buffer, e);
+
   if (PT < s)
     SET_PT (s);
   if (e < PT)
@@ -2707,8 +2981,41 @@ remain visible.  */)
   return Qnil;
 }
 
-Lisp_Object
-save_restriction_save (void)
+DEFUN ("internal--labeled-narrow-to-region", Finternal__labeled_narrow_to_region,
+       Sinternal__labeled_narrow_to_region, 3, 3, 0,
+       doc: /* Restrict editing in this buffer to START-END, and label the restriction with LABEL.
+
+This is an internal function used by `with-restriction'.  */)
+  (Lisp_Object start, Lisp_Object end, Lisp_Object label)
+{
+  Lisp_Object buf = Fcurrent_buffer ();
+  Lisp_Object outermost_restriction = list3 (Qoutermost_restriction,
+					     Fpoint_min_marker (),
+					     Fpoint_max_marker ());
+  Fnarrow_to_region (start, end);
+  if (NILP (labeled_restrictions_peek_label (buf)))
+    labeled_restrictions_push (buf, outermost_restriction);
+  labeled_restrictions_push (buf, list3 (label,
+					 Fpoint_min_marker (),
+					 Fpoint_max_marker ()));
+  return Qnil;
+}
+
+DEFUN ("internal--unlabel-restriction", Finternal__unlabel_restriction,
+       Sinternal__unlabel_restriction, 1, 1, 0,
+       doc: /* If the current restriction is labeled with LABEL, remove its label.
+
+This is an internal function used by `without-restriction'.  */)
+  (Lisp_Object label)
+{
+  Lisp_Object buf = Fcurrent_buffer ();
+  if (EQ (labeled_restrictions_peek_label (buf), label))
+    labeled_restrictions_pop (buf);
+  return Qnil;
+}
+
+static Lisp_Object
+save_restriction_save_1 (void)
 {
   if (BEGV == BEG && ZV == Z)
     /* The common case that the buffer isn't narrowed.
@@ -2731,8 +3038,8 @@ save_restriction_save (void)
     }
 }
 
-void
-save_restriction_restore (Lisp_Object data)
+static void
+save_restriction_restore_1 (Lisp_Object data)
 {
   struct buffer *cur = NULL;
   struct buffer *buf = (CONSP (data)
@@ -2800,15 +3107,31 @@ save_restriction_restore (Lisp_Object data)
     set_buffer_internal (cur);
 }
 
+Lisp_Object
+save_restriction_save (void)
+{
+  Lisp_Object restriction = save_restriction_save_1 ();
+  Lisp_Object labeled_restrictions = labeled_restrictions_save ();
+  return Fcons (restriction, labeled_restrictions);
+}
+
+void
+save_restriction_restore (Lisp_Object data)
+{
+  labeled_restrictions_restore (XCDR (data));
+  save_restriction_restore_1 (XCAR (data));
+}
+
 DEFUN ("save-restriction", Fsave_restriction, Ssave_restriction, 0, UNEVALLED, 0,
        doc: /* Execute BODY, saving and restoring current buffer's restrictions.
 The buffer's restrictions make parts of the beginning and end invisible.
 \(They are set up with `narrow-to-region' and eliminated with `widen'.)
-This special form, `save-restriction', saves the current buffer's restrictions
-when it is entered, and restores them when it is exited.
+This special form, `save-restriction', saves the current buffer's
+restrictions, including those that were set by `with-restriction' with a
+label argument, when it is entered, and restores them when it is exited.
 So any `narrow-to-region' within BODY lasts only until the end of the form.
-The old restrictions settings are restored
-even in case of abnormal exit (throw or error).
+The old restrictions settings are restored even in case of abnormal exit
+\(throw or error).
 
 The value returned is the value of the last form in BODY.
 
@@ -2820,7 +3143,7 @@ usage: (save-restriction &rest BODY)  */)
   (Lisp_Object body)
 {
   register Lisp_Object val;
-  ptrdiff_t count = SPECPDL_INDEX ();
+  specpdl_ref count = SPECPDL_INDEX ();
 
   record_unwind_protect (save_restriction_restore, save_restriction_save ());
   val = Fprogn (body);
@@ -2843,7 +3166,7 @@ otherwise MSGID-PLURAL.  */)
   CHECK_INTEGER (n);
 
   /* Placeholder implementation until we get our act together.  */
-  return EQ (n, make_fixnum (1)) ? msgid : msgid_plural;
+  return BASE_EQ (n, make_fixnum (1)) ? msgid : msgid_plural;
 }
 
 DEFUN ("message", Fmessage, Smessage, 1, MANY, 0,
@@ -2999,18 +3322,18 @@ The other arguments are substituted into it to make the result, a string.
 The format control string may contain %-sequences meaning to substitute
 the next available argument, or the argument explicitly specified:
 
-%s means print a string argument.  Actually, prints any object, with `princ'.
-%d means print as signed number in decimal.
-%o means print a number in octal.
-%x means print a number in hex.
+%s means produce a string argument.  Actually, produces any object with `princ'.
+%d means produce as signed number in decimal.
+%o means produce a number in octal.
+%x means produce a number in hex.
 %X is like %x, but uses upper case.
-%e means print a number in exponential notation.
-%f means print a number in decimal-point notation.
-%g means print a number in exponential notation if the exponent would be
+%e means produce a number in exponential notation.
+%f means produce a number in decimal-point notation.
+%g means produce a number in exponential notation if the exponent would be
    less than -4 or greater than or equal to the precision (default: 6);
-   otherwise it prints in decimal-point notation.
-%c means print a number as a single character.
-%S means print any object as an s-expression (using `prin1').
+   otherwise it produces in decimal-point notation.
+%c means produce a number as a single character.
+%S means produce any object as an s-expression (using `prin1').
 
 The argument used for %d, %o, %x, %e, %f, %g or %c must be a number.
 %o, %x, and %X treat arguments as unsigned if `binary-as-unsigned' is t
@@ -3045,7 +3368,7 @@ included even if the precision is zero, and also forces trailing
 zeros after the decimal point to be left in place.
 
 The width specifier supplies a lower limit for the length of the
-printed representation.  The padding, if any, normally goes on the
+produced representation.  The padding, if any, normally goes on the
 left, but it goes on the right if the - flag is present.  The padding
 character is normally a space, but it is 0 if the 0 flag is present.
 The 0 flag is ignored if the - flag is present, or the format sequence
@@ -3054,7 +3377,7 @@ is something other than %d, %o, %x, %e, %f, and %g.
 For %e and %f sequences, the number after the "." in the precision
 specifier says how many decimal places to show; if zero, the decimal
 point itself is omitted.  For %g, the precision specifies how many
-significant digits to print; zero or omitted are treated as 1.
+significant digits to produce; zero or omitted are treated as 1.
 For %s and %S, the precision specifier truncates the string to the
 given width.
 
@@ -3112,7 +3435,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
   ptrdiff_t bufsize = sizeof initial_buffer;
   ptrdiff_t max_bufsize = STRING_BYTES_BOUND + 1;
   char *p;
-  ptrdiff_t buf_save_value_index UNINIT;
+  specpdl_ref buf_save_value_index UNINIT;
   char *format, *end;
   ptrdiff_t nchars;
   /* When we make a multibyte string, we must pay attention to the
@@ -3327,7 +3650,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	      if (EQ (arg, args[n]))
 		{
 		  Lisp_Object noescape = conversion == 'S' ? Qnil : Qt;
-		  spec->argument = arg = Fprin1_to_string (arg, noescape);
+		  spec->argument = arg = Fprin1_to_string (arg, noescape, Qnil);
 		  if (STRING_MULTIBYTE (arg) && ! multibyte)
 		    {
 		      multibyte = true;
@@ -3467,10 +3790,15 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		      || float_conversion || conversion == 'i'
 		      || conversion == 'o' || conversion == 'x'
 		      || conversion == 'X'))
-	    error ("Invalid format operation %%%c",
-		   multibyte_format
-		   ? STRING_CHAR ((unsigned char *) format - 1)
-		   : *((unsigned char *) format - 1));
+	    {
+	      unsigned char *p = (unsigned char *) format - 1;
+	      if (multibyte_format)
+		error ("Invalid format operation %%%c", STRING_CHAR (p));
+	      else
+		error (*p <= 127 ? "Invalid format operation %%%c"
+		                 : "Invalid format operation char #o%03o",
+		       *p);
+	    }
 	  else if (! (FIXNUMP (arg) || ((BIGNUMP (arg) || FLOATP (arg))
 					&& conversion != 'c')))
 	    error ("Format specifier doesn't match argument type");
@@ -4437,7 +4765,6 @@ ring.  */)
       transpose_markers (start1, end1, start2, end2,
 			 start1_byte, start1_byte + len1_byte,
 			 start2_byte, start2_byte + len2_byte);
-      fix_start_end_in_overlays (start1, end2);
     }
   else
     {
@@ -4447,6 +4774,13 @@ ring.  */)
 	 make some original byte positions of the markers invalid.  */
       adjust_markers_bytepos (start1, start1_byte, end2, end2_byte, 0);
     }
+
+#ifdef HAVE_TREE_SITTER
+  /* I don't think it's common to transpose two far-apart regions, so
+     amalgamating the edit into one should be fine.  This is what the
+     signal_after_change below does, too.  */
+  treesit_record_change (start1_byte, end2_byte, end2_byte);
+#endif
 
   signal_after_change (start1, end2 - start1, end2 - start1);
   return Qnil;
@@ -4459,6 +4793,8 @@ syms_of_editfns (void)
   DEFSYM (Qbuffer_access_fontify_functions, "buffer-access-fontify-functions");
   DEFSYM (Qwall, "wall");
   DEFSYM (Qpropertize, "propertize");
+
+  staticpro (&labeled_restrictions);
 
   DEFVAR_LISP ("inhibit-field-text-motion", Vinhibit_field_text_motion,
 	       doc: /* Non-nil means text motion commands don't notice fields.  */);
@@ -4519,6 +4855,9 @@ This variable is experimental; email 32252@debbugs.gnu.org if you need
 it to be non-nil.  */);
   binary_as_unsigned = false;
 
+  DEFSYM (Qoutermost_restriction, "outermost-restriction");
+  Funintern (Qoutermost_restriction, Qnil);
+
   defsubr (&Spropertize);
   defsubr (&Schar_equal);
   defsubr (&Sgoto_char);
@@ -4551,6 +4890,8 @@ it to be non-nil.  */);
 
   defsubr (&Sline_beginning_position);
   defsubr (&Sline_end_position);
+  defsubr (&Spos_bol);
+  defsubr (&Spos_eol);
 
   defsubr (&Ssave_excursion);
   defsubr (&Ssave_current_buffer);
@@ -4608,6 +4949,8 @@ it to be non-nil.  */);
   defsubr (&Sdelete_and_extract_region);
   defsubr (&Swiden);
   defsubr (&Snarrow_to_region);
+  defsubr (&Sinternal__labeled_narrow_to_region);
+  defsubr (&Sinternal__unlabel_restriction);
   defsubr (&Ssave_restriction);
   defsubr (&Stranspose_regions);
 }

@@ -1,6 +1,6 @@
 ;;; gud.el --- Grand Unified Debugger mode for running GDB and other debuggers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-1996, 1998, 2000-2022 Free Software Foundation,
+;; Copyright (C) 1992-1996, 1998, 2000-2023 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
@@ -54,8 +54,8 @@
 (declare-function gdb-tooltip-print-1 "gdb-mi" (expr))
 (declare-function gud-pp "gdb-mi" (arg))
 (declare-function gdb-var-delete "gdb-mi" ())
-(declare-function speedbar-toggle-line-expansion "gud" ())
-(declare-function speedbar-edit-line "gud" ())
+(declare-function speedbar-toggle-line-expansion "speedbar" ())
+(declare-function speedbar-edit-line "speedbar" ())
 ;; FIXME: The declares below are necessary because we don't call `gud-def'
 ;; at toplevel, so the compiler doesn't know under which circumstances
 ;; they're defined.
@@ -90,8 +90,10 @@ pdb (Python), and jdb."
   "Prefix of all GUD commands valid in C buffers."
   :type 'key-sequence)
 
-(global-set-key (vconcat gud-key-prefix "\C-l") #'gud-refresh)
-;; (define-key ctl-x-map " " 'gud-break); backward compatibility hack
+(defvar-keymap gud-global-map
+  "C-l" #'gud-refresh)
+
+(global-set-key gud-key-prefix gud-global-map)
 
 (defvar gud-marker-filter nil)
 (put 'gud-marker-filter 'permanent-local t)
@@ -295,6 +297,9 @@ Used to gray out relevant toolbar icons.")
   (make-sparse-keymap)
   "`gud-mode' keymap.")
 
+(setf (alist-get 'gud-minor-mode minor-mode-map-alist)
+      gud-minor-mode-map)
+
 (defvar gud-tool-bar-map
   (let ((map (make-sparse-keymap)))
     (dolist (x '((gud-break . "gud/break")
@@ -332,7 +337,7 @@ Used to gray out relevant toolbar icons.")
                                     (">" . gud-down)))
       (define-key map key cmd))
     map)
-  "Keymap to repeat `gud-gdb' stepping instructions `C-x C-a C-n n n'.
+  "Keymap to repeat `gud-gdb' stepping instructions \\`C-x C-a C-n n n'.
 Used in `repeat-mode'.")
 
 (defun gud-set-repeat-map-property (keymap-symbol)
@@ -433,7 +438,7 @@ we're in the GUD buffer)."
 	    ;; Unused lexical warning if cmd does not use "arg".
 	    cmd))))
      ,(if key `(local-set-key ,(concat "\C-c" key) #',func))
-     ,(if key `(global-set-key (vconcat gud-key-prefix ,key) #',func))))
+     ,(if key `(define-key gud-global-map ,key #',func))))
 
 ;; Where gud-display-frame should put the debugging arrow; a cons of
 ;; (filename . line-number).  This is set by the marker-filter, which scans
@@ -742,10 +747,10 @@ The option \"--fullname\" must be included in this value."
 
     output))
 
-(easy-mmode-defmap gud-minibuffer-local-map
-  '(("\C-i" . comint-dynamic-complete-filename))
-  "Keymap for minibuffer prompting of gud startup command."
-  :inherit minibuffer-local-map)
+(defvar-keymap gud-minibuffer-local-map
+  :doc "Keymap for minibuffer prompting of gud startup command."
+  :parent minibuffer-local-map
+  "C-i" #'comint-dynamic-complete-filename)
 
 (defun gud-query-cmdline (minor-mode &optional init)
   (let* ((hist-sym (gud-symbol 'history nil minor-mode))
@@ -757,13 +762,18 @@ The option \"--fullname\" must be included in this value."
 	 (concat (or cmd-name (symbol-name minor-mode))
 		 " "
 		 (or init
-		     (let ((file nil))
-		       (dolist (f (directory-files default-directory) file)
-			 (if (and (file-executable-p f)
-				  (not (file-directory-p f))
-				  (or (not file)
-				      (file-newer-than-file-p f file)))
-			     (setq file f)))))))
+		     (let ((file nil)
+                           (files (directory-files default-directory)))
+                       ;; On remote systems, this may be slow, so avoid it.
+                       (when (or (not (file-remote-p default-directory))
+                                 (length< files 50))
+		         (dolist (f files)
+			   (if (and (file-executable-p f)
+				    (not (file-directory-p f))
+				    (or (not file)
+				        (file-newer-than-file-p f file)))
+			       (setq file f)))
+                            file)))))
      gud-minibuffer-local-map nil
      hist-sym)))
 
@@ -792,7 +802,12 @@ It should return a list of completion strings.")
 If COMMAND-LINE names a program FILE to debug, gdb will run in
 a buffer named *gud-FILE*, and the directory containing FILE
 becomes the initial working directory and source-file directory
-for your debugger.
+for your debugger.  If you don't want `default-directory' to
+change to the directory of FILE, specify FILE without leading
+directories, in which case FILE should reside either in the
+directory of the buffer from which this command is invoked, or
+it can be found by searching PATH.
+
 If COMMAND-LINE requests that gdb attaches to a process PID, gdb
 will run in *gud-PID*, otherwise it will run in *gud*; in these
 cases the initial working directory is the `default-directory' of
@@ -867,7 +882,8 @@ the buffer in which this command was invoked."
 COMMAND is the prefix for which we seek completion.
 CONTEXT is the text before COMMAND on the line."
   (let* ((complete-list
-	  (gud-gdb-run-command-fetch-lines (concat "complete " context command)
+	  (gud-gdb-run-command-fetch-lines (concat "server complete "
+                                                   context command)
 					   (current-buffer)
 					   ;; From string-match above.
 					   (length context))))
@@ -1046,7 +1062,7 @@ SKIP is the number of chars to skip on each line, it defaults to 0."
                                     ("l" . gud-refresh)))
       (define-key map key cmd))
     map)
-  "Keymap to repeat `sdb' stepping instructions `C-x C-a C-n n n'.
+  "Keymap to repeat `sdb' stepping instructions \\`C-x C-a C-n n n'.
 Used in `repeat-mode'.")
 
 (defun gud-sdb-marker-filter (string)
@@ -1293,7 +1309,7 @@ whereby $stopformat=1 produces an output format compatible with
               gud-irix-p)
       (define-key map "f" 'gud-finish))
     map)
-  "Keymap to repeat `dbx' stepping instructions `C-x C-a C-n n n'.
+  "Keymap to repeat `dbx' stepping instructions \\`C-x C-a C-n n n'.
 Used in `repeat-mode'.")
 
 ;; The process filter is also somewhat
@@ -1468,7 +1484,7 @@ and source-file directory for your debugger."
                                     (">" . gud-down)))
       (define-key map key cmd))
     map)
-  "Keymap to repeat `xdb' stepping instructions `C-x C-a C-n n n'.
+  "Keymap to repeat `xdb' stepping instructions \\`C-x C-a C-n n n'.
 Used in `repeat-mode'.")
 
 (defcustom gud-xdb-directories nil
@@ -1556,7 +1572,7 @@ directories if your program contains sources from more than one directory."
                                     ("l" . gud-refresh)))
       (define-key map key cmd))
     map)
-  "Keymap to repeat `perldb' stepping instructions `C-x C-a C-n n n'.
+  "Keymap to repeat `perldb' stepping instructions \\`C-x C-a C-n n n'.
 Used in `repeat-mode'.")
 
 (defun gud-perldb-massage-args (_file args)
@@ -1569,16 +1585,17 @@ into one that invokes an Emacs-enabled debugging session.
 	 (seen-e nil)
 	 (shift (lambda () (push (pop args) new-args))))
 
-    ;; Pass all switches and -e scripts through.
+    ;; Pass all switches and -E/-e scripts through.
     (while (and args
 		(string-match "^-" (car args))
 		(not (equal "-" (car args)))
 		(not (equal "--" (car args))))
-      (when (equal "-e" (car args))
+      (when (or (equal "-E" (car args)) (equal "-e" (car args)))
 	;; -e goes with the next arg, so shift one extra.
-	(or (funcall shift)
-	    ;; -e as the last arg is an error in Perl.
-	    (error "No code specified for -e"))
+	(funcall shift)
+	(or args
+	    ;; -E (or -e) as the last arg is an error in Perl.
+	    (error "No code specified for %s" (car new-args)))
 	(setq seen-e t))
       (funcall shift))
 
@@ -1689,7 +1706,7 @@ The directory containing the perl program becomes the initial
 working directory and source-file directory for your debugger."
   (interactive
    (list (gud-query-cmdline 'perldb
-			    (concat (or (buffer-file-name) "-e 0") " "))))
+			    (concat (or (buffer-file-name) "-E 0") " "))))
 
   (gud-common-init command-line 'gud-perldb-massage-args
 		   'gud-perldb-marker-filter)
@@ -1746,7 +1763,7 @@ working directory and source-file directory for your debugger."
                                     (">" . gud-down)))
       (define-key map key cmd))
     map)
-  "Keymap to repeat `pdb' stepping instructions `C-x C-a C-n n n'.
+  "Keymap to repeat `pdb' stepping instructions \\`C-x C-a C-n n n'.
 Used in `repeat-mode'.")
 
 ;; There's no guarantee that Emacs will hand the filter the entire
@@ -1863,7 +1880,7 @@ directory and source-file directory for your debugger."
                                     (">" . gud-down)))
       (define-key map key cmd))
     map)
-  "Keymap to repeat `guiler' stepping instructions `C-x C-a C-n n n'.
+  "Keymap to repeat `guiler' stepping instructions \\`C-x C-a C-n n n'.
 Used in `repeat-mode'.")
 
 (defun gud-guiler-marker-filter (string)
@@ -2390,7 +2407,7 @@ extension EXTN.  Normally EXTN is given as the regular expression
                                     ("l" . gud-refresh)))
       (define-key map key cmd))
     map)
-  "Keymap to repeat `jdb' stepping instructions `C-x C-a C-n n n'.
+  "Keymap to repeat `jdb' stepping instructions \\`C-x C-a C-n n n'.
 Used in `repeat-mode'.")
 
 (defun gud-jdb-find-source-using-classpath (p)
@@ -2452,7 +2469,7 @@ during jdb initialization depending on the value of
   ;;  not supported/followed)
   (if (and gud-jdb-use-classpath
 	   (not gud-jdb-classpath-string)
-	   (or (string-match "classpath:[ \t[]+\\([^]]+\\)" gud-marker-acc)
+	   (or (string-match "classpath:[ \t[]+\\([^]]*\\)" gud-marker-acc)
 	       (string-match "-classpath[ \t\"]+\\([^ \"]+\\)" gud-marker-acc)))
       (setq gud-jdb-classpath
 	    (gud-jdb-parse-classpath-string
@@ -3539,8 +3556,8 @@ Treats actions as defuns."
               #'gdb-script-end-of-defun)
   (setq-local font-lock-defaults
               '(gdb-script-font-lock-keywords nil nil ((?_ . "w")) nil
-                (font-lock-syntactic-face-function
-                 . gdb-script-font-lock-syntactic-face)))
+                                              (font-lock-syntactic-face-function
+                                               . gdb-script-font-lock-syntactic-face)))
   ;; Recognize docstrings.
   (setq-local syntax-propertize-function
               gdb-script-syntax-propertize-function)
@@ -3591,8 +3608,9 @@ Treats actions as defuns."
 	(kill-local-variable 'gdb-define-alist)
 	(remove-hook 'after-save-hook #'gdb-create-define-alist t))))
 
-(defcustom gud-tooltip-modes '(gud-mode c-mode c++-mode fortran-mode
-					python-mode)
+(defcustom gud-tooltip-modes '( gud-mode c-mode c++-mode fortran-mode
+				python-mode c-ts-mode c++-ts-mode
+                                python-ts-mode)
   "List of modes for which to enable GUD tooltips."
   :type '(repeat (symbol :tag "Major mode"))
   :group 'tooltip)
@@ -3686,7 +3704,6 @@ With arg, dereference expr if ARG is positive, otherwise do not dereference."
   (message "Dereferencing is now %s."
 	   (if gud-tooltip-dereference "on" "off")))
 
-(defvar tooltip-use-echo-area)
 (declare-function tooltip-show "tooltip" (text &optional use-echo-area))
 (declare-function tooltip-strip-prompt "tooltip" (process output))
 
@@ -3700,8 +3717,7 @@ With arg, dereference expr if ARG is positive, otherwise do not dereference."
   "Process debugger output and show it in a tooltip window."
   (remove-function (process-filter process) #'gud-tooltip-process-output)
   (tooltip-show (tooltip-strip-prompt process output)
-		(or gud-tooltip-echo-area tooltip-use-echo-area
-                    (not tooltip-mode))))
+                (or gud-tooltip-echo-area (not tooltip-mode))))
 
 (defun gud-tooltip-print-command (expr)
   "Return a suitable command to print the expression EXPR."
@@ -3745,8 +3761,7 @@ This function must return nil if it doesn't handle EVENT."
 		    (unless (null define-elt)
 		      (tooltip-show
 		       (cdr define-elt)
-		       (or gud-tooltip-echo-area tooltip-use-echo-area
-                           (not tooltip-mode)))
+                       (or gud-tooltip-echo-area (not tooltip-mode)))
 		      expr))))
 	    (when gud-tooltip-dereference
 	      (setq expr (concat "*" expr)))

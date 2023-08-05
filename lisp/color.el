@@ -1,6 +1,6 @@
 ;;; color.el --- Color manipulation library -*- lexical-binding:t -*-
 
-;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
 
 ;; Authors: Julien Danjou <julien@danjou.info>
 ;;          Drew Adams <drew.adams@oracle.com>
@@ -407,7 +407,7 @@ See `color-desaturate-hsl'."
 Given a color defined in terms of hue, saturation, and luminance
 \(arguments H, S, and L), return a color that is PERCENT lighter.
 Returns a list (HUE SATURATION LUMINANCE)."
-  (list H S (color-clamp (+ L (/ percent 100.0)))))
+  (list H S (color-clamp (+ L (* L (/ percent 100.0))))))
 
 (defun color-lighten-name (name percent)
   "Make a color with a specified NAME lighter by PERCENT.

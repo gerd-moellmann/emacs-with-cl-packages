@@ -1,5 +1,6 @@
 ;;; misc-lang.el --- support for miscellaneous languages (characters)  -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -73,10 +74,11 @@ and Italian.")))
 	    (coding-priority utf-8 iso-8859-6 windows-1256)
 	    (input-method . "farsi-transliterate-banan")
 	    (sample-text . "Persian	فارسی")
-	    (documentation . "Bidirectional editing is supported.")))
+	    (documentation . "Bidirectional editing is supported.")
+            (tutorial . "TUTORIAL.fa")))
 
 (defcustom arabic-shaper-ZWNJ-handling nil
-  "How to handle ZWMJ in Arabic text rendering.
+  "How to handle ZWNJ (Zero-width Non-Joiner) in Arabic text rendering.
 This variable controls the way to handle a glyph for ZWNJ
 returned by the underling shaping engine.
 
@@ -136,10 +138,13 @@ thin (i.e. 1-dot width) space."
 (set-char-table-range
  composition-function-table
  '(#x600 . #x74F)
- (list (vector "[\u200C\u200D][\u0600-\u074F\u200C\u200D]+"
-               1 #'arabic-shape-gstring)
-       (vector "[\u0600-\u074F\u200C\u200D]+"
+ (list (vector "[\u0600-\u074F\u200C\u200D]+"
                0 #'arabic-shape-gstring)))
+(set-char-table-range
+ composition-function-table
+ '(#x200C . #x200D)
+  (list (vector "[\u200C\u200D][\u0600-\u074F\u200C\u200D]+"
+                0 #'arabic-shape-gstring)))
 
 ;; The Egyptian Hieroglyph Format Controls were introduced in Unicode
 ;; Standard v12.0.  Apparently, they are not yet well supported in
@@ -211,6 +216,153 @@ thin (i.e. 1-dot width) space."
    '(#x13000 . #x1342E)
    (list (vector "[\U00013000-\U0001342E]+"
                  0 #'font-shape-gstring))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Hanifi Rohingya
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(set-language-info-alist
+ "Hanifi Rohingya" '((charset unicode)
+                     (coding-system utf-8)
+                     (coding-priority utf-8)
+                     (input-method . "hanifi-rohingya")
+                     (sample-text . "Hanifi Rohingya (𐴌𐴟𐴇𐴥𐴝𐴚𐴒𐴙𐴝 𐴇𐴝𐴕𐴞𐴉𐴞 𐴓𐴠𐴑𐴤𐴝)	𐴀𐴝𐴏𐴓𐴝𐴀𐴡𐴤𐴛𐴝𐴓𐴝𐴙𐴑𐴟𐴔")
+                     (documentation . "\
+Rohingya language and its script Hanifi Rohingya are supported
+in this language environment."))
+ '("Misc"))
+
+;; Hanifi Rohingya composition rules
+(set-char-table-range
+ composition-function-table
+ '(#x10D1D . #x10D27)
+ (list (vector
+        "[\x10D00-\x10D27]+"
+        1 'font-shape-gstring)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Kharoṣṭhī
+;; Author: Stefan Baums <baums@gandhari.org>
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(set-language-info-alist
+ "Kharoshthi" '((charset unicode)
+	        (coding-system utf-8)
+	        (coding-priority utf-8)
+	        (input-method . "kharoshthi")
+                (sample-text . "Kharoṣṭhī (𐨑𐨪𐨆𐨛𐨁)	𐨣𐨨𐨲𐨪𐨆 𐨐𐨪𐨅𐨨𐨁")
+	        (documentation . "\
+Language environment for Gāndhārī, Sanskrit, and other languages
+using the Kharoṣṭhī script."))
+ '("Indian"))
+
+(let ((consonant     "[\U00010A00\U00010A10-\U00010A35]")
+      (vowel         "[\U00010A01-\U00010A06]")
+      (virama        "\U00010A3F")
+      (modifier      "[\U00010A0C-\U00010A0F\U00010A38-\U00010A3A]"))
+  (set-char-table-range composition-function-table
+		        '(#x10A3F . #x10A3F)
+                        (list
+                         (vector
+                          (concat consonant
+                                  "\\(?:" virama consonant "\\)*"
+                                  modifier "*"
+                                  virama "?"
+                                  vowel "*"
+                                  modifier "*")
+                          1 'font-shape-gstring))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Adlam
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(set-language-info-alist
+ "Adlam" '((charset unicode)
+           (coding-system utf-8)
+           (coding-priority utf-8)
+           (input-method . "adlam")
+           (sample-text . "Adlam (𞤀𞤣𞤤𞤢𞤥)	𞤅𞤢𞤤𞤢𞥄𞤥")
+           (documentation . "\
+Fulani language and its script Adlam are supported
+in this language environment."))
+ '("Misc"))
+
+;; Adlam composition rules
+(set-char-table-range
+ composition-function-table
+ '(#x1E900 . #x1E95F)
+ (list (vector
+        "[\x1E900-\x1E95F]+"
+        0 'font-shape-gstring)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Mende Kikakui
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(set-language-info-alist
+ "Mende Kikakui" '((charset unicode)
+                   (coding-system utf-8)
+                   (coding-priority utf-8)
+                   (input-method . "mende-kikakui")
+                   (sample-text . "Mende Kikakui (𞠀𞠁𞠂)	𞠛𞠉")
+                   (documentation . "\
+Mende language and its script Kikakui are supported
+in this language environment."))
+ '("Misc"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Gothic
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(set-language-info-alist
+ "Gothic" '((charset unicode)
+            (coding-system utf-8)
+            (coding-priority utf-8)
+            (input-method . "gothic")
+            (sample-text . "Gothic (𐌲𐌿𐍄𐌹𐍃𐌺𐌰)	𐌷𐌰𐌹𐌻𐍃 / 𐌷𐌰𐌹𐌻𐌰")
+            (documentation . "\
+Ancient Gothic language using the Gothic script is supported in this
+language environment."))
+ '("Misc"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Coptic
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(set-language-info-alist
+ "Coptic" '((charset unicode)
+            (coding-system utf-8)
+            (coding-priority utf-8)
+            (input-method . "coptic")
+            (sample-text . "Coptic (ⲘⲉⲧⲢⲉⲙ̀ⲛⲭⲏⲙⲓ)	Ⲛⲟⲩϥⲣⲓ")
+            (documentation . "\
+Coptic language using the Coptic script is supported in this
+language environment."))
+ '("Misc"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Traditional Mongolian
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; The Mongolian-cyrillic language environment is in cyrillic.el.
+(set-language-info-alist
+ "Mongolian-traditional" '((coding-system utf-8)
+	                   (coding-priority utf-8)
+	                   ; (input-method . "FIXME")
+		           (sample-text . "Mongolian Traditional (ᠮᠣᠩᠭᠣᠯ ᠪᠢᠴᠢᠭ᠋)	ᠰᠠᠶᠢᠨ ᠪᠠᠶᠢᠨ᠎ᠠ ᠤᠤ?")
+	                   (documentation
+		            . "Support for Mongolian language with traditional script."))
+ '("Misc"))
+
+;; Composition rules for Mongolian Traditional script.
+(set-char-table-range
+ composition-function-table
+ '(#x1820 . #x18AF)
+ (list (vector "[\u200C\u200D][\u1820-\u18AF][\u200C\u200D]?"
+               1 'font-shape-gstring)
+       (vector "[\u1820-\u18AF][\u200C\u200D]" 0 'font-shape-gstring)
+       (vector "[\u1820-\u18AF\u202F\u180B-\u180F\u1807]+"
+               0 'font-shape-gstring)))
 
 (provide 'misc-lang)
 

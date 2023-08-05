@@ -1,6 +1,6 @@
 ;;; calc-units.el --- unit conversion functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2023 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -317,7 +317,9 @@ If you change this, be sure to set `math-units-table' to nil to ensure
 that the combined units table will be rebuilt.")
 
 (defvar math-unit-prefixes
-  '( ( ?Y  (^ 10 24)  "Yotta"  )
+  '( ( ?Q  (^ 10 30)  "quetta"  )
+     ( ?R  (^ 10 27)  "ronna"  )
+     ( ?Y  (^ 10 24)  "Yotta"  )
      ( ?Z  (^ 10 21)  "Zetta"  )
      ( ?E  (^ 10 18)  "Exa"    )
      ( ?P  (^ 10 15)  "Peta"   )
@@ -340,7 +342,10 @@ that the combined units table will be rebuilt.")
      ( ?f  (^ 10 -15) "Femto"  )
      ( ?a  (^ 10 -18) "Atto"   )
      ( ?z  (^ 10 -21) "zepto"  )
-     ( ?y  (^ 10 -24) "yocto"  )))
+     ( ?y  (^ 10 -24) "yocto"  )
+     ( ?r  (^ 10 -27) "ronto"  )
+     ( ?q  (^ 10 -30) "quecto"  )
+     ))
 
 (defvar math-standard-units-systems
   '( ( base  nil )
@@ -486,18 +491,13 @@ If COMP or STD is non-nil, put that in the units table instead."
      (setq defunits (math-get-default-units expr))
      (unless new-units
        (setq new-units
-             (read-string (concat
+             (read-string (format-prompt
                            (if (and uoldname (not nouold))
                                (concat "Old units: "
                                        uoldname
                                        ", new units")
                              "New units")
-                           (if defunits
-                               (concat
-                                " (default "
-                                defunits
-                                "): ")
-                             ": "))))
+                           defunits)))
        (if (and
             (string= new-units "")
             defunits)
@@ -533,14 +533,7 @@ If COMP or STD is non-nil, put that in the units table instead."
      (let* ((old-units (math-extract-units expr))
             (defunits (math-get-default-units expr))
             units
-            (new-units
-             (read-string (concat "New units"
-                                  (if defunits
-                                     (concat
-                                      " (default "
-                                      defunits
-                                      "): ")
-                                   ": ")))))
+            (new-units (read-string (format-prompt "New units" defunits))))
        (if (and
             (string= new-units "")
             defunits)
@@ -596,19 +589,14 @@ If COMP or STD is non-nil, put that in the units table instead."
 	 (setq expr (math-mul expr uold)))
      (setq defunits (math-get-default-units expr))
      (setq unew (or new-units
-                    (completing-read
-                     (concat
-                      (if uoldname
-                          (concat "Old temperature units: "
-                                  uoldname
-                                  ", new units")
-                        "New temperature units")
-                      (if defunits
-                          (concat " (default "
-                                  defunits
-                                  "): ")
-                        ": "))
-                     tempunits)))
+                    (completing-read (format-prompt
+                                      (if uoldname
+                                          (concat "Old temperature units: "
+                                                  uoldname
+                                                  ", new units")
+                                        "New temperature units")
+                                      defunits)
+                                     tempunits)))
      (setq unew (math-read-expr (if (string= unew "") defunits unew)))
      (when (eq (car-safe unew) 'error)
        (error "Bad format in units expression: %s" (nth 2 unew)))

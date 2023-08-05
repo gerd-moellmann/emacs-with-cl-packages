@@ -122,13 +122,14 @@ mac_end_scale_mismatch_detection (struct frame *f)
 
 static void
 mac_erase_rectangle (struct frame *f, GC gc, int x, int y,
-		     int width, int height)
+		     int width, int height, bool respect_alpha_background)
 {
   CGRect rect = CGRectMake (x, y, width, height);
 
   MAC_BEGIN_DRAW_TO_FRAME (f, gc, rect, context);
   {
-    CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, rect, gc);
+    CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, rect, gc,
+					     respect_alpha_background);
     if (gc->xgcv.fill_style == FillOpaqueStippled && gc->xgcv.stipple)
       {
 	CGContextClipToRects (context, &rect, 1);
@@ -154,7 +155,8 @@ mac_erase_rectangle (struct frame *f, GC gc, int x, int y,
 void
 mac_clear_area (struct frame *f, int x, int y, int width, int height)
 {
-  mac_erase_rectangle (f, f->output_data.mac->normal_gc, x, y, width, height);
+  mac_erase_rectangle (f, f->output_data.mac->normal_gc, x, y, width, height,
+		       true);
 }
 
 /* Mac version of XClearWindow.  */
@@ -191,7 +193,7 @@ mac_draw_cg_image (struct frame *f, GC gc,
 			   CGImageGetWidth (image) / 2,
 			   CGImageGetHeight (image) / 2);
     if (!(flags & MAC_DRAW_CG_IMAGE_OVERLAY))
-      CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, dest_rect, gc);
+      CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, dest_rect, gc, true);
     CGContextClipToRects (context, &dest_rect, 1);
     if (transform)
       {
@@ -344,7 +346,7 @@ mac_erase_corners_for_relief (struct frame *f, GC gc, int x, int y,
 			   i * M_PI_2, (i + 1) * M_PI_2, 0);
 	}
     CGContextClip (context);
-    CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, rect, gc);
+    CG_CONTEXT_FILL_RECT_WITH_GC_BACKGROUND (f, context, rect, gc, true);
   }
   MAC_END_DRAW_TO_FRAME (f);
 }
@@ -829,12 +831,10 @@ mac_clear_under_internal_border (struct frame *f)
 	    : INTERNAL_BORDER_FACE_ID));
       GC gc = mac_gc_for_face_id (f, face_id, f->output_data.mac->normal_gc);
 
-      block_input ();
-      mac_erase_rectangle (f, gc, 0, 0, border, height);
-      mac_erase_rectangle (f, gc, 0, margin, width, border);
-      mac_erase_rectangle (f, gc, width - border, 0, border, height);
-      mac_erase_rectangle (f, gc, 0, height - border, width, border);
-      unblock_input ();
+      mac_erase_rectangle (f, gc, 0, 0, border, height, true);
+      mac_erase_rectangle (f, gc, 0, margin, width, border, true);
+      mac_erase_rectangle (f, gc, width - border, 0, border, height, true);
+      mac_erase_rectangle (f, gc, 0, height - border, width, border, true);
     }
 }
 
@@ -882,9 +882,9 @@ mac_after_update_window_line (struct window *w, struct glyph_row *desired_row)
 	GC gc = mac_gc_for_face_id (f, face_id, f->output_data.mac->normal_gc);
 
 	block_input ();
-	mac_erase_rectangle (f, gc, 0, y, width, height);
+	mac_erase_rectangle (f, gc, 0, y, width, height, true);
 	mac_erase_rectangle (f, gc, FRAME_PIXEL_WIDTH (f) - width, y,
-			     width, height);
+			     width, height, true);
 	unblock_input ();
       }
   }
@@ -907,9 +907,12 @@ mac_draw_fringe_bitmap (struct window *w, struct glyph_row *row, struct draw_fri
 	 mono-displays, the fill style may have been changed to
 	 FillSolid in x_draw_glyph_string_background.  */
       if (face->stipple)
-	mac_set_fill_style (face->gc, FillOpaqueStippled);
+	{
+	  mac_set_fill_style (face->gc, FillOpaqueStippled);
+	  row->stipple_p = true;
+	}
 
-      mac_erase_rectangle (f, face->gc, p->bx, p->by, p->nx, p->ny);
+      mac_erase_rectangle (f, face->gc, p->bx, p->by, p->nx, p->ny, true);
       /* The fringe background has already been filled.  */
       overlay_p = 1;
     }
@@ -1063,22 +1066,6 @@ mac_set_cursor_gc (struct glyph_string *s)
 static void
 mac_set_mouse_face_gc (struct glyph_string *s)
 {
-  int face_id;
-  struct face *face;
-
-  /* What face has to be used last for the mouse face?  */
-  face_id = MOUSE_HL_INFO (s->f)->mouse_face_face_id;
-  face = FACE_FROM_ID_OR_NULL (s->f, face_id);
-  if (face == NULL)
-    face = FACE_FROM_ID (s->f, MOUSE_FACE_ID);
-
-  if (s->first_glyph->type == CHAR_GLYPH)
-    face_id = FACE_FOR_CHAR (s->f, face, s->first_glyph->u.ch, -1, Qnil);
-  else
-    face_id = FACE_FOR_CHAR (s->f, face, 0, -1, Qnil);
-  s->face = FACE_FROM_ID (s->f, face_id);
-  prepare_face_for_display (s->f, s->face);
-
   if (s->font == s->face->font)
     s->gc = s->face->gc;
   else
@@ -1231,7 +1218,7 @@ mac_compute_glyph_string_overhangs (struct glyph_string *s)
 static void
 mac_clear_glyph_string_rect (struct glyph_string *s, int x, int y, int w, int h)
 {
-  mac_erase_rectangle (s->f, s->gc, x, y, w, h);
+  mac_erase_rectangle (s->f, s->gc, x, y, w, h, s->hl != DRAW_CURSOR);
 }
 
 
@@ -1256,7 +1243,8 @@ mac_draw_glyph_string_background (struct glyph_string *s, bool force_p)
 	  mac_set_fill_style (s->gc, FillOpaqueStippled);
 	  mac_erase_rectangle (s->f, s->gc, s->x, s->y + box_line_width,
 			       s->background_width,
-			       s->height - 2 * box_line_width);
+			       s->height - 2 * box_line_width,
+			       s->hl != DRAW_CURSOR);
 	  mac_set_fill_style (s->gc, FillSolid);
 	  s->background_filled_p = true;
 	}
@@ -1460,6 +1448,8 @@ mac_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
 		   ? CHAR_TABLE_REF (Vglyphless_char_display,
 				     glyph->u.glyphless.ch)
 		   : XCHAR_TABLE (Vglyphless_char_display)->extras[0]);
+	      if (CONSP (acronym))
+		acronym = XCAR (acronym);
 	      if (STRINGP (acronym))
 		str = SSDATA (acronym);
 	    }
@@ -1494,6 +1484,10 @@ mac_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
 			    glyph->ascent + glyph->descent - 1);
       x += glyph->pixel_width;
    }
+
+  /* Defend against hypothetical bad code elsewhere that uses
+     s->char2b after this function returns.  */
+  s->char2b = NULL;
 }
 
 
@@ -1572,7 +1566,7 @@ mac_alloc_lighter_color (struct frame *f, unsigned long *color, double factor,
        that scaling by FACTOR alone isn't enough.  */
     {
       /* How far below the limit this color is (0 - 1, 1 being darker).  */
-      double dimness = 1 - (double)bright / HIGHLIGHT_COLOR_DARK_BOOST_LIMIT;
+      double dimness = 1 - (double) bright / HIGHLIGHT_COLOR_DARK_BOOST_LIMIT;
       /* The additive adjustment.  */
       int min_delta = delta * dimness * factor / 2;
 
@@ -1687,10 +1681,9 @@ mac_setup_relief_colors (struct glyph_string *s)
    when drawing.  */
 
 static void
-mac_draw_relief_rect (struct frame *f,
-		      int left_x, int top_y, int right_x, int bottom_y,
-		      int hwidth, int vwidth, bool raised_p, bool top_p, bool bot_p,
-		      bool left_p, bool right_p,
+mac_draw_relief_rect (struct frame *f, int left_x, int top_y, int right_x,
+		      int bottom_y, int hwidth, int vwidth, bool raised_p,
+		      bool top_p, bool bot_p, bool left_p, bool right_p,
 		      NativeRectangle *clip_rect)
 {
   GC top_left_gc, bottom_right_gc;
@@ -2040,7 +2033,7 @@ mac_draw_glyph_string_bg_rect (struct glyph_string *s, int x, int y, int w, int 
     {
       /* Fill background with a stipple pattern.  */
       mac_set_fill_style (s->gc, FillOpaqueStippled);
-      mac_erase_rectangle (s->f, s->gc, x, y, w, h);
+      mac_erase_rectangle (s->f, s->gc, x, y, w, h, true);
       mac_set_fill_style (s->gc, FillSolid);
     }
   else
@@ -2086,6 +2079,9 @@ mac_draw_image_glyph_string (struct glyph_string *s)
       || s->img->pixmap == 0
       || s->width != s->background_width)
     {
+      if (s->stippled_p)
+	s->row->stipple_p = true;
+
       int x = s->x;
       int y = s->y;
       int width = s->background_width;
@@ -2186,11 +2182,13 @@ mac_draw_stretch_glyph_string (struct glyph_string *s)
 	    {
 	      /* Fill background with a stipple pattern.  */
 	      mac_set_fill_style (gc, FillOpaqueStippled);
-	      mac_erase_rectangle (s->f, gc, x, y, w, h);
+	      mac_erase_rectangle (s->f, gc, x, y, w, h, true);
 	      mac_set_fill_style (gc, FillSolid);
+
+	      s->row->stipple_p = true;
 	    }
 	  else
-	    mac_erase_rectangle (s->f, gc, x, y, w, h);
+	    mac_erase_rectangle (s->f, gc, x, y, w, h, true);
 
 	  mac_reset_clip_rectangles (s->f, gc);
 	}
@@ -2208,8 +2206,13 @@ mac_draw_stretch_glyph_string (struct glyph_string *s)
 	  background_width -= text_left_x - x;
 	  x = text_left_x;
 	}
+
+      if (!s->row->stipple_p)
+	s->row->stipple_p = s->stippled_p;
+
       if (background_width > 0)
-	mac_draw_glyph_string_bg_rect (s, x, s->y, background_width, s->height);
+	mac_draw_glyph_string_bg_rect (s, x, s->y,
+				       background_width, s->height);
     }
 
   s->background_filled_p = true;
@@ -2227,12 +2230,12 @@ mac_draw_stretch_glyph_string (struct glyph_string *s)
 */
 
 static void
-mac_draw_underwave (struct glyph_string *s)
+mac_draw_underwave (struct glyph_string *s, int decoration_width)
 {
   int wave_height = 3, wave_length = 2;
 
   mac_draw_horizontal_wave (s->f, s->gc, s->x, s->ybase - wave_height + 3,
-			    s->width, wave_height, wave_length);
+			    decoration_width, wave_height, wave_length);
 }
 
 
@@ -2339,19 +2342,38 @@ mac_draw_glyph_string (struct glyph_string *s)
 
   if (!s->for_overlaps)
     {
+      int area_x, area_y, area_width, area_height;
+      int area_max_x, decoration_width;
+
+      /* Prevent the underline from overwriting surrounding areas
+	 and the fringe.  */
+      window_box (s->w, s->area, &area_x, &area_y,
+		  &area_width, &area_height);
+      area_max_x = area_x + area_width - 1;
+
+      decoration_width = s->width;
+      if (!s->row->mode_line_p
+	  && !s->row->tab_line_p
+	  && area_max_x < (s->x + decoration_width - 1))
+	decoration_width -= (s->x + decoration_width - 1) - area_max_x;
+
+      /* Draw relief if not yet drawn.  */
+      if (!relief_drawn_p && s->face->box != FACE_NO_BOX)
+	mac_draw_glyph_string_box (s);
+
       /* Draw underline.  */
       if (s->face->underline)
 	{
 	  if (s->face->underline == FACE_UNDER_WAVE)
 	    {
 	      if (s->face->underline_defaulted_p)
-		mac_draw_underwave (s);
+		mac_draw_underwave (s, decoration_width);
 	      else
 		{
 		  XGCValues xgcv;
 		  mac_get_gc_values (s->gc, GCForeground, &xgcv);
 		  mac_set_foreground (s->gc, s->face->underline_color);
-		  mac_draw_underwave (s);
+		  mac_draw_underwave (s, decoration_width);
 		  mac_set_foreground (s->gc, xgcv.foreground);
 		}
 	    }
@@ -2360,8 +2382,12 @@ mac_draw_glyph_string (struct glyph_string *s)
 	      unsigned long thickness, position;
 	      int y;
 
-	      if (s->prev
-		  && s->prev->face->underline == FACE_UNDER_LINE)
+              if (s->prev
+		  && s->prev->face->underline == FACE_UNDER_LINE
+		  && (s->prev->face->underline_at_descent_line_p
+		      == s->face->underline_at_descent_line_p)
+		  && (s->prev->face->underline_pixels_above_descent_line
+		      == s->face->underline_pixels_above_descent_line))
 		{
 		  /* We use the same underline style as the previous one.  */
 		  thickness = s->prev->underline_thickness;
@@ -2385,12 +2411,13 @@ mac_draw_glyph_string (struct glyph_string *s)
 		  val = (WINDOW_BUFFER_LOCAL_VALUE
 			 (Qx_underline_at_descent_line, s->w));
 		  underline_at_descent_line
-		    = !(NILP (val) || EQ (val, Qunbound));
+		    = (!(NILP (val) || BASE_EQ (val, Qunbound))
+		       || s->face->underline_at_descent_line_p);
 
 		  val = (WINDOW_BUFFER_LOCAL_VALUE
 			 (Qx_use_underline_position_properties, s->w));
 		  use_underline_position_properties
-		    = !(NILP (val) || EQ (val, Qunbound));
+		    = !(NILP (val) || BASE_EQ (val, Qunbound));
 
 		  /* Get the underline thickness.  Default is 1 pixel.  */
                   if (font && font->underline_thickness > 0)
@@ -2398,7 +2425,9 @@ mac_draw_glyph_string (struct glyph_string *s)
 		  else
 		    thickness = 1;
 		  if (underline_at_descent_line)
-		    position = (s->height - thickness) - (s->ybase - s->y);
+		    position = ((s->height - thickness)
+				- (s->ybase - s->y)
+				- s->face->underline_pixels_above_descent_line);
 		  else
 		    {
                       /* Get the underline position.  This is the
@@ -2418,7 +2447,11 @@ mac_draw_glyph_string (struct glyph_string *s)
 		      else
 			position = minimum_offset;
 		    }
-		  position = max (position, minimum_offset);
+
+		  /* Ignore minimum_offset if the amount of pixels was
+		     explicitly specified.  */
+		  if (!s->face->underline_pixels_above_descent_line)
+		    position = max (position, minimum_offset);
 		}
 	      /* Check the sanity of thickness and position.  We should
 		 avoid drawing underline out of the current line area.  */
@@ -2448,13 +2481,15 @@ mac_draw_glyph_string (struct glyph_string *s)
 	  unsigned long dy = 0, h = 1;
 
 	  if (s->face->overline_color_defaulted_p)
-	    mac_fill_rectangle (s->f, s->gc, s->x, s->y + dy, s->width, h);
+	    mac_fill_rectangle (s->f, s->gc, s->x, s->y + dy,
+				decoration_width, h);
 	  else
 	    {
 	      XGCValues xgcv;
 	      mac_get_gc_values (s->gc, GCForeground, &xgcv);
 	      mac_set_foreground (s->gc, s->face->overline_color);
-	      mac_fill_rectangle (s->f, s->gc, s->x, s->y + dy, s->width, h);
+	      mac_fill_rectangle (s->f, s->gc, s->x, s->y + dy,
+				  decoration_width, h);
 	      mac_set_foreground (s->gc, xgcv.foreground);
 	    }
 	}
@@ -2481,14 +2516,11 @@ mac_draw_glyph_string (struct glyph_string *s)
 	      XGCValues xgcv;
 	      mac_get_gc_values (s->gc, GCForeground, &xgcv);
 	      mac_set_foreground (s->gc, s->face->strike_through_color);
-	      mac_fill_rectangle (s->f, s->gc, s->x, glyph_y + dy, s->width, h);
+	      mac_fill_rectangle (s->f, s->gc, s->x, glyph_y + dy,
+				  decoration_width, h);
 	      mac_set_foreground (s->gc, xgcv.foreground);
 	    }
 	}
-
-      /* Draw relief if not yet drawn.  */
-      if (!relief_drawn_p && s->face->box != FACE_NO_BOX)
-	mac_draw_glyph_string_box (s);
 
       if (s->prev)
 	{
@@ -2545,6 +2577,14 @@ mac_draw_glyph_string (struct glyph_string *s)
   /* Reset clipping.  */
   mac_reset_clip_rectangles (s->f, s->gc);
   s->num_clips = 0;
+
+  /* Set the stippled flag that tells redisplay whether or not a
+     stipple was actually draw.  */
+
+  if (s->first_glyph->type != STRETCH_GLYPH
+      && s->first_glyph->type != IMAGE_GLYPH
+      && !s->row->stipple_p)
+    s->row->stipple_p = s->stippled_p;
 }
 
 /* Shift display to make room for inserted glyphs.   */
@@ -2939,6 +2979,7 @@ mac_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
 {
   struct frame *f1;
   struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (*fp);
+  bool return_no_frame_flag = false;
 
   block_input ();
 
@@ -2949,21 +2990,27 @@ mac_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
     if (FRAME_MAC_P (XFRAME (frame)))
       XFRAME (frame)->mouse_moved = false;
 
-  if (gui_mouse_grabbed (dpyinfo) && !EQ (track_mouse, Qdropping))
+  if (gui_mouse_grabbed (dpyinfo) && !EQ (track_mouse, Qdropping)
+      && !EQ (track_mouse, Qdrag_source))
     /* If mouse was grabbed on a frame, give coords for that frame
        even if the mouse is now outside it.  */
     f1 = dpyinfo->last_mouse_frame;
   else
     {
-      f1 = mac_get_frame_at_mouse ();
+      f1 = mac_get_frame_at_mouse (EQ (track_mouse, Qdrag_source)
+				   || EQ (track_mouse, Qdropping));
       if ((!f1 || FRAME_TOOLTIP_P (f1))
-	  && EQ (track_mouse, Qdropping)
+	  && (EQ (track_mouse, Qdropping)
+	      || EQ (track_mouse, Qdrag_source))
 	  && gui_mouse_grabbed (dpyinfo))
-	/* When dropping then if we didn't get a frame or only a
-	   tooltip frame and the mouse was grabbed on a frame, give
-	   coords for that frame even if the mouse is now outside
-	   it.  */
-	f1 = dpyinfo->last_mouse_frame;
+	{
+	  /* When dropping then if we didn't get a frame or only a
+	     tooltip frame and the mouse was grabbed on a frame,
+	     give coords for that frame even if the mouse is now
+	     outside it.  */
+	  f1 = dpyinfo->last_mouse_frame;
+	  return_no_frame_flag = EQ (track_mouse, Qdrag_source);
+	}
       else if (f1 && FRAME_TOOLTIP_P (f1))
 	f1 = NULL;
 
@@ -2988,7 +3035,7 @@ mac_mouse_position (struct frame **fp, int insist, Lisp_Object *bar_window,
 
       *bar_window = Qnil;
       *part = 0;
-      *fp = f1;
+      *fp = return_no_frame_flag ? NULL : f1;
       XSETINT (*x, mouse_pos.x);
       XSETINT (*y, mouse_pos.y);
       *timestamp = dpyinfo->last_mouse_movement_time;
@@ -4196,7 +4243,10 @@ mac_handle_visibility_change (struct frame *f)
       }
 
   SET_FRAME_VISIBLE (f, visible);
-  SET_FRAME_ICONIFIED (f, iconified);
+  /* Avoid unnecessary gui_consider_frame_title in
+     SET_FRAME_ICONIFIED.  */
+  if (f->iconified != iconified)
+    SET_FRAME_ICONIFIED (f, iconified);
 }
 
 /* This tries to wait until the frame is really visible.
@@ -4617,7 +4667,7 @@ mac_modifier_map_lookup (Lisp_Object modifier_map, Lisp_Object kind)
     return modifier_map;
   else
     {
-      Lisp_Object value = Fplist_get (modifier_map, kind);
+      Lisp_Object value = plist_get (modifier_map, kind);
 
       return SYMBOLP (value) ? value : Qnil;
     }
@@ -4626,7 +4676,7 @@ mac_modifier_map_lookup (Lisp_Object modifier_map, Lisp_Object kind)
 static bool
 mac_modifier_map_button (Lisp_Object modifier_map, ptrdiff_t *code)
 {
-  Lisp_Object value = Fplist_get (modifier_map, QCbutton);
+  Lisp_Object value = plist_get (modifier_map, QCbutton);
   ptrdiff_t c = *code;
 
   while (CONSP (value) && c > 0)

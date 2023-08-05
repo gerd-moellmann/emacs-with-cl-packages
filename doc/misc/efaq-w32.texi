@@ -15,7 +15,7 @@ Answers to Frequently asked Questions about using Emacs on Microsoft Windows.
 @include emacsver.texi
 
 @copying
-Copyright @copyright{} 2008, 2010--2022 Free Software Foundation, Inc.
+Copyright @copyright{} 2008, 2010--2023 Free Software Foundation, Inc.
 
 @quotation
 This list of frequently asked questions about GNU Emacs on MS Windows
@@ -457,12 +457,12 @@ to your init file:
 @node Using with Explorer
 @subsection For use with Internet Explorer
 @cindex Internet Explorer, view source in Emacs
-@cindex mailto urls, associating with Emacs
-@cindex news urls, associating with Emacs
+@cindex mailto URLs, associating with Emacs
+@cindex news URLs, associating with Emacs
 @cindex URLs, associating mail and news URLs with Emacs
 
 You can use Emacs as the editor for composing mail for
-@indicateurl{mailto:} links, reading usenet for @indicateurl{news:}
+@indicateurl{mailto:} links, reading Usenet for @indicateurl{news:}
 links, and viewing source.  The following registry entries control
 this:
 
@@ -691,9 +691,9 @@ question also.
 @node CUA
 @subsection Standard Windows key bindings
 @findex cua-mode
-@cindex CUA keybindings
+@cindex CUA key bindings
 @cindex shift key, selecting with
-@cindex standard Windows keybindings
+@cindex standard Windows key bindings
 @cindex paste with C-v
 @cindex cut with C-x
 @cindex copy with C-c
@@ -701,7 +701,7 @@ question also.
 @cindex C-x to cut
 @cindex C-v to paste
 
-The keybindings of Emacs predate modern GUIs, and the keys that were
+The key bindings of Emacs predate modern GUIs, and the keys that were
 chosen by later GUIs for cut and copy were given important functions
 as extended keymaps in Emacs.  CUA mode attempts to let both bindings
 co-exist by defining C-x and C-c as @code{kill-region} and
@@ -930,9 +930,9 @@ an indication of whether the font is outline (.TTF, .ATM) or raster (.FON)
 based when fonts are listed, which may let you differentiate between two
 fonts with the same name and different technologies.
 
-Starting with Emacs 23, the preferred font name format will be moving
-to the simpler and more flexible fontconfig format.  XLFD names will
-continue to be supported for backward compatibility.
+Starting with Emacs 23, the preferred font name format is the simpler
+and more flexible fontconfig format.  XLFD names will continue to be
+supported for backward compatibility.
 
 @example
 XLFD: -*-Courier New-normal-r-*-*-13-*-*-*-c-*-iso8859-1
@@ -1744,7 +1744,7 @@ date now, so no concrete pointers are available.
 
 You will need an implementation of TeX for Windows.
 A number of implementations are listed on the
-@uref{http://www.tug.org/interest.html#free, TeX Users Group} website.
+@uref{https://www.tug.org/interest.html#free, TeX Users Group} website.
 
 @node Spell check
 @section How do I perform spell checks?
@@ -1899,7 +1899,7 @@ Christopher Payne wrote a Visual Studio add-in that makes Emacs the
 default text editor, this has now been taken over by Jeff Paquette.
 See the following two URLs for details:
 @itemize
-@item @uref{http://sourceforge.net/projects/visemacs/} for the latest version.
+@item @uref{https://sourceforge.net/projects/visemacs/} for the latest version.
 @item @uref{http://www.smathers.net/VisEmacs.htm} for notes on usage.
 @end itemize
 
@@ -2039,7 +2039,7 @@ this option is set. (I don't see it on VC++ 4.0.)
 @cindex Borland C++, integration with Emacs
 
 Jonathan Arnold has written an
-@uref{http://www.buddydog.org/C++Builder/c++builder.html, EmacsEdit
+@uref{https://www.buddydog.org/C++Builder/c++builder.html, EmacsEdit
 ``expert''} for interfacing C++ Builder and Emacs.
 
 @node Version control
@@ -2194,7 +2194,7 @@ to port software to Windows.
 @cindex image libraries, gnuwin32
 @cindex image libraries, development
 
-@uref{http://gnuwin32.sourceforge.net/}
+@uref{https://gnuwin32.sourceforge.net/}
 
 GnuWin32 provides precompiled native Windows ports of a wide selection
 of Free software and libraries.  Unfortunately, the ports are

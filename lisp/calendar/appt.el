@@ -1,6 +1,6 @@
 ;;; appt.el --- appointment notification functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1989-1990, 1994, 1998, 2001-2022 Free Software
+;; Copyright (C) 1989-1990, 1994, 1998, 2001-2023 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Neil Mager <neilm@juliet.ll.mit.edu>
@@ -510,9 +510,13 @@ The time should be in either 24 hour format or am/pm format.
 Optional argument WARNTIME is an integer (or string) giving the number
 of minutes before the appointment at which to start warning.
 The default is `appt-message-warning-time'."
-  (interactive "sTime (hh:mm[am/pm]): \nsMessage: \n\
-sMinutes before the appointment to start warning: ")
-  (unless (string-match appt-time-regexp time)
+  (interactive (list (let ((time (read-string "Time (hh:mm[am/pm]): ")))
+                       (unless (string-match-p appt-time-regexp time)
+                         (user-error "Unacceptable time-string"))
+                       time)
+                     (read-string "Message: ")
+                     (read-string "Minutes before the appointment to start warning: ")))
+  (unless (string-match-p appt-time-regexp time)
     (user-error "Unacceptable time-string"))
   (and (stringp warntime)
        (setq warntime (unless (string-equal warntime "")

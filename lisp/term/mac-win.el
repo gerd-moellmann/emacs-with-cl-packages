@@ -70,7 +70,6 @@
 ;; ../startup.el.
 
 (eval-when-compile (require 'cl-lib))
-(eval-when-compile (require 'subr-x))
 
 ;; (if (not (eq window-system 'mac))
 ;;     (error "%s: Loading mac-win.el but not compiled for Mac" invocation-name))
@@ -653,12 +652,16 @@ language."
        "Apple CFPasteboard find")	; NSFindPboard
   (put 'PRIMARY 'mac-pasteboard-name
        (format "GNU Emacs CFPasteboard primary %d" (emacs-pid)))
+  (put 'XdndSelection 'mac-pasteboard-name
+       (format "GNU Emacs CFPasteboard XdndSelection %d" (emacs-pid)))
   (put 'NSStringPboardType 'mac-pasteboard-data-type "NSStringPboardType")
   (put 'NSTIFFPboardType 'mac-pasteboard-data-type
        "NeXT TIFF v4.0 pasteboard type")
   (put 'NSFilenamesPboardType 'mac-pasteboard-data-type
        "NSFilenamesPboardType")
-  (put 'NSPasteboardTypePDF 'mac-pasteboard-data-type "com.adobe.pdf"))
+  (put 'NSPasteboardTypePDF 'mac-pasteboard-data-type "com.adobe.pdf")
+  (put 'STRING 'mac-pasteboard-dnd-target-class "NSString")
+  (put 'FILE_NAME 'mac-pasteboard-dnd-target-class "NSURL"))
 
 (defun mac-select-convert-to-string (selection type value)
   (let ((str (xselect-convert-to-string selection nil value))
@@ -680,13 +683,17 @@ language."
 	(cons type str)))))
 
 (defun mac-select-convert-to-pasteboard-filenames (selection type value)
+  (setq value (or (and (stringp value) (get-text-property 0 'FILE_NAME value))
+                  value))
   (if-let ((filename (cdr (xselect-convert-to-filename selection type value))))
-      (let ((coding (or file-name-coding-system
-                        default-file-name-coding-system)))
-        (cons type
-              (mac-convert-property-list
-               `(array . [(string . ,(decode-coding-string filename coding))])
-               'xml1)))))
+      (let* ((coding (or file-name-coding-system
+                         default-file-name-coding-system))
+             (filenames (vconcat (mapcar
+                                  (lambda (filename) `(string . ,filename))
+                                  (split-string
+                                   (decode-coding-string filename coding)
+                                   "\0" t)))))
+        (cons type (mac-convert-property-list `(array . ,filenames) 'xml1)))))
 
 (setq selection-converter-alist
       (nconc
@@ -1295,9 +1302,6 @@ or the Mac port of Emacs 23-24.4 about encoding of SCRIPT."
 ;;; Text Services
 (declare-function mac-select-input-source "macfns.c"
 		  (source &optional set-keyboard-layout-override-p))
-
-(setq mac-ts-active-input-overlay (make-overlay 1 1))
-(overlay-put mac-ts-active-input-overlay 'display "")
 
 (defvar mac-ts-active-input-string ""
   "String of text in Mac TSM active input area.")
@@ -1964,6 +1968,12 @@ reference URLs of the form \"file:///.file/id=...\"."
 (defun mac-dnd-insert-pasteboard-string (window action data)
   (dnd-insert-text window action (mac-pasteboard-string-to-string data)))
 
+(defun mac-handle-drag-motion (frame x y)
+  "Handle mouse movement on FRAME at X and Y during drag-and-drop.
+This moves point to the current mouse position if
+ `dnd-indicate-insertion-point' is enabled."
+  (dnd-handle-movement (posn-at-x-y x y frame)))
+
 (defun mac-dnd-drop-data (event frame window data type &optional action)
   (or action (setq action 'private))
   (let* ((type-info (assoc type mac-dnd-types-alist))
@@ -2596,6 +2606,33 @@ tapped window."
   :type 'integer
   :group 'mac)
 
+(defvar mac-pinch-last-scale 0.0
+  "Last scale value used for simulating pinch events.")
+
+(defun mac-simulate-pinch-event (event)
+  "Convert EVENT to a pinch event and unread it."
+  (interactive "e")
+  (when-let ((phase (plist-get (nth 3 event) :phase)))
+    (let ((magnification (plist-get (nth 3 event) :magnification))
+          (modifiers (event-modifiers event))
+          (type-strings '("pinch"))
+          arg)
+      (if (eq phase 'began)
+          (setq mac-pinch-last-scale (+ 1.0 magnification)
+                arg (list 0.0 0.0 mac-pinch-last-scale 0.0))
+        (setq mac-pinch-last-scale (+ mac-pinch-last-scale magnification)
+              arg (list 0.01 0.0 mac-pinch-last-scale 0.0)))
+      (dolist (modifier-mnemonic '((super . "s") (shift . "S") (meta . "M")
+                                   (hyper . "H") (control . "C") (alt . "A")))
+        (if (memq (car modifier-mnemonic) modifiers)
+            (push (cdr modifier-mnemonic) type-strings)))
+      (push `(,(intern (mapconcat #'identity type-strings "-"))
+              ,(event-start event) ,@arg)
+            unread-command-events))))
+
+;;(global-set-key [magnify-up] 'mac-simulate-pinch-event)
+;;(global-set-key [magnify-down] ''mac-simulate-pinch-event)
+
 (defun mac-scroll-point-to-y (target-point target-y)
   ;; Without this, pos-visible-in-window-p after text-scale-increase
   ;; may return an outdated value.
@@ -2733,21 +2770,6 @@ pinch close gesture, then remap this command to
 (global-set-key [rotate-right] 'ignore)
 (global-set-key [S-rotate-left] 'ignore)
 (global-set-key [S-rotate-right] 'ignore)
-(dolist (prefix (list 'left-margin 'right-margin 'left-fringe 'right-fringe
-                      'vertical-scroll-bar 'horizontal-scroll-bar
-                      'mode-line 'header-line))
-  (global-set-key (vector prefix 'magnify-up)
-                  'mac-magnify-text-scale-or-overview-tab-group)
-  (global-set-key (vector prefix 'magnify-down)
-                  'mac-magnify-text-scale-or-overview-tab-group)
-  (global-set-key (vector prefix 'S-magnify-up)
-                  'mac-mouse-turn-on-fullscreen)
-  (global-set-key (vector prefix 'S-magnify-down)
-                  'mac-mouse-turn-off-fullscreen)
-  (global-set-key (vector prefix 'rotate-left) 'ignore)
-  (global-set-key (vector prefix 'rotate-right) 'ignore)
-  (global-set-key (vector prefix 'S-rotate-left) 'ignore)
-  (global-set-key (vector prefix 'S-rotate-right) 'ignore))
 
 
 ;;; Frame tabbing (macOS 10.12 and later)
@@ -3073,6 +3095,9 @@ standard ones in `x-handle-args'."
     (define-key-after global-buffers-menu-map [mac-merge-all-frame-tabs]
       '(menu-item "Merge All Frames" mac-merge-all-frame-tabs
                   :enable (mac-send-action 'mergeAllWindows t))))
+
+  (setq mac-ts-active-input-overlay (make-overlay 1 1))
+  (overlay-put mac-ts-active-input-overlay 'display "")
 
   (x-apply-session-resources)
   (add-to-list 'display-format-alist '("\\`Mac\\'" . mac))

@@ -1,6 +1,6 @@
 ;;; glasses.el --- make cantReadThis readable  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1999-2022 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
 
 ;; Author: Milan Zamazal <pdm@zamazal.org>
 ;; Keywords: tools
@@ -253,7 +253,8 @@ CATEGORY is the overlay category.  If it is nil, use the `glasses' category."
 	(when glasses-separate-parentheses-p
 	  (goto-char beg)
 	  (while (re-search-forward "[a-zA-Z]_*\\((\\)" end t)
-	    (unless (glasses-parenthesis-exception-p (point-at-bol) (match-end 1))
+            (unless (glasses-parenthesis-exception-p (line-beginning-position)
+                                                     (match-end 1))
 	      (glasses-make-overlay (match-beginning 1) (match-end 1)
 				    'glasses-parenthesis))))))))
 
@@ -292,7 +293,8 @@ recognized according to the current value of the variable `glasses-separator'."
 	(when glasses-separate-parentheses-p
 	  (goto-char (point-min))
 	  (while (re-search-forward "[a-zA-Z]_*\\( \\)(" nil t)
-	    (unless (glasses-parenthesis-exception-p (point-at-bol) (1+ (match-end 1)))
+            (unless (glasses-parenthesis-exception-p (line-beginning-position)
+                                                     (1+ (match-end 1)))
 	      (replace-match "" t nil nil 1)))))))
   ;; nil must be returned to allow use in write file hooks
   nil)

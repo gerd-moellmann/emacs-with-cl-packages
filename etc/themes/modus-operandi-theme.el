@@ -1,27 +1,29 @@
-;;; modus-operandi-theme.el --- Accessible light theme (WCAG AAA) -*- lexical-binding:t -*-
+;;; modus-operandi-theme.el --- Elegant, highly legible and customizable light theme -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
 
 ;; Author: Protesilaos Stavrou <info@protesilaos.com>
-;; URL: https://gitlab.com/protesilaos/modus-themes
-;; Version: 1.6.0
-;; Package-Requires: ((emacs "26.1"))
+;; Maintainer: Modus-Themes Development <~protesilaos/modus-themes@lists.sr.ht>
+;; URL: https://git.sr.ht/~protesilaos/modus-themes
+;; Mailing-List: https://lists.sr.ht/~protesilaos/modus-themes
+;; Version: 3.0.0
+;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: faces, theme, accessibility
 
 ;; This file is part of GNU Emacs.
 
-;; This program is free software; you can redistribute it and/or modify
+;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation, either version 3 of the License, or (at
-;; your option) any later version.
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
 ;;
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
+;; GNU Emacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
 ;;
 ;; You should have received a copy of the GNU General Public License
-;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -56,17 +58,20 @@
                (equal (file-name-directory load-file-name)
                       (expand-file-name "themes/" data-directory))
                (require-theme 'modus-themes t))
-    (require 'modus-themes)))
+    (require 'modus-themes))
 
-(deftheme modus-operandi
-  "Accessible and customizable light theme (WCAG AAA standard).
+  (deftheme modus-operandi
+    "Elegant, highly legible and customizable light theme.
 Conforms with the highest legibility standard for color contrast
 between background and foreground in any given piece of text,
 which corresponds to a minimum contrast in relative luminance of
-7:1.")
+7:1 (WCAG AAA standard).")
 
-(modus-themes-theme modus-operandi)
+  (modus-themes-theme modus-operandi)
 
-(provide-theme 'modus-operandi)
+  (provide-theme 'modus-operandi))
+
+;;;###theme-autoload
+(put 'modus-operandi 'theme-properties '(:background-mode light :kind color-scheme :family modus))
 
 ;;; modus-operandi-theme.el ends here

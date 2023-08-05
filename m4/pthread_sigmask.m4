@@ -1,5 +1,5 @@
 # pthread_sigmask.m4 serial 21
-dnl Copyright (C) 2011-2022 Free Software Foundation, Inc.
+dnl Copyright (C) 2011-2023 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
@@ -215,6 +215,7 @@ int main ()
            LIBS="$LIBS $LIBMULTITHREAD"])
         AC_RUN_IFELSE(
           [AC_LANG_SOURCE([[
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -230,14 +231,16 @@ sigint_handler (int sig)
 int main ()
 {
   sigset_t set;
-  int pid = getpid ();
+  pid_t pid = getpid ();
   char command[80];
+  if (LONG_MAX < pid)
+    return 6;
   signal (SIGINT, sigint_handler);
   sigemptyset (&set);
   sigaddset (&set, SIGINT);
   if (!(pthread_sigmask (SIG_BLOCK, &set, NULL) == 0))
     return 1;
-  sprintf (command, "sh -c 'sleep 1; kill -%d %d' &", SIGINT, pid);
+  sprintf (command, "sh -c 'sleep 1; kill -INT %ld' &", (long) pid);
   if (!(system (command) == 0))
     return 2;
   sleep (2);

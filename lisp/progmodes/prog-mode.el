@@ -1,6 +1,6 @@
 ;;; prog-mode.el --- Generic major mode for programming  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2013-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -49,9 +49,15 @@
   (define-key-after menu [prog-separator] menu-bar-separator
     'middle-separator)
 
+  (unless (xref-forward-history-empty-p)
+    (define-key-after menu [xref-forward]
+      '(menu-item "Go Forward" xref-go-forward
+                  :help "Forward to the position gone Back from")
+      'prog-separator))
+
   (unless (xref-marker-stack-empty-p)
     (define-key-after menu [xref-pop]
-      '(menu-item "Go Back" xref-pop-marker-stack
+      '(menu-item "Go Back" xref-go-back
                   :help "Back to the position of the last search")
       'prog-separator))
 
@@ -94,11 +100,9 @@
 
   menu)
 
-(defvar prog-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [?\C-\M-q] 'prog-indent-sexp)
-    map)
-  "Keymap used for programming modes.")
+(defvar-keymap prog-mode-map
+  :doc "Keymap used for programming modes."
+  "C-M-q" #'prog-indent-sexp)
 
 (defvar prog-indentation-context nil
   "When non-nil, provides context for indenting embedded code chunks.
@@ -151,7 +155,7 @@ which case it will be used to compose the new symbol as per the
 third argument of `compose-region'.")
 
 (defun prettify-symbols-default-compose-p (start end _match)
-  "Return non-nil iff the symbol MATCH should be composed.
+  "Return non-nil if the symbol MATCH should be composed.
 The symbol starts at position START and ends at position END.
 This is the default for `prettify-symbols-compose-predicate'
 which is suitable for most programming languages such as C or Lisp."
