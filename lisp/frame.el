@@ -2202,6 +2202,9 @@ frame's display)."
        (not (null dos-windows-version))))
      ((memq frame-type '(x w32 mac ns pgtk))
       t)
+     ((and tty-select-active-regions
+           (terminal-parameter nil 'xterm--set-selection))
+      t)
      (t
       nil))))
 
