@@ -16678,6 +16678,18 @@ mac_within_lisp_deferred_unless_popup (void (^block) (void))
     mac_within_lisp_deferred (block);
 }
 
+/* If called from the GUI thread, ask deferred execution of BLOCK to
+   the Lisp thread.  Otherwise, execute BLOCK directly.  */
+
+void
+mac_within_lisp_deferred_if_gui_thread (void (^block) (void))
+{
+  if (mac_gui_thread_p ())
+    mac_within_lisp_deferred (block);
+  else
+    block ();
+}
+
 
 /***********************************************************************
 			   Select emulation

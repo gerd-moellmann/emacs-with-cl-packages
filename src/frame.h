@@ -1338,7 +1338,18 @@ SET_FRAME_ICONIFIED (struct frame *f, int i)
   XSETFRAME (frame, f);
 
   if (FRAME_WINDOW_P (f))
+#ifdef HAVE_MACGUI
+    /* `gui_consider_frame_title' can cause Lisp evaluation if
+       `frame-title-format' or `icon-title-format' contains (:eval
+       FORM).  Also, as SET_FRAME_ICONIFIED might be called inside the
+       select emulation, the Lisp evaluation must be deferred in case
+       another Lisp thread is running.  */
+    mac_within_lisp_deferred_if_gui_thread (^{
+#endif
     gui_consider_frame_title (frame);
+#ifdef HAVE_MACGUI
+      });
+#endif
 #endif
 }
 
