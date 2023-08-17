@@ -5704,10 +5704,18 @@ mac_iosurface_create (size_t width, size_t height)
 				 /* The window does not have a backing
 				    store, and is off-screen.  */
 				 : mac_cg_color_space_rgb);
-  CGContextRef bitmaps[2] = {NULL, NULL};
-  IOSurfaceRef surfaces[2] = {NULL, NULL};
+#if HAVE_MAC_METAL
+#define NUM_BACKING_BITMAPS	2
+#else
+#define NUM_BACKING_BITMAPS	1
+#endif
+  CGContextRef bitmaps[NUM_BACKING_BITMAPS];
+  IOSurfaceRef surfaces[NUM_BACKING_BITMAPS];
 
-  for (int i = 0; i < 2; i++)
+  for (int i = 0; i < NUM_BACKING_BITMAPS; i++)
+    bitmaps[i] = NULL, surfaces[i] = NULL;
+
+  for (int i = 0; i < NUM_BACKING_BITMAPS; i++)
     {
       void *data = NULL;
       size_t bytes_per_row = 0;
@@ -5733,6 +5741,7 @@ mac_iosurface_create (size_t width, size_t height)
     }
   backBitmap = bitmaps[0];
   backSurface = surfaces[0];
+#if HAVE_MAC_METAL
   frontBitmap = bitmaps[1];
   frontSurface = surfaces[1];
   if (frontSurface)
@@ -5740,7 +5749,6 @@ mac_iosurface_create (size_t width, size_t height)
       IOSurfaceUnlock (frontSurface, 0, NULL);
       invalidRectValues = [[NSMutableArray alloc] initWithCapacity:0];
     }
-#if HAVE_MAC_METAL
   [self updateMTLObjectsForView:view];
 #endif
 
@@ -5749,6 +5757,7 @@ mac_iosurface_create (size_t width, size_t height)
 
 - (void)swapResourcesAndStartCopy
 {
+#if HAVE_MAC_METAL
   CGContextRef bitmap = backBitmap;
   backBitmap = frontBitmap;
   frontBitmap = bitmap;
@@ -5759,11 +5768,9 @@ mac_iosurface_create (size_t width, size_t height)
   backSurface = frontSurface;
   frontSurface = surface;
 
-#if HAVE_MAC_METAL
   id <MTLTexture> texture = backTexture;
   backTexture = frontTexture;
   frontTexture = texture;
-#endif
 
   NSArrayOf (NSValue *) *rectValues = invalidRectValues;
   invalidRectValues = [[NSMutableArray alloc] initWithCapacity:0];
@@ -5773,7 +5780,6 @@ mac_iosurface_create (size_t width, size_t height)
   copyFromFrontToBackSemaphore = dispatch_semaphore_create (0);
 
   dispatch_async (queue, ^{
-#if HAVE_MAC_METAL
       if (backTexture)
 	{
 	  id <MTLCommandBuffer> commandBuffer = [mtlCommandQueue commandBuffer];
@@ -5801,7 +5807,6 @@ mac_iosurface_create (size_t width, size_t height)
 	  IOSurfaceLock (backSurface, 0, NULL);
 	}
       else
-#endif
 	{
 	  IOSurfaceLock (frontSurface, kIOSurfaceLockReadOnly, NULL);
 	  IOSurfaceLock (backSurface, 0, NULL);
@@ -5839,10 +5844,12 @@ mac_iosurface_create (size_t width, size_t height)
       MRC_RELEASE (rectValues);
       dispatch_semaphore_signal (copyFromFrontToBackSemaphore);
     });
+#endif
 }
 
 - (void)waitCopyFromFrontToBack
 {
+#if HAVE_MAC_METAL
   if (copyFromFrontToBackSemaphore)
     {
       dispatch_semaphore_wait (copyFromFrontToBackSemaphore,
@@ -5852,20 +5859,21 @@ mac_iosurface_create (size_t width, size_t height)
 #endif
       copyFromFrontToBackSemaphore = NULL;
     }
+#endif
 }
 
 - (void)dealloc
 {
   [self waitCopyFromFrontToBack];
   CGContextRelease (backBitmap);
-  CGContextRelease (frontBitmap);
   if (backSurface)
     CFRelease (backSurface);
-  if (frontSurface)
-    CFRelease (frontSurface);
 #if !USE_ARC
   [invalidRectValues release];
 #if HAVE_MAC_METAL
+  CGContextRelease (frontBitmap);
+  if (frontSurface)
+    CFRelease (frontSurface);
   [backTexture release];
   [frontTexture release];
   [mtlCommandQueue release];
@@ -6019,11 +6027,21 @@ mac_texture_create_with_surface (id <MTLDevice> device, IOSurfaceRef surface)
   eassert (lockCount == 0);
 
   [self waitCopyFromFrontToBack];
+#if HAVE_MAC_METAL
   if (frontSurface)
     {
       [self swapResourcesAndStartCopy];
       layer.contents = (__bridge id) frontSurface;
     }
+#else
+  if (backSurface)
+    {
+      IOSurfaceUnlock (backSurface, 0, NULL);
+      layer.contents = (__bridge id) backSurface;
+      [layer setContentsChanged];
+      IOSurfaceLock (backSurface, 0, NULL);
+    }
+#endif
   else
     layer.contents =
       CFBridgingRelease (CGBitmapContextCreateImage (backBitmap));
