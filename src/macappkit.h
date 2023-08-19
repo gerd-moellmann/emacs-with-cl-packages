@@ -531,10 +531,6 @@ typedef NSInteger NSGlyphProperty;
 + (NSCursor *)_windowResizeSouthEastCursor;
 @end
 
-@interface CALayer (Undocumented)
-- (void)setContentsChanged;
-@end
-
 @interface EmacsApplication : NSApplication
 @end
 
@@ -780,33 +776,25 @@ typedef NSInteger NSGlyphProperty;
 
 @interface EmacsBacking : NSObject
 {
-  /* Backing bitmap used in application-side double buffering.  If it
-     is NULL, then CALayer contents is a CGImage generated from it.
-     Otherwise, CALayer contents is of IOSurface.  */
-  CGContextRef backBitmap;
-
-  /* Hardware-accelerated buffer data for backing bitmap and CALayer
-     contents.  NULL means backing bitmap uses the ordinary main
-     memory as its data.  */
-  IOSurfaceRef backSurface;
-
-#if HAVE_MAC_METAL
-  /* The front bitmap used in application-side double buffering.  If
-     backSurface above is NULL, then frontBitmap should also be NULL,
+  /* Backing bitmaps used in application-side double buffering.  If
+     backSurface below is NULL, then frontBitmap should also be NULL,
+     and CALayer contents is a CGImage generated from backBitmap.
      Otherwise, CALayer contents is of IOSurface and updated by
      swapping.  */
-  CGContextRef frontBitmap;
+  CGContextRef backBitmap, frontBitmap;
 
-  /* Hardware-accelerated buffer data for CALayer contents.  If
-     backSurface above is NULL, then frontSurface should also be
-     NULL.  */
-  IOSurfaceRef frontSurface;
+  /* Hardware-accelerated buffer data for backing bitmap and CALayer
+     contents.  NULL for backSurface means the backing bitmap uses the
+     ordinary main memory as its data, and frontSurface should also be
+     NULL in this case.  */
+  IOSurfaceRef backSurface, frontSurface;
 
   /* Semaphore used for synchronizing completion of asynchronous copy
      from CALayer contents to backing bitmap after swapping.  */
   dispatch_semaphore_t copyFromFrontToBackSemaphore;
 
-  /* GPU-accessible image data for the backing bitmap and CALayer
+#if HAVE_MAC_METAL
+  /* GPU-accessible image data for backing bitmap and CALayer
      contents.  Both should be nil if backSurface is NULL, and both
      should be non-nil otherwise.  */
   id <MTLTexture> backTexture, frontTexture;
