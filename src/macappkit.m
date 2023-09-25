@@ -11318,7 +11318,7 @@ mac_fake_menu_bar_click (EventPriority priority)
       point.v += - NSMaxY (mainScreenFrame) + NSMaxY (baseScreenFrame);
     }
 
-  [emacsController showMenuBar];
+  mac_within_gui (^{[emacsController showMenuBar];});
 
   /* CopyEventAs is not available on Mac OS X 10.2.  */
   for (i = 0; i < 2; i++)
