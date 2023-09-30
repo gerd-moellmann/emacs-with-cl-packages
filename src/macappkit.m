@@ -1261,6 +1261,11 @@ static bool handling_queued_nsevents_p;
   [NSApp postDummyEvent];
 }
 
+- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app
+{
+  return YES;
+}
+
 - (void)applicationDidBecomeActive:(NSNotification *)notification
 {
   if (needsUpdatePresentationOptionsOnBecomingActive)
