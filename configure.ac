@@ -23,7 +23,7 @@ dnl  along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 AC_PREREQ([2.65])
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
-AC_INIT([GNU Emacs], [29.1], [bug-gnu-emacs@gnu.org], [],
+AC_INIT([GNU Emacs], [29.1.90], [bug-gnu-emacs@gnu.org], [],
   [https://www.gnu.org/software/emacs/])
 
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
@@ -3327,6 +3327,7 @@ if test "${with_tree_sitter}" != "no"; then
     [HAVE_TREE_SITTER=yes], [HAVE_TREE_SITTER=no])
   if test "${HAVE_TREE_SITTER}" = yes; then
     AC_DEFINE(HAVE_TREE_SITTER, 1, [Define if using tree-sitter.])
+    NEED_DYNLIB=yes
   else
     EMACS_CHECK_MODULES([TREE_SITTER], [tree-sitter >= 0.6.3],
       [HAVE_TREE_SITTER=yes], [HAVE_TREE_SITTER=no])
@@ -4466,8 +4467,9 @@ if test "${with_native_compilation}" != "no"; then
     case "${opsys}" in
       # mingw32 loads the library dynamically.
       mingw32) ;;
-      # OpenBSD doesn't have libdl, all the functions are in libc
-      netbsd|openbsd)
+      # Neither NetBSD, OpenBSD nor Haiku have libdl, with all dynamic
+      # linker functions placed within libc.
+      netbsd|openbsd|haiku)
         LIBGCCJIT_LIBS="-lgccjit" ;;
       darwin)
         LIBGCCJIT_CFLAGS="${MAC_CFLAGS}"

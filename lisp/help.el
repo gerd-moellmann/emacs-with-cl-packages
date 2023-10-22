@@ -1449,10 +1449,11 @@ Otherwise, return a new string."
         (buffer-string)))))
 
 (defun substitute-quotes (string)
-  "Substitute quote characters for display.
+  "Substitute quote characters in STRING for display.
 Each grave accent \\=` is replaced by left quote, and each
-apostrophe \\=' is replaced by right quote.  Left and right quote
-characters are specified by `text-quoting-style'."
+apostrophe \\=' is replaced by right quote.  Which left and right
+quote characters to use is determined by the variable
+`text-quoting-style'."
   (cond ((eq (text-quoting-style) 'curve)
          (string-replace "`" "‘"
                          (string-replace "'" "’" string)))
@@ -1479,7 +1480,7 @@ If PREFIX is non-nil, mention only keys that start with PREFIX.
 If TITLE is non-nil, is a string to insert at the beginning.
 TITLE should not end with a colon or a newline; we supply that.
 
-If NOMENU is non-nil, then omit menu-bar commands.
+If NO-MENU is non-nil, then omit menu-bar commands.
 
 If TRANSL is non-nil, the definitions are actually key
 translations so print strings and vectors differently.

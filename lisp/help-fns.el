@@ -229,6 +229,10 @@ interactive command."
                (lambda (f) (if want-command
                           (commandp f)
                         (or (fboundp f) (get f 'function-documentation))))
+               ;; We use 'confirm' here, unlike in other describe-*
+               ;; commands, for cases like a function that is advised
+               ;; but not yet defined (e.g., if 'advice-add' is called
+               ;; before defining the function).
                'confirm nil nil
                (and fn (symbol-name fn)))))
     (unless (equal val "")
@@ -995,7 +999,8 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
                                               (symbol-name function)))))))
 	 (real-def (cond
                     ((and aliased (not (subrp def)))
-                     (car (function-alias-p real-function t)))
+                     (or (car (function-alias-p real-function t))
+                         real-function))
 		    ((subrp def) (intern (subr-name def)))
                     (t def))))
 

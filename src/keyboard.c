@@ -4790,7 +4790,8 @@ The value when Emacs is idle is a Lisp timestamp in the style of
 
 The value when Emacs is not idle is nil.
 
-PSEC is a multiple of the system clock resolution.  */)
+If the value is a list of four integers (HIGH LOW USEC PSEC), then PSEC
+is a multiple of the system clock resolution.  */)
   (void)
 {
   if (timespec_valid_p (timer_idleness_start_time))
@@ -11208,8 +11209,8 @@ the command loop or by `read-key-sequence'.
 The value is always a vector.  */)
   (void)
 {
-  return Fvector (this_command_key_count
-		  - this_single_command_key_start,
+  ptrdiff_t nkeys = this_command_key_count - this_single_command_key_start;
+  return Fvector (nkeys < 0 ? 0 : nkeys,
 		  (XVECTOR (this_command_keys)->contents
 		   + this_single_command_key_start));
 }

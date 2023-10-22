@@ -218,14 +218,19 @@ If t, they are marked if and as the files linked to were marked.
 If a character, new links are unconditionally marked with that character.")
 
 (defcustom dired-free-space 'first
-  "Whether and how to display the amount of free disk space in Dired buffers.
+  "Whether and how to display the disk space usage info in Dired buffers.
 If nil, don't display.
-If `separate', display on a separate line (along with used count).
-If `first', display only the free disk space on the first line,
-following the directory name."
-  :type '(choice (const :tag "On a separate line" separate)
-                 (const :tag "On the first line, after directory name" first)
-                 (const :tag "Don't display" nil))
+If `separate', display on a separate line, and include both the used
+and the free disk space.
+If `first', the default, display only the free disk space on the first
+line, following the directory name."
+  :type '(choice (const
+                  :tag
+                  "On separate line, display both used and free space" separate)
+                 (const
+                  :tag
+                  "On first line, after directory name, display only free space" first)
+                 (const :tag "Don't display disk space usage" nil))
   :version "29.1"
   :group 'dired)
 
@@ -289,7 +294,7 @@ then this will always be equivalent to `move'."
                (revert-buffer nil t)))))
   :type '(choice (const :tag "Don't allow dragging" nil)
                  (const :tag "Copy file to new location" t)
-                 (const :tag "Move file to new location" t)
+                 (const :tag "Move file to new location" move)
                  (const :tag "Create symbolic link to file" link))
   :group 'dired
   :version "29.1")
@@ -346,7 +351,7 @@ with the buffer narrowed to the listing."
   :type 'boolean)
 
 (defcustom dired-initial-position-hook nil
-  "This hook is used to position the point.
+  "Hook used to position point in a new Dired listing display.
 It is run by the function `dired-initial-position'."
   :group 'dired
   :type 'hook
@@ -1769,7 +1774,10 @@ see `dired-use-ls-dired' for more details.")
          ((eq dired-free-space 'separate)
 	  (end-of-line)
 	  (insert " available " available)
-          (forward-line 1)
+          ;; The separate free-space line is considered part of the
+          ;; directory content, for the purposes of
+          ;; 'dired-hide-details-mode'.
+          (beginning-of-line)
           (point))
          ((eq dired-free-space 'first)
           (goto-char beg)
@@ -3541,9 +3549,9 @@ as returned by `dired-get-filename'.  LIMIT is the search limit."
 
 ;; FIXME document whatever dired-x is doing.
 (defun dired-initial-position (dirname)
-  "Where point should go in a new listing of DIRNAME.
-Point is assumed to be at the beginning of new subdir line.
-It runs the hook `dired-initial-position-hook'."
+  "Return position of point in a new listing of DIRNAME.
+Point is assumed to be at the beginning of a new subdir line.
+Runs the hook `dired-initial-position-hook'."
   (end-of-line)
   (and (featurep 'dired-x) dired-find-subdir
        (dired-goto-subdir dirname))

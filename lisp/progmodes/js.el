@@ -106,7 +106,7 @@ name.")
 
 (defconst js--plain-method-re
   (concat "^\\s-*?\\(" js--dotted-name-re "\\)\\.prototype"
-          "\\.\\(" js--name-re "\\)\\s-*?=\\s-*?\\(\\(:?async[ \t\n]+\\)function\\)\\_>")
+          "\\.\\(" js--name-re "\\)\\s-*?=\\s-*?\\(\\(?:async[ \t\n]+\\)function\\)\\_>")
   "Regexp matching an explicit JavaScript prototype \"method\" declaration.
 Group 1 is a (possibly-dotted) class name, group 2 is a method name,
 and group 3 is the `function' keyword.")
@@ -3474,7 +3474,7 @@ Check if a node type is available, then return the right indent rules."
        ((parent-is "statement_block") parent-bol js-indent-level)
 
        ;; JSX
-       (js-jsx--treesit-indent-compatibility-bb1f97b)
+       ,@(js-jsx--treesit-indent-compatibility-bb1f97b)
        ((node-is "jsx_closing_element") parent 0)
        ((match "jsx_element" "statement") parent js-indent-level)
        ((parent-is "jsx_element") parent js-indent-level)
@@ -3501,35 +3501,6 @@ Check if a node type is available, then return the right indent rules."
     "&&" "||" "!")
   "JavaScript operators for tree-sitter font-locking.")
 
-(defun js-jsx--treesit-font-lock-compatibility-bb1f97b ()
-  "Font lock rules helper, to handle different releases of tree-sitter-javascript.
-Check if a node type is available, then return the right font lock rules."
-  ;; handle commit bb1f97b
-  (condition-case nil
-      (progn (treesit-query-capture 'javascript '((member_expression) @capture))
-	     '((jsx_opening_element
-		[(member_expression (identifier)) (identifier)]
-		@font-lock-function-call-face)
-
-	       (jsx_closing_element
-		[(member_expression (identifier)) (identifier)]
-		@font-lock-function-call-face)
-
-	       (jsx_self_closing_element
-		[(member_expression (identifier)) (identifier)]
-		@font-lock-function-call-face)))
-    (error '((jsx_opening_element
-	      [(nested_identifier (identifier)) (identifier)]
-	      @font-lock-function-call-face)
-
-	     (jsx_closing_element
-	      [(nested_identifier (identifier)) (identifier)]
-	      @font-lock-function-call-face)
-
-	     (jsx_self_closing_element
-	      [(nested_identifier (identifier)) (identifier)]
-	      @font-lock-function-call-face)))))
-
 (defvar js--treesit-font-lock-settings
   (treesit-font-lock-rules
 
@@ -3540,7 +3511,7 @@ Check if a node type is available, then return the right font lock rules."
    :language 'javascript
    :feature 'constant
    '(((identifier) @font-lock-constant-face
-      (:match "\\`[A-Z_][A-Z_\\d]*\\'" @font-lock-constant-face))
+      (:match "\\`[A-Z_][0-9A-Z_]*\\'" @font-lock-constant-face))
 
      [(true) (false) (null)] @font-lock-constant-face)
 
@@ -3639,14 +3610,16 @@ Check if a node type is available, then return the right font lock rules."
 
    :language 'javascript
    :feature 'jsx
-   (append (js-jsx--treesit-font-lock-compatibility-bb1f97b)
-	   '((jsx_attribute (property_identifier) @font-lock-constant-face)))
+   '((jsx_opening_element name: (_) @font-lock-function-call-face)
+     (jsx_closing_element name: (_) @font-lock-function-call-face)
+     (jsx_self_closing_element name: (_) @font-lock-function-call-face)
+     (jsx_attribute (property_identifier) @font-lock-constant-face))
 
    :language 'javascript
    :feature 'number
    '((number) @font-lock-number-face
      ((identifier) @font-lock-number-face
-      (:match "\\`\\(:?NaN\\|Infinity\\)\\'" @font-lock-number-face)))
+      (:match "\\`\\(?:NaN\\|Infinity\\)\\'" @font-lock-number-face)))
 
    :language 'javascript
    :feature 'operator
@@ -3856,6 +3829,7 @@ Currently there are `js-mode' and `js-ts-mode'."
                 (append "{}():;,<>/" electric-indent-chars)) ;FIXME: js2-mode adds "[]*".
     (setq-local electric-layout-rules
 	        '((?\; . after) (?\{ . after) (?\} . before)))
+    (setq-local syntax-propertize-function #'js-ts--syntax-propertize)
 
     ;; Tree-sitter setup.
     (treesit-parser-create 'javascript)
@@ -3890,6 +3864,31 @@ Currently there are `js-mode' and `js-ts-mode'."
 
     (add-to-list 'auto-mode-alist
                  '("\\(\\.js[mx]\\|\\.har\\)\\'" . js-ts-mode))))
+
+(defvar js-ts--s-p-query
+  (when (treesit-available-p)
+    (treesit-query-compile 'javascript
+                           '(((regex pattern: (regex_pattern) @regexp))
+                             ((variable_declarator value: (jsx_element) @jsx))
+                             ((assignment_expression right: (jsx_element) @jsx))
+                             ((arguments (jsx_element) @jsx))
+                             ((parenthesized_expression (jsx_element) @jsx))
+                             ((return_statement (jsx_element) @jsx))))))
+
+(defun js-ts--syntax-propertize (beg end)
+  (let ((captures (treesit-query-capture 'javascript js-ts--s-p-query beg end)))
+    (pcase-dolist (`(,name . ,node) captures)
+      (let* ((ns (treesit-node-start node))
+             (ne (treesit-node-end node))
+             (syntax (pcase-exhaustive name
+                       ('regexp
+                        (cl-decf ns)
+                        (cl-incf ne)
+                        (string-to-syntax "\"/"))
+                       ('jsx
+                        (string-to-syntax "|")))))
+        (put-text-property ns (1+ ns) 'syntax-table syntax)
+        (put-text-property (1- ne) ne 'syntax-table syntax)))))
 
 ;;;###autoload
 (define-derived-mode js-json-mode js-mode "JSON"

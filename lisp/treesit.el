@@ -132,7 +132,14 @@ Return the root node of the syntax tree."
 This is used by `treesit-language-at', which is used by various
 functions to determine which parser to use at point.
 
-The function is called with one argument, the position of point.")
+The function is called with one argument, the position of point.
+
+In general, this function should call `treesit-node-at' with an
+explicit language (usually the host language), and determine the
+language at point using the type of the returned node.
+
+DO NOT derive the language at point from parser ranges.  It's
+cumbersome and can't deal with some edge cases.")
 
 (defun treesit-language-at (position)
   "Return the language at POSITION.
@@ -544,7 +551,12 @@ region."
             (when (eq (treesit-parser-language parser)
                       language)
               (treesit-parser-set-included-ranges
-               parser set-ranges))))))))
+               parser (or set-ranges
+                          ;; When there's no range for the embedded
+                          ;; language, set it's range to a dummy (1
+                          ;; . 1), otherwise it would be set to the
+                          ;; whole buffer, which is not what we want.
+                          `((,(point-min) . ,(point-min))))))))))))
 
 (defun treesit-parser-range-on (parser beg &optional end)
   "Check if PARSER's range covers the portion between BEG and END.
@@ -1481,8 +1493,8 @@ Return (ANCHOR . OFFSET).  This function is used by
           (cond ((null (treesit-parser-list)) nil)
                 ((eq 1 (length (treesit-parser-list)))
                  (treesit-node-at bol))
-                ((treesit-language-at (point))
-                 (treesit-node-at bol (treesit-language-at (point))))
+                ((treesit-language-at bol)
+                 (treesit-node-at bol (treesit-language-at bol)))
                 (t (treesit-node-at bol))))
          (root (treesit-parser-root-node
                 (treesit-node-parser smallest-node)))
@@ -2374,7 +2386,6 @@ before calling this function."
                 '( nil nil nil nil
                    (font-lock-fontify-syntactically-function
                     . treesit-font-lock-fontify-region)))
-    (font-lock-mode 1)
     (treesit-font-lock-recompute-features)
     (dolist (parser (treesit-parser-list))
       (treesit-parser-add-notifier
@@ -2459,7 +2470,8 @@ in `treesit-parser-list'."
                         'bold nil))
         name
         (if (treesit-node-check node 'named) ")" "\""))))
-    (setq treesit--inspect-name name)
+    ;; Escape the percent character for mode-line. (Bug#65540)
+    (setq treesit--inspect-name (string-replace "%" "%%" name))
     (force-mode-line-update)
     (when arg
       (if node-list
@@ -2515,7 +2527,9 @@ to the offending pattern and highlight the pattern."
                   (start (nth 1 data))
                   (inhibit-read-only t))
              (erase-buffer)
-             (insert (treesit-query-expand query))
+             (insert (if (stringp query)
+                         query
+                       (treesit-query-expand query)))
              (goto-char start)
              (search-forward " " nil t)
              (put-text-property start (point) 'face 'error)
