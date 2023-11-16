@@ -10645,8 +10645,6 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
     {
       NSString *itemName = [NSString stringWithUTF8String:wv->name
 				     fallback:YES];
-      NSData *data;
-
       if (wv->key != NULL)
 	itemName = [NSString stringWithFormat:@"%@\t%@", itemName,
 			     [NSString stringWithUTF8String:wv->key
@@ -10663,8 +10661,10 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	 objCType:@encode(Lisp_Object)] when USE_LISP_UNION_TYPE
 	 defined, because NSGetSizeAndAlignment does not support bit
 	 fields (at least as of Mac OS X 10.5).  */
-      data = [NSData dataWithBytes:&wv->help length:(sizeof (Lisp_Object))];
-      [item setRepresentedObject:data];
+      EmacsWeakLispObject *weakLispObject =
+	[[EmacsWeakLispObject alloc] initWithLispObject:wv->help];
+      item.representedObject = weakLispObject;
+      MRC_RELEASE (weakLispObject);
 
       /* Draw radio buttons and tickboxes. */
       if (wv->selected && (wv->button_type == BUTTON_TYPE_TOGGLE
@@ -10904,6 +10904,26 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 
 @end				// EmacsMenu
 
+@implementation EmacsWeakLispObject
+
+- (instancetype)initWithLispObject:(Lisp_Object)anObject
+{
+  self = [self init];
+  if (self == nil)
+    return nil;
+
+  object = anObject;
+
+  return self;
+}
+
+- (Lisp_Object)lispObject
+{
+  return object;
+}
+
+@end				// EmacsWeakLispObject
+
 @implementation EmacsController (Menu)
 
 - (void)menu:(NSMenu *)menu willHighlightItem:(NSMenuItem *)item
@@ -10911,11 +10931,11 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
   if (!popup_activated ())
     return;
 
-  NSData *object = [item representedObject];
+  id object = item.representedObject;
   Lisp_Object help;
 
-  if (object)
-    [object getBytes:&help length:(sizeof (Lisp_Object))];
+  if ([object isKindOfClass:EmacsWeakLispObject.class])
+    help = ((EmacsWeakLispObject *) object).lispObject;
   else
     help = Qnil;
 
