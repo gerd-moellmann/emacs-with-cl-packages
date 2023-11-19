@@ -9166,9 +9166,11 @@ mac_get_default_scroll_bar_height (struct frame *f)
   toolbar.allowsUserCustomization = YES;
   toolbar.autosavesConfiguration = NO;
   toolbar.delegate = self;
-  toolbar.visible = visible;
 
   emacsWindow.toolbar = toolbar;
+  /* If we set toolbar.visible to NO before setting window's toolbar,
+     the title bar becomes taller on macOS 14.  */
+  toolbar.visible = visible;
   MRC_RELEASE (toolbar);
 
   [self updateToolbarDisplayMode];
