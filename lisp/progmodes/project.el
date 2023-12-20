@@ -1110,10 +1110,9 @@ This has the effect of sharing more history between projects."
 
 (defun project--transplant-file-name (filename project)
   (when-let ((old-root (get-text-property 0 'project filename)))
-    (abbreviate-file-name
-     (expand-file-name
-      (file-relative-name filename old-root)
-      (project-root project)))))
+    (expand-file-name
+     (file-relative-name filename old-root)
+     (project-root project))))
 
 (defun project--read-file-cpd-relative (prompt
                                         all-files &optional predicate
@@ -1146,14 +1145,15 @@ by the user at will."
          (_ (when included-cpd
               (setq substrings (cons "./" substrings))))
          (new-collection (project--file-completion-table substrings))
-         (abbr-cpd (abbreviate-file-name common-parent-directory))
-         (abbr-cpd-length (length abbr-cpd))
+         (abs-cpd (expand-file-name common-parent-directory))
+         (abs-cpd-length (length abs-cpd))
          (relname (cl-letf (((symbol-value hist)
                              (mapcan
                               (lambda (s)
-                                (and (string-prefix-p abbr-cpd s)
-                                     (not (eq abbr-cpd-length (length s)))
-                                     (list (substring s abbr-cpd-length))))
+                                (setq s (expand-file-name s))
+                                (and (string-prefix-p abs-cpd s)
+                                     (not (eq abs-cpd-length (length s)))
+                                     (list (substring s abs-cpd-length))))
                               (symbol-value hist))))
                     (project--completing-read-strict prompt
                                                      new-collection
