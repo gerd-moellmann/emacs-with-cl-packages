@@ -3,13 +3,13 @@
 This is Emacs' master branch, with Common Lisp packages added (and
 some stuff removed, which I was too lazy to support).
 
-I am using this on a daily basis on MacOS with an init file that I can
+I am using this on a daily basis on macOS with an init file that I can
 also use with an unchanged master. I make no efforts to find or fix
 bugs in stuff that I don't use personally.
 
 My init file uses `use-package` and `straight`, and I am using
-packages like `vertico`, `consult`, `corfu`, `magit`, `org`, so I'd
-say it's quite backwards compatible.
+packages like `vertico`, `consult`, `corfu`, `magit`, `org`, `gnus`
+etc., so I'd say it's pretty backwards compatible.
 
 ## Who's that?
 
@@ -19,7 +19,7 @@ say it's quite backwards compatible.
 
 * Documentation
 * Tests
-* Support for pure space
+* Support for purespace
 * Support for symbol shortcuts
 
 ## What's there
@@ -32,8 +32,8 @@ some time, I guess.
 ## What's the plan?
 
 None. I don't think CL packages will land in Emacs in my lifetime.
-I'd say the resistance against anything CL is simply too high among
-current Emacs maintainers, especially rms.
+The resistance against this, or anything CL for that matter, is simply
+too high among current Emacs maintainers.
 
 So, why do this?  Because I can. Some people like to tinker with their
 init files, others go a step further...
