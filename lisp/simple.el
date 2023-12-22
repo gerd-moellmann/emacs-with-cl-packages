@@ -2474,8 +2474,13 @@ or (if one of MODES is a minor mode), if it is switched on in BUFFER."
     (mapcar
      (lambda (command-name)
        (let* ((fun (and (stringp command-name)
-			(let ((symbol-packages t))
-			  (car (read-from-string command-name)))))
+                        ;; This could be a symbol that's not valid
+                        ;; read-syntax because of colons when
+                        ;; symbol-packages is t.
+                        (condition-case _var
+			    (let ((symbol-packages t))
+			      (car (read-from-string command-name)))
+                          (error (intern-soft command-name)))))
               (binding (where-is-internal fun overriding-local-map t))
               (obsolete (get fun 'byte-obsolete-info))
               (alias (symbol-function fun))
