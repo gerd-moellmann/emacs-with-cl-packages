@@ -2421,6 +2421,8 @@ sfnt_read_glyph (sfnt_glyph glyph_code,
       glyph.ymin = 0;
       glyph.xmax = 0;
       glyph.ymax = 0;
+      glyph.advance_distortion = 0;
+      glyph.origin_distortion = 0;
       glyph.simple = xmalloc (sizeof *glyph.simple);
       glyph.compound = NULL;
       memset (glyph.simple, 0, sizeof *glyph.simple);
@@ -3088,7 +3090,8 @@ sfnt_decompose_glyph_1 (size_t here, size_t last,
   /* The contour is empty.  */
 
   if (here == last)
-    return 1;
+    /* An empty contour, if redundant, is not necessarily invalid.  */
+    return 0;
 
   /* Move the pen to the start of the contour.  Apparently some fonts
      have off the curve points as the start of a contour, so when that
@@ -3227,7 +3230,8 @@ sfnt_decompose_glyph_2 (size_t here, size_t last,
   /* The contour is empty.  */
 
   if (here == last)
-    return 1;
+    /* An empty contour, if redundant, is not necessarily invalid.  */
+    return 0;
 
   /* Move the pen to the start of the contour.  Apparently some fonts
      have off the curve points as the start of a contour, so when that
@@ -7603,9 +7607,12 @@ sfnt_interpret_trap (struct sfnt_interpreter *interpreter,
     interpreter->state.scan_control = value;	\
   }
 
-/* Selector bit 8 is undocumented, but present in the Macintosh
+/* Selector bit 3 is undocumented, but present in the Macintosh
    rasterizer.  02000 is returned if there is a variation axis in
-   use.  */
+   use.
+
+   Selector bit 5 is undocumented, but relied on by several fonts.
+   010000 is returned if a grayscale rasterizer is in use.  */
 
 #define GETINFO()				\
   {						\
@@ -7621,6 +7628,9 @@ sfnt_interpret_trap (struct sfnt_interpreter *interpreter,
     if (selector & 8				\
 	&& interpreter->norm_coords)		\
       k |= 02000;				\
+						\
+    if (selector & 32)				\
+      k |= 010000;				\
 						\
     PUSH_UNCHECKED (k);				\
   }
@@ -10625,7 +10635,7 @@ sfnt_move (sfnt_f26dot6 *restrict x, sfnt_f26dot6 *restrict y,
 
   if (versor)
     {
-      /* Move along X axis, converting the distance to the freedom
+      /* Move along Y axis, converting the distance to the freedom
 	 vector.  */
       num = n;
       k = sfnt_multiply_divide_signed (distance,
@@ -12070,6 +12080,38 @@ sfnt_interpret_control_value_program (struct sfnt_interpreter *interpreter,
 
   if (interpreter->state.instruct_control & 4)
     sfnt_init_graphics_state (&interpreter->state);
+  else
+    {
+      /* And even if not, reset the following graphics state
+	 variables, to which both the Apple and MS scalers don't
+	 permit modifications from the preprogram.
+
+         Not only is such reversion undocumented, it is also
+         inefficient, for modern fonts at large only move points on
+         the Y axis.  As such, these fonts must issue a redundant
+         SVTCA[Y] instruction within each glyph program, in place of
+         initializing the projection and freedom vectors once and for
+         all in prep.  Unfortunately many fonts which do instruct on
+         the X axis now rely on this ill-conceived behavior, so Emacs
+         must, reluctantly, follow suit.  */
+
+      interpreter->state.dual_projection_vector.x = 040000; /* 1.0 */
+      interpreter->state.dual_projection_vector.y = 0;
+      interpreter->state.freedom_vector.x = 040000; /* 1.0 */
+      interpreter->state.freedom_vector.y = 0;
+      interpreter->state.projection_vector.x = 040000; /* 1.0 */
+      interpreter->state.projection_vector.y = 0;
+      interpreter->state.rp0 = 0;
+      interpreter->state.rp1 = 0;
+      interpreter->state.rp2 = 0;
+      interpreter->state.zp0 = 1;
+      interpreter->state.zp1 = 1;
+      interpreter->state.zp2 = 1;
+      interpreter->state.loop = 1;
+
+      /* Validate the graphics state.  */
+      sfnt_validate_gs (&interpreter->state);
+    }
 
   /* Save the graphics state upon success.  */
   memcpy (state, &interpreter->state, sizeof *state);
@@ -12162,15 +12204,18 @@ sfnt_decompose_instructed_outline (struct sfnt_instructed_outline *outline,
 
 /* Decompose and build an outline for the specified instructed outline
    INSTRUCTED.  Return the outline data with a refcount of 0 upon
-   success, or NULL upon failure.
+   success, and the advance width of the instructed glyph in
+   *ADVANCE_WIDTH, or NULL upon failure.
 
    This function is not reentrant.  */
 
 TEST_STATIC struct sfnt_glyph_outline *
-sfnt_build_instructed_outline (struct sfnt_instructed_outline *instructed)
+sfnt_build_instructed_outline (struct sfnt_instructed_outline *instructed,
+			       sfnt_fixed *advance_width)
 {
   struct sfnt_glyph_outline *outline;
   int rc;
+  sfnt_f26dot6 x1, x2;
 
   memset (&build_outline_context, 0, sizeof build_outline_context);
 
@@ -12207,10 +12252,23 @@ sfnt_build_instructed_outline (struct sfnt_instructed_outline *instructed)
      instructed.  */
 
   if (instructed->num_points > 1)
-    outline->origin
-      = instructed->x_points[instructed->num_points - 2];
+    {
+      x1 = instructed->x_points[instructed->num_points - 2];
+      x2 = instructed->x_points[instructed->num_points - 1];
+
+      /* Convert the origin point to a 16.16 fixed point number.  */
+      outline->origin = x1 * 1024;
+
+      /* Do the same for the advance width.  */
+      *advance_width = (x2 - x1) * 1024;
+    }
   else
-    outline->origin = 0;
+    {
+      /* Phantom points are absent from this outline, which is
+	 impossible.  */
+      *advance_width = 0;
+      outline->origin = 0;
+    }
 
   if (rc)
     {
@@ -12578,15 +12636,14 @@ sfnt_interpret_compound_glyph_2 (struct sfnt_glyph *glyph,
   struct sfnt_interpreter_zone *zone;
   struct sfnt_interpreter_zone *volatile preserved_zone;
   volatile bool zone_was_allocated;
-  int rc;
   sfnt_f26dot6 *x_base, *y_base;
-  size_t *contour_base;
-  unsigned char *flags_base;
 
-  /* Figure out how many points and contours there are to
-     instruct.  */
+  /* Figure out how many points and contours there are to instruct.  A
+     minimum of two points must be present, to wit the origin and
+     advance phantom points.  */
   num_points = context->num_points - base_index;
   num_contours = context->num_end_points - base_contour;
+  assert (num_points >= 2);
 
   /* Nothing to instruct! */
   if (!num_points && !num_contours)
@@ -12700,27 +12757,14 @@ sfnt_interpret_compound_glyph_2 (struct sfnt_glyph *glyph,
       context->y_coordinates[base_index + i] = zone->y_current[i];
     }
 
-  /* Grow various arrays to fit the phantom points.  */
-  rc = sfnt_expand_compound_glyph_context (context, 0, 2,
-					   &x_base, &y_base,
-					   &flags_base,
-					   &contour_base);
-
-  if (rc)
-    {
-      if (zone_was_allocated)
-	xfree (zone);
-
-      return "Failed to expand arrays for phantom points";
-    }
-
-  /* Copy over the phantom points.  */
+  /* Return the phantom points after instructing completes to the
+     context's coordinate arrays.  */
+  x_base    = &context->x_coordinates[i - 2];
+  y_base    = &context->y_coordinates[i - 2];
   x_base[0] = zone->x_current[num_points - 2];
   x_base[1] = zone->x_current[num_points - 1];
   y_base[0] = zone->y_current[num_points - 2];
   y_base[1] = zone->y_current[num_points - 1];
-  flags_base[0] = zone->flags[num_points - 2];
-  flags_base[1] = zone->flags[num_points - 1];
 
   /* Free the zone if needed.  */
   if (zone_was_allocated)
@@ -13107,8 +13151,8 @@ sfnt_interpret_compound_glyph_1 (struct sfnt_glyph *glyph,
     }
 
   /* Run the program for the entire compound glyph, if any.  CONTEXT
-     should not contain phantom points by this point, so append its
-     own.  */
+     should not contain phantom points by this point, so append the
+     points for this glyph as a whole.  */
 
   /* Compute phantom points.  */
   sfnt_compute_phantom_points (glyph, metrics, interpreter->scale,
@@ -20190,6 +20234,7 @@ sfnt_verbose (struct sfnt_interpreter *interpreter)
   unsigned char opcode;
   const char *name;
   static unsigned int instructions;
+  sfnt_fixed advance;
 
   /* Build a temporary outline containing the values of the
      interpreter's glyph zone.  */
@@ -20203,7 +20248,7 @@ sfnt_verbose (struct sfnt_interpreter *interpreter)
       temp.y_points = interpreter->glyph_zone->y_current;
       temp.flags = interpreter->glyph_zone->flags;
 
-      outline = sfnt_build_instructed_outline (&temp);
+      outline = sfnt_build_instructed_outline (&temp, &advance);
 
       if (!outline)
 	return;
@@ -20418,6 +20463,7 @@ main (int argc, char **argv)
   struct sfnt_instance *instance;
   struct sfnt_blend blend;
   struct sfnt_metrics_distortion distortion;
+  sfnt_fixed advance;
 
   if (argc < 2)
     return 1;
@@ -20761,6 +20807,8 @@ main (int argc, char **argv)
 	  if (instance && gvar)
 	    sfnt_vary_simple_glyph (&blend, code, glyph,
 				    &distortion);
+	  else
+	    memset (&distortion, 0, sizeof distortion);
 
 	  if (sfnt_lookup_glyph_metrics (code, -1,
 					 &metrics,
@@ -20778,7 +20826,10 @@ main (int argc, char **argv)
 	      exit (5);
 	    }
 
-	  outline = sfnt_build_instructed_outline (value);
+	  outline = sfnt_build_instructed_outline (value, &advance);
+	  advances[i] = (advance / 65536);
+
+	  fprintf (stderr, "advance: %d\n", advances[i]);
 
 	  if (!outline)
 	    exit (6);
@@ -20793,8 +20844,6 @@ main (int argc, char **argv)
 	  xfree (outline);
 
 	  rasters[i] = raster;
-	  advances[i] = (sfnt_mul_fixed (metrics.advance, scale)
-			 + sfnt_mul_fixed (distortion.advance, scale));
 	}
 
       sfnt_x_raster (rasters, advances, length, hhea, scale);
@@ -21059,7 +21108,7 @@ main (int argc, char **argv)
 		  fprintf (stderr, "outline origin, rbearing: %"
 			   PRIi32" %"PRIi32"\n",
 			   outline->origin,
-			   outline->ymax - outline->origin);
+			   outline->xmax - outline->origin);
 		  sfnt_test_max = outline->ymax - outline->ymin;
 
 		  for (i = 0; i < outline->outline_used; i++)
@@ -21173,8 +21222,19 @@ main (int argc, char **argv)
 			      printf ("rasterizing instructed outline\n");
 			      if (outline)
 				xfree (outline);
-			      outline = sfnt_build_instructed_outline (value);
+			      outline
+				= sfnt_build_instructed_outline (value,
+								 &advance);
 			      xfree (value);
+
+#define LB outline->xmin - outline->origin
+#define RB outline->xmax - outline->origin
+			      printf ("instructed advance, lb, rb: %g %g %g\n",
+				      sfnt_coerce_fixed (advance),
+				      sfnt_coerce_fixed (LB),
+				      sfnt_coerce_fixed (RB));
+#undef LB
+#undef RB
 
 			      if (outline)
 				{

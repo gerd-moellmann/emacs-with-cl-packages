@@ -993,6 +993,7 @@ ACTION is an LSP object of either `CodeAction' or `Command' type."
     :documentation "Flag set when server is shutting down."
     :accessor eglot--shutdown-requested)
    (project
+    :initform nil
     :documentation "Project associated with server."
     :accessor eglot--project)
    (progress-reporters
@@ -1288,9 +1289,8 @@ be guessed."
             guess)))
     (list managed-modes (eglot--current-project) class contact language-ids)))
 
-(defvar eglot-lsp-context)
-(put 'eglot-lsp-context 'variable-documentation
-     "Dynamically non-nil when searching for projects in LSP context.")
+(defvar eglot-lsp-context nil
+  "Dynamically non-nil when searching for projects in LSP context.")
 
 (defun eglot--current-project ()
   "Return a project object for Eglot's LSP purposes.
@@ -1512,7 +1512,7 @@ This docstring appeases checkdoc, that's all."
           (apply
            #'make-instance class
            :name readable-name
-           :events-buffer-scrollback-size eglot-events-buffer-size
+           :events-buffer-config `(:size ,eglot-events-buffer-size :format full)
            :notification-dispatcher (funcall spread #'eglot-handle-notification)
            :request-dispatcher (funcall spread #'eglot-handle-request)
            :on-shutdown #'eglot--on-shutdown
@@ -2136,8 +2136,7 @@ Uses THING, FACE, DEFS and PREPEND."
   "Compose Eglot's mode-line."
   (let* ((server (eglot-current-server))
          (nick (and server (eglot-project-nickname server)))
-         (pending (and server (hash-table-count
-                               (jsonrpc--request-continuations server))))
+         (pending (and server (jsonrpc-continuation-count server)))
          (last-error (and server (jsonrpc-last-error server))))
     (append
      `(,(propertize
