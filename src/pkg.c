@@ -1053,9 +1053,17 @@ pkg_in_emacs_package (void)
 Lisp_Object
 pkg_symbol_completion_string (Lisp_Object sym, Lisp_Object status)
 {
-  const Lisp_Object package_name = PACKAGE_NAMEX (SYMBOL_PACKAGE (sym));
-  const char *sep = EQ (status, QCinternal) ? "::" : ":";
-  return CALLN (Fconcat, package_name, build_string (sep), SYMBOL_NAME (sym));
+  const Lisp_Object prop = EQ (status, QCinternal)
+    ? Qinternal_symbol_name : Qexternal_symbol_name;
+  Lisp_Object name = Fget (sym, prop);
+  if (NILP (name))
+    {
+      const Lisp_Object package_name = PACKAGE_NAMEX (SYMBOL_PACKAGE (sym));
+      const char *sep = EQ (status, QCinternal) ? "::" : ":";
+      name = CALLN (Fconcat, package_name, build_string (sep), SYMBOL_NAME (sym));
+      Fput (sym, prop, name);
+    }
+  return name;
 }
 
 Lisp_Object
@@ -1110,6 +1118,8 @@ init_pkg_once (void)
   DEFSYM (Qpackagep, "packagep");
   DEFSYM (Qsymbol_packages, "symbol-packages");
   DEFSYM (Qwatch_earmuffs_package, "watch-*package*");
+  DEFSYM (Qinternal_symbol_name, "internal-symbol-name");
+  DEFSYM (Qexternal_symbol_name, "external-symbol-name");
 
   staticpro (&Vpackage_registry);
   Vpackage_registry = make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
