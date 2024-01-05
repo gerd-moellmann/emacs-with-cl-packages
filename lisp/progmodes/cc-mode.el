@@ -1,6 +1,6 @@
 ;;; cc-mode.el --- major mode for editing C and similar languages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1992-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2024 Free Software Foundation, Inc.
 
 ;; Authors:    2003- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -1377,8 +1377,14 @@ Note that the style variables are always made local to the buffer."
 		       (not (nth 3 s))
 		       (c-get-char-property (1- (point)) 'c-fl-syn-tab))
 		    (c-put-char-property pos 'syntax-table '(1))
-		    (c-put-char-properties (1+ pos) (c-point 'eol pos)
-					   'syntax-table '(1)))
+		    ;; Remove syntax-table text properties from template
+		    ;; delimiters.
+		    (c-clear-char-property-with-value
+		     (1+ pos) (c-point 'eol pos)
+		     'syntax-table c-<-as-paren-syntax)
+		    (c-clear-char-property-with-value
+		     (1+ pos) (c-point 'eol pos)
+		     'syntax-table c->-as-paren-syntax))
 		  (setq pos (point)))
 	      (setq pos (1+ pos)))))))))
 

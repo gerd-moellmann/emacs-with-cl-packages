@@ -1,6 +1,6 @@
 ;;; vc-hooks.el --- resident support for version-control  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-1996, 1998-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1996, 1998-2024 Free Software Foundation, Inc.
 
 ;; Author: FSF (see vc.el for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -505,6 +505,18 @@ If FILE is not registered, this function always returns nil."
           (vc-file-setprop file 'vc-working-revision
                            (vc-call-backend
                             backend 'working-revision file))))))
+
+(defvar vc-use-short-revision nil
+  "If non-nil, VC backend functions should return short revisions if possible.
+This is set to t when calling `vc-short-revision', which will
+then call the \\=`working-revision' backend function.")
+
+(defun vc-short-revision (file &optional backend)
+  "Return the repository version for FILE in a shortened form.
+If FILE is not registered, this function always returns nil."
+  (let ((vc-use-short-revision t))
+    (vc-call-backend (or backend (vc-backend file))
+                     'working-revision file)))
 
 (defun vc-default-registered (backend file)
   "Check if FILE is registered in BACKEND using vc-BACKEND-master-templates."

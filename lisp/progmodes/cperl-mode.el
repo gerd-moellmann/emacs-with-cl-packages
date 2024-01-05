@@ -1,6 +1,6 @@
 ;;; cperl-mode.el --- Perl code editing commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 ;; Author: Ilya Zakharevich <ilyaz@cpan.org>
 ;;	Bob Olson
@@ -104,7 +104,10 @@
   :version "20.3")
 
 (defgroup cperl-indentation-details nil
-  "Indentation."
+  "Indentation.
+The option `cperl-file-style' (which see) can be used to set
+several indentation options in one go, following popular
+indentation styles."
   :prefix "cperl-"
   :group 'cperl)
 
@@ -156,6 +159,26 @@ instead of:
 for constructs with multiline if/unless/while/until/for/foreach condition."
   :type 'boolean
   :group 'cperl-autoinsert-details)
+
+(defcustom cperl-file-style nil
+  "Indentation style to use in cperl-mode.
+\"PBP\" is the style recommended in the Book \"Perl Best
+Practices\" by Damian Conway.  \"CPerl\" is the traditional style
+of cperl-mode, and \"PerlStyle\" follows the Perl documentation
+in perlstyle.  The other styles have been developed for other
+programming languages, mostly C."
+  :type '(choice (const "PBP")
+                 (const "CPerl")
+                 (const "PerlStyle")
+                 (const "GNU")
+                 (const "C++")
+                 (const "K&R")
+                 (const "BSD")
+                 (const "Whitesmith")
+                 (const :tag "Default" nil))
+  :group 'cperl-indentation-details
+  :version "29.1")
+;;;###autoload(put 'cperl-file-style 'safe-local-variable 'stringp)
 
 (defcustom cperl-indent-level 2
   "Indentation of CPerl statements with respect to containing block."
@@ -536,20 +559,6 @@ when syntaxifying a chunk of buffer."
 This way enabling/disabling of menu items is more correct."
   :type 'boolean
   :group 'cperl-speed)
-
-(defcustom cperl-file-style nil
-  "Indentation style to use in cperl-mode."
-  :type '(choice (const "CPerl")
-                 (const "PBP")
-                 (const "PerlStyle")
-                 (const "GNU")
-                 (const "C++")
-                 (const "K&R")
-                 (const "BSD")
-                 (const "Whitesmith")
-                 (const :tag "Default" nil))
-  :version "29.1")
-;;;###autoload(put 'cperl-file-style 'safe-local-variable 'stringp)
 
 (defcustom cperl-fontify-trailer
   'perl-code
@@ -1696,19 +1705,18 @@ into
 
 \\{cperl-mode-map}
 
-Setting the variable `cperl-font-lock' to t switches on `font-lock-mode'
-\(even with older Emacsen), `cperl-electric-lbrace-space' to t switches
-on electric space between $ and {, `cperl-electric-parens-string' is
-the string that contains parentheses that should be electric in CPerl
-\(see also `cperl-electric-parens-mark' and `cperl-electric-parens'),
-setting `cperl-electric-keywords' enables electric expansion of
-control structures in CPerl.  `cperl-electric-linefeed' governs which
-one of two linefeed behavior is preferable.  You can enable all these
-options simultaneously (recommended mode of use) by setting
-`cperl-hairy' to t.  In this case you can switch separate options off
-by setting them to `null'.  Note that one may undo the extra
-whitespace inserted by semis and braces in `auto-newline'-mode by
-consequent \\[cperl-electric-backspace].
+Setting the variable `cperl-font-lock' to t switches on `font-lock-mode',
+`cperl-electric-lbrace-space' to t switches on electric space between $
+and {, `cperl-electric-parens-string' is the string that contains
+parentheses that should be electric in CPerl (see also
+`cperl-electric-parens-mark' and `cperl-electric-parens'), setting
+`cperl-electric-keywords' enables electric expansion of control
+structures in CPerl.  `cperl-electric-linefeed' governs which one of two
+linefeed behavior is preferable.  You can enable all these options
+simultaneously by setting `cperl-hairy' to t.  In this case you can
+switch separate options off by setting them to `null'.  Note that one may
+undo the extra whitespace inserted by semis and braces in
+`auto-newline'-mode by consequent \\[cperl-electric-backspace].
 
 Short one-liner-style help is available on \\[cperl-get-help],
 and one can run perldoc or man via menu.
@@ -8824,6 +8832,7 @@ Delay of auto-help controlled by `cperl-lazy-help-time'."
 ;;; Plug for wrong font-lock:
 
 (defun cperl-font-lock-unfontify-region-function (beg end)
+  (declare (obsolete nil "30.1"))
   (with-silent-modifications
     (remove-text-properties beg end '(face nil))))
 

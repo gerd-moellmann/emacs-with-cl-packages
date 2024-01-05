@@ -1,11 +1,11 @@
 ;;; ox-beamer.el --- Beamer Back-End for Org Export Engine -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik AT gmail DOT com>
 ;;         Nicolas Goaziou <n.goaziou AT gmail DOT com>
 ;; Maintainer: Nicolas Goaziou <mail@nicolasgoaziou.fr>
-;; Keywords: org, wp, tex
+;; Keywords: org, text, tex
 
 ;; This file is part of GNU Emacs.
 

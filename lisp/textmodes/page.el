@@ -1,9 +1,9 @@
 ;;; page.el --- page motion commands for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 2001-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
-;; Keywords: wp convenience
+;; Keywords: text convenience
 ;; Package: emacs
 
 ;; This file is part of GNU Emacs.

@@ -1,6 +1,6 @@
 ;;; c-ts-mode.el --- tree-sitter support for C and C++  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;; Maintainer : Theodor Thornhill <theo@thornhill.no>
@@ -438,7 +438,7 @@ MODE is either `c' or `cpp'."
 
            ((parent-is "function_definition") parent-bol 0)
            ((parent-is "pointer_declarator") parent-bol 0)
-           ((parent-is "declaration") parent-bol 0)
+           ((parent-is ,(rx bos "declaration" eos)) parent-bol 0)
            ((parent-is "conditional_expression") first-sibling 0)
            ((parent-is "assignment_expression") parent-bol c-ts-mode-indent-offset)
            ((parent-is "concatenated_string") first-sibling 0)

@@ -1,10 +1,10 @@
 ;;; jsonrpc.el --- JSON-RPC library                  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2024 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords: processes, languages, extensions
-;; Version: 1.0.22
+;; Version: 1.0.23
 ;; Package-Requires: ((emacs "25.2"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -267,14 +267,14 @@ dispatcher in CONN."
               conn
             (setf last-error error)
             (cond
-             (;; A remote response whose request has been cancelled
+             (;; A remote response whose request has been canceled
               ;; (i.e. timeout or C-g)
               ;;
               (and response-p (null cont))
               (jsonrpc--event
                conn 'internal
                :log-text
-               (format "Response to request %s which has been cancelled"
+               (format "Response to request %s which has been canceled"
                        id)
                :id id)
               ;; TODO: food for thought: this seems to be also where
@@ -823,7 +823,7 @@ Return the full continuation (ID SUCCESS-FN ERROR-FN TIMER)"
         (funcall success-fn result)))
      (t
       ;; For clarity.  This happens if the `jsonrpc-request' was
-      ;; cancelled
+      ;; canceled
       ))))
 
 (cl-defun jsonrpc--async-request-1 (connection

@@ -1,6 +1,6 @@
 ;;; completion-preview.el --- Preview completion with inline overlay  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2023 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 ;; Author: Eshel Yaron <me@eshelyaron.com>
 ;; Maintainer: Eshel Yaron <me@eshelyaron.com>
@@ -128,6 +128,10 @@ If this option is nil, these commands do not display any message."
   ;; "M-p" #'completion-preview-prev-candidate
   )
 
+(defvar mouse-wheel-up-event)
+(defvar mouse-wheel-up-alternate-event)
+(defvar mouse-wheel-down-event)
+(defvar mouse-wheel-down-alternate-event)
 (defvar-keymap completion-preview--mouse-map
   :doc "Keymap for mouse clicks on the completion preview."
   "<down-mouse-1>" #'completion-preview-insert

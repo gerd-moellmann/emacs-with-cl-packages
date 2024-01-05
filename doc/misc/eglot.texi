@@ -10,7 +10,7 @@
 @copying
 This manual is for Eglot, the Emacs LSP client.
 
-Copyright @copyright{} 2022--2023 Free Software Foundation, Inc.
+Copyright @copyright{} 2022--2024 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -836,13 +836,13 @@ in the background.  The value of @code{t} means block during the whole
 waiting period.  The value of @code{nil} or @code{0} means don't block at
 all during the waiting period.
 
-@item eglot-events-buffer-size
-This determines the size of the Eglot events buffer.  @xref{Eglot
-Commands, eglot-events-buffer}, for how to display that buffer.  If
-the value is changed, for it to take effect the connection should be
-restarted using @kbd{M-x eglot-reconnect}.
+@item eglot-events-buffer-config
+This configures the size and format of the Eglot events buffer.
+@xref{Eglot Commands, eglot-events-buffer}, for how to access that
+buffer.  If the value is changed, the connection should be restarted
+using @kbd{M-x eglot-reconnect} for the new value to take effect.
 @c FIXME: Shouldn't the defcustom do this by itself using the :set
-@c attribute?
+@c attribute?  Maybe not because reconnecting is a complex task.
 @xref{Troubleshooting Eglot}, for when this could be useful.
 
 @item eglot-autoshutdown
@@ -1107,8 +1107,8 @@ To apply this to Eglot, and assuming you chose the
                                              :fuzzy t)
                            :pylint (:enabled :json-false)))
          :gopls (:usePlaceholders t)))))
- (python-mode . ((indent-tabs-mode . nil)))
- (go-mode     . ((indent-tabs-mode . t))))
+ (python-base-mode . ((indent-tabs-mode . nil)))
+ (go-mode          . ((indent-tabs-mode . t))))
 @end lisp
 
 @noindent
@@ -1123,7 +1123,7 @@ plists are used inside the value of
 This following form may also be used:
 
 @lisp
-((python-mode
+((python-base-mode
   . ((eglot-workspace-configuration
       . (:pylsp (:plugins (:jedi_completion (:include_params t
                                              :fuzzy t)
@@ -1138,7 +1138,7 @@ This following form may also be used:
 @noindent
 This sets up the value of @code{eglot-workspace-configuration}
 separately depending on the major mode of each of that project's
-buffers.  @code{python-mode} buffers will have the variable set to
+buffers.  @code{python-base-mode} buffers will have the variable set to
 @code{(:pylsp (:plugins ...))}.  @code{go-mode} buffers will have the
 variable set to @code{(:gopls (:usePlaceholders t))}.
 
@@ -1149,7 +1149,7 @@ want to set a different option for @code{gopls.usePlaceholders} , you
 may use something like:
 
 @lisp
-((python-mode
+((python-base-mode
   . ((eglot-workspace-configuration
       . (:pylsp (:plugins (:jedi_completion (:include_params t
                                              :fuzzy t)
@@ -1455,12 +1455,14 @@ indicate the problems or at least provide a hint.
 @node Performance
 @section Performance
 @cindex performance problems, with Eglot
-A common and easy-to-fix cause of performance problems is the length
-of the Eglot events buffer because it represent additional work that
-Eglot must do.  After verifying Eglot is operating correctly but
-slowly, try to customize the variable @code{eglot-events-buffer-size}
-(@pxref{Eglot Variables}) to 0.  This will disable any debug logging
-and may speed things up.
+A common and easy-to-fix cause of performance problems in Eglot
+(especially in older versions) is its events buffer, since it
+represents additional work that Eglot must do (@pxref{Eglot Commands,
+eglot-events-buffer}).  If you find Eglot is operating correctly but
+slowly, try to customize the variable
+@code{eglot-events-buffer-config} (@pxref{Eglot Variables}) and set
+its @code{:size} property to 0.  This will disable recording any
+events and may speed things up.
 
 In other situations, the cause of poor performance lies in the
 language server itself.  Servers use aggressive caching and other

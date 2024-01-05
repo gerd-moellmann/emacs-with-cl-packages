@@ -1,6 +1,6 @@
 /* sfnt format font driver for GNU Emacs.
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -2115,9 +2115,8 @@ sfntfont_get_metrics (sfnt_glyph glyph, struct sfnt_glyph_metrics *metrics,
   struct sfntfont_get_glyph_outline_dcontext *tables;
 
   tables = dcontext;
-  return sfnt_lookup_glyph_metrics (glyph, -1, metrics,
-				    tables->hmtx, tables->hhea,
-				    NULL, tables->maxp);
+  return sfnt_lookup_glyph_metrics (glyph, metrics, tables->hmtx,
+				    tables->hhea, tables->maxp);
 }
 
 /* Dereference the outline OUTLINE.  Free it once refcount reaches
@@ -2253,12 +2252,8 @@ sfntfont_get_glyph_outline (sfnt_glyph glyph_code,
 
   /* Now load the glyph's unscaled metrics into TEMP.  */
 
-  if (sfnt_lookup_glyph_metrics (glyph_code, -1, &temp, hmtx, hhea,
-				 head, maxp))
+  if (sfnt_lookup_glyph_metrics (glyph_code, &temp, hmtx, hhea, maxp))
     goto fail;
-
-  /* Add the advance width distortion.  */
-  temp.advance += distortion.advance;
 
   if (interpreter)
     {
@@ -2295,8 +2290,11 @@ sfntfont_get_glyph_outline (sfnt_glyph glyph_code,
 
 	  if (outline)
 	    {
-	      /* Save the new advance width.  */
-	      temp.advance = advance;
+	      /* Save the new advance width.  This advance width is
+		 rounded again, as the instruction code executed might
+		 have moved both phantom points such that they no
+		 longer measure a fractional distance.  */
+	      temp.advance = SFNT_ROUND_FIXED (advance);
 
 	      /* Finally, adjust the left side bearing of the glyph
 		 metrics by the origin point of the outline, should a
@@ -2304,13 +2302,16 @@ sfntfont_get_glyph_outline (sfnt_glyph glyph_code,
 		 instruction code or glyph variation.  The left side
 		 bearing is the distance from the origin point to the
 		 left most point on the X axis.  */
-	      temp.lbearing = outline->xmin - outline->origin;
+	      temp.lbearing
+		= SFNT_FLOOR_FIXED (outline->xmin - outline->origin);
 	    }
 	}
     }
 
   if (!outline)
     {
+      /* Build the outline.  This will apply GX offsets within *GLYPH
+	 to TEMP.  */
       outline = sfnt_build_glyph_outline (glyph, scale,
 					  &temp,
 					  sfntfont_get_glyph,
@@ -2321,15 +2322,6 @@ sfntfont_get_glyph_outline (sfnt_glyph glyph_code,
       /* At this point, the glyph metrics are unscaled.  Scale them
 	 up.  If INTERPRETER is set, use the scale placed within.  */
       sfnt_scale_metrics (&temp, scale);
-
-      /* Finally, adjust the left side bearing of the glyph metrics by
-	 the origin point of the outline, should a transformation have
-	 been applied by either instruction code or glyph variation.
-	 The left side bearing is the distance from the origin point
-	 to the left most point on the X axis.  */
-
-      if (index != -1)
-	temp.lbearing = outline->xmin - outline->origin;
     }
 
  fail:
@@ -3497,12 +3489,12 @@ sfntfont_measure_pcm (struct sfnt_font_info *font, sfnt_glyph glyph,
   if (!outline)
     return 1;
 
-  /* Round the left side bearing down.  */
-  pcm->lbearing = SFNT_FLOOR_FIXED (metrics.lbearing) / 65536;
+  /* The left side bearing has already been floored.  */
+  pcm->lbearing = metrics.lbearing / 65536;
   pcm->rbearing = SFNT_CEIL_FIXED (outline->xmax) / 65536;
 
-  /* Round the advance, ascent and descent upwards.  */
-  pcm->width = SFNT_CEIL_FIXED (metrics.advance) / 65536;
+  /* The advance is already rounded; ceil the ascent and descent.  */
+  pcm->width = metrics.advance / 65536;
   pcm->ascent = SFNT_CEIL_FIXED (outline->ymax) / 65536;
   pcm->descent = SFNT_CEIL_FIXED (-outline->ymin) / 65536;
 
@@ -3706,7 +3698,7 @@ sfntfont_draw (struct glyph_string *s, int from, int to,
       if (s->padding_p)
 	current_x += 1;
       else
-	current_x += SFNT_CEIL_FIXED (metrics.advance) / 65536;
+	current_x += metrics.advance / 65536;
     }
 
   /* Call the window system function to put the glyphs to the

@@ -1,6 +1,6 @@
 GNU Emacs NEWS -- history of user-visible changes.
 
-Copyright (C) 2022-2023 Free Software Foundation, Inc.
+Copyright (C) 2022-2024 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Please send Emacs bug reports to 'bug-gnu-emacs@gnu.org'.
@@ -79,6 +79,27 @@ removed, as it was considered more dangerous than useful.  RFC 9110
 
 To send an email address in the header of individual HTTP requests,
 see the variable 'url-request-extra-headers'.
+
++++
+** 'completion-auto-help' now affects 'icomplete-in-buffer'.
+Previously, completion-auto-help mostly affected only minibuffer
+completion.  Now, if 'completion-auto-help' has the value 'lazy', then
+Icomplete's in-buffer display of possible completions will only appear
+after the 'completion-at-point' command has been invoked twice, and if
+'completion-auto-help' is nil, then Icomplete's in-buffer display is
+completely suppressed.  Thus, if you use 'icomplete-in-buffer', ensure
+'completion-auto-help' is not customized to 'lazy' or nil.
+
++++
+** The *Completions* buffer now always accompanies 'icomplete-in-buffer'.
+Previously, it was not consistent when the *Completions* buffer would
+appear when using 'icomplete-in-buffer'.  Now the *Completions* buffer
+and Icomplete's in-buffer display of possible completions always
+appear together.  If you would prefer to see only Icomplete's
+in-buffer display, and not the *Completions* buffer, you can add this
+to your init:
+
+    (advice-add 'completion-at-point :after #'minibuffer-hide-completions)
 
 
 * Changes in Emacs 30.1
@@ -278,6 +299,11 @@ elaborate and error-prone escaping (to protect them from the shell).
 When answering the prompt with "diff" or "=", it now shows the diffs
 between the auto save file and the current file.
 
+---
+** 'ffap-lax-url' now defaults to nil.
+Previously, it was set to 'ffap-lax-url' to t but this broke remote file
+name detection.
+
 
 * Editing Changes in Emacs 30.1
 
@@ -378,12 +404,7 @@ respectively, in addition to the existing translations 'C-x 8 / e' and
 
 +++
 ** New command 'lldb'.
-Run the LLDB debugger, analogous to the 'gud-gdb' command.  Note that
-you might want to add these settings to your ".lldbinit" file, to reduce
-the output in the LLDB output when stepping through source files.
-
-    settings set stop-line-count-before 0
-    settings set stop-line-count-after 0
+Run the LLDB debugger, analogous to the 'gud-gdb' command.
 
 ** gdb-mi
 
@@ -464,6 +485,11 @@ you can add this to your init script:
 ** VC
 
 ---
+*** Log-Edit buffers now display a tool bar.
+This tool bar contains items for committing log entries and editing or
+generating log entries, among other editing operations.
+
+---
 *** New user option 'vc-git-shortlog-switches'.
 This is a string or a list of strings that specifies the Git log
 switches for shortlogs, such as the one produced by 'C-x v L'.
@@ -486,6 +512,12 @@ be nil for this to work (or '--follow' should not be in
 switch is used, commands to see the diff of the old revision ('d'),
 check out an old file version ('f') or annotate it right away ('a'),
 also work on revisions which precede renames.
+
+---
+*** 'vc-annotate' now abbreviates the Git revision in the buffer name.
+When using the Git backend, 'vc-annotate' will use an abbreviated
+revision identifier in its buffer name.  To restore the previous
+behavior, set 'vc-annotate-use-short-revision' to nil.
 
 *** New option 'vc-git-file-name-changes-switches'.
 It allows tweaking the thresholds for rename and copy detection.
@@ -707,6 +739,12 @@ is t by default.
 When 'completions-sort' is set to 'historical', completion candidates
 will be first sorted alphabetically, and then re-sorted by their order
 in the minibuffer history, with more recent candidates appearing first.
+
++++
+*** 'completion-category-overrides' supports 'display-sort-function'.
+You can now customize the sorting order for any category in
+'completion-category-overrides' that will override the sorting order
+defined in the metadata or in 'completions-sort'.
 
 ** Pcomplete
 
@@ -1233,6 +1271,12 @@ the needs of users with red-green or blue-yellow color deficiency.
 The Info manual "(modus-themes) Top" describes the details and
 showcases all their customization options.
 
++++
+** New global minor mode 'etags-regen-mode'.
+This minor mode generates the tags table automatically based on the
+current project configuration, and later updates it as you edit the
+files and save the changes.
+
 
 * Incompatible Lisp Changes in Emacs 30.1
 
@@ -1344,6 +1388,24 @@ values.
 
 
 * Lisp Changes in Emacs 30.1
+
++++
+** New function 'require-with-check' to detect new versions shadowing.
+This is like 'require', but it checks whether the argument 'feature'
+is already loaded, in which case it either signals an error or
+forcibly reloads the file that defines the feature.
+
++++
+** New variable 'lisp-eval-depth-reserve'.
+It puts a limit to the amount by which Emacs can temporarily increase
+'max-lisp-eval-depth' when handling signals.
+
++++
+** New special form 'handler-bind'.
+Provides a functionality similar to `condition-case` except it runs the
+handler code without unwinding the stack, such that we can record the
+backtrace and other dynamic state at the point of the error.
+See the Info node "(elisp) Handling Errors".
 
 +++
 ** New 'pop-up-frames' action alist entry for 'display-buffer'.

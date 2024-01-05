@@ -1,6 +1,6 @@
 /* Interface definitions for display code.
 
-Copyright (C) 1985, 1993-1994, 1997-2023 Free Software Foundation, Inc.
+Copyright (C) 1985, 1993-1994, 1997-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -3618,6 +3618,7 @@ void image_prune_animation_caches (bool);
 bool valid_image_p (Lisp_Object);
 void prepare_image_for_display (struct frame *, struct image *);
 ptrdiff_t lookup_image (struct frame *, Lisp_Object, int);
+Lisp_Object image_spec_value (Lisp_Object, Lisp_Object, bool *);
 
 #if defined HAVE_X_WINDOWS || defined USE_CAIRO || defined HAVE_NS \
   || defined HAVE_HAIKU || defined HAVE_ANDROID

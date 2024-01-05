@@ -1,6 +1,6 @@
 ;;; erc-status-sidebar.el --- HexChat-like activity overview for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017, 2020-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2017, 2020-2024 Free Software Foundation, Inc.
 
 ;; Author: Andrew Barbarello
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -257,12 +257,13 @@ current frame only."
          " Add `track' to `erc-modules' to silence this message."))
      (erc-track-mode +1))
    (add-hook 'erc--setup-buffer-hook #'erc-status-sidebar--open)
-   (unless erc--updating-modules-p
-     (if (erc-with-server-buffer erc-server-connected)
-         (erc-status-sidebar--open)
-       (when (derived-mode-p 'erc-mode)
-         (erc-error "Not initializing `erc-bufbar-mode' in %s"
-                    (current-buffer))))))
+   ;; Preserve side-window dimensions after `custom-buffer-done'.
+   (when-let (((not erc--updating-modules-p))
+              (buf (or (and (derived-mode-p 'erc-mode) (current-buffer))
+                       (car (erc-buffer-filter
+                             (lambda () erc-server-connected))))))
+     (with-current-buffer buf
+       (erc-status-sidebar--open))))
   ((remove-hook 'erc--setup-buffer-hook #'erc-status-sidebar--open)
    (erc-status-sidebar-close 'all-frames)
    (when-let ((arg erc--module-toggle-prefix-arg)

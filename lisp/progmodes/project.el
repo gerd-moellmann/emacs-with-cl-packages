@@ -1,6 +1,6 @@
 ;;; project.el --- Operations on the current project  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
 ;; Version: 0.10.0
 ;; Package-Requires: ((emacs "26.1") (xref "1.4.0"))
 
@@ -1147,14 +1147,15 @@ by the user at will."
          (new-collection (project--file-completion-table substrings))
          (abs-cpd (expand-file-name common-parent-directory))
          (abs-cpd-length (length abs-cpd))
-         (relname (cl-letf (((symbol-value hist)
-                             (mapcan
-                              (lambda (s)
-                                (setq s (expand-file-name s))
-                                (and (string-prefix-p abs-cpd s)
-                                     (not (eq abs-cpd-length (length s)))
-                                     (list (substring s abs-cpd-length))))
-                              (symbol-value hist))))
+         (relname (cl-letf* ((non-essential t) ;Avoid new Tramp connections.
+                             ((symbol-value hist)
+                              (mapcan
+                               (lambda (s)
+                                 (setq s (expand-file-name s))
+                                 (and (string-prefix-p abs-cpd s)
+                                      (not (eq abs-cpd-length (length s)))
+                                      (list (substring s abs-cpd-length))))
+                               (symbol-value hist))))
                     (project--completing-read-strict prompt
                                                      new-collection
                                                      predicate

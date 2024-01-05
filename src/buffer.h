@@ -1,6 +1,6 @@
 /* Header file for the buffer manipulation primitives.
 
-Copyright (C) 1985-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -379,7 +379,6 @@ struct buffer
   /* Values of several buffer-local variables.  */
   /* tab-width is buffer-local so that redisplay can find it
      in buffers that are not current.  */
-  Lisp_Object case_fold_search_;
   Lisp_Object tab_width_;
   Lisp_Object fill_column_;
   Lisp_Object left_margin_;

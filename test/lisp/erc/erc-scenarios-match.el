@@ -1,6 +1,6 @@
 ;;; erc-scenarios-match.el --- Misc `erc-match' scenarios -*- lexical-binding: t -*-
 
-;; Copyright (C) 2023 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -191,7 +191,7 @@
            (should (= (next-single-property-change msg-end 'invisible) end)))))
 
      (lambda ()
-       (let ((end (erc--get-inserted-msg-bounds 'end)))
+       (let ((end (erc--get-inserted-msg-end (point))))
          ;; This message has a time stamp like all the others.
          (should (eq (field-at-pos (1- end)) 'erc-timestamp))
 

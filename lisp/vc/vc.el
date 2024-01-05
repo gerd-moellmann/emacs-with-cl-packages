@@ -1,6 +1,6 @@
 ;;; vc.el --- drive a version-control system from within Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-1998, 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1998, 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: FSF (see below for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -1074,6 +1074,7 @@ Within directories, only files already under version control are noticed."
 
 (defvar vc-dir-backend)
 (defvar log-view-vc-backend)
+(defvar log-view-vc-fileset)
 (defvar log-edit-vc-backend)
 (defvar diff-vc-backend)
 (defvar diff-vc-revisions)
@@ -1155,6 +1156,11 @@ BEWARE: this function may change the current buffer."
 	      (vc-state buffer-file-name)
 	      (vc-checkout-model backend buffer-file-name))
 	(list backend (list buffer-file-name))))
+     ((derived-mode-p 'log-view-mode)
+      ;; 'log-view-mode' stashes the backend and the fileset in the
+      ;; two special variables, so we use them to avoid any possible
+      ;; mistakes from a decision made here ad-hoc.
+      (list log-view-vc-backend log-view-vc-fileset))
      ((and (buffer-live-p vc-parent-buffer)
            ;; FIXME: Why this test?  --Stef
            (or (buffer-file-name vc-parent-buffer)

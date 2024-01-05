@@ -1,6 +1,6 @@
 ;;; calendar.el --- calendar functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1988-1995, 1997, 2000-2023 Free Software Foundation,
+;; Copyright (C) 1988-1995, 1997, 2000-2024 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -2339,7 +2339,11 @@ returned is (month year)."
          (month (cdr (assoc-string
                       (completing-read
                        (format-prompt "Month name" defmon)
-                       (append month-array nil)
+                       (lambda (string pred action)
+	                 (if (eq action 'metadata)
+		             '(metadata (category . calendar-month))
+	                   (complete-with-action
+                            action (append month-array nil) string pred)))
                        nil t nil nil defmon)
                       (calendar-make-alist month-array 1) t)))
          (defday (calendar-extract-day default-date))

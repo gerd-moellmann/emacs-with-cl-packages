@@ -1,6 +1,6 @@
 ;;; erc-stamp.el --- Timestamping for ERC messages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2004, 2006-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2024 Free Software Foundation, Inc.
 
 ;; Author: Mario Lang <mlang@delysid.org>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -182,7 +182,7 @@ from entering them and instead jump over them."
    (add-hook 'erc-insert-modify-hook #'erc-add-timestamp 70)
    (add-hook 'erc-send-modify-hook #'erc-add-timestamp 70)
    (add-hook 'erc-mode-hook #'erc-stamp--recover-on-reconnect)
-   (add-hook 'erc--pre-clear-functions #'erc-stamp--reset-on-clear)
+   (add-hook 'erc--pre-clear-functions #'erc-stamp--reset-on-clear 40)
    (unless erc--updating-modules-p (erc-buffer-do #'erc-stamp--setup)))
   ((remove-hook 'erc-mode-hook #'erc-munge-invisibility-spec)
    (remove-hook 'erc-insert-modify-hook #'erc-add-timestamp)
@@ -678,6 +678,13 @@ value of t means the option's value doesn't require trimming.")
                                             0 erc-stamp--date-format-end)
                                erc-timestamp-format-left))))
 
+(defun erc-stamp-inserting-date-stamp-p ()
+  "Return non-nil if the narrowed buffer contains a date stamp.
+Expect to be called by members of `erc-insert-modify-hook' and
+`erc-insert-post-hook' to detect whether the message being
+inserted is a date stamp."
+  (erc--check-msg-prop 'erc--msg 'datestamp))
+
 ;; Calling `erc-display-message' from within a hook it's currently
 ;; running is roundabout, but it's a definite means of ensuring hooks
 ;; can act on the date stamp as a standalone message to do things like
@@ -973,8 +980,9 @@ with the option `erc-echo-timestamps', see the companion option
 (defun erc-stamp--reset-on-clear (pos)
   "Forget last-inserted stamps when POS is at insert marker."
   (when (= pos (1- erc-insert-marker))
-    (add-hook 'erc-stamp--insert-date-hook
-              #'erc-stamp--update-saved-position 0 t)
+    (when erc-stamp--date-mode
+      (add-hook 'erc-stamp--insert-date-hook
+                #'erc-stamp--update-saved-position 0 t))
     (setq erc-timestamp-last-inserted nil
           erc-timestamp-last-inserted-left nil
           erc-timestamp-last-inserted-right nil)))

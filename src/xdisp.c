@@ -1,6 +1,6 @@
 /* Display generation from window structure and buffer text.
 
-Copyright (C) 1985-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -3072,10 +3072,24 @@ dsafe__call (bool inhibit_quit, Lisp_Object (f) (ptrdiff_t, Lisp_Object *),
   return val;
 }
 
+static Lisp_Object
+funcall_with_backtraces (ptrdiff_t nargs, Lisp_Object *args)
+{
+  /* If an error is signaled during a Lisp hook in redisplay, write a
+     backtrace into the buffer *Redisplay-trace*.  */
+  push_handler_bind (list_of_error, Qdebug_early__muted, 0);
+  Lisp_Object res = Ffuncall (nargs, args);
+  pop_handler ();
+  return res;
+}
+
 #define SAFE_CALLMANY(inhibit_quit, f, array) \
   dsafe__call ((inhibit_quit), f, ARRAYELTS (array), array)
-#define dsafe_calln(inhibit_quit, ...) \
-  SAFE_CALLMANY ((inhibit_quit), Ffuncall, ((Lisp_Object []) {__VA_ARGS__}))
+#define dsafe_calln(inhibit_quit, ...)                 \
+  SAFE_CALLMANY ((inhibit_quit),                       \
+                 backtrace_on_redisplay_error          \
+                 ? funcall_with_backtraces : Ffuncall, \
+                 ((Lisp_Object []) {__VA_ARGS__}))
 
 static Lisp_Object
 dsafe_call1 (Lisp_Object f, Lisp_Object arg)
@@ -30941,6 +30955,26 @@ draw_glyphs (struct window *w, int x, struct glyph_row *row,
 	  }
     }
 
+#ifdef HAVE_RSVG
+  /* Update SVG image glyphs with mouse face features.  FIXME: it
+     should be possible to have this behaviour with transparent
+     background PNG.  */
+  if (hl == DRAW_MOUSE_FACE)
+    {
+      Mouse_HLInfo *hlinfo = MOUSE_HL_INFO (f);
+      for (s = head; s; s = s->next)
+	if (s->first_glyph->type == IMAGE_GLYPH)
+	  if (s->img
+	      && (EQ (image_spec_value (s->img->spec, QCtype, NULL), Qsvg)))
+	    {
+	      ptrdiff_t id;
+	      id = lookup_image (f, s->img->spec, hlinfo->mouse_face_face_id);
+	      s->img = IMAGE_FROM_ID (f, id);
+	      prepare_image_for_display (f, s->img);
+	    }
+    }
+#endif
+
   /* Draw all strings.  */
   for (s = head; s; s = s->next)
     FRAME_RIF (f)->draw_glyph_string (s);
@@ -33546,13 +33580,18 @@ notice_overwritten_cursor (struct window *w, enum glyph_row_area area,
 
 void
 gui_fix_overlapping_area (struct window *w, struct glyph_row *row,
-			enum glyph_row_area area, int overlaps)
+			  enum glyph_row_area area, int overlaps)
 {
   int i, x;
 
   block_input ();
 
-  x = 0;
+  /* row->x might be smaller than zero when produced from an iterator
+     under horizontal scrolling.  Offset all measurements by this
+     basic value, lest hscrolled text with overlaps be displayed with
+     its overlapping portions misaligned.  */
+  x = row->x;
+
   for (i = 0; i < row->used[area];)
     {
       if (row->glyphs[area][i].overlaps_vertically_p)
@@ -37728,6 +37767,8 @@ cursor shapes.  */);
   DEFSYM (Qempty_box, "empty-box");
   DEFSYM (Qthin_space, "thin-space");
   DEFSYM (Qzero_width, "zero-width");
+
+  DEFSYM (Qdebug_early__muted, "debug-early--muted");
 
   DEFVAR_LISP ("pre-redisplay-function", Vpre_redisplay_function,
 	       doc: /* Function run just before redisplay.

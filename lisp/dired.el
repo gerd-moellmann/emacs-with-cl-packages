@@ -1,6 +1,6 @@
 ;;; dired.el --- directory-browsing commands -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992-1997, 2000-2023 Free Software
+;; Copyright (C) 1985-1986, 1992-1997, 2000-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>
@@ -1613,14 +1613,21 @@ BEG..END is the line where the file info is located."
 		 ;; the beginning or the end of the next field, depending on
 		 ;; whether this field is left or right aligned).
 		 (align-pt-offset
-		  (save-excursion
-		    (goto-char other)
-		    (move-to-column curcol)
-		    (when (looking-at
-			   (concat
-			    (if (eq (char-before) ?\s) " *" "[^ ]* *")
-			    (if num-align "[0-9][^ ]*")))
-		      (- (match-end 0) (match-beginning 0)))))
+                  ;; It is never TRT to realign the first column of
+                  ;; file's data.  But the code below does attempt to
+                  ;; realign the first column if there's no whitespace
+                  ;; before it, so we force it to let the first column
+                  ;; alone.
+                  (if (zerop curcol)
+                      0
+		    (save-excursion
+		      (goto-char other)
+		      (move-to-column curcol)
+		      (when (looking-at
+			     (concat
+			      (if (eq (char-before) ?\s) " *" "[^ ]* *")
+			      (if num-align "[0-9][^ ]*")))
+		        (- (match-end 0) (match-beginning 0))))))
 		 ;; Now, the number of spaces to insert is align-pt-offset
 		 ;; minus the distance to the equivalent point on the
 		 ;; current line.
@@ -2010,9 +2017,22 @@ mouse-2: visit this file in other window"
               keymap ,(let* ((current-dir dir)
                              (click (lambda ()
                                       (interactive)
-                                      (if (assoc current-dir dired-subdir-alist)
-                                          (dired-goto-subdir current-dir)
-                                        (dired current-dir)))))
+                                      (cond
+                                       ((assoc current-dir dired-subdir-alist)
+                                        (dired-goto-subdir current-dir))
+                                       ;; If there is a wildcard chars
+                                       ;; in the directory name, don't
+                                       ;; use the alternate file machinery
+                                       ;; which tries to keep only one
+                                       ;; dired buffer open at once.
+                                       ;;
+                                       ;; FIXME: Is this code path reachable?
+                                       ((insert-directory-wildcard-in-dir-p
+                                         current-dir)
+                                        (dired current-dir))
+                                       (t
+                                        (dired--find-possibly-alternative-file
+                                         current-dir))))))
                         (define-keymap
                           "<mouse-2>" click
                           "<follow-link>" 'mouse-face

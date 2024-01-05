@@ -1,11 +1,11 @@
 ;;; allout.el --- extensive outline mode for use alone and with other modes  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
 
 ;; Author: Ken Manheimer <ken dot manheimer at gmail...>
 ;; Created: Dec 1991 -- first release to usenet
 ;; Version: 2.3
-;; Keywords: outlines, wp, languages, PGP, GnuPG
+;; Keywords: outlines, text, languages, PGP, GnuPG
 ;; Website: https://myriadicity.net/software-and-systems/craft/emacs-allout
 
 ;; This file is part of GNU Emacs.

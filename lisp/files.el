@@ -1,6 +1,6 @@
 ;;; files.el --- file input and output commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1992-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1992-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Package: emacs
@@ -1246,6 +1246,29 @@ See `load-file' for a different interface to `load'."
   (interactive (list (read-library-name)))
   (load library))
 
+(defun require-with-check (feature &optional filename noerror)
+  "If FEATURE is not already loaded, load it from FILENAME.
+This is like `require' except if FEATURE is already a member of the list
+`features’, then we check if this was provided by a different file than the
+one that we would load now (presumably because `load-path' has been
+changed since the file was loaded).
+If it's the case, we either signal an error (the default), or forcibly reload
+the new file (if NOERROR is equal to `reload'), or otherwise emit a warning."
+  (let ((lh load-history)
+        (res (require feature filename (if (eq noerror 'reload) nil noerror))))
+    ;; If the `feature' was not yet provided, `require' just loaded the right
+    ;; file, so we're done.
+    (when (eq lh load-history)
+      ;; If `require' did nothing, we need to make sure that was warranted.
+      (let ((fn (locate-file (or filename (symbol-name feature))
+                             load-path (get-load-suffixes))))
+        (cond
+         ((assoc fn load-history) nil)  ;We loaded the right file.
+         ((eq noerror 'reload) (load fn nil 'nomessage))
+         (t (funcall (if noerror #'warn #'error)
+                     "Feature provided by other file: %S" feature)))))
+    res))
+
 (defun file-remote-p (file &optional identification connected)
   "Test whether FILE specifies a location on a remote system.
 A file is considered remote if accessing it is likely to
@@ -2185,37 +2208,33 @@ and others are ignored.  PREDICATE is called with the buffer as
 the only argument, but not with the buffer as the current buffer.
 
 If there is no such live buffer, return nil."
-  (let ((predicate (or predicate #'identity))
-        (truename (abbreviate-file-name (file-truename filename))))
-    (or (let ((buf (get-file-buffer filename)))
-          (when (and buf (funcall predicate buf)) buf))
-        (let ((list (buffer-list)) found)
-          (while (and (not found) list)
-            (with-current-buffer (car list)
-              (if (and buffer-file-name
-                       (string= buffer-file-truename truename)
-                       (funcall predicate (current-buffer)))
-                  (setq found (car list))))
-            (setq list (cdr list)))
-          found)
-        (let* ((attributes (file-attributes truename))
-               (number (file-attribute-file-identifier attributes))
-               (list (buffer-list)) found)
-          (and buffer-file-numbers-unique
-               (car-safe number)       ;Make sure the inode is not just nil.
-               (while (and (not found) list)
-                 (with-current-buffer (car list)
-                   (if (and buffer-file-name
-                            (equal buffer-file-number number)
-                            ;; Verify this buffer's file number
-                            ;; still belongs to its file.
-                            (file-exists-p buffer-file-name)
-                            (equal (file-attributes buffer-file-truename)
-                                   attributes)
-                            (funcall predicate (current-buffer)))
-                       (setq found (car list))))
-                 (setq list (cdr list))))
-          found))))
+  (or (let ((buf (get-file-buffer filename)))
+        (when (and buf (or (not predicate) (funcall predicate buf))) buf))
+      (let ((truename (abbreviate-file-name (file-truename filename))))
+        (or
+         (let ((buf (get-truename-buffer truename)))
+           (when (and buf (buffer-local-value 'buffer-file-name buf)
+                      (or (not predicate) (funcall predicate buf)))
+             buf))
+         (let* ((attributes (file-attributes truename))
+                (number (file-attribute-file-identifier attributes)))
+           (and buffer-file-numbers-unique
+                (car-safe number)       ;Make sure the inode is not just nil.
+                (let* ((buf (find-buffer 'buffer-file-number number))
+                       (buf-file-name
+                        (and buf (buffer-local-value 'buffer-file-name buf))))
+                  (when (and buf-file-name
+                             ;; Verify this buffer's file number
+                             ;; still belongs to its file.
+                             (file-exists-p buf-file-name)
+                             (equal (file-attributes
+                                     (buffer-local-value
+                                      'buffer-file-truename buf))
+                                    attributes)
+                             (or (not predicate)
+                                 (funcall predicate buf)))
+                    buf))))))))
+
 
 (defcustom find-file-wildcards t
   "Non-nil means file-visiting commands should handle wildcards.

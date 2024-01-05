@@ -1,6 +1,6 @@
 /* NeXT/Open/GNUstep / macOS communication module.      -*- coding: utf-8 -*-
 
-Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2023 Free Software
+Copyright (C) 1989, 1993-1994, 2005-2006, 2008-2024 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -546,6 +546,15 @@ ns_relocate (const char *epath)
 #endif
 
   return epath;
+}
+
+
+void
+ns_init_pool (void)
+/* Initialize the 'outerpool' autorelease pool.  This should be called
+   from main before any Objective C code is run.  */
+{
+  outerpool = [[NSAutoreleasePool alloc] init];
 }
 
 
