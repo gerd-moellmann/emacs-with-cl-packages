@@ -1660,8 +1660,8 @@ or from one of the possible completions.  */)
 	{
 	  const struct Lisp_Hash_Table *ht = XHASH_TABLE (collection);
 	  while (idx < HASH_TABLE_SIZE (ht)
-		 && BASE_EQ (HASH_KEY (ht, idx), Qunbound))
-	    ++idx;
+		 && hash_unused_entry_key_p (HASH_KEY (ht, idx)))
+	    idx++;
 	  if (idx >= HASH_TABLE_SIZE (ht))
 	    break;
 	  elt = eltstring = HASH_KEY (ht, idx);
@@ -1910,8 +1910,8 @@ with a space are ignored unless STRING itself starts with a space.  */)
 	{
 	  const struct Lisp_Hash_Table *ht = XHASH_TABLE (collection);
 	  while (idx < HASH_TABLE_SIZE (ht)
-		 && BASE_EQ (HASH_KEY (ht, idx), Qunbound))
-	    ++idx;
+		 && hash_unused_entry_key_p (HASH_KEY (ht, idx)))
+	    idx++;
 	  if (idx >= HASH_TABLE_SIZE (ht))
 	    break;
 	  elt = eltstring = HASH_KEY (ht, idx);
@@ -2102,7 +2102,7 @@ the values STRING, PREDICATE and `lambda'.  */)
 	  for (i = 0; i < HASH_TABLE_SIZE (h); ++i)
 	    {
 	      tem = HASH_KEY (h, i);
-	      if (BASE_EQ (tem, Qunbound))
+	      if (hash_unused_entry_key_p (tem))
 		continue;
 	      Lisp_Object strkey = (SYMBOLP (tem) ? Fsymbol_name (tem) : tem);
 	      if (!STRINGP (strkey))

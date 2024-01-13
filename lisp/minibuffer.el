@@ -150,8 +150,29 @@ The metadata of a completion table should be constant between two boundaries."
                        minibuffer-completion-table
                        minibuffer-completion-predicate))
 
+(defun completion--metadata-get-1 (metadata prop)
+  (or (alist-get prop metadata)
+      (plist-get completion-extra-properties
+                 ;; Cache the keyword
+                 (or (get prop 'completion-extra-properties--keyword)
+                     (put prop 'completion-extra-properties--keyword
+                          (intern (concat ":" (symbol-name prop))))))))
+
 (defun completion-metadata-get (metadata prop)
-  (cdr (assq prop metadata)))
+  "Get property PROP from completion METADATA.
+If the metadata specifies a completion category, the variables
+`completion-category-overrides' and
+`completion-category-defaults' take precedence for
+category-specific overrides.  If the completion metadata does not
+specify the property, the `completion-extra-properties' plist is
+consulted.  Note that the keys of the
+`completion-extra-properties' plist are keyword symbols, not
+plain symbols."
+  (if-let (((not (eq prop 'category)))
+           (cat (completion--metadata-get-1 metadata 'category))
+           (over (completion--category-override cat prop)))
+      (cdr over)
+    (completion--metadata-get-1 metadata prop)))
 
 (defun complete-with-action (action collection string predicate)
   "Perform completion according to ACTION.
@@ -1140,27 +1161,38 @@ styles for specific categories, such as files, buffers, etc."
     (symbol-help (styles . (basic shorthand substring)))
     (calendar-month (display-sort-function . identity)))
   "Default settings for specific completion categories.
+
 Each entry has the shape (CATEGORY . ALIST) where ALIST is
 an association list that can specify properties such as:
 - `styles': the list of `completion-styles' to use for that category.
 - `cycle': the `completion-cycle-threshold' to use for that category.
-- `display-sort-function': the sorting function.
+- `cycle-sort-function': function to sort entries when cycling.
+- `display-sort-function': function to sort entries in *Completions*.
+- `group-function': function for grouping the completion candidates.
+- `annotation-function': function to add annotations in *Completions*.
+- `affixation-function': function to prepend/append a prefix/suffix.
+
 Categories are symbols such as `buffer' and `file', used when
 completing buffer and file names, respectively.
 
 Also see `completion-category-overrides'.")
 
 (defcustom completion-category-overrides nil
-  "List of category-specific user overrides for completion styles.
+  "List of category-specific user overrides for completion metadata.
 
 Each override has the shape (CATEGORY . ALIST) where ALIST is
 an association list that can specify properties such as:
 - `styles': the list of `completion-styles' to use for that category.
 - `cycle': the `completion-cycle-threshold' to use for that category.
+- `cycle-sort-function': function to sort entries when cycling.
 - `display-sort-function': nil means to use either the sorting
 function from metadata, or if that is nil, fall back to `completions-sort';
 `identity' disables sorting and keeps the original order; and other
 possible values are the same as in `completions-sort'.
+- `group-function': function for grouping the completion candidates.
+- `annotation-function': function to add annotations in *Completions*.
+- `affixation-function': function to prepend/append a prefix/suffix.
+See more description of metadata in `completion-metadata'.
 
 Categories are symbols such as `buffer' and `file', used when
 completing buffer and file names, respectively.
@@ -1182,6 +1214,10 @@ overrides the default specified in `completion-category-defaults'."
            (cons :tag "Completion Cycling"
 		 (const :tag "Select one value from the menu." cycle)
                  ,completion--cycling-threshold-type)
+           (cons :tag "Cycle Sorting"
+                 (const :tag "Select one value from the menu."
+                        cycle-sort-function)
+                 (choice (function :tag "Custom function")))
            (cons :tag "Completion Sorting"
                  (const :tag "Select one value from the menu."
                         display-sort-function)
@@ -1191,17 +1227,23 @@ overrides the default specified in `completion-category-defaults'."
                                 minibuffer-sort-alphabetically)
                          (const :tag "Historical sorting"
                                 minibuffer-sort-by-history)
-                         (function :tag "Custom function"))))))
+                         (function :tag "Custom function")))
+           (cons :tag "Completion Groups"
+                 (const :tag "Select one value from the menu."
+                        group-function)
+                 (choice (function :tag "Custom function")))
+           (cons :tag "Completion Annotation"
+                 (const :tag "Select one value from the menu."
+                        annotation-function)
+                 (choice (function :tag "Custom function")))
+           (cons :tag "Completion Affixation"
+                 (const :tag "Select one value from the menu."
+                        affixation-function)
+                 (choice (function :tag "Custom function"))))))
 
 (defun completion--category-override (category tag)
   (or (assq tag (cdr (assq category completion-category-overrides)))
       (assq tag (cdr (assq category completion-category-defaults)))))
-
-(defun completion-metadata-override-get (metadata prop)
-  (if-let ((cat (completion-metadata-get metadata 'category))
-           (over (completion--category-override cat prop)))
-      (cdr over)
-    (completion-metadata-get metadata prop)))
 
 (defun completion--styles (metadata)
   (let* ((cat (completion-metadata-get metadata 'category))
@@ -2405,6 +2447,9 @@ candidates."
   "Property list of extra properties of the current completion job.
 These include:
 
+`:category': the kind of objects returned by `all-completions'.
+   Used by `completion-category-overrides'.
+
 `:annotation-function': Function to annotate the completions buffer.
    The function must accept one argument, a completion string,
    and return either nil or a string which is to be displayed
@@ -2419,6 +2464,15 @@ These include:
    prefix and suffix.  This function takes priority over
    `:annotation-function' when both are provided, so only this
    function is used.
+
+`:group-function': Function for grouping the completion candidates.
+
+`:display-sort-function': Function to sort entries in *Completions*.
+
+`:cycle-sort-function': Function to sort entries when cycling.
+
+See more information about these functions above
+in `completion-metadata'.
 
 `:exit-function': Function to run after completion is performed.
 
@@ -2542,13 +2596,9 @@ The candidate will still be chosen by `choose-completion' unless
                                            base-size md
                                            minibuffer-completion-table
                                            minibuffer-completion-predicate))
-             (ann-fun (or (completion-metadata-get all-md 'annotation-function)
-                          (plist-get completion-extra-properties
-                                     :annotation-function)))
-             (aff-fun (or (completion-metadata-get all-md 'affixation-function)
-                          (plist-get completion-extra-properties
-                                     :affixation-function)))
-             (sort-fun (completion-metadata-override-get all-md 'display-sort-function))
+             (ann-fun (completion-metadata-get all-md 'annotation-function))
+             (aff-fun (completion-metadata-get all-md 'affixation-function))
+             (sort-fun (completion-metadata-get all-md 'display-sort-function))
              (group-fun (completion-metadata-get all-md 'group-function))
              (mainbuf (current-buffer))
              ;; If the *Completions* buffer is shown in a new
