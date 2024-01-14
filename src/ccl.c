@@ -873,7 +873,7 @@ static struct ccl_prog_stack ccl_prog_stack_struct[256];
 static inline Lisp_Object
 GET_TRANSLATION_TABLE (int id)
 {
-  return XCDR (XVECTOR (Vtranslation_table_vector)->contents[id]);
+  return XCDR (AREF (Vtranslation_table_vector, id));
 }
 
 void
@@ -1380,7 +1380,7 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 
 		eop = (FIXNUM_OVERFLOW_P (reg[RRR])
 		       ? -1
-		       : hash_lookup (h, make_fixnum (reg[RRR]), NULL));
+		       : hash_lookup (h, make_fixnum (reg[RRR])));
 		if (eop >= 0)
 		  {
 		    Lisp_Object opl;
@@ -1409,7 +1409,7 @@ ccl_driver (struct ccl_program *ccl, int *source, int *destination, int src_size
 
 		eop = (FIXNUM_OVERFLOW_P (i)
 		       ? -1
-		       : hash_lookup (h, make_fixnum (i), NULL));
+		       : hash_lookup (h, make_fixnum (i)));
 		if (eop >= 0)
 		  {
 		    Lisp_Object opl;

@@ -256,7 +256,7 @@ pkg_find_symbol (Lisp_Object name, Lisp_Object package, Lisp_Object *status)
   eassert (PACKAGEP (package));
 
   struct Lisp_Hash_Table *h = XHASH_TABLE (PACKAGE_SYMBOLS (package));
-  ptrdiff_t i = hash_lookup (h, name, NULL);
+  ptrdiff_t i = hash_lookup (h, name);
   if (i >= 0)
     {
       if (status)
@@ -269,7 +269,7 @@ pkg_find_symbol (Lisp_Object name, Lisp_Object package, Lisp_Object *status)
     {
       const Lisp_Object used_package = XCAR (tail);
       h = XHASH_TABLE (PACKAGE_SYMBOLS (used_package));
-      i = hash_lookup (h, name, NULL);
+      i = hash_lookup (h, name);
       if (i >= 0 && EQ (HASH_VALUE (h, i), QCexternal))
 	{
 	  if (status)
@@ -516,12 +516,12 @@ pkg_set_status (Lisp_Object symbol, Lisp_Object package, Lisp_Object status)
     pkg_error ("Invalid symbol status %s", status);
 
   struct Lisp_Hash_Table *h = XHASH_TABLE (PACKAGE_SYMBOLS (package));
-  const ptrdiff_t i = hash_lookup (h, SYMBOL_NAME (symbol), NULL);
+  const ptrdiff_t i = hash_lookup (h, SYMBOL_NAME (symbol));
   if (i < 0)
     pkg_error ("Symbol '%s' is not an internal symbol in package '%s'",
 	       SDATA (SYMBOL_NAME (symbol)),
 	       SDATA (PACKAGE_NAMEX (package)));
-  ASET (h->key_and_value, 2 * i + 1, status);
+  set_hash_value_slot (h, i, status);
   return Qnil;
 }
 
@@ -1122,10 +1122,8 @@ init_pkg_once (void)
   DEFSYM (Qexternal_symbol_name, "external-symbol-name");
 
   staticpro (&Vpackage_registry);
-  Vpackage_registry = make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
-				       DEFAULT_REHASH_SIZE,
-				       DEFAULT_REHASH_THRESHOLD,
-				       Qnil, false);
+  Vpackage_registry = make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE,
+				       Weak_None, false);
 
   staticpro (&Vemacs_package);
   Vemacs_package = pkg_make_package (build_string ("emacs"),

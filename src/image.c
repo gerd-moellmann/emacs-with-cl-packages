@@ -6071,9 +6071,7 @@ xpm_make_color_table_h (void (**put_func) (Lisp_Object, const char *, int,
 {
   *put_func = xpm_put_color_table_h;
   *get_func = xpm_get_color_table_h;
-  return make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
-			  DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
-			  Qnil, false);
+  return make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE, Weak_None, false);
 }
 
 static void
@@ -6083,9 +6081,10 @@ xpm_put_color_table_h (Lisp_Object color_table,
                        Lisp_Object color)
 {
   struct Lisp_Hash_Table *table = XHASH_TABLE (color_table);
-  Lisp_Object chars = make_unibyte_string (chars_start, chars_len), hash_code;
+  Lisp_Object chars = make_unibyte_string (chars_start, chars_len);
 
-  hash_lookup (table, chars, &hash_code);
+  hash_hash_t hash_code;
+  hash_lookup_get_hash (table, chars, &hash_code);
   hash_put (table, chars, color, hash_code);
 }
 
@@ -6096,7 +6095,7 @@ xpm_get_color_table_h (Lisp_Object color_table,
 {
   struct Lisp_Hash_Table *table = XHASH_TABLE (color_table);
   ptrdiff_t i =
-    hash_lookup (table, make_unibyte_string (chars_start, chars_len), NULL);
+    hash_lookup (table, make_unibyte_string (chars_start, chars_len));
 
   return i >= 0 ? HASH_VALUE (table, i) : Qnil;
 }

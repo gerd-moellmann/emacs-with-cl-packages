@@ -359,7 +359,15 @@ static struct gcstat
   object_ct total_floats, total_free_floats;
   object_ct total_intervals, total_free_intervals;
   object_ct total_buffers;
+
+  /* Size of the ancillary arrays of live hash-table objects.
+     The objects themselves are not included (counted as vectors above).  */
+  byte_ct total_hash_table_bytes;
 } gcstat;
+
+/* Total size of ancillary arrays of all allocated hash-table objects,
+   both dead and alive.  This number is always kept up-to-date.  */
+static ptrdiff_t hash_table_allocated_bytes = 0;
 
 /* Points to memory space allocated as "spare", to be freed if we run
    out of memory.  We keep one large block, four cons-blocks, and
@@ -3475,6 +3483,23 @@ cleanup_vector (struct Lisp_Vector *vector)
       }
 #endif
       break;
+    case PVEC_HASH_TABLE:
+      {
+	struct Lisp_Hash_Table *h = PSEUDOVEC_STRUCT (vector, Lisp_Hash_Table);
+	if (h->table_size > 0)
+	  {
+	    eassert (h->index_size > 1);
+	    xfree (h->index);
+	    xfree (h->key_and_value);
+	    xfree (h->next);
+	    xfree (h->hash);
+	    ptrdiff_t bytes = (h->table_size * (2 * sizeof *h->key_and_value
+						+ sizeof *h->hash
+						+ sizeof *h->next)
+			       + h->index_size * sizeof *h->index);
+	    hash_table_allocated_bytes -= bytes;
+	  }
+      }
     /* Keep the switch exhaustive.  */
     case PVEC_NORMAL_VECTOR:
     case PVEC_FREE:
@@ -3485,7 +3510,6 @@ cleanup_vector (struct Lisp_Vector *vector)
     case PVEC_WINDOW:
     case PVEC_BOOL_VECTOR:
     case PVEC_BUFFER:
-    case PVEC_HASH_TABLE:
     case PVEC_TERMINAL:
     case PVEC_WINDOW_CONFIGURATION:
     case PVEC_OTHER:
@@ -3600,6 +3624,8 @@ sweep_vectors (void)
 	  lisp_free (lv);
 	}
     }
+
+  gcstat.total_hash_table_bytes = hash_table_allocated_bytes;
 }
 
 /* Maximum number of elements in a vector.  This is a macro so that it
@@ -5651,6 +5677,28 @@ valid_lisp_object_p (Lisp_Object obj)
   return 0;
 }
 
+/* Like xmalloc, but makes allocation count toward the total consing.
+   Return NULL for a zero-sized allocation.  */
+void *
+hash_table_alloc_bytes (ptrdiff_t nbytes)
+{
+  if (nbytes == 0)
+    return NULL;
+  tally_consing (nbytes);
+  hash_table_allocated_bytes += nbytes;
+  return xmalloc (nbytes);
+}
+
+/* Like xfree, but makes allocation count toward the total consing.  */
+void
+hash_table_free_bytes (void *p, ptrdiff_t nbytes)
+{
+  tally_consing (-nbytes);
+  hash_table_allocated_bytes -= nbytes;
+  xfree (p);
+}
+
+
 /***********************************************************************
 		       Pure Storage Management
  ***********************************************************************/
@@ -5960,6 +6008,7 @@ total_bytes_of_live_objects (void)
   tot += object_bytes (gcstat.total_floats, sizeof (struct Lisp_Float));
   tot += object_bytes (gcstat.total_intervals, sizeof (struct interval));
   tot += object_bytes (gcstat.total_strings, sizeof (struct Lisp_String));
+  tot += gcstat.total_hash_table_bytes;
   return tot;
 }
 
@@ -6439,6 +6488,7 @@ garbage_collect (void)
 #ifdef HAVE_NS
   mark_nsterm ();
 #endif
+  mark_fns ();
 
   /* Everything is now marked, except for the data in font caches,
      undo lists, and finalizers.  The first two are compacted by
@@ -7103,22 +7153,17 @@ process_mark_stack (ptrdiff_t base_sp)
 	      case PVEC_HASH_TABLE:
 		{
 		  struct Lisp_Hash_Table *h = (struct Lisp_Hash_Table *)ptr;
-		  ptrdiff_t size = ptr->header.size & PSEUDOVECTOR_SIZE_MASK;
 		  set_vector_marked (ptr);
-		  mark_stack_push_values (ptr->contents, size);
-		  mark_stack_push_value (h->test.name);
-		  mark_stack_push_value (h->test.user_hash_function);
-		  mark_stack_push_value (h->test.user_cmp_function);
-		  if (NILP (h->weak))
-		    mark_stack_push_value (h->key_and_value);
+		  if (h->weakness == Weak_None)
+		    mark_stack_push_values (h->key_and_value,
+					    2 * h->table_size);
 		  else
 		    {
-		      /* For weak tables, mark only the vector and not its
+		      /* For weak tables, don't mark the
 			 contents --- that's what makes it weak.  */
 		      eassert (h->next_weak == NULL);
 		      h->next_weak = weak_hash_tables;
 		      weak_hash_tables = h;
-		      set_vector_marked (XVECTOR (h->key_and_value));
 		    }
 		  break;
 		}

@@ -2094,7 +2094,7 @@ the values STRING, PREDICATE and `lambda'.  */)
 	 properties.  It may be, for example, "emacs:cd".
        */
       struct Lisp_Hash_Table *h = XHASH_TABLE (collection);
-      i = hash_lookup (h, string, NULL);
+      i = hash_lookup (h, string);
       if (i >= 0)
 	tem = HASH_KEY (h, i);
       else
