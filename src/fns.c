@@ -4552,9 +4552,14 @@ hash_index_size (ptrdiff_t size)
   ptrdiff_t upper_bound = min (MOST_POSITIVE_FIXNUM,
 			       min (TYPE_MAXIMUM (hash_idx_t),
 				    PTRDIFF_MAX / sizeof (ptrdiff_t)));
-  ptrdiff_t index_size = size + (size >> 2);  /* 1.25x larger */
+  /* Single-element index vectors are used iff size=0.  */
+  eassert (size > 0);
+  ptrdiff_t lower_bound = 2;
+  ptrdiff_t index_size = size + max (size >> 2, 1);  /* 1.25x larger */
   if (index_size < upper_bound)
-    index_size = next_almost_prime (index_size);
+    index_size = (index_size < lower_bound
+		  ? lower_bound
+		  : next_almost_prime (index_size));
   if (index_size > upper_bound)
     error ("Hash table too large");
   return index_size;
@@ -4592,15 +4597,13 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
   h->weakness = weak;
   h->count = 0;
   h->table_size = size;
-  int index_size = hash_index_size (size);
-  h->index_size = index_size;
 
   if (size == 0)
     {
       h->key_and_value = NULL;
       h->hash = NULL;
       h->next = NULL;
-      eassert (index_size == 1);
+      h->index_size = 1;
       h->index = (hash_idx_t *)empty_hash_index_vector;
       h->next_free = -1;
     }
@@ -4618,6 +4621,8 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 	h->next[i] = i + 1;
       h->next[size - 1] = -1;
 
+      int index_size = hash_index_size (size);
+      h->index_size = index_size;
       h->index = hash_table_alloc_bytes (index_size * sizeof *h->index);
       for (ptrdiff_t i = 0; i < index_size; i++)
 	h->index[i] = -1;
@@ -4692,11 +4697,12 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
   if (h->next_free < 0)
     {
       ptrdiff_t old_size = HASH_TABLE_SIZE (h);
-      ptrdiff_t base_size = min (max (old_size, 8), PTRDIFF_MAX / 2);
+      ptrdiff_t min_size = 8;
+      ptrdiff_t base_size = min (max (old_size, min_size), PTRDIFF_MAX / 2);
       /* Grow aggressively at small sizes, then just double.  */
       ptrdiff_t new_size =
 	old_size == 0
-	? 8
+	? min_size
 	: (base_size <= 64 ? base_size * 4 : base_size * 2);
 
       /* Allocate all the new vectors before updating *H, to
@@ -4782,30 +4788,39 @@ hash_table_thaw (Lisp_Object hash_table)
   h->test = hash_table_test_from_std (h->frozen_test);
   ptrdiff_t size = h->count;
   h->table_size = size;
-  ptrdiff_t index_size = hash_index_size (size);
-  h->index_size = index_size;
   h->next_free = -1;
 
-  h->hash = hash_table_alloc_bytes (size * sizeof *h->hash);
-
-  h->next = hash_table_alloc_bytes (size * sizeof *h->next);
-  for (ptrdiff_t i = 0; i < size; i++)
-    h->next[i] = -1;
-
-  h->index = hash_table_alloc_bytes (index_size * sizeof *h->index);
-  for (ptrdiff_t i = 0; i < index_size; i++)
-    h->index[i] = -1;
-
-  /* Recompute the actual hash codes for each entry in the table.
-     Order is still invalid.  */
-  for (ptrdiff_t i = 0; i < size; i++)
+  if (size == 0)
     {
-      Lisp_Object key = HASH_KEY (h, i);
-      hash_hash_t hash_code = hash_from_key (h, key);
-      ptrdiff_t start_of_bucket = hash_index_index (h, hash_code);
-      set_hash_hash_slot (h, i, hash_code);
-      set_hash_next_slot (h, i, HASH_INDEX (h, start_of_bucket));
-      set_hash_index_slot (h, start_of_bucket, i);
+      h->key_and_value = NULL;
+      h->hash = NULL;
+      h->next = NULL;
+      h->index_size = 1;
+      h->index = (hash_idx_t *)empty_hash_index_vector;
+    }
+  else
+    {
+      ptrdiff_t index_size = hash_index_size (size);
+      h->index_size = index_size;
+
+      h->hash = hash_table_alloc_bytes (size * sizeof *h->hash);
+
+      h->next = hash_table_alloc_bytes (size * sizeof *h->next);
+
+      h->index = hash_table_alloc_bytes (index_size * sizeof *h->index);
+      for (ptrdiff_t i = 0; i < index_size; i++)
+	h->index[i] = -1;
+
+      /* Recompute the hash codes for each entry in the table.  */
+      for (ptrdiff_t i = 0; i < size; i++)
+	{
+	  Lisp_Object key = HASH_KEY (h, i);
+	  hash_hash_t hash_code = hash_from_key (h, key);
+	  ptrdiff_t start_of_bucket = hash_index_index (h, hash_code);
+	  set_hash_hash_slot (h, i, hash_code);
+	  set_hash_next_slot (h, i, HASH_INDEX (h, start_of_bucket));
+	  set_hash_index_slot (h, start_of_bucket, i);
+	}
     }
 }
 
@@ -5269,12 +5284,25 @@ sxhash_obj (Lisp_Object obj, int depth)
 }
 
 static void
-collect_interval (INTERVAL interval, Lisp_Object collector)
+hash_interval (INTERVAL interval, void *arg)
 {
-  nconc2 (collector,
-	  list1(list3 (make_fixnum (interval->position),
-		       make_fixnum (interval->position + LENGTH (interval)),
-		       interval->plist)));
+  EMACS_UINT *phash = arg;
+  EMACS_UINT hash = *phash;
+  hash = sxhash_combine (hash, interval->position);
+  hash = sxhash_combine (hash, LENGTH (interval));
+  hash = sxhash_combine (hash, sxhash_obj (interval->plist, 0));
+  *phash = hash;
+}
+
+static void
+collect_interval (INTERVAL interval, void *arg)
+{
+  Lisp_Object *collector = arg;
+  *collector = Fcons (list3 (make_fixnum (interval->position),
+			     make_fixnum (interval->position
+					  + LENGTH (interval)),
+			     interval->plist),
+		      *collector);
 }
 
 
@@ -5336,14 +5364,9 @@ Hash codes are not guaranteed to be preserved across Emacs sessions.  */)
 {
   if (STRINGP (obj))
     {
-      /* FIXME: This is very wasteful.  We needn't cons at all.  */
-      Lisp_Object collector = Fcons (Qnil, Qnil);
-      traverse_intervals (string_intervals (obj), 0, collect_interval,
-			  collector);
-      return
-	make_ufixnum (
-	  SXHASH_REDUCE (sxhash_combine (sxhash (obj),
-					 sxhash (CDR (collector)))));
+      EMACS_UINT hash = 0;
+      traverse_intervals (string_intervals (obj), 0, hash_interval, &hash);
+      return make_ufixnum (SXHASH_REDUCE (sxhash_combine (sxhash (obj), hash)));
     }
 
   return hash_hash_to_fixnum (hashfn_equal (obj, NULL));
@@ -6334,7 +6357,6 @@ Altering this copy does not change the layout of the text properties
 in OBJECT.  */)
   (register Lisp_Object object)
 {
-  Lisp_Object collector = Fcons (Qnil, Qnil);
   INTERVAL intervals;
 
   if (STRINGP (object))
@@ -6347,8 +6369,9 @@ in OBJECT.  */)
   if (! intervals)
     return Qnil;
 
-  traverse_intervals (intervals, 0, collect_interval, collector);
-  return CDR (collector);
+  Lisp_Object collector = Qnil;
+  traverse_intervals (intervals, 0, collect_interval, &collector);
+  return Fnreverse (collector);
 }
 
 DEFUN ("line-number-at-pos", Fline_number_at_pos,
