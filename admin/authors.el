@@ -1,6 +1,6 @@
 ;;; authors.el --- utility for maintaining Emacs's AUTHORS file  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -87,7 +87,7 @@ files.")
     ("David M. Koppelman" "David Koppelman")
     ("David M. Smith" "David Smith" "David M Smith")
     ("David O'Toole" "David T. O'Toole")
-    (nil "dalanicolai")
+    ("Daniel Laurens Nicolai" "dalanicolai")
     (nil "deech@deech")
     ("Deepak Goel" "D. Goel")
     ("Earl Hyatt" "Earl" "ej32u@protonmail\\.com")
@@ -200,6 +200,7 @@ files.")
     (nil "montag451@laposte\\.net")
     (nil "na@aisrntairetnraoitn")
     ("Nelson Jose dos Santos Ferreira" "Nelson Ferreira")
+    ("Noah Peart" "noah\\.v\\.peart@gmail\\.com")
     ("Noorul Islam" "Noorul Islam K M")
 ;;;    ("Tetsurou Okazaki" "OKAZAKI Tetsurou") ; FIXME?
     (nil "odanoburu@")
@@ -249,6 +250,8 @@ files.")
     ("Simen Heggestøyl" "simenheg@gmail\\.com")
     (nil "prime.wizard")
     ("Shun-ichi Goto" "Shun-ichi GOTO")
+    ;; The trailing dash is a kludge, so this contributor is not ignored.
+    ("skykanin-" "skykanin@users\\.noreply\\.github\\.com")
     ;; There are other Stefans.
 ;;;    ("Stefan Monnier" "Stefan")
     (nil "ssnnoo")

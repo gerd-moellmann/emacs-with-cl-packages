@@ -1,6 +1,6 @@
 ;;; comp.el --- compilation of Lisp code into native code -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
 
 ;; Author: Andrea Corallo <acorallo@gnu.org>
 ;; Keywords: lisp
@@ -4322,7 +4322,7 @@ last directory in `native-comp-eln-load-path')."
 Make sure that eln file is younger than byte-compiled one and
 return the filename of this last.
 
-This function can be used only in conjuntion with
+This function can be used only in conjunction with
 `byte+native-compile' `byte-to-native-output-buffer-file' (see
 `batch-byte+native-compile')."
   (pcase byte-to-native-output-buffer-file

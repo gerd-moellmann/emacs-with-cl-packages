@@ -1,6 +1,6 @@
 /* Buffer manipulation primitives for GNU Emacs.
 
-Copyright (C) 1985-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -5346,8 +5346,8 @@ visual lines rather than logical lines.  See the documentation of
 		     Qstringp,
 		     doc: /* Name of default directory of current buffer.
 It should be an absolute directory name; on GNU and Unix systems,
-these names start with `/' or `~' and end with `/'.
-To interactively change the default directory, use command `cd'. */);
+these names start with "/" or "~" and end with "/".
+To interactively change the default directory, use the command `cd'. */);
 
   DEFVAR_PER_BUFFER ("auto-fill-function", &BVAR (current_buffer, auto_fill_function),
 		     Qnil,

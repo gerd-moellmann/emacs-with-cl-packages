@@ -1,6 +1,6 @@
 ;;; tramp-sh.el --- Tramp access functions for (s)sh-like connections  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
 
 ;; (copyright statements below in code to be updated with the above notice)
 
@@ -1831,46 +1831,47 @@ ID-FORMAT valid values are `string' and `integer'."
 ;; files.
 (defun tramp-sh-handle-file-name-all-completions (filename directory)
   "Like `file-name-all-completions' for Tramp files."
-  (with-parsed-tramp-file-name (expand-file-name directory) nil
-    (when (and (not (tramp-compat-string-search "/" filename))
-	       (tramp-connectable-p v))
-    (unless (tramp-compat-string-search "/" filename)
-      (tramp-compat-ignore-error file-missing
-	(all-completions
-	 filename
-	 (with-tramp-file-property v localname "file-name-all-completions"
-	   (let (result)
-	     ;; Get a list of directories and files, including
-	     ;; reliably tagging the directories with a trailing "/".
-	     ;; Because I rock.  --daniel@danann.net
-	     (when (tramp-send-command-and-check
-		    v
-		    (if (tramp-get-remote-perl v)
-			(progn
-			  (tramp-maybe-send-script
-			   v tramp-perl-file-name-all-completions
-			   "tramp_perl_file_name_all_completions")
-			  (format "tramp_perl_file_name_all_completions %s"
-				  (tramp-shell-quote-argument localname)))
+  (tramp-skeleton-file-name-all-completions filename directory
+    (with-parsed-tramp-file-name (expand-file-name directory) nil
+      (when (and (not (tramp-compat-string-search "/" filename))
+		 (tramp-connectable-p v))
+	(unless (tramp-compat-string-search "/" filename)
+	  (all-completions
+	   filename
+	   (with-tramp-file-property v localname "file-name-all-completions"
+	     (let (result)
+	       ;; Get a list of directories and files, including
+	       ;; reliably tagging the directories with a trailing "/".
+	       ;; Because I rock.  --daniel@danann.net
+	       (when (tramp-send-command-and-check
+		      v
+		      (if (tramp-get-remote-perl v)
+			  (progn
+			    (tramp-maybe-send-script
+			     v tramp-perl-file-name-all-completions
+			     "tramp_perl_file_name_all_completions")
+			    (format "tramp_perl_file_name_all_completions %s"
+				    (tramp-shell-quote-argument localname)))
 
-		      (format (concat
-			       "cd %s 2>&1 && %s -a 2>%s"
-			       " | while IFS= read f; do"
-			       " if %s -d \"$f\" 2>%s;"
-			       " then \\echo \"$f/\"; else \\echo \"$f\"; fi;"
-			       " done")
-			      (tramp-shell-quote-argument localname)
-			      (tramp-get-ls-command v)
-			      (tramp-get-remote-null-device v)
-			      (tramp-get-test-command v)
-			      (tramp-get-remote-null-device v))))
+			(format (concat
+				 "cd %s 2>&1 && %s -a 2>%s"
+				 " | while IFS= read f; do"
+				 " if %s -d \"$f\" 2>%s;"
+				 " then \\echo \"$f/\"; else \\echo \"$f\"; fi;"
+				 " done")
+				(tramp-shell-quote-argument localname)
+				(tramp-get-ls-command v)
+				(tramp-get-remote-null-device v)
+				(tramp-get-test-command v)
+				(tramp-get-remote-null-device v))))
 
-	       ;; Now grab the output.
-	       (with-current-buffer (tramp-get-buffer v)
-		 (goto-char (point-max))
-		 (while (zerop (forward-line -1))
-		   (push (buffer-substring (point) (line-end-position)) result)))
-	       result)))))))))
+		 ;; Now grab the output.
+		 (with-current-buffer (tramp-get-buffer v)
+		   (goto-char (point-max))
+		   (while (zerop (forward-line -1))
+		     (push
+		      (buffer-substring (point) (line-end-position)) result)))
+		 result)))))))))
 
 ;; cp, mv and ln
 
@@ -2497,7 +2498,7 @@ The method used must be an out-of-band method."
 		      copy-program copy-args)))
 		(tramp-message v 6 "%s" (string-join (process-command p) " "))
 		(process-put p 'tramp-vector v)
-		;; This is neded for ssh or PuTTY based processes, and
+		;; This is needed for ssh or PuTTY based processes, and
 		;; only if the respective options are set.  Perhaps,
 		;; the setting could be more fine-grained.
 		;; (process-put p 'tramp-shared-socket t)
@@ -3839,7 +3840,7 @@ Fall back to normal file name handler if no Tramp handler exists."
 	   (string-join sequence " "))
 	(tramp-message v 6 "Run `%s', %S" (string-join sequence " ") p)
 	(process-put p 'tramp-vector v)
-	;; This is neded for ssh or PuTTY based processes, and only if
+	;; This is needed for ssh or PuTTY based processes, and only if
 	;; the respective options are set.  Perhaps, the setting could
 	;; be more fine-grained.
 	;; (process-put p 'tramp-shared-socket t)
@@ -5223,7 +5224,7 @@ connection if a previous connection has died for some reason."
 		;; Set sentinel and query flag.  Initialize variables.
 		(set-process-sentinel p #'tramp-process-sentinel)
 		(process-put p 'tramp-vector vec)
-		;; This is neded for ssh or PuTTY based processes, and
+		;; This is needed for ssh or PuTTY based processes, and
 		;; only if the respective options are set.  Perhaps,
 		;; the setting could be more fine-grained.
 		;; (process-put p 'tramp-shared-socket t)
@@ -5508,7 +5509,7 @@ raises an error."
 		     (unless noerror signal-hook-function)))
 		(read (current-buffer)))
 	    ;; Error handling.
-	    (when (re-search-forward (rx (not blank)) (line-end-position) t)
+	    (when (re-search-forward (rx (not space)) (line-end-position) t)
 	      (error nil)))
 	(error (unless noerror
 		 (tramp-error

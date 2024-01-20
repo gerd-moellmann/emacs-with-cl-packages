@@ -1,5 +1,5 @@
 /* Compile Emacs Lisp into native code.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
 
 Author: Andrea Corallo <acorallo@gnu.org>
 
@@ -4964,12 +4964,12 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
   struct Lisp_Hash_Table *func_h =
     XHASH_TABLE (CALL1I (comp-ctxt-funcs-h, Vcomp_ctxt));
   for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (func_h); i++)
-    if (!BASE_EQ (HASH_VALUE (func_h, i), Qunbound))
+    if (!BASE_EQ (HASH_KEY (func_h, i), Qunbound))
       declare_function (HASH_VALUE (func_h, i));
   /* Compile all functions. Can't be done before because the
      relocation structs has to be already defined.  */
   for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (func_h); i++)
-    if (!BASE_EQ (HASH_VALUE (func_h, i), Qunbound))
+    if (!BASE_EQ (HASH_KEY (func_h, i), Qunbound))
       compile_function (HASH_VALUE (func_h, i));
 
   /* Work around bug#46495 (GCC PR99126). */

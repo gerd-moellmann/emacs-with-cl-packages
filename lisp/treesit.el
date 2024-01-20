@@ -1,6 +1,6 @@
 ;;; treesit.el --- tree-sitter utilities -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: 付禹安 (Yuan Fu) <casouri@gmail.com>
 ;; Keywords: treesit, tree-sitter, languages
@@ -1087,6 +1087,72 @@ parser notifying of the change."
       (with-silent-modifications
         (put-text-property (car range) (cdr range) 'fontified nil)))))
 
+(defvar-local treesit--syntax-propertize-start nil
+  "If non-nil, next `syntax-propertize' should start at this position.
+
+When tree-sitter parser reparses, it calls
+`treesit--syntax-propertize-notifier' with the affected region,
+and that function sets this variable to the start of the affected
+region.")
+
+(defun treesit--syntax-propertize-notifier (ranges parser)
+  "Sets `treesit--syntax-propertize-start' to the smallest start.
+Specifically, the smallest start position among all the ranges in
+RANGES for PARSER."
+  (with-current-buffer (treesit-parser-buffer parser)
+    (when-let* ((range-starts (mapcar #'car ranges))
+                (min-range-start
+                 (seq-reduce
+                  #'min (cdr range-starts) (car range-starts))))
+      (if (null treesit--syntax-propertize-start)
+          (setq treesit--syntax-propertize-start min-range-start)
+        (setq treesit--syntax-propertize-start
+              (min treesit--syntax-propertize-start min-range-start))))))
+
+(defvar-local treesit--pre-redisplay-tick nil
+  "The last `buffer-chars-modified-tick' that we've processed.
+Because `pre-redisplay-functions' could be called multiple times
+during a single command loop, we use this variable to debounce
+calls to `treesit--pre-redisplay'.")
+
+(defun treesit--pre-redisplay (&rest _)
+  "Force reparse and consequently run all notifiers.
+
+One of the notifiers is `treesit--font-lock-notifier', which will
+mark the region whose syntax has changed to \"need to refontify\".
+
+For example, when the user types the final slash of a C block
+comment /* xxx */, not only do we need to fontify the slash, but
+also the whole block comment, which previously wasn't fontified
+as comment due to incomplete parse tree."
+  (unless (eq treesit--pre-redisplay-tick (buffer-chars-modified-tick))
+    ;; `treesit-update-ranges' will force the host language's parser to
+    ;; reparse and set correct ranges for embedded parsers.  Then
+    ;; `treesit-parser-root-node' will force those parsers to reparse.
+    (treesit-update-ranges)
+    ;; Force repase on _all_ the parsers might not be necessary, but
+    ;; this is probably the most robust way.
+    (dolist (parser (treesit-parser-list))
+      (treesit-parser-root-node parser))
+    (setq treesit--pre-redisplay-tick (buffer-chars-modified-tick))))
+
+(defun treesit--pre-syntax-ppss (start end)
+  "Force reparse and consequently run all notifiers.
+
+Similar to font-lock, we want to update the `syntax' text
+property before `syntax-ppss' starts working on the text.  We
+also want to extend the to-be-propertized region to include the
+whole region affected by the last reparse.
+
+START and END mark the current to-be-propertized region."
+  (treesit--pre-redisplay)
+  (let ((new-start treesit--syntax-propertize-start))
+    (if (and new-start (< new-start start))
+        (progn
+          (setq treesit--syntax-propertize-start nil)
+          (cons (max new-start (point-min)) end))
+      nil)))
+
 ;;; Indent
 
 (define-error 'treesit-indent-error
@@ -1217,8 +1283,10 @@ See `treesit-simple-indent-presets'.")
 
                     (goto-char bol)
                     (setq this-line-has-prefix
-                          (and (looking-at adaptive-fill-regexp)
-                               (match-string 1)))
+                          (and (looking-at-p adaptive-fill-regexp)
+                               (not (string-match-p
+                                     (rx bos (* whitespace) eos)
+                                     (match-string 0)))))
 
                     (forward-line -1)
                     (and (>= (point) comment-start-bol)
@@ -1226,7 +1294,7 @@ See `treesit-simple-indent-presets'.")
                          (looking-at adaptive-fill-regexp)
                          ;; If previous line is an empty line, don't
                          ;; indent.
-                         (not (looking-at (rx (* whitespace) eol)))
+                         (not (looking-at-p (rx (* whitespace) eol)))
                          ;; Return the anchor.  If the indenting line
                          ;; has a prefix and the previous line also
                          ;; has a prefix, indent to the beginning of
@@ -1320,7 +1388,7 @@ MATCHER:
     NODE's index in PARENT.  Therefore, to match the first child
     where PARENT is \"argument_list\", use
 
-        (match nil \"argument_list\" nil nil 0 0).
+        (match nil \"argument_list\" nil 0 0).
 
     NODE-TYPE, PARENT-TYPE, and NODE-FIELD are regexps.
     NODE-TYPE can also be `null', which matches when NODE is nil.
@@ -1354,7 +1422,7 @@ no-node
 
 comment-end
 
-    Matches if text after point matches `treesit-comment-end'.
+    Matches if text after point matches `comment-end-skip'.
 
 catch-all
 
@@ -1959,7 +2027,7 @@ the current line if the beginning of the defun is indented."
          (forward-line 1))
         ;; Moving backward, but there are some whitespace (and only
         ;; whitespace) between point and BOL: go back to BOL.
-        ((looking-back (rx (+ (or " " "\t")))
+        ((looking-back (rx bol (+ (or " " "\t")))
                        (line-beginning-position))
          (beginning-of-line))))
 
@@ -2389,7 +2457,14 @@ before calling this function."
     (treesit-font-lock-recompute-features)
     (dolist (parser (treesit-parser-list))
       (treesit-parser-add-notifier
-       parser #'treesit--font-lock-notifier)))
+       parser #'treesit--font-lock-notifier))
+    (add-hook 'pre-redisplay-functions #'treesit--pre-redisplay 0 t))
+  ;; Syntax
+  (dolist (parser (treesit-parser-list))
+    (treesit-parser-add-notifier
+     parser #'treesit--syntax-propertize-notifier))
+  (add-hook 'syntax-propertize-extend-region-functions
+            #'treesit--pre-syntax-ppss 0 t)
   ;; Indent.
   (when treesit-simple-indent-rules
     (setq-local treesit-simple-indent-rules
@@ -2835,13 +2910,13 @@ window."
               (treesit--explorer-tree-mode)))
           (display-buffer treesit--explorer-buffer
                           (cons nil '((inhibit-same-window . t))))
+          (setq-local treesit--explorer-last-node nil)
           (treesit--explorer-refresh)
           ;; Set up variables and hooks.
           (add-hook 'post-command-hook
                     #'treesit--explorer-post-command 0 t)
           (add-hook 'kill-buffer-hook
                     #'treesit--explorer-kill-explorer-buffer 0 t)
-          (setq-local treesit--explorer-last-node nil)
           ;; Tell `desktop-save' to not save explorer buffers.
           (when (boundp 'desktop-modes-not-to-save)
             (unless (memq 'treesit--explorer-tree-mode
@@ -2955,7 +3030,7 @@ executable programs, such as the C/C++ compiler and linker."
                           " ")))
               ;; If success, Save the recipe for the current session.
               (setf (alist-get lang treesit-language-source-alist)
-                    recipe))))
+                    (cdr recipe)))))
       (error
        (display-warning
         'treesit

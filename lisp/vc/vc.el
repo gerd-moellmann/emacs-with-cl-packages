@@ -1,6 +1,6 @@
 ;;; vc.el --- drive a version-control system from within Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-1998, 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1998, 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: FSF (see below for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -668,7 +668,7 @@
 ;;;; New Primitives:
 ;;
 ;; - uncommit: undo last checkin, leave changes in place in the workfile,
-;;   stash the commit comment for re-use.
+;;   stash the commit comment for reuse.
 ;;
 ;; - deal with push operations.
 ;;

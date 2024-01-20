@@ -1,6 +1,6 @@
 ;;; sieve-manage.el --- Implementation of the managesieve protocol in elisp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Simon Josefsson <simon@josefsson.org>
 ;;         Albert Krewinkel <tarleb@moltkeplatz.de>
@@ -171,7 +171,7 @@ Valid states are `closed', `initial', `nonauth', and `auth'.")
   "Append ARGS to `sieve-manage-log' buffer.
 
 ARGS can be a string or a list of strings.
-The buffer to use for logging is specifified via `sieve-manage-log'.
+The buffer to use for logging is specified via `sieve-manage-log'.
 If it is nil, logging is disabled.
 
 When the `sieve-manage-log' buffer doesn't exist, it gets created (and

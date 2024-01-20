@@ -1,6 +1,6 @@
 ;;; package-vc.el --- Manage packages from VC checkouts     -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author: Philip Kaludercic <philipk@posteo.net>
 ;; Keywords: tools
@@ -29,7 +29,7 @@
 ;; To install a package from source use `package-vc-install'.  If you
 ;; aren't interested in activating a package, you can use
 ;; `package-vc-checkout' instead, which will prompt you for a target
-;; directory.  If you wish to re-use an existing checkout, the command
+;; directory.  If you wish to reuse an existing checkout, the command
 ;; `package-vc-install-from-checkout' will create a symbolic link and
 ;; prepare the package.
 ;;
@@ -829,6 +829,7 @@ for the last released version of the package."
                            (lambda (dir) (or (not (file-exists-p dir))
                                              (directory-empty-p dir))))
            (and current-prefix-arg :last-release))))
+  (setf directory (expand-file-name directory))
   (package-vc--archives-initialize)
   (let ((pkg-spec (or (package-vc--desc->spec pkg-desc)
                       (and-let* ((extras (package-desc-extras pkg-desc))

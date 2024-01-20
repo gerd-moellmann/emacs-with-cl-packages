@@ -1,6 +1,6 @@
 ;;; eww.el --- Emacs Web Wowser  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: html
@@ -427,7 +427,7 @@ For more information, see Info node `(eww) Top'."
    ((eq eww-retrieve-command 'sync)
     (let ((data-buffer (url-retrieve-synchronously url)))
       (with-current-buffer data-buffer
-        (apply #'eww-render nil url cbargs))))
+        (apply #'eww-render nil cbargs))))
    (t
     (let ((buffer (generate-new-buffer " *eww retrieve*"))
           (error-buffer (generate-new-buffer " *eww error*")))

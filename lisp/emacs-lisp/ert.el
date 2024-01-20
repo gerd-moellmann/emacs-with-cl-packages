@@ -1,6 +1,6 @@
 ;;; ert.el --- Emacs Lisp Regression Testing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
 
 ;; Author: Christian Ohler <ohler@gnu.org>
 ;; Keywords: lisp, tools
@@ -98,7 +98,7 @@ Even modest settings for `print-length' and `print-level' can
 produce extremely long lines in backtraces and lengthy delays in
 forming them.  This variable governs the target maximum line
 length by manipulating these two variables while printing stack
-traces.  Setting this variable to t will re-use the value of
+traces.  Setting this variable to t will reuse the value of
 `backtrace-line-length' while printing stack traces in ERT batch
 mode.  Any other value will be temporarily bound to
 `backtrace-line-length' when producing stack traces in batch
@@ -151,7 +151,7 @@ mode.")
   (when (and noninteractive (get symbol 'ert--test))
     ;; Make sure duplicated tests are discovered since the older test would
     ;; be ignored silently otherwise.
-    (error "Test `%s' redefined" symbol))
+    (error "Test `%s' redefined (or loaded twice)" symbol))
   (define-symbol-prop symbol 'ert--test definition)
   definition)
 

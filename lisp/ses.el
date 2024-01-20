@@ -1,6 +1,6 @@
 ;;; ses.el --- Simple Emacs Spreadsheet  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 ;; Author: Jonathan Yavner <jyavner@member.fsf.org>
 ;; Maintainer: Vincent Belaïche <vincentb1@users.sourceforge.net>
@@ -2245,7 +2245,7 @@ Based on the current set of columns and `window-hscroll' position."
 ;; Redisplay and recalculation
 ;;----------------------------------------------------------------------------
 (defun ses-jump-prefix (prefix-int)
-  "Convert an integer (unversal prefix) into a (ROW . COL).
+  "Convert an integer (universal prefix) into a (ROW . COL).
 Does it by numbering cells starting from 0 from top left to bottom right,
 going row by row."
   (and (>= prefix-int 0)

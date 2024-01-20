@@ -1,6 +1,6 @@
 ;;; desktop.el --- save partial status of Emacs when killed -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1995, 1997, 2000-2023 Free Software Foundation,
+;; Copyright (C) 1993-1995, 1997, 2000-2024 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Morten Welinder <terra@diku.dk>
@@ -293,7 +293,7 @@ May be used to show a dired buffer."
   :version "22.1")
 
 (defcustom desktop-not-loaded-hook nil
-  "Normal hook run when the user declines to re-use a desktop file.
+  "Normal hook run when the user declines to reuse a desktop file.
 Run in the directory in which the desktop file was found.
 May be used to deal with accidental multiple Emacs jobs."
   :type 'hook

@@ -1,6 +1,6 @@
 ;;; dired.el --- directory-browsing commands -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1992-1997, 2000-2023 Free Software
+;; Copyright (C) 1985-1986, 1992-1997, 2000-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>
@@ -122,7 +122,9 @@ If nil, don't pass \"--dired\" to \"ls\".
 The special value of `unspecified' means to check whether \"ls\"
 supports the \"--dired\" option, and save the result in this
 variable.  This is performed the first time `dired-insert-directory'
-is invoked.
+is invoked.  (If `ls-lisp' is used by default, the test is performed
+only if `ls-lisp-use-insert-directory-program' is non-nil, i.e., if
+Dired actually uses \"ls\".)
 
 Note that if you set this option to nil, either through choice or
 because your \"ls\" program does not support \"--dired\", Dired
@@ -1664,7 +1666,9 @@ see `dired-use-ls-dired' for more details.")
              (when (file-remote-p dir)
                (setq switches (string-replace "--dired" "" switches)))
              (let* ((default-directory (car dir-wildcard))
-                    (script (format "ls %s %s" switches (cdr dir-wildcard)))
+                    (script (format "%s %s %s"
+                                    insert-directory-program
+                                    switches (cdr dir-wildcard)))
                     (remotep (file-remote-p dir))
                     (sh (or (and remotep "/bin/sh")
                             (executable-find shell-file-name)
@@ -1937,9 +1941,22 @@ mouse-2: visit this file in other window"
               keymap ,(let* ((current-dir dir)
                              (click (lambda ()
                                       (interactive)
-                                      (if (assoc current-dir dired-subdir-alist)
-                                          (dired-goto-subdir current-dir)
-                                        (dired current-dir)))))
+                                      (cond
+                                       ((assoc current-dir dired-subdir-alist)
+                                        (dired-goto-subdir current-dir))
+                                       ;; If there is a wildcard chars
+                                       ;; in the directory name, don't
+                                       ;; use the alternate file machinery
+                                       ;; which tries to keep only one
+                                       ;; dired buffer open at once.
+                                       ;;
+                                       ;; FIXME: Is this code path reachable?
+                                       ((insert-directory-wildcard-in-dir-p
+                                         current-dir)
+                                        (dired current-dir))
+                                       (t
+                                        (dired--find-possibly-alternative-file
+                                         current-dir))))))
                         (define-keymap
                           "<mouse-2>" click
                           "<follow-link>" 'mouse-face

@@ -1,6 +1,6 @@
 ;;; erc.el --- An Emacs Internet Relay Chat client  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
 
 ;; Author: Alexander L. Belikoff <alexander@belikoff.net>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -2192,7 +2192,7 @@ parameters SERVER and NICK."
 ;; (bug#60428).
 (defun erc--warn-unencrypted ()
   ;; Remove unconditionally to avoid wrong context due to races from
-  ;; simultaneous dialing or aborting (e.g., via `keybaord-quit').
+  ;; simultaneous dialing or aborting (e.g., via `keyboard-quit').
   (remove-hook 'erc--server-post-connect-hook #'erc--warn-unencrypted)
   (when (and (process-contact erc-server-process :nowait)
              (equal erc-session-server erc-default-server)

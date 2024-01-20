@@ -1,6 +1,6 @@
 ;;; tab-bar.el --- frame-local tabs with named persistent window configurations -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
 
 ;; Author: Juri Linkov <juri@linkov.net>
 ;; Keywords: frames tabs
@@ -1091,7 +1091,9 @@ tab bar might wrap to the second line when it shouldn't.")
                    ((< prev-width width)
                     (let* ((space (apply 'propertize " "
                                          (text-properties-at 0 name)))
-                           (ins-pos (- len (if close-p 1 0)))
+                           (ins-pos (- len (if close-p
+                                               (length tab-bar-close-button)
+                                             0)))
                            (prev-name name))
                       (while continue
                         (setf (substring name ins-pos ins-pos) space)

@@ -1,6 +1,6 @@
 ;;; subr.el --- basic lisp subroutines for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2023 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -417,6 +417,10 @@ Also see `ignore'."
   "Signal an error, making a message by passing ARGS to `format-message'.
 Errors cause entry to the debugger when `debug-on-error' is non-nil.
 This can be overridden by `debug-ignored-errors'.
+
+When `noninteractive' is non-nil (in particular, in batch mode), an
+unhandled error calls `kill-emacs', which terminates the Emacs
+session with a non-zero exit code.
 
 To signal with MESSAGE without interpreting format characters
 like `%', `\\=`' and `\\='', use (error \"%s\" MESSAGE).
@@ -4009,8 +4013,9 @@ by `with-restriction' with the same LABEL argument are lifted.
 (defun internal--without-restriction (body &optional label)
   "Helper function for `without-restriction', which see."
   (save-restriction
-    (if label (internal--unlabel-restriction label))
-    (widen)
+    (if label
+        (internal--labeled-widen label)
+      (widen))
     (funcall body)))
 
 (defun find-tag-default-bounds ()

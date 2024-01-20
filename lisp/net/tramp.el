@@ -1,6 +1,6 @@
 ;;; tramp.el --- Transparent Remote Access, Multiple Protocol  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
 
 ;; Author: Kai Großjohann <kai.grossjohann@gmx.net>
 ;;         Michael Albinus <michael.albinus@gmx.de>
@@ -759,8 +759,9 @@ The regexp should match at end of buffer."
 
 ;; A security key requires the user physically to touch the device
 ;; with their finger.  We must tell it to the user.
-;; Added in OpenSSH 8.2.  I've tested it with yubikey.  Nitrokey,
-;; which has also passed the tests, does not show such a message.
+;; Added in OpenSSH 8.2.  I've tested it with yubikey.  Nitrokey and
+;; Titankey, which have also passed the tests, do not show such a
+;; message.
 (defcustom tramp-security-key-confirm-regexp
   (rx bol (* "\r") "Confirm user presence for key " (* nonl) (* (any "\r\n")))
   "Regular expression matching security key confirmation message.
@@ -3069,85 +3070,100 @@ not in completion mode."
 
       (tramp-run-real-handler #'file-exists-p (list filename))))
 
+(defmacro tramp-skeleton-file-name-all-completions
+    (_filename _directory &rest body)
+  "Skeleton for `tramp-*-handle-filename-all-completions'.
+BODY is the backend specific code."
+  (declare (indent 2) (debug t))
+  `(tramp-compat-ignore-error file-missing
+     (delete-dups (delq nil
+       (let* ((case-fold-search read-file-name-completion-ignore-case)
+	      (regexp (mapconcat #'identity completion-regexp-list "\\|"))
+	      (result ,@body))
+	 (if (consp completion-regexp-list)
+	     ;; Discriminate over `completion-regexp-list'.
+	     (mapcar
+	      (lambda (x) (and (stringp x) (string-match-p regexp x) x))
+	      result)
+	   result))))))
+
 ;; Method, host name and user name completion.
 ;; `tramp-completion-dissect-file-name' returns a list of
 ;; `tramp-file-name' structures.  For all of them we return possible
 ;; completions.
 (defun tramp-completion-handle-file-name-all-completions (filename directory)
   "Like `file-name-all-completions' for partial Tramp files."
-  (let ((fullname
-	 (tramp-drop-volume-letter (expand-file-name filename directory)))
-	;; When `tramp-syntax' is `simplified', we need a default method.
-	(tramp-default-method
-	 (and (string-empty-p tramp-postfix-method-format)
-	      tramp-default-method))
-	(tramp-default-method-alist
-	 (and (string-empty-p tramp-postfix-method-format)
-	      tramp-default-method-alist))
-	tramp-default-user tramp-default-user-alist
-	tramp-default-host tramp-default-host-alist
-	hop result result1)
+  (tramp-skeleton-file-name-all-completions filename directory
+    (let ((fullname
+	   (tramp-drop-volume-letter (expand-file-name filename directory)))
+	  ;; When `tramp-syntax' is `simplified', we need a default method.
+	  (tramp-default-method
+	   (and (string-empty-p tramp-postfix-method-format)
+		tramp-default-method))
+	  (tramp-default-method-alist
+	   (and (string-empty-p tramp-postfix-method-format)
+		tramp-default-method-alist))
+	  tramp-default-user tramp-default-user-alist
+	  tramp-default-host tramp-default-host-alist
+	  hop result result1)
 
-    ;; Suppress hop from completion.
-    (when (string-match
-	   (tramp-compat-rx
-	    (regexp tramp-prefix-regexp)
-	    (group (+ (regexp tramp-remote-file-name-spec-regexp)
-		      (regexp tramp-postfix-hop-regexp))))
-	   fullname)
-      (setq hop (match-string 1 fullname)
-	    fullname (replace-match "" nil nil fullname 1)))
+      ;; Suppress hop from completion.
+      (when (string-match
+	     (tramp-compat-rx
+	      (regexp tramp-prefix-regexp)
+	      (group (+ (regexp tramp-remote-file-name-spec-regexp)
+			(regexp tramp-postfix-hop-regexp))))
+	     fullname)
+	(setq hop (match-string 1 fullname)
+	      fullname (replace-match "" nil nil fullname 1)))
 
-    ;; Possible completion structures.
-    (dolist (elt (tramp-completion-dissect-file-name fullname))
-      (let* ((method (tramp-file-name-method elt))
-	     (user (tramp-file-name-user elt))
-	     (host (tramp-file-name-host elt))
-	     (localname (tramp-file-name-localname elt))
-	     (m (tramp-find-method method user host))
-	     all-user-hosts)
+      ;; Possible completion structures.
+      (dolist (elt (tramp-completion-dissect-file-name fullname))
+	(let* ((method (tramp-file-name-method elt))
+	       (user (tramp-file-name-user elt))
+	       (host (tramp-file-name-host elt))
+	       (localname (tramp-file-name-localname elt))
+	       (m (tramp-find-method method user host))
+	       all-user-hosts)
 
-	(unless localname ;; Nothing to complete.
+	  (unless localname ;; Nothing to complete.
+	    (if (or user host)
+		;; Method dependent user / host combinations.
+		(progn
+		  (mapc
+		   (lambda (x)
+		     (setq all-user-hosts
+			   (append all-user-hosts
+				   (funcall (nth 0 x) (nth 1 x)))))
+		   (tramp-get-completion-function m))
 
-	  (if (or user host)
+		  (setq result
+			(append result
+				(mapcar
+				 (lambda (x)
+				   (tramp-get-completion-user-host
+				    method user host (nth 0 x) (nth 1 x)))
+				 (delq nil all-user-hosts)))))
 
-	      ;; Method dependent user / host combinations.
-	      (progn
-		(mapc
-		 (lambda (x)
-		   (setq all-user-hosts
-			 (append all-user-hosts
-				 (funcall (nth 0 x) (nth 1 x)))))
-		 (tramp-get-completion-function m))
+	      ;; Possible methods.
+	      (setq result
+		    (append result (tramp-get-completion-methods m)))))))
 
-		(setq result
-		      (append result
-			      (mapcar
-			       (lambda (x)
-				 (tramp-get-completion-user-host
-				  method user host (nth 0 x) (nth 1 x)))
-			       (delq nil all-user-hosts)))))
+      ;; Add hop.
+      (dolist (elt result)
+	(when elt
+	  (string-match tramp-prefix-regexp elt)
+	  (setq elt (replace-match (concat tramp-prefix-format hop) nil nil elt))
+	  (push
+	   (substring elt (length (tramp-drop-volume-letter directory)))
+	   result1)))
 
-	    ;; Possible methods.
-	    (setq result
-		  (append result (tramp-get-completion-methods m)))))))
-
-    ;; Unify list, add hop, remove nil elements.
-    (dolist (elt result)
-      (when elt
-	(string-match tramp-prefix-regexp elt)
-	(setq elt (replace-match (concat tramp-prefix-format hop) nil nil elt))
-	(push
-	 (substring elt (length (tramp-drop-volume-letter directory)))
-	 result1)))
-
-    ;; Complete local parts.
-    (delete-dups
-     (append
-      result1
-      (ignore-errors
-        (tramp-run-real-handler
-	 #'file-name-all-completions (list filename directory)))))))
+      ;; Complete local parts.
+      (append
+       result1
+       (ignore-errors
+	 (tramp-run-real-handler
+	  #'file-name-all-completions (list filename directory)))))))
 
 ;; Method, host name and user name completion for a file.
 (defun tramp-completion-handle-file-name-completion
@@ -5067,7 +5083,7 @@ substitution.  SPEC-LIST is a list of char/value pairs used for
 	    (when filter
 	      (set-process-filter p filter))
 	    (process-put p 'tramp-vector v)
-	    ;; This is neded for ssh or PuTTY based processes, and
+	    ;; This is needed for ssh or PuTTY based processes, and
 	    ;; only if the respective options are set.  Perhaps, the
 	    ;; setting could be more fine-grained.
 	    ;; (process-put p 'tramp-shared-socket t)
@@ -6399,20 +6415,20 @@ Set connection properties \"{uid,gid.groups}-{integer,string}\"."
       (goto-char (point-min))
       ;; Read uid.
       (when (re-search-forward
-	     (rx "uid=" (group (+ digit)) "(" (group (+ (any "_" word))) ")")
+	     (rx "uid=" (group (+ digit)) "(" (group (+ (any "_-" alnum))) ")")
 	     nil 'noerror)
 	(setq uid-integer (string-to-number (match-string 1))
 	      uid-string (match-string 2)))
       ;; Read gid.
       (when (re-search-forward
-	     (rx "gid=" (group (+ digit)) "(" (group (+ (any "_" word))) ")")
+	     (rx "gid=" (group (+ digit)) "(" (group (+ (any "_-" alnum))) ")")
 	     nil 'noerror)
 	(setq gid-integer (string-to-number (match-string 1))
 	      gid-string (match-string 2)))
       ;; Read groups.
       (when (re-search-forward (rx "groups=") nil 'noerror)
 	(while (looking-at
-		(rx (group (+ digit)) "(" (group (+ (any "_" word))) ")"))
+		(rx (group (+ digit)) "(" (group (+ (any "_-" alnum))) ")"))
 	  (setq groups-integer (cons (string-to-number (match-string 1))
 				     groups-integer)
 		groups-string (cons (match-string 2) groups-string))

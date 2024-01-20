@@ -1,6 +1,6 @@
 ;;; esh-proc.el --- process management  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -293,7 +293,7 @@ Used only on systems which do not support async subprocesses.")
     ;; future, remember to remove `tramp-remote-path' above, too.)
     (when (file-remote-p default-directory)
       (push (concat "PATH=" real-path) process-environment)
-      (setq tramp-remote-path (eshell-get-path)))
+      (setq tramp-remote-path (eshell-get-path t)))
     ;; MS-Windows needs special setting of encoding/decoding, because
     ;; (a) non-ASCII text in command-line arguments needs to be
     ;; encoded in the system's codepage; and (b) because many Windows

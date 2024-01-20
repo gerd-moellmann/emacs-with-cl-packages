@@ -1,6 +1,6 @@
 ;;; todo-mode.el --- facilities for making and maintaining todo lists  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Oliver Seidel <privat@os10000.net>
 ;;	Stephen Berman <stephen.berman@gmx.net>
@@ -1516,7 +1516,7 @@ the archive of the file moved to, creating it if it does not exist."
                 (prin1 todo-categories (current-buffer)))
 	      ;; If archive was just created, save it to avoid "File
 	      ;; <xyz> no longer exists!" message on invoking
-	      ;; `todo-view-archived-items'.
+	      ;; `todo-find-archive'.
 	      (unless (file-exists-p (buffer-file-name))
 		(save-buffer))
 	      (todo-category-number (or new cat))
@@ -5240,7 +5240,12 @@ changes you have made in the order of the categories.
            ;; Point is on done items separator.
            (save-excursion (beginning-of-line) (looking-at todo-category-done))
 	   ;; Buffer is widened.
-	   (looking-at (regexp-quote todo-category-beg)))
+	   (looking-at (regexp-quote todo-category-beg))
+           ;; Moving an item to a todo file (with `C-u m') that had
+           ;; not yet been read into a buffer puts point at the
+           ;; beginning of the file, from where it is impossible to
+           ;; reach todo-item-start by the loop below (bug#66994).
+	   (= (point) 1))
     (goto-char (line-beginning-position))
     (while (not (looking-at todo-item-start))
       (forward-line -1))

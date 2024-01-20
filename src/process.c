@@ -1,6 +1,6 @@
 /* Asynchronous subprocess control for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2023 Free Software
+Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2024 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -7224,6 +7224,8 @@ If PROCESS is a process object which contains the property
 `remote-pid', or PROCESS is a number and REMOTE is a remote file name,
 PROCESS is interpreted as process on the respective remote host, which
 will be the process to signal.
+If PROCESS is a string, it is interpreted as process object with the
+respective process name, or as a number.
 SIGCODE may be an integer, or a symbol whose name is a signal name.  */)
   (Lisp_Object process, Lisp_Object sigcode, Lisp_Object remote)
 {

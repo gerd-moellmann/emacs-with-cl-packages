@@ -1,6 +1,6 @@
 ;;; simple.el --- basic editing commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1993-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1993-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -8705,7 +8705,7 @@ node `(elisp) Word Motion' for details."
 
 (defun mark-word (&optional arg allow-extend)
   "Set mark ARG words from point or move mark one word.
-When called from Lisp with ALLOW-EXTEND ommitted or nil, mark is
+When called from Lisp with ALLOW-EXTEND omitted or nil, mark is
 set ARG words from point.
 With ARG and ALLOW-EXTEND both non-nil (interactively, with prefix
 argument), the place to which mark goes is the same place \\[forward-word]
@@ -10863,6 +10863,10 @@ If the buffer doesn't exist, create it first."
   (pop-to-buffer-same-window (get-scratch-buffer-create)))
 
 (defun kill-buffer--possibly-save (buffer)
+  "Ask the user to confirm killing of a modified BUFFER.
+
+If the user confirms, optionally save BUFFER that is about to be
+killed."
   (let ((response
          (cadr
           (read-multiple-choice

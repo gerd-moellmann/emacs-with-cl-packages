@@ -1,6 +1,6 @@
 ;;; cl-lib.el --- Common Lisp extensions for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Version: 1.0
@@ -157,6 +157,7 @@ to an element already in the list stored in PLACE.
     `(cl-callf2 cl-adjoin ,x ,place ,@keys)))
 
 (defun cl--set-buffer-substring (start end val)
+  "Delete region from START to END and insert VAL."
   (save-excursion (delete-region start end)
 		  (goto-char start)
 		  (insert val)
@@ -183,6 +184,8 @@ to an element already in the list stored in PLACE.
 ;; the target form to return the values as a list.
 
 (defun cl--defalias (cl-f el-f &optional doc)
+  "Define function CL-F as definition EL-F.
+Like `defalias' but marks the alias itself as inlinable."
   (defalias cl-f el-f doc)
   (put cl-f 'byte-optimizer 'byte-compile-inline-expand))
 

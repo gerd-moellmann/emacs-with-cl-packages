@@ -1,6 +1,6 @@
 /* Tree-sitter integration for GNU Emacs.
 
-Copyright (C) 2021-2023 Free Software Foundation, Inc.
+Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 Maintainer: Yuan Fu <casouri@gmail.com>
 
@@ -931,7 +931,10 @@ treesit_sync_visible_region (Lisp_Object parser)
      this function is called), we need to reparse.  */
   if (visible_beg != BUF_BEGV_BYTE (buffer)
       || visible_end != BUF_ZV_BYTE (buffer))
-    XTS_PARSER (parser)->need_reparse = true;
+    {
+      XTS_PARSER (parser)->need_reparse = true;
+      XTS_PARSER (parser)->timestamp++;
+    }
 
   /* Before we parse or set ranges, catch up with the narrowing
      situation.  We change visible_beg and visible_end to match
@@ -1671,6 +1674,7 @@ buffer.  */)
 	      ranges);
 
   XTS_PARSER (parser)->need_reparse = true;
+  XTS_PARSER (parser)->timestamp++;
   return Qnil;
 }
 
@@ -3062,9 +3066,9 @@ treesit_traverse_child_helper (TSTreeCursor *cursor,
       /* First go to the last child.  */
       while (ts_tree_cursor_goto_next_sibling (cursor));
 
-      if (!named)
+      if (!named || (named && ts_node_is_named (ts_tree_cursor_current_node(cursor))))
 	return true;
-      /* Else named... */
+      /* Else named is required and last child is not named node.  */
       if (treesit_traverse_sibling_helper(cursor, false, true))
 	return true;
       else

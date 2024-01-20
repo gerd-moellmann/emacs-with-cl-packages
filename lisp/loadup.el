@@ -1,6 +1,6 @@
 ;;; loadup.el --- load up standardly loaded Lisp files for Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994, 2001-2023 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994, 2001-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -483,7 +483,7 @@ lost after dumping")))
 (defvar comp-subr-arities-h)
 (when (featurep 'native-compile)
   ;; Save the arity for all primitives so the compiler can always
-  ;; retrive it even in case of redefinition.
+  ;; retrieve it even in case of redefinition.
   (mapatoms (lambda (f)
               (when (subr-primitive-p (symbol-function f))
                 (puthash f (func-arity f) comp-subr-arities-h))))
