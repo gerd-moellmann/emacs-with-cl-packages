@@ -1214,6 +1214,10 @@ static bool handling_queued_nsevents_p;
   [NSApp registerUserInterfaceItemSearchHandler:self];
   Vmac_help_topics = Qnil;
 
+  /* Initialize spell checker for ispell and jinx enchant-2 using
+     AppleSpell.  See https://github.com/minad/jinx/pull/91 */
+  (void) [NSSpellChecker sharedSpellChecker];
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500
   /* Work around animation effect glitches for executables linked on
      macOS 10.15.  */
