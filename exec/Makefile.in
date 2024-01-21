@@ -131,9 +131,12 @@ maintainer-clean: distclean
 ### the coding standards seem to come from.  It's like distclean, but
 ### it deletes backup and autosave files too.
 
+# config.* and install-sh are copied from build-aux in the root of
+# this repository by autogen.sh.
 extraclean: maintainer-clean
 	-rm -f config-tmp-* $(srcdir)/aclocal.m4 $(srcdir)/configure \
-	  $(srcdir)/src/config.in
+	  $(srcdir)/src/config.in $(srcdir)/config.guess	     \
+	  $(srcdir)/config.sub $(srcdir)/install-sh
 	-[ "$(srcdir)" = "." ] || \
 	  find $(srcdir) '(' -name '*~' -o -name '#*' ')' $(FIND_DELETE)
 	-find . '(' -name '*~' -o -name '#*' ')' $(FIND_DELETE)

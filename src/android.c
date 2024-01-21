@@ -744,6 +744,19 @@ android_select (int nfds, fd_set *readfds, fd_set *writefds,
 
   if (event_queue.num_events)
     {
+      /* Zero READFDS, WRITEFDS and EXCEPTFDS, lest the caller
+	 mistakenly interpret this return value as indicating that an
+	 inotify file descriptor is readable, and try to poll an
+	 unready one.  */
+
+      if (readfds)
+	FD_ZERO (readfds);
+
+      if (writefds)
+	FD_ZERO (writefds);
+
+      if (exceptfds)
+	FD_ZERO (exceptfds);
       pthread_mutex_unlock (&event_queue.mutex);
       return 1;
     }
@@ -5995,7 +6008,7 @@ android_build_jstring (const char *text)
    is created.  */
 
 #if __GNUC__ >= 3
-#define likely(cond)	__builtin_expect ((cond), 1)
+#define likely(cond)	__builtin_expect (cond, 1)
 #else /* __GNUC__ < 3 */
 #define likely(cond)	(cond)
 #endif /* __GNUC__ >= 3 */

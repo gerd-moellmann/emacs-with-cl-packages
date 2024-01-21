@@ -1908,7 +1908,7 @@ determines whether case is significant or ignored.  */)
 #define USE_HEURISTIC
 
 #define XVECREF_YVECREF_EQUAL(ctx, xoff, yoff)  \
-  buffer_chars_equal ((ctx), (xoff), (yoff))
+  buffer_chars_equal (ctx, xoff, yoff)
 
 #define OFFSET ptrdiff_t
 
@@ -2877,9 +2877,9 @@ void
 labeled_narrow_to_region (Lisp_Object begv, Lisp_Object zv,
 			  Lisp_Object label)
 {
-  Finternal__labeled_narrow_to_region (begv, zv, label);
   record_unwind_protect (restore_point_unwind, Fpoint_marker ());
   record_unwind_protect (unwind_labeled_narrow_to_region, label);
+  Finternal__labeled_narrow_to_region (begv, zv, label);
 }
 
 DEFUN ("widen", Fwiden, Swiden, 0, 0, "",
