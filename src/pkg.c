@@ -75,7 +75,7 @@ static bool
 h_valid (struct h_iter *it)
 {
   for (; it->i < HASH_TABLE_SIZE (it->h); ++it->i)
-    if (!EQ (HASH_KEY (it->h, it->i), Qunbound))
+    if (!hash_unused_entry_key_p (HASH_KEY (it->h, it->i)))
       {
 	it->key = HASH_KEY (it->h, it->i);
 	it->value = HASH_VALUE (it->h, it->i);
