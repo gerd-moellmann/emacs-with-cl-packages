@@ -286,7 +286,7 @@ See `easy-menu-add-item' for documentation."
   )
 
 (defcustom filesets-menu-in-menu nil
-  "Use that instead of `current-menubar' as the menu to change.
+  "Use that instead of `current-global-map' as the menu to change.
 See `easy-menu-add-item' for documentation."
   :set #'filesets-set-default
   :type 'sexp)
@@ -1767,7 +1767,7 @@ If no fileset name is provided, prompt for NAME."
       (add-to-list 'filesets-data (list name '(:files)))
       (message
        (substitute-command-keys
-        "Fileset %s created.  Call `\\[filesets-save-config]' to save.")
+        "Fileset %s created.  Call \\[filesets-save-config] to save.")
        name)
       (car filesets-data))))))
     (if entry

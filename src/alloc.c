@@ -7155,6 +7155,9 @@ process_mark_stack (ptrdiff_t base_sp)
 		  struct Lisp_Hash_Table *h = (struct Lisp_Hash_Table *)ptr;
 		  set_vector_marked (ptr);
 		  if (h->weakness == Weak_None)
+		    /* The values pushed here may include
+		       HASH_UNUSED_ENTRY_KEY, which this function must
+		       cope with.  */
 		    mark_stack_push_values (h->key_and_value,
 					    2 * h->table_size);
 		  else
@@ -7297,14 +7300,19 @@ process_mark_stack (ptrdiff_t base_sp)
 	  }
 
 	case Lisp_Float:
-	  CHECK_ALLOCATED_AND_LIVE (live_float_p, MEM_TYPE_FLOAT);
-	  /* Do not mark floats stored in a dump image: these floats are
-	     "cold" and do not have mark bits.  */
-	  if (pdumper_object_p (XFLOAT (obj)))
-	    eassert (pdumper_cold_object_p (XFLOAT (obj)));
-	  else if (!XFLOAT_MARKED_P (XFLOAT (obj)))
-	    XFLOAT_MARK (XFLOAT (obj));
-	  break;
+	  {
+	    struct Lisp_Float *f = XFLOAT (obj);
+	    if (!f)
+	      break;		/* for HASH_UNUSED_ENTRY_KEY */
+	    CHECK_ALLOCATED_AND_LIVE (live_float_p, MEM_TYPE_FLOAT);
+	    /* Do not mark floats stored in a dump image: these floats are
+	       "cold" and do not have mark bits.  */
+	    if (pdumper_object_p (f))
+	      eassert (pdumper_cold_object_p (f));
+	    else if (!XFLOAT_MARKED_P (f))
+	      XFLOAT_MARK (f);
+	    break;
+	  }
 
 	case_Lisp_Int:
 	  break;

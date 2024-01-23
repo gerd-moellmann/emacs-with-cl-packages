@@ -6490,6 +6490,36 @@ sfnt_mul_f26dot6 (sfnt_f26dot6 a, sfnt_f26dot6 b)
 #endif
 }
 
+/* Multiply the specified two 26.6 fixed point numbers A and B, with
+   rounding.  Return the result, or an undefined value upon
+   overflow.  */
+
+static sfnt_f26dot6
+sfnt_mul_f26dot6_round (sfnt_f26dot6 a, sfnt_f26dot6 b)
+{
+#ifdef INT64_MAX
+  int64_t product;
+
+  product = (int64_t) a * (int64_t) b;
+
+  /* This can be done quickly with int64_t.  */
+  return (product + 32) / (int64_t) 64;
+#else /* !INT64_MAX */
+  int sign;
+
+  sign = 1;
+
+  if (a < 0)
+    sign = -sign;
+
+  if (b < 0)
+    sign = -sign;
+
+  return sfnt_multiply_divide_round (abs (a), abs (b),
+				     32, 64) * sign;
+#endif /* INT64_MAX */
+}
+
 /* Multiply the specified 2.14 number with another signed 32 bit
    number.  Return the result as a signed 32 bit number.  */
 
@@ -6519,53 +6549,12 @@ sfnt_mul_f2dot14 (sfnt_f2dot14 a, int32_t b)
 }
 
 /* Multiply the specified 26.6 fixed point number X by the specified
-   16.16 fixed point number Y with symmetric rounding.
-
-   The 26.6 fixed point number must fit inside -32768 to 32767.ffff.
-   Value is otherwise undefined.  */
+   16.16 fixed point number Y with rounding.  */
 
 static sfnt_f26dot6
 sfnt_mul_f26dot6_fixed (sfnt_f26dot6 x, sfnt_fixed y)
 {
-#ifdef INT64_MAX
-  uint64_t product;
-  int sign;
-
-  sign = 1;
-
-  if (x < 0)
-    {
-      x = -x;
-      sign = -sign;
-    }
-
-  if (y < 0)
-    {
-      y = -y;
-      sign = -sign;
-    }
-
-  product = (uint64_t) y * (uint64_t) x;
-
-  /* This can be done quickly with int64_t.  */
-  return ((int64_t) (product + 32768)
-	  / (int64_t) 65536) * sign;
-#else
-  struct sfnt_large_integer temp;
-  int sign;
-
-  sign = 1;
-
-  if (x < 0)
-    sign = -sign;
-
-  if (y < 0)
-    sign = -sign;
-
-  sfnt_multiply_divide_1 (abs (x), abs (y), &temp);
-  sfnt_large_integer_add (&temp, 32768);
-  return sfnt_multiply_divide_2 (&temp, 65536) * sign;
-#endif
+  return sfnt_mul_fixed_round (x, y);
 }
 
 /* Return the floor of the specified 26.6 fixed point value X.  */
@@ -7582,12 +7571,13 @@ sfnt_interpret_trap (struct sfnt_interpreter *interpreter,
 
 #define MUL()					\
   {						\
-    sfnt_f26dot6 n2, n1;			\
+    sfnt_f26dot6 n2, n1, r;			\
 						\
     n2 = POP ();				\
     n1 = POP ();				\
 						\
-    PUSH_UNCHECKED (sfnt_mul_f26dot6 (n2, n1));	\
+    r = sfnt_mul_f26dot6_round (n2, n1);	\
+    PUSH_UNCHECKED (r);				\
   }
 
 #define ABS()					\
@@ -8573,8 +8563,12 @@ sfnt_address_zp2 (struct sfnt_interpreter *interpreter,
       if (number >= interpreter->twilight_zone_size)
 	TRAP ("address to ZP2 (twilight zone) out of bounds");
 
+      if (!x || !y)
+	goto next;
+
       *x = interpreter->twilight_x[number];
       *y = interpreter->twilight_y[number];
+    next:
 
       if (!x_org || !y_org)
 	return;
@@ -8624,8 +8618,12 @@ sfnt_address_zp1 (struct sfnt_interpreter *interpreter,
       if (number >= interpreter->twilight_zone_size)
 	TRAP ("address to ZP1 (twilight zone) out of bounds");
 
+      if (!x || !y)
+	goto next;
+
       *x = interpreter->twilight_x[number];
       *y = interpreter->twilight_y[number];
+    next:
 
       if (!x_org || !y_org)
 	return;
@@ -8675,8 +8673,12 @@ sfnt_address_zp0 (struct sfnt_interpreter *interpreter,
       if (number >= interpreter->twilight_zone_size)
 	TRAP ("address to ZP0 (twilight zone) out of bounds");
 
+      if (!x || !y)
+	goto next;
+
       *x = interpreter->twilight_x[number];
       *y = interpreter->twilight_y[number];
+    next:
 
       if (!x_org || !y_org)
 	return;
@@ -10786,6 +10788,7 @@ sfnt_move (sfnt_f26dot6 *restrict x, sfnt_f26dot6 *restrict y,
   sfnt_f26dot6 versor, k;
   sfnt_f2dot14 dot_product;
   size_t num;
+  unsigned char *flags_start;
 
   dot_product = interpreter->state.vector_dot_product;
 
@@ -10797,6 +10800,10 @@ sfnt_move (sfnt_f26dot6 *restrict x, sfnt_f26dot6 *restrict y,
   /* Not actually 26.6, but the multiply-divisions below cancel each
      other out, so the result is 26.6.  */
   versor = interpreter->state.freedom_vector.x;
+
+  /* Save flags that it may be restored for the second Y axis
+     loop.  */
+  flags_start = flags;
 
   if (versor)
     {
@@ -10817,6 +10824,7 @@ sfnt_move (sfnt_f26dot6 *restrict x, sfnt_f26dot6 *restrict y,
 	}
     }
 
+  flags = flags_start;
   versor = interpreter->state.freedom_vector.y;
 
   if (versor)
@@ -12357,10 +12365,10 @@ sfnt_interpret_control_value_program (struct sfnt_interpreter *interpreter,
   sfnt_interpret_run (interpreter,
 		      SFNT_RUN_CONTEXT_CONTROL_VALUE_PROGRAM);
 
-  /* If instruct_control & 4, then changes to the graphics state made
+  /* If instruct_control & 2, then changes to the graphics state made
      in this program should be reverted.  */
 
-  if (interpreter->state.instruct_control & 4)
+  if (interpreter->state.instruct_control & 2)
     sfnt_init_graphics_state (&interpreter->state);
   else
     {

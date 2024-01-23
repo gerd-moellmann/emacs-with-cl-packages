@@ -409,6 +409,10 @@ typedef EMACS_INT Lisp_Word;
        & ((1 << INTTYPEBITS) - 1)))
 #define lisp_h_FLOATP(x) TAGGEDP (x, Lisp_Float)
 #define lisp_h_NILP(x)  BASE_EQ (x, Qnil)
+/* Equivalent to "make_lisp_symbol (&lispsym[INDEX])",
+   and typically faster when compiling without optimization.  */
+#define lisp_h_builtin_lisp_symbol(index) \
+  TAG_PTR (Lisp_Symbol, (index) * sizeof *lispsym)
 #define lisp_h_SET_SYMBOL_VAL(sym, v) \
    (eassert ((sym)->u.s.redirect == SYMBOL_PLAINVAL), \
     (sym)->u.s.val.value = (v))
@@ -475,6 +479,7 @@ typedef EMACS_INT Lisp_Word;
 # define FLOATP(x) lisp_h_FLOATP (x)
 # define FIXNUMP(x) lisp_h_FIXNUMP (x)
 # define NILP(x) lisp_h_NILP (x)
+# define builtin_lisp_symbol(index) lisp_h_builtin_lisp_symbol (index)
 # define SET_SYMBOL_VAL(sym, v) lisp_h_SET_SYMBOL_VAL (sym, v)
 # define SYMBOL_CONSTANT_P(sym) lisp_h_SYMBOL_CONSTANT_P (sym)
 # define SYMBOL_TRAPPED_WRITE_P(sym) lisp_h_SYMBOL_TRAPPED_WRITE_P (sym)
@@ -1159,7 +1164,12 @@ XBARE_SYMBOL (Lisp_Object a)
 INLINE struct Lisp_Symbol * ATTRIBUTE_NO_SANITIZE_UNDEFINED
 XSYMBOL (Lisp_Object a)
 {
-  return XBARE_SYMBOL (BARE_SYMBOL_P (a) ? a : XSYMBOL_WITH_POS (a)->sym);
+  if (!BARE_SYMBOL_P (a))
+    {
+      eassert (symbols_with_pos_enabled);
+      a = XSYMBOL_WITH_POS (a)->sym;
+    }
+  return XBARE_SYMBOL (a);
 }
 
 INLINE Lisp_Object
@@ -1174,9 +1184,9 @@ make_lisp_symbol (struct Lisp_Symbol *sym)
 }
 
 INLINE Lisp_Object
-builtin_lisp_symbol (int index)
+(builtin_lisp_symbol) (int index)
 {
-  return make_lisp_symbol (&lispsym[index]);
+  return lisp_h_builtin_lisp_symbol (index);
 }
 
 INLINE bool
@@ -2630,8 +2640,13 @@ struct Lisp_Hash_Table
   struct Lisp_Hash_Table *next_weak;
 } GCALIGNED_STRUCT;
 
+/* A specific Lisp_Object that is not a valid Lisp value.
+   We need to be careful not to leak this value into machinery
+   where it may be treated as one; we'd get a segfault if lucky.  */
+#define INVALID_LISP_VALUE make_lisp_ptr (NULL, Lisp_Float)
+
 /* Key value that marks an unused hash table entry.  */
-#define HASH_UNUSED_ENTRY_KEY Qunbound
+#define HASH_UNUSED_ENTRY_KEY INVALID_LISP_VALUE
 
 /* KEY is a key of an unused hash table entry.  */
 INLINE bool
@@ -2693,6 +2708,16 @@ hash_from_key (struct Lisp_Hash_Table *h, Lisp_Object key)
 {
   return h->test->hashfn (key, h);
 }
+
+/* Hash table iteration construct (roughly an inlined maphash):
+   Iterate IDXVAR as index over valid entries of TABLE.
+   The body may remove the current entry or alter its value slot, but not
+   mutate TABLE in any other way.  */
+#define DOHASH(TABLE, IDXVAR)						\
+  for (ptrdiff_t IDXVAR = 0; IDXVAR < (TABLE)->table_size; IDXVAR++)	\
+    if (hash_unused_entry_key_p (HASH_KEY (TABLE, IDXVAR)))             \
+      ;                                                                 \
+    else
 
 void hash_table_thaw (Lisp_Object hash_table);
 
