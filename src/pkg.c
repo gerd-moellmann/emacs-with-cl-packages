@@ -47,7 +47,7 @@ pkg_error (const char *fmt, ...)
 struct h_iter
 {
   /* Hash table being iterated over.  */
-  struct Lisp_Hash_Table *h;
+  const struct Lisp_Hash_Table *h;
 
   /* Current index in key/value vector of H.  */
   ptrdiff_t i;
