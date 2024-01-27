@@ -2060,8 +2060,7 @@ If COLLECTION is a function, it is called with three arguments:
 the values STRING, PREDICATE and `lambda'.  */)
   (Lisp_Object string, Lisp_Object collection, Lisp_Object predicate)
 {
-  Lisp_Object tem = Qnil;
-  ptrdiff_t i = 0;
+  Lisp_Object tem = Qnil, arg = Qnil;
 
   CHECK_STRING (string);
 
@@ -2094,29 +2093,30 @@ the values STRING, PREDICATE and `lambda'.  */)
 	 properties.  It may be, for example, "emacs:cd".
        */
       struct Lisp_Hash_Table *h = XHASH_TABLE (collection);
-      i = hash_lookup (h, string);
+      ptrdiff_t i = hash_lookup (h, string);
       if (i >= 0)
-	tem = HASH_KEY (h, i);
+        {
+          tem = HASH_KEY (h, i);
+          arg = HASH_VALUE (h, i);
+          goto found_matching_key;
+        }
       else
-	{
-	  DOHASH (h, j)
-	    {
-	      tem = HASH_KEY (h, j);
-	      Lisp_Object strkey = (SYMBOLP (tem) ? Fsymbol_name (tem) : tem);
-	      if (!STRINGP (strkey))
-		continue;
-	      if (BASE_EQ (Fcompare_strings (string, Qnil, Qnil,
-					     strkey, Qnil, Qnil,
-					     completion_ignore_case ? Qt : Qnil),
-			   Qt))
-		{
-		  i = j;
-		  break;
-		}
-	    }
-	  if (i < 0)
-	    return Qnil;
-	}
+	DOHASH (h, k, v)
+          {
+            tem = k;
+            Lisp_Object strkey = (SYMBOLP (tem) ? Fsymbol_name (tem) : tem);
+            if (!STRINGP (strkey)) continue;
+            if (BASE_EQ (Fcompare_strings (string, Qnil, Qnil,
+					   strkey, Qnil, Qnil,
+					   completion_ignore_case ? Qt : Qnil),
+			 Qt))
+	      {
+                arg = v;
+                goto found_matching_key;
+              }
+          }
+      return Qnil;
+    found_matching_key: ;
     }
   else
     return call3 (collection, string, predicate, Qlambda);
@@ -2127,21 +2127,14 @@ the values STRING, PREDICATE and `lambda'.  */)
     return Qnil;
 
   /* Finally, check the predicate.  */
-  if (NILP (predicate))
-    return Qt;
-
-  if (HASH_TABLE_P (collection))
+  if (!NILP (predicate))
     {
-      if (symbol_table_p)
-	{
-	  Lisp_Object sym = HASH_KEY (XHASH_TABLE (collection), i);
-	  return call1 (predicate, sym);
-	}
-      const Lisp_Object value = HASH_VALUE (XHASH_TABLE (collection), i);
-      return call2 (predicate, tem, value);
+      return HASH_TABLE_P (collection) && !symbol_table_p
+	? call2 (predicate, tem, arg)
+	: call1 (predicate, tem);
     }
-
-  return call1 (predicate, tem);
+  else
+    return Qt;
 }
 
 DEFUN ("internal-complete-buffer", Finternal_complete_buffer, Sinternal_complete_buffer, 3, 3, 0,

@@ -469,6 +469,28 @@ This tests when `eshell-lisp-form-nil-is-failure' is nil."
                                "no"))
 
 
+;; Direct invocation
+
+(defmacro esh-cmd-test--deftest-invoke-directly (name command expected)
+  "Test `eshell-invoke-directly-p' returns EXPECTED for COMMAND.
+NAME is the name of the test case."
+  (declare (indent 2))
+  `(ert-deftest ,(intern (concat "esh-cmd-test/invoke-directly/"
+                                 (symbol-name name)))
+       ()
+     (with-temp-eshell
+      (should (equal (eshell-invoke-directly-p
+                      (eshell-parse-command ,command nil t))
+                     ,expected)))))
+
+(esh-cmd-test--deftest-invoke-directly no-args "echo" t)
+(esh-cmd-test--deftest-invoke-directly with-args "echo hi" t)
+(esh-cmd-test--deftest-invoke-directly multiple-cmds "echo hi; echo bye" nil)
+(esh-cmd-test--deftest-invoke-directly subcmd "echo ${echo hi}" t)
+(esh-cmd-test--deftest-invoke-directly complex "ls ." nil)
+(esh-cmd-test--deftest-invoke-directly complex-subcmd "echo {ls .}" nil)
+
+
 ;; Error handling
 
 (ert-deftest esh-cmd-test/throw ()

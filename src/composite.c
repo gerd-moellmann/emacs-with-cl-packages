@@ -321,7 +321,7 @@ get_composition_id (ptrdiff_t charpos, ptrdiff_t bytepos, ptrdiff_t nchars,
   cmp = xmalloc (sizeof *cmp);
 
   cmp->method = method;
-  cmp->hash_index = hash_index;
+  cmp->key = key;
   cmp->glyph_len = glyph_len;
   cmp->offsets = xnmalloc (glyph_len, 2 * sizeof *cmp->offsets);
   cmp->font = NULL;
@@ -643,10 +643,7 @@ static Lisp_Object gstring_hash_table;
 Lisp_Object
 composition_gstring_lookup_cache (Lisp_Object header)
 {
-  struct Lisp_Hash_Table *h = XHASH_TABLE (gstring_hash_table);
-  ptrdiff_t i = hash_lookup (h, header);
-
-  return (i >= 0 ? HASH_VALUE (h, i) : Qnil);
+  return Fgethash (header, gstring_hash_table, Qnil);
 }
 
 Lisp_Object
@@ -676,7 +673,7 @@ Lisp_Object
 composition_gstring_from_id (ptrdiff_t id)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (gstring_hash_table);
-
+  /* FIXME: The stability of this value depends on the hash table internals!  */
   return HASH_VALUE (h, id);
 }
 
@@ -687,14 +684,9 @@ composition_gstring_cache_clear_font (Lisp_Object font_object)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (gstring_hash_table);
 
-  DOHASH (h, i)
-    {
-      Lisp_Object k = HASH_KEY (h, i);
-      Lisp_Object gstring = HASH_VALUE (h, i);
-
-      if (EQ (LGSTRING_FONT (gstring), font_object))
-	hash_remove_from_table (h, k);
-    }
+  DOHASH (h, k, gstring)
+    if (EQ (LGSTRING_FONT (gstring), font_object))
+      hash_remove_from_table (h, k);
 }
 
 DEFUN ("clear-composition-cache", Fclear_composition_cache,
@@ -2156,6 +2148,16 @@ of the way buffer text is examined for matching one of the rules.  */)
 }
 
 
+/* Not strictly necessary, because all those "keys" are also
+   reachable from `composition_hash_table`.  */
+void
+mark_composite (void)
+{
+  for (int i = 0; i < n_compositions; i++)
+    mark_object (composition_table[i]->key);
+}
+
+
 void
 syms_of_composite (void)
 {

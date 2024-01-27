@@ -2,12 +2,12 @@
 
 ;; Copyright (C) 2018-2024 Free Software Foundation, Inc.
 
-;; Version: 1.16
+;; Version: 1.17
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Maintainer: João Távora <joaotavora@gmail.com>
 ;; URL: https://github.com/joaotavora/eglot
 ;; Keywords: convenience, languages
-;; Package-Requires: ((emacs "26.3") (jsonrpc "1.0.23") (flymake "1.2.1") (project "0.9.8") (xref "1.6.2") (eldoc "1.14.0") (seq "2.23") (external-completion "0.1"))
+;; Package-Requires: ((emacs "26.3") (jsonrpc "1.0.24") (flymake "1.2.1") (project "0.9.8") (xref "1.6.2") (eldoc "1.14.0") (seq "2.23") (external-completion "0.1"))
 
 ;; This is a GNU ELPA :core package.  Avoid adding functionality
 ;; that is not available in the version of Emacs recorded above or any
@@ -3060,9 +3060,14 @@ for which LSP on-type-formatting should be requested."
            finally (cl-return comp)))
 
 (defun eglot--dumb-allc (pat table pred _point) (funcall table pat pred t))
+(defun eglot--dumb-tryc (pat table pred point)
+  (let ((probe (funcall table pat pred nil)))
+    (cond ((eq probe t) t)
+          (probe (cons probe (length probe)))
+          (t (cons pat point)))))
 
 (add-to-list 'completion-category-defaults '(eglot-capf (styles eglot--dumb-flex)))
-(add-to-list 'completion-styles-alist '(eglot--dumb-flex ignore eglot--dumb-allc))
+(add-to-list 'completion-styles-alist '(eglot--dumb-flex eglot--dumb-tryc eglot--dumb-allc))
 
 (defun eglot-completion-at-point ()
   "Eglot's `completion-at-point' function."
@@ -3121,7 +3126,8 @@ for which LSP on-type-formatting should be requested."
                          items)))
                   ;; (trace-values "Requested" (length proxies) cachep bounds)
                   (setq eglot--capf-session
-                        (if cachep (list bounds retval resolved orig-pos) :none))
+                        (if cachep (list bounds retval resolved orig-pos
+                                         bounds-string) :none))
                   (setq local-cache retval)))))
            (resolve-maybe
             ;; Maybe completion/resolve JSON object `lsp-comp' into
@@ -3141,7 +3147,8 @@ for which LSP on-type-formatting should be requested."
                  (>= (cdr bounds) (cdr (nth 0 eglot--capf-session))))
         (setq local-cache (nth 1 eglot--capf-session)
               resolved (nth 2 eglot--capf-session)
-              orig-pos (nth 3 eglot--capf-session))
+              orig-pos (nth 3 eglot--capf-session)
+              bounds-string (nth 4 eglot--capf-session))
         ;; (trace-values "Recalling cache" (length local-cache) bounds orig-pos)
         )
       (list

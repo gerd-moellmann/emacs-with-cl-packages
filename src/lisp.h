@@ -409,10 +409,6 @@ typedef EMACS_INT Lisp_Word;
        & ((1 << INTTYPEBITS) - 1)))
 #define lisp_h_FLOATP(x) TAGGEDP (x, Lisp_Float)
 #define lisp_h_NILP(x)  BASE_EQ (x, Qnil)
-/* Equivalent to "make_lisp_symbol (&lispsym[INDEX])",
-   and typically faster when compiling without optimization.  */
-#define lisp_h_builtin_lisp_symbol(index) \
-  TAG_PTR (Lisp_Symbol, (index) * sizeof *lispsym)
 #define lisp_h_SET_SYMBOL_VAL(sym, v) \
    (eassert ((sym)->u.s.redirect == SYMBOL_PLAINVAL), \
     (sym)->u.s.val.value = (v))
@@ -479,7 +475,6 @@ typedef EMACS_INT Lisp_Word;
 # define FLOATP(x) lisp_h_FLOATP (x)
 # define FIXNUMP(x) lisp_h_FIXNUMP (x)
 # define NILP(x) lisp_h_NILP (x)
-# define builtin_lisp_symbol(index) lisp_h_builtin_lisp_symbol (index)
 # define SET_SYMBOL_VAL(sym, v) lisp_h_SET_SYMBOL_VAL (sym, v)
 # define SYMBOL_CONSTANT_P(sym) lisp_h_SYMBOL_CONSTANT_P (sym)
 # define SYMBOL_TRAPPED_WRITE_P(sym) lisp_h_SYMBOL_TRAPPED_WRITE_P (sym)
@@ -1172,21 +1167,35 @@ XSYMBOL (Lisp_Object a)
   return XBARE_SYMBOL (a);
 }
 
+/* Internal use only.  */
+INLINE Lisp_Object
+make_lisp_symbol_internal (struct Lisp_Symbol *sym)
+{
+  /* GCC 7 x86-64 generates faster code if lispsym is
+     cast to char * rather than to intptr_t.
+     Do not use eassert here, so that builtin symbols like Qnil compile to
+     constants; this is needed for some circa-2024 GCCs even with -O2.  */
+  char *symoffset = (char *) ((char *) sym - (char *) lispsym);
+  /* FIXME: We need this silly `a = ... return` η-redex because otherwise GCC
+     complains about:
+     lisp.h:615:28: error: expected expression before ‘{’ token
+       615 | # define LISP_INITIALLY(w) {w}   */
+  Lisp_Object a = TAG_PTR (Lisp_Symbol, symoffset);
+  return a;
+}
+
 INLINE Lisp_Object
 make_lisp_symbol (struct Lisp_Symbol *sym)
 {
-  /* GCC 7 x86-64 generates faster code if lispsym is
-     cast to char * rather than to intptr_t.  */
-  char *symoffset = (char *) ((char *) sym - (char *) lispsym);
-  Lisp_Object a = TAG_PTR (Lisp_Symbol, symoffset);
+  Lisp_Object a = make_lisp_symbol_internal (sym);
   eassert (XBARE_SYMBOL (a) == sym);
   return a;
 }
 
 INLINE Lisp_Object
-(builtin_lisp_symbol) (int index)
+builtin_lisp_symbol (int index)
 {
-  return lisp_h_builtin_lisp_symbol (index);
+  return make_lisp_symbol_internal (&lispsym[index]);
 }
 
 INLINE bool
@@ -2709,14 +2718,38 @@ hash_from_key (struct Lisp_Hash_Table *h, Lisp_Object key)
   return h->test->hashfn (key, h);
 }
 
-/* Hash table iteration construct (roughly an inlined maphash):
-   Iterate IDXVAR as index over valid entries of TABLE.
+/* Iterate K and V as key and value of valid entries in hash table H.
    The body may remove the current entry or alter its value slot, but not
    mutate TABLE in any other way.  */
-#define DOHASH(TABLE, IDXVAR)						\
-  for (ptrdiff_t IDXVAR = 0; IDXVAR < (TABLE)->table_size; IDXVAR++)	\
-    if (hash_unused_entry_key_p (HASH_KEY (TABLE, IDXVAR)))             \
-      ;                                                                 \
+#define DOHASH(h, k, v)							\
+  for (Lisp_Object *dohash_##k##_##v##_kv = (h)->key_and_value,		\
+                   *dohash_##k##_##v##_end = dohash_##k##_##v##_kv	\
+                                             + 2 * HASH_TABLE_SIZE (h),	\
+	           *dohash_##k##_##v##_base = dohash_##k##_##v##_kv,	\
+                   k, v;						\
+       dohash_##k##_##v##_kv < dohash_##k##_##v##_end			\
+       && (k = dohash_##k##_##v##_kv[0],				\
+           v = dohash_##k##_##v##_kv[1], /*maybe unused*/ (void)v,      \
+           true);			                                \
+       eassert (dohash_##k##_##v##_base == (h)->key_and_value		\
+		&& dohash_##k##_##v##_end				\
+		   == dohash_##k##_##v##_base				\
+	              + 2 * HASH_TABLE_SIZE (h)),			\
+       dohash_##k##_##v##_kv += 2)					\
+    if (hash_unused_entry_key_p (k))					\
+      ;									\
+    else
+
+/* Iterate I as index of valid entries in hash table H.
+   Unlike DOHASH, this construct copes with arbitrary table mutations
+   in the body.  The consequences of such mutations are limited to
+   whether and in what order entries are encountered by the loop
+   (which is usually bad enough), but not crashing or corrupting the
+   Lisp state.  */
+#define DOHASH_SAFE(h, i)					\
+  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (h); i++)		\
+    if (hash_unused_entry_key_p (HASH_KEY (h, i)))		\
+      ;								\
     else
 
 void hash_table_thaw (Lisp_Object hash_table);
@@ -4176,6 +4209,7 @@ extern ptrdiff_t multibyte_chars_in_text (const unsigned char *, ptrdiff_t);
 extern void syms_of_character (void);
 
 /* Defined in charset.c.  */
+extern void mark_charset (void);
 extern void init_charset (void);
 extern void init_charset_once (void);
 extern void syms_of_charset (void);

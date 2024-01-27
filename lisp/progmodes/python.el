@@ -909,6 +909,7 @@ is used to limit the scan."
   "Put `syntax-table' property correctly on single/triple quotes."
   (let* ((ppss (save-excursion (backward-char 3) (syntax-ppss)))
          (string-start (and (eq t (nth 3 ppss)) (nth 8 ppss)))
+         (string-literal-concat (numberp (nth 3 ppss)))
          (quote-starting-pos (- (point) 3))
          (quote-ending-pos (point)))
     (cond ((or (nth 4 ppss)             ;Inside a comment
@@ -921,6 +922,8 @@ is used to limit the scan."
           ((nth 5 ppss)
            ;; The first quote is escaped, so it's not part of a triple quote!
            (goto-char (1+ quote-starting-pos)))
+          ;; Handle string literal concatenation (bug#45897)
+          (string-literal-concat nil)
           ((null string-start)
            ;; This set of quotes delimit the start of a string.  Put
            ;; string fence syntax on last quote. (bug#49518)
@@ -1359,15 +1362,15 @@ For NODE, OVERRIDE, START, END, and ARGS, see
   (save-excursion
     (goto-char start)
     (while (re-search-forward (rx (or "\"\"\"" "'''")) end t)
-      (let ((node (treesit-node-at (point))))
-        ;; The triple quotes surround a non-empty string.
-        (when (equal (treesit-node-type node) "string_content")
-          (let ((start (treesit-node-start node))
-                (end (treesit-node-end node)))
-            (put-text-property (1- start) start
-                               'syntax-table (string-to-syntax "|"))
-            (put-text-property end (min (1+ end) (point-max))
-                               'syntax-table (string-to-syntax "|"))))))))
+      (let ((node (treesit-node-at (- (point) 3))))
+        ;; Handle triple-quoted strings.
+        (pcase (treesit-node-type node)
+          ("string_start"
+           (put-text-property (1- (point)) (point)
+                              'syntax-table (string-to-syntax "|")))
+          ("string_end"
+           (put-text-property (- (point) 3) (- (point) 2)
+                              'syntax-table (string-to-syntax "|"))))))))
 
 
 ;;; Indentation
