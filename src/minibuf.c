@@ -2099,11 +2099,9 @@ the values STRING, PREDICATE and `lambda'.  */)
 	tem = HASH_KEY (h, i);
       else
 	{
-	  for (i = 0; i < HASH_TABLE_SIZE (h); ++i)
+	  DOHASH (h, j)
 	    {
-	      tem = HASH_KEY (h, i);
-	      if (hash_unused_entry_key_p (tem))
-		continue;
+	      tem = HASH_KEY (h, j);
 	      Lisp_Object strkey = (SYMBOLP (tem) ? Fsymbol_name (tem) : tem);
 	      if (!STRINGP (strkey))
 		continue;
@@ -2111,9 +2109,12 @@ the values STRING, PREDICATE and `lambda'.  */)
 					     strkey, Qnil, Qnil,
 					     completion_ignore_case ? Qt : Qnil),
 			   Qt))
-		break;
+		{
+		  i = j;
+		  break;
+		}
 	    }
-	  if (i >= HASH_TABLE_SIZE (h))
+	  if (i < 0)
 	    return Qnil;
 	}
     }
