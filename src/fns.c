@@ -3211,7 +3211,7 @@ SEQUENCE may be a list, a vector, a bool-vector, or a string. */)
 Lisp_Object
 do_yes_or_no_p (Lisp_Object prompt)
 {
-  return call1 (intern ("yes-or-no-p"), prompt);
+  return call1 (Qyes_or_no_p, prompt);
 }
 
 DEFUN ("yes-or-no-p", Fyes_or_no_p, Syes_or_no_p, 1, 1, 0,
@@ -3256,7 +3256,7 @@ by a mouse, or by some window-system gesture, or via a menu.  */)
     }
 
   if (use_short_answers)
-    return call1 (intern ("y-or-n-p"), prompt);
+    return call1 (Qy_or_n_p, prompt);
 
   {
     char *s = SSDATA (prompt);
@@ -4291,7 +4291,7 @@ set_hash_hash_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, hash_hash_t val)
 static void
 set_hash_index_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, ptrdiff_t val)
 {
-  eassert (idx >= 0 && idx < h->index_size);
+  eassert (idx >= 0 && idx < hash_table_index_size (h));
   h->index[idx] = val;
 }
 
@@ -4392,7 +4392,7 @@ HASH_NEXT (struct Lisp_Hash_Table *h, ptrdiff_t idx)
 static ptrdiff_t
 HASH_INDEX (struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
-  eassert (idx >= 0 && idx < h->index_size);
+  eassert (idx >= 0 && idx < hash_table_index_size (h));
   return h->index[idx];
 }
 
@@ -4554,26 +4554,19 @@ allocate_hash_table (void)
   return ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Hash_Table, PVEC_HASH_TABLE);
 }
 
-/* Compute the size of the index from the table capacity.  */
-static ptrdiff_t
-hash_index_size (ptrdiff_t size)
+/* Compute the size of the index (as log2) from the table capacity.  */
+static int
+compute_hash_index_bits (hash_idx_t size)
 {
-  /* An upper bound on the size of a hash table index.  It must fit in
-     ptrdiff_t and be a valid Emacs fixnum.  */
-  ptrdiff_t upper_bound = min (MOST_POSITIVE_FIXNUM,
-			       min (TYPE_MAXIMUM (hash_idx_t),
-				    PTRDIFF_MAX / sizeof (ptrdiff_t)));
-  /* Single-element index vectors are used iff size=0.  */
-  eassert (size > 0);
-  ptrdiff_t lower_bound = 2;
-  ptrdiff_t index_size = size + max (size >> 2, 1);  /* 1.25x larger */
-  if (index_size < upper_bound)
-    index_size = (index_size < lower_bound
-		  ? lower_bound
-		  : next_almost_prime (index_size));
-  if (index_size > upper_bound)
+  /* An upper bound on the size of a hash table index index.  */
+  hash_idx_t upper_bound = min (MOST_POSITIVE_FIXNUM,
+				min (TYPE_MAXIMUM (hash_idx_t),
+				     PTRDIFF_MAX / sizeof (hash_idx_t)));
+  /* Use next higher power of 2.  This works even for size=0.  */
+  int bits = elogb (size) + 1;
+  if (bits >= TYPE_WIDTH (uintmax_t) || ((uintmax_t)1 << bits) > upper_bound)
     error ("Hash table too large");
-  return index_size;
+  return bits;
 }
 
 /* Constant hash index vector used when the table size is zero.
@@ -4614,7 +4607,7 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
       h->key_and_value = NULL;
       h->hash = NULL;
       h->next = NULL;
-      h->index_size = 1;
+      h->index_bits = 0;
       h->index = (hash_idx_t *)empty_hash_index_vector;
       h->next_free = -1;
     }
@@ -4632,8 +4625,9 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 	h->next[i] = i + 1;
       h->next[size - 1] = -1;
 
-      int index_size = hash_index_size (size);
-      h->index_size = index_size;
+      int index_bits = compute_hash_index_bits (size);
+      h->index_bits = index_bits;
+      ptrdiff_t index_size = hash_table_index_size (h);
       h->index = hash_table_alloc_bytes (index_size * sizeof *h->index);
       for (ptrdiff_t i = 0; i < index_size; i++)
 	h->index[i] = -1;
@@ -4681,7 +4675,7 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
       h2->next = hash_table_alloc_bytes (next_bytes);
       memcpy (h2->next, h1->next, next_bytes);
 
-      ptrdiff_t index_bytes = h1->index_size * sizeof *h1->index;
+      ptrdiff_t index_bytes = hash_table_index_size (h1) * sizeof *h1->index;
       h2->index = hash_table_alloc_bytes (index_bytes);
       memcpy (h2->index, h1->index, index_bytes);
     }
@@ -4695,8 +4689,11 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
 static inline ptrdiff_t
 hash_index_index (struct Lisp_Hash_Table *h, hash_hash_t hash)
 {
-  eassert (h->index_size > 0);
-  return hash % h->index_size;
+  /* Knuth multiplicative hashing, tailored for 32-bit indices
+     (avoiding a 64-bit multiply).  */
+  uint32_t alpha = 2654435769;	/* 2**32/phi */
+  /* Note the cast to uint64_t, to make it work for index_bits=0.  */
+  return (uint64_t)((uint32_t)hash * alpha) >> (32 - h->index_bits);
 }
 
 /* Resize hash table H if it's too full.  If H cannot be resized
@@ -4708,7 +4705,7 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
   if (h->next_free < 0)
     {
       ptrdiff_t old_size = HASH_TABLE_SIZE (h);
-      ptrdiff_t min_size = 8;
+      ptrdiff_t min_size = 6;
       ptrdiff_t base_size = min (max (old_size, min_size), PTRDIFF_MAX / 2);
       /* Grow aggressively at small sizes, then just double.  */
       ptrdiff_t new_size =
@@ -4733,13 +4730,14 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
       hash_hash_t *hash = hash_table_alloc_bytes (new_size * sizeof *hash);
       memcpy (hash, h->hash, old_size * sizeof *hash);
 
-      ptrdiff_t old_index_size = h->index_size;
-      ptrdiff_t index_size = hash_index_size (new_size);
+      ptrdiff_t old_index_size = hash_table_index_size (h);
+      ptrdiff_t index_bits = compute_hash_index_bits (new_size);
+      ptrdiff_t index_size = (ptrdiff_t)1 << index_bits;
       hash_idx_t *index = hash_table_alloc_bytes (index_size * sizeof *index);
       for (ptrdiff_t i = 0; i < index_size; i++)
 	index[i] = -1;
 
-      h->index_size = index_size;
+      h->index_bits = index_bits;
       h->table_size = new_size;
       h->next_free = old_size;
 
@@ -4806,18 +4804,19 @@ hash_table_thaw (Lisp_Object hash_table)
       h->key_and_value = NULL;
       h->hash = NULL;
       h->next = NULL;
-      h->index_size = 1;
+      h->index_bits = 0;
       h->index = (hash_idx_t *)empty_hash_index_vector;
     }
   else
     {
-      ptrdiff_t index_size = hash_index_size (size);
-      h->index_size = index_size;
+      ptrdiff_t index_bits = compute_hash_index_bits (size);
+      h->index_bits = index_bits;
 
       h->hash = hash_table_alloc_bytes (size * sizeof *h->hash);
 
       h->next = hash_table_alloc_bytes (size * sizeof *h->next);
 
+      ptrdiff_t index_size = hash_table_index_size (h);
       h->index = hash_table_alloc_bytes (index_size * sizeof *h->index);
       for (ptrdiff_t i = 0; i < index_size; i++)
 	h->index[i] = -1;
@@ -4965,7 +4964,8 @@ hash_clear (struct Lisp_Hash_Table *h)
 	  set_hash_value_slot (h, i, Qnil);
 	}
 
-      for (ptrdiff_t i = 0; i < h->index_size; i++)
+      ptrdiff_t index_size = hash_table_index_size (h);
+      for (ptrdiff_t i = 0; i < index_size; i++)
 	h->index[i] = -1;
 
       h->next_free = 0;
@@ -5004,7 +5004,7 @@ keep_entry_p (hash_table_weakness_t weakness,
 bool
 sweep_weak_table (struct Lisp_Hash_Table *h, bool remove_entries_p)
 {
-  ptrdiff_t n = h->index_size;
+  ptrdiff_t n = hash_table_index_size (h);
   bool marked = false;
 
   for (ptrdiff_t bucket = 0; bucket < n; ++bucket)
@@ -5402,7 +5402,7 @@ mark_fns (void)
     }
 }
 
-/* Find the hash_table_test object correponding to the (bare) symbol TEST,
+/* Find the hash_table_test object corresponding to the (bare) symbol TEST,
    creating one if none existed.  */
 static struct hash_table_test *
 get_hash_table_user_test (Lisp_Object test)
@@ -5731,7 +5731,7 @@ DEFUN ("internal--hash-table-histogram",
   struct Lisp_Hash_Table *h = check_hash_table (hash_table);
   ptrdiff_t size = HASH_TABLE_SIZE (h);
   ptrdiff_t *freq = xzalloc (size * sizeof *freq);
-  ptrdiff_t index_size = h->index_size;
+  ptrdiff_t index_size = hash_table_index_size (h);
   for (ptrdiff_t i = 0; i < index_size; i++)
     {
       ptrdiff_t n = 0;
@@ -5759,7 +5759,7 @@ Internal use only. */)
 {
   struct Lisp_Hash_Table *h = check_hash_table (hash_table);
   Lisp_Object ret = Qnil;
-  ptrdiff_t index_size = h->index_size;
+  ptrdiff_t index_size = hash_table_index_size (h);
   for (ptrdiff_t i = 0; i < index_size; i++)
     {
       Lisp_Object bucket = Qnil;
@@ -5780,7 +5780,7 @@ DEFUN ("internal--hash-table-index-size",
   (Lisp_Object hash_table)
 {
   struct Lisp_Hash_Table *h = check_hash_table (hash_table);
-  return make_int (h->index_size);
+  return make_int (hash_table_index_size (h));
 }
 
 
@@ -6649,4 +6649,6 @@ For best results this should end in a space.  */);
 
   DEFSYM (Qreal_this_command, "real-this-command");
   DEFSYM (Qfrom__tty_menu_p, "from--tty-menu-p");
+  DEFSYM (Qyes_or_no_p, "yes-or-no-p");
+  DEFSYM (Qy_or_n_p, "y-or-n-p");
 }

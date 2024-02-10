@@ -1,7 +1,6 @@
 ;;; subr.el --- basic lisp subroutines for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2024 Free Software
-;; Foundation, Inc.
+;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -3727,10 +3726,10 @@ There is no need to explicitly add `help-char' to CHARS;
          (this-command this-command)
          (result (minibuffer-with-setup-hook
 		     (lambda ()
+		       (setq-local post-self-insert-hook nil)
 		       (add-hook 'post-command-hook
 				 (lambda ()
-				   ;; FIXME: Should we use `<='?
-				   (if (= (1+ (minibuffer-prompt-end))
+				   (if (<= (1+ (minibuffer-prompt-end))
 					  (point-max))
                                        (exit-minibuffer)))
 				 nil 'local))
@@ -3830,13 +3829,17 @@ confusing to some users.")
 
 (defvar from--tty-menu-p nil
   "Non-nil means the current command was invoked from a TTY menu.")
+
+(declare-function android-detect-keyboard "androidfns.c")
+
 (defun use-dialog-box-p ()
   "Return non-nil if the current command should prompt the user via a dialog box."
   (and last-input-event                 ; not during startup
        (or (consp last-nonmenu-event)   ; invoked by a mouse event
            (and (null last-nonmenu-event)
                 (consp last-input-event))
-           (featurep 'android)		; Prefer dialog boxes on Android.
+           (and (featurep 'android)	; Prefer dialog boxes on Android.
+                (not (android-detect-keyboard))) ; If no keyboard is connected.
            from--tty-menu-p)            ; invoked via TTY menu
        use-dialog-box))
 
@@ -5016,7 +5019,7 @@ read-only, and scans it for function and variable names to make them into
 clickable cross-references.
 
 See the related form `with-temp-buffer-window'."
-  (declare (debug t))
+  (declare (debug t) (indent 1))
   (let ((old-dir (make-symbol "old-dir"))
         (buf (make-symbol "buf")))
     `(let* ((,old-dir default-directory)
@@ -6735,6 +6738,8 @@ effectively rounded up."
     ;; Force a call to `message' now.
     (progress-reporter-update reporter (or current-value min-value))
     reporter))
+
+(defalias 'progress-reporter-make #'make-progress-reporter)
 
 (defun progress-reporter-force-update (reporter &optional value new-message suffix)
   "Report progress of an operation in the echo area unconditionally.

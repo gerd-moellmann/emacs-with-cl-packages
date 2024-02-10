@@ -60,6 +60,7 @@ import android.content.UriPermission;
 import android.content.pm.PackageManager;
 
 import android.content.res.AssetManager;
+import android.content.res.Configuration;
 
 import android.hardware.input.InputManager;
 
@@ -134,6 +135,10 @@ public final class EmacsService extends Service
   /* Thread used to query document providers, or null if it hasn't
      been created yet.  */
   private EmacsSafThread storageThread;
+
+  /* The Thread object representing the Android user interface
+     thread.  */
+  private Thread mainThread;
 
   static
   {
@@ -235,6 +240,7 @@ public final class EmacsService extends Service
 			  / metrics.density)
 			 * pixelDensityX);
     resolver = getContentResolver ();
+    mainThread = Thread.currentThread ();
 
     /* If the density used to compute the text size is lesser than
        160, there's likely a bug with display density computation.
@@ -383,7 +389,13 @@ public final class EmacsService extends Service
   {
     if (DEBUG_THREADS)
       {
-	if (Thread.currentThread () instanceof EmacsThread)
+	/* When SERVICE is NULL, Emacs is being executed non-interactively.  */
+	if (SERVICE == null
+	    /* It was previously assumed that only instances of
+	       `EmacsThread' were valid for graphics calls, but this is
+	       no longer true now that Lisp threads can be attached to
+	       the JVM.  */
+	    || (Thread.currentThread () != SERVICE.mainThread))
 	  return;
 
 	throw new RuntimeException ("Emacs thread function"
@@ -579,6 +591,15 @@ public final class EmacsService extends Service
       }
 
     return false;
+  }
+
+  public boolean
+  detectKeyboard ()
+  {
+    Configuration configuration;
+
+    configuration = getResources ().getConfiguration ();
+    return configuration.keyboard != Configuration.KEYBOARD_NOKEYS;
   }
 
   public String

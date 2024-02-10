@@ -378,6 +378,7 @@ don't include."
   (let ((defs nil)
         (load-name (loaddefs-generate--file-load-name file main-outfile))
         (compute-prefixes t)
+        read-symbol-shorthands
         local-outfile inhibit-autoloads)
     (with-temp-buffer
       (insert-file-contents file)
@@ -399,7 +400,22 @@ don't include."
             (setq inhibit-autoloads (read (current-buffer)))))
         (save-excursion
           (when (re-search-forward "autoload-compute-prefixes: *" nil t)
-            (setq compute-prefixes (read (current-buffer))))))
+            (setq compute-prefixes (read (current-buffer)))))
+        (save-excursion
+          ;; Since we're "open-coding", we have to repeat more
+          ;; complicated logic in `hack-local-variables'.
+          (when-let ((beg
+                      (re-search-forward "read-symbol-shorthands: *" nil t)))
+            ;; `read-symbol-shorthands' alist ends with two parens.
+            (let* ((end (re-search-forward ")[;\n\s]*)"))
+                   (commentless (replace-regexp-in-string
+                                 "\n\\s-*;+" ""
+                                 (buffer-substring beg end)))
+                   (unsorted-shorthands (car (read-from-string commentless))))
+              (setq read-symbol-shorthands
+                    (sort unsorted-shorthands
+                          (lambda (sh1 sh2)
+                            (> (length (car sh1)) (length (car sh2))))))))))
 
       ;; We always return the package version (even for pre-dumped
       ;; files).
@@ -473,27 +489,35 @@ don't include."
 
         (when (and autoload-compute-prefixes
                    compute-prefixes)
-          (when-let ((form (loaddefs-generate--compute-prefixes load-name)))
-            ;; This output needs to always go in the main loaddefs.el,
-            ;; regardless of `generated-autoload-file'.
-            (push (list main-outfile file form) defs)))))
+          (with-demoted-errors "%S"
+            (when-let
+                ((form (loaddefs-generate--compute-prefixes load-name)))
+              ;; This output needs to always go in the main loaddefs.el,
+              ;; regardless of `generated-autoload-file'.
+              (push (list main-outfile file form) defs))))))
     defs))
 
 (defun loaddefs-generate--compute-prefixes (load-name)
   (goto-char (point-min))
-  (let ((prefs nil))
+  (let ((prefs nil)
+        (temp-obarray (obarray-make)))
     ;; Avoid (defvar <foo>) by requiring a trailing space.
     (while (re-search-forward
             "^(\\(def[^ \t\n]+\\)[ \t\n]+['(]*\\([^' ()\"\n]+\\)[\n \t]" nil t)
       (unless (member (match-string 1) autoload-ignored-definitions)
-        (let ((name (match-string-no-properties 2)))
-          (when (save-excursion
-                  (goto-char (match-beginning 0))
-                  (or (bobp)
-                      (progn
-                        (forward-line -1)
-                        (not (looking-at ";;;###autoload")))))
-            (push name prefs)))))
+        (let* ((name (match-string-no-properties 2))
+               ;; Consider `read-symbol-shorthands'.
+               (probe (let ((obarray temp-obarray))
+                        (car (read-from-string name)))))
+          (when (symbolp probe)
+            (setq name (symbol-name probe))
+            (when (save-excursion
+                    (goto-char (match-beginning 0))
+                    (or (bobp)
+                        (progn
+                          (forward-line -1)
+                          (not (looking-at ";;;###autoload")))))
+              (push name prefs))))))
     (loaddefs-generate--make-prefixes prefs load-name)))
 
 (defun loaddefs-generate--rubric (file &optional type feature compile)

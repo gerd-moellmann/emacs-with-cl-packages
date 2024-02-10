@@ -1231,6 +1231,7 @@ package will likely install on older systems but crash on startup.])
   passthrough="$passthrough --with-mailutils=$with_mailutils"
   passthrough="$passthrough --with-pop=$with_pop"
   passthrough="$passthrough --with-harfbuzz=$with_harfbuzz"
+  passthrough="$passthrough --with-threads=$with_threads"
 
   # Now pass through some checking options.
   emacs_val="--enable-check-lisp-object-type=$enable_check_lisp_object_type"
@@ -1321,6 +1322,7 @@ if test "$ANDROID" = "yes"; then
     with_pop=no
     with_harfbuzz=no
     with_native_compilation=no
+    with_threads=no
   fi
 
   with_rsvg=no
@@ -1331,7 +1333,6 @@ if test "$ANDROID" = "yes"; then
   with_gpm=no
   with_dbus=no
   with_gsettings=no
-  with_threads=no
   with_ns=no
 
   # zlib is available in android.
@@ -2336,6 +2337,7 @@ fi
 AC_DEFUN([AC_TYPE_SIZE_T])
 # Likewise for obsolescent test for uid_t, gid_t; Emacs assumes them.
 AC_DEFUN([AC_TYPE_UID_T])
+ac_cv_type_gid_t=yes # AC_TYPE_GETGROUPS needs this in Autoconf 2.72.
 
 # Check for all math.h functions that Emacs uses; on some platforms,
 # -lm is needed for some of these functions.
