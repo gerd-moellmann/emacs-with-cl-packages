@@ -1949,6 +1949,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 
   if (!initialized)
     {
+#ifdef HAVE_MPS
+      init_igc_once ();
+#endif
       init_alloc_once ();
       init_pkg_once ();
       init_pdumper_once ();
@@ -1983,6 +1986,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_pkg ();
 
       syms_of_fileio ();
+#ifdef HAVE_MPS
+      syms_of_igc ();
+#endif
       /* Before syms_of_coding to initialize Vgc_cons_threshold.  */
       syms_of_alloc ();
       /* May call Ffuncall and so GC, thus the latter should be initialized.  */
@@ -2008,6 +2014,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #endif
     }
 
+#ifdef HAVE_MPS
+  init_igc ();
+#endif
   init_alloc ();
   init_pkg ();
   init_bignum ();
