@@ -2317,6 +2317,12 @@ extern Lisp_Object pkg_symbol_completion_string (Lisp_Object sym, Lisp_Object st
 extern Lisp_Object pkg_strip_package_prefix (Lisp_Object string, Lisp_Object package);
 extern Lisp_Object pkg_local_nickname (Lisp_Object package);
 
+#ifdef HAVE_MPS
+extern void init_igc (void);
+extern void init_igc_once (void);
+extern void syms_of_igc (void);
+#endif
+
 
 /* Return whether a value might be a valid docstring.
    Used to distinguish the presence of non-docstring in the docstring slot,
