@@ -66,6 +66,9 @@ Return t on success, nil otherwise."
   "Call function FN on every symbol in obarray OB and return nil."
   (mapatoms fn ob))
 
+(defun obarray-clear (ob)
+  (aset ob 0 nil))
+
 (provide 'obarray)
 
 ;;; obarray.el ends here

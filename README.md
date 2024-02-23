@@ -21,6 +21,7 @@ etc., so I'd say it's pretty backwards compatible.
 * Tests
 * Support for purespace
 * Support for symbol shortcuts
+* The new `obarray` type implemented in C
 
 ## What's there
 

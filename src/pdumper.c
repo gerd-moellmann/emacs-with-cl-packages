@@ -2912,17 +2912,17 @@ dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
   dump_object_start (ctx, &out, sizeof (out));
   DUMP_FIELD_COPY (&out, subr, header.size);
 #ifdef HAVE_NATIVE_COMP
-  bool native_comp = !NILP (subr->native_comp_u);
+  bool non_primitive = !NILP (subr->native_comp_u);
 #else
-  bool native_comp = false;
+  bool non_primitive = false;
 #endif
-  if (native_comp)
+  if (non_primitive)
     out.function.a0 = NULL;
   else
     dump_field_emacs_ptr (ctx, &out, subr, &subr->function.a0);
   DUMP_FIELD_COPY (&out, subr, min_args);
   DUMP_FIELD_COPY (&out, subr, max_args);
-  if (native_comp)
+  if (non_primitive)
     {
       dump_field_fixup_later (ctx, &out, subr, &subr->symbol_name);
       dump_remember_cold_op (ctx,
@@ -2947,7 +2947,7 @@ dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
   dump_field_lv (ctx, &out, subr, &subr->type, WEIGHT_NORMAL);
 #endif
   dump_off subr_off = dump_object_finish (ctx, &out, sizeof (out));
-  if (native_comp && ctx->flags.dump_object_contents)
+  if (non_primitive && ctx->flags.dump_object_contents)
     /* We'll do the final addr relocation during VERY_LATE_RELOCS time
        after the compilation units has been loaded. */
     dump_push (&ctx->dump_relocs[VERY_LATE_RELOCS],
@@ -5594,10 +5594,7 @@ pdumper_load (const char *dump_filename, char *argv0)
 
   struct dump_header header_buf = { 0 };
   struct dump_header *header = &header_buf;
-  struct dump_memory_map sections[NUMBER_DUMP_SECTIONS];
-
-  /* Use memset instead of "= { 0 }" to work around GCC bug 105961.  */
-  memset (sections, 0, sizeof sections);
+  struct dump_memory_map sections[NUMBER_DUMP_SECTIONS] = { 0 };
 
   const struct timespec start_time = current_timespec ();
   char *dump_filename_copy;

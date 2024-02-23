@@ -4239,6 +4239,7 @@ syms_of_data (void)
   DEFSYM (Qtreesit_parser, "treesit-parser");
   DEFSYM (Qtreesit_node, "treesit-node");
   DEFSYM (Qtreesit_compiled_query, "treesit-compiled-query");
+  DEFSYM (Qobarray, "obarray");
 
   DEFSYM (Qdefun, "defun");
 

@@ -130,6 +130,10 @@ the signature) the automatically inferred function type as well.
 This user option controls outline visibility in the output buffer of
 'describe-bindings' when 'describe-bindings-outline' is non-nil.
 
+---
+*** 'C-h m' ('describe-mode') uses outlining by default.
+Set 'describe-mode-outline' to nil to get back the old behavior.
+
 ** Outline Mode
 
 +++
@@ -885,6 +889,10 @@ mode line.  'header' will display in the header line;
 ** Tramp
 
 +++
+*** New connection methods "dockercp" and "podmancp".
+These are the external methods counterparts of "docker" and "podman".
+
++++
 *** New connection methods "toolbox" and "flatpak".
 They allow accessing system containers provided by Toolbox or
 sandboxes provided by Flatpak.
@@ -1121,7 +1129,7 @@ the user option 'nnweb-type' to 'gmane'.
 *** New user option 'gnus-mode-line-logo'.
 This allows the user to either disable the display of any logo or
 specify which logo will be displayed as part of the
-buffer-identification in the mode-line of Gnus-buffers.
+buffer-identification in the mode-line of Gnus buffers.
 
 ** Rmail
 
@@ -1333,7 +1341,7 @@ chat buffers use by default.
 This command toggles the display of internal buffers in Buffer Menu mode;
 that is, buffers not visiting a file and whose names start with a space.
 Previously, such buffers were never shown.  This command is bound to 'I'
-in Buffer menu mode.
+in Buffer Menu mode.
 
 ** Customize
 
@@ -1364,6 +1372,14 @@ looks like it was never mentioned in the NEWS, or even the manual.
 The new user option 'ielm-history-file-name' is the name of the file
 where IELM input history will be saved.  Customize it to nil to revert
 to the old behavior of not remembering input history between sessions.
+
+** EasyPG
+
++++
+*** New user option 'epa-keys-select-method'.
+This allows the user to customize the key selection method, which can be
+either by using a pop-up buffer or from the minibuffer.  The pop-up
+buffer method is the default, which preserves previous behavior.
 
 
 * New Modes and Packages in Emacs 30.1
@@ -1421,7 +1437,7 @@ current project configuration, and later updates it as you edit the
 files and save the changes.
 
 +++
-** New package Compat
+** New package Compat.
 Emacs now comes with a stub implementation of the
 forwards-compatibility Compat package from GNU ELPA.  This allows
 built-in packages to use the library more effectively, and helps
@@ -1552,7 +1568,7 @@ values.
 
 +++
 ** Pcase's functions (in 'pred' and 'app') can specify the argument position.
-For example, instead of (pred (< 5)) you can write (pred (> _ 5)).
+For example, instead of '(pred (< 5))' you can write '(pred (> _ 5))'.
 
 +++
 ** 'define-advice' now sets the new advice's 'name' property to NAME.
@@ -1976,6 +1992,26 @@ remain for compatibility but now always return the old default values.
 The 'test' parameter is omitted if it is 'eql' (the default), as is
 'data' if empty.  'rehash-size', 'rehash-threshold' and 'size' are
 always omitted, and ignored if present when the object is read back in.
+
+** Obarrays
+
++++
+*** New obarray type.
+Obarrays are now represented by an opaque type instead of using vectors.
+They are created by 'obarray-make' and manage their internal storage
+automatically, which means that the size parameter to 'obarray-make' can
+safely be omitted.  That is, they do not become slower as they fill up.
+
+The old vector representation is still accepted by functions operating
+on obarrays, but 'obarrayp' only returns 't' for obarray objects.
+'type-of' now returns 'obarray' for obarray objects.
+
++++
+*** New function 'obarray-clear' removes all symbols from an obarray.
+
+---
+*** 'obarray-size' and 'obarray-default-size' are now obsolete.
+They pertained to the internal storage size which is now irrelevant.
 
 +++
 ** 'treesit-install-language-grammar' can handle local directory instead of URL.
