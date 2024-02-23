@@ -360,13 +360,13 @@ static struct gcstat
   object_ct total_intervals, total_free_intervals;
   object_ct total_buffers;
 
-  /* Size of the ancillary arrays of live hash-table objects.
+  /* Size of the ancillary arrays of live hash-table and obarray objects.
      The objects themselves are not included (counted as vectors above).  */
   byte_ct total_hash_table_bytes;
 } gcstat;
 
-/* Total size of ancillary arrays of all allocated hash-table objects,
-   both dead and alive.  This number is always kept up-to-date.  */
+/* Total size of ancillary arrays of all allocated hash-table and obarray
+   objects, both dead and alive.  This number is always kept up-to-date.  */
 static ptrdiff_t hash_table_allocated_bytes = 0;
 
 /* Points to memory space allocated as "spare", to be freed if we run
@@ -3500,6 +3500,7 @@ cleanup_vector (struct Lisp_Vector *vector)
 	    hash_table_allocated_bytes -= bytes;
 	  }
       }
+      break;
     /* Keep the switch exhaustive.  */
     case PVEC_NORMAL_VECTOR:
     case PVEC_FREE:
@@ -5677,7 +5678,8 @@ valid_lisp_object_p (Lisp_Object obj)
   return 0;
 }
 
-/* Like xmalloc, but makes allocation count toward the total consing.
+/* Like xmalloc, but makes allocation count toward the total consing
+   and hash table or obarray usage.
    Return NULL for a zero-sized allocation.  */
 void *
 hash_table_alloc_bytes (ptrdiff_t nbytes)

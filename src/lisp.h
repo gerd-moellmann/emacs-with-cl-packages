@@ -478,6 +478,16 @@ typedef EMACS_INT Lisp_Word;
 #endif
 
 
+/* Lisp_Object tagging scheme:
+        Tag location
+   Upper bits  Lower bits  Type        Payload
+   000.......  .......000  symbol      offset from lispsym to struct Lisp_Symbol
+   001.......  .......001  unused
+   01........  ........10  fixnum      signed integer of FIXNUM_BITS
+   110.......  .......011  cons        pointer to struct Lisp_Cons
+   100.......  .......100  string      pointer to struct Lisp_String
+   101.......  .......101  vectorlike  pointer to union vectorlike_header
+   111.......  .......111  float       pointer to struct Lisp_Float  */
 enum Lisp_Type
   {
     /* Symbol.  XSYMBOL (object) points to a struct Lisp_Symbol.  */
@@ -2668,8 +2678,12 @@ XHASH_TABLE (Lisp_Object a)
   return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Table);
 }
 
-#define XSET_HASH_TABLE(VAR, PTR) \
-  XSETPSEUDOVECTOR (VAR, PTR, PVEC_HASH_TABLE)
+INLINE Lisp_Object
+make_lisp_hash_table (struct Lisp_Hash_Table *h)
+{
+  eassert (PSEUDOVECTOR_TYPEP (&h->header, PVEC_HASH_TABLE));
+  return make_lisp_ptr (h, Lisp_Vectorlike);
+}
 
 /* Value is the key part of entry IDX in hash table H.  */
 INLINE Lisp_Object
@@ -2772,6 +2786,28 @@ SXHASH_REDUCE (EMACS_UINT x)
 {
   return (x ^ x >> (EMACS_INT_WIDTH - FIXNUM_BITS)) & INTMASK;
 }
+
+/* Reduce an EMACS_UINT hash value to hash_hash_t.  */
+INLINE hash_hash_t
+reduce_emacs_uint_to_hash_hash (EMACS_UINT x)
+{
+  verify (sizeof x <= 2 * sizeof (hash_hash_t));
+  return (sizeof x == sizeof (hash_hash_t)
+	  ? x
+	  : x ^ (x >> (8 * (sizeof x - sizeof (hash_hash_t)))));
+}
+
+/* Reduce HASH to a value BITS wide.  */
+INLINE ptrdiff_t
+knuth_hash (hash_hash_t hash, unsigned bits)
+{
+  /* Knuth multiplicative hashing, tailored for 32-bit indices
+     (avoiding a 64-bit multiply).  */
+  uint32_t alpha = 2654435769;	/* 2**32/phi */
+  /* Note the cast to uint64_t, to make it work for bits=0.  */
+  return (uint64_t)((uint32_t)hash * alpha) >> (32 - bits);
+}
+
 
 struct Lisp_Marker
 {
@@ -5645,7 +5681,7 @@ safe_free_unbind_to (specpdl_ref count, specpdl_ref sa_count, Lisp_Object val)
    https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109577
    which causes GCC to mistakenly complain about the
    memory allocation in SAFE_ALLOCA_LISP_EXTRA.  */
-#if GNUC_PREREQ (13, 0, 0)
+#if GNUC_PREREQ (13, 0, 0) && !GNUC_PREREQ (14, 0, 0)
 # pragma GCC diagnostic ignored "-Wanalyzer-allocation-size"
 #endif
 

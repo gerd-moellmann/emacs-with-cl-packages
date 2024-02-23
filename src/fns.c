@@ -4458,16 +4458,6 @@ cmpfn_user_defined (Lisp_Object key1, Lisp_Object key2,
   return hash_table_user_defined_call (ARRAYELTS (args), args, h);
 }
 
-/* Reduce an EMACS_UINT hash value to hash_hash_t.  */
-static inline hash_hash_t
-reduce_emacs_uint_to_hash_hash (EMACS_UINT x)
-{
-  verify (sizeof x <= 2 * sizeof (hash_hash_t));
-  return (sizeof x == sizeof (hash_hash_t)
-	  ? x
-	  : x ^ (x >> (8 * (sizeof x - sizeof (hash_hash_t)))));
-}
-
 static EMACS_INT
 sxhash_eq (Lisp_Object key)
 {
@@ -4635,13 +4625,7 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
   h->next_weak = NULL;
   h->purecopy = purecopy;
   h->mutable = true;
-
-  Lisp_Object table;
-  XSET_HASH_TABLE (table, h);
-  eassert (HASH_TABLE_P (table));
-  eassert (XHASH_TABLE (table) == h);
-
-  return table;
+  return make_lisp_hash_table (h);
 }
 
 
@@ -4651,7 +4635,6 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 static Lisp_Object
 copy_hash_table (struct Lisp_Hash_Table *h1)
 {
-  Lisp_Object table;
   struct Lisp_Hash_Table *h2;
 
   h2 = allocate_hash_table ();
@@ -4676,21 +4659,14 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
       h2->index = hash_table_alloc_bytes (index_bytes);
       memcpy (h2->index, h1->index, index_bytes);
     }
-  XSET_HASH_TABLE (table, h2);
-
-  return table;
+  return make_lisp_hash_table (h2);
 }
-
 
 /* Compute index into the index vector from a hash value.  */
 static inline ptrdiff_t
 hash_index_index (struct Lisp_Hash_Table *h, hash_hash_t hash)
 {
-  /* Knuth multiplicative hashing, tailored for 32-bit indices
-     (avoiding a 64-bit multiply).  */
-  uint32_t alpha = 2654435769;	/* 2**32/phi */
-  /* Note the cast to uint64_t, to make it work for index_bits=0.  */
-  return (uint64_t)((uint32_t)hash * alpha) >> (32 - h->index_bits);
+  return knuth_hash (hash, h->index_bits);
 }
 
 /* Resize hash table H if it's too full.  If H cannot be resized
@@ -5123,6 +5099,8 @@ hash_string (char const *ptr, ptrdiff_t len)
       /* String is shorter than an EMACS_UINT.  Use smaller loads.  */
       eassume (p <= end && end - p < sizeof (EMACS_UINT));
       EMACS_UINT tail = 0;
+      verify (sizeof tail <= 8);
+#if EMACS_INT_MAX > INT32_MAX
       if (end - p >= 4)
 	{
 	  uint32_t c;
@@ -5130,6 +5108,7 @@ hash_string (char const *ptr, ptrdiff_t len)
 	  tail = (tail << (8 * sizeof c)) + c;
 	  p += sizeof c;
 	}
+#endif
       if (end - p >= 2)
 	{
 	  uint16_t c;
@@ -5227,7 +5206,7 @@ sxhash_bignum (Lisp_Object bignum)
 {
   mpz_t const *n = xbignum_val (bignum);
   size_t i, nlimbs = mpz_size (*n);
-  EMACS_UINT hash = 0;
+  EMACS_UINT hash = mpz_sgn(*n) < 0;
 
   for (i = 0; i < nlimbs; ++i)
     hash = sxhash_combine (hash, mpz_getlimbn (*n, i));

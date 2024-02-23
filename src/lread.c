@@ -5009,6 +5009,7 @@ string_to_number (char const *string, int base, ptrdiff_t *plen)
    that the symbol name may be allocated from pure space if necessary.
    If STR starts with a colon, consider it a keyword.  */
 
+/* Slow path obarray check: return the obarray to use or signal an error.  */
 Lisp_Object
 intern_c_string_1 (const char *str, ptrdiff_t len, bool allow_pure_p)
 {

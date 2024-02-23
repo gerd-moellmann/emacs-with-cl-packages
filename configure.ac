@@ -1567,8 +1567,6 @@ AC_DEFUN([gt_TYPE_WINT_T],
 AC_DEFUN_ONCE([gl_STDLIB_H],
   [AC_REQUIRE([gl_STDLIB_H_DEFAULTS])
    gl_NEXT_HEADERS([stdlib.h])])
-AC_DEFINE([REQUIRE_GNUISH_STRFTIME_AM_PM], [false],
-  [Emacs does not need glibc strftime behavior for AM and PM indicators.])
 
 # Initialize gnulib right after choosing the compiler.
 dnl Amongst other things, this sets AR and ARFLAGS.
@@ -4091,16 +4089,16 @@ case $with_file_notification,$opsys in
     fi ;;
 esac
 
-dnl inotify is available only on GNU/Linux.
+dnl inotify is available only on Linux-kernel based systems.
 case $with_file_notification,$NOTIFY_OBJ in
   inotify, | yes,)
     AC_CHECK_HEADER([sys/inotify.h])
     if test "$ac_cv_header_sys_inotify_h" = yes ; then
-	AC_CHECK_FUNC([inotify_init1])
-	if test "$ac_cv_func_inotify_init1" = yes; then
+	AC_CHECK_FUNCS([inotify_init inotify_init1])
+	if test "$ac_cv_func_inotify_init" = yes; then
 	  AC_DEFINE([HAVE_INOTIFY], [1], [Define to 1 to use inotify.])
 	  NOTIFY_OBJ=inotify.o
-	  NOTIFY_SUMMARY="yes -lglibc (inotify)"
+	  NOTIFY_SUMMARY="yes (inotify)"
        fi
     fi ;;
 esac
