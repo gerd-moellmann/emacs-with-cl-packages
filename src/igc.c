@@ -34,6 +34,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 #include <config.h>
 #include "lisp.h"
+#include "igc.h"
 
 #ifdef HAVE_MPS
 

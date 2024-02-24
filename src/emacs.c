@@ -31,6 +31,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #define MAIN_PROGRAM
 #include "lisp.h"
+#include "igc.h"
 #include "sysstdio.h"
 
 #ifdef HAVE_ANDROID
