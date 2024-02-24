@@ -20,8 +20,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /* Random notes:
 
-- Use mps_arena_step during idle time. This lets MPS take a specified
-  maximum amount of time (default 10ms) for its work.
+   - As long as some Lisp objects are managed by alloc.c, we have to use
+   non-moving MPS pools, because we can't fix references in alloc.c.
+
+
+
+   - Use mps_arena_step during idle time. This lets MPS take a specified
+     maximum amount of time (default 10ms) for its work.
 
 */
 
@@ -39,7 +44,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include <stdlib.h>
 #include <mps.h>
 #include <mpsavm.h>
-#include "mpscamc.h"
+#include <mpscamc.h>
+#include <mpscams.h>
 
 static mps_arena_t arena = NULL;
 static mps_chain_t chain;
@@ -86,15 +92,16 @@ create_arena (void)
   if (res != MPS_RES_OK)
     emacs_abort ();
 
+  // Generations
   mps_gen_param_s gen_params[] = {
     {32000, 0.8},
     {5 * 32009, 0.4}
   };
-  res = mps_chain_create(&chain, arena, ARRAYELTS (gen_params), gen_params);
+  res = mps_chain_create (&chain, arena, ARRAYELTS (gen_params), gen_params);
   if (res != MPS_RES_OK)
     emacs_abort ();
 
-  /* Object format for conses.  */
+  // Object format for conses.
   mps_fmt_t cons_fmt;
   MPS_ARGS_BEGIN (args) {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, 8);
@@ -104,19 +111,18 @@ create_arena (void)
     MPS_ARGS_ADD(args, MPS_KEY_FMT_FWD, cons_fwd);
     MPS_ARGS_ADD(args, MPS_KEY_FMT_ISFWD, cons_isfwd);
     MPS_ARGS_ADD(args, MPS_KEY_FMT_PAD, cons_pad);
-    res = mps_fmt_create_k(&cons_fmt, arena, args);
-  } MPS_ARGS_END(args);
+    res = mps_fmt_create_k (&cons_fmt, arena, args);
+  } MPS_ARGS_END (args);
   if (res != MPS_RES_OK)
     emacs_abort ();
 
-  /* Pool for conses. Since conses have no type field which would let us
-     recognize them when mixed with other objects, use a dedicated
-     pool.  */
+  // Pool for conses. Since conses have no type field which would let us
+  // recognize them when mixed with other objects, use a dedicated pool.
   MPS_ARGS_BEGIN (args) {
     MPS_ARGS_ADD (args, MPS_KEY_FORMAT, cons_fmt);
     MPS_ARGS_ADD (args, MPS_KEY_CHAIN, chain);
     MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-    res = mps_pool_create_k (&cons_pool, arena, mps_class_amc (), args);
+    res = mps_pool_create_k (&cons_pool, arena, mps_class_ams (), args);
   } MPS_ARGS_END(args);
   if (res != MPS_RES_OK)
     emacs_abort ();
@@ -128,14 +134,10 @@ destroy_arena (void)
   mps_arena_destroy (arena);
 }
 
-/* Not called when starting a dumped Emacs.  */
-
 void
 syms_of_igc (void)
 {
 }
-
-/* Not called when starting a dumped Emacs.  */
 
 void
 init_igc_once (void)
@@ -146,8 +148,6 @@ init_igc_once (void)
       atexit (destroy_arena);
     }
 }
-
-/* Called when starting a dumped Emacs.  */
 
 void
 init_igc (void)
