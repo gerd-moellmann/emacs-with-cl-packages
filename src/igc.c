@@ -32,20 +32,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 // clang-format on
 
-/* In MPS scan functions it is not easy to call C functions (see the MPS
-   documentation). Rather than taking the risk of using functions from
-   lisp.h which may may not be inlined, I'm therfore using some macros,
-   and assume that Lisp_Objs are EMACS_INTs, and we are using the 3
-   lowest bits for tags.  */
-
-#define IGC_TAG(obj) ((EMACS_INT) (obj) & 0x7)
-#define IGC_UNTAGGED(obj) ((EMACS_INT) (obj) & ~0x7)
-#define IGC_MAKE_LISP_OBJ(untagged, tag) \
-  ((Lisp_Object) ((EMACS_INT) (untagged) | (tag)))
-#define IGC_FIXNUMP(obj) \
-  (IGC_TAG (obj) == Lisp_Int0 || IGC_TAG (obj) == Lisp_Int1)
-
-
 #include <config.h>
 #include "lisp.h"
 #include "igc.h"
@@ -61,6 +47,19 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include <mpsavm.h>
 #include <mpscamc.h>
 #include <mpscams.h>
+
+/* In MPS scan functions it is not easy to call C functions (see the MPS
+   documentation). Rather than taking the risk of using functions from
+   lisp.h which may may not be inlined, I'm therfore using some macros,
+   and assume that Lisp_Objs are EMACS_INTs, and we are using the 3
+   lowest bits for tags.  */
+
+#define IGC_TAG(obj) ((EMACS_INT) (obj) & 0x7)
+#define IGC_UNTAGGED(obj) ((EMACS_INT) (obj) & ~0x7)
+#define IGC_MAKE_LISP_OBJ(untagged, tag) \
+  ((Lisp_Object) ((EMACS_INT) (untagged) | (tag)))
+#define IGC_FIXNUMP(obj) \
+  (IGC_TAG (obj) == Lisp_Int0 || IGC_TAG (obj) == Lisp_Int1)
 
 static mps_arena_t arena = NULL;
 static mps_chain_t chain;
@@ -123,12 +122,6 @@ remove_all_roots (void)
   while (roots)
     igc_remove_root (roots);
 }
-
-/* Fix the Lisp_Object at *P. SS is the MPS scan state.
-
-   We need to tag/untag Lisp_Objects to work with MPS.. And one cannot
-   easily call functions from scan functions according to the MPS
-   documentation (see there). So, I'm treating them as EMACS_INTs.  */
 
 # define IGC_FIX_LISP_OBJ(ss, p)			      \
   if (!IGC_FIXNUMP (*(p)))				      \
