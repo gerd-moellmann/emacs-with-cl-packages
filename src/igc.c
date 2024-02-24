@@ -32,6 +32,20 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 // clang-format on
 
+/* In MPS scan functions it is not easy to call C functions (see the MPS
+   documentation). Rather than taking the risk of using functions from
+   lisp.h which may may not be inlined, I'm therfore using some macros,
+   and assume that Lisp_Objs are EMACS_INTs, and we are using the 3
+   lowest bits for tags.  */
+
+#define IGC_TAG(obj) ((EMACS_INT) (obj) & 0x7)
+#define IGC_UNTAGGED(obj) ((EMACS_INT) (obj) & ~0x7)
+#define IGC_MAKE_LISP_OBJ(untagged, tag) \
+  ((Lisp_Object) ((EMACS_INT) (untagged) | (tag)))
+#define IGC_FIXNUMP(obj) \
+  (IGC_TAG (obj) == Lisp_Int0 || IGC_TAG (obj) == Lisp_Int1)
+
+
 #include <config.h>
 #include "lisp.h"
 #include "igc.h"
@@ -52,9 +66,94 @@ static mps_arena_t arena = NULL;
 static mps_chain_t chain;
 static mps_pool_t cons_pool;
 
+struct igc_root
+{
+  struct igc_root *next, *prev;
+  mps_root_t root;
+};
+
+struct igc_root *roots = NULL;
+
+static struct igc_root *
+register_root (mps_root_t root)
+{
+  struct igc_root *r = xmalloc (sizeof *r);
+  r->next = roots;
+  r->prev = NULL;
+  if (r->next)
+    r->next->prev = r;
+  roots = r;
+  return r;
+}
+
+static mps_root_t
+deregister_root (struct igc_root *r)
+{
+  mps_root_t root = r->root;
+  if (r->next)
+    r->next->prev = r->prev;
+  if (r->prev)
+    r->prev->next = r->next;
+  if (r == roots)
+    roots = r->next;
+  xfree (r);
+  return root;
+}
+
+struct igc_root *
+igc_add_mem_root (void *start, void *end)
+{
+  mps_res_t res;
+  mps_root_t root;
+  res = mps_root_create_area (&root);
+  if (res != MPS_RES_OK)
+    emacs_abort ();
+  return register_root (root);
+}
+
+void
+igc_remove_root (struct igc_root *r)
+{
+  mps_root_destroy (deregister_root (r));
+}
+
+static void
+remove_all_roots (void)
+{
+  while (roots)
+    igc_remove_root (roots);
+}
+
+/* Fix the Lisp_Object at *P. SS is the MPS scan state.
+
+   We need to tag/untag Lisp_Objects to work with MPS.. And one cannot
+   easily call functions from scan functions according to the MPS
+   documentation (see there). So, I'm treating them as EMACS_INTs.  */
+
+# define IGC_FIX_LISP_OBJ(ss, p)			      \
+  if (!IGC_FIXNUMP (*(p)))				      \
+    {							      \
+      EMACS_INT _untagged = IGC_UNTAGGED (*(p));	      \
+      mps_addr_t _addr = (mps_addr_t) _untagged;	      \
+      if (MPS_FIX1 ((ss), _addr))			      \
+	{						      \
+	  mps_res_t _res = MPS_FIX2 ((ss), &_addr);	      \
+	  if (_res != MPS_RES_OK)			      \
+	    return _res;				      \
+	  EMACS_INT _tag = IGC_TAG (*(p));		      \
+	  *(p) = IGC_MAKE_LISP_OBJ (_addr, _tag);	      \
+	}						      \
+    }							      \
+  else
+
 static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
+  MPS_SCAN_BEGIN (ss);
+  struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
+  IGC_FIX_LISP_OBJ (ss, &cons->u.s.car);
+  IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -132,6 +231,7 @@ create_arena (void)
 static void
 destroy_arena (void)
 {
+  remove_all_roots ();
   mps_arena_destroy (arena);
 }
 

@@ -30,6 +30,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 
 #include "lisp.h"
+#include "igc.h"
 #include "bignum.h"
 #include "dispextern.h"
 #include "intervals.h"
@@ -545,6 +546,10 @@ struct mem_node
 
   /* Memory type.  */
   enum mem_type type;
+
+#ifdef HAVE_MPS
+  struct igc_root *root;
+#endif
 };
 
 /* Root of the tree describing allocated Lisp memory.  */
@@ -4587,6 +4592,20 @@ mem_insert (void *start, void *end, enum mem_type type)
   x->parent = parent;
   x->left = x->right = MEM_NIL;
   x->color = MEM_RED;
+#ifdef HAVE_MPS
+  switch (type)
+    {
+    case MEM_TYPE_SYMBOL:
+    case MEM_TYPE_STRING:
+    case MEM_TYPE_VECTORLIKE:
+    case MEM_TYPE_VECTOR_BLOCK:
+      x->root = igc_add_mem_root (start, end);
+      break;
+    default:
+      x->root = NULL;
+      break;
+    }
+#endif
 
   /* Insert it as child of PARENT or install it as root.  */
   if (parent)
@@ -4797,6 +4816,11 @@ mem_delete (struct mem_node *z)
 
   if (y->color == MEM_BLACK)
     mem_delete_fixup (x);
+
+#ifdef HAVE_MPS
+  if (x->root)
+    igc_remove_root (x->root);
+#endif
 
 #ifdef GC_MALLOC_CHECK
   free (y);
