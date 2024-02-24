@@ -18,52 +18,64 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
-/* Random notes:
+/* Todo:
 
-   - As long as some Lisp objects are managed by alloc.c, we have to use
-   non-moving MPS pools, because we can't fix references in alloc.c.
-
-
-
+   - create area root, area scanner
+   - staticpro roots
+   - buffer-locals roots
+   - thread roots (control stack)
+   - thread-local allocation points
    - Use mps_arena_step during idle time. This lets MPS take a specified
      maximum amount of time (default 10ms) for its work.
-
 */
 
 // clang-format on
 
 #include <config.h>
-#include "lisp.h"
-#include "igc.h"
 
 #ifdef HAVE_MPS
 
-#if !USE_LSB_TAG
-# error "Need USE_LSB_TAG"
-#endif
+# include <stdlib.h>
+# include <mps.h>
+# include <mpsavm.h>
+# include <mpscamc.h>
+# include <mpscams.h>
+# include "lisp.h"
+# include "igc.h"
 
-#include <stdlib.h>
-#include <mps.h>
-#include <mpsavm.h>
-#include <mpscamc.h>
-#include <mpscams.h>
+# if !USE_LSB_TAG
+#  error "Need USE_LSB_TAG"
+# endif
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
-   documentation). Rather than taking the risk of using functions from
-   lisp.h which may may not be inlined, I'm therfore using some macros,
+   documentation).  Rather than taking the risk of using functions from
+   lisp.h, which may may not be inlined, I'm therfore using some macros,
    and assume that Lisp_Objs are EMACS_INTs, and we are using the 3
-   lowest bits for tags.  */
+   lowest bits for tags.  Good enough for me.  */
 
-#define IGC_TAG(obj) ((EMACS_INT) (obj) & 0x7)
-#define IGC_UNTAGGED(obj) ((EMACS_INT) (obj) & ~0x7)
-#define IGC_MAKE_LISP_OBJ(untagged, tag) \
-  ((Lisp_Object) ((EMACS_INT) (untagged) | (tag)))
-#define IGC_FIXNUMP(obj) \
-  (IGC_TAG (obj) == Lisp_Int0 || IGC_TAG (obj) == Lisp_Int1)
+# define IGC_TAG(obj)		((EMACS_INT) (obj) & 0x7)
+# define IGC_UNTAGGED(obj)	((EMACS_INT) (obj) & ~0x7)
 
+# define IGC_MAKE_LISP_OBJ(untagged, tag) \
+   ((Lisp_Object) ((EMACS_INT) (untagged) | (tag)))
+
+# define IGC_FIXNUMP(obj) \
+   (IGC_TAG (obj) == Lisp_Int0 || IGC_TAG (obj) == Lisp_Int1)
+
+static mps_res_t scan_mem_area (mps_ss_t ss, void *start, void *end,
+				void *closure);
+
+/* The MPS arena.  */
 static mps_arena_t arena = NULL;
+
+/* Generations in the arena.  */
 static mps_chain_t chain;
+
+/* MPS pool for conses.  This is a non-moving pool as long as not all
+   Lisp object types are managed by MPS.  */
 static mps_pool_t cons_pool;
+
+/* One MPS root in the root registry.  */
 
 struct igc_root
 {
@@ -71,7 +83,12 @@ struct igc_root
   mps_root_t root;
 };
 
-struct igc_root *roots = NULL;
+/* Start of a doubly-linked list of igc_root structures, one for each
+   MPS root currently live.  */
+
+static struct igc_root *roots = NULL;
+
+/* Add ROOT to the root registry.  */
 
 static struct igc_root *
 register_root (mps_root_t root)
@@ -84,6 +101,8 @@ register_root (mps_root_t root)
   roots = r;
   return r;
 }
+
+/* Remove root description R from the root registry, and delete it.  */
 
 static mps_root_t
 deregister_root (struct igc_root *r)
@@ -99,22 +118,16 @@ deregister_root (struct igc_root *r)
   return root;
 }
 
-struct igc_root *
-igc_add_mem_root (void *start, void *end)
-{
-  mps_res_t res;
-  mps_root_t root;
-  res = mps_root_create_area (&root);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
-  return register_root (root);
-}
+/* Destroy the MPS root in R, and deregister it.  This called from
+   mem_delete.  */
 
 void
 igc_remove_root (struct igc_root *r)
 {
   mps_root_destroy (deregister_root (r));
 }
+
+/* Destroy all registered roots.  */
 
 static void
 remove_all_roots (void)
@@ -123,30 +136,66 @@ remove_all_roots (void)
     igc_remove_root (roots);
 }
 
+/* Create an MPS root for the memory area between START and END, and
+   remember it in the root registry.  This is called from
+   mem_insert.  */
+
+struct igc_root *
+igc_add_mem_root (void *start, void *end)
+{
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, arena, mps_rank_ambig (),
+			    MPS_RM_PROT,
+			    start, end,
+			    scan_mem_area, NULL);
+  if (res != MPS_RES_OK)
+    emacs_abort ();
+  return register_root (root);
+}
+
+/* Fix a Lisp_Object at *P.  SS ist the MPS scan state.  */
+
 # define IGC_FIX_LISP_OBJ(ss, p)			      \
   if (!IGC_FIXNUMP (*(p)))				      \
     {							      \
-      EMACS_INT _untagged = IGC_UNTAGGED (*(p));	      \
-      mps_addr_t _addr = (mps_addr_t) _untagged;	      \
-      if (MPS_FIX1 ((ss), _addr))			      \
+      EMACS_INT untagged_ = IGC_UNTAGGED (*(p));	      \
+      mps_addr_t addr_ = (mps_addr_t) untagged_;	      \
+      if (MPS_FIX1 ((ss), addr_))			      \
 	{						      \
-	  mps_res_t _res = MPS_FIX2 ((ss), &_addr);	      \
-	  if (_res != MPS_RES_OK)			      \
-	    return _res;				      \
-	  EMACS_INT _tag = IGC_TAG (*(p));		      \
-	  *(p) = IGC_MAKE_LISP_OBJ (_addr, _tag);	      \
+	  mps_res_t res_ = MPS_FIX2 ((ss), &addr_);	      \
+	  if (res_ != MPS_RES_OK)			      \
+	    return res_;				      \
+	  EMACS_INT tag_ = IGC_TAG (*(p));		      \
+	  *(p) = IGC_MAKE_LISP_OBJ (addr_, tag_);	      \
 	}						      \
     }							      \
   else
 
+/* Scan a memory area at [START, END). SS is the MPS scan state.
+   CLOSURE is ignored.  */
+
+static mps_res_t
+scan_mem_area (mps_ss_t ss, void *start, void *end,
+	       void *closure)
+{
+  MPS_SCAN_BEGIN (ss) {
+    for (Lisp_Object *p = start; p < (Lisp_Object *) end; ++p)
+      IGC_FIX_LISP_OBJ (ss, p);
+  } MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+/* Scan a Lisp_Cons.  */
+
 static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-  MPS_SCAN_BEGIN (ss);
-  struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
-  IGC_FIX_LISP_OBJ (ss, &cons->u.s.car);
-  IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
-  MPS_SCAN_END (ss);
+  MPS_SCAN_BEGIN (ss) {
+    struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
+    IGC_FIX_LISP_OBJ (ss, &cons->u.s.car);
+    IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
+  } MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -179,6 +228,7 @@ create_arena (void)
 {
   mps_res_t res;
 
+  // Arena
   MPS_ARGS_BEGIN (args) {
     res = mps_arena_create_k (&arena, mps_arena_class_vm (), args);
   } MPS_ARGS_END (args);
