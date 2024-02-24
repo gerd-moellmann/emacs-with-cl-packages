@@ -20,7 +20,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /* Todo:
 
-   - create area root, area scanner
+   + create area root, area scanner
    - staticpro roots
    - buffer-locals roots
    - thread roots (control stack)
@@ -86,39 +86,43 @@ struct igc_root
 /* Start of a doubly-linked list of igc_root structures, one for each
    MPS root currently live.  */
 
-static struct igc_root *roots = NULL;
+static struct igc_root *registered_roots = NULL;
 
-/* Add ROOT to the root registry.  */
+/* Add ROOT to the root registry.  Value is a pointer to a new igc_root
+   struct for the root.  */
 
 static struct igc_root *
 register_root (mps_root_t root)
 {
   struct igc_root *r = xmalloc (sizeof *r);
-  r->next = roots;
+  r->root = root;
+  r->next = registered_roots;
   r->prev = NULL;
+
   if (r->next)
     r->next->prev = r;
-  roots = r;
+  registered_roots = r;
   return r;
 }
 
-/* Remove root description R from the root registry, and delete it.  */
+/* Remove root description R from the root registry, and free it.  Value
+   is the MPS root that was registered.  */
 
 static mps_root_t
 deregister_root (struct igc_root *r)
 {
-  mps_root_t root = r->root;
   if (r->next)
     r->next->prev = r->prev;
   if (r->prev)
     r->prev->next = r->next;
-  if (r == roots)
-    roots = r->next;
+  else
+    registered_roots = r->next;
+  mps_root_t root = r->root;
   xfree (r);
   return root;
 }
 
-/* Destroy the MPS root in R, and deregister it.  This called from
+/* Destroy the MPS root in R, and deregister it.  This is called from
    mem_delete.  */
 
 void
@@ -132,8 +136,8 @@ igc_remove_root (struct igc_root *r)
 static void
 remove_all_roots (void)
 {
-  while (roots)
-    igc_remove_root (roots);
+  while (registered_roots)
+    igc_remove_root (registered_roots);
 }
 
 /* Create an MPS root for the memory area between START and END, and
@@ -146,12 +150,25 @@ igc_add_mem_root (void *start, void *end)
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, arena, mps_rank_ambig (),
-			    MPS_RM_PROT,
+			    0,
 			    start, end,
 			    scan_mem_area, NULL);
   if (res != MPS_RES_OK)
     emacs_abort ();
   return register_root (root);
+}
+
+static void
+add_static_roots (void)
+{
+  //igc_add_mem_root (&buffer_defaults, &buffer_defaults + 1);
+  //igc_add_mem_root (staticvec, &buffer_local_symbols + 1);
+
+  for (int i = 0; i < ARRAYELTS (staticvec); ++i)
+    {
+      Lisp_Object const *p = staticvec[i];
+      igc_add_mem_root ((void *) p, (void *) (p + 1));
+    }
 }
 
 /* Fix a Lisp_Object at *P.  SS ist the MPS scan state.  */
@@ -269,13 +286,16 @@ create_arena (void)
   } MPS_ARGS_END(args);
   if (res != MPS_RES_OK)
     emacs_abort ();
+
+  // Add staticpro roots. For now, as ambigous references.
+  // add_static_roots ();
 }
 
 static void
 destroy_arena (void)
 {
-  remove_all_roots ();
-  mps_arena_destroy (arena);
+  //remove_all_roots ();
+  //mps_arena_destroy (arena);
 }
 
 void

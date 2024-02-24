@@ -4526,6 +4526,9 @@ mem_init (void)
   mem_z.parent = NULL;
   mem_z.color = MEM_BLACK;
   mem_z.start = mem_z.end = NULL;
+#ifdef HAVE_MPS
+  mem_z.root = NULL;
+#endif
   mem_root = MEM_NIL;
 }
 
@@ -4818,8 +4821,8 @@ mem_delete (struct mem_node *z)
     mem_delete_fixup (x);
 
 #ifdef HAVE_MPS
-  if (x->root)
-    igc_remove_root (x->root);
+  if (y->root)
+    igc_remove_root (y->root);
 #endif
 
 #ifdef GC_MALLOC_CHECK
