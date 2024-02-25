@@ -30,7 +30,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    intervals and overlays are allocated from blocks that are
 registered with mem_insert.
 
-   - thread roots (control stack)
+   - thread roots (control stack), main thread
    - thread-local allocation points
    - telemetry
    - complete cons_skip etc.
@@ -56,11 +56,11 @@ registered with mem_insert.
 # include "igc.h"
 # include "buffer.h"
 
-/* In MPS scan functions it is not easy to call C functions (see the
-   MPS documentation).  Rather than taking the risk of using functions
-   from lisp.h, which may may not be inlined, I'm therfore using some
-   macros, and assume that Lisp_Objects are EMACS_INTs, and we are
-   using the 3 lowest bits for tags.  Good enough for me, ATM.  */
+/* In MPS scan functions it is not easy to call C functions (see the MPS
+   documentation).  Rather than taking the risk of using functions from
+   lisp.h, which may may not be inlined, I'm therfore using macros. I
+   assume that Lisp_Objects are EMACS_INTs, and we are using the 3
+   lowest bits for tags, for simplicity.  */
 
 # define IGC_TAG(obj) ((EMACS_INT) (obj) & 0x7)
 # define IGC_UNTAGGED(obj) ((EMACS_INT) (obj) & ~0x7)
@@ -71,12 +71,13 @@ registered with mem_insert.
 # define IGC_FIXNUMP(obj) \
    (IGC_TAG (obj) == Lisp_Int0 || IGC_TAG (obj) == Lisp_Int1)
 
-static mps_res_t igc_scan_mem_area (mps_ss_t ss, void *start, void *end,
-				    void *closure);
-static mps_res_t igc_scan_staticvec (mps_ss_t ss, void *start, void *end,
-				     void *closure);
-static mps_res_t igc_scan_lisp_objs (mps_ss_t ss, void *start, void *end,
-				      void *closure);
+static mps_res_t scan_mem_area (mps_ss_t ss, void *start,
+				void *end, void *closure);
+static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
+				 void *end, void *closure);
+static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start,
+				 void *end, void *closure);
+
 
 /* Boolkeeping of what we need to know about the MPS GC.  Avoid tons of
    global variables.  */
@@ -119,7 +120,7 @@ static struct igc *global_igc = NULL;
    igc_root struct for the root.  */
 
 static struct igc_root *
-igc_register_root (struct igc *gc, mps_root_t root)
+register_root (struct igc *gc, mps_root_t root)
 {
   struct igc_root *r = xzalloc (sizeof *r);
   r->gc = gc;
@@ -137,7 +138,7 @@ igc_register_root (struct igc *gc, mps_root_t root)
    is the MPS root that was registered.  */
 
 static mps_root_t
-igc_deregister_root (struct igc_root *r)
+deregister_root (struct igc_root *r)
 {
   if (r->next)
     r->next->prev = r->prev;
@@ -154,18 +155,18 @@ igc_deregister_root (struct igc_root *r)
    mem_delete.  */
 
 static void
-igc_remove_root (struct igc_root *r)
+remove_root (struct igc_root *r)
 {
-  mps_root_destroy (igc_deregister_root (r));
+  mps_root_destroy (deregister_root (r));
 }
 
 /* Destroy all registered roots of GC.  */
 
 static void
-igc_remove_all_roots (struct igc *gc)
+remove_all_roots (struct igc *gc)
 {
   while (gc->roots)
-    igc_remove_root (gc->roots);
+    remove_root (gc->roots);
 }
 
 /* Create an MPS root for the memory area between START and END, and
@@ -178,10 +179,10 @@ igc_mem_add_root (void *start, void *end)
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, global_igc->arena, mps_rank_ambig (), 0, start,
-			    end, igc_scan_mem_area, NULL);
+			    end, scan_mem_area, NULL);
   if (res != MPS_RES_OK)
     emacs_abort ();
-  return igc_register_root (global_igc, root);
+  return register_root (global_igc, root);
 }
 
 /* Called from mem_delete.  */
@@ -189,45 +190,45 @@ igc_mem_add_root (void *start, void *end)
 void
 igc_mem_remove_root (struct igc_root *r)
 {
-  igc_remove_root (r);
+  remove_root (r);
 }
 
 /* Add a root for staticvec.  */
 
 static void
-igc_add_staticvec_root (struct igc *gc)
+add_staticvec_root (struct igc *gc)
 {
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
 			    staticvec,
 			    staticvec + ARRAYELTS (staticvec),
-			    igc_scan_staticvec, NULL);
+			    scan_staticvec, NULL);
   if (res != MPS_RES_OK)
     emacs_abort ();
-  igc_register_root (gc, root);
+  register_root (gc, root);
 }
 
 static void
-igc_add_buffer_root (struct igc *gc, struct buffer *b)
+add_buffer_root (struct igc *gc, struct buffer *b)
 {
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
 			    &b->name_,
 			    &b->own_text,
-			    igc_scan_lisp_objs, NULL);
+			    scan_lisp_objs, NULL);
   if (res != MPS_RES_OK)
     emacs_abort ();
-  igc_register_root (gc, root);
+  register_root (gc, root);
 }
 
 static void
-igc_add_static_roots (struct igc *gc)
+add_static_roots (struct igc *gc)
 {
-  igc_add_buffer_root (gc, &buffer_defaults);
-  igc_add_buffer_root (gc, &buffer_local_symbols);
-  igc_add_staticvec_root (gc);
+  add_buffer_root (gc, &buffer_defaults);
+  add_buffer_root (gc, &buffer_local_symbols);
+  add_staticvec_root (gc);
 }
 
 
@@ -236,7 +237,7 @@ igc_add_static_roots (struct igc *gc)
  ***********************************************************************/
 
 static struct igc_thread *
-igc_register_thread (struct igc *gc, mps_thr_t thr)
+register_thread (struct igc *gc, mps_thr_t thr)
 {
   struct igc_thread *t = xzalloc (sizeof *t);
   t->gc = gc;
@@ -251,7 +252,7 @@ igc_register_thread (struct igc *gc, mps_thr_t thr)
 }
 
 static mps_thr_t
-igc_deregister_thread (struct igc_thread *t)
+deregister_thread (struct igc_thread *t)
 {
   if (t->next)
     t->next->prev = t->prev;
@@ -271,13 +272,13 @@ igc_add_current_thread (void)
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
   if (res != MPS_RES_OK)
     emacs_abort ();
-  return igc_register_thread (global_igc, thr);
+  return register_thread (global_igc, thr);
 }
 
 void
 igc_remove_thread (struct igc_thread *thread)
 {
-  mps_thread_dereg (igc_deregister_thread (thread));
+  mps_thread_dereg (deregister_thread (thread));
 }
 
 
@@ -307,7 +308,7 @@ igc_remove_thread (struct igc_thread *thread)
    CLOSURE is ignored.  */
 
 static mps_res_t
-igc_scan_mem_area (mps_ss_t ss, void *start, void *end, void *closure)
+scan_mem_area (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
@@ -322,7 +323,7 @@ igc_scan_mem_area (mps_ss_t ss, void *start, void *end, void *closure)
    state.  CLOSURE is ignored.  */
 
 static mps_res_t
-igc_scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
+scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
@@ -337,7 +338,7 @@ igc_scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
    state.  CLOSURE is ignored.  */
 
 static mps_res_t
-igc_scan_lisp_objs (mps_ss_t ss, void *start, void *end, void *closure)
+scan_lisp_objs (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
@@ -351,7 +352,7 @@ igc_scan_lisp_objs (mps_ss_t ss, void *start, void *end, void *closure)
 /* Scan a Lisp_Cons.  */
 
 static mps_res_t
-igc_cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
   {
@@ -364,30 +365,28 @@ igc_cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 }
 
 static mps_addr_t
-igc_cons_skip (mps_addr_t addr)
+cons_skip (mps_addr_t addr)
 {
   const struct Lisp_Cons *cons = addr;
   return (mps_addr_t) (cons + 1);
 }
 
 static void
-igc_cons_fwd (mps_addr_t old, mps_addr_t new)
+cons_fwd (mps_addr_t old, mps_addr_t new)
 {
   // unclear
 }
 
 static mps_addr_t
-igc_cons_isfwd (mps_addr_t addr)
+cons_isfwd (mps_addr_t addr)
 {
   return NULL;
 }
 
 static void
-igc_cons_pad (mps_addr_t addr, size_t size)
+cons_pad (mps_addr_t addr, size_t size)
 {
 }
-
-
 
 static struct igc *
 make_igc (void)
@@ -417,11 +416,11 @@ make_igc (void)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, 8);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, igc_cons_scan);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, igc_cons_skip);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, igc_cons_fwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, igc_cons_isfwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, igc_cons_pad);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, cons_scan);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, cons_skip);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, cons_fwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, cons_isfwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, cons_pad);
     res = mps_fmt_create_k (&gc->cons_fmt, gc->arena, args);
   }
   MPS_ARGS_END (args);
@@ -443,7 +442,7 @@ make_igc (void)
   if (res != MPS_RES_OK)
     emacs_abort ();
 
-  igc_add_static_roots (gc);
+  add_static_roots (gc);
 
   return gc;
 }
@@ -453,7 +452,7 @@ free_igc (struct igc *gc)
 {
   mps_pool_destroy (gc->cons_pool);
   mps_fmt_destroy (gc->cons_fmt);
-  igc_remove_all_roots (gc);
+  remove_all_roots (gc);
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);
   xfree (gc);
