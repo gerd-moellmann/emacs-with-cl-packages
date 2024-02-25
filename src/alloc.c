@@ -4602,7 +4602,7 @@ mem_insert (void *start, void *end, enum mem_type type)
     case MEM_TYPE_STRING:
     case MEM_TYPE_VECTORLIKE:
     case MEM_TYPE_VECTOR_BLOCK:
-      x->root = igc_add_mem_root (start, end);
+      x->root = igc_mem_add_root (start, end);
       break;
     default:
       x->root = NULL;
@@ -4822,7 +4822,7 @@ mem_delete (struct mem_node *z)
 
 #ifdef HAVE_MPS
   if (y->root)
-    igc_remove_root (y->root);
+    igc_mem_remove_root (y->root);
 #endif
 
 #ifdef GC_MALLOC_CHECK
