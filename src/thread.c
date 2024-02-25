@@ -819,10 +819,6 @@ run_thread (void *state)
   /* It might be nice to do something with errors here.  */
   internal_condition_case (invoke_thread_function, Qt, record_thread_error);
 
-#ifdef HAVE_MPS
-  igc_remove_thread (self->igc_thread);
-#endif
-
   update_processes_for_thread_death (Fcurrent_thread ());
 
   xfree (self->m_specpdl - 1);
@@ -863,6 +859,10 @@ run_thread (void *state)
   for (iter = &all_threads; *iter != self; iter = &(*iter)->next_thread)
     ;
   *iter = (*iter)->next_thread;
+
+#ifdef HAVE_MPS
+  igc_remove_thread (self->igc_thread);
+#endif
 
   release_global_lock ();
 

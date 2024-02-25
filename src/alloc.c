@@ -548,7 +548,7 @@ struct mem_node
   enum mem_type type;
 
 #ifdef HAVE_MPS
-  struct igc_root *root;
+  struct igc_root_list *root;
 #endif
 };
 

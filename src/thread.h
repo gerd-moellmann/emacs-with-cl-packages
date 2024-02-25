@@ -218,7 +218,7 @@ struct thread_state
   struct bc_thread_state bc;
 
 # ifdef HAVE_MPS
-  struct igc_thread *igc_thread;
+  struct igc_thread_list *igc_thread;
 # endif
 
 } GCALIGNED_STRUCT;

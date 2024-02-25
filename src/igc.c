@@ -75,9 +75,59 @@ static mps_res_t scan_mem_area (mps_ss_t ss, void *start,
 				void *end, void *closure);
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
-static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start,
-				 void *end, void *closure);
+static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
+				 void *closure);
 
+/* Very poor man's template for double-linked list.  */
+
+#define IGC_DEFINE_LIST(data)						\
+  typedef struct data##_list						\
+  {									\
+    struct data##_list *next, *prev;					\
+    struct data d;							\
+  } data##_list;							\
+									\
+  static data##_list *							\
+  add_##data##_list (data##_list **head, data *d)			\
+  {									\
+    data##_list *r = xzalloc (sizeof *r);				\
+    r->d = *d; 								\
+    r->next = *head;							\
+    r->prev = NULL;							\
+									\
+    if (r->next)							\
+      r->next->prev = r;						\
+    *head = r;								\
+    return r;								\
+  }									\
+									\
+  static void								\
+  remove_##data##_list (data *d, data##_list **head, data##_list *r)	\
+  {									\
+    if (r->next)							\
+      r->next->prev = r->prev;						\
+    if (r->prev)							\
+      r->prev->next = r->next;						\
+    else								\
+      *head = r->next;							\
+    *d = r->d;								\
+    xfree (r);								\
+  }
+
+typedef struct igc_root
+{
+  struct igc *gc;
+  mps_root_t root;
+} igc_root;
+
+typedef struct igc_thread
+{
+  struct igc *gc;
+  mps_thr_t thr;
+} igc_thread;
+
+IGC_DEFINE_LIST (igc_root)
+IGC_DEFINE_LIST (igc_thread)
 
 /* Boolkeeping of what we need to know about the MPS GC.  Avoid tons of
    global variables.  */
@@ -94,20 +144,8 @@ struct igc
   mps_pool_t cons_pool;
   mps_fmt_t cons_fmt;
 
-  /* One MPS root in the root registry.  */
-  struct igc_root
-  {
-    struct igc_root *next, *prev;
-    struct igc *gc;
-    mps_root_t root;
-  } *roots;
-
-  struct igc_thread
-  {
-    struct igc_thread *next, *prev;
-    struct igc *gc;
-    mps_thr_t thr;
-  } *threads;
+  struct igc_root_list *roots;
+  struct igc_thread_list *threads;
 };
 
 static struct igc *global_igc = NULL;
@@ -119,43 +157,29 @@ static struct igc *global_igc = NULL;
 /* Add ROOT to the root registry of GC.  Value is a pointer to a new
    igc_root struct for the root.  */
 
-static struct igc_root *
+static struct igc_root_list *
 register_root (struct igc *gc, mps_root_t root)
 {
-  struct igc_root *r = xzalloc (sizeof *r);
-  r->gc = gc;
-  r->root = root;
-  r->next = gc->roots;
-  r->prev = NULL;
-
-  if (r->next)
-    r->next->prev = r;
-  gc->roots = r;
-  return r;
+  struct igc_root r = { .gc = gc, .root = root };
+  return add_igc_root_list (&gc->roots, &r);
 }
 
 /* Remove root description R from its root registry, and free it.  Value
    is the MPS root that was registered.  */
 
 static mps_root_t
-deregister_root (struct igc_root *r)
+deregister_root (struct igc_root_list *r)
 {
-  if (r->next)
-    r->next->prev = r->prev;
-  if (r->prev)
-    r->prev->next = r->next;
-  else
-    r->gc->roots = r->next;
-  mps_root_t root = r->root;
-  xfree (r);
-  return root;
+  struct igc_root root;
+  remove_igc_root_list (&root, &r->d.gc->roots, r);
+  return root.root;
 }
 
 /* Destroy the MPS root in R, and deregister it.  This is called from
    mem_delete.  */
 
 static void
-remove_root (struct igc_root *r)
+remove_root (struct igc_root_list *r)
 {
   mps_root_destroy (deregister_root (r));
 }
@@ -173,7 +197,7 @@ remove_all_roots (struct igc *gc)
    remember it in the root registry of global_igc.  This is called from
    mem_insert.  */
 
-struct igc_root *
+struct igc_root_list *
 igc_mem_add_root (void *start, void *end)
 {
   mps_root_t root;
@@ -188,7 +212,7 @@ igc_mem_add_root (void *start, void *end)
 /* Called from mem_delete.  */
 
 void
-igc_mem_remove_root (struct igc_root *r)
+igc_mem_remove_root (struct igc_root_list *r)
 {
   remove_root (r);
 }
@@ -236,36 +260,22 @@ add_static_roots (struct igc *gc)
 				Threads
  ***********************************************************************/
 
-static struct igc_thread *
+static struct igc_thread_list *
 register_thread (struct igc *gc, mps_thr_t thr)
 {
-  struct igc_thread *t = xzalloc (sizeof *t);
-  t->gc = gc;
-  t->thr = thr;
-  t->next = gc->threads;
-  t->prev = NULL;
-
-  if (t->next)
-    t->next->prev = t;
-  gc->threads = t;
-  return t;
+  struct igc_thread t = { .gc = gc, .thr = thr };
+  return add_igc_thread_list (&gc->threads, &t);
 }
 
 static mps_thr_t
-deregister_thread (struct igc_thread *t)
+deregister_thread (struct igc_thread_list *t)
 {
-  if (t->next)
-    t->next->prev = t->prev;
-  if (t->prev)
-    t->prev->next = t->next;
-  else
-    t->gc->threads = t->next;
-  mps_thr_t thr = t->thr;
-  xfree (t);
-  return thr;
+  struct igc_thread thread;
+  remove_igc_thread_list (&thread, &t->d.gc->threads, t);
+  return thread.thr;
 }
 
-struct igc_thread *
+struct igc_thread_list *
 igc_add_current_thread (void)
 {
   mps_thr_t thr;
@@ -276,7 +286,7 @@ igc_add_current_thread (void)
 }
 
 void
-igc_remove_thread (struct igc_thread *thread)
+igc_remove_thread (struct igc_thread_list *thread)
 {
   mps_thread_dereg (deregister_thread (thread));
 }
