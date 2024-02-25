@@ -813,14 +813,14 @@ run_thread (void *state)
   handlerlist_sentinel->next = NULL;
 
 #ifdef HAVE_MPS
-  igc_register_thread (self);
+  self->igc_thread = igc_add_current_thread ();
 #endif
 
   /* It might be nice to do something with errors here.  */
   internal_condition_case (invoke_thread_function, Qt, record_thread_error);
 
 #ifdef HAVE_MPS
-  igc_deregister_thread (self);
+  igc_remove_thread (self->igc_thread);
 #endif
 
   update_processes_for_thread_death (Fcurrent_thread ());

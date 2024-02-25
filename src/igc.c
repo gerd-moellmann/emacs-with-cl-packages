@@ -27,11 +27,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    + intervals, overlays
 
    I think this is handled by scanning what mem_insert has, since
-   intervals and overlays are allocated from blocks that are registered
-   with mem_insert.
+   intervals and overlays are allocated from blocks that are
+registered with mem_insert.
 
    - thread roots (control stack)
    - thread-local allocation points
+   - telemetry
    - complete cons_skip etc.
    - alloc conses
    - symbols, strings etc
@@ -99,6 +100,13 @@ struct igc
     struct igc *gc;
     mps_root_t root;
   } *roots;
+
+  struct igc_thread
+  {
+    struct igc_thread *next, *prev;
+    struct igc *gc;
+    mps_thr_t thr;
+  } *threads;
 };
 
 static struct igc *global_igc = NULL;
@@ -227,14 +235,49 @@ igc_add_static_roots (struct igc *gc)
 				Threads
  ***********************************************************************/
 
-void
-igc_register_thread (struct thread_state *state)
+static struct igc_thread *
+igc_register_thread (struct igc *gc, mps_thr_t thr)
 {
+  struct igc_thread *t = xzalloc (sizeof *t);
+  t->gc = gc;
+  t->thr = thr;
+  t->next = gc->threads;
+  t->prev = NULL;
+
+  if (t->next)
+    t->next->prev = t;
+  gc->threads = t;
+  return t;
+}
+
+static mps_thr_t
+igc_deregister_thread (struct igc_thread *t)
+{
+  if (t->next)
+    t->next->prev = t->prev;
+  if (t->prev)
+    t->prev->next = t->next;
+  else
+    t->gc->threads = t->next;
+  mps_thr_t thr = t->thr;
+  xfree (t);
+  return thr;
+}
+
+struct igc_thread *
+igc_add_current_thread (void)
+{
+  mps_thr_t thr;
+  mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
+  if (res != MPS_RES_OK)
+    emacs_abort ();
+  return igc_register_thread (global_igc, thr);
 }
 
 void
-igc_deregister_thread (struct thread_state *state)
+igc_remove_thread (struct igc_thread *thread)
 {
+  mps_thread_dereg (igc_deregister_thread (thread));
 }
 
 
