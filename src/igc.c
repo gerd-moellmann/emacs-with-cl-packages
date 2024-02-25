@@ -21,12 +21,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 /* Todo:
 
    + create area root, area scanner
-   - use MPS_RM_PROT ?
-   - staticpro roots
-   - buffer-locals roots
+   + staticpro roots
+   + buffer-locals roots
+
    - thread roots (control stack)
    - thread-local allocation points
    - complete cons_skip etc.
+   - alloc conses
    - symbols, strings etc
    - emacs_abort -> something nicer
    - Use mps_arena_step during idle time. This lets MPS take a
@@ -46,6 +47,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # include <stdlib.h>
 # include "lisp.h"
 # include "igc.h"
+# include "buffer.h"
 
 /* In MPS scan functions it is not easy to call C functions (see the
    MPS documentation).  Rather than taking the risk of using functions
@@ -66,6 +68,8 @@ static mps_res_t igc_scan_mem_area (mps_ss_t ss, void *start, void *end,
 				    void *closure);
 static mps_res_t igc_scan_staticvec (mps_ss_t ss, void *start, void *end,
 				     void *closure);
+static mps_res_t igc_scan_lisp_objs (mps_ss_t ss, void *start, void *end,
+				      void *closure);
 
 /* Boolkeeping of what we need to know about the MPS GC.  Avoid tons of
    global variables.  */
@@ -191,8 +195,24 @@ igc_add_staticvec_root (struct igc *gc)
 }
 
 static void
+igc_add_buffer_root (struct igc *gc, struct buffer *b)
+{
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+			    &b->name_,
+			    &b->own_text,
+			    igc_scan_lisp_objs, NULL);
+  if (res != MPS_RES_OK)
+    emacs_abort ();
+  igc_register_root (gc, root);
+}
+
+static void
 igc_add_static_roots (struct igc *gc)
 {
+  igc_add_buffer_root (gc, &buffer_defaults);
+  igc_add_buffer_root (gc, &buffer_local_symbols);
   igc_add_staticvec_root (gc);
 }
 
@@ -248,6 +268,21 @@ igc_scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
+/* Scan staticvec in the interval [START, END). SS is the MPS scan
+   state.  CLOSURE is ignored.  */
+
+static mps_res_t
+igc_scan_lisp_objs (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    for (Lisp_Object *p = start; p < (Lisp_Object *) end; ++p)
+      IGC_FIX_LISP_OBJ (ss, p);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 /* Scan a Lisp_Cons.  */
 
 static mps_res_t
@@ -286,6 +321,8 @@ static void
 igc_cons_pad (mps_addr_t addr, size_t size)
 {
 }
+
+
 
 static struct igc *
 make_igc (void)
@@ -341,7 +378,6 @@ make_igc (void)
   if (res != MPS_RES_OK)
     emacs_abort ();
 
-  // Add staticpro roots. For now, as ambigous references.
   igc_add_static_roots (gc);
 
   return gc;
