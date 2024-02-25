@@ -24,6 +24,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    + staticpro roots
    + buffer-locals roots
 
+   + intervals, overlays
+
+   I think this is handled by scanning what mem_insert has, since
+   intervals and overlays are allocated from blocks that are registered
+   with mem_insert.
+
    - thread roots (control stack)
    - thread-local allocation points
    - complete cons_skip etc.

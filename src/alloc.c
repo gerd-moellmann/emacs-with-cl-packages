@@ -4596,18 +4596,7 @@ mem_insert (void *start, void *end, enum mem_type type)
   x->left = x->right = MEM_NIL;
   x->color = MEM_RED;
 #ifdef HAVE_MPS
-  switch (type)
-    {
-    case MEM_TYPE_SYMBOL:
-    case MEM_TYPE_STRING:
-    case MEM_TYPE_VECTORLIKE:
-    case MEM_TYPE_VECTOR_BLOCK:
-      x->root = igc_mem_add_root (start, end);
-      break;
-    default:
-      x->root = NULL;
-      break;
-    }
+  x->root = igc_mem_add_root (start, end);
 #endif
 
   /* Insert it as child of PARENT or install it as root.  */
