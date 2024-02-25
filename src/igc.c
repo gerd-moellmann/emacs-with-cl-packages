@@ -26,6 +26,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    - buffer-locals roots
    - thread roots (control stack)
    - thread-local allocation points
+   - complete cons_skip etc.
+   - symbols, strings etc
    - emacs_abort -> something nicer
    - Use mps_arena_step during idle time. This lets MPS take a
    specified maximum amount of time (default 10ms) for its work.
@@ -163,6 +165,8 @@ igc_mem_add_root (void *start, void *end)
     emacs_abort ();
   return igc_register_root (global_igc, root);
 }
+
+/* Called from mem_delete.  */
 
 void
 igc_mem_remove_root (struct igc_root *r)
