@@ -1425,6 +1425,10 @@ main (int argc, char **argv)
   ns_init_pool ();
 #endif
 
+#ifdef HAVE_MPS
+  init_igc ();
+#endif
+
 #ifdef HAVE_PDUMPER
   if (attempt_load_pdump)
     initial_emacs_executable = load_pdump (argc, argv, dump_file);
@@ -1950,9 +1954,6 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 
   if (!initialized)
     {
-#ifdef HAVE_MPS
-      init_igc_once ();
-#endif
       init_alloc_once ();
       init_pkg_once ();
       init_pdumper_once ();
@@ -2015,9 +2016,6 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #endif
     }
 
-#ifdef HAVE_MPS
-  init_igc ();
-#endif
   init_alloc ();
   init_pkg ();
   init_bignum ();

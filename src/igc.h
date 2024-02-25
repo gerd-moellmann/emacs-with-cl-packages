@@ -4,7 +4,6 @@
 # ifdef HAVE_MPS
 
 extern void init_igc (void);
-extern void init_igc_once (void);
 extern void syms_of_igc (void);
 
 struct igc_root;

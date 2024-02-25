@@ -65,47 +65,51 @@ static mps_res_t scan_mem_area (mps_ss_t ss, void *start, void *end,
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start, void *end,
 				 void *closure);
 
-/* The MPS arena.  */
-static mps_arena_t arena = NULL;
+/* Boolkeeping of what we need to know about the MPS GC.  Avoid tons of
+   global variables.  */
+struct igc
+{
+  /* The MPS arena.  */
+  mps_arena_t arena;
 
-/* Generations in the arena.  */
-static mps_chain_t chain;
+  /* Generations in the arena.  */
+  mps_chain_t chain;
 
-/* MPS pool for conses.  This is a non-moving pool as long as not all
-   Lisp object types are managed by MPS.  */
-static mps_pool_t cons_pool;
+  /* MPS pool for conses.  This is a non-moving pool as long as not all
+     Lisp object types are managed by MPS.  */
+  mps_pool_t cons_pool;
+  mps_fmt_t cons_fmt;
+
+  /* One MPS root in the root registry.  */
+  struct igc_root
+  {
+    struct igc_root *next, *prev;
+    struct igc *gc;
+    mps_root_t root;
+  } *roots;
+};
+
+static struct igc *global_igc = NULL;
 
 /***********************************************************************
 				Roots
  ***********************************************************************/
 
-/* One MPS root in the root registry.  */
-
-struct igc_root
-{
-  struct igc_root *next, *prev;
-  mps_root_t root;
-};
-
-/* Start of a doubly-linked list of igc_root structures, one for each
-   MPS root currently live.  */
-
-static struct igc_root *registered_roots = NULL;
-
 /* Add ROOT to the root registry.  Value is a pointer to a new
    igc_root struct for the root.  */
 
 static struct igc_root *
-register_root (mps_root_t root)
+register_root (struct igc *gc, mps_root_t root)
 {
-  struct igc_root *r = xmalloc (sizeof *r);
+  struct igc_root *r = xzalloc (sizeof *r);
+  r->gc = gc;
   r->root = root;
-  r->next = registered_roots;
+  r->next = gc->roots;
   r->prev = NULL;
 
   if (r->next)
     r->next->prev = r;
-  registered_roots = r;
+  gc->roots = r;
   return r;
 }
 
@@ -120,7 +124,7 @@ deregister_root (struct igc_root *r)
   if (r->prev)
     r->prev->next = r->next;
   else
-    registered_roots = r->next;
+    r->gc->roots = r->next;
   mps_root_t root = r->root;
   xfree (r);
   return root;
@@ -138,10 +142,10 @@ igc_remove_root (struct igc_root *r)
 /* Destroy all registered roots.  */
 
 static void
-remove_all_roots (void)
+remove_all_roots (struct igc *gc)
 {
-  while (registered_roots)
-    igc_remove_root (registered_roots);
+  while (gc->roots)
+    igc_remove_root (gc->roots);
 }
 
 /* Create an MPS root for the memory area between START and END, and
@@ -153,33 +157,33 @@ igc_add_mem_root (void *start, void *end)
 {
   mps_root_t root;
   mps_res_t res
-    = mps_root_create_area (&root, arena, mps_rank_ambig (), 0, start,
+    = mps_root_create_area (&root, global_igc->arena, mps_rank_ambig (), 0, start,
 			    end, scan_mem_area, NULL);
   if (res != MPS_RES_OK)
     emacs_abort ();
-  return register_root (root);
+  return register_root (global_igc, root);
 }
 
 /* Add a root for staticvec.  */
 
 static void
-add_staticvec_root (void)
+add_staticvec_root (struct igc *gc)
 {
   mps_root_t root;
   mps_res_t res
-    = mps_root_create_area (&root, arena, mps_rank_ambig (), 0,
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
 			    staticvec,
 			    staticvec + ARRAYELTS (staticvec),
 			    scan_staticvec, NULL);
   if (res != MPS_RES_OK)
     emacs_abort ();
-  register_root (root);
+  register_root (gc, root);
 }
 
 static void
-add_static_roots (void)
+add_static_roots (struct igc *gc)
 {
-  add_staticvec_root ();
+  add_staticvec_root (gc);
 }
 
 /***********************************************************************
@@ -273,15 +277,16 @@ cons_pad (mps_addr_t addr, size_t size)
 {
 }
 
-static void
-create_arena (void)
+static struct igc *
+make_igc (void)
 {
+  struct igc *gc = xzalloc (sizeof *gc);
   mps_res_t res;
 
   // Arena
   MPS_ARGS_BEGIN (args)
   {
-    res = mps_arena_create_k (&arena, mps_arena_class_vm (), args);
+    res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
   }
   MPS_ARGS_END (args);
   if (res != MPS_RES_OK)
@@ -290,13 +295,12 @@ create_arena (void)
   // Generations
   mps_gen_param_s gen_params[]
     = { { 32000, 0.8 }, { 5 * 32009, 0.4 } };
-  res = mps_chain_create (&chain, arena, ARRAYELTS (gen_params),
+  res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gen_params),
 			  gen_params);
   if (res != MPS_RES_OK)
     emacs_abort ();
 
   // Object format for conses.
-  mps_fmt_t cons_fmt;
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, 8);
@@ -306,7 +310,7 @@ create_arena (void)
     MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, cons_fwd);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, cons_isfwd);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, cons_pad);
-    res = mps_fmt_create_k (&cons_fmt, arena, args);
+    res = mps_fmt_create_k (&gc->cons_fmt, gc->arena, args);
   }
   MPS_ARGS_END (args);
   if (res != MPS_RES_OK)
@@ -317,25 +321,37 @@ create_arena (void)
   // pool.
   MPS_ARGS_BEGIN (args)
   {
-    MPS_ARGS_ADD (args, MPS_KEY_FORMAT, cons_fmt);
-    MPS_ARGS_ADD (args, MPS_KEY_CHAIN, chain);
+    MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->cons_fmt);
+    MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
     MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-    res
-      = mps_pool_create_k (&cons_pool, arena, mps_class_ams (), args);
+    res = mps_pool_create_k (&gc->cons_pool, gc->arena,
+			     mps_class_ams (), args);
   }
   MPS_ARGS_END (args);
   if (res != MPS_RES_OK)
     emacs_abort ();
 
   // Add staticpro roots. For now, as ambigous references.
-  add_static_roots ();
+  add_static_roots (gc);
+
+  return gc;
 }
 
 static void
-destroy_arena (void)
+free_igc (struct igc *gc)
 {
-  remove_all_roots ();
-  mps_arena_destroy (arena);
+  mps_pool_destroy (gc->cons_pool);
+  mps_fmt_destroy (gc->cons_fmt);
+  remove_all_roots (gc);
+  mps_chain_destroy (gc->chain);
+  mps_arena_destroy (gc->arena);
+  xfree (gc);
+}
+
+static void
+free_global_igc (void)
+{
+  free_igc (global_igc);
 }
 
 void
@@ -344,19 +360,10 @@ syms_of_igc (void)
 }
 
 void
-init_igc_once (void)
-{
-  if (!arena)
-    {
-      create_arena ();
-      atexit (destroy_arena);
-    }
-}
-
-void
 init_igc (void)
 {
-  init_igc_once ();
+  global_igc = make_igc ();
+  atexit (free_global_igc);
 }
 
 #endif // HAVE_MPS

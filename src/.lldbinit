@@ -41,7 +41,7 @@ b pkg_break
 # Print with children provider, depth 2.
 command alias xprint frame variable -P 2
 
-process handle -p true -s false SIGSEGV
-process handle -p true -s false SIGBUS
+# process handle -p true -s false SIGSEGV
+# process handle -p true -s false SIGBUS
 
 # end.
