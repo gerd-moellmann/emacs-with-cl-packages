@@ -20,6 +20,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <config.h>
 #include <setjmp.h>
 #include "lisp.h"
+#include "igc.h"
 #include "character.h"
 #include "buffer.h"
 #include "process.h"
@@ -811,8 +812,16 @@ run_thread (void *state)
   handlerlist_sentinel->nextfree = NULL;
   handlerlist_sentinel->next = NULL;
 
+#ifdef HAVE_MPS
+  igc_register_thread (self);
+#endif
+
   /* It might be nice to do something with errors here.  */
   internal_condition_case (invoke_thread_function, Qt, record_thread_error);
+
+#ifdef HAVE_MPS
+  igc_deregister_thread (self);
+#endif
 
   update_processes_for_thread_death (Fcurrent_thread ());
 

@@ -222,6 +222,22 @@ igc_add_static_roots (struct igc *gc)
   igc_add_staticvec_root (gc);
 }
 
+
+/***********************************************************************
+				Threads
+ ***********************************************************************/
+
+void
+igc_register_thread (struct thread_state *state)
+{
+}
+
+void
+igc_deregister_thread (struct thread_state *state)
+{
+}
+
+
 /***********************************************************************
 				Scanning
  ***********************************************************************/
