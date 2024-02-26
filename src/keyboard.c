@@ -23,6 +23,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/stat.h>
 
 #include "lisp.h"
+#include "igc.h"
 #include "coding.h"
 #include "termchar.h"
 #include "termopts.h"
@@ -4683,6 +4684,10 @@ timer_check_2 (Lisp_Object timers, Lisp_Object idle_timers)
 		      ? timespec_sub (now, timer_idleness_start_time)
 		      : make_timespec (0, 0));
     }
+
+#ifdef HAVE_MPS
+  igc_on_idle ();
+#endif
 
   while (CONSP (timers) || CONSP (idle_timers))
     {

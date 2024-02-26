@@ -590,6 +590,12 @@ igc_handle_messages (void)
   handle_messages (global_igc);
 }
 
+void
+igc_on_idle (void)
+{
+  handle_messages (global_igc);
+}
+
 /***********************************************************************
 			    Setup/Tear down
  ***********************************************************************/
