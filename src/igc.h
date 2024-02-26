@@ -9,7 +9,7 @@ extern void syms_of_igc (void);
 extern void *igc_mem_insert (void *start, void *end);
 extern void igc_mem_delete (void *info);
 
-extern void igc_thread_add (struct thread_state *st);
+extern void *igc_thread_add (const void *cold);
 extern void igc_thread_remove (void *info);
 
 # endif // HAVE_MPS

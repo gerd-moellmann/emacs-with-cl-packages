@@ -37,8 +37,8 @@ registered with mem_insert.
    - alloc conses
    - symbols, strings etc
    - emacs_abort -> something nicer
-   - Use mps_arena_step during idle time. This lets MPS take a
-   specified maximum amount of time (default 10ms) for its work.
+   - mps_arena_step, idle time.
+
 */
 
 // clang-format on
@@ -53,7 +53,6 @@ registered with mem_insert.
 # include <mpscams.h>
 # include <stdlib.h>
 # include "lisp.h"
-#include "thread.h"
 # include "buffer.h"
 # include "igc.h"
 
@@ -115,24 +114,26 @@ static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
     xfree (r);								\
   }
 
-typedef struct igc_root
+/* Bookkeeping of what we need to know about the MPS GC.  */
+
+struct igc_root
 {
   struct igc *gc;
   mps_root_t root;
-} igc_root;
+};
 
-typedef struct igc_thread
+struct igc_thread
 {
   struct igc *gc;
   mps_thr_t thr;
-  struct thread_state *state;
-} igc_thread;
+  void *cold;
+};
 
+typedef struct igc_root igc_root;
 IGC_DEFINE_LIST (igc_root)
+typedef struct igc_thread igc_thread;
 IGC_DEFINE_LIST (igc_thread)
 
-/* Boolkeeping of what we need to know about the MPS GC.  Avoid tons of
-   global variables.  */
 struct igc
 {
   /* The MPS arena.  */
@@ -166,8 +167,8 @@ register_root (struct igc *gc, mps_root_t root)
   return add_igc_root_list (&gc->roots, &r);
 }
 
-/* Remove root description R from its root registry, and free it.  Value
-   is the MPS root that was registered.  */
+/* Remove root R from its root registry, and free it.  Value is the MPS
+   root that was registered.  */
 
 static mps_root_t
 deregister_root (struct igc_root_list *r)
@@ -177,8 +178,7 @@ deregister_root (struct igc_root_list *r)
   return root.root;
 }
 
-/* Destroy the MPS root in R, and deregister it.  This is called from
-   mem_delete.  */
+/* Destroy the MPS root in R, and deregister it.  */
 
 static void
 remove_root (struct igc_root_list *r)
@@ -197,7 +197,7 @@ remove_all_roots (struct igc *gc)
 
 /* Called from mem_insert.  Create an MPS root for the memory area
    between START and END, and remember it in the root registry of
-   global_igc.  This is called from mem_insert.  */
+   global_igc.  */
 
 void *
 igc_mem_insert (void *start, void *end)
@@ -211,7 +211,8 @@ igc_mem_insert (void *start, void *end)
   return register_root (global_igc, root);
 }
 
-/* Called from mem_delete.  */
+/* Called from mem_delete.  Remove the correspoing node INFO from the
+   registry.  */
 
 void
 igc_mem_delete (void *info)
@@ -219,7 +220,7 @@ igc_mem_delete (void *info)
   remove_root ((struct igc_root_list *) info);
 }
 
-/* Add a root for staticvec.  */
+/* Add a root for staticvec to GC.  */
 
 static void
 add_staticvec_root (struct igc *gc)
@@ -235,6 +236,8 @@ add_staticvec_root (struct igc *gc)
   register_root (gc, root);
 }
 
+/* Add a root to GC for scanning buffer B.  */
+
 static void
 add_buffer_root (struct igc *gc, struct buffer *b)
 {
@@ -249,6 +252,8 @@ add_buffer_root (struct igc *gc, struct buffer *b)
   register_root (gc, root);
 }
 
+/* All all known static roots in Emacs to GC.  */
+
 static void
 add_static_roots (struct igc *gc)
 {
@@ -257,15 +262,15 @@ add_static_roots (struct igc *gc)
   add_staticvec_root (gc);
 }
 
+/* Add a root for a thread given by T.  */
+
 static void
 add_thread_root (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
-  // m_stack_bottom is the address of a variable in run_thread
-  void *cold = (void *) t->d.state->m_stack_bottom;
   mps_root_t root;
   mps_res_t res = mps_root_create_thread (&root, gc->arena,
-					  t->d.thr, cold);
+					  t->d.thr, t->d.cold);
   if (res != MPS_RES_OK)
     emacs_abort ();
   register_root (gc, root);
@@ -277,10 +282,9 @@ add_thread_root (struct igc_thread_list *t)
  ***********************************************************************/
 
 static struct igc_thread_list *
-register_thread (struct igc *gc, mps_thr_t thr,
-		 struct thread_state *state)
+register_thread (struct igc *gc, mps_thr_t thr, void *cold)
 {
-  struct igc_thread t = { .gc = gc, .thr = thr, .state = state };
+  struct igc_thread t = { .gc = gc, .thr = thr, .cold = cold };
   return add_igc_thread_list (&gc->threads, &t);
 }
 
@@ -294,8 +298,8 @@ deregister_thread (struct igc_thread_list *t)
 
 /* Called from run_thread.  */
 
-void
-igc_thread_add (struct thread_state *state)
+void *
+igc_thread_add (const void *cold)
 {
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
@@ -303,9 +307,9 @@ igc_thread_add (struct thread_state *state)
     emacs_abort ();
 
   struct igc_thread_list *t
-    = register_thread (global_igc, thr, state);
-  state->gc_info = t;
+    = register_thread (global_igc, thr, (void *) cold);
   add_thread_root (t);
+  return t;
 }
 
 /* Called from run_thread.  */
@@ -478,6 +482,7 @@ make_igc (void)
   if (res != MPS_RES_OK)
     emacs_abort ();
 
+  igc_thread_add (stack_bottom);
   add_static_roots (gc);
 
   return gc;
