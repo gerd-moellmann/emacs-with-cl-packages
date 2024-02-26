@@ -127,6 +127,7 @@ struct igc_thread
   struct igc *gc;
   mps_thr_t thr;
   void *cold;
+  mps_ap_t cons_ap;
 };
 
 typedef struct igc_root igc_root;
@@ -278,6 +279,23 @@ add_thread_root (struct igc_thread_list *t)
 
 
 /***********************************************************************
+			   Allocation Points
+ ***********************************************************************/
+
+static void
+make_thread_aps (struct igc_thread *t)
+{
+  struct igc *gc = t->gc;
+  mps_res_t res;
+
+  res = mps_ap_create_k (&t->cons_ap, gc->cons_pool, mps_args_none);
+  if (res != MPS_RES_OK)
+    emacs_abort ();
+}
+
+
+
+/***********************************************************************
 				Threads
  ***********************************************************************/
 
@@ -308,7 +326,9 @@ igc_thread_add (const void *cold)
 
   struct igc_thread_list *t
     = register_thread (global_igc, thr, (void *) cold);
+
   add_thread_root (t);
+  make_thread_aps (&t->d);
   return t;
 }
 
