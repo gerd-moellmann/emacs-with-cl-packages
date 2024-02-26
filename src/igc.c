@@ -482,7 +482,6 @@ make_igc (void)
   if (res != MPS_RES_OK)
     emacs_abort ();
 
-  igc_thread_add (stack_bottom);
   add_static_roots (gc);
 
   return gc;
@@ -514,6 +513,7 @@ void
 init_igc (void)
 {
   global_igc = make_igc ();
+  igc_thread_add (stack_bottom);
   atexit (free_global_igc);
 }
 
