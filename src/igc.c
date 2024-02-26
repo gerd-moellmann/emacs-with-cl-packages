@@ -32,14 +32,14 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 registered with mem_insert.
    + thread roots (control stack), main thread
    + thread-local allocation points
+   + mps_arena_step, idle time.
+   + specpdl
 
-   - specpdl?
    - telemetry
    - complete cons_skip etc.
    - alloc conses
    - symbols, strings etc
    - emacs_abort -> something nicer
-   - mps_arena_step, idle time.
 
 */
 
@@ -593,6 +593,7 @@ igc_handle_messages (void)
 void
 igc_on_idle (void)
 {
+  mps_arena_step (global_igc->arena, 0.01, 0);
   handle_messages (global_igc);
 }
 
