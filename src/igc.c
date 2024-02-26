@@ -53,8 +53,9 @@ registered with mem_insert.
 # include <mpscams.h>
 # include <stdlib.h>
 # include "lisp.h"
-# include "igc.h"
+#include "thread.h"
 # include "buffer.h"
+# include "igc.h"
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
    documentation).  Rather than taking the risk of using functions from
@@ -124,6 +125,7 @@ typedef struct igc_thread
 {
   struct igc *gc;
   mps_thr_t thr;
+  struct thread_state *state;
 } igc_thread;
 
 IGC_DEFINE_LIST (igc_root)
@@ -255,15 +257,30 @@ add_static_roots (struct igc *gc)
   add_staticvec_root (gc);
 }
 
+static void
+add_thread_root (struct igc_thread_list *t)
+{
+  struct igc *gc = t->d.gc;
+  // m_stack_bottom is the address of a variable in run_thread
+  void *cold = (void *) t->d.state->m_stack_bottom;
+  mps_root_t root;
+  mps_res_t res = mps_root_create_thread (&root, gc->arena,
+					  t->d.thr, cold);
+  if (res != MPS_RES_OK)
+    emacs_abort ();
+  register_root (gc, root);
+}
+
 
 /***********************************************************************
 				Threads
  ***********************************************************************/
 
 static struct igc_thread_list *
-register_thread (struct igc *gc, mps_thr_t thr)
+register_thread (struct igc *gc, mps_thr_t thr,
+		 struct thread_state *state)
 {
-  struct igc_thread t = { .gc = gc, .thr = thr };
+  struct igc_thread t = { .gc = gc, .thr = thr, .state = state };
   return add_igc_thread_list (&gc->threads, &t);
 }
 
@@ -277,14 +294,18 @@ deregister_thread (struct igc_thread_list *t)
 
 /* Called from run_thread.  */
 
-void *
-igc_thread_add (void)
+void
+igc_thread_add (struct thread_state *state)
 {
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
   if (res != MPS_RES_OK)
     emacs_abort ();
-  return register_thread (global_igc, thr);
+
+  struct igc_thread_list *t
+    = register_thread (global_igc, thr, state);
+  state->gc_info = t;
+  add_thread_root (t);
 }
 
 /* Called from run_thread.  */
