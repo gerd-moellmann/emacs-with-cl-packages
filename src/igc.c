@@ -46,6 +46,7 @@ registered with mem_insert.
 // clang-format on
 
 #include <config.h>
+#include <stdbool.h>
 
 #ifdef HAVE_MPS
 
@@ -536,6 +537,63 @@ cons_pad (mps_addr_t addr, size_t size)
 {
 }
 
+
+/***********************************************************************
+				Messages
+ ***********************************************************************/
+
+static
+void handle_messages (struct igc *gc)
+{
+  mps_message_type_t type;
+  while (mps_message_queue_type (&type, gc->arena))
+    {
+      mps_message_t message;
+      if (mps_message_get (&message, gc->arena, type))
+	{
+	  if (type == mps_message_type_gc_start ())
+	    {
+	      fprintf (stderr, "Collection started.\n");
+	      fprintf (stderr, "  Why: %s\n", mps_message_gc_start_why (gc->arena, message));
+	    }
+	  else if (type == mps_message_type_gc ())
+	    {
+	      /* ... and so on for other message types ... */
+	    }
+	  else // finalization messagr
+	    {
+	      fprintf (stderr, "Unknown message from MPS!\n");
+	    }
+
+	  mps_message_discard (gc->arena, message);
+	}
+    }
+}
+
+static void
+enable_messages (struct igc *gc, bool enable)
+{
+  mps_message_type_t types[]
+    = { mps_message_type_gc (), mps_message_type_gc_start () };
+  for (int i = 0; i < ARRAYELTS (types); ++i)
+    {
+      if (enable)
+	mps_message_type_enable (gc->arena, types[i]);
+      else
+	mps_message_type_disable (gc->arena, types[i]);
+    }
+}
+
+void
+igc_handle_messages (void)
+{
+  handle_messages (global_igc);
+}
+
+/***********************************************************************
+			    Setup/Tear down
+ ***********************************************************************/
+
 static struct igc *
 make_igc (void)
 {
@@ -587,6 +645,7 @@ make_igc (void)
   IGC_CHECK_RES (res);
 
   add_static_roots (gc);
+  enable_messages (gc, true);
 
   return gc;
 }

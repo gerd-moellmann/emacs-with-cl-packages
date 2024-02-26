@@ -16,6 +16,8 @@ extern void igc_on_alloc_main_thread_specpdl (void);
 extern void igc_on_grow_specpdl (void);
 extern void igc_on_specbinding_unused (union specbinding *b);
 
+extern void igc_handle_messages (void);
+
 # endif // HAVE_MPS
 
 #endif // EMACS_IGC_H
