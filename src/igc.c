@@ -56,6 +56,7 @@ registered with mem_insert.
 # include <stdlib.h>
 # include "lisp.h"
 # include "buffer.h"
+# include "thread.h"
 # include "igc.h"
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
@@ -130,16 +131,18 @@ struct igc_root
   mps_root_t root;
 };
 
+typedef struct igc_root igc_root;
+IGC_DEFINE_LIST (igc_root)
+
 struct igc_thread
 {
   struct igc *gc;
   mps_thr_t thr;
   void *cold;
+  struct igc_root_list *specpdl_root;
   mps_ap_t cons_ap;
 };
 
-typedef struct igc_root igc_root;
-IGC_DEFINE_LIST (igc_root)
 typedef struct igc_thread igc_thread;
 IGC_DEFINE_LIST (igc_thread)
 
@@ -256,6 +259,53 @@ add_builtin_symbols_root (struct igc *gc)
   register_root (gc, root);
 }
 
+/* Odeally, we shoudl not scan the entire area, only to the current
+   ptr. And ptr might change in the mutator.  Don't know how this could
+   be done with MPS running concurrently.  Instead, make sure that the
+   part of the stack that is not used is zeroed.  */
+
+static void
+add_specpdl_root (struct igc_thread_list *t)
+{
+  // For the initial thread, specpdl will be initialzed by
+  // init_eval_once, and will be NULL until that happens.
+  if (specpdl == NULL)
+    return;
+
+  struct igc *gc = t->d.gc;
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+			    specpdl, specpdl_end,
+			    scan_mem_area, NULL);
+  IGC_CHECK_RES (res);
+  t->d.specpdl_root = register_root (gc, root);
+}
+
+void
+igc_on_specbinding_unused (union specbinding *b)
+{
+  memset (b, 0, sizeof *b);
+}
+
+void
+igc_on_alloc_main_thread_specpdl (void)
+{
+  struct igc_thread_list *t = current_thread->gc_info;
+  add_specpdl_root (t);
+}
+
+/* Called when specpdl gets reallacated.  */
+
+void
+igc_on_grow_specpdl (void)
+{
+  struct igc_thread_list *t = current_thread->gc_info;
+  remove_root (t->d.specpdl_root);
+  t->d.specpdl_root = NULL;
+  add_specpdl_root (t);
+}
+
 /* Add a root to GC for scanning buffer B.  */
 
 static void
@@ -344,8 +394,15 @@ igc_thread_add (const void *cold)
     = register_thread (global_igc, thr, (void *) cold);
 
   add_thread_root (t);
+  add_specpdl_root (t);
   make_thread_aps (&t->d);
   return t;
+}
+
+static void
+add_main_thread (void)
+{
+  current_thread->gc_info = igc_thread_add (stack_bottom);
 }
 
 /* Called from run_thread.  */
@@ -545,8 +602,8 @@ void
 init_igc (void)
 {
   global_igc = make_igc ();
-  igc_thread_add (stack_bottom);
   atexit (free_global_igc);
+  add_main_thread ();
 }
 
 #endif // HAVE_MPS

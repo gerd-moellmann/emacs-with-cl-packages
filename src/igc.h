@@ -12,6 +12,10 @@ extern void igc_mem_delete (void *info);
 extern void *igc_thread_add (const void *cold);
 extern void igc_thread_remove (void *info);
 
+extern void igc_on_alloc_main_thread_specpdl (void);
+extern void igc_on_grow_specpdl (void);
+extern void igc_on_specbinding_unused (union specbinding *b);
+
 # endif // HAVE_MPS
 
 #endif // EMACS_IGC_H
