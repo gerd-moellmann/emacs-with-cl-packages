@@ -275,6 +275,8 @@ deregister_thread (struct igc_thread_list *t)
   return thread.thr;
 }
 
+/* Called from run_thread.  */
+
 void *
 igc_thread_add (void)
 {
@@ -284,6 +286,8 @@ igc_thread_add (void)
     emacs_abort ();
   return register_thread (global_igc, thr);
 }
+
+/* Called from run_thread.  */
 
 void
 igc_thread_remove (void *info)
