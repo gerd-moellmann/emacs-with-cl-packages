@@ -78,6 +78,12 @@ static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
 				 void *closure);
 
+# define IGC_CHECK_RES(res) \
+  if ((res) != MPS_RES_OK)  \
+    emacs_abort ();	    \
+  else
+
+
 /* Very poor man's template for double-linked list.  */
 
 #define IGC_DEFINE_LIST(data)						\
@@ -204,11 +210,10 @@ void *
 igc_mem_insert (void *start, void *end)
 {
   mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, global_igc->arena, mps_rank_ambig (), 0, start,
-			    end, scan_mem_area, NULL);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  mps_res_t res = mps_root_create_area (&root, global_igc->arena,
+					mps_rank_ambig (), 0, start,
+					end, scan_mem_area, NULL);
+  IGC_CHECK_RES (res);
   return register_root (global_igc, root);
 }
 
@@ -232,8 +237,7 @@ add_staticvec_root (struct igc *gc)
 			    staticvec,
 			    staticvec + ARRAYELTS (staticvec),
 			    scan_staticvec, NULL);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
   register_root (gc, root);
 }
 
@@ -248,8 +252,7 @@ add_buffer_root (struct igc *gc, struct buffer *b)
 			    &b->name_,
 			    &b->own_text,
 			    scan_lisp_objs, NULL);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
   register_root (gc, root);
 }
 
@@ -272,8 +275,7 @@ add_thread_root (struct igc_thread_list *t)
   mps_root_t root;
   mps_res_t res = mps_root_create_thread (&root, gc->arena,
 					  t->d.thr, t->d.cold);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
   register_root (gc, root);
 }
 
@@ -289,8 +291,7 @@ make_thread_aps (struct igc_thread *t)
   mps_res_t res;
 
   res = mps_ap_create_k (&t->cons_ap, gc->cons_pool, mps_args_none);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
 }
 
 
@@ -321,8 +322,7 @@ igc_thread_add (const void *cold)
 {
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
 
   struct igc_thread_list *t
     = register_thread (global_igc, thr, (void *) cold);
@@ -460,16 +460,14 @@ make_igc (void)
     res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
   }
   MPS_ARGS_END (args);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
 
   // Generations
   mps_gen_param_s gen_params[]
     = { { 32000, 0.8 }, { 5 * 32009, 0.4 } };
   res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gen_params),
 			  gen_params);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
 
   // Object format for conses.
   MPS_ARGS_BEGIN (args)
@@ -484,8 +482,7 @@ make_igc (void)
     res = mps_fmt_create_k (&gc->cons_fmt, gc->arena, args);
   }
   MPS_ARGS_END (args);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
 
   // Pool for conses. Since conses have no type field which would let
   // us recognize them when mixed with other objects, use a dedicated
@@ -499,8 +496,7 @@ make_igc (void)
 			     mps_class_ams (), args);
   }
   MPS_ARGS_END (args);
-  if (res != MPS_RES_OK)
-    emacs_abort ();
+  IGC_CHECK_RES (res);
 
   add_static_roots (gc);
 
