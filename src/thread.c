@@ -813,7 +813,7 @@ run_thread (void *state)
   handlerlist_sentinel->next = NULL;
 
 #ifdef HAVE_MPS
-  self->igc_thread = igc_add_current_thread ();
+  self->gc_info = igc_thread_add ();
 #endif
 
   /* It might be nice to do something with errors here.  */
@@ -861,7 +861,7 @@ run_thread (void *state)
   *iter = (*iter)->next_thread;
 
 #ifdef HAVE_MPS
-  igc_remove_thread (self->igc_thread);
+  igc_thread_remove (self->gc_info);
 #endif
 
   release_global_lock ();

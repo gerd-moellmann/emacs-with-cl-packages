@@ -548,7 +548,7 @@ struct mem_node
   enum mem_type type;
 
 #ifdef HAVE_MPS
-  struct igc_root_list *root;
+  void *gc_info;
 #endif
 };
 
@@ -4527,7 +4527,7 @@ mem_init (void)
   mem_z.color = MEM_BLACK;
   mem_z.start = mem_z.end = NULL;
 #ifdef HAVE_MPS
-  mem_z.root = NULL;
+  mem_z.gc_info = NULL;
 #endif
   mem_root = MEM_NIL;
 }
@@ -4596,7 +4596,7 @@ mem_insert (void *start, void *end, enum mem_type type)
   x->left = x->right = MEM_NIL;
   x->color = MEM_RED;
 #ifdef HAVE_MPS
-  x->root = igc_mem_add_root (start, end);
+  x->gc_info = igc_mem_insert (start, end);
 #endif
 
   /* Insert it as child of PARENT or install it as root.  */
@@ -4810,8 +4810,7 @@ mem_delete (struct mem_node *z)
     mem_delete_fixup (x);
 
 #ifdef HAVE_MPS
-  if (y->root)
-    igc_mem_remove_root (y->root);
+  igc_mem_delete (y->gc_info);
 #endif
 
 #ifdef GC_MALLOC_CHECK

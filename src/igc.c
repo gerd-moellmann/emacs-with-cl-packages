@@ -193,12 +193,12 @@ remove_all_roots (struct igc *gc)
     remove_root (gc->roots);
 }
 
-/* Create an MPS root for the memory area between START and END, and
-   remember it in the root registry of global_igc.  This is called from
-   mem_insert.  */
+/* Called from mem_insert.  Create an MPS root for the memory area
+   between START and END, and remember it in the root registry of
+   global_igc.  This is called from mem_insert.  */
 
-struct igc_root_list *
-igc_mem_add_root (void *start, void *end)
+void *
+igc_mem_insert (void *start, void *end)
 {
   mps_root_t root;
   mps_res_t res
@@ -212,9 +212,9 @@ igc_mem_add_root (void *start, void *end)
 /* Called from mem_delete.  */
 
 void
-igc_mem_remove_root (struct igc_root_list *r)
+igc_mem_delete (void *info)
 {
-  remove_root (r);
+  remove_root ((struct igc_root_list *) info);
 }
 
 /* Add a root for staticvec.  */
@@ -275,8 +275,8 @@ deregister_thread (struct igc_thread_list *t)
   return thread.thr;
 }
 
-struct igc_thread_list *
-igc_add_current_thread (void)
+void *
+igc_thread_add (void)
 {
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
@@ -286,9 +286,10 @@ igc_add_current_thread (void)
 }
 
 void
-igc_remove_thread (struct igc_thread_list *thread)
+igc_thread_remove (void *info)
 {
-  mps_thread_dereg (deregister_thread (thread));
+  struct igc_thread_list *t = info;
+  mps_thread_dereg (deregister_thread (t));
 }
 
 

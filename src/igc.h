@@ -6,13 +6,11 @@
 extern void init_igc (void);
 extern void syms_of_igc (void);
 
-struct igc_root_list;
-extern struct igc_root_list *igc_mem_add_root (void *start, void *end);
-extern void igc_mem_remove_root (struct igc_root_list *r);
+extern void *igc_mem_insert (void *start, void *end);
+extern void igc_mem_delete (void *info);
 
-struct igc_thread_list;
-extern struct igc_thread_list *igc_add_current_thread (void);
-extern void igc_remove_thread (struct igc_thread_list *thread);
+extern void *igc_thread_add (void);
+extern void igc_thread_remove (void *info);
 
 # endif // HAVE_MPS
 

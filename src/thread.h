@@ -20,8 +20,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define THREAD_H
 
 #include "config.h"
-# include "regex-emacs.h"
-#include "igc.h"
+#include "regex-emacs.h"
 
 #ifdef WINDOWSNT
 #include <sys/socket.h>
@@ -218,7 +217,7 @@ struct thread_state
   struct bc_thread_state bc;
 
 # ifdef HAVE_MPS
-  struct igc_thread_list *igc_thread;
+  void *gc_info;
 # endif
 
 } GCALIGNED_STRUCT;
