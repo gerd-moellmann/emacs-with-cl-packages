@@ -22,6 +22,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
    + create area root, area scanner
    + staticpro roots
+   + built-in symbols root
    + buffer-locals roots
 
    + intervals, overlays
@@ -29,9 +30,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    I think this is handled by scanning what mem_insert has, since
    intervals and overlays are allocated from blocks that are
 registered with mem_insert.
+   + thread roots (control stack), main thread
+   + thread-local allocation points
 
-   - thread roots (control stack), main thread
-   - thread-local allocation points
+   - specpdl?
    - telemetry
    - complete cons_skip etc.
    - alloc conses
@@ -241,6 +243,19 @@ add_staticvec_root (struct igc *gc)
   register_root (gc, root);
 }
 
+static void
+add_builtin_symbols_root (struct igc *gc)
+{
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+			    lispsym,
+			    lispsym + ARRAYELTS (lispsym),
+			    scan_mem_area, NULL);
+  IGC_CHECK_RES (res);
+  register_root (gc, root);
+}
+
 /* Add a root to GC for scanning buffer B.  */
 
 static void
@@ -264,6 +279,7 @@ add_static_roots (struct igc *gc)
   add_buffer_root (gc, &buffer_defaults);
   add_buffer_root (gc, &buffer_local_symbols);
   add_staticvec_root (gc);
+  add_builtin_symbols_root (gc);
 }
 
 /* Add a root for a thread given by T.  */
