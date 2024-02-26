@@ -405,12 +405,6 @@ igc_thread_add (const void *cold)
   return t;
 }
 
-static void
-add_main_thread (void)
-{
-  current_thread->gc_info = igc_thread_add (stack_bottom);
-}
-
 /* Called from run_thread.  */
 
 void
@@ -426,6 +420,12 @@ free_all_threads (struct igc *gc)
 {
   while (gc->threads)
     igc_thread_remove (gc->threads);
+}
+
+static void
+add_main_thread (void)
+{
+  current_thread->gc_info = igc_thread_add (stack_bottom);
 }
 
 
