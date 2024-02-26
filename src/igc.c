@@ -46,7 +46,6 @@ registered with mem_insert.
 // clang-format on
 
 #include <config.h>
-#include <stdbool.h>
 
 #ifdef HAVE_MPS
 
