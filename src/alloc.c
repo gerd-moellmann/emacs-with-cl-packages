@@ -4237,7 +4237,7 @@ run_finalizer_handler (Lisp_Object args)
   return Qnil;
 }
 
-static void
+void
 run_finalizer_function (Lisp_Object function)
 {
   specpdl_ref count = SPECPDL_INDEX ();

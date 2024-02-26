@@ -35,6 +35,7 @@ registered with mem_insert.
    + mps_arena_step, idle time.
    + specpdl
 
+   - face cache (mark_window/buffer/frame)
    - telemetry
    - complete cons_skip etc.
    - alloc conses
@@ -538,37 +539,51 @@ cons_pad (mps_addr_t addr, size_t size)
 
 
 /***********************************************************************
-				Messages
+				Finalization
  ***********************************************************************/
 
-static
-void handle_messages (struct igc *gc)
+/* ADDR is a block registered for finalization with mps_finalize.
+   AFAICT, this is always a PVEC_FINALIZER.  */
+
+static void
+do_finalize (struct igc *gc, mps_addr_t addr)
+{
+  struct Lisp_Finalizer *fin = addr;
+  if (!NILP (fin->function))
+    {
+      Lisp_Object fun = fin->function;
+      fin->function = Qnil;
+      run_finalizer_function (fun);
+    }
+}
+
+static void
+handle_messages (struct igc *gc)
 {
   mps_message_type_t type;
   while (mps_message_queue_type (&type, gc->arena))
     {
-      mps_message_t message;
-      if (mps_message_get (&message, gc->arena, type))
+      mps_message_t msg;
+      if (mps_message_get (&msg, gc->arena, type))
 	{
 	  if (type != mps_message_type_finalization ())
 	    emacs_abort ();
-
-	  mps_message_discard (gc->arena, message);
+	  mps_addr_t addr;
+	  mps_message_finalization_ref (&addr, gc->arena, msg);
+	  do_finalize (gc, addr);
+	  mps_message_discard (gc->arena, msg);
 	}
     }
 }
 
 static void
-enable_messages (struct igc *gc, bool enable)
+enable_finalization (struct igc *gc, bool enable)
 {
-  mps_message_type_t types[] = { mps_message_type_finalization () };
-  for (int i = 0; i < ARRAYELTS (types); ++i)
-    {
-      if (enable)
-	mps_message_type_enable (gc->arena, types[i]);
-      else
-	mps_message_type_disable (gc->arena, types[i]);
-    }
+  mps_message_type_t type = mps_message_type_finalization ();
+  if (enable)
+    mps_message_type_enable (gc->arena, type);
+  else
+    mps_message_type_disable (gc->arena, type);
 }
 
 void
@@ -638,7 +653,7 @@ make_igc (void)
   IGC_CHECK_RES (res);
 
   add_static_roots (gc);
-  enable_messages (gc, true);
+  enable_finalization (gc, true);
 
   return gc;
 }
