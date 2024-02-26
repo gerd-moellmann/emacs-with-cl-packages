@@ -360,6 +360,12 @@ make_thread_aps (struct igc_thread *t)
   IGC_CHECK_RES (res);
 }
 
+static void
+free_thread_aps (struct igc_thread_list *t)
+{
+  mps_ap_destroy (t->d.cons_ap);
+  t->d.cons_ap = NULL;
+}
 
 
 /***********************************************************************
@@ -411,8 +417,17 @@ void
 igc_thread_remove (void *info)
 {
   struct igc_thread_list *t = info;
+  free_thread_aps (t);
   mps_thread_dereg (deregister_thread (t));
 }
+
+static void
+free_all_threads (struct igc *gc)
+{
+  while (gc->threads)
+    igc_thread_remove (gc->threads);
+}
+
 
 
 /***********************************************************************
@@ -579,6 +594,7 @@ make_igc (void)
 static void
 free_igc (struct igc *gc)
 {
+  free_all_threads (gc);
   mps_pool_destroy (gc->cons_pool);
   mps_fmt_destroy (gc->cons_fmt);
   remove_all_roots (gc);
