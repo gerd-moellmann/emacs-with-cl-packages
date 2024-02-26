@@ -550,19 +550,8 @@ void handle_messages (struct igc *gc)
       mps_message_t message;
       if (mps_message_get (&message, gc->arena, type))
 	{
-	  if (type == mps_message_type_gc_start ())
-	    {
-	      fprintf (stderr, "Collection started.\n");
-	      fprintf (stderr, "  Why: %s\n", mps_message_gc_start_why (gc->arena, message));
-	    }
-	  else if (type == mps_message_type_gc ())
-	    {
-	      /* ... and so on for other message types ... */
-	    }
-	  else // finalization messagr
-	    {
-	      fprintf (stderr, "Unknown message from MPS!\n");
-	    }
+	  if (type != mps_message_type_finalization ())
+	    emacs_abort ();
 
 	  mps_message_discard (gc->arena, message);
 	}
@@ -572,8 +561,7 @@ void handle_messages (struct igc *gc)
 static void
 enable_messages (struct igc *gc, bool enable)
 {
-  mps_message_type_t types[]
-    = { mps_message_type_gc (), mps_message_type_gc_start () };
+  mps_message_type_t types[] = { mps_message_type_finalization () };
   for (int i = 0; i < ARRAYELTS (types); ++i)
     {
       if (enable)
@@ -593,7 +581,6 @@ void
 igc_on_idle (void)
 {
   mps_arena_step (global_igc->arena, 0.01, 0);
-  handle_messages (global_igc);
 }
 
 /***********************************************************************
