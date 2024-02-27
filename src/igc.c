@@ -25,6 +25,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    + built-in symbols root
    + buffer-locals roots
    + specpdl
+   + pdumper
    + intervals, overlays
 
    I think this is handled by scanning what mem_insert has, since
@@ -57,6 +58,7 @@ registered with mem_insert.
 #include "lisp.h"
 #include "buffer.h"
 #include "thread.h"
+#include "pdumper.h"
 #include "igc.h"
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
@@ -205,7 +207,7 @@ remove_all_roots (struct igc *gc)
    global_igc.  */
 
 void *
-igc_mem_insert (void *start, void *end)
+igc_on_mem_insert (void *start, void *end)
 {
   mps_root_t root;
   mps_res_t res = mps_root_create_area (&root, global_igc->arena,
@@ -219,7 +221,7 @@ igc_mem_insert (void *start, void *end)
    registry.  */
 
 void
-igc_mem_delete (void *info)
+igc_on_mem_delete (void *info)
 {
   remove_root ((struct igc_root_list *) info);
 }
@@ -334,6 +336,22 @@ add_thread_root (struct igc_thread_list *t)
   mps_root_t root;
   mps_res_t res = mps_root_create_thread (&root, gc->arena,
 					  t->d.thr, t->d.cold);
+  IGC_CHECK_RES (res);
+  register_root (gc, root);
+}
+
+/* Called after a pdump has been loaded.  Add the area as root.  */
+
+void
+igc_on_pdump_loaded (void)
+{
+  struct igc *gc = global_igc;
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+			    (void *) dump_public.start,
+			    (void *) dump_public.end,
+			    scan_mem_area, NULL);
   IGC_CHECK_RES (res);
   register_root (gc, root);
 }

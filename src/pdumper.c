@@ -38,6 +38,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "frame.h"
 #include "intervals.h"
 #include "lisp.h"
+#include "igc.h"
 #include "pdumper.h"
 #include "window.h"
 #include "sysstdio.h"
@@ -5757,6 +5758,10 @@ pdumper_load (const char *dump_filename, char *argv0)
     timespec_sub (current_timespec (), start_time);
   dump_private.load_time = timespectod (load_timespec);
   dump_private.dump_filename = dump_filename_copy;
+
+# ifdef MAVE_MPS
+  igc_on_pdump_loaded ();
+# endif
 
  out:
   for (int i = 0; i < ARRAYELTS (sections); ++i)

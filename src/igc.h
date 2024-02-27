@@ -6,8 +6,8 @@
 extern void init_igc (void);
 extern void syms_of_igc (void);
 
-extern void *igc_mem_insert (void *start, void *end);
-extern void igc_mem_delete (void *info);
+extern void *igc_on_mem_insert (void *start, void *end);
+extern void igc_on_mem_delete (void *info);
 
 extern void *igc_thread_add (const void *cold);
 extern void igc_thread_remove (void *info);
@@ -17,6 +17,7 @@ extern void igc_on_grow_specpdl (void);
 extern void igc_on_specbinding_unused (union specbinding *b);
 extern void igc_on_idle (void);
 extern void igc_on_old_gc (void);
+extern void igc_on_pdump_loaded (void);
 
 extern void igc_handle_messages (void);
 

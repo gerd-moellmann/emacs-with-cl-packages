@@ -4596,7 +4596,7 @@ mem_insert (void *start, void *end, enum mem_type type)
   x->left = x->right = MEM_NIL;
   x->color = MEM_RED;
 #ifdef HAVE_MPS
-  x->gc_info = igc_mem_insert (start, end);
+  x->gc_info = igc_on_mem_insert (start, end);
 #endif
 
   /* Insert it as child of PARENT or install it as root.  */
@@ -4810,7 +4810,7 @@ mem_delete (struct mem_node *z)
     mem_delete_fixup (x);
 
 #ifdef HAVE_MPS
-  igc_mem_delete (y->gc_info);
+  igc_on_mem_delete (y->gc_info);
 #endif
 
 #ifdef GC_MALLOC_CHECK
