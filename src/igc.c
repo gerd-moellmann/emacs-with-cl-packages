@@ -39,6 +39,10 @@ registered with mem_insert.
    + HAVE_TEXT_CONVERSION - can't do it
    - complete cons_skip etc.
 
+   - run MPS tests
+   - --enable-checking
+   - which functions run?
+
    - alloc conses
    - telemetry
    - symbols, strings etc
@@ -83,6 +87,10 @@ registered with mem_insert.
 #ifdef HAVE_TEXT_CONVERSION
 #error "HAVE_TEXT_CONVERSION not supported"
 #endif
+
+#define IGC_ASSERT(expr)      if (!(expr)) emacs_abort (); else
+
+#define IGC_ASSERT_ALIGNED(p) IGC_ASSERT ((uintptr_t) (p) % GCALIGNMENT == 0)
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
    documentation).  Rather than taking the risk of using functions from
@@ -729,8 +737,7 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 cons_skip (mps_addr_t addr)
 {
-  const struct Lisp_Cons *cons = addr;
-  return (mps_addr_t) (cons + 1);
+  return (char *) addr + sizeof (struct Lisp_Cons);
 }
 
 /* Called by MPS when object at OLD has been moved to NEW.  Must replace
@@ -772,6 +779,7 @@ visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
     return;
 
   mps_addr_t ref = IGC_XPNTR (obj);
+  IGC_ASSERT_ALIGNED (ref);
   if (!mps_arena_has_addr (global_igc->arena, ref))
     {
       walk->fun (obj);
@@ -786,6 +794,7 @@ cons_scan_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
   struct igc_walk *walk = closure;
   for (struct Lisp_Cons *p = base; p < (struct Lisp_Cons *) limit; ++p)
     {
+      IGC_ASSERT_ALIGNED (p);
       visit_lisp_obj (p->u.s.car, walk);
       visit_lisp_obj (p->u.s.u.cdr, walk);
     }
@@ -843,8 +852,7 @@ handle_messages (struct igc *gc)
       mps_message_t msg;
       if (mps_message_get (&msg, gc->arena, type))
 	{
-	  if (type != mps_message_type_finalization ())
-	    emacs_abort ();
+	  IGC_ASSERT (type == mps_message_type_finalization ());
 	  mps_addr_t addr;
 	  mps_message_finalization_ref (&addr, gc->arena, msg);
 	  do_finalize (gc, addr);
@@ -903,9 +911,9 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
     }
   while (!mps_commit (ap, p, size));
 
+  IGC_ASSERT_ALIGNED (p);
   return make_lisp_ptr (p, Lisp_Cons);
 }
-
 
 
 /***********************************************************************
@@ -936,7 +944,7 @@ make_igc (void)
   // Object format for conses.
   MPS_ARGS_BEGIN (args)
   {
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, 8);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, cons_scan);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, cons_skip);

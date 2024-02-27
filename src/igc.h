@@ -29,9 +29,7 @@ extern void igc_handle_messages (void);
 
 #define IGC_MANAGE_CONS 1
 
-#ifdef IGC_MANAGE_CONS
 extern Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
-#endif
 
 # endif // HAVE_MPS
 
