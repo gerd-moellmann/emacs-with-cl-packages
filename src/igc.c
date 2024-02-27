@@ -566,29 +566,29 @@ add_main_thread (void)
      }                                               \
    else
 
-static int unique;
-#define IGC_UNIQUE ((mps_addr_t) &unique)
+static int fwdsig;
+#define IGC_FWDSIG ((mps_addr_t) &fwdsig)
 
 struct igc_fwd
 {
-  mps_addr_t unique;
-  mps_addr_t new_addr;
+  mps_addr_t sig;
+  mps_addr_t new;
 };
 
-/* FIXME: must be macros bc of MPS?.  */
-#define IGC_MAKE_FWD(old, new)						\
-  do									\
-    {									\
-      struct igc_fwd m = { .unique = IGC_UNIQUE, .new_addr = (new) };	\
-      struct igc_fwd *f = (old);					\
-      *f = m;								\
-    }									\
-  while (0)
+static void
+forward (mps_addr_t old, mps_addr_t new)
+{
+  struct igc_fwd m = { .sig = IGC_FWDSIG, .new = new };
+  struct igc_fwd *f = old;
+  *f = m;
+}
 
-#define IGC_IS_FWD(addr) \
-  (((struct igc_fwd *) (addr))->unique == IGC_UNIQUE)
-#define IGC_FWD_NEW(addr) \
-  (IGC_IS_FWD(addr) ? ((struct igc_fwd *) (addr))->new_addr : NULL)
+static mps_addr_t
+is_forwarded (mps_addr_t addr)
+{
+  struct igc_fwd *f = addr;
+  return f->sig == IGC_FWDSIG ? f->new : NULL;
+}
 
 /* Scan a vector of glyph_rows.  */
 
@@ -663,10 +663,10 @@ static mps_res_t
 scan_lisp_objs (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
-  {
-    for (Lisp_Object *p = start; p < (Lisp_Object *) end; ++p)
-      IGC_FIX_LISP_OBJ (ss, p);
-  }
+    {
+      for (Lisp_Object *p = start; p < (Lisp_Object *) end; ++p)
+	IGC_FIX_LISP_OBJ (ss, p);
+    }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -677,11 +677,15 @@ static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
-  {
-    struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
-    IGC_FIX_LISP_OBJ (ss, &cons->u.s.car);
-    IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
-  }
+    {
+      for (struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
+	   cons < (struct Lisp_Cons *) limit;
+	   ++cons)
+	{
+	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.car);
+	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
+	}
+    }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -699,18 +703,19 @@ cons_skip (mps_addr_t addr)
 static void
 cons_fwd (mps_addr_t old, mps_addr_t new)
 {
-  IGC_MAKE_FWD (old, new);
+  forward (old, new);
 }
 
 static mps_addr_t
 cons_isfwd (mps_addr_t addr)
 {
-  return IGC_FWD_NEW (addr);
+  return is_forwarded (addr);
 }
 
 static void
 cons_pad (mps_addr_t addr, size_t size)
 {
+  memset (addr, 0, size);
 }
 
 
