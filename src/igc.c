@@ -41,6 +41,7 @@ registered with mem_insert.
    - alloc conses
    - symbols, strings etc
    - emacs_abort -> something nicer
+   - frame's text conversion (HAVE_TEXT_CONVERSION = X11)
 
 */
 
@@ -61,6 +62,13 @@ registered with mem_insert.
 #include "pdumper.h"
 #include "dispextern.h"
 #include "igc.h"
+
+#ifndef USE_LSB_TAG
+#error "USE_LSB_TAG required"
+#endif
+#ifdef HAVE_TEXT_CONVERSION
+#error "HAVE_TEXT_CONVERSION not supported"
+#endif
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
    documentation).  Rather than taking the risk of using functions from
