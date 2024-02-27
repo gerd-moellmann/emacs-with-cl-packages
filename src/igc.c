@@ -568,6 +568,8 @@ cons_scan_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
   return MPS_RES_OK;
 }
 
+/* */
+
 static void
 mark_old_gc_objects (struct igc *gc)
 {
@@ -577,8 +579,11 @@ mark_old_gc_objects (struct igc *gc)
   mps_arena_release (gc->arena);
 }
 
+/* Called when the old GC runs.  Mark objects managed by the old GC
+   which are referenced from MPS objects.  */
+
 void
-igc_on_old_gc_mark (void)
+igc_on_old_gc (void)
 {
   mark_old_gc_objects (global_igc);
 }

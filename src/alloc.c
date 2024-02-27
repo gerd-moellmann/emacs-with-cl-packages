@@ -6478,7 +6478,9 @@ garbage_collect (void)
 #ifdef HAVE_PGTK
   mark_pgtkterm ();
 #endif
-
+#ifdef HAVE_MPS
+  igc_on_old_gc ();
+#endif
 #ifdef USE_GTK
   xg_mark_data ();
 #endif
