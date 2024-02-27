@@ -90,14 +90,21 @@ registered with mem_insert.
    assume that Lisp_Objects are EMACS_INTs, and we are using the 3
    lowest bits for tags, for simplicity.  */
 
-#define IGC_TAG(obj)		((EMACS_INT) (obj) & 0x7)
-#define IGC_UNTAGGED(obj)	((EMACS_INT) (obj) & ~0x7)
+#define IGC_XLI(obj)   lisp_h_XLI (obj)
+#define IGC_XIL(obj)   lisp_h_XIL (obj)
+#define IGC_XLP(obj)   lisp_h_XLP (obj)
 
-#define IGC_MAKE_LISP_OBJ(untagged, tag) \
-   ((Lisp_Object) ((EMACS_INT) (untagged) | (tag)))
+#define IGC_XTYPE(obj) lisp_h_XTYPE (obj)
+#define IGC_FIXNUMP(obj) lisp_h_FIXNUMP (obj)
 
-#define IGC_FIXNUMP(obj) \
-   (IGC_TAG (obj) == Lisp_Int0 || IGC_TAG (obj) == Lisp_Int1)
+#define IGC_XPNTR(a)						\
+  (BARE_SYMBOL_P (a)						\
+   ? (char *) lispsym + (XLI (a) - LISP_WORD_TAG (Lisp_Symbol))	\
+   : (char *) XLP (a) - (XLI (a) & ~VALMASK));
+
+#define IGC_MAKE_LISP_OBJ(type, untagged) \
+  TAG_PTR_INITIALLY (type, untagged)
+
 
 static mps_res_t scan_mem_area (mps_ss_t ss, void *start,
 				void *end, void *closure);
@@ -550,21 +557,50 @@ add_main_thread (void)
 
 /* Fix a Lisp_Object at *P.  SS ist the MPS scan state.  */
 
-# define IGC_FIX_LISP_OBJ(ss, p)                     \
-   if (!IGC_FIXNUMP (*(p)))                          \
-     {                                               \
-       EMACS_INT untagged_ = IGC_UNTAGGED (*(p));    \
-       mps_addr_t addr_ = (mps_addr_t) untagged_;    \
-       if (MPS_FIX1 ((ss), addr_))                   \
-	 {                                           \
-	   mps_res_t res_ = MPS_FIX2 ((ss), &addr_); \
-	   if (res_ != MPS_RES_OK)                   \
-	     return res_;                            \
-	   EMACS_INT tag_ = IGC_TAG (*(p));          \
-	   *(p) = IGC_MAKE_LISP_OBJ (addr_, tag_);   \
-	 }                                           \
-     }                                               \
-   else
+static mps_res_t
+fix_lisp_obj (mps_ss_t ss, Lisp_Object *p)
+{
+  if (IGC_FIXNUMP (*p))
+    return MPS_RES_OK;
+
+  MPS_SCAN_BEGIN (ss)
+    {
+      mps_addr_t untagged = IGC_XPNTR (*p);
+      if (MPS_FIX1 (ss, untagged))
+	{
+	  mps_res_t res = MPS_FIX2 (ss, &untagged);
+	  if (res != MPS_RES_OK)
+	    return res;
+	  enum Lisp_Type type = IGC_XTYPE (*p);
+	  *p = IGC_MAKE_LISP_OBJ (type, untagged);
+	}
+    }
+  MPS_SCAN_END (ss);
+
+  return MPS_RES_OK;
+}
+
+#define IGC_FIX_LISP_OBJ(ss, p)				\
+  do							\
+    {							\
+      mps_res_t res;					\
+      MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, p));	\
+      if (res != MPS_RES_OK)				\
+	return res;					\
+    }							\
+  while (0)
+
+/* Horrible shit to avoid unused variable warnings.  */
+
+#define IGC_SCAN_BEGIN(ss)			\
+  {						\
+    MPS_SCAN_BEGIN (ss)				\
+    (void) _mps_zs;				\
+    (void) _mps_ufs;				\
+    (void) _mps_w;				\
+    (void) _mps_wt;
+
+#define IGC_SCAN_END(ss)	MPS_SCAN_END (ss); }
 
 static int fwdsig;
 #define IGC_FWDSIG ((mps_addr_t) &fwdsig)
@@ -595,24 +631,24 @@ is_forwarded (mps_addr_t addr)
 static mps_res_t
 scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  MPS_SCAN_BEGIN (ss)
-  {
-    for (struct glyph_row *row = start; row < (struct glyph_row *) end; ++row)
-      {
-	struct glyph *glyph = row->glyphs[LEFT_MARGIN_AREA];
-	struct glyph *end = row->glyphs[LAST_AREA];
-	for (; glyph < end; ++glyph)
-	  IGC_FIX_LISP_OBJ (ss, &glyph->object);
-      }
-  }
-  MPS_SCAN_END (ss);
+  IGC_SCAN_BEGIN (ss)
+    {
+      for (struct glyph_row *row = start; row < (struct glyph_row *) end; ++row)
+	{
+	  struct glyph *glyph = row->glyphs[LEFT_MARGIN_AREA];
+	  struct glyph *end = row->glyphs[LAST_AREA];
+	  for (; glyph < end; ++glyph)
+	    IGC_FIX_LISP_OBJ (ss, &glyph->object);
+	}
+    }
+  IGC_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
 static mps_res_t
 scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  MPS_SCAN_BEGIN (ss)
+  IGC_SCAN_BEGIN (ss)
   {
     for (struct face **p = start; p < (struct face **) end; ++p)
       if (*p)
@@ -622,7 +658,7 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 	    IGC_FIX_LISP_OBJ (ss, &face->lface[i]);
 	}
   }
-  MPS_SCAN_END (ss);
+  IGC_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -632,12 +668,12 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_mem_area (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  MPS_SCAN_BEGIN (ss)
+  IGC_SCAN_BEGIN (ss)
   {
     for (Lisp_Object *p = start; p < (Lisp_Object *) end; ++p)
       IGC_FIX_LISP_OBJ (ss, p);
   }
-  MPS_SCAN_END (ss);
+  IGC_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -647,12 +683,12 @@ scan_mem_area (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  MPS_SCAN_BEGIN (ss)
+  IGC_SCAN_BEGIN (ss)
   {
     for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
       IGC_FIX_LISP_OBJ (ss, *p);
   }
-  MPS_SCAN_END (ss);
+  IGC_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -662,12 +698,12 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_lisp_objs (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  MPS_SCAN_BEGIN (ss)
+  IGC_SCAN_BEGIN (ss)
     {
       for (Lisp_Object *p = start; p < (Lisp_Object *) end; ++p)
 	IGC_FIX_LISP_OBJ (ss, p);
     }
-  MPS_SCAN_END (ss);
+  IGC_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -676,7 +712,7 @@ scan_lisp_objs (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-  MPS_SCAN_BEGIN (ss)
+  IGC_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
 	   cons < (struct Lisp_Cons *) limit;
@@ -686,7 +722,7 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
 	}
     }
-  MPS_SCAN_END (ss);
+  IGC_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -726,14 +762,14 @@ cons_pad (mps_addr_t addr, size_t size)
 struct igc_walk
 {
   void (* fun) (Lisp_Object);
+  int count;
 };
 
 #define IGC_VISIT(ss, walk, obj)			\
     if (!IGC_FIXNUMP (obj))				\
       {							\
-	EMACS_INT untagged_ = IGC_UNTAGGED (obj);	\
-	mps_addr_t addr_ = (mps_addr_t) untagged_;	\
-	if (!MPS_FIX1 ((ss), addr_))			\
+	mps_addr_t addr_ = IGC_XPNTR (obj);		\
+	if (!MPS_FIX1 ((ss), &addr_))			\
 	  (walk)->fun (obj);				\
       }							\
     else
@@ -743,17 +779,18 @@ cons_scan_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 		void *closure)
 {
   struct igc_walk *walk = closure;
-  MPS_SCAN_BEGIN (ss)
-  {
-    while (base < limit)
-      {
-	struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
-	IGC_VISIT (ss, walk, cons->u.s.car);
-	IGC_VISIT (ss, walk, cons->u.s.u.cdr);
-	base = (char *) base + sizeof *cons;
-      }
-  }
-  MPS_SCAN_END (ss);
+  IGC_SCAN_BEGIN (ss)
+    {
+      while (base < limit)
+	{
+	  struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
+	  IGC_VISIT (ss, walk, cons->u.s.car);
+	  IGC_VISIT (ss, walk, cons->u.s.u.cdr);
+	  base = (char *) base + sizeof *cons;
+	  ++walk->count;
+	}
+    }
+  IGC_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
