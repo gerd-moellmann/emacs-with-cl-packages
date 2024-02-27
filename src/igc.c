@@ -765,32 +765,31 @@ struct igc_walk
   int count;
 };
 
-#define IGC_VISIT(ss, walk, obj)			\
-    if (!IGC_FIXNUMP (obj))				\
-      {							\
-	mps_addr_t addr_ = IGC_XPNTR (obj);		\
-	if (!MPS_FIX1 ((ss), &addr_))			\
-	  (walk)->fun (obj);				\
-      }							\
-    else
+static void
+visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
+{
+  if (IGC_FIXNUMP (obj))
+    return;
+
+  mps_addr_t ref = IGC_XPNTR (obj);
+  if (!mps_arena_has_addr (global_igc->arena, ref))
+    {
+      walk->fun (obj);
+      ++walk->count;
+    }
+}
 
 static mps_res_t
 cons_scan_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 		void *closure)
 {
   struct igc_walk *walk = closure;
-  IGC_SCAN_BEGIN (ss)
+  for (struct Lisp_Cons *p = base; p < (struct Lisp_Cons *) limit; ++p)
     {
-      while (base < limit)
-	{
-	  struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
-	  IGC_VISIT (ss, walk, cons->u.s.car);
-	  IGC_VISIT (ss, walk, cons->u.s.u.cdr);
-	  base = (char *) base + sizeof *cons;
-	  ++walk->count;
-	}
+      visit_lisp_obj (p->u.s.car, walk);
+      visit_lisp_obj (p->u.s.u.cdr, walk);
     }
-  IGC_SCAN_END (ss);
+
   return MPS_RES_OK;
 }
 
