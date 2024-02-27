@@ -34,8 +34,9 @@ registered with mem_insert.
    + thread roots (control stack), main thread
    + thread-local allocation points
    + mps_arena_step, idle time.
+   + face cache
 
-   - face cache (mark_window/buffer/frame)
+   - glyph matrices
    - telemetry
    - complete cons_skip etc.
    - alloc conses
@@ -63,9 +64,22 @@ registered with mem_insert.
 #include "dispextern.h"
 #include "igc.h"
 
+/* For simplicity, I don't suport some stuff.  Should maybe done in
+   configure.ac.  */
+
 #ifndef USE_LSB_TAG
 #error "USE_LSB_TAG required"
 #endif
+#ifdef WIDE_EMACS_INT
+#error "WIDE_EMACS_INT not supported"
+#endif
+
+/* Frames have stuff for text conversion which contains Lisp_Objects, so
+   this must be scanned/fixed for MPS, and must be some form of root in
+   a mixed GC, so that scanning the Lisp_Objects woiuld prevent moving
+   them in memory.  MacOS doesn't HAVE_TEXT_CONVERSION, so that I can't
+   do this.  */
+
 #ifdef HAVE_TEXT_CONVERSION
 #error "HAVE_TEXT_CONVERSION not supported"
 #endif
