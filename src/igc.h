@@ -1,5 +1,7 @@
+// clang-format off
+
 #ifndef EMACS_IGC_H
-# define EMACS_IGC_H
+#define EMACS_IGC_H
 
 # ifdef HAVE_MPS
 
@@ -24,6 +26,12 @@ extern void igc_on_face_cache_change (void *face_cache);
 extern void igc_on_adjust_glyph_matrix (void *matrix);
 extern void igc_on_free_glyph_matrix (void *matrix);
 extern void igc_handle_messages (void);
+
+#define IGC_MANAGE_CONS 1
+
+#ifdef IGC_MANAGE_CONS
+extern Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
+#endif
 
 # endif // HAVE_MPS
 

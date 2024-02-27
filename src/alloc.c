@@ -2882,6 +2882,9 @@ DEFUN ("cons", Fcons, Scons, 2, 2, 0,
 {
   register Lisp_Object val;
 
+#ifdef IGC_MANAGE_CONS
+  val = igc_make_cons (car, cdr);
+#else
   MALLOC_BLOCK_INPUT;
 
   if (cons_free_list)
@@ -2914,6 +2917,9 @@ DEFUN ("cons", Fcons, Scons, 2, 2, 0,
   eassert (!XCONS_MARKED_P (XCONS (val)));
   consing_until_gc -= sizeof (struct Lisp_Cons);
   cons_cells_consed++;
+
+#endif // !IGC_MANAGE_CONS
+
   return val;
 }
 
@@ -7051,7 +7057,9 @@ process_mark_stack (ptrdiff_t base_sp)
   while (mark_stk.sp > base_sp)
     {
       Lisp_Object obj = mark_stack_pop ();
-    mark_obj: ;
+#ifndef IGC_MANAGE_CONS
+    mark_obj:;
+#endif
       void *po = XPNTR (obj);
       if (PURE_P (po))
 	continue;
@@ -7297,6 +7305,9 @@ process_mark_stack (ptrdiff_t base_sp)
 	  break;
 
 	case Lisp_Cons:
+#ifdef IGC_MANAGE_CONS
+	  break;
+#else
 	  {
 	    struct Lisp_Cons *ptr = XCONS (obj);
 	    if (cons_marked_p (ptr))
@@ -7312,12 +7323,13 @@ process_mark_stack (ptrdiff_t base_sp)
 		cdr_count++;
 		if (cdr_count == mark_object_loop_halt)
 		  emacs_abort ();
-#endif
+# endif
 	      }
 	    /* Speedup hack for the common case (successive list elements).  */
 	    obj = ptr->u.s.car;
 	    goto mark_obj;
 	  }
+#endif // !IGC_MANAGE_CONS
 
 	case Lisp_Float:
 	  {

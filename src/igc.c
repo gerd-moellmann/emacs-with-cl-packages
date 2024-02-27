@@ -37,10 +37,10 @@ registered with mem_insert.
    + face cache
    + glyph matrices
    + HAVE_TEXT_CONVERSION - can't do it
-
-   - telemetry
    - complete cons_skip etc.
+
    - alloc conses
+   - telemetry
    - symbols, strings etc
    - emacs_abort -> something nicer
 
@@ -839,6 +839,39 @@ igc_on_idle (void)
   mps_arena_step (global_igc->arena, 0.01, 0);
 }
 
+
+/***********************************************************************
+			    Allocation
+ ***********************************************************************/
+
+static mps_ap_t
+current_cons_ap (void)
+{
+  struct igc_thread_list *t = current_thread->gc_info;
+  return t->d.cons_ap;
+}
+
+Lisp_Object
+igc_make_cons (Lisp_Object car, Lisp_Object cdr)
+{
+  mps_ap_t ap = current_cons_ap ();
+  size_t size = sizeof (struct Lisp_Cons);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, size);
+      IGC_CHECK_RES (res);
+      struct Lisp_Cons *cons = p;
+      cons->u.s.car = car;
+      cons->u.s.u.cdr = cdr;
+    }
+  while (!mps_commit (ap, p, size));
+
+  return make_lisp_ptr (p, Lisp_Cons);
+}
+
+
+
 /***********************************************************************
 			    Setup/Tear down
  ***********************************************************************/
