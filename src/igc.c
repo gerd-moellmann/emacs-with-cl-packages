@@ -24,7 +24,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    + staticpro roots
    + built-in symbols root
    + buffer-locals roots
-
+   + specpdl
    + intervals, overlays
 
    I think this is handled by scanning what mem_insert has, since
@@ -33,7 +33,6 @@ registered with mem_insert.
    + thread roots (control stack), main thread
    + thread-local allocation points
    + mps_arena_step, idle time.
-   + specpdl
 
    - face cache (mark_window/buffer/frame)
    - telemetry
@@ -44,21 +43,21 @@ registered with mem_insert.
 
 */
 
-// clang-format on
+// clang-format off
 
 #include <config.h>
 
 #ifdef HAVE_MPS
 
-# include <mps.h>
-# include <mpsavm.h>
-# include <mpscamc.h>
-# include <mpscams.h>
-# include <stdlib.h>
-# include "lisp.h"
-# include "buffer.h"
-# include "thread.h"
-# include "igc.h"
+#include <mps.h>
+#include <mpsavm.h>
+#include <mpscamc.h>
+#include <mpscams.h>
+#include <stdlib.h>
+#include "lisp.h"
+#include "buffer.h"
+#include "thread.h"
+#include "igc.h"
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
    documentation).  Rather than taking the risk of using functions from
@@ -66,13 +65,13 @@ registered with mem_insert.
    assume that Lisp_Objects are EMACS_INTs, and we are using the 3
    lowest bits for tags, for simplicity.  */
 
-# define IGC_TAG(obj) ((EMACS_INT) (obj) & 0x7)
-# define IGC_UNTAGGED(obj) ((EMACS_INT) (obj) & ~0x7)
+#define IGC_TAG(obj)		((EMACS_INT) (obj) & 0x7)
+#define IGC_UNTAGGED(obj)	((EMACS_INT) (obj) & ~0x7)
 
-# define IGC_MAKE_LISP_OBJ(untagged, tag) \
+#define IGC_MAKE_LISP_OBJ(untagged, tag) \
    ((Lisp_Object) ((EMACS_INT) (untagged) | (tag)))
 
-# define IGC_FIXNUMP(obj) \
+#define IGC_FIXNUMP(obj) \
    (IGC_TAG (obj) == Lisp_Int0 || IGC_TAG (obj) == Lisp_Int1)
 
 static mps_res_t scan_mem_area (mps_ss_t ss, void *start,
@@ -82,49 +81,48 @@ static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
 				 void *closure);
 
-# define IGC_CHECK_RES(res) \
-  if ((res) != MPS_RES_OK)  \
-    emacs_abort ();	    \
+#define IGC_CHECK_RES(res)			\
+  if ((res) != MPS_RES_OK)			\
+    emacs_abort ();				\
   else
 
 
-/* Very poor man's template for double-linked list.  */
+/* Very poor man's template for double-linked lists.  */
 
-#define IGC_DEFINE_LIST(data)						\
-  typedef struct data##_list						\
-  {									\
-    struct data##_list *next, *prev;					\
-    struct data d;							\
-  } data##_list;							\
-									\
-  static data##_list *							\
-  add_##data##_list (data##_list **head, data *d)			\
-  {									\
-    data##_list *r = xzalloc (sizeof *r);				\
-    r->d = *d; 								\
-    r->next = *head;							\
-    r->prev = NULL;							\
-									\
-    if (r->next)							\
-      r->next->prev = r;						\
-    *head = r;								\
-    return r;								\
-  }									\
-									\
-  static void								\
-  remove_##data##_list (data *d, data##_list **head, data##_list *r)	\
-  {									\
-    if (r->next)							\
-      r->next->prev = r->prev;						\
-    if (r->prev)							\
-      r->prev->next = r->next;						\
-    else								\
-      *head = r->next;							\
-    *d = r->d;								\
-    xfree (r);								\
+#define IGC_DEFINE_LIST(data)				\
+  typedef struct data##_list				\
+  {							\
+    struct data##_list *next, *prev;			\
+    data d;						\
+  } data##_list;					\
+							\
+  static data##_list *					\
+  data##_list_push (data##_list **head, data *d)	\
+  {							\
+    data##_list *r = xzalloc (sizeof *r);		\
+    r->d = *d;						\
+    r->next = *head;					\
+    r->prev = NULL;					\
+							\
+    if (r->next)					\
+      r->next->prev = r;				\
+    *head = r;						\
+    return r;						\
+  }							\
+							\
+  static void						\
+  data##_list_remove (data *d, data##_list **head,	\
+		      data##_list *r)			\
+  {							\
+    if (r->next)					\
+      r->next->prev = r->prev;				\
+    if (r->prev)					\
+      r->prev->next = r->next;				\
+    else						\
+      *head = r->next;					\
+    *d = r->d;						\
+    xfree (r);						\
   }
-
-/* Bookkeeping of what we need to know about the MPS GC.  */
 
 struct igc_root
 {
@@ -133,7 +131,7 @@ struct igc_root
 };
 
 typedef struct igc_root igc_root;
-IGC_DEFINE_LIST (igc_root)
+IGC_DEFINE_LIST (igc_root);
 
 struct igc_thread
 {
@@ -145,39 +143,33 @@ struct igc_thread
 };
 
 typedef struct igc_thread igc_thread;
-IGC_DEFINE_LIST (igc_thread)
+IGC_DEFINE_LIST (igc_thread);
 
 struct igc
 {
-  /* The MPS arena.  */
   mps_arena_t arena;
-
-  /* Generations in the arena.  */
   mps_chain_t chain;
-
-  /* MPS pool for conses.  This is a non-moving pool as long as not all
-     Lisp object types are managed by MPS.  */
   mps_pool_t cons_pool;
   mps_fmt_t cons_fmt;
-
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
 
-static struct igc *global_igc = NULL;
+static struct igc *global_igc;
 
+
 /***********************************************************************
 				Roots
  ***********************************************************************/
 
 /* Add ROOT to the root registry of GC.  Value is a pointer to a new
-   igc_root struct for the root.  */
+   igc_root_list struct for the root.  */
 
 static struct igc_root_list *
 register_root (struct igc *gc, mps_root_t root)
 {
   struct igc_root r = { .gc = gc, .root = root };
-  return add_igc_root_list (&gc->roots, &r);
+  return igc_root_list_push (&gc->roots, &r);
 }
 
 /* Remove root R from its root registry, and free it.  Value is the MPS
@@ -187,7 +179,7 @@ static mps_root_t
 deregister_root (struct igc_root_list *r)
 {
   struct igc_root root;
-  remove_igc_root_list (&root, &r->d.gc->roots, r);
+  igc_root_list_remove (&root, &r->d.gc->roots, r);
   return root.root;
 }
 
@@ -377,14 +369,14 @@ static struct igc_thread_list *
 register_thread (struct igc *gc, mps_thr_t thr, void *cold)
 {
   struct igc_thread t = { .gc = gc, .thr = thr, .cold = cold };
-  return add_igc_thread_list (&gc->threads, &t);
+  return igc_thread_list_push (&gc->threads, &t);
 }
 
 static mps_thr_t
 deregister_thread (struct igc_thread_list *t)
 {
   struct igc_thread thread;
-  remove_igc_thread_list (&thread, &t->d.gc->threads, t);
+  igc_thread_list_remove (&thread, &t->d.gc->threads, t);
   return thread.thr;
 }
 
