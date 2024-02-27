@@ -83,7 +83,7 @@ static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
 static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
 				 void *closure);
-static mps_res_t scan_face_buckets (mps_ss_t ss, void *start, void *end,
+static mps_res_t scan_faces_by_id (mps_ss_t ss, void *start, void *end,
 				    void *closure);
 
 #define IGC_CHECK_RES(res)			\
@@ -91,6 +91,10 @@ static mps_res_t scan_face_buckets (mps_ss_t ss, void *start, void *end,
     emacs_abort ();				\
   else
 
+#define IGC_WITH_PARKED(gc)			\
+  for (int i = (mps_arena_park(gc->arena), 1);	\
+       i;					\
+       i = (mps_arena_release (gc->arena), 0))
 
 /* Very poor man's template for double-linked lists.  */
 
@@ -299,9 +303,13 @@ void
 igc_on_grow_specpdl (void)
 {
   struct igc_thread_list *t = current_thread->gc_info;
-  remove_root (t->d.specpdl_root);
-  t->d.specpdl_root = NULL;
-  add_specpdl_root (t);
+  // FIXME: can we avoid parking?
+  IGC_WITH_PARKED (t->d.gc)
+    {
+      remove_root (t->d.specpdl_root);
+      t->d.specpdl_root = NULL;
+      add_specpdl_root (t);
+    }
 }
 
 /* Add a root to GC for scanning buffer B.  */
@@ -370,9 +378,9 @@ igc_on_make_face_cache (void *c)
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    (void *) cache->buckets,
-			    (void *) (cache->buckets + cache->size),
-			    scan_face_buckets, NULL);
+			    (void *) cache->faces_by_id,
+			    (void *) (cache->faces_by_id + cache->size),
+			    scan_faces_by_id, NULL);
   IGC_CHECK_RES (res);
   cache->igc_info = register_root (gc, root);
 }
@@ -383,6 +391,17 @@ igc_on_free_face_cache (void *c)
   struct face_cache *cache = c;
   remove_root (cache->igc_info);
   cache->igc_info = NULL;
+}
+
+void
+igc_on_face_cache_change (void *c)
+{
+  // FIXME: can we avoid parking?
+  IGC_WITH_PARKED (global_igc)
+    {
+      igc_on_free_face_cache (c);
+      igc_on_make_face_cache (c);
+    }
 }
 
 
@@ -493,7 +512,7 @@ add_main_thread (void)
    else
 
 static mps_res_t
-scan_face_buckets (mps_ss_t ss, void *start, void *end, void *closure)
+scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
@@ -637,10 +656,11 @@ cons_scan_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 static void
 mark_old_gc_objects (struct igc *gc)
 {
-  mps_arena_park (gc->arena);
-  struct igc_walk walk = { .fun = mark_object };
-  mps_pool_walk (global_igc->cons_pool, cons_scan_area, &walk);
-  mps_arena_release (gc->arena);
+  IGC_WITH_PARKED (gc)
+    {
+      struct igc_walk walk = { .fun = mark_object };
+      mps_pool_walk (global_igc->cons_pool, cons_scan_area, &walk);
+    }
 }
 
 /* Called when the old GC runs.  Mark objects managed by the old GC
