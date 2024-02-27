@@ -35,14 +35,14 @@ registered with mem_insert.
    + thread-local allocation points
    + mps_arena_step, idle time.
    + face cache
+   + glyph matrices
+   + HAVE_TEXT_CONVERSION - can't do it
 
-   - glyph matrices
    - telemetry
    - complete cons_skip etc.
    - alloc conses
    - symbols, strings etc
    - emacs_abort -> something nicer
-   - frame's text conversion (HAVE_TEXT_CONVERSION = X11)
 
 */
 
