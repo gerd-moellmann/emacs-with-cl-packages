@@ -566,6 +566,30 @@ add_main_thread (void)
      }                                               \
    else
 
+static int unique;
+#define IGC_UNIQUE ((mps_addr_t) &unique)
+
+struct igc_fwd
+{
+  mps_addr_t unique;
+  mps_addr_t new_addr;
+};
+
+/* FIXME: must be macros bc of MPS?.  */
+#define IGC_MAKE_FWD(old, new)						\
+  do									\
+    {									\
+      struct igc_fwd m = { .unique = IGC_UNIQUE, .new_addr = (new) };	\
+      struct igc_fwd *f = (old);					\
+      *f = m;								\
+    }									\
+  while (0)
+
+#define IGC_IS_FWD(addr) \
+  (((struct igc_fwd *) (addr))->unique == IGC_UNIQUE)
+#define IGC_FWD_NEW(addr) \
+  (IGC_IS_FWD(addr) ? ((struct igc_fwd *) (addr))->new_addr : NULL)
+
 /* Scan a vector of glyph_rows.  */
 
 static mps_res_t
@@ -669,16 +693,19 @@ cons_skip (mps_addr_t addr)
   return (mps_addr_t) (cons + 1);
 }
 
+/* Called by MPS when object at OLD has been moved to NEW.  Must replace
+   *OLD with a forwarding marker that points to NEW.  */
+
 static void
 cons_fwd (mps_addr_t old, mps_addr_t new)
 {
-  // unclear
+  IGC_MAKE_FWD (old, new);
 }
 
 static mps_addr_t
 cons_isfwd (mps_addr_t addr)
 {
-  return NULL;
+  return IGC_FWD_NEW (addr);
 }
 
 static void
