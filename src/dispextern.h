@@ -1921,6 +1921,10 @@ struct face_cache
   /* Flag indicating that attributes of the `menu' face have been
      changed.  */
   bool_bf menu_face_changed_p : 1;
+
+# ifdef HAVE_MPS
+  void *igc_info;
+# endif
 };
 
 #define FACE_EXTENSIBLE_P(F)			\

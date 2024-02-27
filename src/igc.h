@@ -18,7 +18,8 @@ extern void igc_on_specbinding_unused (union specbinding *b);
 extern void igc_on_idle (void);
 extern void igc_on_old_gc (void);
 extern void igc_on_pdump_loaded (void);
-
+extern void igc_on_make_face_cache (void *face_cache);
+extern void igc_on_free_face_cache (void *face_cache);
 extern void igc_handle_messages (void);
 
 # endif // HAVE_MPS

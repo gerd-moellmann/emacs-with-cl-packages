@@ -224,6 +224,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <math.h>
 
 #include "lisp.h"
+#include "igc.h"
 #include "character.h"
 #include "frame.h"
 
@@ -4722,6 +4723,9 @@ make_face_cache (struct frame *f)
   c->faces_by_id = xmalloc (c->size * sizeof *c->faces_by_id);
   c->f = f;
   c->menu_face_changed_p = menu_face_changed_default;
+#ifdef HAVE_MPS
+  igc_on_make_face_cache (c);
+#endif
   return c;
 }
 
@@ -4826,6 +4830,9 @@ free_face_cache (struct face_cache *c)
 {
   if (c)
     {
+#ifdef HAVE_MPS
+      igc_on_free_face_cache (c);
+#endif
       free_realized_faces (c);
       xfree (c->buckets);
       xfree (c->faces_by_id);

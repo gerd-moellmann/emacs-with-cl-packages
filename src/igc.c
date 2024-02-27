@@ -59,6 +59,7 @@ registered with mem_insert.
 #include "buffer.h"
 #include "thread.h"
 #include "pdumper.h"
+#include "dispextern.h"
 #include "igc.h"
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
@@ -82,6 +83,8 @@ static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
 static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
 				 void *closure);
+static mps_res_t scan_face_buckets (mps_ss_t ss, void *start, void *end,
+				    void *closure);
 
 #define IGC_CHECK_RES(res)			\
   if ((res) != MPS_RES_OK)			\
@@ -356,6 +359,32 @@ igc_on_pdump_loaded (void)
   register_root (gc, root);
 }
 
+/* For all faces in a face cache, we need to fix the lface vector of
+   Lisp_Objects.  */
+
+void
+igc_on_make_face_cache (void *c)
+{
+  struct face_cache *cache = c;
+  struct igc *gc = global_igc;
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+			    (void *) cache->buckets,
+			    (void *) (cache->buckets + cache->size),
+			    scan_face_buckets, NULL);
+  IGC_CHECK_RES (res);
+  cache->igc_info = register_root (gc, root);
+}
+
+void
+igc_on_free_face_cache (void *c)
+{
+  struct face_cache *cache = c;
+  remove_root (cache->igc_info);
+  cache->igc_info = NULL;
+}
+
 
 /***********************************************************************
 			   Allocation Points
@@ -462,6 +491,23 @@ add_main_thread (void)
 	 }                                           \
      }                                               \
    else
+
+static mps_res_t
+scan_face_buckets (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    for (struct face **p = start; p < (struct face **) end; ++p)
+      if (*p)
+	{
+	  struct face *face = *p;
+	  for (int i = 0; i < ARRAYELTS (face->lface); ++i)
+	    IGC_FIX_LISP_OBJ (ss, &face->lface[i]);
+	}
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
 
 /* Scan a memory area at [START, END). SS is the MPS scan state.
    CLOSURE is ignored.  */
