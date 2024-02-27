@@ -529,6 +529,60 @@ cons_pad (mps_addr_t addr, size_t size)
 {
 }
 
+
+/***********************************************************************
+				Walking
+ ***********************************************************************/
+
+struct igc_walk
+{
+  void (* fun) (Lisp_Object);
+};
+
+#define IGC_VISIT(ss, walk, obj)			\
+    if (!IGC_FIXNUMP (obj))				\
+      {							\
+	EMACS_INT untagged_ = IGC_UNTAGGED (obj);	\
+	mps_addr_t addr_ = (mps_addr_t) untagged_;	\
+	if (!MPS_FIX1 ((ss), addr_))			\
+	  (walk)->fun (obj);				\
+      }							\
+    else
+
+static mps_res_t
+cons_scan_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
+		void *closure)
+{
+  struct igc_walk *walk = closure;
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
+	IGC_VISIT (ss, walk, cons->u.s.car);
+	IGC_VISIT (ss, walk, cons->u.s.u.cdr);
+	base = (char *) base + sizeof *cons;
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static void
+mark_old_gc_objects (struct igc *gc)
+{
+  mps_arena_park (gc->arena);
+  struct igc_walk walk = { .fun = mark_object };
+  mps_pool_walk (global_igc->cons_pool, cons_scan_area, &walk);
+  mps_arena_release (gc->arena);
+}
+
+void
+igc_on_old_gc_mark (void)
+{
+  mark_old_gc_objects (global_igc);
+}
+
 
 /***********************************************************************
 				Finalization
