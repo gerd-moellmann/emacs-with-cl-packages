@@ -107,6 +107,8 @@ static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
 				 void *closure);
 static mps_res_t scan_faces_by_id (mps_ss_t ss, void *start, void *end,
 				    void *closure);
+static mps_res_t scan_glyph_rows (mps_ss_t ss, void *start, void *end,
+				  void *closure);
 
 #define IGC_CHECK_RES(res)			\
   if ((res) != MPS_RES_OK)			\
@@ -426,6 +428,37 @@ igc_on_face_cache_change (void *c)
     }
 }
 
+void
+igc_on_adjust_glyph_matrix (void *m)
+{
+  struct igc *gc = global_igc;
+  struct glyph_matrix *matrix = m;
+  IGC_WITH_PARKED (gc)
+    {
+      if (matrix->igc_info)
+	remove_root (matrix->igc_info);
+      mps_root_t root;
+      mps_res_t res
+	= mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+				matrix->rows,
+				(void *) (matrix->rows + matrix->rows_allocated),
+				scan_glyph_rows, NULL);
+      IGC_CHECK_RES (res);
+      matrix->igc_info = register_root (gc, root);
+    }
+}
+
+void
+igc_on_free_glyph_matrix (void *m)
+{
+  struct glyph_matrix *matrix = m;
+  if (matrix->igc_info)
+    {
+      remove_root (matrix->igc_info);
+      matrix->igc_info = NULL;
+    }
+}
+
 
 /***********************************************************************
 			   Allocation Points
@@ -532,6 +565,25 @@ add_main_thread (void)
 	 }                                           \
      }                                               \
    else
+
+/* Scan a vector of glyph_rows.  */
+
+static mps_res_t
+scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    for (struct glyph_row *row = start; row < (struct glyph_row *) end; ++row)
+      {
+	struct glyph *glyph = row->glyphs[LEFT_MARGIN_AREA];
+	struct glyph *end = row->glyphs[LAST_AREA];
+	for (; glyph < end; ++glyph)
+	  IGC_FIX_LISP_OBJ (ss, &glyph->object);
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
 
 static mps_res_t
 scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)

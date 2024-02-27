@@ -21,6 +21,8 @@ extern void igc_on_pdump_loaded (void);
 extern void igc_on_make_face_cache (void *face_cache);
 extern void igc_on_free_face_cache (void *face_cache);
 extern void igc_on_face_cache_change (void *face_cache);
+extern void igc_on_adjust_glyph_matrix (void *matrix);
+extern void igc_on_free_glyph_matrix (void *matrix);
 extern void igc_handle_messages (void);
 
 # endif // HAVE_MPS

@@ -829,6 +829,10 @@ struct glyph_matrix
   /* Values of BEGV and ZV as of last redisplay.  Set in
      mark_window_display_accurate_1.  */
   ptrdiff_t begv, zv;
+
+# ifdef HAVE_MPS
+  void *igc_info;
+# endif
 };
 
 
