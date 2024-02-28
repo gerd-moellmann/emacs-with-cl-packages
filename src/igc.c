@@ -29,9 +29,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    + intervals, overlays
    + run MPS tests
    + --enable-checking
+   + mark_lread
+   + marl_window
+   + alloc conses
 
-   - mark_lread
-   - mark_window, killed buffers removed from list...
+   - dump_context
 
    I think this is handled by scanning what mem_insert has, since
    intervals and overlays are allocated from blocks that are
@@ -44,10 +46,6 @@ registered with mem_insert.
    + HAVE_TEXT_CONVERSION - can't do it
    - complete cons_skip etc.
 
-   - asan
-   - which functions run?
-
-   - alloc conses
    - telemetry
    - symbols, strings etc
    - emacs_abort -> something nicer
@@ -300,7 +298,7 @@ add_staticvec_root (struct igc *gc)
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    staticvec,
+			    staticivec,
 			    staticvec + ARRAYELTS (staticvec),
 			    scan_staticvec, NULL);
   IGC_CHECK_RES (res);
@@ -734,8 +732,11 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
   IGC_SCAN_BEGIN (ss)
   {
+    /* I don't want to rely on staticidx ATM. Instead, ignore NULL
+       entries.  */
     for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
-      IGC_FIX_LISP_OBJ (ss, *p);
+      if (*p)
+	IGC_FIX_LISP_OBJ (ss, *p);
   }
   IGC_SCAN_END (ss);
   return MPS_RES_OK;
