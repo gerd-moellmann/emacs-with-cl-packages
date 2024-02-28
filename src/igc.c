@@ -28,6 +28,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    + pdumper
    + intervals, overlays
    + run MPS tests
+   + --enable-checking
+
+   - mark_lread
+   - mark_window, killed buffers removed from list...
 
    I think this is handled by scanning what mem_insert has, since
    intervals and overlays are allocated from blocks that are
@@ -40,7 +44,7 @@ registered with mem_insert.
    + HAVE_TEXT_CONVERSION - can't do it
    - complete cons_skip etc.
 
-   - --enable-checking
+   - asan
    - which functions run?
 
    - alloc conses
@@ -53,6 +57,7 @@ registered with mem_insert.
 // clang-format off
 
 #include <config.h>
+#include <stdint.h>
 
 #ifdef HAVE_MPS
 
@@ -99,9 +104,13 @@ do							\
 #define IGC_CHECK_POOL() (void) 0
 #endif
 
+#ifdef IGC_DEBUG
 #define IGC_ASSERT(expr)      if (!(expr)) emacs_abort (); else
-
 #define IGC_ASSERT_ALIGNED(p) IGC_ASSERT ((uintptr_t) (p) % GCALIGNMENT == 0)
+#else
+#define IGC_ASSERT(expr)
+#define IGC_ASSERT_ALIGNED(p)
+#endif
 
 /* In MPS scan functions it is not easy to call C functions (see the MPS
    documentation).  Rather than taking the risk of using functions from
@@ -485,6 +494,27 @@ igc_on_free_glyph_matrix (void *m)
     }
 }
 
+void *
+igc_on_grow_read_stack (void *info, void *start, void *end)
+{
+  struct igc *gc = global_igc;
+  IGC_WITH_PARKED (gc)
+    {
+      if (info)
+	remove_root (info);
+      mps_root_t root;
+      mps_res_t res
+	= mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+				start, end,
+				scan_mem_area, NULL);
+      IGC_CHECK_RES (res);
+      info = register_root (gc, root);
+    }
+
+  return info;
+}
+
+
 
 /***********************************************************************
 			   Allocation Points
@@ -790,7 +820,6 @@ visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
     return;
 
   mps_addr_t ref = IGC_XPNTR (obj);
-  IGC_ASSERT_ALIGNED (ref);
   if (!mps_arena_has_addr (global_igc->arena, ref))
     {
       walk->fun (obj);
@@ -805,7 +834,6 @@ cons_scan_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
   struct igc_walk *walk = closure;
   for (struct Lisp_Cons *p = base; p < (struct Lisp_Cons *) limit; ++p)
     {
-      IGC_ASSERT_ALIGNED (p);
       visit_lisp_obj (p->u.s.car, walk);
       visit_lisp_obj (p->u.s.u.cdr, walk);
     }
@@ -821,7 +849,7 @@ mark_old_gc_objects (struct igc *gc)
   IGC_WITH_PARKED (gc)
     {
       struct igc_walk walk = { .fun = mark_object };
-      mps_pool_walk (global_igc->cons_pool, cons_scan_area, &walk);
+      mps_pool_walk (gc->cons_pool, cons_scan_area, &walk);
     }
 }
 
@@ -834,6 +862,32 @@ igc_on_old_gc (void)
   mark_old_gc_objects (global_igc);
 }
 
+#ifdef IGC_DEBUG
+
+static void
+check_cons (Lisp_Object obj)
+{
+  if (STRINGP (obj))
+    {
+      struct Lisp_String *ptr = XSTRING (obj);
+      IGC_ASSERT (ptr != NULL);
+    }
+}
+
+
+void igc_debug_conses (struct igc *gc);
+
+void
+igc_debug_conses (struct igc *gc)
+{
+  IGC_WITH_PARKED (gc)
+    {
+      struct igc_walk walk = { .fun = check_cons };
+      mps_pool_walk (gc->cons_pool, cons_scan_area, &walk);
+    }
+}
+
+#endif
 
 /***********************************************************************
 				Finalization
@@ -906,6 +960,10 @@ current_cons_ap (void)
   return t->d.cons_ap;
 }
 
+void igc_break (void)
+{
+}
+
 Lisp_Object
 igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
@@ -923,7 +981,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
   while (!mps_commit (ap, p, size));
 
   IGC_ASSERT_ALIGNED (p);
-  IGC_CHECK_POOL ();
+
   return make_lisp_ptr (p, Lisp_Cons);
 }
 
@@ -969,29 +1027,28 @@ make_igc (void)
   IGC_CHECK_RES (res);
 
 #ifdef IGC_DEBUG_POOL
+  mps_class_t ams_pool_class = mps_class_ams_debug ();
+#else
+  mps_class_t ams_pool_class = mps_class_ams ();
+#endif
+
   mps_pool_debug_option_s debug_options = {
     "fencepost", 9,
     "free", 4,
   };
-  mps_class_t ams_pool_class = mps_class_ams_debug ();
-#else
-  mps_class_t ams_pool_class = mps_class_ams_debug ();
-#endif
 
   // Pool for conses. Since conses have no type field which would let
   // us recognize them when mixed with other objects, use a dedicated
   // pool.
   MPS_ARGS_BEGIN (args)
-  {
-#ifdef IGC_DEBUG_POOL
-    MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-#endif
-    MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->cons_fmt);
-    MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-    MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-    res = mps_pool_create_k (&gc->cons_pool, gc->arena,
-			     ams_pool_class, args);
-  }
+    {
+      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->cons_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
+      res = mps_pool_create_k (&gc->cons_pool, gc->arena,
+			       ams_pool_class, args);
+    }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 

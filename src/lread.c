@@ -31,6 +31,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <math.h>
 #include <stat-time.h>
 #include "lisp.h"
+#include "igc.h"
 #include "dispextern.h"
 #include "intervals.h"
 #include "character.h"
@@ -3877,6 +3878,9 @@ struct read_stack
   struct read_stack_entry *stack;  /* base of stack */
   ptrdiff_t size;		   /* allocated size in entries */
   ptrdiff_t sp;			   /* current number of entries */
+#ifdef HAVE_MPS
+  void *igc_info;
+#endif
 };
 
 static struct read_stack rdstack = {NULL, 0, 0};
@@ -3943,6 +3947,13 @@ grow_read_stack (void)
   eassert (rs->sp == rs->size);
   rs->stack = xpalloc (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
   eassert (rs->sp < rs->size);
+#ifdef HAVE_MPS
+  rs->igc_info
+    = igc_on_grow_read_stack (rs->igc_info, rs->stack,
+			      (char *) rs->stack
+				+ rs->size * sizeof *rs->stack);
+
+#endif
 }
 
 static inline void
