@@ -6893,7 +6893,7 @@ mark_discard_killed_buffers (Lisp_Object list)
 
 #ifndef IGC_MANAGE_CONS
 #define CONS_MARKED_P(x) cons_marked_p (x)
-#define SET_CONS_MARKED(x) set_cons_marked_p (x)
+#define SET_CONS_MARKED(x) set_cons_marked (x)
 #else
 #define CONS_MARKED_P(x) 1
 #define SET_CONS_MARKED(x) (void) 0

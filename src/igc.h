@@ -5,6 +5,7 @@
 
 # ifdef HAVE_MPS
 
+/* Assertions.  */
 #define IGC_DEBUG 1
 
 /* If defined, allocate conses from MPS.  */
@@ -36,7 +37,9 @@ extern void igc_on_face_cache_change (void *face_cache);
 extern void igc_on_adjust_glyph_matrix (void *matrix);
 extern void igc_on_free_glyph_matrix (void *matrix);
 extern void *igc_on_grow_read_stack (void *info, void *start, void *end);
+
 extern void igc_handle_messages (void);
+extern specpdl_ref igc_inhibit_garbage_collection (void);
 
 extern Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 

@@ -298,7 +298,7 @@ add_staticvec_root (struct igc *gc)
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    staticivec,
+			    staticvec,
 			    staticvec + ARRAYELTS (staticvec),
 			    scan_staticvec, NULL);
   IGC_CHECK_RES (res);
@@ -512,6 +512,20 @@ igc_on_grow_read_stack (void *info, void *start, void *end)
   return info;
 }
 
+static void
+release_arena (void)
+{
+  mps_arena_release (global_igc->arena);
+}
+
+specpdl_ref
+igc_inhibit_garbage_collection (void)
+{
+  specpdl_ref count = SPECPDL_INDEX ();
+  mps_arena_park (global_igc->arena);
+  record_unwind_protect_void (release_arena);
+  return count;
+}
 
 
 /***********************************************************************
