@@ -32,6 +32,8 @@ command script import emacs_lldb
 
 # b xsignal
 b pkg_break
+b igc_break
+
 #b pkg_error
 #b Fpkg_read
 # To find out from where macOS prints stuff to stderr, like
@@ -43,5 +45,7 @@ command alias xprint frame variable -P 2
 
 # process handle -p true -s false SIGSEGV
 # process handle -p true -s false SIGBUS
+
+# settings set target.run-args -- --batch  -l loadup --temacs=pbootstrap --bin-dest
 
 # end.
