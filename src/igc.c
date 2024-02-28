@@ -88,6 +88,22 @@ registered with mem_insert.
 #error "HAVE_TEXT_CONVERSION not supported"
 #endif
 
+/* If defined, use a debug AMS pool, and check fenceposts etc.
+   See MPS docs.  */
+
+#define IGC_DEBUG_POOL 1
+
+#ifdef IGC_DEBUG_POOL
+#define IGC_CHECK_POOL()				\
+do							\
+  {							\
+    mps_pool_check_fenceposts (global_igc->cons_pool);	\
+    mps_pool_check_free_space (global_igc->cons_pool);	\
+  } while (0)
+#else
+#define IGC_CHECK_POOL() (void) 0
+#endif
+
 #define IGC_ASSERT(expr)      if (!(expr)) emacs_abort (); else
 
 #define IGC_ASSERT_ALIGNED(p) IGC_ASSERT ((uintptr_t) (p) % GCALIGNMENT == 0)
@@ -912,6 +928,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
   while (!mps_commit (ap, p, size));
 
   IGC_ASSERT_ALIGNED (p);
+  IGC_CHECK_POOL ();
   return make_lisp_ptr (p, Lisp_Cons);
 }
 
@@ -956,16 +973,29 @@ make_igc (void)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
+#ifdef IGC_DEBUG_POOL
+  mps_pool_debug_option_s debug_options = {
+    "fencepost", 9,
+    "free", 4,
+  };
+  mps_class_t ams_pool_class = mps_class_ams_debug ();
+#else
+  mps_class_t ams_pool_class = mps_class_ams_debug ();
+#endif
+
   // Pool for conses. Since conses have no type field which would let
   // us recognize them when mixed with other objects, use a dedicated
   // pool.
   MPS_ARGS_BEGIN (args)
   {
+#ifdef IGC_DEBUG_POOL
+    MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+#endif
     MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->cons_fmt);
     MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
     MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
     res = mps_pool_create_k (&gc->cons_pool, gc->arena,
-			     mps_class_ams (), args);
+			     ams_pool_class, args);
   }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
