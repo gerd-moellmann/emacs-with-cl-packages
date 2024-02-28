@@ -27,6 +27,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    + specpdl
    + pdumper
    + intervals, overlays
+   + run MPS tests
 
    I think this is handled by scanning what mem_insert has, since
    intervals and overlays are allocated from blocks that are
@@ -39,7 +40,6 @@ registered with mem_insert.
    + HAVE_TEXT_CONVERSION - can't do it
    - complete cons_skip etc.
 
-   - run MPS tests
    - --enable-checking
    - which functions run?
 
@@ -87,11 +87,6 @@ registered with mem_insert.
 #ifdef HAVE_TEXT_CONVERSION
 #error "HAVE_TEXT_CONVERSION not supported"
 #endif
-
-/* If defined, use a debug AMS pool, and check fenceposts etc.
-   See MPS docs.  */
-
-#define IGC_DEBUG_POOL 1
 
 #ifdef IGC_DEBUG_POOL
 #define IGC_CHECK_POOL()				\

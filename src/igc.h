@@ -5,6 +5,14 @@
 
 # ifdef HAVE_MPS
 
+/* If defined, allocate conses from MPS.  */
+#define IGC_MANAGE_CONS 1
+
+/* If defined, use a debug AMS pool, and check fenceposts etc.
+   See MPS docs.  */
+#define IGC_DEBUG_POOL 1
+
+
 extern void init_igc (void);
 extern void syms_of_igc (void);
 
@@ -26,8 +34,6 @@ extern void igc_on_face_cache_change (void *face_cache);
 extern void igc_on_adjust_glyph_matrix (void *matrix);
 extern void igc_on_free_glyph_matrix (void *matrix);
 extern void igc_handle_messages (void);
-
-#define IGC_MANAGE_CONS 1
 
 extern Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 
