@@ -2848,7 +2848,9 @@ static int cons_block_index = CONS_BLOCK_SIZE;
 
 /* Free-list of Lisp_Cons structures.  */
 
+#ifndef IGC_MANAGE_CONS
 static struct Lisp_Cons *cons_free_list;
+#endif
 
 #if GC_ASAN_POISON_OBJECTS
 # define ASAN_POISON_CONS_BLOCK(b) \
@@ -2868,12 +2870,14 @@ static struct Lisp_Cons *cons_free_list;
 void
 free_cons (struct Lisp_Cons *ptr)
 {
+#ifndef IGC_MANAGE_CONS
   ptr->u.s.u.chain = cons_free_list;
   ptr->u.s.car = dead_object ();
   cons_free_list = ptr;
   ptrdiff_t nbytes = sizeof *ptr;
   tally_consing (-nbytes);
   ASAN_POISON_CONS (ptr);
+#endif
 }
 
 DEFUN ("cons", Fcons, Scons, 2, 2, 0,
@@ -7425,7 +7429,11 @@ survives_gc_p (Lisp_Object obj)
       break;
 
     case Lisp_Cons:
+#ifdef IGC_MANAGE_CONS
+      survives_p = true;
+#else
       survives_p = cons_marked_p (XCONS (obj));
+#endif
       break;
 
     case Lisp_Float:
@@ -7448,6 +7456,7 @@ NO_INLINE /* For better stack traces */
 static void
 sweep_conses (void)
 {
+#ifndef IGC_MANAGE_CONS
   struct cons_block **cprev = &cons_block;
   int lim = cons_block_index;
   object_ct num_free = 0, num_used = 0;
@@ -7522,6 +7531,7 @@ sweep_conses (void)
     }
   gcstat.total_conses = num_used;
   gcstat.total_free_conses = num_free;
+#endif // !IGC_MANAGE_CONS
 }
 
 NO_INLINE /* For better stack traces */
