@@ -4106,10 +4106,6 @@ types.  */)
   while (number_finalizers_run);
 
   specpdl_ref count = SPECPDL_INDEX ();
-  inhibit_garbage_collection ();
-# ifdef HAVE_MPS
-  igc_inhibit_garbage_collection ();
-# endif
 
   /* Bind `command-line-processed' to nil before dumping,
      so that the dumped Emacs will process its command line

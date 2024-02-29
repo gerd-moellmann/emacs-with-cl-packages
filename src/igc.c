@@ -453,7 +453,10 @@ igc_on_free_face_cache (void *c)
 void
 igc_on_face_cache_change (void *c)
 {
-  // FIXME: can we avoid parking?
+  /* FIXME: can we avoid parking? The idea would be to add a new root
+     first, and then remove the old one, so that there is no gap in
+     which we don't have no root.  Alas, MPS says that no two roots may
+     overlap, which could be the case with realloc.  */
   IGC_WITH_PARKED (global_igc)
     {
       igc_on_free_face_cache (c);
