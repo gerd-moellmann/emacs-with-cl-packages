@@ -134,8 +134,6 @@ do							\
 
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
-static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
-				 void *closure);
 static mps_res_t scan_faces_by_id (mps_ss_t ss, void *start, void *end,
 				    void *closure);
 static mps_res_t scan_glyph_rows (mps_ss_t ss, void *start, void *end,
@@ -375,13 +373,7 @@ igc_on_grow_specpdl (void)
 static void
 add_buffer_root (struct igc *gc, struct buffer *b)
 {
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    &b->name_,
-			    &b->own_text,
-			    scan_lisp_objs, NULL);
-  IGC_CHECK_RES (res);
+  mps_root_t root = make_ambig_root (gc, &b->name_, &b->own_text);
   register_root (gc, root);
 }
 
@@ -635,6 +627,8 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *p)
 	  mps_res_t res = MPS_FIX2 (ss, &untagged);
 	  if (res != MPS_RES_OK)
 	    return res;
+	  // FIXME: What does this do if we are scanning an ambigous
+	  // root?
 	  enum Lisp_Type type = IGC_XTYPE (*p);
 	  *p = IGC_MAKE_LISP_OBJ (type, untagged);
 	}
@@ -733,27 +727,12 @@ static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
   IGC_SCAN_BEGIN (ss)
-  {
-    /* I don't want to rely on staticidx ATM. Instead, ignore NULL
-       entries.  */
-    for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
-      if (*p)
-	IGC_FIX_LISP_OBJ (ss, *p);
-  }
-  IGC_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-/* Scan staticvec in the interval [START, END). SS is the MPS scan
-   state.  CLOSURE is ignored.  */
-
-static mps_res_t
-scan_lisp_objs (mps_ss_t ss, void *start, void *end, void *closure)
-{
-  IGC_SCAN_BEGIN (ss)
     {
-      for (Lisp_Object *p = start; p < (Lisp_Object *) end; ++p)
-	IGC_FIX_LISP_OBJ (ss, p);
+      /* I don't want to rely on staticidx ATM. Instead, ignore NULL
+	 entries.  */
+      for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
+	if (*p)
+	  IGC_FIX_LISP_OBJ (ss, *p);
     }
   IGC_SCAN_END (ss);
   return MPS_RES_OK;
