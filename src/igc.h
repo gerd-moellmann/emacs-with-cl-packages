@@ -13,7 +13,7 @@
 
 /* If defined, use a debug AMS pool, and check fenceposts etc.
    See MPS docs.  */
-//#define IGC_DEBUG_POOL 1
+#define IGC_DEBUG_POOL 1
 
 extern void igc_break (void);
 extern void init_igc (void);

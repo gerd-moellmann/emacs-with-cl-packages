@@ -743,17 +743,44 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-  IGC_SCAN_BEGIN (ss)
+  MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
 	   cons < (struct Lisp_Cons *) limit;
 	   ++cons)
 	{
-	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.car);
-	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
+	  Lisp_Object car = cons->u.s.car;
+	  if (!IGC_FIXNUMP (car))
+	    {
+	      mps_addr_t untagged = IGC_XPNTR (car);
+	      if (MPS_FIX1 (ss, untagged))
+		{
+		  mps_res_t res = MPS_FIX2 (ss, &untagged);
+		  if (res != MPS_RES_OK)
+		    return res;
+		  enum Lisp_Type type = IGC_XTYPE (car);
+		  car = IGC_MAKE_LISP_OBJ (type, untagged);
+		  cons->u.s.car = car;
+		}
+	    }
+
+	  Lisp_Object cdr = cons->u.s.u.cdr;
+	  if (!IGC_FIXNUMP (cdr))
+	    {
+	      mps_addr_t untagged = IGC_XPNTR (cdr);
+	      if (MPS_FIX1 (ss, untagged))
+		{
+		  mps_res_t res = MPS_FIX2 (ss, &untagged);
+		  if (res != MPS_RES_OK)
+		    return res;
+		  enum Lisp_Type type = IGC_XTYPE (cdr);
+		  cdr = IGC_MAKE_LISP_OBJ (type, untagged);
+		  cons->u.s.u.cdr = cdr;
+		}
+	    }
 	}
     }
-  IGC_SCAN_END (ss);
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -1014,8 +1041,15 @@ make_igc (void)
   mps_class_t ams_pool_class = mps_class_ams ();
 #endif
 
+  /* In a debug pool, fill fencepost and freed objects with a
+     byte pattern. This is ignored in non-debug pools.
+
+     (lldb) memory read cons_ptr
+     0x17735fe68: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
+     0x17735fe78: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
+  */
   mps_pool_debug_option_s debug_options = {
-    "fencepost", 9,
+    "fence", 5,
     "free", 4,
   };
 

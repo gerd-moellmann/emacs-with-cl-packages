@@ -46,6 +46,6 @@ command alias xprint frame variable -P 2
 # process handle -p true -s false SIGSEGV
 # process handle -p true -s false SIGBUS
 
-# settings set target.run-args -- --batch  -l loadup --temacs=pbootstrap --bin-dest
+settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest --eln-dest
 
 # end.
