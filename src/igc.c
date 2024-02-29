@@ -132,8 +132,6 @@ do							\
   TAG_PTR_INITIALLY (type, untagged)
 
 
-static mps_res_t scan_mem_area (mps_ss_t ss, void *start,
-				void *end, void *closure);
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
 static mps_res_t scan_lisp_objs (mps_ss_t ss, void *start, void *end,
@@ -266,6 +264,24 @@ remove_all_roots (struct igc *gc)
     remove_root (gc->roots);
 }
 
+static mps_root_t
+make_ambig_root (struct igc *gc, void *start, void *end)
+{
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area_tagged (&root,
+				   gc->arena,
+				   mps_rank_ambig (),
+				   0, /* MPS_PROT_... */
+				   start,
+				   end,
+				   mps_scan_area_masked,
+				   VALMASK,
+				   0);
+  IGC_CHECK_RES (res);
+  return root;
+}
+
 /* Called from mem_insert.  Create an MPS root for the memory area
    between START and END, and remember it in the root registry of
    global_igc.  */
@@ -273,11 +289,7 @@ remove_all_roots (struct igc *gc)
 void *
 igc_on_mem_insert (void *start, void *end)
 {
-  mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, global_igc->arena,
-					mps_rank_ambig (), 0, start,
-					end, scan_mem_area, NULL);
-  IGC_CHECK_RES (res);
+  mps_root_t root = make_ambig_root (global_igc, start, end);
   return register_root (global_igc, root);
 }
 
@@ -308,13 +320,7 @@ add_staticvec_root (struct igc *gc)
 static void
 add_builtin_symbols_root (struct igc *gc)
 {
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    lispsym,
-			    lispsym + ARRAYELTS (lispsym),
-			    scan_mem_area, NULL);
-  IGC_CHECK_RES (res);
+  mps_root_t root = make_ambig_root (gc, lispsym, lispsym + ARRAYELTS (lispsym));
   register_root (gc, root);
 }
 
@@ -328,17 +334,12 @@ add_specpdl_root (struct igc_thread_list *t)
 {
   // For the initial thread, specpdl will be initialzed by
   // init_eval_once, and will be NULL until that happens.
-  if (specpdl == NULL)
-    return;
-
-  struct igc *gc = t->d.gc;
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    specpdl, specpdl_end,
-			    scan_mem_area, NULL);
-  IGC_CHECK_RES (res);
-  t->d.specpdl_root = register_root (gc, root);
+  if (specpdl)
+    {
+      struct igc *gc = t->d.gc;
+      mps_root_t root = make_ambig_root (gc, specpdl, specpdl_end);
+      t->d.specpdl_root = register_root (gc, root);
+    }
 }
 
 void
@@ -422,13 +423,9 @@ void
 igc_on_pdump_loaded (void)
 {
   struct igc *gc = global_igc;
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    (void *) dump_public.start,
-			    (void *) dump_public.end,
-			    scan_mem_area, NULL);
-  IGC_CHECK_RES (res);
+  mps_root_t root = make_ambig_root (gc,
+				     (void *) dump_public.start,
+				     (void *) dump_public.end);
   register_root (gc, root);
 }
 
@@ -511,12 +508,7 @@ igc_on_grow_read_stack (void *info, void *start, void *end)
     {
       if (info)
 	remove_root (info);
-      mps_root_t root;
-      mps_res_t res
-	= mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-				start, end,
-				scan_mem_area, NULL);
-      IGC_CHECK_RES (res);
+      mps_root_t root = make_ambig_root (gc, start, end);
       info = register_root (gc, root);
     }
 
@@ -729,21 +721,6 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 	  for (int i = 0; i < ARRAYELTS (face->lface); ++i)
 	    IGC_FIX_LISP_OBJ (ss, &face->lface[i]);
 	}
-  }
-  IGC_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-/* Scan a memory area at [START, END). SS is the MPS scan state.
-   CLOSURE is ignored.  */
-
-static mps_res_t
-scan_mem_area (mps_ss_t ss, void *start, void *end, void *closure)
-{
-  IGC_SCAN_BEGIN (ss)
-  {
-    for (Lisp_Object *p = start; p < (Lisp_Object *) end; ++p)
-      IGC_FIX_LISP_OBJ (ss, p);
   }
   IGC_SCAN_END (ss);
   return MPS_RES_OK;
