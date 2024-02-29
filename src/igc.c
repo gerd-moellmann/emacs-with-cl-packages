@@ -191,6 +191,7 @@ struct igc_root
 {
   struct igc *gc;
   mps_root_t root;
+  void *start, *end;
 };
 
 typedef struct igc_root igc_root;
@@ -229,9 +230,9 @@ static struct igc *global_igc;
    igc_root_list struct for the root.  */
 
 static struct igc_root_list *
-register_root (struct igc *gc, mps_root_t root)
+register_root (struct igc *gc, mps_root_t root, void *start, void *end)
 {
-  struct igc_root r = { .gc = gc, .root = root };
+  struct igc_root r = { .gc = gc, .root = root, .start = start, .end = end };
   return igc_root_list_push (&gc->roots, &r);
 }
 
@@ -289,7 +290,7 @@ void *
 igc_on_mem_insert (void *start, void *end)
 {
   mps_root_t root = make_ambig_root (global_igc, start, end);
-  return register_root (global_igc, root);
+  return register_root (global_igc, root, start, end);
 }
 
 /* Called from mem_delete.  Remove the correspoing node INFO from the
@@ -306,21 +307,21 @@ igc_on_mem_delete (void *info)
 static void
 add_staticvec_root (struct igc *gc)
 {
+  void *start =staticvec, *end = staticvec + ARRAYELTS (staticvec);
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    staticvec,
-			    staticvec + ARRAYELTS (staticvec),
-			    scan_staticvec, NULL);
+			    start, end, scan_staticvec, NULL);
   IGC_CHECK_RES (res);
-  register_root (gc, root);
+  register_root (gc, root, start, end);
 }
 
 static void
 add_builtin_symbols_root (struct igc *gc)
 {
-  mps_root_t root = make_ambig_root (gc, lispsym, lispsym + ARRAYELTS (lispsym));
-  register_root (gc, root);
+  void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
+  mps_root_t root = make_ambig_root (gc, start, end);
+  register_root (gc, root, start, end);
 }
 
 /* Odeally, we shoudl not scan the entire area, only to the current
@@ -336,8 +337,9 @@ add_specpdl_root (struct igc_thread_list *t)
   if (specpdl)
     {
       struct igc *gc = t->d.gc;
-      mps_root_t root = make_ambig_root (gc, specpdl, specpdl_end);
-      t->d.specpdl_root = register_root (gc, root);
+      void *start = specpdl, *end = specpdl_end;
+      mps_root_t root = make_ambig_root (gc, start, end);
+      t->d.specpdl_root = register_root (gc, root, start, end);
     }
 }
 
@@ -374,8 +376,9 @@ igc_on_grow_specpdl (void)
 static void
 add_buffer_root (struct igc *gc, struct buffer *b)
 {
-  mps_root_t root = make_ambig_root (gc, &b->name_, &b->own_text);
-  register_root (gc, root);
+  void *start = &b->name_, *end = &b->own_text;
+  mps_root_t root = make_ambig_root (gc, start, end);
+  register_root (gc, root, start, end);
 }
 
 /* All all known static roots in Emacs to GC.  */
@@ -407,7 +410,7 @@ add_thread_root (struct igc_thread_list *t)
 				     0,
 				     t->d.cold);
   IGC_CHECK_RES (res);
-  register_root (gc, root);
+  register_root (gc, root, t->d.cold, NULL);
 }
 
 /* Called after a pdump has been loaded.  Add the area as root.  */
@@ -416,10 +419,9 @@ void
 igc_on_pdump_loaded (void)
 {
   struct igc *gc = global_igc;
-  mps_root_t root = make_ambig_root (gc,
-				     (void *) dump_public.start,
-				     (void *) dump_public.end);
-  register_root (gc, root);
+  void *start = (void *) dump_public.start, *end = (void *) dump_public.end;
+  mps_root_t root = make_ambig_root (gc, start, end);
+  register_root (gc, root, start, end);
 }
 
 /* For all faces in a face cache, we need to fix the lface vector of
@@ -430,14 +432,14 @@ igc_on_make_face_cache (void *c)
 {
   struct face_cache *cache = c;
   struct igc *gc = global_igc;
+  void *start = (void *) cache->faces_by_id;
+  void *end = (void *) (cache->faces_by_id + cache->size);
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    (void *) cache->faces_by_id,
-			    (void *) (cache->faces_by_id + cache->size),
-			    scan_faces_by_id, NULL);
+			    start, end, scan_faces_by_id, NULL);
   IGC_CHECK_RES (res);
-  cache->igc_info = register_root (gc, root);
+  cache->igc_info = register_root (gc, root, start, end);
 }
 
 void
@@ -472,13 +474,14 @@ igc_on_adjust_glyph_matrix (void *m)
       if (matrix->igc_info)
 	remove_root (matrix->igc_info);
       mps_root_t root;
+      void *start = matrix->rows;
+      void *end = (void *) (matrix->rows + matrix->rows_allocated);
       mps_res_t res
 	= mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-				matrix->rows,
-				(void *) (matrix->rows + matrix->rows_allocated),
+				start, end,
 				scan_glyph_rows, NULL);
       IGC_CHECK_RES (res);
-      matrix->igc_info = register_root (gc, root);
+      matrix->igc_info = register_root (gc, root, start, end);
     }
 }
 
@@ -502,7 +505,7 @@ igc_on_grow_read_stack (void *info, void *start, void *end)
       if (info)
 	remove_root (info);
       mps_root_t root = make_ambig_root (gc, start, end);
-      info = register_root (gc, root);
+      info = register_root (gc, root, start, end);
     }
 
   return info;
