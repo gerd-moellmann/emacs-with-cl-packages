@@ -324,9 +324,11 @@ igc_on_malloc (void *p, size_t size)
 void
 igc_on_free (void *p)
 {
-  struct igc_root_list *r = find_root_with_start (global_igc, p);
-  IGC_ASSERT (r != NULL);
-  remove_root (r);
+  if (p)
+    {
+      struct igc_root_list *r = find_root_with_start (global_igc, p);
+      remove_root (r);
+    }
 }
 
 /* Add a root for staticvec to GC.  */

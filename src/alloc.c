@@ -5717,7 +5717,11 @@ hash_table_alloc_bytes (ptrdiff_t nbytes)
     return NULL;
   tally_consing (nbytes);
   hash_table_allocated_bytes += nbytes;
-  return xmalloc (nbytes);
+  void *p = xmalloc (nbytes);
+#ifdef HAVE_MPS
+  igc_on_malloc (p, nbytes);
+#endif
+  return p;
 }
 
 /* Like xfree, but makes allocation count toward the total consing.  */
@@ -5726,6 +5730,9 @@ hash_table_free_bytes (void *p, ptrdiff_t nbytes)
 {
   tally_consing (-nbytes);
   hash_table_allocated_bytes -= nbytes;
+#ifdef HAVE_MPS
+  igc_on_free (p);
+#endif
   xfree (p);
 }
 
