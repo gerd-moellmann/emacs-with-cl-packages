@@ -236,6 +236,15 @@ register_root (struct igc *gc, mps_root_t root, void *start, void *end)
   return igc_root_list_push (&gc->roots, &r);
 }
 
+static igc_root_list *
+find_root_with_start (struct igc *gc, void *start)
+{
+  for (struct igc_root_list *r = gc->roots; r; r = r->next)
+    if (r->d.start == start)
+      return r;
+  return NULL;
+}
+
 /* Remove root R from its root registry, and free it.  Value is the MPS
    root that was registered.  */
 
@@ -300,6 +309,24 @@ void
 igc_on_mem_delete (void *info)
 {
   remove_root ((struct igc_root_list *) info);
+}
+
+/* Memory starting at P with size SIZE has been allocated that is
+   interesting for MPS.  */
+void
+igc_on_malloc (void *p, size_t size)
+{
+  void *end = (char *) p + size;
+  mps_root_t root = make_ambig_root (global_igc, p, end);
+  register_root (global_igc, root, p, end);
+}
+
+void
+igc_on_free (void *p)
+{
+  struct igc_root_list *r = find_root_with_start (global_igc, p);
+  IGC_ASSERT (r != NULL);
+  remove_root (r);
 }
 
 /* Add a root for staticvec to GC.  */

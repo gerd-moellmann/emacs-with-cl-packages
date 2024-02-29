@@ -34,6 +34,8 @@ void igc_on_face_cache_change (void *face_cache);
 void igc_on_adjust_glyph_matrix (void *matrix);
 void igc_on_free_glyph_matrix (void *matrix);
 void *igc_on_grow_read_stack (void *info, void *start, void *end);
+void igc_on_malloc (void *p, size_t size);
+void igc_on_free (void *p);
 
 void igc_handle_messages (void);
 specpdl_ref igc_inhibit_garbage_collection (void);
