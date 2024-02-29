@@ -402,8 +402,16 @@ add_thread_root (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   mps_root_t root;
-  mps_res_t res = mps_root_create_thread (&root, gc->arena,
-					  t->d.thr, t->d.cold);
+  mps_res_t res
+    = mps_root_create_thread_tagged (&root,
+				     gc->arena,
+				     mps_rank_ambig (),
+				     0,
+				     t->d.thr,
+				     mps_scan_area_masked,
+				     VALMASK,
+				     0,
+				     t->d.cold);
   IGC_CHECK_RES (res);
   register_root (gc, root);
 }
