@@ -651,6 +651,10 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *p)
 
 /* Horrible shit to avoid unused variable warnings.  */
 
+// #pragma GCC diagnostic push
+// #pragma GCC diagnostic ignored "-Wpadded"
+// #pragma GCC diagnostic pop
+
 #define IGC_SCAN_BEGIN(ss)			\
   {						\
     MPS_SCAN_BEGIN (ss)				\
