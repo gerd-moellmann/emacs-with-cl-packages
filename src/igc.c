@@ -55,6 +55,7 @@ registered with mem_insert.
 // clang-format off
 
 #include <config.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef HAVE_MPS
@@ -663,8 +664,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *p)
 static int fwdsig;
 #define IGC_FWDSIG ((mps_addr_t) &fwdsig)
 
-struct igc_fwd
-{
+struct igc_fwd {
   mps_addr_t sig;
   mps_addr_t new;
 };
@@ -682,6 +682,38 @@ is_forwarded (mps_addr_t addr)
 {
   struct igc_fwd *f = addr;
   return f->sig == IGC_FWDSIG ? f->new : NULL;
+}
+
+static int padsig;
+#define IGC_PADSIG ((mps_addr_t) &padsig)
+
+struct igc_pad {
+  mps_addr_t sig;
+};
+
+static void
+pad (mps_addr_t addr, size_t size)
+{
+  struct igc_pad padding = { .sig = IGC_PADSIG };
+  IGC_ASSERT (size <= sizeof padding);
+
+  *(struct igc_pad *) addr = padding;
+  char *p = (char *) addr + sizeof padding;
+  char *end = (char *) addr + size;
+  while (p < end)
+    {
+      static const char string[] = "padding";
+      const size_t n = min (sizeof string, end - p);
+      memcpy (p, string, n);
+      p += n;
+    }
+}
+
+static bool
+is_padding (mps_addr_t addr)
+{
+  struct igc_pad *p = addr;
+  return p->sig == IGC_PADSIG;
 }
 
 /* Scan a vector of glyph_rows.  */
@@ -738,7 +770,8 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-/* Scan a Lisp_Cons.  */
+/* Scan a Lisp_Cons.  Must be able to handle padding and forwaring
+   objects. */
 
 static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
@@ -749,6 +782,9 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	   cons < (struct Lisp_Cons *) limit;
 	   ++cons)
 	{
+	  if (is_forwarded (cons) || is_padding (cons))
+	    continue;
+
 	  Lisp_Object car = cons->u.s.car;
 	  if (!IGC_FIXNUMP (car))
 	    {
@@ -796,19 +832,21 @@ cons_skip (mps_addr_t addr)
 static void
 cons_fwd (mps_addr_t old, mps_addr_t new)
 {
+  IGC_ASSERT (false);
   forward (old, new);
 }
 
 static mps_addr_t
 cons_isfwd (mps_addr_t addr)
 {
+  IGC_ASSERT (false);
   return is_forwarded (addr);
 }
 
 static void
 cons_pad (mps_addr_t addr, size_t size)
 {
-  memset (addr, 0, size);
+  pad (addr, size);
 }
 
 
