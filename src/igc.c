@@ -327,6 +327,7 @@ igc_on_free (void *p)
   if (p)
     {
       struct igc_root_list *r = find_root_with_start (global_igc, p);
+      IGC_ASSERT (r != NULL);
       remove_root (r);
     }
 }
