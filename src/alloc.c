@@ -3636,6 +3636,9 @@ sweep_vectors (void)
 	}
       else
 	{
+#ifdef IGC_MANAGE_CONS
+	  igc_on_free (lv);
+#endif
 	  *lvprev = lv->next;
 	  lisp_free (lv);
 	}
@@ -3679,8 +3682,12 @@ allocate_vectorlike (ptrdiff_t len, bool clearit)
     }
   else
     {
-      struct large_vector *lv = lisp_malloc (large_vector_offset + nbytes,
-					     clearit, MEM_TYPE_VECTORLIKE);
+      struct large_vector *lv
+	= lisp_malloc (large_vector_offset + nbytes, clearit,
+		       MEM_TYPE_VECTORLIKE);
+#ifdef IGC_MANAGE_CONS
+      igc_on_malloc (lv, large_vector_offset + nbytes);
+#endif
       lv->next = large_vectors;
       large_vectors = lv;
       p = large_vector_vec (lv);
@@ -5718,7 +5725,7 @@ hash_table_alloc_bytes (ptrdiff_t nbytes)
   tally_consing (nbytes);
   hash_table_allocated_bytes += nbytes;
   void *p = xmalloc (nbytes);
-#ifdef HAVE_MPS
+#ifdef IGC_MANAGE_CONS
   igc_on_malloc (p, nbytes);
 #endif
   return p;
@@ -5730,7 +5737,7 @@ hash_table_free_bytes (void *p, ptrdiff_t nbytes)
 {
   tally_consing (-nbytes);
   hash_table_allocated_bytes -= nbytes;
-#ifdef HAVE_MPS
+#ifdef IGC_MANAGE_CONS
   igc_on_free (p);
 #endif
   xfree (p);
