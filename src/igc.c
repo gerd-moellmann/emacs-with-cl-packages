@@ -121,17 +121,20 @@ do							\
 #define IGC_XIL(obj)   lisp_h_XIL (obj)
 #define IGC_XLP(obj)   lisp_h_XLP (obj)
 
-#define IGC_XTYPE(obj) lisp_h_XTYPE (obj)
+#define IGC_XTYPE(obj)   lisp_h_XTYPE (obj)
 #define IGC_FIXNUMP(obj) lisp_h_FIXNUMP (obj)
 
+/* Note the strange handling of symbol pointers.  */
 #define IGC_XPNTR(a)						\
   (BARE_SYMBOL_P (a)						\
    ? (char *) lispsym + (XLI (a) - LISP_WORD_TAG (Lisp_Symbol))	\
-   : (char *) XLP (a) - (XLI (a) & ~VALMASK));
+   : (char *) XLP (a) - (XLI (a) & ~VALMASK))
 
-#define IGC_MAKE_LISP_OBJ(type, untagged) \
-  TAG_PTR_INITIALLY (type, untagged)
+#define IGC_UNTAG(obj) XLI (obj)
+#define IGC_RETAG(type, untagged) TAG_PTR_INITIALLY (type, untagged)
 
+#define IGC_TAG_MASK	(~ VALMASK)
+#define IGC_VALUE_MASK	VALMASK
 
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
@@ -285,7 +288,7 @@ make_ambig_root (struct igc *gc, void *start, void *end)
 				   start,
 				   end,
 				   mps_scan_area_masked,
-				   ~VALMASK,
+				   IGC_TAG_MASK,
 				   0);
   IGC_CHECK_RES (res);
   return root;
@@ -439,7 +442,7 @@ add_thread_root (struct igc_thread_list *t)
      /* Docs of mps_scan_area_masked.  The mask and pattern are passed
 	to the scan function via its closure argument.  The mask is for
 	the tag bits, not to get the value without tag bits.  */
-     ~VALMASK,
+     IGC_TAG_MASK,
      /* The pattern is unused by mps_scan_area_masked.  */
      0,
      t->d.cold);
@@ -649,45 +652,27 @@ add_main_thread (void)
 				Scanning
  ***********************************************************************/
 
-/* Fix a Lisp_Object at *P.  This function assumes that it known that
-   P points to a Lisp_Object.  */
+/* Fix a potential Lisp_Object at *P.  */
 
-static mps_res_t
-fix_lisp_obj (mps_ss_t ss, Lisp_Object *p)
-{
-  if (IGC_FIXNUMP (*p))
-    return MPS_RES_OK;
-
-  MPS_SCAN_BEGIN (ss)
-    {
-      mps_addr_t untagged = IGC_XPNTR (*p);
-      if (MPS_FIX1 (ss, untagged))
-	{
-	  mps_res_t res = MPS_FIX2 (ss, &untagged);
-	  if (res != MPS_RES_OK)
-	    return res;
-	  enum Lisp_Type type = IGC_XTYPE (*p);
-	  Lisp_Object new_obj = IGC_MAKE_LISP_OBJ (type, untagged);
-	  /* For now (nothing moving) the result should be the same
-	     before and after fix2.  */
-	  IGC_ASSERT (*p == new_obj);
-	  *p = new_obj;
-	}
-    }
-  MPS_SCAN_END (ss);
-
-  return MPS_RES_OK;
-}
-
-#define IGC_FIX_LISP_OBJ(ss, p)				\
-  do							\
-    {							\
-      mps_res_t res;					\
-      MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, p));	\
-      if (res != MPS_RES_OK)				\
-	return res;					\
-    }							\
-  while (0)
+#define IGC_FIX_LISP_OBJ(ss, p)						\
+  do									\
+    {									\
+      enum Lisp_Type type = IGC_XTYPE (*(p));				\
+      if (type != Lisp_Int0 && type != Lisp_Int1 && type != Lisp_Symbol) \
+	{								\
+	  mps_addr_t untagged = IGC_XPNTR (*(p));			\
+	  if (MPS_FIX1 (ss, untagged))					\
+	    {								\
+	      mps_res_t res = MPS_FIX2 (ss, &untagged);			\
+	      if (res != MPS_RES_OK)					\
+		return res;						\
+	      Lisp_Object new_obj = IGC_RETAG (type, untagged);		\
+	      IGC_ASSERT (*(p) == new_obj);				\
+	      *(p) = new_obj;						\
+	    }								\
+	}								\
+    }									\
+   while (0)
 
 /* Horrible shit to avoid unused variable warnings.  */
 
@@ -821,35 +806,8 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (cons) || is_padding (cons))
 	    continue;
 
-	  Lisp_Object car = cons->u.s.car;
-	  if (!IGC_FIXNUMP (car))
-	    {
-	      mps_addr_t untagged = IGC_XPNTR (car);
-	      if (MPS_FIX1 (ss, untagged))
-		{
-		  mps_res_t res = MPS_FIX2 (ss, &untagged);
-		  if (res != MPS_RES_OK)
-		    return res;
-		  enum Lisp_Type type = IGC_XTYPE (car);
-		  car = IGC_MAKE_LISP_OBJ (type, untagged);
-		  cons->u.s.car = car;
-		}
-	    }
-
-	  Lisp_Object cdr = cons->u.s.u.cdr;
-	  if (!IGC_FIXNUMP (cdr))
-	    {
-	      mps_addr_t untagged = IGC_XPNTR (cdr);
-	      if (MPS_FIX1 (ss, untagged))
-		{
-		  mps_res_t res = MPS_FIX2 (ss, &untagged);
-		  if (res != MPS_RES_OK)
-		    return res;
-		  enum Lisp_Type type = IGC_XTYPE (cdr);
-		  cdr = IGC_MAKE_LISP_OBJ (type, untagged);
-		  cons->u.s.u.cdr = cdr;
-		}
-	    }
+	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.car);
+	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
 	}
     }
   MPS_SCAN_END (ss);
@@ -902,7 +860,7 @@ visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
   if (IGC_FIXNUMP (obj))
     return;
 
-  mps_addr_t ref = IGC_XPNTR (obj);
+  mps_addr_t ref = (mps_addr_t) IGC_UNTAG (obj);
   if (!mps_arena_has_addr (global_igc->arena, ref))
     {
       walk->fun (obj);
