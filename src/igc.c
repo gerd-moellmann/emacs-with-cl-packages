@@ -1068,11 +1068,6 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
     }
   while (!mps_commit (ap, p, size));
 
-  if (p == (mps_addr_t) 0x000000017735fe68)
-    igc_break ();
-
-  IGC_ASSERT_ALIGNED (p);
-
   return make_lisp_ptr (p, Lisp_Cons);
 }
 

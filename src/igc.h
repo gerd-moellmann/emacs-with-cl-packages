@@ -12,8 +12,8 @@
 #define IGC_MANAGE_CONS 1
 
 /* If defined, use a debug AMS pool, and check fenceposts etc.
-   See MPS docs.  */
-#define IGC_DEBUG_POOL 1
+   See MPS docs.  Can be slow.  */
+//#define IGC_DEBUG_POOL 1
 
 void igc_break (void);
 void init_igc (void);
