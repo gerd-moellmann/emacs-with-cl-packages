@@ -854,22 +854,30 @@ struct igc_walk
   int count;
 };
 
+/* Visit Lisp_Object contained in a cons.  */
+
 static void
 visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
 {
-  if (IGC_FIXNUMP (obj))
-    return;
-
-  mps_addr_t ref = (mps_addr_t) IGC_UNTAG (obj);
-  if (!mps_arena_has_addr (global_igc->arena, ref))
+  enum Lisp_Type type = IGC_XTYPE (obj);
+  switch (type)
     {
+    case Lisp_Int0:
+    case Lisp_Int1:
+      break;
+
+    case Lisp_Cons:
+      return;
+
+    default:
       walk->fun (obj);
       ++walk->count;
+      break;
     }
 }
 
 static mps_res_t
-cons_scan_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
+walk_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 		void *closure)
 {
   struct igc_walk *walk = closure;
@@ -890,7 +898,7 @@ mark_old_gc_objects (struct igc *gc)
   IGC_WITH_PARKED (gc)
     {
       struct igc_walk walk = { .fun = mark_object };
-      mps_pool_walk (gc->cons_pool, cons_scan_area, &walk);
+      mps_pool_walk (gc->cons_pool, walk_cons_area, &walk);
     }
 }
 
@@ -902,33 +910,6 @@ igc_on_old_gc (void)
 {
   mark_old_gc_objects (global_igc);
 }
-
-#ifdef IGC_DEBUG
-
-static void
-check_cons (Lisp_Object obj)
-{
-  if (STRINGP (obj))
-    {
-      struct Lisp_String *ptr = XSTRING (obj);
-      IGC_ASSERT (ptr != NULL);
-    }
-}
-
-
-void igc_debug_conses (struct igc *gc);
-
-void
-igc_debug_conses (struct igc *gc)
-{
-  IGC_WITH_PARKED (gc)
-    {
-      struct igc_walk walk = { .fun = check_cons };
-      mps_pool_walk (gc->cons_pool, cons_scan_area, &walk);
-    }
-}
-
-#endif
 
 /***********************************************************************
 				Finalization
