@@ -479,7 +479,9 @@ static void set_interval_marked (INTERVAL);
 enum mem_type
 {
   MEM_TYPE_NON_LISP,
+#ifndef IGC_MANAGE_CONS
   MEM_TYPE_CONS,
+#endif
   MEM_TYPE_STRING,
   MEM_TYPE_SYMBOL,
   MEM_TYPE_FLOAT,
@@ -2838,13 +2840,13 @@ struct cons_block
 
 enum { memory_full_cons_threshold = sizeof (struct cons_block) };
 
+
+#ifndef IGC_MANAGE_CONS
 /* Current cons_block.  */
-
 static struct cons_block *cons_block;
-
 /* Index of first unused Lisp_Cons in the current block.  */
-
 static int cons_block_index = CONS_BLOCK_SIZE;
+#endif
 
 /* Free-list of Lisp_Cons structures.  */
 
@@ -4974,6 +4976,8 @@ live_string_p (struct mem_node *m, void *p)
   return live_string_holding (m, p) == p;
 }
 
+#ifndef IGC_MANAGE_CONS
+
 /* If P is a pointer into a live Lisp cons object on the heap, return
    the object's address.  Otherwise, return NULL.  M points to the
    mem_block for P.  */
@@ -5021,6 +5025,7 @@ live_cons_p (struct mem_node *m, void *p)
   return live_cons_holding (m, p) == p;
 }
 
+#endif // !IGC_MANAGE_CONS
 
 /* If P is a pointer into a live Lisp symbol object on the heap,
    return the object's address.  Otherwise, return NULL.  M points to the
@@ -5262,6 +5267,7 @@ mark_maybe_pointer (void *p, bool symbol_only)
 	  /* Nothing to do; not a pointer to Lisp memory.  */
 	  return;
 
+#ifndef IGC_MANAGE_CONS
 	case MEM_TYPE_CONS:
 	  {
 	    if (symbol_only)
@@ -5272,6 +5278,7 @@ mark_maybe_pointer (void *p, bool symbol_only)
 	    obj = make_lisp_ptr (h, Lisp_Cons);
 	  }
 	  break;
+#endif
 
 	case MEM_TYPE_STRING:
 	  {
@@ -5668,6 +5675,11 @@ valid_lisp_object_p (Lisp_Object obj)
   if (pdumper_object_p (p))
     return pdumper_object_p_precise (p) ? 1 : 0;
 
+#ifdef IGC_MANAGE_CONS
+  if (CONSP (obj))
+    return 666;
+#endif
+
   struct mem_node *m = mem_find (p);
 
   if (m == MEM_NIL)
@@ -5689,8 +5701,10 @@ valid_lisp_object_p (Lisp_Object obj)
     case MEM_TYPE_SPARE:
       return 0;
 
+#ifndef IGC_MANAGE_CONS
     case MEM_TYPE_CONS:
       return live_cons_p (m, p);
+#endif
 
     case MEM_TYPE_STRING:
       return live_string_p (m, p);
