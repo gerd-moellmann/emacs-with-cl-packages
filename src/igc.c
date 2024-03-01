@@ -649,7 +649,8 @@ add_main_thread (void)
 				Scanning
  ***********************************************************************/
 
-/* Fix a Lisp_Object at *P.  SS ist the MPS scan state.  */
+/* Fix a Lisp_Object at *P.  This function assumes that it known that
+   P points to a Lisp_Object.  */
 
 static mps_res_t
 fix_lisp_obj (mps_ss_t ss, Lisp_Object *p)
@@ -665,10 +666,12 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *p)
 	  mps_res_t res = MPS_FIX2 (ss, &untagged);
 	  if (res != MPS_RES_OK)
 	    return res;
-	  // FIXME: What does this do if we are scanning an ambigous
-	  // root?
 	  enum Lisp_Type type = IGC_XTYPE (*p);
-	  *p = IGC_MAKE_LISP_OBJ (type, untagged);
+	  Lisp_Object new_obj = IGC_MAKE_LISP_OBJ (type, untagged);
+	  /* For now (nothing moving) the result should be the same
+	     before and after fix2.  */
+	  IGC_ASSERT (*p == new_obj);
+	  *p = new_obj;
 	}
     }
   MPS_SCAN_END (ss);
