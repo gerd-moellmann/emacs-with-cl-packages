@@ -5522,7 +5522,6 @@ if test "${with_mps}" != "no"; then
     else
       LIBMPS=-lmps
     fi
-    LIBMPS=-lmps-debug
   fi
 fi
 AC_SUBST([LIBMPS])
