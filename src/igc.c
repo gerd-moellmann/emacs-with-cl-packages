@@ -688,20 +688,6 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *p)
 
 /* Horrible shit to avoid unused variable warnings.  */
 
-// #pragma GCC diagnostic push
-// #pragma GCC diagnostic ignored "-Wpadded"
-// #pragma GCC diagnostic pop
-
-#define IGC_SCAN_BEGIN(ss)			\
-  {						\
-    MPS_SCAN_BEGIN (ss)				\
-    (void) _mps_zs;				\
-    (void) _mps_ufs;				\
-    (void) _mps_w;				\
-    (void) _mps_wt;
-
-#define IGC_SCAN_END(ss)	MPS_SCAN_END (ss); }
-
 static int fwdsig;
 #define IGC_FWDSIG ((mps_addr_t) &fwdsig)
 
@@ -757,12 +743,16 @@ is_padding (mps_addr_t addr)
   return p->sig == IGC_PADSIG;
 }
 
+/* These may come from MPS_SCAN_BEGIN / END.  */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+
 /* Scan a vector of glyph_rows.  */
 
 static mps_res_t
 scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  IGC_SCAN_BEGIN (ss)
+  MPS_SCAN_BEGIN (ss)
     {
       for (struct glyph_row *row = start; row < (struct glyph_row *) end; ++row)
 	{
@@ -772,14 +762,14 @@ scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 	    IGC_FIX_LISP_OBJ (ss, &glyph->object);
 	}
     }
-  IGC_SCAN_END (ss);
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
 static mps_res_t
 scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  IGC_SCAN_BEGIN (ss)
+  MPS_SCAN_BEGIN (ss)
   {
     for (struct face **p = start; p < (struct face **) end; ++p)
       if (*p)
@@ -789,7 +779,7 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 	    IGC_FIX_LISP_OBJ (ss, &face->lface[i]);
 	}
   }
-  IGC_SCAN_END (ss);
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -799,7 +789,7 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  IGC_SCAN_BEGIN (ss)
+  MPS_SCAN_BEGIN (ss)
     {
       /* I don't want to rely on staticidx ATM. Instead, ignore NULL
 	 entries.  */
@@ -807,9 +797,11 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 	if (*p)
 	  IGC_FIX_LISP_OBJ (ss, *p);
     }
-  IGC_SCAN_END (ss);
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
+
+#pragma GCC diagnostic pop
 
 /* Scan a Lisp_Cons.  Must be able to handle padding and forwaring
    objects. */
