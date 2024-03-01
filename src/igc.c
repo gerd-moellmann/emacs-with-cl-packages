@@ -285,7 +285,7 @@ make_ambig_root (struct igc *gc, void *start, void *end)
 				   start,
 				   end,
 				   mps_scan_area_masked,
-				   VALMASK,
+				   ~VALMASK,
 				   0);
   IGC_CHECK_RES (res);
   return root;
@@ -429,16 +429,20 @@ add_thread_root (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   mps_root_t root;
-  mps_res_t res
-    = mps_root_create_thread_tagged (&root,
-				     gc->arena,
-				     mps_rank_ambig (),
-				     0,
-				     t->d.thr,
-				     mps_scan_area_masked,
-				     VALMASK,
-				     0,
-				     t->d.cold);
+  mps_res_t res = mps_root_create_thread_tagged
+    (&root,
+     gc->arena,
+     mps_rank_ambig (),
+     0,
+     t->d.thr,
+     mps_scan_area_masked,
+     /* Docs of mps_scan_area_masked.  The mask and pattern are passed
+	to the scan function via its closure argument.  The mask is for
+	the tag bits, not to get the value without tag bits.  */
+     ~VALMASK,
+     /* The pattern is unused by mps_scan_area_masked.  */
+     0,
+     t->d.cold);
   IGC_CHECK_RES (res);
   register_root (gc, root, t->d.cold, NULL);
 }
@@ -1063,6 +1067,9 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
       cons->u.s.u.cdr = cdr;
     }
   while (!mps_commit (ap, p, size));
+
+  if (p == (mps_addr_t) 0x000000017735fe68)
+    igc_break ();
 
   IGC_ASSERT_ALIGNED (p);
 
