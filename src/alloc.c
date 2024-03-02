@@ -128,7 +128,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    marked objects.  */
 
 #if (defined SYSTEM_MALLOC || defined DOUG_LEA_MALLOC \
-     || defined HYBRID_MALLOC || GC_CHECK_MARKED_OBJECTS)
+     || defined HYBRID_MALLOC || GC_CHECK_MARKED_OBJECTS \
+     || defined HAVE_MPS)
 #undef GC_MALLOC_CHECK
 #endif
 
@@ -2841,18 +2842,16 @@ struct cons_block
 enum { memory_full_cons_threshold = sizeof (struct cons_block) };
 
 
-#ifndef IGC_MANAGE_CONS
 /* Current cons_block.  */
+#ifndef IGC_MANAGE_CONS
 static struct cons_block *cons_block;
+
 /* Index of first unused Lisp_Cons in the current block.  */
 static int cons_block_index = CONS_BLOCK_SIZE;
-#endif
 
 /* Free-list of Lisp_Cons structures.  */
-
-#ifndef IGC_MANAGE_CONS
 static struct Lisp_Cons *cons_free_list;
-#endif
+#endif // !IGC_MANAGE_CONS
 
 #if GC_ASAN_POISON_OBJECTS
 # define ASAN_POISON_CONS_BLOCK(b) \
@@ -2886,11 +2885,11 @@ DEFUN ("cons", Fcons, Scons, 2, 2, 0,
        doc: /* Create a new cons, give it CAR and CDR as components, and return it.  */)
   (Lisp_Object car, Lisp_Object cdr)
 {
+#ifdef IGC_MANAGE_CONS
+  return igc_make_cons (car, cdr);
+#else
   register Lisp_Object val;
 
-#ifdef IGC_MANAGE_CONS
-  val = igc_make_cons (car, cdr);
-#else
   MALLOC_BLOCK_INPUT;
 
   if (cons_free_list)
@@ -2924,9 +2923,9 @@ DEFUN ("cons", Fcons, Scons, 2, 2, 0,
   consing_until_gc -= sizeof (struct Lisp_Cons);
   cons_cells_consed++;
 
-#endif // !IGC_MANAGE_CONS
 
   return val;
+#endif // !IGC_MANAGE_CONS
 }
 
 /* Make a list of 1, 2, 3, 4 or 5 specified objects.  */
@@ -3638,9 +3637,6 @@ sweep_vectors (void)
 	}
       else
 	{
-#ifdef IGC_MANAGE_CONS
-	  igc_on_free (lv);
-#endif
 	  *lvprev = lv->next;
 	  lisp_free (lv);
 	}
@@ -3687,9 +3683,6 @@ allocate_vectorlike (ptrdiff_t len, bool clearit)
       struct large_vector *lv
 	= lisp_malloc (large_vector_offset + nbytes, clearit,
 		       MEM_TYPE_VECTORLIKE);
-#ifdef IGC_MANAGE_CONS
-      igc_on_malloc (lv, large_vector_offset + nbytes);
-#endif
       lv->next = large_vectors;
       large_vectors = lv;
       p = large_vector_vec (lv);
@@ -5739,9 +5732,6 @@ hash_table_alloc_bytes (ptrdiff_t nbytes)
   tally_consing (nbytes);
   hash_table_allocated_bytes += nbytes;
   void *p = xmalloc (nbytes);
-#ifdef IGC_MANAGE_CONS
-  igc_on_malloc (p, nbytes);
-#endif
   return p;
 }
 
@@ -5751,9 +5741,6 @@ hash_table_free_bytes (void *p, ptrdiff_t nbytes)
 {
   tally_consing (-nbytes);
   hash_table_allocated_bytes -= nbytes;
-#ifdef IGC_MANAGE_CONS
-  igc_on_free (p);
-#endif
   xfree (p);
 }
 
@@ -7492,11 +7479,11 @@ survives_gc_p (Lisp_Object obj)
 
 
 
+#ifndef IGC_MANAGE_CONS
 NO_INLINE /* For better stack traces */
 static void
 sweep_conses (void)
 {
-#ifndef IGC_MANAGE_CONS
   struct cons_block **cprev = &cons_block;
   int lim = cons_block_index;
   object_ct num_free = 0, num_used = 0;
@@ -7571,8 +7558,8 @@ sweep_conses (void)
     }
   gcstat.total_conses = num_used;
   gcstat.total_free_conses = num_free;
-#endif // !IGC_MANAGE_CONS
 }
+#endif // !IGC_MANAGE_CONS
 
 NO_INLINE /* For better stack traces */
 static void
@@ -7790,7 +7777,9 @@ gc_sweep (void)
 {
   sweep_strings ();
   check_string_bytes (!noninteractive);
+#ifndef IGC_MANAGE_CONS
   sweep_conses ();
+#endif
   sweep_floats ();
   sweep_intervals ();
   sweep_symbols ();

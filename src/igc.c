@@ -314,25 +314,25 @@ igc_on_mem_delete (void *info)
   remove_root ((struct igc_root_list *) info);
 }
 
-/* Memory starting at P with size SIZE has been allocated that is
-   interesting for MPS.  */
-void
-igc_on_malloc (void *p, size_t size)
+void *
+igc_xalloc_ambig_root (size_t size)
 {
-  void *end = (char *) p + size;
-  mps_root_t root = make_ambig_root (global_igc, p, end);
-  register_root (global_igc, root, p, end);
+  char *start = xzalloc (size);
+  char *end = start + size;
+  mps_root_t root = make_ambig_root (global_igc, start, end);
+  register_root (global_igc, root, start, end);
+  return start;
 }
 
 void
-igc_on_free (void *p)
+igc_xfree_ambig_root (void *p)
 {
-  if (p)
-    {
-      struct igc_root_list *r = find_root_with_start (global_igc, p);
-      IGC_ASSERT (r != NULL);
-      remove_root (r);
-    }
+  if (p == NULL)
+    return;
+
+  struct igc_root_list *r = find_root_with_start (global_igc, p);
+  IGC_ASSERT (r != NULL);
+  remove_root (r);
 }
 
 /* Add a root for staticvec to GC.  */
