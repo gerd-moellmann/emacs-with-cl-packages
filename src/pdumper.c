@@ -4110,9 +4110,10 @@ types.  */)
   // wanted to wait when collection is not inhibited.  This might be the
   // fault of AMS, which is not ready for production according to MPS docs.
   specpdl_ref count = igc_inhibit_garbage_collection ();
-#else
+# else
   specpdl_ref count = SPECPDL_INDEX ();
 # endif
+  Lisp_Object start_time = Ffloat_time (Qnil);
 
   /* Bind `command-line-processed' to nil before dumping,
      so that the dumped Emacs will process its command line
@@ -4340,19 +4341,21 @@ types.  */)
   ctx->buf_size = 0;
   ctx->max_offset = 0;
 
+  Lisp_Object end_time = Ffloat_time (Qnil);
   dump_off
     header_bytes = header_end - header_start,
     hot_bytes = hot_end - hot_start,
     discardable_bytes = discardable_end - ctx->header.discardable_start,
     cold_bytes = cold_end - ctx->header.cold_start;
   fprintf (stderr,
-	   ("Dump complete\n"
-	    "Byte counts: header=%"PRIdDUMP_OFF" hot=%"PRIdDUMP_OFF
-	    " discardable=%"PRIdDUMP_OFF" cold=%"PRIdDUMP_OFF"\n"
-	    "Reloc counts: hot=%"PRIdDUMP_OFF" discardable=%"PRIdDUMP_OFF"\n"),
+	   ("Dump complete (%.2f seconds)\n"
+	    "Byte counts: header=%" PRIdDUMP_OFF " hot=%" PRIdDUMP_OFF
+	    " discardable=%" PRIdDUMP_OFF " cold=%" PRIdDUMP_OFF "\n"
+	    "Reloc counts: hot=%" PRIdDUMP_OFF
+	    " discardable=%" PRIdDUMP_OFF "\n"),
+	   XFLOAT_DATA (end_time) - XFLOAT_DATA (start_time),
 	   header_bytes, hot_bytes, discardable_bytes, cold_bytes,
-           number_hot_relocations,
-           number_discardable_relocations);
+	   number_hot_relocations, number_discardable_relocations);
 
   unblock_input ();
   return unbind_to (count, Qnil);
