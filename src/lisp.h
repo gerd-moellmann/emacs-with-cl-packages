@@ -4885,6 +4885,9 @@ XMODULE_FUNCTION (Lisp_Object o)
 typedef void (*module_funcptr) (void);
 
 /* Defined in alloc.c.  */
+void set_string_marked (struct Lisp_String *s);
+void mark_interval_tree (INTERVAL i);
+
 extern Lisp_Object make_user_ptr (void (*finalizer) (void *), void *p);
 
 /* Defined in emacs-module.c.  */

@@ -71,6 +71,7 @@ registered with mem_insert.
 #include "pdumper.h"
 #include "dispextern.h"
 #include "igc.h"
+#include "puresize.h"
 
 /* For simplicity, I don't suport some stuff.  Should maybe done in
    configure.ac.  */
@@ -903,10 +904,9 @@ struct igc_walk
 /* Visit Lisp_Object contained in a cons.  */
 
 static void
-visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
+mark_old_object (Lisp_Object obj)
 {
-  mps_word_t word = (mps_word_t) obj;
-  switch (word & IGC_TAG_MASK)
+  switch (XTYPE (obj))
     {
       /* No need to mark_object.  */
     case Lisp_Int0:
@@ -919,64 +919,87 @@ visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
       return;
 
     default:
-      walk->fun (obj);
-      ++walk->count;
+      mark_object (obj);
       break;
     }
 }
 
 static mps_res_t
-walk_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
+mark_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 		void *closure)
 {
-  struct igc_walk *walk = closure;
   for (struct Lisp_Cons *p = base; p < (struct Lisp_Cons *) limit; ++p)
     {
-      visit_lisp_obj (p->u.s.car, walk);
-      visit_lisp_obj (p->u.s.u.cdr, walk);
+      mark_old_object (p->u.s.car);
+      mark_old_object (p->u.s.u.cdr);
     }
 
   return MPS_RES_OK;
 }
 
 static mps_res_t
-walk_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
+mark_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 		  void *closure)
 {
-  struct igc_walk *walk = closure;
   for (struct Lisp_Symbol *p = base; p < (struct Lisp_Symbol *) limit; ++p)
     {
-      visit_lisp_obj (p->u.s.name, walk);
-      if (p->u.s.redirect == SYMBOL_PLAINVAL)
-	visit_lisp_obj (p->u.s.val.value, walk);
-      visit_lisp_obj (p->u.s.function, walk);
-      visit_lisp_obj (p->u.s.plist, walk);
-      visit_lisp_obj (p->u.s.package, walk);
+      mark_old_object (p->u.s.name);
+
+      switch (p->u.s.redirect)
+	{
+	case SYMBOL_PLAINVAL:
+	  mark_old_object (p->u.s.val.value);
+	  break;
+	case SYMBOL_VARALIAS:
+	  {
+	    Lisp_Object tem;
+	    XSETSYMBOL (tem, SYMBOL_ALIAS (p));
+	    mark_old_object (tem);
+	    break;
+	  }
+	case SYMBOL_LOCALIZED:
+	  {
+	    struct Lisp_Buffer_Local_Value *blv = SYMBOL_BLV (p);
+	    Lisp_Object where = blv->where;
+	    /* If the value is set up for a killed buffer,
+	       restore its global binding.  */
+	    if (BUFFERP (where) && !BUFFER_LIVE_P (XBUFFER (where)))
+	      swap_in_global_binding (p);
+	    mark_old_object (blv->where);
+	    mark_old_object (blv->valcell);
+	    mark_old_object (blv->defcell);
+	  }
+	  break;
+	case SYMBOL_FORWARDED:
+	  /* If the value is forwarded to a buffer or keyboard field,
+	     these are marked when we see the corresponding object.
+	     And if it's forwarded to a C variable, either it's not
+	     a Lisp_Object var, or it's staticpro'd already.  */
+	  break;
+	default:
+	  emacs_abort ();
+	}
+      if (!PURE_P (XSTRING (p->u.s.name)))
+	set_string_marked (XSTRING (p->u.s.name));
+      mark_interval_tree (string_intervals (p->u.s.name));
+
+      mark_old_object (p->u.s.function);
+      mark_old_object (p->u.s.plist);
+      mark_old_object (p->u.s.package);
     }
 
   return MPS_RES_OK;
 }
 
-/* */
-
-static void
-mark_old_gc_objects (struct igc *gc)
+void
+igc_mark_old_objects_referenced_from_pools (void)
 {
+  struct igc *gc = global_igc;
   IGC_WITH_PARKED (gc)
     {
-      struct igc_walk walk = { .fun = mark_object };
-      mps_pool_walk (gc->cons_pool, walk_cons_area, &walk);
-      mps_pool_walk (gc->symbol_pool, walk_symbol_area, &walk);
+      mps_pool_walk (gc->cons_pool, mark_cons_area, NULL);
+      mps_pool_walk (gc->symbol_pool, mark_symbol_area, NULL);
     }
-}
-
-/* Called when the old GC runs.  Mark objects managed by the old GC
-   which are referenced from MPS objects.  */
-
-void
-igc_on_old_gc (void)
-{
-  mark_old_gc_objects (global_igc);
 }
 
 /***********************************************************************

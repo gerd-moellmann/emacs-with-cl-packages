@@ -1542,7 +1542,7 @@ mark_interval_tree_1 (INTERVAL i, void *dummy)
 
 /* Mark the interval tree rooted in I.  */
 
-static void
+void
 mark_interval_tree (INTERVAL i)
 {
   if (i && !interval_marked_p (i))
@@ -4395,7 +4395,7 @@ string_marked_p (const struct Lisp_String *s)
     : XSTRING_MARKED_P (s);
 }
 
-static void
+void
 set_string_marked (struct Lisp_String *s)
 {
   if (pdumper_object_p (s))
@@ -6540,7 +6540,7 @@ garbage_collect (void)
   mark_pgtkterm ();
 #endif
 #ifdef HAVE_MPS
-  igc_on_old_gc ();
+  igc_mark_old_objects_referenced_from_pools ();
 #endif
 #ifdef USE_GTK
   xg_mark_data ();
@@ -7129,7 +7129,9 @@ process_mark_stack (ptrdiff_t base_sp)
     {
       Lisp_Object obj = mark_stack_pop ();
 
+#ifndef IGC_MANAGE_CONS
     mark_obj:;
+#endif
 
       void *po = XPNTR (obj);
       if (PURE_P (po))
@@ -7323,14 +7325,16 @@ process_mark_stack (ptrdiff_t base_sp)
 	  break;
 
 	case Lisp_Symbol:
+#ifdef IGC_MANAGE_SYMBOLS
+	  break;
+#else
 	  {
 	    struct Lisp_Symbol *ptr = XBARE_SYMBOL (obj);
-#ifndef IGC_MANAGE_SYMBOLS
 	    if (symbol_marked_p (ptr))
 	      break;
 	    CHECK_ALLOCATED_AND_LIVE_SYMBOL ();
 	    set_symbol_marked (ptr);
-#endif
+
 	    /* Attempt to catch bogus objects.  */
 	    eassert (valid_lisp_object_p (ptr->u.s.function));
 	    mark_stack_push_value (ptr->u.s.function);
@@ -7376,16 +7380,18 @@ process_mark_stack (ptrdiff_t base_sp)
 	    /* Inner loop to mark next symbol in this bucket, if any.  */
 	  }
 	  break;
+#endif
 
 	case Lisp_Cons:
+#ifdef IGC_MANAGE_CONS
+	  break;
+#else
 	  {
 	    struct Lisp_Cons *ptr = XCONS (obj);
-#ifndef IGC_MANAGE_CONS
 	    if (cons_marked_p (ptr))
 	      break;
 	    CHECK_ALLOCATED_AND_LIVE (live_cons_p, MEM_TYPE_CONS);
 	    set_cons_marked (ptr);
-#endif
 	    /* Avoid growing the stack if the cdr is nil.
 	       In any case, make sure the car is expanded first.  */
 	    if (!NILP (ptr->u.s.u.cdr))
@@ -7401,6 +7407,7 @@ process_mark_stack (ptrdiff_t base_sp)
 	    obj = ptr->u.s.car;
 	    goto mark_obj;
 	  }
+#endif
 
 	case Lisp_Float:
 	  {
