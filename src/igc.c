@@ -853,7 +853,9 @@ visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
     {
     case Lisp_Int0:
     case Lisp_Int1:
+#ifdef IGC_MANAGE_CONS
     case Lisp_Cons:
+#endif
       return;
 
     default:
