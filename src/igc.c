@@ -18,36 +18,19 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
-/* Todo:
-
-   + create area root, area scanner
-   + staticpro roots
-   + built-in symbols root
-   + buffer-locals roots
+/*
    + specpdl
    + pdumper
    + intervals, overlays
-   + run MPS tests
-   + --enable-checking
    + mark_lread
    + marl_window
    + alloc conses
 
-   - dump_context
-
-   I think this is handled by scanning what mem_insert has, since
-   intervals and overlays are allocated from blocks that are
-registered with mem_insert.
-   + thread roots (control stack), main thread
-   + thread-local allocation points
    + mps_arena_step, idle time.
    + face cache
    + glyph matrices
-   + HAVE_TEXT_CONVERSION - can't do it
-   - complete cons_skip etc.
 
    - telemetry
-   - symbols, strings etc
    - emacs_abort -> something nicer
 
 */
@@ -55,8 +38,6 @@ registered with mem_insert.
 // clang-format off
 
 #include <config.h>
-#include <stdbool.h>
-#include <stdint.h>
 
 #ifdef HAVE_MPS
 
@@ -73,9 +54,6 @@ registered with mem_insert.
 #include "igc.h"
 #include "puresize.h"
 
-/* For simplicity, I don't suport some stuff.  Should maybe done in
-   configure.ac.  */
-
 #ifndef USE_LSB_TAG
 #error "USE_LSB_TAG required"
 #endif
@@ -87,10 +65,8 @@ registered with mem_insert.
 #endif
 
 /* Frames have stuff for text conversion which contains Lisp_Objects, so
-   this must be scanned/fixed for MPS, and must be some form of root in
-   a mixed GC, so that scanning the Lisp_Objects woiuld prevent moving
-   them in memory.  MacOS doesn't HAVE_TEXT_CONVERSION, so that I can't
-   do this.  */
+   this must be some form of root.  MacOS doesn't HAVE_TEXT_CONVERSION,
+   so that I left this out.  */
 
 #ifdef HAVE_TEXT_CONVERSION
 #error "HAVE_TEXT_CONVERSION not supported"
@@ -110,30 +86,19 @@ registered with mem_insert.
 #endif
 
 #ifdef IGC_DEBUG
-#define IGC_ASSERT(expr)      if (!(expr)) emacs_abort (); else
-#define IGC_ASSERT_ALIGNED(p) IGC_ASSERT ((uintptr_t) (p) % GCALIGNMENT == 0)
+#define IGC_ASSERT(expr) if (!(expr)) emacs_abort (); else
 #else
-#define IGC_ASSERT(expr)
-#define IGC_ASSERT_ALIGNED(p)
+#define IGC_ASSERT(expr) (void) 9
 #endif
 
-/* In MPS scan functions it is not easy to call C functions (see the MPS
-   documentation).  Rather than taking the risk of using functions from
-   lisp.h, which may may not be inlined, I'm therfore using macros. I
-   assume that Lisp_Objects are EMACS_INTs, and we are using the 3
-   lowest bits for tags, for simplicity.  */
-
-#define IGC_TAG_MASK	(~ VALMASK)
-
-#define IGC_TAG(x) ((mps_word_t) (x) & IGC_TAG_MASK)
-#define IGC_VAL(x) ((mps_word_t) (x) & ~IGC_TAG_MASK)
+#define IGC_TAG_MASK (~ VALMASK)
 
 static mps_res_t scan_area_ambig (mps_ss_t ss, void *start,
 				  void *end, void *closure);
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
 static mps_res_t scan_faces_by_id (mps_ss_t ss, void *start, void *end,
-				    void *closure);
+				   void *closure);
 static mps_res_t scan_glyph_rows (mps_ss_t ss, void *start, void *end,
 				  void *closure);
 
@@ -184,40 +149,49 @@ static mps_res_t scan_glyph_rows (mps_ss_t ss, void *start, void *end,
     xfree (r);						\
   }
 
+/* A MPS root that we created. */
+
 struct igc_root
 {
-  struct igc *gc;
-  mps_root_t root;
-  void *start, *end;
+  struct igc *gc;		/* Back pointer  */
+  mps_root_t root;		/* MPS root */
+  void *start, *end;		/* Mempry covered  */
 };
 
 typedef struct igc_root igc_root;
 IGC_DEFINE_LIST (igc_root);
 
+/* An MPS thread we registered.  */
+
 struct igc_thread
 {
-  struct igc *gc;
-  mps_thr_t thr;
-  void *cold;
-  struct igc_root_list *specpdl_root;
-  mps_ap_t cons_ap, symbol_ap;
+  struct igc *gc;		      /* Back pointer */
+  mps_thr_t thr;		      /* MPS thread */
+  void *cold;			      /* Stack start */
+  struct igc_root_list *specpdl_root; /* root for specpdl */
+  mps_ap_t cons_ap, symbol_ap;	      /* allocaton points */
 };
 
 typedef struct igc_thread igc_thread;
 IGC_DEFINE_LIST (igc_thread);
 
+/* Registry for MPS objects.  */
+
 struct igc
 {
-  mps_arena_t arena;
-  mps_chain_t chain;
-  mps_pool_t cons_pool;
-  mps_fmt_t cons_fmt;
-  mps_pool_t symbol_pool;
-  mps_fmt_t symbol_fmt;
+  mps_arena_t arena;		/* Arena */
+  mps_chain_t chain;		/* Generations */
+  mps_pool_t cons_pool;		/* Pool for conses */
+  mps_fmt_t cons_fmt;		/* Object format for conses */
+  mps_pool_t symbol_pool;	/* Pool for symbols */
+  mps_fmt_t symbol_fmt;		/* Object form for symbols */
+
+  /* List of roots and threadscreated.  */
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
 
+/* Global MPS object registry.  */
 static struct igc *global_igc;
 
 
@@ -234,6 +208,8 @@ register_root (struct igc *gc, mps_root_t root, void *start, void *end)
   struct igc_root r = { .gc = gc, .root = root, .start = start, .end = end };
   return igc_root_list_push (&gc->roots, &r);
 }
+
+/* Find a root with a given start address START.  */
 
 static igc_root_list *
 find_root_with_start (struct igc *gc, void *start)
@@ -964,16 +940,10 @@ symbol_pad (mps_addr_t addr, size_t size)
 
 
 /***********************************************************************
-				Walking
- ***********************************************************************/
+		  Mark objects referenced from MPS
+***********************************************************************/
 
-struct igc_walk
-{
-  void (* fun) (Lisp_Object);
-  int count;
-};
-
-/* Visit Lisp_Object contained in a cons.  */
+/* Call mark_object on OBJ if it is managed by old GC.  */
 
 static void
 mark_old_object (Lisp_Object obj)
@@ -985,16 +955,18 @@ mark_old_object (Lisp_Object obj)
     case Lisp_Int1:
       break;
 
-      /* Not mamanged by old GC.  */
+      /* Managed by us.  */
     case Lisp_Cons:
     case Lisp_Symbol:
-      return;
+      break;
 
     default:
       mark_object (obj);
       break;
     }
 }
+
+/* Walk over an area in the cons pool.  */
 
 static mps_res_t
 mark_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
@@ -1008,6 +980,8 @@ mark_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 
   return MPS_RES_OK;
 }
+
+/* Walk over an area in the symbol pool.  */
 
 static mps_res_t
 mark_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
@@ -1051,10 +1025,10 @@ mark_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 	default:
 	  emacs_abort ();
 	}
+
       if (!PURE_P (XSTRING (p->u.s.name)))
 	set_string_marked (XSTRING (p->u.s.name));
       mark_interval_tree (string_intervals (p->u.s.name));
-
       mark_old_object (p->u.s.function);
       mark_old_object (p->u.s.plist);
       mark_old_object (p->u.s.package);
@@ -1062,6 +1036,9 @@ mark_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 
   return MPS_RES_OK;
 }
+
+/* Called during the mark phase of old GC to mark objects
+   references from objects in MPS.  */
 
 void
 igc_mark_old_objects_referenced_from_pools (void)
@@ -1131,7 +1108,7 @@ igc_handle_messages (void)
 void
 igc_on_idle (void)
 {
-  mps_arena_step (global_igc->arena, 0.01, 0);
+  mps_arena_step (global_igc->arena, 0.1, 0);
 }
 
 
