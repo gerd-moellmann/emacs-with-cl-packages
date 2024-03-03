@@ -98,6 +98,8 @@ do							\
   {							\
     mps_pool_check_fenceposts (global_igc->cons_pool);	\
     mps_pool_check_free_space (global_igc->cons_pool);	\
+    mps_pool_check_fenceposts (global_igc->symbol_pool);	\
+    mps_pool_check_free_space (global_igc->symbol_pool);	\
   } while (0)
 #else
 #define IGC_CHECK_POOL() (void) 0
@@ -192,7 +194,7 @@ struct igc_thread
   mps_thr_t thr;
   void *cold;
   struct igc_root_list *specpdl_root;
-  mps_ap_t cons_ap;
+  mps_ap_t cons_ap, symbol_ap;
 };
 
 typedef struct igc_thread igc_thread;
@@ -204,6 +206,8 @@ struct igc
   mps_chain_t chain;
   mps_pool_t cons_pool;
   mps_fmt_t cons_fmt;
+  mps_pool_t symbol_pool;
+  mps_fmt_t symbol_fmt;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -562,6 +566,8 @@ make_thread_aps (struct igc_thread *t)
 
   res = mps_ap_create_k (&t->cons_ap, gc->cons_pool, mps_args_none);
   IGC_CHECK_RES (res);
+  res = mps_ap_create_k (&t->symbol_ap, gc->symbol_pool, mps_args_none);
+  IGC_CHECK_RES (res);
 }
 
 static void
@@ -832,6 +838,57 @@ cons_pad (mps_addr_t addr, size_t size)
   pad (addr, size);
 }
 
+static mps_res_t
+symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct Lisp_Symbol *sym = (struct Lisp_Symbol *) base;
+	   sym < (struct Lisp_Symbol *) limit;
+	   ++sym)
+	{
+	  if (is_forwarded (sym) || is_padding (sym))
+	    continue;
+
+	  IGC_FIX (ss, &sym->u.s.name);
+	  if (sym->u.s.redirect == SYMBOL_PLAINVAL)
+	    IGC_FIX (ss, &sym->u.s.val.value);
+	  IGC_FIX (ss, &sym->u.s.function);
+	  IGC_FIX (ss, &sym->u.s.plist);
+	  IGC_FIX (ss, &sym->u.s.package);
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_addr_t
+symbol_skip (mps_addr_t addr)
+{
+  return (char *) addr + sizeof (struct Lisp_Symbol);
+}
+
+static void
+symbol_fwd (mps_addr_t old, mps_addr_t new)
+{
+  IGC_ASSERT (false);
+  forward (old, new);
+}
+
+static mps_addr_t
+symbol_isfwd (mps_addr_t addr)
+{
+  IGC_ASSERT (false);
+  return is_forwarded (addr);
+}
+
+static void
+symbol_pad (mps_addr_t addr, size_t size)
+{
+  pad (addr, size);
+}
+
+
 
 /***********************************************************************
 				Walking
@@ -851,11 +908,14 @@ visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
   mps_word_t word = (mps_word_t) obj;
   switch (word & IGC_TAG_MASK)
     {
+      /* No need to mark_object.  */
     case Lisp_Int0:
     case Lisp_Int1:
-#ifdef IGC_MANAGE_CONS
+      break;
+
+      /* Not mamanged by old GC.  */
     case Lisp_Cons:
-#endif
+    case Lisp_Symbol:
       return;
 
     default:
@@ -879,6 +939,24 @@ walk_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
   return MPS_RES_OK;
 }
 
+static mps_res_t
+walk_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
+		  void *closure)
+{
+  struct igc_walk *walk = closure;
+  for (struct Lisp_Symbol *p = base; p < (struct Lisp_Symbol *) limit; ++p)
+    {
+      visit_lisp_obj (p->u.s.name, walk);
+      if (p->u.s.redirect == SYMBOL_PLAINVAL)
+	visit_lisp_obj (p->u.s.val.value, walk);
+      visit_lisp_obj (p->u.s.function, walk);
+      visit_lisp_obj (p->u.s.plist, walk);
+      visit_lisp_obj (p->u.s.package, walk);
+    }
+
+  return MPS_RES_OK;
+}
+
 /* */
 
 static void
@@ -888,6 +966,7 @@ mark_old_gc_objects (struct igc *gc)
     {
       struct igc_walk walk = { .fun = mark_object };
       mps_pool_walk (gc->cons_pool, walk_cons_area, &walk);
+      mps_pool_walk (gc->symbol_pool, walk_symbol_area, &walk);
     }
 }
 
@@ -1068,6 +1147,36 @@ make_igc (void)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
+  // Object format for conses.
+  MPS_ARGS_BEGIN (args)
+  {
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, symbol_scan);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, symbol_skip);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, symbol_fwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, symbol_isfwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, symbol_pad);
+    res = mps_fmt_create_k (&gc->symbol_fmt, gc->arena, args);
+  }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+
+  // Pool for conses. Since conses have no type field which would let
+  // us recognize them when mixed with other objects, use a dedicated
+  // pool.
+  MPS_ARGS_BEGIN (args)
+    {
+      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->symbol_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
+      res = mps_pool_create_k (&gc->symbol_pool, gc->arena,
+			       ams_pool_class, args);
+    }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+
   add_static_roots (gc);
   enable_finalization (gc, true);
 
@@ -1080,6 +1189,8 @@ free_igc (struct igc *gc)
   free_all_threads (gc);
   mps_pool_destroy (gc->cons_pool);
   mps_fmt_destroy (gc->cons_fmt);
+  mps_pool_destroy (gc->symbol_pool);
+  mps_fmt_destroy (gc->symbol_fmt);
   remove_all_roots (gc);
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);

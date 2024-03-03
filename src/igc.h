@@ -10,6 +10,7 @@
 
 /* If defined, allocate conses from MPS.  */
 #define IGC_MANAGE_CONS 1
+#define IGC_MANAGE_SYMBOLS 1
 
 /* If defined, use a debug AMS pool, and check fenceposts etc.
    See MPS docs.  Can be slow.  */
