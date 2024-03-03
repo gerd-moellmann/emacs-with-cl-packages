@@ -117,24 +117,10 @@ do							\
    assume that Lisp_Objects are EMACS_INTs, and we are using the 3
    lowest bits for tags, for simplicity.  */
 
-#define IGC_XLI(obj)   lisp_h_XLI (obj)
-#define IGC_XIL(obj)   lisp_h_XIL (obj)
-#define IGC_XLP(obj)   lisp_h_XLP (obj)
-
-#define IGC_XTYPE(obj)   lisp_h_XTYPE (obj)
-#define IGC_FIXNUMP(obj) lisp_h_FIXNUMP (obj)
-
-/* Note the strange handling of symbol pointers.  */
-#define IGC_XPNTR(a)						\
-  (BARE_SYMBOL_P (a)						\
-   ? (char *) lispsym + (XLI (a) - LISP_WORD_TAG (Lisp_Symbol))	\
-   : (char *) XLP (a) - (XLI (a) & ~VALMASK))
-
-#define IGC_UNTAG(obj) XLI (obj)
-#define IGC_RETAG(type, untagged) TAG_PTR_INITIALLY (type, untagged)
-
 #define IGC_TAG_MASK	(~ VALMASK)
-#define IGC_VALUE_MASK	VALMASK
+
+#define IGC_TAG(x) ((mps_word_t) (x) & IGC_TAG_MASK)
+#define IGC_VAL(x) ((mps_word_t) (x) & ~IGC_TAG_MASK)
 
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
@@ -654,21 +640,21 @@ add_main_thread (void)
 
 /* Fix a potential Lisp_Object at *P.  */
 
-#define IGC_FIX_LISP_OBJ(ss, p)						\
+#define IGC_FIX(ss, x)							\
   do									\
     {									\
-      enum Lisp_Type type = IGC_XTYPE (*(p));				\
-      if (type != Lisp_Int0 && type != Lisp_Int1 && type != Lisp_Symbol) \
+      mps_word_t *p_ = (mps_word_t *) (x);				\
+      mps_word_t word = *p_;						\
+      mps_word_t tag = word & IGC_TAG_MASK;				\
+      if (tag != Lisp_Int0 && tag != Lisp_Int1 && tag != Lisp_Symbol)	\
 	{								\
-	  mps_addr_t untagged = IGC_XPNTR (*(p));			\
-	  if (MPS_FIX1 (ss, untagged))					\
+	  mps_addr_t ref = (mps_addr_t)(word ^ tag);			\
+	  if (MPS_FIX1 (ss, ref))					\
 	    {								\
-	      mps_res_t res = MPS_FIX2 (ss, &untagged);			\
+	      mps_res_t res = MPS_FIX2 (ss, &ref);			\
 	      if (res != MPS_RES_OK)					\
 		return res;						\
-	      Lisp_Object new_obj = IGC_RETAG (type, untagged);		\
-	      IGC_ASSERT (*(p) == new_obj);				\
-	      *(p) = new_obj;						\
+	      *p_ = (mps_word_t) ref | tag;				\
 	    }								\
 	}								\
     }									\
@@ -747,7 +733,7 @@ scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 	  struct glyph *glyph = row->glyphs[LEFT_MARGIN_AREA];
 	  struct glyph *end = row->glyphs[LAST_AREA];
 	  for (; glyph < end; ++glyph)
-	    IGC_FIX_LISP_OBJ (ss, &glyph->object);
+	    IGC_FIX (ss, &glyph->object);
 	}
     }
   MPS_SCAN_END (ss);
@@ -764,7 +750,7 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 	{
 	  struct face *face = *p;
 	  for (int i = 0; i < ARRAYELTS (face->lface); ++i)
-	    IGC_FIX_LISP_OBJ (ss, &face->lface[i]);
+	    IGC_FIX (ss, &face->lface[i]);
 	}
   }
   MPS_SCAN_END (ss);
@@ -783,7 +769,7 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 	 entries.  */
       for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
 	if (*p)
-	  IGC_FIX_LISP_OBJ (ss, *p);
+	  IGC_FIX (ss, *p);
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -806,8 +792,8 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (cons) || is_padding (cons))
 	    continue;
 
-	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.car);
-	  IGC_FIX_LISP_OBJ (ss, &cons->u.s.u.cdr);
+	  IGC_FIX (ss, &cons->u.s.car);
+	  IGC_FIX (ss, &cons->u.s.u.cdr);
 	}
     }
   MPS_SCAN_END (ss);
@@ -859,13 +845,11 @@ struct igc_walk
 static void
 visit_lisp_obj (Lisp_Object obj, struct igc_walk *walk)
 {
-  enum Lisp_Type type = IGC_XTYPE (obj);
-  switch (type)
+  mps_word_t word = (mps_word_t) obj;
+  switch (word & IGC_TAG_MASK)
     {
     case Lisp_Int0:
     case Lisp_Int1:
-      break;
-
     case Lisp_Cons:
       return;
 
