@@ -13,7 +13,7 @@
 
 /* If defined, use a debug AMS pool, and check fenceposts etc.
    See MPS docs.  Can be slow.  */
-//#define IGC_DEBUG_POOL 1
+#define IGC_DEBUG_POOL 1
 
 void igc_break (void);
 void init_igc (void);
@@ -42,6 +42,8 @@ void igc_handle_messages (void);
 specpdl_ref igc_inhibit_garbage_collection (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 
+#else
+#define igc_break() (void) 0
 # endif // HAVE_MPS
 
 #endif // EMACS_IGC_H
