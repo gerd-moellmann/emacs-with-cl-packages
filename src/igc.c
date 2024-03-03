@@ -638,22 +638,25 @@ add_main_thread (void)
 				Scanning
  ***********************************************************************/
 
-/* Fix a potential Lisp_Object at *P.  */
-
 #define IGC_FIX(ss, x)							\
   do									\
     {									\
       mps_word_t *p_ = (mps_word_t *) (x);				\
       mps_word_t word = *p_;						\
       mps_word_t tag = word & IGC_TAG_MASK;				\
-      if (tag != Lisp_Int0 && tag != Lisp_Int1 && tag != Lisp_Symbol)	\
+      if (tag != Lisp_Int0 && tag != Lisp_Int1)				\
 	{								\
-	  mps_addr_t ref = (mps_addr_t)(word ^ tag);			\
+	  mps_word_t off = word ^ tag;					\
+	  mps_addr_t ref = (mps_addr_t) off;				\
+	  if (tag == Lisp_Symbol)					\
+	    ref = (char *) lispsym + off;				\
 	  if (MPS_FIX1 (ss, ref))					\
 	    {								\
 	      mps_res_t res = MPS_FIX2 (ss, &ref);			\
 	      if (res != MPS_RES_OK)					\
 		return res;						\
+	      if (tag == Lisp_Symbol)					\
+		ref = (mps_addr_t) ((char *) ref - (char *) lispsym);	\
 	      *p_ = (mps_word_t) ref | tag;				\
 	    }								\
 	}								\
