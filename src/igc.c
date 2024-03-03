@@ -82,6 +82,9 @@ registered with mem_insert.
 #ifdef WIDE_EMACS_INT
 #error "WIDE_EMACS_INT not supported"
 #endif
+#if USE_STACK_LISP_OBJECTS
+#error "USE_STACK_LISP_OBJECTS not supported"
+#endif
 
 /* Frames have stuff for text conversion which contains Lisp_Objects, so
    this must be scanned/fixed for MPS, and must be some form of root in
@@ -94,14 +97,14 @@ registered with mem_insert.
 #endif
 
 #ifdef IGC_DEBUG_POOL
-#define IGC_CHECK_POOL()				\
-do							\
-  {							\
-    mps_pool_check_fenceposts (global_igc->cons_pool);	\
-    mps_pool_check_free_space (global_igc->cons_pool);	\
-    mps_pool_check_fenceposts (global_igc->symbol_pool);	\
-    mps_pool_check_free_space (global_igc->symbol_pool);	\
-  } while (0)
+#define IGC_CHECK_POOL()					\
+  do								\
+    {								\
+      mps_pool_check_fenceposts (global_igc->cons_pool);	\
+      mps_pool_check_free_space (global_igc->cons_pool);	\
+      mps_pool_check_fenceposts (global_igc->symbol_pool);	\
+      mps_pool_check_free_space (global_igc->symbol_pool);	\
+    } while (0)
 #else
 #define IGC_CHECK_POOL() (void) 0
 #endif
@@ -125,6 +128,8 @@ do							\
 #define IGC_TAG(x) ((mps_word_t) (x) & IGC_TAG_MASK)
 #define IGC_VAL(x) ((mps_word_t) (x) & ~IGC_TAG_MASK)
 
+static mps_res_t scan_area (mps_ss_t ss, void *start,
+			    void *end, void *closure);
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
 static mps_res_t scan_faces_by_id (mps_ss_t ss, void *start, void *end,
@@ -278,7 +283,7 @@ make_ambig_root (struct igc *gc, void *start, void *end)
 				   0, /* MPS_PROT_... */
 				   start,
 				   end,
-				   mps_scan_area_masked,
+				   scan_area,
 				   IGC_TAG_MASK,
 				   0);
   IGC_CHECK_RES (res);
@@ -429,7 +434,7 @@ add_thread_root (struct igc_thread_list *t)
      mps_rank_ambig (),
      0,
      t->d.thr,
-     mps_scan_area_masked,
+     scan_area,
      /* Docs of mps_scan_area_masked.  The mask and pattern are passed
 	to the scan function via its closure argument.  The mask is for
 	the tag bits, not to get the value without tag bits.  */
@@ -785,6 +790,23 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
+/* The pointer part of a tagged word for symbols contains an offset from
+   lispsym, for an unknown reason.  This means that scanning areas,
+   including control stacks, by simply stripping tag bits won't find
+   symbols.  */
+
+static mps_res_t
+scan_area (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
+	IGC_FIX (ss, p);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 #pragma GCC diagnostic pop
 
 /* Scan a Lisp_Cons.  Must be able to handle padding and forwaring
@@ -1099,7 +1121,6 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
       cons->u.s.u.cdr = cdr;
     }
   while (!mps_commit (ap, p, size));
-
   return make_lisp_ptr (p, Lisp_Cons);
 }
 
@@ -1115,7 +1136,6 @@ igc_alloc_symbol (void)
       IGC_CHECK_RES (res);
     }
   while (!mps_commit (ap, p, size));
-
   return make_lisp_symbol ((struct Lisp_Symbol *) p);
 }
 
