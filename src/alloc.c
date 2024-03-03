@@ -484,7 +484,9 @@ enum mem_type
   MEM_TYPE_CONS,
 #endif
   MEM_TYPE_STRING,
+#ifndef IGC_MANAGE_SYMBOLS
   MEM_TYPE_SYMBOL,
+#endif
   MEM_TYPE_FLOAT,
   /* Since all non-bool pseudovectors are small enough to be
      allocated from vector blocks, this memory type denotes
@@ -496,11 +498,13 @@ enum mem_type
   MEM_TYPE_SPARE
 };
 
+#ifndef IGC_MANAGE_SYMBOLS
 static bool
 deadp (Lisp_Object x)
 {
   return BASE_EQ (x, dead_object ());
 }
+#endif
 
 #ifdef GC_MALLOC_CHECK
 
@@ -3961,6 +3965,8 @@ struct symbol_block
 # define ASAN_UNPOISON_SYMBOL(sym) ((void) 0)
 #endif
 
+#ifndef IGC_MANAGE_SYMBOLS
+
 /* Current symbol block and index of first unused Lisp_Symbol
    structure in it.  */
 
@@ -3977,6 +3983,8 @@ static struct symbol_block *symbol_block_pinned;
 /* List of free symbols.  */
 
 static struct Lisp_Symbol *symbol_free_list;
+
+#endif // !IGC_MANAGE_SYMBOLS
 
 static void
 set_symbol_name (Lisp_Object sym, Lisp_Object name)
@@ -4005,9 +4013,15 @@ DEFUN ("make-symbol", Fmake_symbol, Smake_symbol, 1, 1, 0,
 Its value is void, and its function definition and property list are nil.  */)
   (Lisp_Object name)
 {
-  Lisp_Object val;
-
   CHECK_STRING (name);
+
+#ifdef IGC_MANAGE_SYMBOLS
+  Lisp_Object val = igc_alloc_symbol ();
+  init_symbol (val, name);
+  return val;
+#else
+
+  Lisp_Object val;
 
   MALLOC_BLOCK_INPUT;
 
@@ -4040,6 +4054,7 @@ Its value is void, and its function definition and property list are nil.  */)
   tally_consing (sizeof (struct Lisp_Symbol));
   symbols_consed++;
   return val;
+#endif
 }
 
 
@@ -4389,6 +4404,8 @@ set_string_marked (struct Lisp_String *s)
     XMARK_STRING (s);
 }
 
+#ifndef IGC_MANAGE_SYMBOLS
+
 static bool
 symbol_marked_p (const struct Lisp_Symbol *s)
 {
@@ -4405,6 +4422,8 @@ set_symbol_marked (struct Lisp_Symbol *s)
   else
     s->u.s.gcmarkbit = true;
 }
+
+#endif // !IGC_MANAGE_SYMBOLS
 
 static bool
 interval_marked_p (INTERVAL i)
@@ -5020,6 +5039,8 @@ live_cons_p (struct mem_node *m, void *p)
 
 #endif // !IGC_MANAGE_CONS
 
+#ifndef IGC_MANAGE_SYMBOLS
+
 /* If P is a pointer into a live Lisp symbol object on the heap,
    return the object's address.  Otherwise, return NULL.  M points to the
    mem_block for P.  */
@@ -5074,6 +5095,7 @@ live_symbol_p (struct mem_node *m, void *p)
   return live_symbol_holding (m, p) == p;
 }
 
+#endif // IGC_MANAGE_SYMBOLS
 
 /* If P is a (possibly-tagged) pointer to a live Lisp_Float on the
    heap, return the address of the Lisp_Float.  Otherwise, return NULL.
@@ -5284,6 +5306,7 @@ mark_maybe_pointer (void *p, bool symbol_only)
 	  }
 	  break;
 
+#ifndef IGC_MANAGE_SYMBOLS
 	case MEM_TYPE_SYMBOL:
 	  {
 	    struct Lisp_Symbol *h = live_symbol_holding (m, p);
@@ -5292,6 +5315,7 @@ mark_maybe_pointer (void *p, bool symbol_only)
 	    obj = make_lisp_symbol (h);
 	  }
 	  break;
+#endif
 
 	case MEM_TYPE_FLOAT:
 	  {
@@ -5702,8 +5726,10 @@ valid_lisp_object_p (Lisp_Object obj)
     case MEM_TYPE_STRING:
       return live_string_p (m, p);
 
+#ifndef IGC_MANAGE_SYMBOLS
     case MEM_TYPE_SYMBOL:
       return live_symbol_p (m, p);
+#endif
 
     case MEM_TYPE_FLOAT:
       return live_float_p (m, p);
@@ -6209,6 +6235,8 @@ android_make_lisp_symbol (struct Lisp_Symbol *sym)
 
 #endif
 
+#ifndef IGC_MANAGE_SYMBOLS
+
 static void
 mark_pinned_symbols (void)
 {
@@ -6231,6 +6259,8 @@ mark_pinned_symbols (void)
       lim = SYMBOL_BLOCK_SIZE;
     }
 }
+
+#endif // !IGC_MANAGE_SYMBOLS
 
 static void
 visit_vectorlike_root (struct gc_root_visitor visitor,
@@ -6496,7 +6526,9 @@ garbage_collect (void)
   visit_static_gc_roots (visitor);
 
   mark_pinned_objects ();
+#ifndef IGC_MANAGE_CONS
   mark_pinned_symbols ();
+#endif
   mark_lread ();
   mark_terminals ();
   mark_kboards ();
@@ -6802,6 +6834,14 @@ mark_char_table (struct Lisp_Vector *ptr, enum pvec_type pvectype)
   /* Consult the Lisp_Sub_Char_Table layout before changing this.  */
   int i, idx = (pvectype == PVEC_SUB_CHAR_TABLE ? SUB_CHAR_TABLE_OFFSET : 0);
 
+#ifndef IGC_MANAGE_SYMBOLS
+#define SYMBOL_MARKED_P(x) symbol_marked_p (x)
+#define SET_SYMBOL_MARKED(x) set_symbol_marked (x)
+#else
+#define SYMBOL_MARKED_P(x) 1
+#define SET_SYMBOL_MARKED(x) (void) 0
+#endif
+
   eassert (!vector_marked_p (ptr));
   set_vector_marked (ptr);
   for (i = idx; i < size; i++)
@@ -6809,7 +6849,7 @@ mark_char_table (struct Lisp_Vector *ptr, enum pvec_type pvectype)
       Lisp_Object val = ptr->contents[i];
 
       if (FIXNUMP (val) ||
-          (BARE_SYMBOL_P (val) && symbol_marked_p (XBARE_SYMBOL (val))))
+          (BARE_SYMBOL_P (val) && SYMBOL_MARKED_P (XBARE_SYMBOL (val))))
 	continue;
       if (SUB_CHAR_TABLE_P (val))
 	{
@@ -7283,6 +7323,9 @@ process_mark_stack (ptrdiff_t base_sp)
 	  break;
 
 	case Lisp_Symbol:
+#ifdef IGC_MANAGE_SYMBOLS
+	  break;
+#else
 	  {
 	    struct Lisp_Symbol *ptr = XBARE_SYMBOL (obj);
 	    if (symbol_marked_p (ptr))
@@ -7334,6 +7377,7 @@ process_mark_stack (ptrdiff_t base_sp)
 	    /* Inner loop to mark next symbol in this bucket, if any.  */
 	  }
 	  break;
+#endif // IGC_MANAGE_SYMBOLS
 
 	case Lisp_Cons:
 #ifdef IGC_MANAGE_CONS
@@ -7442,8 +7486,12 @@ survives_gc_p (Lisp_Object obj)
       break;
 
     case Lisp_Symbol:
+#ifdef IGC_MANAGE_SYMBOLS
+      survives_p = true;
+#else
       survives_p = symbol_marked_p (XBARE_SYMBOL (obj));
       break;
+#endif
 
     case Lisp_String:
       survives_p = string_marked_p (XSTRING (obj));
@@ -7664,6 +7712,8 @@ sweep_intervals (void)
   gcstat.total_free_intervals = num_free;
 }
 
+#ifndef IGC_MANAGE_SYMBOLS
+
 NO_INLINE /* For better stack traces */
 static void
 sweep_symbols (void)
@@ -7737,6 +7787,8 @@ sweep_symbols (void)
   gcstat.total_free_symbols = num_free;
 }
 
+#endif // IGC_MANAGE_SYMBOLS
+
 /* Remove BUFFER's markers that are due to be swept.  This is needed since
    we treat BUF_MARKERS and markers's `next' field as weak pointers.  */
 static void
@@ -7782,7 +7834,9 @@ gc_sweep (void)
 #endif
   sweep_floats ();
   sweep_intervals ();
+#ifndef IGC_MANAGE_SYMBOLS
   sweep_symbols ();
+#endif
   sweep_buffers ();
   sweep_vectors ();
   pdumper_clear_marks ();
@@ -7916,7 +7970,9 @@ system, and non-nil if some memory could be returned.  */)
 }
 #endif
 
+#ifndef IGC_MANAGE_SYMBOLS
 static bool
+
 symbol_uses_obj (Lisp_Object symbol, Lisp_Object obj)
 {
   struct Lisp_Symbol *sym = XBARE_SYMBOL (symbol);
@@ -7978,6 +8034,8 @@ which_symbols (Lisp_Object obj, EMACS_INT find_max)
   out:
    return unbind_to (gc_count, found);
 }
+
+#endif // IGC_MANAGE_SYMBOLS
 
 #ifdef ENABLE_CHECKING
 
