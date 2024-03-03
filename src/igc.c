@@ -128,8 +128,8 @@ registered with mem_insert.
 #define IGC_TAG(x) ((mps_word_t) (x) & IGC_TAG_MASK)
 #define IGC_VAL(x) ((mps_word_t) (x) & ~IGC_TAG_MASK)
 
-static mps_res_t scan_area (mps_ss_t ss, void *start,
-			    void *end, void *closure);
+static mps_res_t scan_area_ambig (mps_ss_t ss, void *start,
+				  void *end, void *closure);
 static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
 				 void *end, void *closure);
 static mps_res_t scan_faces_by_id (mps_ss_t ss, void *start, void *end,
@@ -283,7 +283,7 @@ make_ambig_root (struct igc *gc, void *start, void *end)
 				   0, /* MPS_PROT_... */
 				   start,
 				   end,
-				   scan_area,
+				   scan_area_ambig,
 				   IGC_TAG_MASK,
 				   0);
   IGC_CHECK_RES (res);
@@ -434,7 +434,7 @@ add_thread_root (struct igc_thread_list *t)
      mps_rank_ambig (),
      0,
      t->d.thr,
-     scan_area,
+     scan_area_ambig,
      /* Docs of mps_scan_area_masked.  The mask and pattern are passed
 	to the scan function via its closure argument.  The mask is for
 	the tag bits, not to get the value without tag bits.  */
@@ -650,31 +650,6 @@ add_main_thread (void)
 				Scanning
  ***********************************************************************/
 
-#define IGC_FIX(ss, x)							\
-  do									\
-    {									\
-      mps_word_t *p_ = (mps_word_t *) (x);				\
-      mps_word_t word = *p_;						\
-      mps_word_t tag = word & IGC_TAG_MASK;				\
-      if (tag != Lisp_Int0 && tag != Lisp_Int1)				\
-	{								\
-	  mps_word_t off = word ^ tag;					\
-	  mps_addr_t ref = (mps_addr_t) off;				\
-	  if (tag == Lisp_Symbol)					\
-	    ref = (char *) lispsym + off;				\
-	  if (MPS_FIX1 (ss, ref))					\
-	    {								\
-	      mps_res_t res = MPS_FIX2 (ss, &ref);			\
-	      if (res != MPS_RES_OK)					\
-		return res;						\
-	      if (tag == Lisp_Symbol)					\
-		ref = (mps_addr_t) ((char *) ref - (char *) lispsym);	\
-	      *p_ = (mps_word_t) ref | tag;				\
-	    }								\
-	}								\
-    }									\
-   while (0)
-
 /* Horrible shit to avoid unused variable warnings.  */
 
 static int fwdsig;
@@ -736,6 +711,56 @@ is_padding (mps_addr_t addr)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
+static mps_res_t
+fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      mps_word_t *p = (mps_word_t *) pobj;
+      mps_word_t word = *p;
+      mps_word_t tag = word & IGC_TAG_MASK;
+
+      if (tag == Lisp_Int0 && tag == Lisp_Int1)
+	return MPS_RES_OK;
+
+      if (tag == Lisp_Symbol)
+	{
+	  mps_word_t off = word ^ tag;
+	  mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
+	  if (MPS_FIX1 (ss, ref))
+	    {
+	      mps_res_t res = MPS_FIX2 (ss, &ref);
+	      if (res != MPS_RES_OK)
+		return res;
+	      mps_word_t new_off = (char *) ref - (char *) lispsym;
+	      mps_addr_t new_ref = (mps_addr_t) ((char *) lispsym + new_off);
+	      *p = (mps_word_t) new_ref | tag;
+	    }
+	}
+      else
+	{
+	  mps_addr_t ref = (mps_addr_t) (word ^ tag);
+	  if (MPS_FIX1 (ss, ref))
+	    {
+	      mps_res_t res = MPS_FIX2 (ss, &ref);
+	      if (res != MPS_RES_OK)
+		return res;
+	      *p = (mps_word_t) ref | tag;
+	    }
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+#define IGC_FIX(p)					\
+  do {							\
+    mps_res_t res;					\
+    MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, (p)));	\
+    if (res != MPS_RES_OK)				\
+      return res;					\
+  } while (0)
+
 /* Scan a vector of glyph_rows.  */
 
 static mps_res_t
@@ -748,7 +773,7 @@ scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 	  struct glyph *glyph = row->glyphs[LEFT_MARGIN_AREA];
 	  struct glyph *end = row->glyphs[LAST_AREA];
 	  for (; glyph < end; ++glyph)
-	    IGC_FIX (ss, &glyph->object);
+	    IGC_FIX (&glyph->object);
 	}
     }
   MPS_SCAN_END (ss);
@@ -765,7 +790,7 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 	{
 	  struct face *face = *p;
 	  for (int i = 0; i < ARRAYELTS (face->lface); ++i)
-	    IGC_FIX (ss, &face->lface[i]);
+	    IGC_FIX (&face->lface[i]);
 	}
   }
   MPS_SCAN_END (ss);
@@ -784,30 +809,54 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 	 entries.  */
       for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
 	if (*p)
-	  IGC_FIX (ss, *p);
+	  IGC_FIX (*p);
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
 /* The pointer part of a tagged word for symbols contains an offset from
-   lispsym, for an unknown reason.  This means that scanning areas,
-   including control stacks, by simply stripping tag bits won't find
-   symbols.  */
+   lispsym. and the Lisp_Symbol tag is zero.  */
 
 static mps_res_t
-scan_area (mps_ss_t ss, void *start, void *end, void *closure)
+scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
     {
       for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
-	IGC_FIX (ss, p);
+	{
+	  mps_word_t word = *p;
+	  mps_word_t tag = word & IGC_TAG_MASK;
+
+	  if (tag == Lisp_Int0 && tag == Lisp_Int1)
+	    continue;
+
+	  // Assuming word is a normal pointer
+	  mps_addr_t ref = (mps_addr_t) (word ^ tag);
+	  if (MPS_FIX1 (ss, ref))
+	    {
+	      mps_res_t res = MPS_FIX2 (ss, &ref);
+	      if (res != MPS_RES_OK)
+		return res;
+	    }
+
+	  // Assuming ref is a symbol reference.
+	  if (tag == Lisp_Symbol)
+	    {
+	      mps_word_t off = word ^ tag;
+	      mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
+	      if (MPS_FIX1 (ss, ref))
+		{
+		  mps_res_t res = MPS_FIX2 (ss, &ref);
+		  if (res != MPS_RES_OK)
+		    return res;
+		}
+	    }
+	}
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
-
-#pragma GCC diagnostic pop
 
 /* Scan a Lisp_Cons.  Must be able to handle padding and forwaring
    objects. */
@@ -823,9 +872,8 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	{
 	  if (is_forwarded (cons) || is_padding (cons))
 	    continue;
-
-	  IGC_FIX (ss, &cons->u.s.car);
-	  IGC_FIX (ss, &cons->u.s.u.cdr);
+	  IGC_FIX (&cons->u.s.car);
+	  IGC_FIX (&cons->u.s.u.cdr);
 	}
     }
   MPS_SCAN_END (ss);
@@ -873,17 +921,19 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (sym) || is_padding (sym))
 	    continue;
 
-	  IGC_FIX (ss, &sym->u.s.name);
+	  IGC_FIX (&sym->u.s.name);
 	  if (sym->u.s.redirect == SYMBOL_PLAINVAL)
-	    IGC_FIX (ss, &sym->u.s.val.value);
-	  IGC_FIX (ss, &sym->u.s.function);
-	  IGC_FIX (ss, &sym->u.s.plist);
-	  IGC_FIX (ss, &sym->u.s.package);
+	    IGC_FIX (&sym->u.s.val.value);
+	  IGC_FIX (&sym->u.s.function);
+	  IGC_FIX (&sym->u.s.plist);
+	  IGC_FIX (&sym->u.s.package);
 	}
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
+
+#pragma GCC diagnostic pop
 
 static mps_addr_t
 symbol_skip (mps_addr_t addr)
