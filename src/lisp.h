@@ -5727,7 +5727,13 @@ safe_free_unbind_to (specpdl_ref count, specpdl_ref sa_count, Lisp_Object val)
 #endif
 #ifndef USE_STACK_LISP_OBJECTS
 # define USE_STACK_LISP_OBJECTS true
-#endif
+# endif
+
+# ifdef HAVE_MPS
+# undef USE_STACK_LISP_OBJECTS
+# define USE_STACK_LISP_OBJECTS false
+# endif
+
 
 #ifdef GC_CHECK_STRING_BYTES
 enum { defined_GC_CHECK_STRING_BYTES = true };
