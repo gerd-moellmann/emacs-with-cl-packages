@@ -1050,6 +1050,13 @@ current_cons_ap (void)
   return t->d.cons_ap;
 }
 
+static mps_ap_t
+current_symbol_ap (void)
+{
+  struct igc_thread_list *t = current_thread->gc_info;
+  return t->d.symbol_ap;
+}
+
 void igc_break (void)
 {
 }
@@ -1071,6 +1078,22 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
   while (!mps_commit (ap, p, size));
 
   return make_lisp_ptr (p, Lisp_Cons);
+}
+
+Lisp_Object
+igc_alloc_symbol (void)
+{
+  mps_ap_t ap = current_symbol_ap ();
+  size_t size = sizeof (struct Lisp_Symbol);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, size);
+      IGC_CHECK_RES (res);
+    }
+  while (!mps_commit (ap, p, size));
+
+  return make_lisp_ptr (p, Lisp_Symbol);
 }
 
 

@@ -42,6 +42,7 @@ void igc_xfree_ambig_root (void *p);
 void igc_handle_messages (void);
 specpdl_ref igc_inhibit_garbage_collection (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
+Lisp_Object igc_alloc_symbol (void);
 
 #else
 #define igc_break() (void) 0
