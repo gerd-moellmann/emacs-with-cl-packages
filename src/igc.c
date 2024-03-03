@@ -1093,7 +1093,7 @@ igc_alloc_symbol (void)
     }
   while (!mps_commit (ap, p, size));
 
-  return make_lisp_ptr (p, Lisp_Symbol);
+  return make_lisp_symbol ((struct Lisp_Symbol *) p);
 }
 
 
