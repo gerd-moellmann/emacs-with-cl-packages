@@ -97,7 +97,7 @@ registered with mem_insert.
 #endif
 
 #ifdef IGC_DEBUG_POOL
-#define IGC_CHECK_POOL()					\
+#define IGC_CHECK_POOLS()					\
   do								\
     {								\
       mps_pool_check_fenceposts (global_igc->cons_pool);	\
@@ -106,7 +106,7 @@ registered with mem_insert.
       mps_pool_check_free_space (global_igc->symbol_pool);	\
     } while (0)
 #else
-#define IGC_CHECK_POOL() (void) 0
+#define IGC_CHECK_POOLS() (void) 0
 #endif
 
 #ifdef IGC_DEBUG
@@ -1021,6 +1021,7 @@ igc_mark_old_objects_referenced_from_pools (void)
     {
       mps_pool_walk (gc->cons_pool, mark_cons_area, NULL);
       mps_pool_walk (gc->symbol_pool, mark_symbol_area, NULL);
+      IGC_CHECK_POOLS ();
     }
 }
 
