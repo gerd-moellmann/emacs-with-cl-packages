@@ -3998,7 +3998,7 @@ Its value is void, and its function definition and property list are nil.  */)
     {
       ASAN_UNPOISON_SYMBOL (symbol_free_list);
       val = make_lisp_symbol (symbol_free_list);
-      symbol_free_list = symbol_free_list->u.s.next;
+      symbol_free_list = next_free_symbol (symbol_free_list);
     }
   else
     {
