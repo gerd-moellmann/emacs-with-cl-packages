@@ -416,7 +416,7 @@ add_thread_root (struct igc_thread_list *t)
   register_root (gc, root, t->d.cold, NULL);
 }
 
-/* Called after a pdump has been loaded.  Add the area as root
+/* Called after a pdump s been loaded.  Add the area as root
    because there could be references in it.  */
 
 void
@@ -533,7 +533,7 @@ igc_inhibit_garbage_collection (void)
  ***********************************************************************/
 
 static void
-make_thread_aps (struct igc_thread *t)
+create_thread_aps (struct igc_thread *t)
 {
   struct igc *gc = t->gc;
   mps_res_t res;
@@ -545,10 +545,12 @@ make_thread_aps (struct igc_thread *t)
 }
 
 static void
-free_thread_aps (struct igc_thread_list *t)
+destroy_thread_aps (struct igc_thread_list *t)
 {
   mps_ap_destroy (t->d.cons_ap);
   t->d.cons_ap = NULL;
+  mps_ap_destroy (t->d.symbol_ap);
+  t->d.symbol_ap = NULL;
 }
 
 
@@ -585,7 +587,7 @@ igc_thread_add (const void *cold)
 
   add_thread_root (t);
   add_specpdl_root (t);
-  make_thread_aps (&t->d);
+  create_thread_aps (&t->d);
   return t;
 }
 
@@ -595,7 +597,7 @@ void
 igc_thread_remove (void *info)
 {
   struct igc_thread_list *t = info;
-  free_thread_aps (t);
+  destroy_thread_aps (t);
   mps_thread_dereg (deregister_thread (t));
 }
 
@@ -773,11 +775,8 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
     {
-      /* I don't want to rely on staticidx ATM. Instead, ignore NULL
-	 entries.  */
-      for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
-	if (*p)
-	  IGC_FIX (*p);
+      for (int i = 0; i < staticidx; ++i)
+	IGC_FIX ((Lisp_Object *) staticvec[i]);
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
