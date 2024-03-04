@@ -324,10 +324,13 @@ add_staticvec_root (struct igc *gc)
   register_root (gc, root, start, end);
 }
 
+/* Add a root for lispsym to GC.  */
+
 static void
-add_builtin_symbols_root (struct igc *gc)
+add_lispsym_root (struct igc *gc)
 {
   void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
+  // Maybe we could do better than using an ambiguous root.
   create_ambig_root (gc, start, end);
 }
 
@@ -344,6 +347,7 @@ add_specpdl_root (struct igc_thread_list *t)
   if (specpdl)
     {
       struct igc *gc = t->d.gc;
+      // Maybe we could do better than using an ambiguous root.
       t->d.specpdl_root = create_ambig_root (gc, specpdl, specpdl_end);
     }
 }
@@ -382,6 +386,7 @@ static void
 add_buffer_root (struct igc *gc, struct buffer *b)
 {
   void *start = &b->name_, *end = &b->own_text;
+  // Maybe we could do better than using an ambiguous root.
   create_ambig_root (gc, start, end);
 }
 
@@ -393,7 +398,7 @@ add_static_roots (struct igc *gc)
   add_buffer_root (gc, &buffer_defaults);
   add_buffer_root (gc, &buffer_local_symbols);
   add_staticvec_root (gc);
-  add_builtin_symbols_root (gc);
+  add_lispsym_root (gc);
 }
 
 /* Add a root for a thread given by T.  */
@@ -403,25 +408,16 @@ add_thread_root (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   mps_root_t root;
-  mps_res_t res = mps_root_create_thread_tagged
-    (&root,
-     gc->arena,
-     mps_rank_ambig (),
-     0,
-     t->d.thr,
-     scan_area_ambig,
-     /* Docs of mps_scan_area_masked.  The mask and pattern are passed
-	to the scan function via its closure argument.  The mask is for
-	the tag bits, not to get the value without tag bits.  */
-     IGC_TAG_MASK,
-     /* The pattern is unused by mps_scan_area_masked.  */
-     0,
-     t->d.cold);
+  mps_res_t res
+    = mps_root_create_thread_tagged (&root, gc->arena, mps_rank_ambig (),
+				     0, t->d.thr, scan_area_ambig,
+				     IGC_TAG_MASK, 0, t->d.cold);
   IGC_CHECK_RES (res);
   register_root (gc, root, t->d.cold, NULL);
 }
 
-/* Called after a pdump has been loaded.  Add the area as root.  */
+/* Called after a pdump has been loaded.  Add the area as root
+   because there could be references in it.  */
 
 void
 igc_on_pdump_loaded (void)
