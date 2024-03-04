@@ -206,17 +206,6 @@ register_root (struct igc *gc, mps_root_t root, void *start, void *end)
   return igc_root_list_push (&gc->roots, &r);
 }
 
-/* Find a root with a given start address START in the registry GC.  */
-
-static igc_root_list *
-find_root_with_start (struct igc *gc, void *start)
-{
-  for (struct igc_root_list *r = gc->roots; r; r = r->next)
-    if (r->d.start == start)
-      return r;
-  return NULL;
-}
-
 /* Remove root R from its registry, and free it.  Value is the MPS root
    that was registered.  */
 
@@ -244,6 +233,10 @@ destroy_all_roots (struct igc *gc)
   while (gc->roots)
     destroy_root (gc->roots);
 }
+
+/* Create an ambigus root for the memory area [START, END), and register
+   it in GC.  Value is the a pointer to the igc_root_list in which the
+   root was registered.  */
 
 static igc_root_list *
 create_ambig_root (struct igc *gc, void *start, void *end)
@@ -282,6 +275,9 @@ igc_on_mem_delete (void *info)
   destroy_root ((struct igc_root_list *) info);
 }
 
+/* Allocate SIZE bytes of memory, and register the allocated block as an
+   ambigous root.  */
+
 void *
 igc_xalloc_ambig_root (size_t size)
 {
@@ -289,6 +285,19 @@ igc_xalloc_ambig_root (size_t size)
   create_ambig_root (global_igc, start, start + size);
   return start;
 }
+
+/* Find a root with a given start address START in the registry GC.  */
+
+static igc_root_list *
+find_root_with_start (struct igc *gc, void *start)
+{
+  for (struct igc_root_list *r = gc->roots; r; r = r->next)
+    if (r->d.start == start)
+      return r;
+  return NULL;
+}
+
+/* Free a block P that has been created with igc_malloc_ambig_root.  */
 
 void
 igc_xfree_ambig_root (void *p)
