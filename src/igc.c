@@ -151,8 +151,7 @@ static mps_res_t scan_glyph_rows (mps_ss_t ss, void *start, void *end,
 
 /* A MPS root that we created. */
 
-struct igc_root
-{
+struct igc_root {
   struct igc *gc;		/* Back pointer  */
   mps_root_t root;		/* MPS root */
   void *start, *end;		/* Mempry covered  */
@@ -163,8 +162,7 @@ IGC_DEFINE_LIST (igc_root);
 
 /* An MPS thread we registered.  */
 
-struct igc_thread
-{
+struct igc_thread {
   struct igc *gc;		      /* Back pointer */
   mps_thr_t thr;		      /* MPS thread */
   void *cold;			      /* Stack start */
@@ -177,8 +175,7 @@ IGC_DEFINE_LIST (igc_thread);
 
 /* Registry for MPS objects.  */
 
-struct igc
-{
+struct igc {
   mps_arena_t arena;		/* Arena */
   mps_chain_t chain;		/* Generations */
   mps_pool_t cons_pool;		/* Pool for conses */
@@ -196,11 +193,11 @@ static struct igc *global_igc;
 
 
 /***********************************************************************
-				Roots
+				Registry
  ***********************************************************************/
 
-/* Add ROOT to the root registry of GC.  Value is a pointer to a new
-   igc_root_list struct for the root.  */
+/* Add ROOT for given memory area START, END to the registry GC.  Value
+   is a pointer to a new igc_root_list struct for the root.  */
 
 static struct igc_root_list *
 register_root (struct igc *gc, mps_root_t root, void *start, void *end)
@@ -209,7 +206,7 @@ register_root (struct igc *gc, mps_root_t root, void *start, void *end)
   return igc_root_list_push (&gc->roots, &r);
 }
 
-/* Find a root with a given start address START.  */
+/* Find a root with a given start address START in the registry GC.  */
 
 static igc_root_list *
 find_root_with_start (struct igc *gc, void *start)
@@ -220,8 +217,8 @@ find_root_with_start (struct igc *gc, void *start)
   return NULL;
 }
 
-/* Remove root R from its root registry, and free it.  Value is the MPS
-   root that was registered.  */
+/* Remove root R from its registry, and free it.  Value is the MPS root
+   that was registered.  */
 
 static mps_root_t
 deregister_root (struct igc_root_list *r)
@@ -234,7 +231,7 @@ deregister_root (struct igc_root_list *r)
 /* Destroy the MPS root in R, and deregister it.  */
 
 static void
-remove_root (struct igc_root_list *r)
+destroy_root (struct igc_root_list *r)
 {
   mps_root_destroy (deregister_root (r));
 }
@@ -242,14 +239,14 @@ remove_root (struct igc_root_list *r)
 /* Destroy all registered roots of GC.  */
 
 static void
-remove_all_roots (struct igc *gc)
+destroy_all_roots (struct igc *gc)
 {
   while (gc->roots)
-    remove_root (gc->roots);
+    destroy_root (gc->roots);
 }
 
-static mps_root_t
-make_ambig_root (struct igc *gc, void *start, void *end)
+static igc_root_list *
+create_ambig_root (struct igc *gc, void *start, void *end)
 {
   mps_root_t root;
   mps_res_t res
@@ -263,7 +260,7 @@ make_ambig_root (struct igc *gc, void *start, void *end)
 				   IGC_TAG_MASK,
 				   0);
   IGC_CHECK_RES (res);
-  return root;
+  return register_root (gc, root, start, end);
 }
 
 /* Called from mem_insert.  Create an MPS root for the memory area
@@ -273,8 +270,7 @@ make_ambig_root (struct igc *gc, void *start, void *end)
 void *
 igc_on_mem_insert (void *start, void *end)
 {
-  mps_root_t root = make_ambig_root (global_igc, start, end);
-  return register_root (global_igc, root, start, end);
+  return create_ambig_root (global_igc, start, end);
 }
 
 /* Called from mem_delete.  Remove the correspoing node INFO from the
@@ -283,16 +279,14 @@ igc_on_mem_insert (void *start, void *end)
 void
 igc_on_mem_delete (void *info)
 {
-  remove_root ((struct igc_root_list *) info);
+  destroy_root ((struct igc_root_list *) info);
 }
 
 void *
 igc_xalloc_ambig_root (size_t size)
 {
   char *start = xzalloc (size);
-  char *end = start + size;
-  mps_root_t root = make_ambig_root (global_igc, start, end);
-  register_root (global_igc, root, start, end);
+  create_ambig_root (global_igc, start, start + size);
   return start;
 }
 
@@ -304,7 +298,7 @@ igc_xfree_ambig_root (void *p)
 
   struct igc_root_list *r = find_root_with_start (global_igc, p);
   IGC_ASSERT (r != NULL);
-  remove_root (r);
+  destroy_root (r);
 }
 
 /* Add a root for staticvec to GC.  */
@@ -325,8 +319,7 @@ static void
 add_builtin_symbols_root (struct igc *gc)
 {
   void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
-  mps_root_t root = make_ambig_root (gc, start, end);
-  register_root (gc, root, start, end);
+  create_ambig_root (gc, start, end);
 }
 
 /* Odeally, we shoudl not scan the entire area, only to the current
@@ -342,9 +335,7 @@ add_specpdl_root (struct igc_thread_list *t)
   if (specpdl)
     {
       struct igc *gc = t->d.gc;
-      void *start = specpdl, *end = specpdl_end;
-      mps_root_t root = make_ambig_root (gc, start, end);
-      t->d.specpdl_root = register_root (gc, root, start, end);
+      t->d.specpdl_root = create_ambig_root (gc, specpdl, specpdl_end);
     }
 }
 
@@ -370,7 +361,7 @@ igc_on_grow_specpdl (void)
   // FIXME: can we avoid parking?
   IGC_WITH_PARKED (t->d.gc)
     {
-      remove_root (t->d.specpdl_root);
+      destroy_root (t->d.specpdl_root);
       t->d.specpdl_root = NULL;
       add_specpdl_root (t);
     }
@@ -382,8 +373,7 @@ static void
 add_buffer_root (struct igc *gc, struct buffer *b)
 {
   void *start = &b->name_, *end = &b->own_text;
-  mps_root_t root = make_ambig_root (gc, start, end);
-  register_root (gc, root, start, end);
+  create_ambig_root (gc, start, end);
 }
 
 /* All all known static roots in Emacs to GC.  */
@@ -429,8 +419,7 @@ igc_on_pdump_loaded (void)
 {
   struct igc *gc = global_igc;
   void *start = (void *) dump_public.start, *end = (void *) dump_public.end;
-  mps_root_t root = make_ambig_root (gc, start, end);
-  register_root (gc, root, start, end);
+  create_ambig_root (gc, start, end);
 }
 
 /* For all faces in a face cache, we need to fix the lface vector of
@@ -455,7 +444,7 @@ void
 igc_on_free_face_cache (void *c)
 {
   struct face_cache *cache = c;
-  remove_root (cache->igc_info);
+  destroy_root (cache->igc_info);
   cache->igc_info = NULL;
 }
 
@@ -481,7 +470,7 @@ igc_on_adjust_glyph_matrix (void *m)
   IGC_WITH_PARKED (gc)
     {
       if (matrix->igc_info)
-	remove_root (matrix->igc_info);
+	destroy_root (matrix->igc_info);
       mps_root_t root;
       void *start = matrix->rows;
       void *end = (void *) (matrix->rows + matrix->rows_allocated);
@@ -500,7 +489,7 @@ igc_on_free_glyph_matrix (void *m)
   struct glyph_matrix *matrix = m;
   if (matrix->igc_info)
     {
-      remove_root (matrix->igc_info);
+      destroy_root (matrix->igc_info);
       matrix->igc_info = NULL;
     }
 }
@@ -512,11 +501,9 @@ igc_on_grow_read_stack (void *info, void *start, void *end)
   IGC_WITH_PARKED (gc)
     {
       if (info)
-	remove_root (info);
-      mps_root_t root = make_ambig_root (gc, start, end);
-      info = register_root (gc, root, start, end);
+	destroy_root (info);
+      info = create_ambig_root (gc, start, end);
     }
-
   return info;
 }
 
@@ -1285,7 +1272,7 @@ free_igc (struct igc *gc)
   mps_fmt_destroy (gc->cons_fmt);
   mps_pool_destroy (gc->symbol_pool);
   mps_fmt_destroy (gc->symbol_fmt);
-  remove_all_roots (gc);
+  destroy_all_roots (gc);
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);
   xfree (gc);
