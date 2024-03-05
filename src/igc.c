@@ -340,7 +340,7 @@ add_lispsym_root (struct igc *gc)
    part of the stack that is not used is zeroed.  */
 
 static void
-add_specpdl_root (struct igc_thread_list *t)
+create_specpdl_root (struct igc_thread_list *t)
 {
   // For the initial thread, specpdl will be initialzed by
   // init_eval_once, and will be NULL until that happens.
@@ -362,7 +362,7 @@ void
 igc_on_alloc_main_thread_specpdl (void)
 {
   struct igc_thread_list *t = current_thread->gc_info;
-  add_specpdl_root (t);
+  create_specpdl_root (t);
 }
 
 /* Called when specpdl gets reallacated.  */
@@ -376,7 +376,7 @@ igc_on_grow_specpdl (void)
     {
       destroy_root (t->d.specpdl_root);
       t->d.specpdl_root = NULL;
-      add_specpdl_root (t);
+      create_specpdl_root (t);
     }
 }
 
@@ -404,7 +404,7 @@ add_static_roots (struct igc *gc)
 /* Add a root for a thread given by T.  */
 
 static void
-add_thread_root (struct igc_thread_list *t)
+create_thread_root (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   mps_root_t root;
@@ -576,17 +576,17 @@ deregister_thread (struct igc_thread_list *t)
 /* Called from run_thread.  */
 
 void *
-igc_thread_add (const void *cold)
+igc_thread_add (const void *stack_start)
 {
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
   IGC_CHECK_RES (res);
 
   struct igc_thread_list *t
-    = register_thread (global_igc, thr, (void *) cold);
+    = register_thread (global_igc, thr, (void *) stack_start);
 
-  add_thread_root (t);
-  add_specpdl_root (t);
+  create_thread_root (t);
+  create_specpdl_root (t);
   create_thread_aps (&t->d);
   return t;
 }
