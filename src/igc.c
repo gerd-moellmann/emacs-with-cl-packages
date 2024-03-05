@@ -152,9 +152,10 @@ static mps_res_t scan_glyph_rows (mps_ss_t ss, void *start, void *end,
 /* A MPS root that we created. */
 
 struct igc_root {
-  struct igc *gc;		/* Back pointer  */
-  mps_root_t root;		/* MPS root */
-  void *start, *end;		/* Mempry covered  */
+  struct igc *gc;
+  mps_root_t root;
+  /* Memory covered, END can be NULL for control stacks.   */
+  void *start, *end;
 };
 
 typedef struct igc_root igc_root;
@@ -163,11 +164,12 @@ IGC_DEFINE_LIST (igc_root);
 /* An MPS thread we registered.  */
 
 struct igc_thread {
-  struct igc *gc;		      /* Back pointer */
-  mps_thr_t thr;		      /* MPS thread */
-  void *cold;			      /* Stack start */
-  struct igc_root_list *specpdl_root; /* root for specpdl */
-  mps_ap_t cons_ap, symbol_ap;	      /* allocaton points */
+  struct igc *gc;
+  mps_thr_t thr;
+  void *stack_start;
+  struct igc_root_list *specpdl_root;
+  mps_ap_t cons_ap;
+  mps_ap_t symbol_ap;
 };
 
 typedef struct igc_thread igc_thread;
@@ -176,14 +178,12 @@ IGC_DEFINE_LIST (igc_thread);
 /* Registry for MPS objects.  */
 
 struct igc {
-  mps_arena_t arena;		/* Arena */
-  mps_chain_t chain;		/* Generations */
-  mps_pool_t cons_pool;		/* Pool for conses */
-  mps_fmt_t cons_fmt;		/* Object format for conses */
-  mps_pool_t symbol_pool;	/* Pool for symbols */
-  mps_fmt_t symbol_fmt;		/* Object form for symbols */
-
-  /* List of roots and threadscreated.  */
+  mps_arena_t arena;
+  mps_chain_t chain;
+  mps_fmt_t cons_fmt;
+  mps_fmt_t symbol_fmt;
+  mps_pool_t cons_pool;
+  mps_pool_t symbol_pool;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -411,9 +411,9 @@ add_thread_root (struct igc_thread_list *t)
   mps_res_t res
     = mps_root_create_thread_tagged (&root, gc->arena, mps_rank_ambig (),
 				     0, t->d.thr, scan_area_ambig,
-				     IGC_TAG_MASK, 0, t->d.cold);
+				     IGC_TAG_MASK, 0, t->d.stack_start);
   IGC_CHECK_RES (res);
-  register_root (gc, root, t->d.cold, NULL);
+  register_root (gc, root, t->d.stack_start, NULL);
 }
 
 /* Called after a pdump s been loaded.  Add the area as root
@@ -561,7 +561,7 @@ destroy_thread_aps (struct igc_thread_list *t)
 static struct igc_thread_list *
 register_thread (struct igc *gc, mps_thr_t thr, void *cold)
 {
-  struct igc_thread t = { .gc = gc, .thr = thr, .cold = cold };
+  struct igc_thread t = { .gc = gc, .thr = thr, .stack_start = cold };
   return igc_thread_list_push (&gc->threads, &t);
 }
 
