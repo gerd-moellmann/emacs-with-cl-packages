@@ -789,21 +789,13 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-static void *
-emacs_package_key_and_value (void)
-{
-  struct Lisp_Hash_Table *h = XHASH_TABLE (Vemacs_package);
-  return h->key_and_value;
-}
-
 /* The pointer part of a tagged word for symbols contains an offset from
    lispsym. and the Lisp_Symbol tag is zero.  */
 
 static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  //  if (start == emacs_package_key_and_value ())
-    fprintf (stderr, "*** scan_area_ambig %p", start);
+  fprintf (stderr, "*** scan_area_ambig %p", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
