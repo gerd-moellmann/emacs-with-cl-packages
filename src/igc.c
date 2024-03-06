@@ -965,6 +965,9 @@ mark_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 {
   for (struct Lisp_Cons *p = base; p < (struct Lisp_Cons *) limit; ++p)
     {
+      // Not sure if this function is supposed to encounter these.
+      IGC_ASSERT (!is_forwarded (p));
+      IGC_ASSERT (!is_padding (p));
       mark_old_object (p->u.s.car);
       mark_old_object (p->u.s.u.cdr);
     }
@@ -980,6 +983,10 @@ mark_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 {
   for (struct Lisp_Symbol *p = base; p < (struct Lisp_Symbol *) limit; ++p)
     {
+      // Not sure if this function is supposed to encounter these.
+      IGC_ASSERT (!is_forwarded (p));
+      IGC_ASSERT (!is_padding (p));
+
       mark_old_object (p->u.s.name);
 
       switch (p->u.s.redirect)
