@@ -283,7 +283,6 @@ void *
 igc_xalloc_ambig_root (size_t size)
 {
   char *start = xzalloc (size);
-  //  fprintf (stderr, "xalloc: %p size %lu\n", start, size);
   create_ambig_root (global_igc, start, start + size);
   return start;
 }
@@ -310,7 +309,6 @@ igc_xfree_ambig_root (void *p)
   struct igc_root_list *r = find_root_with_start (global_igc, p);
   IGC_ASSERT (r != NULL);
   destroy_root (r);
-  // fprintf (stderr, "xfree: %p\n", p);
   xfree (p);
 }
 
@@ -740,7 +738,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 static mps_res_t
 scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  fprintf (stderr, "*** scan_glyph_rows %p", start);
+  //fprintf (stderr, "*** scan_glyph_rows %p\n", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct glyph_row *row = start; row < (struct glyph_row *) end; ++row)
@@ -758,7 +756,7 @@ scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  fprintf (stderr, "*** scan_faces_by_id %p", start);
+  //fprintf (stderr, "*** scan_faces_by_id %p\n", start);
   MPS_SCAN_BEGIN (ss)
   {
     for (struct face **p = start; p < (struct face **) end; ++p)
@@ -779,7 +777,7 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  fprintf (stderr, "*** scan_staticvec %p", start);
+  //fprintf (stderr, "*** scan_staticvec %p\n", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (int i = 0; i < staticidx; ++i)
@@ -795,7 +793,7 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  fprintf (stderr, "*** scan_area_ambig %p", start);
+  //fprintf (stderr, "*** scan_area_ambig %p\n", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
@@ -839,7 +837,7 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-  fprintf (stderr, "*** cons_scan %p", base);
+  //fprintf (stderr, "*** cons_scan %p\n", base);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
@@ -888,7 +886,7 @@ cons_pad (mps_addr_t addr, size_t size)
 static mps_res_t
 symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-  fprintf (stderr, "*** symbol_scan %p", base);
+  //fprintf (stderr, "*** symbol_scan %p\n", base);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Symbol *sym = (struct Lisp_Symbol *) base;
@@ -973,6 +971,7 @@ static mps_res_t
 mark_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 		void *closure)
 {
+  //  fprintf (stderr, "*** mark_cons_area %p\n", base);
   for (struct Lisp_Cons *p = base; p < (struct Lisp_Cons *) limit; ++p)
     {
       // Not sure if this function is supposed to encounter these.
@@ -991,6 +990,8 @@ static mps_res_t
 mark_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
 		  void *closure)
 {
+  // fprintf (stderr, "*** mark_symbol_area %p %p\n", base, limit);
+  // Currently called with one Lisp_Symbol at a time (AMS)
   for (struct Lisp_Symbol *p = base; p < (struct Lisp_Symbol *) limit; ++p)
     {
       // Not sure if this function is supposed to encounter these.
@@ -1056,6 +1057,13 @@ igc_mark_old_objects_referenced_from_pools (void)
     {
       mps_pool_walk (gc->cons_pool, mark_cons_area, NULL);
       mps_pool_walk (gc->symbol_pool, mark_symbol_area, NULL);
+
+      // We don't mark symbols in mark_object, but we need to mark
+      // objects referenced from built-in symbols, which would normally
+      // happen while visiting lispsym via mark_object_root_visitor.
+      mark_symbol_area (NULL, &lispsym[0],
+			&lispsym[ARRAYELTS (lispsym)], NULL);
+
       IGC_CHECK_POOLS ();
     }
 }
