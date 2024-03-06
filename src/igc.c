@@ -282,6 +282,7 @@ void *
 igc_xalloc_ambig_root (size_t size)
 {
   char *start = xzalloc (size);
+  //  fprintf (stderr, "xalloc: %p size %lu\n", start, size);
   create_ambig_root (global_igc, start, start + size);
   return start;
 }
@@ -308,6 +309,8 @@ igc_xfree_ambig_root (void *p)
   struct igc_root_list *r = find_root_with_start (global_igc, p);
   IGC_ASSERT (r != NULL);
   destroy_root (r);
+  // fprintf (stderr, "xfree: %p\n", p);
+  xfree (p);
 }
 
 /* Add a root for staticvec to GC.  */
