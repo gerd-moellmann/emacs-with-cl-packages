@@ -5696,6 +5696,10 @@ valid_lisp_object_p (Lisp_Object obj)
   if (CONSP (obj))
     return 666;
 #endif
+#ifdef IGC_MANAGE_SYMBOLS
+  if (SYMBOLP (obj))
+    return 666;
+#endif
 
   struct mem_node *m = mem_find (p);
 
