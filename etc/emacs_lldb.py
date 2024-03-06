@@ -180,15 +180,15 @@ class Lisp_Object:
     # Get the package of a symbol or None if not a symbol.
     def get_symbol_package(self):
         if self.lisp_type == "Lisp_Symbol":
-            value = self.value.GetValueForExpressionPath("->u.s.package")
+            value = self.untagged.GetValueForExpressionPath("->u.s.package")
             package = Lisp_Object(value)
             if package.pvec_type:
-                name = Lisp_Object(package.value.GetValueForExpressionPath("->name"))
+                name = Lisp_Object(package.untagged.GetValueForExpressionPath("->name"))
                 return name.get_string_data()
         return None
 
     def get_package_name(self):
-        name = Lisp_Object(self.value.GetValueForExpressionPath("->name"))
+        name = Lisp_Object(self.untagged.GetValueForExpressionPath("->name"))
         return name.get_string_data()
 
     # Return a summary string for this object.
