@@ -38,6 +38,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 // clang-format off
 
 #include <config.h>
+#include <stdio.h>
 
 #ifdef HAVE_MPS
 
@@ -739,6 +740,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 static mps_res_t
 scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 {
+  fprintf (stderr, "*** scan_glyph_rows %p", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct glyph_row *row = start; row < (struct glyph_row *) end; ++row)
@@ -756,6 +758,7 @@ scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 {
+  fprintf (stderr, "*** scan_faces_by_id %p", start);
   MPS_SCAN_BEGIN (ss)
   {
     for (struct face **p = start; p < (struct face **) end; ++p)
@@ -776,6 +779,7 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
+  fprintf (stderr, "*** scan_staticvec %p", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (int i = 0; i < staticidx; ++i)
@@ -785,12 +789,21 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
+static void *
+emacs_package_key_and_value (void)
+{
+  struct Lisp_Hash_Table *h = XHASH_TABLE (Vemacs_package);
+  return h->key_and_value;
+}
+
 /* The pointer part of a tagged word for symbols contains an offset from
    lispsym. and the Lisp_Symbol tag is zero.  */
 
 static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
+  //  if (start == emacs_package_key_and_value ())
+    fprintf (stderr, "*** scan_area_ambig %p", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
@@ -834,6 +847,7 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
+  fprintf (stderr, "*** cons_scan %p", base);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
@@ -882,6 +896,7 @@ cons_pad (mps_addr_t addr, size_t size)
 static mps_res_t
 symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
+  fprintf (stderr, "*** symbol_scan %p", base);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Symbol *sym = (struct Lisp_Symbol *) base;
@@ -1081,23 +1096,37 @@ handle_messages (struct igc *gc)
       mps_message_t msg;
       if (mps_message_get (&msg, gc->arena, type))
 	{
-	  IGC_ASSERT (type == mps_message_type_finalization ());
-	  mps_addr_t addr;
-	  mps_message_finalization_ref (&addr, gc->arena, msg);
-	  do_finalize (gc, addr);
+	  if (type == mps_message_type_finalization ())
+	    {
+	      mps_addr_t addr;
+	      mps_message_finalization_ref (&addr, gc->arena, msg);
+	      do_finalize (gc, addr);
+	    }
+	  else if (type == mps_message_type_gc_start ())
+	    {
+	      const char *why = mps_message_gc_start_why (gc->arena, msg);
+	      fprintf (stderr, "*** IGC start %s\n", why);
+	    }
+
 	  mps_message_discard (gc->arena, msg);
 	}
     }
 }
 
 static void
-enable_finalization (struct igc *gc, bool enable)
+enable_messages (struct igc *gc, bool enable)
 {
-  mps_message_type_t type = mps_message_type_finalization ();
-  if (enable)
-    mps_message_type_enable (gc->arena, type);
-  else
-    mps_message_type_disable (gc->arena, type);
+  mps_message_type_t types[] = {
+    mps_message_type_finalization (),
+    mps_message_type_gc_start (),
+  };
+  for (int i = 0; i < ARRAYELTS (types); ++i)
+    {
+      if (enable)
+	mps_message_type_enable (gc->arena, types[i]);
+      else
+	mps_message_type_disable (gc->arena, types[i]);
+    }
 }
 
 void
@@ -1109,6 +1138,7 @@ igc_handle_messages (void)
 void
 igc_on_idle (void)
 {
+  handle_messages (global_igc);
   mps_arena_step (global_igc->arena, 0.1, 0);
 }
 
@@ -1273,7 +1303,7 @@ make_igc (void)
   IGC_CHECK_RES (res);
 
   add_static_roots (gc);
-  enable_finalization (gc, true);
+  enable_messages (gc, true);
 
   return gc;
 }
