@@ -1270,6 +1270,24 @@ igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
   return make_lisp_ptr (p, Lisp_String);
 }
 
+static struct interval *
+igc_make_interval (void)
+{
+  mps_ap_t ap = IGC_AP (interval);
+  size_t size = sizeof (struct interval);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, size);
+      IGC_CHECK_RES (res);
+      // Initialize before we let it loose on the world.
+      verify (NIL_IS_ZERO);
+      memset (p, 0, size);
+    }
+  while (!mps_commit (ap, p, size));
+  return p;
+}
+
 
 /***********************************************************************
 			    Setup/Tear down
