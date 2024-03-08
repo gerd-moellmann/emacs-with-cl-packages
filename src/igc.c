@@ -1061,8 +1061,7 @@ igc_mark_old_objects_referenced_from_pools (void)
       // We don't mark symbols in mark_object, but we need to mark
       // objects referenced from built-in symbols, which would normally
       // happen while visiting lispsym via mark_object_root_visitor.
-      mark_symbol_area (NULL, &lispsym[0],
-			&lispsym[ARRAYELTS (lispsym)], NULL);
+      mark_symbol_area (NULL, lispsym, lispsym + ARRAYELTS (lispsym), NULL);
 
       IGC_CHECK_POOLS ();
     }
