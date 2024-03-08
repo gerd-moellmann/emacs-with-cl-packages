@@ -171,6 +171,8 @@ struct igc_thread {
   struct igc_root_list *specpdl_root;
   mps_ap_t cons_ap;
   mps_ap_t symbol_ap;
+  mps_ap_t string_ap;
+  mps_ap_t string_data_ap;
 };
 
 typedef struct igc_thread igc_thread;
@@ -182,9 +184,13 @@ struct igc {
   mps_arena_t arena;
   mps_chain_t chain;
   mps_fmt_t cons_fmt;
-  mps_fmt_t symbol_fmt;
   mps_pool_t cons_pool;
+  mps_fmt_t symbol_fmt;
   mps_pool_t symbol_pool;
+  mps_fmt_t string_fmt;
+  mps_pool_t string_pool;
+  mps_fmt_t string_data_fmt;
+  mps_pool_t string_data_pool;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -544,6 +550,11 @@ create_thread_aps (struct igc_thread *t)
   IGC_CHECK_RES (res);
   res = mps_ap_create_k (&t->symbol_ap, gc->symbol_pool, mps_args_none);
   IGC_CHECK_RES (res);
+  res = mps_ap_create_k (&t->string_ap, gc->string_pool, mps_args_none);
+  IGC_CHECK_RES (res);
+  res = mps_ap_create_k (&t->string_data_ap, gc->string_data_pool,
+			 mps_args_none);
+  IGC_CHECK_RES (res);
 }
 
 static void
@@ -553,6 +564,10 @@ destroy_thread_aps (struct igc_thread_list *t)
   t->d.cons_ap = NULL;
   mps_ap_destroy (t->d.symbol_ap);
   t->d.symbol_ap = NULL;
+  mps_ap_destroy (t->d.string_ap);
+  t->d.string_ap = NULL;
+  mps_ap_destroy (t->d.string_data_ap);
+  t->d.string_data_ap = NULL;
 }
 
 
@@ -908,8 +923,6 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
-#pragma GCC diagnostic pop
-
 static mps_addr_t
 symbol_skip (mps_addr_t addr)
 {
@@ -936,6 +949,86 @@ symbol_pad (mps_addr_t addr, size_t size)
   pad (addr, size);
 }
 
+static mps_res_t
+string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  //fprintf (stderr, "*** symbol_scan %p\n", base);
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct Lisp_String *s = (struct Lisp_String *) base;
+	   s < (struct Lisp_String *) limit;
+	   ++s)
+	{
+	  if (is_forwarded (s) || is_padding (s))
+	    continue;
+
+	  // unsigned char *data
+	  // INTERVAL intervals
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_addr_t
+string_skip (mps_addr_t addr)
+{
+  return (char *) addr + sizeof (struct Lisp_String);
+}
+
+static void
+string_fwd (mps_addr_t old, mps_addr_t new)
+{
+  IGC_ASSERT (false);
+  forward (old, new);
+}
+
+static mps_addr_t
+string_isfwd (mps_addr_t addr)
+{
+  IGC_ASSERT (false);
+  return is_forwarded (addr);
+}
+
+static void
+string_pad (mps_addr_t addr, size_t size)
+{
+  pad (addr, size);
+}
+
+/* Value is the address just past the object being skipped. String
+   data is always NUL terminated.  */
+
+static mps_addr_t
+string_data_skip (mps_addr_t addr)
+{
+  return (char *) addr + strlen ((char *) addr);
+}
+
+/* Make sure we have enough alignment in the pool to store
+   a igc_forward structure.  */
+
+static void
+string_data_fwd (mps_addr_t old, mps_addr_t new)
+{
+  IGC_ASSERT (false);
+  forward (old, new);
+}
+
+static mps_addr_t
+string_data_isfwd (mps_addr_t addr)
+{
+  IGC_ASSERT (false);
+  return is_forwarded (addr);
+}
+
+static void
+string_data_pad (mps_addr_t addr, size_t size)
+{
+  pad (addr, size);
+}
+
+#pragma GCC diagnostic pop
 
 
 /***********************************************************************
@@ -1146,19 +1239,8 @@ igc_on_idle (void)
 			    Allocation
  ***********************************************************************/
 
-static mps_ap_t
-current_cons_ap (void)
-{
-  struct igc_thread_list *t = current_thread->gc_info;
-  return t->d.cons_ap;
-}
-
-static mps_ap_t
-current_symbol_ap (void)
-{
-  struct igc_thread_list *t = current_thread->gc_info;
-  return t->d.symbol_ap;
-}
+#define IGC_AP(member) \
+  ((struct igc_thread_list *) current_thread->gc_info)->d.member##_ap
 
 void igc_break (void)
 {
@@ -1167,7 +1249,7 @@ void igc_break (void)
 Lisp_Object
 igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
-  mps_ap_t ap = current_cons_ap ();
+  mps_ap_t ap = IGC_AP (cons);
   size_t size = sizeof (struct Lisp_Cons);
   mps_addr_t p;
   do
@@ -1185,7 +1267,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 Lisp_Object
 igc_alloc_symbol (void)
 {
-  mps_ap_t ap = current_symbol_ap ();
+  mps_ap_t ap = IGC_AP (symbol);
   size_t size = sizeof (struct Lisp_Symbol);
   mps_addr_t p;
   do
@@ -1271,7 +1353,6 @@ make_igc (void)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
-  // Object format for conses.
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
@@ -1286,9 +1367,6 @@ make_igc (void)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
-  // Pool for conses. Since conses have no type field which would let
-  // us recognize them when mixed with other objects, use a dedicated
-  // pool.
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
@@ -1297,6 +1375,61 @@ make_igc (void)
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
       res = mps_pool_create_k (&gc->symbol_pool, gc->arena,
 			       ams_pool_class, args);
+    }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+
+  MPS_ARGS_BEGIN (args)
+  {
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, string_scan);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, string_skip);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, string_fwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, string_isfwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, string_pad);
+    res = mps_fmt_create_k (&gc->string_fmt, gc->arena, args);
+  }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+
+  MPS_ARGS_BEGIN (args)
+    {
+      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->string_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
+      res = mps_pool_create_k (&gc->string_pool, gc->arena,
+			       ams_pool_class, args);
+    }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+
+  MPS_ARGS_BEGIN (args)
+  {
+    /* The alignment must allow storing an igc_fwd and igc_pad
+       structure.  */
+    size_t align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad));
+    IGC_ASSERT (align >= GCALIGNMENT);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, align);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, string_data_skip);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, string_data_fwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, string_data_isfwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, string_data_pad);
+    res = mps_fmt_create_k (&gc->string_data_fmt, gc->arena, args);
+  }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+
+  MPS_ARGS_BEGIN (args)
+    {
+      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->string_data_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+      // MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
+      res = mps_pool_create_k (&gc->string_data_pool, gc->arena,
+			       mps_class_amcz (), args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1315,6 +1448,10 @@ free_igc (struct igc *gc)
   mps_fmt_destroy (gc->cons_fmt);
   mps_pool_destroy (gc->symbol_pool);
   mps_fmt_destroy (gc->symbol_fmt);
+  mps_pool_destroy (gc->string_pool);
+  mps_fmt_destroy (gc->string_fmt);
+  mps_pool_destroy (gc->string_data_pool);
+  mps_fmt_destroy (gc->string_data_fmt);
   destroy_all_roots (gc);
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);
