@@ -1362,7 +1362,9 @@ igc_make_vectorlike (size_t nelems)
    (lldb) memory read cons_ptr
    0x17735fe68: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
    0x17735fe78: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
-*/
+
+   I think this feature is only supported in AMS pools. */
+
 static mps_pool_debug_option_s debug_options = {
   "fence", 5,
   "free", 4,
@@ -1540,17 +1542,17 @@ make_string_data_fmt (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
-  {
-    size_t align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad));
-    IGC_ASSERT (align >= GCALIGNMENT);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, align);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, string_data_skip);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, string_data_fwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, string_data_isfwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, string_data_pad);
-    res = mps_fmt_create_k (&gc->string_data_fmt, gc->arena, args);
-  }
+    {
+      size_t align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad));
+      IGC_ASSERT (align >= GCALIGNMENT);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, align);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, string_data_skip);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, string_data_fwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, string_data_isfwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, string_data_pad);
+      res = mps_fmt_create_k (&gc->string_data_fmt, gc->arena, args);
+    }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
@@ -1576,16 +1578,16 @@ make_vector_fmt (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
-  {
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, vector_scan);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, vector_skip);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, vector_fwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, vector_isfwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, vector_pad);
-    res = mps_fmt_create_k (&gc->vector_fmt, gc->arena, args);
-  }
+    {
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, vector_scan);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, vector_skip);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, vector_fwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, vector_isfwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, vector_pad);
+      res = mps_fmt_create_k (&gc->vector_fmt, gc->arena, args);
+    }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
@@ -1659,16 +1661,16 @@ free_global_igc (void)
 }
 
 void
-syms_of_igc (void)
-{
-}
-
-void
 init_igc (void)
 {
   global_igc = make_igc ();
   atexit (free_global_igc);
   add_main_thread ();
+}
+
+void
+syms_of_igc (void)
+{
 }
 
 #endif // HAVE_MPS
