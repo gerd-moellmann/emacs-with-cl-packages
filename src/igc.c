@@ -158,6 +158,7 @@ struct igc_thread {
   mps_ap_t symbol_ap;
   mps_ap_t string_ap;
   mps_ap_t string_data_ap;
+  mps_ap_t interval_ap;
 };
 
 typedef struct igc_thread igc_thread;
@@ -176,6 +177,8 @@ struct igc {
   mps_pool_t string_pool;
   mps_fmt_t string_data_fmt;
   mps_pool_t string_data_pool;
+  mps_fmt_t interval_fmt;
+  mps_pool_t interval_pool;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -540,6 +543,8 @@ create_thread_aps (struct igc_thread *t)
   res = mps_ap_create_k (&t->string_data_ap, gc->string_data_pool,
 			 mps_args_none);
   IGC_CHECK_RES (res);
+  res = mps_ap_create_k (&t->interval_ap, gc->interval_pool, mps_args_none);
+  IGC_CHECK_RES (res);
 }
 
 static void
@@ -553,6 +558,8 @@ destroy_thread_aps (struct igc_thread_list *t)
   t->d.string_ap = NULL;
   mps_ap_destroy (t->d.string_data_ap);
   t->d.string_data_ap = NULL;
+  mps_ap_destroy (t->d.interval_ap);
+  t->d.interval_ap = NULL;
 }
 
 
@@ -1036,6 +1043,55 @@ string_data_pad (mps_addr_t addr, size_t size)
   pad (addr, size);
 }
 
+static mps_res_t
+interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct Lisp_String *s = (struct Lisp_String *) base;
+	   s < (struct Lisp_String *) limit;
+	   ++s)
+	{
+	  if (is_forwarded (s) || is_padding (s))
+	    continue;
+
+	  IGC_FIX12 (ss, s->u.s.data);
+	  // INTERVAL intervals
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_addr_t
+interval_skip (mps_addr_t addr)
+{
+  return (char *) addr + sizeof (struct Lisp_String);
+}
+
+static void
+interval_fwd (mps_addr_t old, mps_addr_t new)
+{
+  IGC_ASSERT (false);
+  forward (old, new);
+}
+
+static mps_addr_t
+interval_isfwd (mps_addr_t addr)
+{
+  IGC_ASSERT (false);
+  return is_forwarded (addr);
+}
+
+static void
+interval_pad (mps_addr_t addr, size_t size)
+{
+  pad (addr, size);
+}
+
+
+
+
 #pragma GCC diagnostic pop
 
 
@@ -1183,7 +1239,7 @@ alloc_string_data (size_t nbytes)
   return p;
 }
 
-Lisp_Object
+static Lisp_Object
 igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
 {
   struct igc_sdata *data = alloc_string_data (nbytes);
@@ -1213,17 +1269,26 @@ igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
 			    Setup/Tear down
  ***********************************************************************/
 
-static struct igc *
-make_igc (void)
-{
-  struct igc *gc = xzalloc (sizeof *gc);
-  mps_res_t res;
+/* In a debug pool, fill fencepost and freed objects with a
+   byte pattern. This is ignored in non-debug pools.
 
-  // Arena
+   (lldb) memory read cons_ptr
+   0x17735fe68: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
+   0x17735fe78: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
+*/
+static mps_pool_debug_option_s debug_options = {
+  "fence", 5,
+  "free", 4,
+};
+
+static void
+make_arena (struct igc *gc)
+{
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
-  {
-    res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
-  }
+    {
+      res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
+    }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
@@ -1233,8 +1298,12 @@ make_igc (void)
   res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gen_params),
 			  gen_params);
   IGC_CHECK_RES (res);
+}
 
-  // Object format for conses.
+static void
+make_cons_fmt (struct igc *gc)
+{
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
@@ -1248,28 +1317,13 @@ make_igc (void)
   }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+}
 
-#ifdef IGC_DEBUG_POOL
-  mps_class_t ams_pool_class = mps_class_ams_debug ();
-#else
-  mps_class_t ams_pool_class = mps_class_ams ();
-#endif
-
-  /* In a debug pool, fill fencepost and freed objects with a
-     byte pattern. This is ignored in non-debug pools.
-
-     (lldb) memory read cons_ptr
-     0x17735fe68: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
-     0x17735fe78: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
-  */
-  mps_pool_debug_option_s debug_options = {
-    "fence", 5,
-    "free", 4,
-  };
-
-  // Pool for conses. Since conses have no type field which would let
-  // us recognize them when mixed with other objects, use a dedicated
-  // pool.
+static void
+make_cons_pool (struct igc *gc)
+{
+  mps_class_t pool_class = mps_class_amc ();
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
@@ -1277,11 +1331,16 @@ make_igc (void)
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
       res = mps_pool_create_k (&gc->cons_pool, gc->arena,
-			       ams_pool_class, args);
+			       pool_class, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+}
 
+static void
+make_symbol_fmt (struct igc *gc)
+{
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
@@ -1295,7 +1354,13 @@ make_igc (void)
   }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+}
 
+static void
+make_symbol_pool (struct igc *gc)
+{
+  mps_class_t pool_class = mps_class_amc ();
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
@@ -1303,11 +1368,53 @@ make_igc (void)
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
       res = mps_pool_create_k (&gc->symbol_pool, gc->arena,
-			       ams_pool_class, args);
+			       pool_class, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+}
 
+static void
+make_interval_fmt (struct igc *gc)
+{
+  mps_res_t res;
+  MPS_ARGS_BEGIN (args)
+  {
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, interval_scan);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, interval_skip);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, interval_fwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, interval_isfwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, interval_pad);
+    res = mps_fmt_create_k (&gc->interval_fmt, gc->arena, args);
+  }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+}
+
+static void
+make_interval_pool (struct igc *gc)
+{
+  mps_class_t pool_class = mps_class_amc ();
+  mps_res_t res;
+  MPS_ARGS_BEGIN (args)
+    {
+      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->interval_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
+      res = mps_pool_create_k (&gc->interval_pool, gc->arena,
+			       pool_class, args);
+    }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+}
+
+static void
+make_string_fmt (struct igc *gc)
+{
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
@@ -1321,7 +1428,13 @@ make_igc (void)
   }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+}
 
+static void
+make_string_pool (struct igc *gc)
+{
+  mps_class_t pool_class = mps_class_amc ();
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
@@ -1329,11 +1442,16 @@ make_igc (void)
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
       res = mps_pool_create_k (&gc->string_pool, gc->arena,
-			       ams_pool_class, args);
+			       pool_class, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+}
 
+static void
+make_string_data_fmt (struct igc *gc)
+{
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
     /* The alignment must allow storing an igc_fwd and igc_pad
@@ -1350,7 +1468,12 @@ make_igc (void)
   }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+}
 
+static void
+make_string_data_pool (struct igc *gc)
+{
+  mps_res_t res;
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
@@ -1362,10 +1485,25 @@ make_igc (void)
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+}
 
+static struct igc *
+make_igc (void)
+{
+  struct igc *gc = xzalloc (sizeof *gc);
+  make_arena (gc);
+  make_cons_fmt (gc);
+  make_cons_pool (gc);
+  make_symbol_fmt (gc);
+  make_symbol_pool (gc);
+  make_interval_fmt (gc);
+  make_interval_pool (gc);
+  make_string_fmt (gc);
+  make_string_pool (gc);
+  make_string_data_fmt (gc);
+  make_string_data_pool (gc);
   add_static_roots (gc);
   enable_messages (gc, true);
-
   return gc;
 }
 
@@ -1377,6 +1515,8 @@ free_igc (struct igc *gc)
   mps_fmt_destroy (gc->cons_fmt);
   mps_pool_destroy (gc->symbol_pool);
   mps_fmt_destroy (gc->symbol_fmt);
+  mps_pool_destroy (gc->interval_pool);
+  mps_fmt_destroy (gc->interval_fmt);
   mps_pool_destroy (gc->string_pool);
   mps_fmt_destroy (gc->string_fmt);
   mps_pool_destroy (gc->string_data_pool);
