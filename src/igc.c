@@ -1174,39 +1174,32 @@ handle_messages (struct igc *gc)
   while (mps_message_queue_type (&type, gc->arena))
     {
       mps_message_t msg;
-      if (mps_message_get (&msg, gc->arena, type))
-	{
-	  if (type == mps_message_type_finalization ())
-	    {
-	      mps_addr_t addr;
-	      mps_message_finalization_ref (&addr, gc->arena, msg);
-	      do_finalize (gc, addr);
-	    }
-	  else if (type == mps_message_type_gc_start ())
-	    {
-	      const char *why = mps_message_gc_start_why (gc->arena, msg);
-	      fprintf (stderr, "*** IGC start %s\n", why);
-	    }
+      if (!mps_message_get (&msg, gc->arena, type))
+	continue;
 
-	  mps_message_discard (gc->arena, msg);
+      if (type == mps_message_type_finalization ())
+	{
+	  mps_addr_t addr;
+	  mps_message_finalization_ref (&addr, gc->arena, msg);
+	  do_finalize (gc, addr);
 	}
+      else if (type == mps_message_type_gc_start ())
+	{
+	  const char *why = mps_message_gc_start_why (gc->arena, msg);
+	  fprintf (stderr, "*** IGC start %s\n", why);
+	}
+
+      mps_message_discard (gc->arena, msg);
     }
 }
 
 static void
 enable_messages (struct igc *gc, bool enable)
 {
-  mps_message_type_t types[] = {
-    mps_message_type_finalization (),
-    mps_message_type_gc_start (),
-  };
-  for (int i = 0; i < ARRAYELTS (types); ++i)
-    {
-      if (enable)
-	mps_message_type_enable (gc->arena, types[i]);
-      else
-	mps_message_type_disable (gc->arena, types[i]);
-    }
+  void (* fun) (mps_arena_t, mps_message_type_t)
+    = enable ? mps_message_type_enable : mps_message_type_disable;
+  fun (gc->arena, mps_message_type_finalization ());
+  fun (gc->arena, mps_message_type_gc_start ());
 }
 
 void
@@ -1382,10 +1375,9 @@ make_arena (struct igc *gc)
   IGC_CHECK_RES (res);
 
   // Generations
-  mps_gen_param_s gen_params[]
+  mps_gen_param_s gens[]
     = { { 32000, 0.8 }, { 5 * 32009, 0.4 } };
-  res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gen_params),
-			  gen_params);
+  res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gens), gens);
   IGC_CHECK_RES (res);
 }
 
@@ -1394,16 +1386,16 @@ make_cons_fmt (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
-  {
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, cons_scan);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, cons_skip);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, cons_fwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, cons_isfwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, cons_pad);
-    res = mps_fmt_create_k (&gc->cons_fmt, gc->arena, args);
-  }
+    {
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, cons_scan);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, cons_skip);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, cons_fwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, cons_isfwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, cons_pad);
+      res = mps_fmt_create_k (&gc->cons_fmt, gc->arena, args);
+    }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
@@ -1431,16 +1423,16 @@ make_symbol_fmt (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
-  {
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, symbol_scan);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, symbol_skip);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, symbol_fwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, symbol_isfwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, symbol_pad);
-    res = mps_fmt_create_k (&gc->symbol_fmt, gc->arena, args);
-  }
+    {
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, symbol_scan);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, symbol_skip);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, symbol_fwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, symbol_isfwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, symbol_pad);
+      res = mps_fmt_create_k (&gc->symbol_fmt, gc->arena, args);
+    }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
@@ -1468,16 +1460,16 @@ make_interval_fmt (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
-  {
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, interval_scan);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, interval_skip);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, interval_fwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, interval_isfwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, interval_pad);
-    res = mps_fmt_create_k (&gc->interval_fmt, gc->arena, args);
-  }
+    {
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, interval_scan);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, interval_skip);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, interval_fwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, interval_isfwd);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, interval_pad);
+      res = mps_fmt_create_k (&gc->interval_fmt, gc->arena, args);
+    }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
