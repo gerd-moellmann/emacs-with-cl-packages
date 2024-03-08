@@ -1047,7 +1047,6 @@ string_data_pad (mps_addr_t addr, size_t size)
 static mps_res_t
 interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-
   MPS_SCAN_BEGIN (ss)
     {
       for (struct interval *iv = (struct interval *) base;
@@ -1073,7 +1072,7 @@ interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 interval_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct Lisp_String);
+  return (char *) addr + sizeof (struct interval);
 }
 
 static void
