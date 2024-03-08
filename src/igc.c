@@ -1238,17 +1238,17 @@ Lisp_Object
 igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
   mps_ap_t ap = IGC_AP (cons);
-  size_t size = sizeof (struct Lisp_Cons);
+  size_t nbytes = sizeof (struct Lisp_Cons);
   mps_addr_t p;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, size);
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       struct Lisp_Cons *cons = p;
       cons->u.s.car = car;
       cons->u.s.u.cdr = cdr;
     }
-  while (!mps_commit (ap, p, size));
+  while (!mps_commit (ap, p, nbytes));
   return make_lisp_ptr (p, Lisp_Cons);
 }
 
@@ -1256,11 +1256,11 @@ Lisp_Object
 igc_alloc_symbol (void)
 {
   mps_ap_t ap = IGC_AP (symbol);
-  size_t size = sizeof (struct Lisp_Symbol);
+  size_t nbytes = sizeof (struct Lisp_Symbol);
   mps_addr_t p;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, size);
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       struct Lisp_Symbol *s = p;
       s->u.s.redirect = SYMBOL_PLAINVAL;
@@ -1270,7 +1270,7 @@ igc_alloc_symbol (void)
       s->u.s.plist = Qnil;
       s->u.s.package = Qnil;
     }
-  while (!mps_commit (ap, p, size));
+  while (!mps_commit (ap, p, nbytes));
   return make_lisp_symbol ((struct Lisp_Symbol *) p);
 }
 
@@ -1306,7 +1306,6 @@ igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
     {
       mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      // Initialize before we let it loose on the world.
       struct Lisp_String *s = p;
       s->u.s.size = nchars;
       s->u.s.size_byte = nbytes;
@@ -1321,16 +1320,34 @@ static struct interval *
 igc_make_interval (void)
 {
   mps_ap_t ap = IGC_AP (interval);
-  size_t size = sizeof (struct interval);
+  size_t nbytes = sizeof (struct interval);
   mps_addr_t p;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, size);
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       verify (NIL_IS_ZERO);
-      memset (p, 0, size);
+      memset (p, 0, nbytes);
     }
-  while (!mps_commit (ap, p, size));
+  while (!mps_commit (ap, p, nbytes));
+  return p;
+}
+
+static struct Lisp_Vector *
+igc_make_vectorlike (size_t nelems)
+{
+  mps_ap_t ap = IGC_AP (vector);
+  size_t nbytes = offsetof (struct Lisp_Vector, contents)
+    + nelems * sizeof (Lisp_Object);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+      verify (NIL_IS_ZERO);
+      memset (p, 0, nbytes);
+    }
+  while (!mps_commit (ap, p, nbytes));
   return p;
 }
 
