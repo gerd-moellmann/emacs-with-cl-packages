@@ -36,7 +36,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "pdumper.h"
 #include "dispextern.h"
 #include "igc.h"
-#include "puresize.h"
+//#include "puresize.h"
+#include "intervals.h"
 
 #ifndef USE_LSB_TAG
 #error "USE_LSB_TAG required"
@@ -732,7 +733,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
   return MPS_RES_OK;
 }
 
-#define IGC_FIX(p)					\
+#define IGC_FIX_OBJ(p)					\
   do {							\
     mps_res_t res;					\
     MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, (p)));	\
@@ -753,7 +754,7 @@ scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 	  struct glyph *glyph = row->glyphs[LEFT_MARGIN_AREA];
 	  struct glyph *end = row->glyphs[LAST_AREA];
 	  for (; glyph < end; ++glyph)
-	    IGC_FIX (&glyph->object);
+	    IGC_FIX_OBJ (&glyph->object);
 	}
     }
   MPS_SCAN_END (ss);
@@ -771,7 +772,7 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 	{
 	  struct face *face = *p;
 	  for (int i = 0; i < ARRAYELTS (face->lface); ++i)
-	    IGC_FIX (&face->lface[i]);
+	    IGC_FIX_OBJ (&face->lface[i]);
 	}
   }
   MPS_SCAN_END (ss);
@@ -788,7 +789,7 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
   MPS_SCAN_BEGIN (ss)
     {
       for (int i = 0; i < staticidx; ++i)
-	IGC_FIX ((Lisp_Object *) staticvec[i]);
+	IGC_FIX_OBJ ((Lisp_Object *) staticvec[i]);
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -853,8 +854,8 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	{
 	  if (is_forwarded (cons) || is_padding (cons))
 	    continue;
-	  IGC_FIX (&cons->u.s.car);
-	  IGC_FIX (&cons->u.s.u.cdr);
+	  IGC_FIX_OBJ (&cons->u.s.car);
+	  IGC_FIX_OBJ (&cons->u.s.u.cdr);
 	}
     }
   MPS_SCAN_END (ss);
@@ -903,12 +904,12 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (sym) || is_padding (sym))
 	    continue;
 
-	  IGC_FIX (&sym->u.s.name);
+	  IGC_FIX_OBJ (&sym->u.s.name);
 	  if (sym->u.s.redirect == SYMBOL_PLAINVAL)
-	    IGC_FIX (&sym->u.s.val.value);
-	  IGC_FIX (&sym->u.s.function);
-	  IGC_FIX (&sym->u.s.plist);
-	  IGC_FIX (&sym->u.s.package);
+	    IGC_FIX_OBJ (&sym->u.s.val.value);
+	  IGC_FIX_OBJ (&sym->u.s.function);
+	  IGC_FIX_OBJ (&sym->u.s.plist);
+	  IGC_FIX_OBJ (&sym->u.s.package);
 	}
     }
   MPS_SCAN_END (ss);
@@ -941,7 +942,7 @@ symbol_pad (mps_addr_t addr, size_t size)
   pad (addr, size);
 }
 
-#define IGC_FIX12(ss, expr)					\
+#define IGC_FIX12_PTR(ss, expr)					\
   do								\
     {								\
       mps_res_t res = MPS_FIX12 (ss, (mps_addr_t *) &expr);	\
@@ -961,7 +962,7 @@ string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (s) || is_padding (s))
 	    continue;
 
-	  IGC_FIX12 (ss, s->u.s.data);
+	  IGC_FIX12_PTR (ss, s->u.s.data);
 	  // INTERVAL intervals
 	}
     }
@@ -1046,17 +1047,23 @@ string_data_pad (mps_addr_t addr, size_t size)
 static mps_res_t
 interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
+
   MPS_SCAN_BEGIN (ss)
     {
-      for (struct Lisp_String *s = (struct Lisp_String *) base;
-	   s < (struct Lisp_String *) limit;
-	   ++s)
+      for (struct interval *iv = (struct interval *) base;
+	   iv < (struct interval *) limit;
+	   ++iv)
 	{
-	  if (is_forwarded (s) || is_padding (s))
+	  if (is_forwarded (iv) || is_padding (iv))
 	    continue;
 
-	  IGC_FIX12 (ss, s->u.s.data);
-	  // INTERVAL intervals
+	  IGC_FIX12_PTR (ss, iv->left);
+	  IGC_FIX12_PTR (ss, iv->right);
+	  if (iv->up_obj)
+	    IGC_FIX_OBJ (&iv->up.obj);
+	  else
+	    IGC_FIX12_PTR (ss, iv->up.interval);
+	  IGC_FIX_OBJ (&iv->plist);
 	}
     }
   MPS_SCAN_END (ss);
@@ -1454,8 +1461,6 @@ make_string_data_fmt (struct igc *gc)
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
-    /* The alignment must allow storing an igc_fwd and igc_pad
-       structure.  */
     size_t align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad));
     IGC_ASSERT (align >= GCALIGNMENT);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, align);
@@ -1479,7 +1484,6 @@ make_string_data_pool (struct igc *gc)
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
       MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->string_data_fmt);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      // MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
       res = mps_pool_create_k (&gc->string_data_pool, gc->arena,
 			       mps_class_amcz (), args);
     }
