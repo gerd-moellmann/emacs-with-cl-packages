@@ -160,6 +160,7 @@ struct igc_thread {
   mps_ap_t string_ap;
   mps_ap_t string_data_ap;
   mps_ap_t interval_ap;
+  mps_ap_t vector_ap;
 };
 
 typedef struct igc_thread igc_thread;
@@ -174,12 +175,14 @@ struct igc {
   mps_pool_t cons_pool;
   mps_fmt_t symbol_fmt;
   mps_pool_t symbol_pool;
+  mps_fmt_t interval_fmt;
+  mps_pool_t interval_pool;
   mps_fmt_t string_fmt;
   mps_pool_t string_pool;
   mps_fmt_t string_data_fmt;
   mps_pool_t string_data_pool;
-  mps_fmt_t interval_fmt;
-  mps_pool_t interval_pool;
+  mps_fmt_t vector_fmt;
+  mps_pool_t vector_pool;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -546,6 +549,8 @@ create_thread_aps (struct igc_thread *t)
   IGC_CHECK_RES (res);
   res = mps_ap_create_k (&t->interval_ap, gc->interval_pool, mps_args_none);
   IGC_CHECK_RES (res);
+  res = mps_ap_create_k (&t->vector_ap, gc->vector_pool, mps_args_none);
+  IGC_CHECK_RES (res);
 }
 
 static void
@@ -561,6 +566,8 @@ destroy_thread_aps (struct igc_thread_list *t)
   t->d.string_data_ap = NULL;
   mps_ap_destroy (t->d.interval_ap);
   t->d.interval_ap = NULL;
+  mps_ap_destroy (t->d.vector_ap);
+  t->d.vector_ap = NULL;
 }
 
 
@@ -1095,8 +1102,47 @@ interval_pad (mps_addr_t addr, size_t size)
   pad (addr, size);
 }
 
+static mps_res_t
+vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct interval *iv = (struct interval *) base;
+	   iv < (struct interval *) limit;
+	   ++iv)
+	{
+	  IGC_FIX_OBJ (&iv->plist);
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
 
+static mps_addr_t
+vector_skip (mps_addr_t addr)
+{
+  return (char *) addr + sizeof (struct interval);
+}
 
+static void
+vector_fwd (mps_addr_t old, mps_addr_t new)
+{
+  IGC_ASSERT (false);
+  forward (old, new);
+}
+
+static mps_addr_t
+vector_isfwd (mps_addr_t addr)
+{
+  IGC_ASSERT (false);
+  return is_forwarded (addr);
+}
+
+static void
+vector_pad (mps_addr_t addr, size_t size)
+{
+  pad (addr, size);
+}
 
 #pragma GCC diagnostic pop
 
@@ -1280,7 +1326,6 @@ igc_make_interval (void)
     {
       mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      // Initialize before we let it loose on the world.
       verify (NIL_IS_ZERO);
       memset (p, 0, size);
     }
@@ -1508,6 +1553,43 @@ make_string_data_pool (struct igc *gc)
   IGC_CHECK_RES (res);
 }
 
+static void
+make_vector_fmt (struct igc *gc)
+{
+  mps_res_t res;
+  MPS_ARGS_BEGIN (args)
+  {
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, vector_scan);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, vector_skip);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, vector_fwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, vector_isfwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, vector_pad);
+    res = mps_fmt_create_k (&gc->vector_fmt, gc->arena, args);
+  }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+}
+
+static void
+make_vector_pool (struct igc *gc)
+{
+  mps_class_t pool_class = mps_class_amc ();
+  mps_res_t res;
+  MPS_ARGS_BEGIN (args)
+    {
+      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->vector_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
+      res = mps_pool_create_k (&gc->vector_pool, gc->arena,
+			       pool_class, args);
+    }
+  MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
+}
+
 static struct igc *
 make_igc (void)
 {
@@ -1523,6 +1605,8 @@ make_igc (void)
   make_string_pool (gc);
   make_string_data_fmt (gc);
   make_string_data_pool (gc);
+  make_vector_fmt (gc);
+  make_vector_pool (gc);
   add_static_roots (gc);
   enable_messages (gc, true);
   return gc;
@@ -1542,6 +1626,8 @@ free_igc (struct igc *gc)
   mps_fmt_destroy (gc->string_fmt);
   mps_pool_destroy (gc->string_data_pool);
   mps_fmt_destroy (gc->string_data_fmt);
+  mps_pool_destroy (gc->vector_pool);
+  mps_fmt_destroy (gc->vector_fmt);
   destroy_all_roots (gc);
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);
