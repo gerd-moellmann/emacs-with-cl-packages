@@ -38,7 +38,6 @@ void *igc_on_grow_read_stack (void *info, void *start, void *end);
 void *igc_xalloc_ambig_root (size_t size);
 void igc_xfree_ambig_root (void *p);
 
-void igc_mark_old_objects_referenced_from_pools (void);
 void igc_handle_messages (void);
 specpdl_ref igc_inhibit_garbage_collection (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);

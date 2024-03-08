@@ -934,10 +934,17 @@ symbol_pad (mps_addr_t addr, size_t size)
   pad (addr, size);
 }
 
+#define IGC_FIX12(ss, expr)					\
+  do								\
+    {								\
+      mps_res_t res = MPS_FIX12 (ss, (mps_addr_t *) &expr);	\
+      if (res != MPS_RES_OK)					\
+	return res;						\
+    } while (0)
+
 static mps_res_t
 string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-  //fprintf (stderr, "*** symbol_scan %p\n", base);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_String *s = (struct Lisp_String *) base;
@@ -947,7 +954,7 @@ string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (s) || is_padding (s))
 	    continue;
 
-	  // unsigned char *data
+	  IGC_FIX12 (ss, s->u.s.data);
 	  // INTERVAL intervals
 	}
     }
@@ -1032,135 +1039,6 @@ string_data_pad (mps_addr_t addr, size_t size)
 #pragma GCC diagnostic pop
 
 
-/***********************************************************************
-		  Mark objects referenced from MPS
-***********************************************************************/
-
-/* Call mark_object on OBJ if it is managed by old GC.  */
-
-static void
-mark_old_object (Lisp_Object obj)
-{
-  switch (XTYPE (obj))
-    {
-      /* No need to mark_object.  */
-    case Lisp_Int0:
-    case Lisp_Int1:
-      break;
-
-      /* Managed by us.  */
-    case Lisp_Cons:
-    case Lisp_Symbol:
-      break;
-
-    default:
-      mark_object (obj);
-      break;
-    }
-}
-
-/* Walk over an area in the cons pool.  */
-
-static mps_res_t
-mark_cons_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
-		void *closure)
-{
-  //  fprintf (stderr, "*** mark_cons_area %p\n", base);
-  for (struct Lisp_Cons *p = base; p < (struct Lisp_Cons *) limit; ++p)
-    {
-      // Not sure if this function is supposed to encounter these.
-      IGC_ASSERT (!is_forwarded (p));
-      IGC_ASSERT (!is_padding (p));
-      mark_old_object (p->u.s.car);
-      mark_old_object (p->u.s.u.cdr);
-    }
-
-  return MPS_RES_OK;
-}
-
-/* Walk over an area in the symbol pool.  */
-
-static mps_res_t
-mark_symbol_area (mps_ss_t ss, mps_addr_t base, mps_addr_t limit,
-		  void *closure)
-{
-  // fprintf (stderr, "*** mark_symbol_area %p %p\n", base, limit);
-  // Currently called with one Lisp_Symbol at a time (AMS)
-  for (struct Lisp_Symbol *p = base; p < (struct Lisp_Symbol *) limit; ++p)
-    {
-      // Not sure if this function is supposed to encounter these.
-      IGC_ASSERT (!is_forwarded (p));
-      IGC_ASSERT (!is_padding (p));
-
-      mark_old_object (p->u.s.name);
-
-      switch (p->u.s.redirect)
-	{
-	case SYMBOL_PLAINVAL:
-	  mark_old_object (p->u.s.val.value);
-	  break;
-	case SYMBOL_VARALIAS:
-	  {
-	    Lisp_Object tem;
-	    XSETSYMBOL (tem, SYMBOL_ALIAS (p));
-	    mark_old_object (tem);
-	    break;
-	  }
-	case SYMBOL_LOCALIZED:
-	  {
-	    struct Lisp_Buffer_Local_Value *blv = SYMBOL_BLV (p);
-	    Lisp_Object where = blv->where;
-	    /* If the value is set up for a killed buffer,
-	       restore its global binding.  */
-	    if (BUFFERP (where) && !BUFFER_LIVE_P (XBUFFER (where)))
-	      swap_in_global_binding (p);
-	    mark_old_object (blv->where);
-	    mark_old_object (blv->valcell);
-	    mark_old_object (blv->defcell);
-	  }
-	  break;
-	case SYMBOL_FORWARDED:
-	  /* If the value is forwarded to a buffer or keyboard field,
-	     these are marked when we see the corresponding object.
-	     And if it's forwarded to a C variable, either it's not
-	     a Lisp_Object var, or it's staticpro'd already.  */
-	  break;
-	default:
-	  emacs_abort ();
-	}
-
-      if (!PURE_P (XSTRING (p->u.s.name)))
-	set_string_marked (XSTRING (p->u.s.name));
-      mark_interval_tree (string_intervals (p->u.s.name));
-      mark_old_object (p->u.s.function);
-      mark_old_object (p->u.s.plist);
-      mark_old_object (p->u.s.package);
-    }
-
-  return MPS_RES_OK;
-}
-
-/* Called during the mark phase of old GC to mark objects
-   references from objects in MPS.  */
-
-void
-igc_mark_old_objects_referenced_from_pools (void)
-{
-  struct igc *gc = global_igc;
-  IGC_WITH_PARKED (gc)
-    {
-      mps_pool_walk (gc->cons_pool, mark_cons_area, NULL);
-      mps_pool_walk (gc->symbol_pool, mark_symbol_area, NULL);
-
-      // We don't mark symbols in mark_object, but we need to mark
-      // objects referenced from built-in symbols, which would normally
-      // happen while visiting lispsym via mark_object_root_visitor.
-      mark_symbol_area (NULL, lispsym, lispsym + ARRAYELTS (lispsym), NULL);
-
-      IGC_CHECK_POOLS ();
-    }
-}
-
 /***********************************************************************
 				Finalization
  ***********************************************************************/

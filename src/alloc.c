@@ -6543,9 +6543,6 @@ garbage_collect (void)
 #ifdef HAVE_PGTK
   mark_pgtkterm ();
 #endif
-#ifdef HAVE_MPS
-  igc_mark_old_objects_referenced_from_pools ();
-#endif
 #ifdef USE_GTK
   xg_mark_data ();
 #endif
