@@ -1011,12 +1011,13 @@ string_pad (mps_addr_t addr, size_t size)
 
 struct igc_sdata {
   mps_addr_t object_end;
+  unsigned char contents[];
 };
 
 static unsigned char *
 sdata_contents (struct igc_sdata *d)
 {
-  return (unsigned char *) ((char *) d + sizeof *d);
+  return d->contents;
 }
 
 /* Value is the address just past the object being skipped. String
