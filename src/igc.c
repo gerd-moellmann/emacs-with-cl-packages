@@ -18,23 +18,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
-/*
-   + specpdl
-   + pdumper
-   + intervals, overlays
-   + mark_lread
-   + marl_window
-   + alloc conses
-
-   + mps_arena_step, idle time.
-   + face cache
-   + glyph matrices
-
-   - telemetry
-   - emacs_abort -> something nicer
-
-*/
-
 // clang-format off
 
 #include <config.h>
@@ -64,6 +47,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #if USE_STACK_LISP_OBJECTS
 #error "USE_STACK_LISP_OBJECTS not supported"
 #endif
+
+#pragma GCC diagnostic ignored "-Wunused-function"
 
 /* Frames have stuff for text conversion which contains Lisp_Objects, so
    this must be some form of root.  MacOS doesn't HAVE_TEXT_CONVERSION,
@@ -996,13 +981,29 @@ string_pad (mps_addr_t addr, size_t size)
   pad (addr, size);
 }
 
+/* There are several ways one could store strings in MPS. For example,
+   one could append string data to Lisp_Strings. For simplicity,
+   I store string data in a pool of its own, so that I don't have to
+   change the rest of Emacs.  The folllowing is a small header stored
+   with string data to be able to skip, forward etc.  */
+
+struct igc_sdata {
+  mps_addr_t object_end;
+};
+
+static unsigned char *
+sdata_contents (struct igc_sdata *d)
+{
+  return (unsigned char *) ((char *) d + sizeof *d);
+}
+
 /* Value is the address just past the object being skipped. String
    data is always NUL terminated.  */
 
 static mps_addr_t
 string_data_skip (mps_addr_t addr)
 {
-  return (char *) addr + strlen ((char *) addr);
+  return ((struct igc_sdata *) addr)->object_end;
 }
 
 /* Make sure we have enough alignment in the pool to store
@@ -1274,9 +1275,59 @@ igc_alloc_symbol (void)
     {
       mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
+      struct Lisp_Symbol *s = p;
+      s->u.s.redirect = SYMBOL_PLAINVAL;
+      s->u.s.name = Qnil;
+      s->u.s.val.value = Qnil;
+      s->u.s.function = Qnil;
+      s->u.s.plist = Qnil;
+      s->u.s.package = Qnil;
     }
   while (!mps_commit (ap, p, size));
   return make_lisp_symbol ((struct Lisp_Symbol *) p);
+}
+
+static struct igc_sdata *
+alloc_string_data (size_t nbytes)
+{
+  mps_ap_t ap = IGC_AP (string_data);
+  size_t size = sizeof (struct igc_sdata) + nbytes;
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, size);
+      IGC_CHECK_RES (res);
+      // Initialize before we let it loose on the world.
+      struct igc_sdata *s = p;
+      s->object_end = (char *) s + size;
+    }
+  while (!mps_commit (ap, p, size));
+  return p;
+}
+
+Lisp_Object
+igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
+{
+  struct igc_sdata *data = alloc_string_data (nbytes);
+  if (clear)
+    memset (sdata_contents (data), 0, nbytes);
+
+  mps_ap_t ap = IGC_AP (string);
+  size_t size = sizeof (struct Lisp_String);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, size);
+      IGC_CHECK_RES (res);
+      // Initialize before we let it loose on the world.
+      struct Lisp_String *s = p;
+      s->u.s.size = nchars;
+      s->u.s.size_byte = nbytes;
+      s->u.s.intervals = NULL;
+      s->u.s.data = sdata_contents (data);
+    }
+  while (!mps_commit (ap, p, size));
+  return make_lisp_ptr (p, Lisp_String);
 }
 
 
