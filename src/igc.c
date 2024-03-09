@@ -57,19 +57,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #error "HAVE_TEXT_CONVERSION not supported"
 #endif
 
-#ifdef IGC_DEBUG_POOL
-#define IGC_CHECK_POOLS()					\
-  do								\
-    {								\
-      mps_pool_check_fenceposts (global_igc->cons_pool);	\
-      mps_pool_check_free_space (global_igc->cons_pool);	\
-      mps_pool_check_fenceposts (global_igc->symbol_pool);	\
-      mps_pool_check_free_space (global_igc->symbol_pool);	\
-    } while (0)
-#else
-#define IGC_CHECK_POOLS() (void) 0
-#endif
-
 #ifdef IGC_DEBUG
 #define IGC_ASSERT(expr) if (!(expr)) emacs_abort (); else
 #else
