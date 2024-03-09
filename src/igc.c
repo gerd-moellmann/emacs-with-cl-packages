@@ -252,25 +252,6 @@ create_ambig_root (struct igc *gc, void *start, void *end)
   return register_root (gc, root, start, end);
 }
 
-/* Called from mem_insert.  Create an MPS root for the memory area
-   between START and END, and remember it in the root registry of
-   global_igc.  */
-
-void *
-igc_on_mem_insert (void *start, void *end)
-{
-  return create_ambig_root (global_igc, start, end);
-}
-
-/* Called from mem_delete.  Remove the correspoing node INFO from the
-   registry.  */
-
-void
-igc_on_mem_delete (void *info)
-{
-  destroy_root ((struct igc_root_list *) info);
-}
-
 /* Allocate SIZE bytes of memory, and register the allocated block as an
    ambigous root.  */
 

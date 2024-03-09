@@ -19,8 +19,6 @@
 void igc_break (void);
 void init_igc (void);
 void syms_of_igc (void);
-void *igc_on_mem_insert (void *start, void *end);
-void igc_on_mem_delete (void *info);
 void *igc_thread_add (const void *cold);
 void igc_thread_remove (void *info);
 void igc_on_alloc_main_thread_specpdl (void);
@@ -43,8 +41,10 @@ specpdl_ref igc_inhibit_garbage_collection (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 Lisp_Object igc_alloc_symbol (void);
 
+#define eassert_not_mps() eassert(false)
 #else
 #define igc_break() (void) 0
+#define eassert_not_mps() (void) 0
 # endif // HAVE_MPS
 
 #endif // EMACS_IGC_H

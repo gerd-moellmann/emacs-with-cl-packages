@@ -480,13 +480,9 @@ static void set_interval_marked (INTERVAL);
 enum mem_type
 {
   MEM_TYPE_NON_LISP,
-#ifndef IGC_MANAGE_CONS
   MEM_TYPE_CONS,
-#endif
   MEM_TYPE_STRING,
-#ifndef IGC_MANAGE_SYMBOLS
   MEM_TYPE_SYMBOL,
-#endif
   MEM_TYPE_FLOAT,
   /* Since all non-bool pseudovectors are small enough to be
      allocated from vector blocks, this memory type denotes
@@ -498,13 +494,11 @@ enum mem_type
   MEM_TYPE_SPARE
 };
 
-#ifndef IGC_MANAGE_SYMBOLS
 static bool
 deadp (Lisp_Object x)
 {
   return BASE_EQ (x, dead_object ());
 }
-#endif
 
 #ifdef GC_MALLOC_CHECK
 
@@ -553,10 +547,6 @@ struct mem_node
 
   /* Memory type.  */
   enum mem_type type;
-
-#ifdef HAVE_MPS
-  void *gc_info;
-#endif
 };
 
 /* Root of the tree describing allocated Lisp memory.  */
@@ -2847,7 +2837,6 @@ enum { memory_full_cons_threshold = sizeof (struct cons_block) };
 
 
 /* Current cons_block.  */
-#ifndef IGC_MANAGE_CONS
 static struct cons_block *cons_block;
 
 /* Index of first unused Lisp_Cons in the current block.  */
@@ -2855,7 +2844,6 @@ static int cons_block_index = CONS_BLOCK_SIZE;
 
 /* Free-list of Lisp_Cons structures.  */
 static struct Lisp_Cons *cons_free_list;
-#endif // !IGC_MANAGE_CONS
 
 #if GC_ASAN_POISON_OBJECTS
 # define ASAN_POISON_CONS_BLOCK(b) \
@@ -2875,21 +2863,20 @@ static struct Lisp_Cons *cons_free_list;
 void
 free_cons (struct Lisp_Cons *ptr)
 {
-#ifndef IGC_MANAGE_CONS
+  eassert_not_mps ();
   ptr->u.s.u.chain = cons_free_list;
   ptr->u.s.car = dead_object ();
   cons_free_list = ptr;
   ptrdiff_t nbytes = sizeof *ptr;
   tally_consing (-nbytes);
   ASAN_POISON_CONS (ptr);
-#endif
 }
 
 DEFUN ("cons", Fcons, Scons, 2, 2, 0,
        doc: /* Create a new cons, give it CAR and CDR as components, and return it.  */)
   (Lisp_Object car, Lisp_Object cdr)
 {
-#ifdef IGC_MANAGE_CONS
+#ifdef HAVE_MPS
   return igc_make_cons (car, cdr);
 #else
   register Lisp_Object val;
@@ -2927,9 +2914,8 @@ DEFUN ("cons", Fcons, Scons, 2, 2, 0,
   consing_until_gc -= sizeof (struct Lisp_Cons);
   cons_cells_consed++;
 
-
   return val;
-#endif // !IGC_MANAGE_CONS
+#endif // !HAVE_MPS
 }
 
 /* Make a list of 1, 2, 3, 4 or 5 specified objects.  */
@@ -3965,8 +3951,6 @@ struct symbol_block
 # define ASAN_UNPOISON_SYMBOL(sym) ((void) 0)
 #endif
 
-#ifndef IGC_MANAGE_SYMBOLS
-
 /* Current symbol block and index of first unused Lisp_Symbol
    structure in it.  */
 
@@ -3983,8 +3967,6 @@ static struct symbol_block *symbol_block_pinned;
 /* List of free symbols.  */
 
 static struct Lisp_Symbol *symbol_free_list;
-
-#endif // !IGC_MANAGE_SYMBOLS
 
 static void
 set_symbol_name (Lisp_Object sym, Lisp_Object name)
@@ -4015,7 +3997,7 @@ Its value is void, and its function definition and property list are nil.  */)
 {
   CHECK_STRING (name);
 
-#ifdef IGC_MANAGE_SYMBOLS
+#ifdef HAVE_MPS
   Lisp_Object val = igc_alloc_symbol ();
   init_symbol (val, name);
   return val;
@@ -4366,11 +4348,10 @@ set_vectorlike_marked (union vectorlike_header *header)
   set_vector_marked ((struct Lisp_Vector *) header);
 }
 
-#ifndef IGC_MANAGE_CONS
-
 static bool
 cons_marked_p (const struct Lisp_Cons *c)
 {
+  eassert_not_mps ();
   return pdumper_object_p (c)
     ? pdumper_marked_p (c)
     : XCONS_MARKED_P (c);
@@ -4384,8 +4365,6 @@ set_cons_marked (struct Lisp_Cons *c)
   else
     XMARK_CONS (c);
 }
-
-#endif // !IGC_MANAGE_CONS
 
 static bool
 string_marked_p (const struct Lisp_String *s)
@@ -4404,11 +4383,10 @@ set_string_marked (struct Lisp_String *s)
     XMARK_STRING (s);
 }
 
-#ifndef IGC_MANAGE_SYMBOLS
-
 static bool
 symbol_marked_p (const struct Lisp_Symbol *s)
 {
+  eassert_not_mps ();
   return pdumper_object_p (s)
     ? pdumper_marked_p (s)
     : s->u.s.gcmarkbit;
@@ -4422,8 +4400,6 @@ set_symbol_marked (struct Lisp_Symbol *s)
   else
     s->u.s.gcmarkbit = true;
 }
-
-#endif // !IGC_MANAGE_SYMBOLS
 
 static bool
 interval_marked_p (INTERVAL i)
@@ -4561,9 +4537,6 @@ mem_init (void)
   mem_z.parent = NULL;
   mem_z.color = MEM_BLACK;
   mem_z.start = mem_z.end = NULL;
-#ifdef HAVE_MPS
-  mem_z.gc_info = NULL;
-#endif
   mem_root = MEM_NIL;
 }
 
@@ -4574,6 +4547,7 @@ mem_init (void)
 static struct mem_node *
 mem_find (void *start)
 {
+  eassert_not_mps ();
   struct mem_node *p;
 
   if (start < min_heap_address || start > max_heap_address)
@@ -4597,6 +4571,7 @@ mem_find (void *start)
 static struct mem_node *
 mem_insert (void *start, void *end, enum mem_type type)
 {
+  eassert_not_mps ();
   struct mem_node *c, *parent, *x;
 
   if (min_heap_address == NULL || start < min_heap_address)
@@ -4630,9 +4605,6 @@ mem_insert (void *start, void *end, enum mem_type type)
   x->parent = parent;
   x->left = x->right = MEM_NIL;
   x->color = MEM_RED;
-#ifdef HAVE_MPS
-  x->gc_info = igc_on_mem_insert (start, end);
-#endif
 
   /* Insert it as child of PARENT or install it as root.  */
   if (parent)
@@ -4804,6 +4776,7 @@ mem_rotate_right (struct mem_node *x)
 static void
 mem_delete (struct mem_node *z)
 {
+  eassert_not_mps ();
   struct mem_node *x, *y;
 
   if (!z || z == MEM_NIL)
@@ -4843,10 +4816,6 @@ mem_delete (struct mem_node *z)
 
   if (y->color == MEM_BLACK)
     mem_delete_fixup (x);
-
-#ifdef HAVE_MPS
-  igc_on_mem_delete (y->gc_info);
-#endif
 
 #ifdef GC_MALLOC_CHECK
   free (y);
@@ -4988,8 +4957,6 @@ live_string_p (struct mem_node *m, void *p)
   return live_string_holding (m, p) == p;
 }
 
-#ifndef IGC_MANAGE_CONS
-
 /* If P is a pointer into a live Lisp cons object on the heap, return
    the object's address.  Otherwise, return NULL.  M points to the
    mem_block for P.  */
@@ -5036,10 +5003,6 @@ live_cons_p (struct mem_node *m, void *p)
 {
   return live_cons_holding (m, p) == p;
 }
-
-#endif // !IGC_MANAGE_CONS
-
-#ifndef IGC_MANAGE_SYMBOLS
 
 /* If P is a pointer into a live Lisp symbol object on the heap,
    return the object's address.  Otherwise, return NULL.  M points to the
@@ -5094,8 +5057,6 @@ live_symbol_p (struct mem_node *m, void *p)
 {
   return live_symbol_holding (m, p) == p;
 }
-
-#endif // IGC_MANAGE_SYMBOLS
 
 /* If P is a (possibly-tagged) pointer to a live Lisp_Float on the
    heap, return the address of the Lisp_Float.  Otherwise, return NULL.
@@ -5282,7 +5243,6 @@ mark_maybe_pointer (void *p, bool symbol_only)
 	  /* Nothing to do; not a pointer to Lisp memory.  */
 	  return;
 
-#ifndef IGC_MANAGE_CONS
 	case MEM_TYPE_CONS:
 	  {
 	    if (symbol_only)
@@ -5293,7 +5253,6 @@ mark_maybe_pointer (void *p, bool symbol_only)
 	    obj = make_lisp_ptr (h, Lisp_Cons);
 	  }
 	  break;
-#endif
 
 	case MEM_TYPE_STRING:
 	  {
@@ -5306,7 +5265,6 @@ mark_maybe_pointer (void *p, bool symbol_only)
 	  }
 	  break;
 
-#ifndef IGC_MANAGE_SYMBOLS
 	case MEM_TYPE_SYMBOL:
 	  {
 	    struct Lisp_Symbol *h = live_symbol_holding (m, p);
@@ -5315,7 +5273,6 @@ mark_maybe_pointer (void *p, bool symbol_only)
 	    obj = make_lisp_symbol (h);
 	  }
 	  break;
-#endif
 
 	case MEM_TYPE_FLOAT:
 	  {
@@ -5692,15 +5649,6 @@ valid_lisp_object_p (Lisp_Object obj)
   if (pdumper_object_p (p))
     return pdumper_object_p_precise (p) ? 1 : 0;
 
-#ifdef IGC_MANAGE_CONS
-  if (CONSP (obj))
-    return 666;
-#endif
-#ifdef IGC_MANAGE_SYMBOLS
-  if (SYMBOLP (obj))
-    return 666;
-#endif
-
   struct mem_node *m = mem_find (p);
 
   if (m == MEM_NIL)
@@ -5722,18 +5670,14 @@ valid_lisp_object_p (Lisp_Object obj)
     case MEM_TYPE_SPARE:
       return 0;
 
-#ifndef IGC_MANAGE_CONS
     case MEM_TYPE_CONS:
       return live_cons_p (m, p);
-#endif
 
     case MEM_TYPE_STRING:
       return live_string_p (m, p);
 
-#ifndef IGC_MANAGE_SYMBOLS
     case MEM_TYPE_SYMBOL:
       return live_symbol_p (m, p);
-#endif
 
     case MEM_TYPE_FLOAT:
       return live_float_p (m, p);
@@ -6239,8 +6183,6 @@ android_make_lisp_symbol (struct Lisp_Symbol *sym)
 
 #endif
 
-#ifndef IGC_MANAGE_SYMBOLS
-
 static void
 mark_pinned_symbols (void)
 {
@@ -6263,8 +6205,6 @@ mark_pinned_symbols (void)
       lim = SYMBOL_BLOCK_SIZE;
     }
 }
-
-#endif // !IGC_MANAGE_SYMBOLS
 
 static void
 visit_vectorlike_root (struct gc_root_visitor visitor,
@@ -6530,9 +6470,7 @@ garbage_collect (void)
   visit_static_gc_roots (visitor);
 
   mark_pinned_objects ();
-#ifndef IGC_MANAGE_CONS
   mark_pinned_symbols ();
-#endif
   mark_lread ();
   mark_terminals ();
   mark_kboards ();
@@ -6835,7 +6773,7 @@ mark_char_table (struct Lisp_Vector *ptr, enum pvec_type pvectype)
   /* Consult the Lisp_Sub_Char_Table layout before changing this.  */
   int i, idx = (pvectype == PVEC_SUB_CHAR_TABLE ? SUB_CHAR_TABLE_OFFSET : 0);
 
-#ifndef IGC_MANAGE_SYMBOLS
+#ifndef HAVE_MPS
 #define SYMBOL_MARKED_P(x) symbol_marked_p (x)
 #define SET_SYMBOL_MARKED(x) set_symbol_marked (x)
 #else
@@ -6947,7 +6885,7 @@ mark_discard_killed_buffers (Lisp_Object list)
 {
   Lisp_Object tail, *prev = &list;
 
-#ifndef IGC_MANAGE_CONS
+#ifndef HAVE_MPS
 #define CONS_MARKED_P(x) cons_marked_p (x)
 #define SET_CONS_MARKED(x) set_cons_marked (x)
 #else
@@ -7130,9 +7068,7 @@ process_mark_stack (ptrdiff_t base_sp)
     {
       Lisp_Object obj = mark_stack_pop ();
 
-#ifndef IGC_MANAGE_CONS
     mark_obj:;
-#endif
 
       void *po = XPNTR (obj);
       if (PURE_P (po))
@@ -7326,9 +7262,6 @@ process_mark_stack (ptrdiff_t base_sp)
 	  break;
 
 	case Lisp_Symbol:
-#ifdef IGC_MANAGE_SYMBOLS
-	  break;
-#else
 	  {
 	    struct Lisp_Symbol *ptr = XBARE_SYMBOL (obj);
 	    if (symbol_marked_p (ptr))
@@ -7381,12 +7314,8 @@ process_mark_stack (ptrdiff_t base_sp)
 	    /* Inner loop to mark next symbol in this bucket, if any.  */
 	  }
 	  break;
-#endif
 
 	case Lisp_Cons:
-#ifdef IGC_MANAGE_CONS
-	  break;
-#else
 	  {
 	    struct Lisp_Cons *ptr = XCONS (obj);
 	    if (cons_marked_p (ptr))
@@ -7408,7 +7337,6 @@ process_mark_stack (ptrdiff_t base_sp)
 	    obj = ptr->u.s.car;
 	    goto mark_obj;
 	  }
-#endif
 
 	case Lisp_Float:
 	  {
@@ -7490,12 +7418,8 @@ survives_gc_p (Lisp_Object obj)
       break;
 
     case Lisp_Symbol:
-#ifdef IGC_MANAGE_SYMBOLS
-      survives_p = true;
-#else
       survives_p = symbol_marked_p (XBARE_SYMBOL (obj));
       break;
-#endif
 
     case Lisp_String:
       survives_p = string_marked_p (XSTRING (obj));
@@ -7508,11 +7432,7 @@ survives_gc_p (Lisp_Object obj)
       break;
 
     case Lisp_Cons:
-#ifdef IGC_MANAGE_CONS
-      survives_p = true;
-#else
       survives_p = cons_marked_p (XCONS (obj));
-#endif
       break;
 
     case Lisp_Float:
@@ -7531,11 +7451,12 @@ survives_gc_p (Lisp_Object obj)
 
 
 
-#ifndef IGC_MANAGE_CONS
 NO_INLINE /* For better stack traces */
 static void
 sweep_conses (void)
 {
+  eassert_not_mps ();
+
   struct cons_block **cprev = &cons_block;
   int lim = cons_block_index;
   object_ct num_free = 0, num_used = 0;
@@ -7611,12 +7532,12 @@ sweep_conses (void)
   gcstat.total_conses = num_used;
   gcstat.total_free_conses = num_free;
 }
-#endif // !IGC_MANAGE_CONS
 
 NO_INLINE /* For better stack traces */
 static void
 sweep_floats (void)
 {
+  eassert_not_mps ();
   struct float_block **fprev = &float_block;
   int lim = float_block_index;
   object_ct num_free = 0, num_used = 0;
@@ -7669,6 +7590,7 @@ NO_INLINE /* For better stack traces */
 static void
 sweep_intervals (void)
 {
+  eassert_not_mps ();
   struct interval_block **iprev = &interval_block;
   int lim = interval_block_index;
   object_ct num_free = 0, num_used = 0;
@@ -7715,8 +7637,6 @@ sweep_intervals (void)
   gcstat.total_intervals = num_used;
   gcstat.total_free_intervals = num_free;
 }
-
-#ifndef IGC_MANAGE_SYMBOLS
 
 NO_INLINE /* For better stack traces */
 static void
@@ -7791,8 +7711,6 @@ sweep_symbols (void)
   gcstat.total_free_symbols = num_free;
 }
 
-#endif // IGC_MANAGE_SYMBOLS
-
 /* Remove BUFFER's markers that are due to be swept.  This is needed since
    we treat BUF_MARKERS and markers's `next' field as weak pointers.  */
 static void
@@ -7831,16 +7749,13 @@ sweep_buffers (void)
 static void
 gc_sweep (void)
 {
+  eassert_not_mps ();
   sweep_strings ();
   check_string_bytes (!noninteractive);
-#ifndef IGC_MANAGE_CONS
   sweep_conses ();
-#endif
   sweep_floats ();
   sweep_intervals ();
-#ifndef IGC_MANAGE_SYMBOLS
   sweep_symbols ();
-#endif
   sweep_buffers ();
   sweep_vectors ();
   pdumper_clear_marks ();
@@ -7974,9 +7889,7 @@ system, and non-nil if some memory could be returned.  */)
 }
 #endif
 
-#ifndef IGC_MANAGE_SYMBOLS
 static bool
-
 symbol_uses_obj (Lisp_Object symbol, Lisp_Object obj)
 {
   struct Lisp_Symbol *sym = XBARE_SYMBOL (symbol);
@@ -8038,8 +7951,6 @@ which_symbols (Lisp_Object obj, EMACS_INT find_max)
   out:
    return unbind_to (gc_count, found);
 }
-
-#endif // IGC_MANAGE_SYMBOLS
 
 #ifdef ENABLE_CHECKING
 
