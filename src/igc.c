@@ -69,15 +69,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 /* Mask for the tag part of a reference.  */
 #define IGC_TAG_MASK (~ VALMASK)
 
-static mps_res_t scan_area_ambig (mps_ss_t ss, void *start,
-				  void *end, void *closure);
-static mps_res_t scan_staticvec (mps_ss_t ss, void *start,
-				 void *end, void *closure);
-static mps_res_t scan_faces_by_id (mps_ss_t ss, void *start, void *end,
-				   void *closure);
-static mps_res_t scan_glyph_rows (mps_ss_t ss, void *start, void *end,
-				  void *closure);
-
 #define IGC_CHECK_RES(res)			\
   if ((res) != MPS_RES_OK)			\
     emacs_abort ();				\
@@ -174,11 +165,6 @@ struct igc {
 /* Global MPS object registry.  */
 static struct igc *global_igc;
 
-
-/***********************************************************************
-				Registry
- ***********************************************************************/
-
 /* Add ROOT for given memory area START, END to the registry GC.  Value
    is a pointer to a new igc_root_list struct for the root.  */
 
@@ -217,230 +203,6 @@ destroy_all_roots (struct igc *gc)
     destroy_root (gc->roots);
 }
 
-/* Create an ambigus root for the memory area [START, END), and register
-   it in GC.  Value is the a pointer to the igc_root_list in which the
-   root was registered.  */
-
-static igc_root_list *
-create_ambig_root (struct igc *gc, void *start, void *end)
-{
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area_tagged (&root,
-				   gc->arena,
-				   mps_rank_ambig (),
-				   0, /* MPS_PROT_... */
-				   start,
-				   end,
-				   scan_area_ambig,
-				   IGC_TAG_MASK,
-				   0);
-  IGC_CHECK_RES (res);
-  return register_root (gc, root, start, end);
-}
-
-/* Add a root for staticvec to GC.  */
-
-static void
-add_staticvec_root (struct igc *gc)
-{
-  void *start =staticvec, *end = staticvec + ARRAYELTS (staticvec);
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    start, end, scan_staticvec, NULL);
-  IGC_CHECK_RES (res);
-  register_root (gc, root, start, end);
-}
-
-/* Add a root for lispsym to GC.  */
-
-static void
-add_lispsym_root (struct igc *gc)
-{
-  void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
-  // Maybe we could do better than using an ambiguous root.
-  create_ambig_root (gc, start, end);
-}
-
-/* Odeally, we shoudl not scan the entire area, only to the current
-   ptr. And ptr might change in the mutator.  Don't know how this could
-   be done with MPS running concurrently.  Instead, make sure that the
-   part of the stack that is not used is zeroed.  */
-
-static void
-create_specpdl_root (struct igc_thread_list *t)
-{
-  // For the initial thread, specpdl will be initialzed by
-  // init_eval_once, and will be NULL until that happens.
-  if (specpdl)
-    {
-      struct igc *gc = t->d.gc;
-      // Maybe we could do better than using an ambiguous root.
-      t->d.specpdl_root = create_ambig_root (gc, specpdl, specpdl_end);
-    }
-}
-
-void
-igc_on_specbinding_unused (union specbinding *b)
-{
-  memset (b, 0, sizeof *b);
-}
-
-void
-igc_on_alloc_main_thread_specpdl (void)
-{
-  struct igc_thread_list *t = current_thread->gc_info;
-  create_specpdl_root (t);
-}
-
-/* Called when specpdl gets reallacated.  */
-
-void
-igc_on_grow_specpdl (void)
-{
-  struct igc_thread_list *t = current_thread->gc_info;
-  // FIXME: can we avoid parking?
-  IGC_WITH_PARKED (t->d.gc)
-    {
-      destroy_root (t->d.specpdl_root);
-      t->d.specpdl_root = NULL;
-      create_specpdl_root (t);
-    }
-}
-
-/* Add a root to GC for scanning buffer B.  */
-
-static void
-add_buffer_root (struct igc *gc, struct buffer *b)
-{
-  void *start = &b->name_, *end = &b->own_text;
-  // Maybe we could do better than using an ambiguous root.
-  create_ambig_root (gc, start, end);
-}
-
-/* All all known static roots in Emacs to GC.  */
-
-static void
-add_static_roots (struct igc *gc)
-{
-  add_buffer_root (gc, &buffer_defaults);
-  add_buffer_root (gc, &buffer_local_symbols);
-  add_staticvec_root (gc);
-  add_lispsym_root (gc);
-}
-
-/* Add a root for a thread given by T.  */
-
-static void
-create_thread_root (struct igc_thread_list *t)
-{
-  struct igc *gc = t->d.gc;
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_thread_tagged (&root, gc->arena, mps_rank_ambig (),
-				     0, t->d.thr, scan_area_ambig,
-				     IGC_TAG_MASK, 0, t->d.stack_start);
-  IGC_CHECK_RES (res);
-  register_root (gc, root, t->d.stack_start, NULL);
-}
-
-/* Called after a pdump s been loaded.  Add the area as root
-   because there could be references in it.  */
-
-void
-igc_on_pdump_loaded (void)
-{
-  struct igc *gc = global_igc;
-  void *start = (void *) dump_public.start, *end = (void *) dump_public.end;
-  create_ambig_root (gc, start, end);
-}
-
-/* For all faces in a face cache, we need to fix the lface vector of
-   Lisp_Objects.  */
-
-void
-igc_on_make_face_cache (void *c)
-{
-  struct face_cache *cache = c;
-  struct igc *gc = global_igc;
-  void *start = (void *) cache->faces_by_id;
-  void *end = (void *) (cache->faces_by_id + cache->size);
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    start, end, scan_faces_by_id, NULL);
-  IGC_CHECK_RES (res);
-  cache->igc_info = register_root (gc, root, start, end);
-}
-
-void
-igc_on_free_face_cache (void *c)
-{
-  struct face_cache *cache = c;
-  destroy_root (cache->igc_info);
-  cache->igc_info = NULL;
-}
-
-void
-igc_on_face_cache_change (void *c)
-{
-  /* FIXME: can we avoid parking? The idea would be to add a new root
-     first, and then remove the old one, so that there is no gap in
-     which we don't have no root.  Alas, MPS says that no two roots may
-     overlap, which could be the case with realloc.  */
-  IGC_WITH_PARKED (global_igc)
-    {
-      igc_on_free_face_cache (c);
-      igc_on_make_face_cache (c);
-    }
-}
-
-void
-igc_on_adjust_glyph_matrix (void *m)
-{
-  struct igc *gc = global_igc;
-  struct glyph_matrix *matrix = m;
-  IGC_WITH_PARKED (gc)
-    {
-      if (matrix->igc_info)
-	destroy_root (matrix->igc_info);
-      mps_root_t root;
-      void *start = matrix->rows;
-      void *end = (void *) (matrix->rows + matrix->rows_allocated);
-      mps_res_t res
-	= mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-				start, end,
-				scan_glyph_rows, NULL);
-      IGC_CHECK_RES (res);
-      matrix->igc_info = register_root (gc, root, start, end);
-    }
-}
-
-void
-igc_on_free_glyph_matrix (void *m)
-{
-  struct glyph_matrix *matrix = m;
-  if (matrix->igc_info)
-    {
-      destroy_root (matrix->igc_info);
-      matrix->igc_info = NULL;
-    }
-}
-
-void *
-igc_on_grow_read_stack (void *info, void *start, void *end)
-{
-  struct igc *gc = global_igc;
-  IGC_WITH_PARKED (gc)
-    {
-      if (info)
-	destroy_root (info);
-      info = create_ambig_root (gc, start, end);
-    }
-  return info;
-}
-
 static void
 release_arena (void)
 {
@@ -456,20 +218,14 @@ igc_inhibit_garbage_collection (void)
   return count;
 }
 
-
-/***********************************************************************
-			   Allocation Points
- ***********************************************************************/
-
 static void
 create_thread_aps (struct igc_thread *t)
 {
-  struct igc *gc = t->gc;
-
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
-      mps_res_t res = mps_ap_create_k (&t->ap[type], gc->pool[type],
-				       mps_args_none);
+      mps_res_t res
+	= mps_ap_create_k (&t->ap[type], t->gc->pool[type],
+			   mps_args_none);
       IGC_CHECK_RES (res);
     }
 }
@@ -480,11 +236,6 @@ destroy_thread_aps (struct igc_thread_list *t)
   for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
     mps_ap_destroy (t->d.ap[i]);
 }
-
-
-/***********************************************************************
-				Threads
- ***********************************************************************/
 
 static struct igc_thread_list *
 register_thread (struct igc *gc, mps_thr_t thr, void *cold)
@@ -501,80 +252,15 @@ deregister_thread (struct igc_thread_list *t)
   return thread.thr;
 }
 
-/* Called from run_thread.  */
-
-void *
-igc_thread_add (const void *stack_start)
-{
-  mps_thr_t thr;
-  mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
-  IGC_CHECK_RES (res);
-
-  struct igc_thread_list *t
-    = register_thread (global_igc, thr, (void *) stack_start);
-
-  create_thread_root (t);
-  create_specpdl_root (t);
-  create_thread_aps (&t->d);
-  return t;
-}
-
-/* Called from run_thread.  */
-
-void
-igc_thread_remove (void *info)
-{
-  struct igc_thread_list *t = info;
-  destroy_thread_aps (t);
-  mps_thread_dereg (deregister_thread (t));
-}
-
-static void
-free_all_threads (struct igc *gc)
-{
-  while (gc->threads)
-    igc_thread_remove (gc->threads);
-}
-
-static void
-add_main_thread (void)
-{
-  current_thread->gc_info = igc_thread_add (stack_bottom);
-}
-
-
-
-/***********************************************************************
-				Scanning
- ***********************************************************************/
-
-/* Horrible shit to avoid unused variable warnings.  */
-
 static int fwdsig;
+static int padsig;
 #define IGC_FWDSIG ((mps_addr_t) &fwdsig)
+#define IGC_PADSIG ((mps_addr_t) &padsig)
 
 struct igc_fwd {
   mps_addr_t sig;
   mps_addr_t new;
 };
-
-static void
-forward (mps_addr_t old, mps_addr_t new)
-{
-  struct igc_fwd m = { .sig = IGC_FWDSIG, .new = new };
-  struct igc_fwd *f = old;
-  *f = m;
-}
-
-static mps_addr_t
-is_forwarded (mps_addr_t addr)
-{
-  struct igc_fwd *f = addr;
-  return f->sig == IGC_FWDSIG ? f->new : NULL;
-}
-
-static int padsig;
-#define IGC_PADSIG ((mps_addr_t) &padsig)
 
 struct igc_pad {
   mps_addr_t sig;
@@ -584,6 +270,20 @@ igc_static_assert (sizeof (struct Lisp_Cons) >= sizeof (struct igc_fwd));
 igc_static_assert (sizeof (struct interval) >= sizeof (struct igc_fwd));
 igc_static_assert (sizeof (struct Lisp_Cons) >= sizeof (struct igc_pad));
 igc_static_assert (sizeof (struct interval) >= sizeof (struct igc_pad));
+
+static void
+forward (mps_addr_t old, mps_addr_t new)
+{
+  struct igc_fwd m = { .sig = IGC_FWDSIG, .new = new };
+  *(struct igc_fwd *) old = m;
+}
+
+static mps_addr_t
+is_forwarded (mps_addr_t addr)
+{
+  struct igc_fwd *f = addr;
+  return f->sig == IGC_FWDSIG ? f->new : NULL;
+}
 
 static void
 pad (mps_addr_t addr, size_t size)
@@ -610,7 +310,6 @@ is_padding (mps_addr_t addr)
   return p->sig == IGC_PADSIG;
 }
 
-/* These may come from MPS_SCAN_BEGIN / END.  */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
@@ -937,10 +636,272 @@ vector_skip (mps_addr_t addr)
 
 #pragma GCC diagnostic pop
 
-
-////////////////////////////////////////////////////////////////////////
-///                             Finalization
-////////////////////////////////////////////////////////////////////////
+/* Create an ambigus root for the memory area [START, END), and register
+   it in GC.  Value is the a pointer to the igc_root_list in which the
+   root was registered.  */
+
+static igc_root_list *
+create_ambig_root (struct igc *gc, void *start, void *end)
+{
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area_tagged (&root,
+				   gc->arena,
+				   mps_rank_ambig (),
+				   0, /* MPS_PROT_... */
+				   start,
+				   end,
+				   scan_area_ambig,
+				   IGC_TAG_MASK,
+				   0);
+  IGC_CHECK_RES (res);
+  return register_root (gc, root, start, end);
+}
+
+/* Add a root for staticvec to GC.  */
+
+static void
+add_staticvec_root (struct igc *gc)
+{
+  void *start =staticvec, *end = staticvec + ARRAYELTS (staticvec);
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+			    start, end, scan_staticvec, NULL);
+  IGC_CHECK_RES (res);
+  register_root (gc, root, start, end);
+}
+
+/* Add a root for lispsym to GC.  */
+
+static void
+add_lispsym_root (struct igc *gc)
+{
+  void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
+  // Maybe we could do better than using an ambiguous root.
+  create_ambig_root (gc, start, end);
+}
+
+/* Odeally, we shoudl not scan the entire area, only to the current
+   ptr. And ptr might change in the mutator.  Don't know how this could
+   be done with MPS running concurrently.  Instead, make sure that the
+   part of the stack that is not used is zeroed.  */
+
+static void
+create_specpdl_root (struct igc_thread_list *t)
+{
+  // For the initial thread, specpdl will be initialzed by
+  // init_eval_once, and will be NULL until that happens.
+  if (specpdl)
+    {
+      struct igc *gc = t->d.gc;
+      // Maybe we could do better than using an ambiguous root.
+      t->d.specpdl_root = create_ambig_root (gc, specpdl, specpdl_end);
+    }
+}
+
+void
+igc_on_specbinding_unused (union specbinding *b)
+{
+  memset (b, 0, sizeof *b);
+}
+
+void
+igc_on_alloc_main_thread_specpdl (void)
+{
+  struct igc_thread_list *t = current_thread->gc_info;
+  create_specpdl_root (t);
+}
+
+/* Called when specpdl gets reallacated.  */
+
+void
+igc_on_grow_specpdl (void)
+{
+  struct igc_thread_list *t = current_thread->gc_info;
+  // FIXME: can we avoid parking?
+  IGC_WITH_PARKED (t->d.gc)
+    {
+      destroy_root (t->d.specpdl_root);
+      t->d.specpdl_root = NULL;
+      create_specpdl_root (t);
+    }
+}
+
+/* Add a root to GC for scanning buffer B.  */
+
+static void
+add_buffer_root (struct igc *gc, struct buffer *b)
+{
+  void *start = &b->name_, *end = &b->own_text;
+  // Maybe we could do better than using an ambiguous root.
+  create_ambig_root (gc, start, end);
+}
+
+/* All all known static roots in Emacs to GC.  */
+
+static void
+add_static_roots (struct igc *gc)
+{
+  add_buffer_root (gc, &buffer_defaults);
+  add_buffer_root (gc, &buffer_local_symbols);
+  add_staticvec_root (gc);
+  add_lispsym_root (gc);
+}
+
+/* Add a root for a thread given by T.  */
+
+static void
+create_thread_root (struct igc_thread_list *t)
+{
+  struct igc *gc = t->d.gc;
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_thread_tagged (&root, gc->arena, mps_rank_ambig (),
+				     0, t->d.thr, scan_area_ambig,
+				     IGC_TAG_MASK, 0, t->d.stack_start);
+  IGC_CHECK_RES (res);
+  register_root (gc, root, t->d.stack_start, NULL);
+}
+
+/* Called from run_thread.  */
+
+void *
+igc_thread_add (const void *stack_start)
+{
+  mps_thr_t thr;
+  mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
+  IGC_CHECK_RES (res);
+
+  struct igc_thread_list *t
+    = register_thread (global_igc, thr, (void *) stack_start);
+
+  create_thread_root (t);
+  create_specpdl_root (t);
+  create_thread_aps (&t->d);
+  return t;
+}
+
+/* Called from run_thread.  */
+
+void
+igc_thread_remove (void *info)
+{
+  struct igc_thread_list *t = info;
+  destroy_thread_aps (t);
+  mps_thread_dereg (deregister_thread (t));
+}
+
+static void
+free_all_threads (struct igc *gc)
+{
+  while (gc->threads)
+    igc_thread_remove (gc->threads);
+}
+
+static void
+add_main_thread (void)
+{
+  IGC_ASSERT (current_thread->gc_info == NULL);
+  current_thread->gc_info = igc_thread_add (stack_bottom);
+}
+
+
+/* Called after a pdump s been loaded.  Add the area as root
+   because there could be references in it.  */
+
+void
+igc_on_pdump_loaded (void)
+{
+  struct igc *gc = global_igc;
+  void *start = (void *) dump_public.start, *end = (void *) dump_public.end;
+  create_ambig_root (gc, start, end);
+}
+
+/* For all faces in a face cache, we need to fix the lface vector of
+   Lisp_Objects.  */
+
+void
+igc_on_make_face_cache (void *c)
+{
+  struct face_cache *cache = c;
+  struct igc *gc = global_igc;
+  void *start = (void *) cache->faces_by_id;
+  void *end = (void *) (cache->faces_by_id + cache->size);
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+			    start, end, scan_faces_by_id, NULL);
+  IGC_CHECK_RES (res);
+  cache->igc_info = register_root (gc, root, start, end);
+}
+
+void
+igc_on_free_face_cache (void *c)
+{
+  struct face_cache *cache = c;
+  destroy_root (cache->igc_info);
+  cache->igc_info = NULL;
+}
+
+void
+igc_on_face_cache_change (void *c)
+{
+  /* FIXME: can we avoid parking? The idea would be to add a new root
+     first, and then remove the old one, so that there is no gap in
+     which we don't have no root.  Alas, MPS says that no two roots may
+     overlap, which could be the case with realloc.  */
+  IGC_WITH_PARKED (global_igc)
+    {
+      igc_on_free_face_cache (c);
+      igc_on_make_face_cache (c);
+    }
+}
+
+void
+igc_on_adjust_glyph_matrix (void *m)
+{
+  struct igc *gc = global_igc;
+  struct glyph_matrix *matrix = m;
+  IGC_WITH_PARKED (gc)
+    {
+      if (matrix->igc_info)
+	destroy_root (matrix->igc_info);
+      mps_root_t root;
+      void *start = matrix->rows;
+      void *end = (void *) (matrix->rows + matrix->rows_allocated);
+      mps_res_t res
+	= mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+				start, end,
+				scan_glyph_rows, NULL);
+      IGC_CHECK_RES (res);
+      matrix->igc_info = register_root (gc, root, start, end);
+    }
+}
+
+void
+igc_on_free_glyph_matrix (void *m)
+{
+  struct glyph_matrix *matrix = m;
+  if (matrix->igc_info)
+    {
+      destroy_root (matrix->igc_info);
+      matrix->igc_info = NULL;
+    }
+}
+
+void *
+igc_on_grow_read_stack (void *info, void *start, void *end)
+{
+  struct igc *gc = global_igc;
+  IGC_WITH_PARKED (gc)
+    {
+      if (info)
+	destroy_root (info);
+      info = create_ambig_root (gc, start, end);
+    }
+  return info;
+}
 
 // ADDR is the address of an object registered for finalization with
 // mps_finalize.  We have to find out in which pool ADDR lies, if any,
@@ -1021,11 +982,6 @@ igc_on_idle (void)
   handle_messages (global_igc);
   mps_arena_step (global_igc->arena, 0.1, 0);
 }
-
-
-/***********************************************************************
-			    Allocation
- ***********************************************************************/
 
 static mps_ap_t
 thread_ap (enum igc_type type)
@@ -1154,11 +1110,6 @@ igc_make_vectorlike (size_t nelems)
   while (!mps_commit (ap, p, nbytes));
   return p;
 }
-
-
-/***********************************************************************
-			    Setup/Tear down
- ***********************************************************************/
 
 /* In a debug pool, fill fencepost and freed objects with a
    byte pattern. This is ignored in non-debug pools.
