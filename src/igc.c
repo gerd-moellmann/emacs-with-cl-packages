@@ -76,6 +76,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #define IGC_ASSERT(expr) (void) 9
 #endif
 
+/* I can't remember what it does otherwise.  */
+#define igc_static_assert(x) verify (x)
+
+/* Mask for the tag part of a reference.  */
 #define IGC_TAG_MASK (~ VALMASK)
 
 static mps_res_t scan_area_ambig (mps_ss_t ss, void *start,
@@ -644,10 +648,10 @@ struct igc_pad {
   mps_addr_t sig;
 };
 
-verify (sizeof (struct Lisp_Cons) >= sizeof (struct igc_fwd));
-verify (sizeof (struct interval) >= sizeof (struct igc_fwd));
-verify (sizeof (struct Lisp_Cons) >= sizeof (struct igc_pad));
-verify (sizeof (struct interval) >= sizeof (struct igc_pad));
+igc_static_assert (sizeof (struct Lisp_Cons) >= sizeof (struct igc_fwd));
+igc_static_assert (sizeof (struct interval) >= sizeof (struct igc_fwd));
+igc_static_assert (sizeof (struct Lisp_Cons) >= sizeof (struct igc_pad));
+igc_static_assert (sizeof (struct interval) >= sizeof (struct igc_pad));
 
 static void
 pad (mps_addr_t addr, size_t size)
@@ -1194,7 +1198,7 @@ igc_make_interval (void)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      verify (NIL_IS_ZERO);
+      igc_static_assert (NIL_IS_ZERO);
       memset (p, 0, nbytes);
     }
   while (!mps_commit (ap, p, nbytes));
@@ -1212,7 +1216,7 @@ igc_make_vectorlike (size_t nelems)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      verify (NIL_IS_ZERO);
+      igc_static_assert (NIL_IS_ZERO);
       memset (p, 0, nbytes);
     }
   while (!mps_commit (ap, p, nbytes));
@@ -1239,8 +1243,7 @@ static mps_pool_debug_option_s debug_options = {
 };
 
 struct igc_init {
-  void (* make_fmt) (struct igc *, enum igc_type, struct igc_init *);
-  void (* make_pool) (struct igc *, enum igc_type, struct igc_init *);
+  mps_class_t pool_class;
   size_t align;
   mps_fmt_scan_t scan;
   mps_fmt_skip_t skip;
@@ -1285,8 +1288,7 @@ make_fmt (struct igc *gc, enum igc_type type, struct igc_init *init)
 }
 
 static void
-make_pool_with_class (struct igc *gc, enum igc_type type,
-		      struct igc_init *init, mps_class_t pool_class)
+make_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
@@ -1295,22 +1297,11 @@ make_pool_with_class (struct igc *gc, enum igc_type type,
       MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[type]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->pool[type], gc->arena, pool_class, args);
+      res = mps_pool_create_k (&gc->pool[type], gc->arena,
+			       init->pool_class, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
-}
-
-static void
-make_amc_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
-{
-  make_pool_with_class (gc, type, init, mps_class_amc ());
-}
-
-static void
-make_amcz_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
-{
-  make_pool_with_class (gc, type, init, mps_class_amcz ());
 }
 
 static struct igc *
@@ -1320,25 +1311,25 @@ make_igc (void)
   make_arena (gc);
 
   struct igc_init inits[IGC_TYPE_LAST] = {
-    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
-      .align = GCALIGNMENT, .scan = cons_scan, .skip = cons_skip },
-    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
-      .align = GCALIGNMENT, .scan = symbol_scan, .skip = symbol_skip },
-    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
-      .align = GCALIGNMENT, .scan = interval_scan, .skip = interval_skip },
-    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
-      .align = GCALIGNMENT, .scan = string_scan, .skip = string_skip },
-    { .make_fmt = make_fmt, .make_pool = make_amcz_pool,
+    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+      .scan = cons_scan, .skip = cons_skip },
+    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+      .scan = symbol_scan, .skip = symbol_skip },
+    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+      .scan = interval_scan, .skip = interval_skip },
+    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+      .scan = string_scan, .skip = string_skip },
+    { .pool_class = mps_class_amcz (),
       .align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad)),
       .scan = NULL, .skip = string_data_skip },
-    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
-      .align = GCALIGNMENT, .scan = vector_scan, .skip = vector_skip },
+    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+      .scan = vector_scan, .skip = vector_skip },
   };
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
       struct igc_init *init = inits + type;
-      init->make_fmt (gc, type, init);
-      init->make_pool (gc, type, init);
+      make_fmt (gc, type, init);
+      make_pool (gc, type, init);
     }
 
   add_static_roots (gc);
