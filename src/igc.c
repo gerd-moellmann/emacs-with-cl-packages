@@ -148,6 +148,16 @@ struct igc_root {
 typedef struct igc_root igc_root;
 IGC_DEFINE_LIST (igc_root);
 
+enum igc_type {
+  IGC_TYPE_CONS,
+  IGC_TYPE_SYMBOL,
+  IGC_TYPE_INTERVAL,
+  IGC_TYPE_STRING,
+  IGC_TYPE_STRING_DATA,
+  IGC_TYPE_VECTOR,
+  IGC_TYPE_LAST
+};
+
 /* An MPS thread we registered.  */
 
 struct igc_thread {
@@ -155,12 +165,7 @@ struct igc_thread {
   mps_thr_t thr;
   void *stack_start;
   struct igc_root_list *specpdl_root;
-  mps_ap_t cons_ap;
-  mps_ap_t symbol_ap;
-  mps_ap_t string_ap;
-  mps_ap_t string_data_ap;
-  mps_ap_t interval_ap;
-  mps_ap_t vector_ap;
+  mps_ap_t ap[IGC_TYPE_LAST];
 };
 
 typedef struct igc_thread igc_thread;
@@ -171,18 +176,8 @@ IGC_DEFINE_LIST (igc_thread);
 struct igc {
   mps_arena_t arena;
   mps_chain_t chain;
-  mps_fmt_t cons_fmt;
-  mps_pool_t cons_pool;
-  mps_fmt_t symbol_fmt;
-  mps_pool_t symbol_pool;
-  mps_fmt_t interval_fmt;
-  mps_pool_t interval_pool;
-  mps_fmt_t string_fmt;
-  mps_pool_t string_pool;
-  mps_fmt_t string_data_fmt;
-  mps_pool_t string_data_pool;
-  mps_fmt_t vector_fmt;
-  mps_pool_t vector_pool;
+  mps_fmt_t fmt[IGC_TYPE_LAST];
+  mps_pool_t pool[IGC_TYPE_LAST];;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -536,38 +531,20 @@ static void
 create_thread_aps (struct igc_thread *t)
 {
   struct igc *gc = t->gc;
-  mps_res_t res;
 
-  res = mps_ap_create_k (&t->cons_ap, gc->cons_pool, mps_args_none);
-  IGC_CHECK_RES (res);
-  res = mps_ap_create_k (&t->symbol_ap, gc->symbol_pool, mps_args_none);
-  IGC_CHECK_RES (res);
-  res = mps_ap_create_k (&t->string_ap, gc->string_pool, mps_args_none);
-  IGC_CHECK_RES (res);
-  res = mps_ap_create_k (&t->string_data_ap, gc->string_data_pool,
-			 mps_args_none);
-  IGC_CHECK_RES (res);
-  res = mps_ap_create_k (&t->interval_ap, gc->interval_pool, mps_args_none);
-  IGC_CHECK_RES (res);
-  res = mps_ap_create_k (&t->vector_ap, gc->vector_pool, mps_args_none);
-  IGC_CHECK_RES (res);
+  for (int i = 0; i < IGC_TYPE_LAST; ++i)
+    {
+      mps_res_t res = mps_ap_create_k (&t->ap[i], gc->pool[i],
+				       mps_args_none);
+      IGC_CHECK_RES (res);
+    }
 }
 
 static void
 destroy_thread_aps (struct igc_thread_list *t)
 {
-  mps_ap_destroy (t->d.cons_ap);
-  t->d.cons_ap = NULL;
-  mps_ap_destroy (t->d.symbol_ap);
-  t->d.symbol_ap = NULL;
-  mps_ap_destroy (t->d.string_ap);
-  t->d.string_ap = NULL;
-  mps_ap_destroy (t->d.string_data_ap);
-  t->d.string_data_ap = NULL;
-  mps_ap_destroy (t->d.interval_ap);
-  t->d.interval_ap = NULL;
-  mps_ap_destroy (t->d.vector_ap);
-  t->d.vector_ap = NULL;
+  for (int i = 0; i < IGC_TYPE_LAST; ++i)
+    mps_ap_destroy (t->d.ap[i]);
 }
 
 
@@ -1148,22 +1125,39 @@ vector_pad (mps_addr_t addr, size_t size)
 #pragma GCC diagnostic pop
 
 
-/***********************************************************************
-				Finalization
- ***********************************************************************/
+////////////////////////////////////////////////////////////////////////
+///                             Finalization
+////////////////////////////////////////////////////////////////////////
 
-/* ADDR is a block registered for finalization with mps_finalize.
-   AFAICT, this is always a PVEC_FINALIZER.  */
+// ADDR is the address of an object registered for finalization with
+// mps_finalize.  We have to find out in which pool ADDR lies, if any,
+// because not all objects have a common header.  So, sometimes we have
+// to use the pool to determine the object type.
+
+static enum igc_type
+type_of_addr (struct igc *gc, mps_addr_t addr)
+{
+  mps_pool_t pool;
+  if (mps_addr_pool (&pool, gc->arena, addr))
+    for (int i = 0; i < IGC_TYPE_LAST; ++i)
+      if (pool == gc->pool[i])
+	return i;
+  return IGC_TYPE_LAST;
+}
 
 static void
 do_finalize (struct igc *gc, mps_addr_t addr)
 {
-  struct Lisp_Finalizer *fin = addr;
-  if (!NILP (fin->function))
+  switch (type_of_addr (gc, addr))
     {
-      Lisp_Object fun = fin->function;
-      fin->function = Qnil;
-      run_finalizer_function (fun);
+    case IGC_TYPE_CONS:
+    case IGC_TYPE_SYMBOL:
+    case IGC_TYPE_INTERVAL:
+    case IGC_TYPE_STRING:
+    case IGC_TYPE_STRING_DATA:
+    case IGC_TYPE_VECTOR:
+    case IGC_TYPE_LAST:
+      break;
     }
 }
 
@@ -1220,8 +1214,12 @@ igc_on_idle (void)
 			    Allocation
  ***********************************************************************/
 
-#define IGC_AP(member) \
-  ((struct igc_thread_list *) current_thread->gc_info)->d.member##_ap
+static mps_ap_t
+thread_ap (enum igc_type type)
+{
+  struct igc_thread_list *t = current_thread->gc_info;
+  return t->d.ap[type];
+}
 
 void igc_break (void)
 {
@@ -1230,7 +1228,7 @@ void igc_break (void)
 Lisp_Object
 igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
-  mps_ap_t ap = IGC_AP (cons);
+  mps_ap_t ap = thread_ap (IGC_TYPE_CONS);
   size_t nbytes = sizeof (struct Lisp_Cons);
   mps_addr_t p;
   do
@@ -1248,7 +1246,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 Lisp_Object
 igc_alloc_symbol (void)
 {
-  mps_ap_t ap = IGC_AP (symbol);
+  mps_ap_t ap = thread_ap (IGC_TYPE_SYMBOL);
   size_t nbytes = sizeof (struct Lisp_Symbol);
   mps_addr_t p;
   do
@@ -1270,7 +1268,7 @@ igc_alloc_symbol (void)
 static struct igc_sdata *
 alloc_string_data (size_t nbytes)
 {
-  mps_ap_t ap = IGC_AP (string_data);
+  mps_ap_t ap = thread_ap (IGC_TYPE_STRING_DATA);
   size_t size = sizeof (struct igc_sdata) + nbytes;
   mps_addr_t p;
   do
@@ -1292,7 +1290,7 @@ igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
   if (clear)
     memset (sdata_contents (data), 0, nbytes);
 
-  mps_ap_t ap = IGC_AP (string);
+  mps_ap_t ap = thread_ap (IGC_TYPE_STRING);
   size_t size = sizeof (struct Lisp_String);
   mps_addr_t p;
   do
@@ -1312,7 +1310,7 @@ igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
 static struct interval *
 igc_make_interval (void)
 {
-  mps_ap_t ap = IGC_AP (interval);
+  mps_ap_t ap = thread_ap (IGC_TYPE_INTERVAL);
   size_t nbytes = sizeof (struct interval);
   mps_addr_t p;
   do
@@ -1329,7 +1327,7 @@ igc_make_interval (void)
 static struct Lisp_Vector *
 igc_make_vectorlike (size_t nelems)
 {
-  mps_ap_t ap = IGC_AP (vector);
+  mps_ap_t ap = thread_ap (IGC_TYPE_VECTOR);
   size_t nbytes = offsetof (struct Lisp_Vector, contents)
     + nelems * sizeof (Lisp_Object);
   mps_addr_t p;
@@ -1394,7 +1392,7 @@ make_cons_fmt (struct igc *gc)
       MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, cons_fwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, cons_isfwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, cons_pad);
-      res = mps_fmt_create_k (&gc->cons_fmt, gc->arena, args);
+      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_CONS], gc->arena, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1408,10 +1406,10 @@ make_cons_pool (struct igc *gc)
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->cons_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_CONS]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->cons_pool, gc->arena,
+      res = mps_pool_create_k (&gc->pool[IGC_TYPE_CONS], gc->arena,
 			       pool_class, args);
     }
   MPS_ARGS_END (args);
@@ -1431,7 +1429,7 @@ make_symbol_fmt (struct igc *gc)
       MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, symbol_fwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, symbol_isfwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, symbol_pad);
-      res = mps_fmt_create_k (&gc->symbol_fmt, gc->arena, args);
+      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_SYMBOL], gc->arena, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1445,10 +1443,10 @@ make_symbol_pool (struct igc *gc)
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->symbol_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_SYMBOL]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->symbol_pool, gc->arena,
+      res = mps_pool_create_k (&gc->pool[IGC_TYPE_SYMBOL], gc->arena,
 			       pool_class, args);
     }
   MPS_ARGS_END (args);
@@ -1468,7 +1466,7 @@ make_interval_fmt (struct igc *gc)
       MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, interval_fwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, interval_isfwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, interval_pad);
-      res = mps_fmt_create_k (&gc->interval_fmt, gc->arena, args);
+      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_INTERVAL], gc->arena, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1482,10 +1480,10 @@ make_interval_pool (struct igc *gc)
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->interval_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_INTERVAL]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->interval_pool, gc->arena,
+      res = mps_pool_create_k (&gc->pool[IGC_TYPE_INTERVAL], gc->arena,
 			       pool_class, args);
     }
   MPS_ARGS_END (args);
@@ -1505,7 +1503,8 @@ make_string_fmt (struct igc *gc)
     MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, string_fwd);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, string_isfwd);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, string_pad);
-    res = mps_fmt_create_k (&gc->string_fmt, gc->arena, args);
+    res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_STRING_DATA],
+			    gc->arena, args);
   }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1519,11 +1518,11 @@ make_string_pool (struct igc *gc)
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->string_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_STRING]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->string_pool, gc->arena,
-			       pool_class, args);
+      res = mps_pool_create_k (&gc->pool[IGC_TYPE_STRING],
+			       gc->arena, pool_class, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1543,7 +1542,8 @@ make_string_data_fmt (struct igc *gc)
       MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, string_data_fwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, string_data_isfwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, string_data_pad);
-      res = mps_fmt_create_k (&gc->string_data_fmt, gc->arena, args);
+      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_STRING_DATA],
+			      gc->arena, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1556,10 +1556,10 @@ make_string_data_pool (struct igc *gc)
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->string_data_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_STRING_DATA]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      res = mps_pool_create_k (&gc->string_data_pool, gc->arena,
-			       mps_class_amcz (), args);
+      res = mps_pool_create_k (&gc->pool[IGC_TYPE_STRING_DATA],
+			       gc->arena, mps_class_amcz (), args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1578,7 +1578,8 @@ make_vector_fmt (struct igc *gc)
       MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, vector_fwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, vector_isfwd);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, vector_pad);
-      res = mps_fmt_create_k (&gc->vector_fmt, gc->arena, args);
+      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_VECTOR],
+			      gc->arena, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1592,11 +1593,11 @@ make_vector_pool (struct igc *gc)
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->vector_fmt);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_VECTOR]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->vector_pool, gc->arena,
-			       pool_class, args);
+      res = mps_pool_create_k (&gc->pool[IGC_TYPE_VECTOR],
+			       gc->arena, pool_class, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
@@ -1628,18 +1629,11 @@ static void
 free_igc (struct igc *gc)
 {
   free_all_threads (gc);
-  mps_pool_destroy (gc->cons_pool);
-  mps_fmt_destroy (gc->cons_fmt);
-  mps_pool_destroy (gc->symbol_pool);
-  mps_fmt_destroy (gc->symbol_fmt);
-  mps_pool_destroy (gc->interval_pool);
-  mps_fmt_destroy (gc->interval_fmt);
-  mps_pool_destroy (gc->string_pool);
-  mps_fmt_destroy (gc->string_fmt);
-  mps_pool_destroy (gc->string_data_pool);
-  mps_fmt_destroy (gc->string_data_fmt);
-  mps_pool_destroy (gc->vector_pool);
-  mps_fmt_destroy (gc->vector_fmt);
+  for (int i = 0; i < IGC_TYPE_LAST; ++i)
+    {
+      mps_pool_destroy (gc->pool[i]);
+      mps_fmt_destroy (gc->fmt[i]);
+    }
   destroy_all_roots (gc);
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);
