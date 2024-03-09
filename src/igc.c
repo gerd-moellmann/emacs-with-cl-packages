@@ -556,15 +556,18 @@ string_skip (mps_addr_t addr)
 }
 
 /* There are several ways one could store strings in MPS. For example,
-   one could append string data to Lisp_Strings. For simplicity,
-   I store string data in a pool of its own, so that I don't have to
-   change the rest of Emacs.  The folllowing is a small header stored
-   with string data to be able to skip, forward etc.  */
+   one could append string data to Lisp_Strings.  For simplicity, store
+   string data in a pool of its own, so that I don't have to change the
+   definition of Lisp_String.  The folllowing is a small header stored
+   for string data to be able to skip, forward etc.  */
 
 struct igc_sdata {
   mps_addr_t object_end;
+  mps_addr_t unused;
   unsigned char contents[];
 };
+
+igc_static_assert (sizeof (struct igc_sdata) >= sizeof (struct igc_fwd));
 
 static unsigned char *
 sdata_contents (struct igc_sdata *d)
