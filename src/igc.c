@@ -1,8 +1,6 @@
 /* Incremental, generational, concurrent GC using MPS.
    Copyright (C) 2024 Free Software Foundation, Inc.
 
-Author: Gerd Möllmann <gerd@gnu.org>
-
 This file is part of GNU Emacs.
 
 GNU Emacs is free software: you can redistribute it and/or modify
@@ -532,9 +530,9 @@ create_thread_aps (struct igc_thread *t)
 {
   struct igc *gc = t->gc;
 
-  for (int i = 0; i < IGC_TYPE_LAST; ++i)
+  for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
-      mps_res_t res = mps_ap_create_k (&t->ap[i], gc->pool[i],
+      mps_res_t res = mps_ap_create_k (&t->ap[type], gc->pool[type],
 				       mps_args_none);
       IGC_CHECK_RES (res);
     }
@@ -543,7 +541,7 @@ create_thread_aps (struct igc_thread *t)
 static void
 destroy_thread_aps (struct igc_thread_list *t)
 {
-  for (int i = 0; i < IGC_TYPE_LAST; ++i)
+  for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
     mps_ap_destroy (t->d.ap[i]);
 }
 
@@ -645,6 +643,11 @@ static int padsig;
 struct igc_pad {
   mps_addr_t sig;
 };
+
+verify (sizeof (struct Lisp_Cons) >= sizeof (struct igc_fwd));
+verify (sizeof (struct interval) >= sizeof (struct igc_fwd));
+verify (sizeof (struct Lisp_Cons) >= sizeof (struct igc_pad));
+verify (sizeof (struct interval) >= sizeof (struct igc_pad));
 
 static void
 pad (mps_addr_t addr, size_t size)
@@ -852,29 +855,6 @@ cons_skip (mps_addr_t addr)
   return (char *) addr + sizeof (struct Lisp_Cons);
 }
 
-/* Called by MPS when object at OLD has been moved to NEW.  Must replace
-   *OLD with a forwarding marker that points to NEW.  */
-
-static void
-cons_fwd (mps_addr_t old, mps_addr_t new)
-{
-  IGC_ASSERT (false);
-  forward (old, new);
-}
-
-static mps_addr_t
-cons_isfwd (mps_addr_t addr)
-{
-  IGC_ASSERT (false);
-  return is_forwarded (addr);
-}
-
-static void
-cons_pad (mps_addr_t addr, size_t size)
-{
-  pad (addr, size);
-}
-
 static mps_res_t
 symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
@@ -904,26 +884,6 @@ static mps_addr_t
 symbol_skip (mps_addr_t addr)
 {
   return (char *) addr + sizeof (struct Lisp_Symbol);
-}
-
-static void
-symbol_fwd (mps_addr_t old, mps_addr_t new)
-{
-  IGC_ASSERT (false);
-  forward (old, new);
-}
-
-static mps_addr_t
-symbol_isfwd (mps_addr_t addr)
-{
-  IGC_ASSERT (false);
-  return is_forwarded (addr);
-}
-
-static void
-symbol_pad (mps_addr_t addr, size_t size)
-{
-  pad (addr, size);
 }
 
 #define IGC_FIX12_PTR(ss, expr)					\
@@ -960,26 +920,6 @@ string_skip (mps_addr_t addr)
   return (char *) addr + sizeof (struct Lisp_String);
 }
 
-static void
-string_fwd (mps_addr_t old, mps_addr_t new)
-{
-  IGC_ASSERT (false);
-  forward (old, new);
-}
-
-static mps_addr_t
-string_isfwd (mps_addr_t addr)
-{
-  IGC_ASSERT (false);
-  return is_forwarded (addr);
-}
-
-static void
-string_pad (mps_addr_t addr, size_t size)
-{
-  pad (addr, size);
-}
-
 /* There are several ways one could store strings in MPS. For example,
    one could append string data to Lisp_Strings. For simplicity,
    I store string data in a pool of its own, so that I don't have to
@@ -1004,29 +944,6 @@ static mps_addr_t
 string_data_skip (mps_addr_t addr)
 {
   return ((struct igc_sdata *) addr)->object_end;
-}
-
-/* Make sure we have enough alignment in the pool to store
-   a igc_forward structure.  */
-
-static void
-string_data_fwd (mps_addr_t old, mps_addr_t new)
-{
-  IGC_ASSERT (false);
-  forward (old, new);
-}
-
-static mps_addr_t
-string_data_isfwd (mps_addr_t addr)
-{
-  IGC_ASSERT (false);
-  return is_forwarded (addr);
-}
-
-static void
-string_data_pad (mps_addr_t addr, size_t size)
-{
-  pad (addr, size);
 }
 
 static mps_res_t
@@ -1060,26 +977,6 @@ interval_skip (mps_addr_t addr)
   return (char *) addr + sizeof (struct interval);
 }
 
-static void
-interval_fwd (mps_addr_t old, mps_addr_t new)
-{
-  IGC_ASSERT (false);
-  forward (old, new);
-}
-
-static mps_addr_t
-interval_isfwd (mps_addr_t addr)
-{
-  IGC_ASSERT (false);
-  return is_forwarded (addr);
-}
-
-static void
-interval_pad (mps_addr_t addr, size_t size)
-{
-  pad (addr, size);
-}
-
 static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
@@ -1102,26 +999,6 @@ vector_skip (mps_addr_t addr)
   return (char *) addr + sizeof (struct interval);
 }
 
-static void
-vector_fwd (mps_addr_t old, mps_addr_t new)
-{
-  IGC_ASSERT (false);
-  forward (old, new);
-}
-
-static mps_addr_t
-vector_isfwd (mps_addr_t addr)
-{
-  IGC_ASSERT (false);
-  return is_forwarded (addr);
-}
-
-static void
-vector_pad (mps_addr_t addr, size_t size)
-{
-  pad (addr, size);
-}
-
 #pragma GCC diagnostic pop
 
 
@@ -1139,7 +1016,7 @@ type_of_addr (struct igc *gc, mps_addr_t addr)
 {
   mps_pool_t pool;
   if (mps_addr_pool (&pool, gc->arena, addr))
-    for (int i = 0; i < IGC_TYPE_LAST; ++i)
+    for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
       if (pool == gc->pool[i])
 	return i;
   return IGC_TYPE_LAST;
@@ -1361,6 +1238,14 @@ static mps_pool_debug_option_s debug_options = {
   "free", 4,
 };
 
+struct igc_init {
+  void (* make_fmt) (struct igc *, enum igc_type, struct igc_init *);
+  void (* make_pool) (struct igc *, enum igc_type, struct igc_init *);
+  size_t align;
+  mps_fmt_scan_t scan;
+  mps_fmt_skip_t skip;
+};
+
 static void
 make_arena (struct igc *gc)
 {
@@ -1380,227 +1265,52 @@ make_arena (struct igc *gc)
 }
 
 static void
-make_cons_fmt (struct igc *gc)
+make_fmt (struct igc *gc, enum igc_type type, struct igc_init *init)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
     {
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, init->align);
       MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, cons_scan);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, cons_skip);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, cons_fwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, cons_isfwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, cons_pad);
-      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_CONS], gc->arena, args);
+      if (init->scan)
+	MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, init->scan);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, init->skip);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, forward);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, is_forwarded);
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, pad);
+      res = mps_fmt_create_k (&gc->fmt[type], gc->arena, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
 
 static void
-make_cons_pool (struct igc *gc)
+make_pool_with_class (struct igc *gc, enum igc_type type,
+		      struct igc_init *init, mps_class_t pool_class)
 {
-  mps_class_t pool_class = mps_class_amc ();
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
     {
       MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_CONS]);
+      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[type]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->pool[IGC_TYPE_CONS], gc->arena,
-			       pool_class, args);
+      res = mps_pool_create_k (&gc->pool[type], gc->arena, pool_class, args);
     }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
 
 static void
-make_symbol_fmt (struct igc *gc)
+make_amc_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
 {
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, symbol_scan);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, symbol_skip);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, symbol_fwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, symbol_isfwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, symbol_pad);
-      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_SYMBOL], gc->arena, args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
+  make_pool_with_class (gc, type, init, mps_class_amc ());
 }
 
 static void
-make_symbol_pool (struct igc *gc)
+make_amcz_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
 {
-  mps_class_t pool_class = mps_class_amc ();
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_SYMBOL]);
-      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->pool[IGC_TYPE_SYMBOL], gc->arena,
-			       pool_class, args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
-}
-
-static void
-make_interval_fmt (struct igc *gc)
-{
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, interval_scan);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, interval_skip);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, interval_fwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, interval_isfwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, interval_pad);
-      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_INTERVAL], gc->arena, args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
-}
-
-static void
-make_interval_pool (struct igc *gc)
-{
-  mps_class_t pool_class = mps_class_amc ();
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_INTERVAL]);
-      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->pool[IGC_TYPE_INTERVAL], gc->arena,
-			       pool_class, args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
-}
-
-static void
-make_string_fmt (struct igc *gc)
-{
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-  {
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, string_scan);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, string_skip);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, string_fwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, string_isfwd);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, string_pad);
-    res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_STRING_DATA],
-			    gc->arena, args);
-  }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
-}
-
-static void
-make_string_pool (struct igc *gc)
-{
-  mps_class_t pool_class = mps_class_amc ();
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_STRING]);
-      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->pool[IGC_TYPE_STRING],
-			       gc->arena, pool_class, args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
-}
-
-static void
-make_string_data_fmt (struct igc *gc)
-{
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      size_t align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad));
-      IGC_ASSERT (align >= GCALIGNMENT);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, align);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, string_data_skip);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, string_data_fwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, string_data_isfwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, string_data_pad);
-      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_STRING_DATA],
-			      gc->arena, args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
-}
-
-static void
-make_string_data_pool (struct igc *gc)
-{
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_STRING_DATA]);
-      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      res = mps_pool_create_k (&gc->pool[IGC_TYPE_STRING_DATA],
-			       gc->arena, mps_class_amcz (), args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
-}
-
-static void
-make_vector_fmt (struct igc *gc)
-{
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, GCALIGNMENT);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, vector_scan);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, vector_skip);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, vector_fwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, vector_isfwd);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, vector_pad);
-      res = mps_fmt_create_k (&gc->fmt[IGC_TYPE_VECTOR],
-			      gc->arena, args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
-}
-
-static void
-make_vector_pool (struct igc *gc)
-{
-  mps_class_t pool_class = mps_class_amc ();
-  mps_res_t res;
-  MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[IGC_TYPE_VECTOR]);
-      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
-      res = mps_pool_create_k (&gc->pool[IGC_TYPE_VECTOR],
-			       gc->arena, pool_class, args);
-    }
-  MPS_ARGS_END (args);
-  IGC_CHECK_RES (res);
+  make_pool_with_class (gc, type, init, mps_class_amcz ());
 }
 
 static struct igc *
@@ -1608,18 +1318,29 @@ make_igc (void)
 {
   struct igc *gc = xzalloc (sizeof *gc);
   make_arena (gc);
-  make_cons_fmt (gc);
-  make_cons_pool (gc);
-  make_symbol_fmt (gc);
-  make_symbol_pool (gc);
-  make_interval_fmt (gc);
-  make_interval_pool (gc);
-  make_string_fmt (gc);
-  make_string_pool (gc);
-  make_string_data_fmt (gc);
-  make_string_data_pool (gc);
-  make_vector_fmt (gc);
-  make_vector_pool (gc);
+
+  struct igc_init inits[IGC_TYPE_LAST] = {
+    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
+      .align = GCALIGNMENT, .scan = cons_scan, .skip = cons_skip },
+    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
+      .align = GCALIGNMENT, .scan = symbol_scan, .skip = symbol_skip },
+    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
+      .align = GCALIGNMENT, .scan = interval_scan, .skip = interval_skip },
+    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
+      .align = GCALIGNMENT, .scan = string_scan, .skip = string_skip },
+    { .make_fmt = make_fmt, .make_pool = make_amcz_pool,
+      .align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad)),
+      .scan = NULL, .skip = string_data_skip },
+    { .make_fmt = make_fmt, .make_pool = make_amc_pool,
+      .align = GCALIGNMENT, .scan = vector_scan, .skip = vector_skip },
+  };
+  for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
+    {
+      struct igc_init *init = inits + type;
+      init->make_fmt (gc, type, init);
+      init->make_pool (gc, type, init);
+    }
+
   add_static_roots (gc);
   enable_messages (gc, true);
   return gc;
@@ -1629,10 +1350,10 @@ static void
 free_igc (struct igc *gc)
 {
   free_all_threads (gc);
-  for (int i = 0; i < IGC_TYPE_LAST; ++i)
+  for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
-      mps_pool_destroy (gc->pool[i]);
-      mps_fmt_destroy (gc->fmt[i]);
+      mps_pool_destroy (gc->pool[type]);
+      mps_fmt_destroy (gc->fmt[type]);
     }
   destroy_all_roots (gc);
   mps_chain_destroy (gc->chain);
