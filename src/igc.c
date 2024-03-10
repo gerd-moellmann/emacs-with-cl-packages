@@ -906,11 +906,6 @@ igc_on_grow_read_stack (void *info, void *start, void *end)
   return info;
 }
 
-// ADDR is the address of an object registered for finalization with
-// mps_finalize.  We have to find out in which pool ADDR lies, if any,
-// because not all objects have a common header.  So, sometimes we have
-// to use the pool to determine the object type.
-
 static enum igc_type
 type_of_addr (struct igc *gc, mps_addr_t addr)
 {
