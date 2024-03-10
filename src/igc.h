@@ -40,7 +40,9 @@ Lisp_Object igc_alloc_symbol (void);
 
 void * igc_xzalloc (size_t size);
 void igc_xfree (void *p);
-
+struct Lisp_Vector *
+igc_alloc_pseudovector (size_t memlen, size_t lisplen, size_t zerolen,
+			enum pvec_type tag);
 
 #define eassert_not_mps() eassert(false)
 #else

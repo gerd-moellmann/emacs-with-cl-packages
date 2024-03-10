@@ -3739,10 +3739,14 @@ allocate_pseudovector (int memlen, int lisplen,
   eassert (lisplen <= size_max);
   eassert (memlen <= size_max + rest_max);
 
-  struct Lisp_Vector *v = allocate_vectorlike (memlen, false);
+#ifdef HAVE_MPS
+  struct Lisp_Vector *v = igc_alloc_pseudovector (memlen, lisplen, zerolen, tag);
+#else
+  struct Lisp_Vector *v = allocate_vectorlike (memlen, false)
   /* Only the first LISPLEN slots will be traced normally by the GC.  */
   memclear (v->contents, zerolen * word_size);
   XSETPVECTYPESIZE (v, tag, lisplen, memlen - lisplen);
+#endif
   return v;
 }
 

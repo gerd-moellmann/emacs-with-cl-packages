@@ -1191,21 +1191,22 @@ igc_make_interval (void)
   return p;
 }
 
-static struct Lisp_Vector *
-igc_make_vectorlike (size_t nelems)
+struct Lisp_Vector *
+igc_alloc_pseudovector (size_t memlen, size_t lisplen, size_t zerolen,
+			enum pvec_type tag)
 {
   mps_ap_t ap = thread_ap (IGC_TYPE_VECTOR);
-  size_t nbytes = offsetof (struct Lisp_Vector, contents)
-    + nelems * sizeof (Lisp_Object);
   mps_addr_t p;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, memlen);
       IGC_CHECK_RES (res);
       igc_static_assert (NIL_IS_ZERO);
-      memset (p, 0, nbytes);
+      struct Lisp_Vector *v = p;
+      memclear (v->contents, zerolen * sizeof (Lisp_Object));
+      XSETPVECTYPESIZE (v, tag, lisplen, memlen - lisplen);
     }
-  while (!mps_commit (ap, p, nbytes));
+  while (!mps_commit (ap, p, memlen));
   return p;
 }
 
