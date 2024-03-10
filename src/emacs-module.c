@@ -1528,6 +1528,23 @@ mark_module_environment (void *ptr)
       mark_object (frame->objects[i].v);
 }
 
+#ifdef HAVE_MPS
+int
+igc_visit_env (void *ss, emacs_env *env, int (*fn) (void *ss, void *obj))
+{
+  struct emacs_env_private *priv = env->private_members;
+  for (struct emacs_value_frame *frame = &priv->storage.initial;
+       frame; frame = frame->next)
+    for (int i = 0; i < frame->offset; ++i)
+      {
+	int res = fn (ss, &frame->objects[i].v);
+	if (res)
+	  return res;
+      }
+  return 0;
+}
+#endif
+
 
 /* Environment lifetime management.  */
 

@@ -34,7 +34,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "pdumper.h"
 #include "dispextern.h"
 #include "igc.h"
-//#include "puresize.h"
+#include "emacs-module.h"
 #include "intervals.h"
 
 #ifndef USE_LSB_TAG
@@ -350,6 +350,26 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	return res;						\
   } while (0)
 
+#define IGC_FIX12_NOBJS(ss, a, n)				\
+  do {								\
+    mps_res_t res;						\
+    MPS_FIX_CALL ((ss), res = fix_array ((ss), (a), (n)));	\
+    if (res != MPS_RES_OK)					\
+      return res;						\
+  } while (0)
+
+static mps_res_t
+fix_array (mps_ss_t ss, Lisp_Object *array, size_t n)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (size_t i = 0; i < n; ++i)
+	IGC_FIX12_OBJ (ss, &array[i]);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 static mps_res_t
 scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 {
@@ -424,6 +444,96 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 	  MPS_FIX_CALL (ss, res = fix_symbol (ss, sym));
 	  if (res != MPS_RES_OK)
 	    return res;
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+#ifdef HAVE_MODULES
+static int
+visit_env_obj (void *s, void *obj)
+{
+  mps_ss_t ss = s;
+  MPS_SCAN_BEGIN (ss)
+    {
+      IGC_FIX12_OBJ (ss, obj);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+#endif
+
+static mps_res_t
+scan_specbindings (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      mps_res_t res;
+      for (union specbinding *pdl = start;
+	   pdl < (union specbinding *) end; ++pdl)
+	{
+	  switch (pdl->kind)
+	    {
+	    case SPECPDL_UNWIND:
+	      IGC_FIX12_OBJ (ss, &pdl->unwind.arg);
+	      break;
+
+	    case SPECPDL_UNWIND_ARRAY:
+	      IGC_FIX12_NOBJS (ss, pdl->unwind_array.array, pdl->unwind_array.nelts);
+	      break;
+
+	    case SPECPDL_UNWIND_EXCURSION:
+	      IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.marker);
+	      IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.window);
+	      break;
+
+	    case SPECPDL_BACKTRACE:
+	      {
+		IGC_FIX12_OBJ (ss, &pdl->bt.function);
+		ptrdiff_t nargs = pdl->bt.nargs;
+		if (nargs == UNEVALLED)
+		  nargs = 1;
+		IGC_FIX12_NOBJS (ss, pdl->bt.args, nargs);
+	      }
+	      break;
+
+#ifdef HAVE_MODULES
+	    case SPECPDL_MODULE_RUNTIME:
+	      break;
+	    case SPECPDL_MODULE_ENVIRONMENT:
+	      {
+		mps_res_t res;
+		emacs_env *env = pdl->unwind_ptr.arg;
+		MPS_FIX_CALL (ss, res = igc_visit_env (ss, env, visit_env_obj));
+		if (res != MPS_RES_OK)
+		  return res;
+	      }
+	      break;
+#endif
+	    case SPECPDL_LET_DEFAULT:
+	    case SPECPDL_LET_LOCAL:
+	      IGC_FIX12_OBJ (ss, &pdl->let.where);
+	      FALLTHROUGH;
+	    case SPECPDL_LET:
+	      IGC_FIX12_OBJ (ss, &pdl->let.symbol);
+	      IGC_FIX12_OBJ (ss, &pdl->let.old_value);
+	      break;
+
+	    case SPECPDL_UNWIND_PTR:
+	      // See bug#69706
+	      break;
+
+	    case SPECPDL_UNWIND_INT:
+	    case SPECPDL_UNWIND_INTMAX:
+	    case SPECPDL_UNWIND_VOID:
+	    case SPECPDL_NOP:
+	      break;
+
+	    default:
+	      IGC_ASSERT (false);
+	      break;
+	    }
 	}
     }
   MPS_SCAN_END (ss);
