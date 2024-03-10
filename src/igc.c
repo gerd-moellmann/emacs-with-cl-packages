@@ -210,13 +210,6 @@ create_thread_aps (struct igc_thread *t)
     }
 }
 
-static void
-destroy_thread_aps (struct igc_thread_list *t)
-{
-  for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
-    mps_ap_destroy (t->d.ap[i]);
-}
-
 static struct igc_thread_list *
 register_thread (struct igc *gc, mps_thr_t thr, void *cold)
 {
@@ -779,27 +772,28 @@ create_specpdl_root (struct igc_thread_list *t)
 void
 igc_on_specbinding_unused (union specbinding *b)
 {
+  igc_static_assert (NIL_IS_ZERO);
   memset (b, 0, sizeof *b);
-}
-
-void
-igc_on_alloc_main_thread_specpdl (void)
-{
-  create_specpdl_root (current_thread->gc_info);
 }
 
 void
 igc_on_grow_specpdl (void)
 {
   /* Note that no two eoots may overlap, so we have to temporarily stop
-     the collector while replacing one root with another.  */
+     the collector while replacing one root with another (xpalloc may
+     realloc).  We could of course also simply not realloc.  */
   struct igc_thread_list *t = current_thread->gc_info;
   IGC_WITH_PARKED (t->d.gc)
     {
       destroy_root (t->d.specpdl_root);
-      t->d.specpdl_root = NULL;
       create_specpdl_root (t);
     }
+}
+
+void
+igc_on_alloc_main_thread_specpdl (void)
+{
+  create_specpdl_root (current_thread->gc_info);
 }
 
 static void
@@ -850,15 +844,10 @@ void
 igc_thread_remove (void *info)
 {
   struct igc_thread_list *t = info;
-  destroy_thread_aps (t);
+  destroy_root (t->d.specpdl_root);
+  for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
+    mps_ap_destroy (t->d.ap[i]);
   mps_thread_dereg (deregister_thread (t));
-}
-
-static void
-free_all_threads (struct igc *gc)
-{
-  while (gc->threads)
-    igc_thread_remove (gc->threads);
 }
 
 static void
@@ -1258,7 +1247,8 @@ make_igc (void)
 static void
 free_igc (struct igc *gc)
 {
-  free_all_threads (gc);
+  while (gc->threads)
+    igc_thread_remove (gc->threads);
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
       mps_pool_destroy (gc->pool[type]);
