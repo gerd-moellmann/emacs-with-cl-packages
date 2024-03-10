@@ -839,12 +839,21 @@ create_buffer_root (struct igc *gc, struct buffer *b)
 }
 
 static void
+create_terminal_list_root (struct igc *gc)
+{
+  void *start = &terminal_list;
+  void *end = (char *) start + sizeof (terminal_list);
+  create_ambig_root (gc, start, end);
+}
+
+static void
 create_static_roots (struct igc *gc)
 {
   create_buffer_root (gc, &buffer_defaults);
   create_buffer_root (gc, &buffer_local_symbols);
   create_staticvec_root (gc);
   create_lispsym_root (gc);
+  create_terminal_list_root (gc);
 }
 
 static void
