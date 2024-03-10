@@ -929,7 +929,7 @@ igc_on_free_glyph_matrix (void *m)
 }
 
 void *
-igc_on_grow_read_stack (void *info, void *start, void *end)
+igc_on_grow_rdstack (void *info, void *start, void *end)
 {
   struct igc *gc = global_igc;
   IGC_WITH_PARKED (gc)

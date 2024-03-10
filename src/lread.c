@@ -3949,10 +3949,8 @@ grow_read_stack (void)
   eassert (rs->sp < rs->size);
 #ifdef HAVE_MPS
   rs->igc_info
-    = igc_on_grow_read_stack (rs->igc_info, rs->stack,
-			      (char *) rs->stack
-				+ rs->size * sizeof *rs->stack);
-
+    = igc_on_grow_rdstack (rs->igc_info, rs->stack,
+			   (char *) rs->stack + rs->size * sizeof *rs->stack);
 #endif
 }
 
