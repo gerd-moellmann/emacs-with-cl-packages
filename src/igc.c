@@ -627,25 +627,25 @@ create_ambig_root (struct igc *gc, void *start, void *end)
 }
 
 static void
-add_staticvec_root (struct igc *gc)
+create_staticvec_root (struct igc *gc)
 {
   void *start =staticvec, *end = staticvec + ARRAYELTS (staticvec);
   mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
-			    start, end, scan_staticvec, NULL);
+  mps_res_t res = mps_root_create_area
+    (&root, gc->arena, mps_rank_exact (), MPS_RM_PROT + MPS_RM_PROT_INNER,
+     start, end, scan_staticvec, NULL);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
 }
 
 static void
-add_lispsym_root (struct igc *gc)
+create_lispsym_root (struct igc *gc)
 {
   void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
   mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
-			    start, end, scan_lispsym, NULL);
+  mps_res_t res = mps_root_create_area
+    (&root, gc->arena, mps_rank_exact (), MPS_RM_PROT + MPS_RM_PROT_INNER,
+     start, end, scan_lispsym, NULL);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
 }
@@ -700,8 +700,8 @@ add_static_roots (struct igc *gc)
 {
   add_buffer_root (gc, &buffer_defaults);
   add_buffer_root (gc, &buffer_local_symbols);
-  add_staticvec_root (gc);
-  add_lispsym_root (gc);
+  create_staticvec_root (gc);
+  create_lispsym_root (gc);
 }
 
 static void
