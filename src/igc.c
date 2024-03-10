@@ -763,12 +763,17 @@ create_lispsym_root (struct igc *gc)
 static void
 create_specpdl_root (struct igc_thread_list *t)
 {
-  if (specpdl)
-    {
-      struct igc *gc = t->d.gc;
-      // Maybe we could do better than using an ambiguous root.
-      t->d.specpdl_root = create_ambig_root (gc, specpdl, specpdl_end);
-    }
+  if (specpdl == NULL)
+    return;
+
+  struct igc *gc = t->d.gc;
+  void *start = specpdl, *end = specpdl_end;
+  mps_root_t root;
+  mps_res_t res = mps_root_create_area
+    (&root, gc->arena, mps_rank_exact (), 0, start, end,
+     scan_specbindings, NULL);
+  IGC_CHECK_RES (res);
+  t->d.specpdl_root = register_root (gc, root, start, end);
 }
 
 void
@@ -780,8 +785,7 @@ igc_on_specbinding_unused (union specbinding *b)
 void
 igc_on_alloc_main_thread_specpdl (void)
 {
-  struct igc_thread_list *t = current_thread->gc_info;
-  create_specpdl_root (t);
+  create_specpdl_root (current_thread->gc_info);
 }
 
 void
