@@ -4190,6 +4190,7 @@ NFRAMES and BASE specify the activation frame to use, as in `backtrace-frame'.  
 void
 mark_specpdl (union specbinding *first, union specbinding *ptr)
 {
+  eassert_not_mps ();
   union specbinding *pdl;
   for (pdl = first; pdl != ptr; pdl++)
     {
