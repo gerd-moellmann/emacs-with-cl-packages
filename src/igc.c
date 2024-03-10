@@ -796,18 +796,17 @@ igc_on_alloc_main_thread_specpdl (void)
 }
 
 static void
-add_buffer_root (struct igc *gc, struct buffer *b)
+create_buffer_root (struct igc *gc, struct buffer *b)
 {
   void *start = &b->name_, *end = &b->own_text;
-  // Maybe we could do better than using an ambiguous root.
   create_ambig_root (gc, start, end);
 }
 
 static void
-add_static_roots (struct igc *gc)
+create_static_roots (struct igc *gc)
 {
-  add_buffer_root (gc, &buffer_defaults);
-  add_buffer_root (gc, &buffer_local_symbols);
+  create_buffer_root (gc, &buffer_defaults);
+  create_buffer_root (gc, &buffer_local_symbols);
   create_staticvec_root (gc);
   create_lispsym_root (gc);
 }
@@ -1267,7 +1266,7 @@ make_igc (void)
       make_pool (gc, type, init);
     }
 
-  add_static_roots (gc);
+  create_static_roots (gc);
   enable_messages (gc, true);
   return gc;
 }
