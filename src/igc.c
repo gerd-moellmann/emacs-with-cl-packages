@@ -1210,6 +1210,25 @@ igc_alloc_pseudovector (size_t memlen, size_t lisplen, size_t zerolen,
   return p;
 }
 
+struct Lisp_Vector *
+igc_alloc_vector (ptrdiff_t len)
+{
+  mps_ap_t ap = thread_ap (IGC_TYPE_VECTOR);
+  ptrdiff_t nbytes = header_size + len * word_size;
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+      igc_static_assert (NIL_IS_ZERO);
+      memclear (p, nbytes);
+      struct Lisp_Vector *v = p;
+      v->header.size = len;
+    }
+  while (!mps_commit (ap, p, nbytes));
+  return p;
+}
+
 static mps_pool_debug_option_s debug_options = {
   "fence", 5, "free", 4,
 };

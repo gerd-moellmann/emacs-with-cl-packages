@@ -3539,6 +3539,7 @@ NO_INLINE /* For better stack traces */
 static void
 sweep_vectors (void)
 {
+  eassert_not_mps ();
   struct vector_block *block, **bprev = &vector_blocks;
   struct large_vector *lv, **lvprev = &large_vectors;
   struct Lisp_Vector *vector, *next;
@@ -3651,6 +3652,7 @@ sweep_vectors (void)
 static struct Lisp_Vector *
 allocate_vectorlike (ptrdiff_t len, bool clearit)
 {
+  eassert_not_mps ();
   eassert (0 < len && len <= VECTOR_ELTS_MAX);
   ptrdiff_t nbytes = header_size + len * word_size;
   struct Lisp_Vector *p;
@@ -3702,8 +3704,12 @@ allocate_clear_vector (ptrdiff_t len, bool clearit)
     return XVECTOR (zero_vector);
   if (VECTOR_ELTS_MAX < len)
     memory_full (SIZE_MAX);
+#ifdef HAVE_MPS
+  struct Lisp_Vector *v = igc_alloc_vector (len);
+#else
   struct Lisp_Vector *v = allocate_vectorlike (len, clearit);
   v->header.size = len;
+#endif
   return v;
 }
 
