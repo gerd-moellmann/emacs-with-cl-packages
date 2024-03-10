@@ -791,8 +791,9 @@ igc_on_alloc_main_thread_specpdl (void)
 void
 igc_on_grow_specpdl (void)
 {
+  /* Note that no two eoots may overlap, so we have to temporarily stop
+     the collector while replacing one root with another.  */
   struct igc_thread_list *t = current_thread->gc_info;
-  // FIXME: can we avoid parking?
   IGC_WITH_PARKED (t->d.gc)
     {
       destroy_root (t->d.specpdl_root);
@@ -823,10 +824,10 @@ create_thread_root (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   mps_root_t root;
-  mps_res_t res
-    = mps_root_create_thread_tagged (&root, gc->arena, mps_rank_ambig (),
-				     0, t->d.thr, scan_area_ambig,
-				     IGC_TAG_MASK, 0, t->d.stack_start);
+  mps_res_t res = mps_root_create_thread_tagged
+    (&root, gc->arena, mps_rank_ambig (),
+     0, t->d.thr, scan_area_ambig,
+     IGC_TAG_MASK, 0, t->d.stack_start);
   IGC_CHECK_RES (res);
   register_root (gc, root, t->d.stack_start, NULL);
 }
@@ -837,10 +838,8 @@ igc_thread_add (const void *stack_start)
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
   IGC_CHECK_RES (res);
-
   struct igc_thread_list *t
     = register_thread (global_igc, thr, (void *) stack_start);
-
   create_thread_root (t);
   create_specpdl_root (t);
   create_thread_aps (&t->d);
