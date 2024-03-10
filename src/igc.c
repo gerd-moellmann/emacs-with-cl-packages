@@ -397,6 +397,40 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 }
 
 static mps_res_t
+fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      IGC_FIX12_OBJ (ss, &sym->u.s.name);
+      if (sym->u.s.redirect == SYMBOL_PLAINVAL)
+	IGC_FIX12_OBJ (ss, &sym->u.s.val.value);
+      IGC_FIX12_OBJ (ss, &sym->u.s.function);
+      IGC_FIX12_OBJ (ss, &sym->u.s.plist);
+      IGC_FIX12_OBJ (ss, &sym->u.s.package);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct Lisp_Symbol *sym = start;
+	   sym < (struct Lisp_Symbol *) end; ++sym)
+	{
+	  mps_res_t res;
+	  MPS_FIX_CALL (ss, res = fix_symbol (ss, sym));
+	  if (res != MPS_RES_OK)
+	    return res;
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
@@ -471,12 +505,10 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (sym) || is_padding (sym))
 	    continue;
 
-	  IGC_FIX12_OBJ (ss, &sym->u.s.name);
-	  if (sym->u.s.redirect == SYMBOL_PLAINVAL)
-	    IGC_FIX12_OBJ (ss, &sym->u.s.val.value);
-	  IGC_FIX12_OBJ (ss, &sym->u.s.function);
-	  IGC_FIX12_OBJ (ss, &sym->u.s.plist);
-	  IGC_FIX12_OBJ (ss, &sym->u.s.package);
+	  mps_res_t res;
+	  MPS_FIX_CALL (ss, res = fix_symbol (ss, sym));
+	  if (res != MPS_RES_OK)
+	    return res;
 	}
     }
   MPS_SCAN_END (ss);
@@ -600,7 +632,7 @@ add_staticvec_root (struct igc *gc)
   void *start =staticvec, *end = staticvec + ARRAYELTS (staticvec);
   mps_root_t root;
   mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+    = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
 			    start, end, scan_staticvec, NULL);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
@@ -610,8 +642,12 @@ static void
 add_lispsym_root (struct igc *gc)
 {
   void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
-  // Maybe we could do better than using an ambiguous root.
-  create_ambig_root (gc, start, end);
+  mps_root_t root;
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
+			    start, end, scan_lispsym, NULL);
+  IGC_CHECK_RES (res);
+  register_root (gc, root, start, end);
 }
 
 static void
