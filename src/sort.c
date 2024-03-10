@@ -32,7 +32,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include "lisp.h"
-
+#include "igc.h"
 
 /* MAX_MERGE_PENDING is the maximum number of entries in merge_state's
    pending-stretch stack.  For a list with n elements, this needs at most
@@ -439,7 +439,11 @@ cleanup_mem (void *arg)
     }
 
   /* Free any remaining temp storage.  */
+#ifdef HAVE_MPS
+  igc_xfree (ms->a);
+#else
   xfree (ms->a);
+#endif
 }
 
 
@@ -467,9 +471,17 @@ merge_getmem (merge_state *ms, const ptrdiff_t need)
          what's in the block we don't use realloc which would waste
          cycles copying the old data.  We just free and alloc
          again.  */
+#ifdef HAVE_MPS
+      igc_xfree (ms->a);
+#else
       xfree (ms->a);
+#endif
     }
+#ifdef HAVE_MPS
+  ms->a = igc_xzalloc (need * word_size);
+#else
   ms->a = xmalloc (need * word_size);
+#endif
   ms->alloced = need;
 }
 
