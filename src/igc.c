@@ -68,6 +68,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 #define IGC_TAG_MASK (~ VALMASK)
 
+static void *
+add_align (void *p, size_t nbytes)
+{
+  return (char *) p + ROUNDUP (nbytes, GCALIGNMENT);
+}
+
 #define IGC_CHECK_RES(res)			\
   if ((res) != MPS_RES_OK)			\
     emacs_abort ();				\
@@ -440,7 +446,8 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
   MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Symbol *sym = start;
-	   sym < (struct Lisp_Symbol *) end; ++sym)
+	   sym < (struct Lisp_Symbol *) end;
+	   ++sym)
 	IGC_FIX_CALL (ss, fix_symbol (ss, sym));
     }
   MPS_SCAN_END (ss);
@@ -717,7 +724,7 @@ fix_image_cache (mps_ss_t ss, struct image_cache *c)
 }
 
 static mps_res_t
-terminal_extra_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+terminal_scan_x (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -734,21 +741,71 @@ terminal_extra_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
+static bool
+is_pvec (struct Lisp_Vector *v)
+{
+  return (v->header.size & PSEUDOVECTOR_FLAG) != 0;
+}
+
+static size_t
+pvec_nobjs (struct Lisp_Vector *v)
+{
+  return v->header.size & PSEUDOVECTOR_SIZE_MASK;
+}
+
+static size_t
+pvec_rest_nwords (struct Lisp_Vector *v)
+{
+  return (v->header.size & PSEUDOVECTOR_REST_MASK)
+    >> PSEUDOVECTOR_SIZE_BITS;
+}
+
+static size_t
+vector_size (struct Lisp_Vector *v)
+{
+  size_t header_size = sizeof v->header;
+  if (is_bool_vec (v))
+    {
+    }
+  else if (is_pvec (v))
+    {
+      size_t nwords = pvec_nobjs (v) + pvec_rest_nwords (v);
+      return header_size + nwords * sizeof (Lisp_Object);
+    }
+  else
+    {
+      size_t nwords = v->header.size;
+      return header_size + v->header.size * sizeof (Lisp_Object);
+    }
+}
+
+static mps_addr_t
+vector_skip (mps_addr_t addr)
+{
+  return (char *) addr + vector_size (addr);
+}
 
 static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
     {
+      for (struct Lisp_Vector *v = base; v < (struct Lisp_Vector *) limit;
+	   v = (struct Lisp_Vector *) vector_skip (v))
+	{
+	  const ptrdiff_t size = v->header.size;
+	  if (size & PSEUDOVECTOR_FLAG)
+	    {
+	      //  Number of Lisp_Object fields
+	      const ptrdiff_t nobjs = size & PSEUDOVECTOR_SIZE_MASK;
+
+	    }
+	  else
+	    IGC_FIX12_NOBJS (ss, v->contents, size);
+	}
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
-}
-
-static mps_addr_t
-vector_skip (mps_addr_t addr)
-{
-  return 0;
 }
 
 #pragma GCC diagnostic pop
