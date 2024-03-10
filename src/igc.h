@@ -33,7 +33,7 @@ void igc_on_adjust_glyph_matrix (void *matrix);
 void igc_on_free_glyph_matrix (void *matrix);
 void *igc_on_grow_read_stack (void *info, void *start, void *end);
 
-void igc_handle_messages (void);
+void igc_process_messages (void);
 specpdl_ref igc_inhibit_garbage_collection (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 Lisp_Object igc_alloc_symbol (void);

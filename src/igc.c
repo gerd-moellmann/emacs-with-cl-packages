@@ -63,10 +63,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #define IGC_ASSERT(expr) (void) 9
 #endif
 
-/* I can't remember what it does otherwise.  */
 #define igc_static_assert(x) verify (x)
 
-/* Mask for the tag part of a reference.  */
 #define IGC_TAG_MASK (~ VALMASK)
 
 #define IGC_CHECK_RES(res)			\
@@ -116,12 +114,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     xfree (r);						\
   }
 
-/* A MPS root that we created. */
-
 struct igc_root {
   struct igc *gc;
   mps_root_t root;
-  /* Memory covered, END can be NULL for control stacks.   */
   void *start, *end;
 };
 
@@ -138,8 +133,6 @@ enum igc_type {
   IGC_TYPE_LAST
 };
 
-/* An MPS thread we registered.  */
-
 struct igc_thread {
   struct igc *gc;
   mps_thr_t thr;
@@ -151,8 +144,6 @@ struct igc_thread {
 typedef struct igc_thread igc_thread;
 IGC_DEFINE_LIST (igc_thread);
 
-/* Registry for MPS objects.  */
-
 struct igc {
   mps_arena_t arena;
   mps_chain_t chain;
@@ -162,11 +153,7 @@ struct igc {
   struct igc_thread_list *threads;
 };
 
-/* Global MPS object registry.  */
 static struct igc *global_igc;
-
-/* Add ROOT for given memory area START, END to the registry GC.  Value
-   is a pointer to a new igc_root_list struct for the root.  */
 
 static struct igc_root_list *
 register_root (struct igc *gc, mps_root_t root, void *start, void *end)
@@ -174,9 +161,6 @@ register_root (struct igc *gc, mps_root_t root, void *start, void *end)
   struct igc_root r = { .gc = gc, .root = root, .start = start, .end = end };
   return igc_root_list_push (&gc->roots, &r);
 }
-
-/* Remove root R from its registry, and free it.  Value is the MPS root
-   that was registered.  */
 
 static mps_root_t
 deregister_root (struct igc_root_list *r)
@@ -186,15 +170,11 @@ deregister_root (struct igc_root_list *r)
   return root.root;
 }
 
-/* Destroy the MPS root in R, and deregister it.  */
-
 static void
 destroy_root (struct igc_root_list *r)
 {
   mps_root_destroy (deregister_root (r));
 }
-
-/* Destroy all registered roots of GC.  */
 
 static void
 destroy_all_roots (struct igc *gc)
@@ -355,7 +335,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
   return MPS_RES_OK;
 }
 
-#define IGC_FIX_OBJ(p)					\
+#define IGC_FIX12_OBJ(ss, p)				\
   do {							\
     mps_res_t res;					\
     MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, (p)));	\
@@ -363,12 +343,16 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
       return res;					\
   } while (0)
 
-/* Scan a vector of glyph_rows.  */
+#define IGC_FIX12_RAW(ss, p)					\
+  do {								\
+      mps_res_t res = MPS_FIX12 (ss, (mps_addr_t *) (p));	\
+      if (res != MPS_RES_OK)					\
+	return res;						\
+  } while (0)
 
 static mps_res_t
 scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  //fprintf (stderr, "*** scan_glyph_rows %p\n", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct glyph_row *row = start; row < (struct glyph_row *) end; ++row)
@@ -376,7 +360,7 @@ scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 	  struct glyph *glyph = row->glyphs[LEFT_MARGIN_AREA];
 	  struct glyph *end = row->glyphs[LAST_AREA];
 	  for (; glyph < end; ++glyph)
-	    IGC_FIX_OBJ (&glyph->object);
+	    IGC_FIX12_OBJ (ss, &glyph->object);
 	}
     }
   MPS_SCAN_END (ss);
@@ -386,7 +370,6 @@ scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  //fprintf (stderr, "*** scan_faces_by_id %p\n", start);
   MPS_SCAN_BEGIN (ss)
   {
     for (struct face **p = start; p < (struct face **) end; ++p)
@@ -394,36 +377,28 @@ scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
 	{
 	  struct face *face = *p;
 	  for (int i = 0; i < ARRAYELTS (face->lface); ++i)
-	    IGC_FIX_OBJ (&face->lface[i]);
+	    IGC_FIX12_OBJ (ss, &face->lface[i]);
 	}
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-/* Scan staticvec in the interval [START, END). SS is the MPS scan
-   state.  CLOSURE is ignored.  */
-
 static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  //fprintf (stderr, "*** scan_staticvec %p\n", start);
   MPS_SCAN_BEGIN (ss)
     {
-      for (int i = 0; i < staticidx; ++i)
-	IGC_FIX_OBJ ((Lisp_Object *) staticvec[i]);
+      for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
+	IGC_FIX12_OBJ (ss, *p);
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-/* The pointer part of a tagged word for symbols contains an offset from
-   lispsym. and the Lisp_Symbol tag is zero.  */
-
 static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  //fprintf (stderr, "*** scan_area_ambig %p\n", start);
   MPS_SCAN_BEGIN (ss)
     {
       for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
@@ -434,7 +409,6 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 	  if (tag == Lisp_Int0 && tag == Lisp_Int1)
 	    continue;
 
-	  // Assuming word is a normal pointer
 	  mps_addr_t ref = (mps_addr_t) (word ^ tag);
 	  if (MPS_FIX1 (ss, ref))
 	    {
@@ -443,7 +417,6 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 		return res;
 	    }
 
-	  // Assuming ref is a symbol reference.
 	  if (tag == Lisp_Symbol)
 	    {
 	      mps_word_t off = word ^ tag;
@@ -461,13 +434,9 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-/* Scan a Lisp_Cons.  Must be able to handle padding and forwaring
-   objects. */
-
 static mps_res_t
 cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-  //fprintf (stderr, "*** cons_scan %p\n", base);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
@@ -476,8 +445,8 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	{
 	  if (is_forwarded (cons) || is_padding (cons))
 	    continue;
-	  IGC_FIX_OBJ (&cons->u.s.car);
-	  IGC_FIX_OBJ (&cons->u.s.u.cdr);
+	  IGC_FIX12_OBJ (ss, &cons->u.s.car);
+	  IGC_FIX12_OBJ (ss, &cons->u.s.u.cdr);
 	}
     }
   MPS_SCAN_END (ss);
@@ -493,7 +462,6 @@ cons_skip (mps_addr_t addr)
 static mps_res_t
 symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
-  //fprintf (stderr, "*** symbol_scan %p\n", base);
   MPS_SCAN_BEGIN (ss)
     {
       for (struct Lisp_Symbol *sym = (struct Lisp_Symbol *) base;
@@ -503,12 +471,12 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (sym) || is_padding (sym))
 	    continue;
 
-	  IGC_FIX_OBJ (&sym->u.s.name);
+	  IGC_FIX12_OBJ (ss, &sym->u.s.name);
 	  if (sym->u.s.redirect == SYMBOL_PLAINVAL)
-	    IGC_FIX_OBJ (&sym->u.s.val.value);
-	  IGC_FIX_OBJ (&sym->u.s.function);
-	  IGC_FIX_OBJ (&sym->u.s.plist);
-	  IGC_FIX_OBJ (&sym->u.s.package);
+	    IGC_FIX12_OBJ (ss, &sym->u.s.val.value);
+	  IGC_FIX12_OBJ (ss, &sym->u.s.function);
+	  IGC_FIX12_OBJ (ss, &sym->u.s.plist);
+	  IGC_FIX12_OBJ (ss, &sym->u.s.package);
 	}
     }
   MPS_SCAN_END (ss);
@@ -520,14 +488,6 @@ symbol_skip (mps_addr_t addr)
 {
   return (char *) addr + sizeof (struct Lisp_Symbol);
 }
-
-#define IGC_FIX12_PTR(ss, expr)					\
-  do								\
-    {								\
-      mps_res_t res = MPS_FIX12 (ss, (mps_addr_t *) &expr);	\
-      if (res != MPS_RES_OK)					\
-	return res;						\
-    } while (0)
 
 static mps_res_t
 string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
@@ -541,8 +501,8 @@ string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  if (is_forwarded (s) || is_padding (s))
 	    continue;
 
-	  IGC_FIX12_PTR (ss, s->u.s.data);
-	  // INTERVAL intervals
+	  IGC_FIX12_RAW (ss, &s->u.s.data);
+	  IGC_FIX12_RAW (ss, &s->u.s.intervals);
 	}
     }
   MPS_SCAN_END (ss);
@@ -554,12 +514,6 @@ string_skip (mps_addr_t addr)
 {
   return (char *) addr + sizeof (struct Lisp_String);
 }
-
-/* There are several ways one could store strings in MPS. For example,
-   one could append string data to Lisp_Strings.  For simplicity, store
-   string data in a pool of its own, so that I don't have to change the
-   definition of Lisp_String.  The folllowing is a small header stored
-   for string data to be able to skip, forward etc.  */
 
 struct igc_sdata {
   mps_addr_t object_end;
@@ -575,9 +529,6 @@ sdata_contents (struct igc_sdata *d)
   return d->contents;
 }
 
-/* Value is the address just past the object being skipped. String
-   data is always NUL terminated.  */
-
 static mps_addr_t
 string_data_skip (mps_addr_t addr)
 {
@@ -590,19 +541,18 @@ interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   MPS_SCAN_BEGIN (ss)
     {
       for (struct interval *iv = (struct interval *) base;
-	   iv < (struct interval *) limit;
-	   ++iv)
+	   iv < (struct interval *) limit; ++iv)
 	{
 	  if (is_forwarded (iv) || is_padding (iv))
 	    continue;
 
-	  IGC_FIX12_PTR (ss, iv->left);
-	  IGC_FIX12_PTR (ss, iv->right);
+	  IGC_FIX12_RAW (ss, &iv->left);
+	  IGC_FIX12_RAW (ss, &iv->right);
 	  if (iv->up_obj)
-	    IGC_FIX_OBJ (&iv->up.obj);
+	    IGC_FIX12_OBJ (ss, &iv->up.obj);
 	  else
-	    IGC_FIX12_PTR (ss, iv->up.interval);
-	  IGC_FIX_OBJ (&iv->plist);
+	    IGC_FIX12_RAW (ss, iv->up.interval);
+	  IGC_FIX12_OBJ (ss, &iv->plist);
 	}
     }
   MPS_SCAN_END (ss);
@@ -620,12 +570,6 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
     {
-      for (struct interval *iv = (struct interval *) base;
-	   iv < (struct interval *) limit;
-	   ++iv)
-	{
-	  IGC_FIX_OBJ (&iv->plist);
-	}
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -634,34 +578,21 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 vector_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct interval);
+  return 0;
 }
 
 #pragma GCC diagnostic pop
-
-/* Create an ambigus root for the memory area [START, END), and register
-   it in GC.  Value is the a pointer to the igc_root_list in which the
-   root was registered.  */
 
 static igc_root_list *
 create_ambig_root (struct igc *gc, void *start, void *end)
 {
   mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area_tagged (&root,
-				   gc->arena,
-				   mps_rank_ambig (),
-				   0, /* MPS_PROT_... */
-				   start,
-				   end,
-				   scan_area_ambig,
-				   IGC_TAG_MASK,
-				   0);
+  mps_res_t res = mps_root_create_area_tagged
+    (&root, gc->arena, mps_rank_ambig (), 0,
+     start, end, scan_area_ambig, IGC_TAG_MASK, 0);
   IGC_CHECK_RES (res);
   return register_root (gc, root, start, end);
 }
-
-/* Add a root for staticvec to GC.  */
 
 static void
 add_staticvec_root (struct igc *gc)
@@ -675,8 +606,6 @@ add_staticvec_root (struct igc *gc)
   register_root (gc, root, start, end);
 }
 
-/* Add a root for lispsym to GC.  */
-
 static void
 add_lispsym_root (struct igc *gc)
 {
@@ -685,16 +614,9 @@ add_lispsym_root (struct igc *gc)
   create_ambig_root (gc, start, end);
 }
 
-/* Odeally, we shoudl not scan the entire area, only to the current
-   ptr. And ptr might change in the mutator.  Don't know how this could
-   be done with MPS running concurrently.  Instead, make sure that the
-   part of the stack that is not used is zeroed.  */
-
 static void
 create_specpdl_root (struct igc_thread_list *t)
 {
-  // For the initial thread, specpdl will be initialzed by
-  // init_eval_once, and will be NULL until that happens.
   if (specpdl)
     {
       struct igc *gc = t->d.gc;
@@ -716,8 +638,6 @@ igc_on_alloc_main_thread_specpdl (void)
   create_specpdl_root (t);
 }
 
-/* Called when specpdl gets reallacated.  */
-
 void
 igc_on_grow_specpdl (void)
 {
@@ -731,8 +651,6 @@ igc_on_grow_specpdl (void)
     }
 }
 
-/* Add a root to GC for scanning buffer B.  */
-
 static void
 add_buffer_root (struct igc *gc, struct buffer *b)
 {
@@ -740,8 +658,6 @@ add_buffer_root (struct igc *gc, struct buffer *b)
   // Maybe we could do better than using an ambiguous root.
   create_ambig_root (gc, start, end);
 }
-
-/* All all known static roots in Emacs to GC.  */
 
 static void
 add_static_roots (struct igc *gc)
@@ -751,8 +667,6 @@ add_static_roots (struct igc *gc)
   add_staticvec_root (gc);
   add_lispsym_root (gc);
 }
-
-/* Add a root for a thread given by T.  */
 
 static void
 create_thread_root (struct igc_thread_list *t)
@@ -766,8 +680,6 @@ create_thread_root (struct igc_thread_list *t)
   IGC_CHECK_RES (res);
   register_root (gc, root, t->d.stack_start, NULL);
 }
-
-/* Called from run_thread.  */
 
 void *
 igc_thread_add (const void *stack_start)
@@ -784,8 +696,6 @@ igc_thread_add (const void *stack_start)
   create_thread_aps (&t->d);
   return t;
 }
-
-/* Called from run_thread.  */
 
 void
 igc_thread_remove (void *info)
@@ -809,20 +719,13 @@ add_main_thread (void)
   current_thread->gc_info = igc_thread_add (stack_bottom);
 }
 
-
-/* Called after a pdump s been loaded.  Add the area as root
-   because there could be references in it.  */
-
 void
 igc_on_pdump_loaded (void)
 {
-  struct igc *gc = global_igc;
-  void *start = (void *) dump_public.start, *end = (void *) dump_public.end;
-  create_ambig_root (gc, start, end);
+  void *start = (void *) dump_public.start;
+  void *end = (void *) dump_public.end;
+  create_ambig_root (global_igc, start, end);
 }
-
-/* For all faces in a face cache, we need to fix the lface vector of
-   Lisp_Objects.  */
 
 void
 igc_on_make_face_cache (void *c)
@@ -850,10 +753,6 @@ igc_on_free_face_cache (void *c)
 void
 igc_on_face_cache_change (void *c)
 {
-  /* FIXME: can we avoid parking? The idea would be to add a new root
-     first, and then remove the old one, so that there is no gap in
-     which we don't have no root.  Alas, MPS says that no two roots may
-     overlap, which could be the case with realloc.  */
   IGC_WITH_PARKED (global_igc)
     {
       igc_on_free_face_cache (c);
@@ -934,7 +833,7 @@ do_finalize (struct igc *gc, mps_addr_t addr)
 }
 
 static void
-handle_messages (struct igc *gc)
+process_messages (struct igc *gc)
 {
   mps_message_type_t type;
   while (mps_message_queue_type (&type, gc->arena))
@@ -969,15 +868,15 @@ enable_messages (struct igc *gc, bool enable)
 }
 
 void
-igc_handle_messages (void)
+igc_process_messages (void)
 {
-  handle_messages (global_igc);
+  process_messages (global_igc);
 }
 
 void
 igc_on_idle (void)
 {
-  handle_messages (global_igc);
+  process_messages (global_igc);
   mps_arena_step (global_igc->arena, 0.1, 0);
 }
 
@@ -1109,18 +1008,8 @@ igc_make_vectorlike (size_t nelems)
   return p;
 }
 
-/* In a debug pool, fill fencepost and freed objects with a
-   byte pattern. This is ignored in non-debug pools.
-
-   (lldb) memory read cons_ptr
-   0x17735fe68: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
-   0x17735fe78: 66 72 65 65 66 72 65 65 66 72 65 65 66 72 65 65  freefreefreefree
-
-   I think this feature is only supported in AMS pools. */
-
 static mps_pool_debug_option_s debug_options = {
-  "fence", 5,
-  "free", 4,
+  "fence", 5, "free", 4,
 };
 
 struct igc_init {
@@ -1141,7 +1030,6 @@ make_arena (struct igc *gc)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
-  // Generations
   mps_gen_param_s gens[]
     = { { 32000, 0.8 }, { 5 * 32009, 0.4 } };
   res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gens), gens);
@@ -1252,4 +1140,4 @@ syms_of_igc (void)
 {
 }
 
-#endif // HAVE_MPS
+#endif

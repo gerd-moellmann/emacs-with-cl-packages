@@ -6386,7 +6386,7 @@ void
 garbage_collect (void)
 {
 #ifdef HAVE_MPS
-  igc_handle_messages ();
+  igc_process_messages ();
 #endif
   Lisp_Object tail, buffer;
   char stack_top_variable;
