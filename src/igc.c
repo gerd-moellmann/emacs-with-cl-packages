@@ -514,7 +514,6 @@ scan_specbindings (mps_ss_t ss, void *start, void *end, void *closure)
 	      break;
 
 	    case SPECPDL_UNWIND_PTR:
-	      // See bug#69706
 	      break;
 
 	    case SPECPDL_UNWIND_INT:
@@ -952,6 +951,35 @@ type_of_addr (struct igc *gc, mps_addr_t addr)
       if (pool == gc->pool[i])
 	return i;
   return IGC_TYPE_LAST;
+}
+
+static igc_root_list *
+find_root (void *start)
+{
+  for (igc_root_list *r = global_igc->roots; r; r = r->next)
+    if (r->d.start == start)
+      return r;
+  return NULL;
+}
+
+void *
+igc_xzalloc (size_t size)
+{
+  igc_static_assert (NIL_IS_ZERO);
+  void *p = xzalloc (size);
+  create_ambig_root (global_igc, p, (char *) p + size);
+  return p;
+}
+
+void
+igc_xfree (void *p)
+{
+  if (p == NULL)
+    return;
+  struct igc_root_list *r = find_root (p);
+  IGC_ASSERT (r != NULL);
+  destroy_root (r);
+  xfree (p);
 }
 
 static void

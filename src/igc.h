@@ -38,6 +38,10 @@ specpdl_ref igc_inhibit_garbage_collection (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 Lisp_Object igc_alloc_symbol (void);
 
+void * igc_xzalloc (size_t size);
+void igc_xfree (void *p);
+
+
 #define eassert_not_mps() eassert(false)
 #else
 #define igc_break() (void) 0
