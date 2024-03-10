@@ -36,6 +36,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "igc.h"
 #include "emacs-module.h"
 #include "intervals.h"
+#include "termhooks.h"
 
 #ifndef USE_LSB_TAG
 #error "USE_LSB_TAG required"
@@ -351,6 +352,14 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
       return res;						\
   } while (0)
 
+#define IGC_FIX_CALL(ss, expr)			\
+  do {						\
+    mps_res_t res;				\
+    MPS_FIX_CALL (ss, res = (expr));		\
+    if (res != MPS_RES_OK)			\
+      return res;				\
+  } while (0)
+
 static mps_res_t
 fix_array (mps_ss_t ss, Lisp_Object *array, size_t n)
 {
@@ -432,12 +441,7 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
     {
       for (struct Lisp_Symbol *sym = start;
 	   sym < (struct Lisp_Symbol *) end; ++sym)
-	{
-	  mps_res_t res;
-	  MPS_FIX_CALL (ss, res = fix_symbol (ss, sym));
-	  if (res != MPS_RES_OK)
-	    return res;
-	}
+	IGC_FIX_CALL (ss, fix_symbol (ss, sym));
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -496,11 +500,8 @@ scan_specbindings (mps_ss_t ss, void *start, void *end, void *closure)
 	      break;
 	    case SPECPDL_MODULE_ENVIRONMENT:
 	      {
-		mps_res_t res;
 		emacs_env *env = pdl->unwind_ptr.arg;
-		MPS_FIX_CALL (ss, res = igc_visit_env (ss, env, visit_env_obj));
-		if (res != MPS_RES_OK)
-		  return res;
+		IGC_FIX_CALL (ss, igc_visit_env (ss, env, visit_env_obj));
 	      }
 	      break;
 #endif
@@ -606,11 +607,7 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	{
 	  if (is_forwarded (sym) || is_padding (sym))
 	    continue;
-
-	  mps_res_t res;
-	  MPS_FIX_CALL (ss, res = fix_symbol (ss, sym));
-	  if (res != MPS_RES_OK)
-	    return res;
+	  IGC_FIX_CALL (ss, fix_symbol (ss, sym));
 	}
     }
   MPS_SCAN_END (ss);
@@ -698,6 +695,45 @@ interval_skip (mps_addr_t addr)
 {
   return (char *) addr + sizeof (struct interval);
 }
+
+static mps_res_t
+fix_image_cache (mps_ss_t ss, struct image_cache *c)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (ptrdiff_t i = 0; i < c->used; ++i)
+	{
+	  struct image *img = c->images[i];
+	  if (img)
+	    {
+	      IGC_FIX12_OBJ (ss, &img->spec);
+	      IGC_FIX12_OBJ (ss, &img->dependencies);
+	      IGC_FIX12_OBJ (ss, &img->lisp_data);
+	    }
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+terminal_extra_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct terminal *t = base; t < (struct terminal *) limit; ++t)
+	{
+#ifdef HAVE_WINDOW_SYSTEM
+	  if (t->image_cache)
+	    IGC_FIX_CALL (ss, fix_image_cache (ss, t->image_cache));
+#endif
+	  IGC_FIX12_RAW (ss, &t->next_terminal);
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 
 static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
