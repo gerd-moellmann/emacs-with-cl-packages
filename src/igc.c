@@ -34,8 +34,15 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     face has refs. Same procedure as for images.
 
   - window -> glyph_matrix -> glyph_row[] -> glyph[], and for frames
-    with glyph_pool. Make glyphs ambigous roots by using igc_xpalloc
-    etc.
+    with glyph_pool. Could do the same as for faces, images, but make
+    glyphs ambiguous roots for trying it out (igc_x*alloc etc).
+
+  - hash_table -> key_and_value which is malloc'd. Use the igc malloc
+    functions to make them roots. We could improve that by creating
+    an exact scanning root, but TRT is to change key_and_value back to a
+    Lisp_Vector.
+
+  - weak hash tables
  */
 
 // clang-format off
@@ -964,14 +971,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_FRAME:
 	      {
-		//  struct face_cache *face_cache;
-		//    struct glyph_pool *current_pool;
-		//  struct glyph_pool *desired_pool;
-		//  struct glyph_matrix *desired_matrix;
-		//  struct glyph_matrix *current_matrix;
 		//  output_data;
 		//  struct font_driver_list *font_driver_list;
-		//  struct text_conversion_state conversion;
 		struct frame *f = obase;
 	      }
 	      break;
@@ -981,9 +982,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_HASH_TABLE:
-	      {
-		struct Lisp_Hash_Table *h = obase;
-	      }
+	      // Nothing to do. key_and_value is ambig root
 	      break;
 
 	    case PVEC_CHAR_TABLE:
@@ -1097,7 +1096,7 @@ igc_on_specbinding_unused (union specbinding *b)
 void
 igc_on_grow_specpdl (void)
 {
-  /* Note that no two eoots may overlap, so we have to temporarily stop
+  /* Note that no two roots may overlap, so we have to temporarily stop
      the collector while replacing one root with another (xpalloc may
      realloc).  We could of course also simply not realloc.  */
   struct igc_thread_list *t = current_thread->gc_info;
