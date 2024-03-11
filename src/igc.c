@@ -714,24 +714,6 @@ fix_image_cache (mps_ss_t ss, struct image_cache *c)
   return MPS_RES_OK;
 }
 
-static mps_res_t
-terminal_scan_x (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-    {
-      for (struct terminal *t = base; t < (struct terminal *) limit; ++t)
-	{
-#ifdef HAVE_WINDOW_SYSTEM
-	  if (t->image_cache)
-	    IGC_FIX_CALL (ss, fix_image_cache (ss, t->image_cache));
-#endif
-	  IGC_FIX12_RAW (ss, &t->next_terminal);
-	}
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
 static bool
 is_pseudo_vector (const struct Lisp_Vector *v)
 {
@@ -801,36 +783,75 @@ vector_skip (mps_addr_t addr)
 static mps_res_t
 fix_buffer (mps_ss_t ss, const struct buffer *b)
 {
+  MPS_SCAN_BEGIN (ss)
+    {
+    }
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
 static mps_res_t
 fix_window (mps_ss_t ss, const struct window *w)
 {
+  MPS_SCAN_BEGIN (ss)
+    {
+    }
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
 static mps_res_t
 fix_frame (mps_ss_t ss, const struct frame *f)
 {
+  MPS_SCAN_BEGIN (ss)
+    {
+    }
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
 static mps_res_t
 fix_hash_table (mps_ss_t ss, const struct Lisp_Hash_Table *h)
 {
+  MPS_SCAN_BEGIN (ss)
+    {
+    }
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
 static mps_res_t
 fix_char_table (mps_ss_t ss, const struct Lisp_Char_Table *c)
 {
+  MPS_SCAN_BEGIN (ss)
+    {
+    }
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
 static mps_res_t
 fix_overlay (mps_ss_t ss, const struct Lisp_Overlay *o)
 {
+  MPS_SCAN_BEGIN (ss)
+    {
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_terminal (mps_ss_t ss, const struct terminal *t)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+#ifdef HAVE_WINDOW_SYSTEM
+      if (t->image_cache)
+	IGC_FIX_CALL (ss, fix_image_cache (ss, t->image_cache));
+#endif
+      IGC_FIX12_RAW (ss, &t->next_terminal);
+    }
+  MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
@@ -897,6 +918,10 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_OVERLAY:
 	      IGC_FIX_CALL (ss, fix_overlay (ss, (struct Lisp_Overlay *) v));
+	      break;
+
+	    case PVEC_TERMINAL:
+	      IGC_FIX_CALL (ss, fix_terminal (ss, (struct terminal *) v));
 	      break;
 
 	    case PVEC_SUBR:
