@@ -938,6 +938,17 @@ fix_thread_state (mps_ss_t ss, struct thread_state *p)
 }
 
 static mps_res_t
+fix_mutex (mps_ss_t ss, struct Lisp_Mutex *p)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      IGC_FIX12_RAW (ss, &p->name);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
@@ -979,7 +990,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  switch (pseudo_vector_type (v))
 	    {
 	    case PVEC_FREE:
-	      IGC_ASSERT (false);
+	      IGC_ASSERT (!"PVEC_FREE");
 	      break;
 
 	    case PVEC_NORMAL_VECTOR:
@@ -988,7 +999,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_FINALIZER:
 	      // Unclear, has a circurlar list of weak references?
-	      IGC_ASSERT (false);
+	      IGC_ASSERT (!"PVEC_FINALIZER");
 	      break;
 
 	    case PVEC_SYMBOL_WITH_POS:
@@ -1010,12 +1021,12 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_OTHER:
-	      IGC_ASSERT (false);
+	      IGC_ASSERT (!"PVEC_OTHER");
 	      break;
 
 	    case PVEC_XWIDGET:	/* no idea */
 	    case PVEC_XWIDGET_VIEW:
-	      IGC_ASSERT (false);
+	      IGC_ASSERT (!"PVEC_WIDGET*");
 	      break;
 
 	    case PVEC_THREAD:
@@ -1023,6 +1034,9 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_MUTEX:
+	      IGC_FIX_CALL (ss, fix_mutex (ss, obase));
+	      break;
+
 	    case PVEC_CONDVAR:
 	    case PVEC_MODULE_FUNCTION:
 	    case PVEC_NATIVE_COMP_UNIT:
