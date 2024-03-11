@@ -992,14 +992,15 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_PROCESS:
-	      break;
-
 	    case PVEC_BOOL_VECTOR:
 	    case PVEC_WINDOW_CONFIGURATION:
+	    case PVEC_PACKAGE:
 	      break;
 
-	    case PVEC_PACKAGE:
 	    case PVEC_OTHER:
+	      IGC_ASSERT (false);
+	      break;
+
 	    case PVEC_XWIDGET:
 	    case PVEC_XWIDGET_VIEW:
 	    case PVEC_THREAD:
