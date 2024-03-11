@@ -1975,7 +1975,11 @@ save_current_matrix (struct frame *f)
       struct glyph_row *to = saved->rows + i;
       ptrdiff_t nbytes = from->used[TEXT_AREA] * sizeof (struct glyph);
 
+#ifdef HAVE_MPS
+      to->glyphs[TEXT_AREA] = igc_xmalloc (nbytes);
+#else
       to->glyphs[TEXT_AREA] = xmalloc (nbytes);
+#endif
       memcpy (to->glyphs[TEXT_AREA], from->glyphs[TEXT_AREA], nbytes);
       to->used[TEXT_AREA] = from->used[TEXT_AREA];
       to->enabled_p = from->enabled_p;
@@ -1983,7 +1987,11 @@ save_current_matrix (struct frame *f)
       if (from->used[LEFT_MARGIN_AREA])
 	{
 	  nbytes = from->used[LEFT_MARGIN_AREA] * sizeof (struct glyph);
+#ifdef HAVE_MPS
+	  to->glyphs[LEFT_MARGIN_AREA] = igc_xmalloc (nbytes);
+#else
 	  to->glyphs[LEFT_MARGIN_AREA] = xmalloc (nbytes);
+#endif
 	  memcpy (to->glyphs[LEFT_MARGIN_AREA],
 		  from->glyphs[LEFT_MARGIN_AREA], nbytes);
 	  to->used[LEFT_MARGIN_AREA] = from->used[LEFT_MARGIN_AREA];
@@ -1991,7 +1999,11 @@ save_current_matrix (struct frame *f)
       if (from->used[RIGHT_MARGIN_AREA])
 	{
 	  nbytes = from->used[RIGHT_MARGIN_AREA] * sizeof (struct glyph);
+#ifdef HAVE_MPS
+	  to->glyphs[RIGHT_MARGIN_AREA] = igc_xmalloc (nbytes);
+#else
 	  to->glyphs[RIGHT_MARGIN_AREA] = xmalloc (nbytes);
+#endif
 	  memcpy (to->glyphs[RIGHT_MARGIN_AREA],
 		  from->glyphs[RIGHT_MARGIN_AREA], nbytes);
 	  to->used[RIGHT_MARGIN_AREA] = from->used[RIGHT_MARGIN_AREA];
@@ -2018,14 +2030,22 @@ restore_current_matrix (struct frame *f, struct glyph_matrix *saved)
 
       memcpy (to->glyphs[TEXT_AREA], from->glyphs[TEXT_AREA], nbytes);
       to->used[TEXT_AREA] = from->used[TEXT_AREA];
+#ifdef HAVE_MPS
+      igc_xfree (from->glyphs[TEXT_AREA]);
+#else
       xfree (from->glyphs[TEXT_AREA]);
+#endif
       nbytes = from->used[LEFT_MARGIN_AREA] * sizeof (struct glyph);
       if (nbytes)
 	{
 	  memcpy (to->glyphs[LEFT_MARGIN_AREA],
 		  from->glyphs[LEFT_MARGIN_AREA], nbytes);
 	  to->used[LEFT_MARGIN_AREA] = from->used[LEFT_MARGIN_AREA];
+#ifdef HAVE_MPS
+	  igc_xfree (from->glyphs[LEFT_MARGIN_AREA]);
+#else
 	  xfree (from->glyphs[LEFT_MARGIN_AREA]);
+#endif
 	}
       else
 	to->used[LEFT_MARGIN_AREA] = 0;
@@ -2035,7 +2055,11 @@ restore_current_matrix (struct frame *f, struct glyph_matrix *saved)
 	  memcpy (to->glyphs[RIGHT_MARGIN_AREA],
 		  from->glyphs[RIGHT_MARGIN_AREA], nbytes);
 	  to->used[RIGHT_MARGIN_AREA] = from->used[RIGHT_MARGIN_AREA];
+#ifdef HAVE_MPS
 	  xfree (from->glyphs[RIGHT_MARGIN_AREA]);
+#else
+	  xfree (from->glyphs[RIGHT_MARGIN_AREA]);
+#endif
 	}
       else
 	to->used[RIGHT_MARGIN_AREA] = 0;
