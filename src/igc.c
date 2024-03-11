@@ -16,6 +16,17 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
+/*
+
+  - Does C have something like C++ thread_local etc?
+
+  - itree: buffer -> itree_tree, overlay <-> itree_node. The backref
+    from the node to the overlay means we need to fix it, and it is
+    currently xalloc'd. Workaround for now: alloc itree nodes from a
+    pool of their own, like intervals.
+
+ */
+
 // clang-format off
 
 #include <config.h>
@@ -140,6 +151,7 @@ enum igc_type {
   IGC_TYPE_STRING,
   IGC_TYPE_STRING_DATA,
   IGC_TYPE_VECTOR,
+  IGC_TYPE_ITREE_NODE,
   IGC_TYPE_LAST
 };
 
@@ -695,6 +707,32 @@ static mps_addr_t
 interval_skip (mps_addr_t addr)
 {
   return (char *) addr + sizeof (struct interval);
+}
+
+static mps_res_t
+itree_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct itree_node *n = (struct itree_node *) base;
+	   n < (struct itree_node *) limit; ++n)
+	{
+	  if (is_forwarded (n) || is_padding (n))
+	    continue;
+	  IGC_FIX12_RAW (ss, &n->parent);
+	  IGC_FIX12_RAW (ss, &n->left);
+	  IGC_FIX12_RAW (ss, &n->right);
+	  IGC_FIX12_OBJ (ss, &n->data);
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_addr_t
+itree_skip (mps_addr_t addr)
+{
+  return (char *) addr + sizeof (struct itree_node);
 }
 
 static mps_res_t
@@ -1284,6 +1322,7 @@ do_finalize (struct igc *gc, mps_addr_t addr)
     case IGC_TYPE_STRING:
     case IGC_TYPE_STRING_DATA:
     case IGC_TYPE_VECTOR:
+    case IGC_TYPE_ITREE_NODE:
     case IGC_TYPE_LAST:
       break;
     }
@@ -1570,6 +1609,8 @@ make_igc (void)
       .scan = NULL, .skip = string_data_skip },
     { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = vector_scan, .skip = vector_skip },
+    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+      .scan = itree_scan, .skip = itree_skip },
   };
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
