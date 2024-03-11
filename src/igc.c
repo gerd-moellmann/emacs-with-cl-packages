@@ -21,6 +21,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include <config.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include "process.h"
 
 #ifdef HAVE_MPS
 
@@ -991,6 +992,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_PROCESS:
+	      break;
+
 	    case PVEC_BOOL_VECTOR:
 	    case PVEC_WINDOW_CONFIGURATION:
 	    case PVEC_PACKAGE:
