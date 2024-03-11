@@ -19,6 +19,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 // clang-format off
 
 #include <config.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 #ifdef HAVE_MPS
@@ -782,7 +783,7 @@ vector_skip (mps_addr_t addr)
 }
 
 static mps_res_t
-fix_itree (mps_ss_t ss, const struct itree_tree *tree)
+fix_itree (mps_ss_t ss, struct itree_tree *tree)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -796,7 +797,7 @@ fix_itree (mps_ss_t ss, const struct itree_tree *tree)
 }
 
 static mps_res_t
-fix_buffer (mps_ss_t ss, const struct buffer *b)
+fix_buffer (mps_ss_t ss, struct buffer *b)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -813,7 +814,7 @@ fix_buffer (mps_ss_t ss, const struct buffer *b)
 }
 
 static mps_res_t
-fix_window (mps_ss_t ss, const struct window *w)
+fix_window (mps_ss_t ss, struct window *w)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -823,7 +824,7 @@ fix_window (mps_ss_t ss, const struct window *w)
 }
 
 static mps_res_t
-fix_frame (mps_ss_t ss, const struct frame *f)
+fix_frame (mps_ss_t ss, struct frame *f)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -833,7 +834,7 @@ fix_frame (mps_ss_t ss, const struct frame *f)
 }
 
 static mps_res_t
-fix_hash_table (mps_ss_t ss, const struct Lisp_Hash_Table *h)
+fix_hash_table (mps_ss_t ss, struct Lisp_Hash_Table *h)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -843,7 +844,7 @@ fix_hash_table (mps_ss_t ss, const struct Lisp_Hash_Table *h)
 }
 
 static mps_res_t
-fix_char_table (mps_ss_t ss, const struct Lisp_Char_Table *c)
+fix_char_table (mps_ss_t ss, struct Lisp_Char_Table *c)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -853,7 +854,7 @@ fix_char_table (mps_ss_t ss, const struct Lisp_Char_Table *c)
 }
 
 static mps_res_t
-fix_overlay (mps_ss_t ss, const struct Lisp_Overlay *o)
+fix_overlay (mps_ss_t ss, struct Lisp_Overlay *o)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -863,7 +864,7 @@ fix_overlay (mps_ss_t ss, const struct Lisp_Overlay *o)
 }
 
 static mps_res_t
-fix_terminal (mps_ss_t ss, const struct terminal *t)
+fix_terminal (mps_ss_t ss, struct terminal *t)
 {
   MPS_SCAN_BEGIN (ss)
     {
@@ -878,12 +879,24 @@ fix_terminal (mps_ss_t ss, const struct terminal *t)
 }
 
 static mps_res_t
-fix_marker (mps_ss_t ss, const struct Lisp_Marker *m)
+fix_marker (mps_ss_t ss, struct Lisp_Marker *m)
 {
   MPS_SCAN_BEGIN (ss)
     {
       IGC_FIX12_RAW (ss, &m->buffer);
       IGC_FIX12_RAW (ss, &m->next);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_symbol_with_pos (mps_ss_t ss, struct Lisp_Symbol_With_Pos *s)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      IGC_FIX12_OBJ (ss, &s->sym);
+      IGC_FIX12_RAW (ss, &s->pos);
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -913,6 +926,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    }
 
 	  struct Lisp_Vector *v = base;
+	  mps_addr_t obase = base;
 	  base = (char *) base + vector_size (v);
 
 	  if (is_plain_vector (v))
@@ -922,10 +936,10 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    }
 
 	  if (!is_bool_vector (v))
-	    continue;
-
-	  const size_t nobjs = pseudo_vector_nobjs (v);
-	  IGC_FIX12_NOBJS (ss, v->contents, nobjs);
+	    {
+	      const size_t nobjs = pseudo_vector_nobjs (v);
+	      IGC_FIX12_NOBJS (ss, v->contents, nobjs);
+	    }
 
 	  switch (pseudo_vector_type (v))
 	    {
@@ -938,7 +952,14 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_FINALIZER:
+	      // Unclear, has a circurlar list of weak references?
+	      IGC_ASSERT (false);
+	      break;
+
 	    case PVEC_SYMBOL_WITH_POS:
+	      IGC_FIX_CALL (ss, fix_symbol_with_pos (ss, obase));
+	      break;
+
 	    case PVEC_MISC_PTR:
 	    case PVEC_USER_PTR:
 	    case PVEC_PROCESS:
@@ -963,32 +984,32 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_BUFFER:
-	      IGC_FIX_CALL (ss, fix_buffer (ss, (struct buffer *) v));
+	      IGC_FIX_CALL (ss, fix_buffer (ss, obase));
 	      break;
 
 	    case PVEC_FRAME:
-	      IGC_FIX_CALL (ss, fix_frame (ss, (struct frame *) v));
+	      IGC_FIX_CALL (ss, fix_frame (ss, obase));
 	      break;
 
 	    case PVEC_WINDOW:
-	      IGC_FIX_CALL (ss, fix_window (ss, (struct window *) v));
+	      IGC_FIX_CALL (ss, fix_window (ss, obase));
 	      break;
 
 	    case PVEC_HASH_TABLE:
-	      IGC_FIX_CALL (ss, fix_hash_table (ss, (struct Lisp_Hash_Table *) v));
+	      IGC_FIX_CALL (ss, fix_hash_table (ss, obase));
 	      break;
 
 	    case PVEC_CHAR_TABLE:
 	    case PVEC_SUB_CHAR_TABLE:
-	      IGC_FIX_CALL (ss, fix_char_table (ss, (struct Lisp_Char_Table *) v));
+	      IGC_FIX_CALL (ss, fix_char_table (ss, obase));
 	      break;
 
 	    case PVEC_OVERLAY:
-	      IGC_FIX_CALL (ss, fix_overlay (ss, (struct Lisp_Overlay *) v));
+	      IGC_FIX_CALL (ss, fix_overlay (ss, obase));
 	      break;
 
 	    case PVEC_TERMINAL:
-	      IGC_FIX_CALL (ss, fix_terminal (ss, (struct terminal *) v));
+	      IGC_FIX_CALL (ss, fix_terminal (ss, obase));
 	      break;
 
 	    case PVEC_SUBR:
@@ -1008,7 +1029,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_MARKER:
-	      IGC_FIX_CALL (ss, fix_marker (ss, (struct Lisp_Marker *) v));
+	      IGC_FIX_CALL (ss, fix_marker (ss, obase));
 	      break;
 	    }
 	}
