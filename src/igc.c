@@ -926,6 +926,18 @@ fix_user_ptr (mps_ss_t ss, struct Lisp_User_Ptr *p)
 }
 
 static mps_res_t
+fix_thread_state (mps_ss_t ss, struct thread_state *p)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      IGC_FIX12_RAW (ss, &p->m_current_buffer);
+      IGC_FIX12_RAW (ss, &p->next_thread);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
@@ -1001,9 +1013,15 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      IGC_ASSERT (false);
 	      break;
 
-	    case PVEC_XWIDGET:
+	    case PVEC_XWIDGET:	/* no idea */
 	    case PVEC_XWIDGET_VIEW:
+	      IGC_ASSERT (false);
+	      break;
+
 	    case PVEC_THREAD:
+	      IGC_FIX_CALL (ss, fix_thread_state (ss, obase));
+	      break;
+
 	    case PVEC_MUTEX:
 	    case PVEC_CONDVAR:
 	    case PVEC_MODULE_FUNCTION:
