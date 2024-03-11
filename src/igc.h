@@ -44,6 +44,7 @@ struct Lisp_Vector *
 igc_alloc_pseudovector (size_t memlen, size_t lisplen,
 			size_t zerolen, enum pvec_type tag);
 struct Lisp_Vector *igc_alloc_vector (ptrdiff_t len);
+struct itree_node *igc_make_itree_node (void);
 
 #define eassert_not_mps() eassert(false)
 #else

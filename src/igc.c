@@ -954,9 +954,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 		IGC_FIX12_RAW (ss, &b->own_text.intervals);
 		IGC_FIX12_RAW (ss, &b->own_text.markers);
 		IGC_FIX12_RAW (ss, &b->base_buffer);
-		struct itree_node *n;
-		ITREE_FOREACH (n, b->overlays, PTRDIFF_MIN, PTRDIFF_MAX, POST_ORDER)
-		  IGC_FIX12_OBJ (ss, &n->data);
+		IGC_FIX12_RAW (ss, &b->overlays->root);
+		// FIXME: special handling of undo_list?
 	      }
 	      break;
 
@@ -1519,6 +1518,23 @@ igc_alloc_vector (ptrdiff_t len)
       memclear (p, nbytes);
       struct Lisp_Vector *v = p;
       v->header.size = len;
+    }
+  while (!mps_commit (ap, p, nbytes));
+  return p;
+}
+
+struct itree_node *
+igc_make_itree_node (void)
+{
+  mps_ap_t ap = thread_ap (IGC_TYPE_ITREE_NODE);
+  ptrdiff_t nbytes = sizeof (struct itree_node);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+      igc_static_assert (NIL_IS_ZERO);
+      memclear (p, nbytes);
     }
   while (!mps_commit (ap, p, nbytes));
   return p;

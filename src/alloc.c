@@ -4084,7 +4084,11 @@ build_overlay (bool front_advance, bool rear_advance,
   struct Lisp_Overlay *p = ALLOCATE_PSEUDOVECTOR (struct Lisp_Overlay, plist,
 						  PVEC_OVERLAY);
   Lisp_Object overlay = make_lisp_ptr (p, Lisp_Vectorlike);
+#ifdef HAVE_MPS
+  struct itree_node *node = igc_make_itree_node ();
+#else
   struct itree_node *node = xmalloc (sizeof (*node));
+#endif
   itree_node_init (node, front_advance, rear_advance, overlay);
   p->interval = node;
   p->buffer = NULL;
