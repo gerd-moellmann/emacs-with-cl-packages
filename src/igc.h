@@ -26,8 +26,6 @@ void igc_on_grow_specpdl (void);
 void igc_on_specbinding_unused (union specbinding *b);
 void igc_on_idle (void);
 void igc_on_pdump_loaded (void);
-void igc_on_make_face_cache (void *face_cache);
-void igc_on_free_face_cache (void *face_cache);
 void igc_on_face_cache_change (void *face_cache);
 void igc_on_adjust_glyph_matrix (void *matrix);
 void igc_on_free_glyph_matrix (void *matrix);
@@ -38,8 +36,11 @@ specpdl_ref igc_inhibit_garbage_collection (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 Lisp_Object igc_alloc_symbol (void);
 
-void * igc_xzalloc (size_t size);
+void *igc_xzalloc (size_t size);
 void igc_xfree (void *p);
+void *igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
+		   ptrdiff_t nitems_max, ptrdiff_t item_size);
+
 struct Lisp_Vector *
 igc_alloc_pseudovector (size_t memlen, size_t lisplen,
 			size_t zerolen, enum pvec_type tag);

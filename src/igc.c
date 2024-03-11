@@ -1252,39 +1252,6 @@ igc_on_pdump_loaded (void)
 }
 
 void
-igc_on_make_face_cache (void *c)
-{
-  struct face_cache *cache = c;
-  struct igc *gc = global_igc;
-  void *start = (void *) cache->faces_by_id;
-  void *end = (void *) (cache->faces_by_id + cache->size);
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    start, end, scan_faces_by_id, NULL);
-  IGC_CHECK_RES (res);
-  cache->igc_info = register_root (gc, root, start, end);
-}
-
-void
-igc_on_free_face_cache (void *c)
-{
-  struct face_cache *cache = c;
-  destroy_root (cache->igc_info);
-  cache->igc_info = NULL;
-}
-
-void
-igc_on_face_cache_change (void *c)
-{
-  IGC_WITH_PARKED (global_igc)
-    {
-      igc_on_free_face_cache (c);
-      igc_on_make_face_cache (c);
-    }
-}
-
-void
 igc_on_adjust_glyph_matrix (void *m)
 {
   struct igc *gc = global_igc;
@@ -1368,6 +1335,25 @@ igc_xfree (void *p)
   destroy_root (r);
   xfree (p);
 }
+
+void *
+igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
+	     ptrdiff_t nitems_max, ptrdiff_t item_size)
+{
+  IGC_WITH_PARKED (global_igc)
+    {
+      if (pa)
+	{
+	  struct igc_root_list *r = find_root (pa);
+	  if (r) destroy_root (r);
+	}
+      pa = xpalloc (pa, nitems, nitems_incr_min, nitems_max, item_size);
+      char *end = (char *) pa +  *nitems * item_size;
+      create_ambig_root (global_igc, pa, end);
+    }
+  return pa;
+}
+
 
 static void
 do_finalize (struct igc *gc, mps_addr_t addr)
