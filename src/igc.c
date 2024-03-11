@@ -746,6 +746,9 @@ image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    continue;
 	  IGC_FIX12_OBJ (ss, &i->spec);
 	  IGC_FIX12_OBJ (ss, &i->dependencies);
+	  IGC_FIX12_OBJ (ss, &i->lisp_data);
+	  IGC_FIX12_RAW (ss, &i->next);
+	  IGC_FIX12_RAW (ss, &i->prev);
 	}
     }
   MPS_SCAN_END (ss);
