@@ -37,6 +37,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "emacs-module.h"
 #include "intervals.h"
 #include "termhooks.h"
+#include "itree.h"
 
 #ifndef USE_LSB_TAG
 #error "USE_LSB_TAG required"
@@ -781,10 +782,31 @@ vector_skip (mps_addr_t addr)
 }
 
 static mps_res_t
+fix_itree (mps_ss_t ss, const struct itree_tree *tree)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      struct itree_node *n;
+      struct itree_tree *nctree = (struct itree_tree *) tree;
+      ITREE_FOREACH (n, nctree, PTRDIFF_MIN, PTRDIFF_MAX, POST_ORDER)
+	IGC_FIX12_OBJ (ss, &n->data);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 fix_buffer (mps_ss_t ss, const struct buffer *b)
 {
   MPS_SCAN_BEGIN (ss)
     {
+      IGC_FIX12_RAW (ss, &b->text->intervals);
+      IGC_FIX12_RAW (ss, &b->text->markers);
+      IGC_FIX12_RAW (ss, &b->own_text.intervals);
+      IGC_FIX12_RAW (ss, &b->own_text.markers);
+      IGC_FIX12_RAW (ss, &b->base_buffer);
+      IGC_FIX_CALL (ss, fix_itree (ss, b->overlays));
+      // undo_list?
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -856,6 +878,18 @@ fix_terminal (mps_ss_t ss, const struct terminal *t)
 }
 
 static mps_res_t
+fix_marker (mps_ss_t ss, const struct Lisp_Marker *m)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      IGC_FIX12_RAW (ss, &m->buffer);
+      IGC_FIX12_RAW (ss, &m->next);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
@@ -895,6 +929,39 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  switch (pseudo_vector_type (v))
 	    {
+	    case PVEC_FREE:
+	      IGC_ASSERT (false);
+	      break;
+
+	    case PVEC_NORMAL_VECTOR:
+	    case PVEC_BIGNUM:
+	      break;
+
+	    case PVEC_FINALIZER:
+	    case PVEC_SYMBOL_WITH_POS:
+	    case PVEC_MISC_PTR:
+	    case PVEC_USER_PTR:
+	    case PVEC_PROCESS:
+	    case PVEC_BOOL_VECTOR:
+	    case PVEC_WINDOW_CONFIGURATION:
+	    case PVEC_PACKAGE:
+	    case PVEC_OTHER:
+	    case PVEC_XWIDGET:
+	    case PVEC_XWIDGET_VIEW:
+	    case PVEC_THREAD:
+	    case PVEC_MUTEX:
+	    case PVEC_CONDVAR:
+	    case PVEC_MODULE_FUNCTION:
+	    case PVEC_NATIVE_COMP_UNIT:
+	    case PVEC_TS_PARSER:
+	    case PVEC_TS_NODE:
+	    case PVEC_TS_COMPILED_QUERY:
+	    case PVEC_SQLITE:
+	    case PVEC_COMPILED:
+	    case PVEC_RECORD:
+	    case PVEC_FONT:
+	      break;
+
 	    case PVEC_BUFFER:
 	      IGC_FIX_CALL (ss, fix_buffer (ss, (struct buffer *) v));
 	      break;
@@ -940,7 +1007,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 #endif
 	      break;
 
-	    default:
+	    case PVEC_MARKER:
+	      IGC_FIX_CALL (ss, fix_marker (ss, (struct Lisp_Marker *) v));
 	      break;
 	    }
 	}
