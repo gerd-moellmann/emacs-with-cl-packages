@@ -4545,8 +4545,11 @@ static struct face *
 make_realized_face (Lisp_Object *attr)
 {
   enum { off = offsetof (struct face, id) };
+#ifdef HAVE_MPS
+  struct face *face = igc_make_face ();
+#else
   struct face *face = xmalloc (sizeof *face);
-
+#endif
   memcpy (face->lface, attr, sizeof face->lface);
   memset (&face->id, 0, sizeof *face - off);
   face->ascii_face = face;
@@ -4585,7 +4588,9 @@ free_realized_face (struct frame *f, struct face *face)
 	}
 #endif /* HAVE_WINDOW_SYSTEM */
 
+#ifndef HAvE_MPS
       xfree (face);
+#endif
     }
 }
 

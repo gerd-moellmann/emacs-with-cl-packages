@@ -1618,7 +1618,7 @@ igc_make_image (void)
   return p;
 }
 
-struct image *
+struct face *
 igc_make_face (void)
 {
   mps_ap_t ap = thread_ap (IGC_TYPE_FACE);

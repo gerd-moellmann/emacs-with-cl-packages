@@ -46,7 +46,7 @@ igc_alloc_pseudovector (size_t memlen, size_t lisplen,
 struct Lisp_Vector *igc_alloc_vector (ptrdiff_t len);
 struct itree_node *igc_make_itree_node (void);
 struct image *igc_make_image (void);
-struct image *igc_make_face (void);
+struct face *igc_make_face (void);
 
 #define eassert_not_mps() eassert(false)
 #else
