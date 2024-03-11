@@ -4601,8 +4601,13 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
     }
   else
     {
+#ifdef HAVE_MPS
+      h->key_and_value = igc_xzalloc (
+	2 * size * sizeof *h->key_and_value);
+#else
       h->key_and_value = hash_table_alloc_bytes (
 	2 * size * sizeof *h->key_and_value);
+#endif
       for (ptrdiff_t i = 0; i < 2 * size; i++)
 	h->key_and_value[i] = HASH_UNUSED_ENTRY_KEY;
 
@@ -4646,7 +4651,11 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
     {
       ptrdiff_t kv_bytes
 	= 2 * h1->table_size * sizeof *h1->key_and_value;
+#ifdef HAVE_MPS
+      h2->key_and_value = igc_xzalloc (kv_bytes);
+#else
       h2->key_and_value = hash_table_alloc_bytes (kv_bytes);
+#endif
       memcpy (h2->key_and_value, h1->key_and_value, kv_bytes);
 
       ptrdiff_t hash_bytes = h1->table_size * sizeof *h1->hash;
@@ -4695,8 +4704,13 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	next[i] = i + 1;
       next[new_size - 1] = -1;
 
+#ifdef HAVE_MPS
+      Lisp_Object *key_and_value = igc_xzalloc (
+	2 * new_size * sizeof *key_and_value);
+#else
       Lisp_Object *key_and_value = hash_table_alloc_bytes (
 	2 * new_size * sizeof *key_and_value);
+#endif
       memcpy (key_and_value, h->key_and_value,
 	      2 * old_size * sizeof *key_and_value);
       for (ptrdiff_t i = 2 * old_size; i < 2 * new_size; i++)
@@ -4720,8 +4734,12 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	hash_table_free_bytes (h->index, old_index_size * sizeof *h->index);
       h->index = index;
 
+#ifdef HAVE_MPS
+      igc_xfree (h->key_and_value);
+#else
       hash_table_free_bytes (h->key_and_value,
-			     2 * old_size * sizeof *h->key_and_value);
+			     2 * old_size * sizeof *h->key_and_value);#
+#endif
       h->key_and_value = key_and_value;
 
       hash_table_free_bytes (h->hash, old_size * sizeof *h->hash);
