@@ -742,41 +742,56 @@ terminal_scan_x (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 }
 
 static bool
-is_pvec (struct Lisp_Vector *v)
+is_pv (struct Lisp_Vector *v)
 {
   return (v->header.size & PSEUDOVECTOR_FLAG) != 0;
 }
 
 static size_t
-pvec_nobjs (struct Lisp_Vector *v)
+pv_nobjs (struct Lisp_Vector *v)
 {
   return v->header.size & PSEUDOVECTOR_SIZE_MASK;
 }
 
 static size_t
-pvec_rest_nwords (struct Lisp_Vector *v)
+pv_rest_nwords (struct Lisp_Vector *v)
 {
   return (v->header.size & PSEUDOVECTOR_REST_MASK)
     >> PSEUDOVECTOR_SIZE_BITS;
 }
 
+static enum pvec_type
+pv_type (struct Lisp_Vector *v)
+{
+  return PSEUDOVECTOR_TYPE (v);
+}
+
+static bool
+is_bool_vec (struct Lisp_Vector *v)
+{
+  return pv_type (v) == PVEC_BOOL_VECTOR;
+}
+
 static size_t
 vector_size (struct Lisp_Vector *v)
 {
-  size_t header_size = sizeof v->header;
-  if (is_bool_vec (v))
+  // lisp.h defined header_size, word_size, bool_header_size
+  size_t nwords;
+  size_t hsize = header_size;
+  if (is_pv (v))
     {
-    }
-  else if (is_pvec (v))
-    {
-      size_t nwords = pvec_nobjs (v) + pvec_rest_nwords (v);
-      return header_size + nwords * sizeof (Lisp_Object);
+      if (is_bool_vec (v))
+	{
+	  struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
+	  hsize = bool_header_size;
+	  nwords = bool_vector_words (bv->size);
+	}
+      else
+	nwords = pv_nobjs (v) + pv_rest_nwords (v);
     }
   else
-    {
-      size_t nwords = v->header.size;
-      return header_size + v->header.size * sizeof (Lisp_Object);
-    }
+    nwords = v->header.size;
+  return hsize + nwords * word_size;
 }
 
 static mps_addr_t
