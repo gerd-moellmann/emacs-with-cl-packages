@@ -965,19 +965,17 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_SUBR:
-	      //#ifdef HAVE_NATIVE_COMP
-#if 0
-	      if (SUBR_NATIVE_COMPILEDP (obj))
-		{
-		  set_vector_marked (ptr);
-		  struct Lisp_Subr *subr = XSUBR (obj);
-		  mark_stack_push_value (subr->intspec.native);
-		  mark_stack_push_value (subr->command_modes);
-		  mark_stack_push_value (subr->native_comp_u);
-		  mark_stack_push_value (subr->lambda_list);
-		  mark_stack_push_value (subr->type);
-		}
+	      {
+		struct Lisp_Subr *p = obase;
+		IGC_FIX12_OBJ (ss, &p->command_modes);
+#ifdef HAVE_NATIVE_COMP
+		IGC_FIX12_OBJ (ss, &p->intspec.native);
+		IGC_FIX12_OBJ (ss, &p->command_modes);
+		IGC_FIX12_OBJ (ss, &p->native_comp_u);
+		IGC_FIX12_OBJ (ss, &p->lambda_list);
+		IGC_FIX12_OBJ (ss, &p->type);
 #endif
+	      }
 	      break;
 
 	    case PVEC_MARKER:
