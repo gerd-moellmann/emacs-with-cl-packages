@@ -33,7 +33,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
   - frame -> face_cache::faces_by_id -> face -> font. font is pvec.
     face has refs. Same procedure as for images.
 
-  - window -> glyph_matrix -> glyph_row[] -> glyph[].
+  - window -> glyph_matrix -> glyph_row[] -> glyph[], and for frames
+    with glyph_pool. Make glyphs ambigous roots by using igc_xpalloc
+    etc.
  */
 
 // clang-format off
@@ -1227,6 +1229,14 @@ igc_xzalloc (size_t size)
 {
   igc_static_assert (NIL_IS_ZERO);
   void *p = xzalloc (size);
+  create_ambig_root (global_igc, p, (char *) p + size);
+  return p;
+}
+
+void *
+igc_xmalloc (size_t size)
+{
+  void *p = xmalloc (size);
   create_ambig_root (global_igc, p, (char *) p + size);
   return p;
 }
