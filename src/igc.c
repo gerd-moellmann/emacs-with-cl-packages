@@ -244,7 +244,7 @@ struct igc_fwd {
 
 struct igc_pad {
   mps_addr_t sig;
-  mps_word_t size;
+  mps_word_t nbytes;
 };
 
 igc_static_assert (sizeof (struct Lisp_Cons) >= sizeof (struct igc_fwd));
@@ -269,7 +269,7 @@ is_forwarded (mps_addr_t addr)
 static void
 pad (mps_addr_t addr, size_t size)
 {
-  struct igc_pad padding = { .sig = IGC_PADSIG, .size = size };
+  struct igc_pad padding = { .sig = IGC_PADSIG, .nbytes = size };
   IGC_ASSERT (size <= sizeof padding);
 
   *(struct igc_pad *) addr = padding;
@@ -743,52 +743,59 @@ terminal_scan_x (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 }
 
 static bool
-is_pv (struct Lisp_Vector *v)
+is_pseudo_vector (const struct Lisp_Vector *v)
 {
   return (v->header.size & PSEUDOVECTOR_FLAG) != 0;
 }
 
+static bool
+is_plain_vector (const struct Lisp_Vector *v)
+{
+  return !is_pseudo_vector (v);
+}
+
 static size_t
-pv_nobjs (struct Lisp_Vector *v)
+pseudo_vector_nobjs (const struct Lisp_Vector *v)
 {
   return v->header.size & PSEUDOVECTOR_SIZE_MASK;
 }
 
 static size_t
-pv_rest_nwords (struct Lisp_Vector *v)
+pseudo_vector_rest_nwords (const struct Lisp_Vector *v)
 {
   return (v->header.size & PSEUDOVECTOR_REST_MASK)
     >> PSEUDOVECTOR_SIZE_BITS;
 }
 
 static enum pvec_type
-pv_type (struct Lisp_Vector *v)
+pseudo_vector_type (const struct Lisp_Vector *v)
 {
   return PSEUDOVECTOR_TYPE (v);
 }
 
 static bool
-is_bool_vec (struct Lisp_Vector *v)
+is_bool_vector (const struct Lisp_Vector *v)
 {
-  return pv_type (v) == PVEC_BOOL_VECTOR;
+  return is_pseudo_vector (v)
+    && pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
 }
 
 static size_t
-vector_size (struct Lisp_Vector *v)
+vector_size (const struct Lisp_Vector *v)
 {
   // lisp.h defined header_size, word_size, bool_header_size
   size_t nwords;
   size_t hsize = header_size;
-  if (is_pv (v))
+  if (is_pseudo_vector (v))
     {
-      if (is_bool_vec (v))
+      if (is_bool_vector (v))
 	{
 	  struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
 	  hsize = bool_header_size;
 	  nwords = bool_vector_words (bv->size);
 	}
       else
-	nwords = pv_nobjs (v) + pv_rest_nwords (v);
+	nwords = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
     }
   else
     nwords = v->header.size;
@@ -810,27 +817,74 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	{
 	  if (is_forwarded (base))
 	    {
-	      struct igc_fwd *fwd = base;
-	      struct Lisp_Vector *v = fwd->new;
-	      size_t size = vector_size (v);
+	      const struct igc_fwd *fwd = base;
+	      const struct Lisp_Vector *v = fwd->new;
+	      const size_t size = vector_size (v);
 	      base = (char *) base + size;
+	      continue;
 	    }
-	  else if (is_padding (base))
-	    {
-	      struct igc_pad *pad = base;
-	      base = (char *) base + pad->size;
-	    }
-	  else
-	    {
-	      struct Lisp_Vector *v = base;
-	      base = (char *) base + vector_size (v);
 
-	      if (is_pv (v))
+	  if (is_padding (base))
+	    {
+	      const struct igc_pad *pad = base;
+	      base = (char *) base + pad->nbytes;
+	      continue;
+	    }
+
+	  struct Lisp_Vector *v = base;
+	  base = (char *) base + vector_size (v);
+
+	  if (is_plain_vector (v))
+	    {
+	      IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
+	      continue;
+	    }
+
+	  if (!is_bool_vector (v))
+	    continue;
+
+	  const size_t nobjs = pseudo_vector_nobjs (v);
+	  IGC_FIX12_NOBJS (ss, v->contents, nobjs);
+
+	  switch (pseudo_vector_type (v))
+	    {
+	    case PVEC_BUFFER:
+	      break;
+
+	    case PVEC_FRAME:
+	      break;
+
+	    case PVEC_WINDOW:
+	      break;
+
+	    case PVEC_HASH_TABLE:
+	      break;
+
+	    case PVEC_CHAR_TABLE:
+	    case PVEC_SUB_CHAR_TABLE:
+	      break;
+
+	    case PVEC_OVERLAY:
+	      break;
+
+	    case PVEC_SUBR:
+	      //#ifdef HAVE_NATIVE_COMP
+#if 0
+	      if (SUBR_NATIVE_COMPILEDP (obj))
 		{
-
+		  set_vector_marked (ptr);
+		  struct Lisp_Subr *subr = XSUBR (obj);
+		  mark_stack_push_value (subr->intspec.native);
+		  mark_stack_push_value (subr->command_modes);
+		  mark_stack_push_value (subr->native_comp_u);
+		  mark_stack_push_value (subr->lambda_list);
+		  mark_stack_push_value (subr->type);
 		}
-	      else
-		IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
+#endif
+	      break;
+
+	    default:
+	      break;
 	    }
 	}
     }
