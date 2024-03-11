@@ -794,26 +794,6 @@ face_skip (mps_addr_t addr)
   return (char *) addr + sizeof (struct itree_node);
 }
 
-static mps_res_t
-fix_image_cache (mps_ss_t ss, struct image_cache *c)
-{
-  MPS_SCAN_BEGIN (ss)
-    {
-      for (ptrdiff_t i = 0; i < c->used; ++i)
-	{
-	  struct image *img = c->images[i];
-	  if (img)
-	    {
-	      IGC_FIX12_OBJ (ss, &img->spec);
-	      IGC_FIX12_OBJ (ss, &img->dependencies);
-	      IGC_FIX12_OBJ (ss, &img->lisp_data);
-	    }
-	}
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
 static bool
 is_pseudo_vector (const struct Lisp_Vector *v)
 {
@@ -1058,10 +1038,6 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    case PVEC_TERMINAL:
 	      {
 		struct terminal *p = obase;
-#ifdef HAVE_WINDOW_SYSTEM
-		if (p->image_cache)
-		  IGC_FIX_CALL (ss, fix_image_cache (ss, p->image_cache));
-#endif
 		IGC_FIX12_RAW (ss, &p->next_terminal);
 	      }
 	      break;
