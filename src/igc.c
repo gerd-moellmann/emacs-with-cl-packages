@@ -260,32 +260,22 @@ forward (mps_addr_t old, mps_addr_t new)
 }
 
 static mps_addr_t
-is_forwarded (mps_addr_t addr)
+is_forwarded (const mps_addr_t addr)
 {
   struct igc_fwd *f = addr;
   return f->sig == IGC_FWDSIG ? f->new : NULL;
 }
 
 static void
-pad (mps_addr_t addr, size_t size)
+pad (mps_addr_t addr, size_t nbytes)
 {
-  struct igc_pad padding = { .sig = IGC_PADSIG, .nbytes = size };
-  IGC_ASSERT (size <= sizeof padding);
-
+  struct igc_pad padding = { .sig = IGC_PADSIG, .nbytes = nbytes };
+  IGC_ASSERT (nbytes >= sizeof padding);
   *(struct igc_pad *) addr = padding;
-  char *p = (char *) addr + sizeof padding;
-  char *end = (char *) addr + size;
-  while (p < end)
-    {
-      static const char string[] = "padding";
-      const size_t n = min (sizeof string, end - p);
-      memcpy (p, string, n);
-      p += n;
-    }
 }
 
 static bool
-is_padding (mps_addr_t addr)
+is_padding (const mps_addr_t addr)
 {
   struct igc_pad *p = addr;
   return p->sig == IGC_PADSIG;
@@ -783,7 +773,7 @@ is_bool_vector (const struct Lisp_Vector *v)
 static size_t
 vector_size (const struct Lisp_Vector *v)
 {
-  // lisp.h defined header_size, word_size, bool_header_size
+  // lisp.h defines header_size, word_size, bool_header_size
   size_t nwords;
   size_t hsize = header_size;
   if (is_pseudo_vector (v))
@@ -806,6 +796,42 @@ static mps_addr_t
 vector_skip (mps_addr_t addr)
 {
   return (char *) addr + vector_size (addr);
+}
+
+static mps_res_t
+fix_buffer (mps_ss_t ss, const struct buffer *b)
+{
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_window (mps_ss_t ss, const struct window *w)
+{
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_frame (mps_ss_t ss, const struct frame *f)
+{
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_hash_table (mps_ss_t ss, const struct Lisp_Hash_Table *h)
+{
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_char_table (mps_ss_t ss, const struct Lisp_Char_Table *c)
+{
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_overlay (mps_ss_t ss, const struct Lisp_Overlay *o)
+{
+  return MPS_RES_OK;
 }
 
 static mps_res_t
@@ -849,22 +875,28 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  switch (pseudo_vector_type (v))
 	    {
 	    case PVEC_BUFFER:
+	      IGC_FIX_CALL (ss, fix_buffer (ss, (struct buffer *) v));
 	      break;
 
 	    case PVEC_FRAME:
+	      IGC_FIX_CALL (ss, fix_frame (ss, (struct frame *) v));
 	      break;
 
 	    case PVEC_WINDOW:
+	      IGC_FIX_CALL (ss, fix_window (ss, (struct window *) v));
 	      break;
 
 	    case PVEC_HASH_TABLE:
+	      IGC_FIX_CALL (ss, fix_hash_table (ss, (struct Lisp_Hash_Table *) v));
 	      break;
 
 	    case PVEC_CHAR_TABLE:
 	    case PVEC_SUB_CHAR_TABLE:
+	      IGC_FIX_CALL (ss, fix_char_table (ss, (struct Lisp_Char_Table *) v));
 	      break;
 
 	    case PVEC_OVERLAY:
+	      IGC_FIX_CALL (ss, fix_overlay (ss, (struct Lisp_Overlay *) v));
 	      break;
 
 	    case PVEC_SUBR:
