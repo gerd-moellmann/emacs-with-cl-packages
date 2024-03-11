@@ -924,14 +924,20 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_FRAME:
 	      {
+		//  struct face_cache *face_cache;
+		//    struct glyph_pool *current_pool;
+		//  struct glyph_pool *desired_pool;
+		//  struct glyph_matrix *desired_matrix;
+		//  struct glyph_matrix *current_matrix;
+		//  output_data;
+		//  struct font_driver_list *font_driver_list;
+		//  struct text_conversion_state conversion;
 		struct frame *f = obase;
 	      }
 	      break;
 
 	    case PVEC_WINDOW:
-	      {
-		struct window *w = obase;
-	      }
+	      // Nothing to do
 	      break;
 
 	    case PVEC_HASH_TABLE:
