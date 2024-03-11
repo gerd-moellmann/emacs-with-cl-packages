@@ -904,6 +904,9 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_NATIVE_COMP_UNIT:
+	      // Nothing to do
+	      break;
+
 	    case PVEC_TS_PARSER:
 	    case PVEC_TS_NODE:
 	    case PVEC_TS_COMPILED_QUERY:
