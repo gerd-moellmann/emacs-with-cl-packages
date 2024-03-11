@@ -1618,6 +1618,23 @@ igc_make_image (void)
   return p;
 }
 
+struct image *
+igc_make_face (void)
+{
+  mps_ap_t ap = thread_ap (IGC_TYPE_FACE);
+  ptrdiff_t nbytes = sizeof (struct face);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+      igc_static_assert (NIL_IS_ZERO);
+      memclear (p, nbytes);
+    }
+  while (!mps_commit (ap, p, nbytes));
+  return p;
+}
+
 static mps_pool_debug_option_s debug_options = {
   "fence", 5, "free", 4,
 };
