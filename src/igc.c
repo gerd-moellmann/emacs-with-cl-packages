@@ -244,6 +244,7 @@ struct igc_fwd {
 
 struct igc_pad {
   mps_addr_t sig;
+  mps_word_t size;
 };
 
 igc_static_assert (sizeof (struct Lisp_Cons) >= sizeof (struct igc_fwd));
@@ -268,7 +269,7 @@ is_forwarded (mps_addr_t addr)
 static void
 pad (mps_addr_t addr, size_t size)
 {
-  struct igc_pad padding = { .sig = IGC_PADSIG };
+  struct igc_pad padding = { .sig = IGC_PADSIG, .size = size };
   IGC_ASSERT (size <= sizeof padding);
 
   *(struct igc_pad *) addr = padding;
@@ -805,18 +806,32 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
     {
-      for (struct Lisp_Vector *v = base; v < (struct Lisp_Vector *) limit;
-	   v = (struct Lisp_Vector *) vector_skip (v))
+      while (base < limit)
 	{
-	  const ptrdiff_t size = v->header.size;
-	  if (size & PSEUDOVECTOR_FLAG)
+	  if (is_forwarded (base))
 	    {
-	      //  Number of Lisp_Object fields
-	      const ptrdiff_t nobjs = size & PSEUDOVECTOR_SIZE_MASK;
-
+	      struct igc_fwd *fwd = base;
+	      struct Lisp_Vector *v = fwd->new;
+	      size_t size = vector_size (v);
+	      base = (char *) base + size;
+	    }
+	  else if (is_padding (base))
+	    {
+	      struct igc_pad *pad = base;
+	      base = (char *) base + pad->size;
 	    }
 	  else
-	    IGC_FIX12_NOBJS (ss, v->contents, size);
+	    {
+	      struct Lisp_Vector *v = base;
+	      base = (char *) base + vector_size (v);
+
+	      if (is_pv (v))
+		{
+
+		}
+	      else
+		IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
+	    }
 	}
     }
   MPS_SCAN_END (ss);
