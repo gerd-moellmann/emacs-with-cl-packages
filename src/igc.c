@@ -996,6 +996,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_BOOL_VECTOR:
 	    case PVEC_WINDOW_CONFIGURATION:
+	      break;
+
 	    case PVEC_PACKAGE:
 	    case PVEC_OTHER:
 	    case PVEC_XWIDGET:
