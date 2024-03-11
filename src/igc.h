@@ -38,6 +38,7 @@ void *igc_xzalloc (size_t size);
 void igc_xfree (void *p);
 void *igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 		   ptrdiff_t nitems_max, ptrdiff_t item_size);
+void *igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size);
 
 struct Lisp_Vector *
 igc_alloc_pseudovector (size_t memlen, size_t lisplen,

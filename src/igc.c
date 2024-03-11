@@ -1260,6 +1260,22 @@ igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
   return pa;
 }
 
+void *
+igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
+{
+  IGC_WITH_PARKED (global_igc)
+    {
+      if (pa)
+	{
+	  struct igc_root_list *r = find_root (pa);
+	  if (r) destroy_root (r);
+	}
+      pa = xnrealloc (pa, nitems, item_size);
+      char *end = (char *) pa +  nitems * item_size;
+      create_ambig_root (global_igc, pa, end);
+    }
+  return pa;
+}
 
 static void
 do_finalize (struct igc *gc, mps_addr_t addr)
