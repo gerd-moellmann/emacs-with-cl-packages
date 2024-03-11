@@ -910,10 +910,10 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    case PVEC_SQLITE:
 	    case PVEC_COMPILED:
 	    case PVEC_RECORD:
+	    case PVEC_FONT:
 	      // Nothing to do
 	      break;
 
-	    case PVEC_FONT:
 	      break;
 
 	    case PVEC_BUFFER:
