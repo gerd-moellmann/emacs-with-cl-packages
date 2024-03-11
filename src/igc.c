@@ -783,113 +783,6 @@ vector_skip (mps_addr_t addr)
   return (char *) addr + vector_size (addr);
 }
 
-#define IGC_FIX_FUNCTION(name, arg)	\
-static mps_res_t				\
- name (mps_ss_t ss, arg)			\
-{						\
-  MPS_SCAN_BEGIN (ss)
-
-#define IGC_FIX_FUNCTION_END()			\
-  MPS_SCAN_END (ss);				\
-  return MPS_RES_OK;				\
-}
-
-IGC_FIX_FUNCTION (fix_itree, struct itree_tree *tree)
-{
-  struct itree_node *n;
-  struct itree_tree *nctree = (struct itree_tree *) tree;
-  ITREE_FOREACH (n, nctree, PTRDIFF_MIN, PTRDIFF_MAX, POST_ORDER)
-    IGC_FIX12_OBJ (ss, &n->data);
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_buffer, struct buffer *b)
-{
-  IGC_FIX12_RAW (ss, &b->text->intervals);
-  IGC_FIX12_RAW (ss, &b->text->markers);
-  IGC_FIX12_RAW (ss, &b->own_text.intervals);
-  IGC_FIX12_RAW (ss, &b->own_text.markers);
-  IGC_FIX12_RAW (ss, &b->base_buffer);
-  IGC_FIX_CALL (ss, fix_itree (ss, b->overlays));
-  // undo_list?
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_window, struct window *b)
-{
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_frame, struct frame *b)
-{
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_hash_table, struct Lisp_Hash_Table *f)
-{
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_char_table, struct Lisp_Char_Table *p)
-{
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_overlay, struct Lisp_Overlay *p)
-{
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_terminal, struct terminal *p)
-{
-#ifdef HAVE_WINDOW_SYSTEM
-  if (p->image_cache)
-    IGC_FIX_CALL (ss, fix_image_cache (ss, p->image_cache));
-#endif
-  IGC_FIX12_RAW (ss, &p->next_terminal);
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_marker, struct Lisp_Marker *p)
-{
-  IGC_FIX12_RAW (ss, &p->buffer);
-  IGC_FIX12_RAW (ss, &p->next);
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_symbol_with_pos, struct Lisp_Symbol_With_Pos *p)
-{
-  IGC_FIX12_OBJ (ss, &p->sym);
-  IGC_FIX12_RAW (ss, &p->pos);
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_misc, struct Lisp_Misc_Ptr *p)
-{
-  IGC_FIX12_RAW (ss, &p->pointer);
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_user_ptr, struct Lisp_User_Ptr *p)
-{
-  IGC_FIX12_RAW (ss, &p->p);
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_thread_state, struct thread_state *p)
-{
-  IGC_FIX12_RAW (ss, &p->m_current_buffer);
-  IGC_FIX12_RAW (ss, &p->next_thread);
-}
-IGC_FIX_FUNCTION_END ();
-
-IGC_FIX_FUNCTION (fix_mutex, struct Lisp_Mutex *p)
-{
-  IGC_FIX12_RAW (ss, &p->name);
-}
-IGC_FIX_FUNCTION_END ();
-
-
 static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
@@ -945,15 +838,25 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_SYMBOL_WITH_POS:
-	      IGC_FIX_CALL (ss, fix_symbol_with_pos (ss, obase));
+	      {
+		struct Lisp_Symbol_With_Pos *p = obase;
+		IGC_FIX12_OBJ (ss, &p->sym);
+		IGC_FIX12_RAW (ss, &p->pos);
+	      }
 	      break;
 
 	    case PVEC_MISC_PTR:
-	      IGC_FIX_CALL (ss, fix_misc (ss, obase));
+	      {
+		struct Lisp_Misc_Ptr *p = obase;
+		IGC_FIX12_RAW (ss, &p->pointer);
+	      }
 	      break;
 
 	    case PVEC_USER_PTR:
-	      IGC_FIX_CALL (ss, fix_user_ptr (ss, obase));
+	      {
+		struct Lisp_User_Ptr *p = obase;
+		IGC_FIX12_RAW (ss, &p->p);
+	      }
 	      break;
 
 	    case PVEC_PROCESS:
@@ -972,11 +875,18 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_THREAD:
-	      IGC_FIX_CALL (ss, fix_thread_state (ss, obase));
+	      {
+		struct thread_state *p = obase;
+		IGC_FIX12_RAW (ss, &p->m_current_buffer);
+		IGC_FIX12_RAW (ss, &p->next_thread);
+	      }
 	      break;
 
 	    case PVEC_MUTEX:
-	      IGC_FIX_CALL (ss, fix_mutex (ss, obase));
+	      {
+		struct Lisp_Mutex *p = obase;
+		IGC_FIX12_RAW (ss, &p->name);
+	      }
 	      break;
 
 	    case PVEC_CONDVAR:
@@ -992,32 +902,59 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_BUFFER:
-	      IGC_FIX_CALL (ss, fix_buffer (ss, obase));
+	      {
+		struct buffer *b = obase;
+		IGC_FIX12_RAW (ss, &b->text->intervals);
+		IGC_FIX12_RAW (ss, &b->text->markers);
+		IGC_FIX12_RAW (ss, &b->own_text.intervals);
+		IGC_FIX12_RAW (ss, &b->own_text.markers);
+		IGC_FIX12_RAW (ss, &b->base_buffer);
+		struct itree_node *n;
+		ITREE_FOREACH (n, b->overlays, PTRDIFF_MIN, PTRDIFF_MAX, POST_ORDER)
+		  IGC_FIX12_OBJ (ss, &n->data);
+	      }
 	      break;
 
 	    case PVEC_FRAME:
-	      IGC_FIX_CALL (ss, fix_frame (ss, obase));
+	      {
+		struct frame *f = obase;
+	      }
 	      break;
 
 	    case PVEC_WINDOW:
-	      IGC_FIX_CALL (ss, fix_window (ss, obase));
+	      {
+		struct window *w = obase;
+	      }
 	      break;
 
 	    case PVEC_HASH_TABLE:
-	      IGC_FIX_CALL (ss, fix_hash_table (ss, obase));
+	      {
+		struct Lisp_Hash_Table *h = obase;
+	      }
 	      break;
 
 	    case PVEC_CHAR_TABLE:
 	    case PVEC_SUB_CHAR_TABLE:
-	      IGC_FIX_CALL (ss, fix_char_table (ss, obase));
+	      {
+		struct Lisp_Char_Table *p = obase;
+	      }
 	      break;
 
 	    case PVEC_OVERLAY:
-	      IGC_FIX_CALL (ss, fix_overlay (ss, obase));
+	      {
+		struct Lisp_Overlay *p = obase;
+	      }
 	      break;
 
 	    case PVEC_TERMINAL:
-	      IGC_FIX_CALL (ss, fix_terminal (ss, obase));
+	      {
+		struct terminal *p = obase;
+#ifdef HAVE_WINDOW_SYSTEM
+		if (p->image_cache)
+		  IGC_FIX_CALL (ss, fix_image_cache (ss, p->image_cache));
+#endif
+		IGC_FIX12_RAW (ss, &p->next_terminal);
+	      }
 	      break;
 
 	    case PVEC_SUBR:
@@ -1037,7 +974,11 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_MARKER:
-	      IGC_FIX_CALL (ss, fix_marker (ss, obase));
+	      {
+		struct Lisp_Marker *p = obase;
+		IGC_FIX12_RAW (ss, &p->buffer);
+		IGC_FIX12_RAW (ss, &p->next);
+	      }
 	      break;
 	    }
 	}
