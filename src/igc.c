@@ -893,14 +893,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_CONDVAR:
-	      // Nothing to do
-	      break;
-
 	    case PVEC_MODULE_FUNCTION:
-	      {
-		struct Lisp_Module_Function *p = obase;
-		IGC_FIX12_RAW (ss, &p->data);
-	      }
+	      // Nothing to do
 	      break;
 
 	    case PVEC_NATIVE_COMP_UNIT:
@@ -912,8 +906,6 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    case PVEC_RECORD:
 	    case PVEC_FONT:
 	      // Nothing to do
-	      break;
-
 	      break;
 
 	    case PVEC_BUFFER:
