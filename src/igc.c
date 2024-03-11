@@ -25,7 +25,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     pool of their own, like intervals.
 
   - terminal -> image_cache->images -> image, and image has refs,
-    everything is xmalloc'd. Don't want images to all be roots.
+    everything is xmalloc'd. Put images in a pool to scan them.
+    Since images are managed manually, alloc from pool, don't xfree,
+    don't finalize. Find refs to images, by makiing cache::images
+    a root.
  */
 
 // clang-format off
@@ -1555,6 +1558,23 @@ igc_make_itree_node (void)
 {
   mps_ap_t ap = thread_ap (IGC_TYPE_ITREE_NODE);
   ptrdiff_t nbytes = sizeof (struct itree_node);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+      igc_static_assert (NIL_IS_ZERO);
+      memclear (p, nbytes);
+    }
+  while (!mps_commit (ap, p, nbytes));
+  return p;
+}
+
+struct image *
+igc_make_image (void)
+{
+  mps_ap_t ap = thread_ap (IGC_TYPE_IMAGE);
+  ptrdiff_t nbytes = sizeof (struct image);
   mps_addr_t p;
   do
     {
