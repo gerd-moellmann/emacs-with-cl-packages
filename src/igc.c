@@ -783,170 +783,112 @@ vector_skip (mps_addr_t addr)
   return (char *) addr + vector_size (addr);
 }
 
-static mps_res_t
-fix_itree (mps_ss_t ss, struct itree_tree *tree)
-{
+#define IGC_FIX_FUNCTION(name, arg)	\
+static mps_res_t				\
+ name (mps_ss_t ss, arg)			\
+{						\
   MPS_SCAN_BEGIN (ss)
-    {
-      struct itree_node *n;
-      struct itree_tree *nctree = (struct itree_tree *) tree;
-      ITREE_FOREACH (n, nctree, PTRDIFF_MIN, PTRDIFF_MAX, POST_ORDER)
-	IGC_FIX12_OBJ (ss, &n->data);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+
+#define IGC_FIX_FUNCTION_END()			\
+  MPS_SCAN_END (ss);				\
+  return MPS_RES_OK;				\
 }
 
-static mps_res_t
-fix_buffer (mps_ss_t ss, struct buffer *b)
+IGC_FIX_FUNCTION (fix_itree, struct itree_tree *tree)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_RAW (ss, &b->text->intervals);
-      IGC_FIX12_RAW (ss, &b->text->markers);
-      IGC_FIX12_RAW (ss, &b->own_text.intervals);
-      IGC_FIX12_RAW (ss, &b->own_text.markers);
-      IGC_FIX12_RAW (ss, &b->base_buffer);
-      IGC_FIX_CALL (ss, fix_itree (ss, b->overlays));
-      // undo_list?
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  struct itree_node *n;
+  struct itree_tree *nctree = (struct itree_tree *) tree;
+  ITREE_FOREACH (n, nctree, PTRDIFF_MIN, PTRDIFF_MAX, POST_ORDER)
+    IGC_FIX12_OBJ (ss, &n->data);
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_window (mps_ss_t ss, struct window *w)
+IGC_FIX_FUNCTION (fix_buffer, struct buffer *b)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  IGC_FIX12_RAW (ss, &b->text->intervals);
+  IGC_FIX12_RAW (ss, &b->text->markers);
+  IGC_FIX12_RAW (ss, &b->own_text.intervals);
+  IGC_FIX12_RAW (ss, &b->own_text.markers);
+  IGC_FIX12_RAW (ss, &b->base_buffer);
+  IGC_FIX_CALL (ss, fix_itree (ss, b->overlays));
+  // undo_list?
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_frame (mps_ss_t ss, struct frame *f)
+IGC_FIX_FUNCTION (fix_window, struct window *b)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_hash_table (mps_ss_t ss, struct Lisp_Hash_Table *p)
+IGC_FIX_FUNCTION (fix_frame, struct frame *b)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_char_table (mps_ss_t ss, struct Lisp_Char_Table *p)
+IGC_FIX_FUNCTION (fix_hash_table, struct Lisp_Hash_Table *f)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_overlay (mps_ss_t ss, struct Lisp_Overlay *p)
+IGC_FIX_FUNCTION (fix_char_table, struct Lisp_Char_Table *p)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_terminal (mps_ss_t ss, struct terminal *p)
+IGC_FIX_FUNCTION (fix_overlay, struct Lisp_Overlay *p)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
+}
+IGC_FIX_FUNCTION_END ();
+
+IGC_FIX_FUNCTION (fix_terminal, struct terminal *p)
+{
 #ifdef HAVE_WINDOW_SYSTEM
-      if (p->image_cache)
-	IGC_FIX_CALL (ss, fix_image_cache (ss, p->image_cache));
+  if (p->image_cache)
+    IGC_FIX_CALL (ss, fix_image_cache (ss, p->image_cache));
 #endif
-      IGC_FIX12_RAW (ss, &p->next_terminal);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  IGC_FIX12_RAW (ss, &p->next_terminal);
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_marker (mps_ss_t ss, struct Lisp_Marker *p)
+IGC_FIX_FUNCTION (fix_marker, struct Lisp_Marker *p)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_RAW (ss, &p->buffer);
-      IGC_FIX12_RAW (ss, &p->next);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  IGC_FIX12_RAW (ss, &p->buffer);
+  IGC_FIX12_RAW (ss, &p->next);
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_symbol_with_pos (mps_ss_t ss, struct Lisp_Symbol_With_Pos *p)
+IGC_FIX_FUNCTION (fix_symbol_with_pos, struct Lisp_Symbol_With_Pos *p)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_OBJ (ss, &p->sym);
-      IGC_FIX12_RAW (ss, &p->pos);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  IGC_FIX12_OBJ (ss, &p->sym);
+  IGC_FIX12_RAW (ss, &p->pos);
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_misc (mps_ss_t ss, struct Lisp_Misc_Ptr *p)
+IGC_FIX_FUNCTION (fix_misc, struct Lisp_Misc_Ptr *p)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_RAW (ss, &p->pointer);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  IGC_FIX12_RAW (ss, &p->pointer);
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_user_ptr (mps_ss_t ss, struct Lisp_User_Ptr *p)
+IGC_FIX_FUNCTION (fix_user_ptr, struct Lisp_User_Ptr *p)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_RAW (ss, &p->p);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  IGC_FIX12_RAW (ss, &p->p);
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_thread_state (mps_ss_t ss, struct thread_state *p)
+IGC_FIX_FUNCTION (fix_thread_state, struct thread_state *p)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_RAW (ss, &p->m_current_buffer);
-      IGC_FIX12_RAW (ss, &p->next_thread);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  IGC_FIX12_RAW (ss, &p->m_current_buffer);
+  IGC_FIX12_RAW (ss, &p->next_thread);
 }
+IGC_FIX_FUNCTION_END ();
 
-static mps_res_t
-fix_mutex (mps_ss_t ss, struct Lisp_Mutex *p)
+IGC_FIX_FUNCTION (fix_mutex, struct Lisp_Mutex *p)
 {
-  MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_RAW (ss, &p->name);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
+  IGC_FIX12_RAW (ss, &p->name);
 }
+IGC_FIX_FUNCTION_END ();
+
 
 static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
