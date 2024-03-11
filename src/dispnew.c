@@ -304,8 +304,11 @@ free_glyph_matrix (struct glyph_matrix *matrix)
       /* Free glyph memory if MATRIX owns it.  */
       if (matrix->pool == NULL)
 	for (i = 0; i < matrix->rows_allocated; ++i)
+#ifdef HAVE_MPS
+	  igc_xfree (matrix->rows[i].glyphs[LEFT_MARGIN_AREA]);
+#else
 	  xfree (matrix->rows[i].glyphs[LEFT_MARGIN_AREA]);
-
+#endif
       /* Free row structures and the matrix itself.  */
       xfree (matrix->rows);
       xfree (matrix);
@@ -508,10 +511,14 @@ adjust_glyph_matrix (struct window *w, struct glyph_matrix *matrix, int x, int y
 
 	  while (row < end)
 	    {
-	      row->glyphs[LEFT_MARGIN_AREA]
-		= xnrealloc (row->glyphs[LEFT_MARGIN_AREA],
-			     dim.width, sizeof (struct glyph));
-
+	      row->glyphs[LEFT_MARGIN_AREA] =
+#ifdef HAVE_MPS
+		igc_xnrealloc (row->glyphs[LEFT_MARGIN_AREA],
+			       dim.width, sizeof (struct glyph));
+#else
+		xnrealloc (row->glyphs[LEFT_MARGIN_AREA],
+			   dim.width, sizeof (struct glyph));
+#endif
 	      /* The mode line, if displayed, never has marginal areas.  */
 	      if ((row == matrix->rows + dim.height - 1
 		   && !(w && window_wants_mode_line (w)))
@@ -1367,7 +1374,11 @@ free_glyph_pool (struct glyph_pool *pool)
       --glyph_pool_count;
       eassert (glyph_pool_count >= 0);
 #endif
+#ifdef HAVE_MPS
+      igc_xfree (pool->glyphs);
+#else
       xfree (pool->glyphs);
+#endif
       xfree (pool);
     }
 }
@@ -1398,8 +1409,16 @@ realloc_glyph_pool (struct glyph_pool *pool, struct dim matrix_dim)
   if (needed > pool->nglyphs)
     {
       ptrdiff_t old_nglyphs = pool->nglyphs;
-      pool->glyphs = xpalloc (pool->glyphs, &pool->nglyphs,
-			      needed - old_nglyphs, -1, sizeof *pool->glyphs);
+#ifdef HAVE_MPS
+      pool->glyphs
+	= igc_xpalloc (pool->glyphs, &pool->nglyphs, needed - old_nglyphs,
+		       -1, sizeof *pool->glyphs);
+#else
+      pool->glyphs
+	= xpalloc (pool->glyphs, &pool->nglyphs, needed - old_nglyphs,
+		   -1, sizeof *pool->glyphs);
+#endif
+
       memclear (pool->glyphs + old_nglyphs,
 		(pool->nglyphs - old_nglyphs) * sizeof *pool->glyphs);
     }
