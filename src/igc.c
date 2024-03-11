@@ -17,7 +17,6 @@ You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /*
-
   - Does C have something like C++ thread_local etc?
 
   - itree: buffer -> itree_tree, overlay <-> itree_node. The backref
@@ -25,14 +24,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     currently xalloc'd. Workaround for now: alloc itree nodes from a
     pool of their own, like intervals.
 
+  - terminal -> image_cache->images -> image, and image has refs,
+    everything is xmalloc'd. Don't want images to all be roots.
  */
 
 // clang-format off
 
 #include <config.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include "process.h"
 
 #ifdef HAVE_MPS
 
@@ -152,6 +150,7 @@ enum igc_type {
   IGC_TYPE_STRING_DATA,
   IGC_TYPE_VECTOR,
   IGC_TYPE_ITREE_NODE,
+  IGC_TYPE_IMAGE,
   IGC_TYPE_LAST
 };
 
@@ -731,6 +730,30 @@ itree_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 static mps_addr_t
 itree_skip (mps_addr_t addr)
+{
+  return (char *) addr + sizeof (struct itree_node);
+}
+
+static mps_res_t
+image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct image *i = (struct image *) base;
+	   i < (struct image *) limit; ++i)
+	{
+	  if (is_forwarded (i) || is_padding (i))
+	    continue;
+	  IGC_FIX12_OBJ (ss, &i->spec);
+	  IGC_FIX12_OBJ (ss, &i->dependencies);
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_addr_t
+image_skip (mps_addr_t addr)
 {
   return (char *) addr + sizeof (struct itree_node);
 }
@@ -1322,6 +1345,7 @@ do_finalize (struct igc *gc, mps_addr_t addr)
     case IGC_TYPE_STRING_DATA:
     case IGC_TYPE_VECTOR:
     case IGC_TYPE_ITREE_NODE:
+    case IGC_TYPE_IMAGE:
     case IGC_TYPE_LAST:
       break;
     }
@@ -1611,7 +1635,7 @@ make_igc (void)
   struct igc *gc = xzalloc (sizeof *gc);
   make_arena (gc);
 
-  struct igc_init inits[IGC_TYPE_LAST] = {
+  struct igc_init inits[] = {
     { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = cons_scan, .skip = cons_skip },
     { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
@@ -1627,7 +1651,11 @@ make_igc (void)
       .scan = vector_scan, .skip = vector_skip },
     { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = itree_scan, .skip = itree_skip },
+    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+      .scan = image_scan, .skip = image_skip },
   };
+
+  igc_static_assert (ARRAYELTS (inits) == IGC_TYPE_LAST);
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
       struct igc_init *init = inits + type;
