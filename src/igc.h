@@ -27,8 +27,6 @@ void igc_on_specbinding_unused (union specbinding *b);
 void igc_on_idle (void);
 void igc_on_pdump_loaded (void);
 void igc_on_face_cache_change (void *face_cache);
-void igc_on_adjust_glyph_matrix (void *matrix);
-void igc_on_free_glyph_matrix (void *matrix);
 void *igc_on_grow_rdstack (void *info, void *start, void *end);
 
 void igc_process_messages (void);
@@ -48,6 +46,8 @@ struct Lisp_Vector *igc_alloc_vector (ptrdiff_t len);
 struct itree_node *igc_make_itree_node (void);
 struct image *igc_make_image (void);
 struct face *igc_make_face (void);
+Lisp_Object igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear);
+struct interval *igc_make_interval (void);
 
 #define eassert_not_mps() eassert(false)
 #else

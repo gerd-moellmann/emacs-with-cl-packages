@@ -294,10 +294,6 @@ free_glyph_matrix (struct glyph_matrix *matrix)
     {
       int i;
 
-#ifdef HAVE_MPS
-      igc_on_free_glyph_matrix (matrix);
-#endif
-
 #if defined GLYPH_DEBUG && defined ENABLE_CHECKING
       /* Detect the case that more matrices are freed than were
 	 allocated.  */
@@ -431,9 +427,6 @@ adjust_glyph_matrix (struct window *w, struct glyph_matrix *matrix, int x, int y
       memset (matrix->rows + old_alloc, 0,
 	      (matrix->rows_allocated - old_alloc)
 		* sizeof *matrix->rows);
-#ifdef HAVE_MPS
-      igc_on_adjust_glyph_matrix (matrix);
-#endif
     }
   else
     new_rows = 0;

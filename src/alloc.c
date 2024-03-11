@@ -1482,6 +1482,9 @@ static INTERVAL interval_free_list;
 INTERVAL
 make_interval (void)
 {
+#ifdef HAVE_MPS
+  return igc_make_interval ();
+#else
   INTERVAL val;
 
   MALLOC_BLOCK_INPUT;
@@ -1515,6 +1518,7 @@ make_interval (void)
   RESET_INTERVAL (val);
   val->gcmarkbit = 0;
   return val;
+#endif
 }
 
 

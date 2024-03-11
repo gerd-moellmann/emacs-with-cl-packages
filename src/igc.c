@@ -32,6 +32,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
   - frame -> face_cache::faces_by_id -> face -> font. font is pvec.
     face has refs. Same procedure as for images.
+
+  - window -> glyph_matrix -> glyph_row[] -> glyph[].
  */
 
 // clang-format off
@@ -66,7 +68,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #error "USE_STACK_LISP_OBJECTS not supported"
 #endif
 
-#pragma GCC diagnostic ignored "-Wunused-function"
+//#pragma GCC diagnostic ignored "-Wunused-function"
 
 /* Frames have stuff for text conversion which contains Lisp_Objects, so
    this must be some form of root.  MacOS doesn't HAVE_TEXT_CONVERSION,
@@ -85,12 +87,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #define igc_static_assert(x) verify (x)
 
 #define IGC_TAG_MASK (~ VALMASK)
-
-static void *
-add_align (void *p, size_t nbytes)
-{
-  return (char *) p + ROUNDUP (nbytes, GCALIGNMENT);
-}
 
 #define IGC_CHECK_RES(res)			\
   if ((res) != MPS_RES_OK)			\
@@ -386,40 +382,6 @@ fix_array (mps_ss_t ss, Lisp_Object *array, size_t n)
       for (size_t i = 0; i < n; ++i)
 	IGC_FIX12_OBJ (ss, &array[i]);
     }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-static mps_res_t
-scan_glyph_rows (mps_ss_t ss, void *start, void *end, void *closure)
-{
-  MPS_SCAN_BEGIN (ss)
-    {
-      for (struct glyph_row *row = start; row < (struct glyph_row *) end; ++row)
-	{
-	  struct glyph *glyph = row->glyphs[LEFT_MARGIN_AREA];
-	  struct glyph *end = row->glyphs[LAST_AREA];
-	  for (; glyph < end; ++glyph)
-	    IGC_FIX12_OBJ (ss, &glyph->object);
-	}
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-static mps_res_t
-scan_faces_by_id (mps_ss_t ss, void *start, void *end, void *closure)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    for (struct face **p = start; p < (struct face **) end; ++p)
-      if (*p)
-	{
-	  struct face *face = *p;
-	  for (int i = 0; i < ARRAYELTS (face->lface); ++i)
-	    IGC_FIX12_OBJ (ss, &face->lface[i]);
-	}
-  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -1227,38 +1189,6 @@ igc_on_pdump_loaded (void)
   create_ambig_root (global_igc, start, end);
 }
 
-void
-igc_on_adjust_glyph_matrix (void *m)
-{
-  struct igc *gc = global_igc;
-  struct glyph_matrix *matrix = m;
-  IGC_WITH_PARKED (gc)
-    {
-      if (matrix->igc_info)
-	destroy_root (matrix->igc_info);
-      mps_root_t root;
-      void *start = matrix->rows;
-      void *end = (void *) (matrix->rows + matrix->rows_allocated);
-      mps_res_t res
-	= mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-				start, end,
-				scan_glyph_rows, NULL);
-      IGC_CHECK_RES (res);
-      matrix->igc_info = register_root (gc, root, start, end);
-    }
-}
-
-void
-igc_on_free_glyph_matrix (void *m)
-{
-  struct glyph_matrix *matrix = m;
-  if (matrix->igc_info)
-    {
-      destroy_root (matrix->igc_info);
-      matrix->igc_info = NULL;
-    }
-}
-
 void *
 igc_on_grow_rdstack (void *info, void *start, void *end)
 {
@@ -1467,7 +1397,7 @@ alloc_string_data (size_t nbytes)
   return p;
 }
 
-static Lisp_Object
+Lisp_Object
 igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
 {
   struct igc_sdata *data = alloc_string_data (nbytes);
@@ -1491,7 +1421,7 @@ igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
   return make_lisp_ptr (p, Lisp_String);
 }
 
-static struct interval *
+struct interval *
 igc_make_interval (void)
 {
   mps_ap_t ap = thread_ap (IGC_TYPE_INTERVAL);
