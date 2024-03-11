@@ -903,6 +903,17 @@ fix_symbol_with_pos (mps_ss_t ss, struct Lisp_Symbol_With_Pos *s)
 }
 
 static mps_res_t
+fix_misc (mps_ss_t ss, struct Lisp_Misc_Ptr *m)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      IGC_FIX12_RAW (ss, &m->pointer);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
@@ -961,6 +972,9 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_MISC_PTR:
+	      IGC_FIX_CALL (ss, fix_misc (ss, obase));
+	      break;
+
 	    case PVEC_USER_PTR:
 	    case PVEC_PROCESS:
 	    case PVEC_BOOL_VECTOR:
