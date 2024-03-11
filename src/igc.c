@@ -908,10 +908,10 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    case PVEC_TS_NODE:
 	    case PVEC_TS_COMPILED_QUERY:
 	    case PVEC_SQLITE:
+	    case PVEC_COMPILED:
 	      // Nothing to do
 	      break;
 
-	    case PVEC_COMPILED:
 	    case PVEC_RECORD:
 	    case PVEC_FONT:
 	      break;
