@@ -3379,7 +3379,7 @@ vectorlike_nbytes (const union vectorlike_header *hdr)
 		<= VBLOCK_BYTES_MAX), \
 	       (struct t *) (p))
 
-/* Release extra resources still in use by VECTOR, which may be any
+/* Release extra resources still in use by VECTOR, whicth may be any
    small vector-like object.  */
 
 static void

@@ -830,6 +830,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_NORMAL_VECTOR:
 	    case PVEC_BIGNUM:
+	      // Nothing to do
 	      break;
 
 	    case PVEC_FINALIZER:
@@ -863,14 +864,16 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    case PVEC_BOOL_VECTOR:
 	    case PVEC_WINDOW_CONFIGURATION:
 	    case PVEC_PACKAGE:
+	      // Nothing to do
 	      break;
 
 	    case PVEC_OTHER:
 	      IGC_ASSERT (!"PVEC_OTHER");
 	      break;
 
-	    case PVEC_XWIDGET:	/* no idea */
+	    case PVEC_XWIDGET:
 	    case PVEC_XWIDGET_VIEW:
+	      // no idea
 	      IGC_ASSERT (!"PVEC_WIDGET*");
 	      break;
 
@@ -890,7 +893,16 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_CONDVAR:
+	      // Nothing to do
+	      break;
+
 	    case PVEC_MODULE_FUNCTION:
+	      {
+		struct Lisp_Module_Function *p = obase;
+		IGC_FIX12_RAW (ss, &p->data);
+	      }
+	      break;
+
 	    case PVEC_NATIVE_COMP_UNIT:
 	    case PVEC_TS_PARSER:
 	    case PVEC_TS_NODE:
