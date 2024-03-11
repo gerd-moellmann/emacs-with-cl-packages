@@ -28,7 +28,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     everything is xmalloc'd. Put images in a pool to scan them.
     Since images are managed manually, alloc from pool, don't xfree,
     don't finalize. Find refs to images, by makiing cache::images
-    a root.
+    an ambig root.
+
+  - frame -> face_cache::faces_by_id -> face -> font. font is pvec.
+    face has refs. Same procedure as for images.
  */
 
 // clang-format off
@@ -154,6 +157,7 @@ enum igc_type {
   IGC_TYPE_VECTOR,
   IGC_TYPE_ITREE_NODE,
   IGC_TYPE_IMAGE,
+  IGC_TYPE_FACE,
   IGC_TYPE_LAST
 };
 
@@ -765,6 +769,32 @@ image_skip (mps_addr_t addr)
 }
 
 static mps_res_t
+face_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+    {
+      for (struct face *face = (struct face *) base;
+	   face < (struct face *) limit; ++face)
+	{
+	  if (is_forwarded (face) || is_padding (face))
+	    continue;
+	  IGC_FIX12_NOBJS (ss, face->lface, ARRAYELTS (face->lface));
+	  IGC_FIX12_RAW (ss, &face->font);
+	  IGC_FIX12_RAW (ss, &face->next);
+	  IGC_FIX12_RAW (ss, &face->prev);
+	}
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_addr_t
+face_skip (mps_addr_t addr)
+{
+  return (char *) addr + sizeof (struct itree_node);
+}
+
+static mps_res_t
 fix_image_cache (mps_ss_t ss, struct image_cache *c)
 {
   MPS_SCAN_BEGIN (ss)
@@ -1352,6 +1382,7 @@ do_finalize (struct igc *gc, mps_addr_t addr)
     case IGC_TYPE_VECTOR:
     case IGC_TYPE_ITREE_NODE:
     case IGC_TYPE_IMAGE:
+    case IGC_TYPE_FACE:
     case IGC_TYPE_LAST:
       break;
     }
@@ -1676,6 +1707,8 @@ make_igc (void)
       .scan = itree_scan, .skip = itree_skip },
     { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = image_scan, .skip = image_skip },
+    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+      .scan = face_scan, .skip = face_skip },
   };
 
   igc_static_assert (ARRAYELTS (inits) == IGC_TYPE_LAST);
