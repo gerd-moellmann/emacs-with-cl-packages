@@ -4539,7 +4539,12 @@ struct hash_table_test const hashtest_string_equal = {
 static struct Lisp_Hash_Table *
 allocate_hash_table (void)
 {
-  return ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Hash_Table, PVEC_HASH_TABLE);
+  struct Lisp_Hash_Table *h
+    = ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Hash_Table,
+				   PVEC_HASH_TABLE);
+  h->i = ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Hash_Table_Impl,
+				      PVEC_HASH_TABLE_IMPL);
+  return h;
 }
 
 /* Compute the size of the index (as log2) from the table capacity.  */
