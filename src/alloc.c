@@ -3499,14 +3499,8 @@ cleanup_vector (struct Lisp_Vector *vector)
 	if (h->table_size > 0)
 	  {
 	    eassert (h->index_bits > 0);
-	    xfree (h->index);
-	    xfree (h->key_and_value);
-	    xfree (h->next);
-	    xfree (h->hash);
-	    ptrdiff_t bytes = (h->table_size * (2 * sizeof *h->key_and_value
-						+ sizeof *h->hash
-						+ sizeof *h->next)
-			       + hash_table_index_size (h) * sizeof *h->index);
+	    xfree (h->entries);
+	    ptrdiff_t bytes = h->table_size * sizeof *h->entries;
 	    hash_table_allocated_bytes -= bytes;
 	  }
       }
@@ -3752,7 +3746,7 @@ allocate_pseudovector (int memlen, int lisplen,
 #ifdef HAVE_MPS
   struct Lisp_Vector *v = igc_alloc_pseudovector (memlen, lisplen, zerolen, tag);
 #else
-  struct Lisp_Vector *v = allocate_vectorlike (memlen, false)
+  struct Lisp_Vector *v = allocate_vectorlike (memlen, false);
   /* Only the first LISPLEN slots will be traced normally by the GC.  */
   memclear (v->contents, zerolen * word_size);
   XSETPVECTYPESIZE (v, tag, lisplen, memlen - lisplen);
@@ -7214,11 +7208,13 @@ process_mark_stack (ptrdiff_t base_sp)
 		  struct Lisp_Hash_Table *h = (struct Lisp_Hash_Table *)ptr;
 		  set_vector_marked (ptr);
 		  if (h->weakness == Weak_None)
-		    /* The values pushed here may include
-		       HASH_UNUSED_ENTRY_KEY, which this function must
-		       cope with.  */
-		    mark_stack_push_values (h->key_and_value,
-					    2 * h->table_size);
+		    {
+		      DOHASH (h, k, v)
+			{
+			  mark_stack_push_value (k);
+			  mark_stack_push_value (v);
+			}
+		    }
 		  else
 		    {
 		      /* For weak tables, don't mark the

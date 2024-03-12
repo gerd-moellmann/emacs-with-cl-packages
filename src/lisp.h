@@ -2735,24 +2735,17 @@ hash_from_key (struct Lisp_Hash_Table *h, Lisp_Object key)
 /* Iterate K and V as key and value of valid entries in hash table H.
    The body may remove the current entry or alter its value slot, but not
    mutate TABLE in any other way.  */
-#define DOHASH(h, k, v)							\
-  for (Lisp_Object *dohash_##k##_##v##_kv = (h)->key_and_value,		\
-                   *dohash_##k##_##v##_end = dohash_##k##_##v##_kv	\
-                                             + 2 * HASH_TABLE_SIZE (h),	\
-	           *dohash_##k##_##v##_base = dohash_##k##_##v##_kv,	\
-                   k, v;						\
-       dohash_##k##_##v##_kv < dohash_##k##_##v##_end			\
-       && (k = dohash_##k##_##v##_kv[0],				\
-           v = dohash_##k##_##v##_kv[1], /*maybe unused*/ (void)v,      \
-           true);			                                \
-       eassert (dohash_##k##_##v##_base == (h)->key_and_value		\
-		&& dohash_##k##_##v##_end				\
-		   == dohash_##k##_##v##_base				\
-	              + 2 * HASH_TABLE_SIZE (h)),			\
-       dohash_##k##_##v##_kv += 2)					\
-    if (hash_unused_entry_key_p (k))					\
-      ;									\
-    else
+# define DOHASH(h, k, v)						\
+  for (Lisp_Object k, v, x_ = Qnil; NILP (x_); x_ = Qt)			\
+    for (struct hash_entry *e_ = (h)->entries,				\
+	   *end_ = e_ + HASH_TABLE_SIZE (h),				\
+	   *base_ = e_;							\
+	 e_ < end_ && (k = e_->key, v = e_->value, (void) v, true);	\
+	 eassert (base_ == (h)->entries && end_ == base_ + HASH_TABLE_SIZE (h)), \
+	   e_ += 1)							\
+      if (hash_unused_entry_key_p (k))					\
+	;								\
+      else
 
 /* Iterate I as index of valid entries in hash table H.
    Unlike DOHASH, this construct copes with arbitrary table mutations
