@@ -4638,7 +4638,7 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
   struct Lisp_Hash_Table *h2;
 
   h2 = allocate_hash_table ();
-  *h2 = *h1;
+  *h2->i = *h1->i;
   h2->i->mutable = true;
 
   if (h1->i->table_size > 0)
