@@ -2557,15 +2557,6 @@ typedef int32_t hash_idx_t;
 
 struct hash_entry
 {
-  /* Bucket vector.  An entry of -1 indicates no item is present,
-     and a nonnegative entry is the index of the first item in
-     a collision chain.
-     This vector is 2**index_bits entries long.
-     If index_bits is 0 (and table_size is 0), then this is the
-     constant read-only vector {-1}, shared between all instances.
-     Otherwise it is heap-allocated.  */
-  hash_idx_t index;
-
   /* Vector used to chain entries.  If entry I is free, next[I] is the
      entry number of the next free item.  If entry I is non-free,
      next[I] is the index of the next entry in the collision chain,
@@ -2648,6 +2639,15 @@ struct Lisp_Hash_Table
      the list is in weak_hash_tables.  Used only during garbage
      collection --- at other times, it is NULL.  */
   struct Lisp_Hash_Table *next_weak;
+
+  /* Bucket vector.  An entry of -1 indicates no item is present,
+     and a nonnegative entry is the index of the first item in
+     a collision chain.
+     This vector is 2**index_bits entries long.
+     If index_bits is 0 (and table_size is 0), then this is the
+     constant read-only vector {-1}, shared between all instances.
+     Otherwise it is heap-allocated.  */
+  hash_idx_t *index;
 
   struct hash_entry *entries;
 } GCALIGNED_STRUCT;
