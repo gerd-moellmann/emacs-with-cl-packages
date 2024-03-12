@@ -2643,9 +2643,10 @@ static struct hash_entry *
 hash_table_contents (struct Lisp_Hash_Table *h)
 {
   ptrdiff_t size = h->count;
-  struct hash_entry *entries = hash_table_alloc_bytes (size * sizeof *entries);
-  ptrdiff_t n = 0;
+  struct hash_entry *entries
+    = hash_table_alloc_bytes (size * sizeof *entries);
 
+  ptrdiff_t n = 0;
   DOHASH (h, k, v)
     {
       entries[n].key = k;
@@ -2685,10 +2686,23 @@ static void
 hash_table_freeze (struct Lisp_Hash_Table *h)
 {
   h->entries = hash_table_contents (h);
+  h->index = NULL;
   h->table_size = 0;
   h->index_bits = 0;
   h->frozen_test = hash_table_std_test (h->test);
   h->test = NULL;
+}
+
+static void
+dump_hash_entry (struct dump_context *ctx, struct hash_entry *e)
+{
+  struct hash_entry out;
+  dump_object_start (ctx, &out, sizeof out);
+  DUMP_FIELD_COPY (&out, e, next);
+  DUMP_FIELD_COPY (&out, e, hash);
+  dump_field_lv (ctx, &out, e, &e->key, WEIGHT_STRONG);
+  dump_field_lv (ctx, &out, e, &e->value, WEIGHT_STRONG);
+  dump_object_finish (ctx, &out, sizeof out);
 }
 
 static dump_off
@@ -2696,22 +2710,14 @@ dump_hash_table_contents (struct dump_context *ctx, struct Lisp_Hash_Table *h)
 {
   dump_align_output (ctx, DUMP_ALIGNMENT);
   dump_off start_offset = ctx->offset;
-  ptrdiff_t n = h->count;
 
   struct dump_flags old_flags = ctx->flags;
   ctx->flags.pack_objects = true;
 
-  for (ptrdiff_t i = 0; i < n; i++)
-    {
-      Lisp_Object out;
-      const struct hash_entry *slot = &h->entries[i];
-      dump_object_start (ctx, &out, sizeof out);
-      dump_field_lv (ctx, &out, &slot->key, &slot->key, WEIGHT_STRONG);
-      dump_object_finish (ctx, &out, sizeof out);
-      dump_object_start (ctx, &out, sizeof out);
-      dump_field_lv (ctx, &out, &slot->value, &slot->value, WEIGHT_STRONG);
-      dump_object_finish (ctx, &out, sizeof out);
-    }
+  /* Note that the hash table has been frozen, see
+     hash_table_freeze.  */
+  for (ptrdiff_t i = 0; i < h->count; i++)
+    dump_hash_entry (ctx, &h->entries[i]);
 
   ctx->flags = old_flags;
   return start_offset;
