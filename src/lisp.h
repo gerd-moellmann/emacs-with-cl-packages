@@ -2646,7 +2646,7 @@ struct Lisp_Hash_Table_Impl
      Otherwise it is heap-allocated.  */
   hash_idx_t *index;
 
-  struct hash_entry *entries;
+  struct hash_entry entries[];
 } GCALIGNED_STRUCT;
 
 struct Lisp_Hash_Table
@@ -4280,6 +4280,7 @@ extern void init_syntax_once (void);
 extern void syms_of_syntax (void);
 
 /* Defined in fns.c.  */
+struct Lisp_Hash_Table_Impl *allocate_hash_table_impl (size_t nentries);
 extern struct Lisp_Hash_Table *check_hash_table (Lisp_Object);
 extern ptrdiff_t get_key_arg (Lisp_Object, ptrdiff_t, Lisp_Object *, char *);
 enum { NEXT_ALMOST_PRIME_LIMIT = 11 };
