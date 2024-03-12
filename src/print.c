@@ -2097,6 +2097,7 @@ print_vectorlike_unreadable (Lisp_Object obj, Lisp_Object printcharfun,
     case PVEC_CHAR_TABLE:
     case PVEC_SUB_CHAR_TABLE:
     case PVEC_HASH_TABLE:
+    case PVEC_HASH_TABLE_IMPL:
     case PVEC_BIGNUM:
     case PVEC_BOOL_VECTOR:
     /* Impossible cases.  */
@@ -2658,23 +2659,23 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 	       #s(hash-table test equal data (k1 v1 k2 v2)) */
 	    print_c_string ("#s(hash-table", printcharfun);
 
-	    if (!BASE_EQ (h->test->name, Qeql))
+	    if (!BASE_EQ (h->i->test->name, Qeql))
 	      {
 		print_c_string (" test ", printcharfun);
-		print_object (h->test->name, printcharfun, escapeflag);
+		print_object (h->i->test->name, printcharfun, escapeflag);
 	      }
 
-	    if (h->weakness != Weak_None)
+	    if (h->i->weakness != Weak_None)
 	      {
 		print_c_string (" weakness ", printcharfun);
-		print_object (hash_table_weakness_symbol (h->weakness),
+		print_object (hash_table_weakness_symbol (h->i->weakness),
 			      printcharfun, escapeflag);
 	      }
 
-	    if (h->purecopy)
+	    if (h->i->purecopy)
 	      print_c_string (" purecopy t", printcharfun);
 
-	    ptrdiff_t size = h->count;
+	    ptrdiff_t size = h->i->count;
 	    if (size > 0)
 	      {
 		print_c_string (" data (", printcharfun);
@@ -2689,7 +2690,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 		    .u.hash.nobjs = size * 2,
 		    .u.hash.idx = 0,
 		    .u.hash.printed = 0,
-		    .u.hash.truncated = (size < h->count),
+		    .u.hash.truncated = (size < h->i->count),
 		  });
 	      }
 	    else

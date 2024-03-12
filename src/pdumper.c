@@ -958,7 +958,7 @@ dump_queue_init (struct dump_queue *dump_queue)
 static bool
 dump_queue_empty_p (struct dump_queue *dump_queue)
 {
-  ptrdiff_t count = XHASH_TABLE (dump_queue->sequence_numbers)->count;
+  ptrdiff_t count = XHASH_TABLE (dump_queue->sequence_numbers)->i->count;
   bool is_empty = count == 0;
   eassert (count == XFIXNAT (Fhash_table_count (dump_queue->link_weights)));
   if (!is_empty)
@@ -1227,7 +1227,7 @@ dump_queue_dequeue (struct dump_queue *dump_queue, dump_off basis)
      dump_tailq_length (&dump_queue->zero_weight_objects),
      dump_tailq_length (&dump_queue->one_weight_normal_objects),
      dump_tailq_length (&dump_queue->one_weight_strong_objects),
-     (ptrdiff_t) XHASH_TABLE (dump_queue->link_weights)->count);
+     (ptrdiff_t) XHASH_TABLE (dump_queue->link_weights)->i->count);
 
   static const int nr_candidates = 3;
   struct candidate
@@ -2640,14 +2640,14 @@ dump_vectorlike_generic (struct dump_context *ctx,
 /* Return a vector of KEY, VALUE pairs in the given hash table H.
    No room for growth is included.  */
 static struct hash_entry *
-hash_table_contents (struct Lisp_Hash_Table *h)
+hash_table_impl_contents (struct Lisp_Hash_Table_Impl *h)
 {
   ptrdiff_t size = h->count;
   struct hash_entry *entries
     = hash_table_alloc_bytes (size * sizeof *entries);
 
   ptrdiff_t n = 0;
-  DOHASH (h, k, v)
+  DOHASH_IMPL (h, k, v)
     {
       entries[n].key = k;
       entries[n].value = v;
@@ -2683,9 +2683,9 @@ hash_table_std_test (const struct hash_table_test *t)
    See `hash_table_thaw' for the code that restores the object to a usable
    state. */
 static void
-hash_table_freeze (struct Lisp_Hash_Table *h)
+hash_table_impl_freeze (struct Lisp_Hash_Table_Impl *h)
 {
-  h->entries = hash_table_contents (h);
+  h->entries = hash_table_impl_contents (h);
   h->index = NULL;
   h->table_size = 0;
   h->index_bits = 0;
@@ -2706,7 +2706,7 @@ dump_hash_entry (struct dump_context *ctx, struct hash_entry *e)
 }
 
 static dump_off
-dump_hash_table_contents (struct dump_context *ctx, struct Lisp_Hash_Table *h)
+dump_hash_table_impl_contents (struct dump_context *ctx, struct Lisp_Hash_Table_Impl *h)
 {
   dump_align_output (ctx, DUMP_ALIGNMENT);
   dump_off start_offset = ctx->offset;
@@ -2726,17 +2726,30 @@ dump_hash_table_contents (struct dump_context *ctx, struct Lisp_Hash_Table *h)
 static dump_off
 dump_hash_table (struct dump_context *ctx, Lisp_Object object)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
-# error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
-#endif
   const struct Lisp_Hash_Table *hash_in = XHASH_TABLE (object);
   struct Lisp_Hash_Table hash_munged = *hash_in;
   struct Lisp_Hash_Table *hash = &hash_munged;
 
-  hash_table_freeze (hash);
+  START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table, out);
+  dump_field_lv_rawptr (ctx, out, hash, &hash->i, Lisp_Vectorlike, WEIGHT_NORMAL);
+  dump_off offset = finish_dump_pvec (ctx, &out->header);
+  return offset;
+}
+
+static dump_off
+dump_hash_table_impl (struct dump_context *ctx, Lisp_Object object)
+{
+#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
+# error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
+#endif
+  const struct Lisp_Hash_Table_Impl *hash_in = XHASH_TABLE (object)->i;
+  struct Lisp_Hash_Table_Impl hash_munged = *hash_in;
+  struct Lisp_Hash_Table_Impl *hash = &hash_munged;
+
+  hash_table_impl_freeze (hash);
   dump_push (&ctx->hash_tables, object);
 
-  START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table, out);
+  START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table_Impl, out);
   dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
   DUMP_FIELD_COPY (out, hash, count);
   DUMP_FIELD_COPY (out, hash, weakness);
@@ -2745,13 +2758,12 @@ dump_hash_table (struct dump_context *ctx, Lisp_Object object)
   DUMP_FIELD_COPY (out, hash, frozen_test);
   if (hash->entries)
     dump_field_fixup_later (ctx, out, hash, &hash->entries);
-  eassert (hash->next_weak == NULL);
   dump_off offset = finish_dump_pvec (ctx, &out->header);
   if (hash->entries)
     dump_remember_fixup_ptr_raw
       (ctx,
-       offset + dump_offsetof (struct Lisp_Hash_Table, entries),
-       dump_hash_table_contents (ctx, hash));
+       offset + dump_offsetof (struct Lisp_Hash_Table_Impl, entries),
+       dump_hash_table_impl_contents (ctx, hash));
   return offset;
 }
 
@@ -3039,6 +3051,8 @@ dump_vectorlike (struct dump_context *ctx,
       return dump_bool_vector(ctx, v);
     case PVEC_HASH_TABLE:
       return dump_hash_table (ctx, lv);
+    case PVEC_HASH_TABLE_IMPL:
+      return dump_hash_table_impl (ctx, lv);
     case PVEC_BUFFER:
       return dump_buffer (ctx, XBUFFER (lv));
     case PVEC_SUBR:

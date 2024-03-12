@@ -232,6 +232,7 @@ for example, (type-of 1) returns `integer'.  */)
         case PVEC_BOOL_VECTOR: return Qbool_vector;
         case PVEC_FRAME: return Qframe;
         case PVEC_HASH_TABLE: return Qhash_table;
+        case PVEC_HASH_TABLE_IMPL: return Qhash_table_impl;
         case PVEC_FONT:
           if (FONT_SPEC_P (object))
 	    return Qfont_spec;
@@ -4227,6 +4228,7 @@ syms_of_data (void)
   DEFSYM (Qsub_char_table, "sub-char-table");
   DEFSYM (Qbool_vector, "bool-vector");
   DEFSYM (Qhash_table, "hash-table");
+  DEFSYM (Qhash_table_impl, "hash-table-impl");
   DEFSYM (Qthread, "thread");
   DEFSYM (Qmutex, "mutex");
   DEFSYM (Qcondition_variable, "condition-variable");

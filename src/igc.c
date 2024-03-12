@@ -37,10 +37,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     with glyph_pool. Could do the same as for faces, images, but make
     glyphs ambiguous roots for trying it out (igc_x*alloc etc).
 
-  - hash_table -> key_and_value which is malloc'd. Use the igc malloc
-    functions to make them roots. We could improve that by creating
-    an exact scanning root, but TRT is to change key_and_value back to a
-    Lisp_Vector.
+  - hash_table -> key_and_value which is malloc'd. Rewrite so that
+    the ht has everything in its objects. Needed because we only have
+    exclusive access to objs being scanned themselves, and we need
+    to do things for eq hts (address changes).
 
   - weak hash tables
  */

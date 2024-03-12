@@ -3494,8 +3494,10 @@ cleanup_vector (struct Lisp_Vector *vector)
 #endif
       break;
     case PVEC_HASH_TABLE:
+      break;
+    case PVEC_HASH_TABLE_IMPL:
       {
-	struct Lisp_Hash_Table *h = PSEUDOVEC_STRUCT (vector, Lisp_Hash_Table);
+	struct Lisp_Hash_Table_Impl *h = PSEUDOVEC_STRUCT (vector, Lisp_Hash_Table_Impl);
 	if (h->table_size > 0)
 	  {
 	    eassert (h->index_bits > 0);
@@ -3503,7 +3505,7 @@ cleanup_vector (struct Lisp_Vector *vector)
 	    xfree (h->index);
 	    ptrdiff_t bytes
 	      = (h->table_size * sizeof *h->entries
-		 + hash_table_index_size (h) * sizeof *h->index);
+		 + hash_table_impl_index_size (h) * sizeof *h->index);
 	    hash_table_allocated_bytes -= bytes;
 	  }
       }
@@ -7210,7 +7212,7 @@ process_mark_stack (ptrdiff_t base_sp)
 		{
 		  struct Lisp_Hash_Table *h = (struct Lisp_Hash_Table *)ptr;
 		  set_vector_marked (ptr);
-		  if (h->weakness == Weak_None)
+		  if (h->i->weakness == Weak_None)
 		    {
 		      DOHASH (h, k, v)
 			{
