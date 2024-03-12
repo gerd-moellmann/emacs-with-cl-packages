@@ -4641,6 +4641,10 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
       ptrdiff_t nbytes = h1->table_size * sizeof *h1->entries;
       h2->entries = hash_table_alloc_bytes (nbytes);
       memcpy (h2->entries, h1->entries, nbytes);
+
+      ptrdiff_t index_bytes = hash_table_index_size (h1) * sizeof *h1->index;
+      h2->index = hash_table_alloc_bytes (index_bytes);
+      memcpy (h2->index, h1->index, index_bytes);
     }
   return make_lisp_hash_table (h2);
 }
