@@ -7208,19 +7208,26 @@ process_mark_stack (ptrdiff_t base_sp)
 		mark_window (ptr);
 		break;
 
-	      case PVEC_HASH_TABLE:
+	      case PVEC_HASH_TABLE_IMPL:
 		{
-		  struct Lisp_Hash_Table *h = (struct Lisp_Hash_Table *)ptr;
+		  struct Lisp_Hash_Table_Impl *h = (struct Lisp_Hash_Table_Impl *)ptr;
 		  set_vector_marked (ptr);
-		  if (h->i->weakness == Weak_None)
+		  if (h->weakness == Weak_None)
 		    {
-		      DOHASH (h, k, v)
+		      DOHASH_IMPL (h, k, v)
 			{
 			  mark_stack_push_value (k);
 			  mark_stack_push_value (v);
 			}
 		    }
-		  else
+		  break;
+		}
+
+	      case PVEC_HASH_TABLE:
+		{
+		  struct Lisp_Hash_Table *h = (struct Lisp_Hash_Table *)ptr;
+		  set_vector_marked (ptr);
+		  if (h->i->weakness != Weak_None)
 		    {
 		      /* For weak tables, don't mark the
 			 contents --- that's what makes it weak.  */
@@ -7228,8 +7235,11 @@ process_mark_stack (ptrdiff_t base_sp)
 		      h->next_weak = weak_hash_tables;
 		      weak_hash_tables = h;
 		    }
-		  break;
+
+		  Lisp_Object obj = make_lisp_hash_table_impl (h->i);
+		  mark_stack_push_value (obj);
 		}
+		break;
 
 	      case PVEC_CHAR_TABLE:
 	      case PVEC_SUB_CHAR_TABLE:

@@ -2695,6 +2695,13 @@ make_lisp_hash_table (struct Lisp_Hash_Table *h)
   return make_lisp_ptr (h, Lisp_Vectorlike);
 }
 
+INLINE Lisp_Object
+make_lisp_hash_table_impl (struct Lisp_Hash_Table_Impl *h)
+{
+  eassert (PSEUDOVECTOR_TYPEP (&h->header, PVEC_HASH_TABLE_IMPL));
+  return make_lisp_ptr (h, Lisp_Vectorlike);
+}
+
 /* Value is the key part of entry IDX in hash table H.  */
 INLINE Lisp_Object
 HASH_KEY (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
