@@ -2724,30 +2724,31 @@ dump_hash_table_impl_contents (struct dump_context *ctx, struct Lisp_Hash_Table_
 }
 
 static dump_off
-dump_hash_table (struct dump_context *ctx, Lisp_Object object)
+dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
 {
-  const struct Lisp_Hash_Table *hash_in = XHASH_TABLE (object);
   struct Lisp_Hash_Table hash_munged = *hash_in;
   struct Lisp_Hash_Table *hash = &hash_munged;
 
+  Lisp_Object obj = make_lisp_hash_table (hash_in);
+  dump_push (&ctx->hash_tables, obj);
+
   START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table, out);
+  dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
   dump_field_lv_rawptr (ctx, out, hash, &hash->i, Lisp_Vectorlike, WEIGHT_NORMAL);
   dump_off offset = finish_dump_pvec (ctx, &out->header);
   return offset;
 }
 
 static dump_off
-dump_hash_table_impl (struct dump_context *ctx, Lisp_Object object)
+dump_hash_table_impl (struct dump_context *ctx, const struct Lisp_Hash_Table_Impl *hash_in)
 {
 #if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
 # error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
 #endif
-  const struct Lisp_Hash_Table_Impl *hash_in = XHASH_TABLE (object)->i;
   struct Lisp_Hash_Table_Impl hash_munged = *hash_in;
   struct Lisp_Hash_Table_Impl *hash = &hash_munged;
 
   hash_table_impl_freeze (hash);
-  dump_push (&ctx->hash_tables, object);
 
   START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table_Impl, out);
   dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
@@ -3050,9 +3051,9 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_BOOL_VECTOR:
       return dump_bool_vector(ctx, v);
     case PVEC_HASH_TABLE:
-      return dump_hash_table (ctx, lv);
+      return dump_hash_table (ctx, XHASH_TABLE (lv));
     case PVEC_HASH_TABLE_IMPL:
-      return dump_hash_table_impl (ctx, lv);
+      return dump_hash_table_impl (ctx, XHASH_TABLE_IMPL (lv));
     case PVEC_BUFFER:
       return dump_buffer (ctx, XBUFFER (lv));
     case PVEC_SUBR:

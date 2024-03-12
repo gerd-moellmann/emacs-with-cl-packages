@@ -2681,11 +2681,24 @@ HASH_TABLE_P (Lisp_Object a)
   return PSEUDOVECTORP (a, PVEC_HASH_TABLE);
 }
 
+INLINE bool
+HASH_TABLE_IMPL_P (Lisp_Object a)
+{
+  return PSEUDOVECTORP (a, PVEC_HASH_TABLE_IMPL);
+}
+
 INLINE struct Lisp_Hash_Table *
 XHASH_TABLE (Lisp_Object a)
 {
   eassert (HASH_TABLE_P (a));
   return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Table);
+}
+
+INLINE struct Lisp_Hash_Table_Impl *
+XHASH_TABLE_IMPL (Lisp_Object a)
+{
+  eassert (HASH_TABLE_IMPL_P (a));
+  return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Table_Impl);
 }
 
 INLINE Lisp_Object
