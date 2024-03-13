@@ -2676,8 +2676,6 @@ hash_table_freeze (struct Lisp_Hash_Table *h)
     }
 
   /* Will recomputed when hash_table_thaw'ing.  */
-  ni->table_size = 0;
-  ni->index_bits = 0;
   ni->frozen_test = hash_table_std_test (h->i->test);
   ni->test = NULL;
   h->i = ni;

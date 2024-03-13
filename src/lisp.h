@@ -2618,9 +2618,11 @@ struct Lisp_Hash_Table_Impl
   /* Index of first free entry in free list, or -1 if none.  */
   hash_idx_t next_free;
 
-  hash_idx_t table_size;   /* Size of the next and hash vectors.  */
+  /* Size of the next and hash vectors. */
+  const hash_idx_t table_size;
 
-  unsigned char index_bits;	/* log2 (size of the index vector).  */
+  /* log2 (size of the index vector).  */
+  const unsigned char index_bits;
 
   /* Weakness of the table.  */
   hash_table_weakness_t weakness : 3;
