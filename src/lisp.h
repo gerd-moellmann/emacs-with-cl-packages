@@ -2644,7 +2644,7 @@ struct Lisp_Hash_Table_Impl
      If index_bits is 0 (and table_size is 0), then this is the
      constant read-only vector {-1}, shared between all instances.
      Otherwise it is heap-allocated.  */
-  hash_idx_t *index;
+  //hash_idx_t *index;
 
   struct hash_entry entries[];
 } GCALIGNED_STRUCT;
@@ -2657,8 +2657,15 @@ struct Lisp_Hash_Table
      the list is in weak_hash_tables.  Used only during garbage
      collection --- at other times, it is NULL.  */
   struct Lisp_Hash_Table *next_weak;
-
 };
+
+INLINE hash_idx_t *
+hash_index (const struct Lisp_Hash_Table_Impl *h)
+{
+  void *p = ((char *) &h->entries[0]
+	     + h->table_size * sizeof h->entries[0]);
+  return p;
+}
 
 /* A specific Lisp_Object that is not a valid Lisp value.
    We need to be careful not to leak this value into machinery
