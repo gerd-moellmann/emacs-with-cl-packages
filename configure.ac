@@ -587,7 +587,7 @@ OPTION_DEFAULT_ON([xinput2],[don't use version 2 of the X Input Extension for in
 OPTION_DEFAULT_OFF([small-ja-dic],[generate a smaller-size Japanese dictionary])
 OPTION_DEFAULT_OFF([android],[cross-compile Android application package])
 OPTION_DEFAULT_ON([android-debug],[don't build Emacs as a debug package on Android])
-OPTION_DEFAULT_ON([mps],[don't use -lmps])
+OPTION_DEFAULT_OFF([mps],[use MPS for garbage collection])
 
 # Find out of Android support is enabled and mailutils has defaulted
 # to `yes-unless-android'.  Disable it if so.
