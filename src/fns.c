@@ -4744,31 +4744,34 @@ void
 hash_table_thaw (Lisp_Object hash_table)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (hash_table);
+  struct Lisp_Hash_Table_Impl *impl = h->i;
 
   /* Freezing discarded most non-essential information; recompute it.
      The allocation is minimal with no room for growth.  */
-  h->i->test = hash_table_test_from_std (h->i->frozen_test);
-  ptrdiff_t size = h->i->count;
-  h->i->table_size = size;
-  h->i->next_free = -1;
+  impl->test = hash_table_test_from_std (impl->frozen_test);
+  ptrdiff_t nentries = impl->count;
+  impl->table_size = nentries;
+  impl->next_free = -1;
 
-  if (size == 0)
+  /* Index wasn't stored, recompute. */
+  const size_t nbytes_entries = impl->table_size * sizeof impl->entries[0];
+  impl->index = (hash_idx_t *) ((char *) impl->entries + nbytes_entries);
+
+  if (nentries == 0)
     {
-      h->i->index_bits = 0;
-      h->i->index = (hash_idx_t *)empty_hash_index_vector;
+      impl->index_bits = 0;
     }
   else
     {
-      ptrdiff_t index_bits = compute_hash_index_bits (size);
-      h->i->index_bits = index_bits;
+      ptrdiff_t index_bits = compute_hash_index_bits (nentries);
+      impl->index_bits = index_bits;
 
       ptrdiff_t index_size = hash_table_index_size (h);
-      h->i->index = hash_table_alloc_bytes (index_size * sizeof *h->i->index);
       for (ptrdiff_t i = 0; i < index_size; i++)
-	h->i->index[i] = -1;
+	impl->index[i] = -1;
 
       /* Recompute the hash codes for each entry in the table.  */
-      for (ptrdiff_t i = 0; i < size; i++)
+      for (ptrdiff_t i = 0; i < nentries; i++)
 	{
 	  Lisp_Object key = HASH_KEY (h, i);
 	  hash_hash_t hash_code = hash_from_key (h, key);
