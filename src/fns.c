@@ -4571,14 +4571,9 @@ allocate_hash_table (size_t nentries)
   struct Lisp_Hash_Table *h
     = ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Hash_Table,
 				   PVEC_HASH_TABLE);
-
   h->i = allocate_hash_table_impl (nentries);
   return h;
 }
-
-/* Constant hash index vector used when the table size is zero.
-   This avoids allocating it from the heap.  */
-static const hash_idx_t empty_hash_index_vector[] = {-1};
 
 /* Create and initialize a new hash table.
 
@@ -4611,7 +4606,6 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 
   if (size == 0)
     {
-      h->i->index = (hash_idx_t *)empty_hash_index_vector;
       h->i->index_bits = 0;
       h->i->next_free = -1;
     }
@@ -4689,8 +4683,7 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 
       /* Allocate all the new vectors before updating *H, to
 	 avoid problems if memory is exhausted.  */
-      struct Lisp_Hash_Table_Impl *new_impl
-	= allocate_hash_table_impl (new_size);
+      struct Lisp_Hash_Table_Impl *new_impl = allocate_hash_table_impl (new_size);
       memcpy (new_impl->entries, h->i->entries,
 	      old_size * sizeof (struct hash_entry));
       for (ptrdiff_t i = old_size; i < new_size; i++)
@@ -4701,7 +4694,7 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
       new_impl->entries[new_size - 1].next = -1;
 
       ptrdiff_t index_bits = compute_hash_index_bits (new_size);
-      ptrdiff_t index_size = (ptrdiff_t)1 << index_bits;
+      ptrdiff_t index_size = (ptrdiff_t) 1 << index_bits;
       for (ptrdiff_t i = 0; i < index_size; i++)
 	  new_impl->index[i] = -1;
 
