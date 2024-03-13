@@ -56,6 +56,7 @@ class Lisp_Object:
         "PVEC_BOOL_VECTOR": "struct Lisp_Bool_Vector",
         "PVEC_BUFFER": "struct buffer",
         "PVEC_HASH_TABLE": "struct Lisp_Hash_Table",
+        "PVEC_HASH_TABLE_IMPL": "struct Lisp_Hash_Table_Impl",
         "PVEC_OBARRAY": "struct Lisp_Obarray",
         "PVEC_TERMINAL": "struct terminal",
         "PVEC_WINDOW_CONFIGURATION": "struct save_window_data",
@@ -272,8 +273,8 @@ class Lisp_Object_Provider:
                 self.children["cdr"] = cdr
             else:
                 self.children["untagged"] = lisp_obj.untagged
-        except:
-            print(f"*** exception in child provider update for {lisp_type}")
+        except Exception as ex:
+            print(f"*** exception {ex} in Lisp_Object_Provider::update for {lisp_type}")
             pass
 
     def num_children(self):
@@ -345,7 +346,7 @@ def __lldb_init_module(debugger, internal_dict):
     define_command(debugger, xdebug_print)
     define_command(debugger, xprint)
     define_type_summary(debugger, "Lisp_Object", type_summary_Lisp_Object)
-    define_type_synthetic(debugger, "Lisp_Object", Lisp_Object_Provider)
+    #define_type_synthetic(debugger, "Lisp_Object", Lisp_Object_Provider)
     enable_type_category(debugger, "Emacs")
     print('Emacs debugging support has been installed.')
 
