@@ -2665,8 +2665,8 @@ hash_table_std_test (const struct hash_table_test *t)
 static void
 hash_table_freeze (struct Lisp_Hash_Table *h)
 {
-  struct Lisp_Hash_Table_Impl *ni
-    = allocate_hash_table_impl (h->i->count);
+  struct Lisp_Hash_Impl *ni
+    = allocate_hash_impl (h->i->count);
   ptrdiff_t i = 0;
   DOHASH_IMPL (h->i, k, v)
     {
@@ -2694,7 +2694,7 @@ dump_hash_entry (struct dump_context *ctx, struct hash_entry *e)
 }
 
 static dump_off
-dump_hash_table_impl_contents (struct dump_context *ctx, struct Lisp_Hash_Table_Impl *h)
+dump_hash_table_impl_contents (struct dump_context *ctx, struct Lisp_Hash_Impl *h)
 {
   dump_align_output (ctx, DUMP_ALIGNMENT);
   dump_off start_offset = ctx->offset;
@@ -2729,12 +2729,12 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
 }
 
 static dump_off
-dump_hash_table_impl (struct dump_context *ctx, struct Lisp_Hash_Table_Impl *hash)
+dump_hash_table_impl (struct dump_context *ctx, struct Lisp_Hash_Impl *hash)
 {
 #if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_Impl0360833954
 # error "Lisp_Hash_Table_Impl changed. See CHECK_STRUCTS comment in config.h."
 #endif
-  START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table_Impl, out);
+  START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Impl, out);
   dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
   DUMP_FIELD_COPY (out, hash, count);
   DUMP_FIELD_COPY (out, hash, weakness);
@@ -2744,7 +2744,7 @@ dump_hash_table_impl (struct dump_context *ctx, struct Lisp_Hash_Table_Impl *has
   dump_off offset = finish_dump_pvec (ctx, &out->header);
   dump_remember_fixup_ptr_raw
     (ctx,
-     offset + dump_offsetof (struct Lisp_Hash_Table_Impl, entries),
+     offset + dump_offsetof (struct Lisp_Hash_Impl, entries),
      dump_hash_table_impl_contents (ctx, hash));
   return offset;
 }
@@ -3033,7 +3033,7 @@ dump_vectorlike (struct dump_context *ctx,
       return dump_bool_vector(ctx, v);
     case PVEC_HASH_TABLE:
       return dump_hash_table (ctx, XHASH_TABLE (lv));
-    case PVEC_HASH_TABLE_IMPL:
+    case PVEC_HASH_IMPL:
       return dump_hash_table_impl (ctx, XHASH_TABLE_IMPL (lv));
     case PVEC_BUFFER:
       return dump_buffer (ctx, XBUFFER (lv));

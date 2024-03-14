@@ -3495,9 +3495,9 @@ cleanup_vector (struct Lisp_Vector *vector)
       break;
     case PVEC_HASH_TABLE:
       break;
-    case PVEC_HASH_TABLE_IMPL:
+    case PVEC_HASH_IMPL:
       {
-	struct Lisp_Hash_Table_Impl *h = PSEUDOVEC_STRUCT (vector, Lisp_Hash_Table_Impl);
+	struct Lisp_Hash_Impl *h = PSEUDOVEC_STRUCT (vector, Lisp_Hash_Impl);
 	if (h->table_size > 0)
 	  {
 	    eassert (h->index_bits > 0);
@@ -7206,9 +7206,9 @@ process_mark_stack (ptrdiff_t base_sp)
 		mark_window (ptr);
 		break;
 
-	      case PVEC_HASH_TABLE_IMPL:
+	      case PVEC_HASH_IMPL:
 		{
-		  struct Lisp_Hash_Table_Impl *h = (struct Lisp_Hash_Table_Impl *)ptr;
+		  struct Lisp_Hash_Impl *h = (struct Lisp_Hash_Impl *)ptr;
 		  set_vector_marked (ptr);
 		  if (h->weakness == Weak_None)
 		    {
