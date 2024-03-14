@@ -3650,7 +3650,7 @@ sweep_vectors (void)
    with room for LEN Lisp_Objects.  LEN must be positive and
    at most VECTOR_ELTS_MAX.  */
 
-static struct Lisp_Vector *
+struct Lisp_Vector *
 allocate_vectorlike (ptrdiff_t len, bool clearit)
 {
   eassert_not_mps ();
@@ -3693,7 +3693,6 @@ allocate_vectorlike (ptrdiff_t len, bool clearit)
 
   return p;
 }
-
 
 /* Allocate a vector with LEN slots.  If CLEARIT, clear its slots;
    otherwise the vector's slots are uninitialized.  */

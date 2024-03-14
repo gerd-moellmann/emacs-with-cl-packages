@@ -30,6 +30,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
+#include <sys/_types/_size_t.h>
 
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
@@ -966,34 +967,37 @@ union vectorlike_header
     /* The `size' header word, W bits wide, has one of two forms
        discriminated by the second-highest bit (PSEUDOVECTOR_FLAG):
 
-         1   1                    W-2
+	 1   1                    W-2
        +---+---+-------------------------------------+
        | M | 0 |                 SIZE                |  vector
        +---+---+-------------------------------------+
 
-         1   1    W-32      6       12         12
+	 1   1    W-32      6       12         12
        +---+---+--------+------+----------+----------+
        | M | 1 | unused | TYPE | RESTSIZE | LISPSIZE |  pseudovector
        +---+---+--------+------+----------+----------+
 
        M (ARRAY_MARK_FLAG) holds the GC mark bit.
 
-       SIZE     is the length (number of slots) of a regular Lisp vector,
-                and the object layout is struct Lisp_Vector.
+       SIZE     is the length (number of slots) of a regular Lisp
+       vector, and the object layout is struct Lisp_Vector.
 
        TYPE     is the pseudovector subtype (enum pvec_type).
 
-       LISPSIZE is the number of Lisp_Object fields at the beginning of the
-                object (after the header).  These are always traced by the GC.
+       LISPSIZE is the number of Lisp_Object fields at the beginning
+       of the object (after the header).  These are always traced by
+       the GC.
 
-       RESTSIZE is the number of fields (in word_size units) following.
-                These are not automatically traced by the GC.
-                For PVEC_BOOL and statically allocated PVEC_SUBR, RESTSIZE is 0.
-                (The block size for PVEC_BOOL is computed from its own size
-                field, to avoid being restricted by the 12-bit RESTSIZE field.)
+       RESTSIZE is the number of fields (in word_size units)
+       following. These are not automatically traced by the GC. For
+       PVEC_BOOL and statically allocated PVEC_SUBR, RESTSIZE is 0.
+		(The block size for PVEC_BOOL is computed from its own
+       size field, to avoid being restricted by the 12-bit RESTSIZE
+       field.)
     */
+
     ptrdiff_t size;
-  };
+};
 
 struct Lisp_Symbol_With_Pos
 {
@@ -1091,6 +1095,7 @@ enum More_Lisp_Bits
    values.  They are macros for use in #if and static initializers.  */
 #define MOST_POSITIVE_FIXNUM (EMACS_INT_MAX >> INTTYPEBITS)
 #define MOST_NEGATIVE_FIXNUM (-1 - MOST_POSITIVE_FIXNUM)
+
 
 INLINE bool
 PSEUDOVECTORP (Lisp_Object a, int code)
@@ -4475,6 +4480,7 @@ extern void parse_str_as_multibyte (const unsigned char *, ptrdiff_t,
 				    ptrdiff_t *, ptrdiff_t *);
 
 /* Defined in alloc.c.  */
+struct Lisp_Vector *allocate_vectorlike (ptrdiff_t len, bool clearit);
 extern void run_finalizer_function (Lisp_Object function);
 extern void *my_heap_start (void);
 extern void check_pure_size (void);
