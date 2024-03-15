@@ -2618,7 +2618,8 @@ struct Lisp_Hash_Table_Impl
   /* Index of first free entry in free list, or -1 if none.  */
   hash_idx_t next_free;
 
-  hash_idx_t table_size;   /* Size of the next and hash vectors.  */
+  /* Max number of entries. Not changeable after allocation.  */
+  const hash_idx_t table_size;
 
   unsigned char index_bits;	/* log2 (size of the index vector).  */
 
@@ -2646,7 +2647,8 @@ struct Lisp_Hash_Table_Impl
      Otherwise it is heap-allocated.  */
   hash_idx_t *index;
 
-  struct hash_entry *entries;
+  /* table_size entries. */
+  struct hash_entry entries[];
 } GCALIGNED_STRUCT;
 
 struct Lisp_Hash_Table
@@ -2657,8 +2659,15 @@ struct Lisp_Hash_Table
      the list is in weak_hash_tables.  Used only during garbage
      collection --- at other times, it is NULL.  */
   struct Lisp_Hash_Table *next_weak;
-
 };
+
+INLINE size_t hash_impl_nbytes (const struct Lisp_Hash_Table_Impl *h) {
+  return sizeof *h + h->table_size * sizeof h->entries[0];
+}
+
+INLINE void set_table_size (struct Lisp_Hash_Table_Impl *h, size_t n) {
+  *((hash_idx_t *) &h->table_size) = n;
+}
 
 /* A specific Lisp_Object that is not a valid Lisp value.
    We need to be careful not to leak this value into machinery
@@ -4465,6 +4474,7 @@ extern void parse_str_as_multibyte (const unsigned char *, ptrdiff_t,
 				    ptrdiff_t *, ptrdiff_t *);
 
 /* Defined in alloc.c.  */
+struct Lisp_Vector *allocate_vectorlike (ptrdiff_t len, bool clearit);
 extern void run_finalizer_function (Lisp_Object function);
 extern void *my_heap_start (void);
 extern void check_pure_size (void);

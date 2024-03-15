@@ -2685,9 +2685,13 @@ hash_table_std_test (const struct hash_table_test *t)
 static void
 hash_table_impl_freeze (struct Lisp_Hash_Table_Impl *h)
 {
-  h->entries = hash_table_impl_contents (h);
+  struct hash_entry *contents = hash_table_impl_contents (h);
+  memclear (h->entries, h->table_size * sizeof *contents);
+  memcpy (h->entries, contents, h->count * sizeof *contents);
+  xfree (contents);
+  /* FIXME: shouldn't index be freed? */
   h->index = NULL;
-  h->table_size = 0;
+  set_table_size(h, 0);
   h->index_bits = 0;
   h->frozen_test = hash_table_std_test (h->test);
   h->test = NULL;
@@ -2706,24 +2710,6 @@ dump_hash_entry (struct dump_context *ctx, struct hash_entry *e)
 }
 
 static dump_off
-dump_hash_table_impl_contents (struct dump_context *ctx, struct Lisp_Hash_Table_Impl *h)
-{
-  dump_align_output (ctx, DUMP_ALIGNMENT);
-  dump_off start_offset = ctx->offset;
-
-  struct dump_flags old_flags = ctx->flags;
-  ctx->flags.pack_objects = true;
-
-  /* Note that the hash table has been frozen, see
-     hash_table_freeze.  */
-  for (ptrdiff_t i = 0; i < h->count; i++)
-    dump_hash_entry (ctx, &h->entries[i]);
-
-  ctx->flags = old_flags;
-  return start_offset;
-}
-
-static dump_off
 dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
 {
   struct Lisp_Hash_Table hash_munged = *hash_in;
@@ -2739,15 +2725,22 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
   return offset;
 }
 
+static struct Lisp_Hash_Table_Impl *
+copy_hash_impl (const struct Lisp_Hash_Table_Impl *h)
+{
+  const size_t nbytes = hash_impl_nbytes (h);
+  struct Lisp_Hash_Table_Impl *copy = xmalloc (nbytes);
+  memcpy (copy, h, nbytes);
+  return copy;
+}
+
 static dump_off
 dump_hash_table_impl (struct dump_context *ctx, const struct Lisp_Hash_Table_Impl *hash_in)
 {
 #if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
 # error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
 #endif
-  struct Lisp_Hash_Table_Impl hash_munged = *hash_in;
-  struct Lisp_Hash_Table_Impl *hash = &hash_munged;
-
+  struct Lisp_Hash_Table_Impl *hash = copy_hash_impl (hash_in);
   hash_table_impl_freeze (hash);
 
   START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table_Impl, out);
@@ -2757,14 +2750,10 @@ dump_hash_table_impl (struct dump_context *ctx, const struct Lisp_Hash_Table_Imp
   DUMP_FIELD_COPY (out, hash, purecopy);
   DUMP_FIELD_COPY (out, hash, mutable);
   DUMP_FIELD_COPY (out, hash, frozen_test);
-  if (hash->entries)
-    dump_field_fixup_later (ctx, out, hash, &hash->entries);
+  for (ptrdiff_t i = 0; i < hash->count; i++)
+    dump_hash_entry (ctx, &hash->entries[i]);
   dump_off offset = finish_dump_pvec (ctx, &out->header);
-  if (hash->entries)
-    dump_remember_fixup_ptr_raw
-      (ctx,
-       offset + dump_offsetof (struct Lisp_Hash_Table_Impl, entries),
-       dump_hash_table_impl_contents (ctx, hash));
+  xfree (hash);
   return offset;
 }
 
