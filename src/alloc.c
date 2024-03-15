@@ -3501,9 +3501,11 @@ cleanup_vector (struct Lisp_Vector *vector)
 	if (h->table_size > 0)
 	  {
 	    eassert (h->index_bits > 0);
-	    ptrdiff_t bytes = (h->table_size * sizeof *h->entries
-			       + (hash_table_impl_index_size (h)
-				  * sizeof (hash_idx_t)));
+	    xfree (h->entries);
+	    xfree (h->index);
+	    ptrdiff_t bytes
+	      = (h->table_size * sizeof *h->entries
+		 + hash_table_impl_index_size (h) * sizeof *h->index);
 	    hash_table_allocated_bytes -= bytes;
 	  }
       }
