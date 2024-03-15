@@ -4553,18 +4553,18 @@ compute_hash_index_bits (hash_idx_t size)
 
 /* Allocate basically initialized hash table.  */
 
-struct Lisp_Hash_Impl *
-allocate_hash_impl (size_t nentries)
+struct Lisp_Hash_Table_Impl *
+allocate_hash_table_impl (size_t nentries)
 {
   /* So that we have at least 1 index, next,... */
   size_t nbytes_entries = nentries * sizeof (struct hash_entry);
   // Note that index_bits == 1 for nentries = 0
   size_t index_bits = compute_hash_index_bits (nentries);
   size_t nbytes_index = (1 << index_bits) * sizeof (hash_idx_t);
-  size_t nbytes_total = (sizeof (struct Lisp_Hash_Impl)
+  size_t nbytes_total = (sizeof (struct Lisp_Hash_Table_Impl)
 			 + nbytes_entries + nbytes_index);
-  struct Lisp_Hash_Impl *h = (struct Lisp_Hash_Impl *)
-    allocate_pseudovector (nbytes_total, 0, 0, PVEC_HASH_IMPL);
+  struct Lisp_Hash_Table_Impl *h = (struct Lisp_Hash_Table_Impl *)
+    allocate_pseudovector (nbytes_total, 0, 0, PVEC_HASH_TABLE_IMPL);
   h->test = NULL;
   h->count = 0;
   h->next_free = -1;
@@ -4583,7 +4583,7 @@ allocate_hash_table (size_t nentries)
   struct Lisp_Hash_Table *h
     = ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Hash_Table,
 				   PVEC_HASH_TABLE);
-  h->i = allocate_hash_impl (nentries);
+  h->i = allocate_hash_table_impl (nentries);
   return h;
 }
 
@@ -4645,7 +4645,8 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 }
 
 static void
-copy_hash_impl (struct Lisp_Hash_Impl *to, struct Lisp_Hash_Impl *from)
+copy_hash_table_impl (struct Lisp_Hash_Table_Impl *to,
+		      struct Lisp_Hash_Table_Impl *from)
 {
   size_t nbytes_entries = from->table_size * sizeof from->entries[0];
   memcpy (to->entries, from->entries, nbytes_entries);
@@ -4674,7 +4675,7 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
   struct Lisp_Hash_Table *h2;
 
   h2 = allocate_hash_table (h1->i->table_size);
-  copy_hash_impl (h2->i, h1->i);
+  copy_hash_table_impl (h2->i, h1->i);
   return make_lisp_hash_table (h2);
 }
 
@@ -4702,8 +4703,8 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	? min_size
 	: (base_size <= 64 ? base_size * 4 : base_size * 2);
 
-      struct Lisp_Hash_Impl *new_impl = allocate_hash_impl (new_size);
-      copy_hash_impl (new_impl, h->i);
+      struct Lisp_Hash_Table_Impl *new_impl = allocate_hash_table_impl (new_size);
+      copy_hash_table_impl (new_impl, h->i);
 
       for (ptrdiff_t i = old_size; i < new_size; i++)
 	{
@@ -4756,7 +4757,7 @@ void
 hash_table_thaw (Lisp_Object hash_table)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (hash_table);
-  struct Lisp_Hash_Impl *impl = h->i;
+  struct Lisp_Hash_Table_Impl *impl = h->i;
 
   /* Freezing discarded most non-essential information; recompute it.
      The allocation is minimal with no room for growth.  */

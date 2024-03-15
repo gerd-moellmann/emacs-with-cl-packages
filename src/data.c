@@ -232,7 +232,7 @@ for example, (type-of 1) returns `integer'.  */)
         case PVEC_BOOL_VECTOR: return Qbool_vector;
         case PVEC_FRAME: return Qframe;
         case PVEC_HASH_TABLE: return Qhash_table;
-        case PVEC_HASH_IMPL: return Qhash_table_impl;
+        case PVEC_HASH_TABLE_IMPL: return Qhash_table_impl;
         case PVEC_FONT:
           if (FONT_SPEC_P (object))
 	    return Qfont_spec;

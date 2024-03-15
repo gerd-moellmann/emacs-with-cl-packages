@@ -2097,7 +2097,7 @@ print_vectorlike_unreadable (Lisp_Object obj, Lisp_Object printcharfun,
     case PVEC_CHAR_TABLE:
     case PVEC_SUB_CHAR_TABLE:
     case PVEC_HASH_TABLE:
-    case PVEC_HASH_IMPL:
+    case PVEC_HASH_TABLE_IMPL:
     case PVEC_BIGNUM:
     case PVEC_BOOL_VECTOR:
     /* Impossible cases.  */
