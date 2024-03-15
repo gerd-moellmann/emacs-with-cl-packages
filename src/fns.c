@@ -4556,19 +4556,15 @@ compute_hash_index_bits (hash_idx_t size)
 struct Lisp_Hash_Impl *
 allocate_hash_impl (size_t nentries)
 {
-#ifdef HAVE_MPS
-  #error not yet implemented
-#endif
+  /* So that we have at least 1 index, next,... */
   size_t nbytes_entries = nentries * sizeof (struct hash_entry);
+  // Note that index_bits == 1 for nentries = 0
   size_t index_bits = compute_hash_index_bits (nentries);
   size_t nbytes_index = (1 << index_bits) * sizeof (hash_idx_t);
   size_t nbytes_total = (sizeof (struct Lisp_Hash_Impl)
 			 + nbytes_entries + nbytes_index);
-
-  size_t nwords = nbytes_total / word_size;
-  struct Lisp_Hash_Impl *h = (struct Lisp_Hash_Impl *) allocate_vectorlike (nwords, false);
-  XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
-
+  struct Lisp_Hash_Impl *h = (struct Lisp_Hash_Impl *)
+    allocate_pseudovector (nbytes_total, 0, 0, PVEC_HASH_IMPL);
   h->test = NULL;
   h->count = 0;
   h->next_free = -1;
@@ -4578,7 +4574,6 @@ allocate_hash_impl (size_t nentries)
   h->weakness = Weak_None;
   h->purecopy = false;
   h->mutable = true;
-
   return h;
 }
 
