@@ -16,40 +16,36 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
-// clang-format off
-
 /*
+  - Does C have something like C++ thread_local etc?
 
-- Does C have something like C++ thread_local etc?
+  - itree: buffer -> itree_tree, overlay <-> itree_node. The backref
+    from the node to the overlay means we need to fix it, and it is
+    currently xalloc'd. Workaround for now: alloc itree nodes from a
+    pool of their own, like intervals.
 
-- itree: buffer -> itree_tree, overlay <-> itree_node. The backref from
-  the node to the overlay means we need to fix it, and it is currently
-  xalloc'd. Workaround for now: alloc itree nodes from a pool of their
-  own, like intervals.
+  - terminal -> image_cache->images -> image, and image has refs,
+    everything is xmalloc'd. Put images in a pool to scan them.
+    Since images are managed manually, alloc from pool, don't xfree,
+    don't finalize. Find refs to images, by makiing cache::images
+    an ambig root.
 
-- terminal -> image_cache->images -> image, and image has refs,
-  everything is xmalloc'd. Put images in a pool to scan them.  Since
-  images are managed manually, alloc from pool, don't xfree, don't
-  finalize. Find refs to images, by makiing cache::images an ambig root.
+  - frame -> face_cache::faces_by_id -> face -> font. font is pvec.
+    face has refs. Same procedure as for images.
 
-- frame -> face_cache::faces_by_id -> face -> font. font is pvec.  face
-  has refs. Same procedure as for images.
+  - window -> glyph_matrix -> glyph_row[] -> glyph[], and for frames
+    with glyph_pool. Could do the same as for faces, images, but make
+    glyphs ambiguous roots for trying it out (igc_x*alloc etc).
 
-- window -> glyph_matrix -> glyph_row[] -> glyph[], and for frames with
-  glyph_pool. Could do the same as for faces, images, but make glyphs
-  ambiguous roots for trying it out (igc_x*alloc etc).
+  - hash_table -> key_and_value which is malloc'd. Rewrite so that
+    the ht has everything in its objects. Needed because we only have
+    exclusive access to objs being scanned themselves, and we need
+    to do things for eq hts (address changes).
 
-- hash_table -> key_and_value which is malloc'd. Rewrite so that the ht
-  has everything in its object. Needed because we only have exclusive
-  access to objs being scanned themselves, and we need to do things for
-  eq hts (= address changes).
+  - weak hash tables
+ */
 
-- weak hash tables
-
-- idea for cons allocation: fill free-list in another thread. What
-  does emacs have in the low-level department that is portable?
-
-*/
+// clang-format off
 
 #include <config.h>
 
@@ -86,6 +82,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 /* Frames have stuff for text conversion which contains Lisp_Objects, so
    this must be some form of root.  MacOS doesn't HAVE_TEXT_CONVERSION,
    so that I left this out.  */
+
 #ifdef HAVE_TEXT_CONVERSION
 #error "HAVE_TEXT_CONVERSION not supported"
 #endif
@@ -96,7 +93,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #define IGC_ASSERT(expr) (void) 9
 #endif
 
-/* Can't remember verify. */
 #define igc_static_assert(x) verify (x)
 
 #define IGC_TAG_MASK (~ VALMASK)
