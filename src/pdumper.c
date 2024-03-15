@@ -2637,6 +2637,22 @@ dump_vectorlike_generic (struct dump_context *ctx,
   return offset;
 }
 
+/* Return a vector of KEY, VALUE pairs in the given hash table H.
+   No room for growth is included.  */
+static struct Lisp_Hash_Table_Impl *
+hash_table_impl_contents (struct Lisp_Hash_Table_Impl *h)
+{
+  struct Lisp_Hash_Table_Impl *n = allocate_hash_table_impl (h->count);
+  ptrdiff_t i = 0;
+  DOHASH_IMPL (h, k, v)
+    {
+      n->entries[i].key = k;
+      n->entries[i].value = v;
+      ++i;
+    }
+  return n;
+}
+
 static void
 dump_hash_table_list (struct dump_context *ctx)
 {
@@ -2662,26 +2678,16 @@ hash_table_std_test (const struct hash_table_test *t)
    preparing it for dumping.
    See `hash_table_thaw' for the code that restores the object to a usable
    state. */
-static void
-hash_table_freeze (struct Lisp_Hash_Table *h)
+static struct Lisp_Hash_Table_Impl *
+hash_table_impl_freeze (struct Lisp_Hash_Table_Impl *in)
 {
-  struct Lisp_Hash_Table_Impl *ni
-    = allocate_hash_table_impl (h->i->count);
-  ptrdiff_t i = 0;
-  DOHASH_IMPL (h->i, k, v)
-    {
-      ni->entries[i].key = k;
-      ni->entries[i].value = v;
-      ++i;
-    }
-
-  /* Will recomputed when hash_table_thaw'ing.  */
-  ni->index = NULL;
-  ni->table_size = 0;
-  ni->index_bits = 0;
-  ni->frozen_test = hash_table_std_test (h->i->test);
-  ni->test = NULL;
-  h->i = ni;
+  struct Lisp_Hash_Table_Impl *h = hash_table_impl_contents (in);
+  h->index = NULL;
+  h->table_size = 0;
+  h->index_bits = 0;
+  h->frozen_test = hash_table_std_test (h->test);
+  h->test = NULL;
+  return h;
 }
 
 static void
@@ -2720,7 +2726,6 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
   struct Lisp_Hash_Table hash_munged = *hash_in;
   struct Lisp_Hash_Table *hash = &hash_munged;
 
-  hash_table_freeze (hash);
   Lisp_Object obj = make_lisp_hash_table (hash_in);
   dump_push (&ctx->hash_tables, obj);
 
@@ -2732,11 +2737,13 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
 }
 
 static dump_off
-dump_hash_table_impl (struct dump_context *ctx, struct Lisp_Hash_Table_Impl *hash)
+dump_hash_table_impl (struct dump_context *ctx, struct Lisp_Hash_Table_Impl *hash_in)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_Impl0360833954
-# error "Lisp_Hash_Table_Impl changed. See CHECK_STRUCTS comment in config.h."
+#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
+# error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
 #endif
+  struct Lisp_Hash_Table_Impl *hash = hash_table_impl_freeze (hash_in);
+
   START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table_Impl, out);
   dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
   DUMP_FIELD_COPY (out, hash, count);
