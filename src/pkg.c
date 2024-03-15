@@ -1130,14 +1130,6 @@ init_pkg_once (void)
 				     make_fixnum (100000));
   pkg_register_package (Vemacs_package);
 
-  for (int i = 0; i < 100; ++i)
-    {
-      Fputhash (make_fixnum (i), make_fixnum (i), Vpackage_registry);
-      Lisp_Object val = Fgethash (make_fixnum (i), Vpackage_registry, Qnil);
-      if (!FIXNUMP (val) || XFIXNAT (val) != i)
-	emacs_abort ();
-    }
-
   staticpro (&Vkeyword_package);
   Vkeyword_package = pkg_make_package (build_string ("keyword"),
 				       make_fixnum (5000));
