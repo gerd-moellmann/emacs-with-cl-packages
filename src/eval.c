@@ -1416,8 +1416,8 @@ push_handler_bind (Lisp_Object conditions, Lisp_Object handler, int skip)
 }
 
 DEFUN ("handler-bind-1", Fhandler_bind_1, Shandler_bind_1, 1, MANY, 0,
-       doc: /* Setup error handlers around execution of BODYFUN.
-BODYFUN be a function and it is called with no arguments.
+       doc: /* Set up error handlers around execution of BODYFUN.
+BODYFUN should be a function and it is called with no arguments.
 CONDITIONS should be a list of condition names (symbols).
 When an error is signaled during execution of BODYFUN, if that
 error matches one of CONDITIONS, then the associated HANDLER is
@@ -3524,7 +3524,7 @@ specbind (Lisp_Object symbol, Lisp_Object value)
   switch (sym->u.s.redirect)
     {
     case SYMBOL_VARALIAS:
-      sym = SYMBOL_ALIAS (sym); symbol = make_lisp_symbol (sym); goto start;
+      sym = SYMBOL_ALIAS (sym); XSETSYMBOL (symbol, sym); goto start;
     case SYMBOL_PLAINVAL:
       /* The most common case is that of a non-constant symbol with a
 	 trivial value.  Make that as fast as we can.  */

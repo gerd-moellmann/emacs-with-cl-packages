@@ -4013,7 +4013,7 @@ Its value is void, and its function definition and property list are nil.  */)
 	}
 
       ASAN_UNPOISON_SYMBOL (&symbol_block->symbols[symbol_block_index]);
-      val = make_lisp_symbol (&symbol_block->symbols[symbol_block_index]);
+      XSETSYMBOL (val, &symbol_block->symbols[symbol_block_index]);
       symbol_block_index++;
     }
 
@@ -7245,8 +7245,12 @@ process_mark_stack (ptrdiff_t base_sp)
 		mark_stack_push_value (SYMBOL_VAL (ptr));
 		break;
 	      case SYMBOL_VARALIAS:
-		mark_stack_push_value (make_lisp_symbol (SYMBOL_ALIAS (ptr)));
-		break;
+		{
+		  Lisp_Object tem;
+		  XSETSYMBOL (tem, SYMBOL_ALIAS (ptr));
+		  mark_stack_push_value (tem);
+		  break;
+		}
 	      case SYMBOL_LOCALIZED:
 		{
 		  struct Lisp_Buffer_Local_Value *blv = SYMBOL_BLV (ptr);

@@ -3063,12 +3063,11 @@ lambda-expression."
 	  (append (if (not lexical-binding) arglistvars)
                   byte-compile-bound-variables))
 	 (body (cdr (cdr fun)))
-	 (doc (if (stringp (car body))
+         ;; Treat a final string literal as a value, not a doc string.
+	 (doc (if (and (cdr body) (stringp (car body)))
                   (prog1 (car body)
-                    ;; Discard the doc string from the body
-                    ;; unless it is the last element of the body.
-                    (if (cdr body)
-                        (setq body (cdr body))))))
+                    ;; Discard the doc string from the body.
+                    (setq body (cdr body)))))
 	 (int (assq 'interactive body))
          command-modes)
     (when lexical-binding
@@ -5539,23 +5538,14 @@ invoked interactively."
 		 (if (null f)
 		     " <top level>";; shouldn't insert nil then, actually -sk
 		   " <not defined>"))
-		((subrp (setq f (symbol-function f)))
-		 " <subr>")
-		((symbolp f)
+		((symbolp (setq f (symbol-function f))) ;; An alias.
 		 (format " ==> %s" f))
-		((byte-code-function-p f)
-		 "<compiled function>")
 		((not (consp f))
-		 "<malformed function>")
+		 (format " <%s>" (type-of f)))
 		((eq 'macro (car f))
-		 (if (or (compiled-function-p (cdr f))
-			 ;; FIXME: Can this still happen?
-			 (assq 'byte-code (cdr (cdr (cdr f)))))
+		 (if (compiled-function-p (cdr f))
 		     " <compiled macro>"
 		   " <macro>"))
-		((assq 'byte-code (cdr (cdr f)))
-		 ;; FIXME: Can this still happen?
-		 "<compiled lambda>")
 		((eq 'lambda (car f))
 		 "<function>")
 		(t "???"))

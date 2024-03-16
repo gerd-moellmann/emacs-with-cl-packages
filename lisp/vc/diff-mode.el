@@ -240,6 +240,8 @@ The default \"-b\" means to ignore whitespace-only changes,
      :help "Apply the current hunk to the source file and go to the next"]
     ["Test applying hunk"	diff-test-hunk
      :help "See whether it's possible to apply the current hunk"]
+    ["Apply all hunks"		diff-apply-buffer
+     :help "Apply all hunks in the current diff buffer"]
     ["Apply diff with Ediff"	diff-ediff-patch
      :help "Call `ediff-patch-file' on the current buffer"]
     ["Create Change Log entries" diff-add-change-log-entries-other-window
@@ -2353,7 +2355,7 @@ by `diff-refine-hunk'."
                                         (match-end 0)
                                         'diff-refine-removed))
              (goto-char middle)
-             (while (re-search-forward "^\\(?:+.*\n\\)+" end t)
+             (while (re-search-forward "^\\(?:\\+.*\n\\)+" end t)
                (diff--refine-propertize (match-beginning 0)
                                         (match-end 0)
                                         'diff-refine-added))))))

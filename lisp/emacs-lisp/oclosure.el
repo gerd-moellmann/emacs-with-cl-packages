@@ -139,12 +139,15 @@
                (:include cl--class)
                (:copier nil))
   "Metaclass for OClosure classes."
+  ;; The `allparents' slot is used for the predicate that checks if a given
+  ;; object is an OClosure of a particular type.
   (allparents nil :read-only t :type (list-of symbol)))
 
 (setf (cl--find-class 'oclosure)
       (oclosure--class-make 'oclosure
-                            "The root parent of all OClosure classes"
-                            nil nil '(oclosure)))
+                            "The root parent of all OClosure types"
+                            nil (list (cl--find-class 'function))
+                            '(oclosure)))
 (defun oclosure--p (oclosure)
   (not (not (oclosure-type oclosure))))
 
@@ -434,7 +437,7 @@ This has 2 uses:
 - For compiled code, this is used as a marker which cconv uses to check that
   immutable fields are indeed not mutated."
   (if (byte-code-function-p oclosure)
-      ;; Actually, this should never happen since the `cconv.el' should have
+      ;; Actually, this should never happen since `cconv.el' should have
       ;; optimized away the call to this function.
       oclosure
     ;; For byte-coded functions, we store the type as a symbol in the docstring

@@ -7109,6 +7109,10 @@ current at the start of the function.  If DONT-SET-MINIWINDOW is non-nil,
 the mini-window of the frame doesn't get set to the corresponding element
 of CONFIGURATION.
 
+This function consults the variable `window-restore-killed-buffer-windows'
+when restoring a window whose buffer was killed after CONFIGURATION was
+recorded.
+
 If CONFIGURATION was made from a frame that is now deleted,
 only frame-independent values can be restored.  In this case,
 the return value is nil.  Otherwise the value is t.  */)
@@ -7119,6 +7123,7 @@ the return value is nil.  Otherwise the value is t.  */)
   struct Lisp_Vector *saved_windows;
   Lisp_Object new_current_buffer;
   Lisp_Object frame;
+  Lisp_Object kept_windows = Qnil;
   Lisp_Object old_frame = selected_frame;
   struct frame *f;
   ptrdiff_t old_point = -1;
@@ -7359,6 +7364,13 @@ the return value is nil.  Otherwise the value is t.  */)
 		   BUF_PT (XBUFFER (w->contents)),
 		   BUF_PT_BYTE (XBUFFER (w->contents)));
 	      w->start_at_line_beg = true;
+	      if (FUNCTIONP (window_restore_killed_buffer_windows)
+		  && !MINI_WINDOW_P (w))
+		kept_windows = Fcons (listn (6, window, p->buffer,
+					     Fmarker_last_position (p->start),
+					     Fmarker_last_position (p->pointm),
+					     p->dedicated, Qt),
+				      kept_windows);
 	    }
 	  else if (!NILP (w->start))
 	    /* Leaf window has no live buffer, get one.  */
@@ -7374,11 +7386,25 @@ the return value is nil.  Otherwise the value is t.  */)
 	      set_marker_restricted_both (w->pointm, w->contents, 0, 0);
 	      set_marker_restricted_both (w->old_pointm, w->contents, 0, 0);
 	      w->start_at_line_beg = true;
-	      if (!NILP (w->dedicated))
-		/* Record this window as dead.  */
-		dead_windows = Fcons (window, dead_windows);
-	      /* Make sure window is no more dedicated.  */
-	      wset_dedicated (w, Qnil);
+	      if (!MINI_WINDOW_P (w))
+		{
+		  if (FUNCTIONP (window_restore_killed_buffer_windows))
+		    kept_windows
+		      = Fcons (listn (6, window, p->buffer,
+				      Fmarker_last_position (p->start),
+				      Fmarker_last_position (p->pointm),
+				      p->dedicated, Qnil),
+			       kept_windows);
+		  else if (EQ (window_restore_killed_buffer_windows, Qdelete)
+			   || (!NILP (p->dedicated)
+			       && (NILP (window_restore_killed_buffer_windows)
+				   || EQ (window_restore_killed_buffer_windows,
+					  Qdedicated))))
+		    /* Try to delete this window later.  */
+		    dead_windows = Fcons (window, dead_windows);
+		  /* Make sure window is no more dedicated.  */
+		  wset_dedicated (w, Qnil);
+		}
 	    }
 	}
 
@@ -7482,6 +7508,11 @@ the return value is nil.  Otherwise the value is t.  */)
   minibuf_selected_window = data->minibuf_selected_window;
 
   SAFE_FREE ();
+
+  if (!NILP (Vrun_hooks) && FUNCTIONP (window_restore_killed_buffer_windows))
+    safe_calln (window_restore_killed_buffer_windows,
+		frame, kept_windows, Qconfiguration);
+
   return FRAME_LIVE_P (f) ? Qt : Qnil;
 }
 
@@ -8479,6 +8510,9 @@ syms_of_window (void)
   DEFSYM (Qheader_line_format, "header-line-format");
   DEFSYM (Qtab_line_format, "tab-line-format");
   DEFSYM (Qno_other_window, "no-other-window");
+  DEFSYM (Qconfiguration, "configuration");
+  DEFSYM (Qdelete, "delete");
+  DEFSYM (Qdedicated, "dedicated");
 
   DEFVAR_LISP ("temp-buffer-show-function", Vtemp_buffer_show_function,
 	       doc: /* Non-nil means call as function to display a help buffer.
@@ -8635,6 +8669,62 @@ at least one window on that frame has been added, deleted or changed
 its buffer or its total or body size since the last redisplay.  Each
 call is performed with the frame temporarily selected.  */);
   Vwindow_configuration_change_hook = Qnil;
+
+  DEFVAR_LISP ("window-restore-killed-buffer-windows",
+	       window_restore_killed_buffer_windows,
+	       doc: /* Control restoring windows whose buffer was killed.
+This variable specifies how the functions `set-window-configuration' and
+`window-state-put' shall handle a window whose buffer has been killed
+since the corresponding configuration or state was recorded.  Any such
+window may be live -- in which case it shows some other buffer -- or
+dead at the time one of these functions is called.
+
+By default, `set-window-configuration' leaves the window alone if it is
+live, while `window-state-put' deletes it.  The following values can be
+used to override the default behavior for dead windows in the case of
+`set-window-configuration' and for dead and live windows in the case of
+`window-state-put'.
+
+ - t means to restore the window and show some other buffer in it.
+
+ - `delete' means to try to delete the window.
+
+ - `dedicated' means to try to delete the window if and only if it is
+   dedicated to its buffer.
+
+ - nil, the default, which means that `set-window-configuration' will
+   try to delete the window if and only if it is dedicated to its
+   buffer while `window-state-put' will unconditionally try to delete
+   it.
+
+ - a function means to restore the window and show some other buffer in
+   it, like if the value were t, but also to add an entry for that
+   window to a list that will be later passed as argument to that
+   function.
+
+If a window cannot be deleted (typically, because it is the last window
+on its frame), show another buffer in it.
+
+If the value is a function, it should take three arguments.  The first
+argument specifies the frame whose windows have been restored.  The
+third argument is the constant `configuration' if the windows are
+restored by `set-window-configuration' and the constant `state' if the
+windows are restored by `window-state-put'.
+
+The second argument specifies a list of entries for all windows
+whose previous buffers have been found dead at the time
+`set-window-configuration' or `window-state-put' tried to restore it in
+that window (minibuffer windows are excluded).  This means that the
+function specified by this variable may also delete windows which were
+found to be alive by `set-window-configuration'.
+
+Each entry is a list of six values: the window whose buffer was found
+dead, the dead buffer or its name, the positions of window-start and
+window-point of the buffer in that window, the dedicated state of the
+window as reported by `window-dedicated-p', and a boolean -- t if the
+window was live when `set-window-configuration' tried to restore it,
+and nil otherwise.  */);
+  window_restore_killed_buffer_windows = Qnil;
 
   DEFVAR_LISP ("recenter-redisplay", Vrecenter_redisplay,
 	       doc: /* Non-nil means `recenter' redraws entire frame.
