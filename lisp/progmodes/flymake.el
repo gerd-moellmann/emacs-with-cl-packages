@@ -956,6 +956,7 @@ to handle a report even if TOKEN was not expected.  REGION is
 a (BEG . END) pair of buffer positions indicating that this
 report applies to that region."
   (let ((state (or (gethash backend flymake--state)
+                   (pkg-break nil)
                    (error "Can't find state for %s in `flymake--state'"
                           backend)))
         expected-token)

@@ -3501,7 +3501,6 @@ cleanup_vector (struct Lisp_Vector *vector)
 	if (h->table_size > 0)
 	  {
 	    eassert (h->index_bits > 0);
-	    xfree (h->entries);
 	    xfree (h->index);
 	    ptrdiff_t bytes
 	      = (h->table_size * sizeof *h->entries
