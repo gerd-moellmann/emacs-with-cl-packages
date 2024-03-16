@@ -4549,7 +4549,8 @@ alloc_hash_impl (size_t nentries)
   h = (struct Lisp_Hash_Table_Impl *) allocate_vectorlike (nwords, false);
   memclear (h->entries, nentries * sizeof h->entries[0]);
   XSETPVECTYPESIZE (h, PVEC_HASH_TABLE_IMPL, 0, 0);
-  eassert (PSEUDOVECTOR_TYPE ((void *)h) == PVEC_HASH_TABLE_IMPL);
+  eassert (PSEUDOVECTOR_TYPE ((void *) h) == PVEC_HASH_TABLE_IMPL);
+  set_table_size (h, nentries);
   return h;
 }
 
@@ -4647,15 +4648,17 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 static Lisp_Object
 copy_hash_table (struct Lisp_Hash_Table *h1)
 {
-  struct Lisp_Hash_Table *h2 = allocate_hash_table (h1->i->table_size);
-  memcpy (h2->i, h1->i, hash_impl_nbytes (h1->i));
-  h2->i->mutable = true;
+  struct Lisp_Hash_Table_Impl *h1i = h1->i;
+  struct Lisp_Hash_Table *h2 = allocate_hash_table (h1i->table_size);
+  struct Lisp_Hash_Table_Impl *h2i = h2->i;
+  memcpy (h2i, h1i, hash_impl_nbytes (h1i));
+  h2i->mutable = true;
 
-  if (h1->i->table_size > 0)
+  if (h1i->table_size > 0)
     {
-      ptrdiff_t index_bytes = hash_table_index_size (h1) * sizeof *h1->i->index;
-      h2->i->index = hash_table_alloc_bytes (index_bytes);
-      memcpy (h2->i->index, h1->i->index, index_bytes);
+      ptrdiff_t index_bytes = hash_table_index_size (h1) * sizeof *h1i->index;
+      h2i->index = hash_table_alloc_bytes (index_bytes);
+      memcpy (h2i->index, h1i->index, index_bytes);
     }
   return make_lisp_hash_table (h2);
 }
@@ -4686,8 +4689,11 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
       /* Allocate all the new vectors before updating *H, to
 	 avoid problems if memory is exhausted.  */
       struct Lisp_Hash_Table_Impl *old_i = h->i;
+
       struct Lisp_Hash_Table_Impl *new_i = alloc_hash_impl (new_size);
       memcpy (new_i, h->i, hash_impl_nbytes (h->i));
+      set_table_size (new_i, new_size);
+
       for (ptrdiff_t i = old_size; i < new_size; i++)
 	{
 	  new_i->entries[i].key = HASH_UNUSED_ENTRY_KEY;
