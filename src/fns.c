@@ -4821,6 +4821,8 @@ hash_table_thaw (Lisp_Object hash_table)
 	  set_hash_index_slot (h, start_of_bucket, i);
 	}
     }
+
+  check_table (h);
 }
 
 /* Look up KEY with hash HASH in table H.
