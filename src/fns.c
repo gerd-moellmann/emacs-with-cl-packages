@@ -4292,6 +4292,7 @@ static void
 set_hash_index_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, ptrdiff_t val)
 {
   eassert (idx >= 0 && idx < hash_table_index_size (h));
+  eassert (val == -1 || (val >= 0 && val < h->i->table_size));
   h->i->index[idx] = val;
 }
 
@@ -4393,7 +4394,59 @@ static ptrdiff_t
 HASH_INDEX (struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
   eassert (idx >= 0 && idx < hash_table_index_size (h));
+  ptrdiff_t i = h->i->index[idx];
+  eassert (i == -1 || (i >= 0 && i < h->i->table_size));
   return h->i->index[idx];
+}
+
+static ptrdiff_t hash_index_index (struct Lisp_Hash_Table *h,
+				   hash_hash_t hash);
+
+static void
+check_index (struct Lisp_Hash_Table *h)
+{
+  struct Lisp_Hash_Impl *hi = h->i;
+  ptrdiff_t index_size = hash_table_index_size (h);
+  ptrdiff_t count = 0;
+  for (ptrdiff_t i = 0; i < index_size; ++i)
+    {
+      hash_idx_t idx = hi->index[i];
+      eassert (idx == -1 || (idx >= 0 && idx < hi->table_size));
+      while (idx >= 0)
+	{
+	  struct hash_entry *e = hi->entries + idx;
+	  ++count;
+
+	  eassert (!hash_unused_entry_key_p (e->key));
+	  hash_hash_t hash = hash_from_key (h, e->key);
+	  hash_idx_t bucket = hash_index_index (h, hash);
+	  eassert (bucket == i);
+	  idx = e->next;
+	}
+    }
+  eassert (count == hi->count);
+
+  count = 0;
+  for (ptrdiff_t i = 0; i < hi->table_size; ++i)
+    {
+      struct hash_entry *e = hi->entries + i;
+      if (hash_unused_entry_key_p (e->key))
+	eassert (NILP (e->value));
+      else
+	{
+	  ++count;
+	}
+    }
+  eassert (count == hi->count);
+
+  count = 0;
+  for (ptrdiff_t i = hi->next_free; i >= 0; i = HASH_NEXT (h, i))
+    {
+      struct hash_entry *e = hi->entries + i;
+      eassert (hash_unused_entry_key_p (e->key));
+      ++count;
+    }
+  eassert (count == hi->table_size - hi->count);
 }
 
 /* Restore a hash table's mutability after the critical section exits.  */
@@ -4621,6 +4674,7 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
   h->next_weak = NULL;
   h->i->purecopy = purecopy;
   h->i->mutable = true;
+  check_index (h);
   return make_lisp_hash_table (h);
 }
 
@@ -4645,11 +4699,13 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
       memcpy (i2->index, i1->index, nbytes);
     }
 
+  check_index (h1);
+  check_index (h2);
   return make_lisp_hash_table (h2);
 }
 
 /* Compute index into the index vector from a hash value.  */
-static inline ptrdiff_t
+static ptrdiff_t
 hash_index_index (struct Lisp_Hash_Table *h, hash_hash_t hash)
 {
   return knuth_hash (hash, h->i->index_bits);
@@ -4660,6 +4716,7 @@ hash_index_index (struct Lisp_Hash_Table *h, hash_hash_t hash)
 static void
 maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 {
+  check_index (h);
   if (h->i->next_free < 0)
     {
       size_t old_size = HASH_TABLE_SIZE (h);
@@ -4692,6 +4749,8 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
       for (size_t i = 0; i < new_index_size; i++)
 	new_i->index[i] = -1;
 
+      h->i = new_i;
+
       // Rehash
       for (size_t i = 0; i < old_size; ++i)
 	{
@@ -4704,7 +4763,7 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	    }
 	}
 
-      h->i = new_i;
+      check_index (h);
     }
 }
 
@@ -4770,6 +4829,7 @@ static ptrdiff_t
 hash_lookup_with_hash (struct Lisp_Hash_Table *h,
 		       Lisp_Object key, hash_hash_t hash)
 {
+  check_index (h);
   ptrdiff_t start_of_bucket = hash_index_index (h, hash);
   for (ptrdiff_t i = HASH_INDEX (h, start_of_bucket);
        0 <= i; i = HASH_NEXT (h, i))
@@ -4835,6 +4895,7 @@ hash_put (struct Lisp_Hash_Table *h, Lisp_Object key, Lisp_Object value,
   ptrdiff_t start_of_bucket = hash_index_index (h, hash);
   set_hash_next_slot (h, i, HASH_INDEX (h, start_of_bucket));
   set_hash_index_slot (h, start_of_bucket, i);
+  check_index (h);
   return i;
 }
 
@@ -4848,6 +4909,7 @@ hash_remove_from_table (struct Lisp_Hash_Table *h, Lisp_Object key)
   ptrdiff_t start_of_bucket = hash_index_index (h, hashval);
   ptrdiff_t prev = -1;
 
+  check_index (h);
   for (ptrdiff_t i = HASH_INDEX (h, start_of_bucket);
        0 <= i;
        i = HASH_NEXT (h, i))
@@ -4876,6 +4938,7 @@ hash_remove_from_table (struct Lisp_Hash_Table *h, Lisp_Object key)
 
       prev = i;
     }
+  check_index (h);
 }
 
 
@@ -4901,6 +4964,7 @@ hash_clear (struct Lisp_Hash_Table *h)
       h->i->next_free = 0;
       h->i->count = 0;
     }
+  check_index (h);
 }
 
 
@@ -4937,6 +5001,7 @@ sweep_weak_table (struct Lisp_Hash_Table *h, bool remove_entries_p)
   ptrdiff_t n = hash_table_index_size (h);
   bool marked = false;
 
+  check_index (h);
   for (ptrdiff_t bucket = 0; bucket < n; ++bucket)
     {
       /* Follow collision chain, removing entries that don't survive
@@ -5002,6 +5067,7 @@ sweep_weak_table (struct Lisp_Hash_Table *h, bool remove_entries_p)
 	}
     }
 
+  check_index (h);
   return marked;
 }
 
