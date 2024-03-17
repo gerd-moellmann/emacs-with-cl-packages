@@ -2640,7 +2640,7 @@ dump_vectorlike_generic (struct dump_context *ctx,
 /* Return a vector of KEY, VALUE pairs in the given hash table H.
    No room for growth is included.  */
 static struct hash_entry *
-hash_table_impl_contents (struct Lisp_Hash_Impl *h)
+hash_table_impl_contents (struct hash_impl *h)
 {
   ptrdiff_t size = h->count;
   struct hash_entry *entries
@@ -2683,7 +2683,7 @@ hash_table_std_test (const struct hash_table_test *t)
    See `hash_table_thaw' for the code that restores the object to a usable
    state. */
 static void
-hash_table_impl_freeze (struct Lisp_Hash_Impl *h)
+hash_table_impl_freeze (struct hash_impl *h)
 {
   struct hash_entry *contents = hash_table_impl_contents (h);
   memclear (h->entries, h->table_size * sizeof *contents);
@@ -2725,25 +2725,25 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
   return offset;
 }
 
-static struct Lisp_Hash_Impl *
-copy_hash_impl (const struct Lisp_Hash_Impl *h)
+static struct hash_impl *
+copy_hash_impl (const struct hash_impl *h)
 {
   const size_t nbytes = hash_impl_nbytes (h);
-  struct Lisp_Hash_Impl *copy = xmalloc (nbytes);
+  struct hash_impl *copy = xmalloc (nbytes);
   memcpy (copy, h, nbytes);
   return copy;
 }
 
 static dump_off
-dump_hash_table_impl (struct dump_context *ctx, const struct Lisp_Hash_Impl *hash_in)
+dump_hash_table_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
 {
 #if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
 # error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
 #endif
-  struct Lisp_Hash_Impl *hash = copy_hash_impl (hash_in);
+  struct hash_impl *hash = copy_hash_impl (hash_in);
   hash_table_impl_freeze (hash);
 
-  START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Impl, out);
+  START_DUMP_PVEC (ctx, &hash->header, struct hash_impl, out);
   dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
   DUMP_FIELD_COPY (out, hash, count);
   DUMP_FIELD_COPY (out, hash, weakness);

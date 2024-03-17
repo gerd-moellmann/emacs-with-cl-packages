@@ -2509,7 +2509,7 @@ INLINE int
 /* The structure of a Lisp hash table.  */
 
 struct Lisp_Hash_Table;
-struct Lisp_Hash_Impl;
+struct hash_impl;
 
 /* The type of a hash value stored in the table.
    It's unsigned and a subtype of EMACS_UINT.  */
@@ -2579,7 +2579,7 @@ struct hash_entry
   Lisp_Object value;
 };
 
-struct Lisp_Hash_Impl
+struct hash_impl
 {
   union vectorlike_header header;
 
@@ -2654,18 +2654,18 @@ struct Lisp_Hash_Impl
 struct Lisp_Hash_Table
 {
   union vectorlike_header header;
-  struct Lisp_Hash_Impl *i;
+  struct hash_impl *i;
   /* Next weak hash table if this is a weak hash table.  The head of
      the list is in weak_hash_tables.  Used only during garbage
      collection --- at other times, it is NULL.  */
   struct Lisp_Hash_Table *next_weak;
 };
 
-ptrdiff_t hash_impl_nbytes (const struct Lisp_Hash_Impl *h);
-struct Lisp_Hash_Impl *allocate_hash_impl (size_t nentries);
+ptrdiff_t hash_impl_nbytes (const struct hash_impl *h);
+struct hash_impl *allocate_hash_impl (size_t nentries);
 
 INLINE void
-set_table_size (struct Lisp_Hash_Impl *h, size_t n)
+set_table_size (struct hash_impl *h, size_t n)
 {
   *((hash_idx_t *) &h->table_size) = n;
 }
@@ -2704,11 +2704,11 @@ XHASH_TABLE (Lisp_Object a)
   return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Table);
 }
 
-INLINE struct Lisp_Hash_Impl *
+INLINE struct hash_impl *
 XHASH_TABLE_IMPL (Lisp_Object a)
 {
   eassert (HASH_TABLE_IMPL_P (a));
-  return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Impl);
+  return XUNTAG (a, Lisp_Vectorlike, struct hash_impl);
 }
 
 INLINE Lisp_Object
@@ -2719,7 +2719,7 @@ make_lisp_hash_table (struct Lisp_Hash_Table *h)
 }
 
 INLINE Lisp_Object
-make_lisp_hash_impl (struct Lisp_Hash_Impl *h)
+make_lisp_hash_impl (struct hash_impl *h)
 {
   eassert (PSEUDOVECTOR_TYPEP (&h->header, PVEC_HASH_IMPL));
   return make_lisp_ptr (h, Lisp_Vectorlike);
@@ -2758,7 +2758,7 @@ HASH_TABLE_SIZE (const struct Lisp_Hash_Table *h)
 
 /* Size of the index vector in hash table H.  */
 INLINE ptrdiff_t
-hash_table_impl_index_size (const struct Lisp_Hash_Impl *h)
+hash_table_impl_index_size (const struct hash_impl *h)
 {
   return (ptrdiff_t)1 << h->index_bits;
 }

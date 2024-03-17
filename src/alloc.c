@@ -3351,7 +3351,7 @@ allocate_vector_from_block (ptrdiff_t nbytes)
 /* Return the memory footprint of V in bytes.  */
 
 ptrdiff_t
-hash_impl_nbytes (const struct Lisp_Hash_Impl *h)
+hash_impl_nbytes (const struct hash_impl *h)
 {
   ptrdiff_t nbytes = sizeof *h + h->table_size * sizeof h->entries[0];
   return vroundup (nbytes);
@@ -3376,7 +3376,7 @@ vectorlike_nbytes (const union vectorlike_header *hdr)
         }
       else if (PSEUDOVECTOR_TYPEP (hdr, PVEC_HASH_IMPL))
 	{
-          struct Lisp_Hash_Impl *h = (struct Lisp_Hash_Impl *) hdr;
+          struct hash_impl *h = (struct hash_impl *) hdr;
 	  return hash_impl_nbytes (h);
         }
       else
@@ -3510,7 +3510,7 @@ cleanup_vector (struct Lisp_Vector *vector)
       break;
     case PVEC_HASH_IMPL:
       {
-	struct Lisp_Hash_Impl *h = PSEUDOVEC_STRUCT (vector, Lisp_Hash_Impl);
+	struct hash_impl *h = PSEUDOVEC_STRUCT (vector, hash_impl);
 	if (h->table_size > 0)
 	  {
 	    eassert (h->index_bits > 0);
@@ -3651,11 +3651,11 @@ sweep_vectors (void)
   gcstat.total_hash_table_bytes = hash_table_allocated_bytes;
 }
 
-struct Lisp_Hash_Impl *
+struct hash_impl *
 allocate_hash_impl (size_t nentries)
 {
   eassert_not_mps ();
-  struct Lisp_Hash_Impl *h;
+  struct hash_impl *h;
   ptrdiff_t nbytes = vroundup (sizeof *h + nentries * sizeof h->entries[0]);
   struct Lisp_Vector *p;
 
@@ -3678,7 +3678,7 @@ allocate_hash_impl (size_t nentries)
   vector_cells_consed += nbytes / word_size;
   MALLOC_UNBLOCK_INPUT;
 
-  h = (struct Lisp_Hash_Impl *) p;
+  h = (struct hash_impl *) p;
   set_table_size (h, nentries);
   XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
   eassert (PSEUDOVECTOR_TYPE (p) == PVEC_HASH_IMPL);
@@ -7259,7 +7259,7 @@ process_mark_stack (ptrdiff_t base_sp)
 
 	      case PVEC_HASH_IMPL:
 		{
-		  struct Lisp_Hash_Impl *h = (struct Lisp_Hash_Impl *)ptr;
+		  struct hash_impl *h = (struct hash_impl *)ptr;
 		  set_vector_marked (ptr);
 		  if (h->weakness == Weak_None)
 		    {
