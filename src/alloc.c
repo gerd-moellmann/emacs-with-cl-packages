@@ -7288,7 +7288,7 @@ process_mark_stack (ptrdiff_t base_sp)
 		      weak_hash_tables = h;
 		    }
 
-		  Lisp_Object obj = make_lisp_hash_table_impl (h->i);
+		  Lisp_Object obj = make_lisp_hash_impl (h->i);
 		  mark_stack_push_value (obj);
 		}
 		break;

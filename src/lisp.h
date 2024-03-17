@@ -2719,7 +2719,7 @@ make_lisp_hash_table (struct Lisp_Hash_Table *h)
 }
 
 INLINE Lisp_Object
-make_lisp_hash_table_impl (struct Lisp_Hash_Impl *h)
+make_lisp_hash_impl (struct Lisp_Hash_Impl *h)
 {
   eassert (PSEUDOVECTOR_TYPEP (&h->header, PVEC_HASH_IMPL));
   return make_lisp_ptr (h, Lisp_Vectorlike);
