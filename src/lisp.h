@@ -2661,11 +2661,11 @@ struct Lisp_Hash_Table
   struct Lisp_Hash_Table *next_weak;
 };
 
-INLINE size_t hash_impl_nbytes (const struct Lisp_Hash_Table_Impl *h) {
-  return sizeof *h + h->table_size * sizeof h->entries[0];
-}
+ptrdiff_t hash_impl_nbytes (const struct Lisp_Hash_Table_Impl *h);
 
-INLINE void set_table_size (struct Lisp_Hash_Table_Impl *h, size_t n) {
+INLINE void
+set_table_size (struct Lisp_Hash_Table_Impl *h, size_t n)
+{
   *((hash_idx_t *) &h->table_size) = n;
 }
 

@@ -4691,7 +4691,8 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
       struct Lisp_Hash_Table_Impl *old_i = h->i;
       struct Lisp_Hash_Table_Impl *new_i = alloc_hash_impl (new_size);
       memcpy (new_i, old_i, hash_impl_nbytes (old_i));
-      set_table_size (new_i, new_size); /* Restore because of memcpy */
+      // Restore because of memcpy
+      set_table_size (new_i, new_size);
 
       for (size_t i = old_size; i < new_size; i++)
 	{
@@ -4702,12 +4703,11 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
       new_i->next_free = old_size;
       new_i->index_bits = compute_hash_index_bits (new_size);
 
+      // Make new index and clear it
       size_t new_index_size = hash_table_impl_index_size (new_i);
       new_i->index = hash_table_alloc_bytes (new_index_size * sizeof *new_i->index);
       for (size_t i = 0; i < new_index_size; i++)
 	new_i->index[i] = -1;
-
-      h->i = new_i;
 
       // Rehash
       for (size_t i = 0; i < old_size; ++i)
@@ -4720,6 +4720,8 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	      new_i->index[start_of_bucket] = i;
 	    }
 	}
+
+      h->i = new_i;
     }
 }
 

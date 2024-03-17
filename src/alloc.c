@@ -3267,6 +3267,7 @@ static ptrdiff_t
 pseudovector_nbytes (const union vectorlike_header *hdr)
 {
   eassert (!PSEUDOVECTOR_TYPEP (hdr, PVEC_BOOL_VECTOR));
+  eassert (!PSEUDOVECTOR_TYPEP (hdr, PVEC_HASH_TABLE_IMPL));
   ptrdiff_t nwords = ((hdr->size & PSEUDOVECTOR_SIZE_MASK)
 		      + ((hdr->size & PSEUDOVECTOR_REST_MASK)
 			 >> PSEUDOVECTOR_SIZE_BITS));
@@ -3350,6 +3351,13 @@ allocate_vector_from_block (ptrdiff_t nbytes)
 /* Return the memory footprint of V in bytes.  */
 
 ptrdiff_t
+hash_impl_nbytes (const struct Lisp_Hash_Table_Impl *h)
+{
+  ptrdiff_t nbytes = sizeof *h + h->table_size * sizeof h->entries[0];
+  return vroundup (nbytes);
+}
+
+ptrdiff_t
 vectorlike_nbytes (const union vectorlike_header *hdr)
 {
   ptrdiff_t size = hdr->size & ~ARRAY_MARK_FLAG;
@@ -3365,6 +3373,11 @@ vectorlike_nbytes (const union vectorlike_header *hdr)
 	  ptrdiff_t boolvec_bytes = bool_header_size + word_bytes;
 	  verify (header_size <= bool_header_size);
 	  nwords = (boolvec_bytes - header_size + word_size - 1) / word_size;
+        }
+      else if (PSEUDOVECTOR_TYPEP (hdr, PVEC_HASH_TABLE_IMPL))
+	{
+          struct Lisp_Hash_Table_Impl *h = (struct Lisp_Hash_Table_Impl *) hdr;
+	  return hash_impl_nbytes (h);
         }
       else
 	return pseudovector_nbytes (hdr);
@@ -4335,6 +4348,7 @@ vector_marked_p (const struct Lisp_Vector *v)
           eassert (PSEUDOVECTOR_TYPE (v) == PVEC_BOOL_VECTOR);
           return true;
         }
+      eassert (PSEUDOVECTOR_TYPE (v) != PVEC_HASH_TABLE_IMPL);
       return pdumper_marked_p (v);
     }
   return XVECTOR_MARKED_P (v);
@@ -4346,6 +4360,7 @@ set_vector_marked (struct Lisp_Vector *v)
   if (pdumper_object_p (v))
     {
       eassert (PSEUDOVECTOR_TYPE (v) != PVEC_BOOL_VECTOR);
+      eassert (PSEUDOVECTOR_TYPE (v) != PVEC_HASH_TABLE_IMPL);
       pdumper_set_marked (v);
     }
   else
@@ -5652,6 +5667,9 @@ valid_lisp_object_p (Lisp_Object obj)
   if (FIXNUMP (obj))
     return 1;
 
+  if (PACKAGEP (obj))
+    pkg_break ();
+
   void *p = XPNTR (obj);
   if (PURE_P (p))
     return 1;
@@ -6769,6 +6787,7 @@ mark_vectorlike (union vectorlike_header *header)
 
   /* Bool vectors have a different case in mark_object.  */
   eassert (PSEUDOVECTOR_TYPE (ptr) != PVEC_BOOL_VECTOR);
+  eassert (PSEUDOVECTOR_TYPE (ptr) != PVEC_HASH_TABLE_IMPL);
 
   set_vector_marked (ptr); /* Else mark it.  */
   if (size & PSEUDOVECTOR_FLAG)
