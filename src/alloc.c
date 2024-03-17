@@ -5701,9 +5701,6 @@ valid_lisp_object_p (Lisp_Object obj)
   if (FIXNUMP (obj))
     return 1;
 
-  if (PACKAGEP (obj))
-    pkg_break ();
-
   void *p = XPNTR (obj);
   if (PURE_P (p))
     return 1;
