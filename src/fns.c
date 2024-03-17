@@ -4690,10 +4690,10 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 
       struct Lisp_Hash_Table_Impl *old_i = h->i;
       struct Lisp_Hash_Table_Impl *new_i = alloc_hash_impl (new_size);
-      memcpy (new_i, h->i, hash_impl_nbytes (h->i));
+      memcpy (new_i, old_i, hash_impl_nbytes (old_i));
       set_table_size (new_i, new_size); /* Restore because of memcpy */
 
-      for (ptrdiff_t i = old_size; i < new_size; i++)
+      for (size_t i = old_size; i < new_size; i++)
 	{
 	  new_i->entries[i].key = HASH_UNUSED_ENTRY_KEY;
 	  new_i->entries[i].next = i + 1;
@@ -4702,30 +4702,24 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
       new_i->next_free = old_size;
       new_i->index_bits = compute_hash_index_bits (new_size);
 
-      ptrdiff_t old_index_size = hash_table_impl_index_size (old_i);
-      ptrdiff_t new_index_size = hash_table_impl_index_size (new_i);
+      size_t new_index_size = hash_table_impl_index_size (new_i);
       new_i->index = hash_table_alloc_bytes (new_index_size * sizeof *new_i->index);
       for (size_t i = 0; i < new_index_size; i++)
 	new_i->index[i] = -1;
 
-      if (old_i->index != empty_hash_index_vector)
-	hash_table_free_bytes (old_i->index, old_index_size * sizeof *old_i->index);
-
       h->i = new_i;
 
-      /* Rehash: all data occupy entries 0..old_size-1.  */
-      for (size_t i = 0; i < old_size; i++)
+      // Rehash
+      for (size_t i = 0; i < old_size; ++i)
 	{
-	  hash_hash_t hash_code = HASH_HASH (h, i);
-	  ptrdiff_t start_of_bucket = hash_index_index (h, hash_code);
-	  set_hash_next_slot (h, i, HASH_INDEX (h, start_of_bucket));
-	  set_hash_index_slot (h, start_of_bucket, i);
+	  struct hash_entry *e = new_i->entries + i;
+	  if (!hash_unused_entry_key_p (e->key))
+	    {
+	      size_t start_of_bucket = hash_index_index (h, e->hash);
+	      e->next = new_i->index[start_of_bucket];
+	      new_i->index[start_of_bucket] = i;
+	    }
 	}
-
-#ifdef ENABLE_CHECKING
-      if (HASH_TABLE_P (Vpurify_flag) && XHASH_TABLE (Vpurify_flag) == h)
-	message ("Growing hash table to: %"pD"d", new_size);
-#endif
     }
 }
 
