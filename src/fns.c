@@ -4648,18 +4648,20 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 static Lisp_Object
 copy_hash_table (struct Lisp_Hash_Table *h1)
 {
-  struct Lisp_Hash_Table_Impl *h1i = h1->i;
-  struct Lisp_Hash_Table *h2 = allocate_hash_table (h1i->table_size);
-  struct Lisp_Hash_Table_Impl *h2i = h2->i;
-  memcpy (h2i, h1i, hash_impl_nbytes (h1i));
-  h2i->mutable = true;
+  struct Lisp_Hash_Table_Impl *i1 = h1->i;
 
-  if (h1i->table_size > 0)
+  struct Lisp_Hash_Table *h2 = allocate_hash_table (i1->table_size);
+  struct Lisp_Hash_Table_Impl *i2 = h2->i;
+  memcpy (i2, i1, hash_impl_nbytes (i1));
+  i2->mutable = true;
+
+  if (i1->index != empty_hash_index_vector)
     {
-      ptrdiff_t index_bytes = hash_table_index_size (h1) * sizeof *h1i->index;
-      h2i->index = hash_table_alloc_bytes (index_bytes);
-      memcpy (h2i->index, h1i->index, index_bytes);
+      size_t nbytes = hash_table_index_size (h1) * sizeof i1->index[0];
+      i2->index = hash_table_alloc_bytes (nbytes);
+      memcpy (i2->index, i1->index, nbytes);
     }
+
   return make_lisp_hash_table (h2);
 }
 
@@ -4677,22 +4679,19 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 {
   if (h->i->next_free < 0)
     {
-      ptrdiff_t old_size = HASH_TABLE_SIZE (h);
-      ptrdiff_t min_size = 6;
-      ptrdiff_t base_size = min (max (old_size, min_size), PTRDIFF_MAX / 2);
+      size_t old_size = HASH_TABLE_SIZE (h);
+      size_t min_size = 6;
+      size_t base_size = min (max (old_size, min_size), PTRDIFF_MAX / 2);
       /* Grow aggressively at small sizes, then just double.  */
-      ptrdiff_t new_size =
+      size_t new_size =
 	old_size == 0
 	? min_size
 	: (base_size <= 64 ? base_size * 4 : base_size * 2);
 
-      /* Allocate all the new vectors before updating *H, to
-	 avoid problems if memory is exhausted.  */
       struct Lisp_Hash_Table_Impl *old_i = h->i;
-
       struct Lisp_Hash_Table_Impl *new_i = alloc_hash_impl (new_size);
       memcpy (new_i, h->i, hash_impl_nbytes (h->i));
-      set_table_size (new_i, new_size);
+      set_table_size (new_i, new_size); /* Restore because of memcpy */
 
       for (ptrdiff_t i = old_size; i < new_size; i++)
 	{
@@ -4701,23 +4700,21 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	}
       new_i->entries[new_size - 1].next = -1;
       new_i->next_free = old_size;
+      new_i->index_bits = compute_hash_index_bits (new_size);
 
-      ptrdiff_t old_index_size = hash_table_index_size (h);
-      ptrdiff_t index_bits = compute_hash_index_bits (new_size);
-      new_i->index_bits = index_bits;
-
-      ptrdiff_t index_size = (ptrdiff_t)1 << index_bits;
-      new_i->index = hash_table_alloc_bytes (index_size * sizeof *new_i->index);
-      for (ptrdiff_t i = 0; i < index_size; i++)
+      ptrdiff_t old_index_size = hash_table_impl_index_size (old_i);
+      ptrdiff_t new_index_size = hash_table_impl_index_size (new_i);
+      new_i->index = hash_table_alloc_bytes (new_index_size * sizeof *new_i->index);
+      for (size_t i = 0; i < new_index_size; i++)
 	new_i->index[i] = -1;
-
-      h->i = new_i;
 
       if (old_i->index != empty_hash_index_vector)
 	hash_table_free_bytes (old_i->index, old_index_size * sizeof *old_i->index);
 
+      h->i = new_i;
+
       /* Rehash: all data occupy entries 0..old_size-1.  */
-      for (ptrdiff_t i = 0; i < old_size; i++)
+      for (size_t i = 0; i < old_size; i++)
 	{
 	  hash_hash_t hash_code = HASH_HASH (h, i);
 	  ptrdiff_t start_of_bucket = hash_index_index (h, hash_code);
