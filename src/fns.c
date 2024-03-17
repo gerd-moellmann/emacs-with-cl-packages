@@ -4719,7 +4719,7 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
       new_i->index_bits = compute_hash_index_bits (new_size);
 
       // Make new index and clear it
-      ptrdiff_t new_index_size = hash_table_impl_index_size (new_i);
+      ptrdiff_t new_index_size = hash_impl_index_size (new_i);
       new_i->index = hash_table_alloc_bytes (new_index_size * sizeof *new_i->index);
       for (size_t i = 0; i < new_index_size; i++)
 	new_i->index[i] = -1;

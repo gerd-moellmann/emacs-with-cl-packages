@@ -2692,7 +2692,7 @@ HASH_TABLE_P (Lisp_Object a)
 }
 
 INLINE bool
-HASH_TABLE_IMPL_P (Lisp_Object a)
+HASH_IMPL_P (Lisp_Object a)
 {
   return PSEUDOVECTORP (a, PVEC_HASH_IMPL);
 }
@@ -2705,9 +2705,9 @@ XHASH_TABLE (Lisp_Object a)
 }
 
 INLINE struct hash_impl *
-XHASH_TABLE_IMPL (Lisp_Object a)
+XHASH_IMPL (Lisp_Object a)
 {
-  eassert (HASH_TABLE_IMPL_P (a));
+  eassert (HASH_IMPL_P (a));
   return XUNTAG (a, Lisp_Vectorlike, struct hash_impl);
 }
 
@@ -2758,7 +2758,7 @@ HASH_TABLE_SIZE (const struct Lisp_Hash_Table *h)
 
 /* Size of the index vector in hash table H.  */
 INLINE ptrdiff_t
-hash_table_impl_index_size (const struct hash_impl *h)
+hash_impl_index_size (const struct hash_impl *h)
 {
   return (ptrdiff_t)1 << h->index_bits;
 }
@@ -2766,7 +2766,7 @@ hash_table_impl_index_size (const struct hash_impl *h)
 INLINE ptrdiff_t
 hash_table_index_size (const struct Lisp_Hash_Table *h)
 {
-  return hash_table_impl_index_size (h->i);
+  return hash_impl_index_size (h->i);
 }
 
 /* Hash value for KEY in hash table H.  */
