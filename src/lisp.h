@@ -2662,6 +2662,7 @@ struct Lisp_Hash_Table
 };
 
 ptrdiff_t hash_impl_nbytes (const struct Lisp_Hash_Table_Impl *h);
+struct Lisp_Hash_Table_Impl *allocate_hash_impl (size_t nentries);
 
 INLINE void
 set_table_size (struct Lisp_Hash_Table_Impl *h, size_t n)

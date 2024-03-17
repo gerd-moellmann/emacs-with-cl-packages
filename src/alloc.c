@@ -3651,6 +3651,40 @@ sweep_vectors (void)
   gcstat.total_hash_table_bytes = hash_table_allocated_bytes;
 }
 
+struct Lisp_Hash_Table_Impl *
+allocate_hash_impl (size_t nentries)
+{
+  eassert_not_mps ();
+  struct Lisp_Hash_Table_Impl *h;
+  ptrdiff_t nbytes = vroundup (sizeof *h + nentries * sizeof h->entries[0]);
+  struct Lisp_Vector *p;
+
+  MALLOC_BLOCK_INPUT;
+  if (nbytes <= VBLOCK_BYTES_MAX)
+    {
+      p = allocate_vector_from_block (vroundup (nbytes));
+      memclear (p, nbytes);
+    }
+  else
+    {
+      struct large_vector *lv
+	= lisp_malloc (large_vector_offset + nbytes, true,
+		       MEM_TYPE_VECTORLIKE);
+      lv->next = large_vectors;
+      large_vectors = lv;
+      p = large_vector_vec (lv);
+    }
+  tally_consing (nbytes);
+  vector_cells_consed += nbytes / word_size;
+  MALLOC_UNBLOCK_INPUT;
+
+  h = (struct Lisp_Hash_Table_Impl *) p;
+  set_table_size (h, nentries);
+  XSETPVECTYPESIZE (h, PVEC_HASH_TABLE_IMPL, 0, 0);
+  eassert (PSEUDOVECTOR_TYPE (p) == PVEC_HASH_TABLE_IMPL);
+  return h;
+}
+
 /* Maximum number of elements in a vector.  This is a macro so that it
    can be used in an integer constant expression.  */
 

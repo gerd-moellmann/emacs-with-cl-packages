@@ -4537,30 +4537,13 @@ struct hash_table_test const hashtest_string_equal = {
 
 /* Allocate basically initialized hash table.  */
 
-static struct Lisp_Hash_Table_Impl *
-alloc_hash_impl (size_t nentries)
-{
-  struct Lisp_Hash_Table_Impl *h;
-  size_t nbytes = sizeof *h + nentries * sizeof h->entries[0];
-
-  /* See allocate_vectorlike for how it computes the size. */
-  nbytes -= header_size;
-  size_t nwords = ROUNDUP (nbytes, word_size);
-  h = (struct Lisp_Hash_Table_Impl *) allocate_vectorlike (nwords, false);
-  memclear (h->entries, nentries * sizeof h->entries[0]);
-  XSETPVECTYPESIZE (h, PVEC_HASH_TABLE_IMPL, 0, 0);
-  eassert (PSEUDOVECTOR_TYPE ((void *) h) == PVEC_HASH_TABLE_IMPL);
-  set_table_size (h, nentries);
-  return h;
-}
-
 static struct Lisp_Hash_Table *
 allocate_hash_table (size_t nentries)
 {
   struct Lisp_Hash_Table *h
     = ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Hash_Table,
 				   PVEC_HASH_TABLE);
-  h->i = alloc_hash_impl (nentries);
+  h->i = allocate_hash_impl (nentries);
   return h;
 }
 
@@ -4689,7 +4672,7 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	: (base_size <= 64 ? base_size * 4 : base_size * 2);
 
       struct Lisp_Hash_Table_Impl *old_i = h->i;
-      struct Lisp_Hash_Table_Impl *new_i = alloc_hash_impl (new_size);
+      struct Lisp_Hash_Table_Impl *new_i = allocate_hash_impl (new_size);
       memcpy (new_i, old_i, hash_impl_nbytes (old_i));
       // Restore because of memcpy
       set_table_size (new_i, new_size);
