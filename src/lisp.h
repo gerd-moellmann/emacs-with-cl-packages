@@ -1034,7 +1034,7 @@ enum pvec_type
   PVEC_BOOL_VECTOR,
   PVEC_BUFFER,
   PVEC_HASH_TABLE,
-  PVEC_HASH_TABLE_IMPL,
+  PVEC_HASH_IMPL,
   PVEC_TERMINAL,
   PVEC_WINDOW_CONFIGURATION,
   PVEC_SUBR,
@@ -2509,7 +2509,7 @@ INLINE int
 /* The structure of a Lisp hash table.  */
 
 struct Lisp_Hash_Table;
-struct Lisp_Hash_Table_Impl;
+struct Lisp_Hash_Impl;
 
 /* The type of a hash value stored in the table.
    It's unsigned and a subtype of EMACS_UINT.  */
@@ -2579,7 +2579,7 @@ struct hash_entry
   Lisp_Object value;
 };
 
-struct Lisp_Hash_Table_Impl
+struct Lisp_Hash_Impl
 {
   union vectorlike_header header;
 
@@ -2654,18 +2654,18 @@ struct Lisp_Hash_Table_Impl
 struct Lisp_Hash_Table
 {
   union vectorlike_header header;
-  struct Lisp_Hash_Table_Impl *i;
+  struct Lisp_Hash_Impl *i;
   /* Next weak hash table if this is a weak hash table.  The head of
      the list is in weak_hash_tables.  Used only during garbage
      collection --- at other times, it is NULL.  */
   struct Lisp_Hash_Table *next_weak;
 };
 
-ptrdiff_t hash_impl_nbytes (const struct Lisp_Hash_Table_Impl *h);
-struct Lisp_Hash_Table_Impl *allocate_hash_impl (size_t nentries);
+ptrdiff_t hash_impl_nbytes (const struct Lisp_Hash_Impl *h);
+struct Lisp_Hash_Impl *allocate_hash_impl (size_t nentries);
 
 INLINE void
-set_table_size (struct Lisp_Hash_Table_Impl *h, size_t n)
+set_table_size (struct Lisp_Hash_Impl *h, size_t n)
 {
   *((hash_idx_t *) &h->table_size) = n;
 }
@@ -2694,7 +2694,7 @@ HASH_TABLE_P (Lisp_Object a)
 INLINE bool
 HASH_TABLE_IMPL_P (Lisp_Object a)
 {
-  return PSEUDOVECTORP (a, PVEC_HASH_TABLE_IMPL);
+  return PSEUDOVECTORP (a, PVEC_HASH_IMPL);
 }
 
 INLINE struct Lisp_Hash_Table *
@@ -2704,11 +2704,11 @@ XHASH_TABLE (Lisp_Object a)
   return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Table);
 }
 
-INLINE struct Lisp_Hash_Table_Impl *
+INLINE struct Lisp_Hash_Impl *
 XHASH_TABLE_IMPL (Lisp_Object a)
 {
   eassert (HASH_TABLE_IMPL_P (a));
-  return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Table_Impl);
+  return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Impl);
 }
 
 INLINE Lisp_Object
@@ -2719,9 +2719,9 @@ make_lisp_hash_table (struct Lisp_Hash_Table *h)
 }
 
 INLINE Lisp_Object
-make_lisp_hash_table_impl (struct Lisp_Hash_Table_Impl *h)
+make_lisp_hash_table_impl (struct Lisp_Hash_Impl *h)
 {
-  eassert (PSEUDOVECTOR_TYPEP (&h->header, PVEC_HASH_TABLE_IMPL));
+  eassert (PSEUDOVECTOR_TYPEP (&h->header, PVEC_HASH_IMPL));
   return make_lisp_ptr (h, Lisp_Vectorlike);
 }
 
@@ -2758,7 +2758,7 @@ HASH_TABLE_SIZE (const struct Lisp_Hash_Table *h)
 
 /* Size of the index vector in hash table H.  */
 INLINE ptrdiff_t
-hash_table_impl_index_size (const struct Lisp_Hash_Table_Impl *h)
+hash_table_impl_index_size (const struct Lisp_Hash_Impl *h)
 {
   return (ptrdiff_t)1 << h->index_bits;
 }

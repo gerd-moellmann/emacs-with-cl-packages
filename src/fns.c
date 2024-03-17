@@ -4631,10 +4631,10 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 static Lisp_Object
 copy_hash_table (struct Lisp_Hash_Table *h1)
 {
-  struct Lisp_Hash_Table_Impl *i1 = h1->i;
+  struct Lisp_Hash_Impl *i1 = h1->i;
 
   struct Lisp_Hash_Table *h2 = allocate_hash_table (i1->table_size);
-  struct Lisp_Hash_Table_Impl *i2 = h2->i;
+  struct Lisp_Hash_Impl *i2 = h2->i;
   memcpy (i2, i1, hash_impl_nbytes (i1));
   i2->mutable = true;
 
@@ -4671,8 +4671,8 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	? min_size
 	: (base_size <= 64 ? base_size * 4 : base_size * 2);
 
-      struct Lisp_Hash_Table_Impl *old_i = h->i;
-      struct Lisp_Hash_Table_Impl *new_i = allocate_hash_impl (new_size);
+      struct Lisp_Hash_Impl *old_i = h->i;
+      struct Lisp_Hash_Impl *new_i = allocate_hash_impl (new_size);
       memcpy (new_i, old_i, hash_impl_nbytes (old_i));
       // Restore because of memcpy
       set_table_size (new_i, new_size);
