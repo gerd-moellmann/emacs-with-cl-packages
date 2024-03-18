@@ -2694,18 +2694,6 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
   return offset;
 }
 
-static void
-dump_hash_entry (struct dump_context *ctx, struct hash_entry *e)
-{
-  struct hash_entry out;
-  dump_object_start (ctx, &out, sizeof out);
-  DUMP_FIELD_COPY (&out, e, next);
-  DUMP_FIELD_COPY (&out, e, hash);
-  dump_field_lv (ctx, &out, e, &e->key, WEIGHT_STRONG);
-  dump_field_lv (ctx, &out, e, &e->value, WEIGHT_STRONG);
-  dump_object_finish (ctx, &out, sizeof out);
-}
-
 static struct hash_impl *
 copy_hash_impl (const struct hash_impl *h)
 {
@@ -2713,6 +2701,30 @@ copy_hash_impl (const struct hash_impl *h)
   struct hash_impl *copy = xmalloc (nbytes);
   memcpy (copy, h, nbytes);
   return copy;
+}
+
+static void
+dump_hash_entries (struct dump_context *ctx,
+		   const struct hash_impl *hash)
+{
+  struct dump_flags old_flags = ctx->flags;
+  ctx->flags.pack_objects = true;
+  for (ptrdiff_t i = 0; i < hash->count; i++)
+    {
+      Lisp_Object out;
+
+      const Lisp_Object *slot = &hash->entries[i].key;
+      dump_object_start (ctx, &out, sizeof (out));
+      dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
+      dump_object_finish (ctx, &out, sizeof (out));
+
+      slot = &hash->entries[i].value;
+      dump_object_start (ctx, &out, sizeof (out));
+      dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
+      dump_object_finish (ctx, &out, sizeof (out));
+    }
+  ctx->flags = old_flags;
+  dump_align_output (ctx, DUMP_ALIGNMENT);
 }
 
 static dump_off
@@ -2731,9 +2743,8 @@ dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
   DUMP_FIELD_COPY (out, hash, purecopy);
   DUMP_FIELD_COPY (out, hash, mutable);
   DUMP_FIELD_COPY (out, hash, frozen_test);
-  for (ptrdiff_t i = 0; i < hash->count; i++)
-    dump_hash_entry (ctx, &hash->entries[i]);
   dump_off offset = finish_dump_pvec (ctx, &out->header);
+  dump_hash_entries (ctx, hash);
   xfree (hash);
   return offset;
 }
