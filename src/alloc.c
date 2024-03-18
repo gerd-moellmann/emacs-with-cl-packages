@@ -7261,12 +7261,15 @@ process_mark_stack (ptrdiff_t base_sp)
 		{
 		  struct hash_impl *h = (struct hash_impl *)ptr;
 		  set_vector_marked (ptr);
-		  if (h->weakness == Weak_None)
+		  if (h->weakness != Weak_None)
+		    break;
+		  for (struct hash_entry *e = h->entries;
+		       e < h->entries + h->table_size; ++e)
 		    {
-		      DOHASH_IMPL (h, k, v)
+		      if (!hash_unused_entry_key_p (e->key))
 			{
-			  mark_stack_push_value (k);
-			  mark_stack_push_value (v);
+			  mark_stack_push_value (e->key);
+			  mark_stack_push_value (e->value);
 			}
 		    }
 		  break;
@@ -7285,7 +7288,7 @@ process_mark_stack (ptrdiff_t base_sp)
 		      weak_hash_tables = h;
 		    }
 
-		  Lisp_Object obj = make_lisp_hash_impl (h->i);
+		  Lisp_Object obj = make_lisp_ptr (h->i, Lisp_Vectorlike);
 		  mark_stack_push_value (obj);
 		}
 		break;

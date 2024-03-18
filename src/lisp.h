@@ -2718,13 +2718,6 @@ make_lisp_hash_table (struct Lisp_Hash_Table *h)
   return make_lisp_ptr (h, Lisp_Vectorlike);
 }
 
-INLINE Lisp_Object
-make_lisp_hash_impl (struct hash_impl *h)
-{
-  eassert (PSEUDOVECTOR_TYPEP (&h->header, PVEC_HASH_IMPL));
-  return make_lisp_ptr (h, Lisp_Vectorlike);
-}
-
 /* Value is the key part of entry IDX in hash table H.  */
 INLINE Lisp_Object
 HASH_KEY (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
@@ -2786,18 +2779,6 @@ hash_from_key (struct Lisp_Hash_Table *h, Lisp_Object key)
 	   *base_ = e_;							\
 	 e_ < end_ && (k = e_->key, v = e_->value, (void) v, true);	\
 	 eassert (base_ == (h)->i->entries && end_ == base_ + HASH_TABLE_SIZE (h)), \
-	   e_ += 1)							\
-      if (hash_unused_entry_key_p (k))					\
-	;								\
-      else
-
-# define DOHASH_IMPL(h, k, v)						\
-  for (Lisp_Object k, v, x_ = Qnil; NILP (x_); x_ = Qt)			\
-    for (struct hash_entry *e_ = (h)->entries,			\
-	   *end_ = e_ + (h)->table_size,				\
-	   *base_ = e_;							\
-	 e_ < end_ && (k = e_->key, v = e_->value, (void) v, true);	\
-	 eassert (base_ == (h)->entries && end_ == base_ + (h)->table_size), \
 	   e_ += 1)							\
       if (hash_unused_entry_key_p (k))					\
 	;								\

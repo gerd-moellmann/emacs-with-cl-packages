@@ -2702,16 +2702,17 @@ static void
 dump_hash_entries (struct dump_context *ctx,
 		   const struct hash_impl *hash)
 {
-  for (ptrdiff_t i = 0; i < hash->count; i++)
+  for (const struct hash_entry *e = hash->entries;
+       e < hash->entries + hash->count; ++e)
     {
       Lisp_Object out;
 
-      const Lisp_Object *slot = &hash->entries[i].key;
+      const Lisp_Object *slot = &e->key;
       dump_object_start (ctx, &out, sizeof (out));
       dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
       dump_object_finish (ctx, &out, sizeof (out));
 
-      slot = &hash->entries[i].value;
+      slot = &e->value;
       dump_object_start (ctx, &out, sizeof (out));
       dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
       dump_object_finish (ctx, &out, sizeof (out));
