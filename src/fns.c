@@ -4763,18 +4763,17 @@ hash_table_thaw (Lisp_Object hash_table)
   /* Freezing discarded most non-essential information; recompute it.
      The allocation is minimal with no room for growth.  */
   hi->test = hash_table_test_from_std (h->i->frozen_test);
-  ptrdiff_t count = hi->count;
-  eassert (hi->table_size == count);
+  set_table_size (hi, hi->count);
   hi->next_free = -1;
 
-  if (count == 0)
+  if (hi->count == 0)
     {
       h->i->index_bits = 0;
       h->i->index = (hash_idx_t *)empty_hash_index_vector;
     }
   else
     {
-      ptrdiff_t index_bits = compute_hash_index_bits (count);
+      ptrdiff_t index_bits = compute_hash_index_bits (hi->table_size);
       hi->index_bits = index_bits;
 
       ptrdiff_t index_size = hash_table_index_size (h);
@@ -4782,7 +4781,7 @@ hash_table_thaw (Lisp_Object hash_table)
       for (ptrdiff_t i = 0; i < index_size; i++)
 	hi->index[i] = -1;
 
-      for (ptrdiff_t i = 0; i < count; i++)
+      for (ptrdiff_t i = 0; i < hi->count; i++)
 	{
 	  struct hash_entry *e = hi->entries + i;
 	  e->hash = hash_from_key (h, e->key);

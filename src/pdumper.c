@@ -2667,15 +2667,10 @@ hash_impl_freeze (struct hash_impl *h)
 {
   for (struct hash_entry *from = h->entries, *to = h->entries;
        from < h->entries + h->count; ++from)
-    {
-      if (!hash_unused_entry_key_p (from->key))
+    if (!hash_unused_entry_key_p (from->key))
 	*to++ = *from;
-    }
-  h->index = NULL;
-  set_table_size (h, 0);
   h->index_bits = 0;
   h->frozen_test = hash_table_std_test (h->test);
-  h->test = NULL;
 }
 
 static dump_off
