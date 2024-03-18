@@ -4402,7 +4402,7 @@ HASH_INDEX (struct Lisp_Hash_Table *h, ptrdiff_t idx)
 }
 
 // Useful debugging tool
-#if 1
+#if 0
 static ptrdiff_t hash_index_index (struct Lisp_Hash_Table *h,
 				   hash_hash_t hash);
 static void
