@@ -2662,15 +2662,24 @@ hash_table_std_test (const struct hash_table_test *t)
    preparing it for dumping.
    See `hash_table_thaw' for the code that restores the object to a usable
    state. */
-static void
-hash_impl_freeze (struct hash_impl *h)
+static struct hash_impl *
+hash_impl_freeze (const struct hash_impl *in)
 {
-  for (struct hash_entry *from = h->entries, *to = h->entries;
-       from < h->entries + h->count; ++from)
+  const size_t nbytes = sizeof *in + in->count * sizeof *in->entries;
+  struct hash_impl *h = xmalloc (nbytes);
+  memcpy (h, in, nbytes);
+
+  struct hash_entry *to = h->entries;
+  for (const struct hash_entry *from = in->entries;
+       from < in->entries + in->table_size; ++from)
     if (!hash_unused_entry_key_p (from->key))
 	*to++ = *from;
   h->index_bits = 0;
+  set_table_size (h, h->count);
+  h->next_free = -1;
+  h->index = NULL;
   h->frozen_test = hash_table_std_test (h->test);
+  return h;
 }
 
 static dump_off
@@ -2689,15 +2698,6 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
   return offset;
 }
 
-static struct hash_impl *
-copy_hash_impl (const struct hash_impl *h)
-{
-  const size_t nbytes = hash_impl_nbytes (h);
-  struct hash_impl *copy = xmalloc (nbytes);
-  memcpy (copy, h, nbytes);
-  return copy;
-}
-
 static void
 dump_hash_entries (struct dump_context *ctx,
 		   const struct hash_impl *hash)
@@ -2705,19 +2705,15 @@ dump_hash_entries (struct dump_context *ctx,
   for (const struct hash_entry *e = hash->entries;
        e < hash->entries + hash->count; ++e)
     {
-      Lisp_Object out;
-
-      const Lisp_Object *slot = &e->key;
-      dump_object_start (ctx, &out, sizeof (out));
-      dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
-      dump_object_finish (ctx, &out, sizeof (out));
-
-      slot = &e->value;
-      dump_object_start (ctx, &out, sizeof (out));
-      dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
-      dump_object_finish (ctx, &out, sizeof (out));
+      struct hash_entry out;
+      dump_object_start (ctx, &out, sizeof out);
+      dump_field_lv (ctx, &out, e, &e->key, WEIGHT_STRONG);
+      dump_field_lv (ctx, &out, e, &e->value, WEIGHT_STRONG);
+      dump_object_finish (ctx, &out, sizeof out);
     }
 }
+
+// Value is the offset at which we stored in hash_impl.
 
 static dump_off
 dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
@@ -2725,19 +2721,11 @@ dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
 #if CHECK_STRUCTS && !defined HASH_hash_impl_0360833954
 # error "hash_impl changed. See CHECK_STRUCTS comment in config.h."
 #endif
-  struct hash_impl *hash = copy_hash_impl (hash_in);
-  hash_impl_freeze (hash);
-
-  START_DUMP_PVEC (ctx, &hash->header, struct hash_impl, out);
-  dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
-  DUMP_FIELD_COPY (out, hash, count);
-  DUMP_FIELD_COPY (out, hash, weakness);
-  DUMP_FIELD_COPY (out, hash, purecopy);
-  DUMP_FIELD_COPY (out, hash, mutable);
-  DUMP_FIELD_COPY (out, hash, frozen_test);
-  dump_off offset = finish_dump_pvec (ctx, &out->header);
-  dump_hash_entries (ctx, hash);
-  xfree (hash);
+  struct hash_impl *h = hash_impl_freeze (hash_in);
+  dump_object_start (ctx, h, sizeof *h);
+  dump_off offset = dump_object_finish (ctx, &h->header, sizeof *h);
+  dump_hash_entries (ctx, h);
+  xfree (h);
   return offset;
 }
 
