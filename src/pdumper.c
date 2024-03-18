@@ -2637,26 +2637,6 @@ dump_vectorlike_generic (struct dump_context *ctx,
   return offset;
 }
 
-/* Return a vector of KEY, VALUE pairs in the given hash table H.
-   No room for growth is included.  */
-static struct hash_entry *
-hash_impl_contents (struct hash_impl *h)
-{
-  ptrdiff_t size = h->count;
-  struct hash_entry *entries
-    = hash_table_alloc_bytes (size * sizeof *entries);
-
-  ptrdiff_t n = 0;
-  DOHASH_IMPL (h, k, v)
-    {
-      entries[n].key = k;
-      entries[n].value = v;
-      ++n;
-    }
-
-  return entries;
-}
-
 static void
 dump_hash_table_list (struct dump_context *ctx)
 {
@@ -2685,28 +2665,17 @@ hash_table_std_test (const struct hash_table_test *t)
 static void
 hash_impl_freeze (struct hash_impl *h)
 {
-  struct hash_entry *contents = hash_impl_contents (h);
-  memclear (h->entries, h->table_size * sizeof *contents);
-  memcpy (h->entries, contents, h->count * sizeof *contents);
-  xfree (contents);
-  /* FIXME: shouldn't index be freed? */
+  for (struct hash_entry *from = h->entries, *to = h->entries;
+       from < h->entries + h->count; ++from)
+    {
+      if (!hash_unused_entry_key_p (from->key))
+	*to++ = *from;
+    }
   h->index = NULL;
-  set_table_size(h, 0);
+  set_table_size (h, 0);
   h->index_bits = 0;
   h->frozen_test = hash_table_std_test (h->test);
   h->test = NULL;
-}
-
-static void
-dump_hash_entry (struct dump_context *ctx, struct hash_entry *e)
-{
-  struct hash_entry out;
-  dump_object_start (ctx, &out, sizeof out);
-  DUMP_FIELD_COPY (&out, e, next);
-  DUMP_FIELD_COPY (&out, e, hash);
-  dump_field_lv (ctx, &out, e, &e->key, WEIGHT_STRONG);
-  dump_field_lv (ctx, &out, e, &e->value, WEIGHT_STRONG);
-  dump_object_finish (ctx, &out, sizeof out);
 }
 
 static dump_off
@@ -2725,6 +2694,18 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
   return offset;
 }
 
+static void
+dump_hash_entry (struct dump_context *ctx, struct hash_entry *e)
+{
+  struct hash_entry out;
+  dump_object_start (ctx, &out, sizeof out);
+  DUMP_FIELD_COPY (&out, e, next);
+  DUMP_FIELD_COPY (&out, e, hash);
+  dump_field_lv (ctx, &out, e, &e->key, WEIGHT_STRONG);
+  dump_field_lv (ctx, &out, e, &e->value, WEIGHT_STRONG);
+  dump_object_finish (ctx, &out, sizeof out);
+}
+
 static struct hash_impl *
 copy_hash_impl (const struct hash_impl *h)
 {
@@ -2737,8 +2718,8 @@ copy_hash_impl (const struct hash_impl *h)
 static dump_off
 dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
-# error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
+#if CHECK_STRUCTS && !defined HASH_hash_impl_0360833954
+# error "hash_impl changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct hash_impl *hash = copy_hash_impl (hash_in);
   hash_impl_freeze (hash);

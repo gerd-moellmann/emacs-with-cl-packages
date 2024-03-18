@@ -4758,15 +4758,14 @@ void
 hash_table_thaw (Lisp_Object hash_table)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (hash_table);
-
-  eassert (h->i);
+  struct hash_impl *hi = h->i;
 
   /* Freezing discarded most non-essential information; recompute it.
      The allocation is minimal with no room for growth.  */
-  h->i->test = hash_table_test_from_std (h->i->frozen_test);
-  ptrdiff_t count = h->i->count;
-  eassert (h->i->table_size == count);
-  h->i->next_free = -1;
+  hi->test = hash_table_test_from_std (h->i->frozen_test);
+  ptrdiff_t count = hi->count;
+  eassert (hi->table_size == count);
+  hi->next_free = -1;
 
   if (count == 0)
     {
@@ -4776,22 +4775,20 @@ hash_table_thaw (Lisp_Object hash_table)
   else
     {
       ptrdiff_t index_bits = compute_hash_index_bits (count);
-      h->i->index_bits = index_bits;
+      hi->index_bits = index_bits;
 
       ptrdiff_t index_size = hash_table_index_size (h);
-      h->i->index = hash_table_alloc_bytes (index_size * sizeof *h->i->index);
+      hi->index = hash_table_alloc_bytes (index_size * sizeof *hi->index);
       for (ptrdiff_t i = 0; i < index_size; i++)
-	h->i->index[i] = -1;
+	hi->index[i] = -1;
 
-      /* Recompute the hash codes for each entry in the table.  */
       for (ptrdiff_t i = 0; i < count; i++)
 	{
-	  Lisp_Object key = HASH_KEY (h, i);
-	  hash_hash_t hash_code = hash_from_key (h, key);
-	  ptrdiff_t start_of_bucket = hash_index_index (h, hash_code);
-	  set_hash_hash_slot (h, i, hash_code);
-	  set_hash_next_slot (h, i, HASH_INDEX (h, start_of_bucket));
-	  set_hash_index_slot (h, start_of_bucket, i);
+	  struct hash_entry *e = hi->entries + i;
+	  e->hash = hash_from_key (h, e->key);
+	  ptrdiff_t bucket = hash_index_index (h, e->hash);
+	  e->next = hi->index[bucket];
+	  hi->index[bucket] = i;
 	}
     }
 }
