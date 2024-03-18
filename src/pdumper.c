@@ -2707,8 +2707,6 @@ static void
 dump_hash_entries (struct dump_context *ctx,
 		   const struct hash_impl *hash)
 {
-  struct dump_flags old_flags = ctx->flags;
-  ctx->flags.pack_objects = true;
   for (ptrdiff_t i = 0; i < hash->count; i++)
     {
       Lisp_Object out;
@@ -2723,8 +2721,6 @@ dump_hash_entries (struct dump_context *ctx,
       dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
       dump_object_finish (ctx, &out, sizeof (out));
     }
-  ctx->flags = old_flags;
-  dump_align_output (ctx, DUMP_ALIGNMENT);
 }
 
 static dump_off
