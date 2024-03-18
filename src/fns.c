@@ -4630,9 +4630,12 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
   struct Lisp_Hash_Table *h = allocate_hash_table (size);
   struct hash_impl *hi = h->i;
 
+  h->next_weak = NULL;
   hi->test = test;
   hi->weakness = weak;
   hi->count = 0;
+  hi->purecopy = purecopy;
+  hi->mutable = true;
   hash_idx_t *index = hindex (hi);
 
   if (size == 0)
@@ -4645,11 +4648,11 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
     {
       for (ptrdiff_t i = 0; i < size; i++)
 	{
-	  h->i->entries[i].key = HASH_UNUSED_ENTRY_KEY;
-	  h->i->entries[i].next = i + 1;
+	  hi->entries[i].key = HASH_UNUSED_ENTRY_KEY;
+	  hi->entries[i].next = i + 1;
 	}
-      h->i->entries[size - 1].next = -1;
-      h->i->next_free = 0;
+      hi->entries[size - 1].next = -1;
+      hi->next_free = 0;
 
       ptrdiff_t index_size = hash_impl_index_size (hi);
       hash_idx_t *index = hindex (hi);
@@ -4657,9 +4660,6 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 	index[i] = -1;
     }
 
-  h->next_weak = NULL;
-  h->i->purecopy = purecopy;
-  h->i->mutable = true;
   return make_lisp_hash_table (h);
 }
 
@@ -4911,25 +4911,25 @@ hash_remove_from_table (struct Lisp_Hash_Table *h, Lisp_Object key)
 /* Clear hash table H.  */
 
 static void
-hash_clear (struct Lisp_Hash_Table *h)
+hash_clear (struct hash_impl *h)
 {
-  if (h->i->count > 0)
+  if (h->count > 0)
     {
-      ptrdiff_t size = HASH_TABLE_SIZE (h);
-      for (ptrdiff_t i = 0; i < size; i++)
+      for (ptrdiff_t i = 0; i < h->table_size; ++i)
 	{
-	  set_hash_next_slot (h, i, i < size - 1 ? i + 1 : -1);
-	  set_hash_key_slot (h, i, HASH_UNUSED_ENTRY_KEY);
-	  set_hash_value_slot (h, i, Qnil);
+	  struct hash_entry *e = h->entries + i;
+	  e->next = i < h->table_size - 1 ? i + 1 : -1;
+	  e->key = HASH_UNUSED_ENTRY_KEY;
+	  e->value = Qnil;
 	}
 
-      ptrdiff_t index_size = hash_table_index_size (h);
-      hash_idx_t *index = hindex (h->i);
+      ptrdiff_t index_size = hash_impl_index_size (h);
+      hash_idx_t *index = hindex (h);
       for (ptrdiff_t i = 0; i < index_size; i++)
 	index[i] = -1;
 
-      h->i->next_free = 0;
-      h->i->count = 0;
+      h->next_free = 0;
+      h->count = 0;
     }
 }
 
@@ -5627,7 +5627,7 @@ DEFUN ("clrhash", Fclrhash, Sclrhash, 1, 1, 0,
 {
   struct Lisp_Hash_Table *h = check_hash_table (table);
   check_mutable_hash_table (table, h);
-  hash_clear (h);
+  hash_clear (h->i);
   /* Be compatible with XEmacs.  */
   return table;
 }

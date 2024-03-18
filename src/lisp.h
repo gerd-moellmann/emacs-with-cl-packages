@@ -2600,10 +2600,7 @@ struct hash_impl
                        :  :    |  :      :       :     :    :
                                |
                            next_free
-
-     The table is physically split into three vectors (hash, next,
-     key_and_value) which may or may not be beneficial.  */
-
+  */
 
   /* The comparison and hash functions.  */
   const struct hash_table_test *test;
@@ -2614,10 +2611,11 @@ struct hash_impl
   /* Index of first free entry in free list, or -1 if none.  */
   hash_idx_t next_free;
 
-  /* Max number of entries. Not changeable after allocation.  */
+  /* Max number of entries.  */
   const hash_idx_t table_size;
 
-  const unsigned char index_bits;	/* log2 (size of the index vector).  */
+  /* log2 (size of the index vector).  */
+  const unsigned char index_bits;
 
   /* Weakness of the table.  */
   hash_table_weakness_t weakness : 3;
@@ -2635,7 +2633,7 @@ struct hash_impl
   bool_bf mutable : 1;
 
   // table_size hash_entry structures, followed by index of size (expt 2
-  // index_bits.
+  // index_bits).
   struct hash_entry entries[];
 } GCALIGNED_STRUCT;
 
