@@ -4382,7 +4382,7 @@ vector_marked_p (const struct Lisp_Vector *v)
           eassert (PSEUDOVECTOR_TYPE (v) == PVEC_BOOL_VECTOR);
           return true;
         }
-      eassert (PSEUDOVECTOR_TYPE (v) != PVEC_HASH_IMPL);
+
       return pdumper_marked_p (v);
     }
   return XVECTOR_MARKED_P (v);
@@ -4394,7 +4394,6 @@ set_vector_marked (struct Lisp_Vector *v)
   if (pdumper_object_p (v))
     {
       eassert (PSEUDOVECTOR_TYPE (v) != PVEC_BOOL_VECTOR);
-      eassert (PSEUDOVECTOR_TYPE (v) != PVEC_HASH_IMPL);
       pdumper_set_marked (v);
     }
   else
