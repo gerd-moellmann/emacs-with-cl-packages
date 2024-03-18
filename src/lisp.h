@@ -2559,22 +2559,18 @@ typedef int32_t hash_idx_t;
 
 struct hash_entry
 {
-  /* Vector used to chain entries.  If entry I is free, next[I] is the
-     entry number of the next free item.  If entry I is non-free,
-     next[I] is the index of the next entry in the collision chain,
-     or -1 if there is no such entry.
-     This vector is table_size entries long.  */
+  /* Used to chain entries.  If this entry is free, next is the
+     entry number of the next free item.  If this entry is non-free,
+     next is the index of the next entry in the collision chain,
+     or -1 if there is no such entry. */
   hash_idx_t next;
 
-  /* Vector of hash codes.  Unused entries have undefined values.
-     This vector is table_size entries long.  */
+  /* hash code of key.  Unused entries have undefined values.  */
   hash_hash_t hash;
 
-  /* Vector of keys and values.  The key of item I is found at index
-     2 * I, the value is found at index 2 * I + 1.
-     If the key is HASH_UNUSED_ENTRY_KEY, then this slot is unused.
-     This is gc_marked specially if the table is weak.
-     This vector is 2 * table_size entries long.  */
+  /* Keys and value. If the key is HASH_UNUSED_ENTRY_KEY, then this
+     entry is unused.  This is gc_marked specially if the table is
+     weak.  */
   Lisp_Object key;
   Lisp_Object value;
 };
@@ -2621,7 +2617,7 @@ struct hash_impl
   /* Max number of entries. Not changeable after allocation.  */
   const hash_idx_t table_size;
 
-  unsigned char index_bits;	/* log2 (size of the index vector).  */
+  const unsigned char index_bits;	/* log2 (size of the index vector).  */
 
   /* Weakness of the table.  */
   hash_table_weakness_t weakness : 3;
@@ -2638,18 +2634,16 @@ struct hash_impl
      immutable for recursive attempts to mutate it.  */
   bool_bf mutable : 1;
 
-  /* Bucket vector.  An entry of -1 indicates no item is present,
-     and a nonnegative entry is the index of the first item in
-     a collision chain.
-     This vector is 2**index_bits entries long.
-     If index_bits is 0 (and table_size is 0), then this is the
-     constant read-only vector {-1}, shared between all instances.
-     Otherwise it is heap-allocated.  */
-  hash_idx_t *index;
-
-  /* table_size entries. */
+  // table_size hash_entry structures, followed by index of size (expt 2
+  // index_bits.
   struct hash_entry entries[];
 } GCALIGNED_STRUCT;
+
+INLINE hash_idx_t *
+hindex (struct hash_impl *h)
+{
+  return (hash_idx_t *) (h->entries + h->table_size);
+}
 
 struct Lisp_Hash_Table
 {
@@ -2661,13 +2655,19 @@ struct Lisp_Hash_Table
   struct Lisp_Hash_Table *next_weak;
 };
 
-ptrdiff_t hash_impl_nbytes (const struct hash_impl *h);
+ptrdiff_t hash_impl_nbytes (ptrdiff_t nentries);
 struct hash_impl *allocate_hash_impl (size_t nentries);
 
 INLINE void
-set_table_size (struct hash_impl *h, size_t n)
+set_table_size (struct hash_impl *h, ptrdiff_t n)
 {
   *((hash_idx_t *) &h->table_size) = n;
+}
+
+INLINE void
+set_index_bits (struct hash_impl *h, ptrdiff_t n)
+{
+  *((unsigned char *) &h->index_bits) = n;
 }
 
 /* A specific Lisp_Object that is not a valid Lisp value.
@@ -2797,6 +2797,7 @@ hash_from_key (struct Lisp_Hash_Table *h, Lisp_Object key)
     else
 
 void hash_table_thaw (Lisp_Object hash_table);
+int compute_hash_index_bits (hash_idx_t size);
 
 /* Default size for hash tables if not specified.  */
 

@@ -4295,7 +4295,8 @@ set_hash_index_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, ptrdiff_t val)
 {
   eassert (idx >= 0 && idx < hash_table_index_size (h));
   eassert (val == -1 || (val >= 0 && val < h->i->table_size));
-  h->i->index[idx] = val;
+  hash_idx_t *index = hindex (h->i);
+  index[idx] = val;
 }
 
 /* If OBJ is a Lisp hash table, return a pointer to its struct
@@ -4396,9 +4397,10 @@ static ptrdiff_t
 HASH_INDEX (struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
   eassert (idx >= 0 && idx < hash_table_index_size (h));
-  ptrdiff_t i = h->i->index[idx];
+  hash_idx_t *index = hindex (h->i);
+  ptrdiff_t i = index[idx];
   eassert (i == -1 || (i >= 0 && i < h->i->table_size));
-  return h->i->index[idx];
+  return i;
 }
 
 // Useful debugging tool
@@ -4589,7 +4591,7 @@ allocate_hash_table (ptrdiff_t nentries)
 }
 
 /* Compute the size of the index (as log2) from the table capacity.  */
-static int
+int
 compute_hash_index_bits (hash_idx_t size)
 {
   /* An upper bound on the size of a hash table index index.  */
@@ -4602,10 +4604,6 @@ compute_hash_index_bits (hash_idx_t size)
     error ("Hash table too large");
   return bits;
 }
-
-/* Constant hash index vector used when the table size is zero.
-   This avoids allocating it from the heap.  */
-static const hash_idx_t empty_hash_index_vector[] = {-1};
 
 /* Create and initialize a new hash table.
 
@@ -4630,16 +4628,18 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
   eassert (0 <= size && size <= min (MOST_POSITIVE_FIXNUM, PTRDIFF_MAX));
 
   struct Lisp_Hash_Table *h = allocate_hash_table (size);
+  struct hash_impl *hi = h->i;
 
-  h->i->test = test;
-  h->i->weakness = weak;
-  h->i->count = 0;
+  hi->test = test;
+  hi->weakness = weak;
+  hi->count = 0;
+  hash_idx_t *index = hindex (hi);
 
   if (size == 0)
     {
-      h->i->index = (hash_idx_t *)empty_hash_index_vector;
-      h->i->index_bits = 0;
-      h->i->next_free = -1;
+      eassert (hi->index_bits == 0);
+      index[0] = -1;
+      hi->next_free = -1;
     }
   else
     {
@@ -4651,12 +4651,10 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
       h->i->entries[size - 1].next = -1;
       h->i->next_free = 0;
 
-      int index_bits = compute_hash_index_bits (size);
-      h->i->index_bits = index_bits;
-      ptrdiff_t index_size = hash_table_index_size (h);
-      h->i->index = hash_table_alloc_bytes (index_size * sizeof *h->i->index);
+      ptrdiff_t index_size = hash_impl_index_size (hi);
+      hash_idx_t *index = hindex (hi);
       for (ptrdiff_t i = 0; i < index_size; i++)
-	h->i->index[i] = -1;
+	index[i] = -1;
     }
 
   h->next_weak = NULL;
@@ -4672,28 +4670,17 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 static Lisp_Object
 copy_hash_table (struct Lisp_Hash_Table *h1)
 {
-  struct hash_impl *i1 = h1->i;
-
-  struct Lisp_Hash_Table *h2 = allocate_hash_table (i1->table_size);
-  struct hash_impl *i2 = h2->i;
-  memcpy (i2, i1, hash_impl_nbytes (i1));
-  i2->mutable = true;
-
-  if (i1->index != empty_hash_index_vector)
-    {
-      ptrdiff_t nbytes = hash_table_index_size (h1) * sizeof i1->index[0];
-      i2->index = hash_table_alloc_bytes (nbytes);
-      memcpy (i2->index, i1->index, nbytes);
-    }
-
+  struct Lisp_Hash_Table *h2 = allocate_hash_table (h1->i->table_size);
+  memcpy (h2->i, h1->i, hash_impl_nbytes (h1->i->table_size));
+  h2->i->mutable = true;
   return make_lisp_hash_table (h2);
 }
 
 /* Compute index into the index vector from a hash value.  */
 static ptrdiff_t
-hash_index_index (struct Lisp_Hash_Table *h, hash_hash_t hash)
+hash_index_index (struct hash_impl *h, hash_hash_t hash)
 {
-  return knuth_hash (hash, h->i->index_bits);
+  return knuth_hash (hash, h->index_bits);
 }
 
 /* Resize hash table H if it's too full.  If H cannot be resized
@@ -4714,9 +4701,11 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 
       struct hash_impl *old_i = h->i;
       struct hash_impl *new_i = allocate_hash_impl (new_size);
-      memcpy (new_i, old_i, hash_impl_nbytes (old_i));
+      int index_bits = new_i->index_bits;
+      memcpy (new_i, old_i, hash_impl_nbytes (old_i->table_size));
       // Restore because of memcpy
       set_table_size (new_i, new_size);
+      set_index_bits (new_i, index_bits);
 
       for (ptrdiff_t i = old_size; i < new_size; i++)
 	{
@@ -4725,13 +4714,12 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	}
       new_i->entries[new_size - 1].next = -1;
       new_i->next_free = old_size;
-      new_i->index_bits = compute_hash_index_bits (new_size);
 
       // Make new index and clear it
       ptrdiff_t new_index_size = hash_impl_index_size (new_i);
-      new_i->index = hash_table_alloc_bytes (new_index_size * sizeof *new_i->index);
+      hash_idx_t *index = hindex (new_i);
       for (size_t i = 0; i < new_index_size; i++)
-	new_i->index[i] = -1;
+	index[i] = -1;
 
       h->i = new_i;
 
@@ -4741,9 +4729,10 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	  struct hash_entry *e = new_i->entries + i;
 	  if (!hash_unused_entry_key_p (e->key))
 	    {
-	      ptrdiff_t start_of_bucket = hash_index_index (h, e->hash);
-	      e->next = new_i->index[start_of_bucket];
-	      new_i->index[start_of_bucket] = i;
+	      ptrdiff_t start_of_bucket
+		= hash_index_index (new_i, e->hash);
+	      e->next = index[start_of_bucket];
+	      index[start_of_bucket] = i;
 	    }
 	}
     }
@@ -4768,35 +4757,33 @@ hash_table_thaw (Lisp_Object hash_table)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (hash_table);
   struct hash_impl *hi = h->i;
+  hash_idx_t *index = hindex (hi);
 
   /* Freezing discarded most non-essential information; recompute it.
      The allocation is minimal with no room for growth.  */
   hi->test = hash_table_test_from_std (h->i->frozen_test);
   set_table_size (hi, hi->count);
+  set_index_bits (hi, compute_hash_index_bits (hi->table_size));
   hi->next_free = -1;
 
   if (hi->count == 0)
     {
-      h->i->index_bits = 0;
-      h->i->index = (hash_idx_t *)empty_hash_index_vector;
+      index[0] = -1;
     }
   else
     {
-      ptrdiff_t index_bits = compute_hash_index_bits (hi->table_size);
-      hi->index_bits = index_bits;
-
-      ptrdiff_t index_size = hash_table_index_size (h);
-      hi->index = hash_table_alloc_bytes (index_size * sizeof *hi->index);
+      ptrdiff_t index_size = hash_impl_index_size (hi);
+      hash_idx_t *index = hindex (hi);
       for (ptrdiff_t i = 0; i < index_size; i++)
-	hi->index[i] = -1;
+	index[i] = -1;
 
       for (ptrdiff_t i = 0; i < hi->count; i++)
 	{
 	  struct hash_entry *e = hi->entries + i;
 	  e->hash = hash_from_key (h, e->key);
-	  ptrdiff_t bucket = hash_index_index (h, e->hash);
-	  e->next = hi->index[bucket];
-	  hi->index[bucket] = i;
+	  ptrdiff_t bucket = hash_index_index (hi, e->hash);
+	  e->next = index[bucket];
+	  index[bucket] = i;
 	}
     }
 
@@ -4810,7 +4797,7 @@ hash_lookup_with_hash (struct Lisp_Hash_Table *h,
 		       Lisp_Object key, hash_hash_t hash)
 {
   CHECK_TABLE (h);
-  ptrdiff_t start_of_bucket = hash_index_index (h, hash);
+  ptrdiff_t start_of_bucket = hash_index_index (h->i, hash);
   for (ptrdiff_t i = HASH_INDEX (h, start_of_bucket);
        0 <= i; i = HASH_NEXT (h, i))
     if (EQ (key, HASH_KEY (h, i))
@@ -4874,7 +4861,7 @@ hash_put (struct Lisp_Hash_Table *h, Lisp_Object key, Lisp_Object value,
   set_hash_hash_slot (h, i, hash);
 
   /* Add new entry to its collision chain.  */
-  ptrdiff_t start_of_bucket = hash_index_index (h, hash);
+  ptrdiff_t start_of_bucket = hash_index_index (h->i, hash);
   set_hash_next_slot (h, i, HASH_INDEX (h, start_of_bucket));
   set_hash_index_slot (h, start_of_bucket, i);
   return i;
@@ -4887,7 +4874,7 @@ void
 hash_remove_from_table (struct Lisp_Hash_Table *h, Lisp_Object key)
 {
   hash_hash_t hashval = hash_from_key (h, key);
-  ptrdiff_t start_of_bucket = hash_index_index (h, hashval);
+  ptrdiff_t start_of_bucket = hash_index_index (h->i, hashval);
   ptrdiff_t prev = -1;
 
   for (ptrdiff_t i = HASH_INDEX (h, start_of_bucket);
@@ -4937,8 +4924,9 @@ hash_clear (struct Lisp_Hash_Table *h)
 	}
 
       ptrdiff_t index_size = hash_table_index_size (h);
+      hash_idx_t *index = hindex (h->i);
       for (ptrdiff_t i = 0; i < index_size; i++)
-	h->i->index[i] = -1;
+	index[i] = -1;
 
       h->i->next_free = 0;
       h->i->count = 0;

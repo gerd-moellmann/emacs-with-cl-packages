@@ -3351,10 +3351,15 @@ allocate_vector_from_block (ptrdiff_t nbytes)
 /* Return the memory footprint of V in bytes.  */
 
 ptrdiff_t
-hash_impl_nbytes (const struct hash_impl *h)
+hash_impl_nbytes (ptrdiff_t nentries)
 {
-  ptrdiff_t nbytes = sizeof *h + h->table_size * sizeof h->entries[0];
-  return vroundup (nbytes);
+  int index_bits = compute_hash_index_bits (nentries);
+  ptrdiff_t index_size = (ptrdiff_t)1 << index_bits;
+  ptrdiff_t index_nbytes = index_size * sizeof (hash_idx_t);
+  ptrdiff_t entries_nbytes = nentries * sizeof (struct hash_entry);
+  ptrdiff_t nbytes = vroundup (sizeof (struct hash_impl)
+			       + entries_nbytes + index_nbytes);
+  return nbytes;
 }
 
 ptrdiff_t
@@ -3377,7 +3382,7 @@ vectorlike_nbytes (const union vectorlike_header *hdr)
       else if (PSEUDOVECTOR_TYPEP (hdr, PVEC_HASH_IMPL))
 	{
           struct hash_impl *h = (struct hash_impl *) hdr;
-	  return hash_impl_nbytes (h);
+	  return hash_impl_nbytes (h->table_size);
         }
       else
 	return pseudovector_nbytes (hdr);
@@ -3514,10 +3519,9 @@ cleanup_vector (struct Lisp_Vector *vector)
 	if (h->table_size > 0)
 	  {
 	    eassert (h->index_bits > 0);
-	    xfree (h->index);
 	    ptrdiff_t bytes
 	      = (h->table_size * sizeof *h->entries
-		 + hash_impl_index_size (h) * sizeof *h->index);
+		 + hash_impl_index_size (h) * sizeof (hash_idx_t));
 	    hash_table_allocated_bytes -= bytes;
 	  }
       }
@@ -3656,7 +3660,9 @@ allocate_hash_impl (size_t nentries)
 {
   eassert_not_mps ();
   struct hash_impl *h;
-  ptrdiff_t nbytes = vroundup (sizeof *h + nentries * sizeof h->entries[0]);
+
+  ptrdiff_t nbytes = hash_impl_nbytes (nentries);
+
   struct Lisp_Vector *p;
 
   MALLOC_BLOCK_INPUT;
@@ -3680,6 +3686,7 @@ allocate_hash_impl (size_t nentries)
 
   h = (struct hash_impl *) p;
   set_table_size (h, nentries);
+  set_index_bits (h, compute_hash_index_bits (nentries));
   XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
   eassert (PSEUDOVECTOR_TYPE (p) == PVEC_HASH_IMPL);
   return h;

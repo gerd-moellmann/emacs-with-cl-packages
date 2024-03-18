@@ -2674,10 +2674,9 @@ hash_impl_freeze (const struct hash_impl *in)
        from < in->entries + in->table_size; ++from)
     if (!hash_unused_entry_key_p (from->key))
 	*to++ = *from;
-  h->index_bits = 0;
+  set_index_bits (h, 0);
   set_table_size (h, h->count);
   h->next_free = -1;
-  h->index = NULL;
   h->frozen_test = hash_table_std_test (h->test);
   return h;
 }
