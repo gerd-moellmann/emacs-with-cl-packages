@@ -602,7 +602,7 @@ See `project-vc-extra-root-markers' for the marker value format.")
         (goto-char (point-min))
         ;; Kind of a hack to distinguish a submodule from
         ;; other cases of .git files pointing elsewhere.
-        (looking-at "gitdir: [./]+/\\.git/modules/"))
+        (looking-at "gitdir: .+/\\.git/\\(worktrees/.*\\)?modules/"))
       t)
      (t nil))))
 
@@ -808,8 +808,10 @@ DIRS must contain directory names."
   (with-temp-buffer
     (setq default-directory dir)
     (let ((enable-local-variables :all))
-      (hack-dir-local-variables-non-file-buffer))
-    (symbol-value var)))
+      (hack-dir-local-variables))
+    ;; Don't use `hack-local-variables-apply' to avoid setting modes.
+    (alist-get var file-local-variables-alist
+               (symbol-value var))))
 
 (cl-defmethod project-buffers ((project (head vc)))
   (let* ((root (expand-file-name (file-name-as-directory (project-root project))))
@@ -1866,12 +1868,12 @@ Otherwise, `default-directory' is temporarily set to the current
 project's root.
 
 If OVERRIDING-MAP is non-nil, it will be used as
-`overriding-local-map' to provide shorter bindings from that map
-which will take priority over the global ones."
+`overriding-terminal-local-map' to provide shorter bindings
+from that map which will take priority over the global ones."
   (interactive)
   (let* ((pr (project-current t))
          (prompt-format (or prompt-format "[execute in %s]:"))
-         (command (let ((overriding-local-map overriding-map))
+         (command (let ((overriding-terminal-local-map overriding-map))
                     (key-binding (read-key-sequence
                                   (format prompt-format (project-root pr)))
                                  t)))
@@ -2140,12 +2142,10 @@ is part of the default mode line beginning with Emacs 30."
   :group 'project
   :version "30.1")
 
-(defvar project-menu-entry
-  `(menu-item "Project" ,(bound-and-true-p menu-bar-project-menu)))
-
 (defvar project-mode-line-map
   (let ((map (make-sparse-keymap)))
-    (define-key map [mode-line down-mouse-1] project-menu-entry)
+    (define-key map [mode-line down-mouse-1]
+                (bound-and-true-p menu-bar-project-item))
     map))
 
 (defvar project-mode-line-face nil

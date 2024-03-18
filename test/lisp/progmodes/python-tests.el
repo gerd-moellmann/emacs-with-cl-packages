@@ -55,21 +55,27 @@ BODY is code to be executed within the temp buffer.  Point is
 always located at the beginning of buffer.  Native completion is
 turned off.  Shell buffer will be killed on exit."
   (declare (indent 1) (debug t))
-  `(with-temp-buffer
-     (let ((python-indent-guess-indent-offset nil)
-           (python-shell-completion-native-enable nil))
-       (python-mode)
-       (unwind-protect
-           (progn
-             (run-python nil t)
-             (insert ,contents)
-             (goto-char (point-min))
-             (python-tests-shell-wait-for-prompt)
-             ,@body)
-         (when (python-shell-get-buffer)
-           (python-shell-with-shell-buffer
-             (let (kill-buffer-hook kill-buffer-query-functions)
-               (kill-buffer))))))))
+  (let ((dir (make-symbol "dir")))
+    `(with-temp-buffer
+       (let ((python-indent-guess-indent-offset nil)
+             (python-shell-completion-native-enable nil))
+         (python-mode)
+         (unwind-protect
+             ;; Prevent test failures when Jedi is used as a completion
+             ;; backend, either directly or indirectly (e.g., via
+             ;; IPython).  Jedi needs to store cache, but the
+             ;; "/nonexistent" HOME directory is not writable.
+             (ert-with-temp-directory ,dir
+               (with-environment-variables (("XDG_CACHE_HOME" ,dir))
+                 (run-python nil t)
+                 (insert ,contents)
+                 (goto-char (point-min))
+                 (python-tests-shell-wait-for-prompt)
+                 ,@body))
+           (when (python-shell-get-buffer)
+             (python-shell-with-shell-buffer
+               (let (kill-buffer-hook kill-buffer-query-functions)
+                 (kill-buffer)))))))))
 
 (defmacro python-tests-with-temp-file (contents &rest body)
   "Create a `python-mode' enabled file with CONTENTS.
@@ -4777,6 +4783,7 @@ def foo():
   (python-tests-with-temp-buffer-with-shell
    ""
    (python-shell-with-shell-buffer
+     (skip-unless python-shell-readline-completer-delims)
      (insert "import abc")
      (comint-send-input)
      (python-tests-shell-wait-for-prompt)
@@ -4791,6 +4798,7 @@ def foo():
    ""
    (python-shell-completion-native-turn-on)
    (python-shell-with-shell-buffer
+     (skip-unless python-shell-readline-completer-delims)
      (insert "import abc")
      (comint-send-input)
      (python-tests-shell-wait-for-prompt)
@@ -4860,17 +4868,31 @@ def foo():
   (should (string= "IGNORECASE"
                    (buffer-substring (line-beginning-position) (point)))))
 
+(defun python-tests--pythonstartup-file ()
+  "Return Jedi readline setup file if PYTHONSTARTUP is not set."
+  (or (getenv "PYTHONSTARTUP")
+      (with-temp-buffer
+        (if (eql 0 (call-process python-tests-shell-interpreter
+                                 nil t nil "-m" "jedi" "repl"))
+            (string-trim (buffer-string))
+          ""))))
+
 (ert-deftest python-shell-completion-at-point-jedi-completer ()
   "Check if Python shell completion works when Jedi completer is used."
   (skip-unless (executable-find python-tests-shell-interpreter))
-  (python-tests-with-temp-buffer-with-shell
-   ""
-   (python-shell-with-shell-buffer
-     (python-shell-completion-native-turn-on)
-     (skip-unless (string= python-shell-readline-completer-delims ""))
-     (python-tests--completion-module)
-     (python-tests--completion-parameters)
-     (python-tests--completion-extra-context))))
+  (with-environment-variables
+      (("PYTHONSTARTUP" (python-tests--pythonstartup-file)))
+    (python-tests-with-temp-buffer-with-shell
+     ""
+     (python-shell-with-shell-buffer
+       (skip-unless (string= python-shell-readline-completer-delims ""))
+       (python-shell-completion-native-turn-off)
+       (python-tests--completion-module)
+       (python-tests--completion-parameters)
+       (python-shell-completion-native-turn-on)
+       (python-tests--completion-module)
+       (python-tests--completion-parameters)
+       (python-tests--completion-extra-context)))))
 
 (ert-deftest python-shell-completion-at-point-ipython ()
   "Check if Python shell completion works for IPython."
@@ -4880,17 +4902,19 @@ def foo():
      (and
       (executable-find python-shell-interpreter)
       (eql (call-process python-shell-interpreter nil nil nil "--version") 0)))
-    (python-tests-with-temp-buffer-with-shell
-     ""
-     (python-shell-with-shell-buffer
-       (python-shell-completion-native-turn-off)
-       (python-tests--completion-module)
-       (python-tests--completion-parameters)
-       (python-shell-completion-native-turn-on)
-       (skip-unless (string= python-shell-readline-completer-delims ""))
-       (python-tests--completion-module)
-       (python-tests--completion-parameters)
-       (python-tests--completion-extra-context)))))
+    (with-environment-variables
+        (("PYTHONSTARTUP" (python-tests--pythonstartup-file)))
+      (python-tests-with-temp-buffer-with-shell
+       ""
+       (python-shell-with-shell-buffer
+         (python-shell-completion-native-turn-off)
+         (python-tests--completion-module)
+         (python-tests--completion-parameters)
+         (python-shell-completion-native-turn-on)
+         (skip-unless (string= python-shell-readline-completer-delims ""))
+         (python-tests--completion-module)
+         (python-tests--completion-parameters)
+         (python-tests--completion-extra-context))))))
 
 
 ;;; PDB Track integration
@@ -4905,6 +4929,8 @@ def foo():
 import abc
 "
    (let ((inhibit-message t))
+     (python-shell-with-shell-buffer
+       (skip-unless python-shell-readline-completer-delims))
      (python-shell-send-buffer)
      (python-tests-shell-wait-for-prompt)
      (goto-char (point-max))
@@ -4921,6 +4947,8 @@ import abc
 import abc
 "
    (let ((inhibit-message t))
+     (python-shell-with-shell-buffer
+       (skip-unless python-shell-readline-completer-delims))
      (python-shell-send-buffer)
      (python-tests-shell-wait-for-prompt)
      (python-shell-with-shell-buffer
@@ -4940,6 +4968,8 @@ pdb.set_trace()
 print('Hello')
 "
    (let ((inhibit-message t))
+     (python-shell-with-shell-buffer
+       (skip-unless python-shell-readline-completer-delims))
      (python-shell-send-buffer)
      (python-tests-shell-wait-for-prompt)
      (goto-char (point-max))
@@ -4956,6 +4986,8 @@ import time
 time.sleep(3)
 "
    (let ((inhibit-message t))
+     (python-shell-with-shell-buffer
+       (skip-unless python-shell-readline-completer-delims))
      (python-shell-send-buffer)
      (goto-char (point-max))
      (insert "time.")
@@ -4968,6 +5000,8 @@ time.sleep(3)
 import abc
 "
    (let ((inhibit-message t))
+     (python-shell-with-shell-buffer
+       (skip-unless python-shell-readline-completer-delims))
      (python-shell-completion-native-turn-on)
      (python-shell-send-buffer)
      (python-tests-shell-wait-for-prompt)
@@ -4985,6 +5019,8 @@ import abc
 import abc
 "
    (let ((inhibit-message t))
+     (python-shell-with-shell-buffer
+       (skip-unless python-shell-readline-completer-delims))
      (python-shell-completion-native-turn-on)
      (python-shell-send-buffer)
      (python-tests-shell-wait-for-prompt)
@@ -5001,6 +5037,8 @@ import abc
 import abc
 "
    (let ((inhibit-message t))
+     (python-shell-with-shell-buffer
+       (skip-unless python-shell-readline-completer-delims))
      (python-shell-completion-native-turn-on)
      (python-shell-send-buffer)
      (python-tests-shell-wait-for-prompt)
@@ -5017,6 +5055,8 @@ import abc
 import abc
 "
    (let ((inhibit-message t))
+     (python-shell-with-shell-buffer
+       (skip-unless python-shell-readline-completer-delims))
      (python-shell-completion-native-turn-on)
      (python-shell-send-buffer)
      (python-tests-shell-wait-for-prompt)

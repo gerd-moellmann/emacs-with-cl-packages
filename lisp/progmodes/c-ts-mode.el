@@ -1190,7 +1190,6 @@ BEG and END are described in `treesit-range-rules'."
   "C-c C-c" #'comment-region
   "C-c C-k" #'c-ts-mode-toggle-comment-style)
 
-;;;###autoload
 (define-derived-mode c-ts-base-mode prog-mode "C"
   "Major mode for editing C, powered by tree-sitter.
 
@@ -1329,6 +1328,8 @@ in your configuration."
                   (lambda (_pos) 'c))
       (treesit-font-lock-recompute-features '(emacs-devel)))))
 
+(derived-mode-add-parents 'c-ts-mode '(c-mode))
+
 ;;;###autoload
 (define-derived-mode c++-ts-mode c-ts-base-mode "C++"
   "Major mode for editing C++, powered by tree-sitter.
@@ -1371,6 +1372,8 @@ recommended to enable `electric-pair-mode' with this mode."
     (when c-ts-mode-emacs-sources-support
       (setq-local add-log-current-defun-function
                   #'c-ts-mode--emacs-current-defun-name))))
+
+(derived-mode-add-parents 'c++-ts-mode '(c++-mode))
 
 (easy-menu-define c-ts-mode-menu (list c-ts-mode-map c++-ts-mode-map)
   "Menu for `c-ts-mode' and `c++-ts-mode'."
@@ -1439,36 +1442,33 @@ should be used.
 This function attempts to use file contents to determine whether
 the code is C or C++ and based on that chooses whether to enable
 `c-ts-mode' or `c++-ts-mode'."
+  (declare (obsolete c-or-c++-mode "30.1"))
   (interactive)
-  (if (save-excursion
-        (save-restriction
-          (save-match-data ; Why `save-match-data'?
-            (widen)
-            (goto-char (point-min))
-            (re-search-forward c-ts-mode--c-or-c++-regexp nil t))))
-      (c++-ts-mode)
-    (c-ts-mode)))
+  (let ((mode
+         (if (save-excursion
+               (save-restriction
+                 (save-match-data       ; Why `save-match-data'?
+                   (widen)
+                   (goto-char (point-min))
+                   (re-search-forward c-ts-mode--c-or-c++-regexp nil t))))
+             'c++-ts-mode
+           'c-ts-mode)))
+    (funcall (major-mode-remap mode))))
+
 ;; The entries for C++ must come first to prevent *.c files be taken
 ;; as C++ on case-insensitive filesystems, since *.C files are C++,
 ;; not C.
 (if (treesit-ready-p 'cpp)
-    (add-to-list 'auto-mode-alist
-                 '("\\(\\.ii\\|\\.\\(CC?\\|HH?\\)\\|\\.[ch]\\(pp\\|xx\\|\\+\\+\\)\\|\\.\\(cc\\|hh\\)\\)\\'"
-                   . c++-ts-mode)))
+    (add-to-list 'major-mode-remap-defaults
+                 '(c++-mode . c++-ts-mode)))
 
 (when (treesit-ready-p 'c)
-  (add-to-list 'auto-mode-alist
-               '("\\(\\.[chi]\\|\\.lex\\|\\.y\\(acc\\)?\\)\\'" . c-ts-mode))
-  (add-to-list 'auto-mode-alist '("\\.x[pb]m\\'" . c-ts-mode))
-  ;; image-mode's association must be before the C mode, otherwise XPM
-  ;; images will be initially visited as C files.  Also note that the
-  ;; regexp must be different from what files.el does, or else
-  ;; add-to-list will not add the association where we want it.
-  (add-to-list 'auto-mode-alist '("\\.x[pb]m\\'" . image-mode)))
+  (add-to-list 'major-mode-remap-defaults '(c++-mode . c++-ts-mode))
+  (add-to-list 'major-mode-remap-defaults '(c-mode . c-ts-mode)))
 
-(if (and (treesit-ready-p 'cpp)
-         (treesit-ready-p 'c))
-    (add-to-list 'auto-mode-alist '("\\.h\\'" . c-or-c++-ts-mode)))
+(when (and (treesit-ready-p 'cpp)
+           (treesit-ready-p 'c))
+  (add-to-list 'major-mode-remap-defaults '(c-or-c++-mode . c-or-c++-ts-mode)))
 
 (provide 'c-ts-mode)
 (provide 'c++-ts-mode)

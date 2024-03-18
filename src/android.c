@@ -123,6 +123,12 @@ struct android_emacs_cursor
   jmethodID constructor;
 };
 
+struct android_key_character_map
+{
+  jclass class;
+  jmethodID get_dead_char;
+};
+
 /* The API level of the current device.  */
 static int android_api_level;
 
@@ -202,6 +208,9 @@ static struct android_emacs_window window_class;
 
 /* Various methods associated with the EmacsCursor class.  */
 static struct android_emacs_cursor cursor_class;
+
+/* Various methods associated with the KeyCharacterMap class.  */
+static struct android_key_character_map key_character_map_class;
 
 /* The time at which Emacs was installed, which also supplies the
    mtime of asset files.  */
@@ -1679,6 +1688,8 @@ android_init_emacs_service (void)
 	       "externalStorageAvailable", "()Z");
   FIND_METHOD (request_storage_access,
 	       "requestStorageAccess", "()V");
+  FIND_METHOD (cancel_notification,
+	       "cancelNotification", "(Ljava/lang/String;)V");
 #undef FIND_METHOD
 }
 
@@ -1865,6 +1876,32 @@ android_init_emacs_cursor (void)
 #undef FIND_METHOD
 }
 
+static void
+android_init_key_character_map (void)
+{
+  jclass old;
+
+  key_character_map_class.class
+    = (*android_java_env)->FindClass (android_java_env,
+				      "android/view/KeyCharacterMap");
+  eassert (key_character_map_class.class);
+
+  old = key_character_map_class.class;
+  key_character_map_class.class
+    = (jclass) (*android_java_env)->NewGlobalRef (android_java_env,
+						  (jobject) old);
+  ANDROID_DELETE_LOCAL_REF (old);
+
+  if (!key_character_map_class.class)
+    emacs_abort ();
+
+  key_character_map_class.get_dead_char
+    = (*android_java_env)->GetStaticMethodID (android_java_env,
+					      key_character_map_class.class,
+					      "getDeadChar", "(II)I");
+  eassert (key_character_map_class.get_dead_char);
+}
+
 JNIEXPORT void JNICALL
 NATIVE_NAME (initEmacs) (JNIEnv *env, jobject object, jarray argv,
 			 jobject dump_file_object)
@@ -1913,6 +1950,7 @@ NATIVE_NAME (initEmacs) (JNIEnv *env, jobject object, jarray argv,
   android_init_emacs_drawable ();
   android_init_emacs_window ();
   android_init_emacs_cursor ();
+  android_init_key_character_map ();
 
   /* Set HOME to the app data directory.  */
   setenv ("HOME", android_files_dir, 1);
@@ -2421,7 +2459,7 @@ NATIVE_NAME (sendExpose) (JNIEnv *env, jobject object,
   return event_serial;
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jlong JNICALL
 NATIVE_NAME (sendDndDrag) (JNIEnv *env, jobject object,
 			   jshort window, jint x, jint y)
 {
@@ -2441,7 +2479,7 @@ NATIVE_NAME (sendDndDrag) (JNIEnv *env, jobject object,
   return event_serial;
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jlong JNICALL
 NATIVE_NAME (sendDndUri) (JNIEnv *env, jobject object,
 			  jshort window, jint x, jint y,
 			  jstring string)
@@ -2478,7 +2516,7 @@ NATIVE_NAME (sendDndUri) (JNIEnv *env, jobject object,
   return event_serial;
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jlong JNICALL
 NATIVE_NAME (sendDndText) (JNIEnv *env, jobject object,
 			   jshort window, jint x, jint y,
 			   jstring string)
@@ -2510,6 +2548,85 @@ NATIVE_NAME (sendDndText) (JNIEnv *env, jobject object,
 
   event.dnd.uri_or_string = buffer;
   event.dnd.length = length;
+
+  android_write_event (&event);
+  return event_serial;
+}
+
+JNIEXPORT jlong JNICALL
+NATIVE_NAME (sendNotificationDeleted) (JNIEnv *env, jobject object,
+				       jstring tag)
+{
+  JNI_STACK_ALIGNMENT_PROLOGUE;
+
+  union android_event event;
+  const char *characters;
+
+  event.notification.type = ANDROID_NOTIFICATION_DELETED;
+  event.notification.serial = ++event_serial;
+  event.notification.window = ANDROID_NONE;
+
+  /* TAG is guaranteed to be an ASCII string, of which the JNI character
+     encoding is a superset.  */
+  characters = (*env)->GetStringUTFChars (env, tag, NULL);
+  if (!characters)
+    return 0;
+
+  event.notification.tag = strdup (characters);
+  (*env)->ReleaseStringUTFChars (env, tag, characters);
+  if (!event.notification.tag)
+    return 0;
+
+  event.notification.action = NULL;
+  event.notification.length = 0;
+
+  android_write_event (&event);
+  return event_serial;
+}
+
+JNIEXPORT jlong JNICALL
+NATIVE_NAME (sendNotificationAction) (JNIEnv *env, jobject object,
+				      jstring tag, jstring action)
+{
+  JNI_STACK_ALIGNMENT_PROLOGUE;
+
+  union android_event event;
+  const void *characters;
+  jsize length;
+  uint16_t *buffer;
+
+  event.notification.type = ANDROID_NOTIFICATION_ACTION;
+  event.notification.serial = ++event_serial;
+  event.notification.window = ANDROID_NONE;
+
+  /* TAG is guaranteed to be an ASCII string, of which the JNI character
+     encoding is a superset.  */
+  characters = (*env)->GetStringUTFChars (env, tag, NULL);
+  if (!characters)
+    return 0;
+
+  event.notification.tag = strdup (characters);
+  (*env)->ReleaseStringUTFChars (env, tag, characters);
+  if (!event.notification.tag)
+    return 0;
+
+  length = (*env)->GetStringLength (env, action);
+  buffer = malloc (length * sizeof *buffer);
+  characters = (*env)->GetStringChars (env, action, NULL);
+
+  if (!characters)
+    {
+      /* The JVM has run out of memory; return and let the out of memory
+	 error take its course.  */
+      xfree (event.notification.tag);
+      return 0;
+    }
+
+  memcpy (buffer, characters, length * sizeof *buffer);
+  (*env)->ReleaseStringChars (env, action, characters);
+
+  event.notification.action = buffer;
+  event.notification.length = length;
 
   android_write_event (&event);
   return event_serial;
@@ -5376,11 +5493,51 @@ android_translate_coordinates (android_window src, int x,
   ANDROID_DELETE_LOCAL_REF (coordinates);
 }
 
+/* Return the character produced by combining the diacritic character
+   DCHAR with the key-producing character C in *VALUE.  Value is 1 if
+   there is no character for this combination, 0 otherwise.  */
+
+static int
+android_get_dead_char (unsigned int dchar, unsigned int c,
+		       unsigned int *value)
+{
+  jmethodID method;
+  jclass class;
+  jint result;
+
+  /* Call getDeadChar.  */
+  class = key_character_map_class.class;
+  method = key_character_map_class.get_dead_char;
+  result = (*android_java_env)->CallStaticIntMethod (android_java_env,
+						     class, method,
+						     (jint) dchar,
+						     (jint) c);
+
+  if (result)
+    {
+      *value = result;
+      return 0;
+    }
+
+  return 1;
+}
+
+/* Return a Unicode string in BUFFER_RETURN, a buffer of size
+   WCHARS_BUFFER, from the key press event EVENT, much like
+   XmbLookupString.  If EVENT represents a key press without a
+   corresponding Unicode character, return its keysym in *KEYSYM_RETURN.
+   Return the action taken in *STATUS_RETURN.
+
+   COMPOSE_STATUS, if non-NULL, should point to a structure for
+   temporary information to be stored in during dead key
+   composition.  */
+
 int
 android_wc_lookup_string (android_key_pressed_event *event,
 			  wchar_t *buffer_return, int wchars_buffer,
 			  int *keysym_return,
-			  enum android_lookup_status *status_return)
+			  enum android_lookup_status *status_return,
+			  struct android_compose_status *compose_status)
 {
   enum android_lookup_status status;
   int rc;
@@ -5389,6 +5546,7 @@ android_wc_lookup_string (android_key_pressed_event *event,
   jsize size;
   size_t i;
   JNIEnv *env;
+  unsigned int unicode_char;
 
   env = android_java_env;
   status = ANDROID_LOOKUP_NONE;
@@ -5402,6 +5560,13 @@ android_wc_lookup_string (android_key_pressed_event *event,
     {
       if (event->unicode_char)
 	{
+	  /* KeyCharacterMap.COMBINING_ACCENT.  */
+	  if ((event->unicode_char & 0x80000000) && compose_status)
+	    goto dead_key;
+
+	  /* Remove combining accent bits.  */
+	  unicode_char = event->unicode_char & ~0x80000000;
+
 	  if (wchars_buffer < 1)
 	    {
 	      *status_return = ANDROID_BUFFER_OVERFLOW;
@@ -5409,7 +5574,31 @@ android_wc_lookup_string (android_key_pressed_event *event,
 	    }
 	  else
 	    {
-	      buffer_return[0] = event->unicode_char;
+	      /* If COMPOSE_STATUS holds a diacritic mark unicode_char
+		 ought to be combined with, and this combination is
+		 valid, return the result alone with no keysym.  */
+
+	      if (compose_status
+		  && compose_status->chars_matched
+		  && !android_get_dead_char (compose_status->accent,
+					     unicode_char,
+					     &unicode_char))
+		{
+		  buffer_return[0] = unicode_char;
+		  *status_return = ANDROID_LOOKUP_CHARS;
+		  compose_status->chars_matched = 0;
+		  return 1;
+		}
+	      else if (compose_status && compose_status->chars_matched)
+		{
+		  /* If the combination is valid the compose status must
+		     be reset and no character returned.  */
+		  compose_status->chars_matched = 0;
+		  status = ANDROID_LOOKUP_NONE;
+		  return 0;
+		}
+
+	      buffer_return[0] = unicode_char;
 	      status = ANDROID_LOOKUP_CHARS;
 	      rc = 1;
 	    }
@@ -5425,8 +5614,14 @@ android_wc_lookup_string (android_key_pressed_event *event,
 	  rc = 0;
 	}
 
+      /* Terminate any ongoing character composition after a key is
+	 registered.  */
+      if (compose_status
+	  /* Provided that a modifier key is not the key being
+	     depressed.  */
+	  && !ANDROID_IS_MODIFIER_KEY (event->keycode))
+	compose_status->chars_matched = 0;
       *status_return = status;
-
       return rc;
     }
 
@@ -5482,6 +5677,15 @@ android_wc_lookup_string (android_key_pressed_event *event,
 
   *status_return = status;
   return rc;
+
+ dead_key:
+  /* event->unicode_char is a dead key, which are diacritic marks that
+     should not be directly inserted but instead be combined with a
+     subsequent character before insertion.  */
+  *status_return = ANDROID_LOOKUP_NONE;
+  compose_status->chars_matched = 1;
+  compose_status->accent = event->unicode_char & ~0x80000000;
+  return 0;
 }
 
 
@@ -6183,6 +6387,82 @@ android_exception_check_4 (jobject object, jobject object1,
 
   if (object3)
     ANDROID_DELETE_LOCAL_REF (object3);
+
+  memory_full (0);
+}
+
+/* Like android_exception_check_4, except it takes more than four local
+   reference arguments.  */
+
+void
+android_exception_check_5 (jobject object, jobject object1,
+			   jobject object2, jobject object3,
+			   jobject object4)
+{
+  if (likely (!(*android_java_env)->ExceptionCheck (android_java_env)))
+    return;
+
+  __android_log_print (ANDROID_LOG_WARN, __func__,
+		       "Possible out of memory error. "
+		       " The Java exception follows:  ");
+  /* Describe exactly what went wrong.  */
+  (*android_java_env)->ExceptionDescribe (android_java_env);
+  (*android_java_env)->ExceptionClear (android_java_env);
+
+  if (object)
+    ANDROID_DELETE_LOCAL_REF (object);
+
+  if (object1)
+    ANDROID_DELETE_LOCAL_REF (object1);
+
+  if (object2)
+    ANDROID_DELETE_LOCAL_REF (object2);
+
+  if (object3)
+    ANDROID_DELETE_LOCAL_REF (object3);
+
+  if (object4)
+    ANDROID_DELETE_LOCAL_REF (object4);
+
+  memory_full (0);
+}
+
+
+/* Like android_exception_check_5, except it takes more than five local
+   reference arguments.  */
+
+void
+android_exception_check_6 (jobject object, jobject object1,
+			   jobject object2, jobject object3,
+			   jobject object4, jobject object5)
+{
+  if (likely (!(*android_java_env)->ExceptionCheck (android_java_env)))
+    return;
+
+  __android_log_print (ANDROID_LOG_WARN, __func__,
+		       "Possible out of memory error. "
+		       " The Java exception follows:  ");
+  /* Describe exactly what went wrong.  */
+  (*android_java_env)->ExceptionDescribe (android_java_env);
+  (*android_java_env)->ExceptionClear (android_java_env);
+
+  if (object)
+    ANDROID_DELETE_LOCAL_REF (object);
+
+  if (object1)
+    ANDROID_DELETE_LOCAL_REF (object1);
+
+  if (object2)
+    ANDROID_DELETE_LOCAL_REF (object2);
+
+  if (object3)
+    ANDROID_DELETE_LOCAL_REF (object3);
+
+  if (object4)
+    ANDROID_DELETE_LOCAL_REF (object4);
+
+  if (object5)
+    ANDROID_DELETE_LOCAL_REF (object5);
 
   memory_full (0);
 }

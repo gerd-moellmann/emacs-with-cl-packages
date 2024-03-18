@@ -2772,8 +2772,9 @@ PORT, NICK, and PASSWORD, along with USER and FULL-NAME when
 given a prefix argument.  Non-interactively, expect the rarely
 needed ID parameter, when non-nil, to be a symbol or a string for
 naming the server buffer and identifying the connection
-unequivocally.  (See Info node `(erc) Connecting' for details
-about all mentioned parameters.)
+unequivocally.  Once connected, return the server buffer.  (See
+Info node `(erc) Connecting' for details about all mentioned
+parameters.)
 
 Together with `erc-tls', this command serves as the main entry
 point for ERC, the powerful, modular, and extensible IRC client.
@@ -3531,6 +3532,40 @@ repeatedly with VAL set to each of VAL's members."
             old (get-text-property pos prop object)
             end (next-single-property-change pos prop object to)))))
 
+(defun erc--reserve-important-text-props (beg end plist &optional object)
+  "Record text-property pairs in PLIST as important between BEG and END.
+Also mark the message being inserted as containing these important props
+so modules performing destructive modifications can later restore them.
+Expect to run in a narrowed buffer at message-insertion time."
+  (when erc--msg-props
+    (let ((existing (erc--check-msg-prop 'erc--important-prop-names)))
+      (puthash 'erc--important-prop-names (cl-union existing (map-keys plist))
+               erc--msg-props)))
+  (erc--merge-prop beg end 'erc--important-props plist object))
+
+(defun erc--restore-important-text-props (props &optional beg end)
+  "Restore PROPS where recorded in the accessible portion of the buffer.
+Expect to run in a narrowed buffer at message-insertion time.  Limit the
+effect to the region between buffer positions BEG and END, when non-nil.
+
+Callers should be aware that this function fails if the property
+`erc--important-props' has an empty value almost anywhere along the
+affected region.  Use the function `erc--remove-from-prop-value-list' to
+ensure that props with empty values are excised completely."
+  (when-let ((registered (erc--check-msg-prop 'erc--important-prop-names))
+             (present (seq-intersection props registered))
+             (b (or beg (point-min)))
+             (e (or end (point-max))))
+    (while-let
+        (((setq b (text-property-not-all b e 'erc--important-props nil)))
+         (val (get-text-property b 'erc--important-props))
+         (q (next-single-property-change b 'erc--important-props nil e)))
+      (while-let ((k (pop val))
+                  (v (pop val)))
+        (when (memq k present)
+          (put-text-property b q k v)))
+      (setq b q))))
+
 (defvar erc-legacy-invisible-bounds-p nil
   "Whether to hide trailing rather than preceding newlines.
 Beginning in ERC 5.6, invisibility extends from a message's
@@ -4045,15 +4080,41 @@ this function from interpreting the line as a command."
 ;;                    Input commands handlers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun erc-cmd-AMSG (line)
-  "Send LINE to all channels of the current server that you are on."
-  (interactive "sSend to all channels you're on: ")
-  (setq line (erc-trim-string line))
+(defun erc--connected-and-joined-p ()
+  (and (erc--current-buffer-joined-p)
+       erc-server-connected))
+
+(defun erc-cmd-GMSG (line)
+  "Send LINE to all channels on all networks you are on."
+  (setq line (string-remove-prefix " " line))
   (erc-with-all-buffers-of-server nil
-    (lambda ()
-      (erc-channel-p (erc-default-target)))
+      #'erc--connected-and-joined-p
+    (erc-send-message line)))
+(put 'erc-cmd-GMSG 'do-not-parse-args t)
+
+(defun erc-cmd-AMSG (line)
+  "Send LINE to all channels of the current network.
+Interactively, prompt for the line of text to send."
+  (interactive "sSend to all channels on this network: ")
+  (setq line (string-remove-prefix " " line))
+  (erc-with-all-buffers-of-server erc-server-process
+      #'erc--connected-and-joined-p
     (erc-send-message line)))
 (put 'erc-cmd-AMSG 'do-not-parse-args t)
+
+(defun erc-cmd-GME (line)
+  "Send LINE as an action to all channels on all networks you are on."
+  (erc-with-all-buffers-of-server nil
+      #'erc--connected-and-joined-p
+    (erc-cmd-ME line)))
+(put 'erc-cmd-GME 'do-not-parse-args t)
+
+(defun erc-cmd-AME (line)
+  "Send LINE as an action to all channels on the current network."
+  (erc-with-all-buffers-of-server erc-server-process
+      #'erc--connected-and-joined-p
+    (erc-cmd-ME line)))
+(put 'erc-cmd-AME 'do-not-parse-args t)
 
 (defun erc-cmd-SAY (line)
   "Send LINE to the current query or channel as a message, not a command.

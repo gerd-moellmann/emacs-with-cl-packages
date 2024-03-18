@@ -327,6 +327,11 @@ bset_name (struct buffer *b, Lisp_Object val)
   b->name_ = val;
 }
 static void
+bset_last_name (struct buffer *b, Lisp_Object val)
+{
+  b->last_name_ = val;
+}
+static void
 bset_overwrite_mode (struct buffer *b, Lisp_Object val)
 {
   b->overwrite_mode_ = val;
@@ -647,6 +652,7 @@ even if it is dead.  The return value is never nil.  */)
   name = Fcopy_sequence (buffer_or_name);
   set_string_intervals (name, NULL);
   bset_name (b, name);
+  bset_last_name (b, name);
 
   b->inhibit_buffer_hooks = !NILP (inhibit_buffer_hooks);
   bset_undo_list (b, SREF (name, 0) != ' ' ? Qnil : Qt);
@@ -796,14 +802,20 @@ DEFUN ("make-indirect-buffer", Fmake_indirect_buffer, Smake_indirect_buffer,
 BASE-BUFFER should be a live buffer, or the name of an existing buffer.
 
 NAME should be a string which is not the name of an existing buffer.
+
+Interactively, prompt for BASE-BUFFER (offering the current buffer as
+the default), and for NAME (offering as default the name of a recently
+used buffer).
+
 Optional argument CLONE non-nil means preserve BASE-BUFFER's state,
 such as major and minor modes, in the indirect buffer.
-
 CLONE nil means the indirect buffer's state is reset to default values.
 
 If optional argument INHIBIT-BUFFER-HOOKS is non-nil, the new buffer
 does not run the hooks `kill-buffer-hook',
-`kill-buffer-query-functions', and `buffer-list-update-hook'.  */)
+`kill-buffer-query-functions', and `buffer-list-update-hook'.
+
+Interactively, CLONE and INHIBIT-BUFFER-HOOKS are nil.  */)
   (Lisp_Object base_buffer, Lisp_Object name, Lisp_Object clone,
    Lisp_Object inhibit_buffer_hooks)
 {
@@ -860,6 +872,7 @@ does not run the hooks `kill-buffer-hook',
   name = Fcopy_sequence (name);
   set_string_intervals (name, NULL);
   bset_name (b, name);
+  bset_last_name (b, name);
 
   /* An indirect buffer shares undo list of its base (Bug#18180).  */
   bset_undo_list (b, BVAR (b->base_buffer, undo_list));
@@ -1276,6 +1289,17 @@ Return nil if BUFFER has been killed.  */)
   return BVAR (decode_buffer (buffer), name);
 }
 
+DEFUN ("buffer-last-name", Fbuffer_last_name, Sbuffer_last_name, 0, 1, 0,
+       doc: /* Return last name of BUFFER, as a string.
+BUFFER defaults to the current buffer.
+
+This is the name BUFFER had before the last time it was renamed or
+immediately before it was killed.  */)
+  (Lisp_Object buffer)
+{
+  return BVAR (decode_buffer (buffer), last_name);
+}
+
 DEFUN ("buffer-file-name", Fbuffer_file_name, Sbuffer_file_name, 0, 1, 0,
        doc: /* Return name of file BUFFER is visiting, or nil if none.
 No argument or nil as argument means use the current buffer.  */)
@@ -1646,6 +1670,7 @@ This does not change the name of the visited file (if any).  */)
   (register Lisp_Object newname, Lisp_Object unique)
 {
   register Lisp_Object tem, buf;
+  Lisp_Object oldname = BVAR (current_buffer, name);
   Lisp_Object requestedname = newname;
 
   CHECK_STRING (newname);
@@ -1663,12 +1688,12 @@ This does not change the name of the visited file (if any).  */)
       if (NILP (unique) && XBUFFER (tem) == current_buffer)
 	return BVAR (current_buffer, name);
       if (!NILP (unique))
-	newname = Fgenerate_new_buffer_name (newname,
-	                                     BVAR (current_buffer, name));
+	newname = Fgenerate_new_buffer_name (newname, oldname);
       else
 	error ("Buffer name `%s' is in use", SDATA (newname));
     }
 
+  bset_last_name (current_buffer, oldname);
   bset_name (current_buffer, newname);
 
   /* Catch redisplay's attention.  Unless we do this, the mode lines for
@@ -1965,8 +1990,16 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       Lisp_Object tail, other;
 
       FOR_EACH_LIVE_BUFFER (tail, other)
-	if (XBUFFER (other)->base_buffer == b)
-	  Fkill_buffer (other);
+	{
+	  struct buffer *obuf = XBUFFER (other);
+	  if (obuf->base_buffer == b)
+	    {
+	      Fkill_buffer (other);
+	      if (BUFFER_LIVE_P (obuf))
+		error ("Unable to kill buffer whose indirect buffer `%s' cannot be killed",
+		       SDATA (BVAR (obuf, name)));
+	    }
+	}
 
       /* Exit if we now have killed the base buffer (Bug#11665).  */
       if (!BUFFER_LIVE_P (b))
@@ -2081,6 +2114,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
      This gets rid of them for certain.  */
   reset_buffer_local_variables (b, 1);
 
+  bset_last_name (b, BVAR (b, name));
   bset_name (b, Qnil);
 
   block_input ();
@@ -4652,6 +4686,7 @@ init_buffer_once (void)
   /* These used to be stuck at 0 by default, but now that the all-zero value
      means Qnil, we have to initialize them explicitly.  */
   bset_name (&buffer_local_flags, make_fixnum (0));
+  bset_last_name (&buffer_local_flags, make_fixnum (0));
   bset_mark (&buffer_local_flags, make_fixnum (0));
   bset_local_var_alist (&buffer_local_flags, make_fixnum (0));
   bset_keymap (&buffer_local_flags, make_fixnum (0));
@@ -6012,6 +6047,7 @@ There is no reason to change that value except for debugging purposes.  */);
   defsubr (&Smake_indirect_buffer);
   defsubr (&Sgenerate_new_buffer_name);
   defsubr (&Sbuffer_name);
+  defsubr (&Sbuffer_last_name);
   defsubr (&Sbuffer_file_name);
   defsubr (&Sbuffer_base_buffer);
   defsubr (&Sbuffer_local_value);

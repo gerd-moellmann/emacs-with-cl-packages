@@ -1210,19 +1210,11 @@ leading double colon is not added."
 
   (setq-local syntax-propertize-function #'ruby-ts--syntax-propertize))
 
+(derived-mode-add-parents 'ruby-ts-mode '(ruby-mode))
+
 (if (treesit-ready-p 'ruby)
-    ;; Copied from ruby-mode.el.
-    (add-to-list 'auto-mode-alist
-                 (cons (concat "\\(?:\\.\\(?:"
-                               "rbw?\\|ru\\|rake\\|thor"
-                               "\\|jbuilder\\|rabl\\|gemspec\\|podspec"
-                               "\\)"
-                               "\\|/"
-                               "\\(?:Gem\\|Rake\\|Cap\\|Thor"
-                               "\\|Puppet\\|Berks\\|Brew"
-                               "\\|Vagrant\\|Guard\\|Pod\\)file"
-                               "\\)\\'")
-                       'ruby-ts-mode)))
+    (add-to-list 'major-mode-remap-defaults
+                 '(ruby-mode . ruby-ts-mode)))
 
 (provide 'ruby-ts-mode)
 

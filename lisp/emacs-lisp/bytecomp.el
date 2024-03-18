@@ -285,6 +285,7 @@ The information is logged to `byte-compile-log-buffer'."
 (defconst byte-compile-warning-types
   '( callargs constants
      docstrings docstrings-non-ascii-quotes docstrings-wide
+     docstrings-control-chars
      empty-body free-vars ignored-return-value interactive-only
      lexical lexical-dynamic make-local
      mapcar                             ; obsolete
@@ -307,6 +308,8 @@ Elements of the list may be:
               docstrings that are too wide, containing lines longer than both
               `byte-compile-docstring-max-column' and `fill-column' characters.
               Only enabled when `docstrings' also is.
+  docstrings-control-chars
+              docstrings that contain control characters other than NL and TAB
   empty-body  body argument to a special form or macro is empty.
   free-vars   references to variables not in the current lexical scope.
   ignored-return-value
@@ -1769,6 +1772,24 @@ It is too wide if it has any lines longer than the largest of
           (byte-compile-warn-x
            name
            "%sdocstring wider than %s characters" (funcall prefix) col)))
+
+      (when (byte-compile-warning-enabled-p 'docstrings-control-chars)
+        (let ((start 0)
+              (len (length docs)))
+          (while (and (< start len)
+                      (string-match (rx (intersection (in (0 . 31) 127)
+                                                      (not (in "\n\t"))))
+                                    docs start))
+            (let* ((ofs (match-beginning 0))
+                   (c (aref docs ofs)))
+              ;; FIXME: it should be possible to use the exact source position
+              ;; of the control char in most cases, and it would be helpful
+              (byte-compile-warn-x
+               name
+               "%sdocstring contains control char #x%02x (position %d)"
+               (funcall prefix) c ofs)
+              (setq start (1+ ofs))))))
+
       ;; There's a "naked" ' character before a symbol/list, so it
       ;; should probably be quoted with \=.
       (when (string-match-p (rx (| (in " \t") bol)
@@ -3042,12 +3063,11 @@ lambda-expression."
 	  (append (if (not lexical-binding) arglistvars)
                   byte-compile-bound-variables))
 	 (body (cdr (cdr fun)))
-	 (doc (if (stringp (car body))
+         ;; Treat a final string literal as a value, not a doc string.
+	 (doc (if (and (cdr body) (stringp (car body)))
                   (prog1 (car body)
-                    ;; Discard the doc string from the body
-                    ;; unless it is the last element of the body.
-                    (if (cdr body)
-                        (setq body (cdr body))))))
+                    ;; Discard the doc string from the body.
+                    (setq body (cdr body)))))
 	 (int (assq 'interactive body))
          command-modes)
     (when lexical-binding
@@ -5518,23 +5538,14 @@ invoked interactively."
 		 (if (null f)
 		     " <top level>";; shouldn't insert nil then, actually -sk
 		   " <not defined>"))
-		((subrp (setq f (symbol-function f)))
-		 " <subr>")
-		((symbolp f)
+		((symbolp (setq f (symbol-function f))) ;; An alias.
 		 (format " ==> %s" f))
-		((byte-code-function-p f)
-		 "<compiled function>")
 		((not (consp f))
-		 "<malformed function>")
+		 (format " <%s>" (type-of f)))
 		((eq 'macro (car f))
-		 (if (or (compiled-function-p (cdr f))
-			 ;; FIXME: Can this still happen?
-			 (assq 'byte-code (cdr (cdr (cdr f)))))
+		 (if (compiled-function-p (cdr f))
 		     " <compiled macro>"
 		   " <macro>"))
-		((assq 'byte-code (cdr (cdr f)))
-		 ;; FIXME: Can this still happen?
-		 "<compiled lambda>")
 		((eq 'lambda (car f))
 		 "<function>")
 		(t "???"))

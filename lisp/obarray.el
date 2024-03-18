@@ -54,7 +54,7 @@ Return nil otherwise."
 
 (defun obarray-put (ob name)
   "Return symbol named NAME from obarray OB.
-Creates and adds the symbol if doesn't exist."
+Creates and adds the symbol if it doesn't exist."
   (intern name ob))
 
 (defun obarray-remove (ob name)

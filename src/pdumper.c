@@ -2743,7 +2743,7 @@ dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_EBBA38AEFA
+#if CHECK_STRUCTS && !defined HASH_buffer_B02F648B82
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;
@@ -2755,6 +2755,7 @@ dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
   else
     eassert (buffer->window_count == -1);
   buffer->local_minor_modes_ = Qnil;
+  buffer->last_name_ = Qnil;
   buffer->last_selected_window_ = Qnil;
   buffer->display_count_ = make_fixnum (0);
   buffer->clip_changed = 0;
@@ -2996,7 +2997,7 @@ dump_vectorlike (struct dump_context *ctx,
                  Lisp_Object lv,
                  dump_off offset)
 {
-#if CHECK_STRUCTS && !defined HASH_pvec_type_E17DAE1E6E
+#if CHECK_STRUCTS && !defined HASH_pvec_type_2D583AC566
 # error "pvec_type changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Vector *v = XVECTOR (lv);
