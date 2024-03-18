@@ -2721,11 +2721,14 @@ dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
 #if CHECK_STRUCTS && !defined HASH_hash_impl_0360833954
 # error "hash_impl changed. See CHECK_STRUCTS comment in config.h."
 #endif
-  struct hash_impl *h = hash_impl_freeze (hash_in);
-  dump_object_start (ctx, h, sizeof *h);
-  dump_off offset = dump_object_finish (ctx, &h->header, sizeof *h);
-  dump_hash_entries (ctx, h);
-  xfree (h);
+  struct hash_impl *frozen = hash_impl_freeze (hash_in);
+  // Caution: dump_object_start memsets out to 0, that's why we need it.
+  struct hash_impl out;
+  dump_object_start (ctx, &out, sizeof out);
+  memcpy (&out, frozen, sizeof out);
+  dump_off offset = dump_object_finish (ctx, &out.header, sizeof out);
+  dump_hash_entries (ctx, frozen);
+  xfree (frozen);
   return offset;
 }
 

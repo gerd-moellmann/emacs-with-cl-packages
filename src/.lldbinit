@@ -47,10 +47,10 @@ command alias xprint frame variable -P 2
 # process handle -p true -s false SIGSEGV
 # process handle -p true -s false SIGBUS
 
-settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest --eln-dest
+#settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest --eln-dest
 
 #settings set -- target.run-args -l ../lisp/emacs-lisp/loaddefs-gen.elc -f loaddefs-generate--emacs-batch . ../lisp/calc ../lisp/calendar ../lisp/cedet ../lisp/cedet/ede ../lisp/cedet/semantic ../lisp/cedet/semantic/analyze ../lisp/cedet/semantic/bovine ../lisp/cedet/semantic/decorate ../lisp/cedet/semantic/symref ../lisp/cedet/semantic/wisent ../lisp/cedet/srecode ../lisp/emacs-lisp ../lisp/emulation ../lisp/erc ../lisp/eshell ../lisp/gnus ../lisp/image ../lisp/international ../lisp/language ../lisp/leim ../lisp/leim/ja-dic ../lisp/leim/quail ../lisp/mail ../lisp/mh-e ../lisp/net ../lisp/nxml ../lisp/org ../lisp/play ../lisp/progmodes ../lisp/textmodes ../lisp/url ../lisp/use-package ../lisp/vc
 
-#settings set -- target.run-args -batch --no-site-file --no-site-lisp -f batch-byte-compile ../admin/unidata/uvs.el
-
+settings set -- target.run-args -batch --no-site-file --no-site-lisp -f batch-byte-compile ../admin/unidata/uvs.el
+b hash_table_thaw
 # end.
