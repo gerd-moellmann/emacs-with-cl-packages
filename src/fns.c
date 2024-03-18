@@ -38,6 +38,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "igc.h"
 #include "intervals.h"
+#include "pdumper.h"
 #include "window.h"
 #include "puresize.h"
 #include "gnutls.h"
@@ -4401,13 +4402,18 @@ HASH_INDEX (struct Lisp_Hash_Table *h, ptrdiff_t idx)
 }
 
 // Useful debugging tool
-#if 0
+#if 1
 static ptrdiff_t hash_index_index (struct Lisp_Hash_Table *h,
 				   hash_hash_t hash);
-
 static void
 check_table (struct Lisp_Hash_Table *h)
 {
+  if (!dump_loaded_p ())
+    return;
+  // Known bug in cl--generic-build-combined-method, modifying keys
+  if (h->i->weakness != Weak_None)
+    return;
+
   ptrdiff_t n = hash_table_index_size (h);
   for (ptrdiff_t bucket = 0; bucket < n; ++bucket)
     {
@@ -4426,6 +4432,9 @@ check_table (struct Lisp_Hash_Table *h)
 	}
     }
 }
+#define CHECK_TABLE(h) check_table (h)
+#else
+#define CHECK_TABLE(h) (void) 0
 #endif
 
 /* Restore a hash table's mutability after the critical section exits.  */
@@ -4790,6 +4799,8 @@ hash_table_thaw (Lisp_Object hash_table)
 	  hi->index[bucket] = i;
 	}
     }
+
+  CHECK_TABLE (h);
 }
 
 /* Look up KEY with hash HASH in table H.
@@ -4798,6 +4809,7 @@ static ptrdiff_t
 hash_lookup_with_hash (struct Lisp_Hash_Table *h,
 		       Lisp_Object key, hash_hash_t hash)
 {
+  CHECK_TABLE (h);
   ptrdiff_t start_of_bucket = hash_index_index (h, hash);
   for (ptrdiff_t i = HASH_INDEX (h, start_of_bucket);
        0 <= i; i = HASH_NEXT (h, i))
@@ -4844,6 +4856,8 @@ ptrdiff_t
 hash_put (struct Lisp_Hash_Table *h, Lisp_Object key, Lisp_Object value,
 	  hash_hash_t hash)
 {
+  CHECK_TABLE (h);
+
   eassert (!hash_unused_entry_key_p (key));
   /* Increment count after resizing because resizing may fail.  */
   maybe_resize_hash_table (h);

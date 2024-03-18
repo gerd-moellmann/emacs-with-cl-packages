@@ -5182,7 +5182,7 @@ dump_find_relocation (const struct dump_table_locator *const table,
   return found;
 }
 
-static bool
+bool
 dump_loaded_p (void)
 {
   return dump_public.start != 0;
