@@ -978,16 +978,21 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_WINDOW:
-	      // Nothing to do
+	      // All Lisp_Objects as part of pseudo-vector, but there
+	      // are glyph_matrix pointers, in case we do something with
+	      // that.
 	      break;
 
 	    case PVEC_HASH_TABLE:
-	      // Nothing to do
+	      {
+		struct Lisp_Hash_Table *p = obase;
+		IGC_FIX12_RAW (ss, &p->i);
+	      }
 	      break;
 
 	    case PVEC_HASH_IMPL:
 	      {
-		struct hash_impl *h = base;
+		struct hash_impl *h = obase;
 		eassert (h->weakness == Weak_None);
 		for (ptrdiff_t i = 0, n = h->count; n > 0 && i < h->table_size; ++i)
 		  {
@@ -1006,7 +1011,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    case PVEC_SUB_CHAR_TABLE:
 	      // See also mark_char_table :-/
 	      {
-		struct Lisp_Vector *v = base;
+		struct Lisp_Vector *v = obase;
 		int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
 		enum pvec_type type = pseudo_vector_type (v);
 		int idx = (type == PVEC_SUB_CHAR_TABLE
@@ -1020,6 +1025,9 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    case PVEC_OVERLAY:
 	      {
 		struct Lisp_Overlay *p = obase;
+		IGC_FIX12_RAW (ss, &p->buffer);
+		IGC_FIX12_OBJ (ss, &p->plist);
+		IGC_FIX12_RAW (ss, &p->interval);
 	      }
 	      break;
 
