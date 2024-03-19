@@ -155,7 +155,8 @@ struct igc_root {
 typedef struct igc_root igc_root;
 IGC_DEFINE_LIST (igc_root);
 
-enum igc_type {
+enum igc_type
+{
   IGC_TYPE_CONS,
   IGC_TYPE_SYMBOL,
   IGC_TYPE_INTERVAL,
@@ -167,6 +168,15 @@ enum igc_type {
   IGC_TYPE_FACE,
   IGC_TYPE_LAST
 };
+
+struct igc_init {
+  mps_class_t pool_class;
+  size_t align;
+  mps_fmt_scan_t scan;
+  mps_fmt_skip_t skip;
+};
+
+static struct igc_init igc_inits[IGC_TYPE_LAST];
 
 struct igc_thread {
   struct igc *gc;
@@ -1446,16 +1456,17 @@ igc_alloc_symbol (void)
 }
 
 static size_t
-igc_roundup (size_t nbytes)
+igc_roundup (size_t nbytes, enum igc_type type)
 {
-  return roundup (nbytes, GCALIGNMENT);
+  return roundup (nbytes, igc_inits[type].align);
 }
 
 static struct igc_sdata *
 alloc_string_data (size_t nbytes)
 {
-  mps_ap_t ap = thread_ap (IGC_TYPE_STRING_DATA);
-  nbytes = igc_roundup (sizeof (struct igc_sdata) + nbytes);
+  enum igc_type type = IGC_TYPE_STRING_DATA;
+  mps_ap_t ap = thread_ap (type);
+  nbytes = igc_roundup (sizeof (struct igc_sdata) + nbytes, type);
   mps_addr_t p;
   do
     {
@@ -1639,13 +1650,6 @@ static mps_pool_debug_option_s debug_options = {
   "fence", 5, "free", 4,
 };
 
-struct igc_init {
-  mps_class_t pool_class;
-  size_t align;
-  mps_fmt_scan_t scan;
-  mps_fmt_skip_t skip;
-};
-
 static void
 make_arena (struct igc *gc)
 {
@@ -1706,6 +1710,8 @@ make_igc (void)
   struct igc *gc = xzalloc (sizeof *gc);
   make_arena (gc);
 
+  // mps_class_xxx are runtime values, so we can't make this vector
+  // static.
   struct igc_init inits[] = {
     { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = cons_scan, .skip = cons_skip },
@@ -1727,8 +1733,9 @@ make_igc (void)
     { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = face_scan, .skip = face_skip },
   };
-
   igc_static_assert (ARRAYELTS (inits) == IGC_TYPE_LAST);
+  *igc_inits = *inits;
+
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
       struct igc_init *init = inits + type;
