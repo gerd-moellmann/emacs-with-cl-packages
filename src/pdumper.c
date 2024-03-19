@@ -2701,9 +2701,10 @@ static void
 dump_hash_index (struct dump_context *ctx,
 		 const struct hash_impl *h)
 {
-  ptrdiff_t index_size = (ptrdiff_t)1 << h->index_bits;
-  ptrdiff_t nbytes = index_size * sizeof (hash_idx_t);
-  dump_write_zero (ctx, nbytes);
+  ptrdiff_t index_size = (ptrdiff_t) 1 << h->index_bits;
+  hash_idx_t minus1 = -1;
+  for (ptrdiff_t i = 0; i < index_size; ++i)
+    dump_write (ctx, &minus1, sizeof minus1);
 }
 
 static void

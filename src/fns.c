@@ -4768,16 +4768,19 @@ hash_table_thaw (Lisp_Object hash_table)
 
   if (hi->table_size == 0)
     {
-      index[0] = -1;
+      eassert (index[0] == -1);
     }
   else
     {
-      /* Would be nicer if we did that while dumping.  */
-      ptrdiff_t index_size = hash_impl_index_size (hi);
-      hash_idx_t *index = hindex (hi);
-      for (ptrdiff_t i = 0; i < index_size; i++)
-	index[i] = -1;
-
+#ifdef ENABLE_CHECKING
+      {
+	ptrdiff_t index_size = hash_impl_index_size (hi);
+	hash_idx_t *index = hindex (hi);
+	for (ptrdiff_t i = 0; i < index_size; i++)
+	  eassert (index[i] == -1);
+      }
+#endif
+      /* Would maybe be nicer if we did that while dumping.  */
       for (ptrdiff_t i = 0; i < hi->count; i++)
 	{
 	  struct hash_entry *e = hi->entries + i;
