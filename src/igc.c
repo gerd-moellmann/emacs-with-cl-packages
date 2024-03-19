@@ -1712,25 +1712,35 @@ make_igc (void)
 
   // mps_class_xxx are runtime values, so we can't make this vector
   // static.
-  struct igc_init inits[] = {
-    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+  struct igc_init inits[] =
+  {
+    [IGC_TYPE_CONS] = {
+      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = cons_scan, .skip = cons_skip },
-    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+    [IGC_TYPE_SYMBOL] = {
+      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = symbol_scan, .skip = symbol_skip },
-    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+    [IGC_TYPE_INTERVAL] = {
+      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = interval_scan, .skip = interval_skip },
-    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+    [IGC_TYPE_STRING] = {
+      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = string_scan, .skip = string_skip },
-    { .pool_class = mps_class_amcz (),
+    [IGC_TYPE_STRING_DATA] = {
+      .pool_class = mps_class_amcz (),
       .align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad)),
       .scan = NULL, .skip = string_data_skip },
-    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+    [IGC_TYPE_VECTOR] = {
+      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = vector_scan, .skip = vector_skip },
-    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+    [IGC_TYPE_ITREE_NODE] = {
+      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = itree_scan, .skip = itree_skip },
-    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+    [IGC_TYPE_IMAGE] = {
+      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = image_scan, .skip = image_skip },
-    { .pool_class = mps_class_amc (), .align = GCALIGNMENT,
+    [IGC_TYPE_FACE] = {
+      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = face_scan, .skip = face_skip },
   };
   igc_static_assert (ARRAYELTS (inits) == IGC_TYPE_LAST);
