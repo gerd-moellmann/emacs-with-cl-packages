@@ -2771,6 +2771,7 @@ static struct Lisp_Float *float_free_list;
 Lisp_Object
 make_float (double float_value)
 {
+  eassert_not_mps ();
   register Lisp_Object val;
 
   MALLOC_BLOCK_INPUT;
