@@ -45,7 +45,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
   - weak hash tables
  */
 
-// clang-format off
+// clang-format on
 
 #include <config.h>
 
@@ -790,15 +790,27 @@ is_bool_vector (const struct Lisp_Vector *v)
     && pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
 }
 
+static bool
+is_hash_impl (const struct Lisp_Vector *v)
+{
+  return is_pseudo_vector (v)
+	 && pseudo_vector_type (v) == PVEC_HASH_IMPL;
+}
+
 static size_t
 vector_size (const struct Lisp_Vector *v)
 {
   // lisp.h defines header_size, word_size, bool_header_size
-  size_t nwords;
+  size_t nwords = v->header.size;
   size_t hsize = header_size;
   if (is_pseudo_vector (v))
     {
-      if (is_bool_vector (v))
+      if (is_hash_impl (v))
+	{
+	  struct hash_impl *h = (struct hash_impl *) v;
+	  return hash_impl_nbytes (h->table_size);
+	}
+      else if (is_bool_vector (v))
 	{
 	  struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
 	  hsize = bool_header_size;
@@ -807,8 +819,7 @@ vector_size (const struct Lisp_Vector *v)
       else
 	nwords = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
     }
-  else
-    nwords = v->header.size;
+
   return hsize + nwords * word_size;
 }
 
@@ -845,13 +856,15 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  mps_addr_t obase = base;
 	  base = (char *) base + vector_size (v);
 
+	  // Fix contents of normal vectors.
 	  if (is_plain_vector (v))
 	    {
 	      IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
 	      continue;
 	    }
 
-	  if (!is_bool_vector (v))
+	  // Fix Lisp object part of normal pseudo vectors.
+	  if (!is_bool_vector (v) && !is_hash_impl (v))
 	    {
 	      const size_t nobjs = pseudo_vector_nobjs (v);
 	      IGC_FIX12_NOBJS (ss, v->contents, nobjs);
@@ -974,7 +987,18 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_HASH_IMPL:
 	      {
-		eassert (false);
+		struct hash_impl *h = base;
+		eassert (h->weakness == Weak_None);
+		for (ptrdiff_t i = 0, n = h->count; n > 0 && i < h->table_size; ++i)
+		  {
+		    struct hash_entry *e = h->entries + i;
+		    if (!hash_unused_entry_key_p (e->key))
+		      {
+			IGC_FIX12_OBJ (ss, &e->key);
+			IGC_FIX12_OBJ (ss, &e->value);
+			--n;
+		      }
+		  }
 	      }
 	      break;
 
