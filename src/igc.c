@@ -971,9 +971,15 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_FRAME:
 	      {
-		//  output_data;
-		//  struct font_driver_list *font_driver_list;
+		// output_data;
+		// terminal
+		// face_cache *
+		// glyph_pool
+		// glyph matrices
+		// struct font_driver_list *font_driver_list;
+		// struct text_conversion_state conversion;
 		struct frame *f = obase;
+		eassert (false);
 	      }
 	      break;
 
@@ -1580,6 +1586,26 @@ igc_make_face (void)
       IGC_CHECK_RES (res);
       igc_static_assert (NIL_IS_ZERO);
       memclear (p, nbytes);
+    }
+  while (!mps_commit (ap, p, nbytes));
+  return p;
+}
+
+struct hash_impl *
+igc_make_hash_impl (ptrdiff_t nentries)
+{
+  mps_ap_t ap = thread_ap (IGC_TYPE_VECTOR);
+  ptrdiff_t nbytes = hash_impl_nbytes (nentries);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+
+      struct hash_impl *h = p;
+      set_table_size (h, nentries);
+      set_index_bits (h, compute_hash_index_bits (nentries));
+      XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
     }
   while (!mps_commit (ap, p, nbytes));
   return p;

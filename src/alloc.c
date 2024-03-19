@@ -3658,6 +3658,9 @@ sweep_vectors (void)
 struct hash_impl *
 allocate_hash_impl (size_t nentries)
 {
+#ifdef HAVE_MPS
+  return igc_make_hash_impl (nentries);
+#else
   eassert_not_mps ();
   struct hash_impl *h;
 
@@ -3690,6 +3693,7 @@ allocate_hash_impl (size_t nentries)
   XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
   eassert (PSEUDOVECTOR_TYPE (p) == PVEC_HASH_IMPL);
   return h;
+#endif
 }
 
 /* Maximum number of elements in a vector.  This is a macro so that it

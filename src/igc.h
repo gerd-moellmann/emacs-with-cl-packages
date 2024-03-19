@@ -50,6 +50,7 @@ struct image *igc_make_image (void);
 struct face *igc_make_face (void);
 Lisp_Object igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear);
 struct interval *igc_make_interval (void);
+struct hash_impl *igc_make_hash_impl (ptrdiff_t nentries);
 
 #define eassert_not_mps() eassert(false)
 #else
