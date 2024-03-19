@@ -604,11 +604,13 @@ XPNTR (Lisp_Object a)
 	  : (char *) XLP (a) - (XLI (a) & ~VALMASK));
 }
 
+#ifndef HAVE_MPS
 static void
 XFLOAT_INIT (Lisp_Object f, double n)
 {
   XFLOAT (f)->u.data = n;
 }
+#endif
 
 /* Account for allocation of NBYTES in the heap.  This is a separate
    function to avoid hassles with implementation-defined conversion
@@ -1195,6 +1197,7 @@ static struct ablock *free_ablock;
 /* Allocate an aligned block of nbytes.
    Alignment is on a multiple of BLOCK_ALIGN and `nbytes' has to be
    smaller or equal to BLOCK_BYTES.  */
+#ifndef HAVE_MPS
 static void *
 lisp_align_malloc (size_t nbytes, enum mem_type type)
 {
@@ -1299,6 +1302,7 @@ lisp_align_malloc (size_t nbytes, enum mem_type type)
   eassert (0 == ((uintptr_t) val) % BLOCK_ALIGN);
   return val;
 }
+#endif
 
 static void
 lisp_align_free (void *block)
@@ -2771,7 +2775,9 @@ static struct Lisp_Float *float_free_list;
 Lisp_Object
 make_float (double float_value)
 {
-  eassert_not_mps ();
+#ifdef HAVE_MPS
+  return igc_make_float (float_value);
+#else
   register Lisp_Object val;
 
   MALLOC_BLOCK_INPUT;
@@ -2806,6 +2812,7 @@ make_float (double float_value)
   tally_consing (sizeof (struct Lisp_Float));
   floats_consed++;
   return val;
+#endif
 }
 
 

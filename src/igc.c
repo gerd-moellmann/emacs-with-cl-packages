@@ -1469,6 +1469,26 @@ igc_roundup (size_t nbytes, enum igc_type type)
   return roundup (nbytes, igc_inits[type].align);
 }
 
+Lisp_Object
+igc_make_float (double val)
+{
+  enum igc_type type = IGC_TYPE_FLOAT;
+  mps_ap_t ap = thread_ap (type);
+  size_t nbytes = sizeof (struct Lisp_Float);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+      struct Lisp_Float *f = p;
+      f->u.data = val;
+    }
+  while (!mps_commit (ap, p, nbytes));
+  Lisp_Object obj;
+  XSETFLOAT (obj, p);
+  return obj;
+}
+
 static struct igc_sdata *
 alloc_string_data (size_t nbytes)
 {
