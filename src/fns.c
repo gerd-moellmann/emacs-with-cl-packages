@@ -4405,7 +4405,7 @@ HASH_INDEX (struct Lisp_Hash_Table *h, ptrdiff_t idx)
 
 // Useful debugging tool
 #if 0
-static ptrdiff_t hash_index_index (struct Lisp_Hash_Table *h,
+static ptrdiff_t hash_index_index (struct hash_impl *h,
 				   hash_hash_t hash);
 static void
 check_table (struct Lisp_Hash_Table *h)
@@ -4429,7 +4429,7 @@ check_table (struct Lisp_Hash_Table *h)
 	  eassert (!hash_unused_entry_key_p (key));
 	  hash_hash_t hash = hash_from_key (h, key);
 	  eassert (hash == HASH_HASH (h, i));
-	  hash_idx_t bucket_now = hash_index_index (h, hash);
+	  hash_idx_t bucket_now = hash_index_index (h->i, hash);
 	  eassert (bucket_now == bucket);
 	}
     }

@@ -2698,6 +2698,16 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
 }
 
 static void
+dump_hash_index (struct dump_context *ctx,
+		 const struct hash_impl *h)
+{
+  int index_bits = compute_hash_index_bits (h->count);
+  ptrdiff_t index_size = (ptrdiff_t)1 << index_bits;
+  ptrdiff_t nbytes = index_size * sizeof (hash_idx_t);
+  dump_write_zero (ctx, nbytes);
+}
+
+static void
 dump_hash_entries (struct dump_context *ctx,
 		   const struct hash_impl *hash)
 {
@@ -2721,12 +2731,14 @@ dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
 # error "hash_impl changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct hash_impl *frozen = hash_impl_freeze (hash_in);
-  // Caution: dump_object_start memsets out to 0, that's why we need it.
+  // Caution: dump_object_start memsets out to 0, that's why can't use
+  // frozen directly.
   struct hash_impl out;
   dump_object_start (ctx, &out, sizeof out);
   memcpy (&out, frozen, sizeof out);
   dump_off offset = dump_object_finish (ctx, &out.header, sizeof out);
   dump_hash_entries (ctx, frozen);
+  dump_hash_index (ctx, frozen);
   xfree (frozen);
   return offset;
 }
