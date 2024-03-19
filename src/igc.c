@@ -48,6 +48,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 // clang-format on
 
 #include <config.h>
+#include <sys/_types/_size_t.h>
+#include <sys/param.h>
 
 #ifdef HAVE_MPS
 
@@ -1443,21 +1445,27 @@ igc_alloc_symbol (void)
   return make_lisp_symbol ((struct Lisp_Symbol *) p);
 }
 
+static size_t
+igc_roundup (size_t nbytes)
+{
+  return roundup (nbytes, GCALIGNMENT);
+}
+
 static struct igc_sdata *
 alloc_string_data (size_t nbytes)
 {
   mps_ap_t ap = thread_ap (IGC_TYPE_STRING_DATA);
-  size_t size = sizeof (struct igc_sdata) + nbytes;
+  nbytes = igc_roundup (sizeof (struct igc_sdata) + nbytes);
   mps_addr_t p;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, size);
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       // Initialize before we let it loose on the world.
       struct igc_sdata *s = p;
-      s->object_end = (char *) s + size;
+      s->object_end = (char *) p + nbytes;
     }
-  while (!mps_commit (ap, p, size));
+  while (!mps_commit (ap, p, nbytes));
   return p;
 }
 
