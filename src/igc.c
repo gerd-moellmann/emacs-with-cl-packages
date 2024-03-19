@@ -1004,8 +1004,16 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	    case PVEC_CHAR_TABLE:
 	    case PVEC_SUB_CHAR_TABLE:
+	      // See also mark_char_table :-/
 	      {
-		struct Lisp_Char_Table *p = obase;
+		struct Lisp_Vector *v = base;
+		int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
+		enum pvec_type type = pseudo_vector_type (v);
+		int idx = (type == PVEC_SUB_CHAR_TABLE
+			   ? SUB_CHAR_TABLE_OFFSET
+			   : 0);
+		for (int i = idx; i < size; ++i)
+		  IGC_FIX12_OBJ (ss, &v->contents[i]);
 	      }
 	      break;
 
