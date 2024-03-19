@@ -42,15 +42,19 @@ void *igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 void *igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size);
 
 struct Lisp_Vector *
-igc_alloc_pseudovector (size_t memlen, size_t lisplen,
-			size_t zerolen, enum pvec_type tag);
+igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
+			size_t nwords_zero, enum pvec_type tag);
 struct Lisp_Vector *igc_alloc_vector (ptrdiff_t len);
 struct itree_node *igc_make_itree_node (void);
 struct image *igc_make_image (void);
 struct face *igc_make_face (void);
-Lisp_Object igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear);
 struct interval *igc_make_interval (void);
 struct hash_impl *igc_make_hash_impl (ptrdiff_t nentries);
+
+Lisp_Object igc_make_string (size_t nchars, size_t nbytes, bool unibyte,
+			     bool clear);
+Lisp_Object igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear);
+Lisp_Object igc_make_unibyte_string (size_t nchars, size_t nbytes, bool clear);
 
 #define eassert_not_mps() eassert(false)
 #else

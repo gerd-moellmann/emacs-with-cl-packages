@@ -1462,7 +1462,8 @@ alloc_string_data (size_t nbytes)
 }
 
 Lisp_Object
-igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
+igc_make_string (size_t nchars, size_t nbytes, bool unibyte,
+		 bool clear)
 {
   struct igc_sdata *data = alloc_string_data (nbytes);
   if (clear)
@@ -1477,12 +1478,24 @@ igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
       IGC_CHECK_RES (res);
       struct Lisp_String *s = p;
       s->u.s.size = nchars;
-      s->u.s.size_byte = nbytes;
+      s->u.s.size_byte = unibyte ? -1 : nbytes;
       s->u.s.intervals = NULL;
       s->u.s.data = sdata_contents (data);
     }
   while (!mps_commit (ap, p, size));
   return make_lisp_ptr (p, Lisp_String);
+}
+
+Lisp_Object
+igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear)
+{
+  return igc_make_string (nchars, nbytes, false, clear);
+}
+
+Lisp_Object
+igc_make_unibyte_string (size_t nchars, size_t nbytes, bool clear)
+{
+  return igc_make_string (nchars, nbytes, true, clear);
 }
 
 struct interval *
@@ -1502,22 +1515,24 @@ igc_make_interval (void)
   return p;
 }
 
+// All lens in words
 struct Lisp_Vector *
-igc_alloc_pseudovector (size_t memlen, size_t lisplen, size_t zerolen,
-			enum pvec_type tag)
+igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
+			size_t nwords_zero, enum pvec_type tag)
 {
   mps_ap_t ap = thread_ap (IGC_TYPE_VECTOR);
   mps_addr_t p;
+  size_t nbytes = nwords_mem * word_size;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, memlen);
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       igc_static_assert (NIL_IS_ZERO);
       struct Lisp_Vector *v = p;
-      memclear (v->contents, zerolen * sizeof (Lisp_Object));
-      XSETPVECTYPESIZE (v, tag, lisplen, memlen - lisplen);
+      memclear (v->contents, nwords_zero * word_size);
+      XSETPVECTYPESIZE (v, tag, nwords_lisp, nwords_mem - nwords_lisp);
     }
-  while (!mps_commit (ap, p, memlen));
+  while (!mps_commit (ap, p, nbytes));
   return p;
 }
 

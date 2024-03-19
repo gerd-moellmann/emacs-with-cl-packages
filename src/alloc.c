@@ -1750,6 +1750,10 @@ allocate_string_data (struct Lisp_String *s,
 static void
 init_strings (void)
 {
+#ifdef HAVE_MPS
+  empty_multibyte_string = igc_make_multibyte_string (0, 0, false);
+  empty_unibyte_string = igc_make_unibyte_string (0, 0, false);
+#else
   /* String allocation code will return one of 'empty_*ibyte_string'
      when asked to construct a new 0-length string, so in order to build
      those special cases, we have to do it "by hand".  */
@@ -1764,6 +1768,7 @@ init_strings (void)
   eus->u.s.size_byte = -1;
   XSETSTRING (empty_multibyte_string, ems);
   XSETSTRING (empty_unibyte_string, eus);
+#endif
   staticpro (&empty_unibyte_string);
   staticpro (&empty_multibyte_string);
 }
@@ -1899,6 +1904,7 @@ check_string_free_list (void)
 static struct Lisp_String *
 allocate_string (void)
 {
+  eassert_not_mps ();
   struct Lisp_String *s;
 
   MALLOC_BLOCK_INPUT;
@@ -1966,6 +1972,7 @@ allocate_string_data (struct Lisp_String *s,
 		      EMACS_INT nchars, EMACS_INT nbytes, bool clearit,
 		      bool immovable)
 {
+  eassert_not_mps ();
   sdata *data;
   struct sblock *b;
 
@@ -3806,14 +3813,14 @@ allocate_pseudovector (int memlen, int lisplen,
   eassert (memlen <= size_max + rest_max);
 
 #ifdef HAVE_MPS
-  struct Lisp_Vector *v = igc_alloc_pseudovector (memlen, lisplen, zerolen, tag);
+  return igc_alloc_pseudovector (memlen, lisplen, zerolen, tag);
 #else
   struct Lisp_Vector *v = allocate_vectorlike (memlen, false);
   /* Only the first LISPLEN slots will be traced normally by the GC.  */
   memclear (v->contents, zerolen * word_size);
   XSETPVECTYPESIZE (v, tag, lisplen, memlen - lisplen);
-#endif
   return v;
+#endif
 }
 
 struct buffer *
