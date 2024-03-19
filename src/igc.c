@@ -166,6 +166,7 @@ enum igc_type
   IGC_TYPE_ITREE_NODE,
   IGC_TYPE_IMAGE,
   IGC_TYPE_FACE,
+  IGC_TYPE_FLOAT,
   IGC_TYPE_LAST
 };
 
@@ -653,6 +654,12 @@ static mps_addr_t
 string_data_skip (mps_addr_t addr)
 {
   return ((struct igc_sdata *) addr)->object_end;
+}
+
+static mps_addr_t
+float_skip (mps_addr_t addr)
+{
+  return (char *) addr + sizeof (struct Lisp_Float);
 }
 
 static mps_res_t
@@ -1351,6 +1358,7 @@ do_finalize (struct igc *gc, mps_addr_t addr)
     case IGC_TYPE_ITREE_NODE:
     case IGC_TYPE_IMAGE:
     case IGC_TYPE_FACE:
+    case IGC_TYPE_FLOAT:
     case IGC_TYPE_LAST:
       break;
     }
@@ -1742,6 +1750,9 @@ make_igc (void)
     [IGC_TYPE_FACE] = {
       .pool_class = mps_class_amc (), .align = GCALIGNMENT,
       .scan = face_scan, .skip = face_skip },
+    [IGC_TYPE_FLOAT] = {
+      .pool_class = mps_class_amcz (), .align = GCALIGNMENT,
+      .scan = NULL, .skip = float_skip },
   };
   igc_static_assert (ARRAYELTS (inits) == IGC_TYPE_LAST);
   memcpy (igc_inits, inits, sizeof igc_inits);
