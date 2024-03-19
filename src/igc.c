@@ -1734,7 +1734,7 @@ make_igc (void)
       .scan = face_scan, .skip = face_skip },
   };
   igc_static_assert (ARRAYELTS (inits) == IGC_TYPE_LAST);
-  *igc_inits = *inits;
+  memcpy (igc_inits, inits, sizeof igc_inits);
 
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
