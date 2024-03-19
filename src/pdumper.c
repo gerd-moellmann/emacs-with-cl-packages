@@ -2658,29 +2658,6 @@ hash_table_std_test (const struct hash_table_test *t)
   error ("cannot dump hash tables with user-defined tests");  /* Bug#36769 */
 }
 
-/* Compact contents and discard inessential information from a hash table,
-   preparing it for dumping.
-   See `hash_table_thaw' for the code that restores the object to a usable
-   state. */
-static struct hash_impl *
-hash_impl_freeze (const struct hash_impl *in)
-{
-  const size_t nbytes = sizeof *in + in->count * sizeof *in->entries;
-  struct hash_impl *h = xmalloc (nbytes);
-  memcpy (h, in, nbytes);
-
-  struct hash_entry *to = h->entries;
-  for (const struct hash_entry *from = in->entries;
-       from < in->entries + in->table_size; ++from)
-    if (!hash_unused_entry_key_p (from->key))
-	*to++ = *from;
-  set_index_bits (h, 0);
-  set_table_size (h, h->count);
-  h->next_free = -1;
-  h->frozen_test = hash_table_std_test (h->test);
-  return h;
-}
-
 static dump_off
 dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
 {
@@ -2697,12 +2674,34 @@ dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
   return offset;
 }
 
+/* Value is a hash_impl that has the same contents os IN, but has
+   minimum size needed.  See `hash_table_thaw' for the code that
+   restores the object to a usable state. */
+static struct hash_impl *
+hash_impl_freeze (const struct hash_impl *in)
+{
+  ptrdiff_t nbytes = sizeof *in + in->count * sizeof *in->entries;
+  struct hash_impl *h = xmalloc (nbytes);
+  memcpy (h, in, nbytes);
+
+  struct hash_entry *to = h->entries;
+  for (const struct hash_entry *from = in->entries;
+       from < in->entries + in->table_size; ++from)
+    if (!hash_unused_entry_key_p (from->key))
+      *to++ = *from;
+
+  set_index_bits (h, compute_hash_index_bits (h->count));
+  set_table_size (h, h->count);
+  h->next_free = -1;
+  h->frozen_test = hash_table_std_test (h->test);
+  return h;
+}
+
 static void
 dump_hash_index (struct dump_context *ctx,
 		 const struct hash_impl *h)
 {
-  int index_bits = compute_hash_index_bits (h->count);
-  ptrdiff_t index_size = (ptrdiff_t)1 << index_bits;
+  ptrdiff_t index_size = (ptrdiff_t)1 << h->index_bits;
   ptrdiff_t nbytes = index_size * sizeof (hash_idx_t);
   dump_write_zero (ctx, nbytes);
 }
@@ -2731,15 +2730,17 @@ dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
 # error "hash_impl changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct hash_impl *frozen = hash_impl_freeze (hash_in);
-  // Caution: dump_object_start memsets out to 0, that's why can't use
-  // frozen directly.
   struct hash_impl out;
   dump_object_start (ctx, &out, sizeof out);
+  // Remember that dump_object_start memsets out to 0, that's why can't
+  // use frozen directly.
   memcpy (&out, frozen, sizeof out);
   dump_off offset = dump_object_finish (ctx, &out.header, sizeof out);
+
   dump_hash_entries (ctx, frozen);
   dump_hash_index (ctx, frozen);
   xfree (frozen);
+
   return offset;
 }
 
