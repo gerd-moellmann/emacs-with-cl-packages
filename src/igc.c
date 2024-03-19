@@ -1522,7 +1522,8 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 {
   mps_ap_t ap = thread_ap (IGC_TYPE_VECTOR);
   mps_addr_t p;
-  size_t nbytes = nwords_mem * word_size;
+
+  size_t nbytes = header_size + nwords_mem * word_size;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
