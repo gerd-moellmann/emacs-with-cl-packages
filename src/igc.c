@@ -437,20 +437,6 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-#ifdef HAVE_MODULES
-static int
-visit_env_obj (void *s, void *obj)
-{
-  mps_ss_t ss = s;
-  MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_OBJ (ss, obj);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-#endif
-
 static mps_res_t
 scan_specbindings (mps_ss_t ss, void *start, void *end, void *closure)
 {
@@ -488,11 +474,12 @@ scan_specbindings (mps_ss_t ss, void *start, void *end, void *closure)
 #ifdef HAVE_MODULES
 	    case SPECPDL_MODULE_RUNTIME:
 	      break;
+
+	      // If I am not mistaken, the emacs_env in this binding
+	      // actually lives on the stack (see module-load e.g.).
+	      // So, we don't have to do something here for the Lisp
+	      // objects in emacs_env.
 	    case SPECPDL_MODULE_ENVIRONMENT:
-	      {
-		emacs_env *env = pdl->unwind_ptr.arg;
-		IGC_FIX_CALL (ss, igc_visit_env (ss, env, visit_env_obj));
-	      }
 	      break;
 #endif
 	    case SPECPDL_LET_DEFAULT:
@@ -982,7 +969,13 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      break;
 
 	    case PVEC_HASH_TABLE:
-	      // Nothing to do. key_and_value is ambig root
+	      // Nothing to do
+	      break;
+
+	    case PVEC_HASH_IMPL:
+	      {
+		eassert (false);
+	      }
 	      break;
 
 	    case PVEC_CHAR_TABLE:
