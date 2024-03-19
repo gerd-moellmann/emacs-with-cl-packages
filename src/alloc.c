@@ -1741,7 +1741,9 @@ static ptrdiff_t const STRING_BYTES_MAX =
 
 /* Initialize string allocation.  Called from init_alloc_once.  */
 
+#ifndef HAVE_MPS
 static struct Lisp_String *allocate_string (void);
+#endif
 static void
 allocate_string_data (struct Lisp_String *s,
 		      EMACS_INT nchars, EMACS_INT nbytes, bool clearit,
@@ -1901,10 +1903,10 @@ check_string_free_list (void)
 
 /* Return a new Lisp_String.  */
 
+#ifndef HAVE_MPS
 static struct Lisp_String *
 allocate_string (void)
 {
-  eassert_not_mps ();
   struct Lisp_String *s;
 
   MALLOC_BLOCK_INPUT;
@@ -1957,6 +1959,7 @@ allocate_string (void)
 
   return s;
 }
+#endif // not HAVE_MPS
 
 
 /* Set up Lisp_String S for holding NCHARS characters, NBYTES bytes,
@@ -2612,6 +2615,9 @@ make_uninit_string (EMACS_INT length)
 static Lisp_Object
 make_clear_multibyte_string (EMACS_INT nchars, EMACS_INT nbytes, bool clearit)
 {
+#ifdef HAVE_MPS
+  return igc_make_multibyte_string (nchars, nbytes, clearit);
+#else
   Lisp_Object string;
   struct Lisp_String *s;
 
@@ -2626,6 +2632,7 @@ make_clear_multibyte_string (EMACS_INT nchars, EMACS_INT nbytes, bool clearit)
   XSETSTRING (string, s);
   string_chars_consed += nbytes;
   return string;
+#endif
 }
 
 /* Return a multibyte Lisp_String set up to hold NCHARS characters
