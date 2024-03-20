@@ -937,240 +937,227 @@ static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
-    {
-      while (base < limit)
-	{
-	  if (is_forwarded (base))
+  {
+    while (base < limit)
+      {
+	struct Lisp_Vector *v = base;
+	mps_addr_t vbase = base;
+	base = vector_skip (base);
+
+	if (is_forwarded (v) || is_padding (v))
+	  continue;
+
+	// Fix contents of normal vectors.
+	if (is_plain_vector (v))
+	  {
+	    IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
+	    continue;
+	  }
+
+	// Fix Lisp object part of normal pseudo vectors.
+	if (!is_bool_vector (v) && !is_hash_impl (v))
+	  {
+	    const size_t nobjs = pseudo_vector_nobjs (v);
+	    IGC_FIX12_NOBJS (ss, v->contents, nobjs);
+	  }
+
+	switch (pseudo_vector_type (v))
+	  {
+	  case PVEC_FREE:
+	    IGC_ASSERT (!"PVEC_FREE");
+	    break;
+
+	  case PVEC_NORMAL_VECTOR:
+	  case PVEC_BIGNUM:
+	    // Nothing to do
+	    break;
+
+	  case PVEC_FINALIZER:
+	    // Unclear, has a circurlar list of weak references?
+	    IGC_ASSERT (!"PVEC_FINALIZER");
+	    break;
+
+	  case PVEC_SYMBOL_WITH_POS:
 	    {
-	      const struct igc_fwd *fwd = base;
-	      const struct Lisp_Vector *v = fwd->new;
-	      const size_t size = vector_size (v);
-	      base = (char *) base + size;
-	      continue;
+	      struct Lisp_Symbol_With_Pos *p = vbase;
+	      IGC_FIX12_OBJ (ss, &p->sym);
+	      IGC_FIX12_RAW (ss, &p->pos);
 	    }
+	    break;
 
-	  if (is_padding (base))
+	  case PVEC_MISC_PTR:
 	    {
-	      const struct igc_pad *pad = base;
-	      base = (char *) base + pad->nbytes;
-	      continue;
+	      struct Lisp_Misc_Ptr *p = vbase;
+	      IGC_FIX12_RAW (ss, &p->pointer);
 	    }
+	    break;
 
-	  struct Lisp_Vector *v = base;
-	  mps_addr_t obase = base;
-	  base = (char *) base + vector_size (v);
-
-	  // Fix contents of normal vectors.
-	  if (is_plain_vector (v))
+	  case PVEC_USER_PTR:
 	    {
-	      IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
-	      continue;
+	      struct Lisp_User_Ptr *p = vbase;
+	      IGC_FIX12_RAW (ss, &p->p);
 	    }
+	    break;
 
-	  // Fix Lisp object part of normal pseudo vectors.
-	  if (!is_bool_vector (v) && !is_hash_impl (v))
+	  case PVEC_PROCESS:
+	  case PVEC_BOOL_VECTOR:
+	  case PVEC_WINDOW_CONFIGURATION:
+	  case PVEC_PACKAGE:
+	    // Nothing to do
+	    break;
+
+	  case PVEC_OTHER:
+	    IGC_ASSERT (!"PVEC_OTHER");
+	    break;
+
+	  case PVEC_XWIDGET:
+	  case PVEC_XWIDGET_VIEW:
+	    // no idea
+	    IGC_ASSERT (!"PVEC_WIDGET*");
+	    break;
+
+	  case PVEC_THREAD:
 	    {
-	      const size_t nobjs = pseudo_vector_nobjs (v);
-	      IGC_FIX12_NOBJS (ss, v->contents, nobjs);
+	      struct thread_state *p = vbase;
+	      IGC_FIX12_RAW (ss, &p->m_current_buffer);
+	      IGC_FIX12_RAW (ss, &p->next_thread);
 	    }
+	    break;
 
-	  switch (pseudo_vector_type (v))
+	  case PVEC_MUTEX:
 	    {
-	    case PVEC_FREE:
-	      IGC_ASSERT (!"PVEC_FREE");
-	      break;
+	      struct Lisp_Mutex *p = vbase;
+	      IGC_FIX12_RAW (ss, &p->name);
+	    }
+	    break;
 
-	    case PVEC_NORMAL_VECTOR:
-	    case PVEC_BIGNUM:
-	      // Nothing to do
-	      break;
+	  case PVEC_CONDVAR:
+	  case PVEC_MODULE_FUNCTION:
+	    // Nothing to do
+	    break;
 
-	    case PVEC_FINALIZER:
-	      // Unclear, has a circurlar list of weak references?
-	      IGC_ASSERT (!"PVEC_FINALIZER");
-	      break;
+	  case PVEC_NATIVE_COMP_UNIT:
+	  case PVEC_TS_PARSER:
+	  case PVEC_TS_NODE:
+	  case PVEC_TS_COMPILED_QUERY:
+	  case PVEC_SQLITE:
+	  case PVEC_COMPILED:
+	  case PVEC_RECORD:
+	  case PVEC_FONT:
+	    // Nothing to do
+	    break;
 
-	    case PVEC_SYMBOL_WITH_POS:
-	      {
-		struct Lisp_Symbol_With_Pos *p = obase;
-		IGC_FIX12_OBJ (ss, &p->sym);
-		IGC_FIX12_RAW (ss, &p->pos);
-	      }
-	      break;
+	  case PVEC_BUFFER:
+	    {
+	      struct buffer *b = vbase;
+	      IGC_FIX12_RAW (ss, &b->text->intervals);
+	      IGC_FIX12_RAW (ss, &b->text->markers);
+	      IGC_FIX12_RAW (ss, &b->own_text.intervals);
+	      IGC_FIX12_RAW (ss, &b->own_text.markers);
+	      IGC_FIX12_RAW (ss, &b->base_buffer);
+	      IGC_FIX12_RAW (ss, &b->overlays->root);
+	      // FIXME: special handling of undo_list?
+	    }
+	    break;
 
-	    case PVEC_MISC_PTR:
-	      {
-		struct Lisp_Misc_Ptr *p = obase;
-		IGC_FIX12_RAW (ss, &p->pointer);
-	      }
-	      break;
+	  case PVEC_FRAME:
+	    {
+	      // output_data;
+	      // terminal
+	      // face_cache *
+	      // glyph_pool
+	      // glyph matrices
+	      // struct font_driver_list *font_driver_list;
+	      // struct text_conversion_state conversion;
+	      struct frame *f = vbase;
+	      eassert (false);
+	    }
+	    break;
 
-	    case PVEC_USER_PTR:
-	      {
-		struct Lisp_User_Ptr *p = obase;
-		IGC_FIX12_RAW (ss, &p->p);
-	      }
-	      break;
+	  case PVEC_WINDOW:
+	    // All Lisp_Objects as part of pseudo-vector, but there
+	    // are glyph_matrix pointers, in case we do something with
+	    // that.
+	    break;
 
-	    case PVEC_PROCESS:
-	    case PVEC_BOOL_VECTOR:
-	    case PVEC_WINDOW_CONFIGURATION:
-	    case PVEC_PACKAGE:
-	      // Nothing to do
-	      break;
+	  case PVEC_HASH_TABLE:
+	    {
+	      struct Lisp_Hash_Table *p = vbase;
+	      IGC_FIX12_RAW (ss, &p->i);
+	    }
+	    break;
 
-	    case PVEC_OTHER:
-	      IGC_ASSERT (!"PVEC_OTHER");
-	      break;
+	  case PVEC_HASH_IMPL:
+	    {
+	      struct hash_impl *h = vbase;
+	      eassert (h->weakness == Weak_None);
+	      for (ptrdiff_t i = 0, n = h->count; n > 0 && i < h->table_size; ++i)
+		{
+		  struct hash_entry *e = h->entries + i;
+		  if (!hash_unused_entry_key_p (e->key))
+		    {
+		      IGC_FIX12_OBJ (ss, &e->key);
+		      IGC_FIX12_OBJ (ss, &e->value);
+		      --n;
+		    }
+		}
+	    }
+	    break;
 
-	    case PVEC_XWIDGET:
-	    case PVEC_XWIDGET_VIEW:
-	      // no idea
-	      IGC_ASSERT (!"PVEC_WIDGET*");
-	      break;
+	  case PVEC_CHAR_TABLE:
+	  case PVEC_SUB_CHAR_TABLE:
+	    // See also mark_char_table :-/
+	    {
+	      struct Lisp_Vector *v = vbase;
+	      int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
+	      enum pvec_type type = pseudo_vector_type (v);
+	      int idx = (type == PVEC_SUB_CHAR_TABLE
+			 ? SUB_CHAR_TABLE_OFFSET
+			 : 0);
+	      for (int i = idx; i < size; ++i)
+		IGC_FIX12_OBJ (ss, &v->contents[i]);
+	    }
+	    break;
 
-	    case PVEC_THREAD:
-	      {
-		struct thread_state *p = obase;
-		IGC_FIX12_RAW (ss, &p->m_current_buffer);
-		IGC_FIX12_RAW (ss, &p->next_thread);
-	      }
-	      break;
+	  case PVEC_OVERLAY:
+	    {
+	      struct Lisp_Overlay *p = vbase;
+	      IGC_FIX12_RAW (ss, &p->buffer);
+	      IGC_FIX12_OBJ (ss, &p->plist);
+	      IGC_FIX12_RAW (ss, &p->interval);
+	    }
+	    break;
 
-	    case PVEC_MUTEX:
-	      {
-		struct Lisp_Mutex *p = obase;
-		IGC_FIX12_RAW (ss, &p->name);
-	      }
-	      break;
+	  case PVEC_TERMINAL:
+	    {
+	      struct terminal *p = vbase;
+	      IGC_FIX12_RAW (ss, &p->next_terminal);
+	    }
+	    break;
 
-	    case PVEC_CONDVAR:
-	    case PVEC_MODULE_FUNCTION:
-	      // Nothing to do
-	      break;
-
-	    case PVEC_NATIVE_COMP_UNIT:
-	    case PVEC_TS_PARSER:
-	    case PVEC_TS_NODE:
-	    case PVEC_TS_COMPILED_QUERY:
-	    case PVEC_SQLITE:
-	    case PVEC_COMPILED:
-	    case PVEC_RECORD:
-	    case PVEC_FONT:
-	      // Nothing to do
-	      break;
-
-	    case PVEC_BUFFER:
-	      {
-		struct buffer *b = obase;
-		IGC_FIX12_RAW (ss, &b->text->intervals);
-		IGC_FIX12_RAW (ss, &b->text->markers);
-		IGC_FIX12_RAW (ss, &b->own_text.intervals);
-		IGC_FIX12_RAW (ss, &b->own_text.markers);
-		IGC_FIX12_RAW (ss, &b->base_buffer);
-		IGC_FIX12_RAW (ss, &b->overlays->root);
-		// FIXME: special handling of undo_list?
-	      }
-	      break;
-
-	    case PVEC_FRAME:
-	      {
-		// output_data;
-		// terminal
-		// face_cache *
-		// glyph_pool
-		// glyph matrices
-		// struct font_driver_list *font_driver_list;
-		// struct text_conversion_state conversion;
-		struct frame *f = obase;
-		eassert (false);
-	      }
-	      break;
-
-	    case PVEC_WINDOW:
-	      // All Lisp_Objects as part of pseudo-vector, but there
-	      // are glyph_matrix pointers, in case we do something with
-	      // that.
-	      break;
-
-	    case PVEC_HASH_TABLE:
-	      {
-		struct Lisp_Hash_Table *p = obase;
-		IGC_FIX12_RAW (ss, &p->i);
-	      }
-	      break;
-
-	    case PVEC_HASH_IMPL:
-	      {
-		struct hash_impl *h = obase;
-		eassert (h->weakness == Weak_None);
-		for (ptrdiff_t i = 0, n = h->count; n > 0 && i < h->table_size; ++i)
-		  {
-		    struct hash_entry *e = h->entries + i;
-		    if (!hash_unused_entry_key_p (e->key))
-		      {
-			IGC_FIX12_OBJ (ss, &e->key);
-			IGC_FIX12_OBJ (ss, &e->value);
-			--n;
-		      }
-		  }
-	      }
-	      break;
-
-	    case PVEC_CHAR_TABLE:
-	    case PVEC_SUB_CHAR_TABLE:
-	      // See also mark_char_table :-/
-	      {
-		struct Lisp_Vector *v = obase;
-		int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
-		enum pvec_type type = pseudo_vector_type (v);
-		int idx = (type == PVEC_SUB_CHAR_TABLE
-			   ? SUB_CHAR_TABLE_OFFSET
-			   : 0);
-		for (int i = idx; i < size; ++i)
-		  IGC_FIX12_OBJ (ss, &v->contents[i]);
-	      }
-	      break;
-
-	    case PVEC_OVERLAY:
-	      {
-		struct Lisp_Overlay *p = obase;
-		IGC_FIX12_RAW (ss, &p->buffer);
-		IGC_FIX12_OBJ (ss, &p->plist);
-		IGC_FIX12_RAW (ss, &p->interval);
-	      }
-	      break;
-
-	    case PVEC_TERMINAL:
-	      {
-		struct terminal *p = obase;
-		IGC_FIX12_RAW (ss, &p->next_terminal);
-	      }
-	      break;
-
-	    case PVEC_SUBR:
-	      {
-		struct Lisp_Subr *p = obase;
-		IGC_FIX12_OBJ (ss, &p->command_modes);
+	  case PVEC_SUBR:
+	    {
+	      struct Lisp_Subr *p = vbase;
+	      IGC_FIX12_OBJ (ss, &p->command_modes);
 #ifdef HAVE_NATIVE_COMP
-		IGC_FIX12_OBJ (ss, &p->intspec.native);
-		IGC_FIX12_OBJ (ss, &p->command_modes);
-		IGC_FIX12_OBJ (ss, &p->native_comp_u);
-		IGC_FIX12_OBJ (ss, &p->lambda_list);
-		IGC_FIX12_OBJ (ss, &p->type);
+	      IGC_FIX12_OBJ (ss, &p->intspec.native);
+	      IGC_FIX12_OBJ (ss, &p->command_modes);
+	      IGC_FIX12_OBJ (ss, &p->native_comp_u);
+	      IGC_FIX12_OBJ (ss, &p->lambda_list);
+	      IGC_FIX12_OBJ (ss, &p->type);
 #endif
-	      }
-	      break;
-
-	    case PVEC_MARKER:
-	      {
-		struct Lisp_Marker *p = obase;
-		IGC_FIX12_RAW (ss, &p->buffer);
-		IGC_FIX12_RAW (ss, &p->next);
-	      }
-	      break;
 	    }
-	}
+	    break;
+
+	  case PVEC_MARKER:
+	    {
+	      struct Lisp_Marker *p = vbase;
+	      IGC_FIX12_RAW (ss, &p->buffer);
+	      IGC_FIX12_RAW (ss, &p->next);
+	    }
+	    break;
+	  }
+      }
     }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
