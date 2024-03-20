@@ -611,30 +611,30 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-static mps_res_t
-cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-    {
-      for (struct Lisp_Cons *cons = (struct Lisp_Cons *) base;
-	   cons < (struct Lisp_Cons *) limit;
-	   ++cons)
-	{
-	  if (is_forwarded (cons) || is_padding (cons))
-	    continue;
-	  IGC_FIX12_OBJ (ss, &cons->u.s.car);
-	  IGC_FIX12_OBJ (ss, &cons->u.s.u.cdr);
-	}
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
 static mps_addr_t
 cons_skip (mps_addr_t addr)
 {
   return (char *) addr
     + igc_round_to_pool(sizeof (struct Lisp_Cons), IGC_TYPE_CONS);
+}
+
+static mps_res_t
+cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct Lisp_Cons *cons = base;
+	base = cons_skip (base);
+
+	if (is_forwarded (cons) || is_padding (cons))
+	  continue;
+	IGC_FIX12_OBJ (ss, &cons->u.s.car);
+	IGC_FIX12_OBJ (ss, &cons->u.s.u.cdr);
+    }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
 }
 
 static mps_res_t
