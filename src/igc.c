@@ -729,35 +729,37 @@ float_skip (mps_addr_t addr)
     + igc_round_to_pool (sizeof (struct Lisp_Float), IGC_TYPE_FLOAT);
 }
 
-static mps_res_t
-interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-    {
-      for (struct interval *iv = (struct interval *) base;
-	   iv < (struct interval *) limit; ++iv)
-	{
-	  if (is_forwarded (iv) || is_padding (iv))
-	    continue;
-
-	  IGC_FIX12_RAW (ss, &iv->left);
-	  IGC_FIX12_RAW (ss, &iv->right);
-	  if (iv->up_obj)
-	    IGC_FIX12_OBJ (ss, &iv->up.obj);
-	  else
-	    IGC_FIX12_RAW (ss, iv->up.interval);
-	  IGC_FIX12_OBJ (ss, &iv->plist);
-	}
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
 static mps_addr_t
 interval_skip (mps_addr_t addr)
 {
   return (char *) addr
     + igc_round_to_pool (sizeof (struct interval), IGC_TYPE_INTERVAL);
+}
+
+static mps_res_t
+interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct interval *iv = base;
+	base = interval_skip (base);
+
+	if (is_forwarded (iv) || is_padding (iv))
+	  continue;
+
+	IGC_FIX12_RAW (ss, &iv->left);
+	IGC_FIX12_RAW (ss, &iv->right);
+	if (iv->up_obj)
+	  IGC_FIX12_OBJ (ss, &iv->up.obj);
+	else
+	  IGC_FIX12_RAW (ss, iv->up.interval);
+	IGC_FIX12_OBJ (ss, &iv->plist);
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
 }
 
 static mps_res_t
