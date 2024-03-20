@@ -47,9 +47,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
   - For now use igc_pad for everything and set pool alignment
     accordingly. Note that scan methods must cope with padding
-    objects, and so on. Could be optimized but is out of scope for now.
+    objects, and so on. Could be optimized but is out of scope for
+    now.
 
-  - Skip methods must align too. See MPS docs.
+  - Skip methods must align too. And they must be able to cope with
+    forwarding and padding. See MPS docs.
 
   - weak hash tables
 
@@ -337,6 +339,14 @@ is_forwarded (const mps_addr_t addr)
   return f->sig == IGC_FWDSIG ? f->new : NULL;
 }
 
+static mps_addr_t
+forwarded_to (mps_addr_t addr)
+{
+  IGC_ASSERT (is_forwarded (addr));
+  struct igc_fwd *f = addr;
+  return f->new;
+}
+
 static void
 pad (mps_addr_t addr, size_t nbytes)
 {
@@ -350,6 +360,14 @@ is_padding (const mps_addr_t addr)
 {
   struct igc_pad *p = addr;
   return p->sig == IGC_PADSIG;
+}
+
+static mps_addr_t
+pad_end (mps_addr_t addr)
+{
+  IGC_ASSERT (is_padding (addr));
+  struct igc_pad *pad = addr;
+  return (char *) addr + pad->nbytes;
 }
 
 #pragma GCC diagnostic push
@@ -896,8 +914,13 @@ vector_size (const struct Lisp_Vector *v)
 static mps_addr_t
 vector_skip (mps_addr_t addr)
 {
-  return (char *) addr
-    + igc_round_to_pool (vector_size (addr), IGC_TYPE_VECTOR);
+  if (is_padding (addr))
+    return pad_end (addr);
+
+  mps_addr_t vec_addr
+    = is_forwarded (addr) ? forwarded_to (addr) : addr;
+  size_t nbytes = vector_size (vec_addr);
+  return (char *) addr + igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
 }
 
 static mps_res_t
