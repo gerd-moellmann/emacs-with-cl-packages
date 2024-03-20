@@ -170,15 +170,6 @@ enum igc_type
   IGC_TYPE_LAST
 };
 
-struct igc_init {
-  mps_class_t pool_class;
-  size_t align;
-  mps_fmt_scan_t scan;
-  mps_fmt_skip_t skip;
-};
-
-static struct igc_init igc_inits[IGC_TYPE_LAST];
-
 struct igc_thread {
   struct igc *gc;
   mps_thr_t thr;
@@ -1463,6 +1454,55 @@ igc_alloc_symbol (void)
   return make_lisp_symbol ((struct Lisp_Symbol *) p);
 }
 
+enum igc_pool_class
+{
+  IGC_AMC,
+  IGC_AMCZ
+};
+
+struct igc_init
+{
+  enum igc_pool_class class_type;
+  mps_class_t pool_class;
+  size_t align;
+  mps_fmt_scan_t scan;
+  mps_fmt_skip_t skip;
+};
+
+static struct igc_init igc_inits[IGC_TYPE_LAST] = {
+  [IGC_TYPE_CONS] = {
+    .class_type = IGC_AMC, .align = GCALIGNMENT,
+    .scan = cons_scan, .skip = cons_skip },
+  [IGC_TYPE_SYMBOL] = {
+    .class_type = IGC_AMC, .align = GCALIGNMENT,
+    .scan = symbol_scan, .skip = symbol_skip },
+  [IGC_TYPE_INTERVAL] = {
+    .class_type = IGC_AMC, .align = GCALIGNMENT,
+    .scan = interval_scan, .skip = interval_skip },
+  [IGC_TYPE_STRING] = {
+    .class_type = IGC_AMC, .align = GCALIGNMENT,
+    .scan = string_scan, .skip = string_skip },
+  [IGC_TYPE_STRING_DATA] = {
+    .class_type = IGC_AMCZ,
+    .align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad)),
+    .scan = NULL, .skip = string_data_skip },
+  [IGC_TYPE_VECTOR] = {
+    .class_type = IGC_AMC, .align = GCALIGNMENT,
+    .scan = vector_scan, .skip = vector_skip },
+  [IGC_TYPE_ITREE_NODE] = {
+    .class_type = IGC_AMC, .align = GCALIGNMENT,
+    .scan = itree_scan, .skip = itree_skip },
+  [IGC_TYPE_IMAGE] = {
+    .class_type = IGC_AMC, .align = GCALIGNMENT,
+    .scan = image_scan, .skip = image_skip },
+  [IGC_TYPE_FACE] = {
+    .class_type = IGC_AMC, .align = GCALIGNMENT,
+    .scan = face_scan, .skip = face_skip },
+  [IGC_TYPE_FLOAT] = {
+    .class_type = IGC_AMCZ, .align = GCALIGNMENT,
+    .scan = NULL, .skip = float_skip },
+};
+
 static size_t
 igc_roundup (size_t nbytes, enum igc_type type)
 {
@@ -1721,7 +1761,7 @@ make_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
     {
-      MPS_ARGS_ADD(args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+      MPS_ARGS_ADD (args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
       MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[type]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
       MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
@@ -1738,48 +1778,18 @@ make_igc (void)
   struct igc *gc = xzalloc (sizeof *gc);
   make_arena (gc);
 
-  // mps_class_xxx are runtime values, so we can't make this vector
-  // static.
-  struct igc_init inits[] =
-  {
-    [IGC_TYPE_CONS] = {
-      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
-      .scan = cons_scan, .skip = cons_skip },
-    [IGC_TYPE_SYMBOL] = {
-      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
-      .scan = symbol_scan, .skip = symbol_skip },
-    [IGC_TYPE_INTERVAL] = {
-      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
-      .scan = interval_scan, .skip = interval_skip },
-    [IGC_TYPE_STRING] = {
-      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
-      .scan = string_scan, .skip = string_skip },
-    [IGC_TYPE_STRING_DATA] = {
-      .pool_class = mps_class_amcz (),
-      .align = max (sizeof (struct igc_fwd), sizeof (struct igc_pad)),
-      .scan = NULL, .skip = string_data_skip },
-    [IGC_TYPE_VECTOR] = {
-      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
-      .scan = vector_scan, .skip = vector_skip },
-    [IGC_TYPE_ITREE_NODE] = {
-      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
-      .scan = itree_scan, .skip = itree_skip },
-    [IGC_TYPE_IMAGE] = {
-      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
-      .scan = image_scan, .skip = image_skip },
-    [IGC_TYPE_FACE] = {
-      .pool_class = mps_class_amc (), .align = GCALIGNMENT,
-      .scan = face_scan, .skip = face_skip },
-    [IGC_TYPE_FLOAT] = {
-      .pool_class = mps_class_amcz (), .align = GCALIGNMENT,
-      .scan = NULL, .skip = float_skip },
-  };
-  igc_static_assert (ARRAYELTS (inits) == IGC_TYPE_LAST);
-  memcpy (igc_inits, inits, sizeof igc_inits);
-
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
-      struct igc_init *init = inits + type;
+      struct igc_init *init = igc_inits + type;
+      switch (init->class_type)
+	{
+	case IGC_AMC:
+	  init->pool_class = mps_class_amc ();
+	  break;
+	case IGC_AMCZ:
+	  init->pool_class = mps_class_amcz ();
+	  break;
+	}
       make_fmt (gc, type, init);
       make_pool (gc, type, init);
     }
