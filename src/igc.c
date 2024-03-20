@@ -632,25 +632,8 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  continue;
 	IGC_FIX12_OBJ (ss, &cons->u.s.car);
 	IGC_FIX12_OBJ (ss, &cons->u.s.u.cdr);
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-static mps_res_t
-symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-    {
-      for (struct Lisp_Symbol *sym = (struct Lisp_Symbol *) base;
-	   sym < (struct Lisp_Symbol *) limit;
-	   ++sym)
-	{
-	  if (is_forwarded (sym) || is_padding (sym))
-	    continue;
-	  IGC_FIX_CALL (ss, fix_symbol (ss, sym));
-	}
-    }
+      }
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -659,6 +642,25 @@ static mps_addr_t
 symbol_skip (mps_addr_t addr)
 {
   return (char *) addr + sizeof (struct Lisp_Symbol);
+}
+
+static mps_res_t
+symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct Lisp_Symbol *sym = base;
+	base = symbol_skip (base);
+
+	if (is_forwarded (sym) || is_padding (sym))
+	  continue;
+	IGC_FIX_CALL (ss, fix_symbol (ss, sym));
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
 }
 
 static mps_res_t
