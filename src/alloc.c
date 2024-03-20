@@ -2380,12 +2380,13 @@ compact_small_strings (void)
   current_sblock = tb;
 }
 
+#endif // not HAVE_MPS
+
 void
 string_overflow (void)
 {
   error ("Maximum string size exceeded");
 }
-#endif // not HAVE_MPS
 
 static Lisp_Object make_clear_string (EMACS_INT, bool);
 static Lisp_Object make_clear_multibyte_string (EMACS_INT, EMACS_INT, bool);
@@ -3099,6 +3100,8 @@ enum { roundup_size = COMMON_MULTIPLE (LISP_ALIGNMENT, word_size) };
 /* Round up X to nearest mult-of-ROUNDUP_SIZE --- use at runtime.  */
 #define vroundup(x) (eassume ((x) >= 0), vroundup_ct (x))
 
+Lisp_Object zero_vector;
+
 #ifndef HAVE_MPS
 
 /* Sometimes a vector's contents are merely a pointer internally used
@@ -3231,8 +3234,6 @@ static struct large_vector *large_vectors;
 
 /* The only vector with 0 slots, allocated from pure space.  */
 
-Lisp_Object zero_vector;
-
 #if GC_ASAN_POISON_OBJECTS
 # define ASAN_POISON_VECTOR_CONTENTS(v, bytes) \
   __asan_poison_memory_region ((v)->contents, bytes)
@@ -3303,9 +3304,13 @@ xmake_pure_vector (ptrdiff_t len)
   return new;
 }
 
+#endif // not HAVE_MPS
+
 static void
 init_vectors (void)
 {
+#ifndef HAVE_MPS
+
   /* The normal vector allocation code refuses to allocate a 0-length vector
      because we use the first field of vectors internally when they're on
      the free list, so we can't put a zero-length vector on the free list.
@@ -3315,8 +3320,13 @@ init_vectors (void)
      for example by marking it by hand at the beginning of the GC and unmarking
      it by hand at the end.  */
   zero_vector = xmake_pure_vector (0);
+#else
+  zero_vector = make_vector (0, Qnil);
+#endif
   staticpro (&zero_vector);
 }
+
+#ifndef HAVE_MPS
 
 /* Allocate vector from a vector block.  */
 
@@ -8254,8 +8264,8 @@ init_alloc_once (void)
 
 #ifndef HAVE_MPS
   init_strings ();
-  init_vectors ();
 #endif
+  init_vectors ();
 }
 
 static void
