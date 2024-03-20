@@ -56,6 +56,7 @@ Lisp_Object igc_make_string (size_t nchars, size_t nbytes, bool unibyte,
 Lisp_Object igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear);
 Lisp_Object igc_make_unibyte_string (size_t nchars, size_t nbytes, bool clear);
 Lisp_Object igc_make_float (double val);
+int igc_valid_lisp_object_p (Lisp_Object obj);
 
 #define eassert_not_mps() eassert(false)
 #else

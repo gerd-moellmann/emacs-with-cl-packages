@@ -2889,13 +2889,14 @@ static struct Lisp_Cons *cons_free_list;
 void
 free_cons (struct Lisp_Cons *ptr)
 {
-  eassert_not_mps ();
+#ifndef HAVE_MPS
   ptr->u.s.u.chain = cons_free_list;
   ptr->u.s.car = dead_object ();
   cons_free_list = ptr;
   ptrdiff_t nbytes = sizeof *ptr;
   tally_consing (-nbytes);
   ASAN_POISON_CONS (ptr);
+#endif
 }
 
 DEFUN ("cons", Fcons, Scons, 2, 2, 0,
@@ -5687,6 +5688,7 @@ flush_stack_call_func1 (void (*func) (void *arg), void *arg)
 }
 
 /* Determine whether it is safe to access memory at address P.  */
+#ifndef HAVE_MPS
 static int
 valid_pointer_p (void *p)
 {
@@ -5721,6 +5723,7 @@ valid_pointer_p (void *p)
   return -1;
 #endif
 }
+#endif
 
 /* Return 2 if OBJ is a killed or special buffer object, 1 if OBJ is a
    valid lisp object, 0 if OBJ is NOT a valid lisp object, or -1 if we
@@ -5746,6 +5749,9 @@ valid_lisp_object_p (Lisp_Object obj)
   if (pdumper_object_p (p))
     return pdumper_object_p_precise (p) ? 1 : 0;
 
+#ifdef HAVE_MPS
+  return igc_valid_lisp_object_p (obj);
+#else
   struct mem_node *m = mem_find (p);
 
   if (m == MEM_NIL)
@@ -5790,6 +5796,7 @@ valid_lisp_object_p (Lisp_Object obj)
     }
 
   return 0;
+#endif
 }
 
 /* Like xmalloc, but makes allocation count toward the total consing

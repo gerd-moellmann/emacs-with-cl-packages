@@ -1714,6 +1714,12 @@ igc_make_hash_impl (ptrdiff_t nentries)
   return p;
 }
 
+int
+igc_valid_lisp_object_p (Lisp_Object obj)
+{
+  return 1;
+}
+
 static mps_pool_debug_option_s debug_options = {
   "fence", 5, "free", 4,
 };
