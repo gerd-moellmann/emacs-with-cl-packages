@@ -6299,9 +6299,10 @@ compact_font_cache_entry (Lisp_Object entry)
 static void
 compact_font_caches (void)
 {
-# ifdef HAVE_MPS
-  eassert (!"compact_font_caches");
-#else
+  // Cannot be done with MfS, which doesn't seem to be tragic
+  // because there is an option to turn it off.
+# ifndef HAVE_MPS
+
   struct terminal *t;
 
   for (t = terminal_list; t; t = t->next_terminal)

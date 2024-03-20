@@ -42,6 +42,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     exclusive access to objs being scanned themselves, and we need
     to do things for eq hts (address changes).
 
+  - compact_font_caches + inhibt. Can't be done this way, but isn't
+    essential.
+
   - weak hash tables
 
   - byte-code must be immovalble? See make-byte-code, pin_string,
