@@ -663,31 +663,31 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
-static mps_res_t
-string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-    {
-      for (struct Lisp_String *s = (struct Lisp_String *) base;
-	   s < (struct Lisp_String *) limit;
-	   ++s)
-	{
-	  if (is_forwarded (s) || is_padding (s))
-	    continue;
-
-	  IGC_FIX12_RAW (ss, &s->u.s.data);
-	  IGC_FIX12_RAW (ss, &s->u.s.intervals);
-	}
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
 static mps_addr_t
 string_skip (mps_addr_t addr)
 {
   return (char *) addr
     + igc_round_to_pool (sizeof (struct Lisp_String), IGC_TYPE_STRING);
+}
+
+static mps_res_t
+string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct Lisp_String *s = base;
+	base = string_skip (base);
+	if (is_forwarded (s) || is_padding (s))
+	  continue;
+
+	IGC_FIX12_RAW (ss, &s->u.s.data);
+	IGC_FIX12_RAW (ss, &s->u.s.intervals);
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
 }
 
 struct igc_sdata {
