@@ -46,8 +46,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     essential.
 
   - For now use igc_pad for everything and set pool alignment
-    accordingly. Note that scan methods must cope with padding objects,
-    and so on. Could be optimized but is out of scope for now.
+    accordingly. Note that scan methods must cope with padding
+    objects, and so on. Could be optimized but is out of scope for now.
+
+  - Skip methods must align too. See MPS docs.
 
   - weak hash tables
 
@@ -107,7 +109,24 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 #define igc_static_assert(x) verify (x)
 
-#define IGC_TAG_MASK (~ VALMASK)
+# define IGC_TAG_MASK (~VALMASK)
+
+enum igc_pool_class
+{
+  IGC_AMC,
+  IGC_AMCZ
+};
+
+struct igc_init
+{
+  enum igc_pool_class class_type;
+  mps_class_t pool_class;
+  size_t align;
+  mps_fmt_scan_t scan;
+  mps_fmt_skip_t skip;
+};
+
+static struct igc_init igc_inits[];
 
 #define IGC_CHECK_RES(res)			\
   if ((res) != MPS_RES_OK)			\
@@ -179,6 +198,18 @@ enum igc_type
   IGC_TYPE_FLOAT,
   IGC_TYPE_LAST
 };
+
+static size_t
+igc_round (size_t nbytes, size_t align)
+{
+  return roundup (nbytes, align);
+}
+
+static size_t
+igc_round_to_pool (size_t nbytes, enum igc_type type)
+{
+  return igc_round (nbytes, igc_inits[type].align);
+}
 
 struct igc_thread {
   struct igc *gc;
@@ -1432,21 +1463,6 @@ thread_ap (enum igc_type type)
   return t->d.ap[type];
 }
 
-enum igc_pool_class
-{
-  IGC_AMC,
-  IGC_AMCZ
-};
-
-struct igc_init
-{
-  enum igc_pool_class class_type;
-  mps_class_t pool_class;
-  size_t align;
-  mps_fmt_scan_t scan;
-  mps_fmt_skip_t skip;
-};
-
 enum
 {
   IGC_ALIGNMENT = max (sizeof (struct igc_fwd),
@@ -1487,12 +1503,6 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
     .scan = NULL, .skip = float_skip },
 };
 
-static size_t
-igc_roundup (size_t nbytes, enum igc_type type)
-{
-  return roundup (nbytes, igc_inits[type].align);
-}
-
 void igc_break (void)
 {
 }
@@ -1502,7 +1512,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
   enum igc_type type = IGC_TYPE_CONS;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_roundup (sizeof (struct Lisp_Cons), type);
+  size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Cons), type);
   mps_addr_t p;
   do
     {
@@ -1521,7 +1531,7 @@ igc_alloc_symbol (void)
 {
   enum igc_type type = IGC_TYPE_SYMBOL;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_roundup (sizeof (struct Lisp_Symbol), type);
+  size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Symbol), type);
   mps_addr_t p;
   do
     {
@@ -1544,7 +1554,7 @@ igc_make_float (double val)
 {
   enum igc_type type = IGC_TYPE_FLOAT;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_roundup (sizeof (struct Lisp_Float), type);
+  size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Float), type);
   mps_addr_t p;
   do
     {
@@ -1564,7 +1574,7 @@ alloc_string_data (size_t nbytes)
 {
   enum igc_type type = IGC_TYPE_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
-  nbytes = igc_roundup (sizeof (struct igc_sdata) + nbytes, type);
+  nbytes = igc_round_to_pool (sizeof (struct igc_sdata) + nbytes, type);
   mps_addr_t p;
   do
     {
@@ -1624,7 +1634,7 @@ igc_make_string (size_t nchars, size_t nbytes, bool unibyte,
 
   enum igc_type type = IGC_TYPE_STRING;
   mps_ap_t ap = thread_ap (type);
-  size_t size = igc_roundup (sizeof (struct Lisp_String), type);
+  size_t size = igc_round_to_pool (sizeof (struct Lisp_String), type);
   mps_addr_t p;
   do
     {
@@ -1657,7 +1667,7 @@ igc_make_interval (void)
 {
   enum igc_type type = IGC_TYPE_INTERVAL;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_roundup (sizeof (struct interval), type);
+  size_t nbytes = igc_round_to_pool (sizeof (struct interval), type);
   mps_addr_t p;
   do
     {
@@ -1677,7 +1687,7 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 {
   enum igc_type type = IGC_TYPE_VECTOR;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_roundup (header_size + nwords_mem * word_size, type);
+  size_t nbytes = igc_round_to_pool (header_size + nwords_mem * word_size, type);
   mps_addr_t p;
   do
     {
@@ -1697,7 +1707,7 @@ igc_alloc_vector (ptrdiff_t len)
 {
   enum igc_type type = (IGC_TYPE_VECTOR);
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_roundup (header_size + len * word_size, type);
+  ptrdiff_t nbytes = igc_round_to_pool (header_size + len * word_size, type);
   mps_addr_t p;
   do
     {
@@ -1717,7 +1727,7 @@ igc_make_itree_node (void)
 {
   enum igc_type type = IGC_TYPE_ITREE_NODE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_roundup (sizeof (struct itree_node), type);
+  ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct itree_node), type);
   mps_addr_t p;
   do
     {
@@ -1735,7 +1745,7 @@ igc_make_image (void)
 {
   enum igc_type type = IGC_TYPE_IMAGE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_roundup (sizeof (struct image), type);
+  ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct image), type);
   mps_addr_t p;
   do
     {
@@ -1753,7 +1763,7 @@ igc_make_face (void)
 {
   enum igc_type type = IGC_TYPE_FACE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_roundup (sizeof (struct face), type);
+  ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct face), type);
   mps_addr_t p;
   do
     {
@@ -1771,7 +1781,7 @@ igc_make_hash_impl (ptrdiff_t nentries)
 {
   enum igc_type type = IGC_TYPE_VECTOR;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_roundup (hash_impl_nbytes (nentries), type);
+  ptrdiff_t nbytes = igc_round_to_pool (hash_impl_nbytes (nentries), type);
   mps_addr_t p;
   do
     {
