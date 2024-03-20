@@ -3167,7 +3167,9 @@ You must run Emacs in batch mode in order to dump it.  */)
   Lisp_Object symbol;
   specpdl_ref count = SPECPDL_INDEX ();
 
+#ifndef HAVE_MPS
   check_pure_size ();
+# endif
 
   if (! noninteractive)
     error ("Dumping Emacs works only in batch mode");

@@ -1714,6 +1714,13 @@ igc_make_hash_impl (ptrdiff_t nentries)
   return p;
 }
 
+Lisp_Object
+igc_make_finalizer (Lisp_Object function)
+{
+  eassert (!"igc_amke_finalizer");
+  return Qnil;
+}
+
 int
 igc_valid_lisp_object_p (Lisp_Object obj)
 {

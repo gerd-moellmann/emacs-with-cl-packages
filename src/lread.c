@@ -3487,7 +3487,9 @@ vector_from_rev_list (Lisp_Object elems)
     {
       vec[i] = XCAR (elems);
       Lisp_Object next = XCDR (elems);
+#ifndef HAVE_MPS
       free_cons (XCONS (elems));
+#endif
       elems = next;
     }
   return obj;

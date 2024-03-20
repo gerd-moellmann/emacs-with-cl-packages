@@ -4094,7 +4094,9 @@ types.  */)
   CALLN (Ffuncall, intern_c_string ("load--fixup-all-elns"));
 #endif
 
+#ifndef HAVE_MPS
   check_pure_size ();
+# endif
 
   /* Clear out any detritus in memory.  */
   do
