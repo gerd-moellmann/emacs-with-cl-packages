@@ -1772,6 +1772,7 @@ static void
 allocate_string_data (struct Lisp_String *s,
 		      EMACS_INT nchars, EMACS_INT nbytes, bool clearit,
 		      bool immovable);
+#endif // not HAVE_MPS
 
 static void
 init_strings (void)
@@ -1798,6 +1799,8 @@ init_strings (void)
   staticpro (&empty_unibyte_string);
   staticpro (&empty_multibyte_string);
 }
+
+#ifndef HAVE_MPS
 
 #if GC_ASAN_POISON_OBJECTS
 /* Prepare s for denoting a free sdata struct, i.e, poison all bytes
@@ -8263,9 +8266,7 @@ init_alloc_once (void)
 
   verify_alloca ();
 
-#ifndef HAVE_MPS
   init_strings ();
-#endif
   init_vectors ();
 }
 
