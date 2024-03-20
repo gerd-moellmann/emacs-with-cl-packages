@@ -2089,6 +2089,8 @@ allocate_string_data (struct Lisp_String *s,
   tally_consing (needed);
 }
 
+#endif // not HAVE_MPS
+
 /* Reallocate multibyte STRING data when a single character is replaced.
    The character is at byte offset CIDX_BYTE in the string.
    The character being replaced is CLEN bytes long,
@@ -2099,6 +2101,9 @@ unsigned char *
 resize_string_data (Lisp_Object string, ptrdiff_t cidx_byte,
 		    int clen, int new_clen)
 {
+#ifdef HAVE_MPS
+  return igc_replace_char (string, cidx_byte, clen, new_clen);
+#else
   eassume (STRING_MULTIBYTE (string));
   sdata *old_sdata = SDATA_OF_STRING (XSTRING (string));
   ptrdiff_t nchars = SCHARS (string);
@@ -2114,7 +2119,7 @@ resize_string_data (Lisp_Object string, ptrdiff_t cidx_byte,
       XSTRING (string)->u.s.size_byte = new_nbytes;
 #ifdef GC_CHECK_STRING_BYTES
       SDATA_NBYTES (old_sdata) = new_nbytes;
-#endif
+# endif
       new_charaddr = data + cidx_byte;
       memmove (new_charaddr + new_clen, new_charaddr + clen,
 	       nbytes - (cidx_byte + (clen - 1)));
@@ -2137,7 +2142,10 @@ resize_string_data (Lisp_Object string, ptrdiff_t cidx_byte,
   clear_string_char_byte_cache ();
 
   return new_charaddr;
+#endif // not HAVE_MPS
 }
+
+#ifndef HAVE_MPS
 
 /* Sweep and compact strings.  */
 

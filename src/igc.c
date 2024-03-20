@@ -641,7 +641,19 @@ igc_static_assert (sizeof (struct igc_sdata) >= sizeof (struct igc_fwd));
 static unsigned char *
 sdata_contents (struct igc_sdata *d)
 {
-  return d->contents;
+  return &d->contents[0];
+}
+
+static ptrdiff_t
+sdata_capacity (const struct igc_sdata *d)
+{
+  return (char *) d->object_end - (char *) &d->contents[0];
+}
+
+static struct igc_sdata *
+contents_to_sdata (unsigned char *p)
+{
+  return (struct igc_sdata *) ((char *) p - sizeof (struct igc_sdata));
 }
 
 static mps_addr_t
@@ -1549,6 +1561,42 @@ alloc_string_data (size_t nbytes)
     }
   while (!mps_commit (ap, p, nbytes));
   return p;
+}
+
+/* Reallocate multibyte STRING data when a single character is replaced.
+   The character is at byte offset BYTE_POS in the string.
+   The character being replaced is CHAR_LEN bytes long,
+   and the character that will replace it is NEW_CLEN bytes long.
+   Return the address where the caller should store the new character.  */
+
+unsigned char *
+igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
+		  ptrdiff_t old_char_len, ptrdiff_t new_char_len)
+{
+  struct Lisp_String *s = XSTRING (string);
+
+  // Replacing caaracters of the same length.
+  if (old_char_len == new_char_len)
+    return s->u.s.data + at_byte_pos;
+
+  // If new char doesn't fit, make a new string data
+  struct igc_sdata *old_sdata = contents_to_sdata (s->u.s.data);
+  ptrdiff_t old_nbytes = SBYTES (string);
+  ptrdiff_t nbytes_needed = old_nbytes + (new_char_len - old_char_len);
+  if (sdata_capacity (old_sdata) < nbytes_needed)
+    {
+      struct igc_sdata *new_sdata = alloc_string_data (nbytes_needed);
+      memcpy (new_sdata->contents, old_sdata->contents, old_nbytes);
+      s->u.s.data = new_sdata->contents;
+    }
+
+  // Set up string as if the character had been inserted.
+  s->u.s.size_byte = nbytes_needed;
+  unsigned char *insertion_addr = s->u.s.data + at_byte_pos;
+  memmove (insertion_addr + new_char_len,
+	   insertion_addr + old_char_len,
+	   new_char_len - old_char_len);
+  return insertion_addr;
 }
 
 Lisp_Object
