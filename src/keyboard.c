@@ -13961,6 +13961,7 @@ keys_of_keyboard (void)
 			    "handle-move-frame");
 }
 
+#ifndef HAVE_MPS
 /* Mark the pointers in the kboard objects.
    Called by Fgarbage_collect.  */
 void
@@ -14014,3 +14015,4 @@ mark_kboards (void)
 	}
     }
 }
+#endif // not HAVE_MPS

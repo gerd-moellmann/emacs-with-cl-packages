@@ -3624,6 +3624,7 @@ anim_get_animation_cache (Lisp_Object spec)
    Lisp Objects in the image cache.  */
 
 /* Mark Lisp objects in image IMG.  */
+#ifndef HAVE_MPS
 
 static void
 mark_image (struct image *img)
@@ -3634,7 +3635,6 @@ mark_image (struct image *img)
   if (!NILP (img->lisp_data))
     mark_object (img->lisp_data);
 }
-
 
 void
 mark_image_cache (struct image_cache *c)
@@ -3653,6 +3653,7 @@ mark_image_cache (struct image_cache *c)
 #endif
 }
 
+#endif // not HAVE_MPS
 
 
 /***********************************************************************

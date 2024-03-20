@@ -2270,6 +2270,7 @@ See also `charset-priority-list' and `set-charset-priority'.  */)
   return charsets;
 }
 
+#ifndef HAVE_MPS
 /* Not strictly necessary, because all charset attributes are also
    reachable from `Vcharset_hash_table`.  */
 void
@@ -2278,6 +2279,7 @@ mark_charset (void)
   for (int i = 0; i < charset_table_used; i++)
     mark_object (charset_table[i].attributes);
 }
+#endif
 
 
 void

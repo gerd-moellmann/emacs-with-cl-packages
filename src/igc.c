@@ -43,6 +43,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     to do things for eq hts (address changes).
 
   - weak hash tables
+
+  - byte-code must be immovalble? See make-byte-code, pin_string,
+    also in lread.c
  */
 
 // clang-format on

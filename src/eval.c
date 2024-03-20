@@ -104,12 +104,14 @@ specpdl_where (union specbinding *pdl)
   return pdl->let.where;
 }
 
+#ifndef HAVE_MPS
 static Lisp_Object
 specpdl_arg (union specbinding *pdl)
 {
   eassert (pdl->kind == SPECPDL_UNWIND);
   return pdl->unwind.arg;
 }
+#endif
 
 Lisp_Object
 backtrace_function (union specbinding *pdl)
@@ -4186,7 +4188,8 @@ NFRAMES and BASE specify the activation frame to use, as in `backtrace-frame'.  
   return result;
 }
 
-
+
+#ifndef HAVE_MPS
 void
 mark_specpdl (union specbinding *first, union specbinding *ptr)
 {
@@ -4255,6 +4258,8 @@ mark_specpdl (union specbinding *first, union specbinding *ptr)
 	}
     }
 }
+#endif // not HAVE_MPS
+
 
 /* Fill ARRAY of size SIZE with backtrace entries, most recent call first.
    Truncate the backtrace if longer than SIZE; pad with nil if shorter.  */

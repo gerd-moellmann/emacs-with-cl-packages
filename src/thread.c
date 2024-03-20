@@ -659,7 +659,7 @@ thread_select (select_func *func, int max_fds, fd_set *rfds,
 }
 
 
-
+#ifndef HAVE_MPS
 static void
 mark_one_thread (struct thread_state *thread)
 {
@@ -717,6 +717,7 @@ unmark_main_thread (void)
   main_thread.s.header.size &= ~ARRAY_MARK_FLAG;
 }
 
+#endif // not HAVE_MPS
 
 
 static void

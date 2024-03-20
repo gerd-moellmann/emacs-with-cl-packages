@@ -395,7 +395,6 @@ merge_init (merge_state *ms, const ptrdiff_t list_size, Lisp_Object *lo,
   ms->reloc = (struct reloc){NULL, NULL, NULL, 0};
 }
 
-
 /* The dynamically allocated memory may hold lisp objects during
    merging.  MERGE_MARKMEM marks them so they aren't reaped during
    GC.  */
@@ -403,6 +402,8 @@ merge_init (merge_state *ms, const ptrdiff_t list_size, Lisp_Object *lo,
 static void
 merge_markmem (void *arg)
 {
+#ifndef HAVE_MPS
+
   merge_state *ms = arg;
   eassume (ms != NULL);
 
@@ -411,8 +412,8 @@ merge_markmem (void *arg)
       eassume (ms->reloc.src != NULL);
       mark_objects (*ms->reloc.src, *ms->reloc.size);
     }
+#endif // not HAVE_MPS
 }
-
 
 /* Free all temp storage.  If an exception occurs while merging,
    relocate any lisp elements in temp storage back to the original

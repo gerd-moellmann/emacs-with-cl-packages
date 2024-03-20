@@ -50,7 +50,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "keyboard.h"
 #include "termhooks.h"
 #include "blockinput.h"
-#include "puresize.h"
+#ifdef PURE_SPACE_SUPPORT_IN_MY_LOCAL_EMACS
+# include "puresize.h"
+#else
+#define CHECK_IMPURE(x, y) (void) 0
+#define PURE_P(x) false
+#endif
 #include "intervals.h"
 #include "keymap.h"
 #include "window.h"

@@ -3993,8 +3993,10 @@ usage: (make-byte-code ARGLIST BYTE-CODE CONSTANTS DEPTH &optional DOCSTRING INT
 	 && FIXNATP (args[COMPILED_STACK_DEPTH])))
     error ("Invalid byte-code object");
 
+#ifndef HAVE_MPS
   /* Bytecode must be immovable.  */
   pin_string (args[COMPILED_BYTECODE]);
+#endif
 
   /* We used to purecopy everything here, if purify-flag was set.  This worked
      OK for Emacs-23, but with Emacs-24's lexical binding code, it can be
@@ -5643,6 +5645,8 @@ typedef union
    *(p) = NEAR_STACK_TOP (&sentry + (stack_bottom < &sentry.c))
 #endif
 
+#ifndef HAVE_MPS
+
 /* Mark live Lisp objects on the C stack.
 
    There are several system-dependent problems to consider when
@@ -5699,6 +5703,9 @@ mark_c_stack (char const *bottom, char const *end)
 #endif
 }
 
+#endif // not HAVE_MPS
+
+
 /* flush_stack_call_func is the trampoline function that flushes
    registers to the stack, and then calls FUNC.  ARG is passed through
    to FUNC verbatim.
@@ -5735,8 +5742,10 @@ flush_stack_call_func1 (void (*func) (void *arg), void *arg)
   eassert (current_thread == self);
 }
 
-/* Determine whether it is safe to access memory at address P.  */
 #ifndef HAVE_MPS
+
+/* Determine whether it is safe to access memory at address P.  */
+
 static int
 valid_pointer_p (void *p)
 {
@@ -6034,6 +6043,8 @@ find_string_data_in_pure (const char *data, ptrdiff_t nbytes)
 
 #endif // 0
 
+#endif // not HAVE_MPS
+
 
 /* Return a string allocated in pure space.  DATA is a buffer holding
    NCHARS characters, and NBYTES bytes of string data.  MULTIBYTE
@@ -6062,8 +6073,6 @@ make_pure_c_string (const char *data, ptrdiff_t nchars)
   return make_unibyte_string (data, nchars);
 }
 
-static Lisp_Object purecopy (Lisp_Object obj);
-
 /* Return a cons allocated from pure space.  Give it pure copies
    of CAR as car and CDR as cdr.  */
 
@@ -6072,8 +6081,6 @@ pure_cons (Lisp_Object car, Lisp_Object cdr)
 {
   return Fcons (car, cdr);
 }
-
-#endif // not HAVE_MPS
 
 DEFUN ("purecopy", Fpurecopy, Spurecopy, 1, 1, 0,
        doc: /* Make a copy of object OBJ in pure storage.
@@ -6193,16 +6200,14 @@ total_bytes_of_live_objects (void)
 
 #ifdef HAVE_WINDOW_SYSTEM
 
+#ifndef HAVE_MPS
+
 /* Remove unmarked font-spec and font-entity objects from ENTRY, which is
    (DRIVER-TYPE NUM-FRAMES FONT-CACHE-DATA ...), and return changed entry.  */
 
 static Lisp_Object
 compact_font_cache_entry (Lisp_Object entry)
 {
-# ifdef HAVE_MPS
-  eassert (!"compact_font_cache_entry");
-  return entry;
-# else
   Lisp_Object tail, *prev = &entry;
 
   for (tail = entry; CONSP (tail); tail = XCDR (tail))
@@ -6262,8 +6267,9 @@ compact_font_cache_entry (Lisp_Object entry)
 	prev = xcdr_addr (tail);
     }
   return entry;
-#endif
 }
+
+#endif // not HAVE_MPS
 
 /* Compact font caches on all terminals and mark
    everything which is still here after compaction.  */
@@ -6271,6 +6277,9 @@ compact_font_cache_entry (Lisp_Object entry)
 static void
 compact_font_caches (void)
 {
+# ifdef HAVE_MPS
+  eassert (!"compact_font_caches");
+#else
   struct terminal *t;
 
   for (t = terminal_list; t; t = t->next_terminal)
@@ -6289,6 +6298,7 @@ compact_font_caches (void)
 	}
       mark_object (cache);
     }
+#endif
 }
 
 #else /* not HAVE_WINDOW_SYSTEM */
@@ -6708,9 +6718,11 @@ garbage_collect (void)
       struct buffer *nextb = XBUFFER (buffer);
       if (!EQ (BVAR (nextb, undo_list), Qt))
 	bset_undo_list (nextb, compact_undo_list (BVAR (nextb, undo_list)));
+#ifndef HAVE_MPS
       /* Now that we have stripped the elements that need not be
 	 in the undo_list any more, we can finally mark the list.  */
       mark_object (BVAR (nextb, undo_list));
+#endif
     }
 
   /* Now pre-sweep finalizers.  Here, we add any unmarked finalizers

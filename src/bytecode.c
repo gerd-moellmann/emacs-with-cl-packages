@@ -402,6 +402,7 @@ free_bc_thread (struct bc_thread_state *bc)
   xfree (bc->stack);
 }
 
+#ifndef HAVE_MPS
 void
 mark_bytecode (struct bc_thread_state *bc)
 {
@@ -432,6 +433,7 @@ mark_bytecode (struct bc_thread_state *bc)
       fp = next_fp;
     }
 }
+#endif // not HAVE_MPS
 
 DEFUN ("internal-stack-stats", Finternal_stack_stats, Sinternal_stack_stats,
        0, 0, 0,

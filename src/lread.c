@@ -3546,8 +3546,10 @@ bytecode_from_rev_list (Lisp_Object elems, Lisp_Object readcharfun)
        Convert them back to the original unibyte form.  */
     vec[COMPILED_BYTECODE] = Fstring_as_unibyte (vec[COMPILED_BYTECODE]);
 
+#ifndef HAVE_MPS
   /* Bytecode must be immovable.  */
   pin_string (vec[COMPILED_BYTECODE]);
+#endif
 
   XSETPVECTYPE (XVECTOR (obj), PVEC_COMPILED);
   return obj;
@@ -3887,6 +3889,7 @@ struct read_stack
 
 static struct read_stack rdstack = {NULL, 0, 0};
 
+#ifndef HAVE_MPS
 void
 mark_lread (void)
 {
@@ -3921,6 +3924,7 @@ mark_lread (void)
 	}
     }
 }
+#endif // not HAVE_MPS
 
 static inline struct read_stack_entry *
 read_stack_top (void)

@@ -4942,7 +4942,7 @@ hash_clear (struct hash_impl *h)
 /************************************************************************
 			   Weak Hash Tables
  ************************************************************************/
-
+#ifndef HAVE_MPS
 /* Whether to keep an entry whose key and value are known to be retained
    if STRONG_KEY and STRONG_VALUE, respectively, are true.  */
 static inline bool
@@ -5038,6 +5038,8 @@ sweep_weak_table (struct Lisp_Hash_Table *h, bool remove_entries_p)
 
   return marked;
 }
+#endif // not HAVE_MPS
+
 
 
 /***********************************************************************
@@ -5385,6 +5387,7 @@ struct hash_table_user_test
 
 static struct hash_table_user_test *hash_table_user_tests = NULL;
 
+#ifndef HAVE_MPS
 void
 mark_fns (void)
 {
@@ -5396,6 +5399,7 @@ mark_fns (void)
       mark_object (ut->test.user_hash_function);
     }
 }
+#endif // not HAVE_MPS
 
 /* Find the hash_table_test object corresponding to the (bare) symbol TEST,
    creating one if none existed.  */
