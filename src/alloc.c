@@ -3321,7 +3321,8 @@ init_vectors (void)
      it by hand at the end.  */
   zero_vector = xmake_pure_vector (0);
 #else
-  zero_vector = make_vector (0, Qnil);
+  struct Lisp_Vector *v = igc_alloc_vector (0);
+  zero_vector = make_lisp_ptr (v, Lisp_Vectorlike);
 #endif
   staticpro (&zero_vector);
 }
