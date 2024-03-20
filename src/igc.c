@@ -615,7 +615,8 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 cons_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct Lisp_Cons);
+  return (char *) addr
+    + igc_round_to_pool(sizeof (struct Lisp_Cons), IGC_TYPE_CONS);
 }
 
 static mps_res_t
@@ -665,7 +666,8 @@ string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 string_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct Lisp_String);
+  return (char *) addr
+    + igc_round_to_pool (sizeof (struct Lisp_String), IGC_TYPE_STRING);
 }
 
 struct igc_sdata {
@@ -703,7 +705,8 @@ string_data_skip (mps_addr_t addr)
 static mps_addr_t
 float_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct Lisp_Float);
+  return (char *) addr
+    + igc_round_to_pool (sizeof (struct Lisp_Float), IGC_TYPE_FLOAT);
 }
 
 static mps_res_t
@@ -733,7 +736,8 @@ interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 interval_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct interval);
+  return (char *) addr
+    + igc_round_to_pool (sizeof (struct interval), IGC_TYPE_INTERVAL);
 }
 
 static mps_res_t
@@ -759,7 +763,8 @@ itree_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 itree_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct itree_node);
+  return (char *) addr
+    + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_ITREE_NODE);
 }
 
 static mps_res_t
@@ -786,7 +791,8 @@ image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 image_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct itree_node);
+  return (char *) addr
+    + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_IMAGE);
 }
 
 static mps_res_t
@@ -812,7 +818,8 @@ face_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static mps_addr_t
 face_skip (mps_addr_t addr)
 {
-  return (char *) addr + sizeof (struct itree_node);
+  return (char *) addr
+    + igc_round_to_pool (sizeof (struct face), IGC_TYPE_FACE);
 }
 
 static bool
@@ -889,7 +896,8 @@ vector_size (const struct Lisp_Vector *v)
 static mps_addr_t
 vector_skip (mps_addr_t addr)
 {
-  return (char *) addr + vector_size (addr);
+  return (char *) addr
+    + igc_round_to_pool (vector_size (addr), IGC_TYPE_VECTOR);
 }
 
 static mps_res_t
