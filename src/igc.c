@@ -124,6 +124,7 @@ struct igc_init
   enum igc_pool_class class_type;
   mps_class_t pool_class;
   size_t align;
+  bool interior_pointers;
   mps_fmt_scan_t scan;
   mps_fmt_skip_t skip;
 };
@@ -1501,33 +1502,43 @@ enum
 static struct igc_init igc_inits[IGC_TYPE_LAST] = {
   [IGC_TYPE_CONS] = {
     .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = cons_scan, .skip = cons_skip },
   [IGC_TYPE_SYMBOL] = {
     .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = symbol_scan, .skip = symbol_skip },
   [IGC_TYPE_INTERVAL] = {
     .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = interval_scan, .skip = interval_skip },
   [IGC_TYPE_STRING] = {
     .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = string_scan, .skip = string_skip },
   [IGC_TYPE_STRING_DATA] = {
     .class_type = IGC_AMCZ, .align = IGC_ALIGNMENT,
+    .interior_pointers = true,
     .scan = NULL, .skip = string_data_skip },
   [IGC_TYPE_VECTOR] = {
     .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = vector_scan, .skip = vector_skip },
   [IGC_TYPE_ITREE_NODE] = {
     .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = itree_scan, .skip = itree_skip },
   [IGC_TYPE_IMAGE] = {
     .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = image_scan, .skip = image_skip },
   [IGC_TYPE_FACE] = {
     .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = face_scan, .skip = face_skip },
   [IGC_TYPE_FLOAT] = {
     .class_type = IGC_AMCZ, .align = IGC_ALIGNMENT,
+    .interior_pointers = false,
     .scan = NULL, .skip = float_skip },
 };
 
@@ -1888,7 +1899,7 @@ make_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
       MPS_ARGS_ADD (args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
       MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[type]);
       MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, 0);
+      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, init->interior_pointers);
       res = mps_pool_create_k (&gc->pool[type], gc->arena,
 			       init->pool_class, args);
     }
