@@ -791,32 +791,34 @@ itree_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
-static mps_res_t
-image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-    {
-      for (struct image *i = (struct image *) base;
-	   i < (struct image *) limit; ++i)
-	{
-	  if (is_forwarded (i) || is_padding (i))
-	    continue;
-	  IGC_FIX12_OBJ (ss, &i->spec);
-	  IGC_FIX12_OBJ (ss, &i->dependencies);
-	  IGC_FIX12_OBJ (ss, &i->lisp_data);
-	  IGC_FIX12_RAW (ss, &i->next);
-	  IGC_FIX12_RAW (ss, &i->prev);
-	}
-    }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
 static mps_addr_t
 image_skip (mps_addr_t addr)
 {
   return (char *) addr
     + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_IMAGE);
+}
+
+static mps_res_t
+image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct image *i = base;
+	base = image_skip (base);
+
+	if (is_forwarded (i) || is_padding (i))
+	  continue;
+	IGC_FIX12_OBJ (ss, &i->spec);
+	IGC_FIX12_OBJ (ss, &i->dependencies);
+	IGC_FIX12_OBJ (ss, &i->lisp_data);
+	IGC_FIX12_RAW (ss, &i->next);
+	  IGC_FIX12_RAW (ss, &i->prev);
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
 }
 
 static mps_res_t
