@@ -143,11 +143,13 @@ wrong_type_argument (Lisp_Object predicate, Lisp_Object value)
   xsignal2 (Qwrong_type_argument, predicate, value);
 }
 
+#ifdef PURE_SPACE_SUPPORT_IN_MY_LOCAL_EMACS
 void
 pure_write_error (Lisp_Object obj)
 {
   xsignal2 (Qerror, build_string ("Attempt to modify read-only object"), obj);
 }
+#endif
 
 void
 args_out_of_range (Lisp_Object a1, Lisp_Object a2)

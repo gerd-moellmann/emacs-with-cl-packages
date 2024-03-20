@@ -17,11 +17,13 @@ You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef EMACS_PURESIZE_H
-#define EMACS_PURESIZE_H
+# define EMACS_PURESIZE_H
 
 #include "lisp.h"
 
 INLINE_HEADER_BEGIN
+
+#ifdef PURE_SPACE_SUPPORT_IN_MY_LOCAL_EMACS
 
 /* Define PURESIZE, the number of bytes of pure Lisp code to leave space for.
 
@@ -110,6 +112,11 @@ CHECK_IMPURE (Lisp_Object obj, void *ptr)
 # define CHECK_IMPURE(obj, ptr) puresize_h_CHECK_IMPURE (obj, ptr)
 #endif
 
-INLINE_HEADER_END
 
+# else
+# define PURE_P(ptr) 0
+# define CHECK_IMPURE(obj, ptr) (void) 0
+# endif
+
+INLINE_HEADER_END
 #endif /* EMACS_PURESIZE_H */

@@ -34,7 +34,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "bignum.h"
 #include "dispextern.h"
 #include "intervals.h"
-#include "puresize.h"
+# include "puresize.h"
 #include "sysstdio.h"
 #include "systime.h"
 #include "character.h"
