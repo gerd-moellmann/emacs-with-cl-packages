@@ -95,10 +95,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 //#pragma GCC diagnostic ignored "-Wunused-function"
 
-/* Frames have stuff for text conversion which contains Lisp_Objects, so
-   this must be some form of root.  MacOS doesn't HAVE_TEXT_CONVERSION,
-   so that I left this out.  */
-
+// Neither do I know what this is, nor is it supported on macOS.
 #ifdef HAVE_TEXT_CONVERSION
 #error "HAVE_TEXT_CONVERSION not supported"
 #endif
@@ -140,8 +137,6 @@ static struct igc_init igc_inits[];
   for (int i = (mps_arena_park(gc->arena), 1);	\
        i;					\
        i = (mps_arena_release (gc->arena), 0))
-
-/* Very poor man's template for double-linked lists.  */
 
 #define IGC_DEFINE_LIST(data)				\
   typedef struct data##_list				\
@@ -1627,12 +1622,11 @@ alloc_string_data (size_t nbytes)
   return p;
 }
 
-/* Reallocate multibyte STRING data when a single character is replaced.
-   The character is at byte offset BYTE_POS in the string.
-   The character being replaced is CHAR_LEN bytes long,
-   and the character that will replace it is NEW_CLEN bytes long.
-   Return the address where the caller should store the new character.  */
-
+// Reallocate multibyte STRING data when a single character is replaced.
+// The character is at byte offset BYTE_POS in the string.  The
+// character being replaced is CHAR_LEN bytes long, and the character
+// that will replace it is NEW_CLEN bytes long.  Return the address
+// where the caller should store the new character.
 unsigned char *
 igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
 		  ptrdiff_t old_char_len, ptrdiff_t new_char_len)
@@ -1975,3 +1969,7 @@ syms_of_igc (void)
 }
 
 #endif
+
+// Local Variables:
+// mode: c++
+// End:
