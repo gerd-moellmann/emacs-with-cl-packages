@@ -682,33 +682,6 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
-static mps_addr_t
-string_skip (mps_addr_t addr)
-{
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_String), IGC_TYPE_STRING);
-}
-
-static mps_res_t
-string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    while (base < limit)
-      {
-	struct Lisp_String *s = base;
-	base = string_skip (base);
-	if (is_forwarded (s) || is_padding (s))
-	  continue;
-
-	IGC_FIX12_RAW (ss, &s->u.s.data);
-	IGC_FIX12_RAW (ss, &s->u.s.intervals);
-      }
-  }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
 struct igc_sdata
 {
   mps_addr_t object_end;
@@ -742,6 +715,41 @@ static mps_addr_t
 string_data_skip (mps_addr_t addr)
 {
   return ((struct igc_sdata *) addr)->object_end;
+}
+
+static mps_addr_t
+string_skip (mps_addr_t addr)
+{
+  return (char *) addr
+	 + igc_round_to_pool (sizeof (struct Lisp_String), IGC_TYPE_STRING);
+}
+
+static mps_res_t
+string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct Lisp_String *s = base;
+	base = string_skip (base);
+	if (is_forwarded (s) || is_padding (s))
+	  continue;
+
+	// Looks like MPS does not like to FIX12 an interior pointer
+	// into the string data pool, whether or not the string data
+	// pool itself was created with or without interior pointer
+	// support. The docs speak of ambiguous pointers that the
+	// interior pointer setting supports, and that has to be taken
+	// literally.
+	struct igc_sdata *sdata = contents_to_sdata (s->u.s.data);
+	IGC_FIX12_RAW (ss, &sdata);
+	s->u.s.data = sdata_contents (sdata);
+	IGC_FIX12_RAW (ss, &s->u.s.intervals);
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
 }
 
 static mps_addr_t
