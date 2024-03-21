@@ -400,7 +400,8 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
       {
 	mps_word_t off = word ^ tag;
 	mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
-	if (MPS_FIX1 (ss, ref))
+	if (is_aligned (ref, IGC_TYPE_SYMBOL)
+	    && MPS_FIX1 (ss, ref))
 	  {
 	    mps_res_t res = MPS_FIX2 (ss, &ref);
 	    if (res != MPS_RES_OK)
