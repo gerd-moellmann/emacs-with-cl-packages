@@ -70,7 +70,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # include <mps.h>
 # include <mpsavm.h>
 # include <mpscamc.h>
-# include <mpscams.h>
+# include <mpscawl.h>
 # include <stdlib.h>
 # include "lisp.h"
 # include "buffer.h"
@@ -116,6 +116,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 enum igc_pool_class
 {
   IGC_AMC,
+  IGC_AWL,
   IGC_AMCZ
 };
 
@@ -1929,6 +1930,9 @@ runtime_setup_mps_class (struct igc_init *init)
     {
     case IGC_AMC:
       init->pool_class = mps_class_amc ();
+      break;
+    case IGC_AWL:
+      init->pool_class = mps_class_awl ();
       break;
     case IGC_AMCZ:
       init->pool_class = mps_class_amcz ();
