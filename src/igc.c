@@ -211,6 +211,14 @@ igc_round_to_pool (size_t nbytes, enum igc_type type)
   return igc_round (nbytes, igc_inits[type].align);
 }
 
+static bool
+is_aligned (mps_addr_t p, enum igc_type type)
+{
+  size_t align = igc_inits[type].align;
+  mps_word_t w = (mps_word_t) p;
+  return w % align == 0;
+}
+
 struct igc_thread
 {
   struct igc *gc;
@@ -713,7 +721,9 @@ igc_static_assert (sizeof (struct igc_sdata) >= sizeof (struct igc_fwd));
 static unsigned char *
 sdata_contents (struct igc_sdata *d)
 {
-  return &d->contents[0];
+  mps_addr_t p = &d->contents[0];
+  IGC_ASSERT (is_aligned (p, IGC_TYPE_STRING_DATA));
+  return p;
 }
 
 static ptrdiff_t
