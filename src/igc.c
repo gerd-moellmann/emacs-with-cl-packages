@@ -473,7 +473,8 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
   MPS_SCAN_BEGIN (ss)
   {
     for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
-      IGC_FIX12_OBJ (ss, *p);
+      if (*p)
+	IGC_FIX12_OBJ (ss, *p);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
