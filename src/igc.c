@@ -195,6 +195,7 @@ enum igc_type
   IGC_TYPE_IMAGE,
   IGC_TYPE_FACE,
   IGC_TYPE_FLOAT,
+  IGC_TYPE_WEAK,
   IGC_TYPE_LAST
 };
 
@@ -1440,6 +1441,7 @@ do_finalize (struct igc *gc, mps_addr_t addr)
     case IGC_TYPE_IMAGE:
     case IGC_TYPE_FACE:
     case IGC_TYPE_FLOAT:
+    case IGC_TYPE_WEAK:
     case IGC_TYPE_LAST:
       break;
     }
