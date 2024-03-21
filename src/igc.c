@@ -67,46 +67,49 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 #ifdef HAVE_MPS
 
-#include <mps.h>
-#include <mpsavm.h>
-#include <mpscamc.h>
-#include <mpscams.h>
-#include <stdlib.h>
-#include "lisp.h"
-#include "buffer.h"
-#include "thread.h"
-#include "pdumper.h"
-#include "dispextern.h"
-#include "igc.h"
-#include "emacs-module.h"
-#include "intervals.h"
-#include "termhooks.h"
-#include "itree.h"
+# include <mps.h>
+# include <mpsavm.h>
+# include <mpscamc.h>
+# include <mpscams.h>
+# include <stdlib.h>
+# include "lisp.h"
+# include "buffer.h"
+# include "dispextern.h"
+# include "emacs-module.h"
+# include "igc.h"
+# include "intervals.h"
+# include "itree.h"
+# include "pdumper.h"
+# include "termhooks.h"
+# include "thread.h"
 
-#ifndef USE_LSB_TAG
-#error "USE_LSB_TAG required"
-#endif
-#ifdef WIDE_EMACS_INT
-#error "WIDE_EMACS_INT not supported"
-#endif
-#if USE_STACK_LISP_OBJECTS
-#error "USE_STACK_LISP_OBJECTS not supported"
-#endif
+# ifndef USE_LSB_TAG
+#  error "USE_LSB_TAG required"
+# endif
+# ifdef WIDE_EMACS_INT
+#  error "WIDE_EMACS_INT not supported"
+# endif
+# if USE_STACK_LISP_OBJECTS
+#  error "USE_STACK_LISP_OBJECTS not supported"
+# endif
 
-//#pragma GCC diagnostic ignored "-Wunused-function"
+// #pragma GCC diagnostic ignored "-Wunused-function"
 
 // Neither do I know what this is, nor is it supported on macOS.
-#ifdef HAVE_TEXT_CONVERSION
-#error "HAVE_TEXT_CONVERSION not supported"
-#endif
+# ifdef HAVE_TEXT_CONVERSION
+#  error "HAVE_TEXT_CONVERSION not supported"
+# endif
 
-#ifdef IGC_DEBUG
-#define IGC_ASSERT(expr) if (!(expr)) emacs_abort (); else
-#else
-#define IGC_ASSERT(expr) (void) 9
-#endif
+# ifdef IGC_DEBUG
+#  define IGC_ASSERT(expr) \
+    if (!(expr))           \
+      emacs_abort ();      \
+    else
+# else
+#  define IGC_ASSERT(expr) (void) 9
+# endif
 
-#define igc_static_assert(x) verify (x)
+# define igc_static_assert(x) verify (x)
 
 # define IGC_TAG_MASK (~VALMASK)
 
@@ -128,51 +131,49 @@ struct igc_init
 
 static struct igc_init igc_inits[];
 
-#define IGC_CHECK_RES(res)			\
-  if ((res) != MPS_RES_OK)			\
-    emacs_abort ();				\
-  else
+# define IGC_CHECK_RES(res) \
+   if ((res) != MPS_RES_OK) \
+     emacs_abort ();        \
+   else
 
-#define IGC_WITH_PARKED(gc)			\
-  for (int i = (mps_arena_park(gc->arena), 1);	\
-       i;					\
-       i = (mps_arena_release (gc->arena), 0))
+# define IGC_WITH_PARKED(gc)                        \
+   for (int i = (mps_arena_park (gc->arena), 1); i; \
+	i = (mps_arena_release (gc->arena), 0))
 
-#define IGC_DEFINE_LIST(data)				\
-  typedef struct data##_list				\
-  {							\
-    struct data##_list *next, *prev;			\
-    data d;						\
-  } data##_list;					\
-							\
-  static data##_list *					\
-  data##_list_push (data##_list **head, data *d)	\
-  {							\
-    data##_list *r = xzalloc (sizeof *r);		\
-    r->d = *d;						\
-    r->next = *head;					\
-    r->prev = NULL;					\
-    if (r->next)					\
-      r->next->prev = r;				\
-    *head = r;						\
-    return r;						\
-  }							\
-							\
-  static void						\
-  data##_list_remove (data *d, data##_list **head,	\
-		      data##_list *r)			\
-  {							\
-    if (r->next)					\
-      r->next->prev = r->prev;				\
-    if (r->prev)					\
-      r->prev->next = r->next;				\
-    else						\
-      *head = r->next;					\
-    *d = r->d;						\
-    xfree (r);						\
-  }
+# define IGC_DEFINE_LIST(data)                                        \
+   typedef struct data##_list                                         \
+   {                                                                  \
+     struct data##_list *next, *prev;                                 \
+     data d;                                                          \
+   } data##_list;                                                     \
+                                                                      \
+   static data##_list *data##_list_push (data##_list **head, data *d) \
+   {                                                                  \
+     data##_list *r = xzalloc (sizeof *r);                            \
+     r->d = *d;                                                       \
+     r->next = *head;                                                 \
+     r->prev = NULL;                                                  \
+     if (r->next)                                                     \
+       r->next->prev = r;                                             \
+     *head = r;                                                       \
+     return r;                                                        \
+   }                                                                  \
+                                                                      \
+   static void data##_list_remove (data *d, data##_list **head,       \
+				   data##_list *r)                    \
+   {                                                                  \
+     if (r->next)                                                     \
+       r->next->prev = r->prev;                                       \
+     if (r->prev)                                                     \
+       r->prev->next = r->next;                                       \
+     else                                                             \
+       *head = r->next;                                               \
+     *d = r->d;                                                       \
+     xfree (r);                                                       \
+   }
 
-struct igc_root {
+struct igc_root
+{
   struct igc *gc;
   mps_root_t root;
   void *start, *end;
@@ -208,7 +209,8 @@ igc_round_to_pool (size_t nbytes, enum igc_type type)
   return igc_round (nbytes, igc_inits[type].align);
 }
 
-struct igc_thread {
+struct igc_thread
+{
   struct igc *gc;
   mps_thr_t thr;
   void *stack_start;
@@ -219,11 +221,13 @@ struct igc_thread {
 typedef struct igc_thread igc_thread;
 IGC_DEFINE_LIST (igc_thread);
 
-struct igc {
+struct igc
+{
   mps_arena_t arena;
   mps_chain_t chain;
   mps_fmt_t fmt[IGC_TYPE_LAST];
-  mps_pool_t pool[IGC_TYPE_LAST];;
+  mps_pool_t pool[IGC_TYPE_LAST];
+  ;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -279,8 +283,7 @@ create_thread_aps (struct igc_thread *t)
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
       mps_res_t res
-	= mps_ap_create_k (&t->ap[type], t->gc->pool[type],
-			   mps_args_none);
+	= mps_ap_create_k (&t->ap[type], t->gc->pool[type], mps_args_none);
       IGC_CHECK_RES (res);
     }
 }
@@ -302,15 +305,17 @@ deregister_thread (struct igc_thread_list *t)
 
 static int fwdsig;
 static int padsig;
-#define IGC_FWDSIG ((mps_addr_t) &fwdsig)
-#define IGC_PADSIG ((mps_addr_t) &padsig)
+# define IGC_FWDSIG ((mps_addr_t) & fwdsig)
+# define IGC_PADSIG ((mps_addr_t) & padsig)
 
-struct igc_fwd {
+struct igc_fwd
+{
   mps_addr_t sig;
   mps_addr_t new_addr;
 };
 
-struct igc_pad {
+struct igc_pad
+{
   mps_addr_t sig;
   mps_addr_t padding_end;
 };
@@ -366,90 +371,98 @@ padding_end (mps_addr_t addr)
   return p->padding_end;
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wunused-variable"
 
 static mps_res_t
 fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 {
   MPS_SCAN_BEGIN (ss)
-    {
-      mps_word_t *p = (mps_word_t *) pobj;
-      mps_word_t word = *p;
-      mps_word_t tag = word & IGC_TAG_MASK;
+  {
+    mps_word_t *p = (mps_word_t *) pobj;
+    mps_word_t word = *p;
+    mps_word_t tag = word & IGC_TAG_MASK;
 
-      if (tag == Lisp_Int0 && tag == Lisp_Int1)
-	return MPS_RES_OK;
+    if (tag == Lisp_Int0 && tag == Lisp_Int1)
+      return MPS_RES_OK;
 
-      if (tag == Lisp_Symbol)
-	{
-	  mps_word_t off = word ^ tag;
-	  mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
-	  if (MPS_FIX1 (ss, ref))
-	    {
-	      mps_res_t res = MPS_FIX2 (ss, &ref);
-	      if (res != MPS_RES_OK)
-		return res;
-	      mps_word_t new_off = (char *) ref - (char *) lispsym;
-	      mps_addr_t new_ref = (mps_addr_t) ((char *) lispsym + new_off);
-	      *p = (mps_word_t) new_ref | tag;
-	    }
-	}
-      else
-	{
-	  mps_addr_t ref = (mps_addr_t) (word ^ tag);
-	  if (MPS_FIX1 (ss, ref))
-	    {
-	      mps_res_t res = MPS_FIX2 (ss, &ref);
-	      if (res != MPS_RES_OK)
-		return res;
-	      *p = (mps_word_t) ref | tag;
-	    }
-	}
-    }
+    if (tag == Lisp_Symbol)
+      {
+	mps_word_t off = word ^ tag;
+	mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
+	if (MPS_FIX1 (ss, ref))
+	  {
+	    mps_res_t res = MPS_FIX2 (ss, &ref);
+	    if (res != MPS_RES_OK)
+	      return res;
+	    mps_word_t new_off = (char *) ref - (char *) lispsym;
+	    mps_addr_t new_ref = (mps_addr_t) ((char *) lispsym + new_off);
+	    *p = (mps_word_t) new_ref | tag;
+	  }
+      }
+    else
+      {
+	mps_addr_t ref = (mps_addr_t) (word ^ tag);
+	if (MPS_FIX1 (ss, ref))
+	  {
+	    mps_res_t res = MPS_FIX2 (ss, &ref);
+	    if (res != MPS_RES_OK)
+	      return res;
+	    *p = (mps_word_t) ref | tag;
+	  }
+      }
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-#define IGC_FIX12_OBJ(ss, p)				\
-  do {							\
-    mps_res_t res;					\
-    MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, (p)));	\
-    if (res != MPS_RES_OK)				\
-      return res;					\
-  } while (0)
+# define IGC_FIX12_OBJ(ss, p)                           \
+   do                                                   \
+     {                                                  \
+       mps_res_t res;                                   \
+       MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, (p))); \
+       if (res != MPS_RES_OK)                           \
+	 return res;                                    \
+     }                                                  \
+   while (0)
 
-#define IGC_FIX12_RAW(ss, p)					\
-  do {								\
-      mps_res_t res = MPS_FIX12 (ss, (mps_addr_t *) (p));	\
-      if (res != MPS_RES_OK)					\
-	return res;						\
-  } while (0)
+# define IGC_FIX12_RAW(ss, p)                              \
+   do                                                      \
+     {                                                     \
+       mps_res_t res = MPS_FIX12 (ss, (mps_addr_t *) (p)); \
+       if (res != MPS_RES_OK)                              \
+	 return res;                                       \
+     }                                                     \
+   while (0)
 
-#define IGC_FIX12_NOBJS(ss, a, n)				\
-  do {								\
-    mps_res_t res;						\
-    MPS_FIX_CALL ((ss), res = fix_array ((ss), (a), (n)));	\
-    if (res != MPS_RES_OK)					\
-      return res;						\
-  } while (0)
+# define IGC_FIX12_NOBJS(ss, a, n)                            \
+   do                                                         \
+     {                                                        \
+       mps_res_t res;                                         \
+       MPS_FIX_CALL ((ss), res = fix_array ((ss), (a), (n))); \
+       if (res != MPS_RES_OK)                                 \
+	 return res;                                          \
+     }                                                        \
+   while (0)
 
-#define IGC_FIX_CALL(ss, expr)			\
-  do {						\
-    mps_res_t res;				\
-    MPS_FIX_CALL (ss, res = (expr));		\
-    if (res != MPS_RES_OK)			\
-      return res;				\
-  } while (0)
+# define IGC_FIX_CALL(ss, expr)         \
+   do                                   \
+     {                                  \
+       mps_res_t res;                   \
+       MPS_FIX_CALL (ss, res = (expr)); \
+       if (res != MPS_RES_OK)           \
+	 return res;                    \
+     }                                  \
+   while (0)
 
 static mps_res_t
 fix_array (mps_ss_t ss, Lisp_Object *array, size_t n)
 {
   MPS_SCAN_BEGIN (ss)
-    {
-      for (size_t i = 0; i < n; ++i)
-	IGC_FIX12_OBJ (ss, &array[i]);
-    }
+  {
+    for (size_t i = 0; i < n; ++i)
+      IGC_FIX12_OBJ (ss, &array[i]);
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -458,10 +471,10 @@ static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
-    {
-      for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
-	IGC_FIX12_OBJ (ss, *p);
-    }
+  {
+    for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
+      IGC_FIX12_OBJ (ss, *p);
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -470,14 +483,14 @@ static mps_res_t
 fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 {
   MPS_SCAN_BEGIN (ss)
-    {
-      IGC_FIX12_OBJ (ss, &sym->u.s.name);
-      if (sym->u.s.redirect == SYMBOL_PLAINVAL)
-	IGC_FIX12_OBJ (ss, &sym->u.s.val.value);
-      IGC_FIX12_OBJ (ss, &sym->u.s.function);
-      IGC_FIX12_OBJ (ss, &sym->u.s.plist);
-      IGC_FIX12_OBJ (ss, &sym->u.s.package);
-    }
+  {
+    IGC_FIX12_OBJ (ss, &sym->u.s.name);
+    if (sym->u.s.redirect == SYMBOL_PLAINVAL)
+      IGC_FIX12_OBJ (ss, &sym->u.s.val.value);
+    IGC_FIX12_OBJ (ss, &sym->u.s.function);
+    IGC_FIX12_OBJ (ss, &sym->u.s.plist);
+    IGC_FIX12_OBJ (ss, &sym->u.s.package);
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -486,12 +499,11 @@ static mps_res_t
 scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
-    {
-      for (struct Lisp_Symbol *sym = start;
-	   sym < (struct Lisp_Symbol *) end;
-	   ++sym)
-	IGC_FIX_CALL (ss, fix_symbol (ss, sym));
-    }
+  {
+    for (struct Lisp_Symbol *sym = start; sym < (struct Lisp_Symbol *) end;
+	 ++sym)
+      IGC_FIX_CALL (ss, fix_symbol (ss, sym));
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -500,71 +512,71 @@ static mps_res_t
 scan_specbindings (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
-    {
-      mps_res_t res;
-      for (union specbinding *pdl = start;
-	   pdl < (union specbinding *) end; ++pdl)
-	{
-	  switch (pdl->kind)
+  {
+    mps_res_t res;
+    for (union specbinding *pdl = start; pdl < (union specbinding *) end; ++pdl)
+      {
+	switch (pdl->kind)
+	  {
+	  case SPECPDL_UNWIND:
+	    IGC_FIX12_OBJ (ss, &pdl->unwind.arg);
+	    break;
+
+	  case SPECPDL_UNWIND_ARRAY:
+	    IGC_FIX12_NOBJS (ss, pdl->unwind_array.array,
+			     pdl->unwind_array.nelts);
+	    break;
+
+	  case SPECPDL_UNWIND_EXCURSION:
+	    IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.marker);
+	    IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.window);
+	    break;
+
+	  case SPECPDL_BACKTRACE:
 	    {
-	    case SPECPDL_UNWIND:
-	      IGC_FIX12_OBJ (ss, &pdl->unwind.arg);
-	      break;
-
-	    case SPECPDL_UNWIND_ARRAY:
-	      IGC_FIX12_NOBJS (ss, pdl->unwind_array.array, pdl->unwind_array.nelts);
-	      break;
-
-	    case SPECPDL_UNWIND_EXCURSION:
-	      IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.marker);
-	      IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.window);
-	      break;
-
-	    case SPECPDL_BACKTRACE:
-	      {
-		IGC_FIX12_OBJ (ss, &pdl->bt.function);
-		ptrdiff_t nargs = pdl->bt.nargs;
-		if (nargs == UNEVALLED)
-		  nargs = 1;
-		IGC_FIX12_NOBJS (ss, pdl->bt.args, nargs);
-	      }
-	      break;
-
-#ifdef HAVE_MODULES
-	    case SPECPDL_MODULE_RUNTIME:
-	      break;
-
-	      // If I am not mistaken, the emacs_env in this binding
-	      // actually lives on the stack (see module-load e.g.).
-	      // So, we don't have to do something here for the Lisp
-	      // objects in emacs_env.
-	    case SPECPDL_MODULE_ENVIRONMENT:
-	      break;
-#endif
-	    case SPECPDL_LET_DEFAULT:
-	    case SPECPDL_LET_LOCAL:
-	      IGC_FIX12_OBJ (ss, &pdl->let.where);
-	      FALLTHROUGH;
-	    case SPECPDL_LET:
-	      IGC_FIX12_OBJ (ss, &pdl->let.symbol);
-	      IGC_FIX12_OBJ (ss, &pdl->let.old_value);
-	      break;
-
-	    case SPECPDL_UNWIND_PTR:
-	      break;
-
-	    case SPECPDL_UNWIND_INT:
-	    case SPECPDL_UNWIND_INTMAX:
-	    case SPECPDL_UNWIND_VOID:
-	    case SPECPDL_NOP:
-	      break;
-
-	    default:
-	      IGC_ASSERT (false);
-	      break;
+	      IGC_FIX12_OBJ (ss, &pdl->bt.function);
+	      ptrdiff_t nargs = pdl->bt.nargs;
+	      if (nargs == UNEVALLED)
+		nargs = 1;
+	      IGC_FIX12_NOBJS (ss, pdl->bt.args, nargs);
 	    }
-	}
-    }
+	    break;
+
+# ifdef HAVE_MODULES
+	  case SPECPDL_MODULE_RUNTIME:
+	    break;
+
+	    // If I am not mistaken, the emacs_env in this binding
+	    // actually lives on the stack (see module-load e.g.).
+	    // So, we don't have to do something here for the Lisp
+	    // objects in emacs_env.
+	  case SPECPDL_MODULE_ENVIRONMENT:
+	    break;
+# endif
+	  case SPECPDL_LET_DEFAULT:
+	  case SPECPDL_LET_LOCAL:
+	    IGC_FIX12_OBJ (ss, &pdl->let.where);
+	    FALLTHROUGH;
+	  case SPECPDL_LET:
+	    IGC_FIX12_OBJ (ss, &pdl->let.symbol);
+	    IGC_FIX12_OBJ (ss, &pdl->let.old_value);
+	    break;
+
+	  case SPECPDL_UNWIND_PTR:
+	    break;
+
+	  case SPECPDL_UNWIND_INT:
+	  case SPECPDL_UNWIND_INTMAX:
+	  case SPECPDL_UNWIND_VOID:
+	  case SPECPDL_NOP:
+	    break;
+
+	  default:
+	    IGC_ASSERT (false);
+	    break;
+	  }
+      }
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -573,36 +585,36 @@ static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
-    {
-      for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
-	{
-	  mps_word_t word = *p;
-	  mps_word_t tag = word & IGC_TAG_MASK;
+  {
+    for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
+      {
+	mps_word_t word = *p;
+	mps_word_t tag = word & IGC_TAG_MASK;
 
-	  if (tag == Lisp_Int0 && tag == Lisp_Int1)
-	    continue;
+	if (tag == Lisp_Int0 && tag == Lisp_Int1)
+	  continue;
 
-	  mps_addr_t ref = (mps_addr_t) (word ^ tag);
-	  if (MPS_FIX1 (ss, ref))
-	    {
-	      mps_res_t res = MPS_FIX2 (ss, &ref);
-	      if (res != MPS_RES_OK)
-		return res;
-	    }
+	mps_addr_t ref = (mps_addr_t) (word ^ tag);
+	if (MPS_FIX1 (ss, ref))
+	  {
+	    mps_res_t res = MPS_FIX2 (ss, &ref);
+	    if (res != MPS_RES_OK)
+	      return res;
+	  }
 
-	  if (tag == Lisp_Symbol)
-	    {
-	      mps_word_t off = word ^ tag;
-	      mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
-	      if (MPS_FIX1 (ss, ref))
-		{
-		  mps_res_t res = MPS_FIX2 (ss, &ref);
-		  if (res != MPS_RES_OK)
-		    return res;
-		}
-	    }
-	}
-    }
+	if (tag == Lisp_Symbol)
+	  {
+	    mps_word_t off = word ^ tag;
+	    mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
+	    if (MPS_FIX1 (ss, ref))
+	      {
+		mps_res_t res = MPS_FIX2 (ss, &ref);
+		if (res != MPS_RES_OK)
+		  return res;
+	      }
+	  }
+      }
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -611,7 +623,7 @@ static mps_addr_t
 cons_skip (mps_addr_t addr)
 {
   return (char *) addr
-    + igc_round_to_pool(sizeof (struct Lisp_Cons), IGC_TYPE_CONS);
+	 + igc_round_to_pool (sizeof (struct Lisp_Cons), IGC_TYPE_CONS);
 }
 
 static mps_res_t
@@ -663,7 +675,7 @@ static mps_addr_t
 string_skip (mps_addr_t addr)
 {
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct Lisp_String), IGC_TYPE_STRING);
+	 + igc_round_to_pool (sizeof (struct Lisp_String), IGC_TYPE_STRING);
 }
 
 static mps_res_t
@@ -686,7 +698,8 @@ string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
-struct igc_sdata {
+struct igc_sdata
+{
   mps_addr_t object_end;
   mps_addr_t unused;
   unsigned char contents[];
@@ -722,14 +735,14 @@ static mps_addr_t
 float_skip (mps_addr_t addr)
 {
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct Lisp_Float), IGC_TYPE_FLOAT);
+	 + igc_round_to_pool (sizeof (struct Lisp_Float), IGC_TYPE_FLOAT);
 }
 
 static mps_addr_t
 interval_skip (mps_addr_t addr)
 {
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct interval), IGC_TYPE_INTERVAL);
+	 + igc_round_to_pool (sizeof (struct interval), IGC_TYPE_INTERVAL);
 }
 
 static mps_res_t
@@ -762,7 +775,7 @@ static mps_addr_t
 itree_skip (mps_addr_t addr)
 {
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_ITREE_NODE);
+	 + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_ITREE_NODE);
 }
 
 static mps_res_t
@@ -791,7 +804,7 @@ static mps_addr_t
 image_skip (mps_addr_t addr)
 {
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_IMAGE);
+	 + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_IMAGE);
 }
 
 static mps_res_t
@@ -821,7 +834,7 @@ static mps_addr_t
 face_skip (mps_addr_t addr)
 {
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct face), IGC_TYPE_FACE);
+	 + igc_round_to_pool (sizeof (struct face), IGC_TYPE_FACE);
 }
 
 static mps_res_t
@@ -867,8 +880,7 @@ pseudo_vector_nobjs (const struct Lisp_Vector *v)
 static size_t
 pseudo_vector_rest_nwords (const struct Lisp_Vector *v)
 {
-  return (v->header.size & PSEUDOVECTOR_REST_MASK)
-    >> PSEUDOVECTOR_SIZE_BITS;
+  return (v->header.size & PSEUDOVECTOR_REST_MASK) >> PSEUDOVECTOR_SIZE_BITS;
 }
 
 static enum pvec_type
@@ -880,15 +892,13 @@ pseudo_vector_type (const struct Lisp_Vector *v)
 static bool
 is_bool_vector (const struct Lisp_Vector *v)
 {
-  return is_pseudo_vector (v)
-    && pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
+  return is_pseudo_vector (v) && pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
 }
 
 static bool
 is_hash_impl (const struct Lisp_Vector *v)
 {
-  return is_pseudo_vector (v)
-	 && pseudo_vector_type (v) == PVEC_HASH_IMPL;
+  return is_pseudo_vector (v) && pseudo_vector_type (v) == PVEC_HASH_IMPL;
 }
 
 static size_t
@@ -923,8 +933,7 @@ vector_skip (mps_addr_t addr)
   if (is_padding (addr))
     return padding_end (addr);
 
-  mps_addr_t vec_addr
-    = is_forwarded (addr) ? forwarded_to (addr) : addr;
+  mps_addr_t vec_addr = is_forwarded (addr) ? forwarded_to (addr) : addr;
   size_t nbytes = vector_size (vec_addr);
   return (char *) addr + igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
 }
@@ -1086,7 +1095,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    {
 	      struct hash_impl *h = vbase;
 	      eassert (h->weakness == Weak_None);
-	      for (ptrdiff_t i = 0, n = h->count; n > 0 && i < h->table_size; ++i)
+	      for (ptrdiff_t i = 0, n = h->count; n > 0 && i < h->table_size;
+		   ++i)
 		{
 		  struct hash_entry *e = h->entries + i;
 		  if (!hash_unused_entry_key_p (e->key))
@@ -1106,9 +1116,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      struct Lisp_Vector *v = vbase;
 	      int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
 	      enum pvec_type type = pseudo_vector_type (v);
-	      int idx = (type == PVEC_SUB_CHAR_TABLE
-			 ? SUB_CHAR_TABLE_OFFSET
-			 : 0);
+	      int idx
+		= (type == PVEC_SUB_CHAR_TABLE ? SUB_CHAR_TABLE_OFFSET : 0);
 	      for (int i = idx; i < size; ++i)
 		IGC_FIX12_OBJ (ss, &v->contents[i]);
 	    }
@@ -1134,13 +1143,13 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    {
 	      struct Lisp_Subr *p = vbase;
 	      IGC_FIX12_OBJ (ss, &p->command_modes);
-#ifdef HAVE_NATIVE_COMP
+# ifdef HAVE_NATIVE_COMP
 	      IGC_FIX12_OBJ (ss, &p->intspec.native);
 	      IGC_FIX12_OBJ (ss, &p->command_modes);
 	      IGC_FIX12_OBJ (ss, &p->native_comp_u);
 	      IGC_FIX12_OBJ (ss, &p->lambda_list);
 	      IGC_FIX12_OBJ (ss, &p->type);
-#endif
+# endif
 	    }
 	    break;
 
@@ -1153,20 +1162,21 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    break;
 	  }
       }
-    }
+  }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-#pragma GCC diagnostic pop
+# pragma GCC diagnostic pop
 
 static igc_root_list *
 create_ambig_root (struct igc *gc, void *start, void *end)
 {
   mps_root_t root;
-  mps_res_t res = mps_root_create_area_tagged
-    (&root, gc->arena, mps_rank_ambig (), 0,
-     start, end, scan_area_ambig, IGC_TAG_MASK, 0);
+  mps_res_t res
+    = mps_root_create_area_tagged (&root, gc->arena, mps_rank_ambig (), 0,
+				   start, end, scan_area_ambig, IGC_TAG_MASK,
+				   0);
   IGC_CHECK_RES (res);
   return register_root (gc, root, start, end);
 }
@@ -1174,11 +1184,11 @@ create_ambig_root (struct igc *gc, void *start, void *end)
 static void
 create_staticvec_root (struct igc *gc)
 {
-  void *start =staticvec, *end = staticvec + ARRAYELTS (staticvec);
+  void *start = staticvec, *end = staticvec + ARRAYELTS (staticvec);
   mps_root_t root;
-  mps_res_t res = mps_root_create_area
-    (&root, gc->arena, mps_rank_exact (), MPS_RM_PROT + MPS_RM_PROT_INNER,
-     start, end, scan_staticvec, NULL);
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (),
+					MPS_RM_PROT + MPS_RM_PROT_INNER, start,
+					end, scan_staticvec, NULL);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
 }
@@ -1188,9 +1198,9 @@ create_lispsym_root (struct igc *gc)
 {
   void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
   mps_root_t root;
-  mps_res_t res = mps_root_create_area
-    (&root, gc->arena, mps_rank_exact (), MPS_RM_PROT + MPS_RM_PROT_INNER,
-     start, end, scan_lispsym, NULL);
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (),
+					MPS_RM_PROT + MPS_RM_PROT_INNER, start,
+					end, scan_lispsym, NULL);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
 }
@@ -1204,9 +1214,8 @@ create_specpdl_root (struct igc_thread_list *t)
   struct igc *gc = t->d.gc;
   void *start = specpdl, *end = specpdl_end;
   mps_root_t root;
-  mps_res_t res = mps_root_create_area
-    (&root, gc->arena, mps_rank_exact (), 0, start, end,
-     scan_specbindings, NULL);
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
+					start, end, scan_specbindings, NULL);
   IGC_CHECK_RES (res);
   t->d.specpdl_root = register_root (gc, root, start, end);
 }
@@ -1221,16 +1230,16 @@ igc_on_specbinding_unused (union specbinding *b)
 void
 igc_on_grow_specpdl (void)
 {
-  // Note that no two roots may overlap, so we have to temporarily stop
-  // the collector while replacing one root with another (xpalloc may
-  // realloc). Alternatives: (1) don't realloc, (2) alloc specpdl from
-  // MPS pool that is scanned.
+  // Note that no two roots may overlap, so we have to temporarily
+  // stop the collector while replacing one root with another (xpalloc
+  // may realloc). Alternatives: (1) don't realloc, (2) alloc specpdl
+  // from MPS pool that is scanned.
   struct igc_thread_list *t = current_thread->gc_info;
   IGC_WITH_PARKED (t->d.gc)
-    {
-      destroy_root (t->d.specpdl_root);
-      create_specpdl_root (t);
-    }
+  {
+    destroy_root (t->d.specpdl_root);
+    create_specpdl_root (t);
+  }
 }
 
 void
@@ -1269,10 +1278,10 @@ create_thread_root (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   mps_root_t root;
-  mps_res_t res = mps_root_create_thread_tagged
-    (&root, gc->arena, mps_rank_ambig (),
-     0, t->d.thr, scan_area_ambig,
-     IGC_TAG_MASK, 0, t->d.stack_start);
+  mps_res_t res
+    = mps_root_create_thread_tagged (&root, gc->arena, mps_rank_ambig (), 0,
+				     t->d.thr, scan_area_ambig, IGC_TAG_MASK, 0,
+				     t->d.stack_start);
   IGC_CHECK_RES (res);
   register_root (gc, root, t->d.stack_start, NULL);
 }
@@ -1321,11 +1330,11 @@ igc_on_grow_rdstack (void *info, void *start, void *end)
 {
   struct igc *gc = global_igc;
   IGC_WITH_PARKED (gc)
-    {
-      if (info)
-	destroy_root (info);
-      info = create_ambig_root (gc, start, end);
-    }
+  {
+    if (info)
+      destroy_root (info);
+    info = create_ambig_root (gc, start, end);
+  }
   return info;
 }
 
@@ -1382,16 +1391,17 @@ igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 	     ptrdiff_t nitems_max, ptrdiff_t item_size)
 {
   IGC_WITH_PARKED (global_igc)
-    {
-      if (pa)
-	{
-	  struct igc_root_list *r = find_root (pa);
-	  if (r) destroy_root (r);
-	}
-      pa = xpalloc (pa, nitems, nitems_incr_min, nitems_max, item_size);
-      char *end = (char *) pa +  *nitems * item_size;
-      create_ambig_root (global_igc, pa, end);
-    }
+  {
+    if (pa)
+      {
+	struct igc_root_list *r = find_root (pa);
+	if (r)
+	  destroy_root (r);
+      }
+    pa = xpalloc (pa, nitems, nitems_incr_min, nitems_max, item_size);
+    char *end = (char *) pa + *nitems * item_size;
+    create_ambig_root (global_igc, pa, end);
+  }
   return pa;
 }
 
@@ -1399,16 +1409,17 @@ void *
 igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
 {
   IGC_WITH_PARKED (global_igc)
-    {
-      if (pa)
-	{
-	  struct igc_root_list *r = find_root (pa);
-	  if (r) destroy_root (r);
-	}
-      pa = xnrealloc (pa, nitems, item_size);
-      char *end = (char *) pa +  nitems * item_size;
-      create_ambig_root (global_igc, pa, end);
-    }
+  {
+    if (pa)
+      {
+	struct igc_root_list *r = find_root (pa);
+	if (r)
+	  destroy_root (r);
+      }
+    pa = xnrealloc (pa, nitems, item_size);
+    char *end = (char *) pa + nitems * item_size;
+    create_ambig_root (global_igc, pa, end);
+  }
   return pa;
 }
 
@@ -1461,7 +1472,7 @@ process_messages (struct igc *gc)
 static void
 enable_messages (struct igc *gc, bool enable)
 {
-  void (* fun) (mps_arena_t, mps_message_type_t)
+  void (*fun) (mps_arena_t, mps_message_type_t)
     = enable ? mps_message_type_enable : mps_message_type_disable;
   fun (gc->arena, mps_message_type_finalization ());
   fun (gc->arena, mps_message_type_gc_start ());
@@ -1489,55 +1500,64 @@ thread_ap (enum igc_type type)
 
 enum
 {
-  IGC_ALIGNMENT = max (sizeof (struct igc_fwd),
-		       sizeof (struct igc_pad))
+  IGC_ALIGNMENT = max (sizeof (struct igc_fwd), sizeof (struct igc_pad))
 };
-
 
 static struct igc_init igc_inits[IGC_TYPE_LAST] = {
-  [IGC_TYPE_CONS] = {
-    .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = cons_scan, .skip = cons_skip },
-  [IGC_TYPE_SYMBOL] = {
-    .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = symbol_scan, .skip = symbol_skip },
-  [IGC_TYPE_INTERVAL] = {
-    .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = interval_scan, .skip = interval_skip },
-  [IGC_TYPE_STRING] = {
-    .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = string_scan, .skip = string_skip },
-  [IGC_TYPE_STRING_DATA] = {
-    .class_type = IGC_AMCZ, .align = IGC_ALIGNMENT,
-    .interior_pointers = true,
-    .scan = NULL, .skip = string_data_skip },
-  [IGC_TYPE_VECTOR] = {
-    .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = vector_scan, .skip = vector_skip },
-  [IGC_TYPE_ITREE_NODE] = {
-    .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = itree_scan, .skip = itree_skip },
-  [IGC_TYPE_IMAGE] = {
-    .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = image_scan, .skip = image_skip },
-  [IGC_TYPE_FACE] = {
-    .class_type = IGC_AMC, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = face_scan, .skip = face_skip },
-  [IGC_TYPE_FLOAT] = {
-    .class_type = IGC_AMCZ, .align = IGC_ALIGNMENT,
-    .interior_pointers = false,
-    .scan = NULL, .skip = float_skip },
+  [IGC_TYPE_CONS] = { .class_type = IGC_AMC,
+		      .align = IGC_ALIGNMENT,
+		      .interior_pointers = false,
+		      .scan = cons_scan,
+		      .skip = cons_skip },
+  [IGC_TYPE_SYMBOL] = { .class_type = IGC_AMC,
+			.align = IGC_ALIGNMENT,
+			.interior_pointers = false,
+			.scan = symbol_scan,
+			.skip = symbol_skip },
+  [IGC_TYPE_INTERVAL] = { .class_type = IGC_AMC,
+			  .align = IGC_ALIGNMENT,
+			  .interior_pointers = false,
+			  .scan = interval_scan,
+			  .skip = interval_skip },
+  [IGC_TYPE_STRING] = { .class_type = IGC_AMC,
+			.align = IGC_ALIGNMENT,
+			.interior_pointers = false,
+			.scan = string_scan,
+			.skip = string_skip },
+  [IGC_TYPE_STRING_DATA] = { .class_type = IGC_AMCZ,
+			     .align = IGC_ALIGNMENT,
+			     .interior_pointers = true,
+			     .scan = NULL,
+			     .skip = string_data_skip },
+  [IGC_TYPE_VECTOR] = { .class_type = IGC_AMC,
+			.align = IGC_ALIGNMENT,
+			.interior_pointers = false,
+			.scan = vector_scan,
+			.skip = vector_skip },
+  [IGC_TYPE_ITREE_NODE] = { .class_type = IGC_AMC,
+			    .align = IGC_ALIGNMENT,
+			    .interior_pointers = false,
+			    .scan = itree_scan,
+			    .skip = itree_skip },
+  [IGC_TYPE_IMAGE] = { .class_type = IGC_AMC,
+		       .align = IGC_ALIGNMENT,
+		       .interior_pointers = false,
+		       .scan = image_scan,
+		       .skip = image_skip },
+  [IGC_TYPE_FACE] = { .class_type = IGC_AMC,
+		      .align = IGC_ALIGNMENT,
+		      .interior_pointers = false,
+		      .scan = face_scan,
+		      .skip = face_skip },
+  [IGC_TYPE_FLOAT] = { .class_type = IGC_AMCZ,
+		       .align = IGC_ALIGNMENT,
+		       .interior_pointers = false,
+		       .scan = NULL,
+		       .skip = float_skip },
 };
 
-void igc_break (void)
+void
+igc_break (void)
 {
 }
 
@@ -1622,11 +1642,11 @@ alloc_string_data (size_t nbytes)
   return p;
 }
 
-// Reallocate multibyte STRING data when a single character is replaced.
-// The character is at byte offset BYTE_POS in the string.  The
-// character being replaced is CHAR_LEN bytes long, and the character
-// that will replace it is NEW_CLEN bytes long.  Return the address
-// where the caller should store the new character.
+// Reallocate multibyte STRING data when a single character is
+// replaced. The character is at byte offset BYTE_POS in the string.
+// The character being replaced is CHAR_LEN bytes long, and the
+// character that will replace it is NEW_CLEN bytes long.  Return the
+// address where the caller should store the new character.
 unsigned char *
 igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
 		  ptrdiff_t old_char_len, ptrdiff_t new_char_len)
@@ -1651,15 +1671,13 @@ igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
   // Set up string as if the character had been inserted.
   s->u.s.size_byte = nbytes_needed;
   unsigned char *insertion_addr = s->u.s.data + at_byte_pos;
-  memmove (insertion_addr + new_char_len,
-	   insertion_addr + old_char_len,
+  memmove (insertion_addr + new_char_len, insertion_addr + old_char_len,
 	   new_char_len - old_char_len);
   return insertion_addr;
 }
 
 Lisp_Object
-igc_make_string (size_t nchars, size_t nbytes, bool unibyte,
-		 bool clear)
+igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
 {
   struct igc_sdata *data = alloc_string_data (nbytes);
   if (clear)
@@ -1720,7 +1738,8 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 {
   enum igc_type type = IGC_TYPE_VECTOR;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_round_to_pool (header_size + nwords_mem * word_size, type);
+  size_t nbytes
+    = igc_round_to_pool (header_size + nwords_mem * word_size, type);
   mps_addr_t p;
   do
     {
@@ -1843,7 +1862,10 @@ igc_valid_lisp_object_p (Lisp_Object obj)
 }
 
 static mps_pool_debug_option_s debug_options = {
-  "fence", 5, "free", 4,
+  "fence",
+  5,
+  "free",
+  4,
 };
 
 static void
@@ -1851,14 +1873,13 @@ make_arena (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
-    {
-      res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
-    }
+  {
+    res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
+  }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
-  mps_gen_param_s gens[]
-    = { { 32000, 0.8 }, { 5 * 32009, 0.4 } };
+  mps_gen_param_s gens[] = { { 32000, 0.8 }, { 5 * 32009, 0.4 } };
   res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gens), gens);
   IGC_CHECK_RES (res);
 }
@@ -1868,17 +1889,17 @@ make_fmt (struct igc *gc, enum igc_type type, struct igc_init *init)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, init->align);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
-      if (init->scan)
-	MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, init->scan);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, init->skip);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, forward);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, is_forwarded);
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, pad);
-      res = mps_fmt_create_k (&gc->fmt[type], gc->arena, args);
-    }
+  {
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, init->align);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    if (init->scan)
+      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, init->scan);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, init->skip);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, forward);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, is_forwarded);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, pad);
+    res = mps_fmt_create_k (&gc->fmt[type], gc->arena, args);
+  }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
@@ -1888,14 +1909,14 @@ make_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
-    {
-      MPS_ARGS_ADD (args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-      MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[type]);
-      MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-      MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, init->interior_pointers);
-      res = mps_pool_create_k (&gc->pool[type], gc->arena,
-			       init->pool_class, args);
-    }
+  {
+    MPS_ARGS_ADD (args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
+    MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[type]);
+    MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+    MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, init->interior_pointers);
+    res
+      = mps_pool_create_k (&gc->pool[type], gc->arena, init->pool_class, args);
+  }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 }
