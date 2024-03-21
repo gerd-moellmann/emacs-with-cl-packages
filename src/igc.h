@@ -1,22 +1,40 @@
-// clang-format off
+/* Fundamental definitions for GNU Emacs Lisp interpreter. -*- coding: utf-8 -*-
+
+Copyright (C) 2024 Free Software Foundation, Inc.
+
+This file is part of GNU Emacs.
+
+GNU Emacs is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
+
+GNU Emacs is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef EMACS_IGC_H
 #define EMACS_IGC_H
 
 #include "config.h"
 #include "lisp.h"
-# ifdef HAVE_MPS
+
+#ifdef HAVE_MPS
 
 /* Assertions.  */
-#define IGC_DEBUG 1
+# define IGC_DEBUG 1
 
 /* If defined, allocate conses from MPS.  */
-#define IGC_MANAGE_CONS 1
-#define IGC_MANAGE_SYMBOLS 1
+# define IGC_MANAGE_CONS 1
+# define IGC_MANAGE_SYMBOLS 1
 
 /* If defined, use a debug AMS pool, and check fenceposts etc.
    See MPS docs.  Can be slow.  */
-#define IGC_DEBUG_POOL 1
+# define IGC_DEBUG_POOL 1
 
 void igc_break (void);
 void init_igc (void);
@@ -43,9 +61,10 @@ void *igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 		   ptrdiff_t nitems_max, ptrdiff_t item_size);
 void *igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size);
 
-struct Lisp_Vector *
-igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
-			size_t nwords_zero, enum pvec_type tag);
+struct Lisp_Vector *igc_alloc_pseudovector (size_t nwords_mem,
+					    size_t nwords_lisp,
+					    size_t nwords_zero,
+					    enum pvec_type tag);
 struct Lisp_Vector *igc_alloc_vector (ptrdiff_t len);
 struct itree_node *igc_make_itree_node (void);
 struct image *igc_make_image (void);
@@ -55,18 +74,20 @@ struct hash_impl *igc_make_hash_impl (ptrdiff_t nentries);
 
 Lisp_Object igc_make_string (size_t nchars, size_t nbytes, bool unibyte,
 			     bool clear);
-Lisp_Object igc_make_multibyte_string (size_t nchars, size_t nbytes, bool clear);
+Lisp_Object igc_make_multibyte_string (size_t nchars, size_t nbytes,
+				       bool clear);
 Lisp_Object igc_make_unibyte_string (size_t nchars, size_t nbytes, bool clear);
 Lisp_Object igc_make_float (double val);
 int igc_valid_lisp_object_p (Lisp_Object obj);
 Lisp_Object igc_make_finalizer (Lisp_Object function);
 unsigned char *igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
-				 ptrdiff_t old_char_len, ptrdiff_t new_char_len);
+				 ptrdiff_t old_char_len,
+				 ptrdiff_t new_char_len);
 
-#define eassert_not_mps() eassert(false)
+# define eassert_not_mps() eassert (false)
 #else
-#define igc_break() (void) 0
-#define eassert_not_mps() (void) 0
-# endif // HAVE_MPS
+# define igc_break() (void) 0
+# define eassert_not_mps() (void) 0
+#endif // HAVE_MPS
 
 #endif // EMACS_IGC_H
