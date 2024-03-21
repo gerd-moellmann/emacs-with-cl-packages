@@ -3,6 +3,7 @@
 #ifndef EMACS_IGC_H
 #define EMACS_IGC_H
 
+#include "config.h"
 #include "lisp.h"
 # ifdef HAVE_MPS
 
