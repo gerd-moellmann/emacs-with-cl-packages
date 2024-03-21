@@ -349,14 +349,6 @@ is_forwarded (const mps_addr_t addr)
   return f->sig == IGC_FWDSIG ? f->new_addr : NULL;
 }
 
-static mps_addr_t
-forwarded_to (mps_addr_t addr)
-{
-  IGC_ASSERT (is_forwarded (addr));
-  struct igc_fwd *f = addr;
-  return f->new_addr;
-}
-
 static void
 pad (mps_addr_t addr, size_t nbytes)
 {
@@ -955,7 +947,8 @@ vector_skip (mps_addr_t addr)
   if (is_padding (addr))
     return padding_end (addr);
 
-  mps_addr_t vec_addr = is_forwarded (addr) ? forwarded_to (addr) : addr;
+  mps_addr_t new_addr = is_forwarded (addr);
+  mps_addr_t vec_addr = new_addr ? new_addr : addr;
   size_t nbytes = vector_size (vec_addr);
   return (char *) addr + igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
 }
