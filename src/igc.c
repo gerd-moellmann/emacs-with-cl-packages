@@ -1080,7 +1080,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      IGC_FIX12_RAW (ss, &b->own_text.intervals);
 	      IGC_FIX12_RAW (ss, &b->own_text.markers);
 	      IGC_FIX12_RAW (ss, &b->base_buffer);
-	      IGC_FIX12_RAW (ss, &b->overlays->root);
+	      if (b->overlays)
+		IGC_FIX12_RAW (ss, &b->overlays->root);
 	      // FIXME: special handling of undo_list?
 	    }
 	    break;
