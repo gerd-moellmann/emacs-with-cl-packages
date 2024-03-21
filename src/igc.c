@@ -157,7 +157,6 @@ static struct igc_init igc_inits[];
     r->d = *d;						\
     r->next = *head;					\
     r->prev = NULL;					\
-							\
     if (r->next)					\
       r->next->prev = r;				\
     *head = r;						\
@@ -313,12 +312,12 @@ static int padsig;
 
 struct igc_fwd {
   mps_addr_t sig;
-  mps_addr_t new;
+  mps_addr_t new_addr;
 };
 
 struct igc_pad {
   mps_addr_t sig;
-  mps_word_t nbytes;
+  mps_addr_t padding_end;
 };
 
 igc_static_assert (sizeof (struct Lisp_Cons) >= sizeof (struct igc_fwd));
@@ -329,7 +328,7 @@ igc_static_assert (sizeof (struct interval) >= sizeof (struct igc_pad));
 static void
 forward (mps_addr_t old, mps_addr_t new)
 {
-  struct igc_fwd m = { .sig = IGC_FWDSIG, .new = new };
+  struct igc_fwd m = { .sig = IGC_FWDSIG, .new_addr = new };
   *(struct igc_fwd *) old = m;
 }
 
@@ -337,7 +336,7 @@ static mps_addr_t
 is_forwarded (const mps_addr_t addr)
 {
   struct igc_fwd *f = addr;
-  return f->sig == IGC_FWDSIG ? f->new : NULL;
+  return f->sig == IGC_FWDSIG ? f->new_addr : NULL;
 }
 
 static mps_addr_t
@@ -345,15 +344,16 @@ forwarded_to (mps_addr_t addr)
 {
   IGC_ASSERT (is_forwarded (addr));
   struct igc_fwd *f = addr;
-  return f->new;
+  return f->new_addr;
 }
 
 static void
 pad (mps_addr_t addr, size_t nbytes)
 {
-  struct igc_pad padding = { .sig = IGC_PADSIG, .nbytes = nbytes };
-  IGC_ASSERT (nbytes >= sizeof padding);
-  *(struct igc_pad *) addr = padding;
+  IGC_ASSERT (nbytes >= sizeof (struct igc_pad));
+  mps_addr_t end = (char *) addr + nbytes;
+  struct igc_pad p = { .sig = IGC_PADSIG, .padding_end = end };
+  *(struct igc_pad *) addr = p;
 }
 
 static bool
@@ -364,11 +364,11 @@ is_padding (const mps_addr_t addr)
 }
 
 static mps_addr_t
-pad_end (mps_addr_t addr)
+padding_end (mps_addr_t addr)
 {
   IGC_ASSERT (is_padding (addr));
-  struct igc_pad *pad = addr;
-  return (char *) addr + pad->nbytes;
+  struct igc_pad *p = addr;
+  return p->padding_end;
 }
 
 #pragma GCC diagnostic push
@@ -815,7 +815,7 @@ image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	IGC_FIX12_OBJ (ss, &i->dependencies);
 	IGC_FIX12_OBJ (ss, &i->lisp_data);
 	IGC_FIX12_RAW (ss, &i->next);
-	  IGC_FIX12_RAW (ss, &i->prev);
+	IGC_FIX12_RAW (ss, &i->prev);
       }
   }
   MPS_SCAN_END (ss);
@@ -926,7 +926,7 @@ static mps_addr_t
 vector_skip (mps_addr_t addr)
 {
   if (is_padding (addr))
-    return pad_end (addr);
+    return padding_end (addr);
 
   mps_addr_t vec_addr
     = is_forwarded (addr) ? forwarded_to (addr) : addr;
@@ -1013,7 +1013,6 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_XWIDGET:
 	  case PVEC_XWIDGET_VIEW:
-	    // no idea
 	    IGC_ASSERT (!"PVEC_WIDGET*");
 	    break;
 
@@ -1227,9 +1226,10 @@ igc_on_specbinding_unused (union specbinding *b)
 void
 igc_on_grow_specpdl (void)
 {
-  /* Note that no two roots may overlap, so we have to temporarily stop
-     the collector while replacing one root with another (xpalloc may
-     realloc).  We could of course also simply not realloc.  */
+  // Note that no two roots may overlap, so we have to temporarily stop
+  // the collector while replacing one root with another (xpalloc may
+  // realloc). Alternatives: (1) don't realloc, (2) alloc specpdl from
+  // MPS pool that is scanned.
   struct igc_thread_list *t = current_thread->gc_info;
   IGC_WITH_PARKED (t->d.gc)
     {
@@ -1826,7 +1826,6 @@ igc_make_hash_impl (ptrdiff_t nentries)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-
       struct hash_impl *h = p;
       set_table_size (h, nentries);
       set_index_bits (h, compute_hash_index_bits (nentries));
@@ -1907,6 +1906,20 @@ make_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
   IGC_CHECK_RES (res);
 }
 
+static void
+runtime_setup_mps_class (struct igc_init *init)
+{
+  switch (init->class_type)
+    {
+    case IGC_AMC:
+      init->pool_class = mps_class_amc ();
+      break;
+    case IGC_AMCZ:
+      init->pool_class = mps_class_amcz ();
+      break;
+    }
+}
+
 static struct igc *
 make_igc (void)
 {
@@ -1916,15 +1929,7 @@ make_igc (void)
   for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
     {
       struct igc_init *init = igc_inits + type;
-      switch (init->class_type)
-	{
-	case IGC_AMC:
-	  init->pool_class = mps_class_amc ();
-	  break;
-	case IGC_AMCZ:
-	  init->pool_class = mps_class_amcz ();
-	  break;
-	}
+      runtime_setup_mps_class (init);
       make_fmt (gc, type, init);
       make_pool (gc, type, init);
     }
