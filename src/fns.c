@@ -4581,12 +4581,12 @@ struct hash_table_test const hashtest_string_equal = {
 /* Allocate basically initialized hash table.  */
 
 static struct Lisp_Hash_Table *
-allocate_hash_table (ptrdiff_t nentries)
+allocate_hash_table (ptrdiff_t nentries, hash_table_weakness_t weak)
 {
   struct Lisp_Hash_Table *h
     = ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Hash_Table,
 				   PVEC_HASH_TABLE);
-  h->i = allocate_hash_impl (nentries);
+  h->i = allocate_hash_impl (nentries, weak);
   return h;
 }
 
@@ -4627,12 +4627,11 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
   eassert (SYMBOLP (test->name));
   eassert (0 <= size && size <= min (MOST_POSITIVE_FIXNUM, PTRDIFF_MAX));
 
-  struct Lisp_Hash_Table *h = allocate_hash_table (size);
+  struct Lisp_Hash_Table *h = allocate_hash_table (size, weak);
   struct hash_impl *hi = h->i;
 
   h->next_weak = NULL;
   hi->test = test;
-  hi->weakness = weak;
   hi->count = 0;
   hi->purecopy = purecopy;
   hi->mutable = true;
@@ -4670,7 +4669,8 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 static Lisp_Object
 copy_hash_table (struct Lisp_Hash_Table *h1)
 {
-  struct Lisp_Hash_Table *h2 = allocate_hash_table (h1->i->table_size);
+  struct Lisp_Hash_Table *h2
+    = allocate_hash_table (h1->i->table_size, h1->i->weakness);
   memcpy (h2->i, h1->i, hash_impl_nbytes (h1->i->table_size));
   h2->i->mutable = true;
   return make_lisp_hash_table (h2);
@@ -4700,10 +4700,11 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	: (base_size <= 64 ? base_size * 4 : base_size * 2);
 
       struct hash_impl *old_i = h->i;
-      struct hash_impl *new_i = allocate_hash_impl (new_size);
+      struct hash_impl *new_i = allocate_hash_impl (new_size, old_i->weakness);
       int index_bits = new_i->index_bits;
       memcpy (new_i, old_i, hash_impl_nbytes (old_i->table_size));
       // Restore because of memcpy
+      set_weakness (new_i, old_i->weakness);
       set_table_size (new_i, new_size);
       set_index_bits (new_i, index_bits);
 

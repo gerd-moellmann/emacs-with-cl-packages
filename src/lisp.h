@@ -2618,7 +2618,7 @@ struct hash_impl
   const unsigned char index_bits;
 
   /* Weakness of the table.  */
-  hash_table_weakness_t weakness : 3;
+  const hash_table_weakness_t weakness;
 
   /* Hash table test (only used when frozen in dump)  */
   hash_table_std_test_t frozen_test : 2;
@@ -2654,7 +2654,7 @@ struct Lisp_Hash_Table
 };
 
 ptrdiff_t hash_impl_nbytes (ptrdiff_t nentries);
-struct hash_impl *allocate_hash_impl (size_t nentries);
+struct hash_impl *allocate_hash_impl (size_t nentries, hash_table_weakness_t weak);
 
 INLINE void
 set_table_size (struct hash_impl *h, ptrdiff_t n)
@@ -2666,6 +2666,12 @@ INLINE void
 set_index_bits (struct hash_impl *h, ptrdiff_t n)
 {
   *((unsigned char *) &h->index_bits) = n;
+}
+
+INLINE void
+set_weakness (struct hash_impl *h, hash_table_weakness_t w)
+{
+  *((hash_table_weakness_t *) &h->weakness) = w;
 }
 
 /* A specific Lisp_Object that is not a valid Lisp value.

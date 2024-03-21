@@ -3730,10 +3730,10 @@ sweep_vectors (void)
 #endif // not HAVE_MPS
 
 struct hash_impl *
-allocate_hash_impl (size_t nentries)
+allocate_hash_impl (size_t nentries, hash_table_weakness_t weak)
 {
 #ifdef HAVE_MPS
-  return igc_make_hash_impl (nentries);
+  return igc_make_hash_impl (nentries, weak);
 #else
   eassert_not_mps ();
   struct hash_impl *h;
@@ -3762,6 +3762,7 @@ allocate_hash_impl (size_t nentries)
   MALLOC_UNBLOCK_INPUT;
 
   h = (struct hash_impl *) p;
+  set_weakness (h, weak);
   set_table_size (h, nentries);
   set_index_bits (h, compute_hash_index_bits (nentries));
   XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);

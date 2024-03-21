@@ -1170,6 +1170,49 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
+enum igc_weak_type
+{
+  IGC_WEAK_HASH_IMPL
+};
+
+struct igc_weak
+{
+  mps_addr_t object_end;
+  enum igc_weak_type type;
+};
+
+static mps_addr_t
+weak_skip (mps_addr_t addr)
+{
+  struct igc_weak *w = addr;
+  return w->object_end;
+}
+
+static mps_addr_t
+weak_obj (mps_addr_t base)
+{
+  return (char *) base + sizeof (struct igc_weak);
+}
+
+static mps_res_t
+weak_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct igc_weak *w = base;
+	base = weak_skip (base);
+	eassert (w->type == IGC_WEAK_HASH_IMPL);
+	struct hash_impl *h = weak_obj (w);
+	eassert (h->weakness != Weak_None);
+	eassert (!"weak table");
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 # pragma GCC diagnostic pop
 
 static igc_root_list *
@@ -1558,6 +1601,12 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		       .interior_pointers = false,
 		       .scan = NULL,
 		       .skip = float_skip },
+  [IGC_TYPE_WEAK] = { .class_type = IGC_AWL,
+		      .align = IGC_ALIGNMENT,
+		      // Maybe better use a format with header
+		      .interior_pointers = true,
+		      .scan = weak_scan,
+		      .skip = weak_skip },
 };
 
 void
@@ -1832,9 +1881,38 @@ igc_make_face (void)
   return p;
 }
 
-struct hash_impl *
-igc_make_hash_impl (ptrdiff_t nentries)
+static struct hash_impl *
+make_weak_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak)
 {
+  enum igc_type type = IGC_TYPE_WEAK;
+  mps_ap_t ap = thread_ap (type);
+  ptrdiff_t nbytes_obj = hash_impl_nbytes (nentries) + sizeof (struct igc_weak);
+  ptrdiff_t nbytes = igc_round_to_pool (nbytes_obj, type);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+      memclear(p, nbytes);
+      struct igc_weak *w = p;
+      w->type = IGC_WEAK_HASH_IMPL;
+      w->object_end = (char *) p + nbytes;
+      struct hash_impl *h = weak_obj (w);
+      set_weakness (h, weak);
+      set_table_size (h, nentries);
+      set_index_bits (h, compute_hash_index_bits (nentries));
+      XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
+    }
+  while (!mps_commit (ap, p, nbytes));
+  return weak_obj (p);
+}
+
+struct hash_impl *
+igc_make_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak)
+{
+  if (weak != Weak_None)
+    return make_weak_hash_impl (nentries, weak);
+
   enum igc_type type = IGC_TYPE_VECTOR;
   mps_ap_t ap = thread_ap (type);
   ptrdiff_t nbytes = igc_round_to_pool (hash_impl_nbytes (nentries), type);
@@ -1843,7 +1921,9 @@ igc_make_hash_impl (ptrdiff_t nentries)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
+      memclear(p, nbytes);
       struct hash_impl *h = p;
+      set_weakness (h, weak);
       set_table_size (h, nentries);
       set_index_bits (h, compute_hash_index_bits (nentries));
       XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
