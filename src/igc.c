@@ -939,29 +939,39 @@ is_hash_impl (const struct Lisp_Vector *v)
 }
 
 static size_t
-vector_size (const struct Lisp_Vector *v)
+vector_obj_nbytes (const struct Lisp_Vector *v)
 {
   // lisp.h defines header_size, word_size, bool_header_size
-  size_t nwords = v->header.size;
-  size_t hsize = header_size;
+  ptrdiff_t nwords = v->header.size;
   if (is_pseudo_vector (v))
     {
-      if (is_hash_impl (v))
+      switch (pseudo_vector_type (v))
 	{
-	  struct hash_impl *h = (struct hash_impl *) v;
-	  return hash_impl_nbytes (h->table_size);
+	case PVEC_HASH_IMPL:
+	  {
+	    struct hash_impl *h = (struct hash_impl *) v;
+	    return hash_impl_nbytes (h->table_size);
+	  }
+
+	case PVEC_BOOL_VECTOR:
+	  {
+	    struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
+	    return  bool_header_size + bool_vector_words (bv->size) * word_size;
+	  }
+
+	case PVEC_SQLITE:
+	  {
+	    pkg_break ();
+	  }
+
+	default:
+	  nwords = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
+	  return header_size + nwords * word_size;
 	}
-      else if (is_bool_vector (v))
-	{
-	  struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
-	  hsize = bool_header_size;
-	  nwords = bool_vector_words (bv->size);
-	}
-      else
-	nwords = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
     }
 
-  return hsize + nwords * word_size;
+  IGC_ASSERT (nwords >= 0);
+  return header_size + nwords * word_size;
 }
 
 static void
@@ -1028,7 +1038,7 @@ vector_skip (mps_addr_t addr)
     return vector_padding_end (addr);
   mps_addr_t new_addr = is_vector_forwarded (addr);
   mps_addr_t vec_addr = new_addr ? new_addr : addr;
-  ptrdiff_t nbytes = vector_size (vec_addr);
+  ptrdiff_t nbytes = vector_obj_nbytes (vec_addr);
   return (char *) addr + igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
 }
 
