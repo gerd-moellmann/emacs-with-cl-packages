@@ -3009,6 +3009,13 @@ dump_vectorlike (struct dump_context *ctx,
   enum pvec_type ptype = PSEUDOVECTOR_TYPE (v);
   switch (ptype)
     {
+# ifdef HAVE_MPS
+    case PVEC_VECTOR_FORWARD:
+    case PVEC_VECTOR_PAD:
+      eassert (false);
+      break;
+# endif
+
     case PVEC_FONT:
       /* There are three kinds of font objects that all use PVEC_FONT,
          distinguished by their size.  Font specs and entities are

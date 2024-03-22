@@ -1019,7 +1019,7 @@ DEFINE_GDB_SYMBOL_END (PSEUDOVECTOR_FLAG)
    with PVEC_TYPE_MASK to indicate the actual type.  */
 enum pvec_type
 {
-  PVEC_NORMAL_VECTOR,	/* Should be first, for sxhash_obj.  */
+  PVEC_NORMAL_VECTOR, /* Should be first, for sxhash_obj.  */
   PVEC_FREE,
   PVEC_BIGNUM,
   PVEC_MARKER,
@@ -1039,7 +1039,7 @@ enum pvec_type
   PVEC_WINDOW_CONFIGURATION,
   PVEC_SUBR,
   PVEC_PACKAGE,
-  PVEC_OTHER,            /* Should never be visible to Elisp code.  */
+  PVEC_OTHER, /* Should never be visible to Elisp code.  */
   PVEC_XWIDGET,
   PVEC_XWIDGET_VIEW,
   PVEC_THREAD,
@@ -1051,7 +1051,10 @@ enum pvec_type
   PVEC_TS_NODE,
   PVEC_TS_COMPILED_QUERY,
   PVEC_SQLITE,
-
+#ifdef HAVE_MPS
+  PVEC_VECTOR_FORWARD,
+  PVEC_VECTOR_PAD,
+#endif
   /* These should be last, for internal_equal and sxhash_obj.  */
   PVEC_COMPILED,
   PVEC_CHAR_TABLE,

@@ -130,6 +130,7 @@ struct igc_init
   mps_fmt_skip_t skip;
   mps_fmt_fwd_t forward;
   mps_fmt_isfwd_t is_forwarded;
+  mps_fmt_pad_t pad;
 };
 
 static struct igc_init igc_inits[];
@@ -322,13 +323,6 @@ deregister_thread (struct igc_thread_list *t)
 struct igc_fwd
 {
   mps_word_t sig;
-  mps_addr_t new_addr;
-};
-
-struct igc_fwd2
-{
-  mps_word_t sig;
-  mps_word_t object_nbytes;
   mps_addr_t new_addr;
 };
 
@@ -971,35 +965,70 @@ vector_size (const struct Lisp_Vector *v)
 }
 
 static void
+set_pseudo_vector_type (union vectorlike_header *header, enum pvec_type type)
+{
+  header->size |= (PSEUDOVECTOR_FLAG | (type << PSEUDOVECTOR_AREA_BITS));
+}
+
+struct igc_vector_pad
+{
+  union vectorlike_header header;
+  mps_word_t nbytes;
+};
+
+static void
+vector_pad (mps_addr_t addr, mps_word_t nbytes)
+{
+  struct igc_vector_pad *p = addr;
+  set_pseudo_vector_type (&p->header, PVEC_VECTOR_PAD);
+  p->nbytes = nbytes;
+}
+
+static bool
+is_vector_padding (mps_addr_t addr)
+{
+  return pseudo_vector_type (addr) == PVEC_VECTOR_PAD;
+}
+
+static mps_addr_t
+vector_padding_end (mps_addr_t addr)
+{
+  IGC_ASSERT (is_vector_padding (addr));
+  struct igc_vector_pad *p = addr;
+  return (char *) addr + p->nbytes;
+}
+
+struct igc_vector_fwd
+{
+  union vectorlike_header header;
+  mps_addr_t new_addr;
+};
+
+static void
 vector_forward (mps_addr_t old, mps_addr_t new_addr)
 {
-  mps_word_t nbytes = vector_size (old);
-  nbytes = igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
-  struct igc_fwd2 m
-    = { .sig = IGC_FWDSIG2, .object_nbytes = nbytes, .new_addr = new_addr };
-  *(struct igc_fwd2 *) old = m;
+  struct igc_vector_fwd *f = old;
+  set_pseudo_vector_type (&f->header, PVEC_VECTOR_FORWARD);
+  f->new_addr = new_addr;
 }
 
 static mps_addr_t
 is_vector_forwarded (mps_addr_t addr)
 {
-  struct igc_fwd2 *f = addr;
-  return f->sig == IGC_FWDSIG2 ? f->new_addr : NULL;
+  if (pseudo_vector_type (addr) != PVEC_VECTOR_FORWARD)
+    return NULL;
+  struct igc_vector_fwd *f = addr;
+  return f->new_addr;
 }
 
 static mps_addr_t
 vector_skip (mps_addr_t addr)
 {
-  if (is_padding (addr))
-    return padding_end (addr);
-
-  if (is_vector_forwarded (addr))
-    {
-      struct igc_fwd2 *f = addr;
-      return (char *) addr + f->object_nbytes;
-    }
-
-  size_t nbytes = vector_size (addr);
+  if (is_vector_padding (addr))
+    return vector_padding_end (addr);
+  mps_addr_t new_addr = is_vector_forwarded (addr);
+  mps_addr_t vec_addr = new_addr ? new_addr : addr;
+  ptrdiff_t nbytes = vector_size (vec_addr);
   return (char *) addr + igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
 }
 
@@ -1014,7 +1043,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	mps_addr_t vbase = base;
 	base = vector_skip (base);
 
-	if (is_forwarded (v) || is_padding (v))
+	if (is_vector_forwarded (v) || is_vector_padding (v))
 	  continue;
 
 	// Fix contents of normal vectors.
@@ -1033,8 +1062,10 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	switch (pseudo_vector_type (v))
 	  {
+	  case PVEC_VECTOR_FORWARD:
+	  case PVEC_VECTOR_PAD:
 	  case PVEC_FREE:
-	    IGC_ASSERT (!"PVEC_FREE");
+	    IGC_ASSERT (!"unexpected PVEC type");
 	    break;
 
 	  case PVEC_NORMAL_VECTOR:
@@ -1630,6 +1661,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .align = IGC_ALIGNMENT,
 		      .interior_pointers = false,
 		      .forward = forward,
+		      .pad = pad,
 		      .is_forwarded = is_forwarded,
 		      .scan = cons_scan,
 		      .skip = cons_skip },
@@ -1637,6 +1669,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			.align = IGC_ALIGNMENT,
 			.interior_pointers = false,
 			.forward = forward,
+			.pad = pad,
 			.is_forwarded = is_forwarded,
 			.scan = symbol_scan,
 			.skip = symbol_skip },
@@ -1644,6 +1677,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			  .align = IGC_ALIGNMENT,
 			  .interior_pointers = false,
 			  .forward = forward,
+			  .pad = pad,
 			  .is_forwarded = is_forwarded,
 			  .scan = interval_scan,
 			  .skip = interval_skip },
@@ -1651,6 +1685,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			.align = IGC_ALIGNMENT,
 			.interior_pointers = false,
 			.forward = forward,
+			.pad = pad,
 			.is_forwarded = is_forwarded,
 			.scan = string_scan,
 			.skip = string_skip },
@@ -1659,6 +1694,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			     .interior_pointers = true,
 			     .forward = forward,
 			     .is_forwarded = is_forwarded,
+			     .pad = pad,
 			     .scan = NULL,
 			     .skip = string_data_skip },
   [IGC_TYPE_VECTOR] = { .class_type = IGC_AMC,
@@ -1666,6 +1702,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			.interior_pointers = false,
 			.forward = vector_forward,
 			.is_forwarded = is_vector_forwarded,
+			.pad = vector_pad,
 			.scan = vector_scan,
 			.skip = vector_skip },
   [IGC_TYPE_ITREE_NODE] = { .class_type = IGC_AMC,
@@ -1673,6 +1710,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			    .interior_pointers = false,
 			    .forward = forward,
 			    .is_forwarded = is_forwarded,
+			    .pad = pad,
 			    .scan = itree_scan,
 			    .skip = itree_skip },
   [IGC_TYPE_IMAGE] = { .class_type = IGC_AMC,
@@ -1680,6 +1718,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		       .interior_pointers = false,
 		       .forward = forward,
 		       .is_forwarded = is_forwarded,
+		       .pad = pad,
 		       .scan = image_scan,
 		       .skip = image_skip },
   [IGC_TYPE_FACE] = { .class_type = IGC_AMC,
@@ -1687,6 +1726,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .interior_pointers = false,
 		      .forward = forward,
 		      .is_forwarded = is_forwarded,
+		      .pad = pad,
 		      .scan = face_scan,
 		      .skip = face_skip },
   [IGC_TYPE_FLOAT] = { .class_type = IGC_AMCZ,
@@ -1694,6 +1734,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		       .interior_pointers = false,
 		       .forward = forward,
 		       .is_forwarded = is_forwarded,
+		       .pad = pad,
 		       .scan = NULL,
 		       .skip = float_skip },
   [IGC_TYPE_WEAK] = { .class_type = IGC_AWL,
@@ -1702,6 +1743,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .interior_pointers = true,
 		      .forward = forward,
 		      .is_forwarded = is_forwarded,
+		      .pad = pad,
 		      .scan = weak_scan,
 		      .skip = weak_skip },
 };
@@ -2078,7 +2120,7 @@ make_fmt (struct igc *gc, enum igc_type type, struct igc_init *init)
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, init->skip);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, forward);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, is_forwarded);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, pad);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, init->pad);
     res = mps_fmt_create_k (&gc->fmt[type], gc->arena, args);
   }
   MPS_ARGS_END (args);
