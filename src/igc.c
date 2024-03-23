@@ -1797,16 +1797,12 @@ igc_alloc_symbol (void)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
+      memclear (p, nbytes);
       struct Lisp_Symbol *s = p;
       s->u.s.redirect = SYMBOL_PLAINVAL;
-      s->u.s.name = Qnil;
-      s->u.s.val.value = Qnil;
-      s->u.s.function = Qnil;
-      s->u.s.plist = Qnil;
-      s->u.s.package = Qnil;
     }
   while (!mps_commit (ap, p, nbytes));
-  return make_lisp_symbol ((struct Lisp_Symbol *) p);
+  return make_lisp_symbol (p);
 }
 
 Lisp_Object

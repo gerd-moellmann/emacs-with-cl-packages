@@ -1051,10 +1051,9 @@ enum pvec_type
   PVEC_TS_NODE,
   PVEC_TS_COMPILED_QUERY,
   PVEC_SQLITE,
-#ifdef HAVE_MPS
   PVEC_VECTOR_FORWARD,
   PVEC_VECTOR_PAD,
-#endif
+
   /* These should be last, for internal_equal and sxhash_obj.  */
   PVEC_COMPILED,
   PVEC_CHAR_TABLE,
