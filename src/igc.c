@@ -111,7 +111,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifdef IGC_DEBUG
 #  define IGC_ASSERT(expr) \
     if (!(expr))           \
-      abort ();      \
+      abort ();            \
     else
 # else
 #  define IGC_ASSERT(expr) (void) 9
@@ -343,8 +343,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
       {
 	mps_word_t off = word ^ tag;
 	mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
-	if (is_aligned (ref, IGC_TYPE_SYMBOL)
-	    && MPS_FIX1 (ss, ref))
+	if (is_aligned (ref, IGC_TYPE_SYMBOL) && MPS_FIX1 (ss, ref))
 	  {
 	    mps_res_t res = MPS_FIX2 (ss, &ref);
 	    if (res != MPS_RES_OK)
@@ -598,19 +597,13 @@ cons_pad (mps_addr_t addr, mps_word_t nbytes)
   *((mps_word_t *) &s->u.s.u.cdr) = nbytes;
 }
 
-static bool
-is_cons_padding (mps_addr_t addr)
-{
-  struct Lisp_Cons *s = addr;
-  return BASE_EQ (s->u.s.car, cons_pad_sig ());
-}
-
 static mps_addr_t
-cons_padding_end (mps_addr_t addr)
+is_cons_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_cons_padding (addr));
-  struct Lisp_Cons *s = addr;
-  return (char *) addr + *((mps_word_t *) &s->u.s.u.cdr);
+  struct Lisp_Cons *c = addr;
+  if (BASE_EQ (c->u.s.car, cons_pad_sig ()))
+    return (char *) addr + *((mps_word_t *) &c->u.s.u.cdr);
+  return NULL;
 }
 
 static void
@@ -622,7 +615,7 @@ cons_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_cons_forwarded (mps_addr_t addr)
+is_cons_fwd (mps_addr_t addr)
 {
   struct Lisp_Cons *s = addr;
   if (BASE_EQ (s->u.s.car, cons_fwd_sig ()))
@@ -633,10 +626,11 @@ is_cons_forwarded (mps_addr_t addr)
 static mps_addr_t
 cons_skip (mps_addr_t addr)
 {
-  if (is_cons_padding (addr))
-    return cons_padding_end (addr);
+  mps_addr_t end = is_cons_pad (addr);
+  if (end)
+    return end;
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct Lisp_Cons), IGC_TYPE_CONS);
+	 + igc_round_to_pool (sizeof (struct Lisp_Cons), IGC_TYPE_CONS);
 }
 
 static mps_res_t
@@ -649,7 +643,7 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct Lisp_Cons *cons = base;
 	base = cons_skip (base);
 
-	if (is_cons_forwarded (cons) || is_cons_padding (cons))
+	if (is_cons_fwd (cons) || is_cons_pad (cons))
 	  continue;
 	IGC_FIX12_OBJ (ss, &cons->u.s.car);
 	IGC_FIX12_OBJ (ss, &cons->u.s.u.cdr);
@@ -683,23 +677,17 @@ symbol_pad (mps_addr_t addr, mps_word_t nbytes)
   *((mps_word_t *) &s->u.s.function) = nbytes;
 }
 
-static bool
-is_symbol_padding (mps_addr_t addr)
-{
-  struct Lisp_Symbol *s = addr;
-  return BASE_EQ (s->u.s.name, symbol_pad_sig ());
-}
-
 static mps_addr_t
-symbol_padding_end (mps_addr_t addr)
+is_symbol_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_symbol_padding (addr));
   struct Lisp_Symbol *s = addr;
-  return (char *) addr + *((mps_word_t *) &s->u.s.function);
+  if (BASE_EQ (s->u.s.name, symbol_pad_sig ()))
+    return (char *) addr + *((mps_word_t *) &s->u.s.function);
+  return NULL;
 }
 
 static void
-symbol_forward (mps_addr_t old, mps_addr_t new_addr)
+symbol_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct Lisp_Symbol *s = old;
   s->u.s.name = symbol_fwd_sig ();
@@ -707,7 +695,7 @@ symbol_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_symbol_forwarded (mps_addr_t addr)
+is_symbol_fwd (mps_addr_t addr)
 {
   struct Lisp_Symbol *s = addr;
   if (BASE_EQ (s->u.s.name, symbol_fwd_sig ()))
@@ -718,9 +706,11 @@ is_symbol_forwarded (mps_addr_t addr)
 static mps_addr_t
 symbol_skip (mps_addr_t addr)
 {
-  if (is_symbol_padding (addr))
-    return symbol_padding_end (addr);
-  return (char *) addr + igc_round_to_pool (sizeof (struct Lisp_Symbol), IGC_TYPE_SYMBOL);
+  mps_addr_t end = is_symbol_pad (addr);
+  if (end)
+    return end;
+  return (char *) addr
+	 + igc_round_to_pool (sizeof (struct Lisp_Symbol), IGC_TYPE_SYMBOL);
 }
 
 static mps_res_t
@@ -733,7 +723,7 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct Lisp_Symbol *sym = base;
 	base = symbol_skip (base);
 
-	if (is_symbol_forwarded (sym) || is_symbol_padding (sym))
+	if (is_symbol_fwd (sym) || is_symbol_pad (sym))
 	  continue;
 	IGC_FIX_CALL (ss, fix_symbol (ss, sym));
       }
@@ -756,7 +746,8 @@ enum igc_sdata_type
 struct igc_sdata
 {
   enum igc_sdata_type type;
-  union {
+  union
+  {
     mps_word_t capacity;
     mps_word_t pad_nbytes;
     mps_addr_t new_addr;
@@ -788,27 +779,22 @@ static void
 string_data_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct igc_sdata *s = addr;
+  IGC_ASSERT (nbytes >= sizeof (*s));
   s->type = IGC_SDATA_PAD;
   s->u.pad_nbytes = nbytes;
 }
 
-static bool
-is_string_data_padding (mps_addr_t addr)
-{
-  struct igc_sdata *s = addr;
-  return s->type == IGC_SDATA_PAD;
-}
-
 static mps_addr_t
-string_data_padding_end (mps_addr_t addr)
+is_string_data_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_string_data_padding (addr));
   struct igc_sdata *s = addr;
-  return (char *) addr + s->u.pad_nbytes;
+  if (s->type == IGC_SDATA_PAD)
+    return (char *) addr + s->u.pad_nbytes;
+  return NULL;
 }
 
 static void
-string_data_forward (mps_addr_t old, mps_addr_t new_addr)
+string_data_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct igc_sdata *s = old;
   s->type = IGC_SDATA_FWD;
@@ -816,7 +802,7 @@ string_data_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_string_data_forwarded (mps_addr_t addr)
+is_string_data_fwd (mps_addr_t addr)
 {
   struct igc_sdata *s = addr;
   if (s->type == IGC_SDATA_FWD)
@@ -827,9 +813,10 @@ is_string_data_forwarded (mps_addr_t addr)
 static mps_addr_t
 string_data_skip (mps_addr_t addr)
 {
-  if (is_string_data_padding (addr))
-    return string_data_padding_end (addr);
-  mps_addr_t new_addr = is_string_data_forwarded (addr);
+  mps_addr_t end = is_string_data_pad (addr);
+  if (end)
+    return end;
+  mps_addr_t new_addr = is_string_data_fwd (addr);
   struct igc_sdata *s = new_addr ? new_addr : addr;
   return (char *) addr + (sizeof *s + s->u.capacity);
 }
@@ -852,23 +839,17 @@ string_pad (mps_addr_t addr, mps_word_t nbytes)
   s->u.s.size_byte = nbytes;
 }
 
-static bool
-is_string_padding (mps_addr_t addr)
-{
-  struct Lisp_String *s = addr;
-  return s->u.s.size == IGC_STRING_PAD;
-}
-
 static mps_addr_t
-string_padding_end (mps_addr_t addr)
+is_string_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_string_padding (addr));
   struct Lisp_String *s = addr;
-  return (char *) addr + s->u.s.size_byte;
+  if (s->u.s.size == IGC_STRING_PAD)
+    return (char *) addr + s->u.s.size_byte;
+  return NULL;
 }
 
 static void
-string_forward (mps_addr_t old, mps_addr_t new_addr)
+string_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct Lisp_String *s = old;
   s->u.s.size = IGC_STRING_FWD;
@@ -876,7 +857,7 @@ string_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_string_forwarded (mps_addr_t addr)
+is_string_fwd (mps_addr_t addr)
 {
   struct Lisp_String *s = addr;
   if (s->u.s.size == IGC_STRING_FWD)
@@ -887,8 +868,9 @@ is_string_forwarded (mps_addr_t addr)
 static mps_addr_t
 string_skip (mps_addr_t addr)
 {
-  if (is_string_padding (addr))
-    return string_padding_end (addr);
+  mps_addr_t end = is_string_pad (addr);
+  if (end)
+    return end;
   return (char *) addr
 	 + igc_round_to_pool (sizeof (struct Lisp_String), IGC_TYPE_STRING);
 }
@@ -902,7 +884,7 @@ string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
       {
 	struct Lisp_String *s = base;
 	base = string_skip (base);
-	if (is_string_forwarded (s) || is_string_padding (s))
+	if (is_string_fwd (s) || is_string_pad (s))
 	  continue;
 
 	// Looks like MPS does not like to FIX12 an interior pointer
@@ -940,23 +922,17 @@ float_pad (mps_addr_t addr, mps_word_t nbytes)
   *(mps_word_t *) &f->u.chain = nbytes;
 }
 
-static bool
-is_float_padding (mps_addr_t addr)
-{
-  struct Lisp_Float *f = addr;
-  return f->type == IGC_FLOAT_PAD;
-}
-
 static mps_addr_t
-float_padding_end (mps_addr_t addr)
+is_float_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_float_padding (addr));
   struct Lisp_Float *f = addr;
-  return (char *) addr + *((mps_word_t *) &f->u.chain);
+  if (f->type == IGC_FLOAT_PAD)
+    return (char *) addr + *((mps_word_t *) &f->u.chain);
+  return NULL;
 }
 
 static void
-float_forward (mps_addr_t old, mps_addr_t new_addr)
+float_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct Lisp_Float *f = old;
   f->type = IGC_FLOAT_FWD;
@@ -964,7 +940,7 @@ float_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_float_forwarded (mps_addr_t addr)
+is_float_fwd (mps_addr_t addr)
 {
   struct Lisp_Float *f = addr;
   if (f->type == IGC_FLOAT_FWD)
@@ -972,12 +948,12 @@ is_float_forwarded (mps_addr_t addr)
   return NULL;
 }
 
-
 static mps_addr_t
 float_skip (mps_addr_t addr)
 {
-  if (is_float_padding (addr))
-    return float_padding_end (addr);
+  mps_addr_t end = is_float_pad (addr);
+  if (end)
+    return end;
   return (char *) addr
 	 + igc_round_to_pool (sizeof (struct Lisp_Float), IGC_TYPE_FLOAT);
 }
@@ -1000,23 +976,17 @@ interval_pad (mps_addr_t addr, mps_word_t nbytes)
   i->position = nbytes;
 }
 
-static bool
-is_interval_padding (mps_addr_t addr)
-{
-  struct interval *i = addr;
-  return i->total_length == IGC_INTERVAL_PAD;
-}
-
 static mps_addr_t
-interval_padding_end (mps_addr_t addr)
+is_interval_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_interval_padding (addr));
   struct interval *i = addr;
-  return (char *) addr + i->position;
+  if (i->total_length == IGC_INTERVAL_PAD)
+    return (char *) addr + i->position;
+  return NULL;
 }
 
 static void
-interval_forward (mps_addr_t old, mps_addr_t new_addr)
+interval_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct interval *i = old;
   i->total_length = IGC_INTERVAL_FWD;
@@ -1024,7 +994,7 @@ interval_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_interval_forwarded (mps_addr_t addr)
+is_interval_fwd (mps_addr_t addr)
 {
   struct interval *i = addr;
   if (i->total_length == IGC_INTERVAL_FWD)
@@ -1035,10 +1005,11 @@ is_interval_forwarded (mps_addr_t addr)
 static mps_addr_t
 interval_skip (mps_addr_t addr)
 {
-  if (is_interval_padding (addr))
-    return interval_padding_end (addr);
+  mps_addr_t end = is_interval_pad (addr);
+  if (end)
+    return end;
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct interval), IGC_TYPE_INTERVAL);
+	 + igc_round_to_pool (sizeof (struct interval), IGC_TYPE_INTERVAL);
 }
 
 static mps_res_t
@@ -1051,7 +1022,7 @@ interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct interval *iv = base;
 	base = interval_skip (base);
 
-	if (is_interval_forwarded (iv) || is_interval_padding (iv))
+	if (is_interval_fwd (iv) || is_interval_pad (iv))
 	  continue;
 
 	IGC_FIX12_RAW (ss, &iv->left);
@@ -1086,23 +1057,17 @@ itree_pad (mps_addr_t addr, mps_word_t nbytes)
 }
 
 // FIXME Make is_padding return addr
-static bool
-is_itree_padding (mps_addr_t addr)
-{
-  struct itree_node *i = addr;
-  return i->begin == IGC_ITREE_PAD;
-}
-
 static mps_addr_t
-itree_padding_end (mps_addr_t addr)
+is_itree_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_itree_padding (addr));
   struct itree_node *i = addr;
-  return (char *) addr + i->end;
+  if (i->begin == IGC_ITREE_PAD)
+    return (char *) addr + i->end;
+  return NULL;
 }
 
 static void
-itree_forward (mps_addr_t old, mps_addr_t new_addr)
+itree_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct itree_node *i = old;
   i->begin = IGC_ITREE_FWD;
@@ -1110,7 +1075,7 @@ itree_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_itree_forwarded (mps_addr_t addr)
+is_itree_fwd (mps_addr_t addr)
 {
   struct itree_node *i = addr;
   if (i->begin == IGC_ITREE_FWD)
@@ -1121,8 +1086,9 @@ is_itree_forwarded (mps_addr_t addr)
 static mps_addr_t
 itree_skip (mps_addr_t addr)
 {
-  if (is_itree_padding (addr))
-    return itree_padding_end (addr);
+  mps_addr_t end = is_itree_pad (addr);
+  if (end)
+    return end;
   return (char *) addr
 	 + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_ITREE_NODE);
 }
@@ -1137,7 +1103,7 @@ itree_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct itree_node *n = base;
 	base = itree_skip (base);
 
-	if (is_itree_forwarded (n) || is_itree_padding (n))
+	if (is_itree_fwd (n) || is_itree_pad (n))
 	  continue;
 	IGC_FIX12_RAW (ss, &n->parent);
 	IGC_FIX12_RAW (ss, &n->left);
@@ -1173,23 +1139,17 @@ image_pad (mps_addr_t addr, mps_word_t nbytes)
   i->hash = nbytes;
 }
 
-static bool
-is_image_padding (mps_addr_t addr)
-{
-  struct image *i = addr;
-  return BASE_EQ (i->spec, image_pad_sig ());
-}
-
 static mps_addr_t
-image_padding_end (mps_addr_t addr)
+is_image_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_image_padding (addr));
   struct image *i = addr;
-  return (char *) addr + i->hash;
+  if (BASE_EQ (i->spec, image_pad_sig ()))
+    return (char *) addr + i->hash;
+  return NULL;
 }
 
 static void
-image_forward (mps_addr_t old, mps_addr_t new_addr)
+image_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct image *i = old;
   i->spec = image_pad_sig ();
@@ -1197,7 +1157,7 @@ image_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_image_forwarded (mps_addr_t addr)
+is_image_fwd (mps_addr_t addr)
 {
   struct image *i = addr;
   if (BASE_EQ (i->spec, image_fwd_sig ()))
@@ -1208,10 +1168,11 @@ is_image_forwarded (mps_addr_t addr)
 static mps_addr_t
 image_skip (mps_addr_t addr)
 {
-  if (is_image_padding (addr))
-    return image_padding_end (addr);
+  mps_addr_t end = is_image_pad (addr);
+  if (end)
+    return end;
   return (char *) addr
-    + igc_round_to_pool (sizeof (struct image), IGC_TYPE_IMAGE);
+	 + igc_round_to_pool (sizeof (struct image), IGC_TYPE_IMAGE);
 }
 
 static mps_res_t
@@ -1224,7 +1185,7 @@ image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct image *i = base;
 	base = image_skip (base);
 
-	if (is_image_forwarded (i) || is_image_padding (i))
+	if (is_image_fwd (i) || is_image_pad (i))
 	  continue;
 	IGC_FIX12_OBJ (ss, &i->spec);
 	IGC_FIX12_OBJ (ss, &i->dependencies);
@@ -1261,23 +1222,17 @@ face_pad (mps_addr_t addr, mps_word_t nbytes)
   f->foreground = nbytes;
 }
 
-static bool
-is_face_padding (mps_addr_t addr)
-{
-  struct face *f = addr;
-  return BASE_EQ (f->lface[0], face_pad_sig ());
-}
-
 static mps_addr_t
-face_padding_end (mps_addr_t addr)
+is_face_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_face_padding (addr));
   struct face *f = addr;
-  return (char *) addr + f->foreground;
+  if (BASE_EQ (f->lface[0], face_pad_sig ()))
+    return (char *) addr + f->foreground;
+  return NULL;
 }
 
 static void
-face_forward (mps_addr_t old, mps_addr_t new_addr)
+face_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct face *f = old;
   f->lface[0] = face_fwd_sig ();
@@ -1285,21 +1240,21 @@ face_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_face_forwarded (mps_addr_t addr)
+is_face_fwd (mps_addr_t addr)
 {
   struct face *f = addr;
-  f->lface[0]= face_fwd_sig ();
+  f->lface[0] = face_fwd_sig ();
   if (BASE_EQ (f->lface[0], face_fwd_sig ()))
     return f->font;
   return NULL;
 }
 
-
 static mps_addr_t
 face_skip (mps_addr_t addr)
 {
-  if (is_face_padding (addr))
-    return face_padding_end (addr);
+  mps_addr_t end = is_face_pad (addr);
+  if (end)
+    return end;
   return (char *) addr
 	 + igc_round_to_pool (sizeof (struct face), IGC_TYPE_FACE);
 }
@@ -1314,7 +1269,7 @@ face_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct face *face = base;
 	base = face_skip (base);
 
-	if (is_face_forwarded (face) || is_face_padding (face))
+	if (is_face_fwd (face) || is_face_pad (face))
 	  continue;
 	IGC_FIX12_NOBJS (ss, face->lface, ARRAYELTS (face->lface));
 	IGC_FIX12_RAW (ss, &face->font);
@@ -1325,6 +1280,10 @@ face_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
+
+/***********************************************************************
+				Vectors
+ ***********************************************************************/
 
 static bool
 is_pseudo_vector (const struct Lisp_Vector *v)
@@ -1389,7 +1348,7 @@ vector_obj_nbytes (const struct Lisp_Vector *v)
 	case PVEC_BOOL_VECTOR:
 	  {
 	    struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
-	    return  bool_header_size + bool_vector_words (bv->size) * word_size;
+	    return bool_header_size + bool_vector_words (bv->size) * word_size;
 	  }
 
 	case PVEC_SQLITE:
@@ -1423,14 +1382,20 @@ static void
 vector_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct igc_vector_pad *p = addr;
+  IGC_ASSERT (nbytes >= sizeof (struct igc_vector_pad));
   set_pseudo_vector_type (&p->header, PVEC_VECTOR_PAD);
   p->nbytes = nbytes;
 }
 
-static bool
+static mps_addr_t
 is_vector_padding (mps_addr_t addr)
 {
-  return pseudo_vector_type (addr) == PVEC_VECTOR_PAD;
+  if (pseudo_vector_type (addr) == PVEC_VECTOR_PAD)
+    {
+      struct igc_vector_pad *p = addr;
+      return (char *) addr + p->nbytes;
+    }
+  return NULL;
 }
 
 static mps_addr_t
@@ -1721,7 +1686,8 @@ enum igc_weak_type
 struct igc_weak
 {
   enum igc_weak_type type;
-  union {
+  union
+  {
     mps_word_t object_nbytes;
     mps_addr_t new_addr;
   } u;
@@ -1735,23 +1701,17 @@ weak_pad (mps_addr_t addr, mps_word_t nbytes)
   w->u.object_nbytes = nbytes;
 }
 
-static bool
-is_weak_padding (mps_addr_t addr)
-{
-  struct igc_weak *w = addr;
-  return w->type == IGC_WEAK_PAD;
-}
-
 static mps_addr_t
-weak_padding_end (mps_addr_t addr)
+is_weak_pad (mps_addr_t addr)
 {
-  IGC_ASSERT (is_weak_padding (addr));
   struct igc_weak *w = addr;
-  return (char *) addr + w->u.object_nbytes;
+  if (w->type == IGC_WEAK_PAD)
+    return (char *) addr + w->u.object_nbytes;
+  return NULL;
 }
 
 static void
-weak_forward (mps_addr_t old, mps_addr_t new_addr)
+weak_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct igc_weak *w = old;
   w->type = IGC_WEAK_FWD;
@@ -1759,7 +1719,7 @@ weak_forward (mps_addr_t old, mps_addr_t new_addr)
 }
 
 static mps_addr_t
-is_weak_forwarded (mps_addr_t addr)
+is_weak_fwd (mps_addr_t addr)
 {
   struct igc_weak *w = addr;
   if (w->type == IGC_WEAK_FWD)
@@ -1770,9 +1730,11 @@ is_weak_forwarded (mps_addr_t addr)
 static mps_addr_t
 weak_skip (mps_addr_t addr)
 {
-  if (is_weak_padding (addr))
-    return weak_padding_end (addr);
-  struct igc_weak *w = addr;
+  mps_addr_t end = is_weak_pad (addr);
+  if (end)
+    return end;
+  mps_addr_t new_addr = is_weak_fwd (addr);
+  struct igc_weak *w = new_addr ? new_addr : addr;
   return (char *) addr + w->u.object_nbytes;
 }
 
@@ -1792,7 +1754,7 @@ weak_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct igc_weak *w = base;
 	base = weak_skip (base);
 
-	if (is_weak_forwarded (w) || is_weak_padding (w))
+	if (is_weak_fwd (w) || is_weak_pad (w))
 	  continue;
 
 	eassert (w->type == IGC_WEAK_HASH_IMPL);
@@ -1834,8 +1796,8 @@ create_staticvec_root (struct igc *gc)
   void *start = staticvec, *end = staticvec + ARRAYELTS (staticvec);
   mps_root_t root;
   mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (),
-					root_mode_inner (), start,
-					end, scan_staticvec, NULL);
+					root_mode_inner (), start, end,
+					scan_staticvec, NULL);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
 }
@@ -1845,9 +1807,9 @@ create_lispsym_root (struct igc *gc)
 {
   void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
   mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (),
-					root_mode_inner (), start,
-					end, scan_lispsym, NULL);
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_exact (),
+			    root_mode_inner (), start, end, scan_lispsym, NULL);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
 }
@@ -2157,39 +2119,39 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .align = IGC_ALIGNMENT,
 		      .interior_pointers = false,
 		      .forward = cons_forward,
-		      .is_forwarded = is_cons_forwarded,
+		      .is_forwarded = is_cons_fwd,
 		      .pad = cons_pad,
 		      .scan = cons_scan,
 		      .skip = cons_skip },
   [IGC_TYPE_SYMBOL] = { .class_type = IGC_AMC,
 			.align = IGC_ALIGNMENT,
 			.interior_pointers = false,
-			.forward = symbol_forward,
-			.is_forwarded = is_symbol_forwarded,
+			.forward = symbol_fwd,
+			.is_forwarded = is_symbol_fwd,
 			.pad = symbol_pad,
 			.scan = symbol_scan,
 			.skip = symbol_skip },
   [IGC_TYPE_INTERVAL] = { .class_type = IGC_AMC,
 			  .align = IGC_ALIGNMENT,
 			  .interior_pointers = false,
-			  .forward = interval_forward,
+			  .forward = interval_fwd,
 			  .pad = interval_pad,
-			  .is_forwarded = is_interval_forwarded,
+			  .is_forwarded = is_interval_fwd,
 			  .scan = interval_scan,
 			  .skip = interval_skip },
   [IGC_TYPE_STRING] = { .class_type = IGC_AMC,
 			.align = IGC_ALIGNMENT,
 			.interior_pointers = false,
-			.forward = string_forward,
+			.forward = string_fwd,
 			.pad = string_pad,
-			.is_forwarded = is_string_forwarded,
+			.is_forwarded = is_string_fwd,
 			.scan = string_scan,
 			.skip = string_skip },
   [IGC_TYPE_STRING_DATA] = { .class_type = IGC_AMCZ,
 			     .align = IGC_ALIGNMENT,
 			     .interior_pointers = true,
-			     .forward = string_data_forward,
-			     .is_forwarded = is_string_data_forwarded,
+			     .forward = string_data_fwd,
+			     .is_forwarded = is_string_data_fwd,
 			     .pad = string_data_pad,
 			     .scan = NULL,
 			     .skip = string_data_skip },
@@ -2204,32 +2166,32 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
   [IGC_TYPE_ITREE_NODE] = { .class_type = IGC_AMC,
 			    .align = IGC_ALIGNMENT,
 			    .interior_pointers = false,
-			    .forward = itree_forward,
-			    .is_forwarded = is_itree_forwarded,
+			    .forward = itree_fwd,
+			    .is_forwarded = is_itree_fwd,
 			    .pad = itree_pad,
 			    .scan = itree_scan,
 			    .skip = itree_skip },
   [IGC_TYPE_IMAGE] = { .class_type = IGC_AMC,
 		       .align = IGC_ALIGNMENT,
 		       .interior_pointers = false,
-		       .forward = image_forward,
-		       .is_forwarded = is_image_forwarded,
+		       .forward = image_fwd,
+		       .is_forwarded = is_image_fwd,
 		       .pad = image_pad,
 		       .scan = image_scan,
 		       .skip = image_skip },
   [IGC_TYPE_FACE] = { .class_type = IGC_AMC,
 		      .align = IGC_ALIGNMENT,
 		      .interior_pointers = false,
-		      .forward = face_forward,
-		      .is_forwarded = is_face_forwarded,
+		      .forward = face_fwd,
+		      .is_forwarded = is_face_fwd,
 		      .pad = face_pad,
 		      .scan = face_scan,
 		      .skip = face_skip },
   [IGC_TYPE_FLOAT] = { .class_type = IGC_AMCZ,
 		       .align = IGC_ALIGNMENT,
 		       .interior_pointers = false,
-		       .forward = float_forward,
-		       .is_forwarded = is_float_forwarded,
+		       .forward = float_fwd,
+		       .is_forwarded = is_float_fwd,
 		       .pad = float_pad,
 		       .scan = NULL,
 		       .skip = float_skip },
@@ -2237,8 +2199,8 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .align = IGC_ALIGNMENT,
 		      // Maybe better use a format with header
 		      .interior_pointers = true,
-		      .forward = weak_forward,
-		      .is_forwarded = is_weak_forwarded,
+		      .forward = weak_fwd,
+		      .is_forwarded = is_weak_fwd,
 		      .pad = weak_pad,
 		      .scan = weak_scan,
 		      .skip = weak_skip },
@@ -2525,7 +2487,7 @@ make_weak_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      memclear(p, nbytes);
+      memclear (p, nbytes);
       struct igc_weak *w = p;
       w->type = IGC_WEAK_HASH_IMPL;
       w->u.object_nbytes = nbytes;
@@ -2553,7 +2515,7 @@ igc_make_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      memclear(p, nbytes);
+      memclear (p, nbytes);
       struct hash_impl *h = p;
       set_weakness (h, weak);
       set_table_size (h, nentries);
