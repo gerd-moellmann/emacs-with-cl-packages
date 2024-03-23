@@ -632,11 +632,67 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
+/***********************************************************************
+				  Cons
+ ***********************************************************************/
+
+static Lisp_Object
+cons_fwd_sig (void)
+{
+  return make_lisp_ptr (0, Lisp_Symbol);
+}
+
+static Lisp_Object
+cons_pad_sig (void)
+{
+  return make_lisp_ptr (0, Lisp_Float);
+}
+
+static void
+cons_pad (mps_addr_t addr, mps_word_t nbytes)
+{
+  struct Lisp_Cons *s = addr;
+  s->u.s.car = cons_pad_sig ();
+  *((mps_word_t *) &s->u.s.u.cdr) = nbytes;
+}
+
+static bool
+is_cons_padding (mps_addr_t addr)
+{
+  struct Lisp_Cons *s = addr;
+  return BASE_EQ (s->u.s.car, cons_pad_sig ());
+}
+
+static mps_addr_t
+cons_padding_end (mps_addr_t addr)
+{
+  IGC_ASSERT (is_cons_padding (addr));
+  struct Lisp_Cons *s = addr;
+  return (char *) addr + *((mps_word_t *) &s->u.s.u.cdr);
+}
+
+static void
+cons_forward (mps_addr_t old, mps_addr_t new_addr)
+{
+  struct Lisp_Cons *s = old;
+  s->u.s.car = cons_fwd_sig ();
+  *((mps_addr_t *) &s->u.s.u.cdr) = new_addr;
+}
+
+static mps_addr_t
+is_cons_forwarded (mps_addr_t addr)
+{
+  struct Lisp_Cons *s = addr;
+  if (BASE_EQ (s->u.s.car, cons_fwd_sig ()))
+    return *((mps_addr_t *) &s->u.s.u.cdr);
+  return NULL;
+}
+
 static mps_addr_t
 cons_skip (mps_addr_t addr)
 {
-  if (is_padding (addr))
-    return padding_end (addr);
+  if (is_cons_padding (addr))
+    return cons_padding_end (addr);
   return (char *) addr
     + igc_round_to_pool (sizeof (struct Lisp_Cons), IGC_TYPE_CONS);
 }
@@ -651,7 +707,7 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct Lisp_Cons *cons = base;
 	base = cons_skip (base);
 
-	if (is_forwarded (cons) || is_padding (cons))
+	if (is_cons_forwarded (cons) || is_cons_padding (cons))
 	  continue;
 	IGC_FIX12_OBJ (ss, &cons->u.s.car);
 	IGC_FIX12_OBJ (ss, &cons->u.s.u.cdr);
@@ -1735,9 +1791,9 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
   [IGC_TYPE_CONS] = { .class_type = IGC_AMC,
 		      .align = IGC_ALIGNMENT,
 		      .interior_pointers = false,
-		      .forward = forward,
-		      .pad = pad,
-		      .is_forwarded = is_forwarded,
+		      .forward = cons_forward,
+		      .is_forwarded = is_cons_forwarded,
+		      .pad = cons_pad,
 		      .scan = cons_scan,
 		      .skip = cons_skip },
   [IGC_TYPE_SYMBOL] = { .class_type = IGC_AMC,
