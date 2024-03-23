@@ -64,6 +64,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include <config.h>
 #include <sys/_types/_size_t.h>
 #include <sys/param.h>
+#include "bignum.h"
 
 #ifdef HAVE_MPS
 
@@ -639,7 +640,7 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 static Lisp_Object
 cons_fwd_sig (void)
 {
-  return make_lisp_ptr (0, Lisp_Symbol);
+  return make_lisp_ptr (0, Lisp_Bignum);
 }
 
 static Lisp_Object
@@ -724,7 +725,7 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 static Lisp_Object
 symbol_fwd_sig (void)
 {
-  return make_lisp_ptr (0, Lisp_Symbol);
+  return make_lisp_ptr (0, Lisp_Bignum);
 }
 
 static Lisp_Object
