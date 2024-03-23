@@ -929,23 +929,26 @@ pseudo_vector_type (const struct Lisp_Vector *v)
 static bool
 is_bool_vector (const struct Lisp_Vector *v)
 {
-  return is_pseudo_vector (v) && pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
+  IGC_ASSERT (is_pseudo_vector (v));
+  return pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
 }
 
 static bool
 is_hash_impl (const struct Lisp_Vector *v)
 {
-  return is_pseudo_vector (v) && pseudo_vector_type (v) == PVEC_HASH_IMPL;
+  IGC_ASSERT (is_pseudo_vector (v));
+  return pseudo_vector_type (v) == PVEC_HASH_IMPL;
 }
 
 static size_t
 vector_obj_nbytes (const struct Lisp_Vector *v)
 {
-  // lisp.h defines header_size, word_size, bool_header_size
   ptrdiff_t nwords = v->header.size;
   if (is_pseudo_vector (v))
     {
-      switch (pseudo_vector_type (v))
+      enum pvec_type type = pseudo_vector_type (v);
+      IGC_ASSERT (type <= PVEC_TAG_MAX);
+      switch (type)
 	{
 	case PVEC_HASH_IMPL:
 	  {
@@ -977,7 +980,7 @@ vector_obj_nbytes (const struct Lisp_Vector *v)
 static void
 set_pseudo_vector_type (union vectorlike_header *header, enum pvec_type type)
 {
-  header->size |= (PSEUDOVECTOR_FLAG | (type << PSEUDOVECTOR_AREA_BITS));
+  header->size = (PSEUDOVECTOR_FLAG | (type << PSEUDOVECTOR_AREA_BITS));
 }
 
 struct igc_vector_pad
