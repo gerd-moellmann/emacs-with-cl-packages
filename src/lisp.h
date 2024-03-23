@@ -3206,14 +3206,15 @@ XBUFFER_OBJFWD (lispfwd a)
 
 /* Lisp floating point type.  */
 struct Lisp_Float
+{
+  int type;
+  union
   {
-    union
-    {
-      double data;
-      struct Lisp_Float *chain;
-      GCALIGNED_UNION_MEMBER
-    } u;
-  };
+    double data;
+    struct Lisp_Float *chain;
+    GCALIGNED_UNION_MEMBER
+  } u;
+};
 verify (GCALIGNED (struct Lisp_Float));
 
 INLINE bool
