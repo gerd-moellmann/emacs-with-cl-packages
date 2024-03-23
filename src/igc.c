@@ -655,12 +655,67 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
+/***********************************************************************
+				Symbols
+ ***********************************************************************/
+
+static Lisp_Object
+symbol_fwd_sig (void)
+{
+  return make_lisp_ptr (0, Lisp_Symbol);
+}
+
+static Lisp_Object
+symbol_pad_sig (void)
+{
+  return make_lisp_ptr ((void *) 1, Lisp_Symbol);
+}
+
+static void
+symbol_pad (mps_addr_t addr, mps_word_t nbytes)
+{
+  struct Lisp_Symbol *s = addr;
+  s->u.s.name = symbol_pad_sig ();
+  *((mps_word_t *) &s->u.s.function) = nbytes;
+}
+
+static bool
+is_symbol_padding (mps_addr_t addr)
+{
+  struct Lisp_Symbol *s = addr;
+  return BASE_EQ (s->u.s.name, symbol_pad_sig ());
+}
+
+static mps_addr_t
+symbol_padding_end (mps_addr_t addr)
+{
+  IGC_ASSERT (is_symbol_padding (addr));
+  struct Lisp_Symbol *s = addr;
+  return (char *) addr + *((mps_word_t *) &s->u.s.function);
+}
+
+static void
+symbol_forward (mps_addr_t old, mps_addr_t new_addr)
+{
+  struct Lisp_Symbol *s = old;
+  s->u.s.name = make_lisp_ptr (0, Lisp_Symbol);
+  *((mps_addr_t *) &s->u.s.function) = new_addr;
+}
+
+static mps_addr_t
+is_symbol_forwarded (mps_addr_t addr)
+{
+  struct Lisp_Symbol *s = addr;
+  if (BASE_EQ (s->u.s.name, symbol_fwd_sig ()))
+    return *((mps_addr_t *) &s->u.s.function);
+  return NULL;
+}
+
 static mps_addr_t
 symbol_skip (mps_addr_t addr)
 {
-  if (is_padding (addr))
-    return padding_end (addr);
-
+  if (is_symbol_padding (addr))
+    return symbol_padding_end (addr);
   return (char *) addr + igc_round_to_pool (sizeof (struct Lisp_Symbol), IGC_TYPE_SYMBOL);
 }
 
@@ -674,7 +729,7 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	struct Lisp_Symbol *sym = base;
 	base = symbol_skip (base);
 
-	if (is_forwarded (sym) || is_padding (sym))
+	if (is_symbol_forwarded (sym) || is_symbol_padding (sym))
 	  continue;
 	IGC_FIX_CALL (ss, fix_symbol (ss, sym));
       }
@@ -1682,9 +1737,9 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
   [IGC_TYPE_SYMBOL] = { .class_type = IGC_AMC,
 			.align = IGC_ALIGNMENT,
 			.interior_pointers = false,
-			.forward = forward,
-			.pad = pad,
-			.is_forwarded = is_forwarded,
+			.forward = symbol_forward,
+			.is_forwarded = is_symbol_forwarded,
+			.pad = symbol_pad,
 			.scan = symbol_scan,
 			.skip = symbol_skip },
   [IGC_TYPE_INTERVAL] = { .class_type = IGC_AMC,
