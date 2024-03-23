@@ -101,10 +101,16 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #  error "HAVE_TEXT_CONVERSION not supported"
 # endif
 
+// Let's abort for now instead of emacs_abort. Reason is that
+// Emacs will call allocation functons whlle aborting, which
+// leads to interesting phenomena when we IGC_ASSERT inside a
+// function called from MPS while holding a lock, and find that
+// we already own the lock while allocatin.
+
 # ifdef IGC_DEBUG
 #  define IGC_ASSERT(expr) \
     if (!(expr))           \
-      emacs_abort ();      \
+      abort ();      \
     else
 # else
 #  define IGC_ASSERT(expr) (void) 9
