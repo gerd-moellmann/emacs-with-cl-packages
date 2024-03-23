@@ -674,7 +674,7 @@ symbol_fwd_sig (void)
 static Lisp_Object
 symbol_pad_sig (void)
 {
-  return make_lisp_ptr (0, Lisp_Float);
+  return make_lisp_ptr ((void *) 8, Lisp_Symbol);
 }
 
 static void
@@ -704,7 +704,7 @@ static void
 symbol_forward (mps_addr_t old, mps_addr_t new_addr)
 {
   struct Lisp_Symbol *s = old;
-  s->u.s.name = make_lisp_ptr (0, Lisp_Symbol);
+  s->u.s.name = symbol_fwd_sig ();
   *((mps_addr_t *) &s->u.s.function) = new_addr;
 }
 
