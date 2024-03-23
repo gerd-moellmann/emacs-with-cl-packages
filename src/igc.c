@@ -593,6 +593,7 @@ static void
 cons_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct Lisp_Cons *s = addr;
+  IGC_ASSERT (nbytes >= sizeof *s);
   s->u.s.car = cons_pad_sig ();
   *((mps_word_t *) &s->u.s.u.cdr) = nbytes;
 }
@@ -673,6 +674,7 @@ static void
 symbol_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct Lisp_Symbol *s = addr;
+  IGC_ASSERT (nbytes >= sizeof *s);
   s->u.s.name = symbol_pad_sig ();
   *((mps_word_t *) &s->u.s.function) = nbytes;
 }
