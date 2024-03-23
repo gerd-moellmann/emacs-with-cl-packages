@@ -674,7 +674,7 @@ symbol_fwd_sig (void)
 static Lisp_Object
 symbol_pad_sig (void)
 {
-  return make_lisp_ptr ((void *) 8, Lisp_Symbol);
+  return make_lisp_ptr (0, Lisp_Float);
 }
 
 static void
