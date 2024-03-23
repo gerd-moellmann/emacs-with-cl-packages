@@ -71,6 +71,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # include <mpsavm.h>
 # include <mpscamc.h>
 # include <mpscawl.h>
+# include <mpslib.h>
 # include <stdlib.h>
 # include "lisp.h"
 # include "buffer.h"
@@ -2215,9 +2216,16 @@ free_global_igc (void)
   free_igc (global_igc);
 }
 
+static void
+igc_assert_fail (const char *file, unsigned line, const char *msg)
+{
+  die (msg, file, line);
+}
+
 void
 init_igc (void)
 {
+  mps_lib_assert_fail_install (igc_assert_fail);
   global_igc = make_igc ();
   atexit (free_global_igc);
   add_main_thread ();
