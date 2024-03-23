@@ -37,6 +37,13 @@ b wrong_type_argument
 
 # When an assertion in MPS fails
 b mps_lib_assert_fail
+b emacs_abort
+
+# Whlle dying, Emacs may allocate from MPS, although we're dying
+# from having an assertion fail in code called from MPS. This leads
+# to misleading situations, like pthread_mutex_lock reporting EDEADLK
+# because we're owning the lock already, and so on.
+b die
 
 #watchpoint set expression --size 8 --watch write -- (char*) pkg->symbols
 
