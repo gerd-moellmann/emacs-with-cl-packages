@@ -2074,13 +2074,20 @@ thread_ap (enum igc_type type)
 
 enum
 {
-  IGC_ALIGNMENT = GCALIGNMENT,
-  IGC_VALIGNMENT = 32
+  // MPS apparently pads areas that are >= pool alignment.  Make the
+  // pool alignments large enought to hold fwd and pad objects.
+  IGC_ALIGN = GCALIGNMENT,
+  IGC_VECTOR_ALIGN = 2 * IGC_ALIGN,
+  IGC_STRING_DATA_ALIGN = 2 * IGC_ALIGN,
 };
+
+igc_static_assert (IGC_VECTOR_ALIGN
+		   >= sizeof (struct Lisp_Vector) + sizeof (mps_word_t));
+igc_static_assert (IGC_STRING_DATA_ALIGN >= sizeof (struct igc_sdata));
 
 static struct igc_init igc_inits[IGC_TYPE_LAST] = {
   [IGC_TYPE_CONS] = { .class_type = IGC_AMC,
-		      .align = IGC_ALIGNMENT,
+		      .align = IGC_ALIGN,
 		      .interior_pointers = false,
 		      .forward = cons_forward,
 		      .is_forwarded = is_cons_fwd,
@@ -2088,7 +2095,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .scan = cons_scan,
 		      .skip = cons_skip },
   [IGC_TYPE_SYMBOL] = { .class_type = IGC_AMC,
-			.align = IGC_ALIGNMENT,
+			.align = IGC_ALIGN,
 			.interior_pointers = false,
 			.forward = symbol_fwd,
 			.is_forwarded = is_symbol_fwd,
@@ -2096,7 +2103,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			.scan = symbol_scan,
 			.skip = symbol_skip },
   [IGC_TYPE_INTERVAL] = { .class_type = IGC_AMC,
-			  .align = IGC_ALIGNMENT,
+			  .align = IGC_ALIGN,
 			  .interior_pointers = false,
 			  .forward = interval_fwd,
 			  .pad = interval_pad,
@@ -2104,7 +2111,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			  .scan = interval_scan,
 			  .skip = interval_skip },
   [IGC_TYPE_STRING] = { .class_type = IGC_AMC,
-			.align = IGC_ALIGNMENT,
+			.align = IGC_ALIGN,
 			.interior_pointers = false,
 			.forward = string_fwd,
 			.pad = string_pad,
@@ -2112,7 +2119,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			.scan = string_scan,
 			.skip = string_skip },
   [IGC_TYPE_STRING_DATA] = { .class_type = IGC_AMCZ,
-			     .align = IGC_ALIGNMENT,
+			     .align = IGC_STRING_DATA_ALIGN,
 			     .interior_pointers = true,
 			     .forward = string_data_fwd,
 			     .is_forwarded = is_string_data_fwd,
@@ -2120,7 +2127,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			     .scan = NULL,
 			     .skip = string_data_skip },
   [IGC_TYPE_VECTOR] = { .class_type = IGC_AMC,
-			.align = IGC_VALIGNMENT,
+			.align = IGC_ALIGN,
 			.interior_pointers = false,
 			.forward = vector_forward,
 			.is_forwarded = is_vector_forwarded,
@@ -2128,7 +2135,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			.scan = vector_scan,
 			.skip = vector_skip },
   [IGC_TYPE_ITREE_NODE] = { .class_type = IGC_AMC,
-			    .align = IGC_ALIGNMENT,
+			    .align = IGC_ALIGN,
 			    .interior_pointers = false,
 			    .forward = itree_fwd,
 			    .is_forwarded = is_itree_fwd,
@@ -2136,7 +2143,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			    .scan = itree_scan,
 			    .skip = itree_skip },
   [IGC_TYPE_IMAGE] = { .class_type = IGC_AMC,
-		       .align = IGC_ALIGNMENT,
+		       .align = IGC_ALIGN,
 		       .interior_pointers = false,
 		       .forward = image_fwd,
 		       .is_forwarded = is_image_fwd,
@@ -2144,7 +2151,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		       .scan = image_scan,
 		       .skip = image_skip },
   [IGC_TYPE_FACE] = { .class_type = IGC_AMC,
-		      .align = IGC_ALIGNMENT,
+		      .align = IGC_ALIGN,
 		      .interior_pointers = false,
 		      .forward = face_fwd,
 		      .is_forwarded = is_face_fwd,
@@ -2152,7 +2159,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .scan = face_scan,
 		      .skip = face_skip },
   [IGC_TYPE_FLOAT] = { .class_type = IGC_AMCZ,
-		       .align = IGC_ALIGNMENT,
+		       .align = IGC_ALIGN,
 		       .interior_pointers = false,
 		       .forward = float_fwd,
 		       .is_forwarded = is_float_fwd,
@@ -2160,7 +2167,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		       .scan = NULL,
 		       .skip = float_skip },
   [IGC_TYPE_WEAK] = { .class_type = IGC_AWL,
-		      .align = IGC_ALIGNMENT,
+		      .align = IGC_ALIGN,
 		      // Maybe better use a format with header
 		      .interior_pointers = true,
 		      .forward = weak_fwd,
