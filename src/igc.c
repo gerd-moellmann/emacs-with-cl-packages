@@ -576,24 +576,15 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 				  Cons
  ***********************************************************************/
 
-static Lisp_Object
-cons_fwd_sig (void)
-{
-  return make_lisp_ptr (0, Lisp_String);
-}
-
-static Lisp_Object
-cons_pad_sig (void)
-{
-  return make_lisp_ptr (0, Lisp_Float);
-}
+static const Lisp_Object cons_fwd_sig = TAG_PTR_INITIALLY (Lisp_String, 0);
+static const Lisp_Object cons_pad_sig = TAG_PTR_INITIALLY (Lisp_Float, 0);
 
 static void
 cons_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct Lisp_Cons *s = addr;
   IGC_ASSERT (nbytes >= sizeof *s);
-  s->u.s.car = cons_pad_sig ();
+  s->u.s.car = cons_pad_sig;
   *((mps_word_t *) &s->u.s.u.cdr) = nbytes;
 }
 
@@ -601,7 +592,7 @@ static mps_addr_t
 is_cons_pad (mps_addr_t addr)
 {
   struct Lisp_Cons *c = addr;
-  if (BASE_EQ (c->u.s.car, cons_pad_sig ()))
+  if (BASE_EQ (c->u.s.car, cons_pad_sig))
     return (char *) addr + *((mps_word_t *) &c->u.s.u.cdr);
   return NULL;
 }
@@ -610,7 +601,7 @@ static void
 cons_forward (mps_addr_t old, mps_addr_t new_addr)
 {
   struct Lisp_Cons *s = old;
-  s->u.s.car = cons_fwd_sig ();
+  s->u.s.car = cons_fwd_sig;
   *((mps_addr_t *) &s->u.s.u.cdr) = new_addr;
 }
 
@@ -618,7 +609,7 @@ static mps_addr_t
 is_cons_fwd (mps_addr_t addr)
 {
   struct Lisp_Cons *s = addr;
-  if (BASE_EQ (s->u.s.car, cons_fwd_sig ()))
+  if (BASE_EQ (s->u.s.car, cons_fwd_sig))
     return *((mps_addr_t *) &s->u.s.u.cdr);
   return NULL;
 }
@@ -657,24 +648,15 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 				Symbols
  ***********************************************************************/
 
-static Lisp_Object
-symbol_fwd_sig (void)
-{
-  return make_lisp_ptr (0, Lisp_String);
-}
-
-static Lisp_Object
-symbol_pad_sig (void)
-{
-  return make_lisp_ptr (0, Lisp_Float);
-}
+static const Lisp_Object symbol_fwd_sig = TAG_PTR_INITIALLY (Lisp_String, 0);
+static const Lisp_Object symbol_pad_sig = TAG_PTR_INITIALLY (Lisp_Float, 0);
 
 static void
 symbol_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct Lisp_Symbol *s = addr;
   IGC_ASSERT (nbytes >= sizeof *s);
-  s->u.s.name = symbol_pad_sig ();
+  s->u.s.name = symbol_pad_sig;
   *((mps_word_t *) &s->u.s.function) = nbytes;
 }
 
@@ -682,7 +664,7 @@ static mps_addr_t
 is_symbol_pad (mps_addr_t addr)
 {
   struct Lisp_Symbol *s = addr;
-  if (BASE_EQ (s->u.s.name, symbol_pad_sig ()))
+  if (BASE_EQ (s->u.s.name, symbol_pad_sig))
     return (char *) addr + *((mps_word_t *) &s->u.s.function);
   return NULL;
 }
@@ -691,7 +673,7 @@ static void
 symbol_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct Lisp_Symbol *s = old;
-  s->u.s.name = symbol_fwd_sig ();
+  s->u.s.name = symbol_fwd_sig;
   *((mps_addr_t *) &s->u.s.function) = new_addr;
 }
 
@@ -699,7 +681,7 @@ static mps_addr_t
 is_symbol_fwd (mps_addr_t addr)
 {
   struct Lisp_Symbol *s = addr;
-  if (BASE_EQ (s->u.s.name, symbol_fwd_sig ()))
+  if (BASE_EQ (s->u.s.name, symbol_fwd_sig))
     return *((mps_addr_t *) &s->u.s.function);
   return NULL;
 }
@@ -1120,23 +1102,14 @@ itree_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 			       Images
 ***********************************************************************/
 
-static Lisp_Object
-image_fwd_sig (void)
-{
-  return make_lisp_ptr (0, Lisp_String);
-}
-
-static Lisp_Object
-image_pad_sig (void)
-{
-  return make_lisp_ptr (0, Lisp_Float);
-}
+static const Lisp_Object image_fwd_sig = TAG_PTR_INITIALLY (Lisp_String, 0);
+static const Lisp_Object image_pad_sig = TAG_PTR_INITIALLY (Lisp_Float, 0);
 
 static void
 image_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct image *i = addr;
-  i->spec = image_pad_sig ();
+  i->spec = image_pad_sig;
   i->hash = nbytes;
 }
 
@@ -1144,7 +1117,7 @@ static mps_addr_t
 is_image_pad (mps_addr_t addr)
 {
   struct image *i = addr;
-  if (BASE_EQ (i->spec, image_pad_sig ()))
+  if (BASE_EQ (i->spec, image_pad_sig))
     return (char *) addr + i->hash;
   return NULL;
 }
@@ -1153,7 +1126,7 @@ static void
 image_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct image *i = old;
-  i->spec = image_pad_sig ();
+  i->spec = image_fwd_sig;
   i->next = new_addr;
 }
 
@@ -1161,7 +1134,7 @@ static mps_addr_t
 is_image_fwd (mps_addr_t addr)
 {
   struct image *i = addr;
-  if (BASE_EQ (i->spec, image_fwd_sig ()))
+  if (BASE_EQ (i->spec, image_fwd_sig))
     return i->next;
   return NULL;
 }
@@ -1203,23 +1176,14 @@ image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 			       Faces
 ***********************************************************************/
 
-static Lisp_Object
-face_fwd_sig (void)
-{
-  return make_lisp_ptr (0, Lisp_String);
-}
-
-static Lisp_Object
-face_pad_sig (void)
-{
-  return make_lisp_ptr (0, Lisp_Float);
-}
+static const Lisp_Object face_fwd_sig = TAG_PTR_INITIALLY (Lisp_String, 0);
+static const Lisp_Object face_pad_sig = TAG_PTR_INITIALLY (Lisp_Float, 0);
 
 static void
 face_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct face *f = addr;
-  f->lface[0] = face_pad_sig ();
+  f->lface[0] = face_pad_sig;
   f->foreground = nbytes;
 }
 
@@ -1227,7 +1191,7 @@ static mps_addr_t
 is_face_pad (mps_addr_t addr)
 {
   struct face *f = addr;
-  if (BASE_EQ (f->lface[0], face_pad_sig ()))
+  if (BASE_EQ (f->lface[0], face_pad_sig))
     return (char *) addr + f->foreground;
   return NULL;
 }
@@ -1236,7 +1200,7 @@ static void
 face_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct face *f = old;
-  f->lface[0] = face_fwd_sig ();
+  f->lface[0] = face_fwd_sig;
   f->font = new_addr;
 }
 
@@ -1244,8 +1208,7 @@ static mps_addr_t
 is_face_fwd (mps_addr_t addr)
 {
   struct face *f = addr;
-  f->lface[0] = face_fwd_sig ();
-  if (BASE_EQ (f->lface[0], face_fwd_sig ()))
+  if (BASE_EQ (f->lface[0], face_fwd_sig))
     return f->font;
   return NULL;
 }
@@ -1674,7 +1637,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 }
 
 /***********************************************************************
-				  WEak
+				  Weak
  ***********************************************************************/
 
 enum igc_weak_type
