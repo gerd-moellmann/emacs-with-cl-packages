@@ -248,7 +248,6 @@ struct igc
   mps_chain_t chain;
   mps_fmt_t fmt[IGC_TYPE_LAST];
   mps_pool_t pool[IGC_TYPE_LAST];
-  ;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -740,7 +739,7 @@ symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 enum igc_sdata_type
 {
-  IGC_SDATA_NONE,
+  IGC_SDATA_NORMAL,
   IGC_SDATA_FWD,
   IGC_SDATA_PAD
 };
