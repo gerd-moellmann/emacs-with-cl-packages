@@ -349,7 +349,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	      return res;
 	    mps_word_t new_off = (char *) ref - (char *) lispsym;
 	    *p = new_off | tag;
-	    fprintf (stderr, "fix symbol %lx -> %lx\n", word, *p);
+	    //fprintf (stderr, "fix symbol 0x%lx -> 0x%lx\n", word, *p);
 	  }
       }
     else
@@ -1362,25 +1362,20 @@ is_vector_padding (mps_addr_t addr)
   return NULL;
 }
 
-static mps_addr_t
-vector_padding_end (mps_addr_t addr)
-{
-  IGC_ASSERT (is_vector_padding (addr));
-  struct igc_vector_pad *p = addr;
-  return (char *) addr + p->nbytes;
-}
-
 struct igc_vector_fwd
 {
   union vectorlike_header header;
+  mps_word_t nbytes;
   mps_addr_t new_addr;
 };
 
 static void
 vector_forward (mps_addr_t old, mps_addr_t new_addr)
 {
+  mps_word_t nbytes = vector_obj_nbytes (old);
   struct igc_vector_fwd *f = old;
   set_pseudo_vector_type (&f->header, PVEC_VECTOR_FORWARD);
+  f->nbytes = igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
   f->new_addr = new_addr;
 }
 
@@ -1396,11 +1391,15 @@ is_vector_forwarded (mps_addr_t addr)
 static mps_addr_t
 vector_skip (mps_addr_t addr)
 {
-  if (is_vector_padding (addr))
-    return vector_padding_end (addr);
-  mps_addr_t new_addr = is_vector_forwarded (addr);
-  mps_addr_t vec_addr = new_addr ? new_addr : addr;
-  ptrdiff_t nbytes = vector_obj_nbytes (vec_addr);
+  mps_addr_t end = is_vector_padding (addr);
+  if (end)
+    return end;
+  if (is_vector_forwarded (addr))
+    {
+      struct igc_vector_fwd *f = addr;
+      return (char *) addr + f->nbytes;
+    }
+  ptrdiff_t nbytes = vector_obj_nbytes (addr);
   return (char *) addr + igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
 }
 
@@ -2081,7 +2080,7 @@ enum
   IGC_SYMBOL_ALIGN = IGC_ALIGN << 3,
   IGC_INTERVAL_ALIGN = IGC_ALIGN << 3,
   IGC_STRING_ALIGN = IGC_ALIGN << 2,
-  IGC_VECTOR_ALIGN = IGC_ALIGN << 1,
+  IGC_VECTOR_ALIGN = IGC_ALIGN << 2,
   IGC_STRING_DATA_ALIGN = IGC_ALIGN << 1,
   IGC_ITREE_ALIGN = IGC_ALIGN << 4,
   IGC_IMAGE_ALIGN = IGC_ALIGN << 1,
@@ -2094,8 +2093,7 @@ igc_static_assert (IGC_CONS_ALIGN >= sizeof (struct Lisp_Cons));
 igc_static_assert (IGC_SYMBOL_ALIGN >= sizeof (struct Lisp_Symbol));
 igc_static_assert (IGC_INTERVAL_ALIGN >= sizeof (struct interval));
 igc_static_assert (IGC_STRING_ALIGN >= sizeof (struct Lisp_String));
-igc_static_assert (IGC_VECTOR_ALIGN
-		   >= sizeof (struct Lisp_Vector) + sizeof (mps_word_t));
+igc_static_assert (IGC_VECTOR_ALIGN >= sizeof (struct igc_vector_fwd));
 igc_static_assert (IGC_STRING_DATA_ALIGN >= sizeof (struct igc_sdata));
 igc_static_assert (IGC_ITREE_ALIGN >= sizeof (struct itree_node));
 igc_static_assert (IGC_FACE_ALIGN >= sizeof (struct face));
