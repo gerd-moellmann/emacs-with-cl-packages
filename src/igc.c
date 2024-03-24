@@ -1242,6 +1242,107 @@ face_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 }
 
 /***********************************************************************
+				  Weak
+ ***********************************************************************/
+
+enum igc_weak_type
+{
+  IGC_WEAK_HASH_IMPL,
+  IGC_WEAK_FWD,
+  IGC_WEAK_PAD,
+};
+
+struct igc_weak
+{
+  enum igc_weak_type type;
+  mps_word_t object_nbytes;
+  mps_addr_t new_addr;
+  mps_word_t obj[];
+};
+
+static mps_addr_t
+weak_to_obj (struct igc_weak *w)
+{
+  return &w->obj;
+}
+
+static struct igc_weak *
+obj_to_weak (mps_addr_t addr)
+{
+  mps_addr_t w = (char *) addr - offsetof (struct igc_weak, obj);
+  return w;
+}
+
+static void
+weak_pad (mps_addr_t addr, mps_word_t nbytes)
+{
+  struct igc_weak *w = addr;
+  w->type = IGC_WEAK_PAD;
+  w->object_nbytes = nbytes;
+}
+
+static mps_addr_t
+is_weak_pad (mps_addr_t addr)
+{
+  struct igc_weak *w = addr;
+  if (w->type == IGC_WEAK_PAD)
+    return (char *) addr + w->object_nbytes;
+  return NULL;
+}
+
+static void
+weak_fwd (mps_addr_t old, mps_addr_t new_addr)
+{
+  struct igc_weak *w = old;
+  mps_word_t nbytes = w->object_nbytes;
+  w->type = IGC_WEAK_FWD;
+  w->object_nbytes = nbytes;
+  w->new_addr = new_addr;
+}
+
+static mps_addr_t
+is_weak_fwd (mps_addr_t addr)
+{
+  struct igc_weak *w = addr;
+  if (w->type == IGC_WEAK_FWD)
+    return w->new_addr;
+  return NULL;
+}
+
+static mps_addr_t
+weak_skip (mps_addr_t addr)
+{
+  mps_addr_t end = is_weak_pad (addr);
+  if (end)
+    return end;
+  struct igc_weak *w = addr;
+  return (char *) addr + w->object_nbytes;
+}
+
+static mps_res_t
+weak_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (base < limit)
+      {
+	struct igc_weak *w = base;
+	base = weak_skip (base);
+
+	if (is_weak_fwd (w) || is_weak_pad (w))
+	  continue;
+
+	eassert (w->type == IGC_WEAK_HASH_IMPL);
+	struct hash_impl *h = weak_to_obj (w);
+	eassert (h->weakness != Weak_None);
+	eassert (!"weak table");
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+/***********************************************************************
 				Vectors
  ***********************************************************************/
 
@@ -1567,8 +1668,14 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	    {
 	      struct Lisp_Hash_Table *p = vbase;
 	      if (type_of_addr (global_igc, p->i) == IGC_TYPE_WEAK)
-		abort ();
-	      IGC_FIX12_RAW (ss, &p->i);
+		{
+		  mps_addr_t w = obj_to_weak (p->i);
+		  IGC_FIX12_RAW (ss, &w);
+		  p->i = weak_to_obj (w);
+
+		}
+	      else
+		IGC_FIX12_RAW (ss, &p->i);
 	    }
 	    break;
 
@@ -1648,98 +1755,6 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   return MPS_RES_OK;
 }
 
-/***********************************************************************
-				  Weak
- ***********************************************************************/
-
-enum igc_weak_type
-{
-  IGC_WEAK_HASH_IMPL,
-  IGC_WEAK_FWD,
-  IGC_WEAK_PAD,
-};
-
-struct igc_weak
-{
-  enum igc_weak_type type;
-  mps_word_t object_nbytes;
-  mps_addr_t new_addr;
-};
-
-static void
-weak_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct igc_weak *w = addr;
-  w->type = IGC_WEAK_PAD;
-  w->object_nbytes = nbytes;
-}
-
-static mps_addr_t
-is_weak_pad (mps_addr_t addr)
-{
-  struct igc_weak *w = addr;
-  if (w->type == IGC_WEAK_PAD)
-    return (char *) addr + w->object_nbytes;
-  return NULL;
-}
-
-static void
-weak_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct igc_weak *w = old;
-  mps_word_t nbytes = w->object_nbytes;
-  w->type = IGC_WEAK_FWD;
-  w->object_nbytes = nbytes;
-  w->new_addr = new_addr;
-}
-
-static mps_addr_t
-is_weak_fwd (mps_addr_t addr)
-{
-  struct igc_weak *w = addr;
-  if (w->type == IGC_WEAK_FWD)
-    return w->new_addr;
-  return NULL;
-}
-
-static mps_addr_t
-weak_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_weak_pad (addr);
-  if (end)
-    return end;
-  struct igc_weak *w = addr;
-  return (char *) addr + w->object_nbytes;
-}
-
-static mps_addr_t
-weak_obj (mps_addr_t base)
-{
-  return (char *) base + sizeof (struct igc_weak);
-}
-
-static mps_res_t
-weak_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    while (base < limit)
-      {
-	struct igc_weak *w = base;
-	base = weak_skip (base);
-
-	if (is_weak_fwd (w) || is_weak_pad (w))
-	  continue;
-
-	eassert (w->type == IGC_WEAK_HASH_IMPL);
-	struct hash_impl *h = weak_obj (w);
-	eassert (h->weakness != Weak_None);
-	eassert (!"weak table");
-      }
-  }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
 
 # pragma GCC diagnostic pop
 
@@ -2477,14 +2492,14 @@ make_weak_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak)
       struct igc_weak *w = p;
       w->type = IGC_WEAK_HASH_IMPL;
       w->object_nbytes = nbytes;
-      struct hash_impl *h = weak_obj (w);
+      struct hash_impl *h = weak_to_obj (w);
       set_weakness (h, weak);
       set_table_size (h, nentries);
       set_index_bits (h, compute_hash_index_bits (nentries));
       XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
     }
   while (!mps_commit (ap, p, nbytes));
-  return weak_obj (p);
+  return weak_to_obj (p);
 }
 
 struct hash_impl *
