@@ -523,10 +523,6 @@ scan_specbindings (mps_ss_t ss, void *start, void *end, void *closure)
 	  case SPECPDL_UNWIND_VOID:
 	  case SPECPDL_NOP:
 	    break;
-
-	  default:
-	    IGC_ASSERT (false);
-	    break;
 	  }
       }
   }
@@ -1407,6 +1403,17 @@ vector_skip (mps_addr_t addr)
   return (char *) addr + nbytes;
 }
 
+static enum igc_type
+type_of_addr (struct igc *gc, mps_addr_t addr)
+{
+  mps_pool_t pool;
+  if (mps_addr_pool (&pool, gc->arena, addr))
+    for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
+      if (pool == gc->pool[i])
+	return i;
+  return IGC_TYPE_LAST;
+}
+
 static mps_res_t
 vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 {
@@ -1546,7 +1553,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      // struct font_driver_list *font_driver_list;
 	      // struct text_conversion_state conversion;
 	      struct frame *f = vbase;
-	      eassert (false);
+	      //eassert (false);
 	    }
 	    break;
 
@@ -1559,6 +1566,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  case PVEC_HASH_TABLE:
 	    {
 	      struct Lisp_Hash_Table *p = vbase;
+	      if (type_of_addr (global_igc, p->i) == IGC_TYPE_WEAK)
+		abort ();
 	      IGC_FIX12_RAW (ss, &p->i);
 	    }
 	    break;
@@ -1653,11 +1662,8 @@ enum igc_weak_type
 struct igc_weak
 {
   enum igc_weak_type type;
-  union
-  {
-    mps_word_t object_nbytes;
-    mps_addr_t new_addr;
-  } u;
+  mps_word_t object_nbytes;
+  mps_addr_t new_addr;
 };
 
 static void
@@ -1665,7 +1671,7 @@ weak_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct igc_weak *w = addr;
   w->type = IGC_WEAK_PAD;
-  w->u.object_nbytes = nbytes;
+  w->object_nbytes = nbytes;
 }
 
 static mps_addr_t
@@ -1673,7 +1679,7 @@ is_weak_pad (mps_addr_t addr)
 {
   struct igc_weak *w = addr;
   if (w->type == IGC_WEAK_PAD)
-    return (char *) addr + w->u.object_nbytes;
+    return (char *) addr + w->object_nbytes;
   return NULL;
 }
 
@@ -1681,8 +1687,10 @@ static void
 weak_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct igc_weak *w = old;
+  mps_word_t nbytes = w->object_nbytes;
   w->type = IGC_WEAK_FWD;
-  w->u.new_addr = new_addr;
+  w->object_nbytes = nbytes;
+  w->new_addr = new_addr;
 }
 
 static mps_addr_t
@@ -1690,7 +1698,7 @@ is_weak_fwd (mps_addr_t addr)
 {
   struct igc_weak *w = addr;
   if (w->type == IGC_WEAK_FWD)
-    return w->u.new_addr;
+    return w->new_addr;
   return NULL;
 }
 
@@ -1700,9 +1708,8 @@ weak_skip (mps_addr_t addr)
   mps_addr_t end = is_weak_pad (addr);
   if (end)
     return end;
-  mps_addr_t new_addr = is_weak_fwd (addr);
-  struct igc_weak *w = new_addr ? new_addr : addr;
-  return (char *) addr + w->u.object_nbytes;
+  struct igc_weak *w = addr;
+  return (char *) addr + w->object_nbytes;
 }
 
 static mps_addr_t
@@ -1914,17 +1921,6 @@ igc_on_grow_rdstack (void *info, void *start, void *end)
   return info;
 }
 
-static enum igc_type
-type_of_addr (struct igc *gc, mps_addr_t addr)
-{
-  mps_pool_t pool;
-  if (mps_addr_pool (&pool, gc->arena, addr))
-    for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
-      if (pool == gc->pool[i])
-	return i;
-  return IGC_TYPE_LAST;
-}
-
 static igc_root_list *
 find_root (void *start)
 {
@@ -2090,7 +2086,7 @@ enum
   IGC_IMAGE_ALIGN = IGC_ALIGN << 1,
   IGC_FACE_ALIGN = IGC_ALIGN << 6,
   IGC_FLOAT_ALIGN = IGC_ALIGN << 1,
-  IGC_WEAK_ALIGN = IGC_ALIGN << 1,
+  IGC_WEAK_ALIGN = IGC_ALIGN << 2,
 };
 
 igc_static_assert (IGC_CONS_ALIGN >= sizeof (struct Lisp_Cons));
@@ -2480,7 +2476,7 @@ make_weak_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak)
       memclear (p, nbytes);
       struct igc_weak *w = p;
       w->type = IGC_WEAK_HASH_IMPL;
-      w->u.object_nbytes = nbytes;
+      w->object_nbytes = nbytes;
       struct hash_impl *h = weak_obj (w);
       set_weakness (h, weak);
       set_table_size (h, nentries);
