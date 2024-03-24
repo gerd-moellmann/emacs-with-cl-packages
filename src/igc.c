@@ -2077,17 +2077,34 @@ enum
   // MPS apparently pads areas that are >= pool alignment.  Make the
   // pool alignments large enought to hold fwd and pad objects.
   IGC_ALIGN = GCALIGNMENT,
-  IGC_VECTOR_ALIGN = 2 * IGC_ALIGN,
-  IGC_STRING_DATA_ALIGN = 2 * IGC_ALIGN,
+  IGC_CONS_ALIGN = IGC_ALIGN << 1,
+  IGC_SYMBOL_ALIGN = IGC_ALIGN << 3,
+  IGC_INTERVAL_ALIGN = IGC_ALIGN << 3,
+  IGC_STRING_ALIGN = IGC_ALIGN << 2,
+  IGC_VECTOR_ALIGN = IGC_ALIGN << 1,
+  IGC_STRING_DATA_ALIGN = IGC_ALIGN << 1,
+  IGC_ITREE_ALIGN = IGC_ALIGN << 4,
+  IGC_IMAGE_ALIGN = IGC_ALIGN << 1,
+  IGC_FACE_ALIGN = IGC_ALIGN << 6,
+  IGC_FLOAT_ALIGN = IGC_ALIGN << 1,
+  IGC_WEAK_ALIGN = IGC_ALIGN << 1,
 };
 
+igc_static_assert (IGC_CONS_ALIGN >= sizeof (struct Lisp_Cons));
+igc_static_assert (IGC_SYMBOL_ALIGN >= sizeof (struct Lisp_Symbol));
+igc_static_assert (IGC_INTERVAL_ALIGN >= sizeof (struct interval));
+igc_static_assert (IGC_STRING_ALIGN >= sizeof (struct Lisp_String));
 igc_static_assert (IGC_VECTOR_ALIGN
 		   >= sizeof (struct Lisp_Vector) + sizeof (mps_word_t));
 igc_static_assert (IGC_STRING_DATA_ALIGN >= sizeof (struct igc_sdata));
+igc_static_assert (IGC_ITREE_ALIGN >= sizeof (struct itree_node));
+igc_static_assert (IGC_FACE_ALIGN >= sizeof (struct face));
+igc_static_assert (IGC_FLOAT_ALIGN >= sizeof (struct Lisp_Float));
+igc_static_assert (IGC_WEAK_ALIGN >= sizeof (struct igc_weak));
 
 static struct igc_init igc_inits[IGC_TYPE_LAST] = {
   [IGC_TYPE_CONS] = { .class_type = IGC_AMC,
-		      .align = IGC_ALIGN,
+		      .align = IGC_CONS_ALIGN,
 		      .interior_pointers = false,
 		      .forward = cons_forward,
 		      .is_forwarded = is_cons_fwd,
@@ -2095,7 +2112,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .scan = cons_scan,
 		      .skip = cons_skip },
   [IGC_TYPE_SYMBOL] = { .class_type = IGC_AMC,
-			.align = IGC_ALIGN,
+			.align = IGC_SYMBOL_ALIGN,
 			.interior_pointers = false,
 			.forward = symbol_fwd,
 			.is_forwarded = is_symbol_fwd,
@@ -2103,7 +2120,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			.scan = symbol_scan,
 			.skip = symbol_skip },
   [IGC_TYPE_INTERVAL] = { .class_type = IGC_AMC,
-			  .align = IGC_ALIGN,
+			  .align = IGC_INTERVAL_ALIGN,
 			  .interior_pointers = false,
 			  .forward = interval_fwd,
 			  .pad = interval_pad,
@@ -2111,7 +2128,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			  .scan = interval_scan,
 			  .skip = interval_skip },
   [IGC_TYPE_STRING] = { .class_type = IGC_AMC,
-			.align = IGC_ALIGN,
+			.align = IGC_STRING_ALIGN,
 			.interior_pointers = false,
 			.forward = string_fwd,
 			.pad = string_pad,
@@ -2127,7 +2144,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			     .scan = NULL,
 			     .skip = string_data_skip },
   [IGC_TYPE_VECTOR] = { .class_type = IGC_AMC,
-			.align = IGC_ALIGN,
+			.align = IGC_VECTOR_ALIGN,
 			.interior_pointers = false,
 			.forward = vector_forward,
 			.is_forwarded = is_vector_forwarded,
@@ -2135,7 +2152,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			.scan = vector_scan,
 			.skip = vector_skip },
   [IGC_TYPE_ITREE_NODE] = { .class_type = IGC_AMC,
-			    .align = IGC_ALIGN,
+			    .align = IGC_ITREE_ALIGN,
 			    .interior_pointers = false,
 			    .forward = itree_fwd,
 			    .is_forwarded = is_itree_fwd,
@@ -2143,7 +2160,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 			    .scan = itree_scan,
 			    .skip = itree_skip },
   [IGC_TYPE_IMAGE] = { .class_type = IGC_AMC,
-		       .align = IGC_ALIGN,
+		       .align = IGC_IMAGE_ALIGN,
 		       .interior_pointers = false,
 		       .forward = image_fwd,
 		       .is_forwarded = is_image_fwd,
@@ -2151,7 +2168,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		       .scan = image_scan,
 		       .skip = image_skip },
   [IGC_TYPE_FACE] = { .class_type = IGC_AMC,
-		      .align = IGC_ALIGN,
+		      .align = IGC_FACE_ALIGN,
 		      .interior_pointers = false,
 		      .forward = face_fwd,
 		      .is_forwarded = is_face_fwd,
@@ -2159,7 +2176,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		      .scan = face_scan,
 		      .skip = face_skip },
   [IGC_TYPE_FLOAT] = { .class_type = IGC_AMCZ,
-		       .align = IGC_ALIGN,
+		       .align = IGC_FLOAT_ALIGN,
 		       .interior_pointers = false,
 		       .forward = float_fwd,
 		       .is_forwarded = is_float_fwd,
@@ -2167,7 +2184,7 @@ static struct igc_init igc_inits[IGC_TYPE_LAST] = {
 		       .scan = NULL,
 		       .skip = float_skip },
   [IGC_TYPE_WEAK] = { .class_type = IGC_AWL,
-		      .align = IGC_ALIGN,
+		      .align = IGC_WEAK_ALIGN,
 		      // Maybe better use a format with header
 		      .interior_pointers = true,
 		      .forward = weak_fwd,
