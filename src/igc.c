@@ -1293,10 +1293,10 @@ is_hash_impl (const struct Lisp_Vector *v)
   return pseudo_vector_type (v) == PVEC_HASH_IMPL;
 }
 
-static size_t
+static mps_word_t
 vector_obj_nbytes (const struct Lisp_Vector *v)
 {
-  ptrdiff_t nwords = v->header.size;
+  mps_word_t nbytes;
   if (is_pseudo_vector (v))
     {
       enum pvec_type type = pseudo_vector_type (v);
@@ -1306,28 +1306,32 @@ vector_obj_nbytes (const struct Lisp_Vector *v)
 	case PVEC_HASH_IMPL:
 	  {
 	    struct hash_impl *h = (struct hash_impl *) v;
-	    return hash_impl_nbytes (h->table_size);
+	    nbytes = hash_impl_nbytes (h->table_size);
 	  }
+	  break;
 
 	case PVEC_BOOL_VECTOR:
 	  {
 	    struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
-	    return bool_header_size + bool_vector_words (bv->size) * word_size;
+	    nbytes = bool_header_size + bool_vector_words (bv->size) * word_size;
 	  }
-
-	case PVEC_SQLITE:
-	  {
-	    pkg_break ();
-	  }
+	  break;
 
 	default:
-	  nwords = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
-	  return header_size + nwords * word_size;
+	  {
+	    mps_word_t nwords = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
+	    nbytes = header_size + nwords * word_size;
+	  }
+	  break;
 	}
     }
+  else
+    {
+      ptrdiff_t nwords = v->header.size;
+      nbytes = header_size + nwords * word_size;
+    }
 
-  IGC_ASSERT (nwords >= 0);
-  return header_size + nwords * word_size;
+  return igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
 }
 
 static void
@@ -1375,7 +1379,7 @@ vector_forward (mps_addr_t old, mps_addr_t new_addr)
   mps_word_t nbytes = vector_obj_nbytes (old);
   struct igc_vector_fwd *f = old;
   set_pseudo_vector_type (&f->header, PVEC_VECTOR_FORWARD);
-  f->nbytes = igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
+  f->nbytes = nbytes;
   f->new_addr = new_addr;
 }
 
@@ -1400,7 +1404,7 @@ vector_skip (mps_addr_t addr)
       return (char *) addr + f->nbytes;
     }
   ptrdiff_t nbytes = vector_obj_nbytes (addr);
-  return (char *) addr + igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
+  return (char *) addr + nbytes;
 }
 
 static mps_res_t
