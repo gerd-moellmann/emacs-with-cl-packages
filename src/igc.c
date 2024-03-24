@@ -348,8 +348,8 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	    if (res != MPS_RES_OK)
 	      return res;
 	    mps_word_t new_off = (char *) ref - (char *) lispsym;
-	    mps_addr_t new_ref = (mps_addr_t) ((char *) lispsym + new_off);
-	    *p = (mps_word_t) new_ref | tag;
+	    *p = new_off | tag;
+	    fprintf (stderr, "fix symbol %lx -> %lx\n", word, *p);
 	  }
       }
     else
