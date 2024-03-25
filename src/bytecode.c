@@ -485,7 +485,11 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 
  setup_frame: ;
   eassert (!STRING_MULTIBYTE (bytestr));
+#ifndef HAVE_MPS
+  // With MPS, references from the stack pin string data (also interior
+  // pointers).
   eassert (string_immovable_p (bytestr));
+#endif
   /* FIXME: in debug mode (!NDEBUG, BYTE_CODE_SAFE or enabled checking),
      save the specpdl index on function entry and check that it is the same
      when returning, to detect unwind imbalances.  This would require adding
