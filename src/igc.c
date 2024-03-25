@@ -1657,8 +1657,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 		{
 		  if (!hash_unused_entry_key_p (HASH_KEY (h, i)))
 		    {
-		      IGC_FIX12_OBJ (ss, &h->key_and_value[2 * i]);
-		      IGC_FIX12_OBJ (ss, &h->key_and_value[2 * i + 1]);
+		      IGC_FIX12_OBJ (ss, &h->key[i]);
+		      IGC_FIX12_OBJ (ss, &h->value[i]);
 		      --n;
 		    }
 		}
