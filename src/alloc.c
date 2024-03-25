@@ -4010,7 +4010,11 @@ usage: (make-closure PROTOTYPE &rest CLOSURE-VARS) */)
 
   /* Return a copy of the prototype function with the new constant vector. */
   ptrdiff_t protosize = PVSIZE (protofun);
+#ifdef HAVE_MPS
+  struct Lisp_Vector *v = igc_alloc_vector (protosize);
+#else
   struct Lisp_Vector *v = allocate_vectorlike (protosize, false);
+#endif
   v->header = XVECTOR (protofun)->header;
   memcpy (v->contents, XVECTOR (protofun)->contents, protosize * word_size);
   v->contents[COMPILED_CONSTANTS] = constvec;

@@ -1789,7 +1789,6 @@ create_specpdl_root (struct igc_thread_list *t)
 void
 igc_on_specbinding_unused (union specbinding *b)
 {
-  igc_static_assert (NIL_IS_ZERO);
   memset (b, 0, sizeof *b);
 }
 
@@ -1916,7 +1915,6 @@ find_root (void *start)
 void *
 igc_xzalloc (size_t size)
 {
-  igc_static_assert (NIL_IS_ZERO);
   void *p = xzalloc (size);
   create_ambig_root (global_igc, p, (char *) p + size);
   return p;
@@ -2340,8 +2338,7 @@ igc_make_interval (void)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      igc_static_assert (NIL_IS_ZERO);
-      memset (p, 0, nbytes);
+      memclear (p, nbytes);
     }
   while (!mps_commit (ap, p, nbytes));
   return p;
@@ -2361,7 +2358,6 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      igc_static_assert (NIL_IS_ZERO);
       struct Lisp_Vector *v = p;
       memclear (v->contents, nwords_zero * word_size);
       XSETPVECTYPESIZE (v, tag, nwords_lisp, nwords_mem - nwords_lisp);
@@ -2381,7 +2377,6 @@ igc_alloc_vector (ptrdiff_t len)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      igc_static_assert (NIL_IS_ZERO);
       memclear (p, nbytes);
       struct Lisp_Vector *v = p;
       v->header.size = len;
@@ -2401,7 +2396,6 @@ igc_alloc_record (ptrdiff_t len)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      igc_static_assert (NIL_IS_ZERO);
       memclear (p, nbytes);
       struct Lisp_Vector *v = p;
       v->header.size = len;
@@ -2422,7 +2416,6 @@ igc_make_itree_node (void)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      igc_static_assert (NIL_IS_ZERO);
       memclear (p, nbytes);
     }
   while (!mps_commit (ap, p, nbytes));
@@ -2440,7 +2433,6 @@ igc_make_image (void)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      igc_static_assert (NIL_IS_ZERO);
       memclear (p, nbytes);
     }
   while (!mps_commit (ap, p, nbytes));
@@ -2458,7 +2450,6 @@ igc_make_face (void)
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      igc_static_assert (NIL_IS_ZERO);
       memclear (p, nbytes);
     }
   while (!mps_commit (ap, p, nbytes));
