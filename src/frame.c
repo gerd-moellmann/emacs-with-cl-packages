@@ -1442,7 +1442,7 @@ affects all frames on the same terminal device.  */)
      be copied as well.  */
   ptrdiff_t idx = 0;
   struct Lisp_Hash_Table *table = XHASH_TABLE (f->face_hash_table);
-  for (idx = 0; idx < table->i->count; ++idx)
+  for (idx = 0; idx < table->count; ++idx)
     set_hash_value_slot (table, idx, Fcopy_sequence (HASH_VALUE (table, idx)));
 
   /* On terminal frames the `minibuffer' frame parameter is always

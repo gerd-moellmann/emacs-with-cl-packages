@@ -1744,10 +1744,10 @@ exec_byte_code (Lisp_Object fun, ptrdiff_t args_template,
 	       (The table is assumed to be sized exactly; all entries are
 	       consecutive at the beginning.)
 	       FIXME: 5 is arbitrarily chosen.  */
-            if (h->i->count <= 5 && !h->i->test->cmpfn && !symbols_with_pos_enabled)
+            if (h->count <= 5 && !h->test->cmpfn && !symbols_with_pos_enabled)
               {
-		eassume (h->i->count >= 2);
-		for (ptrdiff_t i = h->i->count - 1; i >= 0; i--)
+		eassume (h->count >= 2);
+		for (ptrdiff_t i = h->count - 1; i >= 0; i--)
 		  if (BASE_EQ (v1, HASH_KEY (h, i)))
 		    {
 		      op = XFIXNUM (HASH_VALUE (h, i));

@@ -958,7 +958,7 @@ dump_queue_init (struct dump_queue *dump_queue)
 static bool
 dump_queue_empty_p (struct dump_queue *dump_queue)
 {
-  ptrdiff_t count = XHASH_TABLE (dump_queue->sequence_numbers)->i->count;
+  ptrdiff_t count = XHASH_TABLE (dump_queue->sequence_numbers)->count;
   bool is_empty = count == 0;
   eassert (count == XFIXNAT (Fhash_table_count (dump_queue->link_weights)));
   if (!is_empty)
@@ -1227,7 +1227,7 @@ dump_queue_dequeue (struct dump_queue *dump_queue, dump_off basis)
      dump_tailq_length (&dump_queue->zero_weight_objects),
      dump_tailq_length (&dump_queue->one_weight_normal_objects),
      dump_tailq_length (&dump_queue->one_weight_strong_objects),
-     (ptrdiff_t) XHASH_TABLE (dump_queue->link_weights)->i->count);
+     (ptrdiff_t) XHASH_TABLE (dump_queue->link_weights)->count);
 
   static const int nr_candidates = 3;
   struct candidate
@@ -2637,6 +2637,25 @@ dump_vectorlike_generic (struct dump_context *ctx,
   return offset;
 }
 
+/* Return a vector of KEY, VALUE pairs in the given hash table H.
+   No room for growth is included.  */
+static Lisp_Object *
+hash_table_contents (struct Lisp_Hash_Table *h)
+{
+  ptrdiff_t size = h->count;
+  Lisp_Object *key_and_value = hash_table_alloc_bytes (2 * size
+						       * sizeof *key_and_value);
+  ptrdiff_t n = 0;
+
+  DOHASH (h, k, v)
+    {
+      key_and_value[n++] = k;
+      key_and_value[n++] = v;
+    }
+
+  return key_and_value;
+}
+
 static void
 dump_hash_table_list (struct dump_context *ctx)
 {
@@ -2658,90 +2677,75 @@ hash_table_std_test (const struct hash_table_test *t)
   error ("cannot dump hash tables with user-defined tests");  /* Bug#36769 */
 }
 
-static dump_off
-dump_hash_table (struct dump_context *ctx, struct Lisp_Hash_Table *hash_in)
+/* Compact contents and discard inessential information from a hash table,
+   preparing it for dumping.
+   See `hash_table_thaw' for the code that restores the object to a usable
+   state. */
+static void
+hash_table_freeze (struct Lisp_Hash_Table *h)
 {
+  h->key_and_value = hash_table_contents (h);
+  h->next = NULL;
+  h->hash = NULL;
+  h->index = NULL;
+  h->table_size = 0;
+  h->index_bits = 0;
+  h->frozen_test = hash_table_std_test (h->test);
+  h->test = NULL;
+}
+
+static dump_off
+dump_hash_table_contents (struct dump_context *ctx, struct Lisp_Hash_Table *h)
+{
+  dump_align_output (ctx, DUMP_ALIGNMENT);
+  dump_off start_offset = ctx->offset;
+  ptrdiff_t n = 2 * h->count;
+
+  struct dump_flags old_flags = ctx->flags;
+  ctx->flags.pack_objects = true;
+
+  for (ptrdiff_t i = 0; i < n; i++)
+    {
+      Lisp_Object out;
+      const Lisp_Object *slot = &h->key_and_value[i];
+      dump_object_start (ctx, &out, sizeof out);
+      dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
+      dump_object_finish (ctx, &out, sizeof out);
+    }
+
+  ctx->flags = old_flags;
+  return start_offset;
+}
+
+static dump_off
+dump_hash_table (struct dump_context *ctx, Lisp_Object object)
+{
+#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_0360833954
+# error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
+#endif
+  const struct Lisp_Hash_Table *hash_in = XHASH_TABLE (object);
   struct Lisp_Hash_Table hash_munged = *hash_in;
   struct Lisp_Hash_Table *hash = &hash_munged;
 
-  Lisp_Object obj = make_lisp_hash_table (hash_in);
-  dump_push (&ctx->hash_tables, obj);
+  hash_table_freeze (hash);
+  dump_push (&ctx->hash_tables, object);
 
   START_DUMP_PVEC (ctx, &hash->header, struct Lisp_Hash_Table, out);
   dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
-  dump_field_lv_rawptr (ctx, out, hash, &hash->i, Lisp_Vectorlike, WEIGHT_NORMAL);
+  DUMP_FIELD_COPY (out, hash, count);
+  DUMP_FIELD_COPY (out, hash, weakness);
+  DUMP_FIELD_COPY (out, hash, purecopy);
+  DUMP_FIELD_COPY (out, hash, mutable);
+  DUMP_FIELD_COPY (out, hash, frozen_test);
+  if (hash->key_and_value)
+    dump_field_fixup_later (ctx, out, hash, &hash->key_and_value);
+  eassert (hash->next_weak == NULL);
   dump_off offset = finish_dump_pvec (ctx, &out->header);
-  return offset;
-}
-
-/* Value is a hash_impl that has the same contents os IN, but has
-   minimum size needed.  See `hash_table_thaw' for the code that
-   restores the object to a usable state. */
-static struct hash_impl *
-hash_impl_freeze (const struct hash_impl *in)
-{
-  ptrdiff_t nbytes = sizeof *in + in->count * sizeof *in->entries;
-  struct hash_impl *h = xmalloc (nbytes);
-  memcpy (h, in, nbytes);
-
-  struct hash_entry *to = h->entries;
-  for (const struct hash_entry *from = in->entries;
-       from < in->entries + in->table_size; ++from)
-    if (!hash_unused_entry_key_p (from->key))
-      *to++ = *from;
-
-  set_index_bits (h, compute_hash_index_bits (h->count));
-  set_table_size (h, h->count);
-  h->next_free = -1;
-  h->frozen_test = hash_table_std_test (h->test);
-  return h;
-}
-
-static void
-dump_hash_index (struct dump_context *ctx,
-		 const struct hash_impl *h)
-{
-  ptrdiff_t index_size = (ptrdiff_t) 1 << h->index_bits;
-  hash_idx_t minus1 = -1;
-  for (ptrdiff_t i = 0; i < index_size; ++i)
-    dump_write (ctx, &minus1, sizeof minus1);
-}
-
-static void
-dump_hash_entries (struct dump_context *ctx,
-		   const struct hash_impl *hash)
-{
-  for (const struct hash_entry *e = hash->entries;
-       e < hash->entries + hash->count; ++e)
-    {
-      struct hash_entry out;
-      dump_object_start (ctx, &out, sizeof out);
-      dump_field_lv (ctx, &out, e, &e->key, WEIGHT_STRONG);
-      dump_field_lv (ctx, &out, e, &e->value, WEIGHT_STRONG);
-      dump_object_finish (ctx, &out, sizeof out);
-    }
-}
-
-// Value is the offset at which we stored in hash_impl.
-
-static dump_off
-dump_hash_impl (struct dump_context *ctx, const struct hash_impl *hash_in)
-{
-#if CHECK_STRUCTS && !defined HASH_hash_impl_0360833954
-# error "hash_impl changed. See CHECK_STRUCTS comment in config.h."
-#endif
-  struct hash_impl *frozen = hash_impl_freeze (hash_in);
-  struct hash_impl out;
-  dump_object_start (ctx, &out, sizeof out);
-  // Remember that dump_object_start memsets out to 0, that's why can't
-  // use frozen directly.
-  memcpy (&out, frozen, sizeof out);
-  dump_off offset = dump_object_finish (ctx, &out.header, sizeof out);
-
-  dump_hash_entries (ctx, frozen);
-  dump_hash_index (ctx, frozen);
-  xfree (frozen);
-
+  if (hash->key_and_value)
+    dump_remember_fixup_ptr_raw
+      (ctx,
+       offset + dump_offsetof (struct Lisp_Hash_Table, key_and_value),
+       dump_hash_table_contents (ctx, hash));
   return offset;
 }
 
@@ -3009,13 +3013,6 @@ dump_vectorlike (struct dump_context *ctx,
   enum pvec_type ptype = PSEUDOVECTOR_TYPE (v);
   switch (ptype)
     {
-# ifdef HAVE_MPS
-    case PVEC_VECTOR_FORWARD:
-    case PVEC_VECTOR_PAD:
-      eassert (false);
-      break;
-# endif
-
     case PVEC_FONT:
       /* There are three kinds of font objects that all use PVEC_FONT,
          distinguished by their size.  Font specs and entities are
@@ -3036,9 +3033,7 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_BOOL_VECTOR:
       return dump_bool_vector(ctx, v);
     case PVEC_HASH_TABLE:
-      return dump_hash_table (ctx, XHASH_TABLE (lv));
-    case PVEC_HASH_IMPL:
-      return dump_hash_impl (ctx, XHASH_IMPL (lv));
+      return dump_hash_table (ctx, lv);
     case PVEC_BUFFER:
       return dump_buffer (ctx, XBUFFER (lv));
     case PVEC_SUBR:
@@ -3083,6 +3078,8 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_TS_PARSER:
     case PVEC_TS_NODE:
     case PVEC_TS_COMPILED_QUERY:
+    case PVEC_VECTOR_FORWARD:
+    case PVEC_VECTOR_PAD:
       break;
     }
   char msg[60];

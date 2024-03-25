@@ -143,13 +143,11 @@ wrong_type_argument (Lisp_Object predicate, Lisp_Object value)
   xsignal2 (Qwrong_type_argument, predicate, value);
 }
 
-#ifdef PURE_SPACE_SUPPORT_IN_MY_LOCAL_EMACS
 void
 pure_write_error (Lisp_Object obj)
 {
   xsignal2 (Qerror, build_string ("Attempt to modify read-only object"), obj);
 }
-#endif
 
 void
 args_out_of_range (Lisp_Object a1, Lisp_Object a2)
@@ -236,7 +234,6 @@ for example, (type-of 1) returns `integer'.  */)
         case PVEC_BOOL_VECTOR: return Qbool_vector;
         case PVEC_FRAME: return Qframe;
         case PVEC_HASH_TABLE: return Qhash_table;
-        case PVEC_HASH_IMPL: return Qhash_impl;
         case PVEC_FONT:
           if (FONT_SPEC_P (object))
 	    return Qfont_spec;
@@ -4243,7 +4240,6 @@ syms_of_data (void)
   DEFSYM (Qsub_char_table, "sub-char-table");
   DEFSYM (Qbool_vector, "bool-vector");
   DEFSYM (Qhash_table, "hash-table");
-  DEFSYM (Qhash_impl, "hash-impl");
   DEFSYM (Qthread, "thread");
   DEFSYM (Qmutex, "mutex");
   DEFSYM (Qcondition_variable, "condition-variable");

@@ -388,8 +388,8 @@ static char *spare_memory[7];
    space (pure), on some systems.  We have not implemented the
    remapping on more recent systems because this is less important
    nowadays than in the days of small memories and timesharing.  */
-
 EMACS_INT pure[(PURESIZE + sizeof (EMACS_INT) - 1) / sizeof (EMACS_INT)] = {1,};
+
 #define PUREBEG (char *) pure
 
 /* Pointer to the pure area, and its size.  */
@@ -3330,6 +3330,17 @@ init_vectors (void)
   staticpro (&zero_vector);
 }
 
+/* Memory footprint in bytes of a pseudovector other than a bool-vector.  */
+static ptrdiff_t
+pseudovector_nbytes (const union vectorlike_header *hdr)
+{
+  eassert (!PSEUDOVECTOR_TYPEP (hdr, PVEC_BOOL_VECTOR));
+  ptrdiff_t nwords = ((hdr->size & PSEUDOVECTOR_SIZE_MASK)
+		      + ((hdr->size & PSEUDOVECTOR_REST_MASK)
+			 >> PSEUDOVECTOR_SIZE_BITS));
+  return vroundup (header_size + word_size * nwords);
+}
+
 #ifndef HAVE_MPS
 
 /* Allocate vector from a vector block.  */
@@ -3408,32 +3419,6 @@ allocate_vector_from_block (ptrdiff_t nbytes)
 
 #endif // nto HAVE_MPS
 
-/* Return the memory footprint of V in bytes.  */
-
-ptrdiff_t
-hash_impl_nbytes (ptrdiff_t nentries)
-{
-  int index_bits = compute_hash_index_bits (nentries);
-  ptrdiff_t index_size = (ptrdiff_t)1 << index_bits;
-  ptrdiff_t index_nbytes = index_size * sizeof (hash_idx_t);
-  ptrdiff_t entries_nbytes = nentries * sizeof (struct hash_entry);
-  ptrdiff_t nbytes = vroundup (sizeof (struct hash_impl)
-			       + entries_nbytes + index_nbytes);
-  return nbytes;
-}
-
-/* Memory footprint in bytes of a pseudovector other than a bool-vector.  */
-static ptrdiff_t
-pseudovector_nbytes (const union vectorlike_header *hdr)
-{
-  eassert (!PSEUDOVECTOR_TYPEP (hdr, PVEC_BOOL_VECTOR));
-  eassert (!PSEUDOVECTOR_TYPEP (hdr, PVEC_HASH_IMPL));
-  ptrdiff_t nwords = ((hdr->size & PSEUDOVECTOR_SIZE_MASK)
-		      + ((hdr->size & PSEUDOVECTOR_REST_MASK)
-			 >> PSEUDOVECTOR_SIZE_BITS));
-  return vroundup (header_size + word_size * nwords);
-}
-
 ptrdiff_t
 vectorlike_nbytes (const union vectorlike_header *hdr)
 {
@@ -3450,11 +3435,6 @@ vectorlike_nbytes (const union vectorlike_header *hdr)
 	  ptrdiff_t boolvec_bytes = bool_header_size + word_bytes;
 	  verify (header_size <= bool_header_size);
 	  nwords = (boolvec_bytes - header_size + word_size - 1) / word_size;
-        }
-      else if (PSEUDOVECTOR_TYPEP (hdr, PVEC_HASH_IMPL))
-	{
-          struct hash_impl *h = (struct hash_impl *) hdr;
-	  return hash_impl_nbytes (h->table_size);
         }
       else
 	return pseudovector_nbytes (hdr);
@@ -3584,16 +3564,19 @@ cleanup_vector (struct Lisp_Vector *vector)
 #endif
       break;
     case PVEC_HASH_TABLE:
-      break;
-    case PVEC_HASH_IMPL:
       {
-	struct hash_impl *h = PSEUDOVEC_STRUCT (vector, hash_impl);
+	struct Lisp_Hash_Table *h = PSEUDOVEC_STRUCT (vector, Lisp_Hash_Table);
 	if (h->table_size > 0)
 	  {
 	    eassert (h->index_bits > 0);
-	    ptrdiff_t bytes
-	      = (h->table_size * sizeof *h->entries
-		 + hash_impl_index_size (h) * sizeof (hash_idx_t));
+	    xfree (h->index);
+	    xfree (h->key_and_value);
+	    xfree (h->next);
+	    xfree (h->hash);
+	    ptrdiff_t bytes = (h->table_size * (2 * sizeof *h->key_and_value
+						+ sizeof *h->hash
+						+ sizeof *h->next)
+			       + hash_table_index_size (h) * sizeof *h->index);
 	    hash_table_allocated_bytes -= bytes;
 	  }
       }
@@ -3620,6 +3603,11 @@ cleanup_vector (struct Lisp_Vector *vector)
     case PVEC_SUB_CHAR_TABLE:
     case PVEC_RECORD:
     case PVEC_PACKAGE:
+      break;
+
+    case PVEC_VECTOR_FORWARD:
+    case PVEC_VECTOR_PAD:
+      eassert (false);
       break;
     }
 }
@@ -3728,48 +3716,6 @@ sweep_vectors (void)
 }
 
 #endif // not HAVE_MPS
-
-struct hash_impl *
-allocate_hash_impl (size_t nentries, hash_table_weakness_t weak)
-{
-#ifdef HAVE_MPS
-  return igc_make_hash_impl (nentries, weak);
-#else
-  eassert_not_mps ();
-  struct hash_impl *h;
-
-  ptrdiff_t nbytes = hash_impl_nbytes (nentries);
-
-  struct Lisp_Vector *p;
-
-  MALLOC_BLOCK_INPUT;
-  if (nbytes <= VBLOCK_BYTES_MAX)
-    {
-      p = allocate_vector_from_block (vroundup (nbytes));
-      memclear (p, nbytes);
-    }
-  else
-    {
-      struct large_vector *lv
-	= lisp_malloc (large_vector_offset + nbytes, true,
-		       MEM_TYPE_VECTORLIKE);
-      lv->next = large_vectors;
-      large_vectors = lv;
-      p = large_vector_vec (lv);
-    }
-  tally_consing (nbytes);
-  vector_cells_consed += nbytes / word_size;
-  MALLOC_UNBLOCK_INPUT;
-
-  h = (struct hash_impl *) p;
-  set_weakness (h, weak);
-  set_table_size (h, nentries);
-  set_index_bits (h, compute_hash_index_bits (nentries));
-  XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
-  eassert (PSEUDOVECTOR_TYPE (p) == PVEC_HASH_IMPL);
-  return h;
-#endif // not HAVE_MPS
-}
 
 /* Maximum number of elements in a vector.  This is a macro so that it
    can be used in an integer constant expression.  */
@@ -6105,6 +6051,24 @@ pure_cons (Lisp_Object car, Lisp_Object cdr)
   return Fcons (car, cdr);
 }
 
+static Lisp_Object
+purecopy (Lisp_Object obj)
+{
+  if (FIXNUMP (obj)
+      || (! SYMBOLP (obj) && PURE_P (XPNTR (obj)))
+      || SUBRP (obj))
+    return obj;    /* Already pure.  */
+
+  if (HASH_TABLE_P (Vpurify_flag)) /* Hash consing.  */
+    {
+      Lisp_Object tmp = Fgethash (obj, Vpurify_flag, Qnil);
+      if (!NILP (tmp))
+	return tmp;
+    }
+
+  return obj;
+}
+
 DEFUN ("purecopy", Fpurecopy, Spurecopy, 1, 1, 0,
        doc: /* Make a copy of object OBJ in pure storage.
 Recursively copies contents of vectors and cons cells.
@@ -6132,23 +6096,6 @@ static struct pinned_object
   struct pinned_object *next;
 } *pinned_objects;
 
-static Lisp_Object
-purecopy (Lisp_Object obj)
-{
-  if (FIXNUMP (obj)
-      || (! SYMBOLP (obj) && PURE_P (XPNTR (obj)))
-      || SUBRP (obj))
-    return obj;    /* Already pure.  */
-
-  if (HASH_TABLE_P (Vpurify_flag)) /* Hash consing.  */
-    {
-      Lisp_Object tmp = Fgethash (obj, Vpurify_flag, Qnil);
-      if (!NILP (tmp))
-	return tmp;
-    }
-
-  return obj;
-}
 #endif // not HAVE_MPS
 
 
@@ -6981,7 +6928,6 @@ mark_vectorlike (union vectorlike_header *header)
 
   /* Bool vectors have a different case in mark_object.  */
   eassert (PSEUDOVECTOR_TYPE (ptr) != PVEC_BOOL_VECTOR);
-  eassert (PSEUDOVECTOR_TYPE (ptr) != PVEC_HASH_IMPL);
 
   set_vector_marked (ptr); /* Else mark it.  */
   if (size & PSEUDOVECTOR_FLAG)
@@ -7287,7 +7233,6 @@ mark_stack_push_values (Lisp_Object *values, ptrdiff_t n)
 static void
 process_mark_stack (ptrdiff_t base_sp)
 {
-  eassert_not_mps ();
 #if GC_CHECK_MARKED_OBJECTS
   struct mem_node *m = NULL;
 #endif
@@ -7300,9 +7245,7 @@ process_mark_stack (ptrdiff_t base_sp)
   while (mark_stk.sp > base_sp)
     {
       Lisp_Object obj = mark_stack_pop ();
-
-    mark_obj:;
-
+    mark_obj: ;
       void *po = XPNTR (obj);
       if (PURE_P (po))
 	continue;
@@ -7421,29 +7364,17 @@ process_mark_stack (ptrdiff_t base_sp)
 		mark_window (ptr);
 		break;
 
-	      case PVEC_HASH_IMPL:
-		{
-		  struct hash_impl *h = (struct hash_impl *)ptr;
-		  set_vector_marked (ptr);
-		  if (h->weakness != Weak_None)
-		    break;
-		  for (struct hash_entry *e = h->entries;
-		       e < h->entries + h->table_size; ++e)
-		    {
-		      if (!hash_unused_entry_key_p (e->key))
-			{
-			  mark_stack_push_value (e->key);
-			  mark_stack_push_value (e->value);
-			}
-		    }
-		  break;
-		}
-
 	      case PVEC_HASH_TABLE:
 		{
 		  struct Lisp_Hash_Table *h = (struct Lisp_Hash_Table *)ptr;
 		  set_vector_marked (ptr);
-		  if (h->i->weakness != Weak_None)
+		  if (h->weakness == Weak_None)
+		    /* The values pushed here may include
+		       HASH_UNUSED_ENTRY_KEY, which this function must
+		       cope with.  */
+		    mark_stack_push_values (h->key_and_value,
+					    2 * h->table_size);
+		  else
 		    {
 		      /* For weak tables, don't mark the
 			 contents --- that's what makes it weak.  */
@@ -7451,11 +7382,8 @@ process_mark_stack (ptrdiff_t base_sp)
 		      h->next_weak = weak_hash_tables;
 		      weak_hash_tables = h;
 		    }
-
-		  Lisp_Object obj = make_lisp_ptr (h->i, Lisp_Vectorlike);
-		  mark_stack_push_value (obj);
+		  break;
 		}
-		break;
 
 	      case PVEC_CHAR_TABLE:
 	      case PVEC_SUB_CHAR_TABLE:
@@ -7516,7 +7444,6 @@ process_mark_stack (ptrdiff_t base_sp)
 	      break;
 	    CHECK_ALLOCATED_AND_LIVE_SYMBOL ();
 	    set_symbol_marked (ptr);
-
 	    /* Attempt to catch bogus objects.  */
 	    eassert (valid_lisp_object_p (ptr->u.s.function));
 	    mark_stack_push_value (ptr->u.s.function);
@@ -7579,7 +7506,7 @@ process_mark_stack (ptrdiff_t base_sp)
 		cdr_count++;
 		if (cdr_count == mark_object_loop_halt)
 		  emacs_abort ();
-# endif
+#endif
 	      }
 	    /* Speedup hack for the common case (successive list elements).  */
 	    obj = ptr->u.s.car;

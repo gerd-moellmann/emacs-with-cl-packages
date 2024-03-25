@@ -1333,8 +1333,6 @@ weak_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  continue;
 
 	eassert (w->type == IGC_WEAK_HASH_IMPL);
-	struct hash_impl *h = weak_to_obj (w);
-	eassert (h->weakness != Weak_None);
 	eassert (!"weak table");
       }
   }
@@ -1383,13 +1381,6 @@ is_bool_vector (const struct Lisp_Vector *v)
   return pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
 }
 
-static bool
-is_hash_impl (const struct Lisp_Vector *v)
-{
-  IGC_ASSERT (is_pseudo_vector (v));
-  return pseudo_vector_type (v) == PVEC_HASH_IMPL;
-}
-
 static mps_word_t
 vector_obj_nbytes (const struct Lisp_Vector *v)
 {
@@ -1400,13 +1391,6 @@ vector_obj_nbytes (const struct Lisp_Vector *v)
       IGC_ASSERT (type <= PVEC_TAG_MAX);
       switch (type)
 	{
-	case PVEC_HASH_IMPL:
-	  {
-	    struct hash_impl *h = (struct hash_impl *) v;
-	    nbytes = hash_impl_nbytes (h->table_size);
-	  }
-	  break;
-
 	case PVEC_BOOL_VECTOR:
 	  {
 	    struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
@@ -1537,7 +1521,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  }
 
 	// Fix Lisp object part of normal pseudo vectors.
-	if (!is_bool_vector (v) && !is_hash_impl (v))
+	if (!is_bool_vector (v))
 	  {
 	    const size_t nobjs = pseudo_vector_nobjs (v);
 	    IGC_FIX12_NOBJS (ss, v->contents, nobjs);
@@ -1666,28 +1650,12 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_HASH_TABLE:
 	    {
-	      struct Lisp_Hash_Table *p = vbase;
-	      if (type_of_addr (global_igc, p->i) == IGC_TYPE_WEAK)
-		{
-		  mps_addr_t w = obj_to_weak (p->i);
-		  IGC_FIX12_RAW (ss, &w);
-		  p->i = weak_to_obj (w);
-
-		}
-	      else
-		IGC_FIX12_RAW (ss, &p->i);
-	    }
-	    break;
-
-	  case PVEC_HASH_IMPL:
-	    {
-	      struct hash_impl *h = vbase;
+	      struct Lisp_Hash_Table *h = vbase;
 	      eassert (h->weakness == Weak_None);
 	      for (ptrdiff_t i = 0, n = h->count; n > 0 && i < h->table_size;
 		   ++i)
 		{
-		  struct hash_entry *e = h->entries + i;
-		  if (!hash_unused_entry_key_p (e->key))
+		  if (!hash_unused_entry_key_p (HASH_KEY (h, i)))
 		    {
 		      IGC_FIX12_OBJ (ss, &e->key);
 		      IGC_FIX12_OBJ (ss, &e->value);

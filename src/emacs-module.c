@@ -415,7 +415,7 @@ module_global_reference_p (emacs_value v, ptrdiff_t *n)
       return true;
   /* Only used for debugging, so we don't care about overflow, just
      make sure the operation is defined.  */
-  ckd_add (n, *n, h->i->count);
+  ckd_add (n, *n, h->count);
   return false;
 }
 

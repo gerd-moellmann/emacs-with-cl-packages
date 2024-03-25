@@ -1034,7 +1034,6 @@ enum pvec_type
   PVEC_BOOL_VECTOR,
   PVEC_BUFFER,
   PVEC_HASH_TABLE,
-  PVEC_HASH_IMPL,
   PVEC_TERMINAL,
   PVEC_WINDOW_CONFIGURATION,
   PVEC_SUBR,
@@ -2558,26 +2557,7 @@ typedef enum {
    (hash) indices.  It's signed and a subtype of ptrdiff_t.  */
 typedef int32_t hash_idx_t;
 
-
-struct hash_entry
-{
-  /* Used to chain entries.  If this entry is free, next is the
-     entry number of the next free item.  If this entry is non-free,
-     next is the index of the next entry in the collision chain,
-     or -1 if there is no such entry. */
-  hash_idx_t next;
-
-  /* hash code of key.  Unused entries have undefined values.  */
-  hash_hash_t hash;
-
-  /* Keys and value. If the key is HASH_UNUSED_ENTRY_KEY, then this
-     entry is unused.  This is gc_marked specially if the table is
-     weak.  */
-  Lisp_Object key;
-  Lisp_Object value;
-};
-
-struct hash_impl
+struct Lisp_Hash_Table
 {
   union vectorlike_header header;
 
@@ -2602,10 +2582,39 @@ struct hash_impl
                        :  :    |  :      :       :     :    :
                                |
                            next_free
-  */
+
+     The table is physically split into three vectors (hash, next,
+     key_and_value) which may or may not be beneficial.  */
+
+  /* Bucket vector.  An entry of -1 indicates no item is present,
+     and a nonnegative entry is the index of the first item in
+     a collision chain.
+     This vector is 2**index_bits entries long.
+     If index_bits is 0 (and table_size is 0), then this is the
+     constant read-only vector {-1}, shared between all instances.
+     Otherwise it is heap-allocated.  */
+  hash_idx_t *index;
+
+  /* Vector of hash codes.  Unused entries have undefined values.
+     This vector is table_size entries long.  */
+  hash_hash_t *hash;
+
+  /* Vector of keys and values.  The key of item I is found at index
+     2 * I, the value is found at index 2 * I + 1.
+     If the key is HASH_UNUSED_ENTRY_KEY, then this slot is unused.
+     This is gc_marked specially if the table is weak.
+     This vector is 2 * table_size entries long.  */
+  Lisp_Object *key_and_value;
 
   /* The comparison and hash functions.  */
   const struct hash_table_test *test;
+
+  /* Vector used to chain entries.  If entry I is free, next[I] is the
+     entry number of the next free item.  If entry I is non-free,
+     next[I] is the index of the next entry in the collision chain,
+     or -1 if there is no such entry.
+     This vector is table_size entries long.  */
+  hash_idx_t *next;
 
   /* Number of key/value entries in the table.  */
   hash_idx_t count;
@@ -2613,14 +2622,12 @@ struct hash_impl
   /* Index of first free entry in free list, or -1 if none.  */
   hash_idx_t next_free;
 
-  /* Max number of entries.  */
-  const hash_idx_t table_size;
+  hash_idx_t table_size;   /* Size of the next and hash vectors.  */
 
-  /* log2 (size of the index vector).  */
-  const unsigned char index_bits;
+  unsigned char index_bits;	/* log2 (size of the index vector).  */
 
   /* Weakness of the table.  */
-  const hash_table_weakness_t weakness;
+  hash_table_weakness_t weakness : 3;
 
   /* Hash table test (only used when frozen in dump)  */
   hash_table_std_test_t frozen_test : 2;
@@ -2634,47 +2641,11 @@ struct hash_impl
      immutable for recursive attempts to mutate it.  */
   bool_bf mutable : 1;
 
-  // table_size hash_entry structures, followed by index of size (expt 2
-  // index_bits).
-  struct hash_entry entries[];
-} GCALIGNED_STRUCT;
-
-INLINE hash_idx_t *
-hindex (struct hash_impl *h)
-{
-  return (hash_idx_t *) (h->entries + h->table_size);
-}
-
-struct Lisp_Hash_Table
-{
-  union vectorlike_header header;
-  struct hash_impl *i;
   /* Next weak hash table if this is a weak hash table.  The head of
      the list is in weak_hash_tables.  Used only during garbage
      collection --- at other times, it is NULL.  */
   struct Lisp_Hash_Table *next_weak;
-};
-
-ptrdiff_t hash_impl_nbytes (ptrdiff_t nentries);
-struct hash_impl *allocate_hash_impl (size_t nentries, hash_table_weakness_t weak);
-
-INLINE void
-set_table_size (struct hash_impl *h, ptrdiff_t n)
-{
-  *((hash_idx_t *) &h->table_size) = n;
-}
-
-INLINE void
-set_index_bits (struct hash_impl *h, ptrdiff_t n)
-{
-  *((unsigned char *) &h->index_bits) = n;
-}
-
-INLINE void
-set_weakness (struct hash_impl *h, hash_table_weakness_t w)
-{
-  *((hash_table_weakness_t *) &h->weakness) = w;
-}
+} GCALIGNED_STRUCT;
 
 /* A specific Lisp_Object that is not a valid Lisp value.
    We need to be careful not to leak this value into machinery
@@ -2697,24 +2668,11 @@ HASH_TABLE_P (Lisp_Object a)
   return PSEUDOVECTORP (a, PVEC_HASH_TABLE);
 }
 
-INLINE bool
-HASH_IMPL_P (Lisp_Object a)
-{
-  return PSEUDOVECTORP (a, PVEC_HASH_IMPL);
-}
-
 INLINE struct Lisp_Hash_Table *
 XHASH_TABLE (Lisp_Object a)
 {
   eassert (HASH_TABLE_P (a));
   return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Hash_Table);
-}
-
-INLINE struct hash_impl *
-XHASH_IMPL (Lisp_Object a)
-{
-  eassert (HASH_IMPL_P (a));
-  return XUNTAG (a, Lisp_Vectorlike, struct hash_impl);
 }
 
 INLINE Lisp_Object
@@ -2728,67 +2686,68 @@ make_lisp_hash_table (struct Lisp_Hash_Table *h)
 INLINE Lisp_Object
 HASH_KEY (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
-  eassert (idx >= 0 && idx < h->i->table_size);
-  return h->i->entries[idx].key;
+  eassert (idx >= 0 && idx < h->table_size);
+  return h->key_and_value[2 * idx];
 }
 
 /* Value is the value part of entry IDX in hash table H.  */
 INLINE Lisp_Object
 HASH_VALUE (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
-  eassert (idx >= 0 && idx < h->i->table_size);
-  return h->i->entries[idx].value;
+  eassert (idx >= 0 && idx < h->table_size);
+  return h->key_and_value[2 * idx + 1];
 }
 
 /* Value is the hash code computed for entry IDX in hash table H.  */
 INLINE hash_hash_t
 HASH_HASH (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
-  eassert (idx >= 0 && idx < h->i->table_size);
-  return h->i->entries[idx].hash;
+  eassert (idx >= 0 && idx < h->table_size);
+  return h->hash[idx];
 }
 
 /* Value is the size of hash table H.  */
 INLINE ptrdiff_t
 HASH_TABLE_SIZE (const struct Lisp_Hash_Table *h)
 {
-  return h->i->table_size;
+  return h->table_size;
 }
 
 /* Size of the index vector in hash table H.  */
 INLINE ptrdiff_t
-hash_impl_index_size (const struct hash_impl *h)
-{
-  return (ptrdiff_t)1 << h->index_bits;
-}
-
-INLINE ptrdiff_t
 hash_table_index_size (const struct Lisp_Hash_Table *h)
 {
-  return hash_impl_index_size (h->i);
+  return (ptrdiff_t)1 << h->index_bits;
 }
 
 /* Hash value for KEY in hash table H.  */
 INLINE hash_hash_t
 hash_from_key (struct Lisp_Hash_Table *h, Lisp_Object key)
 {
-  return h->i->test->hashfn (key, h);
+  return h->test->hashfn (key, h);
 }
 
 /* Iterate K and V as key and value of valid entries in hash table H.
    The body may remove the current entry or alter its value slot, but not
    mutate TABLE in any other way.  */
-# define DOHASH(h, k, v)						\
-  for (Lisp_Object k, v, x_ = Qnil; NILP (x_); x_ = Qt)			\
-    for (struct hash_entry *e_ = (h)->i->entries,			\
-	   *end_ = e_ + HASH_TABLE_SIZE (h),				\
-	   *base_ = e_;							\
-	 e_ < end_ && (k = e_->key, v = e_->value, (void) v, true);	\
-	 eassert (base_ == (h)->i->entries && end_ == base_ + HASH_TABLE_SIZE (h)), \
-	   e_ += 1)							\
-      if (hash_unused_entry_key_p (k))					\
-	;								\
-      else
+#define DOHASH(h, k, v)							\
+  for (Lisp_Object *dohash_##k##_##v##_kv = (h)->key_and_value,		\
+                   *dohash_##k##_##v##_end = dohash_##k##_##v##_kv	\
+                                             + 2 * HASH_TABLE_SIZE (h),	\
+	           *dohash_##k##_##v##_base = dohash_##k##_##v##_kv,	\
+                   k, v;						\
+       dohash_##k##_##v##_kv < dohash_##k##_##v##_end			\
+       && (k = dohash_##k##_##v##_kv[0],				\
+           v = dohash_##k##_##v##_kv[1], /*maybe unused*/ (void)v,      \
+           true);			                                \
+       eassert (dohash_##k##_##v##_base == (h)->key_and_value		\
+		&& dohash_##k##_##v##_end				\
+		   == dohash_##k##_##v##_base				\
+	              + 2 * HASH_TABLE_SIZE (h)),			\
+       dohash_##k##_##v##_kv += 2)					\
+    if (hash_unused_entry_key_p (k))					\
+      ;									\
+    else
 
 /* Iterate I as index of valid entries in hash table H.
    Unlike DOHASH, this construct copes with arbitrary table mutations
@@ -2803,7 +2762,6 @@ hash_from_key (struct Lisp_Hash_Table *h, Lisp_Object key)
     else
 
 void hash_table_thaw (Lisp_Object hash_table);
-int compute_hash_index_bits (hash_idx_t size);
 
 /* Default size for hash tables if not specified.  */
 
@@ -4021,15 +3979,15 @@ vcopy (Lisp_Object v, ptrdiff_t offset, Lisp_Object const *args,
 INLINE void
 set_hash_key_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, Lisp_Object val)
 {
-  eassert (idx >= 0 && idx < h->i->table_size);
-  h->i->entries[idx].key = val;
+  eassert (idx >= 0 && idx < h->table_size);
+  h->key_and_value[2 * idx] = val;
 }
 
 INLINE void
 set_hash_value_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, Lisp_Object val)
 {
-  eassert (idx >= 0 && idx < h->i->table_size);
-  h->i->entries[idx].value = val;
+  eassert (idx >= 0 && idx < h->table_size);
+  h->key_and_value[2 * idx + 1] = val;;
 }
 
 /* Use these functions to set Lisp_Object

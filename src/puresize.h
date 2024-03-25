@@ -23,8 +23,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 INLINE_HEADER_BEGIN
 
-#ifdef PURE_SPACE_SUPPORT_IN_MY_LOCAL_EMACS
-
 /* Define PURESIZE, the number of bytes of pure Lisp code to leave space for.
 
    At one point, this was defined in config.h, meaning that changing
@@ -75,8 +73,8 @@ INLINE_HEADER_BEGIN
 #endif
 
 /* This is the actual size in bytes to allocate.  */
-#ifndef PURESIZE
 #define PURESIZE  (BASE_PURESIZE * PURESIZE_RATIO * PURESIZE_CHECKING_RATIO)
+#ifndef PURESIZE
 #endif
 
 extern AVOID pure_write_error (Lisp_Object);
@@ -112,11 +110,6 @@ CHECK_IMPURE (Lisp_Object obj, void *ptr)
 # define CHECK_IMPURE(obj, ptr) puresize_h_CHECK_IMPURE (obj, ptr)
 #endif
 
-
-# else
-# define PURE_P(ptr) 0
-# define CHECK_IMPURE(obj, ptr) (void) 0
-# endif
 
 INLINE_HEADER_END
 #endif /* EMACS_PURESIZE_H */

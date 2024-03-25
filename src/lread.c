@@ -2552,11 +2552,11 @@ readevalloop (Lisp_Object readcharfun,
       UNREAD (c);
 
       if (! HASH_TABLE_P (read_objects_map)
-	  || XHASH_TABLE (read_objects_map)->i->count)
+	  || XHASH_TABLE (read_objects_map)->count)
 	read_objects_map
 	  = make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false);
       if (! HASH_TABLE_P (read_objects_completed)
-	  || XHASH_TABLE (read_objects_completed)->i->count)
+	  || XHASH_TABLE (read_objects_completed)->count)
 	read_objects_completed
 	  = make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false);
       if (!NILP (Vpurify_flag) && c == '(')
@@ -2584,10 +2584,10 @@ readevalloop (Lisp_Object readcharfun,
 	}
       /* Empty hashes can be reused; otherwise, reset on next call.  */
       if (HASH_TABLE_P (read_objects_map)
-	  && XHASH_TABLE (read_objects_map)->i->count > 0)
+	  && XHASH_TABLE (read_objects_map)->count > 0)
 	read_objects_map = Qnil;
       if (HASH_TABLE_P (read_objects_completed)
-	  && XHASH_TABLE (read_objects_completed)->i->count > 0)
+	  && XHASH_TABLE (read_objects_completed)->count > 0)
 	read_objects_completed = Qnil;
 
       if (!NILP (start) && continue_reading_p)
@@ -2802,11 +2802,11 @@ read_internal_start (Lisp_Object stream, Lisp_Object start, Lisp_Object end,
   /* We can get called from readevalloop which may have set these
      already.  */
   if (! HASH_TABLE_P (read_objects_map)
-      || XHASH_TABLE (read_objects_map)->i->count)
+      || XHASH_TABLE (read_objects_map)->count)
     read_objects_map
       = make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false);
   if (! HASH_TABLE_P (read_objects_completed)
-      || XHASH_TABLE (read_objects_completed)->i->count)
+      || XHASH_TABLE (read_objects_completed)->count)
     read_objects_completed
       = make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false);
 
@@ -2831,10 +2831,10 @@ read_internal_start (Lisp_Object stream, Lisp_Object start, Lisp_Object end,
 
   retval = read0 (stream, locate_syms);
   if (HASH_TABLE_P (read_objects_map)
-      && XHASH_TABLE (read_objects_map)->i->count > 0)
+      && XHASH_TABLE (read_objects_map)->count > 0)
     read_objects_map = Qnil;
   if (HASH_TABLE_P (read_objects_completed)
-      && XHASH_TABLE (read_objects_completed)->i->count > 0)
+      && XHASH_TABLE (read_objects_completed)->count > 0)
     read_objects_completed = Qnil;
   return retval;
 }
