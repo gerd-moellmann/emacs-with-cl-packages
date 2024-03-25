@@ -3572,10 +3572,11 @@ cleanup_vector (struct Lisp_Vector *vector)
 	  {
 	    eassert (h->index_bits > 0);
 	    xfree (h->index);
-	    xfree (h->key_and_value);
+	    xfree (h->key);
+	    xfree (h->value);
 	    xfree (h->next);
 	    xfree (h->hash);
-	    ptrdiff_t bytes = (h->table_size * (2 * sizeof *h->key_and_value
+	    ptrdiff_t bytes = (h->table_size * (2 * sizeof *h->key
 						+ sizeof *h->hash
 						+ sizeof *h->next)
 			       + hash_table_index_size (h) * sizeof *h->index);
@@ -7380,11 +7381,13 @@ process_mark_stack (ptrdiff_t base_sp)
 		  struct Lisp_Hash_Table *h = (struct Lisp_Hash_Table *)ptr;
 		  set_vector_marked (ptr);
 		  if (h->weakness == Weak_None)
-		    /* The values pushed here may include
-		       HASH_UNUSED_ENTRY_KEY, which this function must
-		       cope with.  */
-		    mark_stack_push_values (h->key_and_value,
-					    2 * h->table_size);
+		    {
+		      /* The values pushed here may include
+			 HASH_UNUSED_ENTRY_KEY, which this function must
+			 cope with.  */
+		      mark_stack_push_values (h->key, h->table_size);
+		      mark_stack_push_values (h->value, h->table_size);
+		    }
 		  else
 		    {
 		      /* For weak tables, don't mark the

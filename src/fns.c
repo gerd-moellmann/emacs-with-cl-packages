@@ -4595,7 +4595,8 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
 
   if (size == 0)
     {
-      h->key_and_value = NULL;
+      h->key = NULL;
+      h->value = NULL;
       h->hash = NULL;
       h->next = NULL;
       h->index_bits = 0;
@@ -4604,10 +4605,13 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
     }
   else
     {
-      h->key_and_value = hash_table_alloc_bytes (2 * size
-						 * sizeof *h->key_and_value);
-      for (ptrdiff_t i = 0; i < 2 * size; i++)
-	h->key_and_value[i] = HASH_UNUSED_ENTRY_KEY;
+      h->key = hash_table_alloc_bytes (size * sizeof *h->key);
+      h->value = hash_table_alloc_bytes (size * sizeof *h->value);
+      for (ptrdiff_t i = 0; i < size; i++)
+	{
+	  h->key[i] = HASH_UNUSED_ENTRY_KEY;
+	  h->value[i] = Qnil;
+	}
 
       h->hash = hash_table_alloc_bytes (size * sizeof *h->hash);
 
@@ -4647,9 +4651,11 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
 
   if (h1->table_size > 0)
     {
-      ptrdiff_t kv_bytes = 2 * h1->table_size * sizeof *h1->key_and_value;
-      h2->key_and_value = hash_table_alloc_bytes (kv_bytes);
-      memcpy (h2->key_and_value, h1->key_and_value, kv_bytes);
+      ptrdiff_t kv_bytes = h1->table_size * sizeof *h1->key;
+      h2->key = hash_table_alloc_bytes (kv_bytes);
+      h2->value = hash_table_alloc_bytes (kv_bytes);
+      memcpy (h2->key, h1->key, kv_bytes);
+      memcpy (h2->value, h1->value, kv_bytes);
 
       ptrdiff_t hash_bytes = h1->table_size * sizeof *h1->hash;
       h2->hash = hash_table_alloc_bytes (hash_bytes);
@@ -4697,12 +4703,15 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	next[i] = i + 1;
       next[new_size - 1] = -1;
 
-      Lisp_Object *key_and_value
-	= hash_table_alloc_bytes (2 * new_size * sizeof *key_and_value);
-      memcpy (key_and_value, h->key_and_value,
-	      2 * old_size * sizeof *key_and_value);
-      for (ptrdiff_t i = 2 * old_size; i < 2 * new_size; i++)
-        key_and_value[i] = HASH_UNUSED_ENTRY_KEY;
+      Lisp_Object *key = hash_table_alloc_bytes (new_size * sizeof *key);
+      Lisp_Object *value = hash_table_alloc_bytes (new_size * sizeof *value);
+      memcpy (key, h->key, old_size * sizeof *key);
+      memcpy (value, h->value, old_size * sizeof *value);
+      for (ptrdiff_t i = old_size; i < new_size; i++)
+	{
+	  key[i] = HASH_UNUSED_ENTRY_KEY;
+	  value[i] = Qnil;
+	}
 
       hash_hash_t *hash = hash_table_alloc_bytes (new_size * sizeof *hash);
       memcpy (hash, h->hash, old_size * sizeof *hash);
@@ -4722,17 +4731,16 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	hash_table_free_bytes (h->index, old_index_size * sizeof *h->index);
       h->index = index;
 
-      hash_table_free_bytes (h->key_and_value,
-			     2 * old_size * sizeof *h->key_and_value);
-      h->key_and_value = key_and_value;
+      hash_table_free_bytes (h->key, old_size * sizeof *h->key);
+      hash_table_free_bytes (h->value, old_size * sizeof *h->value);
+      h->key = key;
+      h->value = value;
 
       hash_table_free_bytes (h->hash, old_size * sizeof *h->hash);
       h->hash = hash;
 
       hash_table_free_bytes (h->next, old_size * sizeof *h->next);
       h->next = next;
-
-      h->key_and_value = key_and_value;
 
       /* Rehash: all data occupy entries 0..old_size-1.  */
       for (ptrdiff_t i = 0; i < old_size; i++)
@@ -4778,7 +4786,8 @@ hash_table_thaw (Lisp_Object hash_table)
 
   if (size == 0)
     {
-      h->key_and_value = NULL;
+      h->key = NULL;
+      h->value = NULL;
       h->hash = NULL;
       h->next = NULL;
       h->index_bits = 0;

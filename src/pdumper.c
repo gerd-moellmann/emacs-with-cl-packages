@@ -2639,21 +2639,21 @@ dump_vectorlike_generic (struct dump_context *ctx,
 
 /* Return a vector of KEY, VALUE pairs in the given hash table H.
    No room for growth is included.  */
-static Lisp_Object *
-hash_table_contents (struct Lisp_Hash_Table *h)
+static void
+hash_table_contents (struct Lisp_Hash_Table *h, Lisp_Object **key,
+		     Lisp_Object **value)
 {
   ptrdiff_t size = h->count;
-  Lisp_Object *key_and_value = hash_table_alloc_bytes (2 * size
-						       * sizeof *key_and_value);
+  *key = hash_table_alloc_bytes (size * sizeof *key);
+  *value = hash_table_alloc_bytes (size * sizeof *value);
   ptrdiff_t n = 0;
 
   DOHASH (h, k, v)
     {
-      key_and_value[n++] = k;
-      key_and_value[n++] = v;
+      (*key)[n] = k;
+      (*value)[n] = v;
+      ++n;
     }
-
-  return key_and_value;
 }
 
 static void
@@ -2684,7 +2684,10 @@ hash_table_std_test (const struct hash_table_test *t)
 static void
 hash_table_freeze (struct Lisp_Hash_Table *h)
 {
-  h->key_and_value = hash_table_contents (h);
+  Lisp_Object *key, *value;
+  hash_table_contents (h, &key, &value);
+  h->key = key;
+  h->value = value;
   h->next = NULL;
   h->hash = NULL;
   h->index = NULL;
@@ -2695,11 +2698,11 @@ hash_table_freeze (struct Lisp_Hash_Table *h)
 }
 
 static dump_off
-dump_hash_table_contents (struct dump_context *ctx, struct Lisp_Hash_Table *h)
+dump_hash_table_key (struct dump_context *ctx, struct Lisp_Hash_Table *h)
 {
   dump_align_output (ctx, DUMP_ALIGNMENT);
   dump_off start_offset = ctx->offset;
-  ptrdiff_t n = 2 * h->count;
+  ptrdiff_t n = h->count;
 
   struct dump_flags old_flags = ctx->flags;
   ctx->flags.pack_objects = true;
@@ -2707,7 +2710,30 @@ dump_hash_table_contents (struct dump_context *ctx, struct Lisp_Hash_Table *h)
   for (ptrdiff_t i = 0; i < n; i++)
     {
       Lisp_Object out;
-      const Lisp_Object *slot = &h->key_and_value[i];
+      const Lisp_Object *slot = &h->key[i];
+      dump_object_start (ctx, &out, sizeof out);
+      dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
+      dump_object_finish (ctx, &out, sizeof out);
+    }
+
+  ctx->flags = old_flags;
+  return start_offset;
+}
+
+static dump_off
+dump_hash_table_value (struct dump_context *ctx, struct Lisp_Hash_Table *h)
+{
+  dump_align_output (ctx, DUMP_ALIGNMENT);
+  dump_off start_offset = ctx->offset;
+  ptrdiff_t n = h->count;
+
+  struct dump_flags old_flags = ctx->flags;
+  ctx->flags.pack_objects = true;
+
+  for (ptrdiff_t i = 0; i < n; i++)
+    {
+      Lisp_Object out;
+      const Lisp_Object *slot = &h->value[i];
       dump_object_start (ctx, &out, sizeof out);
       dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
       dump_object_finish (ctx, &out, sizeof out);
@@ -2737,15 +2763,22 @@ dump_hash_table (struct dump_context *ctx, Lisp_Object object)
   DUMP_FIELD_COPY (out, hash, purecopy);
   DUMP_FIELD_COPY (out, hash, mutable);
   DUMP_FIELD_COPY (out, hash, frozen_test);
-  if (hash->key_and_value)
-    dump_field_fixup_later (ctx, out, hash, &hash->key_and_value);
+  if (hash->key)
+    dump_field_fixup_later (ctx, out, hash, &hash->key);
+  if (hash->value)
+    dump_field_fixup_later (ctx, out, hash, &hash->value);
   eassert (hash->next_weak == NULL);
   dump_off offset = finish_dump_pvec (ctx, &out->header);
-  if (hash->key_and_value)
+  if (hash->key)
     dump_remember_fixup_ptr_raw
       (ctx,
-       offset + dump_offsetof (struct Lisp_Hash_Table, key_and_value),
-       dump_hash_table_contents (ctx, hash));
+       offset + dump_offsetof (struct Lisp_Hash_Table, key),
+       dump_hash_table_key (ctx, hash));
+  if (hash->value)
+    dump_remember_fixup_ptr_raw
+      (ctx,
+       offset + dump_offsetof (struct Lisp_Hash_Table, value),
+       dump_hash_table_value (ctx, hash));
   return offset;
 }
 

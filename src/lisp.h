@@ -2604,7 +2604,8 @@ struct Lisp_Hash_Table
      If the key is HASH_UNUSED_ENTRY_KEY, then this slot is unused.
      This is gc_marked specially if the table is weak.
      This vector is 2 * table_size entries long.  */
-  Lisp_Object *key_and_value;
+  Lisp_Object *key;
+  Lisp_Object *value;
 
   /* The comparison and hash functions.  */
   const struct hash_table_test *test;
@@ -2687,7 +2688,7 @@ INLINE Lisp_Object
 HASH_KEY (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
   eassert (idx >= 0 && idx < h->table_size);
-  return h->key_and_value[2 * idx];
+  return h->key[idx];
 }
 
 /* Value is the value part of entry IDX in hash table H.  */
@@ -2695,7 +2696,7 @@ INLINE Lisp_Object
 HASH_VALUE (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
   eassert (idx >= 0 && idx < h->table_size);
-  return h->key_and_value[2 * idx + 1];
+  return h->value[idx];
 }
 
 /* Value is the hash code computed for entry IDX in hash table H.  */
@@ -2730,21 +2731,22 @@ hash_from_key (struct Lisp_Hash_Table *h, Lisp_Object key)
 /* Iterate K and V as key and value of valid entries in hash table H.
    The body may remove the current entry or alter its value slot, but not
    mutate TABLE in any other way.  */
-#define DOHASH(h, k, v)							\
-  for (Lisp_Object *dohash_##k##_##v##_kv = (h)->key_and_value,		\
-                   *dohash_##k##_##v##_end = dohash_##k##_##v##_kv	\
-                                             + 2 * HASH_TABLE_SIZE (h),	\
-	           *dohash_##k##_##v##_base = dohash_##k##_##v##_kv,	\
+# define DOHASH(h, k, v)						\
+  for (Lisp_Object *dohash_##k##_##v##_k = (h)->key,			\
+		   *dohash_##k##_##v##_v = (h)->value,			\
+                   *dohash_##k##_##v##_end = dohash_##k##_##v##_k	\
+                                             + HASH_TABLE_SIZE (h),	\
+	           *dohash_##k##_##v##_base = dohash_##k##_##v##_k,	\
                    k, v;						\
-       dohash_##k##_##v##_kv < dohash_##k##_##v##_end			\
-       && (k = dohash_##k##_##v##_kv[0],				\
-           v = dohash_##k##_##v##_kv[1], /*maybe unused*/ (void)v,      \
+       dohash_##k##_##v##_k < dohash_##k##_##v##_end			\
+	 && (k = dohash_##k##_##v##_k[0],				\
+	     v = dohash_##k##_##v##_v[0], /*maybe unused*/ (void)v,	\
            true);			                                \
-       eassert (dohash_##k##_##v##_base == (h)->key_and_value		\
+       eassert (dohash_##k##_##v##_base == (h)->key			\
 		&& dohash_##k##_##v##_end				\
 		   == dohash_##k##_##v##_base				\
-	              + 2 * HASH_TABLE_SIZE (h)),			\
-       dohash_##k##_##v##_kv += 2)					\
+		+ HASH_TABLE_SIZE (h)),					\
+	 ++dohash_##k##_##v##_k, ++dohash_##k##_##v##_v)		\
     if (hash_unused_entry_key_p (k))					\
       ;									\
     else
@@ -3980,14 +3982,14 @@ INLINE void
 set_hash_key_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, Lisp_Object val)
 {
   eassert (idx >= 0 && idx < h->table_size);
-  h->key_and_value[2 * idx] = val;
+  h->key[idx] = val;
 }
 
 INLINE void
 set_hash_value_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, Lisp_Object val)
 {
   eassert (idx >= 0 && idx < h->table_size);
-  h->key_and_value[2 * idx + 1] = val;;
+  h->value[idx] = val;;
 }
 
 /* Use these functions to set Lisp_Object
