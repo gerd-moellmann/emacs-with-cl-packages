@@ -382,6 +382,7 @@ static char *spare_memory[7];
    whether this much is available when malloc fails on a larger request.  */
 
 #define SPARE_MEMORY (1 << 14)
+#endif
 
 /* Initialize it to a nonzero value to force it into data space
    (rather than bss space).  That way unexec will remap it into text
@@ -390,6 +391,7 @@ static char *spare_memory[7];
    nowadays than in the days of small memories and timesharing.  */
 EMACS_INT pure[(PURESIZE + sizeof (EMACS_INT) - 1) / sizeof (EMACS_INT)] = {1,};
 
+#ifndef HAVE_MPS
 #define PUREBEG (char *) pure
 
 /* Pointer to the pure area, and its size.  */
@@ -6051,6 +6053,7 @@ pure_cons (Lisp_Object car, Lisp_Object cdr)
   return Fcons (car, cdr);
 }
 
+#ifndef HAVE_MPS
 static Lisp_Object
 purecopy (Lisp_Object obj)
 {
@@ -6068,6 +6071,7 @@ purecopy (Lisp_Object obj)
 
   return obj;
 }
+#endif
 
 DEFUN ("purecopy", Fpurecopy, Spurecopy, 1, 1, 0,
        doc: /* Make a copy of object OBJ in pure storage.

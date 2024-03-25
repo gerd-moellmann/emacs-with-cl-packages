@@ -70,7 +70,6 @@ struct itree_node *igc_make_itree_node (void);
 struct image *igc_make_image (void);
 struct face *igc_make_face (void);
 struct interval *igc_make_interval (void);
-struct hash_impl *igc_make_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak);
 
 Lisp_Object igc_make_string (size_t nchars, size_t nbytes, bool unibyte,
 			     bool clear);

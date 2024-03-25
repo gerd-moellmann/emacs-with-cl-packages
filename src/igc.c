@@ -1657,8 +1657,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 		{
 		  if (!hash_unused_entry_key_p (HASH_KEY (h, i)))
 		    {
-		      IGC_FIX12_OBJ (ss, &e->key);
-		      IGC_FIX12_OBJ (ss, &e->value);
+		      IGC_FIX12_OBJ (ss, &h->key_and_value[2 * i]);
+		      IGC_FIX12_OBJ (ss, &h->key_and_value[2 * i + 1]);
 		      --n;
 		    }
 		}
@@ -2439,57 +2439,6 @@ igc_make_face (void)
       IGC_CHECK_RES (res);
       igc_static_assert (NIL_IS_ZERO);
       memclear (p, nbytes);
-    }
-  while (!mps_commit (ap, p, nbytes));
-  return p;
-}
-
-static struct hash_impl *
-make_weak_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak)
-{
-  enum igc_type type = IGC_TYPE_WEAK;
-  mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes_obj = hash_impl_nbytes (nentries) + sizeof (struct igc_weak);
-  ptrdiff_t nbytes = igc_round_to_pool (nbytes_obj, type);
-  mps_addr_t p;
-  do
-    {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
-      IGC_CHECK_RES (res);
-      memclear (p, nbytes);
-      struct igc_weak *w = p;
-      w->type = IGC_WEAK_HASH_IMPL;
-      w->object_nbytes = nbytes;
-      struct hash_impl *h = weak_to_obj (w);
-      set_weakness (h, weak);
-      set_table_size (h, nentries);
-      set_index_bits (h, compute_hash_index_bits (nentries));
-      XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
-    }
-  while (!mps_commit (ap, p, nbytes));
-  return weak_to_obj (p);
-}
-
-struct hash_impl *
-igc_make_hash_impl (ptrdiff_t nentries, hash_table_weakness_t weak)
-{
-  if (weak != Weak_None)
-    return make_weak_hash_impl (nentries, weak);
-
-  enum igc_type type = IGC_TYPE_VECTOR;
-  mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_round_to_pool (hash_impl_nbytes (nentries), type);
-  mps_addr_t p;
-  do
-    {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
-      IGC_CHECK_RES (res);
-      memclear (p, nbytes);
-      struct hash_impl *h = p;
-      set_weakness (h, weak);
-      set_table_size (h, nentries);
-      set_index_bits (h, compute_hash_index_bits (nentries));
-      XSETPVECTYPESIZE (h, PVEC_HASH_IMPL, 0, 0);
     }
   while (!mps_commit (ap, p, nbytes));
   return p;

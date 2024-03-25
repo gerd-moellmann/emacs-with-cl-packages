@@ -4954,6 +4954,7 @@ hash_clear (struct Lisp_Hash_Table *h)
 /************************************************************************
 			   Weak Hash Tables
  ************************************************************************/
+#ifndef HAVE_MPS
 
 /* Whether to keep an entry whose key and value are known to be retained
    if STRONG_KEY and STRONG_VALUE, respectively, are true.  */
@@ -5051,6 +5052,7 @@ sweep_weak_table (struct Lisp_Hash_Table *h, bool remove_entries_p)
   return marked;
 }
 
+#endif // not HAVE_MPS
 
 
 /***********************************************************************

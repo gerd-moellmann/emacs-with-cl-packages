@@ -110,6 +110,5 @@ CHECK_IMPURE (Lisp_Object obj, void *ptr)
 # define CHECK_IMPURE(obj, ptr) puresize_h_CHECK_IMPURE (obj, ptr)
 #endif
 
-
 INLINE_HEADER_END
 #endif /* EMACS_PURESIZE_H */
