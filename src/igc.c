@@ -2390,6 +2390,27 @@ igc_alloc_vector (ptrdiff_t len)
   return p;
 }
 
+struct Lisp_Vector *
+igc_alloc_record (ptrdiff_t len)
+{
+  enum igc_type type = (IGC_TYPE_VECTOR);
+  mps_ap_t ap = thread_ap (type);
+  ptrdiff_t nbytes = igc_round_to_pool (header_size + len * word_size, type);
+  mps_addr_t p;
+  do
+    {
+      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      IGC_CHECK_RES (res);
+      igc_static_assert (NIL_IS_ZERO);
+      memclear (p, nbytes);
+      struct Lisp_Vector *v = p;
+      v->header.size = len;
+      XSETPVECTYPE (v, PVEC_RECORD);
+    }
+  while (!mps_commit (ap, p, nbytes));
+  return p;
+}
+
 struct itree_node *
 igc_make_itree_node (void)
 {

@@ -3717,8 +3717,6 @@ sweep_vectors (void)
   gcstat.total_hash_table_bytes = hash_table_allocated_bytes;
 }
 
-#endif // not HAVE_MPS
-
 /* Maximum number of elements in a vector.  This is a macro so that it
    can be used in an integer constant expression.  */
 
@@ -3780,6 +3778,7 @@ allocate_vectorlike (ptrdiff_t len, bool clearit)
 #endif
 }
 
+#endif // not HAVE_MPS
 
 /* Allocate a vector with LEN slots.  If CLEARIT, clear its slots;
    otherwise the vector's slots are uninitialized.  */
@@ -3862,12 +3861,16 @@ static struct Lisp_Vector *
 allocate_record (EMACS_INT count)
 {
   if (count > PSEUDOVECTOR_SIZE_MASK)
-    error ("Attempt to allocate a record of %"pI"d slots; max is %d",
-	   count, PSEUDOVECTOR_SIZE_MASK);
+    error ("Attempt to allocate a record of %" pI "d slots; max is %d", count,
+	   PSEUDOVECTOR_SIZE_MASK);
+#ifdef HAVE_MPS
+  return igc_alloc_record (count);
+#else
   struct Lisp_Vector *p = allocate_vectorlike (count, false);
   p->header.size = count;
   XSETPVECTYPE (p, PVEC_RECORD);
   return p;
+#endif
 }
 
 
