@@ -33,6 +33,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
+# endif
+
+# ifdef HAVE_MPS
+#  include <mps.h>
 #endif
 
 #include <attribute.h>
@@ -2599,13 +2603,16 @@ struct Lisp_Hash_Table
      This vector is table_size entries long.  */
   hash_hash_t *hash;
 
-  /* Vector of keys and values.  The key of item I is found at index
-     2 * I, the value is found at index 2 * I + 1.
-     If the key is HASH_UNUSED_ENTRY_KEY, then this slot is unused.
-     This is gc_marked specially if the table is weak.
-     This vector is 2 * table_size entries long.  */
+  /* Vectors of keys and values.  If the key is HASH_UNUSED_ENTRY_KEY,
+     then this slot is unused.  This is gc_marked specially if the table
+     is weak.  */
   Lisp_Object *key;
   Lisp_Object *value;
+
+  /* MPS location dependency data, for eq tables.  */
+# ifdef HAVE_MPS
+  mps_ld_s ld;
+# endif
 
   /* The comparison and hash functions.  */
   const struct hash_table_test *test;
