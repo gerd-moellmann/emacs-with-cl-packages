@@ -695,6 +695,14 @@ Also see the `permanently-enabled-local-variables' variable."
 Some modes may wish to set this to nil to prevent directory-local
 settings being applied, but still respect file-local ones.")
 
+(defvar-local untrusted-content nil
+  "Non-nil means that current buffer originated from an untrusted source.
+Email clients and some other modes may set this non-nil to mark the
+buffer contents as untrusted.
+
+This variable might be subject to change without notice.")
+(put 'untrusted-content 'permanent-local t)
+
 ;; This is an odd variable IMO.
 ;; You might wonder why it is needed, when we could just do:
 ;; (setq-local enable-local-variables nil)
@@ -4238,10 +4246,8 @@ already the major mode."
   (pcase var
     ('mode
      (let ((mode (intern (concat (downcase (symbol-name val))
-                                 "-mode"))))
-       (unless (eq (indirect-function mode)
-                   (indirect-function major-mode))
-         (funcall mode))))
+                          "-mode"))))
+       (set-auto-mode-0 mode t)))
     ('eval
      (pcase val
        (`(add-hook ',hook . ,_) (hack-one-local-variable--obsolete hook)))

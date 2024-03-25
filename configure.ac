@@ -23,7 +23,7 @@ dnl  along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 AC_PREREQ([2.65])
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
-AC_INIT([GNU Emacs], [29.2], [bug-gnu-emacs@gnu.org], [],
+AC_INIT([GNU Emacs], [29.3], [bug-gnu-emacs@gnu.org], [],
   [https://www.gnu.org/software/emacs/])
 
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
@@ -2770,7 +2770,7 @@ if test "${HAVE_X11}" = "yes"; then
 
   if test "${opsys}" = "gnu-linux"; then
     AC_CACHE_CHECK([whether X on GNU/Linux needs -b to link], [emacs_cv_b_link],
-    [AC_LINK_IFELSE([AC_LANG_PROGRAM([[]],
+    [AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <X11/Xlib.h>]],
      [[XOpenDisplay ("foo");]])],
      [xgnu_linux_first_failure=no],
      [xgnu_linux_first_failure=yes])
@@ -2779,7 +2779,7 @@ if test "${HAVE_X11}" = "yes"; then
       OLD_LIBS="$LIBS"
       CPPFLAGS="$CPPFLAGS -b i486-linuxaout"
       LIBS="$LIBS -b i486-linuxaout"
-      AC_LINK_IFELSE([AC_LANG_PROGRAM([[]],
+      AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <X11/Xlib.h>]],
        [[XOpenDisplay ("foo");]])],
        [xgnu_linux_second_failure=no],
        [xgnu_linux_second_failure=yes])

@@ -318,7 +318,7 @@ behind the scenes when you open a file with @value{tramp}.
 @cindex GNU ELPA
 @vindex tramp-version
 
-@value{tramp} is included as part of Emacs (since @w{Emacs 22.1}).
+@value{tramp} is included as part of Emacs.
 
 @value{tramp} is also freely packaged for download on the Internet at
 @uref{https://ftp.gnu.org/gnu/tramp/}.  The version number of
@@ -340,10 +340,12 @@ versions packaged with Emacs can be retrieved by
 @end lisp
 
 @value{tramp} is also available as @uref{https://elpa.gnu.org, GNU
-ELPA} package.  Besides the standalone releases, further minor versions
-of @value{tramp} will appear on GNU ELPA, until the next @value{tramp}
-release appears.  These minor versions have a four-number string, like
-``2.4.5.1''.
+ELPA} package.  Besides the standalone releases, further minor
+versions of @value{tramp} will appear on GNU ELPA, until the next
+@value{tramp} release appears.  These minor versions have a
+four-number string, like ``2.4.5.1''.  The manual of the latest
+@value{tramp} ELPA package is located at
+@uref{https://elpa.gnu.org/packages/doc/tramp.html}.
 
 @value{tramp} development versions are available on Git servers.
 Development versions contain new and incomplete features.  The
@@ -520,7 +522,7 @@ is used as the group to change to.  The default host name is the same.
 @cindex @option{doas} method
 
 If the @option{su}, @option{sudo} or @option{doas} option should be
-performed on another host, it can be comnbined with a leading
+performed on another host, it can be combined with a leading
 @option{ssh} or @option{plink} option.  That means that @value{tramp}
 connects first to the other host with non-administrative credentials,
 and changes to administrative credentials on that host afterwards.  In
@@ -4108,7 +4110,7 @@ To open @command{powershell} as a remote shell, use this:
 
 @subsection Remote process connection type
 @vindex process-connection-type
-@cindex tramp-process-connection-type
+@vindex tramp-process-connection-type
 
 Asynchronous processes behave differently based on whether they use a
 pseudo tty or not.  This is controlled by the variable
@@ -4245,7 +4247,7 @@ called @code{tramp-connection-local-*-ps-profile} and
 @end group
 @end lisp
 
-@cindex proced
+@cindex @code{proced}
 @vindex proced-show-remote-processes
 If you want to see a listing of remote system processes when calling
 @code{proced}, set user option @code{proced-show-remote-processes} to
@@ -5068,9 +5070,14 @@ Does @value{tramp} support @acronym{SSH} security keys?
 Yes.  @command{OpenSSH} has added support for @acronym{FIDO} hardware
 devices via special key types @option{*-sk}.  @value{tramp} supports
 the additional handshaking messages for them.  This requires at least
-@command{OpenSSH} 8.2, and a @acronym{FIDO} @acronym{U2F} compatible
-security key, like yubikey, solokey, nitrokey, or titankey.
+@command{OpenSSH} 8.2, and a @acronym{FIDO} @acronym{U2F} or
+@acronym{FIDO2} compatible security key, like yubikey, solokey,
+nitrokey, or titankey.
+@c @uref{https://docs.fedoraproject.org/en-US/quick-docs/using-yubikeys/}
 
+@strong{Note} that there are reports on problems of handling FIDO2
+(residential) keys by @command{ssh-agent}.  As workaround, you might
+disable @command{ssh-agent} for such keys.
 
 @item
 @value{tramp} does not connect to Samba or MS Windows hosts running
