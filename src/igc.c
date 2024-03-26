@@ -133,6 +133,7 @@ struct igc_init
   enum igc_pool_class class_type;
   mps_class_t pool_class;
   size_t align;
+  size_t header_size;
   bool interior_pointers;
   mps_fmt_scan_t scan;
   mps_fmt_skip_t skip;
@@ -359,34 +360,6 @@ deregister_thread (struct igc_thread_list *t)
   igc_thread_list_remove (&thread, &t->d.gc->threads, t);
   return thread.thr;
 }
-
-enum igc_header_type
-{
-  IGC_HEADER_PAD,
-  IGC_HEADER_FWD,
-  IGC_HEADER_STRING,
-  IGC_HEADER_STRING_DATA,
-  IGC_HEADER_VECTOR,
-  IGC_HEADER_IMAGE,
-  IGC_HEADER_FACE,
-  IGC_HEADER_ITREE_NODE,
-};
-
-// Smallest object is vector of size 0 = header, 1 word.  To be able to
-// store a forwarding object of size 3 words, we must make sure to never
-// allocate less than 3 words. We can allocate conses in a pool of their
-// own, and do things differently.
-struct igc_header
-{
-  enum igc_header_type type;
-  mps_word_t total_nbytes;
-};
-
-struct igc_fwd
-{
-  struct igc_header header;
-  mps_addr_t new_addr;
-};
 
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wunused-variable"
@@ -703,6 +676,79 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
+}
+
+/***********************************************************************
+			    Normal pad, fwd
+ ***********************************************************************/
+
+enum igc_header_type
+{
+  IGC_HEADER_PAD,
+  IGC_HEADER_FWD,
+  IGC_HEADER_STRING,
+  IGC_HEADER_STRING_DATA,
+  IGC_HEADER_VECTOR,
+  IGC_HEADER_IMAGE,
+  IGC_HEADER_FACE,
+  IGC_HEADER_ITREE_NODE,
+};
+
+// Smallest object is vector of size 0 = header, 1 word.  To be able to
+// store a forwarding object of size 3 words, we must make sure to never
+// allocate less than 3 words. We can allocate conses in a pool of their
+// own, and do things differently.
+struct igc_header
+{
+  enum igc_header_type type;
+  mps_word_t total_nbytes;
+};
+
+struct igc_fwd
+{
+  struct igc_header header;
+  mps_addr_t new_addr;
+};
+
+static void
+normal_pad (mps_addr_t addr, mps_word_t nbytes)
+{
+  struct igc_header *h = addr;
+  h->type = IGC_HEADER_PAD;
+  h->total_nbytes = nbytes;
+}
+
+static mps_addr_t
+is_normal_pad (mps_addr_t addr)
+{
+  struct igc_header *h = addr;
+  if (h->type == IGC_HEADER_PAD)
+    return (char *) addr + h->total_nbytes;
+  return NULL;
+}
+
+static void
+normal_fwd (mps_addr_t old, mps_addr_t new_addr)
+{
+  struct igc_fwd *f = old;
+  f->header.type = IGC_HEADER_FWD;
+  f->new_addr = new_addr;
+}
+
+static mps_addr_t
+is_normal_fwd (mps_addr_t addr)
+{
+  struct igc_fwd *f = addr;
+  if (f->header.type == IGC_HEADER_FWD)
+    return f->new_addr;
+  return NULL;
+}
+
+static mps_addr_t
+normal_skip (mps_addr_t addr)
+{
+  struct igc_header *h = addr;
+  return (char *) addr + h->total_nbytes;
 }
 
 /***********************************************************************
@@ -2163,6 +2209,7 @@ igc_static_assert (IGC_ALIGN_NORMAL >= sizeof (struct igc_header));
 
 static struct igc_init igc_inits[IGC_POOL_LAST] = {
   [IGC_POOL_CONS] = { .class_type = IGC_AMC,
+		      .header_size = 0,
 		      .align = IGC_ALIGN_CONS,
 		      .interior_pointers = false,
 		      .forward = cons_forward,
@@ -2172,6 +2219,7 @@ static struct igc_init igc_inits[IGC_POOL_LAST] = {
 		      .skip = cons_skip },
   [IGC_POOL_NORMAL] = { .class_type = IGC_AMC,
 			.align = IGC_ALIGN_NORMAL,
+			.header_size = sizeof (struct igc_header),
 			.interior_pointers = false,
 			.forward = normal_fwd,
 			.is_forwarded = is_normal_fwd,
@@ -2180,6 +2228,7 @@ static struct igc_init igc_inits[IGC_POOL_LAST] = {
 			.skip = normal_skip },
   [IGC_POOL_LEAF] = { .class_type = IGC_AMCZ,
 		      .align = IGC_ALIGN_NORMAL,
+		      .header_size = sizeof (struct igc_header),
 		      .interior_pointers = true,
 		      .forward = normal_fwd,
 		      .is_forwarded = is_normal_fwd,
@@ -2188,6 +2237,7 @@ static struct igc_init igc_inits[IGC_POOL_LAST] = {
 		      .skip = normal_skip },
   [IGC_TYPE_WEAK] = { .class_type = IGC_AWL,
 		      .align = IGC_ALIGN_NORMAL,
+		      .header_size = sizeof (struct igc_header),
 		      .forward = normal_fwd,
 		      .is_forwarded = is_normal_fwd,
 		      .pad = normal_pad,
@@ -2515,13 +2565,13 @@ make_arena (struct igc *gc)
 }
 
 static void
-make_fmt (struct igc *gc, enum igc_type type, struct igc_init *init)
+make_fmt (struct igc *gc, enum igc_pool_type type, struct igc_init *init)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, init->align);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, init->header_size);
     if (init->scan)
       MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, init->scan);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, init->skip);
@@ -2574,7 +2624,7 @@ make_igc (void)
   struct igc *gc = xzalloc (sizeof *gc);
   make_arena (gc);
 
-  for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
+  for (enum igc_pool_type type = 0; type < IGC_POOL_LAST; ++type)
     {
       struct igc_init *init = igc_inits + type;
       runtime_setup_mps_class (init);
