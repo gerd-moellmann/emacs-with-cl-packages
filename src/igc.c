@@ -1527,7 +1527,7 @@ enum
 {
   IGC_ALIGN = GCALIGNMENT,
   IGC_ALIGN_DFLT = IGC_ALIGN,
-  IGC_ALIGN_CONS = IGC_ALIGN,
+  IGC_ALIGN_CONS = IGC_ALIGN << 1,
 };
 
 igc_static_assert (sizeof (struct igc_header) == sizeof (mps_word_t));
@@ -1707,23 +1707,23 @@ igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
 
   enum igc_obj_type type = IGC_OBJ_STRING;
   mps_ap_t ap = thread_ap (type);
-  size_t size = igc_obj_size (sizeof (struct Lisp_String), type);
+  size_t string_nbytes = igc_obj_size (sizeof (struct Lisp_String), type);
   mps_addr_t p;
   struct Lisp_String *s;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, size);
+      mps_res_t res = mps_reserve (&p, ap, string_nbytes);
       IGC_CHECK_RES (res);
       struct igc_header *h = p;
       h->type = type;
-      h->total_nbytes = nbytes;
+      h->total_nbytes = string_nbytes;
       s = base_to_client (p);
       s->u.s.size = nchars;
       s->u.s.size_byte = unibyte ? -1 : nbytes;
       s->u.s.intervals = NULL;
       s->u.s.data = data;
     }
-  while (!mps_commit (ap, p, size));
+  while (!mps_commit (ap, p, string_nbytes));
   return make_lisp_ptr (s, Lisp_String);
 }
 
