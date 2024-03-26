@@ -128,6 +128,19 @@ enum igc_pool_class
   IGC_AMCZ
 };
 
+enum
+{
+  IGC_ALIGN = GCALIGNMENT,
+  IGC_ALIGN_DFLT = IGC_ALIGN,
+  IGC_ALIGN_CONS = IGC_ALIGN << 1,
+};
+
+#if 0
+igc_static_assert (sizeof (struct igc_header) == sizeof (mps_word_t));
+igc_static_assert (sizeof (struct igc_fwd) == 2 * sizeof (mps_word_t));
+igc_static_assert (IGC_ALIGN_DFLT >= sizeof (struct igc_header));
+#endif
+
 struct igc_init
 {
   enum igc_pool_class class_type;
@@ -229,6 +242,18 @@ struct igc_header
   enum igc_obj_type type : 8;
   mps_word_t total_nbytes : sizeof (mps_word_t) * CHAR_BIT - 8;
 };
+
+static mps_addr_t
+client_to_base (mps_addr_t client_addr)
+{
+  return (char *) client_addr - sizeof (struct igc_header);
+}
+
+static mps_addr_t
+base_to_client (mps_addr_t base_addr)
+{
+  return (char *) base_addr + sizeof (struct igc_header);
+}
 
 static enum igc_pool_type
 type_to_pool (enum igc_obj_type type)
@@ -432,14 +457,28 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	    // fprintf (stderr, "fix symbol 0x%lx -> 0x%lx\n", word, *p);
 	  }
       }
+    else if (tag == Lisp_Cons)
+      {
+	mps_addr_t ref = (mps_addr_t) (word ^ tag);
+	if (is_aligned (ref, IGC_ALIGN_CONS)
+	    && MPS_FIX1 (ss, ref))
+	  {
+	    mps_res_t res = MPS_FIX2 (ss, &ref);
+	    if (res != MPS_RES_OK)
+	      return res;
+	    *p = (mps_word_t) ref | tag;
+	  }
+      }
     else
       {
 	mps_addr_t ref = (mps_addr_t) (word ^ tag);
 	if (MPS_FIX1 (ss, ref))
 	  {
+	    ref = client_to_base (ref);
 	    mps_res_t res = MPS_FIX2 (ss, &ref);
 	    if (res != MPS_RES_OK)
 	      return res;
+	    ref = base_to_client (ref);
 	    *p = (mps_word_t) ref | tag;
 	  }
       }
@@ -739,18 +778,6 @@ struct igc_fwd
   struct igc_header header;
   mps_addr_t client_new_addr;
 };
-
-static mps_addr_t
-client_to_base (mps_addr_t client_addr)
-{
-  return (char *) client_addr - sizeof (struct igc_header);
-}
-
-static mps_addr_t
-base_to_client (mps_addr_t base_addr)
-{
-  return (char *) base_addr + sizeof (struct igc_header);
-}
 
 static void
 dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
@@ -1522,17 +1549,6 @@ thread_ap (enum igc_obj_type type)
   IGC_ASSERT (pool_type != IGC_POOL_WEAK);
   return t->d.ap[pool_type];
 }
-
-enum
-{
-  IGC_ALIGN = GCALIGNMENT,
-  IGC_ALIGN_DFLT = IGC_ALIGN,
-  IGC_ALIGN_CONS = IGC_ALIGN << 1,
-};
-
-igc_static_assert (sizeof (struct igc_header) == sizeof (mps_word_t));
-igc_static_assert (sizeof (struct igc_fwd) == 2 * sizeof (mps_word_t));
-igc_static_assert (IGC_ALIGN_DFLT >= sizeof (struct igc_header));
 
 static struct igc_init igc_inits[IGC_POOL_LAST] = {
   [IGC_POOL_CONS] = { .class_type = IGC_AMC,
