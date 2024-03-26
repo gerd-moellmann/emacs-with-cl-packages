@@ -224,6 +224,45 @@ enum igc_pool_type
 
 igc_static_assert (IGC_POOL_WEAK == IGC_POOL_LAST - 1);
 
+struct igc_header
+{
+  enum igc_obj_type type : 8;
+  mps_word_t total_nbytes : sizeof (mps_word_t) * CHAR_BIT - 8;
+};
+
+static enum igc_pool_type
+type_to_pool (enum igc_obj_type type)
+{
+  switch (type)
+    {
+    case IGC_OBJ_PAD:
+    case IGC_OBJ_FWD:
+      emacs_abort ();
+
+    case IGC_OBJ_CONS:
+      return IGC_POOL_CONS;
+
+    case IGC_OBJ_STRING_DATA:
+    case IGC_OBJ_FLOAT:
+      return IGC_POOL_LEAF;
+
+    case IGC_OBJ_SYMBOL:
+    case IGC_OBJ_INTERVAL:
+    case IGC_OBJ_STRING:
+    case IGC_OBJ_VECTOR:
+    case IGC_OBJ_ITREE_NODE:
+    case IGC_OBJ_IMAGE:
+    case IGC_OBJ_FACE:
+      return IGC_POOL_DFLT;
+
+    case IGC_OBJ_WEAK:
+      return IGC_POOL_WEAK;
+
+    case IGC_OBJ_LAST:
+      emacs_abort ();
+    }
+}
+
 static size_t
 igc_round (size_t nbytes, size_t align)
 {
@@ -231,9 +270,12 @@ igc_round (size_t nbytes, size_t align)
 }
 
 static size_t
-igc_round_to_pool (size_t nbytes, enum igc_obj_type type)
+igc_obj_size (size_t nbytes, enum igc_obj_type obj_type)
 {
-  return igc_round (nbytes, igc_inits[type].align);
+  if (obj_type != IGC_OBJ_CONS)
+    nbytes += sizeof (struct igc_header);
+  enum igc_pool_type pool_type = type_to_pool (obj_type);
+  return igc_round (nbytes, igc_inits[pool_type].align);
 }
 
 static bool
@@ -445,6 +487,17 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
      }                                  \
    while (0)
 
+# define IGC_FIX_CALL_FN(ss, type, client_addr, fn)	\
+  do							\
+    {							\
+      type *obj_ = client_addr;				\
+      mps_res_t res;					\
+      MPS_FIX_CALL (ss, res = fn (ss, obj_));		\
+      if (res != MPS_RES_OK)				\
+	return res;					\
+    }							\
+   while (0)
+
 static mps_res_t
 fix_array (mps_ss_t ss, Lisp_Object *array, size_t n)
 {
@@ -654,8 +707,7 @@ cons_skip (mps_addr_t addr)
   mps_addr_t end = is_cons_pad (addr);
   if (end)
     return end;
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_Cons), IGC_OBJ_CONS);
+  return (char *) addr + igc_obj_size (sizeof (struct Lisp_Cons), IGC_OBJ_CONS);
 }
 
 static mps_res_t
@@ -682,758 +734,196 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 			    Normal pad, fwd
  ***********************************************************************/
 
-// Smallest object is vector of size 0 = header, 1 word.  To be able to
-// store a forwarding object of size 3 words, we must make sure to never
-// allocate less than 3 words. We can allocate conses in a pool of their
-// own, and do things differently.
-struct igc_header
-{
-  enum igc_obj_type type : 8;
-  mps_word_t total_nbytes : sizeof (mps_word_t) * CHAR_BIT - 8;
-};
-
 struct igc_fwd
 {
   struct igc_header header;
-  mps_addr_t new_addr;
+  mps_addr_t client_new_addr;
 };
 
-static void
-dflt_pad (mps_addr_t addr, mps_word_t nbytes)
+static mps_addr_t
+client_to_base (mps_addr_t client_addr)
 {
-  struct igc_header *h = addr;
+  return (char *) client_addr - sizeof (struct igc_header);
+}
+
+static mps_addr_t
+base_to_client (mps_addr_t base_addr)
+{
+  return (char *) base_addr + sizeof (struct igc_header);
+}
+
+static void
+dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
+{
+  struct igc_header *h = base_addr;
   h->type = IGC_OBJ_PAD;
   h->total_nbytes = nbytes;
 }
 
-static mps_addr_t
-is_dflt_pad (mps_addr_t addr)
-{
-  struct igc_header *h = addr;
-  if (h->type == IGC_OBJ_PAD)
-    return (char *) addr + h->total_nbytes;
-  return NULL;
-}
-
 static void
-dflt_fwd (mps_addr_t old, mps_addr_t new_addr)
+dflt_fwd (mps_addr_t client_old, mps_addr_t client_new_addr)
 {
-  struct igc_fwd *f = old;
+  struct igc_fwd *f = client_to_base (client_old);
   f->header.type = IGC_OBJ_FWD;
-  f->new_addr = new_addr;
+  f->client_new_addr = client_new_addr;
 }
 
 static mps_addr_t
-is_dflt_fwd (mps_addr_t addr)
+is_dflt_fwd (mps_addr_t client_addr)
 {
-  struct igc_fwd *f = addr;
+  struct igc_fwd *f = client_to_base (client_addr);
   if (f->header.type == IGC_OBJ_FWD)
-    return f->new_addr;
+    return f->client_new_addr;
   return NULL;
 }
 
 static mps_addr_t
-dflt_skip (mps_addr_t addr)
+dflt_skip (mps_addr_t client_addr)
 {
-  struct igc_header *h = addr;
-  return (char *) addr + h->total_nbytes;
-}
-
-/***********************************************************************
-				Symbols
- ***********************************************************************/
-
-static const Lisp_Object symbol_fwd_sig = TAG_PTR_INITIALLY (Lisp_String, 0);
-static const Lisp_Object symbol_pad_sig = TAG_PTR_INITIALLY (Lisp_Float, 0);
-
-static void
-symbol_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct Lisp_Symbol *s = addr;
-  IGC_ASSERT (nbytes >= sizeof *s);
-  s->u.s.name = symbol_pad_sig;
-  *((mps_word_t *) &s->u.s.function) = nbytes;
-}
-
-static mps_addr_t
-is_symbol_pad (mps_addr_t addr)
-{
-  struct Lisp_Symbol *s = addr;
-  if (BASE_EQ (s->u.s.name, symbol_pad_sig))
-    return (char *) addr + *((mps_word_t *) &s->u.s.function);
-  return NULL;
-}
-
-static void
-symbol_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct Lisp_Symbol *s = old;
-  s->u.s.name = symbol_fwd_sig;
-  *((mps_addr_t *) &s->u.s.function) = new_addr;
-}
-
-static mps_addr_t
-is_symbol_fwd (mps_addr_t addr)
-{
-  struct Lisp_Symbol *s = addr;
-  if (BASE_EQ (s->u.s.name, symbol_fwd_sig))
-    return *((mps_addr_t *) &s->u.s.function);
-  return NULL;
-}
-
-static mps_addr_t
-symbol_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_symbol_pad (addr);
-  if (end)
-    return end;
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_Symbol), IGC_OBJ_SYMBOL);
+  struct igc_header *h = client_to_base (client_addr);
+  return (char *) h + h->total_nbytes;
 }
 
 static mps_res_t
-symbol_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+fix_string (mps_ss_t ss, struct Lisp_String *s)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (base < limit)
-      {
-	struct Lisp_Symbol *sym = base;
-	base = symbol_skip (base);
-
-	if (is_symbol_fwd (sym) || is_symbol_pad (sym))
-	  continue;
-	IGC_FIX_CALL (ss, fix_symbol (ss, sym));
-      }
+    IGC_FIX12_RAW (ss, &s->u.s.data);
+    IGC_FIX12_RAW (ss, &s->u.s.intervals);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-/***********************************************************************
-			      String data
- ***********************************************************************/
-
-enum igc_sdata_type
-{
-  IGC_SDATA_NORMAL,
-  IGC_SDATA_FWD,
-  IGC_SDATA_PAD
-};
-
-struct igc_sdata
-{
-  enum igc_sdata_type type;
-  union
-  {
-    mps_word_t capacity;
-    mps_word_t pad_nbytes;
-    mps_addr_t new_addr;
-  } u;
-  unsigned char contents[];
-};
-
-static unsigned char *
-sdata_contents (struct igc_sdata *d)
-{
-  mps_addr_t p = &d->contents[0];
-  IGC_ASSERT (is_aligned (p, IGC_OBJ_STRING_DATA));
-  return p;
-}
-
-static ptrdiff_t
-sdata_capacity (const struct igc_sdata *d)
-{
-  return d->u.capacity;
-}
-
-static struct igc_sdata *
-contents_to_sdata (unsigned char *p)
-{
-  return (struct igc_sdata *) ((char *) p - sizeof (struct igc_sdata));
-}
-
-static void
-string_data_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct igc_sdata *s = addr;
-  IGC_ASSERT (nbytes >= sizeof (*s));
-  s->type = IGC_SDATA_PAD;
-  s->u.pad_nbytes = nbytes;
-}
-
-static mps_addr_t
-is_string_data_pad (mps_addr_t addr)
-{
-  struct igc_sdata *s = addr;
-  if (s->type == IGC_SDATA_PAD)
-    return (char *) addr + s->u.pad_nbytes;
-  return NULL;
-}
-
-static void
-string_data_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct igc_sdata *s = old;
-  s->type = IGC_SDATA_FWD;
-  s->u.new_addr = new_addr;
-}
-
-static mps_addr_t
-is_string_data_fwd (mps_addr_t addr)
-{
-  struct igc_sdata *s = addr;
-  if (s->type == IGC_SDATA_FWD)
-    return s->u.new_addr;
-  return NULL;
-}
-
-static mps_addr_t
-string_data_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_string_data_pad (addr);
-  if (end)
-    return end;
-  mps_addr_t new_addr = is_string_data_fwd (addr);
-  struct igc_sdata *s = new_addr ? new_addr : addr;
-  return (char *) addr + (sizeof *s + s->u.capacity);
-}
-
-/***********************************************************************
-				Strings
- ***********************************************************************/
-
-enum igc_string_type
-{
-  IGC_STRING_FWD = -1,
-  IGC_STRING_PAD = -2
-};
-
-static void
-string_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct Lisp_String *s = addr;
-  s->u.s.size = IGC_STRING_PAD;
-  s->u.s.size_byte = nbytes;
-}
-
-static mps_addr_t
-is_string_pad (mps_addr_t addr)
-{
-  struct Lisp_String *s = addr;
-  if (s->u.s.size == IGC_STRING_PAD)
-    return (char *) addr + s->u.s.size_byte;
-  return NULL;
-}
-
-static void
-string_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct Lisp_String *s = old;
-  s->u.s.size = IGC_STRING_FWD;
-  s->u.s.data = new_addr;
-}
-
-static mps_addr_t
-is_string_fwd (mps_addr_t addr)
-{
-  struct Lisp_String *s = addr;
-  if (s->u.s.size == IGC_STRING_FWD)
-    return s->u.s.data;
-  return NULL;
-}
-
-static mps_addr_t
-string_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_string_pad (addr);
-  if (end)
-    return end;
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_String), IGC_OBJ_STRING);
-}
-
 static mps_res_t
-string_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+fix_interval (mps_ss_t ss, struct interval *iv)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (base < limit)
-      {
-	struct Lisp_String *s = base;
-	base = string_skip (base);
-	if (is_string_fwd (s) || is_string_pad (s))
-	  continue;
-
-	// Looks like MPS does not like to FIX12 an interior pointer
-	// into the string data pool, whether or not the string data
-	// pool itself was created with or without interior pointer
-	// support. The docs speak of ambiguous pointers that the
-	// interior pointer setting supports, and that has to be taken
-	// literally.
-	struct igc_sdata *sdata = contents_to_sdata (s->u.s.data);
-	IGC_FIX12_RAW (ss, &sdata);
-	s->u.s.data = sdata_contents (sdata);
-	IGC_FIX12_RAW (ss, &s->u.s.intervals);
-      }
+    IGC_FIX12_RAW (ss, &iv->left);
+    IGC_FIX12_RAW (ss, &iv->right);
+    if (iv->up_obj)
+      IGC_FIX12_OBJ (ss, &iv->up.obj);
+    else
+      IGC_FIX12_RAW (ss, iv->up.interval);
+    IGC_FIX12_OBJ (ss, &iv->plist);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-/***********************************************************************
-				Floats
- ***********************************************************************/
-
-enum igc_float_type
-{
-  IGC_FLOAT_NORMAL,
-  IGC_FLOAT_FWD,
-  IGC_FLOAT_PAD,
-};
-
-static void
-float_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct Lisp_Float *f = addr;
-  f->type = IGC_FLOAT_PAD;
-  *(mps_word_t *) &f->u.chain = nbytes;
-}
-
-static mps_addr_t
-is_float_pad (mps_addr_t addr)
-{
-  struct Lisp_Float *f = addr;
-  if (f->type == IGC_FLOAT_PAD)
-    return (char *) addr + *((mps_word_t *) &f->u.chain);
-  return NULL;
-}
-
-static void
-float_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct Lisp_Float *f = old;
-  f->type = IGC_FLOAT_FWD;
-  f->u.chain = new_addr;
-}
-
-static mps_addr_t
-is_float_fwd (mps_addr_t addr)
-{
-  struct Lisp_Float *f = addr;
-  if (f->type == IGC_FLOAT_FWD)
-    return f->u.chain;
-  return NULL;
-}
-
-static mps_addr_t
-float_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_float_pad (addr);
-  if (end)
-    return end;
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_Float), IGC_OBJ_FLOAT);
-}
-
-/***********************************************************************
-			       Intervals
-***********************************************************************/
-
-enum igc_interval_type
-{
-  IGC_INTERVAL_FWD = -1,
-  IGC_INTERVAL_PAD = -2,
-};
-
-static void
-interval_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct interval *i = addr;
-  i->total_length = IGC_INTERVAL_PAD;
-  i->position = nbytes;
-}
-
-static mps_addr_t
-is_interval_pad (mps_addr_t addr)
-{
-  struct interval *i = addr;
-  if (i->total_length == IGC_INTERVAL_PAD)
-    return (char *) addr + i->position;
-  return NULL;
-}
-
-static void
-interval_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct interval *i = old;
-  i->total_length = IGC_INTERVAL_FWD;
-  i->left = new_addr;
-}
-
-static mps_addr_t
-is_interval_fwd (mps_addr_t addr)
-{
-  struct interval *i = addr;
-  if (i->total_length == IGC_INTERVAL_FWD)
-    return i->left;
-  return NULL;
-}
-
-static mps_addr_t
-interval_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_interval_pad (addr);
-  if (end)
-    return end;
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct interval), IGC_OBJ_INTERVAL);
-}
-
 static mps_res_t
-interval_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+fix_itree_node (mps_ss_t ss, struct itree_node *n)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (base < limit)
-      {
-	struct interval *iv = base;
-	base = interval_skip (base);
-
-	if (is_interval_fwd (iv) || is_interval_pad (iv))
-	  continue;
-
-	IGC_FIX12_RAW (ss, &iv->left);
-	IGC_FIX12_RAW (ss, &iv->right);
-	if (iv->up_obj)
-	  IGC_FIX12_OBJ (ss, &iv->up.obj);
-	else
-	  IGC_FIX12_RAW (ss, iv->up.interval);
-	IGC_FIX12_OBJ (ss, &iv->plist);
-      }
+    IGC_FIX12_RAW (ss, &n->parent);
+    IGC_FIX12_RAW (ss, &n->left);
+    IGC_FIX12_RAW (ss, &n->right);
+    IGC_FIX12_OBJ (ss, &n->data);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-/***********************************************************************
-			       itree_node
-***********************************************************************/
-
-enum igc_itree_type
-{
-  IGC_ITREE_FWD = -1,
-  IGC_ITREE_PAD = -2,
-};
-
-static void
-itree_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct itree_node *i = addr;
-  i->begin = IGC_ITREE_PAD;
-  i->end = nbytes;
-}
-
-// FIXME Make is_padding return addr
-static mps_addr_t
-is_itree_pad (mps_addr_t addr)
-{
-  struct itree_node *i = addr;
-  if (i->begin == IGC_ITREE_PAD)
-    return (char *) addr + i->end;
-  return NULL;
-}
-
-static void
-itree_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct itree_node *i = old;
-  i->begin = IGC_ITREE_FWD;
-  i->left = new_addr;
-}
-
-static mps_addr_t
-is_itree_fwd (mps_addr_t addr)
-{
-  struct itree_node *i = addr;
-  if (i->begin == IGC_ITREE_FWD)
-    return i->left;
-  return NULL;
-}
-
-static mps_addr_t
-itree_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_itree_pad (addr);
-  if (end)
-    return end;
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct itree_node), IGC_OBJ_ITREE_NODE);
-}
-
 static mps_res_t
-itree_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+fix_image (mps_ss_t ss, struct image *i)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (base < limit)
-      {
-	struct itree_node *n = base;
-	base = itree_skip (base);
-
-	if (is_itree_fwd (n) || is_itree_pad (n))
-	  continue;
-	IGC_FIX12_RAW (ss, &n->parent);
-	IGC_FIX12_RAW (ss, &n->left);
-	IGC_FIX12_RAW (ss, &n->right);
-	IGC_FIX12_OBJ (ss, &n->data);
-      }
+    IGC_FIX12_OBJ (ss, &i->spec);
+    IGC_FIX12_OBJ (ss, &i->dependencies);
+    IGC_FIX12_OBJ (ss, &i->lisp_data);
+    IGC_FIX12_RAW (ss, &i->next);
+    IGC_FIX12_RAW (ss, &i->prev);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-/***********************************************************************
-			       Images
-***********************************************************************/
-
-static const Lisp_Object image_fwd_sig = TAG_PTR_INITIALLY (Lisp_String, 0);
-static const Lisp_Object image_pad_sig = TAG_PTR_INITIALLY (Lisp_Float, 0);
-
-static void
-image_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct image *i = addr;
-  i->spec = image_pad_sig;
-  i->hash = nbytes;
-}
-
-static mps_addr_t
-is_image_pad (mps_addr_t addr)
-{
-  struct image *i = addr;
-  if (BASE_EQ (i->spec, image_pad_sig))
-    return (char *) addr + i->hash;
-  return NULL;
-}
-
-static void
-image_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct image *i = old;
-  i->spec = image_fwd_sig;
-  i->next = new_addr;
-}
-
-static mps_addr_t
-is_image_fwd (mps_addr_t addr)
-{
-  struct image *i = addr;
-  if (BASE_EQ (i->spec, image_fwd_sig))
-    return i->next;
-  return NULL;
-}
-
-static mps_addr_t
-image_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_image_pad (addr);
-  if (end)
-    return end;
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct image), IGC_OBJ_IMAGE);
-}
-
 static mps_res_t
-image_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+fix_face (mps_ss_t ss, struct face *f)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (base < limit)
-      {
-	struct image *i = base;
-	base = image_skip (base);
-
-	if (is_image_fwd (i) || is_image_pad (i))
-	  continue;
-	IGC_FIX12_OBJ (ss, &i->spec);
-	IGC_FIX12_OBJ (ss, &i->dependencies);
-	IGC_FIX12_OBJ (ss, &i->lisp_data);
-	IGC_FIX12_RAW (ss, &i->next);
-	IGC_FIX12_RAW (ss, &i->prev);
-      }
+    IGC_FIX12_NOBJS (ss, f->lface, ARRAYELTS (f->lface));
+    IGC_FIX12_RAW (ss, &f->font);
+    IGC_FIX12_RAW (ss, &f->next);
+    IGC_FIX12_RAW (ss, &f->prev);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-/***********************************************************************
-			       Faces
-***********************************************************************/
-
-static const Lisp_Object face_fwd_sig = TAG_PTR_INITIALLY (Lisp_String, 0);
-static const Lisp_Object face_pad_sig = TAG_PTR_INITIALLY (Lisp_Float, 0);
-
-static void
-face_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct face *f = addr;
-  f->lface[0] = face_pad_sig;
-  f->foreground = nbytes;
-}
-
-static mps_addr_t
-is_face_pad (mps_addr_t addr)
-{
-  struct face *f = addr;
-  if (BASE_EQ (f->lface[0], face_pad_sig))
-    return (char *) addr + f->foreground;
-  return NULL;
-}
-
-static void
-face_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct face *f = old;
-  f->lface[0] = face_fwd_sig;
-  f->font = new_addr;
-}
-
-static mps_addr_t
-is_face_fwd (mps_addr_t addr)
-{
-  struct face *f = addr;
-  if (BASE_EQ (f->lface[0], face_fwd_sig))
-    return f->font;
-  return NULL;
-}
-
-static mps_addr_t
-face_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_face_pad (addr);
-  if (end)
-    return end;
-  return (char *) addr + igc_round_to_pool (sizeof (struct face), IGC_OBJ_FACE);
-}
-
 static mps_res_t
-face_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+fix_weak (mps_ss_t ss, mps_addr_t base)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (base < limit)
-      {
-	struct face *face = base;
-	base = face_skip (base);
-
-	if (is_face_fwd (face) || is_face_pad (face))
-	  continue;
-	IGC_FIX12_NOBJS (ss, face->lface, ARRAYELTS (face->lface));
-	IGC_FIX12_RAW (ss, &face->font);
-	IGC_FIX12_RAW (ss, &face->next);
-	IGC_FIX12_RAW (ss, &face->prev);
-      }
+    IGC_ASSERT (!"fix_weak");
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
 
-/***********************************************************************
-				  Weak
- ***********************************************************************/
-
-enum igc_weak_type
-{
-  IGC_WEAK_HASH_IMPL,
-  IGC_WEAK_FWD,
-  IGC_WEAK_PAD,
-};
-
-struct igc_weak
-{
-  enum igc_weak_type type;
-  mps_word_t object_nbytes;
-  mps_addr_t new_addr;
-  mps_word_t obj[];
-};
-
-# if 0
-static mps_addr_t
-weak_to_obj (struct igc_weak *w)
-{
-  return &w->obj;
-}
-
-static struct igc_weak *
-obj_to_weak (mps_addr_t addr)
-{
-  mps_addr_t w = (char *) addr - offsetof (struct igc_weak, obj);
-  return w;
-}
-# endif
-
-static void
-weak_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct igc_weak *w = addr;
-  w->type = IGC_WEAK_PAD;
-  w->object_nbytes = nbytes;
-}
-
-static mps_addr_t
-is_weak_pad (mps_addr_t addr)
-{
-  struct igc_weak *w = addr;
-  if (w->type == IGC_WEAK_PAD)
-    return (char *) addr + w->object_nbytes;
-  return NULL;
-}
-
-static void
-weak_fwd (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct igc_weak *w = old;
-  mps_word_t nbytes = w->object_nbytes;
-  w->type = IGC_WEAK_FWD;
-  w->object_nbytes = nbytes;
-  w->new_addr = new_addr;
-}
-
-static mps_addr_t
-is_weak_fwd (mps_addr_t addr)
-{
-  struct igc_weak *w = addr;
-  if (w->type == IGC_WEAK_FWD)
-    return w->new_addr;
-  return NULL;
-}
-
-static mps_addr_t
-weak_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_weak_pad (addr);
-  if (end)
-    return end;
-  struct igc_weak *w = addr;
-  return (char *) addr + w->object_nbytes;
-}
+static mps_res_t fix_vector (mps_ss_t ss, struct Lisp_Vector *v);
 
 static mps_res_t
-weak_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (base < limit)
+    while (client_base < client_limit)
       {
-	struct igc_weak *w = base;
-	base = weak_skip (base);
+	mps_addr_t client = client_base;
+	client_base = dflt_skip (client_base);
 
-	if (is_weak_fwd (w) || is_weak_pad (w))
-	  continue;
+	struct igc_header *header = client_to_base (client);
+	switch (header->type)
+	  {
+	  case IGC_OBJ_PAD:
+	  case IGC_OBJ_FWD:
+	    continue;
 
-	eassert (w->type == IGC_WEAK_HASH_IMPL);
-	eassert (!"weak table");
+	  case IGC_OBJ_CONS:
+	  case IGC_OBJ_STRING_DATA:
+	  case IGC_OBJ_FLOAT:
+	  case IGC_OBJ_LAST:
+	    emacs_abort ();
+
+	  case IGC_OBJ_SYMBOL:
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Symbol, client, fix_symbol);
+	    break;
+
+	  case IGC_OBJ_INTERVAL:
+	    IGC_FIX_CALL_FN (ss, struct interval, client, fix_interval);
+	    break;
+
+	  case IGC_OBJ_STRING:
+	    IGC_FIX_CALL_FN (ss, struct Lisp_String, client, fix_string);
+	    break;
+
+	  case IGC_OBJ_VECTOR:
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
+	    break;
+
+	  case IGC_OBJ_ITREE_NODE:
+	    IGC_FIX_CALL_FN (ss, struct itree_node, client, fix_itree_node);
+	    break;
+
+	  case IGC_OBJ_IMAGE:
+	    IGC_FIX_CALL_FN (ss, struct image, client, fix_image);
+	    break;
+
+	  case IGC_OBJ_FACE:
+	    IGC_FIX_CALL_FN (ss, struct face, client, fix_face);
+	    break;
+
+	  case IGC_OBJ_WEAK:
+	    IGC_FIX_CALL_FN (ss, mps_word_t, client, fix_weak);
+	    break;
+	  }
       }
   }
   MPS_SCAN_END (ss);
@@ -1462,12 +952,6 @@ pseudo_vector_nobjs (const struct Lisp_Vector *v)
   return v->header.size & PSEUDOVECTOR_SIZE_MASK;
 }
 
-static size_t
-pseudo_vector_rest_nwords (const struct Lisp_Vector *v)
-{
-  return (v->header.size & PSEUDOVECTOR_REST_MASK) >> PSEUDOVECTOR_SIZE_BITS;
-}
-
 static enum pvec_type
 pseudo_vector_type (const struct Lisp_Vector *v)
 {
@@ -1481,147 +965,17 @@ is_bool_vector (const struct Lisp_Vector *v)
   return pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
 }
 
-static mps_word_t
-vector_obj_nbytes (const struct Lisp_Vector *v)
-{
-  mps_word_t nbytes;
-  if (is_pseudo_vector (v))
-    {
-      enum pvec_type type = pseudo_vector_type (v);
-      IGC_ASSERT (type <= PVEC_TAG_MAX);
-      switch (type)
-	{
-	case PVEC_BOOL_VECTOR:
-	  {
-	    struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
-	    nbytes
-	      = bool_header_size + bool_vector_words (bv->size) * word_size;
-	  }
-	  break;
-
-	default:
-	  {
-	    mps_word_t nwords
-	      = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
-	    nbytes = header_size + nwords * word_size;
-	  }
-	  break;
-	}
-    }
-  else
-    {
-      ptrdiff_t nwords = v->header.size;
-      nbytes = header_size + nwords * word_size;
-    }
-
-  return igc_round_to_pool (nbytes, IGC_OBJ_VECTOR);
-}
-
-static void
-set_pseudo_vector_type (union vectorlike_header *header, enum pvec_type type)
-{
-  header->size = (PSEUDOVECTOR_FLAG | (type << PSEUDOVECTOR_AREA_BITS));
-}
-
-struct igc_vector_pad
-{
-  union vectorlike_header header;
-  mps_word_t nbytes;
-};
-
-static void
-vector_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct igc_vector_pad *p = addr;
-  IGC_ASSERT (nbytes >= sizeof (struct igc_vector_pad));
-  set_pseudo_vector_type (&p->header, PVEC_VECTOR_PAD);
-  p->nbytes = nbytes;
-}
-
-static mps_addr_t
-is_vector_padding (mps_addr_t addr)
-{
-  if (pseudo_vector_type (addr) == PVEC_VECTOR_PAD)
-    {
-      struct igc_vector_pad *p = addr;
-      return (char *) addr + p->nbytes;
-    }
-  return NULL;
-}
-
-struct igc_vector_fwd
-{
-  union vectorlike_header header;
-  mps_word_t nbytes;
-  mps_addr_t new_addr;
-};
-
-static void
-vector_forward (mps_addr_t old, mps_addr_t new_addr)
-{
-  mps_word_t nbytes = vector_obj_nbytes (old);
-  struct igc_vector_fwd *f = old;
-  set_pseudo_vector_type (&f->header, PVEC_VECTOR_FORWARD);
-  f->nbytes = nbytes;
-  f->new_addr = new_addr;
-}
-
-static mps_addr_t
-is_vector_forwarded (mps_addr_t addr)
-{
-  if (pseudo_vector_type (addr) != PVEC_VECTOR_FORWARD)
-    return NULL;
-  struct igc_vector_fwd *f = addr;
-  return f->new_addr;
-}
-
-static mps_addr_t
-vector_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_vector_padding (addr);
-  if (end)
-    return end;
-  if (is_vector_forwarded (addr))
-    {
-      struct igc_vector_fwd *f = addr;
-      return (char *) addr + f->nbytes;
-    }
-  ptrdiff_t nbytes = vector_obj_nbytes (addr);
-  return (char *) addr + nbytes;
-}
-
-static enum igc_obj_type
-type_of_addr (struct igc *gc, mps_addr_t addr)
-{
-  mps_pool_t pool;
-  if (mps_addr_pool (&pool, gc->arena, addr))
-    for (enum igc_obj_type i = 0; i < IGC_OBJ_LAST; ++i)
-      if (pool == gc->pool[i])
-	return i;
-  return IGC_OBJ_LAST;
-}
-
 static mps_res_t
-vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
+fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (base < limit)
+    if (is_plain_vector (v))
       {
-	struct Lisp_Vector *v = base;
-	mps_addr_t vbase = base;
-	base = vector_skip (base);
-
-	if (is_vector_forwarded (v) || is_vector_padding (v))
-	  continue;
-
-	// Fix contents of normal vectors.
-	if (is_plain_vector (v))
-	  {
-	    IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
-	    continue;
-	  }
-
+	IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
+      }
+    else
+      {
 	// Fix Lisp object part of normal pseudo vectors.
 	if (!is_bool_vector (v))
 	  {
@@ -1649,7 +1003,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_SYMBOL_WITH_POS:
 	    {
-	      struct Lisp_Symbol_With_Pos *p = vbase;
+	      struct Lisp_Symbol_With_Pos *p = (void *) v;
 	      IGC_FIX12_OBJ (ss, &p->sym);
 	      IGC_FIX12_RAW (ss, &p->pos);
 	    }
@@ -1657,14 +1011,14 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_MISC_PTR:
 	    {
-	      struct Lisp_Misc_Ptr *p = vbase;
+	      struct Lisp_Misc_Ptr *p = (void *) v;
 	      IGC_FIX12_RAW (ss, &p->pointer);
 	    }
 	    break;
 
 	  case PVEC_USER_PTR:
 	    {
-	      struct Lisp_User_Ptr *p = vbase;
+	      struct Lisp_User_Ptr *p = (void *) v;
 	      IGC_FIX12_RAW (ss, &p->p);
 	    }
 	    break;
@@ -1687,7 +1041,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_THREAD:
 	    {
-	      struct thread_state *p = vbase;
+	      struct thread_state *p = (void *) v;
 	      IGC_FIX12_RAW (ss, &p->m_current_buffer);
 	      IGC_FIX12_RAW (ss, &p->next_thread);
 	    }
@@ -1695,7 +1049,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_MUTEX:
 	    {
-	      struct Lisp_Mutex *p = vbase;
+	      struct Lisp_Mutex *p = (void *) v;
 	      IGC_FIX12_RAW (ss, &p->name);
 	    }
 	    break;
@@ -1718,7 +1072,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_BUFFER:
 	    {
-	      struct buffer *b = vbase;
+	      struct buffer *b = (void *) v;
 	      IGC_FIX12_RAW (ss, &b->text->intervals);
 	      IGC_FIX12_RAW (ss, &b->text->markers);
 	      IGC_FIX12_RAW (ss, &b->own_text.intervals);
@@ -1739,7 +1093,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      // glyph matrices
 	      // struct font_driver_list *font_driver_list;
 	      // struct text_conversion_state conversion;
-	      struct frame *f = vbase;
+	      struct frame *f = (void *) v;
 	      // eassert (false);
 	    }
 	    break;
@@ -1752,7 +1106,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_HASH_TABLE:
 	    {
-	      struct Lisp_Hash_Table *h = vbase;
+	      struct Lisp_Hash_Table *h = (void *) v;
 	      IGC_FIX12_NOBJS (ss, h->key, h->table_size);
 	      IGC_FIX12_NOBJS (ss, h->value, h->table_size);
 	    }
@@ -1762,7 +1116,6 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  case PVEC_SUB_CHAR_TABLE:
 	    // See also mark_char_table :-/
 	    {
-	      struct Lisp_Vector *v = vbase;
 	      int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
 	      enum pvec_type type = pseudo_vector_type (v);
 	      int idx
@@ -1774,7 +1127,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_OVERLAY:
 	    {
-	      struct Lisp_Overlay *p = vbase;
+	      struct Lisp_Overlay *p = (void *) v;
 	      IGC_FIX12_RAW (ss, &p->buffer);
 	      IGC_FIX12_OBJ (ss, &p->plist);
 	      IGC_FIX12_RAW (ss, &p->interval);
@@ -1783,14 +1136,14 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_TERMINAL:
 	    {
-	      struct terminal *p = vbase;
+	      struct terminal *p = (void *) v;
 	      IGC_FIX12_RAW (ss, &p->next_terminal);
 	    }
 	    break;
 
 	  case PVEC_SUBR:
 	    {
-	      struct Lisp_Subr *p = vbase;
+	      struct Lisp_Subr *p = (void *) v;
 	      IGC_FIX12_OBJ (ss, &p->command_modes);
 # ifdef HAVE_NATIVE_COMP
 	      IGC_FIX12_OBJ (ss, &p->intspec.native);
@@ -1804,7 +1157,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 
 	  case PVEC_MARKER:
 	    {
-	      struct Lisp_Marker *p = vbase;
+	      struct Lisp_Marker *p = (void *) v;
 	      IGC_FIX12_RAW (ss, &p->buffer);
 	      IGC_FIX12_RAW (ss, &p->next);
 	    }
@@ -2070,10 +1423,30 @@ igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
   return pa;
 }
 
+static bool
+type_of_addr (struct igc *gc, mps_addr_t addr, enum igc_obj_type *obj_type)
+{
+  mps_pool_t pool;
+  if (!mps_addr_pool (&pool, gc->arena, addr))
+    return false;
+
+  if (pool == gc->pool[IGC_POOL_CONS])
+    *obj_type = IGC_OBJ_CONS;
+  else
+    {
+      struct igc_header *h = client_to_base (addr);
+      *obj_type = h->type;
+    }
+  return true;
+}
+
 static void
 do_finalize (struct igc *gc, mps_addr_t addr)
 {
-  switch (type_of_addr (gc, addr))
+  enum igc_obj_type obj_type;
+  if (!type_of_addr (gc, addr, &obj_type))
+    emacs_abort ();
+  switch (obj_type)
     {
     case IGC_OBJ_PAD:
     case IGC_OBJ_FWD:
@@ -2141,39 +1514,6 @@ igc_on_idle (void)
   mps_arena_step (global_igc->arena, 0.1, 0);
 }
 
-static enum igc_pool_type
-type_to_pool (enum igc_obj_type type)
-{
-  switch (type)
-    {
-    case IGC_OBJ_PAD:
-    case IGC_OBJ_FWD:
-      emacs_abort ();
-
-    case IGC_OBJ_CONS:
-      return IGC_POOL_CONS;
-
-    case IGC_OBJ_STRING_DATA:
-    case IGC_OBJ_FLOAT:
-      return IGC_POOL_LEAF;
-
-    case IGC_OBJ_SYMBOL:
-    case IGC_OBJ_INTERVAL:
-    case IGC_OBJ_STRING:
-    case IGC_OBJ_VECTOR:
-    case IGC_OBJ_ITREE_NODE:
-    case IGC_OBJ_IMAGE:
-    case IGC_OBJ_FACE:
-      return IGC_POOL_DFLT;
-
-    case IGC_OBJ_WEAK:
-      return IGC_POOL_WEAK;
-
-    case IGC_OBJ_LAST:
-      emacs_abort ();
-    }
-}
-
 static mps_ap_t
 thread_ap (enum igc_obj_type type)
 {
@@ -2185,13 +1525,9 @@ thread_ap (enum igc_obj_type type)
 
 enum
 {
-  // MPS pads areas that are multiples of the pool alignment.  Make pool
-  // alignments large enought to hold fwd and pad objects.
   IGC_ALIGN = GCALIGNMENT,
-  // We assume that there is always at least one word in the object
-  // itself so that we get away with storing 3 words for igc_fwd.
-  IGC_ALIGN_DFLT = IGC_ALIGN << 1,
-  IGC_ALIGN_CONS = IGC_ALIGN << 1,
+  IGC_ALIGN_DFLT = IGC_ALIGN,
+  IGC_ALIGN_CONS = IGC_ALIGN,
 };
 
 igc_static_assert (sizeof (struct igc_header) == sizeof (mps_word_t));
@@ -2226,14 +1562,14 @@ static struct igc_init igc_inits[IGC_POOL_LAST] = {
 		      .pad = dflt_pad,
 		      .scan = NULL,
 		      .skip = dflt_skip },
-  [IGC_OBJ_WEAK] = { .class_type = IGC_AWL,
-		     .align = IGC_ALIGN_DFLT,
-		     .header_size = sizeof (struct igc_header),
-		     .forward = dflt_fwd,
-		     .is_forwarded = is_dflt_fwd,
-		     .pad = dflt_pad,
-		     .scan = weak_scan,
-		     .skip = dflt_skip },
+  [IGC_POOL_WEAK] = { .class_type = IGC_AWL,
+		      .align = IGC_ALIGN_DFLT,
+		      .header_size = sizeof (struct igc_header),
+		      .forward = dflt_fwd,
+		      .is_forwarded = is_dflt_fwd,
+		      .pad = dflt_pad,
+		      .scan = dflt_scan,
+		      .skip = dflt_skip },
 };
 
 void
@@ -2246,7 +1582,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
   enum igc_obj_type type = IGC_OBJ_CONS;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Cons), type);
+  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Cons), type);
   mps_addr_t p;
   do
     {
@@ -2265,18 +1601,22 @@ igc_alloc_symbol (void)
 {
   enum igc_obj_type type = IGC_OBJ_SYMBOL;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Symbol), type);
+  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Symbol), type);
   mps_addr_t p;
+  struct Lisp_Symbol *sym;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       memclear (p, nbytes);
-      struct Lisp_Symbol *s = p;
-      s->u.s.redirect = SYMBOL_PLAINVAL;
+      struct igc_header *h = p;
+      h->type = IGC_OBJ_SYMBOL;
+      h->total_nbytes = nbytes;
+      sym = base_to_client (p);
+      sym->u.s.redirect = SYMBOL_PLAINVAL;
     }
   while (!mps_commit (ap, p, nbytes));
-  return make_lisp_symbol (p);
+  return make_lisp_symbol (sym);
 }
 
 Lisp_Object
@@ -2284,39 +1624,43 @@ igc_make_float (double val)
 {
   enum igc_obj_type type = IGC_OBJ_FLOAT;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Float), type);
+  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Float), type);
   mps_addr_t p;
+  struct Lisp_Float *f;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      struct Lisp_Float *f = p;
-      f->type = IGC_FLOAT_NORMAL;
+      struct igc_header *h = p;
+      h->type = IGC_OBJ_FLOAT;
+      h->total_nbytes = nbytes;
+      f = base_to_client (p);
       f->u.data = val;
     }
   while (!mps_commit (ap, p, nbytes));
   Lisp_Object obj;
-  XSETFLOAT (obj, p);
+  XSETFLOAT (obj, f);
   return obj;
 }
 
-static struct igc_sdata *
+static unsigned char *
 alloc_string_data (size_t nbytes)
 {
   enum igc_obj_type type = IGC_OBJ_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
-  nbytes = igc_round_to_pool (sizeof (struct igc_sdata) + nbytes, type);
+  // Use igc_fwd here to make sure we have enough room for it.
+  nbytes = igc_obj_size (sizeof (struct igc_fwd) + nbytes, type);
   mps_addr_t p;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      // Initialize before we let it loose on the world.
-      struct igc_sdata *s = p;
-      s->u.capacity = nbytes - sizeof (struct igc_sdata);
+      struct igc_header *h = p;
+      h->type = IGC_OBJ_STRING_DATA;
+      h->total_nbytes = nbytes;
     }
   while (!mps_commit (ap, p, nbytes));
-  return p;
+  return base_to_client (p);
 }
 
 // Reallocate multibyte STRING data when a single character is
@@ -2335,14 +1679,15 @@ igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
     return s->u.s.data + at_byte_pos;
 
   // If new char doesn't fit, make a new string data
-  struct igc_sdata *old_sdata = contents_to_sdata (s->u.s.data);
   ptrdiff_t old_nbytes = SBYTES (string);
   ptrdiff_t nbytes_needed = old_nbytes + (new_char_len - old_char_len);
-  if (sdata_capacity (old_sdata) < nbytes_needed)
+  struct igc_header *old_header = client_to_base (s->u.s.data);
+  ptrdiff_t capacity = old_header->total_nbytes - sizeof *old_header;
+  if (capacity < nbytes_needed)
     {
-      struct igc_sdata *new_sdata = alloc_string_data (nbytes_needed);
-      memcpy (new_sdata->contents, old_sdata->contents, old_nbytes);
-      s->u.s.data = new_sdata->contents;
+      unsigned char *new_data = alloc_string_data (nbytes_needed);
+      memcpy (new_data, SDATA (string), old_nbytes);
+      s->u.s.data = new_data;
     }
 
   // Set up string as if the character had been inserted.
@@ -2356,26 +1701,30 @@ igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
 Lisp_Object
 igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
 {
-  struct igc_sdata *data = alloc_string_data (nbytes);
+  unsigned char *data = alloc_string_data (nbytes);
   if (clear)
-    memset (sdata_contents (data), 0, nbytes);
+    memset (data, 0, nbytes);
 
   enum igc_obj_type type = IGC_OBJ_STRING;
   mps_ap_t ap = thread_ap (type);
-  size_t size = igc_round_to_pool (sizeof (struct Lisp_String), type);
+  size_t size = igc_obj_size (sizeof (struct Lisp_String), type);
   mps_addr_t p;
+  struct Lisp_String *s;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      struct Lisp_String *s = p;
+      struct igc_header *h = p;
+      h->type = type;
+      h->total_nbytes = nbytes;
+      s = base_to_client (p);
       s->u.s.size = nchars;
       s->u.s.size_byte = unibyte ? -1 : nbytes;
       s->u.s.intervals = NULL;
-      s->u.s.data = sdata_contents (data);
+      s->u.s.data = data;
     }
   while (!mps_commit (ap, p, size));
-  return make_lisp_ptr (p, Lisp_String);
+  return make_lisp_ptr (s, Lisp_String);
 }
 
 Lisp_Object
@@ -2395,16 +1744,21 @@ igc_make_interval (void)
 {
   enum igc_obj_type type = IGC_OBJ_INTERVAL;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_round_to_pool (sizeof (struct interval), type);
+  size_t nbytes = igc_obj_size (sizeof (struct interval), type);
   mps_addr_t p;
+  struct interval *iv;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       memclear (p, nbytes);
+      struct igc_header *h = p;
+      h->type = type;
+      h->total_nbytes = nbytes;
+      iv = base_to_client (p);
     }
   while (!mps_commit (ap, p, nbytes));
-  return p;
+  return iv;
 }
 
 // All lens in words
@@ -2414,19 +1768,22 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 {
   enum igc_obj_type type = IGC_OBJ_VECTOR;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes
-    = igc_round_to_pool (header_size + nwords_mem * word_size, type);
+  size_t nbytes = igc_obj_size (header_size + nwords_mem * word_size, type);
   mps_addr_t p;
+  struct Lisp_Vector *v;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      struct Lisp_Vector *v = p;
+      struct igc_header *h = p;
+      h->type = type;
+      h->total_nbytes = nbytes;
+      v = base_to_client (p);
       memclear (v->contents, nwords_zero * word_size);
       XSETPVECTYPESIZE (v, tag, nwords_lisp, nwords_mem - nwords_lisp);
     }
   while (!mps_commit (ap, p, nbytes));
-  return p;
+  return v;
 }
 
 struct Lisp_Vector *
@@ -2434,18 +1791,22 @@ igc_alloc_vector (ptrdiff_t len)
 {
   enum igc_obj_type type = (IGC_OBJ_VECTOR);
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_round_to_pool (header_size + len * word_size, type);
+  ptrdiff_t nbytes = igc_obj_size (header_size + len * word_size, type);
   mps_addr_t p;
+  struct Lisp_Vector *v;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       memclear (p, nbytes);
-      struct Lisp_Vector *v = p;
+      struct igc_header *h = p;
+      h->type = type;
+      h->total_nbytes = nbytes;
+      v = base_to_client (p);
       v->header.size = len;
     }
   while (!mps_commit (ap, p, nbytes));
-  return p;
+  return v;
 }
 
 struct Lisp_Vector *
@@ -2453,7 +1814,7 @@ igc_alloc_record (ptrdiff_t len)
 {
   enum igc_obj_type type = (IGC_OBJ_VECTOR);
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_round_to_pool (header_size + len * word_size, type);
+  ptrdiff_t nbytes = igc_obj_size (header_size + len * word_size, type);
   mps_addr_t p;
   do
     {
@@ -2473,16 +1834,21 @@ igc_make_itree_node (void)
 {
   enum igc_obj_type type = IGC_OBJ_ITREE_NODE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct itree_node), type);
+  ptrdiff_t nbytes = igc_obj_size (sizeof (struct itree_node), type);
   mps_addr_t p;
+  struct itree_node *n;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       memclear (p, nbytes);
+      struct igc_header *h = p;
+      h->type = type;
+      h->total_nbytes = nbytes;
+      n = base_to_client (p);
     }
   while (!mps_commit (ap, p, nbytes));
-  return p;
+  return n;
 }
 
 struct image *
@@ -2490,16 +1856,21 @@ igc_make_image (void)
 {
   enum igc_obj_type type = IGC_OBJ_IMAGE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct image), type);
+  ptrdiff_t nbytes = igc_obj_size (sizeof (struct image), type);
   mps_addr_t p;
+  struct image *img;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       memclear (p, nbytes);
+      struct igc_header *h = p;
+      h->type = type;
+      h->total_nbytes = nbytes;
+      img = base_to_client (p);
     }
   while (!mps_commit (ap, p, nbytes));
-  return p;
+  return img;
 }
 
 struct face *
@@ -2507,16 +1878,18 @@ igc_make_face (void)
 {
   enum igc_obj_type type = IGC_OBJ_FACE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct face), type);
+  ptrdiff_t nbytes = igc_obj_size (sizeof (struct face), type);
   mps_addr_t p;
+  struct face *face;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
       memclear (p, nbytes);
+      face = base_to_client (p);
     }
   while (!mps_commit (ap, p, nbytes));
-  return p;
+  return face;
 }
 
 Lisp_Object
