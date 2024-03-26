@@ -140,22 +140,6 @@ igc_static_assert (sizeof (struct igc_fwd) == 2 * sizeof (mps_word_t));
 igc_static_assert (IGC_ALIGN_DFLT >= sizeof (struct igc_header));
 #endif
 
-struct igc_init
-{
-  enum igc_pool_class class_type;
-  mps_class_t pool_class;
-  size_t align;
-  size_t header_size;
-  bool interior_pointers;
-  mps_fmt_scan_t scan;
-  mps_fmt_skip_t skip;
-  mps_fmt_fwd_t forward;
-  mps_fmt_isfwd_t is_forwarded;
-  mps_fmt_pad_t pad;
-};
-
-static struct igc_init igc_inits[];
-
 # define IGC_CHECK_RES(res) \
    if ((res) != MPS_RES_OK) \
      emacs_abort ();        \
@@ -225,17 +209,6 @@ enum igc_obj_type
   IGC_OBJ_LAST
 };
 
-enum igc_pool_type
-{
-  IGC_POOL_DFLT,
-  IGC_POOL_LEAF,
-  IGC_POOL_CONS,
-  IGC_POOL_WEAK,
-  IGC_POOL_LAST,
-};
-
-igc_static_assert (IGC_POOL_WEAK == IGC_POOL_LAST - 1);
-
 struct igc_header
 {
   enum igc_obj_type type : 8;
@@ -254,39 +227,6 @@ base_to_client (mps_addr_t base_addr)
   return (char *) base_addr + sizeof (struct igc_header);
 }
 
-static enum igc_pool_type
-type_to_pool (enum igc_obj_type type)
-{
-  switch (type)
-    {
-    case IGC_OBJ_PAD:
-    case IGC_OBJ_FWD:
-      emacs_abort ();
-
-    case IGC_OBJ_CONS:
-      return IGC_POOL_CONS;
-
-    case IGC_OBJ_STRING_DATA:
-    case IGC_OBJ_FLOAT:
-      return IGC_POOL_LEAF;
-
-    case IGC_OBJ_SYMBOL:
-    case IGC_OBJ_INTERVAL:
-    case IGC_OBJ_STRING:
-    case IGC_OBJ_VECTOR:
-    case IGC_OBJ_ITREE_NODE:
-    case IGC_OBJ_IMAGE:
-    case IGC_OBJ_FACE:
-      return IGC_POOL_DFLT;
-
-    case IGC_OBJ_WEAK:
-      return IGC_POOL_WEAK;
-
-    case IGC_OBJ_LAST:
-      emacs_abort ();
-    }
-}
-
 static size_t
 igc_round (size_t nbytes, size_t align)
 {
@@ -294,21 +234,11 @@ igc_round (size_t nbytes, size_t align)
 }
 
 static size_t
-igc_obj_size (size_t nbytes, enum igc_obj_type obj_type)
+igc_obj_size (size_t nbytes)
 {
   nbytes += sizeof (struct igc_header);
   return igc_round (nbytes, IGC_ALIGN_DFLT);
 }
-
-#if 0
-static bool
-is_aligned (mps_addr_t p, enum igc_obj_type type)
-{
-  size_t align = igc_inits[type].align;
-  mps_word_t w = (mps_word_t) p;
-  return w % align == 0;
-}
-#endif
 
 struct igc_thread
 {
@@ -316,7 +246,8 @@ struct igc_thread
   mps_thr_t thr;
   void *stack_start;
   struct igc_root_list *specpdl_root;
-  mps_ap_t ap[IGC_POOL_LAST];
+  mps_ap_t dflt_ap;
+  mps_ap_t leaf_ap;
   mps_ap_t weak_strong_ap;
   mps_ap_t weak_weak_ap;
 };
@@ -328,8 +259,12 @@ struct igc
 {
   mps_arena_t arena;
   mps_chain_t chain;
-  mps_fmt_t fmt[IGC_POOL_LAST];
-  mps_pool_t pool[IGC_POOL_LAST];
+  mps_fmt_t dflt_fmt;
+  mps_pool_t dflt_pool;
+  mps_fmt_t leaf_fmt;
+  mps_pool_t leaf_pool;
+  mps_fmt_t weak_fmt;
+  mps_pool_t weak_pool;
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -384,7 +319,7 @@ create_weak_ap (mps_ap_t *ap, struct igc_thread *t, bool weak)
 {
   struct igc *gc = t->gc;
   mps_res_t res;
-  mps_pool_t pool = gc->pool[IGC_POOL_WEAK];
+  mps_pool_t pool = gc->weak_pool;
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_RANK,
@@ -400,12 +335,10 @@ create_thread_aps (struct igc_thread *t)
 {
   struct igc *gc = t->gc;
   mps_res_t res;
-  for (int i = 0; i < IGC_POOL_WEAK; ++i)
-    {
-      res = mps_ap_create_k (&t->ap[i], gc->pool[i], mps_args_none);
-      IGC_CHECK_RES (res);
-    }
-
+  res = mps_ap_create_k (&t->dflt_ap, gc->dflt_pool, mps_args_none);
+  IGC_CHECK_RES (res);
+  res = mps_ap_create_k (&t->leaf_ap, gc->leaf_pool, mps_args_none);
+  IGC_CHECK_RES (res);
   res = create_weak_ap (&t->weak_strong_ap, t, false);
   IGC_CHECK_RES (res);
   res = create_weak_ap (&t->weak_weak_ap, t, true);
@@ -429,6 +362,10 @@ deregister_thread (struct igc_thread_list *t)
 
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wunused-variable"
+
+// MPS_FIX2 doc: The only exception is for references to objects
+// belonging to a format with in-band headers: the header size must not
+// be subtracted from these references.
 
 static mps_res_t
 fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
@@ -1300,8 +1237,8 @@ igc_thread_remove (void *info)
 {
   struct igc_thread_list *t = info;
   destroy_root (t->d.specpdl_root);
-  for (enum igc_pool_type i = 0; i < IGC_POOL_LAST; ++i)
-    mps_ap_destroy (t->d.ap[i]);
+  mps_ap_destroy (t->d.dflt_ap);
+  mps_ap_destroy (t->d.leaf_ap);
   mps_ap_destroy (t->d.weak_strong_ap);
   mps_ap_destroy (t->d.weak_weak_ap);
   mps_thread_dereg (deregister_thread (t));
@@ -1415,13 +1352,8 @@ type_of_addr (struct igc *gc, mps_addr_t addr, enum igc_obj_type *obj_type)
   if (!mps_addr_pool (&pool, gc->arena, addr))
     return false;
 
-  if (pool == gc->pool[IGC_POOL_CONS])
-    *obj_type = IGC_OBJ_CONS;
-  else
-    {
-      struct igc_header *h = client_to_base (addr);
-      *obj_type = h->type;
-    }
+  struct igc_header *h = client_to_base (addr);
+  *obj_type = h->type;
   return true;
 }
 
@@ -1503,48 +1435,29 @@ static mps_ap_t
 thread_ap (enum igc_obj_type type)
 {
   struct igc_thread_list *t = current_thread->gc_info;
-  enum igc_pool_type pool_type = type_to_pool (type);
-  IGC_ASSERT (pool_type != IGC_POOL_WEAK);
-  return t->d.ap[pool_type];
-}
+  switch (type)
+    {
+    case IGC_OBJ_PAD:
+    case IGC_OBJ_FWD:
+    case IGC_OBJ_LAST:
+    case IGC_OBJ_WEAK:
+      emacs_abort ();
 
-static struct igc_init igc_inits[IGC_POOL_LAST] = {
-  [IGC_POOL_CONS] = { .class_type = IGC_AMC,
-		      .header_size = sizeof (struct igc_header),
-		      .align = IGC_ALIGN_DFLT,
-		      .interior_pointers = false,
-		      .forward = dflt_fwd,
-		      .is_forwarded = is_dflt_fwd,
-		      .pad = dflt_pad,
-		      .scan = dflt_scan,
-		      .skip = dflt_skip },
-  [IGC_POOL_DFLT] = { .class_type = IGC_AMC,
-		      .align = IGC_ALIGN_DFLT,
-		      .header_size = sizeof (struct igc_header),
-		      .interior_pointers = false,
-		      .forward = dflt_fwd,
-		      .is_forwarded = is_dflt_fwd,
-		      .pad = dflt_pad,
-		      .scan = dflt_scan,
-		      .skip = dflt_skip },
-  [IGC_POOL_LEAF] = { .class_type = IGC_AMCZ,
-		      .align = IGC_ALIGN_DFLT,
-		      .header_size = sizeof (struct igc_header),
-		      .interior_pointers = true,
-		      .forward = dflt_fwd,
-		      .is_forwarded = is_dflt_fwd,
-		      .pad = dflt_pad,
-		      .scan = NULL,
-		      .skip = dflt_skip },
-  [IGC_POOL_WEAK] = { .class_type = IGC_AWL,
-		      .align = IGC_ALIGN_DFLT,
-		      .header_size = sizeof (struct igc_header),
-		      .forward = dflt_fwd,
-		      .is_forwarded = is_dflt_fwd,
-		      .pad = dflt_pad,
-		      .scan = dflt_scan,
-		      .skip = dflt_skip },
-};
+    case IGC_OBJ_CONS:
+    case IGC_OBJ_SYMBOL:
+    case IGC_OBJ_INTERVAL:
+    case IGC_OBJ_STRING:
+    case IGC_OBJ_VECTOR:
+    case IGC_OBJ_ITREE_NODE:
+    case IGC_OBJ_IMAGE:
+    case IGC_OBJ_FACE:
+      return t->d.dflt_ap;
+
+    case IGC_OBJ_STRING_DATA:
+    case IGC_OBJ_FLOAT:
+      return t->d.leaf_ap;
+    }
+}
 
 void
 igc_break (void)
@@ -1556,7 +1469,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
   enum igc_obj_type type = IGC_OBJ_CONS;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Cons), type);
+  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Cons));
   mps_addr_t p;
   struct Lisp_Cons *cons;
   do
@@ -1579,7 +1492,7 @@ igc_alloc_symbol (void)
 {
   enum igc_obj_type type = IGC_OBJ_SYMBOL;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Symbol), type);
+  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Symbol));
   mps_addr_t p;
   struct Lisp_Symbol *sym;
   do
@@ -1602,7 +1515,7 @@ igc_make_float (double val)
 {
   enum igc_obj_type type = IGC_OBJ_FLOAT;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Float), type);
+  size_t nbytes = igc_obj_size (sizeof (struct Lisp_Float));
   mps_addr_t p;
   struct Lisp_Float *f;
   do
@@ -1627,7 +1540,7 @@ alloc_string_data (size_t nbytes)
   enum igc_obj_type type = IGC_OBJ_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
   // One word more make sure we have enough room for igc_fwd
-  nbytes = igc_obj_size (sizeof (mps_addr_t) + nbytes, type);
+  nbytes = igc_obj_size (sizeof (mps_addr_t) + nbytes);
   IGC_ASSERT (nbytes >= sizeof (struct igc_fwd));
   mps_addr_t p;
   do
@@ -1686,7 +1599,7 @@ igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
 
   enum igc_obj_type type = IGC_OBJ_STRING;
   mps_ap_t ap = thread_ap (type);
-  size_t string_nbytes = igc_obj_size (sizeof (struct Lisp_String), type);
+  size_t string_nbytes = igc_obj_size (sizeof (struct Lisp_String));
   mps_addr_t p;
   struct Lisp_String *s;
   do
@@ -1723,7 +1636,7 @@ igc_make_interval (void)
 {
   enum igc_obj_type type = IGC_OBJ_INTERVAL;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_obj_size (sizeof (struct interval), type);
+  size_t nbytes = igc_obj_size (sizeof (struct interval));
   mps_addr_t p;
   struct interval *iv;
   do
@@ -1747,7 +1660,7 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 {
   enum igc_obj_type type = IGC_OBJ_VECTOR;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = igc_obj_size (header_size + nwords_mem * word_size, type);
+  size_t nbytes = igc_obj_size (header_size + nwords_mem * word_size);
   mps_addr_t p;
   struct Lisp_Vector *v;
   do
@@ -1770,7 +1683,7 @@ igc_alloc_vector (ptrdiff_t len)
 {
   enum igc_obj_type type = (IGC_OBJ_VECTOR);
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_obj_size (header_size + len * word_size, type);
+  ptrdiff_t nbytes = igc_obj_size (header_size + len * word_size);
   mps_addr_t p;
   struct Lisp_Vector *v;
   do
@@ -1793,7 +1706,7 @@ igc_alloc_record (ptrdiff_t len)
 {
   enum igc_obj_type type = (IGC_OBJ_VECTOR);
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_obj_size (header_size + len * word_size, type);
+  ptrdiff_t nbytes = igc_obj_size (header_size + len * word_size);
   mps_addr_t p;
   do
     {
@@ -1813,7 +1726,7 @@ igc_make_itree_node (void)
 {
   enum igc_obj_type type = IGC_OBJ_ITREE_NODE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_obj_size (sizeof (struct itree_node), type);
+  ptrdiff_t nbytes = igc_obj_size (sizeof (struct itree_node));
   mps_addr_t p;
   struct itree_node *n;
   do
@@ -1835,7 +1748,7 @@ igc_make_image (void)
 {
   enum igc_obj_type type = IGC_OBJ_IMAGE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_obj_size (sizeof (struct image), type);
+  ptrdiff_t nbytes = igc_obj_size (sizeof (struct image));
   mps_addr_t p;
   struct image *img;
   do
@@ -1857,7 +1770,7 @@ igc_make_face (void)
 {
   enum igc_obj_type type = IGC_OBJ_FACE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = igc_obj_size (sizeof (struct face), type);
+  ptrdiff_t nbytes = igc_obj_size (sizeof (struct face));
   mps_addr_t p;
   struct face *face;
   do
@@ -1884,13 +1797,6 @@ igc_valid_lisp_object_p (Lisp_Object obj)
   return 1;
 }
 
-static mps_pool_debug_option_s debug_options = {
-  "fence",
-  5,
-  "free",
-  4,
-};
-
 static void
 make_arena (struct igc *gc)
 {
@@ -1907,58 +1813,60 @@ make_arena (struct igc *gc)
   IGC_CHECK_RES (res);
 }
 
-static void
-make_fmt (struct igc *gc, enum igc_pool_type type, struct igc_init *init)
+static mps_fmt_t
+make_dflt_fmt (struct igc *gc)
 {
   mps_res_t res;
+  mps_fmt_t fmt;
   MPS_ARGS_BEGIN (args)
   {
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, init->align);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, init->header_size);
-    if (init->scan)
-      MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, init->scan);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, init->skip);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, init->forward);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, init->is_forwarded);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, init->pad);
-    res = mps_fmt_create_k (&gc->fmt[type], gc->arena, args);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, IGC_ALIGN);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, sizeof (struct igc_header));
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, dflt_scan);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, dflt_skip);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, dflt_fwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_ISFWD, is_dflt_fwd);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_PAD, dflt_pad);
+    res = mps_fmt_create_k (&fmt, gc->arena, args);
   }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+  return fmt;
 }
 
-static void
-make_pool (struct igc *gc, enum igc_pool_type type, struct igc_init *init)
+static mps_pool_t
+make_pool_with_class (struct igc *gc, mps_fmt_t fmt, mps_class_t cls)
 {
   mps_res_t res;
+  mps_pool_t pool;
   MPS_ARGS_BEGIN (args)
   {
-    MPS_ARGS_ADD (args, MPS_KEY_POOL_DEBUG_OPTIONS, &debug_options);
-    MPS_ARGS_ADD (args, MPS_KEY_FORMAT, gc->fmt[type]);
+    MPS_ARGS_ADD (args, MPS_KEY_FORMAT, fmt);
     MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-    MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, init->interior_pointers);
-    res
-      = mps_pool_create_k (&gc->pool[type], gc->arena, init->pool_class, args);
+    MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, false);
+    res = mps_pool_create_k (&pool, gc->arena, cls, args);
   }
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
+  return pool;
 }
 
-static void
-runtime_setup_mps_class (struct igc_init *init)
+static mps_pool_t
+make_pool_amc (struct igc *gc, mps_fmt_t fmt)
 {
-  switch (init->class_type)
-    {
-    case IGC_AMC:
-      init->pool_class = mps_class_amc ();
-      break;
-    case IGC_AWL:
-      init->pool_class = mps_class_awl ();
-      break;
-    case IGC_AMCZ:
-      init->pool_class = mps_class_amcz ();
-      break;
-    }
+  return make_pool_with_class (gc, fmt, mps_class_amc ());
+}
+
+static mps_pool_t
+make_pool_awl (struct igc *gc, mps_fmt_t fmt)
+{
+  return make_pool_with_class (gc, fmt, mps_class_awl ());
+}
+
+static mps_pool_t
+make_pool_amcz (struct igc *gc, mps_fmt_t fmt)
+{
+  return make_pool_with_class (gc, fmt, mps_class_amcz ());
 }
 
 static struct igc *
@@ -1967,13 +1875,12 @@ make_igc (void)
   struct igc *gc = xzalloc (sizeof *gc);
   make_arena (gc);
 
-  for (enum igc_pool_type type = 0; type < IGC_POOL_LAST; ++type)
-    {
-      struct igc_init *init = igc_inits + type;
-      runtime_setup_mps_class (init);
-      make_fmt (gc, type, init);
-      make_pool (gc, type, init);
-    }
+  gc->dflt_fmt = make_dflt_fmt (gc);
+  gc->dflt_pool = make_pool_amc (gc, gc->dflt_fmt);
+  gc->leaf_fmt = make_dflt_fmt (gc);
+  gc->leaf_pool = make_pool_amcz (gc, gc->leaf_fmt);
+  gc->weak_fmt = make_dflt_fmt (gc);
+  gc->leaf_pool = make_pool_awl (gc, gc->weak_fmt);
 
   create_static_roots (gc);
   enable_messages (gc, true);
@@ -1985,11 +1892,12 @@ free_igc (struct igc *gc)
 {
   while (gc->threads)
     igc_thread_remove (gc->threads);
-  for (enum igc_pool_type type = 0; type < IGC_POOL_LAST; ++type)
-    {
-      mps_pool_destroy (gc->pool[type]);
-      mps_fmt_destroy (gc->fmt[type]);
-    }
+  mps_pool_destroy (gc->dflt_pool);
+  mps_fmt_destroy (gc->dflt_fmt);
+  mps_pool_destroy (gc->leaf_pool);
+  mps_fmt_destroy (gc->leaf_fmt);
+  mps_pool_destroy (gc->weak_pool);
+  mps_fmt_destroy (gc->weak_fmt);
   destroy_all_roots (gc);
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);
