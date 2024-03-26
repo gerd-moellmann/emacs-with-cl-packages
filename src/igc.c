@@ -132,7 +132,6 @@ enum
 {
   IGC_ALIGN = GCALIGNMENT,
   IGC_ALIGN_DFLT = IGC_ALIGN,
-  IGC_ALIGN_CONS = IGC_ALIGN << 1,
 };
 
 #if 0
@@ -457,18 +456,6 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	    // fprintf (stderr, "fix symbol 0x%lx -> 0x%lx\n", word, *p);
 	  }
       }
-    else if (tag == Lisp_Cons)
-      {
-	mps_addr_t ref = (mps_addr_t) (word ^ tag);
-	if (is_aligned (ref, IGC_ALIGN_CONS)
-	    && MPS_FIX1 (ss, ref))
-	  {
-	    mps_res_t res = MPS_FIX2 (ss, &ref);
-	    if (res != MPS_RES_OK)
-	      return res;
-	    *p = (mps_word_t) ref | tag;
-	  }
-      }
     else
       {
 	mps_addr_t ref = (mps_addr_t) (word ^ tag);
@@ -699,78 +686,7 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 }
 
 /***********************************************************************
-				  Cons
- ***********************************************************************/
-
-static const Lisp_Object cons_fwd_sig = TAG_PTR_INITIALLY (Lisp_String, 0);
-static const Lisp_Object cons_pad_sig = TAG_PTR_INITIALLY (Lisp_Float, 0);
-
-static void
-cons_pad (mps_addr_t addr, mps_word_t nbytes)
-{
-  struct Lisp_Cons *s = addr;
-  IGC_ASSERT (nbytes >= sizeof *s);
-  s->u.s.car = cons_pad_sig;
-  *((mps_word_t *) &s->u.s.u.cdr) = nbytes;
-}
-
-static mps_addr_t
-is_cons_pad (mps_addr_t addr)
-{
-  struct Lisp_Cons *c = addr;
-  if (BASE_EQ (c->u.s.car, cons_pad_sig))
-    return (char *) addr + *((mps_word_t *) &c->u.s.u.cdr);
-  return NULL;
-}
-
-static void
-cons_forward (mps_addr_t old, mps_addr_t new_addr)
-{
-  struct Lisp_Cons *s = old;
-  s->u.s.car = cons_fwd_sig;
-  *((mps_addr_t *) &s->u.s.u.cdr) = new_addr;
-}
-
-static mps_addr_t
-is_cons_fwd (mps_addr_t addr)
-{
-  struct Lisp_Cons *s = addr;
-  if (BASE_EQ (s->u.s.car, cons_fwd_sig))
-    return *((mps_addr_t *) &s->u.s.u.cdr);
-  return NULL;
-}
-
-static mps_addr_t
-cons_skip (mps_addr_t addr)
-{
-  mps_addr_t end = is_cons_pad (addr);
-  if (end)
-    return end;
-  return (char *) addr + igc_obj_size (sizeof (struct Lisp_Cons), IGC_OBJ_CONS);
-}
-
-static mps_res_t
-cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    while (base < limit)
-      {
-	struct Lisp_Cons *cons = base;
-	base = cons_skip (base);
-
-	if (is_cons_fwd (cons) || is_cons_pad (cons))
-	  continue;
-	IGC_FIX12_OBJ (ss, &cons->u.s.car);
-	IGC_FIX12_OBJ (ss, &cons->u.s.u.cdr);
-      }
-  }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-/***********************************************************************
-			    Normal pad, fwd
+			 Default pad, fwd, ...
  ***********************************************************************/
 
 struct igc_fwd
@@ -894,6 +810,18 @@ fix_weak (mps_ss_t ss, mps_addr_t base)
   return MPS_RES_OK;
 }
 
+static mps_res_t
+fix_cons (mps_ss_t ss, struct Lisp_Cons *cons)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX12_OBJ (ss, &cons->u.s.car);
+    IGC_FIX12_OBJ (ss, &cons->u.s.u.cdr);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 static mps_res_t fix_vector (mps_ss_t ss, struct Lisp_Vector *v);
 
 static mps_res_t
@@ -914,6 +842,9 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 	    continue;
 
 	  case IGC_OBJ_CONS:
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Cons, client, fix_cons);
+	    break;
+
 	  case IGC_OBJ_STRING_DATA:
 	  case IGC_OBJ_FLOAT:
 	  case IGC_OBJ_LAST:
@@ -1553,13 +1484,13 @@ thread_ap (enum igc_obj_type type)
 static struct igc_init igc_inits[IGC_POOL_LAST] = {
   [IGC_POOL_CONS] = { .class_type = IGC_AMC,
 		      .header_size = 0,
-		      .align = IGC_ALIGN_CONS,
+		      .align = IGC_ALIGN_DFLT,
 		      .interior_pointers = false,
-		      .forward = cons_forward,
-		      .is_forwarded = is_cons_fwd,
-		      .pad = cons_pad,
-		      .scan = cons_scan,
-		      .skip = cons_skip },
+		      .forward = dflt_fwd,
+		      .is_forwarded = is_dflt_fwd,
+		      .pad = dflt_pad,
+		      .scan = dflt_scan,
+		      .skip = dflt_skip },
   [IGC_POOL_DFLT] = { .class_type = IGC_AMC,
 		      .align = IGC_ALIGN_DFLT,
 		      .header_size = sizeof (struct igc_header),
