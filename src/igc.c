@@ -196,6 +196,8 @@ IGC_DEFINE_LIST (igc_root);
 
 enum igc_type
 {
+  IGC_TYPE_PAD,
+  IGC_TYPE_FWD,
   IGC_TYPE_CONS,
   IGC_TYPE_SYMBOL,
   IGC_TYPE_INTERVAL,
@@ -209,6 +211,17 @@ enum igc_type
   IGC_TYPE_WEAK,
   IGC_TYPE_LAST
 };
+
+enum igc_pool_type
+{
+  IGC_POOL_NORMAL,
+  IGC_POOL_LEAF,
+  IGC_POOL_CONS,
+  IGC_POOL_WEAK,
+  IGC_POOL_LAST,
+};
+
+igc_static_assert (IGC_POOL_WEAK == IGC_POOL_LAST - 1);
 
 static size_t
 igc_round (size_t nbytes, size_t align)
@@ -236,7 +249,9 @@ struct igc_thread
   mps_thr_t thr;
   void *stack_start;
   struct igc_root_list *specpdl_root;
-  mps_ap_t ap[IGC_TYPE_LAST];
+  mps_ap_t ap[IGC_POOL_LAST];
+  mps_ap_t weak_strong_ap;
+  mps_ap_t weak_weak_ap;
 };
 
 typedef struct igc_thread igc_thread;
@@ -246,8 +261,8 @@ struct igc
 {
   mps_arena_t arena;
   mps_chain_t chain;
-  mps_fmt_t fmt[IGC_TYPE_LAST];
-  mps_pool_t pool[IGC_TYPE_LAST];
+  mps_fmt_t fmt[IGC_POOL_LAST];
+  mps_pool_t pool[IGC_POOL_LAST];
   struct igc_root_list *roots;
   struct igc_thread_list *threads;
 };
@@ -297,15 +312,37 @@ igc_inhibit_garbage_collection (void)
   return count;
 }
 
+static mps_res_t
+create_weak_ap (mps_ap_t *ap, struct igc_thread *t, bool weak)
+{
+  struct igc *gc = t->gc;
+  mps_res_t res;
+  mps_pool_t pool = gc->pool[IGC_POOL_WEAK];
+  MPS_ARGS_BEGIN (args)
+  {
+    MPS_ARGS_ADD (args, MPS_KEY_RANK,
+		  weak ? mps_rank_weak () : mps_rank_exact ());
+    res = mps_ap_create_k (ap, pool, args);
+  }
+  MPS_ARGS_END (args);
+  return res;
+}
+
 static void
 create_thread_aps (struct igc_thread *t)
 {
-  for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
+  struct igc *gc = t->gc;
+  mps_res_t res;
+  for (int i = 0; i < IGC_POOL_WEAK; ++i)
     {
-      mps_res_t res
-	= mps_ap_create_k (&t->ap[type], t->gc->pool[type], mps_args_none);
+      res = mps_ap_create_k (&t->ap[i], gc->pool[i], mps_args_none);
       IGC_CHECK_RES (res);
     }
+
+  res = create_weak_ap (&t->weak_strong_ap, t, false);
+  IGC_CHECK_RES (res);
+  res = create_weak_ap (&t->weak_weak_ap, t, true);
+  IGC_CHECK_RES (res);
 }
 
 static struct igc_thread_list *
@@ -322,6 +359,34 @@ deregister_thread (struct igc_thread_list *t)
   igc_thread_list_remove (&thread, &t->d.gc->threads, t);
   return thread.thr;
 }
+
+enum igc_header_type
+{
+  IGC_HEADER_PAD,
+  IGC_HEADER_FWD,
+  IGC_HEADER_STRING,
+  IGC_HEADER_STRING_DATA,
+  IGC_HEADER_VECTOR,
+  IGC_HEADER_IMAGE,
+  IGC_HEADER_FACE,
+  IGC_HEADER_ITREE_NODE,
+};
+
+// Smallest object is vector of size 0 = header, 1 word.  To be able to
+// store a forwarding object of size 3 words, we must make sure to never
+// allocate less than 3 words. We can allocate conses in a pool of their
+// own, and do things differently.
+struct igc_header
+{
+  enum igc_header_type type;
+  mps_word_t total_nbytes;
+};
+
+struct igc_fwd
+{
+  struct igc_header header;
+  mps_addr_t new_addr;
+};
 
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wunused-variable"
@@ -349,7 +414,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	      return res;
 	    mps_word_t new_off = (char *) ref - (char *) lispsym;
 	    *p = new_off | tag;
-	    //fprintf (stderr, "fix symbol 0x%lx -> 0x%lx\n", word, *p);
+	    // fprintf (stderr, "fix symbol 0x%lx -> 0x%lx\n", word, *p);
 	  }
       }
     else
@@ -1260,7 +1325,7 @@ struct igc_weak
   mps_word_t obj[];
 };
 
-#if 0
+# if 0
 static mps_addr_t
 weak_to_obj (struct igc_weak *w)
 {
@@ -1273,7 +1338,7 @@ obj_to_weak (mps_addr_t addr)
   mps_addr_t w = (char *) addr - offsetof (struct igc_weak, obj);
   return w;
 }
-#endif
+# endif
 
 static void
 weak_pad (mps_addr_t addr, mps_word_t nbytes)
@@ -1396,13 +1461,15 @@ vector_obj_nbytes (const struct Lisp_Vector *v)
 	case PVEC_BOOL_VECTOR:
 	  {
 	    struct Lisp_Bool_Vector *bv = (struct Lisp_Bool_Vector *) v;
-	    nbytes = bool_header_size + bool_vector_words (bv->size) * word_size;
+	    nbytes
+	      = bool_header_size + bool_vector_words (bv->size) * word_size;
 	  }
 	  break;
 
 	default:
 	  {
-	    mps_word_t nwords = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
+	    mps_word_t nwords
+	      = pseudo_vector_nobjs (v) + pseudo_vector_rest_nwords (v);
 	    nbytes = header_size + nwords * word_size;
 	  }
 	  break;
@@ -1640,7 +1707,7 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	      // struct font_driver_list *font_driver_list;
 	      // struct text_conversion_state conversion;
 	      struct frame *f = vbase;
-	      //eassert (false);
+	      // eassert (false);
 	    }
 	    break;
 
@@ -1653,13 +1720,8 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  case PVEC_HASH_TABLE:
 	    {
 	      struct Lisp_Hash_Table *h = vbase;
-	      //eassert (h->weakness == Weak_None);
-	      for (ptrdiff_t i = 0; i < h->table_size; ++i)
-		if (!hash_unused_entry_key_p (HASH_KEY (h, i)))
-		  {
-		    IGC_FIX12_OBJ (ss, &h->key[i]);
-		    IGC_FIX12_OBJ (ss, &h->value[i]);
-		  }
+	      IGC_FIX12_NOBJS (ss, h->key, h->table_size);
+	      IGC_FIX12_NOBJS (ss, h->value, h->table_size);
 	    }
 	    break;
 
@@ -1720,7 +1782,6 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
-
 
 # pragma GCC diagnostic pop
 
@@ -1979,6 +2040,8 @@ do_finalize (struct igc *gc, mps_addr_t addr)
 {
   switch (type_of_addr (gc, addr))
     {
+    case IGC_TYPE_PAD:
+    case IGC_TYPE_FWD:
     case IGC_TYPE_CONS:
     case IGC_TYPE_SYMBOL:
     case IGC_TYPE_INTERVAL:
@@ -2043,132 +2106,93 @@ igc_on_idle (void)
   mps_arena_step (global_igc->arena, 0.1, 0);
 }
 
+static enum igc_pool_type
+type_to_pool (enum igc_type type)
+{
+  switch (type)
+    {
+    case IGC_TYPE_PAD:
+    case IGC_TYPE_FWD:
+      emacs_abort ();
+
+    case IGC_TYPE_CONS:
+      return IGC_POOL_CONS;
+
+    case IGC_TYPE_STRING_DATA:
+    case IGC_TYPE_FLOAT:
+      return IGC_POOL_LEAF;
+
+    case IGC_TYPE_SYMBOL:
+    case IGC_TYPE_INTERVAL:
+    case IGC_TYPE_STRING:
+    case IGC_TYPE_VECTOR:
+    case IGC_TYPE_ITREE_NODE:
+    case IGC_TYPE_IMAGE:
+    case IGC_TYPE_FACE:
+      return IGC_POOL_NORMAL;
+
+    case IGC_TYPE_WEAK:
+      return IGC_POOL_WEAK;
+
+    case IGC_TYPE_LAST:
+      emacs_abort ();
+    }
+}
+
 static mps_ap_t
 thread_ap (enum igc_type type)
 {
   struct igc_thread_list *t = current_thread->gc_info;
-  return t->d.ap[type];
+  enum igc_pool_type pool_type = type_to_pool (type);
+  IGC_ASSERT (pool_type != IGC_POOL_WEAK);
+  return t->d.ap[pool_type];
 }
 
 enum
 {
-  // MPS apparently pads areas that are >= pool alignment.  Make the
-  // pool alignments large enought to hold fwd and pad objects.
+  // MPS pads areas that are multiples of the pool alignment.  Make pool
+  // alignments large enought to hold fwd and pad objects.
   IGC_ALIGN = GCALIGNMENT,
-  IGC_CONS_ALIGN = IGC_ALIGN << 1,
-  IGC_SYMBOL_ALIGN = IGC_ALIGN << 3,
-  IGC_INTERVAL_ALIGN = IGC_ALIGN << 3,
-  IGC_STRING_ALIGN = IGC_ALIGN << 2,
-  IGC_VECTOR_ALIGN = IGC_ALIGN << 2,
-  IGC_STRING_DATA_ALIGN = IGC_ALIGN << 1,
-  IGC_ITREE_ALIGN = IGC_ALIGN << 4,
-  IGC_IMAGE_ALIGN = IGC_ALIGN << 1,
-  IGC_FACE_ALIGN = IGC_ALIGN << 6,
-  IGC_FLOAT_ALIGN = IGC_ALIGN << 1,
-  IGC_WEAK_ALIGN = IGC_ALIGN << 2,
+  // We assume that there is always at least one word in the object
+  // itself so that we get away with storing 3 words for igc_fwd.
+  IGC_ALIGN_NORMAL = IGC_ALIGN << 1,
+  IGC_ALIGN_CONS = IGC_ALIGN << 1,
 };
 
-igc_static_assert (IGC_CONS_ALIGN >= sizeof (struct Lisp_Cons));
-igc_static_assert (IGC_SYMBOL_ALIGN >= sizeof (struct Lisp_Symbol));
-igc_static_assert (IGC_INTERVAL_ALIGN >= sizeof (struct interval));
-igc_static_assert (IGC_STRING_ALIGN >= sizeof (struct Lisp_String));
-igc_static_assert (IGC_VECTOR_ALIGN >= sizeof (struct igc_vector_fwd));
-igc_static_assert (IGC_STRING_DATA_ALIGN >= sizeof (struct igc_sdata));
-igc_static_assert (IGC_ITREE_ALIGN >= sizeof (struct itree_node));
-igc_static_assert (IGC_FACE_ALIGN >= sizeof (struct face));
-igc_static_assert (IGC_FLOAT_ALIGN >= sizeof (struct Lisp_Float));
-igc_static_assert (IGC_WEAK_ALIGN >= sizeof (struct igc_weak));
+igc_static_assert (IGC_ALIGN_NORMAL >= sizeof (struct igc_header));
 
-static struct igc_init igc_inits[IGC_TYPE_LAST] = {
-  [IGC_TYPE_CONS] = { .class_type = IGC_AMC,
-		      .align = IGC_CONS_ALIGN,
+static struct igc_init igc_inits[IGC_POOL_LAST] = {
+  [IGC_POOL_CONS] = { .class_type = IGC_AMC,
+		      .align = IGC_ALIGN_CONS,
 		      .interior_pointers = false,
 		      .forward = cons_forward,
 		      .is_forwarded = is_cons_fwd,
 		      .pad = cons_pad,
 		      .scan = cons_scan,
 		      .skip = cons_skip },
-  [IGC_TYPE_SYMBOL] = { .class_type = IGC_AMC,
-			.align = IGC_SYMBOL_ALIGN,
+  [IGC_POOL_NORMAL] = { .class_type = IGC_AMC,
+			.align = IGC_ALIGN_NORMAL,
 			.interior_pointers = false,
-			.forward = symbol_fwd,
-			.is_forwarded = is_symbol_fwd,
-			.pad = symbol_pad,
-			.scan = symbol_scan,
-			.skip = symbol_skip },
-  [IGC_TYPE_INTERVAL] = { .class_type = IGC_AMC,
-			  .align = IGC_INTERVAL_ALIGN,
-			  .interior_pointers = false,
-			  .forward = interval_fwd,
-			  .pad = interval_pad,
-			  .is_forwarded = is_interval_fwd,
-			  .scan = interval_scan,
-			  .skip = interval_skip },
-  [IGC_TYPE_STRING] = { .class_type = IGC_AMC,
-			.align = IGC_STRING_ALIGN,
-			.interior_pointers = false,
-			.forward = string_fwd,
-			.pad = string_pad,
-			.is_forwarded = is_string_fwd,
-			.scan = string_scan,
-			.skip = string_skip },
-  [IGC_TYPE_STRING_DATA] = { .class_type = IGC_AMCZ,
-			     .align = IGC_STRING_DATA_ALIGN,
-			     .interior_pointers = true,
-			     .forward = string_data_fwd,
-			     .is_forwarded = is_string_data_fwd,
-			     .pad = string_data_pad,
-			     .scan = NULL,
-			     .skip = string_data_skip },
-  [IGC_TYPE_VECTOR] = { .class_type = IGC_AMC,
-			.align = IGC_VECTOR_ALIGN,
-			.interior_pointers = false,
-			.forward = vector_forward,
-			.is_forwarded = is_vector_forwarded,
-			.pad = vector_pad,
-			.scan = vector_scan,
-			.skip = vector_skip },
-  [IGC_TYPE_ITREE_NODE] = { .class_type = IGC_AMC,
-			    .align = IGC_ITREE_ALIGN,
-			    .interior_pointers = false,
-			    .forward = itree_fwd,
-			    .is_forwarded = is_itree_fwd,
-			    .pad = itree_pad,
-			    .scan = itree_scan,
-			    .skip = itree_skip },
-  [IGC_TYPE_IMAGE] = { .class_type = IGC_AMC,
-		       .align = IGC_IMAGE_ALIGN,
-		       .interior_pointers = false,
-		       .forward = image_fwd,
-		       .is_forwarded = is_image_fwd,
-		       .pad = image_pad,
-		       .scan = image_scan,
-		       .skip = image_skip },
-  [IGC_TYPE_FACE] = { .class_type = IGC_AMC,
-		      .align = IGC_FACE_ALIGN,
-		      .interior_pointers = false,
-		      .forward = face_fwd,
-		      .is_forwarded = is_face_fwd,
-		      .pad = face_pad,
-		      .scan = face_scan,
-		      .skip = face_skip },
-  [IGC_TYPE_FLOAT] = { .class_type = IGC_AMCZ,
-		       .align = IGC_FLOAT_ALIGN,
-		       .interior_pointers = false,
-		       .forward = float_fwd,
-		       .is_forwarded = is_float_fwd,
-		       .pad = float_pad,
-		       .scan = NULL,
-		       .skip = float_skip },
-  [IGC_TYPE_WEAK] = { .class_type = IGC_AWL,
-		      .align = IGC_WEAK_ALIGN,
-		      // Maybe better use a format with header
+			.forward = normal_fwd,
+			.is_forwarded = is_normal_fwd,
+			.pad = normal_pad,
+			.scan = normal_scan,
+			.skip = normal_skip },
+  [IGC_POOL_LEAF] = { .class_type = IGC_AMCZ,
+		      .align = IGC_ALIGN_NORMAL,
 		      .interior_pointers = true,
-		      .forward = weak_fwd,
-		      .is_forwarded = is_weak_fwd,
-		      .pad = weak_pad,
+		      .forward = normal_fwd,
+		      .is_forwarded = is_normal_fwd,
+		      .pad = normal_pad,
+		      .scan = NULL,
+		      .skip = normal_skip },
+  [IGC_TYPE_WEAK] = { .class_type = IGC_AWL,
+		      .align = IGC_ALIGN_NORMAL,
+		      .forward = normal_fwd,
+		      .is_forwarded = is_normal_fwd,
+		      .pad = normal_pad,
 		      .scan = weak_scan,
-		      .skip = weak_skip },
+		      .skip = normal_skip },
 };
 
 void
