@@ -296,10 +296,8 @@ igc_round (size_t nbytes, size_t align)
 static size_t
 igc_obj_size (size_t nbytes, enum igc_obj_type obj_type)
 {
-  if (obj_type != IGC_OBJ_CONS)
-    nbytes += sizeof (struct igc_header);
-  enum igc_pool_type pool_type = type_to_pool (obj_type);
-  return igc_round (nbytes, igc_inits[pool_type].align);
+  nbytes += sizeof (struct igc_header);
+  return igc_round (nbytes, IGC_ALIGN_DFLT);
 }
 
 static bool
@@ -1483,7 +1481,7 @@ thread_ap (enum igc_obj_type type)
 
 static struct igc_init igc_inits[IGC_POOL_LAST] = {
   [IGC_POOL_CONS] = { .class_type = IGC_AMC,
-		      .header_size = 0,
+		      .header_size = sizeof (struct igc_header),
 		      .align = IGC_ALIGN_DFLT,
 		      .interior_pointers = false,
 		      .forward = dflt_fwd,
@@ -1531,16 +1529,20 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
   mps_ap_t ap = thread_ap (type);
   size_t nbytes = igc_obj_size (sizeof (struct Lisp_Cons), type);
   mps_addr_t p;
+  struct Lisp_Cons *cons;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      struct Lisp_Cons *cons = p;
+      struct igc_header *h = p;
+      h->type = type;
+      h->total_nbytes = nbytes;
+      cons = base_to_client (p);
       cons->u.s.car = car;
       cons->u.s.u.cdr = cdr;
     }
   while (!mps_commit (ap, p, nbytes));
-  return make_lisp_ptr (p, Lisp_Cons);
+  return make_lisp_ptr (cons, Lisp_Cons);
 }
 
 Lisp_Object
