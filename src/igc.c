@@ -134,11 +134,11 @@ enum
   IGC_ALIGN_DFLT = IGC_ALIGN,
 };
 
-#if 0
+# if 0
 igc_static_assert (sizeof (struct igc_header) == sizeof (mps_word_t));
 igc_static_assert (sizeof (struct igc_fwd) == 2 * sizeof (mps_word_t));
 igc_static_assert (IGC_ALIGN_DFLT >= sizeof (struct igc_header));
-#endif
+# endif
 
 # define IGC_CHECK_RES(res) \
    if ((res) != MPS_RES_OK) \
@@ -447,15 +447,15 @@ fix_raw (mps_ss_t ss, mps_addr_t *p)
      }                                                  \
    while (0)
 
-# define IGC_FIX12_RAW(ss, p)                              \
-  do							   \
-    {							   \
-      mps_res_t res;					   \
-      MPS_FIX_CALL (ss, res = fix_raw (ss, (mps_addr_t *)(p)));	\
-      if (res != MPS_RES_OK)				   \
-	return res;					   \
-    }							   \
-  while (0)
+# define IGC_FIX12_RAW(ss, p)                                     \
+   do                                                             \
+     {                                                            \
+       mps_res_t res;                                             \
+       MPS_FIX_CALL (ss, res = fix_raw (ss, (mps_addr_t *) (p))); \
+       if (res != MPS_RES_OK)                                     \
+	 return res;                                              \
+     }                                                            \
+   while (0)
 
 # define IGC_FIX12_NOBJS(ss, a, n)                            \
    do                                                         \
@@ -477,15 +477,15 @@ fix_raw (mps_ss_t ss, mps_addr_t *p)
      }                                  \
    while (0)
 
-# define IGC_FIX_CALL_FN(ss, type, client_addr, fn)	\
-  do							\
-    {							\
-      type *obj_ = client_addr;				\
-      mps_res_t res;					\
-      MPS_FIX_CALL (ss, res = fn (ss, obj_));		\
-      if (res != MPS_RES_OK)				\
-	return res;					\
-    }							\
+# define IGC_FIX_CALL_FN(ss, type, client_addr, fn) \
+   do                                               \
+     {                                              \
+       type *obj_ = client_addr;                    \
+       mps_res_t res;                               \
+       MPS_FIX_CALL (ss, res = fn (ss, obj_));      \
+       if (res != MPS_RES_OK)                       \
+	 return res;                                \
+     }                                              \
    while (0)
 
 static mps_res_t
@@ -766,10 +766,7 @@ fix_face (mps_ss_t ss, struct face *f)
 static mps_res_t
 fix_weak (mps_ss_t ss, mps_addr_t base)
 {
-  MPS_SCAN_BEGIN (ss)
-  {
-    IGC_ASSERT (!"fix_weak");
-  }
+  MPS_SCAN_BEGIN (ss) { IGC_ASSERT (!"fix_weak"); }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
