@@ -195,27 +195,27 @@ struct igc_root
 typedef struct igc_root igc_root;
 IGC_DEFINE_LIST (igc_root);
 
-enum igc_type
+enum igc_obj_type
 {
-  IGC_TYPE_PAD,
-  IGC_TYPE_FWD,
-  IGC_TYPE_CONS,
-  IGC_TYPE_SYMBOL,
-  IGC_TYPE_INTERVAL,
-  IGC_TYPE_STRING,
-  IGC_TYPE_STRING_DATA,
-  IGC_TYPE_VECTOR,
-  IGC_TYPE_ITREE_NODE,
-  IGC_TYPE_IMAGE,
-  IGC_TYPE_FACE,
-  IGC_TYPE_FLOAT,
-  IGC_TYPE_WEAK,
-  IGC_TYPE_LAST
+  IGC_OBJ_PAD,
+  IGC_OBJ_FWD,
+  IGC_OBJ_CONS,
+  IGC_OBJ_SYMBOL,
+  IGC_OBJ_INTERVAL,
+  IGC_OBJ_STRING,
+  IGC_OBJ_STRING_DATA,
+  IGC_OBJ_VECTOR,
+  IGC_OBJ_ITREE_NODE,
+  IGC_OBJ_IMAGE,
+  IGC_OBJ_FACE,
+  IGC_OBJ_FLOAT,
+  IGC_OBJ_WEAK,
+  IGC_OBJ_LAST
 };
 
 enum igc_pool_type
 {
-  IGC_POOL_NORMAL,
+  IGC_POOL_DFLT,
   IGC_POOL_LEAF,
   IGC_POOL_CONS,
   IGC_POOL_WEAK,
@@ -231,13 +231,13 @@ igc_round (size_t nbytes, size_t align)
 }
 
 static size_t
-igc_round_to_pool (size_t nbytes, enum igc_type type)
+igc_round_to_pool (size_t nbytes, enum igc_obj_type type)
 {
   return igc_round (nbytes, igc_inits[type].align);
 }
 
 static bool
-is_aligned (mps_addr_t p, enum igc_type type)
+is_aligned (mps_addr_t p, enum igc_obj_type type)
 {
   size_t align = igc_inits[type].align;
   mps_word_t w = (mps_word_t) p;
@@ -380,7 +380,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
       {
 	mps_word_t off = word ^ tag;
 	mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
-	if (is_aligned (ref, IGC_TYPE_SYMBOL) && MPS_FIX1 (ss, ref))
+	if (is_aligned (ref, IGC_OBJ_SYMBOL) && MPS_FIX1 (ss, ref))
 	  {
 	    mps_res_t res = MPS_FIX2 (ss, &ref);
 	    if (res != MPS_RES_OK)
@@ -655,7 +655,7 @@ cons_skip (mps_addr_t addr)
   if (end)
     return end;
   return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_Cons), IGC_TYPE_CONS);
+	 + igc_round_to_pool (sizeof (struct Lisp_Cons), IGC_OBJ_CONS);
 }
 
 static mps_res_t
@@ -682,26 +682,14 @@ cons_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 			    Normal pad, fwd
  ***********************************************************************/
 
-enum igc_header_type
-{
-  IGC_HEADER_PAD,
-  IGC_HEADER_FWD,
-  IGC_HEADER_STRING,
-  IGC_HEADER_STRING_DATA,
-  IGC_HEADER_VECTOR,
-  IGC_HEADER_IMAGE,
-  IGC_HEADER_FACE,
-  IGC_HEADER_ITREE_NODE,
-};
-
 // Smallest object is vector of size 0 = header, 1 word.  To be able to
 // store a forwarding object of size 3 words, we must make sure to never
 // allocate less than 3 words. We can allocate conses in a pool of their
 // own, and do things differently.
 struct igc_header
 {
-  enum igc_header_type type;
-  mps_word_t total_nbytes;
+  enum igc_obj_type type : 8;
+  mps_word_t total_nbytes : sizeof (mps_word_t) * CHAR_BIT - 8;
 };
 
 struct igc_fwd
@@ -711,41 +699,41 @@ struct igc_fwd
 };
 
 static void
-normal_pad (mps_addr_t addr, mps_word_t nbytes)
+dflt_pad (mps_addr_t addr, mps_word_t nbytes)
 {
   struct igc_header *h = addr;
-  h->type = IGC_HEADER_PAD;
+  h->type = IGC_OBJ_PAD;
   h->total_nbytes = nbytes;
 }
 
 static mps_addr_t
-is_normal_pad (mps_addr_t addr)
+is_dflt_pad (mps_addr_t addr)
 {
   struct igc_header *h = addr;
-  if (h->type == IGC_HEADER_PAD)
+  if (h->type == IGC_OBJ_PAD)
     return (char *) addr + h->total_nbytes;
   return NULL;
 }
 
 static void
-normal_fwd (mps_addr_t old, mps_addr_t new_addr)
+dflt_fwd (mps_addr_t old, mps_addr_t new_addr)
 {
   struct igc_fwd *f = old;
-  f->header.type = IGC_HEADER_FWD;
+  f->header.type = IGC_OBJ_FWD;
   f->new_addr = new_addr;
 }
 
 static mps_addr_t
-is_normal_fwd (mps_addr_t addr)
+is_dflt_fwd (mps_addr_t addr)
 {
   struct igc_fwd *f = addr;
-  if (f->header.type == IGC_HEADER_FWD)
+  if (f->header.type == IGC_OBJ_FWD)
     return f->new_addr;
   return NULL;
 }
 
 static mps_addr_t
-normal_skip (mps_addr_t addr)
+dflt_skip (mps_addr_t addr)
 {
   struct igc_header *h = addr;
   return (char *) addr + h->total_nbytes;
@@ -800,7 +788,7 @@ symbol_skip (mps_addr_t addr)
   if (end)
     return end;
   return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_Symbol), IGC_TYPE_SYMBOL);
+	 + igc_round_to_pool (sizeof (struct Lisp_Symbol), IGC_OBJ_SYMBOL);
 }
 
 static mps_res_t
@@ -849,7 +837,7 @@ static unsigned char *
 sdata_contents (struct igc_sdata *d)
 {
   mps_addr_t p = &d->contents[0];
-  IGC_ASSERT (is_aligned (p, IGC_TYPE_STRING_DATA));
+  IGC_ASSERT (is_aligned (p, IGC_OBJ_STRING_DATA));
   return p;
 }
 
@@ -962,7 +950,7 @@ string_skip (mps_addr_t addr)
   if (end)
     return end;
   return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_String), IGC_TYPE_STRING);
+	 + igc_round_to_pool (sizeof (struct Lisp_String), IGC_OBJ_STRING);
 }
 
 static mps_res_t
@@ -1045,7 +1033,7 @@ float_skip (mps_addr_t addr)
   if (end)
     return end;
   return (char *) addr
-	 + igc_round_to_pool (sizeof (struct Lisp_Float), IGC_TYPE_FLOAT);
+	 + igc_round_to_pool (sizeof (struct Lisp_Float), IGC_OBJ_FLOAT);
 }
 
 /***********************************************************************
@@ -1099,7 +1087,7 @@ interval_skip (mps_addr_t addr)
   if (end)
     return end;
   return (char *) addr
-	 + igc_round_to_pool (sizeof (struct interval), IGC_TYPE_INTERVAL);
+	 + igc_round_to_pool (sizeof (struct interval), IGC_OBJ_INTERVAL);
 }
 
 static mps_res_t
@@ -1180,7 +1168,7 @@ itree_skip (mps_addr_t addr)
   if (end)
     return end;
   return (char *) addr
-	 + igc_round_to_pool (sizeof (struct itree_node), IGC_TYPE_ITREE_NODE);
+	 + igc_round_to_pool (sizeof (struct itree_node), IGC_OBJ_ITREE_NODE);
 }
 
 static mps_res_t
@@ -1253,7 +1241,7 @@ image_skip (mps_addr_t addr)
   if (end)
     return end;
   return (char *) addr
-	 + igc_round_to_pool (sizeof (struct image), IGC_TYPE_IMAGE);
+	 + igc_round_to_pool (sizeof (struct image), IGC_OBJ_IMAGE);
 }
 
 static mps_res_t
@@ -1326,8 +1314,7 @@ face_skip (mps_addr_t addr)
   mps_addr_t end = is_face_pad (addr);
   if (end)
     return end;
-  return (char *) addr
-	 + igc_round_to_pool (sizeof (struct face), IGC_TYPE_FACE);
+  return (char *) addr + igc_round_to_pool (sizeof (struct face), IGC_OBJ_FACE);
 }
 
 static mps_res_t
@@ -1527,7 +1514,7 @@ vector_obj_nbytes (const struct Lisp_Vector *v)
       nbytes = header_size + nwords * word_size;
     }
 
-  return igc_round_to_pool (nbytes, IGC_TYPE_VECTOR);
+  return igc_round_to_pool (nbytes, IGC_OBJ_VECTOR);
 }
 
 static void
@@ -1603,15 +1590,15 @@ vector_skip (mps_addr_t addr)
   return (char *) addr + nbytes;
 }
 
-static enum igc_type
+static enum igc_obj_type
 type_of_addr (struct igc *gc, mps_addr_t addr)
 {
   mps_pool_t pool;
   if (mps_addr_pool (&pool, gc->arena, addr))
-    for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
+    for (enum igc_obj_type i = 0; i < IGC_OBJ_LAST; ++i)
       if (pool == gc->pool[i])
 	return i;
-  return IGC_TYPE_LAST;
+  return IGC_OBJ_LAST;
 }
 
 static mps_res_t
@@ -1975,8 +1962,10 @@ igc_thread_remove (void *info)
 {
   struct igc_thread_list *t = info;
   destroy_root (t->d.specpdl_root);
-  for (enum igc_type i = 0; i < IGC_TYPE_LAST; ++i)
+  for (enum igc_pool_type i = 0; i < IGC_POOL_LAST; ++i)
     mps_ap_destroy (t->d.ap[i]);
+  mps_ap_destroy (t->d.weak_strong_ap);
+  mps_ap_destroy (t->d.weak_weak_ap);
   mps_thread_dereg (deregister_thread (t));
 }
 
@@ -2086,20 +2075,20 @@ do_finalize (struct igc *gc, mps_addr_t addr)
 {
   switch (type_of_addr (gc, addr))
     {
-    case IGC_TYPE_PAD:
-    case IGC_TYPE_FWD:
-    case IGC_TYPE_CONS:
-    case IGC_TYPE_SYMBOL:
-    case IGC_TYPE_INTERVAL:
-    case IGC_TYPE_STRING:
-    case IGC_TYPE_STRING_DATA:
-    case IGC_TYPE_VECTOR:
-    case IGC_TYPE_ITREE_NODE:
-    case IGC_TYPE_IMAGE:
-    case IGC_TYPE_FACE:
-    case IGC_TYPE_FLOAT:
-    case IGC_TYPE_WEAK:
-    case IGC_TYPE_LAST:
+    case IGC_OBJ_PAD:
+    case IGC_OBJ_FWD:
+    case IGC_OBJ_CONS:
+    case IGC_OBJ_SYMBOL:
+    case IGC_OBJ_INTERVAL:
+    case IGC_OBJ_STRING:
+    case IGC_OBJ_STRING_DATA:
+    case IGC_OBJ_VECTOR:
+    case IGC_OBJ_ITREE_NODE:
+    case IGC_OBJ_IMAGE:
+    case IGC_OBJ_FACE:
+    case IGC_OBJ_FLOAT:
+    case IGC_OBJ_WEAK:
+    case IGC_OBJ_LAST:
       break;
     }
 }
@@ -2153,40 +2142,40 @@ igc_on_idle (void)
 }
 
 static enum igc_pool_type
-type_to_pool (enum igc_type type)
+type_to_pool (enum igc_obj_type type)
 {
   switch (type)
     {
-    case IGC_TYPE_PAD:
-    case IGC_TYPE_FWD:
+    case IGC_OBJ_PAD:
+    case IGC_OBJ_FWD:
       emacs_abort ();
 
-    case IGC_TYPE_CONS:
+    case IGC_OBJ_CONS:
       return IGC_POOL_CONS;
 
-    case IGC_TYPE_STRING_DATA:
-    case IGC_TYPE_FLOAT:
+    case IGC_OBJ_STRING_DATA:
+    case IGC_OBJ_FLOAT:
       return IGC_POOL_LEAF;
 
-    case IGC_TYPE_SYMBOL:
-    case IGC_TYPE_INTERVAL:
-    case IGC_TYPE_STRING:
-    case IGC_TYPE_VECTOR:
-    case IGC_TYPE_ITREE_NODE:
-    case IGC_TYPE_IMAGE:
-    case IGC_TYPE_FACE:
-      return IGC_POOL_NORMAL;
+    case IGC_OBJ_SYMBOL:
+    case IGC_OBJ_INTERVAL:
+    case IGC_OBJ_STRING:
+    case IGC_OBJ_VECTOR:
+    case IGC_OBJ_ITREE_NODE:
+    case IGC_OBJ_IMAGE:
+    case IGC_OBJ_FACE:
+      return IGC_POOL_DFLT;
 
-    case IGC_TYPE_WEAK:
+    case IGC_OBJ_WEAK:
       return IGC_POOL_WEAK;
 
-    case IGC_TYPE_LAST:
+    case IGC_OBJ_LAST:
       emacs_abort ();
     }
 }
 
 static mps_ap_t
-thread_ap (enum igc_type type)
+thread_ap (enum igc_obj_type type)
 {
   struct igc_thread_list *t = current_thread->gc_info;
   enum igc_pool_type pool_type = type_to_pool (type);
@@ -2201,11 +2190,13 @@ enum
   IGC_ALIGN = GCALIGNMENT,
   // We assume that there is always at least one word in the object
   // itself so that we get away with storing 3 words for igc_fwd.
-  IGC_ALIGN_NORMAL = IGC_ALIGN << 1,
+  IGC_ALIGN_DFLT = IGC_ALIGN << 1,
   IGC_ALIGN_CONS = IGC_ALIGN << 1,
 };
 
-igc_static_assert (IGC_ALIGN_NORMAL >= sizeof (struct igc_header));
+igc_static_assert (sizeof (struct igc_header) == sizeof (mps_word_t));
+igc_static_assert (sizeof (struct igc_fwd) == 2 * sizeof (mps_word_t));
+igc_static_assert (IGC_ALIGN_DFLT >= sizeof (struct igc_header));
 
 static struct igc_init igc_inits[IGC_POOL_LAST] = {
   [IGC_POOL_CONS] = { .class_type = IGC_AMC,
@@ -2217,32 +2208,32 @@ static struct igc_init igc_inits[IGC_POOL_LAST] = {
 		      .pad = cons_pad,
 		      .scan = cons_scan,
 		      .skip = cons_skip },
-  [IGC_POOL_NORMAL] = { .class_type = IGC_AMC,
-			.align = IGC_ALIGN_NORMAL,
-			.header_size = sizeof (struct igc_header),
-			.interior_pointers = false,
-			.forward = normal_fwd,
-			.is_forwarded = is_normal_fwd,
-			.pad = normal_pad,
-			.scan = normal_scan,
-			.skip = normal_skip },
+  [IGC_POOL_DFLT] = { .class_type = IGC_AMC,
+		      .align = IGC_ALIGN_DFLT,
+		      .header_size = sizeof (struct igc_header),
+		      .interior_pointers = false,
+		      .forward = dflt_fwd,
+		      .is_forwarded = is_dflt_fwd,
+		      .pad = dflt_pad,
+		      .scan = dflt_scan,
+		      .skip = dflt_skip },
   [IGC_POOL_LEAF] = { .class_type = IGC_AMCZ,
-		      .align = IGC_ALIGN_NORMAL,
+		      .align = IGC_ALIGN_DFLT,
 		      .header_size = sizeof (struct igc_header),
 		      .interior_pointers = true,
-		      .forward = normal_fwd,
-		      .is_forwarded = is_normal_fwd,
-		      .pad = normal_pad,
+		      .forward = dflt_fwd,
+		      .is_forwarded = is_dflt_fwd,
+		      .pad = dflt_pad,
 		      .scan = NULL,
-		      .skip = normal_skip },
-  [IGC_TYPE_WEAK] = { .class_type = IGC_AWL,
-		      .align = IGC_ALIGN_NORMAL,
-		      .header_size = sizeof (struct igc_header),
-		      .forward = normal_fwd,
-		      .is_forwarded = is_normal_fwd,
-		      .pad = normal_pad,
-		      .scan = weak_scan,
-		      .skip = normal_skip },
+		      .skip = dflt_skip },
+  [IGC_OBJ_WEAK] = { .class_type = IGC_AWL,
+		     .align = IGC_ALIGN_DFLT,
+		     .header_size = sizeof (struct igc_header),
+		     .forward = dflt_fwd,
+		     .is_forwarded = is_dflt_fwd,
+		     .pad = dflt_pad,
+		     .scan = weak_scan,
+		     .skip = dflt_skip },
 };
 
 void
@@ -2253,7 +2244,7 @@ igc_break (void)
 Lisp_Object
 igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
-  enum igc_type type = IGC_TYPE_CONS;
+  enum igc_obj_type type = IGC_OBJ_CONS;
   mps_ap_t ap = thread_ap (type);
   size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Cons), type);
   mps_addr_t p;
@@ -2272,7 +2263,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 Lisp_Object
 igc_alloc_symbol (void)
 {
-  enum igc_type type = IGC_TYPE_SYMBOL;
+  enum igc_obj_type type = IGC_OBJ_SYMBOL;
   mps_ap_t ap = thread_ap (type);
   size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Symbol), type);
   mps_addr_t p;
@@ -2291,7 +2282,7 @@ igc_alloc_symbol (void)
 Lisp_Object
 igc_make_float (double val)
 {
-  enum igc_type type = IGC_TYPE_FLOAT;
+  enum igc_obj_type type = IGC_OBJ_FLOAT;
   mps_ap_t ap = thread_ap (type);
   size_t nbytes = igc_round_to_pool (sizeof (struct Lisp_Float), type);
   mps_addr_t p;
@@ -2312,7 +2303,7 @@ igc_make_float (double val)
 static struct igc_sdata *
 alloc_string_data (size_t nbytes)
 {
-  enum igc_type type = IGC_TYPE_STRING_DATA;
+  enum igc_obj_type type = IGC_OBJ_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
   nbytes = igc_round_to_pool (sizeof (struct igc_sdata) + nbytes, type);
   mps_addr_t p;
@@ -2369,7 +2360,7 @@ igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
   if (clear)
     memset (sdata_contents (data), 0, nbytes);
 
-  enum igc_type type = IGC_TYPE_STRING;
+  enum igc_obj_type type = IGC_OBJ_STRING;
   mps_ap_t ap = thread_ap (type);
   size_t size = igc_round_to_pool (sizeof (struct Lisp_String), type);
   mps_addr_t p;
@@ -2402,7 +2393,7 @@ igc_make_unibyte_string (size_t nchars, size_t nbytes, bool clear)
 struct interval *
 igc_make_interval (void)
 {
-  enum igc_type type = IGC_TYPE_INTERVAL;
+  enum igc_obj_type type = IGC_OBJ_INTERVAL;
   mps_ap_t ap = thread_ap (type);
   size_t nbytes = igc_round_to_pool (sizeof (struct interval), type);
   mps_addr_t p;
@@ -2421,7 +2412,7 @@ struct Lisp_Vector *
 igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 			size_t nwords_zero, enum pvec_type tag)
 {
-  enum igc_type type = IGC_TYPE_VECTOR;
+  enum igc_obj_type type = IGC_OBJ_VECTOR;
   mps_ap_t ap = thread_ap (type);
   size_t nbytes
     = igc_round_to_pool (header_size + nwords_mem * word_size, type);
@@ -2441,7 +2432,7 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 struct Lisp_Vector *
 igc_alloc_vector (ptrdiff_t len)
 {
-  enum igc_type type = (IGC_TYPE_VECTOR);
+  enum igc_obj_type type = (IGC_OBJ_VECTOR);
   mps_ap_t ap = thread_ap (type);
   ptrdiff_t nbytes = igc_round_to_pool (header_size + len * word_size, type);
   mps_addr_t p;
@@ -2460,7 +2451,7 @@ igc_alloc_vector (ptrdiff_t len)
 struct Lisp_Vector *
 igc_alloc_record (ptrdiff_t len)
 {
-  enum igc_type type = (IGC_TYPE_VECTOR);
+  enum igc_obj_type type = (IGC_OBJ_VECTOR);
   mps_ap_t ap = thread_ap (type);
   ptrdiff_t nbytes = igc_round_to_pool (header_size + len * word_size, type);
   mps_addr_t p;
@@ -2480,7 +2471,7 @@ igc_alloc_record (ptrdiff_t len)
 struct itree_node *
 igc_make_itree_node (void)
 {
-  enum igc_type type = IGC_TYPE_ITREE_NODE;
+  enum igc_obj_type type = IGC_OBJ_ITREE_NODE;
   mps_ap_t ap = thread_ap (type);
   ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct itree_node), type);
   mps_addr_t p;
@@ -2497,7 +2488,7 @@ igc_make_itree_node (void)
 struct image *
 igc_make_image (void)
 {
-  enum igc_type type = IGC_TYPE_IMAGE;
+  enum igc_obj_type type = IGC_OBJ_IMAGE;
   mps_ap_t ap = thread_ap (type);
   ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct image), type);
   mps_addr_t p;
@@ -2514,7 +2505,7 @@ igc_make_image (void)
 struct face *
 igc_make_face (void)
 {
-  enum igc_type type = IGC_TYPE_FACE;
+  enum igc_obj_type type = IGC_OBJ_FACE;
   mps_ap_t ap = thread_ap (type);
   ptrdiff_t nbytes = igc_round_to_pool (sizeof (struct face), type);
   mps_addr_t p;
@@ -2585,7 +2576,7 @@ make_fmt (struct igc *gc, enum igc_pool_type type, struct igc_init *init)
 }
 
 static void
-make_pool (struct igc *gc, enum igc_type type, struct igc_init *init)
+make_pool (struct igc *gc, enum igc_pool_type type, struct igc_init *init)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
@@ -2642,7 +2633,7 @@ free_igc (struct igc *gc)
 {
   while (gc->threads)
     igc_thread_remove (gc->threads);
-  for (enum igc_type type = 0; type < IGC_TYPE_LAST; ++type)
+  for (enum igc_pool_type type = 0; type < IGC_POOL_LAST; ++type)
     {
       mps_pool_destroy (gc->pool[type]);
       mps_fmt_destroy (gc->fmt[type]);
