@@ -1626,8 +1626,9 @@ alloc_string_data (size_t nbytes)
 {
   enum igc_obj_type type = IGC_OBJ_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
-  // Use igc_fwd here to make sure we have enough room for it.
-  nbytes = igc_obj_size (sizeof (struct igc_fwd) + nbytes, type);
+  // One word more make sure we have enough room for igc_fwd
+  nbytes = igc_obj_size (sizeof (mps_addr_t) + nbytes, type);
+  IGC_ASSERT (nbytes >= sizeof (struct igc_fwd));
   mps_addr_t p;
   do
     {
