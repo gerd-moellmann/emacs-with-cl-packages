@@ -300,6 +300,7 @@ igc_obj_size (size_t nbytes, enum igc_obj_type obj_type)
   return igc_round (nbytes, IGC_ALIGN_DFLT);
 }
 
+#if 0
 static bool
 is_aligned (mps_addr_t p, enum igc_obj_type type)
 {
@@ -307,6 +308,7 @@ is_aligned (mps_addr_t p, enum igc_obj_type type)
   mps_word_t w = (mps_word_t) p;
   return w % align == 0;
 }
+#endif
 
 struct igc_thread
 {
@@ -444,12 +446,14 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
       {
 	mps_word_t off = word ^ tag;
 	mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
-	if (is_aligned (ref, IGC_OBJ_SYMBOL) && MPS_FIX1 (ss, ref))
+	if (!c_symbol_p (ref) && MPS_FIX1 (ss, ref))
 	  {
-	    mps_res_t res = MPS_FIX2 (ss, &ref);
+	    mps_addr_t base = client_to_base (ref);
+	    mps_res_t res = MPS_FIX2 (ss, &base);
 	    if (res != MPS_RES_OK)
 	      return res;
-	    mps_word_t new_off = (char *) ref - (char *) lispsym;
+	    mps_addr_t client = base_to_client (ref);
+	    mps_word_t new_off = (char *) client - (char *) lispsym;
 	    *p = new_off | tag;
 	    // fprintf (stderr, "fix symbol 0x%lx -> 0x%lx\n", word, *p);
 	  }
@@ -457,15 +461,39 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
     else
       {
 	mps_addr_t ref = (mps_addr_t) (word ^ tag);
-	if (MPS_FIX1 (ss, ref))
+	mps_addr_t base = client_to_base (ref);
+	if (MPS_FIX1 (ss, base))
 	  {
-	    ref = client_to_base (ref);
-	    mps_res_t res = MPS_FIX2 (ss, &ref);
+	    mps_res_t res = MPS_FIX2 (ss, &base);
 	    if (res != MPS_RES_OK)
 	      return res;
-	    ref = base_to_client (ref);
-	    *p = (mps_word_t) ref | tag;
+	    mps_addr_t client = base_to_client (base);
+	    *p = (mps_word_t) client | tag;
 	  }
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_raw (mps_ss_t ss, mps_addr_t *p)
+{
+  if (*p == NULL || c_symbol_p (*p))
+    return MPS_RES_OK;
+
+  MPS_SCAN_BEGIN (ss)
+  {
+    // Can be a pointer to a Lisp_Symbol. Cannot be an offset from
+    // lispsym.
+    mps_addr_t base = client_to_base (*p);
+    if (MPS_FIX1 (ss, base))
+      {
+	mps_res_t res = MPS_FIX2 (ss, &base);
+	if (res != MPS_RES_OK)
+	  return res;
+	mps_addr_t client = base_to_client (base);
+	*p = client;
       }
   }
   MPS_SCAN_END (ss);
@@ -483,13 +511,14 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
    while (0)
 
 # define IGC_FIX12_RAW(ss, p)                              \
-   do                                                      \
-     {                                                     \
-       mps_res_t res = MPS_FIX12 (ss, (mps_addr_t *) (p)); \
-       if (res != MPS_RES_OK)                              \
-	 return res;                                       \
-     }                                                     \
-   while (0)
+  do							   \
+    {							   \
+      mps_res_t res;					   \
+      MPS_FIX_CALL (ss, res = fix_raw (ss, (mps_addr_t *)(p)));	\
+      if (res != MPS_RES_OK)				   \
+	return res;					   \
+    }							   \
+  while (0)
 
 # define IGC_FIX12_NOBJS(ss, a, n)                            \
    do                                                         \
