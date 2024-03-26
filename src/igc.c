@@ -1260,6 +1260,7 @@ struct igc_weak
   mps_word_t obj[];
 };
 
+#if 0
 static mps_addr_t
 weak_to_obj (struct igc_weak *w)
 {
@@ -1272,6 +1273,7 @@ obj_to_weak (mps_addr_t addr)
   mps_addr_t w = (char *) addr - offsetof (struct igc_weak, obj);
   return w;
 }
+#endif
 
 static void
 weak_pad (mps_addr_t addr, mps_word_t nbytes)
@@ -1651,17 +1653,13 @@ vector_scan (mps_ss_t ss, mps_addr_t base, mps_addr_t limit)
 	  case PVEC_HASH_TABLE:
 	    {
 	      struct Lisp_Hash_Table *h = vbase;
-	      eassert (h->weakness == Weak_None);
-	      for (ptrdiff_t i = 0, n = h->count; n > 0 && i < h->table_size;
-		   ++i)
-		{
-		  if (!hash_unused_entry_key_p (HASH_KEY (h, i)))
-		    {
-		      IGC_FIX12_OBJ (ss, &h->key[i]);
-		      IGC_FIX12_OBJ (ss, &h->value[i]);
-		      --n;
-		    }
-		}
+	      //eassert (h->weakness == Weak_None);
+	      for (ptrdiff_t i = 0; i < h->table_size; ++i)
+		if (!hash_unused_entry_key_p (HASH_KEY (h, i)))
+		  {
+		    IGC_FIX12_OBJ (ss, &h->key[i]);
+		    IGC_FIX12_OBJ (ss, &h->value[i]);
+		  }
 	    }
 	    break;
 
