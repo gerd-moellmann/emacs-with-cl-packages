@@ -363,10 +363,6 @@ deregister_thread (struct igc_thread_list *t)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wunused-variable"
 
-// MPS_FIX2 doc: The only exception is for references to objects
-// belonging to a format with in-band headers: the header size must not
-// be subtracted from these references.
-
 static mps_res_t
 fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 {
@@ -382,29 +378,35 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
     if (tag == Lisp_Symbol)
       {
 	mps_word_t off = word ^ tag;
-	mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
-	if (!c_symbol_p (ref) && MPS_FIX1 (ss, ref))
+	mps_addr_t client = (mps_addr_t) ((char *) lispsym + off);
+	if (!c_symbol_p (client) && MPS_FIX1 (ss, client))
 	  {
-	    mps_addr_t base = client_to_base (ref);
-	    mps_res_t res = MPS_FIX2 (ss, &base);
+	    // MPS_FIX2 doc: The only exception is for references to
+	    // objects belonging to a format with in-band headers: the
+	    // header size must not be subtracted from these references.
+	    mps_res_t res = MPS_FIX2 (ss, &client);
 	    if (res != MPS_RES_OK)
 	      return res;
-	    mps_addr_t client = base_to_client (ref);
 	    mps_word_t new_off = (char *) client - (char *) lispsym;
 	    *p = new_off | tag;
-	    // fprintf (stderr, "fix symbol 0x%lx -> 0x%lx\n", word, *p);
 	  }
       }
     else
       {
-	mps_addr_t ref = (mps_addr_t) (word ^ tag);
-	mps_addr_t base = client_to_base (ref);
-	if (MPS_FIX1 (ss, base))
+	// I have encountered a case where MPS_FIX1 returns true, but
+	// the reference is somewhere completely off, so that MPS_FIX2
+	// asserts.
+	mps_addr_t client = (mps_addr_t) (word ^ tag);
+	mps_pool_t pool;
+	IGC_ASSERT (mps_addr_pool (&pool, global_igc->arena, client));
+	if (MPS_FIX1 (ss, client))
 	  {
-	    mps_res_t res = MPS_FIX2 (ss, &base);
+	    // MPS_FIX2 doc: The only exception is for references to
+	    // objects belonging to a format with in-band headers: the
+	    // header size must not be subtracted from these references.
+	    mps_res_t res = MPS_FIX2 (ss, &client);
 	    if (res != MPS_RES_OK)
 	      return res;
-	    mps_addr_t client = base_to_client (base);
 	    *p = (mps_word_t) client | tag;
 	  }
       }
@@ -503,11 +505,15 @@ fix_array (mps_ss_t ss, Lisp_Object *array, size_t n)
 static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
+  IGC_ASSERT (start == staticvec);
   MPS_SCAN_BEGIN (ss)
   {
-    for (Lisp_Object **p = start; p < (Lisp_Object **) end; ++p)
-      if (*p)
-	IGC_FIX12_OBJ (ss, *p);
+    for (int i = 0; i < staticidx; ++i)
+      {
+	IGC_ASSERT (staticvec[i] != NULL);
+	// staticvec is const Lisp_Object *
+	IGC_FIX12_OBJ (ss, (Lisp_Object *) staticvec[i]);
+      }
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
