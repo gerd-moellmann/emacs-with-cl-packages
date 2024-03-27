@@ -363,6 +363,12 @@ deregister_thread (struct igc_thread_list *t)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wunused-variable"
 
+static enum pvec_type
+pseudo_vector_type (const struct Lisp_Vector *v)
+{
+  return PSEUDOVECTOR_TYPE (v);
+}
+
 static mps_res_t
 fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 {
@@ -390,31 +396,39 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	    mps_word_t new_off = (char *) client - (char *) lispsym;
 	    *p = new_off | tag;
 	  }
+	return MPS_RES_OK;
       }
-    else
-      {
-	// I have encountered a case where MPS_FIX1 returns true, but
-	// the reference is somewhere completely off, so that MPS_FIX2
-	// asserts.
-	mps_addr_t client = (mps_addr_t) (word ^ tag);
 
-	// Unfortunately, Vmain_thread contains a Lisp_Object that
-	// points to static data.
+    // I have encountered cases where MPS_FIX1 returns true, but the
+    // reference is somewhere completely off, so that MPS_FIX2 asserts.
+    // IOW, MPS_FIX1 has undefined behavior if called on an address that
+    // is not in the arena.
+    mps_addr_t client = (mps_addr_t) (word ^ tag);
+
+    // Filter out stuff that contains pointers to static
+    // data.
+    if (tag == Lisp_Vectorlike)
+      {
+	// Vmain_thread
 	if (client == current_thread)
 	  return MPS_RES_OK;
 
-	mps_pool_t pool;
-	IGC_ASSERT (mps_addr_pool (&pool, global_igc->arena, client));
-	if (MPS_FIX1 (ss, client))
-	  {
-	    // MPS_FIX2 doc: The only exception is for references to
-	    // objects belonging to a format with in-band headers: the
-	    // header size must not be subtracted from these references.
+	// DEFUNs
+	if (pseudo_vector_type (client) == PVEC_SUBR)
+	  return MPS_RES_OK;
+      }
+
+    mps_pool_t pool;
+    IGC_ASSERT (mps_addr_pool (&pool, global_igc->arena, client));
+    if (MPS_FIX1 (ss, client))
+      {
+	// MPS_FIX2 doc: The only exception is for references to
+	// objects belonging to a format with in-band headers: the
+	// header size must not be subtracted from these references.
 	    mps_res_t res = MPS_FIX2 (ss, &client);
 	    if (res != MPS_RES_OK)
 	      return res;
 	    *p = (mps_word_t) client | tag;
-	  }
       }
   }
   MPS_SCAN_END (ss);
@@ -882,12 +896,6 @@ static size_t
 pseudo_vector_nobjs (const struct Lisp_Vector *v)
 {
   return v->header.size & PSEUDOVECTOR_SIZE_MASK;
-}
-
-static enum pvec_type
-pseudo_vector_type (const struct Lisp_Vector *v)
-{
-  return PSEUDOVECTOR_TYPE (v);
 }
 
 static bool
