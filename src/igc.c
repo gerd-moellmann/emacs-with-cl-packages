@@ -121,13 +121,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 # define IGC_TAG_MASK (~VALMASK)
 
-enum igc_pool_class
-{
-  IGC_AMC,
-  IGC_AWL,
-  IGC_AMCZ
-};
-
 enum
 {
   IGC_ALIGN = GCALIGNMENT,
