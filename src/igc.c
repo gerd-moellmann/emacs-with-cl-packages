@@ -372,7 +372,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
     mps_word_t word = *p;
     mps_word_t tag = word & IGC_TAG_MASK;
 
-    if (tag == Lisp_Int0 && tag == Lisp_Int1)
+    if (tag == Lisp_Int0 || tag == Lisp_Int1)
       return MPS_RES_OK;
 
     if (tag == Lisp_Symbol)
