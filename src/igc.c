@@ -1877,7 +1877,7 @@ make_igc (void)
   gc->leaf_fmt = make_dflt_fmt (gc);
   gc->leaf_pool = make_pool_amcz (gc, gc->leaf_fmt);
   gc->weak_fmt = make_dflt_fmt (gc);
-  gc->leaf_pool = make_pool_awl (gc, gc->weak_fmt);
+  gc->weak_pool = make_pool_awl (gc, gc->weak_fmt);
 
   create_static_roots (gc);
   enable_messages (gc, true);
