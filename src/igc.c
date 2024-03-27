@@ -204,6 +204,7 @@ IGC_DEFINE_LIST (igc_root);
 
 enum igc_obj_type
 {
+  IGC_OBJ_INVALID,
   IGC_OBJ_PAD,
   IGC_OBJ_FWD,
   IGC_OBJ_CONS,
@@ -248,7 +249,10 @@ static size_t
 igc_obj_size (size_t nbytes)
 {
   nbytes += sizeof (struct igc_header);
-  return igc_round (nbytes, IGC_ALIGN_DFLT);
+  nbytes = igc_round (nbytes, IGC_ALIGN_DFLT);
+  // MPS does not support objects consisting of a header only.
+  IGC_ASSERT (nbytes > sizeof (struct igc_header));
+  return nbytes;
 }
 
 struct igc_thread
@@ -256,7 +260,6 @@ struct igc_thread
   struct igc *gc;
   mps_thr_t thr;
   void *stack_start;
-  struct igc_root_list *specpdl_root;
   mps_ap_t dflt_ap;
   mps_ap_t leaf_ap;
   mps_ap_t weak_strong_ap;
@@ -570,75 +573,6 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 }
 
 static mps_res_t
-scan_specbindings (mps_ss_t ss, void *start, void *end, void *closure)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    mps_res_t res;
-    for (union specbinding *pdl = start; pdl < (union specbinding *) end; ++pdl)
-      {
-	switch (pdl->kind)
-	  {
-	  case SPECPDL_UNWIND:
-	    IGC_FIX12_OBJ (ss, &pdl->unwind.arg);
-	    break;
-
-	  case SPECPDL_UNWIND_ARRAY:
-	    IGC_FIX12_NOBJS (ss, pdl->unwind_array.array,
-			     pdl->unwind_array.nelts);
-	    break;
-
-	  case SPECPDL_UNWIND_EXCURSION:
-	    IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.marker);
-	    IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.window);
-	    break;
-
-	  case SPECPDL_BACKTRACE:
-	    {
-	      IGC_FIX12_OBJ (ss, &pdl->bt.function);
-	      ptrdiff_t nargs = pdl->bt.nargs;
-	      if (nargs == UNEVALLED)
-		nargs = 1;
-	      IGC_FIX12_NOBJS (ss, pdl->bt.args, nargs);
-	    }
-	    break;
-
-# ifdef HAVE_MODULES
-	  case SPECPDL_MODULE_RUNTIME:
-	    break;
-
-	    // If I am not mistaken, the emacs_env in this binding
-	    // actually lives on the stack (see module-load e.g.).
-	    // So, we don't have to do something here for the Lisp
-	    // objects in emacs_env.
-	  case SPECPDL_MODULE_ENVIRONMENT:
-	    break;
-# endif
-	  case SPECPDL_LET_DEFAULT:
-	  case SPECPDL_LET_LOCAL:
-	    IGC_FIX12_OBJ (ss, &pdl->let.where);
-	    FALLTHROUGH;
-	  case SPECPDL_LET:
-	    IGC_FIX12_OBJ (ss, &pdl->let.symbol);
-	    IGC_FIX12_OBJ (ss, &pdl->let.old_value);
-	    break;
-
-	  case SPECPDL_UNWIND_PTR:
-	    break;
-
-	  case SPECPDL_UNWIND_INT:
-	  case SPECPDL_UNWIND_INTMAX:
-	  case SPECPDL_UNWIND_VOID:
-	  case SPECPDL_NOP:
-	    break;
-	  }
-      }
-  }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
@@ -689,6 +623,7 @@ struct igc_fwd
 static void
 dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
 {
+  IGC_ASSERT (nbytes > 0);
   struct igc_header *h = base_addr;
   h->type = IGC_OBJ_PAD;
   h->total_nbytes = nbytes;
@@ -711,11 +646,18 @@ is_dflt_fwd (mps_addr_t client_addr)
   return NULL;
 }
 
+// This method is called by the scan method dflt_scan with an object
+// that is IGC_OBJ_INVALID, and CLIENT_ADDR being just 1 word before
+// CLIENT_LIMIT. This leads to an infinite loop because dflt_skip does
+// not have enough information to determine the next address.
+
 static mps_addr_t
 dflt_skip (mps_addr_t client_addr)
 {
   struct igc_header *h = client_to_base (client_addr);
-  return (char *) h + h->total_nbytes;
+  mps_addr_t next = (char *) h + h->total_nbytes;
+  IGC_ASSERT (next > client_addr);
+  return next;
 }
 
 static mps_res_t
@@ -830,6 +772,9 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 	struct igc_header *header = client_to_base (client);
 	switch (header->type)
 	  {
+	  case IGC_OBJ_INVALID:
+	    emacs_abort ();
+
 	  case IGC_OBJ_PAD:
 	  case IGC_OBJ_FWD:
 	    continue;
@@ -1162,48 +1107,6 @@ create_lispsym_root (struct igc *gc)
 }
 
 static void
-create_specpdl_root (struct igc_thread_list *t)
-{
-  if (specpdl == NULL)
-    return;
-
-  struct igc *gc = t->d.gc;
-  void *start = specpdl, *end = specpdl_end;
-  mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
-					start, end, scan_specbindings, NULL);
-  IGC_CHECK_RES (res);
-  t->d.specpdl_root = register_root (gc, root, start, end);
-}
-
-void
-igc_on_specbinding_unused (union specbinding *b)
-{
-  memset (b, 0, sizeof *b);
-}
-
-void
-igc_on_grow_specpdl (void)
-{
-  // Note that no two roots may overlap, so we have to temporarily
-  // stop the collector while replacing one root with another (xpalloc
-  // may realloc). Alternatives: (1) don't realloc, (2) alloc specpdl
-  // from MPS pool that is scanned.
-  struct igc_thread_list *t = current_thread->gc_info;
-  IGC_WITH_PARKED (t->d.gc)
-  {
-    destroy_root (t->d.specpdl_root);
-    create_specpdl_root (t);
-  }
-}
-
-void
-igc_on_alloc_main_thread_specpdl (void)
-{
-  create_specpdl_root (current_thread->gc_info);
-}
-
-static void
 create_buffer_root (struct igc *gc, struct buffer *b)
 {
   void *start = &b->name_, *end = &b->own_text;
@@ -1250,7 +1153,6 @@ igc_thread_add (const void *stack_start)
   struct igc_thread_list *t
     = register_thread (global_igc, thr, (void *) stack_start);
   create_thread_root (t);
-  create_specpdl_root (t);
   create_thread_aps (&t->d);
   return t;
 }
@@ -1259,7 +1161,6 @@ void
 igc_thread_remove (void *info)
 {
   struct igc_thread_list *t = info;
-  destroy_root (t->d.specpdl_root);
   mps_ap_destroy (t->d.dflt_ap);
   mps_ap_destroy (t->d.leaf_ap);
   mps_ap_destroy (t->d.weak_strong_ap);
@@ -1388,6 +1289,7 @@ do_finalize (struct igc *gc, mps_addr_t addr)
     emacs_abort ();
   switch (obj_type)
     {
+    case IGC_OBJ_INVALID:
     case IGC_OBJ_PAD:
     case IGC_OBJ_FWD:
     case IGC_OBJ_CONS:
@@ -1460,6 +1362,7 @@ thread_ap (enum igc_obj_type type)
   struct igc_thread_list *t = current_thread->gc_info;
   switch (type)
     {
+    case IGC_OBJ_INVALID:
     case IGC_OBJ_PAD:
     case IGC_OBJ_FWD:
     case IGC_OBJ_LAST:

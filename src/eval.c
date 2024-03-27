@@ -31,6 +31,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "pdumper.h"
 #include "atimer.h"
+#include "igc.h"
 
 /* CACHEABLE is ordinarily nothing, except it is 'volatile' if
    necessary to cajole GCC into not warning incorrectly that a
@@ -217,12 +218,13 @@ static void
 init_eval_once_for_pdumper (void)
 {
   enum { size = 50 };
+#ifdef HAVE_MPS
+  union specbinding *pdlvec = igc_xmalloc ((size + 1) * sizeof *specpdl);
+#else
   union specbinding *pdlvec = malloc ((size + 1) * sizeof *specpdl);
+#endif
   specpdl = specpdl_ptr = pdlvec + 1;
   specpdl_end = specpdl + size;
-#ifdef HAVE_MPS
-  igc_on_alloc_main_thread_specpdl ();
-#endif
 }
 
 void
@@ -2448,13 +2450,14 @@ grow_specpdl_allocation (void)
   ptrdiff_t size = specpdl_end - specpdl;
   ptrdiff_t pdlvecsize = size + 1;
   eassert (max_size > size);
+#ifdef HAVE_MPS
   pdlvec = xpalloc (pdlvec, &pdlvecsize, 1, max_size + 1, sizeof *specpdl);
+#else
+  pdlvec = igc_xpalloc (pdlvec, &pdlvecsize, 1, max_size + 1, sizeof *specpdl);
+#endif
   specpdl = pdlvec + 1;
   specpdl_end = specpdl + pdlvecsize - 1;
   specpdl_ptr = specpdl_ref_to_ptr (count);
-#ifdef HAVE_MPS
-  igc_on_grow_specpdl ();
-#endif
 }
 
 /* Eval a sub-expression of the current expression (i.e. in the same
@@ -3815,9 +3818,6 @@ unbind_to (specpdl_ref count, Lisp_Object value)
 
       union specbinding this_binding;
       this_binding = *--specpdl_ptr;
-#ifdef HAVE_MPS
-      igc_on_specbinding_unused (specpdl_ptr);
-#endif
 
       do_one_unbind (&this_binding, true, SET_INTERNAL_UNBIND);
     }

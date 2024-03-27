@@ -822,7 +822,11 @@ run_thread (void *state)
 
   update_processes_for_thread_death (Fcurrent_thread ());
 
+#ifdef HAVE_MPS
+  igc_xfree (self->m_specpdl - 1);
+#else
   xfree (self->m_specpdl - 1);
+#endif
   self->m_specpdl = NULL;
   self->m_specpdl_ptr = NULL;
   self->m_specpdl_end = NULL;
