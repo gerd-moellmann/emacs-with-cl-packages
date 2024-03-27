@@ -817,7 +817,12 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    while (client_base < client_limit)
+    // Looks like CLIENT_LIMIT is the limit of the block with header
+    // size added. If dflt_skip returns the end of the last object in
+    // the block, this end address can be the end of the block, and
+    // will always be < CLIENT_LIMIT. Grmpf :-(.
+    const mps_addr_t base_limit = client_to_base (client_limit);
+    while (client_base < base_limit)
       {
 	mps_addr_t client = client_base;
 	client_base = dflt_skip (client_base);
