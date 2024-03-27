@@ -397,6 +397,12 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	// the reference is somewhere completely off, so that MPS_FIX2
 	// asserts.
 	mps_addr_t client = (mps_addr_t) (word ^ tag);
+
+	// Unfortunately, Vmain_thread contains a Lisp_Object that
+	// points to static data.
+	if (client == current_thread)
+	  return MPS_RES_OK;
+
 	mps_pool_t pool;
 	IGC_ASSERT (mps_addr_pool (&pool, global_igc->arena, client));
 	if (MPS_FIX1 (ss, client))
@@ -511,7 +517,8 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
     for (int i = 0; i < staticidx; ++i)
       {
 	IGC_ASSERT (staticvec[i] != NULL);
-	// staticvec is const Lisp_Object *
+	// staticvec is declared as having pointers to const
+	// Lisp_Object, for whatever reason.
 	IGC_FIX12_OBJ (ss, (Lisp_Object *) staticvec[i]);
       }
   }
