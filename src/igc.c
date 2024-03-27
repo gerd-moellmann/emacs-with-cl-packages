@@ -17,15 +17,12 @@ You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /*
-  - Does C have something like C++ thread_local etc?
-
   - itree: buffer -> itree_tree, overlay <-> itree_node. The backref
     from the node to the overlay means we need to fix it, and it is
-    currently xalloc'd. Workaround for now: alloc itree nodes from a
-    pool of their own, like intervals.
+    currently xalloc'd. Alloc itree nodes from MPS.
 
   - terminal -> image_cache->images -> image, and image has refs,
-    everything is xmalloc'd. Put images in a pool to scan them.
+    everything is xmalloc'd. Put images in MPS to scan them.
     Since images are managed manually, alloc from pool, don't xfree,
     don't finalize. Find refs to images, by makiing cache::images
     an ambig root.
@@ -38,25 +35,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     glyphs ambiguous roots for trying it out (igc_x*alloc etc).
 
   - hash_table -> key_and_value which is malloc'd. Rewrite so that
-    the ht has everything in its objects. Needed because we only have
-    exclusive access to objs being scanned themselves, and we need
-    to do things for eq hts (address changes).
+    key and value are separate. Must be done because of AWL restrictins.
 
   - compact_font_caches + inhibt. Can't be done this way, but isn't
     essential.
-
-  - For now use igc_pad for everything and set pool alignment
-    accordingly. Note that scan methods must cope with padding
-    objects, and so on. Could be optimized but is out of scope for
-    now.
-
-  - Skip methods must align too. And they must be able to cope with
-    forwarding and padding. See MPS docs.
-
-  - weak hash tables
-
-  - byte-code must be immovalble? See make-byte-code, pin_string,
-    also in lread.c
  */
 
 // clang-format on
@@ -128,6 +110,8 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
 
 # define IGC_TAG_MASK (~VALMASK)
 
+// Min and max addresses we got from MPS allocations. See fix_lisp_obj
+// comments.
 static mps_addr_t min_addr, max_addr;
 
 static void
@@ -141,7 +125,7 @@ record_addr (mps_addr_t addr, mps_word_t nbytes)
 }
 
 static bool
-is_in_range (mps_addr_t addr)
+is_in_range (const mps_addr_t addr)
 {
   return addr >= min_addr && addr < max_addr;
 }
@@ -151,12 +135,6 @@ enum
   IGC_ALIGN = GCALIGNMENT,
   IGC_ALIGN_DFLT = IGC_ALIGN,
 };
-
-# if 0
-igc_static_assert (sizeof (struct igc_header) == sizeof (mps_word_t));
-igc_static_assert (sizeof (struct igc_fwd) == 2 * sizeof (mps_word_t));
-igc_static_assert (IGC_ALIGN_DFLT >= sizeof (struct igc_header));
-# endif
 
 # define IGC_CHECK_RES(res) \
    if ((res) != MPS_RES_OK) \
