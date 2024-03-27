@@ -102,19 +102,26 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #  error "HAVE_TEXT_CONVERSION not supported"
 # endif
 
-// Let's abort for now instead of emacs_abort. Reason is that
-// Emacs will call allocation functons whlle aborting, which
-// leads to interesting phenomena when we IGC_ASSERT inside a
-// function called from MPS while holding a lock, and find that
-// we already own the lock while allocatin.
+// Note: Emacs will call allocation functions whlle aborting, which
+// leads to interesting phenomena when an assertion fails inside a
+// function called from MPS while holding a lock, and find that we
+// already own the lock while allocatin.
+//
+// The fucntion signature must be that of mps_lib_assert_fail_t.
+
+static void
+igc_assert_fail (const char *file, unsigned line, const char *msg)
+{
+  die (msg, file, line);
+}
 
 # ifdef IGC_DEBUG
-#  define IGC_ASSERT(expr) \
-    if (!(expr))           \
-      abort ();            \
-    else
+#  define igc_assert(expr)				\
+  if (!(expr))						\
+      igc_assert_fail (__FILE__, __LINE__, #expr);	\
+  else
 # else
-#  define IGC_ASSERT(expr) (void) 9
+#  define igc_assert(expr) (void) 9
 # endif
 
 # define igc_static_assert(x) verify (x)
@@ -251,7 +258,7 @@ igc_obj_size (size_t nbytes)
   nbytes += sizeof (struct igc_header);
   nbytes = igc_round (nbytes, IGC_ALIGN_DFLT);
   // MPS does not support objects consisting of a header only.
-  IGC_ASSERT (nbytes > sizeof (struct igc_header));
+  igc_assert (nbytes > sizeof (struct igc_header));
   return nbytes;
 }
 
@@ -421,7 +428,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
     if (is_in_range (client))
       {
 	mps_pool_t pool;
-	IGC_ASSERT (mps_addr_pool (&pool, global_igc->arena, client));
+	igc_assert (mps_addr_pool (&pool, global_igc->arena, client));
 	if (MPS_FIX1 (ss, client))
 	  {
 	    // MPS_FIX2 doc: The only exception is for references to
@@ -528,12 +535,12 @@ fix_array (mps_ss_t ss, Lisp_Object *array, size_t n)
 static mps_res_t
 scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  IGC_ASSERT (start == staticvec);
+  igc_assert (start == staticvec);
   MPS_SCAN_BEGIN (ss)
   {
     for (int i = 0; i < staticidx; ++i)
       {
-	IGC_ASSERT (staticvec[i] != NULL);
+	igc_assert (staticvec[i] != NULL);
 	// staticvec is declared as having pointers to const
 	// Lisp_Object, for whatever reason.
 	IGC_FIX12_OBJ (ss, (Lisp_Object *) staticvec[i]);
@@ -623,7 +630,7 @@ struct igc_fwd
 static void
 dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
 {
-  IGC_ASSERT (nbytes > 0);
+  igc_assert (nbytes > 0);
   struct igc_header *h = base_addr;
   h->type = IGC_OBJ_PAD;
   h->total_nbytes = nbytes;
@@ -656,7 +663,7 @@ dflt_skip (mps_addr_t client_addr)
 {
   struct igc_header *h = client_to_base (client_addr);
   mps_addr_t next = (char *) h + h->total_nbytes;
-  IGC_ASSERT (next > client_addr);
+  igc_assert (next > client_addr);
   return next;
 }
 
@@ -735,7 +742,7 @@ fix_face (mps_ss_t ss, struct face *f)
 static mps_res_t
 fix_weak (mps_ss_t ss, mps_addr_t base)
 {
-  MPS_SCAN_BEGIN (ss) { IGC_ASSERT (!"fix_weak"); }
+  MPS_SCAN_BEGIN (ss) { igc_assert (!"fix_weak"); }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
@@ -851,7 +858,7 @@ pseudo_vector_nobjs (const struct Lisp_Vector *v)
 static bool
 is_bool_vector (const struct Lisp_Vector *v)
 {
-  IGC_ASSERT (is_pseudo_vector (v));
+  igc_assert (is_pseudo_vector (v));
   return pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
 }
 
@@ -878,7 +885,7 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 	  case PVEC_VECTOR_FORWARD:
 	  case PVEC_VECTOR_PAD:
 	  case PVEC_FREE:
-	    IGC_ASSERT (!"unexpected PVEC type");
+	    igc_assert (!"unexpected PVEC type");
 	    break;
 
 	  case PVEC_NORMAL_VECTOR:
@@ -888,7 +895,7 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 
 	  case PVEC_FINALIZER:
 	    // Unclear, has a circurlar list of weak references?
-	    IGC_ASSERT (!"PVEC_FINALIZER");
+	    igc_assert (!"PVEC_FINALIZER");
 	    break;
 
 	  case PVEC_SYMBOL_WITH_POS:
@@ -921,12 +928,12 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 	    break;
 
 	  case PVEC_OTHER:
-	    IGC_ASSERT (!"PVEC_OTHER");
+	    igc_assert (!"PVEC_OTHER");
 	    break;
 
 	  case PVEC_XWIDGET:
 	  case PVEC_XWIDGET_VIEW:
-	    IGC_ASSERT (!"PVEC_WIDGET*");
+	    igc_assert (!"PVEC_WIDGET*");
 	    break;
 
 	  case PVEC_THREAD:
@@ -1171,7 +1178,7 @@ igc_thread_remove (void *info)
 static void
 add_main_thread (void)
 {
-  IGC_ASSERT (current_thread->gc_info == NULL);
+  igc_assert (current_thread->gc_info == NULL);
   current_thread->gc_info = igc_thread_add (stack_bottom);
 }
 
@@ -1227,7 +1234,7 @@ igc_xfree (void *p)
   if (p == NULL)
     return;
   struct igc_root_list *r = find_root (p);
-  IGC_ASSERT (r != NULL);
+  igc_assert (r != NULL);
   destroy_root (r);
   xfree (p);
 }
@@ -1470,7 +1477,7 @@ alloc_string_data (size_t nbytes, bool clear)
   mps_ap_t ap = thread_ap (type);
   // One word more make sure we have enough room for igc_fwd
   nbytes = igc_obj_size (sizeof (mps_addr_t) + nbytes);
-  IGC_ASSERT (nbytes >= sizeof (struct igc_fwd));
+  igc_assert (nbytes >= sizeof (struct igc_fwd));
   mps_addr_t p;
   struct igc_header *h;
   do
@@ -1846,12 +1853,6 @@ static void
 free_global_igc (void)
 {
   free_igc (global_igc);
-}
-
-static void
-igc_assert_fail (const char *file, unsigned line, const char *msg)
-{
-  die (msg, file, line);
 }
 
 void
