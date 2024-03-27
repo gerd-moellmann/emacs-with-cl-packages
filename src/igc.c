@@ -121,6 +121,24 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 # define IGC_TAG_MASK (~VALMASK)
 
+static mps_addr_t min_addr, max_addr;
+
+static void
+record_addr (mps_addr_t addr, mps_word_t nbytes)
+{
+  if (min_addr == NULL || addr < min_addr)
+    min_addr = addr;
+  addr = (char *) addr + nbytes;
+  if (max_addr == NULL || addr > max_addr)
+    max_addr = addr;
+}
+
+static bool
+is_in_range (mps_addr_t addr)
+{
+  return addr >= min_addr && addr < max_addr;
+}
+
 enum
 {
   IGC_ALIGN = GCALIGNMENT,
@@ -397,31 +415,20 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
     // IOW, MPS_FIX1 has undefined behavior if called on an address that
     // is not in the arena.
     mps_addr_t client = (mps_addr_t) (word ^ tag);
-
-    // Filter out stuff that contains pointers to static
-    // data.
-    if (tag == Lisp_Vectorlike)
+    if (is_in_range (client))
       {
-	// Vmain_thread
-	if (client == current_thread)
-	  return MPS_RES_OK;
-
-	// DEFUNs
-	if (pseudo_vector_type (client) == PVEC_SUBR)
-	  return MPS_RES_OK;
-      }
-
-    mps_pool_t pool;
-    IGC_ASSERT (mps_addr_pool (&pool, global_igc->arena, client));
-    if (MPS_FIX1 (ss, client))
-      {
-	// MPS_FIX2 doc: The only exception is for references to
-	// objects belonging to a format with in-band headers: the
-	// header size must not be subtracted from these references.
+	mps_pool_t pool;
+	IGC_ASSERT (mps_addr_pool (&pool, global_igc->arena, client));
+	if (MPS_FIX1 (ss, client))
+	  {
+	    // MPS_FIX2 doc: The only exception is for references to
+	    // objects belonging to a format with in-band headers: the
+	    // header size must not be subtracted from these references.
 	    mps_res_t res = MPS_FIX2 (ss, &client);
 	    if (res != MPS_RES_OK)
 	      return res;
 	    *p = (mps_word_t) client | tag;
+	  }
       }
   }
   MPS_SCAN_END (ss);
@@ -1495,6 +1502,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
       cons->u.s.u.cdr = cdr;
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return make_lisp_ptr (cons, Lisp_Cons);
 }
 
@@ -1518,6 +1526,7 @@ igc_alloc_symbol (void)
       sym->u.s.redirect = SYMBOL_PLAINVAL;
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return make_lisp_symbol (sym);
 }
 
@@ -1540,6 +1549,7 @@ igc_make_float (double val)
       f->u.data = val;
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   Lisp_Object obj;
   XSETFLOAT (obj, f);
   return obj;
@@ -1563,6 +1573,7 @@ alloc_string_data (size_t nbytes)
       h->total_nbytes = nbytes;
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return base_to_client (p);
 }
 
@@ -1627,6 +1638,7 @@ igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
       s->u.s.data = data;
     }
   while (!mps_commit (ap, p, string_nbytes));
+  record_addr (p, nbytes);
   return make_lisp_ptr (s, Lisp_String);
 }
 
@@ -1661,6 +1673,7 @@ igc_make_interval (void)
       iv = base_to_client (p);
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return iv;
 }
 
@@ -1686,6 +1699,7 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
       XSETPVECTYPESIZE (v, tag, nwords_lisp, nwords_mem - nwords_lisp);
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return v;
 }
 
@@ -1709,6 +1723,7 @@ igc_alloc_vector (ptrdiff_t len)
       v->header.size = len;
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return v;
 }
 
@@ -1729,6 +1744,7 @@ igc_alloc_record (ptrdiff_t len)
       XSETPVECTYPE (v, PVEC_RECORD);
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return p;
 }
 
@@ -1751,6 +1767,7 @@ igc_make_itree_node (void)
       n = base_to_client (p);
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return n;
 }
 
@@ -1773,6 +1790,7 @@ igc_make_image (void)
       img = base_to_client (p);
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return img;
 }
 
@@ -1792,6 +1810,7 @@ igc_make_face (void)
       face = base_to_client (p);
     }
   while (!mps_commit (ap, p, nbytes));
+  record_addr (p, nbytes);
   return face;
 }
 
