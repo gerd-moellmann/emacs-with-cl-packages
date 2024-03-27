@@ -1556,7 +1556,7 @@ igc_make_float (double val)
 }
 
 static unsigned char *
-alloc_string_data (size_t nbytes)
+alloc_string_data (size_t nbytes, bool clear)
 {
   enum igc_obj_type type = IGC_OBJ_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
@@ -1564,17 +1564,20 @@ alloc_string_data (size_t nbytes)
   nbytes = igc_obj_size (sizeof (mps_addr_t) + nbytes);
   IGC_ASSERT (nbytes >= sizeof (struct igc_fwd));
   mps_addr_t p;
+  struct igc_header *h;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, nbytes);
       IGC_CHECK_RES (res);
-      struct igc_header *h = p;
+      if (clear)
+	memset (p, 0, nbytes);
+      h = p;
       h->type = IGC_OBJ_STRING_DATA;
       h->total_nbytes = nbytes;
     }
   while (!mps_commit (ap, p, nbytes));
   record_addr (p, nbytes);
-  return base_to_client (p);
+  return base_to_client (h);
 }
 
 // Reallocate multibyte STRING data when a single character is
@@ -1599,7 +1602,7 @@ igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
   ptrdiff_t capacity = old_header->total_nbytes - sizeof *old_header;
   if (capacity < nbytes_needed)
     {
-      unsigned char *new_data = alloc_string_data (nbytes_needed);
+      unsigned char *new_data = alloc_string_data (nbytes_needed, false);
       memcpy (new_data, SDATA (string), old_nbytes);
       s->u.s.data = new_data;
     }
@@ -1615,10 +1618,7 @@ igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
 Lisp_Object
 igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
 {
-  unsigned char *data = alloc_string_data (nbytes);
-  if (clear)
-    memset (data, 0, nbytes);
-
+  unsigned char *data = alloc_string_data (nbytes, clear);
   enum igc_obj_type type = IGC_OBJ_STRING;
   mps_ap_t ap = thread_ap (type);
   size_t string_nbytes = igc_obj_size (sizeof (struct Lisp_String));
