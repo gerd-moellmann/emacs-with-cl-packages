@@ -428,7 +428,7 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 static mps_res_t
 fix_raw (mps_ss_t ss, mps_addr_t *p)
 {
-  if (*p == NULL || c_symbol_p (*p))
+  if (!is_mps (*p))
     return MPS_RES_OK;
 
   MPS_SCAN_BEGIN (ss)
