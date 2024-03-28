@@ -84,12 +84,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #  error "HAVE_TEXT_CONVERSION not supported"
 # endif
 
-// Note: Emacs will call allocation functions whlle aborting, which
-// leads to interesting phenomena when an assertion fails inside a
-// function called from MPS while holding a lock, and find that we
-// already own the lock while allocatin.
-//
-// The fucntion signature must be that of mps_lib_assert_fail_t.
+/* Note: Emacs will call allocation functions whlle aborting, which
+   leads to interesting phenomena when an assertion fails inside a
+   function called from MPS while holding a lock, and find that we
+   already own the lock while allocatin.
+
+   The fucntion signature must be that of mps_lib_assert_fail_t.  */
 
 static void
 igc_assert_fail (const char *file, unsigned line, const char *msg)
@@ -98,10 +98,10 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
 }
 
 # ifdef IGC_DEBUG
-#  define igc_assert(expr)				\
-  if (!(expr))						\
-      igc_assert_fail (__FILE__, __LINE__, #expr);	\
-  else
+#  define igc_assert(expr)                         \
+    if (!(expr))                                   \
+      igc_assert_fail (__FILE__, __LINE__, #expr); \
+    else
 # else
 #  define igc_assert(expr) (void) 9
 # endif
@@ -110,8 +110,8 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
 
 # define IGC_TAG_MASK (~VALMASK)
 
-// Min and max addresses we got from MPS allocations. See fix_lisp_obj
-// comments.
+/* Min and max addresses we got from MPS allocations. See fix_lisp_obj
+   comments.  */
 static mps_addr_t min_addr, max_addr;
 
 static void
@@ -235,7 +235,7 @@ igc_obj_size (size_t nbytes)
 {
   nbytes += sizeof (struct igc_header);
   nbytes = igc_round (nbytes, IGC_ALIGN_DFLT);
-  // MPS does not support objects consisting of a header only.
+  /* MPS does not support objects consisting of a header only.  */
   igc_assert (nbytes > sizeof (struct igc_header));
   return nbytes;
 }
@@ -386,9 +386,10 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	mps_addr_t client = (mps_addr_t) ((char *) lispsym + off);
 	if (!c_symbol_p (client) && MPS_FIX1 (ss, client))
 	  {
-	    // MPS_FIX2 doc: The only exception is for references to
-	    // objects belonging to a format with in-band headers: the
-	    // header size must not be subtracted from these references.
+	    /* MPS_FIX2 doc: The only exception is for references to
+	       objects belonging to a format with in-band headers: the
+	       header size must not be subtracted from these
+	       references.  */
 	    mps_res_t res = MPS_FIX2 (ss, &client);
 	    if (res != MPS_RES_OK)
 	      return res;
@@ -398,10 +399,10 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	return MPS_RES_OK;
       }
 
-    // I have encountered cases where MPS_FIX1 returns true, but the
-    // reference is somewhere completely off, so that MPS_FIX2 asserts.
-    // IOW, MPS_FIX1 has undefined behavior if called on an address that
-    // is not in the arena.
+    /* I have encountered cases where MPS_FIX1 returns true, but the
+       reference is somewhere completely off, so that MPS_FIX2 asserts.
+       IOW, MPS_FIX1 has undefined behavior if called on an address that
+       is not in the arena.  */
     mps_addr_t client = (mps_addr_t) (word ^ tag);
     if (is_in_range (client))
       {
@@ -409,9 +410,10 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	igc_assert (mps_addr_pool (&pool, global_igc->arena, client));
 	if (MPS_FIX1 (ss, client))
 	  {
-	    // MPS_FIX2 doc: The only exception is for references to
-	    // objects belonging to a format with in-band headers: the
-	    // header size must not be subtracted from these references.
+	    /* MPS_FIX2 doc: The only exception is for references to
+	       objects belonging to a format with in-band headers: the
+	       header size must not be subtracted from these
+	       references.  */
 	    mps_res_t res = MPS_FIX2 (ss, &client);
 	    if (res != MPS_RES_OK)
 	      return res;
@@ -431,8 +433,8 @@ fix_raw (mps_ss_t ss, mps_addr_t *p)
 
   MPS_SCAN_BEGIN (ss)
   {
-    // Can be a pointer to a Lisp_Symbol. Cannot be an offset from
-    // lispsym.
+    /* Can be a pointer to a Lisp_Symbol. Cannot be an offset from
+       lispsym.  */
     mps_addr_t base = client_to_base (*p);
     if (MPS_FIX1 (ss, base))
       {
@@ -519,8 +521,8 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
     for (int i = 0; i < staticidx; ++i)
       {
 	igc_assert (staticvec[i] != NULL);
-	// staticvec is declared as having pointers to const
-	// Lisp_Object, for whatever reason.
+	/* staticvec is declared as having pointers to const
+	   Lisp_Object, for an unknown reason.  */
 	IGC_FIX12_OBJ (ss, (Lisp_Object *) staticvec[i]);
       }
   }
@@ -630,11 +632,6 @@ is_dflt_fwd (mps_addr_t client_addr)
     return f->client_new_addr;
   return NULL;
 }
-
-// This method is called by the scan method dflt_scan with an object
-// that is IGC_OBJ_INVALID, and CLIENT_ADDR being just 1 word before
-// CLIENT_LIMIT. This leads to an infinite loop because dflt_skip does
-// not have enough information to determine the next address.
 
 static mps_addr_t
 dflt_skip (mps_addr_t client_addr)
@@ -764,8 +761,7 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
        say that header-only objects are not supported, but that's just a
        guess. */
     const mps_addr_t base_limit = client_to_base (client_limit);
-    for (mps_addr_t client = client_base;
-	 client < base_limit;
+    for (mps_addr_t client = client_base; client < base_limit;
 	 client = dflt_skip (client))
       {
 	struct igc_header *header = client_to_base (client);
@@ -865,7 +861,7 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
       }
     else
       {
-	// Fix Lisp object part of normal pseudo vectors.
+	/* Fix Lisp object part of normal pseudo vectors.  */
 	if (!is_bool_vector (v))
 	  {
 	    const size_t nobjs = pseudo_vector_nobjs (v);
@@ -886,7 +882,7 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 	    break;
 
 	  case PVEC_FINALIZER:
-	    // Unclear, has a circurlar list of weak references?
+	    /* Unclear, has a circular list of weak references?  */
 	    igc_assert (!"PVEC_FINALIZER");
 	    break;
 
@@ -1075,7 +1071,7 @@ create_ambig_root (struct igc *gc, void *start, void *end)
 static mps_rm_t
 root_mode_inner (void)
 {
-  // Issue submitted to MPS
+  /* Issue https://github.com/Ravenbrook/mps/issues/285  */
   if (MPS_RM_PROT == MPS_RM_PROT_INNER)
     return 0;
   return MPS_RM_PROT_INNER + MPS_RM_PROT;
@@ -1487,11 +1483,11 @@ alloc_string_data (size_t nbytes, bool clear)
   return base_to_client (h);
 }
 
-// Reallocate multibyte STRING data when a single character is
-// replaced. The character is at byte offset BYTE_POS in the string.
-// The character being replaced is CHAR_LEN bytes long, and the
-// character that will replace it is NEW_CLEN bytes long.  Return the
-// address where the caller should store the new character.
+/* Reallocate multibyte STRING data when a single character is
+   replaced. The character is at byte offset BYTE_POS in the string.
+   The character being replaced is CHAR_LEN bytes long, and the
+   character that will replace it is NEW_CLEN bytes long.  Return the
+   address where the caller should store the new character.  */
 unsigned char *
 igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
 		  ptrdiff_t old_char_len, ptrdiff_t new_char_len)
@@ -1502,7 +1498,6 @@ igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
   if (old_char_len == new_char_len)
     return s->u.s.data + at_byte_pos;
 
-  // If new char doesn't fit, make a new string data
   ptrdiff_t old_nbytes = SBYTES (string);
   ptrdiff_t nbytes_needed = old_nbytes + (new_char_len - old_char_len);
   struct igc_header *old_header = client_to_base (s->u.s.data);
@@ -1584,7 +1579,6 @@ igc_make_interval (void)
   return iv;
 }
 
-// All lens in words
 struct Lisp_Vector *
 igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 			size_t nwords_zero, enum pvec_type tag)
