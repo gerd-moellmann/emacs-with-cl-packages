@@ -744,16 +744,30 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    // Looks like CLIENT_LIMIT is the limit of the block with header
-    // size added. If dflt_skip returns the end of the last object in
-    // the block as client address, this address can be the end of the
-    // block, and will always be < CLIENT_LIMIT. Grmpf :-(.
-    const mps_addr_t base_limit = client_to_base (client_limit);
-    while (client_base < base_limit)
-      {
-	mps_addr_t client = client_base;
-	client_base = dflt_skip (client_base);
+    /* Rough edge alert:
 
+       Assume H is the size of the header, and the block to be scanned
+       is [B, L). Because we are using in-band headers, this function is
+       called with client addresses, i.e. [B+H, L+H)
+
+       Assume further that the last object in the block is [O, L-H), or
+       in client pointers [O+H, L).
+
+       The skip method returns client pointers. When skipping over the last
+       object, it returns L. So, the scan is over when the skip method
+       returns L, not when we reach the client limit passed to this
+       function.
+
+       When we erroneously expect a header following the last object,
+       there is enough room for one left, we see that there is none.
+       MPS doesn't put a padding object there, maybe because the docs
+       say that header-only objects are not supported, but that's just a
+       guess. */
+    const mps_addr_t base_limit = client_to_base (client_limit);
+    for (mps_addr_t client = client_base;
+	 client < base_limit;
+	 client = dflt_skip (client))
+      {
 	struct igc_header *header = client_to_base (client);
 	switch (header->type)
 	  {
