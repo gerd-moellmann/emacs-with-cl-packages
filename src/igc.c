@@ -136,6 +136,12 @@ enum
   IGC_ALIGN_DFLT = IGC_ALIGN,
 };
 
+static bool
+is_aligned (const mps_addr_t addr)
+{
+  return ((mps_word_t) addr & IGC_TAG_MASK) == 0;
+}
+
 # define IGC_CHECK_RES(res) \
    if ((res) != MPS_RES_OK) \
      emacs_abort ();        \
@@ -406,8 +412,6 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
     mps_addr_t client = (mps_addr_t) (word ^ tag);
     if (is_mps (client))
       {
-	mps_pool_t pool;
-	igc_assert (mps_addr_pool (&pool, global_igc->arena, client));
 	if (MPS_FIX1 (ss, client))
 	  {
 	    /* MPS_FIX2 doc: The only exception is for references to
@@ -428,20 +432,18 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 static mps_res_t
 fix_raw (mps_ss_t ss, mps_addr_t *p)
 {
-  if (!is_mps (*p))
-    return MPS_RES_OK;
-
   MPS_SCAN_BEGIN (ss)
   {
-    /* Can be a pointer to a Lisp_Symbol. Cannot be an offset from
-       lispsym.  */
-    mps_addr_t base = client_to_base (*p);
-    if (MPS_FIX1 (ss, base))
+    mps_addr_t client = *p;
+    if (is_mps (client) && is_aligned (client) && MPS_FIX1 (ss, client))
       {
-	mps_res_t res = MPS_FIX2 (ss, &base);
+	/* MPS_FIX2 doc: The only exception is for references to
+	   objects belonging to a format with in-band headers: the
+	   header size must not be subtracted from these
+	   references.  */
+	mps_res_t res = MPS_FIX2 (ss, &client);
 	if (res != MPS_RES_OK)
 	  return res;
-	mps_addr_t client = base_to_client (base);
 	*p = client;
       }
   }
