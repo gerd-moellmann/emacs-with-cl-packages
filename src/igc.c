@@ -1464,22 +1464,25 @@ alloc_string_data (size_t nbytes, bool clear)
 {
   enum igc_obj_type type = IGC_OBJ_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
-  size_t alloc_nbytes = obj_size (nbytes);
+  // Add 1 for the terminating NUL.
+  size_t alloc_nbytes = obj_size (nbytes + 1);
   mps_addr_t p;
-  struct igc_header *h;
+  unsigned char *data;
   do
     {
       mps_res_t res = mps_reserve (&p, ap, alloc_nbytes);
       IGC_CHECK_RES (res);
-      if (clear)
-	memset (p, 0, alloc_nbytes);
-      h = p;
+      struct igc_header *h = p;
       h->type = IGC_OBJ_STRING_DATA;
       h->total_nbytes = alloc_nbytes;
+      data = base_to_client (p);
+      if (clear)
+	memset (data, 0, nbytes);
+      data[nbytes] = 0;
     }
   while (!mps_commit (ap, p, alloc_nbytes));
-  record_alloc (p, nbytes);
-  return base_to_client (h);
+  record_alloc (p, alloc_nbytes);
+  return data;
 }
 
 /* Reallocate multibyte STRING data when a single character is
