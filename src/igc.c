@@ -246,9 +246,8 @@ static size_t
 obj_size (size_t nbytes)
 {
   nbytes += sizeof (struct igc_header);
-  /* We always need enough room for fwd.  */
-  nbytes = igc_round (max (nbytes, sizeof (struct igc_fwd)),
-		      IGC_ALIGN_DFLT);
+  nbytes = max (nbytes, sizeof (struct igc_fwd));
+  nbytes = igc_round (nbytes, IGC_ALIGN_DFLT);
   return nbytes;
 }
 
