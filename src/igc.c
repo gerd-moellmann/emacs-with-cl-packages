@@ -44,9 +44,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 // clang-format on
 
 #include <config.h>
-#include <sys/_types/_size_t.h>
-#include <sys/param.h>
-#include "bignum.h"
 
 #ifdef HAVE_MPS
 
@@ -215,7 +212,7 @@ enum igc_obj_type
 struct igc_header
 {
   enum igc_obj_type type : 8;
-  mps_word_t total_nbytes : sizeof (mps_word_t) * CHAR_BIT - 8;
+  mps_word_t obj_size : sizeof (mps_word_t) * CHAR_BIT - 8;
 };
 
 struct igc_fwd
@@ -239,7 +236,7 @@ base_to_client (mps_addr_t base_addr)
 static size_t
 igc_round (size_t nbytes, size_t align)
 {
-  return roundup (nbytes, align);
+  return ROUNDUP (nbytes, align);
 }
 
 static size_t
@@ -614,7 +611,7 @@ dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
   igc_assert (nbytes > 0);
   struct igc_header *h = base_addr;
   h->type = IGC_OBJ_PAD;
-  h->total_nbytes = nbytes;
+  h->obj_size = nbytes;
 }
 
 static void
@@ -638,7 +635,7 @@ static mps_addr_t
 dflt_skip (mps_addr_t client_addr)
 {
   struct igc_header *h = client_to_base (client_addr);
-  mps_addr_t next = (char *) h + h->total_nbytes;
+  mps_addr_t next = (char *) h + h->obj_size;
   igc_assert (next > client_addr);
   return next;
 }
@@ -797,8 +794,13 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 	    break;
 
 	  case IGC_OBJ_VECTOR:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
-	    break;
+	    {
+	      struct Lisp_Vector *v = client;
+	      igc_assert (header_size + v->header.size * word_size + sizeof *header
+			== header->obj_size);
+	      IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
+	      break;
+	    }
 
 	  case IGC_OBJ_ITREE_NODE:
 	    IGC_FIX_CALL_FN (ss, struct itree_node, client, fix_itree_node);
@@ -1386,27 +1388,33 @@ igc_break (void)
 {
 }
 
+static mps_addr_t
+set_header (mps_addr_t p, enum igc_obj_type type, mps_word_t size)
+{
+  struct igc_header *h = p;
+  h->type = type;
+  h->obj_size = size;
+  return base_to_client (p);
+}
+
 Lisp_Object
 igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
   enum igc_obj_type type = IGC_OBJ_CONS;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = obj_size (sizeof (struct Lisp_Cons));
+  size_t size = obj_size (sizeof (struct Lisp_Cons));
   mps_addr_t p;
   struct Lisp_Cons *cons;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      struct igc_header *h = p;
-      h->type = type;
-      h->total_nbytes = nbytes;
-      cons = base_to_client (p);
+      cons = set_header (p, type, size);
       cons->u.s.car = car;
       cons->u.s.u.cdr = cdr;
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return make_lisp_ptr (cons, Lisp_Cons);
 }
 
@@ -1415,22 +1423,19 @@ igc_alloc_symbol (void)
 {
   enum igc_obj_type type = IGC_OBJ_SYMBOL;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = obj_size (sizeof (struct Lisp_Symbol));
+  size_t size = obj_size (sizeof (struct Lisp_Symbol));
   mps_addr_t p;
   struct Lisp_Symbol *sym;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      memclear (p, nbytes);
-      struct igc_header *h = p;
-      h->type = IGC_OBJ_SYMBOL;
-      h->total_nbytes = nbytes;
-      sym = base_to_client (p);
+      memclear (p, size);
+      sym = set_header (p, type, size);
       sym->u.s.redirect = SYMBOL_PLAINVAL;
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return make_lisp_symbol (sym);
 }
 
@@ -1439,24 +1444,19 @@ igc_make_float (double val)
 {
   enum igc_obj_type type = IGC_OBJ_FLOAT;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = obj_size (sizeof (struct Lisp_Float));
+  size_t size = obj_size (sizeof (struct Lisp_Float));
   mps_addr_t p;
   struct Lisp_Float *f;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      struct igc_header *h = p;
-      h->type = IGC_OBJ_FLOAT;
-      h->total_nbytes = nbytes;
-      f = base_to_client (p);
+      f = set_header (p, type, size);
       f->u.data = val;
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
-  Lisp_Object obj;
-  XSETFLOAT (obj, f);
-  return obj;
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
+  return make_lisp_ptr (f, Lisp_Float);
 }
 
 static unsigned char *
@@ -1465,23 +1465,20 @@ alloc_string_data (size_t nbytes, bool clear)
   enum igc_obj_type type = IGC_OBJ_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
   // Add 1 for the terminating NUL.
-  size_t alloc_nbytes = obj_size (nbytes + 1);
+  size_t size = obj_size (nbytes + 1);
   mps_addr_t p;
   unsigned char *data;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, alloc_nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      struct igc_header *h = p;
-      h->type = IGC_OBJ_STRING_DATA;
-      h->total_nbytes = alloc_nbytes;
-      data = base_to_client (p);
+      data = set_header (p, type, size);
+      data[nbytes] = 0;
       if (clear)
 	memset (data, 0, nbytes);
-      data[nbytes] = 0;
     }
-  while (!mps_commit (ap, p, alloc_nbytes));
-  record_alloc (p, alloc_nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return data;
 }
 
@@ -1503,7 +1500,7 @@ igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
   ptrdiff_t old_nbytes = SBYTES (string);
   ptrdiff_t nbytes_needed = old_nbytes + (new_char_len - old_char_len);
   struct igc_header *old_header = client_to_base (s->u.s.data);
-  ptrdiff_t capacity = old_header->total_nbytes - sizeof *old_header;
+  ptrdiff_t capacity = old_header->obj_size - sizeof *old_header;
   if (capacity < nbytes_needed)
     {
       unsigned char *new_data = alloc_string_data (nbytes_needed, false);
@@ -1523,26 +1520,24 @@ Lisp_Object
 igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
 {
   unsigned char *data = alloc_string_data (nbytes, clear);
+
   enum igc_obj_type type = IGC_OBJ_STRING;
   mps_ap_t ap = thread_ap (type);
-  size_t string_nbytes = obj_size (sizeof (struct Lisp_String));
+  size_t size = obj_size (sizeof (struct Lisp_String));
   mps_addr_t p;
   struct Lisp_String *s;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, string_nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      struct igc_header *h = p;
-      h->type = type;
-      h->total_nbytes = string_nbytes;
-      s = base_to_client (p);
+      s = set_header (p, type, size);
       s->u.s.size = nchars;
       s->u.s.size_byte = unibyte ? -1 : nbytes;
       s->u.s.intervals = NULL;
       s->u.s.data = data;
     }
-  while (!mps_commit (ap, p, string_nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return make_lisp_ptr (s, Lisp_String);
 }
 
@@ -1563,21 +1558,18 @@ igc_make_interval (void)
 {
   enum igc_obj_type type = IGC_OBJ_INTERVAL;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = obj_size (sizeof (struct interval));
+  size_t size = obj_size (sizeof (struct interval));
   mps_addr_t p;
   struct interval *iv;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      memclear (p, nbytes);
-      struct igc_header *h = p;
-      h->type = type;
-      h->total_nbytes = nbytes;
-      iv = base_to_client (p);
+      memclear (p, size);
+      iv = set_header (p, type, size);
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return iv;
 }
 
@@ -1587,22 +1579,19 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 {
   enum igc_obj_type type = IGC_OBJ_VECTOR;
   mps_ap_t ap = thread_ap (type);
-  size_t nbytes = obj_size (header_size + nwords_mem * word_size);
+  size_t size = obj_size (header_size + nwords_mem * word_size);
   mps_addr_t p;
   struct Lisp_Vector *v;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      struct igc_header *h = p;
-      h->type = type;
-      h->total_nbytes = nbytes;
-      v = base_to_client (p);
+      v = set_header (p, type, size);
       memclear (v->contents, nwords_zero * word_size);
       XSETPVECTYPESIZE (v, tag, nwords_lisp, nwords_mem - nwords_lisp);
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return v;
 }
 
@@ -1611,22 +1600,22 @@ igc_alloc_vector (ptrdiff_t len)
 {
   enum igc_obj_type type = (IGC_OBJ_VECTOR);
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = obj_size (header_size + len * word_size);
+  ptrdiff_t size = obj_size (header_size + len * word_size);
   mps_addr_t p;
   struct Lisp_Vector *v;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      memclear (p, nbytes);
+      memclear (p, size);
       struct igc_header *h = p;
       h->type = type;
-      h->total_nbytes = nbytes;
-      v = base_to_client (p);
+      h->obj_size = size;
+      v = set_header (p, type, size);
       v->header.size = len;
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return v;
 }
 
@@ -1635,20 +1624,21 @@ igc_alloc_record (ptrdiff_t len)
 {
   enum igc_obj_type type = (IGC_OBJ_VECTOR);
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = obj_size (header_size + len * word_size);
+  ptrdiff_t size = obj_size (header_size + len * word_size);
   mps_addr_t p;
+  struct Lisp_Vector *v;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      memclear (p, nbytes);
-      struct Lisp_Vector *v = p;
+      memclear (p, size);
+      v = set_header (p, type, size);
       v->header.size = len;
       XSETPVECTYPE (v, PVEC_RECORD);
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
-  return p;
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
+  return v;
 }
 
 struct itree_node *
@@ -1656,21 +1646,18 @@ igc_make_itree_node (void)
 {
   enum igc_obj_type type = IGC_OBJ_ITREE_NODE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = obj_size (sizeof (struct itree_node));
+  ptrdiff_t size = obj_size (sizeof (struct itree_node));
   mps_addr_t p;
   struct itree_node *n;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      memclear (p, nbytes);
-      struct igc_header *h = p;
-      h->type = type;
-      h->total_nbytes = nbytes;
-      n = base_to_client (p);
+      memclear (p, size);
+      n = set_header (p, type, size);
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return n;
 }
 
@@ -1679,21 +1666,18 @@ igc_make_image (void)
 {
   enum igc_obj_type type = IGC_OBJ_IMAGE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = obj_size (sizeof (struct image));
+  ptrdiff_t size = obj_size (sizeof (struct image));
   mps_addr_t p;
   struct image *img;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      memclear (p, nbytes);
-      struct igc_header *h = p;
-      h->type = type;
-      h->total_nbytes = nbytes;
-      img = base_to_client (p);
+      memclear (p, size);
+      img = set_header (p, type, size);
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return img;
 }
 
@@ -1702,18 +1686,18 @@ igc_make_face (void)
 {
   enum igc_obj_type type = IGC_OBJ_FACE;
   mps_ap_t ap = thread_ap (type);
-  ptrdiff_t nbytes = obj_size (sizeof (struct face));
+  ptrdiff_t size = obj_size (sizeof (struct face));
   mps_addr_t p;
   struct face *face;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
-      memclear (p, nbytes);
-      face = base_to_client (p);
+      memclear (p, size);
+      face = set_header (p, type, size);
     }
-  while (!mps_commit (ap, p, nbytes));
-  record_alloc (p, nbytes);
+  while (!mps_commit (ap, p, size));
+  record_alloc (p, size);
   return face;
 }
 
