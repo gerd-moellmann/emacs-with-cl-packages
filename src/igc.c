@@ -218,6 +218,12 @@ struct igc_header
   mps_word_t total_nbytes : sizeof (mps_word_t) * CHAR_BIT - 8;
 };
 
+struct igc_fwd
+{
+  struct igc_header header;
+  mps_addr_t client_new_addr;
+};
+
 static mps_addr_t
 client_to_base (mps_addr_t client_addr)
 {
@@ -240,9 +246,9 @@ static size_t
 obj_size (size_t nbytes)
 {
   nbytes += sizeof (struct igc_header);
-  nbytes = igc_round (nbytes, IGC_ALIGN_DFLT);
-  /* MPS does not support objects consisting of a header only.  */
-  igc_assert (nbytes > sizeof (struct igc_header));
+  /* We always need enough room for fwd.  */
+  nbytes = igc_round (max (nbytes, sizeof (struct igc_fwd)),
+		      IGC_ALIGN_DFLT);
   return nbytes;
 }
 
@@ -602,12 +608,6 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 /***********************************************************************
 			 Default pad, fwd, ...
  ***********************************************************************/
-
-struct igc_fwd
-{
-  struct igc_header header;
-  mps_addr_t client_new_addr;
-};
 
 static void
 dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
@@ -1465,22 +1465,20 @@ alloc_string_data (size_t nbytes, bool clear)
 {
   enum igc_obj_type type = IGC_OBJ_STRING_DATA;
   mps_ap_t ap = thread_ap (type);
-  // One word more make sure we have enough room for igc_fwd
-  nbytes = obj_size (sizeof (mps_addr_t) + nbytes);
-  igc_assert (nbytes >= sizeof (struct igc_fwd));
+  size_t alloc_nbytes = obj_size (nbytes);
   mps_addr_t p;
   struct igc_header *h;
   do
     {
-      mps_res_t res = mps_reserve (&p, ap, nbytes);
+      mps_res_t res = mps_reserve (&p, ap, alloc_nbytes);
       IGC_CHECK_RES (res);
       if (clear)
-	memset (p, 0, nbytes);
+	memset (p, 0, alloc_nbytes);
       h = p;
       h->type = IGC_OBJ_STRING_DATA;
-      h->total_nbytes = nbytes;
+      h->total_nbytes = alloc_nbytes;
     }
-  while (!mps_commit (ap, p, nbytes));
+  while (!mps_commit (ap, p, alloc_nbytes));
   record_alloc (p, nbytes);
   return base_to_client (h);
 }
