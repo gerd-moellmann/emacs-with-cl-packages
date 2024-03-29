@@ -1397,6 +1397,17 @@ set_header (mps_addr_t p, enum igc_obj_type type, mps_word_t size)
   return base_to_client (p);
 }
 
+static bool
+igc_commit (mps_ap_t ap, mps_addr_t p, mps_word_t size)
+{
+  if (mps_commit (ap, p, size))
+    {
+      record_alloc (p, size);
+      return true;
+    }
+  return false;
+}
+
 Lisp_Object
 igc_make_cons (Lisp_Object car, Lisp_Object cdr)
 {
@@ -1413,8 +1424,7 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
       cons->u.s.car = car;
       cons->u.s.u.cdr = cdr;
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return make_lisp_ptr (cons, Lisp_Cons);
 }
 
@@ -1434,8 +1444,7 @@ igc_alloc_symbol (void)
       sym = set_header (p, type, size);
       sym->u.s.redirect = SYMBOL_PLAINVAL;
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return make_lisp_symbol (sym);
 }
 
@@ -1454,8 +1463,7 @@ igc_make_float (double val)
       f = set_header (p, type, size);
       f->u.data = val;
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return make_lisp_ptr (f, Lisp_Float);
 }
 
@@ -1477,8 +1485,7 @@ alloc_string_data (size_t nbytes, bool clear)
       if (clear)
 	memset (data, 0, nbytes);
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return data;
 }
 
@@ -1536,8 +1543,7 @@ igc_make_string (size_t nchars, size_t nbytes, bool unibyte, bool clear)
       s->u.s.intervals = NULL;
       s->u.s.data = data;
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return make_lisp_ptr (s, Lisp_String);
 }
 
@@ -1568,8 +1574,7 @@ igc_make_interval (void)
       memclear (p, size);
       iv = set_header (p, type, size);
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return iv;
 }
 
@@ -1590,8 +1595,7 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
       memclear (v->contents, nwords_zero * word_size);
       XSETPVECTYPESIZE (v, tag, nwords_lisp, nwords_mem - nwords_lisp);
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return v;
 }
 
@@ -1614,8 +1618,7 @@ igc_alloc_vector (ptrdiff_t len)
       v = set_header (p, type, size);
       v->header.size = len;
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return v;
 }
 
@@ -1636,8 +1639,7 @@ igc_alloc_record (ptrdiff_t len)
       v->header.size = len;
       XSETPVECTYPE (v, PVEC_RECORD);
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return v;
 }
 
@@ -1656,8 +1658,7 @@ igc_make_itree_node (void)
       memclear (p, size);
       n = set_header (p, type, size);
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return n;
 }
 
@@ -1676,8 +1677,7 @@ igc_make_image (void)
       memclear (p, size);
       img = set_header (p, type, size);
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return img;
 }
 
@@ -1696,8 +1696,7 @@ igc_make_face (void)
       memclear (p, size);
       face = set_header (p, type, size);
     }
-  while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
+  while (!igc_commit (ap, p, size));
   return face;
 }
 
