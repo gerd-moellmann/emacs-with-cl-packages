@@ -949,9 +949,13 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 	  case PVEC_TS_COMPILED_QUERY:
 	  case PVEC_SQLITE:
 	  case PVEC_COMPILED:
-	  case PVEC_RECORD:
 	  case PVEC_FONT:
 	    // Nothing to do
+	    break;
+
+	  case PVEC_RECORD:
+	    /* I think we need to mark fix than for a normal pvec.  */
+	    igc_assert (!"PVEC_RECORD");
 	    break;
 
 	  case PVEC_BUFFER:
