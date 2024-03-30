@@ -3111,8 +3111,6 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_TS_PARSER:
     case PVEC_TS_NODE:
     case PVEC_TS_COMPILED_QUERY:
-    case PVEC_VECTOR_FORWARD:
-    case PVEC_VECTOR_PAD:
       break;
     }
   char msg[60];

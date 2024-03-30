@@ -1696,10 +1696,6 @@ print_vectorlike_unreadable (Lisp_Object obj, Lisp_Object printcharfun,
   /* Not handled; print unreadable object.  */
   switch (PSEUDOVECTOR_TYPE (XVECTOR (obj)))
     {
-    case PVEC_VECTOR_FORWARD:
-    case PVEC_VECTOR_PAD:
-      eassert (false);
-      break;
     case PVEC_MARKER:
       print_c_string ("#<marker ", printcharfun);
       /* Do you think this is necessary?  */

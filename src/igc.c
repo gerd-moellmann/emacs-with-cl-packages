@@ -794,13 +794,8 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 	    break;
 
 	  case IGC_OBJ_VECTOR:
-	    {
-	      struct Lisp_Vector *v = client;
-	      igc_assert (header_size + v->header.size * word_size + sizeof *header
-			== header->obj_size);
-	      IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
-	      break;
-	    }
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
+	    break;
 
 	  case IGC_OBJ_ITREE_NODE:
 	    IGC_FIX_CALL_FN (ss, struct itree_node, client, fix_itree_node);
@@ -840,7 +835,7 @@ is_plain_vector (const struct Lisp_Vector *v)
   return !is_pseudo_vector (v);
 }
 
-static size_t
+static mps_word_t
 pseudo_vector_nobjs (const struct Lisp_Vector *v)
 {
   return v->header.size & PSEUDOVECTOR_SIZE_MASK;
@@ -860,6 +855,9 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
   {
     if (is_plain_vector (v))
       {
+	struct igc_header *h = client_to_base (v);
+	igc_assert (sizeof *h + header_size + v->header.size * word_size
+		    == h->obj_size);
 	IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
       }
     else
@@ -873,8 +871,6 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 
 	switch (pseudo_vector_type (v))
 	  {
-	  case PVEC_VECTOR_FORWARD:
-	  case PVEC_VECTOR_PAD:
 	  case PVEC_FREE:
 	    igc_assert (!"unexpected PVEC type");
 	    break;

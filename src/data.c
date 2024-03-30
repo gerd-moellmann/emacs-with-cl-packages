@@ -214,8 +214,6 @@ for example, (type-of 1) returns `integer'.  */)
       /* WARNING!!  Keep 'cl--type-hierarchy' in sync with this code!!  */
       switch (PSEUDOVECTOR_TYPE (XVECTOR (object)))
 	{
-	case PVEC_VECTOR_FORWARD: return Qvector_forward;
-	case PVEC_VECTOR_PAD: return Qvector_pad;
         case PVEC_NORMAL_VECTOR: return Qvector;
 	case PVEC_BIGNUM: return Qinteger;
 	case PVEC_MARKER: return Qmarker;
@@ -4233,8 +4231,6 @@ syms_of_data (void)
   DEFSYM (Qbuffer, "buffer");
   DEFSYM (Qframe, "frame");
   DEFSYM (Qvector, "vector");
-  DEFSYM (Qvector_forward, "vector-forward");
-  DEFSYM (Qvector_pad, "vector-pad");
   DEFSYM (Qrecord, "record");
   DEFSYM (Qchar_table, "char-table");
   DEFSYM (Qsub_char_table, "sub-char-table");
