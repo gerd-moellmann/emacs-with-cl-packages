@@ -370,12 +370,6 @@ deregister_thread (struct igc_thread_list *t)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wunused-variable"
 
-static enum pvec_type
-pseudo_vector_type (const struct Lisp_Vector *v)
-{
-  return PSEUDOVECTOR_TYPE (v);
-}
-
 static mps_res_t
 fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 {
@@ -835,17 +829,31 @@ is_plain_vector (const struct Lisp_Vector *v)
   return !is_pseudo_vector (v);
 }
 
-static mps_word_t
-pseudo_vector_nobjs (const struct Lisp_Vector *v)
+static enum pvec_type
+pseudo_vector_type (const struct Lisp_Vector *v)
 {
-  return v->header.size & PSEUDOVECTOR_SIZE_MASK;
+  return PSEUDOVECTOR_TYPE (v);
 }
 
-static bool
-is_bool_vector (const struct Lisp_Vector *v)
+static mps_word_t
+nobjs_to_fix (const struct Lisp_Vector *v)
 {
-  igc_assert (is_pseudo_vector (v));
-  return pseudo_vector_type (v) == PVEC_BOOL_VECTOR;
+  switch (pseudo_vector_type (v))
+    {
+    case PVEC_CHAR_TABLE:
+    case PVEC_SUB_CHAR_TABLE:
+      // Special handling in fix_vector...
+      return 0;
+
+    case PVEC_BOOL_VECTOR:
+      return 0;
+
+    case PVEC_RECORD:
+      return v->header.size & ~PSEUDOVECTOR_FLAG;
+
+    default:
+      return v->header.size & PSEUDOVECTOR_SIZE_MASK;
+    }
 }
 
 static mps_res_t
@@ -862,18 +870,14 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
       }
     else
       {
-	/* Fix Lisp object part of normal pseudo vectors.  */
-	if (!is_bool_vector (v))
-	  {
-	    const size_t nobjs = pseudo_vector_nobjs (v);
-	    IGC_FIX12_NOBJS (ss, v->contents, nobjs);
-	  }
+	size_t nobjs = nobjs_to_fix (v);
+	if (nobjs)
+	  IGC_FIX12_NOBJS (ss, v->contents, nobjs);
 
 	switch (pseudo_vector_type (v))
 	  {
 	  case PVEC_FREE:
-	    igc_assert (!"unexpected PVEC type");
-	    break;
+	    emacs_abort ();
 
 	  case PVEC_NORMAL_VECTOR:
 	  case PVEC_BIGNUM:
@@ -950,12 +954,8 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 	  case PVEC_SQLITE:
 	  case PVEC_COMPILED:
 	  case PVEC_FONT:
-	    // Nothing to do
-	    break;
-
 	  case PVEC_RECORD:
-	    /* I think we need to mark fix than for a normal pvec.  */
-	    igc_assert (!"PVEC_RECORD");
+	    // Nothing to do
 	    break;
 
 	  case PVEC_BUFFER:
@@ -1002,12 +1002,11 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 
 	  case PVEC_CHAR_TABLE:
 	  case PVEC_SUB_CHAR_TABLE:
-	    // See also mark_char_table :-/
 	    {
+	      // See also mark_char_table :-(
 	      int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
 	      enum pvec_type type = pseudo_vector_type (v);
-	      int idx
-		= (type == PVEC_SUB_CHAR_TABLE ? SUB_CHAR_TABLE_OFFSET : 0);
+	      int idx = (type == PVEC_SUB_CHAR_TABLE ? SUB_CHAR_TABLE_OFFSET : 0);
 	      for (int i = idx; i < size; ++i)
 		IGC_FIX12_OBJ (ss, &v->contents[i]);
 	    }
