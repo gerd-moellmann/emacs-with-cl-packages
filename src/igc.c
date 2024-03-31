@@ -384,9 +384,9 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 
     if (tag == Lisp_Symbol)
       {
-	mps_word_t off = word ^ tag;
+	ptrdiff_t off = word ^ tag;
 	mps_addr_t client = (mps_addr_t) ((char *) lispsym + off);
-	if (!c_symbol_p (client))
+	if (is_mps (client))
 	  {
 	    mps_addr_t base = client_to_base (client);
 	    if (MPS_FIX1 (ss, base))
@@ -395,28 +395,29 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 		if (res != MPS_RES_OK)
 		  return res;
 		client = base_to_client (base);
-		mps_word_t new_off = (char *) client - (char *) lispsym;
+		ptrdiff_t new_off = (char *) client - (char *) lispsym;
 		*p = new_off | tag;
 	      }
 	  }
-	return MPS_RES_OK;
       }
-
-    /* I have encountered cases where MPS_FIX1 returns true, but the
-       reference is somewhere completely off, so that MPS_FIX2 asserts.
-       IOW, MPS_FIX1 has undefined behavior if called on an address that
-       is not in the arena.  */
-    mps_addr_t client = (mps_addr_t) (word ^ tag);
-    if (is_mps (client))
+    else
       {
-	mps_addr_t base = client_to_base (client);
-	if (MPS_FIX1 (ss, base))
+	/* I have encountered cases where MPS_FIX1 returns true, but the
+	   reference is somewhere completely off, so that MPS_FIX2 asserts.
+	   IOW, MPS_FIX1 has undefined behavior if called on an address that
+	   is not in the arena.  */
+	mps_addr_t client = (mps_addr_t) (word ^ tag);
+	if (is_mps (client))
 	  {
-	    mps_res_t res = MPS_FIX2 (ss, &base);
-	    if (res != MPS_RES_OK)
-	      return res;
-	    client = base_to_client (base);
-	    *p = (mps_word_t) client | tag;
+	    mps_addr_t base = client_to_base (client);
+	    if (MPS_FIX1 (ss, base))
+	      {
+		mps_res_t res = MPS_FIX2 (ss, &base);
+		if (res != MPS_RES_OK)
+		  return res;
+		client = base_to_client (base);
+		*p = (mps_word_t) client | tag;
+	      }
 	  }
       }
   }
@@ -1836,7 +1837,7 @@ make_dflt_fmt (struct igc *gc)
        client address, which calls NailboardGet, and one can see that
        the the board contains base addresses which leads to an assertion
        failure. */
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    //MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, dflt_scan);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, dflt_skip);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, dflt_fwd);
@@ -1858,7 +1859,6 @@ make_pool_with_class (struct igc *gc, mps_fmt_t fmt, mps_class_t cls)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FORMAT, fmt);
     MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
-    MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, false);
     res = mps_pool_create_k (&pool, gc->arena, cls, args);
   }
   MPS_ARGS_END (args);
