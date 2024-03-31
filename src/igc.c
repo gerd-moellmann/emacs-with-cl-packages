@@ -739,6 +739,7 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
     for (mps_addr_t base = base_start; base < base_limit;
 	 base = dflt_skip (base))
       {
+	mps_addr_t client = base_to_client (base);
 	struct igc_header *header = base;
 	switch (header->type)
 	  {
@@ -750,7 +751,7 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 	    continue;
 
 	  case IGC_OBJ_CONS:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_Cons, base, fix_cons);
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Cons, client, fix_cons);
 	    break;
 
 	  case IGC_OBJ_STRING_DATA:
@@ -759,35 +760,35 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 	    emacs_abort ();
 
 	  case IGC_OBJ_SYMBOL:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_Symbol, base, fix_symbol);
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Symbol, client, fix_symbol);
 	    break;
 
 	  case IGC_OBJ_INTERVAL:
-	    IGC_FIX_CALL_FN (ss, struct interval, base, fix_interval);
+	    IGC_FIX_CALL_FN (ss, struct interval, client, fix_interval);
 	    break;
 
 	  case IGC_OBJ_STRING:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_String, base, fix_string);
+	    IGC_FIX_CALL_FN (ss, struct Lisp_String, client, fix_string);
 	    break;
 
 	  case IGC_OBJ_VECTOR:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, base, fix_vector);
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
 	    break;
 
 	  case IGC_OBJ_ITREE_NODE:
-	    IGC_FIX_CALL_FN (ss, struct itree_node, base, fix_itree_node);
+	    IGC_FIX_CALL_FN (ss, struct itree_node, client, fix_itree_node);
 	    break;
 
 	  case IGC_OBJ_IMAGE:
-	    IGC_FIX_CALL_FN (ss, struct image, base, fix_image);
+	    IGC_FIX_CALL_FN (ss, struct image, client, fix_image);
 	    break;
 
 	  case IGC_OBJ_FACE:
-	    IGC_FIX_CALL_FN (ss, struct face, base, fix_face);
+	    IGC_FIX_CALL_FN (ss, struct face, client, fix_face);
 	    break;
 
 	  case IGC_OBJ_WEAK:
-	    IGC_FIX_CALL_FN (ss, mps_word_t, base, fix_weak);
+	    IGC_FIX_CALL_FN (ss, mps_word_t, client, fix_weak);
 	    break;
 	  }
       }
