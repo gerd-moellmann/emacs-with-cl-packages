@@ -629,7 +629,7 @@ static mps_addr_t
 dflt_skip (mps_addr_t client_addr)
 {
   struct igc_header *h = client_to_base (client_addr);
-  mps_addr_t next = (char *) h + h->obj_size;
+  mps_addr_t next = (char *) client_addr + h->obj_size;
   igc_assert (next > client_addr);
   return next;
 }
