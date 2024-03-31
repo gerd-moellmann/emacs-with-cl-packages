@@ -218,7 +218,7 @@ struct igc_header
 struct igc_fwd
 {
   struct igc_header header;
-  mps_addr_t client_new_addr;
+  mps_addr_t new_base_addr;
 };
 
 static mps_addr_t
@@ -386,17 +386,18 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
       {
 	mps_word_t off = word ^ tag;
 	mps_addr_t client = (mps_addr_t) ((char *) lispsym + off);
-	if (!c_symbol_p (client) && MPS_FIX1 (ss, client))
+	if (!c_symbol_p (client))
 	  {
-	    /* MPS_FIX2 doc: The only exception is for references to
-	       objects belonging to a format with in-band headers: the
-	       header size must not be subtracted from these
-	       references.  */
-	    mps_res_t res = MPS_FIX2 (ss, &client);
-	    if (res != MPS_RES_OK)
-	      return res;
-	    mps_word_t new_off = (char *) client - (char *) lispsym;
-	    *p = new_off | tag;
+	    mps_addr_t base = client_to_base (client);
+	    if (MPS_FIX1 (ss, base))
+	      {
+		mps_res_t res = MPS_FIX2 (ss, &base);
+		if (res != MPS_RES_OK)
+		  return res;
+		client = base_to_client (base);
+		mps_word_t new_off = (char *) client - (char *) lispsym;
+		*p = new_off | tag;
+	      }
 	  }
 	return MPS_RES_OK;
       }
@@ -408,15 +409,13 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
     mps_addr_t client = (mps_addr_t) (word ^ tag);
     if (is_mps (client))
       {
-	if (MPS_FIX1 (ss, client))
+	mps_addr_t base = client_to_base (client);
+	if (MPS_FIX1 (ss, base))
 	  {
-	    /* MPS_FIX2 doc: The only exception is for references to
-	       objects belonging to a format with in-band headers: the
-	       header size must not be subtracted from these
-	       references.  */
-	    mps_res_t res = MPS_FIX2 (ss, &client);
+	    mps_res_t res = MPS_FIX2 (ss, &base);
 	    if (res != MPS_RES_OK)
 	      return res;
+	    client = base_to_client (base);
 	    *p = (mps_word_t) client | tag;
 	  }
       }
@@ -431,16 +430,16 @@ fix_raw (mps_ss_t ss, mps_addr_t *p)
   MPS_SCAN_BEGIN (ss)
   {
     mps_addr_t client = *p;
-    if (is_mps (client) && is_aligned (client) && MPS_FIX1 (ss, client))
+    if (is_mps (client) && is_aligned (client))
       {
-	/* MPS_FIX2 doc: The only exception is for references to
-	   objects belonging to a format with in-band headers: the
-	   header size must not be subtracted from these
-	   references.  */
-	mps_res_t res = MPS_FIX2 (ss, &client);
-	if (res != MPS_RES_OK)
-	  return res;
-	*p = client;
+	mps_addr_t base = client_to_base (client);
+	if (MPS_FIX1 (ss, base))
+	  {
+	    mps_res_t res = MPS_FIX2 (ss, &base);
+	    if (res != MPS_RES_OK)
+	      return res;
+	    *p = base_to_client (base);
+	  }
       }
   }
   MPS_SCAN_END (ss);
@@ -610,31 +609,30 @@ dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
 }
 
 static void
-dflt_fwd (mps_addr_t client_old, mps_addr_t client_new_addr)
+dflt_fwd (mps_addr_t old_base_addr, mps_addr_t new_base_addr)
 {
-  mps_addr_t base_old = client_to_base (client_old);
-  struct igc_header *h = base_old;
+  struct igc_header *h = old_base_addr;
   igc_assert (h->obj_size >= sizeof (struct igc_fwd));
   igc_assert (h->type != IGC_OBJ_PAD);
-  struct igc_fwd *f = base_old;
+  struct igc_fwd *f = old_base_addr;
   f->header.type = IGC_OBJ_FWD;
-  f->client_new_addr = client_new_addr;
+  f->new_base_addr = new_base_addr;
 }
 
 static mps_addr_t
-is_dflt_fwd (mps_addr_t client_addr)
+is_dflt_fwd (mps_addr_t base_addr)
 {
-  struct igc_fwd *f = client_to_base (client_addr);
+  struct igc_fwd *f = base_addr;
   if (f->header.type == IGC_OBJ_FWD)
-    return f->client_new_addr;
+    return f->new_base_addr;
   return NULL;
 }
 
 static mps_addr_t
-dflt_skip (mps_addr_t client_addr)
+dflt_skip (mps_addr_t base_addr)
 {
-  struct igc_header *h = client_to_base (client_addr);
-  mps_addr_t next = (char *) client_addr + h->obj_size;
+  struct igc_header *h = base_addr;
+  mps_addr_t next = (char *) base_addr + h->obj_size;
   igc_assert (h->obj_size >= sizeof (struct igc_header));
   return next;
 }
@@ -734,14 +732,14 @@ fix_cons (mps_ss_t ss, struct Lisp_Cons *cons)
 static mps_res_t fix_vector (mps_ss_t ss, struct Lisp_Vector *v);
 
 static mps_res_t
-dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
+dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    for (mps_addr_t client = client_base; client < client_limit;
-	 client = dflt_skip (client))
+    for (mps_addr_t base = base_start; base < base_limit;
+	 base = dflt_skip (base))
       {
-	struct igc_header *header = client_to_base (client);
+	struct igc_header *header = base;
 	switch (header->type)
 	  {
 	  case IGC_OBJ_INVALID:
@@ -752,7 +750,7 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 	    continue;
 
 	  case IGC_OBJ_CONS:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_Cons, client, fix_cons);
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Cons, base, fix_cons);
 	    break;
 
 	  case IGC_OBJ_STRING_DATA:
@@ -761,35 +759,35 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 	    emacs_abort ();
 
 	  case IGC_OBJ_SYMBOL:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_Symbol, client, fix_symbol);
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Symbol, base, fix_symbol);
 	    break;
 
 	  case IGC_OBJ_INTERVAL:
-	    IGC_FIX_CALL_FN (ss, struct interval, client, fix_interval);
+	    IGC_FIX_CALL_FN (ss, struct interval, base, fix_interval);
 	    break;
 
 	  case IGC_OBJ_STRING:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_String, client, fix_string);
+	    IGC_FIX_CALL_FN (ss, struct Lisp_String, base, fix_string);
 	    break;
 
 	  case IGC_OBJ_VECTOR:
-	    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, base, fix_vector);
 	    break;
 
 	  case IGC_OBJ_ITREE_NODE:
-	    IGC_FIX_CALL_FN (ss, struct itree_node, client, fix_itree_node);
+	    IGC_FIX_CALL_FN (ss, struct itree_node, base, fix_itree_node);
 	    break;
 
 	  case IGC_OBJ_IMAGE:
-	    IGC_FIX_CALL_FN (ss, struct image, client, fix_image);
+	    IGC_FIX_CALL_FN (ss, struct image, base, fix_image);
 	    break;
 
 	  case IGC_OBJ_FACE:
-	    IGC_FIX_CALL_FN (ss, struct face, client, fix_face);
+	    IGC_FIX_CALL_FN (ss, struct face, base, fix_face);
 	    break;
 
 	  case IGC_OBJ_WEAK:
-	    IGC_FIX_CALL_FN (ss, mps_word_t, client, fix_weak);
+	    IGC_FIX_CALL_FN (ss, mps_word_t, base, fix_weak);
 	    break;
 	  }
       }
@@ -1362,22 +1360,23 @@ igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
 }
 
 static bool
-type_of_addr (struct igc *gc, mps_addr_t addr, enum igc_obj_type *obj_type)
+type_of_addr (struct igc *gc, mps_addr_t base_addr,
+	      enum igc_obj_type *obj_type)
 {
   mps_pool_t pool;
-  if (!mps_addr_pool (&pool, gc->arena, addr))
+  if (!mps_addr_pool (&pool, gc->arena, base_addr))
     return false;
 
-  struct igc_header *h = client_to_base (addr);
+  struct igc_header *h = base_addr;
   *obj_type = h->type;
   return true;
 }
 
 static void
-do_finalize (struct igc *gc, mps_addr_t addr)
+do_finalize (struct igc *gc, mps_addr_t base_addr)
 {
   enum igc_obj_type obj_type;
-  if (!type_of_addr (gc, addr, &obj_type))
+  if (!type_of_addr (gc, base_addr, &obj_type))
     emacs_abort ();
   switch (obj_type)
     {
@@ -1412,9 +1411,9 @@ process_messages (struct igc *gc)
 
       if (type == mps_message_type_finalization ())
 	{
-	  mps_addr_t addr;
-	  mps_message_finalization_ref (&addr, gc->arena, msg);
-	  do_finalize (gc, addr);
+	  mps_addr_t base_addr;
+	  mps_message_finalization_ref (&base_addr, gc->arena, msg);
+	  do_finalize (gc, base_addr);
 	}
       else if (type == mps_message_type_gc_start ())
 	{
@@ -1831,7 +1830,12 @@ make_dflt_fmt (struct igc *gc)
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FMT_ALIGN, IGC_ALIGN);
-    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, sizeof (struct igc_header));
+    /* Don't use in-band headers. I suspect they ahve problems,
+       specifically amcSegScanNailedRange calls NailboardGet with a
+       client address, which calls NailboardGet, and one can see that
+       the the board contains base addresses which leads to an assertion
+       failure. */
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, dflt_scan);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, dflt_skip);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, dflt_fwd);
