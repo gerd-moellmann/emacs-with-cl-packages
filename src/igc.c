@@ -490,7 +490,7 @@ fix_raw (mps_ss_t ss, mps_addr_t *p)
 # define IGC_FIX_CALL_FN(ss, type, client_addr, fn) \
    do                                               \
      {                                              \
-       type *obj_ = client_addr;                    \
+       type *obj_ = (type *) client_addr;	    \
        mps_res_t res;                               \
        MPS_FIX_CALL (ss, res = fn (ss, obj_));      \
        if (res != MPS_RES_OK)                       \
@@ -817,43 +817,258 @@ dflt_scan (mps_ss_t ss, mps_addr_t client_base, mps_addr_t client_limit)
 				Vectors
  ***********************************************************************/
 
-static bool
-is_pseudo_vector (const struct Lisp_Vector *v)
-{
-  return (v->header.size & PSEUDOVECTOR_FLAG) != 0;
-}
-
-static bool
-is_plain_vector (const struct Lisp_Vector *v)
-{
-  return !is_pseudo_vector (v);
-}
-
 static enum pvec_type
 pseudo_vector_type (const struct Lisp_Vector *v)
 {
   return PSEUDOVECTOR_TYPE (v);
 }
 
-static mps_word_t
-nobjs_to_fix (const struct Lisp_Vector *v)
+static mps_res_t
+fix_vectorlike (mps_ss_t ss, struct Lisp_Vector *v)
 {
-  switch (pseudo_vector_type (v))
-    {
-    case PVEC_CHAR_TABLE:
-    case PVEC_SUB_CHAR_TABLE:
-      // Special handling in fix_vector...
-      return 0;
+  MPS_SCAN_BEGIN (ss)
+  {
+    ptrdiff_t size = v->header.size;
+    if (size & PSEUDOVECTOR_FLAG)
+      size &= PSEUDOVECTOR_SIZE_MASK;
+    IGC_FIX12_NOBJS (ss, v->contents, size);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
 
-    case PVEC_BOOL_VECTOR:
-      return 0;
+static mps_res_t
+fix_buffer (mps_ss_t ss, struct buffer *b)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, b, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &b->text->intervals);
+    IGC_FIX12_RAW (ss, &b->text->markers);
+    IGC_FIX12_RAW (ss, &b->own_text.intervals);
+    IGC_FIX12_RAW (ss, &b->own_text.markers);
+    IGC_FIX12_RAW (ss, &b->base_buffer);
+    if (b->overlays)
+      IGC_FIX12_RAW (ss, &b->overlays->root);
+    // FIXME: special handling of undo_list?
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
 
-    case PVEC_RECORD:
-      return v->header.size & ~PSEUDOVECTOR_FLAG;
+static mps_res_t
+fix_frame (mps_ss_t ss, struct frame *f)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    // output_data;
+    // terminal
+    // face_cache *
+    // glyph_pool
+    // glyph matrices
+    // struct font_driver_list *font_driver_list;
+    // struct text_conversion_state conversion;
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, f, fix_vectorlike);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
 
-    default:
-      return v->header.size & PSEUDOVECTOR_SIZE_MASK;
-    }
+static mps_res_t
+fix_window (mps_ss_t ss, struct window *w)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, w, fix_vectorlike);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_hash_table (mps_ss_t ss, struct Lisp_Hash_Table *h)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    // FIXME: weak */
+    IGC_FIX12_NOBJS (ss, h->key, h->table_size);
+    IGC_FIX12_NOBJS (ss, h->value, h->table_size);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_char_table (mps_ss_t ss, struct Lisp_Vector *v)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
+    enum pvec_type type = pseudo_vector_type (v);
+    int idx = type == PVEC_SUB_CHAR_TABLE ? SUB_CHAR_TABLE_OFFSET : 0;
+    for (int i = idx; i < size; ++i)
+      IGC_FIX12_OBJ (ss, &v->contents[i]);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_overlay (mps_ss_t ss, struct Lisp_Overlay *o)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX12_RAW (ss, &o->buffer);
+    IGC_FIX12_OBJ (ss, &o->plist);
+    IGC_FIX12_RAW (ss, &o->interval);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_subr (mps_ss_t ss, struct Lisp_Subr *s)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX12_OBJ (ss, &s->command_modes);
+# ifdef HAVE_NATIVE_COMP
+    IGC_FIX12_OBJ (ss, &s->intspec.native);
+    IGC_FIX12_OBJ (ss, &s->command_modes);
+    IGC_FIX12_OBJ (ss, &s->native_comp_u);
+    IGC_FIX12_OBJ (ss, &s->lambda_list);
+    IGC_FIX12_OBJ (ss, &s->type);
+# endif
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_misc_ptr (mps_ss_t ss, struct Lisp_Misc_Ptr *p)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, p, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &p->pointer);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_user_ptr (mps_ss_t ss, struct Lisp_User_Ptr *p)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, p, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &p->p);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_thread (mps_ss_t ss, struct thread_state *s)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, s, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &s->m_current_buffer);
+    IGC_FIX12_RAW (ss, &s->next_thread);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_mutex (mps_ss_t ss, struct Lisp_Mutex *m)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, m, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &m->name);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_terminal (mps_ss_t ss, struct terminal *t)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, t, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &t->next_terminal);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_marker (mps_ss_t ss, struct Lisp_Marker *m)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, m, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &m->buffer);
+    IGC_FIX12_RAW (ss, &m->next);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_finalizer (mps_ss_t ss, struct Lisp_Finalizer *f)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, f, fix_vectorlike);
+    igc_assert (!"PVEC_FINALIZER");
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+# ifdef HAVE_XWIDGETS
+
+static mps_res_t
+fix_xwidget (mps_ss_t ss, struct xwidget *w)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, w, fix_vectorlike);
+    igc_assert (!"xwidget");
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+fix_xwidget_view (mps_ss_t ss, struct xwidget_view *v)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, v, fix_vectorlike);
+    igc_assert (!"xwidget_view");
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+# endif // HAVE_XWIDGETS
+
+static mps_res_t
+fix_other (mps_ss_t ss, void *o)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, o, fix_vectorlike);
+    // Not used on macOS. Some scroll bar stuff in w32?
+    igc_assert (!"other");
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
 }
 
 static mps_res_t
@@ -861,195 +1076,88 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    if (is_plain_vector (v))
+    switch (pseudo_vector_type (v))
       {
-	struct igc_header *h = client_to_base (v);
-	igc_assert (sizeof *h + header_size + v->header.size * word_size
-		    == h->obj_size);
-	IGC_FIX12_NOBJS (ss, v->contents, v->header.size);
-      }
-    else
-      {
-	size_t nobjs = nobjs_to_fix (v);
-	if (nobjs)
-	  IGC_FIX12_NOBJS (ss, v->contents, nobjs);
+      case PVEC_BUFFER:
+	IGC_FIX_CALL_FN (ss, struct buffer, v, fix_buffer);
+	break;
 
-	switch (pseudo_vector_type (v))
-	  {
-	  case PVEC_FREE:
-	    emacs_abort ();
+      case PVEC_FRAME:
+	IGC_FIX_CALL_FN (ss, struct frame, v, fix_frame);
+	break;
 
-	  case PVEC_NORMAL_VECTOR:
-	  case PVEC_BIGNUM:
-	    // Nothing to do
-	    break;
+      case PVEC_WINDOW:
+	IGC_FIX_CALL_FN (ss, struct window, v, fix_window);
+	break;
 
-	  case PVEC_FINALIZER:
-	    /* Unclear, has a circular list of weak references?  */
-	    igc_assert (!"PVEC_FINALIZER");
-	    break;
+      case PVEC_HASH_TABLE:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Hash_Table, v, fix_hash_table);
+	break;
 
-	  case PVEC_SYMBOL_WITH_POS:
-	    {
-	      struct Lisp_Symbol_With_Pos *p = (void *) v;
-	      IGC_FIX12_OBJ (ss, &p->sym);
-	      IGC_FIX12_RAW (ss, &p->pos);
-	    }
-	    break;
+      case PVEC_CHAR_TABLE:
+      case PVEC_SUB_CHAR_TABLE:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Vector, v, fix_char_table);
+	break;
 
-	  case PVEC_MISC_PTR:
-	    {
-	      struct Lisp_Misc_Ptr *p = (void *) v;
-	      IGC_FIX12_RAW (ss, &p->pointer);
-	    }
-	    break;
+      case PVEC_BOOL_VECTOR:
+	break;
 
-	  case PVEC_USER_PTR:
-	    {
-	      struct Lisp_User_Ptr *p = (void *) v;
-	      IGC_FIX12_RAW (ss, &p->p);
-	    }
-	    break;
+      case PVEC_OVERLAY:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Overlay, v, fix_overlay);
+	break;
 
-	  case PVEC_PROCESS:
-	  case PVEC_BOOL_VECTOR:
-	  case PVEC_WINDOW_CONFIGURATION:
-	  case PVEC_PACKAGE:
-	    // Nothing to do
-	    break;
+      case PVEC_SUBR:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Subr, v, fix_subr);
+	break;
 
-	  case PVEC_OTHER:
-	    igc_assert (!"PVEC_OTHER");
-	    break;
+      case PVEC_FREE:
+	emacs_abort ();
 
-	  case PVEC_XWIDGET:
-	  case PVEC_XWIDGET_VIEW:
-	    igc_assert (!"PVEC_WIDGET*");
-	    break;
+      case PVEC_FINALIZER:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Finalizer, v, fix_finalizer);
+	break;
 
-	  case PVEC_THREAD:
-	    {
-	      struct thread_state *p = (void *) v;
-	      IGC_FIX12_RAW (ss, &p->m_current_buffer);
-	      IGC_FIX12_RAW (ss, &p->next_thread);
-	    }
-	    break;
+      case PVEC_OTHER:
+	IGC_FIX_CALL_FN (ss, void, v, fix_other);
+	break;
 
-	  case PVEC_MUTEX:
-	    {
-	      struct Lisp_Mutex *p = (void *) v;
-	      IGC_FIX12_RAW (ss, &p->name);
-	    }
-	    break;
+      case PVEC_MISC_PTR:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Misc_Ptr, v, fix_misc_ptr);
+	break;
 
-	  case PVEC_CONDVAR:
-	  case PVEC_MODULE_FUNCTION:
-	    // Nothing to do
-	    break;
+      case PVEC_USER_PTR:
+	IGC_FIX_CALL_FN (ss, struct Lisp_User_Ptr, v, fix_user_ptr);
+	break;
 
-	  case PVEC_NATIVE_COMP_UNIT:
-	  case PVEC_TS_PARSER:
-	  case PVEC_TS_NODE:
-	  case PVEC_TS_COMPILED_QUERY:
-	  case PVEC_SQLITE:
-	  case PVEC_COMPILED:
-	  case PVEC_FONT:
-	  case PVEC_RECORD:
-	    // Nothing to do
-	    break;
+# ifdef HAVE_XWIDGETS
+      case PVEC_XWIDGET:
+	IGC_FIX_CALL_FN (ss, struct xwidget, v, fix_xwidget);
+	break;
 
-	  case PVEC_BUFFER:
-	    {
-	      struct buffer *b = (void *) v;
-	      IGC_FIX12_RAW (ss, &b->text->intervals);
-	      IGC_FIX12_RAW (ss, &b->text->markers);
-	      IGC_FIX12_RAW (ss, &b->own_text.intervals);
-	      IGC_FIX12_RAW (ss, &b->own_text.markers);
-	      IGC_FIX12_RAW (ss, &b->base_buffer);
-	      if (b->overlays)
-		IGC_FIX12_RAW (ss, &b->overlays->root);
-	      // FIXME: special handling of undo_list?
-	    }
-	    break;
-
-	  case PVEC_FRAME:
-	    {
-	      // output_data;
-	      // terminal
-	      // face_cache *
-	      // glyph_pool
-	      // glyph matrices
-	      // struct font_driver_list *font_driver_list;
-	      // struct text_conversion_state conversion;
-	      struct frame *f = (void *) v;
-	      // eassert (false);
-	    }
-	    break;
-
-	  case PVEC_WINDOW:
-	    // All Lisp_Objects as part of pseudo-vector, but there
-	    // are glyph_matrix pointers, in case we do something with
-	    // that.
-	    break;
-
-	  case PVEC_HASH_TABLE:
-	    {
-	      struct Lisp_Hash_Table *h = (void *) v;
-	      IGC_FIX12_NOBJS (ss, h->key, h->table_size);
-	      IGC_FIX12_NOBJS (ss, h->value, h->table_size);
-	    }
-	    break;
-
-	  case PVEC_CHAR_TABLE:
-	  case PVEC_SUB_CHAR_TABLE:
-	    {
-	      // See also mark_char_table :-(
-	      int size = v->header.size & PSEUDOVECTOR_SIZE_MASK;
-	      enum pvec_type type = pseudo_vector_type (v);
-	      int idx = (type == PVEC_SUB_CHAR_TABLE ? SUB_CHAR_TABLE_OFFSET : 0);
-	      for (int i = idx; i < size; ++i)
-		IGC_FIX12_OBJ (ss, &v->contents[i]);
-	    }
-	    break;
-
-	  case PVEC_OVERLAY:
-	    {
-	      struct Lisp_Overlay *p = (void *) v;
-	      IGC_FIX12_RAW (ss, &p->buffer);
-	      IGC_FIX12_OBJ (ss, &p->plist);
-	      IGC_FIX12_RAW (ss, &p->interval);
-	    }
-	    break;
-
-	  case PVEC_TERMINAL:
-	    {
-	      struct terminal *p = (void *) v;
-	      IGC_FIX12_RAW (ss, &p->next_terminal);
-	    }
-	    break;
-
-	  case PVEC_SUBR:
-	    {
-	      struct Lisp_Subr *p = (void *) v;
-	      IGC_FIX12_OBJ (ss, &p->command_modes);
-# ifdef HAVE_NATIVE_COMP
-	      IGC_FIX12_OBJ (ss, &p->intspec.native);
-	      IGC_FIX12_OBJ (ss, &p->command_modes);
-	      IGC_FIX12_OBJ (ss, &p->native_comp_u);
-	      IGC_FIX12_OBJ (ss, &p->lambda_list);
-	      IGC_FIX12_OBJ (ss, &p->type);
+      case PVEC_XWIDGET_VIEW:
+	IGC_FIX_CALL_FN (ss, struct xwidget_view, v, fix_xwidget_view);
+	break;
 # endif
-	    }
-	    break;
 
-	  case PVEC_MARKER:
-	    {
-	      struct Lisp_Marker *p = (void *) v;
-	      IGC_FIX12_RAW (ss, &p->buffer);
-	      IGC_FIX12_RAW (ss, &p->next);
-	    }
-	    break;
-	  }
+      case PVEC_THREAD:
+	IGC_FIX_CALL_FN (ss, struct thread_state, v, fix_thread);
+	break;
+
+      case PVEC_MUTEX:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Mutex, v, fix_mutex);
+	break;
+
+      case PVEC_TERMINAL:
+	IGC_FIX_CALL_FN (ss, struct terminal, v, fix_terminal);
+	break;
+
+      case PVEC_MARKER:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Marker, v, fix_marker);
+	break;
+
+      default:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Vector, v, fix_vectorlike);
+	break;
       }
   }
   MPS_SCAN_END (ss);
