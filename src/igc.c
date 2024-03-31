@@ -831,6 +831,8 @@ fix_vectorlike (mps_ss_t ss, struct Lisp_Vector *v)
     ptrdiff_t size = v->header.size;
     if (size & PSEUDOVECTOR_FLAG)
       size &= PSEUDOVECTOR_SIZE_MASK;
+    struct igc_header *h = client_to_base (v);
+    igc_assert (h->obj_size >= size * word_size);
     IGC_FIX12_NOBJS (ss, v->contents, size);
   }
   MPS_SCAN_END (ss);
