@@ -606,12 +606,17 @@ dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
   struct igc_header *h = base_addr;
   h->type = IGC_OBJ_PAD;
   h->obj_size = nbytes;
+  igc_assert (h->obj_size >= sizeof (struct igc_header));
 }
 
 static void
 dflt_fwd (mps_addr_t client_old, mps_addr_t client_new_addr)
 {
-  struct igc_fwd *f = client_to_base (client_old);
+  mps_addr_t base_old = client_to_base (client_old);
+  struct igc_header *h = base_old;
+  igc_assert (h->obj_size >= sizeof (struct igc_fwd));
+  igc_assert (h->type != IGC_OBJ_PAD);
+  struct igc_fwd *f = base_old;
   f->header.type = IGC_OBJ_FWD;
   f->client_new_addr = client_new_addr;
 }
@@ -630,7 +635,7 @@ dflt_skip (mps_addr_t client_addr)
 {
   struct igc_header *h = client_to_base (client_addr);
   mps_addr_t next = (char *) client_addr + h->obj_size;
-  igc_assert (next > client_addr);
+  igc_assert (h->obj_size >= sizeof (struct igc_header));
   return next;
 }
 
