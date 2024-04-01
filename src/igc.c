@@ -1196,9 +1196,8 @@ create_ambig_root (struct igc *gc, void *start, void *end)
 {
   mps_root_t root;
   mps_res_t res
-    = mps_root_create_area_tagged (&root, gc->arena, mps_rank_ambig (), 0,
-				   start, end, scan_area_ambig, IGC_TAG_MASK,
-				   0);
+    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+			    start, end, scan_area_ambig, 0);
   IGC_CHECK_RES (res);
   return register_root (gc, root, start, end);
 }
@@ -1267,9 +1266,9 @@ create_thread_root (struct igc_thread_list *t)
   struct igc *gc = t->d.gc;
   mps_root_t root;
   mps_res_t res
-    = mps_root_create_thread_tagged (&root, gc->arena, mps_rank_ambig (), 0,
-				     t->d.thr, scan_area_ambig, IGC_TAG_MASK, 0,
-				     t->d.stack_start);
+    = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
+				      t->d.thr, scan_area_ambig, 0,
+				      t->d.stack_start);
   IGC_CHECK_RES (res);
   register_root (gc, root, t->d.stack_start, NULL);
 }
