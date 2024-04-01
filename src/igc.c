@@ -124,6 +124,7 @@ record_alloc (mps_addr_t addr, mps_word_t nbytes)
 static bool
 is_mps (const mps_addr_t addr)
 {
+  return true;
   return addr >= min_addr && addr < max_addr;
 }
 
@@ -599,7 +600,7 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 	  case Lisp_Int0:
 	  case Lisp_Int1:
 	  case Lisp_Type_Unused0:
-	    continue;
+	    break;
 
 	  default:
 	    client = (mps_addr_t) (word ^ tag);

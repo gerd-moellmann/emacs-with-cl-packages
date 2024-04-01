@@ -31,7 +31,7 @@ script -- sys.path.append('../etc')
 command script import emacs_lldb
 
 # MPS telemetry level (default output file mpsio.log)
-env MPS_TELEMETRY_CONTROL=all
+#env MPS_TELEMETRY_CONTROL=all
 
 # b xsignal
 b pkg_break

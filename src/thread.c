@@ -915,7 +915,11 @@ If NAME is given, it must be a string; it names the new thread.  */)
   new_thread->m_current_buffer = current_thread->m_current_buffer;
 
   ptrdiff_t size = 50;
+#ifdef HAVE_MPS
+  union specbinding *pdlvec = igc_xmalloc ((1 + size) * sizeof (union specbinding));
+#else
   union specbinding *pdlvec = xmalloc ((1 + size) * sizeof (union specbinding));
+#endif
   new_thread->m_specpdl = pdlvec + 1;  /* Skip the dummy entry.  */
   new_thread->m_specpdl_end = new_thread->m_specpdl + size;
   new_thread->m_specpdl_ptr = new_thread->m_specpdl;

@@ -394,3 +394,4 @@ exec/configure
 exec/*.s.s
 /nextstep/Pkg.app/
 /nextstep/Emacs PKG.app/
+/src/mpsio.txt
