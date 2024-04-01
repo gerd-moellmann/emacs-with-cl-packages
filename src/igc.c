@@ -493,7 +493,7 @@ fix_raw (mps_ss_t ss, mps_addr_t *p)
 # define IGC_FIX_CALL_FN(ss, type, client_addr, fn) \
    do                                               \
      {                                              \
-       type *obj_ = (type *) client_addr;	    \
+       type *obj_ = (type *) client_addr;           \
        mps_res_t res;                               \
        MPS_FIX_CALL (ss, res = fn (ss, obj_));      \
        if (res != MPS_RES_OK)                       \
@@ -565,7 +565,7 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
    blocks allocated with malloc and thread stacks. */
 
 static mps_res_t
-scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
+scan_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
@@ -580,31 +580,31 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 	   genuine reference). The MPS handles an ambiguous
 	   reference by pinning the block pointed to so that
 	   it cannot move. */
-	mps_addr_t client = (mps_addr_t) word;
-	mps_res_t res = MPS_FIX12 (ss, &client);
+	mps_addr_t ref = (mps_addr_t) word;
+	mps_res_t res = MPS_FIX12 (ss, &ref);
 	if (res != MPS_RES_OK)
 	  return res;
 
 	switch (tag)
 	  {
-	  case Lisp_Symbol:
-	    {
-	      ptrdiff_t off = word ^ tag;
-	      client = (mps_addr_t) ((char *) lispsym + off);
-	      res = MPS_FIX12 (ss, &client);
-	      if (res != MPS_RES_OK)
-		return res;
-	    }
-	    break;
-
 	  case Lisp_Int0:
 	  case Lisp_Int1:
 	  case Lisp_Type_Unused0:
 	    break;
 
+	  case Lisp_Symbol:
+	    {
+	      ptrdiff_t off = word ^ tag;
+	      ref = (mps_addr_t) ((char *) lispsym + off);
+	      res = MPS_FIX12 (ss, &ref);
+	      if (res != MPS_RES_OK)
+		return res;
+	    }
+	    break;
+
 	  default:
-	    client = (mps_addr_t) (word ^ tag);
-	    res = MPS_FIX12 (ss, &client);
+	    ref = (mps_addr_t) (word ^ tag);
+	    res = MPS_FIX12 (ss, &ref);
 	    if (res != MPS_RES_OK)
 	      return res;
 	    break;
@@ -1176,9 +1176,8 @@ static igc_root_list *
 create_ambig_root (struct igc *gc, void *start, void *end)
 {
   mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-			    start, end, scan_area_ambig, 0);
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+					start, end, scan_ambig, 0);
   IGC_CHECK_RES (res);
   return register_root (gc, root, start, end);
 }
@@ -1248,7 +1247,7 @@ create_thread_root (struct igc_thread_list *t)
   mps_root_t root;
   mps_res_t res
     = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
-				      t->d.thr, scan_area_ambig, 0,
+				      t->d.thr, scan_ambig, 0,
 				      t->d.stack_start);
   IGC_CHECK_RES (res);
   register_root (gc, root, t->d.stack_start, NULL);
@@ -1380,8 +1379,7 @@ igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
 }
 
 static bool
-type_of_addr (struct igc *gc, mps_addr_t base_addr,
-	      enum igc_obj_type *obj_type)
+type_of_addr (struct igc *gc, mps_addr_t base_addr, enum igc_obj_type *obj_type)
 {
   mps_pool_t pool;
   if (!mps_addr_pool (&pool, gc->arena, base_addr))
@@ -1393,7 +1391,7 @@ type_of_addr (struct igc *gc, mps_addr_t base_addr,
 }
 
 static void
-do_finalize (struct igc *gc, mps_addr_t base_addr)
+finalize (struct igc *gc, mps_addr_t base_addr)
 {
   enum igc_obj_type obj_type;
   if (!type_of_addr (gc, base_addr, &obj_type))
@@ -1419,6 +1417,10 @@ do_finalize (struct igc *gc, mps_addr_t base_addr)
     }
 }
 
+/* Process MPS messages. This should be extended to handle messages only
+   for a certain amoount of time. See mps_clock_t, mps_clock, and
+   mps_clocks_per_sec functions.  */
+
 static void
 process_messages (struct igc *gc)
 {
@@ -1433,12 +1435,12 @@ process_messages (struct igc *gc)
 	{
 	  mps_addr_t base_addr;
 	  mps_message_finalization_ref (&base_addr, gc->arena, msg);
-	  do_finalize (gc, base_addr);
+	  finalize (gc, base_addr);
 	}
       else if (type == mps_message_type_gc_start ())
 	{
 	  const char *why = mps_message_gc_start_why (gc->arena, msg);
-	  fprintf (stderr, "*** IGC start %s\n", why);
+	  fprintf (stderr, "*** MPS GC start: %s\n", why);
 	}
 
       mps_message_discard (gc->arena, msg);
@@ -1520,6 +1522,9 @@ igc_commit (mps_ap_t ap, mps_addr_t p, mps_word_t size)
     }
   return false;
 }
+
+/* Not using macros here because that's even uglier than the code
+   duplication in the following.  */
 
 Lisp_Object
 igc_make_cons (Lisp_Object car, Lisp_Object cdr)
@@ -1852,7 +1857,7 @@ make_dflt_fmt (struct igc *gc)
        client address, which calls NailboardGet, and one can see that
        the the board contains base addresses which leads to an assertion
        failure. */
-    //MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    // MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, dflt_scan);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, dflt_skip);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, dflt_fwd);
