@@ -1725,9 +1725,6 @@ igc_alloc_vector (ptrdiff_t len)
       mps_res_t res = mps_reserve (&p, ap, size);
       IGC_CHECK_RES (res);
       memclear (p, size);
-      struct igc_header *h = p;
-      h->type = type;
-      h->obj_size = size;
       v = set_header (p, type, size);
       v->header.size = len;
     }
