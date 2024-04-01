@@ -55,8 +55,8 @@ b die
 #    CGSWindowShmemCreateWithPort failed on port 0
 # b libsystem_trace.dylib``_os_log_error_impl
 
-# process handle -p true -s false SIGSEGV
-# process handle -p true -s false SIGBUS
+process handle -p true -s false SIGSEGV
+process handle -p true -s false SIGBUS
 
 settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest --eln-dest
 

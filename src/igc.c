@@ -557,6 +557,9 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
+/* Scan the area of memory [START, END) ambiguously.  In general,
+   references may be either tagged words or pointers. */
+
 static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 {
@@ -567,26 +570,61 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 	mps_word_t word = *p;
 	mps_word_t tag = word & IGC_TAG_MASK;
 
-	if (tag == Lisp_Int0 && tag == Lisp_Int1)
-	  continue;
-
-	mps_addr_t ref = (mps_addr_t) (word ^ tag);
-	if (MPS_FIX1 (ss, ref))
+	/* Assume WORD is a pointer to some lisp objects. In this case
+	   it must be aligned, which means tag is zero.  */
+	if (tag == 0)
 	  {
-	    mps_res_t res = MPS_FIX2 (ss, &ref);
-	    if (res != MPS_RES_OK)
-	      return res;
+	    mps_addr_t client = (mps_addr_t) word;
+	    if (is_mps (client))
+	      {
+		mps_addr_t base = client_to_base (client);
+		if (MPS_FIX1 (ss, base))
+		  {
+		    mps_res_t res = MPS_FIX2 (ss, &base);
+		    if (res != MPS_RES_OK)
+		      return res;
+		    client = base_to_client (base);
+		    *p = (mps_word_t) client;
+		    continue;
+		  }
+	      }
 	  }
 
+	/* It's not a pointer, check if it looks like a tagged word. */
 	if (tag == Lisp_Symbol)
 	  {
-	    mps_word_t off = word ^ tag;
-	    mps_addr_t ref = (mps_addr_t) ((char *) lispsym + off);
-	    if (MPS_FIX1 (ss, ref))
+	    ptrdiff_t off = word ^ tag;
+	    mps_addr_t client = (mps_addr_t) ((char *) lispsym + off);
+	    if (is_mps (client))
 	      {
-		mps_res_t res = MPS_FIX2 (ss, &ref);
-		if (res != MPS_RES_OK)
-		  return res;
+		mps_addr_t base = client_to_base (client);
+		if (MPS_FIX1 (ss, base))
+		  {
+		    mps_res_t res = MPS_FIX2 (ss, &base);
+		    if (res != MPS_RES_OK)
+		      return res;
+		    client = base_to_client (base);
+		    ptrdiff_t new_off = (char *) client - (char *) lispsym;
+		    *p = new_off | tag;
+		  }
+	      }
+	  }
+	else if (tag == Lisp_Int0 || tag == Lisp_Int1)
+	  continue;
+	else
+	  {
+	    mps_addr_t client = (mps_addr_t) (word ^ tag);
+	    if (is_mps (client))
+	      {
+		mps_addr_t base = client_to_base (client);
+		if (MPS_FIX1 (ss, base))
+		  {
+		    mps_res_t res = MPS_FIX2 (ss, &base);
+		    if (res != MPS_RES_OK)
+		      return res;
+		    client = base_to_client (base);
+		    *p = (mps_word_t) client | tag;
+		  }
 	      }
 	  }
       }
