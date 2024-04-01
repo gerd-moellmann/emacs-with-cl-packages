@@ -557,8 +557,9 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-/* Scan the area of memory [START, END) ambiguously.  In general,
-   references may be either tagged words or pointers. */
+/* Scan the area of memory [START, END) ambiguously. In general,
+   references may be either tagged words or pointers. This is used for
+   blocks allocated with malloc and thread stacks. */
 
 static mps_res_t
 scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
@@ -580,11 +581,15 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 		mps_addr_t base = client_to_base (client);
 		if (MPS_FIX1 (ss, base))
 		  {
+		    /* If the references in the object being scanned are
+		       ambiguous then MPS_FIX2() does not update the
+		       reference (because it can’t know if it’s a
+		       genuine reference). The MPS handles an ambiguous
+		       reference by pinning the block pointed to so that
+		       it cannot move. */
 		    mps_res_t res = MPS_FIX2 (ss, &base);
 		    if (res != MPS_RES_OK)
 		      return res;
-		    client = base_to_client (base);
-		    *p = (mps_word_t) client;
 		    continue;
 		  }
 	      }
@@ -603,9 +608,6 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 		    mps_res_t res = MPS_FIX2 (ss, &base);
 		    if (res != MPS_RES_OK)
 		      return res;
-		    client = base_to_client (base);
-		    ptrdiff_t new_off = (char *) client - (char *) lispsym;
-		    *p = new_off | tag;
 		  }
 	      }
 	  }
@@ -622,8 +624,6 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 		    mps_res_t res = MPS_FIX2 (ss, &base);
 		    if (res != MPS_RES_OK)
 		      return res;
-		    client = base_to_client (base);
-		    *p = (mps_word_t) client | tag;
 		  }
 	      }
 	  }
