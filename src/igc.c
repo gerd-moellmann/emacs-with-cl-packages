@@ -381,6 +381,8 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 
     if (tag == Lisp_Int0 || tag == Lisp_Int1)
       return MPS_RES_OK;
+    else if (tag == Lisp_Type_Unused0)
+      emacs_abort ();
 
     if (tag == Lisp_Symbol)
       {
@@ -571,61 +573,40 @@ scan_area_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 	mps_word_t word = *p;
 	mps_word_t tag = word & IGC_TAG_MASK;
 
-	/* Assume WORD is a pointer to some lisp objects. In this case
-	   it must be aligned, which means tag is zero.  */
-	if (tag == 0)
-	  {
-	    mps_addr_t client = (mps_addr_t) word;
-	    if (is_mps (client))
-	      {
-		mps_addr_t base = client_to_base (client);
-		if (MPS_FIX1 (ss, base))
-		  {
-		    /* If the references in the object being scanned are
-		       ambiguous then MPS_FIX2() does not update the
-		       reference (because it can’t know if it’s a
-		       genuine reference). The MPS handles an ambiguous
-		       reference by pinning the block pointed to so that
-		       it cannot move. */
-		    mps_res_t res = MPS_FIX2 (ss, &base);
-		    if (res != MPS_RES_OK)
-		      return res;
-		    continue;
-		  }
-	      }
-	  }
+	/* If the references in the object being scanned are
+	   ambiguous then MPS_FIX2() does not update the
+	   reference (because it can’t know if it’s a
+	   genuine reference). The MPS handles an ambiguous
+	   reference by pinning the block pointed to so that
+	   it cannot move. */
+	mps_addr_t client = (mps_addr_t) word;
+	mps_res_t res = MPS_FIX12 (ss, &client);
+	if (res != MPS_RES_OK)
+	  return res;
 
-	/* It's not a pointer, check if it looks like a tagged word. */
-	if (tag == Lisp_Symbol)
+	switch (tag)
 	  {
-	    ptrdiff_t off = word ^ tag;
-	    mps_addr_t client = (mps_addr_t) ((char *) lispsym + off);
-	    if (is_mps (client))
-	      {
-		mps_addr_t base = client_to_base (client);
-		if (MPS_FIX1 (ss, base))
-		  {
-		    mps_res_t res = MPS_FIX2 (ss, &base);
-		    if (res != MPS_RES_OK)
-		      return res;
-		  }
-	      }
-	  }
-	else if (tag == Lisp_Int0 || tag == Lisp_Int1)
-	  continue;
-	else
-	  {
-	    mps_addr_t client = (mps_addr_t) (word ^ tag);
-	    if (is_mps (client))
-	      {
-		mps_addr_t base = client_to_base (client);
-		if (MPS_FIX1 (ss, base))
-		  {
-		    mps_res_t res = MPS_FIX2 (ss, &base);
-		    if (res != MPS_RES_OK)
-		      return res;
-		  }
-	      }
+	  case Lisp_Symbol:
+	    {
+	      ptrdiff_t off = word ^ tag;
+	      client = (mps_addr_t) ((char *) lispsym + off);
+	      res = MPS_FIX12 (ss, &client);
+	      if (res != MPS_RES_OK)
+		return res;
+	    }
+	    break;
+
+	  case Lisp_Int0:
+	  case Lisp_Int1:
+	  case Lisp_Type_Unused0:
+	    continue;
+
+	  default:
+	    client = (mps_addr_t) (word ^ tag);
+	    res = MPS_FIX12 (ss, &client);
+	    if (res != MPS_RES_OK)
+	      return res;
+	    break;
 	  }
       }
   }
@@ -1035,7 +1016,6 @@ fix_marker (mps_ss_t ss, struct Lisp_Marker *m)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, m, fix_vectorlike);
     IGC_FIX12_RAW (ss, &m->buffer);
     IGC_FIX12_RAW (ss, &m->next);
   }
