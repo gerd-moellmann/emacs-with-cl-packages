@@ -1038,7 +1038,10 @@ fix_finalizer (mps_ss_t ss, struct Lisp_Finalizer *f)
   MPS_SCAN_BEGIN (ss)
   {
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, f, fix_vectorlike);
-    igc_assert (!"PVEC_FINALIZER");
+    // Unclear: what does the comment about weak references in
+    // Lisp_Finalizer mean?
+    // IGC_FIX12_RAW (ss, &f->next);
+    // IGC_FIX12_RAW (ss, &f->prev);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1492,6 +1495,30 @@ finalize_subr (struct Lisp_Subr *subr)
 #endif
 }
 
+static Lisp_Object
+finalizer_handler (Lisp_Object args)
+{
+  add_to_log ("finalizer failed: %S", args);
+  return Qnil;
+}
+
+static void
+finalize_finalizer (struct Lisp_Finalizer *f)
+{
+  Lisp_Object fun = f->function;
+  if (!NILP (fun))
+    {
+      f->function = Qnil;
+      specpdl_ref count = SPECPDL_INDEX ();
+#ifdef HAVE_PDUMPER
+      ++number_finalizers_run;
+#endif
+      specbind (Qinhibit_quit, Qt);
+      internal_condition_case_1 (call0, fun, Qt, finalizer_handler);
+      unbind_to (count, Qnil);
+    }
+}
+
 static void
 finalize_vector (mps_addr_t v)
 {
@@ -1548,6 +1575,10 @@ finalize_vector (mps_addr_t v)
       finalize_subr (v);
       break;
 
+    case PVEC_FINALIZER:
+      finalize_finalizer (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
@@ -1564,7 +1595,6 @@ finalize_vector (mps_addr_t v)
     case PVEC_SUB_CHAR_TABLE:
     case PVEC_BOOL_VECTOR:
     case PVEC_OVERLAY:
-    case PVEC_FINALIZER:
     case PVEC_OTHER:
     case PVEC_MISC_PTR:
     case PVEC_XWIDGET:
@@ -1626,6 +1656,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_MODULE_FUNCTION:
     case PVEC_NATIVE_COMP_UNIT:
     case PVEC_SUBR:
+    case PVEC_FINALIZER:
       mps_finalize (global_igc->arena, &ref);
       break;
 
@@ -1935,13 +1966,6 @@ igc_make_face (void)
 {
   struct face *face = alloc (sizeof *face, IGC_OBJ_FACE);
   return face;
-}
-
-Lisp_Object
-igc_make_finalizer (Lisp_Object function)
-{
-  eassert (!"igc_amke_finalizer");
-  return Qnil;
 }
 
 int

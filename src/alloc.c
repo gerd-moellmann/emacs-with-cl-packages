@@ -4396,10 +4396,7 @@ reachable only through references from finalizer objects, it does not
 count as reachable for the purpose of deciding whether to run
 FUNCTION.  FUNCTION will be run once per finalizer object.  */)
   (Lisp_Object function)
-  {
-#ifdef HAVE_MPS
-    return igc_make_finalizer (function);
-#else
+{
   CHECK_TYPE (FUNCTIONP (function), Qfunctionp, function);
   struct Lisp_Finalizer *finalizer
     = ALLOCATE_PSEUDOVECTOR (struct Lisp_Finalizer, function, PVEC_FINALIZER);
@@ -4407,7 +4404,6 @@ FUNCTION.  FUNCTION will be run once per finalizer object.  */)
   finalizer->prev = finalizer->next = NULL;
   finalizer_insert (&finalizers, finalizer);
   return make_lisp_ptr (finalizer, Lisp_Vectorlike);
-#endif
 }
 
 
