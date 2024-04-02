@@ -45,6 +45,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 #include <config.h>
 #include <limits.h>
+#include "bignum.h"
 
 #ifdef HAVE_MPS
 
@@ -1404,6 +1405,12 @@ finalize_hash_table (struct Lisp_Hash_Table *h)
 }
 
 static void
+finalize_bignum (struct Lisp_Bignum *n)
+{
+  mpz_clear (n->value);
+}
+
+static void
 finalize_vector (mps_addr_t v)
 {
   switch (pseudo_vector_type (v))
@@ -1413,6 +1420,10 @@ finalize_vector (mps_addr_t v)
 
     case PVEC_HASH_TABLE:
       finalize_hash_table (v);
+      break;
+
+    case PVEC_BIGNUM:
+      finalize_bignum (v);
       break;
 
     case PVEC_SYMBOL_WITH_POS:
@@ -1428,7 +1439,6 @@ finalize_vector (mps_addr_t v)
     case PVEC_MODULE_FUNCTION:
     case PVEC_NATIVE_COMP_UNIT:
     case PVEC_NORMAL_VECTOR:
-    case PVEC_BIGNUM:
     case PVEC_PACKAGE:
     case PVEC_WINDOW_CONFIGURATION:
     case PVEC_BUFFER:
@@ -1493,6 +1503,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
   switch (tag)
     {
     case PVEC_HASH_TABLE:
+    case PVEC_BIGNUM:
       mps_finalize (global_igc->arena, &ref);
       break;
 
