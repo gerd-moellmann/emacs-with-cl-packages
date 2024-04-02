@@ -44,6 +44,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 // clang-format on
 
 #include <config.h>
+#include <limits.h>
 
 #ifdef HAVE_MPS
 
@@ -210,11 +211,26 @@ enum igc_obj_type
   IGC_OBJ_LAST
 };
 
+/* We always have a header which makes it possible to have an
+   address-independant hash, which is (a) much easier to handle than MPS
+   location dependencies, and (b) makes it possible to implement sxhash
+   variants in a way that works even if GCs happen between calls.  */
+enum
+{
+  IGC_TYPE_BITS = 8,
+  IGC_HASH_BITS = 24,
+  IGC_SIZE_BITS = 32
+};
+
 struct igc_header
 {
-  enum igc_obj_type obj_type : 8;
-  mps_word_t obj_size : sizeof (mps_word_t) * CHAR_BIT - 8;
+  enum igc_obj_type obj_type : IGC_TYPE_BITS;
+  unsigned hash : IGC_HASH_BITS;
+  // Could let this count in words...
+  mps_word_t obj_size : IGC_SIZE_BITS;
 };
+
+igc_static_assert (sizeof (struct igc_header) == 8);
 
 struct igc_fwd
 {
@@ -1507,6 +1523,15 @@ igc_break (void)
 {
 }
 
+static unsigned
+obj_hash (void)
+{
+  static unsigned obj_count = 0;
+  if (obj_count == (1 << IGC_HASH_BITS))
+    obj_count = 0;
+  return obj_count++;
+}
+
 static mps_addr_t
 alloc (size_t size, enum igc_obj_type type)
 {
@@ -1521,6 +1546,7 @@ alloc (size_t size, enum igc_obj_type type)
       memclear (p, size);
       struct igc_header *h = p;
       h->obj_type = type;
+      h->hash = obj_hash ();
       h->obj_size = size;
       obj = base_to_client (p);
     }
