@@ -1471,6 +1471,28 @@ finalize_module_function (struct Lisp_Module_Function *f)
 }
 
 static void
+finalize_comp_unit (struct Lisp_Native_Comp_Unit *u)
+{
+#ifdef HAVE_NATIVE_COMP
+  unload_comp_unit (u);
+#endif
+}
+
+static void
+finalize_subr (struct Lisp_Subr *subr)
+{
+#ifdef HAVE_NATIVE_COMP
+  if (!NILP (subr->native_comp_u))
+    {
+      subr->native_comp_u = Qnil;
+      /* FIXME Alternative and non invasive solution to this cast?  */
+      xfree ((char *)subr->symbol_name);
+      xfree (subr->native_c_name);
+    }
+#endif
+}
+
+static void
 finalize_vector (mps_addr_t v)
 {
   switch (pseudo_vector_type (v))
@@ -1518,13 +1540,20 @@ finalize_vector (mps_addr_t v)
       finalize_module_function (v);
       break;
 
+    case PVEC_NATIVE_COMP_UNIT:
+      finalize_comp_unit (v);
+      break;
+
+    case PVEC_SUBR:
+      finalize_subr (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
     case PVEC_COMPILED:
     case PVEC_SQLITE:
     case PVEC_TS_NODE:
-    case PVEC_NATIVE_COMP_UNIT:
     case PVEC_NORMAL_VECTOR:
     case PVEC_PACKAGE:
     case PVEC_WINDOW_CONFIGURATION:
@@ -1535,7 +1564,6 @@ finalize_vector (mps_addr_t v)
     case PVEC_SUB_CHAR_TABLE:
     case PVEC_BOOL_VECTOR:
     case PVEC_OVERLAY:
-    case PVEC_SUBR:
     case PVEC_FINALIZER:
     case PVEC_OTHER:
     case PVEC_MISC_PTR:
@@ -1595,6 +1623,8 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_USER_PTR:
     case PVEC_TS_PARSER:
     case PVEC_TS_COMPILED_QUERY:
+    case PVEC_MODULE_FUNCTION:
+    case PVEC_NATIVE_COMP_UNIT:
       mps_finalize (global_igc->arena, &ref);
       break;
 
