@@ -3607,11 +3607,6 @@ cleanup_vector (struct Lisp_Vector *vector)
     case PVEC_RECORD:
     case PVEC_PACKAGE:
       break;
-
-    case PVEC_VECTOR_FORWARD:
-    case PVEC_VECTOR_PAD:
-      eassert (false);
-      break;
     }
 }
 
