@@ -1449,7 +1449,17 @@ finalize_user_ptr (struct Lisp_User_Ptr *p)
 static void
 finalize_ts_parser (struct Lisp_TS_Parser *p)
 {
+#ifdef HAVE_TREE_SITTER
   treesit_delete_parser (p);
+#endif
+}
+
+static void
+finalize_ts_query (struct Lisp_TS_Query *q)
+{
+#ifdef HAVE_TREE_SITTER
+  treesit_delete_query (q);
+#endif
 }
 
 static void
@@ -1492,12 +1502,15 @@ finalize_vector (mps_addr_t v)
       finalize_ts_parser (v);
       break;
 
+    case PVEC_TS_COMPILED_QUERY:
+      finalize_ts_query (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
     case PVEC_COMPILED:
     case PVEC_SQLITE:
-    case PVEC_TS_COMPILED_QUERY:
     case PVEC_TS_NODE:
     case PVEC_MODULE_FUNCTION:
     case PVEC_NATIVE_COMP_UNIT:
@@ -1570,6 +1583,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_CONDVAR:
     case PVEC_USER_PTR:
     case PVEC_TS_PARSER:
+    case PVEC_TS_COMPILED_QUERY:
       mps_finalize (global_igc->arena, &ref);
       break;
 
