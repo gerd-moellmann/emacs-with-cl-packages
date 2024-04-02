@@ -1439,6 +1439,13 @@ finalize_font (struct font *font)
 }
 
 static void
+finalize_user_ptr (struct Lisp_User_Ptr *p)
+{
+  if (p->finalizer)
+    p->finalizer (p->p);
+}
+
+static void
 finalize_vector (mps_addr_t v)
 {
   switch (pseudo_vector_type (v))
@@ -1470,6 +1477,10 @@ finalize_vector (mps_addr_t v)
       finalize_one_condvar (v);
       break;
 
+    case PVEC_USER_PTR:
+      finalize_user_ptr (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
@@ -1494,7 +1505,6 @@ finalize_vector (mps_addr_t v)
     case PVEC_FINALIZER:
     case PVEC_OTHER:
     case PVEC_MISC_PTR:
-    case PVEC_USER_PTR:
     case PVEC_XWIDGET:
     case PVEC_XWIDGET_VIEW:
     case PVEC_TERMINAL:
@@ -1548,6 +1558,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_THREAD:
     case PVEC_MUTEX:
     case PVEC_CONDVAR:
+    case PVEC_USER_PTR:
       mps_finalize (global_igc->arena, &ref);
       break;
 
