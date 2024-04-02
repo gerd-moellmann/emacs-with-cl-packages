@@ -2942,6 +2942,7 @@ struct Lisp_Finalizer
 
 extern struct Lisp_Finalizer finalizers;
 extern struct Lisp_Finalizer doomed_finalizers;
+void unchain_finalizer (struct Lisp_Finalizer *finalizer);
 
 INLINE bool
 FINALIZERP (Lisp_Object x)

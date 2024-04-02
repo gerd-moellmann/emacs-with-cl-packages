@@ -4280,7 +4280,6 @@ make_user_ptr (void (*finalizer) (void *), void *p)
 }
 #endif
 
-#ifndef HAVE_MPS
 static void
 init_finalizer_list (struct Lisp_Finalizer *head)
 {
@@ -4301,7 +4300,7 @@ finalizer_insert (struct Lisp_Finalizer *element,
   element->prev = finalizer;
 }
 
-static void
+void
 unchain_finalizer (struct Lisp_Finalizer *finalizer)
 {
   if (finalizer->prev != NULL)
@@ -4312,6 +4311,8 @@ unchain_finalizer (struct Lisp_Finalizer *finalizer)
       finalizer->prev = finalizer->next = NULL;
     }
 }
+
+#ifndef HAVE_MPS
 
 static void
 mark_finalizer_list (struct Lisp_Finalizer *head)
@@ -4402,10 +4403,8 @@ FUNCTION.  FUNCTION will be run once per finalizer object.  */)
   struct Lisp_Finalizer *finalizer
     = ALLOCATE_PSEUDOVECTOR (struct Lisp_Finalizer, function, PVEC_FINALIZER);
   finalizer->function = function;
-#ifndef HAVE_MPS
   finalizer->prev = finalizer->next = NULL;
   finalizer_insert (&finalizers, finalizer);
-#endif
   return make_lisp_ptr (finalizer, Lisp_Vectorlike);
 }
 
@@ -8221,10 +8220,8 @@ init_alloc_once_for_pdumper (void)
   mallopt (M_MMAP_MAX, MMAP_MAX_AREAS);   /* Max. number of mmap'ed areas.  */
 #endif
 
-#ifndef HAVE_MPS
   init_finalizer_list (&finalizers);
   init_finalizer_list (&doomed_finalizers);
-#endif
   refill_memory_reserve ();
 }
 

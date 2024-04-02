@@ -1037,10 +1037,9 @@ fix_finalizer (mps_ss_t ss, struct Lisp_Finalizer *f)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    /* I assume that the whole dance with doomed_finalizers etc.
-       is an artifact of the mark-sweep allocator, and so I ignore
-       the next and prev pointers etc. */
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, f, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &f->next);
+    IGC_FIX12_RAW (ss, &f->prev);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1507,6 +1506,7 @@ finalize_finalizer (struct Lisp_Finalizer *f)
   if (!NILP (fun))
     {
       f->function = Qnil;
+      unchain_finalizer (f);
       specpdl_ref count = SPECPDL_INDEX ();
 # ifdef HAVE_PDUMPER
       ++number_finalizers_run;
