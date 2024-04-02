@@ -81,6 +81,8 @@ unsigned char *igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
 				 ptrdiff_t old_char_len,
 				 ptrdiff_t new_char_len);
 
+void igc_init_hash_table (struct Lisp_Hash_Table *h);
+
 # define eassert_not_mps() eassert (false)
 #else
 # define igc_break() (void) 0
