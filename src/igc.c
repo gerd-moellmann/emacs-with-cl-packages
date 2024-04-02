@@ -1458,6 +1458,10 @@ finalize_vector (mps_addr_t v)
       finalize_font (v);
       break;
 
+    case PVEC_THREAD:
+      finalize_one_thread (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
@@ -1486,7 +1490,6 @@ finalize_vector (mps_addr_t v)
     case PVEC_USER_PTR:
     case PVEC_XWIDGET:
     case PVEC_XWIDGET_VIEW:
-    case PVEC_THREAD:
     case PVEC_MUTEX:
     case PVEC_TERMINAL:
     case PVEC_MARKER:
@@ -1536,6 +1539,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_HASH_TABLE:
     case PVEC_BIGNUM:
     case PVEC_FONT:
+    case PVEC_THREAD:
       mps_finalize (global_igc->arena, &ref);
       break;
 
