@@ -1625,6 +1625,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_TS_COMPILED_QUERY:
     case PVEC_MODULE_FUNCTION:
     case PVEC_NATIVE_COMP_UNIT:
+    case PVEC_SUBR:
       mps_finalize (global_igc->arena, &ref);
       break;
 
