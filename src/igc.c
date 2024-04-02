@@ -1547,6 +1547,7 @@ alloc (size_t size, enum igc_obj_type type)
       struct igc_header *h = p;
       h->obj_type = type;
       h->hash = obj_hash ();
+      igc_assert (size < (1 << IGC_SIZE_BITS));
       h->obj_size = size;
       obj = base_to_client (p);
     }
