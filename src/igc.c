@@ -1809,7 +1809,8 @@ alloc (size_t size, enum igc_obj_type type)
   do
     {
       mps_res_t res = mps_reserve (&p, ap, size);
-      IGC_CHECK_RES (res);
+      if (res)
+	memory_full (0);
       // Object _must_ have valid contents before commit
       memclear (p, size);
       struct igc_header *h = p;
