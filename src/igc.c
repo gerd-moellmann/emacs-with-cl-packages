@@ -1463,6 +1463,14 @@ finalize_ts_query (struct Lisp_TS_Query *q)
 }
 
 static void
+finalize_module_function (struct Lisp_Module_Function *f)
+{
+#ifdef HAVE_MODULES
+  module_finalize_function (f);
+#endif
+}
+
+static void
 finalize_vector (mps_addr_t v)
 {
   switch (pseudo_vector_type (v))
@@ -1506,13 +1514,16 @@ finalize_vector (mps_addr_t v)
       finalize_ts_query (v);
       break;
 
+    case PVEC_MODULE_FUNCTION:
+      finalize_module_function (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
     case PVEC_COMPILED:
     case PVEC_SQLITE:
     case PVEC_TS_NODE:
-    case PVEC_MODULE_FUNCTION:
     case PVEC_NATIVE_COMP_UNIT:
     case PVEC_NORMAL_VECTOR:
     case PVEC_PACKAGE:
