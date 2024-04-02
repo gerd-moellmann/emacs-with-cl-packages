@@ -59,13 +59,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # include "buffer.h"
 # include "dispextern.h"
 # include "emacs-module.h"
+# include "font.h"
 # include "igc.h"
 # include "intervals.h"
 # include "itree.h"
 # include "pdumper.h"
 # include "termhooks.h"
 # include "thread.h"
-# include "font.h"
 # include "treesit.h"
 
 # ifndef USE_LSB_TAG
@@ -1037,11 +1037,10 @@ fix_finalizer (mps_ss_t ss, struct Lisp_Finalizer *f)
 {
   MPS_SCAN_BEGIN (ss)
   {
+    /* I assume that the whole dance with doomed_finalizers etc.
+       is an artifact of the mark-sweep allocator, and so I ignore
+       the next and prev pointers etc. */
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, f, fix_vectorlike);
-    // Unclear: what does the comment about weak references in
-    // Lisp_Finalizer mean?
-    // IGC_FIX12_RAW (ss, &f->next);
-    // IGC_FIX12_RAW (ss, &f->prev);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1432,14 +1431,13 @@ finalize_font (struct font *font)
 	}
     }
 
-#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+# if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
   /* The Android font driver needs the ability to associate extra
      information with font entities.  */
-  if (((vector->header.size & PSEUDOVECTOR_SIZE_MASK)
-       == FONT_ENTITY_MAX)
+  if (((vector->header.size & PSEUDOVECTOR_SIZE_MASK) == FONT_ENTITY_MAX)
       && PSEUDOVEC_STRUCT (vector, font_entity)->is_android)
     android_finalize_font_entity (PSEUDOVEC_STRUCT (vector, font_entity));
-#endif
+# endif
 }
 
 static void
@@ -1452,47 +1450,47 @@ finalize_user_ptr (struct Lisp_User_Ptr *p)
 static void
 finalize_ts_parser (struct Lisp_TS_Parser *p)
 {
-#ifdef HAVE_TREE_SITTER
+# ifdef HAVE_TREE_SITTER
   treesit_delete_parser (p);
-#endif
+# endif
 }
 
 static void
 finalize_ts_query (struct Lisp_TS_Query *q)
 {
-#ifdef HAVE_TREE_SITTER
+# ifdef HAVE_TREE_SITTER
   treesit_delete_query (q);
-#endif
+# endif
 }
 
 static void
 finalize_module_function (struct Lisp_Module_Function *f)
 {
-#ifdef HAVE_MODULES
+# ifdef HAVE_MODULES
   module_finalize_function (f);
-#endif
+# endif
 }
 
 static void
 finalize_comp_unit (struct Lisp_Native_Comp_Unit *u)
 {
-#ifdef HAVE_NATIVE_COMP
+# ifdef HAVE_NATIVE_COMP
   unload_comp_unit (u);
-#endif
+# endif
 }
 
 static void
 finalize_subr (struct Lisp_Subr *subr)
 {
-#ifdef HAVE_NATIVE_COMP
+# ifdef HAVE_NATIVE_COMP
   if (!NILP (subr->native_comp_u))
     {
       subr->native_comp_u = Qnil;
       /* FIXME Alternative and non invasive solution to this cast?  */
-      xfree ((char *)subr->symbol_name);
+      xfree ((char *) subr->symbol_name);
       xfree (subr->native_c_name);
     }
-#endif
+# endif
 }
 
 static Lisp_Object
@@ -1510,9 +1508,9 @@ finalize_finalizer (struct Lisp_Finalizer *f)
     {
       f->function = Qnil;
       specpdl_ref count = SPECPDL_INDEX ();
-#ifdef HAVE_PDUMPER
+# ifdef HAVE_PDUMPER
       ++number_finalizers_run;
-#endif
+# endif
       specbind (Qinhibit_quit, Qt);
       internal_condition_case_1 (call0, fun, Qt, finalizer_handler);
       unbind_to (count, Qnil);
