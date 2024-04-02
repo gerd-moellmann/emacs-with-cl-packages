@@ -1466,6 +1466,10 @@ finalize_vector (mps_addr_t v)
       finalize_one_mutex (v);
       break;
 
+    case PVEC_CONDVAR:
+      finalize_one_condvar (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
@@ -1474,7 +1478,6 @@ finalize_vector (mps_addr_t v)
     case PVEC_TS_COMPILED_QUERY:
     case PVEC_TS_PARSER:
     case PVEC_TS_NODE:
-    case PVEC_CONDVAR:
     case PVEC_MODULE_FUNCTION:
     case PVEC_NATIVE_COMP_UNIT:
     case PVEC_NORMAL_VECTOR:
@@ -1544,6 +1547,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_FONT:
     case PVEC_THREAD:
     case PVEC_MUTEX:
+    case PVEC_CONDVAR:
       mps_finalize (global_igc->arena, &ref);
       break;
 
