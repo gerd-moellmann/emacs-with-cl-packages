@@ -65,6 +65,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # include "pdumper.h"
 # include "termhooks.h"
 # include "thread.h"
+# include "font.h"
 
 # ifndef USE_LSB_TAG
 #  error "USE_LSB_TAG required"
@@ -1411,6 +1412,33 @@ finalize_bignum (struct Lisp_Bignum *n)
 }
 
 static void
+finalize_font (struct font *font)
+{
+  struct Lisp_Vector *v = (void *) font;
+  if ((v->header.size & PSEUDOVECTOR_SIZE_MASK) == FONT_OBJECT_MAX)
+    {
+      /* The font driver might sometimes be NULL, e.g. if Emacs was
+	 interrupted before it had time to set it up.  */
+      const struct font_driver *drv = font->driver;
+      if (drv)
+	{
+	  /* Attempt to catch subtle bugs like Bug#16140.  */
+	  eassert (valid_font_driver (drv));
+	  drv->close_font (font);
+	}
+    }
+
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+  /* The Android font driver needs the ability to associate extra
+     information with font entities.  */
+  if (((vector->header.size & PSEUDOVECTOR_SIZE_MASK)
+       == FONT_ENTITY_MAX)
+      && PSEUDOVEC_STRUCT (vector, font_entity)->is_android)
+    android_finalize_font_entity (PSEUDOVEC_STRUCT (vector, font_entity));
+#endif
+}
+
+static void
 finalize_vector (mps_addr_t v)
 {
   switch (pseudo_vector_type (v))
@@ -1426,9 +1454,12 @@ finalize_vector (mps_addr_t v)
       finalize_bignum (v);
       break;
 
+    case PVEC_FONT:
+      finalize_font (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
-    case PVEC_FONT:
     case PVEC_RECORD:
     case PVEC_COMPILED:
     case PVEC_SQLITE:
@@ -1504,6 +1535,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     {
     case PVEC_HASH_TABLE:
     case PVEC_BIGNUM:
+    case PVEC_FONT:
       mps_finalize (global_igc->arena, &ref);
       break;
 
