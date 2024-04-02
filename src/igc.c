@@ -66,6 +66,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # include "termhooks.h"
 # include "thread.h"
 # include "font.h"
+# include "treesit.h"
 
 # ifndef USE_LSB_TAG
 #  error "USE_LSB_TAG required"
@@ -1446,6 +1447,12 @@ finalize_user_ptr (struct Lisp_User_Ptr *p)
 }
 
 static void
+finalize_ts_parser (struct Lisp_TS_Parser *p)
+{
+  treesit_delete_parser (p);
+}
+
+static void
 finalize_vector (mps_addr_t v)
 {
   switch (pseudo_vector_type (v))
@@ -1481,13 +1488,16 @@ finalize_vector (mps_addr_t v)
       finalize_user_ptr (v);
       break;
 
+    case PVEC_TS_PARSER:
+      finalize_ts_parser (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
     case PVEC_COMPILED:
     case PVEC_SQLITE:
     case PVEC_TS_COMPILED_QUERY:
-    case PVEC_TS_PARSER:
     case PVEC_TS_NODE:
     case PVEC_MODULE_FUNCTION:
     case PVEC_NATIVE_COMP_UNIT:
@@ -1559,6 +1569,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_MUTEX:
     case PVEC_CONDVAR:
     case PVEC_USER_PTR:
+    case PVEC_TS_PARSER:
       mps_finalize (global_igc->arena, &ref);
       break;
 
