@@ -4466,7 +4466,11 @@ static EMACS_INT
 sxhash_eq (Lisp_Object key)
 {
   Lisp_Object k = maybe_remove_pos_from_symbol (key);
+#ifdef HAVE_MPS
+  return igc_hash (k);
+#else
   return XHASH (k) ^ XTYPE (k);
+#endif
 }
 
 static EMACS_INT

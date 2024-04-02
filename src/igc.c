@@ -1532,6 +1532,48 @@ obj_hash (void)
   return obj_count++;
 }
 
+size_t
+igc_hash (Lisp_Object key)
+{
+  mps_word_t word = XLI (key);
+  mps_word_t tag = word & IGC_TAG_MASK;
+  switch (tag)
+    {
+    case Lisp_Type_Unused0:
+      emacs_abort ();
+
+    case Lisp_Int0:
+    case Lisp_Int1:
+      return word;
+
+    case Lisp_Symbol:
+      {
+	ptrdiff_t off = word ^ tag;
+	mps_addr_t sym = (mps_addr_t) ((char *) lispsym + off);
+	if (c_symbol_p (sym))
+	  return word;
+	struct igc_header *h = client_to_base (sym);
+	return h->hash;
+      }
+
+    case Lisp_String:
+    case Lisp_Vectorlike:
+    case Lisp_Cons:
+    case Lisp_Float:
+      {
+	mps_addr_t client = (mps_addr_t) (word ^ tag);
+	if (is_mps (client))
+	  {
+	    struct igc_header *h = client_to_base (client);
+	    return h->hash;
+	  }
+	return word;
+      }
+    }
+
+  emacs_abort ();
+}
+
 static mps_addr_t
 alloc (size_t size, enum igc_obj_type type)
 {
@@ -1547,7 +1589,7 @@ alloc (size_t size, enum igc_obj_type type)
       struct igc_header *h = p;
       h->obj_type = type;
       h->hash = obj_hash ();
-      igc_assert (size < (1 << IGC_SIZE_BITS));
+      igc_assert (size < ((size_t) 1 << IGC_SIZE_BITS));
       h->obj_size = size;
       obj = base_to_client (p);
     }
