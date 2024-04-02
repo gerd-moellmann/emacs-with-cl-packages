@@ -1507,13 +1507,6 @@ igc_break (void)
 {
 }
 
-void
-igc_init_hash_table (struct Lisp_Hash_Table *h)
-{
-  if (EQ (h->test->name, Qeq))
-    mps_ld_reset (&h->ld, global_igc->arena);
-}
-
 static mps_addr_t
 alloc (size_t size, enum igc_obj_type type)
 {

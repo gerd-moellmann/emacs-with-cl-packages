@@ -19,7 +19,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
-#include <mps.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <sys/_types/_size_t.h>
@@ -4594,10 +4593,6 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
   h->count = 0;
   h->table_size = size;
 
-#ifdef HAVE_MPS
-  igc_init_hash_table (h);
-#endif
-
   if (size == 0)
     {
       h->key = NULL;
@@ -4653,10 +4648,6 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
   h2 = allocate_hash_table ();
   *h2 = *h1;
   h2->mutable = true;
-
-#ifdef HAVE_MPS
-  igc_init_hash_table (h2);
-#endif
 
   if (h1->table_size > 0)
     {
