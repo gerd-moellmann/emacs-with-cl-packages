@@ -1735,6 +1735,7 @@ make_pool_with_class (struct igc *gc, mps_fmt_t fmt, mps_class_t cls)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FORMAT, fmt);
     MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+    MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, true);
     res = mps_pool_create_k (&pool, gc->arena, cls, args);
   }
   MPS_ARGS_END (args);
