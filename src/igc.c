@@ -108,19 +108,8 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
 
 # define IGC_TAG_MASK (~VALMASK)
 
-/* Min and max addresses we got from MPS allocations. See fix_lisp_obj
-   comments.  */
+/* Min and max addresses MPS uses. */
 static mps_addr_t min_addr, max_addr;
-
-static void
-record_alloc (mps_addr_t addr, mps_word_t nbytes)
-{
-  if (min_addr == NULL || addr < min_addr)
-    min_addr = addr;
-  addr = (char *) addr + nbytes;
-  if (max_addr == NULL || addr > max_addr)
-    max_addr = addr;
-}
 
 static bool
 is_mps (const mps_addr_t addr)
@@ -1594,7 +1583,6 @@ alloc (size_t size, enum igc_obj_type type)
       obj = base_to_client (p);
     }
   while (!mps_commit (ap, p, size));
-  record_alloc (p, size);
   return obj;
 }
 
@@ -1756,13 +1744,22 @@ igc_valid_lisp_object_p (Lisp_Object obj)
 static void
 arena_extended (mps_arena_t arena, void *base, size_t size)
 {
-  fprintf (stderr, "* Extend %p %lu\n", base, size);
+  if (min_addr == NULL || base < min_addr)
+    min_addr = base;
+  mps_addr_t end = (char *) base + size;
+  if (max_addr == NULL || end > max_addr)
+    max_addr = end;
 }
 
 static void
 arena_contracted (mps_arena_t arena, void *base, size_t size)
 {
-  fprintf (stderr, "* Contract %p %lu\n", base, size);
+  /* Can MPS free something that is in the middle? */
+  mps_addr_t end = (char *) base + size;
+  if (end == max_addr)
+    max_addr = base;
+  if (base == min_addr)
+    min_addr = end;
 }
 
 static void
