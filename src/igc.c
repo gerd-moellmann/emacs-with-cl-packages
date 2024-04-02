@@ -1754,11 +1754,25 @@ igc_valid_lisp_object_p (Lisp_Object obj)
 }
 
 static void
+arena_extended (mps_arena_t arena, void *base, size_t size)
+{
+  fprintf (stderr, "* Extend %p %lu\n", base, size);
+}
+
+static void
+arena_contracted (mps_arena_t arena, void *base, size_t size)
+{
+  fprintf (stderr, "* Contract %p %lu\n", base, size);
+}
+
+static void
 make_arena (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
+    MPS_ARGS_ADD (args, MPS_KEY_ARENA_EXTENDED, (mps_fun_t) &arena_extended);
+    MPS_ARGS_ADD (args, MPS_KEY_ARENA_CONTRACTED, (mps_fun_t) &arena_contracted);
     res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
   }
   MPS_ARGS_END (args);
