@@ -35,10 +35,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/stat.h>
 # endif
 
-# ifdef HAVE_MPS
-#  include <mps.h>
-#endif
-
 #include <attribute.h>
 #include <count-leading-zeros.h>
 #include <intprops.h>
@@ -2606,11 +2602,6 @@ struct Lisp_Hash_Table
      is weak.  */
   Lisp_Object *key;
   Lisp_Object *value;
-
-  /* MPS location dependency data, for eq tables.  */
-# ifdef HAVE_MPS
-  mps_ld_s ld;
-# endif
 
   /* The comparison and hash functions.  */
   const struct hash_table_test *test;
