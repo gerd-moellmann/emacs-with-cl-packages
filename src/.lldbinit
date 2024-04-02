@@ -37,7 +37,7 @@ command script import emacs_lldb
 b pkg_break
 b igc_break
 b wrong_type_argument
-
+b malloc_error_break
 # When an assertion in MPS fails
 b mps_lib_assert_fail
 

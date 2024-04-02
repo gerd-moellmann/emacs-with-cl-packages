@@ -1387,25 +1387,11 @@ igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
   return pa;
 }
 
-static bool
-type_of_addr (struct igc *gc, mps_addr_t base_addr, enum igc_obj_type *obj_type)
-{
-  mps_pool_t pool;
-  if (!mps_addr_pool (&pool, gc->arena, base_addr))
-    return false;
-
-  struct igc_header *h = base_addr;
-  *obj_type = h->obj_type;
-  return true;
-}
-
 static void
 finalize (struct igc *gc, mps_addr_t base_addr)
 {
-  enum igc_obj_type obj_type;
-  if (!type_of_addr (gc, base_addr, &obj_type))
-    emacs_abort ();
-  switch (obj_type)
+  struct igc_header *h = base_addr;
+  switch (h->obj_type)
     {
     case IGC_OBJ_INVALID:
     case IGC_OBJ_PAD:
@@ -1415,13 +1401,46 @@ finalize (struct igc *gc, mps_addr_t base_addr)
     case IGC_OBJ_INTERVAL:
     case IGC_OBJ_STRING:
     case IGC_OBJ_STRING_DATA:
-    case IGC_OBJ_VECTOR:
     case IGC_OBJ_ITREE_NODE:
     case IGC_OBJ_IMAGE:
     case IGC_OBJ_FACE:
     case IGC_OBJ_FLOAT:
     case IGC_OBJ_WEAK:
     case IGC_OBJ_LAST:
+      break;
+
+    case IGC_OBJ_VECTOR:
+      {
+	mps_addr_t client = base_to_client (base_addr);
+	igc_assert (pseudo_vector_type (client) == PVEC_HASH_TABLE);
+	struct Lisp_Hash_Table *h = client;
+	if (h->table_size)
+	  {
+	    /* Set the table size to 0 so that we don't further scan
+	       a hash table after it has been finalized. */
+	    h->table_size = 0;
+	    xfree (h->index);
+	    xfree (h->key);
+	    xfree (h->value);
+	    xfree (h->next);
+	    xfree (h->hash);
+	  }
+      }
+      break;
+    }
+}
+
+static void
+maybe_finalize (mps_addr_t client, enum pvec_type tag)
+{
+  mps_addr_t ref = client_to_base (client);
+  switch (tag)
+    {
+    case PVEC_HASH_TABLE:
+      mps_finalize (global_igc->arena, &ref);
+      break;
+
+    default:
       break;
     }
 }
@@ -1687,6 +1706,7 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
   struct Lisp_Vector *v
     = alloc (header_size + nwords_mem * word_size, IGC_OBJ_VECTOR);
   XSETPVECTYPESIZE (v, tag, nwords_lisp, nwords_mem - nwords_lisp);
+  maybe_finalize (v, tag);
   return v;
 }
 
