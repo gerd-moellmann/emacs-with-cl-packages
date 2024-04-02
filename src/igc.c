@@ -1388,14 +1388,84 @@ igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
 }
 
 static void
-finalize (struct igc *gc, mps_addr_t base_addr)
+finalize_hash_table (struct Lisp_Hash_Table *h)
 {
-  struct igc_header *h = base_addr;
+  if (h->table_size)
+    {
+      /* Set the table size to 0 so that we don't further scan
+	 a hash table after it has been finalized. */
+      h->table_size = 0;
+      xfree (h->index);
+      xfree (h->key);
+      xfree (h->value);
+      xfree (h->next);
+      xfree (h->hash);
+    }
+}
+
+static void
+finalize_vector (mps_addr_t v)
+{
+  switch (pseudo_vector_type (v))
+    {
+    case PVEC_FREE:
+      emacs_abort ();
+
+    case PVEC_HASH_TABLE:
+      finalize_hash_table (v);
+      break;
+
+    case PVEC_SYMBOL_WITH_POS:
+    case PVEC_PROCESS:
+    case PVEC_FONT:
+    case PVEC_RECORD:
+    case PVEC_COMPILED:
+    case PVEC_SQLITE:
+    case PVEC_TS_COMPILED_QUERY:
+    case PVEC_TS_PARSER:
+    case PVEC_TS_NODE:
+    case PVEC_CONDVAR:
+    case PVEC_MODULE_FUNCTION:
+    case PVEC_NATIVE_COMP_UNIT:
+    case PVEC_NORMAL_VECTOR:
+    case PVEC_BIGNUM:
+    case PVEC_PACKAGE:
+    case PVEC_WINDOW_CONFIGURATION:
+    case PVEC_BUFFER:
+    case PVEC_FRAME:
+    case PVEC_WINDOW:
+    case PVEC_CHAR_TABLE:
+    case PVEC_SUB_CHAR_TABLE:
+    case PVEC_BOOL_VECTOR:
+    case PVEC_OVERLAY:
+    case PVEC_SUBR:
+    case PVEC_FINALIZER:
+    case PVEC_OTHER:
+    case PVEC_MISC_PTR:
+    case PVEC_USER_PTR:
+    case PVEC_XWIDGET:
+    case PVEC_XWIDGET_VIEW:
+    case PVEC_THREAD:
+    case PVEC_MUTEX:
+    case PVEC_TERMINAL:
+    case PVEC_MARKER:
+      igc_assert (!"not implemented");
+      break;
+    }
+}
+
+static void
+finalize (struct igc *gc, mps_addr_t base)
+{
+  mps_addr_t client = base_to_client (base);
+  struct igc_header *h = base;
   switch (h->obj_type)
     {
     case IGC_OBJ_INVALID:
     case IGC_OBJ_PAD:
     case IGC_OBJ_FWD:
+      emacs_abort ();
+
     case IGC_OBJ_CONS:
     case IGC_OBJ_SYMBOL:
     case IGC_OBJ_INTERVAL:
@@ -1407,25 +1477,11 @@ finalize (struct igc *gc, mps_addr_t base_addr)
     case IGC_OBJ_FLOAT:
     case IGC_OBJ_WEAK:
     case IGC_OBJ_LAST:
+      igc_assert (!"not implemented");
       break;
 
     case IGC_OBJ_VECTOR:
-      {
-	mps_addr_t client = base_to_client (base_addr);
-	igc_assert (pseudo_vector_type (client) == PVEC_HASH_TABLE);
-	struct Lisp_Hash_Table *h = client;
-	if (h->table_size)
-	  {
-	    /* Set the table size to 0 so that we don't further scan
-	       a hash table after it has been finalized. */
-	    h->table_size = 0;
-	    xfree (h->index);
-	    xfree (h->key);
-	    xfree (h->value);
-	    xfree (h->next);
-	    xfree (h->hash);
-	  }
-      }
+      finalize_vector (client);
       break;
     }
 }
@@ -1789,7 +1845,8 @@ make_arena (struct igc *gc)
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_ARENA_EXTENDED, (mps_fun_t) &arena_extended);
-    MPS_ARGS_ADD (args, MPS_KEY_ARENA_CONTRACTED, (mps_fun_t) &arena_contracted);
+    MPS_ARGS_ADD (args, MPS_KEY_ARENA_CONTRACTED,
+		  (mps_fun_t) &arena_contracted);
     res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
   }
   MPS_ARGS_END (args);
