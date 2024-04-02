@@ -4386,6 +4386,7 @@ run_finalizers (struct Lisp_Finalizer *finalizers)
 	}
     }
 }
+
 #endif // not HAVE_MPS
 
 DEFUN ("make-finalizer", Fmake_finalizer, Smake_finalizer, 1, 1, 0,
@@ -4401,8 +4402,10 @@ FUNCTION.  FUNCTION will be run once per finalizer object.  */)
   struct Lisp_Finalizer *finalizer
     = ALLOCATE_PSEUDOVECTOR (struct Lisp_Finalizer, function, PVEC_FINALIZER);
   finalizer->function = function;
+#ifndef HAVE_MPS
   finalizer->prev = finalizer->next = NULL;
   finalizer_insert (&finalizers, finalizer);
+#endif
   return make_lisp_ptr (finalizer, Lisp_Vectorlike);
 }
 
