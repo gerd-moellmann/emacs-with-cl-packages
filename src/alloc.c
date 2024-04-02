@@ -461,7 +461,6 @@ no_sanitize_memcpy (void *dest, void const *src, size_t size)
 #endif /* MAX_SAVE_STACK > 0 */
 
 #ifndef HAVE_MPS
-static void unchain_finalizer (struct Lisp_Finalizer *);
 static void mark_terminals (void);
 static void gc_sweep (void);
 static void mark_buffer (struct buffer *);
