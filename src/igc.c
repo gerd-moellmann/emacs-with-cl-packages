@@ -1462,6 +1462,10 @@ finalize_vector (mps_addr_t v)
       finalize_one_thread (v);
       break;
 
+    case PVEC_MUTEX:
+      finalize_one_mutex (v);
+      break;
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
@@ -1490,7 +1494,6 @@ finalize_vector (mps_addr_t v)
     case PVEC_USER_PTR:
     case PVEC_XWIDGET:
     case PVEC_XWIDGET_VIEW:
-    case PVEC_MUTEX:
     case PVEC_TERMINAL:
     case PVEC_MARKER:
       igc_assert (!"not implemented");
@@ -1540,6 +1543,7 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_BIGNUM:
     case PVEC_FONT:
     case PVEC_THREAD:
+    case PVEC_MUTEX:
       mps_finalize (global_igc->arena, &ref);
       break;
 
