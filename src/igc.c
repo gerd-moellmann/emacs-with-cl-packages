@@ -545,13 +545,9 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
   igc_assert (start == staticvec);
   MPS_SCAN_BEGIN (ss)
   {
-    for (int i = 0; i < staticidx; ++i)
-      {
-	igc_assert (staticvec[i] != NULL);
-	/* staticvec is declared as having pointers to const
-	   Lisp_Object, for an unknown reason.  */
-	IGC_FIX12_OBJ (ss, (Lisp_Object *) staticvec[i]);
-      }
+    for (Lisp_Object **p = start; (void *) p < end; ++p)
+      if (*p)
+	IGC_FIX12_OBJ (ss, *p);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
