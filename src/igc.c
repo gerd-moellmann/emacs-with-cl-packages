@@ -236,7 +236,7 @@ igc_static_assert (sizeof (struct igc_header) == 8);
 static mps_word_t
 to_words (mps_word_t nbytes)
 {
-  igc_assert ((nbytes & 7) == 9);
+  igc_assert ((nbytes & 7) == 0);
   return nbytes >> 3;
 }
 
