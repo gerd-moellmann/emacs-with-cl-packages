@@ -52,6 +52,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
     charset_table is initially set to point to static arrqy, and later
     replaced with something malloc'd. Rewritten and made a root.
 
+  - main_thread is a static data structure, so not an MPS object that
+    is scanned and fixed. This means we must make it a root so that
+    Lisp_Objects in it are protected and pinned.
  */
 
 // clang-format on
@@ -1291,6 +1294,14 @@ create_terminal_list_root (struct igc *gc)
 }
 
 static void
+create_main_thread_root (struct igc *gc)
+{
+  void *start = &main_thread;
+  void *end = (char *) &main_thread + sizeof (main_thread);
+  create_ambig_root (gc, start, end);
+}
+
+static void
 create_static_roots (struct igc *gc)
 {
   create_buffer_root (gc, &buffer_defaults);
@@ -1298,6 +1309,7 @@ create_static_roots (struct igc *gc)
   create_staticvec_root (gc);
   create_lispsym_root (gc);
   create_terminal_list_root (gc);
+  create_main_thread_root (gc);
 }
 
 static void

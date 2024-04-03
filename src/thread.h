@@ -343,6 +343,15 @@ int thread_select  (select_func *func, int max_fds, fd_set *rfds,
 
 bool thread_check_current_buffer (struct buffer *);
 
+union aligned_thread_state
+{
+  struct thread_state s;
+  GCALIGNED_UNION_MEMBER
+};
+verify (GCALIGNED (union aligned_thread_state));
+
+extern union aligned_thread_state main_thread;
+
 INLINE_HEADER_END
 
 #endif /* THREAD_H */
