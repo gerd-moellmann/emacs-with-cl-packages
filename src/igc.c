@@ -55,6 +55,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
   - main_thread is a static data structure, so not an MPS object that
     is scanned and fixed. This means we must make it a root so that
     Lisp_Objects in it are protected and pinned.
+
+  -buffer::text either points to its buffer::own text or the one of
+   a base buffer. This means it has to change when addresses change.
  */
 
 // clang-format on
@@ -911,10 +914,16 @@ fix_buffer (mps_ss_t ss, struct buffer *b)
     IGC_FIX12_RAW (ss, &b->text->intervals);
     IGC_FIX12_RAW (ss, &b->text->markers);
     IGC_FIX12_RAW (ss, &b->own_text.intervals);
-    IGC_FIX12_RAW (ss, &b->own_text.markers);
     IGC_FIX12_RAW (ss, &b->base_buffer);
+    IGC_FIX12_RAW (ss, &b->own_text.markers);
     if (b->overlays)
       IGC_FIX12_RAW (ss, &b->overlays->root);
+
+    if (b->base_buffer)
+      b->text = &b->base_buffer->own_text;
+    else
+      b->text = &b->own_text;
+
     // FIXME: special handling of undo_list?
   }
   MPS_SCAN_END (ss);
