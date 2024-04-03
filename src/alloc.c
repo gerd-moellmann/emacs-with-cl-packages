@@ -5837,15 +5837,7 @@ hash_table_alloc_bytes (ptrdiff_t nbytes)
     return NULL;
   tally_consing (nbytes);
   hash_table_allocated_bytes += nbytes;
-#ifdef HAVE_MPS
-  /* If used for keys amd values, it is not safe to allocate
-     uninitialzed memory, assign that to a hash table's
-     key or value vector, and then initialize the memory.
-     For now, just alloc zero-initialized. */
-  void *p = xzalloc (nbytes);
-#else
   void *p = xmalloc (nbytes);
-#endif
   return p;
 }
 
