@@ -40,6 +40,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "sysstdio.h"
 #include "pdumper.h"
+#include "igc.h"
 
 /*** GENERAL NOTES on CODED CHARACTER SETS (CHARSETS) ***
 
@@ -1130,9 +1131,14 @@ usage: (define-charset-internal ...)  */)
 	  int old_size = charset_table_size;
 	  ptrdiff_t new_size = old_size;
 	  struct charset *new_table =
-	    xpalloc (0, &new_size, 1,
-		     min (INT_MAX, MOST_POSITIVE_FIXNUM),
-                     sizeof *charset_table);
+#ifdef HAVE_MPS
+	    igc_xpalloc
+#else
+	    xpalloc
+#endif
+	    (0, &new_size, 1,
+	     min (INT_MAX, MOST_POSITIVE_FIXNUM),
+	     sizeof *charset_table);
           memcpy (new_table, charset_table, old_size * sizeof *new_table);
           charset_table = new_table;
 	  charset_table_size = new_size;
@@ -2378,6 +2384,9 @@ syms_of_charset (void)
 
   charset_table = charset_table_init;
   charset_table_size = ARRAYELTS (charset_table_init);
+#ifdef HAVE_MPS
+  igc_create_charset_root (charset_table_init, sizeof charset_table_init);
+#endif
   PDUMPER_REMEMBER_SCALAR (charset_table_size);
   charset_table_used = 0;
   PDUMPER_REMEMBER_SCALAR (charset_table_used);

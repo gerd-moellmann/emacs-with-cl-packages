@@ -1423,6 +1423,12 @@ igc_xfree (void *p)
   xfree (p);
 }
 
+void
+igc_create_charset_root (void *table, size_t size)
+{
+  create_ambig_root (global_igc, table, (char *) table + size);
+}
+
 void *
 igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 	     ptrdiff_t nitems_max, ptrdiff_t item_size)

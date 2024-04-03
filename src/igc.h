@@ -79,6 +79,7 @@ unsigned char *igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
 				 ptrdiff_t old_char_len,
 				 ptrdiff_t new_char_len);
 size_t igc_hash (Lisp_Object key);
+void igc_create_charset_root (void *table, size_t size);
 
 # define eassert_not_mps() eassert (false)
 #else
