@@ -3,6 +3,8 @@
 
 This file is part of GNU Emacs.
 
+Author: Gerd Möllmann <gerd@gnu.org>
+
 GNU Emacs is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or (at
@@ -24,7 +26,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
   - terminal -> image_cache->images -> image, and image has refs,
     everything is xmalloc'd. Put images in MPS to scan them.
     Since images are managed manually, alloc from pool, don't xfree,
-    don't finalize. Find refs to images, by makiing cache::images
+    don't finalize. Find refs to images, by making cache::images
     an ambig root.
 
   - frame -> face_cache::faces_by_id -> face -> font. font is pvec.
@@ -37,8 +39,15 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
   - hash_table -> key_and_value which is malloc'd. Rewrite so that
     key and value are separate. Must be done because of AWL restrictins.
 
-  - compact_font_caches + inhibt. Can't be done this way, but isn't
+  - compact_font_caches + inhibit. Can't be done this way, but isn't
     essential.
+
+  - Eq hash-tables much easier if every object carries a hash that is
+    address-independent. Costs a word for every cons.
+
+  - No weak hash tables yet. quite some work, and not essential for a
+    study.
+
  */
 
 // clang-format on
@@ -203,10 +212,11 @@ enum igc_obj_type
   IGC_OBJ_LAST
 };
 
-/* We always have a header which makes it possible to have an
+/* Always having a header makes it possible to have an
    address-independant hash, which is (a) much easier to handle than MPS
    location dependencies, and (b) makes it possible to implement sxhash
-   variants in a way that works even if GCs happen between calls.  */
+   variants in a way that works as expected even if GCs happen between
+   calls.  */
 enum
 {
   IGC_TYPE_BITS = 8,
@@ -217,12 +227,24 @@ enum
 struct igc_header
 {
   enum igc_obj_type obj_type : IGC_TYPE_BITS;
-  unsigned hash : IGC_HASH_BITS;
-  // Could let this count in words...
-  mps_word_t obj_size : IGC_SIZE_BITS;
+  mps_word_t hash : IGC_HASH_BITS;
+  mps_word_t nwords : IGC_SIZE_BITS;
 };
 
 igc_static_assert (sizeof (struct igc_header) == 8);
+
+static mps_word_t
+to_words (mps_word_t nbytes)
+{
+  igc_assert ((nbytes & 7) == 9);
+  return nbytes >> 3;
+}
+
+static mps_word_t
+to_bytes (mps_word_t nwords)
+{
+  return nwords << 3;
+}
 
 struct igc_fwd
 {
@@ -630,18 +652,17 @@ scan_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 static void
 dflt_pad (mps_addr_t base_addr, mps_word_t nbytes)
 {
-  igc_assert (nbytes > 0);
+  igc_assert (nbytes >= sizeof (struct igc_header));
   struct igc_header *h = base_addr;
   h->obj_type = IGC_OBJ_PAD;
-  h->obj_size = nbytes;
-  igc_assert (h->obj_size >= sizeof (struct igc_header));
+  h->nwords = to_words (nbytes);
 }
 
 static void
 dflt_fwd (mps_addr_t old_base_addr, mps_addr_t new_base_addr)
 {
   struct igc_header *h = old_base_addr;
-  igc_assert (h->obj_size >= sizeof (struct igc_fwd));
+  igc_assert (to_bytes (h->nwords) >= sizeof (struct igc_fwd));
   igc_assert (h->obj_type != IGC_OBJ_PAD);
   struct igc_fwd *f = old_base_addr;
   f->header.obj_type = IGC_OBJ_FWD;
@@ -661,8 +682,8 @@ static mps_addr_t
 dflt_skip (mps_addr_t base_addr)
 {
   struct igc_header *h = base_addr;
-  mps_addr_t next = (char *) base_addr + h->obj_size;
-  igc_assert (h->obj_size >= sizeof (struct igc_header));
+  mps_addr_t next = (char *) base_addr + to_bytes (h->nwords);
+  igc_assert (to_bytes (h->nwords) >= sizeof (struct igc_header));
   return next;
 }
 
@@ -845,7 +866,7 @@ fix_vectorlike (mps_ss_t ss, struct Lisp_Vector *v)
     if (size & PSEUDOVECTOR_FLAG)
       size &= PSEUDOVECTOR_SIZE_MASK;
     struct igc_header *h = client_to_base (v);
-    igc_assert (h->obj_size >= size * word_size);
+    igc_assert (to_bytes (h->nwords) >= size * word_size);
     IGC_FIX12_NOBJS (ss, v->contents, size);
   }
   MPS_SCAN_END (ss);
@@ -1817,7 +1838,7 @@ alloc (size_t size, enum igc_obj_type type)
       h->obj_type = type;
       h->hash = obj_hash ();
       igc_assert (size < ((size_t) 1 << IGC_SIZE_BITS));
-      h->obj_size = size;
+      h->nwords = to_words (size);
       obj = base_to_client (p);
     }
   while (!mps_commit (ap, p, size));
@@ -1874,7 +1895,7 @@ igc_replace_char (Lisp_Object string, ptrdiff_t at_byte_pos,
   ptrdiff_t old_nbytes = SBYTES (string);
   ptrdiff_t nbytes_needed = old_nbytes + (new_char_len - old_char_len);
   struct igc_header *old_header = client_to_base (s->u.s.data);
-  ptrdiff_t capacity = old_header->obj_size - sizeof *old_header;
+  ptrdiff_t capacity = to_bytes (old_header->nwords) - sizeof *old_header;
   if (capacity < nbytes_needed)
     {
       unsigned char *new_data = alloc_string_data (nbytes_needed, false);
@@ -2026,7 +2047,7 @@ make_dflt_fmt (struct igc *gc)
        client address, which calls NailboardGet, and one can see that
        the the board contains base addresses which leads to an assertion
        failure. */
-    // MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
+    MPS_ARGS_ADD (args, MPS_KEY_FMT_HEADER_SIZE, 0);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SCAN, dflt_scan);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_SKIP, dflt_skip);
     MPS_ARGS_ADD (args, MPS_KEY_FMT_FWD, dflt_fwd);
@@ -2048,6 +2069,7 @@ make_pool_with_class (struct igc *gc, mps_fmt_t fmt, mps_class_t cls)
   {
     MPS_ARGS_ADD (args, MPS_KEY_FORMAT, fmt);
     MPS_ARGS_ADD (args, MPS_KEY_CHAIN, gc->chain);
+    // Must use interior pointers, bc we hand out client pointers.
     MPS_ARGS_ADD (args, MPS_KEY_INTERIOR, true);
     res = mps_pool_create_k (&pool, gc->arena, cls, args);
   }
