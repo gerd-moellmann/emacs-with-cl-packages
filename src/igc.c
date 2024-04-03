@@ -1217,9 +1217,29 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 	IGC_FIX_CALL_FN (ss, struct Lisp_Marker, v, fix_marker);
 	break;
 
-      default:
+      case PVEC_BIGNUM:
+	break;
+
+      case PVEC_PACKAGE:
+      case PVEC_NORMAL_VECTOR:
+      case PVEC_SYMBOL_WITH_POS:
+      case PVEC_PROCESS:
+      case PVEC_WINDOW_CONFIGURATION:
+      case PVEC_XWIDGET:
+      case PVEC_XWIDGET_VIEW:
+      case PVEC_MODULE_FUNCTION:
+      case PVEC_CONDVAR:
+      case PVEC_NATIVE_COMP_UNIT:
+      case PVEC_TS_COMPILED_QUERY:
+      case PVEC_TS_NODE:
+      case PVEC_TS_PARSER:
+      case PVEC_SQLITE:
+      case PVEC_COMPILED:
+      case PVEC_RECORD:
+      case PVEC_FONT:
 	IGC_FIX_CALL_FN (ss, struct Lisp_Vector, v, fix_vectorlike);
 	break;
+
       }
   }
   MPS_SCAN_END (ss);
