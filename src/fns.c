@@ -4609,13 +4609,17 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
     }
   else
     {
-      h->key = hash_table_alloc_bytes (size * sizeof *h->key);
-      h->value = hash_table_alloc_bytes (size * sizeof *h->value);
+      Lisp_Object *key = hash_table_alloc_bytes (size * sizeof *h->key);
+      Lisp_Object *value = hash_table_alloc_bytes (size * sizeof *h->value);
       for (ptrdiff_t i = 0; i < size; i++)
 	{
-	  h->key[i] = HASH_UNUSED_ENTRY_KEY;
-	  h->value[i] = Qnil;
+	  key[i] = HASH_UNUSED_ENTRY_KEY;
+	  value[i] = Qnil;
 	}
+
+      /* Initialize, then set. */
+      h->key = key;
+      h->value = value;
 
       h->hash = hash_table_alloc_bytes (size * sizeof *h->hash);
 
@@ -4656,10 +4660,12 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
   if (h1->table_size > 0)
     {
       ptrdiff_t kv_bytes = h1->table_size * sizeof *h1->key;
-      h2->key = hash_table_alloc_bytes (kv_bytes);
-      h2->value = hash_table_alloc_bytes (kv_bytes);
-      memcpy (h2->key, h1->key, kv_bytes);
-      memcpy (h2->value, h1->value, kv_bytes);
+      Lisp_Object *key = hash_table_alloc_bytes (kv_bytes);
+      Lisp_Object *value = hash_table_alloc_bytes (kv_bytes);
+      memcpy (key, h1->key, kv_bytes);
+      memcpy (value, h1->value, kv_bytes);
+      h2->key = key;
+      h2->value = value;
 
       ptrdiff_t hash_bytes = h1->table_size * sizeof *h1->hash;
       h2->hash = hash_table_alloc_bytes (hash_bytes);
@@ -4735,10 +4741,12 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 	hash_table_free_bytes (h->index, old_index_size * sizeof *h->index);
       h->index = index;
 
-      hash_table_free_bytes (h->key, old_size * sizeof *h->key);
-      hash_table_free_bytes (h->value, old_size * sizeof *h->value);
+      Lisp_Object *old = h->key;
       h->key = key;
+      hash_table_free_bytes (old, old_size * sizeof *h->key);
+      old = h->value;
       h->value = value;
+      hash_table_free_bytes (old, old_size * sizeof *h->value);
 
       hash_table_free_bytes (h->hash, old_size * sizeof *h->hash);
       h->hash = hash;
