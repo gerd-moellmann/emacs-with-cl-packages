@@ -566,9 +566,31 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 {
   MPS_SCAN_BEGIN (ss)
   {
+    switch (sym->u.s.redirect)
+      {
+      case SYMBOL_PLAINVAL:
+	IGC_FIX12_OBJ (ss, &sym->u.s.val.value);
+	break;
+
+      case SYMBOL_VARALIAS:
+	IGC_FIX12_RAW (ss, &sym->u.s.val.alias);
+	break;
+
+      case SYMBOL_LOCALIZED:
+	{
+	  /* See make_blv: this is malloc'd, so we can access it. */
+	  struct Lisp_Buffer_Local_Value *blv = sym->u.s.val.blv;
+	  IGC_FIX12_OBJ (ss, &blv->where);
+	  IGC_FIX12_OBJ (ss, &blv->defcell);
+	  IGC_FIX12_OBJ (ss, &blv->valcell);
+	}
+	break;
+
+      case SYMBOL_FORWARDED:
+	break;
+      }
+
     IGC_FIX12_OBJ (ss, &sym->u.s.name);
-    if (sym->u.s.redirect == SYMBOL_PLAINVAL)
-      IGC_FIX12_OBJ (ss, &sym->u.s.val.value);
     IGC_FIX12_OBJ (ss, &sym->u.s.function);
     IGC_FIX12_OBJ (ss, &sym->u.s.plist);
     IGC_FIX12_OBJ (ss, &sym->u.s.package);
