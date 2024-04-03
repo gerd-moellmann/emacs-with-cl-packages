@@ -136,7 +136,6 @@ static mps_addr_t min_addr, max_addr;
 static bool
 is_mps (const mps_addr_t addr)
 {
-  return true;
   return addr >= min_addr && addr < max_addr;
 }
 
