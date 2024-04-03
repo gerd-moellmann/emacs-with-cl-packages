@@ -48,6 +48,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
   - No weak hash tables yet. quite some work, and not essential for a
     study.
 
+  - charset_table -> charset which contains a Lisp_Object. In addition,
+    charset_table is initially set to point to static arrqy, and later
+    replaced with something malloc'd. Rewritten and made a root.
+
  */
 
 // clang-format on
