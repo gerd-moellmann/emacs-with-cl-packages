@@ -346,21 +346,6 @@ destroy_all_roots (struct igc *gc)
     destroy_root (gc->roots);
 }
 
-static void
-release_arena (void)
-{
-  mps_arena_release (global_igc->arena);
-}
-
-specpdl_ref
-igc_inhibit_garbage_collection (void)
-{
-  specpdl_ref count = SPECPDL_INDEX ();
-  mps_arena_park (global_igc->arena);
-  record_unwind_protect_void (release_arena);
-  return count;
-}
-
 static mps_res_t
 create_weak_ap (mps_ap_t *ap, struct igc_thread *t, bool weak)
 {

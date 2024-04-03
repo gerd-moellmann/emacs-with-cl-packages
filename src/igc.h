@@ -47,7 +47,6 @@ void igc_on_face_cache_change (void *face_cache);
 void *igc_on_grow_rdstack (void *info, void *start, void *end);
 
 void igc_process_messages (void);
-specpdl_ref igc_inhibit_garbage_collection (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 Lisp_Object igc_alloc_symbol (void);
 

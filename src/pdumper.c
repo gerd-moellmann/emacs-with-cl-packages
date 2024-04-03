@@ -4133,6 +4133,9 @@ types.  */)
   check_pure_size ();
 # endif
 
+# ifndef HAVE_MPS
+  /* I don't think this can be guaranteed to work with MPS.
+     Finalizers may be kept alive unpredictably. */
   /* Clear out any detritus in memory.  */
   do
     {
@@ -4140,15 +4143,9 @@ types.  */)
       garbage_collect ();
     }
   while (number_finalizers_run);
+#endif
 
-# ifdef HAVE_MPS
-  // Dumping takes around 2 minutes (2s normal), and longer than I
-  // wanted to wait when collection is not inhibited.  This might be the
-  // fault of AMS, which is not ready for production according to MPS docs.
-  specpdl_ref count = igc_inhibit_garbage_collection ();
-# else
   specpdl_ref count = SPECPDL_INDEX ();
-# endif
   Lisp_Object start_time = Ffloat_time (Qnil);
 
   /* Bind `command-line-processed' to nil before dumping,
