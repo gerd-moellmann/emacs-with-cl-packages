@@ -4147,6 +4147,9 @@ types.  */)
 
   specpdl_ref count = SPECPDL_INDEX ();
   Lisp_Object start_time = Ffloat_time (Qnil);
+#ifdef HAVE_MPS
+  igc_park_arena ();
+#endif
 
   /* Bind `command-line-processed' to nil before dumping,
      so that the dumped Emacs will process its command line
