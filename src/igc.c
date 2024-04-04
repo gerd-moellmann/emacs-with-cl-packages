@@ -1366,6 +1366,21 @@ add_main_thread (void)
   current_thread->gc_info = igc_thread_add (stack_bottom);
 }
 
+static void
+release_arena (void)
+{
+  mps_arena_release (global_igc->arena);
+}
+
+specpdl_ref
+igc_park_arena (void)
+{
+  specpdl_ref count = SPECPDL_INDEX ();
+  record_unwind_protect_void (release_arena);
+  mps_arena_park (global_igc->arena);
+  return count;
+}
+
 void
 igc_on_pdump_loaded (void)
 {
