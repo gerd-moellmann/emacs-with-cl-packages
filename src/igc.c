@@ -275,6 +275,17 @@ base_to_client (mps_addr_t base_addr)
   return (char *) base_addr + sizeof (struct igc_header);
 }
 
+void
+igc_check_vector (const struct Lisp_Vector *v)
+{
+  struct igc_header *h = client_to_base ((void *)v);
+  enum pvec_type ptype = PSEUDOVECTOR_TYPE (v);
+  igc_assert (h->obj_type == IGC_OBJ_VECTOR);
+  igc_assert (h->pvec_type == ptype);
+}
+
+
+
 static size_t
 igc_round (size_t nbytes, size_t align)
 {
