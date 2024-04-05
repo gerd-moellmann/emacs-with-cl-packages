@@ -3053,7 +3053,6 @@ dump_vectorlike (struct dump_context *ctx,
 # error "pvec_type changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Vector *v = XVECTOR (lv);
-  igc_check_vector (v);
   enum pvec_type ptype = PSEUDOVECTOR_TYPE (v);
   switch (ptype)
     {
