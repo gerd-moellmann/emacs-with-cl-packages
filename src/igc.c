@@ -598,6 +598,34 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 	break;
 
       case SYMBOL_FORWARDED:
+	{
+	  lispfwd fwd = sym->u.s.val.fwd;;
+	  switch (XFWDTYPE (fwd))
+	    {
+	    case Lisp_Fwd_Int:
+	    case Lisp_Fwd_Bool:
+	      break;
+
+	      /* We don't see all these already when scanning staticvec
+		 becaus eof DEFVAR_LISP_NOPRO.  */
+	    case Lisp_Fwd_Obj:
+	      {
+		struct Lisp_Objfwd *o = (void *) fwd.fwdptr;
+		IGC_FIX12_OBJ (ss, o->objvar);
+	      }
+	      break;
+
+	    case Lisp_Fwd_Buffer_Obj:
+	      {
+		struct Lisp_Buffer_Objfwd *b = (void *) fwd.fwdptr;
+		IGC_FIX12_OBJ (ss, &b->predicate);
+	      }
+	      break;
+
+	    case Lisp_Fwd_Kboard_Obj:
+	      break;
+	    }
+	}
 	break;
       }
 
