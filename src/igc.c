@@ -2236,6 +2236,7 @@ make_igc (void)
 static void
 free_igc (struct igc *gc)
 {
+  mps_arena_park (gc->arena);
   while (gc->threads)
     igc_thread_remove (gc->threads);
   mps_pool_destroy (gc->dflt_pool);
