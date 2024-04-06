@@ -1428,6 +1428,27 @@ igc_park_arena (void)
   return count;
 }
 
+static void
+reset_pattern (void)
+{
+  struct igc_thread_list *t = current_thread->gc_info;
+  mps_res_t res = mps_ap_alloc_pattern_reset (t->d.dflt_ap);
+  IGC_CHECK_RES (res);
+}
+
+specpdl_ref
+igc_ramp_allocation (void)
+{
+  specpdl_ref count = SPECPDL_INDEX ();
+  record_unwind_protect_void (reset_pattern);
+  struct igc_thread_list *t = current_thread->gc_info;
+  mps_ap_t ap = t->d.dflt_ap;
+  mps_alloc_pattern_t pattern = mps_alloc_pattern_ramp ();
+  mps_res_t res = mps_ap_alloc_pattern_begin (ap, pattern);
+  IGC_CHECK_RES (res);
+  return count;
+}
+
 void
 igc_on_pdump_loaded (void)
 {

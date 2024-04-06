@@ -82,6 +82,7 @@ size_t igc_hash (Lisp_Object key);
 void igc_create_charset_root (void *table, size_t size);
 specpdl_ref igc_park_arena (void);
 void igc_check_vector (const struct Lisp_Vector *v);
+specpdl_ref igc_ramp_allocation (void);
 
 # define eassert_not_mps() eassert (false)
 #else

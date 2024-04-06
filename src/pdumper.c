@@ -4157,7 +4157,8 @@ types.  */)
 
   specpdl_ref count = SPECPDL_INDEX ();
   Lisp_Object start_time = Ffloat_time (Qnil);
-#ifdef HAVE_MPS
+# ifdef HAVE_MPS
+  /* Turn off GC while dumping. This turns out to be the fastest option. */
   igc_park_arena ();
 #endif
 
