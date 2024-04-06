@@ -104,16 +104,17 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #  error "HAVE_TEXT_CONVERSION not supported"
 # endif
 
-/* Note: Emacs will call allocation functions whlle aborting, which
-   leads to interesting phenomena when an assertion fails inside a
-   function called from MPS while holding a lock, and find that we
-   already own the lock while allocatin.
+/* Note: Emacs will call allocation functions whlle aborting. This leads
+   to all sorts of interesting phenomena when an assertion fails inside
+   a function called from MPS while holding a lock. For instance, we
+   find that we already own the lock while allocating.
 
    The fucntion signature must be that of mps_lib_assert_fail_t.  */
 
 static void
 igc_assert_fail (const char *file, unsigned line, const char *msg)
 {
+  extern void die (const char *, const char *, int);
   die (msg, file, line);
 }
 
