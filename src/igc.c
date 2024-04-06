@@ -1443,14 +1443,6 @@ igc_ramp_allocation (void)
   return count;
 }
 
-void
-igc_on_pdump_loaded (void)
-{
-  void *start = (void *) dump_public.start;
-  void *end = (void *) dump_public.end;
-  create_ambig_root (global_igc, start, end);
-}
-
 void *
 igc_on_grow_rdstack (void *info, void *start, void *end)
 {
