@@ -212,6 +212,10 @@ class Lisp_Object:
 #                           LLDB Commands
 ########################################################################
 
+def xpostmortem(debugger, command, ctx, result, internal_dict):
+    """Call igc_postmortem to set MPS arena to postmortem state"""
+    debugger.HandleCommand(f"expr igc_postmortem()")
+
 def xbacktrace(debugger, command, ctx, result, internal_dict):
     """Print Emacs Lisp backtrace"""
     frame = ctx.GetFrame()
@@ -342,6 +346,7 @@ def enable_type_category(debugger, category):
 
 # This function is called by LLDB to initialize the module.
 def __lldb_init_module(debugger, internal_dict):
+    define_command(debugger, xpostmortem)
     define_command(debugger, xbacktrace)
     define_command(debugger, xdebug_print)
     define_command(debugger, xprint)
