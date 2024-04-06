@@ -361,13 +361,6 @@ destroy_root (struct igc_root_list *r)
   mps_root_destroy (deregister_root (r));
 }
 
-static void
-destroy_all_roots (struct igc *gc)
-{
-  while (gc->roots)
-    destroy_root (gc->roots);
-}
-
 static mps_res_t
 create_weak_ap (mps_ap_t *ap, struct igc_thread *t, bool weak)
 {
@@ -2255,22 +2248,32 @@ make_igc (void)
   return gc;
 }
 
+void
+igc_postmortem (void)
+{
+  mps_arena_postmortem (global_igc->arena);
+}
+
 static void
 free_igc (struct igc *gc)
 {
+# if 0
   mps_arena_park (gc->arena);
   while (gc->threads)
     igc_thread_remove (gc->threads);
   mps_pool_destroy (gc->dflt_pool);
-  mps_fmt_destroy (gc->dflt_fmt);
+  mps_fmt_destroy (gc->dflt_fmigc.c
+		   t);
   mps_pool_destroy (gc->leaf_pool);
   mps_fmt_destroy (gc->leaf_fmt);
   mps_pool_destroy (gc->weak_pool);
   mps_fmt_destroy (gc->weak_fmt);
-  destroy_all_roots (gc);
+  while (gc->roots)
+    destroy_root (gc->roots);
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);
   xfree (gc);
+#endif
 }
 
 static void
