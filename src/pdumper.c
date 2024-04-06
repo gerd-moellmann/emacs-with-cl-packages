@@ -5816,7 +5816,7 @@ pdumper_load (const char *dump_filename, char *argv0)
   dump_private.load_time = timespectod (load_timespec);
   dump_private.dump_filename = dump_filename_copy;
 
-# ifdef MAVE_MPS
+# ifdef HAVE_MPS
   igc_on_pdump_loaded ();
 # endif
 
