@@ -1446,9 +1446,14 @@ igc_ramp_allocation (void)
 void
 igc_on_pdump_loaded (void)
 {
+  struct igc *gc = global_igc;
   void *start = (void *) dump_public.start;
   void *end = (void *) dump_public.end;
-  create_ambig_root (global_igc, start, end);
+  mps_root_t root;
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (),
+					MPS_RM_PROT, start, end, scan_ambig, 0);
+  IGC_CHECK_RES (res);
+  register_root (gc, root, start, end);
 }
 
 void *
