@@ -5774,6 +5774,11 @@ pdumper_load (const char *dump_filename, char *argv0)
   dump_public.start = dump_base;
   dump_public.end = dump_public.start + dump_size;
 
+#ifdef HAVE_MPS
+  void *hot_start = (void *) dump_base;
+  void *hot_end = (void *) (dump_base + adj_discardable_start);
+#endif
+
   dump_do_all_dump_reloc_for_phase (header, dump_base, EARLY_RELOCS);
   dump_do_all_emacs_relocations (header, dump_base);
 
@@ -5817,7 +5822,7 @@ pdumper_load (const char *dump_filename, char *argv0)
   dump_private.dump_filename = dump_filename_copy;
 
 # ifdef HAVE_MPS
-  igc_on_pdump_loaded ();
+  igc_on_pdump_loaded (hot_start, hot_end);
 # endif
 
  out:
