@@ -1888,6 +1888,8 @@ thread_ap (enum igc_obj_type type)
     }
 }
 
+/* Conditional breakpoints can be so slow that it is often more
+   effective to instrument code. This fucntion is for such cases. */
 void
 igc_break (void)
 {
