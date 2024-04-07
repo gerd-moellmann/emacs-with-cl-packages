@@ -1505,25 +1505,13 @@ igc_ramp_allocation (void)
 void
 igc_on_pdump_loaded (void *start, void *end)
 {
+  fprintf (stderr, "pdump root %10p %10p\n", start, end);
   struct igc *gc = global_igc;
   mps_root_t root;
   mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (),
-					MPS_RM_PROT, start, end, scan_dump, 0);
+					0, start, end, scan_dump, 0);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
-}
-
-void *
-igc_on_grow_rdstack (void *info, void *start, void *end)
-{
-  struct igc *gc = global_igc;
-  IGC_WITH_PARKED (gc)
-  {
-    if (info)
-      destroy_root (info);
-    info = create_ambig_root (gc, start, end);
-  }
-  return info;
 }
 
 static igc_root_list *

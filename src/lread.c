@@ -3882,9 +3882,6 @@ struct read_stack
   struct read_stack_entry *stack;  /* base of stack */
   ptrdiff_t size;		   /* allocated size in entries */
   ptrdiff_t sp;			   /* current number of entries */
-#ifdef HAVE_MPS
-  void *igc_info;
-#endif
 };
 
 static struct read_stack rdstack = {NULL, 0, 0};
@@ -3951,13 +3948,12 @@ grow_read_stack (void)
 {
   struct read_stack *rs = &rdstack;
   eassert (rs->sp == rs->size);
-  rs->stack = xpalloc (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
-  eassert (rs->sp < rs->size);
 #ifdef HAVE_MPS
-  rs->igc_info
-    = igc_on_grow_rdstack (rs->igc_info, rs->stack,
-			   (char *) rs->stack + rs->size * sizeof *rs->stack);
+  rs->stack = igc_xpalloc (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
+#else
+  rs->stack = xpalloc (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
 #endif
+  eassert (rs->sp < rs->size);
 }
 
 static inline void
