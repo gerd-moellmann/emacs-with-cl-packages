@@ -42,6 +42,7 @@ void syms_of_igc (void);
 void *igc_thread_add (const void *cold);
 void igc_thread_remove (void *info);
 void igc_on_idle (void);
+void igc_on_pdump_loaded (void);
 void igc_on_face_cache_change (void *face_cache);
 void *igc_on_grow_rdstack (void *info, void *start, void *end);
 

@@ -5816,6 +5816,10 @@ pdumper_load (const char *dump_filename, char *argv0)
   dump_private.load_time = timespectod (load_timespec);
   dump_private.dump_filename = dump_filename_copy;
 
+# ifdef HAVE_MPS
+  igc_on_pdump_loaded ();
+# endif
+
  out:
   for (int i = 0; i < ARRAYELTS (sections); ++i)
     dump_mmap_release (&sections[i]);
