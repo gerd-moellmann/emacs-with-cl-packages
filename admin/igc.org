@@ -1,0 +1,133 @@
+#+title: MPS garbage collection for Emacs
+
+* What is MPS?
+
+The MPS is a GC library developed by Ravenbrook Limited. It is available
+from [[https://github.com/Ravenbrook/mps?tab=readme-ov-file][Github]] under a BSD2 license. See the [[https://memory-pool-system.readthedocs.io/en/latest/][documentation]].
+
+In short, MPS implements incremental, generational, concurrent, copying,
+thread-safe garbage collection on a variety of platforms. It has
+been around for a long time, is stable, and it is well documented.
+
+* What is this branch?
+
+It is a feasibility study if Emacs can use an MPS based GC.
+
+The study is based on my local Emacs, which is different from mainstream
+Emacs. Among other things, it uses CL packages, doesn't have obarrays,
+doesn't support pure space, and all I have is macOS, so please don't
+expect it to run or compile on other systems.
+
+* Things worth mentioning
+
+** Every object has a 1 word header
+
+At the moment, every object has a one-word header, which is not visible
+to the rest of Emacs. See the ~struct igc_header~.
+
+This means in particular that conses are 50% larger than they would
+normally be. I did this initially done to simplify things:
+
+- All objects can be handled by one set of MPS callback functions.
+
+- It simplifies the implementation of eq-hashtables considerably by
+  storing an address-independent hash in the header.
+
+The header can be removed from conses (and other objects, if that's
+worth it) by writing additional code using additional MPS pools with
+their own object formats.
+
+Note that doing this this also means that one has to use MPS's location
+dependency feature for implementing eq hash-tables.
+
+Also be aware that two calls to ~sxhash-eq~ can then return different
+hashes when a concurrent GC happens between calls, unless something is
+done to ensure that the hashed objects aren't moved by the GC for long
+enough.
+
+** Weak hash-tables
+
+I didn't think that weak hash-tables were important enough to see if MPS
+can be used with Emacs, so I didn't implement them.
+
+They can be implemented using the already present AWL pool and its
+allocation points, and then using MPS's dependent objects in the hash
+table implementation.
+
+To prepare for that, keys and values of a hash-table are already split
+into two vectors. Two vectors are necessary because objects in an AWL
+pool must either contain weak references only, or strong references
+only. The currently malloc'd vectors would have to be replaced with
+special vectors allocated from the AWL pool.
+
+** Handling of a loaded pdump
+
+The hot part of a loaded pdump (ca. 18 MB) is currently used as an
+ambiguous root for MPS. This is kind of unfortunate because objects in
+the loaded dump are a lot like an old GC generation. A number of things
+could be inverstigated
+
+- Use a root with barrier (~MPS_RM_PROT~)
+
+- Copy objects from the dump to an MPS pool that uses ~MPS_KEY_GEN~ to
+  allocate objects in an old generation.
+
+  It is unclear to me from the docs if the AMC pool supports that, but
+  one could use an AMS pool.
+
+  After loading a dump we would visit all static roots and copy the
+  whole object graph to MPS.  After that, the dump itself would no
+  longer be used. Costs some load time, though.
+
+There is also a slight problem currently. The loaded dump is scanned
+conservativly, but if such objects contain malloc'd data structures
+holding references, these are invisble to MPS.
+
+Hash-tables in their present implementation are an example I know
+of. This require special handling to make sure MPS sees the
+references (see ~igc_alloc_lisp_objs~).
+
+** Finalization
+
+Is implemented.
+
+** Things old GC does except GC
+
+The function ~garbage_collect~ does some things that are not directly
+related to GC, simply because it is called every once in a while.
+
+- compact buffers, undo-list.
+
+This is currently not done, but could be done in another way, from a
+timer, for instance.
+
+** Not Considered
+
+Some things are not implemented because they were out of scope. For
+example,
+
+- ~memory-report~ Could be done with MPS's pool walk functionality.
+- profiler (~profiler-memory-start~...) No idea, haven't looked at it.
+
+** Knobs not tried
+
+Number of generations, size of generations, probability of objects in a
+generation to die, and maybe others. I haven't tried to do anything with
+that. There are currently two generations.
+
+** Implementation, general
+
+I think it's not too terrible, but some things should be improved
+
+- Error handling. It currently aborts in many circumstances, but
+  it is also not clear what else to do.
+
+- Idle time use. It does something in this regard, but not much,
+  and not always with a time constraint (handling MPS messages).
+
+** Debugger
+
+MPS uses memory barriers. In certain situations it is necessary to
+remove these to be able to do certain things (=xbacktrace= is an
+example). I've added a command =xpostmortem= to the LLDB support for
+that. GDB will need something similar.
