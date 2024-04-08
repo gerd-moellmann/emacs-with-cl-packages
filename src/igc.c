@@ -759,6 +759,18 @@ scan_dump (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
+static mps_res_t
+scan_exact (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    for (Lisp_Object *p = start; (void *) p < end; ++p)
+      IGC_FIX12_OBJ (ss, p);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 /***********************************************************************
 			 Default pad, fwd, ...
  ***********************************************************************/
@@ -1355,6 +1367,16 @@ create_ambig_root (struct igc *gc, void *start, void *end)
   return register_root (gc, root, start, end);
 }
 
+static igc_root_list *
+create_exact_root (struct igc *gc, void *start, void *end)
+{
+  mps_root_t root;
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
+					start, end, scan_exact, 0);
+  IGC_CHECK_RES (res);
+  return register_root (gc, root, start, end);
+}
+
 static mps_rm_t
 root_mode_inner (void)
 {
@@ -1521,6 +1543,15 @@ find_root (void *start)
     if (r->d.start == start)
       return r;
   return NULL;
+}
+
+Lisp_Object *
+igc_alloc_lisp_objs (size_t n)
+{
+  size_t size = n * sizeof (Lisp_Object);
+  void *p = xzalloc (size);
+  create_exact_root (global_igc, p, (char *) +size);
+  return p;
 }
 
 void *
