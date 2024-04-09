@@ -647,16 +647,18 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 {
+  /* I understand the MPS docs as saying that root scanning functions have
+     exclusice access to what is being scanned, like format scanning
+     functions. That means I can use specpdl_ptr here.  */
+  union specbinding **ptr = closure;
+  end = *ptr;
+
   MPS_SCAN_BEGIN (ss)
   {
     for (union specbinding *pdl = start; (void *) pdl < end; ++pdl)
       {
 	switch (pdl->kind)
 	  {
-	  case SPECPDL_FREE:
-	    pdl = end;
-	    break;
-
 	  case SPECPDL_UNWIND:
 	    IGC_FIX12_OBJ (ss, &pdl->unwind.arg);
 	    break;
@@ -672,14 +674,10 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 	    IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.window);
 	    break;
 
+	    /* The bt.args member either points to something on a
+	       thread's control stack, or to something in the bytecode
+	       stack. Both should already be ambiguous roots.  */
 	  case SPECPDL_BACKTRACE:
-	    {
-	      ptrdiff_t nargs = pdl->bt.nargs;
-	      IGC_FIX12_OBJ (ss, &pdl->bt.function);
-	      if (nargs == UNEVALLED)
-		nargs = 1;
-	      IGC_FIX12_NOBJS (ss, pdl->bt.args, nargs);
-	    }
 	    break;
 
 # ifdef HAVE_MODULES
@@ -1519,10 +1517,12 @@ create_specpdl_root (struct igc_thread_list *t)
     return;
 
   struct igc *gc = t->d.gc;
-  void *start = specpdl, *end = specpdl_end;
+  void *start = current_thread->m_specpdl;
+  void *end = current_thread->m_specpdl_end;
   mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
-					start, end, scan_specpdl, NULL);
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0, start, end,
+			    scan_specpdl, &current_thread->m_specpdl_ptr);
   IGC_CHECK_RES (res);
   t->d.specpdl_root = register_root (gc, root, start, end);
 }
@@ -1530,7 +1530,6 @@ create_specpdl_root (struct igc_thread_list *t)
 void
 igc_on_specbinding_unused (union specbinding *b)
 {
-  b->kind = SPECPDL_FREE;
 }
 
 void

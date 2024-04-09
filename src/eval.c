@@ -218,7 +218,11 @@ static void
 init_eval_once_for_pdumper (void)
 {
   enum { size = 50 };
+#ifdef HAVE_MPS
+  union specbinding *pdlvec = xzalloc ((size + 1) * sizeof *specpdl);
+#else
   union specbinding *pdlvec = malloc ((size + 1) * sizeof *specpdl);
+#endif
   specpdl = specpdl_ptr = pdlvec + 1;
   specpdl_end = specpdl + size;
 #ifdef HAVE_MPS
@@ -3675,8 +3679,6 @@ do_one_unbind (union specbinding *this_binding, bool unwinding,
   eassert (unwinding || this_binding->kind >= SPECPDL_LET);
   switch (this_binding->kind)
     {
-    case SPECPDL_FREE:
-      emacs_abort ();
     case SPECPDL_UNWIND:
       lisp_eval_depth = this_binding->unwind.eval_depth;
       this_binding->unwind.func (this_binding->unwind.arg);
