@@ -260,7 +260,7 @@
 (cl-defstruct (cl--class
                (:constructor nil)
                (:copier nil))
-  "Type of descriptors for any kind of structure-like data."
+  "Abstract supertype of all type descriptors."
   ;; Intended to be shared between defstruct and defclass.
   (name nil :type symbol)               ;The type name.
   (docstring nil :type string)
@@ -303,9 +303,12 @@
 
 (cl-defstruct (built-in-class
                (:include cl--class)
+               (:noinline t)
                (:constructor nil)
                (:constructor built-in-class--make (name docstring parents))
                (:copier nil))
+  "Type descriptors for built-in types.
+The `slots' (and hence `index-table') are currently unused."
   )
 
 (defmacro cl--define-built-in-type (name parents &optional docstring &rest slots)
@@ -328,7 +331,9 @@
           (:predicate (setq predicate val))
           (_ (error "Unknown keyword arg: %S" kw)))))
     `(progn
-       ,(if predicate `(put ',name 'cl-deftype-satisfies #',predicate))
+       ,(if predicate `(put ',name 'cl-deftype-satisfies #',predicate)
+          ;; (message "Missing predicate for: %S" name)
+          nil)
        (put ',name 'cl--class
             (built-in-class--make ',name ,docstring
                                   (mapcar (lambda (type)
@@ -339,13 +344,19 @@
                                           ',parents))))))
 
 ;; FIXME: Our type DAG has various quirks:
-;; - `subr' says it's a `compiled-function' but that's not true
-;;   for those subrs that are special forms!
 ;; - Some `keyword's are also `symbol-with-pos' but that's not reflected
 ;;   in the DAG.
 ;; - An OClosure can be an interpreted function or a `byte-code-function',
 ;;   so the DAG of OClosure types is "orthogonal" to the distinction
 ;;   between interpreted and compiled functions.
+
+(defun cl-functionp (object)
+  "Return non-nil if OBJECT is a member of type `function'.
+This is like `functionp' except that it returns nil for all lists and symbols,
+regardless if `funcall' would accept to call them."
+  (memq (cl-type-of object)
+        '(primitive-function subr-native-elisp module-function
+          interpreted-function byte-code-function)))
 
 (cl--define-built-in-type t nil "Abstract supertype of everything.")
 (cl--define-built-in-type atom t "Abstract supertype of anything but cons cells."
@@ -354,7 +365,10 @@
 (cl--define-built-in-type tree-sitter-compiled-query atom)
 (cl--define-built-in-type tree-sitter-node atom)
 (cl--define-built-in-type tree-sitter-parser atom)
-(cl--define-built-in-type user-ptr atom)
+(when (fboundp 'user-ptrp)
+  (cl--define-built-in-type user-ptr atom nil
+                            ;; FIXME: Shouldn't it be called `user-ptr-p'?
+                            :predicate user-ptrp))
 (cl--define-built-in-type font-object atom)
 (cl--define-built-in-type font-entity atom)
 (cl--define-built-in-type font-spec atom)
@@ -367,6 +381,7 @@
 (cl--define-built-in-type buffer atom)
 (cl--define-built-in-type window atom)
 (cl--define-built-in-type process atom)
+(cl--define-built-in-type finalizer atom)
 (cl--define-built-in-type window-configuration atom)
 (cl--define-built-in-type overlay atom)
 (cl--define-built-in-type number-or-marker atom
@@ -402,8 +417,6 @@
 The size depends on the Emacs version and compilation options.
 For this build of Emacs it's %dbit."
           (1+ (logb (1+ most-positive-fixnum)))))
-(cl--define-built-in-type keyword (symbol)
-  "Type of those symbols whose first char is `:'.")
 (cl--define-built-in-type boolean (symbol)
   "Type of the canonical boolean values, i.e. either nil or t.")
 (cl--define-built-in-type symbol-with-pos (symbol)
@@ -423,20 +436,27 @@ For this build of Emacs it's %dbit."
   ;; Example of slots we could document.
   (car car) (cdr cdr))
 (cl--define-built-in-type function (atom)
-  "Abstract supertype of function values.")
+  "Abstract supertype of function values."
+  ;; FIXME: Historically, (cl-typep FOO 'function) called `functionp',
+  ;; so while `cl-functionp' would be the more correct predicate, it
+  ;; would breaks existing code :-(
+  ;; :predicate cl-functionp
+  )
 (cl--define-built-in-type compiled-function (function)
   "Abstract type of functions that have been compiled.")
 (cl--define-built-in-type byte-code-function (compiled-function)
   "Type of functions that have been byte-compiled.")
-(cl--define-built-in-type subr (compiled-function)
+(cl--define-built-in-type subr (atom)
   "Abstract type of functions compiled to machine code.")
 (cl--define-built-in-type module-function (function)
   "Type of functions provided via the module API.")
 (cl--define-built-in-type interpreted-function (function)
   "Type of functions that have not been compiled.")
-(cl--define-built-in-type subr-native-elisp (subr)
-  "Type of function that have been compiled by the native compiler.")
-(cl--define-built-in-type subr-primitive (subr)
+(cl--define-built-in-type special-form (subr)
+  "Type of the core syntactic elements of the Emacs Lisp language.")
+(cl--define-built-in-type subr-native-elisp (subr compiled-function)
+  "Type of functions that have been compiled by the native compiler.")
+(cl--define-built-in-type primitive-function (subr compiled-function)
   "Type of functions hand written in C.")
 
 (unless (cl--class-parents (cl--find-class 'cl-structure-object))

@@ -171,7 +171,6 @@ AS_IF([test "$XCONFIGURE" = "android"],[
   # Make sure to pass through the CFLAGS, as older versions of the
   # NDK require them to be able to find system includes.
   with_ndk_path="$android_ndk_path"
-  with_ndk_cxx_shared="$android_ndk_cxx_shared"
   with_ndk_cxx="$android_ndk_cxx"
   ndk_INIT([$android_abi], [$ANDROID_SDK], [cross/ndk-build],
            [$ANDROID_CFLAGS])
@@ -549,7 +548,6 @@ OPTION_DEFAULT_OFF([cairo-xcb], [use XCB surfaces for Cairo support])
 OPTION_DEFAULT_ON([xml2],[don't compile with XML parsing support])
 OPTION_DEFAULT_OFF([imagemagick],[compile with ImageMagick image support])
 OPTION_DEFAULT_ON([native-image-api], [don't use native image APIs (GDI+ on Windows)])
-OPTION_DEFAULT_IFAVAILABLE([json], [compile with native JSON support])
 OPTION_DEFAULT_IFAVAILABLE([tree-sitter], [compile with tree-sitter])
 
 OPTION_DEFAULT_ON([xft],[don't use XFT for anti aliased fonts])
@@ -1217,7 +1215,6 @@ package will likely install on older systems but crash on startup.])
   passthrough="$passthrough --with-png=$with_png"
   passthrough="$passthrough --with-webp=$with_webp"
   passthrough="$passthrough --with-gif=$with_gif"
-  passthrough="$passthrough --with-json=$with_json"
   passthrough="$passthrough --with-jpeg=$with_jpeg"
   passthrough="$passthrough --with-xml2=$with_xml2"
   passthrough="$passthrough --with-sqlite3=$with_sqlite3"
@@ -1233,7 +1230,7 @@ package will likely install on older systems but crash on startup.])
   passthrough="$passthrough --with-harfbuzz=$with_harfbuzz"
   passthrough="$passthrough --with-threads=$with_threads"
 
-  # Now pass through some checking options.
+  # Now pass through some checking-related options.
   emacs_val="--enable-check-lisp-object-type=$enable_check_lisp_object_type"
   passthrough="$passthrough $emacs_val"
 
@@ -1243,7 +1240,6 @@ package will likely install on older systems but crash on startup.])
   AS_IF([XCONFIGURE=android ANDROID_CC="$ANDROID_CC"		\
          ANDROID_SDK="$android_sdk" android_abi=$android_abi	\
 	 android_ndk_path="$with_ndk_path"		     	\
-	 android_ndk_cxx_shared="$with_ndk_cxx_shared"	     	\
 	 android_ndk_cxx="$android_ndk_cxx"			\
 	 $CONFIG_SHELL $0 $passthrough], [],
     [AC_MSG_ERROR([Failed to cross-configure Emacs for android.])])
@@ -1307,7 +1303,6 @@ if test "$ANDROID" = "yes"; then
     with_png=no
     with_webp=no
     with_gif=no
-    with_json=no
     with_jpeg=no
     with_xml2=no
     with_sqlite3=no
@@ -1570,7 +1565,13 @@ AC_DEFUN_ONCE([gl_STDLIB_H],
 # Initialize gnulib right after choosing the compiler.
 dnl Amongst other things, this sets AR and ARFLAGS.
 gl_EARLY
-ndk_LATE
+
+# ndk_LATE must be enclosed in this conditional to prevent the
+# AC_PROG_CXX it indirectly requires from being expanded at top level.
+if test "$ndk_INITIALIZED" = "yes"; then
+  ndk_LATE_EARLY
+  ndk_LATE
+fi
 
 if test "$ac_test_CFLAGS" != set; then
   # It's helpful to have C macros available to GDB, so prefer -g3 to -g
@@ -4001,27 +4002,6 @@ fi
 AC_SUBST([LIBSYSTEMD_LIBS])
 AC_SUBST([LIBSYSTEMD_CFLAGS])
 
-HAVE_JSON=no
-JSON_OBJ=
-
-if test "${with_json}" != no; then
-  EMACS_CHECK_MODULES([JSON], [jansson >= 2.7],
-    [HAVE_JSON=yes], [HAVE_JSON=no])
-  if test "${HAVE_JSON}" = yes; then
-    AC_DEFINE([HAVE_JSON], [1], [Define if using Jansson.])
-    JSON_OBJ=json.o
-  fi
-
-  # Windows loads libjansson dynamically
-  if test "${opsys}" = "mingw32"; then
-    JSON_LIBS=
-  fi
-fi
-
-AC_SUBST([JSON_LIBS])
-AC_SUBST([JSON_CFLAGS])
-AC_SUBST([JSON_OBJ])
-
 HAVE_TREE_SITTER=no
 TREE_SITTER_OBJ=
 NEED_DYNLIB=no
@@ -5465,11 +5445,6 @@ case $with_gnutls,$HAVE_GNUTLS in
   no,* | ifavailable,* | *,yes) ;;
   *) MISSING="$MISSING gnutls"
      WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-gnutls=ifavailable";;
-esac
-case $with_json,$HAVE_JSON in
-  no,* | ifavailable,* | *,yes) ;;
-  *) MISSING="$MISSING json"
-     WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-json=ifavailable";;
 esac
 case $with_tree_sitter,$HAVE_TREE_SITTER in
   no,* | ifavailable,* | *,yes) ;;
@@ -7651,7 +7626,7 @@ Configured for '${canonical}'.
 optsep=
 emacs_config_features=
 for opt in ACL BE_APP CAIRO DBUS FREETYPE GCONF GIF GLIB GMP GNUTLS GPM GSETTINGS \
- HARFBUZZ IMAGEMAGICK JPEG JSON LCMS2 LIBOTF LIBSELINUX LIBSYSTEMD LIBXML2 \
+ HARFBUZZ IMAGEMAGICK JPEG LCMS2 LIBOTF LIBSELINUX LIBSYSTEMD LIBXML2 \
  M17N_FLT MODULES NATIVE_COMP NOTIFY NS OLDXMENU PDUMPER PGTK PNG RSVG SECCOMP \
  SOUND SQLITE3 THREADS TIFF TOOLKIT_SCROLL_BARS TREE_SITTER \
  UNEXEC WEBP X11 XAW3D XDBE XFT XIM XINPUT2 XPM XWIDGETS X_TOOLKIT \
@@ -7727,7 +7702,6 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs use -lotf?                                   ${HAVE_LIBOTF}
   Does Emacs use -lxft?                                   ${HAVE_XFT}
   Does Emacs use -lsystemd?                               ${HAVE_LIBSYSTEMD}
-  Does Emacs use -ljansson?                               ${HAVE_JSON}
   Does Emacs use -ltree-sitter?                           ${HAVE_TREE_SITTER}
   Does Emacs use the GMP library?                         ${HAVE_GMP}
   Does Emacs directly use zlib?                           ${HAVE_ZLIB}

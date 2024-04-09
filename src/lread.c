@@ -1951,9 +1951,9 @@ maybe_swap_for_eln (bool no_native, Lisp_Object *filename, int *fd,
 		= Fcons (list2
 			 (Qcomp,
 			  CALLN (Fformat,
-				 build_string ("Cannot look up eln "
-					       "file as no source file "
-					       "was found for %s"),
+				 build_string ("Cannot look up .eln file "
+					       "for %s because no source "
+					       "file was found for it"),
 				 *filename)),
 			 Vdelayed_warnings_list);
 	      return;
@@ -5028,6 +5028,18 @@ Lisp_Object
 intern_1 (const char *str, ptrdiff_t len)
 {
   return intern_c_string_1 (str, len, false);
+}
+
+/* Intern STR of NBYTES bytes and NCHARS characters in the default obarray.  */
+Lisp_Object
+intern_c_multibyte (const char *str, ptrdiff_t nchars, ptrdiff_t nbytes)
+{
+  Lisp_Object obarray = check_obarray (Vobarray);
+  Lisp_Object sym = oblookup (obarray, str, nchars, nbytes);
+  if (BARE_SYMBOL_P (sym))
+    return sym;
+  return intern_driver (make_multibyte_string (str, nchars, nbytes),
+			obarray, sym);
 }
 
 static void

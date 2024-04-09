@@ -36,6 +36,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 
 #include <attribute.h>
+#include <byteswap.h>
 #include <count-leading-zeros.h>
 #include <intprops.h>
 #include <verify.h>
@@ -569,10 +570,8 @@ enum Lisp_Fwd_Type
    your object -- this way, the same object could be used to represent
    several disparate C structures.
 
-   In addition, you need to add switch branches in data.c for Ftype_of.
-
-   You also need to add the new type to the constant
-   `cl--typeof-types' in lisp/emacs-lisp/cl-preloaded.el.  */
+   In addition, you need to add switch branches in data.c for Fcl_type_of
+   and `cl--define-builtin-type` in lisp/emacs-lisp/cl-preloaded.el.  */
 
 
 /* A Lisp_Object is a tagged pointer or integer.  Ordinarily it is a
@@ -1885,6 +1884,30 @@ bool_vector_bytes (EMACS_INT size)
 {
   eassume (0 <= size && size <= EMACS_INT_MAX - (BITS_PER_BITS_WORD - 1));
   return (size + BOOL_VECTOR_BITS_PER_CHAR - 1) / BOOL_VECTOR_BITS_PER_CHAR;
+}
+
+INLINE bits_word
+bits_word_to_host_endian (bits_word val)
+{
+#ifndef WORDS_BIGENDIAN
+  return val;
+#else
+  if (BITS_WORD_MAX >> 31 == 1)
+    return bswap_32 (val);
+  if (BITS_WORD_MAX >> 31 >> 31 >> 1 == 1)
+    return bswap_64 (val);
+  {
+    int i;
+    bits_word r = 0;
+    for (i = 0; i < sizeof val; i++)
+      {
+	r = ((r << 1 << (CHAR_BIT - 1))
+	     | (val & ((1u << 1 << (CHAR_BIT - 1)) - 1)));
+	val = val >> 1 >> (CHAR_BIT - 1);
+      }
+    return r;
+  }
+#endif
 }
 
 INLINE bool
@@ -4282,7 +4305,8 @@ extern void syms_of_fns (void);
 extern void mark_fns (void);
 
 /* Defined in sort.c  */
-extern void tim_sort (Lisp_Object, Lisp_Object *, const ptrdiff_t);
+extern void tim_sort (Lisp_Object, Lisp_Object, Lisp_Object *, const ptrdiff_t,
+		      bool);
 
 /* Defined in floatfns.c.  */
 verify (FLT_RADIX == 2 || FLT_RADIX == 16);
@@ -4306,11 +4330,8 @@ extern void init_fringe_once (void);
 extern int x_bitmap_mask (struct frame *, ptrdiff_t);
 extern void syms_of_image (void);
 
-#ifdef HAVE_JSON
 /* Defined in json.c.  */
-extern void init_json (void);
 extern void syms_of_json (void);
-#endif
 
 /* Defined in insdel.c.  */
 extern void move_gap_both (ptrdiff_t, ptrdiff_t);

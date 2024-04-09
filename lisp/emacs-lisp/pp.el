@@ -166,12 +166,19 @@ it inserts and pretty-prints that arg at point."
   (interactive "r")
   (if (null end) (pp--object beg #'pp-fill)
     (goto-char beg)
-    (let ((end (copy-marker end t))
-          (newline (lambda ()
-                     (skip-chars-forward ")]}")
-                     (unless (save-excursion (skip-chars-forward " \t") (eolp))
-                       (insert "\n")
-                       (indent-according-to-mode)))))
+    (let* ((end (copy-marker end t))
+           (avoid-unbreakable
+            (lambda ()
+              (and (memq (char-before) '(?# ?s ?f))
+                   (memq (char-after) '(?\[ ?\())
+                   (looking-back "#[sf]?" (- (point) 2))
+                   (goto-char (match-beginning 0)))))
+           (newline (lambda ()
+                      (skip-chars-forward ")]}")
+                      (unless (save-excursion (skip-chars-forward " \t") (eolp))
+                        (funcall avoid-unbreakable)
+                        (insert "\n")
+                        (indent-according-to-mode)))))
       (while (progn (forward-comment (point-max))
                     (< (point) end))
         (let ((beg (point))
@@ -193,11 +200,18 @@ it inserts and pretty-prints that arg at point."
                    (and
                     (save-excursion
                       (goto-char beg)
-                      (if (save-excursion (skip-chars-backward " \t({[',")
-                                          (bolp))
-                          ;; The sexp was already on its own line.
-                          nil
-                        (skip-chars-backward " \t")
+                      ;; We skip backward over open parens because cutting
+                      ;; the line right after an open paren does not help
+                      ;; reduce the indentation depth.
+                      ;; Similarly, we prefer to cut before a "." than after
+                      ;; it because it reduces the indentation depth.
+                      (while
+                          (progn
+                            (funcall avoid-unbreakable)
+                            (not (zerop (skip-chars-backward " \t({[',.")))))
+                      (if (bolp)
+                          ;; The sexp already starts on its own line.
+                          (progn (goto-char beg) nil)
                         (setq beg (copy-marker beg t))
                         (if paired (setq paired (copy-marker paired t)))
                         ;; We could try to undo this insertion if it
@@ -345,6 +359,23 @@ after OUT-BUFFER-NAME."
 	(emacs-lisp-mode)
 	(setq buffer-read-only nil)
         (setq-local font-lock-verbose nil)))))
+
+(defun pp-insert-short-sexp (sexp &optional width)
+  "Insert a short description of SEXP in the current buffer.
+WIDTH is the maximum width to use for it and it defaults to the
+space available between point and the window margin."
+  (let ((printed (format "%S" sexp)))
+    (if (and (not (string-search "\n" printed))
+	     (<= (string-width printed)
+	         (or width (- (window-width) (current-column)))))
+	(insert printed)
+      (insert-text-button
+       "[Show]"
+       'follow-link t
+       'action (lambda (&rest _ignore)
+                 ;; FIXME: Why "eval output"?
+                 (pp-display-expression sexp "*Pp Eval Output*"))
+       'help-echo "mouse-2, RET: pretty print value in another buffer"))))
 
 ;;;###autoload
 (defun pp-eval-expression (expression)

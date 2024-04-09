@@ -104,10 +104,11 @@ For easier selection of tabs by their numbers, consider customizing
               (const alt))
   :initialize #'custom-initialize-default
   :set (lambda (sym val)
+         (when tab-bar-mode
+           (tab-bar--undefine-keys))
          (set-default sym val)
          ;; Reenable the tab-bar with new keybindings
          (when tab-bar-mode
-           (tab-bar--undefine-keys)
            (tab-bar--define-keys)))
   :group 'tab-bar
   :version "27.1")
@@ -115,21 +116,17 @@ For easier selection of tabs by their numbers, consider customizing
 (defun tab-bar--define-keys ()
   "Install key bindings to switch between tabs if so configured."
   (when tab-bar-select-tab-modifiers
-    (global-set-key (vector (append tab-bar-select-tab-modifiers (list ?0)))
-                    #'tab-recent)
+    (define-key tab-bar-mode-map
+                (vector (append tab-bar-select-tab-modifiers (list ?0)))
+                #'tab-recent)
     (dotimes (i 8)
-      (global-set-key (vector (append tab-bar-select-tab-modifiers
-                                      (list (+ i 1 ?0))))
-                      #'tab-bar-select-tab))
-    (global-set-key (vector (append tab-bar-select-tab-modifiers (list ?9)))
-                    #'tab-last))
-  ;; Don't override user customized key bindings
-  (unless (global-key-binding [(control tab)])
-    (global-set-key [(control tab)] #'tab-next))
-  (unless (global-key-binding [(control shift tab)])
-    (global-set-key [(control shift tab)] #'tab-previous))
-  (unless (global-key-binding [(control shift iso-lefttab)])
-    (global-set-key [(control shift iso-lefttab)] #'tab-previous))
+      (define-key tab-bar-mode-map
+                  (vector (append tab-bar-select-tab-modifiers
+                                  (list (+ i 1 ?0))))
+                  #'tab-bar-select-tab))
+    (define-key tab-bar-mode-map
+                (vector (append tab-bar-select-tab-modifiers (list ?9)))
+                #'tab-last))
 
   ;; Replace default value with a condition that supports displaying
   ;; global-mode-string in the tab bar instead of the mode line.
@@ -144,12 +141,18 @@ For easier selection of tabs by their numbers, consider customizing
 
 (defun tab-bar--undefine-keys ()
   "Uninstall key bindings previously bound by `tab-bar--define-keys'."
-  (when (eq (global-key-binding [(control tab)]) 'tab-next)
-    (global-unset-key [(control tab)]))
-  (when (eq (global-key-binding [(control shift tab)]) 'tab-previous)
-    (global-unset-key [(control shift tab)]))
-  (when (eq (global-key-binding [(control shift iso-lefttab)]) 'tab-previous)
-    (global-unset-key [(control shift iso-lefttab)])))
+  (when tab-bar-select-tab-modifiers
+    (define-key tab-bar-mode-map
+                (vector (append tab-bar-select-tab-modifiers (list ?0)))
+                nil t)
+    (dotimes (i 8)
+      (define-key tab-bar-mode-map
+                  (vector (append tab-bar-select-tab-modifiers
+                                  (list (+ i 1 ?0))))
+                  nil t))
+    (define-key tab-bar-mode-map
+                (vector (append tab-bar-select-tab-modifiers (list ?9)))
+                nil t)))
 
 (defun tab-bar--load-buttons ()
   "Load the icons for the tab buttons."
@@ -238,6 +241,20 @@ a list of frames to update."
           (cons (cons 'tab-bar-lines
                       (if (and tab-bar-mode (eq tab-bar-show t)) 1 0))
                 (assq-delete-all 'tab-bar-lines default-frame-alist)))))
+
+(defun tab-bar-mode--tab-key-bind (map key binding)
+  ;; Don't override user customized global key bindings
+  (define-key map key
+    `(menu-item "" ,binding
+      :filter ,(lambda (cmd) (unless (global-key-binding key) cmd)))))
+
+(defvar tab-bar-mode-map
+  (let ((map (make-sparse-keymap)))
+    (tab-bar-mode--tab-key-bind map [(control tab)] #'tab-next)
+    (tab-bar-mode--tab-key-bind map [(control shift tab)] #'tab-previous)
+    (tab-bar-mode--tab-key-bind map [(control shift iso-lefttab)] #'tab-previous)
+    map)
+  "Tab Bar mode map.")
 
 (define-minor-mode tab-bar-mode
   "Toggle the tab bar in all graphical frames (Tab Bar mode)."
@@ -1292,6 +1309,9 @@ tab bar might wrap to the second line when it shouldn't.")
                                            frame 'buffer-list)))
          (bbl (seq-filter #'buffer-live-p (frame-parameter
                                            frame 'buried-buffer-list))))
+    (when tab-bar-select-restore-context
+      (window-point-context-set))
+
     `(tab
       (name . ,(if tab-explicit-name
                    (alist-get 'name tab)
@@ -1393,6 +1413,65 @@ and the newly selected tab."
   :group 'tab-bar
   :version "30.1")
 
+(defcustom tab-bar-select-restore-windows #'tab-bar-select-restore-windows
+  "Function called when selecting a tab to handle windows whose buffer was killed.
+When a tab-bar tab displays a window whose buffer was killed since
+this tab was last selected, this function determines what to do with
+that window.  By default, either a random buffer is displayed instead of
+the killed buffer, or the window gets deleted.  However, with the help
+of `window-restore-killed-buffer-windows' it's possible to handle such
+situations better by displaying an information about the killed buffer."
+  :type '(choice (const :tag "No special handling" nil)
+                 (const :tag "Show placeholder buffers"
+                        tab-bar-select-restore-windows)
+                 (function :tag "Function"))
+  :group 'tab-bar
+  :version "30.1")
+
+(defun tab-bar-select-restore-windows (_frame windows _type)
+  "Display a placeholder buffer in the window whose buffer was killed.
+A button in the window allows to restore the killed buffer,
+if it was visiting a file."
+  (dolist (quad windows)
+    (when (window-live-p (nth 0 quad))
+      (let* ((window (nth 0 quad))
+             (old-buffer (nth 1 quad))
+             (file (when (bufferp old-buffer)
+                     (buffer-file-name old-buffer)))
+             (name (or file
+                       (and (bufferp old-buffer)
+                            (fboundp 'buffer-last-name)
+                            (buffer-last-name old-buffer))
+                       old-buffer))
+             (new-buffer (generate-new-buffer
+                          (format "*Old buffer %s*" name))))
+        (with-current-buffer new-buffer
+          (set-auto-mode)
+          (insert (format-message "This window displayed the %s `%s'.\n"
+                                  (if file "file" "buffer")
+                                  name))
+          (when file
+            (insert-button
+             "[Restore]" 'action
+             (lambda (_button)
+               (set-window-buffer window (find-file-noselect file))
+               (set-window-start window (nth 2 quad) t)
+               (set-window-point window (nth 3 quad))))
+            (insert "\n"))
+          (goto-char (point-min))
+          (setq buffer-read-only t)
+          (set-window-buffer window new-buffer))))))
+
+(defcustom tab-bar-select-restore-context t
+  "If this is non-nil, try to restore window points from their contexts.
+This will try to find the same position in every window where point was
+before switching away from this tab.  After selecting this tab,
+point in every window will be moved to its previous position
+in the buffer even when the buffer was modified."
+  :type 'boolean
+  :group 'tab-bar
+  :version "30.1")
+
 (defvar tab-bar-minibuffer-restore-tab nil
   "Tab number for `tab-bar-minibuffer-restore-tab'.")
 
@@ -1438,7 +1517,10 @@ Negative TAB-NUMBER counts tabs from the end of the tab bar."
       (let* ((from-tab (tab-bar--tab))
              (to-tab (nth to-index tabs))
              (wc (alist-get 'wc to-tab))
-             (ws (alist-get 'ws to-tab)))
+             (ws (alist-get 'ws to-tab))
+             (window-restore-killed-buffer-windows
+              (or tab-bar-select-restore-windows
+                  window-restore-killed-buffer-windows)))
 
         ;; During the same session, use window-configuration to switch
         ;; tabs, because window-configurations are more reliable
@@ -1486,6 +1568,9 @@ Negative TAB-NUMBER counts tabs from the end of the tab bar."
           (when (window-minibuffer-p)
             (select-window (get-mru-window)))
           (window-state-put ws nil 'safe)))
+
+        (when tab-bar-select-restore-context
+          (window-point-context-use))
 
         ;; Select the minibuffer when it was active before switching tabs
         (when (and minibuffer-was-active (active-minibuffer-window))
