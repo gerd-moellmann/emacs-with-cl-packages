@@ -2,21 +2,33 @@
 
 * What is MPS?
 
-The MPS is a GC library developed by Ravenbrook Limited. It is available
-from [[https://github.com/Ravenbrook/mps?tab=readme-ov-file][Github]] under a BSD2 license. See the [[https://memory-pool-system.readthedocs.io/en/latest/][documentation]].
+The MPS (Memory Pool System) is a GC library developed by Ravenbrook
+Limited. It is available from [[https://github.com/Ravenbrook/mps?tab=readme-ov-file][Github]] under a BSD2 license. See the
+[[https://memory-pool-system.readthedocs.io/en/latest/][documentation]].
 
 In short, MPS implements incremental, generational, concurrent, copying,
 thread-safe garbage collection on a variety of platforms. It has
-been around for a long time, is stable, and it is well documented.
+been around for a long time, is stable, and well documented.
 
 * What is this branch?
 
-It is a feasibility study if Emacs can use an MPS based GC.
+It is my personal study if Emacs can be made to use a GC based on
+MPS. I'm not the Emacs maintainer, and I haven't communicated with the
+current maintainers about the plan of using MPS.
 
-The study is based on my local Emacs, which is different from mainstream
-Emacs. Among other things, it uses CL packages, doesn't have obarrays,
-doesn't support pure space, and all I have is macOS, so please don't
-expect it to run or compile on other systems.
+* Caveats
+
+Everything is based on my local Emacs, which is different from
+mainstream Emacs. Among other things, it uses CL packages, doesn't have
+obarrays, doesn't support pure space, does not support short-hands and
+probably some other stuff.
+
+In addition, I'm using macOS only, so it's unlikely to compile or run on
+other systems, although it is probably not hard to port.
+
+* Current state
+
+Build succeeds up to dumping bootstrap-emacs.pdmp.
 
 * Things worth mentioning
 
@@ -44,6 +56,11 @@ Also be aware that two calls to ~sxhash-eq~ can then return different
 hashes when a concurrent GC happens between calls, unless something is
 done to ensure that the hashed objects aren't moved by the GC for long
 enough.
+
+** In-band headers
+
+I have tried to use MPS in-band headers at first, but couldn't get it
+work.
 
 ** Weak hash-tables
 
@@ -86,6 +103,11 @@ holding references, these are invisble to MPS.
 Hash-tables in their present implementation are an example I know
 of. This require special handling to make sure MPS sees the
 references (see ~igc_alloc_lisp_objs~).
+
+** Intervals and ~itree_node~
+
+Both are allocated from MPS because that turned out to be easier than
+coping with malloc'd memory.
 
 ** Finalization
 

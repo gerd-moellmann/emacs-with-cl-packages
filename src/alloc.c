@@ -5850,6 +5850,15 @@ hash_table_free_bytes (void *p, ptrdiff_t nbytes)
   xfree (p);
 }
 
+Lisp_Object *
+hash_table_alloc_kv (ptrdiff_t nobjs)
+{
+  if (nobjs == 0)
+    return NULL;
+  void *p = xmalloc (nobjs * sizeof (Lisp_Object));
+  return p;
+}
+
 
 /***********************************************************************
 		       Pure Storage Management

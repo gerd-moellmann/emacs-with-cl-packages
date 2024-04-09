@@ -4609,8 +4609,8 @@ make_hash_table (const struct hash_table_test *test, EMACS_INT size,
     }
   else
     {
-      Lisp_Object *key = hash_table_alloc_bytes (size * sizeof *h->key);
-      Lisp_Object *value = hash_table_alloc_bytes (size * sizeof *h->value);
+      Lisp_Object *key = hash_table_alloc_kv (size);
+      Lisp_Object *value = hash_table_alloc_kv (size);
       for (ptrdiff_t i = 0; i < size; i++)
 	{
 	  key[i] = HASH_UNUSED_ENTRY_KEY;
@@ -4660,8 +4660,8 @@ copy_hash_table (struct Lisp_Hash_Table *h1)
   if (h1->table_size > 0)
     {
       ptrdiff_t kv_bytes = h1->table_size * sizeof *h1->key;
-      Lisp_Object *key = hash_table_alloc_bytes (kv_bytes);
-      Lisp_Object *value = hash_table_alloc_bytes (kv_bytes);
+      Lisp_Object *key = hash_table_alloc_kv (h1->table_size);
+      Lisp_Object *value = hash_table_alloc_kv (h1->table_size);
       memcpy (key, h1->key, kv_bytes);
       memcpy (value, h1->value, kv_bytes);
       h2->key = key;
@@ -4809,6 +4809,14 @@ hash_table_thaw (Lisp_Object hash_table)
     {
       ptrdiff_t index_bits = compute_hash_index_bits (size);
       h->index_bits = index_bits;
+
+#ifdef HAVE_MPS
+      /* Note that xfree contains a hack that makes it do nothing if
+	 called on something in a loaded dump.  For MPS, we need to make
+	 key/value an exact root, as long as they are malloc'd, which
+	 they can't be once weak tables are added. */
+      igc_on_thaw_hash_table (h);
+#endif
 
       h->hash = hash_table_alloc_bytes (size * sizeof *h->hash);
 

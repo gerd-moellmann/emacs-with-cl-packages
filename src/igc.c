@@ -703,7 +703,7 @@ scan_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_dump (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  fprintf (stderr, "*** scan_dump %10p %10p\n", start, end);
+  //fprintf (stderr, "*** scan_dump %10p %10p\n", start, end);
   MPS_SCAN_BEGIN (ss)
   {
     int i = 0;
@@ -755,7 +755,7 @@ scan_dump (mps_ss_t ss, void *start, void *end, void *closure)
   out:;
   }
   MPS_SCAN_END (ss);
-  fprintf (stderr, "*** end scan_dump %10p %10p\n", start, end);
+  //fprintf (stderr, "*** end scan_dump %10p %10p\n", start, end);
   return MPS_RES_OK;
 }
 
@@ -1527,7 +1527,7 @@ igc_ramp_allocation (void)
 void
 igc_on_pdump_loaded (void *start, void *end)
 {
-  fprintf (stderr, "pdump root %10p %10p\n", start, end);
+  //fprintf (stderr, "pdump root %10p %10p\n", start, end);
   struct igc *gc = global_igc;
   mps_root_t root;
   mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (),
@@ -1553,6 +1553,18 @@ igc_alloc_lisp_objs (size_t n)
   create_exact_root (global_igc, p, (char *) +size);
   return p;
 }
+
+void
+igc_on_thaw_hash_table (struct Lisp_Hash_Table *h)
+{
+  struct igc *gc = global_igc;
+  igc_assert (pdumper_object_p (h->key));
+  igc_assert (pdumper_object_p (h->value));
+  size_t nbytes = h->table_size * sizeof (Lisp_Object);
+  create_exact_root (gc, h->key, (char *) h->key + nbytes);
+  create_exact_root (gc, h->key, (char *) h->value + nbytes);
+}
+
 
 void *
 igc_xzalloc (size_t size)
