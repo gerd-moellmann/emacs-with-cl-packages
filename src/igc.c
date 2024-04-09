@@ -1550,7 +1550,7 @@ igc_alloc_lisp_objs (size_t n)
 {
   size_t size = n * sizeof (Lisp_Object);
   void *p = xzalloc (size);
-  create_exact_root (global_igc, p, (char *) +size);
+  create_exact_root (global_igc, p, (char *) p + size);
   return p;
 }
 
