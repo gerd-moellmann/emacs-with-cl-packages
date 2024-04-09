@@ -50,7 +50,7 @@ worth it) by writing additional code using additional MPS pools with
 their own object formats.
 
 Note that doing this this also means that one has to use MPS's location
-dependency feature for implementing eq hash-tables.
+dependency feature for implementing eq hash tables.
 
 Also be aware that two calls to ~sxhash-eq~ can then return different
 hashes when a concurrent GC happens between calls, unless something is
@@ -62,16 +62,16 @@ enough.
 I have tried to use MPS in-band headers at first, but couldn't get it
 work.
 
-** Weak hash-tables
+** Weak hash tables
 
-I didn't think that weak hash-tables were important enough to see if MPS
+I didn't think that weak hash tables were important enough to see if MPS
 can be used with Emacs, so I didn't implement them.
 
 They can be implemented using the already present AWL pool and its
 allocation points, and then using MPS's dependent objects in the hash
 table implementation.
 
-To prepare for that, keys and values of a hash-table are already split
+To prepare for that, keys and values of a hash table are already split
 into two vectors. Two vectors are necessary because objects in an AWL
 pool must either contain weak references only, or strong references
 only. The currently malloc'd vectors would have to be replaced with
@@ -100,7 +100,7 @@ There is also a slight problem currently. The loaded dump is scanned
 conservativly, but if such objects contain malloc'd data structures
 holding references, these are invisble to MPS.
 
-Hash-tables in their present implementation are an example I know
+Hash tables in their present implementation are an example I know
 of. This require special handling to make sure MPS sees the
 references (see ~igc_alloc_lisp_objs~).
 

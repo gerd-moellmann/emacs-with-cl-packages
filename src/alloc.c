@@ -5851,10 +5851,19 @@ hash_table_free_bytes (void *p, ptrdiff_t nbytes)
 }
 
 Lisp_Object *
-hash_table_alloc_kv (ptrdiff_t nobjs)
+hash_table_alloc_kv (struct Lisp_Hash_Table *h, ptrdiff_t nobjs)
 {
   if (nobjs == 0)
     return NULL;
+#ifdef HAVE_MPS
+  /* As long as the hash table implementation uses malloc'd vectors for
+     keys/values, we have a problem with dumped hash tables because we
+     can scan the dump, but don't see the malloc'd parts. So, we have to
+     create additional roots for that. This will go away when
+     implementing weak tables. */
+  if (pdumper_object_p (h))
+    return igc_alloc_lisp_objs (nobjs);
+#endif
   void *p = xmalloc (nobjs * sizeof (Lisp_Object));
   return p;
 }

@@ -1554,18 +1554,6 @@ igc_alloc_lisp_objs (size_t n)
   return p;
 }
 
-void
-igc_on_thaw_hash_table (struct Lisp_Hash_Table *h)
-{
-  struct igc *gc = global_igc;
-  igc_assert (pdumper_object_p (h->key));
-  igc_assert (pdumper_object_p (h->value));
-  size_t nbytes = h->table_size * sizeof (Lisp_Object);
-  create_exact_root (gc, h->key, (char *) h->key + nbytes);
-  create_exact_root (gc, h->key, (char *) h->value + nbytes);
-}
-
-
 void *
 igc_xzalloc (size_t size)
 {
@@ -1641,8 +1629,9 @@ finalize_hash_table (struct Lisp_Hash_Table *h)
 {
   if (h->table_size)
     {
-      /* Set the table size to 0 so that we don't further scan
-	 a hash table after it has been finalized. */
+      /* Set the table size to 0 so that we don't further scan a hash
+	 table after it has been finalized. Also, keep in mind that
+	 xfree works with objects in a loaded dump. */
       h->table_size = 0;
       xfree (h->index);
       xfree (h->key);

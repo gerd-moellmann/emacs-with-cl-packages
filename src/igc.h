@@ -44,7 +44,6 @@ void igc_thread_remove (void *info);
 void igc_on_idle (void);
 void igc_on_pdump_loaded (void *start, void *end);
 void igc_on_face_cache_change (void *face_cache);
-void igc_on_thaw_hash_table (struct Lisp_Hash_Table *h);
 
 void igc_process_messages (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
