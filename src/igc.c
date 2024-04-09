@@ -300,6 +300,7 @@ struct igc_thread
   mps_ap_t leaf_ap;
   mps_ap_t weak_strong_ap;
   mps_ap_t weak_weak_ap;
+  igc_root_list *specpdl_root;
 };
 
 typedef struct igc_thread igc_thread;
@@ -337,8 +338,6 @@ igc_check_vector (const struct Lisp_Vector *v)
       igc_assert (h->pvec_type == ptype);
     }
 }
-
-
 
 static struct igc_root_list *
 register_root (struct igc *gc, mps_root_t root, void *start, void *end)
@@ -640,6 +639,86 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
     for (struct Lisp_Symbol *sym = start; sym < (struct Lisp_Symbol *) end;
 	 ++sym)
       IGC_FIX_CALL (ss, fix_symbol (ss, sym));
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    for (union specbinding *pdl = start; (void *) pdl < end; ++pdl)
+      {
+	switch (pdl->kind)
+	  {
+	  case SPECPDL_FREE:
+	    pdl = end;
+	    break;
+
+	  case SPECPDL_UNWIND:
+	    IGC_FIX12_OBJ (ss, &pdl->unwind.arg);
+	    break;
+
+	    /* This is used by SAFE_ALLOCA/malloc. */
+	  case SPECPDL_UNWIND_ARRAY:
+	    IGC_FIX12_NOBJS (ss, pdl->unwind_array.array,
+			     pdl->unwind_array.nelts);
+	    break;
+
+	  case SPECPDL_UNWIND_EXCURSION:
+	    IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.marker);
+	    IGC_FIX12_OBJ (ss, &pdl->unwind_excursion.window);
+	    break;
+
+	  case SPECPDL_BACKTRACE:
+	    {
+	      ptrdiff_t nargs = pdl->bt.nargs;
+	      IGC_FIX12_OBJ (ss, &pdl->bt.function);
+	      if (nargs == UNEVALLED)
+		nargs = 1;
+	      IGC_FIX12_NOBJS (ss, pdl->bt.args, nargs);
+	    }
+	    break;
+
+# ifdef HAVE_MODULES
+	  case SPECPDL_MODULE_RUNTIME:
+	    break;
+
+	    // If I am not mistaken, the emacs_env in this binding
+	    // actually lives on the stack (see module-load e.g.).
+	    // So, we don't have to do something here for the Lisp
+	    // objects in emacs_env.
+	  case SPECPDL_MODULE_ENVIRONMENT:
+	    break;
+# endif
+
+	  case SPECPDL_LET_DEFAULT:
+	  case SPECPDL_LET_LOCAL:
+	    IGC_FIX12_OBJ (ss, &pdl->let.where);
+	    FALLTHROUGH;
+	  case SPECPDL_LET:
+	    IGC_FIX12_OBJ (ss, &pdl->let.symbol);
+	    IGC_FIX12_OBJ (ss, &pdl->let.old_value);
+	    break;
+
+	  case SPECPDL_UNWIND_PTR:
+	    /* This defines a mark function of its own, which
+	       is of no use to us.  Only user is sort.c. */
+	    if (pdl->unwind_ptr.mark)
+	      {
+		igc_assert (!"SPECPDL_UNWIND_PTR with mark function");
+	      }
+	    break;
+
+	  case SPECPDL_UNWIND_INT:
+	  case SPECPDL_UNWIND_INTMAX:
+	  case SPECPDL_UNWIND_VOID:
+	  case SPECPDL_NOP:
+	    break;
+	  }
+      }
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1434,6 +1513,48 @@ create_main_thread_root (struct igc *gc)
 }
 
 static void
+create_specpdl_root (struct igc_thread_list *t)
+{
+  if (specpdl == NULL)
+    return;
+
+  struct igc *gc = t->d.gc;
+  void *start = specpdl, *end = specpdl_end;
+  mps_root_t root;
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
+					start, end, scan_specpdl, NULL);
+  IGC_CHECK_RES (res);
+  t->d.specpdl_root = register_root (gc, root, start, end);
+}
+
+void
+igc_on_specbinding_unused (union specbinding *b)
+{
+  b->kind = SPECPDL_FREE;
+}
+
+void
+igc_on_alloc_main_thread_specpdl (void)
+{
+  create_specpdl_root (current_thread->gc_info);
+}
+
+void
+igc_on_grow_specpdl (void)
+{
+  // Note that no two roots may overlap, so we have to temporarily
+  // stop the collector while replacing one root with another (xpalloc
+  // may realloc). Alternatives: (1) don't realloc, (2) alloc specpdl
+  // from MPS pool that is scanned.
+  struct igc_thread_list *t = current_thread->gc_info;
+  IGC_WITH_PARKED (t->d.gc)
+  {
+    destroy_root (t->d.specpdl_root);
+    create_specpdl_root (t);
+  }
+}
+
+static void
 create_static_roots (struct igc *gc)
 {
   create_buffer_root (gc, &buffer_defaults);
@@ -1466,6 +1587,7 @@ igc_thread_add (const void *stack_start)
   struct igc_thread_list *t
     = register_thread (global_igc, thr, (void *) stack_start);
   create_thread_root (t);
+  create_specpdl_root (t);
   create_thread_aps (&t->d);
   return t;
 }

@@ -218,13 +218,12 @@ static void
 init_eval_once_for_pdumper (void)
 {
   enum { size = 50 };
-#ifdef HAVE_MPS
-  union specbinding *pdlvec = igc_xmalloc ((size + 1) * sizeof *specpdl);
-#else
   union specbinding *pdlvec = malloc ((size + 1) * sizeof *specpdl);
-#endif
   specpdl = specpdl_ptr = pdlvec + 1;
   specpdl_end = specpdl + size;
+#ifdef HAVE_MPS
+  igc_on_alloc_main_thread_specpdl ();
+#endif
 }
 
 void
@@ -2450,14 +2449,13 @@ grow_specpdl_allocation (void)
   ptrdiff_t size = specpdl_end - specpdl;
   ptrdiff_t pdlvecsize = size + 1;
   eassert (max_size > size);
-#ifdef HAVE_MPS
-  pdlvec = igc_xpalloc (pdlvec, &pdlvecsize, 1, max_size + 1, sizeof *specpdl);
-#else
   pdlvec = xpalloc (pdlvec, &pdlvecsize, 1, max_size + 1, sizeof *specpdl);
-#endif
   specpdl = pdlvec + 1;
   specpdl_end = specpdl + pdlvecsize - 1;
   specpdl_ptr = specpdl_ref_to_ptr (count);
+#ifdef HAVE_MPS
+  igc_on_grow_specpdl ();
+#endif
 }
 
 /* Eval a sub-expression of the current expression (i.e. in the same
@@ -3677,6 +3675,8 @@ do_one_unbind (union specbinding *this_binding, bool unwinding,
   eassert (unwinding || this_binding->kind >= SPECPDL_LET);
   switch (this_binding->kind)
     {
+    case SPECPDL_FREE:
+      emacs_abort ();
     case SPECPDL_UNWIND:
       lisp_eval_depth = this_binding->unwind.eval_depth;
       this_binding->unwind.func (this_binding->unwind.arg);
@@ -3818,6 +3818,9 @@ unbind_to (specpdl_ref count, Lisp_Object value)
 
       union specbinding this_binding;
       this_binding = *--specpdl_ptr;
+#ifdef HAVE_MPS
+      igc_on_specbinding_unused (specpdl_ptr);
+#endif
 
       do_one_unbind (&this_binding, true, SET_INTERNAL_UNBIND);
     }

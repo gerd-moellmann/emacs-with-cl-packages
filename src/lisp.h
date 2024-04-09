@@ -3560,7 +3560,9 @@ extern void defvar_kboard (struct Lisp_Kboard_Objfwd const *, char const *);
    used all over the place, needs to be fast, and needs to know the size of
    union specbinding.  But only eval.c should access it.  */
 
-enum specbind_tag {
+enum specbind_tag
+{
+  SPECPDL_FREE,
   SPECPDL_UNWIND,		/* An unwind_protect function on Lisp_Object.  */
   SPECPDL_UNWIND_ARRAY,		/* Likewise, on an array that needs freeing.
 				   Its elements are potential Lisp_Objects.  */

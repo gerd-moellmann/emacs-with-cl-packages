@@ -815,11 +815,7 @@ run_thread (void *state)
 
   update_processes_for_thread_death (Fcurrent_thread ());
 
-#ifdef HAVE_MPS
-  igc_xfree (self->m_specpdl - 1);
-#else
   xfree (self->m_specpdl - 1);
-#endif
   self->m_specpdl = NULL;
   self->m_specpdl_ptr = NULL;
   self->m_specpdl_end = NULL;
@@ -908,10 +904,9 @@ If NAME is given, it must be a string; it names the new thread.  */)
   new_thread->m_current_buffer = current_thread->m_current_buffer;
 
   ptrdiff_t size = 50;
-#ifdef HAVE_MPS
-  union specbinding *pdlvec = igc_xmalloc ((1 + size) * sizeof (union specbinding));
-#else
   union specbinding *pdlvec = xmalloc ((1 + size) * sizeof (union specbinding));
+#ifdef HAVE_MPS
+  igc_on_grow_specpdl ();
 #endif
   new_thread->m_specpdl = pdlvec + 1;  /* Skip the dummy entry.  */
   new_thread->m_specpdl_end = new_thread->m_specpdl + size;

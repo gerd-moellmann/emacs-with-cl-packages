@@ -59,6 +59,7 @@ b die
 #process handle -p true -s false SIGBUS
 
 # bootstrap-emacs
-settings set -- target.run-args -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -f batch-byte-compile international/titdic-cnv.el
+#settings set -- target.run-args -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -f batch-byte-compile international/titdic-cnv.el
 
+settings set -- target.run-args -batch --no-site-file --no-site-lisp  -f batch-byte-compile ../lisp/emacs-lisp/macroexp.el
 # end.
