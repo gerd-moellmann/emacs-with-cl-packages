@@ -1618,17 +1618,9 @@ igc_alloc_lisp_objs (size_t n)
 }
 
 void *
-igc_xzalloc (size_t size)
+igc_xzalloc_ambig (size_t size)
 {
   void *p = xzalloc (size);
-  create_ambig_root (global_igc, p, (char *) p + size);
-  return p;
-}
-
-void *
-igc_xmalloc (size_t size)
-{
-  void *p = xmalloc (size);
   create_ambig_root (global_igc, p, (char *) p + size);
   return p;
 }
@@ -1644,15 +1636,9 @@ igc_xfree (void *p)
   xfree (p);
 }
 
-void
-igc_create_charset_root (void *table, size_t size)
-{
-  create_ambig_root (global_igc, table, (char *) table + size);
-}
-
 void *
-igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
-	     ptrdiff_t nitems_max, ptrdiff_t item_size)
+igc_xpalloc_ambig (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
+		   ptrdiff_t nitems_max, ptrdiff_t item_size)
 {
   IGC_WITH_PARKED (global_igc)
   {
@@ -1670,7 +1656,7 @@ igc_xpalloc (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 }
 
 void *
-igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
+igc_xnrealloc_ambig (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
 {
   IGC_WITH_PARKED (global_igc)
   {
@@ -1685,6 +1671,12 @@ igc_xnrealloc (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
     create_ambig_root (global_igc, pa, end);
   }
   return pa;
+}
+
+void
+igc_create_charset_root (void *table, size_t size)
+{
+  create_ambig_root (global_igc, table, (char *) table + size);
 }
 
 static void

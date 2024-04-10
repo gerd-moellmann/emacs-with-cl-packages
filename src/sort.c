@@ -479,7 +479,7 @@ merge_getmem (merge_state *ms, const ptrdiff_t need)
 #endif
     }
 #ifdef HAVE_MPS
-  ms->a = igc_xzalloc (need * word_size);
+  ms->a = igc_xzalloc_ambig (need * word_size);
 #else
   ms->a = xmalloc (need * word_size);
 #endif

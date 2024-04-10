@@ -2108,7 +2108,7 @@ make_image_cache (void)
   c->size = 50;
   c->used = c->refcount = 0;
 #ifdef HAVE_MPS
-  c->images = igc_xzalloc (c->size * sizeof *c->images);
+  c->images = igc_xzalloc_ambig (c->size * sizeof *c->images);
 #else
   c->images = xmalloc (c->size * sizeof *c->images);
 #endif

@@ -4723,7 +4723,7 @@ make_face_cache (struct frame *f)
   struct face_cache *c = xmalloc (sizeof *c);
 
 #ifdef HAVE_MPS
-  c->buckets = igc_xzalloc (FACE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
+  c->buckets = igc_xzalloc_ambig (FACE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
 #else
   c->buckets = xzalloc (FACE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
 #endif
@@ -4916,7 +4916,7 @@ cache_face (struct face_cache *c, struct face *face, uintptr_t hash)
       if (c->used == c->size)
 #ifdef HAVE_MPS
 	c->faces_by_id
-	  = igc_xpalloc (c->faces_by_id, &c->size, 1, MAX_FACE_ID,
+	  = igc_xpalloc_ambig (c->faces_by_id, &c->size, 1, MAX_FACE_ID,
 			 sizeof *c->faces_by_id);
 #else
 	c->faces_by_id

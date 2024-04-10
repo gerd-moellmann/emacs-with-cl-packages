@@ -513,7 +513,7 @@ adjust_glyph_matrix (struct window *w, struct glyph_matrix *matrix, int x, int y
 	    {
 	      row->glyphs[LEFT_MARGIN_AREA] =
 #ifdef HAVE_MPS
-		igc_xnrealloc (row->glyphs[LEFT_MARGIN_AREA],
+		igc_xnrealloc_ambig (row->glyphs[LEFT_MARGIN_AREA],
 			       dim.width, sizeof (struct glyph));
 #else
 		xnrealloc (row->glyphs[LEFT_MARGIN_AREA],
@@ -1411,7 +1411,7 @@ realloc_glyph_pool (struct glyph_pool *pool, struct dim matrix_dim)
       ptrdiff_t old_nglyphs = pool->nglyphs;
 #ifdef HAVE_MPS
       pool->glyphs
-	= igc_xpalloc (pool->glyphs, &pool->nglyphs, needed - old_nglyphs,
+	= igc_xpalloc_ambig (pool->glyphs, &pool->nglyphs, needed - old_nglyphs,
 		       -1, sizeof *pool->glyphs);
 #else
       pool->glyphs
@@ -1976,7 +1976,7 @@ save_current_matrix (struct frame *f)
       ptrdiff_t nbytes = from->used[TEXT_AREA] * sizeof (struct glyph);
 
 #ifdef HAVE_MPS
-      to->glyphs[TEXT_AREA] = igc_xmalloc (nbytes);
+      to->glyphs[TEXT_AREA] = igc_xzalloc_ambig (nbytes);
 #else
       to->glyphs[TEXT_AREA] = xmalloc (nbytes);
 #endif
@@ -1988,7 +1988,7 @@ save_current_matrix (struct frame *f)
 	{
 	  nbytes = from->used[LEFT_MARGIN_AREA] * sizeof (struct glyph);
 #ifdef HAVE_MPS
-	  to->glyphs[LEFT_MARGIN_AREA] = igc_xmalloc (nbytes);
+	  to->glyphs[LEFT_MARGIN_AREA] = igc_xzalloc_ambig (nbytes);
 #else
 	  to->glyphs[LEFT_MARGIN_AREA] = xmalloc (nbytes);
 #endif
@@ -2000,7 +2000,7 @@ save_current_matrix (struct frame *f)
 	{
 	  nbytes = from->used[RIGHT_MARGIN_AREA] * sizeof (struct glyph);
 #ifdef HAVE_MPS
-	  to->glyphs[RIGHT_MARGIN_AREA] = igc_xmalloc (nbytes);
+	  to->glyphs[RIGHT_MARGIN_AREA] = igc_xzalloc_ambig (nbytes);
 #else
 	  to->glyphs[RIGHT_MARGIN_AREA] = xmalloc (nbytes);
 #endif

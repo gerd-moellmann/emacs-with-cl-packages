@@ -391,7 +391,7 @@ void
 init_bc_thread (struct bc_thread_state *bc)
 {
 #ifdef HAVE_MPS
-  bc->stack = igc_xmalloc (BC_STACK_SIZE);
+  bc->stack = igc_xzalloc_ambig (BC_STACK_SIZE);
 #else
   bc->stack = xmalloc (BC_STACK_SIZE);
 #endif

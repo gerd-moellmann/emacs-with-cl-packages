@@ -3949,7 +3949,7 @@ grow_read_stack (void)
   struct read_stack *rs = &rdstack;
   eassert (rs->sp == rs->size);
 #ifdef HAVE_MPS
-  rs->stack = igc_xpalloc (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
+  rs->stack = igc_xpalloc_ambig (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
 #else
   rs->stack = xpalloc (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
 #endif

@@ -1132,7 +1132,7 @@ usage: (define-charset-internal ...)  */)
 	  ptrdiff_t new_size = old_size;
 	  struct charset *new_table =
 #ifdef HAVE_MPS
-	    igc_xpalloc
+	    igc_xpalloc_ambig
 #else
 	    xpalloc
 #endif
