@@ -778,63 +778,6 @@ scan_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 }
 
 static mps_res_t
-scan_dump (mps_ss_t ss, void *start, void *end, void *closure)
-{
-  //fprintf (stderr, "*** scan_dump %10p %10p\n", start, end);
-  MPS_SCAN_BEGIN (ss)
-  {
-    int i = 0;
-    for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
-      {
-	mps_word_t word = *p;
-	mps_word_t tag = word & IGC_TAG_MASK;
-
-	/* If the references in the object being scanned are
-	   ambiguous then MPS_FIX2() does not update the
-	   reference (because it can’t know if it’s a
-	   genuine reference). The MPS handles an ambiguous
-	   reference by pinning the block pointed to so that
-	   it cannot move. */
-
-	/* First try if this is a pointer to something. */
-	mps_addr_t ref = (mps_addr_t) word;
-	mps_res_t res = MPS_FIX12 (ss, &ref);
-	if (res != MPS_RES_OK)
-	  return res;
-
-	/* It can also be a tagged word. Try that. */
-	switch (tag)
-	  {
-	  case Lisp_Int0:
-	  case Lisp_Int1:
-	  case Lisp_Type_Unused0:
-	    break;
-
-	  case Lisp_Symbol:
-	    {
-	      ptrdiff_t off = word ^ tag;
-	      ref = (mps_addr_t) ((char *) lispsym + off);
-	      res = MPS_FIX12 (ss, &ref);
-	      if (res != MPS_RES_OK)
-		return res;
-	    }
-	    break;
-
-	  default:
-	    ref = (mps_addr_t) (word ^ tag);
-	    res = MPS_FIX12 (ss, &ref);
-	    if (res != MPS_RES_OK)
-	      return res;
-	    break;
-	  }
-      }
-  }
-  MPS_SCAN_END (ss);
-  //fprintf (stderr, "*** end scan_dump %10p %10p\n", start, end);
-  return MPS_RES_OK;
-}
-
-static mps_res_t
 scan_exact (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
@@ -1650,7 +1593,7 @@ igc_on_pdump_loaded (void *start, void *end)
   struct igc *gc = global_igc;
   mps_root_t root;
   mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (),
-					0, start, end, scan_dump, 0);
+					0, start, end, scan_ambig, 0);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
 }
