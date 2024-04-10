@@ -61,10 +61,10 @@ b die
 # bootstrap-emacs
 #settings set -- target.run-args -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -f batch-byte-compile international/titdic-cnv.el
 
-#settings set -- target.run-args -batch --no-site-file --no-site-lisp  -f batch-byte-compile ../lisp/emacs-lisp/macroexp.el
+settings set -- target.run-args -batch --no-site-file --no-site-lisp  -f batch-byte-compile ../lisp/emacs-lisp/macroexp.el
 
 # temacs
-settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest  --eln-dest
+#settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest  --eln-dest
 
 
 # end.

@@ -87,6 +87,7 @@ void igc_postmortem (void);
 void igc_on_specbinding_unused (union specbinding *b);
 void igc_on_grow_specpdl (void);
 void igc_on_alloc_main_thread_specpdl (void);
+void igc_check_symbol (void *p);
 
 # define eassert_not_mps() eassert (false)
 #else

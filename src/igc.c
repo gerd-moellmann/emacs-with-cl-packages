@@ -795,14 +795,14 @@ scan_dump (mps_ss_t ss, void *start, void *end, void *closure)
 	   genuine reference). The MPS handles an ambiguous
 	   reference by pinning the block pointed to so that
 	   it cannot move. */
-	mps_addr_t ref = (mps_addr_t) word;
-	if (!is_mps (ref))
-	  continue;
 
+	/* First try if this is a pointer to something. */
+	mps_addr_t ref = (mps_addr_t) word;
 	mps_res_t res = MPS_FIX12 (ss, &ref);
 	if (res != MPS_RES_OK)
-	  goto out;
+	  return res;
 
+	/* It can also be a tagged word. Try that. */
 	switch (tag)
 	  {
 	  case Lisp_Int0:
@@ -816,7 +816,7 @@ scan_dump (mps_ss_t ss, void *start, void *end, void *closure)
 	      ref = (mps_addr_t) ((char *) lispsym + off);
 	      res = MPS_FIX12 (ss, &ref);
 	      if (res != MPS_RES_OK)
-		goto out;
+		return res;
 	    }
 	    break;
 
@@ -824,12 +824,10 @@ scan_dump (mps_ss_t ss, void *start, void *end, void *closure)
 	    ref = (mps_addr_t) (word ^ tag);
 	    res = MPS_FIX12 (ss, &ref);
 	    if (res != MPS_RES_OK)
-	      goto out;
+	      return res;
 	    break;
 	  }
       }
-
-  out:;
   }
   MPS_SCAN_END (ss);
   //fprintf (stderr, "*** end scan_dump %10p %10p\n", start, end);
@@ -2189,6 +2187,16 @@ igc_make_cons (Lisp_Object car, Lisp_Object cdr)
   cons->u.s.car = car;
   cons->u.s.u.cdr = cdr;
   return make_lisp_ptr (cons, Lisp_Cons);
+}
+
+void
+igc_check_symbol (void *p)
+{
+  if (is_mps (p))
+    {
+      struct igc_header *h = client_to_base (p);
+      igc_assert (h->obj_type == IGC_OBJ_SYMBOL);
+    }
 }
 
 Lisp_Object
