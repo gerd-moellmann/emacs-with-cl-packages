@@ -49,6 +49,7 @@ void igc_process_messages (void);
 Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 Lisp_Object igc_alloc_symbol (void);
 
+struct Lisp_Buffer_Local_Value *igc_alloc_blv (void);
 void *igc_xzalloc_ambig (size_t size);
 void igc_xfree (void *p);
 Lisp_Object *igc_alloc_lisp_objs (size_t n);

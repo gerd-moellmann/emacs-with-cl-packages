@@ -790,6 +790,34 @@ scan_exact (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
+static mps_res_t
+fix_blv (mps_ss_t ss, struct Lisp_Buffer_Local_Value *blv)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX12_OBJ (ss, &blv->where);
+    IGC_FIX12_OBJ (ss, &blv->defcell);
+    IGC_FIX12_OBJ (ss, &blv->valcell);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+scan_blv (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    while (start < end)
+      {
+	IGC_FIX_CALL_FN (ss, struct Lisp_Buffer_Local_Value, start, fix_blv);
+	start = (char *) start + sizeof (struct Lisp_Buffer_Local_Value);
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 /***********************************************************************
 			 Default pad, fwd, ...
  ***********************************************************************/
@@ -1377,23 +1405,26 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 # pragma GCC diagnostic pop
 
 static igc_root_list *
-create_ambig_root (struct igc *gc, void *start, void *end)
+create_root (struct igc *gc, void *start, void *end, mps_rank_t rank,
+	     mps_area_scan_t scan)
 {
   mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-					start, end, scan_ambig, 0);
+  mps_res_t res = mps_root_create_area (&root, gc->arena, rank, 0,
+					start, end, scan, 0);
   IGC_CHECK_RES (res);
   return register_root (gc, root, start, end);
 }
 
 static igc_root_list *
+create_ambig_root (struct igc *gc, void *start, void *end)
+{
+  return create_root (gc, start, end, mps_rank_ambig (), scan_ambig);
+}
+
+static igc_root_list *
 create_exact_root (struct igc *gc, void *start, void *end)
 {
-  mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
-					start, end, scan_exact, 0);
-  IGC_CHECK_RES (res);
-  return register_root (gc, root, start, end);
+  return create_root (gc, start, end, mps_rank_exact (), scan_exact);
 }
 
 static mps_rm_t
@@ -2270,6 +2301,16 @@ igc_make_face (void)
   struct face *face = alloc (sizeof *face, IGC_OBJ_FACE, PVEC_FREE);
   return face;
 }
+
+struct Lisp_Buffer_Local_Value *
+igc_alloc_blv (void)
+{
+  struct Lisp_Buffer_Local_Value *blv = xzalloc (sizeof *blv);
+  create_root (global_igc, blv, (char *) blv + sizeof *blv, mps_rank_exact (),
+	       scan_blv);
+  return blv;
+}
+
 
 int
 igc_valid_lisp_object_p (Lisp_Object obj)
