@@ -582,7 +582,14 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 
       case SYMBOL_LOCALIZED:
 	{
-	  /* See make_blv: this is malloc'd, so we can access it. */
+	  /* See make_blv: this is malloc'd, so we can access it.  We
+	     also allocate blvs as exect roots because they can be used
+	     in symbols that are in a loaded pdump, which means we
+	     aren't able to scan the Lisp objects below. Fixing them
+	     here is not strictly necessary because of that, but it also
+	     doesn't hurt. We could at some point decide not to use
+	     malloc, which would make sense to me because it simplified
+	     things. */
 	  struct Lisp_Buffer_Local_Value *blv = sym->u.s.val.blv;
 	  IGC_FIX12_OBJ (ss, &blv->where);
 	  IGC_FIX12_OBJ (ss, &blv->defcell);

@@ -105,9 +105,13 @@ There is also a slight problem currently. The loaded dump is scanned
 conservativly, but if such objects contain malloc'd data structures
 holding references, these are invisble to MPS.
 
-Hash tables in their present implementation are an example I know
-of. This require special handling to make sure MPS sees the
-references (see ~igc_alloc_lisp_objs~).
+Examples:
+
+- Hash tables in their present implementation are one example I know
+  of. This require special handling to make sure MPS sees the
+  referenced keys and values (see ~igc_alloc_lisp_objs~).
+
+- Symbols may have a Lisp_Buffer_Local_Value that contains references.
 
 ** Intervals and ~itree_node~
 
