@@ -327,7 +327,7 @@ igc_check_vector (const struct Lisp_Vector *v)
 {
   if (is_mps ((void *) v))
     {
-      struct igc_header *h = client_to_base ((void *)v);
+      struct igc_header *h = client_to_base ((void *) v);
       mps_pool_t pool;
       igc_assert (mps_addr_pool (&pool, global_igc->arena, h));
       enum pvec_type ptype = PSEUDOVECTOR_TYPE (v);
@@ -592,7 +592,8 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 
       case SYMBOL_FORWARDED:
 	{
-	  lispfwd fwd = sym->u.s.val.fwd;;
+	  lispfwd fwd = sym->u.s.val.fwd;
+
 	  switch (XFWDTYPE (fwd))
 	    {
 	    case Lisp_Fwd_Int:
@@ -1589,11 +1590,11 @@ igc_ramp_allocation (void)
 void
 igc_on_pdump_loaded (void *start, void *end)
 {
-  //fprintf (stderr, "pdump root %10p %10p\n", start, end);
+  // fprintf (stderr, "pdump root %10p %10p\n", start, end);
   struct igc *gc = global_igc;
   mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (),
-					0, start, end, scan_ambig, 0);
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+					start, end, scan_ambig, 0);
   IGC_CHECK_RES (res);
   register_root (gc, root, start, end);
 }
@@ -2241,8 +2242,8 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 struct Lisp_Vector *
 igc_alloc_vector (ptrdiff_t len)
 {
-  struct Lisp_Vector *v = alloc (header_size + len * word_size, IGC_OBJ_VECTOR,
-				 PVEC_NORMAL_VECTOR);
+  struct Lisp_Vector *v
+    = alloc (header_size + len * word_size, IGC_OBJ_VECTOR, PVEC_NORMAL_VECTOR);
   v->header.size = len;
   return v;
 }
@@ -2250,8 +2251,8 @@ igc_alloc_vector (ptrdiff_t len)
 struct Lisp_Vector *
 igc_alloc_record (ptrdiff_t len)
 {
-  struct Lisp_Vector *v = alloc (header_size + len * word_size, IGC_OBJ_VECTOR,
-				 PVEC_RECORD);
+  struct Lisp_Vector *v
+    = alloc (header_size + len * word_size, IGC_OBJ_VECTOR, PVEC_RECORD);
   v->header.size = len;
   XSETPVECTYPE (v, PVEC_RECORD);
   return v;
@@ -2429,7 +2430,7 @@ free_igc (struct igc *gc)
   mps_chain_destroy (gc->chain);
   mps_arena_destroy (gc->arena);
   xfree (gc);
-#endif
+# endif
 }
 
 static void
