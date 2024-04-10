@@ -20,11 +20,12 @@ current maintainers about the plan of using MPS.
 
 Everything is based on my local Emacs, which is different from
 mainstream Emacs. Among other things, it uses CL packages, doesn't have
-obarrays, doesn't support pure space, does not support short-hands and
+obarrays, doesn't support pure space, does not support shorthands and
 probably some other stuff.
 
 In addition, I'm using macOS only, so it's unlikely to compile or run on
-other systems, although it is probably not hard to port.
+other systems, although it is probably not hard to port, depending on
+one's notion of hard ;-).
 
 * Current state
 
@@ -35,21 +36,21 @@ Build succeeds up to dumping bootstrap-emacs.pdmp.
 ** Every object has a 1 word header
 
 At the moment, every object has a one-word header, which is not visible
-to the rest of Emacs. See the ~struct igc_header~.
+to the rest of Emacs. See ~struct igc_header~.
 
 This means in particular that conses are 50% larger than they would
-normally be. I did this initially done to simplify things:
+normally be. I did this because it is less work:
 
 - All objects can be handled by one set of MPS callback functions.
 
-- It simplifies the implementation of eq-hashtables considerably by
+- It simplifies the implementation of eq-hash tables considerably by
   storing an address-independent hash in the header.
 
 The header can be removed from conses (and other objects, if that's
 worth it) by writing additional code using additional MPS pools with
 their own object formats.
 
-Note that doing this this also means that one has to use MPS's location
+Note that doing this also means that one has to use MPS's location
 dependency feature for implementing eq hash tables.
 
 Also be aware that two calls to ~sxhash-eq~ can then return different
@@ -60,16 +61,18 @@ enough.
 ** In-band headers
 
 I have tried to use MPS in-band headers at first, but couldn't get it
-work.
+work. I don't claim they don't work, though. After all I was and still
+am learning MPS.
 
 ** Weak hash tables
 
-I didn't think that weak hash tables were important enough to see if MPS
-can be used with Emacs, so I didn't implement them.
+I didn't think that weak hash tables were important enough for my study
+if MPS can be used with Emacs, so I didn't implement them to save work.
 
-They can be implemented using the already present AWL pool and its
-allocation points, and then using MPS's dependent objects in the hash
-table implementation.
+Weak tables can be implemented using the already present in igc.c AWL
+pool and its allocation points, and then using MPS's dependent objects
+in the hash table implementation. There are examples how to do this in
+the MPS documentation, and in an example Scheme interpreter.
 
 To prepare for that, keys and values of a hash table are already split
 into two vectors. Two vectors are necessary because objects in an AWL
@@ -92,9 +95,11 @@ could be inverstigated
   It is unclear to me from the docs if the AMC pool supports that, but
   one could use an AMS pool.
 
-  After loading a dump we would visit all static roots and copy the
-  whole object graph to MPS.  After that, the dump itself would no
-  longer be used. Costs some load time, though.
+  After loading a dump we would copy the whole object graph to MPS,
+  starting from static roots.  After that, the dump itself would no
+  longer be used.
+
+  Costs some load time, though.
 
 There is also a slight problem currently. The loaded dump is scanned
 conservativly, but if such objects contain malloc'd data structures
@@ -106,12 +111,12 @@ references (see ~igc_alloc_lisp_objs~).
 
 ** Intervals and ~itree_node~
 
-Both are allocated from MPS because that turned out to be easier than
-coping with malloc'd memory.
+Both are allocated from MPS because that turned out to be a lot easier
+than coping with malloc'd memory.
 
 ** Finalization
 
-Is implemented.
+Is now implemented.
 
 ** Things old GC does except GC
 
@@ -131,11 +136,19 @@ example,
 - ~memory-report~ Could be done with MPS's pool walk functionality.
 - profiler (~profiler-memory-start~...) No idea, haven't looked at it.
 
+Anything I don't currently use either because it doesn't exist on macOS
+(text conversions, for example), or because I didn't think it being
+essiential (xwidgets, for example).
+
 ** Knobs not tried
 
-Number of generations, size of generations, probability of objects in a
-generation to die, and maybe others. I haven't tried to do anything with
-that. There are currently two generations.
+Number of generations, size of generations, mortality probabilities, and
+maybe others. I haven't tried to do anything with that. There are
+currently two generations.
+
+** Bytecode stacks
+
+Are currently ambiguous roots, but should be made exact roots.
 
 ** Implementation, general
 
