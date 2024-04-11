@@ -24,8 +24,7 @@ obarrays, doesn't support pure space, does not support shorthands and
 probably some other stuff.
 
 In addition, I'm using macOS only, so it's unlikely to compile or run on
-other systems, although it is probably not hard to port, depending on
-one's notion of hard ;-).
+other systems. It is probably not too hard to port, though.
 
 * Current state
 
@@ -152,10 +151,6 @@ example,
 - Mortality probabilities
 - Allocation policies, like ramp allocation
 - ...
-
-** Bytecode stacks
-
-Are currently ambiguous roots, but should probably be made exact roots.
 
 ** Implementation
 

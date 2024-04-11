@@ -1513,18 +1513,6 @@ root_create_thread (struct igc_thread_list *t)
 }
 
 void
-igc_on_alloc_main_thread_specpdl (void)
-{
-  root_create_specpdl (current_thread->gc_info);
-}
-
-void
-igc_on_alloc_main_thread_bc (void)
-{
-  root_create_bc (current_thread->gc_info);
-}
-
-void
 igc_on_grow_specpdl (void)
 {
   /* Note that no two roots may overlap, so we have to temporarily
@@ -1591,6 +1579,28 @@ igc_thread_add (struct thread_state *ts)
   return t;
 }
 
+/* The main_thread initialization is a bit scattered. */
+
+void
+igc_on_alloc_main_thread_specpdl (void)
+{
+  root_create_specpdl (current_thread->gc_info);
+}
+
+void
+igc_on_alloc_main_thread_bc (void)
+{
+  root_create_bc (current_thread->gc_info);
+}
+
+static void
+add_main_thread (void)
+{
+  igc_assert (current_thread->gc_info == NULL);
+  igc_assert (current_thread->m_stack_bottom == stack_bottom);
+  current_thread->gc_info = thread_add (current_thread);
+}
+
 void
 igc_thread_remove (void *info)
 {
@@ -1603,14 +1613,6 @@ igc_thread_remove (void *info)
   destroy_root (t->d.specpdl_root);
   destroy_root (t->d.bc_root);
   deregister_thread (t);
-}
-
-static void
-add_main_thread (void)
-{
-  igc_assert (current_thread->gc_info == NULL);
-  igc_assert (current_thread->m_stack_bottom == stack_bottom);
-  current_thread->gc_info = thread_add (current_thread);
 }
 
 static void
