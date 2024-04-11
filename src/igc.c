@@ -639,6 +639,7 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 static mps_res_t
 scan_igc (mps_ss_t ss, void *start, void *end, void *closure)
 {
+  igc_assert (start == (void *) global_igc);
   MPS_SCAN_BEGIN (ss)
   {
     struct igc *gc = start;
@@ -668,6 +669,8 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
      what is being scanned, the same way format scanning functions
      do. That means I can use specpdl_ptr here. */
   struct igc_thread_list *t = closure;
+  igc_assert (start == (void *) t->d.ts->m_specpdl);
+  igc_assert (end == (void *) t->d.ts->m_specpdl_end);
   end = t->d.ts->m_specpdl_ptr;
 
   MPS_SCAN_BEGIN (ss)
@@ -1492,11 +1495,10 @@ create_main_thread_root (struct igc *gc)
 static void
 create_specpdl_root (struct igc_thread_list *t)
 {
-  if (specpdl == NULL)
-    return;
-
   struct igc *gc = t->d.gc;
   void *start = current_thread->m_specpdl;
+  if (start == NULL)
+    return;
   void *end = current_thread->m_specpdl_end;
   mps_root_t root;
   mps_res_t res
