@@ -807,7 +807,7 @@ run_thread (void *state)
   handlerlist_sentinel->next = NULL;
 
 #ifdef HAVE_MPS
-  self->gc_info = igc_thread_add (self->m_stack_bottom);
+  self->gc_info = igc_thread_add (self);
 #endif
 
   /* It might be nice to do something with errors here.  */

@@ -298,13 +298,12 @@ struct igc_thread
 {
   struct igc *gc;
   mps_thr_t thr;
-  void *stack_start;
   mps_ap_t dflt_ap;
   mps_ap_t leaf_ap;
   mps_ap_t weak_strong_ap;
   mps_ap_t weak_weak_ap;
   igc_root_list *specpdl_root;
-  struct thread_state *thread_state;
+  struct thread_state *ts;
 };
 
 typedef struct igc_thread igc_thread;
@@ -396,9 +395,9 @@ create_thread_aps (struct igc_thread *t)
 }
 
 static struct igc_thread_list *
-register_thread (struct igc *gc, mps_thr_t thr, void *cold)
+register_thread (struct igc *gc, mps_thr_t thr, struct thread_state *ts)
 {
-  struct igc_thread t = { .gc = gc, .thr = thr, .stack_start = cold };
+  struct igc_thread t = {.gc = gc, .thr = thr, .ts = ts};
   return igc_thread_list_push (&gc->threads, &t);
 }
 
@@ -644,7 +643,7 @@ scan_igc (mps_ss_t ss, void *start, void *end, void *closure)
   {
     struct igc *gc = start;
     for (struct igc_thread_list *t = gc->threads; t; t = t->next)
-      IGC_FIX12_RAW (ss, &t->d.thread_state);
+      IGC_FIX12_RAW (ss, &t->d.ts);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -669,7 +668,7 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
      what is being scanned, the same way format scanning functions
      do. That means I can use specpdl_ptr here. */
   struct igc_thread_list *t = closure;
-  end = t->d.thread_state->m_specpdl_ptr;
+  end = t->d.ts->m_specpdl_ptr;
 
   MPS_SCAN_BEGIN (ss)
   {
@@ -1556,22 +1555,21 @@ create_thread_root (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   mps_root_t root;
+  void *cold = (void *) t->d.ts->m_stack_bottom;
   mps_res_t res
     = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
-				      t->d.thr, scan_ambig, 0,
-				      t->d.stack_start);
+				      t->d.thr, scan_ambig, 0, cold);
   IGC_CHECK_RES (res);
-  register_root (gc, root, t->d.stack_start, NULL);
+  register_root (gc, root, cold, NULL);
 }
 
 void *
-igc_thread_add (const void *stack_start)
+igc_thread_add (struct thread_state *ts)
 {
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
   IGC_CHECK_RES (res);
-  struct igc_thread_list *t
-    = register_thread (global_igc, thr, (void *) stack_start);
+  struct igc_thread_list *t = register_thread (global_igc, thr, ts);
   create_thread_root (t);
   create_specpdl_root (t);
   create_thread_aps (&t->d);
@@ -1595,7 +1593,8 @@ static void
 add_main_thread (void)
 {
   igc_assert (current_thread->gc_info == NULL);
-  current_thread->gc_info = igc_thread_add (stack_bottom);
+  igc_assert (current_thread->m_stack_bottom == stack_bottom);
+  current_thread->gc_info = igc_thread_add (current_thread);
 }
 
 static void
@@ -1844,9 +1843,7 @@ finalize_finalizer (struct Lisp_Finalizer *f)
       f->function = Qnil;
       unchain_finalizer (f);
       specpdl_ref count = SPECPDL_INDEX ();
-# ifdef HAVE_PDUMPER
       ++number_finalizers_run;
-# endif
       specbind (Qinhibit_quit, Qt);
       internal_condition_case_1 (call0, fun, Qt, finalizer_handler);
       unbind_to (count, Qnil);

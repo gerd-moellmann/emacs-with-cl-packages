@@ -39,7 +39,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 void igc_break (void);
 void init_igc (void);
 void syms_of_igc (void);
-void *igc_thread_add (const void *cold);
+void *igc_thread_add (struct thread_state *ts);
 void igc_thread_remove (void *info);
 void igc_on_idle (void);
 void igc_on_pdump_loaded (void *start, void *end);
