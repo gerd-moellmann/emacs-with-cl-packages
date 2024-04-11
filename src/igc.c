@@ -347,9 +347,10 @@ deregister_root (struct igc_root_list *r)
 }
 
 static void
-destroy_root (struct igc_root_list *r)
+destroy_root (struct igc_root_list **r)
 {
-  mps_root_destroy (deregister_root (r));
+  mps_root_destroy (deregister_root (*r));
+  *r = NULL;
 }
 
 static struct igc_thread_list *
@@ -700,7 +701,6 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
-
 
 /* Scan the area of memory [START, END) ambiguously. In general,
    references may be either tagged words or pointers. This is used for
@@ -1524,7 +1524,7 @@ igc_on_grow_specpdl (void)
   struct igc_thread_list *t = current_thread->gc_info;
   IGC_WITH_PARKED (t->d.gc)
   {
-    destroy_root (t->d.specpdl_root);
+    destroy_root (&t->d.specpdl_root);
     root_create_specpdl (t);
   }
 }
@@ -1612,8 +1612,8 @@ igc_thread_remove (void *info)
   mps_ap_destroy (t->d.weak_strong_ap);
   mps_ap_destroy (t->d.weak_weak_ap);
   mps_thread_dereg (t->d.thr);
-  destroy_root (t->d.specpdl_root);
-  destroy_root (t->d.bc_root);
+  destroy_root (&t->d.specpdl_root);
+  destroy_root (&t->d.bc_root);
   deregister_thread (t);
 }
 
@@ -1639,7 +1639,7 @@ igc_on_pdump_loaded (void *start, void *end)
 }
 
 static igc_root_list *
-find_root (void *start)
+root_find (void *start)
 {
   for (igc_root_list *r = global_igc->roots; r; r = r->next)
     if (r->d.start == start)
@@ -1648,7 +1648,7 @@ find_root (void *start)
 }
 
 Lisp_Object *
-igc_alloc_lisp_objs (size_t n)
+igc_xalloc_lisp_objs_exact (size_t n)
 {
   size_t size = n * sizeof (Lisp_Object);
   void *p = xzalloc (size);
@@ -1669,9 +1669,9 @@ igc_xfree (void *p)
 {
   if (p == NULL)
     return;
-  struct igc_root_list *r = find_root (p);
+  struct igc_root_list *r = root_find (p);
   igc_assert (r != NULL);
-  destroy_root (r);
+  destroy_root (&r);
   xfree (p);
 }
 
@@ -1683,9 +1683,9 @@ igc_xpalloc_ambig (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
   {
     if (pa)
       {
-	struct igc_root_list *r = find_root (pa);
-	if (r)
-	  destroy_root (r);
+	struct igc_root_list *r = root_find (pa);
+	igc_assert (r != NULL);
+	destroy_root (&r);
       }
     pa = xpalloc (pa, nitems, nitems_incr_min, nitems_max, item_size);
     char *end = (char *) pa + *nitems * item_size;
@@ -1701,9 +1701,9 @@ igc_xnrealloc_ambig (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
   {
     if (pa)
       {
-	struct igc_root_list *r = find_root (pa);
-	if (r)
-	  destroy_root (r);
+	struct igc_root_list *r = root_find (pa);
+	igc_assert (r != NULL);
+	destroy_root (&r);
       }
     pa = xnrealloc (pa, nitems, item_size);
     char *end = (char *) pa + nitems * item_size;

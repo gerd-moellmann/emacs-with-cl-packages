@@ -5862,7 +5862,7 @@ hash_table_alloc_kv (struct Lisp_Hash_Table *h, ptrdiff_t nobjs)
      create additional roots for that. This will go away when
      implementing weak tables. */
   if (pdumper_object_p (h))
-    return igc_alloc_lisp_objs (nobjs);
+    return igc_xalloc_lisp_objs_exact (nobjs);
 #endif
   void *p = xmalloc (nobjs * sizeof (Lisp_Object));
   return p;

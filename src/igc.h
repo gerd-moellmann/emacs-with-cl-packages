@@ -52,7 +52,7 @@ Lisp_Object igc_alloc_symbol (void);
 struct Lisp_Buffer_Local_Value *igc_alloc_blv (void);
 void *igc_xzalloc_ambig (size_t size);
 void igc_xfree (void *p);
-Lisp_Object *igc_alloc_lisp_objs (size_t n);
+Lisp_Object *igc_xalloc_lisp_objs_exact (size_t n);
 void *igc_xpalloc_ambig (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 		   ptrdiff_t nitems_max, ptrdiff_t item_size);
 void *igc_xnrealloc_ambig (void *pa, ptrdiff_t nitems, ptrdiff_t item_size);
