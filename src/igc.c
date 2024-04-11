@@ -1635,13 +1635,7 @@ igc_park_arena (void)
 void
 igc_on_pdump_loaded (void *start, void *end)
 {
-  // fprintf (stderr, "pdump root %10p %10p\n", start, end);
-  struct igc *gc = global_igc;
-  mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-					start, end, scan_ambig, 0);
-  IGC_CHECK_RES (res);
-  register_root (gc, root, start, end);
+  root_create_ambig (global_igc, start, end);
 }
 
 static igc_root_list *
