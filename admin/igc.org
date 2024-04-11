@@ -118,10 +118,6 @@ Examples:
 Both are allocated from MPS because that turned out to be a lot easier
 than coping with malloc'd memory.
 
-** Threads
-
-Need to make sure that I always have access to the thread's specpdl_ptr.
-
 ** Finalization
 
 Is now implemented.
@@ -142,11 +138,12 @@ Some things are not implemented because they were out of scope. For
 example,
 
 - ~memory-report~ Could be done with MPS's pool walk functionality.
+
 - profiler (~profiler-memory-start~...) No idea, haven't looked at it.
 
-Anything I don't currently use either because it doesn't exist on macOS
-(text conversions, for example), or because I didn't think it being
-essiential (xwidgets, for example).
+- Anything I don't currently use either because it doesn't exist on
+  macOS (text conversions, for example), or because I didn't think it
+  being essiential (xwidgets, for example).
 
 ** Knobs not tried
 

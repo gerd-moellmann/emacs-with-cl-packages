@@ -304,6 +304,7 @@ struct igc_thread
   mps_ap_t weak_strong_ap;
   mps_ap_t weak_weak_ap;
   igc_root_list *specpdl_root;
+  struct thread_state *thread_state;
 };
 
 typedef struct igc_thread igc_thread;
@@ -633,6 +634,22 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
   return MPS_RES_OK;
 }
 
+/* This exists because we need access to a threads' current specpdl
+   pointer, which means we need access to the thread_state, which can
+   move in memory. */
+static mps_res_t
+scan_igc (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    struct igc *gc = start;
+    for (struct igc_thread_list *t = gc->threads; t; t = t->next)
+      IGC_FIX12_RAW (ss, &t->d.thread_state);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 static mps_res_t
 scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 {
@@ -648,11 +665,11 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  /* I understand the MPS docs as saying that root scanning functions
-     have exclusice access to what is being scanned, the same way format
-     scanning functions do. That means I can use specpdl_ptr here.  */
-  union specbinding **ptr = closure;
-  end = *ptr;
+  /* MPS docs say that root scanning functions have exclusive access to
+     what is being scanned, the same way format scanning functions
+     do. That means I can use specpdl_ptr here. */
+  struct igc_thread_list *t = closure;
+  end = t->d.thread_state->m_specpdl_ptr;
 
   MPS_SCAN_BEGIN (ss)
   {
@@ -1485,9 +1502,15 @@ create_specpdl_root (struct igc_thread_list *t)
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0, start, end,
-			    scan_specpdl, &current_thread->m_specpdl_ptr);
+			    scan_specpdl, t);
   IGC_CHECK_RES (res);
   t->d.specpdl_root = register_root (gc, root, start, end);
+}
+
+static void
+create_igc_root (struct igc *gc)
+{
+  create_root (gc, gc, gc + 1, mps_rank_exact (), scan_igc);
 }
 
 void
@@ -1504,10 +1527,10 @@ igc_on_alloc_main_thread_specpdl (void)
 void
 igc_on_grow_specpdl (void)
 {
-  // Note that no two roots may overlap, so we have to temporarily
-  // stop the collector while replacing one root with another (xpalloc
-  // may realloc). Alternatives: (1) don't realloc, (2) alloc specpdl
-  // from MPS pool that is scanned.
+  /* Note that no two roots may overlap, so we have to temporarily
+     stop the collector while replacing one root with another (xpalloc
+     may realloc). Alternatives: (1) don't realloc, (2) alloc specpdl
+     from MPS pool that is scanned. */
   struct igc_thread_list *t = current_thread->gc_info;
   IGC_WITH_PARKED (t->d.gc)
   {
@@ -1519,6 +1542,7 @@ igc_on_grow_specpdl (void)
 static void
 create_static_roots (struct igc *gc)
 {
+  create_igc_root (gc);
   create_buffer_root (gc, &buffer_defaults);
   create_buffer_root (gc, &buffer_local_symbols);
   create_staticvec_root (gc);
@@ -1562,7 +1586,9 @@ igc_thread_remove (void *info)
   mps_ap_destroy (t->d.leaf_ap);
   mps_ap_destroy (t->d.weak_strong_ap);
   mps_ap_destroy (t->d.weak_weak_ap);
-  mps_thread_dereg (deregister_thread (t));
+  mps_thread_dereg (t->d.thr);
+  destroy_root (t->d.specpdl_root);
+  deregister_thread (t);
 }
 
 static void
