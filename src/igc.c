@@ -308,6 +308,7 @@ struct igc_thread
   mps_ap_t weak_strong_ap;
   mps_ap_t weak_weak_ap;
   igc_root_list *specpdl_root;
+  igc_root_list *bc_root;
   struct thread_state *ts;
 };
 
@@ -354,7 +355,7 @@ destroy_root (struct igc_root_list *r)
 static struct igc_thread_list *
 register_thread (struct igc *gc, mps_thr_t thr, struct thread_state *ts)
 {
-  struct igc_thread t = {.gc = gc, .thr = thr, .ts = ts};
+  struct igc_thread t = { .gc = gc, .thr = thr, .ts = ts };
   return igc_thread_list_push (&gc->threads, &t);
 }
 
@@ -623,16 +624,16 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  /* MPS docs say that root scanning functions have exclusive access to
-     what is being scanned, the same way format scanning functions
-     do. That means I can use the thread's specpdl_ptr here. */
-  struct igc_thread_list *t = closure;
-  igc_assert (start == (void *) t->d.ts->m_specpdl);
-  igc_assert (end == (void *) t->d.ts->m_specpdl_end);
-  end = t->d.ts->m_specpdl_ptr;
-
   MPS_SCAN_BEGIN (ss)
   {
+    /* MPS docs say that root scanning functions have exclusive access to
+       what is being scanned, the same way format scanning functions
+       do. That means I can use the thread's specpdl_ptr here. */
+    struct igc_thread_list *t = closure;
+    igc_assert (start == (void *) t->d.ts->m_specpdl);
+    igc_assert (end == (void *) t->d.ts->m_specpdl_end);
+    end = t->d.ts->m_specpdl_ptr;
+
     for (union specbinding *pdl = start; (void *) pdl < end; ++pdl)
       {
 	switch (pdl->kind)
@@ -700,6 +701,7 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
+
 /* Scan the area of memory [START, END) ambiguously. In general,
    references may be either tagged words or pointers. This is used for
    blocks allocated with malloc and thread stacks. */
@@ -750,6 +752,23 @@ scan_ambig (mps_ss_t ss, void *start, void *end, void *closure)
 	    break;
 	  }
       }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+scan_bc (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    struct igc_thread_list *t = closure;
+    struct bc_thread_state *bc = &t->d.ts->bc;
+    igc_assert (start == (void *) bc->stack);
+    igc_assert (end == (void *) bc->stack_end);
+    end = bc_next_frame (bc->fp);
+    if (end > start)
+      IGC_FIX_CALL (ss, scan_ambig (ss, start, end, NULL));
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1450,16 +1469,28 @@ static void
 root_create_specpdl (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
-  void *start = current_thread->m_specpdl;
-  if (start == NULL)
-    return;
-  void *end = current_thread->m_specpdl_end;
+  struct thread_state *ts = t->d.ts;
+  igc_assert (ts->m_specpdl != NULL);
   mps_root_t root;
   mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0, start, end,
-			    scan_specpdl, t);
+    = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
+			    ts->m_specpdl, ts->m_specpdl_end, scan_specpdl, t);
   IGC_CHECK_RES (res);
-  t->d.specpdl_root = register_root (gc, root, start, end);
+  t->d.specpdl_root
+    = register_root (gc, root, ts->m_specpdl, ts->m_specpdl_end);
+}
+
+static void
+root_create_bc (struct igc_thread_list *t)
+{
+  struct igc *gc = t->d.gc;
+  struct bc_thread_state *bc = &t->d.ts->bc;
+  igc_assert (bc->stack != NULL);
+  mps_root_t root;
+  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
+					bc->stack, bc->stack_end, scan_bc, t);
+  IGC_CHECK_RES (res);
+  t->d.bc_root = register_root (gc, root, bc->stack, bc->stack_end);
 }
 
 static void
@@ -1485,6 +1516,12 @@ void
 igc_on_alloc_main_thread_specpdl (void)
 {
   root_create_specpdl (current_thread->gc_info);
+}
+
+void
+igc_on_alloc_main_thread_bc (void)
+{
+  root_create_bc (current_thread->gc_info);
 }
 
 void
@@ -1533,16 +1570,24 @@ create_thread_aps (struct igc_thread *t)
   IGC_CHECK_RES (res);
 }
 
-void *
-igc_thread_add (struct thread_state *ts)
+static struct igc_thread_list *
+thread_add (struct thread_state *ts)
 {
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
   IGC_CHECK_RES (res);
   struct igc_thread_list *t = register_thread (global_igc, thr, ts);
   root_create_thread (t);
-  root_create_specpdl (t);
   create_thread_aps (&t->d);
+  return t;
+}
+
+void *
+igc_thread_add (struct thread_state *ts)
+{
+  struct igc_thread_list *t = thread_add (ts);
+  root_create_specpdl (t);
+  root_create_bc (t);
   return t;
 }
 
@@ -1556,6 +1601,7 @@ igc_thread_remove (void *info)
   mps_ap_destroy (t->d.weak_weak_ap);
   mps_thread_dereg (t->d.thr);
   destroy_root (t->d.specpdl_root);
+  destroy_root (t->d.bc_root);
   deregister_thread (t);
 }
 
@@ -1564,7 +1610,7 @@ add_main_thread (void)
 {
   igc_assert (current_thread->gc_info == NULL);
   igc_assert (current_thread->m_stack_bottom == stack_bottom);
-  current_thread->gc_info = igc_thread_add (current_thread);
+  current_thread->gc_info = thread_add (current_thread);
 }
 
 static void

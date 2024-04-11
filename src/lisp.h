@@ -5240,6 +5240,9 @@ extern Lisp_Object get_byte_code_arity (Lisp_Object);
 extern void init_bc_thread (struct bc_thread_state *bc);
 extern void free_bc_thread (struct bc_thread_state *bc);
 extern void mark_bytecode (struct bc_thread_state *bc);
+#ifdef HAVE_MPS
+extern void *bc_next_frame (struct bc_frame *bc);
+# endif
 
 INLINE struct bc_frame *
 get_act_rec (struct thread_state *th)

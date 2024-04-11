@@ -387,14 +387,18 @@ struct bc_frame {
   Lisp_Object next_stack[];	    /* data stack of next frame */
 };
 
+#ifdef HAVE_MPS
+void *
+bc_next_frame (struct bc_frame *bc)
+{
+  return bc->next_stack;
+}
+#endif
+
 void
 init_bc_thread (struct bc_thread_state *bc)
 {
-#ifdef HAVE_MPS
-  bc->stack = igc_xzalloc_ambig (BC_STACK_SIZE);
-#else
   bc->stack = xmalloc (BC_STACK_SIZE);
-#endif
   bc->stack_end = bc->stack + BC_STACK_SIZE;
   /* Put a dummy header at the bottom to indicate the first free location.  */
   bc->fp = (struct bc_frame *)bc->stack;
@@ -404,11 +408,7 @@ init_bc_thread (struct bc_thread_state *bc)
 void
 free_bc_thread (struct bc_thread_state *bc)
 {
-#ifdef HAVE_MPS
-  igc_xfree (bc->stack);
-#else
   xfree (bc->stack);
-#endif
 }
 
 #ifndef HAVE_MPS

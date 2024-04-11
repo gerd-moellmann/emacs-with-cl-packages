@@ -905,15 +905,11 @@ If NAME is given, it must be a string; it names the new thread.  */)
 
   ptrdiff_t size = 50;
   union specbinding *pdlvec = xmalloc ((1 + size) * sizeof (union specbinding));
-#ifdef HAVE_MPS
-  igc_on_grow_specpdl ();
-#endif
   new_thread->m_specpdl = pdlvec + 1;  /* Skip the dummy entry.  */
   new_thread->m_specpdl_end = new_thread->m_specpdl + size;
   new_thread->m_specpdl_ptr = new_thread->m_specpdl;
 
   init_bc_thread (&new_thread->bc);
-
   sys_cond_init (&new_thread->thread_condvar);
 
   /* We'll need locking here eventually.  */
@@ -1178,6 +1174,9 @@ init_threads (void)
 
   main_thread.s.thread_id = sys_thread_self ();
   init_bc_thread (&main_thread.s.bc);
+#ifdef HAVE_MPS
+  igc_on_alloc_main_thread_bc ();
+#endif
 }
 
 void
