@@ -3820,10 +3820,6 @@ unbind_to (specpdl_ref count, Lisp_Object value)
 
       union specbinding this_binding;
       this_binding = *--specpdl_ptr;
-#ifdef HAVE_MPS
-      igc_on_specbinding_unused (specpdl_ptr);
-#endif
-
       do_one_unbind (&this_binding, true, SET_INTERNAL_UNBIND);
     }
 

@@ -84,7 +84,6 @@ specpdl_ref igc_park_arena (void);
 void igc_check_vector (const struct Lisp_Vector *v);
 specpdl_ref igc_ramp_allocation (void);
 void igc_postmortem (void);
-void igc_on_specbinding_unused (union specbinding *b);
 void igc_on_grow_specpdl (void);
 void igc_on_alloc_main_thread_specpdl (void);
 void igc_check_symbol (void *p);

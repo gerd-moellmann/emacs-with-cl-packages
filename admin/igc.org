@@ -3,7 +3,7 @@
 * What is MPS?
 
 The MPS (Memory Pool System) is a GC library developed by Ravenbrook
-Limited. It is available from [[https://github.com/Ravenbrook/mps?tab=readme-ov-file][Github]] under a BSD2 license. See the
+Ltd. It is available from [[https://github.com/Ravenbrook/mps?tab=readme-ov-file][Github]] under a BSD license. See the
 [[https://memory-pool-system.readthedocs.io/en/latest/][documentation]].
 
 In short, MPS implements incremental, generational, concurrent, copying,
@@ -12,9 +12,9 @@ been around for a long time, is stable, and well documented.
 
 * What is this branch?
 
-It is my personal study if Emacs can be made to use a GC based on
-MPS. I'm not the Emacs maintainer, and I haven't communicated with the
-current maintainers about the plan of using MPS.
+This branch contains my personal study if Emacs can be made to use a GC
+based on MPS. I'm not the Emacs maintainer, and I haven't communicated
+with the current maintainers about the plan of using MPS in Emacs.
 
 * Caveats
 
@@ -147,15 +147,17 @@ example,
 
 ** Knobs not tried
 
-Number of generations, size of generations, mortality probabilities, and
-maybe others. I haven't tried to do anything with that. There are
-currently two generations.
+- Number of generations
+- Size of generations
+- Mortality probabilities
+- Allocation policies, like ramp allocation
+- ...
 
 ** Bytecode stacks
 
-Are currently ambiguous roots, but should be made exact roots.
+Are currently ambiguous roots, but should probably be made exact roots.
 
-** Implementation, general
+** Implementation
 
 I think it's not too terrible, but some things should be improved
 
@@ -168,6 +170,6 @@ I think it's not too terrible, but some things should be improved
 ** Debugger
 
 MPS uses memory barriers. In certain situations it is necessary to
-remove these to be able to do certain things (=xbacktrace= is an
-example). I've added a command =xpostmortem= to the LLDB support for
-that. GDB will need something similar.
+remove these to be able to do certain things.  I've added a command
+=xpostmortem= to the LLDB support for that. GDB will need something
+similar.

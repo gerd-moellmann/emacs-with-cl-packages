@@ -96,20 +96,21 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # if USE_STACK_LISP_OBJECTS
 #  error "USE_STACK_LISP_OBJECTS not supported"
 # endif
-
-// #pragma GCC diagnostic ignored "-Wunused-function"
-
-// Neither do I know what this is, nor is it supported on macOS.
+# ifndef HAVE_PDUMPER
+#  error "HAVE_PDUMPER required"
+# endif
 # ifdef HAVE_TEXT_CONVERSION
 #  error "HAVE_TEXT_CONVERSION not supported"
 # endif
 
 /* Note: Emacs will call allocation functions whlle aborting. This leads
    to all sorts of interesting phenomena when an assertion fails inside
-   a function called from MPS while holding a lock. For instance, we
-   find that we already own the lock while allocating.
+   a function called from MPS.
 
-   The fucntion signature must be that of mps_lib_assert_fail_t.  */
+   Example: We assert while MPS holds a lock, and MPS finds that it
+   already holds the lock while Emacs is handling the assertion failure.
+
+   The function signature must be that of mps_lib_assert_fail_t.  */
 
 static void
 igc_assert_fail (const char *file, unsigned line, const char *msg)
@@ -128,10 +129,10 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
 # endif
 
 # define igc_static_assert(x) verify (x)
-
 # define IGC_TAG_MASK (~VALMASK)
 
 /* Min and max addresses MPS uses. */
+
 static mps_addr_t min_addr, max_addr;
 
 static bool
@@ -193,16 +194,6 @@ is_aligned (const mps_addr_t addr)
      xfree (r);                                                       \
    }
 
-struct igc_root
-{
-  struct igc *gc;
-  mps_root_t root;
-  void *start, *end;
-};
-
-typedef struct igc_root igc_root;
-IGC_DEFINE_LIST (igc_root);
-
 enum igc_obj_type
 {
   IGC_OBJ_INVALID,
@@ -228,6 +219,7 @@ enum igc_obj_type
    location dependencies, and (b) makes it possible to implement sxhash
    variants in a way that works as expected even if GCs happen between
    calls.  */
+
 enum
 {
   IGC_TYPE_BITS = 4,
@@ -285,6 +277,9 @@ igc_round (size_t nbytes, size_t align)
   return ROUNDUP (nbytes, align);
 }
 
+/* Value is the size in bytes that we need to allocate from MPS
+   for a client object of size NBYTES. */
+
 static size_t
 obj_size (size_t nbytes)
 {
@@ -293,6 +288,16 @@ obj_size (size_t nbytes)
   nbytes = igc_round (nbytes, IGC_ALIGN_DFLT);
   return nbytes;
 }
+
+struct igc_root
+{
+  struct igc *gc;
+  mps_root_t root;
+  void *start, *end;
+};
+
+typedef struct igc_root igc_root;
+IGC_DEFINE_LIST (igc_root);
 
 struct igc_thread
 {
@@ -325,23 +330,6 @@ struct igc
 
 static struct igc *global_igc;
 
-void
-igc_check_vector (const struct Lisp_Vector *v)
-{
-  if (is_mps ((void *) v))
-    {
-      struct igc_header *h = client_to_base ((void *) v);
-      mps_pool_t pool;
-      igc_assert (mps_addr_pool (&pool, global_igc->arena, h));
-      enum pvec_type ptype = PSEUDOVECTOR_TYPE (v);
-      // Char tables are allocated as plan vectors
-      if (ptype == PVEC_SUB_CHAR_TABLE || ptype == PVEC_CHAR_TABLE)
-	ptype = PVEC_NORMAL_VECTOR;
-      igc_assert (h->obj_type == IGC_OBJ_VECTOR);
-      igc_assert (h->pvec_type == ptype);
-    }
-}
-
 static struct igc_root_list *
 register_root (struct igc *gc, mps_root_t root, void *start, void *end)
 {
@@ -361,37 +349,6 @@ static void
 destroy_root (struct igc_root_list *r)
 {
   mps_root_destroy (deregister_root (r));
-}
-
-static mps_res_t
-create_weak_ap (mps_ap_t *ap, struct igc_thread *t, bool weak)
-{
-  struct igc *gc = t->gc;
-  mps_res_t res;
-  mps_pool_t pool = gc->weak_pool;
-  MPS_ARGS_BEGIN (args)
-  {
-    MPS_ARGS_ADD (args, MPS_KEY_RANK,
-		  weak ? mps_rank_weak () : mps_rank_exact ());
-    res = mps_ap_create_k (ap, pool, args);
-  }
-  MPS_ARGS_END (args);
-  return res;
-}
-
-static void
-create_thread_aps (struct igc_thread *t)
-{
-  struct igc *gc = t->gc;
-  mps_res_t res;
-  res = mps_ap_create_k (&t->dflt_ap, gc->dflt_pool, mps_args_none);
-  IGC_CHECK_RES (res);
-  res = mps_ap_create_k (&t->leaf_ap, gc->leaf_pool, mps_args_none);
-  IGC_CHECK_RES (res);
-  res = create_weak_ap (&t->weak_strong_ap, t, false);
-  IGC_CHECK_RES (res);
-  res = create_weak_ap (&t->weak_weak_ap, t, true);
-  IGC_CHECK_RES (res);
 }
 
 static struct igc_thread_list *
@@ -636,6 +593,7 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 /* This exists because we need access to a threads' current specpdl
    pointer, which means we need access to the thread_state, which can
    move in memory. */
+
 static mps_res_t
 scan_igc (mps_ss_t ss, void *start, void *end, void *closure)
 {
@@ -667,7 +625,7 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 {
   /* MPS docs say that root scanning functions have exclusive access to
      what is being scanned, the same way format scanning functions
-     do. That means I can use specpdl_ptr here. */
+     do. That means I can use the thread's specpdl_ptr here. */
   struct igc_thread_list *t = closure;
   igc_assert (start == (void *) t->d.ts->m_specpdl);
   igc_assert (end == (void *) t->d.ts->m_specpdl_end);
@@ -1028,10 +986,6 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
-
-/***********************************************************************
-				Vectors
- ***********************************************************************/
 
 static enum pvec_type
 pseudo_vector_type (const struct Lisp_Vector *v)
@@ -1414,7 +1368,7 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 # pragma GCC diagnostic pop
 
 static igc_root_list *
-create_root (struct igc *gc, void *start, void *end, mps_rank_t rank,
+root_create (struct igc *gc, void *start, void *end, mps_rank_t rank,
 	     mps_area_scan_t scan)
 {
   mps_root_t root;
@@ -1425,15 +1379,15 @@ create_root (struct igc *gc, void *start, void *end, mps_rank_t rank,
 }
 
 static igc_root_list *
-create_ambig_root (struct igc *gc, void *start, void *end)
+root_create_ambig (struct igc *gc, void *start, void *end)
 {
-  return create_root (gc, start, end, mps_rank_ambig (), scan_ambig);
+  return root_create (gc, start, end, mps_rank_ambig (), scan_ambig);
 }
 
 static igc_root_list *
-create_exact_root (struct igc *gc, void *start, void *end)
+root_create_exact (struct igc *gc, void *start, void *end)
 {
-  return create_root (gc, start, end, mps_rank_exact (), scan_exact);
+  return root_create (gc, start, end, mps_rank_exact (), scan_exact);
 }
 
 static mps_rm_t
@@ -1446,7 +1400,7 @@ root_mode_inner (void)
 }
 
 static void
-create_staticvec_root (struct igc *gc)
+root_create_staticvec (struct igc *gc)
 {
   void *start = staticvec, *end = staticvec + ARRAYELTS (staticvec);
   mps_root_t root;
@@ -1458,7 +1412,7 @@ create_staticvec_root (struct igc *gc)
 }
 
 static void
-create_lispsym_root (struct igc *gc)
+root_create_lispsym (struct igc *gc)
 {
   void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
   mps_root_t root;
@@ -1470,30 +1424,30 @@ create_lispsym_root (struct igc *gc)
 }
 
 static void
-create_buffer_root (struct igc *gc, struct buffer *b)
+root_create_buffer (struct igc *gc, struct buffer *b)
 {
   void *start = &b->name_, *end = &b->own_text;
-  create_ambig_root (gc, start, end);
+  root_create_ambig (gc, start, end);
 }
 
 static void
-create_terminal_list_root (struct igc *gc)
+root_create_terminal_list (struct igc *gc)
 {
   void *start = &terminal_list;
   void *end = (char *) start + sizeof (terminal_list);
-  create_ambig_root (gc, start, end);
+  root_create_ambig (gc, start, end);
 }
 
 static void
-create_main_thread_root (struct igc *gc)
+root_create_main_thread (struct igc *gc)
 {
   void *start = &main_thread;
   void *end = (char *) &main_thread + sizeof (main_thread);
-  create_ambig_root (gc, start, end);
+  root_create_ambig (gc, start, end);
 }
 
 static void
-create_specpdl_root (struct igc_thread_list *t)
+root_create_specpdl (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   void *start = current_thread->m_specpdl;
@@ -1509,20 +1463,28 @@ create_specpdl_root (struct igc_thread_list *t)
 }
 
 static void
-create_igc_root (struct igc *gc)
+root_create_igc (struct igc *gc)
 {
-  create_root (gc, gc, gc + 1, mps_rank_exact (), scan_igc);
+  root_create (gc, gc, gc + 1, mps_rank_exact (), scan_igc);
 }
 
-void
-igc_on_specbinding_unused (union specbinding *b)
+static void
+root_create_thread (struct igc_thread_list *t)
 {
+  struct igc *gc = t->d.gc;
+  mps_root_t root;
+  void *cold = (void *) t->d.ts->m_stack_bottom;
+  mps_res_t res
+    = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
+				      t->d.thr, scan_ambig, 0, cold);
+  IGC_CHECK_RES (res);
+  register_root (gc, root, cold, NULL);
 }
 
 void
 igc_on_alloc_main_thread_specpdl (void)
 {
-  create_specpdl_root (current_thread->gc_info);
+  root_create_specpdl (current_thread->gc_info);
 }
 
 void
@@ -1536,33 +1498,39 @@ igc_on_grow_specpdl (void)
   IGC_WITH_PARKED (t->d.gc)
   {
     destroy_root (t->d.specpdl_root);
-    create_specpdl_root (t);
+    root_create_specpdl (t);
   }
 }
 
-static void
-create_static_roots (struct igc *gc)
+static mps_res_t
+create_weak_ap (mps_ap_t *ap, struct igc_thread *t, bool weak)
 {
-  create_igc_root (gc);
-  create_buffer_root (gc, &buffer_defaults);
-  create_buffer_root (gc, &buffer_local_symbols);
-  create_staticvec_root (gc);
-  create_lispsym_root (gc);
-  create_terminal_list_root (gc);
-  create_main_thread_root (gc);
+  struct igc *gc = t->gc;
+  mps_res_t res;
+  mps_pool_t pool = gc->weak_pool;
+  MPS_ARGS_BEGIN (args)
+  {
+    MPS_ARGS_ADD (args, MPS_KEY_RANK,
+		  weak ? mps_rank_weak () : mps_rank_exact ());
+    res = mps_ap_create_k (ap, pool, args);
+  }
+  MPS_ARGS_END (args);
+  return res;
 }
 
 static void
-create_thread_root (struct igc_thread_list *t)
+create_thread_aps (struct igc_thread *t)
 {
-  struct igc *gc = t->d.gc;
-  mps_root_t root;
-  void *cold = (void *) t->d.ts->m_stack_bottom;
-  mps_res_t res
-    = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
-				      t->d.thr, scan_ambig, 0, cold);
+  struct igc *gc = t->gc;
+  mps_res_t res;
+  res = mps_ap_create_k (&t->dflt_ap, gc->dflt_pool, mps_args_none);
   IGC_CHECK_RES (res);
-  register_root (gc, root, cold, NULL);
+  res = mps_ap_create_k (&t->leaf_ap, gc->leaf_pool, mps_args_none);
+  IGC_CHECK_RES (res);
+  res = create_weak_ap (&t->weak_strong_ap, t, false);
+  IGC_CHECK_RES (res);
+  res = create_weak_ap (&t->weak_weak_ap, t, true);
+  IGC_CHECK_RES (res);
 }
 
 void *
@@ -1572,8 +1540,8 @@ igc_thread_add (struct thread_state *ts)
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
   IGC_CHECK_RES (res);
   struct igc_thread_list *t = register_thread (global_igc, thr, ts);
-  create_thread_root (t);
-  create_specpdl_root (t);
+  root_create_thread (t);
+  root_create_specpdl (t);
   create_thread_aps (&t->d);
   return t;
 }
@@ -1661,7 +1629,7 @@ igc_alloc_lisp_objs (size_t n)
 {
   size_t size = n * sizeof (Lisp_Object);
   void *p = xzalloc (size);
-  create_exact_root (global_igc, p, (char *) p + size);
+  root_create_exact (global_igc, p, (char *) p + size);
   return p;
 }
 
@@ -1669,7 +1637,7 @@ void *
 igc_xzalloc_ambig (size_t size)
 {
   void *p = xzalloc (size);
-  create_ambig_root (global_igc, p, (char *) p + size);
+  root_create_ambig (global_igc, p, (char *) p + size);
   return p;
 }
 
@@ -1698,7 +1666,7 @@ igc_xpalloc_ambig (void *pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
       }
     pa = xpalloc (pa, nitems, nitems_incr_min, nitems_max, item_size);
     char *end = (char *) pa + *nitems * item_size;
-    create_ambig_root (global_igc, pa, end);
+    root_create_ambig (global_igc, pa, end);
   }
   return pa;
 }
@@ -1716,7 +1684,7 @@ igc_xnrealloc_ambig (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
       }
     pa = xnrealloc (pa, nitems, item_size);
     char *end = (char *) pa + nitems * item_size;
-    create_ambig_root (global_igc, pa, end);
+    root_create_ambig (global_igc, pa, end);
   }
   return pa;
 }
@@ -1724,7 +1692,7 @@ igc_xnrealloc_ambig (void *pa, ptrdiff_t nitems, ptrdiff_t item_size)
 void
 igc_create_charset_root (void *table, size_t size)
 {
-  create_ambig_root (global_igc, table, (char *) table + size);
+  root_create_ambig (global_igc, table, (char *) table + size);
 }
 
 static void
@@ -2448,10 +2416,19 @@ make_igc (void)
   gc->weak_fmt = make_dflt_fmt (gc);
   gc->weak_pool = make_pool_awl (gc, gc->weak_fmt);
 
-  create_static_roots (gc);
+  root_create_igc (gc);
+  root_create_buffer (gc, &buffer_defaults);
+  root_create_buffer (gc, &buffer_local_symbols);
+  root_create_staticvec (gc);
+  root_create_lispsym (gc);
+  root_create_terminal_list (gc);
+  root_create_main_thread (gc);
+
   enable_messages (gc, true);
   return gc;
 }
+
+/* To call from LLDB. */
 
 void
 igc_postmortem (void)
@@ -2502,7 +2479,3 @@ syms_of_igc (void)
 }
 
 #endif
-
-// Local Variables:
-// mode: c++
-// End:
