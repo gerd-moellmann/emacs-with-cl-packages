@@ -1476,6 +1476,7 @@ root_create_specpdl (struct igc_thread_list *t)
     = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
 			    ts->m_specpdl, ts->m_specpdl_end, scan_specpdl, t);
   IGC_CHECK_RES (res);
+  igc_assert (t->d.specpdl_root == NULL);
   t->d.specpdl_root
     = register_root (gc, root, ts->m_specpdl, ts->m_specpdl_end);
 }
@@ -1490,6 +1491,7 @@ root_create_bc (struct igc_thread_list *t)
   mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
 					bc->stack, bc->stack_end, scan_bc, t);
   IGC_CHECK_RES (res);
+  igc_assert (t->d.bc_root == NULL);
   t->d.bc_root = register_root (gc, root, bc->stack, bc->stack_end);
 }
 
