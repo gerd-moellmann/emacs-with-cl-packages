@@ -1404,42 +1404,24 @@ root_create_ambig (struct igc *gc, void *start, void *end)
 }
 
 static igc_root_list *
-root_create_exact (struct igc *gc, void *start, void *end)
+root_create_exact (struct igc *gc, void *start, void *end,
+		   mps_area_scan_t scan)
 {
-  return root_create (gc, start, end, mps_rank_exact (), scan_exact);
-}
-
-static mps_rm_t
-root_mode_inner (void)
-{
-  /* Issue https://github.com/Ravenbrook/mps/issues/285  */
-  if (MPS_RM_PROT == MPS_RM_PROT_INNER)
-    return 0;
-  return MPS_RM_PROT_INNER + MPS_RM_PROT;
+  return root_create (gc, start, end, mps_rank_exact (), scan);
 }
 
 static void
 root_create_staticvec (struct igc *gc)
 {
-  void *start = staticvec, *end = staticvec + ARRAYELTS (staticvec);
-  mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_exact (),
-					root_mode_inner (), start, end,
-					scan_staticvec, NULL);
-  IGC_CHECK_RES (res);
-  register_root (gc, root, start, end);
+  root_create_exact (gc, staticvec, staticvec + ARRAYELTS (staticvec),
+		     scan_staticvec);
 }
 
 static void
 root_create_lispsym (struct igc *gc)
 {
-  void *start = lispsym, *end = lispsym + ARRAYELTS (lispsym);
-  mps_root_t root;
-  mps_res_t res
-    = mps_root_create_area (&root, gc->arena, mps_rank_exact (),
-			    root_mode_inner (), start, end, scan_lispsym, NULL);
-  IGC_CHECK_RES (res);
-  register_root (gc, root, start, end);
+  root_create_exact (gc, lispsym, lispsym + ARRAYELTS (lispsym),
+		     scan_lispsym);
 }
 
 static void
@@ -1471,12 +1453,12 @@ root_create_specpdl (struct igc_thread_list *t)
   struct igc *gc = t->d.gc;
   struct thread_state *ts = t->d.ts;
   igc_assert (ts->m_specpdl != NULL);
+  igc_assert (t->d.specpdl_root == NULL);
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, mps_rank_exact (), 0,
 			    ts->m_specpdl, ts->m_specpdl_end, scan_specpdl, t);
   IGC_CHECK_RES (res);
-  igc_assert (t->d.specpdl_root == NULL);
   t->d.specpdl_root
     = register_root (gc, root, ts->m_specpdl, ts->m_specpdl_end);
 }
@@ -1581,7 +1563,7 @@ igc_thread_add (struct thread_state *ts)
   return t;
 }
 
-/* The main_thread initialization is a bit scattered. */
+/* The main_thread initialization is a bit scattered in Emacs. */
 
 void
 igc_on_alloc_main_thread_specpdl (void)
@@ -1652,7 +1634,7 @@ igc_xalloc_lisp_objs_exact (size_t n)
 {
   size_t size = n * sizeof (Lisp_Object);
   void *p = xzalloc (size);
-  root_create_exact (global_igc, p, (char *) p + size);
+  root_create_exact (global_igc, p, (char *) p + size, scan_exact);
   return p;
 }
 
