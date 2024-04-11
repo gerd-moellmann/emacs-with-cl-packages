@@ -218,6 +218,7 @@ enum igc_obj_type
   IGC_OBJ_IMAGE,
   IGC_OBJ_FACE,
   IGC_OBJ_FLOAT,
+  IGC_OBJ_BLV,
   IGC_OBJ_WEAK,
   IGC_OBJ_LAST
 };
@@ -234,6 +235,8 @@ enum
   IGC_HASH_BITS = 22,
   IGC_SIZE_BITS = 32
 };
+
+igc_static_assert (IGC_OBJ_LAST - 1 < (1 << IGC_TYPE_BITS));
 
 struct igc_header
 {
@@ -566,10 +569,47 @@ scan_staticvec (mps_ss_t ss, void *start, void *end, void *closure)
 }
 
 static mps_res_t
+fix_fwd (mps_ss_t ss, lispfwd fwd)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    switch (XFWDTYPE (fwd))
+      {
+      case Lisp_Fwd_Int:
+      case Lisp_Fwd_Bool:
+      case Lisp_Fwd_Kboard_Obj:
+	break;
+
+      case Lisp_Fwd_Obj:
+	{
+	  /* It is not guaranteed that we see all of these when
+	     scanning staticvec because of DEFVAR_LISP_NOPRO.  */
+	  struct Lisp_Objfwd *o = (void *) fwd.fwdptr;
+	  IGC_FIX12_OBJ (ss, o->objvar);
+	}
+	break;
+
+      case Lisp_Fwd_Buffer_Obj:
+	{
+	  struct Lisp_Buffer_Objfwd *b = (void *) fwd.fwdptr;
+	  IGC_FIX12_OBJ (ss, &b->predicate);
+	}
+	break;
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 {
   MPS_SCAN_BEGIN (ss)
   {
+    IGC_FIX12_OBJ (ss, &sym->u.s.name);
+    IGC_FIX12_OBJ (ss, &sym->u.s.function);
+    IGC_FIX12_OBJ (ss, &sym->u.s.plist);
+    IGC_FIX12_OBJ (ss, &sym->u.s.package);
     switch (sym->u.s.redirect)
       {
       case SYMBOL_PLAINVAL:
@@ -581,59 +621,13 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
 	break;
 
       case SYMBOL_LOCALIZED:
-	{
-	  /* See make_blv: this is malloc'd, so we can access it.  We
-	     also allocate blvs as exect roots because they can be used
-	     in symbols that are in a loaded pdump, which means we
-	     aren't able to scan the Lisp objects below. Fixing them
-	     here is not strictly necessary because of that, but it also
-	     doesn't hurt. We could at some point decide not to use
-	     malloc, which would make sense to me because it simplified
-	     things. */
-	  struct Lisp_Buffer_Local_Value *blv = sym->u.s.val.blv;
-	  IGC_FIX12_OBJ (ss, &blv->where);
-	  IGC_FIX12_OBJ (ss, &blv->defcell);
-	  IGC_FIX12_OBJ (ss, &blv->valcell);
-	}
+	IGC_FIX12_RAW (ss, &sym->u.s.val.blv);
 	break;
 
       case SYMBOL_FORWARDED:
-	{
-	  lispfwd fwd = sym->u.s.val.fwd;
-
-	  switch (XFWDTYPE (fwd))
-	    {
-	    case Lisp_Fwd_Int:
-	    case Lisp_Fwd_Bool:
-	      break;
-
-	      /* We don't see all these already when scanning staticvec
-		 becaus eof DEFVAR_LISP_NOPRO.  */
-	    case Lisp_Fwd_Obj:
-	      {
-		struct Lisp_Objfwd *o = (void *) fwd.fwdptr;
-		IGC_FIX12_OBJ (ss, o->objvar);
-	      }
-	      break;
-
-	    case Lisp_Fwd_Buffer_Obj:
-	      {
-		struct Lisp_Buffer_Objfwd *b = (void *) fwd.fwdptr;
-		IGC_FIX12_OBJ (ss, &b->predicate);
-	      }
-	      break;
-
-	    case Lisp_Fwd_Kboard_Obj:
-	      break;
-	    }
-	}
+	IGC_FIX_CALL (ss, fix_fwd (ss, sym->u.s.val.fwd));
 	break;
       }
-
-    IGC_FIX12_OBJ (ss, &sym->u.s.name);
-    IGC_FIX12_OBJ (ss, &sym->u.s.function);
-    IGC_FIX12_OBJ (ss, &sym->u.s.plist);
-    IGC_FIX12_OBJ (ss, &sym->u.s.package);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -644,8 +638,7 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    for (struct Lisp_Symbol *sym = start; sym < (struct Lisp_Symbol *) end;
-	 ++sym)
+    for (struct Lisp_Symbol *sym = start; (void *) sym < end; ++sym)
       IGC_FIX_CALL (ss, fix_symbol (ss, sym));
   }
   MPS_SCAN_END (ss);
@@ -655,9 +648,9 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 static mps_res_t
 scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 {
-  /* I understand the MPS docs as saying that root scanning functions have
-     exclusice access to what is being scanned, like format scanning
-     functions. That means I can use specpdl_ptr here.  */
+  /* I understand the MPS docs as saying that root scanning functions
+     have exclusice access to what is being scanned, the same way format
+     scanning functions do. That means I can use specpdl_ptr here.  */
   union specbinding **ptr = closure;
   end = *ptr;
 
@@ -797,34 +790,6 @@ scan_exact (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-static mps_res_t
-fix_blv (mps_ss_t ss, struct Lisp_Buffer_Local_Value *blv)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    IGC_FIX12_OBJ (ss, &blv->where);
-    IGC_FIX12_OBJ (ss, &blv->defcell);
-    IGC_FIX12_OBJ (ss, &blv->valcell);
-  }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-static mps_res_t
-scan_blv (mps_ss_t ss, void *start, void *end, void *closure)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    while (start < end)
-      {
-	IGC_FIX_CALL_FN (ss, struct Lisp_Buffer_Local_Value, start, fix_blv);
-	start = (char *) start + sizeof (struct Lisp_Buffer_Local_Value);
-      }
-  }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
 /***********************************************************************
 			 Default pad, fwd, ...
  ***********************************************************************/
@@ -959,6 +924,19 @@ fix_cons (mps_ss_t ss, struct Lisp_Cons *cons)
   return MPS_RES_OK;
 }
 
+static mps_res_t
+fix_blv (mps_ss_t ss, struct Lisp_Buffer_Local_Value *blv)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX12_OBJ (ss, &blv->where);
+    IGC_FIX12_OBJ (ss, &blv->defcell);
+    IGC_FIX12_OBJ (ss, &blv->valcell);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
 static mps_res_t fix_vector (mps_ss_t ss, struct Lisp_Vector *v);
 
 static mps_res_t
@@ -1015,6 +993,11 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 
 	  case IGC_OBJ_FACE:
 	    IGC_FIX_CALL_FN (ss, struct face, client, fix_face);
+	    break;
+
+	  case IGC_OBJ_BLV:
+	    IGC_FIX_CALL_FN (ss, struct Lisp_Buffer_Local_Value, client,
+			     fix_blv);
 	    break;
 
 	  case IGC_OBJ_WEAK:
@@ -1416,8 +1399,8 @@ create_root (struct igc *gc, void *start, void *end, mps_rank_t rank,
 	     mps_area_scan_t scan)
 {
   mps_root_t root;
-  mps_res_t res = mps_root_create_area (&root, gc->arena, rank, 0,
-					start, end, scan, 0);
+  mps_res_t res
+    = mps_root_create_area (&root, gc->arena, rank, 0, start, end, scan, 0);
   IGC_CHECK_RES (res);
   return register_root (gc, root, start, end);
 }
@@ -1953,6 +1936,7 @@ finalize (struct igc *gc, mps_addr_t base)
     case IGC_OBJ_FACE:
     case IGC_OBJ_FLOAT:
     case IGC_OBJ_WEAK:
+    case IGC_OBJ_BLV:
     case IGC_OBJ_LAST:
       igc_assert (!"not implemented");
       break;
@@ -2063,6 +2047,7 @@ thread_ap (enum igc_obj_type type)
     case IGC_OBJ_ITREE_NODE:
     case IGC_OBJ_IMAGE:
     case IGC_OBJ_FACE:
+    case IGC_OBJ_BLV:
       return t->d.dflt_ap;
 
     case IGC_OBJ_STRING_DATA:
@@ -2312,12 +2297,10 @@ igc_make_face (void)
 struct Lisp_Buffer_Local_Value *
 igc_alloc_blv (void)
 {
-  struct Lisp_Buffer_Local_Value *blv = xzalloc (sizeof *blv);
-  create_root (global_igc, blv, (char *) blv + sizeof *blv, mps_rank_exact (),
-	       scan_blv);
+  struct Lisp_Buffer_Local_Value *blv
+    = alloc (sizeof *blv, IGC_OBJ_BLV, PVEC_FREE);
   return blv;
 }
-
 
 int
 igc_valid_lisp_object_p (Lisp_Object obj)

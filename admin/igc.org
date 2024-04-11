@@ -118,6 +118,10 @@ Examples:
 Both are allocated from MPS because that turned out to be a lot easier
 than coping with malloc'd memory.
 
+** Threads
+
+Need to make sure that I always have access to the thread's specpdl_ptr.
+
 ** Finalization
 
 Is now implemented.
