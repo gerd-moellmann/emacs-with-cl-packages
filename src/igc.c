@@ -21,42 +21,42 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 // clang-format on
 
 #include <config.h>
+#include "igc.h"
 #include <limits.h>
+#include <mps.h>
+#include <mpsavm.h>
+#include <mpscamc.h>
+#include <mpscawl.h>
+#include <mpslib.h>
+#include <stdlib.h>
+#include "lisp.h"
 #include "bignum.h"
-# include <mps.h>
-# include <mpsavm.h>
-# include <mpscamc.h>
-# include <mpscawl.h>
-# include <mpslib.h>
-# include <stdlib.h>
-# include "lisp.h"
-# include "buffer.h"
-# include "dispextern.h"
-# include "emacs-module.h"
-# include "font.h"
-# include "igc.h"
-# include "intervals.h"
-# include "itree.h"
-# include "pdumper.h"
-# include "termhooks.h"
-# include "thread.h"
-# include "treesit.h"
+#include "buffer.h"
+#include "dispextern.h"
+#include "emacs-module.h"
+#include "font.h"
+#include "intervals.h"
+#include "itree.h"
+#include "pdumper.h"
+#include "termhooks.h"
+#include "thread.h"
+#include "treesit.h"
 
-# ifndef USE_LSB_TAG
-#  error "USE_LSB_TAG required"
-# endif
-# ifdef WIDE_EMACS_INT
-#  error "WIDE_EMACS_INT not supported"
-# endif
-# if USE_STACK_LISP_OBJECTS
-#  error "USE_STACK_LISP_OBJECTS not supported"
-# endif
-# ifndef HAVE_PDUMPER
-#  error "HAVE_PDUMPER required"
-# endif
-# ifdef HAVE_TEXT_CONVERSION
-#  error "HAVE_TEXT_CONVERSION not supported"
-# endif
+#ifndef USE_LSB_TAG
+# error "USE_LSB_TAG required"
+#endif
+#ifdef WIDE_EMACS_INT
+# error "WIDE_EMACS_INT not supported"
+#endif
+#if USE_STACK_LISP_OBJECTS
+# error "USE_STACK_LISP_OBJECTS not supported"
+#endif
+#ifndef HAVE_PDUMPER
+# error "HAVE_PDUMPER required"
+#endif
+#ifdef HAVE_TEXT_CONVERSION
+# error "HAVE_TEXT_CONVERSION not supported"
+#endif
 
 /* Note: Emacs will call allocation functions whlle aborting. This leads
    to all sorts of interesting phenomena when an assertion fails inside
@@ -74,17 +74,17 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
   die (msg, file, line);
 }
 
-# ifdef IGC_DEBUG
-#  define igc_assert(expr)                         \
-    if (!(expr))                                   \
-      igc_assert_fail (__FILE__, __LINE__, #expr); \
-    else
-# else
-#  define igc_assert(expr) (void) 9
-# endif
+#ifdef IGC_DEBUG
+# define igc_assert(expr)                         \
+   if (!(expr))                                   \
+     igc_assert_fail (__FILE__, __LINE__, #expr); \
+   else
+#else
+# define igc_assert(expr) (void) 9
+#endif
 
-# define igc_static_assert(x) verify (x)
-# define IGC_TAG_MASK (~VALMASK)
+#define igc_static_assert(x) verify (x)
+#define IGC_TAG_MASK (~VALMASK)
 
 /* Min and max addresses MPS uses. */
 
@@ -108,46 +108,45 @@ is_aligned (const mps_addr_t addr)
   return ((mps_word_t) addr & IGC_TAG_MASK) == 0;
 }
 
-# define IGC_CHECK_RES(res) \
-   if ((res) != MPS_RES_OK) \
-     emacs_abort ();        \
-   else
+#define IGC_CHECK_RES(res) \
+  if ((res) != MPS_RES_OK) \
+    emacs_abort ();        \
+  else
 
-# define IGC_WITH_PARKED(gc)                        \
-   for (int i = (mps_arena_park (gc->arena), 1); i; \
-	i = (mps_arena_release (gc->arena), 0))
+#define IGC_WITH_PARKED(gc)                        \
+  for (int i = (mps_arena_park (gc->arena), 1); i; \
+       i = (mps_arena_release (gc->arena), 0))
 
-# define IGC_DEFINE_LIST(data)                                        \
-   typedef struct data##_list                                         \
-   {                                                                  \
-     struct data##_list *next, *prev;                                 \
-     data d;                                                          \
-   } data##_list;                                                     \
-                                                                      \
-   static data##_list *data##_list_push (data##_list **head, data *d) \
-   {                                                                  \
-     data##_list *r = xzalloc (sizeof *r);                            \
-     r->d = *d;                                                       \
-     r->next = *head;                                                 \
-     r->prev = NULL;                                                  \
-     if (r->next)                                                     \
-       r->next->prev = r;                                             \
-     *head = r;                                                       \
-     return r;                                                        \
-   }                                                                  \
-                                                                      \
-   static void data##_list_remove (data *d, data##_list **head,       \
-				   data##_list *r)                    \
-   {                                                                  \
-     if (r->next)                                                     \
-       r->next->prev = r->prev;                                       \
-     if (r->prev)                                                     \
-       r->prev->next = r->next;                                       \
-     else                                                             \
-       *head = r->next;                                               \
-     *d = r->d;                                                       \
-     xfree (r);                                                       \
-   }
+#define IGC_DEFINE_LIST(data)                                                  \
+  typedef struct data##_list                                                   \
+  {                                                                            \
+    struct data##_list *next, *prev;                                           \
+    data d;                                                                    \
+  } data##_list;                                                               \
+                                                                               \
+  static data##_list *data##_list_push (data##_list **head, data *d)           \
+  {                                                                            \
+    data##_list *r = xzalloc (sizeof *r);                                      \
+    r->d = *d;                                                                 \
+    r->next = *head;                                                           \
+    r->prev = NULL;                                                            \
+    if (r->next)                                                               \
+      r->next->prev = r;                                                       \
+    *head = r;                                                                 \
+    return r;                                                                  \
+  }                                                                            \
+                                                                               \
+  static void data##_list_remove (data *d, data##_list **head, data##_list *r) \
+  {                                                                            \
+    if (r->next)                                                               \
+      r->next->prev = r->prev;                                                 \
+    if (r->prev)                                                               \
+      r->prev->next = r->next;                                                 \
+    else                                                                       \
+      *head = r->next;                                                         \
+    *d = r->d;                                                                 \
+    xfree (r);                                                                 \
+  }
 
 enum igc_obj_type
 {
@@ -323,8 +322,8 @@ deregister_thread (struct igc_thread_list *t)
   return thread.thr;
 }
 
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 static mps_res_t
 fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
@@ -405,56 +404,56 @@ fix_raw (mps_ss_t ss, mps_addr_t *p)
   return MPS_RES_OK;
 }
 
-# define IGC_FIX12_OBJ(ss, p)                           \
-   do                                                   \
-     {                                                  \
-       mps_res_t res;                                   \
-       MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, (p))); \
-       if (res != MPS_RES_OK)                           \
-	 return res;                                    \
-     }                                                  \
-   while (0)
+#define IGC_FIX12_OBJ(ss, p)                           \
+  do                                                   \
+    {                                                  \
+      mps_res_t res;                                   \
+      MPS_FIX_CALL (ss, res = fix_lisp_obj (ss, (p))); \
+      if (res != MPS_RES_OK)                           \
+	return res;                                    \
+    }                                                  \
+  while (0)
 
-# define IGC_FIX12_RAW(ss, p)                                     \
-   do                                                             \
-     {                                                            \
-       mps_res_t res;                                             \
-       MPS_FIX_CALL (ss, res = fix_raw (ss, (mps_addr_t *) (p))); \
-       if (res != MPS_RES_OK)                                     \
-	 return res;                                              \
-     }                                                            \
-   while (0)
+#define IGC_FIX12_RAW(ss, p)                                     \
+  do                                                             \
+    {                                                            \
+      mps_res_t res;                                             \
+      MPS_FIX_CALL (ss, res = fix_raw (ss, (mps_addr_t *) (p))); \
+      if (res != MPS_RES_OK)                                     \
+	return res;                                              \
+    }                                                            \
+  while (0)
 
-# define IGC_FIX12_NOBJS(ss, a, n)                            \
-   do                                                         \
-     {                                                        \
-       mps_res_t res;                                         \
-       MPS_FIX_CALL ((ss), res = fix_array ((ss), (a), (n))); \
-       if (res != MPS_RES_OK)                                 \
-	 return res;                                          \
-     }                                                        \
-   while (0)
+#define IGC_FIX12_NOBJS(ss, a, n)                            \
+  do                                                         \
+    {                                                        \
+      mps_res_t res;                                         \
+      MPS_FIX_CALL ((ss), res = fix_array ((ss), (a), (n))); \
+      if (res != MPS_RES_OK)                                 \
+	return res;                                          \
+    }                                                        \
+  while (0)
 
-# define IGC_FIX_CALL(ss, expr)         \
-   do                                   \
-     {                                  \
-       mps_res_t res;                   \
-       MPS_FIX_CALL (ss, res = (expr)); \
-       if (res != MPS_RES_OK)           \
-	 return res;                    \
-     }                                  \
-   while (0)
+#define IGC_FIX_CALL(ss, expr)         \
+  do                                   \
+    {                                  \
+      mps_res_t res;                   \
+      MPS_FIX_CALL (ss, res = (expr)); \
+      if (res != MPS_RES_OK)           \
+	return res;                    \
+    }                                  \
+  while (0)
 
-# define IGC_FIX_CALL_FN(ss, type, client_addr, fn) \
-   do                                               \
-     {                                              \
-       type *obj_ = (type *) client_addr;           \
-       mps_res_t res;                               \
-       MPS_FIX_CALL (ss, res = fn (ss, obj_));      \
-       if (res != MPS_RES_OK)                       \
-	 return res;                                \
-     }                                              \
-   while (0)
+#define IGC_FIX_CALL_FN(ss, type, client_addr, fn) \
+  do                                               \
+    {                                              \
+      type *obj_ = (type *) client_addr;           \
+      mps_res_t res;                               \
+      MPS_FIX_CALL (ss, res = fn (ss, obj_));      \
+      if (res != MPS_RES_OK)                       \
+	return res;                                \
+    }                                              \
+  while (0)
 
 static mps_res_t
 fix_array (mps_ss_t ss, Lisp_Object *array, size_t n)
@@ -615,7 +614,7 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 	  case SPECPDL_BACKTRACE:
 	    break;
 
-# ifdef HAVE_MODULES
+#ifdef HAVE_MODULES
 	  case SPECPDL_MODULE_RUNTIME:
 	    break;
 
@@ -625,7 +624,7 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 	    // objects in emacs_env.
 	  case SPECPDL_MODULE_ENVIRONMENT:
 	    break;
-# endif
+#endif
 
 	  case SPECPDL_LET_DEFAULT:
 	  case SPECPDL_LET_LOCAL:
@@ -1084,13 +1083,13 @@ fix_subr (mps_ss_t ss, struct Lisp_Subr *s)
   MPS_SCAN_BEGIN (ss)
   {
     IGC_FIX12_OBJ (ss, &s->command_modes);
-# ifdef HAVE_NATIVE_COMP
+#ifdef HAVE_NATIVE_COMP
     IGC_FIX12_OBJ (ss, &s->intspec.native);
     IGC_FIX12_OBJ (ss, &s->command_modes);
     IGC_FIX12_OBJ (ss, &s->native_comp_u);
     IGC_FIX12_OBJ (ss, &s->lambda_list);
     IGC_FIX12_OBJ (ss, &s->type);
-# endif
+#endif
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1182,7 +1181,7 @@ fix_finalizer (mps_ss_t ss, struct Lisp_Finalizer *f)
   return MPS_RES_OK;
 }
 
-# ifdef HAVE_XWIDGETS
+#ifdef HAVE_XWIDGETS
 
 static mps_res_t
 fix_xwidget (mps_ss_t ss, struct xwidget *w)
@@ -1208,7 +1207,7 @@ fix_xwidget_view (mps_ss_t ss, struct xwidget_view *v)
   return MPS_RES_OK;
 }
 
-# endif // HAVE_XWIDGETS
+#endif // HAVE_XWIDGETS
 
 static mps_res_t
 fix_other (mps_ss_t ss, void *o)
@@ -1285,7 +1284,7 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 	IGC_FIX_CALL_FN (ss, struct Lisp_User_Ptr, v, fix_user_ptr);
 	break;
 
-# ifdef HAVE_XWIDGETS
+#ifdef HAVE_XWIDGETS
       case PVEC_XWIDGET:
 	IGC_FIX_CALL_FN (ss, struct xwidget, v, fix_xwidget);
 	break;
@@ -1293,7 +1292,7 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
       case PVEC_XWIDGET_VIEW:
 	IGC_FIX_CALL_FN (ss, struct xwidget_view, v, fix_xwidget_view);
 	break;
-# endif
+#endif
 
       case PVEC_THREAD:
 	IGC_FIX_CALL_FN (ss, struct thread_state, v, fix_thread);
@@ -1339,7 +1338,7 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
   return MPS_RES_OK;
 }
 
-# pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
 static igc_root_list *
 root_create (struct igc *gc, void *start, void *end, mps_rank_t rank,
@@ -1359,8 +1358,7 @@ root_create_ambig (struct igc *gc, void *start, void *end)
 }
 
 static igc_root_list *
-root_create_exact (struct igc *gc, void *start, void *end,
-		   mps_area_scan_t scan)
+root_create_exact (struct igc *gc, void *start, void *end, mps_area_scan_t scan)
 {
   return root_create (gc, start, end, mps_rank_exact (), scan);
 }
@@ -1375,8 +1373,7 @@ root_create_staticvec (struct igc *gc)
 static void
 root_create_lispsym (struct igc *gc)
 {
-  root_create_exact (gc, lispsym, lispsym + ARRAYELTS (lispsym),
-		     scan_lispsym);
+  root_create_exact (gc, lispsym, lispsym + ARRAYELTS (lispsym), scan_lispsym);
 }
 
 static void
@@ -1517,8 +1514,6 @@ igc_thread_add (struct thread_state *ts)
   root_create_bc (t);
   return t;
 }
-
-/* The main_thread initialization is a bit scattered in Emacs. */
 
 void
 igc_on_alloc_main_thread_specpdl (void)
@@ -1695,13 +1690,13 @@ finalize_font (struct font *font)
 	}
     }
 
-# if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
   /* The Android font driver needs the ability to associate extra
      information with font entities.  */
   if (((vector->header.size & PSEUDOVECTOR_SIZE_MASK) == FONT_ENTITY_MAX)
       && PSEUDOVEC_STRUCT (vector, font_entity)->is_android)
     android_finalize_font_entity (PSEUDOVEC_STRUCT (vector, font_entity));
-# endif
+#endif
 }
 
 static void
@@ -1714,39 +1709,39 @@ finalize_user_ptr (struct Lisp_User_Ptr *p)
 static void
 finalize_ts_parser (struct Lisp_TS_Parser *p)
 {
-# ifdef HAVE_TREE_SITTER
+#ifdef HAVE_TREE_SITTER
   treesit_delete_parser (p);
-# endif
+#endif
 }
 
 static void
 finalize_ts_query (struct Lisp_TS_Query *q)
 {
-# ifdef HAVE_TREE_SITTER
+#ifdef HAVE_TREE_SITTER
   treesit_delete_query (q);
-# endif
+#endif
 }
 
 static void
 finalize_module_function (struct Lisp_Module_Function *f)
 {
-# ifdef HAVE_MODULES
+#ifdef HAVE_MODULES
   module_finalize_function (f);
-# endif
+#endif
 }
 
 static void
 finalize_comp_unit (struct Lisp_Native_Comp_Unit *u)
 {
-# ifdef HAVE_NATIVE_COMP
+#ifdef HAVE_NATIVE_COMP
   unload_comp_unit (u);
-# endif
+#endif
 }
 
 static void
 finalize_subr (struct Lisp_Subr *subr)
 {
-# ifdef HAVE_NATIVE_COMP
+#ifdef HAVE_NATIVE_COMP
   if (!NILP (subr->native_comp_u))
     {
       subr->native_comp_u = Qnil;
@@ -1754,7 +1749,7 @@ finalize_subr (struct Lisp_Subr *subr)
       xfree ((char *) subr->symbol_name);
       xfree (subr->native_c_name);
     }
-# endif
+#endif
 }
 
 static Lisp_Object
