@@ -5510,11 +5510,13 @@ AC_SUBST([LIBGPM])
 ### Use -lmps if available, unless '--with-mps=no'.
 HAVE_MPS=no
 LIBMPS=
+IGCOBJ=
 if test "${with_mps}" != "no"; then
   AC_CHECK_HEADER([mps.h],
     [AC_CHECK_LIB([mps], [mps_arena_create], [HAVE_MPS=yes])])
 
   if test "${HAVE_MPS}" = "yes"; then
+    IGCOBJ="igc.o"
     AC_DEFINE([HAVE_MPS], [1],
       [Define to 1 if you have the mps library (-lmps).])
     if test "${with_mps}" = "debug"; then
@@ -5525,6 +5527,8 @@ if test "${with_mps}" != "no"; then
   fi
 fi
 AC_SUBST([LIBMPS])
+AC_SUBST([IGCOBJ])
+
 
 dnl Check for malloc/malloc.h on darwin
 AC_CHECK_HEADERS_ONCE([malloc/malloc.h])

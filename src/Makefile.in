@@ -352,6 +352,7 @@ CM_OBJ=@CM_OBJ@
 
 LIBGPM = @LIBGPM@
 LIBMPS = @LIBMPS@
+IGCOBJ = @IGCOBJ@
 
 LIBSELINUX_LIBS = @LIBSELINUX_LIBS@
 LIBSELINUX_CFLAGS = @LIBSELINUX_CFLAGS@
@@ -476,7 +477,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	doprnt.o intervals.o textprop.o composite.o xml.o lcms.o $(NOTIFY_OBJ) \
 	$(XWIDGETS_OBJ) 						       \
 	profiler.o decompress.o 					       \
-	pkg.o igc.o							       \
+	pkg.o $(IGCOBJ)							       \
 	thread.o systhread.o sqlite.o  treesit.o			       \
 	itree.o 							       \
 	$(if $(HYBRID_MALLOC),sheap.o) 					       \

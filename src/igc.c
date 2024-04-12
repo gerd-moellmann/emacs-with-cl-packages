@@ -18,56 +18,11 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
-/*
-  - itree: buffer -> itree_tree, overlay <-> itree_node. The backref
-    from the node to the overlay means we need to fix it, and it is
-    currently xalloc'd. Alloc itree nodes from MPS.
-
-  - terminal -> image_cache->images -> image, and image has refs,
-    everything is xmalloc'd. Put images in MPS to scan them.
-    Since images are managed manually, alloc from pool, don't xfree,
-    don't finalize. Find refs to images, by making cache::images
-    an ambig root.
-
-  - frame -> face_cache::faces_by_id -> face -> font. font is pvec.
-    face has refs. Same procedure as for images.
-
-  - window -> glyph_matrix -> glyph_row[] -> glyph[], and for frames
-    with glyph_pool. Could do the same as for faces, images, but make
-    glyphs ambiguous roots for trying it out (igc_x*alloc etc).
-
-  - hash_table -> key_and_value which is malloc'd. Rewrite so that
-    key and value are separate. Must be done because of AWL restrictins.
-
-  - compact_font_caches + inhibit. Can't be done this way, but isn't
-    essential.
-
-  - Eq hash-tables much easier if every object carries a hash that is
-    address-independent. Costs a word for every cons.
-
-  - No weak hash tables yet. quite some work, and not essential for a
-    study.
-
-  - charset_table -> charset which contains a Lisp_Object. In addition,
-    charset_table is initially set to point to static arrqy, and later
-    replaced with something malloc'd. Rewritten and made a root.
-
-  - main_thread is a static data structure, so not an MPS object that
-    is scanned and fixed. This means we must make it a root so that
-    Lisp_Objects in it are protected and pinned.
-
-  -buffer::text either points to its buffer::own text or the one of
-   a base buffer. This means it has to change when addresses change.
- */
-
 // clang-format on
 
 #include <config.h>
 #include <limits.h>
 #include "bignum.h"
-
-#ifdef HAVE_MPS
-
 # include <mps.h>
 # include <mpsavm.h>
 # include <mpscamc.h>
@@ -2441,40 +2396,11 @@ igc_postmortem (void)
   mps_arena_postmortem (global_igc->arena);
 }
 
-static void
-free_igc (struct igc *gc)
-{
-# if 0
-  mps_arena_park (gc->arena);
-  while (gc->threads)
-    igc_thread_remove (gc->threads);
-  mps_pool_destroy (gc->dflt_pool);
-  mps_fmt_destroy (gc->dflt_fmigc.c
-		   t);
-  mps_pool_destroy (gc->leaf_pool);
-  mps_fmt_destroy (gc->leaf_fmt);
-  mps_pool_destroy (gc->weak_pool);
-  mps_fmt_destroy (gc->weak_fmt);
-  while (gc->roots)
-    destroy_root (gc->roots);
-  mps_chain_destroy (gc->chain);
-  mps_arena_destroy (gc->arena);
-  xfree (gc);
-# endif
-}
-
-static void
-free_global_igc (void)
-{
-  free_igc (global_igc);
-}
-
 void
 init_igc (void)
 {
   mps_lib_assert_fail_install (igc_assert_fail);
   global_igc = make_igc ();
-  atexit (free_global_igc);
   add_main_thread ();
 }
 
@@ -2482,5 +2408,3 @@ void
 syms_of_igc (void)
 {
 }
-
-#endif
