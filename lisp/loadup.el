@@ -246,8 +246,8 @@
 (load "indent")
 (load "emacs-lisp/cl-generic")
 (load "simple")
-(load "emacs-lisp/seq")
 (load "emacs-lisp/nadvice")
+(load "emacs-lisp/seq")
 (load "minibuffer") ; Needs cl-generic, seq (and define-minor-mode).
 (load "frame")
 (load "startup")
