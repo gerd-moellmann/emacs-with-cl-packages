@@ -7,38 +7,23 @@ Ltd. MPS is available from [[https://github.com/Ravenbrook/mps?tab=readme-ov-fil
 [[https://memory-pool-system.readthedocs.io/en/latest/][documentation]].
 
 In short, MPS implements incremental, generational, concurrent, copying,
-thread-safe garbage collection on a variety of platforms. It has
+thread-safe garbage collection on a large variety of platforms. It has
 been around for a long time, is stable, and well documented.
 
 * What is this branch?
 
-This branch contains my personal study if Emacs can be made to use a GC
-based on MPS.
-
-* Why?
-
-On my macOS computers, Emacs is pretty slow compared to other
-editors. So slow that writing this Org document on my 11 year old
-MacBook Pro with 16 GB RAM is painful. (Something producing garbage like
-mad; =org-indent-mode= contributes to that, but is not alone.)
-
-That's ridiculous. I used that same MBPro for C++ development, and it is
-plenty fast enough for that.
-
-So I thought it might be an idea to make Emacs use more than one core.
-
-I'm doing this for my own entertainment. I haven't talked with the
-current maintainers about plans of using MPS in Emacs.
+This [[https://github.com/gerd-moellmann/emacs-with-cl-packages/tree/igc][branch]] is an experiment if Emacs can be made to use a GC based on
+MPS. I'm doing this for my own entertainment, it's not in any form
+"official".
 
 * Caveats
 
-This is based on my local Emacs, which is different from mainstream
-Emacs. My local Emacs uses CL packages, doesn't have obarrays, doesn't
-support pure space, does not support shorthands and probably some other
-stuff.
+This is my local Emacs, which is different from mainstream Emacs: It
+uses CL packages, doesn't have obarrays, doesn't support pure space,
+does not support shorthands and probably some other stuff.
 
-In addition, I'm using macOS only, so it's unlikely to compile or run on
-other systems OOTB. It should not be too hard to port, though.
+In addition, I'm exclusively using macOS, so it's unlikely to compile or
+run on other systems OOTB. It should not be too hard to port, though.
 
 * Current state
 
@@ -46,6 +31,17 @@ Build succeeds up to and including =compile-first=, i.e. Emacs pdumps, and
 compiles some =.elc= files.
 
 * Things worth mentioning
+
+** Configuration
+
+There is a now configure switch =--with-mps= with values =no, yes, debug=.
+If =debug= is given, Emacs links with the debug version of the MPS
+library.
+
+** Building MPS
+
+I built MPS from its Git repo. I had to make two trivial fixes for macOS
+for which I submitted issues upstream.
 
 ** Every object has a 1 word header
 
@@ -57,7 +53,7 @@ normally be. I did this because it is less work:
 
 - All objects can be handled by one set of MPS callback functions.
 
-- It simplifies the implementation of eq-hash tables considerably by
+- It simplifies the implementation of eq hash tables considerably by
   storing an address-independent hash in the header.
 
 The header can be removed from conses (and other objects, if that's
@@ -72,18 +68,18 @@ hashes when a concurrent GC happens between calls, unless something is
 done to ensure that the hashed objects aren't moved by the GC for long
 enough.
 
-** In-band headers
+** MPS In-band headers
 
-I have tried to use MPS in-band headers at first, but couldn't get it
+I have tried to use MPS in-band headers at first, but couldn't get it to
 work. I don't claim they don't work, though. After all I was and still
 am learning MPS.
 
 ** Weak hash tables
 
-I didn't think that weak hash tables were important enough for my study
-if MPS can be used with Emacs, so I didn't implement them to save work.
+I didn't think that weak hash tables were important enough for my
+experiment, so I didn't implement them to save work.
 
-Weak tables can be implemented using the already present in igc.c AWL
+Weak tables can be implemented using the already present in =igc.c= AWL
 pool and its allocation points, and then using MPS's dependent objects
 in the hash table implementation. There are examples how to do this in
 the MPS documentation, and in an example Scheme interpreter.
@@ -97,9 +93,7 @@ special vectors allocated from the AWL pool.
 ** Handling of a loaded pdump
 
 The hot part of a loaded pdump (ca. 18 MB) is currently used as an
-ambiguous root for MPS. This is kind of unfortunate because objects in
-the loaded dump are a lot like an old GC generation. A number of things
-could be inverstigated
+ambiguous root for MPS. A number of things could be inverstigated
 
 - Use a root with barrier (~MPS_RM_PROT~)
 
@@ -115,17 +109,20 @@ could be inverstigated
 
   Costs some load time, though.
 
-There is also a slight problem currently. The loaded dump is scanned
+There is also a slight problem currently that's a consequence of Emacs
+mixing GC'd objects and malloc'd ones. The loaded dump is scanned
 conservativly, but if such objects contain malloc'd data structures
-holding references, these are invisble to MPS.
+holding references, these are invisble to MPS, so one has to jump
+through hoops.
 
 Examples:
 
-- Hash tables in their present implementation are one example I know
-  of. This require special handling to make sure MPS sees the
-  referenced keys and values (see ~igc_alloc_lisp_objs~).
+- Hash tables hold keys and values in malloc'd vectors. If the hash
+  table is in the dump, and the vectors are on the heap, keys and values
+  won't be seen be MPS.
 
-- Symbols may have a Lisp_Buffer_Local_Value that contains references.
+- Symbols in the dump may have a Lisp_Buffer_Local_Value that is on the
+  heap.
 
 ** Intervals and ~itree_node~
 
