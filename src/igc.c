@@ -170,6 +170,21 @@ enum igc_obj_type
   IGC_OBJ_LAST
 };
 
+struct igc_stats
+{
+  struct
+  {
+    size_t nwords;
+    size_t nobjs;
+  } obj[IGC_OBJ_LAST];
+
+  struct
+  {
+    size_t nwords;
+    size_t nobjs;
+  } pvec[PVEC_TAG_MAX + 1];
+};
+
 /* Always having a header makes it possible to have an
    address-independant hash, which is (a) much easier to handle than MPS
    location dependencies, and (b) makes it possible to implement sxhash
@@ -913,7 +928,7 @@ fix_blv (mps_ss_t ss, struct Lisp_Buffer_Local_Value *blv)
 static mps_res_t fix_vector (mps_ss_t ss, struct Lisp_Vector *v);
 
 static mps_res_t
-dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
+dflt_scanx (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
@@ -922,6 +937,16 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
       {
 	mps_addr_t client = base_to_client (base);
 	struct igc_header *header = base;
+
+	if (closure)
+	  {
+	    struct igc_stats *st = closure;
+	    st->obj[header->obj_type].nwords += header->nwords;
+	    st->obj[header->obj_type].nobjs += 1;
+	    st->obj[header->pvec_type].nwords += header->nwords;
+	    st->obj[header->pvec_type].nobjs += 1;
+	  }
+
 	switch (header->obj_type)
 	  {
 	  case IGC_OBJ_INVALID:
@@ -982,6 +1007,17 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 	    break;
 	  }
       }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
+dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX_CALL (ss, dflt_scanx (ss, base_start, base_limit, NULL));
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -2292,6 +2328,17 @@ igc_valid_lisp_object_p (Lisp_Object obj)
 {
   return 1;
 }
+
+#if 0
+static void
+stats (struct igc *gc, struct igc_stats *st)
+{
+  IGC_WITH_PARKED (gc)
+  {
+    mps_pool_walk (gc->dflt_pool, dflt_scanx, st);
+  }
+}
+#endif
 
 static void
 arena_extended (mps_arena_t arena, void *base, size_t size)

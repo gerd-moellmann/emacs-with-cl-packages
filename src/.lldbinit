@@ -66,10 +66,9 @@ b die
 # temacs
 #settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest  --eln-dest
 
-#'../src/bootstrap-emacs'
-# cd ../admin
 #platform settings --working-dir ../admin/unidata
+target create bootstrap-emacs
 settings set -- target.run-args -batch --no-site-file --no-site-lisp -L . -l unidata-gen -f unidata-gen-file ../../lisp/international/uni-bidi.el .
-
+process launch --working-dir ../admin/unidata
 
 # end.
