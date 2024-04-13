@@ -4743,10 +4743,10 @@ maybe_resize_hash_table (struct Lisp_Hash_Table *h)
 
       Lisp_Object *old = h->key;
       h->key = key;
-      hash_table_free_bytes (old, old_size * sizeof *h->key);
+      hash_table_free_kv (h, old);
       old = h->value;
       h->value = value;
-      hash_table_free_bytes (old, old_size * sizeof *h->value);
+      hash_table_free_kv (h, old);
 
       hash_table_free_bytes (h->hash, old_size * sizeof *h->hash);
       h->hash = hash;

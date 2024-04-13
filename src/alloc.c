@@ -5864,10 +5864,21 @@ hash_table_alloc_kv (struct Lisp_Hash_Table *h, ptrdiff_t nobjs)
   if (pdumper_object_p (h))
     return igc_xalloc_lisp_objs_exact (nobjs);
 #endif
-  void *p = xmalloc (nobjs * sizeof (Lisp_Object));
-  return p;
+  return xmalloc (nobjs * sizeof (Lisp_Object));
 }
 
+void
+hash_table_free_kv (struct Lisp_Hash_Table *h, Lisp_Object *p)
+{
+#ifdef HAVE_MPS
+  /* Make sure to remove roots we creates. */
+  if (pdumper_object_p (h))
+    igc_xfree (p);
+#else
+  xfree (p);
+#endif
+
+}
 
 /***********************************************************************
 		       Pure Storage Management

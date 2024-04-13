@@ -2654,8 +2654,8 @@ hash_table_contents (struct Lisp_Hash_Table *h, Lisp_Object **key,
 		     Lisp_Object **value)
 {
   ptrdiff_t size = h->count;
-  *key = hash_table_alloc_bytes (size * sizeof *key);
-  *value = hash_table_alloc_bytes (size * sizeof *value);
+  *key = hash_table_alloc_kv (h, size);
+  *value = hash_table_alloc_kv (h, size);
   ptrdiff_t n = 0;
 
   DOHASH (h, k, v)

@@ -1599,7 +1599,7 @@ igc_xzalloc_ambig (size_t size)
 void
 igc_xfree (void *p)
 {
-  if (p == NULL)
+  if (p == NULL || pdumper_object_p (p))
     return;
   struct igc_root_list *r = root_find (p);
   igc_assert (r != NULL);
