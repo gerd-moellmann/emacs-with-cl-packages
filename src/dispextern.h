@@ -1925,11 +1925,12 @@ struct face_cache
   /* Flag indicating that attributes of the `menu' face have been
      changed.  */
   bool_bf menu_face_changed_p : 1;
-
-# ifdef HAVE_MPS
-  void *igc_info;
-# endif
 };
+
+/* Size of hash table of realized faces in face caches (should be a
+   prime number).  */
+
+#define FACE_CACHE_BUCKETS_SIZE 1009
 
 #define FACE_EXTENSIBLE_P(F)			\
   (!NILP (F->lface[LFACE_EXTEND_INDEX]))

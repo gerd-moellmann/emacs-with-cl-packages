@@ -41,6 +41,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "termhooks.h"
 #include "thread.h"
 #include "treesit.h"
+#include "frame.h"
 
 #ifndef USE_LSB_TAG
 # error "USE_LSB_TAG required"
@@ -162,6 +163,7 @@ enum igc_obj_type
   IGC_OBJ_ITREE_NODE,
   IGC_OBJ_IMAGE,
   IGC_OBJ_FACE,
+  IGC_OBJ_FACE_CACHE,
   IGC_OBJ_FLOAT,
   IGC_OBJ_BLV,
   IGC_OBJ_WEAK,
@@ -855,6 +857,27 @@ fix_face (mps_ss_t ss, struct face *f)
 }
 
 static mps_res_t
+fix_face_cache (mps_ss_t ss, struct face_cache *c)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    if (c->faces_by_id)
+      for (int i = 0; i < c->used; ++i)
+	{
+	  igc_assert (c->faces_by_id[i] != NULL);
+	  IGC_FIX12_RAW (ss, &c->faces_by_id[i]);
+	}
+
+    if (c->buckets)
+      for (int i = 0; i < FACE_CACHE_BUCKETS_SIZE; ++i)
+	if (c->buckets[i])
+	  IGC_FIX12_RAW (ss, &c->buckets[i]);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 fix_weak (mps_ss_t ss, mps_addr_t base)
 {
   MPS_SCAN_BEGIN (ss) { igc_assert (!"fix_weak"); }
@@ -945,6 +968,10 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 	    IGC_FIX_CALL_FN (ss, struct face, client, fix_face);
 	    break;
 
+	  case IGC_OBJ_FACE_CACHE:
+	    IGC_FIX_CALL_FN (ss, struct face_cache, client, fix_face_cache);
+	    break;
+
 	  case IGC_OBJ_BLV:
 	    IGC_FIX_CALL_FN (ss, struct Lisp_Buffer_Local_Value, client,
 			     fix_blv);
@@ -1020,6 +1047,7 @@ fix_frame (mps_ss_t ss, struct frame *f)
     // struct font_driver_list *font_driver_list;
     // struct text_conversion_state conversion;
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, f, fix_vectorlike);
+    IGC_FIX12_RAW (ss, &f->face_cache);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1882,6 +1910,7 @@ finalize (struct igc *gc, mps_addr_t base)
     case IGC_OBJ_ITREE_NODE:
     case IGC_OBJ_IMAGE:
     case IGC_OBJ_FACE:
+    case IGC_OBJ_FACE_CACHE:
     case IGC_OBJ_FLOAT:
     case IGC_OBJ_WEAK:
     case IGC_OBJ_BLV:
@@ -1995,6 +2024,7 @@ thread_ap (enum igc_obj_type type)
     case IGC_OBJ_ITREE_NODE:
     case IGC_OBJ_IMAGE:
     case IGC_OBJ_FACE:
+    case IGC_OBJ_FACE_CACHE:
     case IGC_OBJ_BLV:
       return t->d.dflt_ap;
 
@@ -2240,6 +2270,13 @@ igc_make_face (void)
 {
   struct face *face = alloc (sizeof *face, IGC_OBJ_FACE, PVEC_FREE);
   return face;
+}
+
+struct face_cache *
+igc_make_face_cache (void)
+{
+  struct face_cache *c = alloc (sizeof *c, IGC_OBJ_FACE_CACHE, PVEC_FREE);
+  return c;
 }
 
 struct Lisp_Buffer_Local_Value *

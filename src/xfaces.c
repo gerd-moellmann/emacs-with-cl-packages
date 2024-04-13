@@ -304,11 +304,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #define RESET_P(ATTR) EQ (ATTR, Qreset)
 
-/* Size of hash table of realized faces in face caches (should be a
-   prime number).  */
-
-#define FACE_CACHE_BUCKETS_SIZE 1009
-
 char unspecified_fg[] = "unspecified-fg", unspecified_bg[] = "unspecified-bg";
 
 /* Alist of alternative font families.  Each element is of the form
@@ -4720,13 +4715,14 @@ the triangle inequality.  */)
 static struct face_cache *
 make_face_cache (struct frame *f)
 {
-  struct face_cache *c = xmalloc (sizeof *c);
-
+  struct face_cache *c;
 #ifdef HAVE_MPS
-  c->buckets = igc_xzalloc_ambig (FACE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
+  c = igc_make_face_cache ();
 #else
-  c->buckets = xzalloc (FACE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
+  c = xmalloc (sizeof *c);
 #endif
+
+  c->buckets = xzalloc (FACE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
   c->size = 50;
   c->used = 0;
   c->faces_by_id = xzalloc (c->size * sizeof *c->faces_by_id);
@@ -4837,11 +4833,13 @@ free_face_cache (struct face_cache *c)
   if (c)
     {
       free_realized_faces (c);
-      xfree (c->buckets);
-      xfree (c->faces_by_id);
-#ifdef HAVE_MPS
-      igc_xfree (c);
-#else
+      struct face **p = c->buckets;
+      c->buckets = NULL;
+      xfree (p);
+      p = c->faces_by_id;
+      c->faces_by_id = NULL;
+      xfree (p);
+#ifndef HAVE_MPS
       xfree (c);
 #endif
     }
@@ -4914,15 +4912,9 @@ cache_face (struct face_cache *c, struct face *face, uintptr_t hash)
   if (i == c->used)
     {
       if (c->used == c->size)
-#ifdef HAVE_MPS
-	c->faces_by_id
-	  = igc_xpalloc_ambig (c->faces_by_id, &c->size, 1, MAX_FACE_ID,
-			 sizeof *c->faces_by_id);
-#else
 	c->faces_by_id
 	  = xpalloc (c->faces_by_id, &c->size, 1, MAX_FACE_ID,
 		     sizeof *c->faces_by_id);
-#endif
       c->used++;
     }
 
