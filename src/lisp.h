@@ -4735,6 +4735,67 @@ extern ptrdiff_t evxprintf (char **, ptrdiff_t *, char *, ptrdiff_t,
   ATTRIBUTE_FORMAT_PRINTF (5, 0);
 
 /* Defined in lread.c.  */
+/* When an object is read, the type of the top read stack entry indicates
+   the syntactic context.  */
+enum read_entry_type
+{
+				/* preceding syntactic context */
+  RE_list_start,		/* "(" */
+
+  RE_list,			/* "(" (+ OBJECT) */
+  RE_list_dot,			/* "(" (+ OBJECT) "." */
+
+  RE_vector,			/* "[" (* OBJECT) */
+  RE_record,			/* "#s(" (* OBJECT) */
+  RE_char_table,		/* "#^[" (* OBJECT) */
+  RE_sub_char_table,		/* "#^^[" (* OBJECT) */
+  RE_byte_code,			/* "#[" (* OBJECT) */
+  RE_string_props,		/* "#(" (* OBJECT) */
+
+  RE_special,			/* "'" | "#'" | "`" | "," | ",@" */
+
+  RE_numbered,			/* "#" (+ DIGIT) "=" */
+};
+
+struct read_stack_entry
+{
+  enum read_entry_type type;
+  union {
+    /* RE_list, RE_list_dot */
+    struct {
+      Lisp_Object head;		/* first cons of list */
+      Lisp_Object tail;		/* last cons of list */
+    } list;
+
+    /* RE_vector, RE_record, RE_char_table, RE_sub_char_table,
+       RE_byte_code, RE_string_props */
+    struct {
+      Lisp_Object elems;	/* list of elements in reverse order */
+      bool old_locate_syms;	/* old value of locate_syms */
+    } vector;
+
+    /* RE_special */
+    struct {
+      Lisp_Object symbol;	/* symbol from special syntax */
+    } special;
+
+    /* RE_numbered */
+    struct {
+      Lisp_Object number;	/* number as a fixnum */
+      Lisp_Object placeholder;	/* placeholder object */
+    } numbered;
+  } u;
+};
+
+struct read_stack
+{
+  struct read_stack_entry *stack;  /* base of stack */
+  ptrdiff_t size;		   /* allocated size in entries */
+  ptrdiff_t sp;			   /* current number of entries */
+};
+
+extern struct read_stack rdstack;
+
 extern void init_symbol (Lisp_Object, Lisp_Object);
 INLINE void
 LOADHIST_ATTACH (Lisp_Object x)

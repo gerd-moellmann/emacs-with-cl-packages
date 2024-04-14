@@ -603,6 +603,48 @@ scan_lispsym (mps_ss_t ss, void *start, void *end, void *closure)
 }
 
 static mps_res_t
+scan_rdstack (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  if (rdstack.stack == NULL)
+    return MPS_RES_OK;
+
+  MPS_SCAN_BEGIN (ss)
+  {
+    for (ptrdiff_t i = 0; i < rdstack.sp; i++)
+      {
+	struct read_stack_entry *e = &rdstack.stack[i];
+	switch (e->type)
+	  {
+	  case RE_list_start:
+	    break;
+	  case RE_list:
+	  case RE_list_dot:
+	    IGC_FIX12_OBJ (ss, &e->u.list.head);
+	    IGC_FIX12_OBJ (ss, &e->u.list.tail);
+	    break;
+	  case RE_vector:
+	  case RE_record:
+	  case RE_char_table:
+	  case RE_sub_char_table:
+	  case RE_byte_code:
+	  case RE_string_props:
+	    IGC_FIX12_OBJ (ss, &e->u.vector.elems);
+	    break;
+	  case RE_special:
+	    IGC_FIX12_OBJ (ss, &e->u.special.symbol);
+	    break;
+	  case RE_numbered:
+	    IGC_FIX12_OBJ (ss, &e->u.numbered.number);
+	    IGC_FIX12_OBJ (ss, &e->u.numbered.placeholder);
+	    break;
+	  }
+      }
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
@@ -1061,14 +1103,12 @@ fix_buffer (mps_ss_t ss, struct buffer *b)
   MPS_SCAN_BEGIN (ss)
   {
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, b, fix_vectorlike);
-    IGC_FIX12_RAW (ss, &b->text->intervals);
-    IGC_FIX12_RAW (ss, &b->text->markers);
     IGC_FIX12_RAW (ss, &b->own_text.intervals);
-    IGC_FIX12_RAW (ss, &b->base_buffer);
     IGC_FIX12_RAW (ss, &b->own_text.markers);
     if (b->overlays)
       IGC_FIX12_RAW (ss, &b->overlays->root);
 
+    IGC_FIX12_RAW (ss, &b->base_buffer);
     if (b->base_buffer)
       b->text = &b->base_buffer->own_text;
     else
@@ -1520,6 +1560,12 @@ root_create_thread (struct igc_thread_list *t)
 				      t->d.thr, scan_ambig, 0, cold);
   IGC_CHECK_RES (res);
   register_root (gc, root, cold, NULL);
+}
+
+static void
+root_create_rdstack (struct igc *gc)
+{
+  root_create_exact (gc, &rdstack, &rdstack + 1, scan_rdstack);
 }
 
 void
@@ -2483,6 +2529,7 @@ make_igc (void)
   root_create_lispsym (gc);
   root_create_terminal_list (gc);
   root_create_main_thread (gc);
+  root_create_rdstack (gc);
 
   enable_messages (gc, true);
   return gc;

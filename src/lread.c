@@ -301,11 +301,17 @@ readchar (Lisp_Object readcharfun, bool *multibyte)
 
       ptrdiff_t pt_byte = BUF_PT_BYTE (inbuffer);
 
-      if (! BUFFER_LIVE_P (inbuffer))
-	return -1;
+      if (!BUFFER_LIVE_P (inbuffer))
+	{
+	  igc_break ();
+	  return -1;
+	}
 
       if (pt_byte >= BUF_ZV_BYTE (inbuffer))
-	return -1;
+	{
+	  igc_break ();
+	  return -1;
+	}
 
       if (! NILP (BVAR (inbuffer, enable_multibyte_characters)))
 	{
@@ -3825,66 +3831,7 @@ skip_space_and_comments (Lisp_Object readcharfun)
   UNREAD (c);
 }
 
-/* When an object is read, the type of the top read stack entry indicates
-   the syntactic context.  */
-enum read_entry_type
-{
-				/* preceding syntactic context */
-  RE_list_start,		/* "(" */
-
-  RE_list,			/* "(" (+ OBJECT) */
-  RE_list_dot,			/* "(" (+ OBJECT) "." */
-
-  RE_vector,			/* "[" (* OBJECT) */
-  RE_record,			/* "#s(" (* OBJECT) */
-  RE_char_table,		/* "#^[" (* OBJECT) */
-  RE_sub_char_table,		/* "#^^[" (* OBJECT) */
-  RE_byte_code,			/* "#[" (* OBJECT) */
-  RE_string_props,		/* "#(" (* OBJECT) */
-
-  RE_special,			/* "'" | "#'" | "`" | "," | ",@" */
-
-  RE_numbered,			/* "#" (+ DIGIT) "=" */
-};
-
-struct read_stack_entry
-{
-  enum read_entry_type type;
-  union {
-    /* RE_list, RE_list_dot */
-    struct {
-      Lisp_Object head;		/* first cons of list */
-      Lisp_Object tail;		/* last cons of list */
-    } list;
-
-    /* RE_vector, RE_record, RE_char_table, RE_sub_char_table,
-       RE_byte_code, RE_string_props */
-    struct {
-      Lisp_Object elems;	/* list of elements in reverse order */
-      bool old_locate_syms;	/* old value of locate_syms */
-    } vector;
-
-    /* RE_special */
-    struct {
-      Lisp_Object symbol;	/* symbol from special syntax */
-    } special;
-
-    /* RE_numbered */
-    struct {
-      Lisp_Object number;	/* number as a fixnum */
-      Lisp_Object placeholder;	/* placeholder object */
-    } numbered;
-  } u;
-};
-
-struct read_stack
-{
-  struct read_stack_entry *stack;  /* base of stack */
-  ptrdiff_t size;		   /* allocated size in entries */
-  ptrdiff_t sp;			   /* current number of entries */
-};
-
-static struct read_stack rdstack = {NULL, 0, 0};
+struct read_stack rdstack = {NULL, 0, 0};
 
 #ifndef HAVE_MPS
 void
@@ -3948,11 +3895,7 @@ grow_read_stack (void)
 {
   struct read_stack *rs = &rdstack;
   eassert (rs->sp == rs->size);
-#ifdef HAVE_MPS
-  rs->stack = igc_xpalloc_ambig (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
-#else
   rs->stack = xpalloc (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
-#endif
   eassert (rs->sp < rs->size);
 }
 
