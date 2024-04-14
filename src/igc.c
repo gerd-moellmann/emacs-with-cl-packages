@@ -2329,16 +2329,21 @@ igc_valid_lisp_object_p (Lisp_Object obj)
   return 1;
 }
 
-#if 0
-static void
-stats (struct igc *gc, struct igc_stats *st)
+DEFUN ("igc-info", Figc_info, Sigc_info, 0, 0, 0,
+       doc: /* */)
+  (void)
 {
+  struct igc *gc = global_igc;
+  struct igc_stats st = { 0 };
+  mps_res_t res;
   IGC_WITH_PARKED (gc)
-  {
-    mps_pool_walk (gc->dflt_pool, dflt_scanx, st);
-  }
+    {
+      res = mps_pool_walk (gc->dflt_pool, dflt_scanx, &st);
+    }
+  if (res != MPS_RES_OK)
+    error ("Error %d walking memory", res);
+  return Qnil;
 }
-#endif
 
 static void
 arena_extended (mps_arena_t arena, void *base, size_t size)
@@ -2486,4 +2491,5 @@ init_igc (void)
 void
 syms_of_igc (void)
 {
+  defsubr (&Sigc_info);
 }
