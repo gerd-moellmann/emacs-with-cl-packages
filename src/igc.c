@@ -1234,6 +1234,18 @@ fix_user_ptr (mps_ss_t ss, struct Lisp_User_Ptr *p)
 }
 
 static mps_res_t
+fix_handler (mps_ss_t ss, struct handler *h)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    IGC_FIX12_OBJ (ss, &h->tag_or_ch);
+    IGC_FIX12_OBJ (ss, &h->val);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 fix_thread (mps_ss_t ss, struct thread_state *s)
 {
   MPS_SCAN_BEGIN (ss)
@@ -1241,6 +1253,8 @@ fix_thread (mps_ss_t ss, struct thread_state *s)
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, s, fix_vectorlike);
     IGC_FIX12_RAW (ss, &s->m_current_buffer);
     IGC_FIX12_RAW (ss, &s->next_thread);
+    for (struct handler *h = s->m_handlerlist; h; h = h->next)
+      IGC_FIX_CALL_FN (ss, struct handler, h, fix_handler);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
