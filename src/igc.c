@@ -35,13 +35,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "dispextern.h"
 #include "emacs-module.h"
 #include "font.h"
+#include "frame.h"
 #include "intervals.h"
 #include "itree.h"
 #include "pdumper.h"
 #include "termhooks.h"
 #include "thread.h"
 #include "treesit.h"
-#include "frame.h"
 
 #ifndef USE_LSB_TAG
 # error "USE_LSB_TAG required"
@@ -168,6 +168,15 @@ enum igc_obj_type
   IGC_OBJ_BLV,
   IGC_OBJ_WEAK,
   IGC_OBJ_LAST
+};
+
+static const char *obj_type_names[] = {
+  "IGC_OBJ_INVALID",	"IGC_OBJ_PAD",	       "IGC_OBJ_FWD",
+  "IGC_OBJ_CONS",	"IGC_OBJ_SYMBOL",      "IGC_OBJ_INTERVAL",
+  "IGC_OBJ_STRING",	"IGC_OBJ_STRING_DATA", "IGC_OBJ_VECTOR",
+  "IGC_OBJ_ITREE_NODE", "IGC_OBJ_IMAGE",       "IGC_OBJ_FACE",
+  "IGC_OBJ_FACE_CACHE", "IGC_OBJ_FLOAT",       "IGC_OBJ_BLV",
+  "IGC_OBJ_WEAK",
 };
 
 struct igc_stats
@@ -928,7 +937,8 @@ fix_blv (mps_ss_t ss, struct Lisp_Buffer_Local_Value *blv)
 static mps_res_t fix_vector (mps_ss_t ss, struct Lisp_Vector *v);
 
 static mps_res_t
-dflt_scanx (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit, void *closure)
+dflt_scanx (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit,
+	    void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
@@ -2329,20 +2339,26 @@ igc_valid_lisp_object_p (Lisp_Object obj)
   return 1;
 }
 
-DEFUN ("igc-info", Figc_info, Sigc_info, 0, 0, 0,
-       doc: /* */)
-  (void)
+DEFUN ("igc-info", Figc_info, Sigc_info, 0, 0, 0, doc : /* */)
+(void)
 {
   struct igc *gc = global_igc;
   struct igc_stats st = { 0 };
   mps_res_t res;
-  IGC_WITH_PARKED (gc)
-    {
-      res = mps_pool_walk (gc->dflt_pool, dflt_scanx, &st);
-    }
+  IGC_WITH_PARKED (gc) { res = mps_pool_walk (gc->dflt_pool, dflt_scanx, &st); }
   if (res != MPS_RES_OK)
     error ("Error %d walking memory", res);
-  return Qnil;
+
+  Lisp_Object result = Qnil;
+  for (int i = 0; i < IGC_OBJ_LAST; ++i)
+    {
+      Lisp_Object e
+	= list3 (build_string (obj_type_names[i]), make_int (st.obj[i].nobjs),
+		 make_int (st.obj[i].nwords));
+      result = Fcons (e, result);
+    }
+
+  return result;
 }
 
 static void
