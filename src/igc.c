@@ -2190,6 +2190,7 @@ igc_hash (Lisp_Object key)
 {
   mps_word_t word = XLI (key);
   mps_word_t tag = word & IGC_TAG_MASK;
+  mps_addr_t client;
   switch (tag)
     {
     case Lisp_Type_Unused0:
@@ -2202,29 +2203,27 @@ igc_hash (Lisp_Object key)
     case Lisp_Symbol:
       {
 	ptrdiff_t off = word ^ tag;
-	mps_addr_t sym = (mps_addr_t) ((char *) lispsym + off);
-	if (c_symbol_p (sym))
-	  return word;
-	struct igc_header *h = client_to_base (sym);
-	return h->hash;
+	client = (mps_addr_t) ((char *) lispsym + off);
       }
+      break;
 
     case Lisp_String:
     case Lisp_Vectorlike:
     case Lisp_Cons:
     case Lisp_Float:
-      {
-	mps_addr_t client = (mps_addr_t) (word ^ tag);
-	if (is_mps (client))
-	  {
-	    struct igc_header *h = client_to_base (client);
-	    return h->hash;
-	  }
-	return word;
-      }
+      client = (mps_addr_t) (word ^ tag);
+      break;
+
+    default:
+      emacs_abort ();
     }
 
-  emacs_abort ();
+  if (is_mps (client))
+    {
+      struct igc_header *h = client_to_base (client);
+      return h->hash;
+    }
+  return word;
 }
 
 static mps_addr_t
