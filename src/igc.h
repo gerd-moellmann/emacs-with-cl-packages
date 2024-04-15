@@ -88,6 +88,7 @@ void igc_on_grow_specpdl (void);
 void igc_on_alloc_main_thread_specpdl (void);
 void igc_on_alloc_main_thread_bc (void);
 void igc_check_symbol (void *p);
+void igc_collect (void);
 
 # define eassert_not_mps() eassert (false)
 #else

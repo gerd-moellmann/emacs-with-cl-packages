@@ -2168,6 +2168,14 @@ igc_break (void)
 {
 }
 
+void
+igc_collect (void)
+{
+  struct igc *gc = global_igc;
+  mps_arena_collect (gc->arena);
+  mps_arena_release (gc->arena);
+}
+
 static unsigned
 obj_hash (void)
 {
