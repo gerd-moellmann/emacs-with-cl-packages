@@ -64,11 +64,13 @@ b die
 #settings set -- target.run-args -batch --no-site-file --no-site-lisp  -f batch-byte-compile ../lisp/emacs-lisp/macroexp.el
 
 # temacs
-#settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest  --eln-dest
+settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest  --eln-dest
 
 #platform settings --working-dir ../admin/unidata
-target create bootstrap-emacs
-settings set -- target.run-args -batch --no-site-file --no-site-lisp -L . -l unidata-gen -f unidata-gen-file ../../lisp/international/uni-bidi.el .
-process launch --working-dir ../admin/unidata
+# target create bootstrap-emacs
+# settings set -- target.run-args -batch --no-site-file --no-site-lisp -L . -l unidata-gen -f unidata-gen-file ../../lisp/international/uni-bidi.el .
+# process launch --working-dir ../admin/unidata
+
+
 
 # end.

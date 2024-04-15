@@ -1089,8 +1089,14 @@ fix_vectorlike (mps_ss_t ss, struct Lisp_Vector *v)
     ptrdiff_t size = v->header.size;
     if (size & PSEUDOVECTOR_FLAG)
       size &= PSEUDOVECTOR_SIZE_MASK;
-    struct igc_header *h = client_to_base (v);
-    igc_assert (to_bytes (h->nwords) >= size * word_size);
+#ifdef IGC_DEBUG
+    /* V can be something like &main_thread */
+    if (is_mps (v))
+      {
+	struct igc_header *h = client_to_base (v);
+	igc_assert (to_bytes (h->nwords) >= size * word_size);
+      }
+#endif
     IGC_FIX12_NOBJS (ss, v->contents, size);
   }
   MPS_SCAN_END (ss);
@@ -1127,7 +1133,6 @@ fix_frame (mps_ss_t ss, struct frame *f)
   {
     // output_data;
     // terminal
-    // face_cache *
     // glyph_pool
     // glyph matrices
     // struct font_driver_list *font_driver_list;
@@ -1155,7 +1160,7 @@ fix_hash_table (mps_ss_t ss, struct Lisp_Hash_Table *h)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    // FIXME: weak */
+    // FIXME: weak
     IGC_FIX12_NOBJS (ss, h->key, h->table_size);
     IGC_FIX12_NOBJS (ss, h->value, h->table_size);
   }
@@ -1255,6 +1260,22 @@ fix_thread (mps_ss_t ss, struct thread_state *s)
     IGC_FIX12_RAW (ss, &s->next_thread);
     for (struct handler *h = s->m_handlerlist; h; h = h->next)
       IGC_FIX_CALL_FN (ss, struct handler, h, fix_handler);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+/* This is here because main_thread is, for some reason, a variable in
+   the data segment, and not like other threads. */
+
+static mps_res_t
+scan_main_thread (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  igc_assert (start == (void *) &main_thread);
+  MPS_SCAN_BEGIN (ss)
+  {
+    struct thread_state *s = start;
+    IGC_FIX_CALL (ss, fix_thread (ss, s));
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1524,7 +1545,7 @@ root_create_main_thread (struct igc *gc)
 {
   void *start = &main_thread;
   void *end = (char *) &main_thread + sizeof (main_thread);
-  root_create_ambig (gc, start, end);
+  root_create_exact (gc, start, end, scan_main_thread);
 }
 
 static void

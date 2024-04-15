@@ -302,16 +302,10 @@ readchar (Lisp_Object readcharfun, bool *multibyte)
       ptrdiff_t pt_byte = BUF_PT_BYTE (inbuffer);
 
       if (!BUFFER_LIVE_P (inbuffer))
-	{
-	  igc_break ();
-	  return -1;
-	}
+	return -1;
 
       if (pt_byte >= BUF_ZV_BYTE (inbuffer))
-	{
-	  igc_break ();
-	  return -1;
-	}
+	return -1;
 
       if (! NILP (BVAR (inbuffer, enable_multibyte_characters)))
 	{
@@ -2399,6 +2393,7 @@ readevalloop_1 (int old)
 static AVOID
 end_of_file_error (void)
 {
+  igc_break ();
   if (STRINGP (Vload_true_file_name))
     xsignal1 (Qend_of_file, Vload_true_file_name);
 
