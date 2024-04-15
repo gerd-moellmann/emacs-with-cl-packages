@@ -5267,7 +5267,11 @@ sxhash_obj (Lisp_Object obj, int depth)
       return XUFIXNUM (obj);
 
     case Lisp_Symbol:
+#ifdef HAVE_MPS
+      return igc_hash (obj);
+#else
       return XHASH (obj);
+#endif
 
     case Lisp_String:
       return hash_string (SSDATA (obj), SBYTES (obj));
@@ -5295,8 +5299,15 @@ sxhash_obj (Lisp_Object obj, int depth)
 	  {
 	    ptrdiff_t bytepos
 	      = XMARKER (obj)->buffer ? XMARKER (obj)->bytepos : 0;
-	    EMACS_UINT hash
-	      = sxhash_combine ((intptr_t) XMARKER (obj)->buffer, bytepos);
+	    EMACS_UINT hash;
+#ifdef HAVE_MPS
+	    Lisp_Object buf;
+	    XSETBUFFER (buf, XMARKER (obj)->buffer);
+	    hash = igc_hash (buf);
+#else
+	    hash = (intptr_t) XMARKER (obj)->buffer;
+#endif
+	    hash = sxhash_combine (hash, bytepos);
 	    return hash;
 	  }
 	else if (pvec_type == PVEC_BOOL_VECTOR)
@@ -5315,7 +5326,11 @@ sxhash_obj (Lisp_Object obj, int depth)
 
 	    /* Others are 'equal' if they are 'eq', so take their
 	       address as hash.  */
+#ifdef HAVE_MPS
+	    return igc_hash (obj);
+#else
 	    return XHASH (obj);
+#endif
 	  }
       }
 

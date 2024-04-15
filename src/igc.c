@@ -884,9 +884,12 @@ fix_itree_node (mps_ss_t ss, struct itree_node *n)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    IGC_FIX12_RAW (ss, &n->parent);
-    IGC_FIX12_RAW (ss, &n->left);
-    IGC_FIX12_RAW (ss, &n->right);
+    if (n->parent)
+      IGC_FIX12_RAW (ss, &n->parent);
+    if (n->left)
+      IGC_FIX12_RAW (ss, &n->left);
+    if (n->right)
+      IGC_FIX12_RAW (ss, &n->right);
     IGC_FIX12_OBJ (ss, &n->data);
   }
   MPS_SCAN_END (ss);
@@ -2190,7 +2193,7 @@ igc_hash (Lisp_Object key)
 {
   mps_word_t word = XLI (key);
   mps_word_t tag = word & IGC_TAG_MASK;
-  mps_addr_t client;
+  mps_addr_t client = NULL;
   switch (tag)
     {
     case Lisp_Type_Unused0:
@@ -2198,7 +2201,7 @@ igc_hash (Lisp_Object key)
 
     case Lisp_Int0:
     case Lisp_Int1:
-      return word;
+      break;
 
     case Lisp_Symbol:
       {
@@ -2218,11 +2221,12 @@ igc_hash (Lisp_Object key)
       emacs_abort ();
     }
 
-  if (is_mps (client))
+  if (client && is_mps (client))
     {
       struct igc_header *h = client_to_base (client);
       return h->hash;
     }
+
   return word;
 }
 
