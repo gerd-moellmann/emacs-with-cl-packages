@@ -871,8 +871,8 @@ fix_interval (mps_ss_t ss, struct interval *iv)
     IGC_FIX12_RAW (ss, &iv->right);
     if (iv->up_obj)
       IGC_FIX12_OBJ (ss, &iv->up.obj);
-    else
-      IGC_FIX12_RAW (ss, iv->up.interval);
+    else if (iv->up.interval)
+      IGC_FIX12_RAW (ss, &iv->up.interval);
     IGC_FIX12_OBJ (ss, &iv->plist);
   }
   MPS_SCAN_END (ss);
