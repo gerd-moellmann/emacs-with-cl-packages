@@ -12577,7 +12577,11 @@ init_kboard (KBOARD *kb, Lisp_Object type)
 KBOARD *
 allocate_kboard (Lisp_Object type)
 {
+#ifdef HAVE_MPS
+  KBOARD *kb = igc_xzalloc_ambig (sizeof *kb);
+#else
   KBOARD *kb = xmalloc (sizeof *kb);
+#endif
 
   init_kboard (kb, type);
   kb->next_kboard = all_kboards;
@@ -12593,7 +12597,11 @@ allocate_kboard (Lisp_Object type)
 static void
 wipe_kboard (KBOARD *kb)
 {
+#ifdef HAVE_MPS
+  igc_xfree (kb->kbd_macro_buffer);
+#else
   xfree (kb->kbd_macro_buffer);
+#endif
 }
 
 /* Free KB and memory referenced from it.  */
@@ -12620,7 +12628,11 @@ delete_kboard (KBOARD *kb)
     }
 
   wipe_kboard (kb);
+#ifdef HAVE_MPS
+  igc_xfree (kb);
+#else
   xfree (kb);
+#endif
 }
 
 void
