@@ -1142,6 +1142,8 @@ fix_frame (mps_ss_t ss, struct frame *f)
     // struct text_conversion_state conversion;
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, f, fix_vectorlike);
     IGC_FIX12_RAW (ss, &f->face_cache);
+    if (f->terminal)
+      IGC_FIX12_RAW (ss, &f->terminal);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1549,6 +1551,12 @@ root_create_main_thread (struct igc *gc)
   void *start = &main_thread;
   void *end = (char *) &main_thread + sizeof (main_thread);
   root_create_exact (gc, start, end, scan_main_thread);
+}
+
+void
+igc_root_create_ambig (void *start, void *end)
+{
+  root_create_ambig (global_igc, start, end);
 }
 
 static void

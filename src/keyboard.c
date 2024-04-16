@@ -12638,6 +12638,9 @@ delete_kboard (KBOARD *kb)
 void
 init_keyboard (void)
 {
+#ifdef HAVE_MPS
+  igc_root_create_ambig (kbd_buffer, (char *) kbd_buffer + ARRAYELTS (kbd_buffer));
+#endif
   /* This is correct before outermost invocation of the editor loop.  */
   command_loop_level = -1;
   quit_char = Ctl ('g');
