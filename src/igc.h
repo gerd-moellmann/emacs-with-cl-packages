@@ -64,6 +64,7 @@ struct Lisp_Vector *igc_alloc_pseudovector (size_t nwords_mem,
 struct Lisp_Vector *igc_alloc_vector (ptrdiff_t len);
 struct Lisp_Vector *igc_alloc_record (ptrdiff_t len);
 struct itree_node *igc_make_itree_node (void);
+struct itree_tree *igc_make_itree_tree (void);
 struct image *igc_make_image (void);
 struct face *igc_make_face (void);
 struct face_cache *igc_make_face_cache (void);

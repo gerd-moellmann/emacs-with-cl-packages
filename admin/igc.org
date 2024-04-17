@@ -93,7 +93,7 @@ special vectors allocated from the AWL pool.
 ** Handling of a loaded pdump
 
 The hot part of a loaded pdump (ca. 18 MB) is currently used as an
-ambiguous root for MPS. A number of things could be inverstigated
+ambiguous root for MPS. A number of things could be investigated
 
 - Use a root with barrier (~MPS_RM_PROT~)
 
@@ -124,10 +124,12 @@ Examples:
 - Symbols in the dump may have a Lisp_Buffer_Local_Value that is on the
   heap.
 
+- Buffers have a itree_tree that is malloc'd.
+
 ** Intervals and ~itree_node~
 
 Problem with these two is that there are pointers from Lisp objects to
-malloc'd memory and back. This is much easier to handle if allocated
+malloc'd memory and back. This is easier to handle if allocated
 from MPS.
 
 ** Finalization

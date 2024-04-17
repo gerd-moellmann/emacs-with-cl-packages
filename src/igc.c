@@ -164,6 +164,7 @@ enum igc_obj_type
   IGC_OBJ_STRING,
   IGC_OBJ_STRING_DATA,
   IGC_OBJ_VECTOR,
+  IGC_OBJ_ITREE_TREE,
   IGC_OBJ_ITREE_NODE,
   IGC_OBJ_IMAGE,
   IGC_OBJ_FACE,
@@ -206,8 +207,8 @@ struct igc_stats
 
 enum
 {
-  IGC_TYPE_BITS = 4,
-  IGC_PVEC_BITS = 6,
+  IGC_TYPE_BITS = 5,
+  IGC_PVEC_BITS = 5,
   IGC_HASH_BITS = 22,
   IGC_SIZE_BITS = 32
 };
@@ -887,6 +888,18 @@ fix_interval (mps_ss_t ss, struct interval *iv)
 }
 
 static mps_res_t
+fix_itree_tree (mps_ss_t ss, struct itree_tree *t)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    if (t->root)
+      IGC_FIX12_RAW (ss, &t->root);
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+
+static mps_res_t
 fix_itree_node (mps_ss_t ss, struct itree_node *n)
 {
   MPS_SCAN_BEGIN (ss)
@@ -1041,6 +1054,10 @@ dflt_scanx (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit,
 
 	  case IGC_OBJ_VECTOR:
 	    IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
+	    break;
+
+	  case IGC_OBJ_ITREE_TREE:
+	    IGC_FIX_CALL_FN (ss, struct itree_tree, client, fix_itree_tree);
 	    break;
 
 	  case IGC_OBJ_ITREE_NODE:
@@ -2071,6 +2088,7 @@ finalize (struct igc *gc, mps_addr_t base)
     case IGC_OBJ_INTERVAL:
     case IGC_OBJ_STRING:
     case IGC_OBJ_STRING_DATA:
+    case IGC_OBJ_ITREE_TREE:
     case IGC_OBJ_ITREE_NODE:
     case IGC_OBJ_IMAGE:
     case IGC_OBJ_FACE:
@@ -2185,6 +2203,7 @@ thread_ap (enum igc_obj_type type)
     case IGC_OBJ_INTERVAL:
     case IGC_OBJ_STRING:
     case IGC_OBJ_VECTOR:
+    case IGC_OBJ_ITREE_TREE:
     case IGC_OBJ_ITREE_NODE:
     case IGC_OBJ_IMAGE:
     case IGC_OBJ_FACE:
@@ -2419,6 +2438,13 @@ igc_alloc_record (ptrdiff_t len)
   v->header.size = len;
   XSETPVECTYPE (v, PVEC_RECORD);
   return v;
+}
+
+struct itree_tree *
+igc_make_itree_tree (void)
+{
+  struct itree_tree *t = alloc (sizeof *t, IGC_OBJ_ITREE_TREE, PVEC_FREE);
+  return t;
 }
 
 struct itree_node *
