@@ -1124,6 +1124,7 @@ fix_buffer (mps_ss_t ss, struct buffer *b)
       b->text = &b->own_text;
 
     // FIXME: special handling of undo_list?
+    IGC_FIX12_OBJ (ss, &b->undo_list_);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -1911,7 +1912,6 @@ finalize_subr (struct Lisp_Subr *subr)
   if (!NILP (subr->native_comp_u))
     {
       subr->native_comp_u = Qnil;
-      /* FIXME Alternative and non invasive solution to this cast?  */
       xfree ((char *) subr->symbol_name);
       xfree (subr->native_c_name);
     }
@@ -2209,7 +2209,7 @@ igc_hash (Lisp_Object key)
 
     case Lisp_Int0:
     case Lisp_Int1:
-      break;
+      return word;
 
     case Lisp_Symbol:
       {
@@ -2224,12 +2224,9 @@ igc_hash (Lisp_Object key)
     case Lisp_Float:
       client = (mps_addr_t) (word ^ tag);
       break;
-
-    default:
-      emacs_abort ();
     }
 
-  if (client && is_mps (client))
+  if (is_mps (client))
     {
       struct igc_header *h = client_to_base (client);
       return h->hash;
@@ -2496,7 +2493,7 @@ make_arena (struct igc *gc)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
-  mps_gen_param_s gens[] = { { 32000, 0.8 }, { 5 * 32000, 0.4 } };
+  mps_gen_param_s gens[] = { { 128000, 0.8 }, { 5 * 128000, 0.4 } };
   res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gens), gens);
   IGC_CHECK_RES (res);
 }
