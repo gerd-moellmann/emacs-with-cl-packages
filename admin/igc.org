@@ -130,7 +130,9 @@ Examples:
 
 Problem with these two is that there are pointers from Lisp objects to
 malloc'd memory and back. This is easier to handle if allocated
-from MPS.
+from MPS. Moving these to MPS makes things easier because MPS triggers
+the scanning, and, not the least, makes an ambiguous scan of the loaded
+dump keep things alive.
 
 ** Finalization
 
