@@ -274,6 +274,7 @@ struct igc_root
   struct igc *gc;
   mps_root_t root;
   void *start, *end;
+  bool ambig;
 };
 
 typedef struct igc_root igc_root;
@@ -312,9 +313,11 @@ struct igc
 static struct igc *global_igc;
 
 static struct igc_root_list *
-register_root (struct igc *gc, mps_root_t root, void *start, void *end)
+register_root (struct igc *gc, mps_root_t root, void *start, void *end,
+	       bool ambig)
 {
-  struct igc_root r = { .gc = gc, .root = root, .start = start, .end = end };
+  struct igc_root r
+    = { .gc = gc, .root = root, .start = start, .end = end, .ambig = ambig };
   return igc_root_list_push (&gc->roots, &r);
 }
 
@@ -1497,25 +1500,26 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
 
 static igc_root_list *
 root_create (struct igc *gc, void *start, void *end, mps_rank_t rank,
-	     mps_area_scan_t scan)
+	     mps_area_scan_t scan, bool ambig)
 {
   mps_root_t root;
   mps_res_t res
     = mps_root_create_area (&root, gc->arena, rank, 0, start, end, scan, 0);
   IGC_CHECK_RES (res);
-  return register_root (gc, root, start, end);
+  return register_root (gc, root, start, end, ambig);
 }
 
 static igc_root_list *
 root_create_ambig (struct igc *gc, void *start, void *end)
 {
-  return root_create (gc, start, end, mps_rank_ambig (), scan_ambig);
+  return root_create (gc, start, end, mps_rank_ambig (),
+		      scan_ambig, true);
 }
 
 static igc_root_list *
 root_create_exact (struct igc *gc, void *start, void *end, mps_area_scan_t scan)
 {
-  return root_create (gc, start, end, mps_rank_exact (), scan);
+  return root_create (gc, start, end, mps_rank_exact (), scan, false);
 }
 
 static void
@@ -1573,7 +1577,7 @@ root_create_specpdl (struct igc_thread_list *t)
 			    ts->m_specpdl, ts->m_specpdl_end, scan_specpdl, t);
   IGC_CHECK_RES (res);
   t->d.specpdl_root
-    = register_root (gc, root, ts->m_specpdl, ts->m_specpdl_end);
+    = register_root (gc, root, ts->m_specpdl, ts->m_specpdl_end, false);
 }
 
 static void
@@ -1587,13 +1591,13 @@ root_create_bc (struct igc_thread_list *t)
 					bc->stack, bc->stack_end, scan_bc, t);
   IGC_CHECK_RES (res);
   igc_assert (t->d.bc_root == NULL);
-  t->d.bc_root = register_root (gc, root, bc->stack, bc->stack_end);
+  t->d.bc_root = register_root (gc, root, bc->stack, bc->stack_end, true);
 }
 
 static void
 root_create_igc (struct igc *gc)
 {
-  root_create (gc, gc, gc + 1, mps_rank_exact (), scan_igc);
+  root_create (gc, gc, gc + 1, mps_rank_exact (), scan_igc, false);
 }
 
 static void
@@ -1606,7 +1610,7 @@ root_create_thread (struct igc_thread_list *t)
     = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
 				      t->d.thr, scan_ambig, 0, cold);
   IGC_CHECK_RES (res);
-  register_root (gc, root, cold, NULL);
+  register_root (gc, root, cold, NULL, true);
 }
 
 static void
@@ -2458,6 +2462,23 @@ DEFUN ("igc-info", Figc_info, Sigc_info, 0, 0, 0, doc : /* */)
   return result;
 }
 
+DEFUN ("igc-roots", Figc_roots, Sigc_roots, 0, 0, 0, doc : /* */)
+(void)
+{
+  struct igc *gc = global_igc;
+  Lisp_Object roots;
+
+  for (igc_root_list *r = gc->roots; r; r = r->next)
+    {
+      Lisp_Object type = r->d.ambig ? Qambig : Qexact;
+      Lisp_Object e = list3 (type, make_int ((intmax_t) r->d.start),
+			     make_int ((intmax_t) r->d.end));
+      roots = Fcons (e, roots);
+    }
+
+  return roots;
+}
+
 static void
 arena_extended (mps_arena_t arena, void *base, size_t size)
 {
@@ -2606,4 +2627,7 @@ void
 syms_of_igc (void)
 {
   defsubr (&Sigc_info);
+  defsubr (&Sigc_roots);
+  DEFSYM (Qambig, "ambig");
+  DEFSYM (Qexact, "exact");
 }
