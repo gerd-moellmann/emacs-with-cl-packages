@@ -1138,8 +1138,7 @@ fix_buffer (mps_ss_t ss, struct buffer *b)
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, b, fix_vectorlike);
     IGC_FIX12_RAW (ss, &b->own_text.intervals);
     IGC_FIX12_RAW (ss, &b->own_text.markers);
-    if (b->overlays)
-      IGC_FIX12_RAW (ss, &b->overlays->root);
+    IGC_FIX12_RAW (ss, &b->overlays);
 
     IGC_FIX12_RAW (ss, &b->base_buffer);
     if (b->base_buffer)
