@@ -88,14 +88,17 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
 #define igc_static_assert(x) verify (x)
 #define IGC_TAG_MASK (~VALMASK)
 
-/* Min and max addresses MPS uses. */
+/* Using mps_arena_has_addr is expensive. so try to do something that is
+   "good enough". This can return true for malloc'd memory. */
 
 static mps_addr_t min_addr, max_addr;
 
 static bool
 is_mps (const mps_addr_t addr)
 {
-  return addr >= min_addr && addr < max_addr;
+  return addr >= min_addr && addr < max_addr
+    && !pdumper_object_p (addr)
+    && !c_symbol_p (addr);
 }
 
 enum
