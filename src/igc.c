@@ -32,6 +32,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "lisp.h"
 #include "bignum.h"
 #include "buffer.h"
+#include "coding.h"
 #include "dispextern.h"
 #include "emacs-module.h"
 #include "font.h"
@@ -42,7 +43,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "termhooks.h"
 #include "thread.h"
 #include "treesit.h"
-#include "coding.h"
 
 #ifndef USE_LSB_TAG
 # error "USE_LSB_TAG required"
@@ -96,9 +96,8 @@ static mps_addr_t min_addr, max_addr;
 static bool
 is_mps (const mps_addr_t addr)
 {
-  return addr >= min_addr && addr < max_addr
-    && !pdumper_object_p (addr)
-    && !c_symbol_p (addr);
+  return addr >= min_addr && addr < max_addr && !pdumper_object_p (addr)
+	 && !c_symbol_p (addr);
 }
 
 enum
@@ -179,10 +178,12 @@ static const char *obj_type_names[] = {
   "IGC_OBJ_INVALID",	"IGC_OBJ_PAD",	       "IGC_OBJ_FWD",
   "IGC_OBJ_CONS",	"IGC_OBJ_SYMBOL",      "IGC_OBJ_INTERVAL",
   "IGC_OBJ_STRING",	"IGC_OBJ_STRING_DATA", "IGC_OBJ_VECTOR",
-  "IGC_OBJ_ITREE_NODE", "IGC_OBJ_IMAGE",       "IGC_OBJ_FACE",
-  "IGC_OBJ_FACE_CACHE", "IGC_OBJ_FLOAT",       "IGC_OBJ_BLV",
-  "IGC_OBJ_WEAK",
+  "IGC_OBJ_ITREE_TREE", "IGC_OBJ_ITREE_NODE",  "IGC_OBJ_IMAGE",
+  "IGC_OBJ_FACE",	"IGC_OBJ_FACE_CACHE",  "IGC_OBJ_FLOAT",
+  "IGC_OBJ_BLV",	"IGC_OBJ_WEAK",
 };
+
+igc_static_assert (ARRAYELTS (obj_type_names) == IGC_OBJ_LAST);
 
 struct igc_stats
 {
@@ -1550,8 +1551,7 @@ root_create (struct igc *gc, void *start, void *end, mps_rank_t rank,
 static igc_root_list *
 root_create_ambig (struct igc *gc, void *start, void *end)
 {
-  return root_create (gc, start, end, mps_rank_ambig (),
-		      scan_ambig, true);
+  return root_create (gc, start, end, mps_rank_ambig (), scan_ambig, true);
 }
 
 static igc_root_list *
