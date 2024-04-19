@@ -4769,6 +4769,7 @@ extern void mark_lread (void);
 extern Lisp_Object intern_1 (const char *str, ptrdiff_t len);
 extern Lisp_Object intern_c_string_1 (const char *str, ptrdiff_t len,
 				      bool allow_pure_p);
+Lisp_Object intern_c_multibyte (const char *str, ptrdiff_t nchars, ptrdiff_t nbytes);
 
 INLINE Lisp_Object
 intern (const char *str)

@@ -5034,12 +5034,16 @@ intern_1 (const char *str, ptrdiff_t len)
 Lisp_Object
 intern_c_multibyte (const char *str, ptrdiff_t nchars, ptrdiff_t nbytes)
 {
-  Lisp_Object obarray = check_obarray (Vobarray);
-  Lisp_Object sym = oblookup (obarray, str, nchars, nbytes);
-  if (BARE_SYMBOL_P (sym))
-    return sym;
-  return intern_driver (make_multibyte_string (str, nchars, nbytes),
-			obarray, sym);
+  const bool keyword = *str == ':';
+  if (keyword)
+    {
+      const Lisp_Object name
+	= make_multibyte_string (str + 1, nchars - 1, nbytes - 1);
+      return pkg_intern_symbol (name, Vkeyword_package, NULL);
+    }
+  const Lisp_Object name
+    = make_multibyte_string (str, nchars, nbytes);
+  return pkg_intern_symbol (name, Vearmuffs_package, NULL);
 }
 
 static void
