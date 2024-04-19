@@ -165,6 +165,7 @@ Can be one of: `d-default', `d-impure' or `d-ephemeral'.  See `comp-ctxt'.")
                         comp--tco
                         comp--fwprop
                         comp--remove-type-hints
+                        comp--sanitizer
                         comp--compute-function-types
                         comp--final)
   "Passes to be executed in order.")
@@ -192,49 +193,52 @@ Useful to hook into pass checkers.")
 ;; cl-macs.el. We can't use `cl-deftype-satisfies' directly as the
 ;; relation type <-> predicate is not bijective (bug#45576).
 (defconst comp-known-predicates
-  '((arrayp              . array)
-    (atom		 . atom)
-    (bool-vector-p       . bool-vector)
-    (booleanp            . boolean)
-    (bufferp             . buffer)
-    (char-table-p	 . char-table)
-    (characterp          . fixnum)
-    (consp               . cons)
-    (floatp              . float)
-    (framep              . frame)
-    (functionp           . (or function symbol cons))
-    (hash-table-p	 . hash-table)
-    (integer-or-marker-p . integer-or-marker)
-    (integerp            . integer)
-    (keywordp            . keyword)
-    (listp               . list)
-    (markerp             . marker)
-    (natnump             . (integer 0 *))
-    (null		 . null)
-    (number-or-marker-p  . number-or-marker)
-    (numberp             . number)
-    (numberp             . number)
-    (obarrayp            . obarray)
-    (overlayp            . overlay)
-    (processp            . process)
-    (sequencep           . sequence)
-    (stringp             . string)
-    (subrp               . subr)
-    (symbol-with-pos-p   . symbol-with-pos)
-    (symbolp             . symbol)
-    (vectorp             . vector)
-    (windowp             . window))
-  "Alist predicate -> matched type specifier.")
+  ;; FIXME: Auto-generate (most of) it from `cl-deftype-satifies'?
+  '((arrayp              array)
+    (atom		 atom)
+    (bool-vector-p       bool-vector)
+    (booleanp            boolean)
+    (bufferp             buffer)
+    (char-table-p	 char-table)
+    (characterp          fixnum t)
+    (consp               cons)
+    (floatp              float)
+    (framep              frame)
+    (functionp           (or function symbol cons) (not function))
+    (hash-table-p	 hash-table)
+    (integer-or-marker-p integer-or-marker)
+    (integerp            integer)
+    (keywordp            symbol t)
+    (listp               list)
+    (markerp             marker)
+    (natnump             (integer 0 *))
+    (null		 null)
+    (number-or-marker-p  number-or-marker)
+    (numberp             number)
+    (obarrayp            obarray)
+    (overlayp            overlay)
+    (processp            process)
+    (sequencep           sequence)
+    (stringp             string)
+    (subrp               subr)
+    (symbol-with-pos-p   symbol-with-pos)
+    (symbolp             symbol)
+    (vectorp             vector)
+    (windowp             window))
+  "(PREDICATE TYPE-IF-SATISFIED ?TYPE-IF-NOT-SATISFIED).")
 
 (defconst comp-known-predicates-h
   (cl-loop
    with comp-ctxt = (make-comp-cstr-ctxt)
    with h = (make-hash-table :test #'eq)
-   for (pred . type-spec) in comp-known-predicates
-   for cstr = (comp-type-spec-to-cstr type-spec)
-   do (puthash pred cstr h)
+   for (pred . type-specs) in comp-known-predicates
+   for pos-cstr = (comp-type-spec-to-cstr (car type-specs))
+   for neg-cstr = (if (length> type-specs 1)
+                      (comp-type-spec-to-cstr (cl-second type-specs))
+                    (comp-cstr-negation-make pos-cstr))
+   do (puthash pred (cons pos-cstr neg-cstr) h)
    finally return h)
-  "Hash table function -> `comp-constraint'.")
+  "Hash table FUNCTION -> (POS-CSTR . NEG-CSTR).")
 
 (defun comp--known-predicate-p (predicate)
   "Return t if PREDICATE is known."
@@ -242,10 +246,14 @@ Useful to hook into pass checkers.")
             (gethash predicate (comp-cstr-ctxt-pred-type-h comp-ctxt)))
     t))
 
-(defun comp--pred-to-cstr (predicate)
-  "Given PREDICATE, return the corresponding constraint."
-  ;; FIXME: Unify those two hash tables?
-  (or (gethash predicate comp-known-predicates-h)
+(defun comp--pred-to-pos-cstr (predicate)
+  "Given PREDICATE, return the corresponding positive constraint."
+  (or (car-safe (gethash predicate comp-known-predicates-h))
+      (gethash predicate (comp-cstr-ctxt-pred-type-h comp-ctxt))))
+
+(defun comp--pred-to-neg-cstr (predicate)
+  "Given PREDICATE, return the corresponding negative constraint."
+  (or (cdr-safe (gethash predicate comp-known-predicates-h))
       (gethash predicate (comp-cstr-ctxt-pred-type-h comp-ctxt))))
 
 (defconst comp-symbol-values-optimizable '(most-positive-fixnum
@@ -1787,7 +1795,9 @@ into the C code forwarding the compilation unit."
        for insn in (comp-block-insns b)
        for (op . args) = insn
        if (comp--assign-op-p op)
-         do (comp--collect-mvars (cdr args))
+         do (comp--collect-mvars (if (eq op 'setimm)
+                                     (cl-first args)
+                                   (cdr args)))
        else
          do (comp--collect-mvars args))))
 
@@ -2026,38 +2036,28 @@ TARGET-BB-SYM is the symbol name of the target block."
               (,(pred comp--call-op-p)
                ,(and (pred comp--known-predicate-p) fun)
                ,op))
-	 ;; (comment ,_comment-str)
-	 (cond-jump ,cmp-res ,(pred comp-mvar-p) . ,blocks))
+         . ,(or
+	     ;; (comment ,_comment-str)
+	     (and `((cond-jump ,cmp-res ,(pred comp-mvar-p) . ,blocks))
+	          (let negated-branch nil))
+             (and `((set ,neg-cmp-res
+	                 (call eq ,cmp-res ,(pred comp-cstr-null-p)))
+	            (cond-jump ,neg-cmp-res ,(pred comp-mvar-p) . ,blocks))
+	          (let negated-branch t))))
        (cl-loop
         with target-mvar = (comp--cond-cstrs-target-mvar op (car insns-seq) b)
-        with cstr = (comp--pred-to-cstr fun)
         for branch-target-cell on blocks
         for branch-target = (car branch-target-cell)
-        for negated in '(t nil)
+        for negated in (if negated-branch '(nil t) '(t nil))
         when (comp--mvar-used-p target-mvar)
         do
-        (let ((block-target (comp--add-cond-cstrs-target-block b branch-target)))
+        (let ((block-target (comp--add-cond-cstrs-target-block
+                             b branch-target)))
           (setf (car branch-target-cell) (comp-block-name block-target))
-          (comp--emit-assume 'and target-mvar cstr block-target negated))
-        finally (cl-return-from in-the-basic-block)))
-      ;; Match predicate on the negated branch (unless).
-      (`((set ,(and (pred comp-mvar-p) cmp-res)
-              (,(pred comp--call-op-p)
-               ,(and (pred comp--known-predicate-p) fun)
-               ,op))
-         (set ,neg-cmp-res (call eq ,cmp-res ,(pred comp-cstr-null-p)))
-	 (cond-jump ,neg-cmp-res ,(pred comp-mvar-p) . ,blocks))
-       (cl-loop
-        with target-mvar = (comp--cond-cstrs-target-mvar op (car insns-seq) b)
-        with cstr = (comp--pred-to-cstr fun)
-        for branch-target-cell on blocks
-        for branch-target = (car branch-target-cell)
-        for negated in '(nil t)
-        when (comp--mvar-used-p target-mvar)
-        do
-        (let ((block-target (comp--add-cond-cstrs-target-block b branch-target)))
-          (setf (car branch-target-cell) (comp-block-name block-target))
-          (comp--emit-assume 'and target-mvar cstr block-target negated))
+          (comp--emit-assume 'and target-mvar (if negated
+                                                  (comp--pred-to-neg-cstr fun)
+                                                (comp--pred-to-pos-cstr fun))
+                             block-target nil))
         finally (cl-return-from in-the-basic-block))))
     (setf prev-insns-seq insns-seq))))
 
@@ -2441,6 +2441,8 @@ PRE-LAMBDA and POST-LAMBDA are called in pre or post-order if non-nil."
                  (setf (comp-vec-aref frame slot-n) mvar
                        (cadr insn) mvar))))
      (pcase insn
+       (`(setimm ,(pred targetp) ,_imm)
+        (new-lvalue))
        (`(,(pred comp--assign-op-p) ,(pred targetp) . ,_)
         (let ((mvar (comp-vec-aref frame slot-n)))
           (setf (cddr insn) (cl-nsubst-if mvar #'targetp (cddr insn))))
@@ -2544,7 +2546,7 @@ Return t when one or more block was removed, nil otherwise."
   ;; native compiling all Emacs code-base.
   "Max number of scanned insn before giving-up.")
 
-(defun comp--copy-insn (insn)
+(defun comp--copy-insn-rec (insn)
   "Deep copy INSN."
   ;; Adapted from `copy-tree'.
   (if (consp insn)
@@ -2560,6 +2562,13 @@ Return t when one or more block was removed, nil otherwise."
     (if (comp-mvar-p insn)
         (copy-comp-mvar insn)
       insn)))
+
+(defun comp--copy-insn (insn)
+  "Deep copy INSN."
+  (pcase insn
+    (`(setimm ,mvar ,imm)
+     `(setimm ,(copy-comp-mvar mvar) ,imm))
+    (_ (comp--copy-insn-rec insn))))
 
 (defmacro comp--apply-in-env (func &rest args)
   "Apply FUNC to ARGS in the current compilation environment."
@@ -2902,7 +2911,8 @@ Return the list of m-var ids nuked."
          for (op arg0 . rest) = insn
          if (comp--assign-op-p op)
            do (push (comp-mvar-id arg0) l-vals)
-              (setf r-vals (nconc (comp--collect-mvar-ids rest) r-vals))
+              (unless (eq op 'setimm)
+                (setf r-vals (nconc (comp--collect-mvar-ids rest) r-vals)))
          else
            do (setf r-vals (nconc (comp--collect-mvar-ids insn) r-vals))))
     ;; Every l-value appearing that does not appear as r-value has no right to
@@ -3005,6 +3015,65 @@ These are substituted with a normal `set' op."
                  (comp--remove-type-hints-func)
                  (comp--log-func comp-func 3))))
            (comp-ctxt-funcs-h comp-ctxt)))
+
+
+;;; Sanitizer pass specific code.
+
+;; This pass aims to verify compile-time value-type predictions during
+;; execution of the code.
+;; The sanitizer pass injects a call to 'helper_sanitizer_assert' before
+;; each conditional branch.  'helper_sanitizer_assert' will verify that
+;; the variable tested by the conditional branch is of the predicted
+;; value type, or signal an error otherwise.
+
+;;; Example:
+
+;; Assume we want to compile 'test.el' and test the function `foo'
+;; defined in it.  Then:
+
+;;  - Native-compile 'test.el' instrumenting it for sanitizer usage:
+;;      (let ((comp-sanitizer-emit t))
+;;        (load (native-compile "test.el")))
+
+;;  - Run `foo' with the sanitizer active:
+;;      (let ((comp-sanitizer-active t))
+;;        (foo))
+
+(defvar comp-sanitizer-emit nil
+  "Gates the sanitizer pass.
+This is intended to be used only for development and verification of
+the native compiler.")
+
+(defun comp--sanitizer (_)
+  (when comp-sanitizer-emit
+    (cl-loop
+     for f being each hash-value of (comp-ctxt-funcs-h comp-ctxt)
+     for comp-func = f
+     unless (comp-func-has-non-local comp-func)
+     do
+     (cl-loop
+      for b being each hash-value of (comp-func-blocks f)
+      do
+      (cl-loop
+       named in-the-basic-block
+       for insns-seq on (comp-block-insns b)
+       do (pcase insns-seq
+            (`((cond-jump ,(and (pred comp-mvar-p) mvar-tested)
+                          ,(pred comp-mvar-p) ,_bb1 ,_bb2))
+             (let ((type (comp-cstr-to-type-spec mvar-tested))
+                   (insn (car insns-seq)))
+               ;; No need to check if type is t.
+               (unless (eq type t)
+                 (comp--add-const-to-relocs type)
+                 (setcar
+                  insns-seq
+                  (comp--call 'helper_sanitizer_assert
+                              mvar-tested
+                              (make--comp-mvar :constant type)))
+                 (setcdr insns-seq (list insn)))
+               ;; (setf (comp-func-ssa-status comp-func) 'dirty)
+               (cl-return-from in-the-basic-block))))))
+     do (comp--log-func comp-func 3))))
 
 
 ;;; Function types pass specific code.

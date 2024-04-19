@@ -6504,13 +6504,16 @@ When calling from a program, supply as argument a number, nil, or `-'.  */)
 }
 
 DEFUN ("other-window-for-scrolling", Fother_window_for_scrolling, Sother_window_for_scrolling, 0, 0, 0,
-       doc: /* Return the other window for \"other window scroll\" commands.
-If in the minibuffer, `minibuffer-scroll-window' if non-nil
-specifies the window.
-Otherwise, if `other-window-scroll-buffer' is non-nil, a window
-showing that buffer is used, popping the buffer up if necessary.
-Finally, look for a neighboring window on the selected frame,
-followed by all visible frames on the current terminal.  */)
+       doc: /* Return \"the other\" window for \"other window scroll\" commands.
+If in the minibuffer, and `minibuffer-scroll-window' is non-nil,
+it specifies the window to use.
+Otherwise, if `other-window-scroll-buffer' is a buffer, a window
+showing that buffer is the window to use, popping it up if necessary.
+Otherwise, if `other-window-scroll-default' is a function, call it,
+and the window it returns is the window to use.
+Finally, the function looks for a neighboring window on the selected
+frame, followed by windows on all the visible frames on the current
+terminal.  */)
   (void)
 {
   Lisp_Object window;
@@ -8707,16 +8710,16 @@ on its frame), show another buffer in it.
 
 If the value is a function, it should take three arguments.  The first
 argument specifies the frame whose windows have been restored.  The
-third argument is the constant `configuration' if the windows are
-restored by `set-window-configuration' and the constant `state' if the
+third argument is the symbol `configuration' if the windows are
+restored by `set-window-configuration' and the symbol `state' if the
 windows are restored by `window-state-put'.
 
-The second argument specifies a list of entries for all windows
-whose previous buffers have been found dead at the time
-`set-window-configuration' or `window-state-put' tried to restore it in
-that window (minibuffer windows are excluded).  This means that the
-function specified by this variable may also delete windows which were
-found to be alive by `set-window-configuration'.
+The second argument specifies a list of entries for all windows whose
+previous buffers have been found dead at the time
+`set-window-configuration' or `window-state-put' tried to restore them
+(minibuffer windows are excluded).  This means that the function
+specified by this variable may also delete windows which were found to
+be alive by `set-window-configuration'.
 
 Each entry is a list of six values: the window whose buffer was found
 dead, the dead buffer or its name, the positions of window-start and

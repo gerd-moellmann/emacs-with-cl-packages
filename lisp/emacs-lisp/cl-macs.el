@@ -2250,7 +2250,7 @@ Like `cl-flet' but the definitions can refer to previous ones.
 ;;;###autoload
 (defmacro cl-labels (bindings &rest body)
   "Make local (recursive) function definitions.
-+BINDINGS is a list of definitions of the form (FUNC ARGLIST BODY...) where
+BINDINGS is a list of definitions of the form (FUNC ARGLIST BODY...) where
 FUNC is the function name, ARGLIST its arguments, and BODY the
 forms of the function body.  FUNC is defined in any BODY, as well
 as FORM, so you can write recursive and mutually recursive
@@ -3467,8 +3467,13 @@ Of course, we really can't know that for sure, so it's just a heuristic."
                '((base-char	. characterp) ;Could be subtype of `fixnum'.
                  (character	. natnump)    ;Could be subtype of `fixnum'.
                  (command	. commandp)   ;Subtype of closure & subr.
+                 (keyword	. keywordp)   ;Would need `keyword-with-pos`.
                  (natnum	. natnump)    ;Subtype of fixnum & bignum.
                  (real		. numberp)    ;Not clear where it would fit.
+                 ;; This one is redundant, but we keep it to silence a
+                 ;; warning during the early bootstrap when `cl-seq.el' gets
+                 ;; loaded before `cl-preloaded.el' is defined.
+                 (list		. listp)
                  ))
   (put type 'cl-deftype-satisfies pred))
 

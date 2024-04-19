@@ -23,7 +23,6 @@ import java.lang.IllegalStateException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -31,6 +30,7 @@ import android.app.Activity;
 
 import android.content.ClipData;
 import android.content.ClipDescription;
+import android.content.ContentResolver;
 import android.content.Context;
 
 import android.graphics.Rect;
@@ -49,6 +49,7 @@ import android.view.View;
 import android.view.ViewManager;
 import android.view.WindowManager;
 
+import android.util.SparseArray;
 import android.util.Log;
 
 import android.os.Build;
@@ -108,10 +109,10 @@ public final class EmacsWindow extends EmacsHandleObject
 
   /* Map between pointer identifiers and last known position.  Used to
      compute which pointer changed upon a touch event.  */
-  private HashMap<Integer, Coordinate> pointerMap;
+  private SparseArray<Coordinate> pointerMap;
 
   /* The window consumer currently attached, if it exists.  */
-  private EmacsWindowAttachmentManager.WindowConsumer attached;
+  private EmacsWindowManager.WindowConsumer attached;
 
   /* The window background scratch GC.  foreground is always the
      window background.  */
@@ -158,6 +159,16 @@ public final class EmacsWindow extends EmacsHandleObject
      values are -1 if no drag and drop operation is under way.  */
   private int dndXPosition, dndYPosition;
 
+  /* Identifier binding this window to the activity created for it, or
+     -1 if the window should be attached to system-created activities
+     (i.e. the activity launched by the system at startup).  Value is
+     meaningless under API level 29 and earlier.  */
+  public long attachmentToken;
+
+  /* Whether this window should be preserved during window pruning,
+     and whether this window has previously been attached to a task.  */
+  public boolean preserve, previouslyAttached;
+
   public
   EmacsWindow (short handle, final EmacsWindow parent, int x, int y,
 	       int width, int height, boolean overrideRedirect)
@@ -165,7 +176,7 @@ public final class EmacsWindow extends EmacsHandleObject
     super (handle);
 
     rect = new Rect (x, y, x + width, y + height);
-    pointerMap = new HashMap<Integer, Coordinate> ();
+    pointerMap = new SparseArray<Coordinate> ();
 
     /* Create the view from the context's UI thread.  The window is
        unmapped, so the view is GONE.  */
@@ -254,12 +265,12 @@ public final class EmacsWindow extends EmacsHandleObject
 	run ()
 	{
 	  ViewManager parent;
-	  EmacsWindowAttachmentManager manager;
+	  EmacsWindowManager manager;
 
 	  if (EmacsActivity.focusedWindow == EmacsWindow.this)
 	    EmacsActivity.focusedWindow = null;
 
-	  manager = EmacsWindowAttachmentManager.MANAGER;
+	  manager = EmacsWindowManager.MANAGER;
 	  view.setVisibility (View.GONE);
 
 	  /* If the window manager is set, use that instead.  */
@@ -280,12 +291,12 @@ public final class EmacsWindow extends EmacsHandleObject
   }
 
   public void
-  setConsumer (EmacsWindowAttachmentManager.WindowConsumer consumer)
+  setConsumer (EmacsWindowManager.WindowConsumer consumer)
   {
     attached = consumer;
   }
 
-  public EmacsWindowAttachmentManager.WindowConsumer
+  public EmacsWindowManager.WindowConsumer
   getAttachedConsumer ()
   {
     return attached;
@@ -419,7 +430,7 @@ public final class EmacsWindow extends EmacsHandleObject
 	    public void
 	    run ()
 	    {
-	      EmacsWindowAttachmentManager manager;
+	      EmacsWindowManager manager;
 	      WindowManager windowManager;
 	      Activity ctx;
 	      Object tem;
@@ -430,7 +441,7 @@ public final class EmacsWindow extends EmacsHandleObject
 
 	      if (!overrideRedirect)
 		{
-		  manager = EmacsWindowAttachmentManager.MANAGER;
+		  manager = EmacsWindowManager.MANAGER;
 
 		  /* If parent is the root window, notice that there are new
 		     children available for interested activities to pick
@@ -526,9 +537,9 @@ public final class EmacsWindow extends EmacsHandleObject
 	public void
 	run ()
 	{
-	  EmacsWindowAttachmentManager manager;
+	  EmacsWindowManager manager;
 
-	  manager = EmacsWindowAttachmentManager.MANAGER;
+	  manager = EmacsWindowManager.MANAGER;
 
 	  view.setVisibility (View.GONE);
 
@@ -808,20 +819,13 @@ public final class EmacsWindow extends EmacsHandleObject
     EmacsActivity.invalidateFocus (gainFocus ? 6 : 5);
   }
 
-  /* Notice that the activity has been detached or destroyed.
-
-     ISFINISHING is set if the activity is not the main activity, or
-     if the activity was not destroyed in response to explicit user
-     action.  */
+  /* Notice that the activity (or its task) has been detached or
+     destroyed by explicit user action.  */
 
   public void
-  onActivityDetached (boolean isFinishing)
+  onActivityDetached ()
   {
-    /* Destroy the associated frame when the activity is detached in
-       response to explicit user action.  */
-
-    if (isFinishing)
-      EmacsNative.sendWindowAction (this.handle, 0);
+    EmacsNative.sendWindowAction (this.handle, 0);
   }
 
 
@@ -1000,7 +1004,8 @@ public final class EmacsWindow extends EmacsHandleObject
       case MotionEvent.ACTION_CANCEL:
 	/* Primary pointer released with index 0.  */
 	pointerID = event.getPointerId (0);
-	coordinate = pointerMap.remove (pointerID);
+	coordinate = pointerMap.get (pointerID);
+	pointerMap.delete (pointerID);
 	break;
 
       case MotionEvent.ACTION_POINTER_DOWN:
@@ -1019,7 +1024,8 @@ public final class EmacsWindow extends EmacsHandleObject
 	/* Pointer removed.  Remove it from the map.  */
 	pointerIndex = event.getActionIndex ();
 	pointerID = event.getPointerId (pointerIndex);
-	coordinate = pointerMap.remove (pointerID);
+	coordinate = pointerMap.get (pointerID);
+	pointerMap.delete (pointerID);
 	break;
 
       default:
@@ -1309,11 +1315,11 @@ public final class EmacsWindow extends EmacsHandleObject
 	public void
 	run ()
 	{
-	  EmacsWindowAttachmentManager manager;
+	  EmacsWindowManager manager;
 	  ViewManager parent;
 
 	  /* First, detach this window if necessary.  */
-	  manager = EmacsWindowAttachmentManager.MANAGER;
+	  manager = EmacsWindowManager.MANAGER;
 	  manager.detachWindow (EmacsWindow.this);
 
 	  /* Also unparent this view.  */
@@ -1545,10 +1551,11 @@ public final class EmacsWindow extends EmacsHandleObject
   {
     int[] array;
 
-    /* This is supposed to translate coordinates to the root
-       window.  */
+    /* This is supposed to translate coordinates to the root window,
+       whose origin point, in this context, is that of the toplevel
+       activity host to this view.  */
     array = new int[2];
-    EmacsService.SERVICE.getLocationOnScreen (view, array);
+    EmacsService.SERVICE.getLocationInWindow (view, array);
 
     /* Now, the coordinates of the view should be in array.  Offset X
        and Y by them.  */
@@ -1699,10 +1706,11 @@ public final class EmacsWindow extends EmacsHandleObject
     ClipData data;
     ClipDescription description;
     int i, j, x, y, itemCount;
-    String type;
+    String type, uriString;
     Uri uri;
     EmacsActivity activity;
     StringBuilder builder;
+    ContentResolver resolver;
 
     x = (int) event.getX ();
     y = (int) event.getY ();
@@ -1799,6 +1807,20 @@ public final class EmacsWindow extends EmacsHandleObject
 	      {
 		if ((activity.requestDragAndDropPermissions (event) == null))
 		  uri = null;
+		else
+		  {
+		    resolver = activity.getContentResolver ();
+
+		    /* Substitute a content file name for the URI, if
+		       possible.  */
+		    uriString = EmacsService.buildContentName (uri, resolver);
+
+		    if (uriString != null)
+		      {
+			builder.append (uriString).append ("\n");
+			continue;
+		      }
+		  }
 	      }
 
 	    if (uri != null)
@@ -1840,7 +1862,7 @@ public final class EmacsWindow extends EmacsHandleObject
   public void
   recreateActivity ()
   {
-    final EmacsWindowAttachmentManager.WindowConsumer attached;
+    final EmacsWindowManager.WindowConsumer attached;
 
     attached = this.attached;
 

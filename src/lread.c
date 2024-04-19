@@ -1952,9 +1952,9 @@ maybe_swap_for_eln (bool no_native, Lisp_Object *filename, int *fd,
 		= Fcons (list2
 			 (Qcomp,
 			  CALLN (Fformat,
-				 build_string ("Cannot look up eln "
-					       "file as no source file "
-					       "was found for %s"),
+				 build_string ("Cannot look up .eln file "
+					       "for %s because no source "
+					       "file was found for it"),
 				 *filename)),
 			 Vdelayed_warnings_list);
 	      return;
@@ -4977,6 +4977,22 @@ Lisp_Object
 intern_1 (const char *str, ptrdiff_t len)
 {
   return intern_c_string_1 (str, len, false);
+}
+
+/* Intern STR of NBYTES bytes and NCHARS characters in the default obarray.  */
+Lisp_Object
+intern_c_multibyte (const char *str, ptrdiff_t nchars, ptrdiff_t nbytes)
+{
+  const bool keyword = *str == ':';
+  if (keyword)
+    {
+      const Lisp_Object name
+	= make_multibyte_string (str + 1, nchars - 1, nbytes - 1);
+      return pkg_intern_symbol (name, Vkeyword_package, NULL);
+    }
+  const Lisp_Object name
+    = make_multibyte_string (str, nchars, nbytes);
+  return pkg_intern_symbol (name, Vearmuffs_package, NULL);
 }
 
 static void

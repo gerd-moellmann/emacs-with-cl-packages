@@ -23,7 +23,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <math.h>
 #include <stdio.h>
 
-#include <byteswap.h>
 #include <count-one-bits.h>
 #include <count-trailing-zeros.h>
 #include <intprops.h>
@@ -194,16 +193,37 @@ DEFUN ("null", Fnull, Snull, 1, 1, 0,
 DEFUN ("type-of", Ftype_of, Stype_of, 1, 1, 0,
        doc: /* Return a symbol representing the type of OBJECT.
 The symbol returned names the object's basic type;
-for example, (type-of 1) returns `integer'.  */)
+for example, (type-of 1) returns `integer'.
+Contrary to `cl-type-of', the returned type is not always the most
+precise type possible, because instead this function tries to preserve
+compatibility with the return value of previous Emacs versions.  */)
+  (Lisp_Object object)
+{
+  return SYMBOLP (object)    ? Qsymbol
+         : INTEGERP (object) ? Qinteger
+         : SUBRP (object)    ? Qsubr
+         : Fcl_type_of (object);
+}
+
+DEFUN ("cl-type-of", Fcl_type_of, Scl_type_of, 1, 1, 0,
+       doc: /* Return a symbol representing the type of OBJECT.
+The returned symbol names the most specific possible type of the object.
+for example, (cl-type-of nil) returns `null'.
+The specific type returned may change depending on Emacs versions,
+so we recommend you use `cl-typep', `cl-typecase', or other predicates
+rather than compare the return value of this function against
+a fixed set of types.  */)
   (Lisp_Object object)
 {
   switch (XTYPE (object))
     {
     case_Lisp_Int:
-      return Qinteger;
+      return Qfixnum;
 
     case Lisp_Symbol:
-      return Qsymbol;
+      return NILP (object) ? Qnull
+             : EQ (object, Qt) ? Qboolean
+             : Qsymbol;
 
     case Lisp_String:
       return Qstring;
@@ -216,7 +236,7 @@ for example, (type-of 1) returns `integer'.  */)
       switch (PSEUDOVECTOR_TYPE (XVECTOR (object)))
 	{
         case PVEC_NORMAL_VECTOR: return Qvector;
-	case PVEC_BIGNUM: return Qinteger;
+	case PVEC_BIGNUM: return Qbignum;
 	case PVEC_MARKER: return Qmarker;
 	case PVEC_SYMBOL_WITH_POS: return Qsymbol_with_pos;
 	case PVEC_OVERLAY: return Qoverlay;
@@ -225,8 +245,11 @@ for example, (type-of 1) returns `integer'.  */)
         case PVEC_WINDOW_CONFIGURATION: return Qwindow_configuration;
         case PVEC_PROCESS: return Qprocess;
         case PVEC_WINDOW: return Qwindow;
-        case PVEC_SUBR: return Qsubr;
         case PVEC_PACKAGE: return Qpackage;
+        case PVEC_SUBR:
+          return XSUBR (object)->max_args == UNEVALLED ? Qspecial_form
+                 : SUBR_NATIVE_COMPILEDP (object) ? Qsubr_native_elisp
+                 : Qprimitive_function;
         case PVEC_COMPILED: return Qcompiled_function;
         case PVEC_BUFFER: return Qbuffer;
         case PVEC_CHAR_TABLE: return Qchar_table;
@@ -3825,30 +3848,6 @@ count_trailing_zero_bits (bits_word val)
     }
 }
 
-static bits_word
-bits_word_to_host_endian (bits_word val)
-{
-#ifndef WORDS_BIGENDIAN
-  return val;
-#else
-  if (BITS_WORD_MAX >> 31 == 1)
-    return bswap_32 (val);
-  if (BITS_WORD_MAX >> 31 >> 31 >> 1 == 1)
-    return bswap_64 (val);
-  {
-    int i;
-    bits_word r = 0;
-    for (i = 0; i < sizeof val; i++)
-      {
-	r = ((r << 1 << (CHAR_BIT - 1))
-	     | (val & ((1u << 1 << (CHAR_BIT - 1)) - 1)));
-	val = val >> 1 >> (CHAR_BIT - 1);
-      }
-    return r;
-  }
-#endif
-}
-
 DEFUN ("bool-vector-exclusive-or", Fbool_vector_exclusive_or,
        Sbool_vector_exclusive_or, 2, 3, 0,
        doc: /* Return A ^ B, bitwise exclusive or.
@@ -4062,6 +4061,7 @@ syms_of_data (void)
   DEFSYM (Qminibuffer_quit, "minibuffer-quit");
   DEFSYM (Qwrong_length_argument, "wrong-length-argument");
   DEFSYM (Qwrong_type_argument, "wrong-type-argument");
+  DEFSYM (Qtype_mismatch, "type-mismatch")
   DEFSYM (Qargs_out_of_range, "args-out-of-range");
   DEFSYM (Qvoid_function, "void-function");
   DEFSYM (Qcyclic_function_indirection, "cyclic-function-indirection");
@@ -4153,6 +4153,7 @@ syms_of_data (void)
   PUT_ERROR (Quser_error, error_tail, "");
   PUT_ERROR (Qwrong_length_argument, error_tail, "Wrong length argument");
   PUT_ERROR (Qwrong_type_argument, error_tail, "Wrong type argument");
+  PUT_ERROR (Qtype_mismatch, error_tail, "Types do not match");
   PUT_ERROR (Qargs_out_of_range, error_tail, "Args out of range");
   PUT_ERROR (Qvoid_function, error_tail,
 	     "Symbol's function definition is void");
@@ -4216,7 +4217,9 @@ syms_of_data (void)
 	     "Variable binding depth exceeds max-specpdl-size");
 
   /* Types that type-of returns.  */
+  DEFSYM (Qboolean, "boolean");
   DEFSYM (Qinteger, "integer");
+  DEFSYM (Qbignum, "bignum");
   DEFSYM (Qsymbol, "symbol");
   DEFSYM (Qstring, "string");
   DEFSYM (Qcons, "cons");
@@ -4233,6 +4236,9 @@ syms_of_data (void)
   DEFSYM (Qwindow, "window");
   DEFSYM (Qsubr, "subr");
   DEFSYM (Qpackage, "package");
+  DEFSYM (Qspecial_form, "special-form");
+  DEFSYM (Qprimitive_function, "primitive-function");
+  DEFSYM (Qsubr_native_elisp, "subr-native-elisp");
   DEFSYM (Qcompiled_function, "compiled-function");
   DEFSYM (Qbuffer, "buffer");
   DEFSYM (Qframe, "frame");
@@ -4270,6 +4276,7 @@ syms_of_data (void)
   defsubr (&Seq);
   defsubr (&Snull);
   defsubr (&Stype_of);
+  defsubr (&Scl_type_of);
   defsubr (&Slistp);
   defsubr (&Snlistp);
   defsubr (&Sconsp);

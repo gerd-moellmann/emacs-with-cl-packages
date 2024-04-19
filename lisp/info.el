@@ -2174,7 +2174,7 @@ If DIRECTION is `backward', search in the reverse direction."
                       (re-search-forward regexp nil t))
               (signal 'user-search-failed (list regexp))))))
 
-      (if (and bound (not found))
+      (if (and (or bound (not Info-current-subfile)) (not found))
           (signal 'user-search-failed (list regexp)))
 
       (unless (or found bound)
@@ -4063,8 +4063,8 @@ ERRORSTRING optional fourth argument, controls action on no match:
 		 (error "No %s around position %d" errorstring pos))))))))
 
 (defun Info-mouse-follow-nearest-node (click)
-  "\\<Info-mode-map>Follow a node reference near point.
-Like \\[Info-menu], \\[Info-follow-reference], \\[Info-next], \\[Info-prev] or \\[Info-up] command, depending on where you click.
+  "Follow a node reference near point.
+\\<Info-mode-map>Like \\[Info-menu], \\[Info-follow-reference], \\[Info-next], \\[Info-prev] or \\[Info-up] command, depending on where you click.
 At end of the node's text, moves to the next node, or up if none."
   (interactive "e" Info-mode)
   (mouse-set-point click)
