@@ -1120,7 +1120,14 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
       if (length < MERGESTATE_TEMP_SIZE / 2)
 	keys = &ms.temparray[length + 1];
       else
-	keys = allocated_keys = xmalloc (length * word_size);
+	{
+#ifdef HAVE_MPS
+	  allocated_keys = igc_xzalloc_ambig (length * word_size);
+#else
+	  allocated_keys = xmalloc (length * word_size);
+#endif
+	  keys = allocated_keys;
+	}
 
       for (ptrdiff_t i = 0; i < length; i++)
 	keys[i] = call1 (keyfunc, seq[i]);
