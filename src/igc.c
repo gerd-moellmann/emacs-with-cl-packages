@@ -2716,4 +2716,5 @@ syms_of_igc (void)
   defsubr (&Sigc_roots);
   DEFSYM (Qambig, "ambig");
   DEFSYM (Qexact, "exact");
+  Fprovide (intern_c_string ("mps"), Qnil);
 }
