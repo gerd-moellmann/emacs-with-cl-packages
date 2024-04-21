@@ -112,6 +112,20 @@ the closest directory separators."
     (cons (or (cadr boundaries) 0)
           (or (cddr boundaries) (length suffix)))))
 
+(defun completion-base-suffix (start end collection predicate)
+  "Return suffix of completion of buffer text between START and END.
+COLLECTION and PREDICATE are, respectively, the completion's
+completion table and predicate, as in `completion-boundaries' (which see).
+Value is a substring of buffer text between point and END.  It is
+the completion suffix that follows the completion boundary."
+  (let ((suffix (buffer-substring (point) end)))
+    (substring
+     suffix
+     (cdr (completion-boundaries (buffer-substring start (point))
+                                 collection
+                                 predicate
+                                 suffix)))))
+
 (defun completion-metadata (string table pred)
   "Return the metadata of elements to complete at the end of STRING.
 This metadata is an alist.  Currently understood keys are:
@@ -2588,16 +2602,10 @@ The candidate will still be chosen by `choose-completion' unless
              (minibuffer-completion-base (substring string 0 base-size))
              (base-prefix (buffer-substring (minibuffer--completion-prompt-end)
                                             (+ start base-size)))
-             (base-suffix
-              (if (or (eq (alist-get 'category (cdr md)) 'file)
-                      completion-in-region-mode-predicate)
-                  (buffer-substring
-                   (save-excursion
-                     (if completion-in-region-mode-predicate
-                         (point)
-                       (or (search-forward "/" nil t) (point-max))))
-                   (point-max))
-                ""))
+             (base-suffix (concat (completion-base-suffix start end
+                                                          minibuffer-completion-table
+                                                          minibuffer-completion-predicate)
+                                  (buffer-substring end (point-max))))
              (all-md (completion--metadata (buffer-substring-no-properties
                                             start (point))
                                            base-size md
@@ -2699,7 +2707,11 @@ The candidate will still be chosen by `choose-completion' unless
                                        (delete-minibuffer-contents)
                                        (insert start choice)
                                        ;; Keep point after completion before suffix
-                                       (save-excursion (insert end)))
+                                       (save-excursion (insert
+                                                        (completion--merge-suffix
+                                                         choice
+                                                         (1- (length choice))
+                                                         end))))
                                    (unless (or (zerop (length prefix))
                                                (equal prefix
                                                       (buffer-substring-no-properties

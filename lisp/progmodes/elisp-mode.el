@@ -40,9 +40,10 @@ It has `lisp-mode-abbrev-table' as its parent."
 
 (defvar emacs-lisp-mode-syntax-table
   (let ((table (make-syntax-table lisp-data-mode-syntax-table)))
-    ;; These are redundant, now.
-    ;;(modify-syntax-entry ?\[ "(]  " table)
-    ;;(modify-syntax-entry ?\] ")[  " table)
+    ;; Remove the "p" flag from the entry of `@' because we use instead
+    ;; `syntax-propertize' to take care of `,@', which is more precise.
+    ;; FIXME: We should maybe do the same in other Lisp modes?  (bug#24542)
+    (modify-syntax-entry ?@ "_" table)
     table)
   "Syntax table used in `emacs-lisp-mode'.")
 
@@ -2171,8 +2172,13 @@ Calls REPORT-FN directly."
                                  (point-max)))
                   collect (flymake-make-diagnostic
                            (current-buffer)
-                           (if (= beg end) (1- beg) beg)
-                           end
+                           (if (= beg end)
+                               (max (1- beg) (point-min))
+                             beg)
+                           (if (= beg end)
+                               (min (max beg (1+ (point-min)))
+                                    (point-max))
+                             end)
                            level
                            string)))))))
 
