@@ -72,15 +72,19 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 static void
 igc_assert_fail (const char *file, unsigned line, const char *msg)
 {
-  extern void die (const char *, const char *, int);
   die (msg, file, line);
 }
 
 #ifdef IGC_DEBUG
-# define igc_assert(expr)                         \
-   if (!(expr))                                   \
-     igc_assert_fail (__FILE__, __LINE__, #expr); \
-   else
+
+#define igc_assert(expr)				\
+  do							\
+    {							\
+      if (!(expr))					\
+	igc_assert_fail (__FILE__, __LINE__, #expr);	\
+    }							\
+  while (0)						\
+
 #else
 # define igc_assert(expr) (void) 9
 #endif
@@ -936,11 +940,13 @@ fix_image (mps_ss_t ss, struct image *i)
 {
   MPS_SCAN_BEGIN (ss)
   {
+#ifdef HAVE_WINDOW_SYSTEM
     IGC_FIX12_OBJ (ss, &i->spec);
     IGC_FIX12_OBJ (ss, &i->dependencies);
     IGC_FIX12_OBJ (ss, &i->lisp_data);
     IGC_FIX12_RAW (ss, &i->next);
     IGC_FIX12_RAW (ss, &i->prev);
+#endif
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -2492,12 +2498,14 @@ igc_make_itree_node (void)
   return n;
 }
 
+#ifdef HAVE_WINDOW_SYSTEM
 struct image *
 igc_make_image (void)
 {
   struct image *img = alloc (sizeof *img, IGC_OBJ_IMAGE, PVEC_FREE);
   return img;
 }
+#endif
 
 struct face *
 igc_make_face (void)
