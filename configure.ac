@@ -45,6 +45,8 @@ if test "$XCONFIGURE" = "android"; then
     enable_year2038=no])
 fi
 
+AC_DEFINE([IN_MY_FORK], [1], [CL packages fork.])
+
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
 dnl and then quoted again for a C string.  Separate options with spaces.
 dnl Add some environment variables, if they were passed via the environment
