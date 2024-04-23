@@ -43,6 +43,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "termhooks.h"
 #include "thread.h"
 #include "treesit.h"
+#include "puresize.h"
 
 #ifndef USE_LSB_TAG
 # error "USE_LSB_TAG required"
@@ -98,10 +99,20 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
 static mps_addr_t min_addr, max_addr;
 
 static bool
+is_pure (const mps_addr_t addr)
+{
+#ifdef IN_MY_FORK
+  return false;
+#else
+  return PURE_P (addr);
+#endif
+}
+
+static bool
 is_mps (const mps_addr_t addr)
 {
   return addr >= min_addr && addr < max_addr && !pdumper_object_p (addr)
-	 && !c_symbol_p (addr);
+    && !c_symbol_p (addr) && !is_pure (addr);
 }
 
 enum
@@ -116,10 +127,13 @@ is_aligned (const mps_addr_t addr)
   return ((mps_word_t) addr & IGC_TAG_MASK) == 0;
 }
 
-#define IGC_CHECK_RES(res) \
-  if ((res) != MPS_RES_OK) \
-    emacs_abort ();        \
-  else
+#define IGC_CHECK_RES(res)			\
+  do						\
+    {						\
+      if ((res) != MPS_RES_OK)			\
+	emacs_abort ();				\
+    }						\
+  while (0)					\
 
 #define IGC_WITH_PARKED(gc)                        \
   for (int i = (mps_arena_park (gc->arena), 1); i; \
@@ -562,7 +576,11 @@ fix_symbol (mps_ss_t ss, struct Lisp_Symbol *sym)
     IGC_FIX12_OBJ (ss, &sym->u.s.name);
     IGC_FIX12_OBJ (ss, &sym->u.s.function);
     IGC_FIX12_OBJ (ss, &sym->u.s.plist);
+#ifdef IN_MY_FORK
     IGC_FIX12_OBJ (ss, &sym->u.s.package);
+#else
+    IGC_FIX12_RAW (ss, &sym->u.s.next);
+#endif
     switch (sym->u.s.redirect)
       {
       case SYMBOL_PLAINVAL:
@@ -792,6 +810,23 @@ scan_ambig (mps_ss_t ss, void *start, void *end, void *closure)
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
 }
+
+#ifndef IN_MY_FORK
+static mps_res_t
+scan_pure (mps_ss_t ss, void *start, void *end, void *closure)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    igc_assert (start == (void *) pure);
+    extern ptrdiff_t pure_bytes_used_lisp;
+    end = (char *) pure + pure_bytes_used_lisp;
+    if (end > start)
+      IGC_FIX_CALL (ss, scan_ambig (ss, start, end, NULL));
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+#endif
 
 static mps_res_t
 scan_bc (mps_ss_t ss, void *start, void *end, void *closure)
@@ -1449,6 +1484,20 @@ fix_other (mps_ss_t ss, void *o)
   return MPS_RES_OK;
 }
 
+#ifndef IN_MY_FORK
+static mps_res_t
+fix_obarray (mps_ss_t ss, struct Lisp_Obarray *o)
+{
+  MPS_SCAN_BEGIN (ss)
+  {
+    if (o->buckets)
+      IGC_FIX12_NOBJS (ss, o->buckets, obarray_size (o));
+  }
+  MPS_SCAN_END (ss);
+  return MPS_RES_OK;
+}
+#endif
+
 /* Note that there is a small window after committing a vectorlike
    allocation where the object is zeroed, and so the vector header is
    also zero.  This doesn't have an adverse effect. */
@@ -1460,6 +1509,12 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
   {
     switch (pseudo_vector_type (v))
       {
+#ifndef IN_MY_FORK
+      case PVEC_OBARRAY:
+	IGC_FIX_CALL_FN (ss, struct Lisp_Obarray, v, fix_obarray);
+	break;
+#endif
+
       case PVEC_BUFFER:
 	IGC_FIX_CALL_FN (ss, struct buffer, v, fix_buffer);
 	break;
@@ -1540,7 +1595,6 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
       case PVEC_BIGNUM:
 	break;
 
-      case PVEC_PACKAGE:
       case PVEC_NORMAL_VECTOR:
       case PVEC_SYMBOL_WITH_POS:
       case PVEC_PROCESS:
@@ -1557,6 +1611,9 @@ fix_vector (mps_ss_t ss, struct Lisp_Vector *v)
       case PVEC_COMPILED:
       case PVEC_RECORD:
       case PVEC_FONT:
+#ifdef IN_MY_FORK
+      case PVEC_PACKAGE:
+#endif
 	IGC_FIX_CALL_FN (ss, struct Lisp_Vector, v, fix_vectorlike);
 	break;
       }
@@ -1681,6 +1738,16 @@ root_create_igc (struct igc *gc)
 {
   root_create (gc, gc, gc + 1, mps_rank_exact (), scan_igc, false);
 }
+
+#ifndef IN_MY_FORK
+static void
+root_create_pure (struct igc *gc)
+{
+  void *start = &pure[0];
+  void *end = &pure[PURESIZE];
+  root_create (gc, start, end, mps_rank_ambig (), scan_pure, true);
+}
+#endif
 
 static void
 root_create_thread (struct igc_thread_list *t)
@@ -1931,6 +1998,19 @@ finalize_hash_table (struct Lisp_Hash_Table *h)
     }
 }
 
+#ifndef IN_MY_FORK
+static void
+finalize_obarray (struct Lisp_Obarray *o)
+{
+  if (o->buckets)
+    {
+      void *b = o->buckets;
+      o->buckets = NULL;
+      xfree (b);
+    }
+}
+#endif
+
 static void
 finalize_bignum (struct Lisp_Bignum *n)
 {
@@ -2098,6 +2178,12 @@ finalize_vector (mps_addr_t v)
       finalize_finalizer (v);
       break;
 
+#ifndef IN_MY_FORK
+    case PVEC_OBARRAY:
+      finalize_obarray (v);
+      break;
+#endif
+
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
@@ -2105,7 +2191,9 @@ finalize_vector (mps_addr_t v)
     case PVEC_SQLITE:
     case PVEC_TS_NODE:
     case PVEC_NORMAL_VECTOR:
+#ifdef IN_MY_FORK
     case PVEC_PACKAGE:
+#endif
     case PVEC_WINDOW_CONFIGURATION:
     case PVEC_BUFFER:
     case PVEC_FRAME:
@@ -2151,7 +2239,7 @@ finalize (struct igc *gc, mps_addr_t base)
     case IGC_OBJ_WEAK:
     case IGC_OBJ_BLV:
     case IGC_OBJ_LAST:
-      igc_assert (!"not implemented");
+      igc_assert (!"finalize not implemented");
       break;
 
     case IGC_OBJ_VECTOR:
@@ -2179,10 +2267,37 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_NATIVE_COMP_UNIT:
     case PVEC_SUBR:
     case PVEC_FINALIZER:
+#ifndef IN_MY_FORK
+    case PVEC_OBARRAY:
+#endif
       mps_finalize (global_igc->arena, &ref);
       break;
 
-    default:
+    case PVEC_NORMAL_VECTOR:
+    case PVEC_FREE:
+    case PVEC_MARKER:
+    case PVEC_OVERLAY:
+    case PVEC_SYMBOL_WITH_POS:
+    case PVEC_MISC_PTR:
+    case PVEC_PROCESS:
+    case PVEC_FRAME:
+    case PVEC_WINDOW:
+    case PVEC_BOOL_VECTOR:
+    case PVEC_BUFFER:
+    case PVEC_TERMINAL:
+    case PVEC_XWIDGET:
+    case PVEC_XWIDGET_VIEW:
+    case PVEC_OTHER:
+    case PVEC_WINDOW_CONFIGURATION:
+    case PVEC_TS_NODE:
+    case PVEC_SQLITE:
+    case PVEC_COMPILED:
+    case PVEC_CHAR_TABLE:
+    case PVEC_SUB_CHAR_TABLE:
+    case PVEC_RECORD:
+#ifdef IN_MY_FORK
+    case PVEC_PACKAGE:
+#endif
       break;
     }
 }
@@ -2269,6 +2384,7 @@ thread_ap (enum igc_obj_type type)
     case IGC_OBJ_FLOAT:
       return t->d.leaf_ap;
     }
+  emacs_abort ();
 }
 
 /* Conditional breakpoints can be so slow that it is often more
@@ -2327,7 +2443,8 @@ igc_hash (Lisp_Object key)
 
   if (is_mps (client))
     {
-      igc_assert (mps_arena_has_addr (global_igc->arena, client));
+      // The following assertion is very expensive.
+      // igc_assert (mps_arena_has_addr (global_igc->arena, client));
       struct igc_header *h = client_to_base (client);
       return h->hash;
     }
@@ -2690,6 +2807,9 @@ make_igc (void)
   gc->weak_pool = make_pool_awl (gc, gc->weak_fmt);
 
   root_create_igc (gc);
+#ifndef IN_MY_FORK
+  root_create_pure (gc);
+#endif
   root_create_buffer (gc, &buffer_defaults);
   root_create_buffer (gc, &buffer_local_symbols);
   root_create_staticvec (gc);
