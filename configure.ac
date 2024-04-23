@@ -45,6 +45,8 @@ if test "$XCONFIGURE" = "android"; then
     enable_year2038=no])
 fi
 
+AC_DEFINE([IN_MY_FORK], [1], [CL packages fork.])
+
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
 dnl and then quoted again for a C string.  Separate options with spaces.
 dnl Add some environment variables, if they were passed via the environment
@@ -857,6 +859,7 @@ ANDROID_ABI=
 WARN_JAVAFLAGS=
 ANDROID_SHARED_USER_ID=
 ANDROID_SHARED_USER_NAME=
+IS_D8_R8=
 
 # This is a list of Makefiles that have alternative versions for
 # Android.
@@ -1023,6 +1026,21 @@ Please verify that the path to the SDK build tools you specified is correct])
     AC_MSG_ERROR([The Android dexer was not found.
 Please verify that the path to the SDK build tools you specified is correct])
   fi
+
+  # Locate any d8.jar within the SDK build tools directory.  The R8
+  # optimizing compiler is also present in this bundle, and it generates
+  # far superior code.
+  emacs_val=`which $D8`
+  emacs_val=`AS_DIRNAME([$emacs_val])`/lib/d8.jar
+  AS_IF([test -f "$emacs_val"],
+    [AC_CACHE_CHECK([whether d8.jar coresident with d8 binary provides r8],
+       [emacs_cv_d8_provides_r8],
+       [AS_IF([java -cp "$emacs_val" com.android.tools.r8.R8 --help &>/dev/null],
+         [emacs_cv_d8_provides_r8=yes], [emacs_cv_d8_provides_r8=no])])])
+  AS_IF([test "$emacs_cv_d8_provides_r8" = "yes"],
+    # And substitute it for D8 if present.
+    [D8="java -cp $emacs_val com.android.tools.r8.R8"
+     IS_D8_R8=yes])
 
   AC_PATH_PROGS([ZIPALIGN], [zipalign], [], "${SDK_BUILD_TOOLS}:$PATH")
   if test "ZIPALIGN" = ""; then
@@ -1282,6 +1300,7 @@ AC_SUBST([D8])
 AC_SUBST([ZIPALIGN])
 AC_SUBST([ANDROID_JAR])
 AC_SUBST([ANDROID_ABI])
+AC_SUBST([IS_D8_R8])
 
 if test "$XCONFIGURE" = "android"; then
   ANDROID=yes
