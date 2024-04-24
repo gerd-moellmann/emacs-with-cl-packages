@@ -3122,6 +3122,8 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_TS_NODE:
     case PVEC_TS_COMPILED_QUERY:
       break;
+    case PVEC_WEAK_REF:
+      emacs_abort();
     }
   char msg[60];
   snprintf (msg, sizeof msg, "pseudovector type %d", (int) ptype);
