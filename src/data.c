@@ -235,6 +235,7 @@ a fixed set of types.  */)
       /* WARNING!!  Keep 'cl--type-hierarchy' in sync with this code!!  */
       switch (PSEUDOVECTOR_TYPE (XVECTOR (object)))
 	{
+	case PVEC_MODULE_GLOBAL_REFERENCE: return Qmodule_global_reference;
         case PVEC_NORMAL_VECTOR: return Qvector;
 	case PVEC_BIGNUM: return Qbignum;
 	case PVEC_MARKER: return Qmarker;
@@ -4228,6 +4229,7 @@ syms_of_data (void)
   DEFSYM (Qcons, "cons");
   DEFSYM (Qmarker, "marker");
   DEFSYM (Qsymbol_with_pos, "symbol-with-pos");
+  DEFSYM (Qmodule_global_reference, "module-global-reference");
   DEFSYM (Qoverlay, "overlay");
   DEFSYM (Qfinalizer, "finalizer");
   DEFSYM (Qmodule_function, "module-function");

@@ -3116,6 +3116,7 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_CONDVAR:
     case PVEC_SQLITE:
     case PVEC_MODULE_FUNCTION:
+    case PVEC_MODULE_GLOBAL_REFERENCE:
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_FREE:
     case PVEC_TS_PARSER:
