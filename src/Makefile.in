@@ -142,6 +142,13 @@ LIB_PTHREAD=@LIB_PTHREAD@
 
 LIBIMAGE=@LIBTIFF@ @LIBJPEG@ @LIBPNG@ @LIBGIF@ @LIBXPM@ @WEBP_LIBS@
 
+# These two which are used in some rules in this Makefile, are empty
+# unless this Makefile is called from the toplevel Makefile. This has
+# the effect that invoking make in src and creating bootstrap.pdmp
+# will always lead to a cryptic error when dumping .elns.
+ELN_DESTDIR=not-set
+BIN_DESTDIR=not-set
+
 GIF_CFLAGS=@GIF_CFLAGS@
 JPEG_CFLAGS=@JPEG_CFLAGS@
 TIFF_CFLAGS=@TIFF_CFLAGS@
