@@ -2465,7 +2465,7 @@ dump_blv (struct dump_context *ctx,
 # error "Lisp_Buffer_Local_Value changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct Lisp_Buffer_Local_Value out;
-  dump_object_start (ctx, blv, IGC_OBJ_DUMPED_BLV, &out, sizeof (out));
+  dump_object_start (ctx, blv, IGC_OBJ_BLV, &out, sizeof (out));
   DUMP_FIELD_COPY (&out, blv, local_if_set);
   DUMP_FIELD_COPY (&out, blv, found);
   if (blv->fwd.fwdptr)
