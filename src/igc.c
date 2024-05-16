@@ -3818,6 +3818,7 @@ mirror_obj (struct igc_mirror *m, void *base)
     case IGC_OBJ_PAD:
     case IGC_OBJ_FWD:
     case IGC_OBJ_INVALID:
+    case IGC_OBJ_LAST:
       emacs_abort ();
 
     case IGC_OBJ_PTR_VEC:
@@ -3830,7 +3831,6 @@ mirror_obj (struct igc_mirror *m, void *base)
 
     case IGC_OBJ_STRING_DATA:
     case IGC_OBJ_FLOAT:
-    case IGC_OBJ_LAST:
       break;
 
     case IGC_OBJ_SYMBOL:
