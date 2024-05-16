@@ -2779,49 +2779,39 @@ hash_table_freeze (struct Lisp_Hash_Table *h)
 }
 
 static dump_off
-dump_hash_table_key (struct dump_context *ctx, struct Lisp_Hash_Table *h)
+dump_object_array (struct dump_context *ctx,
+		   const Lisp_Object array[], size_t len)
 {
   dump_align_output (ctx, DUMP_ALIGNMENT);
   dump_off start_offset = ctx->offset;
-  ptrdiff_t n = h->count;
 
   struct dump_flags old_flags = ctx->flags;
   ctx->flags.pack_objects = true;
 
-  for (ptrdiff_t i = 0; i < n; i++)
+  for (size_t i = 0; i < len; i++)
     {
       Lisp_Object out;
-      const Lisp_Object *slot = &h->key[i];
+      const Lisp_Object *slot = &array[i];
       dump_object_start_1 (ctx, &out, sizeof out);
       dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
       dump_object_finish_1 (ctx, &out, sizeof out);
     }
 
   ctx->flags = old_flags;
+
   return start_offset;
+}
+
+static dump_off
+dump_hash_table_key (struct dump_context *ctx, struct Lisp_Hash_Table *h)
+{
+  return dump_object_array (ctx, h->key, h->count);
 }
 
 static dump_off
 dump_hash_table_value (struct dump_context *ctx, struct Lisp_Hash_Table *h)
 {
-  dump_align_output (ctx, DUMP_ALIGNMENT);
-  dump_off start_offset = ctx->offset;
-  ptrdiff_t n = h->count;
-
-  struct dump_flags old_flags = ctx->flags;
-  ctx->flags.pack_objects = true;
-
-  for (ptrdiff_t i = 0; i < n; i++)
-    {
-      Lisp_Object out;
-      const Lisp_Object *slot = &h->value[i];
-      dump_object_start_1 (ctx, &out, sizeof out);
-      dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
-      dump_object_finish_1 (ctx, &out, sizeof out);
-    }
-
-  ctx->flags = old_flags;
-  return start_offset;
+  return dump_object_array (ctx, h->value, h->count);
 }
 
 static dump_off
