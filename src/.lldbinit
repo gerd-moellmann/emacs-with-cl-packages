@@ -81,32 +81,8 @@ b die
 #command alias go process launch --working-dir .
 ##settings set target.disable-aslr false
 
-#target create /Users/gerd/Desktop/igc.app/Contents/MacOS/Emacs
-#command alias go process launch --working-dir /Users/gerd/emacs/savannah/igc/
-#settings set target.disable-aslr false
-
-# target create bootstrap-emacs
-# settings set -- target.run-args -batch --no-site-file --no-site-lisp  -f batch-byte-compile emacs-lisp/macroexp.el
-# command alias go process launch --working-dir ../lisp
-
-#settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest not-set --eln-dest not-set
-#command alias go process launch --working-dir .
-#settings set target.disable-aslr false
-#b dump_hash_table
-
-# target create ./bootstrap-emacs
-# settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/MacOS/ --eln-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/Frameworks/
-# settings set target.disable-aslr false
-# command alias go process launch --working-dir .
-#
-# target create emacs
-# settings set -- target.run-args -Q -eval '(progn (view-hello-file) (dotimes (_ 50) (redisplay) (igc--collect) (forward-line)) (kill-emacs))'
-# settings set target.disable-aslr false
-# command alias go process launch --working-dir .
-#
-target create emacs
-settings set -- target.run-args -nw -Q -eval '(progn (view-hello-file) (dotimes (_ 50) (redisplay) (igc--collect) (forward-line)) (kill-emacs))'
-command alias go process launch --tty --disable-aslr false --working-dir .
-
+target create /Users/gerd/Desktop/igc.app/Contents/MacOS/Emacs
+command alias go process launch --working-dir /Users/gerd/emacs/github/igc/
+settings set target.disable-aslr false
 
 # end.
