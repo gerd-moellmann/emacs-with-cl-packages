@@ -5863,13 +5863,19 @@ hash_table_alloc_kv (struct Lisp_Hash_Table *h, ptrdiff_t nobjs)
 {
   if (nobjs == 0)
     return NULL;
+#ifdef HAVE_MPS
+  return igc_make_hash_table_vec (nobjs);
+#else
   return xmalloc (nobjs * sizeof (Lisp_Object));
+#endif
 }
 
 void
 hash_table_free_kv (struct Lisp_Hash_Table *h, Lisp_Object *p)
 {
+#ifndef HAVE_MPS
   xfree (p);
+#endif
 }
 
 /***********************************************************************
