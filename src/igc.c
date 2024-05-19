@@ -1812,8 +1812,7 @@ fix_obarray (mps_ss_t ss, struct Lisp_Obarray *o)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    if (o->buckets)
-      IGC_FIX12_NOBJS (ss, o->buckets, obarray_size (o));
+    IGC_FIX12_RAW (ss, &o->buckets);
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -2398,19 +2397,6 @@ finalize_hash_table (struct Lisp_Hash_Table *h)
     }
 }
 
-#ifndef IN_MY_FORK
-static void
-finalize_obarray (struct Lisp_Obarray *o)
-{
-  if (o->buckets)
-    {
-      void *b = o->buckets;
-      o->buckets = NULL;
-      xfree (b);
-    }
-}
-#endif
-
 static void
 finalize_bignum (struct Lisp_Bignum *n)
 {
@@ -2590,10 +2576,7 @@ finalize_vector (mps_addr_t v)
 
 #ifndef IN_MY_FORK
     case PVEC_OBARRAY:
-      finalize_obarray (v);
-      break;
 #endif
-
     case PVEC_SYMBOL_WITH_POS:
     case PVEC_PROCESS:
     case PVEC_RECORD:
@@ -2682,12 +2665,12 @@ maybe_finalize (mps_addr_t client, enum pvec_type tag)
     case PVEC_NATIVE_COMP_UNIT:
     case PVEC_SUBR:
     case PVEC_FINALIZER:
-#ifndef IN_MY_FORK
-    case PVEC_OBARRAY:
-#endif
       mps_finalize (global_igc->arena, &ref);
       break;
 
+#ifndef IN_MY_FORK
+    case PVEC_OBARRAY:
+#endif
     case PVEC_NORMAL_VECTOR:
     case PVEC_FREE:
     case PVEC_MARKER:
