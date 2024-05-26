@@ -3128,7 +3128,7 @@ dump_vectorlike (struct dump_context *ctx,
                  Lisp_Object lv,
                  dump_off offset)
 {
-#if CHECK_STRUCTS && !defined HASH_pvec_type_C01919B27A
+#if CHECK_STRUCTS && !defined HASH_pvec_type_287A79C852
 # error "pvec_type changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Vector *v = XVECTOR (lv);
