@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
@@ -64,6 +65,7 @@ import android.content.pm.PackageManager;
 
 import android.content.res.AssetManager;
 import android.content.res.Configuration;
+import android.content.res.Resources;
 
 import android.hardware.input.InputManager;
 
@@ -101,9 +103,9 @@ public final class EmacsService extends Service
   /* The started Emacs service object.  */
   public static EmacsService SERVICE;
 
-  /* If non-NULL, an extra argument to pass to
+  /* If non-NULL, an array of extra arguments to pass to
      `android_emacs_init'.  */
-  public static String extraStartupArgument;
+  public static String[] extraStartupArguments;
 
   /* The thread running Emacs C code.  */
   private EmacsThread thread;
@@ -145,6 +147,9 @@ public final class EmacsService extends Service
   /* The Thread object representing the Android user interface
      thread.  */
   private Thread mainThread;
+
+  /* "Resources" object required by GContext bookkeeping.  */
+  public static Resources resources;
 
   static
   {
@@ -238,10 +243,11 @@ public final class EmacsService extends Service
     super.onCreate ();
 
     SERVICE = this;
+    resources = getResources ();
     handler = new Handler (Looper.getMainLooper ());
     manager = getAssets ();
     app_context = getApplicationContext ();
-    metrics = getResources ().getDisplayMetrics ();
+    metrics = resources.getDisplayMetrics ();
     pixelDensityX = metrics.xdpi;
     pixelDensityY = metrics.ydpi;
     tempScaledDensity = ((getScaledDensity (metrics)
@@ -284,7 +290,9 @@ public final class EmacsService extends Service
 
 	Log.d (TAG, "Initializing Emacs, where filesDir = " + filesDir
 	       + ", libDir = " + libDir + ", and classPath = " + classPath
-	       + "; fileToOpen = " + EmacsOpenActivity.fileToOpen
+	       + "; args = " + (extraStartupArguments != null
+				? Arrays.toString (extraStartupArguments)
+				: "(none)")
 	       + "; display density: " + pixelDensityX + " by "
 	       + pixelDensityY + " scaled to " + scaledDensity);
 
@@ -301,9 +309,7 @@ public final class EmacsService extends Service
 					  classPath, EmacsService.this,
 					  Build.VERSION.SDK_INT);
 	    }
-	  }, extraStartupArgument,
-	  /* If any file needs to be opened, open it now.  */
-	  EmacsOpenActivity.fileToOpen);
+	  }, extraStartupArguments);
 	thread.start ();
       }
     catch (IOException exception)
@@ -509,10 +515,10 @@ public final class EmacsService extends Service
       vibrator.vibrate (duration);
   }
 
-  public short[]
+  public long[]
   queryTree (EmacsWindow window)
   {
-    short[] array;
+    long[] array;
     List<EmacsWindow> windowList;
     int i;
 
@@ -524,7 +530,7 @@ public final class EmacsService extends Service
 
     synchronized (windowList)
       {
-	array = new short[windowList.size () + 1];
+	array = new long[windowList.size () + 1];
 	i = 1;
 
 	array[0] = (window == null
@@ -841,7 +847,7 @@ public final class EmacsService extends Service
   }
 
   public static int[]
-  viewGetSelection (short window)
+  viewGetSelection (long window)
   {
     int[] selection;
 
@@ -962,7 +968,7 @@ public final class EmacsService extends Service
      string; make it writable if WRITABLE, and readable if READABLE.
      Truncate the file if TRUNCATE.
 
-     Value is the resulting file descriptor or an exception will be
+     Value is the resulting file descriptor, -1, or an exception will be
      raised.  */
 
   public int
@@ -993,6 +999,9 @@ public final class EmacsService extends Service
        minimum requirement for access to /content/by-authority.  */
 
     fd = resolver.openFileDescriptor (Uri.parse (uri), mode);
+    if (fd == null)
+      return -1;
+
     i = fd.detachFd ();
     fd.close ();
 
@@ -1392,21 +1401,11 @@ public final class EmacsService extends Service
      otherwise.  */
 
   public String[]
-  getDocumentTrees (byte provider[])
+  getDocumentTrees (String provider)
   {
-    String providerName;
     List<String> treeList;
     List<UriPermission> permissions;
     Uri uri;
-
-    try
-      {
-	providerName = new String (provider, "US-ASCII");
-      }
-    catch (UnsupportedEncodingException exception)
-      {
-	return null;
-      }
 
     permissions = resolver.getPersistedUriPermissions ();
     treeList = new ArrayList<String> ();
@@ -1416,7 +1415,7 @@ public final class EmacsService extends Service
 	uri = permission.getUri ();
 
 	if (DocumentsContract.isTreeUri (uri)
-	    && uri.getAuthority ().equals (providerName)
+	    && uri.getAuthority ().equals (provider)
 	    && permission.isReadPermission ())
 	  /* Make sure the tree document ID is encoded.  Refrain from
 	     encoding characters such as +:&?#, since they don't
@@ -1426,6 +1425,9 @@ public final class EmacsService extends Service
 				    " +:&?#"));
       }
 
+    /* The empty string array that is ostensibly allocated to provide
+       the first argument provides just the type of the array to be
+       returned.  */
     return treeList.toArray (new String[0]);
   }
 

@@ -3,7 +3,7 @@
 ;; Copyright (C) 2024  Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
-;; Version: 1.1
+;; Version: 1.2
 ;; Package-Requires: ((emacs "24"))
 
 ;; This file is part of GNU Emacs.
@@ -73,6 +73,12 @@
 ;;                    (track-changes-fetch
 ;;                     id (lambda (beg end before)
 ;;                          ..DO THE THING..))))))))
+
+;;; News:
+
+;; Since v1.1:
+;;
+;; - New function `track-changes-inconsistent-state-p'.
 
 ;;; Code:
 
@@ -366,6 +372,17 @@ and re-enable the TRACKER corresponding to ID."
       ;; Re-enable the tracker's signal only after running `func', so
       ;; as to avoid nested invocations.
       (cl-pushnew id track-changes--clean-trackers))))
+
+(defun track-changes-inconsistent-state-p ()
+  "Return whether the current buffer is in an inconsistent state.
+Ideally `before/after-change-functions' should be called for each and every
+buffer change, but some packages make transient changes without
+running those hooks.
+This function tries to detect those situations so clients can decide
+to postpone their work to a later time when the buffer is hopefully
+returned to a consistent state."
+  (or (not (equal track-changes--buffer-size (buffer-size)))
+      inhibit-modification-hooks))
 
 ;;;; Auxiliary functions.
 
