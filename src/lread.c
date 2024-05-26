@@ -3990,6 +3990,27 @@ read_make_string (const char *s, ptrdiff_t nbytes, bool multibyte)
   return make_pure_string (s, nchars, nbytes, multibyte);
 }
 
+#define READ_AND_BUFFER(c)			\
+  c = READCHAR;					\
+  if (multibyte)				\
+    p += CHAR_STRING (c, (unsigned char *) p);	\
+  else						\
+    *p++ = c;					\
+  if (end - p < MAX_MULTIBYTE_LENGTH + 1)	\
+    {						\
+       offset = p - read_buffer;		\
+       read_buffer = grow_read_buffer (read_buffer, offset, \
+				       &heapbuf, &read_buffer_size, count); \
+       p = read_buffer + offset;					\
+       end = read_buffer + read_buffer_size;				\
+    }
+
+#define INVALID_SYNTAX_WITH_BUFFER()		\
+  {						\
+    *p = 0;					\
+    invalid_syntax (read_buffer, readcharfun);	\
+  }
+
 static bool
 is_symbol_constituent (int c)
 {

@@ -749,7 +749,7 @@ default_buffer_local_binding (Lisp_Object symbol, Lisp_Object buffer)
   for (union specbinding *pdl = specpdl_ptr - 1; pdl >= specpdl; --pdl)
     if (pdl->kind == SPECPDL_LET_LOCAL
 	&& EQ (specpdl_symbol (pdl), symbol)
-	&& EQ (pdl->let.where, buffer))
+	&& EQ (pdl->let.where.buf, buffer))
       binding = pdl;
 
   return binding;
