@@ -2786,7 +2786,9 @@ dump_object_array (struct dump_context *ctx,
   struct dump_flags old_flags = ctx->flags;
   ctx->flags.pack_objects = true;
 
+#ifdef HAVE_MPS
   dump_igc_start_obj (ctx, IGC_OBJ_OBJ_VEC, array);
+#endif
   dump_off start_offset = ctx->offset;
 
   for (size_t i = 0; i < len; i++)
@@ -2799,8 +2801,9 @@ dump_object_array (struct dump_context *ctx,
     }
 
   ctx->flags = old_flags;
+#ifdef HAVE_MPS
   dump_igc_finish_obj (ctx);
-
+#endif
   return start_offset;
 }
 
