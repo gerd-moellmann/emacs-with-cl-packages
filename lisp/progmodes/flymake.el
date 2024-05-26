@@ -754,13 +754,15 @@ associated `flymake-category' return DEFAULT."
          (indicator-cdr (if (listp value)
                             (cdr value))))
     (cond
-     ((symbolp indicator-car)
+     ((and (symbolp indicator-car)
+           flymake-fringe-indicator-position)
       (propertize "!" 'display
                   (cons flymake-fringe-indicator-position
                         (if (listp value)
                             value
                           (list value)))))
-     ((stringp indicator-car)
+     ((and (stringp indicator-car)
+           flymake-margin-indicator-position)
       (propertize "!"
                   'display
                   `((margin ,flymake-margin-indicator-position)
@@ -1331,7 +1333,10 @@ Interactively, with a prefix arg, FORCE is t."
                   nil))))))))
 
 (defvar flymake-mode-map
-  (let ((map (make-sparse-keymap))) map)
+  (let ((map (make-sparse-keymap)))
+    (define-key map `[,flymake-fringe-indicator-position mouse-1]
+                #'flymake-show-buffer-diagnostics)
+    map)
   "Keymap for `flymake-mode'.")
 
 ;;;###autoload
@@ -1972,8 +1977,12 @@ buffer."
                        (current-buffer)))))
     (with-current-buffer target
       (setq flymake--diagnostics-buffer-source source)
-      (display-buffer (current-buffer))
-      (revert-buffer))))
+      (revert-buffer)
+      (display-buffer (current-buffer)
+                      `((display-buffer-reuse-window
+                         display-buffer-below-selected)
+                        (window-height . (lambda (window)
+                          (fit-window-to-buffer window 10))))))))
 
 
 ;;; Per-project diagnostic listing
@@ -2073,8 +2082,11 @@ some of this variable's contents the diagnostic listings.")
     (with-current-buffer buffer
       (flymake-project-diagnostics-mode)
       (setq-local flymake--project-diagnostic-list-project prj)
-      (display-buffer (current-buffer))
-      (revert-buffer))))
+      (revert-buffer)
+      (display-buffer (current-buffer)
+                      `((display-buffer-reuse-window
+                         display-buffer-at-bottom)
+                        (window-height . fit-window-to-buffer))))))
 
 (defun flymake--update-diagnostics-listings (buffer)
   "Update diagnostics listings somehow relevant to BUFFER."

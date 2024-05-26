@@ -817,6 +817,17 @@ OVERRIDE is the override flag for this query.  Its value can be
 t, nil, append, prepend, keep.  See more in
 `treesit-font-lock-rules'.")
 
+(defsubst treesit--font-lock-setting-feature (setting)
+  "Reutrn the feature of SETTING.
+SETTING should be a setting in `treesit-font-lock-settings'."
+  (nth 2 setting))
+
+(defsubst treesit--font-lock-setting-enable (setting)
+  "Return enabled SETTING."
+  (let ((new-setting (copy-tree setting)))
+    (setf (nth 1 new-setting) t)
+    new-setting))
+
 (defun treesit--font-lock-level-setter (sym val)
   "Custom setter for `treesit-font-lock-level'.
 Set the default value of SYM to VAL, recompute fontification
@@ -1094,6 +1105,43 @@ and leave settings for other languages unchanged."
                        ((memq feature add-list) t)
                        ((memq feature remove-list) nil)
                        (t current-value))))))
+
+(defun treesit-add-font-lock-rules (rules &optional how feature)
+  "Add font-lock RULES to the current buffer
+
+RULES should be the return value of `treesit-font-lock-rules'.  RULES
+will be enabled and added to `treesit-font-lock-settings'.
+
+HOW can be either :before or :after.  If HOW is :before, prepend RULES
+before all other existing font-lock rules in
+`treesit-font-lock-settings'; if :after or omitted, append RULES after
+all existing rules.
+
+If FEATURE is non-nil, add RULES before/after rules for FEATURE.  See
+docstring of `treesit-font-lock-rules' for what is a feature."
+  (let ((rules (seq-map #'treesit--font-lock-setting-enable rules))
+        (feature-idx
+         (when feature
+           (cl-position-if
+            (lambda (setting)
+              (eq (treesit--font-lock-setting-feature setting) feature))
+            treesit-font-lock-settings))))
+    (pcase (cons how feature)
+      ((or '(:after . nil) '(nil . nil))
+       (setq treesit-font-lock-settings
+             (append treesit-font-lock-settings rules)))
+      ('(:before . nil)
+       (setq treesit-font-lock-settings
+             (append rules treesit-font-lock-settings)))
+      (`(:after . ,_feature)
+       (setf (nthcdr (1+ feature-idx) treesit-font-lock-settings)
+             (append rules
+                     (nthcdr (1+ feature-idx)
+                             treesit-font-lock-settings))))
+      (`(:before . ,_feature)
+       (setf (nthcdr feature-idx treesit-font-lock-settings)
+             (append rules
+                     (nthcdr feature-idx treesit-font-lock-settings)))))))
 
 (defun treesit-fontify-with-override
     (start end face override &optional bound-start bound-end)
@@ -2836,15 +2884,21 @@ See the descriptions of arguments in `outline-search-function'."
                   (start (treesit-node-start node)))
         (eq (pos-bol) (save-excursion (goto-char start) (pos-bol))))
 
-    (let* ((pos
+    (let* ((bob-pos
+            ;; `treesit-navigate-thing' can't find a thing at bobp,
+            ;; so use `looking-at' to match at bobp.
+            (and (bobp) (treesit-outline-search bound move backward t) (point)))
+           (pos
             ;; When function wants to find the current outline, point
             ;; is at the beginning of the current line.  When it wants
             ;; to find the next outline, point is at the second column.
-            (if (eq (point) (pos-bol))
-                (if (bobp) (point) (1- (point)))
-              (pos-eol)))
-           (found (treesit-navigate-thing pos (if backward -1 1) 'beg
-                                          treesit-outline-predicate)))
+            (unless bob-pos
+              (if (eq (point) (pos-bol))
+                  (if (bobp) (point) (1- (point)))
+                (pos-eol))))
+           (found (or bob-pos
+                      (treesit-navigate-thing pos (if backward -1 1) 'beg
+                                              treesit-outline-predicate))))
       (if found
           (if (or (not bound) (if backward (>= found bound) (<= found bound)))
               (progn
@@ -2954,7 +3008,12 @@ before calling this function."
   (when treesit-simple-indent-rules
     (setq-local treesit-simple-indent-rules
                 (treesit--indent-rules-optimize
-                 treesit-simple-indent-rules))
+                 treesit-simple-indent-rules)))
+  ;; Enable indent if simple indent rules are set, or the major mode
+  ;; sets a custom indent function.
+  (when (or treesit-simple-indent-rules
+            (and (not (eq treesit-indent-function #'treesit-simple-indent))
+                 treesit-indent-function))
     (setq-local indent-line-function #'treesit-indent)
     (setq-local indent-region-function #'treesit-indent-region))
   ;; Navigation.

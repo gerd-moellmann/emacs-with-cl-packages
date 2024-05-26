@@ -470,12 +470,21 @@ See also `erc-server-QUIT-functions' and `erc-disconnected-hook'."
 
 (defcustom erc-part-hook nil
   "Hook run when processing a PART message directed at our nick.
-
-The hook receives one argument, the current BUFFER.
-See also `erc-server-QUIT-functions', `erc-quit-hook' and
-`erc-disconnected-hook'."
+Called in the server buffer with a single argument: the channel buffer
+being parted.  For historical reasons, the buffer argument may be nil if
+it's been killed or otherwise can't be found.  This typically happens
+when the \"PART\" response being handled comes by way of a channel
+buffer being killed, which, by default, tells `erc-part-channel-on-kill'
+to emit a \"PART\".  Users needing to operate on a parted channel buffer
+before it's killed in this manner should use `erc-kill-channel-hook' and
+condition their code on `erc-killing-buffer-on-part-p' being nil."
   :group 'erc-hooks
   :type 'hook)
+
+(defvar erc-killing-buffer-on-part-p nil
+  "Non-nil when killing a target buffer while handling a \"PART\" response.
+Useful for preventing the redundant execution of code designed to run
+once when parting a channel.")
 
 (defcustom erc-kick-hook nil
   "Hook run when processing a KICK message directed at our nick.
@@ -1114,8 +1123,7 @@ directory in the list."
 
 (defcustom erc-kill-buffer-on-part nil
   "Kill the channel buffer on PART.
-This variable should probably stay nil, as ERC can reuse buffers if
-you rejoin them later."
+Nil by default because ERC can reuse buffers later re-joined."
   :group 'erc-quit-and-part
   :type 'boolean)
 
@@ -1513,6 +1521,10 @@ This will only be used if `erc-header-line-face-method' is non-nil."
   "ERC face for errors."
   :group 'erc-faces)
 
+(defface erc-information '((t :inherit shadow))
+  "Face for local administrative messages of low to moderate importance."
+  :group 'erc-faces)
+
 ;; same default color as `erc-input-face'
 (defface erc-my-nick-face '((t :weight bold :foreground "brown"))
   "ERC face for your current nickname in messages sent by you.
@@ -1595,7 +1607,7 @@ capabilities."
                   (remove-hook hook fun t))
                 (fmakunbound fun)
                 (funcall f proc parsed)))
-    (add-hook hook fun nil t)
+    (add-hook hook fun -95 t)
     fun))
 
 (defun erc--warn-once-before-connect (mode-var &rest args)
@@ -3518,6 +3530,14 @@ being equivalent to a `erc-display-message' TYPE of `notice'."
         (push '(erc--msg . notice) erc--msg-prop-overrides)))
     (erc-display-message nil nil buffer string)))
 
+(defun erc--insert-admin-message (msg &rest args)
+  "Print MSG with ARGS as a local notice.
+Inhibit all stamps and buttonizing."
+  (let ((erc--msg-prop-overrides `((erc--skip . (stamp track button))
+                                   ,@erc--msg-prop-overrides)))
+    (apply #'erc-display-message nil '(notice information)
+           (current-buffer) msg args)))
+
 (defvar erc--merge-text-properties-p nil
   "Non-nil when `erc-put-text-property' defers to `erc--merge-prop'.")
 
@@ -3724,9 +3744,12 @@ See also `erc-make-notice'."
         (t
          (erc-put-text-property
           0 (length string)
-          'font-lock-face (or (intern-soft
-			       (concat "erc-" (symbol-name type) "-face"))
-                              'erc-default-face)
+          'font-lock-face
+          (let* ((name (symbol-name type))
+                 (symbol (or (intern-soft (concat "erc-" name "-face"))
+                             (intern-soft (concat "erc-" name))
+                             type)))
+            (or (and (facep symbol) symbol) 'erc-default-face))
           string)
          string)))
 
@@ -6135,7 +6158,8 @@ NUH, and the current `erc-response' object.")
 
 ;; The format strings in the following `-speaker' catalog shouldn't
 ;; contain any non-protocol words, so they make sense in any language.
-
+;; Note that the following definitions generally avoid `propertize'
+;; because it reverses the order of the text properties it's given.
 (defvar erc--message-speaker-statusmsg
   #("(%p%n%s) %m"
     0 1 (font-lock-face erc-default-face)
@@ -6227,11 +6251,11 @@ NUH, and the current `erc-response' object.")
   "Message template for a CTCP ACTION from another user.")
 
 (defvar erc--message-speaker-ctcp-action-input
-  #("* %p%n %m"
-    0 2 (font-lock-face #1=(erc-input-face erc-action-face))
-    2 4 (font-lock-face (erc-my-nick-prefix-face . #1#))
-    4 6 (font-lock-face (erc-my-nick-face . #1#))
-    6 9 (font-lock-face #1#))
+  (let ((base '(erc-input-face erc-action-face))) ; shared
+    (concat (propertize "* " 'font-lock-face base)
+            (propertize "%p" 'font-lock-face `(erc-my-nick-prefix-face ,@base))
+            (propertize "%n" 'font-lock-face `(erc-my-nick-face ,@base))
+            (propertize " %m" 'font-lock-face base)))
   "Message template for a CTCP ACTION from current client.")
 
 (defvar erc--message-speaker-ctcp-action-statusmsg
@@ -6244,12 +6268,12 @@ NUH, and the current `erc-response' object.")
   "Template for a CTCP ACTION status message from another chan op.")
 
 (defvar erc--message-speaker-ctcp-action-statusmsg-input
-  #("* (%p%n%s) %m"
-    0 3 (font-lock-face #1=(erc-input-face erc-action-face))
-    3 5 (font-lock-face (erc-my-nick-prefix-face . #1#))
-    5 7 (font-lock-face (erc-my-nick-face . #1#))
-    7 9 (font-lock-face (erc-notice-face . #1#))
-    9 13 (font-lock-face #1#))
+  (let ((base '(erc-input-face erc-action-face))) ; shared
+    (concat (propertize "* (" 'font-lock-face base)
+            (propertize "%p" 'font-lock-face `(erc-my-nick-prefix-face ,@base))
+            (propertize "%n" 'font-lock-face `(erc-my-nick-face ,@base))
+            (propertize "%s" 'font-lock-face `(erc-notice-face ,@base))
+            (propertize ") %m" 'font-lock-face base)))
   "Template for a CTCP ACTION status message from current client.")
 
 (defun erc--speakerize-nick (nick &optional disp)
@@ -7473,7 +7497,7 @@ complement relevant letters in STRING."
                t))
             ((not fallbackp)
              (erc-display-message nil '(notice error) (erc-server-buffer)
-                                  (format "Unknown channel mode: %S" c)))))
+                                  'channel-mode-unknown ?c (string c)))))
     (setq erc-channel-modes (sort erc-channel-modes #'string<))
     (setq erc--mode-line-mode-string
           (concat "+" (erc--channel-modes erc--mode-line-chanmodes-arg-len)))
@@ -9404,6 +9428,7 @@ SOFTP, only do so when defined as a variable."
    (incorrect-args . "Incorrect arguments. Usage:\n%c %u\n%d")
    (cannot-find-file . "Cannot find file %f")
    (cannot-read-file . "Cannot read file %f")
+   (channel-mode-unknown . "Unknown channel mode: %c")
    (connect . "Connecting to %S:%p... ")
    (country . "%c")
    (country-unknown . "%d: No such domain")
@@ -9424,6 +9449,7 @@ SOFTP, only do so when defined as a variable."
    (finished . "\n\n*** ERC finished ***\n")
    (terminated . "\n\n*** ERC terminated: %e\n")
    (login . "Logging in as `%n'...")
+   (graft . "Grafting buffer `%n' onto `%o'...") ; {new} onto {old}
    (nick-in-use . "%n is in use. Choose new nickname: ")
    (nick-too-long
     . "WARNING: Nick length (%i) exceeds max NICKLEN(%l) defined by server")
@@ -9596,7 +9622,7 @@ See also `format-spec'."
   :type 'hook)
 
 (defcustom erc-kill-channel-hook
-  '(erc-kill-channel
+  '(erc-part-channel-on-kill
     erc-networks-shrink-ids-and-buffer-names
     erc-networks-rename-surviving-target-buffer)
   "Invoked whenever a channel-buffer is killed via `kill-buffer'."
@@ -9657,10 +9683,13 @@ This function should be on `erc-kill-server-hook'."
     (setq erc-server-quitting t)
     (erc-server-send (format "QUIT :%s" (funcall erc-quit-reason nil)))))
 
-(defun erc-kill-channel ()
-  "Sends a PART command to the server when the channel buffer is killed.
-This function should be on `erc-kill-channel-hook'."
-  (when (erc-server-process-alive)
+(define-obsolete-function-alias 'erc-kill-channel #'erc-part-channel-on-kill
+  "30.1")
+(defun erc-part-channel-on-kill ()
+  "Send a \"PART\" when killing a channel buffer."
+  (when (and (not erc-killing-buffer-on-part-p)
+             (not erc-networks--target-transplant-in-progress-p)
+             (erc-server-process-alive))
     (let ((tgt (erc-default-target)))
       (if tgt
          (erc-server-send (format "PART %s :%s" tgt

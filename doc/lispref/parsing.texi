@@ -4,6 +4,7 @@
 @c See the file elisp.texi for copying conditions.
 @node Parsing Program Source
 @chapter Parsing Program Source
+@cindex parsing program source
 
 @cindex syntax tree, from parsing program source
 Emacs provides various ways to parse program source text and produce a
@@ -773,7 +774,7 @@ symbol or thing definition (@pxref{User-defined Things}).  Using an
 undefined thing doesn't raise an error, the function simply returns
 @code{nil}.
 
-This function returns the first node that matches, or @code{nil} if node
+This function returns the first node that matches, or @code{nil} if none
 matches @var{predicate}.
 
 By default, this function only traverses named nodes, but if @var{all}
@@ -1893,11 +1894,29 @@ directly translate into operations shown above.
        :host 'html
        '((script_element (raw_text) @@capture))
 @end group
-
 @group
        :embed 'css
        :host 'html
        '((style_element (raw_text) @@capture))))
+@end group
+
+@group
+;; Major modes with multiple languages should always set
+;; `treesit-language-at-point-function' (which see).
+(setq treesit-language-at-point-function
+      (lambda (pos)
+        (let* ((node (treesit-node-at pos 'html))
+               (parent (treesit-node-parent node)))
+          (cond
+           ((and node parent
+                 (equal (treesit-node-type node) "raw_text")
+                 (equal (treesit-node-type parent) "script_element"))
+            'javascript)
+           ((and node parent
+                 (equal (treesit-node-type node) "raw_text")
+                 (equal (treesit-node-type parent) "style_element"))
+            'css)
+           (t 'html)))))
 @end group
 @end example
 
@@ -2062,8 +2081,9 @@ If @code{treesit-font-lock-settings} (@pxref{Parser-based Font Lock})
 is non-@code{nil}, it sets up fontification.
 
 @item
-If @code{treesit-simple-indent-rules} (@pxref{Parser-based Indentation})
-is non-@code{nil}, it sets up indentation.
+If either @code{treesit-simple-indent-rules} or
+@code{treesit-indent-function} (@pxref{Parser-based Indentation}) is
+non-@code{nil}, it sets up indentation.
 
 @item
 If @code{treesit-defun-type-regexp} is non-@code{nil}, it sets up
