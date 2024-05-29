@@ -5845,7 +5845,11 @@ hash_table_alloc_bytes (ptrdiff_t nbytes)
     return NULL;
   tally_consing (nbytes);
   hash_table_allocated_bytes += nbytes;
+#ifdef HAVE_MPS
+  void *p = igc_make_byte_vec (nbytes);
+#else
   void *p = xmalloc (nbytes);
+#endif
   return p;
 }
 
@@ -5855,7 +5859,11 @@ hash_table_free_bytes (void *p, ptrdiff_t nbytes)
 {
   tally_consing (-nbytes);
   hash_table_allocated_bytes -= nbytes;
+#ifdef HAVE_MPS
+  /* let igc handle this */
+#else
   xfree (p);
+#endif
 }
 
 Lisp_Object *
