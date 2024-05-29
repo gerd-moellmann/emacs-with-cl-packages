@@ -3890,11 +3890,16 @@ read_stack_top (void)
   return &rdstack.stack[rdstack.sp - 1];
 }
 
-static inline struct read_stack_entry *
+static inline struct read_stack_entry
 read_stack_pop (void)
 {
   eassume (rdstack.sp > 0);
-  return &rdstack.stack[--rdstack.sp];
+  struct read_stack_entry e = *read_stack_top ();
+  --rdstack.sp;
+#ifdef HAVE_MPS
+  rdstack.stack[rdstack.sp].type = RE_free;
+#endif
+  return e;
 }
 
 static inline bool
@@ -3908,7 +3913,11 @@ grow_read_stack (void)
 {
   struct read_stack *rs = &rdstack;
   eassert (rs->sp == rs->size);
+#ifdef HAVE_MPS
+  igc_grow_rdstack (rs);
+#else
   rs->stack = xpalloc (rs->stack, &rs->size, 1, -1, sizeof *rs->stack);
+#endif
   eassert (rs->sp < rs->size);
 }
 
@@ -4031,12 +4040,12 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	  obj = Qnil;
 	  break;
 	case RE_list:
-	  obj = read_stack_pop ()->u.list.head;
+	  obj = read_stack_pop ().u.list.head;
 	  break;
 	case RE_record:
 	  {
 	    locate_syms = read_stack_top ()->u.vector.old_locate_syms;
-	    Lisp_Object elems = Fnreverse (read_stack_pop ()->u.vector.elems);
+	    Lisp_Object elems = Fnreverse (read_stack_pop ().u.vector.elems);
 	    if (NILP (elems))
 	      invalid_syntax ("#s", readcharfun);
 
@@ -4048,7 +4057,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	  }
 	case RE_string_props:
 	  locate_syms = read_stack_top ()->u.vector.old_locate_syms;
-	  obj = string_props_from_rev_list (read_stack_pop () ->u.vector.elems,
+	  obj = string_props_from_rev_list (read_stack_pop ().u.vector.elems,
 					    readcharfun);
 	  break;
 	default:
@@ -4072,21 +4081,21 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	{
 	case RE_vector:
 	  locate_syms = read_stack_top ()->u.vector.old_locate_syms;
-	  obj = vector_from_rev_list (read_stack_pop ()->u.vector.elems);
+	  obj = vector_from_rev_list (read_stack_pop ().u.vector.elems);
 	  break;
 	case RE_byte_code:
 	  locate_syms = read_stack_top ()->u.vector.old_locate_syms;
-	  obj = bytecode_from_rev_list (read_stack_pop ()->u.vector.elems,
+	  obj = bytecode_from_rev_list (read_stack_pop ().u.vector.elems,
 					readcharfun);
 	  break;
 	case RE_char_table:
 	  locate_syms = read_stack_top ()->u.vector.old_locate_syms;
-	  obj = char_table_from_rev_list (read_stack_pop ()->u.vector.elems,
+	  obj = char_table_from_rev_list (read_stack_pop ().u.vector.elems,
 					  readcharfun);
 	  break;
 	case RE_sub_char_table:
 	  locate_syms = read_stack_top ()->u.vector.old_locate_syms;
-	  obj = sub_char_table_from_rev_list (read_stack_pop ()->u.vector.elems,
+	  obj = sub_char_table_from_rev_list (read_stack_pop ().u.vector.elems,
 					      readcharfun);
 	  break;
 	default:
@@ -4634,6 +4643,9 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
       struct read_stack_entry *e = read_stack_top ();
       switch (e->type)
 	{
+	case RE_free:
+	  emacs_abort ();
+
 	case RE_list_start:
 	  e->type = RE_list;
 	  e->u.list.head = e->u.list.tail = Fcons (obj, Qnil);
