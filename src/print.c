@@ -2205,12 +2205,15 @@ named_escape (int i)
 }
 
 enum print_entry_type
-  {
-    PE_list,			/* print rest of list */
-    PE_rbrac,			/* print ")" */
-    PE_vector,			/* print rest of vector */
-    PE_hash,			/* print rest of hash data */
-  };
+{
+#ifdef HAVE_MPS
+  PE_free,
+#endif
+  PE_list,			/* print rest of list */
+  PE_rbrac,			/* print ")" */
+  PE_vector,			/* print rest of vector */
+  PE_hash,			/* print rest of hash data */
+};
 
 struct print_stack_entry
 {
@@ -2272,13 +2275,14 @@ scan_prstack (struct igc_opaque *op, void *start, void *end,
 {
   eassert (start == (void *)prstack.stack);
   eassert (end == (void *)(prstack.stack + prstack.size));
-  struct print_stack_entry *p = start;
-  struct print_stack_entry *q = p + prstack.sp;
-  for (; p < q; p++)
+  for (struct print_stack_entry *p = start; (void *) p < end; p++)
     {
       igc_scan_result_t err = 0;
       switch (p->type)
 	{
+	case PE_free:
+	  goto out;
+
 	case PE_list:
 	  if (err = scan1 (op, &p->u.list.last), err != 0)
 	    return err;
@@ -2298,6 +2302,7 @@ scan_prstack (struct igc_opaque *op, void *start, void *end,
 	}
       eassert (!"not yet implemented");
     }
+ out:;
   return 0;
 }
 #endif
@@ -2308,8 +2313,11 @@ grow_print_stack (void)
   struct print_stack *ps = &prstack;
   eassert (ps->sp == ps->size);
 #ifdef HAVE_MPS
-  igc_xpalloc_exact ((void **)&prstack.stack, &ps->size, 1, -1,
+  ptrdiff_t old_size = ps->size;
+  igc_xpalloc_exact ((void **) &prstack.stack, &ps->size, 1, -1,
 		     sizeof *ps->stack, scan_prstack);
+  for (ptrdiff_t i = old_size; i < ps->size; ++i)
+    ps->stack[i].type = PE_free;
 #else
   ps->stack = xpalloc (ps->stack, &ps->size, 1, -1, sizeof *ps->stack);
 #endif
@@ -2342,6 +2350,16 @@ print_stack_push_vector (const char *lbrac, const char *rbrac,
       .u.vector.end = rbrac,
       .u.vector.truncated = (print_size < size),
     });
+}
+
+static void
+print_stack_pop (void)
+{
+  --prstack.sp;
+  --print_depth;
+#ifdef HAVE_MPS
+  prstack.stack[prstack.sp].type = PE_free;
+#endif
 }
 
 /* Return true if characer C at character index ICHAR (within a name)
@@ -2462,7 +2480,6 @@ print_symbol (Lisp_Object symbol, Lisp_Object printcharfun,
   else
     print_symbol_name (name, printcharfun, escape, check_number_p);
 }
-
 
 static void
 print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
@@ -2848,6 +2865,10 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
       struct print_stack_entry *e = &prstack.stack[prstack.sp - 1];
       switch (e->type)
 	{
+#ifdef HAVE_MPS
+	case PE_free:
+	  emacs_abort ();
+#endif
 	case PE_list:
 	  {
 	    /* after "(" ELEM (* " " ELEM) */
@@ -2856,8 +2877,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 	      {
 		/* end of list: print ")" */
 		printchar (')', printcharfun);
-		--prstack.sp;
-		--print_depth;
+		print_stack_pop ();
 		goto next_obj;
 	      }
 	    else if (CONSP (next))
@@ -2884,8 +2904,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 		if (e->u.list.maxlen <= 0)
 		  {
 		    print_c_string ("...)", printcharfun);
-		    --prstack.sp;
-		    --print_depth;
+		    print_stack_pop ();
 		    goto next_obj;
 		  }
 
@@ -2906,8 +2925,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 		    int len = sprintf (buf, ". #%" PRIdMAX ")",
 				       e->u.list.tortoise_idx);
 		    strout (buf, len, len, printcharfun);
-		    --prstack.sp;
-		    --print_depth;
+		    print_stack_pop ();
 		    goto next_obj;
 		  }
 		obj = XCAR (next);
@@ -2924,8 +2942,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 
 	case PE_rbrac:
 	  printchar (')', printcharfun);
-	  --prstack.sp;
-	  --print_depth;
+	  print_stack_pop ();
 	  goto next_obj;
 
 	case PE_vector:
@@ -2938,8 +2955,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 		  print_c_string ("...", printcharfun);
 		}
 	      print_c_string (e->u.vector.end, printcharfun);
-	      --prstack.sp;
-	      --print_depth;
+	      print_stack_pop ();
 	      goto next_obj;
 	    }
 	  if (e->u.vector.idx > 0)
@@ -2958,8 +2974,7 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 		  print_c_string ("...", printcharfun);
 		}
 	      print_c_string ("))", printcharfun);
-	      --prstack.sp;
-	      --print_depth;
+	      print_stack_pop ();
 	      goto next_obj;
 	    }
 
