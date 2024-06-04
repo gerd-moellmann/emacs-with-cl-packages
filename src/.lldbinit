@@ -80,13 +80,9 @@ b die
 #command alias go process launch --working-dir .
 ##settings set target.disable-aslr false
 
-# target create /Users/gerd/Desktop/igc.app/Contents/MacOS/Emacs
-# command alias go process launch --working-dir /Users/gerd/emacs/github/igc/
-# settings set target.disable-aslr false
-
-target create bootstrap-emacs
-settings set -- target.run-args -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -l comp -f byte-compile-refresh-preloaded -f batch-byte+native-compile ../lisp/isearch.el
-command alias go process launch --disable-aslr false --working-dir .
-b wrong_type_argument
+#target create bootstrap-emacs
+#settings set -- target.run-args -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -l comp -f byte-compile-refresh-preloaded -f batch-byte+native-compile ../lisp/isearch.el
+#command alias go process launch --disable-aslr false --working-dir .
+#b wrong_type_argument
 
 # end.
