@@ -3128,7 +3128,7 @@ dump_vectorlike (struct dump_context *ctx,
                  Lisp_Object lv,
                  dump_off offset)
 {
-#if CHECK_STRUCTS && !defined HASH_pvec_type_287A79C852
+#if CHECK_STRUCTS && !defined HASH_pvec_type_6604A61AFB
 # error "pvec_type changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Vector *v = XVECTOR (lv);
@@ -3202,8 +3202,6 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_TS_NODE:
     case PVEC_TS_COMPILED_QUERY:
       break;
-    case PVEC_WEAK_REF:
-      emacs_abort();
     }
   char msg[60];
   snprintf (msg, sizeof msg, "pseudovector type %d", (int) ptype);

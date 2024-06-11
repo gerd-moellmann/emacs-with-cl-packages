@@ -3612,7 +3612,6 @@ cleanup_vector (struct Lisp_Vector *vector)
     case PVEC_SUB_CHAR_TABLE:
     case PVEC_RECORD:
     case PVEC_PACKAGE:
-    case PVEC_WEAK_REF:
       break;
     }
 }
