@@ -12622,7 +12622,8 @@ sourceOperationMaskForDraggingContext:(NSDraggingContext)context
 	[window convertRectFromScreen:(NSMakeRect (screenPoint.x, screenPoint.y,
 						   0, 0))].origin;
 #endif
-      NSEvent *event = [NSEvent keyEventWithType:NSKeyDown location:location
+      NSEvent *event = [NSEvent keyEventWithType:NSEventTypeKeyDown
+					location:location
 				   modifierFlags:0 timestamp:0
 				    windowNumber:windowNumber context:nil
 				      characters:@"\e"
