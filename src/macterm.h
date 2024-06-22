@@ -615,6 +615,7 @@ extern bool mac_trash_file (const char *, CFErrorRef *);
 extern CFStringRef mac_uti_create_with_mime_type (CFStringRef);
 extern CFStringRef mac_uti_create_with_filename_extension (CFStringRef);
 extern CFStringRef mac_uti_copy_filename_extension (CFStringRef);
+extern CFStringRef mac_uti_copy_mime_type (CFStringRef);
 extern OSStatus install_application_handler (void);
 extern Lisp_Object mac_application_state (void);
 extern void mac_set_frame_window_title (struct frame *, CFStringRef);

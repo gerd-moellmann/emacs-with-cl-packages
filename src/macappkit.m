@@ -1087,6 +1087,17 @@ mac_uti_copy_filename_extension (CFStringRef uti)
 #endif
 }
 
+CFStringRef
+mac_uti_copy_mime_type (CFStringRef uti)
+{
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+  return CFBridgingRetain ([UTType typeWithIdentifier:((__bridge NSString *)
+						       uti)].preferredMIMEType);
+#else
+  return UTTypeCopyPreferredTagWithClass (uti, kUTTagClassMIMEType);
+#endif
+}
+
 
 /************************************************************************
 			     Application
@@ -12176,7 +12187,10 @@ get_pasteboard_data_type_from_symbol (Lisp_Object sym, Selection sel)
   if (STRINGP (str))
     dataType = [NSString stringWithUTF8LispString:str];
   else
-    dataType = nil;
+    dataType =
+      CFBridgingRelease (mac_uti_create_with_mime_type
+			 ((__bridge CFStringRef)
+			  [NSString stringWithLispString:(SYMBOL_NAME (sym))]));
 
   if (dataType && sel)
     {
@@ -12280,33 +12294,33 @@ mac_get_selection_value (Selection sel, Lisp_Object target)
 }
 
 /* Get the list of target types in SEL.  The return value is a list of
-   target type symbols possibly followed by pasteboard data type
-   strings.  */
+   target type symbols including MIME type ones.  */
 
 Lisp_Object
 mac_get_selection_target_list (Selection sel)
 {
-  Lisp_Object result = Qnil, rest, target, strings = Qnil;
-  NSArrayOf (NSPasteboardType) *types = [(__bridge NSPasteboard *)sel types];
-  NSMutableSetOf (NSPasteboardType) *typeSet;
-  NSPasteboardType dataType;
+  Lisp_Object result = Qnil, rest, target;
+  NSArrayOf (NSPasteboardType) *types = ((__bridge NSPasteboard *) sel).types;
 
-  typeSet = [NSMutableSet setWithCapacity:[types count]];
-  [typeSet addObjectsFromArray:types];
+  for (NSPasteboardType type in types)
+    {
+      NSString *mimeType = CFBridgingRelease (mac_uti_copy_mime_type
+					      ((__bridge CFStringRef) type));
+      if (mimeType)
+	{
+	  target = Fintern (mimeType.lispString, Qnil);
+	  if (NILP (Fmemq (target, result)))
+	    result = Fcons (target, result);
+	}
+    }
 
   for (rest = Vselection_converter_alist; CONSP (rest); rest = XCDR (rest))
     if (CONSP (XCAR (rest))
 	&& (target = XCAR (XCAR (rest)),
 	    SYMBOLP (target))
-	&& (dataType = get_pasteboard_data_type_from_symbol (target, sel)))
-      {
-	result = Fcons (target, result);
-	[typeSet removeObject:dataType];
-      }
-
-  for (NSPasteboardType dataType in typeSet)
-    strings = Fcons ([dataType UTF8LispString], strings);
-  result = nconc2 (result, strings);
+	&& mac_selection_has_target_p (sel, target)
+	&& NILP (Fmemq (target, result)))
+      result = Fcons (target, result);
 
   return result;
 }
