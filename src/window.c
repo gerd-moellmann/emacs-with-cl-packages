@@ -6452,13 +6452,16 @@ When calling from a program, supply as argument a number, nil, or `-'.  */)
 }
 
 DEFUN ("other-window-for-scrolling", Fother_window_for_scrolling, Sother_window_for_scrolling, 0, 0, 0,
-       doc: /* Return the other window for \"other window scroll\" commands.
-If in the minibuffer, `minibuffer-scroll-window' if non-nil
-specifies the window.
-Otherwise, if `other-window-scroll-buffer' is non-nil, a window
-showing that buffer is used, popping the buffer up if necessary.
-Finally, look for a neighboring window on the selected frame,
-followed by all visible frames on the current terminal.  */)
+       doc: /* Return \"the other\" window for \"other window scroll\" commands.
+If in the minibuffer, and `minibuffer-scroll-window' is non-nil,
+it specifies the window to use.
+Otherwise, if `other-window-scroll-buffer' is a buffer, a window
+showing that buffer is the window to use, popping it up if necessary.
+Otherwise, if `other-window-scroll-default' is a function, call it,
+and the window it returns is the window to use.
+Finally, the function looks for a neighboring window on the selected
+frame, followed by windows on all the visible frames on the current
+terminal.  */)
   (void)
 {
   Lisp_Object window;
@@ -8083,9 +8086,18 @@ DEFUN ("window-scroll-bars", Fwindow_scroll_bars, Swindow_scroll_bars,
 WINDOW must be a live window and defaults to the selected one.
 
 Value is a list of the form (WIDTH COLUMNS VERTICAL-TYPE HEIGHT LINES
-HORIZONTAL-TYPE PERSISTENT), see `set-window-scroll-bars'.  If WIDTH
-or HEIGHT is nil or VERTICAL-TYPE or HORIZONTAL-TYPE is t, WINDOW is
-using the frame's corresponding value.  */)
+HORIZONTAL-TYPE PERSISTENT).  WIDTH reports the pixel width of the
+vertical scroll bar; COLUMNS is the equivalent number of columns.
+Similarly, HEIGHT and LINES are the height of the horizontal scroll
+bar in pixels and the equivalent number of lines.  VERTICAL-TYPE
+reports the type of the vertical scroll bar, either left, right, nil,
+or t.  HORIZONTAL-TYPE reports the type of the horizontal scroll bar,
+either bottom, nil or t.  PERSISTENT reports the value specified by
+the last successful call to `set-window-scroll-bars', or nil if there
+was none.
+
+If WIDTH or HEIGHT is nil or VERTICAL-TYPE or HORIZONTAL-TYPE is t,
+WINDOW is using the corresponding value specified for the frame.  */)
   (Lisp_Object window)
 {
   struct window *w = decode_live_window (window);

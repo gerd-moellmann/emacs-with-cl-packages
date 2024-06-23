@@ -3879,7 +3879,7 @@ init_from_display_pos (struct it *it, struct window *w, struct display_pos *pos)
   if (in_ellipses_for_invisible_text_p (pos, w))
     {
       --charpos;
-      bytepos = 0;
+      bytepos = BYTE_TO_CHAR (charpos);
     }
 
   /* Keep in mind: the call to reseat in init_iterator skips invisible
@@ -19841,7 +19841,7 @@ redisplay_window (Lisp_Object window, bool just_this_one_p)
       /* The vscroll should be preserved in this case, since
 	 `pixel-scroll-precision-mode' must continue working normally
 	 when a mini-window is resized.  (bug#55312) */
-      if (!w->preserve_vscroll_p || !window_frozen_p (w))
+      if (!w->preserve_vscroll_p && !window_frozen_p (w))
 	w->vscroll = 0;
 
       w->preserve_vscroll_p = false;
@@ -24071,6 +24071,7 @@ push_prefix_prop (struct it *it, Lisp_Object prop)
     {
       it->method = GET_FROM_STRETCH;
       it->object = prop;
+      it->string_from_prefix_prop_p = true;
     }
 #ifdef HAVE_WINDOW_SYSTEM
   else if (IMAGEP (prop))
@@ -24078,6 +24079,7 @@ push_prefix_prop (struct it *it, Lisp_Object prop)
       it->what = IT_IMAGE;
       it->image_id = lookup_image (it->f, prop, it->face_id);
       it->method = GET_FROM_IMAGE;
+      it->string_from_prefix_prop_p = true;
     }
 #endif /* HAVE_WINDOW_SYSTEM */
   else
