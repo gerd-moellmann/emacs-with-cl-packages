@@ -1187,24 +1187,24 @@ syms_of_pkg (void)
   defsubr (&Sall_completions_in_all_packages);
   defsubr (&Stest_completion_in_all_packages);
 
-  DEFVAR_LISP_NOPRO ("*package-registry*", Vpackage_registry,
-		     doc: /* The package registry.  For internal use only.  */);
-  DEFVAR_LISP_NOPRO ("*emacs-package*", Vemacs_package,
-		     doc: /* The Emacs package.  For internal use only.  */);
-  DEFVAR_LISP_NOPRO ("*emacs-user-package*", Vemacs_user_package,
-		     doc: /* The Emacs user package.  For internal use only.  */);
-  DEFVAR_LISP_NOPRO ("*keyword-package*", Vkeyword_package,
-		     doc: /* The keyword package.  For internal use only.  */);
-  DEFVAR_LISP_NOPRO ("*package*", Vearmuffs_package,
-		     doc: /* The current package.  */);
+  DEFVAR_LISP_NOPROX ("*package-registry*", Vpackage_registry,
+		      doc: /* The package registry.  For internal use only.  */);
+  DEFVAR_LISP_NOPROX ("*emacs-package*", Vemacs_package,
+		      doc: /* The Emacs package.  For internal use only.  */);
+  DEFVAR_LISP_NOPROX ("*emacs-user-package*", Vemacs_user_package,
+		      doc: /* The Emacs user package.  For internal use only.  */);
+  DEFVAR_LISP_NOPROX ("*keyword-package*", Vkeyword_package,
+		      doc: /* The keyword package.  For internal use only.  */);
+  DEFVAR_LISP_NOPROX ("*package*", Vearmuffs_package,
+		      doc: /* The current package.  */);
   /* This make *package* have a buffer-local binding only if set.  */
   Fmake_variable_buffer_local (Qearmuffs_package);
   Fadd_variable_watcher (Qearmuffs_package, Fsymbol_function (Qwatch_earmuffs_package));
-  DEFVAR_LISP_NOPRO ("symbol-packages", Vsymbol_packages,
-		     doc: /* */);
+  DEFVAR_LISP_NOPROX ("symbol-packages", Vsymbol_packages,
+		      doc: /* */);
   Fmake_variable_buffer_local (Qsymbol_packages);
-  DEFVAR_LISP_NOPRO ("enable-package-locks", Venable_package_locks,
-		     doc: /* */);
+  DEFVAR_LISP_NOPROX ("enable-package-locks", Venable_package_locks,
+		      doc: /* */);
 
   Fprovide (Qsymbol_packages, Qnil);
 }
