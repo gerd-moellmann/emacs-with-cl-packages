@@ -240,7 +240,7 @@ a fixed set of types.  */)
         case PVEC_PACKAGE: return Qpackage;
         case PVEC_SUBR:
           return XSUBR (object)->max_args == UNEVALLED ? Qspecial_form
-                 : SUBR_NATIVE_COMPILEDP (object) ? Qsubr_native_elisp
+                 : NATIVE_COMP_FUNCTIONP (object) ? Qnative_comp_function
                  : Qprimitive_function;
         case PVEC_CLOSURE:
           return CONSP (AREF (object, CLOSURE_CODE))
@@ -919,7 +919,7 @@ signal a `cyclic-function-indirection' error.  */)
 
   if (!NILP (Vnative_comp_enable_subr_trampolines)
       && SUBRP (function)
-      && !SUBR_NATIVE_COMPILEDP (function))
+      && !NATIVE_COMP_FUNCTIONP (function))
     CALLN (Ffuncall, Qcomp_subr_trampoline_install, symbol);
 #endif
 
@@ -1066,12 +1066,11 @@ SUBR must be a built-in function.  */)
   return build_string (name);
 }
 
-DEFUN ("subr-native-elisp-p", Fsubr_native_elisp_p, Ssubr_native_elisp_p, 1, 1,
-       0, doc: /* Return t if the object is native compiled lisp
-function, nil otherwise.  */)
+DEFUN ("native-comp-function-p", Fnative_comp_function_p, Snative_comp_function_p, 1, 1,
+       0, doc: /* Return t if the object is native compiled Lisp function, nil otherwise.  */)
   (Lisp_Object object)
 {
-  return SUBR_NATIVE_COMPILEDP (object) ? Qt : Qnil;
+  return NATIVE_COMP_FUNCTIONP (object) ? Qt : Qnil;
 }
 
 DEFUN ("subr-native-lambda-list", Fsubr_native_lambda_list,
@@ -1083,7 +1082,7 @@ function or t otherwise.  */)
   CHECK_SUBR (subr);
 
 #ifdef HAVE_NATIVE_COMP
-  if (SUBR_NATIVE_COMPILED_DYNP (subr))
+  if (NATIVE_COMP_FUNCTION_DYNP (subr))
     return XSUBR (subr)->lambda_list;
 #endif
   return Qt;
@@ -1160,7 +1159,7 @@ Value, if non-nil, is a list (interactive SPEC).  */)
 
   if (SUBRP (fun))
     {
-      if (SUBR_NATIVE_COMPILEDP (fun) && !NILP (XSUBR (fun)->intspec.native))
+      if (NATIVE_COMP_FUNCTIONP (fun) && !NILP (XSUBR (fun)->intspec.native))
 	return XSUBR (fun)->intspec.native;
 
       const char *spec = XSUBR (fun)->intspec.string;
@@ -4172,7 +4171,8 @@ syms_of_data (void)
   DEFSYM (Qpackage, "package");
   DEFSYM (Qspecial_form, "special-form");
   DEFSYM (Qprimitive_function, "primitive-function");
-  DEFSYM (Qsubr_native_elisp, "subr-native-elisp");
+  DEFSYM (Qsubr_native_elisp, "subr-native-elisp"); /* Deprecated name.  */
+  DEFSYM (Qnative_comp_function, "native-comp-function");
   DEFSYM (Qbyte_code_function, "byte-code-function");
   DEFSYM (Qinterpreted_function, "interpreted-function");
   DEFSYM (Qbuffer, "buffer");
@@ -4309,7 +4309,7 @@ syms_of_data (void)
   defsubr (&Sbyteorder);
   defsubr (&Ssubr_arity);
   defsubr (&Ssubr_name);
-  defsubr (&Ssubr_native_elisp_p);
+  defsubr (&Snative_comp_function_p);
   defsubr (&Ssubr_native_lambda_list);
   defsubr (&Ssubr_type);
 #ifdef HAVE_NATIVE_COMP
