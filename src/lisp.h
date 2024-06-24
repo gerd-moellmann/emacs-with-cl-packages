@@ -3178,13 +3178,16 @@ enum Lisp_Fwd_Predicate
 struct Lisp_Fwd
 {
   enum Lisp_Fwd_Type type : 8;
-  uint16_t bufoffset;	       /* used if type == Lisp_Fwd_Buffer_Obj */
   union
   {
     intmax_t *intvar;
     bool *boolvar;
     Lisp_Object *objvar;
-    enum Lisp_Fwd_Predicate bufpredicate;
+    struct
+    {
+      uint16_t offset;
+      enum Lisp_Fwd_Predicate predicate : 8;
+    } buf;
     int kbdoffset;
   } u;
 };
@@ -3205,7 +3208,7 @@ INLINE int
 XBUFFER_OFFSET (lispfwd a)
 {
   eassert (BUFFER_OBJFWDP (a));
-  return a->bufoffset;
+  return a->u.buf.offset;
 }
 
 INLINE bool
