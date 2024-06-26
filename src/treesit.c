@@ -2462,7 +2462,9 @@ See Info node `(elisp)Pattern Matching' for detailed explanation.  */)
   if (STRINGP (pattern))
     return treesit_query_string_string (pattern);
 
-  return Fprin1_to_string (pattern, Qt, Qt);
+  if (SYMBOLP (pattern))
+    return Fsymbol_name (pattern);
+  return Fprin1_to_string (pattern, Qnil, Qt);
 }
 
 DEFUN ("treesit-query-expand",
