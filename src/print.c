@@ -3245,7 +3245,6 @@ be printed.  */);
   staticpro (&Vprint_variable_mapping);
 
 #ifdef HAVE_MPS
-  /* FIXME/igc: Make it a Lisp vector and staticpro. */
   igc_root_create_exact (being_printed,
 			 being_printed + ARRAYELTS (being_printed));
 #endif
