@@ -6590,9 +6590,6 @@ static inline bool mark_stack_empty_p (void);
 void
 garbage_collect (void)
 {
-#ifdef HAVE_MPS
-  igc_process_messages ();
-#endif
   Lisp_Object tail, buffer;
   char stack_top_variable;
   bool message_p;
