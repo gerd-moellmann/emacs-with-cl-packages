@@ -1783,25 +1783,8 @@ allocate_string_data (struct Lisp_String *s,
 static void
 init_strings (void)
 {
-#ifdef HAVE_MPS
-  empty_multibyte_string = igc_make_multibyte_string (0, 0, false);
-  empty_unibyte_string = igc_make_unibyte_string (0, 0, false);
-#else
-  /* String allocation code will return one of 'empty_*ibyte_string'
-     when asked to construct a new 0-length string, so in order to build
-     those special cases, we have to do it "by hand".  */
-  struct Lisp_String *ems = allocate_string ();
-  struct Lisp_String *eus = allocate_string ();
-  ems->u.s.intervals = NULL;
-  eus->u.s.intervals = NULL;
-  allocate_string_data (ems, 0, 0, false, false);
-  allocate_string_data (eus, 0, 0, false, false);
-  /* We can't use 'STRING_SET_UNIBYTE' because this one includes a hack
-   * to redirect its arg to 'empty_unibyte_string' when nbytes == 0. */
-  eus->u.s.size_byte = -1;
-  XSETSTRING (empty_multibyte_string, ems);
-  XSETSTRING (empty_unibyte_string, eus);
-#endif
+  empty_unibyte_string = make_pure_string ("", 0, 0, 0);
+  empty_multibyte_string = make_pure_string ("", 0, 0, 1);
   staticpro (&empty_unibyte_string);
   staticpro (&empty_multibyte_string);
 }
@@ -2656,16 +2639,16 @@ make_uninit_string (EMACS_INT length)
 static Lisp_Object
 make_clear_multibyte_string (EMACS_INT nchars, EMACS_INT nbytes, bool clearit)
 {
+  if (nchars < 0)
+    emacs_abort ();
+  if (!nbytes)
+    return empty_multibyte_string;
+
 #ifdef HAVE_MPS
   return igc_make_multibyte_string (nchars, nbytes, clearit);
 #else
   Lisp_Object string;
   struct Lisp_String *s;
-
-  if (nchars < 0)
-    emacs_abort ();
-  if (!nbytes)
-    return empty_multibyte_string;
 
   s = allocate_string ();
   s->u.s.intervals = NULL;
