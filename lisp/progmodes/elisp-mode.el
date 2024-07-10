@@ -1652,7 +1652,10 @@ If `eval-expression-debug-on-error' is non-nil, which is the default,
 this command arranges for all errors to enter the debugger."
   (interactive "P")
   (let ((*package* (elisp-eval-package)))
-    (values--store-value
+    (funcall
+     ;; Not sure why commit 4428c27c1ae7d stored into `values' only when
+     ;; `eval-expression-debug-on-error' was nil, but let's preserve that.
+     (if eval-expression-debug-on-error #'identity #'values--store-value)
      (handler-bind ((error (if eval-expression-debug-on-error
                                #'eval-expression--debug #'ignore)))
        (elisp--eval-last-sexp eval-last-sexp-arg-internal)))))
