@@ -2322,13 +2322,13 @@ void
 free_image_cache (struct frame *f)
 {
   struct image_cache *c = FRAME_IMAGE_CACHE (f);
+  ptrdiff_t i;
+
+  /* Cache should not be referenced by any frame when freed.  */
+  eassert (c->refcount == 0);
+
   if (c)
     {
-      ptrdiff_t i;
-
-      /* Cache should not be referenced by any frame when freed.  */
-      eassert (c->refcount == 0);
-
       for (i = 0; i < c->used; ++i)
 	free_image (f, c->images[i]);
 #ifndef HAVE_MPS
@@ -2345,7 +2345,6 @@ free_image_cache (struct frame *f)
       FRAME_IMAGE_CACHE (f) = NULL;
     }
 }
-
 
 /* Clear image cache of frame F.  FILTER=t means free all images.
    FILTER=nil means clear only images that haven't been
