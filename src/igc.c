@@ -4383,6 +4383,15 @@ make_igc (void)
   struct igc *gc = xzalloc (sizeof *gc);
   make_arena (gc);
 
+  const char *limit = getenv ("IGC_COMMIT_LIMIT");
+  if (limit)
+    {
+      size_t mb = atol (limit);
+      size_t nbytes = mb * 1024 * 1024;
+      mps_res_t res = mps_arena_commit_limit_set (gc->arena, nbytes);
+      IGC_CHECK_RES (res);
+    }
+
   /* We cannot let the GC run until at least all staticpros haven been
      processed. Otherwise we might allocate objects that are not
      protected by anything. */
