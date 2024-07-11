@@ -1783,8 +1783,13 @@ allocate_string_data (struct Lisp_String *s,
 static void
 init_strings (void)
 {
+#ifdef IN_MY_FORK
+  empty_multibyte_string = igc_make_multibyte_string (0, 0, false);
+  empty_unibyte_string = igc_make_unibyte_string (0, 0, false);
+#else
   empty_unibyte_string = make_pure_string ("", 0, 0, 0);
   empty_multibyte_string = make_pure_string ("", 0, 0, 1);
+#endif
   staticpro (&empty_unibyte_string);
   staticpro (&empty_multibyte_string);
 }
