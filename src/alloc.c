@@ -3315,6 +3315,7 @@ xmake_pure_vector (ptrdiff_t len)
   Lisp_Object new;
   size_t size = header_size + len * word_size;
   struct Lisp_Vector *p = pure_alloc (size, Lisp_Vectorlike);
+  gc_init_header (&p->header.gc_header, IGC_OBJ_VECTOR);
   XSETVECTOR (new, p);
   XVECTOR (new)->header.size = len;
   return new;
