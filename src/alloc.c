@@ -472,8 +472,8 @@ static void mark_buffer (struct buffer *);
 static void compact_small_strings (void);
 static void free_large_strings (void);
 static bool vector_marked_p (struct Lisp_Vector const *);
-static bool vectorlike_marked_p (union vectorlike_header const *);
-static void set_vectorlike_marked (union vectorlike_header *);
+static bool vectorlike_marked_p (struct vectorlike_header const *);
+static void set_vectorlike_marked (struct vectorlike_header *);
 static bool interval_marked_p (INTERVAL);
 static void set_interval_marked (INTERVAL);
 #endif
@@ -3345,7 +3345,7 @@ init_vectors (void)
 
 /* Memory footprint in bytes of a pseudovector other than a bool-vector.  */
 static ptrdiff_t
-pseudovector_nbytes (const union vectorlike_header *hdr)
+pseudovector_nbytes (const struct vectorlike_header *hdr)
 {
   eassert (!PSEUDOVECTOR_TYPEP (hdr, PVEC_BOOL_VECTOR));
   ptrdiff_t nwords = ((hdr->size & PSEUDOVECTOR_SIZE_MASK)
@@ -3433,7 +3433,7 @@ allocate_vector_from_block (ptrdiff_t nbytes)
 #endif // nto HAVE_MPS
 
 ptrdiff_t
-vectorlike_nbytes (const union vectorlike_header *hdr)
+vectorlike_nbytes (const struct vectorlike_header *hdr)
 {
   ptrdiff_t size = hdr->size & ~ARRAY_MARK_FLAG;
   ptrdiff_t nwords;
@@ -4470,13 +4470,13 @@ set_vector_marked (struct Lisp_Vector *v)
 }
 
 static bool
-vectorlike_marked_p (const union vectorlike_header *header)
+vectorlike_marked_p (const struct vectorlike_header *header)
 {
   return vector_marked_p ((const struct Lisp_Vector *) header);
 }
 
 static void
-set_vectorlike_marked (union vectorlike_header *header)
+set_vectorlike_marked (struct vectorlike_header *header)
 {
   set_vector_marked ((struct Lisp_Vector *) header);
 }
@@ -6970,7 +6970,7 @@ ptrdiff_t mark_object_loop_halt EXTERNALLY_VISIBLE;
 
 #ifndef HAVE_MPS
 static void
-mark_vectorlike (union vectorlike_header *header)
+mark_vectorlike (struct vectorlike_header *header)
 {
   struct Lisp_Vector *ptr = (struct Lisp_Vector *) header;
   ptrdiff_t size = ptr->header.size;
