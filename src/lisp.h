@@ -43,6 +43,15 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 INLINE_HEADER_BEGIN
 
+#ifdef HAVE_MPS
+union gc_header { uint64_t v; };
+#else
+union gc_header { };
+#endif
+
+#define GC_HEADER union gc_header gc_header;
+#define GC_HEADER_INIT {},
+
 /* Enable this with --enable-checking=igc_check_fwd. */
 # if defined HAVE_MPS && defined IGC_CHECK_FWD
 void igc_check_fwd (void *client, bool is_vector);
@@ -818,6 +827,7 @@ enum symbol_trapped_write
 
 struct Lisp_Symbol
 {
+  GC_HEADER
   union
   {
     struct
@@ -997,6 +1007,7 @@ struct vectorlike_header
                 (The block size for PVEC_BOOL is computed from its own size
                 field, to avoid being restricted by the 12-bit RESTSIZE field.)
     */
+    GC_HEADER
     ptrdiff_t size;
   };
 
@@ -1478,6 +1489,7 @@ typedef struct interval *INTERVAL;
 
 struct Lisp_Cons
 {
+  GC_HEADER
   union
   {
     struct
@@ -1609,6 +1621,7 @@ CDR_SAFE (Lisp_Object c)
 
 struct Lisp_String
 {
+  GC_HEADER
   union
   {
     struct
@@ -2617,6 +2630,7 @@ extern struct Lisp_Weak_Hash_Table_Entry make_weak_hash_table_entry (Lisp_Object
 
 struct Lisp_Weak_Hash_Table_Strong_Part
 {
+  GC_HEADER
   Lisp_Object index_bits;
   Lisp_Object next_free;
   Lisp_Object table_size;
@@ -2643,6 +2657,7 @@ struct Lisp_Weak_Hash_Table_Strong_Part
 
 struct Lisp_Weak_Hash_Table_Weak_Part
 {
+  GC_HEADER
   struct Lisp_Weak_Hash_Table_Strong_Part *strong;
   struct Lisp_Weak_Hash_Table_Entry entries[FLEXIBLE_ARRAY_MEMBER];
 };
@@ -3295,6 +3310,7 @@ make_uint (uintmax_t n)
 
 struct Lisp_Buffer_Local_Value
   {
+    GC_HEADER
     /* True means that merely setting the variable creates a local
        binding for the current buffer.  */
     bool_bf local_if_set : 1;
@@ -3381,6 +3397,7 @@ KBOARD_OBJFWDP (lispfwd a)
 /* Lisp floating point type.  */
 struct Lisp_Float
 {
+  GC_HEADER
   int type;
   union
   {
@@ -3657,12 +3674,12 @@ CHECK_SUBR (Lisp_Object x)
 
 /* This version of DEFUN declares a function prototype with the right
    arguments, so we can catch errors with maxargs at compile-time.  */
-#define DEFUN(lname, fnname, sname, minargs, maxargs, intspec, doc) \
-  SUBR_SECTION_ATTRIBUTE                                            \
-  static union Aligned_Lisp_Subr sname =                            \
-     {{{ PVEC_SUBR << PSEUDOVECTOR_AREA_BITS },			    \
-       { .a ## maxargs = fnname },				    \
-       minargs, maxargs, lname, {intspec}, lisp_h_Qnil}};	    \
+#define DEFUN(lname, fnname, sname, minargs, maxargs, intspec, doc)	\
+  SUBR_SECTION_ATTRIBUTE						\
+  static union Aligned_Lisp_Subr sname =				\
+    { {	{ GC_HEADER_INIT PVEC_SUBR << PSEUDOVECTOR_AREA_BITS },	\
+        { .a ## maxargs = fnname },					\
+	minargs, maxargs, lname, {intspec}, lisp_h_Qnil}};		\
    Lisp_Object fnname
 
 /* defsubr (Sname);
@@ -4098,6 +4115,7 @@ enum nonlocal_exit
 
 struct handler
 {
+  GC_HEADER
   enum handlertype type;
   Lisp_Object tag_or_ch;
 
@@ -6138,7 +6156,8 @@ enum
    use these only in macros like AUTO_CONS that declare a local
    variable whose lifetime will be clear to the programmer.  */
 #define STACK_CONS(a, b) \
-  make_lisp_ptr (&((struct Lisp_Cons) {{{a, {b}}}}), Lisp_Cons)
+  make_lisp_ptr (&((struct Lisp_Cons) { GC_HEADER_INIT { {  a, {b}}}}), \
+		 Lisp_Cons)
 #define AUTO_CONS_EXPR(a, b) \
   (USE_STACK_CONS ? STACK_CONS (a, b) : Fcons (a, b))
 
@@ -6186,8 +6205,9 @@ enum
   Lisp_Object name =							\
     (USE_STACK_STRING							\
      ? (make_lisp_ptr							\
-	((&(struct Lisp_String) {{{len, -1, 0, (unsigned char *) (str)}}}), \
-	 Lisp_String))							\
+	((&(struct Lisp_String) { GC_HEADER_INIT {			\
+	      {len, -1, 0, (unsigned char *) (str)}}}),			\
+	  Lisp_String))							\
      : make_unibyte_string (str, len))
 
 /* The maximum length of "small" lists, as a heuristic.  These lists
