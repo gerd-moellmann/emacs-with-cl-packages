@@ -1311,46 +1311,47 @@ scan_ambig (mps_ss_t ss, void *start, void *end, void *closure)
   MPS_SCAN_BEGIN (ss)
   {
     for (mps_word_t *p = start; p < (mps_word_t *) end; ++p)
-      {
-	mps_word_t word = *p;
-	mps_word_t tag = word & IGC_TAG_MASK;
+      for (size_t off = 0; off <= 4; off += 4)
+	{
+	  mps_word_t word = *(mps_word_t *) ((char *)p + off);
+	  mps_word_t tag = word & IGC_TAG_MASK;
 
-	/* If the references in the object being scanned are
-	   ambiguous then MPS_FIX2() does not update the
-	   reference (because it can't know if it's a
-	   genuine reference). The MPS handles an ambiguous
-	   reference by pinning the block pointed to so that
-	   it cannot move. */
-	mps_addr_t ref = (mps_addr_t) word;
-	mps_res_t res = MPS_FIX12 (ss, &ref);
-	if (res != MPS_RES_OK)
-	  return res;
+	  /* If the references in the object being scanned are
+	     ambiguous then MPS_FIX2() does not update the
+	     reference (because it can't know if it's a
+	     genuine reference). The MPS handles an ambiguous
+	     reference by pinning the block pointed to so that
+	     it cannot move. */
+	  mps_addr_t ref = (mps_addr_t) word;
+	  mps_res_t res = MPS_FIX12 (ss, &ref);
+	  if (res != MPS_RES_OK)
+	    return res;
 
-	switch (tag)
-	  {
-	  case Lisp_Int0:
-	  case Lisp_Int1:
-	  case Lisp_Type_Unused0:
-	    break;
-
-	  case Lisp_Symbol:
+	  switch (tag)
 	    {
-	      ptrdiff_t off = word ^ tag;
-	      ref = (mps_addr_t) ((char *) lispsym + off);
+	    case Lisp_Int0:
+	    case Lisp_Int1:
+	    case Lisp_Type_Unused0:
+	      break;
+
+	    case Lisp_Symbol:
+	      {
+		ptrdiff_t off = word ^ tag;
+		ref = (mps_addr_t) ((char *) lispsym + off);
+		res = MPS_FIX12 (ss, &ref);
+		if (res != MPS_RES_OK)
+		  return res;
+	      }
+	      break;
+
+	    default:
+	      ref = (mps_addr_t) (word ^ tag);
 	      res = MPS_FIX12 (ss, &ref);
 	      if (res != MPS_RES_OK)
 		return res;
+	      break;
 	    }
-	    break;
-
-	  default:
-	    ref = (mps_addr_t) (word ^ tag);
-	    res = MPS_FIX12 (ss, &ref);
-	    if (res != MPS_RES_OK)
-	      return res;
-	    break;
-	  }
-      }
+	}
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
