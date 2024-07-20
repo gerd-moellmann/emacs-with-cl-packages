@@ -5986,6 +5986,7 @@ check_pure_size (void)
    the non-Lisp data pool of the pure storage, and return its start
    address.  Return NULL if not found.  */
 
+#ifndef HAVE_MPS
 static char *
 find_string_data_in_pure (const char *data, ptrdiff_t nbytes)
 {
@@ -6062,6 +6063,7 @@ find_string_data_in_pure (const char *data, ptrdiff_t nbytes)
 
   return NULL;
 }
+#endif
 
 #endif // 0
 
