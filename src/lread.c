@@ -4992,7 +4992,6 @@ intern_c_multibyte (const char *str, ptrdiff_t nchars, ptrdiff_t nbytes)
 static void
 define_symbol (Lisp_Object sym, char const *str)
 {
-  gc_init_header (&XBARE_SYMBOL (sym)->gc_header, IGC_OBJ_SYMBOL);
   const bool keyword = *str == ':';
   const char *name_start = keyword ? str + 1 : str;
 
@@ -5015,7 +5014,10 @@ void
 pkg_define_builtin_symbols (void)
 {
   for (int i = 0; i < ARRAYELTS (lispsym); i++)
-    define_symbol (builtin_lisp_symbol (i), defsym_name[i]);
+    {
+      gc_init_header (&lispsym[i].gc_header, IGC_OBJ_SYMBOL);
+      define_symbol (builtin_lisp_symbol (i), defsym_name[i]);
+    }
 }
 
 DEFUN ("intern", Fintern, Sintern, 1, 2, 0,
