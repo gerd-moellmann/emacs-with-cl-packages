@@ -3773,6 +3773,14 @@ DEFUN ("ns-show-character-palette",
   return Qnil;
 }
 
+DEFUN ("ns-app-stop", Fns_app_stop, Sns_app_stop, 0, 0, 0,
+       doc: /* Leave the NSApplication event loop.  */)
+  (void)
+{
+  [NSApp stop: NSApp];
+  return Qnil;
+}
+
 /* ==========================================================================
 
     Class implementations
@@ -4005,6 +4013,7 @@ The default value is t.  */);
   defsubr (&Sns_set_mouse_absolute_pixel_position);
   defsubr (&Sns_mouse_absolute_pixel_position);
   defsubr (&Sns_show_character_palette);
+  defsubr (&Sns_app_stop);
   defsubr (&Sx_display_mm_width);
   defsubr (&Sx_display_mm_height);
   defsubr (&Sx_display_screens);
