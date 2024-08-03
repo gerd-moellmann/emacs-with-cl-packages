@@ -8070,6 +8070,10 @@ ns_in_echo_area (void)
 #else
   emacsframe = xzalloc (sizeof *emacsframe);
 #endif
+#ifdef NS_IMPL_COCOA
+  if (NSAppKitVersionNumber >= NSAppKitVersionNumber14_0)
+    self.clipsToBounds = YES;
+#endif
   windowClosing = NO;
   processingCompose = NO;
   scrollbarsNeedingUpdate = 0;
