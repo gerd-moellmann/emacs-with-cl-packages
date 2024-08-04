@@ -3367,10 +3367,16 @@ window_discard_buffer_from_window (Lisp_Object buffer, Lisp_Object window, bool 
 void
 window_discard_buffer_from_dead_windows (Lisp_Object buffer)
 {
+#ifdef HAVE_MPS
+  struct Lisp_Weak_Hash_Table *h = XWEAK_HASH_TABLE (window_dead_windows_table);
+  Lisp_Object k, v;
+  DOHASH_WEAK (h, k, v)
+    window_discard_buffer_from_window (buffer, v, true);
+#else
   struct Lisp_Hash_Table *h = XHASH_TABLE (window_dead_windows_table);
-
   DOHASH (h, k, v)
     window_discard_buffer_from_window (buffer, v, true);
+#endif
 }
 
 DEFUN ("window-discard-buffer-from-window", Fwindow_discard_buffer,
