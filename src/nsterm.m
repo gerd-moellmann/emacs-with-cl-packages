@@ -583,7 +583,7 @@ ns_init_locale (void)
     }
 
   /* Check if LANG can be used for initializing the locale.  If not,
-     use a default setting.  Note that Emacs' main will undo the
+     use a default setting.  Note that Emacs's main will undo the
      setlocale below, initializing the locale from the
      environment.  */
   if (setlocale (LC_ALL, lang) == NULL)
@@ -3032,7 +3032,7 @@ ns_draw_window_cursor (struct window *w, struct glyph_row *glyph_row,
      Note that CURSOR_WIDTH is meaningful only for (h)bar cursors.
    -------------------------------------------------------------------------- */
 {
-  NSRect r, s;
+  NSRect r;
   int fx, fy, h, cursor_height;
   struct frame *f = WINDOW_XFRAME (w);
   struct glyph *phys_cursor_glyph;
@@ -3082,6 +3082,12 @@ ns_draw_window_cursor (struct window *w, struct glyph_row *glyph_row,
       /* The bar cursor should never be wider than the glyph.  */
       if (cursor_width < w->phys_cursor_width)
         w->phys_cursor_width = cursor_width;
+
+      /* If the character under cursor is R2L, draw the bar cursor
+         on the right of its glyph, rather than on the left.  */
+      cursor_glyph = get_phys_cursor_glyph (w);
+      if ((cursor_glyph->resolved_level & 1) != 0)
+        fx += cursor_glyph->pixel_width - w->phys_cursor_width;
     }
   /* If we have an HBAR, "cursor_width" MAY specify height.  */
   else if (cursor_type == HBAR_CURSOR)
@@ -3132,18 +3138,8 @@ ns_draw_window_cursor (struct window *w, struct glyph_row *glyph_row,
       [ctx restoreGraphicsState];
       break;
     case HBAR_CURSOR:
-      NSRectFill (r);
-      [ctx restoreGraphicsState];
-      break;
     case BAR_CURSOR:
-      s = r;
-      /* If the character under cursor is R2L, draw the bar cursor
-         on the right of its glyph, rather than on the left.  */
-      cursor_glyph = get_phys_cursor_glyph (w);
-      if ((cursor_glyph->resolved_level & 1) != 0)
-        s.origin.x += cursor_glyph->pixel_width - s.size.width;
-
-      NSRectFill (s);
+      NSRectFill (r);
       [ctx restoreGraphicsState];
       break;
     }
@@ -7081,7 +7077,7 @@ ns_create_font_panel_buttons (id target, SEL select, SEL cancel_action)
 - (NSRect) firstRectForCharacterRange: (NSRange) range
 			  actualRange: (nullable NSRangePointer) actualRange
 {
-  return NSZeroRect;
+  return [self firstRectForCharacterRange: range];
 }
 
 #endif /* NS_IMPL_COCOA */
