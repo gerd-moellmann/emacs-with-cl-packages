@@ -3777,7 +3777,7 @@ DEFUN ("ns-app-stop", Fns_app_stop, Sns_app_stop, 0, 0, 0,
        doc: /* Leave the NSApplication event loop.  */)
   (void)
 {
-  [NSApp stop: NSApp];
+  ns_send_appdefined (-42);
   return Qnil;
 }
 

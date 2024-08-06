@@ -1204,6 +1204,7 @@ extern void ns_free_frame_resources (struct frame *);
 
 #define NSAPP_DATA2_RUNASSCRIPT 10
 extern void ns_run_ascript (void);
+void ns_send_appdefined (int value);
 
 #define NSAPP_DATA2_RUNFILEDIALOG 11
 extern void ns_run_file_dialog (void);

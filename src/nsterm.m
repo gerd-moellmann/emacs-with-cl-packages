@@ -4665,7 +4665,7 @@ ns_draw_glyph_string (struct glyph_string *s)
    ========================================================================== */
 
 
-static void
+void
 ns_send_appdefined (int value)
 /* --------------------------------------------------------------------------
     Internal: post an appdefined event which EmacsApp-sendEvent will
@@ -4689,7 +4689,7 @@ ns_send_appdefined (int value)
   /* Only post this event if we haven't already posted one.  This will end
      the [NXApp run] main loop after having processed all events queued at
      this moment.  */
-  if (send_appdefined)
+  if (send_appdefined || value == -42)
     {
       NSEvent *nxev;
 
