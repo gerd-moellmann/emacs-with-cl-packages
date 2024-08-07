@@ -4134,7 +4134,7 @@ This command runs functions from `lldb-mode-hook'."
   (add-hook 'completion-at-point-functions
             #'gud-lldb-completion-at-point
             nil 'local)
-  (keymap-local-set "<tab>" #'completion-at-point)
+  (keymap-local-set "TAB" #'completion-at-point)≈
 
   (gud-set-repeat-map-property 'gud-gdb-repeat-map)
   (setq comint-prompt-regexp (rx line-start "(lldb)" (0+ blank)))
