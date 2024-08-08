@@ -309,7 +309,6 @@ static BOOL ns_menu_bar_is_hidden = NO;
 #endif
 
 /* event loop */
-static BOOL send_appdefined = YES;
 #define NO_APPDEFINED_DATA (-8)
 static int last_appdefined_event_data = NO_APPDEFINED_DATA;
 static NSTimer *timed_entry = 0;
@@ -507,7 +506,6 @@ hold_event (struct input_event *event)
   hold_event_q.q[hold_event_q.nr++] = *event;
   /* Make sure ns_read_socket is called, i.e. we have input.  */
   raise (SIGIO);
-  send_appdefined = YES;
 }
 
 static Lisp_Object
@@ -4689,12 +4687,16 @@ ns_send_appdefined (int value)
   /* Only post this event if we haven't already posted one.  This will end
      the [NXApp run] main loop after having processed all events queued at
      this moment.  */
-  if (send_appdefined || value == -42)
+
+  NSEvent *app_defined_event =
+    [NSApp nextEventMatchingMask: NSEventMaskApplicationDefined
+		       untilDate: nil
+			  inMode: NSDefaultRunLoopMode
+			 dequeue: NO];
+
+  if (app_defined_event == nil)
     {
       NSEvent *nxev;
-
-      /* We only need one NX_APPDEFINED event to stop NXApp from running.  */
-      send_appdefined = NO;
 
       /* Don't need wakeup timer any more.  */
       if (timed_entry)
@@ -4812,7 +4814,6 @@ ns_read_socket_1 (struct terminal *terminal, struct input_event *hold_quit,
         {
           /* Run and wait for events.  We must always send one NX_APPDEFINED event
              to ourself, otherwise [NXApp run] will never exit.  */
-          send_appdefined = YES;
           ns_send_appdefined (-1);
 
           [NSApp run];
@@ -4907,7 +4908,6 @@ ns_select_1 (int nfds, fd_set *readfds, fd_set *writefds,
   // outerpool = [[NSAutoreleasePool alloc] init];
 
 
-  send_appdefined = YES;
   if (nr > 0)
     {
       pthread_mutex_lock (&select_mutex);
@@ -4951,7 +4951,6 @@ ns_select_1 (int nfds, fd_set *readfds, fd_set *writefds,
   else /* No timeout and no file descriptors, can this happen?  */
     {
       /* Send appdefined so we exit from the loop.  */
-      ns_send_appdefined (-1);
     }
 
   block_input ();
@@ -6050,10 +6049,6 @@ ns_term_shutdown (int sig)
         {
           last_appdefined_event_data = [theEvent data1];
           [self stop: self];
-        }
-      else
-        {
-          send_appdefined = YES;
         }
     }
 
@@ -7727,7 +7722,7 @@ ns_in_echo_area (void)
                       help_echo_object, help_echo_pos);
     }
 
-  if ((*emacsframe)->mouse_moved && send_appdefined)
+  if ((*emacsframe)->mouse_moved)
     ns_send_appdefined (-1);
 }
 
@@ -8336,8 +8331,7 @@ ns_in_echo_area (void)
   SET_FRAME_VISIBLE (*emacsframe, 1);
   SET_FRAME_GARBAGED (*emacsframe);
 
-  if (send_appdefined)
-    ns_send_appdefined (-1);
+  ns_send_appdefined (-1);
 }
 
 
