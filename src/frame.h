@@ -317,9 +317,7 @@ struct frame
   char *shell_position;
 #endif
 
-  /* Glyph pool and matrix.  */
-  struct glyph_pool *current_pool;
-  struct glyph_pool *desired_pool;
+  /* Glyph matrices.  */
   struct glyph_matrix *desired_matrix;
   struct glyph_matrix *current_matrix;
 

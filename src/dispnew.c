@@ -1334,7 +1334,7 @@ row_equal_p (struct glyph_row *a, struct glyph_row *b, bool mouse_face_p)
    with zeros.  If GLYPH_DEBUG and ENABLE_CHECKING are in effect, the global
    variable glyph_pool_count is incremented for each pool allocated.  */
 
-static struct glyph_pool * ATTRIBUTE_MALLOC
+struct glyph_pool * ATTRIBUTE_MALLOC
 new_glyph_pool (void)
 {
   struct glyph_pool *result = xzalloc (sizeof *result);
@@ -1348,47 +1348,16 @@ new_glyph_pool (void)
 }
 
 
-/* Free a glyph_pool structure POOL.  The function may be called with
-   a null POOL pointer.  If GLYPH_DEBUG and ENABLE_CHECKING are in effect,
-   global variable glyph_pool_count is decremented with every pool structure
-   freed.  If this count gets negative, more structures were freed than
-   allocated, i.e. one structure must have been freed more than once or
-   a bogus pointer was passed to free_glyph_pool.  */
-
-static void
-free_glyph_pool (struct glyph_pool *pool)
-{
-  if (pool)
-    {
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      /* More freed than allocated?  */
-      --glyph_pool_count;
-      eassert (glyph_pool_count >= 0);
-#endif
-      xfree (pool->glyphs);
-      xfree (pool);
-    }
-}
-
-
 /* Enlarge a glyph pool POOL.  MATRIX_DIM gives the number of rows and
    columns we need.  This function never shrinks a pool.  The only
    case in which this would make sense, would be when a frame's size
    is changed from a large value to a smaller one.  But, if someone
-   does it once, we can expect that he will do it again.
+   does it once, we can expect that he will do it again.  */
 
-   Return true if the pool changed in a way which makes
-   re-adjusting window glyph matrices necessary.  */
-
-static bool
+static void
 realloc_glyph_pool (struct glyph_pool *pool, struct dim matrix_dim)
 {
   ptrdiff_t needed;
-  bool changed_p;
-
-  changed_p = (pool->glyphs == 0
-	       || matrix_dim.height != pool->nrows
-	       || matrix_dim.width != pool->ncolumns);
 
   /* Enlarge the glyph pool.  */
   if (ckd_mul (&needed, matrix_dim.height, matrix_dim.width))
@@ -1410,10 +1379,16 @@ realloc_glyph_pool (struct glyph_pool *pool, struct dim matrix_dim)
      determine pointers to rows of window sub-matrices.  */
   pool->nrows = matrix_dim.height;
   pool->ncolumns = matrix_dim.width;
-
-  return changed_p;
 }
 
+static void
+tty_adjust_glyph_pools (struct tty_display_info *dpyinfo,
+			int width, int height)
+{
+  struct dim dim = { .width = width, .height = height };
+  realloc_glyph_pool (dpyinfo->desired_pool, dim);
+  realloc_glyph_pool (dpyinfo->current_pool, dim);
+}
 
 
 /***********************************************************************
@@ -1638,6 +1613,7 @@ allocate_matrices_for_frame_redisplay (Lisp_Object window, int x, int y,
 				       bool dim_only_p, int *window_change_flags)
 {
   struct frame *f = XFRAME (WINDOW_FRAME (XWINDOW (window)));
+  struct tty_display_info *dpyinfo = FRAME_TTY (f);
   int x0 = x, y0 = y;
   int wmax = 0, hmax = 0;
   struct dim total;
@@ -1671,8 +1647,8 @@ allocate_matrices_for_frame_redisplay (Lisp_Object window, int x, int y,
 	  /* If not already done, allocate sub-matrix structures.  */
 	  if (w->desired_matrix == NULL)
 	    {
-	      w->desired_matrix = new_glyph_matrix (f->desired_pool);
-	      w->current_matrix = new_glyph_matrix (f->current_pool);
+	      w->desired_matrix = new_glyph_matrix (dpyinfo->desired_pool);
+	      w->current_matrix = new_glyph_matrix (dpyinfo->current_pool);
 	      *window_change_flags |= NEW_LEAF_MATRIX;
 	    }
 
@@ -2060,8 +2036,8 @@ restore_current_matrix (struct frame *f, struct glyph_matrix *saved)
 static void
 adjust_frame_glyphs_for_frame_redisplay (struct frame *f)
 {
+  struct tty_display_info *dpyinfo = FRAME_TTY (f);
   struct dim matrix_dim;
-  bool pool_changed_p;
   int window_change_flags;
   int top_window_y;
 
@@ -2070,18 +2046,11 @@ adjust_frame_glyphs_for_frame_redisplay (struct frame *f)
 
   top_window_y = FRAME_TOP_MARGIN (f);
 
-  /* Allocate glyph pool structures if not already done.  */
-  if (f->desired_pool == NULL)
-    {
-      f->desired_pool = new_glyph_pool ();
-      f->current_pool = new_glyph_pool ();
-    }
-
   /* Allocate frames matrix structures if needed.  */
   if (f->desired_matrix == NULL)
     {
-      f->desired_matrix = new_glyph_matrix (f->desired_pool);
-      f->current_matrix = new_glyph_matrix (f->current_pool);
+      f->desired_matrix = new_glyph_matrix (dpyinfo->desired_pool);
+      f->current_matrix = new_glyph_matrix (dpyinfo->current_pool);
     }
 
   /* Compute window glyph matrices.  (This takes the mini-buffer
@@ -2100,37 +2069,37 @@ adjust_frame_glyphs_for_frame_redisplay (struct frame *f)
   /* Add in menu bar lines, if any.  */
   matrix_dim.height += top_window_y;
 
-  /* Enlarge pools as necessary.  */
-  pool_changed_p = realloc_glyph_pool (f->desired_pool, matrix_dim);
-  realloc_glyph_pool (f->current_pool, matrix_dim);
-
   /* Set up glyph pointers within window matrices.  Do this only if
      absolutely necessary since it requires a frame redraw.  */
-  if (pool_changed_p || window_change_flags)
+  if (window_change_flags)
     {
       /* Do it for window matrices.  */
       allocate_matrices_for_frame_redisplay (FRAME_ROOT_WINDOW (f),
 					     0, top_window_y, 0,
 					     &window_change_flags);
 
+#if 0
       /* Size of frame matrices must equal size of frame.  Note
 	 that we are called for X frames with window widths NOT equal
-	 to the frame width (from CHANGE_FRAME_SIZE_1).  */
+	 to the frame width (from CHANGE_FRAME_SIZE_1).
+
+         FIXME/tty: How could it ever be that we are called for an X frame? */
       if (matrix_dim.width != FRAME_TOTAL_COLS (f)
 	  || matrix_dim.height != FRAME_TOTAL_LINES (f))
 	{
-	  /* We have reallocated the frame's glyph pools, but didn't
-	     update the glyph pointers in the frame's glyph matrices
-	     to use the reallocated pools (that happens below, in the
-	     call to adjust_glyph_matrix).  Set the frame's garbaged
-	     flag, so that when we are called again from
-	     redisplay_internal, we don't erroneously call
+	  /* We maybe didn't update the glyph pointers in the frame's
+	     glyph matrices to use the reallocated pools (that happens
+	     below, in the call to adjust_glyph_matrix).  Set the
+	     frame's garbaged flag, so that when we are called again
+	     from redisplay_internal, we don't erroneously call
 	     save_current_matrix, because it will use the wrong glyph
 	     pointers, and will most probably crash.  */
-	  if (!FRAME_WINDOW_P (f) && pool_changed_p)
+	  if (!FRAME_WINDOW_P (f))
 	    SET_FRAME_GARBAGED (f);
 	  return;
 	}
+
+#endif
 
       eassert (matrix_dim.width == FRAME_TOTAL_COLS (f)
 	       && matrix_dim.height == FRAME_TOTAL_LINES (f));
@@ -2399,14 +2368,6 @@ free_glyphs (struct frame *f)
 	  free_glyph_matrix (f->desired_matrix);
 	  free_glyph_matrix (f->current_matrix);
 	  f->desired_matrix = f->current_matrix = NULL;
-	}
-
-      /* Release glyph pools.  */
-      if (f->desired_pool)
-	{
-	  free_glyph_pool (f->desired_pool);
-	  free_glyph_pool (f->current_pool);
-	  f->desired_pool = f->current_pool = NULL;
 	}
 
       unblock_input ();
@@ -5988,8 +5949,9 @@ handle_window_change_signal (int sig)
 
       if (width > 5 && height > 2)
 	{
-	  Lisp_Object tail, frame;
+	  tty_adjust_glyph_pools (tty, width, height);
 
+	  Lisp_Object tail, frame;
 	  FOR_EACH_FRAME (tail, frame)
 	    {
 	      struct frame *f = XFRAME (frame);

@@ -4136,6 +4136,8 @@ init_tty (const char *name, const char *terminal_type, bool must_succeed)
 #else
   tty = xzalloc (sizeof *tty);
 #endif
+  tty->desired_pool = new_glyph_pool ();
+  tty->current_pool = new_glyph_pool ();
   tty->top_frame = Qnil;
   tty->next = tty_list;
   tty_list = tty;
@@ -4148,7 +4150,6 @@ init_tty (const char *name, const char *terminal_type, bool must_succeed)
 
   encode_terminal_src_size = 0;
   encode_terminal_dst_size = 0;
-
 
 #ifndef DOS_NT
   set_tty_hooks (terminal);
@@ -4429,7 +4430,8 @@ use the Bourne shell command 'TERM=...; export TERM' (C-shell:\n\
     tty->char_ins_del_ok = 0;
     init_baud_rate (fileno (tty->input));
   }
-#endif	/* MSDOS */
+#  endif /* MSDOS */
+  tty_adjust_glyph_pools (tty, FrameCols (tty), FrameRows (tty));
   tty->output = stdout;
   tty->input = stdin;
   /* The following two are inaccessible from w32console.c.  */

@@ -231,6 +231,12 @@ struct tty_display_info
 
   /* Cost of setting the scroll window, measured in characters.  */
   int scroll_region_cost;
+
+  /* All glyph matrices on this tty use glyphs from these pools.
+     FIXME/tty: Find where this struct is freed, if it is, and free
+     pools.  */
+  struct glyph_pool *current_pool;
+  struct glyph_pool *desired_pool;
 };
 
 /* A chain of structures for all tty devices currently in use. */
