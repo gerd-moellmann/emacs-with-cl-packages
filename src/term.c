@@ -4136,8 +4136,6 @@ init_tty (const char *name, const char *terminal_type, bool must_succeed)
 #else
   tty = xzalloc (sizeof *tty);
 #endif
-  terminal->desired_pool = new_glyph_pool ();
-  terminal->current_pool = new_glyph_pool ();
   tty->top_frame = Qnil;
   tty->next = tty_list;
   tty_list = tty;
@@ -4431,7 +4429,6 @@ use the Bourne shell command 'TERM=...; export TERM' (C-shell:\n\
     init_baud_rate (fileno (tty->input));
   }
 #  endif /* MSDOS */
-  tty_adjust_glyph_pools (tty, FrameCols (tty), FrameRows (tty));
   tty->output = stdout;
   tty->input = stdin;
   /* The following two are inaccessible from w32console.c.  */
@@ -4600,7 +4597,12 @@ use the Bourne shell command 'TERM=...; export TERM' (C-shell:\n\
 
   init_baud_rate (fileno (tty->input));
 
-#endif /* not DOS_NT */
+# endif /* not DOS_NT */
+
+  eassert (terminal->desired_pool == NULL);
+  terminal->desired_pool = new_glyph_pool ();
+  terminal->current_pool = new_glyph_pool ();
+  adjust_glyph_pools (terminal, FrameCols (tty), FrameRows (tty));
 
   /* Init system terminal modes (RAW or CBREAK, etc.).  */
   init_sys_modes (tty);
