@@ -151,7 +151,8 @@ comment."
          (orig-point (point-marker))
          (start-marker (point-marker))
          (end-marker nil)
-         (end-len 0))
+         (end-len 0)
+         (end-mask-done nil))
     (move-marker start-marker start)
     ;; If the first line is /* followed by non-text, exclude this line
     ;; from filling.
@@ -179,6 +180,7 @@ comment."
         (goto-char (match-beginning 1))
         (setq end-marker (point-marker))
         (setq end-len (- (match-end 1) (match-beginning 1)))
+        (setq end-mask-done t)
         (replace-match (make-string end-len ?x)
                        nil nil nil 1))
 
@@ -186,9 +188,9 @@ comment."
       ;; filling region.
       (when (not end-marker)
         (goto-char end)
-        (when (looking-back (rx "*/") 2)
-          (backward-char 2)
-          (skip-syntax-backward "-")
+        (forward-line 0)
+        (when (looking-at (rx (* (or (syntax whitespace) "*" "=" "-"))
+                              "*/" eol))
           (setq end (point))))
 
       ;; Let `fill-paragraph' do its thing.
@@ -206,7 +208,7 @@ comment."
         (fill-region (max start-marker para-start) (min end para-end) arg))
 
       ;; Unmask.
-      (when end-marker
+      (when (and end-marker end-mask-done)
         (goto-char end-marker)
         (delete-region (point) (+ end-len (point)))
         (insert (make-string end-len ?\s)))

@@ -10480,6 +10480,21 @@ init_ntproc (int dumping)
   /* Initial preparation for subprocess support: replace our standard
      handles with non-inheritable versions. */
   {
+
+#ifdef _UCRT
+    /* The non-UCRT code below relies on MSVCRT-only behavior, whereby
+       _fdopen reuses the first unused FILE slot, whereas UCRT skips the
+       first 3 slots, which correspond to stdin/stdout/stderr.  That
+       makes it impossible in the UCRT build to open these 3 streams
+       once they are closed.  So we use SetHandleInformation instead,
+       which is available on all versions of Windows that have UCRT.  */
+    SetHandleInformation (GetStdHandle(STD_INPUT_HANDLE),
+			  HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation (GetStdHandle(STD_OUTPUT_HANDLE),
+			  HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation (GetStdHandle(STD_ERROR_HANDLE),
+			  HANDLE_FLAG_INHERIT, 0);
+#else	/* !_UCRT */
     HANDLE parent;
     HANDLE stdin_save =  INVALID_HANDLE_VALUE;
     HANDLE stdout_save = INVALID_HANDLE_VALUE;
@@ -10487,8 +10502,8 @@ init_ntproc (int dumping)
 
     parent = GetCurrentProcess ();
 
-    /* ignore errors when duplicating and closing; typically the
-       handles will be invalid when running as a gui program. */
+    /* Ignore errors when duplicating and closing; typically the
+       handles will be invalid when running as a gui program.  */
     DuplicateHandle (parent,
 		     GetStdHandle (STD_INPUT_HANDLE),
 		     parent,
@@ -10534,6 +10549,7 @@ init_ntproc (int dumping)
     else
       _open ("nul", O_TEXT | O_NOINHERIT | O_WRONLY);
     _fdopen (2, "w");
+#endif	/* !_UCRT */
   }
 
   /* unfortunately, atexit depends on implementation of malloc */

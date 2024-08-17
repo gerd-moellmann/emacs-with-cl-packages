@@ -7983,6 +7983,7 @@ ns_in_echo_area (void)
     dpyinfo->ns_focus_frame = *emacsframe;
 
   ns_frame_rehighlight (*emacsframe);
+  [self adjustEmacsFrameRect];
 
   event.kind = FOCUS_IN_EVENT;
   XSETFRAME (event.frame_or_window, *emacsframe);
@@ -8098,6 +8099,10 @@ ns_in_echo_area (void)
 #ifdef NS_IMPL_COCOA
   old_title = 0;
   maximizing_resize = NO;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
+  /* Restore to default before macOS 14 (bug#72440).  */
+  [self setClipsToBounds: YES];
+#endif
 #endif
 
 #if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
