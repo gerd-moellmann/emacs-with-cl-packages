@@ -1338,6 +1338,23 @@ new_glyph_pool (void)
   return xzalloc (sizeof (struct glyph_pool));
 }
 
+static void
+free_glyph_pool (struct glyph_pool **p)
+{
+  if (*p)
+    {
+      xfree ((*p)->glyphs);
+      xfree (*p);
+      *p = NULL;
+    }
+}
+
+void
+free_glyph_pools (struct terminal *term)
+{
+  free_glyph_pool (&term->current_pool);
+  free_glyph_pool (&term->desired_pool);
+}
 
 /* Enlarge a glyph pool POOL.  MATRIX_DIM gives the number of rows and
    columns we need.  This function never shrinks a pool.  The only

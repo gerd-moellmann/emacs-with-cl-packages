@@ -364,9 +364,7 @@ delete_terminal_internal (struct terminal *terminal)
   terminal->keyboard_coding = NULL;
   xfree (terminal->terminal_coding);
   terminal->terminal_coding = NULL;
-  xfree (terminal->current_pool);
-  xfree (terminal->desired_pool);
-  terminal->current_pool = terminal->desired_pool = NULL;
+  free_glyph_pools (terminal);
 
   if (terminal->kboard && --terminal->kboard->reference_count == 0)
     {
