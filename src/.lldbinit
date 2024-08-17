@@ -31,8 +31,10 @@ script -- sys.path.append('../etc')
 command script import emacs_lldb
 
 # For tty Emacs
-process handle SIGWINCH --pass true --stop false
-process handle SIGINT --pass true --stop false
+process handle SIGTTIN --pass true --stop false --notify false
+process handle SIGTTOU --pass true --stop false --notify false
+process handle SIGWINCH --pass true --stop false --notify false
+process handle SIGINT --pass true --stop false --notify false
 
 # MPS telemetry level (default output file mpsio.log)
 #env MPS_TELEMETRY_CONTROL=all
