@@ -1093,10 +1093,10 @@ sfnt_lookup_glyph_2 (sfnt_char character,
   unsigned char *slice;
   uint16_t glyph;
 
-  if (character > 65335)
+  if (character > 65535)
     return 0;
 
-  i = character >> 16;
+  i = character >> 8;
   j = character & 0xff;
   k = format2->sub_header_keys[i] / 8;
 
@@ -1129,9 +1129,9 @@ sfnt_lookup_glyph_2 (sfnt_char character,
 	return 0;
     }
 
-  /* k is 0, so glyph_index_array[i] is the glyph.  */
-  return (i < format2->num_glyphs
-	  ? format2->glyph_index_array[i]
+  /* k is 0, so glyph_index_array[j] is the glyph.  */
+  return (j < format2->num_glyphs
+	  ? format2->glyph_index_array[j]
 	  : 0);
 }
 
@@ -2578,8 +2578,10 @@ sfnt_transform_coordinates (struct sfnt_compound_glyph_component *component,
 
   for (i = 0; i < num_coordinates; ++i)
     {
-      x[i] = m1 * x[i] + m2 * y[i] + m3 * 1;
-      y[i] = m4 * x[i] + m5 * y[i] + m6 * 1;
+      sfnt_fixed xi = m1 * x[i] + m2 * y[i] + m3 * 1;
+      sfnt_fixed yi = m4 * x[i] + m5 * y[i] + m6 * 1;
+      x[i] = xi;
+      y[i] = yi;
     }
 }
 
@@ -12822,8 +12824,10 @@ sfnt_transform_f26dot6 (struct sfnt_compound_glyph_component *component,
 
   for (i = 0; i < num_coordinates; ++i)
     {
-      x[i] = m1 * x[i] + m2 * y[i] + m3 * 1;
-      y[i] = m4 * x[i] + m5 * y[i] + m6 * 1;
+      sfnt_f26dot6 xi = m1 * x[i] + m2 * y[i] + m3 * 1;
+      sfnt_f26dot6 yi = m4 * x[i] + m5 * y[i] + m6 * 1;
+      x[i] = xi;
+      y[i] = yi;
     }
 }
 
