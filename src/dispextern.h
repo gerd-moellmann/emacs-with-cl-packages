@@ -3925,6 +3925,7 @@ extern void gui_redo_mouse_highlight (Display_Info *);
 #endif /* HAVE_WINDOW_SYSTEM */
 
 struct glyph_pool * ATTRIBUTE_MALLOC new_glyph_pool (void);
+void adjust_glyph_pools (struct terminal *term, int width, int height);
 
 INLINE_HEADER_END
 

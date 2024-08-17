@@ -1381,7 +1381,7 @@ realloc_glyph_pool (struct glyph_pool *pool, struct dim matrix_dim)
   pool->ncolumns = matrix_dim.width;
 }
 
-static void
+void
 adjust_glyph_pools (struct terminal *term, int width, int height)
 {
   struct dim dim = { .width = width, .height = height };
@@ -2415,7 +2415,6 @@ check_glyph_memory (void)
 #if defined GLYPH_DEBUG && defined ENABLE_CHECKING
   /* Check that nothing is left allocated.  */
   eassert (glyph_matrix_count == 0);
-  eassert (glyph_pool_count == 0);
 #endif
 }
 

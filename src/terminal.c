@@ -643,28 +643,32 @@ init_initial_terminal (void)
   if (initialized || terminal_list || tty_list)
     emacs_abort ();
 
-#ifndef HAVE_MPS
-  initial_terminal = create_terminal (output_initial, NULL);
-#else
-  initial_terminal_lisp = make_lisp_ptr (create_terminal (output_initial, NULL), Lisp_Vectorlike);
-#endif
+  struct terminal *term = create_terminal (output_initial, NULL);
+
   /* Note: menu-bar.el:menu-bar-update-buffers knows about this
      special name of the initial terminal.  */
-  initial_terminal->name = xstrdup ("initial_terminal");
-  initial_terminal->kboard = initial_kboard;
-  initial_terminal->delete_terminal_hook = &delete_initial_terminal;
-  initial_terminal->delete_frame_hook = &initial_free_frame_resources;
-  initial_terminal->defined_color_hook = &tty_defined_color; /* xfaces.c */
+  term->name = xstrdup ("initial_terminal");
+  term->kboard = initial_kboard;
+  term->delete_terminal_hook = &delete_initial_terminal;
+  term->delete_frame_hook = &initial_free_frame_resources;
+  term->defined_color_hook = &tty_defined_color; /* xfaces.c */
   /* Other hooks are NULL by default.  */
 
   /* FIXME/tty: Allocate glyph pool although we don't really display
      anything.  This is due to the initial terminal not really being
      handled cleanly througout the code.  It acts like a tty terminal,
      only that it isn't.  */
-  initial_terminal->current_pool = new_glyph_pool ();
-  initial_terminal->desired_pool = new_glyph_pool ();
+  term->current_pool = new_glyph_pool ();
+  term->desired_pool = new_glyph_pool ();
+  adjust_glyph_pools (term, 80, 25);
 
-  return initial_terminal;
+#ifdef HAVE_MPS
+  initial_terminal_lisp = make_lisp_ptr (term, Lisp_Vectorlike);
+#else
+  initial_terminal = term;
+#endif
+
+  return term;
 }
 
 /* Deletes the bootstrap terminal device.
