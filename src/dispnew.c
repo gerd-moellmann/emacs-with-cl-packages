@@ -1375,6 +1375,10 @@ realloc_glyph_pool (struct glyph_pool *pool, struct dim matrix_dim)
 void
 adjust_glyph_pools (struct terminal *term, int width, int height)
 {
+  if (term->current_pool == NULL)
+    term->current_pool = new_glyph_pool ();
+  if (term->desired_pool == NULL)
+    term->desired_pool = new_glyph_pool ();
   struct dim dim = { .width = width, .height = height };
   realloc_glyph_pool (term->desired_pool, dim);
   realloc_glyph_pool (term->current_pool, dim);
@@ -2042,6 +2046,9 @@ adjust_frame_glyphs_for_frame_redisplay (struct frame *f)
       f->desired_matrix = new_glyph_matrix (terminal->desired_pool);
       f->current_matrix = new_glyph_matrix (terminal->current_pool);
     }
+
+  eassert (f->desired_matrix->pool == terminal->desired_pool);
+  eassert (f->current_matrix->pool == terminal->current_pool);
 
   /* Compute window glyph matrices.  (This takes the mini-buffer
      window into account).  The result is the size of the frame glyph

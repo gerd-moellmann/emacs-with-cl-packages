@@ -4599,9 +4599,6 @@ use the Bourne shell command 'TERM=...; export TERM' (C-shell:\n\
 
 # endif /* not DOS_NT */
 
-  eassert (terminal->desired_pool == NULL);
-  terminal->desired_pool = new_glyph_pool ();
-  terminal->current_pool = new_glyph_pool ();
   adjust_glyph_pools (terminal, FrameCols (tty), FrameRows (tty));
 
   /* Init system terminal modes (RAW or CBREAK, etc.).  */

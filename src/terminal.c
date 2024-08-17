@@ -654,12 +654,10 @@ init_initial_terminal (void)
   term->defined_color_hook = &tty_defined_color; /* xfaces.c */
   /* Other hooks are NULL by default.  */
 
-  /* FIXME/tty: Allocate glyph pool although we don't really display
+  /* FIXME/tty: Allocating glyphs although we don't really display
      anything.  This is due to the initial terminal not really being
      handled cleanly througout the code.  It acts like a tty terminal,
      only that it isn't.  */
-  term->current_pool = new_glyph_pool ();
-  term->desired_pool = new_glyph_pool ();
   adjust_glyph_pools (term, 80, 25);
 
 #ifdef HAVE_MPS
