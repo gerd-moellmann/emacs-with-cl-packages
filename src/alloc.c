@@ -467,7 +467,7 @@ no_sanitize_memcpy (void *dest, void const *src, size_t size)
 
 static struct Lisp_Vector *allocate_clear_vector (ptrdiff_t, bool);
 #ifndef HAVE_MPS
-static void unchain_finalizer (struct Lisp_Finalizer *);
+//static void unchain_finalizer (struct Lisp_Finalizer *);
 static void mark_terminals (void);
 static void gc_sweep (void);
 static void mark_buffer (struct buffer *);
