@@ -96,6 +96,8 @@ b die
 #settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/MacOS/ --eln-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/Frameworks/
 #command alias go process launch --working-dir .
 
+#command alias at process attach --waitfor --name emacs
+
 target create emacs
-settings set -- target.run-args
-command alias go process launch --working-dir .
+settings set -- target.run-args -batch --no-site-file --no-site-lisp --eval '(setq load-prefer-newer t)' -l ox-texinfo --eval '(setq gc-cons-threshold 50000000)' --eval '(setq org-confirm-babel-evaluate nil)' --eval '(setq org-id-track-globally nil)' -f org-texinfo-export-to-texinfo-batch org.org org.texi
+command alias go process launch --working-dir ../doc/misc

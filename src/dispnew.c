@@ -1382,12 +1382,11 @@ realloc_glyph_pool (struct glyph_pool *pool, struct dim matrix_dim)
 }
 
 static void
-tty_adjust_glyph_pools (struct tty_display_info *dpyinfo,
-			int width, int height)
+adjust_glyph_pools (struct terminal *term, int width, int height)
 {
   struct dim dim = { .width = width, .height = height };
-  realloc_glyph_pool (dpyinfo->desired_pool, dim);
-  realloc_glyph_pool (dpyinfo->current_pool, dim);
+  realloc_glyph_pool (term->desired_pool, dim);
+  realloc_glyph_pool (term->current_pool, dim);
 }
 
 
@@ -1613,7 +1612,7 @@ allocate_matrices_for_frame_redisplay (Lisp_Object window, int x, int y,
 				       bool dim_only_p, int *window_change_flags)
 {
   struct frame *f = XFRAME (WINDOW_FRAME (XWINDOW (window)));
-  struct tty_display_info *dpyinfo = FRAME_TTY (f);
+  struct terminal *terminal = f->terminal;
   int x0 = x, y0 = y;
   int wmax = 0, hmax = 0;
   struct dim total;
@@ -1647,8 +1646,8 @@ allocate_matrices_for_frame_redisplay (Lisp_Object window, int x, int y,
 	  /* If not already done, allocate sub-matrix structures.  */
 	  if (w->desired_matrix == NULL)
 	    {
-	      w->desired_matrix = new_glyph_matrix (dpyinfo->desired_pool);
-	      w->current_matrix = new_glyph_matrix (dpyinfo->current_pool);
+	      w->desired_matrix = new_glyph_matrix (terminal->desired_pool);
+	      w->current_matrix = new_glyph_matrix (terminal->current_pool);
 	      *window_change_flags |= NEW_LEAF_MATRIX;
 	    }
 
@@ -2036,7 +2035,7 @@ restore_current_matrix (struct frame *f, struct glyph_matrix *saved)
 static void
 adjust_frame_glyphs_for_frame_redisplay (struct frame *f)
 {
-  struct tty_display_info *dpyinfo = FRAME_TTY (f);
+  struct terminal *terminal = f->terminal;
   struct dim matrix_dim;
   int window_change_flags;
   int top_window_y;
@@ -2049,8 +2048,8 @@ adjust_frame_glyphs_for_frame_redisplay (struct frame *f)
   /* Allocate frames matrix structures if needed.  */
   if (f->desired_matrix == NULL)
     {
-      f->desired_matrix = new_glyph_matrix (dpyinfo->desired_pool);
-      f->current_matrix = new_glyph_matrix (dpyinfo->current_pool);
+      f->desired_matrix = new_glyph_matrix (terminal->desired_pool);
+      f->current_matrix = new_glyph_matrix (terminal->current_pool);
     }
 
   /* Compute window glyph matrices.  (This takes the mini-buffer
@@ -2078,7 +2077,6 @@ adjust_frame_glyphs_for_frame_redisplay (struct frame *f)
 					     0, top_window_y, 0,
 					     &window_change_flags);
 
-#if 0
       /* Size of frame matrices must equal size of frame.  Note
 	 that we are called for X frames with window widths NOT equal
 	 to the frame width (from CHANGE_FRAME_SIZE_1).
@@ -2098,8 +2096,6 @@ adjust_frame_glyphs_for_frame_redisplay (struct frame *f)
 	    SET_FRAME_GARBAGED (f);
 	  return;
 	}
-
-#endif
 
       eassert (matrix_dim.width == FRAME_TOTAL_COLS (f)
 	       && matrix_dim.height == FRAME_TOTAL_LINES (f));
@@ -5949,7 +5945,7 @@ handle_window_change_signal (int sig)
 
       if (width > 5 && height > 2)
 	{
-	  tty_adjust_glyph_pools (tty, width, height);
+	  adjust_glyph_pools (tty->terminal, width, height);
 
 	  Lisp_Object tail, frame;
 	  FOR_EACH_FRAME (tail, frame)

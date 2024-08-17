@@ -4136,8 +4136,8 @@ init_tty (const char *name, const char *terminal_type, bool must_succeed)
 #else
   tty = xzalloc (sizeof *tty);
 #endif
-  tty->desired_pool = new_glyph_pool ();
-  tty->current_pool = new_glyph_pool ();
+  terminal->desired_pool = new_glyph_pool ();
+  terminal->current_pool = new_glyph_pool ();
   tty->top_frame = Qnil;
   tty->next = tty_list;
   tty_list = tty;

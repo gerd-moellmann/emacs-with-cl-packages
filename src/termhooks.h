@@ -523,6 +523,12 @@ struct terminal
   /* The terminal's keyboard object. */
   struct kboard *kboard;
 
+  /* All glyph matrices of terminals using frame-based redisplay use
+     glyphs from these pools.  FIXME/tty: Find where this struct is
+     freed, if it is, and free pools.  */
+  struct glyph_pool *current_pool;
+  struct glyph_pool *desired_pool;
+
   /* Device-type dependent data shared amongst all frames on this terminal.  */
   union display_info
   {

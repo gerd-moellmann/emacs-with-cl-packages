@@ -3921,9 +3921,10 @@ extern Lisp_Object gui_default_parameter (struct frame *, Lisp_Object,
 
 extern bool gui_mouse_grabbed (Display_Info *);
 extern void gui_redo_mouse_highlight (Display_Info *);
-struct glyph_pool * ATTRIBUTE_MALLOC new_glyph_pool (void);
 
 #endif /* HAVE_WINDOW_SYSTEM */
+
+struct glyph_pool * ATTRIBUTE_MALLOC new_glyph_pool (void);
 
 INLINE_HEADER_END
 
