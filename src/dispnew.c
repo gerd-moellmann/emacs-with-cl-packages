@@ -115,11 +115,10 @@ struct glyph space_glyph;
 
 #if defined GLYPH_DEBUG && defined ENABLE_CHECKING
 
-/* Counts of allocated structures.  These counts serve to diagnose
-   memory leaks and double frees.  */
+/* Counts of allocated structures.  Used to to diagnose memory leaks and
+   double frees.  */
 
 static int glyph_matrix_count;
-static int glyph_pool_count;
 
 #endif /* GLYPH_DEBUG and ENABLE_CHECKING */
 
@@ -1331,20 +1330,12 @@ row_equal_p (struct glyph_row *a, struct glyph_row *b, bool mouse_face_p)
  ***********************************************************************/
 
 /* Allocate a glyph_pool structure.  The structure returned is initialized
-   with zeros.  If GLYPH_DEBUG and ENABLE_CHECKING are in effect, the global
-   variable glyph_pool_count is incremented for each pool allocated.  */
+   with zeros.  */
 
 struct glyph_pool * ATTRIBUTE_MALLOC
 new_glyph_pool (void)
 {
-  struct glyph_pool *result = xzalloc (sizeof *result);
-
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-  /* For memory leak and double deletion checking.  */
-  ++glyph_pool_count;
-#endif
-
-  return result;
+  return xzalloc (sizeof (struct glyph_pool));
 }
 
 
