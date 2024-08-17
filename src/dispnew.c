@@ -6488,10 +6488,30 @@ pass nil for VARIABLE.  */)
 }
 
 
-
+
 /***********************************************************************
 			    Initialization
-***********************************************************************/
+ ***********************************************************************/
+
+/* Set frame F's terminal to TERM.  We cannot change the terminal of a
+   frame without changing the glyph matrices if the frame uses glyph
+   pools.  This is true for both frame matrices and window matrices. */
+
+static void
+set_frame_terminal (struct frame *f, struct terminal *term)
+{
+  if (f->terminal == term)
+    return;
+
+  if (f->current_matrix && f->current_matrix->pool)
+    {
+      eassert (term->current_pool);
+      free_glyphs (f);
+    }
+
+  f->terminal = term;
+  term->reference_count += 1;
+}
 
 static void
 init_faces_initial (void)
@@ -6670,9 +6690,9 @@ init_display_interactive (void)
     if (f->output_method != output_initial)
       emacs_abort ();
     f->output_method = t->type;
-    f->terminal = t;
 
-    t->reference_count++;
+    set_frame_terminal (f, t);
+
 #ifdef MSDOS
     f->output_data.tty = &the_only_tty_output;
     f->output_data.tty->display_info = &the_only_display_info;
