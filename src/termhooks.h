@@ -524,8 +524,10 @@ struct terminal
   struct kboard *kboard;
 
   /* All glyph matrices of terminals using frame-based redisplay use
-     glyphs from these pools.  FIXME/tty: Find where this struct is
-     freed, if it is, and free pools.  */
+     glyphs from these pools.  As a special case, initial_terminal also
+     has glyphs.  This should probably be cleaned up, but something like
+     that has always been the case, only with the initial frame, from
+     the very beginning of Emacs.  */
   struct glyph_pool *current_pool;
   struct glyph_pool *desired_pool;
 
