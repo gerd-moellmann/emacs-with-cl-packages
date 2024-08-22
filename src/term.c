@@ -4831,6 +4831,16 @@ DEFUN ("tty-frame-list-z-order", Ftty_frame_list_z_order,
   return Qnil;
 }
 
+DEFUN ("tty-frame-restack", Ftty_frame_restack,
+       Stty_frame_restack, 2, 3, 0,
+       doc: /* Restack FRAME1 below FRAME2 on terminals.
+.	       See also `frame-restack'.  */)
+  (Lisp_Object frame1, Lisp_Object frame2, Lisp_Object above)
+{
+  /* FIXME/tty: implementation.  */
+  return Qnil;
+}
+
 void
 syms_of_term (void)
 {
@@ -4890,6 +4900,7 @@ trigger redisplay.  */);
   defsubr (&Stty_frame_geometry);
   defsubr (&Stty_frame_edges);
   defsubr (&Stty_frame_list_z_order);
+  defsubr (&Stty_frame_restack);
 
 #if !defined DOS_NT && !defined HAVE_ANDROID
   default_orig_pair = NULL;

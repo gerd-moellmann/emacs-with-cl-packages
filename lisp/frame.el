@@ -2043,6 +2043,7 @@ Return nil if DISPLAY contains no Emacs frame."
 (declare-function haiku-frame-restack "haikufns.c" (frame1 frame2 &optional above))
 (declare-function android-frame-restack "androidfns.c" (frame1 frame2
                                                                &optional above))
+(declare-function tty-frame-restack "term.c" (frame1 frame2 &optional above))
 
 (defun frame-restack (frame1 frame2 &optional above)
   "Restack FRAME1 below FRAME2.
@@ -2078,7 +2079,9 @@ Some window managers may refuse to restack windows."
          ((eq frame-type 'pgtk)
           (pgtk-frame-restack frame1 frame2 above))
          ((eq frame-type 'android)
-          (android-frame-restack frame1 frame2 above))))
+          (android-frame-restack frame1 frame2 above))
+         (t
+          (tty-frame-restack frame1 frame2 above))))
     (error "Cannot restack frames")))
 
 (defun frame-size-changed-p (&optional frame)
