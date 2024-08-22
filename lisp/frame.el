@@ -2004,6 +2004,7 @@ workarea attribute."
 ;; (declare-function pgtk-frame-list-z-order "pgtkfns.c" (&optional display))
 (declare-function haiku-frame-list-z-order "haikufns.c" (&optional display))
 (declare-function android-frame-list-z-order "androidfns.c" (&optional display))
+(declare-function tty-frame-list-z-order "term.c" (&optional display))
 
 (defun frame-list-z-order (&optional display)
   "Return list of Emacs's frames, in Z (stacking) order.
@@ -2031,7 +2032,9 @@ Return nil if DISPLAY contains no Emacs frame."
      ((eq frame-type 'haiku)
       (haiku-frame-list-z-order display))
      ((eq frame-type 'android)
-      (android-frame-list-z-order display)))))
+      (android-frame-list-z-order display))
+     (t
+      (tty-frame-list-z-order display)))))
 
 (declare-function x-frame-restack "xfns.c" (frame1 frame2 &optional above))
 (declare-function w32-frame-restack "w32fns.c" (frame1 frame2 &optional above))

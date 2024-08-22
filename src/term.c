@@ -4821,6 +4821,16 @@ DEFUN ("tty-frame-edges", Ftty_frame_edges, Stty_frame_edges, 0, 2, 0,
   return tty_frame_geometry (frame, type);
 }
 
+DEFUN ("tty-frame-list-z-order", Ftty_frame_list_z_order,
+       Stty_frame_list_z_order, 0, 1, 0,
+       doc: /* Return list of Emacs's frames, in Z (stacking) order.
+	       See also `frame-list-z-order'.  */)
+  (Lisp_Object terminal)
+{
+  /* FIXME/tty: implementation.  */
+  return Qnil;
+}
+
 void
 syms_of_term (void)
 {
@@ -4879,6 +4889,7 @@ trigger redisplay.  */);
 
   defsubr (&Stty_frame_geometry);
   defsubr (&Stty_frame_edges);
+  defsubr (&Stty_frame_list_z_order);
 
 #if !defined DOS_NT && !defined HAVE_ANDROID
   default_orig_pair = NULL;
