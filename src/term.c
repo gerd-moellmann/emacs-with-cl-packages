@@ -4841,6 +4841,30 @@ DEFUN ("tty-frame-restack", Ftty_frame_restack,
   return Qnil;
 }
 
+DEFUN ("tty-display-pixel-width", Ftty_display_pixel_width,
+       Stty_display_pixel_width, 0, 1, 0,
+       doc: /* Return the width of DISPLAY's screen in pixels.
+.	       See also `display-pixel-width'.  */)
+  (Lisp_Object display)
+{
+  if (!FRAMEP (display))
+    display = Fselected_frame ();
+  struct tty_display_info *tty = FRAME_TTY (XFRAME (display));
+  return tty ? make_fixnum (FrameCols (tty)) : Qnil;
+}
+
+DEFUN ("tty-display-pixel_height", Ftty_display_pixel_height,
+       Stty_display_pixel_height, 0, 1, 0,
+       doc: /* Return the height of DISPLAY's screen in pixels.
+.	       See also `display-pixel-height'.  */)
+  (Lisp_Object display)
+{
+  if (!FRAMEP (display))
+    display = Fselected_frame ();
+  struct tty_display_info *tty = FRAME_TTY (XFRAME (display));
+  return tty ? make_fixnum (FrameRows (tty)) : Qnil;
+}
+
 void
 syms_of_term (void)
 {
@@ -4901,6 +4925,8 @@ trigger redisplay.  */);
   defsubr (&Stty_frame_edges);
   defsubr (&Stty_frame_list_z_order);
   defsubr (&Stty_frame_restack);
+  defsubr (&Stty_display_pixel_width);
+  defsubr (&Stty_display_pixel_height);
 
 #if !defined DOS_NT && !defined HAVE_ANDROID
   default_orig_pair = NULL;

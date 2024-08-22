@@ -2234,6 +2234,7 @@ If DISPLAY is omitted or nil, it defaults to the selected frame's display."
       1))))
 
 (declare-function x-display-pixel-height "xfns.c" (&optional terminal))
+(declare-function tty-display-pixel-height "term.c" (&optional terminal))
 
 (defun display-pixel-height (&optional display)
   "Return the height of DISPLAY's screen in pixels.
@@ -2251,9 +2252,10 @@ with DISPLAY.  To get information for each physical monitor, use
      ((memq frame-type '(x w32 ns haiku pgtk android))
       (x-display-pixel-height display))
      (t
-      (frame-height (if (framep display) display (selected-frame)))))))
+      (tty-display-pixel-height display)))))
 
 (declare-function x-display-pixel-width "xfns.c" (&optional terminal))
+(declare-function tty-display-pixel-width "term.c" (&optional terminal))
 
 (defun display-pixel-width (&optional display)
   "Return the width of DISPLAY's screen in pixels.
@@ -2271,7 +2273,7 @@ with DISPLAY.  To get information for each physical monitor, use
      ((memq frame-type '(x w32 ns haiku pgtk android))
       (x-display-pixel-width display))
      (t
-      (frame-width (if (framep display) display (selected-frame)))))))
+      (tty-display-pixel-width display)))))
 
 (defcustom display-mm-dimensions-alist nil
   "Alist for specifying screen dimensions in millimeters.
