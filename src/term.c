@@ -4811,6 +4811,16 @@ DEFUN ("tty-frame-geometry", Ftty_frame_geometry, Stty_frame_geometry, 0, 1, 0,
   return tty_frame_geometry (frame, Qnil);
 }
 
+DEFUN ("tty-frame-edges", Ftty_frame_edges, Stty_frame_edges, 0, 2, 0,
+       doc: /* Return coordinates of FRAME's edges.
+	       See also `frame-edges'.  */)
+  (Lisp_Object frame, Lisp_Object type)
+{
+  if (!EQ (type, Qouter_edges) && !EQ (type, Qinner_edges))
+    type = Qnative_edges;
+  return tty_frame_geometry (frame, type);
+}
+
 void
 syms_of_term (void)
 {
@@ -4868,6 +4878,7 @@ trigger redisplay.  */);
 #endif /* HAVE_GPM */
 
   defsubr (&Stty_frame_geometry);
+  defsubr (&Stty_frame_edges);
 
 #if !defined DOS_NT && !defined HAVE_ANDROID
   default_orig_pair = NULL;

@@ -1820,6 +1820,7 @@ of frames like calls to map a frame or change its visibility."
 (declare-function pgtk-frame-edges "pgtkfns.c" (&optional frame type))
 (declare-function haiku-frame-edges "haikufns.c" (&optional frame type))
 (declare-function android-frame-edges "androidfns.c" (&optional frame type))
+(declare-function tty-frame-edges "term.c" (&optional frame type))
 
 (defun frame-edges (&optional frame type)
   "Return coordinates of FRAME's edges.
@@ -1850,7 +1851,7 @@ FRAME."
      ((eq frame-type 'android)
       (android-frame-edges frame type))
      (t
-      (list 0 0 (frame-width frame) (frame-height frame))))))
+      (tty-frame-edges frame type)))))
 
 (declare-function w32-mouse-absolute-pixel-position "w32fns.c")
 (declare-function x-mouse-absolute-pixel-position "xfns.c")
