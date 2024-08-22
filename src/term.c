@@ -4714,6 +4714,139 @@ delete_tty (struct terminal *terminal)
 
 #endif
 
+/* Return geometric attributes of FRAME.  According to the value of
+   ATTRIBUTES return the outer edges of FRAME (Qouter_edges), the
+   native edges of FRAME (Qnative_edges), or the inner edges of frame
+   (Qinner_edges).  Any other value means to return the geometry as
+   returned by Fx_frame_geometry.  */
+
+static Lisp_Object
+tty_frame_geometry (Lisp_Object frame, Lisp_Object attribute)
+{
+  struct frame *f = decode_live_frame (frame);
+  if (FRAME_INITIAL_P (f) || !FRAME_TTY (f))
+    return Qnil;
+
+  int native_width = f->pixel_width;
+  int native_height = f->pixel_height;
+
+  eassert (FRAME_PARENT_FRAME (f) || (f->left_pos == 0 && f->top_pos == 0));
+  int outer_left = f->left_pos;
+  int outer_top = f->top_pos;
+  int outer_right = outer_left + native_width;
+  int outer_bottom = outer_top + native_height;
+
+  int native_left = outer_left;
+  int native_top = outer_top;
+  int native_right = outer_right;
+  int native_bottom = outer_bottom;
+
+  int internal_border_width = FRAME_INTERNAL_BORDER_WIDTH (f);
+  int inner_left = native_left + internal_border_width;
+  int inner_top = native_top + internal_border_width;
+  int inner_right = native_right - internal_border_width;
+  int inner_bottom = native_bottom - internal_border_width;
+
+  int menu_bar_height = FRAME_MENU_BAR_HEIGHT (f);
+  inner_top += menu_bar_height;
+  int menu_bar_width = menu_bar_height ? native_width : 0;
+
+  int tab_bar_height = FRAME_TAB_BAR_HEIGHT (f);
+  int tab_bar_width = (tab_bar_height
+		       ? native_width - 2 * internal_border_width
+		       : 0);
+  inner_top += tab_bar_height;
+
+  int tool_bar_height = FRAME_TOOL_BAR_HEIGHT (f);
+  int tool_bar_width = (tool_bar_height
+			? native_width - 2 * internal_border_width
+			: 0);
+
+  /* Subtract or add to the inner dimensions based on the tool bar
+     position.  */
+  if (EQ (FRAME_TOOL_BAR_POSITION (f), Qtop))
+    inner_top += tool_bar_height;
+  else
+    inner_bottom -= tool_bar_height;
+
+  /* Construct list.  */
+  if (EQ (attribute, Qouter_edges))
+    return list4i (outer_left, outer_top, outer_right, outer_bottom);
+  else if (EQ (attribute, Qnative_edges))
+    return list4i (native_left, native_top, native_right, native_bottom);
+  else if (EQ (attribute, Qinner_edges))
+    return list4i (inner_left, inner_top, inner_right, inner_bottom);
+  else
+    return list (Fcons (Qouter_position, Fcons (make_fixnum (outer_left),
+						make_fixnum (outer_top))),
+		 Fcons (Qouter_size,
+			Fcons (make_fixnum (outer_right - outer_left),
+			       make_fixnum (outer_bottom - outer_top))),
+		 Fcons (Qouter_border_width, make_fixnum (0));
+		 Fcons (Qexternal_border_size,
+			Fcons (make_fixnum (0), make_fixnum (0))),
+		 Fcons (Qtitle_bar_size,
+			Fcons (make_fixnum (0), make_fixnum (0))),
+		 Fcons (Qmenu_bar_external, Qnil),
+		 Fcons (Qmenu_bar_size,
+			Fcons (make_fixnum (menu_bar_width),
+			       make_fixnum (menu_bar_height))),
+		 Fcons (Qtab_bar_size,
+			Fcons (make_fixnum (tab_bar_width),
+			       make_fixnum (tab_bar_height))),
+		 Fcons (Qtool_bar_external, Qnil),
+		 Fcons (Qtool_bar_position, FRAME_TOOL_BAR_POSITION (f)),
+		 Fcons (Qtool_bar_size,
+			Fcons (make_fixnum (tool_bar_width),
+			       make_fixnum (tool_bar_height))),
+		 Fcons (Qinternal_border_width,
+			make_fixnum (internal_border_width)));
+}
+
+DEFUN ("tty-frame-geometry", Ftty_frame_geometry, Stty_frame_geometry, 0, 1, 0,
+       doc: /* Return geometric attributes of terminal frame FRAME.
+FRAME must be a live frame and defaults to the selected one.  The return
+value is an association list of the attributes listed below.  All height
+and width values are in pixels.
+
+`outer-position' is a cons of the outer left and top edges of FRAME
+  relative to the origin - the position (0, 0) - of FRAME's display.
+
+`outer-size' is a cons of the outer width and height of FRAME.  The
+  outer size includes the title bar and the external borders as well as
+  any menu and/or tool bar of frame.
+
+`external-border-size' is a cons of the horizontal and vertical width of
+  FRAME's external borders as supplied by the window manager.
+
+`title-bar-size' is a cons of the width and height of the title bar of
+  FRAME as supplied by the window manager.  If both of them are zero,
+  FRAME has no title bar.  If only the width is zero, Emacs was not
+  able to retrieve the width information.
+
+`menu-bar-external', if non-nil, means the menu bar is external (never
+  included in the inner edges of FRAME).
+
+`menu-bar-size' is a cons of the width and height of the menu bar of
+  FRAME.
+
+`tool-bar-external', if non-nil, means the tool bar is external (never
+  included in the inner edges of FRAME).
+
+`tool-bar-position' tells on which side the tool bar on FRAME is and can
+  be one of `left', `top', `right' or `bottom'.  If this is nil, FRAME
+  has no tool bar.
+
+`tool-bar-size' is a cons of the width and height of the tool bar of
+  FRAME.
+
+`internal-border-width' is the width of the internal border of
+  FRAME.  */)
+  (Lisp_Object frame)
+{
+  return tty_frame_geometry (frame, Qnil);
+}
+
 void
 syms_of_term (void)
 {
@@ -4769,6 +4902,8 @@ trigger redisplay.  */);
   defsubr (&Sgpm_mouse_start);
   defsubr (&Sgpm_mouse_stop);
 #endif /* HAVE_GPM */
+
+  defsubr (&Stty_frame_geometry);
 
 #if !defined DOS_NT && !defined HAVE_ANDROID
   default_orig_pair = NULL;
