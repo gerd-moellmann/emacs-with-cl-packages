@@ -1654,6 +1654,7 @@ live frame and defaults to the selected one."
 (declare-function pgtk-frame-geometry "pgtkfns.c" (&optional frame))
 (declare-function haiku-frame-geometry "haikufns.c" (&optional frame))
 (declare-function android-frame-geometry "androidfns.c" (&optional frame))
+(declare-function tty-frame-geometry "term.c" (&optional frame))
 
 (defun frame-geometry (&optional frame)
   "Return geometric attributes of FRAME.
@@ -1710,24 +1711,7 @@ and width values are in pixels.
      ((eq frame-type 'android)
       (android-frame-geometry frame))
      (t
-      (list
-       '(outer-position 0 . 0)
-       (cons 'outer-size (cons (frame-width frame) (frame-height frame)))
-       '(external-border-size 0 . 0)
-       '(outer-border-width . 0)
-       '(title-bar-size 0 . 0)
-       '(menu-bar-external . nil)
-       (let ((menu-bar-lines (frame-parameter frame 'menu-bar-lines)))
-	 (cons 'menu-bar-size
-	       (if menu-bar-lines
-		   (cons (frame-width frame) 1)
-		 1 0)))
-       '(tool-bar-external . nil)
-       '(tool-bar-position . nil)
-       '(tool-bar-size 0 . 0)
-       '(tab-bar-size 0 . 0)
-       (cons 'internal-border-width
-	     (frame-parameter frame 'internal-border-width)))))))
+      (tty-frame-geometry frame)))))
 
 (defun frame--size-history (&optional frame)
   "Print history of resize operations for FRAME.
