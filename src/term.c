@@ -4782,7 +4782,7 @@ tty_frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 		 Fcons (Qouter_size,
 			Fcons (make_fixnum (outer_right - outer_left),
 			       make_fixnum (outer_bottom - outer_top))),
-		 Fcons (Qouter_border_width, make_fixnum (0));
+		 Fcons (Qouter_border_width, make_fixnum (0)),
 		 Fcons (Qexternal_border_size,
 			Fcons (make_fixnum (0), make_fixnum (0))),
 		 Fcons (Qtitle_bar_size,
@@ -4805,43 +4805,7 @@ tty_frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 
 DEFUN ("tty-frame-geometry", Ftty_frame_geometry, Stty_frame_geometry, 0, 1, 0,
        doc: /* Return geometric attributes of terminal frame FRAME.
-FRAME must be a live frame and defaults to the selected one.  The return
-value is an association list of the attributes listed below.  All height
-and width values are in pixels.
-
-`outer-position' is a cons of the outer left and top edges of FRAME
-  relative to the origin - the position (0, 0) - of FRAME's display.
-
-`outer-size' is a cons of the outer width and height of FRAME.  The
-  outer size includes the title bar and the external borders as well as
-  any menu and/or tool bar of frame.
-
-`external-border-size' is a cons of the horizontal and vertical width of
-  FRAME's external borders as supplied by the window manager.
-
-`title-bar-size' is a cons of the width and height of the title bar of
-  FRAME as supplied by the window manager.  If both of them are zero,
-  FRAME has no title bar.  If only the width is zero, Emacs was not
-  able to retrieve the width information.
-
-`menu-bar-external', if non-nil, means the menu bar is external (never
-  included in the inner edges of FRAME).
-
-`menu-bar-size' is a cons of the width and height of the menu bar of
-  FRAME.
-
-`tool-bar-external', if non-nil, means the tool bar is external (never
-  included in the inner edges of FRAME).
-
-`tool-bar-position' tells on which side the tool bar on FRAME is and can
-  be one of `left', `top', `right' or `bottom'.  If this is nil, FRAME
-  has no tool bar.
-
-`tool-bar-size' is a cons of the width and height of the tool bar of
-  FRAME.
-
-`internal-border-width' is the width of the internal border of
-  FRAME.  */)
+	       See also `frame-geometry'.  */)
   (Lisp_Object frame)
 {
   return tty_frame_geometry (frame, Qnil);
