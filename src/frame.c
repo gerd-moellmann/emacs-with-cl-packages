@@ -1391,7 +1391,7 @@ affects all frames on the same terminal device.  */)
       error ("Multiple terminals are not supported on this platform");
     if (!t)
       t = the_only_display_info.terminal;
-#endif
+# endif
   }
 
   if (!t)
@@ -1420,6 +1420,8 @@ affects all frames on the same terminal device.  */)
 
   f = make_terminal_frame (t);
 
+  /* FIXME/tty: set the frame size to the terminal size only if
+     for root frames. */
   {
     int width, height;
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
