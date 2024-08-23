@@ -1336,6 +1336,23 @@ get_future_frame_param (Lisp_Object parameter,
 
 #endif
 
+static int
+child_frame_param (Lisp_Object key, Lisp_Object params, int dflt)
+{
+  Lisp_Object sz = Fassq (key, params);
+  if (NILP (Fnatnump (sz)) || XFIXNUM (sz) == 0)
+    return dflt;
+  return XFIXNUM (sz);
+}
+
+static void
+child_frame_size (struct frame *f, Lisp_Object params,
+		  int *width, int *height)
+{
+  *width = child_frame_param (Qwidth, params, FRAME_TOTAL_COLS (f));
+  *height = child_frame_param (Qheight, params, FRAME_TOTAL_LINES (f));
+}
+
 DEFUN ("make-terminal-frame", Fmake_terminal_frame, Smake_terminal_frame,
        1, 1, 0,
        doc: /* Create an additional terminal frame, possibly on another terminal.
@@ -1359,9 +1376,7 @@ affects all frames on the same terminal device.  */)
   error ("Text terminals are not supported on this platform");
   return Qnil;
 #else
-  struct frame *f;
   struct terminal *t = NULL;
-  Lisp_Object frame;
   struct frame *sf = SELECTED_FRAME ();
 
 #ifdef MSDOS
@@ -1418,20 +1433,36 @@ affects all frames on the same terminal device.  */)
       SAFE_FREE ();
     }
 
-  f = make_terminal_frame (t);
+  struct frame *f = make_terminal_frame (t);
 
-  /* FIXME/tty: set the frame size to the terminal size only if
-     for root frames. */
-  {
-    int width, height;
+  /* See if a parent-frame is given. We need to know this for
+     determining the width and height of the frame. */
+  Lisp_Object parent_frame = Fassq (Qparent_frame, parms);
+  if (!FRAMEP (parent_frame))
+    parent_frame = Qnil;
+  f->parent_frame = parent_frame;
+
+  /* Determine width and height of the frame. For root frames use the
+     width/height of the terminal. For child frames, take it from frame
+     parameters. Note that a default (80x25) has been set in
+     make_frame. We handle root frames in this way because otherwise we
+     would end up needing glyph matrices for the terminal, which is both
+     more work and has its downsides (think of clipping frames to the
+     terminal size).  */
+  int width, height;
+  if (FRAME_PARENT_FRAME (f))
+    child_frame_size (f, parms, &width, &height);
+  else
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
-    /* With INHIBIT 5 pass correct text height to adjust_frame_size.  */
-    adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f),
-		       5, 0, Qterminal_frame);
-  }
-
+  /* FIXME/tty: The 5 and so on is way too obscure. At the very least,
+     this should be an enumeration.  */
+  adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f), 5, 0,
+		     Qterminal_frame);
+  /* FIXME/tty: isn't this done already in adjust_frame_size? */
   adjust_frame_glyphs (f);
+
   calculate_costs (f);
+  Lisp_Object frame;
   XSETFRAME (frame, f);
 
   store_in_alist (&parms, Qtty_type, build_string (t->display_info.tty->type));
