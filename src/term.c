@@ -4841,28 +4841,54 @@ DEFUN ("tty-frame-restack", Ftty_frame_restack,
   return Qnil;
 }
 
+static void
+tty_display_dimension (Lisp_Object frame, int *width, int *height)
+{
+  if (!FRAMEP (frame))
+    frame = Fselected_frame ();
+  struct frame *f = XFRAME (frame);
+  switch (f->output_method)
+    {
+    case output_initial:
+      *width = 80;
+      *height = 25;
+      break;
+    case output_termcap:
+      *width = FrameCols (FRAME_TTY (f));
+      *height = FrameRows (FRAME_TTY (f));
+      break;
+    case output_x_window:
+    case output_msdos_raw:
+    case output_w32:
+    case output_ns:
+    case output_pgtk:
+    case output_haiku:
+    case output_android:
+      emacs_abort ();
+      break;
+    }
+}
+
 DEFUN ("tty-display-pixel-width", Ftty_display_pixel_width,
        Stty_display_pixel_width, 0, 1, 0,
        doc: /* Return the width of DISPLAY's screen in pixels.
 .	       See also `display-pixel-width'.  */)
   (Lisp_Object display)
 {
-  if (!FRAMEP (display))
-    display = Fselected_frame ();
-  struct tty_display_info *tty = FRAME_TTY (XFRAME (display));
-  return tty ? make_fixnum (FrameCols (tty)) : Qnil;
+  int width, height;
+  tty_display_dimension (display, &width, &height);
+  return make_fixnum (width);
 }
 
 DEFUN ("tty-display-pixel-height", Ftty_display_pixel_height,
        Stty_display_pixel_height, 0, 1, 0,
        doc: /* Return the height of DISPLAY's screen in pixels.
-.	       See also `display-pixel-height'.  */)
+	       See also `display-pixel-height'.  */)
   (Lisp_Object display)
 {
-  if (!FRAMEP (display))
-    display = Fselected_frame ();
-  struct tty_display_info *tty = FRAME_TTY (XFRAME (display));
-  return tty ? make_fixnum (FrameRows (tty)) : Qnil;
+  int width, height;
+  tty_display_dimension (display, &width, &height);
+  return make_fixnum (height);
 }
 
 void
