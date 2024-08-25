@@ -1347,11 +1347,13 @@ child_frame_param (Lisp_Object key, Lisp_Object params, int dflt)
 }
 
 static void
-child_frame_size (struct frame *f, Lisp_Object params,
-		  int *width, int *height)
+child_frame_rect (struct frame *f, Lisp_Object params,
+		  int *x, int *y, int *w, int *h)
 {
-  *width = child_frame_param (Qwidth, params, FRAME_TOTAL_COLS (f));
-  *height = child_frame_param (Qheight, params, FRAME_TOTAL_LINES (f));
+  *x = child_frame_param (Qleft, params, 0);
+  *y = child_frame_param (Qtop, params, 0);
+  *w = child_frame_param (Qwidth, params, FRAME_TOTAL_COLS (f));
+  *h = child_frame_param (Qheight, params, FRAME_TOTAL_LINES (f));
 }
 
 DEFUN ("make-terminal-frame", Fmake_terminal_frame, Smake_terminal_frame,
@@ -1451,7 +1453,12 @@ affects all frames on the same terminal device.  */)
      terminal size).  */
   int width, height;
   if (FRAME_PARENT_FRAME (f))
-    child_frame_size (f, parms, &width, &height);
+    {
+      int x, y;
+      child_frame_rect (f, parms, &x, &y, &width, &height);
+      f->left_pos = x;
+      f->top_pos = y;
+    }
   else
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
   /* FIXME/tty: The 5 and so on is way too obscure. At the very least,
