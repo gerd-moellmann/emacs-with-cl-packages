@@ -1451,13 +1451,10 @@ affects all frames on the same terminal device.  */)
      would end up needing glyph matrices for the terminal, which is both
      more work and has its downsides (think of clipping frames to the
      terminal size).  */
-  int width, height;
+  int x = 0, y = 0, width, height;
   if (FRAME_PARENT_FRAME (f))
     {
-      int x, y;
       child_frame_rect (f, parms, &x, &y, &width, &height);
-      f->left_pos = x;
-      f->top_pos = y;
     }
   else
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
@@ -1471,6 +1468,13 @@ affects all frames on the same terminal device.  */)
   calculate_costs (f);
   Lisp_Object frame;
   XSETFRAME (frame, f);
+
+  f->left_pos = x;
+  f->top_pos = y;
+  store_in_alist (&parms, Qleft, make_fixnum (x));
+  store_in_alist (&parms, Qtop, make_fixnum (y));
+  store_in_alist (&parms, Qwidth, make_fixnum (width));
+  store_in_alist (&parms, Qheight, make_fixnum (height));
 
   store_in_alist (&parms, Qtty_type, build_string (t->display_info.tty->type));
   store_in_alist (&parms, Qtty,
