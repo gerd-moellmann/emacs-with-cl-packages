@@ -4853,7 +4853,7 @@ DEFUN ("tty-display-pixel-width", Ftty_display_pixel_width,
   return tty ? make_fixnum (FrameCols (tty)) : Qnil;
 }
 
-DEFUN ("tty-display-pixel_height", Ftty_display_pixel_height,
+DEFUN ("tty-display-pixel-height", Ftty_display_pixel_height,
        Stty_display_pixel_height, 0, 1, 0,
        doc: /* Return the height of DISPLAY's screen in pixels.
 .	       See also `display-pixel-height'.  */)
