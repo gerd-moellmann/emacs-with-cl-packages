@@ -1340,9 +1340,10 @@ static int
 child_frame_param (Lisp_Object key, Lisp_Object params, int dflt)
 {
   Lisp_Object sz = Fassq (key, params);
-  if (NILP (Fnatnump (sz)) || XFIXNUM (sz) == 0)
-    return dflt;
-  return XFIXNUM (sz);
+  if (CONSP (sz)
+      && (sz = XCDR (sz), FIXNUMP (sz) && XFIXNUM (sz) > 0))
+    return XFIXNUM (sz);
+  return dflt;
 }
 
 static void
@@ -1437,10 +1438,9 @@ affects all frames on the same terminal device.  */)
 
   /* See if a parent-frame is given. We need to know this for
      determining the width and height of the frame. */
-  Lisp_Object parent_frame = Fassq (Qparent_frame, parms);
-  if (!FRAMEP (parent_frame))
-    parent_frame = Qnil;
-  f->parent_frame = parent_frame;
+  Lisp_Object parent = Fassq (Qparent_frame, parms);
+  if (CONSP (parent) && FRAMEP (XCDR (parent)))
+    f->parent_frame = XCDR (parent);
 
   /* Determine width and height of the frame. For root frames use the
      width/height of the terminal. For child frames, take it from frame
