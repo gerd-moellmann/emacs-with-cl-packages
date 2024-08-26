@@ -1770,7 +1770,6 @@ parent window is the window-system's root window) or an embedded window
     return Qnil;
 }
 
-#ifdef HAVE_WINDOW_SYSTEM
 bool
 frame_ancestor_p (struct frame *af, struct frame *df)
 {
@@ -1786,7 +1785,6 @@ frame_ancestor_p (struct frame *af, struct frame *df)
 
   return false;
 }
-#endif
 
 DEFUN ("frame-ancestor-p", Fframe_ancestor_p, Sframe_ancestor_p,
        2, 2, 0,
@@ -1797,15 +1795,10 @@ ANCESTOR and DESCENDANT must be live frames and default to the selected
 frame.  */)
      (Lisp_Object ancestor, Lisp_Object descendant)
 {
-#ifdef HAVE_WINDOW_SYSTEM
   struct frame *af = decode_live_frame (ancestor);
   struct frame *df = decode_live_frame (descendant);
-
   return frame_ancestor_p (af, df) ? Qt : Qnil;
-#else
-  return Qnil;
-#endif
-  }
+}
 
 /* Return CANDIDATE if it can be used as 'other-than-FRAME' frame on the
    same tty (for tty frames) or among frames which uses FRAME's keyboard.
