@@ -16877,6 +16877,25 @@ do { if (! polling_stopped_here) stop_polling ();	\
 do { if (polling_stopped_here) start_polling ();	\
        polling_stopped_here = false; } while (false)
 
+static struct frame *
+root_frame (struct frame *f)
+{
+  while (FRAME_PARENT_FRAME (f))
+    f = FRAME_PARENT_FRAME (f);
+  return f;
+}
+
+static bool
+is_frame_obscured (struct frame *f)
+{
+  if (!FRAME_TERMCAP_P (f) && !FRAME_MSDOS_P (f))
+    return false;
+
+  struct frame *root1 = root_frame (f);
+  struct frame *root2 = root_frame (XFRAME (FRAME_TTY (f)->top_frame));
+  return root1 == root2;
+}
+
 /* Perhaps in the future avoid recentering windows if it
    is not necessary; currently that causes some problems.  */
 
@@ -16983,6 +17002,9 @@ redisplay_internal (void)
   if (face_change)
     windows_or_buffers_changed = 47;
 
+  /* FIXME/tty: can we do better for tty child frames? It could be
+     a bit faster when we switch between child frames of the same
+     root frame. OTOH, it's probably not a frequent use case. */
   if ((FRAME_TERMCAP_P (sf) || FRAME_MSDOS_P (sf))
       && FRAME_TTY (sf)->previous_frame != sf)
     {
@@ -17005,6 +17027,7 @@ redisplay_internal (void)
     {
       struct frame *f = XFRAME (frame);
 
+      /* FRAME_REDISPLAY_P true basically means the frame is visible. */
       if (FRAME_REDISPLAY_P (f))
 	{
 	  ++number_of_visible_frames;
@@ -17401,18 +17424,24 @@ redisplay_internal (void)
 	{
 	  struct frame *f = XFRAME (frame);
 
-	  /* We don't have to do anything for unselected terminal
-	     frames.  */
-	  if ((FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f))
-	      && !EQ (FRAME_TTY (f)->top_frame, frame))
+	  /* FIXME/tty: This is no longer generally true with tty child
+	     frames since child frames overlap their root frame. Instead
+
+	     We don't have to consider frames on terminals other than
+	     the one of the terminal's top frame
+
+	     We don't have to consider frames with a different root
+	     frame than the root frame of the top frame. This is because
+	     we make root frames occupy the whole terminal, so other
+	     root frames and their children are invisible. */
+	  if (is_frame_obscured (f))
 	    continue;
 
 	retry_frame:
 	  if (FRAME_WINDOW_P (f) || FRAME_TERMCAP_P (f) || f == sf)
 	    {
-	      bool gcscrollbars
-		/* Only GC scrollbars when we redisplay the whole frame.  */
-		= f->redisplay || !REDISPLAY_SOME_P ();
+	      /* Only GC scrollbars when we redisplay the whole frame.  */
+	      bool gcscrollbars = f->redisplay || !REDISPLAY_SOME_P ();
 	      bool f_redisplay_flag = f->redisplay;
 
 	      /* The X error handler may have deleted that frame before
