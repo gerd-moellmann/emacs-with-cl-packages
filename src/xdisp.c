@@ -16877,6 +16877,9 @@ do { if (! polling_stopped_here) stop_polling ();	\
 do { if (polling_stopped_here) start_polling ();	\
        polling_stopped_here = false; } while (false)
 
+/* Return the root frame of frame F. Follow the parent_frame chain until
+   we reach a frame that has no parent. This is the root frame. */
+
 static struct frame *
 root_frame (struct frame *f)
 {
@@ -16885,15 +16888,21 @@ root_frame (struct frame *f)
   return f;
 }
 
+/* Return true if F is currently hidden by another frame. */
+
 static bool
-is_frame_obscured (struct frame *f)
+is_frame_hidden (struct frame *f)
 {
+  /* Can't really tell if F is not a terminal frame. */
   if (!FRAME_TERMCAP_P (f) && !FRAME_MSDOS_P (f))
     return false;
 
+  /* If F is not the topmost frame of the terminal, or a child of it,
+     F is currently obscured by the root frame of the topmost
+     frame. This is because root frames occupy the whole terminal. */
   struct frame *root1 = root_frame (f);
   struct frame *root2 = root_frame (XFRAME (FRAME_TTY (f)->top_frame));
-  return root1 == root2;
+  return root1 != root2;
 }
 
 /* Perhaps in the future avoid recentering windows if it
@@ -17424,17 +17433,9 @@ redisplay_internal (void)
 	{
 	  struct frame *f = XFRAME (frame);
 
-	  /* FIXME/tty: This is no longer generally true with tty child
-	     frames since child frames overlap their root frame. Instead
-
-	     We don't have to consider frames on terminals other than
-	     the one of the terminal's top frame
-
-	     We don't have to consider frames with a different root
-	     frame than the root frame of the top frame. This is because
-	     we make root frames occupy the whole terminal, so other
-	     root frames and their children are invisible. */
-	  if (is_frame_obscured (f))
+	  /* If the frame can't be seen because another frame hides it,
+	     skip it. */
+	  if (is_frame_hidden (f))
 	    continue;
 
 	retry_frame:
