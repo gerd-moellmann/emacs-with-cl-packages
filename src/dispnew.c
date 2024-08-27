@@ -3359,6 +3359,8 @@ update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 	 frame matrix we operate.  */
       set_frame_matrix_frame (f);
 
+      /* FIXME/tty: here soemwhere handle tty child frames. */
+
       /* Build F's desired matrix from window matrices.  */
       build_frame_matrix (f);
 
