@@ -3287,21 +3287,25 @@ DEFUN ("redraw-display", Fredraw_display, Sredraw_display, 0, 0, "",
 
 struct rect { int x, y, w, h; };
 
-/* Compute the intersecton of R1 and R2 in R. Value is true if R1 and R2
-   intersect, false otherwise. */
+/* Compute the intersection of R1 and R2 in R. Value is true if R1 and
+   R2 intersect, false otherwise. */
 
 static bool
 rect_intersect (struct rect *r, struct rect r1, struct rect r2)
 {
   int x1 = max (r1.x, r2.x);
   int x2 = min (r1.x + r1.w, r2.x + r2.w);
+  if (x2 < x1)
+    return false;
   int y1 = max (r1.y, r2.y);
   int y2 = min (r1.y + r1.h, r2.y + r2.h);
-  if (x2 < x1 || y2 < y1)
+  if (y2 < y1)
     return false;
   *r = (struct rect) { .x = x1, .y = y1, .w = x2 - x1, .h = y2 - y1 };
   return true;
 }
+
+/* Return the rectanlge frame F occupies. */
 
 static struct rect
 frame_rect (struct frame *f)
@@ -3312,7 +3316,7 @@ frame_rect (struct frame *f)
 }
 
 /* Return the root frame of frame F. Follow the parent_frame chain until
-   we reach a frame that has no parent. This is the root frame. */
+   we reach a frame that has no parent. That is the root frame. */
 
 struct frame *
 root_frame (struct frame *f)
@@ -3322,7 +3326,7 @@ root_frame (struct frame *f)
   return f;
 }
 
-/* Copy what we need from the desired matrix of child frame CHILD to its
+/* Copy what we need from the glyph matrices of child frame CHILD to its
    root frame's desired matrix. */
 
 static void
