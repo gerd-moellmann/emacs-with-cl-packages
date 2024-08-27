@@ -3256,16 +3256,6 @@ DEFUN ("redraw-display", Fredraw_display, Sredraw_display, 0, 0, "",
   return Qnil;
 }
 
-static bool
-is_desired_matrix_enabled (struct frame *f)
-{
-  struct glyph_matrix *matrix = f->desired_matrix;
-  for (int i = 0; i < matrix->nrows; ++i)
-    if (matrix->rows[i].enabled_p)
-      return true;
-  return false;
-}
-
 struct rect { int x, y, w, h; };
 
 /* Compute the intersecton of R1 and R2 in R. Value is true if R1 and R2
@@ -3303,8 +3293,8 @@ root_frame (struct frame *f)
   return f;
 }
 
-/* Copy desired matrix of child frame CHILD to its root frame's
-   desired matrix. */
+/* Copy what we need from the desired matrix of child frame CHILD to its
+   root frame's desired matrix. */
 
 static void
 copy_child_glyphs (struct frame *child)
@@ -3315,16 +3305,20 @@ copy_child_glyphs (struct frame *child)
   if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
     {
       struct glyph_matrix *root_matrix = root->desired_matrix;
-      struct glyph_matrix *child_matrix = is_desired_matrix_enabled (child)
-	? child->desired_matrix
-	: child->current_matrix;
-
-      for (int y = r.y, child_y = 0; y < r.h; ++y, ++child_y)
+      for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
 	{
+	  /* We start by building the root's matrix, so we have to make
+	     sure that the complete contents of the child are
+	     written. That is why we copy from the current matrix if a
+	     row has not changed in the desired matrix. */
+	  const struct glyph_row *child_row
+	    = (child->desired_matrix->rows[child_y].enabled_p
+	       ? &child->desired_matrix->rows[child_y]
+	       : &child->current_matrix->rows[child_y]);
 	  struct glyph_row *root_row = root_matrix->rows + y;
-	  struct glyph_row *child_row = child_matrix->rows + child_y;
 	  memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
 		  r.w * sizeof (struct glyph));
+	  root_row->enabled_p = true;
 	}
     }
 }
