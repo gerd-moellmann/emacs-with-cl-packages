@@ -4284,6 +4284,9 @@ frame_float (struct frame *f, Lisp_Object val, enum frame_float_type what,
     }
 }
 
+/* FIXME/tty: Refactor this further, get the symbols propoerty and so
+   on.  */
+
 static void
 handle_frame_param (struct frame *f, int index, Lisp_Object val,
 		    Lisp_Object old_value)
@@ -4446,7 +4449,7 @@ gui_set_frame_parameters_1 (struct frame *f, Lisp_Object alist,
 	  param_index = Fget (prop, Qx_frame_parameter);
 	  if (FIXNATP (param_index)
 	      && XFIXNAT (param_index) < ARRAYELTS (frame_parms))
-	    handle_frame_param (f, XFIXNUM (param_index), val, old_value);
+	    handle_frame_param (f, XFIXNAT (param_index), val, old_value);
 
 	  if (!default_parameter && EQ (prop, Qfont))
 	    /* The user manually specified the `font' frame parameter.
@@ -4768,10 +4771,8 @@ gui_set_screen_gamma (struct frame *f, Lisp_Object new_value, Lisp_Object old_va
     {
       Lisp_Object parm_index = Fget (Qbackground_color, Qx_frame_parameter);
       if (FIXNATP (parm_index)
-	  && XFIXNAT (parm_index) < ARRAYELTS (frame_parms)
-	  && FRAME_RIF (f)->frame_parm_handlers[XFIXNAT (parm_index)])
-	  (*FRAME_RIF (f)->frame_parm_handlers[XFIXNAT (parm_index)])
-	    (f, bgcolor, Qnil);
+	  && XFIXNAT (parm_index) < ARRAYELTS (frame_parms))
+	handle_frame_param (f, XFIXNAT (parm_index), bgcolor, Qnil);
     }
 
   clear_face_cache (true);	/* FIXME: Why of all frames?  */
