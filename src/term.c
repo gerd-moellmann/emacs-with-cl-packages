@@ -45,6 +45,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "blockinput.h"
 #include "syssignal.h"
 #include "sysstdio.h"
+#ifdef MSDOS
+#include "msdos.h"
+static int been_here = -1;
+#endif
 
 #ifdef USE_X_TOOLKIT
 #include "../lwlib/lwlib.h"
@@ -2385,9 +2389,11 @@ A suspended tty may be resumed by calling `resume-tty' on it.  */)
       reset_sys_modes (t->display_info.tty);
       delete_keyboard_wait_descriptor (fileno (f));
 
+#ifndef MSDOS
       if (f != t->display_info.tty->output)
         emacs_fclose (t->display_info.tty->output);
       emacs_fclose (f);
+#endif /* !MSDOS */
 
       t->display_info.tty->input = 0;
       t->display_info.tty->output = 0;
@@ -2441,6 +2447,10 @@ frame's terminal). */)
       if (get_named_terminal (t->display_info.tty->name))
         error ("Cannot resume display while another display is active on the same device");
 
+#ifdef MSDOS
+      t->display_info.tty->output = stdout;
+      t->display_info.tty->input  = stdin;
+#else  /* !MSDOS */
       fd = emacs_open (t->display_info.tty->name, O_RDWR | O_NOCTTY, 0);
       t->display_info.tty->input = t->display_info.tty->output
 	= fd < 0 ? 0 : emacs_fdopen (fd, "w+");
@@ -2456,6 +2466,7 @@ frame's terminal). */)
 
       if (!O_IGNORE_CTTY && strcmp (t->display_info.tty->name, dev_tty) != 0)
         dissociate_if_controlling_tty (fd);
+#endif /* MSDOS */
 
       add_keyboard_wait_descriptor (fd);
 
@@ -2810,7 +2821,7 @@ DEFUN ("gpm-mouse-stop", Fgpm_mouse_stop, Sgpm_mouse_stop,
 			       Menus
  ***********************************************************************/
 
-#if !defined HAVE_ANDROID
+#if !defined (MSDOS) && !defined HAVE_ANDROID
 
 /* TTY menu implementation and main ideas are borrowed from msdos.c.
 
@@ -3910,11 +3921,11 @@ tty_menu_show (struct frame *f, int x, int y, int menuflags,
   return SAFE_FREE_UNBIND_TO (specpdl_count, entry);
 }
 
-#endif	/* !defined HAVE_ANDROID */
+#endif	/* !MSDOS && !defined HAVE_ANDROID */
 
 
 
-#if !defined HAVE_ANDROID
+#if !defined MSDOS && !defined HAVE_ANDROID
 
 /***********************************************************************
 			    Initialization
@@ -3943,6 +3954,17 @@ tty_free_frame_resources (struct frame *f)
   eassert (FRAME_TERMCAP_P (f));
   free_frame_faces (f);
   xfree (f->output_data.tty);
+}
+
+#elif defined MSDOS
+
+/* Delete frame F's face cache.  */
+
+static void
+tty_free_frame_resources (struct frame *f)
+{
+  eassert (FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f));
+  free_frame_faces (f);
 }
 
 #endif
@@ -4012,7 +4034,11 @@ set_tty_hooks (struct terminal *terminal)
   terminal->reset_terminal_modes_hook = &tty_reset_terminal_modes;
   terminal->set_terminal_modes_hook = &tty_set_terminal_modes;
   terminal->update_end_hook = &tty_update_end;
+#ifdef MSDOS
+  terminal->menu_show_hook = &x_menu_show;
+#else
   terminal->menu_show_hook = &tty_menu_show;
+#endif
   terminal->set_terminal_window_hook = &tty_set_terminal_window;
   terminal->defined_color_hook = &tty_defined_color; /* xfaces.c */
   terminal->read_socket_hook = &tty_read_avail_input; /* keyboard.c */
@@ -4101,7 +4127,15 @@ init_tty (const char *name, const char *terminal_type, bool must_succeed)
     return terminal;
 
   terminal = create_terminal (output_termcap, NULL);
+#ifdef MSDOS
+  if (been_here > 0)
+    maybe_fatal (0, 0, "Attempt to create another terminal %s", "",
+		 name, "");
+  been_here = 1;
+  tty = &the_only_display_info;
+#else
   tty = xzalloc (sizeof *tty);
+#endif
   tty->top_frame = Qnil;
   tty->next = tty_list;
   tty_list = tty;
@@ -4381,6 +4415,19 @@ use the Bourne shell command 'TERM=...; export TERM' (C-shell:\n\
     FRAME_HAS_HORIZONTAL_SCROLL_BARS (f) = 0;
     tty->char_ins_del_ok = 1;
     baud_rate = 19200;
+  }
+#else  /* MSDOS */
+  {
+    int height, width;
+    if (strcmp (terminal_type, "internal") == 0)
+      terminal->type = output_msdos_raw;
+    initialize_msdos_display (terminal);
+
+    get_tty_size (fileno (tty->input), &width, &height);
+    FrameCols (tty) = width;
+    FrameRows (tty) = height;
+    tty->char_ins_del_ok = 0;
+    init_baud_rate (fileno (tty->input));
   }
 #endif	/* MSDOS */
   tty->output = stdout;
@@ -4921,6 +4968,7 @@ trigger redisplay.  */);
   DEFSYM (Qtty_mode_set_strings, "tty-mode-set-strings");
   DEFSYM (Qtty_mode_reset_strings, "tty-mode-reset-strings");
 
+#ifndef MSDOS
   DEFSYM (Qtty_menu_next_item, "tty-menu-next-item");
   DEFSYM (Qtty_menu_prev_item, "tty-menu-prev-item");
   DEFSYM (Qtty_menu_next_menu, "tty-menu-next-menu");
@@ -4930,6 +4978,7 @@ trigger redisplay.  */);
   DEFSYM (Qtty_menu_exit, "tty-menu-exit");
   DEFSYM (Qtty_menu_mouse_movement, "tty-menu-mouse-movement");
   DEFSYM (Qtty_menu_navigation_map, "tty-menu-navigation-map");
+#endif
   DEFSYM (Qf0, "f0");
   DEFSYM (Qf10, "f10");
   DEFSYM (Qtty_set_up_initial_frame_faces,
