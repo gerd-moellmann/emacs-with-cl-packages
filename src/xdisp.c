@@ -16877,17 +16877,6 @@ do { if (! polling_stopped_here) stop_polling ();	\
 do { if (polling_stopped_here) start_polling ();	\
        polling_stopped_here = false; } while (false)
 
-/* Return the root frame of frame F. Follow the parent_frame chain until
-   we reach a frame that has no parent. This is the root frame. */
-
-static struct frame *
-root_frame (struct frame *f)
-{
-  while (FRAME_PARENT_FRAME (f))
-    f = FRAME_PARENT_FRAME (f);
-  return f;
-}
-
 /* Return true if F is currently hidden by another frame. */
 
 static bool
