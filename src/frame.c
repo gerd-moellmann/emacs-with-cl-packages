@@ -4284,6 +4284,18 @@ frame_float (struct frame *f, Lisp_Object val, enum frame_float_type what,
     }
 }
 
+static void
+handle_frame_param (struct frame *f, int index, Lisp_Object val,
+		    Lisp_Object old_value)
+{
+  if (FRAME_RIF (f))
+    {
+      frame_parm_handler handler = FRAME_RIF (f)->frame_parm_handlers[index];
+      if (handler)
+	handler (f, val, old_value);
+    }
+}
+
 /* Change the parameters of frame F as specified by ALIST.
    If a parameter is not specially recognized, do nothing special;
    otherwise call the `gui_set_...' function for that parameter.
