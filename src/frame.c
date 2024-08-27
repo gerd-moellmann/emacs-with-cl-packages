@@ -4284,10 +4284,10 @@ frame_float (struct frame *f, Lisp_Object val, enum frame_float_type what,
     }
 }
 
-/* Handle frame paramter with frame parameter handler. F is the frame
-   whose frame parameter was changed.  PROP is the name of the frame
-   parameter.  VAL and OLD_VALUE are the current value and old value of
-   the frame parameter. */
+/* Handle frame parameter change with frame parameter handler. F is the
+   frame whose frame parameter was changed.  PROP is the name of the
+   frame parameter.  VAL and OLD_VALUE are the current value and old
+   value of the frame parameter. */
 
 static void
 handle_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val,

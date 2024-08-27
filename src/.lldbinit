@@ -97,5 +97,5 @@ b die
 #command alias go process launch --working-dir .
 
 target create emacs
-settings set -- target.run-args
-command alias go process launch --working-dir .
+settings set -- target.run-args -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -f batch-byte-compile pcmpl-x.el'../src/emacs' -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -f batch-byte-compile hilit-chg.el
+command alias go process launch --working-dir ../lisp
