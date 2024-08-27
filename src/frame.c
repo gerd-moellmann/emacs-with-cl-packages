@@ -4445,9 +4445,8 @@ gui_set_frame_parameters_1 (struct frame *f, Lisp_Object alist,
 
 	  param_index = Fget (prop, Qx_frame_parameter);
 	  if (FIXNATP (param_index)
-	      && XFIXNAT (param_index) < ARRAYELTS (frame_parms)
-	      && FRAME_RIF (f)->frame_parm_handlers[XFIXNUM (param_index)])
-	    (*(FRAME_RIF (f)->frame_parm_handlers[XFIXNUM (param_index)])) (f, val, old_value);
+	      && XFIXNAT (param_index) < ARRAYELTS (frame_parms))
+	    handle_frame_param (f, XFIXNUM (param_index), val, old_value);
 
 	  if (!default_parameter && EQ (prop, Qfont))
 	    /* The user manually specified the `font' frame parameter.
