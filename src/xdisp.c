@@ -17485,6 +17485,8 @@ redisplay_internal (void)
 	      if (gcscrollbars && FRAME_TERMINAL (f)->judge_scroll_bars_hook)
 		FRAME_TERMINAL (f)->judge_scroll_bars_hook (f);
 
+	      /* FIXME/tty: The FRAME_OBSCURE_P (f->visible == 2, :-()
+		 seems to be something for Windows. I'm ignoring it. */
 	      if (FRAME_REDISPLAY_P (f) && !FRAME_OBSCURED_P (f))
 		{
 		  /* If fonts changed on visible frame, display again.  */
