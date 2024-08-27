@@ -4284,18 +4284,25 @@ frame_float (struct frame *f, Lisp_Object val, enum frame_float_type what,
     }
 }
 
-/* FIXME/tty: Refactor this further, get the symbols propoerty and so
-   on.  */
+/* Handle frame paramter with frame parameter handler. F is the frame
+   whose frame parameter was changed.  PROP is the name of the frame
+   parameter.  VAL and OLD_VALUE are the current value and old value of
+   the frame parameter. */
 
 static void
-handle_frame_param (struct frame *f, int index, Lisp_Object val,
+handle_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val,
 		    Lisp_Object old_value)
 {
-  if (FRAME_RIF (f))
+  Lisp_Object param_index = Fget (prop, Qx_frame_parameter);
+  if (FIXNATP (param_index) && XFIXNAT (param_index) < ARRAYELTS (frame_parms))
     {
-      frame_parm_handler handler = FRAME_RIF (f)->frame_parm_handlers[index];
-      if (handler)
-	handler (f, val, old_value);
+      if (FRAME_RIF (f))
+	{
+	  frame_parm_handler handler
+	    = FRAME_RIF (f)->frame_parm_handlers[XFIXNAT (param_index)];
+	  if (handler)
+	    handler (f, val, old_value);
+	}
     }
 }
 
@@ -4440,16 +4447,9 @@ gui_set_frame_parameters_1 (struct frame *f, Lisp_Object alist,
 	}
       else
 	{
-	  Lisp_Object param_index, old_value;
-
-	  old_value = get_frame_param (f, prop);
-
+	  Lisp_Object old_value = get_frame_param (f, prop);
 	  store_frame_param (f, prop, val);
-
-	  param_index = Fget (prop, Qx_frame_parameter);
-	  if (FIXNATP (param_index)
-	      && XFIXNAT (param_index) < ARRAYELTS (frame_parms))
-	    handle_frame_param (f, XFIXNAT (param_index), val, old_value);
+	  handle_frame_param (f, prop, val, old_value);
 
 	  if (!default_parameter && EQ (prop, Qfont))
 	    /* The user manually specified the `font' frame parameter.
@@ -4768,12 +4768,7 @@ gui_set_screen_gamma (struct frame *f, Lisp_Object new_value, Lisp_Object old_va
   /* Apply the new gamma value to the frame background.  */
   bgcolor = Fassq (Qbackground_color, f->param_alist);
   if (CONSP (bgcolor) && (bgcolor = XCDR (bgcolor), STRINGP (bgcolor)))
-    {
-      Lisp_Object parm_index = Fget (Qbackground_color, Qx_frame_parameter);
-      if (FIXNATP (parm_index)
-	  && XFIXNAT (parm_index) < ARRAYELTS (frame_parms))
-	handle_frame_param (f, XFIXNAT (parm_index), bgcolor, Qnil);
-    }
+    handle_frame_param (f, Qbackground_color, bgcolor, Qnil);
 
   clear_face_cache (true);	/* FIXME: Why of all frames?  */
   fset_redisplay (f);
