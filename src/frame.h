@@ -740,7 +740,10 @@ struct frame
 #ifdef HAVE_TEXT_CONVERSION
   /* Text conversion state used by certain input methods.  */
   struct text_conversion_state conversion;
-#endif
+# endif
+
+  /* Z-order of child frames. */
+  int z_order;
 } GCALIGNED_STRUCT;
 
 /* Most code should use these functions to set Lisp fields in struct frame.  */

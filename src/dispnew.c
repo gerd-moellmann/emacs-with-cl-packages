@@ -3256,6 +3256,35 @@ DEFUN ("redraw-display", Fredraw_display, Sredraw_display, 0, 0, "",
   return Qnil;
 }
 
+
+/**********************************************************************
+			    TTY Child Frames
+ **********************************************************************/
+
+/* The new thing that child frames on ttys provide is that frames on a
+   tty no longer always occupy the whole terminal. They can overlap
+   instead.
+
+   Let a "root" frame be a frame that has no parent frame. Such root
+   frames we require to be the size of the terminal screen. The current
+   glyph matrix of a root frame of a termimnal represents what is on the
+   screen. The desired matrix of a root frame represents what should be
+   one the screen.
+
+   Building the desired matrix of root frame proceeds by
+
+   - building the desired matrix of the root frame itself which is
+     the bottommost frame in z-order,
+   - building desired matrices of child frames in z-order, topmost last,
+   - copying the desired glyphs from child frames to the desired glyphs
+     of the root frame
+
+   Updating the screen is then done using root frame matrices as it was
+   before child frames were introduced. Child frame current matrices are
+   updated by copying glyph contents of the current matrix of the root
+   frames to the current matrices of child frames. This imnplicitly
+   also updates the glyph contents of their windows' current matrices.  */
+
 struct rect { int x, y, w, h; };
 
 /* Compute the intersecton of R1 and R2 in R. Value is true if R1 and R2
@@ -3321,6 +3350,73 @@ copy_child_glyphs (struct frame *child)
 	  root_row->enabled_p = true;
 	}
     }
+}
+
+/* Return true if F1 is an ancestor of F2.  */
+
+static bool
+is_frame_ancestor (struct frame *f1, struct frame *f2)
+{
+  for (struct frame *f = FRAME_PARENT_FRAME (f2); f; f = FRAME_PARENT_FRAME (f))
+    if (f == f1)
+      return true;
+  return false;
+}
+
+/* Return a list of all frames on terminal TERM. */
+
+static Lisp_Object
+frames_on_terminal (struct terminal *term)
+{
+  Lisp_Object list = Qnil;
+  Lisp_Object tail, frame;
+  FOR_EACH_FRAME (tail, frame)
+    {
+      struct frame *f = XFRAME (frame);
+      if (FRAME_TERMINAL (f) == term)
+	list = Fcons (frame, list);
+    }
+  return list;
+}
+
+/* Compare frames F1 and F2 for z-order. Value is like strcmp. */
+
+static bool
+frame_z_order_cmp (struct frame *f1, struct frame *f2)
+{
+  eassert (FRAME_TERMINAL (f1) == FRAME_TERMINAL (f2));
+  if (f1 == f2)
+    return 0;
+  if (is_frame_ancestor (f1, f2))
+    return -1;
+  if (FRAME_PARENT_FRAME (f1) == FRAME_PARENT_FRAME (f2))
+    return f1->z_order - f2->z_order;
+  return 1;
+}
+
+DEFUN ("frame--z-order-sort-predicate",
+       Fframe__z_order_sort_predicate,
+       Sframe__z_order_sort_predicate,
+       2, 2, 0,
+       doc: /* Internal frame sorting function A < B.  */)
+  (Lisp_Object a, Lisp_Object b)
+{
+  CHECK_FRAME (a); CHECK_FRAME (b);
+  return frame_z_order_cmp (XFRAME (a), XFRAME (b)) < 0 ? Qt : Qnil;
+}
+
+/* Return a z-order list of frames on the same terminal as F.  The list
+   is ordered topmost frame last. Note that this list may contain
+   more than one root frame plus their children. */
+
+static Lisp_Object
+frames_in_z_order (struct frame *f)
+{
+  Lisp_Object frames = frames_on_terminal (FRAME_TERMINAL (f));
+  frames = CALLN (Fsort, frames, Qframe__z_order_sort_predicate);
+  eassert (FRAMEP (XCAR (frames)));
+  eassert (XFRAME (XCAR (frames)) == root_frame (f));
+  return frames;
 }
 
 /***********************************************************************
@@ -6902,6 +6998,7 @@ syms_of_display (void)
   defsubr (&Ssend_string_to_terminal);
   defsubr (&Sinternal_show_cursor);
   defsubr (&Sinternal_show_cursor_p);
+  defsubr (&Sframe__z_order_sort_predicate);
 
 #ifdef GLYPH_DEBUG
   defsubr (&Sdump_redisplay_history);
@@ -6916,6 +7013,7 @@ syms_of_display (void)
 
   /* This is the "purpose" slot of a display table.  */
   DEFSYM (Qdisplay_table, "display-table");
+  DEFSYM (Qframe__z_order_sort_predicate, "frame--z-order-sort-predicate");
 
   DEFSYM (Qredisplay_dont_pause, "redisplay-dont-pause");
 
