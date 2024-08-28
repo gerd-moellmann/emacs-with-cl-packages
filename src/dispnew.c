@@ -2795,9 +2795,10 @@ set_frame_matrix_frame (struct frame *f)
    operations in window matrices of frame_matrix_frame.  */
 
 static void
-make_current (struct glyph_matrix *desired_matrix,
-	      struct glyph_matrix *current_matrix, int row)
+make_current (struct frame *f, struct window *w, int row)
 {
+  struct glyph_matrix *desired_matrix = f ? f->desired_matrix : w->desired_matrix;
+  struct glyph_matrix *current_matrix = f ? f->current_matrix : w->current_matrix;
   struct glyph_row *current_row = MATRIX_ROW (current_matrix, row);
   struct glyph_row *desired_row = MATRIX_ROW (desired_matrix, row);
   bool mouse_face_p = current_row->mouse_face_p;
@@ -4534,7 +4535,7 @@ update_window_line (struct window *w, int vpos, bool *mouse_face_overwritten_p)
 
   /* Update current_row from desired_row.  */
   was_stipple = current_row->stipple_p;
-  make_current (w->desired_matrix, w->current_matrix, vpos);
+  make_current (NULL, w, vpos);
 
   /* If only a partial update was performed, any stipple already
      displayed in MATRIX_ROW (w->current_matrix, vpos) might still be
@@ -5552,7 +5553,7 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
 	   with cmgoto might use `ch' in the wrong row.  */
 	cursor_to (f, vpos, 0);
 
-      make_current (desired_matrix, current_matrix, vpos);
+      make_current (f, NULL, vpos);
       return;
     }
 
@@ -5598,7 +5599,7 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
 	}
 
       /* Make current row = desired row.  */
-      make_current (desired_matrix, current_matrix, vpos);
+      make_current (f, NULL, vpos);
       return;
     }
 
@@ -5621,7 +5622,7 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
 	}
 
       /* Exchange contents between current_frame and new_frame.  */
-      make_current (desired_matrix, current_matrix, vpos);
+      make_current (f, NULL, vpos);
       return;
     }
 
@@ -5781,7 +5782,7 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
     }
 
   /* Exchange contents between current_frame and new_frame.  */
-  make_current (desired_matrix, current_matrix, vpos);
+  make_current (f, NULL, vpos);
 }
 
 
