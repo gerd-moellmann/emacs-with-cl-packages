@@ -3530,6 +3530,8 @@ update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
       struct frame *f = XFRAME (XCAR (z_order));
       set_frame_matrix_frame (f);
       build_frame_matrix (f);
+      if (f != root)
+	copy_child_glyphs (f);
       struct window *root_window = XWINDOW (f->root_window);
       set_window_update_flags (root_window, false);
 #ifdef GLYPH_DEBUG
