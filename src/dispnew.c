@@ -94,7 +94,7 @@ static void check_matrix_pointers (struct glyph_matrix *,
 static void mirror_line_dance (struct window *, int, int, int *, char *);
 static bool update_window_tree (struct window *, bool);
 static bool update_window (struct window *, bool);
-static bool update_frame_1 (struct frame *, bool, bool, bool, bool);
+static bool tty_update_screen (struct frame *, bool, bool, bool, bool);
 static bool scrolling (struct frame *);
 static void set_window_cursor_after_update (struct window *);
 static void adjust_frame_glyphs_for_window_redisplay (struct frame *);
@@ -3509,7 +3509,7 @@ update_tty_frame (struct frame *updated, bool force_p, bool inhibit_hairy_id_p)
     }
 
   update_begin (root);
-  bool paused_p = update_frame_1 (root, force_p, inhibit_hairy_id_p, 1, false);
+  bool paused_p = tty_update_screen (root, force_p, inhibit_hairy_id_p, 1, false);
   update_end (root);
   flush_terminal (root);
 
@@ -3588,7 +3588,7 @@ update_frame_with_menu (struct frame *f, int row, int col)
   cursor_at_point_p = !(row >= 0 && col >= 0);
   /* Force update_frame_1 not to stop due to pending input, and not
      try scrolling.  */
-  paused_p = update_frame_1 (f, 1, 1, cursor_at_point_p, true);
+  paused_p = tty_update_screen (f, 1, 1, cursor_at_point_p, true);
   /* ROW and COL tell us where in the menu to position the cursor, so
      that screen readers know the active region on the screen.  */
   if (!cursor_at_point_p)
@@ -5128,8 +5128,8 @@ scrolling_window (struct window *w, int tab_line_p)
    Value is true if update was stopped due to pending input.  */
 
 static bool
-update_frame_1 (struct frame *f, bool force_p, bool inhibit_id_p,
-		bool set_cursor_p, bool updating_menu_p)
+tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
+		   bool set_cursor_p, bool updating_menu_p)
 {
   /* Frame matrices to work on.  */
   struct glyph_matrix *current_matrix = f->current_matrix;
