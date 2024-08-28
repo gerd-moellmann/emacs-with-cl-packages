@@ -4825,10 +4825,17 @@ DEFUN ("tty-frame-list-z-order", Ftty_frame_list_z_order,
        Stty_frame_list_z_order, 0, 1, 0,
        doc: /* Return list of Emacs's frames, in Z (stacking) order.
 	       See also `frame-list-z-order'.  */)
-  (Lisp_Object terminal)
+  (Lisp_Object frame)
 {
-  /* FIXME/tty: implementation.  */
-  return Qnil;
+  /* Only support the special case of returning the child frames
+     in z order. */
+  if (!FRAMEP (frame))
+    return Qnil;
+  struct frame *f = XFRAME (frame);
+  if (!FRAME_TERMCAP_P (f))
+    return Qnil;
+  Lisp_Object frames = frames_in_z_order (f);
+  return Fnreverse (frames);
 }
 
 DEFUN ("tty-frame-restack", Ftty_frame_restack,
