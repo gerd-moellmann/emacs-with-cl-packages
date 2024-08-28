@@ -3425,68 +3425,55 @@ frames_in_z_order (struct frame *f)
 			     Frame Update
  ***********************************************************************/
 
+/* Update the menu bar on X frames that don't have toolkit
+   support.  */
+
 static void
 update_menu_bar (struct frame *f)
 {
 #if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
-  /* Update the menu bar on X frames that don't have toolkit
-     support.  */
   if (WINDOWP (f->menu_bar_window))
     update_window (XWINDOW (f->menu_bar_window), true);
 #endif
 }
 
 static void
-update_tab_bar (struct frame *f)
+update_special_window (Lisp_Object window, Lisp_Object *current,
+		       Lisp_Object *desired)
 {
-#if defined (HAVE_WINDOW_SYSTEM)
-  /* Update the tab-bar window, if present.  */
-  if (WINDOWP (f->tab_bar_window))
+  if (WINDOWP (window))
     {
-      struct window *w = XWINDOW (f->tab_bar_window);
-
-      /* Update tab-bar window.  */
+      struct window *w = XWINDOW (window);
       if (w->must_be_updated_p)
 	{
-	  Lisp_Object tem;
-
 	  update_window (w, true);
 	  w->must_be_updated_p = false;
-
-	  /* Swap tab-bar strings.  We swap because we want to
-	     reuse strings.  */
-	  tem = f->current_tab_bar_string;
-	  fset_current_tab_bar_string (f, f->desired_tab_bar_string);
-	  fset_desired_tab_bar_string (f, tem);
+	  Lisp_Object tem = *current;
+	  *current = *desired;
+	  *desired = tem;
 	}
     }
+}
+
+/* Update the tab-bar window of frame F, if present.
+   FIXME/tty: This is almost identical to the updating
+   of the tab bar. */
+
+static void
+update_tab_bar (struct frame *f)
+{
+#if defined(HAVE_WINDOW_SYSTEM)
+  update_special_window (f->tab_bar_window, &f->current_tab_bar_string,
+			 &f->desired_tab_bar_string);
 #endif
 }
 
 static void
 update_tool_bar (struct frame *f)
 {
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
-  /* Update the tool-bar window, if present.  */
-  if (WINDOWP (f->tool_bar_window))
-    {
-      struct window *w = XWINDOW (f->tool_bar_window);
-
-      /* Update tool-bar window.  */
-      if (w->must_be_updated_p)
-	{
-	  Lisp_Object tem;
-
-	  update_window (w, true);
-	  w->must_be_updated_p = false;
-
-	  /* Swap tool-bar strings.  We swap because we want to
-	     reuse strings.  */
-	  tem = f->current_tool_bar_string;
-	  fset_current_tool_bar_string (f, f->desired_tool_bar_string);
-	  fset_desired_tool_bar_string (f, tem);
-	}
-    }
+#if defined(HAVE_WINDOW_SYSTEM) && !defined(HAVE_EXT_TOOL_BAR)
+  update_special_window (f->tool_bar_window, &f->current_tool_bar_string,
+			 &f->desired_tool_bar_string);
 #endif
 }
 
@@ -3495,16 +3482,13 @@ update_window_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 {
   eassert (FRAME_WINDOW_P (f));
   set_frame_matrix_frame (NULL);
-
   update_begin (f);
   update_menu_bar (f);
   update_tab_bar (f);
   update_tool_bar (f);
-
   struct window *root_window = XWINDOW (f->root_window);
   bool paused_p = update_window_tree (root_window, force_p);
   update_end (f);
-  /* Reset flags indicating that a window should be updated.  */
   set_window_update_flags (root_window, false);
   return paused_p;
 }
