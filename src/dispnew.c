@@ -3425,6 +3425,130 @@ frames_in_z_order (struct frame *f)
 			     Frame Update
  ***********************************************************************/
 
+static void
+update_menu_bar (struct frame *f)
+{
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
+  /* Update the menu bar on X frames that don't have toolkit
+     support.  */
+  if (WINDOWP (f->menu_bar_window))
+    update_window (XWINDOW (f->menu_bar_window), true);
+#endif
+}
+
+static void
+update_tab_bar (struct frame *f)
+{
+#if defined (HAVE_WINDOW_SYSTEM)
+  /* Update the tab-bar window, if present.  */
+  if (WINDOWP (f->tab_bar_window))
+    {
+      struct window *w = XWINDOW (f->tab_bar_window);
+
+      /* Update tab-bar window.  */
+      if (w->must_be_updated_p)
+	{
+	  Lisp_Object tem;
+
+	  update_window (w, true);
+	  w->must_be_updated_p = false;
+
+	  /* Swap tab-bar strings.  We swap because we want to
+	     reuse strings.  */
+	  tem = f->current_tab_bar_string;
+	  fset_current_tab_bar_string (f, f->desired_tab_bar_string);
+	  fset_desired_tab_bar_string (f, tem);
+	}
+    }
+#endif
+}
+
+static void
+update_tool_bar (struct frame *f)
+{
+#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+  /* Update the tool-bar window, if present.  */
+  if (WINDOWP (f->tool_bar_window))
+    {
+      struct window *w = XWINDOW (f->tool_bar_window);
+
+      /* Update tool-bar window.  */
+      if (w->must_be_updated_p)
+	{
+	  Lisp_Object tem;
+
+	  update_window (w, true);
+	  w->must_be_updated_p = false;
+
+	  /* Swap tool-bar strings.  We swap because we want to
+	     reuse strings.  */
+	  tem = f->current_tool_bar_string;
+	  fset_current_tool_bar_string (f, f->desired_tool_bar_string);
+	  fset_desired_tool_bar_string (f, tem);
+	}
+    }
+#endif
+}
+
+static bool
+update_window_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
+{
+  eassert (FRAME_WINDOW_P (f));
+  set_frame_matrix_frame (NULL);
+
+  update_begin (f);
+  update_menu_bar (f);
+  update_tab_bar (f);
+  update_tool_bar (f);
+
+  struct window *root_window = XWINDOW (f->root_window);
+  bool paused_p = update_window_tree (root_window, force_p);
+  update_end (f);
+  /* Reset flags indicating that a window should be updated.  */
+  set_window_update_flags (root_window, false);
+  return paused_p;
+}
+
+static bool
+update_initial_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
+{
+  set_frame_matrix_frame (f);
+  build_frame_matrix (f);
+  struct window *root_window = XWINDOW (f->root_window);
+  set_window_update_flags (root_window, false);
+  return false;
+}
+
+static bool
+update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
+{
+  /* We are working on frame matrix basis.  */
+  Lisp_Object z_order = frames_in_z_order (f);
+  struct frame *root = XFRAME (XCAR (z_order));
+  for (; CONSP (z_order); z_order = XCDR (z_order))
+    {
+      struct frame *f = XFRAME (XCAR (z_order));
+      set_frame_matrix_frame (f);
+      build_frame_matrix (f);
+      struct window *root_window = XWINDOW (f->root_window);
+      set_window_update_flags (root_window, false);
+#ifdef GLYPH_DEBUG
+      check_window_matrix_pointers (root_window);
+      add_frame_display_history (f, false);
+#endif
+    }
+
+  update_begin (root);
+  bool paused_p = update_frame_1 (root, force_p, inhibit_hairy_id_p, 1, false);
+  update_end (root);
+  eassert (FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f));
+  if (FRAME_TTY (f)->termscript)
+    fflush (FRAME_TTY (f)->termscript);
+  if (FRAME_TERMCAP_P (f))
+    fflush (FRAME_TTY (f)->output);
+  return paused_p;
+}
+
 /* Update frame F based on the data in desired matrices.
 
    If FORCE_P, don't let redisplay be stopped by detecting pending input.
@@ -3436,127 +3560,25 @@ bool
 update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 {
   /* True means display has been paused because of pending input.  */
-  bool paused_p;
   struct window *root_window = XWINDOW (f->root_window);
 
   if (redisplay_dont_pause)
     force_p = true;
   else if (!force_p && detect_input_pending_ignore_squeezables ())
     {
-      paused_p = true;
-      goto do_pause;
+      /* Reset flags indicating that a window should be updated.  */
+      set_window_update_flags (root_window, false);
+      display_completed = false;
+      return true;
     }
 
+  bool paused_p;
   if (FRAME_WINDOW_P (f))
-    {
-      /* We are working on window matrix basis.  All windows whose
-	 flag must_be_updated_p is set have to be updated.  */
-
-      /* Record that we are not working on frame matrices.  */
-      set_frame_matrix_frame (NULL);
-
-      /* Update all windows in the window tree of F, maybe stopping
-	 when pending input is detected.  */
-      update_begin (f);
-
-#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
-      /* Update the menu bar on X frames that don't have toolkit
-	 support.  */
-      if (WINDOWP (f->menu_bar_window))
-	update_window (XWINDOW (f->menu_bar_window), true);
-#endif
-
-#if defined (HAVE_WINDOW_SYSTEM)
-      /* Update the tab-bar window, if present.  */
-      if (WINDOWP (f->tab_bar_window))
-	{
-	  struct window *w = XWINDOW (f->tab_bar_window);
-
-	  /* Update tab-bar window.  */
-	  if (w->must_be_updated_p)
-	    {
-	      Lisp_Object tem;
-
-	      update_window (w, true);
-	      w->must_be_updated_p = false;
-
-	      /* Swap tab-bar strings.  We swap because we want to
-		 reuse strings.  */
-	      tem = f->current_tab_bar_string;
-	      fset_current_tab_bar_string (f, f->desired_tab_bar_string);
-	      fset_desired_tab_bar_string (f, tem);
-	    }
-	}
-#endif
-
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
-      /* Update the tool-bar window, if present.  */
-      if (WINDOWP (f->tool_bar_window))
-	{
-	  struct window *w = XWINDOW (f->tool_bar_window);
-
-	  /* Update tool-bar window.  */
-	  if (w->must_be_updated_p)
-	    {
-	      Lisp_Object tem;
-
-	      update_window (w, true);
-	      w->must_be_updated_p = false;
-
-	      /* Swap tool-bar strings.  We swap because we want to
-		 reuse strings.  */
-	      tem = f->current_tool_bar_string;
-	      fset_current_tool_bar_string (f, f->desired_tool_bar_string);
-	      fset_desired_tool_bar_string (f, tem);
-	    }
-	}
-#endif
-
-      /* Update windows.  */
-      paused_p = update_window_tree (root_window, force_p);
-      update_end (f);
-    }
+    paused_p = update_window_frame (f, force_p, inhibit_hairy_id_p);
+  else if (FRAME_INITIAL_P (f))
+    paused_p = update_initial_frame (f, force_p, inhibit_hairy_id_p);
   else
-    {
-      /* We are working on frame matrix basis.  Set the frame on whose
-	 frame matrix we operate.  */
-      set_frame_matrix_frame (f);
-
-      /* FIXME/tty: here soemwhere handle tty child frames. */
-
-      /* Build F's desired matrix from window matrices.  */
-      build_frame_matrix (f);
-
-      /* Update the display.  */
-      if (FRAME_INITIAL_P (f))
-        /* No actual display to update so the "update" is a nop and
-           obviously isn't interrupted by pending input.  */
-        paused_p = false;
-      else
-        {
-          update_begin (f);
-          paused_p = update_frame_1 (f, force_p, inhibit_hairy_id_p, 1, false);
-          update_end (f);
-        }
-
-      if (FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f))
-        {
-          if (FRAME_TTY (f)->termscript)
-	    fflush (FRAME_TTY (f)->termscript);
-	  if (FRAME_TERMCAP_P (f))
-	    fflush (FRAME_TTY (f)->output);
-        }
-
-      /* Check window matrices for lost pointers.  */
-#ifdef GLYPH_DEBUG
-      check_window_matrix_pointers (root_window);
-      add_frame_display_history (f, paused_p);
-#endif
-    }
-
- do_pause:
-  /* Reset flags indicating that a window should be updated.  */
-  set_window_update_flags (root_window, false);
+    paused_p = update_tty_frame (f, force_p, inhibit_hairy_id_p);
 
   display_completed = !paused_p;
   return paused_p;
