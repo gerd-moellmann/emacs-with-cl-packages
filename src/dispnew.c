@@ -3501,12 +3501,21 @@ update_initial_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
   return false;
 }
 
+static void
+flush_terminal (struct frame *f)
+{
+  if (FRAME_TTY (f)->termscript)
+    fflush (FRAME_TTY (f)->termscript);
+  if (FRAME_TERMCAP_P (f))
+    fflush (FRAME_TTY (f)->output);
+}
+
 static bool
-update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
+update_tty_frame (struct frame *updated, bool force_p, bool inhibit_hairy_id_p)
 {
   /* We are working on frame matrix basis.  */
-  struct frame *root = root_frame (f);
-  Lisp_Object z_order = frames_in_z_order (f);
+  struct frame *root = root_frame (updated);
+  Lisp_Object z_order = frames_in_z_order (updated);
   for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
     {
       struct frame *f = XFRAME (XCAR (tail));
@@ -3514,22 +3523,27 @@ update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
       build_frame_matrix (f);
       if (f != root)
 	copy_child_glyphs (root, f);
+    }
+
+  set_frame_matrix_frame (root);
+  update_begin (root);
+  bool paused_p = update_frame_1 (root, force_p, inhibit_hairy_id_p, 1, false);
+  update_end (root);
+  flush_terminal (root);
+
+  for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
+    {
+      struct frame *f = XFRAME (XCAR (tail));
       struct window *root_window = XWINDOW (f->root_window);
       set_window_update_flags (root_window, false);
 #ifdef GLYPH_DEBUG
       check_window_matrix_pointers (root_window);
       add_frame_display_history (f, false);
 #endif
+      /* The clearing has already been done for ROOT in update_frame_1. */
+      if (f != root)
+	clear_desired_matrices (f);
     }
-
-  update_begin (root);
-  bool paused_p = update_frame_1 (root, force_p, inhibit_hairy_id_p, 1, false);
-  update_end (root);
-
-  if (FRAME_TTY (f)->termscript)
-    fflush (FRAME_TTY (f)->termscript);
-  if (FRAME_TERMCAP_P (f))
-    fflush (FRAME_TTY (f)->output);
 
   return paused_p;
 }
