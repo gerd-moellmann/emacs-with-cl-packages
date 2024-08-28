@@ -3330,10 +3330,8 @@ root_frame (struct frame *f)
    root frame's desired matrix. */
 
 static void
-copy_child_glyphs (struct frame *child)
+copy_child_glyphs (struct frame *root, struct frame *child)
 {
-  struct frame *root = root_frame (child);
-  eassert (root != child);
   struct rect r;
   if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
     {
@@ -3507,15 +3505,15 @@ static bool
 update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 {
   /* We are working on frame matrix basis.  */
+  struct frame *root = root_frame (f);
   Lisp_Object z_order = frames_in_z_order (f);
-  struct frame *root = XFRAME (XCAR (z_order));
-  for (; CONSP (z_order); z_order = XCDR (z_order))
+  for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
     {
-      struct frame *f = XFRAME (XCAR (z_order));
+      struct frame *f = XFRAME (XCAR (tail));
       set_frame_matrix_frame (f);
       build_frame_matrix (f);
       if (f != root)
-	copy_child_glyphs (f);
+	copy_child_glyphs (root, f);
       struct window *root_window = XWINDOW (f->root_window);
       set_window_update_flags (root_window, false);
 #ifdef GLYPH_DEBUG
@@ -3527,11 +3525,12 @@ update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
   update_begin (root);
   bool paused_p = update_frame_1 (root, force_p, inhibit_hairy_id_p, 1, false);
   update_end (root);
-  eassert (FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f));
+
   if (FRAME_TTY (f)->termscript)
     fflush (FRAME_TTY (f)->termscript);
   if (FRAME_TERMCAP_P (f))
     fflush (FRAME_TTY (f)->output);
+
   return paused_p;
 }
 
