@@ -2825,8 +2825,8 @@ make_current (struct frame *f, struct window *w, int row)
 
   /* If we are called on frame matrices, perform analogous operations
      for window matrices.  */
-  if (frame_matrix_frame)
-    mirror_make_current (XWINDOW (frame_matrix_frame->root_window), row);
+  if (f)
+    mirror_make_current (XWINDOW (f->root_window), row);
 }
 
 
