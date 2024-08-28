@@ -3370,14 +3370,14 @@ is_frame_ancestor (struct frame *f1, struct frame *f2)
 /* Return a list of all frames on terminal TERM. */
 
 static Lisp_Object
-frames_on_terminal (struct terminal *term)
+frames_with_root (struct frame *root)
 {
   Lisp_Object list = Qnil;
   Lisp_Object tail, frame;
   FOR_EACH_FRAME (tail, frame)
     {
       struct frame *f = XFRAME (frame);
-      if (FRAME_TERMINAL (f) == term)
+      if (root_frame (f) == root)
 	list = Fcons (frame, list);
     }
   return list;
@@ -3388,14 +3388,11 @@ frames_on_terminal (struct terminal *term)
 static bool
 frame_z_order_cmp (struct frame *f1, struct frame *f2)
 {
-  eassert (FRAME_TERMINAL (f1) == FRAME_TERMINAL (f2));
   if (f1 == f2)
     return 0;
   if (is_frame_ancestor (f1, f2))
     return -1;
-  if (FRAME_PARENT_FRAME (f1) == FRAME_PARENT_FRAME (f2))
-    return f1->z_order - f2->z_order;
-  return 1;
+  return f1->z_order - f2->z_order;
 }
 
 DEFUN ("frame--z-order-sort-predicate",
@@ -3416,10 +3413,11 @@ DEFUN ("frame--z-order-sort-predicate",
 static Lisp_Object
 frames_in_z_order (struct frame *f)
 {
-  Lisp_Object frames = frames_on_terminal (FRAME_TERMINAL (f));
+  struct frame *root = root_frame (f);
+  Lisp_Object frames = frames_with_root (root);
   frames = CALLN (Fsort, frames, Qframe__z_order_sort_predicate);
   eassert (FRAMEP (XCAR (frames)));
-  eassert (XFRAME (XCAR (frames)) == root_frame (f));
+  eassert (XFRAME (XCAR (frames)) == root);
   return frames;
 }
 
