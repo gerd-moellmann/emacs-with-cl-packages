@@ -3818,7 +3818,7 @@ extern void adjust_frame_glyphs (struct frame *);
 void free_glyphs (struct frame *);
 void free_window_matrices (struct window *);
 void check_glyph_memory (void);
-void mirrored_line_dance (struct glyph_matrix *, int, int, int *, char *);
+void mirrored_line_dance (struct frame *f, int, int, int *, char *);
 void clear_glyph_matrix (struct glyph_matrix *);
 void clear_current_matrices (struct frame *f);
 void clear_desired_matrices (struct frame *);

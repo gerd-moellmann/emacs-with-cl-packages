@@ -2890,9 +2890,11 @@ mirror_make_current (struct window *w, int frame_row)
    This function is called from do_scrolling and do_direct_scrolling.  */
 
 void
-mirrored_line_dance (struct glyph_matrix *matrix, int unchanged_at_top, int nlines,
+mirrored_line_dance (struct frame *f, int unchanged_at_top, int nlines,
 		     int *copy_from, char *retained_p)
 {
+  struct glyph_matrix *matrix = f->current_matrix;
+
   /* A copy of original rows.  */
   struct glyph_row *old_rows;
 
