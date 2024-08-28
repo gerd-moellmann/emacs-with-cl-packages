@@ -3410,7 +3410,7 @@ DEFUN ("frame--z-order-sort-predicate",
    is ordered topmost frame last. Note that this list may contain
    more than one root frame plus their children. */
 
-static Lisp_Object
+Lisp_Object
 frames_in_z_order (struct frame *f)
 {
   struct frame *root = root_frame (f);

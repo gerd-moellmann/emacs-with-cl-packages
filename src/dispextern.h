@@ -3925,6 +3925,9 @@ struct frame *root_frame (struct frame *f);
 
 #endif /* HAVE_WINDOW_SYSTEM */
 
+Lisp_Object frames_in_z_order (struct frame *f);
+
+
 INLINE_HEADER_END
 
 #endif /* not DISPEXTERN_H_INCLUDED */
