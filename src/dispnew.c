@@ -123,11 +123,6 @@ static int glyph_pool_count;
 
 #endif /* GLYPH_DEBUG and ENABLE_CHECKING */
 
-/* If non-null, the frame whose frame matrices are manipulated.  If
-   null, window matrices are worked on.  */
-
-static struct frame *frame_matrix_frame;
-
 /* Convert vpos and hpos from frame to window and vice versa.
    This may only be used for terminal frames.  */
 
@@ -2775,17 +2770,6 @@ fill_up_frame_row_with_spaces (struct glyph_row *row, int upto)
       Mirroring operations on frame matrices in window matrices
  **********************************************************************/
 
-/* Set frame being updated via frame-based redisplay to F.  This
-   function must be called before updates to make explicit that we are
-   working on frame matrices or not.  */
-
-static void
-set_frame_matrix_frame (struct frame *f)
-{
-  frame_matrix_frame = f;
-}
-
-
 /* Make sure glyph row ROW in CURRENT_MATRIX is up to date.
    DESIRED_MATRIX is the desired matrix corresponding to
    CURRENT_MATRIX.  The update is done by exchanging glyph pointers
@@ -3481,7 +3465,6 @@ static bool
 update_window_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 {
   eassert (FRAME_WINDOW_P (f));
-  set_frame_matrix_frame (NULL);
   update_begin (f);
   update_menu_bar (f);
   update_tab_bar (f);
@@ -3496,7 +3479,6 @@ update_window_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 static bool
 update_initial_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 {
-  set_frame_matrix_frame (f);
   build_frame_matrix (f);
   struct window *root_window = XWINDOW (f->root_window);
   set_window_update_flags (root_window, false);
@@ -3521,13 +3503,11 @@ update_tty_frame (struct frame *updated, bool force_p, bool inhibit_hairy_id_p)
   for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
     {
       struct frame *f = XFRAME (XCAR (tail));
-      set_frame_matrix_frame (f);
       build_frame_matrix (f);
       if (f != root)
 	copy_child_glyphs (root, f);
     }
 
-  set_frame_matrix_frame (root);
   update_begin (root);
   bool paused_p = update_frame_1 (root, force_p, inhibit_hairy_id_p, 1, false);
   update_end (root);
@@ -3602,10 +3582,6 @@ update_frame_with_menu (struct frame *f, int row, int col)
   bool paused_p, cursor_at_point_p;
 
   eassert (FRAME_TERMCAP_P (f));
-
-  /* We are working on frame matrix basis.  Set the frame on whose
-     frame matrix we operate.  */
-  set_frame_matrix_frame (f);
 
   /* Update the display.  */
   update_begin (f);
@@ -3721,9 +3697,6 @@ update_single_window (struct window *w)
   if (w->must_be_updated_p)
     {
       struct frame *f = XFRAME (WINDOW_FRAME (w));
-
-      /* Record that this is not a frame-based redisplay.  */
-      set_frame_matrix_frame (NULL);
 
       /* Update W.  */
       update_begin (f);
