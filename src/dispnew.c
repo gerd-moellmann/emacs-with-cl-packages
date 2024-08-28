@@ -2924,9 +2924,8 @@ mirrored_line_dance (struct frame *f, int unchanged_at_top, int nlines,
     }
 
   /* Do the same for window matrices, if MATRIX is a frame matrix.  */
-  if (frame_matrix_frame)
-    mirror_line_dance (XWINDOW (frame_matrix_frame->root_window),
-		       unchanged_at_top, nlines, copy_from, retained_p);
+  mirror_line_dance (XWINDOW (f->root_window),
+		     unchanged_at_top, nlines, copy_from, retained_p);
 
   SAFE_FREE ();
 }
