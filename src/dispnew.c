@@ -3316,10 +3316,7 @@ root_frame (struct frame *f)
 }
 
 /* Copy what we need from the glyph matrices of child frame CHILD to its
-   root frame's desired matrix.
-
-   FIXME/tty: Prove that copying enabled rows only is correct if copy
-   from possibly overlapping child frames in z order. */
+   root frame's desired matrix. */
 
 static void
 copy_child_glyphs (struct frame *root, struct frame *child)
