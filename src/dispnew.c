@@ -3425,7 +3425,7 @@ update_menu_bar (struct frame *f)
 }
 
 static void
-update_special_window (Lisp_Object window, Lisp_Object *current,
+update_bar_window (Lisp_Object window, Lisp_Object *current,
 		       Lisp_Object *desired)
 {
   if (WINDOWP (window))
@@ -3450,8 +3450,8 @@ static void
 update_tab_bar (struct frame *f)
 {
 #if defined(HAVE_WINDOW_SYSTEM)
-  update_special_window (f->tab_bar_window, &f->current_tab_bar_string,
-			 &f->desired_tab_bar_string);
+  update_bar_window (f->tab_bar_window, &f->current_tab_bar_string,
+		     &f->desired_tab_bar_string);
 #endif
 }
 
@@ -3459,8 +3459,8 @@ static void
 update_tool_bar (struct frame *f)
 {
 #if defined(HAVE_WINDOW_SYSTEM) && !defined(HAVE_EXT_TOOL_BAR)
-  update_special_window (f->tool_bar_window, &f->current_tool_bar_string,
-			 &f->desired_tool_bar_string);
+  update_bar_window (f->tool_bar_window, &f->current_tool_bar_string,
+		     &f->desired_tool_bar_string);
 #endif
 }
 
