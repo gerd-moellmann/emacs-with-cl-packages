@@ -3316,31 +3316,25 @@ root_frame (struct frame *f)
 }
 
 /* Copy what we need from the glyph matrices of child frame CHILD to its
-   root frame's desired matrix. */
+   root frame's desired matrix.
+
+   FIXME/tty: Prove that copying enabled rows only is correct if copy
+   from possibly overlapping child frames in z order. */
 
 static void
 copy_child_glyphs (struct frame *root, struct frame *child)
 {
   struct rect r;
   if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
-    {
-      struct glyph_matrix *root_matrix = root->desired_matrix;
-      for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
+    for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
+      if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
 	{
-	  /* We start by building the root's matrix, so we have to make
-	     sure that the complete contents of the child are
-	     written. That is why we copy from the current matrix if a
-	     row has not changed in the desired matrix. */
-	  const struct glyph_row *child_row
-	    = (child->desired_matrix->rows[child_y].enabled_p
-	       ? &child->desired_matrix->rows[child_y]
-	       : &child->current_matrix->rows[child_y]);
-	  struct glyph_row *root_row = root_matrix->rows + y;
+	  struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
+	  struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
 	  memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
 		  r.w * sizeof (struct glyph));
 	  root_row->enabled_p = true;
 	}
-    }
 }
 
 /* Return true if F1 is an ancestor of F2.  */
