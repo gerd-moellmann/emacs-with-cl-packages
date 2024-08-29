@@ -5202,6 +5202,17 @@ tty_set_cursor (struct frame *f)
     }
 }
 
+/* Return the index of the first enabled row in MATRIX, or -1 if there
+   is none. */
+
+static int
+first_enabled_row (struct glyph_matrix *matrix)
+{
+  for (int i = 0; i < matrix->nrows; ++i)
+    if (MATRIX_ROW_ENABLED_P (matrix, i))
+      return i;
+  return -1;
+}
 
 /* Update the desired frame matrix of frame F.
 
@@ -5215,79 +5226,53 @@ static bool
 tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 		   bool set_cursor_p, bool updating_menu_p)
 {
-  /* Frame matrices to work on.  */
-  struct glyph_matrix *current_matrix = f->current_matrix;
-  struct glyph_matrix *desired_matrix = f->desired_matrix;
-  int i;
-  bool pause_p;
-  int preempt_count = clip_to_bounds (1, baud_rate / 2400 + 1, INT_MAX);
+  if (!force_p && detect_input_pending_ignore_squeezables ())
+    {
+      clear_desired_matrices (f);
+      return true;
+    }
 
-  eassert (current_matrix && desired_matrix);
+  const int preempt_count = clip_to_bounds (1, baud_rate / 2400 + 1, INT_MAX);
 
   if (baud_rate != FRAME_COST_BAUD_RATE (f))
     calculate_costs (f);
-
-  if (!force_p && detect_input_pending_ignore_squeezables ())
-    {
-      pause_p = 1;
-      goto do_pause;
-    }
 
   /* If we cannot insert/delete lines, it's no use trying it.  */
   if (!FRAME_LINE_INS_DEL_OK (f))
     inhibit_id_p = 1;
 
+  /* Update the individual lines as needed.  Do bottom line first.
+     FIXME/tty: why? */
+  if (MATRIX_ROW_ENABLED_P (f->desired_matrix, f->desired_matrix->nrows - 1))
+    update_frame_line (f, f->desired_matrix->nrows - 1, updating_menu_p);
+
   /* See if any of the desired lines are enabled; don't compute for
      i/d line if just want cursor motion.  */
-  for (i = 0; i < desired_matrix->nrows; i++)
-    if (MATRIX_ROW_ENABLED_P (desired_matrix, i))
-      break;
-
-  /* Try doing i/d line, if not yet inhibited.  */
-  if (!inhibit_id_p && i < desired_matrix->nrows)
+  int first_row = first_enabled_row (f->desired_matrix);
+  if (!inhibit_id_p && first_row >= 0)
     force_p |= scrolling (f);
 
-  /* Update the individual lines as needed.  Do bottom line first.  */
-  if (MATRIX_ROW_ENABLED_P (desired_matrix, desired_matrix->nrows - 1))
-    update_frame_line (f, desired_matrix->nrows - 1, updating_menu_p);
-
-  /* Now update the rest of the lines.  */
-  for (i = 0; i < desired_matrix->nrows - 1 && (force_p || !input_pending); i++)
+  bool pause_p = false;
+  if (first_row >= 0)
     {
-      if (MATRIX_ROW_ENABLED_P (desired_matrix, i))
+      int i = first_row;
+      for (; i < f->desired_matrix->nrows - 1 && (force_p || !input_pending); ++i)
 	{
-	  /* Note that output_buffer_size being 0 means that we want the
-	     old default behavior of flushing output every now and then.  */
-	  if (FRAME_TERMCAP_P (f) && FRAME_TTY (f)->output_buffer_size == 0)
+	  if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
 	    {
-	      /* Flush out every so many lines.
-		 Also flush out if likely to have more than 1k buffered
-		 otherwise.   I'm told that some telnet connections get
-		 really screwed by more than 1k output at once.  */
-	      FILE *display_output = FRAME_TTY (f)->output;
-	      if (display_output)
-		{
-		  ptrdiff_t outq = __fpending (display_output);
-		  if (outq > 900
-		      || (outq > 20 && ((i - 1) % preempt_count == 0)))
-		    fflush (display_output);
-		}
+	      if (!force_p && (i - 1) % preempt_count == 0)
+		detect_input_pending_ignore_squeezables ();
+
+	      update_frame_line (f, i, updating_menu_p);
 	    }
-
-	  if (!force_p && (i - 1) % preempt_count == 0)
-	    detect_input_pending_ignore_squeezables ();
-
-	  update_frame_line (f, i, updating_menu_p);
 	}
-    }
 
-  pause_p = 0 < i && i < FRAME_TOTAL_LINES (f) - 1;
+      pause_p = i < FRAME_TOTAL_LINES (f) - 1;
+    }
 
   /* Now just clean up termcap drivers and set cursor, etc.  */
   if (!pause_p && set_cursor_p)
     tty_set_cursor (f);
-
- do_pause:
 
   clear_desired_matrices (f);
   return pause_p;
