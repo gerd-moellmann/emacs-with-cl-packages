@@ -5119,6 +5119,90 @@ scrolling_window (struct window *w, int tab_line_p)
 			 Frame-Based Updates
  ************************************************************************/
 
+static void
+tty_set_cursor (struct frame *f)
+{
+  if ((cursor_in_echo_area
+       /* If we are showing a message instead of the mini-buffer,
+	  show the cursor for the message instead of for the
+	  (now hidden) mini-buffer contents.  */
+       || (BASE_EQ (minibuf_window, selected_window)
+	   && BASE_EQ (minibuf_window, echo_area_window)
+	   && !NILP (echo_area_buffer[0])))
+      /* These cases apply only to the frame that contains
+	 the active mini-buffer window.  */
+      && FRAME_HAS_MINIBUF_P (f)
+      && BASE_EQ (FRAME_MINIBUF_WINDOW (f), echo_area_window))
+    {
+      int top = WINDOW_TOP_EDGE_LINE (XWINDOW (FRAME_MINIBUF_WINDOW (f)));
+      int col;
+
+      /* Put cursor at the end of the prompt.  If the mini-buffer
+	 is several lines high, find the last line that has
+	 any text on it.  */
+      int row = FRAME_TOTAL_LINES (f);
+      do
+	{
+	  row--;
+	  col = 0;
+
+	  if (MATRIX_ROW_ENABLED_P (f->current_matrix, row))
+	    {
+	      /* Frame rows are filled up with spaces that
+		 must be ignored here.  */
+	      struct glyph_row *r = MATRIX_ROW (f->current_matrix, row);
+	      struct glyph *start = r->glyphs[TEXT_AREA];
+
+	      col = r->used[TEXT_AREA];
+	      while (0 < col && start[col - 1].charpos < 0)
+		col--;
+	    }
+	}
+      while (row > top && col == 0);
+
+      /* We exit the loop with COL at the glyph _after_ the last one.  */
+      if (col > 0)
+	col--;
+
+      /* Make sure COL is not out of range.  */
+      if (col >= FRAME_CURSOR_X_LIMIT (f))
+	{
+	  /* If we have another row, advance cursor into it.  */
+	  if (row < FRAME_TOTAL_LINES (f) - 1)
+	    {
+	      col = FRAME_LEFT_SCROLL_BAR_COLS (f);
+	      row++;
+	    }
+	  /* Otherwise move it back in range.  */
+	  else
+	    col = FRAME_CURSOR_X_LIMIT (f) - 1;
+	}
+
+      cursor_to (f, row, col);
+    }
+  else
+    {
+      /* We have only one cursor on terminal frames.  Use it to
+	 display the cursor of the selected window.  */
+      struct window *w = XWINDOW (FRAME_SELECTED_WINDOW (f));
+      if (w->cursor.vpos >= 0
+	  /* The cursor vpos may be temporarily out of bounds
+	     in the following situation:  There is one window,
+	     with the cursor in the lower half of it.  The window
+	     is split, and a message causes a redisplay before
+	     a new cursor position has been computed.  */
+	  && w->cursor.vpos < WINDOW_TOTAL_LINES (w))
+	{
+	  int x = WINDOW_TO_FRAME_HPOS (w, w->cursor.hpos);
+	  int y = WINDOW_TO_FRAME_VPOS (w, w->cursor.vpos);
+
+	  x += max (0, w->left_margin_cols);
+	  cursor_to (f, y, x);
+	}
+    }
+}
+
+
 /* Update the desired frame matrix of frame F.
 
    FORCE_P means that the update should not be stopped by pending input.
@@ -5201,86 +5285,7 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 
   /* Now just clean up termcap drivers and set cursor, etc.  */
   if (!pause_p && set_cursor_p)
-    {
-      if ((cursor_in_echo_area
-	   /* If we are showing a message instead of the mini-buffer,
-	      show the cursor for the message instead of for the
-	      (now hidden) mini-buffer contents.  */
-	   || (BASE_EQ (minibuf_window, selected_window)
-	       && BASE_EQ (minibuf_window, echo_area_window)
-	       && !NILP (echo_area_buffer[0])))
-	  /* These cases apply only to the frame that contains
-	     the active mini-buffer window.  */
-	  && FRAME_HAS_MINIBUF_P (f)
-	  && BASE_EQ (FRAME_MINIBUF_WINDOW (f), echo_area_window))
-	{
-	  int top = WINDOW_TOP_EDGE_LINE (XWINDOW (FRAME_MINIBUF_WINDOW (f)));
-	  int col;
-
-	  /* Put cursor at the end of the prompt.  If the mini-buffer
-	     is several lines high, find the last line that has
-	     any text on it.  */
-	  int row = FRAME_TOTAL_LINES (f);
-	  do
-	    {
-	      row--;
-	      col = 0;
-
-	      if (MATRIX_ROW_ENABLED_P (current_matrix, row))
-		{
-		  /* Frame rows are filled up with spaces that
-		     must be ignored here.  */
-		  struct glyph_row *r = MATRIX_ROW (current_matrix, row);
-		  struct glyph *start = r->glyphs[TEXT_AREA];
-
-		  col = r->used[TEXT_AREA];
-		  while (0 < col && start[col - 1].charpos < 0)
-		    col--;
-		}
-	    }
-	  while (row > top && col == 0);
-
-	  /* We exit the loop with COL at the glyph _after_ the last one.  */
-	  if (col > 0)
-	    col--;
-
-	  /* Make sure COL is not out of range.  */
-	  if (col >= FRAME_CURSOR_X_LIMIT (f))
-	    {
-	      /* If we have another row, advance cursor into it.  */
-	      if (row < FRAME_TOTAL_LINES (f) - 1)
-		{
-		  col = FRAME_LEFT_SCROLL_BAR_COLS (f);
-		  row++;
-		}
-	      /* Otherwise move it back in range.  */
-	      else
-		col = FRAME_CURSOR_X_LIMIT (f) - 1;
-	    }
-
-	  cursor_to (f, row, col);
-	}
-      else
-	{
-	  /* We have only one cursor on terminal frames.  Use it to
-	     display the cursor of the selected window.  */
-	  struct window *w = XWINDOW (FRAME_SELECTED_WINDOW (f));
-	  if (w->cursor.vpos >= 0
-	      /* The cursor vpos may be temporarily out of bounds
-	         in the following situation:  There is one window,
-		 with the cursor in the lower half of it.  The window
-		 is split, and a message causes a redisplay before
-	         a new cursor position has been computed.  */
-	      && w->cursor.vpos < WINDOW_TOTAL_LINES (w))
-	    {
-	      int x = WINDOW_TO_FRAME_HPOS (w, w->cursor.hpos);
-	      int y = WINDOW_TO_FRAME_VPOS (w, w->cursor.vpos);
-
-	      x += max (0, w->left_margin_cols);
-	      cursor_to (f, y, x);
-	    }
-	}
-    }
+    tty_set_cursor (f);
 
  do_pause:
 
