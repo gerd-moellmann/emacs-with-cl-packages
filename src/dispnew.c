@@ -5236,12 +5236,7 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 
   /* If we cannot insert/delete lines, it's no use trying it.  */
   if (!FRAME_LINE_INS_DEL_OK (f))
-    inhibit_id_p = 1;
-
-  /* Update the individual lines as needed.  Do bottom line first.
-     FIXME/tty: why? */
-  if (MATRIX_ROW_ENABLED_P (f->desired_matrix, f->desired_matrix->nrows - 1))
-    update_frame_line (f, f->desired_matrix->nrows - 1, updating_menu_p);
+    inhibit_id_p = true;
 
   /* See if any of the desired lines are enabled; don't compute for
      i/d line if just want cursor motion.  */
@@ -5249,27 +5244,27 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
   if (!inhibit_id_p && first_row >= 0)
     force_p |= scrolling (f);
 
+  /* Update the individual lines as needed.  Do bottom line first.  This
+     is done so that messages are made visible when pausing. */
+  if (MATRIX_ROW_ENABLED_P (f->desired_matrix, f->desired_matrix->nrows - 1))
+    update_frame_line (f, f->desired_matrix->nrows - 1, updating_menu_p);
+
   bool pause_p = false;
   if (first_row >= 0)
     {
       const int preempt_count = clip_to_bounds (1, baud_rate / 2400 + 1, INT_MAX);
 
       for (int i = first_row; i < f->desired_matrix->nrows - 1; ++i)
-	{
-	  if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
-	    {
-	      if (!force_p && (i - first_row) % preempt_count == 0)
-		{
-		  detect_input_pending_ignore_squeezables ();
-		  if (input_pending)
-		    {
-		      pause_p = true;
-		      break;
-		    }
-		}
-	      update_frame_line (f, i, updating_menu_p);
-	    }
-	}
+	if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
+	  {
+	    if (!force_p && (i - first_row) % preempt_count == 0
+		&& detect_input_pending_ignore_squeezables ())
+	      {
+		pause_p = true;
+		break;
+	      }
+	    update_frame_line (f, i, updating_menu_p);
+	  }
     }
 
   /* Now just clean up termcap drivers and set cursor, etc.  */
