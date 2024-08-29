@@ -3504,7 +3504,6 @@ update_tty_frame (struct frame *updated, bool force_p, bool inhibit_hairy_id_p)
 
   update_begin (root);
   bool paused_p = tty_update_screen (root, force_p, inhibit_hairy_id_p, 1, false);
-  clear_desired_matrices (root);
   update_end (root);
   flush_terminal (root);
 
@@ -3513,13 +3512,11 @@ update_tty_frame (struct frame *updated, bool force_p, bool inhibit_hairy_id_p)
       struct frame *f = XFRAME (XCAR (tail));
       struct window *root_window = XWINDOW (f->root_window);
       set_window_update_flags (root_window, false);
+      clear_desired_matrices (f);
 #ifdef GLYPH_DEBUG
       check_window_matrix_pointers (root_window);
       add_frame_display_history (f, false);
 #endif
-      /* The clearing has already been done for ROOT in update_frame_1. */
-      if (f != root)
-	clear_desired_matrices (f);
     }
 
   return paused_p;
