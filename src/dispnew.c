@@ -3207,7 +3207,10 @@ redraw_frame (struct frame *f)
        future.  */
     SET_FRAME_GARBAGED (f);
 
-  clear_frame (f);
+  /* FIXME/tty: clear_frame is actually a "clear_terminal", i.e.
+     is clears the entire screen. */
+  if (!FRAME_PARENT_FRAME (f))
+    clear_frame (f);
   clear_current_matrices (f);
   update_end (f);
   fset_redisplay (f);
