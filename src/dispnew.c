@@ -5246,15 +5246,16 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 
   /* Update the individual lines as needed.  Do bottom line first.  This
      is done so that messages are made visible when pausing. */
-  if (MATRIX_ROW_ENABLED_P (f->desired_matrix, f->desired_matrix->nrows - 1))
-    update_frame_line (f, f->desired_matrix->nrows - 1, updating_menu_p);
+  int last_row = f->desired_matrix->nrows - 1;
+  if (MATRIX_ROW_ENABLED_P (f->desired_matrix, last_row))
+    update_frame_line (f, last_row, updating_menu_p);
 
   bool pause_p = false;
   if (first_row >= 0)
     {
       const int preempt_count = clip_to_bounds (1, baud_rate / 2400 + 1, INT_MAX);
 
-      for (int i = first_row; i < f->desired_matrix->nrows - 1; ++i)
+      for (int i = first_row; i < last_row; ++i)
 	if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
 	  {
 	    if (!force_p && (i - first_row) % preempt_count == 0
