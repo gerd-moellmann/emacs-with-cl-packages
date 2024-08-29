@@ -3510,6 +3510,7 @@ update_tty_frame (struct frame *updated, bool force_p, bool inhibit_hairy_id_p)
 
   update_begin (root);
   bool paused_p = tty_update_screen (root, force_p, inhibit_hairy_id_p, 1, false);
+  clear_desired_matrices (root);
   update_end (root);
   flush_terminal (root);
 
@@ -3589,6 +3590,7 @@ update_frame_with_menu (struct frame *f, int row, int col)
   /* Force update_frame_1 not to stop due to pending input, and not
      try scrolling.  */
   paused_p = tty_update_screen (f, 1, 1, cursor_at_point_p, true);
+  clear_desired_matrices (f);
   /* ROW and COL tell us where in the menu to position the cursor, so
      that screen readers know the active region on the screen.  */
   if (!cursor_at_point_p)
@@ -5227,10 +5229,7 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 		   bool set_cursor_p, bool updating_menu_p)
 {
   if (!force_p && detect_input_pending_ignore_squeezables ())
-    {
-      clear_desired_matrices (f);
-      return true;
-    }
+    return true;
 
   const int preempt_count = clip_to_bounds (1, baud_rate / 2400 + 1, INT_MAX);
 
@@ -5274,7 +5273,6 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
   if (!pause_p && set_cursor_p)
     tty_set_cursor (f);
 
-  clear_desired_matrices (f);
   return pause_p;
 }
 
