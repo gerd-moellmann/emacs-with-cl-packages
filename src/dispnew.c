@@ -5231,14 +5231,14 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
   if (!force_p && detect_input_pending_ignore_squeezables ())
     return true;
 
-  if (baud_rate != FRAME_COST_BAUD_RATE (f))
-    calculate_costs (f);
-
   /* If we cannot insert/delete lines, it's no use trying it.  */
   if (!FRAME_LINE_INS_DEL_OK (f))
     inhibit_id_p = true;
 
-  /* See if any of the desired lines are enabled; don't compute for
+  if (baud_rate != FRAME_COST_BAUD_RATE (f))
+    calculate_costs (f);
+
+ /* See if any of the desired lines are enabled; don't compute for
      i/d line if just want cursor motion.  */
   int first_row = first_enabled_row (f->desired_matrix);
   if (!inhibit_id_p && first_row >= 0)
@@ -5255,16 +5255,17 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
     {
       const int preempt_count = clip_to_bounds (1, baud_rate / 2400 + 1, INT_MAX);
 
-      for (int i = first_row; i < last_row; ++i)
+      for (int i = first_row, n = 0; i < last_row; ++i)
 	if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
 	  {
-	    if (!force_p && (i - first_row) % preempt_count == 0
+	    if (!force_p && n % preempt_count == 0
 		&& detect_input_pending_ignore_squeezables ())
 	      {
 		pause_p = true;
 		break;
 	      }
 	    update_frame_line (f, i, updating_menu_p);
+	    ++n;
 	  }
     }
 
