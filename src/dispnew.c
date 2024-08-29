@@ -5122,8 +5122,10 @@ scrolling_window (struct window *w, int tab_line_p)
  ************************************************************************/
 
 static void
-tty_set_cursor (struct frame *f)
+tty_set_cursor (void)
 {
+  struct frame *f = SELECTED_FRAME ();
+
   if ((cursor_in_echo_area
        /* If we are showing a message instead of the mini-buffer,
 	  show the cursor for the message instead of for the
@@ -5271,7 +5273,7 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 
   /* Now just clean up termcap drivers and set cursor, etc.  */
   if (!pause_p && set_cursor_p)
-    tty_set_cursor (f);
+    tty_set_cursor ();
 
   return pause_p;
 }
