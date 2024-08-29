@@ -5231,8 +5231,6 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
   if (!force_p && detect_input_pending_ignore_squeezables ())
     return true;
 
-  const int preempt_count = clip_to_bounds (1, baud_rate / 2400 + 1, INT_MAX);
-
   if (baud_rate != FRAME_COST_BAUD_RATE (f))
     calculate_costs (f);
 
@@ -5254,19 +5252,24 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
   bool pause_p = false;
   if (first_row >= 0)
     {
-      int i = first_row;
-      for (; i < f->desired_matrix->nrows - 1 && (force_p || !input_pending); ++i)
+      const int preempt_count = clip_to_bounds (1, baud_rate / 2400 + 1, INT_MAX);
+
+      for (int i = first_row; i < f->desired_matrix->nrows - 1; ++i)
 	{
 	  if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
 	    {
-	      if (!force_p && (i - 1) % preempt_count == 0)
-		detect_input_pending_ignore_squeezables ();
-
+	      if (!force_p && (i - first_row) % preempt_count == 0)
+		{
+		  detect_input_pending_ignore_squeezables ();
+		  if (input_pending)
+		    {
+		      pause_p = true;
+		      break;
+		    }
+		}
 	      update_frame_line (f, i, updating_menu_p);
 	    }
 	}
-
-      pause_p = i < FRAME_TOTAL_LINES (f) - 1;
     }
 
   /* Now just clean up termcap drivers and set cursor, etc.  */
