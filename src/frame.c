@@ -131,6 +131,14 @@ decode_window_system_frame (Lisp_Object frame)
 #endif
 }
 
+struct frame *
+decode_tty_frame (Lisp_Object frame)
+{
+  struct frame *f = decode_live_frame (frame);
+  check_tty (f);
+  return f;
+}
+
 void
 check_window_system (struct frame *f)
 {
@@ -140,6 +148,13 @@ check_window_system (struct frame *f)
 #endif
   error (f ? "Window system frame should be used"
 	 : "Window system is not in use or not initialized");
+}
+
+void
+check_tty (struct frame *f)
+{
+  if (!f || !FRAME_TERMCAP_P (f))
+    error ("tty frame should be used");
 }
 
 /* Return the value of frame parameter PROP in frame FRAME.  */
