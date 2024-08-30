@@ -30,6 +30,11 @@ script -- sys.path.append('../etc')
 # Load our Python files
 command script import emacs_lldb
 
+# Attach to future Emacs. It might be adviaable to redirect Emacs'
+# stderr to some log file so that one can see the output of xdebug_print
+# and other output to stderr.
+command alias xattach process attach --waitfor --name emacs --continue
+
 # For tty Emacs
 process handle SIGWINCH --pass true --stop false
 process handle SIGINT --pass true --stop false
@@ -96,6 +101,8 @@ b die
 #settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/MacOS/ --eln-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/Frameworks/
 #command alias go process launch --working-dir .
 
-target create emacs
-settings set -- target.run-args -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -f batch-byte-compile pcmpl-x.el'../src/emacs' -batch --no-site-file --no-site-lisp --eval "(setq load-prefer-newer t byte-compile-warnings 'all)" --eval "(setq org--inhibit-version-check t)"  -f batch-byte-compile hilit-chg.el
-command alias go process launch --working-dir ../lisp
+# Start process with stderr 2> log, open log and auto-revert-tail-mode
+#process attach --waitfor --name emacs (--continue)
+
+# Attach to future Emacs
+command alias xattach process attach --waitfor --name emacs --continue
