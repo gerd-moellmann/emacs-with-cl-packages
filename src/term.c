@@ -4827,13 +4827,7 @@ DEFUN ("tty-frame-list-z-order", Ftty_frame_list_z_order,
 	       See also `frame-list-z-order'.  */)
   (Lisp_Object frame)
 {
-  /* Only support the special case of returning the child frames
-     in z order. */
-  if (!FRAMEP (frame))
-    return Qnil;
-  struct frame *f = XFRAME (frame);
-  if (!FRAME_TERMCAP_P (f))
-    return Qnil;
+  struct frame *f = decode_tty_frame (frame);
   Lisp_Object frames = frames_in_z_order (f);
   return Fnreverse (frames);
 }
