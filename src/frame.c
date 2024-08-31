@@ -1318,10 +1318,6 @@ make_terminal_frame (struct terminal *terminal)
     SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), 2); /* obscured */
 
   FRAME_TTY (f)->top_frame = frame;
-
-  if (!noninteractive)
-    init_frame_faces (f);
-
   return f;
 }
 
@@ -1458,6 +1454,11 @@ affects all frames on the same terminal device.  */)
   Lisp_Object parent = Fassq (Qparent_frame, parms);
   if (CONSP (parent) && FRAMEP (XCDR (parent)))
     f->parent_frame = XCDR (parent);
+
+  /* Initializing faces can only be done when we know if the new frame
+     is a child ffame or not. */
+  if (!noninteractive)
+    init_frame_faces (f);
 
   /* Determine width and height of the frame. For root frames use the
      width/height of the terminal. For child frames, take it from frame
