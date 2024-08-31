@@ -3926,6 +3926,7 @@ struct frame *root_frame (struct frame *f);
 #endif /* HAVE_WINDOW_SYSTEM */
 
 Lisp_Object frames_in_z_order (struct frame *f);
+bool is_tty_frame (struct frame *f);
 bool is_tty_child_frame (struct frame *f);
 bool is_tty_root_frame (struct frame *f);
 Lisp_Object frames_with_root (struct frame *root);
