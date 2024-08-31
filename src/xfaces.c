@@ -678,6 +678,10 @@ init_frame_faces (struct frame *f)
       return;
     }
 
+  /* If acting on a root frame on ttys, make sure we don't create
+     a face cache children don't share. */
+  eassert (!is_tty_root_frame (f) || NILP (frames_with_root (f)));
+
   /* Make a face cache, if F doesn't have one.  */
   if (FRAME_FACE_CACHE (f) == NULL)
     FRAME_FACE_CACHE (f) = make_face_cache (f);
@@ -710,6 +714,10 @@ free_frame_faces (struct frame *f)
      root. */
   if (is_tty_child_frame (f))
     return;
+
+  /* If acting on a root frame on ttys, make sure we don't delete
+     the face cache while there are still children using it. */
+  eassert (!is_tty_root_frame (f) || NILP (frames_with_root (f)));
 
   struct face_cache *face_cache = FRAME_FACE_CACHE (f);
   if (face_cache)

@@ -3328,7 +3328,7 @@ is_frame_ancestor (struct frame *f1, struct frame *f2)
 
 /* Return a list of all frames having root frame ROOT. */
 
-static Lisp_Object
+Lisp_Object
 frames_with_root (struct frame *root)
 {
   Lisp_Object list = Qnil;
@@ -3381,10 +3381,19 @@ frames_in_z_order (struct frame *f)
 }
 
 /* Return true if frame F is a tty child frame. */
+
 bool
 is_tty_child_frame (struct frame *f)
 {
   return FRAME_PARENT_FRAME (f) && FRAME_TERMCAP_P (f);
+}
+
+/* Return true if frame F is a tty root frame. */
+
+bool
+is_tty_root_frame (struct frame *f)
+{
+  return !FRAME_PARENT_FRAME (f) && FRAME_TERMCAP_P (f);
 }
 
 /* Copy what we need from the glyph matrices of child frame CHILD to its
