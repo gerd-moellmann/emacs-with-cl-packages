@@ -3380,6 +3380,13 @@ frames_in_z_order (struct frame *f)
   return frames;
 }
 
+/* Return true if frame F is a tty child frame. */
+bool
+is_tty_child_frame (struct frame *f)
+{
+  return FRAME_PARENT_FRAME (f) && FRAME_TERMCAP_P (f);
+}
+
 /* Copy what we need from the glyph matrices of child frame CHILD to its
    root frame's desired matrix. */
 
