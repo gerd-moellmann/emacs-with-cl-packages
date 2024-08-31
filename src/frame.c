@@ -882,9 +882,13 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
       resize_frame_windows (f, new_inner_height, false);
 
       /* MSDOS frames cannot PRETEND, as they change frame size by
-	 manipulating video hardware.  */
-      if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
-	FrameRows (FRAME_TTY (f)) = new_text_lines + FRAME_TOP_MARGIN (f);
+	 manipulating video hardware.  FIXME/tty: ti looks strange to
+	 set the tty size here. The terminal emulator or whatever knows
+	 its size, and I wonder how one would change that size from
+	 here. */
+      if (is_tty_root_frame (f))
+	if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
+	  FrameRows (FRAME_TTY (f)) = new_text_lines + FRAME_TOP_MARGIN (f);
     }
   else if (new_text_lines != old_text_lines)
     call2 (Qwindow__pixel_to_total, frame, Qnil);
