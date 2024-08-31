@@ -848,9 +848,11 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
       resize_frame_windows (f, new_inner_width, true);
 
       /* MSDOS frames cannot PRETEND, as they change frame size by
-	 manipulating video hardware.  */
-      if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
-	FrameCols (FRAME_TTY (f)) = new_text_cols;
+	 manipulating video hardware.  FIXME/tty: it looks wrong to set
+	 FrameCols here. See also the comment for FrameRows above. */
+      if (is_tty_root_frame (f))
+	if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
+	  FrameCols (FRAME_TTY (f)) = new_text_cols;
 
 #if defined (HAVE_WINDOW_SYSTEM)
       if (WINDOWP (f->tab_bar_window))
@@ -882,10 +884,12 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
       resize_frame_windows (f, new_inner_height, false);
 
       /* MSDOS frames cannot PRETEND, as they change frame size by
-	 manipulating video hardware.  FIXME/tty: ti looks strange to
-	 set the tty size here. The terminal emulator or whatever knows
-	 its size, and I wonder how one would change that size from
-	 here. */
+	 manipulating video hardware.
+
+	 FIXME/tty: ti looks strange to set FrameRows here. The terminal
+	 emulator window or console has some physical size, and I wonder
+	 how one would change that size from here. Or what it is good for
+	 to set it here. */
       if (is_tty_root_frame (f))
 	if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
 	  FrameRows (FRAME_TTY (f)) = new_text_lines + FRAME_TOP_MARGIN (f);
