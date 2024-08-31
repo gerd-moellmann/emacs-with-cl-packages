@@ -3315,25 +3315,6 @@ root_frame (struct frame *f)
   return f;
 }
 
-/* Copy what we need from the glyph matrices of child frame CHILD to its
-   root frame's desired matrix. */
-
-static void
-copy_child_glyphs (struct frame *root, struct frame *child)
-{
-  struct rect r;
-  if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
-    for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
-      if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
-	{
-	  struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
-	  struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
-	  memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
-		  r.w * sizeof (struct glyph));
-	  root_row->enabled_p = true;
-	}
-}
-
 /* Return true if F1 is an ancestor of F2.  */
 
 static bool
@@ -3397,6 +3378,32 @@ frames_in_z_order (struct frame *f)
   eassert (FRAMEP (XCAR (frames)));
   eassert (XFRAME (XCAR (frames)) == root);
   return frames;
+}
+
+/* Copy what we need from the glyph matrices of child frame CHILD to its
+   root frame's desired matrix. */
+
+static void
+copy_child_glyphs (struct frame *root, struct frame *child)
+{
+  eassert (!FRAME_PARENT_FRAME (root));
+  eassert (is_frame_ancestor (root, child));
+
+  /* Copying glyphs means copying face ids. For this to work,
+     the face caches of child and root had better be identical. */
+  eassert (root->face_cache == child->face_cache);
+
+  struct rect r;
+  if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
+    for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
+      if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
+	{
+	  struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
+	  struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
+	  memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
+		  r.w * sizeof (struct glyph));
+	  root_row->enabled_p = true;
+	}
 }
 
 /***********************************************************************
