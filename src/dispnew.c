@@ -3345,7 +3345,7 @@ is_frame_ancestor (struct frame *f1, struct frame *f2)
   return false;
 }
 
-/* Return a list of all frames on terminal TERM. */
+/* Return a list of all frames having root frame ROOT. */
 
 static Lisp_Object
 frames_with_root (struct frame *root)
