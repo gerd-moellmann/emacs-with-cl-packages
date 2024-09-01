@@ -72,7 +72,7 @@ struct dim
 
 /* Function prototypes.  */
 
-static void update_frame_line (struct frame *f, int vpos, bool updating_menu_p);
+static void write_frame_line (struct frame *f, int vpos, bool updating_menu_p);
 static int required_matrix_height (struct window *);
 static int required_matrix_width (struct window *);
 static void increment_row_positions (struct glyph_row *, ptrdiff_t, ptrdiff_t);
@@ -5319,7 +5319,7 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 	 resizes the frame quickly enough.  Prevent aborts in cmcheckmagic.  */
       if (last_row < FRAME_TOTAL_LINES (f))
 	{
-	  update_frame_line (f, last_row, updating_menu_p);
+	  write_frame_line (f, last_row, updating_menu_p);
 	  make_current (f, NULL, last_row);
 	}
     }
@@ -5344,7 +5344,7 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 	       resizes the frame quickly enough.  Prevent aborts in cmcheckmagic.  */
 	    if (i < FRAME_TOTAL_LINES (f))
 	      {
-		update_frame_line (f, i, updating_menu_p);
+		write_frame_line (f, i, updating_menu_p);
 		make_current (f, NULL, i);
 		++n;
 	      }
@@ -5508,7 +5508,7 @@ count_match (struct glyph *str1, struct glyph *end1, struct glyph *str2, struct 
 /* Perform a frame-based update on line VPOS in frame FRAME.  */
 
 static void
-update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
+write_frame_line (struct frame *f, int vpos, bool updating_menu_p)
 {
   struct glyph *obody, *nbody, *op1, *op2, *np1, *nend;
   int tem;
