@@ -3526,7 +3526,7 @@ update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
   return false;
 }
 
-static bool
+bool
 tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
 {
   eassert (is_tty_root_frame (root));
@@ -3557,6 +3557,9 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
 
   return paused;
 }
+
+/* Update on the screen all root frames ROOTS. Called from
+   redisplay_internal as the last step of redisplaying. */
 
 bool
 tty_update_roots (Lisp_Object roots, bool force_p, bool inhibit_id_p)

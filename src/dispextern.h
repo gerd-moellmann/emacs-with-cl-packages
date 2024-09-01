@@ -3931,6 +3931,7 @@ bool is_tty_child_frame (struct frame *f);
 bool is_tty_root_frame (struct frame *f);
 Lisp_Object frames_with_root (struct frame *root);
 bool tty_update_roots (Lisp_Object root_frames, bool force_p, bool inhibit_id_p);
+bool tty_update_root (struct frame *root, bool force_p, bool inhibit_id_p);
 
 INLINE_HEADER_END
 
