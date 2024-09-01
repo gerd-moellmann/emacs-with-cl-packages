@@ -5281,6 +5281,23 @@ first_enabled_row (struct glyph_matrix *matrix)
   return -1;
 }
 
+/* On fraem F, write desired row with index I to the terminal and make
+   it the current row. */
+
+static void
+write_and_make_current (struct frame *f, int i, bool updating_menu_p)
+{
+  /* FIXME/tty: this was in update_frame_line and looks dubious. */
+  /* This should never happen, but evidently sometimes does if one
+     resizes the frame quickly enough. Prevent aborts in
+     cmcheckmagic.  */
+  if (i < FRAME_TOTAL_LINES (f))
+    {
+      write_frame_line (f, i, updating_menu_p);
+      make_current (f, NULL, i);
+    }
+}
+
 /* Update the desired frame matrix of frame F.
 
    FORCE_P means that the update should not be stopped by pending input.
@@ -5313,16 +5330,7 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
      is done so that messages are made visible when pausing. */
   int last_row = f->desired_matrix->nrows - 1;
   if (MATRIX_ROW_ENABLED_P (f->desired_matrix, last_row))
-    {
-      /* FIXME/tty: thisi was in update_frame_line. */
-      /* This should never happen, but evidently sometimes does if one
-	 resizes the frame quickly enough.  Prevent aborts in cmcheckmagic.  */
-      if (last_row < FRAME_TOTAL_LINES (f))
-	{
-	  write_frame_line (f, last_row, updating_menu_p);
-	  make_current (f, NULL, last_row);
-	}
-    }
+    write_and_make_current (f, last_row, updating_menu_p);
 
   bool pause_p = false;
   if (first_row >= 0)
@@ -5339,15 +5347,8 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 		break;
 	      }
 
-	    /* FIXME/tty: this was in update_frame_line. */
-	    /* This should never happen, but evidently sometimes does if one
-	       resizes the frame quickly enough.  Prevent aborts in cmcheckmagic.  */
-	    if (i < FRAME_TOTAL_LINES (f))
-	      {
-		write_frame_line (f, i, updating_menu_p);
-		make_current (f, NULL, i);
-		++n;
-	      }
+	    write_and_make_current (f, i, updating_menu_p);
+	    ++n;
 	  }
     }
 
