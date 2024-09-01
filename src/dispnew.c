@@ -5359,6 +5359,21 @@ write_matrix_and_make_current (struct frame *f, bool force_p, bool inhibit_id_p,
   return pause_p;
 }
 
+/* On tty frame F, make desired matrix current, without writing
+   to the terminal. */
+
+static void
+make_matrix_current (struct frame *f, bool force_p, bool inhibit_id_p,
+		     bool set_cursor_p, bool updating_menu_p)
+{
+  int first_row = first_enabled_row (f->desired_matrix);
+  if (first_row >= 0)
+    {
+      for (int i = first_row; i < f->desired_matrix->nrows; ++i)
+	if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
+	  make_current (f, NULL, i);
+    }
+}
 
 /* Do line insertions/deletions on frame F for frame-based redisplay.  */
 
