@@ -3520,21 +3520,26 @@ flush_terminal (struct frame *f)
 }
 
 static bool
-update_tty_frame (struct frame *updated, bool force_p, bool inhibit_hairy_id_p)
+update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 {
-  /* We are working on frame matrix basis.  */
-  struct frame *root = root_frame (updated);
-  Lisp_Object z_order = frames_in_z_order (updated);
-  for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
+  build_frame_matrix (f);
+  return false;
+}
+
+static bool
+tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
+{
+  eassert (is_tty_root_frame (root));
+  Lisp_Object z_order = frames_in_z_order (root);
+  for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
-      struct frame *f = XFRAME (XCAR (tail));
-      build_frame_matrix (f);
-      if (f != root)
-	copy_child_glyphs (root, f);
+      struct frame *child = XFRAME (XCAR (tail));
+      eassert (is_frame_ancestor (root, child));
+      copy_child_glyphs (root, child);
     }
 
   update_begin (root);
-  bool paused_p = tty_update_screen (root, force_p, inhibit_hairy_id_p, 1, false);
+  bool paused = tty_update_screen (root, force_p, inhibit_hairy_id_p, 1, false);
   update_end (root);
   flush_terminal (root);
 
@@ -3550,7 +3555,19 @@ update_tty_frame (struct frame *updated, bool force_p, bool inhibit_hairy_id_p)
 #endif
     }
 
-  return paused_p;
+  return paused;
+}
+
+bool
+tty_update_roots (Lisp_Object roots, bool force_p, bool inhibit_id_p)
+{
+  for (; CONSP (roots); roots = XCDR (roots))
+    {
+      struct frame *root = XFRAME (XCAR (roots));
+      if (tty_update_root (root, force_p, inhibit_id_p))
+	return true;
+    }
+  return false;
 }
 
 /* Update frame F based on the data in desired matrices.

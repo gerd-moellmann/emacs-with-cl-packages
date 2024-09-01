@@ -16877,23 +16877,6 @@ do { if (! polling_stopped_here) stop_polling ();	\
 do { if (polling_stopped_here) start_polling ();	\
        polling_stopped_here = false; } while (false)
 
-/* Return true if F is currently hidden by another frame. */
-
-static bool
-is_frame_hidden (struct frame *f)
-{
-  /* Can't really tell if F is not a terminal frame. */
-  if (!FRAME_TERMCAP_P (f) && !FRAME_MSDOS_P (f))
-    return false;
-
-  /* If F is not the topmost frame of the terminal, or a child of it,
-     F is currently obscured by the root frame of the topmost
-     frame. This is because root frames occupy the whole terminal. */
-  struct frame *root1 = root_frame (f);
-  struct frame *root2 = root_frame (XFRAME (FRAME_TTY (f)->top_frame));
-  return root1 != root2;
-}
-
 /* Perhaps in the future avoid recentering windows if it
    is not necessary; currently that causes some problems.  */
 
@@ -17418,14 +17401,13 @@ redisplay_internal (void)
 
       propagate_buffer_redisplay ();
 
+      Lisp_Object tty_root_frames = Qnil;
       FOR_EACH_FRAME (tail, frame)
 	{
 	  struct frame *f = XFRAME (frame);
 
-	  /* If the frame can't be seen because another frame hides it,
-	     skip it. */
-	  if (is_frame_hidden (f))
-	    continue;
+	  if (is_tty_root_frame (f))
+	    tty_root_frames = Fcons (frame, tty_root_frames);
 
 	retry_frame:
 	  if (FRAME_WINDOW_P (f) || FRAME_TERMCAP_P (f) || f == sf)
@@ -17560,6 +17542,9 @@ redisplay_internal (void)
 		}
 	    }
 	}
+
+      if (CONSP (tty_root_frames))
+	pending |= tty_update_roots (tty_root_frames, false, false);
 
       eassert (EQ (XFRAME (selected_frame)->selected_window, selected_window));
 
