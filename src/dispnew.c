@@ -72,7 +72,7 @@ struct dim
 
 /* Function prototypes.  */
 
-static void update_frame_line (struct frame *, int, bool);
+static void update_frame_line (struct frame *f, int vpos, bool updating_menu_p);
 static int required_matrix_height (struct window *);
 static int required_matrix_width (struct window *);
 static void increment_row_positions (struct glyph_row *, ptrdiff_t, ptrdiff_t);
@@ -5313,7 +5313,16 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
      is done so that messages are made visible when pausing. */
   int last_row = f->desired_matrix->nrows - 1;
   if (MATRIX_ROW_ENABLED_P (f->desired_matrix, last_row))
-    update_frame_line (f, last_row, updating_menu_p);
+    {
+      /* FIXME/tty: thisi was in update_frame_line. */
+      /* This should never happen, but evidently sometimes does if one
+	 resizes the frame quickly enough.  Prevent aborts in cmcheckmagic.  */
+      if (last_row < FRAME_TOTAL_LINES (f))
+	{
+	  update_frame_line (f, last_row, updating_menu_p);
+	  make_current (f, NULL, last_row);
+	}
+    }
 
   bool pause_p = false;
   if (first_row >= 0)
@@ -5329,8 +5338,16 @@ tty_update_screen (struct frame *f, bool force_p, bool inhibit_id_p,
 		pause_p = true;
 		break;
 	      }
-	    update_frame_line (f, i, updating_menu_p);
-	    ++n;
+
+	    /* FIXME/tty: this was in update_frame_line. */
+	    /* This should never happen, but evidently sometimes does if one
+	       resizes the frame quickly enough.  Prevent aborts in cmcheckmagic.  */
+	    if (i < FRAME_TOTAL_LINES (f))
+	      {
+		update_frame_line (f, i, updating_menu_p);
+		make_current (f, NULL, i);
+		++n;
+	      }
 	  }
     }
 
@@ -5505,11 +5522,6 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
   bool colored_spaces_p = (FACE_FROM_ID (f, DEFAULT_FACE_ID)->background
 			   != FACE_TTY_DEFAULT_BG_COLOR);
 
-  /* This should never happen, but evidently sometimes does if one
-     resizes the frame quickly enough.  Prevent aborts in cmcheckmagic.  */
-  if (vpos >= FRAME_TOTAL_LINES (f))
-    return;
-
   if (colored_spaces_p)
     write_spaces_p = 1;
 
@@ -5579,8 +5591,6 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
 	/* Make sure we are in the right row, otherwise cursor movement
 	   with cmgoto might use `ch' in the wrong row.  */
 	cursor_to (f, vpos, 0);
-
-      make_current (f, NULL, vpos);
       return;
     }
 
@@ -5624,9 +5634,6 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
 	  cursor_to (f, vpos, nlen);
 	  clear_end_of_line (f, olen);
 	}
-
-      /* Make current row = desired row.  */
-      make_current (f, NULL, vpos);
       return;
     }
 
@@ -5648,8 +5655,6 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
 	  write_glyphs (f, nbody + nsp, nlen - nsp);
 	}
 
-      /* Exchange contents between current_frame and new_frame.  */
-      make_current (f, NULL, vpos);
       return;
     }
 
@@ -5807,9 +5812,6 @@ update_frame_line (struct frame *f, int vpos, bool updating_menu_p)
       cursor_to (f, vpos, nlen);
       clear_end_of_line (f, olen);
     }
-
-  /* Exchange contents between current_frame and new_frame.  */
-  make_current (f, NULL, vpos);
 }
 
 
