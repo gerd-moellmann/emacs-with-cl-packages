@@ -72,7 +72,7 @@ struct dim
 
 /* Function prototypes.  */
 
-static void write_frame_line (struct frame *f, int vpos, bool updating_menu_p);
+static void write_row (struct frame *f, int vpos, bool updating_menu_p);
 static int required_matrix_height (struct window *);
 static int required_matrix_width (struct window *);
 static void increment_row_positions (struct glyph_row *, ptrdiff_t, ptrdiff_t);
@@ -94,7 +94,7 @@ static void check_matrix_pointers (struct glyph_matrix *,
 static void mirror_line_dance (struct window *, int, int, int *, char *);
 static bool update_window_tree (struct window *, bool);
 static bool update_window (struct window *, bool);
-static bool write_matrix_and_make_current (struct frame *, bool, bool, bool, bool);
+static bool write_matrix (struct frame *, bool, bool, bool, bool);
 static bool scrolling (struct frame *);
 static void set_window_cursor_after_update (struct window *);
 static void adjust_frame_glyphs_for_window_redisplay (struct frame *);
@@ -3547,6 +3547,31 @@ update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
   return false;
 }
 
+/* Return the index of the first enabled row in MATRIX, or -1 if there
+   is none. */
+
+static int
+first_enabled_row (struct glyph_matrix *matrix)
+{
+  for (int i = 0; i < matrix->nrows; ++i)
+    if (MATRIX_ROW_ENABLED_P (matrix, i))
+      return i;
+  return -1;
+}
+
+/* On tty frame F, make desired matrix current, without writing
+   to the terminal. */
+
+static void
+make_matrix_current (struct frame *f)
+{
+  int first_row = first_enabled_row (f->desired_matrix);
+  if (first_row >= 0)
+    for (int i = first_row; i < f->desired_matrix->nrows; ++i)
+      if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
+	make_current (f, NULL, i);
+}
+
 bool
 tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
 {
@@ -3557,10 +3582,12 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
       struct frame *child = XFRAME (XCAR (tail));
       eassert (is_frame_ancestor (root, child));
       copy_child_glyphs (root, child);
+      make_matrix_current (child);
     }
 
   update_begin (root);
-  bool paused = write_matrix_and_make_current (root, force_p, inhibit_hairy_id_p, 1, false);
+  bool paused = write_matrix (root, force_p, inhibit_hairy_id_p, 1, false);
+  make_matrix_current (root);
   update_end (root);
   flush_terminal (root);
 
@@ -3652,7 +3679,7 @@ update_frame_with_menu (struct frame *f, int row, int col)
   cursor_at_point_p = !(row >= 0 && col >= 0);
   /* Force update_frame_1 not to stop due to pending input, and not
      try scrolling.  */
-  paused_p = write_matrix_and_make_current (f, 1, 1, cursor_at_point_p, true);
+  paused_p = write_matrix (f, 1, 1, cursor_at_point_p, true);
   clear_desired_matrices (f);
   /* ROW and COL tell us where in the menu to position the cursor, so
      that screen readers know the active region on the screen.  */
@@ -5269,35 +5296,6 @@ tty_set_cursor (void)
     }
 }
 
-/* Return the index of the first enabled row in MATRIX, or -1 if there
-   is none. */
-
-static int
-first_enabled_row (struct glyph_matrix *matrix)
-{
-  for (int i = 0; i < matrix->nrows; ++i)
-    if (MATRIX_ROW_ENABLED_P (matrix, i))
-      return i;
-  return -1;
-}
-
-/* On tty fraem F, write desired row with index I to the terminal and make
-   it the current row. */
-
-static void
-write_row_and_make_current (struct frame *f, int i, bool updating_menu_p)
-{
-  /* FIXME/tty: this was in update_frame_line and looks dubious. */
-  /* This should never happen, but evidently sometimes does if one
-     resizes the frame quickly enough. Prevent aborts in
-     cmcheckmagic.  */
-  if (i < FRAME_TOTAL_LINES (f))
-    {
-      write_frame_line (f, i, updating_menu_p);
-      make_current (f, NULL, i);
-    }
-}
-
 /* Write desired matix of tty frame F and make it current.
 
    FORCE_P means that the update should not be stopped by pending input.
@@ -5307,8 +5305,8 @@ write_row_and_make_current (struct frame *f, int i, bool updating_menu_p)
    Value is true if update was stopped due to pending input.  */
 
 static bool
-write_matrix_and_make_current (struct frame *f, bool force_p, bool inhibit_id_p,
-			       bool set_cursor_p, bool updating_menu_p)
+write_matrix (struct frame *f, bool force_p, bool inhibit_id_p,
+	      bool set_cursor_p, bool updating_menu_p)
 {
   if (!force_p && detect_input_pending_ignore_squeezables ())
     return true;
@@ -5330,7 +5328,7 @@ write_matrix_and_make_current (struct frame *f, bool force_p, bool inhibit_id_p,
      is done so that messages are made visible when pausing. */
   int last_row = f->desired_matrix->nrows - 1;
   if (MATRIX_ROW_ENABLED_P (f->desired_matrix, last_row))
-    write_row_and_make_current (f, last_row, updating_menu_p);
+    write_row (f, last_row, updating_menu_p);
 
   bool pause_p = false;
   if (first_row >= 0)
@@ -5347,7 +5345,7 @@ write_matrix_and_make_current (struct frame *f, bool force_p, bool inhibit_id_p,
 		break;
 	      }
 
-	    write_row_and_make_current (f, i, updating_menu_p);
+	    write_row (f, i, updating_menu_p);
 	    ++n;
 	  }
     }
@@ -5357,22 +5355,6 @@ write_matrix_and_make_current (struct frame *f, bool force_p, bool inhibit_id_p,
     tty_set_cursor ();
 
   return pause_p;
-}
-
-/* On tty frame F, make desired matrix current, without writing
-   to the terminal. */
-
-static void
-make_matrix_current (struct frame *f, bool force_p, bool inhibit_id_p,
-		     bool set_cursor_p, bool updating_menu_p)
-{
-  int first_row = first_enabled_row (f->desired_matrix);
-  if (first_row >= 0)
-    {
-      for (int i = first_row; i < f->desired_matrix->nrows; ++i)
-	if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
-	  make_current (f, NULL, i);
-    }
 }
 
 /* Do line insertions/deletions on frame F for frame-based redisplay.  */
@@ -5524,7 +5506,7 @@ count_match (struct glyph *str1, struct glyph *end1, struct glyph *str2, struct 
 /* Perform a frame-based update on line VPOS in frame FRAME.  */
 
 static void
-write_frame_line (struct frame *f, int vpos, bool updating_menu_p)
+write_row (struct frame *f, int vpos, bool updating_menu_p)
 {
   struct glyph *obody, *nbody, *op1, *op2, *np1, *nend;
   int tem;
