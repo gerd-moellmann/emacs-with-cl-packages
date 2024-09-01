@@ -13502,7 +13502,11 @@ echo_area_display (bool update_frame_p)
 	      flush_frame (f);
 	    }
 	  else
-	    update_frame (f, true, true);
+	    {
+	      update_frame (f, true, true);
+	      if (is_tty_frame (f))
+		tty_update_root (root_frame (f), true, true);
+	    }
 
 	  /* If cursor is in the echo area, make sure that the next
 	     redisplay displays the minibuffer, so that the cursor will
@@ -17629,6 +17633,10 @@ redisplay_internal (void)
 
 	  XWINDOW (selected_window)->must_be_updated_p = true;
 	  pending = update_frame (sf, false, false);
+
+	  if (is_tty_frame (sf))
+	    pending |= tty_update_root (root_frame (sf), false, false);
+
 	  sf->cursor_type_changed = false;
 	  sf->inhibit_clear_image_cache = false;
 	}
@@ -17645,6 +17653,8 @@ redisplay_internal (void)
 	{
 	  XWINDOW (mini_window)->must_be_updated_p = true;
 	  pending |= update_frame (mini_frame, false, false);
+	  if (is_tty_frame (mini_frame))
+	    pending |= tty_update_root (mini_frame, false, false);
 	  mini_frame->cursor_type_changed = false;
           if (!pending && hscroll_retries <= MAX_HSCROLL_RETRIES
               && hscroll_windows (mini_window))
