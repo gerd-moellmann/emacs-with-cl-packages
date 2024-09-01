@@ -3404,6 +3404,17 @@ is_tty_root_frame (struct frame *f)
   return !FRAME_PARENT_FRAME (f) && is_tty_frame (f);
 }
 
+static void
+check_copied_glyphs (struct frame *child, struct glyph *glyph, int n)
+{
+#ifdef GLYPH_DEBUG
+  struct face_cache *cache = child->face_cache;
+  for (int i = 0; i < n; ++i, ++glyph)
+    if (glyph->face_id < 0 || glyph->face_id >= cache->used)
+      emacs_abort ();
+#endif
+}
+
 /* Copy what we need from the glyph matrices of child frame CHILD to its
    root frame's desired matrix. */
 
@@ -3422,11 +3433,21 @@ copy_child_glyphs (struct frame *root, struct frame *child)
     for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
       if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
 	{
-	  struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
 	  struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
+	  if (!root_row->enabled_p)
+	    {
+	      struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
+	      memcpy (root_row->glyphs[0], from->glyphs[0],
+		      root->current_matrix->matrix_w * sizeof (struct glyph));
+	      root_row->enabled_p = true;
+	    }
+
+	  struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
+	  check_copied_glyphs (child, child_row->glyphs[0], r.w);
 	  memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
 		  r.w * sizeof (struct glyph));
-	  root_row->enabled_p = true;
+
+	  root_row->hash = row_hash (root_row);
 	}
 }
 
