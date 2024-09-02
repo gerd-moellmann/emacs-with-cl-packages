@@ -72,7 +72,6 @@ struct dim
 
 /* Function prototypes.  */
 
-static void free_child_rects (struct glyph_matrix *matrix);
 static void write_row (struct frame *f, int vpos, bool updating_menu_p);
 static int required_matrix_height (struct window *);
 static int required_matrix_width (struct window *);
@@ -304,8 +303,6 @@ free_glyph_matrix (struct glyph_matrix *matrix)
       /* Free row structures and the matrix itself.  */
       xfree (matrix->rows);
       xfree (matrix);
-
-      free_child_rects (matrix);
     }
 }
 
@@ -3282,76 +3279,43 @@ struct rect
   int x, y, w, h;
 };
 
-struct child_rect
-{
-  struct frame *child_frame;
-  struct rect rect;
-  struct child_rect *next;
-};
-
 /* Record a child_rect in MATRIX for fraee CHILD occupying RECT. */
 
-static void
-append_child_rect (struct glyph_matrix *matrix, struct frame *child,
-		   struct rect *rect)
+static Lisp_Object
+make_child_info (struct frame *child, struct rect *r)
 {
-#ifdef HAVE_MPS
-  struct child_rect *r = igc_xzalloc_ambig (sizeof *r);
-#else
-  struct child_rect *r = xzalloc (sizeof *r);
-#endif
-  r->child_frame = child;
-  r->rect = *rect;
-
-  /* We want the child_rects to be in z-order, topmost first, and we are
-     called for CHILDs in reverse z-order, so append new entries. */
-  struct child_rect *last;
-  for (last = matrix->child_rects; last && last->next; last = last->next)
-    ;
-  if (last)
-    last->next = r;
-  else
-    matrix->child_rects = r;
-}
-
-/* Free the child_rect entries of matrix MATRIX. */
-
-static void
-free_child_rects (struct glyph_matrix *matrix)
-{
-  while (matrix->child_rects)
-    {
-      struct child_rect *r = matrix->child_rects;
-      matrix->child_rects = r->next;
-#ifdef HAVE_MPS
-      igc_xfree (r);
-#else
-      xfree (r);
-#endif
-    }
+  Lisp_Object child_frame;
+  XSETFRAME (child_frame, child);
+  return Fcons (child_frame, list4i (r->x, r->y, r->x + r->w, r->y + r->h));
 }
 
 /* REturn true if R contains the point (X, Y). */
 
 static bool
-rect_contains (struct rect *r, int x, int y)
+child_info_contains (Lisp_Object info, int x, int y)
 {
-  return (x >= r->x && x < r->x + r->w
-	  && y >= r->y && y < r->y + r->h);
+  Lisp_Object rect = XCDR (info);
+  EMACS_INT x0 = XFIXNUM (Fnth (make_fixnum (0), rect));
+  EMACS_INT y0 = XFIXNUM (Fnth (make_fixnum (1), rect));
+  EMACS_INT x1 = XFIXNUM (Fnth (make_fixnum (3), rect));
+  EMACS_INT y1 = XFIXNUM (Fnth (make_fixnum (4), rect));
+  return x >= x0 && x < x1 && y >= y0 && y < y1;
 }
 
 /* Return the child_rect entry of MATRIX for (X, Y) or null if none
    exists. */
 
-static struct child_rect *
-find_child_rect (struct glyph_matrix *matrix, int x, int y)
+static struct frame *
+child_frame_containing (struct glyph_matrix *matrix, int x, int y)
 {
-  for (struct child_rect *cr = matrix->child_rects; cr; cr = cr->next)
-    if (rect_contains (&cr->rect, x, y))
-      return cr;
+  for (Lisp_Object info = matrix->child_info; CONSP (info); info = XCDR (info))
+    if (child_info_contains (info, x, y))
+      return XFRAME (XCAR (info));
   return NULL;
 }
 
+
+#ifdef GLYPH_DEBUG
 static bool
 is_glyph_in_matrix (struct glyph_matrix *m, struct glyph *g)
 {
@@ -3381,6 +3345,7 @@ is_tty_current_glyph (struct frame *f, struct glyph *g)
   eassert (is_tty_frame (f));
   return is_glyph_in_matrix (f->current_matrix, g);
 }
+#endif // GLYPH_DEBUG
 
 struct face *
 tty_face_at_cursor (struct frame *root, int face_id, bool current)
@@ -3388,9 +3353,9 @@ tty_face_at_cursor (struct frame *root, int face_id, bool current)
   eassert (is_tty_root_frame (root));
   struct tty_display_info *tty = FRAME_TTY (root);
   struct glyph_matrix *matrix = current ? root->current_matrix : root->desired_matrix;
-  struct child_rect *r = find_child_rect (matrix, curX (tty), curY (tty));
-  if (r)
-    return FACE_FROM_ID (r->child_frame, face_id);
+  struct frame *child = child_frame_containing (matrix, curX (tty), curY (tty));
+  if (child)
+    return FACE_FROM_ID (child, face_id);
   return FACE_FROM_ID (root, face_id);
 }
 
@@ -3536,7 +3501,7 @@ check_copied_glyphs (struct frame *child, struct glyph *glyph, int n)
 /* Copy what we need from the glyph matrices of child frame CHILD to its
    root frame's desired matrix. */
 
-static void
+static Lisp_Object
 copy_child_glyphs (struct frame *root, struct frame *child)
 {
   eassert (!FRAME_PARENT_FRAME (root));
@@ -3549,8 +3514,6 @@ copy_child_glyphs (struct frame *root, struct frame *child)
   struct rect r;
   if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
     {
-      append_child_rect (root->desired_matrix, child, &r);
-
       for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
 	if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
 	  {
@@ -3570,7 +3533,10 @@ copy_child_glyphs (struct frame *root, struct frame *child)
 
 	    root_row->hash = row_hash (root_row);
 	  }
+      return make_child_info (child, &r);
     }
+
+  return Qnil;
 }
 
 /***********************************************************************
@@ -3693,9 +3659,7 @@ make_matrix_current (struct frame *f)
       if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
 	make_current (f, NULL, i);
 
-  free_child_rects (f->current_matrix);
-  f->current_matrix->child_rects = f->desired_matrix->child_rects;
-  f->desired_matrix->child_rects = NULL;
+  f->current_matrix->child_info = f->desired_matrix->child_info;
 }
 
 bool
@@ -3703,15 +3667,17 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
 {
   eassert (is_tty_root_frame (root));
 
-  free_child_rects (root->desired_matrix);
   Lisp_Object z_order = frames_in_reverse_z_order (root);
+  Lisp_Object child_info = Qnil;
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
       struct frame *child = XFRAME (XCAR (tail));
       eassert (is_frame_ancestor (root, child));
-      copy_child_glyphs (root, child);
+      Lisp_Object info = copy_child_glyphs (root, child);
+      child_info = Fcons (info, child_info);
       make_matrix_current (child);
     }
+  root->desired_matrix->child_info = Fnreverse (child_info);
 
   update_begin (root);
   bool paused = write_matrix (root, force_p, inhibit_hairy_id_p, 1, false);

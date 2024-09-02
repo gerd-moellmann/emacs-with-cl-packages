@@ -45,8 +45,6 @@ typedef XRectangle Emacs_Rectangle;
 typedef XGCValues Emacs_GC;
 #else /* !HAVE_X_WINDOWS */
 
-struct child_rect;
-
 /* XColor-like struct used by non-X code.  */
 
 typedef struct
@@ -844,7 +842,7 @@ struct glyph_matrix
 # endif
 
   /* Child frame info for tty frames. */
-  struct child_rect *child_rects;
+  Lisp_Object child_info;
 };
 
 
@@ -3937,9 +3935,12 @@ bool is_tty_root_frame (struct frame *f);
 Lisp_Object frames_with_root (struct frame *root);
 bool tty_update_roots (Lisp_Object root_frames, bool force_p, bool inhibit_id_p);
 bool tty_update_root (struct frame *root, bool force_p, bool inhibit_id_p);
+struct face *tty_face_at_cursor (struct frame *root, int face_id, bool current);
+
+#ifdef GLYPH_DEBUG
 bool is_tty_desired_glyph (struct frame *f, struct glyph *g);
 bool is_tty_current_glyph (struct frame *f, struct glyph *g);
-struct face *tty_face_at_cursor (struct frame *root, int face_id, bool current);
+#endif
 
 INLINE_HEADER_END
 

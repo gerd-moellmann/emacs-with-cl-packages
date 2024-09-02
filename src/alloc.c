@@ -6942,6 +6942,8 @@ Returns non-nil if GC happened, and nil otherwise.  */)
 static void
 mark_glyph_matrix (struct glyph_matrix *matrix)
 {
+  mark_object (matrix->child_info);
+
   struct glyph_row *row = matrix->rows;
   struct glyph_row *end = row + matrix->nrows;
 
