@@ -3289,7 +3289,7 @@ make_child_info (struct frame *child, struct rect *r)
   return Fcons (child_frame, list4i (r->x, r->y, r->x + r->w, r->y + r->h));
 }
 
-/* REturn true if R contains the point (X, Y). */
+/* Return true if INFO contains the point (X, Y). */
 
 static bool
 child_info_contains (Lisp_Object info, int x, int y)
