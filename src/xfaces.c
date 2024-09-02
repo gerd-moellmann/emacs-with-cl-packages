@@ -666,22 +666,6 @@ share_image_cache (struct frame *f)
 void
 init_frame_faces (struct frame *f)
 {
-  /* Child frames on ttys share face caches with their root frame
-     because we copy glyphs from children to the root, and glyphs
-     contain face ids. FIXME/tty: this assumes that we either don't
-     change the ancestor relationsship so that the child gets a differen
-     root. */
-  if (is_tty_child_frame (f))
-    {
-      struct frame *root = root_frame (f);
-      FRAME_FACE_CACHE (f) = FRAME_FACE_CACHE (root);
-      return;
-    }
-
-  /* If acting on a root frame on ttys, make sure we don't create
-     a face cache children don't share. */
-  eassert (!is_tty_root_frame (f) || NILP (frames_with_root (f)));
-
   /* Make a face cache, if F doesn't have one.  */
   if (FRAME_FACE_CACHE (f) == NULL)
     FRAME_FACE_CACHE (f) = make_face_cache (f);
@@ -707,18 +691,6 @@ init_frame_faces (struct frame *f)
 void
 free_frame_faces (struct frame *f)
 {
-  /* Child frames on ttys share face caches with their root frame
-     because we copy glyphs from children to the root, and glyphs
-     contain face ids. FIXME/tty: this assumes that we either don't
-     change the ancestor relationsship so that the child gets a differen
-     root. */
-  if (is_tty_child_frame (f))
-    return;
-
-  /* If acting on a root frame on ttys, make sure we don't delete
-     the face cache while there are still children using it. */
-  eassert (!is_tty_root_frame (f) || NILP (frames_with_root (f)));
-
   struct face_cache *face_cache = FRAME_FACE_CACHE (f);
   if (face_cache)
     {
