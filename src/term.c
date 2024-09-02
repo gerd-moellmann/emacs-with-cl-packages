@@ -794,7 +794,9 @@ tty_write_glyphs (struct frame *f, struct glyph *string, int len)
 
       /* Turn appearance modes of the face of the run on.  */
       tty_highlight_if_desired (tty);
-      /* FIXME/tty: assertion that string is in desired matrix. */
+#ifdef GLYPH_DEBUG
+      eassert (is_tty_desired_glyph (f, string));
+#endif
       struct face *face = tty_face_at_cursor (f, face_id, false);
       turn_on_face (f, face);
 
@@ -931,7 +933,9 @@ tty_insert_glyphs (struct frame *f, struct glyph *start, int len)
       else
 	{
 	  tty_highlight_if_desired (tty);
-	  /* FIXME/tty: assertion that start is in desired matrix. */
+#ifdef GLYPH_DEBUG
+	  eassert (is_tty_desired_glyph (f, start));
+#endif
 	  face = tty_face_at_cursor (f, start->face_id, false);
 	  turn_on_face (f, face);
 	  glyph = start;
@@ -2581,10 +2585,12 @@ tty_draw_row_with_mouse_face (struct window *w, struct glyph_row *row,
 
   if (draw == DRAW_MOUSE_FACE)
     {
-      /* FIXME/tty: assertion for row is in current matrix. */
+      struct glyph *glyph = row->glyphs[TEXT_AREA] + start_hpos;
+#ifdef GLYPH_DEBUG
+      eassert (is_tty_current_glyph (f, glyph));
+#endif
       struct face *face = tty_face_at_cursor (f, face_id, true);
-      tty_write_glyphs_with_face (f, row->glyphs[TEXT_AREA] + start_hpos,
-				  nglyphs, face);
+      tty_write_glyphs_with_face (f, glyph, nglyphs, face);
     }
   else if (draw == DRAW_NORMAL_TEXT)
     write_glyphs (f, row->glyphs[TEXT_AREA] + start_hpos, nglyphs);
