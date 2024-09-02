@@ -3344,35 +3344,13 @@ find_child_rect (struct glyph_matrix *matrix, int x, int y)
   return NULL;
 }
 
-static bool
-is_glyph_in_matrix (struct glyph_matrix *m, struct glyph *g)
-{
-  for (int y = 0; y < m->matrix_h; ++y)
-    {
-      struct glyph_row *r = MATRIX_ROW (m, y);
-      if (g >= r->glyphs[0] && g < r->glyphs[0] + m->matrix_w)
-	return true;
-    }
-  return false;
-}
-
-/* Return true if GLYPH is part of the desired matrix of F. */
-
-bool
-is_glyph_desired (struct frame *f, struct glyph *g)
-{
-  eassert (is_tty_frame (f));
-  return is_glyph_in_matrix (f->desired_matrix, g);
-}
-
-static struct face *
-tty_face_at_cursor (struct frame *root, int face_id)
+struct face *
+tty_face_at_cursor (struct frame *root, int face_id, bool current)
 {
   eassert (is_tty_root_frame (root));
   struct tty_display_info *tty = FRAME_TTY (root);
-  int x = curX (tty);
-  int y = curY (tty);
-  struct child_rect *r = find_child_rect (root->desired_matrix, x, y);
+  struct glyph_matrix *matrix = current ? root->current_matrix : root->desired_matrix;
+  struct child_rect *r = find_child_rect (matrix, curX (tty)x, curY (tty));
   if (r)
     return FACE_FROM_ID (r->child_frame, face_id);
   return FACE_FROM_ID (root, face_id);

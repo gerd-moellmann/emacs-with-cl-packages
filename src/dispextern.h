@@ -3938,6 +3938,7 @@ Lisp_Object frames_with_root (struct frame *root);
 bool tty_update_roots (Lisp_Object root_frames, bool force_p, bool inhibit_id_p);
 bool tty_update_root (struct frame *root, bool force_p, bool inhibit_id_p);
 bool is_glyph_desired (struct frame *f, struct glyph *g);
+struct face *tty_face_at_cursor (struct frame *root, int face_id, bool current);
 
 INLINE_HEADER_END
 

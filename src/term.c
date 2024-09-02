@@ -794,7 +794,8 @@ tty_write_glyphs (struct frame *f, struct glyph *string, int len)
 
       /* Turn appearance modes of the face of the run on.  */
       tty_highlight_if_desired (tty);
-      struct face *face = FACE_FROM_ID (f, face_id);
+      /* FIXME/tty: assertion that string is in desired matrix. */
+      struct face *face = tty_face_at_cursor (f, face_id, false);
       turn_on_face (f, face);
 
       if (n == stringlen)
@@ -823,8 +824,8 @@ tty_write_glyphs (struct frame *f, struct glyph *string, int len)
 #ifndef DOS_NT
 
 static void
-tty_write_glyphs_with_face (register struct frame *f, register struct glyph *string,
-			    register int len, register int face_id)
+tty_write_glyphs_with_face (struct frame *f, struct glyph *string,
+			    int len, struct face *face)
 {
   unsigned char *conversion_buffer;
   struct coding_system *coding;
@@ -857,7 +858,6 @@ tty_write_glyphs_with_face (register struct frame *f, register struct glyph *str
 
   /* Turn appearance modes of the face.  */
   tty_highlight_if_desired (tty);
-  struct face *face = FACE_FROM_ID (f, face_id);
   turn_on_face (f, face);
 
   coding->mode |= CODING_MODE_LAST_BLOCK;
@@ -921,6 +921,7 @@ tty_insert_glyphs (struct frame *f, struct glyph *start, int len)
 
   while (len-- > 0)
     {
+      struct face *face = NULL;
       OUTPUT1_IF (tty, tty->TS_ins_char);
       if (!start)
 	{
@@ -930,7 +931,8 @@ tty_insert_glyphs (struct frame *f, struct glyph *start, int len)
       else
 	{
 	  tty_highlight_if_desired (tty);
-	  struct face *face = FACE_FROM_ID (f, start->face_id);
+	  /* FIXME/tty: assertion that start is in desired matrix. */
+	  face = tty_face_at_cursor (f, start->face_id, false);
 	  turn_on_face (f, face);
 	  glyph = start;
 	  ++start;
@@ -960,9 +962,8 @@ tty_insert_glyphs (struct frame *f, struct glyph *start, int len)
 	}
 
       OUTPUT1_IF (tty, tty->TS_pad_inserted_char);
-      if (start)
+      if (face)
 	{
-	  struct face *face = FACE_FROM_ID (f, glyph->face_id);
 	  turn_off_face (f, face);
 	  tty_turn_off_highlight (tty);
 	}
@@ -2579,8 +2580,12 @@ tty_draw_row_with_mouse_face (struct window *w, struct glyph_row *row,
   cursor_to (f, pos_y, pos_x);
 
   if (draw == DRAW_MOUSE_FACE)
-    tty_write_glyphs_with_face (f, row->glyphs[TEXT_AREA] + start_hpos,
-				nglyphs, face_id);
+    {
+      /* FIXME/tty: assertion for row is in current matrix. */
+      struct face *face = tty_face_at_cursor (f, face_id, true);
+      tty_write_glyphs_with_face (f, row->glyphs[TEXT_AREA] + start_hpos,
+				  nglyphs, face);
+    }
   else if (draw == DRAW_NORMAL_TEXT)
     write_glyphs (f, row->glyphs[TEXT_AREA] + start_hpos, nglyphs);
 
