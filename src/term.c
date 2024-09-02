@@ -65,8 +65,8 @@ static int been_here = -1;
 #ifndef HAVE_ANDROID
 
 static void tty_set_scroll_region (struct frame *f, int start, int stop);
-static void turn_on_face (struct frame *, int face_id);
-static void turn_off_face (struct frame *, int face_id);
+static void turn_on_face (struct frame *f, struct face *face);
+static void turn_off_face (struct frame *f, struct face *face);
 static void tty_turn_off_highlight (struct tty_display_info *);
 static void tty_show_cursor (struct tty_display_info *);
 static void tty_hide_cursor (struct tty_display_info *);
@@ -794,7 +794,8 @@ tty_write_glyphs (struct frame *f, struct glyph *string, int len)
 
       /* Turn appearance modes of the face of the run on.  */
       tty_highlight_if_desired (tty);
-      turn_on_face (f, face_id);
+      struct face *face = FACE_FROM_ID (f, face_id);
+      turn_on_face (f, face);
 
       if (n == stringlen)
 	/* This is the last run.  */
@@ -812,7 +813,7 @@ tty_write_glyphs (struct frame *f, struct glyph *string, int len)
       string += n;
 
       /* Turn appearance modes off.  */
-      turn_off_face (f, face_id);
+      turn_off_face (f, face);
       tty_turn_off_highlight (tty);
     }
 
@@ -856,7 +857,8 @@ tty_write_glyphs_with_face (register struct frame *f, register struct glyph *str
 
   /* Turn appearance modes of the face.  */
   tty_highlight_if_desired (tty);
-  turn_on_face (f, face_id);
+  struct face *face = FACE_FROM_ID (f, face_id);
+  turn_on_face (f, face);
 
   coding->mode |= CODING_MODE_LAST_BLOCK;
   conversion_buffer = encode_terminal_code (string, len, coding);
@@ -871,7 +873,7 @@ tty_write_glyphs_with_face (register struct frame *f, register struct glyph *str
     }
 
   /* Turn appearance modes off.  */
-  turn_off_face (f, face_id);
+  turn_off_face (f, face);
   tty_turn_off_highlight (tty);
 
   cmcheckmagic (tty);
@@ -928,7 +930,8 @@ tty_insert_glyphs (struct frame *f, struct glyph *start, int len)
       else
 	{
 	  tty_highlight_if_desired (tty);
-	  turn_on_face (f, start->face_id);
+	  struct face *face = FACE_FROM_ID (f, start->face_id);
+	  turn_on_face (f, face);
 	  glyph = start;
 	  ++start;
 	  /* We must open sufficient space for a character which
@@ -959,7 +962,8 @@ tty_insert_glyphs (struct frame *f, struct glyph *start, int len)
       OUTPUT1_IF (tty, tty->TS_pad_inserted_char);
       if (start)
 	{
-	  turn_off_face (f, glyph->face_id);
+	  struct face *face = FACE_FROM_ID (f, glyph->face_id);
+	  turn_off_face (f, face);
 	  tty_turn_off_highlight (tty);
 	}
     }
@@ -1981,9 +1985,8 @@ produce_glyphless_glyph (struct it *it, Lisp_Object acronym)
    FACE_ID is a realized face ID number, in the face cache.  */
 
 static void
-turn_on_face (struct frame *f, int face_id)
+turn_on_face (struct frame *f, struct face *face)
 {
-  struct face *face = FACE_FROM_ID (f, face_id);
   unsigned long fg = face->foreground;
   unsigned long bg = face->background;
   struct tty_display_info *tty = FRAME_TTY (f);
@@ -2064,9 +2067,8 @@ turn_on_face (struct frame *f, int face_id)
 /* Turn off appearances of face FACE_ID on tty frame F.  */
 
 static void
-turn_off_face (struct frame *f, int face_id)
+turn_off_face (struct frame *f, struct face *face)
 {
-  struct face *face = FACE_FROM_ID (f, face_id);
   struct tty_display_info *tty = FRAME_TTY (f);
 
   if (tty->TS_exit_attribute_mode)
