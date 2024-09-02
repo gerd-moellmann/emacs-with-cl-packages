@@ -3294,11 +3294,10 @@ make_child_info (struct frame *child, struct rect *r)
 static bool
 child_info_contains (Lisp_Object info, int x, int y)
 {
-  Lisp_Object rect = XCDR (info);
-  EMACS_INT x0 = XFIXNUM (Fnth (make_fixnum (0), rect));
-  EMACS_INT y0 = XFIXNUM (Fnth (make_fixnum (1), rect));
-  EMACS_INT x1 = XFIXNUM (Fnth (make_fixnum (3), rect));
-  EMACS_INT y1 = XFIXNUM (Fnth (make_fixnum (4), rect));
+  EMACS_INT x0 = XFIXNUM (Fnth (make_fixnum (1), info));
+  EMACS_INT y0 = XFIXNUM (Fnth (make_fixnum (2), info));
+  EMACS_INT x1 = XFIXNUM (Fnth (make_fixnum (3), info));
+  EMACS_INT y1 = XFIXNUM (Fnth (make_fixnum (4), info));
   return x >= x0 && x < x1 && y >= y0 && y < y1;
 }
 
