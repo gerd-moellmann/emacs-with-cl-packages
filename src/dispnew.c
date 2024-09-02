@@ -3292,7 +3292,7 @@ struct child_rect
 /* Record a child_rect in MATRIX for fraee CHILD occupying RECT. */
 
 static void
-record_child_rect (struct glyph_matrix *matrix, struct frame *child,
+append_child_rect (struct glyph_matrix *matrix, struct frame *child,
 		   struct rect *rect)
 {
 #ifdef HAVE_MPS
@@ -3302,8 +3302,16 @@ record_child_rect (struct glyph_matrix *matrix, struct frame *child,
 #endif
   r->child_frame = child;
   r->rect = *rect;
-  r->next = matrix->child_rects;
-  matrix->child_rects = r;
+
+  /* We want the child_rects to be in z-order, topmost first, and we are
+     called for CHILDs in reverse z-order, so append new entries. */
+  struct child_rect *last;
+  for (last = matrix->child_rects; last && last->next; last = last->next)
+    ;
+  if (last)
+    last->next = r;
+  else
+    matrix->child_rects = r;
 }
 
 /* Free the child_rect entries of matrix MATRIX. */
@@ -3480,7 +3488,7 @@ DEFUN ("frame--z-order-sort-predicate",
    more than one root frame plus their children. */
 
 Lisp_Object
-frames_in_z_order (struct frame *f)
+frames_in_reverse_z_order (struct frame *f)
 {
   struct frame *root = root_frame (f);
   Lisp_Object frames = frames_with_root (root);
@@ -3541,7 +3549,7 @@ copy_child_glyphs (struct frame *root, struct frame *child)
   struct rect r;
   if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
     {
-      record_child_rect (root->desired_matrix, child, &r);
+      append_child_rect (root->desired_matrix, child, &r);
 
       for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
 	if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
@@ -3696,7 +3704,7 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
   eassert (is_tty_root_frame (root));
 
   free_child_rects (root->desired_matrix);
-  Lisp_Object z_order = frames_in_z_order (root);
+  Lisp_Object z_order = frames_in_reverse_z_order (root);
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
       struct frame *child = XFRAME (XCAR (tail));

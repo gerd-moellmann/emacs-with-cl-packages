@@ -4841,7 +4841,7 @@ DEFUN ("tty-frame-list-z-order", Ftty_frame_list_z_order,
   (Lisp_Object frame)
 {
   struct frame *f = decode_tty_frame (frame);
-  Lisp_Object frames = frames_in_z_order (f);
+  Lisp_Object frames = frames_in_reverse_z_order (f);
   return Fnreverse (frames);
 }
 
