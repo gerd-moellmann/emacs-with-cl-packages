@@ -3587,7 +3587,8 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
 
   update_begin (root);
   bool paused = write_matrix (root, force_p, inhibit_hairy_id_p, 1, false);
-  make_matrix_current (root);
+  if (!paused)
+    make_matrix_current (root);
   update_end (root);
   flush_terminal (root);
 
