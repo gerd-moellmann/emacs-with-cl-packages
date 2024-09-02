@@ -3308,9 +3308,13 @@ child_info_contains (Lisp_Object info, int x, int y)
 static struct frame *
 child_frame_containing (struct glyph_matrix *matrix, int x, int y)
 {
-  for (Lisp_Object info = matrix->child_info; CONSP (info); info = XCDR (info))
-    if (child_info_contains (info, x, y))
-      return XFRAME (XCAR (info));
+  Lisp_Object tail = matrix->child_info;
+  FOR_EACH_TAIL (tail)
+    {
+      Lisp_Object info = XCAR (tail);
+      if (child_info_contains (info, x, y))
+	return XFRAME (XCAR (info));
+    }
   return NULL;
 }
 
