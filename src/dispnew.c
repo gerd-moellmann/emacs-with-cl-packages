@@ -3380,7 +3380,7 @@ tty_face_at_cursor (struct frame *root, int face_id, bool current)
   eassert (is_tty_root_frame (root));
   struct tty_display_info *tty = FRAME_TTY (root);
   struct glyph_matrix *matrix = current ? root->current_matrix : root->desired_matrix;
-  struct child_rect *r = find_child_rect (matrix, curX (tty)x, curY (tty));
+  struct child_rect *r = find_child_rect (matrix, curX (tty), curY (tty));
   if (r)
     return FACE_FROM_ID (r->child_frame, face_id);
   return FACE_FROM_ID (root, face_id);
