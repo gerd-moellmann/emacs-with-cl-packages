@@ -72,6 +72,7 @@ struct dim
 
 /* Function prototypes.  */
 
+static void free_child_rects (struct glyph_matrix *matrix);
 static void write_row (struct frame *f, int vpos, bool updating_menu_p);
 static int required_matrix_height (struct window *);
 static int required_matrix_width (struct window *);
@@ -303,6 +304,8 @@ free_glyph_matrix (struct glyph_matrix *matrix)
       /* Free row structures and the matrix itself.  */
       xfree (matrix->rows);
       xfree (matrix);
+
+      free_child_rects (matrix);
     }
 }
 
@@ -3274,7 +3277,85 @@ DEFUN ("redraw-display", Fredraw_display, Sredraw_display, 0, 0, "",
    frames to the current matrices of child frames. This imnplicitly
    also updates the glyph contents of their windows' current matrices.  */
 
-struct rect { int x, y, w, h; };
+struct rect
+{
+  int x, y, w, h;
+};
+
+struct child_rect
+{
+  struct frame *child_frame;
+  struct rect rect;
+  struct child_rect *next;
+};
+
+/* Record a child_rect in MATRIX for fraee CHILD occupying RECT. */
+
+static void
+record_child_rect (struct glyph_matrix *matrix, struct frame *child,
+		   struct rect *rect)
+{
+#ifdef HAVE_MPS
+  struct child_rect *r = igc_xzalloc_ambig (sizeof *r);
+#else
+  struct child_rect *r = xzalloc (sizeof *r);
+#endif
+  r->child_frame = child;
+  r->rect = *rect;
+  r->next = matrix->child_rects;
+  matrix->child_rects = r;
+}
+
+/* Free the child_rect entries of matrix MATRIX. */
+
+static void
+free_child_rects (struct glyph_matrix *matrix)
+{
+  while (matrix->child_rects)
+    {
+      struct child_rect *r = matrix->child_rects;
+      matrix->child_rects = r->next;
+#ifdef HAVE_MPS
+      igc_xfree (r);
+#else
+      xfree (r);
+#endif
+    }
+}
+
+/* REturn true if R contains the point (X, Y). */
+
+static bool
+rect_contains (struct rect *r, int x, int y)
+{
+  return (x >= r->x && x < r->x + r->w
+	  && y >= r->y && y < r->y + r->h);
+}
+
+/* Return the child_rect entry of MATRIX for (X, Y) or null if none
+   exists. */
+
+static struct child_rect *
+find_child_rect (struct glyph_matrix *matrix, int x, int y)
+{
+  for (struct child_rect *cr = matrix->child_rects; cr; cr = cr->next)
+    if (rect_contains (&cr->rect, x, y))
+      return cr;
+  return NULL;
+}
+
+struct face *
+tty_face_at_cursor (struct frame *root, int face_id)
+{
+  eassert (is_tty_root_frame (root));
+  struct tty_display_info *tty = FRAME_TTY (root);
+  int x = curX (tty);
+  int y = curY (tty);
+  struct child_rect *r = find_child_rect (root->desired_matrix, x, y);
+  if (r)
+    return FACE_FROM_ID (r->child_frame, face_id);
+  return FACE_FROM_ID (root, face_id);
+}
 
 /* Compute the intersection of R1 and R2 in R. Value is true if R1 and
    R2 intersect, false otherwise. */
@@ -3430,25 +3511,29 @@ copy_child_glyphs (struct frame *root, struct frame *child)
 
   struct rect r;
   if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
-    for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
-      if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
-	{
-	  struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
-	  if (!root_row->enabled_p)
-	    {
-	      struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
-	      memcpy (root_row->glyphs[0], from->glyphs[0],
-		      root->current_matrix->matrix_w * sizeof (struct glyph));
-	      root_row->enabled_p = true;
-	    }
+    {
+      record_child_rect (root->desired_matrix, child, &r);
 
-	  struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
-	  check_copied_glyphs (child, child_row->glyphs[0], r.w);
-	  memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
-		  r.w * sizeof (struct glyph));
+      for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
+	if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
+	  {
+	    struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
+	    if (!root_row->enabled_p)
+	      {
+		struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
+		memcpy (root_row->glyphs[0], from->glyphs[0],
+			root->current_matrix->matrix_w * sizeof (struct glyph));
+		root_row->enabled_p = true;
+	      }
 
-	  root_row->hash = row_hash (root_row);
-	}
+	    struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
+	    check_copied_glyphs (child, child_row->glyphs[0], r.w);
+	    memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
+		    r.w * sizeof (struct glyph));
+
+	    root_row->hash = row_hash (root_row);
+	  }
+    }
 }
 
 /***********************************************************************
@@ -3570,12 +3655,18 @@ make_matrix_current (struct frame *f)
     for (int i = first_row; i < f->desired_matrix->nrows; ++i)
       if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
 	make_current (f, NULL, i);
+
+  free_child_rects (f->current_matrix);
+  f->current_matrix->child_rects = f->desired_matrix->child_rects;
+  f->desired_matrix->child_rects = NULL;
 }
 
 bool
 tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
 {
   eassert (is_tty_root_frame (root));
+
+  free_child_rects (root->desired_matrix);
   Lisp_Object z_order = frames_in_z_order (root);
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {

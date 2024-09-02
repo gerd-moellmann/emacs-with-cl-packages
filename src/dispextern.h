@@ -45,6 +45,8 @@ typedef XRectangle Emacs_Rectangle;
 typedef XGCValues Emacs_GC;
 #else /* !HAVE_X_WINDOWS */
 
+struct child_rect;
+
 /* XColor-like struct used by non-X code.  */
 
 typedef struct
@@ -840,6 +842,9 @@ struct glyph_matrix
 # ifdef HAVE_MPS
   void *igc_info;
 # endif
+
+  /* Child frame info for tty frames. */
+  struct child_rect *child_rects;
 };
 
 
