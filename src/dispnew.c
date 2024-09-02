@@ -3507,32 +3507,31 @@ copy_child_glyphs (struct frame *root, struct frame *child)
   eassert (!FRAME_PARENT_FRAME (root));
   eassert (is_frame_ancestor (root, child));
 
-  /* Copying glyphs means copying face ids. For this to work,
-     the face caches of child and root had better be identical. */
-  eassert (root->face_cache == child->face_cache);
-
   struct rect r;
   if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
     {
       for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
-	if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
-	  {
-	    struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
-	    if (!root_row->enabled_p)
-	      {
-		struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
-		memcpy (root_row->glyphs[0], from->glyphs[0],
-			root->current_matrix->matrix_w * sizeof (struct glyph));
-		root_row->enabled_p = true;
-	      }
+	{
+	  if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
+	    {
+	      struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
+	      if (!root_row->enabled_p)
+		{
+		  struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
+		  memcpy (root_row->glyphs[0], from->glyphs[0],
+			  root->current_matrix->matrix_w * sizeof (struct glyph));
+		  root_row->enabled_p = true;
+		}
 
-	    struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
-	    check_copied_glyphs (child, child_row->glyphs[0], r.w);
-	    memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
-		    r.w * sizeof (struct glyph));
+	      struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
+	      check_copied_glyphs (child, child_row->glyphs[0], r.w);
+	      memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
+		      r.w * sizeof (struct glyph));
 
-	    root_row->hash = row_hash (root_row);
-	  }
+	      root_row->hash = row_hash (root_row);
+	    }
+	}
+
       return make_child_info (child, &r);
     }
 
