@@ -81,9 +81,9 @@ static void build_frame_matrix_from_window_tree (struct glyph_matrix *,
 static void build_frame_matrix_from_leaf_window (struct glyph_matrix *,
                                                  struct window *);
 static void adjust_decode_mode_spec_buffer (struct frame *);
-static void fill_up_glyph_row_with_spaces (struct glyph_row *);
+static void fill_up_glyph_row_with_spaces (struct frame *, struct glyph_row *);
 static void clear_window_matrices (struct window *, bool);
-static void fill_up_glyph_row_area_with_spaces (struct glyph_row *, int);
+static void fill_up_glyph_row_area_with_spaces (struct frame *, struct glyph_row *, int);
 static int scrolling_window (struct window *, int);
 static bool update_window_line (struct window *, int, bool *);
 static void mirror_make_current (struct window *, int);
@@ -2585,6 +2585,7 @@ build_frame_matrix_from_leaf_window (struct glyph_matrix *frame_matrix, struct w
   int window_y, frame_y;
   /* If non-zero, a glyph to insert at the right border of W.  */
   GLYPH right_border_glyph;
+  struct frame *f = XFRAME (w->frame);
 
   SET_GLYPH_FROM_CHAR (right_border_glyph, 0);
 
@@ -2626,10 +2627,10 @@ build_frame_matrix_from_leaf_window (struct glyph_matrix *frame_matrix, struct w
 
       /* Fill up the frame row with spaces up to the left margin of the
 	 window row.  */
-      fill_up_frame_row_with_spaces (frame_row, window_matrix->matrix_x);
+      fill_up_frame_row_with_spaces (f, frame_row, window_matrix->matrix_x);
 
       /* Fill up areas in the window matrix row with spaces.  */
-      fill_up_glyph_row_with_spaces (window_row);
+      fill_up_glyph_row_with_spaces (f, window_row);
 
       /* If only part of W's desired matrix has been built, and
          window_row wasn't displayed, use the corresponding current
@@ -2665,7 +2666,7 @@ build_frame_matrix_from_leaf_window (struct glyph_matrix *frame_matrix, struct w
 		 glyph with the vertical border glyph.  */
 	      eassert (border->type == CHAR_GLYPH);
 	      border->type = CHAR_GLYPH;
-	      SET_CHAR_GLYPH_FROM_GLYPH (*border, right_border_glyph);
+	      SET_CHAR_GLYPH_FROM_GLYPH (f, *border, right_border_glyph);
 	    }
 
 #ifdef GLYPH_DEBUG
@@ -2728,11 +2729,11 @@ spec_glyph_lookup_face (struct window *w, GLYPH *glyph)
    To be called for frame-based redisplay, only.  */
 
 static void
-fill_up_glyph_row_with_spaces (struct glyph_row *row)
+fill_up_glyph_row_with_spaces (struct frame *f, struct glyph_row *row)
 {
-  fill_up_glyph_row_area_with_spaces (row, LEFT_MARGIN_AREA);
-  fill_up_glyph_row_area_with_spaces (row, TEXT_AREA);
-  fill_up_glyph_row_area_with_spaces (row, RIGHT_MARGIN_AREA);
+  fill_up_glyph_row_area_with_spaces (f, row, LEFT_MARGIN_AREA);
+  fill_up_glyph_row_area_with_spaces (f, row, TEXT_AREA);
+  fill_up_glyph_row_area_with_spaces (f, row, RIGHT_MARGIN_AREA);
 }
 
 
@@ -2740,15 +2741,19 @@ fill_up_glyph_row_with_spaces (struct glyph_row *row)
    frame-based redisplay only.  */
 
 static void
-fill_up_glyph_row_area_with_spaces (struct glyph_row *row, int area)
+fill_up_glyph_row_area_with_spaces (struct frame *f, struct glyph_row *row,
+				    int area)
 {
   if (row->glyphs[area] < row->glyphs[area + 1])
     {
       struct glyph *end = row->glyphs[area + 1];
       struct glyph *text = row->glyphs[area] + row->used[area];
 
-      while (text < end)
-	*text++ = space_glyph;
+      for (; text < end; ++text)
+	{
+	  *text = space_glyph;
+	  text->frame = f;
+	}
       row->used[area] = text - row->glyphs[area];
     }
 }
@@ -2758,13 +2763,16 @@ fill_up_glyph_row_area_with_spaces (struct glyph_row *row, int area)
    reached.  In frame matrices only one area, TEXT_AREA, is used.  */
 
 void
-fill_up_frame_row_with_spaces (struct glyph_row *row, int upto)
+fill_up_frame_row_with_spaces (struct frame *f, struct glyph_row *row, int upto)
 {
   int i = row->used[TEXT_AREA];
   struct glyph *glyph = row->glyphs[TEXT_AREA];
 
-  while (i < upto)
-    glyph[i++] = space_glyph;
+  for (; i < upto; ++i)
+    {
+      glyph[i] = space_glyph;
+      glyph[i].frame = f;
+    }
 
   row->used[TEXT_AREA] = i;
 }
@@ -6818,7 +6826,7 @@ init_display_interactive (void)
 
   /* Construct the space glyph.  */
   space_glyph.type = CHAR_GLYPH;
-  SET_CHAR_GLYPH (space_glyph, ' ', DEFAULT_FACE_ID, 0);
+  SET_CHAR_GLYPH (NULL, space_glyph, ' ', DEFAULT_FACE_ID, 0);
   space_glyph.charpos = -1;
 
   inverse_video = 0;

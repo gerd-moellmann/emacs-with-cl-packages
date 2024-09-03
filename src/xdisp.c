@@ -23940,6 +23940,7 @@ extend_face_to_end_of_line (struct it *it)
 	{
 	  it->glyph_row->glyphs[TEXT_AREA][0] = space_glyph;
 	  it->glyph_row->glyphs[TEXT_AREA][0].face_id = face->id;
+	  it->glyph_row->glyphs[TEXT_AREA][0].frame = f;
 	  it->glyph_row->used[TEXT_AREA] = 1;
 	}
       /* Mode line and the header line don't have margins, and
@@ -23959,6 +23960,7 @@ extend_face_to_end_of_line (struct it *it)
 	      it->glyph_row->glyphs[LEFT_MARGIN_AREA][0] = space_glyph;
 	      it->glyph_row->glyphs[LEFT_MARGIN_AREA][0].face_id =
 		default_face->id;
+	      it->glyph_row->glyphs[LEFT_MARGIN_AREA][0].frame = f;
 	      it->glyph_row->used[LEFT_MARGIN_AREA] = 1;
 	    }
 	  if (WINDOW_RIGHT_MARGIN_WIDTH (it->w) > 0
@@ -23967,6 +23969,7 @@ extend_face_to_end_of_line (struct it *it)
 	      it->glyph_row->glyphs[RIGHT_MARGIN_AREA][0] = space_glyph;
 	      it->glyph_row->glyphs[RIGHT_MARGIN_AREA][0].face_id =
 		default_face->id;
+	      it->glyph_row->glyphs[RIGHT_MARGIN_AREA][0].frame = f;
 	      it->glyph_row->used[RIGHT_MARGIN_AREA] = 1;
 	    }
 
@@ -27195,7 +27198,7 @@ display_menu_bar (struct window *w)
 
 /* Deep copy of a glyph row, including the glyphs.  */
 static void
-deep_copy_glyph_row (struct glyph_row *to, struct glyph_row *from)
+deep_copy_glyph_row (struct frame *f, struct glyph_row *to, struct glyph_row *from)
 {
   struct glyph *pointers[1 + LAST_AREA];
   int to_used = to->used[TEXT_AREA];
@@ -27216,7 +27219,7 @@ deep_copy_glyph_row (struct glyph_row *to, struct glyph_row *from)
   /* If we filled only part of the TO row, fill the rest with
      space_glyph (which will display as empty space).  */
   if (to_used > from->used[TEXT_AREA])
-    fill_up_frame_row_with_spaces (to, to_used);
+    fill_up_frame_row_with_spaces (f, to, to_used);
 }
 
 /* Display one menu item on a TTY, by overwriting the glyphs in the
@@ -27265,7 +27268,7 @@ display_tty_menu_item (const char *item_text, int width, int face_id,
   it.last_visible_x = FRAME_COLS (f) - 1;
   row = it.glyph_row;
   /* Start with the row contents from the current matrix.  */
-  deep_copy_glyph_row (row, f->current_matrix->rows + y);
+  deep_copy_glyph_row (f, row, f->current_matrix->rows + y);
   bool saved_width = row->full_width_p;
   row->full_width_p = true;
   bool saved_reversed = row->reversed_p;

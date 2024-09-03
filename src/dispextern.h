@@ -631,7 +631,7 @@ struct glyph
 
 #define FONT_TYPE_UNKNOWN	0
 
-/* Is GLYPH a space?  */
+/* Is GLYPH a space in default face on frame FRAME?  */
 
 # define CHAR_GLYPH_SPACE_P(FRAME, GLYPH)	\
   ((GLYPH).u.ch == SPACEGLYPH			\
@@ -661,6 +661,7 @@ struct glyph
       && (X)->u.val == (Y)->u.val				\
       && GLYPH_SLICE_EQUAL_P (X, Y)				\
       && (X)->face_id == (Y)->face_id				\
+      && (X)->frame == (Y)->frame				\
       && (X)->padding_p == (Y)->padding_p			\
       && (X)->left_box_line_p == (Y)->left_box_line_p		\
       && (X)->right_box_line_p == (Y)->right_box_line_p		\
@@ -672,16 +673,18 @@ struct glyph
 #define GLYPH_CHAR_AND_FACE_EQUAL_P(X, Y)	\
   ((X)->u.ch == (Y)->u.ch			\
    && (X)->face_id == (Y)->face_id		\
+   && (X)->frame == (Y)->frame			\
    && (X)->padding_p == (Y)->padding_p)
 
 /* Fill a character glyph GLYPH.  CODE, FACE_ID, PADDING_P correspond
    to the bits defined for the typedef `GLYPH' in lisp.h.  */
 
-#define SET_CHAR_GLYPH(GLYPH, CODE, FACE_ID, PADDING_P)	\
+#define SET_CHAR_GLYPH(FRAME, GLYPH, CODE, FACE_ID, PADDING_P)	\
      do							\
        {						\
          (GLYPH).u.ch = (CODE);				\
          (GLYPH).face_id = (FACE_ID);			\
+         (GLYPH).frame = (FRAME);			\
          (GLYPH).padding_p = (PADDING_P);		\
        }						\
      while (false)
@@ -689,11 +692,9 @@ struct glyph
 /* Fill a character type glyph GLYPH from a glyph typedef FROM as
    defined in lisp.h.  */
 
-#define SET_CHAR_GLYPH_FROM_GLYPH(GLYPH, FROM)			\
-     SET_CHAR_GLYPH (GLYPH,					\
-		     GLYPH_CHAR (FROM),				\
-		     GLYPH_FACE (FROM),				\
-		     false)
+#define SET_CHAR_GLYPH_FROM_GLYPH(FRAME, GLYPH, FROM)		\
+  SET_CHAR_GLYPH (FRAME, GLYPH, GLYPH_CHAR (FROM),		\
+		  GLYPH_FACE (FROM), false)
 
 /* Construct a glyph code from a character glyph GLYPH.  If the
    character is multibyte, return -1 as we can't use glyph table for a
@@ -3849,7 +3850,7 @@ extern bool frame_size_change_delayed (struct frame *);
 void init_display (void);
 void syms_of_display (void);
 extern void spec_glyph_lookup_face (struct window *, GLYPH *);
-extern void fill_up_frame_row_with_spaces (struct glyph_row *, int);
+extern void fill_up_frame_row_with_spaces (struct frame *, struct glyph_row *, int);
 
 /* Defined in terminal.c.  */
 
