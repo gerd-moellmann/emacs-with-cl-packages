@@ -1173,7 +1173,12 @@ line_hash_code (struct frame *f, struct glyph_row *row)
       while (glyph < end)
 	{
 	  int c = glyph->u.ch;
+	  /* FIXME/tty: struct frame can move with igc, and so on.
+	     But we need something that takes different frames
+	     into account. */
 	  int face_id = glyph->face_id;
+	  if (glyph->frame != f)
+	    face_id += (ptrdiff_t) glyph->frame;
 	  if (FRAME_MUST_WRITE_SPACES (f))
 	    c -= SPACEGLYPH;
 	  hash = (((hash << 4) + (hash >> 24)) & 0x0fffffff) + c;
