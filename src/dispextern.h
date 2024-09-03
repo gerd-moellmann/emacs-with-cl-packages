@@ -482,6 +482,11 @@ struct glyph
      continuation glyphs, or the overlay-arrow glyphs on TTYs.  */
   Lisp_Object object;
 
+  /* Frame on which the glyph was produced. The face_id of this glyph
+     refers to the face_cache of this frame. This is used on tty frames
+     only. */
+  struct frame *frame;
+
   /* Width in pixels.  */
   short pixel_width;
 
@@ -840,9 +845,6 @@ struct glyph_matrix
 # ifdef HAVE_MPS
   void *igc_info;
 # endif
-
-  /* Child frame info for tty frames. */
-  Lisp_Object child_info;
 };
 
 
@@ -3935,7 +3937,6 @@ bool is_tty_root_frame (struct frame *f);
 Lisp_Object frames_with_root (struct frame *root);
 bool tty_update_roots (Lisp_Object root_frames, bool force_p, bool inhibit_id_p);
 bool tty_update_root (struct frame *root, bool force_p, bool inhibit_id_p);
-struct face *tty_face_at_cursor (struct frame *root, int face_id, bool current);
 
 #ifdef GLYPH_DEBUG
 bool is_tty_desired_glyph (struct frame *f, struct glyph *g);

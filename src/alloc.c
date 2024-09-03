@@ -6957,9 +6957,13 @@ mark_glyph_matrix (struct glyph_matrix *matrix)
 	    struct glyph *end_glyph = glyph + row->used[area];
 
 	    for (; glyph < end_glyph; ++glyph)
-	      if (STRINGP (glyph->object)
-		  && !string_marked_p (XSTRING (glyph->object)))
-		mark_object (glyph->object);
+	      {
+		if (glyph->frame)
+		  mark_object (glyph->frame);
+		if (STRINGP (glyph->object)
+		    && !string_marked_p (XSTRING (glyph->object)))
+		  mark_object (glyph->object);
+	      }
 	  }
       }
 }

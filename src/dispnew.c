@@ -3279,45 +3279,6 @@ struct rect
   int x, y, w, h;
 };
 
-/* Record a child_rect in MATRIX for fraee CHILD occupying RECT. */
-
-static Lisp_Object
-make_child_info (struct frame *child, struct rect *r)
-{
-  Lisp_Object child_frame;
-  XSETFRAME (child_frame, child);
-  return Fcons (child_frame, list4i (r->x, r->y, r->x + r->w, r->y + r->h));
-}
-
-/* Return true if INFO contains the point (X, Y). */
-
-static bool
-child_info_contains (Lisp_Object info, int x, int y)
-{
-  EMACS_INT x0 = (info = XCDR (info), XFIXNUM (XCAR (info)));
-  EMACS_INT y0 = (info = XCDR (info), XFIXNUM (XCAR (info)));
-  EMACS_INT x1 = (info = XCDR (info), XFIXNUM (XCAR (info)));
-  EMACS_INT y1 = (info = XCDR (info), XFIXNUM (XCAR (info)));
-  return x >= x0 && x < x1 && y >= y0 && y < y1;
-}
-
-/* Return the child_rect entry of MATRIX for (X, Y) or null if none
-   exists. */
-
-static struct frame *
-child_frame_containing (struct glyph_matrix *matrix, int x, int y)
-{
-  Lisp_Object tail = matrix->child_info;
-  FOR_EACH_TAIL (tail)
-    {
-      Lisp_Object info = XCAR (tail);
-      if (child_info_contains (info, x, y))
-	return XFRAME (XCAR (info));
-    }
-  return NULL;
-}
-
-
 #ifdef GLYPH_DEBUG
 static bool
 is_glyph_in_matrix (struct glyph_matrix *m, struct glyph *g)
@@ -3349,18 +3310,6 @@ is_tty_current_glyph (struct frame *f, struct glyph *g)
   return is_glyph_in_matrix (f->current_matrix, g);
 }
 #endif // GLYPH_DEBUG
-
-struct face *
-tty_face_at_cursor (struct frame *root, int face_id, bool current)
-{
-  eassert (is_tty_root_frame (root));
-  struct glyph_matrix *matrix = current ? root->current_matrix : root->desired_matrix;
-  struct tty_display_info *tty = FRAME_TTY (root);
-  struct frame *child = child_frame_containing (matrix, curX (tty), curY (tty));
-  if (child)
-    return FACE_FROM_ID (child, face_id);
-  return FACE_FROM_ID (root, face_id);
-}
 
 /* Compute the intersection of R1 and R2 in R. Value is true if R1 and
    R2 intersect, false otherwise. */
@@ -3504,7 +3453,7 @@ check_copied_glyphs (struct frame *child, struct glyph *glyph, int n)
 /* Copy what we need from the glyph matrices of child frame CHILD to its
    root frame's desired matrix. */
 
-static Lisp_Object
+static void
 copy_child_glyphs (struct frame *root, struct frame *child)
 {
   eassert (!FRAME_PARENT_FRAME (root));
@@ -3534,11 +3483,7 @@ copy_child_glyphs (struct frame *root, struct frame *child)
 	      root_row->hash = row_hash (root_row);
 	    }
 	}
-
-      return make_child_info (child, &r);
     }
-
-  return Qnil;
 }
 
 /***********************************************************************
@@ -3660,8 +3605,6 @@ make_matrix_current (struct frame *f)
     for (int i = first_row; i < f->desired_matrix->nrows; ++i)
       if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
 	make_current (f, NULL, i);
-
-  f->current_matrix->child_info = f->desired_matrix->child_info;
 }
 
 bool
@@ -3670,20 +3613,14 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
   eassert (is_tty_root_frame (root));
 
   /* Process child frames in reverse z-order, topmost last.  For each
-     child, copy what we need to the root's desired matrix. Collect info
-     from which child we copied what in child_info. */
+     child, copy what we need to the root's desired matrix. */
   Lisp_Object z_order = frames_in_reverse_z_order (root);
-  Lisp_Object child_info = Qnil;
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
       struct frame *child = XFRAME (XCAR (tail));
-      Lisp_Object info = copy_child_glyphs (root, child);
-      child_info = Fcons (info, child_info);
+      copy_child_glyphs (root, child);
       make_matrix_current (child);
     }
-
-  /* child_info is now in z-order, topmost first. */
-  root->desired_matrix->child_info = child_info;
 
   update_begin (root);
   bool paused = write_matrix (root, force_p, inhibit_hairy_id_p, 1, false);

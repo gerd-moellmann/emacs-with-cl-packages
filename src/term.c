@@ -787,17 +787,16 @@ tty_write_glyphs (struct frame *f, struct glyph *string, int len)
     {
       /* Identify a run of glyphs with the same face.  */
       int face_id = string->face_id;
+      struct frame *face_id_frame = string->frame;
 
       for (n = 1; n < stringlen; ++n)
-	if (string[n].face_id != face_id)
+	if (string[n].face_id
+	    != face_id || string[n].frame != face_id_frame)
 	  break;
 
       /* Turn appearance modes of the face of the run on.  */
       tty_highlight_if_desired (tty);
-#ifdef GLYPH_DEBUG
-      eassert (is_tty_desired_glyph (f, string));
-#endif
-      struct face *face = tty_face_at_cursor (f, face_id, false);
+      struct face *face = FACE_FROM_ID (face_id_frame, face_id);
       turn_on_face (f, face);
 
       if (n == stringlen)
@@ -933,10 +932,9 @@ tty_insert_glyphs (struct frame *f, struct glyph *start, int len)
       else
 	{
 	  tty_highlight_if_desired (tty);
-#ifdef GLYPH_DEBUG
-	  eassert (is_tty_desired_glyph (f, start));
-#endif
-	  face = tty_face_at_cursor (f, start->face_id, false);
+	  int face_id = start->face_id;
+	  struct frame *face_id_frame = start->frame;
+	  face = FACE_FROM_ID (face_id_frame, face_id);
 	  turn_on_face (f, face);
 	  glyph = start;
 	  ++start;
@@ -1551,6 +1549,7 @@ append_glyph (struct it *it)
       glyph->type = CHAR_GLYPH;
       glyph->pixel_width = 1;
       glyph->u.ch = it->char_to_display;
+      glyph->frame = it->f;
       glyph->face_id = it->face_id;
       glyph->avoid_cursor_p = it->avoid_cursor_p;
       glyph->multibyte_p = it->multibyte_p;
@@ -1760,6 +1759,7 @@ append_composite_glyph (struct it *it)
 	  glyph = it->glyph_row->glyphs[it->area];
 	}
       glyph->type = COMPOSITE_GLYPH;
+      glyph->frame = it->f;
       eassert (it->pixel_width <= SHRT_MAX);
       glyph->pixel_width = it->pixel_width;
       glyph->u.cmp.id = it->cmp_it.id;
@@ -1864,6 +1864,7 @@ append_glyphless_glyph (struct it *it, int face_id, const char *str)
   glyph->pixel_width = 1;
   glyph->avoid_cursor_p = it->avoid_cursor_p;
   glyph->multibyte_p = it->multibyte_p;
+  glyph->frame = it->f;
   glyph->face_id = face_id;
   glyph->padding_p = false;
   glyph->charpos = CHARPOS (it->position);
@@ -2570,26 +2571,22 @@ tty_draw_row_with_mouse_face (struct window *w, struct glyph_row *row,
   struct frame *f = XFRAME (WINDOW_FRAME (w));
   struct tty_display_info *tty = FRAME_TTY (f);
   int face_id = tty->mouse_highlight.mouse_face_face_id;
-  int save_x, save_y, pos_x, pos_y;
 
   if (end_hpos >= row->used[TEXT_AREA])
     nglyphs = row->used[TEXT_AREA] - start_hpos;
 
-  pos_y = row->y + WINDOW_TOP_EDGE_Y (w);
-  pos_x = row->used[LEFT_MARGIN_AREA] + start_hpos + WINDOW_LEFT_EDGE_X (w);
+  int pos_y = row->y + WINDOW_TOP_EDGE_Y (w);
+  int pos_x = row->used[LEFT_MARGIN_AREA] + start_hpos + WINDOW_LEFT_EDGE_X (w);
 
   /* Save current cursor coordinates.  */
-  save_y = curY (tty);
-  save_x = curX (tty);
+  int save_y = curY (tty);
+  int save_x = curX (tty);
   cursor_to (f, pos_y, pos_x);
 
   if (draw == DRAW_MOUSE_FACE)
     {
       struct glyph *glyph = row->glyphs[TEXT_AREA] + start_hpos;
-#ifdef GLYPH_DEBUG
-      eassert (is_tty_current_glyph (f, glyph));
-#endif
-      struct face *face = tty_face_at_cursor (f, face_id, true);
+      struct face *face = FACE_FROM_ID (glyph->frame, face_id);
       tty_write_glyphs_with_face (f, glyph, nglyphs, face);
     }
   else if (draw == DRAW_NORMAL_TEXT)
