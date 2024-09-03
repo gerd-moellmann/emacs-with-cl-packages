@@ -3354,8 +3354,8 @@ struct face *
 tty_face_at_cursor (struct frame *root, int face_id, bool current)
 {
   eassert (is_tty_root_frame (root));
-  struct tty_display_info *tty = FRAME_TTY (root);
   struct glyph_matrix *matrix = current ? root->current_matrix : root->desired_matrix;
+  struct tty_display_info *tty = FRAME_TTY (root);
   struct frame *child = child_frame_containing (matrix, curX (tty), curY (tty));
   if (child)
     return FACE_FROM_ID (child, face_id);
@@ -3669,17 +3669,21 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
 {
   eassert (is_tty_root_frame (root));
 
+  /* Process child frames in reverse z-order, topmost last.  For each
+     child, copy what we need to the root's desired matrix. Collect info
+     from which child we copied what in child_info. */
   Lisp_Object z_order = frames_in_reverse_z_order (root);
   Lisp_Object child_info = Qnil;
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
       struct frame *child = XFRAME (XCAR (tail));
-      eassert (is_frame_ancestor (root, child));
       Lisp_Object info = copy_child_glyphs (root, child);
       child_info = Fcons (info, child_info);
       make_matrix_current (child);
     }
-  root->desired_matrix->child_info = Fnreverse (child_info);
+
+  /* child_info is now in z-order, topmost first. */
+  root->desired_matrix->child_info = child_info;
 
   update_begin (root);
   bool paused = write_matrix (root, force_p, inhibit_hairy_id_p, 1, false);
