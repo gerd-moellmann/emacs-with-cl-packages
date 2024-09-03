@@ -24334,9 +24334,11 @@ highlight_trailing_whitespace (struct it *it)
 	      while (glyph >= start
 		     && BUFFERP (glyph->object)
 		     && (glyph->type == STRETCH_GLYPH
-			 || (glyph->type == CHAR_GLYPH
-			     && glyph->u.ch == ' ')))
-		(glyph--)->face_id = face_id;
+			 || (glyph->type == CHAR_GLYPH && glyph->u.ch == ' ')))
+		{
+		  glyph->frame = it->f;
+		  (glyph--)->face_id = face_id;
+		}
 	    }
 	  else
 	    {
@@ -24345,7 +24347,10 @@ highlight_trailing_whitespace (struct it *it)
 		     && (glyph->type == STRETCH_GLYPH
 			 || (glyph->type == CHAR_GLYPH
 			     && glyph->u.ch == ' ')))
-		(glyph++)->face_id = face_id;
+		{
+		  glyph->frame = it->f;
+		  (glyph++)->face_id = face_id;
+		}
 	    }
 	}
     }

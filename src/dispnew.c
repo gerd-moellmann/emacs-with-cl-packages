@@ -3458,7 +3458,7 @@ check_copied_glyphs (struct frame *child, struct glyph *glyph, int n)
 #ifdef GLYPH_DEBUG
   struct face_cache *cache = child->face_cache;
   for (int i = 0; i < n; ++i, ++glyph)
-    if (glyph->face_id < 0 || glyph->face_id >= cache->used)
+    if (glyph->face_id < 0 || glyph->face_id >= cache->used || glyph->frame != child)
       emacs_abort ();
 #endif
 }

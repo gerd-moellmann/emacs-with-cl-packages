@@ -1759,7 +1759,6 @@ append_composite_glyph (struct it *it)
 	  glyph = it->glyph_row->glyphs[it->area];
 	}
       glyph->type = COMPOSITE_GLYPH;
-      glyph->frame = it->f;
       eassert (it->pixel_width <= SHRT_MAX);
       glyph->pixel_width = it->pixel_width;
       glyph->u.cmp.id = it->cmp_it.id;
@@ -1778,6 +1777,7 @@ append_composite_glyph (struct it *it)
 
       glyph->avoid_cursor_p = it->avoid_cursor_p;
       glyph->multibyte_p = it->multibyte_p;
+      glyph->frame = it->f;
       glyph->face_id = it->face_id;
       glyph->padding_p = false;
       glyph->charpos = CHARPOS (it->position);
