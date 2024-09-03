@@ -1213,7 +1213,7 @@ line_draw_cost (struct frame *f, struct glyph_matrix *matrix, int vpos)
   if (!FRAME_MUST_WRITE_SPACES (f))
     {
       /* Skip from the end over trailing spaces.  */
-      while (end > beg && CHAR_GLYPH_SPACE_P (*(end - 1)))
+      while (end > beg && CHAR_GLYPH_SPACE_P (f, *(end - 1)))
 	--end;
 
       /* All blank line.  */
@@ -1221,7 +1221,7 @@ line_draw_cost (struct frame *f, struct glyph_matrix *matrix, int vpos)
 	return 0;
 
       /* Skip over leading spaces.  */
-      while (CHAR_GLYPH_SPACE_P (*beg))
+      while (CHAR_GLYPH_SPACE_P (f, *beg))
 	++beg;
     }
 
@@ -5508,12 +5508,12 @@ scrolling (struct frame *frame)
    which is LEN glyphs long.  */
 
 static int
-count_blanks (struct glyph *r, int len)
+count_blanks (struct frame *f, struct glyph *r, int len)
 {
   int i;
 
   for (i = 0; i < len; ++i)
-    if (!CHAR_GLYPH_SPACE_P (r[i]))
+    if (!CHAR_GLYPH_SPACE_P (f, r[i]))
       break;
 
   return i;
@@ -5581,7 +5581,7 @@ write_row (struct frame *f, int vpos, bool updating_menu_p)
 
       /* Ignore trailing spaces, if we can.  */
       if (!write_spaces_p)
-	while (olen > 0 && CHAR_GLYPH_SPACE_P (obody[olen-1]))
+	while (olen > 0 && CHAR_GLYPH_SPACE_P (f, obody[olen-1]))
 	  olen--;
     }
 
@@ -5610,7 +5610,7 @@ write_row (struct frame *f, int vpos, bool updating_menu_p)
     {
       /* Ignore spaces at the end, if we can.  */
       if (!write_spaces_p)
-	while (nlen > 0 && CHAR_GLYPH_SPACE_P (nbody[nlen - 1]))
+	while (nlen > 0 && CHAR_GLYPH_SPACE_P (f, nbody[nlen - 1]))
 	  --nlen;
 
       /* Write the contents of the desired line.  */
@@ -5638,7 +5638,7 @@ write_row (struct frame *f, int vpos, bool updating_menu_p)
   /* Pretend trailing spaces are not there at all,
      unless for one reason or another we must write all spaces.  */
   if (!write_spaces_p)
-    while (nlen > 0 && CHAR_GLYPH_SPACE_P (nbody[nlen - 1]))
+    while (nlen > 0 && CHAR_GLYPH_SPACE_P (f, nbody[nlen - 1]))
       nlen--;
 
   /* If there's no i/d char, quickly do the best we can without it.  */
@@ -5688,7 +5688,7 @@ write_row (struct frame *f, int vpos, bool updating_menu_p)
       if (write_spaces_p)
 	nsp = 0;
       else
-	nsp = count_blanks (nbody, nlen);
+	nsp = count_blanks (f, nbody, nlen);
 
       if (nlen > nsp)
 	{
@@ -5700,8 +5700,8 @@ write_row (struct frame *f, int vpos, bool updating_menu_p)
     }
 
   /* Compute number of leading blanks in old and new contents.  */
-  osp = count_blanks (obody, olen);
-  nsp = (colored_spaces_p ? 0 : count_blanks (nbody, nlen));
+  osp = count_blanks (f, obody, olen);
+  nsp = (colored_spaces_p ? 0 : count_blanks (f, nbody, nlen));
 
   /* Compute number of matching chars starting with first non-blank.  */
   begmatch = count_match (obody + osp, obody + olen,
@@ -5712,7 +5712,7 @@ write_row (struct frame *f, int vpos, bool updating_menu_p)
   if (!write_spaces_p && osp + begmatch == olen)
     {
       np1 = nbody + nsp;
-      while (np1 + begmatch < nend && CHAR_GLYPH_SPACE_P (np1[begmatch]))
+      while (np1 + begmatch < nend && CHAR_GLYPH_SPACE_P (f, np1[begmatch]))
 	++begmatch;
     }
 

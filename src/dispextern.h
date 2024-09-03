@@ -633,8 +633,10 @@ struct glyph
 
 /* Is GLYPH a space?  */
 
-#define CHAR_GLYPH_SPACE_P(GLYPH) \
-  ((GLYPH).u.ch == SPACEGLYPH && (GLYPH).face_id == DEFAULT_FACE_ID)
+# define CHAR_GLYPH_SPACE_P(FRAME, GLYPH)	\
+  ((GLYPH).u.ch == SPACEGLYPH			\
+   && (GLYPH).face_id == DEFAULT_FACE_ID	\
+   && (GLYPH).frame == (FRAME))
 
 /* Are glyph slices of glyphs *X and *Y equal?  It assumes that both
    glyphs have the same type.
