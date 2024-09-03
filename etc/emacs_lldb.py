@@ -355,7 +355,7 @@ def __lldb_init_module(debugger, internal_dict):
     define_command(debugger, xdebug_print)
     define_command(debugger, xprint)
     define_type_summary(debugger, "Lisp_Object", type_summary_Lisp_Object)
-    #define_type_synthetic(debugger, "Lisp_Object", Lisp_Object_Provider)
+    define_type_synthetic(debugger, "Lisp_Object", Lisp_Object_Provider)
     enable_type_category(debugger, "Emacs")
     print('Emacs debugging support has been installed.')
 
