@@ -30,14 +30,17 @@ script -- sys.path.append('../etc')
 # Load our Python files
 command script import emacs_lldb
 
+# Reload emacs_lldb.py
+command alias xreload command script import emacs_lldb
+
 # Attach to future Emacs. It might be adviaable to redirect Emacs'
 # stderr to some log file so that one can see the output of xdebug_print
 # and other output to stderr.
 command alias xattach process attach --waitfor --name emacs --continue
 
 # For tty Emacs
-process handle SIGWINCH --pass true --stop false
-process handle SIGINT --pass true --stop false
+process handle SIGWINCH --pass true --stop false --notify false
+process handle SIGINT --pass true --stop false --notify false
 
 # MPS telemetry level (default output file mpsio.log)
 #env MPS_TELEMETRY_CONTROL=all
@@ -105,4 +108,3 @@ b die
 #process attach --waitfor --name emacs (--continue)
 
 # Attach to future Emacs
-command alias xattach process attach --waitfor --name emacs --continue
