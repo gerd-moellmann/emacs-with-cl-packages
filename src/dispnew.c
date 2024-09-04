@@ -3584,8 +3584,7 @@ flush_terminal (struct frame *f)
 {
   if (FRAME_TTY (f)->termscript)
     fflush (FRAME_TTY (f)->termscript);
-  if (FRAME_TERMCAP_P (f))
-    fflush (FRAME_TTY (f)->output);
+  fflush (FRAME_TTY (f)->output);
 }
 
 static bool
@@ -3737,10 +3736,8 @@ update_frame_with_menu (struct frame *f, int row, int col)
   if (!cursor_at_point_p)
     cursor_to (f, row, col);
   update_end (f);
+  flush_terminal (f);
 
-  if (FRAME_TTY (f)->termscript)
-    fflush (FRAME_TTY (f)->termscript);
-  fflush (FRAME_TTY (f)->output);
   /* Check window matrices for lost pointers.  */
 #if GLYPH_DEBUG
 #if 0
