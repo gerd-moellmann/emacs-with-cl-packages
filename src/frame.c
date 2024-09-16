@@ -1320,11 +1320,13 @@ make_terminal_frame (struct terminal *terminal)
   FRAME_TEXT_HEIGHT (f) = FRAME_TEXT_HEIGHT (f) - FRAME_MENU_BAR_HEIGHT (f)
     - FRAME_TAB_BAR_HEIGHT (f);
 
-  /* Set the top frame to the newly created frame.  */
+  /* FIXME/tty: Rearrange this. This is wrong fro child frames. */
   if (FRAMEP (FRAME_TTY (f)->top_frame)
-      && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame)))
+      && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame))
+      && is_tty_root_frame (f))
     SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), 2); /* obscured */
 
+  /* Set the top frame to the newly created frame.  */
   FRAME_TTY (f)->top_frame = frame;
   return f;
 }
