@@ -1620,15 +1620,16 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 	 TTY.  */
       if (!EQ (frame, top_frame))
 	{
-	  if (FRAMEP (top_frame))
-	    /* Mark previously displayed frame as now obscured.  */
-	    SET_FRAME_VISIBLE (XFRAME (top_frame), 2);
 	  SET_FRAME_VISIBLE (f, 1);
 	  /* FIXME/tty: another place where we set FrameRows/FrameCols,
 	     which is really a physical property of the terminal, and
 	     nothing we set. That doesn't look right to me. */
 	  if (is_tty_root_frame (f))
 	    {
+	      if (FRAMEP (top_frame))
+		/* Mark previously displayed frame as now obscured.  */
+		SET_FRAME_VISIBLE (XFRAME (top_frame), 2);
+
 	      /* If the new TTY frame changed dimensions, we need to
 		 resync term.c's idea of the frame size with the new
 		 frame's data.  */
