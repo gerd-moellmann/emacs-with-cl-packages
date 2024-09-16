@@ -1320,7 +1320,8 @@ make_terminal_frame (struct terminal *terminal)
   FRAME_TEXT_HEIGHT (f) = FRAME_TEXT_HEIGHT (f) - FRAME_MENU_BAR_HEIGHT (f)
     - FRAME_TAB_BAR_HEIGHT (f);
 
-  /* FIXME/tty: Rearrange this. This is wrong fro child frames. */
+  /* Mark current topmost frame obscured if we make a new root frame.
+     Child frames don't obscure their parent. */
   if (FRAMEP (FRAME_TTY (f)->top_frame)
       && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame))
       && is_tty_root_frame (f))
