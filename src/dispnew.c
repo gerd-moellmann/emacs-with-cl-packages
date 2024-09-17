@@ -3720,16 +3720,17 @@ void
 update_frame_with_menu (struct frame *f, int row, int col)
 {
   struct window *root_window = XWINDOW (f->root_window);
-  bool paused_p, cursor_at_point_p;
+  bool cursor_at_point_p;
 
   eassert (FRAME_TERMCAP_P (f));
 
   /* Update the display.  */
   update_begin (f);
   cursor_at_point_p = !(row >= 0 && col >= 0);
-  /* Force update_frame_1 not to stop due to pending input, and not
-     try scrolling.  */
-  paused_p = write_matrix (f, 1, 1, cursor_at_point_p, true);
+  /* Do not stop due to pending input, and do not try scrolling. This
+     means that write_glyphs will always return false. */
+  write_matrix (f, 1, 1, cursor_at_point_p, true);
+  make_matrix_current (f);
   clear_desired_matrices (f);
   /* ROW and COL tell us where in the menu to position the cursor, so
      that screen readers know the active region on the screen.  */
@@ -3746,12 +3747,12 @@ update_frame_with_menu (struct frame *f, int row, int col)
 	 making any updates to the window matrices.  */
   check_window_matrix_pointers (root_window);
 #endif
-  add_frame_display_history (f, paused_p);
+  add_frame_display_history (f, false);
 #endif
 
   /* Reset flags indicating that a window should be updated.  */
   set_window_update_flags (root_window, false);
-  display_completed = !paused_p;
+  display_completed = true;
 }
 
 /* Update the mouse position for a frame F.  This handles both
