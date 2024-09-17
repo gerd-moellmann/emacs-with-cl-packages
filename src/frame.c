@@ -198,6 +198,17 @@ set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
   int olines = FRAME_MENU_BAR_LINES (f);
   int nlines = TYPE_RANGED_FIXNUMP (int, value) ? XFIXNUM (value) : 0;
 
+  /* FIXME/tty: menu bars on child frames don't work on all platforms,
+     which is the reason why prepare_menu_bar does not update_menu_bar
+     for child frames (info from Martin Rudalics). This could be
+     implemented in ttys, but it's unclear if it is worth it. */
+  if (is_tty_child_frame (f))
+    {
+      FRAME_MENU_BAR_LINES (f) = 0;
+      FRAME_MENU_BAR_HEIGHT (f) = 0;
+      return;
+    }
+
   /* Right now, menu bars don't work properly in minibuf-only frames;
      most of the commands try to apply themselves to the minibuffer
      frame itself, and get an error because you can't switch buffers
@@ -1270,7 +1281,7 @@ make_initial_frame (void)
 #ifndef HAVE_ANDROID
 
 static struct frame *
-make_terminal_frame (struct terminal *terminal)
+make_terminal_frame (struct terminal *terminal, bool is_child)
 {
   register struct frame *f;
   Lisp_Object frame;
@@ -1311,7 +1322,15 @@ make_terminal_frame (struct terminal *terminal)
   f->horizontal_scroll_bars = false;
 #endif
 
-  FRAME_MENU_BAR_LINES (f) = NILP (Vmenu_bar_mode) ? 0 : 1;
+  /* FIXME/tty: menu bars on child frames don't work on all platforms,
+     which is the reason why prepare_menu_bar does not update_menu_bar
+     for child frames (info from Martin Rudalics). This could be
+     implemented in ttys, but it's unclear if it is worth it. */
+  if (is_child)
+    FRAME_MENU_BAR_LINES (f) = 0;
+  else
+    FRAME_MENU_BAR_LINES (f) = NILP (Vmenu_bar_mode) ? 0 : 1;
+
   FRAME_TAB_BAR_LINES (f) = NILP (Vtab_bar_mode) ? 0 : 1;
   FRAME_LINES (f) = FRAME_LINES (f) - FRAME_MENU_BAR_LINES (f)
     - FRAME_TAB_BAR_LINES (f);
@@ -1325,7 +1344,7 @@ make_terminal_frame (struct terminal *terminal)
      FIXME/tty: we don't know the parent yet.  */
   if (FRAMEP (FRAME_TTY (f)->top_frame)
       && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame))
-      && is_tty_root_frame (f))
+      && !is_child)
     SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), 2); /* obscured */
 
   /* Set the top frame to the newly created frame.  */
@@ -1459,12 +1478,12 @@ affects all frames on the same terminal device.  */)
       SAFE_FREE ();
     }
 
-  struct frame *f = make_terminal_frame (t);
-
   /* See if a parent-frame is given. We need to know this for
      determining the width and height of the frame. */
   Lisp_Object parent = Fassq (Qparent_frame, parms);
-  if (CONSP (parent) && FRAMEP (XCDR (parent)))
+  bool is_child = CONSP (parent) && FRAMEP (XCDR (parent));
+  struct frame *f = make_terminal_frame (t, is_child);
+  if (is_child)
     f->parent_frame = XCDR (parent);
 
   /* Initializing faces can only be done when we know if the new frame
@@ -1481,13 +1500,9 @@ affects all frames on the same terminal device.  */)
      terminal size).  */
   int x = 0, y = 0, width, height;
   if (FRAME_PARENT_FRAME (f))
-    {
-      child_frame_rect (f, parms, &x, &y, &width, &height);
-    }
+    child_frame_rect (f, parms, &x, &y, &width, &height);
   else
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
-  /* FIXME/tty: The 5 and so on is way too obscure. At the very least,
-     this should be an enumeration.  */
   adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f), 5, 0,
 		     Qterminal_frame);
   /* FIXME/tty: isn't this done already in adjust_frame_size? */
