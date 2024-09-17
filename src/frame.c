@@ -1321,7 +1321,8 @@ make_terminal_frame (struct terminal *terminal)
     - FRAME_TAB_BAR_HEIGHT (f);
 
   /* Mark current topmost frame obscured if we make a new root frame.
-     Child frames don't obscure their parent. */
+     Child frames don't obscure their parent.
+     FIXME/tty: we don't know the parent yet.  */
   if (FRAMEP (FRAME_TTY (f)->top_frame)
       && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame))
       && is_tty_root_frame (f))
