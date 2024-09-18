@@ -17548,7 +17548,7 @@ redisplay_internal (void)
 	}
 
       if (CONSP (tty_root_frames))
-	pending |= tty_update_roots (tty_root_frames, false, false);
+	pending |= combine_updates (tty_root_frames, false, false);
 
       eassert (EQ (XFRAME (selected_frame)->selected_window, selected_window));
 

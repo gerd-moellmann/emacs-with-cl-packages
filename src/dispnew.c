@@ -3556,7 +3556,7 @@ update_tool_bar (struct frame *f)
 }
 
 static bool
-update_window_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
+update_window_frame (struct frame *f, bool force_p)
 {
   eassert (FRAME_WINDOW_P (f));
   update_begin (f);
@@ -3571,7 +3571,7 @@ update_window_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
 }
 
 static bool
-update_initial_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
+update_initial_frame (struct frame *f, bool force_p)
 {
   build_frame_matrix (f);
   struct window *root_window = XWINDOW (f->root_window);
@@ -3588,7 +3588,7 @@ flush_terminal (struct frame *f)
 }
 
 static bool
-update_tty_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
+update_tty_frame (struct frame *f, bool force_p)
 {
   build_frame_matrix (f);
   return false;
@@ -3620,7 +3620,7 @@ make_matrix_current (struct frame *f)
 }
 
 bool
-tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
+tty_update_root (struct frame *root, bool force_p, bool inhibit_scrolling)
 {
   eassert (is_tty_root_frame (root));
 
@@ -3635,7 +3635,7 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
     }
 
   update_begin (root);
-  bool paused = write_matrix (root, force_p, inhibit_hairy_id_p, 1, false);
+  bool paused = write_matrix (root, force_p, inhibit_scrolling, 1, false);
   if (!paused)
     make_matrix_current (root);
   update_end (root);
@@ -3660,28 +3660,32 @@ tty_update_root (struct frame *root, bool force_p, bool inhibit_hairy_id_p)
    redisplay_internal as the last step of redisplaying. */
 
 bool
-tty_update_roots (Lisp_Object roots, bool force_p, bool inhibit_id_p)
+combine_updates (Lisp_Object roots, bool force_p, bool inhibit_scrolling)
 {
   for (; CONSP (roots); roots = XCDR (roots))
     {
       struct frame *root = XFRAME (XCAR (roots));
-      if (tty_update_root (root, force_p, inhibit_id_p))
-	return true;
+      if (tty_update_root (root, force_p, inhibit_scrolling))
+	{
+	  display_completed = false;
+	  return true;
+	}
     }
+
+  display_completed = true;
   return false;
 }
 
 /* Update frame F based on the data in desired matrices.
 
    If FORCE_P, don't let redisplay be stopped by detecting pending input.
-   If INHIBIT_HAIRY_ID_P, don't try scrolling.
+   If INHIBIT_SCROLLING, don't try scrolling.
 
    Value is true if redisplay was stopped due to pending input.  */
 
 bool
-update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
+update_frame (struct frame *f, bool force_p, bool inhibit_scrolling)
 {
-  /* True means display has been paused because of pending input.  */
   struct window *root_window = XWINDOW (f->root_window);
 
   if (redisplay_dont_pause)
@@ -3694,16 +3698,17 @@ update_frame (struct frame *f, bool force_p, bool inhibit_hairy_id_p)
       return true;
     }
 
-  bool paused_p;
+  bool paused;
   if (FRAME_WINDOW_P (f))
-    paused_p = update_window_frame (f, force_p, inhibit_hairy_id_p);
+    paused = update_window_frame (f, force_p);
   else if (FRAME_INITIAL_P (f))
-    paused_p = update_initial_frame (f, force_p, inhibit_hairy_id_p);
+    paused = update_initial_frame (f, force_p);
   else
-    paused_p = update_tty_frame (f, force_p, inhibit_hairy_id_p);
+    paused = update_tty_frame (f, force_p);
 
-  display_completed = !paused_p;
-  return paused_p;
+  if (paused)
+    display_completed = false;
+  return paused;
 }
 
 /* Update a TTY frame F that has a menu dropped down over some of its
