@@ -1281,7 +1281,7 @@ make_initial_frame (void)
 #ifndef HAVE_ANDROID
 
 static struct frame *
-make_terminal_frame (struct terminal *terminal, bool is_child)
+make_terminal_frame (struct terminal *terminal, Lisp_Object parent)
 {
   register struct frame *f;
   Lisp_Object frame;
@@ -1291,6 +1291,10 @@ make_terminal_frame (struct terminal *terminal, bool is_child)
     error ("Terminal is not live, can't create new frames on it");
 
   f = make_frame (1);
+
+  if (!NILP (parent))
+    CHECK_FRAME (parent);
+  f->parent_frame = parent;
 
   XSETFRAME (frame, f);
   Vframe_list = Fcons (frame, Vframe_list);
@@ -1326,10 +1330,10 @@ make_terminal_frame (struct terminal *terminal, bool is_child)
      which is the reason why prepare_menu_bar does not update_menu_bar
      for child frames (info from Martin Rudalics). This could be
      implemented in ttys, but it's unclear if it is worth it. */
-  if (is_child)
-    FRAME_MENU_BAR_LINES (f) = 0;
-  else
+  if (NILP (parent))
     FRAME_MENU_BAR_LINES (f) = NILP (Vmenu_bar_mode) ? 0 : 1;
+  else
+    FRAME_MENU_BAR_LINES (f) = 0;
 
   FRAME_TAB_BAR_LINES (f) = NILP (Vtab_bar_mode) ? 0 : 1;
   FRAME_LINES (f) = FRAME_LINES (f) - FRAME_MENU_BAR_LINES (f)
@@ -1340,11 +1344,10 @@ make_terminal_frame (struct terminal *terminal, bool is_child)
     - FRAME_TAB_BAR_HEIGHT (f);
 
   /* Mark current topmost frame obscured if we make a new root frame.
-     Child frames don't obscure their parent.
-     FIXME/tty: we don't know the parent yet.  */
+     Child frames don't completely obscure other frames. */
   if (FRAMEP (FRAME_TTY (f)->top_frame)
       && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame))
-      && !is_child)
+      && NILP (parent))
     SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), 2); /* obscured */
 
   /* Set the top frame to the newly created frame.  */
@@ -1478,16 +1481,12 @@ affects all frames on the same terminal device.  */)
       SAFE_FREE ();
     }
 
-  /* See if a parent-frame is given. We need to know this for
-     determining the width and height of the frame. */
-  Lisp_Object parent = Fassq (Qparent_frame, parms);
-  bool is_child = CONSP (parent) && FRAMEP (XCDR (parent));
-  struct frame *f = make_terminal_frame (t, is_child);
-  if (is_child)
-    f->parent_frame = XCDR (parent);
+  /* Make a new frame. We need to know upfront if if a parent frame is
+     specified because we behave differently in this case, e.g. child
+     frames don't obscure other frames. */
+  Lisp_Object parent = Fcdr (Fassq (Qparent_frame, parms));
+  struct frame *f = make_terminal_frame (t, parent);
 
-  /* Initializing faces can only be done when we know if the new frame
-     is a child ffame or not. */
   if (!noninteractive)
     init_frame_faces (f);
 
