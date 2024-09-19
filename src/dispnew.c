@@ -3620,7 +3620,7 @@ make_matrix_current (struct frame *f)
 }
 
 bool
-tty_update_root (struct frame *root, bool force_p, bool inhibit_scrolling)
+combine_updates_for_frame (struct frame *root, bool force_p, bool inhibit_scrolling)
 {
   eassert (is_tty_root_frame (root));
 
@@ -3665,7 +3665,7 @@ combine_updates (Lisp_Object roots, bool force_p, bool inhibit_scrolling)
   for (; CONSP (roots); roots = XCDR (roots))
     {
       struct frame *root = XFRAME (XCAR (roots));
-      if (tty_update_root (root, force_p, inhibit_scrolling))
+      if (combine_updates_for_frame (root, force_p, inhibit_scrolling))
 	{
 	  display_completed = false;
 	  return true;
