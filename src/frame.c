@@ -3405,6 +3405,15 @@ store_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val)
       val = old_val;
     }
 
+  /* FIXME/tty: re-parenting is currently not implemented when
+     chaning a root frame to a child frame or vice versa. */
+  if (is_tty_frame (f))
+    {
+      if (EQ (prop, Qparent_frame)
+	  && NILP (f->parent_frame) != NILP (val))
+	error ("Making a root frame a child or vice versa is not supported");
+    }
+
   /* The tty color needed to be set before the frame's parameter
      alist was updated with the new value.  This is not true any more,
      but we still do this test early on.  */
