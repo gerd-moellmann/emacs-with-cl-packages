@@ -946,7 +946,7 @@ redisplay_trace (char const *fmt, ...)
     {
       va_list ap;
       va_start (ap, fmt);
-      vprintf (fmt, ap);
+      vfprintf (stderr, fmt, ap);
       va_end (ap);
     }
 }
@@ -964,7 +964,7 @@ move_trace (char const *fmt, ...)
     {
       va_list ap;
       va_start (ap, fmt);
-      vprintf (fmt, ap);
+      vfprintf (stderr, fmt, ap);
       va_end (ap);
     }
 }
