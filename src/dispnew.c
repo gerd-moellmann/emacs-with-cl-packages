@@ -3620,9 +3620,9 @@ make_matrix_current (struct frame *f)
 }
 
 bool
-combine_updates_for_frame (struct frame *root, bool force_p, bool inhibit_scrolling)
+combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling)
 {
-  eassert (is_tty_root_frame (root));
+  struct frame *root = root_frame (f);
 
   /* Process child frames in reverse z-order, topmost last.  For each
      child, copy what we need to the root's desired matrix. */

@@ -3939,7 +3939,7 @@ bool is_tty_child_frame (struct frame *f);
 bool is_tty_root_frame (struct frame *f);
 Lisp_Object frames_with_root (struct frame *root);
 bool combine_updates (Lisp_Object root_frames, bool force_p, bool inhibit_id_p);
-bool combine_updates_for_frame (struct frame *root, bool force_p, bool inhibit_id_p);
+bool combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_id_p);
 
 #ifdef GLYPH_DEBUG
 bool is_tty_desired_glyph (struct frame *f, struct glyph *g);

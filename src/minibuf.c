@@ -916,7 +916,7 @@ read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
       struct frame *sf = XFRAME (selected_frame);
       update_frame (sf, true, true);
       if (is_tty_frame (sf))
-	combine_updates_for_frame (root_frame (sf), true, true);
+	combine_updates_for_frame (sf, true, true);
 
 #ifndef HAVE_NTGUI
       flush_frame (XFRAME (XWINDOW (minibuf_window)->frame));
