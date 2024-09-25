@@ -4640,6 +4640,7 @@ free_realized_face (struct frame *f, struct face *face)
 #endif /* HAVE_X_WINDOWS */
       xfree (face);
 #endif
+      (void) 0;  /* prevent the above label being the end of a compound statement */
     }
 }
 
