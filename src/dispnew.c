@@ -3452,6 +3452,31 @@ is_tty_root_frame (struct frame *f)
   return !FRAME_PARENT_FRAME (f) && is_tty_frame (f);
 }
 
+/* Return the index of the first enabled row in MATRIX, or -1 if there
+   is none. */
+
+static int
+first_enabled_row (struct glyph_matrix *matrix)
+{
+  for (int i = 0; i < matrix->nrows; ++i)
+    if (MATRIX_ROW_ENABLED_P (matrix, i))
+      return i;
+  return -1;
+}
+
+/* On tty frame F, make desired matrix current, without writing
+   to the terminal. */
+
+static void
+make_matrix_current (struct frame *f)
+{
+  int first_row = first_enabled_row (f->desired_matrix);
+  if (first_row >= 0)
+    for (int i = first_row; i < f->desired_matrix->nrows; ++i)
+      if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
+	make_current (f, NULL, i);
+}
+
 /* Copy to ROOT's desired matrix what we need from CHILD's current frame matrix. */
 
 static void
@@ -3589,31 +3614,6 @@ update_tty_frame (struct frame *f, bool force_p)
 {
   build_frame_matrix (f);
   return false;
-}
-
-/* Return the index of the first enabled row in MATRIX, or -1 if there
-   is none. */
-
-static int
-first_enabled_row (struct glyph_matrix *matrix)
-{
-  for (int i = 0; i < matrix->nrows; ++i)
-    if (MATRIX_ROW_ENABLED_P (matrix, i))
-      return i;
-  return -1;
-}
-
-/* On tty frame F, make desired matrix current, without writing
-   to the terminal. */
-
-static void
-make_matrix_current (struct frame *f)
-{
-  int first_row = first_enabled_row (f->desired_matrix);
-  if (first_row >= 0)
-    for (int i = first_row; i < f->desired_matrix->nrows; ++i)
-      if (MATRIX_ROW_ENABLED_P (f->desired_matrix, i))
-	make_current (f, NULL, i);
 }
 
 bool
