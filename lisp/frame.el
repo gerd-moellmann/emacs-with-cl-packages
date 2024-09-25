@@ -2074,6 +2074,7 @@ Some window managers may refuse to restack windows."
            (equal (frame-parameter frame1 'display)
                   (frame-parameter frame2 'display)))
       (let ((frame-type (framep-on-display frame1)))
+        ;; FIXME/tty: not implemented for ttys.
         (cond
          ((eq frame-type 'x)
           (x-frame-restack frame1 frame2 above))
