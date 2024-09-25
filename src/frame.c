@@ -3107,12 +3107,7 @@ doesn't support multiple overlapping frames, this function selects FRAME.  */)
 
   XSETFRAME (frame, f);
 
-  if (FRAME_TERMCAP_P (f))
-    /* On a text terminal select FRAME.  */
-    Fselect_frame (frame, Qnil);
-  else
-    /* Do like the documentation says. */
-    Fmake_frame_visible (frame);
+  Fmake_frame_visible (frame);
 
   if (FRAME_TERMINAL (f)->frame_raise_lower_hook)
     (*FRAME_TERMINAL (f)->frame_raise_lower_hook) (f, true);
