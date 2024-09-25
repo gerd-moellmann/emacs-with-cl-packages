@@ -1440,9 +1440,8 @@ extern bool frame_garbaged;
    if some changes were applied to it while it wasn't visible (and hence
    wasn't redisplayed).  */
 INLINE void
-SET_FRAME_VISIBLE (struct frame *f, int v)
+SET_FRAME_VISIBLE (struct frame *f, bool v)
 {
-  eassert (0 <= v && v <= 2);
   if (v)
     {
       if (v == 1 && f->visible != 1)

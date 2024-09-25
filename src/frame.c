@@ -1244,7 +1244,7 @@ make_initial_frame (void)
   tty_frame_count = 1;
   fset_name (f, build_pure_c_string ("F1"));
 
-  SET_FRAME_VISIBLE (f, 1);
+  SET_FRAME_VISIBLE (f, true);
 
   f->output_method = terminal->type;
   f->terminal = terminal;
@@ -1301,7 +1301,7 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent)
 
   fset_name (f, make_formatted_string (name, "F%"PRIdMAX, ++tty_frame_count));
 
-  SET_FRAME_VISIBLE (f, 1);
+  SET_FRAME_VISIBLE (f, true);
 
   f->terminal = terminal;
   f->terminal->reference_count++;
@@ -1348,7 +1348,7 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent)
   if (FRAMEP (FRAME_TTY (f)->top_frame)
       && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame))
       && NILP (parent))
-    SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), 2); /* obscured */
+    SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), false);
 
   /* Set the top frame to the newly created frame.  */
   FRAME_TTY (f)->top_frame = frame;
@@ -1638,7 +1638,7 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 	 TTY.  */
       if (!EQ (frame, top_frame))
 	{
-	  SET_FRAME_VISIBLE (f, 1);
+	  SET_FRAME_VISIBLE (f, true);
 	  /* FIXME/tty: another place where we set FrameRows/FrameCols,
 	     which is really a physical property of the terminal, and
 	     nothing we set. That doesn't look right to me. */
@@ -1646,7 +1646,7 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 	    {
 	      if (FRAMEP (top_frame))
 		/* Mark previously displayed frame as now obscured.  */
-		SET_FRAME_VISIBLE (XFRAME (top_frame), 2);
+		SET_FRAME_VISIBLE (XFRAME (top_frame), true);
 
 	      /* If the new TTY frame changed dimensions, we need to
 		 resync term.c's idea of the frame size with the new
@@ -2369,7 +2369,7 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
   fset_root_window (f, Qnil);
 
   Vframe_list = Fdelq (frame, Vframe_list);
-  SET_FRAME_VISIBLE (f, 0);
+  SET_FRAME_VISIBLE (f, false);
 
   /* Allow the vector of menu bar contents to be freed in the next
      garbage collection.  The frame object itself may not be garbage

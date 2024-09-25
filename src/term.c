@@ -2407,7 +2407,7 @@ A suspended tty may be resumed by calling `resume-tty' on it.  */)
       t->display_info.tty->output = 0;
 
       if (FRAMEP (t->display_info.tty->top_frame))
-        SET_FRAME_VISIBLE (XFRAME (t->display_info.tty->top_frame), 0);
+        SET_FRAME_VISIBLE (XFRAME (t->display_info.tty->top_frame), false);
 
     }
 
@@ -2490,7 +2490,7 @@ frame's terminal). */)
 	  get_tty_size (fileno (t->display_info.tty->input), &width, &height);
 	  if (width != old_width || height != old_height)
 	    change_frame_size (f, width, height, false, false, false);
-	  SET_FRAME_VISIBLE (XFRAME (t->display_info.tty->top_frame), 1);
+	  SET_FRAME_VISIBLE (XFRAME (t->display_info.tty->top_frame), true);
 	}
 
       set_tty_hooks (t);

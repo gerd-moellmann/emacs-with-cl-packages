@@ -1511,7 +1511,7 @@ ns_make_frame_visible (struct frame *f)
       EmacsView *view = (EmacsView *)FRAME_NS_VIEW (f);
       EmacsWindow *window = (EmacsWindow *)[view window];
 
-      SET_FRAME_VISIBLE (f, 1);
+      SET_FRAME_VISIBLE (f, true);
       ns_raise_frame (f, ! FRAME_NO_FOCUS_ON_MAP (f));
 
       /* Making a new frame from a fullscreen frame will make the new frame
@@ -1556,7 +1556,7 @@ ns_make_frame_invisible (struct frame *f)
   check_window_system (f);
   view = FRAME_NS_VIEW (f);
   [[view window] orderOut: NSApp];
-  SET_FRAME_VISIBLE (f, 0);
+  SET_FRAME_VISIBLE (f, false);
   SET_FRAME_ICONIFIED (f, 0);
 }
 
@@ -8321,7 +8321,7 @@ ns_in_echo_area (void)
     return;
 
   SET_FRAME_ICONIFIED (*emacsframe, 0);
-  SET_FRAME_VISIBLE (*emacsframe, 1);
+  SET_FRAME_VISIBLE (*emacsframe, true);
   windows_or_buffers_changed = 63;
 
   if (emacs_event)
@@ -8338,7 +8338,7 @@ ns_in_echo_area (void)
   if (!(*emacsframe)->output_data.ns)
     return;
 
-  SET_FRAME_VISIBLE (*emacsframe, 1);
+  SET_FRAME_VISIBLE (*emacsframe, true);
   SET_FRAME_GARBAGED (*emacsframe);
 
   if (send_appdefined)
@@ -8353,7 +8353,7 @@ ns_in_echo_area (void)
     return;
 
   SET_FRAME_ICONIFIED (*emacsframe, 1);
-  SET_FRAME_VISIBLE (*emacsframe, 0);
+  SET_FRAME_VISIBLE (*emacsframe, false);
 
   if (emacs_event)
     {
