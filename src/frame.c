@@ -2955,6 +2955,9 @@ If omitted, FRAME defaults to the currently selected frame.  */)
   if (FRAME_WINDOW_P (f) && FRAME_TERMINAL (f)->frame_visible_invisible_hook)
     FRAME_TERMINAL (f)->frame_visible_invisible_hook (f, true);
 
+  if (is_tty_frame (f))
+    SET_FRAME_VISIBLE (f, true);
+
   make_frame_visible_1 (f->root_window);
 
   /* Make menu bar update for the Buffers and Frames menus.  */
@@ -3004,6 +3007,9 @@ displayed in the terminal.  */)
 
   if (FRAME_WINDOW_P (f) && FRAME_TERMINAL (f)->frame_visible_invisible_hook)
     FRAME_TERMINAL (f)->frame_visible_invisible_hook (f, false);
+
+  if (is_tty_frame (f))
+    SET_FRAME_VISIBLE (f, false);
 
   /* Make menu bar update for the Buffers and Frames menus.  */
   windows_or_buffers_changed = 16;
