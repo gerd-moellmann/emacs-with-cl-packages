@@ -3353,7 +3353,8 @@ frame_rect (struct frame *f)
 }
 
 /* Return the root frame of frame F. Follow the parent_frame chain until
-   we reach a frame that has no parent. That is the root frame. */
+   we reach a frame that has no parent. That is the root frame. Note
+   that the root of a root frame is itself. */
 
 struct frame *
 root_frame (struct frame *f)
