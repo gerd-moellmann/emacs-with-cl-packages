@@ -300,7 +300,7 @@ which is the \"1006\" extension implemented in Xterm >= 277."
              (x (- x (car frame-pos)))
              (y (- y (cdr frame-pos)))
              ;;(_ (message (format "*** %S %S" x y)))
-             (w (window-at x y))
+             (w (window-at x y frame))
              ;;(_ (message (format "*** %S" w)))
 
              (ltrb (window-edges w))
