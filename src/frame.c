@@ -3007,6 +3007,9 @@ displayed in the terminal.  */)
   if (FRAME_WINDOW_P (f) && FRAME_TERMINAL (f)->frame_visible_invisible_hook)
     FRAME_TERMINAL (f)->frame_visible_invisible_hook (f, false);
 
+  /* FIXME/tty: the Elisp info manual says that this "usually" makes
+     child frames invisible, too, but without saying when not. Since users
+     can't rely on this, it's not implemented. */
   if (is_tty_frame (f))
     SET_FRAME_VISIBLE (f, false);
 
