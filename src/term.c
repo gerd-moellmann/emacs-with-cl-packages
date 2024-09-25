@@ -3979,9 +3979,42 @@ tty_free_frame_resources (struct frame *f)
 
 #endif
 
-
+
 
 #ifndef HAVE_ANDROID
+
+static void
+tty_raise_lower_frame (struct frame *f, bool raise)
+{
+  struct frame *parent = FRAME_PARENT_FRAME (f);
+  if (parent)
+    {
+      Lisp_Object children = frames_in_reverse_z_order (root_frame (f));
+      Lisp_Object siblings = Qnil;
+      for (Lisp_Object tail = children; CONSP (tail); tail = XCDR (tail))
+	{
+	  struct frame *child = XFRAME (XCAR (tail));
+	  if (FRAME_PARENT_FRAME (child) == parent)
+	    siblings = Fcons (XCAR (tail), siblings);
+	}
+
+      int n = list_length (siblings);
+      if (n > 1)
+	{
+	  int i;
+	  if (raise)
+	    f->z_order = 0, i = 1;
+	  else
+	    f->z_order = n - 1, i = 0;
+	  for (Lisp_Object tail = siblings; CONSP (tail); tail = XCDR (tail))
+	    {
+	      struct frame *child = XFRAME (XCAR (tail));
+	      if (f != child)
+		child->z_order = i++;
+	    }
+	}
+    }
+}
 
 /* Reset the hooks in TERMINAL.  */
 
@@ -4054,6 +4087,8 @@ set_tty_hooks (struct terminal *terminal)
   terminal->read_socket_hook = &tty_read_avail_input; /* keyboard.c */
   terminal->delete_frame_hook = &tty_free_frame_resources;
   terminal->delete_terminal_hook = &delete_tty;
+
+  terminal->frame_raise_lower_hook = tty_raise_lower_frame;
   /* Other hooks are NULL by default.  */
 }
 
