@@ -3452,19 +3452,7 @@ is_tty_root_frame (struct frame *f)
   return !FRAME_PARENT_FRAME (f) && is_tty_frame (f);
 }
 
-static void
-check_copied_glyphs (struct frame *child, struct glyph *glyph, int n)
-{
-#ifdef GLYPH_DEBUG
-  struct face_cache *cache = child->face_cache;
-  for (int i = 0; i < n; ++i, ++glyph)
-    if (glyph->face_id < 0 || glyph->face_id >= cache->used || glyph->frame != child)
-      emacs_abort ();
-#endif
-}
-
-/* Copy what we need from the glyph matrices of child frame CHILD to its
-   root frame's desired matrix. */
+/* Copy to ROOT's desired matrix what we need from CHILD's current frame matrix. */
 
 static void
 copy_child_glyphs (struct frame *root, struct frame *child)
@@ -3472,30 +3460,39 @@ copy_child_glyphs (struct frame *root, struct frame *child)
   eassert (!FRAME_PARENT_FRAME (root));
   eassert (is_frame_ancestor (root, child));
 
+  /* Determine the intersection of the child frame rectangle with
+     the root frame. This is basically clipping the child frame to
+     the root frame rectangle. */
   struct rect r;
-  if (rect_intersect (&r, frame_rect (root), frame_rect (child)))
+  if (!rect_intersect (&r, frame_rect (root), frame_rect (child)))
+    return;
+
+  /* Build CHILD's current matrix which we need to copy from it. */
+  make_matrix_current (child);
+
+  /* For all rows in the intersection, copy glyphs from the child's
+     current matrix to the root's desired matrix, enabling those
+     rows. */
+  for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
     {
-      for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
+      /* Start with the root's desired matrix row. If that hasn't
+	 been redisplayed, copy from the root's current matrix. */
+      struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
+      if (!root_row->enabled_p)
 	{
-	  if (MATRIX_ROW_ENABLED_P (child->desired_matrix, child_y))
-	    {
-	      struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
-	      if (!root_row->enabled_p)
-		{
-		  struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
-		  memcpy (root_row->glyphs[0], from->glyphs[0],
-			  root->current_matrix->matrix_w * sizeof (struct glyph));
-		  root_row->enabled_p = true;
-		}
-
-	      struct glyph_row *child_row = MATRIX_ROW (child->desired_matrix, child_y);
-	      check_copied_glyphs (child, child_row->glyphs[0], r.w);
-	      memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
-		      r.w * sizeof (struct glyph));
-
-	      root_row->hash = row_hash (root_row);
-	    }
+	  struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
+	  memcpy (root_row->glyphs[0], from->glyphs[0],
+		  root->current_matrix->matrix_w * sizeof (struct glyph));
+	  root_row->enabled_p = true;
 	}
+
+      /* Copy the child's current row contents over it. */
+      struct glyph_row *child_row = MATRIX_ROW (child->current_matrix, child_y);
+      memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
+	      r.w * sizeof (struct glyph));
+
+      /* Compute a new hash since we changed glyphs. */
+      root_row->hash = row_hash (root_row);
     }
 }
 
@@ -3631,7 +3628,6 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
     {
       struct frame *child = XFRAME (XCAR (tail));
       copy_child_glyphs (root, child);
-      make_matrix_current (child);
     }
 
   update_begin (root);
