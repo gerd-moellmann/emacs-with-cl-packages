@@ -385,15 +385,8 @@ struct frame
      zero if the frame has been made invisible without an icon.  */
 
   /* Nonzero if the frame is currently displayed; we check
-     it to see if we should bother updating the frame's contents.
-
-     On ttys and on Windows NT/9X, to avoid wasting effort updating
-     visible frames that are actually completely obscured by other
-     windows on the display, we bend the meaning of visible slightly:
-     if equal to 2, then the frame is obscured - we still consider
-     it to be "visible" as seen from lisp, but we don't bother
-     updating it.  */
-  unsigned visible : 2;
+     it to see if we should bother updating the frame's contents. */
+  unsigned visible : 1;
 
   /* True if the frame is currently iconified.  Do not
      set this directly, use SET_FRAME_ICONIFIED instead.  */
@@ -1180,9 +1173,6 @@ default_pixels_per_inch_y (void)
 			      || (FRAME_X_P (f)			\
 				  && FRAME_X_VISIBLE (f)))
 #endif
-
-/* True if frame F is currently visible but hidden.  */
-#define FRAME_OBSCURED_P(f) ((f)->visible > 1)
 
 /* True if frame F is currently iconified.  */
 #define FRAME_ICONIFIED_P(f) (f)->iconified
