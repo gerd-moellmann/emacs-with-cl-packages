@@ -3620,6 +3620,7 @@ bool
 combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling)
 {
   struct frame *root = root_frame (f);
+  eassert (FRAME_VISIBLE_P (root));
 
   /* Process child frames in reverse z-order, topmost last.  For each
      child, copy what we need to the root's desired matrix. */
@@ -3627,7 +3628,8 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
       struct frame *child = XFRAME (XCAR (tail));
-      copy_child_glyphs (root, child);
+      if (FRAME_VISIBLE_P (child))
+	copy_child_glyphs (root, child);
     }
 
   update_begin (root);
@@ -3640,13 +3642,16 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
     {
       struct frame *f = XFRAME (XCAR (tail));
-      struct window *root_window = XWINDOW (f->root_window);
-      set_window_update_flags (root_window, false);
-      clear_desired_matrices (f);
+      if (FRAME_VISIBLE_P (f))
+	{
+	  struct window *root_window = XWINDOW (f->root_window);
+	  set_window_update_flags (root_window, false);
+	  clear_desired_matrices (f);
 #ifdef GLYPH_DEBUG
-      check_window_matrix_pointers (root_window);
-      add_frame_display_history (f, false);
+	  check_window_matrix_pointers (root_window);
+	  add_frame_display_history (f, false);
 #endif
+	}
     }
 
   return paused;
