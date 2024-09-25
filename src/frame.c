@@ -1633,9 +1633,8 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
       struct tty_display_info *tty = FRAME_TTY (f);
       Lisp_Object top_frame = tty->top_frame;
 
-      /* Don't mark the frame garbaged and/or obscured if we are
-	 switching to the frame that is already the top frame of that
-	 TTY.  */
+      /* Don't mark the frame garbaged if we are switching to the frame
+	 that is already the top frame of that TTY.  */
       if (!EQ (frame, top_frame))
 	{
 	  SET_FRAME_VISIBLE (f, true);
@@ -1645,8 +1644,8 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 	  if (is_tty_root_frame (f))
 	    {
 	      if (FRAMEP (top_frame))
-		/* Mark previously displayed frame as now obscured.  */
-		SET_FRAME_VISIBLE (XFRAME (top_frame), true);
+		/* Mark previously displayed frame as no longer visible.  */
+		SET_FRAME_VISIBLE (XFRAME (top_frame), false);
 
 	      /* If the new TTY frame changed dimensions, we need to
 		 resync term.c's idea of the frame size with the new
