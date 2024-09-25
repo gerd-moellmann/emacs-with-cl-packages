@@ -3429,7 +3429,7 @@ frames_in_reverse_z_order (struct frame *f)
   return frames;
 }
 
-static void
+void
 tty_raise_lower_frame (struct frame *f, bool raise)
 {
   struct frame *parent = FRAME_PARENT_FRAME (f);
