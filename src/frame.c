@@ -3625,24 +3625,6 @@ If FRAME is nil, describe the currently selected frame.  */)
   return value;
 }
 
-/* If F is a tty child frame, change its position and/or size according
-   to frame parameters in PARAMS.  */
-
-static void
-modify_tty_child_frame_size_and_pos (struct frame *f, Lisp_Object params)
-{
-  if (is_tty_child_frame (f))
-    {
-      f->left_pos = child_frame_param (Qleft, params, f->left_pos);
-      f->top_pos = child_frame_param (Qtop, params, f->top_pos);
-
-      int w = child_frame_param (Qwidth, params, f->total_cols);
-      int h = child_frame_param (Qheight, params, f->total_lines);
-      if (w != f->total_cols || h != f->total_lines)
-	change_frame_size (f, w, h, false, false, false);
-    }
-}
-
 DEFUN ("modify-frame-parameters", Fmodify_frame_parameters,
        Smodify_frame_parameters, 2, 2, 0,
        doc: /* Modify FRAME according to new values of its parameters in ALIST.
@@ -3706,7 +3688,17 @@ list, but are otherwise ignored.  */)
 	    update_face_from_frame_parameter (f, prop, val);
 	}
 
-      modify_tty_child_frame_size_and_pos (f, params);
+      if (is_tty_child_frame (f))
+	{
+	  f->left_pos = child_frame_param (Qleft, params, f->left_pos);
+	  f->top_pos = child_frame_param (Qtop, params, f->top_pos);
+
+	  int w = child_frame_param (Qwidth, params, f->total_cols);
+	  int h = child_frame_param (Qheight, params, f->total_lines);
+	  if (w != f->total_cols || h != f->total_lines)
+	    change_frame_size (f, w, h, false, false, false);
+	}
+
       SAFE_FREE ();
     }
   return Qnil;
