@@ -1490,6 +1490,16 @@ affects all frames on the same terminal device.  */)
   if (!noninteractive)
     init_frame_faces (f);
 
+  /* Visibility of root frames cannot be set with a frame parameter.
+     Their visibility solely depends on whether or not they are the
+     top_frame on the terminal. */
+  if (FRAME_PARENT_FRAME (f))
+    {
+      Lisp_Object visible = Fassq (Qvisibility, parms);
+      if (CONSP (visible))
+	SET_FRAME_VISIBLE (f, !NILP (visible));
+    }
+
   /* Determine width and height of the frame. For root frames use the
      width/height of the terminal. For child frames, take it from frame
      parameters. Note that a default (80x25) has been set in
