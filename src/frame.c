@@ -3408,8 +3408,9 @@ store_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val)
       val = old_val;
     }
 
-  /* FIXME/tty: re-parenting is currently not implemented when
-     chaning a root frame to a child frame or vice versa. */
+  /* FIXME/tty: re-parenting is currently not implemented when changing
+     a root frame to a child frame or vice versa. Could be done, but
+     it's unclear if it's worth it. */
   if (is_tty_frame (f))
     {
       if (EQ (prop, Qparent_frame)
@@ -3624,6 +3625,23 @@ If FRAME is nil, describe the currently selected frame.  */)
   return value;
 }
 
+/* If F is a tty child frame, change its position and/or size according
+   to frame parameters in PARAMS.  */
+
+static void
+modify_tty_child_frame_size_and_pos (struct frame *f, Lisp_Object params)
+{
+  if (is_tty_child_frame (f))
+    {
+      f->left_pos = child_frame_param (Qleft, params, f->left_pos);
+      f->top_pos = child_frame_param (Qtop, params, f->top_pos);
+
+      int w = child_frame_param (Qwidth, params, f->total_cols);
+      int h = child_frame_param (Qheight, params, f->total_lines);
+      if (w != f->total_cols || h != f->total_lines)
+	change_frame_size (f, w, h, false, false, false);
+    }
+}
 
 DEFUN ("modify-frame-parameters", Fmodify_frame_parameters,
        Smodify_frame_parameters, 2, 2, 0,
@@ -3662,6 +3680,7 @@ list, but are otherwise ignored.  */)
       USE_SAFE_ALLOCA;
       SAFE_ALLOCA_LISP (parms, 2 * length);
       values = parms + length;
+      Lisp_Object params = alist;
 
       /* Extract parm names and values into those vectors.  */
 
@@ -3687,6 +3706,7 @@ list, but are otherwise ignored.  */)
 	    update_face_from_frame_parameter (f, prop, val);
 	}
 
+      modify_tty_child_frame_size_and_pos (f, params);
       SAFE_FREE ();
     }
   return Qnil;
