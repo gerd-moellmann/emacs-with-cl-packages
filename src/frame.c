@@ -1648,25 +1648,27 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
       if (!EQ (frame, top_frame))
 	{
 	  SET_FRAME_VISIBLE (f, true);
-	  /* FIXME/tty: another place where we set FrameRows/FrameCols,
-	     which is really a physical property of the terminal, and
-	     nothing we set. That doesn't look right to me. */
 	  if (is_tty_root_frame (f))
 	    {
+	      /* Mark previously displayed frame as no longer visible.  */
 	      if (FRAMEP (top_frame))
-		/* Mark previously displayed frame as no longer visible.  */
 		SET_FRAME_VISIBLE (XFRAME (top_frame), false);
+
+	      tty->top_frame = frame;
 
 	      /* If the new TTY frame changed dimensions, we need to
 		 resync term.c's idea of the frame size with the new
 		 frame's data.  */
+	      /* FIXME/tty: another place where we set
+		 FrameRows/FrameCols, which is really a physical
+		 property of the terminal, and nothing we set. That
+		 doesn't look right to me. */
 	      if (FRAME_COLS (f) != FrameCols (tty))
 		FrameCols (tty) = FRAME_COLS (f);
 	      if (FRAME_TOTAL_LINES (f) != FrameRows (tty))
 		FrameRows (tty) = FRAME_TOTAL_LINES (f);
 	    }
 	}
-      tty->top_frame = frame;
     }
 
   sf->select_mini_window_flag = MINI_WINDOW_P (XWINDOW (sf->selected_window));
