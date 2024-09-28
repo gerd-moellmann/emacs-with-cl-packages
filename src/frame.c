@@ -3703,6 +3703,10 @@ list, but are otherwise ignored.  */)
 	  int h = child_frame_param (Qheight, params, f->total_lines);
 	  if (w != f->total_cols || h != f->total_lines)
 	    change_frame_size (f, w, h, false, false, false);
+
+	  Lisp_Object visible = Fassq (Qvisibility, params);
+	  if (CONSP (visible))
+	    SET_FRAME_VISIBLE (f, !NILP (Fcdr (visible)));
 	}
 
       SAFE_FREE ();
