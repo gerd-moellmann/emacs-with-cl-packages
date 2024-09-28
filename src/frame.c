@@ -3541,13 +3541,9 @@ If FRAME is omitted or nil, return information on the currently selected frame. 
   else
 #endif
     {
-      /* This ought to be correct in f->param_alist for an X frame.  */
-      Lisp_Object lines;
-
-      XSETFASTINT (lines, FRAME_MENU_BAR_LINES (f));
-      store_in_alist (&alist, Qmenu_bar_lines, lines);
-      XSETFASTINT (lines, FRAME_TAB_BAR_LINES (f));
-      store_in_alist (&alist, Qtab_bar_lines, lines);
+      store_in_alist (&alist, Qmenu_bar_lines, make_fixnum (FRAME_MENU_BAR_LINES (f)));
+      store_in_alist (&alist, Qtab_bar_lines, make_fixnum (FRAME_TAB_BAR_LINES (f)));
+      store_in_alist (&alist, Qvisibility, FRAME_VISIBLE_P (f) ? Qt : Qnil);
     }
 
   return alist;
