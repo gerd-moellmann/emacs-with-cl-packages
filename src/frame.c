@@ -1351,7 +1351,8 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent)
     SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), false);
 
   /* Set the top frame to the newly created frame.  */
-  FRAME_TTY (f)->top_frame = frame;
+  if (!FRAME_PARENT_FRAME (f))
+    FRAME_TTY (f)->top_frame = frame;
   return f;
 }
 
