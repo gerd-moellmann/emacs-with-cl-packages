@@ -787,11 +787,15 @@ tty_write_glyphs (struct frame *f, struct glyph *string, int len)
     {
       /* Identify a run of glyphs with the same face.  */
       int face_id = string->face_id;
-      struct frame *face_id_frame = string->frame;
+
+      /* FIXME/tty: it happens that a single glyph's frame is NULL. It
+	 might depend on a tab bar line being present, then switching
+	 from a buffer without header line to one with header line and
+	 opening a child frame. */
+      struct frame *face_id_frame = string->frame ? string->frame : f;
 
       for (n = 1; n < stringlen; ++n)
-	if (string[n].face_id
-	    != face_id || string[n].frame != face_id_frame)
+	if (string[n].face_id != face_id || string[n].frame != face_id_frame)
 	  break;
 
       /* Turn appearance modes of the face of the run on.  */
