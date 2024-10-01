@@ -6948,8 +6948,6 @@ Returns non-nil if GC happened, and nil otherwise.  */)
 static void
 mark_glyph_matrix (struct glyph_matrix *matrix)
 {
-  mark_object (matrix->child_info);
-
   struct glyph_row *row = matrix->rows;
   struct glyph_row *end = row + matrix->nrows;
 
@@ -6964,8 +6962,10 @@ mark_glyph_matrix (struct glyph_matrix *matrix)
 
 	    for (; glyph < end_glyph; ++glyph)
 	      {
+#if 0 /* FIXME/tty: Probably not needed */
 		if (glyph->frame)
 		  mark_object (glyph->frame);
+#endif
 		if (STRINGP (glyph->object)
 		    && !string_marked_p (XSTRING (glyph->object)))
 		  mark_object (glyph->object);
