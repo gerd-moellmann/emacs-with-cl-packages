@@ -477,11 +477,11 @@ struct frame
 
   /* The z-group this frame's window belongs to. */
   ENUM_BF (z_group) z_group : 2;
+#endif /* HAVE_WINDOW_SYSTEM */
 
   /* Non-zero if display of truncation and continuation glyphs outside
      the fringes is suppressed.  */
   bool_bf no_special_glyphs : 1;
-#endif /* HAVE_WINDOW_SYSTEM */
 
   /* True means set_window_size_hook requests can be processed for
      this frame.  */
@@ -1252,7 +1252,6 @@ FRAME_PARENT_FRAME (struct frame *f)
 #define FRAME_SKIP_TASKBAR(f) ((f)->skip_taskbar)
 #define FRAME_NO_FOCUS_ON_MAP(f) ((f)->no_focus_on_map)
 #define FRAME_NO_ACCEPT_FOCUS(f) ((f)->no_accept_focus)
-#define FRAME_NO_SPECIAL_GLYPHS(f) ((f)->no_special_glyphs)
 #define FRAME_Z_GROUP(f) ((f)->z_group)
 #define FRAME_Z_GROUP_NONE(f) ((f)->z_group == z_group_none)
 #define FRAME_Z_GROUP_ABOVE(f) ((f)->z_group == z_group_above)
@@ -1270,13 +1269,14 @@ FRAME_PARENT_FRAME (struct frame *f)
 #define FRAME_SKIP_TASKBAR(f) ((void) (f), 0)
 #define FRAME_NO_FOCUS_ON_MAP(f) ((void) (f), 0)
 #define FRAME_NO_ACCEPT_FOCUS(f) ((void) (f), 0)
-#define FRAME_NO_SPECIAL_GLYPHS(f) ((void) (f), 0)
 #define FRAME_Z_GROUP(f) ((void) (f), z_group_none)
 #define FRAME_Z_GROUP_NONE(f) ((void) (f), true)
 #define FRAME_Z_GROUP_ABOVE(f) ((void) (f), false)
 #define FRAME_Z_GROUP_BELOW(f) ((void) (f), false)
 #define FRAME_TOOLTIP_P(f) ((void) f, false)
 #endif /* HAVE_WINDOW_SYSTEM */
+
+#define FRAME_NO_SPECIAL_GLYPHS(f) ((f)->no_special_glyphs)
 
 /* Whether horizontal scroll bars are currently enabled for frame F.  */
 #if USE_HORIZONTAL_SCROLL_BARS

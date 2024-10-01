@@ -1002,12 +1002,12 @@ make_frame (bool mini_p)
   f->line_height = 1;  /* !FRAME_WINDOW_P value.  */
   f->new_width = -1;
   f->new_height = -1;
+  f->no_special_glyphs = false;
 #ifdef HAVE_WINDOW_SYSTEM
   f->vertical_scroll_bar_type = vertical_scroll_bar_none;
   f->horizontal_scroll_bars = false;
   f->want_fullscreen = FULLSCREEN_NONE;
   f->undecorated = false;
-  f->no_special_glyphs = false;
 #ifndef HAVE_NTGUI
   f->override_redirect = false;
 #endif
@@ -3733,6 +3733,10 @@ list, but are otherwise ignored.  */)
 	  Lisp_Object visible = Fassq (Qvisibility, params);
 	  if (CONSP (visible))
 	    SET_FRAME_VISIBLE (f, !NILP (Fcdr (visible)));
+
+	  Lisp_Object no_special = Fassq (Qno_special_glyphs, params);
+	  if (CONSP (no_special))
+	    FRAME_NO_SPECIAL_GLYPHS (f) = !NILP (Fcdr (no_special));
 	}
 
       SAFE_FREE ();

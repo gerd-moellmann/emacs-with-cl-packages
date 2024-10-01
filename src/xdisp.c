@@ -3351,9 +3351,7 @@ init_iterator (struct it *it, struct window *w,
      of the iterator's frame, when set, suppresses their display - by
      default for tooltip frames and when set via the 'no-special-glyphs'
      frame parameter.  */
-#ifdef HAVE_WINDOW_SYSTEM
-  if (!(FRAME_WINDOW_P (it->f) && it->f->no_special_glyphs))
-#endif
+  if (!it->f->no_special_glyphs)
     {
       if (it->line_wrap == TRUNCATE)
 	{
