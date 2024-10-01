@@ -7257,6 +7257,8 @@ Possible values are t (below the tool bar), nil (above the tool bar).
 This option affects only builds where the tool bar is not external.  */);
 
   pdumper_do_now_and_after_load (syms_of_display_for_pdumper);
+
+  Fprovide (intern_c_string ("tty-child-frames"), Qnil);
 }
 
 static void
