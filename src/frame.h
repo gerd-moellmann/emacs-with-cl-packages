@@ -1236,10 +1236,11 @@ default_pixels_per_inch_y (void)
 #define FRAME_HAS_VERTICAL_SCROLL_BARS_ON_RIGHT(f) ((void) (f), 0)
 #endif /* HAVE_WINDOW_SYSTEM */
 
-#define FRAME_PARENT_FRAME(f)			\
-  (NILP ((f)->parent_frame)			\
-   ? NULL					\
-   : XFRAME ((f)->parent_frame))
+INLINE struct frame *
+FRAME_PARENT_FRAME (struct frame *f)
+{
+  return NILP (f->parent_frame) ? NULL : XFRAME (f->parent_frame);
+}
 
 #if defined (HAVE_WINDOW_SYSTEM)
 #define FRAME_UNDECORATED(f) ((f)->undecorated)
