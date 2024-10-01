@@ -1736,9 +1736,7 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
      (select-window (frame-root-window (make-frame))) doesn't end up
      with your typing being interpreted in the new frame instead of
      the one you're actually typing in.  */
-#ifdef HAVE_WINDOW_SYSTEM
   if (!frame_ancestor_p (f, sf))
-#endif
     internal_last_event_frame = Qnil;
 
   return frame;
