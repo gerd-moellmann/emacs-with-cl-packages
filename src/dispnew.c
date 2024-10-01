@@ -3571,6 +3571,7 @@ update_menu_bar (struct frame *f)
 #endif
 }
 
+#ifdef HAVE_WINDOW_SYSTEM
 static void
 update_bar_window (Lisp_Object window, Lisp_Object *current,
 		       Lisp_Object *desired)
@@ -3588,6 +3589,7 @@ update_bar_window (Lisp_Object window, Lisp_Object *current,
 	}
     }
 }
+#endif
 
 /* Update the tab-bar window of frame F, if present.
    FIXME/tty: This is almost identical to the updating
@@ -4057,6 +4059,8 @@ update_window (struct window *w, bool force_p)
 
 #ifdef HAVE_WINDOW_SYSTEM
       gui_update_window_begin (w);
+#else
+      (void) changed_p;
 #endif
       yb = window_text_bottom_y (w);
       row = MATRIX_ROW (desired_matrix, 0);

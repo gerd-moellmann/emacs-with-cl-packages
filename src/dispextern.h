@@ -3929,10 +3929,10 @@ extern Lisp_Object gui_default_parameter (struct frame *, Lisp_Object,
 
 extern bool gui_mouse_grabbed (Display_Info *);
 extern void gui_redo_mouse_highlight (Display_Info *);
-struct frame *root_frame (struct frame *f);
 
 #endif /* HAVE_WINDOW_SYSTEM */
 
+struct frame *root_frame (struct frame *f);
 Lisp_Object frames_in_reverse_z_order (struct frame *f);
 bool is_tty_frame (struct frame *f);
 bool is_tty_child_frame (struct frame *f);

@@ -161,10 +161,8 @@ struct frame
      Usually it is nil.  */
   Lisp_Object title;
 
-#if defined (HAVE_WINDOW_SYSTEM)
   /* This frame's parent frame, if it has one.  */
   Lisp_Object parent_frame;
-#endif /* HAVE_WINDOW_SYSTEM */
 
   /* Last device to move over this frame.  Any value that isn't a
      string means the "Virtual core pointer".  */
@@ -1876,7 +1874,6 @@ extern Lisp_Object gui_display_get_resource (Display_Info *,
 extern void set_frame_menubar (struct frame *f, bool deep_p);
 extern void frame_set_mouse_pixel_position (struct frame *f, int pix_x, int pix_y);
 extern void free_frame_menubar (struct frame *);
-extern bool frame_ancestor_p (struct frame *af, struct frame *df);
 extern enum internal_border_part frame_internal_border_part (struct frame *f, int x, int y);
 
 #if defined HAVE_X_WINDOWS
@@ -1902,6 +1899,8 @@ gui_set_bitmap_icon (struct frame *f)
 
 #endif /* !HAVE_NS */
 #endif /* HAVE_WINDOW_SYSTEM */
+
+extern bool frame_ancestor_p (struct frame *af, struct frame *df);
 
 INLINE void
 flush_frame (struct frame *f)
