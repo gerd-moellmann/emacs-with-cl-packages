@@ -4084,6 +4084,11 @@ bottom edge of FRAME's display.  */)
       (void) yval;
 #endif
     }
+  else if (is_tty_child_frame (f))
+    {
+      f->left_pos = xval;
+      f->top_pos = yval;
+    }
 
   return Qt;
 }
