@@ -1236,6 +1236,11 @@ default_pixels_per_inch_y (void)
 #define FRAME_HAS_VERTICAL_SCROLL_BARS_ON_RIGHT(f) ((void) (f), 0)
 #endif /* HAVE_WINDOW_SYSTEM */
 
+#define FRAME_PARENT_FRAME(f)			\
+  (NILP ((f)->parent_frame)			\
+   ? NULL					\
+   : XFRAME ((f)->parent_frame))
+
 #if defined (HAVE_WINDOW_SYSTEM)
 #define FRAME_UNDECORATED(f) ((f)->undecorated)
 #ifdef HAVE_NTGUI
@@ -1243,10 +1248,6 @@ default_pixels_per_inch_y (void)
 #else
 #define FRAME_OVERRIDE_REDIRECT(f) ((f)->override_redirect)
 #endif
-#define FRAME_PARENT_FRAME(f)			\
-  (NILP ((f)->parent_frame)			\
-   ? NULL					\
-   : XFRAME ((f)->parent_frame))
 #define FRAME_SKIP_TASKBAR(f) ((f)->skip_taskbar)
 #define FRAME_NO_FOCUS_ON_MAP(f) ((f)->no_focus_on_map)
 #define FRAME_NO_ACCEPT_FOCUS(f) ((f)->no_accept_focus)
@@ -1265,7 +1266,6 @@ default_pixels_per_inch_y (void)
 #else /* not HAVE_WINDOW_SYSTEM */
 #define FRAME_UNDECORATED(f) ((void) (f), 0)
 #define FRAME_OVERRIDE_REDIRECT(f) ((void) (f), 0)
-#define FRAME_PARENT_FRAME(f) ((void) (f), NULL)
 #define FRAME_SKIP_TASKBAR(f) ((void) (f), 0)
 #define FRAME_NO_FOCUS_ON_MAP(f) ((void) (f), 0)
 #define FRAME_NO_ACCEPT_FOCUS(f) ((void) (f), 0)
