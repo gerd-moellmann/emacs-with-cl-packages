@@ -945,7 +945,6 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 
   unblock_input ();
 
-#ifdef HAVE_WINDOW_SYSTEM
   {
     /* Adjust size of F's child frames.  */
     Lisp_Object frames, frame1;
@@ -955,7 +954,6 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 	keep_ratio (XFRAME (frame1), f, old_native_width, old_native_height,
 		    new_native_width, new_native_height);
   }
-#endif
 }
 
 /* Allocate basically initialized frame.  */
