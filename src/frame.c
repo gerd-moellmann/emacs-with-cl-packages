@@ -416,7 +416,6 @@ frame_windows_min_size (Lisp_Object frame, Lisp_Object horizontal,
 }
 
 
-#ifdef HAVE_WINDOW_SYSTEM
 /**
  * keep_ratio:
  *
@@ -535,7 +534,6 @@ keep_ratio (struct frame *f, struct frame *p, int old_width, int old_height,
 	}
     }
 }
-#endif
 
 
 static void
