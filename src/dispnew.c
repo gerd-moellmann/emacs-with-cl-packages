@@ -3378,14 +3378,14 @@ is_frame_ancestor (struct frame *f1, struct frame *f2)
 /* Return a list of all frames having root frame ROOT. */
 
 Lisp_Object
-frames_with_root (struct frame *root)
+frames_with_root (struct frame *root, bool visible)
 {
   Lisp_Object list = Qnil;
   Lisp_Object tail, frame;
   FOR_EACH_FRAME (tail, frame)
     {
       struct frame *f = XFRAME (frame);
-      if (root_frame (f) == root)
+      if (FRAME_VISIBLE_P (f) && root_frame (f) == root)
 	list = Fcons (frame, list);
     }
   return list;
@@ -3419,10 +3419,10 @@ DEFUN ("frame--z-order-sort-predicate",
    more than one root frame plus their children. */
 
 Lisp_Object
-frames_in_reverse_z_order (struct frame *f)
+frames_in_reverse_z_order (struct frame *f, bool visible)
 {
   struct frame *root = root_frame (f);
-  Lisp_Object frames = frames_with_root (root);
+  Lisp_Object frames = frames_with_root (root, visible);
   frames = CALLN (Fsort, frames, Qframe__z_order_sort_predicate);
   eassert (FRAMEP (XCAR (frames)));
   eassert (XFRAME (XCAR (frames)) == root);
@@ -3435,7 +3435,7 @@ tty_raise_lower_frame (struct frame *f, bool raise)
   struct frame *parent = FRAME_PARENT_FRAME (f);
   if (parent)
     {
-      Lisp_Object children = frames_in_reverse_z_order (root_frame (f));
+      Lisp_Object children = frames_in_reverse_z_order (root_frame (f), false);
       Lisp_Object siblings = Qnil;
       for (Lisp_Object tail = children; CONSP (tail); tail = XCDR (tail))
 	{
@@ -3660,12 +3660,11 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
 
   /* Process child frames in reverse z-order, topmost last.  For each
      child, copy what we need to the root's desired matrix. */
-  Lisp_Object z_order = frames_in_reverse_z_order (root);
+  Lisp_Object z_order = frames_in_reverse_z_order (root, true);
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
       struct frame *child = XFRAME (XCAR (tail));
-      if (FRAME_VISIBLE_P (child))
-	copy_child_glyphs (root, child);
+      copy_child_glyphs (root, child);
     }
 
   update_begin (root);
@@ -3678,16 +3677,13 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
     {
       struct frame *f = XFRAME (XCAR (tail));
-      if (FRAME_VISIBLE_P (f))
-	{
-	  struct window *root_window = XWINDOW (f->root_window);
-	  set_window_update_flags (root_window, false);
-	  clear_desired_matrices (f);
+      struct window *root_window = XWINDOW (f->root_window);
+      set_window_update_flags (root_window, false);
+      clear_desired_matrices (f);
 #ifdef GLYPH_DEBUG
-	  check_window_matrix_pointers (root_window);
-	  add_frame_display_history (f, false);
+      check_window_matrix_pointers (root_window);
+      add_frame_display_history (f, false);
 #endif
-	}
     }
 
   return paused;
