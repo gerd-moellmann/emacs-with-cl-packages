@@ -1544,8 +1544,6 @@ affects all frames on the same terminal device.  */)
   adjust_frame_glyphs (f);
 
   calculate_costs (f);
-  Lisp_Object frame;
-  XSETFRAME (frame, f);
 
   f->left_pos = x;
   f->top_pos = y;
@@ -1575,6 +1573,9 @@ affects all frames on the same terminal device.  */)
      virtually t.  Avoid that a different value in parms causes
      complaints, see Bug#24758.  */
   store_in_alist (&parms, Qminibuffer, Qt);
+
+  Lisp_Object frame;
+  XSETFRAME (frame, f);
   Fmodify_frame_parameters (frame, parms);
 
   f->can_set_window_size = true;
