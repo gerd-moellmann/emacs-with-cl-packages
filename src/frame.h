@@ -1498,11 +1498,12 @@ extern struct frame *make_initial_frame (void);
 extern struct frame *make_frame (bool);
 #ifdef HAVE_WINDOW_SYSTEM
 extern struct frame *make_minibuffer_frame (void);
-extern struct frame *make_frame_without_minibuffer (Lisp_Object,
-                                                    struct kboard *,
-                                                    Lisp_Object);
 extern bool display_available (void);
 #endif
+
+struct frame *
+make_frame_without_minibuffer (Lisp_Object mini_window,
+			       KBOARD *kb, Lisp_Object display);
 
 INLINE bool
 window_system_available (struct frame *f)

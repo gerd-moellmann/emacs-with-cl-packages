@@ -1120,7 +1120,6 @@ make_frame (bool mini_p)
   return f;
 }
 
-#ifdef HAVE_WINDOW_SYSTEM
 /* Make a frame using a separate minibuffer window on another frame.
    MINI_WINDOW is the minibuffer window to use.  nil means use the
    default (the global minibuffer).  */
@@ -1175,6 +1174,7 @@ make_frame_without_minibuffer (Lisp_Object mini_window, KBOARD *kb,
 }
 
 /* Make a frame containing only a minibuffer window.  */
+#ifdef HAVE_WINDOW_SYSTEM
 
 struct frame *
 make_minibuffer_frame (void)
