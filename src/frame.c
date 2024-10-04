@@ -1174,7 +1174,6 @@ make_frame_without_minibuffer (Lisp_Object mini_window, KBOARD *kb,
 }
 
 /* Make a frame containing only a minibuffer window.  */
-#ifdef HAVE_WINDOW_SYSTEM
 
 struct frame *
 make_minibuffer_frame (void)
@@ -1214,7 +1213,7 @@ make_minibuffer_frame (void)
 		      : Fcar (Vminibuffer_list)), 0, 0);
   return f;
 }
-#endif /* HAVE_WINDOW_SYSTEM */
+
 
 /* Construct a frame that refers to a terminal.  */
 

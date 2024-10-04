@@ -1497,10 +1497,10 @@ extern struct frame *decode_any_frame (Lisp_Object);
 extern struct frame *make_initial_frame (void);
 extern struct frame *make_frame (bool);
 #ifdef HAVE_WINDOW_SYSTEM
-extern struct frame *make_minibuffer_frame (void);
 extern bool display_available (void);
 #endif
 
+struct frame *make_minibuffer_frame (void);
 struct frame *
 make_frame_without_minibuffer (Lisp_Object mini_window,
 			       KBOARD *kb, Lisp_Object display);
