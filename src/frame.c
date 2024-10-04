@@ -1536,8 +1536,6 @@ affects all frames on the same terminal device.  */)
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
   adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f), 5, 0,
 		     Qterminal_frame);
-  /* FIXME/tty: isn't this done already in adjust_frame_size? */
-  adjust_frame_glyphs (f);
 
   calculate_costs (f);
 
