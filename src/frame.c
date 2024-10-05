@@ -1301,10 +1301,14 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
 	    f = make_frame_without_minibuffer (Qnil, kb, Qnil);
 	  else if (EQ (mini, Qonly))
 	    {
+	      /* FIXME/tty: No interest in this feature at the moment,
+		 unless someone complains. */
+# if 0
 	      f = make_minibuffer_frame ();
-	      /* FIXME/tty: not sure about this plus the unsplittable
-		 frame paran. */
+	      /* Not sure about this plus the unsplittable frame
+		 paran. */
 	      f->no_split = true;
+# endif
 	    }
 	  else if (WINDOWP (mini))
 	    f = make_frame_without_minibuffer (mini, kb, Qnil);
