@@ -1558,7 +1558,7 @@ affects all frames on the same terminal device.  */)
       border = Fcdr (Fassq (Qchild_frame_border_width, parms));
       if (FIXNUMP (border))
 	f->child_frame_border_width = XFIXNUM (border);
-#endif
+# endif
     }
 
   /* Determine width and height of the frame. For root frames use the
@@ -1575,6 +1575,7 @@ affects all frames on the same terminal device.  */)
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
   adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f), 5, 0,
 		     Qterminal_frame);
+  adjust_frame_glyphs (f);
 
   calculate_costs (f);
 
