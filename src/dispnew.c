@@ -3529,10 +3529,20 @@ copy_child_glyphs (struct frame *root, struct frame *child)
   /* Build CHILD's current matrix which we need to copy from it. */
   make_matrix_current (child);
 
+  /* The first row of the child's matrix that is visible in the parent
+     depends on how many child rows are above the parent, which is
+     abs (child->top_pos) if top_pos is negative. */
+  int child_y = child->top_pos < 0 ? abs (child->top_pos) : 0;
+
+  /* The first column of the child's matrix that is visible in the
+     parent depends on how many child columns are to the left of the
+     parent, which is abs (child->left_pos) if left_pos is negative. */
+  int child_x = child->left_pos < 0 ? abs (child->left_pos) : 0;
+
   /* For all rows in the intersection, copy glyphs from the child's
      current matrix to the root's desired matrix, enabling those
      rows. */
-  for (int y = r.y, child_y = 0; y < r.y + r.h; ++y, ++child_y)
+  for (int y = r.y; y < r.y + r.h; ++y, ++child_y)
     {
       /* Start with the root's desired matrix row. If that hasn't
 	 been redisplayed, copy from the root's current matrix. */
@@ -3547,7 +3557,8 @@ copy_child_glyphs (struct frame *root, struct frame *child)
 
       /* Copy the child's current row contents over it. */
       struct glyph_row *child_row = MATRIX_ROW (child->current_matrix, child_y);
-      memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0],
+      memcpy (root_row->glyphs[0] + r.x,
+	      child_row->glyphs[0] + child_x,
 	      r.w * sizeof (struct glyph));
 
       /* Compute a new hash since we changed glyphs. */
