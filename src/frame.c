@@ -1276,21 +1276,46 @@ make_initial_frame (void)
 #ifndef HAVE_ANDROID
 
 static struct frame *
-make_terminal_frame (struct terminal *terminal, Lisp_Object parent)
+make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
+		     Lisp_Object params)
 {
-  register struct frame *f;
-  Lisp_Object frame;
   char name[sizeof "F" + INT_STRLEN_BOUND (tty_frame_count)];
 
   if (!terminal->name)
     error ("Terminal is not live, can't create new frames on it");
 
-  f = make_frame (1);
+  struct frame *f;
+  if (NILP (parent))
+    f = make_frame (true);
+  else
+    {
+      CHECK_FRAME (parent);
 
-  if (!NILP (parent))
-    CHECK_FRAME (parent);
-  f->parent_frame = parent;
+      f = NULL;
+      Lisp_Object mini = Fassq (Qminibuffer, params);
+      if (CONSP (mini))
+	{
+	  mini = Fcdr (mini);
+	  struct kboard *kb = FRAME_KBOARD (XFRAME (parent));
+	  if (EQ (mini, Qnone) || NILP (mini))
+	    f = make_frame_without_minibuffer (Qnil, kb, Qnil);
+	  else if (EQ (mini, Qonly))
+	    {
+	      f = make_minibuffer_frame ();
+	      /* FIXME/tty: not sure about this plus the unsplittable
+		 frame paran. */
+	      f->no_split = true;
+	    }
+	  else if (WINDOWP (mini))
+	    f = make_frame_without_minibuffer (mini, kb, Qnil);
+	}
 
+      if (f == NULL)
+	f = make_frame (true);
+      f->parent_frame = parent;
+    }
+
+  Lisp_Object frame;
   XSETFRAME (frame, f);
   Vframe_list = Fcons (frame, Vframe_list);
 
@@ -1506,7 +1531,7 @@ affects all frames on the same terminal device.  */)
      specified because we behave differently in this case, e.g. child
      frames don't obscure other frames. */
   Lisp_Object parent = Fcdr (Fassq (Qparent_frame, parms));
-  struct frame *f = make_terminal_frame (t, parent);
+  struct frame *f = make_terminal_frame (t, parent, parms);
 
   if (!noninteractive)
     init_frame_faces (f);
@@ -1576,7 +1601,8 @@ affects all frames on the same terminal device.  */)
   /* On terminal frames the `minibuffer' frame parameter is always
      virtually t.  Avoid that a different value in parms causes
      complaints, see Bug#24758.  */
-  store_in_alist (&parms, Qminibuffer, Qt);
+  if (!FRAME_PARENT_FRAME (f))
+    store_in_alist (&parms, Qminibuffer, Qt);
 
   Lisp_Object frame;
   XSETFRAME (frame, f);
