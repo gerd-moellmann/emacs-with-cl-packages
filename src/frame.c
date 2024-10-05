@@ -1519,6 +1519,17 @@ affects all frames on the same terminal device.  */)
       Lisp_Object visible = Fassq (Qvisibility, parms);
       if (CONSP (visible))
 	SET_FRAME_VISIBLE (f, !NILP (visible));
+
+      /* FIXME/tty: Not having borders is currently deeply
+	 engraved in the code, so we can't naively do it. */
+#if 0
+      Lisp_Object border = Fcdr (Fassq (Qborder_width, parms));
+      if (FIXNUMP (border))
+	f->border_width = XFIXNUM (border);
+      border = Fcdr (Fassq (Qchild_frame_border_width, parms));
+      if (FIXNUMP (border))
+	f->child_frame_border_width = XFIXNUM (border);
+#endif
     }
 
   /* Determine width and height of the frame. For root frames use the
