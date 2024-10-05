@@ -1407,32 +1407,43 @@ get_future_frame_param (Lisp_Object parameter,
 #endif
 
 static int
-child_frame_param (struct frame *child, Lisp_Object key,
-		   Lisp_Object params, int dflt)
+tty_child_pos_param (struct frame *child, Lisp_Object key,
+		     Lisp_Object params, int dflt)
 {
   Lisp_Object val = Fassq (key, params);
   if (CONSP (val))
     {
       val = XCDR (val);
-      if (EQ (key, Qwidth) || EQ (key, Qheight))
+      if (FIXNUMP (val))
+	return XFIXNUM (val);
+    }
+  return dflt;
+}
+
+static int
+tty_child_size_param (struct frame *child, Lisp_Object key,
+		      Lisp_Object params, int dflt)
+{
+  Lisp_Object val = Fassq (key, params);
+  if (CONSP (val))
+    {
+      val = XCDR (val);
+      if (CONSP (val))
 	{
-	  if (CONSP (val))
-	    {
-	      /* Width and height may look like (width text-pixels
-		 . PIXELS) on window systems. Mimic that. */
-	      val = XCDR (val);
-	      if (EQ (val, Qtext_pixels))
-		val = XCDR (val);
-	    }
-	  else if (FLOATP (val))
-	    {
+	  /* Width and height may look like (width text-pixels
+	     . PIXELS) on window systems. Mimic that. */
+	  val = XCDR (val);
+	  if (EQ (val, Qtext_pixels))
+	    val = XCDR (val);
+	}
+      else if (FLOATP (val))
+	{
 	      /* Width and height may be a float, in which case
 		 it's a multiple of the parent's value. */
 	      struct frame *parent = FRAME_PARENT_FRAME (child);
 	      int sz = (EQ (key, Qwidth) ? FRAME_TOTAL_COLS (parent)
 			: FRAME_TOTAL_LINES (parent));
 	      val = make_fixnum (XFLOAT_DATA (val) * sz);
-	    }
 	}
 
       if (FIXNUMP (val) && XFIXNUM (val) > 0)
@@ -1445,10 +1456,10 @@ static void
 child_frame_rect (struct frame *f, Lisp_Object params,
 		  int *x, int *y, int *w, int *h)
 {
-  *x = child_frame_param (f, Qleft, params, 0);
-  *y = child_frame_param (f, Qtop, params, 0);
-  *w = child_frame_param (f, Qwidth, params, FRAME_TOTAL_COLS (f));
-  *h = child_frame_param (f, Qheight, params, FRAME_TOTAL_LINES (f));
+  *x = tty_child_pos_param (f, Qleft, params, 0);
+  *y = tty_child_pos_param (f, Qtop, params, 0);
+  *w = tty_child_size_param (f, Qwidth, params, FRAME_TOTAL_COLS (f));
+  *h = tty_child_size_param (f, Qheight, params, FRAME_TOTAL_LINES (f));
 }
 
 DEFUN ("make-terminal-frame", Fmake_terminal_frame, Smake_terminal_frame,
@@ -3758,11 +3769,11 @@ list, but are otherwise ignored.  */)
 
       if (is_tty_child_frame (f))
 	{
-	  f->left_pos = child_frame_param (f, Qleft, params, f->left_pos);
-	  f->top_pos = child_frame_param (f, Qtop, params, f->top_pos);
+	  f->left_pos = tty_child_pos_param (f, Qleft, params, f->left_pos);
+	  f->top_pos = tty_child_pos_param (f, Qtop, params, f->top_pos);
 
-	  int w = child_frame_param (f, Qwidth, params, f->total_cols);
-	  int h = child_frame_param (f, Qheight, params, f->total_lines);
+	  int w = tty_child_size_param (f, Qwidth, params, f->total_cols);
+	  int h = tty_child_size_param (f, Qheight, params, f->total_lines);
 	  if (w != f->total_cols || h != f->total_lines)
 	    change_frame_size (f, w, h, false, false, false);
 
