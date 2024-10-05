@@ -6297,7 +6297,8 @@ handle_window_change_signal (int sig)
 	    {
 	      struct frame *f = XFRAME (frame);
 
-	      if (FRAME_TERMCAP_P (f) && FRAME_TTY (f) == tty)
+	      if (FRAME_TERMCAP_P (f) && FRAME_TTY (f) == tty
+		  && !FRAME_PARENT_FRAME (f))
 		/* Record the new sizes, but don't reallocate the data
 		   structures now.  Let that be done later outside of the
 		   signal handler.  */
