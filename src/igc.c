@@ -2037,7 +2037,8 @@ fix_glyph_matrix (mps_ss_t ss, struct glyph_matrix *matrix)
 	      for (; glyph < end_glyph; ++glyph)
 		{
 		  IGC_FIX12_OBJ (ss, &glyph->object);
-		  IGC_FIX12_OBJ (ss, &glyph->object);
+		  if (glyph->frame)
+		    IGC_FIX12_RAW (ss, &glyph->frame);
 		}
 	    }
 	}
