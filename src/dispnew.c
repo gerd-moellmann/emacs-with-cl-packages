@@ -3587,7 +3587,7 @@ box_line (struct frame *root, struct frame *child, int x, int y, int w, bool fir
   for (i = 0; i < w; ++i)
     write_box (root, child, root_row, x + i, BOX_HORIZONTAL);
   if (x + i < root->desired_matrix->matrix_w)
-    write_box (root, child, root_row, x + w,
+    write_box (root, child, root_row, x + i,
 	       first ? BOX_DOWN_LEFT : BOX_UP_LEFT);
 
   /* Compute a new hash since we changed glyphs. */
