@@ -3641,7 +3641,7 @@ copy_child_glyphs (struct frame *root, struct frame *child)
   for (int y = r.y; y < r.y + r.h; ++y, ++child_y)
     {
       /* Horizontal line above. */
-      if (child_y == 0 && y > 0)
+      if (child->tty_child_border && child_y == 0 && y > 0)
 	box_line (root, child, r.x, y - 1, r.w, true);
 
       struct glyph_row *root_row = prepare_desired_root_row (root, y);
@@ -3651,13 +3651,15 @@ copy_child_glyphs (struct frame *root, struct frame *child)
       memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0] + child_x,
 	      r.w * sizeof (struct glyph));
 
-      box_sides (root, child, root_row, r.x, r.w);
+      if (child->tty_child_border)
+	box_sides (root, child, root_row, r.x, r.w);
 
       /* Compute a new hash since we changed glyphs. */
       root_row->hash = row_hash (root_row);
 
       /* Horizontal line below */
-      if (y + 1 == r.y + r.h
+      if (child->tty_child_border
+	  && y + 1 == r.y + r.h
 	  && y + 1 < root->desired_matrix->matrix_h)
 	box_line (root, child, r.x, y + 1, r.w, false);
     }
