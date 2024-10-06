@@ -3661,6 +3661,7 @@ copy_child_glyphs (struct frame *root, struct frame *child)
       memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0] + child_x,
 	      r.w * sizeof (struct glyph));
 
+      /* Border on the sides. */
       if (!FRAME_UNDECORATED (child))
 	box_sides (root, child, root_row, r.x, r.w);
 
@@ -3779,8 +3780,6 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   /* Process child frames in reverse z-order, topmost last.  For each
      child, copy what we need to the root's desired matrix. */
   Lisp_Object z_order = frames_in_reverse_z_order (root, true);
-  fprintf (stderr, "z_ord4r ");
-  debug_print (z_order);
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
       struct frame *child = XFRAME (XCAR (tail));
