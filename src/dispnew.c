@@ -3358,7 +3358,8 @@ is_frame_ancestor (struct frame *f1, struct frame *f2)
   return false;
 }
 
-/* Return a list of all frames having root frame ROOT. */
+/* Return a list of all frames having root frame ROOT.
+   If VISIBLE_ONLY is true, return only visible frames.  */
 
 static Lisp_Object
 frames_with_root (struct frame *root, bool visible_only)
@@ -3375,6 +3376,9 @@ frames_with_root (struct frame *root, bool visible_only)
   return list;
 }
 
+/* Return a list of frames having parent frame PARENT.
+   If VISIBLE_ONLY is true, return only visible frames.  */
+
 static Lisp_Object
 frames_with_parent (struct frame *parent, bool visible_only)
 {
@@ -3390,7 +3394,7 @@ frames_with_parent (struct frame *parent, bool visible_only)
   return list;
 }
 
-/* Compare frames F1 and F2 for z-order. Value is like strcmp. */
+/* Compare frames F1 and F2 for z-order.  Value is like strcmp.  */
 
 static int
 frame_z_order_cmp (struct frame *f1, struct frame *f2)
@@ -3412,9 +3416,9 @@ DEFUN ("frame--z-order-lessp", Fframe__z_order_lessp, Sframe__z_order_lessp,
   return frame_z_order_cmp (XFRAME (a), XFRAME (b)) < 0 ? Qt : Qnil;
 }
 
-/* Return a z-order list of frames on the same terminal as F.  The list
-   is ordered topmost frame last. Note that this list may contain
-   more than one root frame plus their children. */
+/* Return a z-order list of frames with the same root as F.  The list
+   is ordered topmost frame last.  Note that this list contains
+   the root frame of F itself as first element.  */
 
 Lisp_Object
 frames_in_reverse_z_order (struct frame *f, bool visible_only)
@@ -3426,6 +3430,9 @@ frames_in_reverse_z_order (struct frame *f, bool visible_only)
   eassert (XFRAME (XCAR (frames)) == root);
   return frames;
 }
+
+/* Raise of lower frame F in z-order.  If RAISE is true, raise F, else
+   lower f.  */
 
 void
 tty_raise_lower_frame (struct frame *f, bool raise)
@@ -3496,6 +3503,9 @@ make_matrix_current (struct frame *f)
 	make_current (f, NULL, i);
 }
 
+/* Prepare ROOT's desired row at index Y for copying child
+   frame contents to it.  */
+
 static struct glyph_row *
 prepare_desired_root_row (struct frame *root, int y)
 {
@@ -3513,7 +3523,7 @@ prepare_desired_root_row (struct frame *root, int y)
 }
 
 static void
-write_box (struct frame *root, struct frame *child,
+store_box (struct frame *root, struct frame *child,
 	   struct glyph_row *row, int x, enum box box)
 {
   int dflt;
@@ -3565,13 +3575,13 @@ box_line (struct frame *root, struct frame *child, int x, int y, int w, bool fir
 {
   struct glyph_row *root_row = prepare_desired_root_row (root, y);
   if (x > 0)
-    write_box (root, child, root_row, x - 1,
+    store_box (root, child, root_row, x - 1,
 	       first ? BOX_DOWN_RIGHT : BOX_UP_RIGHT);
   int i;
   for (i = 0; i < w; ++i)
-    write_box (root, child, root_row, x + i, BOX_HORIZONTAL);
+    store_box (root, child, root_row, x + i, BOX_HORIZONTAL);
   if (x + i < root->desired_matrix->matrix_w)
-    write_box (root, child, root_row, x + i,
+    store_box (root, child, root_row, x + i,
 	       first ? BOX_DOWN_LEFT : BOX_UP_LEFT);
 
   /* Compute a new hash since we changed glyphs. */
@@ -3583,9 +3593,9 @@ box_sides (struct frame *root, struct frame *child,
 	   struct glyph_row *root_row, int x, int w)
 {
   if (x > 0)
-    write_box (root, child, root_row, x - 1, BOX_VERTICAL);
+    store_box (root, child, root_row, x - 1, BOX_VERTICAL);
   if (x + w < root->desired_matrix->matrix_w)
-    write_box (root, child, root_row, x + w, BOX_VERTICAL);
+    store_box (root, child, root_row, x + w, BOX_VERTICAL);
 }
 
 /* Copy to ROOT's desired matrix what we need from CHILD's current frame matrix. */
