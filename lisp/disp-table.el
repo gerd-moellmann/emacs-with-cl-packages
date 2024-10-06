@@ -28,7 +28,7 @@
 
 ;;; Code:
 
-(put 'display-table 'char-table-extra-slots 6)
+(put 'display-table 'char-table-extra-slots 12)
 
 ;;;###autoload
 (defun make-display-table ()
@@ -46,6 +46,12 @@
 (put 'control 'display-table-slot 3)
 (put 'selective-display 'display-table-slot 4)
 (put 'vertical-border 'display-table-slot 5)
+(put 'box-vertical 'display-table-slot 6)
+(put 'box-horizontal 'display-table-slot 7)
+(put 'box-down-right 'display-table-slot 8)
+(put 'box-down-left 'display-table-slot 9)
+(put 'box-up-right 'display-table-slot 10)
+(put 'box-up-left 'display-table-slot 11)
 
 ;;;###autoload
 (defun display-table-slot (display-table slot)
