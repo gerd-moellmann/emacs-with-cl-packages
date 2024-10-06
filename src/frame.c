@@ -198,10 +198,10 @@ set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
   int olines = FRAME_MENU_BAR_LINES (f);
   int nlines = TYPE_RANGED_FIXNUMP (int, value) ? XFIXNUM (value) : 0;
 
-  /* FIXME/tty: menu bars on child frames don't work on all platforms,
+  /* Menu bars on child frames don't work on all platforms,
      which is the reason why prepare_menu_bar does not update_menu_bar
      for child frames (info from Martin Rudalics). This could be
-     implemented in ttys, but it's unclear if it is worth it. */
+     implemented in ttys, but it's probaly not worth it. */
   if (is_tty_child_frame (f))
     {
       FRAME_MENU_BAR_LINES (f) = 0;
@@ -857,8 +857,7 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
       resize_frame_windows (f, new_inner_width, true);
 
       /* MSDOS frames cannot PRETEND, as they change frame size by
-	 manipulating video hardware.  FIXME/tty: it looks wrong to set
-	 FrameCols here. See also the comment for FrameRows above. */
+	 manipulating video hardware.  */
       if (is_tty_root_frame (f))
 	if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
 	  FrameCols (FRAME_TTY (f)) = new_text_cols;
@@ -893,12 +892,7 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
       resize_frame_windows (f, new_inner_height, false);
 
       /* MSDOS frames cannot PRETEND, as they change frame size by
-	 manipulating video hardware.
-
-	 FIXME/tty: ti looks strange to set FrameRows here. The terminal
-	 emulator window or console has some physical size, and I wonder
-	 how one would change that size from here. Or what it is good for
-	 to set it here. */
+	 manipulating video hardware. */
       if (is_tty_root_frame (f))
 	if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
 	  FrameRows (FRAME_TTY (f)) = new_text_lines + FRAME_TOP_MARGIN (f);
@@ -1301,9 +1295,7 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
 	    f = make_frame_without_minibuffer (Qnil, kb, Qnil);
 	  else if (EQ (mini, Qonly))
 	    {
-	      /* FIXME/tty: No interest in this feature at the moment,
-		 unless someone complains. */
-# if 0
+# if 0 /* No interest in this feature at the moment, */
 	      f = make_minibuffer_frame ();
 	      /* Not sure about this plus the unsplittable frame
 		 paran. */
@@ -1350,7 +1342,7 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
   f->horizontal_scroll_bars = false;
 #endif
 
-  /* FIXME/tty: menu bars on child frames don't work on all platforms,
+  /* Menu bars on child frames don't work on all platforms,
      which is the reason why prepare_menu_bar does not update_menu_bar
      for child frames (info from Martin Rudalics). This could be
      implemented in ttys, but it's unclear if it is worth it. */
@@ -1727,10 +1719,6 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 	      /* If the new TTY frame changed dimensions, we need to
 		 resync term.c's idea of the frame size with the new
 		 frame's data.  */
-	      /* FIXME/tty: another place where we set
-		 FrameRows/FrameCols, which is really a physical
-		 property of the terminal, and nothing we set. That
-		 doesn't look right to me. */
 	      if (FRAME_COLS (f) != FrameCols (tty))
 		FrameCols (tty) = FRAME_COLS (f);
 	      if (FRAME_TOTAL_LINES (f) != FrameRows (tty))
@@ -3085,9 +3073,9 @@ displayed in the terminal.  */)
   if (FRAME_WINDOW_P (f) && FRAME_TERMINAL (f)->frame_visible_invisible_hook)
     FRAME_TERMINAL (f)->frame_visible_invisible_hook (f, false);
 
-  /* FIXME/tty: the Elisp info manual says that this "usually" makes
-     child frames invisible, too, but without saying when not. Since users
-     can't rely on this, it's not implemented. */
+  /* The Elisp info manual says that this "usually" makes child frames
+     invisible, too, but without saying when not. Since users can't rely
+     on this, it's not implemented. */
   if (is_tty_frame (f))
     SET_FRAME_VISIBLE (f, false);
 
@@ -3486,9 +3474,9 @@ store_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val)
       val = old_val;
     }
 
-  /* FIXME/tty: re-parenting is currently not implemented when changing
-     a root frame to a child frame or vice versa. Could be done, but
-     it's unclear if it's worth it. */
+  /* Re-parenting is currently not implemented when changing a root
+     frame to a child frame or vice versa. Could be done, but it's
+     unclear if it's worth it. */
   if (is_tty_frame (f))
     {
       if (EQ (prop, Qparent_frame)

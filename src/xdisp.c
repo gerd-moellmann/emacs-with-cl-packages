@@ -16985,7 +16985,7 @@ redisplay_internal (void)
   if (face_change)
     windows_or_buffers_changed = 47;
 
-  /* FIXME/tty: can we do better for tty child frames? It could be
+  /* Can we do better for tty child frames? It could be
      a bit faster when we switch between child frames of the same
      root frame. OTOH, it's probably not a frequent use case. */
   if ((FRAME_TERMCAP_P (sf) || FRAME_MSDOS_P (sf))
@@ -17457,8 +17457,6 @@ redisplay_internal (void)
 	      if (gcscrollbars && FRAME_TERMINAL (f)->judge_scroll_bars_hook)
 		FRAME_TERMINAL (f)->judge_scroll_bars_hook (f);
 
-	      /* FIXME/tty: The FRAME_OBSCURE_P (f->visible == 2, :-()
-		 seems to be something for Windows. I'm ignoring it. */
 	      if (FRAME_REDISPLAY_P (f))
 		{
 		  /* If fonts changed on visible frame, display again.  */
@@ -17646,8 +17644,7 @@ redisplay_internal (void)
       Lisp_Object mini_window = FRAME_MINIBUF_WINDOW (sf);
       struct frame *mini_frame = XFRAME (WINDOW_FRAME (XWINDOW (mini_window)));
 
-      /* FIXME/tty: is removing FRAME_WINDOW_P here right? */
-      if (mini_frame != sf /*&& FRAME_WINDOW_P (mini_frame)*/)
+      if (mini_frame != sf)
 	{
 	  XWINDOW (mini_window)->must_be_updated_p = true;
 	  pending |= update_frame (mini_frame, false, false);

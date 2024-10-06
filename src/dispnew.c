@@ -3221,7 +3221,7 @@ redraw_frame (struct frame *f)
        future.  */
     SET_FRAME_GARBAGED (f);
 
-  /* FIXME/tty: clear_frame is actually a "clear_terminal", i.e.
+  /* Clear_frame is actually a "clear_terminal", i.e.
      is clears the entire screen. */
   if (!FRAME_PARENT_FRAME (f))
     clear_frame (f);
@@ -3701,9 +3701,7 @@ update_bar_window (Lisp_Object window, Lisp_Object *current,
 }
 #endif
 
-/* Update the tab-bar window of frame F, if present.
-   FIXME/tty: This is almost identical to the updating
-   of the tab bar. */
+/* Update the tab-bar window of frame F, if present. */
 
 static void
 update_tab_bar (struct frame *f)
