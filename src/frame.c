@@ -3022,7 +3022,10 @@ If omitted, FRAME defaults to the currently selected frame.  */)
     FRAME_TERMINAL (f)->frame_visible_invisible_hook (f, true);
 
   if (is_tty_frame (f))
-    SET_FRAME_VISIBLE (f, true);
+    {
+      SET_FRAME_VISIBLE (f, true);
+      tty_raise_lower_frame (f, true);
+    }
 
   make_frame_visible_1 (f->root_window);
 

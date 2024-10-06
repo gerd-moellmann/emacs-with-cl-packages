@@ -3392,15 +3392,31 @@ is_frame_ancestor (struct frame *f1, struct frame *f2)
 
 /* Return a list of all frames having root frame ROOT. */
 
-Lisp_Object
-frames_with_root (struct frame *root, bool visible)
+static Lisp_Object
+frames_with_root (struct frame *root, bool visible_only)
 {
   Lisp_Object list = Qnil;
   Lisp_Object tail, frame;
   FOR_EACH_FRAME (tail, frame)
     {
       struct frame *f = XFRAME (frame);
-      if (FRAME_VISIBLE_P (f) && root_frame (f) == root)
+      if (root_frame (f) == root
+	  && (!visible_only || FRAME_VISIBLE_P (f)))
+	list = Fcons (frame, list);
+    }
+  return list;
+}
+
+static Lisp_Object
+frames_with_parent (struct frame *parent, bool visible_only)
+{
+  Lisp_Object list = Qnil;
+  Lisp_Object tail, frame;
+  FOR_EACH_FRAME (tail, frame)
+    {
+      struct frame *f = XFRAME (frame);
+      if (FRAME_PARENT_FRAME (f) == parent
+	  && (!visible_only || FRAME_VISIBLE_P (f)))
 	list = Fcons (frame, list);
     }
   return list;
@@ -3433,10 +3449,10 @@ DEFUN ("frame--z-order-lessp", Fframe__z_order_lessp, Sframe__z_order_lessp,
    more than one root frame plus their children. */
 
 Lisp_Object
-frames_in_reverse_z_order (struct frame *f, bool visible)
+frames_in_reverse_z_order (struct frame *f, bool visible_only)
 {
   struct frame *root = root_frame (f);
-  Lisp_Object frames = frames_with_root (root, visible);
+  Lisp_Object frames = frames_with_root (root, visible_only);
   frames = CALLN (Fsort, frames, QClessp, Qframe__z_order_lessp);
   eassert (FRAMEP (XCAR (frames)));
   eassert (XFRAME (XCAR (frames)) == root);
@@ -3447,33 +3463,20 @@ void
 tty_raise_lower_frame (struct frame *f, bool raise)
 {
   struct frame *parent = FRAME_PARENT_FRAME (f);
-  if (parent)
-    {
-      Lisp_Object children = frames_in_reverse_z_order (root_frame (f), false);
-      Lisp_Object siblings = Qnil;
-      for (Lisp_Object tail = children; CONSP (tail); tail = XCDR (tail))
-	{
-	  struct frame *child = XFRAME (XCAR (tail));
-	  if (FRAME_PARENT_FRAME (child) == parent)
-	    siblings = Fcons (XCAR (tail), siblings);
-	}
+  if (parent == NULL)
+    return;
 
-      int n = list_length (siblings);
-      if (n > 1)
-	{
-	  int i;
-	  if (raise)
-	    f->z_order = 0, i = 1;
-	  else
-	    f->z_order = n - 1, i = 0;
-	  for (Lisp_Object tail = siblings; CONSP (tail); tail = XCDR (tail))
-	    {
-	      struct frame *child = XFRAME (XCAR (tail));
-	      if (f != child)
-		child->z_order = i++;
-	    }
-	}
+  Lisp_Object siblings = frames_with_parent (parent, false);
+  siblings = CALLN (Fsort, siblings, QClessp, Qframe__z_order_lessp);
+
+  int i = 0;
+  for (Lisp_Object tail = siblings; CONSP (tail); tail = XCDR (tail))
+    {
+      struct frame *child = XFRAME (XCAR (tail));
+      if (child != f)
+	child->z_order = i++;
     }
+  f->z_order = raise ? i : 0;
 }
 
 /* Return true if frame F is a tty frame. */

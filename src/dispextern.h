@@ -3937,7 +3937,6 @@ Lisp_Object frames_in_reverse_z_order (struct frame *f, bool visible);
 bool is_tty_frame (struct frame *f);
 bool is_tty_child_frame (struct frame *f);
 bool is_tty_root_frame (struct frame *f);
-Lisp_Object frames_with_root (struct frame *root, bool visible);
 bool combine_updates (Lisp_Object root_frames, bool force_p, bool inhibit_id_p);
 bool combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_id_p);
 void tty_raise_lower_frame (struct frame *f, bool raise);
