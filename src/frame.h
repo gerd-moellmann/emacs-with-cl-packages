@@ -640,6 +640,9 @@ struct frame
   /* Canonical Y unit.  Height of a line, in pixels.  */
   int line_height;
 
+  /* Only for tty frames: Want a border drawb around child frames. */
+  int tty_child_border : 1;
+
   /* The terminal device that this frame uses.  If this is NULL, then
      the frame has been deleted.  */
   struct terminal *terminal;
