@@ -3511,6 +3511,22 @@ make_matrix_current (struct frame *f)
 	make_current (f, NULL, i);
 }
 
+static struct glyph_row *
+prepare_desired_root_row (struct frame *root, int y)
+{
+  /* Start with the root's desired matrix row. If that hasn't
+     been redisplayed, copy from the root's current matrix. */
+  struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
+  if (!root_row->enabled_p)
+    {
+      struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
+      memcpy (root_row->glyphs[0], from->glyphs[0],
+	      root->current_matrix->matrix_w * sizeof (struct glyph));
+      root_row->enabled_p = true;
+    }
+  return root_row;
+}
+
 /* Copy to ROOT's desired matrix what we need from CHILD's current frame matrix. */
 
 static void
@@ -3544,16 +3560,7 @@ copy_child_glyphs (struct frame *root, struct frame *child)
      rows. */
   for (int y = r.y; y < r.y + r.h; ++y, ++child_y)
     {
-      /* Start with the root's desired matrix row. If that hasn't
-	 been redisplayed, copy from the root's current matrix. */
-      struct glyph_row *root_row = MATRIX_ROW (root->desired_matrix, y);
-      if (!root_row->enabled_p)
-	{
-	  struct glyph_row *from = MATRIX_ROW (root->current_matrix, y);
-	  memcpy (root_row->glyphs[0], from->glyphs[0],
-		  root->current_matrix->matrix_w * sizeof (struct glyph));
-	  root_row->enabled_p = true;
-	}
+      struct glyph_row *root_row = prepare_desired_root_row (root, y);
 
       /* Copy the child's current row contents over it. */
       struct glyph_row *child_row = MATRIX_ROW (child->current_matrix, child_y);
