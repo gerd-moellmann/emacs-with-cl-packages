@@ -1560,7 +1560,8 @@ affects all frames on the same terminal device.  */)
       if (CONSP (visible))
 	SET_FRAME_VISIBLE (f, !NILP (visible));
 
-      f->undecorated = false;
+      /* FIXME/tty: The only way to get borders on a tty is
+	 to allow decorations for now. */
       Lisp_Object undecorated = Fassq (Qundecorated, parms);
       if (CONSP (undecorated) && !NILP (XCDR (undecorated)))
 	f->undecorated = true;
