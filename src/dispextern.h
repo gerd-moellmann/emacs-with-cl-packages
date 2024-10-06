@@ -3941,6 +3941,7 @@ Lisp_Object frames_with_root (struct frame *root, bool visible);
 bool combine_updates (Lisp_Object root_frames, bool force_p, bool inhibit_id_p);
 bool combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_id_p);
 void tty_raise_lower_frame (struct frame *f, bool raise);
+int max_child_z_order (struct frame *parent);
 
 #ifdef GLYPH_DEBUG
 bool is_tty_desired_glyph (struct frame *f, struct glyph *g);

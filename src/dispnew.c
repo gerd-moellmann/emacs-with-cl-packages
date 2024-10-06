@@ -3365,6 +3365,20 @@ root_frame (struct frame *f)
   return f;
 }
 
+int
+max_child_z_order (struct frame *parent)
+{
+  Lisp_Object tail, frame;
+  int z_order = 0;
+  FOR_EACH_FRAME (tail, frame)
+    {
+      struct frame *f = XFRAME (frame);
+      if (FRAME_PARENT_FRAME (f) == parent)
+	z_order = max (z_order, f->z_order);
+    }
+  return z_order;
+}
+
 /* Return true if F1 is an ancestor of F2.  */
 
 static bool

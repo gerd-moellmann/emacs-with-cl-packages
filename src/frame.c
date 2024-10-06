@@ -1309,6 +1309,7 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
       if (f == NULL)
 	f = make_frame (true);
       f->parent_frame = parent;
+      f->z_order = max_child_z_order (XFRAME (parent));
     }
 
   Lisp_Object frame;
