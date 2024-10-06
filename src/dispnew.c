@@ -3408,24 +3408,23 @@ frames_with_root (struct frame *root, bool visible)
 
 /* Compare frames F1 and F2 for z-order. Value is like strcmp. */
 
-static bool
+static int
 frame_z_order_cmp (struct frame *f1, struct frame *f2)
 {
   if (f1 == f2)
     return 0;
   if (is_frame_ancestor (f1, f2))
     return -1;
+  if (is_frame_ancestor (f2, f1))
+    return 1;
   return f1->z_order - f2->z_order;
 }
 
-DEFUN ("frame--z-order-sort-predicate",
-       Fframe__z_order_sort_predicate,
-       Sframe__z_order_sort_predicate,
-       2, 2, 0,
-       doc: /* Internal frame sorting function A < B.  */)
+DEFUN ("frame--z-order-lessp", Fframe__z_order_lessp, Sframe__z_order_lessp,
+       2, 2, 0, doc: /* Internal frame sorting function A < B.  */)
   (Lisp_Object a, Lisp_Object b)
 {
-  CHECK_FRAME (a); CHECK_FRAME (b);
+  eassert (FRAMEP (a) && FRAMEP (b));
   return frame_z_order_cmp (XFRAME (a), XFRAME (b)) < 0 ? Qt : Qnil;
 }
 
@@ -3438,7 +3437,7 @@ frames_in_reverse_z_order (struct frame *f, bool visible)
 {
   struct frame *root = root_frame (f);
   Lisp_Object frames = frames_with_root (root, visible);
-  frames = CALLN (Fsort, frames, Qframe__z_order_sort_predicate);
+  frames = CALLN (Fsort, frames, QClessp, Qframe__z_order_lessp);
   eassert (FRAMEP (XCAR (frames)));
   eassert (XFRAME (XCAR (frames)) == root);
   return frames;
@@ -3780,6 +3779,8 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   /* Process child frames in reverse z-order, topmost last.  For each
      child, copy what we need to the root's desired matrix. */
   Lisp_Object z_order = frames_in_reverse_z_order (root, true);
+  fprintf (stderr, "z_ord4r ");
+  debug_print (z_order);
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
       struct frame *child = XFRAME (XCAR (tail));
@@ -7258,7 +7259,7 @@ syms_of_display (void)
   defsubr (&Ssend_string_to_terminal);
   defsubr (&Sinternal_show_cursor);
   defsubr (&Sinternal_show_cursor_p);
-  defsubr (&Sframe__z_order_sort_predicate);
+  defsubr (&Sframe__z_order_lessp);
 
 #ifdef GLYPH_DEBUG
   defsubr (&Sdump_redisplay_history);
@@ -7273,7 +7274,7 @@ syms_of_display (void)
 
   /* This is the "purpose" slot of a display table.  */
   DEFSYM (Qdisplay_table, "display-table");
-  DEFSYM (Qframe__z_order_sort_predicate, "frame--z-order-sort-predicate");
+  DEFSYM (Qframe__z_order_lessp, "frame--z-order-lessp");
 
   DEFSYM (Qredisplay_dont_pause, "redisplay-dont-pause");
 
