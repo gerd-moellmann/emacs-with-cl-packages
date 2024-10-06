@@ -4854,7 +4854,7 @@ DEFUN ("tty-frame-restack", Ftty_frame_restack,
 .	       See also `frame-restack'.  */)
   (Lisp_Object frame1, Lisp_Object frame2, Lisp_Object above)
 {
-  /* FIXME/tty: implementation.  */
+  /* FIXME/tty: tty-frame-restack implementation.  */
   return Qnil;
 }
 

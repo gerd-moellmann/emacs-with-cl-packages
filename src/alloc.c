@@ -6962,10 +6962,6 @@ mark_glyph_matrix (struct glyph_matrix *matrix)
 
 	    for (; glyph < end_glyph; ++glyph)
 	      {
-#if 0 /* FIXME/tty: Probably not needed */
-		if (glyph->frame)
-		  mark_object (glyph->frame);
-#endif
 		if (STRINGP (glyph->object)
 		    && !string_marked_p (XSTRING (glyph->object)))
 		  mark_object (glyph->object);
