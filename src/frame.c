@@ -1560,13 +1560,10 @@ affects all frames on the same terminal device.  */)
       if (CONSP (visible))
 	SET_FRAME_VISIBLE (f, !NILP (visible));
 
-      /* FIXME/tty: Not having borders is currently deeply engraved in
-	 the code, so we can't simply set the frame's border_width or
-	 child_border_width.  */
-      Lisp_Object border = Fcdr (Fassq (Qborder_width, parms));
-      if (NILP (border))
-	border = Fcdr (Fassq (Qchild_frame_border_width, parms));
-      f->tty_child_border = FIXNUMP (border) && XFIXNUM (border) > 0;
+      f->undecorated = false;
+      Lisp_Object undecorated = Fassq (Qundecorated, parms);
+      if (CONSP (undecorated) && !NILP (XCDR (undecorated)))
+	f->undecorated = true;
     }
 
   /* Determine width and height of the frame. For root frames use the

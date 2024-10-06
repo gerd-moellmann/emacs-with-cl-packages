@@ -442,7 +442,11 @@ struct frame
      This must be the same as the terminal->type. */
   ENUM_BF (output_method) output_method : 4;
 
+  /* True if this is an undecorated frame.  */
+  bool_bf undecorated : 1;
+
 #ifdef HAVE_WINDOW_SYSTEM
+# ifndef HAVE_NTGUI
   /* True if this frame is a tooltip frame.  */
   bool_bf tooltip : 1;
 
@@ -456,10 +460,7 @@ struct frame
   /* Nonzero if we should actually display horizontal scroll bars on this frame.  */
   bool_bf horizontal_scroll_bars : 1;
 
-  /* True if this is an undecorated frame.  */
-  bool_bf undecorated : 1;
 
-#ifndef HAVE_NTGUI
   /* True if this is an override_redirect frame.  */
   bool_bf override_redirect : 1;
 #endif
@@ -639,9 +640,6 @@ struct frame
 
   /* Canonical Y unit.  Height of a line, in pixels.  */
   int line_height;
-
-  /* Only for tty frames: Want a border drawb around child frames. */
-  int tty_child_border : 1;
 
   /* The terminal device that this frame uses.  If this is NULL, then
      the frame has been deleted.  */
@@ -1245,8 +1243,9 @@ FRAME_PARENT_FRAME (struct frame *f)
   return NILP (f->parent_frame) ? NULL : XFRAME (f->parent_frame);
 }
 
-#if defined (HAVE_WINDOW_SYSTEM)
 #define FRAME_UNDECORATED(f) ((f)->undecorated)
+
+#if defined (HAVE_WINDOW_SYSTEM)
 #ifdef HAVE_NTGUI
 #define FRAME_OVERRIDE_REDIRECT(f) ((void) (f), 0)
 #else
@@ -1267,7 +1266,6 @@ FRAME_PARENT_FRAME (struct frame *f)
 #define FRAME_NS_TRANSPARENT_TITLEBAR(f) ((f)->ns_transparent_titlebar)
 #endif
 #else /* not HAVE_WINDOW_SYSTEM */
-#define FRAME_UNDECORATED(f) ((void) (f), 0)
 #define FRAME_OVERRIDE_REDIRECT(f) ((void) (f), 0)
 #define FRAME_SKIP_TASKBAR(f) ((void) (f), 0)
 #define FRAME_NO_FOCUS_ON_MAP(f) ((void) (f), 0)
