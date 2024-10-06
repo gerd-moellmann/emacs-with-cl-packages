@@ -3942,11 +3942,6 @@ bool combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_id_p
 void tty_raise_lower_frame (struct frame *f, bool raise);
 int max_child_z_order (struct frame *parent);
 
-#ifdef GLYPH_DEBUG
-bool is_tty_desired_glyph (struct frame *f, struct glyph *g);
-bool is_tty_current_glyph (struct frame *f, struct glyph *g);
-#endif
-
 INLINE_HEADER_END
 
 #endif /* not DISPEXTERN_H_INCLUDED */

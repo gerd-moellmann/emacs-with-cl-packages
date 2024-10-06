@@ -3293,38 +3293,6 @@ struct rect
   int x, y, w, h;
 };
 
-#ifdef GLYPH_DEBUG
-static bool
-is_glyph_in_matrix (struct glyph_matrix *m, struct glyph *g)
-{
-  for (int y = 0; y < m->matrix_h; ++y)
-    {
-      struct glyph_row *r = MATRIX_ROW (m, y);
-      if (g >= r->glyphs[0] && g < r->glyphs[0] + m->matrix_w)
-	return true;
-    }
-  return false;
-}
-
-/* Return true if GLYPH is part of the desired matrix of F. */
-
-bool
-is_tty_desired_glyph (struct frame *f, struct glyph *g)
-{
-  eassert (is_tty_frame (f));
-  return is_glyph_in_matrix (f->desired_matrix, g);
-}
-
-/* Return true if GLYPH is part of the desired matrix of F. */
-
-bool
-is_tty_current_glyph (struct frame *f, struct glyph *g)
-{
-  eassert (is_tty_frame (f));
-  return is_glyph_in_matrix (f->current_matrix, g);
-}
-#endif // GLYPH_DEBUG
-
 /* Compute the intersection of R1 and R2 in R. Value is true if R1 and
    R2 intersect, false otherwise. */
 
@@ -3343,7 +3311,7 @@ rect_intersect (struct rect *r, struct rect r1, struct rect r2)
   return true;
 }
 
-/* Return the rectanlge frame F occupies. */
+/* Return the rectangle frame F occupies. */
 
 static struct rect
 frame_rect (struct frame *f)
