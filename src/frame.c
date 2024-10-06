@@ -1566,7 +1566,7 @@ affects all frames on the same terminal device.  */)
       Lisp_Object border = Fcdr (Fassq (Qborder_width, parms));
       if (NILP (border))
 	border = Fcdr (Fassq (Qchild_frame_border_width, parms));
-      f->tty_child_border = FIXNUMP (border);
+      f->tty_child_border = FIXNUMP (border) && XFIXNUM (border) > 0;
     }
 
   /* Determine width and height of the frame. For root frames use the
