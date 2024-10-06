@@ -36,13 +36,15 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define DISP_INVIS_VECTOR(dp) ((dp)->extras[4])
 #define DISP_BORDER_GLYPH(dp) ((dp)->extras[5])
 
-/* Box drawing characters. */
-#define DISP_BOX_VERTICAL(dp) ((dp)->extras[6])
-#define DISP_BOX_HORIZONTAL(dp) ((dp)->extras[7])
-#define DISP_BOX_DOWN_RIGHT(dp) ((dp)->extras[8])
-#define DISP_BOX_DOWN_LEFT(dp) ((dp)->extras[9])
-#define DISP_BOX_UP_RIGHT(dp) ((dp)->extras[10])
-#define DISP_BOX_up_LEFT(dp) ((dp)->extras[11])
+enum box
+{
+  BOX_VERTICAL = 6,
+  BOX_HORIZONTAL,
+  BOX_DOWN_RIGHT,
+  BOX_DOWN_LEFT,
+  BOX_UP_RIGHT,
+  BOX_UP_LEFT
+};
 
 extern Lisp_Object disp_char_vector (struct Lisp_Char_Table *, int);
 

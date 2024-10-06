@@ -43,6 +43,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "tparam.h"
 #include "xwidget.h"
 #include "pdumper.h"
+#include "disptab.h"
 
 #ifdef HAVE_ANDROID
 #include "android.h"
@@ -3527,6 +3528,91 @@ prepare_desired_root_row (struct frame *root, int y)
   return root_row;
 }
 
+static void
+write_box (struct frame *root, struct frame *child,
+	   struct glyph_row *row, int x, enum box box)
+{
+  int dflt;
+  switch (box)
+    {
+    case BOX_VERTICAL:
+      dflt = 0x2502;
+      break;
+    case BOX_HORIZONTAL:
+      dflt = 0x2500;
+      break;
+    case BOX_DOWN_RIGHT:
+      dflt = 0x250c;
+      break;
+    case BOX_DOWN_LEFT:
+      dflt = 0x2510;
+      break;
+    case BOX_UP_RIGHT:
+      dflt = 0x2514;
+      break;
+    case BOX_UP_LEFT:
+      dflt = 0x2518;
+      break;
+    }
+
+  // FIXME/tty some face for the border.
+  int face_id = 0;
+  GLYPH g;
+  SET_GLYPH (g, dflt, face_id);
+
+  if (DISP_TABLE_P (Vstandard_display_table))
+    {
+      struct Lisp_Char_Table *dp = XCHAR_TABLE (Vstandard_display_table);
+      Lisp_Object gc = dp->extras[box];
+      if (GLYPH_CODE_P (gc))
+	{
+	  SET_GLYPH_FROM_GLYPH_CODE (g, gc);
+	  //spec_glyph_lookup_face (it->w, &glyph);
+	}
+    }
+
+  struct glyph *glyph = row->glyphs[0] + x;
+  memset (glyph, 0, sizeof *glyph);
+  glyph->type = CHAR_GLYPH;
+  glyph->charpos = -1;
+  glyph->object = Qnil;
+  glyph->frame = child;
+  glyph->face_id = face_id;
+  glyph->pixel_width = 1;
+  glyph->ascent = 1;
+  glyph->descent = 1;
+  glyph->multibyte_p = 1;
+  glyph->u.ch = GLYPH_CHAR (g);
+}
+
+static void
+box_line (struct frame *root, struct frame *child, int x, int y, int w, bool first)
+{
+  struct glyph_row *root_row = prepare_desired_root_row (root, y);
+  if (x > 0)
+    write_box (root, child, root_row, x - 1,
+	       first ? BOX_DOWN_RIGHT : BOX_UP_RIGHT);
+  int i;
+  for (i = 0; i < w; ++i)
+    write_box (root, child, root_row, x + i, BOX_HORIZONTAL);
+  if (x + i < root->desired_matrix->matrix_w)
+    write_box (root, child, root_row, x + w,
+	       first ? BOX_DOWN_LEFT : BOX_UP_LEFT);
+
+  /* Compute a new hash since we changed glyphs. */
+  root_row->hash = row_hash (root_row);
+}
+
+static void
+box_sides (struct frame *root, struct frame *child,
+	   struct glyph_row *root_row, int x, int w)
+{
+  if (x > 0)
+    write_box (root, child, root_row, x - 1, BOX_VERTICAL);
+  if (x + w < root->desired_matrix->matrix_w)
+    write_box (root, child, root_row, x + w, BOX_VERTICAL);
+}
+
 /* Copy to ROOT's desired matrix what we need from CHILD's current frame matrix. */
 
 static void
@@ -3560,16 +3646,26 @@ copy_child_glyphs (struct frame *root, struct frame *child)
      rows. */
   for (int y = r.y; y < r.y + r.h; ++y, ++child_y)
     {
+      /* Horizontal line above. */
+      if (child_y == 0 && y > 0)
+	box_line (root, child, r.x, y - 1, r.w, true);
+
       struct glyph_row *root_row = prepare_desired_root_row (root, y);
 
-      /* Copy the child's current row contents over it. */
+      /* Copy what's visible from the child's current row. */
       struct glyph_row *child_row = MATRIX_ROW (child->current_matrix, child_y);
-      memcpy (root_row->glyphs[0] + r.x,
-	      child_row->glyphs[0] + child_x,
+      memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0] + child_x,
 	      r.w * sizeof (struct glyph));
+
+      box_sides (root, child, root_row, r.x, r.w);
 
       /* Compute a new hash since we changed glyphs. */
       root_row->hash = row_hash (root_row);
+
+      /* Horizontal line below */
+      if (y + 1 == r.y + r.h
+	  && y + 1 < root->desired_matrix->matrix_h)
+	box_line (root, child, r.x, y + 1, r.w, false);
     }
 }
 
