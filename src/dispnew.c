@@ -1178,7 +1178,7 @@ line_hash_code (struct frame *f, struct glyph_row *row)
 	  /* Struct frame can move with igc, and so on.  But we need
 	     something that takes different frames into account. Use the
 	     face_cache pointer for that which is malloc'd. */
-	  if (glypg->frame && glyph->frame != f)
+	  if (glyph->frame && glyph->frame != f)
 	    face_id += (ptrdiff_t) glyph->frame->face_cache;
 	  if (FRAME_MUST_WRITE_SPACES (f))
 	    c -= SPACEGLYPH;
