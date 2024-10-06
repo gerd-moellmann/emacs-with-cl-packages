@@ -3550,7 +3550,7 @@ write_box (struct frame *root, struct frame *child,
     }
 
   // FIXME/tty some face for the border.
-  int face_id = 0;
+  int face_id = BORDER_FACE_ID;
   GLYPH g;
   SET_GLYPH (g, dflt, face_id);
 
@@ -3559,10 +3559,7 @@ write_box (struct frame *root, struct frame *child,
       struct Lisp_Char_Table *dp = XCHAR_TABLE (Vstandard_display_table);
       Lisp_Object gc = dp->extras[box];
       if (GLYPH_CODE_P (gc))
-	{
-	  SET_GLYPH_FROM_GLYPH_CODE (g, gc);
-	  //spec_glyph_lookup_face (it->w, &glyph);
-	}
+	SET_GLYPH_FROM_GLYPH_CODE (g, gc);
     }
 
   struct glyph *glyph = row->glyphs[0] + x;
