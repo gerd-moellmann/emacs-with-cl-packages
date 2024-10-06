@@ -122,7 +122,10 @@ the char-table has no extra slot.  */)
   else
     {
       CHECK_FIXNAT (n);
-      if (XFIXNUM (n) > 10)
+      /* FIXME/tty: this check makes absolutely no sense to me.  It
+	 originally checked for n being > 10, which didn't let me add
+	 slots to standard-display-table for box drawing characters. */
+      if (XFIXNUM (n) > 12)
 	args_out_of_range (n, Qnil);
       n_extras = XFIXNUM (n);
     }
