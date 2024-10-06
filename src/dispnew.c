@@ -3536,22 +3536,16 @@ write_box (struct frame *root, struct frame *child,
   switch (box)
     {
     case BOX_VERTICAL:
-      dflt = 0x2502;
+      dflt = '|';
       break;
     case BOX_HORIZONTAL:
-      dflt = 0x2500;
+      dflt = '-';
       break;
     case BOX_DOWN_RIGHT:
-      dflt = 0x250c;
-      break;
     case BOX_DOWN_LEFT:
-      dflt = 0x2510;
-      break;
     case BOX_UP_RIGHT:
-      dflt = 0x2514;
-      break;
     case BOX_UP_LEFT:
-      dflt = 0x2518;
+      dflt = '+';
       break;
     }
 
