@@ -3522,9 +3522,13 @@ prepare_desired_root_row (struct frame *root, int y)
   return root_row;
 }
 
+/* Produce glyphs for box character BOX in ROW.  X ist the position in ROW
+   where to start producing glyphs. N is the number of glyphs to produce.
+   CHILD is the frame to use for the face of the glyphs.  */
+
 static void
-box_glyphs (enum box box, struct glyph_row *row, int x, int n,
-	    struct frame *child)
+produce_box_glyphs (enum box box, struct glyph_row *row, int x, int n,
+		    struct frame *child)
 {
   int dflt;
   switch (box)
@@ -3574,29 +3578,37 @@ box_glyphs (enum box box, struct glyph_row *row, int x, int n,
     }
 }
 
+/* Produce box glyphs LEFT and RIGHT in ROOT_ROW.  X and W are the start
+   and width of a range in ROOT_ROW before and after which to put the
+   box glyphs, if they fit. ROOT and CHILD are root and child frame we
+   are working on.  ROOT is the root frame whose matrix dimensions
+   determines if the box glyphs fit.  CHILD is the frame whose faces to
+   use for the box glyphs.  */
+
 static void
-box_sides (enum box left, enum box right, struct glyph_row *root_row, int x,
-	   int w, struct frame *root, struct frame *child)
+produce_box_sides (enum box left, enum box right, struct glyph_row *root_row, int x,
+		   int w, struct frame *root, struct frame *child)
 {
   if (x > 0)
-    box_glyphs (left, root_row, x - 1, 1, child);
+    produce_box_glyphs (left, root_row, x - 1, 1, child);
   if (x + w < root->desired_matrix->matrix_w)
-    box_glyphs (right, root_row, x + w, 1, child);
+    produce_box_glyphs (right, root_row, x + w, 1, child);
 }
 
 static void
-box_line (struct frame *root, struct frame *child, int x, int y, int w, bool first)
+produce_box_line (struct frame *root, struct frame *child, int x, int y, int w,
+		  bool first)
 {
   struct glyph_row *root_row = prepare_desired_root_row (root, y);
   if (first)
-    box_sides (BOX_DOWN_RIGHT, BOX_DOWN_LEFT, root_row, x, w, root, child);
+    produce_box_sides (BOX_DOWN_RIGHT, BOX_DOWN_LEFT, root_row, x, w, root, child);
   else
-    box_sides (BOX_UP_RIGHT, BOX_UP_LEFT, root_row, x, w, root, child);
-  box_glyphs (BOX_HORIZONTAL, root_row, x, w, child);
+    produce_box_sides (BOX_UP_RIGHT, BOX_UP_LEFT, root_row, x, w, root, child);
+  produce_box_glyphs (BOX_HORIZONTAL, root_row, x, w, child);
   root_row->hash = row_hash (root_row);
 }
 
-/* Copy to ROOT's desired matrix what we need from CHILD's current frame matrix. */
+/* Copy to ROOT's desired matrix what we need from CHILD. */
 
 static void
 copy_child_glyphs (struct frame *root, struct frame *child)
@@ -3631,7 +3643,7 @@ copy_child_glyphs (struct frame *root, struct frame *child)
     {
       /* Horizontal line above. */
       if (!FRAME_UNDECORATED (child) && child_y == 0 && y > 0)
-	box_line (root, child, r.x, y - 1, r.w, true);
+	produce_box_line (root, child, r.x, y - 1, r.w, true);
 
       struct glyph_row *root_row = prepare_desired_root_row (root, y);
 
@@ -3642,7 +3654,8 @@ copy_child_glyphs (struct frame *root, struct frame *child)
 
       /* Border on the sides. */
       if (!FRAME_UNDECORATED (child))
-	box_sides (BOX_VERTICAL, BOX_VERTICAL, root_row, r.x, r.w, root, child);
+	produce_box_sides (BOX_VERTICAL, BOX_VERTICAL,
+			   root_row, r.x, r.w, root, child);
 
       /* Compute a new hash since we changed glyphs. */
       root_row->hash = row_hash (root_row);
@@ -3651,7 +3664,7 @@ copy_child_glyphs (struct frame *root, struct frame *child)
       if (!FRAME_UNDECORATED (child)
 	  && y + 1 == r.y + r.h
 	  && y + 1 < root->desired_matrix->matrix_h)
-	box_line (root, child, r.x, y + 1, r.w, false);
+	produce_box_line (root, child, r.x, y + 1, r.w, false);
     }
 }
 
