@@ -3479,13 +3479,12 @@ store_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val)
     }
 
   /* Re-parenting is currently not implemented when changing a root
-     frame to a child frame or vice versa. Could be done, but it's
-     unclear if it's worth it. */
-  if (is_tty_frame (f))
+     frame to a child frame or vice versa.  */
+  if (is_tty_frame (f) && EQ (prop, Qparent_frame))
     {
-      if (EQ (prop, Qparent_frame)
-	  && NILP (f->parent_frame) != NILP (val))
+      if (NILP (f->parent_frame) != NILP (val))
 	error ("Making a root frame a child or vice versa is not supported");
+      f->parent_frame = val;
     }
 
   /* The tty color needed to be set before the frame's parameter
