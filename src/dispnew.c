@@ -3311,14 +3311,34 @@ rect_intersect (struct rect *r, struct rect r1, struct rect r2)
   return true;
 }
 
-/* Return the rectangle frame F occupies. */
+/* Return the absolute position of frame F in *X and *Y. */
+
+static void
+frame_pos_abs (struct frame *f, int *x, int *y)
+{
+  struct frame *parent = FRAME_PARENT_FRAME (f);
+  if (parent == NULL)
+    {
+      *x = f->left_pos;
+      *y = f->top_pos;
+    }
+  else
+    {
+      int parent_x, parent_y;
+      frame_pos_abs (parent, &parent_x, &parent_y);
+      *x = f->left_pos + parent_x;
+      *y = f->top_pos + parent_y;
+    }
+}
+
+/* Return the rectangle frame F occupies. X and Y are in absolute coordinates. */
 
 static struct rect
-frame_rect (struct frame *f)
+frame_rect_abs (struct frame *f)
 {
-  return (struct rect) {
-    .x = f->left_pos, .y = f->top_pos, .w = f->total_cols, .h = f->total_lines
-  };
+  int x, y;
+  frame_pos_abs (f, &x, &y);
+  return (struct rect) { x, y, f->total_cols, f->total_lines };
 }
 
 /* Return the root frame of frame F. Follow the parent_frame chain until
@@ -3620,7 +3640,7 @@ copy_child_glyphs (struct frame *root, struct frame *child)
      the root frame. This is basically clipping the child frame to
      the root frame rectangle. */
   struct rect r;
-  if (!rect_intersect (&r, frame_rect (root), frame_rect (child)))
+  if (!rect_intersect (&r, frame_rect_abs (root), frame_rect_abs (child)))
     return;
 
   /* Build CHILD's current matrix which we need to copy from it. */
