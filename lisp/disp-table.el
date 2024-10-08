@@ -149,6 +149,28 @@ and `box-up-left'."
       (message "No display table"))))
 
 ;;;###autoload
+(defun standard-display-unicode-special-glyphs ()
+  "Display some glyps using Unicode characters.
+The glyphs being changed by this function are `vertical-border',
+`box-vertical', `box-horizontal', `box-down-right', `box-down-left',
+`box-up-right', and `box-up-left'."
+  (interactive)
+  (set-display-table-slot standard-display-table
+			  'vertical-border (make-glyph-code #x2502))
+  (set-display-table-slot standard-display-table
+			  'box-vertical (make-glyph-code #x2502))
+  (set-display-table-slot standard-display-table
+			  'box-horizontal (make-glyph-code #x2500))
+  (set-display-table-slot standard-display-table
+			  'box-down-right (make-glyph-code #x250c))
+  (set-display-table-slot standard-display-table
+			  'box-down-left (make-glyph-code #x2510))
+  (set-display-table-slot standard-display-table
+			  'box-up-right (make-glyph-code #x2514))
+  (set-display-table-slot standard-display-table
+			  'box-up-left (make-glyph-code #x2518)))
+
+;;;###autoload
 (defun standard-display-8bit (l h)
   "Display characters representing raw bytes in the range L to H literally.
 
