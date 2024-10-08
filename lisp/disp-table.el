@@ -56,9 +56,11 @@
 ;;;###autoload
 (defun display-table-slot (display-table slot)
   "Return the value of the extra slot in DISPLAY-TABLE named SLOT.
-SLOT may be a number from 0 to 5 inclusive, or a slot name (symbol).
+SLOT may be a number from 0 to 11 inclusive, or a slot name (symbol).
 Valid symbols are `truncation', `wrap', `escape', `control',
-`selective-display', and `vertical-border'."
+`selective-display', `vertical-border', `box-vertical',
+`box-horizontal', `box-down-right', `box-down-left', `box-up-right',
+and `box-up-left'."
   (let ((slot-number
 	 (if (numberp slot) slot
 	   (or (get slot 'display-table-slot)
@@ -68,9 +70,11 @@ Valid symbols are `truncation', `wrap', `escape', `control',
 ;;;###autoload
 (defun set-display-table-slot (display-table slot value)
   "Set the value of the extra slot in DISPLAY-TABLE named SLOT to VALUE.
-SLOT may be a number from 0 to 5 inclusive, or a name (symbol).
+SLOT may be a number from 0 to 11 inclusive, or a name (symbol).
 Valid symbols are `truncation', `wrap', `escape', `control',
-`selective-display', and `vertical-border'."
+`selective-display',  `vertical-border', `box-vertical',
+`box-horizontal', `box-down-right', `box-down-left', `box-up-right',
+and `box-up-left'."
   (let ((slot-number
 	 (if (numberp slot) slot
 	   (or (get slot 'display-table-slot)
