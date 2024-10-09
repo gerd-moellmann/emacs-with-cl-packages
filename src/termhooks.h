@@ -979,6 +979,8 @@ extern int cursorY (struct tty_display_info *);
 #define cursorY(t)  curY(t)
 #endif
 
+void tty_hide_cursor (struct tty_display_info *tty);
+
 INLINE_HEADER_END
 
 #endif /* EMACS_TERMHOOKS_H */

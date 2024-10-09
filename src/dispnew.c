@@ -3809,11 +3809,25 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
      it's not the selected frame. This is because otherwise a cursor
      from the selected frame below the the child si displayed which is
      a no-go.  */
-  if (topmost_child)
+  if (topmost_child && topmost_child != SELECTED_FRAME ())
     {
-      struct window *w = XWINDOW (topmost_child->selected_window);
-      if (!NILP (w->cursor_type))
+      bool place_cursor = true;
+      Lisp_Object tty_cursor = Fassq (Qtty_cursor, topmost_child->param_alist);
+      if (CONSP (tty_cursor))
 	{
+	  tty_cursor = XCDR (tty_cursor);
+	  if (EQ (tty_cursor, Qselected_frame))
+	    place_cursor = false;
+	  else if (NILP (tty_cursor))
+	    {
+	      tty_hide_cursor (FRAME_TTY (topmost_child));
+	      place_cursor = false;
+	    }
+	}
+
+      if (place_cursor)
+	{
+	  struct window *w = XWINDOW (topmost_child->selected_window);
 	  int x, y;
 	  frame_pos_abs (topmost_child, &x, &y);
 	  cursor_to (root, y + w->cursor.y, x + w->cursor.x);
@@ -7306,6 +7320,8 @@ syms_of_display (void)
   DEFSYM (Qframe__z_order_lessp, "frame--z-order-lessp");
 
   DEFSYM (Qredisplay_dont_pause, "redisplay-dont-pause");
+  DEFSYM (Qtty_cursor, "tty-cursor");
+  DEFSYM (Qselected_frame, "selected-frame");
 
   DEFVAR_INT ("baud-rate", baud_rate,
 	      doc: /* The output baud rate of the terminal.
