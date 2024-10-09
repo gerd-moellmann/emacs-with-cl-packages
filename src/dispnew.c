@@ -3792,10 +3792,11 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   /* Process child frames in reverse z-order, topmost last.  For each
      child, copy what we need to the root's desired matrix. */
   Lisp_Object z_order = frames_in_reverse_z_order (root, true);
+  struct frame *topmost_child = NULL;
   for (Lisp_Object tail = XCDR (z_order); CONSP (tail); tail = XCDR (tail))
     {
-      struct frame *child = XFRAME (XCAR (tail));
-      copy_child_glyphs (root, child);
+      topmost_child = XFRAME (XCAR (tail));
+      copy_child_glyphs (root, topmost_child);
     }
 
   update_begin (root);
@@ -3803,6 +3804,17 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   if (!paused)
     make_matrix_current (root);
   update_end (root);
+
+  /* If a child is displayed, place the terminal cursor there. */
+  if (topmost_child)
+    {
+      int x, y;
+      frame_pos_abs (topmost_child, &x, &y);
+      Lisp_Object window = topmost_child->selected_window;
+      struct cursor_pos *pos = &XWINDOW (window)->cursor;
+      cursor_to (root, y + pos->y, x + pos->x);
+    }
+
   flush_terminal (root);
 
   for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
