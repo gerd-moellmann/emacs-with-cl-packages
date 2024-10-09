@@ -3808,11 +3808,13 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   /* If a child is displayed, place the terminal cursor there. */
   if (topmost_child)
     {
-      int x, y;
-      frame_pos_abs (topmost_child, &x, &y);
-      Lisp_Object window = topmost_child->selected_window;
-      struct cursor_pos *pos = &XWINDOW (window)->cursor;
-      cursor_to (root, y + pos->y, x + pos->x);
+      struct window *w = XWINDOW (topmost_child->selected_window);
+      if (!NILP (w->cursor_type))
+	{
+	  int x, y;
+	  frame_pos_abs (topmost_child, &x, &y);
+	  cursor_to (root, y + w->cursor.y, x + w->cursor.x);
+	}
     }
 
   flush_terminal (root);
