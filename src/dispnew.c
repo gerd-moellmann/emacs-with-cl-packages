@@ -3954,19 +3954,20 @@ update_mouse_position (struct frame *f, int x, int y)
 }
 
 DEFUN ("display--update-for-mouse-movement", Fdisplay__update_for_mouse_movement,
-       Sdisplay__update_for_mouse_movement, 2, 2, 0,
+       Sdisplay__update_for_mouse_movement, 3, 3, 0,
        doc: /* Handle mouse movement detected by Lisp code.
 
 This function should be called when Lisp code detects the mouse has
 moved, even if `track-mouse' is nil.  This handles updates that do not
 rely on input events such as updating display for mouse-face
 properties or updating the help echo text.  */)
-  (Lisp_Object mouse_x, Lisp_Object mouse_y)
+  (Lisp_Object mouse_frame, Lisp_Object mouse_x, Lisp_Object mouse_y)
 {
+  CHECK_FRAME (mouse_frame);
   CHECK_FIXNUM (mouse_x);
   CHECK_FIXNUM (mouse_y);
 
-  update_mouse_position (SELECTED_FRAME (), XFIXNUM (mouse_x),
+  update_mouse_position (XFRAME (mouse_frame), XFIXNUM (mouse_x),
                          XFIXNUM (mouse_y));
   return Qnil;
 }

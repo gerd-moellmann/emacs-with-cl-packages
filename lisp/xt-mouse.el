@@ -133,7 +133,8 @@ https://invisible-island.net/xterm/ctlseqs/ctlseqs.html)."
 
 (defun xterm-mouse--handle-mouse-movement ()
   "Handle mouse motion that was just generated for XTerm mouse."
-  (display--update-for-mouse-movement (terminal-parameter nil 'xterm-mouse-x)
+  (display--update-for-mouse-movement (terminal-parameter nil 'xterm-mouse-frame)
+                                      (terminal-parameter nil 'xterm-mouse-x)
                                       (terminal-parameter nil 'xterm-mouse-y)))
 
 ;; These two variables have been converted to terminal parameters.
@@ -354,6 +355,7 @@ which is the \"1006\" extension implemented in Xterm >= 277."
 
         (set-terminal-parameter nil 'xterm-mouse-x x)
         (set-terminal-parameter nil 'xterm-mouse-y y)
+        (set-terminal-parameter nil 'xterm-mouse-frame frame)
         (setq last-input-event event)))))
 
 ;;;###autoload
