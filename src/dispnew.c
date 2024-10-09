@@ -3805,7 +3805,10 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
     make_matrix_current (root);
   update_end (root);
 
-  /* If a child is displayed, place the terminal cursor there. */
+  /* If a child is displayed, place the terminal cursor there even if
+     it's not the selected frame. This is because otherwise a cursor
+     from the selected frame below the the child si displayed which is
+     a no-go.  */
   if (topmost_child)
     {
       struct window *w = XWINDOW (topmost_child->selected_window);
