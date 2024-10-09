@@ -413,7 +413,6 @@ is 0, reset to value of `erc-fill-wrap-visual-keys'."
   "<remap> <toggle-truncate-lines>" #'erc-fill-wrap-toggle-truncate-lines
   "<remap> <next-line>" #'erc-fill--wrap-next-line
   "<remap> <previous-line>" #'erc-fill--wrap-previous-line
-  "C-c a" #'erc-fill-wrap-cycle-visual-movement
   ;; Not sure if this is problematic because `erc-bol' takes no args.
   "<remap> <erc-bol>" #'erc-fill--wrap-beginning-of-line)
 
@@ -421,7 +420,7 @@ is 0, reset to value of `erc-fill-wrap-visual-keys'."
 (defvar erc-scrolltobottom-mode)
 (defvar erc-legacy-invisible-bounds-p)
 
-(defvar erc--fill-wrap-scrolltobottom-exempt-p nil)
+(defvar erc-fill--wrap-scrolltobottom-exempt-p nil)
 
 (defun erc-fill--wrap-ensure-dependencies ()
   (with-suppressed-warnings ((obsolete erc-legacy-invisible-bounds-p))
@@ -435,7 +434,7 @@ is 0, reset to value of `erc-fill-wrap-visual-keys'."
     (unless erc-fill-mode
       (push 'fill missing-deps)
       (erc-fill-mode +1))
-    (unless (or erc-scrolltobottom-mode erc--fill-wrap-scrolltobottom-exempt-p
+    (unless (or erc-scrolltobottom-mode erc-fill--wrap-scrolltobottom-exempt-p
                 (memq 'scrolltobottom erc-modules))
       (push 'scrolltobottom missing-deps)
       (erc-scrolltobottom-mode +1))
@@ -547,6 +546,9 @@ via `erc-fill-wrap-mode-hook'."
    (when erc-fill-wrap-merge
      (add-hook 'erc-button--prev-next-predicate-functions
                #'erc-fill--wrap-merged-button-p nil t))
+   (add-function :after (local 'erc--clear-function)
+                 #'erc-fill--wrap-massage-initial-message-post-clear
+                 '((depth . 50)))
    (erc-stamp--display-margin-mode +1)
    (visual-line-mode +1))
   ((visual-line-mode -1)
@@ -557,6 +559,8 @@ via `erc-fill-wrap-mode-hook'."
    (kill-local-variable 'erc-fill--wrap-last-msg)
    (kill-local-variable 'erc--inhibit-prompt-display-property-p)
    (kill-local-variable 'erc-fill--wrap-merge-indicator-pre)
+   (remove-function (local 'erc--clear-function)
+                    #'erc-fill--wrap-massage-initial-message-post-clear)
    (remove-hook 'erc--refresh-prompt-hook
                 #'erc-fill--wrap-indent-prompt t)
    (remove-hook 'erc-button--prev-next-predicate-functions
@@ -673,6 +677,24 @@ Also cover region with text prop `erc-fill--wrap-merge' set to t."
                    (beg (pop end))
                    (erc-fill--wrap-continued-predicate #'ignore))
           (erc-fill--wrap-rejigger-region (1- beg) (1+ end) nil 'repairp))))))
+
+(defun erc-fill--wrap-massage-initial-message-post-clear (beg end)
+  "Maybe reveal hidden speaker or add stamp on initial message after END."
+  (if erc-stamp--date-mode
+      (erc-stamp--redo-right-stamp-post-clear beg end)
+    ;; With other non-date stamp-insertion functions, remove hidden
+    ;; speaker continuation on first spoken message in buffer.
+    (when-let (((< end (1- erc-insert-marker)))
+               (next (text-property-not-all end (min erc-insert-marker
+                                                     (+ 4096 end))
+                                            'erc--msg nil))
+               (bounds (erc--get-inserted-msg-bounds next))
+               (found (text-property-not-all (car bounds) (cdr bounds)
+                                             'erc-fill--wrap-merge nil))
+               (erc-fill--wrap-continued-predicate #'ignore))
+      (erc-fill--wrap-rejigger-region (max (1- (car bounds)) (point-min))
+                                      (min (1+ (cdr bounds)) erc-insert-marker)
+                                      nil 'repairp))))
 
 (defun erc-fill-wrap ()
   "Use text props to mimic the effect of `erc-fill-static'.
@@ -895,6 +917,12 @@ decorations applied by third-party modules."
            (not erc-hide-timestamps))
       (length (format-time-string erc-timestamp-format))
     0))
+
+(cl-defmethod erc--determine-fill-column-function
+  (&context (erc-fill-mode (eql t)))
+  (if erc-fill-wrap-mode
+      (- (window-width) erc-fill--wrap-value 1)
+    erc-fill-column))
 
 (provide 'erc-fill)
 

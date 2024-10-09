@@ -730,7 +730,7 @@ buffer_memory_full (ptrdiff_t nbytes)
    where Emacs would crash if malloc returned a non-GCALIGNED pointer.  */
 enum { LISP_ALIGNMENT = alignof (union { union emacs_align_type x;
 					 GCALIGNED_UNION_MEMBER }) };
-verify (LISP_ALIGNMENT % GCALIGNMENT == 0);
+static_assert (LISP_ALIGNMENT % GCALIGNMENT == 0);
 
 /* True if malloc (N) is known to return storage suitably aligned for
    Lisp objects whenever N is a multiple of LISP_ALIGNMENT.  In
@@ -860,7 +860,7 @@ xfree (void *block)
 /* Other parts of Emacs pass large int values to allocator functions
    expecting ptrdiff_t.  This is portable in practice, but check it to
    be safe.  */
-verify (INT_MAX <= PTRDIFF_MAX);
+static_assert (INT_MAX <= PTRDIFF_MAX);
 
 
 /* Allocate an array of NITEMS items, each of size ITEM_SIZE.
@@ -1100,7 +1100,7 @@ lisp_free (void *block)
 #else  /* !HAVE_UNEXEC */
 # define BLOCK_ALIGN (1 << 15)
 #endif
-verify (POWER_OF_2 (BLOCK_ALIGN));
+static_assert (POWER_OF_2 (BLOCK_ALIGN));
 
 /* Use aligned_alloc if it or a simple substitute is available.
    Aligned allocation is incompatible with unexmacosx.c, so don't use
@@ -1120,11 +1120,11 @@ aligned_alloc (size_t alignment, size_t size)
 {
   /* POSIX says the alignment must be a power-of-2 multiple of sizeof (void *).
      Verify this for all arguments this function is given.  */
-  verify (BLOCK_ALIGN % sizeof (void *) == 0
-	  && POWER_OF_2 (BLOCK_ALIGN / sizeof (void *)));
-  verify (MALLOC_IS_LISP_ALIGNED
-	  || (LISP_ALIGNMENT % sizeof (void *) == 0
-	      && POWER_OF_2 (LISP_ALIGNMENT / sizeof (void *))));
+  static_assert (BLOCK_ALIGN % sizeof (void *) == 0
+		 && POWER_OF_2 (BLOCK_ALIGN / sizeof (void *)));
+  static_assert (MALLOC_IS_LISP_ALIGNED
+		 || (LISP_ALIGNMENT % sizeof (void *) == 0
+		     && POWER_OF_2 (LISP_ALIGNMENT / sizeof (void *))));
   eassert (alignment == BLOCK_ALIGN
 	   || (!MALLOC_IS_LISP_ALIGNED && alignment == LISP_ALIGNMENT));
 
@@ -1246,7 +1246,7 @@ lisp_align_malloc (size_t nbytes, enum mem_type type)
 #endif
 
 #ifdef USE_ALIGNED_ALLOC
-      verify (ABLOCKS_BYTES % BLOCK_ALIGN == 0);
+      static_assert (ABLOCKS_BYTES % BLOCK_ALIGN == 0);
       abase = base = aligned_alloc (BLOCK_ALIGN, ABLOCKS_BYTES);
 #else
       base = malloc (ABLOCKS_BYTES);
@@ -3156,6 +3156,14 @@ set_next_vector (struct Lisp_Vector *v, struct Lisp_Vector *p)
 
 enum { VECTOR_BLOCK_SIZE = 4096 };
 
+/* Verify assumption described above.  */
+static_assert (VECTOR_BLOCK_SIZE % roundup_size == 0);
+
+/* Round up X to nearest mult-of-ROUNDUP_SIZE --- use at compile time.  */
+#define vroundup_ct(x) ROUNDUP (x, roundup_size)
+/* Round up X to nearest mult-of-ROUNDUP_SIZE --- use at runtime.  */
+#define vroundup(x) (eassume ((x) >= 0), vroundup_ct (x))
+
 /* Rounding helps to maintain alignment constraints if USE_LSB_TAG.  */
 
 enum {VECTOR_BLOCK_BYTES = VECTOR_BLOCK_SIZE - vroundup_ct (sizeof (void *))};
@@ -3166,7 +3174,7 @@ verify (VECTOR_BLOCK_SIZE % roundup_size == 0);
 /* The current code expects to be able to represent an unused block by
    a single PVEC_FREE object, whose size is limited by the header word.
    (Of course we could use multiple such objects.)  */
-verify (VECTOR_BLOCK_BYTES <= (word_size << PSEUDOVECTOR_REST_BITS));
+static_assert (VECTOR_BLOCK_BYTES <= (word_size << PSEUDOVECTOR_REST_BITS));
 
 /* Size of the minimal vector allocated from block.  */
 
@@ -3460,7 +3468,7 @@ vectorlike_nbytes (const struct vectorlike_header *hdr)
 	  ptrdiff_t word_bytes = (bool_vector_words (bv->size)
 				  * sizeof (bits_word));
 	  ptrdiff_t boolvec_bytes = bool_header_size + word_bytes;
-	  verify (header_size <= bool_header_size);
+	  static_assert (header_size <= bool_header_size);
 	  nwords = (boolvec_bytes - header_size + word_size - 1) / word_size;
         }
       else
@@ -3479,6 +3487,15 @@ vectorlike_nbytes (const struct vectorlike_header *hdr)
   verify_expr ((header_size + VECSIZE (struct t) * word_size \
 		<= VBLOCK_BYTES_MAX), \
 	       (struct t *) (p))
+
+/* Maximum number of elements in a vector.  This is a macro so that it
+   can be used in an integer constant expression.  */
+
+#define VECTOR_ELTS_MAX \
+  ((ptrdiff_t) \
+   min (((min (PTRDIFF_MAX, SIZE_MAX) - header_size - large_vector_offset) \
+	 / word_size), \
+	MOST_POSITIVE_FIXNUM))
 
 /* Release extra resources still in use by VECTOR, whicth may be any
    small vector-like object.  */
@@ -3745,15 +3762,6 @@ sweep_vectors (void)
   gcstat.total_hash_table_bytes = hash_table_allocated_bytes;
 }
 
-/* Maximum number of elements in a vector.  This is a macro so that it
-   can be used in an integer constant expression.  */
-
-#define VECTOR_ELTS_MAX \
-  ((ptrdiff_t) \
-   min (((min (PTRDIFF_MAX, SIZE_MAX) - header_size - large_vector_offset) \
-	 / word_size), \
-	MOST_POSITIVE_FIXNUM))
-
 /* Value is a pointer to a newly allocated Lisp_Vector structure
    with room for LEN Lisp_Objects.  LEN must be positive and
    at most VECTOR_ELTS_MAX.  */
@@ -3853,6 +3861,10 @@ allocate_pseudovector (int memlen, int lisplen,
   /* Catch bogus values.  */
   enum { size_max = (1 << PSEUDOVECTOR_SIZE_BITS) - 1 };
   enum { rest_max = (1 << PSEUDOVECTOR_REST_BITS) - 1 };
+#ifndef HAVE_MPS
+  /* Uses large_vector_offset which is not defined with MPS. */
+  static_assert (size_max + rest_max <= VECTOR_ELTS_MAX);
+#endif
   eassert (0 <= tag && tag <= PVEC_TAG_MAX);
   eassert (0 <= lisplen && lisplen <= zerolen && zerolen <= memlen);
   eassert (lisplen <= size_max);
@@ -6971,13 +6983,14 @@ mark_glyph_matrix (struct glyph_matrix *matrix)
 }
 #endif // not HAVE_MPS
 
-/* Whether to remember a few of the last marked values for debugging.  */
-#define GC_REMEMBER_LAST_MARKED 0
-
+#ifndef HAVE_MPS
 #if GC_REMEMBER_LAST_MARKED
+/* Remember a few of the last marked values for debugging purposes.  */
 enum { LAST_MARKED_SIZE = 1 << 9 }; /* Must be a power of 2.  */
+extern Lisp_Object last_marked[LAST_MARKED_SIZE];
 Lisp_Object last_marked[LAST_MARKED_SIZE] EXTERNALLY_VISIBLE;
 static int last_marked_index;
+#endif
 #endif
 
 /* Whether to enable the mark_object_loop_halt debugging feature.  */
@@ -8433,6 +8446,9 @@ N should be nonnegative.  */);
 # pragma GCC diagnostic pop
 #endif
 
+/* The below is for being able to do platform-specific stuff in .gdbinit
+   without risking error messages from GDB about missing types and
+   variables on other platforms.  */
 #ifdef HAVE_X_WINDOWS
 enum defined_HAVE_X_WINDOWS { defined_HAVE_X_WINDOWS = true };
 #else
@@ -8443,6 +8459,12 @@ enum defined_HAVE_X_WINDOWS { defined_HAVE_X_WINDOWS = false };
 enum defined_HAVE_PGTK { defined_HAVE_PGTK = true };
 #else
 enum defined_HAVE_PGTK { defined_HAVE_PGTK = false };
+#endif
+
+#ifdef WINDOWSNT
+enum defined_WINDOWSNT { defined_WINDOWSNT = true };
+#else
+enum defined_WINDOWSNT { defined_WINDOWSNT = false };
 #endif
 
 /* When compiled with GCC, GDB might say "No enum type named
@@ -8465,6 +8487,7 @@ extern union enums_for_gdb
   enum pvec_type pvec_type;
   enum defined_HAVE_X_WINDOWS defined_HAVE_X_WINDOWS;
   enum defined_HAVE_PGTK defined_HAVE_PGTK;
+  enum defined_WINDOWSNT defined_WINDOWSNT;
 } const gdb_make_enums_visible;
 union enums_for_gdb const EXTERNALLY_VISIBLE gdb_make_enums_visible = {0};
 #endif	/* __GNUC__ */
