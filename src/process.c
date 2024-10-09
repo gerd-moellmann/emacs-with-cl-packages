@@ -95,7 +95,6 @@ static struct rlimit nofile_limit;
 #include <flexmember.h>
 #include <nproc.h>
 #include <sig2str.h>
-#include <verify.h>
 
 #endif	/* subprocesses */
 
@@ -922,7 +921,7 @@ make_process (Lisp_Object name)
     p->open_fd[i] = -1;
 
 #ifdef HAVE_GNUTLS
-  verify (GNUTLS_STAGE_EMPTY == 0);
+  static_assert (GNUTLS_STAGE_EMPTY == 0);
   eassert (p->gnutls_initstage == GNUTLS_STAGE_EMPTY);
   eassert (NILP (p->gnutls_boot_parameters));
 #endif
@@ -1913,7 +1912,7 @@ usage: (make-process &rest ARGS)  */)
 
 #ifdef HAVE_GNUTLS
   /* AKA GNUTLS_INITSTAGE(proc).  */
-  verify (GNUTLS_STAGE_EMPTY == 0);
+  static_assert (GNUTLS_STAGE_EMPTY == 0);
   eassert (XPROCESS (proc)->gnutls_initstage == GNUTLS_STAGE_EMPTY);
   eassert (NILP (XPROCESS (proc)->gnutls_cred_type));
 #endif
@@ -2143,7 +2142,7 @@ enum
     EXEC_MONITOR_OUTPUT
   };
 
-verify (PROCESS_OPEN_FDS == EXEC_MONITOR_OUTPUT + 1);
+static_assert (PROCESS_OPEN_FDS == EXEC_MONITOR_OUTPUT + 1);
 
 static void
 create_process (Lisp_Object process, char **new_argv, Lisp_Object current_dir)
@@ -3540,9 +3539,9 @@ connect_network_socket (Lisp_Object proc, Lisp_Object addrinfos,
 		 structures, but the standards don't guarantee that,
 		 so verify it here.  */
 	      struct sockaddr_in6 sa6;
-	      verify ((offsetof (struct sockaddr_in, sin_port)
-		       == offsetof (struct sockaddr_in6, sin6_port))
-		      && sizeof (sa1.sin_port) == sizeof (sa6.sin6_port));
+	      static_assert ((offsetof (struct sockaddr_in, sin_port)
+			      == offsetof (struct sockaddr_in6, sin6_port))
+			     && sizeof (sa1.sin_port) == sizeof (sa6.sin6_port));
 #endif
 	      DECLARE_POINTER_ALIAS (psa1, struct sockaddr, &sa1);
 	      if (getsockname (s, psa1, &len1) == 0)
@@ -4711,6 +4710,9 @@ network_lookup_address_info_1 (Lisp_Object host, const char *service,
 DEFUN ("network-lookup-address-info", Fnetwork_lookup_address_info,
        Snetwork_lookup_address_info, 1, 3, 0,
        doc: /* Look up Internet Protocol (IP) address info of NAME.
+NAME must be an ASCII-only string.  For looking up internationalized
+hostnames, use `puny-encode-domain' on the string first.
+
 Optional argument FAMILY controls whether to look up IPv4 or IPv6
 addresses.  The default of nil means both, symbol `ipv4' means IPv4
 only, symbol `ipv6' means IPv6 only.
@@ -4729,6 +4731,8 @@ returned from the lookup.  */)
 
   struct addrinfo *res, *lres;
   struct addrinfo hints;
+
+  CHECK_STRING (name);
 
   memset (&hints, 0, sizeof hints);
   if (NILP (family))

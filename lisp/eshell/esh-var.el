@@ -436,7 +436,8 @@ the values of nil for each."
      :usage "[NAME=VALUE]... [COMMAND]...")
    (if args
        (or (eshell-parse-local-variables args)
-           (eshell-named-command (car args) (cdr args)))
+           (throw 'eshell-replace-command
+                  `(eshell-named-command ,(car args) ',(cdr args))))
      (eshell-with-buffered-print
        (dolist (setting (sort (eshell-environment-variables) 'string-lessp))
          (eshell-buffered-print setting "\n"))))))
@@ -839,10 +840,10 @@ START and END."
   (let ((arg (pcomplete-actual-arg)))
     (when (string-match
            (rx "$" (? (or "#" "@"))
-               (? (or (group-n 1 (regexp eshell-variable-name-regexp)
-                               string-end)
-                      (seq (group-n 2 (or "'" "\""))
-                           (group-n 1 (+ anychar))))))
+               (or (group-n 1 (? (regexp eshell-variable-name-regexp))
+                            string-end)
+                   (seq (group-n 2 (or "'" "\""))
+                        (group-n 1 (+ anychar)))))
            arg)
       (setq pcomplete-stub (substring arg (match-beginning 1)))
       (let ((delimiter (match-string 2 arg)))
