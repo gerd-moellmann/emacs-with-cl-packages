@@ -103,16 +103,17 @@ recently passed to the mocked `erc-process-input-line'.  Make
                  (lambda (&rest r) (push r calls)))
                 ((symbol-function 'erc-server-buffer)
                  (lambda () (current-buffer))))
-        (erc-tests-common-prep-for-insertion)
         (funcall test-fn (lambda () (pop calls)))))
     (when noninteractive (kill-buffer))))
 
 (defun erc-tests-common-make-server-buf (&optional name)
   "Return a server buffer named NAME, creating it if necessary.
 Use NAME for the network and the session server as well."
-  (unless name
-    (cl-assert (string-prefix-p " *temp*" (setq name (buffer-name)))))
-  (with-current-buffer (get-buffer-create name)
+  (with-current-buffer (if name
+                           (get-buffer-create name)
+                         (and (string-search "temp" (buffer-name))
+                              (setq name "foonet")
+                              (buffer-name)))
     (erc-tests-common-prep-for-insertion)
     (erc-tests-common-init-server-proc "sleep" "1")
     (setq erc-session-server (concat "irc." name ".org")
@@ -182,6 +183,13 @@ For simplicity, assume string evaluates to itself."
   (goto-char 11)
   (should (looking-back "<bob> hi"))
   (erc-tests-common-assert-get-inserted-msg 3 11 test-fn))
+
+(defun erc-tests-common-assert-get-inserted-msg/truncated (test-fn)
+  (erc-tests-common-get-inserted-msg-setup)
+  (with-silent-modifications (delete-region 1 3))
+  (goto-char 9)
+  (should (looking-back "<bob> hi"))
+  (erc-tests-common-assert-get-inserted-msg 1 9 test-fn))
 
 ;; This is a "mixin" and requires a base assertion function, like
 ;; `erc-tests-common-assert-get-inserted-msg/basic', to work.

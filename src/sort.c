@@ -1131,6 +1131,9 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
 #ifdef HAVE_MPS
 	  allocated_keys = igc_xzalloc_ambig (length * word_size);
 #else
+	  /* Fill with valid Lisp values in case a GC occurs before all
+	     keys have been computed.  */
+	  static_assert (NIL_IS_ZERO);
 	  allocated_keys = xzalloc (length * word_size);
 #endif
 	  keys = allocated_keys;
