@@ -3764,8 +3764,14 @@ list, but are otherwise ignored.  */)
 
       if (is_tty_child_frame (f))
 	{
-	  f->left_pos = tty_child_pos_param (f, Qleft, params, f->left_pos);
-	  f->top_pos = tty_child_pos_param (f, Qtop, params, f->top_pos);
+	  int x = tty_child_pos_param (f, Qleft, params, f->left_pos);
+	  int y = tty_child_pos_param (f, Qtop, params, f->top_pos);
+	  if (x != f->left_pos || y != f->top_pos)
+	    {
+	      f->left_pos = x;
+	      f->top_pos = y;
+	      SET_FRAME_GARBAGED (root_frame (f));
+	    }
 
 	  int w = tty_child_size_param (f, Qwidth, params, f->total_cols);
 	  int h = tty_child_size_param (f, Qheight, params, f->total_lines);
