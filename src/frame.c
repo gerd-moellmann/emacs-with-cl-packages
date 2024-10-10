@@ -1641,9 +1641,6 @@ affects all frames on the same terminal device.  */)
 Lisp_Object
 do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object norecord)
 {
-  fprintf (stderr, "do_switch_frame ");
-  debug_print (frame);
-
   /* If FRAME is a switch-frame event, extract the frame we should
      switch to.  */
   if (CONSP (frame)
@@ -1657,9 +1654,6 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
   CHECK_FRAME (frame);
   struct frame *f = XFRAME (frame);
   struct frame *sf = SELECTED_FRAME ();
-
-  if (FRAME_PARENT_FRAME (f))
-    pkg_break ();
 
   /* Silently ignore dead and tooltip frames (Bug#47207).  */
   if (!FRAME_LIVE_P (f) || FRAME_TOOLTIP_P (f))
