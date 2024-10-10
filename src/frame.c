@@ -925,6 +925,9 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
   adjust_frame_glyphs (f);
   calculate_costs (f);
   SET_FRAME_GARBAGED (f);
+  if (is_tty_child_frame (f))
+    SET_FRAME_GARBAGED (root_frame (f));
+
   /* We now say here that F was resized instead of using the old
      condition below.  Some resizing must have taken place and if it was
      only shifting the root window's position (paranoia?).  */
@@ -1638,7 +1641,8 @@ affects all frames on the same terminal device.  */)
 Lisp_Object
 do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object norecord)
 {
-  struct frame *sf = SELECTED_FRAME (), *f;
+  fprintf (stderr, "do_switch_frame ");
+  debug_print (frame);
 
   /* If FRAME is a switch-frame event, extract the frame we should
      switch to.  */
@@ -1651,7 +1655,12 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
      a switch-frame event to arrive after a frame is no longer live,
      especially when deleting the initial frame during startup.  */
   CHECK_FRAME (frame);
-  f = XFRAME (frame);
+  struct frame *f = XFRAME (frame);
+  struct frame *sf = SELECTED_FRAME ();
+
+  if (FRAME_PARENT_FRAME (f))
+    pkg_break ();
+
   /* Silently ignore dead and tooltip frames (Bug#47207).  */
   if (!FRAME_LIVE_P (f) || FRAME_TOOLTIP_P (f))
     return Qnil;
