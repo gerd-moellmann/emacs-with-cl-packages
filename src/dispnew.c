@@ -44,6 +44,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "xwidget.h"
 #include "pdumper.h"
 #include "disptab.h"
+#include "cm.h"
 
 #ifdef HAVE_ANDROID
 #include "android.h"
@@ -3783,6 +3784,45 @@ update_tty_frame (struct frame *f, bool force_p)
   return false;
 }
 
+static bool
+is_cursor_obscured (struct frame *root)
+{
+  int cursor_x = curX (FRAME_TTY (root));
+  int cursor_y = curY (FRAME_TTY (root));
+  struct glyph_row *cursor_row = MATRIX_ROW (root->current_matrix, cursor_y);
+  struct glyph *cursor_glyph = cursor_row->glyphs[0] + cursor_x;
+  return cursor_glyph->frame != root;
+}
+
+static void
+terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
+{
+  /* By default, prevent the "shining through". */
+  if (is_cursor_obscured (root))
+    tty_hide_cursor (FRAME_TTY (root));
+
+  /* If the terminal cursor is not in the topmost child, it's
+     cursor-type frame parameter determines waht happens.  If it is
+     nil, don't display a "non-selected" cursor.  Otherwise display
+     the terminal cursor in the topmost child. */
+  if (topmost_child != SELECTED_FRAME ())
+    {
+      Lisp_Object tm;
+      XSETFRAME (tm, topmost_child);
+      Lisp_Object cursor_type = Fframe_parameter (tm, Qcursor_type);
+      if (NILP (cursor_type))
+	tty_hide_cursor (FRAME_TTY (root));
+      else
+	{
+	  struct window *w = XWINDOW (topmost_child->selected_window);
+	  int x, y;
+	  frame_pos_abs (topmost_child, &x, &y);
+	  cursor_to (root, y + w->cursor.y, x + w->cursor.x);
+	      tty_show_cursor (FRAME_TTY (topmost_child));
+	}
+    }
+}
+
 bool
 combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling)
 {
@@ -3805,35 +3845,11 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
     make_matrix_current (root);
   update_end (root);
 
-  /* If a child is displayed, place the terminal cursor there even if
-     it's not the selected frame. This is because otherwise a cursor
-     from the selected frame below the the child si displayed which is
-     a no-go.  */
-  if (topmost_child && topmost_child != SELECTED_FRAME ())
-    {
-      bool place_cursor = true;
-      Lisp_Object tty_cursor = Fassq (Qtty_cursor, topmost_child->param_alist);
-      if (CONSP (tty_cursor))
-	{
-	  tty_cursor = XCDR (tty_cursor);
-	  if (EQ (tty_cursor, Qselected_frame))
-	    place_cursor = false;
-	  else if (NILP (tty_cursor))
-	    {
-	      tty_hide_cursor (FRAME_TTY (topmost_child));
-	      place_cursor = false;
-	    }
-	}
-
-      if (place_cursor)
-	{
-	  struct window *w = XWINDOW (topmost_child->selected_window);
-	  int x, y;
-	  frame_pos_abs (topmost_child, &x, &y);
-	  cursor_to (root, y + w->cursor.y, x + w->cursor.x);
-	}
-    }
-
+  /* If a child is displayed, and the cursor is in another frame,
+     it might be placed above the cursor, so that it appers to
+     "shine through" the children. Avoid that. */
+  if (topmost_child)
+    terminal_cursor_magic (root, topmost_child);
   flush_terminal (root);
 
   for (Lisp_Object tail = z_order; CONSP (tail); tail = XCDR (tail))
@@ -7320,8 +7336,6 @@ syms_of_display (void)
   DEFSYM (Qframe__z_order_lessp, "frame--z-order-lessp");
 
   DEFSYM (Qredisplay_dont_pause, "redisplay-dont-pause");
-  DEFSYM (Qtty_cursor, "tty-cursor");
-  DEFSYM (Qselected_frame, "selected-frame");
 
   DEFVAR_INT ("baud-rate", baud_rate,
 	      doc: /* The output baud rate of the terminal.

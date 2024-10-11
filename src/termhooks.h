@@ -980,6 +980,7 @@ extern int cursorY (struct tty_display_info *);
 #endif
 
 void tty_hide_cursor (struct tty_display_info *tty);
+void tty_show_cursor (struct tty_display_info *tty);
 
 INLINE_HEADER_END
 

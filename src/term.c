@@ -68,7 +68,6 @@ static void tty_set_scroll_region (struct frame *f, int start, int stop);
 static void turn_on_face (struct frame *f, struct face *face);
 static void turn_off_face (struct frame *f, struct face *face);
 static void tty_turn_off_highlight (struct tty_display_info *);
-static void tty_show_cursor (struct tty_display_info *);
 static void tty_background_highlight (struct tty_display_info *tty);
 static void clear_tty_hooks (struct terminal *terminal);
 static void set_tty_hooks (struct terminal *terminal);
@@ -352,7 +351,7 @@ tty_hide_cursor (struct tty_display_info *tty)
 
 /* Ensure that cursor is visible.  */
 
-static void
+void
 tty_show_cursor (struct tty_display_info *tty)
 {
   if (tty->cursor_hidden)
