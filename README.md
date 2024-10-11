@@ -81,15 +81,12 @@ Corfu that they can use child frames. As of 2024-10-10 I use
 
 (cl-defgeneric corfu--popup-support-p ()
   "Return non-nil if child frames are supported."
-  (featurep 'tty-child-frames))
+  (or (display-graphic-p)
+      (featurep 'tty-child-frames)))
 
-(push '(tty-cursor . selected-frame) corfu--frame-parameters)
-(unless (display-graphic-p)
-  (setq vertico-posframe-parameters '((no-special-glyphs . t)
-    				(undecorated . nil))))
-(unless (display-graphic-p)
-  (push '(tty-cursor . nil) transient-posframe-parameters)
-  (push '(undecorated . nil) transient-posframe-parameters))
+(push '(cursor-type . t) vertico-posframe-parameters)
+(push '(undecorated . nil) vertico-posframe-parameters))
+(push '(undecorated . nil) transient-posframe-parameters))
 
 ```
 
