@@ -3784,6 +3784,8 @@ update_tty_frame (struct frame *f, bool force_p)
   return false;
 }
 
+/* Is the terminal cursor of frame F obscured by a child frame? */
+
 static bool
 is_cursor_obscured (struct frame *root)
 {
@@ -3794,19 +3796,29 @@ is_cursor_obscured (struct frame *root)
   return cursor_glyph->frame != root;
 }
 
+/* Decide where to show the cursor, and if to hide it or not.
+
+   This works very well for Vertico-Posframe, Transient-Posframe and
+   Corfu, but it's debatable if it's the right thing for a general use
+   of child frames of all sorts, nested and so on. But it is also debatable
+   if that's a realistic use case from my POV. */
+
 static void
 terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
 {
-  /* By default, prevent the "shining through". */
+  /* By default, prevent the cursor "shining through" child frame. */
   if (is_cursor_obscured (root))
     tty_hide_cursor (FRAME_TTY (root));
 
-  /* If the terminal cursor is not in the topmost child, it's
-     cursor-type frame parameter determines waht happens.  If it is
-     nil, don't display a "non-selected" cursor.  Otherwise display
-     the terminal cursor in the topmost child. */
+  /* If the terminal cursor is not in the topmost child, the topmost
+     child's cursor-type frame parameter determines what to do.  If it
+     is non-nil, display the cursor in the "non-selected" topmost child
+     frame.  */
   if (topmost_child != SELECTED_FRAME ())
     {
+      /* FIXME/tty: Assume a child C is selected, C != topmost, and and
+	 the cursor is not obscured by the topmost chlid.  What should
+	 happen? */
       Lisp_Object tm;
       XSETFRAME (tm, topmost_child);
       Lisp_Object cursor_type = Fframe_parameter (tm, Qcursor_type);
@@ -3818,7 +3830,7 @@ terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
 	  int x, y;
 	  frame_pos_abs (topmost_child, &x, &y);
 	  cursor_to (root, y + w->cursor.y, x + w->cursor.x);
-	      tty_show_cursor (FRAME_TTY (topmost_child));
+	  tty_show_cursor (FRAME_TTY (topmost_child));
 	}
     }
 }
@@ -3829,7 +3841,7 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
   struct frame *root = root_frame (f);
   eassert (FRAME_VISIBLE_P (root));
 
-  /* Process child frames in reverse z-order, topmost last.  For each
+  /* Process child frames in reverse z-order, topmost last. For each
      child, copy what we need to the root's desired matrix. */
   Lisp_Object z_order = frames_in_reverse_z_order (root, true);
   struct frame *topmost_child = NULL;
@@ -3845,9 +3857,9 @@ combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_scrolling
     make_matrix_current (root);
   update_end (root);
 
-  /* If a child is displayed, and the cursor is in another frame,
-     it might be placed above the cursor, so that it appers to
-     "shine through" the children. Avoid that. */
+  /* If a child is displayed, and the cursor is displayed in another
+     frame, the child might lay above the cursor, so that it appers to
+     "shine through" the child. Avoid that because it's confusing. */
   if (topmost_child)
     terminal_cursor_magic (root, topmost_child);
   flush_terminal (root);
