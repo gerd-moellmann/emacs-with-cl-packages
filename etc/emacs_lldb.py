@@ -111,7 +111,7 @@ class Lisp_Object:
                                        & ((1 << GCTYPEBITS) - 1))
         if self.lisp_type == "Lisp_Vectorlike":
             self.pvec_type = "PVEC_NORMAL_VECTOR"
-            vector = self.get_lisp_pointer("struct Lisp_Vector", False)
+            vector = self.get_lisp_pointer("struct Lisp_Vector")
             header = vector.GetChildMemberWithName("header");
             size = header.GetChildMemberWithName("size");
             size = size.GetValueAsUnsigned()
