@@ -3806,29 +3806,26 @@ is_cursor_obscured (struct frame *root)
 static void
 terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
 {
-  /* By default, prevent the cursor "shining through" child frame. */
+  /* By default, prevent the cursor "shining through" child frames. */
   if (is_cursor_obscured (root))
     tty_hide_cursor (FRAME_TTY (root));
 
   /* If the terminal cursor is not in the topmost child, the topmost
-     child's cursor-type frame parameter determines what to do.  If it
-     is non-nil, display the cursor in the "non-selected" topmost child
-     frame.  */
+     child's tty-cursor-if-topmost determines what to do.  If it is
+     non-nil, display the cursor in this "non-selected" topmost child
+     frame to compensate for the fact that we can't display a
+     non-selected cursor like on a window system frame.  */
   if (topmost_child != SELECTED_FRAME ())
     {
-      /* FIXME/tty: Assume a child C is selected, C != topmost, and and
-	 the cursor is not obscured by the topmost chlid.  What should
-	 happen? */
-      Lisp_Object tm;
-      XSETFRAME (tm, topmost_child);
-      Lisp_Object cursor_type = Fframe_parameter (tm, Qcursor_type);
-      if (NILP (cursor_type))
-	tty_hide_cursor (FRAME_TTY (root));
-      else
+      Lisp_Object frame;
+      XSETFRAME (frame, topmost_child);
+
+      Lisp_Object cursor = Fframe_parameter (frame, Qtty_non_selected_cursor);
+      if (!NILP (cursor))
 	{
-	  struct window *w = XWINDOW (topmost_child->selected_window);
 	  int x, y;
 	  frame_pos_abs (topmost_child, &x, &y);
+	  struct window *w = XWINDOW (topmost_child->selected_window);
 	  cursor_to (root, y + w->cursor.y, x + w->cursor.x);
 	  tty_show_cursor (FRAME_TTY (topmost_child));
 	}
@@ -7348,6 +7345,7 @@ syms_of_display (void)
   DEFSYM (Qframe__z_order_lessp, "frame--z-order-lessp");
 
   DEFSYM (Qredisplay_dont_pause, "redisplay-dont-pause");
+  DEFSYM (Qtty_non_selected_cursor, "tty-non-selected-cursor");
 
   DEFVAR_INT ("baud-rate", baud_rate,
 	      doc: /* The output baud rate of the terminal.
