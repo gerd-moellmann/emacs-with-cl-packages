@@ -84,7 +84,7 @@ Corfu that they can use child frames. As of 2024-10-10 I use
   (or (display-graphic-p)
       (featurep 'tty-child-frames)))
 
-(push '(cursor-type . t) vertico-posframe-parameters)
+(push '(tty-non-selected-cursor . t) vertico-posframe-parameters)
 (push '(undecorated . nil) vertico-posframe-parameters))
 (push '(undecorated . nil) transient-posframe-parameters))
 
