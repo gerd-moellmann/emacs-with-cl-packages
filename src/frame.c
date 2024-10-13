@@ -2189,7 +2189,9 @@ other_frames (struct frame *f, bool invisible, bool force)
 	      && (invisible || NILP (get_frame_param (f1, Qdelete_before)))
 	      /* For invisibility and normal deletions, at least one
 		 visible or iconified frame must remain (Bug#26682).  */
-	      && (FRAME_VISIBLE_P (f1) || FRAME_ICONIFIED_P (f1)
+	      && (FRAME_VISIBLE_P (f1)
+		  || is_tty_frame (f1)
+		  || FRAME_ICONIFIED_P (f1)
 		  || (!invisible
 		      && (force
 			  /* Allow deleting the terminal frame when at
