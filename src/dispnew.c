@@ -3784,16 +3784,27 @@ update_tty_frame (struct frame *f, bool force_p)
   return false;
 }
 
+static void
+abs_cursor_pos (struct frame *f, int *x, int *y)
+{
+  frame_pos_abs (f, x, y);
+  struct window *w = XWINDOW (f->selected_window);
+  *x += w->cursor.x;
+  *y += w->cursor.y;
+}
+
 /* Is the terminal cursor of frame F obscured by a child frame? */
 
 static bool
-is_cursor_obscured (struct frame *root)
+is_cursor_obscured (void)
 {
-  int cursor_x = curX (FRAME_TTY (root));
-  int cursor_y = curY (FRAME_TTY (root));
-  struct glyph_row *cursor_row = MATRIX_ROW (root->current_matrix, cursor_y);
-  struct glyph *cursor_glyph = cursor_row->glyphs[0] + cursor_x;
-  return cursor_glyph->frame != root;
+  int x, y;
+  abs_cursor_pos (SELECTED_FRAME (), &x, &y);
+  struct frame *root = root_frame (SELECTED_FRAME ());
+  struct glyph_row *cursor_row = MATRIX_ROW (root->current_matrix, y);
+  eassert (x < root->current_matrix->matrix_w);
+  struct glyph *cursor_glyph = cursor_row->glyphs[0] + x;
+  return cursor_glyph->frame != SELECTED_FRAME ();
 }
 
 /* Decide where to show the cursor, and if to hide it or not.
@@ -3807,7 +3818,7 @@ static void
 terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
 {
   /* By default, prevent the cursor "shining through" child frames. */
-  if (is_cursor_obscured (root))
+  if (is_cursor_obscured ())
     tty_hide_cursor (FRAME_TTY (root));
 
   /* If the terminal cursor is not in the topmost child, the topmost
@@ -3824,9 +3835,8 @@ terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
       if (!NILP (cursor))
 	{
 	  int x, y;
-	  frame_pos_abs (topmost_child, &x, &y);
-	  struct window *w = XWINDOW (topmost_child->selected_window);
-	  cursor_to (root, y + w->cursor.y, x + w->cursor.x);
+	  abs_cursor_pos (topmost_child, &x, &y);
+	  cursor_to (root, y, x);
 	  tty_show_cursor (FRAME_TTY (topmost_child));
 	}
     }

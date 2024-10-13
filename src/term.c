@@ -2591,7 +2591,7 @@ tty_draw_row_with_mouse_face (struct window *w, struct glyph_row *row,
   if (draw == DRAW_MOUSE_FACE)
     {
       struct glyph *glyph = row->glyphs[TEXT_AREA] + start_hpos;
-      struct face *face = FACE_FROM_ID (glyph->frame, face_id);
+      struct face *face = FACE_FROM_ID (f, face_id);
       tty_write_glyphs_with_face (f, glyph, nglyphs, face);
     }
   else if (draw == DRAW_NORMAL_TEXT)
