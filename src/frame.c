@@ -3145,10 +3145,13 @@ currently being displayed on the terminal.  */)
   (Lisp_Object frame)
 {
   CHECK_LIVE_FRAME (frame);
+  struct frame *f = XFRAME (frame);
 
-  if (FRAME_VISIBLE_P (XFRAME (frame)))
+  if (FRAME_VISIBLE_P (f))
     return Qt;
-  if (FRAME_ICONIFIED_P (XFRAME (frame)))
+  else if (is_tty_root_frame (f))
+    return Qt;
+  if (FRAME_ICONIFIED_P (f))
     return Qicon;
   return Qnil;
 }
