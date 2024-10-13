@@ -1365,10 +1365,13 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
 
   /* Mark current topmost frame obscured if we make a new root frame.
      Child frames don't completely obscure other frames. */
-  if (FRAMEP (FRAME_TTY (f)->top_frame)
-      && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame))
-      && NILP (parent))
-    SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), false);
+  if (NILP (parent) && FRAMEP (FRAME_TTY (f)->top_frame))
+    {
+      struct frame *top = XFRAME (FRAME_TTY (f)->top_frame);
+      struct frame *root = root_frame (top);
+      if (FRAME_LIVE_P (root))
+	SET_FRAME_VISIBLE (root, false);
+    }
 
   /* Set the top frame to the newly created frame.  */
   if (!FRAME_PARENT_FRAME (f))
@@ -1711,15 +1714,24 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 	 that is already the top frame of that TTY.  */
       if (!EQ (frame, top_frame))
 	{
+	  struct frame *new_root = root_frame (f);
+	  SET_FRAME_VISIBLE (new_root, true);
 	  SET_FRAME_VISIBLE (f, true);
-	  if (is_tty_root_frame (f))
+
+	  /* Mark previously displayed frame as no longer visible.  */
+	  if (FRAMEP (top_frame))
 	    {
-	      /* Mark previously displayed frame as no longer visible.  */
-	      if (FRAMEP (top_frame))
-		SET_FRAME_VISIBLE (XFRAME (top_frame), false);
+	      struct frame *top = XFRAME (top_frame);
+	      struct frame *old_root = root_frame (top);
+	      if (old_root != new_root)
+		SET_FRAME_VISIBLE (old_root, false);
+	    }
 
-	      tty->top_frame = frame;
+	  tty->top_frame = frame;
 
+	  /* Why is it correct to set FrameCols/Rows? */
+	  if (!FRAME_PARENT_FRAME (f))
+	    {
 	      /* If the new TTY frame changed dimensions, we need to
 		 resync term.c's idea of the frame size with the new
 		 frame's data.  */

@@ -2409,8 +2409,10 @@ A suspended tty may be resumed by calling `resume-tty' on it.  */)
       t->display_info.tty->output = 0;
 
       if (FRAMEP (t->display_info.tty->top_frame))
-        SET_FRAME_VISIBLE (XFRAME (t->display_info.tty->top_frame), false);
-
+	{
+	  struct frame *top = XFRAME (t->display_info.tty->top_frame);
+	  SET_FRAME_VISIBLE (root_frame (top), false);
+	}
     }
 
   /* Clear display hooks to prevent further output.  */
@@ -2482,7 +2484,8 @@ frame's terminal). */)
 
       if (FRAMEP (t->display_info.tty->top_frame))
 	{
-	  struct frame *f = XFRAME (t->display_info.tty->top_frame);
+	  struct frame *top = XFRAME (t->display_info.tty->top_frame);
+	  struct frame *f = root_frame (top);
 	  int width, height;
 	  int old_height = FRAME_COLS (f);
 	  int old_width = FRAME_TOTAL_LINES (f);
@@ -2492,7 +2495,7 @@ frame's terminal). */)
 	  get_tty_size (fileno (t->display_info.tty->input), &width, &height);
 	  if (width != old_width || height != old_height)
 	    change_frame_size (f, width, height, false, false, false);
-	  SET_FRAME_VISIBLE (XFRAME (t->display_info.tty->top_frame), true);
+	  SET_FRAME_VISIBLE (f, true);
 	}
 
       set_tty_hooks (t);
