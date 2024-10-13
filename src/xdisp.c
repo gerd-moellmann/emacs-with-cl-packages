@@ -17461,8 +17461,24 @@ redisplay_internal (void)
 	{
 	  struct frame *f = XFRAME (frame);
 
-	  if (is_tty_root_frame (f))
-	    tty_root_frames = Fcons (frame, tty_root_frames);
+	  if (is_tty_frame (f))
+	    {
+	      /* Ignore all invisble tty frames, children or root.  */
+	      if (!FRAME_VISIBLE_P (root_frame (f)))
+		continue;
+
+	      /* Remember tty root frames seen. */
+	      if (!FRAME_PARENT_FRAME (f))
+		{
+		  Lisp_Object found;
+		  for (found = tty_root_frames;
+		       CONSP (found) && !EQ (XCAR (found), frame);
+		       found = XCDR (found))
+		    ;
+		  if (!CONSP (found))
+		    tty_root_frames = Fcons (frame, tty_root_frames);
+		}
+	    }
 
 	retry_frame:
 	  if (FRAME_WINDOW_P (f) || FRAME_TERMCAP_P (f) || f == sf)
