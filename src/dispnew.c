@@ -3647,25 +3647,34 @@ copy_child_glyphs (struct frame *root, struct frame *child)
   /* Build CHILD's current matrix which we need to copy from it. */
   make_matrix_current (child);
 
-  /* The first row of the child's matrix that is visible in the parent
-     depends on how many child rows are above the parent, which is
-     abs (child->top_pos) if top_pos is negative. */
-  int child_y = child->top_pos < 0 ? abs (child->top_pos) : 0;
+  /* Draw borders around the child frame. */
+  if (!FRAME_UNDECORATED (child))
+    {
+      /* Horizontal line above. */
+      if (r.y > 0)
+	produce_box_line (root, child, r.x, r.y - 1, r.w, true);
 
-  /* The first column of the child's matrix that is visible in the
-     parent depends on how many child columns are to the left of the
-     parent, which is abs (child->left_pos) if left_pos is negative. */
+      for (int y = r.y; y < r.y + r.h; ++y)
+	{
+	  struct glyph_row *root_row = prepare_desired_root_row (root, y);
+	  produce_box_sides (BOX_VERTICAL, BOX_VERTICAL, root_row, r.x, r.w,
+			     root, child);
+	}
+
+      /* Horizontal line below */
+      if (r.y + r.h < root->desired_matrix->matrix_h)
+	produce_box_line (root, child, r.x, r.y + r.h, r.w, false);
+    }
+
+  /* First visible row/col, relative to the child frame. */
   int child_x = child->left_pos < 0 ? abs (child->left_pos) : 0;
+  int child_y = child->top_pos < 0 ? abs (child->top_pos) : 0;
 
   /* For all rows in the intersection, copy glyphs from the child's
      current matrix to the root's desired matrix, enabling those
-     rows. */
+     rows if they aren't already. */
   for (int y = r.y; y < r.y + r.h; ++y, ++child_y)
     {
-      /* Horizontal line above. */
-      if (!FRAME_UNDECORATED (child) && child_y == 0 && y > 0)
-	produce_box_line (root, child, r.x, y - 1, r.w, true);
-
       struct glyph_row *root_row = prepare_desired_root_row (root, y);
 
       /* Copy what's visible from the child's current row. */
@@ -3673,19 +3682,8 @@ copy_child_glyphs (struct frame *root, struct frame *child)
       memcpy (root_row->glyphs[0] + r.x, child_row->glyphs[0] + child_x,
 	      r.w * sizeof (struct glyph));
 
-      /* Border on the sides. */
-      if (!FRAME_UNDECORATED (child))
-	produce_box_sides (BOX_VERTICAL, BOX_VERTICAL,
-			   root_row, r.x, r.w, root, child);
-
       /* Compute a new hash since we changed glyphs. */
       root_row->hash = row_hash (root_row);
-
-      /* Horizontal line below */
-      if (!FRAME_UNDECORATED (child)
-	  && y + 1 == r.y + r.h
-	  && y + 1 < root->desired_matrix->matrix_h)
-	produce_box_line (root, child, r.x, y + 1, r.w, false);
     }
 }
 
