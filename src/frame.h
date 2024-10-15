@@ -445,6 +445,10 @@ struct frame
   /* True if this is an undecorated frame.  */
   bool_bf undecorated : 1;
 
+  /* Nonzero if this frame's window does not want to receive input focus
+     via mouse clicks or by moving the mouse into it.  */
+  bool_bf no_accept_focus : 1;
+
 #ifdef HAVE_WINDOW_SYSTEM
 # ifndef HAVE_NTGUI
   /* True if this frame is a tooltip frame.  */
@@ -471,10 +475,6 @@ struct frame
   /* Nonzero if this frame's window F's X window does not want to
      receive input focus when it is mapped.  */
   bool_bf no_focus_on_map : 1;
-
-  /* Nonzero if this frame's window does not want to receive input focus
-     via mouse clicks or by moving the mouse into it.  */
-  bool_bf no_accept_focus : 1;
 
   /* The z-group this frame's window belongs to. */
   ENUM_BF (z_group) z_group : 2;
