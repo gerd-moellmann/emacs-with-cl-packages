@@ -1564,6 +1564,12 @@ affects all frames on the same terminal device.  */)
       Lisp_Object undecorated = Fassq (Qundecorated, parms);
       if (CONSP (undecorated) && !NILP (XCDR (undecorated)))
 	f->undecorated = true;
+
+      /* FIXME/tty: The only way to get borders on a tty is
+	 to allow decorations for now. */
+      Lisp_Object no_focus = Fassq (Qno_accept_focus, parms);
+      if (CONSP (no_focus) && !NILP (XCDR (no_focus)))
+	f->no_accept_focus = true;
     }
 
   /* Determine width and height of the frame. For root frames use the
@@ -3633,6 +3639,7 @@ If FRAME is omitted or nil, return information on the currently selected frame. 
       store_in_alist (&alist, Qmenu_bar_lines, make_fixnum (FRAME_MENU_BAR_LINES (f)));
       store_in_alist (&alist, Qtab_bar_lines, make_fixnum (FRAME_TAB_BAR_LINES (f)));
       store_in_alist (&alist, Qvisibility, FRAME_VISIBLE_P (f) ? Qt : Qnil);
+      store_in_alist (&alist, Qno_accept_focus, FRAME_NO_ACCEPT_FOCUS (f) ? Qt : Qnil);
     }
 
   return alist;
