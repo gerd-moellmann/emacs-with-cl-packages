@@ -3317,18 +3317,11 @@ rect_intersect (struct rect *r, struct rect r1, struct rect r2)
 static void
 frame_pos_abs (struct frame *f, int *x, int *y)
 {
-  struct frame *parent = FRAME_PARENT_FRAME (f);
-  if (parent == NULL)
+  *x = *y = 0;
+  for (; f; f = FRAME_PARENT_FRAME (f))
     {
-      *x = f->left_pos;
-      *y = f->top_pos;
-    }
-  else
-    {
-      int parent_x, parent_y;
-      frame_pos_abs (parent, &parent_x, &parent_y);
-      *x = f->left_pos + parent_x;
-      *y = f->top_pos + parent_y;
+      *x += f->left_pos;
+      *y += f->top_pos;
     }
 }
 
