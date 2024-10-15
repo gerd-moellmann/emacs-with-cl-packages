@@ -1570,6 +1570,12 @@ affects all frames on the same terminal device.  */)
       Lisp_Object no_focus = Fassq (Qno_accept_focus, parms);
       if (CONSP (no_focus) && !NILP (XCDR (no_focus)))
 	f->no_accept_focus = true;
+
+      /* FIXME/tty: The only way to get borders on a tty is
+	 to allow decorations for now. */
+      Lisp_Object no_split = Fassq (Qunsplittable, parms);
+      if (CONSP (no_split) && !NILP (XCDR (no_split)))
+	f->no_split = true;
     }
 
   /* Determine width and height of the frame. For root frames use the
