@@ -3667,8 +3667,8 @@ copy_child_glyphs (struct frame *root, struct frame *child)
     }
 
   /* First visible row/col, relative to the child frame. */
-  int child_x = child->left_pos < 0 ? abs (child->left_pos) : 0;
-  int child_y = child->top_pos < 0 ? abs (child->top_pos) : 0;
+  int child_x = child->left_pos < 0 ? - child->left_pos : 0;
+  int child_y = child->top_pos < 0 ? - child->top_pos : 0;
 
   /* For all rows in the intersection, copy glyphs from the child's
      current matrix to the root's desired matrix, enabling those
