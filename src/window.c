@@ -8029,6 +8029,13 @@ set_window_margins (struct window *w, Lisp_Object left_width,
 
   if (w->left_margin_cols != left || w->right_margin_cols != right)
     {
+      if (left <= w->left_margin_cols && right <= w->right_margin_cols)
+	{
+	  w->left_margin_cols = left;
+	  w->right_margin_cols = right;
+	  return w;
+	}
+
       /* Don't change anything if new margins won't fit.  */
       if ((WINDOW_PIXEL_WIDTH (w)
 	   - WINDOW_FRINGES_WIDTH (w)
