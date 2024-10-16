@@ -1590,6 +1590,7 @@ affects all frames on the same terminal device.  */)
     child_frame_rect (f, parms, &x, &y, &width, &height);
   else
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
+  f->can_set_window_size = true;
   adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f), 5, 0,
 		     Qterminal_frame);
   adjust_frame_glyphs (f);
@@ -1630,7 +1631,6 @@ affects all frames on the same terminal device.  */)
   XSETFRAME (frame, f);
   Fmodify_frame_parameters (frame, parms);
 
-  f->can_set_window_size = true;
   f->after_make_frame = true;
 
   return frame;
