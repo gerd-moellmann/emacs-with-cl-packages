@@ -1020,10 +1020,18 @@ struct x_output
   int unused;
 };
 
+INLINE struct ns_output *
+frame_output_data (struct frame *f)
+{
+  eassert (FRAME_NS_P (f));
+  return f->output_data.ns;
+}
+
+/* xdisp.c checks for this macro being #defined.  */
+#define FRAME_OUTPUT_DATA(f) frame_output_data (f)
 
 /* This gives the ns_display_info structure for the display F is on.  */
 #define FRAME_DISPLAY_INFO(f) ((f)->output_data.ns->display_info)
-#define FRAME_OUTPUT_DATA(f) ((f)->output_data.ns)
 #define FRAME_NS_WINDOW(f) ((f)->output_data.ns->window_desc)
 #define FRAME_NATIVE_WINDOW(f) FRAME_NS_WINDOW (f)
 

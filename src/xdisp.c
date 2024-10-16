@@ -36106,7 +36106,8 @@ note_mouse_highlight (struct frame *f, int x, int y)
 #ifdef HAVE_WINDOW_SYSTEM
   /* If the cursor is on the internal border of FRAME and FRAME's
      internal border is draggable, provide some visual feedback.  */
-  if (FRAME_INTERNAL_BORDER_WIDTH (f) > 0
+  if (FRAME_WINDOW_P (f)
+      && FRAME_INTERNAL_BORDER_WIDTH (f) > 0
       && !NILP (get_frame_param (f, Qdrag_internal_border)))
     {
       enum internal_border_part part = frame_internal_border_part (f, x, y);
@@ -36170,7 +36171,8 @@ note_mouse_highlight (struct frame *f, int x, int y)
      buffer.  */
   if (EQ (window, f->menu_bar_window))
     {
-      cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
+      if (FRAME_WINDOW_P (f))
+	cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
       goto set_cursor;
     }
 #endif
@@ -36181,10 +36183,13 @@ note_mouse_highlight (struct frame *f, int x, int y)
   if (EQ (window, f->tab_bar_window))
     {
       note_tab_bar_highlight (f, x, y);
-      if (tab_bar__dragging_in_progress)
-	  cursor = FRAME_OUTPUT_DATA (f)->hand_cursor;
-      else
-	cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
+      if (FRAME_WINDOW_P (f))
+	{
+	  if (tab_bar__dragging_in_progress)
+	    cursor = FRAME_OUTPUT_DATA (f)->hand_cursor;
+	  else
+	    cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
+	}
       goto set_cursor;
     }
   else
@@ -36203,7 +36208,8 @@ note_mouse_highlight (struct frame *f, int x, int y)
   if (EQ (window, f->tool_bar_window))
     {
       note_tool_bar_highlight (f, x, y);
-      cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
+      if (FRAME_WINDOW_P (f))
+	cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
       goto set_cursor;
     }
 #endif
@@ -36217,7 +36223,8 @@ note_mouse_highlight (struct frame *f, int x, int y)
 #ifdef HAVE_WINDOW_SYSTEM
       if (part == ON_LEFT_MARGIN || part == ON_RIGHT_MARGIN)
 	{
-	  cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
+	  if (FRAME_WINDOW_P (f))
+	    cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
 	  /* Show non-text cursor (Bug#16647).  */
 	  goto set_cursor;
 	}
@@ -36229,13 +36236,15 @@ note_mouse_highlight (struct frame *f, int x, int y)
 #ifdef HAVE_WINDOW_SYSTEM
   if (part == ON_VERTICAL_BORDER)
     {
-      cursor = FRAME_OUTPUT_DATA (f)->horizontal_drag_cursor;
+      if (FRAME_WINDOW_P (f))
+	cursor = FRAME_OUTPUT_DATA (f)->horizontal_drag_cursor;
       help_echo_string = build_string ("drag-mouse-1: resize");
       goto set_cursor;
     }
   else if (part == ON_RIGHT_DIVIDER)
     {
-      cursor = FRAME_OUTPUT_DATA (f)->horizontal_drag_cursor;
+      if (FRAME_WINDOW_P (f))
+	cursor = FRAME_OUTPUT_DATA (f)->horizontal_drag_cursor;
       help_echo_string = build_string ("drag-mouse-1: resize");
       goto set_cursor;
     }
@@ -36244,7 +36253,8 @@ note_mouse_highlight (struct frame *f, int x, int y)
 	|| minibuf_level
 	|| NILP (Vresize_mini_windows))
       {
-	cursor = FRAME_OUTPUT_DATA (f)->vertical_drag_cursor;
+	if (FRAME_WINDOW_P (f))
+	  cursor = FRAME_OUTPUT_DATA (f)->vertical_drag_cursor;
 	help_echo_string = build_string ("drag-mouse-1: resize");
 	goto set_cursor;
       }
@@ -36252,13 +36262,17 @@ note_mouse_highlight (struct frame *f, int x, int y)
       cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
   else if (part == ON_LEFT_FRINGE || part == ON_RIGHT_FRINGE)
     {
-      cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
+      if (FRAME_WINDOW_P (f))
+	cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
       note_fringe_highlight (f, window, x, y, part);
     }
   else if (part == ON_VERTICAL_SCROLL_BAR
 	   || part == ON_HORIZONTAL_SCROLL_BAR)
-    cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
-  else
+    {
+      if (FRAME_WINDOW_P (f))
+	cursor = FRAME_OUTPUT_DATA (f)->nontext_cursor;
+    }
+  else if (FRAME_WINDOW_P (f))
     cursor = FRAME_OUTPUT_DATA (f)->text_cursor;
 #endif
 
