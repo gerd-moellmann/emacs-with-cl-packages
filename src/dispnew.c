@@ -3775,13 +3775,32 @@ update_tty_frame (struct frame *f, bool force_p)
   return false;
 }
 
-static void
+static bool
 abs_cursor_pos (struct frame *f, int *x, int *y)
 {
-  frame_pos_abs (f, x, y);
   struct window *w = XWINDOW (f->selected_window);
-  *x += w->cursor.x;
-  *y += w->cursor.y;
+  if (w->cursor.vpos >= 0
+      /* The cursor vpos may be temporarily out of bounds
+	 in the following situation:  There is one window,
+	 with the cursor in the lower half of it.  The window
+	 is split, and a message causes a redisplay before
+	 a new cursor position has been computed.  */
+      && w->cursor.vpos < WINDOW_TOTAL_LINES (w))
+    {
+      int wx = WINDOW_TO_FRAME_HPOS (w, w->cursor.hpos);
+      int wy = WINDOW_TO_FRAME_VPOS (w, w->cursor.vpos);
+
+      wx += max (0, w->left_margin_cols);
+
+      int fx, fy;
+      frame_pos_abs (f, &fx, &fy);
+      *x = fx + wx;
+      *y = fy + wy;
+      return true;
+    }
+
+  *x = *y = 0;
+  return false;
 }
 
 /* Is the terminal cursor of frame F obscured by a child frame? */
@@ -3790,7 +3809,8 @@ static bool
 is_cursor_obscured (void)
 {
   int x, y;
-  abs_cursor_pos (SELECTED_FRAME (), &x, &y);
+  if (!abs_cursor_pos (SELECTED_FRAME (), &x, &y))
+    return false;
   struct frame *root = root_frame (SELECTED_FRAME ());
   struct glyph_row *cursor_row = MATRIX_ROW (root->current_matrix, y);
   eassert (x < root->current_matrix->matrix_w);
@@ -3822,11 +3842,10 @@ terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
       Lisp_Object frame;
       XSETFRAME (frame, topmost_child);
 
+      int x, y;
       Lisp_Object cursor = Fframe_parameter (frame, Qtty_non_selected_cursor);
-      if (!NILP (cursor))
+      if (!NILP (cursor) && abs_cursor_pos (topmost_child, &x, &y))
 	{
-	  int x, y;
-	  abs_cursor_pos (topmost_child, &x, &y);
 	  cursor_to (root, y, x);
 	  tty_show_cursor (FRAME_TTY (topmost_child));
 	}
