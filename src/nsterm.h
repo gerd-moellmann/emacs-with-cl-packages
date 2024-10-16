@@ -1031,12 +1031,12 @@ frame_output_data (struct frame *f)
 #define FRAME_OUTPUT_DATA(f) frame_output_data (f)
 
 /* This gives the ns_display_info structure for the display F is on.  */
-#define FRAME_DISPLAY_INFO(f) ((f)->output_data.ns->display_info)
-#define FRAME_NS_WINDOW(f) ((f)->output_data.ns->window_desc)
+#define FRAME_DISPLAY_INFO(f) (FRAME_OUTPUT_DATA (f)->display_info)
+#define FRAME_NS_WINDOW(f) (FRAME_OUTPUT_DATA (f)->window_desc)
 #define FRAME_NATIVE_WINDOW(f) FRAME_NS_WINDOW (f)
 
-#define FRAME_FOREGROUND_COLOR(f) ((f)->output_data.ns->foreground_color)
-#define FRAME_BACKGROUND_COLOR(f) ((f)->output_data.ns->background_color)
+#define FRAME_FOREGROUND_COLOR(f) (FRAME_OUTPUT_DATA (f)->foreground_color)
+#define FRAME_BACKGROUND_COLOR(f) (FRAME_OUTPUT_DATA (f)->background_color)
 
 #define NS_FACE_FOREGROUND(f) ((f)->foreground)
 #define NS_FACE_BACKGROUND(f) ((f)->background)
@@ -1044,13 +1044,13 @@ frame_output_data (struct frame *f)
 #define FRAME_DEFAULT_FACE(f) FACE_FROM_ID_OR_NULL (f, DEFAULT_FACE_ID)
 
 #define FRAME_NS_VIEW(f) ((f)->output_data.ns->view)
-#define FRAME_CURSOR_COLOR(f) ((f)->output_data.ns->cursor_color)
-#define FRAME_POINTER_TYPE(f) ((f)->output_data.ns->current_pointer)
+#define FRAME_CURSOR_COLOR(f) (FRAME_OUTPUT_DATA (f)->cursor_color)
+#define FRAME_POINTER_TYPE(f) (FRAME_OUTPUT_DATA (f)->current_pointer)
 
-#define FRAME_FONT(f) ((f)->output_data.ns->font)
+#define FRAME_FONT(f) (FRAME_OUTPUT_DATA (f)->font)
 
 #if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
-#define FRAME_DOUBLE_BUFFERED(f) ((f)->output_data.ns->double_buffered)
+#define FRAME_DOUBLE_BUFFERED(f) (FRAME_OUTPUT_DATA (f)->double_buffered)
 #endif
 
 #ifdef __OBJC__
@@ -1094,9 +1094,9 @@ frame_output_data (struct frame *f)
 
 #define FRAME_NS_FONT_TABLE(f) (FRAME_DISPLAY_INFO (f)->font_table)
 
-#define FRAME_FONTSET(f) ((f)->output_data.ns->fontset)
+#define FRAME_FONTSET(f) (FRAME_OUTPUT_DATA (f)->fontset)
 
-#define FRAME_BASELINE_OFFSET(f) ((f)->output_data.ns->baseline_offset)
+#define FRAME_BASELINE_OFFSET(f) (FRAME_OUTPUT_DATA (f)->baseline_offset)
 #define BLACK_PIX_DEFAULT(f) 0x000000
 #define WHITE_PIX_DEFAULT(f) 0xFFFFFF
 
