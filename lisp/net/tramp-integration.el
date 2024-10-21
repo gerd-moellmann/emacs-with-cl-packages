@@ -54,6 +54,7 @@
 (defvar shortdoc--groups)
 (defvar tramp-current-connection)
 (defvar tramp-postfix-host-format)
+(defvar tramp-syntax)
 (defvar tramp-use-connection-share)
 
 ;;; Fontification of `read-file-name':
@@ -272,12 +273,40 @@ NAME must be equal to `tramp-current-connection'."
 		  (delete (info-lookup->mode-cache 'symbol ',mode)
 			  (info-lookup->topic-cache 'symbol))))))))
 
+;;; Integration of new `:link' type in `defcustom':
+
+(define-widget 'tramp-info-link 'link
+  "A link to the Tramp info file."
+  :action 'tramp-widget-info-link-action)
+
+(defun tramp-widget-info-link-action (widget &optional _event)
+  "Open the info node specified by WIDGET.
+It's value must be a Tramp user option, indexed in the Tramp manual via
+`@vindex'."
+  (let* ((topic (widget-value widget))
+	 (pattern
+	  (rx "\n*" (1+ " ") (0+ nonl)
+	      (literal (if (stringp topic) topic (symbol-name topic)))
+	      (0+ nonl) ":" (1+ (any "\t "))
+	      (group (0+ nonl))
+	      "." (0+ (any "\t\n ")) "(line" (1+ " ")
+	      (group (1+ digit))
+	      ")")))
+    (info "(tramp) Variable Index")
+    (goto-char (point-min))
+    (when (re-search-forward pattern nil t)
+      (let ((nodename (concat "(tramp) " (match-string-no-properties 1)))
+	    (line (string-to-number (match-string 2))))
+	(info nodename)
+	(forward-line (- line 2))))))
+
 ;;; Integration of shortdoc.el:
 
 (tramp--with-startup
  (with-eval-after-load 'shortdoc
    ;; Some packages deactivate Tramp.  They don't deserve a shortdoc entry then.
-   (when (file-remote-p "/ssh:user@host:/tmp/foo")
+   (when (and (file-remote-p "/ssh:user@host:/tmp/foo")
+              (eq tramp-syntax 'default))
      (dolist (elem `((file-remote-p
 		      :eval (file-remote-p "/ssh:user@host:/tmp/foo")
 		      :eval (file-remote-p "/ssh:user@host:/tmp/foo" 'method)

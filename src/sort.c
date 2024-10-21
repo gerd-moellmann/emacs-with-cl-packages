@@ -1128,6 +1128,7 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
 	keys = &ms.temparray[length + 1];
       else
 	{
+	  static_assert (NIL_IS_ZERO);
 #ifdef HAVE_MPS
 	  allocated_keys = igc_xzalloc_ambig (length * word_size);
 #else
