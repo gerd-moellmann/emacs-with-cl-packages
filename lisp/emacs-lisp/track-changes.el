@@ -395,7 +395,7 @@ returned to a consistent state."
 
 ;;;; Auxiliary functions.
 
-(defun track-change--backtrace (n &optional base)
+(defun track-changes--backtrace (n &optional base)
   (let ((frames nil))
     (catch 'done
       (mapbacktrace (lambda (&rest frame)
@@ -403,7 +403,7 @@ returned to a consistent state."
                           (push frame frames)
                         (push '... frames)
                         (throw 'done nil)))
-                    (or base #'track-change--backtrace)))
+                    (or base #'track-changes--backtrace)))
     (nreverse frames)))
 
 (defun track-changes--trace ()
@@ -415,7 +415,7 @@ returned to a consistent state."
       (setq track-changes--trace (make-ring 10)))
     (ring-insert track-changes--trace
                  (cons (buffer-name)
-                       (track-change--backtrace
+                       (track-changes--backtrace
                         10 #'track-changes--trace)))))
 
 (defun track-changes--clean-state ()
@@ -487,7 +487,7 @@ backtraces have the deepest frame first.")
     (warn "Missing/incorrect calls to `before/after-change-functions'!!
 Details logged to `track-changes--error-log'")
     (push (vector (buffer-name) info
-                  (track-change--backtrace
+                  (track-changes--backtrace
                    50 #'track-changes--recover-from-error)
                   (let ((rk (recent-keys 'include-cmds)))
                     (if (< (length rk) 20) rk (substring rk -20)))
@@ -591,16 +591,16 @@ Details logged to `track-changes--error-log'")
 (defun track-changes--after (beg end len)
   (track-changes--trace)
   (cl-assert track-changes--state)
-  (and (eq track-changes--before-clean 'unset)
-       (not track-changes--before-no)
-       ;; This can be a sign that a `before-change-functions' went missing,
-       ;; or that we called `track-changes--clean-state' between
-       ;; a `before-change-functions' and `after-change-functions'.
-       (track-changes--before beg end))
-  (setq track-changes--before-clean nil)
   (let ((offset (- (- end beg) len)))
-    (cl-incf track-changes--before-end offset)
     (cl-incf track-changes--buffer-size offset)
+    (if (and (eq track-changes--before-clean 'unset)
+             (not track-changes--before-no))
+         ;; This can be a sign that a `before-change-functions' went missing,
+         ;; or that we called `track-changes--clean-state' between
+         ;; a `before-change-functions' and `after-change-functions'.
+         (track-changes--before beg end)
+      (cl-incf track-changes--before-end offset))
+    (setq track-changes--before-clean nil)
     (if (not (or track-changes--before-no
                  (save-restriction
                    (widen)

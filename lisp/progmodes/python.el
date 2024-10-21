@@ -361,6 +361,8 @@ To customize the Python interpreter for interactive use, modify
   ;; Utilities
   "<remap> <complete-symbol>" #'completion-at-point)
 
+(defvar subword-mode nil)
+
 (easy-menu-define python-menu python-mode-map
   "Menu used for ´python-mode'."
   '("Python"
@@ -7180,7 +7182,7 @@ implementations: `python-mode' and `python-ts-mode'."
 \\{python-ts-mode-map}"
   :syntax-table python-mode-syntax-table
   (when (treesit-ready-p 'python)
-    (treesit-parser-create 'python)
+    (setq treesit-primary-parser (treesit-parser-create 'python))
     (setq-local treesit-font-lock-feature-list
                 '(( comment definition)
                   ( keyword string type)

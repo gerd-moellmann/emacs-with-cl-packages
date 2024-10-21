@@ -40,6 +40,10 @@
 (require 'ert-x)
 (require 'erc)
 (eval-when-compile (require 'erc-stamp))
+(eval-and-compile
+  (let ((load-path (cons (expand-file-name "../erc-d" (ert-resource-directory))
+                         load-path)))
+    (require 'erc-d-i)))
 
 (defmacro erc-tests-common-equal-with-props (a b)
   "Compare strings A and B for equality including text props.
@@ -152,6 +156,39 @@ For simplicity, assume string evaluates to itself."
   (interactive "P")
   (let ((sexp (erc-tests-common-string-to-propertized-parts (pp-last-sexp))))
     (if arg (insert (pp-to-string sexp)) (pp-macroexpand-expression sexp))))
+
+
+(cl-defun erc-tests-common-add-cmem
+    (nick &optional (host "fsf.org")
+          (user (concat "~" (substring nick 0 (min 10 (length nick)))))
+          (full-name (upcase-initials nick)))
+  "Create channel user for NICK with test-oriented defaults."
+  (erc-update-channel-member (erc-target) nick nick t nil nil nil nil nil
+                             host user full-name))
+
+(defun erc-tests-common-parse-line (line)
+  "Return a single `erc-response' parsed from line."
+  (let ((parsed (erc-d-i--parse-message line)))
+    (make-erc-response :unparsed (erc-d-i-message.unparsed parsed)
+                       :sender (erc-d-i-message.sender parsed)
+                       :command (erc-d-i-message.command parsed)
+                       :command-args (erc-d-i-message.command-args parsed)
+                       :contents (erc-d-i-message.contents parsed)
+                       :tags (erc-d-i-message.tags parsed))))
+
+(defun erc-tests-common-simulate-line (line)
+  "Run response handlers for raw IRC protocol LINE."
+  (let ((parsed (erc-tests-common-parse-line line))
+        (erc--msg-prop-overrides (or erc--msg-prop-overrides
+                                     '((erc--ts . 0)))))
+    (erc-call-hooks erc-server-process parsed)))
+
+(defun erc-tests-common-simulate-privmsg (nick msg)
+  (erc-tests-common-simulate-line
+   (format ":%s PRIVMSG %s :%s"
+           (erc-user-spec (erc-get-server-user nick))
+           (erc-target)
+           msg)))
 
 ;; The following utilities are meant to help prepare tests for
 ;; `erc--get-inserted-msg-bounds' and friends.
@@ -329,5 +366,48 @@ interspersing \"-l\" between members."
                         "-eval" ,(format "%S" prog)))))
     (set-process-query-on-exit-flag proc t)
     proc))
+
+(declare-function erc-track--setup "erc-track" ())
+
+(defun erc-tests-common-track-modified-channels (test)
+  (erc-tests-common-prep-for-insertion)
+  (setq erc--target (erc--target-from-string "#chan"))
+  (erc-tests-common-track-modified-channels-sans-setup test))
+
+(defun erc-tests-common-track-modified-channels-sans-setup (test)
+  "Provide a fixture for testing `erc-track-modified-channels'.
+Call function TEST with another function that sets the mocked return
+value of `erc-track--collect-faces-in' to the given argument, a list of
+faces in the reverse order they appear in an inserted message."
+  (defvar erc-modified-channels-alist)
+  (defvar erc-modified-channels-object)
+  (defvar erc-track--attn-faces)
+  (defvar erc-track--normal-faces)
+  (defvar erc-track--priority-faces)
+  (defvar erc-track-faces-normal-list)
+  (defvar erc-track-faces-priority-list)
+  (defvar erc-track-mode)
+
+  (cl-letf* ((erc-track-mode t)
+             (erc-modified-channels-alist nil)
+             (erc-modified-channels-object erc-modified-channels-object)
+             (faces ())
+             ((symbol-function 'force-mode-line-update) #'ignore)
+             ((symbol-function 'erc-faces-in) (lambda (_) faces))
+             ((symbol-function 'erc-track--collect-faces-in)
+              (lambda ()
+                (cons (map-into (mapcar (lambda (f) (cons f t)) faces)
+                                '(hash-table :test equal))
+                      faces))))
+    (erc-track--setup)
+
+    ;; Faces from `erc-track--attn-faces' prepended.
+    (should (= (+ (length erc-track--attn-faces)
+                  (length erc-track-faces-priority-list))
+               (hash-table-count erc-track--priority-faces)))
+    (should (= (length erc-track-faces-normal-list)
+               (hash-table-count erc-track--normal-faces)))
+
+    (funcall test (lambda (arg) (setq faces arg)))))
 
 (provide 'erc-tests-common)
