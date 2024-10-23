@@ -3831,6 +3831,12 @@ update_tty_frame (struct frame *f, bool force_p)
   return false;
 }
 
+/* Return the cursor position of the selected window of frame F, in
+   absolute coordinates in *X and *Y.  Note that if F is a child frame,
+   its cursor may be clipped, i.e. outside of the bounds of the terminal
+   window.  Value is false if the selected window of F doesn't have
+   valid cursor position info.  */
+
 static bool
 abs_cursor_pos (struct frame *f, int *x, int *y)
 {
@@ -3859,17 +3865,34 @@ abs_cursor_pos (struct frame *f, int *x, int *y)
   return false;
 }
 
-/* Is the terminal cursor of frame F obscured by a child frame?  */
+static bool
+is_in_matrix (struct frame *f, int x, int y)
+{
+  struct frame *root = root_frame (f);
+  if (x < 0 || x >= root->current_matrix->matrix_w || y < 0
+      || y >= root->current_matrix->matrix_h)
+    return false;
+  return true;
+}
+
+/* Is the terminal cursor of the selected frame obscured by a child
+   frame?  */
 
 static bool
 is_cursor_obscured (void)
 {
+  /* Give up if we can't tell where the cursor currently is.  */
   int x, y;
   if (!abs_cursor_pos (SELECTED_FRAME (), &x, &y))
     return false;
+
+  /* (x, y) may be outside of the root frame in case the selected frame is a
+     child frame which is clipped.  */
   struct frame *root = root_frame (SELECTED_FRAME ());
+  if (!is_in_matrix (root, x, y))
+    return true;
+
   struct glyph_row *cursor_row = MATRIX_ROW (root->current_matrix, y);
-  eassert (x < root->current_matrix->matrix_w);
   struct glyph *cursor_glyph = cursor_row->glyphs[0] + x;
   return cursor_glyph->frame != SELECTED_FRAME ();
 }
@@ -3902,9 +3925,14 @@ terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
       Lisp_Object cursor = Fframe_parameter (frame, Qtty_non_selected_cursor);
       if (!NILP (cursor) && abs_cursor_pos (topmost_child, &x, &y))
 	{
-	  cursor_to (root, y, x);
-	  tty_show_cursor (FRAME_TTY (topmost_child));
-	}
+	  if (is_in_matrix (root, x, y))
+	    {
+	      cursor_to (root, y, x);
+	      tty_show_cursor (FRAME_TTY (topmost_child));
+	    }
+	  else
+	    tty_hide_cursor (FRAME_TTY (root));
+      }
     }
 }
 
