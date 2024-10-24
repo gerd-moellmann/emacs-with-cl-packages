@@ -5290,147 +5290,139 @@ DEFUN ("tty-show-tip", Ftty_show_tip, Stty_show_tip, 1, 6, 0,
       else
 	tty_hide_tip (true);
     }
-    else
-      tty_hide_tip (true);
+  else
+    tty_hide_tip (true);
 
-    tip_last_frame = frame;
-    tip_last_string = string;
-    tip_last_parms = parms;
+  tip_last_frame = frame;
+  tip_last_string = string;
+  tip_last_parms = parms;
 
-    if (NILP (tip_frame) || !FRAME_LIVE_P (XFRAME (tip_frame)))
-      {
-	/* Add default values to frame parameters.  */
-	if (NILP (Fassq (Qname, parms)))
-	  parms = Fcons (Fcons (Qname, build_string ("tooltip")), parms);
-	if (NILP (Fassq (Qinternal_border_width, parms)))
-	  parms = Fcons (Fcons (Qinternal_border_width, make_fixnum (3)), parms);
-	if (NILP (Fassq (Qborder_width, parms)))
-	  parms = Fcons (Fcons (Qborder_width, make_fixnum (1)), parms);
-	if (NILP (Fassq (Qborder_color, parms)))
-	  parms = Fcons (Fcons (Qborder_color, build_string ("lightyellow")), parms);
-	if (NILP (Fassq (Qbackground_color, parms)))
-	  parms = Fcons (Fcons (Qbackground_color, build_string ("lightyellow")),
-			 parms);
+  if (NILP (tip_frame) || !FRAME_LIVE_P (XFRAME (tip_frame)))
+    {
+      /* Add default values to frame parameters.  */
+      if (NILP (Fassq (Qname, parms)))
+	parms = Fcons (Fcons (Qname, build_string ("tooltip")), parms);
+      if (NILP (Fassq (Qinternal_border_width, parms)))
+	parms = Fcons (Fcons (Qinternal_border_width, make_fixnum (3)), parms);
+      if (NILP (Fassq (Qborder_width, parms)))
+	parms = Fcons (Fcons (Qborder_width, make_fixnum (1)), parms);
+      if (NILP (Fassq (Qborder_color, parms)))
+	parms = Fcons (Fcons (Qborder_color, build_string ("lightyellow")), parms);
+      if (NILP (Fassq (Qbackground_color, parms)))
+	parms = Fcons (Fcons (Qbackground_color, build_string ("lightyellow")),
+		       parms);
 
-	/* Create a frame for the tooltip, and record it in the global
-	   variable tip_frame.  */
-	if (NILP (tip_frame = tty_create_tip_frame (frame, parms)))
-	  /* Creating the tip frame failed.  */
-	  return unbind_to (count, Qnil);
-      }
+      /* Create a frame for the tooltip, and record it in the global
+	 variable tip_frame.  */
+      if (NILP (tip_frame = tty_create_tip_frame (frame, parms)))
+	/* Creating the tip frame failed.  */
+	return unbind_to (count, Qnil);
+    }
 
-    tip_f = XFRAME (tip_frame);
-    window = FRAME_ROOT_WINDOW (tip_f);
-    tip_buf = Fget_buffer_create (tip, Qnil);
-    /* We will mark the tip window a "pseudo-window" below, and such
-       windows cannot have display margins.  */
-    bset_left_margin_cols (XBUFFER (tip_buf), make_fixnum (0));
-    bset_right_margin_cols (XBUFFER (tip_buf), make_fixnum (0));
-    set_window_buffer (window, tip_buf, false, false);
-    w = XWINDOW (window);
-    w->pseudo_window_p = true;
-    /* Try to avoid that `other-window' select us (Bug#47207).  */
-    Fset_window_parameter (window, Qno_other_window, Qt);
+  tip_f = XFRAME (tip_frame);
+  window = FRAME_ROOT_WINDOW (tip_f);
+  tip_buf = Fget_buffer_create (tip, Qnil);
+  /* We will mark the tip window a "pseudo-window" below, and such
+     windows cannot have display margins.  */
+  bset_left_margin_cols (XBUFFER (tip_buf), make_fixnum (0));
+  bset_right_margin_cols (XBUFFER (tip_buf), make_fixnum (0));
+  set_window_buffer (window, tip_buf, false, false);
+  w = XWINDOW (window);
+  w->pseudo_window_p = true;
+  /* Try to avoid that `other-window' select us (Bug#47207).  */
+  Fset_window_parameter (window, Qno_other_window, Qt);
 
-    /* Set up the frame's root window.  Note: The following code does not
-       try to size the window or its frame correctly.  Its only purpose is
-       to make the subsequent text size calculations work.  The right
-       sizes should get installed when the toolkit gets back to us.  */
-    w->left_col = 0;
-    w->top_line = 0;
-    w->pixel_left = 0;
-    w->pixel_top = 0;
+  /* Set up the frame's root window.  Note: The following code does not
+     try to size the window or its frame correctly.  Its only purpose is
+     to make the subsequent text size calculations work.  The right
+     sizes should get installed when the toolkit gets back to us.  */
+  w->left_col = 0;
+  w->top_line = 0;
+  w->pixel_left = 0;
+  w->pixel_top = 0;
 
-    if (CONSP (Vtty_max_tooltip_size)
-	&& RANGED_FIXNUMP (1, XCAR (Vtty_max_tooltip_size), INT_MAX)
-	&& RANGED_FIXNUMP (1, XCDR (Vtty_max_tooltip_size), INT_MAX))
-      {
-	w->total_cols = XFIXNAT (XCAR (Vtty_max_tooltip_size));
-	w->total_lines = XFIXNAT (XCDR (Vtty_max_tooltip_size));
-      }
-    else
-      {
-	w->total_cols = 80;
-	w->total_lines = 40;
-      }
+  if (CONSP (Vtty_max_tooltip_size)
+      && RANGED_FIXNUMP (1, XCAR (Vtty_max_tooltip_size), INT_MAX)
+      && RANGED_FIXNUMP (1, XCDR (Vtty_max_tooltip_size), INT_MAX))
+    {
+      w->total_cols = XFIXNAT (XCAR (Vtty_max_tooltip_size));
+      w->total_lines = XFIXNAT (XCDR (Vtty_max_tooltip_size));
+    }
+  else
+    {
+      w->total_cols = 80;
+      w->total_lines = 40;
+    }
 
-    w->pixel_width = w->total_cols * FRAME_COLUMN_WIDTH (tip_f);
-    w->pixel_height = w->total_lines * FRAME_LINE_HEIGHT (tip_f);
-    FRAME_TOTAL_COLS (tip_f) = w->total_cols;
-    adjust_frame_glyphs (tip_f);
+  w->pixel_width = w->total_cols * FRAME_COLUMN_WIDTH (tip_f);
+  w->pixel_height = w->total_lines * FRAME_LINE_HEIGHT (tip_f);
+  FRAME_TOTAL_COLS (tip_f) = w->total_cols;
+  adjust_frame_glyphs (tip_f);
 
-    /* Insert STRING into root window's buffer and fit the frame to the
-       buffer.  */
-    count_1 = SPECPDL_INDEX ();
-    old_buffer = current_buffer;
-    set_buffer_internal_1 (XBUFFER (w->contents));
-    bset_truncate_lines (current_buffer, Qnil);
-    specbind (Qinhibit_read_only, Qt);
-    specbind (Qinhibit_modification_hooks, Qt);
-    specbind (Qinhibit_point_motion_hooks, Qt);
-    Ferase_buffer ();
-    Finsert (1, &string);
-    clear_glyph_matrix (w->desired_matrix);
-    clear_glyph_matrix (w->current_matrix);
-    SET_TEXT_POS (pos, BEGV, BEGV_BYTE);
-    displayed = try_window (window, pos, TRY_WINDOW_IGNORE_FONTS_CHANGE);
+  /* Insert STRING into root window's buffer and fit the frame to the
+     buffer.  */
+  count_1 = SPECPDL_INDEX ();
+  old_buffer = current_buffer;
+  set_buffer_internal_1 (XBUFFER (w->contents));
+  bset_truncate_lines (current_buffer, Qnil);
+  specbind (Qinhibit_read_only, Qt);
+  specbind (Qinhibit_modification_hooks, Qt);
+  specbind (Qinhibit_point_motion_hooks, Qt);
+  Ferase_buffer ();
+  Finsert (1, &string);
+  clear_glyph_matrix (w->desired_matrix);
+  clear_glyph_matrix (w->current_matrix);
+  SET_TEXT_POS (pos, BEGV, BEGV_BYTE);
+  displayed = try_window (window, pos, TRY_WINDOW_IGNORE_FONTS_CHANGE);
 
-    if (!displayed && NILP (Vtty_max_tooltip_size))
-      {
+  if (!displayed && NILP (Vtty_max_tooltip_size))
+    {
 #ifdef ENABLE_CHECKING
-	row = w->desired_matrix->rows;
-	end = w->desired_matrix->rows + w->desired_matrix->nrows;
+      row = w->desired_matrix->rows;
+      end = w->desired_matrix->rows + w->desired_matrix->nrows;
 
-	while (row < end)
-	  {
-	    if (!row->displays_text_p
-		|| row->ends_at_zv_p)
-	      break;
-	    ++row;
-	  }
+      while (row < end)
+	{
+	  if (!row->displays_text_p
+	      || row->ends_at_zv_p)
+	    break;
+	  ++row;
+	}
 
-	eassert (row < end && row->ends_at_zv_p);
+      eassert (row < end && row->ends_at_zv_p);
 #endif
-      }
+    }
 
-    /* Calculate size of tooltip window.  */
-    size = Fwindow_text_pixel_size (window, Qnil, Qnil, Qnil,
-				    make_fixnum (w->pixel_height), Qnil,
-				    Qnil);
-    /* Add the frame's internal border to calculated size.  */
-    width = XFIXNUM (Fcar (size)) + 2 * FRAME_INTERNAL_BORDER_WIDTH (tip_f);
-    height = XFIXNUM (Fcdr (size)) + 2 * FRAME_INTERNAL_BORDER_WIDTH (tip_f);
+  /* Calculate size of tooltip window.  */
+  size = Fwindow_text_pixel_size (window, Qnil, Qnil, Qnil,
+				  make_fixnum (w->pixel_height), Qnil,
+				  Qnil);
+  /* Add the frame's internal border to calculated size.  */
+  width = XFIXNUM (Fcar (size)) + 2 * FRAME_INTERNAL_BORDER_WIDTH (tip_f);
+  height = XFIXNUM (Fcdr (size)) + 2 * FRAME_INTERNAL_BORDER_WIDTH (tip_f);
 
-    /* Calculate position of tooltip frame.  */
-    compute_tip_xy (tip_f, parms, dx, dy, width,
-		    height, &root_x, &root_y);
+  /* Calculate position of tooltip frame.  */
+  compute_tip_xy (tip_f, parms, dx, dy, width,
+		  height, &root_x, &root_y);
 
-    block_input ();
-#if 0
-    nswindow = [FRAME_NS_VIEW (tip_f) window];
-    [nswindow setFrame: NSMakeRect (root_x, root_y,
-				    width, height)
-     display: YES];
-    [nswindow setLevel: NSPopUpMenuWindowLevel];
-    [nswindow orderFront: NSApp];
-    [nswindow display];
-#endif
-    SET_FRAME_VISIBLE (tip_f, true);
-    FRAME_PIXEL_WIDTH (tip_f) = width;
-    FRAME_PIXEL_HEIGHT (tip_f) = height;
-    unblock_input ();
+  block_input ();
+  SET_FRAME_VISIBLE (tip_f, true);
+  FRAME_PIXEL_WIDTH (tip_f) = width;
+  FRAME_PIXEL_HEIGHT (tip_f) = height;
+  unblock_input ();
 
-    w->must_be_updated_p = true;
-    update_single_window (w);
-    flush_frame (tip_f);
-    set_buffer_internal_1 (old_buffer);
-    unbind_to (count_1, Qnil);
-    windows_or_buffers_changed = old_windows_or_buffers_changed;
+  w->must_be_updated_p = true;
+  SET_FRAME_GARBAGED (XFRAME (frame));
+  redisplay ();
+  flush_frame (tip_f);
+  set_buffer_internal_1 (old_buffer);
+  unbind_to (count_1, Qnil);
+  windows_or_buffers_changed = old_windows_or_buffers_changed;
 
-  start_timer:
-    /* Let the tip disappear after timeout seconds.  */
-    tip_timer = call3 (Qrun_at_time, timeout, Qnil,
-		       Qx_hide_tip);
+ start_timer:
+  /* Let the tip disappear after timeout seconds.  */
+  tip_timer = call3 (Qrun_at_time, timeout, Qnil,
+		     Qx_hide_tip);
 
   return unbind_to (count, Qnil);
 }

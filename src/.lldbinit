@@ -108,3 +108,5 @@ b die
 #process attach --waitfor --name emacs (--continue)
 
 # Attach to future Emacs
+
+b Ftty_show_tip
