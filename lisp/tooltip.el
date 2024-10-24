@@ -268,12 +268,19 @@ toolkit."
           ;; `substitute-command-keys' substitutions.
           (add-face-text-property 0 (length text)
                                   (or text-face 'tooltip) t text)
-          (x-show-tip text
-		      (selected-frame)
-		      params
-		      tooltip-hide-delay
-		      tooltip-x-offset
-		      tooltip-y-offset))
+          (if (display-graphic-p)
+              (x-show-tip text
+		          (selected-frame)
+		          params
+		          tooltip-hide-delay
+		          tooltip-x-offset
+		          tooltip-y-offset)
+            (tty-show-tip text
+		          (selected-frame)
+		          params
+		          tooltip-hide-delay
+		          tooltip-x-offset
+		          tooltip-y-offset)))
       (error
        (message "Error while displaying tooltip: %s" error)
        (sit-for 1)
