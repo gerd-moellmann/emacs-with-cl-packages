@@ -5018,58 +5018,24 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx,
    when this happens.  */
 
 static Lisp_Object
-tty_create_tip_frame (struct frame *parent, Lisp_Object parms)
+tty_create_tip_frame (Lisp_Object parent, Lisp_Object parms)
 {
   specpdl_ref count = SPECPDL_INDEX ();
   bool face_change_before = face_change;
-  struct tty_display_info *dpyinfo = FRAME_TTY (parent);
+  struct tty_display_info *dpyinfo = FRAME_TTY (XFRAME (parent));
 
   if (!dpyinfo->terminal->name)
     error ("Terminal is not live, can't create new frames on it");
 
   parms = Fcopy_alist (parms);
 
-  struct frame *f = 0;//make_terminal_frame (FRAME_TERMINAL (parent), parent, parms);
-  // f->wants_modeline = false;
+  struct frame *f = make_terminal_frame (FRAME_TERMINAL (XFRAME (parent)), parent, parms);
   Lisp_Object frame;
   XSETFRAME (frame, f);
+
   record_unwind_protect (tty_unwind_create_tip_frame, frame);
-
-  f->terminal = dpyinfo->terminal;
+  f->wants_modeline = false;
   f->tooltip = true;
-
-#if 0
-  gui_default_parameter (f, parms, Qborder_width, make_fixnum (0),
-                         "borderWidth", "BorderWidth", RES_TYPE_NUMBER);
-#endif
-
-  /* This defaults to 1 in order to match xterm.  We recognize either
-     internalBorderWidth or internalBorder (which is what xterm calls
-     it).  */
-#if 0
-  if (NILP (Fassq (Qinternal_border_width, parms)))
-    {
-      Lisp_Object value;
-
-      value = gui_display_get_arg (dpyinfo, parms, Qinternal_border_width,
-                                   "internalBorder", "internalBorder",
-                                   RES_TYPE_NUMBER);
-      if (! EQ (value, Qunbound))
-	parms = Fcons (Fcons (Qinternal_border_width, value),
-		       parms);
-    }
-#endif
-
-#if 0
-  /* Also do the stuff which must be set before the window exists.  */
-  gui_default_parameter (f, parms, Qforeground_color, build_string ("black"),
-                         "foreground", "Foreground", RES_TYPE_STRING);
-  gui_default_parameter (f, parms, Qbackground_color, build_string ("white"),
-                         "background", "Background", RES_TYPE_STRING);
-                         "borderColor", "BorderColor", RES_TYPE_STRING);
-  gui_default_parameter (f, parms, Qno_special_glyphs, Qnil,
-                         NULL, NULL, RES_TYPE_BOOLEAN);
-#endif
 
   /* Init faces before gui_default_parameter is called for the
      scroll-bar-width parameter because otherwise we end up in
@@ -5091,15 +5057,12 @@ tty_create_tip_frame (struct frame *parent, Lisp_Object parms)
      https://lists.gnu.org/r/emacs-devel/2007-10/msg00641.html */
 
   /* Set the `display-type' frame parameter before setting up faces. */
-  {
-    Lisp_Object disptype = Qcolor;
-
-    if (NILP (Fframe_parameter (frame, Qdisplay_type)))
-      {
-	AUTO_FRAME_ARG (arg, Qdisplay_type, disptype);
-	Fmodify_frame_parameters (frame, arg);
-      }
-  }
+  Lisp_Object disptype = Qcolor;
+  if (NILP (Fframe_parameter (frame, Qdisplay_type)))
+    {
+      AUTO_FRAME_ARG (arg, Qdisplay_type, disptype);
+      Fmodify_frame_parameters (frame, arg);
+    }
 
   /* Set up faces after all frame parameters are known.  This call
      also merges in face attributes specified for new frames.
@@ -5233,7 +5196,7 @@ DEFUN ("tty-show-tip", Ftty_show_tip, Stty_show_tip, 1, 6, 0,
   specbind (Qinhibit_redisplay, Qt);
 
   CHECK_STRING (string);
-  struct frame *f = decode_tty_frame (frame);
+  decode_tty_frame (frame);
   if (NILP (timeout))
     timeout = Vx_show_tooltip_timeout;
   CHECK_FIXNAT (timeout);
@@ -5351,7 +5314,7 @@ DEFUN ("tty-show-tip", Ftty_show_tip, Stty_show_tip, 1, 6, 0,
 
 	/* Create a frame for the tooltip, and record it in the global
 	   variable tip_frame.  */
-	if (NILP (tip_frame = tty_create_tip_frame (f, parms)))
+	if (NILP (tip_frame = tty_create_tip_frame (frame, parms)))
 	  /* Creating the tip frame failed.  */
 	  return unbind_to (count, Qnil);
       }
