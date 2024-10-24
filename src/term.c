@@ -4910,6 +4910,11 @@ DEFUN ("tty-display-pixel-height", Ftty_display_pixel_height,
   return make_fixnum (height);
 }
 
+
+/***********************************************************************
+				Tooltips
+ ***********************************************************************/
+
 /* The frame of the currently visible tooltip, or nil if none.  */
 static Lisp_Object tip_frame;
 
@@ -4963,51 +4968,44 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx,
 		Lisp_Object dy, int width, int height, int *root_x,
 		int *root_y)
 {
-#if 0
-  Lisp_Object left, top, right, bottom;
-  NSPoint pt;
-
   /* Start with user-specified or mouse position.  */
-  left = Fcdr (Fassq (Qleft, parms));
-  top = Fcdr (Fassq (Qtop, parms));
-  right = Fcdr (Fassq (Qright, parms));
-  bottom = Fcdr (Fassq (Qbottom, parms));
+  Lisp_Object left = Fcdr (Fassq (Qleft, parms));
+  Lisp_Object top = Fcdr (Fassq (Qtop, parms));
+  Lisp_Object right = Fcdr (Fassq (Qright, parms));
+  Lisp_Object bottom = Fcdr (Fassq (Qbottom, parms));
 
   /* Absolute coordinates.  */
-  pt.x = FIXNUMP (left) ? XFIXNUM (left) : XFIXNUM (right);
-  pt.y = (1
-	  - (FIXNUMP (top) ? XFIXNUM (top) : XFIXNUM (bottom))
-	  - height);
+  int ptx = FIXNUMP (left) ? XFIXNUM (left) : XFIXNUM (right);
+  int pty = (1
+	     - (FIXNUMP (top) ? XFIXNUM (top) : XFIXNUM (bottom))
+	     - height);
 
   /* Ensure in bounds.  (Note, screen origin = lower left.) */
   if (FIXNUMP (left) || FIXNUMP (right))
-    *root_x = pt.x;
-  else if (pt.x + XFIXNUM (dx) <= screen.frame.origin.x)
-    *root_x = screen.frame.origin.x;
-  else if (pt.x + XFIXNUM (dx) + width
-	   <= screen.frame.origin.x + screen.frame.size.width)
+    *root_x = ptx;
+  else if (ptx + XFIXNUM (dx) <= 0)
+    *root_x = 0;
+  else if (ptx + XFIXNUM (dx) + width <= f->total_cols)
     /* It fits to the right of the pointer.  */
-    *root_x = pt.x + XFIXNUM (dx);
-  else if (width + XFIXNUM (dx) <= pt.x)
+    *root_x = ptx + XFIXNUM (dx);
+  else if (width + XFIXNUM (dx) <= ptx)
     /* It fits to the left of the pointer.  */
-    *root_x = pt.x - width - XFIXNUM (dx);
+    *root_x = ptx - width - XFIXNUM (dx);
   else
     /* Put it left justified on the screen -- it ought to fit that way.  */
-    *root_x = screen.frame.origin.x;
+    *root_x = 0;
 
   if (FIXNUMP (top) || FIXNUMP (bottom))
-    *root_y = pt.y;
-  else if (pt.y - XFIXNUM (dy) - height >= screen.frame.origin.y)
+    *root_y = pty;
+  else if (pty - XFIXNUM (dy) - height >= 0)
     /* It fits below the pointer.  */
-    *root_y = pt.y - height - XFIXNUM (dy);
-  else if (pt.y + XFIXNUM (dy) + height
-	   <= screen.frame.origin.y + screen.frame.size.height)
+    *root_y = pty - height - XFIXNUM (dy);
+  else if (pty + XFIXNUM (dy) + height <= f->total_lines)
     /* It fits above the pointer.  */
-      *root_y = pt.y + XFIXNUM (dy);
+    *root_y = pty + XFIXNUM (dy);
   else
     /* Put it on the top.  */
-    *root_y = screen.frame.origin.y + screen.frame.size.height - height;
-#endif
+    *root_y = f->total_lines - height;
 }
 
 /* Create a frame for a tooltip on the display described by DPYINFO.
