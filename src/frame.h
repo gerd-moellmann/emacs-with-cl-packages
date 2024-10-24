@@ -449,11 +449,11 @@ struct frame
      via mouse clicks or by moving the mouse into it.  */
   bool_bf no_accept_focus : 1;
 
-#ifdef HAVE_WINDOW_SYSTEM
-# ifndef HAVE_NTGUI
   /* True if this frame is a tooltip frame.  */
   bool_bf tooltip : 1;
 
+#ifdef HAVE_WINDOW_SYSTEM
+# ifndef HAVE_NTGUI
   /* See FULLSCREEN_ enum on top.  */
   ENUM_BF (fullscreen_type) want_fullscreen : 4;
 
@@ -1940,6 +1940,10 @@ INLINE_HEADER_END
    no effect in this case.  */
 #if ! USE_HORIZONTAL_SCROLL_BARS && GNUC_PREREQ (4, 6, 0)
 # pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
-#endif
+# endif
+
+struct frame *make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
+				   Lisp_Object params);
+
 
 #endif /* not EMACS_FRAME_H */

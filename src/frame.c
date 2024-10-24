@@ -1272,7 +1272,7 @@ make_initial_frame (void)
 
 #ifndef HAVE_ANDROID
 
-static struct frame *
+struct frame *
 make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
 		     Lisp_Object params)
 {

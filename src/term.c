@@ -4910,6 +4910,645 @@ DEFUN ("tty-display-pixel-height", Ftty_display_pixel_height,
   return make_fixnum (height);
 }
 
+/* The frame of the currently visible tooltip, or nil if none.  */
+static Lisp_Object tip_frame;
+
+/* The X and Y deltas of the last call to `x-show-tip'.  */
+static Lisp_Object tip_dx, tip_dy;
+
+/* A timer that hides or deletes the currently visible tooltip when it
+   fires.  */
+static Lisp_Object tip_timer;
+
+/* STRING argument of last `x-show-tip' call.  */
+static Lisp_Object tip_last_string;
+
+/* Normalized FRAME argument of last `x-show-tip' call.  */
+static Lisp_Object tip_last_frame;
+
+/* PARMS argument of last `x-show-tip' call.  */
+static Lisp_Object tip_last_parms;
+
+static Lisp_Object
+tty_unwind_create_frame (Lisp_Object frame)
+{
+  struct frame *f = XFRAME (frame);
+
+  /* If frame is already dead, nothing to do.  This can happen if the
+     display is disconnected after the frame has become official, but
+     before x_create_frame removes the unwind protect.  */
+  if (!FRAME_LIVE_P (f))
+    return Qnil;
+
+  /* If frame is ``official'', nothing to do.  */
+  if (NILP (Fmemq (frame, Vframe_list)))
+    {
+      free_glyphs (f);
+      return Qt;
+    }
+
+  return Qnil;
+}
+
+static void
+tty_unwind_create_tip_frame (Lisp_Object frame)
+{
+  Lisp_Object deleted = tty_unwind_create_frame (frame);
+  if (EQ (deleted, Qt))
+    tip_frame = Qnil;
+}
+
+static void
+compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx,
+		Lisp_Object dy, int width, int height, int *root_x,
+		int *root_y)
+{
+#if 0
+  Lisp_Object left, top, right, bottom;
+  NSPoint pt;
+
+  /* Start with user-specified or mouse position.  */
+  left = Fcdr (Fassq (Qleft, parms));
+  top = Fcdr (Fassq (Qtop, parms));
+  right = Fcdr (Fassq (Qright, parms));
+  bottom = Fcdr (Fassq (Qbottom, parms));
+
+  /* Absolute coordinates.  */
+  pt.x = FIXNUMP (left) ? XFIXNUM (left) : XFIXNUM (right);
+  pt.y = (1
+	  - (FIXNUMP (top) ? XFIXNUM (top) : XFIXNUM (bottom))
+	  - height);
+
+  /* Ensure in bounds.  (Note, screen origin = lower left.) */
+  if (FIXNUMP (left) || FIXNUMP (right))
+    *root_x = pt.x;
+  else if (pt.x + XFIXNUM (dx) <= screen.frame.origin.x)
+    *root_x = screen.frame.origin.x;
+  else if (pt.x + XFIXNUM (dx) + width
+	   <= screen.frame.origin.x + screen.frame.size.width)
+    /* It fits to the right of the pointer.  */
+    *root_x = pt.x + XFIXNUM (dx);
+  else if (width + XFIXNUM (dx) <= pt.x)
+    /* It fits to the left of the pointer.  */
+    *root_x = pt.x - width - XFIXNUM (dx);
+  else
+    /* Put it left justified on the screen -- it ought to fit that way.  */
+    *root_x = screen.frame.origin.x;
+
+  if (FIXNUMP (top) || FIXNUMP (bottom))
+    *root_y = pt.y;
+  else if (pt.y - XFIXNUM (dy) - height >= screen.frame.origin.y)
+    /* It fits below the pointer.  */
+    *root_y = pt.y - height - XFIXNUM (dy);
+  else if (pt.y + XFIXNUM (dy) + height
+	   <= screen.frame.origin.y + screen.frame.size.height)
+    /* It fits above the pointer.  */
+      *root_y = pt.y + XFIXNUM (dy);
+  else
+    /* Put it on the top.  */
+    *root_y = screen.frame.origin.y + screen.frame.size.height - height;
+#endif
+}
+
+/* Create a frame for a tooltip on the display described by DPYINFO.
+   PARMS is a list of frame parameters.  TEXT is the string to
+   display in the tip frame.  Value is the frame.
+
+   Note that functions called here, esp. gui_default_parameter can
+   signal errors, for instance when a specified color name is
+   undefined.  We have to make sure that we're in a consistent state
+   when this happens.  */
+
+static Lisp_Object
+tty_create_tip_frame (struct frame *parent, Lisp_Object parms)
+{
+  specpdl_ref count = SPECPDL_INDEX ();
+  bool face_change_before = face_change;
+  struct tty_display_info *dpyinfo = FRAME_TTY (parent);
+
+  if (!dpyinfo->terminal->name)
+    error ("Terminal is not live, can't create new frames on it");
+
+  parms = Fcopy_alist (parms);
+
+  struct frame *f = 0;//make_terminal_frame (FRAME_TERMINAL (parent), parent, parms);
+  // f->wants_modeline = false;
+  Lisp_Object frame;
+  XSETFRAME (frame, f);
+  record_unwind_protect (tty_unwind_create_tip_frame, frame);
+
+  f->terminal = dpyinfo->terminal;
+  f->tooltip = true;
+
+#if 0
+  gui_default_parameter (f, parms, Qborder_width, make_fixnum (0),
+                         "borderWidth", "BorderWidth", RES_TYPE_NUMBER);
+#endif
+
+  /* This defaults to 1 in order to match xterm.  We recognize either
+     internalBorderWidth or internalBorder (which is what xterm calls
+     it).  */
+#if 0
+  if (NILP (Fassq (Qinternal_border_width, parms)))
+    {
+      Lisp_Object value;
+
+      value = gui_display_get_arg (dpyinfo, parms, Qinternal_border_width,
+                                   "internalBorder", "internalBorder",
+                                   RES_TYPE_NUMBER);
+      if (! EQ (value, Qunbound))
+	parms = Fcons (Fcons (Qinternal_border_width, value),
+		       parms);
+    }
+#endif
+
+#if 0
+  /* Also do the stuff which must be set before the window exists.  */
+  gui_default_parameter (f, parms, Qforeground_color, build_string ("black"),
+                         "foreground", "Foreground", RES_TYPE_STRING);
+  gui_default_parameter (f, parms, Qbackground_color, build_string ("white"),
+                         "background", "Background", RES_TYPE_STRING);
+                         "borderColor", "BorderColor", RES_TYPE_STRING);
+  gui_default_parameter (f, parms, Qno_special_glyphs, Qnil,
+                         NULL, NULL, RES_TYPE_BOOLEAN);
+#endif
+
+  /* Init faces before gui_default_parameter is called for the
+     scroll-bar-width parameter because otherwise we end up in
+     init_iterator with a null face cache, which should not happen.  */
+  init_frame_faces (f);
+
+#if 0
+  gui_figure_window_size (f, parms, false, false);
+#endif
+
+  /* Add `tooltip' frame parameter's default value. */
+  if (NILP (Fframe_parameter (frame, Qtooltip)))
+    {
+      AUTO_FRAME_ARG (arg, Qtooltip, Qt);
+      Fmodify_frame_parameters (frame, arg);
+    }
+
+  /* FIXME - can this be done in a similar way to normal frames?
+     https://lists.gnu.org/r/emacs-devel/2007-10/msg00641.html */
+
+  /* Set the `display-type' frame parameter before setting up faces. */
+  {
+    Lisp_Object disptype = Qcolor;
+
+    if (NILP (Fframe_parameter (frame, Qdisplay_type)))
+      {
+	AUTO_FRAME_ARG (arg, Qdisplay_type, disptype);
+	Fmodify_frame_parameters (frame, arg);
+      }
+  }
+
+  /* Set up faces after all frame parameters are known.  This call
+     also merges in face attributes specified for new frames.
+
+     Frame parameters may be changed if .Xdefaults contains
+     specifications for the default font.  For example, if there is an
+     `Emacs.default.attributeBackground: pink', the `background-color'
+     attribute of the frame gets set, which let's the internal border
+     of the tooltip frame appear in pink.  Prevent this.  */
+  {
+    Lisp_Object bg = Fframe_parameter (frame, Qbackground_color);
+
+    call2 (Qface_set_after_frame_default, frame, Qnil);
+
+    if (!EQ (bg, Fframe_parameter (frame, Qbackground_color)))
+      {
+	AUTO_FRAME_ARG (arg, Qbackground_color, bg);
+	Fmodify_frame_parameters (frame, arg);
+      }
+  }
+
+  f->no_split = true;
+
+  /* Now that the frame will be official, it counts as a reference to
+     its display and terminal.  */
+  f->terminal->reference_count++;
+
+  /* It is now ok to make the frame official even if we get an error
+     below.  And the frame needs to be on Vframe_list or making it
+     visible won't work.  */
+  Vframe_list = Fcons (frame, Vframe_list);
+  f->can_set_window_size = true;
+  adjust_frame_size (f, FRAME_TEXT_WIDTH (f), FRAME_TEXT_HEIGHT (f),
+		     0, true, Qtip_frame);
+
+  /* Setting attributes of faces of the tooltip frame from resources
+     and similar will set face_change, which leads to the clearing of
+     all current matrices.  Since this isn't necessary here, avoid it
+     by resetting face_change to the value it had before we created
+     the tip frame.  */
+  face_change = face_change_before;
+
+  /* Discard the unwind_protect.  */
+  return unbind_to (count, frame);
+}
+
+static Lisp_Object
+tty_hide_tip (bool delete)
+{
+  if (!NILP (tip_timer))
+    {
+      call1 (Qcancel_timer, tip_timer);
+      tip_timer = Qnil;
+    }
+
+  if ((NILP (tip_last_frame) && NILP (tip_frame))
+      || (!use_system_tooltips
+	  && !delete
+	  && !NILP (tip_frame)
+	  && FRAME_LIVE_P (XFRAME (tip_frame))
+	  && !FRAME_VISIBLE_P (XFRAME (tip_frame))))
+    /* Either there's no tooltip to hide or it's an already invisible
+       Emacs tooltip and we don't want to change its type.  Return
+       quickly.  */
+    return Qnil;
+  else
+    {
+      specpdl_ref count;
+      Lisp_Object was_open = Qnil;
+
+      count = SPECPDL_INDEX ();
+      specbind (Qinhibit_redisplay, Qt);
+      specbind (Qinhibit_quit, Qt);
+
+      /* Now look whether there's an Emacs tip around.  */
+      if (!NILP (tip_frame))
+	{
+	  struct frame *f = XFRAME (tip_frame);
+
+	  if (FRAME_LIVE_P (f))
+	    {
+	      if (delete)
+		{
+		  /* Delete the Emacs tooltip frame when DELETE is true
+		     or we change the tooltip type from an Emacs one to
+		     a GTK+ system one.  */
+		  delete_frame (tip_frame, Qnil);
+		  tip_frame = Qnil;
+		}
+	      else
+		{
+		  Lisp_Object frame;
+		  XSETFRAME (frame, f);
+		  Fmake_frame_invisible (frame, Qt);
+		}
+
+	      was_open = Qt;
+	    }
+	  else
+	    tip_frame = Qnil;
+	}
+      else
+	tip_frame = Qnil;
+
+      return unbind_to (count, was_open);
+    }
+}
+
+DEFUN ("tty-show-tip", Ftty_show_tip, Stty_show_tip, 1, 6, 0,
+       doc: /* SKIP: real doc in xfns.c.  */)
+  (Lisp_Object string, Lisp_Object frame, Lisp_Object parms,
+   Lisp_Object timeout, Lisp_Object dx, Lisp_Object dy)
+{
+  int root_x, root_y;
+  specpdl_ref count = SPECPDL_INDEX ();
+  struct frame *f, *tip_f;
+  struct window *w;
+  struct buffer *old_buffer;
+  struct text_pos pos;
+  int width, height;
+  int old_windows_or_buffers_changed = windows_or_buffers_changed;
+  specpdl_ref count_1;
+  Lisp_Object window, size, tip_buf;
+  bool displayed;
+#ifdef ENABLE_CHECKING
+  struct glyph_row *row, *end;
+#endif
+
+  AUTO_STRING (tip, " *tip*");
+
+  specbind (Qinhibit_redisplay, Qt);
+
+  CHECK_STRING (string);
+  f = decode_window_system_frame (frame);
+  if (NILP (timeout))
+    timeout = Vx_show_tooltip_timeout;
+  CHECK_FIXNAT (timeout);
+
+  if (NILP (dx))
+    dx = make_fixnum (5);
+  else
+    CHECK_FIXNUM (dx);
+
+  if (NILP (dy))
+    dy = make_fixnum (-10);
+  else
+    CHECK_FIXNUM (dy);
+
+  tip_dx = dx;
+  tip_dy = dy;
+
+  if (!NILP (tip_frame) && FRAME_LIVE_P (XFRAME (tip_frame)))
+    {
+      if (FRAME_VISIBLE_P (XFRAME (tip_frame))
+	  && !NILP (Fequal_including_properties (tip_last_string, string))
+	  && !NILP (Fequal (tip_last_parms, parms)))
+	{
+	  /* Only DX and DY have changed.  */
+	  tip_f = XFRAME (tip_frame);
+	  if (!NILP (tip_timer))
+	    {
+	      call1 (Qcancel_timer, tip_timer);
+	      tip_timer = Qnil;
+	    }
+
+	  block_input ();
+	  compute_tip_xy (tip_f, parms, dx, dy, FRAME_PIXEL_WIDTH (tip_f),
+			  FRAME_PIXEL_HEIGHT (tip_f), &root_x, &root_y);
+	  SET_FRAME_VISIBLE (tip_f, true);
+	  unblock_input ();
+
+	  goto start_timer;
+	}
+      else if (tooltip_reuse_hidden_frame && EQ (frame, tip_last_frame))
+	{
+	  bool delete = false;
+	  Lisp_Object tail, elt, parm, last;
+
+	  /* Check if every parameter in PARMS has the same value in
+	     tip_last_parms.  This may destruct tip_last_parms which,
+	     however, will be recreated below.  */
+	  for (tail = parms; CONSP (tail); tail = XCDR (tail))
+	    {
+	      elt = XCAR (tail);
+	      parm = Fcar (elt);
+	      /* The left, top, right and bottom parameters are handled
+		 by compute_tip_xy so they can be ignored here.  */
+	      if (!EQ (parm, Qleft) && !EQ (parm, Qtop)
+		  && !EQ (parm, Qright) && !EQ (parm, Qbottom))
+		{
+		  last = Fassq (parm, tip_last_parms);
+		  if (NILP (Fequal (Fcdr (elt), Fcdr (last))))
+		    {
+		      /* We lost, delete the old tooltip.  */
+		      delete = true;
+		      break;
+		    }
+		  else
+		    tip_last_parms
+		      = call2 (Qassq_delete_all, parm, tip_last_parms);
+		}
+	      else
+		tip_last_parms
+		  = call2 (Qassq_delete_all, parm, tip_last_parms);
+	    }
+
+	  /* Now check if every parameter in what is left of
+	     tip_last_parms with a non-nil value has an association in
+	     PARMS.  */
+	  for (tail = tip_last_parms; CONSP (tail); tail = XCDR (tail))
+	    {
+	      elt = XCAR (tail);
+	      parm = Fcar (elt);
+	      if (!EQ (parm, Qleft) && !EQ (parm, Qtop) && !EQ (parm, Qright)
+		  && !EQ (parm, Qbottom) && !NILP (Fcdr (elt)))
+		{
+		  /* We lost, delete the old tooltip.  */
+		  delete = true;
+		  break;
+		}
+	    }
+
+	  tty_hide_tip (delete);
+	}
+      else
+	tty_hide_tip (true);
+    }
+    else
+      tty_hide_tip (true);
+
+    tip_last_frame = frame;
+    tip_last_string = string;
+    tip_last_parms = parms;
+
+    if (NILP (tip_frame) || !FRAME_LIVE_P (XFRAME (tip_frame)))
+      {
+	/* Add default values to frame parameters.  */
+	if (NILP (Fassq (Qname, parms)))
+	  parms = Fcons (Fcons (Qname, build_string ("tooltip")), parms);
+	if (NILP (Fassq (Qinternal_border_width, parms)))
+	  parms = Fcons (Fcons (Qinternal_border_width, make_fixnum (3)), parms);
+	if (NILP (Fassq (Qborder_width, parms)))
+	  parms = Fcons (Fcons (Qborder_width, make_fixnum (1)), parms);
+	if (NILP (Fassq (Qborder_color, parms)))
+	  parms = Fcons (Fcons (Qborder_color, build_string ("lightyellow")), parms);
+	if (NILP (Fassq (Qbackground_color, parms)))
+	  parms = Fcons (Fcons (Qbackground_color, build_string ("lightyellow")),
+			 parms);
+
+	/* Create a frame for the tooltip, and record it in the global
+	   variable tip_frame.  */
+	if (NILP (tip_frame = tty_create_tip_frame (f, parms)))
+	  /* Creating the tip frame failed.  */
+	  return unbind_to (count, Qnil);
+      }
+
+    tip_f = XFRAME (tip_frame);
+    window = FRAME_ROOT_WINDOW (tip_f);
+    tip_buf = Fget_buffer_create (tip, Qnil);
+    /* We will mark the tip window a "pseudo-window" below, and such
+       windows cannot have display margins.  */
+    bset_left_margin_cols (XBUFFER (tip_buf), make_fixnum (0));
+    bset_right_margin_cols (XBUFFER (tip_buf), make_fixnum (0));
+    set_window_buffer (window, tip_buf, false, false);
+    w = XWINDOW (window);
+    w->pseudo_window_p = true;
+    /* Try to avoid that `other-window' select us (Bug#47207).  */
+    Fset_window_parameter (window, Qno_other_window, Qt);
+
+    /* Set up the frame's root window.  Note: The following code does not
+       try to size the window or its frame correctly.  Its only purpose is
+       to make the subsequent text size calculations work.  The right
+       sizes should get installed when the toolkit gets back to us.  */
+    w->left_col = 0;
+    w->top_line = 0;
+    w->pixel_left = 0;
+    w->pixel_top = 0;
+
+    if (CONSP (Vx_max_tooltip_size)
+	&& RANGED_FIXNUMP (1, XCAR (Vtty_max_tooltip_size), INT_MAX)
+	&& RANGED_FIXNUMP (1, XCDR (Vtty_max_tooltip_size), INT_MAX))
+      {
+	w->total_cols = XFIXNAT (XCAR (Vtty_max_tooltip_size));
+	w->total_lines = XFIXNAT (XCDR (Vtty_max_tooltip_size));
+      }
+    else
+      {
+	w->total_cols = 80;
+	w->total_lines = 40;
+      }
+
+    w->pixel_width = w->total_cols * FRAME_COLUMN_WIDTH (tip_f);
+    w->pixel_height = w->total_lines * FRAME_LINE_HEIGHT (tip_f);
+    FRAME_TOTAL_COLS (tip_f) = w->total_cols;
+    adjust_frame_glyphs (tip_f);
+
+    /* Insert STRING into root window's buffer and fit the frame to the
+       buffer.  */
+    count_1 = SPECPDL_INDEX ();
+    old_buffer = current_buffer;
+    set_buffer_internal_1 (XBUFFER (w->contents));
+    bset_truncate_lines (current_buffer, Qnil);
+    specbind (Qinhibit_read_only, Qt);
+    specbind (Qinhibit_modification_hooks, Qt);
+    specbind (Qinhibit_point_motion_hooks, Qt);
+    Ferase_buffer ();
+    Finsert (1, &string);
+    clear_glyph_matrix (w->desired_matrix);
+    clear_glyph_matrix (w->current_matrix);
+    SET_TEXT_POS (pos, BEGV, BEGV_BYTE);
+    displayed = try_window (window, pos, TRY_WINDOW_IGNORE_FONTS_CHANGE);
+
+    if (!displayed && NILP (Vx_max_tooltip_size))
+      {
+#ifdef ENABLE_CHECKING
+	row = w->desired_matrix->rows;
+	end = w->desired_matrix->rows + w->desired_matrix->nrows;
+
+	while (row < end)
+	  {
+	    if (!row->displays_text_p
+		|| row->ends_at_zv_p)
+	      break;
+	    ++row;
+	  }
+
+	eassert (row < end && row->ends_at_zv_p);
+#endif
+      }
+
+    /* Calculate size of tooltip window.  */
+    size = Fwindow_text_pixel_size (window, Qnil, Qnil, Qnil,
+				    make_fixnum (w->pixel_height), Qnil,
+				    Qnil);
+    /* Add the frame's internal border to calculated size.  */
+    width = XFIXNUM (Fcar (size)) + 2 * FRAME_INTERNAL_BORDER_WIDTH (tip_f);
+    height = XFIXNUM (Fcdr (size)) + 2 * FRAME_INTERNAL_BORDER_WIDTH (tip_f);
+
+    /* Calculate position of tooltip frame.  */
+    compute_tip_xy (tip_f, parms, dx, dy, width,
+		    height, &root_x, &root_y);
+
+    block_input ();
+#if 0
+    nswindow = [FRAME_NS_VIEW (tip_f) window];
+    [nswindow setFrame: NSMakeRect (root_x, root_y,
+				    width, height)
+     display: YES];
+    [nswindow setLevel: NSPopUpMenuWindowLevel];
+    [nswindow orderFront: NSApp];
+    [nswindow display];
+#endif
+    SET_FRAME_VISIBLE (tip_f, true);
+    FRAME_PIXEL_WIDTH (tip_f) = width;
+    FRAME_PIXEL_HEIGHT (tip_f) = height;
+    unblock_input ();
+
+    w->must_be_updated_p = true;
+    update_single_window (w);
+    flush_frame (tip_f);
+    set_buffer_internal_1 (old_buffer);
+    unbind_to (count_1, Qnil);
+    windows_or_buffers_changed = old_windows_or_buffers_changed;
+
+  start_timer:
+    /* Let the tip disappear after timeout seconds.  */
+    tip_timer = call3 (Qrun_at_time, timeout, Qnil,
+		       Qx_hide_tip);
+
+  return unbind_to (count, Qnil);
+}
+
+
+DEFUN ("tty-hide-tip", Ftty_hide_tip, Stty_hide_tip, 0, 0, 0,
+       doc: /* SKIP: real doc in xfns.c.  */)
+  (void)
+{
+  return tty_hide_tip (!tooltip_reuse_hidden_frame);
+}
+
+/* Return geometric attributes of FRAME.  According to the value of
+   ATTRIBUTES return the outer edges of FRAME (Qouter_edges), the inner
+   edges of FRAME, the root window edges of frame (Qroot_edges).  Any
+   other value means to return the geometry as returned by
+   Fx_frame_geometry.  */
+static Lisp_Object
+frame_geometry (Lisp_Object frame, Lisp_Object attribute)
+{
+  struct frame *f = decode_live_frame (frame);
+  Lisp_Object fullscreen_symbol = Fframe_parameter (frame, Qfullscreen);
+  bool fullscreen = (EQ (fullscreen_symbol, Qfullboth)
+		     || EQ (fullscreen_symbol, Qfullscreen));
+  int border = fullscreen ? 0 : f->border_width;
+  int title_height = 0;
+  int native_width = FRAME_PIXEL_WIDTH (f);
+  int native_height = FRAME_PIXEL_HEIGHT (f);
+  int outer_width = native_width + 2 * border;
+  int outer_height = native_height + 2 * border + title_height;
+  int native_left = f->left_pos + border;
+  int native_top = f->top_pos + border + title_height;
+  int native_right = f->left_pos + outer_width - border;
+  int native_bottom = f->top_pos + outer_height - border;
+  int internal_border_width = FRAME_INTERNAL_BORDER_WIDTH (f);
+  int tool_bar_height = 0;
+  int tool_bar_width = (tool_bar_height
+			? outer_width - 2 * internal_border_width
+			: 0);
+
+  /* Construct list.  */
+  if (EQ (attribute, Qouter_edges))
+    return list4i (f->left_pos, f->top_pos,
+		   f->left_pos + outer_width,
+		   f->top_pos + outer_height);
+  else if (EQ (attribute, Qnative_edges))
+    return list4i (native_left, native_top,
+		   native_right, native_bottom);
+  else if (EQ (attribute, Qinner_edges))
+    return list4i (native_left + internal_border_width,
+		   native_top + tool_bar_height + internal_border_width,
+		   native_right - internal_border_width,
+		   native_bottom - internal_border_width);
+  else
+    return
+       list (Fcons (Qouter_position,
+		    Fcons (make_fixnum (f->left_pos),
+			   make_fixnum (f->top_pos))),
+	     Fcons (Qouter_size,
+		    Fcons (make_fixnum (outer_width),
+			   make_fixnum (outer_height))),
+	     Fcons (Qexternal_border_size,
+		    (fullscreen
+		     ? Fcons (make_fixnum (0), make_fixnum (0))
+		     : Fcons (make_fixnum (border), make_fixnum (border)))),
+	     Fcons (Qtitle_bar_size,
+		    Fcons (make_fixnum (0), make_fixnum (title_height))),
+	     Fcons (Qmenu_bar_external, Qnil),
+	     Fcons (Qmenu_bar_size, Fcons (make_fixnum (0), make_fixnum (0))),
+	     Fcons (Qtool_bar_external,
+		    FRAME_EXTERNAL_TOOL_BAR (f) ? Qt : Qnil),
+	     Fcons (Qtool_bar_position, FRAME_TOOL_BAR_POSITION (f)),
+	     Fcons (Qtool_bar_size,
+		    Fcons (make_fixnum (tool_bar_width),
+			   make_fixnum (tool_bar_height))),
+	     Fcons (Qinternal_border_width,
+		    make_fixnum (internal_border_width)));
+}
+
 void
 syms_of_term (void)
 {
@@ -4949,6 +5588,10 @@ This should be set if the function in `mouse-position-function' does not
 trigger redisplay.  */);
   tty_menu_calls_mouse_position_function = 0;
 
+  DEFVAR_LISP ("tty-max-tooltip-size", Vtty_max_tooltip_size,
+    doc: /* SKIP: real doc in xfns.c.  */);
+  Vtty_max_tooltip_size = Qnil;
+
   defsubr (&Stty_display_color_p);
   defsubr (&Stty_display_color_cells);
   defsubr (&Stty_no_underline);
@@ -4972,6 +5615,8 @@ trigger redisplay.  */);
   defsubr (&Stty_frame_restack);
   defsubr (&Stty_display_pixel_width);
   defsubr (&Stty_display_pixel_height);
+  defsubr (&Stty_show_tip);
+  defsubr (&Stty_hide_tip);
 
 #if !defined DOS_NT && !defined HAVE_ANDROID
   default_orig_pair = NULL;
@@ -5006,4 +5651,23 @@ trigger redisplay.  */);
   DEFSYM (Qresume_tty_functions, "resume-tty-functions");
   DEFSYM (Qtty_menu_disabled_face, "tty-menu-disabled-face");
   DEFSYM (Qtty_menu_enabled_face, "tty-menu-enabled-face");
+
+  tip_timer = Qnil;
+  staticpro (&tip_timer);
+  tip_frame = Qnil;
+  staticpro (&tip_frame);
+  tip_last_frame = Qnil;
+  staticpro (&tip_last_frame);
+  tip_last_string = Qnil;
+  staticpro (&tip_last_string);
+  tip_last_parms = Qnil;
+  staticpro (&tip_last_parms);
+  tip_dx = Qnil;
+  staticpro (&tip_dx);
+  tip_dy = Qnil;
+  staticpro (&tip_dy);
+
+  DEFSYM (Qcolor, "color");
+  DEFSYM (Qcancel_timer, "cancel-timer");
+
 }
