@@ -5215,7 +5215,7 @@ DEFUN ("tty-show-tip", Ftty_show_tip, Stty_show_tip, 1, 6, 0,
 {
   int root_x, root_y;
   specpdl_ref count = SPECPDL_INDEX ();
-  struct frame *f, *tip_f;
+  struct frame *tip_f;
   struct window *w;
   struct buffer *old_buffer;
   struct text_pos pos;
@@ -5233,18 +5233,18 @@ DEFUN ("tty-show-tip", Ftty_show_tip, Stty_show_tip, 1, 6, 0,
   specbind (Qinhibit_redisplay, Qt);
 
   CHECK_STRING (string);
-  f = decode_window_system_frame (frame);
+  struct frame *f = decode_tty_frame (frame);
   if (NILP (timeout))
     timeout = Vx_show_tooltip_timeout;
   CHECK_FIXNAT (timeout);
 
   if (NILP (dx))
-    dx = make_fixnum (5);
+    dx = make_fixnum (1);
   else
     CHECK_FIXNUM (dx);
 
   if (NILP (dy))
-    dy = make_fixnum (-10);
+    dy = make_fixnum (-1);
   else
     CHECK_FIXNUM (dy);
 
@@ -5378,7 +5378,7 @@ DEFUN ("tty-show-tip", Ftty_show_tip, Stty_show_tip, 1, 6, 0,
     w->pixel_left = 0;
     w->pixel_top = 0;
 
-    if (CONSP (Vx_max_tooltip_size)
+    if (CONSP (Vtty_max_tooltip_size)
 	&& RANGED_FIXNUMP (1, XCAR (Vtty_max_tooltip_size), INT_MAX)
 	&& RANGED_FIXNUMP (1, XCDR (Vtty_max_tooltip_size), INT_MAX))
       {
@@ -5412,7 +5412,7 @@ DEFUN ("tty-show-tip", Ftty_show_tip, Stty_show_tip, 1, 6, 0,
     SET_TEXT_POS (pos, BEGV, BEGV_BYTE);
     displayed = try_window (window, pos, TRY_WINDOW_IGNORE_FONTS_CHANGE);
 
-    if (!displayed && NILP (Vx_max_tooltip_size))
+    if (!displayed && NILP (Vtty_max_tooltip_size))
       {
 #ifdef ENABLE_CHECKING
 	row = w->desired_matrix->rows;
