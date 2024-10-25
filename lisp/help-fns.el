@@ -2115,7 +2115,8 @@ keymap value."
                 t nil 'keymap-name-history
                 (symbol-name km))))
      (unless (equal val "")
-       (setq km (intern val)))
+       (let ((symbol-packages t))
+         (setq km (car (read-from-string val)))))
      (unless (and km (keymapp (symbol-value km)))
        (user-error "Not a keymap: %s" km))
      (list km)))

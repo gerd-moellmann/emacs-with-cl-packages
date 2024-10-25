@@ -786,8 +786,9 @@ expression at point regardless of Lisp syntax."
 ;;;###autoload
 (defun symbol-at-point ()
   "Return the symbol at point, or nil if none is found."
-  (let ((thing (thing-at-point 'symbol)))
-    (if thing (intern thing))))
+  (let ((thing (thing-at-point 'symbol))
+        (symbol-packages t))
+    (if thing (car (read-from-string thing)))))
 
 (defvar thing-at-point-decimal-regexp
   "-?[0-9]+\\.?[0-9]*"
