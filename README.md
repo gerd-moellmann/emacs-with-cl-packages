@@ -23,7 +23,6 @@ etc., so I'd say it's pretty backwards compatible.
 * Tests
 * Support for purespace
 * Support for symbol shortcuts
-* The new `obarray` type implemented in C
 
 ## Common Lisp packages
 
@@ -40,8 +39,8 @@ None. I don't think CL packages will land in Emacs in my lifetime.
 The resistance against this, or anything CL for that matter, is simply
 too high among current Emacs maintainers.
 
-So, why do this?  Because I can. Some people like to tinker with their
-init files, others go a step further...
+So, why do this? Because I can. Some people like to tinker with their
+init files, others go a step further :-).
 
 ## New GC
 
@@ -58,16 +57,14 @@ Works quite well for me on macOS. I'm using this daily.
 
 The NS port of Emacs shows severe stability problems for me so that I
 finally stopped building with or using NS. In other words, I'm using
-Emacs on a terminal, more specifically iTerm with `kkp.el`.
+Emacs on a terminal, more specifically iTerm2 with `kkp.el`.
 
-Since I was a user of Posframe with Vertico and Transient on GUI Emacs,
-I wanted that on the terminal as well.
-
-This is work in progress. It still has some problem, but it can already
-be used.
+Since I was a user of Corfu, and Posframe with Vertico, Consult, and
+Transient on GUI Emacs, I wanted that on the terminal as well, and here
+we are.
 
 Some things have to be added to one's init file to convince Posframe an
-Corfu that they can use child frames. As of 2024-10-10 I use
+Corfu that they can use child frames. As of 2024-10-24 I use
 
 ```
 (defun posframe-workable-p ()
@@ -90,4 +87,5 @@ Corfu that they can use child frames. As of 2024-10-10 I use
 
 ```
 
-But it's work in progress, This might change at any point.
+A port of this to plain Emacs is available from savannah, branch
+`scratch/tty-child-frames`.
