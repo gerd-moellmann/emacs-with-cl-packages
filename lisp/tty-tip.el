@@ -133,6 +133,7 @@
       (add-hook 'post-command-hook
                 #'tty-tip--delete-frame))))
 
+;;;###autoload
 (define-minor-mode tty-tip-mode
   "Global minor mode for displaying help in tty child frames."
   :global t :group 'help
