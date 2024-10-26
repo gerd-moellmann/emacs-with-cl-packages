@@ -2034,9 +2034,10 @@ function `read-from-minibuffer'."
         (add-hook 'completion-at-point-functions
                   #'elisp-completion-at-point nil t)
         (run-hooks 'eval-expression-minibuffer-setup-hook))
-    (read-from-minibuffer prompt initial-contents
-                          read--expression-map t
-                          'read-expression-history)))
+    (let ((symbol-packages t))
+      (read-from-minibuffer prompt initial-contents
+                            read--expression-map t
+                            'read-expression-history))))
 
 (defun read--expression-try-read ()
   "Try to read an Emacs Lisp expression in the minibuffer.
