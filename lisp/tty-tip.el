@@ -106,32 +106,34 @@
     (cons x y)))
 
 (defun tty-tip--show-help (text)
-  "Function to add to `show-help-function'."
-  (let* ((minibuffer (minibuffer-window (window-frame)))
-         (buffer (tty-tip--buffer text))
-         (window-min-height 1)
-         (window-min-width 1)
-         after-make-frame-functions
-	 (text-lines (string-lines text)))
-    (tty-tip--delete-frame)
-    (setq tty-tip--frame
-          (make-frame
-           `((parent-frame . ,(window-frame))
-             (minibuffer . ,minibuffer)
-             ,@tty-tip-frame-parameters)))
-    (let ((win (frame-root-window tty-tip--frame)))
-      (set-window-buffer win buffer)
-      (set-window-dedicated-p win t)
-      (set-frame-size tty-tip--frame
-                      (apply #'max (mapcar #'string-width text-lines))
-                      (length text-lines))
-      (let* ((pos (tty-tip--compute-position))
-             (x (car pos))
-             (y (cdr pos)))
-	(set-frame-position tty-tip--frame x y))
-      (make-frame-visible tty-tip--frame)
-      (add-hook 'post-command-hook
-                #'tty-tip--delete-frame))))
+  "Function to add to `show-help-function'.
+TEXT is the text to display.  TEXT nil means cancel the display."
+  (tty-tip--delete-frame)
+  (when text
+    (let* ((minibuffer (minibuffer-window (window-frame)))
+           (buffer (tty-tip--buffer text))
+           (window-min-height 1)
+           (window-min-width 1)
+           after-make-frame-functions
+	   (text-lines (string-lines text)))
+      (tty-tip--delete-frame)
+      (setq tty-tip--frame
+            (make-frame
+             `((parent-frame . ,(window-frame))
+               (minibuffer . ,minibuffer)
+               ,@tty-tip-frame-parameters)))
+      (let ((win (frame-root-window tty-tip--frame)))
+        (set-window-buffer win buffer)
+        (set-window-dedicated-p win t)
+        (set-frame-size tty-tip--frame
+                        (apply #'max (mapcar #'string-width text-lines))
+                        (length text-lines))
+        (let* ((pos (tty-tip--compute-position))
+               (x (car pos))
+               (y (cdr pos)))
+	  (set-frame-position tty-tip--frame x y))
+        (make-frame-visible tty-tip--frame)
+        (add-hook 'post-command-hook #'tty-tip--delete-frame)))))
 
 ;;;###autoload
 (define-minor-mode tty-tip-mode
