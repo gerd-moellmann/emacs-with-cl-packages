@@ -110,6 +110,7 @@
       ("q" "Quit LLDBX" lldbx-quit)
       ("r" "Run process" lldbx-run)]])
 
+;;;###autoload
 (define-minor-mode lldbx-mode
   "Minor mode for read-only source buffers in LLDB."
   :lighter " ⚠️"
