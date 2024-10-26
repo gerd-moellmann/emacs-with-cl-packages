@@ -7357,6 +7357,17 @@ OBJECT if it is readable."
              (throw 'unreadable nil))))
       (prin1-to-string object))))
 
+(defun string-to-symbol (string)
+  (let* ((symbol-packages t)
+         (val (read-from-string string))
+         (symbol (car val))
+         (final-index (cdr val)))
+    (unless (symbolp symbol)
+      (error "%s is not a symbol" symbol))
+    (unless (= final-index (length string))
+      (error "%s has garbage at the end" string))
+    symbol))
+
 (defun delete-line ()
   "Delete the current line."
   (delete-region (pos-bol) (pos-bol 2)))

@@ -251,8 +251,7 @@ interactive command."
                t nil nil
                (and fn (symbol-name fn)))))
     (unless (equal val "")
-      (setq fn (let ((symbol-packages t))
-                 (car (read-from-string val)))))
+      (setq fn (string-to-symbol val)))
     ;; These error messages are intended to be less technical for the
     ;; `describe-command' case, as they are directed at users that are
     ;; not necessarily ELisp programmers.
@@ -1371,10 +1370,7 @@ it is displayed along with the global value."
                            (buffer-local-boundp vv orig-buffer))))
                 t nil nil
                 (if (symbolp v) (symbol-name v))))
-     (list (if (equal val "")
-	       v
-	     (let ((symbol-packages t))
-	       (car (read-from-string val)))))))
+     (list (if (equal val "") v (string-to-symbol val)))))
   (let (file-name
         (help-buffer-under-preparation t))
     (unless (buffer-live-p buffer) (setq buffer (current-buffer)))
