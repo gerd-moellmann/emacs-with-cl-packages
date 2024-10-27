@@ -1,4 +1,5 @@
-;;; cl-macs.el --- Common Lisp macros  -*- lexical-binding: t -*-
+;;;   -*- lexical-binding: t; symbol-packages: t -*-
+;;; cl-macs.el --- Common Lisp macros
 
 ;; Copyright (C) 1993, 2001-2024 Free Software Foundation, Inc.
 
@@ -937,6 +938,11 @@ This is compatible with Common Lisp, but note that `defun' and
 (defvar cl--loop-result-var) (defvar cl--loop-steps)
 (defvar cl--loop-symbol-macs)
 
+(defun cl--normalize (word)
+  (if (and word (symbolp word) (not (keywordp word)))
+      (intern (symbol-name word) *keyword-package*)
+    word))
+
 (defun cl--loop-set-iterator-function (kind iterator)
   (if cl--loop-iterator-function
       ;; FIXME: Of course, we could make it work, but why bother.
@@ -1233,39 +1239,42 @@ For more details, see Info node `(cl)Loop Facility'.
 ;;   '(&or (loop-d-type-spec . [&or nil loop-d-type-spec]) cl-type-spec))
 
 (defun cl--parse-loop-clause ()		; uses loop-*
-  (let ((word (pop cl--loop-args))
-	(hash-types '(hash-key hash-keys hash-value hash-values))
-	(key-types '(key-code key-codes key-seq key-seqs
-		     key-binding key-bindings)))
+  (let ((word (cl--normalize (pop cl--loop-args)))
+	(hash-types '(:hash-key :hash-keys :hash-value :hash-values))
+	(key-types '(:key-code :key-codes :key-seq :key-seqs
+		     :key-binding :key-bindings)))
     (cond
 
      ((null cl--loop-args)
       (error "Malformed `cl-loop' macro"))
 
-     ((eq word 'named)
+     ((eq word :named)
       (setq cl--loop-name (pop cl--loop-args)))
 
-     ((eq word 'initially)
-      (if (memq (car cl--loop-args) '(do doing)) (pop cl--loop-args))
+     ((eq word :initially)
+      (if (memq (cl--normalize (car cl--loop-args)) '(:do :doing))
+          (pop cl--loop-args))
       (or (consp (car cl--loop-args))
           (error "Syntax error on `initially' clause"))
       (while (consp (car cl--loop-args))
 	(push (pop cl--loop-args) cl--loop-initially)))
 
-     ((eq word 'finally)
-      (if (eq (car cl--loop-args) 'return)
+     ((eq word :finally)
+      (if (eq (cl--normalize (car cl--loop-args)) :return)
 	  (setq cl--loop-result-explicit
                 (or (cl--pop2 cl--loop-args) '(quote nil)))
-	(if (memq (car cl--loop-args) '(do doing)) (pop cl--loop-args))
+	(if (memq (cl--normalize (car cl--loop-args)) '(:do :doing))
+            (pop cl--loop-args))
 	(or (consp (car cl--loop-args))
             (error "Syntax error on `finally' clause"))
-	(if (and (eq (caar cl--loop-args) 'return) (null cl--loop-name))
+	(if (and (eq (cl--normalize (caar cl--loop-args)) :return)
+                 (null cl--loop-name))
 	    (setq cl--loop-result-explicit
                   (or (nth 1 (pop cl--loop-args)) '(quote nil)))
 	  (while (consp (car cl--loop-args))
 	    (push (pop cl--loop-args) cl--loop-finally)))))
 
-     ((memq word '(for as))
+     ((memq word '(:for :as))
       (let ((loop-for-bindings nil) (loop-for-sets nil) (loop-for-steps nil)
 	    (ands nil))
 	(while
@@ -1273,32 +1282,32 @@ For more details, see Info node `(cl)Loop Facility'.
 	    ;; (not (eq (symbol-name var1) (symbol-name var2))) because
 	    ;; these vars get added to the macro-environment.
 	    (let ((var (or (pop cl--loop-args) (cl-gensym "--cl-var--"))))
-	      (setq word (pop cl--loop-args))
-	      (if (eq word 'being) (setq word (pop cl--loop-args)))
-	      (if (memq word '(the each)) (setq word (pop cl--loop-args)))
-	      (if (memq word '(buffer buffers))
-		  (setq word 'in
+	      (setq word (cl--normalize (pop cl--loop-args)))
+	      (if (eq word :being) (setq word (cl--normalize (pop cl--loop-args))))
+	      (if (memq word '(:the :each)) (setq word (cl--normalize (pop cl--loop-args))))
+	      (if (memq word '(:buffer :buffers))
+		  (setq word :in
                         cl--loop-args (cons '(buffer-list) cl--loop-args)))
 	      (cond
 
-	       ((memq word '(from downfrom upfrom to downto upto
-			     above below by))
+	       ((memq word '(:from :downfrom :upfrom :to :downto :upto
+			     :above :below :by))
 		(push word cl--loop-args)
-		(if (memq (car cl--loop-args) '(downto above))
+		(if (memq (cl--normalize (car cl--loop-args)) '(:downto :above))
 		    (error "Must specify `from' value for downward cl-loop"))
-		(let* ((down (or (eq (car cl--loop-args) 'downfrom)
-				 (memq (nth 2 cl--loop-args)
-                                       '(downto above))))
-		       (excl (or (memq (car cl--loop-args) '(above below))
-				 (memq (nth 2 cl--loop-args)
-                                       '(above below))))
-		       (start (and (memq (car cl--loop-args)
-                                         '(from upfrom downfrom))
+		(let* ((down (or (eq (cl--normalize (car cl--loop-args)) :downfrom)
+				 (memq (cl--normalize (nth 2 cl--loop-args))
+                                       '(:downto :above))))
+		       (excl (or (memq (cl--normalize (car cl--loop-args)) '(:above :below))
+				 (memq (cl--normalize (nth 2 cl--loop-args))
+                                       '(:above :below))))
+		       (start (and (memq (cl--normalize (car cl--loop-args))
+                                         '(:from :upfrom :downfrom))
 				   (cl--pop2 cl--loop-args)))
-		       (end (and (memq (car cl--loop-args)
-				       '(to upto downto above below))
+		       (end (and (memq (cl--normalize (car cl--loop-args))
+				       '(:to :upto :downto :above :below))
 				 (cl--pop2 cl--loop-args)))
-		       (step (and (eq (car cl--loop-args) 'by)
+		       (step (and (eq (cl--normalize (car cl--loop-args)) :by)
                                   (cl--pop2 cl--loop-args)))
 		       (end-var (and (not (macroexp-const-p end))
 				     (make-symbol "--cl-var--")))
@@ -1319,13 +1328,13 @@ For more details, see Info node `(cl)Loop Facility'.
 					(or step-var step 1)))
 			loop-for-steps)))
 
-	       ((memq word '(in in-ref on))
-		(let* ((on (eq word 'on))
+	       ((memq word '(:in :in-ref :on))
+		(let* ((on (eq word :on))
 		       (temp (if (and on (symbolp var))
 				 var (make-symbol "--cl-var--"))))
 		  (push (list temp (pop cl--loop-args)) loop-for-bindings)
                   (cl--push-clause-loop-body `(consp ,temp))
-		  (if (eq word 'in-ref)
+		  (if (eq word :in-ref)
 		      (push (list var `(car ,temp)) cl--loop-symbol-macs)
 		    (or (eq temp var)
 			(progn
@@ -1333,7 +1342,7 @@ For more details, see Info node `(cl)Loop Facility'.
 			  (push (list var (if on temp `(car ,temp)))
 				loop-for-sets))))
 		  (push (list temp
-			      (if (eq (car cl--loop-args) 'by)
+			      (if (eq (cl--normalize (car cl--loop-args)) :by)
 				  (let ((step (cl--pop2 cl--loop-args)))
 				    (if (and (memq (car-safe step)
 						   '(quote function
@@ -1344,9 +1353,9 @@ For more details, see Info node `(cl)Loop Facility'.
 				`(cdr ,temp)))
 			loop-for-steps)))
 
-	       ((eq word '=)
+	       ((eq word :=)
 		(let* ((start (pop cl--loop-args))
-		       (then (if (eq (car cl--loop-args) 'then)
+		       (then (if (eq (cl--normalize (car cl--loop-args)) :then)
                                  (cl--pop2 cl--loop-args) start))
                        (first-assign (or cl--loop-first-flag
 					 (setq cl--loop-first-flag
@@ -1364,7 +1373,7 @@ For more details, see Info node `(cl)Loop Facility'.
                             `(,var (if ,first-assign ,start ,then)))
                           loop-for-sets))))
 
-	       ((memq word '(across across-ref))
+	       ((memq word '(:across :across-ref))
 		(let ((temp-vec (make-symbol "--cl-vec--"))
 		      (temp-idx (make-symbol "--cl-idx--")))
 		  (push (list temp-vec (pop cl--loop-args)) loop-for-bindings)
@@ -1372,21 +1381,21 @@ For more details, see Info node `(cl)Loop Facility'.
                   (push `(setq ,temp-idx (1+ ,temp-idx)) cl--loop-body)
 		  (cl--push-clause-loop-body
                    `(< ,temp-idx (length ,temp-vec)))
-		  (if (eq word 'across-ref)
+		  (if (eq word :across-ref)
 		      (push (list var `(aref ,temp-vec ,temp-idx))
 			    cl--loop-symbol-macs)
 		    (push (list var nil) loop-for-bindings)
 		    (push (list var `(aref ,temp-vec ,temp-idx))
 			  loop-for-sets))))
 
-	       ((memq word '(element elements))
-		(let ((ref (or (memq (car cl--loop-args) '(in-ref of-ref))
-			       (and (not (memq (car cl--loop-args) '(in of)))
+	       ((memq word '(:element :elements))
+		(let ((ref (or (memq (cl--normalize (car cl--loop-args)) '(:in-ref :of-ref))
+			       (and (not (memq (cl--normalize (car cl--loop-args)) '(:in :of)))
 				    (error "Expected `of'"))))
 		      (seq (cl--pop2 cl--loop-args))
 		      (temp-seq (make-symbol "--cl-seq--"))
 		      (temp-idx
-                       (if (eq (car cl--loop-args) 'using)
+                       (if (eq (cl--normalize (car cl--loop-args)) :using)
                            (if (and (= (length (cadr cl--loop-args)) 2)
                                     (eq (caadr cl--loop-args) 'index))
                                (cadr (cl--pop2 cl--loop-args))
@@ -1413,38 +1422,38 @@ For more details, see Info node `(cl)Loop Facility'.
 			loop-for-steps)))
 
 	       ((memq word hash-types)
-		(or (memq (car cl--loop-args) '(in of))
+		(or (memq (cl--normalize (car cl--loop-args)) '(:in :of))
                     (error "Expected `of'"))
 		(let* ((table (cl--pop2 cl--loop-args))
 		       (other
-                        (if (eq (car cl--loop-args) 'using)
+                        (if (eq (cl--normalize (car cl--loop-args)) :using)
                             (if (and (= (length (cadr cl--loop-args)) 2)
-                                     (memq (caadr cl--loop-args) hash-types)
+                                     (memq (cl--normalize (caadr cl--loop-args)) hash-types)
                                      (not (eq (caadr cl--loop-args) word)))
                                 (cadr (cl--pop2 cl--loop-args))
                               (error "Bad `using' clause"))
                           (make-symbol "--cl-var--"))))
-		  (if (memq word '(hash-value hash-values))
+		  (if (memq word '(:hash-value :hash-values))
 		      (setq var (prog1 other (setq other var))))
 		  (cl--loop-set-iterator-function
                    'hash-tables (lambda (body)
                                   `(maphash (lambda (,var ,other) . ,body)
                                             ,table)))))
 
-	       ((memq word '(symbol present-symbol external-symbol
-			     symbols present-symbols external-symbols))
-		(let ((ob (and (memq (car cl--loop-args) '(in of))
+	       ((memq word '(:symbol :present-symbol :external-symbol
+			     :symbols :present-symbols :external-symbols))
+		(let ((ob (and (memq (cl--normalize (car cl--loop-args)) '(:in :of))
                                (cl--pop2 cl--loop-args))))
 		  (cl--loop-set-iterator-function
                    'symbols (lambda (body)
                               `(mapatoms (lambda (,var) . ,body) ,ob)))))
 
-	       ((memq word '(overlay overlays extent extents))
+	       ((memq word '(:overlay :overlays :extent :extents))
 		(let ((buf nil) (from nil) (to nil))
-		  (while (memq (car cl--loop-args) '(in of from to))
-		    (cond ((eq (car cl--loop-args) 'from)
+		  (while (memq (cl--normalize (car cl--loop-args)) '(:in :of :from :to))
+		    (cond ((eq (cl--normalize (car cl--loop-args)) :from)
                            (setq from (cl--pop2 cl--loop-args)))
-			  ((eq (car cl--loop-args) 'to)
+			  ((eq (cl--normalize (car cl--loop-args)) :to)
                            (setq to (cl--pop2 cl--loop-args)))
 			  (t (setq buf (cl--pop2 cl--loop-args)))))
 		  (cl--loop-set-iterator-function
@@ -1454,16 +1463,16 @@ For more details, see Info node `(cl)Loop Facility'.
                                    (progn . ,body) nil)
                                  ,buf ,from ,to)))))
 
-	       ((memq word '(interval intervals))
+	       ((memq word '(:interval :intervals))
 		(let ((buf nil) (prop nil) (from nil) (to nil)
 		      (var1 (make-symbol "--cl-var1--"))
 		      (var2 (make-symbol "--cl-var2--")))
-		  (while (memq (car cl--loop-args) '(in of property from to))
-		    (cond ((eq (car cl--loop-args) 'from)
+		  (while (memq (cl--normalize (car cl--loop-args)) '(:in :of :property :from :to))
+		    (cond ((eq (cl--normalize (car cl--loop-args)) :from)
                            (setq from (cl--pop2 cl--loop-args)))
-			  ((eq (car cl--loop-args) 'to)
+			  ((eq (cl--normalize (car cl--loop-args)) :to)
                            (setq to (cl--pop2 cl--loop-args)))
-			  ((eq (car cl--loop-args) 'property)
+			  ((eq (cl--normalize (car cl--loop-args)) :property)
 			   (setq prop (cl--pop2 cl--loop-args)))
 			  (t (setq buf (cl--pop2 cl--loop-args)))))
 		  (if (and (consp var) (symbolp (car var)) (symbolp (cdr var)))
@@ -1477,18 +1486,18 @@ For more details, see Info node `(cl)Loop Facility'.
                                   ,buf ,prop ,from ,to)))))
 
 	       ((memq word key-types)
-		(or (memq (car cl--loop-args) '(in of))
+		(or (memq (cl--normalize (car cl--loop-args)) '(:in :of))
                     (error "Expected `of'"))
 		(let ((cl-map (cl--pop2 cl--loop-args))
 		      (other
-                       (if (eq (car cl--loop-args) 'using)
+                       (if (eq (cl--normalize (car cl--loop-args)) :using)
                            (if (and (= (length (cadr cl--loop-args)) 2)
-                                    (memq (caadr cl--loop-args) key-types)
-                                    (not (eq (caadr cl--loop-args) word)))
+                                    (memq (cl--normalize (caadr cl--loop-args)) key-types)
+                                    (not (eq (cl--normalize (caadr cl--loop-args)) word)))
                                (cadr (cl--pop2 cl--loop-args))
                              (error "Bad `using' clause"))
                          (make-symbol "--cl-var--"))))
-		  (if (memq word '(key-binding key-bindings))
+		  (if (memq word '(:key-binding :key-bindings))
 		      (setq var (prog1 other (setq other var))))
 		  (cl--loop-set-iterator-function
                    'keys (lambda (body)
@@ -1496,7 +1505,7 @@ For more details, see Info node `(cl)Loop Facility'.
                                   'cl--map-keymap-recursively 'map-keymap)
                              (lambda (,var ,other) . ,body) ,cl-map)))))
 
-	       ((memq word '(frame frames screen screens))
+	       ((memq word '(:frame :frames :screen :screens))
 		(let ((temp (make-symbol "--cl-var--")))
 		  (push (list var  '(selected-frame))
 			loop-for-bindings)
@@ -1506,8 +1515,8 @@ For more details, see Info node `(cl)Loop Facility'.
 		  (push (list var `(next-frame ,var))
 			loop-for-steps)))
 
-	       ((memq word '(window windows))
-		(let ((scr (and (memq (car cl--loop-args) '(in of))
+	       ((memq word '(:window :windows))
+		(let ((scr (and (memq (cl--normalize (car cl--loop-args)) '(:in :of))
                                 (cl--pop2 cl--loop-args)))
 		      (temp (make-symbol "--cl-var--"))
 		      (minip (make-symbol "--cl-minip--")))
@@ -1552,12 +1561,12 @@ For more details, see Info node `(cl)Loop Facility'.
 		      (apply #'append (nreverse loop-for-steps)))
 		cl--loop-steps))))
 
-     ((eq word 'repeat)
+     ((eq word :repeat)
       (let ((temp (make-symbol "--cl-var--")))
 	(push (list (list temp (pop cl--loop-args))) cl--loop-bindings)
 	(push `(>= (setq ,temp (1- ,temp)) 0) cl--loop-body)))
 
-     ((memq word '(collect collecting))
+     ((memq word '(:collect :collecting))
       (let ((what (pop cl--loop-args))
 	    (var (cl--loop-handle-accum nil 'nreverse)))
 	(if (eq var cl--loop-accum-var)
@@ -1567,7 +1576,7 @@ For more details, see Info node `(cl)Loop Facility'.
                    t)
                 cl--loop-body))))
 
-     ((memq word '(nconc nconcing append appending))
+     ((memq word '(:nconc :nconcing :append :appending))
       (let ((what (pop cl--loop-args))
 	    (var (cl--loop-handle-accum nil 'nreverse)))
 	(push `(progn
@@ -1584,66 +1593,67 @@ For more details, see Info node `(cl)Loop Facility'.
                  t)
               cl--loop-body)))
 
-     ((memq word '(concat concating))
+     ((memq word '(:concat :concating))
       (let ((what (pop cl--loop-args))
 	    (var (cl--loop-handle-accum "")))
 	(push `(progn (cl-callf concat ,var ,what) t) cl--loop-body)))
 
-     ((memq word '(vconcat vconcating))
+     ((memq word '(:vconcat :vconcating))
       (let ((what (pop cl--loop-args))
 	    (var (cl--loop-handle-accum [])))
 	(push `(progn (cl-callf vconcat ,var ,what) t) cl--loop-body)))
 
-     ((memq word '(sum summing))
+     ((memq word '(:sum :summing))
       (let ((what (pop cl--loop-args))
 	    (var (cl--loop-handle-accum 0)))
 	(push `(progn (cl-incf ,var ,what) t) cl--loop-body)))
 
-     ((memq word '(count counting))
+     ((memq word '(:count :counting))
       (let ((what (pop cl--loop-args))
 	    (var (cl--loop-handle-accum 0)))
 	(push `(progn (if ,what (cl-incf ,var)) t) cl--loop-body)))
 
-     ((memq word '(minimize minimizing maximize maximizing))
+     ((memq word '(:minimize :minimizing :maximize :maximizing))
       (push `(progn ,(macroexp-let2 macroexp-copyable-p temp
                                     (pop cl--loop-args)
                        (let* ((var (cl--loop-handle-accum nil))
-                              (func (intern (substring (symbol-name word)
-                                                       0 3))))
+                              (func (if (memq word '(:minimize
+                                                     :minimizing))
+                                        'min 'max)))
                          `(setq ,var (if ,var (,func ,var ,temp) ,temp))))
                     t)
             cl--loop-body))
 
-     ((eq word 'with)
+     ((eq word :with)
       (let ((bindings nil))
 	(while (progn (push (list (pop cl--loop-args)
-				  (and (eq (car cl--loop-args) '=)
+				  (and (eq (cl--normalize (car cl--loop-args)) :=)
                                        (cl--pop2 cl--loop-args)))
 			    bindings)
-		      (eq (car cl--loop-args) 'and))
+		      (eq (cl--normalize (car cl--loop-args)) :and))
 	  (pop cl--loop-args))
 	(push (nreverse bindings) cl--loop-bindings)))
 
-     ((eq word 'while)
+     ((eq word :while)
       (push (pop cl--loop-args) cl--loop-body))
 
-     ((eq word 'until)
+     ((eq word :until)
       (push `(not ,(pop cl--loop-args)) cl--loop-body))
 
-     ((eq word 'always)
+     ((eq word :always)
       (or cl--loop-finish-flag
           (setq cl--loop-finish-flag (make-symbol "--cl-flag--")))
       (push `(setq ,cl--loop-finish-flag ,(pop cl--loop-args)) cl--loop-body)
       (setq cl--loop-result t))
 
-     ((eq word 'never)
+     ((eq word :never)
       (or cl--loop-finish-flag
           (setq cl--loop-finish-flag (make-symbol "--cl-flag--")))
       (push `(setq ,cl--loop-finish-flag (not ,(pop cl--loop-args)))
 	    cl--loop-body)
       (setq cl--loop-result t))
 
-     ((eq word 'thereis)
+     ((eq word :thereis)
       (or cl--loop-finish-flag
           (setq cl--loop-finish-flag (make-symbol "--cl-flag--")))
       (or cl--loop-result-var
@@ -1652,18 +1662,18 @@ For more details, see Info node `(cl)Loop Facility'.
                    (not (setq ,cl--loop-result-var ,(pop cl--loop-args))))
 	    cl--loop-body))
 
-     ((memq word '(if when unless))
+     ((memq word '(:if :when :unless))
       (let* ((cond (pop cl--loop-args))
 	     (then (let ((cl--loop-body nil))
 		     (cl--parse-loop-clause)
 		     (cl--loop-build-ands (nreverse cl--loop-body))))
 	     (else (let ((cl--loop-body nil))
-		     (if (eq (car cl--loop-args) 'else)
+		     (if (eq (cl--normalize (car cl--loop-args)) :else)
 			 (progn (pop cl--loop-args) (cl--parse-loop-clause)))
 		     (cl--loop-build-ands (nreverse cl--loop-body))))
 	     (simple (and (eq (car then) t) (eq (car else) t))))
-	(if (eq (car cl--loop-args) 'end) (pop cl--loop-args))
-	(if (eq word 'unless) (setq then (prog1 else (setq else then))))
+	(if (eq (cl--normalize (car cl--loop-args)) :end) (pop cl--loop-args))
+	(if (eq word :unless) (setq then (prog1 else (setq else then))))
 	(let ((form (cons (if simple (cons 'progn (nth 1 then)) (nth 2 then))
 			  (if simple (nth 1 else) (list (nth 2 else))))))
 	  (setq form (if (cl--expr-contains form 'it)
@@ -1671,13 +1681,13 @@ For more details, see Info node `(cl)Loop Facility'.
                        `(if ,cond ,@form)))
 	  (push (if simple `(progn ,form t) form) cl--loop-body))))
 
-     ((memq word '(do doing))
+     ((memq word '(:do :doing))
       (let ((body nil))
 	(or (consp (car cl--loop-args)) (error "Syntax error on `do' clause"))
 	(while (consp (car cl--loop-args)) (push (pop cl--loop-args) body))
 	(push (cons 'progn (nreverse (cons t body))) cl--loop-body)))
 
-     ((eq word 'return)
+     ((eq word :return)
       (or cl--loop-finish-flag
           (setq cl--loop-finish-flag (make-symbol "--cl-var--")))
       (or cl--loop-result-var
