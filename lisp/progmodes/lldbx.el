@@ -182,14 +182,25 @@
       (set-window-buffer nil buf)))
   (apply orig-fun args))
 
-(advice-add 'gud-find-file :around #'lldbx-find-file)
-(advice-add 'gud-reset :around #'lldbx-reset)
-(advice-add 'gud-display-line :around #'lldbx-display-line)
+(defun lldbx-prompt-make-readable ()
+  ;; Gud doesn't like read-only prompts, which should be fixed, but I
+  ;; don't want to spend time on that.
+  (setq-local comint-prompt-read-only nil))
 
-;; Gud doesn't like read-only prompts, which should be fixed, but I
-;; don't want to spend time on that.
-(add-hook 'lldb-mode-hook
-	  #'(lambda ()
-	      (setq-local comint-prompt-read-only nil)))
+;;;###autoload
+(define-minor-mode global-lldbx-mode
+  "Global minor mode for additional LLDB support.
+This installs advices and whatever else is needed."
+  :global t :group 'lldb
+  (cond (global-lldbx-mode
+         (remove-hook 'lldb-mode-hook 'lldbx-prompt-make-readable)
+         (advice-remove 'gud-find-file #'lldbx-find-file)
+         (advice-remove 'gud-reset #'lldbx-reset)
+         (advice-remove 'gud-display-line #'lldbx-display-line))
+        (t
+         (add-hook 'lldb-mode-hook 'lldbx-prompt-make-readable)
+         (advice-add 'gud-find-file :around #'lldbx-find-file)
+         (advice-add 'gud-reset :around #'lldbx-reset)
+         (advice-add 'gud-display-line :around #'lldbx-display-line))))
 
 (provide 'lldbx)
