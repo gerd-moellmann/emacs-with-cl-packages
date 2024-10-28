@@ -193,14 +193,14 @@
 This installs advices and whatever else is needed."
   :global t :group 'lldb
   (cond (global-lldbx-mode
-         (remove-hook 'lldb-mode-hook 'lldbx-prompt-make-readable)
-         (advice-remove 'gud-find-file #'lldbx-find-file)
-         (advice-remove 'gud-reset #'lldbx-reset)
-         (advice-remove 'gud-display-line #'lldbx-display-line))
-        (t
          (add-hook 'lldb-mode-hook 'lldbx-prompt-make-readable)
          (advice-add 'gud-find-file :around #'lldbx-find-file)
          (advice-add 'gud-reset :around #'lldbx-reset)
-         (advice-add 'gud-display-line :around #'lldbx-display-line))))
+         (advice-add 'gud-display-line :around #'lldbx-display-line))
+        (t
+         (remove-hook 'lldb-mode-hook 'lldbx-prompt-make-readable)
+         (advice-remove 'gud-find-file #'lldbx-find-file)
+         (advice-remove 'gud-reset #'lldbx-reset)
+         (advice-remove 'gud-display-line #'lldbx-display-line))))
 
 (provide 'lldbx)
