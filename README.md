@@ -48,10 +48,10 @@ This is a new GC that is based on Ravenbrook MPS.
 
 I ported this to the mainline GNU/Emacs (branch scratch/igc on savannah)
 and it wsa developed further there and here. Pip Cet has taken over
-further development at some point because I didn't want to do it
-anymore.
+further development at some point because I don't want to maintain this
+(or anything else) in mainline Emacs.
 
-Works quite well for me on macOS. I'm using this daily.
+Works well for me on macOS. I'm using this daily.
 
 ## Child frames on ttys
 
