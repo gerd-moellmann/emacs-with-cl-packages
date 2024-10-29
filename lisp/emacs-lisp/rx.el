@@ -1275,7 +1275,7 @@ can expand to any number of values."
 (defun rx--translate-form (form)
   "Translate an rx form (list structure).  Return (REGEXP . PRECEDENCE)."
   (let ((body (cdr form)))
-    (pcase (car form)
+    (pcase (rx--normalize (car form))
       ((or 'seq : 'and 'sequence) (rx--translate-seq body))
       ((or 'or '|)              (rx--translate-or body))
       ((or 'any 'in 'char)      (rx--translate-any nil body))
