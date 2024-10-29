@@ -134,7 +134,13 @@ Most of the names are from SRE.")
   (if (and name
            (symbolp name)
            (not (eq (symbol-package name) *emacs-package*)))
-      (intern (cl-symbol-name name) *emacs-package*)
+      ;; The symbol ':' is normally a keyword, except when it is
+      ;; read in some package with symbol-packages nil. It has the
+      ;; same meaning as seq. This is all idiotic, but things are
+      ;; what they are :-).
+      (if (equal ":" (symbol-name name))
+          'seq
+        (intern (cl-symbol-name name) *emacs-package*))
     name))
 
 (defun rx--lookup-char-class (name)
