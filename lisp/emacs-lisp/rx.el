@@ -1,4 +1,5 @@
-;;; rx.el --- S-exp notation for regexps           --*- lexical-binding: t -*-
+;;; --*- lexical-binding: t; symbol-packages: t -*-
+;;; rx.el --- S-exp notation for regexps
 
 ;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
 
@@ -129,6 +130,16 @@
   "Alist mapping rx symbols to character classes.
 Most of the names are from SRE.")
 
+(defun rx--normalize (name)
+  (if (and name
+           (symbolp name)
+           (not (eq (symbol-package name) *emacs-package*)))
+      (intern (cl-symbol-name name) *emacs-package*)
+    name))
+
+(defun rx--lookup-char-class (name)
+  (assq (rx--normalize name) rx--char-classes))
+
 (defvar rx-constituents nil
   "Alist of old-style rx extensions, for compatibility.
 For new code, use `rx-define', `rx-let' or `rx-let-eval'.
@@ -187,6 +198,7 @@ Each entry is:
 
 (defun rx--translate-symbol (sym)
   "Translate an rx symbol.  Return (REGEXP . PRECEDENCE)."
+  (setq sym (rx--normalize sym))
   (pcase sym
     ;; Use `list' instead of a quoted list to wrap the strings here,
     ;; since the return value may be mutated.
@@ -207,7 +219,7 @@ Each entry is:
     ('not-wordchar                (rx--translate '(not wordchar)))
     (_
      (cond
-      ((let ((class (cdr (assq sym rx--char-classes))))
+      ((let ((class (cdr (rx--lookup-char-class sym))))
          (and class (cons (list (concat "[[:" (symbol-name class) ":]]")) t))))
 
       ((let ((expanded (rx--expand-def-symbol sym)))
@@ -318,7 +330,7 @@ name-normalised character classes."
   (defvar rx--builtin-forms)
   (defvar rx--builtin-symbols)
   (cond ((consp form)
-         (let ((op (car form))
+         (let ((op (rx--normalize (car form)))
                (body (cdr form)))
            (cond ((memq op '(or |))
                   ;; Normalise the constructor to `or' and the args recursively.
@@ -339,7 +351,8 @@ name-normalised character classes."
         ;; FIXME: Should we expand legacy definitions from
         ;; `rx-constituents' here as well?
         ((symbolp form)
-         (cond ((let ((class (assq form rx--char-classes)))
+         (setq form (rx--normalize form))
+         (cond ((let ((class (rx--lookup-char-class form)))
                   (and class
                        `(rx--char-alt nil . (,(cdr class))))))
                ((memq form rx--builtin-symbols) form)
@@ -379,13 +392,14 @@ name-normalised character classes."
   "Transform FORM into (INTERVALS . CLASSES) or nil if not possible.
 Process `or', `intersection' and `not'.
 FORM must be normalised (from `rx--normalise-char-pattern')."
+  (setq form (rx--normalize form))
   (cond
    ((stringp form)
     (and (= (length form) 1)
          (let ((c (aref form 0)))
            (list (list (cons c c))))))
    ((consp form)
-    (let ((head (car form)))
+    (let ((head (rx--normalize (car form))))
       (cond
        ;; FIXME: Transform `digit', `xdigit', `cntrl', `ascii', `nonascii'
        ;; to ranges? That would allow them to be negated and intersected.
@@ -455,7 +469,7 @@ Each element of ARGS should have been normalised using
 (defun rx--all-string-branches-p (forms)
   "Whether FORMS are all strings or `or' forms with the same property."
   (rx--every (lambda (x) (or (stringp x)
-                             (and (eq (car-safe x) 'or)
+                             (and (eq (rx--normalize (car-safe x)) 'or)
                                   (rx--all-string-branches-p (cdr x)))))
              forms))
 
@@ -493,7 +507,7 @@ Return (REGEXP . PRECEDENCE)."
           (cons (list (regexp-opt (rx--collect-or-strings args) nil))
                 t)
         (let ((form (rx--optimise-or-args args)))
-          (if (eq (car-safe form) 'or)
+          (if (eq (rx--normalize (car-safe form)) 'or)
               (let ((branches (cdr form)))
                 (cons (append (car (rx--translate (car branches)))
                               (mapcan (lambda (item)
@@ -573,7 +587,7 @@ a list of named character classes in the order they occur in BODY."
             ((characterp arg)
              (push (cons arg arg) conses))
             ((and (symbolp arg)
-                  (let ((class (cdr (assq arg rx--char-classes))))
+                  (let ((class (cdr (rx--lookup-char-class arg))))
                     (and class
                          (or (memq class classes)
                              (progn (push class classes) t))))))
