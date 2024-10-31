@@ -44,7 +44,8 @@ init files, others go a step further :-).
 
 ## New GC
 
-This is a new GC that is based on Ravenbrook MPS.
+This is an incremental and concurrent GC that is based on Ravenbrook
+MPS.
 
 I ported this to the mainline GNU/Emacs (branch scratch/igc on savannah)
 and it wsa developed further there and here. Pip Cet has taken over
@@ -63,24 +64,13 @@ Since I was a user of Corfu, and Posframe with Vertico, Consult, and
 Transient on GUI Emacs, I wanted that on the terminal as well, and here
 we are.
 
-Some things have to be added to one's init file to convince Posframe an
-Corfu that they can use child frames. As of 2024-10-24 I use
+Make sure to use up-to-date Corfu and Posframe packages. Both packages
+now check for the presence of the `tty-child-frames` feature and use
+child frames on ttys.
 
-```
-(defun posframe-workable-p ()
-  "Test posframe workable status."
-  (and (>= emacs-major-version 26)
-       (not (or noninteractive
-                emacs-basic-display
-                (or (featurep 'tty-child-frames)
-                    (not (display-graphic-p)))
-                (eq (frame-parameter (selected-frame) 'minibuffer) 'only)))))))
+You might also want to add these lines to make things look nicer.
 
-(cl-defgeneric corfu--popup-support-p ()
-  "Return non-nil if child frames are supported."
-  (or (display-graphic-p)
-      (featurep 'tty-child-frames)))
-
+'''
 (push '(tty-non-selected-cursor . t) vertico-posframe-parameters)
 (push '(undecorated . nil) vertico-posframe-parameters))
 (push '(undecorated . nil) transient-posframe-parameters))
