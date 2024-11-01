@@ -109,7 +109,6 @@
   "Function to add to `show-help-function'.
 TEXT is the text to display.  TEXT nil means cancel the display."
   (tty-tip--delete-frame)
-  (message (format "mouse-position %S" (mouse-position)))
   (when text
     (let* ((minibuffer (minibuffer-window (window-frame)))
            (buffer (tty-tip--buffer text))
