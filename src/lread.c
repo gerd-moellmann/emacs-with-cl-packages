@@ -3889,6 +3889,8 @@ read_make_string (const char *s, ptrdiff_t nbytes, bool multibyte)
 
 #define READ_AND_BUFFER(c)			\
   c = READCHAR;					\
+  if (c < 0)					\
+    INVALID_SYNTAX_WITH_BUFFER ();		\
   if (multibyte)				\
     p += CHAR_STRING (c, (unsigned char *) p);	\
   else						\

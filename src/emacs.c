@@ -2490,6 +2490,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #ifdef HAVE_W32NOTIFY
       syms_of_w32notify ();
 #endif /* HAVE_W32NOTIFY */
+      syms_of_w32dwrite ();
 #endif /* WINDOWSNT */
 
       syms_of_xwidget ();
