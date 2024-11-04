@@ -3674,7 +3674,7 @@ The search within DIRECTORY is perfomed recursively."
 	(directory-files-recursively directory ".+\\.el\\'")))
 
 ;;;###autoload
-(defun batch-native-compile (&optional for-tarball)
+(defun batch-native-compile-1 (&optional for-tarball)
   "Perform batch native compilation of remaining command-line arguments.
 
 Native compilation equivalent of `batch-byte-compile'.
