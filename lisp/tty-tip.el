@@ -83,6 +83,16 @@
     (no-special-glyphs . t)
     (desktop-dont-save . t)))
 
+(defun tty-tip--frame-parameters ()
+  (let ((params (copy-sequence tty-tip-frame-parameters))
+        (fg (face-attribute 'tooltip :foreground))
+        (bg (face-attribute 'tooltip :background)))
+    (when (stringp fg)
+      (setf (alist-get 'foreground-color params) fg))
+    (when (stringp bg)
+      (setf (alist-get 'background-color params) bg))
+    params))
+
 (defun tty-tip--delete-frame ()
   (when tty-tip--frame
     (delete-frame tty-tip--frame)
@@ -121,7 +131,7 @@ TEXT is the text to display.  TEXT nil means cancel the display."
             (make-frame
              `((parent-frame . ,(car (mouse-position)))
                (minibuffer . ,minibuffer)
-               ,@tty-tip-frame-parameters)))
+               ,@(tty-tip--frame-parameters))))
       (let ((win (frame-root-window tty-tip--frame)))
         (set-window-buffer win buffer)
         (set-window-dedicated-p win t)
