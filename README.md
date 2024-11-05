@@ -70,11 +70,10 @@ child frames on ttys.
 
 You might also want to add these lines to make things look nicer.
 
-'''
+```
 (push '(tty-non-selected-cursor . t) vertico-posframe-parameters)
 (push '(undecorated . nil) vertico-posframe-parameters))
 (push '(undecorated . nil) transient-posframe-parameters))
-
 ```
 
 A port of this to plain Emacs is available from savannah, branch
