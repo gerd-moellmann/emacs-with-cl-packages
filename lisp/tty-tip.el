@@ -1,5 +1,5 @@
 ;;; -*- lexical-binding: t; symbol-packages: t; -*-
-;;; tty-tip.el --- Display help in tooltips on ttys
+;;; tty-tip.el --- Display help in kind of tooltips on ttys
 
 ;; Copyright (C) 2024 Free Software Foundation, Inc.
 
@@ -18,15 +18,19 @@
 
 ;;; Commentary:
 
-;; Largely copied from show-paren.el's child frame code.
+;; This uses tty child frames to display help which looks and feels much
+;; like using tooltips (but they really aren't).
+
+;; Use `tty-tip-mode' to activate or toggle this feature.
+;;
+;; You can customize face `tooltip', `tooltip-short-delay',
+;; `tooltip-delay', `tooltip-recent-seconds'.
+
+(require 'tooltip)
 
 (defvar tty-tip--frame nil)
 
-(defun tty-tip--redirect-focus ()
-  "Redirect focus from child frame."
-  (redirect-frame-focus tty-tip--frame (frame-parent tty-tip--frame)))
-
-(defun tty-tip--buffer (text)
+(defun tty-tip--make-buffer (text)
   (with-current-buffer
       (get-buffer-create " *tty-tip*")
     ;; Redirect focus to parent.
@@ -96,8 +100,8 @@
 (defun tty-tip--delete-frame ()
   (when tty-tip--frame
     (delete-frame tty-tip--frame)
-    (setq tty-tip--frame nil))
-  (remove-hook 'post-command-hook #'tty-tip--delete-frame))
+    (setq tty-tip--frame nil)
+    t))
 
 (defun tty-tip--compute-position ()
   (let* ((pos (mouse-position))
@@ -115,35 +119,68 @@
       (setq y (max 0 (- y tip-height 1))))
     (cons x y)))
 
-(defun tty-tip--show-help (text)
-  "Function to add to `show-help-function'.
-TEXT is the text to display.  TEXT nil means cancel the display."
-  (tty-tip--delete-frame)
-  (when text
-    (let* ((minibuffer (minibuffer-window (window-frame)))
-           (buffer (tty-tip--buffer text))
-           (window-min-height 1)
-           (window-min-width 1)
-           after-make-frame-functions
-	   (text-lines (string-lines text)))
-      (tty-tip--delete-frame)
-      (setq tty-tip--frame
-            (make-frame
-             `((parent-frame . ,(car (mouse-position)))
-               (minibuffer . ,minibuffer)
-               ,@(tty-tip--frame-parameters))))
-      (let ((win (frame-root-window tty-tip--frame)))
-        (set-window-buffer win buffer)
-        (set-window-dedicated-p win t)
-        (set-frame-size tty-tip--frame
-                        (apply #'max (mapcar #'string-width text-lines))
-                        (length text-lines))
-        (let* ((pos (tty-tip--compute-position))
-               (x (car pos))
-               (y (cdr pos)))
-	  (set-frame-position tty-tip--frame x y))
-        (make-frame-visible tty-tip--frame)
-        (add-hook 'post-command-hook #'tty-tip--delete-frame)))))
+(defun tty-tip--create-frame (text)
+  (let* ((minibuffer (minibuffer-window (window-frame)))
+         (buffer (tty-tip--make-buffer text))
+         (window-min-height 1)
+         (window-min-width 1)
+         after-make-frame-functions
+	 (text-lines (string-lines text)))
+    (setq tty-tip--frame
+          (make-frame
+           `((parent-frame . ,(car (mouse-position)))
+             (minibuffer . ,minibuffer)
+             ,@(tty-tip--frame-parameters))))
+    (let ((win (frame-root-window tty-tip--frame)))
+      (set-window-buffer win buffer)
+      (set-window-dedicated-p win t)
+      (set-frame-size tty-tip--frame
+                      (apply #'max (mapcar #'string-width text-lines))
+                      (length text-lines))
+      (let* ((pos (tty-tip--compute-position))
+             (x (car pos))
+             (y (cdr pos)))
+	(set-frame-position tty-tip--frame x y))
+      (make-frame-visible tty-tip--frame))))
+
+(defvar tty-tip--help-message nil)
+(defvar tty-tip--hide-time nil)
+(defvar tty-tip--timeout-id nil)
+
+(defun tty-tip--delay ()
+  (if (and tty-tip--hide-time
+	   (time-less-p (time-since tty-tip--hide-time)
+			tooltip-recent-seconds))
+      tooltip-short-delay
+    tooltip-delay))
+
+(defun tty-tip--cancel-delayed-tip ()
+  (when tty-tip--timeout-id
+    (cancel-timer tty-tip--timeout-id)
+    (setq tty-tip--timeout-id nil)))
+
+(defun tty-tip--start-delayed-tip ()
+  (setq tty-tip--timeout-id
+        (run-with-timer (tty-tip--delay) nil
+                        (lambda ()
+                          (tty-tip--create-frame
+                           tty-tip--help-message)))))
+
+(defun tty-tip--hide (&optional _ignored-arg)
+  (tty-tip--cancel-delayed-tip)
+  (when (tty-tip--delete-frame)
+    (setq tty-tip--hide-time (float-time))))
+
+(defun tty-tip--show-help (msg)
+  (let ((previous-help tty-tip--help-message))
+    (setq tty-tip--help-message msg)
+    (cond ((null msg)
+	   (tty-tip--hide))
+	  ((equal previous-help msg)
+	   nil)
+	  (t
+	   (tty-tip--hide)
+	   (tty-tip--start-delayed-tip)))))
 
 ;;;###autoload
 (define-minor-mode tty-tip-mode

@@ -64,9 +64,9 @@ Since I was a user of Corfu, and Posframe with Vertico, Consult, and
 Transient on GUI Emacs, I wanted that on the terminal as well, and here
 we are.
 
-Make sure to use up-to-date Corfu and Posframe packages. Both packages
-now check for the presence of the `tty-child-frames` feature and use
-child frames on ttys.
+To use this, make sure to use up-to-date Corfu and Posframe
+packages. Both packages now check for the presence of the
+`tty-child-frames` feature and use child frames on ttys.
 
 You might also want to add these lines to make things look nicer.
 
@@ -76,5 +76,11 @@ You might also want to add these lines to make things look nicer.
 (push '(undecorated . nil) transient-posframe-parameters))
 ```
 
+Sorry, can't tell what to do for other packages, like maybe Company,
+because I'm not using them.
+
 A port of this to plain Emacs is available from savannah, branch
 `scratch/tty-child-frames`.
+
+If you want something like tooltips on ttys, take a look at tty-tip.el
+in this repo.
