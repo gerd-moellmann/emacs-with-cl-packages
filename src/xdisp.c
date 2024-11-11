@@ -13500,8 +13500,19 @@ echo_area_display (bool update_frame_p)
     return;
 #endif /* HAVE_WINDOW_SYSTEM */
 
-  /* Redraw garbaged frames.  */
-  clear_garbaged_frames ();
+  /* Redraw garbaged frames.  Don't do this for terminal frames since it
+     can clear all current matrices, windows and frame.  Imagine a frame
+     split into a left and a right window.  The clearing clears the
+     right window's current matrix.  Let the left window have a header
+     line.  The header line is displayed in the code below.  When we
+     build a frame matrix, we now have face a frame line whose left part
+     has been displayed (the header-line), and whose right part is clear
+     (window row not enabled).  And we can't tell if the glyphs of the
+     right part are valid or not; they are marked invalid.  So we could
+     only use spaces for the right part.  (See
+     build_frame_matrix_from_leaf_window.) */
+  if (!is_tty_frame (f))
+    clear_garbaged_frames ();
 
   if (!NILP (echo_area_buffer[0]) || minibuf_level == 0)
     {
