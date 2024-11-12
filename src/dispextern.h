@@ -3941,6 +3941,7 @@ bool combine_updates (Lisp_Object root_frames, bool force_p, bool inhibit_id_p);
 bool combine_updates_for_frame (struct frame *f, bool force_p, bool inhibit_id_p);
 void tty_raise_lower_frame (struct frame *f, bool raise);
 int max_child_z_order (struct frame *parent);
+void set_window_update_flags (struct window *w, bool on_p);
 
 INLINE_HEADER_END
 

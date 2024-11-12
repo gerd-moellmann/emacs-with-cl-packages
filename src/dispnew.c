@@ -101,7 +101,7 @@ static bool scrolling (struct frame *);
 static void set_window_cursor_after_update (struct window *);
 static void adjust_frame_glyphs_for_window_redisplay (struct frame *);
 static void adjust_frame_glyphs_for_frame_redisplay (struct frame *);
-static void set_window_update_flags (struct window *w, bool on_p);
+void set_window_update_flags (struct window *w, bool on_p);
 
 #if 0 /* Please leave this in as a debugging aid.  */
 static void
@@ -5110,7 +5110,7 @@ set_window_cursor_after_update (struct window *w)
 /* Set WINDOW->must_be_updated_p to ON_P for all windows in
    the window tree rooted at W.  */
 
-static void
+void
 set_window_update_flags (struct window *w, bool on_p)
 {
   while (w)
