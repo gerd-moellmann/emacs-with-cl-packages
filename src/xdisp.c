@@ -13417,7 +13417,8 @@ clear_message (bool current_p, bool last_displayed_p)
   message_buf_print = false;
 }
 
-/* Clear garbaged frames.
+/* Clear garbaged frames.  Value is true if current matrices have been
+   cleared.
 
    This function is used where the old redisplay called
    redraw_garbaged_frames which in turn called redraw_frame which in
@@ -13426,9 +13427,10 @@ clear_message (bool current_p, bool last_displayed_p)
    suffice in the new redisplay to invalidate all current matrices,
    and ensure a complete redisplay of all windows.  */
 
-static void
+static bool
 clear_garbaged_frames (void)
 {
+  bool current_matrices_cleared = false;
   if (frame_garbaged)
     {
       Lisp_Object tail, frame;
@@ -13450,6 +13452,7 @@ clear_garbaged_frames (void)
 		redraw_frame (f);
 	      else
 		clear_current_matrices (f);
+	      current_matrices_cleared = true;
 
 #ifdef HAVE_WINDOW_SYSTEM
               if (FRAME_WINDOW_P (f)
@@ -13464,6 +13467,8 @@ clear_garbaged_frames (void)
 
       frame_garbaged = false;
     }
+
+  return current_matrices_cleared;
 }
 
 
@@ -13500,19 +13505,22 @@ echo_area_display (bool update_frame_p)
     return;
 #endif /* HAVE_WINDOW_SYSTEM */
 
-  /* Redraw garbaged frames.  Don't do this for terminal frames since it
-     can clear all current matrices, windows and frame.  Imagine a frame
-     split into a left and a right window.  The clearing clears the
-     right window's current matrix.  Let the left window have a header
-     line.  The header line is displayed in the code below.  When we
-     build a frame matrix, we now have face a frame line whose left part
-     has been displayed (the header-line), and whose right part is clear
-     (window row not enabled).  And we can't tell if the glyphs of the
-     right part are valid or not; they are marked invalid.  So we could
-     only use spaces for the right part.  (See
-     build_frame_matrix_from_leaf_window.) */
-  if (!is_tty_frame (f))
-    clear_garbaged_frames ();
+  /* Redraw garbaged frames.
+
+     Imagine a terminal frame split into a left and a right window.  The
+     call to clear_garbaged_frames below can clear all current matrices,
+     frame, left, and right windows (see there). Imagine it does that.
+
+     Let the left window have a header line.  The header line is
+     displayed further down in this function.  When we build a frame
+     matrix, we now have a frame line whose left part has been displayed
+     (the header-line), and whose right part is clear (not enabled), So
+     we can only use spaces for the right part.  (See
+     build_frame_matrix_from_leaf_window.)
+
+     So, remember that we could have this case, and do a more thorough
+     redisplay on tty frames in this case.  */
+  bool current_matrices_cleared = clear_garbaged_frames ();
 
   if (!NILP (echo_area_buffer[0]) || minibuf_level == 0)
     {
@@ -13544,7 +13552,8 @@ echo_area_display (bool update_frame_p)
 #endif
 	    }
 
-	  if (window_height_changed_p
+	  if ((window_height_changed_p
+	       || (current_matrices_cleared && is_tty_frame (f)))
 	      /* Don't do this if Emacs is shutting down.  Redisplay
 	         needs to run hooks.  */
 	      && !NILP (Vrun_hooks))
