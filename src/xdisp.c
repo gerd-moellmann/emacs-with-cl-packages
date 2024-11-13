@@ -13521,7 +13521,6 @@ echo_area_display (bool update_frame_p)
      So, remember that we could have this case, and do a more thorough
      redisplay on tty frames in this case.  */
   bool current_matrices_cleared = clear_garbaged_frames ();
-  bool is_tty = is_tty_child_frame (f);
 
   if (!NILP (echo_area_buffer[0]) || minibuf_level == 0)
     {
@@ -13554,7 +13553,7 @@ echo_area_display (bool update_frame_p)
 	    }
 
 	  if ((window_height_changed_p
-	       || (current_matrices_cleared && is_tty))
+	       || (current_matrices_cleared && is_tty_frame (f)))
 	      /* Don't do this if Emacs is shutting down.  Redisplay
 	         needs to run hooks.  */
 	      && !NILP (Vrun_hooks))
@@ -13562,13 +13561,6 @@ echo_area_display (bool update_frame_p)
 	      /* Must update other windows.  Likewise as in other
 		 cases, don't let this update be interrupted by
 		 pending input.  */
-	      if (current_matrices_cleared && is_tty)
-		{
-		  /* Make sure we display other windows.  */
-		  mark_window_display_accurate (FRAME_ROOT_WINDOW (f), 0);
-		  set_window_update_flags (XWINDOW (FRAME_ROOT_WINDOW (f)),
-					   true);
-		}
 	      specpdl_ref count = SPECPDL_INDEX ();
 	      specbind (Qredisplay_dont_pause, Qt);
 	      fset_redisplay (f);
@@ -13586,7 +13578,7 @@ echo_area_display (bool update_frame_p)
 	  else
 	    {
 	      update_frame (f, true, true);
-	      if (is_tty)
+	      if (is_tty_frame (f))
 		combine_updates_for_frame (f, true, true);
 	    }
 
