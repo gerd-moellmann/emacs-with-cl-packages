@@ -1174,9 +1174,25 @@ default_pixels_per_inch_y (void)
 /* True if frame F is currently iconified.  */
 #define FRAME_ICONIFIED_P(f) (f)->iconified
 
+/* False means there are no visible garbaged frames.  */
+extern bool frame_garbaged;
+
 /* Mark frame F as currently garbaged.  */
-#define SET_FRAME_GARBAGED(f)				\
-  (frame_garbaged = true, fset_redisplay (f), (f)->garbaged = true)
+INLINE void
+set_frame_garbaged (struct frame *f, const char *file, int line)
+{
+#if 0
+  fprintf (stderr, "set_frame_garbaged %s:%d\n", file, line);
+#else
+  (void) file;
+  (void) line;
+#endif
+  frame_garbaged = true;
+  fset_redisplay (f);
+  f->garbaged = true;
+}
+
+#define SET_FRAME_GARBAGED(f) set_frame_garbaged ((f), __FILE__, __LINE__)
 
 /* True if frame F is currently garbaged.  */
 #define FRAME_GARBAGED_P(f) (f)->garbaged
@@ -1429,9 +1445,6 @@ FRAME_PARENT_FRAME (struct frame *f)
 /* Handy macro to construct an argument to Fmodify_frame_parameters.  */
 #define AUTO_FRAME_ARG(name, parameter, value)		\
   AUTO_LIST1 (name, AUTO_CONS_EXPR (parameter, value))
-
-/* False means there are no visible garbaged frames.  */
-extern bool frame_garbaged;
 
 /* Set visibility of frame F.
    We call redisplay_other_windows to make sure the frame gets redisplayed
