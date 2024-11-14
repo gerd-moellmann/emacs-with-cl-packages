@@ -925,10 +925,9 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
   adjust_frame_glyphs (f);
   calculate_costs (f);
   SET_FRAME_GARBAGED (f);
-#if 0
   if (is_tty_child_frame (f))
     SET_FRAME_GARBAGED (root_frame (f));
-#endif
+
   /* We now say here that F was resized instead of using the old
      condition below.  Some resizing must have taken place and if it was
      only shifting the root window's position (paranoia?).  */
