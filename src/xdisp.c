@@ -13538,8 +13538,7 @@ echo_area_display (bool update_frame_p)
 #endif
 	    }
 
-	  if ((window_height_changed_p
-	       || (current_matrices_cleared && is_tty_frame (f)))
+	  if (window_height_changed_p
 	      /* Don't do this if Emacs is shutting down.  Redisplay
 	         needs to run hooks.  */
 	      && !NILP (Vrun_hooks))
