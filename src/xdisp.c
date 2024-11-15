@@ -13505,22 +13505,8 @@ echo_area_display (bool update_frame_p)
     return;
 #endif /* HAVE_WINDOW_SYSTEM */
 
-  /* Redraw garbaged frames.
-
-     Imagine a terminal frame split into a left and a right window.  The
-     call to clear_garbaged_frames below can clear all current matrices,
-     frame, left, and right windows (see there). Imagine it does that.
-
-     Let the left window have a header line.  The header line is
-     displayed further down in this function.  When we build a frame
-     matrix, we now have a frame line whose left part has been displayed
-     (the header-line), and whose right part is clear (not enabled), So
-     we can only use spaces for the right part.  (See
-     build_frame_matrix_from_leaf_window.)
-
-     So, remember that we could have this case, and do a more thorough
-     redisplay on tty frames in this case.  */
-  bool current_matrices_cleared = clear_garbaged_frames ();
+  /* Redraw garbaged frames.  */
+  clear_garbaged_frames ();
 
   if (!NILP (echo_area_buffer[0]) || minibuf_level == 0)
     {
