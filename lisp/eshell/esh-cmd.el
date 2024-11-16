@@ -526,6 +526,32 @@ the second is ignored."
 (defvar eshell--local-vars nil
   "List of locally bound vars that should take precedence over env-vars.")
 
+(iter-defun eshell-for-iterate (&rest args)
+  "Iterate over the elements of each sequence in ARGS.
+If ARGS is not a sequence, treat it as a list of one element."
+  (dolist (arg args)
+    (when (eshell--range-string-p arg)
+      (setq arg (eshell--string-to-range arg)))
+    (cond
+     ((eshell-range-p arg)
+      (let ((i (eshell-range-begin arg))
+            (end (eshell-range-end arg)))
+        ;; NOTE: We could support unbounded ranges here, but those
+        ;; aren't very easy to use in Eshell yet.  (We'd need something
+        ;; like the "break" statement for "for" loops.)
+        (cl-assert (and i end))
+        (while (< i end)
+          (iter-yield i)
+          (cl-incf i))))
+     ((stringp arg)
+      (iter-yield arg))
+     ((listp arg)
+      (dolist (i arg) (iter-yield i)))
+     ((arrayp arg)
+      (dotimes (i (length arg)) (iter-yield (aref arg i))))
+     (t
+      (iter-yield arg)))))
+
 (defun eshell-rewrite-for-command (terms)
   "Rewrite a `for' command into its equivalent Eshell command form.
 Because the implementation of `for' relies upon conditional evaluation
@@ -533,23 +559,14 @@ of its argument (i.e., use of a Lisp special form), it must be
 implemented via rewriting, rather than as a function."
   (if (and (equal (car terms) "for")
 	   (equal (nth 2 terms) "in"))
-      (let ((for-items (make-symbol "for-items"))
+      (let ((iter-symbol (intern (nth 1 terms)))
             (body (car (last terms))))
 	(setcdr (last terms 2) nil)
-        `(let ((,for-items
-                (append
-                 ,@(mapcar
-                    (lambda (elem)
-                      (if (listp elem)
-                          (eshell-term-as-value elem)
-                        `(list ,elem)))
-                    (nthcdr 3 terms)))))
-           (while ,for-items
-             (let ((,(intern (cadr terms)) (car ,for-items))
-		   (eshell--local-vars (cons ',(intern (cadr terms))
-                                             eshell--local-vars)))
-	       ,body)
-             (setq ,for-items (cdr ,for-items)))))))
+        `(let ((eshell--local-vars (cons ',iter-symbol eshell--local-vars)))
+           (iter-do (,iter-symbol (eshell-for-iterate
+                                   ,@(mapcar #'eshell-term-as-value
+                                             (nthcdr 3 terms))))
+             ,body)))))
 
 (defun eshell-structure-basic-command (func names keyword test &rest body)
   "With TERMS, KEYWORD, and two NAMES, structure a basic command.
@@ -1572,9 +1589,7 @@ a string naming a Lisp function."
                     (while args
                       (let ((arg (car args)))
                         (cond
-                         ((and numeric (stringp arg) (> (length arg) 0)
-                               (text-property-any 0 (length arg)
-                                                  'number t arg))
+                         ((and numeric (eshell--numeric-string-p arg))
                           ;; If any of the arguments are flagged as
                           ;; numbers waiting for conversion, convert
                           ;; them now.

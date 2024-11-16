@@ -353,6 +353,12 @@ See `eshell-convertible-to-number-p'."
     (eshell--do-mark-numeric-string string))
   string)
 
+(defsubst eshell--numeric-string-p (string)
+  "Return non-nil if STRING has been marked as numeric."
+  (and (stringp string)
+       (length> string 0)
+       (not (text-property-not-all 0 (length string) 'number t string))))
+
 (defun eshell-convert-to-number (string)
   "Try to convert STRING to a number.
 If STRING doesn't look like a number (or
@@ -362,6 +368,35 @@ unchanged."
   (if (eshell-convertible-to-number-p string)
       (string-to-number string)
     string))
+
+(cl-defstruct (eshell-range
+               (:constructor nil)
+               (:constructor eshell-range-create (begin end)))
+  "A half-open range from BEGIN to END."
+  begin end)
+
+(defsubst eshell--range-string-p (string)
+  "Return non-nil if STRING has been marked as a range."
+  (and (stringp string)
+       (text-property-any 0 (length string) 'eshell-range t string)))
+
+(defun eshell--string-to-range (string)
+  "Convert STRING to an `eshell-range' object."
+  (let* ((startpos (text-property-any 0 (length string) 'eshell-range t string))
+         (endpos (next-single-property-change startpos 'eshell-range
+                                              string (length string)))
+         range-begin range-end)
+    (unless (= startpos 0)
+      (setq range-begin (substring string 0 startpos))
+      (unless (eshell--numeric-string-p range-begin)
+        (user-error "range begin `%s' is not a number" range-begin))
+      (setq range-begin (string-to-number range-begin)))
+    (unless (= endpos (length string))
+      (setq range-end (substring string endpos))
+      (unless (eshell--numeric-string-p range-end)
+        (user-error "range end `%s' is not a number" range-end))
+      (setq range-end (string-to-number range-end)))
+    (eshell-range-create range-begin range-end)))
 
 (defun eshell-convert (string &optional to-string)
   "Convert STRING into a more-native Lisp object.
@@ -377,7 +412,7 @@ trailing newlines removed.  Otherwise, this behaves as follows:
   (cond
    ((not (stringp string))
     (if to-string
-        (eshell-stringify string)
+        (eshell-stringify string t)
       string))
    (to-string (string-trim-right string "\n+"))
    (t (let ((len (length string)))
@@ -499,25 +534,27 @@ Prepend remote identification of `default-directory', if any."
 
 (define-obsolete-function-alias 'eshell-flatten-list #'flatten-tree "27.1")
 
-(defun eshell-stringify (object)
+(defun eshell-stringify (object &optional quoted)
   "Convert OBJECT into a string value."
   (cond
    ((stringp object) object)
    ((numberp object)
-    (number-to-string object))
+    (if quoted
+        (number-to-string object)
+      (propertize (number-to-string object) 'number t)))
    ((and (eq object t)
 	 (not eshell-stringify-t))
     nil)
    (t
     (string-trim-right (pp-to-string object)))))
 
-(defsubst eshell-stringify-list (args)
+(defsubst eshell-stringify-list (args &optional quoted)
   "Convert each element of ARGS into a string value."
-  (mapcar #'eshell-stringify args))
+  (mapcar (lambda (i) (eshell-stringify i quoted)) args))
 
 (defsubst eshell-list-to-string (list)
   "Convert LIST into a single string separated by spaces."
-  (mapconcat #'eshell-stringify list " "))
+  (mapconcat (lambda (i) (eshell-stringify i t)) list " "))
 
 (defsubst eshell-flatten-and-stringify (&rest args)
   "Flatten and stringify all of the ARGS into a single string."

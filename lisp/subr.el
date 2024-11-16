@@ -299,7 +299,7 @@ value of last one, or nil if there are none."
   (if body
       (list 'if cond (cons 'progn body))
     (macroexp-warn-and-return (format-message "`when' with empty body")
-                              cond '(empty-body when) t)))
+                              (list 'progn cond nil) '(empty-body when) t)))
 
 (defmacro unless (cond &rest body)
   "If COND yields nil, do BODY, else return nil.
@@ -309,7 +309,7 @@ value of last one, or nil if there are none."
   (if body
       (cons 'if (cons cond (cons nil body)))
     (macroexp-warn-and-return (format-message "`unless' with empty body")
-                              cond '(empty-body unless) t)))
+                              (list 'progn cond nil) '(empty-body unless) t)))
 
 (defsubst subr-primitive-p (object)
   "Return t if OBJECT is a built-in primitive written in C.
@@ -3423,9 +3423,10 @@ with Emacs.  Do not call it directly in your own packages."
 (defun read-number (prompt &optional default hist)
   "Read a numeric value in the minibuffer, prompting with PROMPT.
 DEFAULT specifies a default value to return if the user just types RET.
-The value of DEFAULT is inserted into PROMPT.
-HIST specifies a history list variable.  See `read-from-minibuffer'
-for details of the HIST argument.
+For historical reasons, the value of DEFAULT is always inserted into
+PROMPT, so it's recommended to use `format' instead of `format-prompt'
+to generate PROMPT.  HIST specifies a history list variable.  See
+`read-from-minibuffer' for details of the HIST argument.
 
 This function is used by the `interactive' code letter \"n\"."
   (let ((n nil)

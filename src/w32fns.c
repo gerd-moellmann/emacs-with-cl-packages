@@ -2479,9 +2479,22 @@ static Lisp_Object
 process_dropfiles (DROPFILES *files)
 {
   char *start_of_files = (char *) files + files->pFiles;
+#ifndef NTGUI_UNICODE
   char filename[MAX_UTF8_PATH];
+#endif
   Lisp_Object lisp_files = Qnil;
 
+#ifdef NTGUI_UNICODE
+  WCHAR *p = (WCHAR *) start_of_files;
+  for (; *p; p += wcslen (p) + 1)
+    {
+      Lisp_Object fn = from_unicode_buffer (p);
+#ifdef CYGWIN
+      fn = Fcygwin_convert_file_name_to_windows (fn, Qt);
+#endif
+      lisp_files = Fcons (fn, lisp_files);
+    }
+#else
   if (files->fWide)
     {
       WCHAR *p = (WCHAR *) start_of_files;
@@ -2502,6 +2515,7 @@ process_dropfiles (DROPFILES *files)
 			      lisp_files);
 	}
     }
+#endif
   return lisp_files;
 }
 
@@ -2548,6 +2562,7 @@ struct w32_drop_target {
   /* i_drop_target must be the first member.  */
   IDropTarget i_drop_target;
   HWND hwnd;
+  int ref_count;
 };
 
 static HRESULT STDMETHODCALLTYPE
@@ -2559,13 +2574,16 @@ w32_drop_target_QueryInterface (IDropTarget *t, REFIID ri, void **r)
 static ULONG STDMETHODCALLTYPE
 w32_drop_target_AddRef (IDropTarget *This)
 {
-  return 1;
+  struct w32_drop_target *target = (struct w32_drop_target *) This;
+  return ++target->ref_count;
 }
 
 static ULONG STDMETHODCALLTYPE
 w32_drop_target_Release (IDropTarget *This)
 {
   struct w32_drop_target *target = (struct w32_drop_target *) This;
+  if (--target->ref_count > 0)
+    return target->ref_count;
   free (target->i_drop_target.lpVtbl);
   free (target);
   return 0;
@@ -2756,6 +2774,7 @@ w32_createwindow (struct frame *f, int *coords)
 	  if (vtbl != NULL)
 	    {
 	      drop_target->hwnd = hwnd;
+	      drop_target->ref_count = 0;
 	      drop_target->i_drop_target.lpVtbl = vtbl;
 	      vtbl->QueryInterface = w32_drop_target_QueryInterface;
 	      vtbl->AddRef = w32_drop_target_AddRef;

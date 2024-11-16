@@ -68,7 +68,7 @@
 
 ;; Some properties are handled special:
 ;;
-;; - "process-name", "process-buffer" and "first-password-request" are
+;; - Properties which start with a space, like " process-name", are
 ;;   not saved in the file `tramp-persistency-file-name', although
 ;;   being connection properties related to a `tramp-file-name'
 ;;   structure.
@@ -396,7 +396,8 @@ the connection, return DEFAULT."
 	       (not (and (processp key) (not (process-live-p key)))))
       (setq value cached
 	    cache-used t))
-    (tramp-message key 7 "%s %s; cache used: %s" property value cache-used)
+    (unless (eq key tramp-cache-version)
+      (tramp-message key 7 "%s %s; cache used: %s" property value cache-used))
     value))
 
 ;;;###tramp-autoload
@@ -413,7 +414,8 @@ Return VALUE."
     (puthash property value hash))
   (setq tramp-cache-data-changed
 	(or tramp-cache-data-changed (tramp-file-name-p key)))
-  (tramp-message key 7 "%s %s" property value)
+  (unless (eq key tramp-cache-version)
+    (tramp-message key 7 "%s %s" property value))
   value)
 
 ;;;###tramp-autoload
@@ -552,7 +554,7 @@ PROPERTIES is a list of file properties (strings)."
      (lambda (key)
        (and (tramp-file-name-p key)
 	    (null (tramp-file-name-localname key))
-	    (tramp-connection-property-p key "process-buffer")
+	    (tramp-connection-property-p key " process-buffer")
 	    key))
      (hash-table-keys tramp-cache-data))))
 
@@ -584,10 +586,9 @@ PROPERTIES is a list of file properties (strings)."
 		    (not (tramp-file-name-localname key))
 		    (not (gethash "login-as" value))
 		    (not (gethash "started" value)))
-	       (progn
-		 (remhash "process-name" value)
-		 (remhash "process-buffer" value)
-		 (remhash "first-password-request" value))
+	       (dolist (k (hash-table-keys value))
+		 (when (string-prefix-p " " k)
+		   (remhash k value)))
 	     (remhash key cache)))
 	 cache)
 	;; Dump it.

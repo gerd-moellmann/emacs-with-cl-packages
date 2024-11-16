@@ -1274,12 +1274,12 @@ NOERROR is equal to `reload'), or otherwise emit a warning."
         (res (require feature filename (if (eq noerror 'reload) nil noerror))))
     ;; If the `feature' was not yet provided, `require' just loaded the right
     ;; file, so we're done.
-    (when (eq lh load-history)
+    (when (and res (eq lh load-history))
       ;; If `require' did nothing, we need to make sure that was warranted.
       (let* ((fn (locate-file (or filename (symbol-name feature))
                               load-path (get-load-suffixes) nil
                               )) ;; load-prefer-newer
-             ;;  We used to look for `fn' in `load-history' with `assoc'
+             ;; We used to look for `fn' in `load-history' with `assoc'
              ;; which works in most cases, but in some cases (e.g. when
              ;; `load-prefer-newer' is set) `locate-file' can return a
              ;; different file than the file that `require' would load,
@@ -3052,8 +3052,6 @@ since only a single case-insensitive search through the alist is made."
      ;; Anyway, the following extensions are supported by gfortran.
      ("\\.f9[05]\\'" . f90-mode)
      ("\\.f0[38]\\'" . f90-mode)
-     ("\\.indent\\.pro\\'" . fundamental-mode) ; to avoid idlwave-mode
-     ("\\.\\(pro\\|PRO\\)\\'" . idlwave-mode)
      ("\\.srt\\'" . srecode-template-mode)
      ("\\.prolog\\'" . prolog-mode)
      ("\\.tar\\'" . tar-mode)
