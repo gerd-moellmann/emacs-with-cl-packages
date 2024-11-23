@@ -2438,9 +2438,10 @@ directory."
 (defun package-install-selected-packages (&optional noconfirm)
   "Ensure packages in `package-selected-packages' are installed.
 If some packages are not installed, propose to install them.
-If optional argument NOCONFIRM is non-nil, don't ask for
-confirmation to install packages."
-  (interactive)
+
+If optional argument NOCONFIRM is non-nil, or when invoked with a prefix
+argument, don't ask for confirmation to install packages."
+  (interactive "P")
   (package--archives-initialize)
   ;; We don't need to populate `package-selected-packages' before
   ;; using here, because the outcome is the same either way (nothing
@@ -2616,26 +2617,31 @@ are invalid due to changed byte-code, macros or the like."
       (package-recompile pkg-desc))))
 
 ;;;###autoload
-(defun package-autoremove ()
+(defun package-autoremove (&optional noconfirm)
   "Remove packages that are no longer needed.
 
 Packages that are no more needed by other packages in
 `package-selected-packages' and their dependencies
-will be deleted."
-  (interactive)
+will be deleted.
+
+If optional argument NOCONFIRM is non-nil, or when invoked with a prefix
+argument, don't ask for confirmation to install packages."
+  (interactive "P")
   ;; If `package-selected-packages' is nil, it would make no sense to
   ;; try to populate it here, because then `package-autoremove' will
   ;; do absolutely nothing.
-  (when (or package-selected-packages
+  (when (or noconfirm
+            package-selected-packages
             (yes-or-no-p
              (format-message
               "`package-selected-packages' is empty! Really remove ALL packages? ")))
     (let ((removable (package--removable-packages)))
       (if removable
-          (when (y-or-n-p
-                 (format "Packages to delete: %d (%s), proceed? "
-                   (length removable)
-                   (mapconcat #'symbol-name removable " ")))
+          (when (or noconfirm
+                    (y-or-n-p
+                     (format "Packages to delete: %d (%s), proceed? "
+                             (length removable)
+                             (mapconcat #'symbol-name removable " "))))
             (mapc (lambda (p)
                     (package-delete (cadr (assq p package-alist)) t))
                   removable))

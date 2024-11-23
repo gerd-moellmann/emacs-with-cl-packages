@@ -162,6 +162,14 @@ The version bundled with Emacs is out-of-date, and is now marked as
 obsolete.  Use 'M-x list-packages' to install the 'idlwave' package from
 GNU ELPA instead.
 
++++
+** New faces 'header-line-active' and 'header-line-inactive'.
+These inherit from the 'header-line' face, but the faces actually used
+on the header lines are now these two: the selected window uses
+'header-line-active', non-selected windows use 'header-line-inactive'.
+
+** In 'customize-face', the "Font family" attribute now supports completion.
+
 
 * Editing Changes in Emacs 31.1
 
@@ -490,6 +498,17 @@ the 'mutool' program after their initial conversion to PDF format.  The
 name of the 'djvused' program can be customized by changing the user
 option 'doc-view-djvused-program'.
 
+** Flyspell
+
+---
+*** New user option 'flyspell-delay-use-timer'.
+By default, Flyspell waits after so-called "delayed" commands by calling
+'sit-for'.  If you customize this option to non-nil, Flyspell instead
+sets up a timer to perform spell-checking after a short delay, which
+allows idle timers and other code to run during this delay period.  We
+consider making this behavior the default in a future Emacs version, so
+we invite Flyspell users to enable this new option and report issues.
+
 ** Tramp
 
 +++
@@ -710,6 +729,20 @@ cloning, or prompts for that, too.
 *** 'vc-clone' now accepts an optional argument OPEN-DIR.
 When the argument is non-nil, the function switches to a buffer visiting
 the directory into which the repository was cloned.
+
+** Package
+
+---
+*** New optional argument to 'package-autoremove'.
+An optional argument NOCONFIRM has been added to 'package-autoremove'.
+If it is non-nil, or when invoked with a prefix argument,
+'package-autoremove' will not prompt the user for confirmation before
+removing packages.
+
+---
+*** New prefix argument for 'package-install-selected-packages'.
+When invoked with a prefix argument, 'package-install-selected-packages'
+will not prompt the user for confirmation before installing packages.
 
 
 * New Modes and Packages in Emacs 31.1

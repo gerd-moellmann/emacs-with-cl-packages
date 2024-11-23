@@ -5144,7 +5144,8 @@ lookup_basic_face (struct window *w, struct frame *f, int face_id)
     case DEFAULT_FACE_ID:		name = Qdefault;		break;
     case MODE_LINE_ACTIVE_FACE_ID:	name = Qmode_line_active;      	break;
     case MODE_LINE_INACTIVE_FACE_ID:	name = Qmode_line_inactive;	break;
-    case HEADER_LINE_FACE_ID:		name = Qheader_line;		break;
+    case HEADER_LINE_ACTIVE_FACE_ID:	name = Qheader_line_active;	break;
+    case HEADER_LINE_INACTIVE_FACE_ID:	name = Qheader_line_inactive;	break;
     case TAB_LINE_FACE_ID:		name = Qtab_line;		break;
     case TAB_BAR_FACE_ID:		name = Qtab_bar;		break;
     case TOOL_BAR_FACE_ID:		name = Qtool_bar;		break;
@@ -5894,7 +5895,8 @@ realize_basic_faces (struct frame *f)
       realize_named_face (f, Qmode_line_inactive, MODE_LINE_INACTIVE_FACE_ID);
       realize_named_face (f, Qtool_bar, TOOL_BAR_FACE_ID);
       realize_named_face (f, Qfringe, FRINGE_FACE_ID);
-      realize_named_face (f, Qheader_line, HEADER_LINE_FACE_ID);
+      realize_named_face (f, Qheader_line_active, HEADER_LINE_ACTIVE_FACE_ID);
+      realize_named_face (f, Qheader_line_inactive, HEADER_LINE_INACTIVE_FACE_ID);
       realize_named_face (f, Qscroll_bar, SCROLL_BAR_FACE_ID);
       realize_named_face (f, Qborder, BORDER_FACE_ID);
       realize_named_face (f, Qcursor, CURSOR_FACE_ID);
@@ -7473,6 +7475,8 @@ syms_of_xfaces (void)
   DEFSYM (Qfringe, "fringe");
   DEFSYM (Qtab_line, "tab-line");
   DEFSYM (Qheader_line, "header-line");
+  DEFSYM (Qheader_line_inactive, "header-line-inactive");
+  DEFSYM (Qheader_line_active, "header-line-active");
   DEFSYM (Qscroll_bar, "scroll-bar");
   DEFSYM (Qmenu, "menu");
   DEFSYM (Qcursor, "cursor");
