@@ -1990,16 +1990,6 @@ ns_fullscreen_hook (struct frame *f)
   if (!FRAME_VISIBLE_P (f))
     return;
 
-   if (! [view fsIsNative] && f->want_fullscreen == FULLSCREEN_BOTH)
-    {
-      /* Old style fs don't initiate correctly if created from
-         init/default-frame alist, so use a timer (not nice...).  */
-      [NSTimer scheduledTimerWithTimeInterval: 0.5 target: view
-                                     selector: @selector (handleFS)
-                                     userInfo: nil repeats: NO];
-      return;
-    }
-
   block_input ();
   [view handleFS];
   unblock_input ();
@@ -8560,6 +8550,11 @@ ns_in_echo_area (void)
 
   NSTRACE ("[EmacsView toggleFullScreen:]");
 
+  /* Reset fs_is_native to value of ns-use-native-full-screen if not
+     fullscreen already */
+  if (fs_state != FULLSCREEN_BOTH)
+    fs_is_native = ns_use_native_fullscreen;
+
   if (fs_is_native)
     {
 #if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
@@ -9397,7 +9392,10 @@ ns_in_echo_area (void)
 
 - (void)createToolbar: (struct frame *)f
 {
-  if (FRAME_UNDECORATED (f) || !FRAME_EXTERNAL_TOOL_BAR (f) || [self toolbar] != nil)
+  if (FRAME_UNDECORATED (f)
+      || [self styleMask] == NSWindowStyleMaskBorderless
+      || !FRAME_EXTERNAL_TOOL_BAR (f)
+      || [self toolbar] != nil)
     return;
 
   EmacsView *view = (EmacsView *)FRAME_NS_VIEW (f);

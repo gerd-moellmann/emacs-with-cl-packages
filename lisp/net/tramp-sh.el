@@ -601,6 +601,7 @@ shell from reading its init file."
   '((tramp-login-prompt-regexp tramp-action-login)
     (tramp-password-prompt-regexp tramp-action-password)
     (tramp-otp-password-prompt-regexp tramp-action-otp-password)
+    (tramp-fingerprint-prompt-regexp tramp-action-fingerprint)
     (tramp-wrong-passwd-regexp tramp-action-permission-denied)
     (shell-prompt-pattern tramp-action-succeed)
     (tramp-shell-prompt-pattern tramp-action-succeed)
@@ -3103,8 +3104,7 @@ will be used."
 			;; needed when sending signals remotely.
 			(let ((pid (tramp-send-command-and-read v "echo $$")))
 			  (setq p (tramp-get-connection-process v))
-			  (process-put p 'remote-pid pid)
-			  (tramp-set-connection-property p "remote-pid" pid))
+			  (process-put p 'remote-pid pid))
 			(when (memq connection-type '(nil pipe))
 			  ;; Disable carriage return to newline
 			  ;; translation.  This does not work on

@@ -820,6 +820,7 @@ TO-CODE, which are CHARSET code points.  */)
     from = CHARSET_MIN_CODE (cs);
   else
     {
+      CHECK_FIXNAT (from_code);
       from = XFIXNUM (from_code);
       if (from < CHARSET_MIN_CODE (cs))
 	from = CHARSET_MIN_CODE (cs);
@@ -828,6 +829,7 @@ TO-CODE, which are CHARSET code points.  */)
     to = CHARSET_MAX_CODE (cs);
   else
     {
+      CHECK_FIXNAT (to_code);
       to = XFIXNUM (to_code);
       if (to > CHARSET_MAX_CODE (cs))
 	to = CHARSET_MAX_CODE (cs);

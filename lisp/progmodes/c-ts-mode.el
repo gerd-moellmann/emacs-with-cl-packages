@@ -35,7 +35,7 @@
 ;; To use these modes by default, assuming you have the respective
 ;; tree-sitter grammars available, do one of the following:
 ;;
-;; - Add one or mode of the following to your init file:
+;; - Add one or more of the following lines to your init file:
 ;;
 ;;    (add-to-list 'major-mode-remap-alist '(c-mode . c-ts-mode))
 ;;    (add-to-list 'major-mode-remap-alist '(c++-mode . c++-ts-mode))
@@ -86,6 +86,7 @@
 (declare-function treesit-node-first-child-for-pos "treesit.c")
 (declare-function treesit-node-next-sibling "treesit.c")
 (declare-function treesit-node-eq "treesit.c")
+(declare-function treesit-node-match-p "treesit.c")
 (declare-function treesit-query-compile "treesit.c")
 
 ;;; Custom variables
@@ -130,18 +131,11 @@ the value of SYM in `c-ts-mode' and `c++-ts-mode' buffers to VAL.
 SYM should be `c-ts-mode-indent-style', and VAL should be a style
 symbol."
   (set-default sym val)
-  (named-let loop ((res nil)
-                   (buffers (buffer-list)))
-    (if (null buffers)
-        (mapc (lambda (b)
-                (with-current-buffer b
-                  (c-ts-mode-set-style val)))
-              res)
-      (let ((buffer (car buffers)))
-        (with-current-buffer buffer
-          (if (derived-mode-p '(c-ts-mode c++-ts-mode))
-              (loop (append res (list buffer)) (cdr buffers))
-            (loop res (cdr buffers))))))))
+  (dolist (buffer (buffer-list))
+    (with-current-buffer buffer
+      (when (derived-mode-p '(c-ts-mode c++-ts-mode))
+        (setq-local c-ts-mode-indent-style val)
+        (c-ts-mode-set-style val)))))
 
 (defun c-ts-indent-style-safep (style)
   "Non-nil if STYLE's value is safe for file-local variables."
@@ -150,10 +144,11 @@ symbol."
 (defcustom c-ts-mode-indent-style 'gnu
   "Style used for indentation.
 
-The selected style could be one of GNU, K&R, LINUX or BSD.  If
-one of the supplied styles doesn't suffice, the value could be
-a function instead.  This function is expected to return a list
-that follows the form of `treesit-simple-indent-rules'."
+The selected style could be one of GNU, K&R, LINUX or BSD.  If the
+supplied styles don't suffice, the value could be a function instead.
+This function takes no arguments and is expected to return a list of
+indent RULEs as described in `treesit-simple-indent-rules'.  Note that
+the list of RULEs doesn't need to contain the language symbol."
   :version "29.1"
   :type '(choice (symbol :tag "Gnu" gnu)
                  (symbol :tag "K&R" k&r)
@@ -164,23 +159,13 @@ that follows the form of `treesit-simple-indent-rules'."
   :safe 'c-ts-indent-style-safep
   :group 'c)
 
-(defun c-ts-mode--get-indent-style (mode)
-  "Helper function to set indentation style.
-MODE is either `c' or `cpp'."
-  (let ((style
-         (if (functionp c-ts-mode-indent-style)
-             (funcall c-ts-mode-indent-style)
-           (alist-get c-ts-mode-indent-style (c-ts-mode--indent-styles mode)))))
-    `((,mode ,@style))))
-
 (defun c-ts-mode--prompt-for-style ()
   "Prompt for an indent style and return the symbol for it."
-  (let ((mode (if (derived-mode-p 'c-ts-mode) 'c 'c++)))
-    (intern
-     (completing-read
-      "Style: "
-      (mapcar #'car (c-ts-mode--indent-styles mode))
-      nil t nil nil "gnu"))))
+  (intern
+   (completing-read
+    "Style: "
+    '(gnu k&r linux bsd)
+    nil t nil nil "gnu")))
 
 (defun c-ts-mode-set-global-style (style)
   "Set the indent style of C/C++ modes globally to STYLE.
@@ -201,9 +186,11 @@ To set the default indent style globally, use
       (user-error "The current buffer is not in `c-ts-mode' nor `c++-ts-mode'")
     (setq-local c-ts-mode-indent-style style)
     (setq treesit-simple-indent-rules
-          (treesit--indent-rules-optimize
-           (c-ts-mode--get-indent-style
-            (if (derived-mode-p 'c-ts-mode) 'c 'cpp))))))
+          (if (functionp style)
+              (funcall style)
+            (c-ts-mode--simple-indent-rules
+             (if (derived-mode-p 'c-ts-mode) 'c 'c++)
+             style)))))
 
 (defcustom c-ts-mode-emacs-sources-support t
   "Whether to enable Emacs source-specific C features.
@@ -295,13 +282,13 @@ is actually the parent of point at the moment of indentation."
         0
       c-ts-mode-indent-offset)))
 
-(defun c-ts-mode--anchor-prev-sibling (node parent bol &rest _)
+(defun c-ts-mode--prev-sibling (node parent bol &rest _)
   "Return the start of the previous named sibling of NODE.
 
-This anchor handles the special case where the previous sibling
-is a labeled_statement; in that case, return the child of the
-labeled statement instead.  (Actually, recursively go down until
-the node isn't a labeled_statement.)  E.g.,
+This anchor handles the special case where the previous sibling is a
+labeled_statement or preproc directive; in that case, return the child
+of the labeled statement instead.  (Actually, recursively go down until
+the node isn't a labeled_statement or preproc.)  E.g.,
 
 label:
   int x = 1;
@@ -354,8 +341,8 @@ characters of the current line."
     ;; prev-sibling doesn't have a child.
     (treesit-node-start prev-sibling)))
 
-(defun c-ts-mode--standalone-parent-skip-preproc (_n parent &rest _)
-  "Like the standalone-parent anchor but skips preproc nodes.
+(defun c-ts-mode--standalone-parent (_n parent &rest _)
+  "Like the standalone-parent anchor but skips preproc nodes and labels.
 PARENT is the parent of the current node."
   (save-excursion
     (treesit-node-start
@@ -364,65 +351,133 @@ PARENT is the parent of the current node."
       ;; nil.
       parent (lambda (node)
                (and node
-                    (not (string-search "preproc" (treesit-node-type node)))
+                    (not (treesit-node-match-p
+                          node (rx (or "preproc" "labeled_statement"))))
                     (progn
                       (goto-char (treesit-node-start node))
                       (looking-back (rx bol (* whitespace))
                                     (line-beginning-position)))))
       t))))
 
-(defun c-ts-mode--standalone-grandparent (_node parent bol &rest args)
-  "Like the standalone-parent anchor but pass it the grandparent.
-PARENT is NODE's parent, BOL is the beginning of non-whitespace
-characters of the current line."
-  (apply (alist-get 'standalone-parent treesit-simple-indent-presets)
-         parent (treesit-node-parent parent) bol args))
+(defun c-ts-mode--for-loop-indent-rule (node parent &rest _)
+  "Indentation rule for the for-loop.
 
-(defun c-ts-mode--else-heuristic (node parent bol &rest _)
-  "Heuristic matcher for when \"else\" is followed by a closing bracket.
-PARENT is NODE's parent, BOL is the beginning of non-whitespace
-characters of the current line."
-  (and (null node)
-       (save-excursion
-         (forward-line -1)
-         (looking-at (rx (* whitespace) "else" (* whitespace) eol)))
-       (let ((next-node (treesit-node-first-child-for-pos parent bol)))
-         (equal (treesit-node-type next-node) "}"))))
+NODE and PARENT as usual."
+  (when (treesit-node-match-p parent "for_statement")
+    (pcase (treesit-node-field-name node)
+      ("initializer"
+       ;; Anchor is the opening paren.
+       (cons (treesit-node-start (treesit-node-child parent 1)) 1))
+      ((or "condition" "update")
+       (cons (treesit-node-start (treesit-node-prev-sibling node 'named))
+             0))
+      ("body"
+       (cons (c-ts-common--standalone-parent parent)
+             c-ts-mode-indent-offset))
+      (_ (if (treesit-node-match-p node ")")
+             ;; Anchor is the opening paren.
+             (cons (treesit-node-start (treesit-node-child parent 1)) 0)
+           nil)))))
 
-(defun c-ts-mode--first-sibling (node parent &rest _)
-  "Matches when NODE is the \"first sibling\".
-\"First sibling\" is defined as: the first child node of PARENT
-such that it's on its own line.  NODE is the node to match and
-PARENT is its parent."
-  (let ((prev-sibling (treesit-node-prev-sibling node t)))
-    (or (null prev-sibling)
-        (save-excursion
-          (goto-char (treesit-node-start prev-sibling))
-          (<= (line-beginning-position)
-              (treesit-node-start parent)
-              (line-end-position))))))
+(defvar c-ts-mode--preproc-indent-rules
+  `(((node-is "preproc") column-0 0)
+    ((node-is "#endif") column-0 0)
+    ((match "preproc_call" "compound_statement") column-0 0)
+    ((prev-line-is "#endif") c-ts-mode--prev-sibling 0)
+    ;; Top-level things under a preproc directive.  Note that
+    ;; "preproc" matches more than one type: it matches
+    ;; preproc_if, preproc_elif, etc.
+    ((n-p-gp nil "preproc" "translation_unit") column-0 0)
+    ;; Indent rule for an empty line after a preproc directive.
+    ((and no-node (parent-is ,(rx (or "\n" "preproc"))))
+     c-ts-mode--standalone-parent c-ts-mode--preproc-offset)
+    ;; Statement under a preproc directive, the first statement
+    ;; indents against parent, the rest statements indent to
+    ;; their prev-sibling.
+    ((match nil ,(rx "preproc_" (or "if" "elif")) nil 3 3)
+     c-ts-mode--standalone-parent c-ts-mode-indent-offset)
+    ((match nil "preproc_ifdef" nil 2 2)
+     c-ts-mode--standalone-parent c-ts-mode-indent-offset)
+    ((match nil "preproc_else" nil 1 1)
+     c-ts-mode--standalone-parent c-ts-mode-indent-offset)
+    ((parent-is "preproc") c-ts-mode--prev-sibling 0))
+  "Indent rules for preprocessors.")
 
-(defun c-ts-mode--indent-styles (mode)
-  "Indent rules supported by `c-ts-mode'.
-MODE is either `c' or `cpp'."
-  (let ((common
-         `((c-ts-mode--for-each-tail-body-matcher prev-line c-ts-mode-indent-offset)
-           ;; If the user types "else" and hits RET, they expect point
-           ;; on the empty line to be indented; this rule does that.
-           ;; This heuristic is intentionally very specific because
-           ;; more general heuristic is very error-prone, see
-           ;; discussion in bug#67417.
-           (c-ts-mode--else-heuristic prev-line c-ts-mode-indent-offset)
+(defun c-ts-mode--macro-heuristic-rules (node parent &rest _)
+  "Heuristic indent rule for control flow macros.
 
+Eg,
+
+    #define IOTA(var, n) for (int var = 0; var != (n); ++var)
+
+    int main()
+    {
+      IOTA (v, 10) {
+        printf(\"%d \", v);   <-- Here we want to indent
+        counter++;            <-- Use baseline rule to align
+    }                             to prev sibling
+
+Checked by \"Compound Statement after code (Bug#74507)\" test.
+
+NODE and PARENT are the same as other indent rules."
+  (when (and (treesit-node-match-p parent "compound_statement")
+             (treesit-node-match-p (treesit-node-prev-sibling parent)
+                                   "expression_statement"))
+    (let ((parent-bol
+           (lambda () (save-excursion
+                        (goto-char (treesit-node-start parent))
+                        (back-to-indentation)
+                        (point)))))
+      (cond
+       ;; Closing brace.
+       ((treesit-node-match-p node "}")
+        (cons (funcall parent-bol) 0))
+       ;; First sibling.
+       ((treesit-node-eq (treesit-node-child parent 0 'named) node)
+        (cons (funcall parent-bol)
+              c-ts-mode-indent-offset))))))
+
+(defun c-ts-mode--simple-indent-rules (mode style)
+  "Return the indent rules for MODE and STYLE.
+
+The returned value can be set to `treesit-simple-indent-rules'.
+MODE can be `c' or `c++'.  STYLE can be `gnu', `k&r', `linux', `bsd'."
+  (let ((rules
+         `((c-ts-mode--for-each-tail-body-matcher
+            prev-line c-ts-mode-indent-offset)
+
+           ;; Misc overrides.
            ((parent-is "translation_unit") column-0 0)
-           ((query "(ERROR (ERROR)) @indent") column-0 0)
-           ((node-is ")") parent 1)
-           ((node-is "]") parent-bol 0)
-           ((node-is "else") parent-bol 0)
-           ((node-is "case") parent-bol 0)
-           ((node-is "preproc_arg") no-indent)
+           ((node-is ,(rx (or "else" "case"))) standalone-parent 0)
+           ;; Align the while keyword to the do keyword.
+           ((match "while" "do_statement") parent 0)
+           c-ts-mode--parenthesized-expression-indent-rule
+           ;; Thanks to tree-sitter-c's weird for-loop grammar, we can't
+           ;; use the baseline indent rule for it.
+           c-ts-mode--for-loop-indent-rule
+           c-ts-mode--label-indent-rules
+           ,@c-ts-mode--preproc-indent-rules
+           c-ts-mode--macro-heuristic-rules
+
+           ;; Make sure type and function definition components align and
+           ;; don't indent. Also takes care of GNU style opening braces.
+           ((parent-is ,(rx (or "function_definition"
+                                "struct_specifier"
+                                "enum_specifier"
+                                "function_declarator"
+                                "template_declaration")))
+            parent 0)
+           ;; This is for the trailing-star stype:  int *
+           ;;                                       func()
+           ((match "function_declarator" nil "declarator") parent-bol 0)
+           ;; ((match nil "function_definition" "declarator") parent 0)
+           ;; ((match nil "struct_specifier" "name") parent 0)
+           ;; ((match nil "function_declarator" "parameters") parent 0)
+           ;; ((parent-is "template_declaration") parent 0)
+
            ;; `c-ts-common-looking-at-star' has to come before
            ;; `c-ts-common-comment-2nd-line-matcher'.
+           ;; FIXME: consolidate into a single rule.
            ((and (parent-is "comment") c-ts-common-looking-at-star)
             c-ts-common-comment-start-after-first-star -1)
            (c-ts-common-comment-2nd-line-matcher
@@ -430,131 +485,91 @@ MODE is either `c' or `cpp'."
             1)
            ((parent-is "comment") prev-adaptive-prefix 0)
 
-           ;; Labels.
-           ((node-is "labeled_statement") standalone-parent 0)
-           ((parent-is "labeled_statement")
-            c-ts-mode--standalone-grandparent c-ts-mode-indent-offset)
-
            ;; Preproc directives
+           ((node-is "preproc_arg") no-indent)
            ((node-is "preproc") column-0 0)
            ((node-is "#endif") column-0 0)
-           ((match "preproc_call" "compound_statement") column-0 0)
 
-           ;; Top-level things under a preproc directive.  Note that
-           ;; "preproc" matches more than one type: it matches
-           ;; preproc_if, preproc_elif, etc.
-           ((n-p-gp nil "preproc" "translation_unit") column-0 0)
-           ;; Indent rule for an empty line after a preproc directive.
-           ((and no-node (parent-is ,(rx (or "\n" "preproc"))))
-            c-ts-mode--standalone-parent-skip-preproc c-ts-mode--preproc-offset)
-           ;; Statement under a preproc directive, the first statement
-           ;; indents against parent, the rest statements indent to
-           ;; their prev-sibling.
-           ((match nil ,(rx "preproc_" (or "if" "elif")) nil 3 3)
-            c-ts-mode--standalone-parent-skip-preproc c-ts-mode-indent-offset)
-           ((match nil "preproc_ifdef" nil 2 2)
-            c-ts-mode--standalone-parent-skip-preproc c-ts-mode-indent-offset)
-           ((match nil "preproc_else" nil 1 1)
-            c-ts-mode--standalone-parent-skip-preproc c-ts-mode-indent-offset)
-           ((parent-is "preproc") c-ts-mode--anchor-prev-sibling 0)
+           ;; C++
+           ((node-is "access_specifier") parent-bol 0)
+           ((prev-line-is "access_specifier")
+            parent-bol c-ts-mode-indent-offset)
 
-           ((parent-is "function_definition") parent-bol 0)
-           ((parent-is "pointer_declarator") parent-bol 0)
-           ((parent-is ,(rx bos "declaration" eos)) parent-bol 0)
-           ((parent-is "conditional_expression") first-sibling 0)
-           ((parent-is "assignment_expression") parent-bol c-ts-mode-indent-offset)
-           ((parent-is "concatenated_string") first-sibling 0)
-           ((parent-is "comma_expression") first-sibling 0)
-           ((parent-is "init_declarator") parent-bol c-ts-mode-indent-offset)
-           ((parent-is "parenthesized_expression") first-sibling 1)
-           ((parent-is "argument_list") first-sibling 1)
-           ((parent-is "parameter_list") first-sibling 1)
-           ((parent-is "binary_expression") parent 0)
-           ((query "(for_statement initializer: (_) @indent)") parent-bol 5)
-           ((query "(for_statement condition: (_) @indent)") parent-bol 5)
-           ((query "(for_statement update: (_) @indent)") parent-bol 5)
-           ((query "(call_expression arguments: (_) @indent)") parent c-ts-mode-indent-offset)
-           ((parent-is "call_expression") parent 0)
-           ;; Closing bracket.  This should be before initializer_list
-           ;; (and probably others) rule because that rule (and other
-           ;; similar rules) will match the closing bracket.  (Bug#61398)
-           ((node-is "}") standalone-parent 0)
-           ,@(when (eq mode 'cpp)
-               '(((node-is "access_specifier") parent-bol 0)
-                 ;; Indent the body of namespace definitions.
-                 ((parent-is "declaration_list") parent-bol c-ts-mode-indent-offset)
-                 ((parent-is "template_declaration") parent-bol 0)))
+           c-ts-common-baseline-indent-rule)))
+    (setq rules
+          (pcase style
+            ('gnu rules)
+            ('k&r rules)
+            ('linux
+             ;; Reference:
+             ;; https://www.kernel.org/doc/html/latest/process/coding-style.html,
+             ;; and script/Lindent in Linux kernel repository.
+             `(((node-is "labeled_statement") column-0 0)
+               ,@rules))
+            ('bsd
+             `(((match "compound_statement" "compound_statement")
+                standalone-parent c-ts-mode-indent-offset)
+               ((node-is "compound_statement") standalone-parent 0)
+               ,@rules))))
+    (pcase mode
+      ('c `((c . ,rules)))
+      ('c++ `((cpp . ,rules))))))
 
+(defun c-ts-mode--parenthesized-expression-indent-rule (_node parent &rest _)
+  "Indent rule that indents aprenthesized expression.
 
-           ;; int[5] a = { 0, 0, 0, 0 };
-           ((match nil "initializer_list" nil 1 1) parent-bol c-ts-mode-indent-offset)
-           ((parent-is "initializer_list") c-ts-mode--anchor-prev-sibling 0)
-           ;; Statement in enum.
-           ((match nil "enumerator_list" nil 1 1) standalone-parent c-ts-mode-indent-offset)
-           ((parent-is "enumerator_list") c-ts-mode--anchor-prev-sibling 0)
-           ;; Statement in struct and union.
-           ((match nil "field_declaration_list" nil 1 1) standalone-parent c-ts-mode-indent-offset)
-           ((parent-is "field_declaration_list") c-ts-mode--anchor-prev-sibling 0)
+Aligns the next line to the first sibling
 
-           ;; Statement in {} blocks.
-           ((or (and (parent-is "compound_statement")
-                     ;; If the previous sibling(s) are not on their
-                     ;; own line, indent as if this node is the first
-                     ;; sibling (Bug#67357)
-                     c-ts-mode--first-sibling)
-                (match null "compound_statement"))
-            standalone-parent c-ts-mode-indent-offset)
-           ((parent-is "compound_statement") c-ts-mode--anchor-prev-sibling 0)
-           ;; Opening bracket.
-           ((node-is "compound_statement") standalone-parent c-ts-mode-indent-offset)
-           ;; Bug#61291.
-           ((match "expression_statement" nil "body") standalone-parent c-ts-mode-indent-offset)
-           ;; These rules are for cases where the body is bracketless.
-           ;; Tested by the "Bracketless Simple Statement" test.
-           ((parent-is "if_statement") standalone-parent c-ts-mode-indent-offset)
-           ((parent-is "else_clause") standalone-parent c-ts-mode-indent-offset)
-           ((parent-is "for_statement") standalone-parent c-ts-mode-indent-offset)
-           ((match "while" "do_statement") parent-bol 0) ; (do_statement "while")
-           ((parent-is "while_statement") standalone-parent c-ts-mode-indent-offset)
-           ((parent-is "do_statement") standalone-parent c-ts-mode-indent-offset)
+return (a && b
+          && c)
 
-           ((parent-is "case_statement") standalone-parent c-ts-mode-indent-offset)
+return (  a && b
+          && c
+          )
 
-           ,@(when (eq mode 'cpp)
-               `(((node-is "field_initializer_list") parent-bol ,(* c-ts-mode-indent-offset 2)))))))
-    `((gnu
-       ;; Prepend rules to set highest priority
-       ((match "while" "do_statement") parent 0)
-       (c-ts-mode--top-level-label-matcher column-0 1)
-       ,@common)
-      (k&r ,@common)
-      (linux
-       ;; Reference:
-       ;; https://www.kernel.org/doc/html/latest/process/coding-style.html,
-       ;; and script/Lindent in Linux kernel repository.
-       ((node-is "labeled_statement") column-0 0)
-       ,@common)
-      (bsd
-       ((node-is "}") parent-bol 0)
-       ((node-is "labeled_statement") parent-bol c-ts-mode-indent-offset)
-       ((parent-is "labeled_statement") parent-bol c-ts-mode-indent-offset)
-       ((parent-is "compound_statement") parent-bol c-ts-mode-indent-offset)
-       ((match "compound_statement" "if_statement") standalone-parent 0)
-       ((match "compound_statement" "else_clause") standalone-parent 0)
-       ((match "compound_statement" "for_statement") standalone-parent 0)
-       ((match "compound_statement" "while_statement") standalone-parent 0)
-       ((match "compound_statement" "switch_statement") standalone-parent 0)
-       ((match "compound_statement" "case_statement") standalone-parent 0)
-       ((match "compound_statement" "do_statement") standalone-parent 0)
-       ,@common))))
+Same for if/while statements
 
-(defun c-ts-mode--top-level-label-matcher (node parent &rest _)
-  "A matcher that matches a top-level label.
-NODE should be a labeled_statement.  PARENT is its parent."
-  (and (equal (treesit-node-type node)
-              "labeled_statement")
-       (equal "function_definition"
-              (treesit-node-type (treesit-node-parent parent)))))
+if (a && b
+      && c)
+
+NODE, PARENT are the same as other indent rules."
+  (when (treesit-node-match-p
+         parent (rx (or "binary" "conditional") "_expression"))
+    (while (and parent
+                (not (treesit-node-match-p
+                      parent "parenthesized_expression")))
+      (setq parent (treesit-node-parent parent)))
+    (when parent
+      (cons (treesit-node-start
+             (treesit-node-child parent 0 'named))
+            0))))
+
+(defun c-ts-mode--label-indent-rules (node parent bol &rest args)
+  "Handles indentation around labels.
+NODE, PARENT, BOL, ARGS are as usual."
+  (cond
+   ;; Matches the top-level labels for GNU-style.
+   ((and (eq c-ts-mode-indent-style 'gnu)
+         (treesit-node-match-p node "labeled_statement")
+         (treesit-node-match-p (treesit-node-parent parent)
+                               "function_definition"))
+    (cons (pos-bol) 1))
+   ;; Indent the label itself.
+   ((treesit-node-match-p node "labeled_statement")
+    (cons (c-ts-mode--standalone-parent node parent bol args)
+          0))
+   ;; Indent the statement below the label.
+   ((treesit-node-match-p parent "labeled_statement")
+    (cons (c-ts-mode--standalone-parent node parent bol args)
+          c-ts-mode-indent-offset))
+   ;; If previous sibling is a labeled_statement, align to it's
+   ;; children, which is the previous statement.
+   ((and (not (treesit-node-match-p node "}"))
+         (treesit-node-match-p (treesit-node-prev-sibling node)
+                               "labeled_statement"))
+    (cons (c-ts-mode--prev-sibling node parent bol args)
+          0))
+   (t nil)))
 
 ;;; Font-lock
 
@@ -973,9 +988,14 @@ Return nil if NODE is not a defun node or doesn't have a name."
 
 (defun c-ts-mode--outline-predicate (node)
   "Match outlines on lines with function names."
-  (or (and (equal (treesit-node-type node) "function_declarator")
-           (equal (treesit-node-type (treesit-node-parent node))
-                  "function_definition"))
+  (or (when-let* ((decl (treesit-node-child-by-field-name
+                         (treesit-node-parent node) "declarator"))
+                  (node-pos (treesit-node-start node))
+                  (decl-pos (treesit-node-start decl))
+                  (eol (save-excursion (goto-char node-pos) (line-end-position))))
+        (and (equal (treesit-node-type decl) "function_declarator")
+             (<= node-pos decl-pos)
+             (< decl-pos eol)))
       ;; DEFUNs in Emacs sources.
       (and c-ts-mode-emacs-sources-support
            (c-ts-mode--emacs-defun-p node))))
@@ -1272,9 +1292,6 @@ BEG and END are described in `treesit-range-rules'."
               `((c ,@c-ts-mode--thing-settings)
                 (cpp ,@c-ts-mode--thing-settings)))
 
-  ;; Nodes like struct/enum/union_specifier can appear in
-  ;; function_definitions, so we need to find the top-level node.
-  (setq-local treesit-defun-prefer-top-level t)
 
   ;; When the code is in incomplete state, try to make a better guess
   ;; about which node to indent against.
@@ -1360,7 +1377,10 @@ in your init files."
       (setq-local comment-end " */")
       ;; Indent.
       (setq-local treesit-simple-indent-rules
-                  (c-ts-mode--get-indent-style 'c))
+                  (c-ts-mode--simple-indent-rules
+                   'c c-ts-mode-indent-style))
+      ;; (setq-local treesit-simple-indent-rules
+      ;;             `((c . ,(alist-get 'gnu (c-ts-mode--indent-styles 'c)))))
       ;; Font-lock.
       (setq-local treesit-font-lock-settings
                   (c-ts-mode--font-lock-settings 'c))
@@ -1430,7 +1450,8 @@ recommended to enable `electric-pair-mode' with this mode."
 
       ;; Indent.
       (setq-local treesit-simple-indent-rules
-                  (c-ts-mode--get-indent-style 'cpp))
+                  (c-ts-mode--simple-indent-rules
+                   'c++ c-ts-mode-indent-style))
 
       ;; Font-lock.
       (setq-local treesit-font-lock-settings
