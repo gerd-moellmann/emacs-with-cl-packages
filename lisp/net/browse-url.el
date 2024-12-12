@@ -198,10 +198,16 @@ Also see `browse-url-secondary-browser-function' and
 
 (defcustom browse-url-secondary-browser-function 'browse-url-default-browser
   "Function used to launch an alternative browser.
-This is usually an external browser (that is, not eww or w3m),
-used as the secondary browser choice, typically when a prefix
-argument is given to a URL-opening command in those modes that
-support this (for instance, eww/shr).
+
+This browser is used as the secondary browser choice, typically
+when a prefix argument is given to a URL-opening command in those
+modes that support this (for instance `browse-url-at-point',
+`goto-addr-at-point', eww or shr).
+
+This assumption is that `browse-url-secondary-browser-function'
+and `browse-url-browser-function' are set to distinct browsers.
+Either one of the two functions should call an external browser
+and the other one should not do the same.
 
 Also see `browse-url-browser-function'."
   :version "27.1"
@@ -237,7 +243,7 @@ be used instead."
 (defcustom browse-url-button-regexp
   (concat
    "\\b\\(\\(www\\.\\|\\(s?https?\\|ftps?\\|file\\|gophers?\\|gemini\\|"
-   "nntp\\|news\\|telnet\\|wais\\|mailto\\|info\\):\\)"
+   "nntps?\\|s?news\\|telnet\\|wais\\|mailto\\|info\\):\\)"
    "\\(//[-a-z0-9_.]+:[0-9]*\\)?"
    (let ((chars "-a-z0-9_=#$@~%&*+\\/[:word:]")
 	 (punct "!?:;.,"))
@@ -252,7 +258,7 @@ be used instead."
       "\\)"))
    "\\)")
   "Regular expression that matches URLs."
-  :version "27.1"
+  :version "31.1"
   :type 'regexp)
 
 (defcustom browse-url-browser-display nil
@@ -517,14 +523,15 @@ down (this *won't* always work)."
   :type 'number
   :version "23.1")
 
-(defcustom browse-url-kde-program "kfmclient"
+(defcustom browse-url-kde-program "kde-open"
   "The name by which to invoke the KDE web browser."
   :type 'string
-  :version "21.1")
+  :version "31.1")
 
-(defcustom browse-url-kde-args '("openURL")
+(defcustom browse-url-kde-args nil
   "A list of strings defining options for `browse-url-kde-program'."
-  :type '(repeat (string :tag "Argument")))
+  :type '(repeat (string :tag "Argument"))
+  :version "31.1")
 
 (defcustom browse-url-elinks-wrapper '("xterm" "-e")
   "Wrapper command prepended to the Elinks command-line."
@@ -673,13 +680,9 @@ regarding its parameter treatment."
 (defcustom browse-url-default-scheme "http"
   "URL scheme that `browse-url' (and related commands) will use by default.
 
-For example, when point is on an URL fragment like
-\"www.example.org\", `browse-url' will assume that this is an
-\"http\" URL by default (i.e. \"http://www.example.org\").
-
-Note that if you set this to \"https\", websites that do not yet
-support HTTPS may not load correctly in your web browser.  Such
-websites are increasingly rare, but they do still exist."
+For example, when point is on an URL fragment like \"www.example.org\",
+`browse-url' will assume that this is an \"http\" URL by default (for
+example, \"http://www.example.org\")."
   :type '(choice (const :tag "HTTP" "http")
                  (const :tag "HTTPS" "https")
                  (string :tag "Something else" "https"))

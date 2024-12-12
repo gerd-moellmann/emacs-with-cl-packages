@@ -41,6 +41,12 @@ why the mark trace buffer is enabled by default.
 
 * Startup Changes in Emacs 31.1
 
+** When run inside xterm, 'xterm-mouse-mode' is turned on by default.
+This means that the mouse will work by default inside xterm terminals.
+If your terminal does not behave properly with xterm mouse tracking
+enabled, you can disable mouse tracking by putting '(xterm-mouse-mode
+-1)' in your init file.
+
 
 * Changes in Emacs 31.1
 
@@ -153,6 +159,12 @@ that the actual killing or burying of the buffer is done by the caller.
 *** New user option 'quit-restore-window-no-switch'.
 With this option set, 'quit-restore-window' will delete its window more
 aggressively rather than switching to some other buffer in it.
+
+---
+*** The user option 'display-comint-buffer-action' has been removed.
+It has been obsolete since Emacs 30.1.  Use '(category . comint)' instead.
+Another user option 'display-tex-shell-buffer-action' has been removed too
+for which you can use '(category . tex-shell)'.
 
 ** Frames
 
@@ -373,6 +385,29 @@ processes by passing their PIDs.
 This hook runs after an Eshell session has been fully initialized,
 immediately before running 'eshell-post-command-hook' for the first
 time.
+
++++
+*** Improved history Isearch.
+History Isearch in Eshell is reworked.  Two new commands
+'eshell-isearch-backward-regexp' and 'eshell-isearch-forward-regexp' are
+added for incrementally searching through the input history.
+'eshell-isearch-backward-regexp' is bound to 'M-r' by default, and 'M-s'
+is freed for normal search commands.  If you would like to restore the
+previous key-bindings for the non-incremental search commands, put in
+your configuration:
+
+    (keymap-set eshell-hist-mode-map "M-r"
+                #'eshell-previous-matching-input)
+    (keymap-set eshell-hist-mode-map "M-s"
+                #'eshell-next-matching-input)
+
++++
+*** New user option 'eshell-history-isearch'
+When 'eshell-history-isearch' is nil (the default), Isearch commands
+search in the buffer contents.  If you customize it to t, those commands
+only search in input history.  If you customize it to the symbol 'dwim',
+those commands search in input history only when the point is after the
+last prompt.
 
 ** SHR
 
@@ -655,6 +690,11 @@ With 'dired-hide-details-hide-absolute-location':
 Without 'dired-hide-details-hide-absolute-location':
 
     /absolute/path/to/my/important/project: (100 GiB available)
+
+---
+*** Clicking on base name of directory reverts buffer.
+When 'dired-make-directory-clickable' is non-nil, clicking on the base
+name of the directory now reverts the Dired buffer.
 
 ** Grep
 
@@ -946,10 +986,13 @@ provide a ':columns' spec, so that the number of columns and their
 widths can be determined.  Columns widths can be set explicitly, or they
 will be calculated based on the window width.
 
++++
 ** New symbol property 'repeat-continue-only' for 'repeat-mode'.
-A command with this symbol property whose value is non-nil will not
-activate the repeat map in 'repeat-mode', it will only continue the
-already activated repeating sequence.
+A command with this symbol property whose value is a list of repeat
+maps will not activate the repeat map in 'repeat-mode'.  It will only
+continue the already activated repeating sequence.  Also 'defvar-keymap'
+supports a new keyword ':continue-only' with a list of commands that
+only continue the active repeating sequence.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems

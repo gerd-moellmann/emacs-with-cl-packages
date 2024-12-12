@@ -1381,19 +1381,22 @@ have been replaced by constants."
 
 (defun eshell/which (command &rest names)
   "Identify the COMMAND, and where it is located."
-  (dolist (name (cons command names))
-    (condition-case error
-        (eshell-printn
-         (catch 'found
-           (run-hook-wrapped
-            'eshell-named-command-hook
-            (lambda (hook)
-              (when-let* (((symbolp hook))
-                          (which-func (get hook 'eshell-which-function))
-                          (result (funcall which-func command)))
-                (throw 'found result))))
-           (eshell-plain-command--which name)))
-      (error (eshell-error (format "which: %s\n" (cadr error)))))))
+  (let (not-found)
+    (dolist (name (cons command names))
+      (condition-case error
+          (eshell-printn
+           (catch 'found
+             (run-hook-wrapped
+              'eshell-named-command-hook
+              (lambda (hook)
+                (when-let* (((symbolp hook))
+                            (which-func (get hook 'eshell-which-function))
+                            (result (funcall which-func command)))
+                  (throw 'found result))))
+             (eshell-plain-command--which name)))
+        (error (eshell-error (format "which: %s\n" (cadr error)))
+               (setq not-found t))))
+    (when not-found (eshell-set-exit-info 1))))
 
 (put 'eshell/which 'eshell-no-numeric-conversions t)
 
@@ -1498,11 +1501,13 @@ case."
      (when (memq eshell-in-pipeline-p '(nil last))
        (eshell-set-exit-info 1))
      (let ((msg (error-message-string err)))
-       (if (and (not form-p)
-                (string-match "^Wrong number of arguments" msg)
-                (fboundp 'eldoc-get-fnsym-args-string))
-           (let ((func-doc (eldoc-get-fnsym-args-string func-or-form)))
-             (setq msg (format "usage: %s" func-doc))))
+       (unless form-p
+         (let ((prog-name (string-trim-left (symbol-name func-or-form)
+                                            "eshell/")))
+           (if (eq (car err) 'wrong-number-of-arguments)
+               (setq msg (format "%s usage: %s" prog-name
+                                 (elisp-get-fnsym-args-string func-or-form)))
+             (setq msg (format "%s: %s" prog-name msg)))))
        (funcall errprint msg))
      nil)))
 

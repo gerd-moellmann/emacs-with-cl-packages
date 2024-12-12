@@ -1376,7 +1376,8 @@ if one already exists."
          (shell-buffer (get-buffer default-project-shell-name)))
     (if (and shell-buffer (not current-prefix-arg))
         (if (comint-check-proc shell-buffer)
-            (pop-to-buffer shell-buffer (bound-and-true-p display-comint-buffer-action))
+            (pop-to-buffer shell-buffer (append display-buffer--same-window-action
+                                                '((category . comint))))
           (shell shell-buffer))
       (shell (generate-new-buffer-name default-project-shell-name)))))
 
@@ -1393,7 +1394,8 @@ if one already exists."
          (eshell-buffer-name (project-prefixed-buffer-name "eshell"))
          (eshell-buffer (get-buffer eshell-buffer-name)))
     (if (and eshell-buffer (not current-prefix-arg))
-        (pop-to-buffer eshell-buffer (bound-and-true-p display-comint-buffer-action))
+        (pop-to-buffer eshell-buffer (append display-buffer--same-window-action
+                                             '((category . comint))))
       (eshell t))))
 
 ;;;###autoload
@@ -1484,15 +1486,14 @@ If non-nil, it overrides `compilation-buffer-name-function' for
              compilation-buffer-name-function)))
     (call-interactively #'compile)))
 
+;;;###autoload
 (defun project-recompile (&optional edit-command)
-  "Run `recompile' with appropriate buffer."
+  "Run `recompile' in the project root with an appropriate buffer."
   (declare (interactive-only recompile))
   (interactive "P")
-  (let ((compilation-buffer-name-function
+  (let ((default-directory (project-root (project-current t)))
+        (compilation-buffer-name-function
          (or project-compilation-buffer-name-function
-             ;; Should we error instead?  When there's no
-             ;; project-specific naming, there is no point in using
-             ;; this command.
              compilation-buffer-name-function)))
     (recompile edit-command)))
 

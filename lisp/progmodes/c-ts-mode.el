@@ -88,6 +88,7 @@
 (declare-function treesit-node-eq "treesit.c")
 (declare-function treesit-node-match-p "treesit.c")
 (declare-function treesit-query-compile "treesit.c")
+(declare-function treesit-node-check "treesit.c")
 
 ;;; Custom variables
 
@@ -364,20 +365,31 @@ PARENT is the parent of the current node."
 
 NODE and PARENT as usual."
   (when (treesit-node-match-p parent "for_statement")
-    (pcase (treesit-node-field-name node)
-      ("initializer"
-       ;; Anchor is the opening paren.
-       (cons (treesit-node-start (treesit-node-child parent 1)) 1))
-      ((or "condition" "update")
-       (cons (treesit-node-start (treesit-node-prev-sibling node 'named))
-             0))
-      ("body"
-       (cons (c-ts-common--standalone-parent parent)
-             c-ts-mode-indent-offset))
-      (_ (if (treesit-node-match-p node ")")
-             ;; Anchor is the opening paren.
-             (cons (treesit-node-start (treesit-node-child parent 1)) 0)
-           nil)))))
+    ;; The first version of this function tests for the field name of
+    ;; NODE, which is a lot cleaner.  Alas, older tree-sitter library
+    ;; has a bug in treesit-node-field-name-for-child, which make it
+    ;; give the wrong field name for a child node.
+    (cond
+     ;; Body (Check if NODE is the last child, because when
+     ;; initializer/condition/update is empty, the index of body can
+     ;; change). Eg, for (;;) {...}
+     ((treesit-node-eq node (treesit-node-child parent -1 'named))
+      (cons (c-ts-common--standalone-parent parent)
+            c-ts-mode-indent-offset))
+     ;; Initializer.
+     ((and (treesit-node-check node 'named)
+           (eq (treesit-node-index node 'named) 0 ))
+      ;; Anchor is the opening paren.
+      (cons (treesit-node-start (treesit-node-child parent 1)) 1))
+     ;; Condition and update.
+     ((and (treesit-node-check node 'named)
+           (<= 1 (treesit-node-index node 'named) 2))
+      (cons (treesit-node-start (treesit-node-prev-sibling node 'named))
+            0))
+     ((treesit-node-match-p node ")")
+      ;; Anchor is the opening paren.
+      (cons (treesit-node-start (treesit-node-child parent 1)) 0))
+     (t nil))))
 
 (defvar c-ts-mode--preproc-indent-rules
   `(((node-is "preproc") column-0 0)
@@ -441,7 +453,7 @@ NODE and PARENT are the same as other indent rules."
   "Return the indent rules for MODE and STYLE.
 
 The returned value can be set to `treesit-simple-indent-rules'.
-MODE can be `c' or `c++'.  STYLE can be `gnu', `k&r', `linux', `bsd'."
+MODE can be `c' or `cpp'.  STYLE can be `gnu', `k&r', `linux', `bsd'."
   (let ((rules
          `((c-ts-mode--for-each-tail-body-matcher
             prev-line c-ts-mode-indent-offset)
@@ -513,7 +525,7 @@ MODE can be `c' or `c++'.  STYLE can be `gnu', `k&r', `linux', `bsd'."
                ,@rules))))
     (pcase mode
       ('c `((c . ,rules)))
-      ('c++ `((cpp . ,rules))))))
+      ('cpp `((cpp . ,rules))))))
 
 (defun c-ts-mode--parenthesized-expression-indent-rule (_node parent &rest _)
   "Indent rule that indents aprenthesized expression.
@@ -1451,7 +1463,7 @@ recommended to enable `electric-pair-mode' with this mode."
       ;; Indent.
       (setq-local treesit-simple-indent-rules
                   (c-ts-mode--simple-indent-rules
-                   'c++ c-ts-mode-indent-style))
+                   'cpp c-ts-mode-indent-style))
 
       ;; Font-lock.
       (setq-local treesit-font-lock-settings
