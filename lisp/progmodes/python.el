@@ -259,19 +259,11 @@
 (require 'compat)
 (require 'project nil 'noerror)
 (require 'seq)
+(treesit-declare-unavailable-functions)
 
 ;; Avoid compiler warnings
 (defvar compilation-error-regexp-alist)
 (defvar outline-heading-end-regexp)
-
-(declare-function treesit-parser-create "treesit.c")
-(declare-function treesit-induce-sparse-tree "treesit.c")
-(declare-function treesit-node-child-by-field-name "treesit.c")
-(declare-function treesit-node-type "treesit.c")
-(declare-function treesit-node-start "treesit.c")
-(declare-function treesit-node-end "treesit.c")
-(declare-function treesit-node-parent "treesit.c")
-(declare-function treesit-node-prev-sibling "treesit.c")
 
 (autoload 'comint-mode "comint")
 (autoload 'help-function-arglist "help-fns")
@@ -631,7 +623,9 @@ the {...} holes that appear within f-strings."
               (forward-char 1)          ;Just skip over {{
             (let ((beg (match-beginning 0))
                   (end (condition-case nil
-                           (progn (up-list 1) (min send (point)))
+                           (let ((parse-sexp-ignore-comments))
+                             (up-list 1)
+                             (min send (point)))
                          (scan-error send))))
               (goto-char end)
               (put-text-property beg end 'face nil))))
