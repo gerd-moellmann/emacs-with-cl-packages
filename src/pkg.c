@@ -1004,10 +1004,10 @@ DEFUN ("try-completion-in-all-packages",
 
 DEFUN ("all-completions-in-all-packages",
        Fall_completions_in_all_packages,
-       Sall_completions_in_all_packages, 2, 4, 0,
+       Sall_completions_in_all_packages, 2, 3, 0,
        doc: /* */)
   (Lisp_Object string, Lisp_Object collection,
-   Lisp_Object predicate, Lisp_Object hide_spaces)
+   Lisp_Object predicate)
 {
   Lisp_Object result = Qnil;
 
@@ -1015,7 +1015,7 @@ DEFUN ("all-completions-in-all-packages",
   FOR_EACH_TAIL (tail)
     {
       Lisp_Object partial
-	= Fall_completions (string, XCAR (tail), predicate, hide_spaces);
+	= Fall_completions (string, XCAR (tail), predicate);
       result = CALLN (Fappend, result, partial);
     }
 

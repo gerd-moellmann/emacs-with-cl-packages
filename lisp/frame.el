@@ -862,7 +862,11 @@ When called from Lisp, returns the new frame."
 
 (defun clone-frame (&optional frame no-windows)
   "Make a new frame with the same parameters and windows as FRAME.
-With a prefix arg NO-WINDOWS, don't clone the window configuration.
+If NO-WINDOWS is non-nil (interactively, the prefix argument), don't
+clone the configuration of FRAME's windows.
+If FRAME is a graphical frame and `frame-resize-pixelwise' is non-nil,
+clone FRAME's pixel size.  Otherwise, use the number of FRAME's columns
+and lines for the clone.
 
 FRAME defaults to the selected frame.  The frame is created on the
 same terminal as FRAME.  If the terminal is a text-only terminal then
@@ -875,10 +879,17 @@ also select the new frame."
           (seq-remove (lambda (elem)
                         (memq (car elem) frame-internal-parameters))
                       (frame-parameters frame)))
-         (new-frame (make-frame)))
+         new-frame)
+    (when (and frame-resize-pixelwise
+               (display-graphic-p frame))
+      (push (cons 'width (cons 'text-pixels (frame-text-width frame)))
+            default-frame-alist)
+      (push (cons 'height (cons 'text-pixels (frame-text-height frame)))
+            default-frame-alist))
+    (setq new-frame (make-frame))
     (when windows
       (window-state-put windows (frame-root-window new-frame) 'safe))
-    (unless (display-graphic-p)
+    (unless (display-graphic-p frame)
       (select-frame new-frame))
     new-frame))
 

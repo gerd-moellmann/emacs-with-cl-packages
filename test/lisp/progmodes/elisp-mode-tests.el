@@ -1124,7 +1124,7 @@ evaluation of BODY."
     (should (intern-soft "f-test4---"))
     (should-not (intern-soft "elisp--foo-test4---"))
     (should (= 84 (funcall (intern-soft "f-test4---"))))
-    (should (unintern "f-test4---"))))
+    (should (unintern "f-test4---" obarray))))
 
 (ert-deftest elisp-dont-shadow-punctuation-only-symbols ()
   :expected-result (if (featurep 'symbol-packages) :failed :passed)

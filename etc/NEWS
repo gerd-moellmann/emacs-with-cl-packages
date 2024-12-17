@@ -103,6 +103,17 @@ files and features.
 ** Minibuffer and Completions
 
 +++
+*** New user option 'completion-eager-display'.
+This option configures whether completion commands should display
+the *Completions* buffer immediately.  When the variable is set to t all
+completion commands show *Completions* immediately, respectively nil
+disables the eager display for all commands.  The default setting auto
+enables eager completion only if requested by the command.
+For more fine-grained control you can also toggle this feature
+by category using the symbol 'eager-display' in the user option
+'completion-category-overrides'.
+
++++
 *** New user option 'completion-pcm-leading-wildcard'.
 This option configures how the partial-completion style does completion.
 It defaults to nil, which preserves the existing behavior.  When it is set
@@ -294,6 +305,12 @@ modal editing packages.
 
 * Changes in Specialized Modes and Packages in Emacs 31.1
 
+** Browse URL
+
+*** New function 'browse-url-qutebrowser' for the Qutebrowser.
+For better integration with the Qutebrowser, set
+'browse-url(-secondary)-browser-function' to 'browse-url-qutebrowser'.
+
 ** CL-Lib
 +++
 *** 'cl-labels' now also accepts (FUNC EXP) bindings, like 'cl-flet'.
@@ -322,6 +339,12 @@ It removes all the buttons in the specified region.
 
 +++
 *** Disabling 'button-mode' now removes all buttons in the current buffer.
+
+** Shell
+
+*** New command to complete the shell history.
+'comint-complete-input-ring' ('C-x <up>') is like 'minibuffer-complete-history'
+but completes on comint inputs.
 
 ** Eshell
 
@@ -993,6 +1016,12 @@ maps will not activate the repeat map in 'repeat-mode'.  It will only
 continue the already activated repeating sequence.  Also 'defvar-keymap'
 supports a new keyword ':continue-only' with a list of commands that
 only continue the active repeating sequence.
+
+** New function 'completion-table-with-metadata'.
+It offers a more concise way to create a completion table with metadata.
+
++++
+** 'all-completions' and 'unintern' no longer support their old calling conventions.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems

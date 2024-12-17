@@ -1841,7 +1841,7 @@ or from one of the possible completions.  */)
   return Fsubstring (bestmatch, zero, end);
 }
 
-DEFUN ("all-completions", Fall_completions, Sall_completions, 2, 4, 0,
+DEFUN ("all-completions", Fall_completions, Sall_completions, 2, 3, 0,
        doc: /* Search for partial matches of STRING in COLLECTION.
 
 Test each possible completion specified by COLLECTION
@@ -1874,18 +1874,14 @@ the string key and the associated value.
 
 To be acceptable, a possible completion must also match all the regexps
 in `completion-regexp-list' (unless COLLECTION is a function, in
-which case that function should itself handle `completion-regexp-list').
-
-An obsolete optional fourth argument HIDE-SPACES is still accepted for
-backward compatibility.  If non-nil, strings in COLLECTION that start
-with a space are ignored unless STRING itself starts with a space.  */)
-  (Lisp_Object string, Lisp_Object collection, Lisp_Object predicate, Lisp_Object hide_spaces)
+which case that function should itself handle `completion-regexp-list').  */)
+  (Lisp_Object string, Lisp_Object collection, Lisp_Object predicate)
 {
   Lisp_Object tail, elt, eltstring;
   Lisp_Object allmatches;
 
   if (EQ (collection, Vobarray))
-    return Fall_completions_in_all_packages (string, collection, predicate, hide_spaces);
+    return Fall_completions_in_all_packages (string, collection, predicate);
 
   /* Fake obarray?  */
   if (VECTORP (collection))
@@ -1958,12 +1954,6 @@ with a space are ignored unless STRING itself starts with a space.  */)
 
       if (STRINGP (eltstring)
 	  && SCHARS (string) <= SCHARS (eltstring)
-	  /* If HIDE_SPACES, reject alternatives that start with space
-	     unless the input starts with space.  */
-	  && (NILP (hide_spaces)
-	      || (SBYTES (string) > 0
-		  && SREF (string, 0) == ' ')
-	      || SREF (eltstring, 0) != ' ')
 	  && (tem = Fcompare_strings (eltstring, zero,
 				      make_fixnum (SCHARS (string)),
 				      string, zero,
@@ -2178,7 +2168,7 @@ If FLAG is nil, invoke `try-completion'; if it is t, invoke
     return Ftry_completion (string, Vbuffer_alist, predicate);
   else if (EQ (flag, Qt))
     {
-      Lisp_Object res = Fall_completions (string, Vbuffer_alist, predicate, Qnil);
+      Lisp_Object res = Fall_completions (string, Vbuffer_alist, predicate);
       if (SCHARS (string) > 0)
 	return res;
       else
