@@ -1184,9 +1184,12 @@ line_hash_code (struct frame *f, struct glyph_row *row)
 	{
 	  int c = glyph->u.ch;
 	  unsigned int face_id = glyph->face_id;
-	  /* Struct frame can move with igc, and so on.  But we need
-	     something that takes different frames into account.  Use the
-	     face_cache pointer for that which is malloc'd.  */
+	  /* A given row of a frame glyph matrix could have glyphs
+	     from more than one frame, if child frames are displayed.
+	     Since face_id of a face depends on the frame (it's an
+	     index into the frame's face cache), we need the hash
+	     value to include something specific to the frame, and we
+	     use the frame cache's address for that purpose.  */
 	  if (glyph->frame && glyph->frame != f)
 	    face_id += (uintptr_t) glyph->frame->face_cache;
 	  if (FRAME_MUST_WRITE_SPACES (f))
@@ -3538,19 +3541,20 @@ make_matrix_current (struct frame *f)
 
 /* Prepare ROOT's desired row at index Y for copying child frame
    contents to it.  Value is the prepared desired row or NULL if we
-   don't have, and can't contruct desired row.  */
+   don't have, and can't contruct a desired row.  */
 
 static struct glyph_row *
 prepare_desired_root_row (struct frame *root, int y)
 {
-  /* If we have a desired row that has been displayed, use that.
-     redisplayed, copy from the root's current matrix.  */
+  /* If we have a desired row that has been displayed, use that.  */
   struct glyph_row *desired_row = MATRIX_ROW (root->desired_matrix, y);
   if (desired_row->enabled_p)
     return desired_row;
 
-  /* If we have a current row that is up to date, copy that to
-     the desired row and use that. */
+  /* If we have a current row that is up to date, copy that to the
+     desired row and use that.  */
+  /* Don't copy rows that aren't enabled, in particuler because they
+     might not have the 'frame' member of glyphs set.  */
   struct glyph_row *current_row = MATRIX_ROW (root->current_matrix, y);
   if (current_row->enabled_p)
     {

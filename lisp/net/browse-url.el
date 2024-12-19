@@ -263,6 +263,23 @@ be used instead."
   :version "31.1"
   :type 'regexp)
 
+(defcustom browse-url-transform-alist nil
+  "Alist of transformations to apply to URLs before loading it.
+Each element has the form (ORIG . REPLACEMENT), where ORIG is a regular
+expression and REPLACEMENT is the replacement text.  Every element will
+be tested in turn, allowing more than one transformation to be made.
+
+Note that ORIG and REPLACEMENT are passed as arguments to
+`string-match', so you can, for example, use match groups in ORIG and
+backreferences in REPLACEMENT."
+  :type '(choice
+          (const :tag "None" nil)
+          (alist
+           :tag "Alist mapping from regexp to replacement"
+           :key-type (regexp :tag "Regexp")
+           :value-type (regexp :tag "Replacement")))
+  :version "31.1")
+
 (defcustom browse-url-browser-display nil
   "The X display for running the browser, if not same as Emacs's."
   :type '(choice string (const :tag "Default" nil)))
@@ -386,16 +403,6 @@ If non-nil, then open the URL in a new tab rather than a new window if
 NEW-WINDOW argument."
   :type 'boolean)
 
-(defcustom browse-url-conkeror-new-window-is-buffer nil
-  "Whether to open up new Conkeror windows in a buffer or a new window.
-If non-nil, then open the URL in a new buffer rather than a new window if
-`browse-url-conkeror' is asked to open it in a new window via the
-NEW-WINDOW argument."
-  :version "25.1"
-  :type 'boolean)
-
-(make-obsolete-variable 'browse-url-conkeror-new-window-is-buffer nil "28.1")
-
 (defcustom browse-url-epiphany-new-window-is-tab nil
   "Whether to open up new Epiphany windows in a tab or a new window.
 If non-nil, then open the URL in a new tab rather than a new window if
@@ -416,20 +423,6 @@ NEW-WINDOW argument."
 Passing an interactive argument to \\[browse-url], or specific browser
 commands reverses the effect of this variable."
   :type 'boolean)
-
-(defcustom browse-url-conkeror-program "conkeror"
-  "The name by which to invoke Conkeror."
-  :type 'string
-  :version "25.1")
-
-(make-obsolete-variable 'browse-url-conkeror-program nil "28.1")
-
-(defcustom browse-url-conkeror-arguments nil
-  "A list of strings to pass to Conkeror as arguments."
-  :version "25.1"
-  :type '(repeat (string :tag "Argument")))
-
-(make-obsolete-variable 'browse-url-conkeror-arguments nil "28.1")
 
 (defcustom browse-url-filename-alist
   `(("^/\\(ftp@\\|anonymous@\\)?\\([^:/]+\\):/*" . "ftp://\\2/")
@@ -923,6 +916,10 @@ invert the prefix arg instead."
   (interactive (browse-url-interactive-arg "URL: "))
   (unless (called-interactively-p 'interactive)
     (setq args (or args (list browse-url-new-window-flag))))
+  (when browse-url-transform-alist
+    (dolist (trans browse-url-transform-alist)
+      (when (string-match (car trans) url)
+        (setq url (replace-match (cdr trans) nil t url)))))
   (when (and url-handler-mode
              (not (file-name-absolute-p url))
              (not (string-match "\\`[a-z]+:" url)))
@@ -1482,46 +1479,6 @@ used instead of `browse-url-new-window-flag'."
 	  (list "--raise" url))))
 
 (function-put 'browse-url-gnome-moz 'browse-url-browser-kind 'external)
-
-;; --- Conkeror ---
-;;;###autoload
-(defun browse-url-conkeror (url &optional new-window)
-  "Ask the Conkeror WWW browser to load URL.
-Default to the URL around or before point.  Also pass the strings
-in the variable `browse-url-conkeror-arguments' to Conkeror.
-
-When called interactively, if variable
-`browse-url-new-window-flag' is non-nil, load the document in a
-new Conkeror window, otherwise use a random existing one.  A
-non-nil interactive prefix argument reverses the effect of
-`browse-url-new-window-flag'.
-
-If variable `browse-url-conkeror-new-window-is-buffer' is
-non-nil, then whenever a document would otherwise be loaded in a
-new window, load it in a new buffer in an existing window instead.
-
-When called non-interactively, use optional second argument
-NEW-WINDOW instead of `browse-url-new-window-flag'."
-  (declare (obsolete nil "28.1"))
-  (interactive (browse-url-interactive-arg "URL: "))
-  (setq url (browse-url-encode-url url))
-  (let* ((process-environment (browse-url-process-environment)))
-    (apply #'start-process (format "conkeror %s" url)
-	   nil
-	   browse-url-conkeror-program
-	   (append
-	    browse-url-conkeror-arguments
-	    (list
-	     "-e"
-	     (format "load_url_in_new_%s('%s')"
-		     (if (browse-url-maybe-new-window new-window)
-			 (if browse-url-conkeror-new-window-is-buffer
-			     "buffer"
-			   "window")
-		       "buffer")
-		     url))))))
-
-(function-put 'browse-url-conkeror 'browse-url-browser-kind 'external)
 
 ;; --- W3 ---
 

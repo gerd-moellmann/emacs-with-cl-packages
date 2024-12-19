@@ -13428,7 +13428,7 @@ clear_message (bool current_p, bool last_displayed_p)
    turn called clear_frame.  The call to clear_frame was a source of
    flickering.  I believe a clear_frame is not necessary.  It should
    suffice in the new redisplay to invalidate all current matrices,
-   and ensure a complete redisplay of all windows.  */
+   and ensure a complete redisplay of all windows. */
 
 static bool
 clear_garbaged_frames (void)

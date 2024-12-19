@@ -453,6 +453,7 @@ struct frame
 # ifndef HAVE_NTGUI
   /* True if this frame is a tooltip frame.  */
   bool_bf tooltip : 1;
+# endif
 
   /* See FULLSCREEN_ enum on top.  */
   ENUM_BF (fullscreen_type) want_fullscreen : 4;
@@ -464,7 +465,7 @@ struct frame
   /* Nonzero if we should actually display horizontal scroll bars on this frame.  */
   bool_bf horizontal_scroll_bars : 1;
 
-
+# ifndef HAVE_NTGUI
   /* True if this is an override_redirect frame.  */
   bool_bf override_redirect : 1;
 #endif

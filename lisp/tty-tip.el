@@ -127,7 +127,7 @@
       (setq x (max 0 (- x tip-width 1))))
     (when (> (+ y tip-height) tty-height)
       (setq y (max 0 (- y tip-height 1))))
-    (list x y)))
+    (cons x y)))
 
 (defun tty-tip--create-frame (text)
   (let* ((minibuffer (minibuffer-window (window-frame)))
@@ -147,8 +147,10 @@
       (set-frame-size tty-tip--frame
                       (apply #'max (mapcar #'string-width text-lines))
                       (length text-lines))
-      (apply #'set-frame-position tty-tip--frame
-             (tty-tip--compute-position))
+      (let* ((pos (tty-tip--compute-position))
+             (x (car pos))
+             (y (cdr pos)))
+	(set-frame-position tty-tip--frame x y))
       (make-frame-visible tty-tip--frame)
       (setq tty-tip--hide-timer
             (run-with-timer tooltip-hide-delay nil

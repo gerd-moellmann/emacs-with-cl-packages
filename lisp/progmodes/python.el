@@ -569,9 +569,9 @@ The type returned can be `comment', `string' or `paren'."
   "Return syntactic face given STATE."
   (if (nth 3 state)
       (if (python-info-docstring-p state)
-          font-lock-doc-face
-        font-lock-string-face)
-    font-lock-comment-face))
+          'font-lock-doc-face
+        'font-lock-string-face)
+    'font-lock-comment-face))
 
 (defconst python--f-string-start-regexp
   (rx bow
@@ -1108,7 +1108,8 @@ fontified."
          (ignore-interpolation (not
                                 (seq-some
                                  (lambda (feats) (memq 'string-interpolation feats))
-                                 (seq-take treesit-font-lock-feature-list treesit-font-lock-level))))
+                                 (seq-take treesit-font-lock-feature-list
+                                           (treesit--compute-font-lock-level treesit-font-lock-level)))))
          ;; If interpolation is enabled, highlight only
          ;; string_start/string_content/string_end children.  Do not
          ;; touch interpolation node that can occur inside of the
