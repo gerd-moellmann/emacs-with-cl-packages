@@ -866,7 +866,7 @@ debugging:
 
 Currently each SETTING has the form:
 
-    (QUERY ENABLE FEATURE OVERRIDE)
+    (QUERY ENABLE FEATURE OVERRIDE REVERSE)
 
 QUERY must be a compiled query.  See Info node `(elisp)Pattern
 Matching' for how to write a query and compile it.
@@ -880,7 +880,10 @@ which features are enabled with `treesit-font-lock-level' and
 
 OVERRIDE is the override flag for this query.  Its value can be
 t, nil, append, prepend, keep.  See more in
-`treesit-font-lock-rules'.")
+`treesit-font-lock-rules'.
+
+If REVERSED is t, enable the QUERY when FEATURE is not in the feature
+list.")
 
 ;; Follow cl-defstruct naming conventions, in case we use cl-defstruct
 ;; in the future.
@@ -899,6 +902,10 @@ t, nil, append, prepend, keep.  See more in
 (defsubst treesit-font-lock-setting-override (setting)
   "Return the OVERRIDE flag of SETTING in `treesit-font-lock-settings'."
   (nth 3 setting))
+
+(defsubst treesit-font-lock-setting-reversed (setting)
+  "Return the REVERSED flag of SETTING in `treesit-font-lock-settings'."
+  (nth 4 setting))
 
 (defsubst treesit--font-lock-setting-clone-enable (setting)
   "Return enabled SETTING."
@@ -1030,6 +1037,8 @@ Other keywords include:
              `append'   Append the new face to existing ones.
              `prepend'  Prepend the new face to existing ones.
              `keep'     Fill-in regions without an existing face.
+  :reversed  t          Enable the query only if the feature is
+                        NOT in feature list.
   :default-language  LANGUAGE  Every QUERY after this keyword
                                will use LANGUAGE by default.
 
@@ -1064,6 +1073,7 @@ name, it is ignored."
           ;; DEFAULT-LANGUAGE will be chosen when current-language is
           ;; not set.
           default-language
+          current-reversed
           ;; The list this function returns.
           (result nil))
       (while query-specs
@@ -1102,6 +1112,13 @@ name, it is ignored."
                          `("Value of :feature should be a symbol"
                            ,var)))
                (setq current-feature var)))
+            (:reversed
+             (let ((var (pop query-specs)))
+               (when (not (memq var '(t nil)))
+                 (signal 'treesit-font-lock-error
+                         `("Value of :reversed can only be t or nil"
+                           ,var)))
+               (setq current-reversed var)))
             ;; (2) Process query.
             ((pred treesit-query-p)
              (let ((lang (or default-language current-language)))
@@ -1116,12 +1133,14 @@ name, it is ignored."
                  (push `(,(treesit-query-compile lang token)
                          t
                          ,current-feature
-                         ,current-override)
+                         ,current-override
+                         ,current-reversed)
                        result))
                ;; Clears any configurations set for this query.
                (setq current-language nil
                      current-override nil
-                     current-feature nil)))
+                     current-feature nil
+                     current-reversed nil)))
             (_ (signal 'treesit-font-lock-error
                        `("Unexpected value" ,token))))))
       (nreverse result))))
@@ -1190,9 +1209,11 @@ and leave settings for other languages unchanged."
          (additive (or add-list remove-list)))
     (cl-loop for idx = 0 then (1+ idx)
              for setting in treesit-font-lock-settings
-             for lang = (treesit-query-language (nth 0 setting))
-             for feature = (nth 2 setting)
-             for current-value = (nth 1 setting)
+             for lang = (treesit-query-language
+                         (treesit-font-lock-setting-query setting))
+             for feature = (treesit-font-lock-setting-feature setting)
+             for current-value = (treesit-font-lock-setting-enable setting)
+             for reversed = (treesit-font-lock-setting-reversed setting)
              ;; Set the ENABLE flag for the setting if its language is
              ;; relevant.
              if (or (null language)
@@ -1200,7 +1221,9 @@ and leave settings for other languages unchanged."
              do (setf (nth 1 (nth idx treesit-font-lock-settings))
                       (cond
                        ((not additive)
-                        (if (memq feature features) t nil))
+                        (if (not reversed)
+                            (if (memq feature features) t nil)
+                          (if (memq feature features) nil t)))
                        ((memq feature add-list) t)
                        ((memq feature remove-list) nil)
                        (t current-value))))))
@@ -3899,6 +3922,9 @@ See `treesit-language-source-alist' for details."
 (defvar treesit--install-language-grammar-out-dir-history nil
   "History for OUT-DIR for `treesit-install-language-grammar'.")
 
+(defvar treesit--install-language-grammar-full-clone nil
+  "If non-nil, do a full clone when cloning git repos.")
+
 ;;;###autoload
 (defun treesit-install-language-grammar (lang &optional out-dir)
   "Build and install the tree-sitter language grammar library for LANG.
@@ -3919,57 +3945,77 @@ executable programs, such as the C/C++ compiler and linker.
 Interactively, prompt for the directory in which to install the
 compiled grammar files.  Non-interactively, use OUT-DIR; if it's
 nil, the grammar is installed to the standard location, the
-\"tree-sitter\" directory under `user-emacs-directory'."
+\"tree-sitter\" directory under `user-emacs-directory'.
+
+Return the git revision of the installed grammar, but it only works when
+`treesit--install-language-grammar-full-clone' is t."
   (interactive (list (intern
                       (completing-read
                        "Language: "
                        (mapcar #'car treesit-language-source-alist)))
                      'interactive))
-  (when-let* ((recipe
-               (or (assoc lang treesit-language-source-alist)
-                   (if (eq out-dir 'interactive)
-                       (treesit--install-language-grammar-build-recipe
-                        lang)
-                     (signal 'treesit-error `("Cannot find recipe for this language" ,lang)))))
-              (default-out-dir
-               (or (car treesit--install-language-grammar-out-dir-history)
-                   (locate-user-emacs-file "tree-sitter")))
-              (out-dir
-               (if (eq out-dir 'interactive)
-                   (read-string
-                    (format "Install to (default: %s): "
-                            default-out-dir)
-                    nil
-                    'treesit--install-language-grammar-out-dir-history
-                    default-out-dir)
-                 ;; When called non-interactively, OUT-DIR should
-                 ;; default to DEFAULT-OUT-DIR.
-                 (or out-dir default-out-dir))))
-    (condition-case err
-        (progn
-          (apply #'treesit--install-language-grammar-1
-                 (cons out-dir recipe))
+  (let* ((recipe
+          (or (assoc lang treesit-language-source-alist)
+              (if (eq out-dir 'interactive)
+                  (treesit--install-language-grammar-build-recipe
+                   lang)
+                (signal 'treesit-error `("Cannot find recipe for this language" ,lang)))))
+         (default-out-dir
+          (or (car treesit--install-language-grammar-out-dir-history)
+              (locate-user-emacs-file "tree-sitter")))
+         (out-dir
+          (if (eq out-dir 'interactive)
+              (read-string
+               (format "Install to (default: %s): "
+                       default-out-dir)
+               nil
+               'treesit--install-language-grammar-out-dir-history
+               default-out-dir)
+            ;; When called non-interactively, OUT-DIR should
+            ;; default to DEFAULT-OUT-DIR.
+            (or out-dir default-out-dir)))
+         version)
+    (when recipe
+      (condition-case err
+          (progn
+            (setq version (apply #'treesit--install-language-grammar-1
+                                 (cons out-dir recipe)))
 
-          ;; Check that the installed language grammar is loadable.
-          (pcase-let ((`(,available . ,err)
-                       (treesit-language-available-p lang t)))
-            (if (not available)
-                (display-warning
-                 'treesit
-                 (format "The installed language grammar for %s cannot be located or has problems (%s): %s"
-                         lang (nth 0 err)
-                         (string-join
-                          (mapcar (lambda (x) (format "%s" x))
-                                  (cdr err))
-                          " ")))
-              ;; If success, Save the recipe for the current session.
-              (setf (alist-get lang treesit-language-source-alist)
-                    (cdr recipe)))))
-      (error
-       (display-warning
-        'treesit
-        (format "Error encountered when installing language grammar: %s"
-                err))))))
+            ;; Check that the installed language grammar is loadable.
+            (pcase-let ((`(,available . ,err)
+                         (treesit-language-available-p lang t)))
+              (if (not available)
+                  (display-warning
+                   'treesit
+                   (format "The installed language grammar for %s cannot be located or has problems (%s): %s"
+                           lang (nth 0 err)
+                           (string-join
+                            (mapcar (lambda (x) (format "%s" x))
+                                    (cdr err))
+                            " ")))
+                ;; If success, Save the recipe for the current session.
+                (setf (alist-get lang treesit-language-source-alist)
+                      (cdr recipe)))))
+        (error
+         (display-warning
+          'treesit
+          (format "Error encountered when installing language grammar: %s"
+                  err)))))
+    version))
+
+(defun treesit--language-git-revision ()
+  "Return the Git revision of current directory.
+
+Return the output of \"git describe\". If anything goes wrong, return
+nil."
+  (with-temp-buffer
+    (cond
+     ((eq 0 (call-process "git" nil t nil "describe"))
+      (string-trim (buffer-string)))
+     ((eq 0 (progn (erase-buffer)
+                   (call-process "git" nil t nil "rev-parse" "HEAD")))
+      (string-trim (buffer-string)))
+     (t nil))))
 
 (defun treesit--call-process-signal (&rest args)
   "Run `call-process' with ARGS.
@@ -3993,16 +4039,19 @@ content as signal data, and erase buffer afterwards."
   "Clone repo pointed by URL at commit REVISION to WORKDIR.
 
 REVISION may be nil, in which case the cloned repo will be at its
-default branch."
+default branch.
+
+Use shallow clone by default.  Do a full clone when
+`treesit--install-language-grammar-full-clone' is t."
   (message "Cloning repository")
   ;; git clone xxx --depth 1 --quiet [-b yyy] workdir
-  (if revision
-      (treesit--call-process-signal
-       "git" nil t nil "clone" url "--depth" "1" "--quiet"
-       "-b" revision workdir)
-    (treesit--call-process-signal
-     "git" nil t nil "clone" url "--depth" "1" "--quiet"
-     workdir)))
+  (let ((args (list "git" nil t nil "clone" url "--quiet")))
+    (when (not treesit--install-language-grammar-full-clone)
+      (setq args (append args (list "--depth" "1"))))
+    (when revision
+      (setq args (append args (list "-b" revision))))
+    (setq args (append args (list workdir)))
+    (apply #'treesit--call-process-signal args)))
 
 (defun treesit--install-language-grammar-1
     (out-dir lang url &optional revision source-dir cc c++)
@@ -4015,7 +4064,11 @@ does not exist).
 
 For LANG, URL, REVISION, SOURCE-DIR, GRAMMAR-DIR, CC, C++, see
 `treesit-language-source-alist'.  If anything goes wrong, this
-function signals an error."
+function signals an error.
+
+Return the git revision of the installed grammar.  The revision is
+generated by \"git describe\".  It only works when
+`treesit--install-language-grammar-full-clone' is t."
   (let* ((lang (symbol-name lang))
          (maybe-repo-dir (expand-file-name url))
          (url-is-dir (file-accessible-directory-p maybe-repo-dir))
@@ -4034,7 +4087,8 @@ function signals an error."
                     (signal 'treesit-error '("Emacs cannot figure out the file extension for dynamic libraries for this system, because `dynamic-library-suffixes' is nil"))))
          (out-dir (or (and out-dir (expand-file-name out-dir))
                       (locate-user-emacs-file "tree-sitter")))
-         (lib-name (concat "libtree-sitter-" lang soext)))
+         (lib-name (concat "libtree-sitter-" lang soext))
+         version)
     (unwind-protect
         (with-temp-buffer
           (if url-is-dir
@@ -4045,6 +4099,7 @@ function signals an error."
           ;; header files use relative path (#include "../xxx").
           ;; cd "${sourcedir}"
           (setq default-directory source-dir)
+          (setq version (treesit--language-git-revision))
           (message "Compiling library")
           ;; cc -fPIC -c -I. parser.c
           (treesit--call-process-signal
@@ -4090,7 +4145,8 @@ function signals an error."
       ;; Remove workdir if it's not a repo owned by user and we
       ;; managed to create it in the first place.
       (when (and (not url-is-dir) (file-exists-p workdir))
-        (delete-directory workdir t)))))
+        (delete-directory workdir t)))
+    version))
 
 ;;; Etc
 
@@ -4132,6 +4188,136 @@ function signals an error."
                (lambda (name) (member name functions-in-manual))
                functions-in-source)
               "\n"))))
+
+(defvar treesit--builtin-language-sources
+  '((c "https://github.com/tree-sitter/tree-sitter-c")
+    (cpp "https://github.com/tree-sitter/tree-sitter-cpp")
+    (cmake "https://github.com/uyha/tree-sitter-cmake")
+    (dockerfile "https://github.com/camdencheek/tree-sitter-dockerfile")
+    (go "https://github.com/tree-sitter/tree-sitter-go")
+    (ruby "https://github.com/tree-sitter/tree-sitter-ruby"))
+  "A list of sources for the builtin modes.
+The source information are in the format of
+`treesit-language-source-alist'.  This is for development only.")
+
+(defun treesit--verify-major-mode-queries (modes langs grammar-dir)
+  "Verify font-lock queries in MODES.
+
+LANGS is a list of languages, it should cover all the languages used by
+MODES.  GRAMMAR-DIR is a temporary direction in which grammars are
+installed.
+
+If the font-lock queries work fine with the latest grammar, insert some
+comments in the source file saying that the modes are known to work with
+that version of grammar.  At the end of the process, show a list of
+queries that has problems with latest grammar."
+  (let ((treesit-extra-load-path (list grammar-dir))
+        (treesit-language-source-alist treesit--builtin-language-sources)
+        (treesit--install-language-grammar-full-clone t)
+        (version-alist nil)
+        (invalid-feature-list nil)
+        (valid-modes nil)
+        (mode-language-alist nil)
+        (file-modes-alist nil))
+    (dolist (lang langs)
+      (let ((ver (treesit-install-language-grammar lang grammar-dir)))
+        (if ver
+            (push (cons lang ver) version-alist)
+          (error "Cannot get version for %s" lang))))
+
+    ;; Validate font-lock queries for each major mode.
+    (dolist (mode modes)
+      (let ((settings
+             (with-temp-buffer
+               (ignore-errors
+                 (funcall mode)
+                 (font-lock-mode -1)
+                 treesit-font-lock-settings)))
+            (all-queries-valid t))
+        (dolist (setting settings)
+          (let* ((query (treesit-font-lock-setting-query setting))
+                 (language (treesit-query-language query))
+                 (feature (treesit-font-lock-setting-feature setting)))
+            ;; Record that MODE uses LANGUAGE.
+            (unless (memq language (alist-get mode mode-language-alist))
+              (push language (alist-get mode mode-language-alist)))
+            ;; Validate query.
+            (when (not (ignore-errors
+                         (treesit-query-compile language query t)
+                         t))
+              (push (list mode language feature) invalid-feature-list)
+              (setq all-queries-valid nil))))
+        (when all-queries-valid
+          (push mode valid-modes))))
+
+    ;; Group modes by their source file.
+    (dolist (mode valid-modes)
+      (let ((source-file (replace-regexp-in-string
+                          (rx ".elc" eos)
+                          ".el"
+                          (car (get mode 'function-history)))))
+        (unless (member mode (alist-get source-file file-modes-alist
+                                        nil nil #'equal))
+          (push mode (alist-get source-file file-modes-alist
+                                nil nil #'equal)))))
+
+    ;; Update the "known-to-work" version comment for the modes.
+    (pcase-dolist (`(,source-file . ,modes) file-modes-alist)
+      (let (beg)
+        (with-temp-buffer
+          (insert-file-contents source-file)
+          (goto-char (point-min))
+          (when (not (search-forward
+                      ";;; Tree-sitter language versions\n" nil t))
+            (re-search-forward (rx (or ";;; Commentary:" ";;; Code:")))
+            (forward-line -1)
+            (insert "\n;;; Tree-sitter language versions\n\n")
+            (forward-line -1))
+          (setq beg (point))
+          (search-forward "\n\n")
+          (delete-region beg (point))
+          (insert ";;\n")
+          (dolist (mode modes)
+            (insert (format ";; %s is known to work with the following languages and version:\n" mode))
+            (dolist (lang (alist-get mode mode-language-alist))
+              (insert (format ";; - tree-sitter-%s: %s\n" lang (alist-get lang version-alist))))
+            (insert ";;\n"))
+          (insert
+           ";; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.")
+          (insert "\n\n")
+          (write-file source-file))))
+
+    (pop-to-buffer (get-buffer-create "*verify major mode queries*"))
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (insert "Verified grammar and versions:\n")
+      (pcase-dolist (`(,lang . ,version) version-alist)
+        (insert (format "- %s: %s\n" lang version)))
+      (insert "\n")
+      (if (null invalid-feature-list)
+          (insert "All the queries are valid with latest grammar.\n")
+        (insert "The following modes has invalid queries:\n")
+        (dolist (entry invalid-feature-list)
+          (insert (format "mode: %s language: %s feature: %s"
+                          (nth 0 entry)
+                          (nth 1 entry)
+                          (nth 2 entry)))))
+      (special-mode))))
+
+(defun treesit-verify-major-mode-queries ()
+  "Varify font-lock queries in builtin major modes.
+
+If the font-lock queries work fine with the latest grammar, insert some
+comments in the source file saying that the modes are known to work with
+that version of grammar.  At the end of the process, show a list of
+queries that has problems with latest grammar."
+  (interactive)
+  (treesit--verify-major-mode-queries
+   '(cmake-ts-mode dockerfile-ts-mode go-ts-mode ruby-ts-mode)
+   '(cmake dockerfile go ruby)
+   "/tmp/tree-sitter-grammars"))
 
 ;;; Shortdocs
 

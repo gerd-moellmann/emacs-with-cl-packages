@@ -3495,7 +3495,7 @@ tty_raise_lower_frame (struct frame *f, bool raise)
 bool
 is_tty_frame (struct frame *f)
 {
-  return FRAME_TERMCAP_P (f);
+  return FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f);
 }
 
 /* Return true if frame F is a tty child frame.  */
@@ -3784,7 +3784,7 @@ update_menu_bar (struct frame *f)
 {
 #if defined HAVE_WINDOW_SYSTEM && !defined HAVE_EXT_MENU_BAR
   if (WINDOWP (f->menu_bar_window))
-    update_window (XWINDOW (f->menu_bar_window), true);
+    update_window (XWINDOW (f->menu_bar_window));
 #endif
 }
 
@@ -3930,6 +3930,8 @@ is_cursor_obscured (void)
   return cursor_glyph->frame != SELECTED_FRAME ();
 }
 
+#ifndef HAVE_ANDROID
+
 /* Decide where to show the cursor, and whether to hide it.
 
    This works very well for Vertico-Posframe, Transient-Posframe and
@@ -3969,9 +3971,12 @@ terminal_cursor_magic (struct frame *root, struct frame *topmost_child)
     }
 }
 
+#endif /* !HAVE_ANDROID */
+
 void
 combine_updates_for_frame (struct frame *f, bool inhibit_scrolling)
 {
+#ifndef HAVE_ANDROID
   struct frame *root = root_frame (f);
   eassert (FRAME_VISIBLE_P (root));
 
@@ -4008,6 +4013,7 @@ combine_updates_for_frame (struct frame *f, bool inhibit_scrolling)
       add_frame_display_history (f, false);
 #endif
     }
+#endif /* HAVE_ANDROID */
 }
 
 /* Update on the screen all root frames ROOTS.  Called from
@@ -6639,13 +6645,14 @@ change_frame_size (struct frame *f, int new_width, int new_height,
 {
   Lisp_Object tail, frame;
 
-  if (FRAME_MSDOS_P (f))
+  if (FRAME_MSDOS_P (f) && !FRAME_PARENT_FRAME (f))
     {
       /* On MS-DOS, all frames use the same screen, so a change in
          size affects all frames.  Termcap now supports multiple
          ttys. */
       FOR_EACH_FRAME (tail, frame)
-	if (!FRAME_WINDOW_P (XFRAME (frame)))
+	if (!FRAME_WINDOW_P (XFRAME (frame))
+	    && !FRAME_PARENT_FRAME (XFRAME (frame)))
 	  change_frame_size_1 (XFRAME (frame), new_width, new_height,
 			       pretend, delay, safe);
     }

@@ -17459,12 +17459,13 @@ redisplay_internal (void)
 
 	      /* Remember tty root frames which we've seen.  */
 	      if (!FRAME_PARENT_FRAME (f)
-		  && NILP (assq_no_quit (frame, tty_root_frames)))
+		  && NILP (memq_no_quit (frame, tty_root_frames)))
 		tty_root_frames = Fcons (frame, tty_root_frames);
 	    }
 
 	retry_frame:
-	  if (FRAME_WINDOW_P (f) || FRAME_TERMCAP_P (f) || f == sf)
+	  if (FRAME_WINDOW_P (f)
+	      || FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f) || f == sf)
 	    {
 	      /* Only GC scrollbars when we redisplay the whole frame.  */
 	      bool gcscrollbars = f->redisplay || !REDISPLAY_SOME_P ();
