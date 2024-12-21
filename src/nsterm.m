@@ -1817,6 +1817,44 @@ ns_set_undecorated (struct frame *f, Lisp_Object new_value, Lisp_Object old_valu
 }
 
 void
+ns_set_undecorated_round (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+/* --------------------------------------------------------------------------
+     Set frame F's `undecorated_round' parameter.  If non-nil, F's window-system
+     window is drawn without decorations, title, minimize/maximize boxes
+     and external borders.  This usually means that the window cannot be
+     dragged, resized, iconified, maximized or deleted with the mouse.  If
+     nil, draw the frame with all the elements listed above unless these
+     have been suspended via window manager settings.
+   -------------------------------------------------------------------------- */
+{
+  NSTRACE ("ns_set_undecorated_round");
+
+  if (!EQ (new_value, old_value))
+    {
+      EmacsView *view = (EmacsView *)FRAME_NS_VIEW (f);
+      NSWindow *oldWindow = [view window];
+      NSWindow *newWindow;
+
+      block_input ();
+
+      FRAME_UNDECORATED_ROUND (f) = !NILP (new_value);
+
+      newWindow = [[EmacsWindow alloc] initWithEmacsFrame:f];
+
+      if ([oldWindow isKeyWindow])
+        [newWindow makeKeyAndOrderFront:NSApp];
+
+      [newWindow setIsVisible:[oldWindow isVisible]];
+      if ([oldWindow isMiniaturized])
+        [newWindow miniaturize:NSApp];
+
+      [oldWindow close];
+
+      unblock_input ();
+    }
+}
+
+void
 ns_set_parent_frame (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
 /* --------------------------------------------------------------------------
      Set frame F's `parent-frame' parameter.  If non-nil, make F a child
@@ -9400,6 +9438,11 @@ ns_in_echo_area (void)
 		 | NSWindowStyleMaskMiniaturizable
 		 | NSWindowStyleMaskClosable);
 
+  if (FRAME_UNDECORATED_ROUND (f))
+    {
+      styleMask |= NSFullSizeContentViewWindowMask;
+    }
+
   last_drag_event = nil;
 
   width = FRAME_TEXT_COLS_TO_PIXEL_WIDTH (f, f->text_cols);
@@ -9483,13 +9526,22 @@ ns_in_echo_area (void)
 #endif
     }
 
+  if (FRAME_UNDECORATED_ROUND (f))
+    {
+      [self setTitlebarAppearsTransparent:YES];
+      [self setTitleVisibility:NSWindowTitleHidden];
+      [[self standardWindowButton:NSWindowCloseButton] setHidden:YES];
+      [[self standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
+      [[self standardWindowButton:NSWindowZoomButton] setHidden:YES];
+    }
+
   return self;
 }
 
 
 - (void)createToolbar: (struct frame *)f
 {
-  if (FRAME_UNDECORATED (f)
+  if (FRAME_UNDECORATED (f) || FRAME_UNDECORATED_ROUND (f)
       || [self styleMask] == NSWindowStyleMaskBorderless
       || !FRAME_EXTERNAL_TOOL_BAR (f)
       || [self toolbar] != nil)
