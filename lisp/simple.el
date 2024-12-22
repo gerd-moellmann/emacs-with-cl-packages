@@ -745,8 +745,9 @@ If LENGTH is nil, use the window width."
           (concat (propertize (make-string length ?\s) 'face 'separator-line)
                   "\n")
         (propertize "\n" 'face '(:inherit separator-line :extend t)))
-    ;; In terminals (that don't support underline), use a line of dashes.
-    (concat (propertize (make-string (or length (1- (window-width))) ?-)
+    ;; In terminals that don't support underline, use a line of dashes.
+    (concat (propertize (make-string (or length
+                                         (1- (window-max-chars-per-line))) ?-)
                         'face 'separator-line)
             "\n")))
 
