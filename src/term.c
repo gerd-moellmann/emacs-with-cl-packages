@@ -2113,20 +2113,18 @@ bool
 tty_capable_p (struct tty_display_info *tty, unsigned int caps)
 {
 #ifndef HAVE_ANDROID
-# define TTY_CAPABLE_P(tty, cap, TS, NC_bit) \
-   ((caps & (cap)) && (TS) && MAY_USE_WITH_COLORS_P (tty, NC_bit))
-# define TTY_CAPABLE_P_TRY(tty, cap, TS, NC_bit) \
-  if (!TTY_CAPABLE_P (tty, cap, TS, NC_bit)) \
-    return false;
-
-  if (!TTY_CAPABLE_P (tty, TTY_CAP_UNDERLINE, tty->TS_enter_underline_mode,
-		      NC_UNDERLINE)
-      && !TTY_CAPABLE_P (tty, TTY_CAP_UNDERLINE_STYLED,
-			 tty->TF_set_underline_style, NC_UNDERLINE))
-    return false;
+#define TTY_CAPABLE_P_TRY(tty, cap, TS, NC_bit)				\
+  if ((caps & (cap)) && (!(TS) || !MAY_USE_WITH_COLORS_P (tty, NC_bit)))	\
+    return 0;
 
   TTY_CAPABLE_P_TRY (tty,
 		     TTY_CAP_INVERSE,	  tty->TS_standout_mode, NC_REVERSE);
+  TTY_CAPABLE_P_TRY (tty,
+		     TTY_CAP_UNDERLINE,	  tty->TS_enter_underline_mode,
+		     NC_UNDERLINE);
+  TTY_CAPABLE_P_TRY (tty,
+		     TTY_CAP_UNDERLINE_STYLED,	  tty->TF_set_underline_style,
+		     NC_UNDERLINE);
   TTY_CAPABLE_P_TRY (tty,
 		     TTY_CAP_BOLD,	  tty->TS_enter_bold_mode, NC_BOLD);
   TTY_CAPABLE_P_TRY (tty,
@@ -2137,7 +2135,8 @@ tty_capable_p (struct tty_display_info *tty, unsigned int caps)
 		     TTY_CAP_STRIKE_THROUGH, tty->TS_enter_strike_through_mode,
 		     NC_STRIKE_THROUGH);
 
-  return true;
+  /* We can do it!  */
+  return 1;
 #else
   return false;
 #endif
