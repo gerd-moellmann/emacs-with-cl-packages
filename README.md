@@ -56,31 +56,4 @@ Works well for me on macOS. I'm using this daily.
 
 ## Child frames on ttys
 
-The NS port of Emacs shows severe stability problems for me so that I
-finally stopped building with or using NS. In other words, I'm using
-Emacs on a terminal, more specifically iTerm2 with `kkp.el`.
-
-Since I was a user of Corfu, and Posframe with Vertico, Consult, and
-Transient on GUI Emacs, I wanted that on the terminal as well, and here
-we are.
-
-To use this, make sure to use up-to-date Corfu and Posframe
-packages. Both packages now check for the presence of the
-`tty-child-frames` feature and use child frames on ttys.
-
-You might also want to add these lines to make things look nicer.
-
-```
-(push '(tty-non-selected-cursor . t) vertico-posframe-parameters)
-(push '(undecorated . nil) vertico-posframe-parameters))
-(push '(undecorated . nil) transient-posframe-parameters))
-```
-
-Sorry, can't tell what to do for other packages, like maybe Company,
-because I'm not using them.
-
-A port of this to plain Emacs is available from savannah, branch
-`scratch/tty-child-frames`.
-
-If you want something like tooltips on ttys, take a look at tty-tip.el
-in this repo.
+This has meanwhle landed in master on savannah.
