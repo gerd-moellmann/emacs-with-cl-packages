@@ -459,6 +459,33 @@ See `treesit-thing-settings' for more information.")
   "Nodes that designate sexps in TypeScript.
 See `treesit-thing-settings' for more information.")
 
+(defvar typescript-ts-mode--sexp-list-nodes
+  '("export_clause"
+    "named_imports"
+    "statement_block"
+    "_for_header"
+    "switch_body"
+    "parenthesized_expression"
+    "object"
+    "object_pattern"
+    "array"
+    "array_pattern"
+    "string"
+    "regex"
+    "arguments"
+    "class_body"
+    "formal_parameters"
+    "computed_property_name"
+    "decorator_parenthesized_expression"
+    "enum_body"
+    "parenthesized_type"
+    "type_arguments"
+    "object_type"
+    "type_parameters"
+    "tuple_type")
+  "Nodes that designate lists in TypeScript.
+See `treesit-thing-settings' for more information.")
+
 ;;;###autoload
 (define-derived-mode typescript-ts-base-mode prog-mode "TypeScript"
   "Generic major mode for editing TypeScript.
@@ -485,11 +512,14 @@ This mode is intended to be inherited by concrete major modes."
 
   (setq-local treesit-thing-settings
               `((typescript
-                 (sexp ,(regexp-opt typescript-ts-mode--sexp-nodes))
+                 (sexp ,(regexp-opt typescript-ts-mode--sexp-nodes 'symbols))
+                 (sexp-list ,(regexp-opt typescript-ts-mode--sexp-list-nodes
+                                         'symbols))
                  (sentence ,(regexp-opt
-                             typescript-ts-mode--sentence-nodes))
+                             typescript-ts-mode--sentence-nodes 'symbols))
                  (text ,(regexp-opt '("comment"
-                                      "template_string"))))))
+                                      "template_string")
+                                    'symbols)))))
 
   ;; Imenu (same as in `js-ts-mode').
   (setq-local treesit-simple-imenu-settings
@@ -568,10 +598,19 @@ at least 3 (which is the default value)."
                    (sexp ,(regexp-opt
                            (append typescript-ts-mode--sexp-nodes
                                    '("jsx"))))
+                   (sexp-list ,(concat "^"
+                                       (regexp-opt
+                                        (append typescript-ts-mode--sexp-list-nodes
+                                                '(
+                                                  "jsx_element"
+                                                  "jsx_self_closing_element"
+                                                  "jsx_expression")))
+                                       "$"))
                    (sentence ,(regexp-opt
                                (append typescript-ts-mode--sentence-nodes
                                        '("jsx_element"
-                                         "jsx_self_closing_element")))))))
+                                         "jsx_self_closing_element"))
+                               'symbols)))))
 
     ;; Font-lock.
     (setq-local treesit-font-lock-settings

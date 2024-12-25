@@ -835,6 +835,36 @@ omitted, default END to BEG."
                return rng
                finally return nil))))
 
+;;; Language display name
+
+;; The entries are sorted by `sort-lines'.
+(defvar treesit-language-display-name-alist
+  '(
+    (charp . "C#")
+    (cmake . "CMake")
+    (cpp . "C++")
+    (gomod . "Go Mod")
+    (heex . "HEEx")
+    (json . "JSON")
+    (php . "PHP")
+    (tsx . "TSX")
+    )
+  "An alist mapping language symbols to their display names.
+
+Used by `treesit-language-display-name'.  If there's no mapping in this
+alist, `treesit-language-display-name' converts the symbol to display
+name by capitalizing the first letter.  So languages like Java,
+Javascript, Rust don't need an entry in this variable.")
+
+(defun treesit-language-display-name (language)
+  "Returns the display name (a string) of LANGUAGE.
+
+If LANGUAGE has an entry in `treesit-language-display-name-alist', use
+the display name in their.  Otherwise, capitalize the first letter of
+LANGUAGE and return the string."
+  (or (alist-get language treesit-language-display-name-alist)
+      (capitalize (symbol-name language))))
+
 ;;; Fontification
 
 (define-error 'treesit-font-lock-error
@@ -3093,6 +3123,31 @@ node and returns the name of that defun node.  If NAME-FN is nil,
 `treesit-major-mode-setup' automatically sets up Imenu if this
 variable is non-nil.")
 
+;; `treesit-simple-imenu-settings' doesn't support multiple languages,
+;; and we need to add multi-lang support for Imenu.  One option is to
+;; extend treesit-simple-imenu-settings to specify language, either by
+;; making it optionally an alist (just like
+;; `treesit-aggregated-simple-imenu-settings'), or add a fifth element
+;; to each setting.  But either way makes borrowing Imenu settings from
+;; other modes difficult: with the alist approach, you'd need to check
+;; whether other mode uses a plain list or an alist; with the fifth
+;; element approach, again, you need to check if each setting has the
+;; fifth element, and add it if not.
+;;
+;; OTOH, with `treesit-aggregated-simple-imenu-settings', borrowing
+;; Imenu settings is easy: if `treesit-aggregated-simple-imenu-settings'
+;; is non-nil, copy everything over; if `treesit-simple-imenu-settings'
+;; is non-nil, copy the settings and put them under a language symbol.
+(defvar treesit-aggregated-simple-imenu-settings nil
+  "Settings that configure `treesit-simple-imenu' for multi-language modes.
+
+The value should be an alist of (LANG . SETTINGS), where LANG is a
+language symbol, and SETTINGS has the same form as
+`treesit-simple-imenu-settings'.
+
+When both this variable and `treesit-simple-imenu-settings' are non-nil,
+this variable takes priority.")
+
 (defun treesit--simple-imenu-1 (node pred name-fn)
   "Given a sparse tree, create an Imenu index.
 
@@ -3140,20 +3195,69 @@ ENTRY.  MARKER marks the start of each tree-sitter node."
      ;; Leaf node, return a (list of) plain index entry.
      (t (list (cons name marker))))))
 
+(defun treesit--imenu-merge-entries (entries)
+  "Merge ENTRIES by category.
+
+ENTRIES is a list of (CATEGORY . SUB-ENTRIES...).  Merge them so there's
+no duplicate CATEGORY.  CATEGORY's are strings.  The merge is stable,
+meaning the order of elements are kept."
+  (let ((return-entries nil))
+    (dolist (entry entries)
+      (let* ((category (car entry))
+             (sub-entries (cdr entry))
+             (existing-entries
+              (alist-get category return-entries nil nil #'equal)))
+        (if (not existing-entries)
+            (push entry return-entries)
+          (setf (alist-get category return-entries nil nil #'equal)
+                (append existing-entries sub-entries)))))
+    (nreverse return-entries)))
+
+(defun treesit--generate-simple-imenu (node settings)
+  "Return an Imenu index for NODE with SETTINGS.
+
+NODE usually should be a root node of a parser.  SETTINGS is described
+by `treesit-simple-imenu-settings'."
+  (mapcan (lambda (setting)
+            (pcase-let ((`(,category ,regexp ,pred ,name-fn)
+                         setting))
+              (when-let* ((tree (treesit-induce-sparse-tree
+                                 node regexp))
+                          (index (treesit--simple-imenu-1
+                                  tree pred name-fn)))
+                (if category
+                    (list (cons category index))
+                  index))))
+          settings))
+
 (defun treesit-simple-imenu ()
   "Return an Imenu index for the current buffer."
-  (let ((root (treesit-buffer-root-node)))
-    (mapcan (lambda (setting)
-              (pcase-let ((`(,category ,regexp ,pred ,name-fn)
-                           setting))
-                (when-let* ((tree (treesit-induce-sparse-tree
-                                   root regexp))
-                            (index (treesit--simple-imenu-1
-                                    tree pred name-fn)))
-                  (if category
-                      (list (cons category index))
-                    index))))
-            treesit-simple-imenu-settings)))
+  (if (not treesit-aggregated-simple-imenu-settings)
+      (treesit--generate-simple-imenu
+       (treesit-parser-root-node treesit-primary-parser)
+       treesit-simple-imenu-settings)
+    ;; Use `treesit-aggregated-simple-imenu-settings'.  Remove languages
+    ;; that doesn't have any Imenu entries.
+    (seq-filter
+     #'cdr
+     (mapcar
+      (lambda (entry)
+        (let* ((lang (car entry))
+               (settings (cdr entry))
+               (global-parser (car (treesit-parser-list nil lang)))
+               (local-parsers
+                (treesit-parser-list nil lang 'embedded)))
+          (cons (treesit-language-display-name lang)
+                ;; No one says you can't have both global and local
+                ;; parsers for the same language.  E.g., Rust uses
+                ;; local parsers for the same language to handle
+                ;; macros.
+                (treesit--imenu-merge-entries
+                 (mapcan (lambda (parser)
+                           (treesit--generate-simple-imenu
+                            (treesit-parser-root-node parser) settings))
+                         (cons global-parser local-parsers))))))
+      treesit-aggregated-simple-imenu-settings))))
 
 ;;; Outline minor mode
 
@@ -3291,7 +3395,8 @@ and `end-of-defun-function'.
 If `treesit-defun-name-function' is non-nil, set up
 `add-log-current-defun'.
 
-If `treesit-simple-imenu-settings' is non-nil, set up Imenu.
+If `treesit-simple-imenu-settings' or
+`treesit-aggregated-simple-imenu-settings' is non-nil, set up Imenu.
 
 If either `treesit-outline-predicate' or `treesit-simple-imenu-settings'
 are non-nil, and Outline minor mode settings don't already exist, setup
@@ -3365,7 +3470,8 @@ before calling this function."
     (setq-local forward-sentence-function #'treesit-forward-sentence))
 
   ;; Imenu.
-  (when treesit-simple-imenu-settings
+  (when (or treesit-aggregated-simple-imenu-settings
+            treesit-simple-imenu-settings)
     (setq-local imenu-create-index-function
                 #'treesit-simple-imenu))
 
@@ -3925,6 +4031,9 @@ See `treesit-language-source-alist' for details."
 (defvar treesit--install-language-grammar-full-clone nil
   "If non-nil, do a full clone when cloning git repos.")
 
+(defvar treesit--install-language-grammar-blobless nil
+  "If non-nil, create a blobless clone when cloning git repos.")
+
 ;;;###autoload
 (defun treesit-install-language-grammar (lang &optional out-dir)
   "Build and install the tree-sitter language grammar library for LANG.
@@ -4010,7 +4119,7 @@ Return the output of \"git describe\". If anything goes wrong, return
 nil."
   (with-temp-buffer
     (cond
-     ((eq 0 (call-process "git" nil t nil "describe"))
+     ((eq 0 (call-process "git" nil t nil "describe" "--tags"))
       (string-trim (buffer-string)))
      ((eq 0 (progn (erase-buffer)
                    (call-process "git" nil t nil "rev-parse" "HEAD")))
@@ -4048,6 +4157,8 @@ Use shallow clone by default.  Do a full clone when
   (let ((args (list "git" nil t nil "clone" url "--quiet")))
     (when (not treesit--install-language-grammar-full-clone)
       (setq args (append args (list "--depth" "1"))))
+    (when treesit--install-language-grammar-blobless
+      (setq args (append args (list "--filter=blob:none"))))
     (when revision
       (setq args (append args (list "-b" revision))))
     (setq args (append args (list workdir)))
@@ -4341,6 +4452,22 @@ generated by \"git describe\".  It only works when
    :eval (treesit-pattern-expand '(identifier))
    :eval (treesit-pattern-expand :equal))
 
+  "Tree-sitter things and navigation"
+  (treesit-thing-defined-p
+   :no-eval (treesit-thing-defined-p 'sexp)
+   :eg-result nil)
+  (treesit-thing-definition
+   :no-eval (treesit-thing-defined 'sexp)
+   :eg-result (not ,(rx (or "{" "}" "[" "]" "(" ")" ","))))
+  (treesit-thing-at
+   :no-eval (treesit-thing-at 3943)
+   :eg-result-string "#<treesit-node (identifier) in 3941-3949>")
+  (treesit-thing-next
+   :no-eval (treesit-thing-next 3943 'sexp))
+  (treesit-navigate-thing
+   :no-eval (treesit-navigate-thing 3943 1 'beg 'sexp))
+  (treesit-beginning-of-thing
+   :no-eval (treesit-beginning-of-thing 'defun 1 'nested))
 
   "Parsing a string"
   (treesit-parse-string
@@ -4353,7 +4480,15 @@ generated by \"git describe\".  It only works when
   "Misc"
   (treesit-subtree-stat
    :no-eval (treesit-subtree-stat node)
-   :eg-result (6 33 487)))
+   :eg-result (6 33 487))
+  (treesit-language-abi-version
+   :no-eval (treesit-language-abi-version 'c)
+   :eg-result 14)
+  (treesit-grammar-location
+   :no-eval (treesit-language-abi-version 'c))
+  (treesit-language-display-name
+   :no-eval (treesit-language-display-name 'cpp)
+   :eg-result "C++"))
 
 (provide 'treesit)
 

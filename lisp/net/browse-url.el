@@ -974,7 +974,13 @@ Optional prefix argument ARG non-nil inverts the value of the option
 ;;;###autoload
 (defun browse-url-with-browser-kind (kind url &optional arg)
   "Browse URL with a browser of the given browser KIND.
-KIND is either `internal' or `external'.
+
+KIND is either `internal' or `external'.  In order to find an
+appropriate browser for the given KIND, first consult the `browse-url-handlers'
+and `browse-url-default-handlers' lists.  If no handler is found, try the
+functions `browse-url-browser-function',
+`browse-url-secondary-browser-function', `browse-url-default-browser'
+and `eww', in that order.
 
 When called interactively, the default browser kind is the
 opposite of the browser kind of `browse-url-browser-function'."
@@ -994,9 +1000,14 @@ opposite of the browser kind of `browse-url-browser-function'."
      (cons k url-arg)))
   (let ((function (browse-url-select-handler url kind)))
     (unless function
-      (setq function (if (eq kind 'external)
-                         #'browse-url-default-browser
-                       #'eww)))
+      (setq function
+            (seq-find
+             (lambda (fun)
+               (eq kind (browse-url--browser-kind fun url)))
+             (list browse-url-browser-function
+                   browse-url-secondary-browser-function
+                   #'browse-url-default-browser
+                   #'eww))))
     (funcall function url arg)))
 
 ;;;###autoload
@@ -1399,7 +1410,7 @@ Default to the URL around or before point."
               'browse-url-browser-kind 'external)
 
 (defcustom browse-url-android-share nil
-  "If non-nil, share URLs instead of opening them.
+  "If non-nil, share URLs on Android systems instead of opening them.
 When non-nil, `browse-url-default-android-browser' will try to
 share the URL being browsed through programs such as mail clients
 and instant messengers instead of opening it in a web browser."

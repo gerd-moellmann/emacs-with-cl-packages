@@ -160,6 +160,22 @@ grammar library loaded by Emacs for @var{language}.  If @var{language}
 is unavailable, this function returns @code{nil}.
 @end defun
 
+@vindex treesit-language-display-name-alist
+@defun treesit-language-display-name language
+This function translates @var{language} to an appropriate display name.
+For example, it translates @code{ruby} to ``Ruby'', @code{cpp} to
+``C++''.
+
+Most languages has ``regular'' names, and their display name is simply
+the symbol name with first letter capitalized.  For languages that has
+``irregular'' names, @var{treesit-language-display-name-alist} maps
+language symbols to their display names.
+
+If a major mode package uses a langauge with ``irregular'' name, they
+should add a mapping into @var{treesit-language-display-name-alist} on
+load.
+@end defun
+
 @heading Concrete syntax tree
 @cindex syntax tree, concrete
 
@@ -1609,6 +1625,16 @@ Here's an example @code{treesit-thing-settings} for C and C++:
 Note that this example is modified for didactic purposes, and isn't
 exactly how C and C@t{++} modes define things.
 @end defvar
+
+Emacs builtin functions already make use some thing definitions.
+Command @code{treesit-forward-sexp} uses the @code{sexp} definition if
+major mode defines it; @code{treesit-forward-sentence} uses the
+@code{sentence} definition.  Defun movement functions like
+@code{treesit-end-of-defun} uses the @code{defun} definition
+(@code{defun} definition is overridden by
+@var{treesit-defun-type-regexp} for backward compatibility).  Major
+modes can also define @code{comment}, @code{string}, @code{text}
+(generally comments and strings).
 
 The rest of this section lists a few functions that take advantage of
 the thing definitions.  Besides the functions below, some other

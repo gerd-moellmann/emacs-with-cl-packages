@@ -713,6 +713,57 @@ buffer contents as untrusted.
 This variable might be subject to change without notice.")
 (put 'untrusted-content 'permanent-local t)
 
+(defcustom trusted-content nil
+  "List of files and directories whose content we trust.
+Be extra careful here since trusting means that Emacs might execute the
+code contained within those files and directories without an explicit
+request by the user.
+One important case when this might happen is when `flymake-mode' is
+enabled (for example, when it is added to a mode hook).
+Each element of the list should be a string:
+- If it ends in \"/\", it is considered as a directory name and means that
+  Emacs should trust all the files whose name has this directory as a prefix.
+- else it is considered as a file name.
+Use abbreviated file names.  For example, an entry \"~/mycode/\" means
+that Emacs will trust all the files in your directory \"mycode\".
+This variable can also be set to `:all', in which case Emacs will trust
+all files, which opens a gaping security hole."
+  :type '(choice (repeat :tag "List" file)
+                 (const :tag "Trust everything (DANGEROUS!)" :all))
+  :version "30.1")
+(put 'trusted-content 'risky-local-variable t)
+
+(defun trusted-content-p ()
+  "Return non-nil if we trust the contents of the current buffer.
+Here, \"trust\" means that we are willing to run code found inside of it.
+See also `trusted-content'."
+  ;; We compare with `buffer-file-truename' i.s.o `buffer-file-name'
+  ;; to try and avoid marking as trusted a file that's merely accessed
+  ;; via a symlink that happens to be inside a trusted dir.
+  (and (not untrusted-content)
+       (or
+        (eq trusted-content :all)
+        (and
+         buffer-file-truename
+         (with-demoted-errors "trusted-content-p: %S"
+           (let ((exists (file-exists-p buffer-file-truename)))
+             (or
+              ;; We can't avoid trusting the user's init file.
+              (if (and exists user-init-file)
+                  (file-equal-p buffer-file-truename user-init-file)
+                (equal buffer-file-truename user-init-file))
+              (let ((file (abbreviate-file-name buffer-file-truename))
+                    (trusted nil))
+                (dolist (tf trusted-content)
+                  (when (or (if exists (file-equal-p tf file) (equal tf file))
+                            ;; We don't use `file-in-directory-p' here, because
+                            ;; we want to err on the conservative side: "guilty
+                            ;; until proven innocent".
+                            (and (string-suffix-p "/" tf)
+                                 (string-prefix-p tf file)))
+                    (setq trusted t)))
+                trusted))))))))
+
 ;; This is an odd variable IMO.
 ;; You might wonder why it is needed, when we could just do:
 ;; (setq-local enable-local-variables nil)
@@ -3005,7 +3056,7 @@ since only a single case-insensitive search through the alist is made."
      ;; files, cross-debuggers can use something like
      ;; .PROCESSORNAME-gdbinit so that the host and target gdbinit files
      ;; don't interfere with each other.
-     ("/\\.[a-z0-9-]*gdbinit" . gdb-script-mode)
+     ("/[._]?[A-Za-z0-9-]*\\(?:gdbinit\\(?:\\.\\(?:ini?\\|loader\\)\\)?\\|gdb\\.ini\\)\\'" . gdb-script-mode)
      ;; GDB 7.5 introduced OBJFILE-gdb.gdb script files; e.g. a file
      ;; named 'emacs-gdb.gdb', if it exists, will be automatically
      ;; loaded when GDB reads an objfile called 'emacs'.
@@ -3170,6 +3221,7 @@ ARC\\|ZIP\\|LZH\\|LHA\\|ZOO\\|[JEW]AR\\|XPI\\|RAR\\|CBR\\|7Z\\|SQUASHFS\\)\\'" .
      ("\\.cmyk\\'" . image-mode)
      ("\\.cmyka\\'" . image-mode)
      ("\\.crw\\'" . image-mode)
+     ("\\.dcm\\'" . image-mode)
      ("\\.dcr\\'" . image-mode)
      ("\\.dcx\\'" . image-mode)
      ("\\.dng\\'" . image-mode)
@@ -3199,6 +3251,7 @@ ARC\\|ZIP\\|LZH\\|LHA\\|ZOO\\|[JEW]AR\\|XPI\\|RAR\\|CBR\\|7Z\\|SQUASHFS\\)\\'" .
      ("\\.pict\\'" . image-mode)
      ("\\.rgb\\'" . image-mode)
      ("\\.rgba\\'" . image-mode)
+     ("\\.six\\'" . image-mode)
      ("\\.tga\\'" . image-mode)
      ("\\.wbmp\\'" . image-mode)
      ("\\.webp\\'" . image-mode)
@@ -3404,6 +3457,35 @@ If FUNCTION is nil, then it is not called.")
   "Upper limit on `magic-mode-alist' regexp matches.
 Also applies to `magic-fallback-mode-alist'.")
 
+(defun set-auto-mode--find-matching-alist-entry (alist name case-insensitive)
+  "Find first matching entry in ALIST for file NAME.
+
+If CASE-INSENSITIVE, the file system of file NAME is case-insensitive."
+  (let (mode)
+    (while name
+      (setq mode
+            (if case-insensitive
+                ;; Filesystem is case-insensitive.
+                (let ((case-fold-search t))
+                  (assoc-default name alist 'string-match))
+              ;; Filesystem is case-sensitive.
+              (or
+               ;; First match case-sensitively.
+               (let ((case-fold-search nil))
+                 (assoc-default name alist 'string-match))
+               ;; Fallback to case-insensitive match.
+               (and auto-mode-case-fold
+                    (let ((case-fold-search t))
+                      (assoc-default name alist 'string-match))))))
+      (if (and mode
+               (not (functionp mode))
+               (consp mode)
+               (cadr mode))
+          (setq mode (car mode)
+                name (substring name 0 (match-beginning 0)))
+        (setq name nil)))
+    mode))
+
 (defun set-auto-mode--apply-alist (alist keep-mode-if-same dir-local)
   "Helper function for `set-auto-mode'.
 This function takes an alist of the same form as
@@ -3425,29 +3507,8 @@ extra checks should be done."
         (when (and (stringp remote-id)
                    (string-match (regexp-quote remote-id) name))
           (setq name (substring name (match-end 0))))
-        (while name
-          ;; Find first matching alist entry.
-          (setq mode
-                (if case-insensitive-p
-                    ;; Filesystem is case-insensitive.
-                    (let ((case-fold-search t))
-                      (assoc-default name alist 'string-match))
-                  ;; Filesystem is case-sensitive.
-                  (or
-                   ;; First match case-sensitively.
-                   (let ((case-fold-search nil))
-                     (assoc-default name alist 'string-match))
-                   ;; Fallback to case-insensitive match.
-                   (and auto-mode-case-fold
-                        (let ((case-fold-search t))
-                          (assoc-default name alist 'string-match))))))
-          (if (and mode
-                   (not (functionp mode))
-                   (consp mode)
-                   (cadr mode))
-              (setq mode (car mode)
-                    name (substring name 0 (match-beginning 0)))
-            (setq name nil)))
+        (setq mode (set-auto-mode--find-matching-alist-entry
+                    alist name case-insensitive-p))
         (when (and dir-local mode
                    (not (set-auto-mode--dir-local-valid-p mode)))
           (message "Ignoring invalid mode `%s'" mode)

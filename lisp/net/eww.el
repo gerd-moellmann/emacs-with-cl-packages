@@ -52,6 +52,17 @@
   :group 'eww
   :type 'string)
 
+(defcustom eww-search-confirm-send-region t
+  "Whether to ask for confirmation before sending the region to a search engine.
+Non-nil if EWW should ask for confirmation before sending the
+selected region to the configured search engine.  This is the
+default to mitigate the risk of accidental data leak.  Set this
+variable to nil to send the region to the search engine
+straightaway."
+  :version "31.1"
+  :group 'eww
+  :type 'boolean)
+
 (defcustom eww-search-prefix "https://duckduckgo.com/html/?q="
   "Prefix URL to search engine."
   :version "24.4"
@@ -597,15 +608,21 @@ new buffer instead of reusing the default EWW buffer."
 ;;;###autoload
 (defun eww-search-words ()
   "Search the web for the text in the region.
-If region is active (and not whitespace), search the web for
-the text between region beginning and end.  Else, prompt the
+If region is active (and not whitespace), search the web for the
+text between region beginning and end, subject to user's confirmation
+controlled by `eww-search-confirm-send-region'.  Else, prompt the
 user for a search string.  See the variable `eww-search-prefix'
 for the search engine used."
   (interactive)
   (if (use-region-p)
       (let ((region-string (buffer-substring (region-beginning) (region-end))))
         (if (not (string-match-p "\\`[ \n\t\r\v\f]*\\'" region-string))
-            (eww region-string)
+            (when
+                (or (not eww-search-confirm-send-region)
+                    (yes-or-no-p
+                     (format-message
+                      "Really send the region to the search engine? ")))
+              (eww region-string))
           (call-interactively #'eww)))
     (call-interactively #'eww)))
 

@@ -311,6 +311,9 @@ modal editing packages.
 
 * Changes in Specialized Modes and Packages in Emacs 31.1
 
+** Smerge
+*** New command 'smerge-extend' extends a conflict over surrounding lines.
+
 ** Browse URL
 
 *** New user option 'browse-url-transform-alist'.
@@ -883,6 +886,9 @@ destination window is chosen using 'display-buffer-alist'.  Example:
 
 ** Nested backquotes are not supported any more in Pcase patterns.
 
+---
+** The obsolete variable `redisplay-dont-pause' has been removed.
+
 ** The 'rx' category name 'chinese-two-byte' must now be spelled correctly.
 An old alternative name (without the first 'e') has been removed.
 
@@ -919,8 +925,13 @@ restore the old behavior, you can set 'eshell-pwd-convert-function' to
 
 * Lisp Changes in Emacs 31.1
 
----
-** The obsolete variable `redisplay-dont-pause' has been removed.
+** Time & Date
+
++++
+*** 'seconds-to-string' supports new formatting options.
+Optional arguments are provided to produce human-readable time-duration
+strings in a variety of formats, for example "6 months 3 weeks" or "5m
+52.5s".
 
 ** New function 'native-compile-directory'.
 This function natively-compiles all Lisp files in a directory and in its
@@ -980,6 +991,29 @@ Unlike the existing thing 'sexp' that defines both lists and atoms,
 The new function 'treesit-forward-sexp-list' uses 'sexp-list'
 to move across lists.  But to move across atoms inside the list
 it uses `forward-sexp-default-function'.
+
++++
+*** New function 'treesit-language-display-name'.
+New function that returns the display name given the language symbol.
+For example, 'cpp' is translated to "C++".  Also adds a new variable
+'treesit-language-display-name-alist' that the function uses to
+translate display names.
+
++++
+*** New command 'treesit-explore'
+This command replaces 'treesit-explore-mode'.  It turns on
+'treesit-explore-mode' if it’s not on, and pops up the explorer buffer
+if it’s already on.
+
++++
+*** 'treesit-explore-mode' now supports local parsers
+Now 'treesit-explore-mode' (or 'treesit-explore') prompts for a parser
+rather than a language, and it’s now possible to select a local parser
+at point to explore.
+
++++
+*** New variable 'treesit-aggregated-simple-imenu-settings'
+This variable allows major modes to setup Imenu for multiple languages.
 
 +++
 ** New optional BUFFER argument for 'string-pixel-width'.
@@ -1102,6 +1136,11 @@ current buffer, if the major mode supports it.  (Support for
 ** Images on MS-Windows now support the ':transform-smoothing' flag.
 Transformed images are smoothed using the bilinear interpolation by
 means of the GDI+ library.
+
+---
+** Emacs on MS-Windows now supports the ':data' keyword for 'play-sound'.
+In addition to ':file FILE' for playing a sound from a file, ':data
+DATA' can now be used to play a sound from memory.
 
 
 ----------------------------------------------------------------------
