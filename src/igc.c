@@ -4984,7 +4984,6 @@ igc_busy_p (void)
 bool
 gc_signal_handler_can_run (int sig)
 {
-#ifndef IN_MY_FORK
   eassume (sig >= 0);
   eassert (sig < ARRAYELTS (global_igc->pending_signals));
   if (igc_busy_p ())
@@ -4999,7 +4998,6 @@ gc_signal_handler_can_run (int sig)
        * it doesn't work.  */
       return false;
     }
-#endif
   return true;
 }
 
@@ -5007,7 +5005,6 @@ gc_signal_handler_can_run (int sig)
 void
 gc_maybe_quit (void)
 {
-#ifndef IN_MY_FORK
   while (global_igc->signals_pending)
     {
       global_igc->signals_pending = 0;
@@ -5019,7 +5016,6 @@ gc_maybe_quit (void)
 	  }
       pthread_sigmask (SIG_SETMASK, &global_igc->signal_mask, NULL);
     }
-#endif
 }
 
 DEFUN ("igc--add-extra-dependency", Figc__add_extra_dependency,
