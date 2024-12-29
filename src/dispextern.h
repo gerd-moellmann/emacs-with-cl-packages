@@ -3269,6 +3269,9 @@ struct image
   /* Width and height of the image.  */
   int width, height;
 
+  /* The scale factor applied to the image.  */
+  double scale;
+
   /* These values are used for the rectangles displayed for images
      that can't be loaded.  */
 #define DEFAULT_IMAGE_WIDTH 30

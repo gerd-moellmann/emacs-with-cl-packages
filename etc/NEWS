@@ -330,6 +330,16 @@ For better integration with the Qutebrowser, set
 *** Support for the Conkeror web browser has been removed.
 It has been obsolete since Emacs 28.1.
 
+*** Support for gnome-moz-remote has been removed.
+It has been obsolete since Emacs 25.1.
+
+*** New GTK-native launch mode
+For better Wayland support, the pgtk toolkit exposes a new
+'x-gtk-launch-uri' browse-url handler and uses it by default when URLs
+are browsed from a PGTK frame.  For other frames, we fall back to the
+default URL launch function.  This change allows us to properly raise
+browser windows under Wayland using the xdg_activation_v1 protocol.
+
 ** CL-Lib
 
 +++
@@ -994,10 +1004,10 @@ it uses `forward-sexp-default-function'.
 
 +++
 *** New function 'treesit-language-display-name'.
-New function that returns the display name given the language symbol.
-For example, 'cpp' is translated to "C++".  Also adds a new variable
-'treesit-language-display-name-alist' that the function uses to
-translate display names.
+This new function returns the display name of a language given the
+language symbol.  For example, 'cpp' is translated to "C++".  A new
+variable 'treesit-language-display-name-alist' holds the translations of
+language symbols where that translation is not trivial.
 
 +++
 *** New command 'treesit-explore'

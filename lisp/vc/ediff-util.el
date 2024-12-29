@@ -213,6 +213,18 @@ to invocation.")
   (fset 'ediff-mode-map ediff-mode-map)
   (run-hooks 'ediff-keymap-setup-hook))
 
+(defun ediff--delete-temp-files-on-kill-emacs ()
+  "Delete the temp-files associated with the ediff buffers."
+  ;; We inhibit interaction and ignore any errors to avoid the situation
+  ;; where this hook could prevent kill-emacs from shutting down Emacs,
+  ;; because user interaction is not possible (e.g., in a daemon), or
+  ;; if deleting these files signals an error.
+  (ignore-errors
+    (let ((inhibit-interaction t))
+      (dolist (b (buffer-list))
+        (with-current-buffer b
+          (when (eq major-mode 'ediff-mode)
+            (ediff-delete-temp-files)))))))
 
 ;;; Setup functions
 
@@ -488,6 +500,7 @@ to invocation.")
       (if (ediff-buffer-live-p ediff-meta-buffer)
 	  (ediff-update-meta-buffer
 	   ediff-meta-buffer nil ediff-meta-session-number))
+      (add-hook 'kill-emacs-hook #'ediff--delete-temp-files-on-kill-emacs)
       (run-hooks 'ediff-startup-hook)
       ) ; eval in control-buffer
     control-buffer))

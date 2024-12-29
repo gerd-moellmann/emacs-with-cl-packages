@@ -3953,17 +3953,18 @@ the commands start with a \"-\" or a SPC."
 	 trivial)))
 
 (defcustom completion-pcm-leading-wildcard nil
-  "If non-nil, partial-completion completes as if there's a leading wildcard.
+  "If non-nil, partial-completion behaves as if each word is preceded by wildcard.
 
-If nil (the default), partial-completion requires a matching completion
-alternative to have the same beginning as the first \"word\" in the
-minibuffer text, where \"word\" is determined by
+If nil (the default), partial-completion requires each word in a
+matching completion alternative to have the same beginning as each
+\"word\" in the minibuffer text, where \"word\" is determined by
 `completion-pcm-word-delimiters'.
 
 If non-nil, partial-completion allows any string of characters to occur
-at the beginning of a completion alternative, as if a wildcard such as
-\"*\" was present at the beginning of the minibuffer text.  This makes
-partial-completion behave more like the substring completion style."
+at the beginning of each word in a completion alternative, as if a
+wildcard such as \"*\" was present at the beginning of each word.  This
+makes partial-completion behave more like the substring completion
+style."
   :version "31.1"
   :type 'boolean)
 
@@ -4010,7 +4011,7 @@ or a symbol, see `completion-pcm--merge-completions'."
               (setq p0 p)
             (push (substring string p (match-end 0)) pattern)
             ;; `any-delim' is used so that "a-b" also finds "array->beginning".
-            (setq pending 'any-delim)
+            (setq pending (if completion-pcm-leading-wildcard 'prefix 'any-delim))
             (setq p0 (match-end 0))))
         (setq p p0))
 
@@ -5040,9 +5041,9 @@ contents."
     (error (minibuffer-complete-and-exit))))
 
 (defun minibuffer-complete-history ()
-  "Complete the minibuffer history as far as possible.
-Like `minibuffer-complete' but completes on the history items
-instead of the default completion table."
+  "Complete as far as possible using the minibuffer history.
+Like `minibuffer-complete' but completes using the history of minibuffer
+inputs for the prompting command, instead of the default completion table."
   (interactive)
   (let* ((history (symbol-value minibuffer-history-variable))
          (completions
@@ -5063,9 +5064,9 @@ instead of the default completion table."
                       (cycle-sort-function . identity)))))))
 
 (defun minibuffer-complete-defaults ()
-  "Complete minibuffer defaults as far as possible.
-Like `minibuffer-complete' but completes on the default items
-instead of the completion table."
+  "Complete as far as possible using the minibuffer defaults.
+Like `minibuffer-complete' but completes using the default items
+provided by the prompting command, instead of the completion table."
   (interactive)
   (when (and (not minibuffer-default-add-done)
              (functionp minibuffer-default-add-function))

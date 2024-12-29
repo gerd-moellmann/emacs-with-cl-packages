@@ -6968,8 +6968,12 @@ ns_create_font_panel_buttons (id target, SEL select, SEL cancel_action)
 
 #ifndef NS_IMPL_GNUSTEP
       if (NS_KEYLOG)
-        fprintf (stderr, "keyDown: code =%x\tfnKey =%x\tflags = %x\tmods = %x\n",
-                 (unsigned) code, fnKeysym, flags, emacs_event->modifiers);
+	fprintf (stderr,
+		 "keyDown: code = %x\tfnKey = %x\tflags = %x\tmods = "
+		 "%x\n",
+		 (unsigned int) code, (unsigned int) fnKeysym,
+		 (unsigned int) flags,
+		 (unsigned int) emacs_event->modifiers);
 #endif
 
       /* If it was a function key or had control-like modifiers, pass
@@ -10812,7 +10816,7 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
 
       IOReturn lockStatus = IOSurfaceLock (surface, 0, nil);
       if (lockStatus != kIOReturnSuccess)
-        NSLog (@"Failed to lock surface: %x", (unsigned) lockStatus);
+        NSLog (@"Failed to lock surface: %x", (unsigned int)lockStatus);
 
       [self copyContentsTo:surface];
 
@@ -10859,7 +10863,7 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
 
   IOReturn lockStatus = IOSurfaceUnlock (currentSurface, 0, nil);
   if (lockStatus != kIOReturnSuccess)
-    NSLog (@"Failed to unlock surface: %x", (unsigned) lockStatus);
+    NSLog (@"Failed to unlock surface: %x", (unsigned int)lockStatus);
 }
 
 
@@ -10900,7 +10904,8 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
 
   lockStatus = IOSurfaceLock (source, kIOSurfaceLockReadOnly, nil);
   if (lockStatus != kIOReturnSuccess)
-    NSLog (@"Failed to lock source surface: %x", (unsigned) lockStatus);
+    NSLog (@"Failed to lock source surface: %x",
+	   (unsigned int) lockStatus);
 
   sourceData = IOSurfaceGetBaseAddress (source);
   destinationData = IOSurfaceGetBaseAddress (destination);
@@ -10912,7 +10917,7 @@ nswindow_orderedIndex_sort (id w1, id w2, void *c)
 
   lockStatus = IOSurfaceUnlock (source, kIOSurfaceLockReadOnly, nil);
   if (lockStatus != kIOReturnSuccess)
-    NSLog (@"Failed to unlock source surface: %x", (unsigned) lockStatus);
+    NSLog (@"Failed to unlock source surface: %x", (unsigned int)lockStatus);
 }
 
 #undef CACHE_MAX_SIZE

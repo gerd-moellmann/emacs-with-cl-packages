@@ -179,6 +179,9 @@
     ,@(when (eq system-type 'android)
         (list '(function-item :tag "Default Android browser"
                               :value browse-url-default-android-browser)))
+    ,@(when (eq window-system 'pgtk)
+        (list '(function-item :tag "Default GTK browser"
+                              :value browse-url-default-gtk-browser)))
     (function-item :tag "Default browser"
 		   :value browse-url-default-browser)
     (function :tag "Your own function")
@@ -375,18 +378,6 @@ Defaults to the value of `browse-url-epiphany-arguments' at the time
   "The name by which to invoke WebPositive."
   :type 'string
   :version "29.1")
-
-;; GNOME means of invoking Mozilla.
-(defvar browse-url-gnome-moz-program "gnome-moz-remote")
-
-(make-obsolete-variable 'browse-url-gnome-moz-program nil "25.1")
-
-(defcustom browse-url-gnome-moz-arguments '()
-  "A list of strings passed to the GNOME mozilla viewer as arguments."
-  :version "21.1"
-  :type '(repeat (string :tag "Argument")))
-
-(make-obsolete-variable 'browse-url-gnome-moz-arguments nil "25.1")
 
 (defcustom browse-url-mozilla-new-window-is-tab nil
   "Whether to open up new Mozilla windows in a tab or a new window.
@@ -1097,6 +1088,8 @@ one showing the selected frame."
     (and (not (equal display (getenv "DISPLAY")))
          display)))
 
+(defvar browse-url--inhibit-pgtk nil)
+
 (defun browse-url-default-browser (url &rest args)
   "Find a suitable browser and ask it to load URL.
 Default to the URL around or before point.
@@ -1118,8 +1111,10 @@ instead of `browse-url-new-window-flag'."
      'browse-url-default-haiku-browser)
     ((eq system-type 'android)
      'browse-url-default-android-browser)
+    ((and (eq (frame-parameter nil 'window-system) 'pgtk)
+          (not browse-url--inhibit-pgtk))
+     'browse-url-default-gtk-browser)
     ((browse-url-can-use-xdg-open) 'browse-url-xdg-open)
-;;;    ((executable-find browse-url-gnome-moz-program) 'browse-url-gnome-moz)
     ((executable-find browse-url-firefox-program) 'browse-url-firefox)
     ((executable-find browse-url-chromium-program) 'browse-url-chromium)
     ((executable-find browse-url-kde-program) 'browse-url-kde)
@@ -1438,6 +1433,23 @@ point."
 (function-put 'browse-url-default-android-browser
               'browse-url-browser-kind 'external)
 
+(declare-function x-gtk-launch-uri "pgtkfns.c")
+
+;;;###autoload
+(defun browse-url-default-gtk-browser (url &optional new-window)
+  "Browse URL with GTK's idea of the default browser.
+If the selected frame isn't a GTK frame, fall back to
+`browse-url-default-browser'."
+  (interactive (browse-url-interactive-arg "URL: "))
+  (let ((frame (selected-frame)))
+    (if (eq (frame-parameter frame 'window-system) 'pgtk)
+        (x-gtk-launch-uri frame url)
+      (let ((browse-url--inhibit-pgtk t))
+        (browse-url-default-browser url new-window)))))
+
+(function-put 'browse-url-default-gtk-browser
+              'browse-url-browser-kind 'external)
+
 ;;;###autoload
 (defun browse-url-emacs (url &optional same-window)
   "Ask Emacs to load URL into a buffer and show it in another window.
@@ -1464,32 +1476,6 @@ currently selected window instead."
         (funcall func url)))))
 
 (function-put 'browse-url-emacs 'browse-url-browser-kind 'internal)
-
-;;;###autoload
-(defun browse-url-gnome-moz (url &optional new-window)
-  "Ask Mozilla to load URL via the GNOME program `gnome-moz-remote'.
-Default to the URL around or before point.  The strings in variable
-`browse-url-gnome-moz-arguments' are also passed.
-
-When called interactively, if variable `browse-url-new-window-flag' is
-non-nil, load the document in a new browser window, otherwise use an
-existing one.  A non-nil interactive prefix argument reverses the
-effect of `browse-url-new-window-flag'.
-
-When called non-interactively, optional second argument NEW-WINDOW is
-used instead of `browse-url-new-window-flag'."
-  (declare (obsolete nil "25.1"))
-  (interactive (browse-url-interactive-arg "URL: "))
-  (apply #'start-process (concat "gnome-moz-remote " url)
-	 nil
-	 browse-url-gnome-moz-program
-	 (append
-	  browse-url-gnome-moz-arguments
-	  (if (browse-url-maybe-new-window new-window)
-	      '("--newwin"))
-	  (list "--raise" url))))
-
-(function-put 'browse-url-gnome-moz 'browse-url-browser-kind 'external)
 
 ;; --- W3 ---
 
