@@ -1,6 +1,6 @@
 ;;; tramp-archive.el --- Tramp archive manager  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2017-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -585,7 +585,8 @@ offered."
 ;; This is used in GNU ELPA package tramp-locproc.el.
 (defun tramp-archive-local-file-name (filename)
   "Return local mount name of FILENAME."
-  (tramp-gvfs-local-file-name (tramp-archive-gvfs-file-name filename)))
+  (let ((tramp-methods (cons `(,tramp-archive-method) tramp-methods)))
+    (tramp-gvfs-local-file-name (tramp-archive-gvfs-file-name filename))))
 
 
 ;; File name primitives.

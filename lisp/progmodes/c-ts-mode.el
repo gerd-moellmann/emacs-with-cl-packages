@@ -1,6 +1,6 @@
 ;;; c-ts-mode.el --- tree-sitter support for C and C++  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;; Maintainer : Theodor Thornhill <theo@thornhill.no>
@@ -25,7 +25,7 @@
 ;;; Tree-sitter language versions
 ;;
 ;; c-ts-mode is known to work with the following languages and version:
-;; - tree-sitter-c: v0.23.4
+;; - tree-sitter-c: v0.23.4-1-g3aa2995
 ;;
 ;; c++-ts-mode is known to work with the following languages and version:
 ;; - tree-sitter-cpp: v0.23.4-1-gf41b4f6

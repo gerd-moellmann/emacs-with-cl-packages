@@ -1,6 +1,6 @@
 ;;; java-ts-mode.el --- tree-sitter support for Java  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;; Maintainer : Theodor Thornhill <theo@thornhill.no>
@@ -21,6 +21,15 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Tree-sitter language versions
+;;
+;; java-ts-mode is known to work with the following languages and version:
+;; - tree-sitter-java: v0.23.5
+;;
+;; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.
 
 ;;; Commentary:
 ;;

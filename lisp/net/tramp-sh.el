@@ -1,6 +1,6 @@
 ;;; tramp-sh.el --- Tramp access functions for (s)sh-like connections  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 ;; (copyright statements below in code to be updated with the above notice)
 
@@ -3150,8 +3150,6 @@ will be used."
 		      (when filter
 			(set-process-filter p filter))
 		      (process-put p 'remote-command orig-command)
-		      (tramp-set-connection-property
-		       p "remote-command" orig-command)
 		      ;; Set query flag and process marker for this
 		      ;; process.  We ignore errors, because the
 		      ;; process could have finished already.

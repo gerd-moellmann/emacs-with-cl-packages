@@ -1,6 +1,6 @@
 ;;; tramp-androidsu.el --- Tramp method for Android superuser shells  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2024 Free Software Foundation, Inc.
+;; Copyright (C) 2024-2025 Free Software Foundation, Inc.
 
 ;; Author: Po Lu
 ;; Keywords: comm, processes
@@ -375,7 +375,6 @@ FUNCTION."
       ;; so we reset it.
       (set-process-query-on-exit-flag p (null noquery))
       (process-put p 'remote-command orig-command)
-      (tramp-set-connection-property p "remote-command" orig-command)
       (when (bufferp stderr)
 	(tramp-taint-remote-process-buffer stderr))
       p)))

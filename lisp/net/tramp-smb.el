@@ -1,6 +1,6 @@
 ;;; tramp-smb.el --- Tramp access functions for SMB servers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -1476,9 +1476,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		    (tramp-send-string v command)))
 		(setq p (tramp-get-connection-process v))
 		(when program
-		  (process-put p 'remote-command (cons program args))
-		  (tramp-set-connection-property
-		   p "remote-command" (cons program args)))
+		  (process-put p 'remote-command (cons program args)))
 		;; Return value.
 		p)))
 

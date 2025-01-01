@@ -1,6 +1,6 @@
 GNU Emacs NEWS -- history of user-visible changes.
 
-Copyright (C) 2022-2024 Free Software Foundation, Inc.
+Copyright (C) 2022-2025 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Please send Emacs bug reports to 'bug-gnu-emacs@gnu.org'.
@@ -970,7 +970,7 @@ authorize the invoked D-Bus method (for example via polkit).
 ** The customization group 'wp' has been removed.
 It has been obsolete since Emacs 26.1.  Use the group 'text' instead.
 
-** Tree-sitter changes
+** Changes in tree-sitter modes.
 
 +++
 *** Indirect buffers can have their own parser list.
@@ -1000,7 +1000,21 @@ Unlike the existing thing 'sexp' that defines both lists and atoms,
 'sexp-list' defines only lists to be navigated by 'forward-sexp'.
 The new function 'treesit-forward-sexp-list' uses 'sexp-list'
 to move across lists.  But to move across atoms inside the list
-it uses `forward-sexp-default-function'.
+it uses 'forward-sexp-default-function'.
+
+*** New tree-sitter based functions for moving by sexp-lists.
+If a major mode defines 'sexp-list' in 'treesit-thing-settings',
+tree-sitter setup for these modes sets 'forward-list-function' to
+'treesit-forward-list', 'up-list-function' to 'treesit-up-list', and
+'down-list-function' to 'treesit-down-list'.  This enables the
+'forward-list', 'up-list', and 'down-list' motion commands for those
+modes.
+
+*** Tree-sitter enabled modes now properly support 'show-paren-mode'.
+They do that by letting 'show-paren-mode' use the results of parsing by
+the tree-sitter library.  The new function 'treesit-show-paren-data' is
+used to communicate the tree-sitter parsing results to
+'show-paren-mode'.
 
 +++
 *** New function 'treesit-language-display-name'.

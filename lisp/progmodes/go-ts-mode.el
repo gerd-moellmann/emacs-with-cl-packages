@@ -1,6 +1,6 @@
 ;;; go-ts-mode.el --- tree-sitter support for Go  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Randy Taylor <dev@rjt.dev>
 ;; Maintainer : Randy Taylor <dev@rjt.dev>
@@ -21,6 +21,15 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Tree-sitter language versions
+;;
+;; go-ts-mode is known to work with the following languages and version:
+;; - tree-sitter-go: v0.23.4-1-g12fe553
+;;
+;; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.
 
 ;;; Commentary:
 ;;
