@@ -327,18 +327,16 @@ a web browser to load them.  For example, it could be used like this:
 For better integration with the Qutebrowser, set
 'browse-url(-secondary)-browser-function' to 'browse-url-qutebrowser'.
 
-*** Support for the Conkeror web browser has been removed.
-It has been obsolete since Emacs 28.1.
-
-*** Support for gnome-moz-remote has been removed.
-It has been obsolete since Emacs 25.1.
-
 *** New GTK-native launch mode
 For better Wayland support, the pgtk toolkit exposes a new
 'x-gtk-launch-uri' browse-url handler and uses it by default when URLs
 are browsed from a PGTK frame.  For other frames, we fall back to the
 default URL launch function.  This change allows us to properly raise
 browser windows under Wayland using the xdg_activation_v1 protocol.
+
+*** Removed support for some obsolete web browsers.
+Conkeror (obsolete since Emacs 28.1), gnome-moz-remote (obsolete since
+Emacs 25.1), and gnudoit (obsolete since Emacs 25.1).
 
 ** CL-Lib
 
@@ -769,6 +767,23 @@ restore the standard 'etags' backend with the 'M-x xref-etags-mode'
 toggle.
 
 ** BibTeX mode
+
+---
+*** New user options facilitate customization of BibTeX and biblatex entries.
+Entry definitions via the user options 'bibtex-BibTeX-aux-entry-alist',
+'bibtex-biblatex-aux-entry-alist', 'bibtex-BibTeX-aux-opt-alist', and
+'bibtex-biblatex-aux-opt-alist' take precedence over
+'bibtex-BibTeX-entry-alist' and 'bibtex-biblatex-entry-alist'.
+These user options now support the definition of aliases that inherit
+the definition of another entry.
+
+---
+*** 'bibtex-user-optional-fields' has been renamed to 'bibtex-aux-opt-alist'.
+The old name is an obsolete alias.
+
+---
+*** 'bibtex-include-OPTkey' is now obsolete and its default is nil.
+Use 'bibtex-aux-opt-alist' instead.
 
 ---
 *** New user option 'bibtex-entry-ask-for-key'.

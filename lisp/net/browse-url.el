@@ -467,17 +467,6 @@ This might, for instance, be a separate color version of xterm."
 These might set its size, for instance."
   :type '(repeat (string :tag "Argument")))
 
-(defcustom browse-url-gnudoit-program "gnudoit"
-  "The name of the `gnudoit' program used by `browse-url-w3-gnudoit'."
-  :type 'string)
-(make-obsolete-variable 'browse-url-gnudoit-program nil "29.1")
-
-(defcustom browse-url-gnudoit-args '("-q")
-  "A list of strings defining options for `browse-url-gnudoit-program'.
-These might set the port, for instance."
-  :type '(repeat (string :tag "Argument")))
-(make-obsolete-variable 'browse-url-gnudoit-args nil "29.1")
-
 (defcustom browse-url-generic-program nil
   "The name of the browser program used by `browse-url-generic'."
   :type '(choice string (const :tag "None" nil)))
@@ -493,10 +482,14 @@ You might want to set this to somewhere with restricted read permissions
 for privacy's sake."
   :type 'string)
 
-(defcustom browse-url-text-browser "lynx"
+(defcustom browse-url-text-browser
+  (cond ((executable-find "lynx") "lynx")
+        ((executable-find "links") "links")
+        ((executable-find "elinks") "elinks")
+        ("lynx"))
   "The name of the text browser to invoke."
   :type 'string
-  :version "23.1")
+  :version "31.1")
 
 (defcustom browse-url-text-emacs-args (and (not window-system)
 					   '("-show_cursor"))
@@ -742,6 +735,13 @@ instead."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Browse current buffer
 
+(defmacro browse-url--temp-file-setup (&rest body)
+  (declare (indent defun))
+  `(progn
+     (add-hook 'kill-buffer-hook #'browse-url-delete-temp-file nil t)
+     (with-file-modes #o600
+       ,@body)))
+
 ;;;###autoload
 (defun browse-url-of-file (&optional file)
   "Use a web browser to display FILE.
@@ -761,8 +761,9 @@ interactively.  Turn the filename into a URL with function
 		(t (message "%s modified since last save" file))))))
   (when (and (file-remote-p file)
              (not browse-url-temp-file-name))
-    (setq browse-url-temp-file-name (file-local-copy file)
-          file browse-url-temp-file-name))
+    (browse-url--temp-file-setup
+      (setq browse-url-temp-file-name (file-local-copy file)
+            file browse-url-temp-file-name)))
   (browse-url (browse-url-file-url file))
   (run-hooks 'browse-url-of-file-hook))
 
@@ -823,24 +824,23 @@ narrowed."
                 ;; This can happen when we're looking at a file from a
                 ;; zip file buffer, for instance.
                 (not (file-exists-p file-name)))
-	(unless browse-url-temp-file-name
-	  (setq browse-url-temp-file-name
-		(convert-standard-filename
-		 (make-temp-file
-		  (expand-file-name "burl" browse-url-temp-dir)
-		  nil ".html"))))
-	(setq file-name browse-url-temp-file-name)
-	(write-region (point-min) (point-max) file-name nil 'no-message))
+        (browse-url--temp-file-setup
+          (unless browse-url-temp-file-name
+            (setq browse-url-temp-file-name
+                  (convert-standard-filename
+                   (make-temp-file
+                    (expand-file-name "burl" browse-url-temp-dir)
+                    nil ".html"))))
+          (setq file-name browse-url-temp-file-name)
+          (write-region (point-min) (point-max) file-name nil 'no-message)))
       (browse-url-of-file file-name))))
 
 (defun browse-url-delete-temp-file (&optional temp-file-name)
-  "Delete `browse-url-temp-file-name' from the file system.
-If optional arg TEMP-FILE-NAME is non-nil, delete it instead."
+  "Delete `browse-url-temp-file-name' from the file system."
+  (declare (advertised-calling-convention () "31.1"))
   (let ((file-name (or temp-file-name browse-url-temp-file-name)))
     (if (and file-name (file-exists-p file-name))
 	(delete-file file-name))))
-
-(add-hook 'kill-buffer-hook #'browse-url-delete-temp-file)
 
 (declare-function dired-get-filename "dired"
 		  (&optional localp no-error-if-not-filep))
@@ -1502,21 +1502,6 @@ used instead of `browse-url-new-window-flag'."
     (w3-fetch url)))
 
 (function-put 'browse-url-w3 'browse-url-browser-kind 'internal)
-
-;;;###autoload
-(defun browse-url-w3-gnudoit (url &optional _new-window)
-  "Ask another Emacs running emacsclient to load the URL using the W3 browser.
-The `browse-url-gnudoit-program' program is used with options given by
-`browse-url-gnudoit-args'.  Default to the URL around or before point."
-  (declare (obsolete nil "25.1"))
-  (interactive (browse-url-interactive-arg "W3 URL: "))
-  (apply #'start-process (concat "gnudoit:" url) nil
-	 browse-url-gnudoit-program
-	 (append browse-url-gnudoit-args
-		 (list (concat "(w3-fetch \"" url "\")")
-		       "(raise-frame)"))))
-
-(function-put 'browse-url-w3-gnudoit 'browse-url-browser-kind 'internal)
 
 ;; --- Lynx in an xterm ---
 

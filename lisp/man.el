@@ -102,7 +102,6 @@
 When this is non-nil, call the \"man\" program synchronously
 (rather than asynchronously, which is the default behavior)."
   :type 'boolean
-  :group 'man
   :version "30.1")
 
 (defcustom Man-support-remote-systems nil
@@ -125,8 +124,7 @@ commands appear in the association list.  The final output is placed in
 the manpage buffer."
   :type '(repeat (list (string :tag "Command String")
 		       (repeat :inline t
-			       (string :tag "Phrase String"))))
-  :group 'man)
+			       (string :tag "Phrase String")))))
 
 (defvar Man-uses-untabify-flag t
   "Non-nil means use `untabify' instead of `Man-untabify-command'.")
@@ -135,26 +133,12 @@ the manpage buffer."
 
 (defcustom Man-fontify-manpage-flag t
   "Non-nil means make up the manpage with fonts."
-  :type 'boolean
-  :group 'man)
+  :type 'boolean)
 
-(defface Man-overstrike
-  '((t (:inherit bold)))
-  "Face to use when fontifying overstrike."
-  :group 'man
-  :version "24.3")
-
-(defface Man-underline
-  '((t (:inherit underline)))
-  "Face to use when fontifying underlining."
-  :group 'man
-  :version "24.3")
-
-(defface Man-reverse
-  '((t (:inherit highlight)))
-  "Face to use when fontifying reverse video."
-  :group 'man
-  :version "24.3")
+(defvar Man-cache-completion-results-flag (eq system-type 'darwin)
+  "Non-nil means cache completion results for `man'.
+This is non-nil by default on macOS, because getting and filtering
+\"man -k ^\" results is slower there than on GNU/Linux.")
 
 (defvar Man-ansi-color-basic-faces-vector
   [nil Man-overstrike nil Man-underline Man-underline nil nil Man-reverse]
@@ -191,8 +175,7 @@ meek       -- make no indication that the manpage is ready
 Any other value of `Man-notify-method' is equivalent to `meek'."
   :type '(radio (const newframe) (const pushy) (const bully)
 		(const aggressive) (const friendly) (const thrifty)
-		(const polite) (const quiet) (const meek))
-  :group 'man)
+		(const polite) (const quiet) (const meek)))
 
 (defcustom Man-width nil
   "Number of columns for which manual pages should be formatted.
@@ -201,8 +184,7 @@ If non-nil, use the width of the frame where the manpage is displayed.
 The value also can be a positive integer for a fixed width."
   :type '(choice (const :tag "Window width" nil)
                  (const :tag "Frame width" t)
-                 (integer :tag "Fixed width" :value 65))
-  :group 'man)
+                 (integer :tag "Fixed width" :value 65)))
 
 (defcustom Man-width-max 80
   "Maximum number of columns allowed for the width of manual pages.
@@ -213,15 +195,13 @@ it will be automatically reduced to the width defined by this variable.
 When nil, there is no limit on maximum width."
   :type '(choice (const :tag "No limit" nil)
                  (integer :tag "Max width" :value 80))
-  :version "27.1"
-  :group 'man)
+  :version "27.1")
 
 (defcustom Man-frame-parameters nil
   "Frame parameter list for creating a new frame for a manual page."
   :type '(repeat (cons :format "%v"
 		       (symbol :tag "Parameter")
-		       (sexp :tag "Value")))
-  :group 'man)
+		       (sexp :tag "Value"))))
 
 (defcustom Man-downcase-section-letters-flag t
   "Non-nil means letters in sections are converted to lower case.
@@ -230,13 +210,11 @@ example \"man 2V chmod\", but they are often displayed in the manpage
 with the upper case letter.  When this variable is t, the section
 letter (e.g., \"2V\") is converted to lowercase (e.g., \"2v\") before
 being sent to the man background process."
-  :type 'boolean
-  :group 'man)
+  :type 'boolean)
 
 (defcustom Man-circular-pages-flag t
   "Non-nil means the manpage list is treated as circular for traversal."
-  :type 'boolean
-  :group 'man)
+  :type 'boolean)
 
 (defcustom Man-section-translations-alist
   (list
@@ -251,8 +229,7 @@ their references which Un*x `man' does not recognize.  This
 association list is used to translate those sections, when found, to
 the associated section number."
   :type '(repeat (cons (string :tag "Bogus Section")
-		       (string :tag "Real Section")))
-  :group 'man)
+		       (string :tag "Real Section"))))
 
 ;; FIXME see comments at ffap-c-path.
 (defcustom Man-header-file-path
@@ -268,8 +245,7 @@ the associated section number."
       (append base (list (expand-file-name arch "/usr/include")))))
   "C Header file search path used in Man."
   :version "24.1"                       ; add multiarch
-  :type '(repeat string)
-  :group 'man)
+  :type '(repeat string))
 
 (defcustom Man-name-local-regexp (concat "^" (regexp-opt '("NOM" "NAME")) "$")
   "Regexp that matches the text that precedes the command's name.
@@ -279,28 +255,23 @@ Used in `bookmark-set' to get the default bookmark name."
 
 (defcustom manual-program "man"
   "Program used by `man' to produce man pages."
-  :type 'string
-  :group 'man)
+  :type 'string)
 
 (defcustom Man-untabify-command "pr"
   "Program used by `man' for untabifying."
-  :type 'string
-  :group 'man)
+  :type 'string)
 
 (defcustom Man-untabify-command-args (list "-t" "-e")
   "List of arguments to be passed to `Man-untabify-command' (which see)."
-  :type '(repeat string)
-  :group 'man)
+  :type '(repeat string))
 
 (defcustom Man-sed-command "sed"
   "Program used by `man' to process sed scripts."
-  :type 'string
-  :group 'man)
+  :type 'string)
 
 (defcustom Man-awk-command "awk"
   "Program used by `man' to process awk scripts."
-  :type 'string
-  :group 'man)
+  :type 'string)
 
 ;; This is for people who have UTF-8 encoded man pages in non-UTF-8
 ;; locales, or who use Cygwin 'man' command from a native MS-Windows
@@ -309,18 +280,15 @@ Used in `bookmark-set' to get the default bookmark name."
   "Coding-system to decode output from the commands run by `man'.
 If this is nil, `man' will use `locale-coding-system'."
   :type 'coding-system
-  :group 'man
   :version "26.1")
 
 (defcustom Man-mode-hook nil
   "Hook run when Man mode is enabled."
-  :type 'hook
-  :group 'man)
+  :type 'hook)
 
 (defcustom Man-cooked-hook nil
   "Hook run after removing backspaces but before `Man-mode' processing."
-  :type 'hook
-  :group 'man)
+  :type 'hook)
 
 (defvar Man-name-regexp "[-[:alnum:]_­+[@][-[:alnum:]_.:­+]*"
   "Regular expression describing the name of a manpage (without section).")
@@ -399,8 +367,7 @@ This regexp should not start with a `^' character.")
   "Switches passed to the man command, as a single string.
 For example, the -a switch lets you see all the manpages for a
 specified subject, if your `man' program supports it."
-  :type 'string
-  :group 'man)
+  :type 'string)
 
 (defvar Man-specified-section-option
   (if (string-match "-solaris[0-9.]*$" system-configuration)
@@ -417,8 +384,33 @@ Otherwise, the value is whatever the function
 (defcustom man-imenu-title "Contents"
   "The title to use if man adds a Contents menu to the menubar."
   :version "24.4"
-  :type 'string
+  :type 'string)
+
+
+;; faces
+
+(defgroup man-faces nil
+  "Man mode faces, used by \\[man]."
+  :prefix "Man-"
   :group 'man)
+
+(defface Man-overstrike
+  '((t (:inherit bold)))
+  "Face to use when fontifying overstrike."
+  :group 'man-faces
+  :version "24.3")
+
+(defface Man-underline
+  '((t (:inherit underline)))
+  "Face to use when fontifying underlining."
+  :group 'man-faces
+  :version "24.3")
+
+(defface Man-reverse
+  '((t (:inherit highlight)))
+  "Face to use when fontifying reverse video."
+  :group 'man-faces
+  :version "24.3")
 
 
 ;; other variables and keymap initializations
@@ -978,14 +970,15 @@ foo(sec)[, bar(sec) [, ...]] [other stuff] - description"
   ;; seems like the safest choice, but `man -k apropos' seems almost as safe
   ;; and usually returns a much shorter output.
   (with-temp-buffer
-    (with-demoted-errors "%S" (call-process "man" nil t nil "-k" "apropos"))
+    (with-demoted-errors "%S"
+      (call-process manual-program nil t nil "-k" "apropos"))
     (let ((lines (count-lines (point-min) (point-max)))
           (completions (Man-parse-man-k)))
       (if (>= (length completions) lines)
           '("-k") ;; "-k" seems to return sane results: look no further!
         (erase-buffer)
         ;; Try "-k -l" (bug#73656).
-        (with-demoted-errors "%S" (call-process "man" nil t nil
+        (with-demoted-errors "%S" (call-process manual-program nil t nil
                                                 "-k" "-l" "apropos"))
         (let ((lines (count-lines (point-min) (point-max)))
               (completions (Man-parse-man-k)))
@@ -1132,13 +1125,17 @@ for the current invocation."
 		;; ("man -k" is case-insensitive similarly, so the
 		;; table has everything available to complete)
 		(completion-ignore-case t)
-		Man-completion-cache    ;Don't cache across calls.
-		(input (completing-read
-			(format-prompt "Manual entry"
-                                       (and (not (equal default-entry ""))
-                                            default-entry))
-                        'Man-completion-table
-			nil nil nil 'Man-topic-history default-entry)))
+		(input
+                 (cl-flet ((read ()
+                             (completing-read
+                              (format-prompt "Manual entry"
+                                             (and (not (equal default-entry ""))
+                                                  default-entry))
+                              #'Man-completion-table
+                              nil nil nil 'Man-topic-history default-entry)))
+                   (if Man-cache-completion-results-flag
+                       (read)
+                     (let ((Man-completion-cache)) (read))))))
 	   (if (string= input "")
 	       (error "No man args given")
 	     input))))
