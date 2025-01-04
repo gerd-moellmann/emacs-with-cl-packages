@@ -190,13 +190,13 @@ queries that has problems with latest grammar."
           (delete-region beg (point))
           (insert ";;\n")
           (dolist (mode modes)
-            (insert (format ";; %s is known to work with the following languages and version:\n" mode))
+            (insert (format ";; %s has been tested with the following grammars and version:\n" mode))
             (dolist (lang (alist-get mode mode-language-alist))
               (insert (format ";; - tree-sitter-%s: %s\n" lang (alist-get lang version-alist))))
             (insert ";;\n"))
           (insert
            ";; We try our best to make builtin modes work with latest grammar
-;; versions, so a more recent grammar version has a good chance to work.
+;; versions, so a more recent grammar has a good chance to work too.
 ;; Send us a bug report if it doesn't.")
           (insert "\n\n")
           (write-file source-file))))
@@ -422,7 +422,7 @@ EMACS-EXECUTABLES is a list of Emacs executbles to check for."
       (insert "</tr>\n")
       (dolist (lang languages)
         (insert "<tr>")
-        (insert (format "<td>%s</td>" lang))
+        (insert (format "<th>%s</th>" lang))
         (dolist (emacs-version (mapcar #'car tables))
           (let* ((key (cons lang emacs-version))
                  (plist (gethash key database))

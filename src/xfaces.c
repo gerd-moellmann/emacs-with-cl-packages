@@ -2508,6 +2508,9 @@ evaluate_face_filter (Lisp_Object filter, struct window *w,
     if (!NILP (filter))
       goto err;
 
+    if (NILP (Fget (parameter, QCfiltered)))
+      Fput (parameter, QCfiltered, Qt);
+
     bool match = false;
     if (w)
       {

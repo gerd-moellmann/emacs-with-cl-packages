@@ -1259,9 +1259,7 @@ Return the buffer in which the manpage will appear."
 			    (format "exited abnormally with code %d"
 				    exit-status)))
 		 (setq msg exit-status))
-	     (if Man-fontify-manpage-flag
-		 (Man-fontify-manpage)
-	       (Man-cleanup-manpage))
+	     (man--maybe-fontify-manpage)
 	     (Man-bgproc-sentinel bufname msg))))))
     buffer))
 
@@ -1276,22 +1274,20 @@ Return the buffer in which the manpage will appear."
 	(old-size (buffer-size))
 	(inhibit-read-only t)
 	(buffer-read-only nil))
-     (erase-buffer)
-     (Man-start-calling
-      (process-file
-       (Man-shell-file-name) nil (list (current-buffer) nil) nil
-       shell-command-switch
-       (format (Man-build-man-command) Man-arguments)))
-     (if Man-fontify-manpage-flag
-	 (Man-fontify-manpage)
-       (Man-cleanup-manpage))
-     (goto-char old-pos)
-     ;;restore the point, not strictly right.
-     (unless (or (eq text nil) (= old-size (buffer-size)))
-       (let ((case-fold-search nil))
-	 (if (> old-size (buffer-size))
-	     (search-backward text nil t))
-	 (search-forward text nil t)))))
+    (erase-buffer)
+    (Man-start-calling
+     (process-file
+      (Man-shell-file-name) nil (list (current-buffer) nil) nil
+      shell-command-switch
+      (format (Man-build-man-command) Man-arguments)))
+    (man--maybe-fontify-manpage)
+    (goto-char old-pos)
+    ;;restore the point, not strictly right.
+    (unless (or (eq text nil) (= old-size (buffer-size)))
+      (let ((case-fold-search nil))
+	(if (> old-size (buffer-size))
+	    (search-backward text nil t))
+	(search-forward text nil t)))))
 
 (defvar Man--window-state-change-timer nil)
 
@@ -1514,6 +1510,11 @@ script would have done them."
   (while (re-search-forward ".\b" nil t) (delete-char -2))
   (Man-softhyphen-to-minus))
 
+(defun man--maybe-fontify-manpage ()
+  (if Man-fontify-manpage-flag
+      (Man-fontify-manpage)
+    (Man-cleanup-manpage)))
+
 (defun Man-bgproc-filter (process string)
   "Manpage background process filter.
 When manpage command is run asynchronously, PROCESS is the process
@@ -1539,9 +1540,7 @@ command is run.  Second argument STRING is the entire string of output."
                    (Man-previous-section 1)
                    (point))
 		 (point))
-		(if Man-fontify-manpage-flag
-		    (Man-fontify-manpage)
-		  (Man-cleanup-manpage)))
+		(man--maybe-fontify-manpage))
 	      (set-marker (process-mark process) (point-max)))))))))
 
 (defun Man-bgproc-sentinel (process msg)
@@ -1674,9 +1673,8 @@ commands from `Man-mode'.  Used by `woman'.
 (define-derived-mode Man-mode man-common "Man"
   "A mode for browsing Un*x manual pages.
 
-The following man commands are available in the buffer.  Try
-\"\\[describe-key] <key> RET\" for more information:
-
+The following man commands are available in the buffer:
+\\<Man-mode-map>
 \\[man]       Prompt to retrieve a new manpage.
 \\[Man-follow-manual-reference]       Retrieve reference in SEE ALSO section.
 \\[Man-next-manpage]     Jump to next manpage in circular list.
@@ -1684,13 +1682,12 @@ The following man commands are available in the buffer.  Try
 \\[Man-next-section]       Jump to next manpage section.
 \\[Man-previous-section]       Jump to previous manpage section.
 \\[Man-goto-section]       Go to a manpage section.
-\\[Man-goto-see-also-section]       Jumps to the SEE ALSO manpage section.
-\\[quit-window]       Deletes the manpage window, bury its buffer.
-\\[Man-kill]       Deletes the manpage window, kill its buffer.
-\\[describe-mode]       Prints this help text.
+\\[Man-goto-see-also-section]       Jump to the SEE ALSO manpage section.
+\\[quit-window]       Delete the manpage window, bury its buffer.
+\\[Man-kill]       Delete the manpage window, kill its buffer.
+\\[describe-mode]       Print this help text.
 
-The following variables may be of some use.  Try
-\"\\[describe-variable] <variable-name> RET\" for more information:
+The following variables may be of some use:
 
 `Man-notify-method'		What happens when manpage is ready to display.
 `Man-downcase-section-letters-flag' Force section letters to lower case.
