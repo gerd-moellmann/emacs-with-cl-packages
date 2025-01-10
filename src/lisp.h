@@ -6171,8 +6171,13 @@ safe_free (specpdl_ref sa_count)
       specpdl_ptr--;
       if (specpdl_ptr->kind == SPECPDL_UNWIND_PTR)
 	{
+#ifdef HAVE_MPS
+	  eassert (specpdl_ptr->unwind_ptr.func == xfree
+		   || specpdl_ptr->unwind_ptr.func == igc_xfree);
+#else
 	  eassert (specpdl_ptr->unwind_ptr.func == xfree);
-	  xfree (specpdl_ptr->unwind_ptr.arg);
+#endif
+	  specpdl_ptr->unwind_ptr.func (specpdl_ptr->unwind_ptr.arg);
 	}
       else
 	{
