@@ -283,6 +283,7 @@ If parsing fails, try to set this variable to nil."
 
 (define-widget 'bibtex-field-list 'lazy
   "Format of fields of entries in `bibtex-BibTeX-entry-alist' and friends."
+  :tag "Field list"
   :type '(group (string :tag "Field")
                 (option (choice :tag "Comment" :value nil
                                 (const nil) string))
@@ -293,7 +294,9 @@ If parsing fails, try to set this variable to nil."
 
 (define-widget 'bibtex-entry-alist 'lazy
   "Format of `bibtex-BibTeX-entry-alist' and friends."
+  :tag "Entry alist"
   :type '(repeat
+          :format "\n%v"
           (choice (group :tag "Alias"
                          (string :tag "Entry type")
                          (string :tag "Documentation")
@@ -448,11 +451,11 @@ If parsing fails, try to set this variable to nil."
       ("howpublished" "The way in which the work was published")
       ("month") ("year") ("note"))))
   "Alist of BibTeX entry types and their associated fields.
-Elements are lists of the form (ENTRY DOC REQUIRED CROSSREF OPTIONAL)
+Elements are lists (ENTRY DOC REQUIRED CROSSREF OPTIONAL)
 or (ENTRY DOC REF-ENTRY).
 
 ENTRY is the type of a BibTeX entry.
-DOC is a brief doc string used for documentation.  If nil, ENTRY is used.
+DOC is a brief doc string used for documentation.  If nil use ENTRY.
 REF-ENTRY is another entry type, where ENTRY becomes an alias that inherits
 the definition of REF-ENTRY.
 
@@ -743,7 +746,7 @@ See also `bibtex-BibTeX-aux-entry-alist' which takes precedence."
     ("PhdThesis" "PhD Thesis"
      (("author")
       ("title" "Title of the PhD thesis")
-      ("institution")
+      ("institution" nil nil 6) ("school" nil nil -6)
       ("date" nil nil 1) ("year" nil nil -1))
      nil
      (("subtitle") ("titleaddon") ("language") ("note")
@@ -860,8 +863,11 @@ Use this, e.g., for custom fields, see Sec. 2.2.4 of the biblatex manual."
 
 (define-widget 'bibtex-field-alist 'lazy
   "Format of `bibtex-BibTeX-field-alist' and friends."
-  :type '(repeat (group (string :tag "Field type")
-                        (string :tag "Comment"))))
+  :tag "Field alist"
+  :type '(repeat
+          :format "\n%v"
+          (group (string :tag "Field type")
+                 (string :tag "Comment"))))
 
 (defcustom bibtex-BibTeX-field-alist
   '(("author" "Author1 [and Author2 ...] [and others]")
@@ -875,9 +881,9 @@ Use this, e.g., for custom fields, see Sec. 2.2.4 of the biblatex manual."
     ("crossref" "Reference key of the cross-referenced entry")
     ("key" "Used as label with certain BibTeX styles"))
     "Alist of BibTeX fields.
-Each element is a list of the form (FIELD COMMENT).  COMMENT is
-a comment used with `bibtex-print-help-message' as a default
-if `bibtex-BibTeX-entry-alist' does not define a comment for FIELD."
+Each element is a list (FIELD COMMENT).  COMMENT is a comment used with
+`bibtex-print-help-message' as a default if `bibtex-BibTeX-entry-alist'
+does not define a comment for FIELD."
   :group 'bibtex
   :version "31.1"
   :type 'bibtex-field-alist)
@@ -1880,12 +1886,15 @@ BibTeX field as necessary."
 
 (defconst bibtex-braced-string-syntax-table
   (let ((st (make-syntax-table)))
+    ;; Give all parentheses the syntax punctuation so that we do not choke
+    ;; because of unbalanced parentheses other than braces (bug #68477).
+    (map-char-table
+     (lambda (key value)
+       (if (memq (car value) '(4 5)) ; 4 = open parenthesis, 5 = close
+           (modify-syntax-entry key "." st)))
+     st)
     (modify-syntax-entry ?\{ "(}" st)
     (modify-syntax-entry ?\} "){" st)
-    (modify-syntax-entry ?\[ "." st)
-    (modify-syntax-entry ?\] "." st)
-    (modify-syntax-entry ?\( "." st)
-    (modify-syntax-entry ?\) "." st)
     (modify-syntax-entry ?\\ "." st)
     (modify-syntax-entry ?\" "." st)
     st)

@@ -1,7 +1,6 @@
 ;;; man.el --- browse UNIX manual pages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1994, 1996-1997, 2001-2025 Free Software
-;; Foundation, Inc.
+;; Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
 ;; Author: Barry A. Warsaw <bwarsaw@cen.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -30,8 +29,21 @@
 ;; can continue to use your Emacs while processing is going on.
 ;;
 ;; The mode also supports hypertext-like following of manual page SEE
-;; ALSO references, and other features.  See below or do `?' in a
+;; ALSO references, and other features.  See below or type `?' in a
 ;; manual page buffer for details.
+
+;; ========== Features ==========
+;; + Runs "man" in the background and pipes the results through a
+;;   series of sed and awk scripts so that all retrieving and cleaning
+;;   is done in the background.  The cleaning commands are configurable.
+;; + Syntax is the same as Un*x man
+;; + Functionality is the same as Un*x man, including "man -k" and
+;;   "man <section>", etc.
+;; + Provides a manual browsing mode with keybindings for traversing
+;;   the sections of a manpage, following references in the SEE ALSO
+;;   section, and more.
+;; + Multiple manpages created with the same man command are put into
+;;   a narrowed buffer circular list.
 
 ;; ========== Credits and History ==========
 ;; In mid 1991, several people posted some interesting improvements to
@@ -58,19 +70,6 @@
 ;; Francesco Potortì <pot@cnuce.cnr.it> cleaned it up thoroughly,
 ;; making it faster, more robust and more tolerant of different
 ;; systems' man idiosyncrasies.
-
-;; ========== Features ==========
-;; + Runs "man" in the background and pipes the results through a
-;;   series of sed and awk scripts so that all retrieving and cleaning
-;;   is done in the background.  The cleaning commands are configurable.
-;; + Syntax is the same as Un*x man
-;; + Functionality is the same as Un*x man, including "man -k" and
-;;   "man <section>", etc.
-;; + Provides a manual browsing mode with keybindings for traversing
-;;   the sections of a manpage, following references in the SEE ALSO
-;;   section, and more.
-;; + Multiple manpages created with the same man command are put into
-;;   a narrowed buffer circular list.
 
 ;; ============= TODO ===========
 ;; - Add a command for printing.
@@ -231,20 +230,9 @@ the associated section number."
   :type '(repeat (cons (string :tag "Bogus Section")
 		       (string :tag "Real Section"))))
 
-;; FIXME see comments at ffap-c-path.
-(defcustom Man-header-file-path
-  (let ((arch (with-temp-buffer
-                (when (eq 0 (ignore-errors
-                              (call-process "gcc" nil '(t nil) nil
-                                            "-print-multiarch")))
-                  (goto-char (point-min))
-                  (buffer-substring (point) (line-end-position)))))
-        (base '("/usr/include" "/usr/local/include")))
-    (if (zerop (length arch))
-        base
-      (append base (list (expand-file-name arch "/usr/include")))))
+(defcustom Man-header-file-path (internal--c-header-file-path)
   "C Header file search path used in Man."
-  :version "24.1"                       ; add multiarch
+  :version "31.1"
   :type '(repeat string))
 
 (defcustom Man-name-local-regexp (concat "^" (regexp-opt '("NOM" "NAME")) "$")
@@ -623,7 +611,7 @@ This is necessary if one wants to dump man.el with Emacs."
 
   (setq Man-filter-list
 	;; Avoid trailing nil which confuses customize.
-	(apply 'list
+        (apply #'list
 	 (cons
 	  Man-sed-command
 	  (if (eq system-type 'windows-nt)
@@ -754,7 +742,7 @@ and the `Man-section-translations-alist' variables)."
 	    section (match-string 1 ref))))
     (if (string= name "")
         ;; see Bug#66390
-	(mapconcat 'identity
+        (mapconcat #'identity
                    (mapcar #'shell-quote-argument
                            (split-string ref "\\s-+"))
                    " ")                 ; Return the reference as is
@@ -1303,6 +1291,7 @@ Return the buffer in which the manpage will appear."
   (when (window-live-p window)
     (with-current-buffer (window-buffer window)
       (when (and (derived-mode-p 'Man-mode)
+                 Man-columns
                  (not (eq Man-columns (Man-columns))))
         (let ((proc (get-buffer-process (current-buffer))))
           (unless (and proc (not (eq (process-status proc) 'exit)))
@@ -1434,13 +1423,13 @@ default type, `Man-xref-man-page' is used for the buttons."
   (if (string-match "-k " Man-arguments)
       (progn
 	(Man-highlight-references0 nil Man-reference-regexp 1
-				   'Man-default-man-entry
+                                   #'Man-default-man-entry
 				   (or xref-man-type 'Man-xref-man-page))
 	(Man-highlight-references0 nil Man-apropos-regexp 1
-				   'Man-default-man-entry
+                                   #'Man-default-man-entry
 				   (or xref-man-type 'Man-xref-man-page)))
     (Man-highlight-references0 Man-see-also-regexp Man-reference-regexp 1
-			       'Man-default-man-entry
+                               #'Man-default-man-entry
 			       (or xref-man-type 'Man-xref-man-page))
     (Man-highlight-references0 Man-synopsis-regexp Man-header-regexp 0 2
 			       'Man-xref-header-file)
@@ -1648,7 +1637,7 @@ manpage command."
 (defun Man-page-from-arguments (args)
   ;; Skip arguments and only print the page name.
   (mapconcat
-   'identity
+   #'identity
    (delete nil
 	   (mapcar
 	    (lambda (elem)
@@ -1970,7 +1959,7 @@ Specify which REFERENCE to use; default is based on word at point."
                            Man--last-refpage
                          (car Man--refpages))))
 	     (defaults
-	       (mapcar 'substring-no-properties
+              (mapcar #'substring-no-properties
                        (cons default Man--refpages)))
              (prompt (format-prompt "Refer to" default))
 	     (chosen (completing-read prompt Man--refpages
@@ -2040,18 +2029,19 @@ Specify which REFERENCE to use; default is based on word at point."
       (error "You're looking at the first manpage in the buffer"))))
 
 ;; Header file support
+(defun man--find-header-files (file)
+  (delq nil
+        (mapcar (lambda (path)
+                  (let ((complete-path (expand-file-name file path)))
+                    (and (file-readable-p complete-path)
+                         complete-path)))
+                (Man-header-file-path))))
+
 (defun Man-view-header-file (file)
   "View a header file specified by FILE from `Man-header-file-path'."
-  (let ((path (Man-header-file-path))
-        complete-path)
-    (while path
-      (setq complete-path (expand-file-name file (car path))
-            path (cdr path))
-      (if (file-readable-p complete-path)
-          (progn (view-file complete-path)
-                 (setq path nil))
-        (setq complete-path nil)))
-    complete-path))
+  (when-let* ((match (man--find-header-files file)))
+    (view-file (car match))
+    (car match)))
 
 ;;; Bookmark Man Support
 (declare-function bookmark-make-record-default

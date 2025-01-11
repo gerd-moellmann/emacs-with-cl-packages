@@ -53,6 +53,12 @@
   :type '(repeat string)
   :group 'go)
 
+(defcustom go-ts-mode-test-flags nil
+  "List of extra flags for the Go test commands."
+  :version "31.1"
+  :type '(repeat string)
+  :group 'go)
+
 (defvar go-ts-mode--syntax-table
   (let ((table (make-syntax-table)))
     (modify-syntax-entry ?+   "."      table)
@@ -100,6 +106,7 @@
      ((parent-is "type_spec") parent-bol go-ts-mode-indent-offset)
      ((parent-is "type_switch_statement") parent-bol 0)
      ((parent-is "var_declaration") parent-bol go-ts-mode-indent-offset)
+     ((parent-is "var_spec_list") parent-bol go-ts-mode-indent-offset)
      (no-node parent-bol 0)))
   "Tree-sitter indent rules for `go-ts-mode'.")
 
@@ -393,13 +400,20 @@ specifying build tags."
       (format "-tags %s" (string-join go-ts-mode-build-tags ","))
     ""))
 
+(defun go-ts-mode--get-test-flags ()
+  "Return the flags for test invocation."
+  (if go-ts-mode-test-flags
+      (mapconcat #'shell-quote-argument go-ts-mode-test-flags " ")
+    ""))
+
 (defun go-ts-mode--compile-test (regexp)
   "Compile the tests matching REGEXP.
 This function respects the `go-ts-mode-build-tags' variable for
 specifying build tags."
-  (compile (format "go test -v %s -run '%s'"
+  (compile (format "go test -v %s -run '%s' %s"
                    (go-ts-mode--get-build-tags-flag)
-                   regexp)))
+                   regexp
+                   (go-ts-mode--get-test-flags))))
 
 (defun go-ts-mode--find-defun-at (start)
   "Return the first defun node from START."
@@ -458,9 +472,10 @@ be run."
 (defun go-ts-mode-test-this-package ()
   "Run all the unit tests under the current package."
   (interactive)
-  (compile (format "go test -v %s -run %s"
+  (compile (format "go test -v %s %s %s"
                    (go-ts-mode--get-build-tags-flag)
-                   default-directory)))
+                   default-directory
+                   (go-ts-mode--get-test-flags))))
 
 ;; go.mod support.
 

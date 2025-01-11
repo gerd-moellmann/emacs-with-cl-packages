@@ -2308,6 +2308,9 @@ struct Lisp_Subr
       Lisp_Object native;
     } intspec;
     Lisp_Object command_modes;
+    /* Positive values: offset into etc/DOC.  Negative values: one's
+       complement of index into the native comp unit's vector of
+       documentation strings.  */
     EMACS_INT doc;
 #ifdef HAVE_NATIVE_COMP
     Lisp_Object native_comp_u;
@@ -5248,6 +5251,7 @@ extern AVOID xsignal2 (Lisp_Object, Lisp_Object, Lisp_Object);
 extern AVOID xsignal3 (Lisp_Object, Lisp_Object, Lisp_Object, Lisp_Object);
 extern AVOID signal_error (const char *, Lisp_Object);
 extern AVOID overflow_error (void);
+extern void define_error (Lisp_Object name, const char *message, Lisp_Object parent);
 extern bool FUNCTIONP (Lisp_Object);
 extern Lisp_Object funcall_subr (struct Lisp_Subr *subr, ptrdiff_t numargs, Lisp_Object *arg_vector);
 extern Lisp_Object eval_sub (Lisp_Object form);

@@ -2239,7 +2239,7 @@ dump_marker (struct dump_context *ctx, const struct Lisp_Marker *marker)
 static dump_off
 dump_interval_node (struct dump_context *ctx, struct itree_node *node)
 {
-#if CHECK_STRUCTS && !defined (HASH_itree_node_1A87DF0C78)
+#if CHECK_STRUCTS && !defined (HASH_itree_node_8AF9E94FBA)
 # error "itree_node changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct itree_node out;
@@ -3016,7 +3016,7 @@ dump_bool_vector (struct dump_context *ctx, const struct Lisp_Vector *v)
 static dump_off
 dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
 {
-#if CHECK_STRUCTS && !defined (HASH_Lisp_Subr_6FC9E39686)
+#if CHECK_STRUCTS && !defined (HASH_Lisp_Subr_730FE7C038)
 # error "Lisp_Subr changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct Lisp_Subr out;

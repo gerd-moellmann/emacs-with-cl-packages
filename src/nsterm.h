@@ -705,6 +705,8 @@ enum ns_return_frame_mode
 
 @interface EmacsScroller : NSScroller
 {
+  struct window *window;
+  struct frame *frame;
   NSResponder *prevResponder;
 
   /* offset to the bottom of knob of last mouse down */
@@ -721,7 +723,6 @@ enum ns_return_frame_mode
   int em_position;
   int em_portion;
   int em_whole;
-  struct window **m_lisp_window;
 }
 
 - (struct window *) lispWindow;
