@@ -114,7 +114,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_handler_18D8F45D0F
 #  error "struct handler changed"
 # endif
-# ifndef HASH_Lisp_Symbol_78773EECA2
+# ifndef HASH_Lisp_Symbol_A86BC84666
 #  error "struct Lisp_Symbol changed"
 # endif
 # ifndef HASH_symbol_redirect_EA72E4BFF5
@@ -144,7 +144,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_glyph_matrix_559A8DDA89
 #  error "struct glyph_matrix changed"
 # endif
-# ifndef HASH_frame_BE1A77FEF4
+# ifndef HASH_frame_2DF695D4B8
 #  error "struct frame changed"
 # endif
 # ifndef HASH_window_AAD29CF361
@@ -153,7 +153,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_Lisp_Vector_64AF2E46CE
 #  error "struct Lisp_Vector changed"
 # endif
-# ifndef HASH_Lisp_Subr_6FC9E39686
+# ifndef HASH_Lisp_Subr_730FE7C038
 #  error "struct Lisp_Subr changed"
 # endif
 # ifndef HASH_Lisp_Misc_Ptr_369918BE47
@@ -177,7 +177,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_Lisp_Native_Comp_Unit_7DF63698B3
 #  error "struct Lisp_Native_Comp_Unit changed"
 # endif
-# ifndef HASH_pvec_type_1C9DBCD69F
+# ifndef HASH_pvec_type_9A5F4E1904
 #  error "enum pvec_type changed"
 # endif
 # ifndef HASH_Lisp_Type_45F0582FD7
@@ -201,9 +201,15 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_face_cache_C289FB8D72
 #  error "struct face_cache changed"
 # endif
-# ifndef HASH_Lisp_Obarray_29CFFD1B74
-#  error "struct Lisp_Obarray changed"
-# endif
+# ifndef IN_MY_FORK
+#  ifndef HASH_Lisp_Obarray_29CFFD1B74
+#   error "struct Lisp_Obarray changed"
+#  endif
+# else
+#  ifndef HASH_Lisp_Package_3D19D7002D
+#   error "struct Lisp_Package changed"
+#  endif
+#endif
 # ifndef HASH_module_global_reference_85FFC23A88
 #  error "struct module_global_reference changed"
 # endif
