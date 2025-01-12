@@ -3738,7 +3738,6 @@ tty_menu_show (struct frame *f, int x, int y, int menuflags,
   int dispwidth, dispheight;
   int i, j, lines, maxlines;
   int maxwidth;
-  specpdl_ref specpdl_count;
 
   eassert (FRAME_TERMCAP_P (f));
 
@@ -3755,9 +3754,13 @@ tty_menu_show (struct frame *f, int x, int y, int menuflags,
   /* Make the menu on that window.  */
   menu = tty_menu_create ();
 
+#ifdef HAVE_MPS
+  specpdl_ref specpdl_count = SPECPDL_INDEX ();
+#else
   /* Don't GC while we prepare and show the menu, because we give the
      menu functions pointers to the contents of strings.  */
-  specpdl_count = inhibit_garbage_collection ();
+  specpdl_ref specpdl_count = inhibit_garbage_collection ();
+#endif
 
   /* Avoid crashes if, e.g., another client will connect while we
      are in a menu.  */
