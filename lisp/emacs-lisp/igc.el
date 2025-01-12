@@ -1,4 +1,4 @@
-;;; igc.el --- Support functions for IGC -*- lexical-binding: t; symbol-packagaes: nil -*-
+;;; igc.el --- Support functions for IGC -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2024 Free Software Foundation, Inc.
 
@@ -24,6 +24,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'sqlite)
 
 (defun igc--diff (i1 i2)
   (cl-loop for (t1 n1 s1) in i1
@@ -245,17 +246,21 @@ Type \\`?' to see the mode's help."
 
 (defvar igc--collect-timer nil)
 (defvar igc--collect-file nil)
+(defvar igc--sqlite nil)
 
 ;;;###autoload
 (defun igc-stop-collecting-stats ()
   (interactive)
   (when igc--collect-timer
     (cancel-timer igc--collect-timer)
-    (setq igc--collect-timer nil)))
+    (setq igc--collect-timer nil)
+    (when (sqlitep igc--sqlite)
+      (sqlite-close igc--sqlite)
+      (setq igc--sqlite nil))))
 
-(defvar igc-stats-time-format "%T")
+(defvar igc-stats-time-format "%T.%3N")
 
-(defun igc--collect-stats ()
+(defun igc--collect-stats-csv ()
   (let ((buffer (get-file-buffer igc--collect-file)))
     (when buffer
       (with-current-buffer buffer
@@ -269,13 +274,54 @@ Type \\`?' to see the mode's help."
                                  time title n bytes))))
       (save-buffer))))
 
+(defun igc--collect-stats-sqlite ()
+  (let ((values (cl-loop with time = (format-time-string igc-stats-time-format)
+                         for (title n bytes) in (igc-info)
+                         collect (format "(\"%s\",\"%s\",\"%s\",\"%s\")"
+                                         time title n bytes))))
+    (with-sqlite-transaction igc--sqlite
+      (sqlite-execute igc--sqlite
+                      (format "INSERT INTO igc VALUES %s"
+                              (mapconcat #'identity values ","))))))
+
+(defun igc--open-sqlite (db)
+  (let ((con (or (sqlite-open db)
+                 (error "Error opening sqlite database %s" db))))
+    (with-sqlite-transaction con
+      (sqlite-execute con (concat "CREATE TABLE IF NOT EXISTS igc "
+                                  "(time, type, n, bytes)"))
+      ;; Which indices we need depends, and has to be seen with time.
+      (sqlite-execute con (concat "CREATE INDEX IF NOT EXISTS igc_time_index "
+                                  "ON igc (time)"))
+      (sqlite-execute con (concat "CREATE INDEX IF NOT EXISTS igc_type_index "
+                                  "ON igc (type)")))
+    con))
+
 ;;;###autoload
-(defun igc-start-collecting-stats (file secs)
-  "Start collecting statistics every SECS seconds."
-  (interactive "FOutput file: \nnInterval (seconds): ")
+(defun igc-start-collecting-stats (type file secs)
+  "Start collecting IGC statistics."
+  (interactive
+   (let* ((completion-ignore-case t)
+          (type (completing-read "Output to: " '("SQLite DB" "CSV") nil t))
+          (file (if (string-equal-ignore-case type "CSV")
+                    (read-file-name "CSV file: ")
+                  (unless (sqlite-available-p)
+                    (error "Your Emacs is not built with SQLite support"))
+                  (read-file-name "Sqlite database file: ")))
+          (secs (read-number "Interval seconds: " 10)))
+     (list (if (string-equal-ignore-case type "CSV") 'csv 'sqlite)
+           file secs)))
+  (unless (> secs 0)
+    (error "Invalid interval seconds"))
   (igc-stop-collecting-stats)
-  (setq igc--collect-file file)
-  (find-file-noselect file)
-  (setq igc--collect-timer (run-at-time nil secs #'igc--collect-stats)))
+  (cond ((eq type 'csv)
+         (setq igc--collect-file file)
+         (find-file-noselect file)
+         (setq igc--collect-timer
+               (run-at-time nil secs #'igc--collect-stats-csv)))
+        (t
+         (setq igc--sqlite (igc--open-sqlite file))
+         (setq igc--collect-timer
+               (run-at-time nil secs #'igc--collect-stats-sqlite)))))
 
 (provide 'igc)
