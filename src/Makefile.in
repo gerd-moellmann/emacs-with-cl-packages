@@ -366,6 +366,33 @@ LIBGPM = @LIBGPM@
 LIBMPS = @LIBMPS@
 IGCOBJ = @IGCOBJ@
 
+#-----------------------------------------------------------------------
+# DTrace
+#-----------------------------------------------------------------------
+
+HAVE_DTRACE = @HAVE_DTRACE@
+DTRACE = @DTRACE@
+# Empty if linking not required by the OS.
+DTRACE_OBJ = @DTRACE_OBJ@
+
+ifeq ($(HAVE_DTRACE),yes)
+
+# Produce header file with DTrace probe macros.
+$(srcdir)/emacs-dtrace.h: $(srcdir)/emacs-dtrace.d
+	$(DTRACE) -o $@ -h -s $<
+
+# Build DTrace object file (untested). This is not triggered if
+# DTRACE_OBJ is empty, which it is on macOS. So we won't use the -G
+# switch which doesn't exist on macOS.
+emacs-dtrace.o: $(srcdir)/emacs-dtrace.d
+	$(DTRACE) -o $@ -G -s $<
+
+# Make objects that use probes dependent on the probe header.
+igc.o: $(srcdir)/emacs-dtrace.h
+
+endif
+#-----------------------------------------------------------------------
+
 LIBSELINUX_LIBS = @LIBSELINUX_LIBS@
 LIBSELINUX_CFLAGS = @LIBSELINUX_CFLAGS@
 
@@ -487,7 +514,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	doprnt.o intervals.o textprop.o composite.o xml.o lcms.o $(NOTIFY_OBJ) \
 	$(XWIDGETS_OBJ) 						       \
 	profiler.o decompress.o 					       \
-	pkg.o $(IGCOBJ)							       \
+	pkg.o $(IGCOBJ) $(DTRACE_OBJ)					       \
 	thread.o systhread.o sqlite.o  treesit.o			       \
 	itree.o json.o 							       \
 	$(if $(HYBRID_MALLOC),sheap.o) 					       \

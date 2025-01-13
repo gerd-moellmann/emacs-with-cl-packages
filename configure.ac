@@ -1294,6 +1294,7 @@ packages targeting Android 2.2.])])
   passthrough="$passthrough --with-threads=$with_threads"
   passthrough="$passthrough --with-rsvg=$with_rsvg"
   passthrough="$passthrough --with-mps=$with_mps"
+  passthrough="$passthrough --with-dtrace=$with_dtrace"
 
   # Now pass through some checking-related options.
   emacs_val="--enable-check-lisp-object-type=$enable_check_lisp_object_type"
@@ -5648,7 +5649,6 @@ if test "${with_mps}" != "no"; then
   fi
 fi
 
-
 if test "$REALLY_ANDROID" = "yes" && test "$with_mps" != "no"; then
   HAVE_MPS=no
   ndk_SEARCH_MODULE([mps], [MPS], [HAVE_MPS=yes])
@@ -5669,6 +5669,29 @@ AC_SUBST([MPS_CFLAGS])
 AC_SUBST([LIBMPS])
 AC_SUBST([IGCOBJ])
 
+### Use DTrace if available, unless '--with-dtrace=no'.
+AC_SUBST([DTRACE])
+AC_SUBST([DTRACE_OBJ])
+AC_SUBST([HAVE_DTRACE])
+DTRACE=
+DTRACE_OBJ=
+HAVE_DTRACE=no
+if test "${with_dtrace}" != "no"; then
+  AC_PATH_PROG([DTRACE], [dtrace], [])
+  if test "$DTRACE" = ""; then
+    AC_MSG_ERROR([dtrace command not found])
+  fi
+  AC_DEFINE([HAVE_DTRACE], [1],
+    [Define to 1 if you have the dtrace command.])
+  HAVE_DTRACE=yes
+
+  # DTrace providers have to be linked into an application, normally,
+  # except on Darwin. DTRACE_OBJ is added to the object files needed
+  # for Emacs in src/Makefile.in.
+  if test "$opsys" != darwin; then
+    DTRACE_OBJ=emacs-dtrace.o
+  fi
+fi
 
 dnl Check for malloc/malloc.h on darwin
 AC_CHECK_HEADERS_ONCE([malloc/malloc.h])
@@ -7875,6 +7898,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs have native lisp compiler?                   ${HAVE_NATIVE_COMP}
   Does Emacs use version 2 of the X Input Extension?      ${HAVE_XINPUT2}
   Does Emacs generate a smaller-size Japanese dictionary? ${with_small_ja_dic}
+  Does Emacs use dtrace?                                  ${HAVE_DTRACE}
 "])
 
 if test -n "${EMACSDATA}"; then
