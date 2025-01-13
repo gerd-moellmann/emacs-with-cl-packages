@@ -33,6 +33,9 @@
 /configure
 src/config.in
 
+# Built by dtrace
+src/emacs-dtrace.h
+
 # Built by 'configure'.
 Info.plist
 InfoPlist.strings

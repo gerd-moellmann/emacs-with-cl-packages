@@ -5174,6 +5174,24 @@ KEY is the key associated with DEPENDENCY in a hash table.  */)
 }
 
 /***********************************************************************
+				  DTrace
+ ***********************************************************************/
+
+#ifdef HAVE_DTRACE
+#include "emacs-dtrace.h"
+
+DEFUN ("igc-test-probe", Figc_test_probe, Sigc_test_probe, 1, 1, 0, doc: /* */)
+  (Lisp_Object msg)
+{
+  CHECK_STRING (msg);
+  if (EMACS_TEST_PROBE_ENABLED ())
+    EMACS_TEST_PROBE (SSDATA (msg));
+  return Qnil;
+}
+
+#endif /* HAVE_DTRACE */
+
+/***********************************************************************
 				  Init
  ***********************************************************************/
 
@@ -5196,6 +5214,10 @@ syms_of_igc (void)
   defsubr (&Sigc__set_commit_limit);
   defsubr (&Sigc__add_extra_dependency);
   defsubr (&Sigc__remove_extra_dependency);
+#ifdef HAVE_DTRACE
+  defsubr (&Sigc_test_probe);
+#endif
+
   DEFSYM (Qambig, "ambig");
   DEFSYM (Qexact, "exact");
   Fprovide (intern_c_string ("mps"), Qnil);
