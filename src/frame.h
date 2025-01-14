@@ -1443,22 +1443,8 @@ FRAME_PARENT_FRAME (struct frame *f)
 #define AUTO_FRAME_ARG(name, parameter, value)		\
   AUTO_LIST1 (name, AUTO_CONS_EXPR (parameter, value))
 
-/* Set visibility of frame F.
-   We call redisplay_other_windows to make sure the frame gets redisplayed
-   if some changes were applied to it while it wasn't visible (and hence
-   wasn't redisplayed).  */
-INLINE void
-SET_FRAME_VISIBLE (struct frame *f, bool v)
-{
-  if (v)
-    {
-      if (v == 1 && f->visible != 1)
-	redisplay_other_windows ();
-      if (FRAME_GARBAGED_P (f))
-	frame_garbaged = true;
-    }
-  f->visible = v;
-}
+/* False means there are no visible garbaged frames.  */
+extern bool frame_garbaged;
 
 /* Set iconified status of frame F.  */
 INLINE void
@@ -1533,6 +1519,7 @@ void check_tty (struct frame *f);
 struct frame *decode_tty_frame (Lisp_Object frame);
 extern void frame_make_pointer_invisible (struct frame *);
 extern void frame_make_pointer_visible (struct frame *);
+extern struct frame *root_frame (struct frame *f);
 extern Lisp_Object delete_frame (Lisp_Object, Lisp_Object);
 extern bool frame_inhibit_resize (struct frame *, bool, Lisp_Object);
 extern void adjust_frame_size (struct frame *, int, int, int, bool,
@@ -1556,6 +1543,27 @@ extern Lisp_Object Vframe_list;
       ? XFRAME (selected_frame)				\
       : (emacs_abort (), (struct frame *) 0))
 
+/* Set visibility of frame F.
+   We call redisplay_other_windows to make sure the frame gets redisplayed
+   if some changes were applied to it while it wasn't visible (and hence
+   wasn't redisplayed).  */
+INLINE void
+SET_FRAME_VISIBLE (struct frame *f, bool v)
+{
+  if (v)
+    {
+      if (v == 1 && f->visible != 1)
+	redisplay_other_windows ();
+      if (FRAME_GARBAGED_P (f))
+	frame_garbaged = true;
+    }
+  /* If F is a child frame on a tty and is the selected frame, try to
+     re-select the frame that was selected before F.  */
+  else if (is_tty_child_frame (f) && f == XFRAME (selected_frame))
+    do_switch_frame (mru_rooted_frame (f), 0, 0, Qnil);
+
+  f->visible = v;
+}
 
 /***********************************************************************
 			Display-related Macros

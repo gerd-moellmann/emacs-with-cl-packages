@@ -3625,6 +3625,9 @@ treesit_traverse_validate_predicate (Lisp_Object pred,
     return true;
   else if (SYMBOLP (pred))
     {
+      if (BASE_EQ (pred, Qnamed) || BASE_EQ (pred, Qanonymous))
+	return true;
+
       Lisp_Object definition = treesit_traverse_get_predicate (pred,
 							       language);
       if (NILP (definition))
@@ -3669,13 +3672,13 @@ treesit_traverse_validate_predicate (Lisp_Object pred,
 						      signal_data,
 						      recursion_level + 1);
 	}
-      else if (BASE_EQ (car, Qor))
+      else if (BASE_EQ (car, Qor) || BASE_EQ (car, Qand))
 	{
 	  if (!CONSP (cdr) || NILP (cdr))
 	    {
 	      *signal_data = list3 (Qtreesit_invalid_predicate,
-				    build_string ("`or' must have a list "
-						  "of patterns as "
+				    build_string ("`or' or `and' must have "
+						  "a list of patterns as "
 						  "arguments "),
 				    pred);
 	      return false;
@@ -3729,7 +3732,15 @@ treesit_traverse_match_predicate (TSTreeCursor *cursor, Lisp_Object pred,
 	   && !(SYMBOLP (pred) && !NILP (Fget (pred, Qtreesit_thing_symbol))))
     {
       Lisp_Object lisp_node = make_treesit_node (parser, node);
-      return !NILP (CALLN (Ffuncall, pred, lisp_node));
+      return !NILP (calln (pred, lisp_node));
+    }
+  else if (SYMBOLP (pred) && BASE_EQ (pred, Qnamed))
+    {
+      return ts_node_is_named (node);
+    }
+  else if (SYMBOLP (pred) && BASE_EQ (pred, Qanonymous))
+    {
+      return !ts_node_is_named (node);
     }
   else if (SYMBOLP (pred))
     {
@@ -3757,6 +3768,16 @@ treesit_traverse_match_predicate (TSTreeCursor *cursor, Lisp_Object pred,
 	    }
 	  return false;
 	}
+      else if (BASE_EQ (car, Qand))
+	{
+	  FOR_EACH_TAIL (cdr)
+	    {
+	      if (!treesit_traverse_match_predicate (cursor, XCAR (cdr),
+						     parser, named))
+		return false;
+	    }
+	  return  true;
+	}
       else if (STRINGP (car) && FUNCTIONP (cdr))
 	{
 	  /* A bit of code duplication here, but should be fine.  */
@@ -3765,7 +3786,7 @@ treesit_traverse_match_predicate (TSTreeCursor *cursor, Lisp_Object pred,
 	    return false;
 
 	  Lisp_Object lisp_node = make_treesit_node (parser, node);
-	  if (NILP (CALLN (Ffuncall, cdr, lisp_node)))
+	  if (NILP (calln (cdr, lisp_node)))
 	    return false;
 
 	  return true;
@@ -4034,7 +4055,7 @@ treesit_build_sparse_tree (TSTreeCursor *cursor, Lisp_Object parent,
       TSNode node = ts_tree_cursor_current_node (cursor);
       Lisp_Object lisp_node = make_treesit_node (parser, node);
       if (!NILP (process_fn))
-	lisp_node = CALLN (Ffuncall, process_fn, lisp_node);
+	lisp_node = calln (process_fn, lisp_node);
 
       Lisp_Object this = Fcons (lisp_node, Qnil);
       Fsetcdr (parent, Fcons (this, Fcdr (parent)));
@@ -4299,6 +4320,7 @@ syms_of_treesit (void)
   DEFSYM (Qtreesit_compiled_query_p, "treesit-compiled-query-p");
   DEFSYM (Qtreesit_query_p, "treesit-query-p");
   DEFSYM (Qnamed, "named");
+  DEFSYM (Qanonymous, "anonymous");
   DEFSYM (Qmissing, "missing");
   DEFSYM (Qextra, "extra");
   DEFSYM (Qoutdated, "outdated");
@@ -4340,6 +4362,7 @@ syms_of_treesit (void)
   DEFSYM (Qtreesit_thing_symbol, "treesit-thing-symbol");
 
   DEFSYM (Qor, "or");
+  DEFSYM (Qand, "and");
 
 #ifdef WINDOWSNT
   DEFSYM (Qtree_sitter, "tree-sitter");
@@ -4422,8 +4445,12 @@ cons (REGEXP . FN), which is a combination of a regexp and a predicate
 function, and the node has to match both to qualify as the thing.
 
 PRED can also be recursively defined.  It can be (or PRED...), meaning
-satisfying anyone of the inner PREDs qualifies the node; or (not
-PRED), meaning not satisfying the inner PRED qualifies the node.
+satisfying anyone of the inner PREDs qualifies the node; or (and
+PRED...) meaning satisfying all of the inner PREDs qualifies the node;
+or (not PRED), meaning not satisfying the inner PRED qualifies the node.
+
+There are two pre-defined predicates, `named' and `anonymous`.  They
+match named nodes and anonymous nodes, respectively.
 
 Finally, PRED can refer to other THINGs defined in this list by using
 the symbol of that THING.  For example, (or sexp sentence).  */);

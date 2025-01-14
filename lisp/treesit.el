@@ -2489,11 +2489,13 @@ ARG is described in the docstring of `forward-list'."
                     (funcall default-function inc)
                     (point))
                 (scan-error nil)))
+             (parent (treesit-thing-at (point) pred t))
              (sibling (if (> arg 0)
                           (treesit-thing-next (point) pred)
-                        (treesit-thing-prev (point) pred)))
-             (current (when default-pos
-                        (treesit-thing-at (point) pred t))))
+                        (treesit-thing-prev (point) pred))))
+        (when (and parent sibling
+                   (not (treesit-node-enclosed-p sibling parent)))
+          (setq sibling nil))
         ;; Use the default function only if it doesn't go
         ;; over the sibling and doesn't go out of the current group.
         (or (when (and default-pos
@@ -2501,10 +2503,10 @@ ARG is described in the docstring of `forward-list'."
                            (if (> arg 0)
                                (<= default-pos (treesit-node-start sibling))
                              (>= default-pos (treesit-node-end sibling))))
-                       (or (null current)
+                       (or (null parent)
                            (if (> arg 0)
-                               (<= default-pos (treesit-node-end current))
-                             (>= default-pos (treesit-node-start current)))))
+                               (< default-pos (treesit-node-end parent))
+                             (> default-pos (treesit-node-start parent)))))
               (goto-char default-pos))
             (when sibling
               (goto-char (if (> arg 0)
@@ -3078,9 +3080,7 @@ function is called recursively."
           (if (eq tactic 'restricted)
               (setq pos (funcall
                          advance
-                         (cond ((and (null next) (null prev)
-                                     (not (eq thing 'list)))
-                                parent)
+                         (cond ((and (null next) (null prev)) parent)
                                ((> arg 0) next)
                                (t prev))))
             ;; For `nested', it's a bit more work:
@@ -3593,9 +3593,10 @@ before calling this function."
     (setq-local add-log-current-defun-function
                 #'treesit-add-log-current-defun))
 
+  (setq-local transpose-sexps-function #'treesit-transpose-sexps)
+
   (when (treesit-thing-defined-p 'sexp nil)
-    (setq-local forward-sexp-function #'treesit-forward-sexp)
-    (setq-local transpose-sexps-function #'treesit-transpose-sexps))
+    (setq-local forward-sexp-function #'treesit-forward-sexp))
 
   (when (treesit-thing-defined-p 'list nil)
     (setq-local forward-sexp-function #'treesit-forward-sexp-list)
@@ -4045,11 +4046,6 @@ covers point.  PARSER-NAME are unique."
               res)))
     (nreverse res)))
 
-(define-derived-mode treesit--explorer-tree-mode special-mode
-  "TS Explorer"
-  "Mode for displaying syntax trees for `treesit-explore-mode'."
-  nil)
-
 (defvar-keymap treesit--explorer-tree-mode-map
   :doc "Keymap for the treesit tree explorer.
 
@@ -4059,6 +4055,11 @@ Navigates from button to button."
   "p" #'backward-button
   "TAB" #'forward-button
   "<backtab>" #'backward-button)
+
+(define-derived-mode treesit--explorer-tree-mode special-mode
+  "TS Explorer"
+  "Mode for displaying syntax trees for `treesit-explore-mode'."
+  nil)
 
 (defun treesit-explorer-switch-parser (parser)
   "Switch explorer to use PARSER."
