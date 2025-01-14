@@ -3776,4 +3776,8 @@ libraries; only those already known by Emacs will be loaded.  */);
   Vlibrary_cache = Qnil;
   staticpro (&Vlibrary_cache);
 #endif
+
+#ifdef HAVE_DTRACE
+  Fprovide (intern_c_string ("dtrace"), Qnil);
+#endif
 }
