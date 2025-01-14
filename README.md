@@ -44,7 +44,7 @@ init files, others go a step further :-).
 
 ## New GC
 
-This is an incremental and concurrent GC that is based on Ravenbrook
+This is an incremental and generational GC that is based on Ravenbrook
 MPS.
 
 I ported this to the mainline GNU/Emacs (branch scratch/igc on savannah)
@@ -57,3 +57,9 @@ Works well for me on macOS. I'm using this daily.
 ## Child frames on ttys
 
 This has meanwhle landed in master on savannah.
+
+## DTrace support
+
+My Emacs is now beginning to be a DTrace USDT provider. Configure
+`--with-dtrace=no` to disable it. This is only tested on
+macOS. Development is ongoing.
