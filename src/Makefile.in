@@ -377,6 +377,12 @@ DTRACE_OBJ = @DTRACE_OBJ@
 
 ifeq ($(HAVE_DTRACE),yes)
 
+# Objects using probes.
+DTRACERS = igc.o
+
+# Make objects that use probes dependent on the probe header.
+$(DTRACERS): $(srcdir)/emacs-dtrace.h
+
 # Produce header file with DTrace probe macros.
 $(srcdir)/emacs-dtrace.h: $(srcdir)/emacs-dtrace.d
 	$(DTRACE) -o $@ -h -s $<
@@ -384,11 +390,8 @@ $(srcdir)/emacs-dtrace.h: $(srcdir)/emacs-dtrace.d
 # Build DTrace object file (untested). This is not triggered if
 # DTRACE_OBJ is empty, which it is on macOS. So we won't use the -G
 # switch which doesn't exist on macOS.
-emacs-dtrace.o: $(srcdir)/emacs-dtrace.d
-	$(DTRACE) -o $@ -G -s $<
-
-# Make objects that use probes dependent on the probe header.
-igc.o: $(srcdir)/emacs-dtrace.h
+emacs-dtrace.o: $(srcdir)/emacs-dtrace.d $(DTRACERS)
+	$(DTRACE) -o $@ -G -s $< $(DTRACERS)
 
 endif
 #-----------------------------------------------------------------------
@@ -514,7 +517,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	doprnt.o intervals.o textprop.o composite.o xml.o lcms.o $(NOTIFY_OBJ) \
 	$(XWIDGETS_OBJ) 						       \
 	profiler.o decompress.o 					       \
-	pkg.o $(IGCOBJ) $(DTRACE_OBJ)					       \
+	pkg.o $(IGCOBJ)							       \
 	thread.o systhread.o sqlite.o  treesit.o			       \
 	itree.o json.o 							       \
 	$(if $(HYBRID_MALLOC),sheap.o) 					       \
@@ -522,7 +525,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ)			       \
 	$(HAIKU_OBJ) $(PGTK_OBJ) $(ANDROID_OBJ)
 doc_obj = $(base_obj) $(NS_OBJC_OBJ)
-obj = $(doc_obj) $(HAIKU_CXX_OBJ)
+obj = $(doc_obj) $(HAIKU_CXX_OBJ) $(DTRACE_OBJ)
 
 ## Object files used on some machine or other.
 ## These go in the DOC file on all machines in case they are needed.
