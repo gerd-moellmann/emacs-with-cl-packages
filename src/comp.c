@@ -875,7 +875,7 @@ freloc_check_fill (void)
 static void
 bcall0 (Lisp_Object f)
 {
-  Ffuncall (1, &f);
+  calln (f);
 }
 
 static gcc_jit_block *
@@ -2292,7 +2292,7 @@ emit_limple_insn (Lisp_Object insn)
   ptrdiff_t i = 0;
   FOR_EACH_TAIL (p)
     {
-      if (i == sizeof (arg) / sizeof (Lisp_Object))
+      if (i == ARRAYELTS (arg))
 	break;
       arg[i++] = XCAR (p);
     }
