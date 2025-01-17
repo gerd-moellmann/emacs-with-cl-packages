@@ -3,6 +3,7 @@
 (require 'ert)
 
 (ert-deftest set-commit-limit-test ()
+  :tags '(:igc)
   (should (equal (igc--set-commit-limit (ash 1 30)) nil))
   (should (equal (assoc-string "commit-limit" (igc-info))
                  '("commit-limit" 1 1073741824 0)))
