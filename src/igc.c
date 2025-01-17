@@ -2305,6 +2305,10 @@ fix_frame (mps_ss_t ss, struct frame *f)
       IGC_FIX_CALL (ss, fix_glyph_pool (ss, f->current_pool));
     if (f->desired_pool)
       IGC_FIX_CALL (ss, fix_glyph_pool (ss, f->desired_pool));
+    if (f->terminal_current_pool)
+      IGC_FIX_CALL (ss, fix_glyph_pool (ss, f->terminal_current_pool));
+    if (f->terminal_desired_pool)
+      IGC_FIX_CALL (ss, fix_glyph_pool (ss, f->terminal_desired_pool));
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
