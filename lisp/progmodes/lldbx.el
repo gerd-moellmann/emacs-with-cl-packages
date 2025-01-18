@@ -66,7 +66,7 @@
 (gud-def lldbx-backtrace "bt %p" nil)
 (gud-def lldbx-xbacktrace "xbacktrace" nil)
 (gud-def lldbx-frame "f %p" nil)
-(gud-def lldbx-list-breakpoints "break list" nil)
+(gud-def lldbx-list-breakpoints "breakpoint list --brief" nil)
 (gud-def lldbx-kill-process "process kill" nil)
 (gud-def lldbx-vars "var" nil)
 (gud-def lldbx-set-temporary-breakpoint "_regexp-tbreak %f:%l" nil)
