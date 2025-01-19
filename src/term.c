@@ -3334,7 +3334,8 @@ tty_menu_activate (tty_menu *menu, int *pane, int *selidx,
   int first_item = 0;
   int col, row;
   Lisp_Object prev_inhibit_redisplay = Vinhibit_redisplay;
-  USE_SAFE_ALLOCA;
+
+  specpdl_ref count = with_frame_or_terminal_matrices (sf, Qnil);
 
   /* Don't allow non-positive x0 and y0, lest the menu will wrap
      around the display.  */
@@ -3343,6 +3344,7 @@ tty_menu_activate (tty_menu *menu, int *pane, int *selidx,
   if (y0 <= 0)
     y0 = 1;
 
+  USE_SAFE_ALLOCA;
   SAFE_NALLOCA (state, 1, menu->panecount);
   memset (state, 0, sizeof (*state));
   faces[0]
@@ -3572,6 +3574,8 @@ tty_menu_activate (tty_menu *menu, int *pane, int *selidx,
     clear_input_pending ();
   SAFE_FREE ();
   Vinhibit_redisplay = prev_inhibit_redisplay;
+
+  unbind_to (count, Qnil);
   return result;
 }
 
