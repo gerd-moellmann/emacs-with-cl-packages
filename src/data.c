@@ -999,7 +999,7 @@ defalias (Lisp_Object symbol, Lisp_Object definition)
   { /* Handle automatic advice activation.  */
     Lisp_Object hook = Fget (symbol, Qdefalias_fset_function);
     if (!NILP (hook))
-      call2 (hook, symbol, definition);
+      calln (hook, symbol, definition);
     else
       Ffset (symbol, definition);
   }
@@ -1220,7 +1220,7 @@ Value, if non-nil, is a list (interactive SPEC).  */)
   if (genfun
       /* Avoid burping during bootstrap.  */
       && !NILP (Fsymbol_function (Qoclosure_interactive_form)))
-    return call1 (Qoclosure_interactive_form, fun);
+    return calln (Qoclosure_interactive_form, fun);
   else
     return Qnil;
 }

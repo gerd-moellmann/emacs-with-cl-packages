@@ -460,7 +460,7 @@ pkg_map_package_symbols (Lisp_Object fn, Lisp_Object package)
 {
   package = pkg_package_or_lose (package);
   FOR_EACH_KEY_VALUE (it, PACKAGE_SYMBOLS (package))
-    call1 (fn, it.key);
+    calln (fn, it.key);
 }
 
 /* Return a list of all registered packages.  */
