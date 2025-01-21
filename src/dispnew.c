@@ -2719,18 +2719,6 @@ build_frame_matrix_from_leaf_window (struct glyph_matrix *frame_matrix, struct w
 	     the corresponding frame row to be updated.  */
 	  frame_row->enabled_p = true;
 
-	  /* Maybe insert a vertical border between horizontally adjacent
-	     windows.  */
-	  if (GLYPH_CHAR (right_border_glyph) != 0)
-	    {
-	      struct glyph *border = window_row->glyphs[LAST_AREA] - 1;
-	      /* It's a subtle bug if we are overwriting some non-char
-		 glyph with the vertical border glyph.  */
-	      eassert (border->type == CHAR_GLYPH);
-	      border->type = CHAR_GLYPH;
-	      SET_CHAR_GLYPH_FROM_GLYPH (f, *border, right_border_glyph);
-	    }
-
 #ifdef GLYPH_DEBUG
 	  /* Window row window_y must be a slice of frame row
 	     frame_y.  */
@@ -2743,6 +2731,19 @@ build_frame_matrix_from_leaf_window (struct glyph_matrix *frame_matrix, struct w
 	  strcpy (w->current_matrix->method, w->desired_matrix->method);
 	  add_window_display_history (w, w->current_matrix->method);
 #endif
+	}
+
+      /* Maybe insert a vertical border between horizontally adjacent
+	 windows.  This must also be done when copying from a current
+	 row because we filled the frame row with spaces above.  */
+      if (GLYPH_CHAR (right_border_glyph) != 0)
+	{
+	  struct glyph *border = window_row->glyphs[LAST_AREA] - 1;
+	  /* It's a subtle bug if we are overwriting some non-char
+	     glyph with the vertical border glyph.  */
+	  eassert (border->type == CHAR_GLYPH);
+	  border->type = CHAR_GLYPH;
+	  SET_CHAR_GLYPH_FROM_GLYPH (f, *border, right_border_glyph);
 	}
 
       /* Set number of used glyphs in the frame matrix.  Since we fill
