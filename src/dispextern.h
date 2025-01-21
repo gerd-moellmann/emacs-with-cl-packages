@@ -3976,6 +3976,7 @@ bool is_frame_ancestor (struct frame *f1, struct frame *f2);
 specpdl_ref
 with_frame_or_terminal_matrices (struct frame *root,
 				   Lisp_Object z_order);
+void deep_copy_glyph_row (struct frame *f, struct glyph_row *to, struct glyph_row *from);
 
 # ifdef GLYPH_DEBUG
 void check_window_matrix_pointers_for_frame (struct frame *f);
