@@ -1,7 +1,12 @@
 This directory tree contains a version of Emacs master branch that
-implements a new garbage collection for Emacs that is based on
-Ravenbrook's MPS library.  The new GC is concurrent, incremental, and
-generational.
+implements a new garbage collector (GC) for Emacs that is based on
+Ravenbrook's Memory Pool System (MPS) library.  The new GC is
+incremental and generational.
+
+We ask users to help us stabilize this branch, so that we can merge it
+into the Emacs master branch faster.  That means building this branch,
+running it, and, crucially, reporting any bugs that you run into to
+bug-gnu-emacs@gnu.org.  See the BUGS file for more information.
 
 
 Building this branch
@@ -17,21 +22,26 @@ INSTALL.REPO.  Everything said there applies to this branch as well.
 When you have 'libmps' installed, you can configure Emacs to use it with
 the new configure option '--with-mps'.
 
-Use
+Use the following configure flags:
 
   --with-mps=yes	to use the production version of libmps
   --with-mps=debug      to use the debug version of libmps
   --with-mps=no         to not use MPS (or don't use '--with-mps')
 
-In addition, you can configure with
+In addition, you can run configure with
 
-  --enable-checking=igc_assert
+  --enable-checking=igc_debug
 
 to enable igc-specific assertions.
 
 
 Installing 'libmps'
 ===================
+
+GNU/Linux and *BSD
+------------------
+
+See "Building MPS yourself" below.
 
 macOS with Homebrew
 -------------------
@@ -40,53 +50,76 @@ Install 'libmps' from Homebrew with
 
   brew install libmps
 
-Then add something like this to your environment (e.g., to ~/.profile):
+Then add something like this to your environment (e.g., to ~/.zprofile):
 
   export CFLAGS="$CFLAGS -I$(brew --prefix libmps)/include"
   export LDFLAGS="$LDFLAGS -L$(brew --prefix libmps)/lib"
 
+Note that --with-mps=debug won't work with the Homebrew recipe.
+To get a debug build, see "Building MPS yourself" below.
+
 MS-Windows
 ----------
-
-TDB
-
-Debian...
----------
 
 TBD
 
 Building MPS yourself
 ---------------------
 
-Clone the MPS repository:
-
-$ git clone https://github.com/Ravenbrook/mps.git
-
 See the file mps/INSTALL for instructions on how to build MPS.  But in
 short:
 
+$ # Change this to an empty directory of your choosing:
+$ MPS_ARTIFACTS=/path/to/mps_artifacts
+$ git clone https://github.com/Ravenbrook/mps.git
+$ cd mps
+$ autoconf
+$ ./configure --prefix="$MPS_ARTIFACTS"
+$ make CC="gcc -Wno-dangling-pointer -Wno-maybe-uninitialized" \
+       EXTRA_TARGETS=
+$ make install
+
+TODO: Instructions for building the debug version.  For now, see below
+for some ideas.
+
+Building MPS yourself (manually)
+--------------------------------
+
+If you have problems with the above, you can try this more manual
+installation procedure:
+
+$ git clone https://github.com/Ravenbrook/mps.git
 $ cd mps/code
 
-$ gcc -O2 mps.c
+$ gcc -O2 -c mps.c
 $ ar rvs libmps.a mps.o
 
-Now copy the header files and libmps.a to a new empty directory of your
-choosing (~/mps-artifacts in what follows):
+Create a new empty directory of your choosing:
 
-$ mkdir ~/mps-artifacts
-$ cp mps*.h libmps.a ~/mps-artifacts
+$ # Change this to any new empty directory:
+$ MPS_ARTIFACTS="/path/to/mps-artifacts"
+$ mkdir $MPS_ARTIFACTS
+
+Now copy the header files and libmps.a there:
+
+$ cp mps*.h libmps.a $MPS_ARTIFACTS
+
+To copy a smaller set of headers (at the risk of needing to redo this in
+the future), you could do this instead:
+
+$ cp mps.h mpsavm.h mpscamc.h mpscams.h mpscawl.h \
+     mpslib.h libmps.a $MPS_ARTIFACTS
 
 Then you can proceed with building Emacs, telling the `configure` script
 where the mps header files and libmps.a are:
 
-$ configure CPPFLAGS=-I/path/to/mps-artifacts LDFLAGS=-L/path/to/mps-artifacts --with-mps=yes <... rest of options ...>
+$ ./configure CPPFLAGS=-I$MPS_ARTIFACTS \
+              LDFLAGS=-L$MPS_ARTIFACTS \
+              --with-mps=yes <... rest of options ...>
 
-(Replace /path/to/mps-artifacts with the full path to the directory
-where you copied the MPS header files and library.)
+To build the debug version of MPS:
 
-To build the debug version of MP:
-
-$ gcc -O0 -g -DCONFIG_VAR_COOL -c mpc.c -o mps-debug.o
+$ gcc -O0 -g -DCONFIG_VAR_COOL -c mps.c -o mps-debug.o
 $ ar rvs libmps-debug.a mps-debug.o
 $ cp libmps-debug.a ~/mps-artifacts
 
@@ -94,3 +127,30 @@ Then pass --with-mps=debug instead --with-mps=yes to the Emacs configure
 script (it is recommended that you build Emacs in debug mode while
 debugging MPS problems, see the INSTALL in the root directory of the
 Emacs source tree.)
+
+To make it easier to rebuild in the future, you could add this to your
+~/.bashrc (or equivalent for other shells):
+
+    export EMACS_MPS_ARTIFACTS="$HOME/mps-artifacts"
+
+And then build by switching in that variable (with the "EMACS_" prefix)
+into the commands you find above.
+
+
+Debugging the MPS build
+=======================
+
+On most systems, MPS uses the SIGSEGV POSIX signal or its emulation as
+part of its normal operation.  When running Emacs with MPS support in a
+debugger such as GDB, it is important to take this into account, because
+the debugger might stop when this signal is raised, and make it look
+like Emacs segfaulted.
+
+If you use GDB, it's recommended to use the .gdbinit file in the src/
+subdirectory, which configures GDB not to stop in this situation.
+Starting GDB from the src directory will cause it to automatically load
+and read the file, subject to the "auto-load safe-path" setting;
+alternatively, you can force GDB to read that file manually, after
+starting the debugger:
+
+  (gdb) source /path/to/emacs-igc/src/.gdbinit
