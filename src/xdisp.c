@@ -23196,6 +23196,20 @@ Only text-mode frames have frame glyph matrices.  */)
   return Qnil;
 }
 
+DEFUN ("dump-terminal-glyph-matrix", Fdump_terminal_glyph_matrix,
+       Sdump_terminal_glyph_matrix, 0, 0, "", doc: /* Dump the current terminal glyph matrix of the selected frame to stderr.
+Only text-mode frames have terminal glyph matrices.  */)
+  (void)
+{
+  struct frame *f = XFRAME (selected_frame);
+
+  if (f->terminal_current_matrix)
+    dump_glyph_matrix (f->terminal_current_matrix, 1);
+  else
+    fputs ("*** This frame doesn't have a frame glyph matrix ***\n", stderr);
+  return Qnil;
+}
+
 
 DEFUN ("dump-glyph-row", Fdump_glyph_row, Sdump_glyph_row, 1, 2, "P",
        doc: /* Dump glyph row ROW to stderr.
@@ -37390,6 +37404,7 @@ be let-bound around code that needs to disable messages temporarily. */);
   defsubr (&Sset_buffer_redisplay);
 #ifdef GLYPH_DEBUG
   defsubr (&Sdump_frame_glyph_matrix);
+  defsubr (&Sdump_terminal_glyph_matrix);
   defsubr (&Sdump_glyph_matrix);
   defsubr (&Sdump_glyph_row);
   defsubr (&Sdump_tab_bar_row);
