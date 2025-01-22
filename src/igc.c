@@ -3109,6 +3109,7 @@ create_weak_ap (mps_ap_t *ap, struct igc_thread *t, bool weak)
     res = mps_ap_create_k (ap, pool, args);
   }
   MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
   return res;
 }
 
@@ -3125,6 +3126,7 @@ create_weak_hash_ap (mps_ap_t *ap, struct igc_thread *t, bool weak)
     res = mps_ap_create_k (ap, pool, args);
   }
   MPS_ARGS_END (args);
+  IGC_CHECK_RES (res);
   return res;
 }
 
@@ -3140,9 +3142,11 @@ create_thread_aps (struct igc_thread *t)
   res = mps_ap_create_k (&t->immovable_ap, gc->immovable_pool, mps_args_none);
   IGC_CHECK_RES (res);
   res = create_weak_ap (&t->weak_strong_ap, t, false);
+  IGC_CHECK_RES (res);
   res = create_weak_hash_ap (&t->weak_hash_strong_ap, t, false);
   IGC_CHECK_RES (res);
   res = create_weak_ap (&t->weak_weak_ap, t, true);
+  IGC_CHECK_RES (res);
   res = create_weak_hash_ap (&t->weak_hash_weak_ap, t, true);
   IGC_CHECK_RES (res);
 }
