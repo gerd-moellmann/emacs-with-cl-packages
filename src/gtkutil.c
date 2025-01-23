@@ -1921,6 +1921,12 @@ xg_free_frame_widgets (struct frame *f)
 #endif
 	}
 
+      if (x->toolbar_widget && !x->toolbar_is_packed)
+	{
+	  gtk_widget_destroy (x->toolbar_widget);
+	  x->toolbar_widget = NULL;
+	}
+
       /* x_free_frame_resources should have taken care of it */
 #ifndef HAVE_PGTK
 #ifdef HAVE_XDBE
