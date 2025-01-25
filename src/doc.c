@@ -509,7 +509,6 @@ the same file name is found in the `doc-directory'.  */)
   (Lisp_Object filename)
 {
   char buf[1024 + 1];
-  Lisp_Object sym;
   char *p, *name;
   char const *dirname;
   ptrdiff_t dirlen;
