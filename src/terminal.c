@@ -121,7 +121,11 @@ cursor_to (struct frame *f, int vpos, int hpos)
   if (term->cursor_to_hook)
     {
       int x, y;
+#ifndef HAVE_ANDROID
       root_xy (f, hpos, vpos, &x, &y);
+#else /* HAVE_ANDROID */
+      x = hpos, y = vpos;
+#endif /* !HAVE_ANDROID */
       term->cursor_to_hook (f, y, x);
     }
 }
@@ -135,7 +139,11 @@ raw_cursor_to (struct frame *f, int row, int col)
   if (term->raw_cursor_to_hook)
     {
       int x, y;
+#ifndef HAVE_ANDROID
       root_xy (f, col, row, &x, &y);
+#else /* HAVE_ANDROID */
+      x = col, y = row;
+#endif /* !HAVE_ANDROID */
       term->raw_cursor_to_hook (f, y, x);
     }
 }
