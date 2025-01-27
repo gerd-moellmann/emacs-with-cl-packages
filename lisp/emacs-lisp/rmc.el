@@ -219,8 +219,11 @@ Usage example:
                                     (car elem)))
                             prompt-choices)))
                   (condition-case nil
-                      (let ((cursor-in-echo-area t))
-                        (read-event))
+                      (let ((cursor-in-echo-area t)
+                            (key (read-key)))
+                        (when (eq key ?\C-g)
+                          (signal 'quit nil))
+                        key)
                     (error nil))))
           (if (memq (car-safe tchar) '(touchscreen-begin
                                        touchscreen-end
