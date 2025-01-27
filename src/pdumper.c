@@ -4739,26 +4739,19 @@ dump_anonymous_allocate_w32 (void *base,
 # endif
 
 #ifndef HAVE_MPS
+static int const mem_prot_posix_table[] = {
+  [DUMP_MEMORY_ACCESS_NONE] = PROT_NONE,
+  [DUMP_MEMORY_ACCESS_READ] = PROT_READ,
+  [DUMP_MEMORY_ACCESS_READWRITE] = PROT_READ | PROT_WRITE,
+};
+
 static void *
 dump_anonymous_allocate_posix (void *base,
                                size_t size,
                                enum dump_memory_protection protection)
 {
   void *ret;
-  int mem_prot;
-
-  switch (protection)
-    {
-    case DUMP_MEMORY_ACCESS_NONE:
-      mem_prot = PROT_NONE;
-      break;
-    case DUMP_MEMORY_ACCESS_READ:
-      mem_prot = PROT_READ;
-      break;
-    case DUMP_MEMORY_ACCESS_READWRITE:
-      mem_prot = PROT_READ | PROT_WRITE;
-      break;
-    }
+  int mem_prot = mem_prot_posix_table[protection];
 
   int mem_flags = MAP_PRIVATE | MAP_ANONYMOUS;
   if (mem_prot != PROT_NONE)
@@ -4906,25 +4899,9 @@ dump_map_file_posix (void *base, int fd, off_t offset, size_t size,
 		     enum dump_memory_protection protection)
 {
   void *ret;
-  int mem_prot;
-  int mem_flags;
-
-  switch (protection)
-    {
-    case DUMP_MEMORY_ACCESS_NONE:
-      mem_prot = PROT_NONE;
-      mem_flags = MAP_SHARED;
-      break;
-    case DUMP_MEMORY_ACCESS_READ:
-      mem_prot = PROT_READ;
-      mem_flags = MAP_SHARED;
-      break;
-    case DUMP_MEMORY_ACCESS_READWRITE:
-      mem_prot = PROT_READ | PROT_WRITE;
-      mem_flags = MAP_PRIVATE;
-      break;
-    }
-
+  int mem_prot = mem_prot_posix_table[protection];
+  int mem_flags = (protection == DUMP_MEMORY_ACCESS_READWRITE
+		   ? MAP_PRIVATE : MAP_SHARED);
   if (base)
     mem_flags |= MAP_FIXED;
 
