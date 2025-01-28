@@ -61,7 +61,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    %d means print a 'signed int' argument in decimal.
    %o means print an 'unsigned int' argument in octal.
    %u means print an 'unsigned int' argument in decimal.
-   %x means print an 'unsigned int' argument in hex.
+   %x means print an 'unsigned int' argument in lower-case hex.
+   %X means print an 'unsigned int' argument in upper-case hex.
    %e means print a 'double' argument in exponential notation.
    %f means print a 'double' argument in decimal-point notation.
    %g means print a 'double' argument in exponential notation
@@ -350,7 +351,7 @@ doprnt (char *buffer, ptrdiff_t bufsize, const char *format,
 
 	    case 'o':
 	    case 'u':
-	    case 'x':
+	    case 'x': case 'X':
 	      switch (length_modifier)
 		{
 		case no_modifier:
@@ -446,7 +447,8 @@ doprnt (char *buffer, ptrdiff_t bufsize, const char *format,
 		  while (tem != 0);
 
 		  memcpy (bufptr, string, tem);
-		  bufptr[tem] = 0;
+		  while (tem < bufsize)
+		    bufptr[tem++] = 0;
 		  /* Trigger exit from the loop, but make sure we
 		     return to the caller a value which will indicate
 		     that the buffer was too small.  */
@@ -498,6 +500,7 @@ doprnt (char *buffer, ptrdiff_t bufsize, const char *format,
 	    fmtchar = '\'';
 
 	  *bufptr++ = fmtchar;
+	  bufsize--;
 	  continue;
 	}
       else
@@ -523,7 +526,10 @@ doprnt (char *buffer, ptrdiff_t bufsize, const char *format,
       else
 	{
 	  do
-	    *bufptr++ = *src++;
+	    {
+	      *bufptr++ = *src++;
+	      bufsize--;
+	    }
 	  while (--srclen != 0);
 	}
     }
