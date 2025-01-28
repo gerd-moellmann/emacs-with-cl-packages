@@ -47,16 +47,16 @@ init files, others go a step further :-).
 This is an incremental and generational GC that is based on Ravenbrook
 MPS.
 
-I ported this to the mainline GNU/Emacs (branch scratch/igc on savannah)
-and it wsa developed further there and here. Pip Cet has taken over
-further development at some point because I don't want to maintain this
-(or anything else) in mainline Emacs.
+I ported this to mainline Emacs (branch feature/igc on
+`savannah.gnu.org`) and it was developed further there and here.  At the
+moment the future of this branch is unclear, to say the least. I won't
+maintain it, and it's not clear if someone volunteers to do so.
 
 Works well for me on macOS. I'm using this daily.
 
 ## Child frames on ttys
 
-This has meanwhle landed in master on savannah.
+This has meanwhile landed in master on savannah.
 
 ## DTrace support
 
