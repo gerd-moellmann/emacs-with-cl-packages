@@ -5567,7 +5567,6 @@ static short const scroll_bar_parts[] = {
   SYMBOL_INDEX (Qrightmost), SYMBOL_INDEX (Qend_scroll), SYMBOL_INDEX (Qratio)
 };
 
-#ifdef HAVE_WINDOW_SYSTEM
 /* An array of symbol indexes of internal border parts, indexed by an enum
    internal_border_part value.  Note that Qnil corresponds to
    internal_border_part_none and should not appear in Lisp events.  */
@@ -5578,7 +5577,6 @@ static short const internal_border_parts[] = {
   SYMBOL_INDEX (Qbottom_right_corner), SYMBOL_INDEX (Qbottom_edge),
   SYMBOL_INDEX (Qbottom_left_corner)
 };
-#endif
 
 /* A vector, indexed by button number, giving the down-going location
    of currently depressed buttons, both scroll bar and non-scroll bar.
@@ -5894,9 +5892,7 @@ make_lispy_position (struct frame *f, Lisp_Object x, Lisp_Object y,
       xret = mx;
       yret = my;
 
-#ifdef HAVE_WINDOW_SYSTEM
-      if (FRAME_WINDOW_P (f)
-	  && FRAME_LIVE_P (f)
+      if (FRAME_LIVE_P (f)
 	  && NILP (posn)
 	  && FRAME_INTERNAL_BORDER_WIDTH (f) > 0
 	  && !NILP (get_frame_param (f, Qdrag_internal_border)))
@@ -5906,7 +5902,6 @@ make_lispy_position (struct frame *f, Lisp_Object x, Lisp_Object y,
 
 	  posn = builtin_lisp_symbol (internal_border_parts[part]);
 	}
-#endif
     }
   else
     {

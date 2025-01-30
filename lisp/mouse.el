@@ -1106,7 +1106,10 @@ frame with the mouse."
 	 (drag-bottom (memq part '(bottom-right bottom bottom-left)))
 	 ;; Initial "first" mouse position.  While dragging we base all
 	 ;; calculations against that position.
-	 (first-x-y (mouse-absolute-pixel-position))
+	 (tty (tty-type frame))
+	 (first-x-y (if tty
+			(mouse-position-in-root-frame)
+		      (mouse-absolute-pixel-position)))
          (first-x (car first-x-y))
          (first-y (cdr first-x-y))
          (exitfun nil)
@@ -1114,7 +1117,9 @@ frame with the mouse."
           (lambda (event)
             (interactive "e")
             (when (consp event)
-              (let* ((last-x-y (mouse-absolute-pixel-position))
+              (let* ((last-x-y (if tty
+				   (mouse-position-in-root-frame)
+				 (mouse-absolute-pixel-position)))
 		     (last-x (car last-x-y))
 		     (last-y (cdr last-x-y))
 		     (left (- last-x first-x))
@@ -1223,10 +1228,13 @@ frame with the mouse."
          (parent-bottom (and parent-edges (nth 3 parent-edges)))
 	 ;; Initial "first" mouse position.  While dragging we base all
 	 ;; calculations against that position.
-	 (first-x-y (mouse-absolute-pixel-position))
-         (first-x (car first-x-y))
-         (first-y (cdr first-x-y))
-         ;; `snap-width' (maybe also a yet to be provided `snap-height')
+	 (tty (tty-type frame))
+	 (first-x-y (if tty
+			(mouse-position-in-root-frame)
+		      (mouse-absolute-pixel-position)))
+	 (first-x (car first-x-y))
+	 (first-y (cdr first-x-y))
+	 ;; `snap-width' (maybe also a yet to be provided `snap-height')
          ;; could become floats to handle proportionality wrt PARENT.
          ;; We don't do any checks on this parameter so far.
          (snap-width (frame-parameter frame 'snap-width))
@@ -1242,7 +1250,9 @@ frame with the mouse."
           (lambda (event)
             (interactive "e")
             (when (consp event)
-              (let* ((last-x-y (mouse-absolute-pixel-position))
+              (let* ((last-x-y (if tty
+				   (mouse-position-in-root-frame)
+				 (mouse-absolute-pixel-position)))
 		     (last-x (car last-x-y))
 		     (last-y (cdr last-x-y))
 		     (left (- last-x first-x))
@@ -1373,7 +1383,8 @@ frame with the mouse."
                                    (- parent-bottom native-height))
                             (min (max top parent-top)
                                  (- parent-bottom par))))))
-                ;; Use `modify-frame-parameters' since `left' and `top'
+
+		;; Use `modify-frame-parameters' since `left' and `top'
                 ;; may want to move FRAME out of its PARENT.
                 (modify-frame-parameters frame `((left . (+ ,left)) (top . (+ ,top))))))))
 	 (old-track-mouse track-mouse))
