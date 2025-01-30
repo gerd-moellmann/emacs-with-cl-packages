@@ -2859,7 +2859,7 @@ The functions are run with one argument, the frame to be deleted.  */)
   return delete_frame (frame, !NILP (force) ? Qt : Qnil);
 }
 
-#ifdef HAVE_WINDOW_SYSTEM
+
 /**
  * frame_internal_border_part:
  *
@@ -2951,7 +2951,7 @@ frame_internal_border_part (struct frame *f, int x, int y)
 
   return part;
 }
-#endif
+
 
 /* Return mouse position in character cell units.  */
 
