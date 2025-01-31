@@ -6135,6 +6135,9 @@ void igc_xfree (void *p);
       }								 \
   } while (false)
 
+#endif
+
+#ifdef HAVE_MPS
 /* Temporarily avoid bug#75754.  The code above is painstakingly written
    to avoid statement expressions; no easy way to do that in this case,
    unfortunately.
@@ -6142,10 +6145,9 @@ void igc_xfree (void *p);
    FIXME/igc: find a permanent fix for these bugs.  */
 #undef SAFE_ALLOCA
 #define SAFE_ALLOCA(size)				\
-  ({ void *buf;						\
+  ({ char *buf;						\
      SAFE_NALLOCA (buf, size, 1);			\
-     buf; })
-
+     (void *)buf; })
 #endif
 
 /* SAFE_ALLOCA_STRING allocates a C copy of a Lisp string.  */
