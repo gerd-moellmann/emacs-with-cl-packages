@@ -21,7 +21,6 @@ etc., so I'd say it's pretty backwards compatible.
 
 * Documentation
 * Tests
-* Support for purespace
 * Support for symbol shortcuts
 
 ## Common Lisp packages
@@ -62,4 +61,4 @@ This has meanwhile landed in master on savannah.
 
 My Emacs is now beginning to be a DTrace USDT provider. Configure
 `--with-dtrace=no` to disable it. This is only tested on
-macOS. Development is ongoing.
+macOS. Development is ongoing in slow pace.
