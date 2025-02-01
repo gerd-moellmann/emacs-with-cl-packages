@@ -1,6 +1,6 @@
 /* Fundamental definitions for GNU Emacs Lisp interpreter. -*- coding: utf-8 -*-
 
-Copyright (C) 2024 Free Software Foundation, Inc.
+Copyright (C) 2024-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -23,7 +23,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "config.h"
 #include "lisp.h"
 
-/* This needs to be defined even if not HAVE_MPS. */
 enum igc_obj_type
 {
   IGC_OBJ_INVALID,

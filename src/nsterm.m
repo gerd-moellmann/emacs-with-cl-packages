@@ -8069,10 +8069,6 @@ ns_in_echo_area (void)
 #else
   emacsframe = xzalloc (sizeof *emacsframe);
 #endif
-#ifdef NS_IMPL_COCOA
-  if (NSAppKitVersionNumber >= NSAppKitVersionNumber14_0)
-    self.clipsToBounds = YES;
-#endif
   windowClosing = NO;
   processingCompose = NO;
   scrollbarsNeedingUpdate = 0;
@@ -8323,7 +8319,7 @@ ns_in_echo_area (void)
     return;
 
   SET_FRAME_ICONIFIED (*emacsframe, 0);
-  SET_FRAME_VISIBLE (*emacsframe, true);
+  SET_FRAME_VISIBLE (*emacsframe, 1);
   windows_or_buffers_changed = 63;
 
   if (emacs_event)
@@ -8340,7 +8336,7 @@ ns_in_echo_area (void)
   if (!(*emacsframe)->output_data.ns)
     return;
 
-  SET_FRAME_VISIBLE (*emacsframe, true);
+  SET_FRAME_VISIBLE (*emacsframe, 1);
   SET_FRAME_GARBAGED (*emacsframe);
 
   if (send_appdefined)
@@ -8355,7 +8351,7 @@ ns_in_echo_area (void)
     return;
 
   SET_FRAME_ICONIFIED (*emacsframe, 1);
-  SET_FRAME_VISIBLE (*emacsframe, false);
+  SET_FRAME_VISIBLE (*emacsframe, 0);
 
   if (emacs_event)
     {

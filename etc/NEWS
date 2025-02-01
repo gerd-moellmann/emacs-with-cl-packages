@@ -24,6 +24,11 @@ applies, and please also update docstrings as needed.
 
 * Installation Changes in Emacs 31.1
 
++++
+** Unexec dumper removed.
+The traditional unexec dumper, deprecated since Emacs 27, has been
+removed.
+
 ** Changed GCC default options on 32-bit x86 systems.
 When using GCC 4 or later to build Emacs on 32-bit x86 systems,
 'configure' now defaults to using the GCC options '-mfpmath=sse' (if the
@@ -237,6 +242,31 @@ latter throws an error when the argument FRAME cannot be deleted.
 ---
 *** New abnormal hook 'tab-bar-auto-width-functions'.
 This hook allows you to control which tab-bar tabs are auto-resized.
+
+---
+*** New abnormal hook 'tab-bar-post-undo-close-tab-functions'.
+This hook allows you to operate on a reopened tab.
+
+This is useful when you define custom tab parameters that may need
+adjustment when a tab is restored, and avoids advice.
+
+---
+*** New user option 'tab-bar-define-keys'.
+This controls which key bindings tab-bar creates.  Values are t, the
+default, which defines all keys and is backwards compatible, 'numeric'
+(tab number selection only), 'tab' (TAB and SHIFT-TAB keys only), nil
+(which defines none).
+
+This is useful to avoid key binding conflicts, such as when folding in
+outline mode using TAB keys, or when a user wants to define her own
+tab-bar keys without first having to remove the defaults.
+
+---
+*** New variable 'tab-bar-format-tab-help-text-function'.
+This variable may be overridden with a user-provided function to
+customize help text for tabs displayed on the tab-bar.  Help text is
+normally shown in the echo area or via tooltips.  See the variable's
+docstring for arguments passed to a help-text function.
 
 ** Project
 
@@ -1037,6 +1067,9 @@ Optional arguments are provided to produce human-readable time-duration
 strings in a variety of formats, for example "6 months 3 weeks" or "5m
 52.5s".
 
++++
+** The function 'purecopy' is now an obsolete alias for 'identity'.
+
 ** New function 'native-compile-directory'.
 This function natively-compiles all Lisp files in a directory and in its
 sub-directories, recursively, which were not already natively-compiled.
@@ -1140,6 +1173,14 @@ at point to explore.
 +++
 *** New variable 'treesit-aggregated-simple-imenu-settings'
 This variable allows major modes to setup Imenu for multiple languages.
+
+*** New function 'treesit-add-simple-indent-rules'
+This new function makes it easier to customize indent rules for
+tree-sitter modes.
+
+*** New variable 'treesit-simple-indent-override-rules'
+Users can customize this variable to add simple custom indentation rules
+for tree-sitter major modes.
 
 +++
 ** New optional BUFFER argument for 'string-pixel-width'.

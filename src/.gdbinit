@@ -51,6 +51,15 @@ if defined_HAVE_PGTK
   handle SIGPIPE nostop noprint
 end
 
+# Pass on signals used by MPS to suspend threads.
+if defined_HAVE_MPS
+  # Print SIGSEGV for now, since it makes the logs more useful.  Don't
+  # stop, though.
+  handle SIGSEGV nostop print pass
+  handle SIGXFSZ nostop noprint pass
+  handle SIGXCPU nostop noprint pass
+end
+
 # Use $bugfix so that the value isn't a constant.
 # Using a constant runs into GDB bugs sometimes.
 define xgetptr

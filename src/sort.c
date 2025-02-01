@@ -34,6 +34,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "igc.h"
 
+
 /* Reverse a slice of a vector in place, from lo up to (exclusive) hi. */
 static void
 reverse_slice (Lisp_Object *lo, Lisp_Object *hi)
@@ -543,7 +544,7 @@ merge_markmem (void *arg)
       eassume (src != NULL);
       mark_objects (src, *ms->reloc.size);
     }
-#endif // not HAVE_MPS
+#endif
 }
 
 /* Free all temp storage.  If an exception occurs while merging,
@@ -1134,9 +1135,11 @@ tim_sort (Lisp_Object predicate, Lisp_Object keyfunc,
 	  /* Fill with valid Lisp values in case a GC occurs before all
 	     keys have been computed.  */
 	  static_assert (NIL_IS_ZERO);
-	  allocated_keys = xzalloc (length * word_size);
+#ifdef HAVE_MPS
+	  keys = allocated_keys = igc_xzalloc_ambig (length * word_size);
+#else
+	  keys = allocated_keys = xzalloc (length * word_size);
 #endif
-	  keys = allocated_keys;
 	}
 
       for (ptrdiff_t i = 0; i < length; i++)

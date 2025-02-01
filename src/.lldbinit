@@ -38,9 +38,14 @@ command alias xreload command script import emacs_lldb
 # and other output to stderr.
 command alias xattach process attach --waitfor --name emacs --continue
 
-# For tty Emacs
-process handle SIGWINCH --pass true --stop false --notify false
-process handle SIGINT --pass true --stop false --notify false
+# b xsignal
+b pkg_break
+#b pkg_error
+#b Fpkg_read
+b igc_break
+b malloc_error_break
+# When an assertion in MPS fails
+b mps_lib_assert_fail
 
 # MPS telemetry level (default output file mpsio.log)
 #env MPS_TELEMETRY_CONTROL=all

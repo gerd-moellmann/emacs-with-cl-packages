@@ -899,7 +899,7 @@ qttip_cb (GtkWidget  *widget,
 			     G_CALLBACK (hierarchy_ch_cb),
 			     glib_user_data (f),
 			     free_glib_user_data,
-			     G_CONNECT_DEFAULT);
+			     0);
     }
 
   return FALSE;
@@ -1572,7 +1572,7 @@ xg_create_frame_widgets (struct frame *f)
 			 G_CALLBACK (xg_widget_style_updated),
 			 glib_user_data (f),
 			 free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
 #endif
 
   /* gtk_window_set_has_resize_grip is a Gtk+ 3.0 function but Ubuntu
@@ -1665,7 +1665,7 @@ xg_create_frame_widgets (struct frame *f)
 			 G_CALLBACK (delete_cb),
 			 glib_user_data (f),
 			 free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
 #endif
 
   /* Convert our geometry parameters into a geometry string
@@ -1755,7 +1755,7 @@ xg_create_frame_widgets (struct frame *f)
   gtk_widget_set_tooltip_text (wtop, "Dummy text");
   g_signal_connect_data (wtop, "query-tooltip", G_CALLBACK (qttip_cb),
 			 glib_user_data (f), free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
 
   imc = gtk_im_multicontext_new ();
   gtk_im_context_set_use_preedit (imc, TRUE);
@@ -1763,7 +1763,7 @@ xg_create_frame_widgets (struct frame *f)
   g_signal_connect_data (G_OBJECT (imc), "commit",
 			 G_CALLBACK (xg_im_context_commit),
 			 glib_user_data (f), free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
   g_signal_connect (G_OBJECT (imc), "preedit-changed",
 		    G_CALLBACK (xg_im_context_preedit_changed), NULL);
   g_signal_connect (G_OBJECT (imc), "preedit-end",
@@ -1876,7 +1876,7 @@ xg_create_frame_outer_widgets (struct frame *f)
   gtk_widget_set_tooltip_text (wtop, "Dummy text");
   g_signal_connect_data (wtop, "query-tooltip", G_CALLBACK (qttip_cb),
 			 glib_user_data (f), free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
 #endif
 
   {
@@ -2410,7 +2410,7 @@ create_dialog (widget_value *wv,
 				   select_cb,
 				   glib_user_data (item->call_data),
 				   free_glib_user_data,
-				   G_CONNECT_DEFAULT);
+				   0);
 
           gtk_box_pack_start (cur_box, w, TRUE, TRUE, button_spacing);
           if (++button_nr == left_buttons)
@@ -3340,7 +3340,7 @@ xg_create_one_menuitem (widget_value *item,
 			 G_CALLBACK (menuitem_destroy_callback),
 			 glib_user_data (cb_data),
 			 free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
 
   /* Put cb_data in widget, so we can get at it when modifying menubar  */
   g_object_set_data (G_OBJECT (w), XG_ITEM_DATA, cb_data);
@@ -3353,7 +3353,7 @@ xg_create_one_menuitem (widget_value *item,
           = g_signal_connect_data (G_OBJECT (w), "activate", select_cb,
 				   glib_user_data (cb_data),
 				   free_glib_user_data,
-				   G_CONNECT_DEFAULT);
+				   0);
     }
 
   return w;
@@ -3444,7 +3444,7 @@ create_menus (widget_value *data,
 	  g_signal_connect_data (G_OBJECT (wmenu), "button-press-event",
 			    G_CALLBACK (menu_bar_button_pressed_cb),
 			    glib_user_data (f), free_glib_user_data,
-			    G_CONNECT_DEFAULT);
+			    0);
 #endif
           /* Set width of menu bar to a small value so it doesn't enlarge
              a small initial frame size.  The width will be set to the
@@ -3459,7 +3459,7 @@ create_menus (widget_value *data,
       g_signal_connect_data (G_OBJECT (wmenu), "destroy",
 			     G_CALLBACK (menu_destroy_callback),
 			     glib_user_data (cl_data), free_glib_user_data,
-			     G_CONNECT_DEFAULT);
+			     0);
 
       if (name)
         gtk_widget_set_name (wmenu, name);
@@ -3935,7 +3935,7 @@ xg_update_menu_item (widget_value *val,
 				       select_cb,
 				       glib_user_data (cb_data),
 				       free_glib_user_data,
-				       G_CONNECT_DEFAULT);
+				       0);
         }
       else if (cb_data->select_id)
         {
@@ -4215,7 +4215,7 @@ xg_update_frame_menubar (struct frame *f)
 
   g_signal_connect_data (x->menubar_widget, "map", G_CALLBACK (menubar_map_cb),
 			 glib_user_data (f), free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
   gtk_widget_show_all (x->menubar_widget);
   gtk_widget_get_preferred_size (x->menubar_widget, NULL, &req);
   req.height *= scale;
@@ -5321,7 +5321,7 @@ xg_print_frames_dialog (Lisp_Object frames)
   Lisp_Object *frames_ptr = &frames;
   g_signal_connect_data (print, "draw-page", G_CALLBACK (draw_page),
 			 glib_user_data (frames_ptr), free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
   res = gtk_print_operation_run (print, GTK_PRINT_OPERATION_ACTION_PRINT_DIALOG,
                                  NULL, NULL);
   if (res == GTK_PRINT_OPERATION_RESULT_APPLY)
@@ -5599,7 +5599,7 @@ xg_create_tool_bar (struct frame *f)
   g_signal_connect_data (x->toolbar_widget, "size-allocate",
 			 G_CALLBACK (tb_size_cb),
 			 glib_user_data (f), free_glib_user_data,
-			 G_CONNECT_DEFAULT);
+			 0);
 #ifdef HAVE_GTK3
   gsty = gtk_widget_get_style_context (x->toolbar_widget);
   gtk_style_context_add_class (gsty, "primary-toolbar");

@@ -230,8 +230,6 @@ enum
    EMACS_RELOC_LENGTH_BITS = DUMP_OFF_WIDTH - EMACS_RELOC_TYPE_BITS
   };
 
-static_assert (RELOC_EMACS_EMACS_LV <= (1 << EMACS_RELOC_TYPE_BITS));
-
 struct emacs_reloc
 {
   ENUM_BF (emacs_reloc_type) type : EMACS_RELOC_TYPE_BITS;
@@ -457,9 +455,7 @@ enum cold_op
     COLD_OP_CHARSET,
     COLD_OP_BUFFER,
     COLD_OP_BIGNUM,
-#ifdef HAVE_NATIVE_COMP
     COLD_OP_NATIVE_SUBR,
-#endif
   };
 
 /* This structure controls what operations we perform inside
@@ -700,8 +696,8 @@ static Lisp_Object
 dump_ptr_referrer (const char *label, void const *address)
 {
   char buf[128];
-  if (sizeof buf <= snprintf (buf, sizeof buf, "%s @ %p", label, address))
-    strcpy (buf + sizeof buf - 4, "...");
+  buf[0] = '\0';
+  sprintf (buf, "%s @ %p", label, address);
   return build_string (buf);
 }
 
@@ -2529,11 +2525,12 @@ dump_symbol (struct dump_context *ctx,
   struct Lisp_Symbol *symbol = XSYMBOL (object);
   struct Lisp_Symbol out;
   dump_object_start (ctx, symbol, IGC_OBJ_SYMBOL, &out, sizeof (out));
+#ifndef HAVE_MPS
   eassert (symbol->u.s.gcmarkbit == 0);
+#endif
   DUMP_FIELD_COPY (&out, symbol, u.s.redirect);
   DUMP_FIELD_COPY (&out, symbol, u.s.trapped_write);
   DUMP_FIELD_COPY (&out, symbol, u.s.declared_special);
-  DUMP_FIELD_COPY (&out, symbol, u.s.pinned);
   dump_field_lv (ctx, &out, symbol, &symbol->u.s.name, WEIGHT_STRONG);
   switch (symbol->u.s.redirect)
     {
@@ -2552,6 +2549,8 @@ dump_symbol (struct dump_context *ctx,
     case SYMBOL_FORWARDED:
       dump_field_fwd (ctx, &out, symbol, &symbol->u.s.val.fwd);
       break;
+    default:
+      emacs_abort ();
     }
   dump_field_lv (ctx, &out, symbol, &symbol->u.s.function, WEIGHT_NORMAL);
   dump_field_lv (ctx, &out, symbol, &symbol->u.s.package, WEIGHT_NORMAL);
@@ -2805,7 +2804,6 @@ dump_hash_table (struct dump_context *ctx, Lisp_Object object)
   dump_pseudovector_lisp_fields (ctx, &out->header, &hash->header);
   DUMP_FIELD_COPY (out, hash, count);
   DUMP_FIELD_COPY (out, hash, weakness);
-  DUMP_FIELD_COPY (out, hash, purecopy);
   DUMP_FIELD_COPY (out, hash, mutable);
   DUMP_FIELD_COPY (out, hash, frozen_test);
   if (hash->key)
@@ -2841,6 +2839,13 @@ dump_weak_hash_table (struct dump_context *ctx, Lisp_Object object)
 		 WEIGHT_NORMAL);
   dump_off offset = finish_dump_pvec (ctx, &wh_in->header);
   return offset;
+}
+#endif
+
+static dump_off
+dump_weak_hash_table (struct dump_context *ctx, Lisp_Object object)
+{
+  return dump_hash_vec (ctx, o->buckets, obarray_size (o));
 }
 #endif
 
@@ -3026,14 +3031,15 @@ dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
   DUMP_FIELD_COPY (&out, subr, header.size);
 #ifdef HAVE_NATIVE_COMP
   bool non_primitive = !NILP (subr->native_comp_u);
+#else
+  bool non_primitive = false;
+#endif
   if (non_primitive)
     out.function.a0 = NULL;
   else
-#endif
     dump_field_emacs_ptr (ctx, &out, subr, &subr->function.a0);
   DUMP_FIELD_COPY (&out, subr, min_args);
   DUMP_FIELD_COPY (&out, subr, max_args);
-#ifdef HAVE_NATIVE_COMP
   if (non_primitive)
     {
       dump_field_fixup_later (ctx, &out, subr, &subr->symbol_name);
@@ -3044,7 +3050,6 @@ dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
       dump_field_lv (ctx, &out, subr, &subr->command_modes, WEIGHT_NORMAL);
     }
   else
-#endif
     {
       dump_field_emacs_ptr (ctx, &out, subr, &subr->symbol_name);
       dump_field_emacs_ptr (ctx, &out, subr, &subr->intspec.string);
@@ -3061,14 +3066,12 @@ dump_subr (struct dump_context *ctx, const struct Lisp_Subr *subr)
   dump_field_lv (ctx, &out, subr, &subr->type, WEIGHT_NORMAL);
 #endif
   dump_off subr_off = dump_object_finish (ctx, &out, sizeof (out));
-#ifdef HAVE_NATIVE_COMP
   if (non_primitive && ctx->flags.dump_object_contents)
     /* We'll do the final addr relocation during VERY_LATE_RELOCS time
        after the compilation units has been loaded. */
     dump_push (&ctx->dump_relocs[VERY_LATE_RELOCS],
 	       list2 (make_fixnum (RELOC_NATIVE_SUBR),
 		      dump_off_to_lisp (subr_off)));
-#endif
   return subr_off;
 }
 
@@ -3202,10 +3205,8 @@ dump_vectorlike (struct dump_context *ctx,
     case PVEC_TS_NODE:
       break;
     }
-  int iptype = ptype;
-  static char const fmt[] = "pseudovector type %d";
-  char msg[sizeof fmt - sizeof "%d" + INT_STRLEN_BOUND (iptype) + 1];
-  sprintf (msg, fmt, iptype);
+  char msg[60];
+  snprintf (msg, sizeof msg, "pseudovector type %d", (int) ptype);
   error_unsupported_dump_object (ctx, lv, msg);
 }
 
@@ -3733,6 +3734,8 @@ dump_drain_cold_data (struct dump_context *ctx)
 	  dump_cold_native_subr (ctx, data);
 	  break;
 #endif
+        default:
+          emacs_abort ();
         }
     }
 
@@ -4152,7 +4155,7 @@ dump_do_fixup (struct dump_context *ctx,
   Lisp_Object arg = dump_pop (&fixup);
   eassert (NILP (fixup));
   dump_seek (ctx, dump_fixup_offset);
-  intptr_t dump_value UNINIT;
+  intptr_t dump_value;
   bool do_write = true;
   switch (type)
     {
@@ -4219,6 +4222,8 @@ dump_do_fixup (struct dump_context *ctx,
         do_write = false;
         break;
       }
+    default:
+      emacs_abort ();
     }
   if (do_write)
     dump_write (ctx, &dump_value, sizeof (dump_value));
@@ -4296,12 +4301,6 @@ types.  */)
            "contributing a patch to Emacs.");
 #endif
 
-  if (will_dump_with_unexec_p ())
-    error ("This Emacs instance was started under the assumption "
-           "that it would be dumped with unexec, not the portable "
-           "dumper.  Dumping with the portable dumper may produce "
-           "unexpected results.");
-
   if (!main_thread_p (current_thread))
     error ("This function can be called only in the main thread");
 
@@ -4311,10 +4310,6 @@ types.  */)
 #ifdef HAVE_NATIVE_COMP
   calln (intern_c_string ("load--fixup-all-elns"));
 #endif
-
-#ifndef HAVE_MPS
-  check_pure_size ();
-# endif
 
 # ifndef HAVE_MPS
   /* I don't think this can be guaranteed to work with MPS.
@@ -4695,7 +4690,7 @@ enum dump_memory_protection
   DUMP_MEMORY_ACCESS_READWRITE = 3,
 };
 
-#if VM_SUPPORTED == VM_MS_WINDOWS
+#if VM_SUPPORTED == VM_MS_WINDOWS && !defined HAVE_MPS
 static void *
 dump_anonymous_allocate_w32 (void *base,
                              size_t size,
@@ -4719,6 +4714,8 @@ dump_anonymous_allocate_w32 (void *base,
       mem_type = MEM_COMMIT;
       mem_prot = PAGE_READWRITE;
       break;
+    default:
+      emacs_abort ();
     }
 
   ret = VirtualAlloc (base, size, mem_type, mem_prot);
@@ -4739,19 +4736,28 @@ dump_anonymous_allocate_w32 (void *base,
 # endif
 
 #ifndef HAVE_MPS
-static int const mem_prot_posix_table[] = {
-  [DUMP_MEMORY_ACCESS_NONE] = PROT_NONE,
-  [DUMP_MEMORY_ACCESS_READ] = PROT_READ,
-  [DUMP_MEMORY_ACCESS_READWRITE] = PROT_READ | PROT_WRITE,
-};
-
 static void *
 dump_anonymous_allocate_posix (void *base,
                                size_t size,
                                enum dump_memory_protection protection)
 {
   void *ret;
-  int mem_prot = mem_prot_posix_table[protection];
+  int mem_prot;
+
+  switch (protection)
+    {
+    case DUMP_MEMORY_ACCESS_NONE:
+      mem_prot = PROT_NONE;
+      break;
+    case DUMP_MEMORY_ACCESS_READ:
+      mem_prot = PROT_READ;
+      break;
+    case DUMP_MEMORY_ACCESS_READWRITE:
+      mem_prot = PROT_READ | PROT_WRITE;
+      break;
+    default:
+      emacs_abort ();
+    }
 
   int mem_flags = MAP_PRIVATE | MAP_ANONYMOUS;
   if (mem_prot != PROT_NONE)
@@ -4821,7 +4827,7 @@ dump_anonymous_release (void *addr, size_t size)
 
 #endif /* no HAVE_MPS */
 
-#if VM_SUPPORTED == VM_MS_WINDOWS
+#if VM_SUPPORTED == VM_MS_WINDOWS && !defined HAVE_MPS
 static void *
 dump_map_file_w32 (void *base, int fd, off_t offset, size_t size,
 		   enum dump_memory_protection protection)
@@ -4847,6 +4853,7 @@ dump_map_file_w32 (void *base, int fd, off_t offset, size_t size,
     case DUMP_MEMORY_ACCESS_READWRITE:
       protect = PAGE_WRITECOPY;	/* for Windows 9X */
       break;
+    default:
     case DUMP_MEMORY_ACCESS_NONE:
     case DUMP_MEMORY_ACCESS_READ:
       protect = PAGE_READONLY;
@@ -4874,6 +4881,8 @@ dump_map_file_w32 (void *base, int fd, off_t offset, size_t size,
     case DUMP_MEMORY_ACCESS_READWRITE:
       map_access = FILE_MAP_COPY;
       break;
+    default:
+      emacs_abort ();
     }
 
   ret = MapViewOfFileEx (section,
@@ -4899,9 +4908,27 @@ dump_map_file_posix (void *base, int fd, off_t offset, size_t size,
 		     enum dump_memory_protection protection)
 {
   void *ret;
-  int mem_prot = mem_prot_posix_table[protection];
-  int mem_flags = (protection == DUMP_MEMORY_ACCESS_READWRITE
-		   ? MAP_PRIVATE : MAP_SHARED);
+  int mem_prot;
+  int mem_flags;
+
+  switch (protection)
+    {
+    case DUMP_MEMORY_ACCESS_NONE:
+      mem_prot = PROT_NONE;
+      mem_flags = MAP_SHARED;
+      break;
+    case DUMP_MEMORY_ACCESS_READ:
+      mem_prot = PROT_READ;
+      mem_flags = MAP_SHARED;
+      break;
+    case DUMP_MEMORY_ACCESS_READWRITE:
+      mem_prot = PROT_READ | PROT_WRITE;
+      mem_flags = MAP_PRIVATE;
+      break;
+    default:
+      emacs_abort ();
+    }
+
   if (base)
     mem_flags |= MAP_FIXED;
 
@@ -4973,12 +5000,15 @@ struct dump_memory_map
 void
 dump_discard_mem (void *mem, size_t size)
 {
+      int err = 0;
 #if VM_SUPPORTED == VM_MS_WINDOWS
       /* Discard COWed pages.  */
-      (void) VirtualFree (mem, size, MEM_DECOMMIT);
+      err = (VirtualFree (mem, size, MEM_DECOMMIT) == 0);
+      if (err)
+	emacs_abort ();
       /* Release the commit charge for the mapping.  */
       DWORD old_prot;
-      (void) VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot);
+      err = (VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot) == 0);
 #elif VM_SUPPORTED == VM_POSIX
       int err = 0;
 # ifdef HAVE_POSIX_MADVISE
@@ -4991,9 +5021,9 @@ dump_discard_mem (void *mem, size_t size)
 	emacs_abort ();
       /* Release the commit charge for the mapping.  */
       err = mprotect (mem, size, PROT_NONE);
+#endif
       if (err)
 	emacs_abort ();
-#endif
 }
 
 static void
@@ -5255,7 +5285,7 @@ dump_mmap_contiguous_vm (struct dump_memory_map *maps, int nr_maps,
 	}
     }
   return ret;
- }
+}
 #endif
 
 /* Map a range of addresses into a chunk of contiguous memory.
@@ -5767,13 +5797,13 @@ dump_do_dump_relocation (const uintptr_t dump_base,
 	if (!NILP (lambda_data_idx))
 	  {
 	    /* This is an anonymous lambda.
-	       We must fixup d_reloc_imp so the lambda can be referenced
+	       We must fixup d_reloc so the lambda can be referenced
 	       by code.  */
 	    Lisp_Object tem;
 	    XSETSUBR (tem, subr);
 	    Lisp_Object *fixup =
-	      &(comp_u->data_imp_relocs[XFIXNUM (lambda_data_idx)]);
-	    eassert (EQ (*fixup, Qlambda_fixup));
+	      &(comp_u->data_relocs[XFIXNUM (lambda_data_idx)]);
+	    eassert (EQ (*fixup, Q__lambda_fixup));
 	    *fixup = tem;
 	    Fputhash (tem, Qt, comp_u->lambda_gc_guard_h);
 	  }
@@ -5870,6 +5900,8 @@ dump_do_emacs_relocation (const uintptr_t dump_base,
         memcpy (emacs_ptr_at (reloc.emacs_offset), &lv, sizeof (lv));
         break;
       }
+    default:
+      fatal ("unrecognied relocation type %d", (int) reloc.type);
     }
 }
 

@@ -2330,19 +2330,15 @@ free_image_cache (struct frame *f)
   /* Cache should not be referenced by any frame when freed.  */
   eassert (c->refcount == 0);
 
-  if (c)
-    {
-      for (i = 0; i < c->used; ++i)
-	free_image (f, c->images[i]);
-      xfree (c->images);
-      c->images = NULL;
-      xfree (c->buckets);
-      c->buckets = NULL;
+  for (i = 0; i < c->used; ++i)
+    free_image (f, c->images[i]);
+  xfree (c->images);
+  c->images = NULL;
+  xfree (c->buckets);
+  c->buckets = NULL;
 #ifndef HAVE_MPS
-      xfree (c);
+  xfree (c);
 #endif
-      FRAME_IMAGE_CACHE (f) = NULL;
-    }
 }
 
 /* Clear image cache of frame F.  FILTER=t means free all images.
@@ -6249,7 +6245,7 @@ xpm_make_color_table_h (void (**put_func) (Lisp_Object, const char *, int,
 {
   *put_func = xpm_put_color_table_h;
   *get_func = xpm_get_color_table_h;
-  return make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE, Weak_None, false);
+  return make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE, Weak_None);
 }
 
 static void

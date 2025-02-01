@@ -1402,9 +1402,11 @@ pp_stack_push_values (Lisp_Object vectorlike, ptrdiff_t start, ptrdiff_t n)
     return;
   if (ppstack.sp >= ppstack.size)
     grow_pp_stack ();
-  ppstack.stack[ppstack.sp++] = (struct print_pp_entry){
-    .start = start, .n = n, .u.vectorlike = vectorlike
-  };
+  ppstack.stack[ppstack.sp++]
+    = (struct print_pp_entry){.start = start,
+			      .n = n,
+			      .u.vectorlike = vectorlike
+			     };
   ppstack.stack[ppstack.sp - 1].is_free = false;
 }
 #else
@@ -2350,6 +2352,16 @@ print_stack_push (struct print_stack_entry e)
 }
 
 static void
+print_stack_pop (void)
+{
+  --prstack.sp;
+  --print_depth;
+#ifdef HAVE_MPS
+  prstack.stack[prstack.sp].type = PE_free;
+#endif
+}
+
+static void
 print_stack_push_vector (const char *lbrac, const char *rbrac,
 			 Lisp_Object obj, ptrdiff_t start, ptrdiff_t size,
 			 Lisp_Object printcharfun)
@@ -2827,9 +2839,6 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 			      printcharfun, escapeflag);
 	      }
 
-	    if (h->purecopy)
-	      print_c_string (" purecopy t", printcharfun);
-
 	  hash_table_data:
 	    if (h->count > 0)
 	      {
@@ -3280,6 +3289,7 @@ be printed.  */);
   staticpro (&Vprint_variable_mapping);
 
 #ifdef HAVE_MPS
+  /* FIXME/igc: Make it a Lisp vector and staticpro. */
   igc_root_create_exact (being_printed,
 			 being_printed + ARRAYELTS (being_printed));
 #endif

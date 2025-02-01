@@ -204,7 +204,7 @@ buf_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
 
   DO_MARKERS (b, tail)
     {
-      /* If we are down to a range of DIStANCE chars,
+      /* If we are down to a range of DISTANCE chars,
 	 don't bother checking any other markers;
 	 scan the intervening chars directly now.  */
       if (best_above - charpos < distance

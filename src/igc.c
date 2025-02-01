@@ -1,5 +1,5 @@
-/* Incremental, generational, concurrent GC using MPS.
-   Copyright (C) 2024 Free Software Foundation, Inc.
+/* Incremental and generational GC using MPS.
+   Copyright (C) 2024-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -59,7 +59,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "termhooks.h"
 #include "thread.h"
 #include "treesit.h"
-#include "puresize.h"
 #include "termchar.h"
 #ifdef HAVE_WINDOW_SYSTEM
 #include TERM_HEADER
@@ -116,7 +115,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_handler_18D8F45D0F
 #  error "struct handler changed"
 # endif
-# ifndef HASH_Lisp_Symbol_A86BC84666
+# ifndef HASH_Lisp_Symbol_78773EECA2
 #  error "struct Lisp_Symbol changed"
 # endif
 # ifndef HASH_symbol_redirect_EA72E4BFF5
@@ -125,7 +124,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_vectorlike_header_AF1B22D957
 #  error "struct vectorlike_header changed"
 # endif
-# ifndef HASH_Lisp_Hash_Table_18BE341ECB
+# ifndef HASH_Lisp_Hash_Table_C3E7F39721
 #  error "struct Lisp_Hash_Table changed"
 # endif
 # ifndef HASH_Lisp_Weak_Hash_Table_7C5D3EDAD7
@@ -146,7 +145,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_glyph_matrix_559A8DDA89
 #  error "struct glyph_matrix changed"
 # endif
-# ifndef HASH_frame_2DF695D4B8
+# ifndef HASH_frame_BE1A77FEF4
 #  error "struct frame changed"
 # endif
 # ifndef HASH_window_AAD29CF361
@@ -179,7 +178,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_Lisp_Native_Comp_Unit_7DF63698B3
 #  error "struct Lisp_Native_Comp_Unit changed"
 # endif
-# ifndef HASH_pvec_type_9A5F4E1904
+# ifndef HASH_pvec_type_1C9DBCD69F
 #  error "enum pvec_type changed"
 # endif
 # ifndef HASH_Lisp_Type_45F0582FD7
@@ -203,15 +202,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_face_cache_C289FB8D72
 #  error "struct face_cache changed"
 # endif
-# ifndef IN_MY_FORK
-#  ifndef HASH_Lisp_Obarray_29CFFD1B74
-#   error "struct Lisp_Obarray changed"
-#  endif
-# else
-#  ifndef HASH_Lisp_Package_3D19D7002D
-#   error "struct Lisp_Package changed"
-#  endif
-#endif
+# ifndef HASH_Lisp_Obarray_29CFFD1B74
+#  error "struct Lisp_Obarray changed"
+# endif
 # ifndef HASH_module_global_reference_85FFC23A88
 #  error "struct module_global_reference changed"
 # endif
@@ -362,11 +355,7 @@ enum
 static bool
 is_pure (const mps_addr_t addr)
 {
-#ifdef IN_MY_FORK
   return false;
-#else
-  return PURE_P (addr);
-#endif
 }
 
 static enum pvec_type
@@ -1652,22 +1641,6 @@ scan_ambig (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-#ifndef IN_MY_FORK
-static mps_res_t
-scan_pure (mps_ss_t ss, void *start, void *end, void *closure)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    igc_assert (start == (void *) pure);
-    end = (char *) pure + pure_bytes_used_lisp;
-    if (end > start)
-      IGC_FIX_CALL (ss, scan_ambig (ss, start, end, NULL));
-  }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-#endif
-
 static mps_res_t
 scan_bc (mps_ss_t ss, void *start, void *end, void *closure)
 {
@@ -2201,7 +2174,6 @@ fix_glyph_pool (mps_ss_t ss, struct glyph_pool *pool)
     for (ptrdiff_t i = 0; i < pool->nglyphs; ++i)
       {
 	IGC_FIX12_OBJ (ss, &pool->glyphs[i].object);
-	IGC_FIX12_RAW (ss, &pool->glyphs[i].frame);
       }
   }
   MPS_SCAN_END (ss);
@@ -2224,11 +2196,7 @@ fix_glyph_matrix (mps_ss_t ss, struct glyph_matrix *matrix)
 	      struct glyph *glyph = row->glyphs[area];
 	      struct glyph *end_glyph = glyph + row->used[area];
 	      for (; glyph < end_glyph; ++glyph)
-		{
-		  IGC_FIX12_OBJ (ss, &glyph->object);
-		  if (glyph->frame)
-		    IGC_FIX12_RAW (ss, &glyph->frame);
-		}
+		IGC_FIX12_OBJ (ss, &glyph->object);
 	    }
 	}
     IGC_FIX12_PVEC (ss, &matrix->buffer);
@@ -2990,17 +2958,6 @@ root_create_charset_table (struct igc *gc)
 		     "charset-table");
 }
 
-#ifndef IN_MY_FORK
-static void
-root_create_pure (struct igc *gc)
-{
-  char *start = (char *) &pure[0];
-  char *end = start + PURESIZE;
-  root_create (gc, start, end, mps_rank_ambig (), scan_pure, NULL, true,
-	       "pure");
-}
-#endif
-
 static void
 root_create_thread (struct igc_thread_list *t)
 {
@@ -3430,7 +3387,6 @@ finalize_comp_unit (struct Lisp_Native_Comp_Unit *u)
 {
   unload_comp_unit (u);
   u->data_eph_relocs = NULL;
-  u->data_imp_relocs = NULL;
   u->data_relocs = NULL;
   u->comp_unit = NULL;
 }
@@ -4312,12 +4268,12 @@ weak_hash_table_entry (struct Lisp_Weak_Hash_Table_Entry entry)
 
   if (alignment == 0)
     {
-      client = (mps_addr_t)entry.intptr;
+      client = (mps_addr_t)(uintptr_t)entry.intptr;
     }
   else
     {
       EMACS_UINT real_ptr = entry.intptr ^ alignment;
-      client = (mps_addr_t)real_ptr;
+      client = (mps_addr_t)(uintptr_t)real_ptr;
     }
 
   switch (XFIXNUM (entry.fixnum))
@@ -4326,7 +4282,7 @@ weak_hash_table_entry (struct Lisp_Weak_Hash_Table_Entry entry)
       return make_lisp_symbol (client);
     case Lisp_Int0:
     case Lisp_Int1:
-       return make_fixnum ((EMACS_INT)entry.intptr >> 1);
+      return make_fixnum ((EMACS_INT)entry.intptr >> 1);
     default:
       return make_lisp_ptr (client, XFIXNUM (entry.fixnum));
     }
@@ -4778,15 +4734,6 @@ make_igc (void)
   struct igc *gc = xzalloc (sizeof *gc);
   make_arena (gc);
 
-  const char *limit = getenv ("IGC_COMMIT_LIMIT");
-  if (limit)
-    {
-      size_t mb = atol (limit);
-      size_t nbytes = mb * 1024 * 1024;
-      mps_res_t res = mps_arena_commit_limit_set (gc->arena, nbytes);
-      IGC_CHECK_RES (res);
-    }
-
   /* We cannot let the GC run until at least all staticpros haven been
      processed.  Otherwise we might allocate objects that are not
      protected by anything.  */
@@ -4803,9 +4750,6 @@ make_igc (void)
   gc->immovable_fmt = make_dflt_fmt (gc);
   gc->immovable_pool = make_pool_ams (gc, gc->immovable_fmt);
 
-#ifndef IN_MY_FORK
-  root_create_pure (gc);
-#endif
   root_create_charset_table (gc);
   root_create_buffer (gc, &buffer_defaults);
   root_create_buffer (gc, &buffer_local_symbols);
@@ -5254,7 +5198,6 @@ syms_of_igc (void)
 #ifdef HAVE_DTRACE
   defsubr (&Sigc_test_probe);
 #endif
-
   DEFSYM (Qambig, "ambig");
   DEFSYM (Qexact, "exact");
   Fprovide (intern_c_string ("mps"), Qnil);

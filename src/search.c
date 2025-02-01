@@ -41,6 +41,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 # include <stdlib.h>
 #endif
 
+
 #define REGEXP_CACHE_SIZE 20
 
 /* If the regexp is non-nil, then the buffer contains the compiled form
@@ -3459,19 +3460,19 @@ syms_of_search (void)
   DEFSYM (Qinvalid_regexp, "invalid-regexp");
 
   Fput (Qsearch_failed, Qerror_conditions,
-	pure_list (Qsearch_failed, Qerror));
+	list (Qsearch_failed, Qerror));
   Fput (Qsearch_failed, Qerror_message,
-	build_pure_c_string ("Search failed"));
+	build_string ("Search failed"));
 
   Fput (Quser_search_failed, Qerror_conditions,
-	pure_list (Quser_search_failed, Quser_error, Qsearch_failed, Qerror));
+	list (Quser_search_failed, Quser_error, Qsearch_failed, Qerror));
   Fput (Quser_search_failed, Qerror_message,
-        build_pure_c_string ("Search failed"));
+        build_string ("Search failed"));
 
   Fput (Qinvalid_regexp, Qerror_conditions,
-	pure_list (Qinvalid_regexp, Qerror));
+	list (Qinvalid_regexp, Qerror));
   Fput (Qinvalid_regexp, Qerror_message,
-	build_pure_c_string ("Invalid regexp"));
+	build_string ("Invalid regexp"));
 
   re_match_object = Qnil;
   staticpro (&re_match_object);

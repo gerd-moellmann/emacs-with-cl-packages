@@ -39,8 +39,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define release_select_lock() do { } while (0)
 #endif
 
-static_assert (GCALIGNED (union aligned_thread_state));
-
 union aligned_thread_state main_thread
   = {{
       .header.size = PVECHEADERSIZE (PVEC_THREAD,
