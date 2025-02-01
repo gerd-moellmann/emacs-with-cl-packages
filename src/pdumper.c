@@ -2783,7 +2783,7 @@ dump_hash_table_value (struct dump_context *ctx, struct Lisp_Hash_Table *h)
 static dump_off
 dump_hash_table (struct dump_context *ctx, Lisp_Object object)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_18BE341ECB
+#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_DC3E781B68
 # error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Hash_Table *hash_in = XHASH_TABLE (object);
@@ -5795,7 +5795,7 @@ dump_do_dump_relocation (const uintptr_t dump_base,
 	    XSETSUBR (tem, subr);
 	    Lisp_Object *fixup =
 	      &(comp_u->data_relocs[XFIXNUM (lambda_data_idx)]);
-	    eassert (EQ (*fixup, Q__lambda_fixup));
+	    eassert (EQ (*fixup, Vcomp__hashdollar));
 	    *fixup = tem;
 	    Fputhash (tem, Qt, comp_u->lambda_gc_guard_h);
 	  }
