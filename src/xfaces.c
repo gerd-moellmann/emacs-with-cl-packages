@@ -4640,7 +4640,6 @@ free_realized_face (struct frame *f, struct face *face)
 	}
 #endif /* HAVE_WINDOW_SYSTEM */
 
-#ifndef HAVE_MPS
 #ifdef HAVE_X_WINDOWS
     free_face:
 #endif /* HAVE_X_WINDOWS */

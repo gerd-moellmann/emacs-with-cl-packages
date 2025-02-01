@@ -1123,7 +1123,7 @@ init_pkg_once (void)
 
   staticpro (&Vpackage_registry);
   Vpackage_registry = make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE,
-				       Weak_None, false);
+				       Weak_None);
 
   staticpro (&Vemacs_package);
   Vemacs_package = pkg_make_package (build_string ("emacs"),

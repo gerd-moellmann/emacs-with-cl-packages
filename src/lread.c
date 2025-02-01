@@ -3883,7 +3883,7 @@ read_make_string (const char *s, ptrdiff_t nbytes, bool multibyte)
     nchars = multibyte_chars_in_text ((unsigned char *) s, nbytes);
   if (NILP (Vpurify_flag))
     return make_specified_string (s, nchars, nbytes, multibyte);
-  return make_pure_string (s, nchars, nbytes, multibyte);
+  return make_specified_string (s, nchars, nbytes, multibyte);
 }
 
 #define READ_AND_BUFFER(c)			\
@@ -4960,14 +4960,12 @@ string_to_number (char const *string, int base, ptrdiff_t *plen)
 
 /* Slow path obarray check: return the obarray to use or signal an error.  */
 Lisp_Object
-intern_c_string_1 (const char *str, ptrdiff_t len, bool allow_pure_p)
+intern_c_string_1 (const char *str, ptrdiff_t len)
 {
   const bool keyword = *str == ':';
   const char *name_start = keyword ? str + 1 : str;
   const ptrdiff_t name_len = keyword ? len - 1 : len;
-  const Lisp_Object name = ((!allow_pure_p || NILP (Vpurify_flag))
-			    ? make_string (name_start, name_len)
-			    : make_pure_c_string (name_start, name_len));
+  const Lisp_Object name = make_string (name_start, name_len);
   if (keyword)
     return pkg_intern_symbol (name, Vkeyword_package, NULL);
   return pkg_intern_symbol (name, Vearmuffs_package, NULL);
@@ -4976,7 +4974,7 @@ intern_c_string_1 (const char *str, ptrdiff_t len, bool allow_pure_p)
 Lisp_Object
 intern_1 (const char *str, ptrdiff_t len)
 {
-  return intern_c_string_1 (str, len, false);
+  return intern_c_string_1 (str, len);
 }
 
 /* Intern STR of NBYTES bytes and NCHARS characters in the default obarray.  */
@@ -5002,7 +5000,7 @@ define_symbol (Lisp_Object sym, char const *str)
   const char *name_start = keyword ? str + 1 : str;
 
   const Lisp_Object symbol_name
-    = make_pure_c_string (name_start, strlen (name_start));
+    = make_string (name_start, strlen (name_start));
   init_symbol (sym, symbol_name);
 
   /* Qunbound is uninterned, so that it's not confused with any symbol

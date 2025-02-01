@@ -2381,16 +2381,6 @@ print_stack_push_vector (const char *lbrac, const char *rbrac,
     });
 }
 
-static void
-print_stack_pop (void)
-{
-  --prstack.sp;
-  --print_depth;
-#ifdef HAVE_MPS
-  prstack.stack[prstack.sp].type = PE_free;
-#endif
-}
-
 /* Return true if characer C at character index ICHAR (within a name)
    needs quoting.  */
 

@@ -2843,13 +2843,6 @@ dump_weak_hash_table (struct dump_context *ctx, Lisp_Object object)
 #endif
 
 static dump_off
-dump_weak_hash_table (struct dump_context *ctx, Lisp_Object object)
-{
-  return dump_hash_vec (ctx, o->buckets, obarray_size (o));
-}
-#endif
-
-static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
 #if CHECK_STRUCTS && !defined HASH_buffer_text_07D802E2D4
@@ -5010,7 +5003,6 @@ dump_discard_mem (void *mem, size_t size)
       DWORD old_prot;
       err = (VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot) == 0);
 #elif VM_SUPPORTED == VM_POSIX
-      int err = 0;
 # ifdef HAVE_POSIX_MADVISE
       /* Discard COWed pages.  */
       err = posix_madvise (mem, size, POSIX_MADV_DONTNEED);

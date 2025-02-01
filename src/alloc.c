@@ -340,8 +340,6 @@ static char *spare_memory[7];
 #define SPARE_MEMORY (1 << 14)
 #endif
 
-#endif // not HAVE_MPS
-
 /* If positive, garbage collection is inhibited.  Otherwise, zero.  */
 
 intptr_t garbage_collection_inhibited;
@@ -395,16 +393,6 @@ static void gc_sweep (void);
 static void mark_buffer (struct buffer *);
 static void compact_small_strings (void);
 static void free_large_strings (void);
-static bool vector_marked_p (struct Lisp_Vector const *);
-static bool vectorlike_marked_p (struct vectorlike_header const *);
-static void set_vectorlike_marked (struct vectorlike_header *);
-static bool interval_marked_p (INTERVAL);
-static void set_interval_marked (INTERVAL);
-#endif
-
-static void compact_small_strings (void);
-static void free_large_strings (void);
-
 static bool vector_marked_p (struct Lisp_Vector const *);
 static bool vectorlike_marked_p (struct vectorlike_header const *);
 static void set_vectorlike_marked (struct vectorlike_header *);
@@ -534,8 +522,6 @@ pointer_align (void *ptr, int alignment)
   return (void *) ROUNDUP ((uintptr_t) ptr, alignment);
 }
 #endif
-
-#endif // not HAVE_MPS
 
 /* Extract the pointer hidden within O.  */
 
@@ -5920,7 +5906,6 @@ android_make_lisp_symbol (struct Lisp_Symbol *sym)
 
 #endif
 
-#ifndef HAVE_MPS
 static void
 visit_vectorlike_root (struct gc_root_visitor visitor,
                        struct Lisp_Vector *ptr,
