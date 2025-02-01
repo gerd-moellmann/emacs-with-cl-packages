@@ -402,10 +402,10 @@ re-start Emacs."
  			       (const :tag "default" nil))
                        (coding-system :tag "Coding System"))))
 
-(defcustom ispell-help-timeout 5
+(defcustom ispell-help-timeout 30
   "The number of seconds to display the help text."
   :type 'number
-  :version "28.1")
+  :version "31.1")
 
 (defvar ispell-dictionary-base-alist
   '((nil                                ; default

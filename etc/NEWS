@@ -402,6 +402,12 @@ set to 'title'.
 *** New user option 'ibuffer-human-readable-size'.
 When non-nil, buffer sizes are shown in human readable format.
 
+---
+** Buffer Menu
+*** New user option 'Buffer-menu-human-readable-sizes'.
+When non-nil, buffer sizes are shown in human readable format.  The
+default is nil, which retains the old format.
+
 ** Smerge
 *** New command 'smerge-extend' extends a conflict over surrounding lines.
 
@@ -450,6 +456,14 @@ Such bindings make it possible to compute which function to bind to FUNC.
 *** 'whitespace-cleanup' now adds missing newline at end of file.
 If 'whitespace-style' includes 'missing-newline-at-eof' (which is the
 default), the 'whitespace-cleanup' function will now add the newline.
+
+** Bookmark
+
+---
+*** New user option 'bookmark-bmenu-type-column-width'.
+This user option controls the width of the type column on the bookmark
+menu 'bookmark-bmenu-list'.  The default value is 8 which is backwards
+compatible.
 
 ** Gnus
 
@@ -718,6 +732,13 @@ index for DjVu files from its outline.  Indices for Open Document Format
 the 'mutool' program after their initial conversion to PDF format.  The
 name of the 'djvused' program can be customized by changing the user
 option 'doc-view-djvused-program'.
+
+** Ispell
+
+---
+*** The default value of 'ispell-help-timeout' has changed.
+The default value is now 30 seconds, as the old value was too short to
+allow reading the help text.
 
 ** Flyspell
 
