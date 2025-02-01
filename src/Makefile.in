@@ -367,7 +367,7 @@ DTRACE_OBJ = @DTRACE_OBJ@
 ifeq ($(HAVE_DTRACE),yes)
 
 # Objects using probes.
-DTRACERS = igc.o
+DTRACERS = $(IGCOBJ)
 
 # Make objects that use probes dependent on the probe header.
 $(DTRACERS): $(srcdir)/emacs-dtrace.h

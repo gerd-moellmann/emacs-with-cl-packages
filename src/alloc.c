@@ -3401,12 +3401,6 @@ cleanup_vector (struct Lisp_Vector *vector)
 	xfree (p->gnutls_pproc);
       }
       break;
-    case PVEC_PROCESS:
-      {
-	struct Lisp_Process *p = PSEUDOVEC_STRUCT (vector, Lisp_Process);
-	xfree (p->gnutls_pproc);
-      }
-      break;
     /* Keep the switch exhaustive.  */
     case PVEC_NORMAL_VECTOR:
     case PVEC_FREE:
@@ -3534,6 +3528,15 @@ sweep_vectors (void)
 
   gcstat.total_hash_table_bytes = hash_table_allocated_bytes;
 }
+
+/* Maximum number of elements in a vector.  This is a macro so that it
+   can be used in an integer constant expression.  */
+
+#define VECTOR_ELTS_MAX \
+  ((ptrdiff_t) \
+   min (((min (PTRDIFF_MAX, SIZE_MAX) - header_size - large_vector_offset) \
+	 / word_size), \
+	MOST_POSITIVE_FIXNUM))
 
 /* Value is a pointer to a newly allocated Lisp_Vector structure
    with room for LEN Lisp_Objects.  LEN must be positive and
@@ -6995,12 +6998,6 @@ process_mark_stack (ptrdiff_t base_sp)
 	    set_string_marked (XSTRING (ptr->u.s.name));
 	    mark_interval_tree (string_intervals (ptr->u.s.name));
 	    /* Inner loop to mark next symbol in this bucket, if any.  */
-	    ptr = ptr->u.s.next;
-#if GC_CHECK_MARKED_OBJECTS
-	    po = ptr;
-#endif
-	    if (ptr)
-	      goto nextsym;
 	  }
 	  break;
 
