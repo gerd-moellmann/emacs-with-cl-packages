@@ -1450,38 +1450,17 @@ get_future_frame_param (Lisp_Object parameter,
 #endif
 
 int
-tty_child_pos_param (struct frame *f, Lisp_Object key,
-		     Lisp_Object params, int pos)
+tty_child_pos_param (struct frame *child, Lisp_Object key,
+		     Lisp_Object params, int dflt)
 {
-  struct frame *p = XFRAME (f->parent_frame);
   Lisp_Object val = Fassq (key, params);
-
   if (CONSP (val))
     {
       val = XCDR (val);
-
-      if (TYPE_RANGED_FIXNUMP (int, val))
-	{
-	  pos = XFIXNUM (val);
-
-	  if (pos < 0)
-	    /* Handle negative value. */
-	    pos = max (EQ (key, Qtop)
-		       ? p->pixel_height - f->pixel_height - pos
-		       : p->pixel_width - f->pixel_width - pos,
-		       0);
-	}
-      else if (CONSP (val) && EQ (XCAR (val), Qplus)
-	       && CONSP (XCDR (val))
-	       && TYPE_RANGED_FIXNUMP (int, XCAR (XCDR (val))))
-	pos = XFIXNUM (XCAR (XCDR (val)));
-      else if (CONSP (val) && EQ (XCAR (val), Qminus)
-	       && CONSP (XCDR (val))
-	       && RANGED_FIXNUMP (-INT_MAX, XCAR (XCDR (val)), INT_MAX))
-	pos = - XFIXNUM (XCAR (XCDR (val)));
+      if (FIXNUMP (val))
+	return XFIXNUM (val);
     }
-
-  return pos;
+  return dflt;
 }
 
 int
@@ -6499,37 +6478,6 @@ selected frame.  This is useful when `make-pointer-invisible' is set.  */)
   return decode_any_frame (frame)->pointer_invisible ? Qnil : Qt;
 }
 
-DEFUN ("mouse-position-in-root-frame", Fmouse_position_in_root_frame,
-       Smouse_position_in_root_frame, 0, 0, 0,
-       doc: /* Return mouse position in selected frame's root frame.
-
-Return the position of `mouse-position' in coordinates of the root frame
-of the frame returned by 'mouse-position'.  */)
-  (void)
-{
-  Lisp_Object pos = mouse_position (true);
-  Lisp_Object frame = XCAR (pos);
-  struct frame *f = XFRAME (frame);
-  int x = XFIXNUM (XCAR (XCDR (pos))) + f->left_pos;
-  int y = XFIXNUM (XCDR (XCDR (pos))) + f->top_pos;
-
-  if (!FRAMEP (frame))
-    return Qnil;
-  else
-    {
-      f = FRAME_PARENT_FRAME (f);
-
-      while (f)
-	{
-	  x = x + f->left_pos;
-	  y = y + f->top_pos;
-	  f = FRAME_PARENT_FRAME (f);
-	}
-
-      return Fcons (make_fixnum (x), make_fixnum (y));
-    }
-}
-
 DEFUN ("frame--set-was-invisible", Fframe__set_was_invisible,
        Sframe__set_was_invisible, 2, 2, 0,
        doc: /* Set FRAME's was-invisible flag if WAS-INVISIBLE is non-nil.
@@ -7310,7 +7258,6 @@ allow `make-frame' to show the current buffer even if its hidden.  */);
   defsubr (&Sframe_position);
   defsubr (&Sset_frame_position);
   defsubr (&Sframe_pointer_visible_p);
-  defsubr (&Smouse_position_in_root_frame);
   defsubr (&Sframe__set_was_invisible);
   defsubr (&Sframe_window_state_change);
   defsubr (&Sset_frame_window_state_change);
