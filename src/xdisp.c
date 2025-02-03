@@ -1232,7 +1232,7 @@ static void get_cursor_offset_for_mouse_face (struct window *w,
 
 static void produce_special_glyphs (struct it *, enum display_element_type);
 static void pad_mode_line (struct it *, bool);
-static void show_mouse_face (Mouse_HLInfo *, enum draw_glyphs_face);
+static void show_mouse_face (Mouse_HLInfo *, enum draw_glyphs_face, bool);
 static bool coords_in_mouse_face_p (struct window *, int, int);
 static void reset_box_start_end_flags (struct it *);
 
@@ -15084,14 +15084,14 @@ handle_tab_bar_click (struct frame *f, int x, int y, bool down_p,
     {
       /* Show the clicked button in pressed state.  */
       if (!NILP (Vmouse_highlight))
-	show_mouse_face (hlinfo, DRAW_IMAGE_SUNKEN);
+	show_mouse_face (hlinfo, DRAW_IMAGE_SUNKEN, true);
       f->last_tab_bar_item = prop_idx; /* record the pressed tab */
     }
   else
     {
       /* Show item in released state.  */
       if (!NILP (Vmouse_highlight))
-	show_mouse_face (hlinfo, DRAW_IMAGE_RAISED);
+	show_mouse_face (hlinfo, DRAW_IMAGE_RAISED, true);
       f->last_tab_bar_item = -1;
     }
 
@@ -15189,7 +15189,7 @@ note_tab_bar_highlight (struct frame *f, int x, int y)
       hlinfo->mouse_face_face_id = TAB_BAR_FACE_ID;
 
       /* Display it as active.  */
-      show_mouse_face (hlinfo, draw);
+      show_mouse_face (hlinfo, draw, true);
     }
 
  set_help_echo:
@@ -16106,7 +16106,7 @@ handle_tool_bar_click_with_device (struct frame *f, int x, int y, bool down_p,
     {
       /* Show item in pressed state.  */
       if (!NILP (Vmouse_highlight))
-	show_mouse_face (hlinfo, DRAW_IMAGE_SUNKEN);
+	show_mouse_face (hlinfo, DRAW_IMAGE_SUNKEN, true);
       f->last_tool_bar_item = prop_idx;
     }
   else
@@ -16117,7 +16117,7 @@ handle_tool_bar_click_with_device (struct frame *f, int x, int y, bool down_p,
 
       /* Show item in released state.  */
       if (!NILP (Vmouse_highlight))
-	show_mouse_face (hlinfo, DRAW_IMAGE_RAISED);
+	show_mouse_face (hlinfo, DRAW_IMAGE_RAISED, true);
 
       key = AREF (f->tool_bar_items, prop_idx + TOOL_BAR_ITEM_KEY);
 
@@ -16213,7 +16213,7 @@ note_tool_bar_highlight (struct frame *f, int x, int y)
       hlinfo->mouse_face_face_id = TOOL_BAR_FACE_ID;
 
       /* Display it as active.  */
-      show_mouse_face (hlinfo, draw);
+      show_mouse_face (hlinfo, draw, true);
     }
 
  set_help_echo:
@@ -34250,12 +34250,13 @@ erase_phys_cursor (struct window *w)
   /* Since erasing the phys cursor will probably lead to corruption of
      the mouse face display if the glyph's pixel_width is not kept up
      to date with the :box property of the mouse face, just redraw the
-     mouse face.  */
+     mouse face, but leave the mouse cursor as it was.  */
   if (FRAME_WINDOW_P (WINDOW_XFRAME (w)) && mouse_face_here_p)
     {
       w->phys_cursor_on_p = false;
       w->phys_cursor_type = NO_CURSOR;
-      show_mouse_face (MOUSE_HL_INFO (WINDOW_XFRAME (w)), DRAW_MOUSE_FACE);
+      show_mouse_face (MOUSE_HL_INFO (WINDOW_XFRAME (w)), DRAW_MOUSE_FACE,
+		       false);
       return;
     }
 #endif
@@ -34516,7 +34517,8 @@ draw_row_with_mouse_face (struct window *w, int start_x, struct glyph_row *row,
 /* Display the active region described by mouse_face_* according to DRAW.  */
 
 static void
-show_mouse_face (Mouse_HLInfo *hlinfo, enum draw_glyphs_face draw)
+show_mouse_face (Mouse_HLInfo *hlinfo, enum draw_glyphs_face draw,
+		 bool define_mouse_cursor)
 {
   /* Don't bother doing anything if the mouse-face window is not set
      up.  */
@@ -34658,7 +34660,7 @@ show_mouse_face (Mouse_HLInfo *hlinfo, enum draw_glyphs_face draw)
 
 #ifdef HAVE_WINDOW_SYSTEM
   /* Change the mouse cursor.  */
-  if (FRAME_WINDOW_P (f) && NILP (track_mouse))
+  if (FRAME_WINDOW_P (f) && NILP (track_mouse) && define_mouse_cursor)
     {
       if (draw == DRAW_NORMAL_TEXT
 #ifndef HAVE_EXT_TOOL_BAR
@@ -34666,8 +34668,7 @@ show_mouse_face (Mouse_HLInfo *hlinfo, enum draw_glyphs_face draw)
 #endif
 	  && !EQ (hlinfo->mouse_face_window, f->tab_bar_window))
 	FRAME_RIF (f)->define_frame_cursor (f, FRAME_OUTPUT_DATA (f)->text_cursor);
-      else
-      if (draw == DRAW_MOUSE_FACE)
+      else if (draw == DRAW_MOUSE_FACE)
 	FRAME_RIF (f)->define_frame_cursor (f, FRAME_OUTPUT_DATA (f)->hand_cursor);
       else
 	FRAME_RIF (f)->define_frame_cursor (f, FRAME_OUTPUT_DATA (f)->nontext_cursor);
@@ -34686,7 +34687,7 @@ clear_mouse_face (Mouse_HLInfo *hlinfo)
   bool cleared
     = !hlinfo->mouse_face_hidden && !NILP (hlinfo->mouse_face_window);
   if (cleared)
-    show_mouse_face (hlinfo, DRAW_NORMAL_TEXT);
+    show_mouse_face (hlinfo, DRAW_NORMAL_TEXT, true);
   hlinfo->mouse_face_beg_row = hlinfo->mouse_face_beg_col = -1;
   hlinfo->mouse_face_end_row = hlinfo->mouse_face_end_col = -1;
   hlinfo->mouse_face_window = Qnil;
@@ -35253,7 +35254,7 @@ mouse_face_from_buffer_pos (Lisp_Object window,
     = face_at_buffer_position (w, mouse_charpos, &ignore,
 			       mouse_charpos + 1,
                                !hlinfo->mouse_face_hidden, -1, 0);
-  show_mouse_face (hlinfo, DRAW_MOUSE_FACE);
+  show_mouse_face (hlinfo, DRAW_MOUSE_FACE, true);
 }
 
 /* The following function is not used anymore (replaced with
@@ -35963,7 +35964,7 @@ note_mode_line_or_margin_highlight (Lisp_Object window, int x, int y,
 	    face_at_string_position (w, string, charpos, 0, &ignore,
 	                             glyph->face_id, true, 0);
 
-	  show_mouse_face (hlinfo, DRAW_MOUSE_FACE);
+	  show_mouse_face (hlinfo, DRAW_MOUSE_FACE, true);
 	  mouse_face_shown = true;
 
 	  if (NILP (pointer))
@@ -36516,7 +36517,7 @@ note_mouse_highlight (struct frame *f, int x, int y)
 	      hlinfo->mouse_face_face_id
 		= face_at_string_position (w, object, pos, 0, &ignore,
 		                           glyph->face_id, true, 0);
-	      show_mouse_face (hlinfo, DRAW_MOUSE_FACE);
+	      show_mouse_face (hlinfo, DRAW_MOUSE_FACE, true);
 	      cursor = No_Cursor;
 	    }
 	  else
