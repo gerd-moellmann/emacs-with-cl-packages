@@ -921,6 +921,8 @@ extern void *lisp_malloc_loser;
 void *lisp_malloc_loser EXTERNALLY_VISIBLE;
 #endif
 
+#ifndef HAVE_MPS
+
 /* Allocate memory for Lisp data.
    NBYTES is the number of bytes to allocate;
    it must be a multiple of LISP_ALIGNMENT.
