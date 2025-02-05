@@ -2179,9 +2179,7 @@ case "$opsys" in
    ;;
 
   openbsd)
-   ## Han Boetes <han@boetes.org> says this is necessary,
-   ## otherwise Emacs dumps core on elf systems.
-   LD_SWITCH_SYSTEM="-Z"
+      :
    ;;
 esac
 AC_SUBST([LD_SWITCH_SYSTEM])
