@@ -1322,22 +1322,28 @@ in `eglot-server-programs' (which see).
 CONTACT-PROXY is the value of the corresponding
 `eglot-server-programs' entry."
   (cl-loop
+   with lang-from-sym = (lambda (sym &optional language-id)
+                          (cons sym
+                                (or language-id
+                                    (or (get sym 'eglot-language-id)
+                                        (replace-regexp-in-string
+                                         "\\(?:-ts\\)?-mode$" ""
+                                         (symbol-name sym))))))
    for (modes . contact) in eglot-server-programs
    for llists = (mapcar #'eglot--ensure-list
-                           (if (or (symbolp modes) (keywordp (cadr modes)))
-                               (list modes) modes))
+                        (if (or (symbolp modes) (keywordp (cadr modes)))
+                            (list modes) modes))
    for normalized = (mapcar (jsonrpc-lambda (sym &key language-id &allow-other-keys)
-                              (cons sym
-                                    (or language-id
-                                        (or (get sym 'eglot-language-id)
-                                            (replace-regexp-in-string
-                                             "\\(?:-ts\\)?-mode$" ""
-                                             (symbol-name sym))))))
+                              (funcall lang-from-sym sym language-id))
                             llists)
    when (cl-some (lambda (cell)
                    (provided-mode-derived-p mode (car cell)))
                  normalized)
-   return (cons normalized contact)))
+   return (cons normalized contact)
+   ;; If lookup fails at least return some suitable LANGUAGES.
+   finally (cl-return
+            (cons (list (funcall lang-from-sym major-mode))
+                  nil))))
 
 (defun eglot--guess-contact (&optional interactive)
   "Helper for `eglot'.
@@ -2305,8 +2311,10 @@ If it is activated, also signal textDocument/didOpen."
     ["Quickfix" eglot-code-action-quickfix
      :visible (eglot-server-capable :codeActionProvider)]
     "--"
-    ["Show type hierarchy" eglot-show-type-hierarchy]
-    ["Show call hierarchy" eglot-show-call-hierarchy]
+    ["Show type hierarchy" eglot-show-type-hierarchy
+     :active (eglot-server-capable :typeHierarchyProvider)]
+    ["Show call hierarchy" eglot-show-call-hierarchy
+     :active (eglot-server-capable :callHierarchyProvider)]
     "--"))
 
 (easy-menu-define eglot-server-menu nil "Manage server communication"
@@ -4556,7 +4564,8 @@ If NOERROR, return predicate, else erroring function."
     (let ((inhibit-read-only t))
       (erase-buffer)
       (mapc (lambda (r)
-              (widget-create (convert r)))
+              (let ((w (widget-create (convert r))))
+                (widget-apply-action w)))
             eglot--hierarchy-roots)
       (goto-char (point-min))))
     (pop-to-buffer (current-buffer)))
