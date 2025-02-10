@@ -281,7 +281,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                      (left-margin-width . 0)
                      (right-margin-width . 0)
                      (fringes-outside-margins . 0)
-                     (scroll-conservatively . 1)))
+                     ;; > 100 means don't ever recenter.
+                     (scroll-conservatively . 101)))
 	(set (make-local-variable (car var)) (cdr var)))
       (let ((inhibit-modification-hooks t)
             (inhibit-read-only t)
