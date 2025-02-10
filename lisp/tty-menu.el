@@ -640,12 +640,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (when frame
 	(delete-frame frame)))))
 
-(defun frame-with-name (name)
-  (cl-flet ((frame-name (frame)
-	      (frame-parameter frame 'name)))
-    (cl-find-if (lambda (f) (equal (frame-name f) name))
-		(frame-list))))
-
 (defun tty-menu-delete-menu-frames ()
   (cl-flet ((frame-name (frame)
 	      (frame-parameter frame 'name)))
