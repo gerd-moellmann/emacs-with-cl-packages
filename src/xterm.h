@@ -1494,7 +1494,7 @@ extern void x_mark_frame_dirty (struct frame *f);
 #define FRAME_X_VISUAL_INFO(f) (&FRAME_DISPLAY_INFO (f)->visual_info)
 
 /* Whether or not the frame is visible.  Do not test this alone.
-   Instead, use frame_redisplay_p.  */
+   Instead, use FRAME_REDISPLAY_P.  */
 #define FRAME_X_VISIBLE(f) (FRAME_X_OUTPUT (f)->visibility_state	\
 			    != VisibilityFullyObscured)
 
