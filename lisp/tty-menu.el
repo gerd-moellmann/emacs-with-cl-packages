@@ -496,15 +496,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (when (keymapp binding)
 	(tty-menu-select-item item 'key)))))
 
-(defun tty-menu-mouse-moved (_event)
-  (interactive "e")
-  (when-let* ((end (event-end event))
-	      (win (posn-window end))
-              ((eq win (selected-window)))
-              (item (mouse-posn-property end 'tty-menu-item))
-	      ((tty-menu-selectable-p item)))
-    (goto-char (posn-point end))))
-
 (defun tty-menu-next-line ()
   (interactive)
   (cl-loop for next = (next-single-property-change (point) 'tty-menu-item)
