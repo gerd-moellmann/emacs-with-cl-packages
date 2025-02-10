@@ -485,12 +485,12 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-mouse-moved (event)
   (interactive "e")
-  (let* ((end (event-end event))
-	 (win (posn-window end)))
-    (when (eq (window-frame win) (tty-top-frame))
-      (let ((item (get-text-property (posn-point end) 'tty-menu-item)))
-	(when (and item (tty-menu-selectable-p item))
-	  (goto-char (posn-point end)))))))
+  (when-let* ((end (event-end event))
+	      (win (posn-window end))
+              ((eq win (selected-window)))
+              (item (mouse-posn-property end 'tty-menu-item))
+	      ((tty-menu-selectable-p item)))
+    (goto-char (posn-point end))))
 
 (defun tty-menu-next-line ()
   (interactive)
