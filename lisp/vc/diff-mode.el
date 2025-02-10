@@ -1550,6 +1550,7 @@ else cover the whole buffer."
 (defvar whitespace-style)
 (defvar whitespace-trailing-regexp)
 
+(put 'diff-mode 'mode-class 'special)
 ;;;###autoload
 (define-derived-mode diff-mode fundamental-mode "Diff"
   "Major mode for viewing/editing context diffs.
@@ -1620,15 +1621,16 @@ a diff with \\[diff-reverse-direction].
 \\{diff-minor-mode-map}"
   :group 'diff-mode :lighter " Diff"
   ;; FIXME: setup font-lock
-  (when diff--track-changes (track-changes-unregister diff--track-changes))
+  (when diff--track-changes
+    (track-changes-unregister diff--track-changes)
+    (setq diff--track-changes nil))
   (remove-hook 'write-contents-functions #'diff-write-contents-hooks t)
   (when diff-minor-mode
     (if (not diff-update-on-the-fly)
         (add-hook 'write-contents-functions #'diff-write-contents-hooks nil t)
-      (unless diff--track-changes
-        (setq diff--track-changes
-              (track-changes-register #'diff--track-changes-signal
-                                      :nobefore t))))))
+      (setq diff--track-changes
+            (track-changes-register #'diff--track-changes-signal
+                                    :nobefore t)))))
 
 ;;; Handy hook functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
