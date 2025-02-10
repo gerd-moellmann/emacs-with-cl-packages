@@ -665,10 +665,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   :global t :group 'menu
   (unless (display-graphic-p)
     (if tty-menu-mode
-	(add-function :override (symbol-function 'x-popup-menu)
-		      #'tty-menu-popup-menu)
-      (remove-function (symbol-function 'x-popup-menu)
-		       #'tty-menu-popup-menu))))
+        (setq x-popup-menu-function #'tty-menu-popup-menu)
+      (setq x-popup-menu-function nil))))
 
 (provide 'tty-menu)
 
