@@ -182,7 +182,7 @@
   ( :method ((item tty-menu-item) _)
     (let* ((enabled (tty-menu-enabled-p item))
 	   (face (if enabled 'tty-menu-enabled-face
-		   'tty-menu-disabled-face)))
+                   'tty-menu-disabled-face)))
       (put-text-property (pos-bol) (pos-eol) 'tty-menu-selectable
                          enabled)
       (put-text-property (pos-bol) (pos-eol) 'face face))
@@ -453,6 +453,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
              (after-make-frame-functions nil)
 	     (frame (make-frame `((parent-frame . ,parent-frame)
 				  (name . ,(buffer-name buffer))
+				  (tty-menu-buffer . ,buffer)
 				  (minibuffer . ,minibuffer)
 				  ,@(tty-menu-frame-parameters))))
 	     (win (frame-root-window frame)))
@@ -465,6 +466,12 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	(raise-frame frame)
 	(select-frame-set-input-focus frame)
 	frame))))
+
+(defun tty-menu-delete-frame (frame)
+  ;; During development, sometimes the frame can be null.
+  (when frame
+    (kill-buffer (frame-parameter frame 'tty-menu-buffer)))
+    (delete-frame frame))
 
 (defun tty-menu-mouse-moved (event)
   (interactive "e")
@@ -657,8 +664,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		     (cl-return-from outer-loop (list binding)))))
 		((match* 'nil res)
 		 (cl-return-from outer-loop nil))))
-      (when frame
-	(delete-frame frame)))))
+      (tty-menu-delete-frame frame))))
 
 (defun tty-menu-delete-menu-frames ()
   (cl-flet ((frame-name (frame)
