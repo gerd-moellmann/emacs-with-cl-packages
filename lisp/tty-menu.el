@@ -542,9 +542,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (interactive "e")
   (throw 'tty-menu-item-selected nil))
 
-(defun tty-menu-tab-bar-click (_event)
+(defun tty-menu-close-on-click (_event)
   (interactive "e")
-  (throw 'tty-menu-item-selected nil))
+  (tty-menu-close-pane))
 
 (defvar-keymap tty-menu-keymap
   :doc "Keymap for menu interaction."
@@ -564,7 +564,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "<return>" #'tty-menu-key-select-item
   "<mouse-movement>" #'tty-menu-mouse-moved
   "<menu-bar> <mouse-1>" #'tty-menu-menu-bar-click
-  "<tab-bar> <mouse-1>" #'tty-menu-tab-bar-click
+  "<tab-bar> <mouse-1>" #'tty-menu-close-on-click
+  "<vertical-line> <mouse-1>" #'tty-menu-close-on-click
+  "<mode-line> <mouse-1>" #'tty-menu-close-on-click
   "<mouse-1>" #'tty-menu-mouse-select-item)
 
 (defun tty-menu-show-selected-item ()
