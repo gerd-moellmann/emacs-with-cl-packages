@@ -496,7 +496,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (when (keymapp binding)
 	(tty-menu-select-item item 'key)))))
 
-(defun tty-menu-mouse-moved (event)
+(defun tty-menu-mouse-moved (_event)
   (interactive "e")
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
@@ -547,6 +547,14 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (interactive)
   (tty-menu-isearch nil))
 
+(defun tty-menu-menu-bar-click (_event)
+  (interactive "e")
+  (throw 'tty-menu-item-selected nil))
+
+(defun tty-menu-tab-bar-click (_event)
+  (interactive "e")
+  (throw 'tty-menu-item-selected nil))
+
 (defvar-keymap tty-menu-keymap
   :doc "Keymap for menu interaction."
   "<up>" #'tty-menu-previous-line
@@ -564,6 +572,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "SPC" #'tty-menu-key-select-item
   "<return>" #'tty-menu-key-select-item
   "<mouse-movement>" #'tty-menu-mouse-moved
+  "<menu-bar> <mouse-1>" #'tty-menu-menu-bar-click
+  "<tab-bar> <mouse-1>" #'tty-menu-tab-bar-click
   "<mouse-1>" #'tty-menu-mouse-select-item)
 
 (defun tty-menu-show-selected-item ()
