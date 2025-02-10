@@ -1,9 +1,9 @@
 ;; -*- lexical-binding: t; symbol-packages: t -*-
 ;;; tty-menu.el --- A menu implementation in Lisp
 
-;; Copyright (C) 2025 Gerd Möllmann
+;; Copyright (C) 2025 Free Software Foundation, Inc.
 
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -24,15 +24,10 @@
 
 ;;; Todo
 
-;; A mode: Open a sub-menu by moving the selection into the menu-item
-;; for the sub-menu.  Close it by moving the selection out.
+;; A mode: Open a sub-menu by moving the selection into the menu-item for the
+;; sub-menu.  Close it by moving the selection out.
 
-;; Make cursor invisible somehow (is cursor-type not supposed to
-;; work?)
-
-;; Buffers menu looks strange with '*%' in it (status flags?)
-
-;; Click in menu bar when a menu is open -> ignored?
+;; Make cursor invisible somehow (is cursor-type not supposed to work?)
 
 ;; menu-bar-menu doesn't work (list of keymaps?)
 
@@ -80,7 +75,8 @@
 	(setq sep slot))
       (make-string 1 sep))))
 
-(cl-defmethod initialize-instance :after ((item tty-menu-separator) &rest)
+(cl-defmethod initialize-instance :after ((item tty-menu-separator)
+                                          &rest)
   (with-slots (name sep enable) item
     (setf enable nil)
     (setf sep (tty-menu-get-separator-string name))))
@@ -173,7 +169,8 @@
 (cl-defgeneric tty-menu-draw-key (item pane)
   ( :method ((item tty-menu-item) pane)
     (with-slots (layout) pane
-      (cl-destructuring-bind (left-border button name-width key-width _) layout
+      (cl-destructuring-bind (left-border button name-width key-width _)
+          layout
 	(insert (tty-menu-key-string item))
 	(indent-to (+ left-border button name-width key-width)))))
   ( :method ((item tty-menu-separator) pane)
@@ -186,10 +183,11 @@
     (let* ((enabled (tty-menu-enabled-p item))
 	   (face (if enabled 'tty-menu-enabled-face
 		   'tty-menu-disabled-face)))
-      (put-text-property (pos-bol) (pos-eol) 'tty-menu-selectable enabled)
+      (put-text-property (pos-bol) (pos-eol) 'tty-menu-selectable
+                         enabled)
       (put-text-property (pos-bol) (pos-eol) 'face face))
-	   (when-let* ((help (slot-value item 'help)))
-	     (put-text-property (pos-bol) (pos-eol) 'help-echo help)))
+    (when-let* ((help (slot-value item 'help)))
+      (put-text-property (pos-bol) (pos-eol) 'help-echo help)))
   ( :method ((_item tty-menu-separator) _)
     (put-text-property (pos-bol) (pos-eol) 'tty-menu-selectable nil)
     (put-text-property (pos-bol) (pos-eol) 'face 'tty-menu-enabled-face)))
@@ -198,13 +196,16 @@
   ( :method ((pane tty-menu-pane))
     (with-slots (items layout) pane
       (cl-loop
-       with left-border = (string-width (format tty-menu-left-border-format ""))
-       with right-border = (string-width (format tty-menu-right-border-format ""))
+       with left-border
+       = (string-width (format tty-menu-left-border-format ""))
+       with right-border
+       = (string-width (format tty-menu-right-border-format ""))
        for i in items
        maximize (string-width (tty-menu-button-string i)) into button
        maximize (string-width (tty-menu-name-string i)) into name
        maximize (string-width (tty-menu-key-string i)) into key
-       finally (setq layout `(,left-border ,button ,name ,key ,right-border))))))
+       finally (setq layout `(,left-border ,button ,name ,key
+                                           ,right-border))))))
 
 (defun tty-menu-try-place-point (selectable old-line)
   (goto-char (point-min))
@@ -311,7 +312,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		    (cons (constrain name (separator? name))
 			  props))
 	      item)
-      (apply #'make-instance 'tty-menu-separator (cl-list* :name name props)))
+      (apply #'make-instance 'tty-menu-separator
+             (cl-list* :name name props)))
      ((match* (list 'menu-item name) item)
       (make-instance 'tty-menu-item :name name :enable nil))
      ((match* (cons 'menu-item
@@ -393,12 +395,12 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (desktop-dont-save . t)))
 
 (defun tty-menu-frame-parameters ()
-  (let ((params (copy-sequence tty-menu-frame-parameters))
-        (fg (face-attribute 'tty-menu-enabled-face :foreground))
-        (bg (face-attribute 'tty-menu-enabled-face :background)))
-    (when (stringp fg)
+  (let ((params (copy-sequence tty-menu-frame-parameters)))
+    (when-let* ((fg (face-attribute 'tty-menu-enabled-face :foreground))
+                ((stringp fg)))
       (setf (alist-get 'foreground-color params) fg))
-    (when (stringp bg)
+    (when-let* ((bg (face-attribute 'tty-menu-enabled-face :background))
+                ((stringp bg)))
       (setf (alist-get 'background-color params) bg))
     params))
 
@@ -593,8 +595,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   (win (posn-window end))
 	   (x (car (posn-x-y end)))
 	   (y (cdr (posn-x-y end))))
-      ;; posn-window returns a frame when the event is not on a window, for
-      ;; example, when clicking on a menu bar in a tty frame.
+      ;; posn-window returns a frame when the event is not on a window,
+      ;; for example when clicking on a menu bar in a tty frame.
       (if (windowp win)
 	  (cl-destructuring-bind (wx wy _ _) (window-edges win nil t)
 	    (list (window-frame win) (+ wx x) (+ wy y)))
@@ -630,9 +632,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-loop (keymap where)
   (let ((frame (tty-menu-create-frame keymap where)))
     (unwind-protect
-	;; Inner loop handling mouse movement over the pane,
-	;; moving with the keyboard on the pane. The loop is
-	;; left by a throw when a menu-item is selected.
+	;; Inner loop handling mouse movement over the pane, moving with
+	;; the keyboard on the pane. The loop is left by a throw when a
+	;; menu-item is selected.
 	(cl-loop
 	 named outer-loop
 	 while t
@@ -687,7 +689,3 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (setq x-popup-menu-function nil))))
 
 (provide 'tty-menu)
-
-;;; Local Variables:
-;;; fill-column: 80
-;;; End:
