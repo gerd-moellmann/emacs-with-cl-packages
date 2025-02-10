@@ -617,11 +617,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-where (how)
   (cl-ecase how
-    (mouse (tty-menu-position t))
-    (key (let* ((posn (posn-at-point (line-end-position)))
-		(xy (posn-x-y posn))
-		(win (posn-window posn)))
-	   (tty-menu-position (list xy win))))))
+    ((mouse key)
+     (let* ((posn (posn-at-point (line-end-position)))
+	    (xy (posn-x-y posn))
+	    (win (posn-window posn)))
+       (tty-menu-position (list xy win))))))
 
 (defun tty-menu-loop (keymap where)
   (let ((frame (tty-menu-create-frame keymap where)))
