@@ -346,6 +346,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
      (t (error "No match for menu item %S" item)))))
 
 (defun tty-menu-keymap-name (keymap)
+  (when (symbolp keymap)
+    (setq keymap (symbol-function keymap)))
   (let ((name (last keymap)))
     (and (stringp (car name)) (car name))))
 
