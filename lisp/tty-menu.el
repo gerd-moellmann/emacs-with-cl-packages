@@ -309,7 +309,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		(count-lines (point-min) (point-max))))))))
 
 (defun tty-menu-make-element (code item)
-  (cl-labels ((separator? (name) (string-prefix-p "--" name))
+  (cl-labels ((separator? (name)
+                (and (stringp name)
+                     (string-prefix-p "--" name)))
 	      (button? (props) (plist-get props :button))
 	      (radio? (props) (eq (car (button? props)) :radio))
 	      (toggle? (props) (eq (car (button? props)) :toggle)))
