@@ -32,7 +32,6 @@
 ;; menu-bar-menu doesn't work (list of keymaps?)
 
 (eval-when-compile (require 'cl-lib))
-(require 'eieio)
 
 (defclass tty-menu-element () ()
   :documentation "Base class for elements of a menu.")
@@ -88,8 +87,6 @@
 (cl-defmethod initialize-instance :after ((item tty-menu-item)
                                           &rest)
   (with-slots (name binding) item
-    (unless (stringp name)
-      (setq name (eval name)))
     (when (and binding
                (not (commandp binding))
                (not (keymapp binding)))
@@ -137,7 +134,8 @@
 
 (cl-defgeneric tty-menu-name-string (item)
   ( :method ((item tty-menu-item))
-    (format tty-menu-name-format (slot-value item 'name)))
+    (with-slots (name) item
+      (format tty-menu-name-format (eval name))))
   ( :method ((_ tty-menu-separator))
     ""))
 
