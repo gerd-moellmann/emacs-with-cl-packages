@@ -3892,12 +3892,12 @@ If no prefix matches, return nil."
       (let ((prefixes (ensure-list prefixes))
             (type (if (symbolp classes) classes (cons 'or classes))))
         (if-let* ((obj (cl-flet ((match (obj)
-                                  (and obj
-                                       (or (memq (oref obj command) prefixes)
-                                           (cl-typep obj type))
-                                       obj)))
-                        (or (match transient-current-prefix)
-                            (match transient--prefix)))))
+                                   (and obj
+                                        (or (memq (oref obj command) prefixes)
+                                            (cl-typep obj type))
+                                        obj)))
+                         (or (match transient-current-prefix)
+                             (match transient--prefix)))))
             (oref obj scope)
           (and (get (car prefixes) 'transient--prefix)
                (oref (transient--init-prefix (car prefixes)) scope))))

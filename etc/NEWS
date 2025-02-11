@@ -305,6 +305,11 @@ on the header lines are now these two: the selected window uses
 
 ** In 'customize-face', the "Font family" attribute now supports completion.
 
+** 'process-adaptive-read-buffering' is now nil by default.
+Setting this variable to a non-nil value reduces performance and leads
+to wrong results in some cases.  We believe that it is no longer useful;
+please contact us if you still need it for some reason.
+
 
 * Editing Changes in Emacs 31.1
 
@@ -466,6 +471,13 @@ If 'whitespace-style' includes 'missing-newline-at-eof' (which is the
 default), the 'whitespace-cleanup' function will now add the newline.
 
 ** Bookmark
+
+---
+*** Bookmark history now saves each bookmark only once.
+Previously, the variable 'bookmark-history' accumulated duplicate
+bookmark names when bookmark features were used interactively.  This
+made their history larger than necessary for frequent bookmark users.
+Bookmark names are now saved uniquely.
 
 ---
 *** New user option 'bookmark-bmenu-type-column-width'.
@@ -1089,6 +1101,12 @@ When the argument is non-nil, the function switches to a buffer visiting
 the directory into which the repository was cloned.
 
 ** Package
+
++++
+*** No longer warn if a package has no footer line.
+package.el no longer warns for packages without a "footer line", which
+is the line that usually appears at the very end of an Emacs Lisp file:
+;;; FILENAME ends here
 
 ---
 *** New optional argument to 'package-autoremove'.
