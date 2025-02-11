@@ -263,7 +263,10 @@
 (cl-defgeneric tty-menu-select-item (item how)
   ( :method ((item tty-menu-item) how)
     (when-let* ((enabled (tty-menu-enabled-p item)))
-      (throw 'tty-menu-item-selected (cons item how))))
+      (with-slots (binding) item
+        (if (keymapp binding)
+            (throw 'tty-menu-item-selected (cons item how))
+          (throw 'tty-menu-final-item-selected (cons item how))))))
   ( :method ((_item tty-menu-separator) _))
   ( :method ((item tty-menu-button) _)
     (with-slots (binding) item
@@ -677,7 +680,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
        (cl-destructuring-bind (x . y) (posn-x-y posn)
          (tty-menu-position (list (cons (- x 3) y) win)))))))
 
-(defun tty-menu-loop (keymap where)
+(defun tty-menu-loop-1 (keymap where)
   (let ((frame (tty-menu-create-frame keymap where)))
     (unwind-protect
 	;; Inner loop handling mouse movement over the pane, moving with
@@ -700,11 +703,18 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	 (cond* ((match* (cons selected how) res)
 		 (with-slots (binding) selected
 		   (if (keymapp binding)
-		       (tty-menu-loop binding (tty-menu-where how))
+		       (tty-menu-loop-1 binding (tty-menu-where how))
 		     (cl-return-from outer-loop selected))))
 		((match* 'nil res)
 		 (cl-return-from outer-loop nil))))
       (tty-menu-delete-frame frame))))
+
+(defun tty-menu-loop (keymap where)
+  (let ((res (catch 'tty-menu-final-item-selected
+               (tty-menu-loop-1 keymap where))))
+    (cond* ((match* (cons selected _how) res)
+	    selected)
+           (t res))))
 
 (defun tty-menu-delete-menu-frames ()
   (cl-flet ((frame-name (frame)
