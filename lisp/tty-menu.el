@@ -315,17 +315,22 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	      (toggle? (props) (eq (car (button? props)) :toggle)))
     ;; COND* complains about unknown pattern (PREDICATE symbol) if
     ;; PREDICATE is a local function. Use (CONSTRAIN symbol (PRODICATE
-    ;; symbol)) instead.
+    ;; symbol)) instead.  Note also that cond* seems to be undebuggable.
     (cond*
+     ;; (menu-item SEPARATOR-NAME ...)
      ((match* (cons 'menu-item
 		    (cons (constrain name (separator? name))
 			  props))
 	      item)
       (apply #'make-instance 'tty-menu-separator
              (cl-list* :key-code code :name name props)))
+
+     ;; (menu-item NAME)
      ((match* (list 'menu-item name) item)
       (make-instance 'tty-menu-item :key-code code :name name
                      :enable nil))
+
+     ;; (menu-item NAME BINDING ... :button (:radio ...) ...)
      ((match* (cons 'menu-item
 		    (cons name
 			  (cons binding
@@ -333,6 +338,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	      item)
       (apply #'make-instance 'tty-menu-radio
 	     (cl-list* :key-code code :name name :binding binding props)))
+
+     ;; (menu-item NAME BINDING ... :button (:toggle ...) ...)
      ((match* (cons 'menu-item
 		    (cons name
 			  (cons binding
@@ -340,23 +347,34 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	      item)
       (apply #'make-instance 'tty-menu-checkbox
 	     (cl-list* :key-code code :name name :binding binding props)))
+
+     ;; (menu-item NAME BINDING ...)
      ((match* (cons 'menu-item
 		    (cons name
 			  (cons binding props)))
 	      item)
       (apply #'make-instance 'tty-menu-item
 	     (cl-list* :key-code code :name name :binding binding props)))
+
+     ;; (SEPARATOR-NAME ...)
      ((match* (cons (constrain name (separator? name)) _)
 	      item)
       (make-instance 'tty-menu-separator :key-code code :name name))
-     ((match* (cons name
-		    (cons help
-			  binding))
-	      item)
+
+     ;; (NAME KEYMAP)
+     ((match* (cons name (keymapp keymap)) item)
+      (make-instance 'tty-menu-item :key-code code :name name
+                     :binding keymap))
+
+     ;; (NAME HELP BINDING)
+     ((match* (cons name (cons help binding)) item)
       (make-instance 'tty-menu-item :key-code code :name name
                      :binding binding :help help))
+
+     ;; (NAME . BINDING)
      ((match* (cons name binding) item)
       (make-instance 'tty-menu-item :key-code code :name name :binding binding))
+
      (t (error "No match for menu item %S" item)))))
 
 (defun tty-menu-keymap-name (keymap)
