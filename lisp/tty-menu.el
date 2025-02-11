@@ -44,7 +44,10 @@
   :documentation "Class for menu panes.")
 
 (defclass tty-menu-item (tty-menu-element)
-  ((name :initarg :name :type string)
+  (;; type t because even the name can be a form that needs to be
+   ;; evaluated to get the name (Redo is an example in the context
+   ;; menu).
+   (name :initarg :name :type t)
    (enable :initarg :enable :initform t :type t)
    (help :initarg :help :initform nil :type t)
    (visible :initarg :visible :initform t :type t)
@@ -85,6 +88,8 @@
 (cl-defmethod initialize-instance :after ((item tty-menu-item)
                                           &rest)
   (with-slots (name binding) item
+    (unless (stringp name)
+      (setq name (eval name)))
     (when (and binding
                (not (commandp binding))
                (not (keymapp binding)))
