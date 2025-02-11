@@ -1505,7 +1505,7 @@ For more details, see Info node `(cl)Loop Facility'.
 		      (setq var (prog1 other (setq other var))))
 		  (cl--loop-set-iterator-function
                    'keys (lambda (body)
-                           `(,(if (memq word '(key-seq key-seqs))
+                           `(,(if (memq word '(:key-seq :key-seqs))
                                   'cl--map-keymap-recursively 'map-keymap)
                              (lambda (,var ,other) . ,body) ,cl-map)))))
 
