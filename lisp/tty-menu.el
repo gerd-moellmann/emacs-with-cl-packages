@@ -664,8 +664,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		 (with-slots (binding) selected
 		   (if (keymapp binding)
 		       (tty-menu-loop binding (tty-menu-where how))
-		     ;; Return a list because x-popup-menu does.
-		     (cl-return-from outer-loop (list binding)))))
+		     (cl-return-from outer-loop selected))))
 		((match* 'nil res)
 		 (cl-return-from outer-loop nil))))
       (tty-menu-delete-frame frame))))
@@ -680,7 +679,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (cl-defun tty-menu-popup-menu (position menu)
   (when-let* ((where (tty-menu-position position)))
     (cond ((keymapp menu)
-	   (tty-menu-loop menu where))
+	   (when-let* ((selected (tty-menu-loop menu where)))
+             (with-slots (key-code) selected
+               (list key-code))))
 	  ((consp menu)
 	   (cl-loop with outer = (make-sparse-keymap "outer")
 		    for keymap in menu
