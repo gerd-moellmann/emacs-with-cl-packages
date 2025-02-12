@@ -318,13 +318,20 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		(line-width)
 		(count-lines (point-min) (point-max))))))))
 
-(defun tty-menu-make-element (code item)
+(defun tty-menu-make-element (pane code item)
   (cl-labels ((separator? (name)
                 (and (stringp name)
                      (string-prefix-p "--" name)))
-	      (button? (props) (plist-get props :button))
-	      (radio? (props) (eq (car (button? props)) :radio))
-	      (toggle? (props) (eq (car (button? props)) :toggle)))
+	      (button? (props)
+                (plist-get props :button))
+	      (radio? (props)
+                (eq (car (button? props)) :radio))
+	      (toggle? (props)
+                (eq (car (button? props)) :toggle))
+              (make (class props)
+                (apply #'make-instance class
+                       (cl-list*  :pane pane :key-code code props))))
+
     ;; COND* complains about unknown pattern (PREDICATE symbol) if
     ;; PREDICATE is a local function. Use (CONSTRAIN symbol (PRODICATE
     ;; symbol)) instead.  Note also that cond* seems to be undebuggable.
@@ -334,13 +341,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		    (cons (constrain name (separator? name))
 			  props))
 	      item)
-      (apply #'make-instance 'tty-menu-separator
-             (cl-list* :key-code code :name name props)))
+      (make 'tty-menu-separator (cl-list* :name name props)))
 
      ;; (menu-item NAME)
      ((match* (list 'menu-item name) item)
-      (make-instance 'tty-menu-item :key-code code :name name
-                     :enable nil))
+      (make 'tty-menu-item (list :name name :enable nil)))
 
      ;; (menu-item NAME BINDING ... :button (:radio ...) ...)
      ((match* (cons 'menu-item
@@ -348,8 +353,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 			  (cons binding
 				(constrain props (radio? props)))))
 	      item)
-      (apply #'make-instance 'tty-menu-radio
-	     (cl-list* :key-code code :name name :binding binding props)))
+      (make 'tty-menu-radio (cl-list* :name name :binding binding props)))
 
      ;; (menu-item NAME BINDING ... :button (:toggle ...) ...)
      ((match* (cons 'menu-item
@@ -357,35 +361,31 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 			  (cons binding
 				(constrain props (toggle? props)))))
 	      item)
-      (apply #'make-instance 'tty-menu-checkbox
-	     (cl-list* :key-code code :name name :binding binding props)))
+      (make 'tty-menu-checkbox (cl-list* :name name :binding binding props)))
 
      ;; (menu-item NAME BINDING ...)
      ((match* (cons 'menu-item
 		    (cons name
 			  (cons binding props)))
 	      item)
-      (apply #'make-instance 'tty-menu-item
-	     (cl-list* :key-code code :name name :binding binding props)))
+      (make 'tty-menu-item (cl-list* :name name :binding binding props)))
 
      ;; (SEPARATOR-NAME ...)
      ((match* (cons (constrain name (separator? name)) _)
 	      item)
-      (make-instance 'tty-menu-separator :key-code code :name name))
+      (make 'tty-menu-separator (list :name name)))
 
      ;; (NAME KEYMAP)
      ((match* (cons name (keymapp keymap)) item)
-      (make-instance 'tty-menu-item :key-code code :name name
-                     :binding keymap))
+      (make 'tty-menu-item (list :name name :binding keymap)))
 
      ;; (NAME HELP BINDING)
      ((match* (cons name (cons help binding)) item)
-      (make-instance 'tty-menu-item :key-code code :name name
-                     :binding binding :help help))
+      (make 'tty-menu-item (list :name name :binding binding :help help)))
 
      ;; (NAME . BINDING)
      ((match* (cons name binding) item)
-      (make-instance 'tty-menu-item :key-code code :name name :binding binding))
+      (make 'tty-menu-item (list :name name :binding binding)))
 
      (t (error "No match for menu item %S" item)))))
 
@@ -396,19 +396,22 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (and (stringp (car name)) (car name))))
 
 (defun tty-menu-make-pane-buffer (keymap)
-  (cl-labels
-      ((pane-buffer-name ()
-	 (if-let* ((name (tty-menu-keymap-name keymap)))
-	     (format " *tty-menu-%s*" name)
-	   (generate-new-buffer-name " *tty-menu--")))
-       (make-pane ()
-	 (make-instance
-	  'tty-menu-pane
-	  :buffer (get-buffer-create (pane-buffer-name))
-	  :items (cl-loop for binding being the key-bindings of keymap
-                          using (key-codes code)
-			  collect (tty-menu-make-element code binding)))))
-    (tty-menu-create-buffer (make-pane))))
+  (cl-labels ((pane-buffer-name ()
+	        (if-let* ((name (tty-menu-keymap-name keymap)))
+	            (format " *tty-menu-%s*" name)
+	          (generate-new-buffer-name " *tty-menu--")))
+              (make-pane (keymap)
+                (let ((pane (make-instance
+                             'tty-menu-pane
+	                     :buffer (get-buffer-create (pane-buffer-name)))))
+                  (with-slots (items) pane
+                    (setq items
+                          (cl-loop for binding being the key-bindings of keymap
+                                   using (key-codes code)
+		                   collect (tty-menu-make-element
+                                            pane code binding))))
+                  pane)))
+    (tty-menu-create-buffer (make-pane keymap))))
 
 (defvar tty-menu-frame-parameters
   `((visibility . nil)
