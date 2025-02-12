@@ -261,17 +261,14 @@
 
 (defvar-local tty-menu-selection-ov nil)
 (defvar-local tty-menu-pane-drawn nil)
-(defvar tty-menu-loop-mode nil)
 
 (cl-defgeneric tty-menu-select-item (item how)
   ( :method ((item tty-menu-item) how)
     (when-let* ((enabled (tty-menu-enabled-p item)))
       (with-slots (binding) item
-        (cond ((eq tty-menu-loop-mode 'x-popup-menu)
-               (throw 'tty-menu-final-item-selected (cons item how)))
-              ((keymapp binding)
-               (throw 'tty-menu-item-selected (cons item how)))
-              (t (throw 'tty-menu-final-item-selected (cons item how)))))))
+        (if (keymapp binding)
+            (throw 'tty-menu-item-selected (cons item how))
+          (throw 'tty-menu-final-item-selected (cons item how))))))
   ( :method ((_item tty-menu-separator) _))
   ( :method ((item tty-menu-button) _)
     (with-slots (binding) item
@@ -728,20 +725,19 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	     when (string-prefix-p " *tty-menu-" (frame-name frame))
 	     do (delete-frame frame))))
 
-(cl-defun tty-menu-x-popup-menu (position menu)
-  (let ((tty-menu-loop-mode 'x-popup-menu))
-    (when-let* ((where (tty-menu-position position)))
-      (cond ((keymapp menu)
-	     (when-let* ((selected (tty-menu-loop menu where)))
-               (with-slots (key-code) selected
-                 (list key-code))))
-	    ((consp menu)
-	     (cl-loop with outer = (make-sparse-keymap "outer")
-		      for keymap in menu
-		      for name = (tty-menu-keymap-name keymap)
-		      do (define-key outer (vector (intern name)) keymap)
-		      finally (tty-menu-loop outer where)))
-	    (t (error "Not a menu: %S" menu))))))
+(cl-defun tty-menu-popup-menu (position menu)
+  (when-let* ((where (tty-menu-position position)))
+    (cond ((keymapp menu)
+	   (when-let* ((selected (tty-menu-loop menu where)))
+             (with-slots (key-code) selected
+               (list key-code))))
+	  ((consp menu)
+	   (cl-loop with outer = (make-sparse-keymap "outer")
+		    for keymap in menu
+		    for name = (tty-menu-keymap-name keymap)
+		    do (define-key outer (vector (intern name)) keymap)
+		    finally (tty-menu-loop outer where)))
+	  (t (error "Not a menu: %S" menu)))))
 
 ;;;###autoload
 (define-minor-mode tty-menu-mode
@@ -749,7 +745,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   :global t :group 'menu
   (unless (display-graphic-p)
     (if tty-menu-mode
-        (setq x-popup-menu-function #'tty-menu-x-popup-menu)
+        (setq x-popup-menu-function #'tty-menu-popup-menu)
       (setq x-popup-menu-function nil))))
 
 (provide 'tty-menu)
