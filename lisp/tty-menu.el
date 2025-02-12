@@ -745,13 +745,22 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		    finally (tty-menu-loop outer where)))
 	  (t (error "Not a menu: %S" menu)))))
 
+(defun tty-menu-around-mouse-set-point (old-fun &rest args)
+  (let* ((start (event-start (car args)))
+         (win (posn-window start)))
+    (when (or (not (windowp win)) (window-live-p win))
+      (apply old-fun args))))
+
 ;;;###autoload
 (define-minor-mode tty-menu-mode
   "Global minor mode for displaying menus with tty child frames."
   :global t :group 'menu
   (unless (display-graphic-p)
-    (if tty-menu-mode
-        (setq x-popup-menu-function #'tty-menu-popup-menu)
-      (setq x-popup-menu-function nil))))
+    (cond (tty-menu-mode
+           (advice-add 'mouse-set-point :around #'tty-menu-around-mouse-set-point)
+           (setq x-popup-menu-function #'tty-menu-popup-menu))
+          (t
+           (advice-remove 'mouse-set-point #'tty-menu-around-mouse-set-point)
+           (setq x-popup-menu-function nil)))))
 
 (provide 'tty-menu)
