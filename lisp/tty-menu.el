@@ -710,7 +710,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                (tty-menu-loop-1 keymap where nil))))
     (pcase-exhaustive res
       ('nil nil)
-      (`(,selected ,_) selected))))
+      (`(,selected . ,_) selected))))
 
 (defun tty-menu-delete-menu-frames ()
   (cl-flet ((frame-name (frame)
