@@ -2931,7 +2931,7 @@ returns nil."
 This is the keyboard interface to \\[mouse-buffer-menu]."
   (interactive)
   (popup-menu (mouse-buffer-menu-keymap)
-              (posn-at-x-y 0 0 nil t)))
+              (posn-at-point)))
 
 (global-set-key [C-f10] 'buffer-menu-open)
 
