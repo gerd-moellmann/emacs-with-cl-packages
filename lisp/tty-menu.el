@@ -368,7 +368,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
      (`(,name ,binding)
       (make 'tty-menu-item (list :name name :binding binding)))
 
-     (t (error "No match for menu item %S" item)))))
+     (_ (error "No match for menu item %S" item)))))
 
 (defun tty-menu-keymap-name (keymap)
   (when (symbolp keymap)
@@ -617,49 +617,59 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-position (pos)
   (interactive)
-  (cond*
-   ((match* 'nil pos) nil)
-   ((match* 't pos)
-    (cl-destructuring-bind (frame x . y) (mouse-position)
-      ;; mouse-position sometimes returns nil for x and y which I
-      ;; think should not happen.
-      (list frame (or x 10) (or y 10))))
-   ((match* (eventp e) pos)
-    (let* ((end (event-end e))
-	   (win (posn-window end))
-	   (x (car (posn-x-y end)))
-	   (y (cdr (posn-x-y end))))
-      ;; posn-window returns a frame when the event is not on a window,
-      ;; for example when clicking on a menu bar in a tty frame.
-      (if (windowp win)
-	  (cl-destructuring-bind (wx wy _ _) (window-edges win nil t)
-	    (list (window-frame win) (+ wx x) (+ wy y)))
-	(let ((menu-bar-lines (frame-parameter win 'menu-bar-lines)))
-	  (list win x (+ y menu-bar-lines))))))
-   ((match* (cons (cons (numberp x)
-			(numberp y))
-		  (cons (windowp win)
-			_))
-	    pos)
-    (cl-destructuring-bind (wx wy _ _) (window-edges win nil t)
-      (list (window-frame win) (+ wx x) (+ wy y))))
-   ((match* (cons (list (numberp x) (numberp y))
-		  (cons (windowp win)
-			_))
-	    pos)
-    (cl-destructuring-bind (wx wy _ _) (window-edges win nil t)
-      (list (window-frame win) (+ wx x) (+ wy y))))
-   ((match* (cons (list (numberp x) (numberp y))
-		  (cons (framep frame) _))
-	    pos)
-    (list frame x y))
-   ((match* (cons (cons (numberp x) (numberp y))
-		  (cons (framep frame) _))
-	    pos)
-    (list frame x y))
-   ((match* (cons (numberp x) (numberp y)) pos)
-    (list (selected-frame) x y))
-   (t (error "%S does not match in tty-menu-position" pos))))
+  (pcase pos
+    ;; nil
+    ('nil nil)
+
+    ;; t
+    ('t
+     (cl-destructuring-bind (frame x . y) (mouse-position)
+       ;; mouse-position sometimes returns nil for x and y which I
+       ;; think should not happen.
+       (list frame (or x 10) (or y 10))))
+
+    ;; EVENT
+    ((and e (guard (eventp e)))
+     (let* ((end (event-end e))
+	    (win (posn-window end))
+	    (x (car (posn-x-y end)))
+	    (y (cdr (posn-x-y end))))
+       ;; posn-window returns a frame when the event is not on a window,
+       ;; for example when clicking on a menu bar in a tty frame.
+       (if (windowp win)
+	   (cl-destructuring-bind (wx wy _ _) (window-edges win nil t)
+	     (list (window-frame win) (+ wx x) (+ wy y)))
+	 (let ((menu-bar-lines (frame-parameter win 'menu-bar-lines)))
+	   (list win x (+ y menu-bar-lines))))))
+
+    ;; ((X . Y) WINDOW)
+    ((and `((,x . ,y) ,win)
+          (guard (and (numberp x) (numberp y) (windowp win))))
+     (cl-destructuring-bind (wx wy _ _) (window-edges win nil t)
+       (list (window-frame win) (+ wx x) (+ wy y))))
+
+    ;; ((X Y) WINDOW)
+    ((and `((,x ,y) ,win)
+          (guard (and (numberp x) (numberp y) (windowp win))))
+     (cl-destructuring-bind (wx wy _ _) (window-edges win nil t)
+       (list (window-frame win) (+ wx x) (+ wy y))))
+
+    ;; ((X . Y) FRAME)
+    ((and `((,x . ,y) ,frame)
+          (guard (and (numberp x) (numberp y) (framep frame))))
+     (list frame x y))
+
+    ;; ((X Y) FRAME
+    ((and `((,x ,y) ,frame)
+          (guard (and (numberp x) (numberp y) (framep frame))))
+     (list frame x y))
+
+    ;; (X . Y)
+    ((and `(,x . ,y)
+          (guard (numberp x) (numberp y)))
+     (list (selected-frame) x y))
+
+    (_ (error "%S does not match in tty-menu-position" pos))))
 
 (defun tty-menu-where (how)
   (cl-ecase how
