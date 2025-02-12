@@ -86,15 +86,13 @@
     (setf enable nil)
     (setf sep (tty-menu-get-separator-string name))))
 
-(cl-defmethod initialize-instance :after ((_item tty-menu-item)
+(cl-defmethod initialize-instance :after ((item tty-menu-item)
                                           &rest)
-  ;; This check cannot be done, for example for checkboxes.
-  '(with-slots (name binding) item
-    (when (and binding
-               (not (commandp binding))
-               (not (keymapp binding)))
-      (error "Invalid binding for %S: %S" name binding)))
-  )
+  (with-slots (binding enable) item
+    (when (and (keymapp binding)
+               (zerop (cl-loop for b being the key-codes of binding
+                               count b)))
+      (setf enable nil))))
 
 (defvar tty-menu-left-border-format "%1s")
 (defvar tty-menu-right-border-format "%1s")
