@@ -39,7 +39,8 @@
 (defclass tty-menu-pane (tty-menu-element)
   ((items :initarg :items :initform nil :type t)
    (buffer :initarg :buffer :type buffer)
-   (layout :type list))
+   (layout :type list)
+   (invoking-item :initarg :invoking-item :type (or null tty-menu-item)))
   :documentation "Class for menu panes.")
 
 (defclass tty-menu-item (tty-menu-element)
@@ -56,7 +57,8 @@
    (button :initarg :button :initform nil :type t)
    (selected :initarg :selected :initform nil :type t)
    (binding :initarg :binding :initform nil :type t)
-   (key-code :initarg :key-code :initform nil :type t)))
+   (key-code :initarg :key-code :initform nil :type t)
+   (pane :initafg :pane :type tty-menu-pane)))
 
 (defclass tty-menu-button (tty-menu-item) ())
 (defclass tty-menu-radio (tty-menu-button) ())
