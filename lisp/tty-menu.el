@@ -100,7 +100,7 @@
 (defvar tty-menu-right-border-format "%1s")
 (defvar tty-menu-button-format "%-4s")
 (defvar tty-menu-key-format "%10s")
-(defvar tty-menu-name-format "%s")
+(defvar tty-menu-name-format "%-20s")
 
 (defvar tty-menu-triangle "▶")
 (defvar tty-menu-radio-on "●")
