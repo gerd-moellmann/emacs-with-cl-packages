@@ -58,7 +58,7 @@
    (selected :initarg :selected :initform nil :type t)
    (binding :initarg :binding :initform nil :type t)
    (key-code :initarg :key-code :initform nil :type t)
-   (pane :initafg :pane :type tty-menu-pane)))
+   (pane :initarg :pane :type tty-menu-pane)))
 
 (defclass tty-menu-button (tty-menu-item) ())
 (defclass tty-menu-radio (tty-menu-button) ())
@@ -403,7 +403,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (make-pane (keymap)
                 (let ((pane (make-instance
                              'tty-menu-pane
-                             :invokign-item invoking-item
+                             :invoking-item invoking-item
 	                     :buffer (get-buffer-create (pane-buffer-name)))))
                   (with-slots (items) pane
                     (setq items
