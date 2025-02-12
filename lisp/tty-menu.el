@@ -734,9 +734,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (cl-defun tty-menu-popup-menu (position menu)
   (when-let* ((where (tty-menu-position position)))
     (cond ((keymapp menu)
-	   (when-let* ((selected (tty-menu-loop menu where)))
-             (with-slots (key-code) selected
-               (list key-code))))
+           (cl-loop for i = (tty-menu-loop menu where)
+                    then (with-slots (pane) i
+                           (with-slots (invoking-item) pane
+                             invoking-item))
+                    while i
+                    collect (slot-value i 'key-code) into codes
+                    finally return (nreverse codes)))
 	  ((consp menu)
 	   (cl-loop with outer = (make-sparse-keymap "outer")
 		    for keymap in menu
