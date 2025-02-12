@@ -331,7 +331,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (make (class props)
                 (apply #'make-instance class
                        (cl-list*  :pane pane :key-code code props))))
-    (pcase item
+    (pcase-exhaustive item
      ;; (menu-item SEPARATOR-NAME ...)
       (`(menu-item ,(and (pred separator?) name) . ,props)
       (make 'tty-menu-separator (cl-list* :name name props)))
@@ -366,9 +366,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
      ;; (NAME . BINDING)
      (`(,name ,binding)
-      (make 'tty-menu-item (list :name name :binding binding)))
-
-     (_ (error "No match for menu item %S" item)))))
+      (make 'tty-menu-item (list :name name :binding binding))))))
 
 (defun tty-menu-keymap-name (keymap)
   (when (symbolp keymap)
@@ -617,7 +615,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-position (pos)
   (interactive)
-  (pcase pos
+  (pcase-exhaustive pos
     ;; nil
     ('nil nil)
 
@@ -667,9 +665,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     ;; (X . Y)
     ((and `(,x . ,y)
           (guard (numberp x) (numberp y)))
-     (list (selected-frame) x y))
-
-    (_ (error "%S does not match in tty-menu-position" pos))))
+     (list (selected-frame) x y))))
 
 (defun tty-menu-where (how)
   (cl-ecase how
@@ -686,7 +682,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	;; the keyboard on the pane. The loop is left by a throw when a
 	;; menu-item is selected.
 	(cl-loop
-	 named outer-loop
+         named outer-loop
 	 while t
 	 for res = (catch 'tty-menu-item-selected
 		     (while t
@@ -699,21 +695,22 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	 do
 	 ;; If the selected item was for a sub-pane, call ourselves
 	 ;; recursively with the sub-pane.
-	 (cond* ((match* (cons selected how) res)
-		 (with-slots (binding) selected
-		   (if (keymapp binding)
-		       (tty-menu-loop-1 binding (tty-menu-where how) selected)
-		     (cl-return-from outer-loop selected))))
-		((match* 'nil res)
-		 (cl-return-from outer-loop nil))))
+	 (pcase-exhaustive res
+           (`(,selected . ,(and (pred symbolp) how))
+	    (with-slots (binding) selected
+	      (if (keymapp binding)
+		  (tty-menu-loop-1 binding (tty-menu-where how) selected)
+		(cl-return-from outer-loop selected))))
+           ('nil
+	    (cl-return-from outer-loop nil))))
       (tty-menu-delete-frame frame))))
 
 (defun tty-menu-loop (keymap where)
   (let ((res (catch 'tty-menu-final-item-selected
                (tty-menu-loop-1 keymap where nil))))
-    (cond* ((match* (cons selected _how) res)
-	    selected)
-           (t res))))
+    (pcase res
+      (`(,selected ,_) selected)
+      (_ res))))
 
 (defun tty-menu-delete-menu-frames ()
   (cl-flet ((frame-name (frame)
