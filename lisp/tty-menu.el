@@ -714,7 +714,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-loop (keymap where)
   (let ((res (catch 'tty-menu-final-item-selected
-               (tty-menu-loop-1 keymap where nil))))
+               (save-selected-window
+                 (tty-menu-loop-1 keymap where nil)))))
     (pcase-exhaustive res
       ('nil nil)
       (`(,selected . ,_) selected))))
