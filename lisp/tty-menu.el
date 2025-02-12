@@ -267,7 +267,7 @@
   ( :method ((item tty-menu-item) how)
     (when-let* ((enabled (tty-menu-enabled-p item)))
       (with-slots (binding) item
-        (cond ((eq tty-menu-loop-mode 'x-popup-menu)
+        (cond ((eq tty-menu-loop-mode 'single-pane)
                (throw 'tty-menu-final-item-selected (cons item how)))
               ((keymapp binding)
                (throw 'tty-menu-item-selected (cons item how)))
@@ -729,7 +729,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	     do (delete-frame frame))))
 
 (cl-defun tty-menu-x-popup-menu (position menu)
-  (let ((tty-menu-loop-mode 'x-popup-menu))
+  (let ((tty-menu-loop-mode 'single-pane))
     (when-let* ((where (tty-menu-position position)))
       (cond ((keymapp menu)
 	     (when-let* ((selected (tty-menu-loop menu where)))
@@ -745,7 +745,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-popup-menu (menu &optional position prefix
                                  from-menu-bar)
-  (let* ((tty-menu-loop-mode 'popup-menu)
+  (let* ((tty-menu-loop-mode 'multi-pane)
          (map (cond ((keymapp menu) menu)
 	            ((and (listp menu) (keymapp (car menu))) menu)
                     ((not (listp menu)) nil)
