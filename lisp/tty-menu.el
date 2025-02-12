@@ -743,91 +743,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		      finally (tty-menu-loop outer where)))
 	    (t (error "Not a menu: %S" menu))))))
 
-(defun tty-menu-popup-menu (menu &optional position prefix
-                                 from-menu-bar)
-  (let* ((tty-menu-loop-mode 'popup-menu)
-         (map (cond ((keymapp menu) menu)
-	            ((and (listp menu) (keymapp (car menu))) menu)
-                    ((not (listp menu)) nil)
-	            (t (let* ((map (easy-menu-create-menu (car menu) (cdr menu)))
-			      (filter (when (symbolp map)
-				        (plist-get (get map 'menu-prop) :filter))))
-		         (if filter
-                             (funcall filter (symbol-function map))
-                           map)))))
-	 (frame (selected-frame))
-	 event cmd)
-    (if from-menu-bar
-	(let* ((xy (posn-x-y position))
-	       (menu-symbol (menu-bar-menu-at-x-y (car xy) (cdr xy))))
-	  (setq position
-                (list menu-symbol
-                      (list frame '(menu-bar) xy 0))))
-      (setq position (popup-menu-normalize-position position)))
-
-    (while (and map
-                (setq event
-		      ;; map could be a prefix key, in which case we
-		      ;; need to get its function cell definition.
-		      (x-popup-menu position (indirect-function map))))
-      ;; Strangely x-popup-menu returns a list.
-      ;; mouse-major-mode-menu was using a weird:
-      ;; (key-binding (apply 'vector (append '(menu-bar) menu-prefix events)))
-      (setq cmd
-	    (cond
-	     ((and from-menu-bar
-		   (consp event)
-		   (numberp (car event))
-		   (numberp (cdr event)))
-	      (let ((x (car event))
-		    (y (cdr event))
-		    menu-symbol)
-		(setq menu-symbol (menu-bar-menu-at-x-y x y))
-		(setq position (list menu-symbol (list frame '(menu-bar)
-						 event 0)))
-		(setq map
-		      (key-binding (vector 'menu-bar menu-symbol)))))
-	     ((and (not (keymapp map)) (listp map))
-	      ;; We were given a list of keymaps.  Search them all
-	      ;; in sequence until a first binding is found.
-	      (let ((mouse-click (apply 'vector event))
-		    binding)
-		(while (and map (null binding))
-		  (setq binding (lookup-key-ignore-too-long (car map) mouse-click))
-		  (setq map (cdr map)))
-                binding))
-	     (t
-	      ;; We were given a single keymap.
-	      (lookup-key map (apply 'vector event)))))
-      ;; Clear out echoing, which perhaps shows a prefix arg.
-      (message "")
-      ;; Maybe try again but with the submap.
-      (setq map (if (keymapp cmd) cmd)))
-    ;; If the user did not cancel by refusing to select,
-    ;; and if the result is a command, run it.
-    (when (and (null map) (commandp cmd))
-      (setq prefix-arg prefix)
-      ;; `setup-specified-language-environment', for instance,
-      ;; expects this to be set from a menu keymap.
-      (setq last-command-event (car (last event)))
-      (setq from--tty-menu-p nil)
-      ;; Signal use-dialog-box-p this command was invoked from a menu.
-      (let ((from--tty-menu-p t))
-        ;; mouse-major-mode-menu was using `command-execute' instead.
-        (call-interactively cmd)))))
-
 ;;;###autoload
 (define-minor-mode tty-menu-mode
   "Global minor mode for displaying menus with tty child frames."
   :global t :group 'menu
   (unless (display-graphic-p)
-    (cond (tty-menu-mode
-           (add-function :override (symbol-function 'popup-menu)
-                         #'tty-menu-popup-menu)
-           (setq x-popup-menu-function #'tty-menu-x-popup-menu))
-          (t
-           (remove-function (symbol-function 'popup-menu)
-                            #'tty-menu-popup-menu)
-           (setq x-popup-menu-function nil)))))
+    (if tty-menu-mode
+        (setq x-popup-menu-function #'tty-menu-x-popup-menu)
+      (setq x-popup-menu-function nil))))
 
 (provide 'tty-menu)
