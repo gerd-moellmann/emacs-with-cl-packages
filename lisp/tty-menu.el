@@ -108,8 +108,6 @@
 (defvar tty-menu-checkbox-on "✔")
 (defvar tty-menu-checkbox-off "□")
 
-(defvar tty-menu-loop-result nil)
-
 (defun tty-menu-selectable-p (item)
   (eval (slot-value item 'enable)))
 
@@ -277,8 +275,8 @@
     (when-let* ((enabled (tty-menu-enabled-p item)))
       (with-slots (binding) item
         (if (keymapp binding)
-            (setq tty-menu-loop-result (list 'item-selected item how))
-          (setq tty-menu-loop-result (list 'final-item-selected item how))))))
+            (throw 'tty-menu-item-selected (cons item how))
+          (throw 'tty-menu-final-item-selected (cons item how))))))
   ( :method ((_item tty-menu-separator) _))
   ( :method ((item tty-menu-button) _)
     (with-slots (binding) item
@@ -519,14 +517,14 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-mouse-select-item (event)
   (interactive "e")
-  (let* ((end (event-end event))
-	 (win (posn-window end)))
-    (if (not (eq win (selected-window)))
-        (setq tty-menu-loop-result 'discard)
-      (when-let* ((item (mouse-posn-property end 'tty-menu-item))
-	          ((tty-menu-selectable-p item)))
-        (goto-char (posn-point end))
-        (tty-menu-select-item item 'mouse)))))
+  (when-let* ((end (event-end event))
+	      (win (posn-window end))
+              ((or (eq win (selected-window))
+                   (throw 'tty-menu-item-selected nil)))
+              (item (mouse-posn-property end 'tty-menu-item))
+	      ((tty-menu-selectable-p item)))
+    (goto-char (posn-point end))
+    (tty-menu-select-item item 'mouse)))
 
 (defun tty-menu-key-select-item ()
   (interactive)
@@ -562,7 +560,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-close-pane ()
   (interactive)
-  (setq tty-menu-loop-result 'discard))
+  (throw 'tty-menu-item-selected nil))
 
 (defun tty-menu-isearch (forward)
   (isearch-mode forward nil nil)
@@ -584,7 +582,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-menu-bar-click (_event)
   (interactive "e")
-  (setq tty-menu-loop-result 'discard))
+  (throw 'tty-menu-item-selected nil))
 
 (defun tty-menu-close-on-click (_event)
   (interactive "e")
@@ -687,36 +685,42 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-loop-1 (keymap where invoking-item)
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
     (unwind-protect
+	;; Inner loop handling mouse movement over the pane, moving with
+	;; the keyboard on the pane. The loop is left by a throw when a
+	;; menu-item is selected.
 	(cl-loop
-         named outer-loop while t do
-         (setq tty-menu-loop-result nil)
-         (while (not tty-menu-loop-result)
-	   (tty-menu-show-selected-item)
-	   (let* ((track-mouse t)
-		  (key (read-key-sequence nil))
-		  (cmd (lookup-key tty-menu-keymap key)))
-	     (when (commandp cmd)
-	       (call-interactively cmd))))
-
-	 (pcase-exhaustive tty-menu-loop-result
-           ('discard
-            (cl-return-from outer-loop nil))
-           (`(item-selected ,selected ,how)
+         named outer-loop
+	 while t
+	 for res = (catch 'tty-menu-item-selected
+		     (while t
+		       (tty-menu-show-selected-item)
+		       (let* ((track-mouse t)
+			      (key (read-key-sequence nil))
+			      (cmd (lookup-key tty-menu-keymap key)))
+			 (when (commandp cmd)
+			   (call-interactively cmd)))))
+	 do
+	 ;; If the selected item was for a sub-pane, call ourselves
+	 ;; recursively with the sub-pane.
+	 (pcase-exhaustive res
+           (`(,selected . ,(and (pred symbolp) how))
 	    (with-slots (binding) selected
 	      (if (keymapp binding)
 		  (tty-menu-loop-1 binding (tty-menu-where how) selected)
 		(cl-return-from outer-loop selected))))
-           (`(final-item-selected ,selected ,_)
-            (cl-return-from outer-loop selected))))
+           ('nil
+	    (cl-return-from outer-loop nil))))
       (tty-menu-delete-frame frame))))
 
 (defun tty-menu-loop (keymap where)
-  (save-selected-window
-    (let ((tty-menu-loop-result nil))
-      (tty-menu-loop-1 keymap where nil))))
+  (let ((res (catch 'tty-menu-final-item-selected
+               (save-selected-window
+                 (tty-menu-loop-1 keymap where nil)))))
+    (pcase-exhaustive res
+      ('nil nil)
+      (`(,selected . ,_) selected))))
 
 (defun tty-menu-delete-menu-frames ()
-  (interactive)
   (cl-flet ((frame-name (frame)
 	      (frame-parameter frame 'name)))
     (cl-loop for frame in (frame-list)
