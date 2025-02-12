@@ -395,7 +395,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (let ((name (last keymap)))
     (and (stringp (car name)) (car name))))
 
-(defun tty-menu-make-pane-buffer (keymap)
+(defun tty-menu-make-pane-buffer (keymap invoking-item)
   (cl-labels ((pane-buffer-name ()
 	        (if-let* ((name (tty-menu-keymap-name keymap)))
 	            (format " *tty-menu-%s*" name)
@@ -403,6 +403,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (make-pane (keymap)
                 (let ((pane (make-instance
                              'tty-menu-pane
+                             :invokign-item invoking-item
 	                     :buffer (get-buffer-create (pane-buffer-name)))))
                   (with-slots (items) pane
                     (setq items
@@ -478,9 +479,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	(setq current-frame (frame-parent current-frame))))
     (cons abs-x abs-y)))
 
-(defun tty-menu-create-frame (keymap where)
+(defun tty-menu-create-frame (keymap where invoking-item)
   (cl-destructuring-bind (buffer width height)
-      (tty-menu-make-pane-buffer keymap)
+      (tty-menu-make-pane-buffer keymap invoking-item)
     (cl-destructuring-bind (parent-frame x y) where
       ;; We want to show the menu using a root frame as parent because
       ;; that doesn't clip the frame. Means that we have to translate
@@ -687,8 +688,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
        (cl-destructuring-bind (x . y) (posn-x-y posn)
          (tty-menu-position (list (cons (- x 3) y) win)))))))
 
-(defun tty-menu-loop-1 (keymap where)
-  (let ((frame (tty-menu-create-frame keymap where)))
+(defun tty-menu-loop-1 (keymap where invoking-item)
+  (let ((frame (tty-menu-create-frame keymap where invoking-item)))
     (unwind-protect
 	;; Inner loop handling mouse movement over the pane, moving with
 	;; the keyboard on the pane. The loop is left by a throw when a
@@ -710,7 +711,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	 (cond* ((match* (cons selected how) res)
 		 (with-slots (binding) selected
 		   (if (keymapp binding)
-		       (tty-menu-loop-1 binding (tty-menu-where how))
+		       (tty-menu-loop-1 binding (tty-menu-where how) selected)
 		     (cl-return-from outer-loop selected))))
 		((match* 'nil res)
 		 (cl-return-from outer-loop nil))))
@@ -718,7 +719,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-loop (keymap where)
   (let ((res (catch 'tty-menu-final-item-selected
-               (tty-menu-loop-1 keymap where))))
+               (tty-menu-loop-1 keymap where nil))))
     (cond* ((match* (cons selected _how) res)
 	    selected)
            (t res))))
