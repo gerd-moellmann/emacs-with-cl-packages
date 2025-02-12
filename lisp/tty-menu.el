@@ -31,7 +31,7 @@
 
 ;; menu-bar-menu doesn't work (list of keymaps?)
 
-(eval-when-compile (require 'cl-lib))
+(require 'cl-lib)
 
 (defclass tty-menu-element () ()
   :documentation "Base class for elements of a menu.")
