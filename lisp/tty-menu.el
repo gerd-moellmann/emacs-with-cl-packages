@@ -331,60 +331,41 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (make (class props)
                 (apply #'make-instance class
                        (cl-list*  :pane pane :key-code code props))))
-
-    ;; COND* complains about unknown pattern (PREDICATE symbol) if
-    ;; PREDICATE is a local function. Use (CONSTRAIN symbol (PRODICATE
-    ;; symbol)) instead.  Note also that cond* seems to be undebuggable.
-    (cond*
+    (pcase item
      ;; (menu-item SEPARATOR-NAME ...)
-     ((match* (cons 'menu-item
-		    (cons (constrain name (separator? name))
-			  props))
-	      item)
+      (`(menu-item ,(and (pred separator?) name) . ,props)
       (make 'tty-menu-separator (cl-list* :name name props)))
 
      ;; (menu-item NAME)
-     ((match* (list 'menu-item name) item)
+     (`(menu-item ,name)
       (make 'tty-menu-item (list :name name :enable nil)))
 
      ;; (menu-item NAME BINDING ... :button (:radio ...) ...)
-     ((match* (cons 'menu-item
-		    (cons name
-			  (cons binding
-				(constrain props (radio? props)))))
-	      item)
+     (`(menu-item ,name ,binding . ,(and (pred radio?) props))
       (make 'tty-menu-radio (cl-list* :name name :binding binding props)))
 
      ;; (menu-item NAME BINDING ... :button (:toggle ...) ...)
-     ((match* (cons 'menu-item
-		    (cons name
-			  (cons binding
-				(constrain props (toggle? props)))))
-	      item)
+     (`(menu-item ,name ,binding . ,(and (pred toggle?) props))
       (make 'tty-menu-checkbox (cl-list* :name name :binding binding props)))
 
      ;; (menu-item NAME BINDING ...)
-     ((match* (cons 'menu-item
-		    (cons name
-			  (cons binding props)))
-	      item)
+     (`(menu-item ,name ,binding . ,props)
       (make 'tty-menu-item (cl-list* :name name :binding binding props)))
 
      ;; (SEPARATOR-NAME ...)
-     ((match* (cons (constrain name (separator? name)) _)
-	      item)
+     (`(,(and (pred separator?) name) . ,_)
       (make 'tty-menu-separator (list :name name)))
 
      ;; (NAME KEYMAP)
-     ((match* (cons name (keymapp keymap)) item)
+     (`(,name ,(and (pred keymapp) keymap))
       (make 'tty-menu-item (list :name name :binding keymap)))
 
      ;; (NAME HELP BINDING)
-     ((match* (cons name (cons help binding)) item)
+     (`(,name ,help ,binding)
       (make 'tty-menu-item (list :name name :binding binding :help help)))
 
      ;; (NAME . BINDING)
-     ((match* (cons name binding) item)
+     (`(,name ,binding)
       (make 'tty-menu-item (list :name name :binding binding)))
 
      (t (error "No match for menu item %S" item)))))
