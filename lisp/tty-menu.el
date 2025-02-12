@@ -681,7 +681,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
          (tty-menu-position (list (cons (- x 3) y) win)))))))
 
 (defun tty-menu-loop-1 (keymap where invoking-item)
-  (let ((frame (tty-menu-create-frame keymap where invoking-item)))
+  (let* ((frame (tty-menu-create-frame keymap where invoking-item))
+         (menu-updating-frame frame))
     (unwind-protect
 	;; Inner loop handling mouse movement over the pane, moving with
 	;; the keyboard on the pane. The loop is left by a throw when a
