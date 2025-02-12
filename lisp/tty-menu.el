@@ -464,31 +464,33 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (cons abs-x abs-y)))
 
 (defun tty-menu-create-frame (keymap where invoking-item)
-  (cl-destructuring-bind (buffer width height)
-      (tty-menu-make-pane-buffer keymap invoking-item)
-    (cl-destructuring-bind (parent-frame x y) where
-      ;; We want to show the menu using a root frame as parent because
-      ;; that doesn't clip the frame. Means that we have to translate
-      ;; coordinates to absolute.
-      (when (frame-parent parent-frame)
-	(cl-destructuring-bind (ax . ay)
-	    (tty-menu-frame-absolute-position parent-frame x y)
-	  (setq x ax y ay)
-	  (setq parent-frame (frame-root-frame parent-frame))))
-      (setq height (min height
-			(round (/ (frame-height parent-frame) 1.6))))
-      (let* ((minibuffer (minibuffer-window parent-frame))
-             (window-min-height 1)
-             (window-min-width 1)
-             (after-make-frame-functions nil)
-	     (frame (make-frame `((parent-frame . ,parent-frame)
-				  (name . ,(buffer-name buffer))
-				  (tty-menu-buffer . ,buffer)
-				  (minibuffer . ,minibuffer)
-				  ,@(tty-menu-frame-parameters))))
-	     (win (frame-root-window frame)))
+  (cl-destructuring-bind (parent-frame x y) where
+    ;; We want to show the menu using a root frame as parent because
+    ;; that doesn't clip the frame. Means that we have to translate
+    ;; coordinates to absolute.
+    (when (frame-parent parent-frame)
+      (cl-destructuring-bind (ax . ay)
+	  (tty-menu-frame-absolute-position parent-frame x y)
+	(setq x ax y ay)
+	(setq parent-frame (frame-root-frame parent-frame))))
+    (let* ((minibuffer (minibuffer-window parent-frame))
+           (window-min-height 1)
+           (window-min-width 1)
+           (after-make-frame-functions nil)
+	   (frame (make-frame `((parent-frame . ,parent-frame)
+				(minibuffer . ,minibuffer)
+				,@(tty-menu-frame-parameters))))
+           (menu-updating-frame frame)
+	   (win (frame-root-window frame)))
+      (cl-destructuring-bind (buffer width height)
+          (tty-menu-make-pane-buffer keymap invoking-item)
+	(modify-frame-parameters frame `((name . ,(buffer-name buffer))
+				         (tty-menu-buffer . ,buffer)))
 	(set-window-buffer win buffer)
 	(set-window-dedicated-p win t)
+        ;; Don't make the frame absurdly large.
+        (setq height (min height
+			  (round (/ (frame-height parent-frame) 1.6))))
 	(set-frame-size frame width height)
 	(set-frame-position frame x y)
 	(tty-menu-make-fully-visible parent-frame frame x y)
