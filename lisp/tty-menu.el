@@ -502,8 +502,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-delete-frame (frame)
   ;; During development, sometimes the frame can be null.
   (when frame
-    (kill-buffer (frame-parameter frame 'tty-menu-buffer)))
-    (delete-frame frame))
+    (kill-buffer (frame-parameter frame 'tty-menu-buffer))
+    (delete-frame frame)))
 
 (defun tty-menu-mouse-moved (event)
   (interactive "e")
