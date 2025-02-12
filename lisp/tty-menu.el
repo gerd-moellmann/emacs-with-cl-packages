@@ -365,7 +365,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (make 'tty-menu-item (list :name name :binding binding :help help)))
 
      ;; (NAME . BINDING)
-     (`(,name ,binding)
+     (`(,name . ,binding)
       (make 'tty-menu-item (list :name name :binding binding))))))
 
 (defun tty-menu-keymap-name (keymap)
