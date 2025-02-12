@@ -184,11 +184,17 @@
 
 (cl-defgeneric tty-menu-draw-key (item pane)
   ( :method ((item tty-menu-item) pane)
-    (with-slots (layout) pane
-      (cl-destructuring-bind (left-border button name-width key-width _)
-          layout
-	(insert (tty-menu-key-string item))
-	(indent-to (+ left-border button name-width key-width)))))
+    (cl-flet ((right-aligned-p (fmt)
+                (not (string-match-p "%-" fmt))))
+      (with-slots (layout) pane
+        (cl-destructuring-bind (left-border button name-width key-width _)
+            layout
+          (let ((key (tty-menu-key-string item)))
+            (when (and (< (length key) key-width)
+                       (right-aligned-p tty-menu-key-format))
+              (tty-menu-ninsert (- key-width (length key)) " "))
+	    (insert key))
+	  (indent-to (+ left-border button name-width key-width))))))
   ( :method ((item tty-menu-separator) pane)
     (with-slots (layout) pane
       (cl-destructuring-bind (_ _ _ key-width _) layout
