@@ -607,7 +607,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                                        (cdr tty-menu-from-menu-bar)
                                        menu-updating-frame)))
         (unless (eq old new)
-          (throw 'tty-menu-final-item-selected `(menu-bar ,new))))))
+          ;; Need position of start of menu item, not the one of
+          ;; the mouse event.
+          (setq tty-menu-from-menu-bar (posn-x-y (event-end event)))
+          (throw 'tty-menu-final-item-selected `(menu-bar ,x ,y))))))
 
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
@@ -831,9 +834,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                  (tty-menu-loop-1 keymap where nil)))))
     (pcase-exhaustive res
       ('nil nil)
-      (`(menu-bar ,new-menu)
-       (message "-> new-menu")
-       nil)
+      (`(menu-bar ,x ,y) (cons x y))
       (`(,selected . ,_) selected))))
 
 (cl-defun tty-menu-popup-menu (position menu)
@@ -846,6 +847,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                                (with-slots (invoking-item) pane
                                  invoking-item))
                         while i
+                        when (consp i) return i
                         collect (slot-value i 'key-code) into codes
                         finally return (nreverse codes)))
 	      ((consp menu)
