@@ -480,7 +480,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   (frame (make-frame `((parent-frame . ,parent-frame)
 				(minibuffer . ,minibuffer)
 				,@(tty-menu-frame-parameters))))
-           (menu-updating-frame frame)
 	   (win (frame-root-window frame)))
       (cl-destructuring-bind (buffer width height)
           (tty-menu-make-pane-buffer keymap invoking-item)
@@ -743,21 +742,22 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (cl-defun tty-menu-popup-menu (position menu)
   (when-let* ((where (tty-menu-position position)))
-    (cond ((keymapp menu)
-           (cl-loop for i = (tty-menu-loop menu where)
-                    then (with-slots (pane) i
-                           (with-slots (invoking-item) pane
-                             invoking-item))
-                    while i
-                    collect (slot-value i 'key-code) into codes
-                    finally return (nreverse codes)))
-	  ((consp menu)
-	   (cl-loop with outer = (make-sparse-keymap "outer")
-		    for keymap in menu
-		    for name = (tty-menu-keymap-name keymap)
-		    do (define-key outer (vector (intern name)) keymap)
-		    finally (tty-menu-loop outer where)))
-	  (t (error "Not a menu: %S" menu)))))
+    (cl-destructuring-bind (menu-updating-frame _ _) where
+      (cond ((keymapp menu)
+             (cl-loop for i = (tty-menu-loop menu where)
+                      then (with-slots (pane) i
+                             (with-slots (invoking-item) pane
+                               invoking-item))
+                      while i
+                      collect (slot-value i 'key-code) into codes
+                      finally return (nreverse codes)))
+	    ((consp menu)
+	     (cl-loop with outer = (make-sparse-keymap "outer")
+		      for keymap in menu
+		      for name = (tty-menu-keymap-name keymap)
+		      do (define-key outer (vector (intern name)) keymap)
+		      finally (tty-menu-loop outer where)))
+	    (t (error "Not a menu: %S" menu))))))
 
 ;; A mouse-click in a menu can lead to one or more frames for menu panes
 ;; being deleted. Somehow, such a click event survives the frame
