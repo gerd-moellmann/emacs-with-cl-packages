@@ -748,9 +748,14 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		    finally (tty-menu-loop outer where)))
 	  (t (error "Not a menu: %S" menu)))))
 
+;; A mouse-click in a menu can lead to one or more frames for menu panes
+;; being deleted. Somehow, such a click event survives the frame
+;; deletions, and lands in mouse-set-point with the event containing a
+;; window on such a deleted frame. I couldn't find the reason for that.
+;; So this is an advice added to handle that.
 (defun tty-menu-around-mouse-set-point (old-fun &rest args)
-  (let* ((start (event-start (car args)))
-         (win (posn-window start)))
+  (let* ((event (car args))
+         (win (posn-window (event-start event))))
     (when (or (not (windowp win)) (window-live-p win))
       (apply old-fun args))))
 
