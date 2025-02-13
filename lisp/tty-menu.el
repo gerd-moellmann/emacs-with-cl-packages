@@ -647,7 +647,24 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((item (get-text-property (point) 'tty-menu-item)))
     (with-slots (binding) item
       (when (keymapp binding)
-	(tty-menu-select-item item 'key)))))
+	(tty-menu-select-item item 'key))))
+
+  ;; Menu-bar.
+  (when-let* (((not (null tty-menu-from-menu-bar)))
+              (item (get-text-property (point) 'tty-menu-item))
+              (pane (slot-value item 'pane))
+              ((null (slot-value pane 'invoking-item)))
+              (layout (tty-menu-bar-layout tty-menu-updating-buffer))
+              (index (tty-menu-bar-find-pane layout pane))
+              (n (length layout)))
+    ;; Need to find out what menu-bar item this pane is for.
+    ;; Then find the previous menu-bar item and arrange for
+    ;; this one to be opened.
+    (cl-incf index)
+    (when (>= index n)
+      (setq index 0))
+    (cl-destructuring-bind (_ _ x0 _) (nth index layout)
+      (throw 'tty-menu-final-item-selected `(menu-bar ,x0 0)))))
 
 (defun tty-menu-next-line ()
   "Move to next selectable line in menu."
