@@ -106,14 +106,23 @@
 (defvar tty-menu-checkbox-on "✔")
 (defvar tty-menu-checkbox-off "□")
 
+(defvar tty-menu-updating-buffer)
+
+(defun tty-menu-eval (form)
+  (with-current-buffer tty-menu-updating-buffer
+    (eval form)))
+
 (defun tty-menu-selectable-p (item)
-  (eval (slot-value item 'enable)))
+  (tty-menu-eval (slot-value item 'enable)))
 
 (defun tty-menu-visible-p (item)
-  (eval (slot-value item 'visible)))
+  (tty-menu-eval (slot-value item 'visible)))
 
 (defun tty-menu-enabled-p (item)
-  (eval (slot-value item 'enable)))
+  (tty-menu-eval (slot-value item 'enable)))
+
+(defun tty-menu-name (item)
+  (tty-menu-eval (slot-value item 'name)))
 
 (defun tty-menu-ninsert (n x)
   (cl-loop repeat n do (insert x)))
@@ -136,8 +145,7 @@
 
 (cl-defgeneric tty-menu-name-string (item)
   ( :method ((item tty-menu-item))
-    (with-slots (name) item
-      (format tty-menu-name-format (eval name))))
+    (format tty-menu-name-format (tty-menu-name item)))
   ( :method ((_ tty-menu-separator))
     ""))
 
@@ -161,7 +169,7 @@
   ( :method ((item tty-menu-button) _pane)
     (with-slots (selected button) item
       (cl-destructuring-bind (_ . form) button
-	(setf selected (eval form))
+	(setf selected (tty-menu-eval form))
 	(insert (tty-menu-button-string item)))))
   ( :method ((item tty-menu-separator) pane)
     (with-slots (layout) pane
@@ -324,7 +332,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-make-element (pane code item)
   (cl-labels ((separator? (name)
-                (let ((name (eval name)))
+                (let ((name (tty-menu-eval name)))
                   (and (stringp name)
                        (string-prefix-p "--" name))))
 	      (button? (props)
@@ -743,21 +751,22 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (cl-defun tty-menu-popup-menu (position menu)
   (when-let* ((where (tty-menu-position position)))
     (cl-destructuring-bind (menu-updating-frame _ _) where
-      (cond ((keymapp menu)
-             (cl-loop for i = (tty-menu-loop menu where)
-                      then (with-slots (pane) i
-                             (with-slots (invoking-item) pane
-                               invoking-item))
-                      while i
-                      collect (slot-value i 'key-code) into codes
-                      finally return (nreverse codes)))
-	    ((consp menu)
-	     (cl-loop with outer = (make-sparse-keymap "outer")
-		      for keymap in menu
-		      for name = (tty-menu-keymap-name keymap)
-		      do (define-key outer (vector (intern name)) keymap)
-		      finally (tty-menu-loop outer where)))
-	    (t (error "Not a menu: %S" menu))))))
+      (let ((tty-menu-updating-buffer (current-buffer)))
+        (cond ((keymapp menu)
+               (cl-loop for i = (tty-menu-loop menu where)
+                        then (with-slots (pane) i
+                               (with-slots (invoking-item) pane
+                                 invoking-item))
+                        while i
+                        collect (slot-value i 'key-code) into codes
+                        finally return (nreverse codes)))
+	      ((consp menu)
+	       (cl-loop with outer = (make-sparse-keymap "outer")
+		        for keymap in menu
+		        for name = (tty-menu-keymap-name keymap)
+		        do (define-key outer (vector (intern name)) keymap)
+		        finally (tty-menu-loop outer where)))
+	      (t (error "Not a menu: %S" menu)))))))
 
 ;; A mouse-click in a menu can lead to one or more frames for menu panes
 ;; being deleted. Somehow, such a click event survives the frame
