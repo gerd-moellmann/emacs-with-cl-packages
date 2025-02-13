@@ -112,6 +112,10 @@
   (with-current-buffer tty-menu-updating-buffer
     (eval form)))
 
+(defun tty-menu-call-interactively (fn)
+  (with-current-buffer tty-menu-updating-buffer
+    (call-interactively fn)))
+
 (defun tty-menu-selectable-p (item)
   (tty-menu-eval (slot-value item 'enable)))
 
@@ -287,7 +291,7 @@
   ( :method ((item tty-menu-button) _)
     (with-slots (binding) item
       (when (commandp binding)
-	(call-interactively binding))
+	(tty-menu-call-interactively binding))
       (tty-menu-draw tty-menu-pane-drawn nil))))
 
 (defun tty-menu-create-buffer (pane)
