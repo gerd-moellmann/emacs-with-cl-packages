@@ -641,31 +641,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((item (get-text-property (point) 'tty-menu-item)))
     (tty-menu-select-item item 'key)))
 
-(defun tty-menu-key-select-item-if-subpane ()
-  "Select a menu-item with <right> if it is for a sub-menu."
-  (interactive)
-  (when-let* ((item (get-text-property (point) 'tty-menu-item)))
-    (with-slots (binding) item
-      (when (keymapp binding)
-	(tty-menu-select-item item 'key))))
-
-  ;; Menu-bar.
-  (when-let* (((not (null tty-menu-from-menu-bar)))
-              (item (get-text-property (point) 'tty-menu-item))
-              (pane (slot-value item 'pane))
-              ((null (slot-value pane 'invoking-item)))
-              (layout (tty-menu-bar-layout tty-menu-updating-buffer))
-              (index (tty-menu-bar-find-pane layout pane))
-              (n (length layout)))
-    ;; Need to find out what menu-bar item this pane is for.
-    ;; Then find the previous menu-bar item and arrange for
-    ;; this one to be opened.
-    (cl-incf index)
-    (when (>= index n)
-      (setq index 0))
-    (cl-destructuring-bind (_ _ x0 _) (nth index layout)
-      (throw 'tty-menu-final-item-selected `(menu-bar ,x0 0)))))
-
 (defun tty-menu-next-line ()
   "Move to next selectable line in menu."
   (interactive)
@@ -717,11 +692,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
    for (_code binding _x0 _x1) = elem
    when (eq binding keymap) return index))
 
-(defun tty-menu-close-pane ()
-  "Close current menu pane with <left>."
-  (interactive)
-  ;; When a menu is open in the menu bar, and this pane is for that
-  ;; menu, then close it and open the previous menu-bar menu.
+(defun tty-menu-move-in-menu-bar (move-left)
   (when-let* (((not (null tty-menu-from-menu-bar)))
               (item (get-text-property (point) 'tty-menu-item))
               (pane (slot-value item 'pane))
@@ -729,16 +700,32 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (layout (tty-menu-bar-layout tty-menu-updating-buffer))
               (index (tty-menu-bar-find-pane layout pane))
               (n (length layout)))
-    ;; Need to find out what menu-bar item this pane is for.
-    ;; Then find the previous menu-bar item and arrange for
-    ;; this one to be opened.
-    (cl-decf index)
-    (when (< index 0)
-      (setq index (1- n)))
+    (cond (move-left
+           (cl-decf index)
+           (when (< index 0)
+             (setq index (1- n))))
+          (t
+           (cl-incf index)
+           (when (>= index n)
+             (setq index 0))))
     (cl-destructuring-bind (_ _ x0 _) (nth index layout)
-      (throw 'tty-menu-final-item-selected `(menu-bar ,x0 0))))
+      (throw 'tty-menu-final-item-selected `(menu-bar ,x0 0)))))
 
-  ;; Close this pane.
+(defun tty-menu-key-select-item-if-subpane ()
+  "Select a menu-item with <right> if it is for a sub-menu."
+  (interactive)
+  (when-let* ((item (get-text-property (point) 'tty-menu-item)))
+    (with-slots (binding) item
+      (when (keymapp binding)
+	(tty-menu-select-item item 'key))))
+
+  ;; Menu-bar.
+  (tty-menu-move-in-menu-bar nil))
+
+(defun tty-menu-close-pane ()
+  "Close current menu pane with <left>."
+  (interactive)
+  (tty-menu-move-in-menu-bar t)
   (throw 'tty-menu-item-selected nil))
 
 (defun tty-menu-isearch (forward)
