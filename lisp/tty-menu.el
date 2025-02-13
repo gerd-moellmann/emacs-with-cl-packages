@@ -602,14 +602,17 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when (and tty-menu-from-menu-bar
              (eq (posn-area (event-end event)) 'menu-bar))
     (cl-destructuring-bind (x . y) (posn-x-y (event-end event))
-      (when-let* ((new (menu-bar-menu-at-x-y x y menu-updating-frame))
+      ;; Set current buffer so that we compute things with the right
+      ;; menu-bar for that buffer.
+      (with-current-buffer tty-menu-updating-buffer
+        (when-let* ((new (menu-bar-menu-at-x-y x y menu-updating-frame))
                   (old (menu-bar-menu-at-x-y (car tty-menu-from-menu-bar)
                                              (cdr tty-menu-from-menu-bar)
                                              menu-updating-frame))
                   ((and new (not (eq old new))))
                   (start-x (cdr (menu-bar-item-at-x x))))
-        (setq tty-menu-from-menu-bar (posn-x-y (event-end event)))
-        (throw 'tty-menu-final-item-selected `(menu-bar ,start-x ,y)))))
+          (setq tty-menu-from-menu-bar (posn-x-y (event-end event)))
+          (throw 'tty-menu-final-item-selected `(menu-bar ,start-x ,y))))))
 
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
