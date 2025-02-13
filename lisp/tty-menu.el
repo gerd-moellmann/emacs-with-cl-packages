@@ -78,6 +78,7 @@
   ((items :initarg :items :initform nil :type t)
    (buffer :initarg :buffer :type buffer)
    (layout :type list)
+   (keymap :initarg :keymap)
    (invoking-item :initarg :invoking-item :type (or null tty-menu-item))))
 
 ;; Type t in many places because even the name can be a form that needs
@@ -466,6 +467,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (make-pane (keymap)
                 (let ((pane (make-instance
                              'tty-menu-pane
+                             :keymap keymap
                              :invoking-item invoking-item
 	                     :buffer (get-buffer-create (pane-buffer-name)))))
                   (with-slots (items) pane
