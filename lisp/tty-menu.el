@@ -537,11 +537,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (tty-menu-select-item item 'mouse)))
 
 (defun tty-menu-key-select-item ()
+  "Select a menu-item with with RET or SPC."
   (interactive)
   (when-let* ((item (get-text-property (point) 'tty-menu-item)))
     (tty-menu-select-item item 'key)))
 
 (defun tty-menu-key-select-item-if-subpane ()
+  "Select a menu-item with <right> if it is for a sub-menu."
   (interactive)
   (when-let* ((item (get-text-property (point) 'tty-menu-item)))
     (with-slots (binding) item
@@ -549,6 +551,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	(tty-menu-select-item item 'key)))))
 
 (defun tty-menu-next-line ()
+  "Move to next selectable line in menu."
   (interactive)
   (cl-loop for next = (next-single-property-change (point) 'tty-menu-item)
 	   then (next-single-property-change next 'tty-menu-item)
@@ -558,6 +561,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   finally (when next (goto-char next))))
 
 (defun tty-menu-previous-line ()
+  "Move to previous selectable line in menu."
   (interactive)
   (cl-loop for prev = (previous-single-property-change
 		       (point) 'tty-menu-item nil (point-min))
@@ -569,10 +573,12 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   else if (eq prev (point-min)) return t))
 
 (defun tty-menu-close-pane ()
+  "Close current menu pane with <left>."
   (interactive)
   (throw 'tty-menu-item-selected nil))
 
 (defun tty-menu-isearch (forward)
+  "Isearch in a menu, FORWARD t means search forward."
   (isearch-mode forward nil nil)
   (while isearch-mode
     (let* ((key (read-key-sequence nil nil t nil nil nil)))
@@ -583,18 +589,22 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	  (call-interactively cmd))))))
 
 (defun tty-menu-isearch-forward ()
+  "Isearch forward in a menu."
   (interactive)
   (tty-menu-isearch t))
 
 (defun tty-menu-isearch-backward ()
+  "Isearch backward in a menu."
   (interactive)
   (tty-menu-isearch nil))
 
 (defun tty-menu-menu-bar-click (_event)
+  "Handle click in a menu-bar while a menu is open."
   (interactive "e")
   (throw 'tty-menu-item-selected nil))
 
 (defun tty-menu-close-on-click (_event)
+  "Close one menu-pane."
   (interactive "e")
   (tty-menu-close-pane))
 
@@ -766,10 +776,12 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   :global t :group 'menu
   (unless (display-graphic-p)
     (cond (tty-menu-mode
-           (advice-add 'mouse-set-point :around #'tty-menu-around-mouse-set-point)
+           (advice-add 'mouse-set-point :around
+                       #'tty-menu-around-mouse-set-point)
            (setq x-popup-menu-function #'tty-menu-popup-menu))
           (t
-           (advice-remove 'mouse-set-point #'tty-menu-around-mouse-set-point)
+           (advice-remove 'mouse-set-point
+                          #'tty-menu-around-mouse-set-point)
            (setq x-popup-menu-function nil)))))
 
 (provide 'tty-menu)
