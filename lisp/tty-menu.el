@@ -137,6 +137,10 @@
                                count b)))
       (setf enable nil))))
 
+;; Bound by an around advice from popup-menu is called for a menu-bar
+;; menu. If non-nil, it is a (X . Y) of the menu-item.
+(defvar tty-menu-from-menu-bar nil)
+
 ;; Various format strings for the elements of a menu-item:
 ;;
 ;;    | left border | button | name | key | right border |
@@ -591,6 +595,20 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-mouse-moved (event)
   (interactive "e")
+  ;; If we moved the mouse in the menu-bar, and we are displaying a menu
+  ;; for a menu-bar, and the menu-bar item moved to is different from
+  ;; the one we are displaying, close the current menu, and display the
+  ;; new one.
+  (when (and tty-menu-from-menu-bar
+             (eq (posn-area (event-end event)) 'menu-bar))
+    (cl-destructuring-bind (x . y) (posn-x-y (event-end event))
+      (let ((new (menu-bar-menu-at-x-y x y menu-updating-frame))
+            (old (menu-bar-menu-at-x-y (car tty-menu-from-menu-bar)
+                                       (cdr tty-menu-from-menu-bar)
+                                       menu-updating-frame)))
+        (unless (eq old new)
+          (throw 'tty-menu-final-item-selected `(menu-bar ,new))))))
+
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
               ((eq win (selected-window)))
@@ -813,6 +831,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                  (tty-menu-loop-1 keymap where nil)))))
     (pcase-exhaustive res
       ('nil nil)
+      (`(menu-bar ,new-menu)
+       (message "-> new-menu")
+       nil)
       (`(,selected . ,_) selected))))
 
 (cl-defun tty-menu-popup-menu (position menu)
@@ -846,6 +867,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (when (or (not (windowp win)) (window-live-p win))
       (apply old-fun args))))
 
+(defun tty-menu-around-popup-menu (old-fun &rest args)
+  (cl-destructuring-bind (_ pos _ menu-bar) args
+    (let ((tty-menu-from-menu-bar (when menu-bar (posn-x-y pos))))
+      (apply old-fun args))))
+
 ;;;###autoload
 (define-minor-mode tty-menu-mode
   "Global minor mode for displaying menus with tty child frames."
@@ -854,10 +880,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (cond (tty-menu-mode
            (advice-add 'mouse-set-point :around
                        #'tty-menu-around-mouse-set-point)
+           (advice-add 'popup-menu :around
+                       #'tty-menu-around-popup-menu)
            (setq x-popup-menu-function #'tty-menu-popup-menu))
           (t
            (advice-remove 'mouse-set-point
                           #'tty-menu-around-mouse-set-point)
+           (advice-remove 'popup-menu #'tty-menu-around-popup-menu)
            (setq x-popup-menu-function nil)))))
 
 (provide 'tty-menu)
