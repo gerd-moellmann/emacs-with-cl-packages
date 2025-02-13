@@ -65,8 +65,6 @@
 ;;                      | tty-menu-radio |        |tty-menu-checkbox |
 ;;                      +----------------+        +------------------+
 ;;
-;; A bit cleaner would be to split menu-items into separator, button,
-;; command, and sub-menu. Maybe I'll do that some day.
 
 ;;; Code:
 
@@ -105,6 +103,9 @@
 
 (defclass tty-menu-separator (tty-menu-item)
   ((sep :initform "-" :type string :reader tty-menu-sep)))
+
+(defclass tty-menu-command (tty-menu-item) ())
+(defclass tty-menu-submenu (tty-menu-item) ())
 
 (defun tty-menu-get-separator-string (name)
   (cl-multiple-value-bind (ch disp)
@@ -400,7 +401,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
      ;; (menu-item NAME)
      (`(menu-item ,name)
-      (make 'tty-menu-item (list :name name :enable nil)))
+      (make 'tty-menu-command (list :name name :enable nil)))
 
      ;; (menu-item NAME BINDING ... :button (:radio ...) ...)
      (`(menu-item ,name ,binding . ,(and (pred radio?) props))
@@ -410,9 +411,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
      (`(menu-item ,name ,binding . ,(and (pred toggle?) props))
       (make 'tty-menu-checkbox (cl-list* :name name :binding binding props)))
 
+     ;; (menu-item NAME KEYMAP ...)
+     (`(menu-item ,name ,(and (pred keymapp) binding) . ,props)
+      (make 'tty-menu-submenu (cl-list* :name name :binding binding props)))
+
      ;; (menu-item NAME BINDING ...)
      (`(menu-item ,name ,binding . ,props)
-      (make 'tty-menu-item (cl-list* :name name :binding binding props)))
+      (make 'tty-menu-command (cl-list* :name name :binding binding props)))
 
      ;; (SEPARATOR-NAME ...)
      (`(,(and (pred separator?) name) . ,_)
@@ -420,15 +425,23 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
      ;; (NAME KEYMAP)
      (`(,name ,(and (pred keymapp) keymap))
-      (make 'tty-menu-item (list :name name :binding keymap)))
+      (make 'tty-menu-submenu (list :name name :binding keymap)))
 
-     ;; (NAME HELP BINDING)
+     ;; (NAME HELP KEYMAP)
+     (`(,name ,help ,(and (pred keymapp) binding))
+      (make 'tty-menu-submenu (list :name name :binding binding :help help)))
+
+     ;; (NAME HELP COMMAND)
      (`(,name ,help ,binding)
-      (make 'tty-menu-item (list :name name :binding binding :help help)))
+      (make 'tty-menu-command (list :name name :binding binding :help help)))
+
+     ;; (NAME . KEYMAP)
+     (`(,name . ,(and (pred keymapp) binding))
+      (make 'tty-menu-submenu (list :name name :binding binding)))
 
      ;; (NAME . BINDING)
      (`(,name . ,binding)
-      (make 'tty-menu-item (list :name name :binding binding))))))
+      (make 'tty-menu-command (list :name name :binding binding))))))
 
 (defun tty-menu-keymap-name (keymap)
   (when (symbolp keymap)
