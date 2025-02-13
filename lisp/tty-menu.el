@@ -669,6 +669,26 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   if (tty-menu-selectable-p item) do (goto-char prev) and return t
 	   else if (eq prev (point-min)) return t))
 
+(defun tty-menu-bar-layout (buffer)
+  (with-current-buffer buffer
+    (when-let* ((menu-bar (menu-bar-keymap)))
+      (cl-loop
+       with column = 0 and layout = nil
+       for code being the key-codes of menu-bar
+       using (key-bindings binding) do
+       (pcase binding
+         ((or `(,(and (pred stringp) name) . ,_) ;Simple menu item.
+              `(menu-item ,name ,_cmd            ;Extended menu item.
+                          . ,(and props
+                                  (guard (let ((visible
+                                                (plist-get props :visible)))
+                                           (or (null visible)
+                                               (eval visible)))))))
+          (let ((start-column column))
+            (cl-incf column (1+ (length name)))
+            (push (list code start-column column) layout))))
+       finally return (nreverse layout)))))
+
 (defun tty-menu-close-pane ()
   "Close current menu pane with <left>."
   (interactive)
