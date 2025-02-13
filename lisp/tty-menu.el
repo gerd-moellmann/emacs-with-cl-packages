@@ -18,16 +18,14 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
-;;; Commentary:
-
-;;; Code:
-
 ;;; Todo
 
 ;; Open a sub-menu by moving the selection into the menu-item for the
 ;; sub-menu.  Close it by moving the selection out.
 
 ;; Make cursor invisible somehow (is cursor-type not supposed to work?)
+
+;;; Commentary:
 
 ;; Current CLOS classes, rough overview.
 ;;
@@ -70,6 +68,8 @@
 ;; A bit cleaner would be to split menu-items into separator, button,
 ;; command, and sub-menu. Maybe I'll do that some day.
 
+;;; Code:
+
 (require 'cl-lib)
 
 (defclass tty-menu-element () ()
@@ -82,11 +82,11 @@
    (invoking-item :initarg :invoking-item :type (or null tty-menu-item)))
   :documentation "Class for menu panes.")
 
+;; Type t in many places because even the name can be a form that needs
+;; to be evaluated to get the name (Redo is an example in the context
+;; menu).
 (defclass tty-menu-item (tty-menu-element)
-  (;; type t because even the name can be a form that needs to be
-   ;; evaluated to get the name (Redo is an example in the context
-   ;; menu).
-   (name :initarg :name :type t)
+  ((name :initarg :name :type t)
    (enable :initarg :enable :initform t :type t)
    (help :initarg :help :initform nil :type t)
    (visible :initarg :visible :initform t :type t)
