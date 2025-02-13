@@ -607,10 +607,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                                        (cdr tty-menu-from-menu-bar)
                                        menu-updating-frame)))
         (unless (eq old new)
-          ;; Need position of start of menu item, not the one of
-          ;; the mouse event.
           (setq tty-menu-from-menu-bar (posn-x-y (event-end event)))
-          (throw 'tty-menu-final-item-selected `(menu-bar ,x ,y))))))
+          (cl-destructuring-bind (_menu-item . start-x)
+              (menu-bar-item-at-x x)
+            (throw 'tty-menu-final-item-selected `(menu-bar ,start-x ,y)))))))
 
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
