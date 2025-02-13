@@ -432,7 +432,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-keymap-name (keymap)
   (when (symbolp keymap)
-    (setq keymap (symbol-function keymap)))
+    (setq keymap (indirect-function keymap)))
   (let ((name (last keymap)))
     (and (stringp (car name)) (car name))))
 
