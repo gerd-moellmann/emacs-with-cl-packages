@@ -672,6 +672,18 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-close-pane ()
   "Close current menu pane with <left>."
   (interactive)
+  ;; When a menu is open in the menu bar, and this pane is for that
+  ;; menu, then close it and open the previous menu-bar menu.
+  (when-let* (((not (null tty-menu-from-menu-bar)))
+              (item (get-text-property (point) 'tty-menu-item))
+              (pane (slot-value item 'pane))
+              ((null (slot-value pane 'invoking-item))))
+    ;; Need to find out what menu-bar item this pane is for.
+    ;; Then find the previous menu-bar item and arrange for
+    ;; this one to be opened.
+    (message "-> left in menu-bar"))
+
+  ;; Close this pane.
   (throw 'tty-menu-item-selected nil))
 
 (defun tty-menu-isearch (forward)
