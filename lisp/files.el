@@ -875,28 +875,43 @@ See Info node `(elisp)Standard File Names' for more details."
     (dos-convert-standard-filename filename))
    (t filename)))
 
-(defun read-directory-name (prompt &optional dir default-dirname mustmatch initial)
+(defun read-directory-name (prompt &optional dir default-dirname mustmatch initial predicate)
   "Read directory name, prompting with PROMPT and completing in directory DIR.
-Value is not expanded---you must call `expand-file-name' yourself.
-Default name to DEFAULT-DIRNAME if user exits with the same
-non-empty string that was inserted by this function.
+The return value is not expanded---you must call `expand-file-name'
+yourself.
+
+DIR is the directory to use for completing relative file names.
+It should be an absolute directory name, or nil (which means the
+current buffer's value of `default-directory').
+
+DEFAULT-DIRNAME specifies the default directory name to return if user
+exits with the same non-empty string that was inserted by this function.
  (If DEFAULT-DIRNAME is omitted, DIR combined with INITIAL is used,
   or just DIR if INITIAL is nil.)
-If the user exits with an empty minibuffer, this function returns
-an empty string.  (This can happen only if the user erased the
-pre-inserted contents or if `insert-default-directory' is nil.)
-Fourth arg MUSTMATCH non-nil means require existing directory's name.
- Non-nil and non-t means also require confirmation after completion.
+
+If the user exits with an empty minibuffer, return an empty
+string.  (This can happen only if the user erased the pre-inserted
+contents or if `insert-default-directory' is nil.)
+
+Fourth arg MUSTMATCH, is like for `read-file-name', which see.
+
 Fifth arg INITIAL specifies text to start with.
-DIR should be an absolute directory name.  It defaults to
-the value of `default-directory'."
+
+Sixth arg PREDICATE, if non-nil, should be a function of one
+argument; then a directory is considered an acceptable completion
+alternative only if PREDICATE returns non-nil with the file name
+as its argument."
   (unless dir
     (setq dir default-directory))
   (read-file-name prompt dir (or default-dirname
 				 (if initial (expand-file-name initial dir)
 				   dir))
 		  mustmatch initial
-		  'file-directory-p))
+                  (if predicate
+                      (lambda (filename)
+                        (and (file-directory-p filename)
+                             (funcall predicate filename)))
+                    #'file-directory-p)))
 
 
 (defun pwd (&optional insert)

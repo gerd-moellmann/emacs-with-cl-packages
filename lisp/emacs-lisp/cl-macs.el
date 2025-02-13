@@ -71,9 +71,6 @@
       (setq form `(cons ,(car args) ,form)))
     form))
 
-;; Note: `cl--compiler-macro-cXXr' has been copied to
-;; `internal--compiler-macro-cXXr' in subr.el.  If you amend either
-;; one, you may want to amend the other, too.
 ;;;###autoload
 (define-obsolete-function-alias 'cl--compiler-macro-cXXr
   #'internal--compiler-macro-cXXr "25.1")
@@ -3738,27 +3735,17 @@ macro that returns its `&whole' argument."
       `(cl-getf (symbol-plist ,sym) ,prop ,def)
     `(get ,sym ,prop)))
 
-(dolist (y '(cl-first cl-second cl-third cl-fourth
-             cl-fifth cl-sixth cl-seventh
-             cl-eighth cl-ninth cl-tenth
-             cl-rest cl-endp cl-plusp cl-minusp
-             cl-caaar cl-caadr cl-cadar
-             cl-caddr cl-cdaar cl-cdadr
-             cl-cddar cl-cdddr cl-caaaar
-             cl-caaadr cl-caadar cl-caaddr
-             cl-cadaar cl-cadadr cl-caddar
-             cl-cadddr cl-cdaaar cl-cdaadr
-             cl-cdadar cl-cdaddr cl-cddaar
-             cl-cddadr cl-cdddar cl-cddddr))
-  (put y 'side-effect-free t))
-
 ;;; Things that are inline.
 (cl-proclaim '(inline cl-acons cl-map cl-notany cl-notevery cl-revappend
                cl-nreconc))
 
 ;;; Things that are side-effect-free.
 (mapc (lambda (x) (function-put x 'side-effect-free t))
-      '(cl-oddp cl-evenp cl-signum cl-ldiff cl-pairlis cl-gcd
+      '(cl-first cl-second cl-third cl-fourth
+        cl-fifth cl-sixth cl-seventh
+        cl-eighth cl-ninth cl-tenth
+        cl-rest cl-endp cl-plusp cl-minusp
+        cl-oddp cl-evenp cl-signum cl-ldiff cl-pairlis cl-gcd
         cl-lcm cl-isqrt cl-floor cl-ceiling cl-truncate cl-round cl-mod cl-rem
         cl-subseq cl-list-length cl-get cl-getf))
 

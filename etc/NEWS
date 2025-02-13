@@ -279,10 +279,20 @@ docstring for arguments passed to a help-text function.
 It is equivalent to running ‘project-any-command’ with ‘find-file’.
 
 ---
+*** Improved prompt for 'project-switch-project'.
+The prompt now displays the chosen project on which to invoke a command.
+
+---
 *** The MAYBE-PROMPT argument of 'project-current' can be a string.
 When such value is used, the 'project-prompter' is called with it as the
 first argument.  This is a way for the callers to indicate, for example,
 the reason or the context why the project is asked for.
+
+---
+*** New command 'project-find-matching-file'
+It can be used when switching between projects with similar file trees
+(such as Git worktrees of the same repository).  It supports being
+invoked standalone or from the 'project-switch-commands' dispatch menu.
 
 ** Registers
 
@@ -430,6 +440,11 @@ default is nil, which retains the old format.
 This allows passing a string with wildcards, or a cons cell where the
 first element is a list and the rest is a list of files.
 
+*** Bound unused letters in 'image-dired-thumbnail-mode-map'
+For a more comfortable navigation experience (as in, no modifier keys),
+the keys "f", "b", "n", "p", "a" and "e" are now bound to the
+same functions as their C- counterparts.
+
 ** Browse URL
 
 *** New user option 'browse-url-transform-alist'.
@@ -529,6 +544,13 @@ default, can be set to a non-nil value to restore the previous behavior.
 When called with a prefix argument, accepting, declining, or tentatively
 accepting an icalendar event will prompt for a comment to add to the
 response.
+
+** Sieve
+
++++
+*** New keybinding to refresh buffer in 'sieve-manage-mode'.
+'sieve-refresh-scriptlist' is now bound to 'g' to refresh the contents
+of the current sieve buffer.
 
 ** Button
 
@@ -637,6 +659,32 @@ search in the buffer contents.  If you customize it to t, those commands
 only search in input history.  If you customize it to the symbol 'dwim',
 those commands search in input history only when the point is after the
 last prompt.
+
++++
+** Mail-util
+
+*** New user option 'mail-re-regexps'.
+This contains the list of regular expressions used to match "Re:" and
+international variants of it when modifying the Subject field in
+replies.
+
++++
+** Rmail
+
+*** 'rmail-re-abbrevs' default value is now derived from 'mail-re-regexps'.
+'mail-re-regexps' is a new user option that is easier to customize than
+'rmail-re-abbrevs'.  'rmail-re-abbrevs' is still honored if it was
+already set.
+
++++
+** Message
+
+*** 'message-subject-re-regexp' default value is now derived from 'mail-re-regexps'.
+'mail-re-regexps' is a new user option that is easier to customize than
+'message-subject-re-regexp'.  'message-subject-re-regexp' is still
+honored if it was already set.
+
+*** 'message-strip-subject-re' now matches case-insensitively.
 
 ** SHR
 
@@ -1125,6 +1173,9 @@ will not prompt the user for confirmation before installing packages.
 Refreshing the package index will no longer block when invoked
 interactively.
 
++++
+*** package-x.el is now obsolete.
+
 ** Xref
 
 ---
@@ -1164,6 +1215,9 @@ runs its body, and removes the current buffer from
 
 ** The 'rx' category name 'chinese-two-byte' must now be spelled correctly.
 An old alternative name (without the first 'e') has been removed.
+
++++
+** 'read-directory-name' now accepts an optional PREDICATE argument.
 
 ---
 ** All the digit characters now have the 'digit' category.
@@ -1468,6 +1522,12 @@ means of the GDI+ library.
 ** Emacs on MS-Windows now supports the ':data' keyword for 'play-sound'.
 In addition to ':file FILE' for playing a sound from a file, ':data
 DATA' can now be used to play a sound from memory.
+
+---
+** New major mode 'go-work-ts-mode'.
+A major mode based on the tree-sitter library for editing "go.work"
+files.  If tree-sitter is properly set-up by the user, it can be
+enabled for files named "go.work".
 
 
 ----------------------------------------------------------------------

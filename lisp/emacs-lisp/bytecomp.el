@@ -2133,7 +2133,6 @@ If compilation is needed, this functions returns the result of
   (and file (not (equal file ""))
        (with-temp-buffer
          (insert-file-contents file)
-         (goto-char (point-min))
          (let ((vars nil)
                var)
            (while (ignore-errors (setq var (read (current-buffer))))
@@ -2358,7 +2357,8 @@ See also `emacs-lisp-byte-compile-and-load'."
         (let ((gen-dynvars (getenv "EMACS_GENERATE_DYNVARS")))
           (when (and gen-dynvars (not (equal gen-dynvars ""))
                      byte-compile--seen-defvars)
-            (let ((dynvar-file (concat target-file ".dynvars")))
+            (let ((dynvar-file (concat target-file ".dynvars"))
+                  (print-symbols-bare t))
               (message "Generating %s" dynvar-file)
               (with-temp-buffer
                 (dolist (var (delete-dups byte-compile--seen-defvars))
