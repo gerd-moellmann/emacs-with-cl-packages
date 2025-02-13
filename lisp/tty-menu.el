@@ -678,18 +678,27 @@ buffer, and HEIGHT is the number of lines in the buffer. "
        with column = 0 and layout = nil
        for code being the key-codes of menu-bar
        using (key-bindings binding) do
+       ;; This is something like ("Edit" . keymap)
        (pcase binding
-         ((or `(,(and (pred stringp) name) . ,_) ;Simple menu item.
-              `(menu-item ,name ,_cmd            ;Extended menu item.
-                          . ,(and props
-                                  (guard (let ((visible
-                                                (plist-get props :visible)))
-                                           (or (null visible)
-                                               (eval visible)))))))
+         ((or `(,(and (pred stringp) name) . ,cmd)
+              `(menu-item
+                ,name ,cmd
+                . ,(and props
+                        (guard (let ((visible (plist-get props :visible)))
+                                 (or (null visible)
+                                     (eval visible)))))))
           (let ((start-column column))
             (cl-incf column (1+ (length name)))
-            (push (list code start-column column) layout))))
+            (push (list code cmd start-column column) layout))))
        finally return (nreverse layout)))))
+
+(defun tty-menu-bar-find-pane (pane buffer)
+  (cl-loop
+   with keymap = (slot-value pane 'keymap)
+   for elem in (tty-menu-bar-layout buffer)
+   for (_code binding _x0 _x1) = elem
+   do (message "eq = %S" (eq binding keymap))
+   when (eq binding keymap) return elem))
 
 (defun tty-menu-close-pane ()
   "Close current menu pane with <left>."
