@@ -65,22 +65,20 @@
 ;;                      | tty-menu-radio |        |tty-menu-checkbox |
 ;;                      +----------------+        +------------------+
 ;;
-;; A bit cleaner would be to split menu-items into separator, button,
-;; command, and sub-menu. Maybe I'll do that some day.
+;; One could split menu-items into separator, button, command, and
+;; sub-menu, but I don't think it's worth it.
 
 ;;; Code:
 
 (require 'cl-lib)
 
-(defclass tty-menu-element () ()
-  :documentation "Base class for elements of a menu.")
+(defclass tty-menu-element () ())
 
 (defclass tty-menu-pane (tty-menu-element)
   ((items :initarg :items :initform nil :type t)
    (buffer :initarg :buffer :type buffer)
    (layout :type list)
-   (invoking-item :initarg :invoking-item :type (or null tty-menu-item)))
-  :documentation "Class for menu panes.")
+   (invoking-item :initarg :invoking-item :type (or null tty-menu-item))))
 
 ;; Type t in many places because even the name can be a form that needs
 ;; to be evaluated to get the name (Redo is an example in the context
@@ -102,10 +100,12 @@
 (defclass tty-menu-button (tty-menu-item) ())
 (defclass tty-menu-radio (tty-menu-button) ())
 (defclass tty-menu-checkbox (tty-menu-button) ())
-
 (defclass tty-menu-separator (tty-menu-item)
   ((sep :initform "-" :type string :reader tty-menu-sep)))
 
+;; Determine which separator char to use, depending on NAME which is a
+;; kind of separator type. Value is a string of length 1 for the
+;; separator char.
 (defun tty-menu-get-separator-string (name)
   (cl-multiple-value-bind (ch disp)
       (pcase name
@@ -119,12 +119,16 @@
 	(setq sep slot))
       (make-string 1 sep))))
 
+;; "Constructor" for separators. Computes the actual separator char to
+;; use for a separator.
 (cl-defmethod initialize-instance :after ((item tty-menu-separator)
                                           &rest)
   (with-slots (name sep enable) item
     (setf enable nil)
     (setf sep (tty-menu-get-separator-string name))))
 
+;; Constructor for menu-items. If a menu-item's binding is a keymap with
+;; 0 elements, disable it.
 (cl-defmethod initialize-instance :after ((item tty-menu-item)
                                           &rest)
   (with-slots (binding enable) item
@@ -133,12 +137,19 @@
                                count b)))
       (setf enable nil))))
 
+;; Various format strings for the elements of a menu-item:
+;;
+;;    | left border | button | name | key | right border |
+;;
+;; These format strings specify left or right alignment of elements and
+;; a minimum width.
 (defvar tty-menu-left-border-format "%1s")
 (defvar tty-menu-right-border-format "%1s")
 (defvar tty-menu-button-format "%-4s")
 (defvar tty-menu-key-format "%10s")
 (defvar tty-menu-name-format "%-20s")
 
+;; Characters to use for radio buttons and checkboxes.
 (defvar tty-menu-triangle "▶")
 (defvar tty-menu-radio-on "●")
 (defvar tty-menu-radio-off "◯")
@@ -284,6 +295,10 @@
        finally (setq layout `(,left-border ,button ,name ,key
                                            ,right-border))))))
 
+;; When redrawing a pane, we try to arrange things so that the selection
+;; is retained. At least theoretically, it can happen that in the
+;; redrawn menu the old selection is no longer selectable. This function
+;; finds an alternative selection in this case.
 (defun tty-menu-try-place-point (selectable old-line)
   (goto-char (point-min))
   (if (nth old-line selectable)
@@ -322,7 +337,10 @@
     (tty-menu-draw-name item pane)
     (tty-menu-draw-key item pane)))
 
+;; An overlay for the selected item in a menu.
 (defvar-local tty-menu-selection-ov nil)
+
+;; The tty-menu-pane drawn in a buffer.
 (defvar-local tty-menu-pane-drawn nil)
 
 (cl-defgeneric tty-menu-select-item (item how)
@@ -338,46 +356,6 @@
       (when (commandp binding)
 	(tty-menu-call-interactively binding))
       (tty-menu-draw tty-menu-pane-drawn nil))))
-
-(defun tty-menu-create-buffer (pane)
-  "Create a buffer named BUFFER for DRAW to fill.
-DRAW is called with no arguments and with current buffer being the
-buffer created. Value is (BUFFER WIDTH HEIGHT), where BUFFER is
-the buffer that was used, WIDTH is the maximum line width in the
-buffer, and HEIGHT is the number of lines in the buffer. "
-  (with-slots (buffer) pane
-    (with-current-buffer buffer
-      (dolist (var '((mode-line-format . nil)
-                     (header-line-format . nil)
-                     (tab-line-format . nil)
-                     (tab-bar-format . nil)
-                     (frame-title-format . "")
-                     (truncate-lines . t)
-                     (cursor-in-non-selected-windows . nil)
-                     (cursor-type . nil)
-                     (show-trailing-whitespace . nil)
-                     (display-line-numbers . nil)
-                     (left-fringe-width . nil)
-                     (right-fringe-width . nil)
-                     (left-margin-width . 0)
-                     (right-margin-width . 0)
-                     (fringes-outside-margins . 0)
-                     ;; > 100 means don't ever recenter.
-                     (scroll-conservatively . 101)))
-	(set (make-local-variable (car var)) (cdr var)))
-      (let ((inhibit-modification-hooks t)
-            (inhibit-read-only t)
-	    (indent-tabs-mode nil))
-	(setq tty-menu-selection-ov nil tty-menu-pane-drawn pane)
-	(tty-menu-draw pane 0)
-	(cl-flet ((line-width ()
-		    (save-excursion
-		      (goto-char (point-min))
-		      (goto-char (line-end-position))
-		      (current-column))))
-	  (list (current-buffer)
-		(line-width)
-		(count-lines (point-min) (point-max))))))))
 
 (defun tty-menu-make-element (pane code item)
   (cl-labels ((separator? (name)
@@ -429,6 +407,46 @@ buffer, and HEIGHT is the number of lines in the buffer. "
      ;; (NAME . BINDING)
      (`(,name . ,binding)
       (make 'tty-menu-item (list :name name :binding binding))))))
+
+(defun tty-menu-create-buffer (pane)
+  "Create a buffer named BUFFER for DRAW to fill.
+DRAW is called with no arguments and with current buffer being the
+buffer created. Value is (BUFFER WIDTH HEIGHT), where BUFFER is
+the buffer that was used, WIDTH is the maximum line width in the
+buffer, and HEIGHT is the number of lines in the buffer. "
+  (with-slots (buffer) pane
+    (with-current-buffer buffer
+      (dolist (var '((mode-line-format . nil)
+                     (header-line-format . nil)
+                     (tab-line-format . nil)
+                     (tab-bar-format . nil)
+                     (frame-title-format . "")
+                     (truncate-lines . t)
+                     (cursor-in-non-selected-windows . nil)
+                     (cursor-type . nil)
+                     (show-trailing-whitespace . nil)
+                     (display-line-numbers . nil)
+                     (left-fringe-width . nil)
+                     (right-fringe-width . nil)
+                     (left-margin-width . 0)
+                     (right-margin-width . 0)
+                     (fringes-outside-margins . 0)
+                     ;; > 100 means don't ever recenter.
+                     (scroll-conservatively . 101)))
+	(set (make-local-variable (car var)) (cdr var)))
+      (let ((inhibit-modification-hooks t)
+            (inhibit-read-only t)
+	    (indent-tabs-mode nil))
+	(setq tty-menu-selection-ov nil tty-menu-pane-drawn pane)
+	(tty-menu-draw pane 0)
+	(cl-flet ((line-width ()
+		    (save-excursion
+		      (goto-char (point-min))
+		      (goto-char (line-end-position))
+		      (current-column))))
+	  (list (current-buffer)
+		(line-width)
+		(count-lines (point-min) (point-max))))))))
 
 (defun tty-menu-keymap-name (keymap)
   (when (symbolp keymap)
