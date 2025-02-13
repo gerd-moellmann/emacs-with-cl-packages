@@ -505,6 +505,16 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (kill-buffer (frame-parameter frame 'tty-menu-buffer))
     (delete-frame frame)))
 
+;; Debugging aid. Delete all menu frames. Don't delete the buffers, we
+;; might want to inspect them.
+(defun tty-menu-delete-menu-frames ()
+  (interactive)
+  (cl-flet ((frame-name (frame)
+	      (frame-parameter frame 'name)))
+    (cl-loop for frame in (frame-list)
+	     when (string-prefix-p " *tty-menu-" (frame-name frame))
+	     do (delete-frame frame))))
+
 (defun tty-menu-mouse-moved (event)
   (interactive "e")
   (when-let* ((end (event-end event))
@@ -719,13 +729,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (pcase-exhaustive res
       ('nil nil)
       (`(,selected . ,_) selected))))
-
-(defun tty-menu-delete-menu-frames ()
-  (cl-flet ((frame-name (frame)
-	      (frame-parameter frame 'name)))
-    (cl-loop for frame in (frame-list)
-	     when (string-prefix-p " *tty-menu-" (frame-name frame))
-	     do (delete-frame frame))))
 
 (cl-defun tty-menu-popup-menu (position menu)
   (when-let* ((where (tty-menu-position position)))
