@@ -692,13 +692,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
             (push (list code cmd start-column column) layout))))
        finally return (nreverse layout)))))
 
-(defun tty-menu-bar-find-pane (pane buffer)
+(defun tty-menu-bar-find-pane (layout pane)
   (cl-loop
    with keymap = (slot-value pane 'keymap)
-   for elem in (tty-menu-bar-layout buffer)
+   for index from 0
+   for elem in layout
    for (_code binding _x0 _x1) = elem
-   do (message "eq = %S" (eq binding keymap))
-   when (eq binding keymap) return elem))
+   when (eq binding keymap) return index))
 
 (defun tty-menu-close-pane ()
   "Close current menu pane with <left>."
@@ -709,11 +709,17 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (item (get-text-property (point) 'tty-menu-item))
               (pane (slot-value item 'pane))
               ((null (slot-value pane 'invoking-item)))
-              (layout (tty-menu-bar-find-pane pane tty-menu-updating-buffer)))
+              (layout (tty-menu-bar-layout tty-menu-updating-buffer))
+              (index (tty-menu-bar-find-pane layout pane))
+              (n (length layout)))
     ;; Need to find out what menu-bar item this pane is for.
     ;; Then find the previous menu-bar item and arrange for
     ;; this one to be opened.
-    (message "-> left in menu-bar %S" (cl-first layout)))
+    (cl-decf index)
+    (when (< index 0)
+      (setq index (1- n)))
+    (cl-destructuring-bind (_ _ x0 _) (nth index layout)
+      (throw 'tty-menu-final-item-selected `(menu-bar ,x0 0))))
 
   ;; Close this pane.
   (throw 'tty-menu-item-selected nil))
