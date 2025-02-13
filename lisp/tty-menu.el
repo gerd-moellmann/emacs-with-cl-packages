@@ -24,28 +24,27 @@
 
 ;;; Todo
 
-;; A mode: Open a sub-menu by moving the selection into the menu-item for the
+;; Open a sub-menu by moving the selection into the menu-item for the
 ;; sub-menu.  Close it by moving the selection out.
 
 ;; Make cursor invisible somehow (is cursor-type not supposed to work?)
 
-;; menu-bar-menu doesn't work (list of keymaps?)
-
+;; Current CLOS classes, rough overview.
 ;;
 ;;                      +------------------+
 ;;                      | tty-menu-element |
 ;;                      +------------------+
 ;;                                |
-;;            +------------------/⧋\------+
+;;            +-------------------+-------+
 ;;            |                           |
 ;;   +---------------+             +---------------+
-;;   | tty-menu-pane |<------------| tty-menu-item |
-;;   +---------------+    pane     |               |
-;; buffer ^   |    |              *|               |
-;;        |   |    +-------------->|               |
-;;        |   |         items      |               |
-;;        |   +------------------->|               |
-;;        |          invoking-item |               |
+;;   | tty-menu-pane |<---pane-----| tty-menu-item |
+;;   +---------------+             |               |
+;;        ^   |    |              *|               |
+;;     buffer |    +----items----->|               |
+;;        |   |                    |               |
+;;        |   +---invoking-item--->|               |
+;;        |                        |               |
 ::        |                        +---------------+
 ;;  tty-menu-pane-drawn
 ;;        |
@@ -53,10 +52,8 @@
 ;;        +----->| buffer |<--| window |<---->| frame |
 ;;               +--------+   +--------+      +-------+
 ;;                    ^                           |
-;;                    +---------------------------+
-;;                                          tty-menu-buffer
-
-
+;;                    +---------tty-menu-buffer---+
+;;
 ;;
 ;;                        +---------------+
 ;;                 +------| tty-menu-item |-----+
@@ -70,12 +67,8 @@
 ;;                      | tty-menu-radio |        |tty-menu-checkbox |
 ;;                      +----------------+        +------------------+
 ;;
-;;
-;;
-;;
-;;
-
-
+;; A bit cleaner would be to split menu-items into separator, button,
+;; command, and sub-menu. Maybe I'll do that some day.
 
 (require 'cl-lib)
 
@@ -152,12 +145,18 @@
 (defvar tty-menu-checkbox-on "✔")
 (defvar tty-menu-checkbox-off "□")
 
+;; Dynamically bound to the current buffer when a menu is invoked.
 (defvar tty-menu-updating-buffer)
 
+;; Evaluate FORM in the context of the menu. ATM, the context consists
+;; of the buffer that was current when the menu was invoked. This buffer
+;; must be current when evaluating various things in the menu because of
+;; local variables.
 (defun tty-menu-eval (form)
   (with-current-buffer tty-menu-updating-buffer
     (eval form)))
 
+;; Same as above for invoking commands.
 (defun tty-menu-call-interactively (fn)
   (with-current-buffer tty-menu-updating-buffer
     (call-interactively fn)))
