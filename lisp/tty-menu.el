@@ -27,46 +27,57 @@
 
 ;;; Commentary:
 
-;; Current CLOS classes, rough overview.
+;; CLOS classes, rough overview. Add symbol prefixes in your
+;; imagination.
 ;;
-;;                      +------------------+
-;;                      | tty-menu-element |
-;;                      +------------------+
-;;                                |
-;;            +-------------------+-------+
-;;            |                           |
-;;   +---------------+             +---------------+
-;;   | tty-menu-pane |<---pane-----| tty-menu-item |
-;;   +---------------+             |               |
-;;        ^   |    |              *|               |
-;;     buffer |    +----items----->|               |
-;;        |   |                    |               |
-;;        |   +---invoking-item--->|               |
-;;        |                        |               |
-;;        |                        +---------------+
-;;  tty-menu-pane-drawn
-;;        |
-;;        |      +--------+   +--------+      +-------+
-;;        +----->| buffer |<--| window |<---->| frame |
-;;               +--------+   +--------+      +-------+
-;;                    ^                           |
-;;                    +---------tty-menu-buffer---+
+;;                    +------------------+
+;;                    |      element     |
+;;                    +------------------+
+;;                              |
+;;          +-------------------+-------+
+;;          |                           |
+;; +---------------+             +---------------+
+;; |     pane      |<---pane-----|    item       |
+;; +---------------+             |               |
+;;      ^   |    |              *|               |
+;;   buffer |    +----items----->|               |
+;;      |   |                    |               |
+;;      |   +---invoking-item--->|               |
+;;      |                        |               |
+;;      |                        +---------------+
+;;   pane-drawn
+;;      |
+;;      |      +--------+   +--------+      +-------+
+;;      +----->| buffer |<--| window |<---->| frame |
+;;             +--------+   +--------+      +-------+
+;;                  ^                           |
+;;                  +------------------buffer---+
 ;;
 ;;
-;;                        +---------------+
-;;                 +------| tty-menu-item |-----+
-;;                 |      +---------------+     |
-;;                 |                            |
-;;       +-------------------+         +-----------------+
-;;       |tty-menu-separator |    +----| tty-menu-button |---+
-;;       +-------------------+    |    +-----------------+   |
-;;                                |                          |
-;;                      +----------------+        +------------------+
-;;                      | tty-menu-radio |        |tty-menu-checkbox |
-;;                      +----------------+        +------------------+
+;;                  +---------------+
+;;           +------|      item     |-----+
+;;           |      +---------------+     |
+;;           |                            |
+;; +-------------------+         +-----------------+
+;; |     separator     |    +----|      button     |---+
+;; +-------------------+    |    +-----------------+   |
+;;                          |                          |
+;;                +----------------+        +------------------+
+;;                |     radio      |        |     checkbox     |
+;;                +----------------+        +------------------+
 ;;
 ;; One could split menu-items into separator, button, command, and
 ;; sub-menu, but I don't think it's worth it.
+
+;;; Lessons learned:
+
+;; - I used 'cond*' in the beginning, which was okay functionally. I switched
+;;   to 'pcase' because 'cond*' does not support debugging with 'Edebug'.
+;;
+;; - Symbol prefixes like 'cl-' or 'tty-menu-' make writing Lisp a pain
+;;   in the ass, but it's still better than writing C.
+;;
+;; - The existing menu code in Lisp and C could need some cleanup.
 
 ;;; Code:
 
@@ -893,6 +904,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (`(menu-bar ,x ,y) (cons x y))
       (`(,selected . ,_) selected))))
 
+;; This is the replacement for 'x-popup-menu'.
 (cl-defun tty-menu-popup-menu (position menu)
   (when-let* ((where (tty-menu-position position)))
     (cl-destructuring-bind (menu-updating-frame _ _) where
@@ -925,6 +937,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (when (or (not (windowp win)) (window-live-p win))
       (apply old-fun args))))
 
+;; This around advice for 'popup-menu' binds 'tty-menu-from-menu-bar' to
+;; (X . Y) in the menu-bar when invoked for a menu-bar menu, and nil
+;; otherwise. This makes it possible to behave differently for menus in
+;; the menu-bar and others.
 (defun tty-menu-around-popup-menu (old-fun &rest args)
   (cl-destructuring-bind (_ pos _ menu-bar) args
     (let ((tty-menu-from-menu-bar (when menu-bar (posn-x-y pos))))
