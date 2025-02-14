@@ -715,11 +715,18 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 ;; in. If that is a top-level pane, not a sub-menu, see where that pane
 ;; is in the menu-bar. Then determine the next/previous menu-bar item,
 ;; and make us display that menu.
+
+(defun tty-menu-root-pane (item)
+  (cl-loop with pane = (slot-value item 'pane)
+           for invoking-item = (slot-value pane 'invoking-item)
+           while invoking-item
+           do (setq pane (slot-value invoking-item 'pane))
+           finally return pane))
+
 (defun tty-menu-move-in-menu-bar (move-left)
   (when-let* (((not (null tty-menu-from-menu-bar)))
               (item (get-text-property (point) 'tty-menu-item))
-              (pane (slot-value item 'pane))
-              ((null (slot-value pane 'invoking-item)))
+              (pane (tty-menu-root-pane item))
               (layout (tty-menu-bar-layout tty-menu-updating-buffer))
               (index (tty-menu-bar-find-pane layout pane))
               (n (length layout)))
@@ -746,8 +753,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-close-pane ()
   "Close current menu pane with <left>."
   (interactive)
-  (tty-menu-move-in-menu-bar t)
-  (throw 'tty-menu-item-selected nil))
+  (when-let* ((item (get-text-property (point) 'tty-menu-item))
+              (pane (slot-value item 'pane))
+              ((slot-value pane 'invoking-item)))
+    (throw 'tty-menu-item-selected nil))
+  (tty-menu-move-in-menu-bar 'left))
 
 (defun tty-menu-isearch (forward)
   "Isearch in a menu, FORWARD t means search forward."
