@@ -463,7 +463,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	(cl-flet ((line-width ()
 		    (save-excursion
 		      (goto-char (point-min))
-		      (goto-char (line-end-position))
+		      (goto-char (pos-eol))
 		      (current-column))))
 	  (list (current-buffer)
 		(line-width)
@@ -823,7 +823,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (unless tty-menu-selection-ov
     (setq tty-menu-selection-ov (make-overlay 1 1))
     (overlay-put tty-menu-selection-ov 'face 'tty-menu-selected-face))
-  (move-overlay tty-menu-selection-ov (line-beginning-position) (line-end-position)))
+  (move-overlay tty-menu-selection-ov (pos-bol) (pos-eol)))
 
 (defun tty-menu-global-menu ()
   (keymap-lookup global-map "<menu-bar>"))
@@ -885,7 +885,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-where (how)
   (cl-ecase how
     ((mouse key)
-     (let* ((posn (posn-at-point (line-end-position)))
+     (let* ((posn (posn-at-point (pos-eol)))
 	    (win (posn-window posn)))
        (cl-destructuring-bind (x . y) (posn-x-y posn)
          (tty-menu-position (list (cons (- x 3) y) win)))))))
