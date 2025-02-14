@@ -152,7 +152,6 @@
   (with-slots (binding filter enable) item
     (when filter
       (setf binding (tty-menu-eval `(,filter (',binding)))))
-
     (when (and (keymapp binding)
                (zerop (cl-loop for b being the key-codes of binding
                                count b)))
@@ -895,14 +894,23 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((key (this-command-keys))
               ((stringp key))
               (pane tty-menu-pane-drawn)
-              (items (slot-value pane 'items)))
-    (cl-loop for i in items
-             when (and (tty-menu-visible-p i)
-                       (tty-menu-enabled-p i))
-             for name = (string-trim-left (slot-value i 'name))
-             when (string-prefix-p key name t)
-             do (goto-char (slot-value i 'draw-start))
-             and return t)))
+              (items (slot-value pane 'items))
+              (current (get-text-property (point) 'tty-menu-item))
+              (pos (cl-position current items)))
+    (cl-flet ((matchp (i)
+                (when (and (tty-menu-visible-p i) (tty-menu-enabled-p i))
+                  (let ((name (string-trim-left (slot-value i 'name))))
+                    (string-prefix-p key name t)))))
+      (unless (cl-loop for n from (1+ pos) below (length items)
+                       for i = (nth n items)
+                       when (matchp i)
+                       do (goto-char (slot-value i 'draw-start))
+                       and return t)
+        (cl-loop for n from 0 below pos
+                 for i = (nth n items)
+                 when (matchp i)
+                 do (goto-char (slot-value i 'draw-start))
+                 and return t)))))
 
 (defun tty-menu-loop-1 (keymap where invoking-item)
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
@@ -1003,8 +1011,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (define-minor-mode tty-menu-mode
   "Global minor mode for displaying menus with tty child frames.
 \\{tty-menu-keymap}
-Entering a self-inserting character goes to the first menu-item starting
-with that character."
+Entering a self-inserting character goes to the next menu-item starting
+with that character.  When no next items is found, start searching from
+the start."
   :global t :group 'menu
   (unless (display-graphic-p)
     (cond (tty-menu-mode
