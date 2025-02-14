@@ -204,7 +204,7 @@
 (defun tty-menu-button-selected-p (item)
   (with-slots (button) item
     (cl-destructuring-bind (_ . form) button
-      (tty-menu-eval (slot-value item form)))))
+      (tty-menu-eval form))))
 
 (defun tty-menu-ninsert (n x)
   (cl-loop repeat n do (insert x)))
