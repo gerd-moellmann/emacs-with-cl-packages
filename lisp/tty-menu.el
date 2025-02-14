@@ -104,7 +104,6 @@
    (keys :initarg :keys :initform nil :type t)
    (filter :initarg :filter :initform nil :type t)
    (button :initarg :button :initform nil :type t)
-   (selected :initarg :selected :initform nil :type t)
    (binding :initarg :binding :initform nil :type t)
    (key-code :initarg :key-code :initform nil :type t)
    (pane :initarg :pane :type tty-menu-pane)
@@ -202,6 +201,11 @@
 (defun tty-menu-name (item)
   (tty-menu-eval (slot-value item 'name)))
 
+(defun tty-menu-button-selected-p (item)
+  (with-slots (button) item
+    (cl-destructuring-bind (_ . form) button
+      (tty-menu-eval (slot-value item form)))))
+
 (defun tty-menu-ninsert (n x)
   (cl-loop repeat n do (insert x)))
 
@@ -210,12 +214,12 @@
     "")
   ( :method ((r tty-menu-radio))
     (format tty-menu-button-format
-	    (if (slot-value r 'selected)
+            (if (tty-menu-button-selected-p r)
 		tty-menu-radio-on
 	      tty-menu-radio-off)))
   ( :method ((c tty-menu-checkbox))
     (format tty-menu-button-format
-	    (if (slot-value c 'selected)
+            (if (tty-menu-button-selected-p c)
 		tty-menu-checkbox-on
 	      tty-menu-checkbox-off)))
   ( :method ((_ tty-menu-separator))
@@ -245,10 +249,7 @@
       (cl-destructuring-bind (_ button-width _ _ _) layout
 	(tty-menu-ninsert button-width ?\s))))
   ( :method ((item tty-menu-button) _pane)
-    (with-slots (selected button) item
-      (cl-destructuring-bind (_ . form) button
-	(setf selected (tty-menu-eval form))
-	(insert (tty-menu-button-string item)))))
+    (insert (tty-menu-button-string item)))
   ( :method ((item tty-menu-separator) pane)
     (with-slots (layout) pane
       (cl-destructuring-bind (_ button-width _ _ _) layout
