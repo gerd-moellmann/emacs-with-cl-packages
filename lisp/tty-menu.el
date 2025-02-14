@@ -948,20 +948,24 @@ buffer, and HEIGHT is the number of lines in the buffer. "
             (posn-x-y pos)))))
     (apply old-fun args)))
 
+;; Override for 'buffer-menu-open' to open the menu at point instead of
+;; at (0, 0).
+(defun tty-menu-buffer-menu-open ()
+  (popup-menu (mouse-buffer-menu-keymap) (posn-at-point)))
+
 ;;;###autoload
 (define-minor-mode tty-menu-mode
   "Global minor mode for displaying menus with tty child frames."
   :global t :group 'menu
   (unless (display-graphic-p)
     (cond (tty-menu-mode
-           (advice-add 'mouse-set-point :around
-                       #'tty-menu-around-mouse-set-point)
-           (advice-add 'popup-menu :around
-                       #'tty-menu-around-popup-menu)
+           (advice-add 'buffer-menu-open :override #'tty-menu-buffer-menu-open)
+           (advice-add 'mouse-set-point :around #'tty-menu-around-mouse-set-point)
+           (advice-add 'popup-menu :around #'tty-menu-around-popup-menu)
            (setq x-popup-menu-function #'tty-menu-popup-menu))
           (t
-           (advice-remove 'mouse-set-point
-                          #'tty-menu-around-mouse-set-point)
+           (advice-remove 'buffer-menu-open #'tty-menu-buffer-menu-open)
+           (advice-remove 'mouse-set-point #'tty-menu-around-mouse-set-point)
            (advice-remove 'popup-menu #'tty-menu-around-popup-menu)
            (setq x-popup-menu-function nil)))))
 
