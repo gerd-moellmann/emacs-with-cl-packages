@@ -942,9 +942,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 ;; otherwise. This makes it possible to behave differently for menus in
 ;; the menu-bar and others.
 (defun tty-menu-around-popup-menu (old-fun &rest args)
-  (cl-destructuring-bind (_ pos _ menu-bar) args
-    (let ((tty-menu-from-menu-bar (when menu-bar (posn-x-y pos))))
-      (apply old-fun args))))
+  (let ((tty-menu-from-menu-bar
+         (pcase args
+           (`(,_ ,pos ,_ ,(and menu-bar (guard menu-bar)))
+            (posn-x-y pos)))))
+    (apply old-fun args)))
 
 ;;;###autoload
 (define-minor-mode tty-menu-mode
