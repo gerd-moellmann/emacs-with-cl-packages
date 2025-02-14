@@ -1,5 +1,5 @@
 ;; -*- lexical-binding: t; symbol-packages: t -*-
-;;; tty-menu.el --- A menu implementation in Lisp
+;;; tty-menu.el --- A tty menu implementation in Lisp
 
 ;; Copyright (C) 2025 Free Software Foundation, Inc.
 
@@ -69,15 +69,9 @@
 ;; One could split menu-items into separator, button, command, and
 ;; sub-menu, but I don't think it's worth it.
 
-;;; Lessons learned:
-
-;; - I used 'cond*' in the beginning, which was okay functionally. I switched
-;;   to 'pcase' because 'cond*' does not support debugging with 'Edebug'.
-;;
-;; - Symbol prefixes like 'cl-' or 'tty-menu-' make writing Lisp a pain
-;;   in the ass, but it's still better than writing C.
-;;
-;; - The existing menu code in Lisp and C could need some cleanup.
+;; Use of slot-value: accessors have to obey naming rules, which means
+;; they should use the `tty-menu-' prefix. That's unreadable and the
+;; reason I prefer with-slots and slot-value.
 
 ;;; Code:
 
