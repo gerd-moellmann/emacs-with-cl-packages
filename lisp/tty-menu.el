@@ -107,7 +107,9 @@
    (selected :initarg :selected :initform nil :type t)
    (binding :initarg :binding :initform nil :type t)
    (key-code :initarg :key-code :initform nil :type t)
-   (pane :initarg :pane :type tty-menu-pane)))
+   (pane :initarg :pane :type tty-menu-pane)
+   (draw-start :initform nil :type (or null number))
+   (draw-end :initform nil :type (or null number))))
 
 (defclass tty-menu-button (tty-menu-item) ())
 (defclass tty-menu-radio (tty-menu-button) ())
@@ -341,13 +343,15 @@
 			  and collect (tty-menu-selectable-p i))))
 	    (tty-menu-try-place-point selectable old-line))))))
   ( :method :around ((item tty-menu-item) pane)
-    (let ((start (point)))
+    (with-slots (draw-start draw-end) item
+      (setf draw-start (point))
       (insert (format tty-menu-left-border-format ""))
       (cl-call-next-method)
       (insert (format tty-menu-right-border-format ""))
       (tty-menu-draw-finish item pane)
       (insert ?\n)
-      (put-text-property start (point) 'tty-menu-item item)))
+      (setf draw-end (point))
+      (put-text-property draw-start draw-end 'tty-menu-item item)))
   ( :method ((item tty-menu-item) pane)
     (tty-menu-draw-button item pane)
     (tty-menu-draw-name item pane)
@@ -796,10 +800,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "<down>" #'tty-menu-next-item
   "<left>" #'tty-menu-close
   "<right>" #'tty-menu-open
-  "b" #'tty-menu-close
-  "f" #'tty-menu-open
-  "n" #'tty-menu-next-item
-  "p" #'tty-menu-previous-item
   "C-b" #'tty-menu-close
   "C-f" #'tty-menu-open
   "C-g" #'keyboard-quit
@@ -889,6 +889,17 @@ buffer, and HEIGHT is the number of lines in the buffer. "
        (cl-destructuring-bind (x . y) (posn-x-y posn)
          (tty-menu-position (list (cons (- x 3) y) win)))))))
 
+(defun tty-menu-select-item-by-name ()
+  (when-let* ((key (this-command-keys))
+              ((stringp key))
+              (pane tty-menu-pane-drawn)
+              (items (slot-value pane 'items)))
+    (cl-loop for i in items
+             for name = (slot-value i 'name)
+             when (string-prefix-p key name t)
+             do (goto-char (slot-value i 'draw-start))
+             and return t)))
+
 (defun tty-menu-loop-1 (keymap where invoking-item)
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
     (unwind-protect
@@ -904,6 +915,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		       (let* ((track-mouse t)
 			      (key (read-key-sequence nil))
 			      (cmd (lookup-key tty-menu-keymap key)))
+                         ;; Entering a character that is self-inserting
+                         ;; in global-map, searches for a menu-item
+                         ;; beginning with that character.
+                         (when-let* (((not (commandp cmd)))
+                                     (cmd (lookup-key global-map key))
+                                     ((eq cmd 'self-insert-command)))
+                           (tty-menu-select-item-by-name))
 			 (when (commandp cmd)
 			   (call-interactively cmd)))))
 	 do
@@ -980,7 +998,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 ;;;###autoload
 (define-minor-mode tty-menu-mode
   "Global minor mode for displaying menus with tty child frames.
-\\{tty-menu-keymap}"
+\\{tty-menu-keymap}
+
+Entering a self-inserting character goes to the first menu-item starting
+with that character."
   :global t :group 'menu
   (unless (display-graphic-p)
     (cond (tty-menu-mode
