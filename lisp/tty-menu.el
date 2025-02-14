@@ -925,12 +925,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 			      (key (read-key-sequence nil))
 			      (cmd (lookup-key tty-menu-keymap key)))
                          ;; Entering a character that is self-inserting
-                         ;; in global-map, searches for a menu-item
+                         ;; in global-map searches for a menu-item
                          ;; beginning with that character.
                          (when-let* (((not (commandp cmd)))
                                      (cmd (lookup-key global-map key))
                                      ((eq cmd 'self-insert-command)))
                            (tty-menu-select-item-by-name))
+                         ;; Otherwise execute a command, if any.
 			 (when (commandp cmd)
 			   (call-interactively cmd)))))
 	 do
