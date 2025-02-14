@@ -110,6 +110,17 @@
 (defclass tty-menu-separator (tty-menu-item)
   ((sep :initform "-" :type string :reader tty-menu-sep)))
 
+;; Dynamically bound to the current buffer when a menu is invoked.
+(defvar tty-menu-updating-buffer)
+
+;; Evaluate FORM in the context of the menu. ATM, the context consists
+;; of the buffer that was current when the menu was invoked. This buffer
+;; must be current when evaluating various things in the menu because of
+;; local variables.
+(defun tty-menu-eval (form)
+  (with-current-buffer tty-menu-updating-buffer
+    (eval form)))
+
 ;; Determine which separator char to use, depending on NAME which is a
 ;; kind of separator type. Value is a string of length 1 for the
 ;; separator char.
@@ -138,7 +149,10 @@
 ;; 0 elements, disable it.
 (cl-defmethod initialize-instance :after ((item tty-menu-item)
                                           &rest)
-  (with-slots (binding enable) item
+  (with-slots (binding filter enable) item
+    (when filter
+      (setf binding (tty-menu-eval `(,filter (',binding)))))
+
     (when (and (keymapp binding)
                (zerop (cl-loop for b being the key-codes of binding
                                count b)))
@@ -166,17 +180,6 @@
 (defvar tty-menu-radio-off "◯")
 (defvar tty-menu-checkbox-on "✔")
 (defvar tty-menu-checkbox-off "□")
-
-;; Dynamically bound to the current buffer when a menu is invoked.
-(defvar tty-menu-updating-buffer)
-
-;; Evaluate FORM in the context of the menu. ATM, the context consists
-;; of the buffer that was current when the menu was invoked. This buffer
-;; must be current when evaluating various things in the menu because of
-;; local variables.
-(defun tty-menu-eval (form)
-  (with-current-buffer tty-menu-updating-buffer
-    (eval form)))
 
 ;; Same as above for invoking commands.
 (defun tty-menu-call-interactively (fn)
