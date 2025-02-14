@@ -151,7 +151,7 @@
                                           &rest)
   (with-slots (binding filter enable) item
     (when filter
-      (setf binding (tty-menu-eval `(,filter (',binding)))))
+      (setf binding (tty-menu-eval (list filter (list 'quote binding)))))
     (when (and (keymapp binding)
                (zerop (cl-loop for b being the key-codes of binding
                                count b)))
