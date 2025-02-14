@@ -652,7 +652,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((item (get-text-property (point) 'tty-menu-item)))
     (tty-menu-select-item item 'key)))
 
-(defun tty-menu-next-line ()
+(defun tty-menu-next-item ()
   "Move to next selectable line in menu."
   (interactive)
   (cl-loop for next = (next-single-property-change (point) 'tty-menu-item)
@@ -662,7 +662,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   until (tty-menu-selectable-p item)
 	   finally (when next (goto-char next))))
 
-(defun tty-menu-previous-line ()
+(defun tty-menu-previous-item ()
   "Move to previous selectable line in menu."
   (interactive)
   (cl-loop for prev = (previous-single-property-change
@@ -741,7 +741,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (cl-destructuring-bind (_ _ x0 _) (nth index layout)
       (throw 'tty-menu-final-item-selected `(menu-bar ,x0 0)))))
 
-(defun tty-menu-key-select-item-if-subpane ()
+(defun tty-menu-open ()
   "Select a menu-item with <right> if it is for a sub-menu."
   (interactive)
   (when-let* ((item (get-text-property (point) 'tty-menu-item)))
@@ -750,7 +750,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	(tty-menu-select-item item 'key))))
   (tty-menu-move-in-menu-bar nil))
 
-(defun tty-menu-close-pane ()
+(defun tty-menu-close ()
   "Close current menu pane with <left>."
   (interactive)
   (when-let* ((item (get-text-property (point) 'tty-menu-item))
@@ -788,24 +788,24 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-close-on-click (_event)
   "Close one menu-pane."
   (interactive "e")
-  (tty-menu-close-pane))
+  (tty-menu-close))
 
 (defvar-keymap tty-menu-keymap
   :doc "Keymap for menu interaction."
-  "<up>" #'tty-menu-previous-line
-  "<down>" #'tty-menu-next-line
-  "<left>" #'tty-menu-close-pane
-  "<right>" #'tty-menu-key-select-item-if-subpane
-  "b" #'tty-menu-close-pane
-  "f" #'tty-menu-key-select-item-if-subpane
-  "n" #'tty-menu-next-line
-  "p" #'tty-menu-previous-line
-  "C-b" #'tty-menu-close-pane
-  "C-f" #'tty-menu-key-select-item-if-subpane
+  "<up>" #'tty-menu-previous-item
+  "<down>" #'tty-menu-next-item
+  "<left>" #'tty-menu-close
+  "<right>" #'tty-menu-open
+  "b" #'tty-menu-close
+  "f" #'tty-menu-open
+  "n" #'tty-menu-next-item
+  "p" #'tty-menu-previous-item
+  "C-b" #'tty-menu-close
+  "C-f" #'tty-menu-open
   "C-g" #'keyboard-quit
   "C-j" #'tty-menu-key-select-item
-  "C-n" #'tty-menu-next-line
-  "C-p" #'tty-menu-previous-line
+  "C-n" #'tty-menu-next-item
+  "C-p" #'tty-menu-previous-item
   "C-r" #'tty-menu-isearch-backward
   "C-s" #'tty-menu-isearch-forward
   "RET" #'tty-menu-key-select-item
