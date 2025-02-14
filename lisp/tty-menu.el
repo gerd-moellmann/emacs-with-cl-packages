@@ -914,12 +914,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
         (progn
           (when focus
             (select-frame-set-input-focus frame))
-	  ;; Inner loop handling mouse movement over the pane, moving with
-	  ;; the keyboard on the pane. The loop is left by a throw when a
-	  ;; menu-item is selected.
 	  (cl-loop
            named outer-loop while t for res =
            (catch 'tty-menu-item-selected
+             ;; Loop until a command wants to leave this loop by
+             ;; throwing 'tty-menu-item-selected.
 	     (while t
 	       (tty-menu-show-selected-item)
 	       (let* ((track-mouse t)
@@ -932,12 +931,17 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                              (cmd (lookup-key global-map key))
                              ((eq cmd 'self-insert-command)))
                    (tty-menu-select-item-by-name))
+
                  ;; Otherwise execute a command, if any.
+                 ;; This is for toggling buttons, moving on
+                 ;; the menu and so on.
 		 (when (commandp cmd)
 		   (call-interactively cmd)))))
 	   do
-	   ;; If the selected item was for a sub-pane, call ourselves
-	   ;; recursively with the sub-pane.
+           ;; Some menu-item action wants to do something outside of the
+           ;; immer loop above. If the action was for opening a
+           ;; sub-menu, call ourselves recursively with the sub-pane.
+           ;; Otherwise leave the outer-loop, closing this menu.
 	   (pcase-exhaustive res
              (`(,selected . ,(and (pred symbolp) how))
 	      (with-slots (binding) selected
@@ -948,6 +952,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		  (cl-return-from outer-loop selected))))
              ('nil
 	      (cl-return-from outer-loop nil)))))
+
+      ;; Make sure to alwaysdelete frame and buffer for this menu.
       (tty-menu-delete-frame frame))))
 
 (defun tty-menu-loop (keymap where)
