@@ -588,7 +588,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	(tty-menu-make-fully-visible parent-frame frame x y)
 	(make-frame-visible frame)
 	(raise-frame frame)
-	(select-frame-set-input-focus frame)
 	frame))))
 
 (defun tty-menu-delete-frame (frame)
@@ -909,9 +908,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                do (goto-char (slot-value item 'draw-start))
                and return t))))
 
-(defun tty-menu-loop-1 (keymap where invoking-item)
+(cl-defun tty-menu-loop-1 (keymap where &key invoking-item (focus t))
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
     (unwind-protect
+        (when focus
+	  (select-frame-set-input-focus frame))
 	;; Inner loop handling mouse movement over the pane, moving with
 	;; the keyboard on the pane. The loop is left by a throw when a
 	;; menu-item is selected.
@@ -941,7 +942,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
            (`(,selected . ,(and (pred symbolp) how))
 	    (with-slots (binding) selected
 	      (if (keymapp binding)
-		  (tty-menu-loop-1 binding (tty-menu-where how) selected)
+		  (tty-menu-loop-1 binding (tty-menu-where how)
+                                   :invoking-item selected
+                                   :focus t)
 		(cl-return-from outer-loop selected))))
            ('nil
 	    (cl-return-from outer-loop nil))))
@@ -950,7 +953,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-loop (keymap where)
   (let ((res (catch 'tty-menu-final-item-selected
                (save-selected-window
-                 (tty-menu-loop-1 keymap where nil)))))
+                 (tty-menu-loop-1 keymap where :focus t)))))
     (pcase-exhaustive res
       ('nil nil)
       (`(menu-bar ,x ,y) (cons x y))
