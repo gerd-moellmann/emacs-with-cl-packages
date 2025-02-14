@@ -786,6 +786,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "<down>" #'tty-menu-next-line
   "<left>" #'tty-menu-close-pane
   "<right>" #'tty-menu-key-select-item-if-subpane
+  "b" #'tty-menu-close-pane
+  "f" #'tty-menu-key-select-item-if-subpane
+  "n" #'tty-menu-next-line
+  "p" #'tty-menu-previous-line
   "C-b" #'tty-menu-close-pane
   "C-f" #'tty-menu-key-select-item-if-subpane
   "C-g" #'keyboard-quit
