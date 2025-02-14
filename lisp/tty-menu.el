@@ -1001,7 +1001,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (define-minor-mode tty-menu-mode
   "Global minor mode for displaying menus with tty child frames.
 \\{tty-menu-keymap}
-
 Entering a self-inserting character goes to the first menu-item starting
 with that character."
   :global t :group 'menu
