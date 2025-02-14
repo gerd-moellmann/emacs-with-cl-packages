@@ -911,43 +911,43 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (cl-defun tty-menu-loop-1 (keymap where &key invoking-item (focus t))
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
     (unwind-protect
-        (when focus
-	  (select-frame-set-input-focus frame))
-	;; Inner loop handling mouse movement over the pane, moving with
-	;; the keyboard on the pane. The loop is left by a throw when a
-	;; menu-item is selected.
-	(cl-loop
-         named outer-loop
-	 while t
-	 for res = (catch 'tty-menu-item-selected
-		     (while t
-		       (tty-menu-show-selected-item)
-		       (let* ((track-mouse t)
-			      (key (read-key-sequence nil))
-			      (cmd (lookup-key tty-menu-keymap key)))
-                         ;; Entering a character that is self-inserting
-                         ;; in global-map searches for a menu-item
-                         ;; beginning with that character.
-                         (when-let* (((not (commandp cmd)))
-                                     (cmd (lookup-key global-map key))
-                                     ((eq cmd 'self-insert-command)))
-                           (tty-menu-select-item-by-name))
-                         ;; Otherwise execute a command, if any.
-			 (when (commandp cmd)
-			   (call-interactively cmd)))))
-	 do
-	 ;; If the selected item was for a sub-pane, call ourselves
-	 ;; recursively with the sub-pane.
-	 (pcase-exhaustive res
-           (`(,selected . ,(and (pred symbolp) how))
-	    (with-slots (binding) selected
-	      (if (keymapp binding)
-		  (tty-menu-loop-1 binding (tty-menu-where how)
-                                   :invoking-item selected
-                                   :focus t)
-		(cl-return-from outer-loop selected))))
-           ('nil
-	    (cl-return-from outer-loop nil))))
+        (progn
+          (when focus
+            (select-frame-set-input-focus frame))
+	  ;; Inner loop handling mouse movement over the pane, moving with
+	  ;; the keyboard on the pane. The loop is left by a throw when a
+	  ;; menu-item is selected.
+	  (cl-loop
+           named outer-loop while t for res =
+           (catch 'tty-menu-item-selected
+	     (while t
+	       (tty-menu-show-selected-item)
+	       (let* ((track-mouse t)
+		      (key (read-key-sequence nil))
+		      (cmd (lookup-key tty-menu-keymap key)))
+                 ;; Entering a character that is self-inserting
+                 ;; in global-map searches for a menu-item
+                 ;; beginning with that character.
+                 (when-let* (((not (commandp cmd)))
+                             (cmd (lookup-key global-map key))
+                             ((eq cmd 'self-insert-command)))
+                   (tty-menu-select-item-by-name))
+                 ;; Otherwise execute a command, if any.
+		 (when (commandp cmd)
+		   (call-interactively cmd)))))
+	   do
+	   ;; If the selected item was for a sub-pane, call ourselves
+	   ;; recursively with the sub-pane.
+	   (pcase-exhaustive res
+             (`(,selected . ,(and (pred symbolp) how))
+	      (with-slots (binding) selected
+	        (if (keymapp binding)
+		    (tty-menu-loop-1 binding (tty-menu-where how)
+                                     :invoking-item selected
+                                     :focus t)
+		  (cl-return-from outer-loop selected))))
+             ('nil
+	      (cl-return-from outer-loop nil)))))
       (tty-menu-delete-frame frame))))
 
 (defun tty-menu-loop (keymap where)
