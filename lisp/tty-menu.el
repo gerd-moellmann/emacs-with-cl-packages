@@ -758,11 +758,15 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-close ()
   "Close current menu pane with <left>."
   (interactive)
+  ;; If this is not a top-level pane, close it.
   (when-let* ((item (get-text-property (point) 'tty-menu-item))
               (pane (slot-value item 'pane))
               ((slot-value pane 'invoking-item)))
     (throw 'tty-menu-item-selected nil))
-  (tty-menu-move-in-menu-bar 'left))
+  ;; If it is a top-level plane, either move left in the menu-bar or
+  ;; close it.
+  (tty-menu-move-in-menu-bar 'left)
+  (throw 'tty-menu-item-selected nil))
 
 (defun tty-menu-isearch (forward)
   "Isearch in a menu, FORWARD t means search forward."
