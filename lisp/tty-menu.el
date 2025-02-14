@@ -162,7 +162,7 @@
 ;; a minimum width.
 (defvar tty-menu-left-border-format "%1s")
 (defvar tty-menu-right-border-format "%1s")
-(defvar tty-menu-button-format "%-4s")
+(defvar tty-menu-button-format "%-2s")
 (defvar tty-menu-key-format "%10s")
 (defvar tty-menu-name-format "%-20s")
 
