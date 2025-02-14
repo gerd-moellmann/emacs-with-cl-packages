@@ -979,7 +979,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 ;;;###autoload
 (define-minor-mode tty-menu-mode
-  "Global minor mode for displaying menus with tty child frames."
+  "Global minor mode for displaying menus with tty child frames.
+\\{tty-menu-keymap}"
   :global t :group 'menu
   (unless (display-graphic-p)
     (cond (tty-menu-mode
