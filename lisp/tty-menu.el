@@ -895,7 +895,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (pane tty-menu-pane-drawn)
               (items (slot-value pane 'items)))
     (cl-loop for i in items
-             for name = (slot-value i 'name)
+             when (and (tty-menu-visible-p i)
+                       (tty-menu-enabled-p i))
+             for name = (string-trim-left (slot-value i 'name))
              when (string-prefix-p key name t)
              do (goto-char (slot-value i 'draw-start))
              and return t)))
