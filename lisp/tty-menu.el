@@ -901,16 +901,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                 (when (and (tty-menu-visible-p i) (tty-menu-enabled-p i))
                   (let ((name (string-trim-left (slot-value i 'name))))
                     (string-prefix-p key name t)))))
-      (unless (cl-loop for n from (1+ pos) below (length items)
-                       for i = (nth n items)
-                       when (matchp i)
-                       do (goto-char (slot-value i 'draw-start))
-                       and return t)
-        (cl-loop for n from 0 below pos
-                 for i = (nth n items)
-                 when (matchp i)
-                 do (goto-char (slot-value i 'draw-start))
-                 and return t)))))
+      (cl-loop with n = (length items)
+               repeat n
+               for i = (mod (1+ pos) n) then (mod (1+ i) n)
+               for item = (nth i items)
+               when (matchp item)
+               do (goto-char (slot-value item 'draw-start))
+               and return t))))
 
 (defun tty-menu-loop-1 (keymap where invoking-item)
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
