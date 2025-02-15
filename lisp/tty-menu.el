@@ -92,6 +92,7 @@ because the actual current selection is in another menu."
 (defclass tty-menu-pane (tty-menu-element)
   ((items :initarg :items :initform nil :type t)
    (buffer :initarg :buffer :type buffer)
+   (frame :initarg :frame :type frame)
    (layout :type list)
    (keymap :initarg :keymap)
    (invoking-item :initarg :invoking-item :type (or null tty-menu-item))
@@ -421,15 +422,15 @@ because the actual current selection is in another menu."
 
 (cl-defgeneric tty-menu-delete (thing)
   ( :method ((pane tty-menu-pane))
-    (with-slots (buffer parent-pane) pane
+    (with-slots (buffer frame parent-pane) pane
       (kill-buffer buffer)
+      (delete-frame frame)
       (when parent-pane
         (setf (slot-value parent-pane 'child-pane) nil))))
   ( :method ((frame frame))
     (let* ((buffer (frame-parameter frame 'tty-menu-buffer))
            (pane (with-current-buffer buffer tty-menu-pane-drawn)))
-      (tty-menu-delete pane)
-      (delete-frame frame))))
+      (tty-menu-delete pane))))
 
 (defun tty-menu-make-element (pane code item)
   (cl-labels ((separator? (name)
@@ -533,11 +534,12 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (format " *tty-menu-%s*" name)
     (generate-new-buffer-name " *tty-menu--")))
 
-(defun tty-menu-make-pane (keymap invoking-item)
+(defun tty-menu-make-pane (keymap invoking-item frame)
   (let ((pane (make-instance
                'tty-menu-pane
                :keymap keymap
                :invoking-item invoking-item
+               :frame frame
 	       :buffer (get-buffer-create
                         (tty-menu-pane-buffer-name keymap)))))
     (cl-loop for binding being the key-bindings of keymap
@@ -629,21 +631,22 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 				(minibuffer . ,minibuffer)
 				,@(tty-menu-frame-parameters))))
 	   (win (frame-root-window frame)))
-      (cl-destructuring-bind (buffer width height)
-          (tty-menu-create-buffer (tty-menu-make-pane keymap invoking-item))
-	(modify-frame-parameters frame `((name . ,(buffer-name buffer))
-				         (tty-menu-buffer . ,buffer)))
-	(set-window-buffer win buffer)
-	(set-window-dedicated-p win t)
-        ;; Don't make the frame absurdly large.
-        (setq height (min height
-			  (round (/ (frame-height parent-frame) 1.6))))
-	(set-frame-size frame width height)
-	(set-frame-position frame x y)
-	(tty-menu-make-fully-visible parent-frame frame x y)
-	(make-frame-visible frame)
-	(raise-frame frame)
-	frame))))
+      (let ((pane (tty-menu-make-pane keymap invoking-item frame)))
+        (cl-destructuring-bind (buffer width height)
+            (tty-menu-create-buffer pane)
+	  (modify-frame-parameters frame `((name . ,(buffer-name buffer))
+				           (tty-menu-buffer . ,buffer)))
+	  (set-window-buffer win buffer)
+	  (set-window-dedicated-p win t)
+          ;; Don't make the frame absurdly large.
+          (setq height (min height
+			    (round (/ (frame-height parent-frame) 1.6))))
+	  (set-frame-size frame width height)
+	  (set-frame-position frame x y)
+	  (tty-menu-make-fully-visible parent-frame frame x y)
+	  (make-frame-visible frame)
+	  (raise-frame frame)
+	  frame)))))
 
 ;; Debugging aid. Delete all menu frames. Don't delete the buffers, we
 ;; might want to inspect them.
