@@ -688,7 +688,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
-              ((eq win (selected-window)))
               (item (mouse-posn-property end 'tty-menu-item))
 	      ((tty-menu-selectable-p item)))
     (tty-menu-select item 'mouse)))
