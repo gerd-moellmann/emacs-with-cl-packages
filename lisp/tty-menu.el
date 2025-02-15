@@ -628,7 +628,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	     when (string-prefix-p " *tty-menu-" (frame-name frame))
 	     do (delete-frame frame))))
 
-(defun tty-menu-mouse-moved (event)
+(defun tty-menu-cmd-mouse-moved (event)
   (interactive "e")
   ;; If we moved the mouse in the menu-bar, and we are displaying a menu
   ;; for a menu-bar, and the menu-bar item moved to is different from
@@ -657,7 +657,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (goto-char (posn-point end))
     item))
 
-(defun tty-menu-mouse-select-item (event)
+(defun tty-menu-cmd-mouse-select-item (event)
   (interactive "e")
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
@@ -668,13 +668,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (goto-char (posn-point end))
     (tty-menu-select-item item 'mouse)))
 
-(defun tty-menu-key-select-item ()
+(defun tty-menu-cmd-key-select-item ()
   "Select a menu-item with with RET or SPC."
   (interactive)
   (when-let* ((item (get-text-property (point) 'tty-menu-item)))
     (tty-menu-select-item item 'key)))
 
-(defun tty-menu-next-item ()
+(defun tty-menu-cmd-next-item ()
   "Move to next selectable line in menu."
   (interactive)
   (cl-loop for next = (next-single-property-change (point) 'tty-menu-item)
@@ -684,7 +684,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   until (tty-menu-selectable-p item)
 	   finally (when next (goto-char next))))
 
-(defun tty-menu-previous-item ()
+(defun tty-menu-cmd-previous-item ()
   "Move to previous selectable line in menu."
   (interactive)
   (cl-loop for prev = (previous-single-property-change
@@ -763,7 +763,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (cl-destructuring-bind (_ _ x0 _) (nth index layout)
       (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
 
-(defun tty-menu-open ()
+(defun tty-menu-cmd-open ()
   "Select a menu-item with <right> if it is for a sub-menu."
   (interactive)
   (when-let* ((item (get-text-property (point) 'tty-menu-item)))
@@ -772,7 +772,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	(tty-menu-select-item item 'key))))
   (tty-menu-move-in-menu-bar nil))
 
-(defun tty-menu-close ()
+(defun tty-menu-cmd-close ()
   "Close current menu pane with <left>."
   (interactive)
   ;; If this is not a top-level pane, close it.
@@ -796,49 +796,49 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	    (isearch-printing-char (aref key 0))
 	  (call-interactively cmd))))))
 
-(defun tty-menu-isearch-forward ()
+(defun tty-menu-cmd-isearch-forward ()
   "Isearch forward in a menu."
   (interactive)
   (tty-menu-isearch t))
 
-(defun tty-menu-isearch-backward ()
+(defun tty-menu-cmd-isearch-backward ()
   "Isearch backward in a menu."
   (interactive)
   (tty-menu-isearch nil))
 
-(defun tty-menu-menu-bar-click (_event)
+(defun tty-menu-cmd-menu-bar-click (_event)
   "Handle click in a menu-bar while a menu is open."
   (interactive "e")
   (throw 'tty-menu-leave nil))
 
-(defun tty-menu-close-on-click (_event)
+(defun tty-menu-cmd-close-on-click (_event)
   "Close one menu-pane."
   (interactive "e")
-  (tty-menu-close))
+  (tty-menu-cmd-close))
 
 (defvar-keymap tty-menu-keymap
   :doc "Keymap for menu interaction."
-  "<up>" #'tty-menu-previous-item
-  "<down>" #'tty-menu-next-item
-  "<left>" #'tty-menu-close
-  "<right>" #'tty-menu-open
-  "C-b" #'tty-menu-close
-  "C-f" #'tty-menu-open
+  "<up>" #'tty-menu-cmd-previous-item
+  "<down>" #'tty-menu-cmd-next-item
+  "<left>" #'tty-menu-cmd-close
+  "<right>" #'tty-menu-cmd-open
+  "C-b" #'tty-menu-cmd-close
+  "C-f" #'tty-menu-cmd-open
   "C-g" #'keyboard-quit
-  "C-j" #'tty-menu-key-select-item
-  "C-n" #'tty-menu-next-item
-  "C-p" #'tty-menu-previous-item
-  "C-r" #'tty-menu-isearch-backward
-  "C-s" #'tty-menu-isearch-forward
-  "RET" #'tty-menu-key-select-item
-  "SPC" #'tty-menu-key-select-item
-  "<return>" #'tty-menu-key-select-item
-  "<mouse-movement>" #'tty-menu-mouse-moved
-  "<menu-bar> <mouse-1>" #'tty-menu-menu-bar-click
-  "<tab-bar> <mouse-1>" #'tty-menu-close-on-click
-  "<vertical-line> <mouse-1>" #'tty-menu-close-on-click
-  "<mode-line> <mouse-1>" #'tty-menu-close-on-click
-  "<mouse-1>" #'tty-menu-mouse-select-item)
+  "C-j" #'tty-menu-cmd-key-select-item
+  "C-n" #'tty-menu-cmd-next-item
+  "C-p" #'tty-menu-cmd-previous-item
+  "C-r" #'tty-menu-cmd-isearch-backward
+  "C-s" #'tty-menu-cmd-isearch-forward
+  "RET" #'tty-menu-cmd-key-select-item
+  "SPC" #'tty-menu-cmd-key-select-item
+  "<return>" #'tty-menu-cmd-key-select-item
+  "<mouse-movement>" #'tty-menu-cmd-mouse-moved
+  "<menu-bar> <mouse-1>" #'tty-menu-cmd-menu-bar-click
+  "<tab-bar> <mouse-1>" #'tty-menu-cmd-close-on-click
+  "<vertical-line> <mouse-1>" #'tty-menu-cmd-close-on-click
+  "<mode-line> <mouse-1>" #'tty-menu-cmd-close-on-click
+  "<mouse-1>" #'tty-menu-cmd-mouse-select-item)
 
 (defun tty-menu-show-selected-item ()
   (unless tty-menu-selection-ov
