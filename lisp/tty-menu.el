@@ -991,24 +991,46 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when item
     (tty-menu-delete (slot-value item 'pane))))
 
+(defun tty-menu-selected-item ()
+  (slot-value tty-menu-pane-drawn 'selected-item))
+
+(defvar tty-menu-open-sub-menus-on-selection t)
+
+(defun tty-menu-open-sub-menus-on-selection (previous-selected selected)
+  (message "sel %S -> %S"
+           (when previous-selected
+             (slot-value previous-selected 'name))
+           (when selected
+             (slot-value selected 'name)))
+  (when selected
+    (when (keymapp (slot-value selected 'binding))
+      (throw 'tty-menu-leave (cons selected 'key)))))
+
 (defun tty-menu-command-loop ()
   (catch 'tty-menu-leave
-    (while t
-      (let* ((track-mouse t)
-	     (key (read-key-sequence nil))
-	     (cmd (lookup-key tty-menu-keymap key)))
-        ;; Entering a character that is self-inserting
-        ;; in global-map searches for a menu-item
-        ;; beginning with that character.
-        (when-let* (((not (commandp cmd)))
-                    (cmd (lookup-key global-map key))
-                    ((eq cmd 'self-insert-command)))
-          (tty-menu-select-item-by-name))
-        ;; Otherwise execute a command, if any.
-        ;; This is for toggling buttons, moving on
-        ;; the menu and so on.
-	(when (commandp cmd)
-	  (call-interactively cmd))))))
+    (let ((previous-selected (tty-menu-selected-item)))
+      (while t
+        (when tty-menu-open-sub-menus-on-selection
+          (let* ((selected (tty-menu-selected-item)))
+            (unless (eq selected previous-selected)
+              (tty-menu-open-sub-menus-on-selection previous-selected selected)
+              (setq previous-selected selected))))
+
+        (let* ((track-mouse t)
+	       (key (read-key-sequence nil))
+	       (cmd (lookup-key tty-menu-keymap key)))
+          ;; Entering a character that is self-inserting
+          ;; in global-map searches for a menu-item
+          ;; beginning with that character.
+          (when-let* (((not (commandp cmd)))
+                      (cmd (lookup-key global-map key))
+                      ((eq cmd 'self-insert-command)))
+            (tty-menu-select-item-by-name))
+          ;; Otherwise execute a command, if any.
+          ;; This is for toggling buttons, moving on
+          ;; the menu and so on.
+	  (when (commandp cmd)
+	    (call-interactively cmd)))))))
 
 (defun tty-menu-after-command-loop (res frame)
   (pcase-exhaustive res
