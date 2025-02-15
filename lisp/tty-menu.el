@@ -77,6 +77,16 @@
 
 (require 'cl-lib)
 
+(defface tty-menu-hint-selected-face
+  '((((class color))
+      :background "gray10")
+    (t :inverse-video t))
+  "Face for displaying a hint a menu item is selected.
+This face is used when we don't want to use `tty-menu-selected-face'
+because the actual current selection is in another menu."
+  :group 'basic-faces
+  :version "31.1")
+
 (defclass tty-menu-element () ())
 
 (defclass tty-menu-pane (tty-menu-element)
