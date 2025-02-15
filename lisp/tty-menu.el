@@ -668,10 +668,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (goto-char (posn-point end))
     (tty-menu-select-item item 'mouse)))
 
+(defun tty-menu-item-at (pos)
+  (get-text-property pos 'tty-menu-item))
+
 (defun tty-menu-cmd-key-select-item ()
   "Select a menu-item with with RET or SPC."
   (interactive)
-  (when-let* ((item (get-text-property (point) 'tty-menu-item)))
+  (when-let* ((item (tty-menu-item-at (point))))
     (tty-menu-select-item item 'key)))
 
 (defun tty-menu-cmd-next-item ()
@@ -680,7 +683,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (cl-loop for next = (next-single-property-change (point) 'tty-menu-item)
 	   then (next-single-property-change next 'tty-menu-item)
 	   while next
-	   for item = (get-text-property next 'tty-menu-item)
+	   for item = (tty-menu-item-at next)
 	   until (tty-menu-selectable-p item)
 	   finally (when next (goto-char next))))
 
@@ -692,7 +695,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   then (previous-single-property-change
 		 prev 'tty-menu-item nil (point-min))
 	   while prev
-	   for item = (get-text-property prev 'tty-menu-item)
+	   for item = (tty-menu-item-at prev)
 	   if (tty-menu-selectable-p item) do (goto-char prev) and return t
 	   else if (eq prev (point-min)) return t))
 
@@ -747,7 +750,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-move-in-menu-bar (move-left)
   (when-let* (((not (null tty-menu-from-menu-bar)))
-              (item (get-text-property (point) 'tty-menu-item))
+              (item (tty-menu-item-at (point)))
               (pane (tty-menu-root-pane item))
               (layout (tty-menu-bar-layout tty-menu-updating-buffer))
               (index (tty-menu-bar-find-pane layout pane))
@@ -766,7 +769,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-cmd-open ()
   "Select a menu-item with <right> if it is for a sub-menu."
   (interactive)
-  (when-let* ((item (get-text-property (point) 'tty-menu-item)))
+  (when-let* ((item (tty-menu-item-at (point))))
     (with-slots (binding) item
       (when (keymapp binding)
 	(tty-menu-select-item item 'key))))
@@ -776,7 +779,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "Close current menu pane with <left>."
   (interactive)
   ;; If this is not a top-level pane, close it.
-  (when-let* ((item (get-text-property (point) 'tty-menu-item))
+  (when-let* ((item (tty-menu-item-at (point)))
               (pane (slot-value item 'pane))
               ((slot-value pane 'invoking-item)))
     (throw 'tty-menu-leave nil))
@@ -916,7 +919,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               ((stringp key))
               (pane tty-menu-pane-drawn)
               (items (slot-value pane 'items))
-              (current (get-text-property (point) 'tty-menu-item))
+              (current (tty-menu-item-at (point)))
               (pos (cl-position current items)))
     (cl-flet ((matchp (i)
                 (when (and (tty-menu-visible-p i) (tty-menu-enabled-p i))
