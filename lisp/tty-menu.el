@@ -389,8 +389,8 @@ because the actual current selection is in another menu."
     (when-let* ((enabled (tty-menu-enabled-p item)))
       (with-slots (binding) item
         (if (keymapp binding)
-            (throw 'tty-menu-item-selected (cons item how))
-          (throw 'tty-menu-final-item-selected (cons item how))))))
+            (throw 'tty-menu-leave (cons item how))
+          (throw 'tty-menu-to-top-level (cons item how))))))
   ( :method ((_item tty-menu-separator) _))
   ( :method ((item tty-menu-button) _)
     (with-slots (binding) item
@@ -647,7 +647,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                   ((and new (not (eq old new))))
                   (start-x (cdr (menu-bar-item-at-x x))))
           (setq tty-menu-from-menu-bar (posn-x-y (event-end event)))
-          (throw 'tty-menu-final-item-selected `(menu-bar ,start-x ,y))))))
+          (throw 'tty-menu-to-top-level `(menu-bar ,start-x ,y))))))
 
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
@@ -662,7 +662,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
               ((or (eq win (selected-window))
-                   (throw 'tty-menu-item-selected nil)))
+                   (throw 'tty-menu-leave nil)))
               (item (mouse-posn-property end 'tty-menu-item))
 	      ((tty-menu-selectable-p item)))
     (goto-char (posn-point end))
@@ -761,7 +761,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
            (when (>= index n)
              (setq index 0))))
     (cl-destructuring-bind (_ _ x0 _) (nth index layout)
-      (throw 'tty-menu-final-item-selected `(menu-bar ,x0 0)))))
+      (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
 
 (defun tty-menu-open ()
   "Select a menu-item with <right> if it is for a sub-menu."
@@ -779,11 +779,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((item (get-text-property (point) 'tty-menu-item))
               (pane (slot-value item 'pane))
               ((slot-value pane 'invoking-item)))
-    (throw 'tty-menu-item-selected nil))
+    (throw 'tty-menu-leave nil))
   ;; If it is a top-level plane, either move left in the menu-bar or
   ;; close it.
   (tty-menu-move-in-menu-bar 'left)
-  (throw 'tty-menu-item-selected nil))
+  (throw 'tty-menu-leave nil))
 
 (defun tty-menu-isearch (forward)
   "Isearch in a menu, FORWARD t means search forward."
@@ -809,7 +809,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-menu-bar-click (_event)
   "Handle click in a menu-bar while a menu is open."
   (interactive "e")
-  (throw 'tty-menu-item-selected nil))
+  (throw 'tty-menu-leave nil))
 
 (defun tty-menu-close-on-click (_event)
   "Close one menu-pane."
@@ -938,9 +938,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
             (select-frame-set-input-focus frame))
 	  (cl-loop
            named outer-loop while t for res =
-           (catch 'tty-menu-item-selected
+           (catch 'tty-menu-leave
              ;; Loop until a command wants to leave this loop by
-             ;; throwing 'tty-menu-item-selected.
+             ;; throwing 'tty-menu-leave.
 	     (while t
 	       (tty-menu-show-selected-item)
 	       (let* ((track-mouse t)
@@ -979,7 +979,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (tty-menu-delete-frame frame))))
 
 (defun tty-menu-loop (keymap where)
-  (let ((res (catch 'tty-menu-final-item-selected
+  (let ((res (catch 'tty-menu-to-top-level
                (save-selected-window
                  (tty-menu-loop-1 keymap where :focus t)))))
     (pcase-exhaustive res
