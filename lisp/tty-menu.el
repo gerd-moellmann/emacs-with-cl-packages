@@ -987,24 +987,57 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (open (slot-value pane 'child-pane)))
     (slot-value open 'invoking-item)))
 
-(defun tty-menu-close-child (item)
-  (when item
-    (tty-menu-delete (slot-value item 'pane))))
-
 (defun tty-menu-selected-item ()
   (slot-value tty-menu-pane-drawn 'selected-item))
 
 (defvar tty-menu-open-sub-menus-on-selection t)
 
-(defun tty-menu-open-sub-menus-on-selection (previous-selected selected)
+(defun tty-menu-open-sub-menus-on-selection (previous selected)
   (message "sel %S -> %S"
-           (when previous-selected
-             (slot-value previous-selected 'name))
+           (when previous
+             (slot-value previous 'name))
            (when selected
              (slot-value selected 'name)))
-  (when selected
-    (when (keymapp (slot-value selected 'binding))
-      (throw 'tty-menu-leave (cons selected 'key)))))
+  (let ((prev (and previous (slot-value previous 'binding)))
+        (sel (and selected (slot-value selected 'binding))))
+    (pcase-exhaustive (cons prev sel)
+      ;; nil -> nil
+      (`(nil . nil))
+
+      ;; nil -> command
+      (`(nil . ,(pred commandp _)))
+
+      ;; nil -> keymap
+      (`(nil . ,(pred keymapp _))
+       (throw 'tty-menu-leave (cons selected 'key)))
+
+      ;; command -> nil
+      (`(,(pred commandp _) . nil) nil)
+
+      ;; command -> command
+      (`(,(pred commandp _) . ,(pred commandp _)))
+
+      ;; command -> keymap
+      (`(,(pred commandp _) . ,(pred keymapp _))
+       (throw 'tty-menu-leave (cons selected 'key)))
+
+      ;; keymap -> nil
+      (`(,(pred keymapp _) . nil)
+       (throw 'tty-menu-leave 'close-sub-menu))
+
+      ;; keymap -> command
+      (`(,(pred keymapp _) . ,(pred commandp _))
+       (throw 'tty-menu-leave 'close-sub-menu))
+
+      ;; keymap -> keymap
+      (`(,(pred keymapp _) . ,(pred keymapp _))
+       (throw 'tty-menu-leave (cons selected 'key))))))
+
+;;
+;;
+;;  (when selected
+;;    (when (keymapp (slot-value selected 'binding))
+;;      (throw 'tty-menu-leave (>cons selected 'key)))))
 
 (defun tty-menu-command-loop ()
   (catch 'tty-menu-leave
@@ -1056,7 +1089,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                                     (tty-menu-where selected how)
                                     selected)))))
         (t (throw 'tty-menu-item-close selected)))))
-    ('nil (throw 'tty-menu-item-close nil))))
+    (`close-sub-menu
+     (when-let* ((child (slot-value tty-menu-pane-drawn 'child-pane)))
+       (tty-menu-delete child)))
+    ('nil
+     (throw 'tty-menu-item-close nil))))
 
 (cl-defun tty-menu-loop-1 (keymap where &key invoking-item (focus t))
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
