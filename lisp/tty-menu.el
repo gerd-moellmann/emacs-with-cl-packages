@@ -20,9 +20,6 @@
 
 ;;; Todo
 
-;; Open a sub-menu by moving the selection into the menu-item for the
-;; sub-menu.  Close it by moving the selection out.
-
 ;; Make cursor invisible somehow (is cursor-type not supposed to work?)
 
 ;;; Commentary:
