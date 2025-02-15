@@ -373,6 +373,17 @@ because the actual current selection is in another menu."
 ;; The tty-menu-pane drawn in a buffer.
 (defvar-local tty-menu-pane-drawn nil)
 
+(cl-defgeneric tty-menu-add (pane item)
+  ( :method ((pane tty-menu-pane) (item tty-menu-item))
+    (with-slots (items) pane
+      (let ((last (last items)))
+        (when last
+          (setf (slot-value (car last) 'next-item) item))
+        (setf (slot-value item 'prev-item) (car last))
+        (if last
+            (setf (cdr last) (list item))
+          (setf items (list item)))))))
+
 (cl-defgeneric tty-menu-select-item (item how)
   ( :method ((item tty-menu-item) how)
     (when-let* ((enabled (tty-menu-enabled-p item)))
@@ -496,17 +507,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                :invoking-item invoking-item
 	       :buffer (get-buffer-create
                         (tty-menu-pane-buffer-name keymap)))))
-    (with-slots (items) pane
-      (setq items
-            (cl-loop
-             with prev = nil
-             for binding being the key-bindings of keymap
+    (cl-loop for binding being the key-bindings of keymap
              using (key-codes code)
              for i = (tty-menu-make-element pane code binding)
-             when prev do (setf (slot-value prev 'next-item) i)
-             do (setf (slot-value i 'prev-item) prev)
-             do (setf prev i)
-             collect i)))
+             do (tty-menu-add pane i))
     pane))
 
 (defvar tty-menu-frame-parameters
