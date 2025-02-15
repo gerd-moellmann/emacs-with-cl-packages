@@ -165,6 +165,8 @@ because the actual current selection is in another menu."
   (with-slots (binding filter enable) item
     (when filter
       (setf binding (tty-menu-eval `(,filter (quote ,binding)))))
+    (when (symbolp binding)
+      (setf binding (indirect-function binding)))
     (when (and (keymapp binding)
                (zerop (cl-loop for b being the key-codes of binding
                                count b)))
